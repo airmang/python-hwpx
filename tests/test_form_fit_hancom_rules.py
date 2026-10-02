@@ -488,6 +488,30 @@ def test_a_cell_holds_lines_up_to_its_stored_height() -> None:
     assert budgets == [1, 2, 2]
 
 
+@pytest.mark.parametrize(
+    ("fixture", "row", "column", "width"),
+    [
+        ("pages_table_column_as_wide_as_its_widest_cell", 0, 1, 32000),  # 30000 in a column of 30000, 32000,
+                                                                          # 31000
+        ("pages_table_columns_stacked_from_the_left", 0, 1, 30500),  # 30000 after 8000, 30500 after 7683 below
+        ("pages_table_merged_cell_widening_its_last_column", 0, 2, 21000),  # 20000 after 10000 under a cell
+                                                                             # merged over both, 31000
+    ],
+)
+def test_a_cell_slot_is_as_wide_as_its_columns_on_the_table_grid(fixture: str, row: int, column: int,
+                                                                  width: int) -> None:
+    # Hancom laid these cells' lines out at the width of their columns on the table grid, not their own
+    # hp:cellSz: the slot is measured there too, as wide as Hancom's lines (within its rounding of the margins).
+    doc = HwpxDocument.open((Path(__file__).parent / "fixtures" / "hancom_saved" / f"{fixture}.hwpx").read_bytes())
+    table = next(table for paragraph in doc.paragraphs for table in paragraph.tables)
+    cell = table.cell(row, column)
+    slot = resolve_slot_metrics(cell, doc, safety=1.0)
+    segment = cell.element.find(f"{HP}subList/{HP}p/{HP}linesegarray/{HP}lineseg")
+
+    assert slot.raw_width == width
+    assert abs(slot.available_width - int(segment.get("horzsize"))) <= 2
+
+
 def test_each_line_spacing_type_advances_a_line_as_hancom_does() -> None:
     def pitch(kind: str, value: float) -> float:
         return SlotMetrics(available_width=5000.0, font_pt=10.0, line_spacing=(kind, value)).line_height()
