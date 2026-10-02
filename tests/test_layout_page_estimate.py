@@ -107,6 +107,13 @@ HANCOM_PAGES = {
     "pages_table_row_split_every_first_line_fitting": 2,  # room for both: split after two 8 pt lines
     "pages_table_flow_starts_next_page": 2,  # its first row does not fit: the text goes on under the anchor
     "pages_table_flow_starts_next_page_long": 4,  # the same over two pages: text resumes under the table
+    "pages_table_cell_first_paragraph_spaced_before": 1,  # six lines spaced 900 before in a cell declared 1000
+                                                         # tall: the row as tall as the spacing, lines, margins
+    "pages_table_cell_two_paragraphs_spaced_before": 1,  # 900 before three lines, 600 before three more
+    "pages_table_as_character_cell_first_paragraph_spaced_before": 1,  # in a table set as a character
+    "pages_table_cell_first_paragraph_spaced_before_over_two_pages": 2,  # 60 lines split between lines: the
+                                                                        # part on the next page not spaced
+    "pages_table_cells_first_paragraphs_spaced_before_row_by_row": 3,  # three rows of 25, each spaced
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
