@@ -464,6 +464,13 @@ class _Measure:
         style = self._root.char_property(char_pr_id)
         return int(style.attributes.get("height", 1000)) if style is not None else 1000
 
+    def headed(self, paragraph: Any) -> bool:
+        """Whether Hancom heads *paragraph* with a bullet or number label."""
+
+        if self._drawn is None:
+            self._drawn = _drawn_labels(self._root)
+        return bool(self._drawn.get(paragraph))
+
     def style(self, para_pr_id: Any, char_pr_ids: list[Any], paragraph: Any = None) -> Any:
         """FormFit's text style of a paragraph shape and its characters; with *paragraph*, a number's label
         takes the room of the label Hancom draws for that paragraph."""
@@ -615,17 +622,18 @@ class _Measure:
         placed top and bottom from its top: the first line reaching the table and the lines after it go below
         it, and the paragraph reaches down to the table's foot at least; empty for any other paragraph."""
 
-        table = _table_before_text(runs)
-        if table is None:
+        obj = _object_before_text(runs, self.headed(paragraph))
+        if obj is None:
             return ()
-        top = _down(table.find(f"{HP}pos"))
-        foot = top + _inline_table_height(self, table) + _extent_margins(table)
+        top = _down(obj.find(f"{HP}pos"))
+        foot = top + (_inline_table_height(self, obj) + _extent_margins(obj) if _local(obj) == "tbl"
+                      else _extent(obj, "height"))
         shape = self.shape(paragraph.get("paraPrIDRef"))
         lines = list(self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width))
         if not lines:
             size, refs, _ = _text_size(self, runs)
             style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
-            count = self.lines(_run_text(runs), _line_widths(shape, width, style), size, style)
+            count = max(1, self.lines(_run_text(runs), _line_widths(shape, width, style), size, style))
             lines = [(size, _pitch(shape.kind, shape.value, size))] * count
         y = 0
         for index, (height, advance) in enumerate(lines):
@@ -869,6 +877,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
                                  if paragraph.find(f".//{HP}tbl") is not None
                                  and _table_alone(paragraph.findall(f"{HP}run")) is None):
             raise _Unsupported("a nested table")
+    elif any(_placed_from(paragraph) for paragraph in paragraphs):  # an object placed from a paragraph: the
+        drawn = _drawn_lines(measure, paragraphs)  # lines as Hancom drew them, below it or beside it
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = int(size.get("width", 0)) - margins.left - margins.right
@@ -1170,10 +1180,7 @@ def _objects_reach(runs: list[Any], measure: _Measure) -> int:
                 or pos.get("treatAsChar") == "1" or obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") \
                 or pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP":
             continue
-        offset = int(pos.get("vertOffset", 0))
-        if offset >= 1 << 31:  # kept unsigned: one placed up
-            offset -= 1 << 32
-        reach = max(reach, offset + _extent(obj, "height"))
+        reach = max(reach, _down(pos) + _extent(obj, "height"))  # one placed up stands at the top
     return reach
 
 
@@ -1183,6 +1190,31 @@ def _placed_top_and_bottom(obj: Any) -> bool:
     pos = obj.find(f"{HP}pos")
     return pos is not None and pos.get("treatAsChar") != "1" and obj.get("textWrap") == "TOP_AND_BOTTOM" \
         and pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
+
+
+def _placed_from(paragraph: Any) -> bool:
+    """Whether *paragraph* holds an object placed from it in the text's flow: not set as a character, nor in
+    front of or behind the text."""
+
+    return any(_local(child) in _OBJECTS and child.find(f"{HP}pos") is not None
+               and child.find(f"{HP}pos").get("treatAsChar") != "1" and not _floating(child)
+               for run in paragraph.findall(f"{HP}run") for child in run)
+
+
+def _object_before_text(runs: list[Any], headed: bool = False) -> Any:
+    """The object placed top and bottom from its paragraph's top (a table, picture or drawing) that is all the
+    runs hold but text after it -- a space is text, and so is the bullet or number of a *headed* paragraph --
+    or ``None``."""
+
+    objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
+    if len(objects) != 1 or not _placed_top_and_bottom(objects[0]) or not (_run_text(runs) or headed):
+        return None
+    for child in (child for run in runs for child in run):
+        if child is objects[0]:
+            return child
+        if _local(child) == "t" and _t_text(child).strip():  # text before it
+            return None
+    return None
 
 
 def _table_on_its_own(paragraph: Any) -> bool:
