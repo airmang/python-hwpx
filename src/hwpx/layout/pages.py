@@ -161,6 +161,7 @@ from __future__ import annotations
 
 import copy
 import os
+from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -525,9 +526,10 @@ class _Measure:
 
     def line_starts(self, text: str, widths: list[float], size: int, style: Any,
                     sizes: list[int] | None = None, styles: list[Any] | None = None,
-                    advances: dict[int, int] | None = None) -> list[int]:
+                    advances: dict[int, int] | None = None, objects: Collection[int] = ()) -> list[int]:
         """Where each line starts, as offsets into *text*; *sizes* and *styles* are each character's size
-        and style when the text mixes them, *advances* the width of each object set as a character."""
+        and style when the text mixes them, *advances* the width of each object set as a character (or
+        mark), *objects* the places of the objects."""
 
         starts: list[int] = []
         base = 0
@@ -536,8 +538,9 @@ class _Measure:
             looks = None if styles is None else styles[base:base + len(line)]
             fixed = None if advances is None else {
                 index - base: width for index, width in advances.items() if base <= index < base + len(line)}
+            placed = {index - base for index in objects if base <= index < base + len(line)}
             starts += [base + start for start in (hancom_line_starts(line, widths, size / 100, style, points, looks,
-                                                                     fixed) if line else [0])]
+                                                                     fixed, placed) if line else [0])]
             base += len(line) + 1
         return starts
 
@@ -553,6 +556,9 @@ class _Measure:
             pitch = _pitch(shape.kind, shape.value, size)
             table = _table_alone(runs)
             alone = None if table is not None or caches and _cached_metrics(paragraph) else _object_alone(runs)
+            spread = self.spread_lines(paragraph, runs, width) if table is not None or alone is not None else ()
+            if spread:  # spaces besides it, some of which go on to the next line
+                table = alone = None
             if table is not None:  # one line as tall as the table, spaced like the text
                 tall = _inline_table_height(self, table) + _extent_margins(table)
                 count, size, pitch = 1, tall, tall + pitch - size
@@ -560,7 +566,7 @@ class _Measure:
                 tall = _object_extent(alone, self)[1]
                 count, size, pitch = 1, tall, tall + pitch - size
             else:
-                cached = _cached_metrics(paragraph) if caches else ()
+                cached = spread or (_cached_metrics(paragraph) if caches else ())
                 cached = cached or self.pushed_lines(paragraph, runs, width) \
                     or self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width)
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
@@ -614,6 +620,7 @@ class _Measure:
                 metrics[-1] = (last_height, last_advance + shape.prev)
             runs = paragraph.findall(f"{HP}run")
             cached = () if _table_alone(runs) is not None or not caches else _cached_metrics(paragraph)
+            cached = cached or self.spread_lines(paragraph, runs, width)
             if not cached and _table_alone(runs) is None:  # each line as tall as stack makes it
                 cached = self.pushed_lines(paragraph, runs, width) or self.marked_lines(paragraph, runs, width) \
                     or self.mixed_lines(paragraph, runs, shape, width)
@@ -624,6 +631,28 @@ class _Measure:
             last = height - (count - 1) * pitch  # down to the foot of an object placed from it: the next below
             metrics += [(size, pitch)] * (count - 1) + [(last, (last if last > size else pitch) + shape.next)]
         return tuple(metrics)
+
+    def spread_lines(self, paragraph: Any, runs: list[Any], width: int, end: int = 0,
+                     head: int = 0) -> tuple[tuple[int, int], ...]:
+        """(height, advance) of each line of a paragraph holding one object set as a character and, besides it,
+        only spaces or line breaks, when Hancom lays it out on several lines: a space before the object is text
+        (the object goes on to the next line when it does not fit after it), the two spaces right after it hang
+        past the margin and a further one starting there begins the next line, and a line break begins one (an
+        empty line before the object goes down as a line of text); empty for any other paragraph, or one of a
+        line."""
+
+        objects = _placed_objects(runs)
+        text = _run_text(runs)
+        if len(objects) != 1 or not text or text.strip() or objects[0].find(f"{HP}pos").get("treatAsChar") != "1":
+            return ()
+        shape = self.shape(paragraph.get("paraPrIDRef"))
+        if shape.kind not in ("PERCENT", "FIXED"):
+            return ()
+        inline, sizes, looks, placed, marked = _inline_content(self, paragraph, runs)
+        style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"], paragraph)
+        lines = _line_metrics(self, inline, _line_widths(shape, width, style), sizes, style, shape, placed,
+                              looks if len(set(looks)) > 1 else None, marked, end, head)
+        return lines if len(lines) > 1 else ()
 
     def pushed_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
         """(height, advance) of each line of a cell paragraph without a layout cache whose text follows a table
@@ -1489,7 +1518,7 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
 
     advances = {**{index: width for index, (width, _) in objects.items()}, **(marks or {})} or None
     starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles,
-                                 advances)
+                                 advances, set(objects))
     metrics = []
     for start, stop in zip(starts, [*starts[1:], len(text)]):
         span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
@@ -1733,6 +1762,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     mixed = len(set(sizes)) > 1 or bool(end) or bool(head)
     looks = _char_styles(measure, paragraph, runs)
     lead = 0  # how far the paragraph's first line goes down below a square-wrapped object's band
+    if alone and wrap is None:  # spaces besides it, those that do not fit going on to the next line
+        spread = measure.spread_lines(paragraph, runs, page.column_width, end, head)
+        alone, cached = (False, spread) if spread else (alone, cached)
     if among or beside:
         inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored)
         if wrap is not None:
