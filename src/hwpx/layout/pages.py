@@ -1413,8 +1413,8 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
 def _drawn_height(obj: Any, measure: _Measure) -> int:
     """How tall Hancom draws *obj*: a drawing holding a text box (hp:drawText) as tall as the box's text and
     its margins when that is taller than hp:sz -- Hancom grows the drawing to hold them, writing the grown size
-    to hp:curSz alone, at times one less, which makes that a lower bound; any other object (a table too) as
-    hp:sz."""
+    to hp:curSz alone (negative for a drawing scaled upside down), at times one less, which makes that a lower
+    bound; any other object (a table too) as hp:sz."""
 
     height = int(obj.find(f"{HP}sz").get("height", 0))
     box = obj.find(f"{HP}drawText")
@@ -1422,7 +1422,9 @@ def _drawn_height(obj: Any, measure: _Measure) -> int:
         return height
     current = obj.find(f"{HP}curSz")
     grown = 0 if current is None else int(current.get("height", 0))
-    if grown >= 1 << 30:  # negative, kept unsigned: a turned or flipped drawing, not followed here
+    if grown >= 1 << 31:  # negative, kept unsigned: as tall upside down
+        grown = (1 << 32) - grown
+    if grown >= 1 << 30:
         grown = 0
     paragraphs = box.findall(f"{HP}subList/{HP}p")
     if not paragraphs:
