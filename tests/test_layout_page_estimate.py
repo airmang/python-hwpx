@@ -305,6 +305,14 @@ HANCOM_PAGES = {
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
     "pages_table_nested_row_split": 2,  # a row holding a table splits after its first line of text
     "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
+    # A flowing table whose first column holds vertical text (10 pt, spaced 160%): Hancom lays its lines down
+    # the cell's height, side by side across it, and cuts what does not fit; the row stays as declared:
+    "pages_table_vertical_cell_short_text": 1,  # three characters in a cell 3000 x 4000: one line
+    "pages_table_vertical_cell_text_past_its_height": 1,  # thirty: ten lines, the row still 4000 tall
+    "pages_table_vertical_cell_text_past_its_width": 1,  # sixty in a cell 1500 wide: twenty lines
+    "pages_table_vertical_cell_merged_over_rows": 1,  # ten in a cell merged over four rows 2000 tall
+    "pages_table_merged_cells_over_the_page_end": 2,  # twenty rows, cells of four merged, horizontal text:
+                                                     # the table splits at the page end
     "pages_table_nested_top_and_bottom_alone_then_a_line": 1,  # a table placed top and bottom alone in
                                                               # a cell paragraph, then a line: right
                                                               # below the table
@@ -886,6 +894,27 @@ def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hanco
         _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
     else:
         assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
+@pytest.mark.parametrize("fixture", ["pages_table_vertical_cells_over_the_page_end",
+                                     "pages_table_vertical_cell_of_all_rows_over_the_page_end",
+                                     "pages_table_vertical_cell_in_every_row_over_the_page_end",
+                                     "pages_table_vertical_cells_taller_than_a_page"])
+def test_a_table_holding_vertical_text_moves_to_the_next_page_whole(fixture: str) -> None:
+    # pages_table_merged_cells_over_the_page_end with vertical text in its first column (cells of four rows
+    # merged, one of all twenty, or one in every row), and one of forty rows taller than a page: Hancom does
+    # not split it but moves it whole to the next page's top (running past the page's foot when taller), the
+    # anchor's line and the paragraphs after it staying on the first page.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+    hancom = _hancom_lines(data)
+
+    for document in (data, _without_caches(data)):
+        estimate = estimate_pages(document)
+        estimated = [[line.vertpos for line in lines] for lines in estimate.lines]
+        assert estimate.unsupported == ()
+        assert estimate.pages == 2
+        assert [mine for mine, theirs in zip(estimated, hancom) if theirs] == [theirs for theirs in hancom if theirs]
+        assert {line.page for lines in estimate.lines for line in lines} == {0}
 
 
 def test_a_negative_outer_margin_counts_as_none() -> None:
