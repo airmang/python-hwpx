@@ -470,6 +470,13 @@ class _Measure:
         style = self._root.char_property(char_pr_id)
         return int(style.attributes.get("height", 1000)) if style is not None else 1000
 
+    def headed(self, paragraph: Any) -> bool:
+        """Whether Hancom heads *paragraph* with a bullet or number label."""
+
+        if self._drawn is None:
+            self._drawn = _drawn_labels(self._root)
+        return bool(self._drawn.get(paragraph))
+
     def style(self, para_pr_id: Any, char_pr_ids: list[Any], paragraph: Any = None) -> Any:
         """FormFit's text style of a paragraph shape and its characters; with *paragraph*, a number's label
         takes the room of the label Hancom draws for that paragraph."""
@@ -1213,22 +1220,22 @@ def _placed_top_and_bottom(obj: Any) -> bool:
 
 
 def _table_on_its_own(paragraph: Any) -> bool:
-    """Whether a cell paragraph holds no text and nothing but one table placed top and bottom from its top
-    (Hancom sets the empty line below two of them, not beside them)."""
+    """Whether a cell paragraph holds no text, not even a space, and nothing but one table placed top and
+    bottom from its top (Hancom sets the empty line below two of them, not beside them)."""
 
     runs = paragraph.findall(f"{HP}run")
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
-    return not _run_text(runs).strip() and len(objects) == 1 and _local(objects[0]) == "tbl" \
+    return not _run_text(runs) and len(objects) == 1 and _local(objects[0]) == "tbl" \
         and _placed_top_and_bottom(objects[0])
 
 
 def _table_before_text(runs: list[Any]) -> Any:
     """The table placed top and bottom from its paragraph's top that is all the runs hold but text after it
-    (text), or ``None``."""
+    (text, a space being enough), or ``None``."""
 
     objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
     if len(objects) != 1 or _local(objects[0]) != "tbl" or not _placed_top_and_bottom(objects[0]) \
-            or not _run_text(runs).strip():
+            or not _run_text(runs):
         return None
     for child in (child for run in runs for child in run):
         if child is objects[0]:
@@ -1524,12 +1531,13 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
     return "".join(text), sizes, looks, objects, marks
 
 
-def _anchored_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object not set as a character of a paragraph of text or of objects set as characters that
+def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = False) -> Any:
+    """The one object not set as a character of a paragraph of text (a space is text, and so is the bullet or
+    number label of a *headed* paragraph: its line goes below the object) or of objects set as characters that
     is placed top and bottom from the paragraph's top (offset 0), or ``None``."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
-    if len(placed) != 1 or not (text.strip() or len(objects) > 1):
+    if len(placed) != 1 or not (text or headed or len(objects) > 1):
         return None
     obj = placed[0]
     pos = obj.find(f"{HP}pos")
@@ -1651,7 +1659,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                            "layout cache in columns of unequal width")
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    anchored = _anchored_object(objects, text, page.column_width)
+    headed = bool(objects) and not text and measure.headed(paragraph)  # its label is text too
+    anchored = _anchored_object(objects, text, page.column_width, headed)
     marks = _marks(runs) and not _cached_metrics(paragraph)  # to lay out like characters
     if marks:
         if anchored is not None or wrap is not None or square is not None:

@@ -141,6 +141,17 @@ HANCOM_PAGES = {
     "pages_table_on_one_page_then_a_column_break": 2,  # a table ending on its page: the next page's top
     "pages_table_over_two_pages_then_a_page_break": 3,  # the page after the table's last
     "pages_table_over_three_pages_then_a_page_break": 4,
+    # An object placed top and bottom from its empty paragraph's top, a space after it or not:
+    "pages_table_then_nothing": 1,  # the line on the table's top, no room taken: the text after under the table
+    "pages_table_then_a_space": 1,  # a space is text: its line goes under the table, at full width
+    "pages_table_then_two_spaces": 1,
+    "pages_picture_then_a_space": 1,
+    "pages_table_as_character_then_a_space": 1,  # set as a character: the table and the space on one line
+    "pages_table_cell_holding_a_table_then_a_space": 1,  # in a cell: the space's line under the inner table
+    "pages_picture_alone_in_a_plain_paragraph": 1,  # a picture alone: the line on its top, no room taken
+    "pages_picture_alone_in_a_bulleted_paragraph": 1,  # a bullet is text: the line under the picture
+    "pages_picture_alone_in_a_numbered_paragraph": 1,  # so is a number
+    "pages_table_alone_in_a_bulleted_paragraph": 1,
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
