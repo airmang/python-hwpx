@@ -1419,11 +1419,12 @@ def _placed_from(paragraph: Any) -> bool:
 
 def _object_before_text(runs: list[Any], headed: bool = False) -> Any:
     """The object placed top and bottom from its paragraph's top (a table, picture or drawing) that is all the
-    runs hold but text after it -- a space is text, and so is the bullet or number of a *headed* paragraph --
-    or ``None``."""
+    runs hold but text after it -- a space is text, and so is the bullet or number of a *headed* paragraph or
+    an object in front of or behind the text beside it (see :func:`_beside_floating`) -- or ``None``."""
 
-    objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
-    if len(objects) != 1 or not _placed_top_and_bottom(objects[0]) or not (_run_text(runs) or headed):
+    objects = [child for run in runs for child in run if _local(child) in _OBJECTS and not _floating(child)]
+    if len(objects) != 1 or not _placed_top_and_bottom(objects[0]) \
+            or not (_run_text(runs) or headed or _beside_floating(runs)):
         return None
     for child in (child for run in runs for child in run):
         if child is objects[0]:
@@ -1431,6 +1432,14 @@ def _object_before_text(runs: list[Any], headed: bool = False) -> Any:
         if _local(child) == "t" and _t_text(child).strip():  # text before it
             return None
     return None
+
+
+def _beside_floating(runs: list[Any]) -> bool:
+    """Whether the runs hold an object in front of or behind the text: beside an object placed top and bottom
+    from the paragraph's top in a paragraph of no text, it sends the paragraph's empty line below that object,
+    as the whole width, as a space or a label does."""
+
+    return any(_local(child) in _OBJECTS and _floating(child) for run in runs for child in run)
 
 
 def _table_on_its_own(paragraph: Any) -> bool:
@@ -1446,11 +1455,11 @@ def _table_on_its_own(paragraph: Any) -> bool:
 
 def _table_before_text(runs: list[Any]) -> Any:
     """The table placed top and bottom from its paragraph's top that is all the runs hold but text after it
-    (text, a space being enough), or ``None``."""
+    (text, a space being enough, or an object in front of or behind the text beside it), or ``None``."""
 
-    objects = [child for run in runs for child in run if _local(child) in _OBJECTS]
+    objects = [child for run in runs for child in run if _local(child) in _OBJECTS and not _floating(child)]
     if len(objects) != 1 or _local(objects[0]) != "tbl" or not _placed_top_and_bottom(objects[0]) \
-            or not _run_text(runs):
+            or not (_run_text(runs) or _beside_floating(runs)):
         return None
     for child in (child for run in runs for child in run):
         if child is objects[0]:
@@ -1748,8 +1757,10 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
 
 def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = False) -> Any:
     """The one object not set as a character of a paragraph of text (a space is text, and so is the bullet or
-    number label of a *headed* paragraph: its line goes below the object) or of objects set as characters that
-    is placed top and bottom from the paragraph's top (offset 0), or ``None``."""
+    number label of a *headed* paragraph: its line goes below the object; *headed* is also set for an empty
+    paragraph holding an object in front of or behind the text beside it, its empty line going below the object
+    as the whole width) or of objects set as characters that is placed top and bottom from the paragraph's top
+    (offset 0), or ``None``."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     if len(placed) != 1 or not (text or headed or len(objects) > 1):
@@ -1875,7 +1886,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     headed = bool(objects) and not text and measure.headed(paragraph)  # its label is text too
-    anchored = _anchored_object(objects, text, page.column_width, headed)
+    beside = bool(objects) and not text and _beside_floating(runs)  # its empty line goes below the object
+    anchored = _anchored_object(objects, text, page.column_width, headed or beside)
     marks = _marks(runs) and not _cached_metrics(paragraph)  # to lay out like characters
     if marks:
         if anchored is not None or wrap is not None or square is not None:
