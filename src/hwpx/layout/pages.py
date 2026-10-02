@@ -84,10 +84,12 @@
   and its outer margins take (a drop cap is such an object), or, with text on both sides, is two
   pieces at one height, the left one first -- a table by the height
   of its rows; a picture or drawing, or a table set not to split, whose band passes the body's foot
-  goes on alone to the next page's body top, whatever its offset: the lines of its own page are the whole width, and the
-  lines on the next page whose top is above its foot go beside it (without layout caches, broken
-  again there; a paragraph holding objects or a table there is not followed), while such a table
-  is followed only through the layout caches; a line beside an object with text on both sides is
+  goes on alone to the next page's body top, whatever its offset: the lines of its own page are the
+  whole width, and the lines on the next page whose top is above its foot go beside it (without
+  layout caches, broken again there; a paragraph holding objects or a table there is not
+  followed), while a table that may split is split over the page end as a flowing table, the lines
+  on each page it reaches beside its part there (on a page it fills, all of them); a line beside an
+  object with text on both sides is
   two pieces even when its text ends in the first or it has none (the second empty) -- and wrapped
   square with no room beside it (less than 1440 on each side its text flow
   allows), it pushes the text below it like a top-and-bottom object; a table flowing with the text is laid out row by row -- split between cell lines, moved row
@@ -1121,6 +1123,10 @@ class _Para:
     #: how far such an object pushed the paragraph's first line down (its band's foot is measured from where
     #: that line stood before)
     wrap_shift: int = 0
+    #: a table wrapped square anchored here, flowing with the text and allowed to split, that goes on over the
+    #: page end: it as it flows, how far below the paragraph's first line it starts, and its band beside the
+    #: text (see :meth:`_Paginator._span_bands`)
+    spans: tuple[_FlowTable, int, _Wrap] | None = None
     #: such an object alone in this empty paragraph, its foot this far below the paragraph's top (the line is
     #: as tall as that): past the body's foot it goes on to the next page's top, the empty line staying
     moves: int = 0
@@ -1998,6 +2004,22 @@ def _square_sides(obj: Any, page: _Page) -> tuple[int, int]:
     return left, right
 
 
+def _spans(measure: _Measure, page: _Page, table: Any) -> tuple[_FlowTable, int, _Wrap]:
+    """A table wrapped square that splits over the page end: it as a flowing table, its offset below its
+    paragraph's first line, and its band beside the text (top and bottom set page by page)."""
+
+    offset = int(table.find(f"{HP}pos").get("vertOffset", 0))
+    if offset < 0 or offset >= 1 << 31:
+        raise _Unsupported("a square-wrapped table placed up from its paragraph past the page foot")
+    rows, cells = _table_rows(measure, table)
+    margin = table.find(f"{HP}outMargin")
+    ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
+    flowing = _FlowTable(rows, table.get("pageBreak", "CELL"), table.get("repeatHeader") == "1", ends,
+                         tuple(cells), caption=_caption(measure, table), cut=_spare_cut(table))
+    left, right = _square_sides(table, page)
+    return flowing, offset, _Wrap(0, 0, page.column_width - left - right, split=left if left and right else 0)
+
+
 def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | None, moved: bool = False) -> tuple[_Para, _Wrap | None]:
     """The paragraph with the lines beside a square-wrapped object's band narrower, and the band as the
     next paragraph sees it. With *moved*, the object went on to the next page's top: none here."""
@@ -2019,6 +2041,9 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         # followed)
         alone = objects[0] if len(objects) == 1 and objects[0].find(f"{HP}pos").get("treatAsChar") != "1" else None
         obj = square if square is not None else pusher if pusher is not None else alone
+        if obj is not None and obj is square and wrap is None and _local(obj) == "tbl" \
+                and obj.get("pageBreak", "CELL") != "NONE":  # it splits over the page end instead
+            return replace(_paragraph(measure, page, paragraph, None, obj), spans=_spans(measure, page, obj)), None
         if obj is None or wrap is not None or _local(obj) == "tbl" and (obj is not square
                                                                  or obj.get("pageBreak", "CELL") != "NONE"):
             raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot")
@@ -2567,8 +2592,9 @@ class _Paginator:
         self.reserved: dict[int, int] = {}  # frames a table starting past its anchor takes: where text starts
         self.wrap_frame = -1                  # the frame a square-wrapped object's band is on
         self.wrap_moved = False  # that band passed the body's foot: the object went on to the next page
-        #: frame -> the band of a square-wrapped object that went on to its top (see :attr:`_Para.moved`)
-        self.squares: dict[int, _Wrap] = {}
+        #: frame -> the bands of square-wrapped objects there that the text there is broken beside: one that
+        #: went on to its top (see :attr:`_Para.moved`), the parts of tables split over its ends
+        self.squares: dict[int, list[_Wrap]] = {}
         #: a flowing table's band no line has reached yet: its frame, top, bottom there (None when it goes
         #: on over the page end), and the frame and position where the lines after it go on
         self.band: tuple[int, int, int | None, int, int] | None = None
@@ -2955,6 +2981,9 @@ class _Paginator:
     def _lay(self, index: int, paras: list[_Para], para: _Para, start: int, broke: bool) -> bool:
         """Place the lines of *para*; False when its notes ended the page after it."""
 
+        if para.spans is not None:  # a table wrapped square going on over the page end: its bands, page by page
+            self._span_bands(para.spans, start)
+            para = replace(para, spans=None)
         para = self._at_band(self._at_width(para, 0), 0, start)
         remaining, first_chunk = para.lines, True
         fresh = self.last_vp is None or broke
@@ -3015,14 +3044,38 @@ class _Paginator:
         """*para* with its lines from *line* on, laid from *start* down, broken again beside the band of a
         square-wrapped object set at the current frame's top when they reach it."""
 
-        band = self.squares.get(self.frame)
-        if band is None or start >= band.bottom:
+        bands = sorted((band for band in self.squares.get(self.frame, ()) if band.bottom > start),
+                       key=lambda band: band.top)
+        if not bands:
             return para
-        if para.blank:  # an empty line: two empty pieces beside an object with text on both sides
-            return _in_two_pieces(para) if band.split and para.lines == 1 and not para.cached else para
+        band = bands[0]
+        if para.blank:  # an empty line reaching it: two empty pieces beside an object with text on both sides
+            reaches = start + para.height(line) > band.top
+            return _in_two_pieces(para) if reaches and band.split and para.lines == 1 and not para.cached else para
         if para.reflow is None:
             raise _Unsupported("objects, notes or a layout cache beside a square-wrapped object moved to the next page")
-        return para.reflow.banded(para, line, replace(band, top=band.top - start, bottom=band.bottom - start))
+        again = para.reflow.banded(para, line, replace(band, top=band.top - start, bottom=band.bottom - start))
+        if len(bands) > 1 and start + again.span(0, again.lines) > bands[1].top:
+            raise _Unsupported("a paragraph beside two square-wrapped objects on a page")
+        return again
+
+    def _span_bands(self, spans: tuple[_FlowTable, int, _Wrap], start: int) -> None:
+        """The bands of a table wrapped square, anchored in the paragraph being laid from *start*, that goes
+        on over the page end: it flows as a flowing table from its top, and on each page it reaches the lines
+        go beside its part there -- on its first page from its top to the foot, on a page it fills the whole
+        page, on its last page from the top down to its end."""
+
+        table, offset, band = spans
+        top = start + offset
+        last, end = _flow_table(table, self.frame, top + table.above, self.body)
+        for frame in range(self.frame, last + 1):
+            part = replace(band, top=top if frame == self.frame else 0,
+                           bottom=end + table.below if frame == last else self.body)
+            if self.bands.get(frame) or self.sides.get(frame) or frame in self.reserved \
+                    or any(other.top < part.bottom and part.top < other.bottom for other in self.squares.get(frame, ())):
+                raise _Unsupported("a square-wrapped table going on over the page end beside other objects")
+            self.squares.setdefault(frame, []).append(part)
+        self.table_end = max(self.table_end, last)
 
     def _move_band(self, band: _Wrap) -> None:
         """A square-wrapped object anchored in the paragraph being laid, flowing with the text, went past the
@@ -3031,12 +3084,12 @@ class _Paginator:
 
         target = self.frame + 1
         if band.bottom > self.body or self.bands.get(target) or self.sides.get(target) or target in self.reserved \
-                or target in self.squares:
+                or any(other.top < band.bottom for other in self.squares.get(target, ())):
             raise _Unsupported("an object going on to the next page's top beside other objects")
         if band.push:  # a top-and-bottom one: the lines reaching it go below it
             self.bands[target] = [(band.top, band.bottom)]
         else:
-            self.squares[target] = band
+            self.squares.setdefault(target, []).append(band)
         self.table_end = max(self.table_end, target)
 
     def _next_frame(self, para: _Para, count: int, first_chunk: bool) -> int:
