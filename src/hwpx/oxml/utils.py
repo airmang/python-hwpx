@@ -5,7 +5,7 @@ import logging
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +149,23 @@ def hancom_text_length(text_element: etree._Element) -> int:
             total += len("".join(child.itertext()))
         total += len(child.tail or "")
     return total
+
+
+#: ``hp:lineseg@flags`` bit 16 (HWP ``LINE_SEG``): a segment no text is laid out on, as the second piece of a
+#: line in two pieces beside an object is when the text ends in the first.
+LINE_SEG_EMPTY = 0x10000
+
+
+def line_seg_past_text(line_seg: Any, text_length: int) -> bool:
+    """Whether *line_seg* (an ``hp:lineseg`` with an integer ``textpos``) starts past a paragraph's
+    *text_length* text positions, as a stale layout cache's does. An empty segment just past the text is
+    not: Hancom starts the empty second piece of a line there."""
+
+    textpos = int(line_seg.get("textpos") or 0)
+    if textpos <= text_length:
+        return False
+    flags = line_seg.get("flags") or "0"
+    return not (textpos == text_length + 1 and flags.isdigit() and int(flags) & LINE_SEG_EMPTY)
 
 
 def tabs_as_elements(root: etree._Element) -> bool:

@@ -15,7 +15,7 @@ from lxml import etree as LET  # type: ignore[reportMissingImports]
 
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
-from ..oxml.utils import hancom_text_length
+from ..oxml.utils import hancom_text_length, line_seg_past_text
 from ..opc.security import HwpxSecurityError, MAX_ZIP_MEMBER_BYTES, MAX_ZIP_MIMETYPE_BYTES, MAX_ZIP_SMALL_PART_BYTES, read_member
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
@@ -469,7 +469,7 @@ def _check_line_seg_text_positions(
                         f"paragraph {paragraph_index} has non-integer lineseg textpos={textpos_raw!r}",
                     )
                     continue
-                if textpos > text_length:
+                if line_seg_past_text(line_seg, text_length):
                     _error(
                         issues,
                         part_name,
