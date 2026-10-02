@@ -182,6 +182,12 @@ HANCOM_PAGES = {
     "pages_picture_alone_in_a_bulleted_paragraph": 1,  # a bullet is text: the line under the picture
     "pages_picture_alone_in_a_numbered_paragraph": 1,  # so is a number
     "pages_table_alone_in_a_bulleted_paragraph": 1,
+    # The same 60762 down (10 pt text spaced 160%), the table (rows 8000, 1282 and 1282 tall) not starting
+    # there: it starts at the next page's top, the paragraph's line staying, a space after the table or not,
+    # and the text after goes on under that line.
+    "pages_table_then_nothing_starting_on_the_next_page": 2,
+    "pages_table_then_a_space_starting_on_the_next_page": 2,
+    "pages_table_not_split_then_a_space_starting_on_the_next_page": 2,  # set not to split: the same
     # A cell of a flowing table, a picture 20000 x 10000 placed top and bottom from a paragraph of it:
     "pages_table_cell_picture_first": 1,  # alone in the first: the line on its top, the row as tall as it
     "pages_table_cell_picture_second": 1,  # alone in the second, after a line: from that paragraph's top
