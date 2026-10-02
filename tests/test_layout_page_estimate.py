@@ -114,6 +114,14 @@ HANCOM_PAGES = {
     "pages_table_cell_first_paragraph_spaced_before_over_two_pages": 2,  # 60 lines split between lines: the
                                                                         # part on the next page not spaced
     "pages_table_cells_first_paragraphs_spaced_before_row_by_row": 3,  # three rows of 25, each spaced
+    # An empty paragraph's flowing table of rows 3000 tall, from 8000 down, then a paragraph of two lines:
+    "pages_table_over_two_pages_then_text": 2,  # right under the table's end on the second page
+    "pages_table_over_two_pages_then_text_spaced_before": 2,  # spaced 1500 before: still right under it
+    "pages_table_over_two_pages_then_a_column_break": 2,  # the same: the column after the anchor line's
+    "pages_table_over_two_pages_then_a_column_break_spaced_before": 2,
+    "pages_table_on_one_page_then_a_column_break": 2,  # a table ending on its page: the next page's top
+    "pages_table_over_two_pages_then_a_page_break": 3,  # the page after the table's last
+    "pages_table_over_three_pages_then_a_page_break": 4,
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
