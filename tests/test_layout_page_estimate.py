@@ -300,6 +300,19 @@ HANCOM_PAGES = {
     "pages_table_nested_row_declared_first_line_100_above_page_foot": 2,  # its first line ends 100 above
                                                                           # the page's foot: it goes on whole
     "pages_table_nested_row_declared_first_line_101_above_page_foot": 2,  # 101 above it: cut there
+    # A cell of a flowing table (10 pt text spaced 160%) holding tables set as characters, of two columns and
+    # rows 1282 tall:
+    "pages_table_cell_two_tables_as_characters": 1,  # of two rows and three, 15000 wide: side by side on one
+                                                     # line as tall as the taller
+    "pages_table_cell_two_tables_as_characters_on_two_lines": 1,  # 25000 wide each: the second on the next
+    "pages_table_cell_table_as_character_then_text": 1,  # two rows, then text: the table and the text's
+                                                         # start on one line, three lines of text below
+    "pages_table_cell_text_then_a_table_as_character": 1,  # two lines of text, then three rows on the next
+    "pages_table_cell_tables_as_characters_among_text_split": 2,  # seven paragraphs, each a table of four
+                                                                  # rows among text: the row splits
+                                                                  # between them
+    "pages_table_cell_holding_a_header_with_a_table": 1,  # a header control in a cell paragraph, a table
+                                                          # in the header: drawn there, not in the cell
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
@@ -837,13 +850,14 @@ def test_the_lines_around_a_nested_table_are_where_hancom_put_them() -> None:
 @pytest.mark.parametrize(("fixture", "followed"), [("pages_table_nested_top_and_bottom_alone", True),
                                                   ("pages_table_nested_two_top_and_bottom", False),
                                                   ("pages_table_nested_top_and_bottom_before_text", True),
-                                                  ("pages_table_nested_among_text", False)])
+                                                  ("pages_table_nested_among_text", True)])
 def test_a_cell_holding_a_table_among_text_or_top_and_bottom_is_as_tall_as_hancom_drew_it(fixture: str,
                                                                                          followed: bool) -> None:
     # A table in a cell of a flowing table, placed top and bottom alone in its paragraph (the cell
     # reaches down to its foot) or before text (the text goes below it), or set as a character among
     # text: the lines of the cell's caches. Without the caches the estimate follows the cell when the
-    # table is alone in its paragraph or before its text, as tall as its rows. Two tables 0 and 3000 down
+    # table is alone in its paragraph or before its text, as tall as its rows, and lays a table set as a
+    # character among text out as in the body. Two tables 0 and 3000 down
     # in one paragraph put its empty line below the second (not beside the first): not followed without
     # the caches.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
