@@ -161,6 +161,23 @@ HANCOM_PAGES = {
     "pages_table_cell_picture_up_second_far": 1,  # 30000 up: at its top too
     "pages_table_cell_picture_in_a_bulleted_paragraph": 1,  # alone in a bulleted paragraph: the bullet under it
     "pages_picture_alone_after_a_line": 1,  # in the body: the line on its top, the text after under it
+    # A table set as a character (a row 1282 tall) 200 to 2000 narrower than the column (42520; 10 pt text spaced
+    # 160%, a space 500 wide), spaces after it: the two right after it stay on its line wherever they start, a
+    # further one starting at or past the margin goes on to the next line, the paragraph after below them:
+    "pages_table_as_character_200_short_then_a_space": 1,
+    "pages_table_as_character_200_short_then_two_spaces": 1,  # the second starting 300 past the margin
+    "pages_table_as_character_200_short_then_three_spaces": 1,  # the third on a line of its own
+    "pages_table_as_character_600_short_then_three_spaces": 1,  # the third starting 400 past the margin
+    "pages_table_as_character_1000_short_then_three_spaces": 1,  # the third starting at the margin
+    "pages_table_as_character_2000_short_then_three_spaces": 1,  # all three fit beside it
+    "pages_table_as_character_200_short_then_three_12pt_spaces": 1,  # of 12 pt: the third's line 1200 tall
+    "pages_table_as_character_200_short_after_two_spaces": 1,  # two before it: the table on the next line
+    "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
+    "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
+    "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
+    "pages_table_as_character_after_a_line_break": 1,  # one before it: the table on the next line, the empty
+                                                        # line above going down as one of text
+    "pages_picture_as_character_after_a_line_break": 1,  # the same before a picture 3000 tall
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
