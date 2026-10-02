@@ -52,6 +52,16 @@ HANCOM_PAGES = {
     "pages_square_picture_moved_from_8000_down": 3,  # placed 8000 down from its paragraph: at the top too
     "pages_square_table_not_split_moved_to_the_next_page": 3,  # a table of six rows at the column's left,
                                                                 # set not to split: the same
+    # A table wrapped square at the column's left (rows of two columns, 10 pt text spaced 160%), flowing with
+    # the text and allowed to split, its band past the body's foot: Hancom splits it over the page end as a
+    # flowing table, and the lines on each page it reaches go beside its part there:
+    "pages_square_table_split_between_cell_lines": 3,  # 15000 wide, split between the lines of a row of four
+    "pages_square_table_split_in_a_merged_cell": 3,  # the same through a cell merged over three rows
+    "pages_square_table_split_over_three_pages": 3,  # 25 rows: all the lines of the page it fills beside it
+    "pages_square_table_1548_down_split": 3,  # placed 1548 down: its paragraph's line above it the whole width
+    "pages_square_table_split_text_on_both_sides": 3,  # in the middle: the lines in two pieces
+    "pages_square_table_wide_split_text_beside_it": 2,  # 45626 wide, 2562 left beside it: two characters a
+                                                        # line there
     "pages_picture_1319_down_moved_to_the_next_page": 3,  # a picture 8000 tall placed top and bottom 1319
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines
@@ -1197,27 +1207,23 @@ def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupport
 
 
 @pytest.mark.parametrize(
-    ("name", "followed"),
+    "name",
     [
-        ("pages_picture_square_past_the_page_foot", True),  # its paragraph's three lines the page's last
-        ("pages_picture_square_past_the_page_foot_mid_paragraph", True),  # its first line the page's last
-        ("pages_table_square_past_the_page_foot", False),  # a table wrapped square alone in its paragraph
+        "pages_picture_square_past_the_page_foot",  # its paragraph's three lines the page's last
+        "pages_picture_square_past_the_page_foot_mid_paragraph",  # its first line the page's last
+        "pages_table_square_past_the_page_foot",  # a table wrapped square alone in its paragraph
     ],
 )
-def test_a_square_object_past_the_page_foot_goes_on_at_the_next_page(name: str, followed: bool) -> None:
+def test_a_square_object_past_the_page_foot_goes_on_at_the_next_page(name: str) -> None:
     # A picture wrapped square from its paragraph's top, 8000 tall, its band past the body's foot: Hancom
     # sets it alone at the next page's top, the lines beside it there narrower and the lines left above the
-    # foot as wide as the column. With the caches the lines stay where the caches put them; without them
-    # they are broken again beside it there. A table wrapped square is split over the page end instead, its
-    # band going on at the next page's top: not followed without the caches.
+    # foot as wide as the column. A table wrapped square is split over the page end instead, its band going
+    # on at the next page's top as tall as what is left of it. With the caches the lines stay where the
+    # caches put them; without them they are broken again beside it there.
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 2)
-    if followed:
-        _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
-    else:
-        assert estimate_pages(_without_caches(data)).unsupported == (
-            "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
 
 
 def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
