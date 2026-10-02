@@ -721,6 +721,42 @@ def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
     assert (len(cells), typed) == (30, 22)
 
 
+def _with_wider_tables_set_as_characters(data: bytes, wider: int) -> bytes:
+    """*data* with every table set as a character *wider* wider (narrower when negative)."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for table in root.iter(f"{HP}tbl"):
+                    if table.find(f"{HP}pos").get("treatAsChar") == "1":
+                        size = table.find(f"{HP}sz")
+                        size.set("width", str(int(size.get("width")) + wider))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("name", "wider"),
+    [
+        ("pages_table_as_character_2000_short_then_three_spaces", 1800),  # one line: 200 short, the third space
+                                                                          # would go on to a line of its own
+        ("pages_table_cell_table_as_character_300_short_then_three_spaces", -2000),  # two lines in a cell: 2300
+                                                                                    # short, all would fit
+    ],
+)
+def test_a_paragraph_of_an_object_and_spaces_keeps_its_cached_lines(name: str, wider: int) -> None:
+    # A table set as a character and three spaces after it in its paragraph, laid out by Hancom, then the
+    # table made wider or narrower: with the caches the paragraph keeps Hancom's lines, as Hancom does when
+    # it opens the file, whatever FormFit would make of the new width.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_with_wider_tables_set_as_characters(data, wider)), data, 1)
+
+
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
     # The exam header 3000 narrower: a line fits beside it, and the lines reaching it are not followed.
     out = io.BytesIO()
