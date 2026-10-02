@@ -122,6 +122,10 @@ HANCOM_PAGES = {
     "pages_picture_then_a_space": 1,
     "pages_table_as_character_then_a_space": 1,  # set as a character: the table and the space on one line
     "pages_table_cell_holding_a_table_then_a_space": 1,  # in a cell: the space's line under the inner table
+    "pages_picture_alone_in_a_plain_paragraph": 1,  # a picture alone: the line on its top, no room taken
+    "pages_picture_alone_in_a_bulleted_paragraph": 1,  # a bullet is text: the line under the picture
+    "pages_picture_alone_in_a_numbered_paragraph": 1,  # so is a number
+    "pages_table_alone_in_a_bulleted_paragraph": 1,
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page

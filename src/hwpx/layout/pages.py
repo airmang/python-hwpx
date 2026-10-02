@@ -464,6 +464,13 @@ class _Measure:
         style = self._root.char_property(char_pr_id)
         return int(style.attributes.get("height", 1000)) if style is not None else 1000
 
+    def headed(self, paragraph: Any) -> bool:
+        """Whether Hancom heads *paragraph* with a bullet or number label."""
+
+        if self._drawn is None:
+            self._drawn = _drawn_labels(self._root)
+        return bool(self._drawn.get(paragraph))
+
     def style(self, para_pr_id: Any, char_pr_ids: list[Any], paragraph: Any = None) -> Any:
         """FormFit's text style of a paragraph shape and its characters; with *paragraph*, a number's label
         takes the room of the label Hancom draws for that paragraph."""
@@ -1466,13 +1473,13 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
     return "".join(text), sizes, looks, objects, marks
 
 
-def _anchored_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object not set as a character of a paragraph of text (a space is text: its line goes below the
-    object) or of objects set as characters that is placed top and bottom from the paragraph's top (offset
-    0), or ``None``."""
+def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = False) -> Any:
+    """The one object not set as a character of a paragraph of text (a space is text, and so is the bullet or
+    number label of a *headed* paragraph: its line goes below the object) or of objects set as characters that
+    is placed top and bottom from the paragraph's top (offset 0), or ``None``."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
-    if len(placed) != 1 or not (text or len(objects) > 1):
+    if len(placed) != 1 or not (text or headed or len(objects) > 1):
         return None
     obj = placed[0]
     pos = obj.find(f"{HP}pos")
@@ -1593,7 +1600,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                            "layout cache in columns of unequal width")
     text = _run_text(runs)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    anchored = _anchored_object(objects, text, page.column_width)
+    headed = bool(objects) and not text and measure.headed(paragraph)  # its label is text too
+    anchored = _anchored_object(objects, text, page.column_width, headed)
     marks = _marks(runs) and not _cached_metrics(paragraph)  # to lay out like characters
     if marks:
         if anchored is not None or wrap is not None or square is not None:
