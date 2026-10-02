@@ -1410,6 +1410,20 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     return tuple(metrics)
 
 
+def _drawn_height(obj: Any) -> int:
+    """How tall Hancom draws *obj*: a drawing holding a text box (hp:drawText) as its current size (hp:curSz)
+    when that is taller than hp:sz, Hancom growing the drawing to hold the box's text and writing the grown size
+    there only; any other object (a table too) as hp:sz."""
+
+    height = int(obj.find(f"{HP}sz").get("height", 0))
+    current = obj.find(f"{HP}curSz")
+    if obj.find(f"{HP}drawText") is not None and current is not None:
+        grown = int(current.get("height", 0))
+        if height < grown < 1 << 30:
+            return grown
+    return height
+
+
 def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     """(width, height) an object set as a character takes, its outer margins included; a table as tall
     as its rows."""
@@ -1418,7 +1432,7 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     margin = obj.find(f"{HP}outMargin")
     extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
     height = _inline_table_height(measure, obj) + sum(_caption(measure, obj)) if _local(obj) == "tbl" \
-        else int(size.get("height", 0))
+        else _drawn_height(obj)
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
@@ -1511,7 +1525,7 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
         table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
                            tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         return _Anchor(line, table, 0)
-    return _Anchor(line, None, int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom)
+    return _Anchor(line, None, _drawn_height(obj) + top + bottom)
 
 
 def _object_line(
@@ -1524,7 +1538,7 @@ def _object_line(
     top, bottom = (0, 0)
     if out_margin is not None:
         top, bottom = _margin(out_margin, "top"), _margin(out_margin, "bottom")
-    tall = int(obj.find(f"{HP}sz").get("height", 0)) + top + bottom
+    tall = _drawn_height(obj) + top + bottom
     name = _local(obj)
     if pos.get("treatAsChar") == "1":  # as tall as it, or as the paragraph's characters when they are taller
         if name == "tbl":
@@ -1657,7 +1671,7 @@ def _extent(obj: Any, side: str) -> int:
     margin = obj.find(f"{HP}outMargin")
     ends = ("left", "right") if side == "width" else ("top", "bottom")
     extra = 0 if margin is None else sum(_margin(margin, end) for end in ends)
-    return int(obj.find(f"{HP}sz").get(side, 0)) + extra
+    return (_drawn_height(obj) if side == "height" else int(obj.find(f"{HP}sz").get(side, 0))) + extra
 
 
 def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
