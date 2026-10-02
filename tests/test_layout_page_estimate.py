@@ -490,6 +490,85 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+# Objects placed top and bottom from the top of an empty paragraph after four lines (10 pt, spaced 160%), the
+# lines after it of text, laid out and saved by Hancom: its pages, and the page of the paragraph's line and
+# the lines after when not the first:
+STACKED_PAGES: dict[str, int | tuple[int, int]] = {
+    "pages_stacked_two_tables": 1,  # both 0 down: one right below the other, the line below both
+    "pages_stacked_three_tables": 1,
+    "pages_stacked_second_table_1230_down": 1,  # still right below the first
+    "pages_stacked_second_table_5000_down": 1,  # below a gap, which takes the paragraph's line
+    "pages_stacked_first_table_2000_down": 1,  # the line above it, the next line below both
+    "pages_stacked_four_tables_with_margins": 1,  # outer margins 140
+    "pages_stacked_two_pictures": 1,
+    "pages_stacked_pictures_side_by_side": 1,  # each at its own offset, the lines above them staying there
+    "pages_stacked_picture_and_table": 1,
+    "pages_stacked_two_pictures_past_the_foot": 2,  # the second alone on the next page, the text on the first
+    "pages_stacked_two_tables_past_the_foot": 2,
+    "pages_stacked_middle_table_past_the_foot_cell": 2,  # the second on the next page, the third below the first
+    "pages_stacked_middle_table_past_the_foot_table": 2,  # (split row by row, the same)
+    "pages_stacked_table_taller_than_a_page_cell": 3,  # split between lines over the two pages after the first
+    "pages_stacked_table_taller_than_a_page_table": 3,  # row by row
+    "pages_stacked_four_tables_over_four_pages": 4,  # the third below the first, 1230 down buried; the fourth
+                                                     # past the second page, row by row over the last two
+    "pages_stacked_tables_filling_the_second_page": 2,  # the third below the second, on the second page
+    "pages_stacked_second_table_on_the_next_page": 2,  # outer margins 141: the second from the next page's top
+    # The paragraph low on its page, the first table not fitting under it: it flows from there.
+    "pages_stacked_low_two_tables_cell": (2, 1),  # split at the foot, the second below its end, then the line
+    "pages_stacked_low_two_tables_table": (2, 1),  # its first row alone on the first page
+    "pages_stacked_low_small_second_table": (2, 1),  # the small second one not back on the first page
+    "pages_stacked_low_table_taller_than_a_page": (3, 2),  # no room left for the line: the next page's top
+    # After an empty paragraph whose second table of two went on to the next page:
+    "pages_stacked_in_two_paragraphs": 2,  # another such paragraph: its tables below the first's line
+    "pages_stacked_in_two_paragraphs_over_four_pages": (4, 3),  # four tables, then two more from where the
+                                                           # first's line leaves off: the first of them split
+                                                           # over the next page's top across the other's, the
+                                                           # second below it, the line on the fourth page
+    "pages_stacked_then_a_flowing_table": 2,  # a paragraph holding one flowing table: under its line
+    "pages_stacked_then_text_over_two_pages": (3, 2),  # 60 lines, going on below the second table
+    # After an empty paragraph whose second table went alone to the top of the next page, filling it but for 1500:
+    "pages_stacked_then_text_below_a_nearly_filled_page": (3, 2),  # 60 lines: one in those 1500, the rest after
+    "pages_stacked_then_text_past_a_filled_page": (3, 2),  # 900 left, less than a line: the lines skip that page
+    "pages_stacked_then_a_table_as_character_past_a_filled_page": (3, 2),  # one 55000 tall skips it too
+    "pages_stacked_then_a_table_as_character_below_a_short_one": (2, 1),  # under a second table 5762 tall
+}
+
+
+@pytest.mark.parametrize("name", sorted(STACKED_PAGES))
+def test_objects_stacked_in_an_empty_paragraph_go_where_hancom_put_them(name: str) -> None:
+    # Each goes to the first page, from the paragraph's on, where it fits below the earlier ones it overlaps
+    # across; one fitting on none starts at the top of the page after the last one used. The lines take the
+    # first places clear of them. A last page holding only objects has no line, hence no HANCOM_PAGES entry.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+    hancom = _hancom_lines(data)
+    pages, lines_page = STACKED_PAGES[name] if isinstance(STACKED_PAGES[name], tuple) else (STACKED_PAGES[name], 0)
+
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+        estimated = [[line.vertpos for line in lines] for lines in estimate.lines]
+
+        assert (estimate.unsupported, estimate.pages) == ((), pages)
+        assert [lines[-1].page for lines in estimate.lines][-1] == lines_page
+        assert [mine for mine, theirs in zip(estimated, hancom) if theirs] == [theirs for theirs in hancom if theirs]
+
+
+@pytest.mark.parametrize(("index", "height"), [(0, 60000), (1, 70000)])  # the first not fitting, a later on no page
+def test_a_stacked_picture_past_the_page_foot_is_not_followed(index: int, height: int) -> None:
+    out = io.BytesIO()
+    data = (FIXTURES / "pages_stacked_two_pictures.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                list(root.iter(f"{HP}pic"))[index].find(f"{HP}sz").set("height", str(height))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+
+    assert estimate_pages(out.getvalue()).unsupported == (
+        "section 0: an object placed top and bottom past the page's foot",)
+
+
 def test_objects_set_as_characters_among_text_on_both_sides_of_a_square_wrapped_object_are_not_followed() -> None:
     # The picture of pages_square_band_table_as_character_among_text moved 3000 from the column's left: text goes
     # on both sides of it, each line in two pieces, and an object among it is not followed there.
