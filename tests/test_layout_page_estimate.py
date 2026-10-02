@@ -62,6 +62,13 @@ HANCOM_PAGES = {
     "pages_square_table_split_text_on_both_sides": 3,  # in the middle: the lines in two pieces
     "pages_square_table_wide_split_text_beside_it": 2,  # 45626 wide, 2562 left beside it: two characters a
                                                         # line there
+    # A table 30000 x 20000 wrapped square at the column's left from its paragraph 8000 down (10 pt text spaced
+    # 160%), its control after 16 characters, on the paragraph's first line laid out the column's whole width:
+    # Hancom places it from the paragraph's top as one before the text, the lines reaching it beside it:
+    "pages_square_table_after_text": 1,  # the paragraph's own lines beside it, 12 characters a line
+    "pages_square_table_after_text_2383_down": 1,  # placed 2383 down: the paragraph's line above it the
+                                                   # whole width, the paragraphs after beside it
+    "pages_square_table_before_text": 1,  # its control before the text: the same
     "pages_picture_1319_down_moved_to_the_next_page": 3,  # a picture 8000 tall placed top and bottom 1319
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines
@@ -1262,6 +1269,16 @@ def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows(
 
     assert estimate.unsupported == ()
     assert estimate.pages == 1
+
+
+def test_a_square_object_after_text_past_the_first_line_is_not_followed() -> None:
+    # The same table, its control after 60 characters: on the paragraph's second line laid out the column's
+    # whole width. Hancom places it from that line's top (9600), the lines from there on beside it. Not
+    # followed.
+    data = (FIXTURES / "pages_square_table_after_text_on_the_second_line.hwpx").read_bytes()
+
+    assert estimate_pages(data).unsupported == ("section 0: tbl wrapped square after text",)
+    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: tbl wrapped square after text",)
 
 
 def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupported() -> None:
