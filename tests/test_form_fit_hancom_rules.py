@@ -62,6 +62,8 @@ CONDENSE_ROWS = [
     for name in ("margin_word", "space_without_spacing", "text_reaching_margin")
 ]
 LABELS = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_bullet_and_number_labels.hwpx"
+WINGDINGS_LABEL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_wingdings_label_rows.hwpx"
+HY_HEADLINE_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hy_headline_cells.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -91,6 +93,61 @@ def test_each_character_can_take_its_own_size() -> None:
 
     assert hancom_line_starts("가나다라마", [5000], 10, style) == [0]
     assert hancom_line_starts("가나다라마", [5000], 10, style, sizes=[10, 10, 20, 10, 10]) == [0, 4]
+
+
+def test_cells_of_symbols_break_where_hancom_breaks_them() -> None:
+    # Hancom laid this document out. Each cell holds a symbol and five Hangul syllables at one of the two
+    # widths where its line breaks change: symbols a face lacks (drawn from its fallback face, in faces of
+    # 1000, 1024 and 2048 units per em), the Greek of 함초롬돋움, 한컴 고딕's я, and design advances.
+    doc = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_glyph_cells.hwpx")
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        assert estimate_lines(text, width, 10, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", width)
+    assert len(cells) == 24
+
+
+def test_cells_in_hy_headline_break_where_hancom_breaks_them() -> None:
+    # Hancom laid this document out: each cell holds a glyph and five Hangul syllables in HY헤드라인M at one of the
+    # two widths where its line count changes, at 30 pt and at 10 pt. The glyphs take the face's design advance;
+    # those it lacks (₩ €) and the grave accent take 함초롬바탕's, moved into the face's units; я and ✀ take the
+    # advance Hancom gives them.
+    doc = HwpxDocument.open(HY_HEADLINE_CELLS)
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        assert style.glyph_face == "HY헤드라인M"
+        assert estimate_lines(text, width, points, style) == hancom, (f"U+{ord(text[0]):04X}", points, width)
+    assert len(cells) == 22
+
+
+def test_human_myeongjo_takes_the_design_advances_of_its_font() -> None:
+    # 휴먼명조's font has 512 units per em: a Hangul syllable takes the full em, a parenthesis 160 units, the comma
+    # 138 and A 338.
+    style = TextStyle(hangul_face="휴먼명조", glyph_face="휴먼명조")
+    assert glyph_advance_em("휴먼명조", "(") == 160 / 512
+    assert [char_advance(ch, 10, style) for ch in "가(,A"] == [1000, 312, 268, 660]
+
+
+def test_every_fallback_face_has_a_table() -> None:
+    from hwpx.form_fit import _glyph_table as table
+
+    for face, fallback in table.FALLBACK.items():
+        assert face in table.ADVANCES and fallback in table.ADVANCES
+        assert face in table.UNITS_PER_EM and fallback in table.UNITS_PER_EM
 
 
 def test_each_character_can_take_its_own_style() -> None:
@@ -456,8 +513,9 @@ def test_a_numeral_a_face_does_not_list_is_full_width() -> None:
 
 
 def test_a_symbol_in_a_face_the_table_does_not_list_breaks_where_hancom_breaks_it() -> None:
-    # Five ○ in 휴먼명조 10 pt, which the glyph table does not list, in cells 4400 and 5400 wide inside:
-    # Hancom laid them out in two lines and in one.
+    # Five ○ at 10 pt in cells 4400 and 5400 wide inside: Hancom laid them out in two lines and in one. The
+    # cells are in 휴먼명조, which the glyph table lists, so they are measured with the face left unnamed as well:
+    # a face the table does not list draws ○ full width.
     doc = HwpxDocument.open(UNLISTED_SYMBOLS.read_bytes())
     tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
 
@@ -466,6 +524,9 @@ def test_a_symbol_in_a_face_the_table_does_not_list_breaks_where_hancom_breaks_i
         cell = table.cell(0, 0)
         segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
         slot = resolve_slot_metrics(cell, doc, max_lines=10, safety=1.0)
+        assert slot.text_style.hangul_face == "휴먼명조"
+        assert measure(cell.text, slot).lines == len(segs), (cell.width, len(segs))
+        slot.text_style = replace(slot.text_style, hangul_face="", glyph_face="")
         assert glyph_advance_em(slot.text_style.hangul_face, "○") is None
         assert measure(cell.text, slot).lines == len(segs), (cell.width, len(segs))
         lines.append(len(segs))
@@ -725,6 +786,18 @@ def test_the_rows_under_bullets_and_numbers_break_where_hancom_breaks() -> None:
 
     assert len(rows) == 168
     assert [starts for starts, _ in rows[:144]] == [hancom for _, hancom in rows[:144]]
+
+
+def test_a_wingdings_bullet_at_its_own_width_takes_the_glyph_design_advance() -> None:
+    # 25 rows of 120 syllables, 0.15 mm narrower one after another, under the bullet U+F09F in its own Wingdings
+    # shape with its own width on (useInstWidth): Hancom takes the glyph's design advance, 456 at 10 pt, and the
+    # half-em gap off every line, laid out and saved by Hancom.
+    rows = _row_line_starts(WINGDINGS_LABEL, labelled=True)
+
+    assert len(rows) == 25
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
 def test_a_no_break_space_is_half_an_em_and_keeps_the_words_together() -> None:
     assert char_advance("\u00a0", 10, TextStyle()) == char_advance(" ", 10, TextStyle()) == 500
     # "다라" and "마바" stay together: the line breaks at the space before them, not after the no-break space.

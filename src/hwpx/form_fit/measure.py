@@ -35,6 +35,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
+from ._glyph_table import ADVANCES, FALLBACK, UNITS_PER_EM
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
 # exact (full-width cells); the Latin/digit/punct values are conservative class
@@ -132,8 +133,10 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 # at that em, rounded half up at 100% 장평 and down at any other 장평, and 자간
 # adds its share of that advance, rounded half away from zero. The half-em space
 # is half the em, rounded down, at the 장평, rounded half up. Bold text keeps the
-# regular advances. A face or glyph not listed below falls back to the class
-# averages, unrounded.
+# regular advances. A glyph a face lacks takes the advance of the face Hancom
+# lays it out from (``_glyph_table.FALLBACK``), moved into the face's own units
+# and rounded. A face or glyph listed nowhere falls back to the class averages,
+# unrounded.
 _LAYOUT_UNIT = 4
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -145,7 +148,8 @@ _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 _GLYPHS = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·…“”‘’「」『』〈〉《》※○●□■△▲◇◆☆★→←↑↓ㆍ×÷±°℃‰—–ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹⅺⅻ①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇'
 
 #: Design advances per face in font units: units per em, a Hangul syllable, the
-#: space, and each glyph of ``_GLYPHS`` (0: not in the face).
+#: space, and each glyph of ``_GLYPHS`` (0: not in the face, or one Hancom lays
+#: out from the fallback face all the same).
 _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
     "함초롬바탕": (1000, 970, 300, (
         320, 320, 610, 610, 830, 724, 320, 320, 320, 550, 550, 320, 550, 320, 550, 550,
@@ -327,6 +331,36 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
         0, 0, 0, 0,
     )),
+    "HY헤드라인M": (1024, 1024, 341, (
+        256, 384, 853, 597, 810, 640, 213, 298, 298, 341, 597, 213, 597, 213, 384, 597,
+        597, 597, 597, 597, 597, 597, 597, 597, 597, 256, 256, 469, 597, 469, 597, 853,
+        597, 640, 640, 640, 469, 469, 640, 640, 256, 341, 597, 426, 810, 597, 597, 554,
+        597, 597, 597, 512, 640, 640, 938, 597, 554, 469, 341, 384, 341, 554, 512, 0,
+        597, 597, 597, 597, 640, 384, 597, 597, 256, 298, 554, 256, 853, 597, 640, 597,
+        597, 426, 554, 384, 597, 554, 810, 512, 512, 426, 426, 298, 426, 725, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 0, 0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
+    )),
+    "휴먼명조": (512, 512, 256, (
+        104, 256, 336, 258, 384, 394, 148, 160, 160, 256, 256, 138, 256, 138, 160, 256,
+        256, 256, 256, 256, 256, 256, 256, 256, 256, 138, 138, 256, 256, 256, 220, 398,
+        338, 308, 328, 348, 320, 298, 360, 348, 132, 202, 330, 296, 400, 354, 366, 294,
+        352, 334, 254, 320, 346, 340, 478, 364, 344, 306, 164, 160, 164, 186, 256, 166,
+        260, 278, 248, 260, 268, 200, 264, 284, 128, 136, 268, 128, 408, 282, 262, 276,
+        276, 206, 210, 174, 276, 276, 370, 250, 262, 232, 150, 104, 150, 256, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
+        512, 512, 0, 0, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0, 512, 512, 512, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0, 0, 0, 0,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0,
+        0, 0, 0, 0,
+    )),
 }
 
 
@@ -337,22 +371,45 @@ def glyph_advance_em(face: str, ch: str) -> float | None:
     return design[0] / design[1] if design is not None else None
 
 
+@lru_cache(maxsize=8192)
 def _design_units(face: str, ch: str | None) -> tuple[int, int] | None:
     """``(advance, units per em)`` of *ch* in *face*, a Hangul syllable when *ch*
-    is ``None``, or ``None`` when not listed."""
+    is ``None``, or ``None`` when not listed. A glyph the face lacks takes the
+    advance of its fallback face, in the face's own units."""
 
     entry = _DESIGN.get(face)
-    if entry is None:
-        return None
-    upem, hangul, space, glyphs = entry
-    if ch is None:
-        units = hangul
-    elif ch == " ":
-        units = space
-    else:
-        index = _GLYPHS.find(ch) if len(ch) == 1 else -1
-        units = glyphs[index] if index >= 0 else 0
-    return (units, upem) if units else None
+    if entry is None:  # a symbol face only the glyph table lists (no Hangul, no space of its own)
+        units = _face_glyphs(face).get(ch, 0) if ch is not None and ch != " " else 0
+        return (units, UNITS_PER_EM[face]) if units else None
+    upem, hangul, space, _ = entry
+    if ch is None or ch == " ":
+        return (hangul if ch is None else space), upem
+    source = face
+    while source:
+        units = _own_units(source, ch)
+        if units:
+            if source != face:
+                units = math.floor(Fraction(units * upem, UNITS_PER_EM[source]) + Fraction(1, 2))
+            return units, upem
+        source = FALLBACK.get(source, "")
+    return None
+
+
+def _own_units(face: str, ch: str) -> int:
+    """Design advance of *ch* in *face* itself; 0 when the face does not have it."""
+
+    entry = _DESIGN.get(face)
+    index = _GLYPHS.find(ch) if len(ch) == 1 else -1
+    if entry is not None and index >= 0:
+        return entry[3][index]
+    return _face_glyphs(face).get(ch, 0)
+
+
+@lru_cache(maxsize=None)
+def _face_glyphs(face: str) -> dict[str, int]:
+    """Design advance of every glyph ``_glyph_table`` lists for *face*."""
+
+    return {ch: units for units, chars in ADVANCES.get(face, {}).items() for ch in chars}
 
 
 @lru_cache(maxsize=4096)
