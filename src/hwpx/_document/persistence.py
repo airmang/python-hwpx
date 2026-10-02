@@ -408,7 +408,8 @@ def save_report(
     oracle-verified ``visual_complete`` tier (plan §0.0).
 
     Like the legacy savers it raises only if the serialize step's open-safety
-    check fails; all other gate outcomes are returned in the report.
+    check fails; all other gate outcomes are returned in the report. An ``.hwp``
+    path is written as HWP 5.0, as :func:`save_to_path` writes it.
     """
 
     _run_pre_save_validation(doc)
@@ -420,10 +421,15 @@ def save_report(
         output_path = path_or_stream
     elif path_or_stream is not None:
         output_stream = path_or_stream
+    # An .hwp target gets HWP 5.0 made from the HWPX parts the gate checks; it raises before anything is
+    # written when the HWP 5.0 writer cannot express the document.
+    hwp5 = None
+    if output_path is not None and str(output_path).lower().endswith(".hwp"):
+        hwp5 = _hwp5_bytes(archive_bytes)
 
     report = doc._save_pipeline.run(
         archive_bytes,
-        output_path=output_path,
+        output_path=None if hwp5 is not None else output_path,
         output_stream=output_stream,
         quality=quality or QualityPolicy.transparent(),
         before=before,
@@ -432,6 +438,12 @@ def save_report(
         reference_document=doc,
         source_label="document.save_report",
     )
+    if hwp5 is not None and report.ok:  # the gate passed: publish the HWP 5.0 file in its place
+        from ..quality.save_pipeline import write_bytes_atomically
+
+        assert output_path is not None
+        write_bytes_atomically(output_path, hwp5)
+        report.output_path = str(output_path)
     if report.ok:
         _mark_save_clean(doc)
     return report
