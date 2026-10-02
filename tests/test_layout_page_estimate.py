@@ -676,6 +676,33 @@ def test_lines_keeping_their_caches_beside_a_picture_on_the_paper_stay_where_han
         "section 0: text beside an object placed on the paper",)
 
 
+@pytest.mark.parametrize(("name", "pages"), [("pages_square_picture_staying_above_the_foot", 2),
+                                             ("pages_square_picture_staying_457_past_the_foot", 2),
+                                             ("pages_square_picture_staying_5000_past_the_foot", 2),
+                                             ("pages_square_picture_staying_20000_past_the_foot", 3)])
+def test_a_square_picture_not_flowing_with_the_text_stays_on_its_page_past_the_foot(name: str, pages: int) -> None:
+    # A picture 20000 x 27112 wrapped square from its paragraph's top, text on both sides, set not to flow with
+    # the text (flowWithText="0"), its foot 500 above the body's or 457, 5000, 20000 below it: it stays on its
+    # page, the lines beside it in two pieces down to that page's foot, the lines after going on at the next
+    # page's top at full width. Each line keeps its cache there.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, pages)
+
+
+def test_without_caches_lines_beside_a_square_picture_staying_past_the_foot_are_followed_on_its_page() -> None:
+    # 457 past the foot, every line beside the picture stays on its page: laid out again at the pieces' widths,
+    # they go where Hancom put them.
+    data = (FIXTURES / "pages_square_picture_staying_457_past_the_foot.hwpx").read_bytes()
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
+    # 5000 or 20000 past it, text beside it goes on over the page end, where Hancom lays it out at full width: a
+    # paragraph without its cache is not followed there.
+    for name in ("pages_square_picture_staying_5000_past_the_foot", "pages_square_picture_staying_20000_past_the_foot"):
+        data = (FIXTURES / f"{name}.hwpx").read_bytes()
+        assert estimate_pages(_without_caches(data)).unsupported == (
+            "section 0: a page break beside a square-wrapped or offset top-and-bottom object",)
+
+
 def _with_empty_runs_in_cells(data: bytes) -> bytes:
     """*data* without line caches, each paragraph of a table cell starting with an empty run of character
     shape 0 (10 pt), as a paragraph written empty and given runs after."""
