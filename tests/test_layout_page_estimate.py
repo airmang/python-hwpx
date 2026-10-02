@@ -23,6 +23,25 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    # A rectangle placed top and bottom 2000 down from an empty paragraph's top, 20000 x 8000 (one column
+    # 48188 wide): the next paragraph's line reaching it goes below it, the whole width, even holding objects
+    # set as characters (a group or a picture 44633 x 648, which do not make it taller than its text):
+    "pages_push_band_text": 1,  # a character alone
+    "pages_push_band_group_as_character": 1,  # a character, a group and a polygon in front of the text
+    "pages_push_band_picture_as_character": 1,
+    "pages_push_band_group_as_character_alone": 1,  # the group and the polygon, no text
+    # A picture wrapped square from an empty paragraph's left, 41631 x 27112, leaving 6557 beside it; the
+    # next paragraph holds a table set as a character alone:
+    "pages_square_band_table_as_character_alone": 1,  # 47058 wide: below the picture, the whole width
+    "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
+    # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
+    # character among it: the first line holding one wider than the room goes below the picture, the whole
+    # width, the rest of the room left empty; one narrower stays beside it.
+    "pages_square_band_table_as_character_among_text": 2,  # a table 47058 wide
+    "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
+    "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
+    "pages_square_band_table_as_character_below_a_short_band": 1,  # the picture 5000 tall: the table's line
+                                                                   # comes after the band anyway
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word
@@ -460,6 +479,25 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+def test_objects_set_as_characters_among_text_on_both_sides_of_a_square_wrapped_object_are_not_followed() -> None:
+    # The picture of pages_square_band_table_as_character_among_text moved 3000 from the column's left: text goes
+    # on both sides of it, each line in two pieces, and an object among it is not followed there.
+    out = io.BytesIO()
+    data = (FIXTURES / "pages_square_band_table_as_character_among_text.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                square = next(pic for pic in root.iter(f"{HP}pic") if pic.get("textWrap") == "SQUARE")
+                square.find(f"{HP}pos").set("horzOffset", "3000")
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+
+    assert estimate_pages(_without_caches(out.getvalue())).unsupported == (
+        "section 0: objects set as characters among text beside a square-wrapped object",)
 
 
 def test_a_typed_ideographic_space_is_not_a_fixed_width_one() -> None:
