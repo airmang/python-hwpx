@@ -959,6 +959,41 @@ def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: P
     assert not target.exists()
 
 
+def test_save_report_writes_an_hwp_path_as_hwp(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("보고서와 함께 저장")
+    target = tmp_path / "보고서.hwp"
+
+    report = document.save_report(target)
+
+    assert report.ok and report.output_path == str(target)
+    assert target.read_bytes()[:8] == cfb.SIGNATURE
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert "보고서와 함께 저장" in _texts(HwpxDocument.open(target))
+    other = tmp_path / "보고서.hwpx"
+    assert document.save_report(other).ok and other.read_bytes()[:4] == b"PK\x03\x04"
+
+
+def test_save_report_refuses_an_hwp_path_before_writing_what_hwp_cannot_hold(tmp_path: Path) -> None:
+    from lxml import etree
+
+    document = HwpxDocument.new()
+    document.add_paragraph("양식 개체가 있는 문서")
+    [run] = list(document.sections[0].element.iter(f"{HP}run"))[-1:]
+    combo = etree.SubElement(run, f"{HP}comboBox")
+    for value in ("가", "나"):  # an HWP combo box keeps one value, not a list
+        etree.SubElement(combo, f"{HP}listItem", displayText=value, value=value)
+    document.sections[0].mark_dirty()
+    target = tmp_path / "양식.hwp"
+
+    with pytest.raises(Hwp5Error) as info:
+        document.save_report(target)
+
+    assert info.value.code == "hwp5-write-unsupported"
+    assert not target.exists()
+
+
 def test_a_check_box_made_with_the_api_saves_as_hwp(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("양식 개체가 있는 문서")

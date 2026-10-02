@@ -836,7 +836,9 @@ class HwpxDocument(_LegacyFacade):
         oracle-verified ``visual_complete`` tier (plan §0.0).
 
         Like the legacy savers it raises only if the serialize step's open-safety
-        check fails; all other gate outcomes are returned in the report.
+        check fails; all other gate outcomes are returned in the report. An ``.hwp``
+        path is written as HWP 5.0, as :meth:`save_to_path` writes it, and raises
+        :class:`~hwpx.Hwp5Error` before writing when the document cannot be.
         """
 
         return _persistence.save_report(
