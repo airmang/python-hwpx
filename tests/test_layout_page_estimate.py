@@ -272,6 +272,15 @@ HANCOM_PAGES = {
     "pages_objects_among_text_table": 2,  # a full-width table set as a character among text
     "pages_objects_among_text_equation": 1,  # equations set as characters among text
     "pages_objects_after_text_rectangle": 1,  # rectangles set as characters after text
+    "pages_text_box_grown_by_its_text": 1,  # a rectangle 3000 tall set as a character holding five lines of
+                                             # text: Hancom draws it as tall as its current size (curSz), 7966
+    "pages_text_box_grown_by_its_text_among_text": 1,  # the same between two words
+    "pages_text_box_grown_by_its_text_in_a_cell": 1,  # in a cell, a line after it: the row grows with it
+    "pages_text_box_grown_by_its_text_top_and_bottom": 1,  # placed top and bottom alone in a paragraph
+    "pages_text_box_grown_by_its_text_upside_down": 1,  # scaled upside down: its current size written -7966
+    "pages_text_box_fitting_its_text": 1,  # holding one line: as tall as its size, its current size being 0
+    "pages_text_box_grown_by_three_lines": 1,  # 4766: three lines of 10 pt and the margins of 283
+    "pages_text_box_grown_by_two_lines_current_size_one_less": 1,  # two: 3166, its current size written 3165
     "pages_table_anchored_after_text": 1,  # a top-and-bottom table anchored after three lines of text
     "pages_picture_anchored_before_text": 1,  # a top-and-bottom picture anchored before the text
     "pages_table_anchored_offset_before_text": 1,  # 3000 down from the first line: the third line goes below
