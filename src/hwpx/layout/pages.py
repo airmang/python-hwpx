@@ -1913,6 +1913,12 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
             pitch = _pitch(shape.kind, shape.value, size)
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width)
+        beside = _page_number_beside(objects[0], runs, widths[0])
+        if beside is not None:  # a page number beside a table too wide for the line: an empty line of its own,
+            side, run = beside  # as tall as the control's characters
+            empty = measure.char_height(run.get("charPrIDRef"))
+            line = (empty, _pitch(shape.kind, shape.value, empty))
+            count, cached = 2, (line, (size, pitch)) if side < 0 else ((size, pitch), line)
         pos = objects[0].find(f"{HP}pos")
         if table is None and pos.get("treatAsChar") != "1" and pos.get("flowWithText") != "0" \
                 and 0 < int(pos.get("vertOffset", 0)) < 1 << 31:  # below the paragraph's line
@@ -1944,6 +1950,24 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         return replace(para, reflow=_Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks),
                                             style, shape, width=page.column_width, end=end, head=head))
     return para
+
+
+def _page_number_beside(obj: Any, runs: list[Any], width: float) -> tuple[int, Any] | None:
+    """(-1, its run) when a page-number control (``hp:ctrl/hp:pageNum``) stands before *obj*, a table set as a
+    character wider than the line (*width*), in its paragraph, (1, its run) when it stands after it, else
+    ``None``: Hancom sets the two on lines of their own, the control's an empty line as tall as its run's
+    characters."""
+
+    if _local(obj) != "tbl" or obj.find(f"{HP}pos").get("treatAsChar") != "1" or _extent(obj, "width") <= width:
+        return None
+    seen = False
+    for run in runs:
+        for child in run:
+            if child is obj:
+                seen = True
+            elif _local(child) == "ctrl" and child.find(f"{HP}pageNum") is not None:
+                return (1 if seen else -1), run
+    return None
 
 
 def _extent(obj: Any, side: str, measure: _Measure | None = None) -> int:
