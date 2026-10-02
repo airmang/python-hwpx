@@ -182,7 +182,7 @@ from ..oxml.paragraph_heading import paragraph_heading
 from ..oxml.section import _remove_short_paragraph_layout_cache
 from ..oxml.header_part import HwpxOxmlHeader
 from ..oxml.section_format import _drawn_page_size
-from ..oxml.table_sizes import cell_margins_of
+from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
@@ -786,7 +786,7 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     nested: set[int] = set()  # rows with a cell holding a table
     headers: set[int] = set()  # rows with a header cell of their own
     firsts: dict[int, int] = {}  # each row's tallest first line of a cell of its own
-    widths = _grid_widths(table)
+    widths = grid_widths_of(table)
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc, widths.get(tc)), _row_span(tc)
         address = tc.find(f"{HP}cellAddr")
@@ -821,33 +821,6 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     place = {address: position for position, address in enumerate(order)}
     return ([replace(rows[address], nested=address in nested) for address in order],
             [(place[first], span, cell) for first, span, cell in cells])
-
-
-def _grid_widths(table: Any) -> dict[Any, int]:
-    """Each cell's width on the table's column grid, as Hancom lays its text out: from the left, each column
-    starts at the farthest of the ends its cells to the left reach (a cell's start plus its ``hp:cellSz`` width
-    and the table's cell spacing) -- a column as wide as its widest cell of its own, and a merged cell wider
-    than its columns widening the last of them -- and a cell reaches from its first column's start to its last
-    column's end, wider than its own width when another row's cells push those ends apart. Empty for a table
-    whose cells give no column starts to stand on."""
-
-    spacing = int(table.get("cellSpacing", 0) or 0)
-    places: dict[Any, tuple[int, int, int]] = {}  # cell: (first column, column after its last, width)
-    for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
-        address, span = tc.find(f"{HP}cellAddr"), tc.find(f"{HP}cellSpan")
-        if address is None:
-            return {}
-        first = int(address.get("colAddr", 0))
-        places[tc] = (first, first + (1 if span is None else int(span.get("colSpan", 1))),
-                      int(tc.find(f"{HP}cellSz").get("width", 0)))
-    starts = {0: 0}
-    for end in sorted({stop for _, stop, _ in places.values()}):
-        reach = [starts[first] + width + spacing for first, stop, width in places.values()
-                 if stop == end and first in starts]
-        if not reach:
-            return {}
-        starts[end] = max(reach)
-    return {tc: starts[stop] - starts[first] - spacing for tc, (first, stop, _) in places.items() if first in starts}
 
 
 def _row_span(cell: Any) -> int:
