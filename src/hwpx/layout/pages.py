@@ -2503,20 +2503,21 @@ class _Paginator:
         para = self._at_width(para, 0)
         remaining, first_chunk = para.lines, True
         fresh = self.last_vp is None or broke
+        below = False  # the next line was moved below an object's band
         while remaining:
             done = para.lines - remaining
             hit = self._band_hit(para, done, remaining, start)
             if hit is not None and hit[0] == 0:  # the line reaches an object placed on the paper: below it
-                start = hit[1]
+                start, below = hit[1], True
                 continue
             count = self._chunk(index, paras, para, start, remaining, done, first_chunk)
-            if count == 0 and (self.last_vp is None or fresh) and not self.reserved.get(self.frame):
+            if count == 0 and (self.last_vp is None or fresh) and not below and not self.reserved.get(self.frame):
                 count = 1  # a line taller than the page still takes an empty page (and overflows it)
             if hit is not None and hit[0] < count:  # the lines above it stay, the next goes below it
                 count = hit[0]
                 self.out.extend((self.frame, start + para.span(done, j)) for j in range(count))
                 self._place(para, done, count)
-                remaining, start, first_chunk = remaining - count, hit[1], False
+                remaining, start, first_chunk, below = remaining - count, hit[1], False, True
                 continue
             self.out.extend((self.frame, start + para.span(done, j)) for j in range(count))
             self._place(para, done, count)
@@ -2528,7 +2529,7 @@ class _Paginator:
                 self.laid = para
                 return False
             if remaining:
-                start = self._next_frame(para, count, first_chunk)
+                start, below = self._next_frame(para, count, first_chunk), False
                 again = self._at_width(para, para.lines - remaining)
                 if again is not para:
                     para, remaining = again, again.lines
