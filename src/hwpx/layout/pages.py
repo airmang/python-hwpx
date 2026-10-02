@@ -887,7 +887,30 @@ def _down(pos: Any) -> int:
     return 0 if offset < 0 or offset >= 1 << 31 else offset
 
 
+def _vertical(cell: Any) -> bool:
+    """Whether *cell* holds vertical text (``hp:subList@textDirection``): Hancom lays its lines down the
+    cell's height, side by side across it, cuts what does not fit and never makes its row taller."""
+
+    sub_list = cell.find(f"{HP}subList")
+    return sub_list is not None and sub_list.get("textDirection", "HORIZONTAL") != "HORIZONTAL"
+
+
+def _page_break(table: Any) -> str:
+    """How a flowing table goes over a page end (``hp:tbl@pageBreak``): one holding a cell of vertical text
+    does not split, as if set not to (NONE): it moves to the next page whole."""
+
+    if any(_vertical(cell) for row in table.findall(f"{HP}tr") for cell in row.findall(f"{HP}tc")):
+        return "NONE"
+    return table.get("pageBreak", "CELL")
+
+
 def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
+    if _vertical(cell):  # its lines go across it, the row as declared: one block, not split
+        margins = cell_margins_of(cell, table)
+        vertical = margins.top + margins.bottom
+        height = max(int(cell.find(f"{HP}cellSz").get("height", 0)), vertical)
+        return _Row(height, 1, height - vertical, height - vertical, vertical, cell.get("header") == "1",
+                    first=height - vertical)
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
     nested = _holds_table(cell)
     drawn: tuple[tuple[int, int], ...] = ()
@@ -1628,7 +1651,7 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
     top, bottom = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     if _local(obj) == "tbl":
         rows, cells = _table_rows(measure, obj)
-        table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
+        table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", (top, bottom),
                            tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, _drawn_height(obj, measure) + top + bottom)
@@ -1656,7 +1679,7 @@ def _object_line(
         if name == "tbl":
             rows, cells = _table_rows(measure, obj)
             offset = int(pos.get("vertOffset", 0))  # one up (a negative offset, kept unsigned) starts at the line
-            table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", (top, bottom),
+            table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", (top, bottom),
                                tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset,
                                _caption(measure, obj), _spare_cut(obj))
             return count, size, pitch, table
@@ -1893,7 +1916,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any,
             rows, cells = _table_rows(measure, pusher)
             margin = pusher.find(f"{HP}outMargin")
             ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
-            table = _FlowTable(rows, pusher.get("pageBreak", "CELL"), pusher.get("repeatHeader") == "1", ends,
+            table = _FlowTable(rows, _page_break(pusher), pusher.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
@@ -1994,7 +2017,7 @@ def _stack(measure: _Measure, objects: list[Any], column: int, shape: _Shape) ->
             rows, cells = _table_rows(measure, obj)
             margin = obj.find(f"{HP}outMargin")
             ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
-            table = _FlowTable(rows, obj.get("pageBreak", "CELL"), obj.get("repeatHeader") == "1", ends,
+            table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         stacked.append(_Stacked(int(pos.get("vertOffset", 0)), left, left + width, height, table))
     return tuple(stacked)
