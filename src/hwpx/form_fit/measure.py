@@ -28,7 +28,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
@@ -649,6 +649,7 @@ def hancom_line_starts(
     sizes: Sequence[float] | None = None,
     styles: Sequence[TextStyle] | None = None,
     advances: Mapping[int, float] | None = None,
+    objects: Collection[int] = (),
 ) -> list[int]:
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
@@ -671,7 +672,9 @@ def hancom_line_starts(
     *styles*, when given, holds each character's own style (runs of several
     faces, 장평 or 자간) for its advance; *style* still gives the break rules.
     *advances* gives the width of characters that stand for something else,
-    such as an object set as a character, by their index.
+    such as an object set as a character, by their index; *objects* holds
+    the indexes of those that are objects: the two spaces right after one
+    hang past the margin, and a further space begins the next line as above.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -690,7 +693,8 @@ def hancom_line_starts(
             fixed = None if advances is None else advances.get(end)
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
-                if used >= width and end > start and not full and _spills(ch, text[end - 1]):
+                if used >= width and end > start and not full and _spills(ch, text[end - 1]) \
+                        and not (end - 2 in objects and text[end - 1] == " "):  # the second after an object
                     spilled = True
                     break
                 if seen and used >= width and text[end - 1] not in _HANGING_SPACES:
