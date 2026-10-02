@@ -108,6 +108,15 @@ HANCOM_PAGES = {
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    # A cell 20000 wide declared 282 tall (its lines make its row) holding 30 "가" (29160) in 10 pt
+    # 함초롬바탕: one whose text never breaks into lines (hp:subList@lineWrap SQUEEZE or KEEP) keeps each
+    # paragraph on one line but for its line breaks, pressed into the cell when drawn:
+    "pages_table_cell_squeezed_on_one_line": 1,  # SQUEEZE: one line, the row 1282 tall
+    "pages_table_cell_kept_on_one_line": 1,  # KEEP: the same
+    "pages_table_cell_broken_into_lines": 1,  # BREAK: two lines (20 and 10), the row 2882 tall
+    "pages_table_cell_squeezed_after_a_line_break": 1,  # 10, a line break, 30: two lines
+    "pages_table_cell_squeezed_paragraphs": 1,  # two paragraphs of 30: a line each
+    "pages_table_cell_kept_after_a_line_break": 1,  # KEEP, 10, a line break, 30: two lines
     "pages_cell_paragraphs_split_s600_400_b0": 3,  # one cell of 25 paragraphs of 3 lines, spaced 600 before
                                                    # and 400 after, split over pages: the spacing counts,
                                                    # and a part starting with a paragraph keeps 600 above it
