@@ -1086,15 +1086,17 @@ def _in_sub_list(element: Any) -> bool:
 
 
 def _caption(measure: _Measure, table: Any) -> tuple[int, int]:
-    """How much room a table's caption takes above it and below it: its lines and its gap (a caption
-    beside the table takes none)."""
+    """How much room a table's caption takes above it and below it: its first paragraph's spacing before
+    (Hancom starts the caption's first line below it), its lines and its gap (a caption beside the table
+    takes none)."""
 
     caption = table.find(f"{HP}caption")
     if caption is None or caption.get("side") not in ("TOP", "BOTTOM"):
         return (0, 0)
     paragraphs = caption.findall(f"{HP}subList/{HP}p")
     width = int(caption.get("lastWidth", 0)) or int(table.find(f"{HP}sz").get("width", 0))
-    tall = measure.stack(paragraphs, width, caches=True)[0] + int(caption.get("gap", 0))
+    before = measure.shape(paragraphs[0].get("paraPrIDRef")).prev if paragraphs else 0
+    tall = before + measure.stack(paragraphs, width, caches=True)[0] + int(caption.get("gap", 0))
     return (tall, 0) if caption.get("side") == "TOP" else (0, tall)
 
 
