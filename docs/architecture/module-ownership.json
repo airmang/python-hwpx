@@ -607,7 +607,7 @@
       "path": "src/hwpx/hwp5/errors.py",
       "disposition": "core",
       "approvedBy": "owner-hwp5-core-2026-09-23",
-      "rationale": "Hwp5Error, the typed error with hwp5-* codes for HWP 5.0 input that is protected (password, distribution, DRM), damaged, not HWP 5.0 or beyond a parsing limit, and for content the HWP 5.0 writer cannot express."
+      "rationale": "Builders for Hwp5Error, the typed error with hwp5-* codes for HWP 5.0 input that is protected (password, distribution, DRM), damaged, not HWP 5.0 or beyond a parsing limit, and for content the HWP 5.0 writer cannot express, plus Hwp5ConversionReport. Hwp5Error and Hwp5ConversionWarning are defined in hwpx.errors so that importing hwpx does not load this package, and re-exported here."
     },
     {
       "path": "src/hwpx/hwp5/fileheader.py",

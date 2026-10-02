@@ -37,7 +37,6 @@ from ._document import fields as _fields
 from ._document import media as _media
 from ._document import persistence as _persistence
 from ._document.persistence import SaveFormat
-from .hwp5.errors import Hwp5ConversionReport
 from ._document import _resolve
 from ._document import headings as _headings
 from ._document import layout as _layout
@@ -64,6 +63,7 @@ register_owpml_namespaces(ET.register_namespace)
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from .hwp5.errors import Hwp5ConversionReport
     from .tools.validator import ValidationReport
 
 

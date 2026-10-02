@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 바꿈
+
+- `import hwpx`가 HWP 5.0 모듈(`hwpx.hwp5`)을 읽지 않는다. `.hwp`를 열거나 HWP 5.0으로 저장할 때
+  처음 읽는다. `Hwp5Error`·`Hwp5ConversionWarning`은 이제 `hwpx.errors`에 있고, `hwpx`와
+  `hwpx.hwp5.errors`는 같은 클래스를 내보낸다.
+- `import hwpx`가 `hwpx.tools`(텍스트 추출·문서 비교·메일 머지·패키지 검증·내보내기 등)를 읽지
+  않는다. `hwpx.TextExtractor`·`hwpx.doc_diff`·`hwpx.validate_package`처럼 `hwpx.tools`에 사는
+  이름은 처음 쓸 때 경고 없이 읽고, 같은 객체다. 위 `hwpx.hwp5`와 합쳐 `import hwpx`가 읽는
+  hwpx 모듈은 117개에서 97개로 준다. 저장은 여전히 처음 저장할 때 패키지 검증 도구를 읽는다.
+
 ### 고침
 
 - 쪽 수 추정(실험, `estimate_pages`)이 글과 함께 움직이는 어울림(SQUARE) 그림·도형이 본문 바닥을 넘을 때, 줄 캐시가
