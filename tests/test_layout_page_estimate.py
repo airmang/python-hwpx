@@ -152,6 +152,15 @@ HANCOM_PAGES = {
     "pages_picture_alone_in_a_bulleted_paragraph": 1,  # a bullet is text: the line under the picture
     "pages_picture_alone_in_a_numbered_paragraph": 1,  # so is a number
     "pages_table_alone_in_a_bulleted_paragraph": 1,
+    # A cell of a flowing table, a picture 20000 x 10000 placed top and bottom from a paragraph of it:
+    "pages_table_cell_picture_first": 1,  # alone in the first: the line on its top, the row as tall as it
+    "pages_table_cell_picture_second": 1,  # alone in the second, after a line: from that paragraph's top
+    "pages_table_cell_picture_second_text": 1,  # with text after it: the text under it
+    "pages_table_cell_picture_up_first": 1,  # placed 5000 up: at the cell's top all the same
+    "pages_table_cell_picture_up_second": 1,  # 1000 up from the second paragraph: at its top
+    "pages_table_cell_picture_up_second_far": 1,  # 30000 up: at its top too
+    "pages_table_cell_picture_in_a_bulleted_paragraph": 1,  # alone in a bulleted paragraph: the bullet under it
+    "pages_picture_alone_after_a_line": 1,  # in the body: the line on its top, the text after under it
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
