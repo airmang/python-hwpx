@@ -152,6 +152,15 @@ HANCOM_PAGES = {
     "pages_picture_alone_in_a_bulleted_paragraph": 1,  # a bullet is text: the line under the picture
     "pages_picture_alone_in_a_numbered_paragraph": 1,  # so is a number
     "pages_table_alone_in_a_bulleted_paragraph": 1,
+    # A cell of a flowing table, a picture 20000 x 10000 placed top and bottom from a paragraph of it:
+    "pages_table_cell_picture_first": 1,  # alone in the first: the line on its top, the row as tall as it
+    "pages_table_cell_picture_second": 1,  # alone in the second, after a line: from that paragraph's top
+    "pages_table_cell_picture_second_text": 1,  # with text after it: the text under it
+    "pages_table_cell_picture_up_first": 1,  # placed 5000 up: at the cell's top all the same
+    "pages_table_cell_picture_up_second": 1,  # 1000 up from the second paragraph: at its top
+    "pages_table_cell_picture_up_second_far": 1,  # 30000 up: at its top too
+    "pages_table_cell_picture_in_a_bulleted_paragraph": 1,  # alone in a bulleted paragraph: the bullet under it
+    "pages_picture_alone_after_a_line": 1,  # in the body: the line on its top, the text after under it
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
@@ -674,6 +683,33 @@ def test_lines_keeping_their_caches_beside_a_picture_on_the_paper_stay_where_han
     _assert_like_hancom(estimate_pages(data), data, pages)
     assert estimate_pages(_without_caches(data)).unsupported == (
         "section 0: text beside an object placed on the paper",)
+
+
+@pytest.mark.parametrize(("name", "pages"), [("pages_square_picture_staying_above_the_foot", 2),
+                                             ("pages_square_picture_staying_457_past_the_foot", 2),
+                                             ("pages_square_picture_staying_5000_past_the_foot", 2),
+                                             ("pages_square_picture_staying_20000_past_the_foot", 3)])
+def test_a_square_picture_not_flowing_with_the_text_stays_on_its_page_past_the_foot(name: str, pages: int) -> None:
+    # A picture 20000 x 27112 wrapped square from its paragraph's top, text on both sides, set not to flow with
+    # the text (flowWithText="0"), its foot 500 above the body's or 457, 5000, 20000 below it: it stays on its
+    # page, the lines beside it in two pieces down to that page's foot, the lines after going on at the next
+    # page's top at full width. Each line keeps its cache there.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, pages)
+
+
+def test_without_caches_lines_beside_a_square_picture_staying_past_the_foot_are_followed_on_its_page() -> None:
+    # 457 past the foot, every line beside the picture stays on its page: laid out again at the pieces' widths,
+    # they go where Hancom put them.
+    data = (FIXTURES / "pages_square_picture_staying_457_past_the_foot.hwpx").read_bytes()
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
+    # 5000 or 20000 past it, text beside it goes on over the page end, where Hancom lays it out at full width: a
+    # paragraph without its cache is not followed there.
+    for name in ("pages_square_picture_staying_5000_past_the_foot", "pages_square_picture_staying_20000_past_the_foot"):
+        data = (FIXTURES / f"{name}.hwpx").read_bytes()
+        assert estimate_pages(_without_caches(data)).unsupported == (
+            "section 0: a page break beside a square-wrapped or offset top-and-bottom object",)
 
 
 def _with_empty_runs_in_cells(data: bytes) -> bytes:
