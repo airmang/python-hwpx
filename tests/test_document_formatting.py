@@ -501,6 +501,44 @@ def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:
     assert paragraphs[-1].find(f"{HP}linesegarray") is None
 
 
+def _line_counts(archive_bytes: bytes) -> list[int]:
+    with ZipFile(io.BytesIO(archive_bytes), "r") as archive:
+        root = ET.fromstring(archive.read("Contents/section0.xml"))
+    return [len(p.findall(f"{HP}linesegarray/{HP}lineseg")) for p in root.iter() if p.tag.endswith("}p")]
+
+
+def test_save_keeps_a_cached_line_whose_empty_second_piece_starts_past_the_text() -> None:
+    # Hancom laid this out: a picture wrapped square with text on both sides, short paragraphs beside it, each
+    # line two pieces, the right one empty (lineseg flags bit 16) and starting one past the text's end. That
+    # cache is Hancom's own, not stale: an unedited save keeps it whole, and the package check accepts it.
+    fixtures = Path(__file__).parent / "fixtures" / "hancom_saved"
+    data = (fixtures / "pages_layout_cache_line_with_an_empty_second_piece.hwpx").read_bytes()
+    with ZipFile(io.BytesIO(data), "r") as archive:
+        root = ET.fromstring(archive.read("Contents/section0.xml"))
+    empty = [seg for seg in root.iter(f"{HP}lineseg") if int(seg.get("flags", "0")) & 0x10000]
+    assert empty  # the empty pieces this test is about
+
+    assert validate_package(data).ok
+    assert _line_counts(HwpxDocument.open(data).to_bytes()) == _line_counts(data)
+
+
+def test_save_still_removes_a_cache_whose_piece_starts_two_past_the_text() -> None:
+    document = HwpxDocument.new()
+    try:
+        paragraph = document.add_paragraph("Short")
+        document.to_bytes()
+        line_array = paragraph.element.makeelement(f"{HP}linesegarray", {})
+        line_array.append(paragraph.element.makeelement(f"{HP}lineseg", {"textpos": "0"}))
+        line_array.append(paragraph.element.makeelement(f"{HP}lineseg", {"textpos": "7", "flags": "327680"}))
+        paragraph.element.append(line_array)
+        archive_bytes = document.to_bytes()
+    finally:
+        document.close()
+
+    # an empty piece one past the end would be Hancom's; two past it is stale, empty or not
+    assert _line_counts(archive_bytes)[-1] == 0
+
+
 def test_save_preserves_unjudgeable_layout_cache_on_dirty_complex_paragraph() -> None:
     document = HwpxDocument.new()
     try:
