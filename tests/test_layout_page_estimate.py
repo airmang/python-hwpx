@@ -94,6 +94,8 @@ HANCOM_PAGES = {
     # the paragraph and reaching below the table: it takes no room, the line is the table's
     "pages_cell_table_as_character_and_a_drawing_in_front_of_the_text": 1,  # a rectangle in front of the text
     "pages_cell_table_as_character_and_a_picture_behind_the_text": 1,  # a picture behind it
+    # the rectangle, and text after the table on its line:
+    "pages_cell_table_as_character_then_text_and_a_drawing_in_front_of_the_text": 1,
     # A section hiding a page's first empty lines (hp:visibility@hideFirstEmptyLine), its first page full:
     "pages_hide_empty_lines_one": 2,  # an empty paragraph past the foot stays there, the text after it
                                       # starts the next page
