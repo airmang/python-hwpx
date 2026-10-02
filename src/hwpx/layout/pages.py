@@ -2147,6 +2147,7 @@ class _Paginator:
         self.page_notes = [0, 0]  # height and count of the notes on the current page
         self.carry = 0          # height of notes going on over the page end
         self.floor: int | None = None  # where the next paragraph starts at the highest: a table's end
+        self.under: int | None = None  # where the next paragraph starts, whatever its spacing: a table's end
         self.hidden = 0  # empty paragraphs just hidden below the current frame's foot
 
     def run(self, paras: list[_Para]) -> int:
@@ -2161,6 +2162,12 @@ class _Paginator:
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         hidden, self.hidden = self.hidden, 0
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if self.under is not None:  # the table before went on past its anchor line's page: the line reaching it
+            # goes right under its end, as under any object's band, and a column break lands there, in the
+            # column after the anchor line's (or the first one clear of the table)
+            start, self.under = self.under, None
+            if para.column_break and not para.page_break and not para.break_before:
+                para = replace(para, column_break=False)
         if self.floor is not None:
             start, self.floor = max(start, self.floor), None
         if para.band is not None or self.band is not None:
@@ -2214,6 +2221,7 @@ class _Paginator:
         if self.frame != before:
             self.page_notes = [0, 0]
             self.last_vp, self.last_pitch, self.pending_next = end + table.below, 0, para.next
+            self.under = end + table.below
         else:  # the next paragraph goes below the anchor line or the table, whichever is lower
             self.last_vp, self.last_pitch, self.pending_next = start, para.advance(0), para.next
             self.floor = end + table.below
