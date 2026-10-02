@@ -879,16 +879,21 @@ def _cell_row(measure: _Measure, table: Any, cell: Any) -> _Row:
     margins = cell_margins_of(cell, table)
     inner = int(size.get("width", 0)) - margins.left - margins.right
     content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True)
+    # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
+    # take that room already)
+    before = 0 if drawn or not paragraphs else measure.shape(paragraphs[0].get("paraPrIDRef")).prev
+    content += before
     if drawn:
         content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
-    first = drawn[0][0] if drawn else (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
+    first = drawn[0][0] if drawn else \
+        before + (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
     several = not nested and len(paragraphs) > 1  # its lines split at their own places, spacing included
     return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
                 spare=height - vertical - content, nested=nested,
                 metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested or several else (),
-                first=first, leads=_line_leads(measure, paragraphs, inner) if several else ())
+                first=first, leads=_line_leads(measure, paragraphs, inner) if several or before else ())
 
 
 def _line_leads(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[int, ...]:
