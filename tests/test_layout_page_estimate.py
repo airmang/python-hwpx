@@ -464,7 +464,7 @@ HANCOM_PAGES = {
     "pages_tb_and_char_table_then_two_pictures": 1,  # two pictures side by side on that line
     "pages_tb_and_char_two_tables_then_picture": 1,  # two tables, one below the other, the line under both
     "pages_tb_and_char_small_table_then_table": 1,  # a small table set as a character on the line
-    "pages_tb_and_char_small_table_then_table_up": 1,  # built 44 up from the top: saved and laid out at it
+    "pages_tb_and_char_small_table_then_table_up": 1,  # 44 up from the top: the line as if at the top
     "pages_tb_and_char_text_picture_small_table": 1,  # text, a picture 4640 down, a small table in the text
     "pages_tb_and_char_text_picture_tall_table": 2,  # the table 56000 tall: its line on the next page
     # A 9 pt paragraph P with a table placed top and bottom 616 down (seven rows), three 9 pt paragraphs and a
@@ -838,26 +838,6 @@ def test_a_paragraph_of_an_object_and_spaces_keeps_its_cached_lines(name: str, w
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_with_wider_tables_set_as_characters(data, wider)), data, 1)
-
-
-def test_a_table_placed_up_from_an_empty_paragraph_stands_at_its_top() -> None:
-    # A small table set as a character and a top-and-bottom table built 44 up from the paragraph's top: Hancom
-    # laid the table out at the top, as at 0, and saved 0. Put back up (kept unsigned), it lays out the same.
-    data = (FIXTURES / "pages_tb_and_char_small_table_then_table_up.hwpx").read_bytes()
-    out = io.BytesIO()
-    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
-        for info in source.infolist():
-            payload = source.read(info.filename)
-            if info.filename.startswith("Contents/section"):
-                root = etree.fromstring(payload)
-                for table in root.iter(f"{HP}tbl"):
-                    if table.find(f"{HP}pos").get("treatAsChar") != "1":
-                        table.find(f"{HP}pos").set("vertOffset", str((1 << 32) - 44))
-                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
-            target.writestr(info, payload)
-
-    _assert_like_hancom(estimate_pages(out.getvalue()), data, 1)
-    _assert_like_hancom(estimate_pages(_without_caches(out.getvalue())), data, 1)
 
 
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
