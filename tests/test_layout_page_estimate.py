@@ -276,6 +276,26 @@ HANCOM_PAGES = {
     "pages_table_wider_than_the_line_alone": 1,  # no control: one line
     "pages_section_start_then_a_table_wider_than_the_line": 1,  # the section's and columns' controls before
                                                                 # it: one line
+    # The same table beside one of the other controls: the same two lines, whichever the control. Before the
+    # table, an empty line 1600 down and the table's line under it; after it, the table's line first.
+    "pages_page_hiding_then_a_table_wider_than_the_line": 1,  # a hidden page number
+    "pages_table_wider_than_the_line_then_a_page_hiding": 1,
+    "pages_auto_number_then_a_table_wider_than_the_line": 1,  # a page's number shown as a character
+    "pages_table_wider_than_the_line_then_an_auto_number": 1,
+    "pages_new_number_then_a_table_wider_than_the_line": 1,  # a new page number
+    "pages_table_wider_than_the_line_then_a_new_number": 1,
+    "pages_page_number_control_then_a_table_wider_than_the_line": 1,  # page numbering on both sides
+    "pages_table_wider_than_the_line_then_a_page_number_control": 1,
+    "pages_header_then_a_table_wider_than_the_line": 1,  # a header
+    "pages_table_wider_than_the_line_then_a_header": 1,
+    "pages_footer_then_a_table_wider_than_the_line": 1,  # a footer
+    "pages_table_wider_than_the_line_then_a_footer": 1,
+    "pages_bookmark_then_a_table_wider_than_the_line": 1,  # a bookmark
+    "pages_table_wider_than_the_line_then_a_bookmark": 1,
+    "pages_click_here_field_then_a_table_wider_than_the_line": 1,  # an empty click-here field, its start and end
+    "pages_table_wider_than_the_line_then_a_click_here_field": 1,
+    "pages_index_mark_then_a_table_wider_than_the_line": 1,  # an index mark
+    "pages_table_wider_than_the_line_then_an_index_mark": 1,
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
