@@ -2923,10 +2923,20 @@ class _Paginator:
 
         if para.notes or para.anchor is not None or para.wrap_bottom \
                 or (para.table is not None and (self.band is None or para.band is not None)) \
-                or (self.band is not None and (para.band is not None or para.page_break or para.break_before
-                                               or para.column_break)):
+                or (self.band is not None and (para.page_break or para.break_before or para.column_break)):
             raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
         start, broke = self._breaks(para, start)
+        if self.band is not None and para.band is not None:  # its own table's band after another's
+            frame, top, bottom, end_frame, end = self.band
+            if self.frame != frame or start + para.height(0) <= top:
+                raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
+            self.band = None
+            if bottom is None or start < bottom:  # its first line reaches the other table: the paragraph goes
+                if end_frame != self.frame:  # below that table's end, its own table placed from there
+                    self.frame, self.page_notes = end_frame, [0, 0]
+                start = end + para.prev
+            self._banded(index, paras, para, start)
+            return
         if para.table is not None:  # a flowing table alone in its paragraph: its line goes below the band
             frame, top, bottom, end_frame, end = self.band
             if self.frame != frame or start + para.height(0) <= top or (bottom is not None and start >= bottom):

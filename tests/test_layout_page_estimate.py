@@ -495,6 +495,12 @@ HANCOM_PAGES = {
     "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row
     "pages_table_offset_flowing_second_line": 2,  # 2000 down: the second line goes below its end
     "pages_table_offset_flowing_next_paragraph": 2,  # the next paragraph's first line does
+    # Two paragraphs each of a line of text and a flowing table 2000 down from it: the second paragraph starts
+    # at the foot of the first table (of its last part), its own table 2000 below its top, and the text after
+    # at that table's foot.
+    "pages_table_past_the_end_then_text_and_a_short_table": 2,  # the first table over the page end: the second
+    "pages_table_past_the_end_then_text_and_a_long_cell": 3,  # the second table's one row over the page end too
+    "pages_table_ending_then_text_and_a_short_table": 1,  # the first table ending on its page
     "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
