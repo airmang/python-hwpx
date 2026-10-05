@@ -129,8 +129,8 @@ def _shape_set_position(
         )
     for attribute, frame in frames.items():
         position.set(attribute, frame)
-    position.set("horzOffset", str(horizontal_offset))
-    position.set("vertOffset", str(vertical_offset))
+    position.set("horzOffset", str(horizontal_offset & 0xFFFFFFFF))  # a negative one as Hancom writes it:
+    position.set("vertOffset", str(vertical_offset & 0xFFFFFFFF))  # its unsigned 32-bit form
     self.paragraph.section.mark_dirty()
 
 

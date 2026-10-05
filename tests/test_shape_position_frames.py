@@ -119,7 +119,7 @@ def test_frames_and_alignment_survive_save_and_reopen() -> None:
             "horzAlign": "RIGHT",
             "vertAlign": "BOTTOM",
             "horzOffset": "1000",
-            "vertOffset": "-2000",
+            "vertOffset": "4294965296",  # -2000 as Hancom writes it (unsigned 32-bit); it reads "-2000" as 0
         }
 
 
