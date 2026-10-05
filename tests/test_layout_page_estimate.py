@@ -83,6 +83,15 @@ HANCOM_PAGES = {
                                                               # short lines beside it, in two pieces
     "pages_square_band_table_as_character_below_a_short_band": 1,  # the picture 5000 tall: the table's line
                                                                    # comes after the band anyway
+    # A rectangle 20000 x 3000 wrapped square 1000 below a line of text, a line beside it, then a paragraph
+    # holding a table placed top and bottom before its text: Hancom sets the table at its own offset whatever
+    # the band, and the paragraph's line below the table, past the band:
+    "pages_square_band_then_a_table_below_the_band": 1,  # 600 down, the paragraph's top 200 above the band's
+                                                         # foot
+    "pages_square_band_then_a_table_in_the_band": 1,  # at its top: drawn over the rectangle
+    "pages_square_band_then_a_table_high_in_the_band": 1,  # the paragraph's top 2000 above the band's foot
+    "pages_square_band_then_a_table_margin_top": 1,  # the rectangle's top outer margin 1417 in its band
+    "pages_square_band_then_a_table_after_the_band": 1,  # the paragraph after the band
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word

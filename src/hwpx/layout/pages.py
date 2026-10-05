@@ -1395,6 +1395,24 @@ def _placed_from(paragraph: Any) -> bool:
                for run in paragraph.findall(f"{HP}run") for child in run)
 
 
+def _below_the_band(measure: _Measure, runs: list[Any], wrap: _Wrap) -> bool:
+    """Whether every line of a paragraph goes below the band of a square-wrapped object anchored before it
+    (*wrap*, as the paragraph sees it): its one object placed top and bottom from its top before its text,
+    which Hancom sets at its own offset whatever the band (drawn over it), reaches its first line, which goes
+    below it with the lines after, and its foot is no higher than the band's."""
+
+    obj = _object_before_text(runs)
+    if obj is None:
+        return False
+    offset = _down(obj.find(f"{HP}pos"))
+    if offset >= _text_size(measure, runs)[0]:  # the first line stands above it
+        return False
+    tall = _extent(obj, "height", measure)
+    if _local(obj) == "tbl":  # as tall as its rows
+        tall += sum(row.height for row in _rows(measure, obj)) - int(obj.find(f"{HP}sz").get("height", 0))
+    return offset + tall >= wrap.bottom
+
+
 def _object_before_text(runs: list[Any], headed: bool = False) -> Any:
     """The object placed top and bottom from its paragraph's top (a table, picture or drawing) that is all the
     runs hold but text after it -- a space is text, and so is the bullet or number of a *headed* paragraph or
@@ -2143,6 +2161,8 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     if wrap is not None:
         wrap = wrap.lower(shape.prev)
+        if wrap is not None and not wrap.push and square is None and _below_the_band(measure, runs, wrap):
+            wrap = None  # every line of the paragraph goes below its object's foot, under the band
         if wrap is not None and (square is not None or pusher is not None or (wrap.push and placed)
                                  or _on(shape.flags, "pageBreakBefore")
                                  or paragraph.get("pageBreak") == "1" or paragraph.get("columnBreak") == "1"):
