@@ -640,6 +640,11 @@ class _Measure:
                 last_height, last_advance = metrics[-1]
                 metrics[-1] = (last_height, last_advance + shape.prev)
             runs = paragraph.findall(f"{HP}run")
+            pieces = _table_pieces(self, paragraph)
+            if pieces is not None:  # a table placed top and bottom on its own: its rows (or their lines)
+                lines = pieces[0]
+                metrics += list(lines[:-1]) + [(lines[-1][0], lines[-1][1] + shape.next)]
+                continue
             cached = () if _table_alone(runs) is not None or not caches else _cached_metrics(paragraph)
             cached = cached or self.spread_lines(paragraph, runs, width, caches=caches)
             if not cached and _table_alone(runs) is None:  # each line as tall as stack makes it
@@ -743,6 +748,9 @@ class _Row:
     #: the room above each of those lines when a part of the cell starts with it (a paragraph's spacing
     #: before its first line, none before the others)
     leads: tuple[int, ...] = ()
+    #: its tables are placed top and bottom on their own and split (see :func:`_table_pieces`): its lines
+    #: (those tables' pieces among them) split as any cell's
+    pieces: bool = False
 
 
 @dataclass(frozen=True)
@@ -970,8 +978,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
     nested = _holds_table(cell)
     drawn: tuple[tuple[int, int], ...] = ()
+    pieces = nested and any(_table_pieces(measure, paragraph) is not None for paragraph in paragraphs)
     if nested and any(_holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None
-                      for paragraph in paragraphs):
+                      and _table_pieces(measure, paragraph) is None for paragraph in paragraphs):
         drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
         if not drawn and not all(_table_on_its_own(paragraph)
                                  or _table_before_text(paragraph.findall(f"{HP}run")) is not None
@@ -980,8 +989,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
                                  if _holds_table(paragraph)
                                  and _table_alone(paragraph.findall(f"{HP}run")) is None):
             raise _Unsupported("a nested table")
-    elif any(_placed_from(paragraph) for paragraph in paragraphs):  # an object placed from a paragraph: the
-        drawn = _drawn_lines(measure, paragraphs)  # lines as Hancom drew them, below it or beside it
+    elif any(_placed_from(paragraph) and _table_pieces(measure, paragraph) is None for paragraph in paragraphs):
+        # an object placed from a paragraph (but a table that splits, see _table_pieces): the lines as Hancom
+        drawn = _drawn_lines(measure, paragraphs)  # drew them, below it or beside it
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = (int(size.get("width", 0)) if width is None else width) - margins.left - margins.right
@@ -1000,10 +1010,11 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     first = drawn[0][0] if drawn else \
         before + (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
     several = not nested and len(paragraphs) > 1  # its lines split at their own places, spacing included
-    return _Row(height, lines, pitch, char_size, vertical, cell.get("header") == "1",
-                spare=height - vertical - content, nested=nested,
-                metrics=(drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested or several else (),
-                first=first, leads=_line_leads(measure, paragraphs, inner) if several or before else ())
+    metrics = (drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested or several else ()
+    return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
+                cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
+                first=first, leads=_line_leads(measure, paragraphs, inner) if several or before or pieces else (),
+                pieces=pieces)
 
 
 def _line_leads(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[int, ...]:
@@ -1012,9 +1023,54 @@ def _line_leads(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[i
 
     leads: list[int] = []
     for paragraph in paragraphs:
+        prev = measure.shape(paragraph.get("paraPrIDRef")).prev
+        pieces = _table_pieces(measure, paragraph)
+        if pieces is not None:  # a table's: the room above each (a repeated header, a row's top margin)
+            leads += [prev + pieces[1][0]] + list(pieces[1][1:])
+            continue
         count = len(measure.stack_lines([paragraph], width, caches=True))
-        leads += [measure.shape(paragraph.get("paraPrIDRef")).prev] + [0] * (count - 1)
+        leads += [prev] + [0] * (count - 1)
     return tuple(leads)
+
+
+def _table_pieces(measure: _Measure, paragraph: Any) -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]] | None:
+    """How a table placed top and bottom on its own in a cell paragraph, from the paragraph's top, splits with
+    its row over a page end: (height, advance) of each piece and the room above each when a part of the cell
+    starts with it. Hancom splits such a table between its rows, one moved row by row (TABLE) as well as one
+    split between lines (CELL), which splits a row of several lines between them too, the row's cell
+    margins around each part; a repeated header goes above each part but the first. ``None`` for any other
+    paragraph, and for a table set not to split (NONE), offset down, with a caption, or with rows merged or
+    holding tables."""
+
+    if not _table_on_its_own(paragraph):
+        return None
+    table = next(child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) == "tbl")
+    mode = _page_break(table)
+    if mode not in ("CELL", "TABLE") or _down(table.find(f"{HP}pos")) or table.find(f"{HP}caption") is not None:
+        return None
+    rows = _rows(measure, table)
+    cells = [tr.find(f"{HP}tc") for tr in table.findall(f"{HP}tr")]
+    if len(rows) != len(cells) or any(row.merged or row.joined or row.nested for row in rows):
+        return None
+    header = sum(row.height for row in rows if row.header) if table.get("repeatHeader") == "1" else 0
+    pieces: list[tuple[int, int]] = []
+    leads: list[int] = []
+    for row, cell in zip(rows, cells):
+        lead = 0 if row.header or not pieces else header
+        lines = (row.metrics or ((row.size, row.pitch),) * row.lines) if mode == "CELL" else ()
+        if len(lines) < 2:
+            pieces.append((row.height, row.height))
+            leads.append(lead)
+            continue
+        top = cell_margins_of(cell, table).top
+        last = row.height - top - sum(advance for _, advance in lines[:-1])  # its foot, its room to spare
+        pieces += [(top + lines[0][0], top + lines[0][1])] + list(lines[1:-1]) + [(last, last)]
+        leads += [lead] + [lead + top] * (len(lines) - 1)
+    margin = table.find(f"{HP}outMargin")
+    above, below = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
+    pieces[0] = (pieces[0][0] + above, pieces[0][1] + above)
+    pieces[-1] = (pieces[-1][0] + below, pieces[-1][1] + below)
+    return tuple(pieces), tuple(leads)
 
 
 @dataclass(frozen=True)
@@ -2578,7 +2634,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
         if y + height <= foot:
             return frame, y + height
         fresh = y == header
-        if mode == "CELL" and nested and row.spare:  # declared taller than its text: cut like any such row
+        if mode == "CELL" and nested and not row.pieces and row.spare:  # declared taller than its text: cut
+            # like any such row (a row whose tables split goes on below as any cell's)
             if y + row.margins + (metrics[0][0] if metrics else row.size) <= foot:  # once its first line fits
                 rest = height - (foot - y)
                 if rest <= _SPARE_DROPPED:
@@ -2590,7 +2647,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                 return frame, y + height
             frame, y = frame + 1, header
             continue
-        if mode == "CELL" and nested:  # between its lines, each as tall as it is (a table is one)
+        if mode == "CELL" and nested and not row.pieces:  # between its lines, each as tall as it is (a table
+            # is one)
             if not metrics:
                 raise _Unsupported("a page break in a flowing table row holding a table")
             fitting, top = 0, y + row.margins
