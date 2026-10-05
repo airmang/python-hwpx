@@ -780,7 +780,9 @@ def _rows(measure: _Measure, table: Any) -> list[_Row]:
 
 def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[int, int, _Row]]]:
     """The rows (see :func:`_rows`) and every cell as (its first row's position, rows spanned, the cell
-    as a row)."""
+    as a row). A table's cell spacing (``hp:tbl@cellSpacing``) stands above each row: every cell is that much
+    taller (a cell merged over rows spans the spacings between them), and the spacing below the last row is
+    the table's (see :func:`_table_ends`)."""
 
     rows: dict[int, _Row] = {}
     merged: list[tuple[int, int, _Row]] = []  # (first row, rows spanned, the cell as a row)
@@ -789,8 +791,11 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     headers: set[int] = set()  # rows with a header cell of their own
     firsts: dict[int, int] = {}  # each row's tallest first line of a cell of its own
     widths = grid_widths_of(table)
+    spacing = _cell_spacing(table)
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         row, span = _cell_row(measure, table, tc, widths.get(tc)), _row_span(tc)
+        if spacing:  # the cell spacing above it, kept with its lines when it goes on over a page end
+            row = replace(row, height=row.height + spacing, margins=row.margins + spacing)
         address = tc.find(f"{HP}cellAddr")
         first = int(address.get("rowAddr", 0)) if address is not None else len(rows)
         cells.append((first, span, row))
@@ -823,6 +828,22 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     place = {address: position for position, address in enumerate(order)}
     return ([replace(rows[address], nested=address in nested) for address in order],
             [(place[first], span, cell) for first, span, cell in cells])
+
+
+def _cell_spacing(table: Any) -> int:
+    """The room Hancom keeps between a table's cells and around them (``hp:tbl@cellSpacing``)."""
+
+    spacing = int(table.get("cellSpacing", 0) or 0)
+    return spacing if 0 < spacing < 1 << 31 else 0
+
+
+def _table_ends(table: Any) -> tuple[int, int]:
+    """The room a table that flows with the text keeps above its rows and below them on each page it goes on:
+    its outer margins (``hp:outMargin`` top and bottom), and below the rows its cell spacing too."""
+
+    margin = table.find(f"{HP}outMargin")
+    top, bottom = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
+    return top, bottom + _cell_spacing(table)
 
 
 def _row_span(cell: Any) -> int:
@@ -1314,7 +1335,7 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
         paragraphs = list(table.iter(f"{HP}p"))
         if paragraphs and all(_cache_lines(paragraph) for paragraph in paragraphs):
             return int(table.find(f"{HP}sz").get("height", 0))
-    return sum(row.height for row in _rows(measure, table))
+    return sum(row.height for row in _rows(measure, table)) + _cell_spacing(table)  # the spacing below the last
 
 
 @dataclass(frozen=True)
@@ -1789,7 +1810,7 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
     top, bottom = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     if _local(obj) == "tbl":
         rows, cells = _table_rows(measure, obj)
-        table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", (top, bottom),
+        table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", _table_ends(obj),
                            tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         return _Anchor(line, table, 0)
     return _Anchor(line, None, _drawn_height(obj, measure) + top + bottom)
@@ -1817,7 +1838,7 @@ def _object_line(
         if name == "tbl":
             rows, cells = _table_rows(measure, obj)
             offset = int(pos.get("vertOffset", 0))  # one up (a negative offset, kept unsigned) starts at the line
-            table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", (top, bottom),
+            table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", _table_ends(obj),
                                tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset,
                                _caption(measure, obj), _spare_cut(obj))
             return count, size, pitch, table
@@ -2094,8 +2115,7 @@ def _spans(measure: _Measure, page: _Page, table: Any) -> tuple[_FlowTable, int,
     if offset < 0 or offset >= 1 << 31:
         raise _Unsupported("a square-wrapped table placed up from its paragraph past the page foot")
     rows, cells = _table_rows(measure, table)
-    margin = table.find(f"{HP}outMargin")
-    ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
+    ends = _table_ends(table)
     flowing = _FlowTable(rows, table.get("pageBreak", "CELL"), table.get("repeatHeader") == "1", ends,
                          tuple(cells), caption=_caption(measure, table), cut=_spare_cut(table))
     left, right = _square_sides(table, page)
@@ -2152,8 +2172,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         offset = int(pusher.find(f"{HP}pos").get("vertOffset", 0))
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
-            margin = pusher.find(f"{HP}outMargin")
-            ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
+            ends = _table_ends(pusher)
             table = _FlowTable(rows, _page_break(pusher), pusher.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
@@ -2256,8 +2275,7 @@ def _stack(measure: _Measure, objects: list[Any], column: int, shape: _Shape) ->
         table = None
         if _local(obj) == "tbl":
             rows, cells = _table_rows(measure, obj)
-            margin = obj.find(f"{HP}outMargin")
-            ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
+            ends = _table_ends(obj)
             table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         stacked.append(_Stacked(int(pos.get("vertOffset", 0)), left, left + width, height, table))
