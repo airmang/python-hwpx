@@ -54,9 +54,11 @@ def test_a_fraction_is_as_wide_as_its_wider_part_and_two_lines_high() -> None:
 
 @pytest.mark.parametrize("script", ["{n} choose {r}", "binom {n} {r}"])
 def test_a_binomial_is_two_rows_high_not_a_word(script: str) -> None:
-    # Hancom draws {n} choose {r} and binom {n} {r} alike, as two rows in stretched parentheses.
+    # Hancom saved {n} choose {r}, binom {n} {r} and pmatrix {n # r} with the same box:
+    # two rows in stretched parentheses.
     width, height = _em(script)
-    assert (width, height) == _em("{n} atop {r}")
+    assert (width, height) == _em("pmatrix {n # r}")
+    assert width > _em("{n} atop {r}")[0]
     assert 2.0 <= height <= 2.6
     assert width < _em('{n} "choose" {r}')[0]
 
