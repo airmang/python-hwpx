@@ -629,9 +629,11 @@ class _Measure:
         return _line_metrics(self, _run_text(runs), _line_widths(shape, width, style), sizes, style, shape, {}, looks,
                              end=end, head=head)
 
-    def stack_lines(self, paragraphs: list[Any], width: int, caches: bool) -> tuple[tuple[int, int], ...]:
+    def stack_lines(self, paragraphs: list[Any], width: int, caches: bool,
+                    pieces: bool = False) -> tuple[tuple[int, int], ...]:
         """(height, advance to the next line's top) of every line of *paragraphs* laid out as in
-        :meth:`stack`, a table set as a character alone in its paragraph as one line."""
+        :meth:`stack`, a table set as a character alone in its paragraph as one line; with *pieces*, a table
+        that splits on its own in a paragraph as its pieces (see :func:`_table_pieces`)."""
 
         metrics: list[tuple[int, int]] = []
         for paragraph in paragraphs:
@@ -640,9 +642,9 @@ class _Measure:
                 last_height, last_advance = metrics[-1]
                 metrics[-1] = (last_height, last_advance + shape.prev)
             runs = paragraph.findall(f"{HP}run")
-            pieces = _table_pieces(self, paragraph)
-            if pieces is not None:  # a table placed top and bottom on its own: its rows (or their lines)
-                lines = pieces[0]
+            split = _table_pieces(self, paragraph) if pieces else None
+            if split is not None:  # a table placed top and bottom on its own: its rows (or their lines)
+                lines = split[0]
                 metrics += list(lines[:-1]) + [(lines[-1][0], lines[-1][1] + shape.next)]
                 continue
             cached = () if _table_alone(runs) is not None or not caches else _cached_metrics(paragraph)
@@ -978,9 +980,11 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
     nested = _holds_table(cell)
     drawn: tuple[tuple[int, int], ...] = ()
-    pieces = nested and any(_table_pieces(measure, paragraph) is not None for paragraph in paragraphs)
-    if nested and any(_holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None
-                      and _table_pieces(measure, paragraph) is None for paragraph in paragraphs):
+    placed = [paragraph for paragraph in paragraphs if _placed_from(paragraph)
+              or _holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None]
+    pieces = nested and bool(placed) and all(_table_pieces(measure, paragraph) is not None for paragraph in placed)
+    if nested and not pieces and any(_holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None
+                                     for paragraph in paragraphs):
         drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
         if not drawn and not all(_table_on_its_own(paragraph)
                                  or _table_before_text(paragraph.findall(f"{HP}run")) is not None
@@ -989,9 +993,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
                                  if _holds_table(paragraph)
                                  and _table_alone(paragraph.findall(f"{HP}run")) is None):
             raise _Unsupported("a nested table")
-    elif any(_placed_from(paragraph) and _table_pieces(measure, paragraph) is None for paragraph in paragraphs):
-        # an object placed from a paragraph (but a table that splits, see _table_pieces): the lines as Hancom
-        drawn = _drawn_lines(measure, paragraphs)  # drew them, below it or beside it
+    elif not pieces and any(_placed_from(paragraph) for paragraph in paragraphs):  # an object placed from a
+        drawn = _drawn_lines(measure, paragraphs)  # paragraph: the lines as Hancom drew them, below it or beside it
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = (int(size.get("width", 0)) if width is None else width) - margins.left - margins.right
@@ -1008,25 +1011,26 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     vertical = margins.top + margins.bottom
     height = max(int(size.get("height", 0)), vertical + content)
     first = drawn[0][0] if drawn else \
-        before + (measure.stack_lines(paragraphs[:1], inner, caches=True) or ((0, 0),))[0][0]
+        before + (measure.stack_lines(paragraphs[:1], inner, caches=True, pieces=pieces) or ((0, 0),))[0][0]
     several = not nested and len(paragraphs) > 1  # its lines split at their own places, spacing included
-    metrics = (drawn or measure.stack_lines(paragraphs, inner, caches=True)) if nested or several else ()
+    metrics = (drawn or measure.stack_lines(paragraphs, inner, caches=True, pieces=pieces)) if nested or several \
+        else ()
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
-                first=first, leads=_line_leads(measure, paragraphs, inner) if several or before or pieces else (),
-                pieces=pieces)
+                first=first, leads=_line_leads(measure, paragraphs, inner, pieces) if several or before or pieces
+                else (), pieces=pieces)
 
 
-def _line_leads(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[int, ...]:
+def _line_leads(measure: _Measure, paragraphs: list[Any], width: int, pieces: bool = False) -> tuple[int, ...]:
     """The room above each line of *paragraphs* (as :meth:`_Measure.stack_lines` lays them out) when a part
     of their cell starts with it: a paragraph's spacing before at its first line, none at the others."""
 
     leads: list[int] = []
     for paragraph in paragraphs:
         prev = measure.shape(paragraph.get("paraPrIDRef")).prev
-        pieces = _table_pieces(measure, paragraph)
-        if pieces is not None:  # a table's: the room above each (a repeated header, a row's top margin)
-            leads += [prev + pieces[1][0]] + list(pieces[1][1:])
+        split = _table_pieces(measure, paragraph) if pieces else None
+        if split is not None:  # a table's: the room above each (a repeated header, a row's top margin)
+            leads += [prev + split[1][0]] + list(split[1][1:])
             continue
         count = len(measure.stack_lines([paragraph], width, caches=True))
         leads += [prev] + [0] * (count - 1)
