@@ -1335,7 +1335,14 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
         paragraphs = list(table.iter(f"{HP}p"))
         if paragraphs and all(_cache_lines(paragraph) for paragraph in paragraphs):
             return int(table.find(f"{HP}sz").get("height", 0))
-    return sum(row.height for row in _rows(measure, table)) + _cell_spacing(table)  # the spacing below the last
+    return _rows_height(measure, table)
+
+
+def _rows_height(measure: _Measure, table: Any) -> int:
+    """How tall a table's rows make it: the rows (see :func:`_rows`, each with the cell spacing above it) and
+    the spacing below the last."""
+
+    return sum(row.height for row in _rows(measure, table)) + _cell_spacing(table)
 
 
 @dataclass(frozen=True)
@@ -1547,7 +1554,7 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
     obj = placed[0]
     tall = _extent(obj, "height", measure)
     if _local(obj) == "tbl":  # as tall as its rows
-        tall += sum(row.height for row in _rows(measure, obj)) - int(obj.find(f"{HP}sz").get("height", 0))
+        tall += _rows_height(measure, obj) - int(obj.find(f"{HP}sz").get("height", 0))
     pos = obj.find(f"{HP}pos")
     offset = int(pos.get("vertOffset", 0))
     if pos.get("vertRelTo") == "PAGE":  # from the body's top or foot
@@ -2152,7 +2159,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot")
         tall = _extent(obj, "height", measure)
         if _local(obj) == "tbl":  # as tall as its rows
-            tall += sum(row.height for row in _rows(measure, obj)) - int(obj.find(f"{HP}sz").get("height", 0))
+            tall += _rows_height(measure, obj) - int(obj.find(f"{HP}sz").get("height", 0))
         if obj is square:
             left, right = _square_sides(square, page)
             band = _Wrap(0, tall, page.column_width - left - right, split=left if left and right else 0)
@@ -2179,7 +2186,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height", measure)
         if _local(pusher) == "tbl":  # as tall as its rows
-            tall += sum(row.height for row in _rows(measure, pusher)) - int(pusher.find(f"{HP}sz").get("height", 0))
+            tall += _rows_height(measure, pusher) - int(pusher.find(f"{HP}sz").get("height", 0))
         return _push(para, _Wrap(top, top + tall, 0, push=True), starts=True)
     if wrap is not None and wrap.push:  # objects set as characters on a line reaching it go below it with it
         return _push(_paragraph(measure, page, paragraph), wrap, starts=False)
@@ -2201,7 +2208,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             raise _Unsupported(f"{_local(square)} wrapped square leaving little room for text")
         tall = _extent(square, "height", measure)
         if _local(square) == "tbl":  # as tall as its rows
-            tall += sum(row.height for row in _rows(measure, square)) - int(square.find(f"{HP}sz").get("height", 0))
+            tall += _rows_height(measure, square) - int(square.find(f"{HP}sz").get("height", 0))
         stays = square.find(f"{HP}pos").get("flowWithText") == "0"
         if left and right:
             wrap = _Wrap(top, top + tall, page.column_width - left - right, split=left, stays=stays)
