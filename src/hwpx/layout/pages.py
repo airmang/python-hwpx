@@ -1758,8 +1758,10 @@ def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = 
     pos = obj.find(f"{HP}pos")
     if not _wraps_top_and_bottom(obj, column):
         return None
-    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" or _down(pos):
-        return None  # (one placed up from the paragraph's top stands at it)
+    offset = int(pos.get("vertOffset", 0))
+    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" \
+            or (_down(pos) if _local(obj) == "tbl" else offset):  # a table placed up stands at the top
+        return None
     return obj
 
 

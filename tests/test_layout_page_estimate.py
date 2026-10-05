@@ -464,7 +464,16 @@ HANCOM_PAGES = {
     "pages_tb_and_char_table_then_two_pictures": 1,  # two pictures side by side on that line
     "pages_tb_and_char_two_tables_then_picture": 1,  # two tables, one below the other, the line under both
     "pages_tb_and_char_small_table_then_table": 1,  # a small table set as a character on the line
-    "pages_tb_and_char_small_table_then_table_up": 1,  # 44 up from the top: the line as if at the top
+    "pages_tb_and_char_small_table_then_table_up": 1,  # 44 up from the top: Hancom takes a table at the top
+    # An empty paragraph at 20000 after lines of text holding a table (three rows, 4000 tall) placed top and
+    # bottom 0, 500, 1000, 1500 or 3000 up from its top (kept unsigned), and one 8000 tall 1500 up: Hancom lays
+    # each out and draws it at the top, the empty line there with no width and the next paragraph at its foot.
+    "pages_empty_paragraph_table_offset_0": 1,
+    "pages_empty_paragraph_table_offset_500": 1,
+    "pages_empty_paragraph_table_offset_1000": 1,
+    "pages_empty_paragraph_table_offset_1500": 1,
+    "pages_empty_paragraph_table_offset_3000": 1,
+    "pages_empty_paragraph_table_offset_1500_h8000": 1,
     "pages_tb_and_char_text_picture_small_table": 1,  # text, a picture 4640 down, a small table in the text
     "pages_tb_and_char_text_picture_tall_table": 2,  # the table 56000 tall: its line on the next page
     # A 9 pt paragraph P with a table placed top and bottom 616 down (seven rows), three 9 pt paragraphs and a
