@@ -546,6 +546,17 @@ HANCOM_PAGES = {
     "pages_rectangle_on_page_5000_below_its_top": 2,   # top and bottom 5000 below the body's top
     "pages_rectangle_on_page_5000_above_its_foot": 2,  # 5000 above the body's foot: the lines reaching it
                                                         # go below it
+    # An empty paragraph among lines of text holding a picture (15000 x 14000) placed top and bottom and centred
+    # up and down on the page (its body) or on the paper, moved by its offset:
+    "pages_centred_on_the_page": 2,  # centred on the body: the line reaching it goes below it
+    "pages_centred_on_the_page_up_4090": 2,  # 4090 up from there (the offset kept unsigned)
+    "pages_centred_on_the_page_down_3000": 2,  # 3000 down
+    "pages_centred_on_the_page_wide_bottom": 2,  # a bottom margin of 30 mm: centred on the shorter body
+    "pages_centred_table_on_the_page": 2,  # a table of seven rows the same
+    "pages_centred_on_the_paper": 2,  # centred on the paper
+    "pages_centred_on_the_paper_up_4090": 2,  # 4090 up
+    "pages_centred_on_the_paper_wide_bottom": 2,  # a bottom margin of 30 mm: where it was
+    "pages_centred_on_the_paper_up_4090_wide_bottom": 2,  # the same 4090 up
     "pages_rectangle_on_page_at_its_foot": 2,          # at the body's foot: the lines reaching it go on to
                                                         # the next page
     "pages_rectangle_on_paper_5000_above_its_bottom": 2,  # 5000 above the paper's bottom, into the body

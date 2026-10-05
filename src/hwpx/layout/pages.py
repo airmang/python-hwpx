@@ -1498,13 +1498,14 @@ def _mark_extent(mark: Any, size: int, style: Any) -> tuple[int, int]:
 
 
 def _on_paper(obj: Any) -> bool:
-    """A top-and-bottom object placed from the top or the bottom of the paper or of the page, not set as a
-    character: it takes no room in its paragraph but keeps every line of its page out of its band. One
-    wrapped square there counts as well (see :func:`_paper_band`)."""
+    """A top-and-bottom object placed from the top or the bottom of the paper or of the page, or centred on it,
+    not set as a character: it takes no room in its paragraph but keeps every line of its page out of its band.
+    One wrapped square there counts as well (see :func:`_paper_band`)."""
 
     pos = obj.find(f"{HP}pos")
     return (pos is not None and pos.get("treatAsChar") != "1" and obj.get("textWrap") in ("TOP_AND_BOTTOM", "SQUARE")
-            and pos.get("vertRelTo") in ("PAPER", "PAGE") and pos.get("vertAlign", "TOP") in ("TOP", "BOTTOM"))
+            and pos.get("vertRelTo") in ("PAPER", "PAGE")
+            and pos.get("vertAlign", "TOP") in ("TOP", "CENTER", "BOTTOM"))
 
 
 def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, int, bool, tuple[int, ...]] | None:
@@ -1529,10 +1530,12 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
         tall += sum(row.height for row in _rows(measure, obj)) - int(obj.find(f"{HP}sz").get("height", 0))
     pos = obj.find(f"{HP}pos")
     offset = int(pos.get("vertOffset", 0))
-    if pos.get("vertRelTo") == "PAGE":  # from the body's top or foot
-        top = offset if pos.get("vertAlign", "TOP") == "TOP" else page.body - offset - tall
-    else:  # from the paper's top or bottom
-        top = (offset if pos.get("vertAlign", "TOP") == "TOP" else page.paper_height - offset - tall) - page.top
+    align = pos.get("vertAlign", "TOP")
+    height, base = (page.body, 0) if pos.get("vertRelTo") == "PAGE" else (page.paper_height, -page.top)
+    if align == "CENTER":  # centred, then moved down by the offset (up when negative, kept unsigned)
+        top = (height - tall) // 2 + (offset - (1 << 32) if offset >= 1 << 31 else offset) + base
+    else:  # from the body's (the paper's) top or foot
+        top = (offset if align == "TOP" else height - offset - tall) + base
     return top, top + tall, square and not across, columns
 
 
