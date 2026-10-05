@@ -53,6 +53,7 @@ UNLISTED_SYMBOLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfi
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
+FONT_LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_font_line_heights.hwpx"
 PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_margins.hwpx"
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 
@@ -672,6 +673,30 @@ def test_the_line_budget_matches_the_heights_hancom_gives_cells(fixture: Path, c
         assert replace(slot, available_height=float(content)).height_lines() == lines, (slot.line_spacing, content)
         if lines > 1:
             assert replace(slot, available_height=float(content - 1)).height_lines() == lines - 1
+def test_the_line_budget_takes_its_line_height_from_the_font_as_hancom_does() -> None:
+    """Cells grown by Hancom to their text in paragraph shapes taking their line height from the font
+    (fontLineHeight): 1 to 5 lines of 함초롬바탕 and 맑은 고딕 at 10 and 12 pt under every line spacing type, and
+    of 바탕, whose ascent and descent make up its em. The table height Hancom saved, less the cell margins, holds
+    exactly those lines, each as tall as the face makes it (Hancom's own line is a unit taller at some sizes,
+    12 pt 함초롬바탕 among them)."""
+    doc = HwpxDocument.open(FONT_LINE_HEIGHTS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 83
+    for table in tables:
+        cell = table.cell(0, 0)
+        lines = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        height = int(table.element.find(f"{HP}sz").get("height"))
+        margin = cell.element.find(f"{HP}cellMargin")
+        content = height - int(margin.get("top")) - int(margin.get("bottom"))
+        slot = resolve_slot_metrics(cell, doc, safety=1.0)
+
+        assert slot.font_line
+        assert abs(slot.line_size() - int(lines[0].get("vertsize"))) <= 1, slot.text_style
+        budget = replace(slot, available_height=float(content)).height_lines()
+        assert budget == len(lines), (slot.text_style, slot.line_spacing, content)
+
+
 def test_rounded_advances_break_where_hancom_breaks() -> None:
     """Addresses, dates, phone numbers, amounts and Latin in twelve faces at 9 to 12 pt, 장평 90 to 110 % and
     자간 -20 to 5 %, each in a cell exactly as wide as its line and in one 2 HWPUNIT narrower, laid out and

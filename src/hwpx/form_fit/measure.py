@@ -1308,6 +1308,9 @@ class SlotMetrics:
     # cent, FIXED / BETWEEN_LINES / AT_LEAST in HWPUNIT. ``None`` falls back to
     # ``line_spacing_ratio``.
     line_spacing: tuple[str, float] | None = None
+    # The cell's first paragraph takes its line height from the font (``hh:paraPr@fontLineHeight``): a line is
+    # as tall as its face makes it (see :meth:`line_size`), its spacing reckoned from that height.
+    font_line: bool = False
 
     @property
     def capacity(self) -> float:
@@ -1317,14 +1320,26 @@ class SlotMetrics:
         ratio = self.line_spacing_ratio
         return ratio if ratio and ratio > 0 else DEFAULT_LINE_SPACING_RATIO
 
+    def line_size(self, font_pt: float | None = None) -> float:
+        """How tall one line is at *font_pt* (HWPUNIT): the size, or with :attr:`font_line` the height the
+        slot's face gives a line of that size (:func:`font_line_height`; the size for a face the glyph table
+        does not list)."""
+
+        size = (self.font_pt if font_pt is None else font_pt) * 100.0
+        if self.font_line and self.text_style is not None:
+            tall = font_line_height(self.text_style.hangul_face, round(size))
+            if tall is not None:
+                return float(tall)
+        return size
+
     def line_height(self, font_pt: float | None = None) -> float:
         """Expected per-line vertical advance in HWPUNIT at *font_pt*."""
 
-        pt = self.font_pt if font_pt is None else font_pt
+        size = self.line_size(font_pt)
         if self.line_spacing is not None:
             kind, value = self.line_spacing
-            return _line_pitch(kind, value, pt * 100.0)
-        return pt * 100.0 * self._line_ratio()
+            return _line_pitch(kind, value, size)
+        return size * self._line_ratio()
 
     def height_lines(self, font_pt: float | None = None) -> int | None:
         """Expected vertical line budget at *font_pt* (declared/default pitch).
@@ -1338,7 +1353,7 @@ class SlotMetrics:
         line_h = self.line_height(font_pt)
         if line_h <= 0:
             return None
-        return _lines_in_height(self._lines_room(), line_h, (self.font_pt if font_pt is None else font_pt) * 100.0)
+        return _lines_in_height(self._lines_room(), line_h, self.line_size(font_pt))
 
     def _lines_room(self) -> float:
         """The available height less the paragraph's spacing before its first line."""
@@ -1356,10 +1371,10 @@ class SlotMetrics:
         if self.available_height is None:
             return None
         pt = self.font_pt if font_pt is None else font_pt
-        line_h = min(self.line_height(pt), pt * 100.0 * MIN_LINE_SPACING_RATIO)
+        line_h = min(self.line_height(pt), self.line_size(pt) * MIN_LINE_SPACING_RATIO)
         if line_h <= 0:
             return None
-        return _lines_in_height(self._lines_room(), line_h, pt * 100.0)
+        return _lines_in_height(self._lines_room(), line_h, self.line_size(pt))
 
 
 def _line_pitch(kind: str, value: float, size: float) -> float:
@@ -1434,7 +1449,7 @@ def _lines_end(cell: object, document: object) -> float:
     text = str(getattr(cell, "text", "") or "")
     lines = measure(text, slot).lines if text else 1
     before = slot.text_style.space_before if slot.text_style is not None else 0
-    return before + (lines - 1) * slot.line_height() + slot.font_pt * 100.0
+    return before + (lines - 1) * slot.line_height() + slot.line_size()
 
 
 def _drawn_row_height(cell: object) -> float:
@@ -1659,6 +1674,26 @@ def _first_para_line_spacing_ratio(cell: object, document: object) -> float | No
         except (TypeError, ValueError):  # pragma: no cover - defensive
             return None
     return None
+
+
+def _first_para_font_line(cell: object, document: object) -> bool:
+    """Whether the cell's first paragraph shape takes its line height from the font (``fontLineHeight``)."""
+
+    try:
+        paragraphs = cell.paragraphs  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - defensive
+        return False
+    for paragraph in paragraphs:
+        ref = getattr(paragraph, "para_pr_id_ref", None)
+        if ref is None or document is None:
+            continue
+        try:
+            prop = _document_root(document).paragraph_property(ref)
+        except Exception:  # pragma: no cover - defensive
+            prop = None
+        if prop is not None:
+            return bool(getattr(prop, "font_line_height", False))
+    return False
 
 
 def _first_para_line_spacing(cell: object, document: object) -> tuple[str, float] | None:
@@ -1930,7 +1965,7 @@ def resolve_slot_metrics(
         return replace(slot, height_unavailable=True)
     raw_height = float(getattr(cell, "height", 0) or 0)
     stored = max(raw_height - top - bottom, 0.0) if raw_height > 0 else 0.0
-    if stored * safety >= slot.font_pt * 100.0 * MIN_LINE_SPACING_RATIO:
+    if stored * safety >= slot.line_size() * MIN_LINE_SPACING_RATIO:
         # The stored height, unless lines Hancom laid out in the row run past it:
         # Hancom then draws the row as tall as those lines.
         drawn = _drawn_row_height(cell) - top - bottom
@@ -1975,6 +2010,7 @@ def _cell_slot(
         line_width=line if raw_width > 0 else None,
         min_line_width=MIN_LINE_WIDTH * safety,
         line_spacing=_first_para_line_spacing(cell, document),
+        font_line=_first_para_font_line(cell, document),
     )
 
 
