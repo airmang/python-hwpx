@@ -257,6 +257,15 @@ HANCOM_PAGES = {
     "pages_table_as_character_2000_short_then_three_spaces": 1,  # all three fit beside it
     "pages_table_as_character_200_short_then_three_12pt_spaces": 1,  # of 12 pt: the third's line 1200 tall
     "pages_table_as_character_200_short_after_two_spaces": 1,  # two before it: the table on the next line
+    # A table set as a character (a row 1282 tall) 1000 wider than the column (42520), alone in its paragraph
+    # but for a page-number control: the two never share a line, the control's an empty line of the text.
+    "pages_page_number_then_a_table_wider_than_the_line": 1,  # the control first: an empty line 1600 down,
+                                                              # then the table's
+    "pages_table_wider_than_the_line_then_a_page_number": 1,  # the table first: the control's line under it
+    "pages_page_number_then_a_table_that_fits": 1,  # 1000 narrower than the column: one line
+    "pages_table_wider_than_the_line_alone": 1,  # no control: one line
+    "pages_section_start_then_a_table_wider_than_the_line": 1,  # the section's and columns' controls before
+                                                                # it: one line
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
