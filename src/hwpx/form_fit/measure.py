@@ -35,7 +35,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
-from ._glyph_table import ADVANCES, FALLBACK, UNITS_PER_EM
+from ._glyph_table import ADVANCES, FALLBACK, UNITS_PER_EM, VERTICAL_METRICS
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
 # exact (full-width cells); the Latin/digit/punct values are conservative class
@@ -785,6 +785,23 @@ def _face_glyphs(face: str) -> dict[str, int]:
     """Design advance of every glyph ``_glyph_table`` lists for *face*."""
 
     return {ch: units for units, chars in ADVANCES.get(face, {}).items() for ch in chars}
+
+
+def font_line_height(face: str | None, height: int) -> int | None:
+    """How tall a line of characters *height* HWPUNIT tall in *face* is when its paragraph takes the line
+    height from the font (``hh:paraPr@fontLineHeight``): the face's ascent and descent at that height, each
+    rounded up, or *height* itself for a face whose ascent and descent make up its em (바탕, the HY faces);
+    ``None`` for a face the glyph table does not list. Hancom's own lines come out a unit or two taller at some
+    sizes, as the font's hinting has it."""
+
+    metrics = VERTICAL_METRICS.get(face or "")
+    if metrics is None or not height:
+        return None if metrics is None else 0
+    ascent, descent = metrics
+    upem = UNITS_PER_EM[face]
+    if ascent + descent == upem:
+        return height
+    return -(-height * ascent // upem) - (-height * descent // upem)
 
 
 @lru_cache(maxsize=4096)

@@ -5,7 +5,8 @@ Punctuation, Currency Symbols, Mathematical Operators, Geometric Shapes, Miscell
 Halfwidth and Fullwidth Forms blocks (Hangul, Hanja and kana left out); for the symbol faces Wingdings and Symbol, the
 private-use code points U+F020-F0FF their glyphs are stored at. A face lacking a glyph lays it out at its fallback
 face's advance. The table is read from the font files, not written by hand, but for a few glyphs Hancom lays out
-at an advance of its own (я in 한컴 고딕 and HY헤드라인M, for one), which they carry instead.
+at an advance of its own (я in 한컴 고딕 and HY헤드라인M, for one), which they carry instead. Each text face's
+ascent and descent are here too, for the line height of a paragraph that takes it from the font.
 """
 
 from __future__ import annotations
@@ -72,6 +73,56 @@ FALLBACK: dict[str, str] = {
     "함초롬돋움": "Segoe UI Symbol",
     "휴먼명조": "함초롬바탕",
     "HY헤드라인M": "함초롬바탕",
+    "한컴산뜻돋움": "함초롬돋움",
+    "HY중고딕": "함초롬바탕",
+    "HY견고딕": "함초롬바탕",
+    "HY신명조": "함초롬바탕",
+    "새굴림": "함초롬돋움",
+    "한컴 말랑말랑 Regular": "함초롬바탕",
+}
+
+#: Each text face's ascent and descent (OS/2 usWinAscent, usWinDescent) in its units per em: a paragraph
+#: taking its line height from the font (``hh:paraPr@fontLineHeight``) makes its lines that tall.
+VERTICAL_METRICS: dict[str, tuple[int, int]] = {
+    "바탕": (879, 145),
+    "바탕체": (879, 145),
+    "궁서": (879, 145),
+    "궁서체": (879, 145),
+    "굴림": (879, 145),
+    "굴림체": (879, 145),
+    "돋움": (879, 145),
+    "돋움체": (879, 145),
+    "한컴 고딕": (1000, 300),
+    "함초롬바탕": (1070, 230),
+    "함초롬돋움": (1070, 230),
+    "맑은 고딕": (2229, 495),
+    "한컴산뜻돋움": (1000, 300),
+    "휴먼고딕": (440, 100),
+    "한컴돋움": (879, 145),
+    "HY울릉도M": (879, 145),
+    "HY울릉도B": (879, 145),
+    "HY중고딕": (879, 145),
+    "HY견고딕": (879, 145),
+    "HY신명조": (879, 145),
+    "HY태백B": (879, 145),
+    "HY그래픽": (879, 145),
+    "한컴바탕": (879, 145),
+    "한컴 윤고딕 230": (1103, 303),
+    "한컴 윤고딕 240": (1123, 300),
+    "한컴 윤고딕 720": (943, 253),
+    "한컴 윤고딕 760": (1039, 267),
+    "한컴 윤체 L": (1117, 246),
+    "한컴 소망 M": (1170, 280),
+    "한컴 소망 B": (1170, 279),
+    "한컴 백제 B": (1079, 262),
+    "한컴 백제 M": (1047, 265),
+    "한컴 바겐세일 B": (1062, 220),
+    "한컴 바겐세일 M": (1038, 230),
+    "새굴림": (879, 145),
+    "한컴 말랑말랑 Regular": (1040, 250),
+    "MD개성체": (879, 145),
+    "휴먼명조": (440, 100),
+    "HY헤드라인M": (879, 145),
 }
 
 #: Per face, design advance -> the glyphs the face lays out at that advance.
