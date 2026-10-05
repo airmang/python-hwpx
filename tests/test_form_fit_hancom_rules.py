@@ -68,6 +68,7 @@ WINGDINGS_LABEL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit
 HY_HEADLINE_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hy_headline_cells.hwpx"
 MORE_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_cells.hwpx"
 MORE_FACES_FALLBACKS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_fallback_cells.hwpx"
+MORE_FACES_HANGUL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_hangul_cells.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -143,19 +144,21 @@ def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
     # HY견고딕, HY신명조, 새굴림 or 한컴 말랑말랑 Regular at one of the two widths where its line count changes, at
     # 10 pt and 30 pt. The glyphs take the face's design advance; those it lacks (— ⑯ ‐ ‑ ¦) take its fallback
     # face's, moved into the face's units (⑯ is 968 at 10 pt in a face of 1024 units, 972 in one of 1000):
-    # 함초롬돋움's for 한컴산뜻돋움 and 새굴림, 함초롬바탕's for the others. 말랑말랑's 0, which Hancom lays out
-    # 4 narrower than its design advance (648 at 10 pt, 1948 at 30 pt), is left out.
+    # 함초롬돋움's for 한컴산뜻돋움 and 새굴림, 함초롬바탕's for the others. In 말랑말랑 (Regular and Bold) the
+    # syllables with a horizontal vowel are 820 of 1000 units wide, the others 880. Its 0 and, at 30 pt, its 고,
+    # which Hancom lays out 4 narrower and 4 wider than their design advances (648 at 10 pt, 2464 at 30 pt),
+    # are left out.
     faces: dict[str, int] = {}
-    for path in (MORE_FACES_CELLS, MORE_FACES_FALLBACKS):
+    for path in (MORE_FACES_CELLS, MORE_FACES_FALLBACKS, MORE_FACES_HANGUL):
         doc = HwpxDocument.open(path)
         for cell in doc.oxml.sections[0].element.iter(f"{HP}tc"):
             paragraph = cell.find(f"{HP}subList/{HP}p")
             text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
             ref = paragraph.find(f"{HP}run").get("charPrIDRef")
             style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
-            if style.glyph_face == "한컴 말랑말랑 Regular" and text.startswith("0"):
-                continue
             points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+            if style.glyph_face.startswith("한컴 말랑말랑") and (text.startswith("0") or (points == 30 and "고" in text)):
+                continue
             margins = cell.find(f"{HP}cellMargin")
             width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
             hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
@@ -163,7 +166,7 @@ def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
                 style.glyph_face, f"U+{ord(text[0]):04X}", points, width)
             faces[style.glyph_face] = faces.get(style.glyph_face, 0) + 1
     assert faces == {"한컴산뜻돋움": 58, "HY중고딕": 58, "HY견고딕": 52, "HY신명조": 52, "새굴림": 34,
-                     "한컴 말랑말랑 Regular": 32}
+                     "한컴 말랑말랑 Regular": 56, "한컴 말랑말랑 Bold": 4}
 
 
 def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -> None:
@@ -175,6 +178,16 @@ def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -
     assert [char_advance("가", 10, style) for style in styles] == [900, 852, 1000, 1000, 948]
     assert [char_advance("(", 10, style) for style in styles] == [380, 276, 312, 364, 476]
     assert glyph_advance_em("한컴 윤고딕 230", "(") == 380 / 1000
+
+
+def test_a_hangul_syllable_takes_its_own_advance_where_the_font_gives_it_one() -> None:
+    # 한컴 말랑말랑 Regular's font draws the syllables with a horizontal vowel (ㅗ ㅛ ㅜ ㅠ ㅡ) 820 of 1000 units
+    # wide and the others 880; the faces whose syllables are all one width keep it.
+    style = TextStyle(hangul_face="한컴 말랑말랑 Regular", glyph_face="한컴 말랑말랑 Regular")
+    assert [char_advance(ch, 10, style) for ch in "가고는를을은"] == [880, 820, 820, 820, 820, 820]
+    assert char_advance("고", 30, style) == 2460
+    plain = TextStyle(hangul_face="함초롬바탕", glyph_face="함초롬바탕")
+    assert {char_advance(ch, 10, plain) for ch in "가고는를"} == {972}
 
 
 def test_a_line_taking_its_height_from_the_font_is_as_tall_as_the_face_makes_it() -> None:

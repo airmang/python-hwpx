@@ -35,7 +35,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
-from ._glyph_table import ADVANCES, FALLBACK, UNITS_PER_EM, VERTICAL_METRICS
+from ._glyph_table import ADVANCES, FALLBACK, HANGUL_ADVANCES, UNITS_PER_EM, VERTICAL_METRICS
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
 # exact (full-width cells); the Latin/digit/punct values are conservative class
@@ -736,6 +736,21 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0,
     )),
+    "한컴 말랑말랑 Bold": (1000, 880, 300, (
+        270, 394, 744, 643, 853, 726, 240, 369, 369, 551, 538, 259, 508, 228, 403, 661,
+        418, 586, 594, 617, 600, 594, 565, 617, 594, 228, 260, 499, 558, 499, 510, 822,
+        684, 585, 689, 735, 530, 526, 830, 700, 394, 438, 605, 530, 972, 700, 848, 590,
+        848, 601, 533, 551, 684, 672, 972, 630, 630, 569, 420, 541, 420, 590, 551, 330,
+        639, 639, 552, 639, 590, 440, 640, 582, 250, 236, 535, 230, 848, 587, 622, 639,
+        639, 397, 426, 436, 588, 532, 840, 500, 588, 467, 455, 240, 455, 567, 360, 880,
+        572, 572, 350, 350, 520, 520, 600, 600, 520, 520, 600, 600, 940, 880, 880, 880,
+        880, 880, 880, 880, 880, 880, 880, 880, 880, 880, 880, 880, 480, 588, 690, 320,
+        880, 1000, 880, 500, 880, 880, 880, 880, 880, 880, 880, 880, 880, 880, 0, 0,
+        880, 880, 880, 880, 880, 880, 880, 880, 880, 880, 0, 0, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 0, 0, 0, 0, 0,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 0,
+        0, 0, 0, 0,
+    )),
 }
 
 
@@ -768,6 +783,26 @@ def _design_units(face: str, ch: str | None) -> tuple[int, int] | None:
             return units, upem
         source = FALLBACK.get(source, "")
     return None
+
+
+@lru_cache(maxsize=8192)
+def _hangul_units(face: str, ch: str) -> tuple[int, int] | None:
+    """``(advance, units per em)`` of the Hangul syllable *ch* in *face*: its own design advance where the
+    face's font gives it another one than the face's other syllables (``_glyph_table.HANGUL_ADVANCES``), else
+    the face's; ``None`` when the face is not listed."""
+
+    entry = _DESIGN.get(face)
+    units = _face_hangul(face).get(ch, 0)
+    if entry is not None and units:
+        return units, entry[0]
+    return _design_units(face, None)
+
+
+@lru_cache(maxsize=None)
+def _face_hangul(face: str) -> dict[str, int]:
+    """Design advance of every Hangul syllable ``_glyph_table.HANGUL_ADVANCES`` lists for *face*."""
+
+    return {ch: units for units, chars in HANGUL_ADVANCES.get(face, {}).items() for ch in chars}
 
 
 def _own_units(face: str, ch: str) -> int:
@@ -1002,7 +1037,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     if ch in _HALF_EM_SPACES and not style.use_font_space:
         return _laid_out_space(height, ratio, spacing)
     if cls == "hangul":
-        design, base = _design_units(style.hangul_face, None), style.hangul_advance
+        design, base = _hangul_units(style.hangul_face, ch), style.hangul_advance
     else:
         design, base = _design_units(style.glyph_face, ch), _ADVANCE_EM[cls]
     if design is not None:
