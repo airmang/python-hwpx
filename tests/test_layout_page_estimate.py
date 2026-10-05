@@ -467,6 +467,20 @@ HANCOM_PAGES = {
     "pages_tb_and_char_small_table_then_table_up": 1,  # built 44 up from the top: saved and laid out at it
     "pages_tb_and_char_text_picture_small_table": 1,  # text, a picture 4640 down, a small table in the text
     "pages_tb_and_char_text_picture_tall_table": 2,  # the table 56000 tall: its line on the next page
+    # A 9 pt paragraph P with a table placed top and bottom 616 down (seven rows), three 9 pt paragraphs and a
+    # 15 pt paragraph Q with a table 2124 down: the paragraphs after P start at its table's foot, and P's own
+    # line stays at its top when P is empty, goes below the table when P holds text, spaces included.
+    "pages_band_then_empty_paragraphs": 1,  # P empty: its line stays at its top, the paragraphs after
+    "pages_band_then_text_paragraphs": 1,  # the same, the three of text
+    "pages_band_then_empty_paragraphs_then_band": 1,  # then Q, empty, and its table 2124 down
+    "pages_band_then_text_paragraphs_then_band": 1,  # the three of text
+    "pages_band_at_zero_then_empty_paragraphs_then_band": 1,  # P's table at its top
+    "pages_band_empty_again_then_empty_paragraphs_then_band": 1,  # P empty again, saved anew
+    "pages_band_text_then_empty_paragraphs_then_band": 1,  # P of text: its line goes below its table
+    "pages_band_spaces_then_empty_paragraphs_then_band": 1,  # P of two spaces: the same, spaces are text
+    "pages_band_space_then_empty_paragraphs_then_band": 1,  # P of one space: the same
+    "pages_band_text_split_then_empty_paragraphs_then_band": 2,  # P of text, its table over the page end: its
+                                                                 # line at the foot of the table's part on the next page
     "pages_table_offset_flowing_split_by_cell": 2,  # a flowing table 500 down over the page end:
                                                     # the line it stands on goes below its end
     "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row

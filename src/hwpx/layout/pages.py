@@ -2209,13 +2209,13 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
 
 
 def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object of a paragraph of text placed top and bottom below the line it stands on (an
-    offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects set
-    as characters are that line; in one of text, they are among it."""
+    """The one object of a paragraph of text (spaces are text) placed top and bottom below the line it stands
+    on (an offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects
+    set as characters are that line; in one of text, they are among it."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     lined = not text.strip() and len(objects) > len(placed)  # no text: the objects set as characters its line
-    if len(placed) != 1 or not (lined or text.strip()):
+    if len(placed) != 1 or not (lined or text):
         return None
     obj = placed[0]
     pos = obj.find(f"{HP}pos")
