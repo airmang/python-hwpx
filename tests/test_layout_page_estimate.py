@@ -855,6 +855,30 @@ def test_a_paragraph_of_an_object_and_spaces_keeps_its_cached_lines(name: str, w
     _assert_like_hancom(estimate_pages(_with_wider_tables_set_as_characters(data, wider)), data, 1)
 
 
+def test_a_table_placed_up_from_a_paragraph_of_spaces_stands_at_its_top() -> None:
+    # The paragraph of two spaces with its table 616 down, then put 616 up (kept unsigned) and at 0: a table
+    # placed up stands at the paragraph's top, so the paragraph lays out as with the table at 0, its line below
+    # the table; it does not push from four billion units down.
+    def with_offset(offset: int) -> bytes:
+        data = (FIXTURES / "pages_band_spaces_then_empty_paragraphs_then_band.hwpx").read_bytes()
+        out = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+            for info in source.infolist():
+                payload = source.read(info.filename)
+                if info.filename.startswith("Contents/section"):
+                    root = etree.fromstring(payload)
+                    next(root.iter(f"{HP}tbl")).find(f"{HP}pos").set("vertOffset", str(offset))
+                    payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+                target.writestr(info, payload)
+        return _without_caches(out.getvalue())
+
+    up, top = estimate_pages(with_offset((1 << 32) - 616)), estimate_pages(with_offset(0))
+
+    assert up.unsupported == top.unsupported == ()
+    assert [[line.vertpos for line in lines] for lines in up.lines] == \
+        [[line.vertpos for line in lines] for lines in top.lines]
+
+
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
     # The exam header 3000 narrower: a line fits beside it, and the lines reaching it are not followed.
     out = io.BytesIO()

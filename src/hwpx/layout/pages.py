@@ -2225,7 +2225,7 @@ def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
             or pos.get("vertAlign", "TOP") != "TOP":
         return None
     offset = int(pos.get("vertOffset", 0))
-    if offset <= 0 or lined and offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up
+    if offset <= 0 or offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up (unsigned)
         return None
     return obj
 
