@@ -456,6 +456,17 @@ HANCOM_PAGES = {
     "pages_table_anchored_offset_after_text": 1,   # 3000 down from the last line: the next paragraph's second
     "pages_picture_anchored_offset_next_paragraph": 1,  # 1600 down: the next paragraph's first line
     "pages_picture_anchored_small_offset": 1,  # 500 down: the line it stands on goes below it
+    # Paragraphs at 10000 holding objects placed top and bottom (offset 0 unless said) and objects set as
+    # characters: the placed ones stack from the paragraph's top and the line of the others goes below them;
+    # one placed below the text's lines leaves them, and pushes the lines after that reach it below its foot.
+    "pages_tb_and_char_table_then_picture": 1,  # a table 6000 tall from its top, a picture: the line under the table
+    "pages_tb_and_char_picture_then_table": 1,  # the picture first in the runs: the same
+    "pages_tb_and_char_table_then_two_pictures": 1,  # two pictures side by side on that line
+    "pages_tb_and_char_two_tables_then_picture": 1,  # two tables, one below the other, the line under both
+    "pages_tb_and_char_small_table_then_table": 1,  # a small table set as a character on the line
+    "pages_tb_and_char_small_table_then_table_up": 1,  # built 44 up from the top: saved and laid out at it
+    "pages_tb_and_char_text_picture_small_table": 1,  # text, a picture 4640 down, a small table in the text
+    "pages_tb_and_char_text_picture_tall_table": 2,  # the table 56000 tall: its line on the next page
     "pages_table_offset_flowing_split_by_cell": 2,  # a flowing table 500 down over the page end:
                                                     # the line it stands on goes below its end
     "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row
@@ -813,6 +824,26 @@ def test_a_paragraph_of_an_object_and_spaces_keeps_its_cached_lines(name: str, w
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_with_wider_tables_set_as_characters(data, wider)), data, 1)
+
+
+def test_a_table_placed_up_from_an_empty_paragraph_stands_at_its_top() -> None:
+    # A small table set as a character and a top-and-bottom table built 44 up from the paragraph's top: Hancom
+    # laid the table out at the top, as at 0, and saved 0. Put back up (kept unsigned), it lays out the same.
+    data = (FIXTURES / "pages_tb_and_char_small_table_then_table_up.hwpx").read_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                root = etree.fromstring(payload)
+                for table in root.iter(f"{HP}tbl"):
+                    if table.find(f"{HP}pos").get("treatAsChar") != "1":
+                        table.find(f"{HP}pos").set("vertOffset", str((1 << 32) - 44))
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+
+    _assert_like_hancom(estimate_pages(out.getvalue()), data, 1)
+    _assert_like_hancom(estimate_pages(_without_caches(out.getvalue())), data, 1)
 
 
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
