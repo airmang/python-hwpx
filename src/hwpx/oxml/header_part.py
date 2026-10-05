@@ -628,7 +628,7 @@ class HwpxOxmlHeader:
         for line_spacing in line_spacing_elements:
             line_spacing.set("type", "PERCENT")
             line_spacing.set("value", value)
-            line_spacing.set("unit", "PERCENT")
+            line_spacing.set("unit", "HWPUNIT")  # as Hancom writes a percentage too (the schema's CHAR|HWPUNIT)
 
     def _apply_paragraph_border(self, para_pr: ET.Element, border: Mapping[str, str | int]) -> None:
         self._remove_descendants_by_local(para_pr, "border")

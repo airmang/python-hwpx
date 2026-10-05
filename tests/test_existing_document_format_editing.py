@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+import zipfile
+from pathlib import Path
 
 from hwpx.document import HwpxDocument
 from hwpx.tools.package_validator import validate_editor_open_safety
@@ -39,6 +41,32 @@ def _para_pr_for_paragraph(document: HwpxDocument, paragraph_index: int) -> ET.E
     return para_pr
 
 
+def _hancom_saved_spacing(name: str) -> tuple[set[tuple[str | None, str | None]], list[str | None]]:
+    path = Path(__file__).parent / "fixtures" / "hancom_saved" / name
+    with zipfile.ZipFile(path) as package:
+        header = ET.fromstring(package.read("Contents/header.xml"))
+        section = ET.fromstring(package.read("Contents/section0.xml"))
+    units = {(spacing.get("type"), spacing.get("unit")) for spacing in header.iter(f"{HH}lineSpacing")
+             if spacing.get("value") == "130"}
+    return units, [line.get("vertpos") for line in section.iter(f"{HP}lineseg")]
+
+
+def test_a_percent_line_spacing_is_written_in_the_unit_hancom_writes() -> None:
+    # Paragraphs set to 130% with apply_paragraph_format, the spacing written in unit PERCENT (as before) and
+    # in HWPUNIT, saved by Hancom: it laid both out alike and wrote HWPUNIT in both, as for any percentage.
+    before, after = (_hancom_saved_spacing(f"style_percent_line_spacing_unit_{unit}.hwpx")
+                     for unit in ("percent", "hwpunit"))
+    document = HwpxDocument.new()
+    document.add_paragraph("줄간격 130%")
+    document.styles.apply_paragraph_format(paragraph_index=len(document.paragraphs) - 1, line_spacing_percent=130)
+    written = {(spacing.get("type"), spacing.get("unit"))
+               for spacing in _descendants(_para_pr_for_paragraph(document, len(document.paragraphs) - 1),
+                                           "lineSpacing")}
+
+    assert before == after
+    assert written == before[0] == {("PERCENT", "HWPUNIT")}
+
+
 def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> None:
     document = HwpxDocument.new()
     paragraph_index = len(document.paragraphs)
@@ -62,6 +90,9 @@ def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> No
     line_spacings = _descendants(para_pr, "lineSpacing")
     assert line_spacings
     assert {line_spacing.get("value") for line_spacing in line_spacings} == {"160"}
+    assert {(line_spacing.get("type"), line_spacing.get("unit")) for line_spacing in line_spacings} == {
+        ("PERCENT", "HWPUNIT")
+    }
 
     margins = _descendants(para_pr, "margin")
     assert margins
