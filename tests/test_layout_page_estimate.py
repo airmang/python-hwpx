@@ -94,6 +94,16 @@ HANCOM_PAGES = {
     "pages_empty_run_ending_a_paragraph": 2,  # spaces or text before an empty run of another size (and
                                                # after one): the one ending a paragraph makes its last line
                                                # as tall as itself when larger
+    # A run of 14 pt before a line of 10 pt text (함초롬바탕, spaced 160%): one holding nothing but controls
+    # makes the line as tall as itself (1400, spaced 840), an empty one takes no room:
+    "pages_section_controls_run_taller_than_the_text": 1,  # the section's and the columns' definitions
+    "pages_page_number_run_taller_than_the_text": 1,  # a page number
+    "pages_auto_number_run_taller_than_the_text": 1,  # an auto number (the page's)
+    "pages_footer_run_taller_than_the_text": 1,  # a footer
+    "pages_page_hiding_run_taller_than_the_text": 1,  # a page-number hiding
+    "pages_empty_run_taller_than_the_text": 1,  # an empty run: the line 1000 tall (Hancom drops the run)
+    "pages_section_controls_run_after_the_text": 1,  # the controls after the text: Hancom moves them first
+                                                      # and leaves an empty 14 pt run ending the line
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end

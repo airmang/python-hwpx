@@ -1598,11 +1598,20 @@ def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
 
 
 def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
-    """The size a bullet or number label in its own character shape gives its paragraph's first line: it is
-    a character of that size there (it counts when it is larger than the smallest character); 0 when not."""
+    """The size a bullet or number label in its own character shape, or a run holding nothing but controls
+    before the text (a section's or columns' definition, a page number: an empty run takes no room), gives its
+    paragraph's first line: a character of that size there (it counts when it is larger than the smallest
+    character); 0 when not."""
 
-    size = measure.label_size(paragraph.get("paraPrIDRef")) if sizes else 0
-    return size if size > min(sizes or [0]) else 0
+    if not sizes:
+        return 0
+    size = measure.label_size(paragraph.get("paraPrIDRef"))
+    for run in paragraph.findall(f"{HP}run"):
+        if any(child.text or len(child) for child in run.findall(f"{HP}t")):  # the text starts
+            break
+        if run.find(f"{HP}ctrl") is not None or run.find(f"{HP}secPr") is not None:
+            size = max(size, measure.char_height(run.get("charPrIDRef")))
+    return size if size > min(sizes) else 0
 
 
 def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any] | None:
