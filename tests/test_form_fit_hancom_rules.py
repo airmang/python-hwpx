@@ -598,6 +598,33 @@ def test_paragraph_margins_come_off_every_line_as_hancom_lays_them_out() -> None
     assert lines == [1, 2] * 4
 
 
+@pytest.mark.parametrize(
+    ("name", "lines"),
+    [
+        ("pages_cell_no_indent", 5),
+        ("pages_cell_hanging_indent_8000", 5),  # 2000 short of nothing left: dropped
+        ("pages_cell_hanging_indent_4580", 5),  # 1420 left: dropped
+        ("pages_cell_hanging_indent_4560", 25),  # 1440 left: kept, a character a line after the first
+        ("pages_cell_hanging_indent_4000", 13),  # 2000 left: two a line
+        ("pages_cell_first_line_indent_5000", 5),  # a first-line indent leaving 1000: dropped
+        ("pages_cell_first_line_indent_4500", 6),  # leaving 1500: one character on the first line
+        ("pages_cell_20pt_hanging_indent_10580", 5),  # 20 pt in a cell 12000 wide, 1420 left: dropped
+        ("pages_cell_20pt_hanging_indent_10560", 25),  # 1440 left, narrower than a character: one a line
+    ],
+)
+def test_an_indent_leaving_its_line_too_narrow_is_dropped_as_hancom_does(name: str, lines: int) -> None:
+    # Thirty characters, six to a line, in a cell 6000 wide inside its margins (12000 at 20 pt), the paragraph
+    # indented; Hancom laid them out and saved them. An indent that leaves its line less than 1440 is dropped,
+    # every line the cell's width; from 1440 on it is kept.
+    doc, tables = _one_cell_tables(Path(__file__).parent / "fixtures" / "hancom_saved" / f"{name}.hwpx")
+    cell = tables[0].cell(0, 0)
+    segs = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+    slot = resolve_slot_metrics(cell, doc, max_lines=40, safety=1.0)
+
+    assert len(segs) == lines
+    assert measure(cell.text, slot).lines == lines
+
+
 def test_spacing_before_takes_room_in_a_cell_and_spacing_after_does_not() -> None:
     # Two lines in a paragraph with 600 before and 400 after, in cells stored 50 taller than the two lines,
     # than the spacing before and the two lines, and than all three. Hancom started each first line at 600

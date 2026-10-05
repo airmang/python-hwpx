@@ -512,6 +512,32 @@ HANCOM_PAGES = {
     "pages_drop_cap_spacing_250_5001_three_lines_beside": 1,  # 5001 tall: three
     "pages_cell_paragraph_with_margins": 1,  # a cell paragraph with margins of 5 mm: narrower lines
     "pages_cell_paragraph_with_hanging_indent": 1,  # a hanging indent of 3 mm: narrower second lines
+    # Thirty characters (10 pt, six to a line) in a cell 6000 wide inside its margins, the paragraph indented:
+    # an indent that leaves its line less than 1440 is dropped, every line the cell's width; from 1440 on it is
+    # kept, a line too narrow for a character holding one anyway.
+    "pages_cell_no_indent": 1,  # six on each of five lines
+    "pages_cell_hanging_indent_8000": 1,  # 2000 short of nothing left: dropped, the lines as without it
+    "pages_cell_hanging_indent_6000": 1,  # nothing left: dropped
+    "pages_cell_hanging_indent_5000": 1,  # 1000 left: dropped
+    "pages_cell_hanging_indent_4600": 1,  # 1400 left: dropped
+    "pages_cell_hanging_indent_4580": 1,  # 1420 left: dropped
+    "pages_cell_hanging_indent_4560": 1,  # 1440 left: kept, a character a line after the first
+    "pages_cell_hanging_indent_4540": 1,  # 1460 left: kept
+    "pages_cell_hanging_indent_4520": 1,  # 1480 left: kept
+    "pages_cell_hanging_indent_4500": 1,  # 1500 left: kept
+    "pages_cell_hanging_indent_4000": 1,  # 2000 left: two a line
+    "pages_cell_hanging_indent_3000": 1,  # 3000 left: three a line
+    "pages_cell_first_line_indent_5000": 1,  # a first-line indent leaving 1000: dropped
+    "pages_cell_first_line_indent_4500": 1,  # leaving 1500: one character on the first line
+    "pages_cell_first_line_indent_4000": 1,  # leaving 2000: two on the first line
+    "pages_cell_20pt_hanging_indent_10580": 1,  # 20 pt in a cell 12000 wide, 1420 left: dropped
+    "pages_cell_20pt_hanging_indent_10560": 3,  # 1440 left, narrower than a character: one a line
+    "pages_cell_20pt_hanging_indent_10000": 3,  # 2000 left: one a line
+    "pages_cell_20pt_hanging_indent_9100": 3,  # 2900 left
+    "pages_cell_20pt_hanging_indent_9000": 3,  # 3000 left
+    "pages_cell_20pt_hanging_indent_8900": 3,  # 3100 left
+    "pages_body_hanging_indent_42000": 1,  # in the body, 520 left of the column: dropped
+    "pages_body_hanging_indent_41000": 4,  # 1520 left: kept, a character a line
     "pages_cell_runs_of_two_sizes": 1,   # runs of 10 and 14 pt in a cell: each character at its size
     "pages_cell_runs_of_two_sizes_with_margins": 1,  # the same with margins of 5 mm
     "pages_table_not_split_fits": 1,     # a table set not to split: the text goes below it
