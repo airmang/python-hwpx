@@ -210,6 +210,8 @@ _SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
+#: the room a cell that never breaks its text into lines (``hp:subList@lineWrap`` SQUEEZE or KEEP) gives a line
+_NO_WRAP = 1 << 40
 #: The narrowest side of a square-wrapped object text goes to (1/5 inch): Hancom leaves a narrower one empty.
 _MIN_SIDE = 1440
 
@@ -983,6 +985,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = (int(size.get("width", 0)) if width is None else width) - margins.left - margins.right
+    sub_list = cell.find(f"{HP}subList")
+    if sub_list is not None and sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):  # never broken into lines:
+        inner = _NO_WRAP  # each paragraph one line but for its line breaks, pressed into the cell when drawn
     content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True)
     # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
     # take that room already)
