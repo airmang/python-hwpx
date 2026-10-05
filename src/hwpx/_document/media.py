@@ -19,6 +19,7 @@ from ..opc.relationships import (
 )
 from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
+from ..oxml.shape_position import validate_picture_align
 from ._units import _mm_to_hwp_units
 
 if TYPE_CHECKING:
@@ -114,6 +115,7 @@ def add_picture(
 ) -> HwpxOxmlInlineObject:
     """Embed image data and place a picture object in a new paragraph."""
 
+    validate_picture_align(align)  # before anything is stored: Hancom reads an unknown one as LEFT
     # Call the local primitive directly rather than `doc.add_image` — that
     # facade name moved in 6.0 (design table row 33), and going through it
     # would fire a DeprecationWarning on every `add_picture` call even though

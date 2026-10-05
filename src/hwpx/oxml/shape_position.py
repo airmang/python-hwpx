@@ -61,6 +61,16 @@ def _require_member(
     )
 
 
+def validate_picture_align(align: object) -> str | None:
+    """A new picture's *align* as its ``hp:pos@horzAlign``, any case (``"left"`` is ``LEFT``); ``None`` when it is
+    not given. Hancom reads a value outside :data:`POS_HORZ_ALIGN` as ``LEFT``, so one is refused."""
+
+    if align is None or align == "":
+        return None
+    return _require_member(align.upper() if isinstance(align, str) else align, POS_HORZ_ALIGN, argument="align",
+                           code="shape-position-frame")
+
+
 def validate_draw_text_vert_align(vert_align: str | None) -> str | None:
     """Check ``set_draw_text``'s *vert_align* (``hp:subList/@vertAlign``)."""
 
