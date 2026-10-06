@@ -32,6 +32,13 @@
   characters: a paragraph without a valid layout cache breaks the lines a column holds at that
   column's width, and going on into a column of another width breaks its rest there again, from
   the first character that column holds.
+* Column areas: a paragraph holding a column definition after the section's first starts a new area
+  of columns (column settings in a cell or a text box are that list's own), on the page where the
+  one before ends, 1134 (4 mm) below its lowest line whatever the spacing (on the next page's top
+  when there is no room), its lines counted from the area's top on that page; an area followed by
+  another has the columns of its last page balanced, as short as they can be with every line still
+  on that page, and a column break in balanced columns (``BALANCED_NEWSPAPER``) starts such an area
+  too. A definition behind its paragraph's text starts the area but not its columns.
 * Objects: an object in front of or behind the text takes no room: the lines go where they would
   without it, wherever it stands; one placed top and bottom from the top or the bottom of the paper
   or of the page (its body) keeps every line of its page out of its band (a line reaching it, in any
@@ -144,8 +151,8 @@ of its rows what they lack.
 
 Anything else makes the estimate unsupported: endnotes, an object not set as a character in columns
 of unequal width, and there a paragraph without such a cache holding objects, composed characters,
-ruby text or footnotes, a column change inside a section (column
-settings in a cell or a text box are that list's own), section settings after a section's first
+ruby text or footnotes, footnotes or objects placed on the page or the paper in a section whose
+columns change, section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, several so in an empty paragraph
@@ -1264,25 +1271,33 @@ def _page(section: Any) -> _Page:
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
-    """(count, width, widths, gap): the section's columns, their width (the narrowest when they differ),
-    when they differ each one's, and when they do not the gap between them."""
+    """(count, width, widths, gap): the section's columns (its first ones when they change inside it, see
+    :func:`_column_areas`), their width (the narrowest when they differ), when they differ each one's, and when
+    they do not the gap between them."""
 
+    return _column_layout(_first_columns(section), text_width)
+
+
+def _first_columns(section: Any) -> Any:
     # Column settings in a cell or a text box (an hp:subList) belong to that list, not the section.
-    settings = [cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)]
-    if len(settings) > 1:
-        raise _Unsupported("the columns change inside the section")
-    count = int(settings[0].get("colCount", "1")) if settings else 1
+    return next((cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)), None)
+
+
+def _column_layout(settings: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
+    """:func:`_columns` of the column settings *settings* (``hp:colPr``; ``None``: one column)."""
+
+    count = int(settings.get("colCount", "1")) if settings is not None else 1
     if count <= 1:
         return 1, text_width, (), 0
-    if settings[0].get("sameSz") != "1":  # each column takes its share of 32768 of the text width (hp:colSz),
-        sizes = settings[0].findall(f"{HP}colSz")  # rounded, whatever the shares add up to
+    if settings.get("sameSz") != "1":  # each column takes its share of 32768 of the text width (hp:colSz),
+        sizes = settings.findall(f"{HP}colSz")  # rounded, whatever the shares add up to
         total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)
         if len(sizes) != count or total <= 0:
             raise _Unsupported("columns of unequal width")
         widths = tuple((2 * int(size.get("width", 0)) * text_width + COLUMN_SHARES) // (2 * COLUMN_SHARES)
                        for size in sizes)
         return count, min(widths), widths, 0
-    gap = int(settings[0].get("sameGap", 0))
+    gap = int(settings.get("sameGap", 0))
     return count, (text_width - (count - 1) * gap) // count // 4 * 4, (), gap
 
 
@@ -3259,12 +3274,23 @@ class _SectionLayout:
     frames: int
     lines: list[tuple[int, int]]   # (frame, vertpos) of every line, in paragraph order
     counts: list[int]              # lines per paragraph
+    #: in a section whose columns change (see :func:`_lay_areas`), the page and the column of every line instead
+    #: of its frame, and the section's pages
+    places: list[tuple[int, int]] | None = None
+    pages: int = 0
 
 
 def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
     page = _page(section)
     notes = _note_shape(section)
     _check_section(section)
+    areas = _column_areas(section)
+    if areas:
+        try:
+            return _lay_areas(measure, section, page, notes, areas)
+        except _BandMoves:
+            raise _Unsupported("a square-wrapped object past the page foot in a section whose columns change") \
+                from None
     moved: set[int] = set()  # the paragraphs whose square-wrapped object went on to the next page's top
     while True:
         try:
@@ -3308,16 +3334,125 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
     return _SectionLayout(page.columns, frames, paginator.out, paginator.counts)
 
 
+#: A column area starts this far below the lowest line of the one before it on its page (4 mm), whatever the
+#: spacing after that line or before its own first line (which goes inside the area).
+_COLUMN_AREA_GAP = 1134
+
+
+def _column_areas(section: Any) -> list[tuple[int, Any]]:
+    """Where the section's columns change: (the top-level paragraph, the ``hp:colPr`` of its columns) for each
+    paragraph holding a column definition but the section's own, and for each one breaking the column in balanced
+    columns (``BALANCED_NEWSPAPER``: it starts a new balanced block). Hancom starts a new area of columns there;
+    a definition behind the paragraph's text starts the area but not its columns (``None``: those before go
+    on)."""
+
+    areas: list[tuple[int, Any]] = []
+    current = _first_columns(section)
+    for index, paragraph in enumerate(section.findall(f"{HP}p")):
+        found, text = None, False
+        for child in (child for run in paragraph.findall(f"{HP}run") if run.find(f"{HP}secPr") is None
+                      for child in run):
+            if _local(child) == "t" and "".join(child.itertext()):
+                text = True
+            elif found is None and _local(child) == "ctrl" and child.find(f"{HP}colPr") is not None:
+                found = None if text else child.find(f"{HP}colPr")
+                areas.append((index, found))
+                current = found if found is not None else current
+        if found is None and (not areas or areas[-1][0] != index) and paragraph.get("columnBreak") == "1" \
+                and current is not None and current.get("type") == "BALANCED_NEWSPAPER" \
+                and int(current.get("colCount", "1")) > 1:
+            areas.append((index, current))
+    return areas
+
+
+def _lay_areas(measure: _Measure, section: Any, page: _Page, notes: _NoteShape,
+               areas: list[tuple[int, Any]]) -> _SectionLayout:
+    """Lay a section whose columns change out area by area (see :func:`_column_areas`). Each starts on the page
+    where the one before ends, :data:`_COLUMN_AREA_GAP` below its lowest line, or at the next page's top when
+    that leaves no room or its first paragraph starts a page; its lines are counted from its top there, as
+    Hancom caches them. An area followed by another has the columns of its last page balanced."""
+
+    paragraphs = section.findall(f"{HP}p")
+    bounds: list[tuple[int, Any]] = [(0, _first_columns(section)), *areas]
+    settings = None
+    lines: list[tuple[int, int]] = []
+    places: list[tuple[int, int]] = []
+    counts: list[int] = []
+    page_index, top = 0, 0
+    for number, (start, found) in enumerate(bounds):
+        end = bounds[number + 1][0] if number + 1 < len(bounds) else len(paragraphs)
+        settings = found if found is not None else settings
+        if start == end:
+            continue
+        count, width, widths, gap = _column_layout(settings, page.text_width)
+        area = replace(page, columns=count, column_width=width, unequal=bool(widths), widths=widths, gap=gap)
+        paras = _area_paragraphs(measure, area, paragraphs[start:end])
+        if top and paras[0].page_break:
+            page_index, top = page_index + 1, 0
+        out, placed = _lay_area(area, notes, paras, top, balance=number + 1 < len(bounds))
+        heights = [para.height(line) for para, many in zip(paras, placed) for line in range(many)]
+        last = out[-1][0] // count
+        bottom = max(vertpos + height for (frame, vertpos), height in zip(out, heights) if frame // count == last)
+        lines.extend(out)
+        places.extend((page_index + frame // count, frame % count) for frame, _ in out)
+        counts.extend(placed)
+        page_index += last
+        top = (top if last == 0 else 0) + bottom + _COLUMN_AREA_GAP
+        if top >= page.body:
+            page_index, top = page_index + 1, 0
+    return _SectionLayout(1, 0, lines, counts, places, max(page for page, _ in places) + 1)
+
+
+def _area_paragraphs(measure: _Measure, area: _Page, paragraphs: list[Any]) -> list[_Para]:
+    """The paragraphs of one column area, laid out in its columns: the first starts the area (it breaks no
+    column)."""
+
+    paras: list[_Para] = []
+    wrap: _Wrap | None = None
+    for paragraph in paragraphs:
+        para, wrap = _wrapped_paragraph(measure, area, paragraph, wrap)
+        if para.notes or _paper_band(measure, area, paragraph) is not None:
+            raise _Unsupported("footnotes or an object placed on the page or the paper in a section whose "
+                               "columns change")
+        paras.append(replace(para, kept=bool(_cached_metrics(paragraph))))
+    paras[0] = replace(paras[0], column_break=False)
+    return paras
+
+
+def _lay_area(area: _Page, notes: _NoteShape, paras: list[_Para], top: int,
+              balance: bool) -> tuple[list[tuple[int, int]], list[int]]:
+    """The (frame, vertpos) of every line of one column area starting *top* down its first page (its lines
+    counted from there: its first page is that much shorter), and its lines per paragraph. With *balance*, the
+    columns of its last page are as short as they can be with every line still on that page."""
+
+    columns = area.columns
+    first = {frame: [(area.body - top, area.body)] for frame in range(columns)} if top else {}
+    paginator = _Paginator(area.body, columns, notes, first, area.widths, {})
+    last = (paginator.run(paras) - 1) // columns
+    if balance and columns > 1:
+        low, high = 0, area.body - (top if last == 0 else 0)
+        while low < high:
+            middle = (low + high) // 2
+            ends = {frame: [(middle, area.body)] for frame in range(last * columns, (last + 1) * columns)}
+            trial = _Paginator(area.body, columns, notes, {**first, **ends}, area.widths, {})
+            if (trial.run(paras) - 1) // columns == last:
+                paginator, high = trial, middle
+            else:
+                low = middle + 1
+    return paginator.out, paginator.counts
+
+
 def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:
     pages = 0
     lines: list[tuple[EstimatedLine, ...]] = []
     for layout in layouts:
         start = 0
+        places = layout.places or [(frame // layout.columns, frame % layout.columns) for frame, _ in layout.lines]
         for count in layout.counts:
             lines.append(tuple(
-                EstimatedLine(pages + frame // layout.columns, frame % layout.columns, vertpos)
-                for frame, vertpos in layout.lines[start:start + count]
+                EstimatedLine(pages + page, column, vertpos)
+                for (page, column), (_, vertpos) in zip(places[start:start + count], layout.lines[start:start + count])
             ))
             start += count
-        pages += (layout.frames - 1) // layout.columns + 1
+        pages += layout.pages if layout.places is not None else (layout.frames - 1) // layout.columns + 1
     return PageEstimate(pages, tuple(lines), ())

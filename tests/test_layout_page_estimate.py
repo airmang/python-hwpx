@@ -114,6 +114,19 @@ HANCOM_PAGES = {
     "pages_line_ends_100_above_page_foot": 2,  # and 100 above it: no room is kept below lines
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
+    # Columns changing inside the section (10 pt lines spaced 160%): three lines in one column, a paragraph
+    # starting two columns (gap 1200) and the lines after it, then one starting one column and three lines.
+    # Hancom starts each area of columns 1134 below the lowest line of the one before, counts its lines from
+    # its top, and balances an area followed by another on its last page, by height:
+    "pages_columns_change_newspaper_short": 1,  # six lines: four and three (the empty starting line counts)
+    "pages_columns_change_newspaper_long": 1,  # thirty: sixteen and fifteen
+    "pages_columns_change_newspaper_over_a_page": 2,  # ninety: full columns, then the rest balanced
+    "pages_columns_change_newspaper_break_over_a_page": 2,  # a column break among them
+    "pages_columns_change_balanced_break": 1,  # balanced columns: a column break starts a balanced block
+    "pages_columns_change_tall_empty_line": 1,  # the starting line 20 pt: three lines and four
+    "pages_columns_change_after_text": 1,  # the definitions behind their paragraphs' text: areas, no columns
+    "pages_columns_change_text_after_definition": 1,  # ahead of it
+    "pages_columns_change_text_after_definition_break": 1,  # thirty lines with a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
