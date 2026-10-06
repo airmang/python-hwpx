@@ -27,7 +27,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .errors import HwpxError
 from .oxml.table_sizes import effective_cell_margin_source
@@ -1247,6 +1247,22 @@ def _clone_row_template(rows: list[str], ref_row: int) -> str:
     return (opening.group(0) if opening else "<hp:tr>") + "".join(tc for _, tc in sorted(cells, key=lambda c: c[0])) + "</hp:tr>"
 
 
+def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]], str]:
+    """A ``_PARA_ID_RE`` substitution giving each paragraph the lowest id used neither in
+    *table* nor in *used_ids* (the ids of the whole document)."""
+    occupied = set(used_ids or ()) | {int(m.group(2)) for m in _PARA_ID_RE.finditer(table)}
+    next_id = 1
+
+    def fresh_id(match: re.Match[str]) -> str:
+        nonlocal next_id
+        while next_id in occupied:
+            next_id += 1
+        occupied.add(next_id)
+        return match.group(1) + str(next_id) + match.group(3)
+
+    return fresh_id
+
+
 def _insert_row_by_clone(
     table: str, ref_row: int, count: int = 1, *, used_ids: set[int] | None = None
 ) -> str:
@@ -1277,16 +1293,7 @@ def _insert_row_by_clone(
     # build the clones from the ORIGINAL rows, before the shift
     ref = _clone_row_template(rows, ref_row)
     shifted = [_map_cells(r, shift) for r in rows]
-    occupied = set(used_ids or ()) | {int(m.group(2)) for m in _PARA_ID_RE.finditer(table)}
-    next_id = 1
-
-    def fresh_id(match: re.Match[str]) -> str:
-        nonlocal next_id
-        while next_id in occupied:
-            next_id += 1
-        occupied.add(next_id)
-        return match.group(1) + str(next_id) + match.group(3)
-
+    fresh_id = _fresh_ids(table, used_ids)
     clones = []
     for k in range(1, count + 1):
         clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", ref_row + k))
@@ -1294,6 +1301,85 @@ def _insert_row_by_clone(
         clones.append(clone)
     new_rows = shifted[: ref_row + 1] + clones + shifted[ref_row + 1:]
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
+def _shift_zone_columns(prefix: str, first: int, count: int) -> str:
+    """The ``hp:cellzone`` entries of a table head with *count* columns inserted from grid
+    column *first* on: a zone from there on moves over, a zone running on across it grows."""
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", "startColAddr"), _si(zone, "cellzone", "endColAddr")
+        if start is None or end is None or end < first:
+            return zone
+        if start >= first:
+            zone = _ss(zone, "cellzone", "startColAddr", start + count)
+        return _ss(zone, "cellzone", "endColAddr", end + count)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
+
+
+def _insert_column_by_clone(
+    table: str,
+    ref_col: int,
+    count: int = 1,
+    *,
+    side: str = "right",
+    blank: bool = False,
+    used_ids: set[int] | None = None,
+) -> str:
+    """Insert *count* columns right (or with *side* ``"left"``, left) of grid column *ref_col*
+    by cloning it (formatting preserved, paragraph ids refreshed). Columns past them shift,
+    and the table grows by the new columns, each as wide as *ref_col*, as Hancom's column
+    insertion widens it. With *blank* each new cell holds one empty paragraph of its cell's
+    paragraph and character shape, as Hancom inserts them.
+
+    Merged cells follow Hancom's insertion as in :func:`_insert_row_by_clone`: a cell running
+    on across the new columns grows its colSpan and width over them instead of being cloned,
+    and next to a merged cell that ends (or, on the left, starts) at *ref_col* each new
+    column gets an empty cell of its format and rows."""
+    _guard_flat(table)
+    if side not in ("left", "right"):
+        raise TableStructureError(f"insert_column_by_clone: side must be 'left' or 'right', got {side!r}")
+    if count < 1:
+        return table
+    prefix, rows, suffix = _parse_table(table)
+    columns = _grid_width(rows)
+    if not 0 <= ref_col < columns:
+        raise TableStructureError(f"ref col {ref_col} out of range")
+    widths = _uniform_col_widths(rows) or _grid_col_widths(table)
+    if widths is None:
+        raise TableStructureError(
+            "insert_column_by_clone: the column widths are underivable from the grid -- refusing (fail-closed)"
+        )
+    width = widths[ref_col]
+    first = ref_col + 1 if side == "right" else ref_col  # the first new column
+    fresh_id = _fresh_ids(table, used_ids)
+
+    def clones(tc: str) -> str:
+        if blank or (_si(tc, "cellSpan", "colSpan") or 1) > 1:
+            tc = _ss(_ss(_empty_cell_like(tc), "cellSpan", "colSpan", 1), "cellSz", "width", width)
+        return "".join(
+            _PARA_ID_RE.sub(fresh_id, _ss(tc, "cellAddr", "colAddr", first + k)) for k in range(count)
+        )
+
+    def widen(tc: str) -> str:
+        col, span = _si(tc, "cellAddr", "colAddr"), _si(tc, "cellSpan", "colSpan") or 1
+        assert col is not None  # required hp:tc attr
+        if col < first <= col + span - 1:  # runs on across the new columns -> grows over them
+            tc = _ss(tc, "cellSpan", "colSpan", span + count)
+            return _ss(tc, "cellSz", "width", (_si(tc, "cellSz", "width") or 0) + count * width)
+        moved = _ss(tc, "cellAddr", "colAddr", col + count) if col >= first else tc
+        if side == "right" and col + span - 1 == ref_col:
+            return moved + clones(tc)
+        if side == "left" and col == ref_col:
+            return clones(tc) + moved
+        return moved
+
+    new_rows = [_map_cells(row, widen) for row in rows]
+    prefix = _ss(prefix, "sz", "width", (_si(prefix, "sz", "width") or 0) + count * width)
+    prefix = _shift_zone_columns(prefix, first, count)
+    return _rebuild(prefix, new_rows, suffix, colcnt=columns + count)
 
 
 def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
@@ -1515,6 +1601,9 @@ _STRUCT_OPS = {
     "delete_row": lambda t, o: _delete_rows(t, o["rows"] if "rows" in o else [o["row"]]),
     "reorder_rows": lambda t, o: _reorder_rows(t, [int(x) for x in o["order"]]),
     "insert_row_by_clone": lambda t, o: _insert_row_by_clone(t, o["ref_row"], int(o.get("count", 1))),
+    "insert_column_by_clone": lambda t, o: _insert_column_by_clone(
+        t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
+        blank=bool(o.get("blank", False))),
     "insert_block_by_clone": lambda t, o: _insert_block_by_clone(t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1))),
     "set_column_widths": lambda t, o: _set_column_widths(t, _widths_arg(o)),
     "autofit_columns": lambda t, o: _autofit_columns(t, min_frac=float(o.get("min_frac", 0.06)), damp=float(o.get("damp", 0.5))),
@@ -1522,6 +1611,16 @@ _STRUCT_OPS = {
         t, {int(k): int(v) for k, v in dict(o["heights"]).items()}),
     "split_cell_vertical": lambda t, o: _split_cell_vertical(
         t, int(o["row"]), int(o["col"]), o["sizes"]),
+}
+
+
+#: The ops whose new paragraphs take ids unused in the whole document.
+_CLONE_OPS = {
+    "insert_row_by_clone": lambda t, o, ids: _insert_row_by_clone(
+        t, o["ref_row"], int(o.get("count", 1)), used_ids=ids),
+    "insert_column_by_clone": lambda t, o, ids: _insert_column_by_clone(
+        t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
+        blank=bool(o.get("blank", False)), used_ids=ids),
 }
 
 
@@ -1920,8 +2019,11 @@ def apply_table_ops(
     each changed table back so untouched bytes stay identical.
 
     Op dicts: ``{op: 'delete_column'|'delete_row'|'delete_table'|
-    'insert_row_by_clone'|'insert_block_by_clone'|'split_table'|'merge_table'|
-    'fill_cell', section_path?, table_index, ...}``. ``insert_block_by_clone``
+    'insert_row_by_clone'|'insert_column_by_clone'|'insert_block_by_clone'|
+    'split_table'|'merge_table'|'fill_cell', section_path?, table_index, ...}``.
+    ``insert_column_by_clone`` takes ``ref_col`` + ``count`` (+ ``side: 'left'``,
+    ``blank`` for empty new cells) and inserts right (left) of that grid column,
+    widening the table. ``insert_block_by_clone``
     takes ``ref_rows: [r0, r1]`` (a vertical-merge block) + ``count``;
     ``delete_column`` derives widths from the merged grid when no uniform
     ``colSpan==1`` row exists (FR-003).
@@ -2026,13 +2128,10 @@ def apply_table_ops(
             elif name == "merge_table":
                 new_section, dims_after = _merge_tables(section, spans, ti)
             elif name in _STRUCT_OPS:
-                if name == "insert_row_by_clone":
+                if name in _CLONE_OPS:
                     used_ids = {int(m.group(2)) for data in sections.values()
                                 for m in _PARA_ID_RE.finditer(data.decode("utf-8"))}
-                    new_table = _insert_row_by_clone(
-                        section[ts:te].decode("utf-8"), op["ref_row"],
-                        int(op.get("count", 1)), used_ids=used_ids,
-                    )
+                    new_table = _CLONE_OPS[name](section[ts:te].decode("utf-8"), op, used_ids)
                 else:
                     new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
                 _validate_or_raise(new_table)
