@@ -34,6 +34,7 @@ from hwpx.form_fit.measure import (
     _cell_text_style,
     char_advance,
     classify_char,
+    font_line_height,
     glyph_advance_em,
     glyph_script,
     indented_widths,
@@ -52,6 +53,7 @@ UNLISTED_SYMBOLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfi
 LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_heights.hwpx"
 ROUNDED_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_rounded_advances.hwpx"
 LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_pitches.hwpx"
+FONT_LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_font_line_heights.hwpx"
 PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_margins.hwpx"
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 
@@ -64,6 +66,9 @@ CONDENSE_ROWS = [
 LABELS = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_bullet_and_number_labels.hwpx"
 WINGDINGS_LABEL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_wingdings_label_rows.hwpx"
 HY_HEADLINE_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hy_headline_cells.hwpx"
+MORE_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_cells.hwpx"
+MORE_FACES_FALLBACKS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_fallback_cells.hwpx"
+MORE_FACES_HANGUL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_hangul_cells.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -132,6 +137,67 @@ def test_cells_in_hy_headline_break_where_hancom_breaks_them() -> None:
         assert style.glyph_face == "HY헤드라인M"
         assert estimate_lines(text, width, points, style) == hancom, (f"U+{ord(text[0]):04X}", points, width)
     assert len(cells) == 22
+
+
+def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
+    # Hancom laid these documents out: each cell holds a glyph and five Hangul syllables in 한컴산뜻돋움, HY중고딕,
+    # HY견고딕, HY신명조, 새굴림 or 한컴 말랑말랑 Regular at one of the two widths where its line count changes, at
+    # 10 pt and 30 pt. The glyphs take the face's design advance; those it lacks (— ⑯ ‐ ‑ ¦) take its fallback
+    # face's, moved into the face's units (⑯ is 968 at 10 pt in a face of 1024 units, 972 in one of 1000):
+    # 함초롬돋움's for 한컴산뜻돋움 and 새굴림, 함초롬바탕's for the others. In 말랑말랑 (Regular and Bold) the
+    # syllables with a horizontal vowel are 820 of 1000 units wide, the others 880. Its 0 and, at 30 pt, its 고,
+    # which Hancom lays out 4 narrower and 4 wider than their design advances (648 at 10 pt, 2464 at 30 pt),
+    # are left out.
+    faces: dict[str, int] = {}
+    for path in (MORE_FACES_CELLS, MORE_FACES_FALLBACKS, MORE_FACES_HANGUL):
+        doc = HwpxDocument.open(path)
+        for cell in doc.oxml.sections[0].element.iter(f"{HP}tc"):
+            paragraph = cell.find(f"{HP}subList/{HP}p")
+            text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+            ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+            style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+            points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+            if style.glyph_face.startswith("한컴 말랑말랑") and (text.startswith("0") or (points == 30 and "고" in text)):
+                continue
+            margins = cell.find(f"{HP}cellMargin")
+            width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+            hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+            assert estimate_lines(text, width, points, style) == hancom, (
+                style.glyph_face, f"U+{ord(text[0]):04X}", points, width)
+            faces[style.glyph_face] = faces.get(style.glyph_face, 0) + 1
+    assert faces == {"한컴산뜻돋움": 58, "HY중고딕": 58, "HY견고딕": 52, "HY신명조": 52, "새굴림": 34,
+                     "한컴 말랑말랑 Regular": 56, "한컴 말랑말랑 Bold": 4}
+
+
+def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -> None:
+    # The faces 한/글 keeps in its own folder are measured from their fonts too: a Hangul syllable takes 900 of
+    # 1000 units in 한컴 윤고딕 230, 850 in 한컴 백제 M, the full em in 휴먼고딕 (512 units) and HY울릉도M (1024)
+    # and 972 of 1024 in MD개성체; a parenthesis 380, 277, 160, 371 and 486.
+    faces = ("한컴 윤고딕 230", "한컴 백제 M", "휴먼고딕", "HY울릉도M", "MD개성체")
+    styles = [TextStyle(hangul_face=face, glyph_face=face) for face in faces]
+    assert [char_advance("가", 10, style) for style in styles] == [900, 852, 1000, 1000, 948]
+    assert [char_advance("(", 10, style) for style in styles] == [380, 276, 312, 364, 476]
+    assert glyph_advance_em("한컴 윤고딕 230", "(") == 380 / 1000
+
+
+def test_a_hangul_syllable_takes_its_own_advance_where_the_font_gives_it_one() -> None:
+    # 한컴 말랑말랑 Regular's font draws the syllables with a horizontal vowel (ㅗ ㅛ ㅜ ㅠ ㅡ) 820 of 1000 units
+    # wide and the others 880; the faces whose syllables are all one width keep it.
+    style = TextStyle(hangul_face="한컴 말랑말랑 Regular", glyph_face="한컴 말랑말랑 Regular")
+    assert [char_advance(ch, 10, style) for ch in "가고는를을은"] == [880, 820, 820, 820, 820, 820]
+    assert char_advance("고", 30, style) == 2460
+    plain = TextStyle(hangul_face="함초롬바탕", glyph_face="함초롬바탕")
+    assert {char_advance(ch, 10, plain) for ch in "가고는를"} == {972}
+
+
+def test_a_line_taking_its_height_from_the_font_is_as_tall_as_the_face_makes_it() -> None:
+    # Hancom lays a 10 pt line in a paragraph shape with fontLineHeight out 1300 tall in the 함초롬 faces and
+    # 한컴산뜻돋움 (ascent and descent 1.3 em), 1331 in 맑은 고딕 (2229 and 495 of 2048 units), and at the size in
+    # 바탕, whose ascent and descent make up its em (1050 at 10.5 pt).
+    faces = ("함초롬바탕", "함초롬돋움", "한컴산뜻돋움", "맑은 고딕")
+    assert [font_line_height(face, 1000) for face in faces] == [1300, 1300, 1300, 1331]
+    assert font_line_height("바탕", 1050) == 1050
+    assert font_line_height("없는 글꼴", 1000) is None
 
 
 def test_human_myeongjo_takes_the_design_advances_of_its_font() -> None:
@@ -620,6 +686,30 @@ def test_the_line_budget_matches_the_heights_hancom_gives_cells(fixture: Path, c
         assert replace(slot, available_height=float(content)).height_lines() == lines, (slot.line_spacing, content)
         if lines > 1:
             assert replace(slot, available_height=float(content - 1)).height_lines() == lines - 1
+def test_the_line_budget_takes_its_line_height_from_the_font_as_hancom_does() -> None:
+    """Cells grown by Hancom to their text in paragraph shapes taking their line height from the font
+    (fontLineHeight): 1 to 5 lines of 함초롬바탕 and 맑은 고딕 at 10 and 12 pt under every line spacing type, and
+    of 바탕, whose ascent and descent make up its em. The table height Hancom saved, less the cell margins, holds
+    exactly those lines, each as tall as the face makes it (Hancom's own line is a unit taller at some sizes,
+    12 pt 함초롬바탕 among them)."""
+    doc = HwpxDocument.open(FONT_LINE_HEIGHTS.read_bytes())
+    tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+
+    assert len(tables) == 83
+    for table in tables:
+        cell = table.cell(0, 0)
+        lines = cell.paragraphs[0].element.findall(f"{HP}linesegarray/{HP}lineseg")
+        height = int(table.element.find(f"{HP}sz").get("height"))
+        margin = cell.element.find(f"{HP}cellMargin")
+        content = height - int(margin.get("top")) - int(margin.get("bottom"))
+        slot = resolve_slot_metrics(cell, doc, safety=1.0)
+
+        assert slot.font_line
+        assert abs(slot.line_size() - int(lines[0].get("vertsize"))) <= 1, slot.text_style
+        budget = replace(slot, available_height=float(content)).height_lines()
+        assert budget == len(lines), (slot.text_style, slot.line_spacing, content)
+
+
 def test_rounded_advances_break_where_hancom_breaks() -> None:
     """Addresses, dates, phone numbers, amounts and Latin in twelve faces at 9 to 12 pt, 장평 90 to 110 % and
     자간 -20 to 5 %, each in a cell exactly as wide as its line and in one 2 HWPUNIT narrower, laid out and
