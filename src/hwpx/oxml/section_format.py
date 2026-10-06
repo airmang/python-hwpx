@@ -316,6 +316,53 @@ def column_shares(column_widths: Sequence[tuple[int, int]]) -> list[tuple[int, i
     return list(zip(shares[::2], shares[1::2]))
 
 
+#: ``hp:pagePr/@gutterType``, ``hp:pageBorderFill/@type`` and ``@fillArea``: Hancom reads another value as its
+#: default (LEFT_ONLY, PAPER).
+GUTTER_TYPES = ("LEFT_ONLY", "LEFT_RIGHT", "TOP_BOTTOM")
+PAGE_BORDER_FILL_TYPES = ("BOTH", "EVEN", "ODD")
+PAGE_BORDER_FILL_AREAS = ("PAPER", "PAGE", "BORDER")
+
+
+def _checked(argument: str, value: object, high: int, code: str) -> int:
+    """*value* checked to be an int in ``0 <= value <= high``, as Hancom keeps it (refused with *code*)."""
+
+    from ..errors import HwpxValueError
+
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= high:
+        raise HwpxValueError(
+            f"{argument} must be an int in 0 <= {argument} <= {high}; got {value!r}",
+            code=code,
+            context={"argument": argument, "value": repr(value), "high": high},
+            suggestion=f"Pass {argument} from 0 to {high}: Hancom reads another value as something else.",
+        )
+    return value
+
+
+def _choice(argument: str, value: object, allowed: Sequence[str], code: str) -> str:
+    """*value* checked to be one of *allowed* (refused with *code*)."""
+
+    from ..errors import HwpxValueError
+
+    if value not in allowed:
+        raise HwpxValueError(
+            f"{argument} must be one of {', '.join(allowed)}; got {value!r}",
+            code=code,
+            context={"argument": argument, "value": repr(value), "allowed": list(allowed)},
+            suggestion=f"Pass one of {', '.join(allowed)}: Hancom reads another value as its default.",
+        )
+    return str(value)
+
+
+def _check_page_size(width: object, height: object, gutter_type: object) -> None:
+    """A page's size (0 to 2**31 - 1) and gutter type, checked before anything changes."""
+
+    for argument, size in (("width", width), ("height", height)):
+        if size is not None:
+            _checked(argument, size, 2**31 - 1, "page-size-value")
+    if gutter_type is not None:
+        _choice("gutter_type", gutter_type, GUTTER_TYPES, "page-gutter-type-invalid")
+
+
 class HwpxOxmlSectionProperties:
     """Provides convenient access to ``<hp:secPr>`` configuration."""
 
@@ -327,7 +374,7 @@ class HwpxOxmlSectionProperties:
     def _page_pr_element(self, create: bool = False) -> ET.Element | None:
         page_pr = self.element.find(f"{_HP}pagePr")
         if page_pr is None and create:
-            page_pr = ET.SubElement(
+            page_pr = _append_child(
                 self.element,
                 f"{_HP}pagePr",
                 {"landscape": _PAGE_PORTRAIT, "width": "0", "height": "0", "gutterType": "LEFT_ONLY"},
@@ -341,7 +388,7 @@ class HwpxOxmlSectionProperties:
             return None
         margin = page_pr.find(f"{_HP}margin")
         if margin is None and create:
-            margin = ET.SubElement(
+            margin = _append_child(
                 page_pr,
                 f"{_HP}margin",
                 {
@@ -384,6 +431,7 @@ class HwpxOxmlSectionProperties:
         portrait size whichever order ``width`` and ``height`` come in. Other
         values are written as given.
         """
+        _check_page_size(width, height, gutter_type)
         page_pr = self._page_pr_element(create=True)
         if page_pr is None:
             return
@@ -392,12 +440,12 @@ class HwpxOxmlSectionProperties:
 
         changed = False
         if width is not None:
-            value = str(max(width, 0))
+            value = str(width)
             if page_pr.get("width") != value:
                 page_pr.set("width", value)
                 changed = True
         if height is not None:
-            value = str(max(height, 0))
+            value = str(height)
             if page_pr.get("height") != value:
                 page_pr.set("height", value)
                 changed = True
@@ -436,23 +484,20 @@ class HwpxOxmlSectionProperties:
         footer: int | None = None,
         gutter: int | None = None,
     ) -> None:
+        margins = (("left", left), ("right", right), ("top", top), ("bottom", bottom), ("header", header),
+                   ("footer", footer), ("gutter", gutter))
+        for name, value in margins:
+            if value is not None:
+                _checked(name, value, 2**31 - 1, "page-size-value")
         margin = self._margin_element(create=True)
         if margin is None:
             return
 
         changed = False
-        for name, value in (
-            ("left", left),
-            ("right", right),
-            ("top", top),
-            ("bottom", bottom),
-            ("header", header),
-            ("footer", footer),
-            ("gutter", gutter),
-        ):
+        for name, value in margins:
             if value is None:
                 continue
-            safe_value = str(max(value, 0))
+            safe_value = str(value)
             if margin.get(name) != safe_value:
                 margin.set(name, safe_value)
                 changed = True
@@ -563,9 +608,13 @@ class HwpxOxmlSectionProperties:
         table: int | None = None,
         equation: int | None = None,
     ) -> None:
+        numbers = (("page", page), ("pic", picture), ("tbl", table), ("equation", equation))
+        for name, value in numbers:  # Hancom keeps each as 16 bits unsigned (0: go on from the section before)
+            if value is not None:
+                _checked(name, value, 0xFFFF, "page-number-value")
         start_num = self.element.find(f"{_HP}startNum")
         if start_num is None:
-            start_num = ET.SubElement(
+            start_num = _append_child(
                 self.element,
                 f"{_HP}startNum",
                 {
@@ -583,15 +632,10 @@ class HwpxOxmlSectionProperties:
             start_num.set("pageStartsOn", page_starts_on)
             changed = True
 
-        for name, value in (
-            ("page", page),
-            ("pic", picture),
-            ("tbl", table),
-            ("equation", equation),
-        ):
+        for name, value in numbers:
             if value is None:
                 continue
-            safe_value = str(max(value, 0))
+            safe_value = str(value)
             if start_num.get(name) != safe_value:
                 start_num.set(name, safe_value)
                 changed = True
@@ -626,7 +670,7 @@ class HwpxOxmlSectionProperties:
     ) -> None:
         element = self.element.find(f"{_HP}grid")
         if element is None:
-            element = ET.SubElement(
+            element = _append_child(
                 self.element,
                 f"{_HP}grid",
                 {"lineGrid": "0", "charGrid": "0", "wonggojiFormat": "0"},
@@ -754,7 +798,7 @@ class HwpxOxmlSectionProperties:
     ) -> None:
         element = self.element.find(f"{_HP}visibility")
         if element is None:
-            element = ET.SubElement(
+            element = _append_child(
                 self.element,
                 f"{_HP}visibility",
                 {
@@ -813,21 +857,22 @@ class HwpxOxmlSectionProperties:
         distance: int | None = None,
         start_number: int | None = None,
     ) -> None:
+        # Hancom keeps the count step and the start as 16 bits unsigned, the distance as 32 bits
+        shape = (("restartType", restart_type, 2**31 - 1), ("countBy", count_by, 0xFFFF),
+                 ("distance", distance, 2**31 - 1), ("startNumber", start_number, 0xFFFF))
+        for name, value, high in shape:
+            if value is not None:
+                _checked(name, value, high, "page-number-value")
         element = self.element.find(f"{_HP}lineNumberShape")
         if element is None:
-            element = ET.SubElement(self.element, f"{_HP}lineNumberShape", {})
+            element = _append_child(self.element, f"{_HP}lineNumberShape", {})
             self.section.mark_dirty()
 
         changed = False
-        for name, value in (
-            ("restartType", restart_type),
-            ("countBy", count_by),
-            ("distance", distance),
-            ("startNumber", start_number),
-        ):
+        for name, value, _high in shape:
             if value is None:
                 continue
-            safe_value = str(max(value, 0))
+            safe_value = str(value)
             if element.get(name) != safe_value:
                 element.set(name, safe_value)
                 changed = True
@@ -847,12 +892,8 @@ class HwpxOxmlSectionProperties:
                 return element
         if not create:
             return None
-        element = ET.SubElement(self.element, f"{_HP}pageBorderFill", {"type": page_type})
-        ET.SubElement(
-            element,
-            f"{_HP}offset",
-            {"left": "1417", "right": "1417", "top": "1417", "bottom": "1417"},
-        )
+        element = _append_child(self.element, f"{_HP}pageBorderFill", {"type": page_type})
+        _append_child(element, f"{_HP}offset", {"left": "1417", "right": "1417", "top": "1417", "bottom": "1417"})
         self.section.mark_dirty()
         return element
 
@@ -893,9 +934,17 @@ class HwpxOxmlSectionProperties:
         *page_type* selects which of up to 3 entries to touch — it is not a
         "leave unchanged" field like the rest. Everything else follows the
         established convention: omitted (``None``) keyword args leave the
-        existing value alone.
+        existing value alone. Hancom keeps each offset as 16 bits signed:
+        one is refused unless it is from 0 to 32767.
         """
 
+        _choice("page_type", page_type, PAGE_BORDER_FILL_TYPES, "page-border-fill-invalid")
+        if fill_area is not None:
+            _choice("fill_area", fill_area, PAGE_BORDER_FILL_AREAS, "page-border-fill-invalid")
+        for name, value in (("offset_left", offset_left), ("offset_right", offset_right),
+                            ("offset_top", offset_top), ("offset_bottom", offset_bottom)):
+            if value is not None:
+                _checked(name, value, 0x7FFF, "page-border-fill-invalid")
         element = self._page_border_fill_element(page_type, create=True)
         if element is None:  # pragma: no cover - defensive branch
             return
@@ -940,14 +989,9 @@ class HwpxOxmlSectionProperties:
         offset = element.find(f"{_HP}offset")
         created = offset is None
         if offset is None:
-            offset = ET.SubElement(
-                element,
-                f"{_HP}offset",
-                {"left": "1417", "right": "1417", "top": "1417", "bottom": "1417"},
-            )
-        safe_pairs = tuple(
-            (name, None if value is None else str(max(value, 0))) for name, value in offset_values
-        )
+            offset = _append_child(element, f"{_HP}offset",
+                                   {"left": "1417", "right": "1417", "top": "1417", "bottom": "1417"})
+        safe_pairs = tuple((name, None if value is None else str(value)) for name, value in offset_values)
         return _apply_optional_attrs(offset, safe_pairs) or created
 
     # -- footnote / endnote shape --------------------------------------
@@ -976,22 +1020,22 @@ class HwpxOxmlSectionProperties:
             return element
         # NoteShapeType의 5개 자식 전부 minOccurs 생략(=1, 필수) — 하나라도
         # 빠지면 스키마 위반이라 생성 시 다섯 개를 한 번에 원자적으로 만든다.
-        element = ET.SubElement(self.element, f"{_HP}{tag}", {})
-        ET.SubElement(
+        element = _append_child(self.element, f"{_HP}{tag}", {})
+        _append_child(
             element, f"{_HP}autoNumFormat", {"type": "DIGIT", "suffixChar": ")", "supscript": "false"}
         )
-        ET.SubElement(
+        _append_child(
             element,
             f"{_HP}noteLine",
             {"length": "0", "type": "SOLID", "width": "0.12 mm", "color": "#000000"},
         )
-        ET.SubElement(
+        _append_child(
             element,
             f"{_HP}noteSpacing",
             {"betweenNotes": "850", "belowLine": "567", "aboveLine": "567"},
         )
-        ET.SubElement(element, f"{_HP}numbering", dict(self._NOTE_DEFAULTS[tag]["numbering"]))
-        ET.SubElement(element, f"{_HP}placement", dict(self._NOTE_DEFAULTS[tag]["placement"]))
+        _append_child(element, f"{_HP}numbering", dict(self._NOTE_DEFAULTS[tag]["numbering"]))
+        _append_child(element, f"{_HP}placement", dict(self._NOTE_DEFAULTS[tag]["placement"]))
         self.section.mark_dirty()
         return element
 
