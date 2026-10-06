@@ -1844,15 +1844,35 @@ def _drawn_height(obj: Any, measure: _Measure) -> int:
     return max(height, grown, top + content + bottom)
 
 
+#: How far each parallel shadow moves from its object before its own offset: Hancom draws a bottom shadow
+#: ``offsetY + 600`` down and a top one ``offsetY - 600`` (down positive), whatever the object's size or line.
+_SHADOW_DISTANCE = 600
+
+
+def _shadow_drop(obj: Any) -> int:
+    """How far the parallel shadow of *obj* (``hp:shadow``) is moved up or down from it: an object set as a
+    character is that much taller (drawn lower when the shadow goes up). 0 without one; other shadows are not
+    followed."""
+
+    shadow = obj.find(f"{HP}shadow")
+    kind = "" if shadow is None else shadow.get("type", "NONE")
+    if not kind.startswith(("PARELLEL_", "PARALLEL_")):
+        return 0
+    offset = int(shadow.get("offsetY", 0))  # written as signed text, as Hancom reads it
+    if not -(1 << 31) <= offset < 1 << 31:
+        raise _Unsupported("a shadow offset past 32 bits")
+    return abs(offset + _SHADOW_DISTANCE if kind.endswith("BOTTOM") else offset - _SHADOW_DISTANCE)
+
+
 def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     """(width, height) an object set as a character takes, its outer margins included; a table as tall
-    as its rows."""
+    as its rows, a drawing with its shadow's move (see :func:`_shadow_drop`)."""
 
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
     extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
     height = _inline_table_height(measure, obj) + sum(_caption(measure, obj)) if _local(obj) == "tbl" \
-        else _drawn_height(obj, measure)
+        else _drawn_height(obj, measure) + (_shadow_drop(obj) if obj.find(f"{HP}pos").get("treatAsChar") == "1" else 0)
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
@@ -1967,6 +1987,8 @@ def _object_line(
     if pos.get("treatAsChar") == "1":  # as tall as it, or as the paragraph's characters when they are taller
         if name == "tbl":
             tall = _inline_table_height(measure, obj) + top + bottom + sum(_caption(measure, obj))
+        else:
+            tall += _shadow_drop(obj)
         tall = max(tall, size)
         return 1, tall, _object_pitch(shape, obj, tall, size), None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"

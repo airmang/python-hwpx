@@ -82,6 +82,16 @@ HANCOM_PAGES = {
                                                           # past the foot, the empty line there, the next
                                                           # paragraph at the next page's top
     "pages_picture_at_the_paragraph_top_fitting": 2,  # one that fits: the next paragraph at its foot
+    # A rectangle 30000 x 5000 set as a character alone in its paragraph (10 pt lines spaced 160% around it):
+    # its line is as tall as it and its parallel shadow's move up or down, offsetY + 600 for a shadow at the
+    # bottom and offsetY - 600 at the top (the line's width adds nothing):
+    "pages_char_shape_no_shadow": 1,
+    "pages_char_shape_shadow_right_bottom_283": 1,  # 883 down
+    "pages_char_shape_shadow_right_bottom_minus_283": 1,  # 317 down (written "-283")
+    "pages_char_shape_shadow_left_bottom_283": 1,  # 883 down
+    "pages_char_shape_shadow_left_top_283": 1,  # 317 up: the rectangle drawn that much lower
+    "pages_char_shape_shadow_left_top_1000": 1,  # 400 down
+    "pages_char_shape_shadow_thick_line": 1,  # a 283 line and a shadow 883 down
     # Such a picture gone on to the next page's top, then a table placed top and bottom (cells split):
     "pages_picture_moved_then_a_table_moved_whole": 2,  # no room for its first row: it starts below the
                                                          # picture, its paragraph's line staying behind
