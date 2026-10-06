@@ -2,6 +2,17 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 고침
+
+- 문단 모양 조회와 글꼴·테두리 조회가 큰 머리말에서 느리던 것을 고친다. FormFit과 쪽 수 추정(실험)이 문단·글자
+  모양마다 이 조회를 불러, 문단 모양이 많은 문서에서는 거의 모든 시간을 여기에 썼다.
+  - 문서의 `paragraph_property()`가 부를 때마다 모든 머리말의 문단 모양을 모두 읽었다. 이제 머리말마다 찾는
+    모양만 읽는다(뒤 머리말이 이기는 것은 그대로).
+  - `font_face()`·`border_fill_info()`가 부를 때마다 머리말 전체를 훑었다. 이제 `hh:refList`의 글꼴·글자 모양·
+    테두리 목록만 보고, 그런 목록이 없는 머리말만 전체를 훑는다.
+
 ## [6.8.0] - 2026-10-06
 
 `import hwpx`가 HWP 5.0 모듈과 `hwpx.tools`를 처음 쓸 때 읽도록 바꿔 가벼워진 릴리스입니다. FormFit은 글꼴
