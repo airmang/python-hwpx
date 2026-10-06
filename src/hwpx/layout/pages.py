@@ -56,7 +56,9 @@
   that far down), and for an object with only spaces beside it from the largest size of any run of
   its paragraph. A top-and-bottom object anchored to an empty paragraph pushes the
   next line below
-  it; anchored in a paragraph of text or of objects set as characters (from the paragraph's top),
+  it (offset down from a paragraph holding nothing else, the empty line stays where it is and the first
+  line reaching it after comes below it); anchored in a paragraph of text or of objects set as characters
+  (from the paragraph's top),
   it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
@@ -1130,6 +1132,9 @@ class _Para:
     moved: _Wrap | None = None
     #: holding no text: its line goes beside such a band as it is
     blank: bool = False
+    #: holding nothing but a top-and-bottom object offset down from it (see :func:`_pushing_object`): its empty
+    #: line stays where it is beside the object's band, which only the lines after reaching it go below
+    bare: bool = False
     #: a top-and-bottom object offset from this paragraph (not a flowing table) pushes its lines below it:
     #: when its band would pass the body's foot, Hancom moves it to the next page's top instead
     wrap_push: bool = False
@@ -2123,7 +2128,11 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         return replace(para, stack=_stack(measure, stacked, page.column_width, shape)), None
     square = _square_object(objects, runs, page.column_width,
                             lambda obj: _on_first_line(measure, page, paragraph, runs, obj))
-    pusher = _pushing_object(objects, _run_text(runs), page.column_width)
+    bare = len(objects) == 1 and not _run_text(runs) and not _marks(runs) and not _note_anchors(runs) \
+        and not measure.headed(paragraph)
+    pusher = _pushing_object(objects, _run_text(runs), page.column_width, bare)
+    if bare and pusher is not None and not _clear_of_its_band(measure, page, paragraph, pusher):
+        pusher = None  # the next line reaches the object's band anyway: laid out as the object alone
     if moved:  # the object went on to the next page's top: the paragraph's lines as if it were not there
         # the object: wrapped square, pushing the lines below it, or alone below the empty line (a table that
         # may split goes on over the page end instead; of tables, only one wrapped square set not to split is
@@ -2154,7 +2163,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
                                  or paragraph.get("pageBreak") == "1" or paragraph.get("columnBreak") == "1"):
             raise _Unsupported("a page break or another object beside a square-wrapped object")
     if pusher is not None:
-        para = _paragraph(measure, page, paragraph, None, pusher)
+        para = replace(_paragraph(measure, page, paragraph, None, pusher), bare=bare)
         offset = int(pusher.find(f"{HP}pos").get("vertOffset", 0))
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
@@ -2162,6 +2171,8 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             ends = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
             table = _FlowTable(rows, _page_break(pusher), pusher.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
+            if bare:  # from the paragraph's top, above its spacing, as a table alone (see _Paginator._flow)
+                offset -= para.prev
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height", measure)
@@ -2210,14 +2221,26 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     return para, wrap.lower(lead + para.span(0, para.lines) + para.next)
 
 
-def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
+def _clear_of_its_band(measure: _Measure, page: _Page, paragraph: Any, obj: Any) -> bool:
+    """Whether the object of an empty paragraph holding nothing else starts its band below the paragraph's line
+    (a table from the paragraph's top above its spacing, as a table alone, anything else from the line's top):
+    only then can the next line stand above it, and does Hancom's rule of an empty line staying where it is
+    differ from the paragraph laid out as the object alone."""
+
+    para = _paragraph(measure, page, paragraph, None, obj)
+    offset = int(obj.find(f"{HP}pos").get("vertOffset", 0)) - (para.prev if _local(obj) == "tbl" else 0)
+    return offset >= para.advance(0)
+
+
+def _pushing_object(objects: list[Any], text: str, column: int, bare: bool = False) -> Any:
     """The one object of a paragraph of text (spaces are text) placed top and bottom below the line it stands
     on (an offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects
-    set as characters are that line; in one of text, they are among it."""
+    set as characters are that line; in one of text, they are among it; *bare*, the paragraph holds the object
+    and nothing else, and its empty line stays where it is."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     lined = not text.strip() and len(objects) > len(placed)  # no text: the objects set as characters its line
-    if len(placed) != 1 or not (lined or text):
+    if len(placed) != 1 or not (lined or text or bare):
         return None
     obj = placed[0]
     pos = obj.find(f"{HP}pos")
@@ -2289,7 +2312,7 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
     top, rest, shifted = 0, None, 0
     beside = sum(1 for line in range(para.lines) if para.span(0, line) < band.bottom)
     for index, (height, advance) in enumerate(metrics):
-        if top < band.bottom and top + height > band.top:
+        if top < band.bottom and top + height > band.top and not (index == 0 and para.bare):
             shift = band.bottom - top
             if index == 0:
                 pushed, shifted = replace(para, prev=para.prev + shift), shift
@@ -2969,7 +2992,8 @@ class _Paginator:
             raise _Unsupported("a page break beside a top-and-bottom table's band")
         reaching = [line for line in range(para.lines)
                     if start + para.span(0, line) + para.height(line) > top
-                    and (bottom is None or start + para.span(0, line) < bottom)]
+                    and (bottom is None or start + para.span(0, line) < bottom)
+                    and not (line == 0 and para.bare and para.band is not None)]  # its own empty line stays
         if not reaching:  # every line above the band, or past it
             if self._lay(index, paras, para, start, broke):
                 self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), \
