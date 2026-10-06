@@ -1953,16 +1953,21 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if alone:
         if wrap is not None:
             raise _Unsupported("an object beside a square-wrapped object")
-        if objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
+        controls = _controls_beside(objects[0], runs, widths[0])
+        if controls is not None:  # a table too wide for the line beside controls: spaced from its own run's
+            size = measure.char_height(controls[0].get("charPrIDRef"))  # characters
+            pitch = _pitch(shape.kind, shape.value, size)
+        elif objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
             size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
             pitch = _pitch(shape.kind, shape.value, size)
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width)
-        beside = _page_number_beside(objects[0], runs, widths[0])
-        if beside is not None:  # a page number beside a table too wide for the line: an empty line of its own,
-            side, run = beside  # as tall as the control's characters
-            empty = measure.char_height(run.get("charPrIDRef"))
-            line = (empty, _pitch(shape.kind, shape.value, empty))
-            count, cached = 2, (line, (size, pitch)) if side < 0 else ((size, pitch), line)
+        if controls is not None:  # the controls before and after it on empty lines of their own, each as tall as
+            heights = [max(measure.char_height(run.get("charPrIDRef")) for run in side) if side else None
+                       for side in controls[1:]]  # the largest characters of the runs holding them
+            empty = [None if height is None else (height, _pitch(shape.kind, shape.value, height))
+                     for height in heights]
+            cached = tuple(line for line in (empty[0], (size, pitch), empty[1]) if line is not None)
+            count = len(cached)
         pos = objects[0].find(f"{HP}pos")
         if table is None and pos.get("treatAsChar") != "1" and pos.get("flowWithText") != "0" \
                 and 0 < int(pos.get("vertOffset", 0)) < 1 << 31:  # below the paragraph's line
@@ -1996,22 +2001,25 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     return para
 
 
-def _page_number_beside(obj: Any, runs: list[Any], width: float) -> tuple[int, Any] | None:
-    """(-1, its run) when a page-number control (``hp:ctrl/hp:pageNum``) stands before *obj*, a table set as a
-    character wider than the line (*width*), in its paragraph, (1, its run) when it stands after it, else
-    ``None``: Hancom sets the two on lines of their own, the control's an empty line as tall as its run's
-    characters."""
+def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list[Any], list[Any]] | None:
+    """(*obj*'s run, the runs holding controls before it, those holding controls after it) when *obj* is a table
+    set as a character wider than the line (*width*) and controls (``hp:ctrl``, a page number, a hidden page
+    number, a field, a bookmark, a header and so on -- but not a column definition) stand beside it in its
+    paragraph, else ``None``: Hancom sets the controls before it on an empty line of their own, the table on the
+    next line and the controls after it on the line after that."""
 
     if _local(obj) != "tbl" or obj.find(f"{HP}pos").get("treatAsChar") != "1" or _extent(obj, "width") <= width:
         return None
-    seen = False
+    home, before, after = None, [], []
     for run in runs:
         for child in run:
             if child is obj:
-                seen = True
-            elif _local(child) == "ctrl" and child.find(f"{HP}pageNum") is not None:
-                return (1 if seen else -1), run
-    return None
+                home = run
+            elif _local(child) == "ctrl" and any(_local(kind) != "colPr" for kind in child):
+                side = before if home is None else after
+                if not side or side[-1] is not run:
+                    side.append(run)
+    return (home, before, after) if before or after else None
 
 
 def _extent(obj: Any, side: str, measure: _Measure | None = None) -> int:
