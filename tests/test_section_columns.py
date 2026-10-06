@@ -141,6 +141,17 @@ def test_hancom_starts_new_columns_only_from_a_definition_ahead_of_the_paragraph
     assert _line_widths(ahead[4:11]) == {20660}
 
 
+def test_hancom_starts_the_columns_python_hwpx_writes_ahead_of_a_paragraphs_text() -> None:
+    # The fifth paragraph "단 시작" written with two columns ahead of its text, saved by Hancom: it keeps the
+    # definition ahead of the text and lays the paragraph and the lines after it out in two columns.
+    paragraphs = _saved_paragraphs("pages_columns_change_text_after_definition.hwpx")
+    started = paragraphs[4].findall(f"{HP}run")
+
+    assert started[0][0].find(f"{HP}colPr") is not None
+    assert "".join(t.text or "" for run in started[1:] for t in run.iter(f"{HP}t")) == "단 시작"
+    assert _line_widths(paragraphs[4:11]) == {20660}
+
+
 @pytest.mark.parametrize("text", ["단 시작", ""])
 def test_a_column_definition_is_written_ahead_of_its_paragraphs_text(text: str) -> None:
     document = _document_with_body()
