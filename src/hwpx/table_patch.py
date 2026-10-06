@@ -977,6 +977,10 @@ def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
     ncol = max(widths) + 1
     freed = sum(widths[c] for c in del_cols)
     survivors = [c for c in range(ncol) if c not in del_cols]
+    if not survivors:
+        raise TableStructureError(
+            "delete_column: deleting every column would leave no table -- delete the table instead (delete_table)"
+        )
     targets = [c for c in survivors if c > dmax and c != survivors[-1]] or survivors
     add, rem = divmod(freed, len(targets))
     nw = {c: widths[c] for c in survivors}
@@ -1061,6 +1065,10 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
     _guard_flat(table)
     del_rows = sorted(set(del_rows), reverse=True)
     prefix, rows, suffix = _parse_table(table)
+    if set(range(len(rows))) <= set(del_rows):
+        raise TableStructureError(
+            "delete_row: deleting every row would leave no table -- delete the table instead (delete_table)"
+        )
     for empty in del_rows:
         if empty >= len(rows):
             raise TableStructureError(f"row index {empty} out of range")
