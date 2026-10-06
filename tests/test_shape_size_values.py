@@ -103,6 +103,25 @@ def test_a_picture_size_hancom_does_not_keep_is_refused_before_the_image_is_stor
     assert _state(document) == before
 
 
+@pytest.mark.parametrize("value", [True, False, -0.5, 14400.5, "14400"])
+@pytest.mark.parametrize("dimension", ["width", "height"])
+@pytest.mark.parametrize("direct", [False, True])
+def test_picture_units_are_validated_without_coercion(value: object, dimension: str, direct: bool) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.paragraphs[0]
+    before = _state(document)
+    sizes = {dimension: value}
+
+    with pytest.raises(HwpxValueError) as caught:
+        if direct:
+            paragraph.add_picture("image1", **sizes)  # type: ignore[arg-type]
+        else:
+            document.add_picture(PNG_1X1, "png", **sizes)  # type: ignore[arg-type]
+
+    assert caught.value.code == "shape-size-value"
+    assert _state(document) == before
+
+
 @pytest.mark.parametrize("ratio", [-1, 2**31, 12.5, True])
 def test_a_corner_ratio_hancom_does_not_keep_is_refused_before_anything_is_added(ratio: object) -> None:
     document = HwpxDocument.new()
