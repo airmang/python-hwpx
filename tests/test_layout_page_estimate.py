@@ -73,6 +73,23 @@ HANCOM_PAGES = {
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines
                                                           # there reaching it below it
+    # A picture 4000 tall placed top and bottom at its paragraph's top (offset 0), its foot past the body's:
+    "pages_picture_at_the_paragraph_top_moved_to_the_next_page": 2,  # alone at the next page's top, the
+                                                                     # empty line staying, the lines there
+                                                                     # below it
+    "pages_picture_at_the_paragraph_top_with_text": 2,  # in a paragraph of text: the same, its line staying
+    "pages_picture_at_the_paragraph_top_not_flowing": 2,  # not flowing with the text: it stays on its page
+                                                          # past the foot, the empty line there, the next
+                                                          # paragraph at the next page's top
+    "pages_picture_at_the_paragraph_top_fitting": 2,  # one that fits: the next paragraph at its foot
+    # Such a picture gone on to the next page's top, then a table placed top and bottom (cells split):
+    "pages_picture_moved_then_a_table_moved_whole": 2,  # no room for its first row: it starts below the
+                                                         # picture, its paragraph's line staying behind
+    "pages_picture_moved_then_a_table_split": 2,  # split: its rest goes on at the page's top over the picture,
+                                                   # the text after below both
+    "pages_picture_moved_then_a_table_split_picture_right": 2,  # the picture right of the table
+    "pages_picture_moved_then_a_table_paragraph_moved": 2,  # its paragraph's line going on too: as at the
+                                                             # page's top below the picture
     "pages_picture_pushing_its_first_line_above_the_foot": 2,  # a picture 30000 tall 1319 below a paragraph of
                                                                # 14 pt text: its line goes below the picture,
                                                                # which ends above the foot, and stays there
@@ -105,6 +122,14 @@ HANCOM_PAGES = {
     "pages_section_controls_run_after_the_text": 1,  # the controls after the text: Hancom moves them first
                                                       # and leaves an empty 14 pt run ending the line
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
+    # 10 pt text in a paragraph shape taking its line height from the font (fontLineHeight), line spacing 160%:
+    # each line as tall as its face's ascent and descent, spaced from that height; at the size the lines
+    # would all fit on the first page:
+    "pages_font_line_height_hamchorom_lines": 2,  # 36 one-line paragraphs in 함초롬바탕: 1300 tall, 2080 apart
+    "pages_font_line_height_malgun_lines": 2,  # in 맑은 고딕: 1331 tall, 2127 apart
+    "pages_font_line_height_long_paragraph": 2,  # one paragraph of 35 lines in 함초롬바탕
+    "pages_font_line_height_cell": 2,  # 25 such lines in a cell, then 10 paragraphs of 10 pt text
+    "pages_font_line_height_at_least": 2,  # 52 one-line paragraphs, line spacing at least 1200: 1300 apart
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
     "pages_line_ends_at_page_foot": 2,    # a line ending right at the body's foot goes on
@@ -276,6 +301,26 @@ HANCOM_PAGES = {
     "pages_table_wider_than_the_line_alone": 1,  # no control: one line
     "pages_section_start_then_a_table_wider_than_the_line": 1,  # the section's and columns' controls before
                                                                 # it: one line
+    # The same table beside one of the other controls: the same two lines, whichever the control. Before the
+    # table, an empty line 1600 down and the table's line under it; after it, the table's line first.
+    "pages_page_hiding_then_a_table_wider_than_the_line": 1,  # a hidden page number
+    "pages_table_wider_than_the_line_then_a_page_hiding": 1,
+    "pages_auto_number_then_a_table_wider_than_the_line": 1,  # a page's number shown as a character
+    "pages_table_wider_than_the_line_then_an_auto_number": 1,
+    "pages_new_number_then_a_table_wider_than_the_line": 1,  # a new page number
+    "pages_table_wider_than_the_line_then_a_new_number": 1,
+    "pages_page_number_control_then_a_table_wider_than_the_line": 1,  # page numbering on both sides
+    "pages_table_wider_than_the_line_then_a_page_number_control": 1,
+    "pages_header_then_a_table_wider_than_the_line": 1,  # a header
+    "pages_table_wider_than_the_line_then_a_header": 1,
+    "pages_footer_then_a_table_wider_than_the_line": 1,  # a footer
+    "pages_table_wider_than_the_line_then_a_footer": 1,
+    "pages_bookmark_then_a_table_wider_than_the_line": 1,  # a bookmark
+    "pages_table_wider_than_the_line_then_a_bookmark": 1,
+    "pages_click_here_field_then_a_table_wider_than_the_line": 1,  # an empty click-here field, its start and end
+    "pages_table_wider_than_the_line_then_a_click_here_field": 1,
+    "pages_index_mark_then_a_table_wider_than_the_line": 1,  # an index mark
+    "pages_table_wider_than_the_line_then_an_index_mark": 1,
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
@@ -355,6 +400,27 @@ HANCOM_PAGES = {
     "pages_mixed_sizes_at_least": 2,      # 8 pt and 16 pt runs, line spacing at least 18 pt
     "pages_picture_before_text_percent": 2,  # a picture set as a character before the text, 160%
     "pages_picture_before_text_fixed": 2,    # a picture taller than the fixed line spacing
+    # Paragraphs each of a table set as a character (10000 wide, 3000 or 10000 tall) and nothing else, the
+    # table affecting the line spacing (on) or not (off): in percent, an affecting table's line is spaced from
+    # its own height (160%: 1800 below one 3000 tall), any other from the characters (600); a fixed spacing
+    # keeps the next line 2400 down below either (the tables overlap), an at-least one (1200) at the table's
+    # height.
+    "pages_table_affecting_line_spacing_percent160_3000_on": 2,
+    "pages_table_affecting_line_spacing_percent160_3000_off": 1,
+    "pages_table_affecting_line_spacing_percent160_10000_on": 2,
+    "pages_table_affecting_line_spacing_percent160_10000_off": 1,
+    "pages_table_affecting_line_spacing_percent130_3000_on": 2,
+    "pages_table_affecting_line_spacing_percent130_3000_off": 1,
+    "pages_table_affecting_line_spacing_percent130_10000_on": 2,
+    "pages_table_affecting_line_spacing_percent130_10000_off": 1,
+    "pages_table_affecting_line_spacing_fixed2400_3000_on": 1,
+    "pages_table_affecting_line_spacing_fixed2400_3000_off": 1,
+    "pages_table_affecting_line_spacing_fixed2400_10000_on": 1,
+    "pages_table_affecting_line_spacing_fixed2400_10000_off": 1,
+    "pages_table_affecting_line_spacing_at_least1200_3000_on": 1,
+    "pages_table_affecting_line_spacing_at_least1200_3000_off": 1,
+    "pages_table_affecting_line_spacing_at_least1200_10000_on": 1,
+    "pages_table_affecting_line_spacing_at_least1200_10000_off": 1,
     "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
     "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
@@ -427,6 +493,17 @@ HANCOM_PAGES = {
     "pages_table_vertical_cell_merged_over_rows": 1,  # ten in a cell merged over four rows 2000 tall
     "pages_table_merged_cells_over_the_page_end": 2,  # twenty rows, cells of four merged, horizontal text:
                                                      # the table splits at the page end
+    # Twenty rows of one line (10000 and 30000 wide), the first column's cells of rows 9 to 12 merged, the page
+    # ending in row 10:
+    "pages_table_rows_merged_at_the_page_end": 2,  # the part on the page reaches down to its foot, the
+                                                   # merged cell's lines split there; row 10 goes on whole
+    "pages_table_rows_merged_at_the_page_end_taller_text": 2,  # eight lines in the merged cell: its last
+                                                               # row grows
+    "pages_table_rows_merged_at_the_page_end_moved_row_by_row": 2,  # the merged rows go on together
+    "pages_table_rows_merged_at_the_page_end_staggered": 2,  # rows 7 to 10 merged in the first column,
+                                                             # 10 to 13 in the second
+    "pages_table_rows_merged_taller_than_a_page": 2,  # rows 2 to 40 merged in a table of forty
+    "pages_table_rows_merged_after_the_page_end": 2,  # the page ending before the merged rows
     "pages_table_nested_top_and_bottom_alone_then_a_line": 1,  # a table placed top and bottom alone in
                                                               # a cell paragraph, then a line: right
                                                               # below the table
