@@ -916,7 +916,13 @@ class HwpxOxmlDocument:
     def paragraph_property(
         self, para_pr_id_ref: int | str | None
     ) -> ParagraphProperty | None:
-        return HwpxOxmlHeader._lookup_by_id(self.paragraph_properties, para_pr_id_ref)
+        # Each header parses only the shape asked for, and a later header's shape wins, as in
+        # paragraph_properties; merging every header's whole list cost seconds a lookup.
+        for header in reversed(self._headers):
+            found = header.paragraph_property(para_pr_id_ref)
+            if found is not None:
+                return found
+        return None
 
     @property
     def tab_properties(self) -> dict[str, TabDefinition]:
