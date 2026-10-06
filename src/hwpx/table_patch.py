@@ -1280,11 +1280,16 @@ def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]
 
 def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
     """Copy paragraph identities only; refuse local identities/references we cannot remap."""
-    for tag, opening in re.findall(r'<([\w:.-]+)\b([^<>]*)>', content):
-        identity = tag != "hp:p" and re.search(r'\s(?:id|instid|instId|fieldid)="[^"]+"', opening)
-        reference = re.search(r'\s(?:subjectIDRef|beginIDRef|chartIDRef)=', opening)
-        links = re.findall(r'\s(?:linkListIDRef|linkListNextIDRef)="([^"]*)"', opening)
-        if identity or reference or any(value not in ("", "0") for value in links) or tag in (
+    openings = re.findall(r'''<([\w:.-]+)\b((?:"[^"]*"|'[^']*'|[^'">])*)>''', content)
+    for tag, opening in openings:
+        attrs = {name: value for name, _, value in re.findall(
+            r'''\s([\w:.-]+)\s*=\s*(["'])(.*?)\2''', opening, flags=re.S,
+        )}
+        identity = tag != "hp:p" and any(attrs.get(name) not in (None, "")
+                                         for name in ("id", "instid", "instId", "fieldid"))
+        reference = any(name in attrs for name in ("subjectIDRef", "beginIDRef", "chartIDRef"))
+        linked = any(attrs.get(name) not in (None, "", "0") for name in ("linkListIDRef", "linkListNextIDRef"))
+        if identity or reference or linked or tag in (
             "hp:bookmark", "hp:fieldBegin", "hp:fieldEnd",
         ):
             raise TableStructureError(
