@@ -276,7 +276,7 @@ ERROR_CODES: dict[str, str] = {
     "style-ambiguous": "같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉).",
     "style-argument-conflict": "style 과 style_id_ref 를 동시에 지정했다.",
     "style-list-continue-conflict": "continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다).",
-    "style-list-level-invalid": "글머리표/번호 수준은 1 이상이어야 한다.",
+    "style-list-level-invalid": "글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다).",
     "style-list-property-failed": "번호 문단모양을 만들지 못했다.",
     "style-font-face-empty": "face 값이 비어 있다.",
     "style-font-lang-invalid": "lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다.",
