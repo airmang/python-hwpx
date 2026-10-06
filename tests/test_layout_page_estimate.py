@@ -477,6 +477,17 @@ HANCOM_PAGES = {
     "pages_table_vertical_cell_merged_over_rows": 1,  # ten in a cell merged over four rows 2000 tall
     "pages_table_merged_cells_over_the_page_end": 2,  # twenty rows, cells of four merged, horizontal text:
                                                      # the table splits at the page end
+    # Twenty rows of one line (10000 and 30000 wide), the first column's cells of rows 9 to 12 merged, the page
+    # ending in row 10:
+    "pages_table_rows_merged_at_the_page_end": 2,  # the part on the page reaches down to its foot, the
+                                                   # merged cell's lines split there; row 10 goes on whole
+    "pages_table_rows_merged_at_the_page_end_taller_text": 2,  # eight lines in the merged cell: its last
+                                                               # row grows
+    "pages_table_rows_merged_at_the_page_end_moved_row_by_row": 2,  # the merged rows go on together
+    "pages_table_rows_merged_at_the_page_end_staggered": 2,  # rows 7 to 10 merged in the first column,
+                                                             # 10 to 13 in the second
+    "pages_table_rows_merged_taller_than_a_page": 2,  # rows 2 to 40 merged in a table of forty
+    "pages_table_rows_merged_after_the_page_end": 2,  # the page ending before the merged rows
     "pages_table_nested_top_and_bottom_alone_then_a_line": 1,  # a table placed top and bottom alone in
                                                               # a cell paragraph, then a line: right
                                                               # below the table
