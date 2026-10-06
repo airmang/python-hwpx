@@ -105,6 +105,14 @@ HANCOM_PAGES = {
     "pages_section_controls_run_after_the_text": 1,  # the controls after the text: Hancom moves them first
                                                       # and leaves an empty 14 pt run ending the line
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
+    # 10 pt text in a paragraph shape taking its line height from the font (fontLineHeight), line spacing 160%:
+    # each line as tall as its face's ascent and descent, spaced from that height; at the size the lines
+    # would all fit on the first page:
+    "pages_font_line_height_hamchorom_lines": 2,  # 36 one-line paragraphs in 함초롬바탕: 1300 tall, 2080 apart
+    "pages_font_line_height_malgun_lines": 2,  # in 맑은 고딕: 1331 tall, 2127 apart
+    "pages_font_line_height_long_paragraph": 2,  # one paragraph of 35 lines in 함초롬바탕
+    "pages_font_line_height_cell": 2,  # 25 such lines in a cell, then 10 paragraphs of 10 pt text
+    "pages_font_line_height_at_least": 2,  # 52 one-line paragraphs, line spacing at least 1200: 1300 apart
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
     "pages_line_ends_at_page_foot": 2,    # a line ending right at the body's foot goes on

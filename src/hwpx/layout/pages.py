@@ -174,8 +174,8 @@ from collections.abc import Callable, Collection
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from ..form_fit.measure import (_GLYPH_SPACE, char_advance, hancom_line_starts, indented_widths, paragraph_label,
-                                text_style_from_refs)
+from ..form_fit.measure import (_GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts, indented_widths,
+                                paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -309,6 +309,7 @@ class _Shape:
     right: int
     indent: int
     flags: dict[str, str]
+    font_line: bool = False  # its lines as tall as the font makes them (fontLineHeight)
 
 
 def _para_shape(header: Any, para_pr_id: str) -> _Shape:
@@ -330,7 +331,7 @@ def _para_shape(header: Any, para_pr_id: str) -> _Shape:
     if spacing is not None:
         kind, amount = spacing.get("type", "PERCENT"), int(spacing.get("value", 160))
     return _Shape(kind, amount, value("prev"), value("next"), value("left"), value("right"), value("intent"),
-                  dict(breaks.attrib) if breaks is not None else {})
+                  dict(breaks.attrib) if breaks is not None else {}, shape.get("fontLineHeight") in ("1", "true"))
 
 
 def _pitch(kind: str, value: int, size: int) -> int:
@@ -493,6 +494,14 @@ class _Measure:
         style = self._root.char_property(char_pr_id)
         return int(style.attributes.get("height", 1000)) if style is not None else 1000
 
+    def font_line(self, size: int, style: Any) -> int:
+        """How tall a line of characters *size* tall in *style* is in a paragraph taking its line height from
+        the font (see :func:`~hwpx.form_fit.measure.font_line_height`); *size* for a face the glyph table does
+        not list."""
+
+        tall = font_line_height(getattr(style, "hangul_face", None), size)
+        return size if tall is None else tall
+
     def headed(self, paragraph: Any) -> bool:
         """Whether Hancom heads *paragraph* with a bullet or number label."""
 
@@ -605,6 +614,9 @@ class _Measure:
                 count = (_cache_lines(paragraph) if caches else 0) or self.lines(
                     _run_text(runs), _line_widths(shape, width, style), size, style
                 )
+                if shape.font_line:  # an empty line as tall as its font makes it
+                    size = self.font_line(size, style)
+                    pitch = _pitch(shape.kind, shape.value, size)
             if pending is not None:
                 height += pending + shape.prev
             top = height
@@ -616,14 +628,14 @@ class _Measure:
         return height, lines, pitch, size
 
     def mixed_lines(self, paragraph: Any, runs: list[Any], shape: _Shape, width: int) -> tuple[tuple[int, int], ...]:
-        """(height, advance) of each line of a paragraph whose characters differ in size or style, laid out at
-        *width* as in the body; empty for one whose characters do not."""
+        """(height, advance) of each line of a paragraph whose characters differ in size or style, or that takes
+        its line height from the font, laid out at *width* as in the body; empty for any other paragraph."""
 
         _, refs, sizes = _text_size(self, runs)
         looks = _char_styles(self, paragraph, runs)
         end = _end_size(self, runs, sizes)
         head = _head_size(self, paragraph, sizes)
-        if len(set(sizes)) < 2 and looks is None and not end and not head:
+        if len(set(sizes)) < 2 and looks is None and not end and not head and not (shape.font_line and sizes):
             return ()
         style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
         return _line_metrics(self, _run_text(runs), _line_widths(shape, width, style), sizes, style, shape, {}, looks,
@@ -695,6 +707,7 @@ class _Measure:
             size, refs, _ = _text_size(self, runs)
             style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
             count = max(1, self.lines(_run_text(runs), _line_widths(shape, width, style), size, style))
+            size = self.font_line(size, style) if shape.font_line else size
             lines = [(size, _pitch(shape.kind, shape.value, size))] * count
         y = 0
         for index, (height, advance) in enumerate(lines):
@@ -1191,7 +1204,7 @@ class _Reflow:
         mixed = len(set(sizes)) > 1
         starts = self.measure.line_starts(text, widths, min(sizes), self.style, sizes if mixed else None, looks)
         cached = _line_metrics(self.measure, text, widths, sizes, self.style, self.shape, {}, looks) \
-            if mixed or looks is not None else ()
+            if mixed or looks is not None or self.shape.font_line else ()
         return replace(para, lines=len(starts), cached=cached,
                        reflow=replace(self, width=width, offset=offset, starts=tuple(starts)))
 
@@ -1632,6 +1645,15 @@ def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any
     return looks if len(set(looks)) > 1 else None
 
 
+def _line_sizes(measure: _Measure, sizes: list[int], style: Any, styles: list[Any] | None, shape: _Shape) -> list[int]:
+    """Each character's size as its line's height counts it: the size, or in a paragraph taking its line height
+    from the font (``fontLineHeight``) the height the character's face gives a line of that size."""
+
+    if not shape.font_line:
+        return sizes
+    return [measure.font_line(size, styles[index] if styles else style) for index, size in enumerate(sizes)]
+
+
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
                   marks: dict[int, int] | None = None, end: int = 0, head: int = 0) -> tuple[tuple[int, int], ...]:
@@ -1641,15 +1663,20 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     makes the line at least as tall as itself, and counts at its run's size for the spacing; a fixed line spacing
     keeps the next line that far down. A composed character or ruby text (*marks*: its place -> its
     width) is a character of its size in *sizes*. The last line is at least as tall as the paragraph's
-    end (*end*, see :func:`_end_size`), and the first as its label (*head*, see :func:`_head_size`)."""
+    end (*end*, see :func:`_end_size`), and the first as its label (*head*, see :func:`_head_size`). In a
+    paragraph taking its line height from the font each of them counts as tall as its face makes a line
+    (:func:`_line_sizes`)."""
 
     advances = {**{index: width for index, (width, _) in objects.items()}, **(marks or {})} or None
     starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles,
                                  advances, set(objects))
+    heights = _line_sizes(measure, sizes, style, styles, shape)
+    if shape.font_line:
+        end, head = measure.font_line(end, style), measure.font_line(head, style)
     metrics = []
     for start, stop in zip(starts, [*starts[1:], len(text)]):
         span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
-        size = max([sizes[index] for index in span] + ([end] if stop == len(text) else [])
+        size = max([heights[index] for index in span] + ([end] if stop == len(text) else [])
                    + ([head] if start == 0 else []))
         height = max([size] + [objects[index][1] for index in span if index in objects])
         advance = _pitch(shape.kind, shape.value, size)
@@ -1889,7 +1916,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     widths: list[float] = _indented(page.column_width - shape.left - shape.right, shape, style)
     end = _end_size(measure, runs, sizes)
     head = _head_size(measure, paragraph, sizes)
-    mixed = len(set(sizes)) > 1 or bool(end) or bool(head)
+    mixed = len(set(sizes)) > 1 or bool(end) or bool(head) or (shape.font_line and bool(sizes))
     looks = _char_styles(measure, paragraph, runs)
     lead = 0  # how far the paragraph's first line goes down below a square-wrapped object's band
     if alone and wrap is None:  # spaces besides it, those that do not fit going on to the next line
@@ -1919,6 +1946,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end, head=head)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
+    if shape.font_line and not cached and not sizes and not alone:  # an empty line as tall as its font makes it
+        size = measure.font_line(size, style)
+        pitch = _pitch(shape.kind, shape.value, size)
     table, moves = None, 0
     if alone:
         if wrap is not None:
@@ -2329,6 +2359,8 @@ def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int
             pieces = 2 if piece in firsts and piece + 1 < len(starts) else 1
             start, end = starts[piece], starts[piece + pieces] if piece + pieces < len(starts) else len(text)
             height = max((sizes or [size])[start:end] or [size]) if sizes else size
+            if shape.font_line:
+                height = measure.font_line(height, style)
             if top < wrap.bottom and top + height > wrap.top:
                 found.add(index)
             top += _pitch(shape.kind, shape.value, height)
@@ -2373,6 +2405,9 @@ def _banded_object_lines(measure: _Measure, text: str, widths: list[float], size
 
     advances = {index: width for index, (width, _) in objects.items()} or None
     mixed = sizes if len(set(sizes)) > 1 else None
+    heights = _line_sizes(measure, sizes, style, looks, shape)
+    if shape.font_line:
+        end, head = measure.font_line(end, style), measure.font_line(head, style)
     narrow = set(range(len(text) + 1))
     for _ in range(8):
         widths_by_line = [widths[min(line, 1)] - (wrap.cut if line in narrow else 0)
@@ -2383,7 +2418,7 @@ def _banded_object_lines(measure: _Measure, text: str, widths: list[float], size
         top = lead = 0
         for line, (start, stop) in enumerate(zip(starts, [*starts[1:], len(text)])):
             span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
-            size = max([sizes[index] for index in span] + ([end] if stop == len(text) else [])
+            size = max([heights[index] for index in span] + ([end] if stop == len(text) else [])
                        + ([head] if start == 0 else []))
             height = max([size] + [objects[index][1] for index in span if index in objects])
             pitch = _pitch(shape.kind, shape.value, size)
