@@ -1369,6 +1369,8 @@ def _split_cell(
     _grid, report = build_grid(table.encode("utf-8"))
     if not report.ok:
         raise TableStructureError(f"split_cell: the table's grid is invalid before the split: {report.issues}")
+    _, original_rows, _ = _parse_table(table)
+    _cell_at(original_rows, row, col)  # require the exact anchor even for a row-only split
     fresh_id = _fresh_ids(table, used_ids)
     if cols > 1:
         table = _split_cell_columns(table, row, col, cols, fresh_id)

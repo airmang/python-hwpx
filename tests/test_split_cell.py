@@ -177,3 +177,16 @@ def _table_xml() -> str:
         section = archive.read("Contents/section0.xml").decode("utf-8")
     start = section.index("<hp:tbl")
     return section[start:section.index("</hp:tbl>") + len("</hp:tbl>")]
+
+
+@pytest.mark.parametrize("row,col", [(0, 2), (0, -1), (0, 3), (-1, 0), (3, 0)])
+@pytest.mark.parametrize("parts", [{"rows": 2}, {"rows": 2, "cols": 2}])
+def test_every_split_requires_an_exact_in_range_anchor(row: int, col: int, parts: dict) -> None:
+    source = _saved("merge_r0c12_base")
+    result = apply_table_ops(source, [
+        {"op": "split_cell", "table_index": 0, "row": row, "col": col, **parts},
+    ])
+
+    assert not result.ok
+    assert result.data == source
+    assert "no cell starts" in str(result.skipped)
