@@ -716,6 +716,12 @@
       "disposition": "core",
       "approvedBy": "shape-curves-and-connectors",
       "rationale": "HwpxOxmlParagraph.add_curve and add_connector: builds hp:curve (CURVE segments through the given points, the box of the Catmull-Rom curve through them, the points relative to that box) and hp:connectLine (STRAIGHT or STROKE, NOARROW) whose ends sit at the middle of a side of two floating objects placed in the same frame, with the connector's start/end object references. A new module rather than more objects.py lines (the 1,600-line owner-file cap); the two builders are attached to HwpxOxmlParagraph as plain class attributes, the same escape valve as shape_position.py and drop_cap.py. Format-level only: no renderer, application workflow or agent policy."
+    },
+    {
+      "path": "src/hwpx/form_fit/_glyph_table.py",
+      "disposition": "core",
+      "approvedBy": "formfit-glyph-widths",
+      "rationale": "FormFit glyph widths beyond measure._GLYPHS: per face, the design advance of each glyph of the KS X 1001 symbols, the full-width forms and eight common Unicode blocks, read from the font files, and the face Hancom lays a glyph out from when a face lacks it. Data only; imports nothing."
     }
   ],
   "removed": [
