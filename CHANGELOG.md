@@ -2,6 +2,19 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 추가
+
+- 표 구조 편집(`hwpx.table_patch.apply_table_ops`)에 열 삽입 `insert_column_by_clone`을 더한다. 격자 열
+  `ref_col`의 오른쪽(`side: "left"`면 왼쪽)에 그 열을 복제한 열 `count`개를 넣는다.
+  - 새 열은 기준 열과 같은 폭이고, 표는 그만큼 넓어진다. 본문 폭을 넘어도 줄이지 않는다.
+  - 새 칸은 같은 행 기준 칸의 테두리·문단 모양·글자 모양을 따른다. 글은 행 삽입(`insert_row_by_clone`)처럼
+    복제하고, `blank: true`면 한/글처럼 빈 문단 하나만 둔다.
+  - 새 열을 가로지르는 합친 칸은 그 열만큼 colSpan과 폭이 는다. 기준 열에서 끝나는(왼쪽이면 시작하는)
+    합친 칸 옆에는 그 칸 서식의 빈 칸이 들어가고, 기준 열에서 세로로 합친 칸은 같은 행들에 걸쳐 복제된다.
+  - 칸 영역(`hp:cellzone`)의 열 주소도 함께 옮긴다.
+
 ## [6.8.0] - 2026-10-06
 
 `import hwpx`가 HWP 5.0 모듈과 `hwpx.tools`를 처음 쓸 때 읽도록 바꿔 가벼워진 릴리스입니다. FormFit은 글꼴
