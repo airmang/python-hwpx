@@ -435,6 +435,20 @@ HANCOM_PAGES = {
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows
     "pages_table_flow_tall_row_carried": 2,  # a row declared taller than its text, cut at the page end
     "pages_table_flow_tall_row_dropped": 2,  # the same, the rest too short to go on
+    # Tables of two columns with cell spacing 0, 200 or 850 between and around their cells: one of 20 rows
+    # (1282 tall) flowing with the text from 10 rows above the page end, split between rows (cell) or moved
+    # row by row (table) alike -- the rows that fit with a spacing above each and one below the last, the
+    # rest on the next page the same way -- and one of a row set as a character on the last line that fits
+    # it without the spacing, as tall as its rows and the spacings above and below them.
+    "pages_table_cell_spacing_0_cell": 2,
+    "pages_table_cell_spacing_0_table": 2,
+    "pages_table_cell_spacing_0_inline": 2,
+    "pages_table_cell_spacing_200_cell": 2,
+    "pages_table_cell_spacing_200_table": 2,
+    "pages_table_cell_spacing_200_inline": 2,
+    "pages_table_cell_spacing_850_cell": 2,
+    "pages_table_cell_spacing_850_table": 2,
+    "pages_table_cell_spacing_850_inline": 2,
     "pages_table_flow_tall_row_rest_1282": 2,  # a rest of 1282 is dropped
     "pages_table_flow_tall_row_rest_1283": 2,  # a rest of 1283 goes on
     "pages_table_flow_tall_row_cell_margins_0": 2,    # the cells' own margins 0: 1283 goes on
@@ -1087,15 +1101,15 @@ def test_a_table_with_cell_spacing_lays_its_cells_out_at_their_own_widths(name: 
     # A table 46196 wide: one cell over its three columns, then cells of 15000, 21000 and 9800 with a cell
     # spacing of 198 (10196 without it), the last holding ten "가" (9720), every cell declared 282 tall. With
     # the spacing the second row's cells add up to the first row's, and Hancom lays each cell out at its own
-    # width: the ten characters on two lines (one line without the spacing). The height it saved is its rows'
-    # and the spacing above, between and below them.
+    # width: the ten characters on two lines (one line without the spacing). The height it saved is its rows',
+    # each with the spacing above it, and the spacing below the last.
     doc = HwpxDocument.open(_without_caches((FIXTURES / f"{name}.hwpx").read_bytes()))
     table = next(doc.oxml.sections[0].element.iter(f"{HP}tbl"))
     rows = page_layout._rows(page_layout._Measure(getattr(doc, "_root")), table)
     spacing = int(table.get("cellSpacing"))
 
     assert [row.lines for row in rows] == [1, 2 if spacing else 1]
-    assert sum(row.height for row in rows) + (len(rows) + 1) * spacing == int(table.find(f"{HP}sz").get("height"))
+    assert sum(row.height for row in rows) + spacing == int(table.find(f"{HP}sz").get("height"))
 
 
 def test_a_table_set_not_to_split_taller_than_a_page_takes_the_next_one() -> None:
