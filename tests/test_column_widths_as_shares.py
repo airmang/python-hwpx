@@ -3,7 +3,8 @@
 Hancom lays a column out ``width * text width / 32768`` wide, whatever the shares add up to.
 ``tests/fixtures/hancom_saved/columns_unequal_widths_in_*.hwpx`` are its saves of two columns written
 ``[(20000, 1000), (21520, 0)]`` (HWP units adding up to the text width, 42520: the second column then runs off
-the paper) and ``[(16000, 768), (16000, 0)]`` (shares adding up to 32768).
+the paper) and ``[(16000, 768), (16000, 0)]`` (shares adding up to 32768);
+``columns_unequal_widths_written_as_shares.hwpx`` of the shares now written for the first.
 """
 
 from __future__ import annotations
@@ -46,6 +47,14 @@ def test_hancom_lays_a_column_out_its_share_of_32768_of_the_text_width(fixture: 
 
     assert {int(line.get("horzsize")) for line in section.iter(f"{HP}lineseg")} == set(widths)
     assert page_layout._columns(section, 42520) == (2, min(widths), widths, 0)
+
+
+def test_hancom_lays_the_shares_written_for_widths_in_hwp_units_out_at_those_widths() -> None:
+    # [(20000, 1000), (21520, 0)] written as shares, saved by Hancom: its lines are 20000 and 21520 wide.
+    section = _saved_section("columns_unequal_widths_written_as_shares.hwpx")
+
+    assert _sizes(section) == [("15413", "771"), ("16584", "0")]
+    assert {int(line.get("horzsize")) for line in section.iter(f"{HP}lineseg")} == {20000, 21520}
 
 
 @pytest.mark.parametrize("where", ["section", "paragraph"])
