@@ -682,8 +682,8 @@ class HwpxOxmlParagraph:
 
         element = _create_picture_element(  # checked before its run is added
             str(binary_item_id_ref),
-            int(width),
-            int(height),
+            width,
+            height,
             align=align,
             treat_as_char=treat_as_char,
             pos_overrides=pos_overrides,
