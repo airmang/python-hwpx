@@ -119,6 +119,7 @@ def add_picture(
     resolved_width = width
     if resolved_width is None:
         resolved_width = _mm_to_hwp_units(width_mm) if width_mm is not None else 14400
+    validate_shape_size(resolved_width, 0)  # validate before aspect-ratio arithmetic too
 
     resolved_height = height
     if resolved_height is None:
@@ -131,7 +132,7 @@ def add_picture(
                 resolved_height = round(resolved_width * source_height / source_width)
             else:
                 resolved_height = resolved_width
-    validate_shape_size(int(resolved_width), int(resolved_height))  # before anything is stored too
+    validate_shape_size(resolved_width, resolved_height)  # before anything is stored too
 
     # Call the local primitive directly rather than `doc.add_image` — that
     # facade name moved in 6.0 (design table row 33), and going through it
