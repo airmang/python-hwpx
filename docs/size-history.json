@@ -84,6 +84,28 @@
    },
    "importedModules": 117,
    "importMs": 77
+  },
+  {
+   "version": "6.8.0",
+   "commit": "bead769",
+   "totalLines": 84040,
+   "packages": {
+    ".": 7511,
+    "_document": 10873,
+    "equation": 1931,
+    "form_fit": 6723,
+    "hwp5": 11144,
+    "ingest": 395,
+    "layout": 4428,
+    "objects": 990,
+    "opc": 2033,
+    "oxml": 22898,
+    "plan": 900,
+    "quality": 1227,
+    "tools": 12987
+   },
+   "importedModules": 97,
+   "importMs": 65
   }
  ]
 }
