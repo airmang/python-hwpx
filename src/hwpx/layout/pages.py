@@ -28,7 +28,7 @@
   other, and take no room). Page and
   column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width, and columns of
-  unequal width (each its share of the text width with the gaps, rounded) holding objects only as
+  unequal width (each its share of 32768 of the text width, ``hp:colSz``, rounded) holding objects only as
   characters: a paragraph without a valid layout cache breaks the lines a column holds at that
   column's width, and going on into a column of another width breaks its rest there again, from
   the first character that column holds.
