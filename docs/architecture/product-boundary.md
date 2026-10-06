@@ -112,8 +112,9 @@ assigned to), signal and exact count, with a classification and a reason:
 
 - `format-vocabulary`: Hancom format vocabulary any HWPX user needs, such as
   built-in style names or field-type tokens. It stays.
-- `known-leak`: genre or policy logic left over from the layer audit. It is
-  scheduled to move to `python-hwpx-automation` in 7.0.
+- `known-leak`: genre or policy logic left over from the layer audit. It is a
+  candidate to move to `python-hwpx-automation` in a later major release; when
+  is not decided yet.
 
 `undetected` lists known leaks that neither signal sees (a caption pattern
 without Hangul, Roman-numeral headings). They are not counted, but each named

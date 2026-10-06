@@ -22,7 +22,7 @@ Existing hits are listed, with a reason, in
 ``tests/data/layer_leak_allowlist.json``, keyed by file, qualified function
 name and signal, with an exact count. Hancom format vocabulary (field-type
 tokens, numbering-format labels) is allowed there on purpose; the leftovers
-of the layer audit are marked as known leaks scheduled to move in 7.0.
+of the layer audit are marked as known leaks, candidates to move in a later major release.
 
 A hit that is not in the allowlist fails. So does an allowlist count that no
 longer matches, so a fixed leak has to leave the list in the same change.
