@@ -815,6 +815,12 @@ class HwpxOxmlParagraph:
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref,
         )
+        # Hancom starts the new columns only from a definition ahead of the paragraph's text (its own
+        # documents give it the first run, after a section's settings): one behind the text is not applied.
+        ahead = [r for r in self.element.findall(f"{_HP}run") if r is not run and r.find(f"{_HP}secPr") is None]
+        if ahead:
+            self.element.remove(run)
+            self.element.insert(list(self.element).index(ahead[0]), run)
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         col_pr_attrs: dict[str, str] = {
             "id": "",

@@ -20,6 +20,7 @@ from hwpx.errors import HwpxValueError
 from hwpx.tools.package_validator import validate_editor_open_safety
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 
 
 def _section_xml(document: HwpxDocument) -> etree._Element:
@@ -115,6 +116,52 @@ def test_set_columns_at_a_paragraph_starts_new_columns_there() -> None:
     assert started is not None
     # Hancom writes a column definition with an empty id and a 1/0 sameSz.
     assert (started.get("id"), started.get("sameSz")) == ("", "1")
+
+
+def _saved_paragraphs(name: str) -> list[etree._Element]:
+    with zipfile.ZipFile(FIXTURES / name) as archive:
+        return etree.fromstring(archive.read("Contents/section0.xml")).findall(f"{HP}p")
+
+
+def _line_widths(paragraphs: list[etree._Element]) -> set[int]:
+    return {int(line.get("horzsize")) for paragraph in paragraphs
+            for line in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")}
+
+
+def test_hancom_starts_new_columns_only_from_a_definition_ahead_of_the_paragraphs_text() -> None:
+    # Two columns started at the fifth paragraph, saved by Hancom. Written behind that paragraph's text, the
+    # definition starts no columns: the lines after it keep the text width. In an empty paragraph Hancom saves
+    # it ahead of the paragraph's text run and lays the lines after it out in two columns.
+    behind = _saved_paragraphs("pages_columns_change_after_text.hwpx")
+    ahead = _saved_paragraphs("pages_columns_change_newspaper_short.hwpx")
+
+    assert behind[4].find(f"{HP}run")[0].tag == f"{HP}t"
+    assert _line_widths(behind[4:11]) == {42520}
+    assert ahead[4].find(f"{HP}run")[0].find(f"{HP}colPr") is not None
+    assert _line_widths(ahead[4:11]) == {20660}
+
+
+@pytest.mark.parametrize("text", ["단 시작", ""])
+def test_a_column_definition_is_written_ahead_of_its_paragraphs_text(text: str) -> None:
+    document = _document_with_body()
+    paragraph = document.add_paragraph(text)
+
+    document.page.set_columns(2, paragraph=paragraph)
+
+    runs = paragraph.element.findall(f"{HP}run")
+    assert runs[0][0].find(f"{HP}colPr") is not None
+    assert "".join(t.text or "" for run in runs[1:] for t in run.iter(f"{HP}t")) == text
+
+
+def test_a_column_definition_in_a_sections_first_paragraph_follows_its_settings() -> None:
+    document = HwpxDocument.new()
+    first = document.paragraphs[0]
+
+    document.page.set_columns(2, paragraph=first)
+
+    runs = first.element.findall(f"{HP}run")
+    assert runs[0].find(f"{HP}secPr") is not None
+    assert runs[1][0].find(f"{HP}colPr").get("colCount") == "2"
 
 
 def test_a_section_without_a_column_definition_gets_one_next_to_secpr() -> None:
