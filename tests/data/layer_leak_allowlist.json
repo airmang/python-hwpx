@@ -7,7 +7,7 @@
    "kind": "hangul-regex",
    "count": 1,
    "classification": "known-leak",
-   "reason": "Korean official-document attachment line ('붙임 1 ... 1부'), used by the reference-consistency check. Known leak — scheduled to move in 7.0."
+   "reason": "Korean official-document attachment line ('붙임 1 ... 1부'), used by the reference-consistency check. Known leak — a candidate to move in a later major release."
   },
   {
    "file": "tools/doc_diff.py",
@@ -15,7 +15,7 @@
    "kind": "hangul-regex",
    "count": 1,
    "classification": "known-leak",
-   "reason": "Korean official-document attachment reference ('붙임 1 참조'), used by the reference-consistency check. Known leak — scheduled to move in 7.0."
+   "reason": "Korean official-document attachment reference ('붙임 1 참조'), used by the reference-consistency check. Known leak — a candidate to move in a later major release."
   },
   {
    "file": "tools/doc_diff.py",
@@ -23,7 +23,7 @@
    "kind": "hangul-regex",
    "count": 1,
    "classification": "known-leak",
-   "reason": "Body-text table numbering ('표 1'), a writing convention checked by the reference-consistency check, not a format element. Known leak — scheduled to move in 7.0."
+   "reason": "Body-text table numbering ('표 1'), a writing convention checked by the reference-consistency check, not a format element. Known leak — a candidate to move in a later major release."
   },
   {
    "file": "tools/doc_diff.py",
@@ -31,7 +31,7 @@
    "kind": "hangul-regex",
    "count": 1,
    "classification": "known-leak",
-   "reason": "Body-text figure numbering ('그림 1'), a writing convention checked by the reference-consistency check, not a format element. Known leak — scheduled to move in 7.0."
+   "reason": "Body-text figure numbering ('그림 1'), a writing convention checked by the reference-consistency check, not a format element. Known leak — a candidate to move in a later major release."
   },
   {
    "file": "tools/doc_diff.py",
@@ -39,7 +39,7 @@
    "kind": "plan-schema-key",
    "count": 2,
    "classification": "known-leak",
-   "reason": "Core parses the automation layer's document-plan schema (sections/blocks) so the diff can take a plan as input. Known leak — scheduled to move in 7.0."
+   "reason": "Core parses the automation layer's document-plan schema (sections/blocks) so the diff can take a plan as input. Known leak — a candidate to move in a later major release."
   },
   {
    "file": "tools/markdown_export.py",
@@ -47,7 +47,7 @@
    "kind": "hangul-regex",
    "count": 1,
    "classification": "known-leak",
-   "reason": "Report-style text-pattern heading ('1. 제목') guessed from plain text rather than read from the outline level; ROMAN_HEAD next to it is the same guess but has no Hangul, so it is listed under undetected. Known leak — scheduled to move in 7.0."
+   "reason": "Report-style text-pattern heading ('1. 제목') guessed from plain text rather than read from the outline level; ROMAN_HEAD next to it is the same guess but has no Hangul, so it is listed under undetected. Known leak — a candidate to move in a later major release."
   },
   {
    "file": "tools/mail_merge.py",
@@ -70,12 +70,12 @@
   {
    "file": "table_patch.py",
    "qualname": "strip_trailing_table_captions",
-   "reason": "Eval-plan form clean-up: removes a '(N) word' caption baked after a table. Its pattern (_TC_CAPTION) has no Hangul, so neither signal sees it. Known leak — scheduled to move in 7.0."
+   "reason": "Eval-plan form clean-up: removes a '(N) word' caption baked after a table. Its pattern (_TC_CAPTION) has no Hangul, so neither signal sees it. Known leak — a candidate to move in a later major release."
   },
   {
    "file": "tools/markdown_export.py",
    "qualname": "ROMAN_HEAD",
-   "reason": "Report-style text-pattern heading ('Ⅰ. 제목'); Roman numerals are not Hangul, so the scan does not see it. Moves with ARABIC_HEAD. Known leak — scheduled to move in 7.0."
+   "reason": "Report-style text-pattern heading ('Ⅰ. 제목'); Roman numerals are not Hangul, so the scan does not see it. Moves with ARABIC_HEAD. Known leak — a candidate to move in a later major release."
   }
  ]
 }
