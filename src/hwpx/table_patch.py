@@ -854,9 +854,16 @@ def _ss(chunk: str, tag: str, attr: str, val: int) -> str:
 
 
 def _guard_flat(table: str) -> None:
+    """Refuse a table structure edits cannot handle: one holding a table, or one with a
+    cell missing the address or size OWPML requires of it."""
     # the table's own <hp:tbl> plus any nested ones; >1 open == nested
     if len(re.findall(r"<hp:tbl\b", table)) > 1:
         raise TableStructureError("nested tables are unsupported for structure edits")
+    for tc in _S_TC.findall(table):
+        if None in (_si(tc, "cellAddr", "colAddr"), _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSz", "width")):
+            raise TableStructureError(
+                "a cell without hp:cellAddr or hp:cellSz is unsupported for structure edits"
+            )
 
 
 def _parse_table(table: str) -> tuple[str, list[str], str]:
