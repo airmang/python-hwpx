@@ -383,6 +383,27 @@ HANCOM_PAGES = {
     "pages_mixed_sizes_at_least": 2,      # 8 pt and 16 pt runs, line spacing at least 18 pt
     "pages_picture_before_text_percent": 2,  # a picture set as a character before the text, 160%
     "pages_picture_before_text_fixed": 2,    # a picture taller than the fixed line spacing
+    # Paragraphs each of a table set as a character (10000 wide, 3000 or 10000 tall) and nothing else, the
+    # table affecting the line spacing (on) or not (off): in percent, an affecting table's line is spaced from
+    # its own height (160%: 1800 below one 3000 tall), any other from the characters (600); a fixed spacing
+    # keeps the next line 2400 down below either (the tables overlap), an at-least one (1200) at the table's
+    # height.
+    "pages_table_affecting_line_spacing_percent160_3000_on": 2,
+    "pages_table_affecting_line_spacing_percent160_3000_off": 1,
+    "pages_table_affecting_line_spacing_percent160_10000_on": 2,
+    "pages_table_affecting_line_spacing_percent160_10000_off": 1,
+    "pages_table_affecting_line_spacing_percent130_3000_on": 2,
+    "pages_table_affecting_line_spacing_percent130_3000_off": 1,
+    "pages_table_affecting_line_spacing_percent130_10000_on": 2,
+    "pages_table_affecting_line_spacing_percent130_10000_off": 1,
+    "pages_table_affecting_line_spacing_fixed2400_3000_on": 1,
+    "pages_table_affecting_line_spacing_fixed2400_3000_off": 1,
+    "pages_table_affecting_line_spacing_fixed2400_10000_on": 1,
+    "pages_table_affecting_line_spacing_fixed2400_10000_off": 1,
+    "pages_table_affecting_line_spacing_at_least1200_3000_on": 1,
+    "pages_table_affecting_line_spacing_at_least1200_3000_off": 1,
+    "pages_table_affecting_line_spacing_at_least1200_10000_on": 1,
+    "pages_table_affecting_line_spacing_at_least1200_10000_off": 1,
     "pages_table_merged_rows_tall": 1,    # a table set as a character, a merged cell taller than its rows
     "pages_table_merged_rows_short": 1,   # the same, the merged cell shorter than its rows
     "pages_table_flow_merged_rows": 2,    # a table flowing with the text, cells merged over rows

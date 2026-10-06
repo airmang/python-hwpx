@@ -349,6 +349,18 @@ def _pitch(kind: str, value: int, size: int) -> int:
     return size + 4 * (units if extra >= 0 else -units)
 
 
+def _object_pitch(shape: _Shape, obj: Any, tall: int, size: int) -> int:
+    """The distance from the top of a line *tall* tall holding only *obj*, an object set as a character, to the
+    next line's top in a paragraph of *shape* whose characters are *size*: a percentage spacing is the
+    characters' unless the object is set to affect the line spacing (``hp:pos@affectLSpacing``), when it is the
+    line's, as any other spacing is -- a fixed one keeps the next line that far down even below a taller object,
+    an at-least one at the line's height when that is more."""
+
+    if shape.kind == "PERCENT" and obj.find(f"{HP}pos").get("affectLSpacing") != "1":
+        return tall + _pitch(shape.kind, shape.value, size) - size
+    return _pitch(shape.kind, shape.value, tall)
+
+
 def _on(flags: dict[str, str], name: str) -> bool:
     return flags.get(name) in ("1", "true")
 
@@ -591,10 +603,10 @@ class _Measure:
                 table = alone = None
             if table is not None:  # one line as tall as the table, spaced like the text
                 tall = _inline_table_height(self, table) + _extent_margins(table)
-                count, size, pitch = 1, tall, tall + pitch - size
+                count, size, pitch = 1, tall, _object_pitch(shape, table, tall, size)
             elif alone is not None:  # so with another object set as a character
                 tall = _object_extent(alone, self)[1]
-                count, size, pitch = 1, tall, tall + pitch - size
+                count, size, pitch = 1, tall, _object_pitch(shape, alone, tall, size)
             else:
                 cached = spread or (_cached_metrics(paragraph) if caches else ())
                 cached = cached or self.pushed_lines(paragraph, runs, width) \
@@ -1823,9 +1835,9 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
 
 
 def _object_line(
-    measure: _Measure, obj: Any, count: int, size: int, pitch: int, column: int
+    measure: _Measure, obj: Any, count: int, size: int, pitch: int, column: int, shape: _Shape
 ) -> tuple[int, int, int, _FlowTable | None]:
-    """(lines, size, pitch, flowing table) of a paragraph holding *obj* and nothing else."""
+    """(lines, size, pitch, flowing table) of a paragraph of *shape* holding *obj* and nothing else."""
 
     pos = obj.find(f"{HP}pos")
     out_margin = obj.find(f"{HP}outMargin")
@@ -1838,7 +1850,7 @@ def _object_line(
         if name == "tbl":
             tall = _inline_table_height(measure, obj) + top + bottom + sum(_caption(measure, obj))
         tall = max(tall, size)
-        return 1, tall, tall + pitch - size, None
+        return 1, tall, _object_pitch(shape, obj, tall, size), None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
     if _wraps_top_and_bottom(obj, column) and on_paragraph:
         if name == "tbl":
@@ -1960,7 +1972,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         elif objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
             size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
             pitch = _pitch(shape.kind, shape.value, size)
-        count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width)
+        count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width, shape)
         if controls is not None:  # the controls before and after it on empty lines of their own, each as tall as
             heights = [max(measure.char_height(run.get("charPrIDRef")) for run in side) if side else None
                        for side in controls[1:]]  # the largest characters of the runs holding them
