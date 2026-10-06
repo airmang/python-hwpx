@@ -1238,26 +1238,32 @@ def _empty_cell_like(tc: str) -> str:
                   tc, count=1, flags=re.S)
 
 
-def _clone_row_template(rows: list[str], ref_row: int) -> str:
+def _clone_row_template(rows: list[str], ref_row: int, *, side: str = "below", blank: bool = False) -> str:
     """The row a clone of physical row *ref_row* starts from, as Hancom inserts a row
     below it: the cells of *ref_row* that end there, and under each cell of an upper
     row that ends at *ref_row* an empty cell of its format and width (with the
     height of *ref_row*). Cells running on below *ref_row* are not in it -- they
-    grow over the new rows instead."""
+    grow over the new rows instead. Above *ref_row* (*side* ``"above"``) it is the
+    cells starting at *ref_row*, one running on below as an empty cell one row high,
+    and cells running on into *ref_row* from above grow instead. With *blank* each
+    cell holds one empty paragraph of its format."""
     height = _physical_row_height(rows, ref_row)
     cells: list[tuple[int, str]] = []
-    for index, row in enumerate(rows[: ref_row + 1]):
+    for row in rows[: ref_row + 1]:
         for tc in _S_TC.findall(row):
             ra = _si(tc, "cellAddr", "rowAddr")
             rs = _si(tc, "cellSpan", "rowSpan") or 1
-            if ra is None or ra + rs - 1 != ref_row:
+            if ra is None or (ra if side == "above" else ra + rs - 1) != ref_row:
                 continue
-            if index < ref_row:
-                tc = _ss(_empty_cell_like(tc), "cellSpan", "rowSpan", 1)
+            if blank or rs > 1:
+                tc = _empty_cell_like(tc)
+            if rs > 1:
+                tc = _ss(tc, "cellSpan", "rowSpan", 1)
                 tc = _ss(tc, "cellSz", "height", height or (_si(tc, "cellSz", "height") or 0) // rs)
             cells.append((_si(tc, "cellAddr", "colAddr") or 0, tc))
     if not cells:
-        raise TableStructureError(f"every cell of row {ref_row} runs on below it; nothing to clone")
+        where = "on into it from above" if side == "above" else "on below it"
+        raise TableStructureError(f"every cell of row {ref_row} runs {where}; nothing to clone")
     opening = re.match(r"<hp:tr\b[^>]*>", rows[ref_row])
     return (opening.group(0) if opening else "<hp:tr>") + "".join(tc for _, tc in sorted(cells, key=lambda c: c[0])) + "</hp:tr>"
 
@@ -1279,57 +1285,70 @@ def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]
 
 
 def _insert_row_by_clone(
-    table: str, ref_row: int, count: int = 1, *, used_ids: set[int] | None = None
+    table: str,
+    ref_row: int,
+    count: int = 1,
+    *,
+    side: str = "below",
+    blank: bool = False,
+    used_ids: set[int] | None = None,
 ) -> str:
-    """Insert *count* rows after physical row *ref_row* by cloning it (formatting
-    preserved, paragraph ids refreshed). Rows below shift.
+    """Insert *count* rows after (or with *side* ``"above"``, before) physical row
+    *ref_row* by cloning it (formatting preserved, paragraph ids refreshed). Rows past
+    them shift. With *blank* each new cell holds one empty paragraph of its format, as
+    Hancom inserts them.
 
-    Merged cells follow Hancom's row insertion: a cell running on below *ref_row*
-    grows its rowSpan over the new rows instead of being cloned, and under a cell
-    from an upper row that ends at *ref_row* each new row gets an empty cell of
-    its format and width."""
+    Merged cells follow Hancom's row insertion: a cell running on across the new rows
+    grows its rowSpan over them instead of being cloned, and next to a merged cell
+    that ends (or, above, starts) at *ref_row* each new row gets an empty cell of its
+    format and width."""
     _guard_flat(table)
+    if side not in ("above", "below"):
+        raise TableStructureError(f"insert_row_by_clone: side must be 'above' or 'below', got {side!r}")
     if count < 1:
         return table
     prefix, rows, suffix = _parse_table(table)
     if not 0 <= ref_row < len(rows):
         raise TableStructureError(f"ref row {ref_row} out of range")
+    first = ref_row + 1 if side == "below" else ref_row  # the first new row
 
     def shift(tc: str):
         ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
         assert ra is not None  # required hp:tc attr
-        if ra > ref_row:
+        if ra >= first:
             return _ss(tc, "cellAddr", "rowAddr", ra + count)
-        if ra <= ref_row < ra + rs and ra + rs - 1 > ref_row:
+        if ra + rs - 1 >= first:
             # cell spans across the insertion point -> extend
             return _ss(tc, "cellSpan", "rowSpan", rs + count)
         return tc
 
     # build the clones from the ORIGINAL rows, before the shift
-    ref = _clone_row_template(rows, ref_row)
+    ref = _clone_row_template(rows, ref_row, side=side, blank=blank)
     shifted = [_map_cells(r, shift) for r in rows]
     fresh_id = _fresh_ids(table, used_ids)
     clones = []
-    for k in range(1, count + 1):
-        clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", ref_row + k))
+    for k in range(count):
+        clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", first + k))
         clone = _PARA_ID_RE.sub(fresh_id, clone)
         clones.append(clone)
-    new_rows = shifted[: ref_row + 1] + clones + shifted[ref_row + 1:]
+    new_rows = shifted[:first] + clones + shifted[first:]
+    prefix = _shift_zones(prefix, "Row", first, count)
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
 
 
-def _shift_zone_columns(prefix: str, first: int, count: int) -> str:
-    """The ``hp:cellzone`` entries of a table head with *count* columns inserted from grid
-    column *first* on: a zone from there on moves over, a zone running on across it grows."""
+def _shift_zones(prefix: str, axis: str, first: int, count: int) -> str:
+    """The ``hp:cellzone`` entries of a table head with *count* rows (*axis* ``"Row"``)
+    or columns (``"Col"``) inserted from *first* on: a zone from there on moves over, a
+    zone running on across it grows."""
 
     def shift(match: re.Match[str]) -> str:
         zone = match.group(0)
-        start, end = _si(zone, "cellzone", "startColAddr"), _si(zone, "cellzone", "endColAddr")
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
         if start is None or end is None or end < first:
             return zone
         if start >= first:
-            zone = _ss(zone, "cellzone", "startColAddr", start + count)
-        return _ss(zone, "cellzone", "endColAddr", end + count)
+            zone = _ss(zone, "cellzone", f"start{axis}Addr", start + count)
+        return _ss(zone, "cellzone", f"end{axis}Addr", end + count)
 
     return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
 
@@ -1393,7 +1412,7 @@ def _insert_column_by_clone(
 
     new_rows = [_map_cells(row, widen) for row in rows]
     prefix = _ss(prefix, "sz", "width", (_si(prefix, "sz", "width") or 0) + count * width)
-    prefix = _shift_zone_columns(prefix, first, count)
+    prefix = _shift_zones(prefix, "Col", first, count)
     return _rebuild(prefix, new_rows, suffix, colcnt=columns + count)
 
 
@@ -1615,7 +1634,9 @@ _STRUCT_OPS = {
     "delete_column": lambda t, o: _collapse_empty_rows(_delete_columns(t, o["cols"] if "cols" in o else [o["col"]])),
     "delete_row": lambda t, o: _delete_rows(t, o["rows"] if "rows" in o else [o["row"]]),
     "reorder_rows": lambda t, o: _reorder_rows(t, [int(x) for x in o["order"]]),
-    "insert_row_by_clone": lambda t, o: _insert_row_by_clone(t, o["ref_row"], int(o.get("count", 1))),
+    "insert_row_by_clone": lambda t, o: _insert_row_by_clone(
+        t, o["ref_row"], int(o.get("count", 1)), side=str(o.get("side", "below")),
+        blank=bool(o.get("blank", False))),
     "insert_column_by_clone": lambda t, o: _insert_column_by_clone(
         t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
         blank=bool(o.get("blank", False))),
@@ -1632,7 +1653,8 @@ _STRUCT_OPS = {
 #: The ops whose new paragraphs take ids unused in the whole document.
 _CLONE_OPS = {
     "insert_row_by_clone": lambda t, o, ids: _insert_row_by_clone(
-        t, o["ref_row"], int(o.get("count", 1)), used_ids=ids),
+        t, o["ref_row"], int(o.get("count", 1)), side=str(o.get("side", "below")),
+        blank=bool(o.get("blank", False)), used_ids=ids),
     "insert_column_by_clone": lambda t, o, ids: _insert_column_by_clone(
         t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
         blank=bool(o.get("blank", False)), used_ids=ids),
@@ -2036,9 +2058,11 @@ def apply_table_ops(
     Op dicts: ``{op: 'delete_column'|'delete_row'|'delete_table'|
     'insert_row_by_clone'|'insert_column_by_clone'|'insert_block_by_clone'|
     'split_table'|'merge_table'|'fill_cell', section_path?, table_index, ...}``.
+    ``insert_row_by_clone`` takes ``ref_row`` + ``count`` (+ ``side: 'above'``,
+    ``blank`` for empty new cells) and inserts below (above) that physical row;
     ``insert_column_by_clone`` takes ``ref_col`` + ``count`` (+ ``side: 'left'``,
-    ``blank`` for empty new cells) and inserts right (left) of that grid column,
-    widening the table. ``insert_block_by_clone``
+    ``blank``) and inserts right (left) of that grid column, widening the table.
+    ``insert_block_by_clone``
     takes ``ref_rows: [r0, r1]`` (a vertical-merge block) + ``count``;
     ``delete_column`` derives widths from the merged grid when no uniform
     ``colSpan==1`` row exists (FR-003).
