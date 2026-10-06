@@ -382,11 +382,13 @@ def _t_text(text_element: Any) -> str:
 def _indented(line: float, shape: _Shape, style: Any) -> list[float]:
     """The first line's and the other lines' room of a paragraph of *shape* *line* wide inside its margins: less
     its first-line indent (a hanging one narrows the other lines) and its bullet or number label's room
-    (``style.head``, see :func:`hwpx.form_fit.measure.indented_widths`)."""
+    (``style.head``, see :func:`hwpx.form_fit.measure.indented_widths`). Hancom drops an indent that leaves its
+    line less room than its narrowest line (:data:`_MIN_LINE_WIDTH`): every line is *line* wide then."""
 
     if style is not None and style.head:
         return list(indented_widths(line, replace(style, indent=shape.indent)))
-    return [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
+    rooms = [line - max(shape.indent, 0), line - max(-shape.indent, 0)]
+    return [line, line] if min(rooms) < _MIN_LINE_WIDTH else rooms
 
 
 def _line_widths(shape: _Shape, width: int, style: Any = None) -> list[float]:

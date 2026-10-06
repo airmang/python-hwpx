@@ -1586,9 +1586,13 @@ def measure(value: str, slot: SlotMetrics) -> Measurement:
         # line or, when hanging, off the others.
         line = slot.line_width if slot.line_width is not None else slot.available_width + slot.inline_object_width
         line -= style.margin_left + style.margin_right
-        # Each line keeps Hancom's minimum width after its indent; the inline
-        # objects then take their width off the first line.
+        # Each line keeps Hancom's minimum width after its indent, and Hancom
+        # drops an indent that leaves its line less than that (every line is
+        # then the full width); the inline objects then take their width off
+        # the first line.
         first, rest = indented_widths(line, style)
+        if not style.head and min(first, rest) < slot.min_line_width:
+            first = rest = line
         first = max(first, slot.min_line_width) - slot.inline_object_width
         rest = max(rest, slot.min_line_width)
         lines = _line_count_after_objects(value, slot, style, first, rest)
