@@ -73,6 +73,23 @@ HANCOM_PAGES = {
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines
                                                           # there reaching it below it
+    # A picture 4000 tall placed top and bottom at its paragraph's top (offset 0), its foot past the body's:
+    "pages_picture_at_the_paragraph_top_moved_to_the_next_page": 2,  # alone at the next page's top, the
+                                                                     # empty line staying, the lines there
+                                                                     # below it
+    "pages_picture_at_the_paragraph_top_with_text": 2,  # in a paragraph of text: the same, its line staying
+    "pages_picture_at_the_paragraph_top_not_flowing": 2,  # not flowing with the text: it stays on its page
+                                                          # past the foot, the empty line there, the next
+                                                          # paragraph at the next page's top
+    "pages_picture_at_the_paragraph_top_fitting": 2,  # one that fits: the next paragraph at its foot
+    # Such a picture gone on to the next page's top, then a table placed top and bottom (cells split):
+    "pages_picture_moved_then_a_table_moved_whole": 2,  # no room for its first row: it starts below the
+                                                         # picture, its paragraph's line staying behind
+    "pages_picture_moved_then_a_table_split": 2,  # split: its rest goes on at the page's top over the picture,
+                                                   # the text after below both
+    "pages_picture_moved_then_a_table_split_picture_right": 2,  # the picture right of the table
+    "pages_picture_moved_then_a_table_paragraph_moved": 2,  # its paragraph's line going on too: as at the
+                                                             # page's top below the picture
     "pages_picture_pushing_its_first_line_above_the_foot": 2,  # a picture 30000 tall 1319 below a paragraph of
                                                                # 14 pt text: its line goes below the picture,
                                                                # which ends above the foot, and stays there

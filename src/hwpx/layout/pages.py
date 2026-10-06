@@ -1073,6 +1073,7 @@ class _Anchor:
     line: int
     table: _FlowTable | None  # a table flowing with the text, or
     height: int               # the height of any other object, its outer margins included
+    stays: bool = False       # that object does not flow with the text (pos@flowWithText="0")
 
 
 @dataclass(frozen=True)
@@ -1166,8 +1167,10 @@ class _Para:
     #: text (see :meth:`_Paginator._span_bands`)
     spans: tuple[_FlowTable, int, _Wrap] | None = None
     #: such an object alone in this empty paragraph, its foot this far below the paragraph's top (the line is
-    #: as tall as that): past the body's foot it goes on to the next page's top, the empty line staying
+    #: as tall as that): past the body's foot it goes on to the next page's top, the empty line staying when
+    #: it fits there (*own* tall)
     moves: int = 0
+    own: int = 0
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -1270,6 +1273,9 @@ class _Page:
     #: an object went on to the next page's top: the paragraphs without a layout cache keep their text, to
     #: break again beside its band there
     rebreak: bool = False
+    #: a top-and-bottom object at its paragraph's top (offset 0) past the body's foot goes on to the next page's
+    #: top alone, its paragraph's lines staying (off: with its paragraph, see :func:`_lay_section`)
+    alone_at_top: bool = True
 
 
 def _page(section: Any) -> _Page:
@@ -1831,7 +1837,8 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
         table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", (top, bottom),
                            tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
         return _Anchor(line, table, 0)
-    return _Anchor(line, None, _drawn_height(obj, measure) + top + bottom)
+    return _Anchor(line, None, _drawn_height(obj, measure) + top + bottom,
+                   obj.find(f"{HP}pos").get("flowWithText") == "0")
 
 
 def _object_line(
@@ -1972,6 +1979,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         elif objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
             size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
             pitch = _pitch(shape.kind, shape.value, size)
+        own = size  # the paragraph's own line, as tall as its characters
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width, shape)
         if controls is not None:  # the controls before and after it on empty lines of their own, each as tall as
             heights = [max(measure.char_height(run.get("charPrIDRef")) for run in side) if side else None
@@ -1981,9 +1989,12 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             cached = tuple(line for line in (empty[0], (size, pitch), empty[1]) if line is not None)
             count = len(cached)
         pos = objects[0].find(f"{HP}pos")
-        if table is None and pos.get("treatAsChar") != "1" and pos.get("flowWithText") != "0" \
-                and 0 < int(pos.get("vertOffset", 0)) < 1 << 31:  # below the paragraph's line
-            moves = size
+        offset = int(pos.get("vertOffset", 0))
+        if table is None and pos.get("treatAsChar") != "1" and 0 <= offset < 1 << 31:
+            if pos.get("flowWithText") != "0":  # from the paragraph's top down: past the body's foot it goes on
+                moves = size if offset or page.alone_at_top else 0  # to the next page's top alone, the line staying
+            else:  # it stays on its page, past the foot if it must: only the paragraph's line has to fit there,
+                cached = ((own, size),)  # the next paragraph coming below the object
     anchor = None if anchored is None else _anchor(measure, paragraph, runs, text, anchored, widths, size, style,
                                                    cached, count)
     around = 0 if square is None or not text else _anchor_line(measure, paragraph, runs, text, square, widths,
@@ -2004,7 +2015,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         again = _Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks), style, shape)
         return again.at(para, page.column_width, 0)
     if moves:
-        para = replace(para, moves=moves)
+        para = replace(para, moves=moves, own=own)
     if page.rebreak and not _cached_metrics(paragraph) and not objects and not marks and not notes:
         if not text:
             return replace(para, blank=True)
@@ -2705,8 +2716,9 @@ class _Paginator:
 
     def __init__(self, body: int, columns: int, notes: _NoteShape,
                  bands: dict[int, list[tuple[int, int]]] | None = None, widths: tuple[int, ...] = (),
-                 sides: dict[int, list[tuple[int, int]]] | None = None) -> None:
+                 sides: dict[int, list[tuple[int, int]]] | None = None, alone_at_top: bool = True) -> None:
         self.body = body
+        self.alone_at_top = alone_at_top  # see _Page.alone_at_top
         self.widths = widths  # each column's width when they differ
         #: frame -> (top, bottom) of the objects placed on the paper there: no line in them
         self.bands = {frame: list(found) for frame, found in (bands or {}).items()}  # stacked objects add theirs
@@ -2733,6 +2745,8 @@ class _Paginator:
         #: frame -> the bands of square-wrapped objects there that the text there is broken beside: one that
         #: went on to its top (see :attr:`_Para.moved`), the parts of tables split over its ends
         self.squares: dict[int, list[_Wrap]] = {}
+        #: frames whose band is a top-and-bottom object that went on to their top (see :meth:`_move_band`)
+        self.moved_tops: set[int] = set()
         #: a flowing table's band no line has reached yet: its frame, top, bottom there (None when it goes
         #: on over the page end), and the frame and position where the lines after it go on
         self.band: tuple[int, int, int | None, int, int] | None = None
@@ -2786,7 +2800,8 @@ class _Paginator:
             self._flow(para, table, start)
             return
         reach = para.wrap_bottom - para.wrap_shift if para.wrap_push else para.moves
-        if reach and start + reach > self.body and self.columns == 1:
+        if reach and start + reach > self.body and self.columns == 1 \
+                and (para.wrap_push or start + para.own <= self.body):  # the empty line fits where it stands:
             raise _BandMoves(index)  # its object goes on to the next page's top, its lines stay
         first = len(self.out)
         if self._lay(index, paras, para, start, broke):
@@ -2808,17 +2823,24 @@ class _Paginator:
         if self.last_vp is not None and start + para.height(0) > self.body:  # the anchor line goes on
             start = self._next_frame(para, 0, True)                         # to the next page
         if self._below_bands(start) != start:
-            self._flow_below_band(para, table, self._below_bands(start))
-            return
+            if self.frame not in self.moved_tops:
+                self._flow_below_band(para, table, self._below_bands(start))
+                return
+            start = self._below_bands(start)  # below an object that went on to this page's top: as at the top
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         if not para.kept:
             self._reach(self.frame, start, start + para.height(0))
         before = self.frame
         top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
         frame, end = _flow_table(table, self.frame, top, self.body)
+        later = start + para.height(0) <= self.body and _starts_later(table, top, self.body)
+        if self.frame + 1 in self.moved_tops and frame > self.frame and (later or (frame, end) == _flow_table(
+                table, self.frame + 1, _repeated_header(table) + table.margins[0], self.body)):  # it goes on to
+            below = max(bottom for _, bottom in self.bands[self.frame + 1])  # the next page whole: below the
+            frame, end = _flow_table(table, self.frame + 1, below + table.above, self.body)  # object there
         self._clear_of_paper(before, frame, start, end)
         self.table_end = max(self.table_end, frame)
-        if start + para.height(0) <= self.body and _starts_later(table, top, self.body):
+        if later:
             self._starts_next_page(para, table, start, frame, end)
             return
         self.frame = frame
@@ -2957,6 +2979,9 @@ class _Paginator:
             self.frame, self.table_end, end = frame, max(self.table_end, frame), end + table.below
         else:
             if top + anchor.height > self.body and top > 0:
+                if self.alone_at_top and not anchor.stays and self.columns == 1 \
+                        and top + tail.height(0) <= self.body:  # it goes on
+                    raise _BandMoves(index)  # to the next page's top alone, the paragraph's lines staying
                 raise _Unsupported("a top-and-bottom object anchored in text at a page end")
             end = top + anchor.height
             self._reach(self.frame, top, end)
@@ -3054,6 +3079,8 @@ class _Paginator:
         below one (but for a table moved *below* it), is not followed."""
 
         for frame in range(first, last + 1):
+            if frame in self.moved_tops:  # an object that went on to its top: a table starts below it, and one
+                continue                  # going on from the page before goes on over it
             low = top if frame == first else 0
             high = end if frame == last and end is not None else self.body
             self._reach(frame, low, high)
@@ -3229,6 +3256,7 @@ class _Paginator:
             raise _Unsupported("an object going on to the next page's top beside other objects")
         if band.push:  # a top-and-bottom one: the lines reaching it go below it
             self.bands[target] = [(band.top, band.bottom)]
+            self.moved_tops.add(target)
         else:
             self.squares.setdefault(target, []).append(band)
         self.table_end = max(self.table_end, target)
@@ -3327,6 +3355,12 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
             if signal.index in moved or len(moved) >= 16:
                 raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot") from None
             moved.add(signal.index)
+        except _Unsupported:
+            if not moved or not page.alone_at_top:
+                raise
+            # what follows an object at its paragraph's top that went on alone is not followed (a table flowing
+            # past its band, say): again with such objects going on with their paragraphs
+            page, moved = replace(page, alone_at_top=False), set()
 
 
 def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, moved: set[int]) -> _SectionLayout:
@@ -3341,7 +3375,7 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
     bands: dict[int, list[tuple[int, int]]] = {}
     sides: dict[int, list[tuple[int, int]]] = {}
     for _ in range(4):  # an object placed on the paper acts on the page its paragraph lands on
-        paginator = _Paginator(page.body, page.columns, notes, bands, page.widths, sides)
+        paginator = _Paginator(page.body, page.columns, notes, bands, page.widths, sides, page.alone_at_top)
         frames = paginator.run(paras)
         firsts = [0]
         for count in paginator.counts:
