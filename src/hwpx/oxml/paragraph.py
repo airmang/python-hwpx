@@ -65,6 +65,7 @@ from .objects import (
 )
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
+from .section_format import validate_column_gap, validate_new_number
 from .shape_position import validate_equation_base_unit, validate_shape_size
 from .table import HwpxOxmlTable
 from .table_sizes import cell_margins_of
@@ -803,6 +804,8 @@ class HwpxOxmlParagraph:
         """
         if not 1 <= col_count <= 255:
             raise ValueError("col_count must be between 1 and 255")
+        if same_size:
+            validate_column_gap(same_gap)  # before its run is added
 
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref,
@@ -1037,10 +1040,11 @@ class HwpxOxmlParagraph:
         """
 
         normalized_kind = _normalize_enum_attr(kind or "PAGE", NEW_NUM_KINDS, label="kind")
+        number = validate_new_number(number)  # before its run is added
         run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         _append_child(
-            ctrl, f"{_HP}newNum", {"num": str(int(number)), "numType": normalized_kind},
+            ctrl, f"{_HP}newNum", {"num": str(number), "numType": normalized_kind},
         )
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl, self)

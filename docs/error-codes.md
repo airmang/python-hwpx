@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 179 | 11 |
+| 개수 | 182 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -183,9 +183,11 @@ except HwpxError as exc:
 |---|---|
 | `page-argument-conflict` | text 와 content 를 동시에 지정했다. |
 | `page-argument-missing` | text 또는 content 중 하나는 있어야 한다. |
+| `page-column-gap-value` | 같은 폭 단의 간격(same_gap)이 0 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `page-columns-invalid` | 단 수는 1 이상이어야 한다. |
 | `page-kind-invalid` | kind 는 'header' 또는 'footer' 여야 한다. |
 | `page-new-num-kind-invalid` | 쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다. |
+| `page-new-num-value` | 새 번호(hp:newNum/@num)가 0 이상 65535 이하가 아니다. |
 | `page-orientation-unsupported` | 지원하지 않는 용지 방향이다. |
 | `page-paper-size-unsupported` | 지원하지 않는 용지 규격이다. |
 | `page-text-direction-unsupported` | 글자 방향 값이 OWPML 어휘(hp:secPr/@textDirection: HORIZONTAL/VERTICAL/VERTICALALL) 밖이다. |
@@ -267,6 +269,7 @@ except HwpxError as exc:
 |---|---|
 | `shape-arc-corner-invalid` | add_arc 의 corner 인자가 지원하는 모서리(TOP_LEFT 등) 밖이다. |
 | `shape-arc-type-invalid` | add_arc 의 arc_type 인자가 OWPML 어휘(NORMAL/PIE/CHORD) 밖이다. |
+| `shape-caption-gap-value` | 캡션 간격(gap)이 -32768 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-caption-side-invalid` | 캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다. |
 | `shape-chart-anchor-detached` | 만든 차트 앵커가 자기 파트를 가리키지 않는다. |
 | `shape-chart-axes-missing` | 축이 필요한 차트(막대·꺾은선·영역·분산형·방사형·거품형 등)에 두 축(c:axId와 정의된 축)이 없다(한컴이 빈 차트를 그리거나 멈춘다). |

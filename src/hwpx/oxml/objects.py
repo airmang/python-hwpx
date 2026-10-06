@@ -26,7 +26,7 @@ from ._document_primitives import (
 )
 from .shape_position import (
     _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
-    validate_rect_ratio, validate_shape_size,
+    validate_caption_gap, validate_caption_side, validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -1023,10 +1023,6 @@ def _paragraph_shapes(self: "HwpxOxmlParagraph") -> list["HwpxOxmlShape"]:
 # reused by ``HwpxOxmlTable`` (table.py), ``HwpxOxmlShape``, and
 # ``HwpxOxmlInlineObject`` (this module) rather than duplicated per host.
 
-#: ``hp:caption/@side`` 어휘(스키마 기본값은 LEFT). 실코퍼스 15건 전수는
-#: TOP 14 · BOTTOM 1 — LEFT/RIGHT 관측 0(테두리 옆 캡션은 실무에서 안 쓴다).
-_CAPTION_SIDES = frozenset({"LEFT", "RIGHT", "TOP", "BOTTOM"})
-
 #: 실코퍼스 15건 전수: fullSz="0"(전부) · width="8504"(전부, 호스트 크기와
 #: 무관한 고정값) · gap="850"(11) 또는 "566"(4, 스키마 기본은 850).
 _CAPTION_DEFAULT_WIDTH = "8504"
@@ -1227,16 +1223,8 @@ def _write_caption(
     gap: int,
     char_pr_id_ref: str | int | None,
 ) -> Caption:
-    normalized_side = side.strip().upper()
-    if normalized_side not in _CAPTION_SIDES:
-        from ..errors import HwpxValueError
-
-        raise HwpxValueError(
-            f"unsupported caption side {side!r}",
-            code="shape-caption-side-invalid",
-            context={"requested": side, "available": sorted(_CAPTION_SIDES)},
-            suggestion=f"side 는 {sorted(_CAPTION_SIDES)} 중 하나여야 합니다.",
-        )
+    normalized_side = validate_caption_side(side)
+    gap = validate_caption_gap(gap)  # before anything changes: Hancom keeps a signed 16-bit gap
 
     element = host.find(f"{_HP}caption")
     if element is None:

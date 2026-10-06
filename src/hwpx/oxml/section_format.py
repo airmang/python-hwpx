@@ -248,6 +248,40 @@ class NoteShape:
     placement: NotePlacement
 
 
+def validate_new_number(number: object) -> int:
+    """A ``hp:newNum/@num``: *number* as an int, checked to be in ``0 <= number <= 65535``. Hancom keeps it as
+    an unsigned 16-bit number, reading -1 as 65535 and 65536 as 0."""
+
+    from ..errors import HwpxValueError
+
+    value = int(number)  # type: ignore[call-overload]
+    if not 0 <= value < 2**16:
+        raise HwpxValueError(
+            f"number must be in 0 <= number <= 65535; got {number!r}",
+            code="page-new-num-value",
+            context={"value": repr(number)},
+            suggestion="Pass the number the count restarts at, from 0 to 65535.",
+        )
+    return value
+
+
+def validate_column_gap(gap: object) -> int:
+    """The gap between columns of the same width (``hp:colPr/@sameGap``, HWPUNIT), checked to be an int in
+    ``0 <= gap <= 32767``: Hancom reads it as a signed 16-bit number (32768 as -32768, the columns then
+    overlapping; 65536 as 0) and a negative one written as text as 0."""
+
+    from ..errors import HwpxValueError
+
+    if isinstance(gap, bool) or not isinstance(gap, int) or not 0 <= gap < 2**15:
+        raise HwpxValueError(
+            f"same_gap must be an int in 0 <= same_gap <= 32767 (HWPUNIT); got {gap!r}",
+            code="page-column-gap-value",
+            context={"value": repr(gap)},
+            suggestion="Pass the gap between columns in HWP units, e.g. 1200 (about 4 mm).",
+        )
+    return gap
+
+
 class HwpxOxmlSectionProperties:
     """Provides convenient access to ``<hp:secPr>`` configuration."""
 
@@ -437,6 +471,8 @@ class HwpxOxmlSectionProperties:
         ``hp:secPr``.
         """
 
+        if same_size:
+            validate_column_gap(same_gap)  # checked before anything changes, as the separator below
         line = None
         if separator_type or separator_width or separator_color:
             # checked before anything changes: a refused value leaves the columns as they were
