@@ -29,6 +29,7 @@ from .opc.package import (
     HwpxPackage,
 )
 from .oxml.namespaces import register_owpml_namespaces
+from .oxml.table_sizes import new_table_width
 from .mutation_report import Fallback, Mode, MutationReport
 from .quality import QualityPolicy, SavePipeline, VisualCompleteReport
 from .templates import blank_document_bytes
@@ -585,6 +586,7 @@ class HwpxDocument(_LegacyFacade):
             self, section, section_index, caller="add_table"
         )
         section_index = None
+        new_table_width(width, cols)  # checked before a paragraph or a border fill is added
         resolved_border_fill: str | int | None = border_fill_id_ref
         if resolved_border_fill is None:
             resolved_border_fill = self._root.ensure_basic_border_fill()
