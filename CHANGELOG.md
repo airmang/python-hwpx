@@ -42,6 +42,16 @@
     바꾸고 문단을 더하기 전에 낸다. 2**31 이상도 거부한다. 아주 큰 `base_unit`으로 잰 상자가 2**31 이상이면
     `shape-size-value`로 거부한다. 한/글은 그런 상자를 2**32 - 1로 줄여 저장한다.
   - `HwpxOxmlParagraph.add_picture`는 그림 요소를 만든 뒤에 런을 더한다. 값이 거부되면 빈 런이 남지 않는다.
+- 캡션 간격, 같은 폭 단의 간격, 새 번호를 한/글이 그대로 두지 않는 값도 그대로 쓰던 것을 고친다.
+  - 한/글은 캡션 간격(`hp:caption@gap`)과 단 간격(`hp:colPr@sameGap`)을 부호 있는 16비트 수로, 새 번호
+    (`hp:newNum@num`)를 부호 없는 16비트 수로 읽는다. 범위 밖 값은 감싸 읽는다. 캡션 간격 32768은 −32768,
+    새 번호 −1은 65535, 65536은 0이 된다. 단 간격 32768은 −32768로 읽어 둘째 단이 첫째 단과 겹친다. 음수 글로
+    쓴 단 간격은 0으로 읽는다.
+  - 이제 캡션 간격(`set_caption`의 `gap`)은 −32768 이상 32767 이하, 단 간격(`doc.page.set_columns`의
+    `same_gap`, `doc.page.setup`의 `column_gap_mm`)은 0 이상 32767 이하, 새 번호(`doc.page.restart_page_number`의
+    `number`)는 0 이상 65535 이하만 받는다. 그 밖의 값은 무엇도 바꾸기 전에 `shape-caption-gap-value`,
+    `page-column-gap-value`, `page-new-num-value` 오류로 거부한다. `doc.page.setup`은 쪽 크기와 여백을 바꾸기
+    전에 단 간격을 검사한다.
 - 쪽 수 추정(실험, `estimate_pages`)이 쪽 번호 조판 부호(`hp:ctrl/hp:pageNum`)와 줄보다 넓은 글자처럼 둔 표만
   있는 문단을 표 높이의 한 줄로 세던 것을 고친다.
   - 한/글은 둘을 한 줄에 두지 않는다. 부호의 줄은 문단 글의 빈 줄이다.
