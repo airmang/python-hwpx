@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import lcm
-from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, overload
 
 from ..objects.results import CellMargins
 from ._document_primitives import (
@@ -51,6 +51,10 @@ NEW_TABLE_COLUMN_FLOOR = sum(
 ) + COLUMN_FLOOR_EXTRA
 
 
+@overload
+def new_table_width(width: None, cols: int) -> None: ...
+@overload
+def new_table_width(width: int, cols: int) -> int: ...
 def new_table_width(width: object, cols: int) -> int | None:
     """The width a new table of *cols* columns is written at for *width* (``None`` when not given): at least
     :data:`NEW_TABLE_COLUMN_FLOOR` a column, as Hancom draws it. A width that is not an int in
