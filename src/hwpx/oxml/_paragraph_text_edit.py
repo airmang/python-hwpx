@@ -10,6 +10,23 @@ from ._document_primitives import _HP_NS, _child_tag_like, _is_tab_control_eleme
 from .namespaces import tag_local_name
 
 
+def split_section_carrier_content(paragraph: ET.Element) -> None:
+    """Keep section settings first and move their run's following content to a sibling."""
+    hp = f"{{{_HP_NS}}}"
+    for carrier in paragraph.findall(f"{hp}run"):
+        if carrier.find(f"{hp}secPr") is None:
+            continue
+        children = list(carrier)
+        content = next((i for i, child in enumerate(children)
+                        if child.tag not in (f"{hp}secPr", f"{hp}ctrl")), len(children))
+        if content < len(children):
+            text_run = carrier.makeelement(carrier.tag, dict(carrier.attrib))
+            for child in children[content:]:
+                carrier.remove(child)
+                text_run.append(child)
+            paragraph.insert(list(paragraph).index(carrier) + 1, text_run)
+
+
 def plain_text_nodes_for_edit(runs: list[ET.Element]) -> list[ET.Element]:
     nodes: list[ET.Element] = []
     for run in runs:
