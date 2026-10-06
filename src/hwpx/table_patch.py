@@ -1001,7 +1001,7 @@ def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
         return tc
 
     rows = [_map_cells(r, fix) for r in rows]
-    return _rebuild(prefix, rows, suffix, colcnt=len(survivors))
+    return _rebuild(_drop_zone_lines(prefix, "Col", del_cols), rows, suffix, colcnt=len(survivors))
 
 
 def _collapse_empty_rows(table: str) -> str:
@@ -1036,8 +1036,26 @@ def _collapse_empty_rows(table: str) -> str:
             return tc
 
         rows = [_map_cells(r, fix) for i, r in enumerate(rows) if i != empty]
+        prefix = _collapse_zone_line(prefix, "Row", empty)
     rowcnt = len(rows)
     return _rebuild(prefix, rows, suffix, rowcnt=rowcnt)
+
+
+def _collapse_zone_line(prefix: str, axis: str, removed: int) -> str:
+    """The ``hp:cellzone`` entries of a table head with row (*axis* ``"Row"``) or column
+    ``"Col"`` *removed* folded into its neighbours, as a cell merge folds a line no cell
+    starts at: the cells across it stay, so no zone goes."""
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None:
+            return zone
+        start = start - 1 if start > removed else start
+        end = max(end - 1 if end >= removed and end > 0 else end, start)
+        return _ss(_ss(zone, "cellzone", f"start{axis}Addr", start), "cellzone", f"end{axis}Addr", end)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
 
 
 def _physical_row_height(rows: Sequence[str], row: int) -> int | None:
@@ -1109,7 +1127,7 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
             for cell in moved:
                 rows[empty + 1] = _insert_tc_in_order(rows[empty + 1], cell, _si(cell, "cellAddr", "colAddr") or 0)
         rows = [r for i, r in enumerate(rows) if i != empty]
-    return _rebuild(prefix, rows, suffix, rowcnt=len(rows))
+    return _rebuild(_drop_zone_lines(prefix, "Row", del_rows), rows, suffix, rowcnt=len(rows))
 
 
 def _reorder_rows(table: str, order: Sequence[int]) -> str:
@@ -1351,6 +1369,30 @@ def _shift_zones(prefix: str, axis: str, first: int, count: int) -> str:
         return _ss(zone, "cellzone", f"end{axis}Addr", end + count)
 
     return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
+
+
+def _drop_zone_lines(prefix: str, axis: str, deleted: Iterable[int]) -> str:
+    """The ``hp:cellzone`` entries of a table head with the rows (*axis* ``"Row"``) or
+    columns (``"Col"``) *deleted*: a zone keeps the lines it covers that stay, moved back
+    over the deleted ones before them, and goes when none stays (the list with its last)."""
+    gone = set(deleted)
+
+    def moved(line: int) -> int:
+        return line - sum(1 for d in gone if d < line)
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None:
+            return zone
+        kept = [line for line in range(start, end + 1) if line not in gone]
+        if not kept:
+            return ""
+        zone = _ss(zone, "cellzone", f"start{axis}Addr", moved(kept[0]))
+        return _ss(zone, "cellzone", f"end{axis}Addr", moved(kept[-1]))
+
+    prefix = re.sub(r"<hp:cellzone\b[^>]*?(?:/>|>.*?</hp:cellzone>)", shift, prefix, flags=re.S)
+    return re.sub(r"<hp:cellzoneList\b[^>]*>\s*</hp:cellzoneList>|<hp:cellzoneList\b[^>]*/>", "", prefix)
 
 
 def _insert_column_by_clone(
