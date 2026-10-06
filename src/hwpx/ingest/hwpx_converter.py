@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version as package_version
 from typing import Any, BinaryIO
 from zipfile import BadZipFile, ZipFile
 
@@ -132,6 +131,8 @@ def _tables_payload(doc: HwpxDocument) -> list[dict[str, Any]]:
 
 
 def _python_hwpx_version() -> str:
+    from importlib.metadata import PackageNotFoundError, version as package_version
+
     try:
         return package_version("python-hwpx")
     except PackageNotFoundError:
