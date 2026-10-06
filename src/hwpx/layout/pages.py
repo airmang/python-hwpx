@@ -210,6 +210,8 @@ _SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
+#: the room a cell that never breaks its text into lines (``hp:subList@lineWrap`` SQUEEZE or KEEP) gives a line
+_NO_WRAP = 1 << 40
 #: The narrowest side of a square-wrapped object text goes to (1/5 inch): Hancom leaves a narrower one empty.
 _MIN_SIDE = 1440
 
@@ -996,6 +998,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = (int(size.get("width", 0)) if width is None else width) - margins.left - margins.right
+    sub_list = cell.find(f"{HP}subList")
+    if sub_list is not None and sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):  # never broken into lines:
+        inner = _NO_WRAP  # each paragraph one line but for its line breaks, pressed into the cell when drawn
     content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True)
     # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
     # take that room already)
@@ -1611,11 +1616,20 @@ def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
 
 
 def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
-    """The size a bullet or number label in its own character shape gives its paragraph's first line: it is
-    a character of that size there (it counts when it is larger than the smallest character); 0 when not."""
+    """The size a bullet or number label in its own character shape, or a run holding nothing but controls
+    before the text (a section's or columns' definition, a page number: an empty run takes no room), gives its
+    paragraph's first line: a character of that size there (it counts when it is larger than the smallest
+    character); 0 when not."""
 
-    size = measure.label_size(paragraph.get("paraPrIDRef")) if sizes else 0
-    return size if size > min(sizes or [0]) else 0
+    if not sizes:
+        return 0
+    size = measure.label_size(paragraph.get("paraPrIDRef"))
+    for run in paragraph.findall(f"{HP}run"):
+        if any(child.text or len(child) for child in run.findall(f"{HP}t")):  # the text starts
+            break
+        if run.find(f"{HP}ctrl") is not None or run.find(f"{HP}secPr") is not None:
+            size = max(size, measure.char_height(run.get("charPrIDRef")))
+    return size if size > min(sizes) else 0
 
 
 def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any] | None:
@@ -1943,6 +1957,12 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
             pitch = _pitch(shape.kind, shape.value, size)
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width)
+        beside = _page_number_beside(objects[0], runs, widths[0])
+        if beside is not None:  # a page number beside a table too wide for the line: an empty line of its own,
+            side, run = beside  # as tall as the control's characters
+            empty = measure.char_height(run.get("charPrIDRef"))
+            line = (empty, _pitch(shape.kind, shape.value, empty))
+            count, cached = 2, (line, (size, pitch)) if side < 0 else ((size, pitch), line)
         pos = objects[0].find(f"{HP}pos")
         if table is None and pos.get("treatAsChar") != "1" and pos.get("flowWithText") != "0" \
                 and 0 < int(pos.get("vertOffset", 0)) < 1 << 31:  # below the paragraph's line
@@ -1974,6 +1994,24 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         return replace(para, reflow=_Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks),
                                             style, shape, width=page.column_width, end=end, head=head))
     return para
+
+
+def _page_number_beside(obj: Any, runs: list[Any], width: float) -> tuple[int, Any] | None:
+    """(-1, its run) when a page-number control (``hp:ctrl/hp:pageNum``) stands before *obj*, a table set as a
+    character wider than the line (*width*), in its paragraph, (1, its run) when it stands after it, else
+    ``None``: Hancom sets the two on lines of their own, the control's an empty line as tall as its run's
+    characters."""
+
+    if _local(obj) != "tbl" or obj.find(f"{HP}pos").get("treatAsChar") != "1" or _extent(obj, "width") <= width:
+        return None
+    seen = False
+    for run in runs:
+        for child in run:
+            if child is obj:
+                seen = True
+            elif _local(child) == "ctrl" and child.find(f"{HP}pageNum") is not None:
+                return (1 if seen else -1), run
+    return None
 
 
 def _extent(obj: Any, side: str, measure: _Measure | None = None) -> int:
