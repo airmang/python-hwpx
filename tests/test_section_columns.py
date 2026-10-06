@@ -164,15 +164,30 @@ def test_a_column_definition_is_written_ahead_of_its_paragraphs_text(text: str) 
     assert "".join(t.text or "" for run in runs[1:] for t in run.iter(f"{HP}t")) == text
 
 
-def test_a_column_definition_in_a_sections_first_paragraph_follows_its_settings() -> None:
+@pytest.mark.parametrize("text", ["", "단 시작"])
+def test_a_column_definition_in_a_sections_first_paragraph_follows_its_settings(text: str, tmp_path: Path) -> None:
     document = HwpxDocument.new()
     first = document.paragraphs[0]
+    first.text = text
+    attributes = dict(first.element.find(f"{HP}run").attrib)
 
     document.page.set_columns(2, paragraph=first)
 
     runs = first.element.findall(f"{HP}run")
     assert runs[0].find(f"{HP}secPr") is not None
     assert runs[1][0].find(f"{HP}colPr").get("colCount") == "2"
+    nodes = list(first.element.iter())
+    definition = runs[1][0].find(f"{HP}colPr")
+    assert all(nodes.index(definition) < nodes.index(t) for t in first.element.iter(f"{HP}t"))
+    assert first.text == text
+    assert all(dict(run.attrib) == attributes for run in runs[2:])
+    path = tmp_path / "first-paragraph-columns.hwpx"
+    document.save_to_path(path)
+    reopened = HwpxDocument.open(path).paragraphs[0]
+    assert reopened.text == text
+    nodes = list(reopened.element.iter())
+    definition = next(node for node in reopened.element.iter(f"{HP}colPr") if node.get("colCount") == "2")
+    assert all(nodes.index(definition) < nodes.index(t) for t in reopened.element.iter(f"{HP}t"))
 
 
 def test_a_section_without_a_column_definition_gets_one_next_to_secpr() -> None:

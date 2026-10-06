@@ -49,6 +49,7 @@ from ._paragraph_text_edit import (
     paragraph_container,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
+    split_section_carrier_content,
 )
 from .objects import (
     HwpxOxmlInlineObject,
@@ -682,8 +683,8 @@ class HwpxOxmlParagraph:
 
         element = _create_picture_element(  # checked before its run is added
             str(binary_item_id_ref),
-            int(width),
-            int(height),
+            width,
+            height,
             align=align,
             treat_as_char=treat_as_char,
             pos_overrides=pos_overrides,
@@ -817,6 +818,7 @@ class HwpxOxmlParagraph:
         )
         # Hancom starts the new columns only from a definition ahead of the paragraph's text (its own
         # documents give it the first run, after a section's settings): one behind the text is not applied.
+        split_section_carrier_content(self.element)
         ahead = [r for r in self.element.findall(f"{_HP}run") if r is not run and r.find(f"{_HP}secPr") is None]
         if ahead:
             self.element.remove(run)
