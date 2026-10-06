@@ -86,7 +86,8 @@ def test_unequal_columns_write_their_sizes() -> None:
     col_pr = _section_column_definition(_section_xml(document))
     assert (col_pr.get("sameSz"), col_pr.get("sameGap")) == ("0", "0")
     sizes = [(size.get("width"), size.get("gap")) for size in col_pr.findall(f"{HP}colSz")]
-    assert sizes == [("20000", "1000"), ("21520", "0")]
+    # as the shares of 32768 of the text width Hancom keeps: 20000, 1000 and 21520 of 42520
+    assert sizes == [("15413", "771"), ("16584", "0")]
 
 
 def test_setting_one_column_clears_the_previous_layout() -> None:

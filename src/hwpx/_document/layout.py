@@ -19,7 +19,9 @@ from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH, HP
 from ..oxml.numbering_kinds import ensure_numbering_levels
 from ..oxml.objects import HwpxOxmlInlineObject
-from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value, validate_column_gap
+from ..oxml.section_format import (
+    _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value, column_shares, validate_column_gap,
+)
 from ..oxml.table_sizes import cell_margins_of
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
@@ -734,6 +736,9 @@ def set_columns(
         col_count: Number of columns (1–255).
         col_type: ``NEWSPAPER``, ``BALANCED_NEWSPAPER``, or ``PARALLEL``.
         same_gap: Gap in HWPUNIT (7200 = 1 inch).
+        column_widths: With ``same_size=False``, a ``(width, gap)`` pair per
+            column, in HWPUNIT adding up to the text width or in plain
+            proportions; Hancom keeps them as shares of 32768 of the text width.
         separator_type: Optional column separator line type (e.g. ``SOLID``).
     """
     if not 1 <= col_count <= 255:
@@ -745,6 +750,8 @@ def set_columns(
         )
     if same_size:
         validate_column_gap(same_gap)  # before a paragraph is added
+    elif column_widths:
+        column_shares(column_widths)  # checked before a paragraph is added too
     if paragraph is None:
         target_section = _resolve_section(doc, section=section, section_index=section_index)
         ctrl = target_section.properties.set_columns(

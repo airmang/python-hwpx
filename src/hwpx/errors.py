@@ -308,6 +308,7 @@ ERROR_CODES: dict[str, str] = {
     "page-kind-invalid": "kind 는 'header' 또는 'footer' 여야 한다.",
     "page-columns-invalid": "단 수는 1 이상이어야 한다.",
     "page-column-gap-value": "같은 폭 단의 간격(same_gap)이 0 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    "page-column-widths-value": "단 너비(column_widths)가 0 이상의 int 로 된 (너비, 간격) 쌍이 아니거나 모두 0이다.",
     "page-orientation-unsupported": "지원하지 않는 용지 방향이다.",
     "page-paper-size-unsupported": "지원하지 않는 용지 규격이다.",
     "page-new-num-kind-invalid": "쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다.",

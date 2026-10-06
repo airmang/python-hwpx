@@ -181,7 +181,7 @@ from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
 from ..oxml.section import _remove_short_paragraph_layout_cache
 from ..oxml.header_part import HwpxOxmlHeader
-from ..oxml.section_format import _drawn_page_size
+from ..oxml.section_format import COLUMN_SHARES, _drawn_page_size
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 
 if TYPE_CHECKING:
@@ -1274,12 +1274,13 @@ def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...], 
     count = int(settings[0].get("colCount", "1")) if settings else 1
     if count <= 1:
         return 1, text_width, (), 0
-    if settings[0].get("sameSz") != "1":  # each column takes its share of the width with the gaps (hp:colSz),
-        sizes = settings[0].findall(f"{HP}colSz")  # rounded
+    if settings[0].get("sameSz") != "1":  # each column takes its share of 32768 of the text width (hp:colSz),
+        sizes = settings[0].findall(f"{HP}colSz")  # rounded, whatever the shares add up to
         total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)
         if len(sizes) != count or total <= 0:
             raise _Unsupported("columns of unequal width")
-        widths = tuple((2 * int(size.get("width", 0)) * text_width + total) // (2 * total) for size in sizes)
+        widths = tuple((2 * int(size.get("width", 0)) * text_width + COLUMN_SHARES) // (2 * COLUMN_SHARES)
+                       for size in sizes)
         return count, min(widths), widths, 0
     gap = int(settings[0].get("sameGap", 0))
     return count, (text_width - (count - 1) * gap) // count // 4 * 4, (), gap
