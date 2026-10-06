@@ -24,6 +24,39 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 
 
+@pytest.mark.parametrize("row,col", [(0, 2), (0, -1), (0, 4), (-1, 0), (4, 0)])
+def test_row_only_split_requires_an_exact_anchor_without_mutation(row: int, col: int) -> None:
+    document = HwpxDocument.new()
+    table = document.add_table(rows=4, cols=4)
+    table.merge_cells("B1:C1")
+    before = document.to_bytes()
+    with pytest.raises(TableStructureError, match="no cell starts"):
+        table.split_cell(row, col, rows=2)
+    assert document.to_bytes() == before
+
+
+@pytest.mark.parametrize("axis", ["rows", "columns"])
+@pytest.mark.parametrize("side", ["before", "after"])
+def test_native_content_clones_are_refused_but_blank_insertion_preserves_objects(axis: str, side: str) -> None:
+    document = HwpxDocument.new()
+    table = document.add_table(rows=2, cols=2)
+    table.cell(0, 0).paragraphs[0].add_rectangle(width=2000, height=1000)
+    before = document.to_bytes()
+    insert = table.insert_rows if axis == "rows" else table.insert_columns
+    position = {("rows", "before"): "above", ("rows", "after"): "below",
+                ("columns", "before"): "left", ("columns", "after"): "right"}[(axis, side)]
+
+    with pytest.raises(TableStructureError, match="local identities or references"):
+        insert(0, 2, side=position)
+    assert document.to_bytes() == before
+    insert(0, 2, side=position, blank=True)
+    rectangles = list(table.element.iter(HP + "rect"))
+    assert len(rectangles) == 1
+    assert etree.tostring(rectangles[0]) == etree.tostring(next(_table(before).iter(HP + "rect")))
+    reopened = HwpxDocument.open(document.to_bytes())
+    assert len(list(reopened.tables.all[0].element.iter(HP + "rect"))) == 1
+
+
 def _table(data: bytes) -> etree._Element:
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         return next(etree.fromstring(archive.read("Contents/section0.xml")).iter(HP + "tbl"))
