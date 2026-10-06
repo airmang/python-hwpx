@@ -544,6 +544,12 @@
       "rationale": "What a cell merge leaves behind in a table's grid: collapse_merged_grid() removes the rows a merge left without cells and the columns no cell starts at, as Hancom's merge does (Hancom does not open a table with an empty hp:tr), and moves the cell addresses, spans and cell zones past them back. A new module rather than more table.py lines: with the merge fix that owner file would pass the 1,600-line cap; HwpxOxmlTable.merge_cells calls it. Format-level only."
     },
     {
+      "path": "src/hwpx/oxml/table_structure.py",
+      "disposition": "core",
+      "approvedBy": "hancom-table-structure-edits",
+      "rationale": "Rows and columns inserted and deleted and cells split on the table object model: HwpxOxmlTable takes insert_rows, insert_columns, delete_rows, delete_columns and split_cell from the TableStructureEdits mixin. Each runs the matching structure edit of hwpx.table_patch (apply_table_ops) on the table's XML and puts the result back into the element, so the object model and the byte path follow one set of rules, those of Hancom's own row and column insertion and deletion and cell split. A new module rather than more table.py lines: that owner file sits at the 1,600-line cap. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/hyperlink_form.py",
       "disposition": "core",
       "approvedBy": "hancom-hyperlink-target-parameters",

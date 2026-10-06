@@ -32,6 +32,7 @@ from ._document_primitives import (
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
 from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
+from .table_structure import TableStructureEdits
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
@@ -578,7 +579,7 @@ class HwpxOxmlTableRow:
         ]
 
 
-class HwpxOxmlTable:
+class HwpxOxmlTable(TableStructureEdits):
     """Representation of an ``<hp:tbl>`` inline object."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):

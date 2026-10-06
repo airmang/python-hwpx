@@ -1845,6 +1845,21 @@ _CLONE_OPS = {
 }
 
 
+def _restructure_table(table: str, op: Mapping[str, Any], *, used_ids: set[int] | None = None) -> str:
+    """One table's XML after *op*, an :func:`apply_table_ops` op dict naming one of its row,
+    column and cell edits, with the grid checked. New paragraphs take ids neither in the
+    table nor in *used_ids*. A refused edit raises :class:`TableStructureError`."""
+    name = op.get("op")
+    if name in _CLONE_OPS:
+        new_table = _CLONE_OPS[name](table, op, set(used_ids or ()))
+    elif name in _STRUCT_OPS:
+        new_table = _STRUCT_OPS[name](table, op)
+    else:
+        raise TableStructureError(f"{name!r} is not a table structure op")
+    _validate_or_raise(new_table)
+    return new_table
+
+
 def _set_row_heights(table: str, heights: Mapping[int, int]) -> str:
     """행높이 명시 설정(HWPUNIT, 1pt=100) — Stage 3 간격 프리미티브.
 
@@ -2353,13 +2368,9 @@ def apply_table_ops(
             elif name == "merge_table":
                 new_section, dims_after = _merge_tables(section, spans, ti)
             elif name in _STRUCT_OPS:
-                if name in _CLONE_OPS:
-                    used_ids = {int(m.group(2)) for data in sections.values()
-                                for m in _PARA_ID_RE.finditer(data.decode("utf-8"))}
-                    new_table = _CLONE_OPS[name](section[ts:te].decode("utf-8"), op, used_ids)
-                else:
-                    new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
-                _validate_or_raise(new_table)
+                used_ids = {int(m.group(2)) for data in sections.values()
+                            for m in _PARA_ID_RE.finditer(data.decode("utf-8"))} if name in _CLONE_OPS else None
+                new_table = _restructure_table(section[ts:te].decode("utf-8"), op, used_ids=used_ids)
                 new_section = section[:ts] + new_table.encode("utf-8") + section[te:]
                 dims_after = _table_dims(new_table)
             else:

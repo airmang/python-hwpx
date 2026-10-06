@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **19개 클래스 / 193개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **19개 클래스 / 198개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -241,3 +241,11 @@ identity/적용 범위 충돌은 거부합니다. 새로 만드는 `set_header_t
 top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여백 네 면을 쓰고
 `hasMargin`을 켭니다. 값은 `0 <= v < 2**31`인 `int`여야 하며, 아니면 바꾸기 전에
 `cell-margin-value`로 거부합니다. 인자가 없으면 아무것도 바꾸지 않습니다.
+
+`Table.insert_rows(ref_row, count=1, side="below", blank=False)`,
+`insert_columns(ref_col, count=1, side="right", blank=False)`, `delete_rows(rows)`,
+`delete_columns(cols)`, `split_cell(row, col, rows=1, cols=1)`은 행·열을 넣고 지우고 칸을
+나눕니다. `hwpx.table_patch.apply_table_ops`의 같은 편집과 같은 규칙(한/글의 줄/칸
+추가하기·지우기, 셀 나누기)을 따르고, 새 칸은 기준 칸의 글을 복제하며 `blank=True`면
+빈 문단 하나만 둡니다. 거부하면 `TableStructureError`를 내고 표를 바꾸지 않습니다.
+편집 전에 얻은 셀·행 객체는 표에 속하지 않으니 다시 얻으세요.

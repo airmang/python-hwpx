@@ -89,7 +89,10 @@ def test_the_page_namespace_is_free_of_internal_callbacks() -> None:
     "namespace,verbs",
     [
         ("page", ["setup", "set_header", "set_footer", "set_page_number"]),
-        ("tables", ["map", "fill_by_path", "find_cell_by_label", "merge_cells"]),
+        ("tables", [
+            "map", "fill_by_path", "find_cell_by_label", "merge_cells",
+            "insert_rows", "insert_columns", "delete_rows", "delete_columns", "split_cell",
+        ]),
         ("fields", ["add", "fill", "add_check_box", "set_check_box"]),
         ("shapes", ["add_line", "add_rectangle", "add_ellipse", "add_chart", "add_equation"]),
         ("media", ["add_image", "remove_image", "replace_picture", "picture_references"]),
