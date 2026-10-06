@@ -159,10 +159,10 @@ def test_allowlist_entries_are_classified_and_explained() -> None:
         assert entry["classification"] in {"known-leak", "format-vocabulary"}
         assert entry["count"] >= 1 and entry["reason"]
         if entry["classification"] == "known-leak":
-            assert "scheduled to move in 7.0" in entry["reason"]
+            assert "a candidate to move in a later major release" in entry["reason"]
     for entry in data["undetected"]:
         assert set(entry) == {"file", "qualname", "reason"}
-        assert "scheduled to move in 7.0" in entry["reason"]
+        assert "a candidate to move in a later major release" in entry["reason"]
 
 
 def test_undetected_known_leaks_must_still_exist(tmp_path: Path) -> None:
