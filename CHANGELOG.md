@@ -62,6 +62,21 @@
     거부한다.
   - 쪽 수 추정(실험, `estimate_pages`)도 단 너비를 너비 × 본문 폭 / 32768로 센다. 전에는 너비들의 합으로 나눴다.
     한/글이 만든 문서는 합이 32768이라 결과가 같다.
+- 쪽·구역·목록 설정에서 한/글이 그대로 두지 않는 값과, 음수를 조용히 0으로 쓰던 값을 거부한다.
+  - 한/글은 줄 번호의 시작·간격(`doc.page.set_line_numbers`의 `start_number`·`count_by`), 구역 시작 번호
+    (`set_start_numbering`), 목록 시작 번호(`doc.styles.apply_list_format`의 `start`)를 부호 없는 16비트 수로,
+    쪽 테두리 오프셋을 부호 있는 16비트 수로 둔다. 그 밖의 값은 감싸 읽는다(예: 65536은 0). 모르는 제본 방식
+    (`gutter_type`)과 쪽 테두리 채울 영역(`fill_area`)은 기본값(`LEFT_ONLY`, `PAPER`)으로 읽는다.
+  - 이제 번호는 0 이상 65535 이하, 줄 번호 거리와 재시작은 0 이상 2**31 미만, 쪽 테두리 오프셋은 0 이상 32767
+    이하, 쪽 크기와 여백은 0 이상 2**31 미만만 받는다. 쪽 테두리 종류(`page_type`)는 `BOTH`·`EVEN`·`ODD`,
+    채울 영역은 `PAPER`·`PAGE`·`BORDER`, 제본 방식은 `LEFT_ONLY`·`LEFT_RIGHT`·`TOP_BOTTOM`만 받는다. 음수
+    글자 크기(`ensure_run`의 `size`)도 거부한다.
+  - 그 밖의 값은 무엇도 바꾸기 전에 형식 있는 오류(`page-number-value`, `page-border-fill-invalid`,
+    `page-gutter-type-invalid`, `page-size-value`, `style-list-start-value`, `style-run-size-value`)로 거부한다.
+    전에는 음수를 0으로 쓰고, 범위 밖 값은 그대로 썼다. `doc.page.setup`은 쪽을 바꾸기 전에 크기와 여백을 검사한다.
+  - 목록 시작 번호 0은 그대로 쓴다(한/글이 그대로 두고 1처럼 그린다). 전에는 1로 썼다.
+  - 구역에 없던 설정(쪽 테두리, 시작 번호, 줄 번호, 격자, 보이기 등)을 더할 때 `TypeError`가 나던 것을 고친다.
+    예를 들어 새 종류의 쪽 테두리를 만들면 그랬다.
 - 새 표(`doc.add_table`, 칸 안의 `add_table`)와 열 너비 바꾸기(`HwpxOxmlTable.set_column_widths`)가, 한/글이 그리는
   것보다 좁은 열을 그대로 쓰던 것을 고친다.
   - 한/글은 표의 열을 적어도 그 칸들의 왼쪽·오른쪽 여백과 283을 더한 폭(새 표는 510 + 510 + 283 = 1303)으로
