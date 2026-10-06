@@ -94,6 +94,16 @@ HANCOM_PAGES = {
     "pages_empty_run_ending_a_paragraph": 2,  # spaces or text before an empty run of another size (and
                                                # after one): the one ending a paragraph makes its last line
                                                # as tall as itself when larger
+    # A run of 14 pt before a line of 10 pt text (함초롬바탕, spaced 160%): one holding nothing but controls
+    # makes the line as tall as itself (1400, spaced 840), an empty one takes no room:
+    "pages_section_controls_run_taller_than_the_text": 1,  # the section's and the columns' definitions
+    "pages_page_number_run_taller_than_the_text": 1,  # a page number
+    "pages_auto_number_run_taller_than_the_text": 1,  # an auto number (the page's)
+    "pages_footer_run_taller_than_the_text": 1,  # a footer
+    "pages_page_hiding_run_taller_than_the_text": 1,  # a page-number hiding
+    "pages_empty_run_taller_than_the_text": 1,  # an empty run: the line 1000 tall (Hancom drops the run)
+    "pages_section_controls_run_after_the_text": 1,  # the controls after the text: Hancom moves them first
+                                                      # and leaves an empty 14 pt run ending the line
     "pages_text_12pt_160": 5,             # 12 pt text, line spacing 160%
     "pages_spacing_20_20": 3,             # spacing before and after paragraphs
     "pages_boundary_widow_on": 2,         # widow/orphan control at the page end
@@ -108,6 +118,15 @@ HANCOM_PAGES = {
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
+    # A cell 20000 wide declared 282 tall (its lines make its row) holding 30 "가" (29160) in 10 pt
+    # 함초롬바탕: one whose text never breaks into lines (hp:subList@lineWrap SQUEEZE or KEEP) keeps each
+    # paragraph on one line but for its line breaks, pressed into the cell when drawn:
+    "pages_table_cell_squeezed_on_one_line": 1,  # SQUEEZE: one line, the row 1282 tall
+    "pages_table_cell_kept_on_one_line": 1,  # KEEP: the same
+    "pages_table_cell_broken_into_lines": 1,  # BREAK: two lines (20 and 10), the row 2882 tall
+    "pages_table_cell_squeezed_after_a_line_break": 1,  # 10, a line break, 30: two lines
+    "pages_table_cell_squeezed_paragraphs": 1,  # two paragraphs of 30: a line each
+    "pages_table_cell_kept_after_a_line_break": 1,  # KEEP, 10, a line break, 30: two lines
     "pages_cell_paragraphs_split_s600_400_b0": 3,  # one cell of 25 paragraphs of 3 lines, spaced 600 before
                                                    # and 400 after, split over pages: the spacing counts,
                                                    # and a part starting with a paragraph keeps 600 above it
@@ -248,6 +267,15 @@ HANCOM_PAGES = {
     "pages_table_as_character_2000_short_then_three_spaces": 1,  # all three fit beside it
     "pages_table_as_character_200_short_then_three_12pt_spaces": 1,  # of 12 pt: the third's line 1200 tall
     "pages_table_as_character_200_short_after_two_spaces": 1,  # two before it: the table on the next line
+    # A table set as a character (a row 1282 tall) 1000 wider than the column (42520), alone in its paragraph
+    # but for a page-number control: the two never share a line, the control's an empty line of the text.
+    "pages_page_number_then_a_table_wider_than_the_line": 1,  # the control first: an empty line 1600 down,
+                                                              # then the table's
+    "pages_table_wider_than_the_line_then_a_page_number": 1,  # the table first: the control's line under it
+    "pages_page_number_then_a_table_that_fits": 1,  # 1000 narrower than the column: one line
+    "pages_table_wider_than_the_line_alone": 1,  # no control: one line
+    "pages_section_start_then_a_table_wider_than_the_line": 1,  # the section's and columns' controls before
+                                                                # it: one line
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
