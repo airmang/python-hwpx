@@ -8,9 +8,22 @@ import pytest
 from lxml import etree
 
 from hwpx import HwpxDocument
-from hwpx.table_patch import apply_table_ops
+from hwpx.table_patch import TableStructureError, _clone_content, _fresh_ids, apply_table_ops
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+
+@pytest.mark.parametrize("content", [
+    "<hp:rect id = '10' instid = '10'/>",
+    '<hp:rect id="10" name="a > b"/>',
+    '<hp:rect name="a > b" id="10"/>',
+    "<hp:subList linkListIDRef = '42'/>",
+    "<hp:fieldEnd beginIDRef = '13'/>",
+])
+def test_identity_guard_reads_xml_quote_and_spacing_variants(content: str) -> None:
+    fragment = '<hp:p id="1">' + content + '</hp:p>'
+    with pytest.raises(TableStructureError, match="local identities or references"):
+        _clone_content(fragment, _fresh_ids(fragment, None))
 
 
 @pytest.mark.parametrize("op,reference", [("insert_column_by_clone", "ref_col"), ("insert_row_by_clone", "ref_row")])
