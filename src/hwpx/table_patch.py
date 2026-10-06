@@ -1278,11 +1278,27 @@ def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]
     return fresh_id
 
 
+def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Copy paragraph identities only; refuse local identities/references we cannot remap."""
+    for tag, opening in re.findall(r'<([\w:.-]+)\b([^<>]*)>', content):
+        identity = tag != "hp:p" and re.search(r'\s(?:id|instid|instId|fieldid)="[^"]+"', opening)
+        reference = re.search(r'\s(?:subjectIDRef|beginIDRef|chartIDRef)=', opening)
+        links = re.findall(r'\s(?:linkListIDRef|linkListNextIDRef)="([^"]*)"', opening)
+        if identity or reference or any(value not in ("", "0") for value in links) or tag in (
+            "hp:bookmark", "hp:fieldBegin", "hp:fieldEnd",
+        ):
+            raise TableStructureError(
+                "cannot clone content with local identities or references; use empty-cell insertion"
+            )
+    return _PARA_ID_RE.sub(fresh_id, content)
+
+
 def _insert_row_by_clone(
     table: str, ref_row: int, count: int = 1, *, used_ids: set[int] | None = None
 ) -> str:
     """Insert *count* rows after physical row *ref_row* by cloning it (formatting
-    preserved, paragraph ids refreshed). Rows below shift.
+    preserved, paragraph ids refreshed). Rows below shift. Content with native
+    identities or local references is refused rather than duplicated.
 
     Merged cells follow Hancom's row insertion: a cell running on below *ref_row*
     grows its rowSpan over the new rows instead of being cloned, and under a cell
@@ -1312,7 +1328,7 @@ def _insert_row_by_clone(
     clones = []
     for k in range(1, count + 1):
         clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", ref_row + k))
-        clone = _PARA_ID_RE.sub(fresh_id, clone)
+        clone = _clone_content(clone, fresh_id)
         clones.append(clone)
     new_rows = shifted[: ref_row + 1] + clones + shifted[ref_row + 1:]
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
@@ -1348,6 +1364,8 @@ def _insert_column_by_clone(
     and the table grows by the new columns, each as wide as *ref_col*, as Hancom's column
     insertion widens it. With *blank* each new cell holds one empty paragraph of its cell's
     paragraph and character shape, as Hancom inserts them.
+    Nonblank content with native identities or local references is refused;
+    their remapping is not supported. Empty-cell insertion keeps the original objects.
 
     Merged cells follow Hancom's insertion as in :func:`_insert_row_by_clone`: a cell running
     on across the new columns grows its colSpan and width over them instead of being cloned,
@@ -1375,7 +1393,7 @@ def _insert_column_by_clone(
         if blank or (_si(tc, "cellSpan", "colSpan") or 1) > 1:
             tc = _ss(_ss(_empty_cell_like(tc), "cellSpan", "colSpan", 1), "cellSz", "width", width)
         return "".join(
-            _PARA_ID_RE.sub(fresh_id, _ss(tc, "cellAddr", "colAddr", first + k)) for k in range(count)
+            _clone_content(_ss(tc, "cellAddr", "colAddr", first + k), fresh_id) for k in range(count)
         )
 
     def widen(tc: str) -> str:
