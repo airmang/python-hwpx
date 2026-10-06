@@ -10,8 +10,9 @@ blanked; nothing else was changed. All fixtures use ``baseUnit="1100"``.
 The scripts use keyword names (``choose``, ``BINOM``, ``lbrace``, ``dyad``,
 ``theta``, ``prime``, ``DEG``, ``root``, ``pmatrix``) that the measurer used
 to count as their letters. The tolerance is wider than the gap the measurer
-leaves on plain text (about 15% wide at this base size), and far tighter than
-the 1.4x to 4.3x the letters gave.
+leaves at this base size (Hancom draws glyphs at 1100 as wide as at 1000,
+so the measurer, which scales with ``baseUnit``, comes out up to about 18%
+wide here), and far tighter than the 1.4x to 4.3x the letters gave.
 """
 from __future__ import annotations
 
@@ -36,7 +37,7 @@ CASES = {
     "equation_root_index.hwpx": "root {3} of {8}",
     "equation_pmatrix.hwpx": "pmatrix {1 & 0 # 0 & 1}",
 }
-WIDTH_RANGE = (0.9, 1.3)
+WIDTH_RANGE = (0.95, 1.22)
 HEIGHT_RANGE = (0.93, 1.07)
 BASE_LINE_SLACK = 3
 
@@ -68,8 +69,9 @@ def test_a_keyword_script_is_measured_close_to_the_box_hancom_saved(name: str) -
 
 
 def test_choose_and_binom_are_read_in_any_case() -> None:
-    stacked = measure_equation("{n} atop {r}")
-    for script in ("{n} choose {r}", "{n} CHOOSE {r}", "binom {n} {r}", "BINOM {n} {r}"):
+    # Hancom saved all of these with one box (1290 x 2415, baseLine 66 at 1100).
+    stacked = measure_equation("pmatrix {n # r}")
+    for script in ("{n} choose {r}", "{n} CHOOSE {r}", "binom {n} {r}", "BINOM {n} {r}", "LEFT ( pile {n # r} RIGHT )"):
         assert measure_equation(script) == stacked
     assert stacked.height < measure_equation("{n} over {r}").height
 
