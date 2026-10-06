@@ -4,12 +4,10 @@ Documents laid out and saved by Hancom's Hangul. Tests compare what python-hwpx 
 with what Hangul stored in them: line layout caches (`hp:linesegarray`), table and object sizes, field and
 style values.
 
-## Saved automatically on Windows
+## Saved on Windows
 
-Every file but `equation_*.hwpx` was saved automatically by Hangul's engine for Windows, not from the
-Hangul window on a desktop. Such a save writes `os="2"` in `version.xml` and no `Preview/PrvImage.png`
-(files saved from the desktop program carry `os="1"` and usually a preview image). `memos_in_fields.hwp`
-was saved the same way.
+Every file but `equation_*.hwpx` was saved by Hangul for Windows (`os="2"` in `version.xml`), and so was
+`memos_in_fields.hwp`.
 
 Before a file was committed, only what names its author, the program version and the dates was removed;
 every other part keeps the bytes Hangul wrote.
@@ -27,9 +25,6 @@ every other part keeps the bytes Hangul wrote.
     Hangul writes it.
   - The compound file rebuilt; every other stream is as Hangul saved it.
 
-Their document information therefore differs from that of a file saved from the desktop program, while
-their content and layout caches do not.
-
 ## Equations saved on macOS
 
 `equation_*.hwpx` were cut from documents opened and saved by Hangul for macOS (`os="10"` in
@@ -38,5 +33,5 @@ preview image was left out and the author and dates emptied (#351).
 
 ## Adding a file
 
-A file saved from the desktop program works the same: remove the information listed above before
+For any new Hancom-saved file, remove the information listed above before
 committing it, and say in the test what behaviour of Hangul the file shows.
