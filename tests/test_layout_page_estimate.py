@@ -1104,6 +1104,25 @@ def test_columns_of_unequal_width_take_their_share_of_the_text_width_rounded() -
     assert {int(seg.get("horzsize")) for seg in section.iter(f"{HP}lineseg")} == {8502, 15875, 15878}
 
 
+def test_a_column_area_starts_at_a_definition_and_at_a_column_break_in_balanced_columns() -> None:
+    # A paragraph's first column definition starts an area (behind its text: the columns before go on), and so
+    # does a column break in balanced columns; the section's own definition, next to hp:secPr, starts none.
+    section = etree.fromstring(
+        f'<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="{HP[1:-1]}">'
+        '<hp:p><hp:run><hp:secPr/><hp:ctrl><hp:colPr colCount="1"/></hp:ctrl></hp:run></hp:p>'
+        '<hp:p><hp:run><hp:t>text</hp:t><hp:ctrl><hp:colPr colCount="2"/></hp:ctrl>'
+        '<hp:ctrl><hp:colPr colCount="3"/></hp:ctrl></hp:run></hp:p>'
+        '<hp:p><hp:run><hp:ctrl><hp:colPr colCount="2" type="BALANCED_NEWSPAPER"/></hp:ctrl><hp:t>a</hp:t></hp:run></hp:p>'
+        '<hp:p columnBreak="1"><hp:run><hp:t>b</hp:t></hp:run></hp:p>'
+        '</hs:sec>'
+    )
+
+    areas = page_layout._column_areas(section)
+
+    assert [(index, None if found is None else found.get("colCount")) for index, found in areas] == \
+        [(1, None), (2, "2"), (3, "2")]
+
+
 def test_the_multi_column_sample_breaks_its_lines_at_each_column_width_without_caches() -> None:
     # hwpxlib's MultiColumn sample, columns of unequal width: two pages, with its caches or without them.
     data = (Path(__file__).parent / "fixtures" / "hwpxlib_corpus" / "reader_writer__MultiColumn.hwpx").read_bytes()

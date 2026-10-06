@@ -3349,18 +3349,18 @@ def _column_areas(section: Any) -> list[tuple[int, Any]]:
     areas: list[tuple[int, Any]] = []
     current = _first_columns(section)
     for index, paragraph in enumerate(section.findall(f"{HP}p")):
-        found, text = None, False
+        text = defined = False
         for child in (child for run in paragraph.findall(f"{HP}run") if run.find(f"{HP}secPr") is None
                       for child in run):
             if _local(child) == "t" and "".join(child.itertext()):
                 text = True
-            elif found is None and _local(child) == "ctrl" and child.find(f"{HP}colPr") is not None:
+            elif not defined and _local(child) == "ctrl" and child.find(f"{HP}colPr") is not None:
+                defined = True  # the paragraph's first definition starts its area
                 found = None if text else child.find(f"{HP}colPr")
                 areas.append((index, found))
                 current = found if found is not None else current
-        if found is None and (not areas or areas[-1][0] != index) and paragraph.get("columnBreak") == "1" \
-                and current is not None and current.get("type") == "BALANCED_NEWSPAPER" \
-                and int(current.get("colCount", "1")) > 1:
+        if not defined and paragraph.get("columnBreak") == "1" and current is not None \
+                and current.get("type") == "BALANCED_NEWSPAPER" and int(current.get("colCount", "1")) > 1:
             areas.append((index, current))
     return areas
 
