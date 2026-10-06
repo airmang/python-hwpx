@@ -52,7 +52,10 @@ def test_native_content_clones_are_refused_but_blank_insertion_preserves_objects
     insert(0, 2, side=position, blank=True)
     rectangles = list(table.element.iter(HP + "rect"))
     assert len(rectangles) == 1
-    assert etree.tostring(rectangles[0]) == etree.tostring(next(_table(before).iter(HP + "rect")))
+    original = next(_table(before).iter(HP + "rect"))
+    assert etree.tostring(rectangles[0], method="c14n", exclusive=True) == etree.tostring(
+        original, method="c14n", exclusive=True,
+    )
     reopened = HwpxDocument.open(document.to_bytes())
     assert len(list(reopened.tables.all[0].element.iter(HP + "rect"))) == 1
 
