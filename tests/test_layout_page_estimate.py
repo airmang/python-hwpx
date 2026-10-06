@@ -469,6 +469,22 @@ HANCOM_PAGES = {
     "pages_table_nested_in_table_as_character": 1,  # a table in a cell of a table set as a character
     "pages_table_nested_row_split": 2,  # a row holding a table splits after its first line of text
     "pages_table_nested_row_moved": 2,  # none of a row holding a table fits: it goes on whole
+    # A table of ten rows nested in the second row of a flowing table, its third row at the page's foot:
+    "pages_nested_table_split_cell": 2,  # set as a character: it never splits, going on whole with the
+                                         # outer row's lines after it
+    "pages_nested_table_split_inner_table_break": 2,  # the same, set to move row by row
+    "pages_nested_table_split_inner_no_break": 2,  # the same, set not to split
+    "pages_nested_table_split_three_line_rows": 2,  # the same, three lines a row
+    "pages_nested_table_split_header_repeated": 2,  # the same, its first row a repeated header
+    "pages_nested_table_split_outer_table_break": 2,  # the outer table moving row by row: the row goes on
+                                                      # whole
+    "pages_nested_table_split_fitting": 1,  # one that fits on the page
+    "pages_nested_table_split_top_and_bottom": 2,  # placed top and bottom: it splits between its rows
+    "pages_nested_table_split_top_and_bottom_table_break": 2,  # set to move row by row: the same
+    "pages_nested_table_split_top_and_bottom_three_line_rows": 2,  # three lines a row: between a row's
+                                                                   # lines too, the cell margins around
+                                                                   # each part
+    "pages_nested_table_split_top_and_bottom_header_repeated": 2,  # its header row again above the rest
     # A flowing table whose first column holds vertical text (10 pt, spaced 160%): Hancom lays its lines down
     # the cell's height, side by side across it, and cuts what does not fit; the row stays as declared:
     "pages_table_vertical_cell_short_text": 1,  # three characters in a cell 3000 x 4000: one line
