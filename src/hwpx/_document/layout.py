@@ -514,12 +514,12 @@ def set_list_format(
             suggestion="A continued list numbers on in the format of the list before it: "
             "leave out number_format and start, or continue_list to start a new list.",
         )
-    if level < 1:
+    if isinstance(level, bool) or not isinstance(level, int) or not 1 <= level <= 10:
         raise HwpxValueError(
-            "level must be 1 or greater",
+            f"level must be an int from 1 to 10; got {level!r}",
             code="style-list-level-invalid",
-            context={"requested": level},
-            suggestion="Levels start at 1.",
+            context={"requested": repr(level)},
+            suggestion="Hancom lists have ten levels, 1 to 10; it cannot save a document using a deeper one.",
         )
     if not doc._root.headers:
         raise HwpxValueError(

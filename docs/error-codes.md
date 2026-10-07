@@ -332,7 +332,7 @@ except HwpxError as exc:
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
 | `style-list-continue-conflict` | continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다). |
-| `style-list-level-invalid` | 글머리표/번호 수준은 1 이상이어야 한다. |
+| `style-list-level-invalid` | 글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다). |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-memo-shape-line-type-invalid` | 메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `style-memo-shape-memo-type-invalid` | 메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다. |

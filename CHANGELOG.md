@@ -2,6 +2,15 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 고침
+
+- 글머리표·번호 목록(`doc.styles.apply_list_format`)이 10보다 깊은 수준을 받던 것을 고친다.
+  - 한/글 목록은 1~10수준이다. 11수준 이상을 쓴 문서는 한/글이 다시 저장하지 못하고 멈춘다.
+  - 이제 수준이 1 이상 10 이하의 int가 아니면 무엇도 바꾸기 전에 `style-list-level-invalid` 오류로 거부한다(전에는
+    1 미만만 거부했다).
+
 ## [6.8.0] - 2026-10-06
 
 `import hwpx`가 HWP 5.0 모듈과 `hwpx.tools`를 처음 쓸 때 읽도록 바꿔 가벼워진 릴리스입니다. FormFit은 글꼴
