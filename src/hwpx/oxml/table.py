@@ -521,6 +521,7 @@ class HwpxOxmlTableCell:
         The table is created inside a new paragraph within the cell's
         ``<hp:subList>``.
         """
+        _table_sizes.new_table_width(width, cols)  # checked before a paragraph is added
         # Resolve border fill ID
         if border_fill_id_ref is None:
             document = self.table.paragraph.section.document
@@ -751,7 +752,7 @@ class HwpxOxmlTable:
         if rows <= 0 or cols <= 0:
             raise ValueError("rows and cols must be positive integers")
 
-        table_width = width if width is not None else cols * _DEFAULT_CELL_WIDTH
+        table_width = _table_sizes.new_table_width(width if width is not None else cols * _DEFAULT_CELL_WIDTH, cols)
         table_height = height if height is not None else rows * _DEFAULT_CELL_HEIGHT
         if border_fill_id_ref is None:
             raise ValueError("border_fill_id_ref must be provided")

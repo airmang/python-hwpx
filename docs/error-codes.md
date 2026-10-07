@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 176 | 11 |
+| 개수 | 190 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -183,11 +183,18 @@ except HwpxError as exc:
 |---|---|
 | `page-argument-conflict` | text 와 content 를 동시에 지정했다. |
 | `page-argument-missing` | text 또는 content 중 하나는 있어야 한다. |
+| `page-border-fill-invalid` | 쪽 테두리 page_type·fill_area 가 OWPML 어휘 밖이거나, 오프셋이 0 이상 32767 이하의 int 가 아니다. |
+| `page-column-gap-value` | 같은 폭 단의 간격(same_gap)이 0 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `page-column-widths-value` | 단 너비(column_widths)가 0 이상의 int 로 된 (너비, 간격) 쌍이 아니거나 모두 0이다. |
 | `page-columns-invalid` | 단 수는 1 이상이어야 한다. |
+| `page-gutter-type-invalid` | 제본 방식(gutter_type)이 OWPML 어휘(LEFT_ONLY/LEFT_RIGHT/TOP_BOTTOM) 밖이다(한/글은 LEFT_ONLY 로 읽는다). |
 | `page-kind-invalid` | kind 는 'header' 또는 'footer' 여야 한다. |
 | `page-new-num-kind-invalid` | 쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다. |
+| `page-new-num-value` | 새 번호(hp:newNum/@num)가 0 이상 65535 이하가 아니다. |
+| `page-number-value` | 줄 번호(시작·간격·거리·재시작)나 구역 시작 번호가 한/글이 두는 범위(16비트 번호, 32비트 거리) 밖이다. |
 | `page-orientation-unsupported` | 지원하지 않는 용지 방향이다. |
 | `page-paper-size-unsupported` | 지원하지 않는 용지 규격이다. |
+| `page-size-value` | 쪽 크기·여백이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부, 음수는 0으로 쓰였다). |
 | `page-text-direction-unsupported` | 글자 방향 값이 OWPML 어휘(hp:secPr/@textDirection: HORIZONTAL/VERTICAL/VERTICALALL) 밖이다. |
 
 ### `paragraph-*`
@@ -267,6 +274,7 @@ except HwpxError as exc:
 |---|---|
 | `shape-arc-corner-invalid` | add_arc 의 corner 인자가 지원하는 모서리(TOP_LEFT 등) 밖이다. |
 | `shape-arc-type-invalid` | add_arc 의 arc_type 인자가 OWPML 어휘(NORMAL/PIE/CHORD) 밖이다. |
+| `shape-caption-gap-value` | 캡션 간격(gap)이 -32768 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-caption-side-invalid` | 캡션 side 값이 OWPML 어휘(LEFT/RIGHT/TOP/BOTTOM) 밖이다. |
 | `shape-chart-anchor-detached` | 만든 차트 앵커가 자기 파트를 가리키지 않는다. |
 | `shape-chart-axes-missing` | 축이 필요한 차트(막대·꺾은선·영역·분산형·방사형·거품형 등)에 두 축(c:axId와 정의된 축)이 없다(한컴이 빈 차트를 그리거나 멈춘다). |
@@ -285,6 +293,7 @@ except HwpxError as exc:
 | `shape-drop-cap-character-empty` | 드롭캡으로 키울 문자가 비어 있다. |
 | `shape-drop-cap-not-created` | 만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다. |
 | `shape-drop-cap-style-unsupported` | 드롭캡 dropcapstyle 값이 실증된 어휘(DoubleLine, TripleLine) 밖이다. |
+| `shape-equation-base-unit-value` | 수식 기준 크기(base_unit)가 1 이상 2**31 미만의 int(1/100 pt)가 아니다(bool 도 거부). |
 | `shape-equation-not-created` | 만든 수식을 표준 스캔이 다시 찾지 못했다. |
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
@@ -294,6 +303,8 @@ except HwpxError as exc:
 | `shape-position-frame` | 도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다. |
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
+| `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
+| `shape-size-value` | 도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `story-*`
 
@@ -325,13 +336,15 @@ except HwpxError as exc:
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
 | `style-list-continue-conflict` | continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다). |
-| `style-list-level-invalid` | 글머리표/번호 수준은 1 이상이어야 한다. |
+| `style-list-level-invalid` | 글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다). |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
+| `style-list-start-value` | 목록 시작 번호(start)가 0 이상 65535 이하의 int 가 아니다(bool 도 거부, 한/글은 16비트로 둔다). |
 | `style-memo-shape-line-type-invalid` | 메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `style-memo-shape-memo-type-invalid` | 메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다. |
 | `style-not-found` | 그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉). |
 | `style-number-format-invalid` | 번호 형식이 한컴 번호 모양 밖이다(목록·개요 머리와 쪽 번호는 hc:NumberType1 15개, 각주·미주 번호는 hc:NumberType2 19개). |
 | `style-run-outline-type-invalid` | ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다. |
+| `style-run-size-value` | 글자 크기(size, pt)가 0 이상의 수가 아니거나 너무 크다(음수는 0으로 쓰였다). |
 | `style-tab-container-create-failed` | tabProperties 컨테이너를 만들지 못했다. |
 
 ### `table-*`
@@ -340,6 +353,7 @@ except HwpxError as exc:
 |---|---|
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
+| `table-width-value` | 새 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `text-*`
 

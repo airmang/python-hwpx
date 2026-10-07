@@ -699,6 +699,16 @@ class HwpxOxmlDocument:
         )
         if normalized_strike_shape is not None:
             strike = True
+        if size is not None and (isinstance(size, bool) or not isinstance(size, (int, float))
+                                 or not 0 <= round(float(size) * 100) < 2**31):
+            from ..errors import HwpxValueError
+
+            raise HwpxValueError(  # it was written as 0 when negative
+                f"size must be a number of points from 0, below 21474836.48; got {size!r}",
+                code="style-run-size-value",
+                context={"requested": repr(size)},
+                suggestion="Pass the character size in points, e.g. 10.",
+            )
         # Hancom keeps a width ratio in one byte: 256 and up come out as ratio - 256.
         if ratio is not None and not 10 <= int(ratio) <= 255:
             raise ValueError("ratio must be a percentage between 10 and 255")

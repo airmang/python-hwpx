@@ -19,7 +19,9 @@ from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH, HP
 from ..oxml.numbering_kinds import ensure_numbering_levels
 from ..oxml.objects import HwpxOxmlInlineObject
-from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
+from ..oxml.section_format import (
+    _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _checked, _page_orientation_value, column_shares, validate_column_gap,
+)
 from ..oxml.table_sizes import cell_margins_of
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
@@ -512,18 +514,25 @@ def set_list_format(
             suggestion="A continued list numbers on in the format of the list before it: "
             "leave out number_format and start, or continue_list to start a new list.",
         )
-    if level < 1:
+    if isinstance(level, bool) or not isinstance(level, int) or not 1 <= level <= 10:
         raise HwpxValueError(
-            "level must be 1 or greater",
+            f"level must be an int from 1 to 10; got {level!r}",
             code="style-list-level-invalid",
-            context={"requested": level},
-            suggestion="Levels start at 1.",
+            context={"requested": repr(level)},
+            suggestion="Hancom lists have ten levels, 1 to 10; it cannot save a document using a deeper one.",
         )
     if not doc._root.headers:
         raise HwpxValueError(
             "document does not contain any headers",
             code="document-header-missing",
             suggestion="Check that this is an intact HWPX package.",
+        )
+    if start is not None and (isinstance(start, bool) or not isinstance(start, int) or not 0 <= start <= 0xFFFF):
+        raise HwpxValueError(  # Hancom keeps a list's start as 16 bits unsigned (0 drawn as 1)
+            f"start must be an int from 0 to 65535; got {start!r}",
+            code="style-list-start-value",
+            context={"requested": repr(start)},
+            suggestion="Pass the number the list starts at, from 0 to 65535.",
         )
 
     level_specs: list[dict[str, str]] = [{} for _ in range(level)]
@@ -532,7 +541,7 @@ def set_list_format(
     if number_format:
         level_specs[level - 1]["format"] = str(number_format).upper()
     if start is not None:
-        level_specs[level - 1]["start"] = str(max(1, int(start)))
+        level_specs[level - 1]["start"] = str(start)
 
     targets = _resolve_paragraph_targets(doc,
         paragraph_index=paragraph_index,
@@ -609,6 +618,8 @@ def set_page_setup(
     """
 
     normalized_orientation = _normalize_page_orientation(orientation)
+    if columns is not None:  # the gap checked before the page or its margins change
+        validate_column_gap(_mm_to_hwp_units(float(column_gap_mm or 0)))
     target_width_mm = width_mm
     target_height_mm = height_mm
     if paper_size:
@@ -633,6 +644,24 @@ def set_page_setup(
 
     width = _mm_to_hwp_units(float(target_width_mm)) if target_width_mm is not None else None
     height = _mm_to_hwp_units(float(target_height_mm)) if target_height_mm is not None else None
+    margin_source = dict(margins_mm or {})
+    margin_values = {
+        "left": margin_left_mm if margin_left_mm is not None else margin_source.get("left"),
+        "right": margin_right_mm if margin_right_mm is not None else margin_source.get("right"),
+        "top": margin_top_mm if margin_top_mm is not None else margin_source.get("top"),
+        "bottom": margin_bottom_mm if margin_bottom_mm is not None else margin_source.get("bottom"),
+        "header": header_margin_mm if header_margin_mm is not None else margin_source.get("header"),
+        "footer": footer_margin_mm if footer_margin_mm is not None else margin_source.get("footer"),
+        "gutter": gutter_mm if gutter_mm is not None else margin_source.get("gutter"),
+    }
+    hwp_margins = {
+        name: _mm_to_hwp_units(float(value))
+        for name, value in margin_values.items()
+        if value is not None
+    }
+    for name, value in (("width", width), ("height", height), *hwp_margins.items()):
+        if value is not None:  # checked before the page or its margins change
+            _checked(name, value, 2**31 - 1, "page-size-value")
     if width is not None or height is not None or normalized_orientation is not None:
         # Call the local primitives directly rather than `doc.set_page_size`/
         # `doc.set_page_margins`/`doc.set_columns` below — all three names
@@ -649,21 +678,6 @@ def set_page_setup(
             section_index=section_index,
         )
 
-    margin_source = dict(margins_mm or {})
-    margin_values = {
-        "left": margin_left_mm if margin_left_mm is not None else margin_source.get("left"),
-        "right": margin_right_mm if margin_right_mm is not None else margin_source.get("right"),
-        "top": margin_top_mm if margin_top_mm is not None else margin_source.get("top"),
-        "bottom": margin_bottom_mm if margin_bottom_mm is not None else margin_source.get("bottom"),
-        "header": header_margin_mm if header_margin_mm is not None else margin_source.get("header"),
-        "footer": footer_margin_mm if footer_margin_mm is not None else margin_source.get("footer"),
-        "gutter": gutter_mm if gutter_mm is not None else margin_source.get("gutter"),
-    }
-    hwp_margins = {
-        name: _mm_to_hwp_units(float(value))
-        for name, value in margin_values.items()
-        if value is not None
-    }
     if hwp_margins:
         set_page_margins(
             doc,
@@ -723,15 +737,18 @@ def set_columns(
 ) -> HwpxOxmlInlineObject:
     """Set the columns of a section, or start new columns at a paragraph.
 
-    Without ``paragraph`` this rewrites the section's own column layout (the
-    ``hp:colPr`` next to ``hp:secPr``) in place, so the whole section is laid
-    out in ``col_count`` columns. With ``paragraph`` it adds a column
-    definition control there, and the text from that paragraph on uses it.
+    Without ``paragraph``, or with a section's first one, this rewrites the
+    section's own column layout (the ``hp:colPr`` next to ``hp:secPr``) in
+    place, so the whole section is laid out in ``col_count`` columns. With a
+    later ``paragraph`` it adds a column definition there, used from it on.
 
     Args:
         col_count: Number of columns (1–255).
         col_type: ``NEWSPAPER``, ``BALANCED_NEWSPAPER``, or ``PARALLEL``.
         same_gap: Gap in HWPUNIT (7200 = 1 inch).
+        column_widths: With ``same_size=False``, a ``(width, gap)`` pair per
+            column, in HWPUNIT adding up to the text width or in plain
+            proportions; Hancom keeps them as shares of 32768 of the text width.
         separator_type: Optional column separator line type (e.g. ``SOLID``).
     """
     if not 1 <= col_count <= 255:
@@ -741,6 +758,10 @@ def set_columns(
             context={"requested": col_count},
             suggestion="Use columns=1 to remove columns.",
         )
+    if same_size:
+        validate_column_gap(same_gap)  # before a paragraph is added
+    elif column_widths:
+        column_shares(column_widths)  # checked before a paragraph is added too
     if paragraph is None:
         target_section = _resolve_section(doc, section=section, section_index=section_index)
         ctrl = target_section.properties.set_columns(
