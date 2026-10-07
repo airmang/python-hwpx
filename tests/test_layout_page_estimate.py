@@ -173,6 +173,15 @@ HANCOM_PAGES = {
     "pages_columns_change_text_after_definition_break": 1,  # thirty lines with a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
+    # A table set as a character alone in its paragraph (split by cell, header row repeated) whose line ends
+    # just above the body's foot (65762) or at it: it never splits; one that does not end above the foot goes
+    # on whole to the next page's top, whatever the spacing after it:
+    "pages_char_table_at_the_page_end_room_1": 2,  # 54400 + 11361: it stays (the spacing past the foot)
+    "pages_char_table_at_the_page_end_room_0": 2,  # 11362 tall: on whole to the next page
+    "pages_char_table_past_the_page_end_page_break_table": 2,  # split by table: the same
+    "pages_char_table_fixed_spacing_room_1": 1,  # fixed spacing (the line after it over it): it stays
+    "pages_char_table_fixed_spacing_room_0": 2,  # on to the next page
+    "pages_char_table_taller_than_a_page": 3,  # 80000: at the next page's top, cut; the text after on the next
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
     # A cell 20000 wide declared 282 tall (its lines make its row) holding 30 "가" (29160) in 10 pt
