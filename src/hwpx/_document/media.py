@@ -19,6 +19,7 @@ from ..opc.relationships import (
 )
 from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
+from ..oxml.shape_position import validate_picture_align, validate_shape_size
 from ._units import _mm_to_hwp_units
 
 if TYPE_CHECKING:
@@ -114,15 +115,11 @@ def add_picture(
 ) -> HwpxOxmlInlineObject:
     """Embed image data and place a picture object in a new paragraph."""
 
-    # Call the local primitive directly rather than `doc.add_image` — that
-    # facade name moved in 6.0 (design table row 33), and going through it
-    # would fire a DeprecationWarning on every `add_picture` call even though
-    # `add_picture` itself is a kept (unmoved) root method.
-    binary_item_id_ref = str(add_image(doc, image_data, image_format))
-
+    validate_picture_align(align)  # before anything is stored: Hancom reads an unknown one as LEFT
     resolved_width = width
     if resolved_width is None:
         resolved_width = _mm_to_hwp_units(width_mm) if width_mm is not None else 14400
+    validate_shape_size(resolved_width, 0)  # validate before aspect-ratio arithmetic too
 
     resolved_height = height
     if resolved_height is None:
@@ -135,6 +132,13 @@ def add_picture(
                 resolved_height = round(resolved_width * source_height / source_width)
             else:
                 resolved_height = resolved_width
+    validate_shape_size(resolved_width, resolved_height)  # before anything is stored too
+
+    # Call the local primitive directly rather than `doc.add_image` — that
+    # facade name moved in 6.0 (design table row 33), and going through it
+    # would fire a DeprecationWarning on every `add_picture` call even though
+    # `add_picture` itself is a kept (unmoved) root method.
+    binary_item_id_ref = str(add_image(doc, image_data, image_format))
 
     paragraph = doc.add_paragraph(
         "",

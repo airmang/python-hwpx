@@ -44,6 +44,9 @@ POS_HORZ_REL_TO = ("PAPER", "PAGE", "COLUMN", "PARA")
 POS_VERT_ALIGN = ("TOP", "CENTER", "BOTTOM", "INSIDE", "OUTSIDE")
 POS_HORZ_ALIGN = ("LEFT", "CENTER", "RIGHT", "INSIDE", "OUTSIDE")
 SUBLIST_VERT_ALIGN = ("TOP", "CENTER", "BOTTOM")
+#: ``hp:caption/@side`` 어휘(스키마 기본값은 LEFT). 실코퍼스 15건 전수는
+#: TOP 14 · BOTTOM 1 — LEFT/RIGHT 관측 0(테두리 옆 캡션은 실무에서 안 쓴다).
+CAPTION_SIDES = frozenset({"LEFT", "RIGHT", "TOP", "BOTTOM"})
 
 
 def _require_member(
@@ -61,6 +64,16 @@ def _require_member(
     )
 
 
+def validate_picture_align(align: object) -> str | None:
+    """A new picture's *align* as its ``hp:pos@horzAlign``, any case (``"left"`` is ``LEFT``); ``None`` when it is
+    not given. Hancom reads a value outside :data:`POS_HORZ_ALIGN` as ``LEFT``, so one is refused."""
+
+    if align is None or align == "":
+        return None
+    return _require_member(align.upper() if isinstance(align, str) else align, POS_HORZ_ALIGN, argument="align",
+                           code="shape-position-frame")
+
+
 def validate_draw_text_vert_align(vert_align: str | None) -> str | None:
     """Check ``set_draw_text``'s *vert_align* (``hp:subList/@vertAlign``)."""
 
@@ -69,6 +82,34 @@ def validate_draw_text_vert_align(vert_align: str | None) -> str | None:
     return _require_member(
         vert_align, SUBLIST_VERT_ALIGN, argument="vert_align", code="shape-draw-text-vert-align"
     )
+
+
+def validate_caption_side(side: str) -> str:
+    """A caption's *side* as ``hp:caption/@side``: any case, surrounding spaces dropped."""
+
+    normalized_side = side.strip().upper()
+    if normalized_side not in CAPTION_SIDES:
+        raise HwpxValueError(
+            f"unsupported caption side {side!r}",
+            code="shape-caption-side-invalid",
+            context={"requested": side, "available": sorted(CAPTION_SIDES)},
+            suggestion=f"side 는 {sorted(CAPTION_SIDES)} 중 하나여야 합니다.",
+        )
+    return normalized_side
+
+
+def validate_caption_gap(gap: object) -> int:
+    """A caption's *gap* from its object (HWPUNIT), checked to be an int in ``-32768 <= gap <= 32767``: Hancom
+    keeps it as a signed 16-bit number, reading 32768 as -32768 and 65536 as 0."""
+
+    if isinstance(gap, bool) or not isinstance(gap, int) or not -(2**15) <= gap < 2**15:
+        raise HwpxValueError(
+            f"gap must be an int in -32768 <= gap <= 32767 (HWPUNIT); got {gap!r}",
+            code="shape-caption-gap-value",
+            context={"value": repr(gap)},
+            suggestion="Pass the caption's distance from its object in HWP units, e.g. 850 (3 mm).",
+        )
+    return gap
 
 
 def _shape_set_position(
@@ -129,8 +170,8 @@ def _shape_set_position(
         )
     for attribute, frame in frames.items():
         position.set(attribute, frame)
-    position.set("horzOffset", str(horizontal_offset))
-    position.set("vertOffset", str(vertical_offset))
+    position.set("horzOffset", str(horizontal_offset & 0xFFFFFFFF))  # a negative one as Hancom writes it:
+    position.set("vertOffset", str(vertical_offset & 0xFFFFFFFF))  # its unsigned 32-bit form
     self.paragraph.section.mark_dirty()
 
 
@@ -139,6 +180,48 @@ def _matrix_number(value: float) -> str:
 
     text = f"{value:.6f}".rstrip("0").rstrip(".")
     return "0" if text in ("-0", "") else text
+
+
+def validate_shape_size(width: object, height: object) -> tuple[int, int]:
+    """*width* and *height* of a shape, picture or equation, checked to be ints in ``0 <= value < 2**31``
+    (HWPUNIT): Hancom reads a negative size as 0, and the original size and rotation centre written from it."""
+
+    for argument, value in (("width", width), ("height", height)):
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**31:
+            raise HwpxValueError(
+                f"{argument} must be an int in 0 <= {argument} < 2**31 (HWPUNIT); got {value!r}",
+                code="shape-size-value",
+                context={"argument": argument, "value": repr(value)},
+                suggestion="Pass a size from 0 to 2**31 - 1 HWP units (an equation's is measured at its base_unit).",
+            )
+    return width, height  # type: ignore[return-value]
+
+
+def validate_rect_ratio(ratio: object) -> int:
+    """A rectangle's corner *ratio* (per cent), checked to be an int in ``0 <= ratio < 2**31``: Hancom reads a
+    negative one as 0."""
+
+    if isinstance(ratio, bool) or not isinstance(ratio, int) or not 0 <= ratio < 2**31:
+        raise HwpxValueError(
+            f"ratio must be an int in 0 <= ratio < 2**31 (per cent); got {ratio!r}",
+            code="shape-rect-ratio-value",
+            context={"value": repr(ratio)},
+            suggestion="Pass the corner roundness in per cent: 0 sharp, 50 a semicircle.",
+        )
+    return ratio
+
+
+def validate_equation_base_unit(base_unit: object) -> int:
+    """An equation's *base_unit* (1/100 pt), checked to be an int in ``1 <= base_unit < 2**31``."""
+
+    if isinstance(base_unit, bool) or not isinstance(base_unit, int) or not 0 < base_unit < 2**31:
+        raise HwpxValueError(
+            f"base_unit must be positive: an int in 1 <= base_unit < 2**31 (1/100 pt); got {base_unit!r}",
+            code="shape-equation-base-unit-value",
+            context={"value": repr(base_unit)},
+            suggestion="Pass the equation's base font size in 1/100 pt, e.g. 1000 for 10 pt.",
+        )
+    return base_unit
 
 
 def validate_original_size(original_size: object) -> tuple[int, int] | None:
@@ -181,6 +264,7 @@ def build_at_original_size(
     """
 
     checked = validate_original_size(original_size)
+    validate_shape_size(width, height)
     if checked is None:
         return factory(width, height, **options)
     org_width, org_height = checked
@@ -270,6 +354,7 @@ def _set_scale(matrix: "ET.Element", factors: tuple[float, float], offset: tuple
 
 
 __all__ = [
+    "CAPTION_SIDES",
     "POS_HORZ_ALIGN",
     "POS_HORZ_REL_TO",
     "POS_VERT_ALIGN",
@@ -277,6 +362,11 @@ __all__ = [
     "SUBLIST_VERT_ALIGN",
     "build_at_original_size",
     "resize_group",
+    "validate_caption_gap",
+    "validate_caption_side",
     "validate_draw_text_vert_align",
+    "validate_equation_base_unit",
     "validate_original_size",
+    "validate_rect_ratio",
+    "validate_shape_size",
 ]

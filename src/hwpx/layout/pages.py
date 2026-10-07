@@ -28,10 +28,17 @@
   other, and take no room). Page and
   column breaks, page break before, keep lines
   together, keep with next and widow/orphan control; columns of equal width, and columns of
-  unequal width (each its share of the text width with the gaps, rounded) holding objects only as
+  unequal width (each its share of 32768 of the text width, ``hp:colSz``, rounded) holding objects only as
   characters: a paragraph without a valid layout cache breaks the lines a column holds at that
   column's width, and going on into a column of another width breaks its rest there again, from
   the first character that column holds.
+* Column areas: a paragraph holding a column definition after the section's first starts a new area
+  of columns (column settings in a cell or a text box are that list's own), on the page where the
+  one before ends, 1134 (4 mm) below its lowest line whatever the spacing (on the next page's top
+  when there is no room), its lines counted from the area's top on that page; an area followed by
+  another has the columns of its last page balanced, as short as they can be with every line still
+  on that page, and a column break in balanced columns (``BALANCED_NEWSPAPER``) starts such an area
+  too. A definition behind its paragraph's text starts the area but not its columns.
 * Objects: an object in front of or behind the text takes no room: the lines go where they would
   without it, wherever it stands; one placed top and bottom from the top or the bottom of the paper
   or of the page (its body) keeps every line of its page out of its band (a line reaching it, in any
@@ -56,7 +63,9 @@
   that far down), and for an object with only spaces beside it from the largest size of any run of
   its paragraph. A top-and-bottom object anchored to an empty paragraph pushes the
   next line below
-  it; anchored in a paragraph of text or of objects set as characters (from the paragraph's top),
+  it (offset down from a paragraph holding nothing else, the empty line stays where it is and the first
+  line reaching it after comes below it); anchored in a paragraph of text or of objects set as characters
+  (from the paragraph's top),
   it stands at the top of the line
   its place in the text falls on, and that line and the rest of the paragraph come below it --
   offset down, it stands that much lower, and the first line reaching it (in that paragraph or the
@@ -144,8 +153,8 @@ of its rows what they lack.
 
 Anything else makes the estimate unsupported: endnotes, an object not set as a character in columns
 of unequal width, and there a paragraph without such a cache holding objects, composed characters,
-ruby text or footnotes, a column change inside a section (column
-settings in a cell or a text box are that list's own), section settings after a section's first
+ruby text or footnotes, footnotes or objects placed on the page or the paper in a section whose
+columns change, section settings after a section's first
 paragraph (Hancom starts a new section there), a line or character grid, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, several so in an empty paragraph
@@ -181,7 +190,7 @@ from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
 from ..oxml.section import _remove_short_paragraph_layout_cache
 from ..oxml.header_part import HwpxOxmlHeader
-from ..oxml.section_format import _drawn_page_size
+from ..oxml.section_format import COLUMN_SHARES, _drawn_page_size
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 
 if TYPE_CHECKING:
@@ -1239,6 +1248,9 @@ class _Para:
     moved: _Wrap | None = None
     #: holding no text: its line goes beside such a band as it is
     blank: bool = False
+    #: holding nothing but a top-and-bottom object offset down from it (see :func:`_pushing_object`): its empty
+    #: line stays where it is beside the object's band, which only the lines after reaching it go below
+    bare: bool = False
     #: a top-and-bottom object offset from this paragraph (not a flowing table) pushes its lines below it:
     #: when its band would pass the body's foot, Hancom moves it to the next page's top instead
     wrap_push: bool = False
@@ -1378,24 +1390,33 @@ def _page(section: Any) -> _Page:
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
-    """(count, width, widths, gap): the section's columns, their width (the narrowest when they differ),
-    when they differ each one's, and when they do not the gap between them."""
+    """(count, width, widths, gap): the section's columns (its first ones when they change inside it, see
+    :func:`_column_areas`), their width (the narrowest when they differ), when they differ each one's, and when
+    they do not the gap between them."""
 
+    return _column_layout(_first_columns(section), text_width)
+
+
+def _first_columns(section: Any) -> Any:
     # Column settings in a cell or a text box (an hp:subList) belong to that list, not the section.
-    settings = [cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)]
-    if len(settings) > 1:
-        raise _Unsupported("the columns change inside the section")
-    count = int(settings[0].get("colCount", "1")) if settings else 1
+    return next((cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)), None)
+
+
+def _column_layout(settings: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
+    """:func:`_columns` of the column settings *settings* (``hp:colPr``; ``None``: one column)."""
+
+    count = int(settings.get("colCount", "1")) if settings is not None else 1
     if count <= 1:
         return 1, text_width, (), 0
-    if settings[0].get("sameSz") != "1":  # each column takes its share of the width with the gaps (hp:colSz),
-        sizes = settings[0].findall(f"{HP}colSz")  # rounded
+    if settings.get("sameSz") != "1":  # each column takes its share of 32768 of the text width (hp:colSz),
+        sizes = settings.findall(f"{HP}colSz")  # rounded, whatever the shares add up to
         total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)
         if len(sizes) != count or total <= 0:
             raise _Unsupported("columns of unequal width")
-        widths = tuple((2 * int(size.get("width", 0)) * text_width + total) // (2 * total) for size in sizes)
+        widths = tuple((2 * int(size.get("width", 0)) * text_width + COLUMN_SHARES) // (2 * COLUMN_SHARES)
+                       for size in sizes)
         return count, min(widths), widths, 0
-    gap = int(settings[0].get("sameGap", 0))
+    gap = int(settings.get("sameGap", 0))
     return count, (text_width - (count - 1) * gap) // count // 4 * 4, (), gap
 
 
@@ -1844,25 +1865,46 @@ def _drawn_height(obj: Any, measure: _Measure) -> int:
     return max(height, grown, top + content + bottom)
 
 
+#: How far each parallel shadow moves from its object before its own offset: Hancom draws a bottom shadow
+#: ``offsetY + 600`` down and a top one ``offsetY - 600`` (down positive), whatever the object's size or line.
+_SHADOW_DISTANCE = 600
+
+
+def _shadow_drop(obj: Any) -> int:
+    """How far the parallel shadow of *obj* (``hp:shadow``) is moved up or down from it: an object set as a
+    character is that much taller (drawn lower when the shadow goes up). 0 without one; other shadows are not
+    followed."""
+
+    shadow = obj.find(f"{HP}shadow")
+    kind = "" if shadow is None else shadow.get("type", "NONE")
+    if not kind.startswith(("PARELLEL_", "PARALLEL_")):
+        return 0
+    offset = int(shadow.get("offsetY", 0))  # written as signed text, as Hancom reads it
+    if not -(1 << 31) <= offset < 1 << 31:
+        raise _Unsupported("a shadow offset past 32 bits")
+    return abs(offset + _SHADOW_DISTANCE if kind.endswith("BOTTOM") else offset - _SHADOW_DISTANCE)
+
+
 def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     """(width, height) an object set as a character takes, its outer margins included; a table as tall
-    as its rows."""
+    as its rows, a drawing with its shadow's move (see :func:`_shadow_drop`)."""
 
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
     extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
     height = _inline_table_height(measure, obj) + sum(_caption(measure, obj)) if _local(obj) == "tbl" \
-        else _drawn_height(obj, measure)
+        else _drawn_height(obj, measure) + (_shadow_drop(obj) if obj.find(f"{HP}pos").get("treatAsChar") == "1" else 0)
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
-def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None) -> tuple[
+def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None,
+                    placed: tuple[Any, ...] = ()) -> tuple[
         str, list[int], list[Any], dict[int, tuple[int, int]], dict[int, int]]:
     """The paragraph's text with each object set as a character, composed character and ruby text in its
     place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
     object's place -> its width and height, and each composed character's or ruby text's place -> its
-    width. Objects placed otherwise, and line spacing between lines or at least with an object among
-    text, are not followed."""
+    width. Objects placed otherwise (but *anchored* and *placed*, laid out apart), and line spacing between
+    lines or at least with an object among text, are not followed."""
 
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     text: list[str] = []
@@ -1875,7 +1917,8 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
         height, look = measure.char_height(ref), measure.style(paragraph.get("paraPrIDRef"), [ref])
         for child in run:
             name = _local(child)
-            if name in _OBJECTS and (_floating(child) or _on_paper(child) or child is anchored):
+            if name in _OBJECTS and (_floating(child) or _on_paper(child) or child is anchored
+                                     or any(child is obj for obj in placed)):
                 continue
             if name in _OBJECTS:
                 if child.find(f"{HP}pos").get("treatAsChar") != "1" or shape.kind not in ("PERCENT", "FIXED"):
@@ -1912,7 +1955,9 @@ def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = 
     pos = obj.find(f"{HP}pos")
     if not _wraps_top_and_bottom(obj, column):
         return None
-    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" or int(pos.get("vertOffset", 0)):
+    offset = int(pos.get("vertOffset", 0))
+    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" \
+            or (_down(pos) if _local(obj) == "tbl" else offset):  # a table placed up stands at the top
         return None
     return obj
 
@@ -1967,6 +2012,8 @@ def _object_line(
     if pos.get("treatAsChar") == "1":  # as tall as it, or as the paragraph's characters when they are taller
         if name == "tbl":
             tall = _inline_table_height(measure, obj) + top + bottom + sum(_caption(measure, obj))
+        else:
+            tall += _shadow_drop(obj)
         tall = max(tall, size)
         return 1, tall, _object_pitch(shape, obj, tall, size), None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
@@ -2053,7 +2100,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         spread = measure.spread_lines(paragraph, runs, page.column_width, end, head, caches=True)
         alone, cached = (False, spread) if spread else (alone, cached)
     if among or beside:
-        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored)
+        apart = (*stacked, *(() if square is None or square.get("textWrap") != "TOP_AND_BOTTOM" else (square,)))
+        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored,
+                                                                                  apart)
         if wrap is not None:
             if beside or wrap.split or marked:
                 raise _Unsupported("objects set as characters among text beside a square-wrapped object")
@@ -2288,7 +2337,11 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         return replace(para, stack=_stack(measure, stacked, page.column_width, shape)), None
     square = _square_object(objects, runs, page.column_width,
                             lambda obj: _on_first_line(measure, page, paragraph, runs, obj))
-    pusher = _pushing_object(objects, _run_text(runs), page.column_width)
+    bare = len(objects) == 1 and not _run_text(runs) and not _marks(runs) and not _note_anchors(runs) \
+        and not measure.headed(paragraph)
+    pusher = _pushing_object(objects, _run_text(runs), page.column_width, bare)
+    if bare and pusher is not None and not _clear_of_its_band(measure, page, paragraph, pusher):
+        pusher = None  # the next line reaches the object's band anyway: laid out as the object alone
     if moved:  # the object went on to the next page's top: the paragraph's lines as if it were not there
         # the object: wrapped square, pushing the lines below it, or alone below the empty line (a table that
         # may split goes on over the page end instead; of tables, only one wrapped square set not to split is
@@ -2321,13 +2374,15 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
                                  or paragraph.get("pageBreak") == "1" or paragraph.get("columnBreak") == "1"):
             raise _Unsupported("a page break or another object beside a square-wrapped object")
     if pusher is not None:
-        para = _paragraph(measure, page, paragraph, None, pusher)
+        para = replace(_paragraph(measure, page, paragraph, None, pusher), bare=bare)
         offset = int(pusher.find(f"{HP}pos").get("vertOffset", 0))
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
             ends = _table_ends(pusher)
             table = _FlowTable(rows, _page_break(pusher), pusher.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
+            if bare:  # from the paragraph's top, above its spacing, as a table alone (see _Paginator._flow)
+                offset -= para.prev
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height", measure)
@@ -2376,14 +2431,26 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     return para, wrap.lower(lead + para.span(0, para.lines) + para.next)
 
 
-def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object of a paragraph of text placed top and bottom below the line it stands on (an
-    offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects set
-    as characters are that line."""
+def _clear_of_its_band(measure: _Measure, page: _Page, paragraph: Any, obj: Any) -> bool:
+    """Whether the object of an empty paragraph holding nothing else starts its band below the paragraph's line
+    (a table from the paragraph's top above its spacing, as a table alone, anything else from the line's top):
+    only then can the next line stand above it, and does Hancom's rule of an empty line staying where it is
+    differ from the paragraph laid out as the object alone."""
+
+    para = _paragraph(measure, page, paragraph, None, obj)
+    offset = int(obj.find(f"{HP}pos").get("vertOffset", 0)) - (para.prev if _local(obj) == "tbl" else 0)
+    return offset >= para.advance(0)
+
+
+def _pushing_object(objects: list[Any], text: str, column: int, bare: bool = False) -> Any:
+    """The one object of a paragraph of text (spaces are text) placed top and bottom below the line it stands
+    on (an offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects
+    set as characters are that line; in one of text, they are among it; *bare*, the paragraph holds the object
+    and nothing else, and its empty line stays where it is."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     lined = not text.strip() and len(objects) > len(placed)  # no text: the objects set as characters its line
-    if len(placed) != 1 or not (lined or (len(objects) == 1 and text.strip())):
+    if len(placed) != 1 or not (lined or text or bare):
         return None
     obj = placed[0]
     pos = obj.find(f"{HP}pos")
@@ -2391,26 +2458,27 @@ def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
             or pos.get("vertAlign", "TOP") != "TOP":
         return None
     offset = int(pos.get("vertOffset", 0))
-    if offset <= 0 or lined and offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up
+    if offset <= 0 or offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up (unsigned)
         return None
     return obj
 
 
 def _stacked_objects(objects: list[Any], runs: list[Any], column: int) -> list[Any]:
-    """The objects of a paragraph holding nothing else when there are several and each is placed top and
-    bottom from the paragraph's top (none up from it), from the column's or the paragraph's left or right;
-    none otherwise."""
+    """The objects of a paragraph holding no text when there are several and each is placed top and bottom
+    from the paragraph's top (none up from it), from the column's or the paragraph's left or right; none
+    otherwise. Objects set as characters there are the paragraph's line, which goes below them."""
 
-    if len(objects) < 2 or _run_text(runs).strip() or _marks(runs) or _note_anchors(runs):
+    placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
+    if len(placed) < 2 or _run_text(runs).strip() or _marks(runs) or _note_anchors(runs):
         return []
-    for obj in objects:
+    for obj in placed:
         pos = obj.find(f"{HP}pos")
-        if pos.get("treatAsChar") == "1" or not _wraps_top_and_bottom(obj, column) \
+        if not _wraps_top_and_bottom(obj, column) \
                 or (pos.get("vertRelTo"), pos.get("vertAlign", "TOP")) != ("PARA", "TOP") \
                 or int(pos.get("vertOffset", 0)) >= 1 << 31 or pos.get("horzRelTo") not in ("COLUMN", "PARA") \
                 or pos.get("horzAlign", "LEFT") not in ("LEFT", "RIGHT"):
             return []
-    return objects
+    return placed
 
 
 def _stack(measure: _Measure, objects: list[Any], column: int, shape: _Shape) -> tuple[_Stacked, ...]:
@@ -2451,19 +2519,19 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
         raise _Unsupported("an object beside a top-and-bottom object's band")
     metrics = list(para.cached) or [(para.size, para.pitch)] * para.lines
     top, rest, shifted = 0, None, 0
+    beside = sum(1 for line in range(para.lines) if para.span(0, line) < band.bottom)
     for index, (height, advance) in enumerate(metrics):
-        if top < band.bottom and top + height > band.top:
+        if top < band.bottom and top + height > band.top and not (index == 0 and para.bare):
             shift = band.bottom - top
             if index == 0:
                 pushed, shifted = replace(para, prev=para.prev + shift), shift
-            else:
+            else:  # the lines from it on go below the object, on a later page too
                 metrics[index - 1] = (metrics[index - 1][0], metrics[index - 1][1] + shift)
-                pushed = replace(para, cached=tuple(metrics))
+                pushed, beside = replace(para, cached=tuple(metrics)), index
             break
         top += advance
     else:
         pushed, rest = para, band.lower(top + para.next)
-    beside = sum(1 for line in range(para.lines) if para.span(0, line) < band.bottom)
     return replace(pushed, wrap_lines=beside, wrap_bottom=band.bottom if starts else 0, wrap_push=starts,
                    wrap_shift=shifted if starts else 0), rest
 
@@ -3108,10 +3176,20 @@ class _Paginator:
 
         if para.notes or para.anchor is not None or para.wrap_bottom \
                 or (para.table is not None and (self.band is None or para.band is not None)) \
-                or (self.band is not None and (para.band is not None or para.page_break or para.break_before
-                                               or para.column_break)):
+                or (self.band is not None and (para.page_break or para.break_before or para.column_break)):
             raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
         start, broke = self._breaks(para, start)
+        if self.band is not None and para.band is not None:  # its own table's band after another's
+            frame, top, bottom, end_frame, end = self.band
+            if self.frame != frame or start + para.height(0) <= top:
+                raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
+            self.band = None
+            if bottom is None or start < bottom:  # its first line reaches the other table: the paragraph goes
+                if end_frame != self.frame:  # below that table's end, its own table placed from there
+                    self.frame, self.page_notes = end_frame, [0, 0]
+                start = end + para.prev
+            self._banded(index, paras, para, start)
+            return
         if para.table is not None:  # a flowing table alone in its paragraph: its line goes below the band
             frame, top, bottom, end_frame, end = self.band
             if self.frame != frame or start + para.height(0) <= top or (bottom is not None and start >= bottom):
@@ -3144,7 +3222,8 @@ class _Paginator:
             raise _Unsupported("a page break beside a top-and-bottom table's band")
         reaching = [line for line in range(para.lines)
                     if start + para.span(0, line) + para.height(line) > top
-                    and (bottom is None or start + para.span(0, line) < bottom)]
+                    and (bottom is None or start + para.span(0, line) < bottom)
+                    and not (line == 0 and para.bare and para.band is not None)]  # its own empty line stays
         if not reaching:  # every line above the band, or past it
             if self._lay(index, paras, para, start, broke):
                 self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], para.advance(para.lines - 1), \
@@ -3453,12 +3532,23 @@ class _SectionLayout:
     frames: int
     lines: list[tuple[int, int]]   # (frame, vertpos) of every line, in paragraph order
     counts: list[int]              # lines per paragraph
+    #: in a section whose columns change (see :func:`_lay_areas`), the page and the column of every line instead
+    #: of its frame, and the section's pages
+    places: list[tuple[int, int]] | None = None
+    pages: int = 0
 
 
 def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
     page = _page(section)
     notes = _note_shape(section)
     _check_section(section)
+    areas = _column_areas(section)
+    if areas:
+        try:
+            return _lay_areas(measure, section, page, notes, areas)
+        except _BandMoves:
+            raise _Unsupported("a square-wrapped object past the page foot in a section whose columns change") \
+                from None
     moved: set[int] = set()  # the paragraphs whose square-wrapped object went on to the next page's top
     while True:
         try:
@@ -3508,16 +3598,125 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
     return _SectionLayout(page.columns, frames, paginator.out, paginator.counts)
 
 
+#: A column area starts this far below the lowest line of the one before it on its page (4 mm), whatever the
+#: spacing after that line or before its own first line (which goes inside the area).
+_COLUMN_AREA_GAP = 1134
+
+
+def _column_areas(section: Any) -> list[tuple[int, Any]]:
+    """Where the section's columns change: (the top-level paragraph, the ``hp:colPr`` of its columns) for each
+    paragraph holding a column definition but the section's own, and for each one breaking the column in balanced
+    columns (``BALANCED_NEWSPAPER``: it starts a new balanced block). Hancom starts a new area of columns there;
+    a definition behind the paragraph's text starts the area but not its columns (``None``: those before go
+    on)."""
+
+    areas: list[tuple[int, Any]] = []
+    current = _first_columns(section)
+    for index, paragraph in enumerate(section.findall(f"{HP}p")):
+        text = defined = False
+        for child in (child for run in paragraph.findall(f"{HP}run") if run.find(f"{HP}secPr") is None
+                      for child in run):
+            if _local(child) == "t" and "".join(child.itertext()):
+                text = True
+            elif not defined and _local(child) == "ctrl" and child.find(f"{HP}colPr") is not None:
+                defined = True  # the paragraph's first definition starts its area
+                found = None if text else child.find(f"{HP}colPr")
+                areas.append((index, found))
+                current = found if found is not None else current
+        if not defined and paragraph.get("columnBreak") == "1" and current is not None \
+                and current.get("type") == "BALANCED_NEWSPAPER" and int(current.get("colCount", "1")) > 1:
+            areas.append((index, current))
+    return areas
+
+
+def _lay_areas(measure: _Measure, section: Any, page: _Page, notes: _NoteShape,
+               areas: list[tuple[int, Any]]) -> _SectionLayout:
+    """Lay a section whose columns change out area by area (see :func:`_column_areas`). Each starts on the page
+    where the one before ends, :data:`_COLUMN_AREA_GAP` below its lowest line, or at the next page's top when
+    that leaves no room or its first paragraph starts a page; its lines are counted from its top there, as
+    Hancom caches them. An area followed by another has the columns of its last page balanced."""
+
+    paragraphs = section.findall(f"{HP}p")
+    bounds: list[tuple[int, Any]] = [(0, _first_columns(section)), *areas]
+    settings = None
+    lines: list[tuple[int, int]] = []
+    places: list[tuple[int, int]] = []
+    counts: list[int] = []
+    page_index, top = 0, 0
+    for number, (start, found) in enumerate(bounds):
+        end = bounds[number + 1][0] if number + 1 < len(bounds) else len(paragraphs)
+        settings = found if found is not None else settings
+        if start == end:
+            continue
+        count, width, widths, gap = _column_layout(settings, page.text_width)
+        area = replace(page, columns=count, column_width=width, unequal=bool(widths), widths=widths, gap=gap)
+        paras = _area_paragraphs(measure, area, paragraphs[start:end])
+        if top and paras[0].page_break:
+            page_index, top = page_index + 1, 0
+        out, placed = _lay_area(area, notes, paras, top, balance=number + 1 < len(bounds))
+        heights = [para.height(line) for para, many in zip(paras, placed) for line in range(many)]
+        last = out[-1][0] // count
+        bottom = max(vertpos + height for (frame, vertpos), height in zip(out, heights) if frame // count == last)
+        lines.extend(out)
+        places.extend((page_index + frame // count, frame % count) for frame, _ in out)
+        counts.extend(placed)
+        page_index += last
+        top = (top if last == 0 else 0) + bottom + _COLUMN_AREA_GAP
+        if top >= page.body:
+            page_index, top = page_index + 1, 0
+    return _SectionLayout(1, 0, lines, counts, places, max(page for page, _ in places) + 1)
+
+
+def _area_paragraphs(measure: _Measure, area: _Page, paragraphs: list[Any]) -> list[_Para]:
+    """The paragraphs of one column area, laid out in its columns: the first starts the area (it breaks no
+    column)."""
+
+    paras: list[_Para] = []
+    wrap: _Wrap | None = None
+    for paragraph in paragraphs:
+        para, wrap = _wrapped_paragraph(measure, area, paragraph, wrap)
+        if para.notes or _paper_band(measure, area, paragraph) is not None:
+            raise _Unsupported("footnotes or an object placed on the page or the paper in a section whose "
+                               "columns change")
+        paras.append(replace(para, kept=bool(_cached_metrics(paragraph))))
+    paras[0] = replace(paras[0], column_break=False)
+    return paras
+
+
+def _lay_area(area: _Page, notes: _NoteShape, paras: list[_Para], top: int,
+              balance: bool) -> tuple[list[tuple[int, int]], list[int]]:
+    """The (frame, vertpos) of every line of one column area starting *top* down its first page (its lines
+    counted from there: its first page is that much shorter), and its lines per paragraph. With *balance*, the
+    columns of its last page are as short as they can be with every line still on that page."""
+
+    columns = area.columns
+    first = {frame: [(area.body - top, area.body)] for frame in range(columns)} if top else {}
+    paginator = _Paginator(area.body, columns, notes, first, area.widths, {})
+    last = (paginator.run(paras) - 1) // columns
+    if balance and columns > 1:
+        low, high = 0, area.body - (top if last == 0 else 0)
+        while low < high:
+            middle = (low + high) // 2
+            ends = {frame: [(middle, area.body)] for frame in range(last * columns, (last + 1) * columns)}
+            trial = _Paginator(area.body, columns, notes, {**first, **ends}, area.widths, {})
+            if (trial.run(paras) - 1) // columns == last:
+                paginator, high = trial, middle
+            else:
+                low = middle + 1
+    return paginator.out, paginator.counts
+
+
 def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:
     pages = 0
     lines: list[tuple[EstimatedLine, ...]] = []
     for layout in layouts:
         start = 0
+        places = layout.places or [(frame // layout.columns, frame % layout.columns) for frame, _ in layout.lines]
         for count in layout.counts:
             lines.append(tuple(
-                EstimatedLine(pages + frame // layout.columns, frame % layout.columns, vertpos)
-                for frame, vertpos in layout.lines[start:start + count]
+                EstimatedLine(pages + page, column, vertpos)
+                for (page, column), (_, vertpos) in zip(places[start:start + count], layout.lines[start:start + count])
             ))
             start += count
-        pages += (layout.frames - 1) // layout.columns + 1
+        pages += layout.pages if layout.places is not None else (layout.frames - 1) // layout.columns + 1
     return PageEstimate(pages, tuple(lines), ())

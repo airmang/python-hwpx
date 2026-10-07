@@ -82,6 +82,16 @@ HANCOM_PAGES = {
                                                           # past the foot, the empty line there, the next
                                                           # paragraph at the next page's top
     "pages_picture_at_the_paragraph_top_fitting": 2,  # one that fits: the next paragraph at its foot
+    # A rectangle 30000 x 5000 set as a character alone in its paragraph (10 pt lines spaced 160% around it):
+    # its line is as tall as it and its parallel shadow's move up or down, offsetY + 600 for a shadow at the
+    # bottom and offsetY - 600 at the top (the line's width adds nothing):
+    "pages_char_shape_no_shadow": 1,
+    "pages_char_shape_shadow_right_bottom_283": 1,  # 883 down
+    "pages_char_shape_shadow_right_bottom_minus_283": 1,  # 317 down (written "-283")
+    "pages_char_shape_shadow_left_bottom_283": 1,  # 883 down
+    "pages_char_shape_shadow_left_top_283": 1,  # 317 up: the rectangle drawn that much lower
+    "pages_char_shape_shadow_left_top_1000": 1,  # 400 down
+    "pages_char_shape_shadow_thick_line": 1,  # a 283 line and a shadow 883 down
     # Such a picture gone on to the next page's top, then a table placed top and bottom (cells split):
     "pages_picture_moved_then_a_table_moved_whole": 2,  # no room for its first row: it starts below the
                                                          # picture, its paragraph's line staying behind
@@ -148,8 +158,30 @@ HANCOM_PAGES = {
     "pages_line_ends_100_above_page_foot": 2,  # and 100 above it: no room is kept below lines
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
+    # Columns changing inside the section (10 pt lines spaced 160%): three lines in one column, a paragraph
+    # starting two columns (gap 1200) and the lines after it, then one starting one column and three lines.
+    # Hancom starts each area of columns 1134 below the lowest line of the one before, counts its lines from
+    # its top, and balances an area followed by another on its last page, by height:
+    "pages_columns_change_newspaper_short": 1,  # six lines: four and three (the empty starting line counts)
+    "pages_columns_change_newspaper_long": 1,  # thirty: sixteen and fifteen
+    "pages_columns_change_newspaper_over_a_page": 2,  # ninety: full columns, then the rest balanced
+    "pages_columns_change_newspaper_break_over_a_page": 2,  # a column break among them
+    "pages_columns_change_balanced_break": 1,  # balanced columns: a column break starts a balanced block
+    "pages_columns_change_tall_empty_line": 1,  # the starting line 20 pt: three lines and four
+    "pages_columns_change_after_text": 1,  # the definitions behind their paragraphs' text: areas, no columns
+    "pages_columns_change_text_after_definition": 1,  # ahead of it
+    "pages_columns_change_text_after_definition_break": 1,  # thirty lines with a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
+    # A table set as a character alone in its paragraph (split by cell, header row repeated) whose line ends
+    # just above the body's foot (65762) or at it: it never splits; one that does not end above the foot goes
+    # on whole to the next page's top, whatever the spacing after it:
+    "pages_char_table_at_the_page_end_room_1": 2,  # 54400 + 11361: it stays (the spacing past the foot)
+    "pages_char_table_at_the_page_end_room_0": 2,  # 11362 tall: on whole to the next page
+    "pages_char_table_past_the_page_end_page_break_table": 2,  # split by table: the same
+    "pages_char_table_fixed_spacing_room_1": 1,  # fixed spacing (the line after it over it): it stays
+    "pages_char_table_fixed_spacing_room_0": 2,  # on to the next page
+    "pages_char_table_taller_than_a_page": 3,  # 80000: at the next page's top, cut; the text after on the next
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
     "pages_table_flow_multiline_cells": 4,  # a flowing table split between cell lines
     # A cell 20000 wide declared 282 tall (its lines make its row) holding 30 "가" (29160) in 10 pt
@@ -393,6 +425,30 @@ HANCOM_PAGES = {
                                                    # the next paragraph (10 pt apart too) under the table
     "pages_table_alone_spacing_before_20pt": 1,  # 20 pt apart, 500 down: the next paragraph 20 pt under the
                                                    # anchor line, lower than the table's end
+    # An empty paragraph (the fourth line, 10 pt spaced 160%) holding only a table or a picture 6000 tall placed
+    # top and bottom d down from it, thirty lines after it: the empty line stays where it is (an empty piece
+    # where the band starts above its foot), and the lines after go below the band only from the first one
+    # reaching it (its spacing not counted):
+    "pages_empty_paragraph_table_down_0": 1,
+    "pages_empty_paragraph_table_down_500": 1,
+    "pages_empty_paragraph_table_down_1000": 1,  # the band starts at the empty line's foot
+    "pages_empty_paragraph_table_down_1600": 1,
+    "pages_empty_paragraph_table_down_3000": 1,  # the next line above the band, the second below it
+    "pages_empty_paragraph_table_down_10000": 1,  # five lines above it
+    "pages_empty_paragraph_table_down_18196": 1,  # ten
+    "pages_empty_paragraph_table_down_18196_long": 2,  # sixty lines: on over the page end
+    "pages_empty_paragraph_picture_down_0": 1,
+    "pages_empty_paragraph_picture_down_500": 1,
+    "pages_empty_paragraph_picture_down_1000": 1,
+    "pages_empty_paragraph_picture_down_1600": 1,
+    "pages_empty_paragraph_picture_down_3000": 1,
+    "pages_empty_paragraph_picture_down_10000": 1,
+    "pages_empty_paragraph_picture_down_18196": 1,
+    # ... a paragraph of one space instead is text: its own line goes below the band when it reaches it
+    "pages_space_paragraph_table_down_0": 1,
+    "pages_space_paragraph_table_down_500": 1,
+    "pages_space_paragraph_table_down_3000": 1,
+    "pages_space_paragraph_picture_down_3000": 1,
     "pages_table_alone_offset_2000_over_pages": 2,  # 2000 down, over the page end
     "pages_table_alone_after_offset_table": 2,  # after a table flowing 2300 down: its line goes below that
     "pages_table_alone_offset_500_after_offset_table": 2,  # and the table flows 500 below the line
@@ -572,11 +628,51 @@ HANCOM_PAGES = {
     "pages_table_anchored_offset_after_text": 1,   # 3000 down from the last line: the next paragraph's second
     "pages_picture_anchored_offset_next_paragraph": 1,  # 1600 down: the next paragraph's first line
     "pages_picture_anchored_small_offset": 1,  # 500 down: the line it stands on goes below it
+    # Paragraphs at 10000 holding objects placed top and bottom (offset 0 unless said) and objects set as
+    # characters: the placed ones stack from the paragraph's top and the line of the others goes below them;
+    # one placed below the text's lines leaves them, and pushes the lines after that reach it below its foot.
+    "pages_tb_and_char_table_then_picture": 1,  # a table 6000 tall from its top, a picture: the line under the table
+    "pages_tb_and_char_picture_then_table": 1,  # the picture first in the runs: the same
+    "pages_tb_and_char_table_then_two_pictures": 1,  # two pictures side by side on that line
+    "pages_tb_and_char_two_tables_then_picture": 1,  # two tables, one below the other, the line under both
+    "pages_tb_and_char_small_table_then_table": 1,  # a small table set as a character on the line
+    "pages_tb_and_char_small_table_then_table_up": 1,  # 44 up from the top: Hancom takes a table at the top
+    # An empty paragraph at 20000 after lines of text holding a table (three rows, 4000 tall) placed top and
+    # bottom 0, 500, 1000, 1500 or 3000 up from its top (kept unsigned), and one 8000 tall 1500 up: Hancom lays
+    # each out and draws it at the top, the empty line there with no width and the next paragraph at its foot.
+    "pages_empty_paragraph_table_offset_0": 1,
+    "pages_empty_paragraph_table_offset_500": 1,
+    "pages_empty_paragraph_table_offset_1000": 1,
+    "pages_empty_paragraph_table_offset_1500": 1,
+    "pages_empty_paragraph_table_offset_3000": 1,
+    "pages_empty_paragraph_table_offset_1500_h8000": 1,
+    "pages_tb_and_char_text_picture_small_table": 1,  # text, a picture 4640 down, a small table in the text
+    "pages_tb_and_char_text_picture_tall_table": 2,  # the table 56000 tall: its line on the next page
+    # A 9 pt paragraph P with a table placed top and bottom 616 down (seven rows), three 9 pt paragraphs and a
+    # 15 pt paragraph Q with a table 2124 down: the paragraphs after P start at its table's foot, and P's own
+    # line stays at its top when P is empty, goes below the table when P holds text, spaces included.
+    "pages_band_then_empty_paragraphs": 1,  # P empty: its line stays at its top, the paragraphs after
+    "pages_band_then_text_paragraphs": 1,  # the same, the three of text
+    "pages_band_then_empty_paragraphs_then_band": 1,  # then Q, empty, and its table 2124 down
+    "pages_band_then_text_paragraphs_then_band": 1,  # the three of text
+    "pages_band_at_zero_then_empty_paragraphs_then_band": 1,  # P's table at its top
+    "pages_band_empty_again_then_empty_paragraphs_then_band": 1,  # P empty again, saved anew
+    "pages_band_text_then_empty_paragraphs_then_band": 1,  # P of text: its line goes below its table
+    "pages_band_spaces_then_empty_paragraphs_then_band": 1,  # P of two spaces: the same, spaces are text
+    "pages_band_space_then_empty_paragraphs_then_band": 1,  # P of one space: the same
+    "pages_band_text_split_then_empty_paragraphs_then_band": 2,  # P of text, its table over the page end: its
+                                                                 # line at the foot of the table's part on the next page
     "pages_table_offset_flowing_split_by_cell": 2,  # a flowing table 500 down over the page end:
                                                     # the line it stands on goes below its end
     "pages_table_offset_flowing_row_by_row": 2,  # the same moved row by row
     "pages_table_offset_flowing_second_line": 2,  # 2000 down: the second line goes below its end
     "pages_table_offset_flowing_next_paragraph": 2,  # the next paragraph's first line does
+    # Two paragraphs each of a line of text and a flowing table 2000 down from it: the second paragraph starts
+    # at the foot of the first table (of its last part), its own table 2000 below its top, and the text after
+    # at that table's foot.
+    "pages_table_past_the_end_then_text_and_a_short_table": 2,  # the first table over the page end: the second
+    "pages_table_past_the_end_then_text_and_a_long_cell": 3,  # the second table's one row over the page end too
+    "pages_table_ending_then_text_and_a_short_table": 1,  # the first table ending on its page
     "pages_picture_square_left": 2,       # a picture wrapped square on the left, text beside it into the next paragraph
     "pages_picture_square_right": 2,      # a wide picture wrapped square on the right
     "pages_picture_square_alone": 2,      # a picture wrapped square alone in its paragraph
@@ -968,6 +1064,30 @@ def test_a_paragraph_of_an_object_and_spaces_keeps_its_cached_lines(name: str, w
     _assert_like_hancom(estimate_pages(_with_wider_tables_set_as_characters(data, wider)), data, 1)
 
 
+def test_a_table_placed_up_from_a_paragraph_of_spaces_stands_at_its_top() -> None:
+    # The paragraph of two spaces with its table 616 down, then put 616 up (kept unsigned) and at 0: a table
+    # placed up stands at the paragraph's top, so the paragraph lays out as with the table at 0, its line below
+    # the table; it does not push from four billion units down.
+    def with_offset(offset: int) -> bytes:
+        data = (FIXTURES / "pages_band_spaces_then_empty_paragraphs_then_band.hwpx").read_bytes()
+        out = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+            for info in source.infolist():
+                payload = source.read(info.filename)
+                if info.filename.startswith("Contents/section"):
+                    root = etree.fromstring(payload)
+                    next(root.iter(f"{HP}tbl")).find(f"{HP}pos").set("vertOffset", str(offset))
+                    payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+                target.writestr(info, payload)
+        return _without_caches(out.getvalue())
+
+    up, top = estimate_pages(with_offset((1 << 32) - 616)), estimate_pages(with_offset(0))
+
+    assert up.unsupported == top.unsupported == ()
+    assert [[line.vertpos for line in lines] for lines in up.lines] == \
+        [[line.vertpos for line in lines] for lines in top.lines]
+
+
 def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
     # The exam header 3000 narrower: a line fits beside it, and the lines reaching it are not followed.
     out = io.BytesIO()
@@ -1242,6 +1362,25 @@ def test_columns_of_unequal_width_take_their_share_of_the_text_width_rounded() -
 
     assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878), 0)  # no gap: unequal widths
     assert {int(seg.get("horzsize")) for seg in section.iter(f"{HP}lineseg")} == {8502, 15875, 15878}
+
+
+def test_a_column_area_starts_at_a_definition_and_at_a_column_break_in_balanced_columns() -> None:
+    # A paragraph's first column definition starts an area (behind its text: the columns before go on), and so
+    # does a column break in balanced columns; the section's own definition, next to hp:secPr, starts none.
+    section = etree.fromstring(
+        f'<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="{HP[1:-1]}">'
+        '<hp:p><hp:run><hp:secPr/><hp:ctrl><hp:colPr colCount="1"/></hp:ctrl></hp:run></hp:p>'
+        '<hp:p><hp:run><hp:t>text</hp:t><hp:ctrl><hp:colPr colCount="2"/></hp:ctrl>'
+        '<hp:ctrl><hp:colPr colCount="3"/></hp:ctrl></hp:run></hp:p>'
+        '<hp:p><hp:run><hp:ctrl><hp:colPr colCount="2" type="BALANCED_NEWSPAPER"/></hp:ctrl><hp:t>a</hp:t></hp:run></hp:p>'
+        '<hp:p columnBreak="1"><hp:run><hp:t>b</hp:t></hp:run></hp:p>'
+        '</hs:sec>'
+    )
+
+    areas = page_layout._column_areas(section)
+
+    assert [(index, None if found is None else found.get("colCount")) for index, found in areas] == \
+        [(1, None), (2, "2"), (3, "2")]
 
 
 def test_the_multi_column_sample_breaks_its_lines_at_each_column_width_without_caches() -> None:
