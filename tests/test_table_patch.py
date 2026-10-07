@@ -269,7 +269,9 @@ def test_insert_row_by_clone_grows_and_validates(merged):
         _p, rows, _s = _parse_table(tbl.decode("utf-8"))
         for i, r in enumerate(rows):
             spans = re.findall(r'rowSpan="(\d+)"', r)
-            if spans and all(s == "1" for s in spans) and "<hp:t>" in r:
+            # The public form also has logo rows. They cannot be content-cloned:
+            # their picture identities would be duplicated (covered separately below).
+            if spans and all(s == "1" for s in spans) and "<hp:t>" in r and "<hp:pic" not in r:
                 return True
         return False
     ti = _find_table(merged, has_clonable)
@@ -277,13 +279,24 @@ def test_insert_row_by_clone_grows_and_validates(merged):
     sec0, spans0 = _tables(merged)
     tbl0 = sec0[spans0[ti][0]:spans0[ti][1]].decode("utf-8")
     _p, rows, _s = _parse_table(tbl0)
-    ref = next(i for i, r in enumerate(rows) if all(s == "1" for s in re.findall(r'rowSpan="(\d+)"', r)) and "<hp:t>" in r)
+    ref = next(i for i, r in enumerate(rows) if all(s == "1" for s in re.findall(r'rowSpan="(\d+)"', r))
+               and "<hp:t>" in r and "<hp:pic" not in r)
     n_before = _grid_of(sec0, spans0[ti])[1].row_count
     res = apply_table_ops(merged, [{"op": "insert_row_by_clone", "table_index": ti, "ref_row": ref, "count": 2}])
     assert res.ok, res.skipped
     sec1, spans1 = _tables(res.data)
     rep = _grid_of(sec1, spans1[ti])[1]
     assert rep.ok and rep.row_count == n_before + 2
+
+
+def test_insert_row_refuses_public_form_logo_identity_without_mutation(merged):
+    section, tables = _tables(merged)
+    first = section[tables[0][0]:tables[0][1]]
+    assert first.count(b"<hp:pic ") == 2
+    result = apply_table_ops(merged, [{"op": "insert_row_by_clone", "table_index": 0, "ref_row": 0}])
+    assert not result.ok
+    assert result.data == merged
+    assert "local identities or references" in str(result.skipped)
 
 
 def test_delete_table_drops_one_and_keeps_rest(merged):
