@@ -425,6 +425,30 @@ HANCOM_PAGES = {
                                                    # the next paragraph (10 pt apart too) under the table
     "pages_table_alone_spacing_before_20pt": 1,  # 20 pt apart, 500 down: the next paragraph 20 pt under the
                                                    # anchor line, lower than the table's end
+    # An empty paragraph (the fourth line, 10 pt spaced 160%) holding only a table or a picture 6000 tall placed
+    # top and bottom d down from it, thirty lines after it: the empty line stays where it is (an empty piece
+    # where the band starts above its foot), and the lines after go below the band only from the first one
+    # reaching it (its spacing not counted):
+    "pages_empty_paragraph_table_down_0": 1,
+    "pages_empty_paragraph_table_down_500": 1,
+    "pages_empty_paragraph_table_down_1000": 1,  # the band starts at the empty line's foot
+    "pages_empty_paragraph_table_down_1600": 1,
+    "pages_empty_paragraph_table_down_3000": 1,  # the next line above the band, the second below it
+    "pages_empty_paragraph_table_down_10000": 1,  # five lines above it
+    "pages_empty_paragraph_table_down_18196": 1,  # ten
+    "pages_empty_paragraph_table_down_18196_long": 2,  # sixty lines: on over the page end
+    "pages_empty_paragraph_picture_down_0": 1,
+    "pages_empty_paragraph_picture_down_500": 1,
+    "pages_empty_paragraph_picture_down_1000": 1,
+    "pages_empty_paragraph_picture_down_1600": 1,
+    "pages_empty_paragraph_picture_down_3000": 1,
+    "pages_empty_paragraph_picture_down_10000": 1,
+    "pages_empty_paragraph_picture_down_18196": 1,
+    # ... a paragraph of one space instead is text: its own line goes below the band when it reaches it
+    "pages_space_paragraph_table_down_0": 1,
+    "pages_space_paragraph_table_down_500": 1,
+    "pages_space_paragraph_table_down_3000": 1,
+    "pages_space_paragraph_picture_down_3000": 1,
     "pages_table_alone_offset_2000_over_pages": 2,  # 2000 down, over the page end
     "pages_table_alone_after_offset_table": 2,  # after a table flowing 2300 down: its line goes below that
     "pages_table_alone_offset_500_after_offset_table": 2,  # and the table flows 500 below the line
