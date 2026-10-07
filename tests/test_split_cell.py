@@ -5,6 +5,9 @@ tables after Hangul split a cell (``c2``/``c3``: into columns, ``r2``/``r3``: in
 
 - Into columns the cell's width is shared out evenly, the last part taking what is left over. New grid
   lines go where the parts end, and every other cell keeps its width over the grid columns it now covers.
+  A part narrower than Hangul draws a column (the cell's left and right margins and 283) is as wide as
+  that, and the grid lines right of the cell and the table's width move over by what the parts gained
+  (``narrow20*``: 20-column tables of 2097-wide cells with 510 margins, one row and three).
 - Into rows the parts take the rows the cell covers when they divide evenly, else one row each and as many
   new rows after the cell's last as it lacks; the cells beside that row grow over the new rows.
 - The content stays in the first part; the others hold one empty paragraph of the cell's format.
@@ -19,6 +22,7 @@ content either way.
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -78,6 +82,11 @@ def _split(data: bytes, row: int, col: int, **parts: int) -> bytes:
         ("merge_r0c12_base", "merge_r0c12_c3", 0, 1, {"cols": 3}),
         ("format_base", "format_c2", 1, 1, {"cols": 2}),
         ("tall_row1_base", "tall_row1_r2_distribute", 1, 1, {"rows": 2}),
+        ("narrow20_base", "narrow20_c2", 0, 0, {"cols": 2}),
+        ("narrow20_base", "narrow20_c3", 0, 0, {"cols": 3}),
+        ("narrow20_base", "narrow20_c5", 0, 0, {"cols": 5}),
+        ("narrow20r3_base", "narrow20r3_c2", 0, 0, {"cols": 2}),
+        ("narrow20r3_base", "narrow20r3_c3", 0, 0, {"cols": 3}),
     ],
 )
 def test_splits_hancom_stores_alike_are_the_same(base: str, split: str, row: int, col: int, parts: dict) -> None:
@@ -156,6 +165,29 @@ def test_cell_zones_keep_the_area_they_cover() -> None:
     ]
     assert zones == [(0, 1, 2, 2), (2, 0, 2, 0)]
     assert 'rowCnt="3"' in split and 'colCnt="3"' in split
+
+
+@pytest.mark.parametrize(("col", "widths", "table_width"), [(0, [483, 483, 800], 1766), (1, [800, 1303, 1303], 3406)])
+def test_the_narrowest_part_takes_the_margins_the_cell_is_laid_out_with(col: int, widths: list, table_width: int) -> None:
+    # (0, 0) has margins of its own (100 + 100, hasMargin on), (0, 1) the table's (510 + 510).
+    table = (
+        '<hp:tbl rowCnt="1" colCnt="2"><hp:sz width="1600" height="500"/>'
+        '<hp:inMargin left="510" right="510" top="141" bottom="141"/><hp:tr>'
+        + "".join(
+            f'<hp:tc borderFillIDRef="3" hasMargin="{own}"><hp:subList><hp:p id="{number + 1}">'
+            f'<hp:run charPrIDRef="0"><hp:t>{number}</hp:t></hp:run></hp:p></hp:subList>'
+            f'<hp:cellAddr colAddr="{number}" rowAddr="0"/><hp:cellSpan colSpan="1" rowSpan="1"/>'
+            f'<hp:cellSz width="800" height="500"/><hp:cellMargin left="100" right="100" top="0" bottom="0"/></hp:tc>'
+            for number, own in enumerate((1, 0))
+        )
+        + "</hp:tr></hp:tbl>"
+    )
+
+    split = _split_cell(table, 0, col, cols=2)
+
+    assert [int(width) for width in re.findall(r'<hp:cellSz width="(\d+)"', split)] == widths
+    assert re.search(r'<hp:sz width="(\d+)"', split).group(1) == str(table_width)
+    assert 'colCnt="3"' in split
 
 
 def test_splits_hancom_does_not_make_are_refused() -> None:
