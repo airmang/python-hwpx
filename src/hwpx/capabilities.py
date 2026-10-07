@@ -81,7 +81,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "area": "table-structure",
         "namespace": "doc.tables",
         "matrix_row": "표 구조 변경(행·열·표 삭제/삽입, 열 오토핏)",
-        "entry_points": ("hwpx.table_patch:apply_table_ops",),
+        "entry_points": ("hwpx.table_patch:apply_table_ops", "hwpx.model:Table"),
         "authoring_methods": (),
     },
     {

@@ -465,6 +465,11 @@
 - `set_cell_text(row_index, col_index, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
 - `split_merged_cell(row_index, col_index)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
 - `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다. 종속 셀 중 글이나 개체가 있는 셀의 문단은 읽기 순서로 대상 셀에 옮기고, 빈 셀은 아무것도 보태지 않습니다.
+- `insert_rows(ref_row, count=1, side="below", blank=False)`: 물리 행 `ref_row`를 복제해 그 아래(`side="above"`면 위)에 행을 넣습니다. 새 칸은 같은 열 기준 칸의 서식과 글을 받고, `blank=True`면 한/글처럼 빈 문단 하나만 둡니다. 새 행을 가로지르는 합친 칸은 늘어납니다.
+- `insert_columns(ref_col, count=1, side="right", blank=False)`: 격자 열 `ref_col`을 복제해 그 오른쪽(`side="left"`면 왼쪽)에 열을 넣고, 표는 새 열만큼 넓어집니다.
+- `delete_rows(rows)`, `delete_columns(cols)`: 행·열(번호 하나나 여럿)을 지웁니다. 열을 지우면 그 폭을 남은 열에 나눠 표 폭을 지킵니다. 모든 행·열은 지울 수 없습니다.
+- `split_cell(row, col, rows=1, cols=1)`: 칸을 줄·칸(각 2~63)으로 나눕니다(한/글의 셀 나누기). 글은 첫 칸에 남습니다.
+- 위 다섯 메서드는 `hwpx.table_patch.apply_table_ops`의 같은 편집과 같은 규칙을 따르고, 칸 영역(`hp:cellzone`)도 함께 옮깁니다. 편집 전에 얻은 셀·행 객체는 더 이상 표에 속하지 않으니 다시 얻습니다. `doc.tables`에도 같은 이름의 메서드가 있습니다(첫 인자로 표).
 
 ### 클래스 `HwpxOxmlParagraph`
 
