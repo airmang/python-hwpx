@@ -25,7 +25,7 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .shape_position import (
-    _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align,
+    _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
 )
 
 if TYPE_CHECKING:
@@ -746,7 +746,7 @@ def _create_picture_element(
     if align:
         pos = el.find(f"{_HP}pos")
         if pos is not None:
-            pos.set("horzAlign", align.upper())
+            pos.set("horzAlign", validate_picture_align(align) or "LEFT")
     if pos_overrides:
         pos = el.find(f"{_HP}pos")
         if pos is not None:
