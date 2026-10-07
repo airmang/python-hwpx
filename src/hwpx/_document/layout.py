@@ -19,7 +19,7 @@ from ..oxml._document_primitives import NEW_NUM_KINDS
 from ..oxml.namespaces import HH, HP
 from ..oxml.numbering_kinds import ensure_numbering_levels
 from ..oxml.objects import HwpxOxmlInlineObject
-from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value
+from ..oxml.section_format import _PAGE_LANDSCAPE, _PAGE_PORTRAIT, _page_orientation_value, validate_column_gap
 from ..oxml.table_sizes import cell_margins_of
 from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
@@ -609,6 +609,8 @@ def set_page_setup(
     """
 
     normalized_orientation = _normalize_page_orientation(orientation)
+    if columns is not None:  # the gap checked before the page or its margins change
+        validate_column_gap(_mm_to_hwp_units(float(column_gap_mm or 0)))
     target_width_mm = width_mm
     target_height_mm = height_mm
     if paper_size:
@@ -741,6 +743,8 @@ def set_columns(
             context={"requested": col_count},
             suggestion="Use columns=1 to remove columns.",
         )
+    if same_size:
+        validate_column_gap(same_gap)  # before a paragraph is added
     if paragraph is None:
         target_section = _resolve_section(doc, section=section, section_index=section_index)
         ctrl = target_section.properties.set_columns(

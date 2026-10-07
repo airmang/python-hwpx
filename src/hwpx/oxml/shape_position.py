@@ -44,6 +44,9 @@ POS_HORZ_REL_TO = ("PAPER", "PAGE", "COLUMN", "PARA")
 POS_VERT_ALIGN = ("TOP", "CENTER", "BOTTOM", "INSIDE", "OUTSIDE")
 POS_HORZ_ALIGN = ("LEFT", "CENTER", "RIGHT", "INSIDE", "OUTSIDE")
 SUBLIST_VERT_ALIGN = ("TOP", "CENTER", "BOTTOM")
+#: ``hp:caption/@side`` 어휘(스키마 기본값은 LEFT). 실코퍼스 15건 전수는
+#: TOP 14 · BOTTOM 1 — LEFT/RIGHT 관측 0(테두리 옆 캡션은 실무에서 안 쓴다).
+CAPTION_SIDES = frozenset({"LEFT", "RIGHT", "TOP", "BOTTOM"})
 
 
 def _require_member(
@@ -79,6 +82,34 @@ def validate_draw_text_vert_align(vert_align: str | None) -> str | None:
     return _require_member(
         vert_align, SUBLIST_VERT_ALIGN, argument="vert_align", code="shape-draw-text-vert-align"
     )
+
+
+def validate_caption_side(side: str) -> str:
+    """A caption's *side* as ``hp:caption/@side``: any case, surrounding spaces dropped."""
+
+    normalized_side = side.strip().upper()
+    if normalized_side not in CAPTION_SIDES:
+        raise HwpxValueError(
+            f"unsupported caption side {side!r}",
+            code="shape-caption-side-invalid",
+            context={"requested": side, "available": sorted(CAPTION_SIDES)},
+            suggestion=f"side 는 {sorted(CAPTION_SIDES)} 중 하나여야 합니다.",
+        )
+    return normalized_side
+
+
+def validate_caption_gap(gap: object) -> int:
+    """A caption's *gap* from its object (HWPUNIT), checked to be an int in ``-32768 <= gap <= 32767``: Hancom
+    keeps it as a signed 16-bit number, reading 32768 as -32768 and 65536 as 0."""
+
+    if isinstance(gap, bool) or not isinstance(gap, int) or not -(2**15) <= gap < 2**15:
+        raise HwpxValueError(
+            f"gap must be an int in -32768 <= gap <= 32767 (HWPUNIT); got {gap!r}",
+            code="shape-caption-gap-value",
+            context={"value": repr(gap)},
+            suggestion="Pass the caption's distance from its object in HWP units, e.g. 850 (3 mm).",
+        )
+    return gap
 
 
 def _shape_set_position(
@@ -323,6 +354,7 @@ def _set_scale(matrix: "ET.Element", factors: tuple[float, float], offset: tuple
 
 
 __all__ = [
+    "CAPTION_SIDES",
     "POS_HORZ_ALIGN",
     "POS_HORZ_REL_TO",
     "POS_VERT_ALIGN",
@@ -330,6 +362,8 @@ __all__ = [
     "SUBLIST_VERT_ALIGN",
     "build_at_original_size",
     "resize_group",
+    "validate_caption_gap",
+    "validate_caption_side",
     "validate_draw_text_vert_align",
     "validate_equation_base_unit",
     "validate_original_size",
