@@ -70,6 +70,18 @@
     전처럼 가로줄 없는 분수다.
   - 상자는 여전히 `baseUnit`에 비례해 커진다. 한/글(macOS)은 글자 폭을 크기에 꼭 비례해 두지 않아(1100에서 글자가
     1000과 같은 폭) 1100의 오차가 가장 크다. Windows 한/글에서의 비례는 아직 확인하지 않았다.
+- 도형·그림·수식을 넣을 때 음수 크기와 사각형의 음수 모서리 곡률을 그대로 쓰던 것을 고친다.
+  - 한/글은 음수 크기를 0으로 읽고 0으로 저장한다. 그 크기에서 쓴 원래 크기(`orgSz`)·회전 중심·그림의 이미지
+    크기(`imgDim`)도 0이 된다. 음수 곡률(`ratio`)도 0으로 읽는다.
+  - 사각형·타원·호(`doc.shapes.add_rectangle`·`add_ellipse`·`add_arc`), 그림(`doc.add_picture`), 수식 상자
+    (`doc.shapes.add_equation`의 `size`), 도형 크기 바꾸기(`HwpxOxmlShape.resize`)는 이제 0 이상 2**31 미만의
+    크기만 받는다. 그 밖의 값은 문단·런·그림을 더하기 전에 `shape-size-value` 오류로 거부한다. 곡률은
+    `shape-rect-ratio-value`로 거부한다.
+  - 수식의 `base_unit`이 0 이하일 때 내던 `ValueError`를 `shape-equation-base-unit-value`(`HwpxValueError`)로
+    바꾸고 문단을 더하기 전에 낸다. 2**31 이상도 거부한다. 아주 큰 `base_unit`으로 잰 상자가 2**31 이상이면
+    `shape-size-value`로 거부한다. 한/글은 그런 상자를 2**32 - 1로 줄여 저장한다.
+  - `HwpxOxmlParagraph.add_picture`는 그림 요소를 만든 뒤에 런을 더한다. 값이 거부되면 빈 런이 남지 않는다.
+  - 그림의 HWPUNIT 크기는 정수 변환 전에 검사한다. bool·소수·문자열을 정수로 바꾸어 받아들이지 않는다.
 - 쪽 수 추정(실험, `estimate_pages`)이 쪽 번호 조판 부호(`hp:ctrl/hp:pageNum`)와 줄보다 넓은 글자처럼 둔 표만
   있는 문단을 표 높이의 한 줄로 세던 것을 고친다.
   - 한/글은 둘을 한 줄에 두지 않는다. 부호의 줄은 문단 글의 빈 줄이다.

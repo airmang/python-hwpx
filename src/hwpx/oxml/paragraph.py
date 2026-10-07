@@ -65,6 +65,7 @@ from .objects import (
 )
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
+from .shape_position import validate_equation_base_unit, validate_shape_size
 from .table import HwpxOxmlTable
 from .table_sizes import cell_margins_of
 
@@ -676,18 +677,18 @@ class HwpxOxmlParagraph:
                 "(a PAPER-relative <hp:pos> on an inline pic is contradictory)"
             )
 
-        run = self._create_run_for_object(
-            run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
-        )
-        element = _create_picture_element(
+        element = _create_picture_element(  # checked before its run is added
             str(binary_item_id_ref),
-            int(width),
-            int(height),
+            width,
+            height,
             align=align,
             treat_as_char=treat_as_char,
             pos_overrides=pos_overrides,
             text_wrap=text_wrap,
+        )
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
         )
         if type(element) is not type(run):
             element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
@@ -1184,12 +1185,12 @@ class HwpxOxmlParagraph:
         text = script.strip()
         if not text:
             raise ValueError("equation script must be a non-empty string")
-        if base_unit <= 0:
-            raise ValueError("base_unit must be positive")
+        validate_equation_base_unit(base_unit)
         from ..equation.measure import measure_equation
 
         measured = measure_equation(text, base_unit=base_unit)
         width, height = size if size is not None else (measured.width, measured.height)
+        validate_shape_size(width, height)
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref
         )

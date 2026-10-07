@@ -26,6 +26,7 @@ from ._document_primitives import (
 )
 from .shape_position import (
     _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
+    validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -178,8 +179,7 @@ def _build_shape_common_children(
     AbstractShapeObjectType children (last, via ``_build_shape_base_children``):
         sz, pos, outMargin
     """
-    w = str(width)
-    h = str(height)
+    w, h = map(str, validate_shape_size(width, height))  # Hancom reads a negative size as 0
     the_id = inst_id or _object_id()
 
     parent.set("id", the_id)
@@ -344,7 +344,7 @@ def _create_rectangle_element(
     treat_as_char: bool = True,
 ) -> ET.Element:
     """Build a complete ``<hp:rect>`` element matching real HWPX output."""
-    el = ET.Element(f"{_HP}rect", {"ratio": str(ratio)})
+    el = ET.Element(f"{_HP}rect", {"ratio": str(validate_rect_ratio(ratio))})
     _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
     _build_drawing_object_children(
         el, line_color=line_color, line_width=line_width,
@@ -1383,6 +1383,7 @@ class HwpxOxmlShape:
         :class:`UserWarning` is raised, because the drawn shape cannot follow
         the requested size.
         """
+        validate_shape_size(width, height)
         if self.shape_type == "container" and resize_group(self, width, height):
             return  # a group is drawn at its sz: see shape_position.resize_group
         old_width, old_height = self._geometry_size()
