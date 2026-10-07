@@ -1856,13 +1856,14 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
 
 
-def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None) -> tuple[
+def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None,
+                    placed: tuple[Any, ...] = ()) -> tuple[
         str, list[int], list[Any], dict[int, tuple[int, int]], dict[int, int]]:
     """The paragraph's text with each object set as a character, composed character and ruby text in its
     place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
     object's place -> its width and height, and each composed character's or ruby text's place -> its
-    width. Objects placed otherwise, and line spacing between lines or at least with an object among
-    text, are not followed."""
+    width. Objects placed otherwise (but *anchored* and *placed*, laid out apart), and line spacing between
+    lines or at least with an object among text, are not followed."""
 
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     text: list[str] = []
@@ -1875,7 +1876,8 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
         height, look = measure.char_height(ref), measure.style(paragraph.get("paraPrIDRef"), [ref])
         for child in run:
             name = _local(child)
-            if name in _OBJECTS and (_floating(child) or _on_paper(child) or child is anchored):
+            if name in _OBJECTS and (_floating(child) or _on_paper(child) or child is anchored
+                                     or any(child is obj for obj in placed)):
                 continue
             if name in _OBJECTS:
                 if child.find(f"{HP}pos").get("treatAsChar") != "1" or shape.kind not in ("PERCENT", "FIXED"):
@@ -1912,7 +1914,9 @@ def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = 
     pos = obj.find(f"{HP}pos")
     if not _wraps_top_and_bottom(obj, column):
         return None
-    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" or int(pos.get("vertOffset", 0)):
+    offset = int(pos.get("vertOffset", 0))
+    if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" \
+            or (_down(pos) if _local(obj) == "tbl" else offset):  # a table placed up stands at the top
         return None
     return obj
 
@@ -2053,7 +2057,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         spread = measure.spread_lines(paragraph, runs, page.column_width, end, head, caches=True)
         alone, cached = (False, spread) if spread else (alone, cached)
     if among or beside:
-        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored)
+        apart = (*stacked, *(() if square is None or square.get("textWrap") != "TOP_AND_BOTTOM" else (square,)))
+        inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored,
+                                                                                  apart)
         if wrap is not None:
             if beside or wrap.split or marked:
                 raise _Unsupported("objects set as characters among text beside a square-wrapped object")
@@ -2377,13 +2383,13 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
 
 
 def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
-    """The one object of a paragraph of text placed top and bottom below the line it stands on (an
-    offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects set
-    as characters are that line."""
+    """The one object of a paragraph of text (spaces are text) placed top and bottom below the line it stands
+    on (an offset down from the paragraph's top), or ``None``. In a paragraph holding no text, the objects
+    set as characters are that line; in one of text, they are among it."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     lined = not text.strip() and len(objects) > len(placed)  # no text: the objects set as characters its line
-    if len(placed) != 1 or not (lined or (len(objects) == 1 and text.strip())):
+    if len(placed) != 1 or not (lined or text):
         return None
     obj = placed[0]
     pos = obj.find(f"{HP}pos")
@@ -2391,26 +2397,27 @@ def _pushing_object(objects: list[Any], text: str, column: int) -> Any:
             or pos.get("vertAlign", "TOP") != "TOP":
         return None
     offset = int(pos.get("vertOffset", 0))
-    if offset <= 0 or lined and offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up
+    if offset <= 0 or offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up (unsigned)
         return None
     return obj
 
 
 def _stacked_objects(objects: list[Any], runs: list[Any], column: int) -> list[Any]:
-    """The objects of a paragraph holding nothing else when there are several and each is placed top and
-    bottom from the paragraph's top (none up from it), from the column's or the paragraph's left or right;
-    none otherwise."""
+    """The objects of a paragraph holding no text when there are several and each is placed top and bottom
+    from the paragraph's top (none up from it), from the column's or the paragraph's left or right; none
+    otherwise. Objects set as characters there are the paragraph's line, which goes below them."""
 
-    if len(objects) < 2 or _run_text(runs).strip() or _marks(runs) or _note_anchors(runs):
+    placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
+    if len(placed) < 2 or _run_text(runs).strip() or _marks(runs) or _note_anchors(runs):
         return []
-    for obj in objects:
+    for obj in placed:
         pos = obj.find(f"{HP}pos")
-        if pos.get("treatAsChar") == "1" or not _wraps_top_and_bottom(obj, column) \
+        if not _wraps_top_and_bottom(obj, column) \
                 or (pos.get("vertRelTo"), pos.get("vertAlign", "TOP")) != ("PARA", "TOP") \
                 or int(pos.get("vertOffset", 0)) >= 1 << 31 or pos.get("horzRelTo") not in ("COLUMN", "PARA") \
                 or pos.get("horzAlign", "LEFT") not in ("LEFT", "RIGHT"):
             return []
-    return objects
+    return placed
 
 
 def _stack(measure: _Measure, objects: list[Any], column: int, shape: _Shape) -> tuple[_Stacked, ...]:
@@ -2451,19 +2458,19 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
         raise _Unsupported("an object beside a top-and-bottom object's band")
     metrics = list(para.cached) or [(para.size, para.pitch)] * para.lines
     top, rest, shifted = 0, None, 0
+    beside = sum(1 for line in range(para.lines) if para.span(0, line) < band.bottom)
     for index, (height, advance) in enumerate(metrics):
         if top < band.bottom and top + height > band.top:
             shift = band.bottom - top
             if index == 0:
                 pushed, shifted = replace(para, prev=para.prev + shift), shift
-            else:
+            else:  # the lines from it on go below the object, on a later page too
                 metrics[index - 1] = (metrics[index - 1][0], metrics[index - 1][1] + shift)
-                pushed = replace(para, cached=tuple(metrics))
+                pushed, beside = replace(para, cached=tuple(metrics)), index
             break
         top += advance
     else:
         pushed, rest = para, band.lower(top + para.next)
-    beside = sum(1 for line in range(para.lines) if para.span(0, line) < band.bottom)
     return replace(pushed, wrap_lines=beside, wrap_bottom=band.bottom if starts else 0, wrap_push=starts,
                    wrap_shift=shifted if starts else 0), rest
 
@@ -3108,10 +3115,20 @@ class _Paginator:
 
         if para.notes or para.anchor is not None or para.wrap_bottom \
                 or (para.table is not None and (self.band is None or para.band is not None)) \
-                or (self.band is not None and (para.band is not None or para.page_break or para.break_before
-                                               or para.column_break)):
+                or (self.band is not None and (para.page_break or para.break_before or para.column_break)):
             raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
         start, broke = self._breaks(para, start)
+        if self.band is not None and para.band is not None:  # its own table's band after another's
+            frame, top, bottom, end_frame, end = self.band
+            if self.frame != frame or start + para.height(0) <= top:
+                raise _Unsupported("a page break or another object beside a top-and-bottom table's band")
+            self.band = None
+            if bottom is None or start < bottom:  # its first line reaches the other table: the paragraph goes
+                if end_frame != self.frame:  # below that table's end, its own table placed from there
+                    self.frame, self.page_notes = end_frame, [0, 0]
+                start = end + para.prev
+            self._banded(index, paras, para, start)
+            return
         if para.table is not None:  # a flowing table alone in its paragraph: its line goes below the band
             frame, top, bottom, end_frame, end = self.band
             if self.frame != frame or start + para.height(0) <= top or (bottom is not None and start >= bottom):
