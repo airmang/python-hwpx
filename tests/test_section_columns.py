@@ -165,29 +165,45 @@ def test_a_column_definition_is_written_ahead_of_its_paragraphs_text(text: str) 
 
 
 @pytest.mark.parametrize("text", ["", "단 시작"])
-def test_a_column_definition_in_a_sections_first_paragraph_follows_its_settings(text: str, tmp_path: Path) -> None:
+def test_columns_at_a_sections_first_paragraph_rewrite_its_settings_own(text: str, tmp_path: Path) -> None:
+    # Hancom does not open a section whose first paragraph holds a second column definition beside the one
+    # next to its settings (hp:secPr), even a one-column one; rewriting that one lays the section out in the
+    # new columns from its start, and Hancom opens it.
     document = HwpxDocument.new()
     first = document.paragraphs[0]
     first.text = text
-    attributes = dict(first.element.find(f"{HP}run").attrib)
 
-    document.page.set_columns(2, paragraph=first)
+    added = document.page.set_columns(2, paragraph=first)
 
-    runs = first.element.findall(f"{HP}run")
-    assert runs[0].find(f"{HP}secPr") is not None
-    assert runs[1][0].find(f"{HP}colPr").get("colCount") == "2"
-    nodes = list(first.element.iter())
-    definition = runs[1][0].find(f"{HP}colPr")
-    assert all(nodes.index(definition) < nodes.index(t) for t in first.element.iter(f"{HP}t"))
+    definitions = list(first.element.iter(f"{HP}colPr"))
+    settings = next(run for run in first.element.findall(f"{HP}run") if run.find(f"{HP}secPr") is not None)
+    assert [definition.get("colCount") for definition in definitions] == ["2"]
+    assert definitions[0] in list(settings.iter(f"{HP}colPr"))
+    assert added.element.find(f"{HP}colPr") is definitions[0]
     assert first.text == text
-    assert all(dict(run.attrib) == attributes for run in runs[2:])
     path = tmp_path / "first-paragraph-columns.hwpx"
     document.save_to_path(path)
     reopened = HwpxDocument.open(path).paragraphs[0]
     assert reopened.text == text
-    nodes = list(reopened.element.iter())
-    definition = next(node for node in reopened.element.iter(f"{HP}colPr") if node.get("colCount") == "2")
-    assert all(nodes.index(definition) < nodes.index(t) for t in reopened.element.iter(f"{HP}t"))
+    assert [definition.get("colCount") for definition in reopened.element.iter(f"{HP}colPr")] == ["2"]
+
+
+def test_a_definition_added_to_a_first_paragraph_whose_settings_run_holds_text_rewrites_it_in_place() -> None:
+    document = HwpxDocument.new()
+    first = document.paragraphs[0]
+    runs = first.element.findall(f"{HP}run")
+    settings = next(run for run in runs if run.find(f"{HP}secPr") is not None)
+    for run in runs:
+        if run is not settings:
+            first.element.remove(run)
+    text = settings.makeelement(f"{HP}t", {})
+    text.text = "단 앞의 글"
+    settings.append(text)
+
+    first.add_column_definition(3, same_gap=600)
+
+    assert first.element.findall(f"{HP}run") == [settings] and text in list(settings)
+    assert [(d.get("colCount"), d.get("sameGap")) for d in first.element.iter(f"{HP}colPr")] == [("3", "600")]
 
 
 def test_a_section_without_a_column_definition_gets_one_next_to_secpr() -> None:

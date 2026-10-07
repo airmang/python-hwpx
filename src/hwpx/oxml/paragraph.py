@@ -49,7 +49,6 @@ from ._paragraph_text_edit import (
     paragraph_container,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
-    split_section_carrier_content,
 )
 from .objects import (
     HwpxOxmlInlineObject,
@@ -812,13 +811,21 @@ class HwpxOxmlParagraph:
         if same_size:
             validate_column_gap(same_gap)  # before its run is added
         sizes = column_shares(column_widths) if column_widths and not same_size else []
+        if self.element.find(f"{_HP}run/{_HP}secPr") is not None:  # a section's first paragraph: Hancom does not
+            # open one with a second definition beside its settings' own, so that one is rewritten (the section's)
+            ctrl = self.section.properties.set_columns(
+                col_count, col_type=col_type, layout=layout, same_size=same_size, same_gap=same_gap,
+                column_widths=column_widths, separator_type=separator_type,
+                separator_width=separator_width, separator_color=separator_color,
+            )
+            if ctrl is not None:
+                return HwpxOxmlInlineObject(ctrl, self)
 
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref,
         )
         # Hancom starts the new columns only from a definition ahead of the paragraph's text (its own
         # documents give it the first run, after a section's settings): one behind the text is not applied.
-        split_section_carrier_content(self.element)
         ahead = [r for r in self.element.findall(f"{_HP}run") if r is not run and r.find(f"{_HP}secPr") is None]
         if ahead:
             self.element.remove(run)
