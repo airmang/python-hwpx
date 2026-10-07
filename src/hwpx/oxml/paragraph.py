@@ -68,7 +68,7 @@ from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
 from .shape_position import validate_equation_base_unit, validate_shape_size
 from .table import HwpxOxmlTable
-from .table_sizes import cell_margins_of
+from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -579,8 +579,10 @@ class HwpxOxmlParagraph:
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlTable:
-        if width is None:
-            width = self._context_table_width()
+        if width is not None:
+            width = new_table_width(width, cols)  # checked, and floored as Hancom draws it, before its run is added
+        elif (context := self._context_table_width()) is not None:  # a narrow cell's may be below the floor
+            width = max(context, cols * NEW_TABLE_COLUMN_FLOOR)
         if border_fill_id_ref is None:
             document = self.section.document
             if document is not None:
