@@ -727,10 +727,10 @@ def set_columns(
 ) -> HwpxOxmlInlineObject:
     """Set the columns of a section, or start new columns at a paragraph.
 
-    Without ``paragraph`` this rewrites the section's own column layout (the
-    ``hp:colPr`` next to ``hp:secPr``) in place, so the whole section is laid
-    out in ``col_count`` columns. With ``paragraph`` it adds a column
-    definition control there, and the text from that paragraph on uses it.
+    Without ``paragraph``, or with a section's first one, this rewrites the
+    section's own column layout (the ``hp:colPr`` next to ``hp:secPr``) in
+    place, so the whole section is laid out in ``col_count`` columns. With a
+    later ``paragraph`` it adds a column definition there, used from it on.
 
     Args:
         col_count: Number of columns (1–255).
