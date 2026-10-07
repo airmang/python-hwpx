@@ -34,13 +34,14 @@ def test_uniform_weights_give_the_remainder_to_the_last_column() -> None:
 
 
 def test_uniform_weights_round_half_to_even() -> None:
+    # 2609 / 2 = 1304.5 rounds to 1304 (each column above its 1303 floor)
     document = HwpxDocument.new()
-    table = document.add_table(rows=1, cols=2, width=13)
-    assert _row_widths(table) == [7, 6]
+    table = document.add_table(rows=1, cols=2, width=2609)
+    assert _row_widths(table) == [1305, 1304]
 
     _uniform(table)
 
-    assert _row_widths(table) == [6, 7]
+    assert _row_widths(table) == [1304, 1305]
 
 
 def test_uniform_weights_give_a_merged_cell_the_sum_of_its_columns() -> None:
@@ -56,9 +57,9 @@ def test_uniform_weights_give_a_merged_cell_the_sum_of_its_columns() -> None:
 
 def test_uniform_weights_fall_back_to_the_row_zero_sum_without_a_table_width() -> None:
     document = HwpxDocument.new()
-    table = document.add_table(rows=1, cols=2, width=13)
+    table = document.add_table(rows=1, cols=2, width=2609)
     table.element.find(f"{HP}sz").attrib.pop("width")
 
     _uniform(table)
 
-    assert _row_widths(table) == [6, 7]
+    assert _row_widths(table) == [1304, 1305]

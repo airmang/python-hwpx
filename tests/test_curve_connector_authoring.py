@@ -107,6 +107,25 @@ def test_add_connector_joins_the_sides_where_hancom_draws_the_saved_one() -> Non
     assert all(abs(a - b) < 1 for p, q in zip(mine, drawn) for a, b in zip(p, q))
 
 
+def test_add_connector_reads_and_writes_offsets_up_and_left_of_the_paper_unsigned() -> None:
+    # A rectangle placed 1000 left of and 2000 above the paper's corner, set as Hancom writes such offsets
+    # (their unsigned 32-bit form): the connector from its right side starts at -1000 + 3000 across and
+    # -2000 + 2000 down, and a connector placed up and left of the paper is written the same way.
+    doc = HwpxDocument.new()
+    rect = _placed(doc.shapes.add_rectangle(3000, 4000, treat_as_char=False), -1000, -2000)
+    other = _placed(doc.shapes.add_rectangle(3000, 4000, treat_as_char=False, paragraph=rect.paragraph), 9000, 6000)
+    position = rect.element.find(f"{HP}pos")
+    line = doc.shapes.add_connector(rect, other, start_side="right", end_side="left", kind="STROKE").element
+    origin = line.find(f"{HP}pos")
+    start = line.find(f"{HP}startPt")
+
+    assert (position.get("horzOffset"), position.get("vertOffset")) == ("4294966296", "4294965296")
+    assert (origin.get("horzOffset"), origin.get("vertOffset")) == ("2000", "0")
+    assert (int(start.get("x")), int(start.get("y"))) == (0, 0)
+    up = doc.shapes.add_connector(other, rect, start_side="top", end_side="left", kind="STROKE").element
+    assert up.find(f"{HP}pos").get("horzOffset") == "4294966296"  # the rectangle's left side, 1000 left
+
+
 def test_add_connector_refuses_what_hancom_would_not_draw_there() -> None:
     doc = HwpxDocument.new()
     inline = doc.shapes.add_rectangle(3000, 3000)

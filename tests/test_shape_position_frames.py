@@ -9,6 +9,8 @@ paper, so moving to the API cannot change its output.
 from __future__ import annotations
 
 import io
+import zipfile
+from pathlib import Path
 
 import pytest
 from lxml import etree
@@ -93,6 +95,38 @@ def test_paper_frame_matches_the_direct_pos_edit_byte_for_byte() -> None:
     assert actual == expected
 
 
+def _saved_offsets(name: str) -> tuple[str | None, str | None]:
+    path = Path(__file__).parent / "fixtures" / "hancom_saved" / name
+    with zipfile.ZipFile(path) as package:
+        root = etree.fromstring(package.read("Contents/section0.xml"))
+    pos = next(root.iter(f"{HP}rect")).find(f"{HP}pos")
+    return pos.get("horzOffset"), pos.get("vertOffset")
+
+
+@pytest.mark.parametrize(
+    ("frame", "offsets", "signed", "unsigned"),
+    [
+        ("PAPER", (-1000, -2000), "pages_paper_shape_signed_offsets.hwpx", "pages_paper_shape_unsigned_offsets.hwpx"),
+        ("PARA", (0, -1500), "pages_para_shape_signed_offset.hwpx", "pages_para_shape_unsigned_offset.hwpx"),
+    ],
+)
+def test_a_negative_offset_is_written_as_hancom_keeps_it(
+    frame: str, offsets: tuple[int, int], signed: str, unsigned: str
+) -> None:
+    # A rectangle placed up or left of the paper's corner (in front of the text) or up from its paragraph (top
+    # and bottom), saved by Hancom twice: written as signed numbers, Hancom read them as 0 and saved 0; written
+    # as their unsigned 32-bit form, it kept them (and drew the rectangle there). set_position writes the latter.
+    doc = HwpxDocument.new()
+    shape = _floating_shape(doc)
+    shape.set_position(horizontal_offset=offsets[0], vertical_offset=offsets[1], horz_rel_to=frame,
+                       vert_rel_to=frame)
+    pos = shape.element.find(f"{HP}pos")
+    doc.close()
+
+    assert _saved_offsets(signed) == ("0", "0")
+    assert (pos.get("horzOffset"), pos.get("vertOffset")) == _saved_offsets(unsigned)
+
+
 def test_frames_and_alignment_survive_save_and_reopen() -> None:
     doc = HwpxDocument.new()
     shape = _floating_shape(doc)
@@ -119,7 +153,7 @@ def test_frames_and_alignment_survive_save_and_reopen() -> None:
             "horzAlign": "RIGHT",
             "vertAlign": "BOTTOM",
             "horzOffset": "1000",
-            "vertOffset": "-2000",
+            "vertOffset": "4294965296",  # -2000 as Hancom writes it (unsigned 32-bit); it reads "-2000" as 0
         }
 
 

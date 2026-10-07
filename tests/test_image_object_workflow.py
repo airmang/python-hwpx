@@ -228,6 +228,26 @@ def test_an_aligned_inline_picture_takes_the_paragraph_alignment() -> None:
         assert _picture_paragraph_alignment(document) == align.upper()
 
 
+@pytest.mark.parametrize("align", ["BOGUS", "TOP", "  right ", 1])
+def test_a_picture_alignment_outside_the_schema_is_refused_before_anything_is_added(align: object) -> None:
+    # Hancom reads a horizontal alignment it does not know as LEFT; the picture was written with it as given.
+    document = HwpxDocument.new()
+    paragraphs, images = len(document.paragraphs), len(document.list_images())
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.add_picture(PNG_1X1, "png", width=7200, height=7200, align=align)  # type: ignore[arg-type]
+
+    assert caught.value.code == "shape-position-frame"
+    assert (len(document.paragraphs), len(document.list_images())) == (paragraphs, images)
+
+
+def test_a_picture_takes_the_inside_and_outside_alignments_too() -> None:
+    for align in ("INSIDE", "outside"):
+        document = HwpxDocument.new()
+        document.add_picture(PNG_1X1, "png", width=7200, height=7200, align=align)
+        assert _first_picture(document).find(f"{HP}pos").get("horzAlign") == align.upper()
+
+
 def test_a_picture_without_align_keeps_the_paragraph_alignment() -> None:
     document = HwpxDocument.new()
     document.add_picture(PNG_1X1, "png", width=7200, height=7200)

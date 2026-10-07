@@ -479,7 +479,7 @@
  "observed": {
   "other": 215,
   "typed": 216,
-  "untyped": 203,
+  "untyped": 202,
   "untypedByFile": {
    "body_patch.py": 20,
    "equation/mathml.py": 1,
@@ -494,7 +494,7 @@
    "oxml/header_part.py": 16,
    "oxml/memo.py": 1,
    "oxml/numbering_kinds.py": 1,
-   "oxml/paragraph.py": 19,
+   "oxml/paragraph.py": 18,
    "oxml/parser.py": 2,
    "oxml/run.py": 2,
    "oxml/section.py": 1,

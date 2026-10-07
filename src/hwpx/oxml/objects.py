@@ -25,7 +25,8 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .shape_position import (
-    _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align,
+    _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
+    validate_caption_gap, validate_caption_side, validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -178,8 +179,7 @@ def _build_shape_common_children(
     AbstractShapeObjectType children (last, via ``_build_shape_base_children``):
         sz, pos, outMargin
     """
-    w = str(width)
-    h = str(height)
+    w, h = map(str, validate_shape_size(width, height))  # Hancom reads a negative size as 0
     the_id = inst_id or _object_id()
 
     parent.set("id", the_id)
@@ -344,7 +344,7 @@ def _create_rectangle_element(
     treat_as_char: bool = True,
 ) -> ET.Element:
     """Build a complete ``<hp:rect>`` element matching real HWPX output."""
-    el = ET.Element(f"{_HP}rect", {"ratio": str(ratio)})
+    el = ET.Element(f"{_HP}rect", {"ratio": str(validate_rect_ratio(ratio))})
     _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
     _build_drawing_object_children(
         el, line_color=line_color, line_width=line_width,
@@ -746,7 +746,7 @@ def _create_picture_element(
     if align:
         pos = el.find(f"{_HP}pos")
         if pos is not None:
-            pos.set("horzAlign", align.upper())
+            pos.set("horzAlign", validate_picture_align(align) or "LEFT")
     if pos_overrides:
         pos = el.find(f"{_HP}pos")
         if pos is not None:
@@ -1023,10 +1023,6 @@ def _paragraph_shapes(self: "HwpxOxmlParagraph") -> list["HwpxOxmlShape"]:
 # reused by ``HwpxOxmlTable`` (table.py), ``HwpxOxmlShape``, and
 # ``HwpxOxmlInlineObject`` (this module) rather than duplicated per host.
 
-#: ``hp:caption/@side`` 어휘(스키마 기본값은 LEFT). 실코퍼스 15건 전수는
-#: TOP 14 · BOTTOM 1 — LEFT/RIGHT 관측 0(테두리 옆 캡션은 실무에서 안 쓴다).
-_CAPTION_SIDES = frozenset({"LEFT", "RIGHT", "TOP", "BOTTOM"})
-
 #: 실코퍼스 15건 전수: fullSz="0"(전부) · width="8504"(전부, 호스트 크기와
 #: 무관한 고정값) · gap="850"(11) 또는 "566"(4, 스키마 기본은 850).
 _CAPTION_DEFAULT_WIDTH = "8504"
@@ -1227,16 +1223,8 @@ def _write_caption(
     gap: int,
     char_pr_id_ref: str | int | None,
 ) -> Caption:
-    normalized_side = side.strip().upper()
-    if normalized_side not in _CAPTION_SIDES:
-        from ..errors import HwpxValueError
-
-        raise HwpxValueError(
-            f"unsupported caption side {side!r}",
-            code="shape-caption-side-invalid",
-            context={"requested": side, "available": sorted(_CAPTION_SIDES)},
-            suggestion=f"side 는 {sorted(_CAPTION_SIDES)} 중 하나여야 합니다.",
-        )
+    normalized_side = validate_caption_side(side)
+    gap = validate_caption_gap(gap)  # before anything changes: Hancom keeps a signed 16-bit gap
 
     element = host.find(f"{_HP}caption")
     if element is None:
@@ -1383,6 +1371,7 @@ class HwpxOxmlShape:
         :class:`UserWarning` is raised, because the drawn shape cannot follow
         the requested size.
         """
+        validate_shape_size(width, height)
         if self.shape_type == "container" and resize_group(self, width, height):
             return  # a group is drawn at its sz: see shape_position.resize_group
         old_width, old_height = self._geometry_size()
