@@ -154,7 +154,7 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 셀 테두리/배경 | [대응 영역] | `HwpxOxmlTable.set_cell_border_fill`(+ `ensure_border_fill`)로 테두리, `set_cell_shading`(+ `ensure_shading_border_fill`)로 배경색, `set_cell_fill_image`/`set_cell_fill_gradient`로 이미지/그라데이션 배경까지 전부 확인(`oxml/table.py:775-843`) — 표 구조 변경/문단·표 저작/편집 영역이 대응 |
 | 표 나누기 | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊸ 갭⑤에서 해소**(`f7e4e67`) — `apply_table_ops`의 `split_table` op가 물리 행 인덱스에서 표를 둘로 나눈다(병합 셀이 경계를 걸치면 fail-closed 거부), v16 render-verified |
 | 표 붙이기 | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊸ 갭⑤에서 해소**(`f7e4e67`) — `apply_table_ops`의 `merge_table` op가 그 역연산을 수행한다(colCnt 불일치·실텍스트 존재 시 거부), v16 render-verified |
-| 줄/칸 추가하기… | [대응 영역] | 표 구조 변경(`insert_row_by_clone`) |
+| 줄/칸 추가하기… | [대응 영역] | 표 구조 변경(`insert_row_by_clone`, `insert_column_by_clone`) |
 | 줄/칸 지우기… | [대응 영역] | 표 구조 변경(`delete_row`/`delete_column`) |
 | 셀 나누기… | [대응 영역] | 표 구조 변경(`split_cell_vertical`) |
 | 셀 합치기 | [대응 영역] | 표 생성(`merge_cells`) |
