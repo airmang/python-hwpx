@@ -56,10 +56,20 @@ def _single_lang(lang: str) -> str:
     return _normalize_font_langs(lang)[0]
 
 
+def _listed(header: "HwpxOxmlHeader", container: ET.Element | None, tag: str) -> list[ET.Element]:
+    """The *tag* entries of a ``hh:refList`` list: the children of *container* when the header has
+    it, so a lookup does not walk every paragraph shape and style of a large header, else every
+    *tag* element of the header."""
+
+    if container is not None:
+        return container.findall(f"{_HH}{tag}")
+    return list(header.element.iter(f"{_HH}{tag}"))
+
+
 def _fontfaces(header: "HwpxOxmlHeader | None") -> list[ET.Element]:
     if header is None:
         return []
-    return list(header.element.iter(f"{_HH}fontface"))
+    return _listed(header, header._fontfaces_element(), "fontface")
 
 
 def _fontface_block(header: "HwpxOxmlHeader | None", lang: str) -> ET.Element | None:
@@ -121,7 +131,7 @@ def font_face(
     normalized = _single_lang(lang)
     if header is None:
         return None
-    char_pr = _find_by_id(header.element.iter(f"{_HH}charPr"), char_pr_id_ref)
+    char_pr = _find_by_id(_listed(header, header._char_properties_element(), "charPr"), char_pr_id_ref)
     if char_pr is None:
         return None
     font_ref = char_pr.find(f"{_HH}fontRef")
@@ -165,7 +175,7 @@ def border_fill_info(
 
     if header is None:
         return None
-    border_fill = _find_by_id(header.element.iter(f"{_HH}borderFill"), border_fill_id_ref)
+    border_fill = _find_by_id(_listed(header, header._border_fills_element(), "borderFill"), border_fill_id_ref)
     if border_fill is None:
         return None
     fill_id = border_fill.get("id", "")
