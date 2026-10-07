@@ -27,7 +27,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .errors import HwpxError
 from .oxml.table_sizes import effective_cell_margin_source
@@ -854,9 +854,16 @@ def _ss(chunk: str, tag: str, attr: str, val: int) -> str:
 
 
 def _guard_flat(table: str) -> None:
+    """Refuse a table structure edits cannot handle: one holding a table, or one with a
+    cell missing the address or size OWPML requires of it."""
     # the table's own <hp:tbl> plus any nested ones; >1 open == nested
     if len(re.findall(r"<hp:tbl\b", table)) > 1:
         raise TableStructureError("nested tables are unsupported for structure edits")
+    for tc in _S_TC.findall(table):
+        if None in (_si(tc, "cellAddr", "colAddr"), _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSz", "width")):
+            raise TableStructureError(
+                "a cell without hp:cellAddr or hp:cellSz is unsupported for structure edits"
+            )
 
 
 def _parse_table(table: str) -> tuple[str, list[str], str]:
@@ -970,6 +977,10 @@ def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
     ncol = max(widths) + 1
     freed = sum(widths[c] for c in del_cols)
     survivors = [c for c in range(ncol) if c not in del_cols]
+    if not survivors:
+        raise TableStructureError(
+            "delete_column: deleting every column would leave no table -- delete the table instead (delete_table)"
+        )
     targets = [c for c in survivors if c > dmax and c != survivors[-1]] or survivors
     add, rem = divmod(freed, len(targets))
     nw = {c: widths[c] for c in survivors}
@@ -990,7 +1001,7 @@ def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
         return tc
 
     rows = [_map_cells(r, fix) for r in rows]
-    return _rebuild(prefix, rows, suffix, colcnt=len(survivors))
+    return _rebuild(_drop_zone_lines(prefix, "Col", del_cols), rows, suffix, colcnt=len(survivors))
 
 
 def _collapse_empty_rows(table: str) -> str:
@@ -1025,8 +1036,26 @@ def _collapse_empty_rows(table: str) -> str:
             return tc
 
         rows = [_map_cells(r, fix) for i, r in enumerate(rows) if i != empty]
+        prefix = _collapse_zone_line(prefix, "Row", empty)
     rowcnt = len(rows)
     return _rebuild(prefix, rows, suffix, rowcnt=rowcnt)
+
+
+def _collapse_zone_line(prefix: str, axis: str, removed: int) -> str:
+    """The ``hp:cellzone`` entries of a table head with row (*axis* ``"Row"``) or column
+    ``"Col"`` *removed* folded into its neighbours, as a cell merge folds a line no cell
+    starts at: the cells across it stay, so no zone goes."""
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None:
+            return zone
+        start = start - 1 if start > removed else start
+        end = max(end - 1 if end >= removed and end > 0 else end, start)
+        return _ss(_ss(zone, "cellzone", f"start{axis}Addr", start), "cellzone", f"end{axis}Addr", end)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
 
 
 def _physical_row_height(rows: Sequence[str], row: int) -> int | None:
@@ -1054,6 +1083,10 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
     _guard_flat(table)
     del_rows = sorted(set(del_rows), reverse=True)
     prefix, rows, suffix = _parse_table(table)
+    if set(range(len(rows))) <= set(del_rows):
+        raise TableStructureError(
+            "delete_row: deleting every row would leave no table -- delete the table instead (delete_table)"
+        )
     for empty in del_rows:
         if empty >= len(rows):
             raise TableStructureError(f"row index {empty} out of range")
@@ -1094,7 +1127,7 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
             for cell in moved:
                 rows[empty + 1] = _insert_tc_in_order(rows[empty + 1], cell, _si(cell, "cellAddr", "colAddr") or 0)
         rows = [r for i, r in enumerate(rows) if i != empty]
-    return _rebuild(prefix, rows, suffix, rowcnt=len(rows))
+    return _rebuild(_drop_zone_lines(prefix, "Row", del_rows), rows, suffix, rowcnt=len(rows))
 
 
 def _reorder_rows(table: str, order: Sequence[int]) -> str:
@@ -1151,11 +1184,15 @@ def _blank_cell_text(tc: str) -> str:
     emptied paragraph makes Hangul reject the file ("stale lineseg beyond text
     length"). Stripping it forces recomputation."""
     tc = re.sub(r"(<hp:t\b[^>]*>).*?(</hp:t>)", r"\1\2", tc, flags=re.S)
-    tc = re.sub(
+    return _drop_line_caches(tc)
+
+
+def _drop_line_caches(tc: str) -> str:
+    """*tc* without its paragraphs' layout caches (``linesegarray``), for Hancom to lay out anew."""
+    return re.sub(
         r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
         "", tc, flags=re.S,
     )
-    return tc
 
 
 def _insert_tc_in_order(row: str, new_tc: str, col: int) -> str:
@@ -1209,6 +1246,142 @@ def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int]) -
     return out
 
 
+#: Hancom splits a cell into at most this many rows and as many columns.
+SPLIT_CELL_MAX = 63
+
+
+def _cell_at(rows: Sequence[str], row: int, col: int) -> str:
+    for tc in _S_TC.findall(rows[row] if 0 <= row < len(rows) else ""):
+        if _si(tc, "cellAddr", "colAddr") == col:
+            return tc
+    raise TableStructureError(f"split_cell: no cell starts at ({row}, {col})")
+
+
+def _regrid_zone_columns(prefix: str, lines: Sequence[int], index: Mapping[int, int]) -> str:
+    """The ``hp:cellzone`` columns of a table head moved from grid *lines* to the grid
+    numbered by *index* (x position -> column): a zone keeps the x range it covers."""
+
+    def regrid(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", "startColAddr"), _si(zone, "cellzone", "endColAddr")
+        if start is None or end is None or end + 1 >= len(lines):
+            return zone
+        zone = _ss(zone, "cellzone", "startColAddr", index[lines[start]])
+        return _ss(zone, "cellzone", "endColAddr", index[lines[end + 1]] - 1)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", regrid, prefix)
+
+
+def _split_cell_columns(table: str, row: int, col: int, parts: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Split the cell at (*row*, *col*) into *parts* cells side by side, as Hancom does: they
+    share out its width evenly (the last takes what is left over), new grid lines go where
+    they fall, and every other cell keeps its width over the grid columns it covers."""
+    prefix, rows, suffix = _parse_table(table)
+    widths = _uniform_col_widths(rows) or _grid_col_widths(table)
+    if widths is None:
+        raise TableStructureError("split_cell: the column widths are underivable from the grid -- refusing (fail-closed)")
+    lines = [0]
+    for column in range(len(widths)):
+        lines.append(lines[-1] + widths[column])
+    target = _cell_at(rows, row, col)
+    x0, x1 = lines[col], lines[col + (_si(target, "cellSpan", "colSpan") or 1)]
+    each = (x1 - x0) // parts
+    sizes = [each] * (parts - 1) + [x1 - x0 - each * (parts - 1)]
+    cuts = [x0 + sum(sizes[:part]) for part in range(parts + 1)]
+    index = {x: number for number, x in enumerate(sorted(set(lines) | set(cuts)))}
+
+    def regrid(tc: str) -> str:
+        start, span = _si(tc, "cellAddr", "colAddr"), _si(tc, "cellSpan", "colSpan") or 1
+        assert start is not None  # required hp:tc attr
+        if (_si(tc, "cellAddr", "rowAddr"), start) != (row, col):
+            tc = _ss(tc, "cellAddr", "colAddr", index[lines[start]])
+            return _ss(tc, "cellSpan", "colSpan", index[lines[start + span]] - index[lines[start]])
+        pieces = []
+        for part in range(parts):
+            piece = _drop_line_caches(tc) if part == 0 else _PARA_ID_RE.sub(fresh_id, _empty_cell_like(tc))
+            piece = _ss(piece, "cellAddr", "colAddr", index[cuts[part]])
+            piece = _ss(piece, "cellSpan", "colSpan", index[cuts[part + 1]] - index[cuts[part]])
+            pieces.append(_ss(piece, "cellSz", "width", sizes[part]))
+        return "".join(pieces)
+
+    new_rows = [_map_cells(r, regrid) for r in rows]
+    return _rebuild(_regrid_zone_columns(prefix, lines, index), new_rows, suffix, colcnt=len(index) - 1)
+
+
+def _split_cell_rows(table: str, row: int, col: int, parts: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Split the cell at (*row*, *col*) into *parts* cells one under another, as Hancom
+    does: over rows the cell already covers when they divide evenly, else one row each and
+    as many new rows as it lacks after its last, which the cells beside it grow over. The
+    parts share out its stored height evenly, as Hancom's split does with "split row heights
+    evenly" on (off, it gives the first parts their content's height and the last the rest)."""
+    prefix, rows, suffix = _parse_table(table)
+    target = _cell_at(rows, row, col)
+    span = _si(target, "cellSpan", "rowSpan") or 1
+    if span % parts == 0:
+        each, added = span // parts, 0
+    elif parts > span:
+        each, added = 1, parts - span
+    else:
+        raise TableStructureError(
+            f"split_cell: a cell over {span} rows splits into {parts} rows only evenly or one row each"
+        )
+    last = row + span - 1
+    height = _si(target, "cellSz", "height") or 0
+    sizes = [height // parts] * (parts - 1) + [height - height // parts * (parts - 1)]
+
+    def make_room(tc: str):
+        start, length = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+        assert start is not None  # required hp:tc attr
+        if (start, _si(tc, "cellAddr", "colAddr")) == (row, col):
+            tc = _ss(_ss(tc, "cellSpan", "rowSpan", each), "cellSz", "height", sizes[0])
+            return tc
+        if start > last:
+            return _ss(tc, "cellAddr", "rowAddr", start + added)
+        if start <= last < start + length:  # beside the cell's last row -> over the new rows too
+            return _ss(tc, "cellSpan", "rowSpan", length + added)
+        return tc
+
+    new_rows = [_map_cells(r, make_room) for r in rows]
+    opening = re.match(r"<hp:tr\b[^>]*>", rows[last])
+    new_rows[last + 1:last + 1] = [(opening.group(0) if opening else "<hp:tr>") + "</hp:tr>"] * added
+    for part in range(1, parts):
+        piece = _PARA_ID_RE.sub(fresh_id, _empty_cell_like(target))
+        piece = _ss(piece, "cellAddr", "rowAddr", row + part * each)
+        piece = _ss(_ss(piece, "cellSpan", "rowSpan", each), "cellSz", "height", sizes[part])
+        new_rows[row + part * each] = _insert_tc_in_order(new_rows[row + part * each], piece, col)
+    if added:
+        prefix = _shift_zones(prefix, "Row", last + 1, added, touching=True)
+    return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
+def _split_cell(
+    table: str, row: int, col: int, *, rows: int = 1, cols: int = 1, used_ids: set[int] | None = None
+) -> str:
+    """Split the cell at (*row*, *col*) into *rows* x *cols* cells, as Hancom's cell split
+    does: the cell's content stays in the first, the others hold one empty paragraph of
+    its format. Columns split first, then each part into rows."""
+    _guard_flat(table)
+    for name, value in (("rows", rows), ("cols", cols)):
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= SPLIT_CELL_MAX:
+            raise TableStructureError(f"split_cell: {name} must be an int in 1..{SPLIT_CELL_MAX}, got {value!r}")
+    if rows == cols == 1:
+        raise TableStructureError("split_cell: rows or cols must be 2 or more")
+    _grid, report = build_grid(table.encode("utf-8"))
+    if not report.ok:
+        raise TableStructureError(f"split_cell: the table's grid is invalid before the split: {report.issues}")
+    _, original_rows, _ = _parse_table(table)
+    _cell_at(original_rows, row, col)  # require the exact anchor even for a row-only split
+    fresh_id = _fresh_ids(table, used_ids)
+    if cols > 1:
+        table = _split_cell_columns(table, row, col, cols, fresh_id)
+    if rows > 1:
+        _, grid_rows, _ = _parse_table(table)
+        starts = sorted(_si(tc, "cellAddr", "colAddr") or 0 for tc in _S_TC.findall(grid_rows[row]))
+        for part in [start for start in starts if start >= col][:cols]:
+            table = _split_cell_rows(table, row, part, rows, fresh_id)
+    return table
+
+
 def _empty_cell_like(tc: str) -> str:
     """*tc* holding one empty paragraph instead of its content, with the first
     paragraph's paragraph shape and the first run's character shape kept."""
@@ -1223,60 +1396,39 @@ def _empty_cell_like(tc: str) -> str:
                   tc, count=1, flags=re.S)
 
 
-def _clone_row_template(rows: list[str], ref_row: int) -> str:
+def _clone_row_template(rows: list[str], ref_row: int, *, side: str = "below", blank: bool = False) -> str:
     """The row a clone of physical row *ref_row* starts from, as Hancom inserts a row
     below it: the cells of *ref_row* that end there, and under each cell of an upper
     row that ends at *ref_row* an empty cell of its format and width (with the
     height of *ref_row*). Cells running on below *ref_row* are not in it -- they
-    grow over the new rows instead."""
+    grow over the new rows instead. Above *ref_row* (*side* ``"above"``) it is the
+    cells starting at *ref_row*, one running on below as an empty cell one row high,
+    and cells running on into *ref_row* from above grow instead. With *blank* each
+    cell holds one empty paragraph of its format."""
     height = _physical_row_height(rows, ref_row)
     cells: list[tuple[int, str]] = []
-    for index, row in enumerate(rows[: ref_row + 1]):
+    for row in rows[: ref_row + 1]:
         for tc in _S_TC.findall(row):
             ra = _si(tc, "cellAddr", "rowAddr")
             rs = _si(tc, "cellSpan", "rowSpan") or 1
-            if ra is None or ra + rs - 1 != ref_row:
+            if ra is None or (ra if side == "above" else ra + rs - 1) != ref_row:
                 continue
-            if index < ref_row:
-                tc = _ss(_empty_cell_like(tc), "cellSpan", "rowSpan", 1)
+            if blank or rs > 1:
+                tc = _empty_cell_like(tc)
+            if rs > 1:
+                tc = _ss(tc, "cellSpan", "rowSpan", 1)
                 tc = _ss(tc, "cellSz", "height", height or (_si(tc, "cellSz", "height") or 0) // rs)
             cells.append((_si(tc, "cellAddr", "colAddr") or 0, tc))
     if not cells:
-        raise TableStructureError(f"every cell of row {ref_row} runs on below it; nothing to clone")
+        where = "on into it from above" if side == "above" else "on below it"
+        raise TableStructureError(f"every cell of row {ref_row} runs {where}; nothing to clone")
     opening = re.match(r"<hp:tr\b[^>]*>", rows[ref_row])
     return (opening.group(0) if opening else "<hp:tr>") + "".join(tc for _, tc in sorted(cells, key=lambda c: c[0])) + "</hp:tr>"
 
 
-def _insert_row_by_clone(
-    table: str, ref_row: int, count: int = 1, *, used_ids: set[int] | None = None
-) -> str:
-    """Insert *count* rows after physical row *ref_row* by cloning it (formatting
-    preserved, paragraph ids refreshed). Rows below shift.
-
-    Merged cells follow Hancom's row insertion: a cell running on below *ref_row*
-    grows its rowSpan over the new rows instead of being cloned, and under a cell
-    from an upper row that ends at *ref_row* each new row gets an empty cell of
-    its format and width."""
-    _guard_flat(table)
-    if count < 1:
-        return table
-    prefix, rows, suffix = _parse_table(table)
-    if not 0 <= ref_row < len(rows):
-        raise TableStructureError(f"ref row {ref_row} out of range")
-
-    def shift(tc: str):
-        ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
-        assert ra is not None  # required hp:tc attr
-        if ra > ref_row:
-            return _ss(tc, "cellAddr", "rowAddr", ra + count)
-        if ra <= ref_row < ra + rs and ra + rs - 1 > ref_row:
-            # cell spans across the insertion point -> extend
-            return _ss(tc, "cellSpan", "rowSpan", rs + count)
-        return tc
-
-    # build the clones from the ORIGINAL rows, before the shift
-    ref = _clone_row_template(rows, ref_row)
-    shifted = [_map_cells(r, shift) for r in rows]
+def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]], str]:
+    """A ``_PARA_ID_RE`` substitution giving each paragraph the lowest id used neither in
+    *table* nor in *used_ids* (the ids of the whole document)."""
     occupied = set(used_ids or ()) | {int(m.group(2)) for m in _PARA_ID_RE.finditer(table)}
     next_id = 1
 
@@ -1287,13 +1439,186 @@ def _insert_row_by_clone(
         occupied.add(next_id)
         return match.group(1) + str(next_id) + match.group(3)
 
+    return fresh_id
+
+
+def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Copy paragraph identities only; refuse local identities/references we cannot remap."""
+    openings = re.findall(r'''<([\w:.-]+)\b((?:"[^"]*"|'[^']*'|[^'">])*)>''', content)
+    for tag, opening in openings:
+        attrs = {name: value for name, _, value in re.findall(
+            r'''\s([\w:.-]+)\s*=\s*(["'])(.*?)\2''', opening, flags=re.S,
+        )}
+        identity = tag != "hp:p" and any(attrs.get(name) not in (None, "")
+                                         for name in ("id", "instid", "instId", "fieldid"))
+        reference = any(name in attrs for name in ("subjectIDRef", "beginIDRef", "chartIDRef"))
+        linked = any(attrs.get(name) not in (None, "", "0") for name in ("linkListIDRef", "linkListNextIDRef"))
+        if identity or reference or linked or tag in (
+            "hp:bookmark", "hp:fieldBegin", "hp:fieldEnd",
+        ):
+            raise TableStructureError(
+                "cannot clone content with local identities or references; use empty-cell insertion"
+            )
+    return _PARA_ID_RE.sub(fresh_id, content)
+
+
+def _insert_row_by_clone(
+    table: str,
+    ref_row: int,
+    count: int = 1,
+    *,
+    side: str = "below",
+    blank: bool = False,
+    used_ids: set[int] | None = None,
+) -> str:
+    """Insert *count* rows after (or with *side* ``"above"``, before) physical row
+    *ref_row* by cloning it (formatting preserved, paragraph ids refreshed). Rows past
+    them shift. With *blank* each new cell holds one empty paragraph of its format, as
+    Hancom inserts them.
+    Content with native identities or local references is refused rather than duplicated.
+
+    Merged cells follow Hancom's row insertion: a cell running on across the new rows
+    grows its rowSpan over them instead of being cloned, and next to a merged cell
+    that ends (or, above, starts) at *ref_row* each new row gets an empty cell of its
+    format and width."""
+    _guard_flat(table)
+    if side not in ("above", "below"):
+        raise TableStructureError(f"insert_row_by_clone: side must be 'above' or 'below', got {side!r}")
+    if count < 1:
+        return table
+    prefix, rows, suffix = _parse_table(table)
+    if not 0 <= ref_row < len(rows):
+        raise TableStructureError(f"ref row {ref_row} out of range")
+    first = ref_row + 1 if side == "below" else ref_row  # the first new row
+
+    def shift(tc: str):
+        ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+        assert ra is not None  # required hp:tc attr
+        if ra >= first:
+            return _ss(tc, "cellAddr", "rowAddr", ra + count)
+        if ra + rs - 1 >= first:
+            # cell spans across the insertion point -> extend
+            return _ss(tc, "cellSpan", "rowSpan", rs + count)
+        return tc
+
+    # build the clones from the ORIGINAL rows, before the shift
+    ref = _clone_row_template(rows, ref_row, side=side, blank=blank)
+    shifted = [_map_cells(r, shift) for r in rows]
+    fresh_id = _fresh_ids(table, used_ids)
     clones = []
-    for k in range(1, count + 1):
-        clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", ref_row + k))
-        clone = _PARA_ID_RE.sub(fresh_id, clone)
+    for k in range(count):
+        clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", first + k))
+        clone = _clone_content(clone, fresh_id)
         clones.append(clone)
-    new_rows = shifted[: ref_row + 1] + clones + shifted[ref_row + 1:]
+    new_rows = shifted[:first] + clones + shifted[first:]
+    prefix = _shift_zones(prefix, "Row", first, count)
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
+def _shift_zones(prefix: str, axis: str, first: int, count: int, *, touching: bool = False) -> str:
+    """The ``hp:cellzone`` entries of a table head with *count* rows (*axis* ``"Row"``)
+    or columns (``"Col"``) inserted from *first* on: a zone from there on moves over, a
+    zone running on across it grows (with *touching*, one ending just before it too)."""
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None or end < first - (1 if touching else 0):
+            return zone
+        if start >= first:
+            zone = _ss(zone, "cellzone", f"start{axis}Addr", start + count)
+        return _ss(zone, "cellzone", f"end{axis}Addr", end + count)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
+
+
+def _drop_zone_lines(prefix: str, axis: str, deleted: Iterable[int]) -> str:
+    """The ``hp:cellzone`` entries of a table head with the rows (*axis* ``"Row"``) or
+    columns (``"Col"``) *deleted*: a zone keeps the lines it covers that stay, moved back
+    over the deleted ones before them, and goes when none stays (the list with its last)."""
+    gone = set(deleted)
+
+    def moved(line: int) -> int:
+        return line - sum(1 for d in gone if d < line)
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None:
+            return zone
+        kept = [line for line in range(start, end + 1) if line not in gone]
+        if not kept:
+            return ""
+        zone = _ss(zone, "cellzone", f"start{axis}Addr", moved(kept[0]))
+        return _ss(zone, "cellzone", f"end{axis}Addr", moved(kept[-1]))
+
+    prefix = re.sub(r"<hp:cellzone\b[^>]*?(?:/>|>.*?</hp:cellzone>)", shift, prefix, flags=re.S)
+    return re.sub(r"<hp:cellzoneList\b[^>]*>\s*</hp:cellzoneList>|<hp:cellzoneList\b[^>]*/>", "", prefix)
+
+
+def _insert_column_by_clone(
+    table: str,
+    ref_col: int,
+    count: int = 1,
+    *,
+    side: str = "right",
+    blank: bool = False,
+    used_ids: set[int] | None = None,
+) -> str:
+    """Insert *count* columns right (or with *side* ``"left"``, left) of grid column *ref_col*
+    by cloning it (formatting preserved, paragraph ids refreshed). Columns past them shift,
+    and the table grows by the new columns, each as wide as *ref_col*, as Hancom's column
+    insertion widens it. With *blank* each new cell holds one empty paragraph of its cell's
+    paragraph and character shape, as Hancom inserts them.
+    Nonblank content with native identities or local references is refused;
+    their remapping is not supported. Empty-cell insertion keeps the original objects.
+
+    Merged cells follow Hancom's insertion as in :func:`_insert_row_by_clone`: a cell running
+    on across the new columns grows its colSpan and width over them instead of being cloned,
+    and next to a merged cell that ends (or, on the left, starts) at *ref_col* each new
+    column gets an empty cell of its format and rows."""
+    _guard_flat(table)
+    if side not in ("left", "right"):
+        raise TableStructureError(f"insert_column_by_clone: side must be 'left' or 'right', got {side!r}")
+    if count < 1:
+        return table
+    prefix, rows, suffix = _parse_table(table)
+    columns = _grid_width(rows)
+    if not 0 <= ref_col < columns:
+        raise TableStructureError(f"ref col {ref_col} out of range")
+    widths = _uniform_col_widths(rows) or _grid_col_widths(table)
+    if widths is None:
+        raise TableStructureError(
+            "insert_column_by_clone: the column widths are underivable from the grid -- refusing (fail-closed)"
+        )
+    width = widths[ref_col]
+    first = ref_col + 1 if side == "right" else ref_col  # the first new column
+    fresh_id = _fresh_ids(table, used_ids)
+
+    def clones(tc: str) -> str:
+        if blank or (_si(tc, "cellSpan", "colSpan") or 1) > 1:
+            tc = _ss(_ss(_empty_cell_like(tc), "cellSpan", "colSpan", 1), "cellSz", "width", width)
+        return "".join(
+            _clone_content(_ss(tc, "cellAddr", "colAddr", first + k), fresh_id) for k in range(count)
+        )
+
+    def widen(tc: str) -> str:
+        col, span = _si(tc, "cellAddr", "colAddr"), _si(tc, "cellSpan", "colSpan") or 1
+        assert col is not None  # required hp:tc attr
+        if col < first <= col + span - 1:  # runs on across the new columns -> grows over them
+            tc = _ss(tc, "cellSpan", "colSpan", span + count)
+            return _ss(tc, "cellSz", "width", (_si(tc, "cellSz", "width") or 0) + count * width)
+        moved = _ss(tc, "cellAddr", "colAddr", col + count) if col >= first else tc
+        if side == "right" and col + span - 1 == ref_col:
+            return moved + clones(tc)
+        if side == "left" and col == ref_col:
+            return clones(tc) + moved
+        return moved
+
+    new_rows = [_map_cells(row, widen) for row in rows]
+    prefix = _ss(prefix, "sz", "width", (_si(prefix, "sz", "width") or 0) + count * width)
+    prefix = _shift_zones(prefix, "Col", first, count)
+    return _rebuild(prefix, new_rows, suffix, colcnt=columns + count)
 
 
 def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
@@ -1514,7 +1839,12 @@ _STRUCT_OPS = {
     "delete_column": lambda t, o: _collapse_empty_rows(_delete_columns(t, o["cols"] if "cols" in o else [o["col"]])),
     "delete_row": lambda t, o: _delete_rows(t, o["rows"] if "rows" in o else [o["row"]]),
     "reorder_rows": lambda t, o: _reorder_rows(t, [int(x) for x in o["order"]]),
-    "insert_row_by_clone": lambda t, o: _insert_row_by_clone(t, o["ref_row"], int(o.get("count", 1))),
+    "insert_row_by_clone": lambda t, o: _insert_row_by_clone(
+        t, o["ref_row"], int(o.get("count", 1)), side=str(o.get("side", "below")),
+        blank=bool(o.get("blank", False))),
+    "insert_column_by_clone": lambda t, o: _insert_column_by_clone(
+        t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
+        blank=bool(o.get("blank", False))),
     "insert_block_by_clone": lambda t, o: _insert_block_by_clone(t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1))),
     "set_column_widths": lambda t, o: _set_column_widths(t, _widths_arg(o)),
     "autofit_columns": lambda t, o: _autofit_columns(t, min_frac=float(o.get("min_frac", 0.06)), damp=float(o.get("damp", 0.5))),
@@ -1522,7 +1852,37 @@ _STRUCT_OPS = {
         t, {int(k): int(v) for k, v in dict(o["heights"]).items()}),
     "split_cell_vertical": lambda t, o: _split_cell_vertical(
         t, int(o["row"]), int(o["col"]), o["sizes"]),
+    "split_cell": lambda t, o: _split_cell(
+        t, int(o["row"]), int(o["col"]), rows=int(o.get("rows", 1)), cols=int(o.get("cols", 1))),
 }
+
+
+#: The ops whose new paragraphs take ids unused in the whole document.
+_CLONE_OPS = {
+    "split_cell": lambda t, o, ids: _split_cell(
+        t, int(o["row"]), int(o["col"]), rows=int(o.get("rows", 1)), cols=int(o.get("cols", 1)), used_ids=ids),
+    "insert_row_by_clone": lambda t, o, ids: _insert_row_by_clone(
+        t, o["ref_row"], int(o.get("count", 1)), side=str(o.get("side", "below")),
+        blank=bool(o.get("blank", False)), used_ids=ids),
+    "insert_column_by_clone": lambda t, o, ids: _insert_column_by_clone(
+        t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
+        blank=bool(o.get("blank", False)), used_ids=ids),
+}
+
+
+def _restructure_table(table: str, op: Mapping[str, Any], *, used_ids: set[int] | None = None) -> str:
+    """One table's XML after *op*, an :func:`apply_table_ops` op dict naming one of its row,
+    column and cell edits, with the grid checked. New paragraphs take ids neither in the
+    table nor in *used_ids*. A refused edit raises :class:`TableStructureError`."""
+    name = op.get("op")
+    if name in _CLONE_OPS:
+        new_table = _CLONE_OPS[name](table, op, set(used_ids or ()))
+    elif name in _STRUCT_OPS:
+        new_table = _STRUCT_OPS[name](table, op)
+    else:
+        raise TableStructureError(f"{name!r} is not a table structure op")
+    _validate_or_raise(new_table)
+    return new_table
 
 
 def _set_row_heights(table: str, heights: Mapping[int, int]) -> str:
@@ -1920,8 +2280,15 @@ def apply_table_ops(
     each changed table back so untouched bytes stay identical.
 
     Op dicts: ``{op: 'delete_column'|'delete_row'|'delete_table'|
-    'insert_row_by_clone'|'insert_block_by_clone'|'split_table'|'merge_table'|
-    'fill_cell', section_path?, table_index, ...}``. ``insert_block_by_clone``
+    'insert_row_by_clone'|'insert_column_by_clone'|'insert_block_by_clone'|
+    'split_table'|'merge_table'|'fill_cell', section_path?, table_index, ...}``.
+    ``insert_row_by_clone`` takes ``ref_row`` + ``count`` (+ ``side: 'above'``,
+    ``blank`` for empty new cells) and inserts below (above) that physical row;
+    ``insert_column_by_clone`` takes ``ref_col`` + ``count`` (+ ``side: 'left'``,
+    ``blank``) and inserts right (left) of that grid column, widening the table.
+    ``split_cell`` takes ``row`` + ``col`` (the cell's address) + ``rows`` and/or
+    ``cols`` (2..63) and splits that cell as Hancom's cell split does.
+    ``insert_block_by_clone``
     takes ``ref_rows: [r0, r1]`` (a vertical-merge block) + ``count``;
     ``delete_column`` derives widths from the merged grid when no uniform
     ``colSpan==1`` row exists (FR-003).
@@ -2026,16 +2393,9 @@ def apply_table_ops(
             elif name == "merge_table":
                 new_section, dims_after = _merge_tables(section, spans, ti)
             elif name in _STRUCT_OPS:
-                if name == "insert_row_by_clone":
-                    used_ids = {int(m.group(2)) for data in sections.values()
-                                for m in _PARA_ID_RE.finditer(data.decode("utf-8"))}
-                    new_table = _insert_row_by_clone(
-                        section[ts:te].decode("utf-8"), op["ref_row"],
-                        int(op.get("count", 1)), used_ids=used_ids,
-                    )
-                else:
-                    new_table = _STRUCT_OPS[name](section[ts:te].decode("utf-8"), op)
-                _validate_or_raise(new_table)
+                used_ids = {int(m.group(2)) for data in sections.values()
+                            for m in _PARA_ID_RE.finditer(data.decode("utf-8"))} if name in _CLONE_OPS else None
+                new_table = _restructure_table(section[ts:te].decode("utf-8"), op, used_ids=used_ids)
                 new_section = section[:ts] + new_table.encode("utf-8") + section[te:]
                 dims_after = _table_dims(new_table)
             else:

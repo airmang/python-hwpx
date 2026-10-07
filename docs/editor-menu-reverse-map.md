@@ -154,9 +154,9 @@ Windows 한컴 전용 표면은 이 스캔으로 부재를 단정할 수 없다.
 | 셀 테두리/배경 | [대응 영역] | `HwpxOxmlTable.set_cell_border_fill`(+ `ensure_border_fill`)로 테두리, `set_cell_shading`(+ `ensure_shading_border_fill`)로 배경색, `set_cell_fill_image`/`set_cell_fill_gradient`로 이미지/그라데이션 배경까지 전부 확인(`oxml/table.py:775-843`) — 표 구조 변경/문단·표 저작/편집 영역이 대응 |
 | 표 나누기 | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊸ 갭⑤에서 해소**(`f7e4e67`) — `apply_table_ops`의 `split_table` op가 물리 행 인덱스에서 표를 둘로 나눈다(병합 셀이 경계를 걸치면 fail-closed 거부), v16 render-verified |
 | 표 붙이기 | ✅ [대응 영역] | ~~신규 갭~~ **트레인㊸ 갭⑤에서 해소**(`f7e4e67`) — `apply_table_ops`의 `merge_table` op가 그 역연산을 수행한다(colCnt 불일치·실텍스트 존재 시 거부), v16 render-verified |
-| 줄/칸 추가하기… | [대응 영역] | 표 구조 변경(`insert_row_by_clone`) |
+| 줄/칸 추가하기… | [대응 영역] | 표 구조 변경(`insert_row_by_clone`, `insert_column_by_clone`) |
 | 줄/칸 지우기… | [대응 영역] | 표 구조 변경(`delete_row`/`delete_column`) |
-| 셀 나누기… | [대응 영역] | 표 구조 변경(`split_cell_vertical`) |
+| 셀 나누기… | [대응 영역] | 표 구조 변경(`split_cell`, `split_cell_vertical`) |
 | 셀 합치기 | [대응 영역] | 표 생성(`merge_cells`) |
 | 셀 높이를 같게 | ✅ [대응 영역] | ~~부분 대응~~ **트레인㊻에서 해소**: `HwpxOxmlTable.equalize_row_heights()`(`oxml/table.py`) — `set_column_widths`의 행 대응(같은 `iter_grid`/rowSpan 로직, `_distribute_size` 재사용). 신규 XML 어휘 없음(기존 `cellSz` 그대로) |
 | 셀 너비를 같게 | ✅ [대응 영역] | `HwpxOxmlTable.equalize_column_widths()` — 한/글처럼 행마다 그 행의 칸(합친 칸은 한 칸)을 같은 너비로 나누고, 모든 행이 같이 끝나도록 표 너비를 행별 칸 수의 공배수로 올린 뒤 열 격자를 새 경계로 다시 짠다. 세로로 합친 칸이 행마다 다른 너비를 받아야 하면 거부(한/글도 바꾸지 않음). 격자 열 균등은 `set_column_widths([1]*column_count)` |
