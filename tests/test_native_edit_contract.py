@@ -30,7 +30,7 @@ def test_floating_shape_preserves_other_fields_and_parts(tmp_path):
     with HwpxDocument.open(source) as doc:
         shape = doc.paragraphs[0].shapes[0]
         expected = deepcopy(shape.element)
-        expected.find(HP + "pos").set("horzOffset", "-100")
+        expected.find(HP + "pos").set("horzOffset", "4294967196")  # -100 as Hancom writes it
         expected.find(HP + "pos").set("vertOffset", "14000")
         shape.set_position(horizontal_offset=-100, vertical_offset=14000)
         assert fingerprint(shape.element) == fingerprint(expected)
