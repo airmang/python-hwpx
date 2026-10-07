@@ -148,6 +148,19 @@ HANCOM_PAGES = {
     "pages_line_ends_100_above_page_foot": 2,  # and 100 above it: no room is kept below lines
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
+    # Columns changing inside the section (10 pt lines spaced 160%): three lines in one column, a paragraph
+    # starting two columns (gap 1200) and the lines after it, then one starting one column and three lines.
+    # Hancom starts each area of columns 1134 below the lowest line of the one before, counts its lines from
+    # its top, and balances an area followed by another on its last page, by height:
+    "pages_columns_change_newspaper_short": 1,  # six lines: four and three (the empty starting line counts)
+    "pages_columns_change_newspaper_long": 1,  # thirty: sixteen and fifteen
+    "pages_columns_change_newspaper_over_a_page": 2,  # ninety: full columns, then the rest balanced
+    "pages_columns_change_newspaper_break_over_a_page": 2,  # a column break among them
+    "pages_columns_change_balanced_break": 1,  # balanced columns: a column break starts a balanced block
+    "pages_columns_change_tall_empty_line": 1,  # the starting line 20 pt: three lines and four
+    "pages_columns_change_after_text": 1,  # the definitions behind their paragraphs' text: areas, no columns
+    "pages_columns_change_text_after_definition": 1,  # ahead of it
+    "pages_columns_change_text_after_definition_break": 1,  # thirty lines with a column break
     "pages_footnotes_6": 3,               # footnotes at the page foot
     "pages_table_flow_repeat_header": 3,  # a table flowing with the text, header row repeated
     "pages_table_repeated_header_second_cell_marked": 2,  # only its second cell a header cell: repeated
@@ -1306,6 +1319,25 @@ def test_columns_of_unequal_width_take_their_share_of_the_text_width_rounded() -
 
     assert page_layout._columns(section, 42520) == (3, 8502, (8502, 15875, 15878), 0)  # no gap: unequal widths
     assert {int(seg.get("horzsize")) for seg in section.iter(f"{HP}lineseg")} == {8502, 15875, 15878}
+
+
+def test_a_column_area_starts_at_a_definition_and_at_a_column_break_in_balanced_columns() -> None:
+    # A paragraph's first column definition starts an area (behind its text: the columns before go on), and so
+    # does a column break in balanced columns; the section's own definition, next to hp:secPr, starts none.
+    section = etree.fromstring(
+        f'<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="{HP[1:-1]}">'
+        '<hp:p><hp:run><hp:secPr/><hp:ctrl><hp:colPr colCount="1"/></hp:ctrl></hp:run></hp:p>'
+        '<hp:p><hp:run><hp:t>text</hp:t><hp:ctrl><hp:colPr colCount="2"/></hp:ctrl>'
+        '<hp:ctrl><hp:colPr colCount="3"/></hp:ctrl></hp:run></hp:p>'
+        '<hp:p><hp:run><hp:ctrl><hp:colPr colCount="2" type="BALANCED_NEWSPAPER"/></hp:ctrl><hp:t>a</hp:t></hp:run></hp:p>'
+        '<hp:p columnBreak="1"><hp:run><hp:t>b</hp:t></hp:run></hp:p>'
+        '</hs:sec>'
+    )
+
+    areas = page_layout._column_areas(section)
+
+    assert [(index, None if found is None else found.get("colCount")) for index, found in areas] == \
+        [(1, None), (2, "2"), (3, "2")]
 
 
 def test_the_multi_column_sample_breaks_its_lines_at_each_column_width_without_caches() -> None:
