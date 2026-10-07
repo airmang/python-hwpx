@@ -811,15 +811,14 @@ class HwpxOxmlParagraph:
         if same_size:
             validate_column_gap(same_gap)  # before its run is added
         sizes = column_shares(column_widths) if column_widths and not same_size else []
-        if self.element.find(f"{_HP}run/{_HP}secPr") is not None:  # a section's first paragraph: Hancom does not
-            # open one with a second definition beside its settings' own, so that one is rewritten (the section's)
-            ctrl = self.section.properties.set_columns(
-                col_count, col_type=col_type, layout=layout, same_size=same_size, same_gap=same_gap,
-                column_widths=column_widths, separator_type=separator_type,
-                separator_width=separator_width, separator_color=separator_color,
-            )
-            if ctrl is not None:
-                return HwpxOxmlInlineObject(ctrl, self)
+        # A section's first paragraph: Hancom does not open one with a second definition beside its settings' own,
+        # so that one is rewritten (the section's).
+        if self.element.find(f"{_HP}run/{_HP}secPr") is not None and (ctrl := self.section.properties.set_columns(
+            col_count, col_type=col_type, layout=layout, same_size=same_size, same_gap=same_gap,
+            column_widths=column_widths, separator_type=separator_type,
+            separator_width=separator_width, separator_color=separator_color,
+        )) is not None:
+            return HwpxOxmlInlineObject(ctrl, self)
 
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref,
