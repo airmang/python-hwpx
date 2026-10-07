@@ -65,7 +65,7 @@ from .objects import (
 )
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
-from .section_format import validate_column_gap, validate_new_number
+from .section_format import column_shares, validate_column_gap, validate_new_number
 from .shape_position import validate_equation_base_unit, validate_shape_size
 from .table import HwpxOxmlTable
 from .table_sizes import cell_margins_of
@@ -796,8 +796,10 @@ class HwpxOxmlParagraph:
             layout: ``LEFT``, ``RIGHT``, or ``MIRROR``.
             same_size: If ``True`` all columns have equal width.
             same_gap: Gap between columns when *same_size* is ``True`` (HWPUNIT).
-            column_widths: When *same_size* is ``False``, a sequence of
-                ``(width, gap)`` tuples – one per column.
+            column_widths: When *same_size* is ``False``, a ``(width, gap)``
+                pair per column, in HWP units adding up to the text width or
+                in plain proportions: they are written as the shares of 32768
+                Hancom keeps (see :func:`~hwpx.oxml.section_format.column_shares`).
             separator_type: Line type for the column separator (e.g. ``SOLID``).
             separator_width: Line width (e.g. ``0.12 mm``).
             separator_color: Line colour (e.g. ``#000000``).
@@ -806,6 +808,7 @@ class HwpxOxmlParagraph:
             raise ValueError("col_count must be between 1 and 255")
         if same_size:
             validate_column_gap(same_gap)  # before its run is added
+        sizes = column_shares(column_widths) if column_widths and not same_size else []
 
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref,
@@ -832,12 +835,11 @@ class HwpxOxmlParagraph:
                 line_attrs["color"] = separator_color
             _append_child(col_pr, f"{_HP}colLine", line_attrs)
 
-        # Individual column sizes when same_size=False
-        if not same_size and column_widths:
-            for w, g in column_widths:
-                _append_child(col_pr, f"{_HP}colSz", {
-                    "width": str(w), "gap": str(g),
-                })
+        # Individual column sizes when same_size=False, as shares of 32768
+        for w, g in sizes:
+            _append_child(col_pr, f"{_HP}colSz", {
+                "width": str(w), "gap": str(g),
+            })
 
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl, self)

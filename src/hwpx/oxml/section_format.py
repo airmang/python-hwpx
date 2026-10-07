@@ -282,6 +282,40 @@ def validate_column_gap(gap: object) -> int:
     return gap
 
 
+#: Hancom keeps each column's width and gap (``hp:colSz``) as a share of the text width out of 32768 and lays a
+#: column out ``width * text width / 32768`` wide, whatever the shares add up to; its own add up to 32768.
+COLUMN_SHARES = 32768
+
+
+def column_shares(column_widths: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
+    """*column_widths*, a ``(width, gap)`` pair per column in any one unit (HWP units adding up to the text width,
+    or plain proportions), as the ``hp:colSz`` shares Hancom keeps: in the same proportions, adding up to
+    :data:`COLUMN_SHARES`, so that the columns and their gaps fill the text width. Every value must be an int of
+    0 or more, not all of them 0."""
+
+    from ..errors import HwpxValueError
+
+    pairs = [tuple(pair) for pair in column_widths]
+    values = [value for pair in pairs for value in pair]
+    if (
+        any(len(pair) != 2 for pair in pairs)
+        or not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in values)
+        or sum(values) <= 0
+    ):
+        raise HwpxValueError(
+            f"column_widths must be (width, gap) pairs of ints, 0 or more and not all 0; got {column_widths!r}",
+            code="page-column-widths-value",
+            context={"value": repr(column_widths)},
+            suggestion="Pass a (width, gap) pair per column, e.g. [(20000, 1000), (21520, 0)] in HWP units.",
+        )
+    total, run, edges = sum(values), 0, [0]
+    for value in values:  # rounded at each edge, so that the shares add up to COLUMN_SHARES
+        run += value
+        edges.append((2 * run * COLUMN_SHARES + total) // (2 * total))
+    shares = [end - start for start, end in zip(edges, edges[1:])]
+    return list(zip(shares[::2], shares[1::2]))
+
+
 class HwpxOxmlSectionProperties:
     """Provides convenient access to ``<hp:secPr>`` configuration."""
 
@@ -473,6 +507,7 @@ class HwpxOxmlSectionProperties:
 
         if same_size:
             validate_column_gap(same_gap)  # checked before anything changes, as the separator below
+        sizes = column_shares(column_widths) if column_widths and not same_size else []
         line = None
         if separator_type or separator_width or separator_color:
             # checked before anything changes: a refused value leaves the columns as they were
@@ -494,7 +529,7 @@ class HwpxOxmlSectionProperties:
             col_pr.remove(child)
         if line is not None:
             _append_child(col_pr, f"{_HP}colLine", line)
-        for width, gap in () if same_size else (column_widths or ()):
+        for width, gap in sizes:
             _append_child(col_pr, f"{_HP}colSz", {"width": str(width), "gap": str(gap)})
         self.section.mark_dirty()
         return ctrl

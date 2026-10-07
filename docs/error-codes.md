@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 182 | 11 |
+| 개수 | 183 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -184,6 +184,7 @@ except HwpxError as exc:
 | `page-argument-conflict` | text 와 content 를 동시에 지정했다. |
 | `page-argument-missing` | text 또는 content 중 하나는 있어야 한다. |
 | `page-column-gap-value` | 같은 폭 단의 간격(same_gap)이 0 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `page-column-widths-value` | 단 너비(column_widths)가 0 이상의 int 로 된 (너비, 간격) 쌍이 아니거나 모두 0이다. |
 | `page-columns-invalid` | 단 수는 1 이상이어야 한다. |
 | `page-kind-invalid` | kind 는 'header' 또는 'footer' 여야 한다. |
 | `page-new-num-kind-invalid` | 쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다. |
