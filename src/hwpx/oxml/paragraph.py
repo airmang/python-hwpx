@@ -65,8 +65,10 @@ from .objects import (
 )
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
+from .section_format import column_shares, validate_column_gap, validate_new_number
+from .shape_position import validate_equation_base_unit, validate_shape_size
 from .table import HwpxOxmlTable
-from .table_sizes import cell_margins_of
+from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -577,8 +579,10 @@ class HwpxOxmlParagraph:
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlTable:
-        if width is None:
-            width = self._context_table_width()
+        if width is not None:
+            width = new_table_width(width, cols)  # checked, and floored as Hancom draws it, before its run is added
+        elif (context := self._context_table_width()) is not None:  # a narrow cell's may be below the floor
+            width = max(context, cols * NEW_TABLE_COLUMN_FLOOR)
         if border_fill_id_ref is None:
             document = self.section.document
             if document is not None:
@@ -676,18 +680,18 @@ class HwpxOxmlParagraph:
                 "(a PAPER-relative <hp:pos> on an inline pic is contradictory)"
             )
 
-        run = self._create_run_for_object(
-            run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
-        )
-        element = _create_picture_element(
+        element = _create_picture_element(  # checked before its run is added
             str(binary_item_id_ref),
-            int(width),
-            int(height),
+            width,
+            height,
             align=align,
             treat_as_char=treat_as_char,
             pos_overrides=pos_overrides,
             text_wrap=text_wrap,
+        )
+        run = self._create_run_for_object(
+            run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
         )
         if type(element) is not type(run):
             element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
@@ -794,18 +798,37 @@ class HwpxOxmlParagraph:
             layout: ``LEFT``, ``RIGHT``, or ``MIRROR``.
             same_size: If ``True`` all columns have equal width.
             same_gap: Gap between columns when *same_size* is ``True`` (HWPUNIT).
-            column_widths: When *same_size* is ``False``, a sequence of
-                ``(width, gap)`` tuples – one per column.
+            column_widths: When *same_size* is ``False``, a ``(width, gap)``
+                pair per column, in HWP units adding up to the text width or
+                in plain proportions: they are written as the shares of 32768
+                Hancom keeps (see :func:`~hwpx.oxml.section_format.column_shares`).
             separator_type: Line type for the column separator (e.g. ``SOLID``).
             separator_width: Line width (e.g. ``0.12 mm``).
             separator_color: Line colour (e.g. ``#000000``).
         """
         if not 1 <= col_count <= 255:
             raise ValueError("col_count must be between 1 and 255")
+        if same_size:
+            validate_column_gap(same_gap)  # before its run is added
+        sizes = column_shares(column_widths) if column_widths and not same_size else []
+        # A section's first paragraph: Hancom does not open one with a second definition beside its settings' own,
+        # so that one is rewritten (the section's).
+        if self.element.find(f"{_HP}run/{_HP}secPr") is not None and (ctrl := self.section.properties.set_columns(
+            col_count, col_type=col_type, layout=layout, same_size=same_size, same_gap=same_gap,
+            column_widths=column_widths, separator_type=separator_type,
+            separator_width=separator_width, separator_color=separator_color,
+        )) is not None:
+            return HwpxOxmlInlineObject(ctrl, self)
 
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref,
         )
+        # Hancom starts the new columns only from a definition ahead of the paragraph's text (its own
+        # documents give it the first run, after a section's settings): one behind the text is not applied.
+        ahead = [r for r in self.element.findall(f"{_HP}run") if r is not run and r.find(f"{_HP}secPr") is None]
+        if ahead:
+            self.element.remove(run)
+            self.element.insert(list(self.element).index(ahead[0]), run)
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         col_pr_attrs: dict[str, str] = {
             "id": "",
@@ -828,12 +851,11 @@ class HwpxOxmlParagraph:
                 line_attrs["color"] = separator_color
             _append_child(col_pr, f"{_HP}colLine", line_attrs)
 
-        # Individual column sizes when same_size=False
-        if not same_size and column_widths:
-            for w, g in column_widths:
-                _append_child(col_pr, f"{_HP}colSz", {
-                    "width": str(w), "gap": str(g),
-                })
+        # Individual column sizes when same_size=False, as shares of 32768
+        for w, g in sizes:
+            _append_child(col_pr, f"{_HP}colSz", {
+                "width": str(w), "gap": str(g),
+            })
 
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl, self)
@@ -1036,10 +1058,11 @@ class HwpxOxmlParagraph:
         """
 
         normalized_kind = _normalize_enum_attr(kind or "PAGE", NEW_NUM_KINDS, label="kind")
+        number = validate_new_number(number)  # before its run is added
         run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         _append_child(
-            ctrl, f"{_HP}newNum", {"num": str(int(number)), "numType": normalized_kind},
+            ctrl, f"{_HP}newNum", {"num": str(number), "numType": normalized_kind},
         )
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl, self)
@@ -1184,12 +1207,12 @@ class HwpxOxmlParagraph:
         text = script.strip()
         if not text:
             raise ValueError("equation script must be a non-empty string")
-        if base_unit <= 0:
-            raise ValueError("base_unit must be positive")
+        validate_equation_base_unit(base_unit)
         from ..equation.measure import measure_equation
 
         measured = measure_equation(text, base_unit=base_unit)
         width, height = size if size is not None else (measured.width, measured.height)
+        validate_shape_size(width, height)
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref
         )

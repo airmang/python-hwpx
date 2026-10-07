@@ -12,12 +12,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import lcm
-from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, overload
 
 from ..objects.results import CellMargins
 from ._document_primitives import (
     _HP,
     _clear_paragraph_layout_cache,
+    _default_cell_inner_margin_attributes,
     _distribute_size,
     _element_local_name,
 )
@@ -34,9 +35,56 @@ __all__ = [
     "effective_cell_margin_source",
     "set_column_widths",
     "grid_widths_of",
+    "COLUMN_FLOOR_EXTRA",
+    "NEW_TABLE_COLUMN_FLOOR",
+    "new_table_width",
 ]
 
 _MARGIN_SIDES = ("left", "right", "top", "bottom")
+
+#: Hancom draws a table column at least its cells' left and right margins and this wide, the table as much
+#: wider (it keeps the narrower width written in the cells).
+COLUMN_FLOOR_EXTRA = 283
+#: The floor of a new table's column: its cells take the new table's margins (510 left and right).
+NEW_TABLE_COLUMN_FLOOR = sum(
+    int(_default_cell_inner_margin_attributes()[side]) for side in ("left", "right")
+) + COLUMN_FLOOR_EXTRA
+
+
+@overload
+def new_table_width(width: None, cols: int) -> None: ...
+@overload
+def new_table_width(width: int, cols: int) -> int: ...
+def new_table_width(width: object, cols: int) -> int | None:
+    """The width a new table of *cols* columns is written at for *width* (``None`` when not given): at least
+    :data:`NEW_TABLE_COLUMN_FLOOR` a column, as Hancom draws it. A width that is not an int in
+    ``0 < width < 2**31`` is refused."""
+
+    from ..errors import HwpxValueError
+
+    if width is None:
+        return None
+    if isinstance(width, bool) or not isinstance(width, int) or not 0 < width < 2**31:
+        raise HwpxValueError(
+            f"width must be an int in 0 < width < 2**31 (HWPUNIT); got {width!r}",
+            code="table-width-value",
+            context={"value": repr(width)},
+            suggestion="Pass the table's width in HWP units, or leave it out to fit the text width.",
+        )
+    return max(width, cols * NEW_TABLE_COLUMN_FLOOR)
+
+
+def _column_floors(table: "HwpxOxmlTable") -> list[int]:
+    """The narrowest Hancom draws each grid column: the widest left and right margins and
+    :data:`COLUMN_FLOOR_EXTRA` of its cells one column wide."""
+
+    floors = [0] * table.column_count
+    for entry in table.iter_grid():
+        if entry.is_anchor and entry.span[1] == 1:
+            margins = cell_margins_of(entry.cell.element, table.element)
+            sides = 0 if margins is None else margins.left + margins.right
+            floors[entry.column] = max(floors[entry.column], sides + COLUMN_FLOOR_EXTRA)
+    return floors
 
 
 def set_column_widths(table: "HwpxOxmlTable", weights: Sequence[int | float]) -> None:
@@ -61,6 +109,10 @@ def set_column_widths(table: "HwpxOxmlTable", weights: Sequence[int | float]) ->
             width = round(total_width * weight / weight_total)
             allocated += width
         column_widths.append(width)
+    # A column narrower than its floor is drawn at the floor and the table that much wider: written so too.
+    column_widths = [max(width, floor) for width, floor in zip(column_widths, _column_floors(table))]
+    if sz is not None and sum(column_widths) > total_width:
+        sz.set("width", str(sum(column_widths)))
 
     updated_cells: set[int] = set()
     for entry in table.iter_grid():

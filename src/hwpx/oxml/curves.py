@@ -145,8 +145,15 @@ def _placed_box(shape: HwpxOxmlShape) -> tuple[tuple[str, str], int, int, int, i
             suggestion="Place the shapes with horz_align='LEFT' and vert_align='TOP'.",
         )
     frame = (position.get("horzRelTo", "COLUMN"), position.get("vertRelTo", "PARA"))
-    return (frame, int(position.get("horzOffset", 0)), int(position.get("vertOffset", 0)),
+    return (frame, _signed(position.get("horzOffset", 0)), _signed(position.get("vertOffset", 0)),
             int(size.get("width", 0)), int(size.get("height", 0)))
+
+
+def _signed(value: str | int) -> int:
+    """An offset Hancom writes as its unsigned 32-bit form (one up or left of its frame) as the number it is."""
+
+    number = int(value) & 0xFFFFFFFF
+    return number - (1 << 32) if number >= 1 << 31 else number
 
 
 def _side_point(box: tuple[int, int, int, int], side: int) -> tuple[int, int]:
@@ -226,6 +233,6 @@ def _paragraph_add_connector(
     assert position is not None
     position.set("horzRelTo", frame[0])
     position.set("vertRelTo", frame[1])
-    position.set("horzOffset", str(left))
-    position.set("vertOffset", str(top))
+    position.set("horzOffset", str(left & 0xFFFFFFFF))  # a negative one as Hancom writes it: unsigned 32-bit
+    position.set("vertOffset", str(top & 0xFFFFFFFF))
     return self._insert_shape_element(element, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
