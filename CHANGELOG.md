@@ -6,6 +6,10 @@
 
 ### 추가
 
+- FormFit과 쪽 수 추정이 KoPub 글꼴 12종도 글꼴의 설계 폭으로 잰다: KoPub돋움체·KoPub바탕체·KoPubWorld돋움체·
+  KoPubWorld바탕체의 Light·Medium·Bold. 전에는 글자 종류의 평균 폭을 썼다. 한글 음절은 모두 같은 폭이고(돋움체
+  872/1000, 바탕체 936/1000), 다른 글자도 글꼴의 폭을 쓴다. 이 글꼴로 쓴 칸의 채우기 결과와, 줄 배치 정보가 없는
+  문서의 쪽 수가 달라질 수 있다.
 - 묶음(`doc.shapes.add_container`)에 선·글상자·그림·묶음 안 묶음 부재를 더한다: `ContainerMember.line`,
   `ContainerMember.text_box`, `ContainerMember.picture`, `ContainerMember.group`.
   - 선은 두 끝 중 왼쪽 위에 놓이고, 두 끝을 그 모서리 기준으로 지닌다.

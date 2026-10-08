@@ -69,6 +69,7 @@ HY_HEADLINE_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 MORE_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_cells.hwpx"
 MORE_FACES_FALLBACKS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_fallback_cells.hwpx"
 MORE_FACES_HANGUL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_hangul_cells.hwpx"
+KOPUB_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kopub_faces_cells.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -167,6 +168,29 @@ def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
             faces[style.glyph_face] = faces.get(style.glyph_face, 0) + 1
     assert faces == {"한컴산뜻돋움": 58, "HY중고딕": 58, "HY견고딕": 52, "HY신명조": 52, "새굴림": 34,
                      "한컴 말랑말랑 Regular": 56, "한컴 말랑말랑 Bold": 4}
+
+
+def test_kopub_cells_break_where_hancom_breaks_them() -> None:
+    # Hancom laid this document out with the KoPub fonts installed: each cell holds a glyph (가, space, 0, A, a, (,
+    # ., — or ⑯) and five Hangul syllables in one of the twelve KoPub and KoPubWorld 돋움체/바탕체 faces (Light,
+    # Medium, Bold), at one of the two widths where its line count changes, at 10 pt and, for Light, 30 pt too.
+    # Every glyph takes the face's own design advance; a Hangul syllable is 872 of 1000 units in 돋움체, 936 in 바탕체.
+    doc = HwpxDocument.open(KOPUB_FACES_CELLS)
+    faces: dict[str, int] = {}
+    for cell in doc.oxml.sections[0].element.iter(f"{HP}tc"):
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points, width)
+        faces[style.glyph_face] = faces.get(style.glyph_face, 0) + 1
+    assert faces == {f"{family}체 {weight}": 36 if weight == "Light" else 18
+                     for family in ("KoPub돋움", "KoPub바탕", "KoPubWorld돋움", "KoPubWorld바탕")
+                     for weight in ("Light", "Medium", "Bold")}
 
 
 def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -> None:
