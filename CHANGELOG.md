@@ -6,6 +6,19 @@
 
 ### 추가
 
+- 묶음(`doc.shapes.add_container`)에 선·글상자·그림·묶음 안 묶음 부재를 더한다: `ContainerMember.line`,
+  `ContainerMember.text_box`, `ContainerMember.picture`, `ContainerMember.group`.
+  - 선은 두 끝 중 왼쪽 위에 놓이고, 두 끝을 그 모서리 기준으로 지닌다.
+  - 글상자는 사각형에 `set_draw_text`와 같은 글을 담는다(이름·편집 가능·여백·글자 모양·문단 모양·세로 정렬).
+    글은 묶음이 구역에 들어간 뒤 쓰여 문단 id가 구역에서 겹치지 않는다. 잘못된 세로 정렬은 문서를 바꾸기 전에
+    거부한다.
+  - 그림은 `doc.media.add_image`가 돌려준 이진 항목을 받아 주어진 크기에 그린다. 이진 항목이 비면
+    `shape-container-picture-image`로 거부한다.
+  - 묶음 안 묶음은 꼬리(`sz`·`pos`·`outMargin`·`shapeComment`) 없는 부재다. 모든 깊이의 도형은 가장 바깥 묶음의
+    좌표에 놓인다. 한/글은 각 도형을 그 좌표의 자기 `transMatrix`에 그리므로, 안쪽 묶음 좌표에 둔 도형은 바깥
+    묶음의 왼쪽 위에 겹쳐 그려진다.
+  - 한/글이 저장한 묶음처럼 모든 부재는 `id`·`zOrder` 0, `numberingType="NONE"`이고, `groupLevel`은 깊이다
+    (1, 2, 3…).
 - 표 구조 편집(`hwpx.table_patch.apply_table_ops`)에 열 삽입 `insert_column_by_clone`을 더한다. 격자 열
   `ref_col`의 오른쪽(`side: "left"`면 왼쪽)에 그 열을 복제한 열 `count`개를 넣는다.
   - 새 열은 기준 열과 같은 폭이고, 표는 그만큼 넓어진다. 본문 폭을 넘어도 줄이지 않는다.

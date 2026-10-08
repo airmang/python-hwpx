@@ -467,7 +467,8 @@ def add_container(
     """Insert a group (``<hp:container>``) wrapping *members*.
 
     Each member is built with :class:`hwpx.oxml.ContainerMember`'s
-    ``rect``/``ellipse``/``polygon`` classmethods, which take the member's
+    ``rect``/``ellipse``/``polygon``/``line``/``text_box``/``picture``/``group``
+    classmethods, which take the member's
     position in the group's own local coordinate space (HWPUNIT, top-left
     anchored) alongside its usual shape parameters::
 

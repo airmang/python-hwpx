@@ -345,8 +345,8 @@ class ShapesNamespace(_Namespace):
         section: "int | Section | None" = None,
         section_index: int | None = None,
     ) -> "Shape":
-        """도형을 그룹으로 묶는다(`ContainerMember.rect`/`.ellipse`/`.polygon`으로
-        각 부재를 그룹 로컬 좌표로 만들어 넘긴다)."""
+        """도형을 그룹으로 묶는다(`ContainerMember.rect`/`.ellipse`/`.polygon`/`.line`/
+        `.text_box`/`.picture`/`.group`으로 각 부재를 그룹 로컬 좌표로 만들어 넘긴다)."""
 
         from .. import shapes as _shapes
 
