@@ -183,8 +183,9 @@ at all, and where uploads land, varies by plan and settings.
   `add_bookmark()` / `add_hyperlink()`.
 - Pictures: simple picture objects and pictures inside groups can be generated.
   Brightness, contrast, grayscale, black and white, transparency and a solid
-  border are `add_picture()` arguments, and so is cropping (`crop`); effects
-  such as shadows or reflections, flipping and rotation are not supported yet.
+  border are `add_picture()` arguments, and so are cropping (`crop`) and a shadow
+  or glow (`shadow`, `glow`); soft edges, reflections, flipping and rotation are
+  not supported yet.
 - Encrypted HWPX files and password-protected or distribution HWP files are not supported.
 
 ## Contributing

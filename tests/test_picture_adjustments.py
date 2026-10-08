@@ -126,3 +126,70 @@ def test_a_crop_that_is_not_four_cuts_leaving_some_picture_is_refused(crop) -> N
 
     assert caught.value.code == "shape-picture-crop-value"
     assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)
+
+
+def test_a_shadow_and_a_glow_are_written_as_hancom_keeps_them() -> None:
+    from hwpx.oxml import PictureGlow, PictureShadow
+
+    picture = HwpxDocument.new().add_picture(
+        PNG_1X1, "png", width=20000, height=10000,
+        shadow=PictureShadow(direction=90, distance=800), glow=PictureGlow(radius=700)).element
+    with zipfile.ZipFile(FIXTURES / "picture_shadow_and_glow.hwpx") as package:
+        hancom = etree.fromstring(package.read("Contents/section0.xml")).find(f".//{HP}pic")
+
+    def effects(element):
+        return [(etree.QName(node).localname, dict(node.attrib)) for node in element.find(f"{HP}effects").iter()
+                if node is not element.find(f"{HP}effects")]
+
+    assert effects(picture) == effects(hancom)
+
+
+def test_no_effect_by_default() -> None:
+    picture = HwpxDocument.new().add_picture(PNG_1X1, "png").element
+
+    assert len(picture.find(f"{HP}effects")) == 0
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"shadow": "shadow"},
+        {"glow": {"radius": 500}},
+    ],
+)
+def test_an_effect_that_is_not_its_class_is_refused(arguments) -> None:
+    with pytest.raises(HwpxValueError) as caught:
+        HwpxDocument.new().add_picture(PNG_1X1, "png", **arguments)
+
+    assert caught.value.code == "shape-picture-effect-value"
+
+
+@pytest.mark.parametrize(
+    ("kind", "fields"),
+    [
+        ("shadow", {"alpha": 1.5}),  # saved as 1
+        ("shadow", {"alpha": -0.1}),  # saved as 0
+        ("shadow", {"direction": 360}),  # saved as itself, drawn as 0
+        ("shadow", {"direction": -90}),  # saved as 270
+        ("shadow", {"blur": -1}),  # drawn as 0
+        ("shadow", {"distance": -600}),
+        ("shadow", {"color": "red"}),
+        ("shadow", {"color": "#80FF0000"}),
+        ("shadow", {"inside": 1}),
+        ("glow", {"radius": 1.5}),
+        ("glow", {"alpha": True}),
+        ("glow", {"color": None}),
+    ],
+)
+def test_a_shadow_or_glow_value_hancom_does_not_keep_is_refused_before_anything_is_added(kind, fields) -> None:
+    from hwpx.oxml import PictureGlow, PictureShadow
+
+    effect = PictureShadow(**fields) if kind == "shadow" else PictureGlow(**fields)
+    document = HwpxDocument.new()
+    paragraphs, images = len(document.paragraphs), len(document.media.images)
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.add_picture(PNG_1X1, "png", **{kind: effect})
+
+    assert caught.value.code == "shape-picture-effect-value"
+    assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)

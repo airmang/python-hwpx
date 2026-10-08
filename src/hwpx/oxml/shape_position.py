@@ -23,16 +23,25 @@ are ``curSz/orgSz`` per axis, and ``rotationInfo``'s centre is half of
 
 A group (``hp:container``) is drawn at its ``sz`` whatever its members hold;
 :func:`resize_group` writes the rest of it as Hancom saves a resized group.
+
+A new picture's checks live here too, with its shadow and glow (``hp:effects``): Hancom saves an ``alpha`` past
+0..1 as the bound, a shadow ``direction`` as itself modulo 360 and an unknown shadow ``style`` as ``OUTSIDE``, and
+draws a negative radius as 0, so those values are refused. The direction runs clockwise on the page from the right
+(0 right, 90 below, 180 left, 270 above). An effect takes room: Hancom lays a picture out as large as it and its
+outer shadow or glow together (a glow ``radius`` on each side; an outer shadow offset by ``distance`` in its
+direction and spread by ``blur``), so a picture set as a character makes its line that much taller.
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..errors import HwpxValueError
 from ._document_primitives import _HC, _HP
+from .color import normalize_color
 
 if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
@@ -430,3 +439,114 @@ __all__ = [
     "validate_rect_ratio",
     "validate_shape_size",
 ]
+
+
+@dataclass(frozen=True)
+class PictureShadow:
+    """A picture's shadow: *color* (``#RRGGBB``), *alpha* (transparency, 0 opaque to 1 not drawn), *blur* (how far
+    its edge spreads, HWPUNIT), *direction* (degrees clockwise from the right, 0..359), *distance* (how far it falls
+    from the picture, HWPUNIT) and *inside* (drawn inside the picture's edge instead of behind it)."""
+
+    color: str = "#000000"
+    alpha: float = 0.5
+    blur: int = 600
+    direction: int = 45
+    distance: int = 600
+    inside: bool = False
+
+
+@dataclass(frozen=True)
+class PictureGlow:
+    """A glow around a picture: *color* (``#RRGGBB``), *alpha* (transparency, 0 opaque to 1 not drawn) and *radius*
+    (how far it reaches out from the picture's edge, HWPUNIT)."""
+
+    color: str = "#FFC000"
+    alpha: float = 0.5
+    radius: int = 500
+
+
+def _refuse(argument: str, value: object, rule: str) -> HwpxValueError:
+    return HwpxValueError(
+        f"{argument} must be {rule}; got {value!r}",
+        code="shape-picture-effect-value",
+        context={"argument": argument, "value": repr(value)},
+        suggestion=f"Pass {argument} as {rule}.",
+    )
+
+
+def _alpha(argument: str, value: object) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
+        raise _refuse(argument, value, "a number from 0 to 1")
+    return f"{float(value):g}"
+
+
+def _length(argument: str, value: object) -> str:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**31:
+        raise _refuse(argument, value, "an int from 0 (HWPUNIT)")
+    return str(value)
+
+
+def _rgb(argument: str, value: object) -> tuple[int, int, int]:
+    try:
+        color = normalize_color(value) if isinstance(value, str) else None
+    except HwpxValueError:
+        color = None
+    if color is None or len(color) != 7:
+        raise _refuse(argument, value, "a #RRGGBB colour")
+    return int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+
+
+def validate_picture_effects(shadow: object, glow: object) -> None:
+    """Check *shadow* (a :class:`PictureShadow` or ``None``) and *glow* (a :class:`PictureGlow` or ``None``)."""
+
+    if shadow is not None:
+        if not isinstance(shadow, PictureShadow):
+            raise _refuse("shadow", shadow, "a PictureShadow or None")
+        _rgb("shadow.color", shadow.color)
+        _alpha("shadow.alpha", shadow.alpha)
+        _length("shadow.blur", shadow.blur)
+        _length("shadow.distance", shadow.distance)
+        direction = shadow.direction
+        if isinstance(direction, bool) or not isinstance(direction, int) or not 0 <= direction <= 359:
+            raise _refuse("shadow.direction", direction, "an int from 0 to 359 (degrees)")
+        if not isinstance(shadow.inside, bool):
+            raise _refuse("shadow.inside", shadow.inside, "a bool")
+    if glow is not None:
+        if not isinstance(glow, PictureGlow):
+            raise _refuse("glow", glow, "a PictureGlow or None")
+        _rgb("glow.color", glow.color)
+        _alpha("glow.alpha", glow.alpha)
+        _length("glow.radius", glow.radius)
+
+
+def _append_color(parent: "ET.Element", rgb: tuple[int, int, int]) -> None:
+    color = parent.makeelement(f"{_HP}effectsColor", {"type": "RGB", "schemeIdx": "-1", "systemIdx": "-1",
+                                                       "presetIdx": "-1"})
+    parent.append(color)
+    color.append(color.makeelement(f"{_HP}rgb", {"r": str(rgb[0]), "g": str(rgb[1]), "b": str(rgb[2])}))
+
+
+def append_picture_effects(effects: "ET.Element", shadow: PictureShadow | None, glow: PictureGlow | None) -> None:
+    """Write *shadow* and *glow* into a picture's ``hp:effects``, in the schema's order (shadow, then glow), as a
+    Hancom document holds them."""
+
+    validate_picture_effects(shadow, glow)
+    if shadow is not None:
+        element = effects.makeelement(f"{_HP}shadow", {
+            "style": "INSIDE" if shadow.inside else "OUTSIDE",
+            "alpha": _alpha("shadow.alpha", shadow.alpha),
+            "radius": _length("shadow.blur", shadow.blur),
+            "direction": str(shadow.direction),
+            "distance": _length("shadow.distance", shadow.distance),
+            "alignStyle": "CENTER",
+            "rotationStyle": "0",
+        })
+        effects.append(element)
+        element.append(element.makeelement(f"{_HP}skew", {"x": "0", "y": "0"}))
+        element.append(element.makeelement(f"{_HP}scale", {"x": "1", "y": "1"}))
+        _append_color(element, _rgb("shadow.color", shadow.color))
+    if glow is not None:
+        element = effects.makeelement(f"{_HP}glow", {"alpha": _alpha("glow.alpha", glow.alpha),
+                                                     "radius": _length("glow.radius", glow.radius)})
+        effects.append(element)
+        _append_color(element, _rgb("glow.color", glow.color))

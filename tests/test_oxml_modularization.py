@@ -290,7 +290,10 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # fixed the dedupe comparison in ensure_tab_definition (a real duplicate-
     # creation bug, not just a read gap) since it shared the same
     # direct-children-only blind spot.
-    assert len(oxml.__all__) == 134
+    # 134 -> 136: PictureShadow/PictureGlow -- the input types add_picture's
+    # shadow= and glow= take (hp:effects/hp:shadow, hp:glow), as ContainerMember
+    # is add_container's.
+    assert len(oxml.__all__) == 136
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

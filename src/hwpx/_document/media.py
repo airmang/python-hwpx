@@ -20,6 +20,7 @@ from ..opc.relationships import (
 from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
 from ..oxml.color import normalize_color
+from ..oxml.shape_position import PictureGlow, PictureShadow, validate_picture_effects
 from ..oxml.shape_position import (
     validate_picture_align, validate_picture_border, validate_picture_crop, validate_picture_image, validate_shape_size,
 )
@@ -117,6 +118,8 @@ def add_picture(
     line_color: str | None = None,
     line_width: int = 33,
     crop: tuple[int, int, int, int] | None = None,
+    shadow: PictureShadow | None = None,
+    glow: PictureGlow | None = None,
     para_pr_id_ref: str | int | None = None,
     style_id_ref: str | int | None = None,
     char_pr_id_ref: str | int | None = None,
@@ -149,6 +152,7 @@ def add_picture(
                 resolved_height = resolved_width
     validate_shape_size(resolved_width, resolved_height)  # before anything is stored too
     validate_picture_crop(crop, resolved_width, resolved_height)
+    validate_picture_effects(shadow, glow)
 
     # Call the local primitive directly rather than `doc.add_image` — that
     # facade name moved in 6.0 (design table row 33), and going through it
@@ -185,6 +189,8 @@ def add_picture(
         line_color=line_color,
         line_width=line_width,
         crop=crop,
+        shadow=shadow,
+        glow=glow,
         run_attributes=run_attributes,
         char_pr_id_ref=char_pr_id_ref,
     )
