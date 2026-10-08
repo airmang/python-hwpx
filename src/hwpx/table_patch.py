@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .errors import HwpxError
-from .oxml.table_sizes import effective_cell_margin_source
+from .oxml.table_sizes import COLUMN_FLOOR_EXTRA, effective_cell_margin_source
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
@@ -241,8 +241,8 @@ def _open_tag_attrs(chunk: bytes, name: str) -> dict[str, str] | None:
         return None
     return {k.decode(): v.decode() for k, v in _ATTR_RE.findall(m.group(0))}
 
-def _cell_inner_width(table: bytes, cell: bytes) -> int:
-    """Cell width minus the effective left/right margins (``cell.margins``):
+def _cell_side_margins(table: bytes, cell: bytes) -> int:
+    """The cell's effective left and right margins together (``cell.margins``):
     the table's ``hp:inMargin`` unless the cell's ``hasMargin`` is on."""
     own = _mask_nested_tables(cell)  # the cell's own children, not a nested table's
     body = _mask_nested_tables(table[_open_tag_end(table):])
@@ -252,9 +252,12 @@ def _cell_inner_width(table: bytes, cell: bytes) -> int:
         _open_tag_attrs(own, "cellMargin"),
         _open_tag_attrs(body[: first_row.start()] if first_row else body, "inMargin"),
     )
-    w = _iattr(own, "cellSz", "width") or 0
-    left, right = (_iattr_value(source, "left"), _iattr_value(source, "right")) if source else (0, 0)
-    return max(w - left - right, 0)
+    return _iattr_value(source, "left") + _iattr_value(source, "right") if source else 0
+
+def _cell_inner_width(table: bytes, cell: bytes) -> int:
+    """Cell width minus the effective left/right margins (:func:`_cell_side_margins`)."""
+    w = _iattr(_mask_nested_tables(cell), "cellSz", "width") or 0
+    return max(w - _cell_side_margins(table, cell), 0)
 
 def _iattr_value(attrs: Mapping[str, str], name: str) -> int:
     try:
@@ -1275,7 +1278,11 @@ def _regrid_zone_columns(prefix: str, lines: Sequence[int], index: Mapping[int, 
 def _split_cell_columns(table: str, row: int, col: int, parts: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
     """Split the cell at (*row*, *col*) into *parts* cells side by side, as Hancom does: they
     share out its width evenly (the last takes what is left over), new grid lines go where
-    they fall, and every other cell keeps its width over the grid columns it covers."""
+    they fall, and every other cell keeps its width over the grid columns it covers.
+
+    A part narrower than Hancom draws a column (the cell's left and right margins and
+    :data:`COLUMN_FLOOR_EXTRA`) is written that wide, as Hancom writes it: the grid lines right
+    of the cell and the table's width move over by what the parts gained."""
     prefix, rows, suffix = _parse_table(table)
     widths = _uniform_col_widths(rows) or _grid_col_widths(table)
     if widths is None:
@@ -1286,7 +1293,12 @@ def _split_cell_columns(table: str, row: int, col: int, parts: int, fresh_id: Ca
     target = _cell_at(rows, row, col)
     x0, x1 = lines[col], lines[col + (_si(target, "cellSpan", "colSpan") or 1)]
     each = (x1 - x0) // parts
-    sizes = [each] * (parts - 1) + [x1 - x0 - each * (parts - 1)]
+    floor = _cell_side_margins(table.encode(), target.encode()) + COLUMN_FLOOR_EXTRA
+    sizes = [max(size, floor) for size in [each] * (parts - 1) + [x1 - x0 - each * (parts - 1)]]
+    gained = sum(sizes) - (x1 - x0)
+    if gained:
+        lines = [line + gained if line >= x1 else line for line in lines]
+        prefix = _ss(prefix, "sz", "width", (_si(prefix, "sz", "width") or 0) + gained)
     cuts = [x0 + sum(sizes[:part]) for part in range(parts + 1)]
     index = {x: number for number, x in enumerate(sorted(set(lines) | set(cuts)))}
 
