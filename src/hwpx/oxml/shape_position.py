@@ -47,6 +47,9 @@ SUBLIST_VERT_ALIGN = ("TOP", "CENTER", "BOTTOM")
 #: ``hp:caption/@side`` 어휘(스키마 기본값은 LEFT). 실코퍼스 15건 전수는
 #: TOP 14 · BOTTOM 1 — LEFT/RIGHT 관측 0(테두리 옆 캡션은 실무에서 안 쓴다).
 CAPTION_SIDES = frozenset({"LEFT", "RIGHT", "TOP", "BOTTOM"})
+#: ``hc:img/@effect`` values Hancom keeps and draws (as they are, in grey, in black and white); it saves any other
+#: value as ``REAL_PIC``.
+PICTURE_EFFECTS = ("REAL_PIC", "GRAY_SCALE", "BLACK_WHITE")
 
 
 def _require_member(
@@ -72,6 +75,42 @@ def validate_picture_align(align: object) -> str | None:
         return None
     return _require_member(align.upper() if isinstance(align, str) else align, POS_HORZ_ALIGN, argument="align",
                            code="shape-position-frame")
+
+
+def validate_picture_image(brightness: object, contrast: object, effect: object,
+                           alpha: object) -> tuple[int, int, str, int]:
+    """A new picture's image adjustments as ``hc:img``'s ``bright``, ``contrast``, ``effect`` and ``alpha``.
+
+    Hancom draws *brightness* and *contrast* from -100 to 100: it keeps a value past them as written but draws a
+    brightness past them as at the bound and a contrast past them with its colours turned over or grey. *effect*
+    is one of :data:`PICTURE_EFFECTS`, any case. *alpha* is the picture's transparency, from 0 (opaque) to 255
+    (not drawn); Hancom saves 256 as 0."""
+
+    for argument, value, low, high in (("brightness", brightness, -100, 100), ("contrast", contrast, -100, 100),
+                                       ("alpha", alpha, 0, 255)):
+        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise HwpxValueError(
+                f"{argument} must be an int in {low} <= {argument} <= {high}; got {value!r}",
+                code="shape-picture-image-value",
+                context={"argument": argument, "value": repr(value)},
+                suggestion=f"Pass {argument} from {low} to {high}.",
+            )
+    name = _require_member(effect.upper() if isinstance(effect, str) else effect, PICTURE_EFFECTS,
+                           argument="effect", code="shape-picture-image-value")
+    return brightness, contrast, name, alpha  # type: ignore[return-value]
+
+
+def validate_picture_border(line_width: object) -> int:
+    """A new picture's border width (``hp:lineShape/@width``, HWPUNIT): an int in ``0 <= value < 2**31``."""
+
+    if isinstance(line_width, bool) or not isinstance(line_width, int) or not 0 <= line_width < 2**31:
+        raise HwpxValueError(
+            f"line_width must be an int in 0 <= line_width < 2**31 (HWPUNIT); got {line_width!r}",
+            code="shape-picture-border-value",
+            context={"argument": "line_width", "value": repr(line_width)},
+            suggestion="Pass the border width in HWP units (33 is about 0.12 mm).",
+        )
+    return line_width
 
 
 def validate_draw_text_vert_align(vert_align: str | None) -> str | None:

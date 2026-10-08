@@ -19,7 +19,10 @@ from ..opc.relationships import (
 )
 from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
-from ..oxml.shape_position import validate_picture_align, validate_shape_size
+from ..oxml.color import normalize_color
+from ..oxml.shape_position import (
+    validate_picture_align, validate_picture_border, validate_picture_image, validate_shape_size,
+)
 from ._units import _mm_to_hwp_units
 
 if TYPE_CHECKING:
@@ -107,15 +110,26 @@ def add_picture(
     width_mm: float | None = None,
     height_mm: float | None = None,
     align: str | None = None,
+    brightness: int = 0,
+    contrast: int = 0,
+    effect: str = "REAL_PIC",
+    alpha: int = 0,
+    line_color: str | None = None,
+    line_width: int = 33,
     para_pr_id_ref: str | int | None = None,
     style_id_ref: str | int | None = None,
     char_pr_id_ref: str | int | None = None,
     run_attributes: dict[str, str] | None = None,
     **extra_attrs: str,
 ) -> HwpxOxmlInlineObject:
-    """Embed image data and place a picture object in a new paragraph."""
+    """Embed image data and place a picture object in a new paragraph, the image adjusted and bordered as
+    :meth:`HwpxOxmlParagraph.add_picture` takes it."""
 
     validate_picture_align(align)  # before anything is stored: Hancom reads an unknown one as LEFT
+    validate_picture_image(brightness, contrast, effect, alpha)  # ... and draws no other adjustment
+    if line_color is not None:
+        normalize_color(line_color)
+        validate_picture_border(line_width)
     resolved_width = width
     if resolved_width is None:
         resolved_width = _mm_to_hwp_units(width_mm) if width_mm is not None else 14400
@@ -162,6 +176,12 @@ def add_picture(
         width=resolved_width,
         height=resolved_height,
         align=align,
+        brightness=brightness,
+        contrast=contrast,
+        effect=effect,
+        alpha=alpha,
+        line_color=line_color,
+        line_width=line_width,
         run_attributes=run_attributes,
         char_pr_id_ref=char_pr_id_ref,
     )

@@ -52,12 +52,12 @@ from ._paragraph_text_edit import (
 )
 from .objects import (
     HwpxOxmlInlineObject,
-    _create_picture_element,
     _missing_shape_children,
     _paragraph_add_arc,
     _paragraph_add_container,
     _paragraph_add_ellipse,
     _paragraph_add_line,
+    _paragraph_add_picture,
     _paragraph_add_polygon,
     _paragraph_add_rectangle,
     _paragraph_insert_shape_element,
@@ -653,53 +653,8 @@ class HwpxOxmlParagraph:
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)
 
-    def add_picture(
-        self,
-        binary_item_id_ref: str,
-        *,
-        width: int = 14400,
-        height: int = 14400,
-        align: str | None = None,
-        treat_as_char: bool = True,
-        pos_overrides: dict[str, str | int] | None = None,
-        text_wrap: str | None = None,
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData.
-
-        With ``treat_as_char=False`` and ``pos_overrides`` the picture is placed as a
-        **floating** object: ``pos_overrides`` sets ``horz/vertRelTo`` (e.g. ``PAPER``),
-        ``horz/vertAlign`` and ``horz/vertOffset`` (HWPUNIT, non-negative) on the
-        ``<hp:pos>`` so the image lands at a fixed page position (used by 직인 placement).
-        ``text_wrap`` overrides the pic's ``textWrap`` (e.g. ``IN_FRONT_OF_TEXT`` so a
-        seal stamped over a line does not reflow the text it overlaps).
-        """
-
-        if pos_overrides and treat_as_char:
-            raise ValueError(
-                "pos_overrides is for floating placement; pass treat_as_char=False "
-                "(a PAPER-relative <hp:pos> on an inline pic is contradictory)"
-            )
-
-        element = _create_picture_element(  # checked before its run is added
-            str(binary_item_id_ref),
-            width,
-            height,
-            align=align,
-            treat_as_char=treat_as_char,
-            pos_overrides=pos_overrides,
-            text_wrap=text_wrap,
-        )
-        run = self._create_run_for_object(
-            run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
-        )
-        if type(element) is not type(run):
-            element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
-        run.append(element)
-        self.section.mark_dirty()
-        return HwpxOxmlInlineObject(element, self)
+    # Lives in ``oxml/objects.py`` with the other object helpers (this owner file is at its line cap).
+    add_picture = _paragraph_add_picture
 
     # ------------------------------------------------------------------
     # Spec-compliant drawing shape helpers
