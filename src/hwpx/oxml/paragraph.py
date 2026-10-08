@@ -437,6 +437,7 @@ class HwpxOxmlParagraph:
                 attrs["charPrIDRef"] = str(default_char)
         run = self.element.makeelement(f"{_HP}run", attrs)
         self.element.append(run)
+        _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         return run
 
     def add_run(
@@ -498,6 +499,7 @@ class HwpxOxmlParagraph:
                         run_attrs["charPrIDRef"] = str(default_char)
 
         run_element = _append_child(self.element, f"{_HP}run", run_attrs)
+        _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         if expand_special_characters:
             _append_text_with_run_choice_atoms(run_element, text)
         else:

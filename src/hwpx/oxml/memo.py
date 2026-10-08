@@ -10,6 +10,7 @@ from ._document_primitives import (
     _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _append_child,
+    _clear_paragraph_layout_cache,
     _create_paragraph_element,
     _default_sublist_attributes,
     _element_local_name,
@@ -291,8 +292,10 @@ def _remove_field(root: ET.Element, field_begin: ET.Element) -> None:
             continue
         if ctrl is not None and run is not None:
             run.remove(ctrl)
+            paragraph = _parent_of(root, run)
+            if paragraph is not None:  # the control's room goes: the cache's line starts would be past it
+                _clear_paragraph_layout_cache(paragraph)
             if not list(run) and _element_local_name(run) == "run":
-                paragraph = _parent_of(root, run)
                 if paragraph is not None and len(paragraph.findall(f"{_HP}run")) > 1:
                     paragraph.remove(run)
         else:
