@@ -478,7 +478,7 @@
 - `add_run(text="", ...)`: 새 런을 추가하고, 선택적으로 소유 문서를 통해 일치하는 글자 스타일을 생성한 후, 래퍼를 반환합니다.
 - `remove()`: 단락을 소유 섹션에서 삭제합니다. 섹션의 마지막 단락이면 `ValueError`가 발생합니다.
 - `tables`: 단락 내에 포함된 `HwpxOxmlTable` 래퍼를 반환하는 프로퍼티입니다.
-- `add_table(...)`, `add_line(...)`, `add_rectangle(...)`, `add_ellipse(...)`: 적절한 런을 생성하여 인라인 객체(표, 도형)를 삽입하고 래퍼 객체를 반환합니다. 도형 헬퍼는 한컴이 요구하는 하위 요소까지 생성합니다.
+- `add_table(...)`, `add_line(...)`, `add_rectangle(...)`, `add_ellipse(...)`, `add_arc(...)`, `add_polygon(...)`, `add_curve(...)`, `add_connector(...)`, `add_container(...)`: 적절한 런을 생성하여 인라인 객체(표, 도형, 묶음)를 삽입하고 래퍼 객체를 반환합니다. 도형 헬퍼는 한컴이 요구하는 하위 요소까지 생성합니다.
 - `add_shape(...)`, `add_control(...)`: 같은 자리에 임의의 요소를 넣는 저수준 탈출구입니다. 필수 하위 요소를 만들지 않아 호출 시 `UserWarning`이 나므로, 표준 도형은 위 전용 헬퍼를 쓰세요.
 - `para_pr_id_ref`, `style_id_ref`, `char_pr_id_ref`: 단락 수준의 서식 재정의를 허용하는 setter가 있는 프로퍼티입니다.
 - `_run_elements()`, `_ensure_run()`, `_create_run_for_object()`: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.
