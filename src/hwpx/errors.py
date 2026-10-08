@@ -357,6 +357,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-original-size-invalid": "add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다.",
     "shape-size-value": "도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "shape-picture-image-value": "그림의 밝기·대비(-100~100)·투명도(alpha, 0~255)가 범위 밖의 int 이거나(bool 도 거부) 효과가 REAL_PIC/GRAY_SCALE/BLACK_WHITE 밖이다.",
+    "shape-picture-crop-value": "그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다.",
     "shape-picture-border-value": "그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "shape-rect-ratio-value": "사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부).",
     "shape-equation-base-unit-value": "수식 기준 크기(base_unit)가 1 이상 2**31 미만의 int(1/100 pt)가 아니다(bool 도 거부).",

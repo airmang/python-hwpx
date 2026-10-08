@@ -96,3 +96,33 @@ def test_a_value_hancom_does_not_draw_is_refused_before_anything_is_added(argume
 
     assert caught.value.code == code
     assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)
+
+
+def test_a_crop_cuts_the_sides_at_the_same_scale_as_hancom_keeps_it() -> None:
+    # 20000 x 10000 with 5000 cut from the left and right and 2500 from the top and bottom: drawn 10000 x 5000,
+    # the whole picture's size in hp:imgDim and the part kept in hp:imgClip
+    picture = HwpxDocument.new().add_picture(PNG_1X1, "png", width=20000, height=10000,
+                                             crop=(5000, 2500, 5000, 2500)).element
+    with zipfile.ZipFile(FIXTURES / "picture_cropped.hwpx") as package:
+        hancom = etree.fromstring(package.read("Contents/section0.xml")).find(f".//{HP}pic")
+
+    for name in ("orgSz", "sz", "imgClip", "imgDim"):
+        mine, kept = picture.find(f"{HP}{name}"), hancom.find(f"{HP}{name}")
+        assert {key: mine.get(key) for key in kept.attrib if key in mine.attrib} == {
+            key: kept.get(key) for key in kept.attrib if key in mine.attrib}, name
+    assert (picture.find(f"{HP}sz").get("width"), picture.find(f"{HP}sz").get("height")) == ("10000", "5000")
+    assert [(pt.get("x"), pt.get("y")) for pt in picture.find(f"{HP}imgRect")] == [
+        ("0", "0"), ("10000", "0"), ("10000", "5000"), ("0", "5000")]
+
+
+@pytest.mark.parametrize("crop", [(10000, 0, 10000, 0), (0, 5000, 0, 5000), (0, 0, 0), (-1, 0, 0, 0),
+                                  (0, 0, 0, True), (0.5, 0, 0, 0), "abcd"])
+def test_a_crop_that_is_not_four_cuts_leaving_some_picture_is_refused(crop) -> None:
+    document = HwpxDocument.new()
+    paragraphs, images = len(document.paragraphs), len(document.media.images)
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.add_picture(PNG_1X1, "png", width=20000, height=10000, crop=crop)
+
+    assert caught.value.code == "shape-picture-crop-value"
+    assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)

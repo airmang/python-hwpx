@@ -25,7 +25,8 @@ from ._document_primitives import (
 )
 from .shape_position import (
     _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
-    validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_image, validate_rect_ratio,
+    validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_crop, validate_picture_image,
+    validate_rect_ratio,
     validate_shape_size,
 )
 
@@ -526,8 +527,12 @@ def _create_picture_element(
     alpha: int = 0,
     line_color: str | None = None,
     line_width: int = 33,
+    crop: tuple[int, int, int, int] | None = None,
 ) -> ET.Element:
-    """Build a ``<hp:pic>`` element using the corpus-observed picture shape: the image adjusted by *brightness*,
+    """Build a ``<hp:pic>`` element using the corpus-observed picture shape: the image *width* x *height* with
+    *crop* (left, top, right, bottom, HWPUNIT) cut from its sides at the same scale, as Hancom crops a picture
+    (``hp:imgDim`` the whole picture, ``hp:imgClip`` the part kept in it, the picture drawn as large as that part),
+    adjusted by *brightness*,
     *contrast*, *effect* and *alpha* (see :func:`~hwpx.oxml.shape_position.validate_picture_image`), and with a
     solid border *line_width* wide when *line_color* is given (``hp:lineShape`` right before ``hp:imgRect``, where
     the schema's PictureType has it and where it stands in Hancom's pictures whichever of their two child orders they
@@ -535,6 +540,10 @@ def _create_picture_element(
 
     brightness, contrast, effect, alpha = validate_picture_image(brightness, contrast, effect, alpha)
     validate_picture_border(line_width)  # given or not: a bad width is not dropped quietly
+    validate_shape_size(width, height)
+    left, top, right, bottom = validate_picture_crop(crop, width, height)
+    whole_width, whole_height = width, height
+    width, height = width - left - right, height - top - bottom  # as drawn
     border = None
     if line_color is not None:
         border = dict(_DEFAULT_LINE_SHAPE_ATTRS, color=_normalize_color(line_color) or "#000000",
@@ -555,10 +564,10 @@ def _create_picture_element(
     _append_child(rect, f"{_HC}pt2", {"x": str(width), "y": str(height)})
     _append_child(rect, f"{_HC}pt3", {"x": "0", "y": str(height)})
     _append_child(el, f"{_HP}imgClip", {
-        "left": "0",
-        "right": str(width),
-        "top": "0",
-        "bottom": str(height),
+        "left": str(left),
+        "right": str(whole_width - right),
+        "top": str(top),
+        "bottom": str(whole_height - bottom),
     })
     _append_child(el, f"{_HP}inMargin", {
         "left": "0",
@@ -567,8 +576,8 @@ def _create_picture_element(
         "bottom": "0",
     })
     _append_child(el, f"{_HP}imgDim", {
-        "dimwidth": str(width),
-        "dimheight": str(height),
+        "dimwidth": str(whole_width),
+        "dimheight": str(whole_height),
     })
     _append_child(el, f"{_HC}img", {
         "binaryItemIDRef": binary_item_id_ref,
@@ -679,6 +688,7 @@ def _paragraph_add_picture(
     alpha: int = 0,
     line_color: str | None = None,
     line_width: int = 33,
+    crop: tuple[int, int, int, int] | None = None,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlInlineObject:
@@ -693,8 +703,11 @@ def _paragraph_add_picture(
 
     *brightness* and *contrast* (-100 to 100), *effect* (``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE``) and
     *alpha* (transparency, 0 opaque to 255 not drawn) adjust the image as Hancom draws it; *line_color* (with
-    *line_width*, HWPUNIT) gives the picture a solid border. A value Hancom does not draw is refused
-    (``shape-picture-image-value``, ``shape-picture-border-value``) before anything is added.
+    *line_width*, HWPUNIT) gives the picture a solid border. *crop* ``(left, top, right, bottom)`` cuts that much
+    (HWPUNIT) from the sides of the *width* x *height* picture at the same scale: the picture is drawn
+    ``width - left - right`` by ``height - top - bottom``. A value Hancom does not draw is refused
+    (``shape-picture-image-value``, ``shape-picture-border-value``, ``shape-picture-crop-value``) before anything
+    is added.
     """
 
     if pos_overrides and treat_as_char:
@@ -717,6 +730,7 @@ def _paragraph_add_picture(
         alpha=alpha,
         line_color=line_color,
         line_width=line_width,
+        crop=crop,
     )
     run = self._create_run_for_object(
         run_attributes,

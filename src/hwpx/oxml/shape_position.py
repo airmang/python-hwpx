@@ -113,6 +113,26 @@ def validate_picture_border(line_width: object) -> int:
     return line_width
 
 
+def validate_picture_crop(crop: object, width: int, height: int) -> tuple[int, int, int, int]:
+    """A new picture's *crop* as how much to cut from its left, top, right and bottom (HWPUNIT, on the picture
+    *width* x *height* before cutting); ``None`` cuts nothing. Ints from 0, leaving some of the picture in each
+    direction."""
+
+    if crop is None:
+        return 0, 0, 0, 0
+    sides = tuple(crop) if isinstance(crop, (tuple, list)) else ()
+    if len(sides) != 4 or any(isinstance(side, bool) or not isinstance(side, int) or side < 0 for side in sides)             or sides[0] + sides[2] >= width or sides[1] + sides[3] >= height:
+        raise HwpxValueError(
+            f"crop must be four ints (left, top, right, bottom) from 0 that leave some of the {width} x {height} "
+            f"picture; got {crop!r}",
+            code="shape-picture-crop-value",
+            context={"argument": "crop", "value": repr(crop), "width": width, "height": height},
+            suggestion="Pass how much to cut from each side in HWP units, less in all than the picture's width and "
+                       "height.",
+        )
+    return sides  # type: ignore[return-value]
+
+
 def validate_draw_text_vert_align(vert_align: str | None) -> str | None:
     """Check ``set_draw_text``'s *vert_align* (``hp:subList/@vertAlign``)."""
 
