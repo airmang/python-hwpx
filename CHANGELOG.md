@@ -16,6 +16,10 @@
   - `crop=(왼쪽, 위, 오른쪽, 아래)`는 `width` x `height` 그림의 네 변에서 그만큼(HWPUNIT) 잘라 낸다. 한/글처럼
     축척은 그대로라 그림은 `width - 왼쪽 - 오른쪽` x `height - 위 - 아래`로 그려진다. 0 이상의 int 네 개가 아니거나
     그림을 다 잘라 내면 `shape-picture-crop-value`로 거부한다.
+  - `shadow=PictureShadow(...)`는 그림자를, `glow=PictureGlow(...)`는 빛남을 그린다(`hwpx.oxml`에서 가져온다).
+    그림자는 색·투명도(0~1)·흐림·방향(오른쪽에서 시계 방향 0~359도: 0 오른쪽, 90 아래)·거리·안쪽 여부를,
+    빛남은 색·투명도·반경을 받는다(길이는 HWPUNIT). 한/글은 그림을 그 효과까지 합친 크기로 배치하므로, 글자처럼
+    취급한 그림은 줄이 그만큼 높아진다. 범위 밖의 값은 `shape-picture-effect-value`로 거부한다.
 - FormFit과 쪽 수 추정이 KoPub 글꼴 12종도 글꼴의 설계 폭으로 잰다: KoPub돋움체·KoPub바탕체·KoPubWorld돋움체·
   KoPubWorld바탕체의 Light·Medium·Bold. 전에는 글자 종류의 평균 폭을 썼다. 한글 음절은 모두 같은 폭이고(돋움체
   872/1000, 바탕체 936/1000), 다른 글자도 글꼴의 폭을 쓴다. 이 글꼴로 쓴 칸의 채우기 결과와, 줄 배치 정보가 없는

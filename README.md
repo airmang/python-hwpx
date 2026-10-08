@@ -171,8 +171,8 @@ GitHub Release에 첨부되는 `py3-none-any` wheel을 문서와 함께 올리�
   `add_connector()` / `add_container()`(묶음). 컨트롤은 `add_column_definition()` /
   `add_bookmark()` / `add_hyperlink()`가 있습니다.
 - 그림은 단순 개체 생성과 묶음 안 그림까지 지원합니다. 밝기·대비·회색조·흑백·투명도와 실선 테두리는
-  `add_picture()` 인자로 줄 수 있고(자르기는 `crop`), 그림자·반사 같은 효과와 뒤집기·회전은 아직 지원하지
-  않습니다.
+  `add_picture()` 인자로 줄 수 있고(자르기는 `crop`, 그림자·빛남은 `shadow`·`glow`), 부드러운 가장자리·반사와
+  뒤집기·회전은 아직 지원하지 않습니다.
 - 암호화된 HWPX와 암호·배포용 HWP는 지원하지 않습니다.
 
 ## 기여하기

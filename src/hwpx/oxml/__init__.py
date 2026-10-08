@@ -26,6 +26,7 @@ from .master_page import MasterPage
 from .memo import HwpxOxmlMemo, HwpxOxmlMemoGroup, HwpxOxmlNote
 from .numbering import DocumentNumbering, SectionStartNumbering
 from .objects import Caption, ContainerMember, DrawText, HwpxOxmlInlineObject, HwpxOxmlShape
+from .shape_position import PictureGlow, PictureShadow
 from .paragraph import HwpxOxmlParagraph
 from .run import HwpxOxmlRun, RunStyle
 from .section import HwpxOxmlSection, HwpxOxmlSectionHeaderFooter, HwpxOxmlSectionProperties
@@ -140,6 +141,8 @@ __all__ = [
     "CaretPosition",
     "Caption",
     "ContainerMember",
+    "PictureGlow",
+    "PictureShadow",
     "CharProperty",
     "CharPropertyList",
     "CompatibleDocument",

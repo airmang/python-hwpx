@@ -24,6 +24,7 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .shape_position import (
+    PictureGlow, PictureShadow, append_picture_effects, validate_picture_effects,
     _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
     validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_crop, validate_picture_image,
     validate_rect_ratio,
@@ -528,6 +529,8 @@ def _create_picture_element(
     line_color: str | None = None,
     line_width: int = 33,
     crop: tuple[int, int, int, int] | None = None,
+    shadow: PictureShadow | None = None,
+    glow: PictureGlow | None = None,
 ) -> ET.Element:
     """Build a ``<hp:pic>`` element using the corpus-observed picture shape: the image *width* x *height* with
     *crop* (left, top, right, bottom, HWPUNIT) cut from its sides at the same scale, as Hancom crops a picture
@@ -542,6 +545,7 @@ def _create_picture_element(
     validate_picture_border(line_width)  # given or not: a bad width is not dropped quietly
     validate_shape_size(width, height)
     left, top, right, bottom = validate_picture_crop(crop, width, height)
+    validate_picture_effects(shadow, glow)
     whole_width, whole_height = width, height
     width, height = width - left - right, height - top - bottom  # as drawn
     border = None
@@ -586,7 +590,7 @@ def _create_picture_element(
         "effect": effect,
         "alpha": str(alpha),
     })
-    _append_child(el, f"{_HP}effects", {})
+    append_picture_effects(_append_child(el, f"{_HP}effects", {}), shadow, glow)
     _build_shape_base_children(el, width, height)
 
     if align:
@@ -689,6 +693,8 @@ def _paragraph_add_picture(
     line_color: str | None = None,
     line_width: int = 33,
     crop: tuple[int, int, int, int] | None = None,
+    shadow: PictureShadow | None = None,
+    glow: PictureGlow | None = None,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlInlineObject:
@@ -706,7 +712,10 @@ def _paragraph_add_picture(
     *line_width*, HWPUNIT) gives the picture a solid border. *crop* ``(left, top, right, bottom)`` cuts that much
     (HWPUNIT) from the sides of the *width* x *height* picture at the same scale: the picture is drawn
     ``width - left - right`` by ``height - top - bottom``. A value Hancom does not draw is refused
-    (``shape-picture-image-value``, ``shape-picture-border-value``, ``shape-picture-crop-value``) before anything
+    *shadow* (:class:`~hwpx.oxml.PictureShadow`) and *glow*
+    (:class:`~hwpx.oxml.PictureGlow`) draw a shadow and a glow; the picture takes as much more room.
+    (``shape-picture-image-value``, ``shape-picture-border-value``, ``shape-picture-crop-value``,
+    ``shape-picture-effect-value``) before anything
     is added.
     """
 
@@ -731,6 +740,8 @@ def _paragraph_add_picture(
         line_color=line_color,
         line_width=line_width,
         crop=crop,
+        shadow=shadow,
+        glow=glow,
     )
     run = self._create_run_for_object(
         run_attributes,
