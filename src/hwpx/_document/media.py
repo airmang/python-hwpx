@@ -127,9 +127,9 @@ def add_picture(
 
     validate_picture_align(align)  # before anything is stored: Hancom reads an unknown one as LEFT
     validate_picture_image(brightness, contrast, effect, alpha)  # ... and draws no other adjustment
+    validate_picture_border(line_width)
     if line_color is not None:
         normalize_color(line_color)
-        validate_picture_border(line_width)
     resolved_width = width
     if resolved_width is None:
         resolved_width = _mm_to_hwp_units(width_mm) if width_mm is not None else 14400

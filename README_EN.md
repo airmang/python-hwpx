@@ -181,8 +181,10 @@ at all, and where uploads land, varies by plan and settings.
   `add_polygon()` / `add_curve()` / `add_connector()` / `add_container()`
   (groups). For controls there are `add_column_definition()` /
   `add_bookmark()` / `add_hyperlink()`.
-- Pictures: simple picture objects and pictures inside groups can be generated;
-  effects cannot.
+- Pictures: simple picture objects and pictures inside groups can be generated.
+  Brightness, contrast, grayscale, black and white, transparency and a solid
+  border are `add_picture()` arguments; effects such as shadows or reflections,
+  cropping and rotation are not supported yet.
 - Encrypted HWPX files and password-protected or distribution HWP files are not supported.
 
 ## Contributing

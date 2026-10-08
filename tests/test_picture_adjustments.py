@@ -52,9 +52,9 @@ def test_the_adjustments_and_border_are_written_as_hancom_keeps_them() -> None:
     border, kept = picture.find(f"{HP}lineShape"), hancom.find(f"{HP}lineShape")
     for name in ("color", "width", "style"):
         assert border.get(name) == kept.get(name)
-    # Hancom saves the border right after the image
+    # right before the image's rectangle, as the schema orders a picture's children and Hancom's pictures have it
     children = [etree.QName(child).localname for child in picture]
-    assert children[children.index("img") + 1] == "lineShape"
+    assert children[children.index("imgRect") - 1] == "lineShape"
 
 
 def test_a_paragraph_takes_the_same_arguments_and_the_effect_in_any_case() -> None:
@@ -83,6 +83,7 @@ def test_a_paragraph_takes_the_same_arguments_and_the_effect_in_any_case() -> No
         ({"effect": "PATTERN8x8"}, "shape-picture-image-value"),  # saved as REAL_PIC
         ({"line_color": "#000000", "line_width": -1}, "shape-picture-border-value"),
         ({"line_color": "#000000", "line_width": "33"}, "shape-picture-border-value"),
+        ({"line_width": -1}, "shape-picture-border-value"),  # without a colour too: not dropped quietly
         ({"line_color": "red"}, "style-color-invalid"),
     ],
 )
