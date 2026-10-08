@@ -121,7 +121,8 @@ def validate_picture_crop(crop: object, width: int, height: int) -> tuple[int, i
     if crop is None:
         return 0, 0, 0, 0
     sides = tuple(crop) if isinstance(crop, (tuple, list)) else ()
-    if len(sides) != 4 or any(isinstance(side, bool) or not isinstance(side, int) or side < 0 for side in sides)             or sides[0] + sides[2] >= width or sides[1] + sides[3] >= height:
+    if (len(sides) != 4 or any(isinstance(side, bool) or not isinstance(side, int) or side < 0 for side in sides)
+            or sides[0] + sides[2] >= width or sides[1] + sides[3] >= height):
         raise HwpxValueError(
             f"crop must be four ints (left, top, right, bottom) from 0 that leave some of the {width} x {height} "
             f"picture; got {crop!r}",
