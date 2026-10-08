@@ -2158,7 +2158,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             if pos.get("flowWithText") != "0":  # from the paragraph's top down: past the body's foot it goes on
                 moves = size if offset or page.alone_at_top else 0  # to the next page's top alone, the line staying
                 if controls is None and not cached and not text:
-                    if pos.get("allowOverlap") == "1" and offset < own_pitch:  # the empty line goes below its foot
+                    if pos.get("allowOverlap") == "1" and offset < own:  # starting on the line: it goes below its foot
                         lead, size, pitch = size, own, own_pitch
                     else:  # the empty line stays: the next paragraph comes below its foot or the line's advance
                         floor, pitch = size, own_pitch

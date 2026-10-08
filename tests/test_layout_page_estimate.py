@@ -36,6 +36,12 @@ HANCOM_PAGES = {
     "pages_empty_paragraph_object_overlap_tall_offset": 1,  # ... 500 down, 19595 tall
     "pages_empty_paragraph_object_overlap_below_its_line": 1,  # ... 2000 down, below the line: the line stays
     "pages_empty_paragraph_rectangle_staying": 1,  # a rectangle staying, 500 down, 600 tall
+    # ... moving and overlapping, 600 tall: the line goes below it when it starts above the line's characters'
+    # foot (10 pt: 1000, 20 pt: 2000), not above the line with its spacing
+    "pages_empty_paragraph_object_overlap_10pt_999": 1,
+    "pages_empty_paragraph_object_overlap_10pt_1000": 1,
+    "pages_empty_paragraph_object_overlap_20pt_1999": 1,
+    "pages_empty_paragraph_object_overlap_20pt_2000": 1,
     # A rectangle placed top and bottom 2000 down from an empty paragraph's top, 20000 x 8000 (one column
     # 48188 wide): the next paragraph's line reaching it goes below it, the whole width, even holding objects
     # set as characters (a group or a picture 44633 x 648, which do not make it taller than its text):
