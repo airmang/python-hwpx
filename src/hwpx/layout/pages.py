@@ -1898,11 +1898,16 @@ def _shadow_drop(obj: Any) -> int:
     return abs(offset + _SHADOW_DISTANCE if kind.endswith("BOTTOM") else offset - _SHADOW_DISTANCE)
 
 
+#: A picture's shadow spreads in whole pixels at 96 per inch (75 HWPUNIT): a radius of 400 spreads as 450.
+_SHADOW_BLUR_STEP = 75
+
+
 def _effect_room(obj: Any, width: int, height: int) -> tuple[int, int, int, int]:
     """(left, right, top, bottom): how much farther than its *width* x *height* a picture's effects
     (``hp:effects``) reach, which Hancom lays it out with: a glow its ``radius`` on each side, and an outer
     shadow the picture (with its glow) moved ``distance`` in its ``direction`` (degrees clockwise on the page
-    from the right) and spread by its ``radius`` on each side. An inner shadow, a soft edge and a reflection
+    from the right) and spread by its ``radius`` on each side, rounded up to whole pixels (see
+    :data:`_SHADOW_BLUR_STEP`); each reach is cut to a whole HWPUNIT. An inner shadow, a soft edge and a reflection
     are not followed (the first two take no room)."""
 
     effects = obj.find(f"{HP}effects")
@@ -1915,10 +1920,11 @@ def _effect_room(obj: Any, width: int, height: int) -> tuple[int, int, int, int]
     if shadow is not None and shadow.get("style", "OUTSIDE") != "INSIDE":
         angle = math.radians(float(shadow.get("direction", 0)))
         distance, blur = float(shadow.get("distance", 0)), max(0.0, float(shadow.get("radius", 0)))
-        dx, dy = distance * math.cos(angle), distance * math.sin(angle)
+        blur = math.ceil(blur / _SHADOW_BLUR_STEP) * _SHADOW_BLUR_STEP  # in whole pixels, as Hancom spreads it
+        dx, dy = round(distance * math.cos(angle), 9), round(distance * math.sin(angle), 9)  # 0 at 90, 180 ...
         left, right = min(left, left + dx - blur), max(right, right + dx + blur)
         top, bottom = min(top, top + dy - blur), max(bottom, bottom + dy + blur)
-    return round(-left), round(right - width), round(-top), round(bottom - height)
+    return math.floor(-left), math.floor(right - width), math.floor(-top), math.floor(bottom - height)
 
 
 def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
