@@ -24,6 +24,7 @@ from .oxml import (
     HwpxOxmlSection,
     HwpxOxmlTable,
     PictureGlow,
+    PictureReflection,
     PictureShadow,
     Style,
 )
@@ -637,6 +638,8 @@ class HwpxDocument(_LegacyFacade):
         crop: tuple[int, int, int, int] | None = None,
         shadow: PictureShadow | None = None,
         glow: PictureGlow | None = None,
+        soft_edge: int | None = None,
+        reflection: PictureReflection | None = None,
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
         style_id_ref: str | int | None = None,
@@ -650,7 +653,8 @@ class HwpxDocument(_LegacyFacade):
         *alpha* (transparency, 0 opaque to 255 not drawn) adjust the image; *line_color* (with *line_width*,
         HWPUNIT) gives it a solid border. *crop* ``(left, top, right, bottom)`` cuts that much (HWPUNIT) from the
         sides of the *width* x *height* picture, keeping its scale. *shadow* (``hwpx.oxml.PictureShadow``) and *glow*
-        (``hwpx.oxml.PictureGlow``) draw a shadow and a glow."""
+        (``hwpx.oxml.PictureGlow``) draw a shadow and a glow; *soft_edge* (HWPUNIT) fades its edge and *reflection*
+        (``hwpx.oxml.PictureReflection``) reflects it below."""
 
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_picture")
         section = _resolve.resolve_section(
@@ -677,6 +681,8 @@ class HwpxDocument(_LegacyFacade):
             crop=crop,
             shadow=shadow,
             glow=glow,
+            soft_edge=soft_edge,
+            reflection=reflection,
             para_pr_id_ref=para_pr_id_ref,
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,

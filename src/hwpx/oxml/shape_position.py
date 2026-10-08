@@ -24,12 +24,13 @@ are ``curSz/orgSz`` per axis, and ``rotationInfo``'s centre is half of
 A group (``hp:container``) is drawn at its ``sz`` whatever its members hold;
 :func:`resize_group` writes the rest of it as Hancom saves a resized group.
 
-A new picture's checks live here too, with its shadow and glow (``hp:effects``): Hancom saves an ``alpha`` past
-0..1 as the bound, a shadow ``direction`` as itself modulo 360 and an unknown shadow ``style`` as ``OUTSIDE``, and
-draws a negative radius as 0, so those values are refused. The direction runs clockwise on the page from the right
-(0 right, 90 below, 180 left, 270 above). An effect takes room: Hancom lays a picture out as large as it and its
-outer shadow or glow together (a glow ``radius`` on each side; an outer shadow offset by ``distance`` in its
-direction and spread by ``blur``), so a picture set as a character makes its line that much taller.
+A new picture's checks live here too, with its effects (``hp:effects``): Hancom saves a shadow or glow ``alpha``
+past 0..1 as the bound, a shadow ``direction`` as itself modulo 360 and an unknown shadow ``style`` as ``OUTSIDE``,
+and draws a negative radius as 0, so those values are refused. The direction runs clockwise on the page from the
+right (0 right, 90 below, 180 left, 270 above). An effect takes room: Hancom lays a picture out as large as it and
+its outer shadow or glow together (a glow ``radius`` on each side; an outer shadow offset by ``distance`` in its
+direction and spread by ``blur``), so a picture set as a character makes its line that much taller. A soft edge
+takes no room; a reflection about its ``size`` of the picture's height and its ``distance`` below it.
 """
 
 from __future__ import annotations
@@ -465,6 +466,19 @@ class PictureGlow:
     radius: int = 500
 
 
+@dataclass(frozen=True)
+class PictureReflection:
+    """A picture's reflection below it: *size* (how much of the picture it shows, over 0 to 1 of its height),
+    *distance* (the gap below the picture, HWPUNIT), *alpha_start* and *alpha_end* (its transparency where it
+    starts and where it ends, each 0 opaque to 1 not drawn) and *blur* (HWPUNIT)."""
+
+    size: float = 0.5
+    distance: int = 0
+    alpha_start: float = 0.5
+    alpha_end: float = 0.997
+    blur: int = 50
+
+
 def _refuse(argument: str, value: object, rule: str) -> HwpxValueError:
     return HwpxValueError(
         f"{argument} must be {rule}; got {value!r}",
@@ -496,8 +510,11 @@ def _rgb(argument: str, value: object) -> tuple[int, int, int]:
     return int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
 
 
-def validate_picture_effects(shadow: object, glow: object) -> None:
-    """Check *shadow* (a :class:`PictureShadow` or ``None``) and *glow* (a :class:`PictureGlow` or ``None``)."""
+def validate_picture_effects(shadow: object, glow: object, soft_edge: object = None,
+                             reflection: object = None) -> None:
+    """Check *shadow* (a :class:`PictureShadow` or ``None``), *glow* (a :class:`PictureGlow` or ``None``),
+    *soft_edge* (how far in from its edge the picture fades, HWPUNIT, or ``None``) and *reflection* (a
+    :class:`PictureReflection` or ``None``)."""
 
     if shadow is not None:
         if not isinstance(shadow, PictureShadow):
@@ -517,6 +534,18 @@ def validate_picture_effects(shadow: object, glow: object) -> None:
         _rgb("glow.color", glow.color)
         _alpha("glow.alpha", glow.alpha)
         _length("glow.radius", glow.radius)
+    if soft_edge is not None:
+        _length("soft_edge", soft_edge)
+    if reflection is not None:
+        if not isinstance(reflection, PictureReflection):
+            raise _refuse("reflection", reflection, "a PictureReflection or None")
+        size = reflection.size
+        if isinstance(size, bool) or not isinstance(size, (int, float)) or not 0 < size <= 1:
+            raise _refuse("reflection.size", size, "a number over 0 up to 1")
+        _length("reflection.distance", reflection.distance)
+        _alpha("reflection.alpha_start", reflection.alpha_start)
+        _alpha("reflection.alpha_end", reflection.alpha_end)
+        _length("reflection.blur", reflection.blur)
 
 
 def _append_color(parent: "ET.Element", rgb: tuple[int, int, int]) -> None:
@@ -526,11 +555,12 @@ def _append_color(parent: "ET.Element", rgb: tuple[int, int, int]) -> None:
     color.append(color.makeelement(f"{_HP}rgb", {"r": str(rgb[0]), "g": str(rgb[1]), "b": str(rgb[2])}))
 
 
-def append_picture_effects(effects: "ET.Element", shadow: PictureShadow | None, glow: PictureGlow | None) -> None:
-    """Write *shadow* and *glow* into a picture's ``hp:effects``, in the schema's order (shadow, then glow), as a
-    Hancom document holds them."""
+def append_picture_effects(effects: "ET.Element", shadow: PictureShadow | None, glow: PictureGlow | None,
+                           soft_edge: int | None = None, reflection: PictureReflection | None = None) -> None:
+    """Write *shadow*, *glow*, *soft_edge* and *reflection* into a picture's ``hp:effects``, in the schema's order
+    (shadow, glow, softEdge, reflection), as a Hancom document holds them."""
 
-    validate_picture_effects(shadow, glow)
+    validate_picture_effects(shadow, glow, soft_edge, reflection)
     if shadow is not None:
         element = effects.makeelement(f"{_HP}shadow", {
             "style": "INSIDE" if shadow.inside else "OUTSIDE",
@@ -550,3 +580,21 @@ def append_picture_effects(effects: "ET.Element", shadow: PictureShadow | None, 
                                                      "radius": _length("glow.radius", glow.radius)})
         effects.append(element)
         _append_color(element, _rgb("glow.color", glow.color))
+    if soft_edge is not None:
+        effects.append(effects.makeelement(f"{_HP}softEdge", {"radius": _length("soft_edge", soft_edge)}))
+    if reflection is not None:
+        element = effects.makeelement(f"{_HP}reflection", {
+            "alignStyle": "BOTTOM_LEFT",
+            "radius": _length("reflection.blur", reflection.blur),
+            "direction": "90",
+            "distance": _length("reflection.distance", reflection.distance),
+            "rotationStyle": "0",
+            "fadeDirection": "90",
+        })
+        effects.append(element)
+        element.append(element.makeelement(f"{_HP}skew", {"x": "0", "y": "0"}))
+        element.append(element.makeelement(f"{_HP}scale", {"x": "1", "y": "-1"}))
+        element.append(element.makeelement(f"{_HP}alpha", {
+            "start": _alpha("reflection.alpha_start", reflection.alpha_start),
+            "end": _alpha("reflection.alpha_end", reflection.alpha_end)}))
+        element.append(element.makeelement(f"{_HP}pos", {"start": "0", "end": f"{float(reflection.size):g}"}))
