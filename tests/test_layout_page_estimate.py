@@ -23,6 +23,25 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    # A picture (or a rectangle) placed top and bottom alone in an empty paragraph whose spacing after is 1000,
+    # the next paragraph's spacing before 600, the empty line 1600 tall with its spacing: unless the object
+    # moves with the text, may overlap and starts above the line's foot, the empty line stays at the paragraph's
+    # top and the next paragraph starts below the object's foot or the line with both spacings, whichever is
+    # lower; such an object pushes the empty line itself below its foot instead.
+    "pages_empty_paragraph_object_staying_short": 1,  # staying on its page, 600 tall: the spacings decide
+    "pages_empty_paragraph_object_staying_tall": 1,  # 19595 tall: its foot decides, the spacings inside it
+    "pages_empty_paragraph_object_no_overlap_tall": 1,  # moving with the text, not overlapping
+    "pages_empty_paragraph_object_no_overlap_short_offset": 1,  # ... 500 down, 600 tall
+    "pages_empty_paragraph_object_overlap_short": 1,  # moving and overlapping, at the top: the line below it
+    "pages_empty_paragraph_object_overlap_tall_offset": 1,  # ... 500 down, 19595 tall
+    "pages_empty_paragraph_object_overlap_below_its_line": 1,  # ... 2000 down, below the line: the line stays
+    "pages_empty_paragraph_rectangle_staying": 1,  # a rectangle staying, 500 down, 600 tall
+    # ... moving and overlapping, 600 tall: the line goes below it when it starts above the line's characters'
+    # foot (10 pt: 1000, 20 pt: 2000), not above the line with its spacing
+    "pages_empty_paragraph_object_overlap_10pt_999": 1,
+    "pages_empty_paragraph_object_overlap_10pt_1000": 1,
+    "pages_empty_paragraph_object_overlap_20pt_1999": 1,
+    "pages_empty_paragraph_object_overlap_20pt_2000": 1,
     # A rectangle placed top and bottom 2000 down from an empty paragraph's top, 20000 x 8000 (one column
     # 48188 wide): the next paragraph's line reaching it goes below it, the whole width, even holding objects
     # set as characters (a group or a picture 44633 x 648, which do not make it taller than its text):
