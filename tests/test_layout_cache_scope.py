@@ -201,3 +201,69 @@ def test_setting_a_cell_its_own_text_changes_nothing() -> None:
         assert etree.tostring(cell.element) == before
     finally:
         doc.close()
+
+
+HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved"
+_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+
+def _cached(doc: HwpxDocument) -> list[bool]:
+    """Whether each body paragraph of the first section still has its layout cache."""
+
+    return [paragraph.element.find(f"{_HP}linesegarray") is not None for paragraph in doc.sections[0].paragraphs]
+
+
+def _png() -> bytes:
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", b"\0\0\0\x01\0\0\0\x01\x08\x02\0\0\0")
+            + chunk(b"IDAT", zlib.compress(b"\0\x30\x80\xc0")) + chunk(b"IEND", b""))
+
+
+def test_removing_a_run_drops_only_its_paragraphs_cache() -> None:
+    # Hancom laid this paragraph out with a table set as a character before its text: once the table's run
+    # goes, the cache's line starts point past what is left, which Hancom reports as a damaged document.
+    doc = HwpxDocument.open(HANCOM_SAVED / "formfit_inline_objects.hwpx")
+    paragraph = doc.sections[0].paragraphs[2]
+    before = _cached(doc)
+    assert before[2]
+
+    next(run for run in paragraph.runs if run.element.find(f"{_HP}tbl") is not None).remove()
+
+    assert _cached(doc) == [kept and index != 2 for index, kept in enumerate(before)]
+    reopened = HwpxDocument.open(io.BytesIO(doc.to_bytes()))
+    assert _cached(reopened)[2] is False
+
+
+@pytest.mark.parametrize(
+    "add",
+    [
+        lambda doc, paragraph: paragraph.add_run("더한 글"),
+        lambda doc, paragraph: paragraph.add_picture(str(doc.media.add_image(_png(), "png")), width=1000, height=1000),
+        lambda doc, paragraph: paragraph.add_rectangle(1000, 1000),
+        lambda doc, paragraph: paragraph.add_table(1, 1),
+    ],
+    ids=["run", "picture", "rectangle", "table"],
+)
+def test_adding_content_drops_only_its_paragraphs_cache(add) -> None:
+    doc = HwpxDocument.open(HANCOM_SAVED / "formfit_inline_objects.hwpx")
+    before = _cached(doc)
+    index = next(i for i, kept in enumerate(before) if kept and doc.sections[0].paragraphs[i].text.strip())
+
+    add(doc, doc.sections[0].paragraphs[index])
+
+    assert _cached(doc) == [kept and i != index for i, kept in enumerate(before)]
+
+
+def test_removing_a_memo_drops_the_cache_of_the_paragraph_its_field_was_in() -> None:
+    # The memo's field controls take their room in the paragraph's text positions.
+    doc = HwpxDocument.open(HANCOM_SAVED / "memos_numbered.hwpx")
+    assert _cached(doc) == [True, True, True]
+
+    doc.notes.remove_memo(doc.notes.memos[0])
+
+    assert _cached(doc) == [True, False, True]

@@ -617,6 +617,7 @@ class HwpxOxmlRun:
             parent.remove(self.element)
         except ValueError:  # pragma: no cover - defensive branch
             return
+        _clear_paragraph_layout_cache(parent)  # the cache's line starts would point past what is left
         self.paragraph.section.mark_dirty()
 
     @property
