@@ -56,6 +56,8 @@ HANCOM_PAGES = {
     "pages_picture_effect_shadow_right": 2,  # 1500 to the right: only its spread, 12200
     "pages_picture_effect_shadow_inside": 1,  # an inner shadow takes no room
     "pages_picture_effect_text_and_glow": 2,  # a picture among text with a glow
+    # a glow 600 and a shadow 800 down-right at 45 degrees, spread 400 -- in whole pixels (75 HWPUNIT), so as 450
+    "pages_picture_effect_glow_and_diagonal_shadow": 2,  # 13215
     "pages_wide_table_as_character_anchor_first": 1,  # 44000 x 3000
     "pages_wide_table_as_character_anchor_last": 1,
     "pages_wide_table_as_character_tall_anchor_first": 2,  # 44000 x 60000: on the next page below the empty line
