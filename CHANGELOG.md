@@ -19,6 +19,8 @@
     묶음의 왼쪽 위에 겹쳐 그려진다.
   - 한/글이 저장한 묶음처럼 모든 부재는 `id`·`zOrder` 0, `numberingType="NONE"`이고, `groupLevel`은 깊이다
     (1, 2, 3…).
+  - 묶음은 부재를 복사해 조립한다. 넘긴 `ContainerMember`는 바뀌지 않으므로 같은 부재를 여러 묶음이나 한 묶음에
+    다시 써도 된다.
 - 표 구조 편집(`hwpx.table_patch.apply_table_ops`)에 열 삽입 `insert_column_by_clone`을 더한다. 격자 열
   `ref_col`의 오른쪽(`side: "left"`면 왼쪽)에 그 열을 복제한 열 `count`개를 넣는다.
   - 새 열은 기준 열과 같은 폭이고, 표는 그만큼 넓어진다. 본문 폭을 넘어도 줄이지 않는다.

@@ -193,3 +193,24 @@ def test_the_members_of_a_group_inside_go_where_that_group_goes() -> None:
     assert place(ellipse) == ("8500", "4000", "8500", "4000")
     assert place(deeper) == ("9000", "5000", "9000", "5000")
     assert [place(m) for m in _members(deeper)] == [("9000", "5000", "9000", "5000"), ("10500", "5000", "10500", "5000")]
+
+
+@pytest.mark.parametrize("twice_in_one", [False, True])
+def test_the_same_members_can_go_into_groups_again(twice_in_one: bool) -> None:
+    # Assembling copies the members: a ContainerMember used again is placed afresh, not moved a second time.
+    inner = ContainerMember.group(1000, 1000, [ContainerMember.rect(0, 0, 500, 500)])
+    outer_rect = ContainerMember.rect(0, 0, 3000, 3000)
+    doc = HwpxDocument.new()
+    if twice_in_one:
+        doc.shapes.add_container([outer_rect, inner, inner])
+    else:
+        doc.shapes.add_container([outer_rect, inner])
+        doc.shapes.add_container([outer_rect, inner])
+
+    with zipfile.ZipFile(io.BytesIO(doc.to_bytes())) as archive:
+        root = ET.fromstring(archive.read("Contents/section0.xml"))
+    groups = [g for g in root.iter(f"{HP}container") if g.get("groupLevel") == "0"]
+    inner_rects = [(r.find(f"{HP}offset").get("x"), r.find(f"{HP}offset").get("y"))
+                   for g in groups for i in _members(g) if _local(i) == "container" for r in _members(i)]
+    assert inner_rects == [("1000", "1000")] * 2
+    assert inner.element.find(f"{HP}offset").get("x") == "0"

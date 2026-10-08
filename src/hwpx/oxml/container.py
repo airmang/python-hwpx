@@ -16,6 +16,7 @@ at its own transMatrix there). Only the outermost group carries the tail and ``n
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
@@ -268,12 +269,14 @@ def _group_element(
     _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
     el.set("numberingType", "PICTURE")
     for member in members:
-        member_el = member.element
+        # A fresh copy (a group inside is assembled again from its members): the ContainerMember passed in is
+        # never changed, so the same one can go into several groups, or twice into one.
+        member_el = _group_element(member.members, top=False) if member.members else copy.deepcopy(member.element)
         local_x, local_y = member.x - min_x, member.y - min_y
         _place(member_el, local_x, local_y)
         # Hancom draws every shape of a group at its own transMatrix in the outermost group's space, so the
         # members of a group inside go where that group goes (its members are stored in that space too).
-        _shift_descendants(member.members, local_x, local_y)
+        _shift_shapes_inside(member_el, local_x, local_y)
         # Members share a small, non-unique id (almost always "0"); instid stays unique.
         member_el.set("id", "0")
         member_el.set("zOrder", "0")
@@ -287,7 +290,7 @@ def _group_element(
         el.append(member_el)
 
     if top:
-        _set_group_levels(members, 1)
+        _set_group_levels(el, 1)
         _build_shape_base_children(el, width, height)
         # The outermost group (not its members) closes with an empty shapeComment, as hp:pic does.
         _append_child(el, f"{_HP}shapeComment", {})
@@ -308,18 +311,23 @@ def _place(element: ET.Element, x: int, y: int) -> None:
         trans.set("e6", str(y))
 
 
-def _shift_descendants(members: Sequence["ContainerMember"], dx: int, dy: int) -> None:
-    for member in members:
-        offset = member.element.find(f"{_HP}offset")
+def _shapes_inside(group: ET.Element) -> list[ET.Element]:
+    return [child for child in group if str(child.tag).rsplit("}", 1)[-1] in _MEMBER_TAGS]
+
+
+def _shift_shapes_inside(element: ET.Element, dx: int, dy: int) -> None:
+    for shape in _shapes_inside(element) if element.tag == f"{_HP}container" else ():
+        offset = shape.find(f"{_HP}offset")
         if offset is not None:
-            _place(member.element, int(offset.get("x", "0")) + dx, int(offset.get("y", "0")) + dy)
-        _shift_descendants(member.members, dx, dy)
+            _place(shape, int(offset.get("x", "0")) + dx, int(offset.get("y", "0")) + dy)
+        _shift_shapes_inside(shape, dx, dy)
 
 
-def _set_group_levels(members: Sequence["ContainerMember"], level: int) -> None:
-    for member in members:
-        member.element.set("groupLevel", str(level))
-        _set_group_levels(member.members, level + 1)
+def _set_group_levels(group: ET.Element, level: int) -> None:
+    for shape in _shapes_inside(group):
+        shape.set("groupLevel", str(level))
+        if shape.tag == f"{_HP}container":
+            _set_group_levels(shape, level + 1)
 
 
 def _create_container_element(
@@ -350,7 +358,7 @@ def _write_member_texts(
 
     from .objects import _write_draw_text
 
-    placed = [child for child in group if str(child.tag).rsplit("}", 1)[-1] in _MEMBER_TAGS]
+    placed = _shapes_inside(group)
     for member, element in zip(members, placed):
         if member.text is not None:
             spec = member.text
