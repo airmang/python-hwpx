@@ -1907,8 +1907,9 @@ def _effect_room(obj: Any, width: int, height: int) -> tuple[int, int, int, int]
     (``hp:effects``) reach, which Hancom lays it out with: a glow its ``radius`` on each side, and an outer
     shadow the picture (with its glow) moved ``distance`` in its ``direction`` (degrees clockwise on the page
     from the right) and spread by its ``radius`` on each side, rounded up to whole pixels (see
-    :data:`_SHADOW_BLUR_STEP`); each reach is cut to a whole HWPUNIT. An inner shadow, a soft edge and a reflection
-    are not followed (the first two take no room)."""
+    :data:`_SHADOW_BLUR_STEP`); each reach is cut to a whole HWPUNIT. An inner shadow and a soft edge take no room.
+    A reflection reaches below about its ``pos`` share of the picture (with its glow, and a pixel on each side)
+    less a pixel, and its ``distance``: within about a pixel of Hancom's, the extra not followed."""
 
     effects = obj.find(f"{HP}effects")
     if effects is None or len(effects) == 0:
@@ -1924,7 +1925,15 @@ def _effect_room(obj: Any, width: int, height: int) -> tuple[int, int, int, int]
         dx, dy = round(distance * math.cos(angle), 9), round(distance * math.sin(angle), 9)  # 0 at 90, 180 ...
         left, right = min(left, left + dx - blur), max(right, right + dx + blur)
         top, bottom = min(top, top + dy - blur), max(bottom, bottom + dy + blur)
-    return math.floor(-left), math.floor(right - width), math.floor(-top), math.floor(bottom - height)
+    room = [math.floor(-left), math.floor(right - width), math.floor(-top), math.floor(bottom - height)]
+    reflection = effects.find(f"{HP}reflection")
+    share = None if reflection is None else reflection.find(f"{HP}pos")
+    size = 0.0 if share is None else float(share.get("end", 0)) - float(share.get("start", 0))
+    if reflection is not None and size > 0:  # about that much of the picture (with its glow, a pixel round it)
+        below = (size * (height + 2 * reach + 2 * _SHADOW_BLUR_STEP) - _SHADOW_BLUR_STEP
+                 + max(0.0, float(reflection.get("distance", 0))))
+        room[3] = max(room[3], math.floor(below) - room[2])
+    return room[0], room[1], room[2], room[3]
 
 
 def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
