@@ -6,7 +6,7 @@ boxes, lines and groups inside groups; ``objects`` re-exports :class:`ContainerM
 :func:`_create_container_element`. The shape builders stay in ``objects`` and are imported where they are
 called, so either module can be imported first.
 
-Hancom's groups (1,628 in the real corpus, 4,473 members): a member is a complete shape without the
+In the groups Hancom saves, a member is a complete shape without the
 ``sz``/``pos``/``outMargin``/``shapeComment`` tail, with ``id="0"``, ``zOrder="0"``,
 ``numberingType="NONE"``, ``textWrap="TOP_AND_BOTTOM"`` and ``groupLevel`` its depth (1 directly in the
 group, 2 in a group inside it, ...). A group inside a group is such a member too: its own envelope and
@@ -274,7 +274,7 @@ def _group_element(
         # Hancom draws every shape of a group at its own transMatrix in the outermost group's space, so the
         # members of a group inside go where that group goes (its members are stored in that space too).
         _shift_descendants(member.members, local_x, local_y)
-        # Members share a small, non-unique id ("0" in 4,382 of 4,473); instid stays unique.
+        # Members share a small, non-unique id (almost always "0"); instid stays unique.
         member_el.set("id", "0")
         member_el.set("zOrder", "0")
         member_el.set("numberingType", "NONE")

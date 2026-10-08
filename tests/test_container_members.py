@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Group members beyond rectangles, ellipses and polygons: lines, text boxes, pictures and groups in groups.
 
-Hancom's groups (1,628 in the real corpus, 4,473 members): every member drops the ``sz``/``pos``/
+In the groups Hancom saves, every member drops the ``sz``/``pos``/
 ``outMargin``/``shapeComment`` tail, has ``id="0"``, ``zOrder="0"``, ``numberingType="NONE"`` and
 ``textWrap="TOP_AND_BOTTOM"``, and its ``groupLevel`` is its depth (1, 2, 3 ...). A group in a group is such
 a member with its own envelope and members; only the outermost group has the tail and
-``numberingType="PICTURE"``. Pictures (1,277 members) keep ``img``/``imgRect``/``imgClip``/``inMargin``/
-``imgDim``/``effects``; text boxes (1,658 rectangle members) keep ``drawText`` before the corner points.
+``numberingType="PICTURE"``. Picture members keep ``img``/``imgRect``/``imgClip``/``inMargin``/
+``imgDim``/``effects``; text-box members keep ``drawText`` before the corner points.
 """
 
 from __future__ import annotations
