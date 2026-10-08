@@ -2023,8 +2023,9 @@ def _apart_from_wide(measure: _Measure, text: str, widths: list[float], sizes: l
 
 def _anchor_line(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: Any, widths: list[float],
                  size: int, style: Any, cached: tuple[tuple[int, int], ...], count: int) -> int:
-    """The line *obj*'s place in the text falls on (Hancom counts an object as eight characters in a
-    line cache)."""
+    """The line *obj*'s place in the text falls on: in a line cache, where Hancom counts every object and
+    control as eight characters, the last line starting at or before it; otherwise the line holding the
+    character before it."""
 
     place = objects = 0
     for child in (child for run in runs for child in run):
@@ -2032,13 +2033,14 @@ def _anchor_line(measure: _Measure, paragraph: Any, runs: list[Any], text: str, 
             break
         if _local(child) == "t":
             place += len(_t_text(child))
-        elif _local(child) in _OBJECTS and child.find(f"{HP}pos").get("treatAsChar") == "1":
+        elif _local(child) in _OBJECTS or _local(child) == "ctrl":  # every object and control takes eight
             objects += 1
     if cached:
         starts = [int(segment.get("textpos", 0)) for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
         place += 8 * objects  # its own place in the cache, before its own eight
     else:
         starts = measure.line_starts(text, widths, size, style)
+        return max((index for index, start in enumerate(starts[:count]) if start < place), default=0)
     return max((index for index, start in enumerate(starts[:count]) if start <= place), default=0)
 
 

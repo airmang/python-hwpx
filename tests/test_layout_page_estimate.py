@@ -57,6 +57,11 @@ HANCOM_PAGES = {
     "pages_wide_table_as_character_after_text_and_anchor": 1,  # text, anchor, wide table: on the text's line
     "pages_wide_table_as_character_text_then_anchor": 1,  # wide table, text, anchor: on the text's line below it
     "pages_wide_table_as_character_between_text_and_anchor": 1,  # text, wide table, anchor: on the table's line
+    # A table placed top and bottom anchored in text, 43 characters fitting the first line: after 43 the anchor
+    # stays at that line's end, the table at its top; after 44 behind a picture placed behind the text, which
+    # takes eight places in the line cache as the anchor does, it falls on the second line
+    "pages_table_anchored_at_the_end_of_a_line_of_text": 1,
+    "pages_table_anchored_after_a_line_of_text_behind_a_picture": 1,
     # A rectangle placed top and bottom 2000 down from an empty paragraph's top, 20000 x 8000 (one column
     # 48188 wide): the next paragraph's line reaching it goes below it, the whole width, even holding objects
     # set as characters (a group or a picture 44633 x 648, which do not make it taller than its text):
