@@ -165,8 +165,11 @@ GitHub Release에 첨부되는 `py3-none-any` wheel을 문서와 함께 올리�
 ## 알려진 제약
 
 - `add_shape()` / `add_control()`은 저수준 탈출구라, 그대로 저장하면 한/글이
-  열지 못하는 파일이 됩니다(호출 시 경고만 나옵니다). 도형은 `add_line()` /
-  `add_rectangle()` / `add_ellipse()`를 쓰세요.
+  열지 못하는 파일이 됩니다(호출 시 경고만 나옵니다). 도형은 한/글이 요구하는 하위
+  요소까지 만드는 전용 메서드를 쓰세요: `add_line()` / `add_rectangle()` /
+  `add_ellipse()` / `add_arc()` / `add_polygon()` / `add_curve()` /
+  `add_connector()` / `add_container()`(묶음). 컨트롤은 `add_column_definition()` /
+  `add_bookmark()` / `add_hyperlink()`가 있습니다.
 - 그림은 단순 개체 생성과 묶음 안 그림까지 지원합니다 (효과 미지원).
 - 암호화된 HWPX와 암호·배포용 HWP는 지원하지 않습니다.
 
