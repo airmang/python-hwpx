@@ -46,6 +46,16 @@ HANCOM_PAGES = {
     # tall), the line 42520 wide: a character table wider than the line takes that line alone, the placed
     # table's anchor going on an empty line of its own above it (anchor first) or below it (anchor last), the
     # placed table at that line's top; one as wide as the line shares its line with the anchor.
+    # Five pictures 20000 x 11000 set as characters, each in its own paragraph (one page bare), with an effect:
+    # Hancom lays each out as large as it and its glow (the radius on each side) or its outer shadow (moved its
+    # distance in its direction, spread by its radius), the line that much taller
+    "pages_picture_effect_glow1000": 2,  # each line 13000
+    "pages_picture_effect_glow300": 1,  # 11600
+    "pages_picture_effect_shadow_down": 2,  # 1500 below, spread 600: 13100
+    "pages_picture_effect_shadow_up": 2,  # 1500 above: 13100
+    "pages_picture_effect_shadow_right": 2,  # 1500 to the right: only its spread, 12200
+    "pages_picture_effect_shadow_inside": 1,  # an inner shadow takes no room
+    "pages_picture_effect_text_and_glow": 2,  # a picture among text with a glow
     "pages_wide_table_as_character_anchor_first": 1,  # 44000 x 3000
     "pages_wide_table_as_character_anchor_last": 1,
     "pages_wide_table_as_character_tall_anchor_first": 2,  # 44000 x 60000: on the next page below the empty line

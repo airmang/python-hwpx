@@ -178,6 +178,7 @@ characters or ruby text beside an object placed otherwise than as a character. `
 from __future__ import annotations
 
 import copy
+import math
 import os
 from collections.abc import Callable, Collection
 from dataclasses import dataclass, field, replace
@@ -1897,16 +1898,43 @@ def _shadow_drop(obj: Any) -> int:
     return abs(offset + _SHADOW_DISTANCE if kind.endswith("BOTTOM") else offset - _SHADOW_DISTANCE)
 
 
+def _effect_room(obj: Any, width: int, height: int) -> tuple[int, int, int, int]:
+    """(left, right, top, bottom): how much farther than its *width* x *height* a picture's effects
+    (``hp:effects``) reach, which Hancom lays it out with: a glow its ``radius`` on each side, and an outer
+    shadow the picture (with its glow) moved ``distance`` in its ``direction`` (degrees clockwise on the page
+    from the right) and spread by its ``radius`` on each side. An inner shadow, a soft edge and a reflection
+    are not followed (the first two take no room)."""
+
+    effects = obj.find(f"{HP}effects")
+    if effects is None or len(effects) == 0:
+        return 0, 0, 0, 0
+    glow = effects.find(f"{HP}glow")
+    reach = 0 if glow is None else max(0, int(float(glow.get("radius", 0))))
+    left, top, right, bottom = -reach, -reach, width + reach, height + reach
+    shadow = effects.find(f"{HP}shadow")
+    if shadow is not None and shadow.get("style", "OUTSIDE") != "INSIDE":
+        angle = math.radians(float(shadow.get("direction", 0)))
+        distance, blur = float(shadow.get("distance", 0)), max(0.0, float(shadow.get("radius", 0)))
+        dx, dy = distance * math.cos(angle), distance * math.sin(angle)
+        left, right = min(left, left + dx - blur), max(right, right + dx + blur)
+        top, bottom = min(top, top + dy - blur), max(bottom, bottom + dy + blur)
+    return round(-left), round(right - width), round(-top), round(bottom - height)
+
+
 def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     """(width, height) an object set as a character takes, its outer margins included; a table as tall
-    as its rows, a drawing with its shadow's move (see :func:`_shadow_drop`)."""
+    as its rows, a drawing with its shadow's move (see :func:`_shadow_drop`), a picture with the room its
+    effects take (see :func:`_effect_room`)."""
 
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
     extra = (0, 0, 0, 0) if margin is None else tuple(_margin(margin, side) for side in ("left", "right", "top", "bottom"))
+    tac = obj.find(f"{HP}pos").get("treatAsChar") == "1"
     height = _inline_table_height(measure, obj) + sum(_caption(measure, obj)) if _local(obj) == "tbl" \
-        else _drawn_height(obj, measure) + (_shadow_drop(obj) if obj.find(f"{HP}pos").get("treatAsChar") == "1" else 0)
-    return int(size.get("width", 0)) + extra[0] + extra[1], height + extra[2] + extra[3]
+        else _drawn_height(obj, measure) + (_shadow_drop(obj) if tac else 0)
+    width = int(size.get("width", 0))
+    left, right, top, bottom = _effect_room(obj, width, height) if tac else (0, 0, 0, 0)
+    return width + extra[0] + extra[1] + left + right, height + extra[2] + extra[3] + top + bottom
 
 
 def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None,
@@ -2078,6 +2106,8 @@ def _object_line(
             tall = _inline_table_height(measure, obj) + top + bottom + sum(_caption(measure, obj))
         else:
             tall += _shadow_drop(obj)
+            room = _effect_room(obj, int(obj.find(f"{HP}sz").get("width", 0)), _drawn_height(obj, measure))
+            tall += room[2] + room[3]
         tall = max(tall, size)
         return 1, tall, _object_pitch(shape, obj, tall, size), None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
