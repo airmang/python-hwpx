@@ -176,7 +176,11 @@ at all, and where uploads land, varies by plan and settings.
 
 - `add_shape()` / `add_control()` are low-level escape hatches — a document
   saved as-is will not open in Hancom, and the only signal is a warning at call
-  time. For shapes use `add_line()` / `add_rectangle()` / `add_ellipse()`.
+  time. For shapes use the dedicated helpers, which write every child Hancom
+  needs: `add_line()` / `add_rectangle()` / `add_ellipse()` / `add_arc()` /
+  `add_polygon()` / `add_curve()` / `add_connector()` / `add_container()`
+  (groups). For controls there are `add_column_definition()` /
+  `add_bookmark()` / `add_hyperlink()`.
 - Pictures: simple picture objects and pictures inside groups can be generated;
   effects cannot.
 - Encrypted HWPX files and password-protected or distribution HWP files are not supported.
