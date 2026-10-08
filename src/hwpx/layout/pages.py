@@ -1808,6 +1808,16 @@ def _line_sizes(measure: _Measure, sizes: list[int], style: Any, styles: list[An
     return [measure.font_line(size, styles[index] if styles else style) for index, size in enumerate(sizes)]
 
 
+def _metric_starts(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
+                   objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
+                   marks: dict[int, int] | None = None) -> list[int]:
+    """Where each line :func:`_line_metrics` lays out starts in *text*."""
+
+    advances = {**{index: width for index, (width, _) in objects.items()}, **(marks or {})} or None
+    return measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles,
+                               advances, set(objects))
+
+
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
                   marks: dict[int, int] | None = None, end: int = 0, head: int = 0) -> tuple[tuple[int, int], ...]:
@@ -1821,9 +1831,7 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     paragraph taking its line height from the font each of them counts as tall as its face makes a line
     (:func:`_line_sizes`)."""
 
-    advances = {**{index: width for index, (width, _) in objects.items()}, **(marks or {})} or None
-    starts = measure.line_starts(text, widths, min(sizes), style, sizes if len(set(sizes)) > 1 else None, styles,
-                                 advances, set(objects))
+    starts = _metric_starts(measure, text, widths, sizes, style, objects, styles, marks)
     heights = _line_sizes(measure, sizes, style, styles, shape)
     if shape.font_line:
         end, head = measure.font_line(end, style), measure.font_line(head, style)
@@ -1966,19 +1974,67 @@ def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = 
     return obj
 
 
+def _inline_place(runs: list[Any], obj: Any, apart: tuple[Any, ...]) -> int:
+    """*obj*'s place in the text :func:`_inline_content` makes of *runs* (it and *apart* laid out apart)."""
+
+    place = 0
+    for child in (child for run in runs for child in run):
+        name = _local(child)
+        if child is obj:
+            return place
+        if name in _OBJECTS:
+            place += not (_floating(child) or _on_paper(child) or any(child is other for other in apart))
+        elif name in _MARKS:
+            place += 1
+        elif name == "t":
+            place += len(_t_text(child))
+    return place
+
+
+def _apart_from_wide(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
+                     objects: dict[int, tuple[int, int]], styles: list[Any] | None, marks: dict[int, int] | None,
+                     metrics: tuple[tuple[int, int], ...], size: int, shape: _Shape,
+                     place: int) -> tuple[tuple[tuple[int, int], ...], int | None]:
+    """Hancom lays an object set as a character that is wider than its line on that line alone: the object
+    placed top and bottom anchored before it at the paragraph's start, or after it at the paragraph's end, stands
+    on an empty line of its own above or below it, as tall as the paragraph's characters (*size*). *text* holds
+    the paragraph's characters and objects set as characters, not the anchored one, whose place in it is
+    *place*. (*metrics* with that line, its index), or (*metrics*, ``None``) when no such object stands by the
+    anchor."""
+
+    if not text or not objects:
+        return metrics, None
+    starts = _metric_starts(measure, text, widths, sizes, style, objects, styles, marks)
+
+    def wide(index: int) -> bool:
+        line = max(number for number, start in enumerate(starts) if start <= index)
+        return index in objects and objects[index][0] > widths[min(line, len(widths) - 1)]
+
+    empty = (size, _pitch(shape.kind, shape.value, size))
+    if place == 0 and wide(0):  # the anchor first: its empty line above
+        return (empty, *metrics), 0
+    if place == len(text) and wide(len(text) - 1):  # the anchor last: its empty line below
+        return (*metrics, empty), len(metrics)
+    return metrics, None
+
+
 def _anchor_line(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: Any, widths: list[float],
                  size: int, style: Any, cached: tuple[tuple[int, int], ...], count: int) -> int:
     """The line *obj*'s place in the text falls on (Hancom counts an object as eight characters in a
     line cache)."""
 
-    place = 0
+    place = objects = 0
     for child in (child for run in runs for child in run):
         if child is obj:
             break
         if _local(child) == "t":
             place += len(_t_text(child))
+        elif _local(child) in _OBJECTS and child.find(f"{HP}pos").get("treatAsChar") == "1":
+            objects += 1
     if cached:
         starts = [int(segment.get("textpos", 0)) for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
+        if place + 8 * objects in starts:  # a line starting with it (objects set as characters count eight)
+            return starts.index(place + 8 * objects)
         starts = [start if start <= place else start - 8 for start in starts]
     else:
         starts = measure.line_starts(text, widths, size, style)
@@ -1986,10 +2042,11 @@ def _anchor_line(measure: _Measure, paragraph: Any, runs: list[Any], text: str, 
 
 
 def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: Any, widths: list[float], size: int,
-            style: Any, cached: tuple[tuple[int, int], ...], count: int) -> _Anchor:
-    """Where *obj* stands in the paragraph: at the top of the line its place in the text falls on."""
+            style: Any, cached: tuple[tuple[int, int], ...], count: int, line: int | None = None) -> _Anchor:
+    """Where *obj* stands in the paragraph: at the top of the line its place in the text falls on (*line*)."""
 
-    line = _anchor_line(measure, paragraph, runs, text, obj, widths, size, style, cached, count)
+    if line is None:
+        line = _anchor_line(measure, paragraph, runs, text, obj, widths, size, style, cached, count)
     margin = obj.find(f"{HP}outMargin")
     top, bottom = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     if _local(obj) == "tbl":
@@ -2100,6 +2157,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     mixed = len(set(sizes)) > 1 or bool(end) or bool(head) or (shape.font_line and bool(sizes))
     looks = _char_styles(measure, paragraph, runs)
     lead = 0  # how far the paragraph's first line goes down below a square-wrapped object's band
+    anchor_line = None  # the line the anchored object stands at, when the lines laid out here put it there
     if alone and wrap is None:  # spaces besides it, those that do not fit going on to the next line
         spread = measure.spread_lines(paragraph, runs, page.column_width, end, head, caches=True)
         alone, cached = (False, spread) if spread else (alone, cached)
@@ -2118,6 +2176,10 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
             cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
                                    marked, end, head)
+            if anchored is not None:
+                cached, anchor_line = _apart_from_wide(measure, inline_text, widths, inline_sizes, style, placed,
+                                                       looks_or_none, marked, cached, size, shape,
+                                                       _inline_place(runs, anchored, apart))
     elif not cached and wrap is not None and not alone and text:
         if anchored is not None:
             raise _Unsupported("a top-and-bottom object beside a square-wrapped object")
@@ -2167,7 +2229,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                 if controls is None and not text:
                     cached, floor = ((own, own_pitch),), size  # (_Para.floor)
     anchor = None if anchored is None else _anchor(measure, paragraph, runs, text, anchored, widths, size, style,
-                                                   cached, count)
+                                                   cached, count, anchor_line)
     around = 0 if square is None or not text else _anchor_line(measure, paragraph, runs, text, square, widths,
                                                                 size, style, cached, count)
     if among and _note_anchors(runs):

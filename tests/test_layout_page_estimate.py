@@ -42,6 +42,16 @@ HANCOM_PAGES = {
     "pages_empty_paragraph_object_overlap_10pt_1000": 1,
     "pages_empty_paragraph_object_overlap_20pt_1999": 1,
     "pages_empty_paragraph_object_overlap_20pt_2000": 1,
+    # An empty paragraph holding a table set as a character and a table placed top and bottom from its top (6000
+    # tall), the line 42520 wide: a character table wider than the line takes that line alone, the placed
+    # table's anchor going on an empty line of its own above it (anchor first) or below it (anchor last), the
+    # placed table at that line's top; one as wide as the line shares its line with the anchor.
+    "pages_wide_table_as_character_anchor_first": 1,  # 44000 x 3000
+    "pages_wide_table_as_character_anchor_last": 1,
+    "pages_wide_table_as_character_tall_anchor_first": 2,  # 44000 x 60000: on the next page below the empty line
+    "pages_wide_table_as_character_tall_anchor_last": 2,  # the placed table's rows flowing on to the next page
+    "pages_line_wide_table_as_character_anchor_first": 1,  # 42520 x 3000
+    "pages_line_wide_table_as_character_anchor_last": 1,
     # A rectangle placed top and bottom 2000 down from an empty paragraph's top, 20000 x 8000 (one column
     # 48188 wide): the next paragraph's line reaching it goes below it, the whole width, even holding objects
     # set as characters (a group or a picture 44633 x 648, which do not make it taller than its text):
