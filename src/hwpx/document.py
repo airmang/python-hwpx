@@ -632,6 +632,7 @@ class HwpxDocument(_LegacyFacade):
         alpha: int = 0,
         line_color: str | None = None,
         line_width: int = 33,
+        crop: tuple[int, int, int, int] | None = None,
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
         style_id_ref: str | int | None = None,
@@ -643,7 +644,8 @@ class HwpxDocument(_LegacyFacade):
 
         *brightness* and *contrast* (-100 to 100), *effect* (``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE``) and
         *alpha* (transparency, 0 opaque to 255 not drawn) adjust the image; *line_color* (with *line_width*,
-        HWPUNIT) gives it a solid border."""
+        HWPUNIT) gives it a solid border. *crop* ``(left, top, right, bottom)`` cuts that much (HWPUNIT) from the
+        sides of the *width* x *height* picture, keeping its scale."""
 
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_picture")
         section = _resolve.resolve_section(
@@ -667,6 +669,7 @@ class HwpxDocument(_LegacyFacade):
             alpha=alpha,
             line_color=line_color,
             line_width=line_width,
+            crop=crop,
             para_pr_id_ref=para_pr_id_ref,
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,

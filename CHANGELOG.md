@@ -13,6 +13,9 @@
   - 한/글은 이 범위 밖의 값을 그대로 그리지 않는다(밝기는 끝값처럼, 대비는 색이 뒤집히거나 회색으로, 투명도 256은
     0으로, 다른 효과는 원래 그림으로). 그런 값은 문단·그림을 더하기 전에 `shape-picture-image-value`·
     `shape-picture-border-value`로 거부한다.
+  - `crop=(왼쪽, 위, 오른쪽, 아래)`는 `width` x `height` 그림의 네 변에서 그만큼(HWPUNIT) 잘라 낸다. 한/글처럼
+    축척은 그대로라 그림은 `width - 왼쪽 - 오른쪽` x `height - 위 - 아래`로 그려진다. 0 이상의 int 네 개가 아니거나
+    그림을 다 잘라 내면 `shape-picture-crop-value`로 거부한다.
 - FormFit과 쪽 수 추정이 KoPub 글꼴 12종도 글꼴의 설계 폭으로 잰다: KoPub돋움체·KoPub바탕체·KoPubWorld돋움체·
   KoPubWorld바탕체의 Light·Medium·Bold. 전에는 글자 종류의 평균 폭을 썼다. 한글 음절은 모두 같은 폭이고(돋움체
   872/1000, 바탕체 936/1000), 다른 글자도 글꼴의 폭을 쓴다. 이 글꼴로 쓴 칸의 채우기 결과와, 줄 배치 정보가 없는

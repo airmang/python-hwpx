@@ -25,7 +25,7 @@
  },
  "add_picture": {
   "kind": "method",
-  "signature": "(self, image_data: 'bytes', image_format: 'str', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, width: 'int | None' = None, height: 'int | None' = None, width_mm: 'float | None' = None, height_mm: 'float | None' = None, align: 'str | None' = None, brightness: 'int' = 0, contrast: 'int' = 0, effect: 'str' = 'REAL_PIC', alpha: 'int' = 0, line_color: 'str | None' = None, line_width: 'int' = 33, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
+  "signature": "(self, image_data: 'bytes', image_format: 'str', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, width: 'int | None' = None, height: 'int | None' = None, width_mm: 'float | None' = None, height_mm: 'float | None' = None, align: 'str | None' = None, brightness: 'int' = 0, contrast: 'int' = 0, effect: 'str' = 'REAL_PIC', alpha: 'int' = 0, line_color: 'str | None' = None, line_width: 'int' = 33, crop: 'tuple[int, int, int, int] | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
  },
  "add_section": {
   "kind": "method",
