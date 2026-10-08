@@ -1999,8 +1999,11 @@ def _apart_from_wide(measure: _Measure, text: str, widths: list[float], sizes: l
     placed top and bottom anchored before it at the paragraph's start, or after it at the paragraph's end, stands
     on an empty line of its own above or below it, as tall as the paragraph's characters (*size*). *text* holds
     the paragraph's characters and objects set as characters, not the anchored one, whose place in it is
-    *place*. (*metrics* with that line, its index), or (*metrics*, ``None``) when no such object stands by the
-    anchor."""
+    *place*. (*metrics* with that line, its index.)
+
+    Otherwise the anchor stands on the line holding the character before it (the first line when it comes
+    first), as Hancom keeps it at the end of that line when the next one starts after it: (*metrics*, that line).
+    (*metrics*, ``None``) when *text* holds no object set as a character."""
 
     if not text or not objects:
         return metrics, None
@@ -2015,7 +2018,7 @@ def _apart_from_wide(measure: _Measure, text: str, widths: list[float], sizes: l
         return (empty, *metrics), 0
     if place == len(text) and wide(len(text) - 1):  # the anchor last: its empty line below
         return (*metrics, empty), len(metrics)
-    return metrics, None
+    return metrics, max((number for number, start in enumerate(starts) if start < place), default=0)
 
 
 def _anchor_line(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: Any, widths: list[float],
@@ -2033,9 +2036,7 @@ def _anchor_line(measure: _Measure, paragraph: Any, runs: list[Any], text: str, 
             objects += 1
     if cached:
         starts = [int(segment.get("textpos", 0)) for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
-        if place + 8 * objects in starts:  # a line starting with it (objects set as characters count eight)
-            return starts.index(place + 8 * objects)
-        starts = [start if start <= place else start - 8 for start in starts]
+        place += 8 * objects  # its own place in the cache, before its own eight
     else:
         starts = measure.line_starts(text, widths, size, style)
     return max((index for index, start in enumerate(starts[:count]) if start <= place), default=0)
