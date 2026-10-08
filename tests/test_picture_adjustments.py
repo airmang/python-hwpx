@@ -193,3 +193,64 @@ def test_a_shadow_or_glow_value_hancom_does_not_keep_is_refused_before_anything_
 
     assert caught.value.code == "shape-picture-effect-value"
     assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)
+
+
+def test_a_soft_edge_and_a_reflection_are_written_as_hancom_keeps_them() -> None:
+    from hwpx.oxml import PictureGlow, PictureReflection, PictureShadow
+
+    picture = HwpxDocument.new().add_picture(
+        PNG_1X1, "png", width=20000, height=10000, shadow=PictureShadow(), glow=PictureGlow(), soft_edge=300,
+        reflection=PictureReflection()).element
+    with zipfile.ZipFile(FIXTURES / "picture_all_effects.hwpx") as package:
+        hancom = etree.fromstring(package.read("Contents/section0.xml")).find(f".//{HP}pic")
+
+    def effects(element):
+        holder = element.find(f"{HP}effects")
+        return [(etree.QName(node).localname, dict(node.attrib)) for node in holder.iter() if node is not holder]
+
+    assert effects(picture) == effects(hancom)
+    # in the schema's order: shadow, glow, softEdge, reflection
+    assert [etree.QName(node).localname for node in picture.find(f"{HP}effects")] == [
+        "shadow", "glow", "softEdge", "reflection"]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"soft_edge": -1},  # drawn as 0
+        {"soft_edge": 1.5},
+        {"soft_edge": True},
+        {"reflection": "reflection"},
+    ],
+)
+def test_a_soft_edge_or_a_reflection_that_is_not_one_is_refused(arguments) -> None:
+    with pytest.raises(HwpxValueError) as caught:
+        HwpxDocument.new().add_picture(PNG_1X1, "png", **arguments)
+
+    assert caught.value.code == "shape-picture-effect-value"
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"size": 0},  # nothing reflected
+        {"size": 1.5},
+        {"size": True},
+        {"distance": -1},
+        {"distance": 1.5},
+        {"alpha_start": -0.5},  # kept as written, drawn otherwise
+        {"alpha_end": 1.5},
+        {"blur": -50},
+    ],
+)
+def test_a_reflection_value_hancom_does_not_draw_is_refused_before_anything_is_added(fields) -> None:
+    from hwpx.oxml import PictureReflection
+
+    document = HwpxDocument.new()
+    paragraphs, images = len(document.paragraphs), len(document.media.images)
+
+    with pytest.raises(HwpxValueError) as caught:
+        document.add_picture(PNG_1X1, "png", reflection=PictureReflection(**fields))
+
+    assert caught.value.code == "shape-picture-effect-value"
+    assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)

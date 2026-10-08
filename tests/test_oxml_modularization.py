@@ -293,7 +293,8 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # 134 -> 136: PictureShadow/PictureGlow -- the input types add_picture's
     # shadow= and glow= take (hp:effects/hp:shadow, hp:glow), as ContainerMember
     # is add_container's.
-    assert len(oxml.__all__) == 136
+    # 136 -> 137: PictureReflection -- add_picture's reflection= input type.
+    assert len(oxml.__all__) == 137
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 
