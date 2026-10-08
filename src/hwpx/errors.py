@@ -364,6 +364,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-arc-corner-invalid": "add_arc 의 corner 인자가 지원하는 모서리(TOP_LEFT 등) 밖이다.",
     "shape-arc-type-invalid": "add_arc 의 arc_type 인자가 OWPML 어휘(NORMAL/PIE/CHORD) 밖이다.",
     "shape-container-no-members": "add_container 에 부재를 하나도 안 줬다.",
+    "shape-container-picture-image": "그룹의 그림 부재(ContainerMember.picture)에 그림 이진 항목을 안 줬다.",
     "shape-polygon-too-few-points": "add_polygon 에 꼭짓점을 3개 미만으로 줬다.",
     "shape-curve-too-few-points": "add_curve 에 앵커를 2개(닫으면 3개) 미만으로 줬다.",
     "shape-connector-target-inline": "연결선을 이으려는 도형이 글자처럼 놓였거나 instid 가 없다.",

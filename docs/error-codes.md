@@ -287,6 +287,7 @@ except HwpxError as exc:
 | `shape-connector-side-invalid` | 연결선 끝의 변이 top/right/bottom/left 밖이다. |
 | `shape-connector-target-inline` | 연결선을 이으려는 도형이 글자처럼 놓였거나 instid 가 없다. |
 | `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
+| `shape-container-picture-image` | 그룹의 그림 부재(ContainerMember.picture)에 그림 이진 항목을 안 줬다. |
 | `shape-curve-too-few-points` | add_curve 에 앵커를 2개(닫으면 3개) 미만으로 줬다. |
 | `shape-draw-text-vert-align` | 도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다. |
 | `shape-drop-cap-anchor-detached` | 만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기). |

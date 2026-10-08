@@ -544,6 +544,12 @@
       "rationale": "What a cell merge leaves behind in a table's grid: collapse_merged_grid() removes the rows a merge left without cells and the columns no cell starts at, as Hancom's merge does (Hancom does not open a table with an empty hp:tr), and moves the cell addresses, spans and cell zones past them back. A new module rather than more table.py lines: with the merge fix that owner file would pass the 1,600-line cap; HwpxOxmlTable.merge_cells calls it. Format-level only."
     },
     {
+      "path": "src/hwpx/oxml/container.py",
+      "disposition": "core",
+      "approvedBy": "hancom-group-members",
+      "rationale": "Groups (hp:container) and their members: ContainerMember (rect, ellipse, polygon, line, text_box, picture, group) and the assembly of members into a group at any depth, as Hancom saves its groups (members without the sz/pos/outMargin/shapeComment tail, id and zOrder 0, numberingType NONE, groupLevel = depth, every shape placed in the outermost group's space). Moved out of objects.py with the new member kinds: that owner file would pass the 1,600-line cap; objects.py re-exports ContainerMember and _create_container_element and its paragraph add_container calls this module. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/table_structure.py",
       "disposition": "core",
       "approvedBy": "hancom-table-structure-edits",
