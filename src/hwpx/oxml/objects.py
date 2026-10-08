@@ -529,14 +529,16 @@ def _create_picture_element(
 ) -> ET.Element:
     """Build a ``<hp:pic>`` element using the corpus-observed picture shape: the image adjusted by *brightness*,
     *contrast*, *effect* and *alpha* (see :func:`~hwpx.oxml.shape_position.validate_picture_image`), and with a
-    solid border *line_width* wide when *line_color* is given (``hp:lineShape`` after ``hc:img``, as Hancom saves
-    it)."""
+    solid border *line_width* wide when *line_color* is given (``hp:lineShape`` right before ``hp:imgRect``, where
+    the schema's PictureType has it and where it stands in Hancom's pictures whichever of their two child orders they
+    use; Hancom draws the border and saves it there wherever it is read)."""
 
     brightness, contrast, effect, alpha = validate_picture_image(brightness, contrast, effect, alpha)
+    validate_picture_border(line_width)  # given or not: a bad width is not dropped quietly
     border = None
     if line_color is not None:
         border = dict(_DEFAULT_LINE_SHAPE_ATTRS, color=_normalize_color(line_color) or "#000000",
-                      width=str(validate_picture_border(line_width)))
+                      width=str(line_width))
     el = ET.Element(f"{_HP}pic", {
         "textWrap": text_wrap or "SQUARE",
         "textFlow": "BOTH_SIDES",
@@ -545,6 +547,8 @@ def _create_picture_element(
     _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
     el.set("numberingType", "PICTURE")
 
+    if border is not None:
+        _append_child(el, f"{_HP}lineShape", border)
     rect = _append_child(el, f"{_HP}imgRect", {})
     _append_child(rect, f"{_HC}pt0", {"x": "0", "y": "0"})
     _append_child(rect, f"{_HC}pt1", {"x": str(width), "y": "0"})
@@ -573,8 +577,6 @@ def _create_picture_element(
         "effect": effect,
         "alpha": str(alpha),
     })
-    if border is not None:
-        _append_child(el, f"{_HP}lineShape", border)
     _append_child(el, f"{_HP}effects", {})
     _build_shape_base_children(el, width, height)
 
