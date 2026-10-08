@@ -267,3 +267,24 @@ def test_removing_a_memo_drops_the_cache_of_the_paragraph_its_field_was_in() -> 
     doc.notes.remove_memo(doc.notes.memos[0])
 
     assert _cached(doc) == [True, False, True]
+
+
+@pytest.mark.parametrize(
+    "add",
+    [
+        lambda doc, paragraph: doc.notes.add_memo("메모", anchor=paragraph),
+        lambda doc, paragraph: doc.notes.add_footnote("각주", paragraph=paragraph),
+        lambda doc, paragraph: doc.notes.add_endnote("미주", paragraph=paragraph),
+    ],
+    ids=["memo", "footnote", "endnote"],
+)
+def test_anchoring_a_memo_or_a_note_drops_only_its_paragraphs_cache(add) -> None:
+    # A memo's field controls (and a note's control) take room in the paragraph's text positions: Hancom keeps
+    # a cache left behind as it is, so a 35-line paragraph would keep breaking 8 characters too early.
+    doc = HwpxDocument.open(HANCOM_SAVED / "pages_font_line_height_long_paragraph.hwpx")
+    before = _cached(doc)
+    assert before[1]
+
+    add(doc, doc.sections[0].paragraphs[1])
+
+    assert _cached(doc) == [kept and index != 1 for index, kept in enumerate(before)]

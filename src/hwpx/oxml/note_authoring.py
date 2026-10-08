@@ -25,6 +25,7 @@ from ._document_primitives import (
     _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _append_child,
+    _clear_paragraph_layout_cache,
     _default_sublist_attributes,
     _object_id,
 )
@@ -150,6 +151,7 @@ def _paragraph_add_note(
         {"type": "DIGIT", "userChar": "", "prefixChar": "", "suffixChar": suffix, "supscript": "0"},
     )
     set_text_with_tabs(_append_child(note_run, f"{_HP}t", {}), text)
+    _clear_paragraph_layout_cache(self.element)  # the note's control takes room in the text: laid out again
     self.section.mark_dirty()
     return HwpxOxmlNote(note_element, self)
 
