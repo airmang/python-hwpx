@@ -1266,6 +1266,10 @@ class _Para:
     #: it fits there (*own* tall)
     moves: int = 0
     own: int = 0
+    #: a top-and-bottom object alone in this empty paragraph, its foot this far below the line's top: the next
+    #: paragraph starts no higher, but its spacing and this one's count only where the empty line's own advance
+    #: with them reaches lower (Hancom's empty line stays beside the object, which the next line goes below)
+    floor: int = 0
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -2128,7 +2132,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if shape.font_line and not cached and not sizes and not alone:  # an empty line as tall as its font makes it
         size = measure.font_line(size, style)
         pitch = _pitch(shape.kind, shape.value, size)
-    table, moves = None, 0
+    table, moves, floor = None, 0, 0
     if alone:
         if wrap is not None:
             raise _Unsupported("an object beside a square-wrapped object")
@@ -2139,7 +2143,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         elif objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
             size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
             pitch = _pitch(shape.kind, shape.value, size)
-        own = size  # the paragraph's own line, as tall as its characters
+        own, own_pitch = size, pitch  # the paragraph's own line, as tall as its characters
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width, shape)
         if controls is not None:  # the controls before and after it on empty lines of their own, each as tall as
             heights = [max(measure.char_height(run.get("charPrIDRef")) for run in side) if side else None
@@ -2153,8 +2157,15 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         if table is None and pos.get("treatAsChar") != "1" and 0 <= offset < 1 << 31:
             if pos.get("flowWithText") != "0":  # from the paragraph's top down: past the body's foot it goes on
                 moves = size if offset or page.alone_at_top else 0  # to the next page's top alone, the line staying
+                if controls is None and not cached and not text:
+                    if pos.get("allowOverlap") == "1" and offset < own_pitch:  # the empty line goes below its foot
+                        lead, size, pitch = size, own, own_pitch
+                    else:  # the empty line stays: the next paragraph comes below its foot or the line's advance
+                        floor, pitch = size, own_pitch
             else:  # it stays on its page, past the foot if it must: only the paragraph's line has to fit there,
                 cached = ((own, size),)  # the next paragraph coming below the object
+                if controls is None and not text:
+                    cached, floor = ((own, own_pitch),), size  # (_Para.floor)
     anchor = None if anchored is None else _anchor(measure, paragraph, runs, text, anchored, widths, size, style,
                                                    cached, count)
     around = 0 if square is None or not text else _anchor_line(measure, paragraph, runs, text, square, widths,
@@ -2176,6 +2187,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         return again.at(para, page.column_width, 0)
     if moves:
         para = replace(para, moves=moves, own=own)
+    if floor:
+        para = replace(para, floor=floor)
     if page.rebreak and not _cached_metrics(paragraph) and not objects and not marks and not notes:
         if not text:
             return replace(para, blank=True)
@@ -2918,6 +2931,7 @@ class _Paginator:
         self.last_vp: int | None = None
         self.last_pitch = 0
         self.pending_next = 0
+        self.object_floor: tuple[int, int] | None = None  # (frame, where the next paragraph starts at the highest): an empty paragraph's object
         self.table_end = 0      # the last frame a flowing table reaches
         self.reserved: dict[int, int] = {}  # frames a table starting past its anchor takes: where text starts
         self.wrap_frame = -1                  # the frame a square-wrapped object's band is on
@@ -2948,6 +2962,9 @@ class _Paginator:
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         hidden, self.hidden = self.hidden, 0
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if self.object_floor is not None and self.object_floor[0] == self.frame:  # below an empty paragraph's
+            start = max(start, self.object_floor[1])                             # object (_Para.floor)
+        self.object_floor = None
         if self.under is not None:  # the table before went on past its anchor line's page: the line reaching it
             # goes right under its end, as under any object's band, and a column break lands there, in the
             # column after the anchor line's (or the first one clear of the table)
@@ -2987,6 +3004,8 @@ class _Paginator:
         if self._lay(index, paras, para, start, broke):
             last = self.laid or para
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], last.advance(last.lines - 1), para.next
+            if para.floor:
+                self.object_floor = (self.out[-1][0], self.out[-1][1] + para.floor)
         if para.wrap_bottom:  # the band starts here: it stays on this page
             self.wrap_frame = self.out[first][0]
             self.wrap_moved = self.out[first][1] + para.wrap_bottom - para.wrap_shift > self.body \
