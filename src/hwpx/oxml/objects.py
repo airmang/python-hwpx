@@ -25,7 +25,8 @@ from ._document_primitives import (
 )
 from .shape_position import (
     _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
-    validate_caption_gap, validate_caption_side, validate_rect_ratio, validate_shape_size,
+    validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_image, validate_rect_ratio,
+    validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -519,9 +520,23 @@ def _create_picture_element(
     treat_as_char: bool = True,
     pos_overrides: dict[str, str | int] | None = None,
     text_wrap: str | None = None,
+    brightness: int = 0,
+    contrast: int = 0,
+    effect: str = "REAL_PIC",
+    alpha: int = 0,
+    line_color: str | None = None,
+    line_width: int = 33,
 ) -> ET.Element:
-    """Build a ``<hp:pic>`` element using the corpus-observed picture shape."""
+    """Build a ``<hp:pic>`` element using the corpus-observed picture shape: the image adjusted by *brightness*,
+    *contrast*, *effect* and *alpha* (see :func:`~hwpx.oxml.shape_position.validate_picture_image`), and with a
+    solid border *line_width* wide when *line_color* is given (``hp:lineShape`` after ``hc:img``, as Hancom saves
+    it)."""
 
+    brightness, contrast, effect, alpha = validate_picture_image(brightness, contrast, effect, alpha)
+    border = None
+    if line_color is not None:
+        border = dict(_DEFAULT_LINE_SHAPE_ATTRS, color=_normalize_color(line_color) or "#000000",
+                      width=str(validate_picture_border(line_width)))
     el = ET.Element(f"{_HP}pic", {
         "textWrap": text_wrap or "SQUARE",
         "textFlow": "BOTH_SIDES",
@@ -553,11 +568,13 @@ def _create_picture_element(
     })
     _append_child(el, f"{_HC}img", {
         "binaryItemIDRef": binary_item_id_ref,
-        "bright": "0",
-        "contrast": "0",
-        "effect": "REAL_PIC",
-        "alpha": "0",
+        "bright": str(brightness),
+        "contrast": str(contrast),
+        "effect": effect,
+        "alpha": str(alpha),
     })
+    if border is not None:
+        _append_child(el, f"{_HP}lineShape", border)
     _append_child(el, f"{_HP}effects", {})
     _build_shape_base_children(el, width, height)
 
@@ -642,6 +659,72 @@ def _paragraph_insert_shape_element(
     run.append(element)
     self.section.mark_dirty()
     return HwpxOxmlShape(element, self)
+
+
+def _paragraph_add_picture(
+    self: "HwpxOxmlParagraph",
+    binary_item_id_ref: str,
+    *,
+    width: int = 14400,
+    height: int = 14400,
+    align: str | None = None,
+    treat_as_char: bool = True,
+    pos_overrides: dict[str, str | int] | None = None,
+    text_wrap: str | None = None,
+    brightness: int = 0,
+    contrast: int = 0,
+    effect: str = "REAL_PIC",
+    alpha: int = 0,
+    line_color: str | None = None,
+    line_width: int = 33,
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> HwpxOxmlInlineObject:
+    """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData.
+
+    With ``treat_as_char=False`` and ``pos_overrides`` the picture is placed as a
+    **floating** object: ``pos_overrides`` sets ``horz/vertRelTo`` (e.g. ``PAPER``),
+    ``horz/vertAlign`` and ``horz/vertOffset`` (HWPUNIT, non-negative) on the
+    ``<hp:pos>`` so the image lands at a fixed page position (used by 직인 placement).
+    ``text_wrap`` overrides the pic's ``textWrap`` (e.g. ``IN_FRONT_OF_TEXT`` so a
+    seal stamped over a line does not reflow the text it overlaps).
+
+    *brightness* and *contrast* (-100 to 100), *effect* (``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE``) and
+    *alpha* (transparency, 0 opaque to 255 not drawn) adjust the image as Hancom draws it; *line_color* (with
+    *line_width*, HWPUNIT) gives the picture a solid border. A value Hancom does not draw is refused
+    (``shape-picture-image-value``, ``shape-picture-border-value``) before anything is added.
+    """
+
+    if pos_overrides and treat_as_char:
+        raise ValueError(
+            "pos_overrides is for floating placement; pass treat_as_char=False "
+            "(a PAPER-relative <hp:pos> on an inline pic is contradictory)"
+        )
+
+    element = _create_picture_element(  # checked before its run is added
+        str(binary_item_id_ref),
+        width,
+        height,
+        align=align,
+        treat_as_char=treat_as_char,
+        pos_overrides=pos_overrides,
+        text_wrap=text_wrap,
+        brightness=brightness,
+        contrast=contrast,
+        effect=effect,
+        alpha=alpha,
+        line_color=line_color,
+        line_width=line_width,
+    )
+    run = self._create_run_for_object(
+        run_attributes,
+        char_pr_id_ref=char_pr_id_ref,
+    )
+    if type(element) is not type(run):
+        element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
+    run.append(element)
+    self.section.mark_dirty()
+    return HwpxOxmlInlineObject(element, self)
 
 
 def _paragraph_add_line(

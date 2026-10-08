@@ -626,6 +626,12 @@ class HwpxDocument(_LegacyFacade):
         width_mm: float | None = None,
         height_mm: float | None = None,
         align: str | None = None,
+        brightness: int = 0,
+        contrast: int = 0,
+        effect: str = "REAL_PIC",
+        alpha: int = 0,
+        line_color: str | None = None,
+        line_width: int = 33,
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
         style_id_ref: str | int | None = None,
@@ -633,7 +639,11 @@ class HwpxDocument(_LegacyFacade):
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
     ) -> HwpxOxmlInlineObject:
-        """Embed image data and place a picture object in a new paragraph."""
+        """Embed image data and place a picture object in a new paragraph.
+
+        *brightness* and *contrast* (-100 to 100), *effect* (``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE``) and
+        *alpha* (transparency, 0 opaque to 255 not drawn) adjust the image; *line_color* (with *line_width*,
+        HWPUNIT) gives it a solid border."""
 
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_picture")
         section = _resolve.resolve_section(
@@ -651,6 +661,12 @@ class HwpxDocument(_LegacyFacade):
             width_mm=width_mm,
             height_mm=height_mm,
             align=align,
+            brightness=brightness,
+            contrast=contrast,
+            effect=effect,
+            alpha=alpha,
+            line_color=line_color,
+            line_width=line_width,
             para_pr_id_ref=para_pr_id_ref,
             style_id_ref=style_id_ref,
             char_pr_id_ref=char_pr_id_ref,

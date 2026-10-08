@@ -6,6 +6,13 @@
 
 ### 추가
 
+- 그림을 만들 때(`doc.add_picture`, `paragraph.add_picture`) 그림 효과와 테두리를 줄 수 있다.
+  - `brightness`(밝기)·`contrast`(대비): -100~100. `effect`: `REAL_PIC`(원래 그림)·`GRAY_SCALE`(회색조)·
+    `BLACK_WHITE`(흑백), 대소문자 무관. `alpha`(투명도): 0(불투명)~255(보이지 않음).
+  - `line_color`를 주면 실선 테두리를 `line_width`(HWPUNIT, 기본 33) 굵기로 두른다.
+  - 한/글은 이 범위 밖의 값을 그대로 그리지 않는다(밝기는 끝값처럼, 대비는 색이 뒤집히거나 회색으로, 투명도 256은
+    0으로, 다른 효과는 원래 그림으로). 그런 값은 문단·그림을 더하기 전에 `shape-picture-image-value`·
+    `shape-picture-border-value`로 거부한다.
 - FormFit과 쪽 수 추정이 KoPub 글꼴 12종도 글꼴의 설계 폭으로 잰다: KoPub돋움체·KoPub바탕체·KoPubWorld돋움체·
   KoPubWorld바탕체의 Light·Medium·Bold. 전에는 글자 종류의 평균 폭을 썼다. 한글 음절은 모두 같은 폭이고(돋움체
   872/1000, 바탕체 936/1000), 다른 글자도 글꼴의 폭을 쓴다. 이 글꼴로 쓴 칸의 채우기 결과와, 줄 배치 정보가 없는
