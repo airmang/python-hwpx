@@ -58,6 +58,14 @@ HANCOM_PAGES = {
     "pages_picture_effect_text_and_glow": 2,  # a picture among text with a glow
     # a glow 600 and a shadow 800 down-right at 45 degrees, spread 400 -- in whole pixels (75 HWPUNIT), so as 450
     "pages_picture_effect_glow_and_diagonal_shadow": 2,  # 13215
+    # A rectangle 5000 tall (or 3000) placed top and bottom from the top of an empty paragraph, its vertOffset up
+    # (kept as an unsigned 32-bit number), after eleven lines: Hancom places it from where the paragraph's top
+    # would be and moves the lines before it that reach into its band to its foot, the rest following
+    "pages_para_shape_unsigned_offset": 1,  # 1500 up: the line before goes below it
+    "pages_para_shape_unsigned_offset_500": 1,  # 500 up: no line reaches it, the paragraph's line below its foot
+    "pages_para_shape_unsigned_offset_3000": 1,  # 3000 up: the line before; the one before that ends at its top
+    "pages_para_shape_unsigned_offset_4900": 1,  # 4900 up: the three lines before
+    "pages_para_shape_unsigned_offset_1500_h3000": 1,
     "pages_wide_table_as_character_anchor_first": 1,  # 44000 x 3000
     "pages_wide_table_as_character_anchor_last": 1,
     "pages_wide_table_as_character_tall_anchor_first": 2,  # 44000 x 60000: on the next page below the empty line
