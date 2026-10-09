@@ -987,6 +987,17 @@ def test_a_picture_reflection_takes_about_its_share_of_the_picture_below_it(name
     assert max(abs(mine[1] - top) for mine, top in zip(tops, theirs)) <= 100
 
 
+def test_a_shape_placed_up_from_its_paragraph_takes_no_more_than_its_foot() -> None:
+    # A rectangle 5000 tall placed top and bottom 1500 up from the top of its paragraph (vertOffset kept as the
+    # unsigned 32-bit 4294965796), saved by Hancom: one page. Read as unsigned, the paragraph's line was four
+    # billion tall and the document three pages.
+    data = (FIXTURES / "pages_para_shape_unsigned_offset.hwpx").read_bytes()
+
+    for estimate in (estimate_pages(data), estimate_pages(_without_caches(data))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 1
+
+
 # Objects placed top and bottom from the top of an empty paragraph after four lines (10 pt, spaced 160%), the
 # lines after it of text, laid out and saved by Hancom: its pages, and the page of the paragraph's line and
 # the lines after when not the first:
