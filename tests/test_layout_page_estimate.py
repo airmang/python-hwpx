@@ -959,6 +959,34 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+# The same five pictures with a reflection below (hp:reflection, its share of the picture in hp:pos), saved by
+# Hancom: each takes about that share of the picture's height (with its glow, and a pixel round it) less a pixel,
+# and its distance, below it, which the estimate follows to within a pixel or so (Hancom rounds the parts
+# differently with the size and the distance). All take the fifth picture on to the next page.
+REFLECTION_PAGES = {
+    "pages_picture_reflection_quarter": 2,  # a quarter, no gap: each line 13737
+    "pages_picture_reflection_half_spaced": 2,  # half, 1000 below: 17500
+    "pages_picture_reflection_tenth_spaced": 2,  # a tenth, 1000 below: 13040
+    "pages_picture_reflection_quarter_with_glow": 2,  # a quarter of the picture with a glow 500: 13962
+    "pages_picture_reflection_quarter_among_text": 2,
+}
+
+
+@pytest.mark.parametrize("name", sorted(REFLECTION_PAGES))
+@pytest.mark.parametrize("caches", [True, False])
+def test_a_picture_reflection_takes_about_its_share_of_the_picture_below_it(name: str, caches: bool) -> None:
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+    estimate = estimate_pages(data if caches else _without_caches(data))
+    hancom = _hancom_lines(data)
+
+    assert estimate.unsupported == ()
+    assert estimate.pages == REFLECTION_PAGES[name]
+    tops = [(line.page, line.vertpos) for lines in estimate.lines for line in lines]
+    theirs = [top for lines in hancom for top in lines]
+    assert len(tops) == len(theirs)
+    assert max(abs(mine[1] - top) for mine, top in zip(tops, theirs)) <= 100
+
+
 # Objects placed top and bottom from the top of an empty paragraph after four lines (10 pt, spaced 160%), the
 # lines after it of text, laid out and saved by Hancom: its pages, and the page of the paragraph's line and
 # the lines after when not the first:
