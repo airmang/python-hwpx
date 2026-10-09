@@ -1271,6 +1271,9 @@ class _Para:
     #: paragraph starts no higher, but its spacing and this one's count only where the empty line's own advance
     #: with them reaches lower (Hancom's empty line stays beside the object, which the next line goes below)
     floor: int = 0
+    #: a top-and-bottom object alone in this empty paragraph placed up from its top: (how far up, as a negative
+    #: offset, how tall, and the paragraph's own line and advance) -- see :meth:`_Paginator._below_a_rising_object`
+    rises: tuple[int, int, int, int] | None = None
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -2302,12 +2305,25 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         para = replace(para, moves=moves, own=own)
     if floor:
         para = replace(para, floor=floor)
+    if alone and table is None and controls is None and not text and _rises(objects[0], page.column_width):
+        up = int(objects[0].find(f"{HP}pos").get("vertOffset", 0)) - (1 << 32)
+        para = replace(para, rises=(up, _extent(objects[0], "height", measure), own, own_pitch))
     if page.rebreak and not _cached_metrics(paragraph) and not objects and not marks and not notes:
         if not text:
             return replace(para, blank=True)
         return replace(para, reflow=_Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks),
                                             style, shape, width=page.column_width, end=end, head=head))
     return para
+
+
+def _rises(obj: Any, column: int) -> bool:
+    """Whether *obj* is placed top and bottom up from the top of its paragraph: a negative ``vertOffset``, which
+    the file keeps as an unsigned 32-bit number."""
+
+    pos = obj.find(f"{HP}pos")
+    return (pos is not None and pos.get("treatAsChar") != "1" and pos.get("vertRelTo") == "PARA"
+            and pos.get("vertAlign", "TOP") == "TOP" and int(pos.get("vertOffset", 0)) >= 1 << 31
+            and _wraps_top_and_bottom(obj, column))
 
 
 def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list[Any], list[Any]] | None:
@@ -3089,6 +3105,8 @@ class _Paginator:
         if (para.stack or para.band is not None or para.table is not None or para.anchor is not None) \
                 and (self.frame in self.squares or self.frame + 1 in self.squares):
             raise _Unsupported("objects or a table beside a square-wrapped object moved to the next page")
+        if para.rises is not None and self.last_vp is not None:
+            para, start = self._below_a_rising_object(index, paras, para, start)
         if para.stack:
             self._stacked(index, paras, para, start)
             return
@@ -3130,6 +3148,45 @@ class _Paginator:
         beside = self.out[first:first + para.wrap_lines]
         if not para.wrap_fixed and not para.wrap_free and any(frame != self.wrap_frame for frame, _ in beside):
             raise _Unsupported("a page break beside a square-wrapped or offset top-and-bottom object")
+
+    def _below_a_rising_object(self, index: int, paras: list[_Para], para: _Para, start: int) -> tuple[_Para, int]:
+        """Hancom places an object top and bottom up from its paragraph's top (``_Para.rises``) from where that
+        top would be, and moves the lines before it on the page that reach into its band (their foot below its
+        top) to its foot, the lines after them following as they stood; the paragraph's own line then comes
+        after them, clear of the object. (The paragraph, where it starts.)"""
+
+        up, tall, own, own_pitch = para.rises  # type: ignore[misc]
+        top, foot = start + up, start + up + tall
+        lines: list[tuple[int, int]] = []  # (place in self.out, its line's height), newest first
+        at = len(self.out)
+        for before in range(index - 1, -1, -1):
+            count = self.counts[before]
+            for line in range(count - 1, -1, -1):
+                at -= 1
+                lines.append((at, paras[before].height(line)))
+            if at <= 0 or self.out[at][0] != self.frame or self.out[at][1] + paras[before].height(0) <= top:
+                break
+        reaching = [place for place, height in lines
+                    if self.out[place][0] == self.frame and self.out[place][1] + height > top]
+        if not reaching:
+            return para, start
+        first = min(reaching)
+        moved = [place for place, _ in lines if place >= first]
+        owners = {before for before in range(index) if sum(self.counts[:before]) <= max(moved)
+                  and sum(self.counts[:before + 1]) > first}
+        if any(paras[before].table is not None or paras[before].anchor is not None or paras[before].band is not None
+               or paras[before].stack or paras[before].notes or paras[before].rises is not None for before in owners):
+            raise _Unsupported("objects among the lines a top-and-bottom object placed up moves below it")
+        shift = foot - self.out[first][1]
+        heights = dict(lines)
+        for place in moved:
+            frame, line_top = self.out[place]
+            if line_top + shift + heights[place] > self.body:
+                raise _Unsupported("lines a top-and-bottom object placed up moves past the page foot")
+            self.out[place] = (frame, line_top + shift)
+        self.last_vp = self.out[-1][1]
+        start = self.last_vp + self.last_pitch + self.pending_next + para.prev
+        return replace(para, size=own, pitch=own_pitch), start
 
     def _flow(self, para: _Para, table: _FlowTable, start: int) -> None:
         if self.last_vp is not None and start + para.height(0) > self.body:  # the anchor line goes on
