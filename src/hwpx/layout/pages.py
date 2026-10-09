@@ -2134,7 +2134,10 @@ def _object_line(
                                tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset,
                                _caption(measure, obj), _spare_cut(obj))
             return count, size, pitch, table
-        below = int(pos.get("vertOffset", 0)) + tall
+        offset = int(pos.get("vertOffset", 0))
+        below = offset + tall
+        if offset >= 1 << 31:  # one up, kept as an unsigned 32-bit number: Hancom draws it that far above, the
+            below = max(offset - (1 << 32) + tall, size)  # paragraph's line no shorter than its characters
         return 1, below, below, None
     raise _Unsupported(f"{name} placed {obj.get('textWrap')} relative to {pos.get('vertRelTo')}")
 
