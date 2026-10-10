@@ -1258,6 +1258,9 @@ class _Para:
     #: how far such an object pushed the paragraph's first line down (its band's foot is measured from where
     #: that line stood before)
     wrap_shift: int = 0
+    #: how far an earlier paragraph's top-and-bottom object pushed this paragraph's first line down (part of
+    #: :attr:`prev`): going on to the next page, the line drops it and starts at that page's top
+    lead: int = 0
     #: a table wrapped square anchored here, flowing with the text and allowed to split, that goes on over the
     #: page end: it as it flows, how far below the paragraph's first line it starts, and its band beside the
     #: text (see :meth:`_Paginator._span_bands`)
@@ -2651,6 +2654,8 @@ def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | Non
             shift = band.bottom - top
             if index == 0:
                 pushed, shifted = replace(para, prev=para.prev + shift), shift
+                if not starts:  # below an earlier paragraph's object: no line of it beside the band
+                    pushed, beside = replace(pushed, lead=shift), 0
             else:  # the lines from it on go below the object, on a later page too
                 metrics[index - 1] = (metrics[index - 1][0], metrics[index - 1][1] + shift)
                 pushed, beside = replace(para, cached=tuple(metrics)), index
@@ -3110,7 +3115,13 @@ class _Paginator:
             self._flow(para, table, start)
             return
         reach = para.wrap_bottom - para.wrap_shift if para.wrap_push else para.moves
-        if reach and start + reach > self.body and self.columns == 1 \
+        anchor = para.wrap_anchor if para.wrap_push else 0
+        ahead = para.span(0, anchor)  # its anchor line below the paragraph's first, the object offset from it
+        if anchor and start + para.span(0, anchor - 1) + para.height(anchor - 1) <= self.body \
+                < start + ahead + para.height(anchor):  # the anchor line goes on to the next page, the object
+            if self.reserved.get(self.frame + 1, 0) + reach - ahead > self.body:  # with it, from its top there
+                raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot")
+        elif reach and start + reach > self.body and self.columns == 1 \
                 and (para.wrap_push or start + para.own <= self.body):  # the empty line fits where it stands:
             raise _BandMoves(index)  # its object goes on to the next page's top, its lines stay
         first = len(self.out)
@@ -3119,15 +3130,15 @@ class _Paginator:
             self.last_vp, self.last_pitch, self.pending_next = self.out[-1][1], last.advance(last.lines - 1), para.next
             if para.floor:
                 self.object_floor = (self.out[-1][0], self.out[-1][1] + para.floor)
-        if para.wrap_bottom:  # the band starts here: it stays on this page
-            self.wrap_frame = self.out[first][0]
-            self.wrap_moved = self.out[first][1] + para.wrap_bottom - para.wrap_shift > self.body \
+        if para.wrap_bottom:  # the band starts here: it stays on the page of its anchor line
+            self.wrap_frame, line = self.out[first + anchor]
+            self.wrap_moved = line - ahead + para.wrap_bottom - para.wrap_shift > self.body \
                 and not para.wrap_stays
         if self.wrap_moved and not para.wrap_fixed and (para.wrap_bottom or para.wrap_lines):
             if para.wrap_bottom and self.columns == 1:  # its object goes on to the next page's top: again
                 raise _BandMoves(index)
             raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot")
-        beside = self.out[first:first + para.wrap_lines]
+        beside = self.out[first + anchor:first + para.wrap_lines]  # (the lines before its anchor line above it)
         if not para.wrap_fixed and not para.wrap_free and any(frame != self.wrap_frame for frame, _ in beside):
             raise _Unsupported("a page break beside a square-wrapped or offset top-and-bottom object")
 
@@ -3587,7 +3598,7 @@ class _Paginator:
     def _next_frame(self, para: _Para, count: int, first_chunk: bool) -> int:
         self.frame += 1
         self.page_notes = [self.carry, 1] if self.carry else [0, 0]
-        return self._free_top() + (para.prev if count == 0 and first_chunk else 0)
+        return self._free_top() + (para.prev - para.lead if count == 0 and first_chunk else 0)
 
     def _free_top(self) -> int:
         """Where text starts in the current frame: below a table that starts past its anchor, the frames
