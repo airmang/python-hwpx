@@ -2470,14 +2470,15 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         pusher = None  # the next line reaches the object's band anyway: laid out as the object alone
     if moved:  # the object went on to the next page's top: the paragraph's lines as if it were not there
         # the object: wrapped square, pushing the lines below it, or alone below the empty line (a table that
-        # may split goes on over the page end instead; of tables, only one wrapped square set not to split is
-        # followed)
+        # may split goes on over the page end instead; of tables, only one set not to split, wrapped square or
+        # alone at its paragraph's top, is followed)
         alone = objects[0] if len(objects) == 1 and objects[0].find(f"{HP}pos").get("treatAsChar") != "1" else None
         obj = square if square is not None else pusher if pusher is not None else alone
         if obj is not None and obj is square and wrap is None and _local(obj) == "tbl" \
                 and obj.get("pageBreak", "CELL") != "NONE":  # it splits over the page end instead
             return replace(_paragraph(measure, page, paragraph, None, obj), spans=_spans(measure, page, obj)), None
-        if obj is None or wrap is not None or _local(obj) == "tbl" and (obj is not square
+        at_top = obj is alone and pusher is None
+        if obj is None or wrap is not None or _local(obj) == "tbl" and (obj is not square and not at_top
                                                                  or obj.get("pageBreak", "CELL") != "NONE"):
             raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot")
         tall = _extent(obj, "height", measure)
@@ -3280,9 +3281,17 @@ class _Paginator:
             if later and para.spaced and not head.lines:  # spaces only: as the table alone in its paragraph
                 self._flow(replace(para, anchor=None, table=table), table, start)
                 return
-            if table.mode == "NONE" and not head.lines and top != self.reserved.get(self.frame, 0) + para.prev \
-                    and (later or top + table.above + sum(row.height for row in table.rows) + table.below
-                         + tail.height(0) > self.body):  # set not to split: it goes on with the line below it
+            moves = not head.lines and top != self.reserved.get(self.frame, 0) + para.prev
+            if moves and table.mode == "NONE" and later and self.alone_at_top and self.columns == 1 \
+                    and top + tail.height(0) <= self.body:  # set not to split, with no room below the line's top:
+                raise _BandMoves(index)  # to the next page's top alone, the paragraph's lines staying
+            if moves and table.mode == "NONE":  # set not to split
+                moves = later or top + table.above + sum(row.height for row in table.rows) + table.below \
+                    + tail.height(0) > self.body
+            elif moves:  # ending on this page (a row split by cells: its room to spare cut there) but not the line
+                frame, end = _flow_table(table, self.frame, top + table.above, self.body)
+                moves = frame == self.frame and end + table.below + tail.height(0) > self.body
+            if moves:  # it goes on with the line below it
                 top, later = self._next_frame(para, 0, True), False
             if later:
                 raise _Unsupported("a top-and-bottom table anchored in text that starts on the next page")

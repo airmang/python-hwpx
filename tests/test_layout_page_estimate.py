@@ -74,6 +74,15 @@ HANCOM_PAGES = {
     # takes eight places in the line cache as the anchor does, it falls on the second line
     "pages_table_anchored_at_the_end_of_a_line_of_text": 1,
     "pages_table_anchored_after_a_line_of_text_behind_a_picture": 1,
+    # A table 30000 wide placed top and bottom at the top of a paragraph after a line of text, the paragraph's
+    # first line not fitting below it: one fitting there (6000 tall, beside a table set as a character 60000
+    # tall, before or after it; or one moved row by row) goes on with that line to the next page's top; one
+    # split cell by cell ending at the page foot (three rows 21000 tall, the last one's room to spare cut) goes
+    # on with it too (one set not to split with no room: test_an_unsplit_table_without_room_goes_on_alone)
+    "pages_flowing_table_then_tall_table_as_character": 3,
+    "pages_tall_table_as_character_then_flowing_table": 3,
+    "pages_row_split_table_then_tall_table_as_character": 3,
+    "pages_cell_split_table_ending_at_the_foot_above_its_line": 3,
     # A rectangle placed top and bottom 2000 down from an empty paragraph's top, 20000 x 8000 (one column
     # 48188 wide): the next paragraph's line reaching it goes below it, the whole width, even holding objects
     # set as characters (a group or a picture 44633 x 648, which do not make it taller than its text):
@@ -957,6 +966,19 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+def test_an_unsplit_table_without_room_goes_on_alone() -> None:
+    # The table above, 63000 tall, set not to split: with no room below the line's top, it goes alone to the
+    # next page's top and the paragraph's lines, and those after, stay where they stood on the first page.
+    data = (FIXTURES / "pages_unsplit_table_without_room_above_its_line.hwpx").read_bytes()
+
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+
+        assert (estimate.unsupported, estimate.pages) == ((), 2)
+        assert {line.page for lines in estimate.lines for line in lines} == {0}
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == _hancom_lines(data)
 
 
 # The same five pictures with a reflection below (hp:reflection, its share of the picture in hp:pos), saved by
