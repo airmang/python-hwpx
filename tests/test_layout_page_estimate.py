@@ -154,6 +154,15 @@ HANCOM_PAGES = {
     "pages_picture_pushing_its_first_line_above_the_foot": 2,  # a picture 30000 tall 1319 below a paragraph of
                                                                # 14 pt text: its line goes below the picture,
                                                                # which ends above the foot, and stays there
+    "pages_line_pushed_below_a_tall_picture_past_the_foot": 2,  # one 1319 below a line of text: the next line
+                                                                # goes below it, past the foot, to the next
+                                                                # page's top
+    # A picture 15000 x 8000 placed top and bottom 1000 below its anchor line, the second of a paragraph of
+    # two, low on the page: it stands that far below the anchor line's top
+    "pages_line_pushed_below_a_picture_past_the_foot": 2,  # it fits; the next paragraph's first line, going
+                                                           # below it past the foot, starts the next page
+    "pages_picture_offset_from_an_anchor_line_on_the_next_page": 2,  # the anchor line goes on to the next
+                                                                     # page's top, the picture with it
     "pages_square_picture_above_the_foot_short_lines_beside_it": 2,  # its band above the foot: short lines
                                                                      # beside it in two pieces
     "pages_square_picture_staying_short_lines_beside_it": 2,  # not flowing with the text, it stays on its
