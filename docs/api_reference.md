@@ -141,6 +141,20 @@
   - 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받습니다. 마지막 섹션 삭제 시 `ValueError`가 발생합니다.
 - `add_table(rows, cols, ...) -> HwpxOxmlTable`
   - 기본적으로 앞 제목·목록 스타일을 상속하지 않는 중립 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다. 표 앵커가 앞 단락 서식을 의도적으로 이어받아야 하면 `inherit_style=True` 또는 명시적 단락·스타일 참조를 사용합니다. `border_fill_id_ref`를 생략하면 헤더 참조 목록에 기본 실선 `borderFill`을 생성하고 표와 셀에 자동으로 연결합니다.
+- `add_picture(image_data, image_format, *, width, height, width_mm, height_mm, align, brightness, contrast, effect, alpha, line_color, line_width, crop, shadow, glow, soft_edge, reflection, ...) -> HwpxOxmlInlineObject`
+  - 이미지를 이진 항목으로 넣고 새 단락에 그림을 글자처럼 둡니다. 크기는 HWPUNIT(`width`·`height`)나 mm(`width_mm`·`height_mm`)로 받습니다(너비를 빼면 14400). 높이를 빼면 PNG는 그 가로세로 비율을, 다른 형식은 너비와 같은 높이를 씁니다. `align`은 그림을 둔 단락의 정렬입니다.
+  - 이미지 조정: `brightness`·`contrast`(-100~100, 기본 0), `effect`(`REAL_PIC` 원래 그림·`GRAY_SCALE` 회색조·`BLACK_WHITE` 흑백, 대소문자 무관), `alpha`(투명도, 0 불투명~255 보이지 않음)를 받습니다.
+  - 테두리: `line_color`를 주면 `line_width`(HWPUNIT, 기본 33) 굵기의 실선 테두리를 그립니다.
+  - 자르기: `crop=(왼쪽, 위, 오른쪽, 아래)`는 `width` x `height` 그림의 네 변에서 그만큼(HWPUNIT) 잘라 냅니다. 축척은 그대로라 그림이 그만큼 작게 그려집니다.
+  - 효과(`hwpx.oxml`에서 가져옵니다):
+    - `shadow=PictureShadow(color, alpha, blur, direction, distance, inside)`: 그림자. 방향은 오른쪽에서 시계 방향 0~359도입니다(0 오른쪽, 90 아래).
+    - `glow=PictureGlow(color, alpha, radius)`: 빛남.
+    - `soft_edge`(HWPUNIT): 부드러운 가장자리.
+    - `reflection=PictureReflection(size, distance, alpha_start, alpha_end, blur)`: 그림 아래 반사. `size`는 그림 높이의 몫(0 초과 1 이하)입니다.
+    - 투명도(`alpha`)는 0~1이고 길이는 HWPUNIT입니다. 한/글은 그림을 바깥 효과(빛남·바깥 그림자·반사)까지 합친 크기로 배치하므로, 그만큼 줄이 높아집니다.
+  - 한/글이 그대로 그리지 않는 값은 이진 항목·단락을 더하기 전에 거부합니다: `shape-picture-image-value`(조정), `shape-picture-border-value`(테두리 굵기), `shape-picture-crop-value`(자르기), `shape-picture-effect-value`(효과), `style-color-invalid`(색).
+  - 같은 인자를 `HwpxOxmlParagraph.add_picture(binary_item_id_ref, ...)`도 받습니다(이미 넣은 이진 항목을 쓸 때).
+  - 뒤집기·회전은 아직 지원하지 않습니다.
 - `get_table_map() -> dict`
   - 문서 순서대로 표를 스캔하고 `table_index`, `paragraph_index`, 행·열 수, 추정 헤더 텍스트, 첫 행 미리보기, 빈 표 여부를 반환합니다.
 - `find_cell_by_label(label_text, direction="right") -> dict`
