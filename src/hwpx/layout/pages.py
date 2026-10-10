@@ -180,7 +180,7 @@ from __future__ import annotations
 import copy
 import math
 import os
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -2365,12 +2365,10 @@ def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
     return start < _MIN_SIDE and column - start - width < _MIN_SIDE
 
 
-def _square_object(objects: list[Any], runs: list[Any], column: int,
-                   on_first_line: Callable[[Any], bool] | None = None) -> Any:
-    """The one object of a paragraph wrapped square across the column from the paragraph's top, before
-    any text or after text that *on_first_line* says ends on the paragraph's first line (Hancom places it from
-    the top of the line its control falls on, the paragraph laid out the column's whole width), or ``None``
-    (:func:`_square_sides` says where the text goes beside it)."""
+def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
+    """The one object of a paragraph wrapped square across the column, from the top of the line its control
+    falls on (:func:`_square_anchor_line`), or ``None`` (:func:`_square_sides` says where the text goes beside
+    it)."""
 
     if len(objects) != 1:
         return None
@@ -2382,19 +2380,12 @@ def _square_object(objects: list[Any], runs: list[Any], column: int,
             or pos.get("horzRelTo") not in ("COLUMN", "PARA", "PAPER") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
             or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", "LARGEST_ONLY", "LEFT_ONLY", "RIGHT_ONLY"):
         raise _Unsupported(f"{_local(obj)} wrapped square elsewhere than at a column edge")
-    for child in (child for run in runs for child in run):
-        if child is obj:
-            break
-        if _local(child) == "t" and _t_text(child):
-            if on_first_line is None or not on_first_line(obj):
-                raise _Unsupported(f"{_local(obj)} wrapped square after text")
-            break
     return obj
 
 
-def _on_first_line(measure: _Measure, page: _Page, paragraph: Any, runs: list[Any], obj: Any) -> bool:
-    """Whether *obj*'s control falls on the paragraph's first line laid out the column's whole width (FormFit's
-    lines, the object taking no room in them)."""
+def _square_anchor_line(measure: _Measure, page: _Page, paragraph: Any, runs: list[Any], obj: Any) -> int:
+    """The line *obj*'s control falls on, the paragraph laid out the column's whole width (FormFit's lines,
+    the object taking no room in them): Hancom places a square-wrapped object from that line's top."""
 
     place = 0
     for child in (child for run in runs for child in run):
@@ -2406,7 +2397,7 @@ def _on_first_line(measure: _Measure, page: _Page, paragraph: Any, runs: list[An
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     starts = measure.line_starts(_run_text(runs), _line_widths(shape, page.column_width, style), size, style)
-    return all(start > place for start in starts[1:])
+    return sum(1 for start in starts[1:] if start <= place)
 
 
 def _square_sides(obj: Any, page: _Page) -> tuple[int, int]:
@@ -2461,8 +2452,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         para = _paragraph(measure, page, paragraph, stacked=tuple(stacked))
         shape = measure.shape(paragraph.get("paraPrIDRef"))
         return replace(para, stack=_stack(measure, stacked, page.column_width, shape)), None
-    square = _square_object(objects, runs, page.column_width,
-                            lambda obj: _on_first_line(measure, page, paragraph, runs, obj))
+    square = _square_object(objects, runs, page.column_width)
     bare = len(objects) == 1 and not _run_text(runs) and not _marks(runs) and not _note_anchors(runs) \
         and not measure.headed(paragraph)
     pusher = _pushing_object(objects, _run_text(runs), page.column_width, bare)
@@ -2530,6 +2520,9 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     starts = square is not None
     if square is not None:
         top = int(square.find(f"{HP}pos").get("vertOffset", 0))
+        line = _square_anchor_line(measure, page, paragraph, runs, square)
+        if line:  # after text: from the top of its line, the lines above it the column's whole width
+            top += _paragraph(measure, page, paragraph, None, square).span(0, line)
         left, right = _square_sides(square, page)
         if not left and not right:
             raise _Unsupported(f"{_local(square)} wrapped square leaving little room for text")

@@ -120,6 +120,9 @@ HANCOM_PAGES = {
     "pages_square_table_after_text_2383_down": 1,  # placed 2383 down: the paragraph's line above it the
                                                    # whole width, the paragraphs after beside it
     "pages_square_table_before_text": 1,  # its control before the text: the same
+    "pages_square_table_after_text_on_the_second_line": 1,  # after 60 characters, on the second line laid
+                                                            # out the whole width: from that line's top (9600),
+                                                            # the first line the whole width
     "pages_picture_1319_down_moved_to_the_next_page": 3,  # a picture 8000 tall placed top and bottom 1319
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines
@@ -1679,16 +1682,6 @@ def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows(
 
     assert estimate.unsupported == ()
     assert estimate.pages == 1
-
-
-def test_a_square_object_after_text_past_the_first_line_is_not_followed() -> None:
-    # The same table, its control after 60 characters: on the paragraph's second line laid out the column's
-    # whole width. Hancom places it from that line's top (9600), the lines from there on beside it. Not
-    # followed.
-    data = (FIXTURES / "pages_square_table_after_text_on_the_second_line.hwpx").read_bytes()
-
-    assert estimate_pages(data).unsupported == ("section 0: tbl wrapped square after text",)
-    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: tbl wrapped square after text",)
 
 
 def test_a_page_break_in_a_row_holding_a_table_beside_a_taller_cell_is_unsupported() -> None:
