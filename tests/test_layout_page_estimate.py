@@ -1040,6 +1040,29 @@ def test_a_shape_placed_up_from_its_paragraph_takes_no_more_than_its_foot() -> N
         assert estimate.pages == 1
 
 
+def test_an_offset_written_with_a_minus_sign_is_read_as_zero() -> None:
+    # The same rectangle written vertOffset="-1500" (not the unsigned form): Hancom reads it as 0, draws the
+    # rectangle at the paragraph's top and saves 0. The fixture is that save; written back with the minus sign,
+    # the lines go where Hancom put them.
+    data = (FIXTURES / "pages_para_shape_signed_offset.hwpx").read_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                root = etree.fromstring(payload)
+                (pos,) = [rect.find(f"{HP}pos") for rect in root.iter(f"{HP}rect")]
+                pos.set("vertOffset", "-1500")
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    signed = out.getvalue()
+
+    for estimate in (estimate_pages(signed), estimate_pages(_without_caches(signed))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 1
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == _hancom_lines(data)
+
+
 # Objects placed top and bottom from the top of an empty paragraph after four lines (10 pt, spaced 160%), the
 # lines after it of text, laid out and saved by Hancom: its pages, and the page of the paragraph's line and
 # the lines after when not the first:

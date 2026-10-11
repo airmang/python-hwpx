@@ -1003,12 +1003,20 @@ def _holds_table(element: Any) -> bool:
     return False
 
 
+def _pos_offset(pos: Any, name: str) -> int:
+    """An object's ``vertOffset`` or ``horzOffset`` as Hancom reads it: the file keeps an offset up or left as
+    an unsigned 32-bit number; one written with a minus sign Hancom reads as 0 (and saves so)."""
+
+    value = pos.get(name, "0").strip()
+    return 0 if value.startswith("-") else int(value)
+
+
 def _down(pos: Any) -> int:
     """How far below its paragraph's top an object placed from there stands: one offset up (a negative
     offset, which the file keeps as an unsigned 32-bit number) stands at the paragraph's top."""
 
-    offset = int(pos.get("vertOffset", 0))
-    return 0 if offset < 0 or offset >= 1 << 31 else offset
+    offset = _pos_offset(pos, "vertOffset")
+    return 0 if offset >= 1 << 31 else offset
 
 
 def _vertical(cell: Any) -> bool:
@@ -1700,7 +1708,7 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
     if _local(obj) == "tbl":  # as tall as its rows
         tall += _rows_height(measure, obj) - int(obj.find(f"{HP}sz").get("height", 0))
     pos = obj.find(f"{HP}pos")
-    offset = int(pos.get("vertOffset", 0))
+    offset = _pos_offset(pos, "vertOffset")
     align = pos.get("vertAlign", "TOP")
     height, base = (page.body, 0) if pos.get("vertRelTo") == "PAGE" else (page.paper_height, -page.top)
     if align == "CENTER":  # centred, then moved down by the offset (up when negative, kept unsigned)
@@ -1738,7 +1746,7 @@ def _paper_left(obj: Any, page: _Page) -> int | None:
     pos = obj.find(f"{HP}pos")
     if pos.get("horzRelTo") != "PAPER":
         return None
-    width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
+    width, offset = _extent(obj, "width"), _pos_offset(pos, "horzOffset")
     return {"LEFT": offset, "CENTER": (page.paper_width - width) // 2 + offset,
             "RIGHT": page.paper_width - width - offset}.get(pos.get("horzAlign", "LEFT"))
 
@@ -2016,7 +2024,7 @@ def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = 
     pos = obj.find(f"{HP}pos")
     if not _wraps_top_and_bottom(obj, column):
         return None
-    offset = int(pos.get("vertOffset", 0))
+    offset = _pos_offset(pos, "vertOffset")
     if pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP" \
             or (_down(pos) if _local(obj) == "tbl" else offset):  # a table placed up stands at the top
         return None
@@ -2135,12 +2143,12 @@ def _object_line(
     if _wraps_top_and_bottom(obj, column) and on_paragraph:
         if name == "tbl":
             rows, cells = _table_rows(measure, obj)
-            offset = int(pos.get("vertOffset", 0))  # one up (a negative offset, kept unsigned) starts at the line
+            offset = _pos_offset(pos, "vertOffset")  # one up (a negative offset, kept unsigned) starts at the line
             table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", _table_ends(obj),
                                tuple(cells), 0 if offset < 0 or offset >= 1 << 31 else offset,
                                _caption(measure, obj), _spare_cut(obj))
             return count, size, pitch, table
-        offset = int(pos.get("vertOffset", 0))
+        offset = _pos_offset(pos, "vertOffset")
         below = offset + tall
         if offset >= 1 << 31:  # one up, kept as an unsigned 32-bit number: Hancom draws it that far above, the
             below = max(offset - (1 << 32) + tall, size)  # paragraph's line no shorter than its characters
@@ -2272,7 +2280,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             cached = tuple(line for line in (empty[0], (size, pitch), empty[1]) if line is not None)
             count = len(cached)
         pos = objects[0].find(f"{HP}pos")
-        offset = int(pos.get("vertOffset", 0))
+        offset = _pos_offset(pos, "vertOffset")
         if table is None and pos.get("treatAsChar") != "1" and 0 <= offset < 1 << 31:
             if pos.get("flowWithText") != "0":  # from the paragraph's top down: past the body's foot it goes on
                 moves = size if offset or page.alone_at_top else 0  # to the next page's top alone, the line staying
@@ -2309,7 +2317,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if floor:
         para = replace(para, floor=floor)
     if alone and table is None and controls is None and not text and _rises(objects[0], page.column_width):
-        up = int(objects[0].find(f"{HP}pos").get("vertOffset", 0)) - (1 << 32)
+        up = _pos_offset(objects[0].find(f"{HP}pos"), "vertOffset") - (1 << 32)
         para = replace(para, rises=(up, _extent(objects[0], "height", measure), own, own_pitch))
     if page.rebreak and not _cached_metrics(paragraph) and not objects and not marks and not notes:
         if not text:
@@ -2325,7 +2333,7 @@ def _rises(obj: Any, column: int) -> bool:
 
     pos = obj.find(f"{HP}pos")
     return (pos is not None and pos.get("treatAsChar") != "1" and pos.get("vertRelTo") == "PARA"
-            and pos.get("vertAlign", "TOP") == "TOP" and int(pos.get("vertOffset", 0)) >= 1 << 31
+            and pos.get("vertAlign", "TOP") == "TOP" and _pos_offset(pos, "vertOffset") >= 1 << 31
             and _wraps_top_and_bottom(obj, column))
 
 
@@ -2377,7 +2385,7 @@ def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
     if pos is None or pos.get("horzRelTo") not in ("COLUMN", "PARA") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
             or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", "LARGEST_ONLY"):
         return False
-    offset = int(pos.get("horzOffset", 0))
+    offset = _pos_offset(pos, "horzOffset")
     if offset >= 1 << 31:  # kept unsigned: one placed out past the edge
         offset -= 1 << 32
     start = offset if pos.get("horzAlign") == "LEFT" else column - width - offset
@@ -2425,7 +2433,7 @@ def _square_sides(obj: Any, page: _Page) -> tuple[int, int]:
     the paragraph or the paper's left or right (from the paper only in one column)."""
 
     pos = obj.find(f"{HP}pos")
-    width, offset = _extent(obj, "width"), int(pos.get("horzOffset", 0))
+    width, offset = _extent(obj, "width"), _pos_offset(pos, "horzOffset")
     if offset >= 1 << 31:  # kept unsigned: one placed out past the edge
         offset -= 1 << 32
     if pos.get("horzRelTo") == "PAPER":
@@ -2447,7 +2455,7 @@ def _spans(measure: _Measure, page: _Page, table: Any) -> tuple[_FlowTable, int,
     """A table wrapped square that splits over the page end: it as a flowing table, its offset below its
     paragraph's first line, and its band beside the text (top and bottom set page by page)."""
 
-    offset = int(table.find(f"{HP}pos").get("vertOffset", 0))
+    offset = _pos_offset(table.find(f"{HP}pos"), "vertOffset")
     if offset < 0 or offset >= 1 << 31:
         raise _Unsupported("a square-wrapped table placed up from its paragraph past the page foot")
     rows, cells = _table_rows(measure, table)
@@ -2511,7 +2519,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             raise _Unsupported("a page break or another object beside a square-wrapped object")
     if pusher is not None:
         para = replace(_paragraph(measure, page, paragraph, None, pusher), bare=bare)
-        offset = int(pusher.find(f"{HP}pos").get("vertOffset", 0))
+        offset = _pos_offset(pusher.find(f"{HP}pos"), "vertOffset")
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
             ends = _table_ends(pusher)
@@ -2539,7 +2547,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             wrap.lower(para.span(0, para.lines) + para.next)
     starts = square is not None
     if square is not None:
-        top = int(square.find(f"{HP}pos").get("vertOffset", 0))
+        top = _pos_offset(square.find(f"{HP}pos"), "vertOffset")
         line = _square_anchor_line(measure, page, paragraph, runs, square)
         if line:  # after text: from the top of its line, the lines above it the column's whole width
             top += _paragraph(measure, page, paragraph, None, square).span(0, line)
@@ -2577,7 +2585,7 @@ def _clear_of_its_band(measure: _Measure, page: _Page, paragraph: Any, obj: Any)
     differ from the paragraph laid out as the object alone."""
 
     para = _paragraph(measure, page, paragraph, None, obj)
-    offset = int(obj.find(f"{HP}pos").get("vertOffset", 0)) - (para.prev if _local(obj) == "tbl" else 0)
+    offset = _pos_offset(obj.find(f"{HP}pos"), "vertOffset") - (para.prev if _local(obj) == "tbl" else 0)
     return offset >= para.advance(0)
 
 
@@ -2596,7 +2604,7 @@ def _pushing_object(objects: list[Any], text: str, column: int, bare: bool = Fal
     if not _wraps_top_and_bottom(obj, column) or pos.get("vertRelTo") != "PARA" \
             or pos.get("vertAlign", "TOP") != "TOP":
         return None
-    offset = int(pos.get("vertOffset", 0))
+    offset = _pos_offset(pos, "vertOffset")
     if offset <= 0 or offset >= 1 << 31:  # at the paragraph's top (see _anchored_object), or placed up (unsigned)
         return None
     return obj
@@ -2614,7 +2622,7 @@ def _stacked_objects(objects: list[Any], runs: list[Any], column: int) -> list[A
         pos = obj.find(f"{HP}pos")
         if not _wraps_top_and_bottom(obj, column) \
                 or (pos.get("vertRelTo"), pos.get("vertAlign", "TOP")) != ("PARA", "TOP") \
-                or int(pos.get("vertOffset", 0)) >= 1 << 31 or pos.get("horzRelTo") not in ("COLUMN", "PARA") \
+                or _pos_offset(pos, "vertOffset") >= 1 << 31 or pos.get("horzRelTo") not in ("COLUMN", "PARA") \
                 or pos.get("horzAlign", "LEFT") not in ("LEFT", "RIGHT"):
             return []
     return placed
@@ -2627,7 +2635,7 @@ def _stack(measure: _Measure, objects: list[Any], column: int, shape: _Shape) ->
     for obj in objects:
         pos = obj.find(f"{HP}pos")
         width, height = _object_extent(obj, measure)
-        offset = int(pos.get("horzOffset", 0))
+        offset = _pos_offset(pos, "horzOffset")
         if offset >= 1 << 31:  # kept unsigned: one placed out past the edge
             offset -= 1 << 32
         indent = (shape.left, shape.right) if pos.get("horzRelTo") == "PARA" else (0, 0)
@@ -2638,7 +2646,7 @@ def _stack(measure: _Measure, objects: list[Any], column: int, shape: _Shape) ->
             ends = _table_ends(obj)
             table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
-        stacked.append(_Stacked(int(pos.get("vertOffset", 0)), left, left + width, height, table))
+        stacked.append(_Stacked(_pos_offset(pos, "vertOffset"), left, left + width, height, table))
     return tuple(stacked)
 
 
