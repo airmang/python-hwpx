@@ -140,6 +140,9 @@ HANCOM_PAGES = {
     "pages_square_table_after_text_on_the_second_line": 1,  # after 60 characters, on the second line laid
                                                             # out the whole width: from that line's top (9600),
                                                             # the first line the whole width
+    "pages_square_table_after_a_full_first_line": 1,  # after 43, which fill the first line: on that line, where
+                                                      # its text ends, so from the paragraph's top
+    "pages_square_table_after_two_full_lines": 1,  # after 86: on the second line, from its top
     "pages_picture_1319_down_moved_to_the_next_page": 3,  # a picture 8000 tall placed top and bottom 1319
                                                           # below its empty paragraph's line: alone at the
                                                           # next page's top, the line staying, the lines

@@ -2412,7 +2412,8 @@ def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
 
 def _square_anchor_line(measure: _Measure, page: _Page, paragraph: Any, runs: list[Any], obj: Any) -> int:
     """The line *obj*'s control falls on, the paragraph laid out the column's whole width (FormFit's lines,
-    the object taking no room in them): Hancom places a square-wrapped object from that line's top."""
+    the object taking no room in them): Hancom places a square-wrapped object from that line's top. A control
+    right where a line starts, the line before full, falls on that line before, where its text ends."""
 
     place = 0
     for child in (child for run in runs for child in run):
@@ -2424,7 +2425,7 @@ def _square_anchor_line(measure: _Measure, page: _Page, paragraph: Any, runs: li
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     starts = measure.line_starts(_run_text(runs), _line_widths(shape, page.column_width, style), size, style)
-    return sum(1 for start in starts[1:] if start <= place)
+    return sum(1 for start in starts[1:] if start < place)
 
 
 def _square_sides(obj: Any, page: _Page) -> tuple[int, int]:
