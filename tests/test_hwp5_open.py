@@ -420,16 +420,20 @@ def _memo() -> list[rec.Record]:
     return records + _paragraph(1, "메모 내용".encode("utf-16-le") + _u16(13), [(0, 0)], [])
 
 
-def _picture(effect: int = 0) -> list[rec.Record]:
-    """A captioned picture with a first-letter decoration parameter set, and
-    the picture effect code *effect*."""
+def _picture(effect: int = 0, flags: int = 0x24080000, legacy_alpha: int = 0, alpha: int = 0) -> list[rec.Record]:
+    """A captioned picture with a first-letter decoration parameter set, the
+    picture effect code *effect*, the component *flags*, the byte after the
+    binary item id (*legacy_alpha*) and the last byte, after the image size
+    (*alpha*)."""
 
     common = ct.ObjectCommon("gso ", 0x240A2211, 0, 0, 10000, 8000, 0, (0, 0, 0, 0), 297, 0, "그림입니다.", bytes(2))
     component = sh.ShapeComponent(
-        "$pic", True, 0, 0, 0, 1, 10000, 8000, 10000, 8000, 0x24080000, 0, 5000, 4000, [_IDENTITY, _IDENTITY, _IDENTITY]
+        "$pic", True, 0, 0, 0, 1, 10000, 8000, 10000, 8000, flags, 0, 5000, 4000, [_IDENTITY, _IDENTITY, _IDENTITY]
     )
     corners = [(0, 0), (10000, 0), (10000, 8000), (0, 8000)]
-    picture = sh.Picture(0, 0, 0, corners, (0, 0, 10000, 8000), (0, 0, 0, 0), 0, 0, effect, 0, 0, 297, 0, (10000, 8000), bytes(1))
+    picture = sh.Picture(
+        0, 0, 0, corners, (0, 0, 10000, 8000), (0, 0, 0, 0), 0, 0, effect, 0, legacy_alpha, 297, 0, (10000, 8000), bytes([alpha])
+    )
     caption = ct.CaptionHeader(1, 0, 0, 1, 8504, 850, 8504).encode()
     dropcap = ct.ParameterSet(0x021B, [ct.ParameterItem(0x3003, ct.PIT_SET, ct.ParameterSet(0x3003, [ct.ParameterItem(0x7001, 9, 2)]))])
     return _paragraph(
@@ -500,6 +504,8 @@ def make_hwp(
     hidden_comment: bool = False,
     picture_effects: bool = False,
     picture_effect: int = 0,
+    picture_flags: int = 0x24080000,
+    picture_alphas: tuple[int, int] = (0, 0),
     dutmal_position: int = 1,
 ) -> bytes:
     section = _section()
@@ -520,7 +526,7 @@ def make_hwp(
     if text_box:
         section += _text_box()
     if picture:
-        section += _picture(picture_effect)
+        section += _picture(picture_effect, picture_flags, *picture_alphas)
     if markers:
         section += _markers(dutmal_position)
     if label:
@@ -1109,6 +1115,28 @@ def test_a_picture_opens_with_its_caption_comment_and_parameter_set() -> None:
     assert "".join(pic.find(f"{HP}caption").itertext()) == "그림 1"
     value = pic.find(f"{HP}parameterset/{HP}listParam/{HP}unsignedintegerParam")
     assert value is not None and (value.get("name"), value.text) == ("28673", "2")
+
+
+@pytest.mark.parametrize(("alphas", "expected"), [((255, 0), "0"), ((0, 128), "128"), ((7, 255), "255"), ((0, 0), "0")])
+def test_a_picture_opens_with_the_alpha_from_its_last_byte(alphas: tuple[int, int], expected: str) -> None:
+    """Hancom keeps a picture's transparency in the last byte of the picture
+    record, after the image size, and does not read the byte after the
+    binary item id."""
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(picture=True, picture_alphas=alphas))
+    [pic] = list(document.sections[0].element.iter(f"{HP}pic"))
+    assert pic.find(f"{HC}img").get("alpha") == expected
+
+
+@pytest.mark.parametrize(("flags", "reverse"), [(0x25000000, "1"), (0x25080000, "1"), (0x24080000, "0")])
+def test_a_picture_opens_reversed_when_its_component_says_so(flags: int, reverse: str) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        document = HwpxDocument.open(make_hwp(picture=True, picture_flags=flags))
+    [pic] = list(document.sections[0].element.iter(f"{HP}pic"))
+    assert pic.get("reverse") == reverse
 
 
 @pytest.mark.parametrize(("code", "effect"), [(1, "GRAY_SCALE"), (2, "BLACK_WHITE"), (3, None)])

@@ -1090,6 +1090,29 @@ def test_image_effects_are_written_with_the_codes_hancom_writes(effect: str, cod
     assert [sh.Picture.decode(r.payload).effect for r in pictures] == [code]
 
 
+def test_a_picture_alpha_and_reverse_are_written_where_hancom_reads_them(tmp_path: Path) -> None:
+    """The alpha goes in the last byte of the picture record, after the image
+    size (the byte after the binary item id stays 0), and reverse in bit 24 of
+    the component flags."""
+
+    document = HwpxDocument.new()
+    document.add_picture(_PNG, "png")
+    [pic] = [p for s in document.sections for p in s.element.iter(f"{HP}pic")]
+    pic.set("reverse", "1")
+    pic.find("{http://www.hancom.co.kr/hwpml/2011/core}img").set("alpha", "128")
+    target = tmp_path / "alpha.hwp"
+    document.save_to_path(target)
+    doc = read_hwp5(target.read_bytes())
+    records = [r for s in doc.sections for r in s.records]
+    [picture] = [sh.Picture.decode(r.payload) for r in records if r.tag == rec.SHAPE_COMPONENT_PICTURE]
+    assert (picture.alpha, picture.extra) == (0, bytes([128]))
+    [component] = [sh.ShapeComponent.decode(r.payload, top=True) for r in records if r.tag == rec.SHAPE_COMPONENT]
+    assert component.flags & 0x01000000
+    [reopened] = [p for s in HwpxDocument.open(target).sections for p in s.element.iter(f"{HP}pic")]
+    assert reopened.get("reverse") == "1"
+    assert reopened.find("{http://www.hancom.co.kr/hwpml/2011/core}img").get("alpha") == "128"
+
+
 def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("HWPX로 저장")
