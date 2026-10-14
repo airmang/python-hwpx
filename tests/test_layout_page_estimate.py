@@ -1043,6 +1043,47 @@ def test_a_shape_placed_up_from_its_paragraph_takes_no_more_than_its_foot() -> N
         assert estimate.pages == 1
 
 
+@pytest.mark.parametrize(
+    ("name", "pages"),
+    [
+        ("pages_margin_negative_header_one_page", 1),
+        ("pages_margin_negative_header_two_pages", 2),
+        ("pages_margin_negative_footer_one_page", 1),
+        ("pages_margin_negative_footer_two_pages", 2),
+        ("pages_margin_negative_both_one_page", 1),
+        ("pages_margin_negative_both_two_pages", 2),
+    ],
+)
+def test_a_negative_page_margin_kept_unsigned_counts_as_negative(name: str, pages: int) -> None:
+    # Header margin -1400, footer margin -3600 and both (-4000 and -3600), kept as unsigned 32-bit numbers
+    # (4294965896 ...) as a converted .hwp has them, saved by Hancom: the body grows by them, so the one-page
+    # files hold just as many one-line paragraphs as fit it and the two-page ones one more. Read as unsigned,
+    # the body was negative and the estimate never ended.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    for estimate in (estimate_pages(data), estimate_pages(_without_caches(data))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == pages
+
+
+def test_page_margins_leaving_no_body_are_unsupported() -> None:
+    data = (FIXTURES / "pages_margin_negative_header_one_page.hwpx").read_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                root = etree.fromstring(payload)
+                (margin,) = [m for m in root.iter(f"{HP}margin") if m.getparent().tag == f"{HP}pagePr"]
+                margin.set("top", "90000")
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+
+    estimate = estimate_pages(out.getvalue())
+    assert estimate.pages is None
+    assert any("no room for the body" in reason for reason in estimate.unsupported)
+
+
 def test_an_offset_written_with_a_minus_sign_is_read_as_zero() -> None:
     # The same rectangle written vertOffset="-1500" (not the unsigned form): Hancom reads it as 0, draws the
     # rectangle at the paragraph's top and saves 0. The fixture is that save; written back with the minus sign,

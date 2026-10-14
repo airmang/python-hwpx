@@ -64,6 +64,14 @@ def _drawn_page_size(width: int, height: int, landscape: str | None) -> tuple[in
     return (width, height) if landscape == _PAGE_PORTRAIT else (height, width)
 
 
+def _page_margin(value: str | int) -> int:
+    """A page margin (``hp:margin``) as Hancom reads it: a negative one is kept as an unsigned 32-bit number
+    (a header margin of -1400 as 4294965896, as a converted .hwp has it) and counts as negative."""
+
+    margin = int(value)
+    return margin - (1 << 32) if margin >= 1 << 31 else margin
+
+
 def _hancom_page_orientation(
     page_pr: ET.Element, orientation: str, width: int | None, height: int | None
 ) -> tuple[str, int | None, int | None]:
