@@ -1399,8 +1399,8 @@ def _page(section: Any) -> _Page:
         raise _Unsupported("no page settings")
     width, height = _drawn_page_size(int(page.get("width", 0)), int(page.get("height", 0)), page.get("landscape"))
     # A negative margin is kept as an unsigned 32-bit number: Hancom reads it signed, the body growing by it.
-    sides = {key: _page_margin(margin.get(key, 0)) for key in ("top", "bottom", "header", "footer", "left", "right",
-                                                              "gutter")}
+    sides = {key: _page_margin(margin.get(key, 0), key) for key in ("top", "bottom", "header", "footer", "left",
+                                                                   "right", "gutter")}
     body = height - sides["top"] - sides["bottom"] - sides["header"] - sides["footer"]
     text_width = width - sides["left"] - sides["right"] - sides["gutter"]
     if body <= 0 or text_width <= 0:

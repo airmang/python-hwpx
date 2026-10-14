@@ -526,7 +526,7 @@ def _page_heights(root: ET.Element) -> tuple[int, int] | None:
             int(page.get("width", "")), int(page.get("height", "")), page.get("landscape")
         )
         top, bottom, header, footer = (
-            _page_margin(margin.get(key, "0")) for key in ("top", "bottom", "header", "footer")
+            _page_margin(margin.get(key, "0"), key) for key in ("top", "bottom", "header", "footer")
         )
     except ValueError:
         return None

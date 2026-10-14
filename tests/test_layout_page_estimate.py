@@ -1066,6 +1066,31 @@ def test_a_negative_page_margin_kept_unsigned_counts_as_negative(name: str, page
         assert estimate.pages == pages
 
 
+@pytest.mark.parametrize(("side", "written"), [("header", "-1400"), ("header", "-4000"), ("top", "-1000")])
+def test_a_page_margin_written_with_a_minus_sign_takes_the_new_page_margin(side: str, written: str) -> None:
+    # Header margin written "-1400" (not the unsigned form), 46 one-line paragraphs: Hancom reads the minus sign as
+    # no margin it knows, lays the page with the new-page header margin 4252 and saves that -- two pages, where
+    # -1400 would have held them on one. The fixture is that save; written back with the minus sign (on the header
+    # or, with the new-page top 5668 it saves, the top), the estimate gives Hancom's two pages.
+    data = (FIXTURES / "pages_margin_minus_sign_header.hwpx").read_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                root = etree.fromstring(payload)
+                (margin,) = [m for m in root.iter(f"{HP}margin") if m.getparent().tag == f"{HP}pagePr"]
+                assert margin.get(side) == {"header": "4252", "top": "5668"}[side]
+                margin.set(side, written)
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    minus = out.getvalue()
+
+    for estimate in (estimate_pages(data), estimate_pages(minus), estimate_pages(_without_caches(minus))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 2
+
+
 def test_page_margins_leaving_no_body_are_unsupported() -> None:
     data = (FIXTURES / "pages_margin_negative_header_one_page.hwpx").read_bytes()
     out = io.BytesIO()
