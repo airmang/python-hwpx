@@ -664,7 +664,7 @@ class HwpxOxmlTable(TableStructureEdits):
     def label(self) -> "Label | None":
         """This table's ``hp:label`` (Avery-style label-sheet/nameplate
         print layout), or ``None`` if it doesn't have one. Table-exclusive
-        (DEV-023, ``docs/owpml-deviations.md`` — reverse-engineered from
+        (DEV-023, ``docs/owpml-deviations.md`` — inferred from
         75 real private documents, structure matches the vendored schema
         exactly, no deviation to register beyond the element's existence)."""
 
@@ -693,7 +693,7 @@ class HwpxOxmlTable(TableStructureEdits):
         Always placed as the table's *last* child -- every real occurrence
         (436/436, DEV-023) sits after all ``hp:tr`` rows, matching
         ``ParaList XML schema.xml``'s own sequence order. Values are not
-        restricted to the two combinations the reverse-engineering sample
+        restricted to the two combinations the format inference sample
         observed (a 2x9 small-label sheet and a 1x2 large-square nameplate
         layout) -- there is no real-corpus evidence for what other
         combinations Hancom accepts or rejects, so this does not guess at

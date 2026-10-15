@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Drop cap authoring (문단 첫 글자 장식, cycle 6.12 트레인㊸ 갭②).
 
-Reverse-engineered from the ONE real-corpus example with a non-default
+Inferred from the ONE real-corpus example with a non-default
 ``dropcapstyle`` (``error__20230809__test.hwpx``, hwpxlib_corpus), in
 ``style="TripleLine"`` and ``"DoubleLine"`` -- Hancom reads, draws and
 saves the second as it is. ``Margin`` is schema-declared but where Hancom
@@ -212,7 +212,7 @@ def test_add_drop_cap_rejects_empty_character() -> None:
 
 def test_add_drop_cap_matches_the_real_corpus_structure() -> None:
     """Structural fidelity check against the one real sample this feature
-    was reverse-engineered from -- same attribute *names* on the rect and
+    was inferred from -- same attribute *names* on the rect and
     the same child element shape (not exact values, which are naturally
     instance-specific: ids, the character itself, size)."""
 

@@ -4,7 +4,7 @@
 Why v9 exists
 =============
 
-Cycle 6.5 (trains 18-19) opened two new authoring surfaces, reverse-engineered
+Cycle 6.5 (trains 18-19) opened two new authoring surfaces, inferred
 from real corpus: ``doc.shapes.add_container`` (grouping already-built
 rect/ellipse/polygon members into an ``hp:container``, train 18) and
 ``paragraph.add_run(text, expand_special_characters=True)`` (converting
