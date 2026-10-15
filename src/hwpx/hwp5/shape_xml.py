@@ -181,6 +181,8 @@ HYPERLINK_PATH = (0x026F, 0x0265)
 ELLIPSE_POINTS = ("center", "ax1", "ax2", "start1", "end1", "start2", "end2")
 #: Flags bit of a shape component that becomes ``rotateimage``.
 ROTATE_IMAGE = 1 << 19
+#: Flags bit of a picture's component that becomes ``reverse``.
+PICTURE_REVERSE = 1 << 24
 #: Picture effects: shadow styles, align styles, colour types (Hancom keeps
 #: no CMYK) and colour effects by code (Hancom keeps no others).
 SHADOW_STYLE = ("OUTSIDE", "INSIDE")
@@ -445,7 +447,7 @@ class ShapeReader:
                 raise damaged("text art without its record")
             art = sh.TextArt.decode(geometry.payload)
         attrs += [("href", href), ("groupLevel", sc.group_level), ("instid", instance_id)]
-        attrs += self.shape_attrs(sc.kind, geometry) if ole is None else self.ole_attrs(ole)
+        attrs += self.shape_attrs(sc.kind, geometry, sc.flags) if ole is None else self.ole_attrs(ole)
         if art is not None:
             attrs.append(("text", "".join(TEXTART_BREAKS.get(char, char) for char in art.text)))
         element = sub(parent, f"hp:{name}", attrs)
@@ -484,7 +486,7 @@ class ShapeReader:
         return element
 
     @staticmethod
-    def shape_attrs(kind: str, geometry: rec.Record | None) -> list[tuple[str, object]]:
+    def shape_attrs(kind: str, geometry: rec.Record | None, flags: int = 0) -> list[tuple[str, object]]:
         if geometry is None:
             return []
         if kind == "$rec":
@@ -503,7 +505,7 @@ class ShapeReader:
         if kind == "$col":
             return [("type", token(CONNECT_TYPE, sh.ConnectLine.decode(geometry.payload).kind))]
         if kind == "$pic":
-            return [("reverse", 0)]
+            return [("reverse", flag(flags & PICTURE_REVERSE))]
         if kind == "$vid":
             video = sh.Video.decode(geometry.payload)
             return [
@@ -590,7 +592,7 @@ class ShapeReader:
                 ("bright", pic.bright),
                 ("contrast", pic.contrast),
                 *image_effect(pic.effect),
-                ("alpha", pic.alpha or 0),
+                ("alpha", pic.transparency),
             ),
         )
         if _bits(pic.line_props, 0, 6):
