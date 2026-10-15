@@ -11,7 +11,7 @@ automation 최다 사용 저작 동사 중 하나). 만든 다음에 하는 일�
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, Mapping
+from typing import TYPE_CHECKING, Iterable, Mapping, overload
 
 from ._base import _Namespace
 
@@ -47,6 +47,20 @@ class TablesNamespace(_Namespace):
 
     def __iter__(self):
         return iter(self.all)
+
+    @overload
+    def __getitem__(self, index: int) -> "Table": ...
+
+    @overload
+    def __getitem__(self, index: slice) -> list["Table"]: ...
+
+    def __getitem__(self, index: int | slice) -> "Table | list[Table]":
+        """문서 순서의 ``index`` 번째 표(``doc.tables[0]``, ``doc.tables[-1]``, ``doc.tables[1:3]``).
+
+        ``doc.tables.all[index]``와 같다. 범위 밖이면 ``IndexError``.
+        """
+
+        return self.all[index]
 
     def map(self) -> "TableMapResult":
         """모든 표의 위치·모양·헤더 미리보기를 담은 간결 지도."""
