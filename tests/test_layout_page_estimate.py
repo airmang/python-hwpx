@@ -44,8 +44,8 @@ HANCOM_PAGES = {
     "pages_empty_paragraph_object_overlap_20pt_2000": 1,
     # An empty paragraph holding a table set as a character and a table placed top and bottom from its top (6000
     # tall), the line 42520 wide: a character table wider than the line takes that line alone, the placed
-    # table's anchor going on an empty line of its own above it (anchor first) or below it (anchor last), the
-    # placed table at that line's top; one as wide as the line shares its line with the anchor.
+    # table's anchor going on that line (anchor first) or on an empty line of its own below it (anchor last),
+    # the placed table at that line's top; one as wide as the line shares its line with the anchor.
     # Five pictures 20000 x 11000 set as characters, each in its own paragraph (one page bare), with an effect:
     # Hancom lays each out as large as it and its glow (the radius on each side) or its outer shadow (moved its
     # distance in its direction, spread by its radius), the line that much taller
@@ -68,7 +68,7 @@ HANCOM_PAGES = {
     "pages_para_shape_unsigned_offset_1500_h3000": 1,
     "pages_wide_table_as_character_anchor_first": 1,  # 44000 x 3000
     "pages_wide_table_as_character_anchor_last": 1,
-    "pages_wide_table_as_character_tall_anchor_first": 2,  # 44000 x 60000: on the next page below the empty line
+    "pages_wide_table_as_character_tall_anchor_first": 3,  # 44000 x 60000: on the next page's top, the anchor on its line
     "pages_wide_table_as_character_tall_anchor_last": 2,  # the placed table's rows flowing on to the next page
     "pages_line_wide_table_as_character_anchor_first": 1,  # 42520 x 3000
     "pages_line_wide_table_as_character_anchor_last": 1,
@@ -100,12 +100,12 @@ HANCOM_PAGES = {
     "pages_push_band_group_as_character_alone": 1,  # the group and the polygon, no text
     # A picture wrapped square from an empty paragraph's left, 41631 x 27112, leaving 6557 beside it; the
     # next paragraph holds a table set as a character alone:
-    "pages_square_band_table_as_character_alone": 1,  # 47058 wide: below the picture, the whole width
+    "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
-    # character among it: the first line holding one wider than the room goes below the picture, the whole
-    # width, the rest of the room left empty; one narrower stays beside it.
-    "pages_square_band_table_as_character_among_text": 2,  # a table 47058 wide
+    # character among it: a line holding one stays beside the picture, one wider than the room alone on its
+    # line, reaching past it.
+    "pages_square_band_table_as_character_among_text": 1,  # a table 47058 wide
     "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
     "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
     # A picture 20000 x 27112 wrapped square in the middle of the column (10 pt text spaced 160%), flowing with
@@ -417,16 +417,17 @@ HANCOM_PAGES = {
     "pages_table_as_character_200_short_then_three_12pt_spaces": 1,  # of 12 pt: the third's line 1200 tall
     "pages_table_as_character_200_short_after_two_spaces": 1,  # two before it: the table on the next line
     # A table set as a character (a row 1282 tall) 1000 wider than the column (42520), alone in its paragraph
-    # but for a page-number control: the two never share a line, the control's an empty line of the text.
-    "pages_page_number_then_a_table_wider_than_the_line": 1,  # the control first: an empty line 1600 down,
-                                                              # then the table's
+    # but for a page-number control: a control before it stands on the table's line, one after it on an empty
+    # line of the text under it.
+    "pages_page_number_then_a_table_wider_than_the_line": 1,  # the control first: the table's line alone
     "pages_table_wider_than_the_line_then_a_page_number": 1,  # the table first: the control's line under it
     "pages_page_number_then_a_table_that_fits": 1,  # 1000 narrower than the column: one line
     "pages_table_wider_than_the_line_alone": 1,  # no control: one line
     "pages_section_start_then_a_table_wider_than_the_line": 1,  # the section's and columns' controls before
                                                                 # it: one line
-    # The same table beside one of the other controls: the same two lines, whichever the control. Before the
-    # table, an empty line 1600 down and the table's line under it; after it, the table's line first.
+    # The same table beside one of the other controls: the same lines, whichever the control. Before the
+    # table, on its line; after it, on an empty line under it -- but a number shown as a character before it
+    # takes an empty line 1600 down of its own, the table's line under it.
     "pages_page_hiding_then_a_table_wider_than_the_line": 1,  # a hidden page number
     "pages_table_wider_than_the_line_then_a_page_hiding": 1,
     "pages_auto_number_then_a_table_wider_than_the_line": 1,  # a page's number shown as a character
@@ -445,6 +446,8 @@ HANCOM_PAGES = {
     "pages_table_wider_than_the_line_then_a_click_here_field": 1,
     "pages_index_mark_then_a_table_wider_than_the_line": 1,  # an index mark
     "pages_table_wider_than_the_line_then_an_index_mark": 1,
+    "pages_bookmark_around_a_table_wider_than_the_line": 1,  # before and after it: the table's line, the empty
+    "pages_click_here_field_around_a_table_wider_than_the_line": 1,  # line under it
     # Tabs: a tab reaches the next default tab stop, every 4000 from the column's left edge (the first line
     # starting at the left margin and a first-line indent, a hanging indent off the other lines), and a line may
     # start on either side of one. 90 paragraphs of 바탕 10 pt Hangul, a tab, then two-syllable words, after 0-9
