@@ -928,6 +928,14 @@ def _table_alone(runs: list[Any]) -> Any:
     return children[0] if pos is not None and pos.get("treatAsChar") == "1" else None
 
 
+def _cell_height(size: Any) -> int:
+    """A cell's stored height (hp:cellSz): a negative one, which the file keeps as an unsigned 32-bit number,
+    counts as none -- Hancom gives that cell its top and bottom margins and grows it to fit its text."""
+
+    height = int(size.get("height", 0)) if size is not None else 0
+    return 0 if height >= 1 << 31 else height
+
+
 def _margin(margin: Any, side: str) -> int:
     """One side of an object's outer margins (hp:outMargin): a negative one, which the file keeps as an
     unsigned 32-bit number, counts as none, as Hancom lays it out (and saves it)."""
@@ -1040,7 +1048,7 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     if _vertical(cell):  # its lines go across it, the row as declared: one block, not split
         margins = cell_margins_of(cell, table)
         vertical = margins.top + margins.bottom
-        height = max(int(cell.find(f"{HP}cellSz").get("height", 0)), vertical)
+        height = max(_cell_height(cell.find(f"{HP}cellSz")), vertical)
         return _Row(height, 1, height - vertical, height - vertical, vertical, cell.get("header") == "1",
                     first=height - vertical)
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
@@ -1075,7 +1083,7 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     if drawn:
         content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     vertical = margins.top + margins.bottom
-    height = max(int(size.get("height", 0)), vertical + content)
+    height = max(_cell_height(size), vertical + content)
     first = drawn[0][0] if drawn else \
         before + (measure.stack_lines(paragraphs[:1], inner, caches=True, pieces=pieces) or ((0, 0),))[0][0]
     several = not nested and len(paragraphs) > 1  # its lines split at their own places, spacing included

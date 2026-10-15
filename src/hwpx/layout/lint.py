@@ -559,7 +559,8 @@ def _row_min_heights(table: ET.Element, lines: "_LineHeights") -> list[int]:
         heights = [0]
         for cell in row:
             if _local_name(cell) == "tc" and _cell_int(cell, "cellSpan", "rowSpan", 1) == 1:
-                heights.append(max(_cell_int(cell, "cellSz", "height", 0), lines.cell_height(cell, table)))
+                stored = _cell_int(cell, "cellSz", "height", 0)  # a negative one is kept unsigned: none
+                heights.append(max(0 if stored >= 1 << 31 else stored, lines.cell_height(cell, table)))
         heights_by_row.append(max(heights))
     return heights_by_row
 

@@ -1043,6 +1043,30 @@ def test_a_shape_placed_up_from_its_paragraph_takes_no_more_than_its_foot() -> N
         assert estimate.pages == 1
 
 
+@pytest.mark.parametrize("height", [str((1 << 32) - 633), str((1 << 32) - 1)])
+def test_a_negative_cell_height_kept_unsigned_counts_as_none(height: str) -> None:
+    # A 3x2 table whose row-2 cell was written with the height -633 kept unsigned (4294966663), saved by Hancom:
+    # it gives the cell its top and bottom margins (282) and grows it to fit the text, one page. Written back
+    # unsigned, the cell is not four billion tall: the estimate gives Hancom's page.
+    data = (FIXTURES / "pages_cell_height_negative.hwpx").read_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                root = etree.fromstring(payload)
+                cell = list(root.iter(f"{HP}tc"))[2]
+                assert cell.find(f"{HP}cellSz").get("height") == "282"
+                cell.find(f"{HP}cellSz").set("height", height)
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    negative = out.getvalue()
+
+    for estimate in (estimate_pages(data), estimate_pages(negative), estimate_pages(_without_caches(negative))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 1
+
+
 def test_an_offset_written_with_a_minus_sign_is_read_as_zero() -> None:
     # The same rectangle written vertOffset="-1500" (not the unsigned form): Hancom reads it as 0, draws the
     # rectangle at the paragraph's top and saves 0. The fixture is that save; written back with the minus sign,
