@@ -5,7 +5,7 @@ authoring surface, additive over v9.
 Why v10 exists
 ===============
 
-Cycle 6.6 (train 23) opened one new authoring surface, reverse-engineered
+Cycle 6.6 (train 23) opened one new authoring surface, inferred
 from real corpus and exposed as ``doc.parts.set_*``
 (``src/hwpx/oxml/header_compat.py``): ``hh:compatibleDocument/
 @targetProgram``, ``hh:compatibleDocument/hh:layoutCompatibility``'s flag

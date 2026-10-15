@@ -15,7 +15,7 @@ is present in 100% of the reachable corpus. Its ``config:config-item-set``/
 OpenDocument Format 1.0* config schema, verbatim, not a Hancom-private
 vocabulary.
 
-Our handling: ``hwpx.oxml.settings`` was reverse-engineered directly from
+Our handling: ``hwpx.oxml.settings`` was inferred directly from
 177 real files (no schema to check against) — ``ApplicationSettings``,
 ``CaretPosition``, ``ConfigItem``/``ConfigItemSet`` preserve whatever
 config-item-set/item names and types actually appear rather than

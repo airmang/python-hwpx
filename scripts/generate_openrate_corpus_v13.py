@@ -23,7 +23,7 @@ merges in every stratum (the exact shape all three bugs hit).
 Train 34 shipped ``hp:dutmal``(덧말)/``hp:compose``(글자 겹치기) authoring
 (``doc.shapes.add_dutmal``/``.add_composed_character``) -- ``hp:compose``'s
 read model existed since ``6f88e2e`` with no authoring API or capability
-registration; ``hp:dutmal`` was reverse-engineered here for the first time,
+registration; ``hp:dutmal`` was inferred here for the first time,
 from a single real-corpus sample whose ``option``/``szRatio`` values
 directly contradict the schema's own declared constraints (DEV-041).
 ``authored-dutmal-compose`` is this area's first real-Hancom batch.

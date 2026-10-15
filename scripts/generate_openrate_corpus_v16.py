@@ -18,7 +18,7 @@ Five strata (deterministic -- fixed seeds, bank rotation, no wall clock)
                                      width/height variant, proving the
                                      TripleLine builder isn't hardcoded to
                                      the single real-corpus example it was
-                                     reverse-engineered from.
+                                     inferred from.
 * ``authored-text-direction``    5  ``doc.page.set_text_direction`` --
                                      VERTICAL/VERTICALALL/explicit-
                                      HORIZONTAL combined with
@@ -407,7 +407,7 @@ def main() -> int:
             "authored by train 48 across 4 commits) -- authored-document-"
             "metadata (doc.parts.set_document_metadata, opf:metadata's "
             "first real-Hancom batch), authored-drop-cap (doc.shapes."
-            "add_drop_cap, TripleLine dropcapstyle reverse-engineered from "
+            "add_drop_cap, TripleLine dropcapstyle inferred from "
             "the single real-corpus example that used it), authored-text-"
             "direction (doc.page.set_text_direction, zero real-corpus "
             "VERTICAL/VERTICALALL examples existed before this batch), "

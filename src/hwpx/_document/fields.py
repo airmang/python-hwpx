@@ -663,7 +663,7 @@ def add_form_field(
     """Create a click-here (누름틀) form field and return it as a :class:`FormField`.
 
     The emitted XML follows the real-Hancom CLICKHERE contract
-    (reverse-engineered from Hancom Office 12.0.0.3288 gold documents). The
+    (inferred from Hancom Office 12.0.0.3288 gold documents). The
     prompt (안내문) is materialized as a screen-only red-italic run, exactly as
     Hancom authors it. The created field is immediately re-read through the
     standard ``list_form_fields`` matcher — creation fails loudly if the
