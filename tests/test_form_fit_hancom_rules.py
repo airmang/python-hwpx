@@ -71,6 +71,7 @@ MORE_FACES_FALLBACKS = Path(__file__).parent / "fixtures" / "hancom_saved" / "fo
 MORE_FACES_HANGUL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_hangul_cells.hwpx"
 KOPUB_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kopub_faces_cells.hwpx"
 HFT_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_cells.hwpx"
+DODUM_PUNCTUATION = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_dodum_punctuation_cells.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -162,6 +163,26 @@ def test_cells_in_hancom_font_faces_break_where_hancom_breaks_them() -> None:
     assert len(cells) == 224 and len(faces) == 8
 
 
+def test_dodum_punctuation_and_the_exclamation_mark_break_where_hancom_breaks_them() -> None:
+    # Hancom Office 2024 laid this document out: each cell holds a glyph and five Hangul syllables in 함초롬돋움,
+    # 한컴산뜻돋움 or 한컴 고딕 at one of the two widths where its line count changes, at 10 pt and 30 pt. It lays
+    # out ! at half an em in every face, and 함초롬돋움's spacing modifier letters, general punctuation (but the
+    # quotation marks) and currency symbols at 함초롬바탕's advances, the faces falling back on it with them.
+    doc = HwpxDocument.open(DODUM_PUNCTUATION)
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points)
+    assert len(cells) == 144
+
+
 def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
     # Hancom laid these documents out: each cell holds a glyph and five Hangul syllables in 한컴산뜻돋움, HY중고딕,
     # HY견고딕, HY신명조, 새굴림 or 한컴 말랑말랑 Regular at one of the two widths where its line count changes, at
@@ -182,13 +203,15 @@ def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
             points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
             if style.glyph_face.startswith("한컴 말랑말랑") and (text.startswith("0") or (points == 30 and "고" in text)):
                 continue
+            if text[0] in "—‐‑" and style.glyph_face in ("한컴산뜻돋움", "새굴림"):  # from 함초롬돋움, which Hancom
+                continue  # Office 2024 lays them out from 함초롬바탕 (test_dodum_punctuation_...)
             margins = cell.find(f"{HP}cellMargin")
             width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
             hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
             assert estimate_lines(text, width, points, style) == hancom, (
                 style.glyph_face, f"U+{ord(text[0]):04X}", points, width)
             faces[style.glyph_face] = faces.get(style.glyph_face, 0) + 1
-    assert faces == {"한컴산뜻돋움": 58, "HY중고딕": 58, "HY견고딕": 52, "HY신명조": 52, "새굴림": 34,
+    assert faces == {"한컴산뜻돋움": 40, "HY중고딕": 58, "HY견고딕": 52, "HY신명조": 52, "새굴림": 20,
                      "한컴 말랑말랑 Regular": 56, "한컴 말랑말랑 Bold": 4}
 
 
@@ -247,10 +270,10 @@ def test_a_line_taking_its_height_from_the_font_is_as_tall_as_the_face_makes_it(
 
 
 def test_human_myeongjo_takes_the_design_advances_of_its_font() -> None:
-    # 휴먼명조's font has 512 units per em: a Hangul syllable takes the full em, a parenthesis 160 units, the comma
-    # 138 and A 338.
+    # Hancom lays 휴먼명조 out in 1024 units per em: a Hangul syllable takes the full em, a parenthesis 321 units,
+    # the comma 276 and A 676.
     style = TextStyle(hangul_face="휴먼명조", glyph_face="휴먼명조")
-    assert glyph_advance_em("휴먼명조", "(") == 160 / 512
+    assert glyph_advance_em("휴먼명조", "(") == 321 / 1024
     assert [char_advance(ch, 10, style) for ch in "가(,A"] == [1000, 312, 268, 660]
 
 
