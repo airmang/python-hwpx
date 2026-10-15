@@ -199,3 +199,9 @@ HWPX 내부 구조가 처음이라면 [내부 실전 가이드](docs/internals/)
 ## License · Maintainer
 
 Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
+
+### Experimental native-preview scene
+
+Applications that provide glyph metrics can opt into the cache-independent
+[experimental scene API](docs/native-preview-scenes.md). Native font loading,
+rasterization and desktop file handling remain in the automation/plugin layers.
