@@ -80,8 +80,10 @@ def test_shaping_failure_cannot_return_partial_pages():
 
 
 def test_unknown_cache_mode_is_rejected():
-    with pytest.raises(ValueError, match='cache'):
+    with pytest.raises(ValueError, match='cache') as caught:
         build_body_scene(body_document(), SyntheticGlyphs(), cache_mode='reuse-source')
+    assert caught.value.code == 'preview-cache-mode-invalid'
+    assert caught.value.context == {'cacheMode': 'reuse-source'}
 
 
 def test_document_scene_uses_one_guarded_document_parse(monkeypatch):
@@ -96,3 +98,11 @@ def test_document_scene_uses_one_guarded_document_parse(monkeypatch):
     monkeypatch.setattr(HwpxDocument, 'open', counted)
     assert build_document_scene(data, SyntheticGlyphs())['status'] == 'supported'
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize('capacity', [0, -1])
+def test_invalid_cache_capacity_has_a_structured_error(capacity):
+    with pytest.raises(ValueError) as caught:
+        BodySceneSession(SyntheticGlyphs(), max_paragraphs=capacity)
+    assert caught.value.code == 'preview-cache-capacity-invalid'
+    assert caught.value.context == {'maxParagraphs': capacity}

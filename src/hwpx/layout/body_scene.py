@@ -11,6 +11,7 @@ import copy
 from collections import OrderedDict
 from typing import Any, Protocol
 from hwpx import HwpxDocument
+from ..errors import HwpxValueError
 from .pages import HP, HH, _Measure, _pitch, _line_widths, _t_text
 from ..form_fit.measure import hancom_line_starts
 
@@ -33,7 +34,8 @@ class BodySceneSession:
     """
     def __init__(self, provider: GlyphProvider, *, max_paragraphs=256):
         if max_paragraphs < 1:
-            raise ValueError('max_paragraphs must be positive')
+            raise HwpxValueError('max_paragraphs must be positive', code='preview-cache-capacity-invalid',
+                                 context={'maxParagraphs': max_paragraphs}, suggestion='Use a positive paragraph cache capacity.')
         self.provider = provider
         self.max_paragraphs = max_paragraphs
         self._entries: OrderedDict[str, Any] = OrderedDict()
@@ -76,7 +78,9 @@ class BodySceneSession:
 
 def build_body_scene(data: bytes, provider: GlyphProvider, *, cache_mode='ignore', inject_test_cache=False, _paragraph_cache=None, _object_layout: bool | None=False) -> dict:
     from lxml import etree  # type: ignore[reportAttributeAccessIssue]  # incomplete lxml typing
-    if cache_mode not in {'ignore','remove','poison'}: raise ValueError('unknown cache test mode')
+    if cache_mode not in {'ignore','remove','poison'}:
+        raise HwpxValueError('unknown cache test mode', code='preview-cache-mode-invalid',
+                             context={'cacheMode': cache_mode}, suggestion='Use ignore, remove, or poison.')
     d = HwpxDocument.open(io.BytesIO(data))  # core OPC/XML guards
     root: Any = d.oxml
     if _object_layout is None:
