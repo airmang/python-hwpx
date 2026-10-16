@@ -18,9 +18,11 @@ look (face, 장평, 자간) -- tabs to the default tab stops, line breaks, the s
 paragraph, and a hanging bullet or number label in the paragraph's size included -- in a section of one column
 where no object lets text run beside it. Its runs may differ in size: each line is then as tall as its largest
 character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line
-as tall as that one), and the paragraph has no tab. A paragraph is also left when its line breaks are less sure:
-a character no glyph table gives an advance for, or a word too long for a line. A paragraph that has a cache
-keeps it. The others are left for Hancom;
+as tall as that one), and the paragraph has no tab. The cells of a table in such a section get caches the
+same way when every paragraph of the cell is one of these: their lines go down from the top of the cell's text
+area, as wide as that area in whole layout units and never narrower than Hancom's narrowest line. A paragraph is
+also left when its line breaks are less sure: a character no glyph table gives an advance for, or a word too long
+for a line. A paragraph that has a cache keeps it. The others are left for Hancom;
 a document mixing both is laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
@@ -44,6 +46,7 @@ from ..form_fit.measure import (
     classify_char,
     tab_reach,
 )
+from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 from . import pages as _pages
 from .pages import HP
 
@@ -57,6 +60,8 @@ _ONE_SEGMENT = 0x60000
 #: The line takes the paragraph's indent (its first line for a positive one, the others for a hanging one, and
 #: the lines after a bullet or number label that hangs).
 _INDENTED = 0x100000
+#: Hancom's layout unit (1/1800 inch) in HWPUNIT.
+_LAYOUT_UNIT = 4
 #: How far past a line's end the character that did not fit on it is looked for, at most.
 _PAST_A_BREAK = 40
 #: The line starts with the paragraph's bullet or number label.
@@ -83,7 +88,8 @@ class LineCacheReport:
 
 
 def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
-    """Give the body's plain text paragraphs of *document* the line layout cache Hancom writes (experimental).
+    """Give the plain text paragraphs of *document*'s body and table cells the line layout cache Hancom writes
+    (experimental).
 
     See the module description for the paragraphs that get one. The document is changed in memory; save it
     as usual.
@@ -107,22 +113,72 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
             if paragraph.find(f"{HP}linesegarray") is not None:
                 kept += 1
                 continue
-            laid = None if page.columns != 1 or beside else _segments(measure, page, paragraph, number == 0, placed)
-            if laid is None:
+            laid = None if page.columns != 1 or beside else _lines(measure, paragraph, page.column_width,
+                                                                    first=number == 0)
+            if laid is None or len(laid[0]) != len(placed):
                 skipped += 1
                 continue
-            _append_cache(paragraph, *laid)
+            segments, tabs = laid
+            for segment, where in zip(segments, placed):
+                segment["vertpos"] = where.vertpos
+            _append_cache(paragraph, segments, tabs)
             written += 1
             changed = True
+        if page.columns == 1 and not beside:
+            for table in (child for paragraph in paragraphs for run in paragraph.findall(f"{HP}run")
+                          for child in run if _pages._local(child) == "tbl"):
+                cells = _cell_caches(measure, table)
+                written += cells[0]
+                skipped += cells[1]
+                kept += cells[2]
+                changed = changed or bool(cells[0])
         if changed:
             section.mark_dirty()
     return LineCacheReport(written, skipped, kept)
 
 
-def _segments(measure: Any, page: Any, paragraph: Any, first: bool,
-              placed: tuple[Any, ...]) -> tuple[list[dict[str, int]], list[int]] | None:
-    """The line segments Hancom writes for *paragraph* and the width of each of its tabs, or None when it is not
-    one this module writes."""
+def _cell_caches(measure: Any, table: Any) -> tuple[int, int, int]:
+    """Give the paragraphs of *table*'s cells their caches: (written, skipped, kept). A cell gets them when every
+    one of its paragraphs is one this module writes; its lines go down from the top of the cell's text area, each
+    paragraph's spacing before and after between them, as Hancom stacks them."""
+
+    written = skipped = kept = 0
+    widths = grid_widths_of(table)
+    for cell in table.findall(f"{HP}tr/{HP}tc"):
+        paragraphs = cell.findall(f"{HP}subList/{HP}p")
+        if any(paragraph.find(f"{HP}linesegarray") is not None for paragraph in paragraphs):
+            kept += len(paragraphs)
+            continue
+        sub_list = cell.find(f"{HP}subList")
+        if not paragraphs or _pages._vertical(cell) or sub_list is None \
+                or sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):
+            skipped += len(paragraphs)
+            continue
+        margins = cell_margins_of(cell, table)
+        size = cell.find(f"{HP}cellSz")
+        inner = (widths.get(cell) or int(size.get("width", 0))) - margins.left - margins.right
+        laid = [_lines(measure, paragraph, inner, first=False, cell=True) for paragraph in paragraphs]
+        if any(lines is None for lines in laid):
+            skipped += len(paragraphs)
+            continue
+        top, after = 0, None
+        for paragraph, (segments, tabs) in zip(paragraphs, laid):  # type: ignore[misc]
+            shape = measure.shape(paragraph.get("paraPrIDRef"))
+            top += shape.prev if after is None else after + shape.prev
+            for segment in segments:
+                segment["vertpos"] = top
+                top += segment.pop("advance")
+            after = shape.next
+            _append_cache(paragraph, segments, tabs)
+            written += 1
+    return written, skipped, kept
+
+
+def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
+           cell: bool = False) -> tuple[list[dict[str, int]], list[int]] | None:
+    """The line segments Hancom writes for *paragraph* laid out *width* wide (a column, or a cell's text area), but
+    for their places down the page, and the width of each of its tabs; None when it is not one this module
+    writes. Each segment also holds how far down the next line starts (``advance``)."""
 
     runs = paragraph.findall(f"{HP}run")
     prefix = _control_prefix(runs, first)
@@ -143,8 +199,8 @@ def _segments(measure: Any, page: Any, paragraph: Any, first: bool,
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     if style is not None and style.head and not (headed and style.head_hangs):
         return None
-    room = page.column_width - shape.left - shape.right
-    widths = _pages._indented(room, shape, style)
+    room = width - shape.left - shape.right
+    widths = _pages._line_widths(shape, width, style) if cell else _pages._indented(room, shape, style)
     if mixed:
         if "\t" in text:
             return None
@@ -153,7 +209,7 @@ def _segments(measure: Any, page: Any, paragraph: Any, first: bool,
     else:
         starts = measure.line_starts(text, widths, size, style) if text else [0]
         metrics = ((size, _pages._pitch(shape.kind, shape.value, size)),) * len(starts)
-    if len(starts) != len(placed) or len(metrics) != len(starts):
+    if len(metrics) != len(starts):
         return None
     if mixed and _taller_past_a_break(text, sizes, starts, metrics):
         return None
@@ -165,21 +221,26 @@ def _segments(measure: Any, page: Any, paragraph: Any, first: bool,
     indented = min(widths) < room  # else Hancom dropped the indent: no line takes it
     segments = []
     ends = [*starts[1:], len(text)]
-    for line, (start, where, (height, advance)) in enumerate(zip(starts, placed, metrics)):
+    for line, (start, (height, advance)) in enumerate(zip(starts, metrics)):
         drawn = [sizes[index] for index in range(start, ends[line]) if text[index] != "\n"] if mixed else []
         text_height = max(drawn) if drawn else height  # a line break larger than the text makes the line taller
         takes_indent = (indented and (shape.indent > 0 if line == 0 else shape.indent < 0)) or (headed and line > 0)
         segments.append({
             "textpos": prefix + _hancom_offset(text, start) if line else 0,  # the first line starts at 0
-            "vertpos": where.vertpos,
+            "vertpos": 0,
             "vertsize": height,
             "textheight": text_height,
             "baseline": (text_height * 85 + 50) // 100,
             "spacing": advance - height,
             "horzpos": shape.left,
-            "horzsize": room,
+            # a cell's lines in whole layout units, and never narrower than Hancom's narrowest line
+            "horzsize": max(room - room % _LAYOUT_UNIT, _pages._MIN_LINE_WIDTH) if cell else room,
             "flags": _ONE_SEGMENT | (_INDENTED if takes_indent else 0) | (_LABELLED if headed and line == 0 else 0),
+            "advance": advance,
         })
+    if not cell:
+        for segment in segments:
+            del segment["advance"]
     return segments, tabs
 
 

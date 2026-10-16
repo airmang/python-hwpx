@@ -71,7 +71,32 @@ def test_a_paragraph_with_an_object_is_left_for_hancom() -> None:
 
     report = write_line_caches(document)
 
-    assert report.written == 0 and report.skipped == 1
+    # The paragraph holding the table is left for Hancom; its four cells' empty paragraphs get caches.
+    assert report.written == 4 and report.skipped == 1
+    assert not _segments(_body(document)[-1])
+
+
+def _cell_paragraphs(document: HwpxDocument) -> list:
+    return [p for section in document.oxml.sections for cell in section.element.iter(f"{HP}tc")
+            for p in cell.findall(f"{HP}subList/{HP}p")]
+
+
+def test_the_caches_written_in_table_cells_are_the_ones_hancom_wrote() -> None:
+    # Hancom laid out a form of several tables from python-hwpx's cells without a cache: each cell's lines go
+    # down from the top of its text area, as wide as the area in whole layout units.
+    hancom = HwpxDocument.open(FIXTURES / "line_cache_table_cells.hwpx")
+    document = HwpxDocument.open(FIXTURES / "line_cache_table_cells.hwpx")
+    for paragraph in document.oxml.sections[0].element.iter(f"{HP}p"):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    written = [(mine, theirs) for mine, theirs in zip(_cell_paragraphs(document), _cell_paragraphs(hancom))
+               if _segments(mine)]
+    assert len(written) > 10
+    for mine, theirs in written:
+        assert _segments(mine) == _segments(theirs)
 
 
 def test_a_tab_gets_the_width_hancom_lays_it_out_at() -> None:
