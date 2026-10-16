@@ -23,6 +23,12 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    # Outline paragraphs (the template's levels 1 to 7, labels without a character shape of their own) of two
+    # to four runs, the first and the last of different sizes, some ending in an empty run: Hancom measures the
+    # label in the paragraph end's shape, and that size counts in the first line's height.
+    "pages_outline_labels_paragraph_end_shape": 2,
+    "pages_outline_labels_paragraph_end_shape_sizes": 2,
+    "pages_outline_labels_paragraph_end_shape_empty_run": 2,
     # A picture (or a rectangle) placed top and bottom alone in an empty paragraph whose spacing after is 1000,
     # the next paragraph's spacing before 600, the empty line 1600 tall with its spacing: unless the object
     # moves with the text, may overlap and starts above the line's foot, the empty line stays at the paragraph's

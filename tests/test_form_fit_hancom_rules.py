@@ -964,6 +964,21 @@ def test_a_label_takes_its_room_off_the_lines() -> None:
     assert indented_widths(10000, replace(labelled, head_hangs=False, indent=-1000)) == (8500, 9000)
 
 
+def test_a_label_without_a_shape_of_its_own_takes_the_paragraph_ends() -> None:
+    # An outline paragraph (the template's level 2, "가." with 자동 내어 쓰기) whose text starts at 10 pt and ends
+    # at 20 pt: Hancom measures the label in the paragraph end's shape, about twice as wide as in the text's.
+    doc = HwpxDocument.new()
+    small = doc.ensure_run_style(font="함초롬바탕", size=10)
+    large = doc.ensure_run_style(font="함초롬바탕", size=20)
+
+    text = text_style_from_refs(doc.oxml, "3", [small])
+    end = text_style_from_refs(doc.oxml, "3", [small], None, large)
+
+    assert (text.head, text.head_hangs) == (1792, True)
+    assert (end.head, end.head_hangs) == (3580, True)
+    assert text_style_from_refs(doc.oxml, "3", [small], None, small) == text
+
+
 def test_a_label_takes_its_glyphs_its_adjustment_and_its_gap() -> None:
     head = {"useInstWidth": "0", "textOffsetType": "PERCENT", "textOffset": "50", "widthAdjust": "0"}
     face = TextStyle(glyph_face="함초롬돋움", hangul_face="함초롬돋움")
