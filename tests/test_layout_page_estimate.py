@@ -457,6 +457,16 @@ HANCOM_PAGES = {
     # taken off it), in runs of several sizes
     "pages_line_breaks_mixed_sizes_indented": 2,
     "pages_tabs_breaks_sizes_faces": 1,  # tabs, line breaks, sizes and faces together
+    # Paragraphs with tab stops of their own (left, right, centre, decimal, some past the line's end, with the
+    # automatic tabs or not) after labels, numbers and words: a tab reaches the first stop past it whose text
+    # can be aligned there without starting before the tab or passing the line's end (a left stop past it is
+    # taken all the same), the automatic tab at the end being a right stop there; then the default stops,
+    # which give the tab no width past a stop it could not take when the text has no room after them.
+    "pages_tab_stops_own_centre_then_default": 1,
+    "pages_tab_stops_own_left_past_the_line": 1,
+    "pages_tab_stops_own_decimal_passed_over": 1,
+    "pages_tab_stops_own_automatic_right": 1,
+    "pages_tab_stops_own_right_no_room": 1,
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
@@ -1621,7 +1631,7 @@ def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_
 
 
 def test_the_estimate_reads_a_paragraphs_tab_definition() -> None:
-    # A paragraph whose tab definition sets a stop of its own is not laid out on the default stops.
+    # A paragraph whose tab definition sets a stop of its own takes it.
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("가가가\t가가")
     doc.styles.apply_paragraph_format(paragraphs=[paragraph], tab_stops=[{"pos_mm": 50, "type": "RIGHT"}])
@@ -1630,7 +1640,7 @@ def test_the_estimate_reads_a_paragraphs_tab_definition() -> None:
 
     style = page_layout._Measure(root).style(element.get("paraPrIDRef"), ["0"])
 
-    assert style.tab_stop == 0
+    assert style.tab_stops == ((14173, "RIGHT"),)
 
 
 def test_the_lines_a_cell_splits_between_add_up_to_its_height() -> None:
