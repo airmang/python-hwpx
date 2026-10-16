@@ -70,6 +70,16 @@ HY_HEADLINE_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 MORE_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_cells.hwpx"
 MORE_FACES_FALLBACKS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_fallback_cells.hwpx"
 MORE_FACES_HANGUL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_hangul_cells.hwpx"
+SINMYEONG_TAEMYEONGJO_CELLS = (
+    Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_sinmyeong_taemyeongjo_cells.hwpx"
+)
+
+
+SINMYEONG_GYEONGOTHIC_HANYANG_GRAPHIC_CELLS = (
+    Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_sinmyeong_gyeongothic_hanyang_graphic_cells.hwpx"
+)
+
+
 KOPUB_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kopub_faces_cells.hwpx"
 HFT_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_cells.hwpx"
 HFT_STD_GLYPH_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_std_glyph_cells.hwpx"
@@ -292,6 +302,34 @@ def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
             faces[style.glyph_face] = faces.get(style.glyph_face, 0) + 1
     assert faces == {"한컴산뜻돋움": 40, "HY중고딕": 58, "HY견고딕": 52, "HY신명조": 52, "새굴림": 20,
                      "한컴 말랑말랑 Regular": 56, "한컴 말랑말랑 Bold": 4}
+
+
+@pytest.mark.parametrize(
+    ("fixture", "faces"),
+    [
+        (SINMYEONG_TAEMYEONGJO_CELLS, {"신명 태명조"}),
+        (SINMYEONG_GYEONGOTHIC_HANYANG_GRAPHIC_CELLS, {"신명 견고딕", "한양그래픽"}),
+    ],
+)
+def test_cells_in_faces_hancom_knows_on_their_own_break_where_hancom_breaks_them(fixture: Path, faces: set[str]) -> None:
+    # The same in faces Hancom knows on their own (not as 한컴바탕): 신명 태명조 and 한양그래픽 in 2048 units,
+    # 신명 견고딕 in 1000, for 24 glyphs at 10 and 30 pt: ASCII, quotation marks, Latin, Greek and Cyrillic
+    # letters, symbols and Hangul.
+    doc = HwpxDocument.open(fixture)
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    seen = set()
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        seen.add(style.glyph_face)
+        assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points)
+    assert len(cells) == 96 * len(faces) and seen == faces
 
 
 def test_kopub_cells_break_where_hancom_breaks_them() -> None:
