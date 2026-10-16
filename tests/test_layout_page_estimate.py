@@ -1020,6 +1020,29 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+@pytest.mark.parametrize("number_format", ["KOREAN_DIGIT", "HANGUL"])
+def test_a_number_label_in_a_format_the_text_export_does_not_write_is_estimated(number_format: str) -> None:
+    # The bullet and number labels above, every number measured, in a character shape of its own and in a
+    # format of Hancom's own documents that the text export does not write: such a number counts as a syllable
+    # instead of failing the estimate.
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO((FIXTURES / "pages_bullet_and_number_labels.hwpx").read_bytes())) as source, \
+            zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/header.xml":
+                payload = re.sub(rb'numFormat="[A-Z_]+"', f'numFormat="{number_format}"'.encode(), payload)
+                payload = re.sub(rb'useInstWidth="\w+"', b'useInstWidth="1"', payload)
+                payload = re.sub(rb'(<hh:paraHead [^>]*)charPrIDRef="\d+"', rb'\1charPrIDRef="0"', payload)
+            target.writestr(info, payload)
+
+    for source_bytes in (out.getvalue(), _without_caches(out.getvalue())):
+        estimate = estimate_pages(source_bytes)
+
+        assert estimate.unsupported == ()
+        assert estimate.pages >= 1
+
+
 def test_an_unsplit_table_without_room_goes_on_alone() -> None:
     # The table above, 63000 tall, set not to split: with no room below the line's top, it goes alone to the
     # next page's top and the paragraph's lines, and those after, stay where they stood on the first page.
