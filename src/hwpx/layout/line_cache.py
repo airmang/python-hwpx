@@ -20,7 +20,9 @@ where no object lets text run beside it. Its runs may differ in size: each line 
 character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line
 as tall as that one), and the paragraph has no tab. The cells of a table in such a section get caches the
 same way when every paragraph of the cell is one of these: their lines go down from the top of the cell's text
-area, as wide as that area in whole layout units and never narrower than Hancom's narrowest line. A paragraph is
+area, as wide as that area in whole layout units and never narrower than Hancom's narrowest line. A paragraph
+holding nothing but a table set as a character gets its one line, as tall as the table, and the table its rows'
+height (``hp:sz``), as Hancom saves them. A paragraph is
 also left when its line breaks are less sure: a character no glyph table gives an advance for, or a word too long
 for a line. A paragraph that has a cache keeps it. The others are left for Hancom;
 a document mixing both is laid out as one. Nothing is written when the estimate does not follow the document.
@@ -113,8 +115,9 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
             if paragraph.find(f"{HP}linesegarray") is not None:
                 kept += 1
                 continue
-            laid = None if page.columns != 1 or beside else _lines(measure, paragraph, page.column_width,
-                                                                    first=number == 0)
+            laid = None if page.columns != 1 or beside else (
+                _lines(measure, paragraph, page.column_width, first=number == 0)
+                or _table_line(measure, paragraph, page.column_width))
             if laid is None or len(laid[0]) != len(placed):
                 skipped += 1
                 continue
@@ -135,6 +138,56 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
         if changed:
             section.mark_dirty()
     return LineCacheReport(written, skipped, kept)
+
+
+def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str, int]], list[int]] | None:
+    """The one line of a paragraph holding nothing but a table set as a character, as Hancom writes it: as tall as
+    the table and its outer margins, its baseline at 85 % of that, spaced as the paragraph's characters are; and the
+    table's own height (``hp:sz``) set to its rows' height, as Hancom saves it. None for any other paragraph."""
+
+    runs = paragraph.findall(f"{HP}run")
+    table = _pages._table_alone(runs)
+    if table is None or any(_pages._local(child) not in ("t", "tbl", "secPr", "ctrl") for run in runs for child in run):
+        return None
+    if any(_pages._local(child) == "ctrl" and not _only_columns(child) for run in runs for child in run):
+        return None
+    if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
+        return None
+    shape = measure.shape(paragraph.get("paraPrIDRef"))
+    size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # spaced from its largest characters
+    rows = _pages._inline_table_height(measure, table)
+    tall = rows + _pages._extent_margins(table)
+    advance = _pages._object_pitch(shape, table, tall, size)
+    table.find(f"{HP}sz").set("height", str(rows))
+    room = width - shape.left - shape.right
+    return [{
+        "textpos": 0,
+        "vertpos": 0,
+        "vertsize": tall,
+        "textheight": tall,
+        "baseline": (tall * 85 + 50) // 100,
+        "spacing": advance - tall,
+        "horzpos": shape.left,
+        "horzsize": room,
+        "flags": _ONE_SEGMENT | (_LABELLED if measure.headed(paragraph) else 0),
+    }], []
+
+
+def _cells_sure(measure: Any, table: Any) -> bool:
+    """Whether every paragraph of *table*'s cells is one this module lays out (none of them a table)."""
+
+    widths = grid_widths_of(table)
+    for cell in table.findall(f"{HP}tr/{HP}tc"):
+        paragraphs = cell.findall(f"{HP}subList/{HP}p")
+        sub_list = cell.find(f"{HP}subList")
+        if not paragraphs or _pages._vertical(cell) or sub_list is None \
+                or sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):
+            return False
+        margins = cell_margins_of(cell, table)
+        inner = (widths.get(cell) or int(cell.find(f"{HP}cellSz").get("width", 0))) - margins.left - margins.right
+        if any(_lines(measure, paragraph, inner, first=False, cell=True) is None for paragraph in paragraphs):
+            return False
+    return True
 
 
 def _cell_caches(measure: Any, table: Any) -> tuple[int, int, int]:
