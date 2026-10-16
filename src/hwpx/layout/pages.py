@@ -2613,6 +2613,7 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
         return para, None
     lead = para.prev - shape.prev  # its first line moved below the band
     if wrap.split and not para.cached and para.lines == 1 and lead < wrap.bottom and not _run_text(runs) \
+            and lead + para.height(0) > wrap.top \
             and all(obj is square for obj in objects):  # an empty line beside it: two empty pieces
         para = _in_two_pieces(para)
     beside = sum(1 for line in range(para.lines) if lead + para.span(0, line) < wrap.bottom)
