@@ -14,7 +14,8 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 # Hancom Office laid these documents out from python-hwpx's paragraphs without a cache and saved them.
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
-                   "line_cache_indents.hwpx", "line_cache_labels.hwpx"]
+                   "line_cache_indents.hwpx", "line_cache_labels.hwpx",
+                   "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -105,3 +106,23 @@ def test_a_paragraph_laid_out_less_surely_is_left_for_hancom(text: str) -> None:
     report = write_line_caches(document)
 
     assert report.written == 0 and report.skipped == 1
+
+
+def test_a_paragraph_of_several_character_sizes_gets_a_cache() -> None:
+    # Hancom makes each line as tall as its largest character and draws its text that high.
+    document = HwpxDocument.open(FIXTURES / "line_cache_mixed_sizes.hwpx")
+    hancom = HwpxDocument.open(FIXTURES / "line_cache_mixed_sizes.hwpx")
+    for paragraph in _body(document):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    mixed = [
+        (mine, theirs)
+        for mine, theirs in zip(_body(document), _body(hancom))
+        if _segments(mine) and len({run.get("charPrIDRef") for run in mine.findall(f"{HP}run")}) > 1
+    ]
+    assert mixed
+    for mine, theirs in mixed:
+        assert _segments(mine) == _segments(theirs)

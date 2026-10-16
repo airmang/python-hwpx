@@ -14,10 +14,13 @@ the baseline and the line spacing past it. The others come from :func:`hwpx.layo
 also draws a tab as wide as its ``hp:tab`` says once the paragraph has a cache, so each tab gets its width.
 
 Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs in one
-character size and look (tabs to the default tab stops, line breaks, the section's own controls in the first
-paragraph, and a hanging bullet or number label in the paragraph's size included), in a section of one column
-where no object lets text run beside it. A paragraph is also left when its line breaks are less sure: a character no glyph table gives an advance for,
-or a word too long for a line. A paragraph that has a cache keeps it. The others are left for Hancom;
+look (face, 장평, 자간) -- tabs to the default tab stops, line breaks, the section's own controls in the first
+paragraph, and a hanging bullet or number label in the paragraph's size included -- in a section of one column
+where no object lets text run beside it. Its runs may differ in size: each line is then as tall as its largest
+character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line
+as tall as that one), and the paragraph has no tab. A paragraph is also left when its line breaks are less sure:
+a character no glyph table gives an advance for, or a word too long for a line. A paragraph that has a cache
+keeps it. The others are left for Hancom;
 a document mixing both is laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
@@ -54,6 +57,8 @@ _ONE_SEGMENT = 0x60000
 #: The line takes the paragraph's indent (its first line for a positive one, the others for a hanging one, and
 #: the lines after a bullet or number label that hangs).
 _INDENTED = 0x100000
+#: How far past a line's end the character that did not fit on it is looked for, at most.
+_PAST_A_BREAK = 40
 #: The line starts with the paragraph's bullet or number label.
 _LABELLED = 0x200000
 #: How many characters a control (a section or column definition) takes in a line's text position.
@@ -128,8 +133,8 @@ def _segments(measure: Any, page: Any, paragraph: Any, first: bool,
     if shape.font_line:
         return None
     size, refs, sizes = _pages._text_size(measure, runs)
-    if len(set(sizes)) > 1 or _pages._end_size(measure, runs, sizes):
-        return None
+    end = _pages._end_size(measure, runs, sizes)
+    mixed = len(set(sizes)) > 1 or bool(end)  # each line as tall as its largest character
     if _pages._char_styles(measure, paragraph, runs) is not None:  # runs of another face, 장평 or 자간
         return None
     if headed and (_pages._head_size(measure, paragraph, sizes) or shape.indent):  # a label of its own size
@@ -140,26 +145,37 @@ def _segments(measure: Any, page: Any, paragraph: Any, first: bool,
         return None
     room = page.column_width - shape.left - shape.right
     widths = _pages._indented(room, shape, style)
-    starts = measure.line_starts(text, widths, size, style) if text else [0]
-    if len(starts) != len(placed):
+    if mixed:
+        if "\t" in text:
+            return None
+        starts = _pages._metric_starts(measure, text, widths, sizes, style, {})
+        metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, {}, end=end)
+    else:
+        starts = measure.line_starts(text, widths, size, style) if text else [0]
+        metrics = ((size, _pages._pitch(shape.kind, shape.value, size)),) * len(starts)
+    if len(starts) != len(placed) or len(metrics) != len(starts):
+        return None
+    if mixed and _taller_past_a_break(text, sizes, starts, metrics):
         return None
     if not _sure_of(text, starts, style):
         return None
     tabs = _tab_widths(text, starts, widths, size, style) if "\t" in text else []
     if tabs is None:
         return None
-    pitch = _pages._pitch(shape.kind, shape.value, size)
     indented = min(widths) < room  # else Hancom dropped the indent: no line takes it
     segments = []
-    for line, (start, where) in enumerate(zip(starts, placed)):
+    ends = [*starts[1:], len(text)]
+    for line, (start, where, (height, advance)) in enumerate(zip(starts, placed, metrics)):
+        drawn = [sizes[index] for index in range(start, ends[line]) if text[index] != "\n"] if mixed else []
+        text_height = max(drawn) if drawn else height  # a line break larger than the text makes the line taller
         takes_indent = (indented and (shape.indent > 0 if line == 0 else shape.indent < 0)) or (headed and line > 0)
         segments.append({
             "textpos": prefix + _hancom_offset(text, start) if line else 0,  # the first line starts at 0
             "vertpos": where.vertpos,
-            "vertsize": size,
-            "textheight": size,
-            "baseline": (size * 85 + 50) // 100,
-            "spacing": pitch - size,
+            "vertsize": height,
+            "textheight": text_height,
+            "baseline": (text_height * 85 + 50) // 100,
+            "spacing": advance - height,
             "horzpos": shape.left,
             "horzsize": room,
             "flags": _ONE_SEGMENT | (_INDENTED if takes_indent else 0) | (_LABELLED if headed and line == 0 else 0),
@@ -186,6 +202,21 @@ def _sure_of(text: str, starts: list[int], style: Any) -> bool:
             return False
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
+
+
+def _taller_past_a_break(text: str, sizes: list[int], starts: list[int],
+                         metrics: tuple[tuple[int, int], ...]) -> bool:
+    """Whether a character past a line's end that may be the one that did not fit on it (the next line's first word
+    and the character after it) is taller than the line: Hancom then writes the line as tall as that character (its
+    text height stays the line's own), which the estimate does not follow."""
+
+    for line, start in enumerate(starts[1:]):
+        stop = start
+        while stop < len(text) and text[stop] not in " \n" and stop - start < _PAST_A_BREAK:
+            stop += 1
+        if any(size > metrics[line][0] for size in sizes[start:stop + 1]):
+            return True
+    return False
 
 
 def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, style: Any) -> list[int] | None:
