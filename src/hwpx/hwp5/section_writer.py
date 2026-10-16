@@ -100,6 +100,7 @@ from .shape_xml import (
     LINE_STYLE,
     OLE_TYPE,
     OUTLINE_STYLE,
+    PICTURE_REVERSE,
     ROTATE_IMAGE,
     SHADOW,
     SHADOW_STYLE,
@@ -1145,6 +1146,7 @@ class SectionRecords:
         flags |= ROTATE_IMAGE if _flag(rotation, "rotateimage") else 0
         flags |= _FLAG_TEXT_BOX if draw_text is not None else 0
         flags |= _FLAG_PICTURE if kind == "$pic" else 0
+        flags |= PICTURE_REVERSE if kind == "$pic" and _flag(element, "reverse") else 0
         flags |= _FLAG_OLE if kind == "$ole" else 0
         flags |= _FLAG_GROUP if kind == "$con" or not top else 0
         flags |= _FLAG_GROUP_MEMBER if not top and kind != "$con" else 0
@@ -1375,11 +1377,11 @@ class SectionRecords:
             max(-128, min(127, _int(image, "contrast"))),
             index_of(IMAGE_EFFECT_CODES, image.get("effect") if image is not None else None, 0),
             self.bin_ids.get(ref, 0),
-            _int(image, "alpha") & 0xFF,
+            0,
             _int(element, "instid") & 0xFFFFFFFF,
             effects.flags if effects is not None else 0,
             (_int(dim, "dimwidth"), _int(dim, "dimheight")),
-            bytes(1),
+            bytes([_int(image, "alpha") & 0xFF]),
             effects,
         ).encode()
 

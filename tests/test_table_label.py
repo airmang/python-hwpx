@@ -4,12 +4,12 @@
 hp:label (Avery-style label-sheet/nameplate print layout) was the last
 code-blind high-frequency element the completeness ledger found (64/237
 real files in the census population, 27%). The vendored 47-file corpus has
-no examples -- structure was reverse-engineered from 75 of the
+no examples -- structure was inferred from 75 of the
 maintainer's private real-world documents (school administrative
 paperwork). That private corpus's path is never recorded anywhere,
 including here (privacy) -- every value in this file is synthetic, not
 copied from any real document. See docs/owpml-deviations.md's DEV-023
-entry for the reverse-engineering evidence (schema/real-output agreement,
+entry for the format inference evidence (schema/real-output agreement,
 the 2 observed attribute-combination clusters, the always-last-child
 position).
 """

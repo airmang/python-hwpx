@@ -28,7 +28,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
@@ -118,6 +118,9 @@ _FIXED_SPACE = "\u3000"
 _GLYPH_SPACE = "\ufdd0"
 #: The spaces Hancom makes half an em wide (unless the font's own space is used).
 _HALF_EM_SPACES = frozenset(" \u00a0")
+#: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance (a glyph all the
+#: same: rounded, \uc7a5\ud3c9 and \uc790\uac04 applied as any other is).
+_HALF_EM_GLYPHS = frozenset("!")
 #: Closing punctuation that never starts a line; it moves down with the
 #: character before it.
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
@@ -138,6 +141,9 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 # and rounded. A face or glyph listed nowhere falls back to the class averages,
 # unrounded.
 _LAYOUT_UNIT = 4
+#: Hancom's default tab stops, this far apart (HWPUNIT) from the column's left edge (the section's
+#: ``tabStopVal``).
+_DEFAULT_TAB_STOP = 4000
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -149,7 +155,10 @@ _GLYPHS = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc
 
 #: Design advances per face in font units: units per em, a Hangul syllable, the
 #: space, and each glyph of ``_GLYPHS`` (0: not in the face, or one Hancom lays
-#: out from the fallback face all the same).
+#: out from the fallback face all the same). The faces Hancom ships in its own
+#: font format (HCI Poppy, HCI Hollyhock, 한양중고딕, 한양신명조, 한양견고딕,
+#: 휴먼옛체) are given at the advances Hancom lays them out at. 함초롬돋움's … is
+#: 함초롬바탕's (960), as Hancom lays it out.
 _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
     "함초롬바탕": (1000, 970, 300, (
         320, 320, 610, 610, 830, 724, 320, 320, 320, 550, 550, 320, 550, 320, 550, 550,
@@ -172,10 +181,10 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         654, 664, 633, 701, 625, 609, 645, 694, 317, 515, 664, 584, 826, 728, 676, 660,
         681, 683, 617, 573, 702, 594, 897, 607, 581, 584, 338, 373, 329, 562, 532, 373,
         563, 581, 513, 578, 567, 336, 563, 594, 271, 268, 559, 258, 919, 595, 582, 552,
-        552, 427, 513, 349, 595, 469, 760, 483, 466, 479, 372, 342, 372, 546, 294, 702,
-        451, 453, 288, 288, 500, 500, 500, 500, 500, 500, 500, 500, 690, 970, 970, 970,
+        552, 427, 513, 349, 595, 469, 760, 483, 466, 479, 372, 342, 372, 546, 294, 960,
+        451, 453, 288, 288, 500, 500, 500, 500, 500, 500, 500, 500, 770, 970, 970, 970,
         970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 587, 670, 782, 306,
-        970, 892, 522, 348, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
+        970, 988, 875, 625, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
         970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
         970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
         970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970, 970,
@@ -332,34 +341,34 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         0, 0, 0, 0,
     )),
     "HY헤드라인M": (1024, 1024, 341, (
-        256, 384, 853, 597, 810, 640, 213, 298, 298, 341, 597, 213, 597, 213, 384, 597,
-        597, 597, 597, 597, 597, 597, 597, 597, 597, 256, 256, 469, 597, 469, 597, 853,
-        597, 640, 640, 640, 469, 469, 640, 640, 256, 341, 597, 426, 810, 597, 597, 554,
-        597, 597, 597, 512, 640, 640, 938, 597, 554, 469, 341, 384, 341, 554, 512, 0,
-        597, 597, 597, 597, 640, 384, 597, 597, 256, 298, 554, 256, 853, 597, 640, 597,
-        597, 426, 554, 384, 597, 554, 810, 512, 512, 426, 426, 298, 426, 725, 1024, 1024,
+        256, 384, 853, 598, 817, 597, 213, 298, 301, 492, 601, 244, 515, 248, 393, 597,
+        597, 597, 597, 597, 597, 597, 597, 597, 597, 271, 271, 596, 601, 602, 597, 873,
+        597, 644, 644, 644, 518, 498, 651, 650, 297, 521, 620, 472, 825, 629, 636, 580,
+        636, 610, 606, 532, 640, 640, 939, 597, 565, 497, 331, 393, 330, 555, 512, 332,
+        597, 597, 593, 597, 632, 433, 606, 615, 290, 346, 555, 288, 867, 603, 640, 608,
+        608, 415, 555, 428, 613, 555, 811, 512, 593, 458, 427, 299, 427, 725, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
-        1024, 1024, 0, 0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
         0, 0, 0, 0,
     )),
-    "휴먼명조": (512, 512, 256, (
-        104, 256, 336, 258, 384, 394, 148, 160, 160, 256, 256, 138, 256, 138, 160, 256,
-        256, 256, 256, 256, 256, 256, 256, 256, 256, 138, 138, 256, 256, 256, 220, 398,
-        338, 308, 328, 348, 320, 298, 360, 348, 132, 202, 330, 296, 400, 354, 366, 294,
-        352, 334, 254, 320, 346, 340, 478, 364, 344, 306, 164, 160, 164, 186, 256, 166,
-        260, 278, 248, 260, 268, 200, 264, 284, 128, 136, 268, 128, 408, 282, 262, 276,
-        276, 206, 210, 174, 276, 276, 370, 250, 262, 232, 150, 104, 150, 256, 512, 512,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
-        512, 512, 0, 0, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0, 512, 512, 512, 512,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0, 0, 0, 0,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0,
-        0, 0, 0, 0,
+    "휴먼명조": (1024, 1024, 512, (
+        512, 512, 672, 516, 768, 788, 296, 320, 320, 512, 512, 276, 512, 276, 320, 512,
+        512, 512, 512, 512, 512, 512, 512, 512, 512, 276, 276, 512, 512, 512, 440, 796,
+        676, 616, 656, 696, 640, 596, 720, 696, 264, 404, 660, 592, 800, 708, 732, 588,
+        704, 668, 508, 640, 692, 680, 956, 728, 688, 612, 328, 320, 328, 372, 512, 332,
+        520, 556, 496, 520, 536, 400, 528, 568, 256, 272, 536, 256, 816, 564, 524, 552,
+        552, 412, 420, 348, 552, 552, 740, 500, 524, 464, 300, 208, 300, 512, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 896, 640, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994, 994, 994, 994,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994,
+        994, 994, 994, 994,
     )),
     "한컴산뜻돋움": (1000, 932, 264, (
         446, 297, 583, 583, 892, 892, 297, 446, 446, 446, 583, 297, 583, 297, 446, 583,
@@ -376,20 +385,20 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 932, 0,
         0, 0, 0, 0,
     )),
-    "휴먼고딕": (512, 512, 256, (
-        134, 200, 360, 296, 432, 352, 144, 160, 160, 256, 256, 148, 256, 122, 160, 258,
-        258, 258, 258, 258, 258, 258, 258, 258, 258, 132, 126, 256, 256, 256, 264, 398,
-        306, 288, 304, 294, 276, 256, 332, 296, 100, 236, 306, 252, 366, 300, 346, 274,
-        346, 282, 284, 276, 296, 314, 428, 302, 296, 274, 164, 160, 164, 198, 256, 152,
-        256, 262, 256, 270, 272, 146, 276, 256, 100, 124, 254, 100, 392, 256, 270, 266,
-        270, 184, 238, 160, 258, 260, 348, 240, 244, 228, 150, 136, 150, 256, 512, 512,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512,
-        512, 512, 0, 0, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0, 512, 512, 512, 512,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0, 0, 0, 0, 0,
-        512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 0,
-        0, 0, 0, 0,
+    "휴먼고딕": (1024, 1024, 512, (
+        512, 400, 720, 592, 864, 704, 288, 320, 320, 512, 512, 296, 512, 244, 320, 516,
+        516, 516, 516, 516, 516, 516, 516, 516, 516, 264, 252, 512, 512, 512, 528, 796,
+        612, 576, 608, 588, 552, 512, 664, 592, 200, 472, 612, 504, 732, 600, 692, 548,
+        692, 564, 568, 552, 592, 628, 856, 604, 592, 548, 328, 320, 328, 396, 512, 304,
+        512, 524, 512, 540, 544, 292, 552, 512, 200, 248, 508, 200, 784, 512, 540, 532,
+        540, 368, 476, 320, 516, 520, 696, 480, 488, 456, 300, 272, 300, 512, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 896, 640, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994, 994, 994, 994,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994,
+        994, 994, 994, 994,
     )),
     "한컴돋움": (1024, 1024, 341, (
         342, 425, 640, 512, 937, 726, 297, 384, 384, 597, 594, 384, 604, 384, 425, 597,
@@ -410,7 +419,7 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         375, 371, 854, 627, 971, 830, 226, 371, 371, 596, 883, 329, 883, 329, 358, 646,
         646, 646, 646, 646, 646, 646, 646, 646, 646, 329, 329, 883, 883, 883, 611, 1056,
         730, 591, 838, 760, 525, 500, 881, 689, 279, 502, 632, 483, 917, 746, 884, 599,
-        888, 601, 529, 493, 646, 658, 939, 655, 608, 566, 371, 351, 371, 798, 511, 256,
+        888, 601, 529, 493, 646, 658, 939, 655, 608, 566, 371, 351, 371, 798, 511, 598,
         732, 736, 692, 735, 713, 342, 713, 650, 271, 275, 563, 271, 970, 651, 711, 731,
         734, 351, 446, 347, 650, 544, 759, 518, 593, 473, 512, 542, 512, 798, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
@@ -455,7 +464,7 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         426, 597, 725, 640, 981, 810, 341, 469, 469, 554, 682, 384, 682, 384, 426, 640,
         640, 640, 640, 640, 640, 640, 640, 640, 640, 384, 384, 597, 682, 597, 725, 1024,
         810, 810, 810, 810, 725, 682, 853, 810, 384, 597, 853, 682, 896, 810, 853, 725,
-        853, 810, 768, 725, 810, 725, 1024, 768, 768, 725, 469, 426, 469, 554, 512, 256,
+        853, 810, 768, 725, 810, 725, 1024, 768, 768, 725, 469, 426, 469, 554, 512, 598,
         640, 682, 640, 682, 640, 384, 682, 682, 384, 341, 682, 384, 981, 682, 682, 682,
         682, 469, 640, 426, 682, 640, 853, 640, 640, 597, 512, 384, 512, 682, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
@@ -931,6 +940,126 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         900, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900,
         900, 900, 900, 900,
     )),
+    "HY견명조": (1024, 1024, 341, (
+        682, 597, 768, 768, 981, 981, 426, 469, 469, 682, 725, 384, 725, 384, 512, 682,
+        682, 682, 682, 682, 682, 682, 682, 682, 682, 426, 426, 640, 725, 640, 682, 981,
+        853, 810, 810, 853, 768, 725, 853, 938, 469, 554, 938, 768, 981, 896, 896, 768,
+        896, 810, 725, 896, 853, 810, 1024, 853, 810, 725, 469, 512, 469, 597, 512, 598,
+        597, 640, 597, 640, 640, 469, 640, 725, 426, 384, 725, 426, 981, 682, 640, 682,
+        682, 512, 554, 469, 640, 640, 896, 682, 640, 554, 426, 341, 426, 768, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 0, 0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
+    )),
+    "HY동녘M": (1024, 1024, 341, (
+        363, 331, 823, 648, 917, 782, 191, 332, 332, 519, 846, 311, 846, 311, 356, 639,
+        639, 639, 639, 639, 639, 639, 639, 639, 639, 311, 311, 703, 846, 703, 585, 1023,
+        654, 676, 686, 739, 623, 573, 705, 721, 309, 440, 688, 558, 901, 729, 732, 670,
+        728, 703, 677, 532, 687, 656, 945, 654, 633, 618, 351, 356, 351, 591, 512, 598,
+        614, 606, 565, 608, 611, 409, 604, 610, 282, 285, 580, 282, 911, 608, 608, 590,
+        590, 383, 564, 388, 601, 601, 759, 537, 537, 477, 505, 505, 505, 846, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 0, 0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0, 0, 0, 0, 0,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 0,
+        0, 0, 0, 0,
+    )),
+    "HCI Poppy": (1024, 1024, 512, (
+        512, 378, 620, 510, 860, 796, 284, 340, 340, 398, 620, 254, 340, 254, 620, 510,
+        510, 510, 510, 510, 510, 510, 510, 510, 510, 254, 254, 620, 620, 620, 454, 764,
+        796, 624, 724, 792, 624, 568, 780, 850, 344, 340, 744, 624, 968, 850, 804, 619,
+        804, 684, 538, 628, 796, 740, 1022, 684, 684, 684, 340, 620, 340, 620, 510, 284,
+        510, 566, 454, 624, 491, 340, 568, 596, 298, 238, 568, 298, 904, 596, 560, 614,
+        574, 404, 434, 332, 619, 578, 852, 528, 568, 510, 340, 620, 340, 620, 394, 983,
+        510, 510, 284, 284, 512, 512, 512, 512, 512, 512, 512, 512, 788, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 1024, 630, 638, 632, 418,
+        993, 1012, 896, 640, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993,
+    )),
+    "HCI Hollyhock": (1024, 1024, 512, (
+        512, 362, 568, 568, 910, 684, 226, 340, 340, 398, 596, 284, 340, 284, 284, 568,
+        568, 568, 568, 568, 568, 568, 568, 568, 568, 284, 284, 596, 596, 596, 568, 1040,
+        684, 684, 740, 740, 684, 624, 796, 740, 284, 510, 684, 568, 852, 740, 796, 684,
+        796, 740, 684, 624, 740, 684, 966, 684, 684, 624, 284, 284, 284, 480, 568, 226,
+        568, 568, 510, 568, 568, 284, 568, 568, 226, 226, 510, 226, 852, 568, 568, 568,
+        568, 340, 510, 284, 568, 510, 740, 510, 510, 510, 342, 266, 342, 596, 390, 983,
+        340, 340, 226, 226, 512, 512, 512, 512, 512, 512, 512, 512, 788, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 1024, 634, 636, 684, 434,
+        993, 1012, 896, 640, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993, 993,
+        993, 993, 993, 993,
+    )),
+    "한양중고딕": (1000, 1000, 500, (
+        500, 420, 535, 529, 867, 643, 240, 288, 281, 369, 518, 246, 518, 245, 263, 500,
+        500, 500, 500, 500, 500, 500, 500, 500, 500, 247, 245, 583, 519, 582, 524, 999,
+        632, 629, 699, 693, 649, 594, 751, 689, 246, 470, 631, 539, 803, 692, 749, 637,
+        754, 692, 636, 584, 688, 632, 904, 619, 619, 585, 253, 283, 253, 448, 500, 256,
+        534, 527, 483, 531, 532, 255, 529, 529, 195, 196, 473, 195, 809, 529, 539, 535,
+        531, 310, 480, 255, 531, 479, 697, 470, 466, 485, 310, 237, 306, 500, 381, 1000,
+        375, 375, 225, 225, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 620, 621, 668, 423,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000,
+    )),
+    "한양신명조": (1000, 1000, 500, (
+        500, 423, 450, 602, 920, 814, 386, 395, 374, 524, 567, 235, 572, 244, 390, 500,
+        500, 500, 500, 500, 500, 500, 500, 500, 500, 276, 292, 729, 570, 734, 511, 920,
+        794, 704, 690, 749, 677, 654, 742, 784, 337, 450, 792, 645, 959, 777, 748, 629,
+        755, 703, 648, 774, 773, 780, 1037, 754, 769, 599, 362, 397, 352, 429, 500, 382,
+        509, 556, 485, 543, 482, 352, 588, 560, 277, 314, 557, 274, 858, 564, 516, 534,
+        548, 405, 486, 351, 562, 581, 840, 590, 574, 474, 418, 280, 421, 500, 384, 1000,
+        441, 441, 230, 230, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 616, 623, 617, 409,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+        1000, 1000, 1000, 1000,
+    )),
+    "한양견고딕": (4096, 4096, 2048, (
+        2048, 1980, 2372, 2298, 3718, 2915, 1072, 1509, 1541, 1704, 2126, 1338, 2123, 1332, 1389, 2305,
+        2305, 2305, 2305, 2305, 2305, 2305, 2305, 2305, 2305, 1325, 1325, 2954, 2126, 2872, 2503, 4096,
+        2956, 2956, 2956, 2956, 2731, 2503, 3188, 2956, 1140, 2278, 2956, 2503, 3414, 2956, 3188, 2731,
+        3147, 2956, 2731, 2503, 2956, 2731, 3867, 2731, 2731, 2503, 1379, 1399, 1379, 1752, 2048, 1089,
+        2278, 2503, 2278, 2503, 2278, 1366, 2503, 2503, 1140, 1140, 2278, 1140, 3642, 2503, 2503, 2503,
+        2503, 1594, 2278, 1366, 2503, 2278, 3188, 2278, 2278, 2048, 1645, 1235, 1639, 2053, 1561, 3933,
+        2253, 2253, 1229, 1229, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 3152, 3972, 3972, 3972,
+        3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 4096, 2540, 2544, 2738, 1734,
+        3972, 4048, 3584, 2560, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972,
+        3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972,
+        3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972,
+        3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972,
+        3972, 3972, 3972, 3972,
+    )),
+    "휴먼옛체": (1024, 1024, 512, (
+        512, 512, 720, 606, 782, 694, 268, 348, 348, 460, 572, 268, 512, 268, 336, 548,
+        548, 548, 548, 548, 548, 548, 548, 548, 548, 268, 268, 556, 540, 556, 504, 760,
+        632, 578, 652, 624, 548, 536, 668, 606, 250, 482, 612, 532, 794, 644, 692, 606,
+        720, 604, 594, 652, 614, 660, 884, 652, 632, 560, 356, 530, 356, 400, 512, 268,
+        584, 550, 544, 580, 546, 422, 564, 552, 248, 342, 522, 250, 808, 544, 540, 582,
+        548, 424, 484, 422, 544, 560, 776, 520, 524, 524, 380, 300, 380, 544, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+        1024, 1024, 896, 640, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994, 1024, 1024, 1024, 1024,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994, 994, 994, 994, 994,
+        1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 994,
+        994, 994, 994, 994,
+    )),
 }
 
 
@@ -1074,7 +1203,12 @@ class TextStyle:
     label takes before the text (see :func:`label_room`); it comes off the first
     line, and with ``head_hangs`` (자동 내어 쓰기) off every line, the indent then
     only off the others (see :func:`indented_widths`). ``space_before`` (HWPUNIT) is room above the first
-    line; the spacing after the paragraph takes no room in a cell. ``hangul_face``
+    line; the spacing after the paragraph takes no room in a cell. A tab reaches Hancom's next default tab
+    stop, every ``tab_stop`` HWPUNIT from the column's (a cell's: its text area's) left edge, the line
+    starting at ``margin_left`` and its indent or label room; ``tab_stop`` 0 lays a tab out as a
+    space-class glyph. ``tab_stops`` holds the paragraph's own stops, ``(position, kind)`` from that edge
+    in ascending order, which come first (see :func:`tab_reach`), and ``auto_tab_right`` a right-aligned
+    stop at the line's end after them; ``auto_tab_left`` a left one where a hanging indent's lines start. ``hangul_face``
     and ``glyph_face`` name the faces whose design advances Hangul syllables
     and the other glyphs take, laid out as Hancom rounds them (see
     :func:`char_advance`); an empty or unlisted face, or a glyph it does not
@@ -1098,6 +1232,70 @@ class TextStyle:
     scripts: tuple[tuple[str, float, float], ...] = ()
     head: float = 0.0
     head_hangs: bool = False
+    tab_stop: int = _DEFAULT_TAB_STOP
+    tab_stops: tuple[tuple[int, str], ...] = ()
+    auto_tab_left: bool = False
+    auto_tab_right: bool = False
+
+
+def _line_origin(style: TextStyle, first: bool) -> float:
+    """Where a line starts from the column's left edge, the room :func:`indented_widths` takes off it before
+    its text: the left margin, then the first-line indent and the label's room (a hanging indent off the
+    other lines)."""
+
+    if style.head and style.head_hangs:
+        room = style.head if first else style.head - style.indent
+    else:
+        room = max(style.indent, 0) + style.head if first else max(-style.indent, 0)
+    return style.margin_left + room
+
+
+def _tab_advance(x: float, stop: int) -> float:
+    """How far a tab at *x* (from the column's left edge) reaches: to the next default tab stop past it."""
+
+    return (math.floor(x / stop) + 1) * stop - x
+
+
+def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], float]) -> float | None:
+    """How far a tab at *x* reaches on a line ending at *right* (both from the column's left edge), or None
+    when it is laid out as a glyph. *after* gives the width of the text that follows the tab up to the next
+    tab or the end, or with True up to its last full stop (all of it when it has none).
+
+    The paragraph's own stops come first, the first one past *x* that the text after the tab can take: a
+    left stop starts the text there, a right stop ends it there, a centre stop centres it there and a
+    decimal stop puts its last full stop there; a text so aligned does not pass the line's end (a left stop
+    does not hold its text back so, but past a stop already passed over), and a stop whose text would
+    have to start before *x* is passed over. The automatic tab at the end (``auto_tab_right``) is a right stop at the line's end among
+    them. Then the default stops; past a stop that could not take the text, a default stop that leaves the
+    text no room on the line gives the tab no width."""
+
+    stops = set(style.tab_stops)
+    if style.auto_tab_left and style.indent < 0:  # where the lines of a hanging indent start
+        stops.add((style.margin_left - style.indent, "LEFT"))
+    if style.auto_tab_right:  # a right stop at the line's end, in its place among the others
+        stops.add((int(right), "RIGHT"))
+    passed = False  # a stop past x that could not take the text
+    for position, kind in sorted(stops):
+        if position <= x:
+            continue
+        if kind == "RIGHT":
+            start = position - after(False)
+        elif kind == "CENTER":
+            start = position - after(False) / 2
+        elif kind == "DECIMAL":
+            start = position - after(True)
+        else:
+            start = position
+        if kind != "LEFT" or passed:
+            start = min(start, right - after(False))
+        if start >= x:
+            return start - x
+        passed = True
+    if not style.tab_stop:
+        return None
+    reach = _tab_advance(x, style.tab_stop)
+    # past a stop that could not take the text, a default stop that leaves it no room gives the tab none
+    return 0.0 if passed and x + reach + after(False) > right else reach
 
 
 def indented_widths(line: float, style: TextStyle) -> tuple[float, float]:
@@ -1218,6 +1416,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         return _laid_out_space(height, ratio, spacing)
     if cls == "hangul":
         design, base = _hangul_units(style.hangul_face, ch), style.hangul_advance
+    elif ch in _HALF_EM_GLYPHS:
+        design, base = (1, 2), _ADVANCE_EM[cls]
     else:
         design, base = _design_units(style.glyph_face, ch), _ADVANCE_EM[cls]
     if design is not None:
@@ -1293,8 +1493,8 @@ def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
         prev, cur = text[index - 1], text[index]
         if cur in _HANGING_SPACES:
             continue
-        if prev in _HANGING_SPACES:
-            opportunities.add(index)
+        if prev in _HANGING_SPACES or "\t" in (prev, cur):  # a line may start after a space, or at either side
+            opportunities.add(index)  # of a tab
             continue
         if classify_char(prev) in ("hangul", "wide") or classify_char(cur) in ("hangul", "wide"):
             if style.break_non_latin_word == "KEEP_WORD":
@@ -1314,6 +1514,7 @@ def hancom_line_starts(
     styles: Sequence[TextStyle] | None = None,
     advances: Mapping[int, float] | None = None,
     objects: Collection[int] = (),
+    continued: bool = False,
 ) -> list[int]:
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
@@ -1339,6 +1540,9 @@ def hancom_line_starts(
     such as an object set as a character, by their index; *objects* holds
     the indexes of those that are objects: the two spaces right after one
     hang past the margin, and a further space begins the next line as above.
+    A tab reaches the next default tab stop (``style.tab_stop``) from the
+    column's left edge; a line may start on either side of one. *continued*
+    text follows a line break, so its first line is not the paragraph's.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -1349,12 +1553,17 @@ def hancom_line_starts(
     start = 0
     while True:
         width = widths[min(len(starts) - 1, len(widths) - 1)]
+        origin = _line_origin(style, len(starts) == 1 and not continued)
         end, used, inner, pending, seen, spilled, full = start, 0.0, 0, 0, False, False, False
         while end < length:
             ch = text[end]
             size = font_pt if sizes is None else sizes[end]
             look = style if styles is None else styles[end]
             fixed = None if advances is None else advances.get(end)
+            if fixed is None and ch == "\t" and (style.tab_stop or style.tab_stops or style.auto_tab_right):
+                fixed = tab_reach(origin + used, origin + width, style,
+                                  lambda point, at=end: _width_after_tab(text, at, font_pt, style, sizes, styles,
+                                                                         advances, point))
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
                 if used >= width and end > start and not full and _spills(ch, text[end - 1]) \
@@ -1375,8 +1584,8 @@ def hancom_line_starts(
                 break
             shrink = (inner + pending) * space * style.condense / 100.0
             last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
-            if used + last - shrink > width and end > start:
-                break
+            if (used + last - shrink > width or ch == "\t" and used + last >= width) and end > start:
+                break  # a tab reaching the margin itself no longer fits
             used += advance
             inner += pending
             pending = 0
@@ -1399,6 +1608,32 @@ def hancom_line_starts(
         if start >= length:
             return starts
         starts.append(start)
+
+
+def _width_after_tab(
+    text: str,
+    tab: int,
+    font_pt: float,
+    style: TextStyle,
+    sizes: Sequence[float] | None,
+    styles: Sequence[TextStyle] | None,
+    advances: Mapping[int, float] | None,
+    point: bool,
+) -> float:
+    """The width of the text after the tab at *tab* up to the next tab or the end, or with *point* up to
+    its last full stop (all of it when it has none)."""
+
+    stop = text.find("\t", tab + 1)
+    stop = len(text) if stop < 0 else stop
+    if point:
+        dot = text.rfind(".", tab + 1, stop)
+        stop = stop if dot < 0 else dot
+    width = 0.0
+    for index in range(tab + 1, stop):
+        fixed = None if advances is None else advances.get(index)
+        width += fixed if fixed is not None else char_advance(
+            text[index], font_pt if sizes is None else sizes[index], style if styles is None else styles[index])
+    return width
 
 
 def _spills(ch: str, previous: str) -> bool:
@@ -1428,7 +1663,7 @@ def _hancom_line_count(
             total += 1
             continue
         widths = [first_width, rest_width] if index == 0 else [rest_width]
-        total += len(hancom_line_starts(line, widths, font_pt, style))
+        total += len(hancom_line_starts(line, widths, font_pt, style, continued=index > 0))
     return max(total, 1)
 
 
@@ -2007,6 +2242,12 @@ def text_style_from_refs(
             scripts=scripts,
         )
     breaks = getattr(prop, "break_setting", None)
+    try:
+        tabs = root.tab_property(getattr(prop, "tab_pr_id_ref", None))
+    except Exception:  # pragma: no cover - defensive
+        tabs = None
+    tab_stops = tuple(sorted(
+        (int(stop.pos), str(stop.type or "LEFT").upper()) for stop in getattr(tabs, "tab_stops", None) or ()))
     # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
     switch = getattr(prop, "version_switch", None)
     case = getattr(switch, "case", None) if switch is not None else None
@@ -2027,6 +2268,9 @@ def text_style_from_refs(
         glyph_face=glyph_face,
         hangul_face=hangul_face,
         scripts=scripts,
+        tab_stops=tab_stops,
+        auto_tab_left=bool(getattr(tabs, "auto_tab_left", False)),
+        auto_tab_right=bool(getattr(tabs, "auto_tab_right", False)),
     )
     heading = paragraph_label(root, para_pr_id_ref, label)
     if heading is None:
@@ -2084,10 +2328,13 @@ def paragraph_label(root: Any, para_pr_id_ref: object, drawn: str | None = None)
         form = (head.get("numFormat") if head is not None else None) or "DIGIT"
         if not measured:
             return "1" if form in _ASCII_NUMBER_FORMATS else "\uac00"
-        from ..tools.exporter import _number_text
+        from ..tools.exporter import _NUMBER_FORMATS, _number_text
 
         start = int(_style_number(head.get("start") if head is not None else None, 1.0))
-        return _number_text(start, form) if key != "N" else f"{start}."
+        if key == "N":
+            return f"{start}."
+        # a format the text export does not write (KOREAN_DIGIT, HANGUL, ...) counts as one syllable
+        return _number_text(start, form) if form in _NUMBER_FORMATS else "가"
 
     return re.sub(r"\^(\d+|N)", fill, paragraph_head.text or ""), attrs
 

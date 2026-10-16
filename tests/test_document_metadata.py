@@ -3,7 +3,7 @@
 ``Contents/content.hpf``'s ``opf:metadata`` -- title/creator/subject/
 keyword/CreatedDate/ModifiedDate read+write.
 
-Real-corpus reverse-engineering (67 fixtures, see
+Real-corpus format inference (67 fixtures, see
 ``hwpx.oxml.document_metadata``'s own docstring for the full census) found
 this block always shares the same shape, and that ``CreatedDate``/
 ``ModifiedDate`` are single-format (ISO 8601) while ``date`` (the
@@ -120,7 +120,7 @@ def test_setting_a_field_does_not_disturb_other_manifest_content() -> None:
 
 
 def test_real_corpus_metadata_is_readable_without_error() -> None:
-    """Sanity sweep over the real corpus this feature was reverse-engineered
+    """Sanity sweep over the real corpus this feature was inferred
     against -- every fixture must parse without raising, matching the
     census this module's docstring records (67/67 parsed ok)."""
 

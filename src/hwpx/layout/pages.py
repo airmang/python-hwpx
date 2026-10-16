@@ -494,6 +494,9 @@ class _Lookups:
             self._paragraph_shapes = self._document.paragraph_properties
         return HwpxOxmlHeader._lookup_by_id(self._paragraph_shapes, para_pr_id)
 
+    def tab_property(self, tab_pr_id: Any) -> Any:
+        return self._document.tab_property(tab_pr_id)
+
 
 class _Measure:
     """Shapes and line breaking of one document."""
@@ -574,8 +577,9 @@ class _Measure:
 
         if not text:
             return 1
-        return sum(len(hancom_line_starts(line, widths, size / 100, style)) if line else 1
-                   for line in text.split("\n"))
+        return sum(len(hancom_line_starts(line, widths if not index else widths[1:] or widths, size / 100, style,
+                                          continued=bool(index))) if line else 1
+                   for index, line in enumerate(text.split("\n")))  # the lines after a line break are no first line
 
     def line_starts(self, text: str, widths: list[float], size: int, style: Any,
                     sizes: list[int] | None = None, styles: list[Any] | None = None,
@@ -586,14 +590,16 @@ class _Measure:
 
         starts: list[int] = []
         base = 0
-        for line in text.split("\n"):
+        for number, line in enumerate(text.split("\n")):
             points = None if sizes is None else [height / 100 for height in sizes[base:base + len(line)]]
             looks = None if styles is None else styles[base:base + len(line)]
             fixed = None if advances is None else {
                 index - base: width for index, width in advances.items() if base <= index < base + len(line)}
             placed = {index - base for index in objects if base <= index < base + len(line)}
-            starts += [base + start for start in (hancom_line_starts(line, widths, size / 100, style, points, looks,
-                                                                     fixed, placed) if line else [0])]
+            room = widths if not number else widths[1:] or widths  # the lines after a line break are no first line
+            starts += [base + start for start in (hancom_line_starts(line, room, size / 100, style, points, looks,
+                                                                     fixed, placed, continued=bool(number))
+                                                  if line else [0])]
             base += len(line) + 1
         return starts
 
@@ -2058,10 +2064,10 @@ def _apart_from_wide(measure: _Measure, text: str, widths: list[float], sizes: l
                      metrics: tuple[tuple[int, int], ...], size: int, shape: _Shape,
                      place: int) -> tuple[tuple[tuple[int, int], ...], int | None]:
     """Hancom lays an object set as a character that is wider than its line on that line alone: the object
-    placed top and bottom anchored before it at the paragraph's start, or after it at the paragraph's end, stands
-    on an empty line of its own above or below it, as tall as the paragraph's characters (*size*). *text* holds
-    the paragraph's characters and objects set as characters, not the anchored one, whose place in it is
-    *place*. (*metrics* with that line, its index.)
+    placed top and bottom anchored before it at the paragraph's start stands on that line, and one after it at
+    the paragraph's end on an empty line of its own below it, as tall as the paragraph's characters (*size*).
+    *text* holds the paragraph's characters and objects set as characters, not the anchored one, whose place in
+    it is *place*. (*metrics* with that line, its index.)
 
     Otherwise the anchor stands on the line holding the character before it (the first line when it comes
     first), as Hancom keeps it at the end of that line when the next one starts after it: (*metrics*, that line).
@@ -2076,8 +2082,8 @@ def _apart_from_wide(measure: _Measure, text: str, widths: list[float], sizes: l
         return index in objects and objects[index][0] > widths[min(line, len(widths) - 1)]
 
     empty = (size, _pitch(shape.kind, shape.value, size))
-    if place == 0 and wide(0):  # the anchor first: its empty line above
-        return (empty, *metrics), 0
+    if place == 0 and wide(0):  # the anchor first: on the object's line, no line of its own
+        return metrics, 0
     if place == len(text) and wide(len(text) - 1):  # the anchor last: its empty line below
         return (*metrics, empty), len(metrics)
     return metrics, max((number for number, start in enumerate(starts) if start < place), default=0)
@@ -2277,9 +2283,13 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             pitch = _pitch(shape.kind, shape.value, size)
         own, own_pitch = size, pitch  # the paragraph's own line, as tall as its characters
         count, size, pitch, table = _object_line(measure, objects[0], count, size, pitch, page.column_width, shape)
-        if controls is not None:  # the controls before and after it on empty lines of their own, each as tall as
+        if controls is not None:  # the controls after it on an empty line of their own, as tall as the largest
+            before, after = controls[1], controls[2]  # characters of the runs holding them; those before it too
+            if not any(child.find(f"{HP}autoNum") is not None for run in before for child in run  # when they draw
+                       if _local(child) == "ctrl"):  # a number, else they stand on the table's line
+                before = []
             heights = [max(measure.char_height(run.get("charPrIDRef")) for run in side) if side else None
-                       for side in controls[1:]]  # the largest characters of the runs holding them
+                       for side in (before, after)]
             empty = [None if height is None else (height, _pitch(shape.kind, shape.value, height))
                      for height in heights]
             cached = tuple(line for line in (empty[0], (size, pitch), empty[1]) if line is not None)
@@ -2346,8 +2356,8 @@ def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list
     """(*obj*'s run, the runs holding controls before it, those holding controls after it) when *obj* is a table
     set as a character wider than the line (*width*) and controls (``hp:ctrl``, a page number, a hidden page
     number, a field, a bookmark, a header and so on -- but not a column definition) stand beside it in its
-    paragraph, else ``None``: Hancom sets the controls before it on an empty line of their own, the table on the
-    next line and the controls after it on the line after that."""
+    paragraph, else ``None``: Hancom sets the controls before it on the table's line (on an empty line of their
+    own above it when they show a number) and the controls after it on the line after that."""
 
     if _local(obj) != "tbl" or obj.find(f"{HP}pos").get("treatAsChar") != "1" or _extent(obj, "width") <= width:
         return None
@@ -2542,12 +2552,9 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     if wrap is not None and wrap.push:  # objects set as characters on a line reaching it go below it with it
         return _push(_paragraph(measure, page, paragraph), wrap, starts=False)
     if wrap is not None and objects and not placed and not _run_text(runs).strip():
-        para = _paragraph(measure, page, paragraph)  # one object set as a character, alone
-        if len(objects) > 1:
+        para = _paragraph(measure, page, paragraph)  # one object set as a character, alone: beside it, even
+        if len(objects) > 1:  # wider than the room
             raise _Unsupported("objects set as characters beside a square-wrapped object")
-        if _object_extent(objects[0], measure)[0] > _room_beside(wrap, page.column_width - shape.left - shape.right):
-            pushed, after = _push(para, replace(wrap, push=True), starts=False)  # below it, the whole width
-            return replace(pushed, wrap_stays=wrap.stays, wrap_free=wrap.stays), after
         beside = sum(1 for line in range(para.lines) if para.span(0, line) < wrap.bottom)
         return replace(para, wrap_lines=beside, wrap_stays=wrap.stays, wrap_free=wrap.stays), \
             wrap.lower(para.span(0, para.lines) + para.next)
@@ -2755,9 +2762,9 @@ def _banded_object_lines(measure: _Measure, text: str, widths: list[float], size
                          end: int, head: int) -> tuple[tuple[tuple[int, int], ...], int]:
     """(height, advance) of each line of text holding objects set as characters (*objects*: place -> width and
     height) beside a square-wrapped object's band, and how far the first line goes down. A line whose top is in
-    the band is as wide as the room beside the object, but the first one holding an object wider than that room
-    goes below the band, the whole width, the rest of the room left empty (its line before spaced that much
-    more). Every line taken as narrow at first, the lines are broken again until the narrow ones settle."""
+    the band is as wide as the room beside the object, one holding an object wider than that room too (the object
+    alone on it, reaching past the room). Every line taken as narrow at first, the lines are broken again until
+    the narrow ones settle."""
 
     advances = {index: width for index, (width, _) in objects.items()} or None
     mixed = sizes if len(set(sizes)) > 1 else None
@@ -2780,15 +2787,7 @@ def _banded_object_lines(measure: _Measure, text: str, widths: list[float], size
             pitch = _pitch(shape.kind, shape.value, size)
             advance = pitch if shape.kind == "FIXED" else height + pitch - size
             if top < wrap.bottom and top + height > wrap.top:
-                room = widths[min(line, 1)] - wrap.cut
-                if any(objects[index][0] > room for index in span if index in objects):  # below the band
-                    if metrics:
-                        metrics[-1] = (metrics[-1][0], metrics[-1][1] + wrap.bottom - top)
-                    else:
-                        lead = wrap.bottom - top
-                    top = wrap.bottom
-                else:
-                    found.add(line)
+                found.add(line)
             metrics.append((height, advance))
             top += advance
         if found == narrow:

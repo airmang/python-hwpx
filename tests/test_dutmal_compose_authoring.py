@@ -2,7 +2,7 @@
 """덧말(hp:dutmal)·글자 겹치기(hp:compose) 저작 (cycle 6.9 train 34).
 
 ``hp:compose``'s read model shipped earlier (commit 6f88e2e); this covers
-the authoring side plus the newly-reverse-engineered ``hp:dutmal`` (both
+the authoring side plus the newly-inferred ``hp:dutmal`` (both
 read and write -- see docs/owpml-deviations.md DEV-041 for the schema
 mismatch its only real-corpus sample exposed).
 """
@@ -34,7 +34,7 @@ def _run_content(paragraph):
 
 
 # ============================================================================
-# real-corpus read model (locks the reverse-engineering in as a regression)
+# real-corpus read model (locks the format inference in as a regression)
 # ============================================================================
 
 

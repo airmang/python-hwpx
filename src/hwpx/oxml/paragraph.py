@@ -1074,7 +1074,7 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlInlineObject:
         """Insert a native ``<hp:chart>`` anchor referencing a chartML part.
 
-        Emits the real-Hancom chart anchor (contract reverse-engineered in
+        Emits the real-Hancom chart anchor (contract inferred in
         specs/055-chart-authoring/evidence/p0/chart-contract.md): the chart
         content lives in an ECMA-376 chartML part addressed directly by
         ``chartIDRef`` (real Hancom registers the part in no manifest), and
@@ -1148,7 +1148,7 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlInlineObject:
         """Insert an inline ``<hp:equation>`` carrying an EqEdit *script*.
 
-        Emits the real-Hancom equation shape (contract reverse-engineered in
+        Emits the real-Hancom equation shape (contract inferred in
         specs/054-equation-authoring/evidence/p0/equation-contract.md): the
         EqEdit source lives in the ``<hp:script>`` child, no lineseg cache is
         written (Hancom re-lays-out on open), and the shape is inline
@@ -1233,7 +1233,7 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlInlineObject:
         """Insert a click-here (누름틀) form field at the end of this paragraph.
 
-        Emits the real-Hancom CLICKHERE shape (reverse-engineered from Hancom
+        Emits the real-Hancom CLICKHERE shape (inferred from Hancom
         Office 12.0.0.3288 gold documents):
         a ``fieldBegin`` ctrl run carrying the ``Prop``/``Command``/``Direction``/
         ``HelpState`` parameters, an optional prompt run showing *prompt* (the
