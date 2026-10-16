@@ -2251,6 +2251,19 @@ def _face_names(root: Any, char_pr_id_ref: object) -> tuple[str, str]:
     return face, face if len(faces) == 1 else ""
 
 
+def margins_doubled(root: object) -> bool:
+    """Whether Hancom reads the margins and the line spacing a paragraph shape holds outside ``hp:switch`` as
+    ``hp:default`` holds them, doubled: in a document an older Hancom saved, its ``version.xml`` giving an
+    ``xmlVersion`` below 1.31."""
+
+    element = getattr(getattr(root, "version", None), "element", None)
+    value = element.get("xmlVersion") if element is not None else None
+    try:
+        return value is not None and float(value) < 1.31
+    except ValueError:
+        return False
+
+
 def text_style_from_refs(
     document: object,
     para_pr_id_ref: object,
@@ -2314,8 +2327,10 @@ def text_style_from_refs(
     switch = getattr(prop, "version_switch", None)
     case = getattr(switch, "case", None) if switch is not None else None
     margin = getattr(case, "margin", None) if case is not None else None
+    half = 1
     if margin is None:
         margin = getattr(prop, "margin", None)
+        half = 2 if margins_doubled(root) else 1
     style = TextStyle(
         ratio=ratio,
         spacing=spacing,
@@ -2323,10 +2338,10 @@ def text_style_from_refs(
         break_latin_word=getattr(breaks, "break_latin_word", None) or "KEEP_WORD",
         break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
-        indent=int(_style_number(getattr(margin, "intent", 0), 0.0)),
-        margin_left=int(_style_number(getattr(margin, "left", 0), 0.0)),
-        margin_right=int(_style_number(getattr(margin, "right", 0), 0.0)),
-        space_before=int(_style_number(getattr(margin, "prev", 0), 0.0)),
+        indent=int(_style_number(getattr(margin, "intent", 0), 0.0)) // half,
+        margin_left=int(_style_number(getattr(margin, "left", 0), 0.0)) // half,
+        margin_right=int(_style_number(getattr(margin, "right", 0), 0.0)) // half,
+        space_before=int(_style_number(getattr(margin, "prev", 0), 0.0)) // half,
         glyph_face=glyph_face,
         hangul_face=hangul_face,
         scripts=scripts,
