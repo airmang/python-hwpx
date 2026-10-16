@@ -828,6 +828,12 @@ HANCOM_PAGES = {
                                                              # it, the character's line below its end
     "pages_bullet_and_number_labels": 16,  # fourteen blocks of rows under bullets and numbers of every
                                              # label setting: each label takes its room off the lines
+    # Outline paragraphs (the template's levels 1 to 7, labels without a character shape of their own) of two
+    # to four runs, the first and the last of different sizes, some ending in an empty run: Hancom measures the
+    # label in the paragraph end's shape, and that size counts in the first line's height.
+    "pages_outline_labels_paragraph_end_shape": 2,
+    "pages_outline_labels_paragraph_end_shape_sizes": 2,
+    "pages_outline_labels_paragraph_end_shape_empty_run": 2,
     "pages_bullet_in_its_own_20pt_shape": 1,  # three-line paragraphs of 10 pt text under a bullet in its own
                                               # 20 pt shape, at 160 %: the first line as tall as the bullet
     "pages_bullet_in_its_own_8pt_shape": 1,   # an 8 pt one: no line taller

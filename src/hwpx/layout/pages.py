@@ -538,29 +538,33 @@ class _Measure:
 
     def style(self, para_pr_id: Any, char_pr_ids: list[Any], paragraph: Any = None) -> Any:
         """FormFit's text style of a paragraph shape and its characters; with *paragraph*, a number's label
-        takes the room of the label Hancom draws for that paragraph."""
+        takes the room of the label Hancom draws for that paragraph, and a label without a character shape of
+        its own that of the paragraph's end."""
 
         drawn = None
         if paragraph is not None and self.numbered(para_pr_id):
             if self._drawn is None:
                 self._drawn = _drawn_labels(self._root)
             drawn = self._drawn.get(paragraph)
-        key = (str(para_pr_id), tuple(str(ref) for ref in char_pr_ids), drawn)
+        end = _end_ref(paragraph) if paragraph is not None else None
+        key = (str(para_pr_id), tuple(str(ref) for ref in char_pr_ids), drawn, end)
         if key not in self._styles:
-            self._styles[key] = text_style_from_refs(self._lookups, para_pr_id, char_pr_ids, drawn)
+            self._styles[key] = text_style_from_refs(self._lookups, para_pr_id, char_pr_ids, drawn, end)
         return self._styles[key]
 
-    def label_size(self, para_pr_id: Any) -> int:
-        """The character size of a paragraph shape's bullet or number label in its own character shape
-        (``hh:paraHead@charPrIDRef``); 0 when it has none or takes its paragraph's."""
+    def label_size(self, para_pr_id: Any, end: Any = None) -> int:
+        """The character size of a paragraph shape's bullet or number label: in its own character shape
+        (``hh:paraHead@charPrIDRef``), or without one in that of the paragraph's end (*end*); 0 when it has
+        none, or no shape of its own and no *end*."""
 
         key = str(para_pr_id)
         if key not in self._label_sizes:
             label = paragraph_label(self._root, para_pr_id)
             ref = label[1].get("charPrIDRef") if label is not None else None
             own = ref is not None and ref != "4294967295" and self._root.char_property(ref) is not None
-            self._label_sizes[key] = self.char_height(ref) if own else 0
-        return self._label_sizes[key]
+            self._label_sizes[key] = self.char_height(ref) if own else -1 if label is not None else 0
+        size = self._label_sizes[key]
+        return size if size >= 0 else self.char_height(end) if end is not None else 0
 
     def numbered(self, para_pr_id: Any) -> bool:
         """Whether a paragraph shape heads its paragraphs with a number (``NUMBER`` or ``OUTLINE``)."""
@@ -1815,15 +1819,22 @@ def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
     return size if size > min(sizes) else 0
 
 
+def _end_ref(paragraph: Any) -> Any:
+    """The character shape of a paragraph's end: its last run's, or None without runs."""
+
+    runs = paragraph.findall(f"{HP}run")
+    return runs[-1].get("charPrIDRef") if runs else None
+
+
 def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
-    """The size a bullet or number label in its own character shape, or a run holding nothing but controls
-    before the text (a section's or columns' definition, a page number: an empty run takes no room), gives its
-    paragraph's first line: a character of that size there (it counts when it is larger than the smallest
-    character); 0 when not."""
+    """The size a bullet or number label (in its own character shape, or without one in that of the
+    paragraph's end), or a run holding nothing but controls before the text (a section's or columns'
+    definition, a page number: an empty run takes no room), gives its paragraph's first line: a character of
+    that size there (it counts when it is larger than the smallest character); 0 when not."""
 
     if not sizes:
         return 0
-    size = measure.label_size(paragraph.get("paraPrIDRef"))
+    size = measure.label_size(paragraph.get("paraPrIDRef"), _end_ref(paragraph))
     for run in paragraph.findall(f"{HP}run"):
         if any(child.text or len(child) for child in run.findall(f"{HP}t")):  # the text starts
             break
