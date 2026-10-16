@@ -143,7 +143,9 @@
   at the page end goes to the next page, and the table with it. When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
-  room at the foot of the page and go on over the page end.
+  room at the foot of the page and go on over the page end. Endnotes go after the document's text,
+  below the foot of its last line (on the next page when footnotes take room on that page): the note
+  area's spacing and separator, then the notes' lines one after another, going on over page ends.
 
 A table set as a character that the row model does not follow (merged rows, a nested table) keeps
 the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
@@ -151,7 +153,8 @@ i.e. Hancom laid the table out as it is. Otherwise a table whose cells merge row
 their tallest cells of one row, and each merged cell, the one that ends first first, gives the last
 of its rows what they lack.
 
-Anything else makes the estimate unsupported: endnotes, an object not set as a character in columns
+Anything else makes the estimate unsupported: endnotes placed otherwise than at the document's end or
+after a section of several columns, an object not set as a character in columns
 of unequal width, and there a paragraph without such a cache holding objects, composed characters,
 ruby text or footnotes, footnotes or objects placed on the page or the paper in a section whose
 columns change, section settings after a section's first
@@ -282,7 +285,36 @@ def estimate_pages(document: "HwpxDocument | bytes | str | os.PathLike[str]") ->
             reasons.append(f"section {number}: {exc}")
     if reasons:
         return PageEstimate(None, (), tuple(reasons))
+    notes = [note for section in root.sections for note in section.element.iter(f"{HP}endNote")]
+    if notes:
+        last = len(root.sections) - 1
+        try:
+            layouts[-1] = _with_endnotes(measure, layouts[-1], _note_shape(root.sections[-1].element, "endNotePr"),
+                                         notes)
+        except _Unsupported as exc:
+            return PageEstimate(None, (), (f"section {last}: {exc}",))
     return _assemble(layouts)
+
+
+def _with_endnotes(measure: _Measure, layout: _SectionLayout, shape: _NoteShape, notes: list[Any]) -> _SectionLayout:
+    """The last section's layout with the document's endnotes after its text: below the foot of its last
+    line (on the next page when footnotes take room on that page), the note area's spacing and separator,
+    then each note's lines, the spacing between notes between them, going on over page ends line by line."""
+
+    if layout.places is not None or layout.columns != 1 or layout.end is None:
+        raise _Unsupported("endnotes after columns")
+    frame, top = layout.end
+    if layout.noted:
+        frame, top = frame + 1, 0
+    top += shape.above + shape.line + shape.below
+    for number, note in enumerate(notes):
+        if number:
+            top += shape.between
+        for height, advance in measure.stack_lines(note.findall(f"{HP}subList/{HP}p"), layout.width, caches=False):
+            if top + height > layout.body and top > 0:
+                frame, top = frame + 1, 0
+            top += advance
+    return replace(layout, frames=max(layout.frames, frame + 1))
 
 
 def _open(document: Any) -> Any:
@@ -1495,15 +1527,18 @@ class _NoteShape:
         return 0 if count == 0 else self.above + self.line + self.below + height + self.between * (count - 1)
 
 
-def _note_shape(section: Any) -> _NoteShape:
-    if next(section.iter(f"{HP}endNote"), None) is not None:
-        raise _Unsupported("endnotes")
-    settings = next(section.iter(f"{HP}footNotePr"), None)
+def _note_shape(section: Any, kind: str = "footNotePr") -> _NoteShape:
+    """The note area of the section's footnotes (or, with *kind* ``endNotePr``, of its endnotes)."""
+
+    settings = next(section.iter(f"{HP}{kind}"), None)
     if settings is None:
         return _NoteShape()
     placement = settings.find(f"{HP}placement")
-    if placement is not None and placement.get("beneathText") == "1":
+    if kind == "footNotePr" and placement is not None and placement.get("beneathText") == "1":
         raise _Unsupported("footnotes beneath the text")
+    if kind == "endNotePr" and placement is not None and (
+            placement.get("place", "END_OF_DOCUMENT") != "END_OF_DOCUMENT" or placement.get("beneathText") in {"1", "true"}):
+        raise _Unsupported("endnotes placed otherwise than at the document's end")
     spacing = settings.find(f"{HP}noteSpacing")
     rule = settings.find(f"{HP}noteLine")
     millimetres = float((rule.get("width", "0 mm") if rule is not None else "0 mm").split()[0])
@@ -3753,6 +3788,12 @@ class _SectionLayout:
     #: of its frame, and the section's pages
     places: list[tuple[int, int]] | None = None
     pages: int = 0
+    #: where the section's text ends: the frame and the foot of its last line, whether footnotes take room on
+    #: that page, and the page's body height and column width (for the endnotes that follow)
+    end: tuple[int, int] | None = None
+    noted: bool = False
+    body: int = 0
+    width: int = 0
 
 
 def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
@@ -3812,7 +3853,13 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
         raise _Unsupported("objects placed on the paper whose pages do not settle")
     if paginator.beside:
         raise _Unsupported("text beside an object placed on the paper")
-    return _SectionLayout(page.columns, frames, paginator.out, paginator.counts)
+    end = None
+    last = max((index for index, count in enumerate(paginator.counts) if count), default=None)
+    if last is not None and paginator.out:
+        frame, top = paginator.out[-1]
+        end = (frame, top + paras[last].height(paginator.counts[last] - 1))
+    return _SectionLayout(page.columns, frames, paginator.out, paginator.counts, end=end,
+                          noted=bool(paginator.page_notes[1]), body=page.body, width=page.column_width)
 
 
 #: A column area starts this far below the lowest line of the one before it on its page (4 mm), whatever the

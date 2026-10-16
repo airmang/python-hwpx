@@ -1893,13 +1893,44 @@ def test_a_flowing_table_clear_of_an_object_placed_on_the_paper_is_followed() ->
     assert [lines[0].vertpos for lines in estimate.lines[3:5]] == [13080, 14680]
 
 
-def test_a_document_with_endnotes_is_unsupported() -> None:
+# Endnotes at the document's end (one to eight, of one or more lines), laid out and saved by Hancom: below the
+# foot of the text's last line the note area's 850 above the separator and 567 below it, then the notes' lines,
+# going on over the page end; after a page whose footnotes take room, on the next page. The pages the
+# endnotes take may hold no body line.
+ENDNOTE_PAGES = {
+    "pages_endnotes_after_the_text": 1,
+    "pages_endnotes_over_the_page_end": 2,
+    "pages_endnotes_after_a_page_with_a_footnote": 2,
+    "pages_endnotes_after_two_pages": 2,
+}
+
+
+@pytest.mark.parametrize("name", sorted(ENDNOTE_PAGES))
+def test_endnotes_follow_the_documents_text(name: str) -> None:
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+    hancom = _hancom_lines(data)
+
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+
+        assert (estimate.unsupported, estimate.pages) == ((), ENDNOTE_PAGES[name])
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == hancom
+
+
+def test_endnotes_at_a_sections_end_are_unsupported() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("본문")
     document.notes.add_endnote("미주", paragraph)
+    data = document.to_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                payload = payload.replace(b'place="END_OF_DOCUMENT"', b'place="END_OF_SECTION"')
+            target.writestr(info, payload)
 
-    estimate = estimate_pages(document)
-
+    assert estimate_pages(data).pages == 1
+    estimate = estimate_pages(out.getvalue())
     assert estimate.pages is None
-    assert estimate.lines == ()
-    assert estimate.unsupported == ("section 0: endnotes",)
+    assert estimate.unsupported == ("section 0: endnotes placed otherwise than at the document's end",)
