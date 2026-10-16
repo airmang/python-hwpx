@@ -6,7 +6,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence, TypeVar, cast
 import xml.etree.ElementTree as ET
 
 from hwpx.opc.relationships import resolve_part_name
@@ -1293,7 +1293,11 @@ class HwpxOxmlDocument:
 
         # Build a renderable empty section.  ``secPr`` and ``colPr`` must
         # precede body text in the first paragraph's first run.
-        section_element = section_properties.makeelement(f"{_HS}sec", {})
+        # with the namespace prefixes Hancom writes (hs, hp, hc, ...): structure edits read the hp prefix
+        from .namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+
+        section_element = cast(Any, section_properties).makeelement(
+            f"{_HS}sec", {}, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
         para_attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
         para = _append_child(section_element, f"{_HP}p", para_attrs)
         run = _append_child(para, f"{_HP}run", {"charPrIDRef": "0"})
