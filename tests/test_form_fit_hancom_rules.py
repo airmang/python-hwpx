@@ -40,6 +40,7 @@ from hwpx.form_fit.measure import (
     indented_widths,
     label_room,
     resolve_slot_metrics,
+    tab_reach,
     text_style_from_refs,
 )
 
@@ -107,8 +108,43 @@ def test_a_tab_reaches_the_next_default_stop_from_the_columns_left_edge() -> Non
     # A first-line indent moves the first line's text, not the lines after a line break.
     assert hancom_line_starts("가가가\t가가", [8500], 10, replace(style, indent=1417)) == [0, 4]
     assert hancom_line_starts("가가가\t가가", [8500], 10, replace(style, indent=1417), continued=True) == [0]
-    # A paragraph whose tab definition sets stops of its own keeps the tab as a space-class glyph.
+    # Without default stops (and no stops of its own) a tab is a space-class glyph.
     assert hancom_line_starts("가가가\t가가", [8500], 10, replace(style, margin_left=1417, tab_stop=0)) == [0]
+
+
+def test_a_tab_reaches_the_paragraphs_own_stops_first() -> None:
+    def after(point: bool) -> float:
+        return 600.0 if point else 1500.0  # "12.5": 600 up to its full stop, 1500 in all
+
+    style = TextStyle(tab_stops=((10000, "LEFT"), (20000, "RIGHT"), (30000, "CENTER"), (35000, "DECIMAL")))
+    assert tab_reach(3000, 42520, style, after) == 7000  # a left stop starts the text there
+    assert tab_reach(12000, 42520, style, after) == 6500  # a right stop ends it there
+    assert tab_reach(21000, 42520, style, after) == 8250  # a centre stop centres it there
+    assert tab_reach(31000, 42520, style, after) == 3400  # a decimal stop puts its full stop there
+    # Past the last stop the default stops. An aligned text does not pass the line's end; a left stop past
+    # it takes the tab there all the same.
+    assert tab_reach(36000, 42520, style, after) == 4000
+    assert tab_reach(21000, 29000, style, after) == 6500  # the centre stop: "12.5" ends at 29000
+    assert tab_reach(3000, 9000, style, after) == 7000
+    # The automatic tab at the end is a right stop at the line's end among the others.
+    assert tab_reach(36000, 42520, replace(style, auto_tab_right=True), after) == 5020
+    assert tab_reach(3000, 9000, replace(style, auto_tab_right=True), after) == 4500
+    # A stop whose text would have to start before the tab is passed over; past one, a default stop that
+    # leaves the text no room on the line gives the tab none.
+    assert tab_reach(19000, 42520, style, after) == 10250
+    assert tab_reach(34500, 35500, style, after) == 0
+    # The automatic tab of a hanging indent stops where its lines start.
+    assert tab_reach(1000, 42520, TextStyle(indent=-2000, auto_tab_left=True), after) == 1000
+    assert tab_reach(1000, 42520, TextStyle(indent=-2000), after) == 3000
+
+
+def test_a_tab_reaching_a_right_stop_keeps_the_text_after_it_on_the_line() -> None:
+    style = TextStyle(tab_stops=((8000, "RIGHT"),))
+    # "가가" then a tab to a right stop at 8000: "나나" (2000) ends there, the line 8500 wide; on a line 7900
+    # wide the stop is past its end and "나나" ends at the end. On one 3500 wide it no longer fits after "가가".
+    assert hancom_line_starts("가가\t나나", [8500], 10, style) == [0]
+    assert hancom_line_starts("가가\t나나", [7900], 10, style) == [0]
+    assert hancom_line_starts("가가\t나나", [3500], 10, style) == [0, 3]
 
 
 def test_each_character_can_take_its_own_size() -> None:
