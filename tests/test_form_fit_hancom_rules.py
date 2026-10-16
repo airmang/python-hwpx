@@ -236,8 +236,6 @@ def test_dodum_punctuation_and_the_exclamation_mark_break_where_hancom_breaks_th
     assert len(cells) == 144
 
 
-
-
 def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
     # Hancom laid these documents out: each cell holds a glyph and five Hangul syllables in 한컴산뜻돋움, HY중고딕,
     # HY견고딕, HY신명조, 새굴림 or 한컴 말랑말랑 Regular at one of the two widths where its line count changes, at
