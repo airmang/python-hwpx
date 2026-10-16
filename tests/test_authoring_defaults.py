@@ -7,6 +7,7 @@ from hwpx import HwpxDocument
 import pytest
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 
 def _roundtrip(doc: HwpxDocument) -> HwpxDocument:
@@ -89,6 +90,68 @@ class TestListParaPrDoesNotLeak:
         styled = doc.add_paragraph("본문", para_pr_id_ref="0")
         after = doc.add_paragraph("이어지는 본문")
         assert after.element.get("paraPrIDRef") == styled.element.get("paraPrIDRef")
+
+
+def _break_setting(doc: HwpxDocument, paragraph) -> dict[str, str]:
+    wanted = paragraph.element.get("paraPrIDRef")
+    for para_pr in doc._root.headers[0]._para_properties_element().iter(f"{HH}paraPr"):
+        if para_pr.get("id") == wanted:
+            return dict(para_pr.find(f"{HH}breakSetting").attrib)
+    raise AssertionError(f"paraPr {wanted} not found")
+
+
+def _alignment(doc: HwpxDocument, paragraph) -> str | None:
+    wanted = paragraph.element.get("paraPrIDRef")
+    for para_pr in doc._root.headers[0]._para_properties_element().iter(f"{HH}paraPr"):
+        if para_pr.get("id") == wanted:
+            return para_pr.find(f"{HH}align").get("horizontal")
+    raise AssertionError(f"paraPr {wanted} not found")
+
+
+class TestPageFlowSettingsDoNotLeak:
+    @pytest.mark.parametrize(
+        ("option", "attr"),
+        [
+            ("page_break_before", "pageBreakBefore"),
+            ("keep_with_next", "keepWithNext"),
+            ("keep_lines", "keepLines"),
+        ],
+    )
+    def test_next_paragraph_does_not_inherit_a_page_flow_setting(self, option, attr) -> None:
+        doc = HwpxDocument.new()
+        doc.add_paragraph("첫 문단")
+        set_on = doc.add_paragraph("둘째 문단")
+        last = len(doc.paragraphs) - 1
+        doc.set_paragraph_format(paragraph_index=last, alignment="CENTER", **{option: True})
+        after = doc.add_paragraph("셋째 문단")
+        later = doc.add_paragraph("넷째 문단")
+
+        assert _break_setting(doc, set_on)[attr] == "1"
+        assert _break_setting(doc, after)[attr] == "0"
+        assert _break_setting(doc, later)[attr] == "0"
+        # The rest of the paragraph shape still carries over.
+        assert _alignment(doc, after) == "CENTER"
+        assert _alignment(doc, later) == "CENTER"
+
+    def test_the_same_shape_without_the_setting_is_reused(self) -> None:
+        doc = HwpxDocument.new()
+        doc.add_paragraph("본문")
+        target = doc.add_paragraph("가운데")
+        last = len(doc.paragraphs) - 1
+        doc.set_paragraph_format(paragraph_index=last, alignment="CENTER")
+        centered = target.element.get("paraPrIDRef")
+        doc.set_paragraph_format(paragraph_index=last, page_break_before=True)
+        assert target.element.get("paraPrIDRef") != centered
+        after = doc.add_paragraph("다음")
+        assert after.element.get("paraPrIDRef") == centered
+
+    def test_explicit_para_pr_with_a_page_flow_setting_is_kept(self) -> None:
+        doc = HwpxDocument.new()
+        first = doc.add_paragraph("본문")
+        doc.set_paragraph_format(paragraph_index=len(doc.paragraphs) - 1, page_break_before=True)
+        breaking = first.element.get("paraPrIDRef")
+        again = doc.add_paragraph("새 쪽", para_pr_id_ref=breaking)
+        assert again.element.get("paraPrIDRef") == breaking
 
 
 class TestBorderSurface:
