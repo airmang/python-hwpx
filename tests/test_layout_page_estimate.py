@@ -252,6 +252,9 @@ HANCOM_PAGES = {
     "pages_keep_with_next_chain_with_a_footnote": 7,
     "pages_keep_with_next_chain_of_several_lines_goes_on": 2,
     "pages_keep_keep_with_next": 3,       # keep with next
+    # Two columns whose gap is written 2**32 - 2**15: a signed 32-bit number, -32768, so the columns overlap and
+    # each is (42520 + 32768) / 2 wide, as Hancom lays them out.
+    "columns_gap_wrapped": 1,
     "pages_columns_2_break": 4,           # two columns and a column break
     # Columns changing inside the section (10 pt lines spaced 160%): three lines in one column, a paragraph
     # starting two columns (gap 1200) and the lines after it, then one starting one column and three lines.
