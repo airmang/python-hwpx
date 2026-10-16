@@ -122,7 +122,7 @@ _HALF_EM_SPACES = frozenset(" \u00a0")
 #: same: rounded, \uc7a5\ud3c9 and \uc790\uac04 applied as any other is).
 _HALF_EM_GLYPHS = frozenset("!")
 #: Closing punctuation that never starts a line; it moves down with the
-#: character before it.
+#: character before it; but the ellipsis starts a line after a space.
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
 #: Opening punctuation that never ends a line.
 _NO_LINE_END = frozenset("([{‘“〈《「『【〔")
@@ -1609,7 +1609,7 @@ def hancom_line_starts(
             options = [
                 index for index in breaks
                 if start < index <= end
-                and text[index] not in _NO_LINE_START
+                and (text[index] not in _NO_LINE_START or text[index] == "…" and text[index - 1] in _HANGING_SPACES)
                 and text[index - 1] not in _NO_LINE_END
             ]
             start = max(options) if options else end
