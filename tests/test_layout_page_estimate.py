@@ -929,6 +929,12 @@ HANCOM_PAGES = {
     "pages_ruby_below_beside_larger_text": 1,  # below it, beside 14 pt text
     "pages_ruby_longer_than_its_text": 2,  # six syllables of ruby over one: as wide as the one
     "pages_ruby_below_in_a_cell": 1,    # ruby text below text in a cell
+    # An empty paragraph holding a picture wrapped square 14000 from its left, text on both sides: an empty
+    # line reaching the picture is two empty pieces beside it, one above it (the picture placed lower than
+    # the line's foot) is one line
+    "pages_square_picture_reaching_an_empty_line": 1,  # placed 900 below the line's top: two pieces
+    "pages_square_picture_just_below_an_empty_line": 1,  # 1100 below: one line
+    "pages_square_picture_far_below_an_empty_line": 1,  # 8000 below: one line
 }
 
 
