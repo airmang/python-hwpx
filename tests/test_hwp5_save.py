@@ -477,12 +477,13 @@ def test_a_new_documents_scripts_are_kept_as_none() -> None:
     assert empty == bytes.fromhex("63604005ff8100006ebb6ed114000000")
 
 
-@pytest.mark.parametrize(("password", "words"), [(False, (4, 0)), (True, (4, 4))])
+@pytest.mark.parametrize(("password", "words"), [(False, (56, 0)), (True, (56, 4))])
 def test_the_change_tracking_password_algorithm_is_kept(password: bool, words: tuple[int, int]) -> None:
     files = _with_print_info(_PRINT_ITEMS)
     head = etree.fromstring(files["Contents/header.xml"])
     config = head.find(f".//{HH}trackchageConfig")
     assert config is not None
+    config.set("flags", "56")
     if password:
         group = etree.SubElement(config, f"{{{_CONFIG}}}config-item-set", name="TrackChangePasswordInfo")
         etree.SubElement(group, f"{{{_CONFIG}}}config-item", name="algorithm-name", type="string").text = "SHA1"
@@ -494,6 +495,22 @@ def test_the_change_tracking_password_algorithm_is_kept(password: bool, words: t
     assert back is not None
     names = [item.text for item in back.iter(f"{{{_CONFIG}}}config-item")]
     assert names == (["SHA1"] if password else [])
+
+
+@pytest.mark.parametrize("flags", ["4", "56", "60"])
+def test_the_change_tracking_flags_are_the_settings_records_first_word(flags: str) -> None:
+    # Hancom writes trackchageConfig@flags into the first word of the settings record and reads it back from there.
+    files = _with_print_info(_PRINT_ITEMS)
+    head = etree.fromstring(files["Contents/header.xml"])
+    config = head.find(f".//{HH}trackchageConfig")
+    assert config is not None
+    config.set("flags", flags)
+    files["Contents/header.xml"] = etree.tostring(head)
+    hwp = write_hwp5(files)
+    [settings] = [r.payload for r in read_hwp5(hwp).docinfo.records if r.tag == rec.TRACKCHANGE]
+    assert struct.unpack_from("<I", settings)[0] == int(flags)
+    back = etree.fromstring(convert(hwp).files["Contents/header.xml"]).find(f".//{HH}trackchageConfig")
+    assert back is not None and back.get("flags") == flags
 
 
 def test_an_end_cap_with_no_name_is_left_out_and_written_flat() -> None:

@@ -189,6 +189,7 @@ def attach_memo_field(
             "dirty": "0",
             "zorder": order,
             "fieldid": MEMO_FIELD_ID,
+            "metaTag": "",
         },
     )
 
