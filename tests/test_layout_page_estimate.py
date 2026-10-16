@@ -1003,6 +1003,27 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "pages_repeated_header_of_five_lines_without_room",
+        "pages_repeated_header_holding_a_table_without_room",  # a line and a table of two rows in it
+        "pages_repeated_header_holding_a_taller_table_without_room",  # a line and a table of six rows
+    ],
+)
+def test_a_repeated_header_row_without_room_is_not_split(name: str) -> None:
+    # A flowing table of 61 rows split cell by cell, its first row a header repeated on every page, under 37 to
+    # 39 lines: with no room for the header row, Hancom does not split it between its lines but starts the
+    # table on the next page, and the paragraph after it goes on under the anchor line on the first.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+
+        assert (estimate.unsupported, estimate.pages) == ((), 3)
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == _hancom_lines(data)
+
+
 def test_an_unsplit_table_without_room_goes_on_alone() -> None:
     # The table above, 63000 tall, set not to split: with no room below the line's top, it goes alone to the
     # next page's top and the paragraph's lines, and those after, stay where they stood on the first page.
