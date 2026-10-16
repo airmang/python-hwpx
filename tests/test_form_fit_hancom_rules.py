@@ -270,11 +270,13 @@ def test_a_line_taking_its_height_from_the_font_is_as_tall_as_the_face_makes_it(
 
 
 def test_human_myeongjo_takes_the_design_advances_of_its_font() -> None:
-    # Hancom lays 휴먼명조 out in 1024 units per em: a Hangul syllable takes the full em, a parenthesis 321 units,
-    # the comma 276 and A 676.
+    # Hancom lays 휴먼명조 out in 1024 units per em: a Hangul syllable takes the full em, a parenthesis 320 units,
+    # the comma 276 and A 676. 320 and 321 units give a parenthesis the same width at 10 and 40 pt; at 15 pt
+    # Hancom lays it out 468 wide (321 would be 472), and at 80 pt 2500.
     style = TextStyle(hangul_face="휴먼명조", glyph_face="휴먼명조")
-    assert glyph_advance_em("휴먼명조", "(") == 321 / 1024
+    assert glyph_advance_em("휴먼명조", "(") == 320 / 1024
     assert [char_advance(ch, 10, style) for ch in "가(,A"] == [1000, 312, 268, 660]
+    assert [char_advance("(", size, style) for size in (15, 80)] == [468, 2500]
 
 
 def test_every_fallback_face_has_a_table() -> None:
