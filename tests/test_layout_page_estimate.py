@@ -23,6 +23,9 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    # Tables of short sentences, one cell holding "… " among its words: Hancom starts a line with the ellipsis after
+    # a space (attached to the character before it, it keeps to that one).
+    "pages_ellipsis_starts_a_cell_line": 4,
     # A picture (or a rectangle) placed top and bottom alone in an empty paragraph whose spacing after is 1000,
     # the next paragraph's spacing before 600, the empty line 1600 tall with its spacing: unless the object
     # moves with the text, may overlap and starts above the line's foot, the empty line stays at the paragraph's
