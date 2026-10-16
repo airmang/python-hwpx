@@ -138,12 +138,15 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 # is half the em, rounded down, at the 장평, rounded half up. Bold text keeps the
 # regular advances. A glyph a face lacks takes the advance of the face Hancom
 # lays it out from (``_glyph_table.FALLBACK``), moved into the face's own units
-# and rounded. A face or glyph listed nowhere falls back to the class averages,
-# unrounded.
+# and rounded. A face no table lists takes 한컴바탕's advances, as Hancom lays out a
+# face it does not find; a glyph listed nowhere falls back to the class averages,
+# unrounded, and so does every glyph when no face is named.
 _LAYOUT_UNIT = 4
 #: Hancom's default tab stops, this far apart (HWPUNIT) from the column's left edge (the section's
 #: ``tabStopVal``).
 _DEFAULT_TAB_STOP = 4000
+#: The face Hancom lays out a face it does not find with.
+_UNLISTED_FACE = "한컴바탕"
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -526,8 +529,8 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         768, 682, 682, 725, 682, 640, 725, 768, 384, 469, 768, 640, 938, 768, 725, 640,
         725, 682, 640, 768, 768, 725, 981, 682, 682, 640, 512, 341, 512, 1024, 512, 597,
         512, 554, 512, 554, 554, 384, 554, 554, 298, 298, 554, 298, 853, 554, 554, 554,
-        554, 426, 512, 384, 554, 554, 810, 597, 597, 469, 597, 597, 597, 810, 341, 850,
-        379, 379, 276, 276, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 780, 1024, 1024, 1024,
+        554, 426, 512, 384, 554, 554, 810, 597, 597, 469, 597, 597, 597, 810, 341, 983,
+        379, 379, 276, 276, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 788, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 831, 831, 831, 447,
         1024, 1024, 881, 441, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
         1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
@@ -1094,6 +1097,13 @@ def _design_units(face: str, ch: str | None) -> tuple[int, int] | None:
     return None
 
 
+def _laid_out_face(face: str) -> str:
+    """The face whose advances *face* takes: itself when a table lists it (or none is named), else
+    ``_UNLISTED_FACE``."""
+
+    return face if not face or face in _DESIGN or face in UNITS_PER_EM else _UNLISTED_FACE
+
+
 @lru_cache(maxsize=8192)
 def _hangul_units(face: str, ch: str) -> tuple[int, int] | None:
     """``(advance, units per em)`` of the Hangul syllable *ch* in *face*: its own design advance where the
@@ -1415,11 +1425,11 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     if ch in _HALF_EM_SPACES and not style.use_font_space:
         return _laid_out_space(height, ratio, spacing)
     if cls == "hangul":
-        design, base = _hangul_units(style.hangul_face, ch), style.hangul_advance
+        design, base = _hangul_units(_laid_out_face(style.hangul_face), ch), style.hangul_advance
     elif ch in _HALF_EM_GLYPHS:
         design, base = (1, 2), _ADVANCE_EM[cls]
     else:
-        design, base = _design_units(style.glyph_face, ch), _ADVANCE_EM[cls]
+        design, base = _design_units(_laid_out_face(style.glyph_face), ch), _ADVANCE_EM[cls]
     if design is not None:
         return _laid_out(design[0], design[1], height, ratio, spacing)
     return base * font_pt * 100.0 * ratio / 100.0 * (1 + spacing / 100.0)

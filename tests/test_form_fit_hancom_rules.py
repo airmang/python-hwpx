@@ -74,6 +74,9 @@ KOPUB_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 HFT_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_cells.hwpx"
 HFT_STD_GLYPH_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_std_glyph_cells.hwpx"
 DODUM_PUNCTUATION = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_dodum_punctuation_cells.hwpx"
+UNLISTED_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_unlisted_faces_cells.hwpx"
+
+
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
 SCRIPT_ROWS = [
@@ -312,6 +315,26 @@ def test_kopub_cells_break_where_hancom_breaks_them() -> None:
     assert faces == {f"{family}체 {weight}": 36 if weight == "Light" else 18
                      for family in ("KoPub돋움", "KoPub바탕", "KoPubWorld돋움", "KoPubWorld바탕")
                      for weight in ("Light", "Medium", "Bold")}
+
+
+def test_cells_in_faces_no_table_lists_break_as_hancom_batang() -> None:
+    # The same in faces Hancom does not find (없는글꼴이름, Cre고딕, 가짜명조체), for A, a, 0, (, %, 가, ※ and W at
+    # 10 and 30 pt: Hancom lays them out as 한컴바탕, ※ at 788 of 1024 units.
+    doc = HwpxDocument.open(UNLISTED_FACES_CELLS)
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    faces = set()
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        faces.add(style.glyph_face)
+        assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points)
+    assert len(cells) == 96 and faces == {"없는글꼴이름", "Cre고딕", "가짜명조체"}
 
 
 def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -> None:
