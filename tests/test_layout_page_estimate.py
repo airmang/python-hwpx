@@ -1534,6 +1534,30 @@ def test_the_evaluation_plan_form_lays_out_like_hancom_without_caches() -> None:
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 15)
 
 
+@pytest.mark.parametrize("height", [str((1 << 32) - 633), str((1 << 32) - 1)])
+def test_a_negative_cell_height_kept_unsigned_counts_as_none(height: str) -> None:
+    # A 3x2 table whose row-2 cell was written with the height -633 kept unsigned (4294966663), saved by Hancom:
+    # it gives the cell its top and bottom margins (282) and grows it to fit the text, one page. Written back
+    # unsigned, the cell is not four billion tall: the estimate gives Hancom's page.
+    data = (FIXTURES / "pages_cell_height_negative.hwpx").read_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                root = etree.fromstring(payload)
+                cell = list(root.iter(f"{HP}tc"))[2]
+                assert cell.find(f"{HP}cellSz").get("height") == "282"
+                cell.find(f"{HP}cellSz").set("height", height)
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            target.writestr(info, payload)
+    negative = out.getvalue()
+
+    for estimate in (estimate_pages(data), estimate_pages(negative), estimate_pages(_without_caches(negative))):
+        assert estimate.unsupported == ()
+        assert estimate.pages == 1
+
+
 @pytest.mark.parametrize("name", ["pages_table_with_cell_spacing", "pages_table_without_cell_spacing"])
 def test_a_table_with_cell_spacing_lays_its_cells_out_at_their_own_widths(name: str) -> None:
     # A table 46196 wide: one cell over its three columns, then cells of 15000, 21000 and 9800 with a cell
