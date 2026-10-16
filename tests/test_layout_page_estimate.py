@@ -1974,3 +1974,20 @@ def test_endnotes_at_a_sections_end_are_unsupported() -> None:
     estimate = estimate_pages(out.getvalue())
     assert estimate.pages is None
     assert estimate.unsupported == ("section 0: endnotes placed otherwise than at the document's end",)
+
+
+@pytest.mark.parametrize("note_section", [0, 1])
+def test_endnotes_in_an_earlier_section_validate_that_sections_placement(note_section: int) -> None:
+    document = HwpxDocument.new()
+    document.add_section()
+    document.add_section()
+    section = document.sections[note_section]
+    paragraph = document.add_paragraph("본문", section=section)
+    document.notes.add_endnote("구역 끝 미주", paragraph)
+    settings = next(section.element.iter(f"{HP}endNotePr"))
+    settings.find(f"{HP}placement").set("place", "END_OF_SECTION")
+
+    result = estimate_pages(document)
+
+    assert result.pages is None
+    assert result.unsupported == (f"section {note_section}: endnotes placed otherwise than at the document's end",)

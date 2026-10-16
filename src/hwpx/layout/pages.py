@@ -280,6 +280,8 @@ def estimate_pages(document: "HwpxDocument | bytes | str | os.PathLike[str]") ->
     reasons: list[str] = []
     for number, section in enumerate(root.sections):
         try:
+            if next(section.element.iter(f"{HP}endNote"), None) is not None:
+                _note_shape(section.element, "endNotePr")
             layouts.append(_lay_section(measure, section.element))
         except _Unsupported as exc:
             reasons.append(f"section {number}: {exc}")
