@@ -494,6 +494,9 @@ class _Lookups:
             self._paragraph_shapes = self._document.paragraph_properties
         return HwpxOxmlHeader._lookup_by_id(self._paragraph_shapes, para_pr_id)
 
+    def tab_property(self, tab_pr_id: Any) -> Any:
+        return self._document.tab_property(tab_pr_id)
+
 
 class _Measure:
     """Shapes and line breaking of one document."""
@@ -574,8 +577,9 @@ class _Measure:
 
         if not text:
             return 1
-        return sum(len(hancom_line_starts(line, widths, size / 100, style)) if line else 1
-                   for line in text.split("\n"))
+        return sum(len(hancom_line_starts(line, widths if not index else widths[1:] or widths, size / 100, style,
+                                          continued=bool(index))) if line else 1
+                   for index, line in enumerate(text.split("\n")))  # the lines after a line break are no first line
 
     def line_starts(self, text: str, widths: list[float], size: int, style: Any,
                     sizes: list[int] | None = None, styles: list[Any] | None = None,
@@ -586,14 +590,16 @@ class _Measure:
 
         starts: list[int] = []
         base = 0
-        for line in text.split("\n"):
+        for number, line in enumerate(text.split("\n")):
             points = None if sizes is None else [height / 100 for height in sizes[base:base + len(line)]]
             looks = None if styles is None else styles[base:base + len(line)]
             fixed = None if advances is None else {
                 index - base: width for index, width in advances.items() if base <= index < base + len(line)}
             placed = {index - base for index in objects if base <= index < base + len(line)}
-            starts += [base + start for start in (hancom_line_starts(line, widths, size / 100, style, points, looks,
-                                                                     fixed, placed) if line else [0])]
+            room = widths if not number else widths[1:] or widths  # the lines after a line break are no first line
+            starts += [base + start for start in (hancom_line_starts(line, room, size / 100, style, points, looks,
+                                                                     fixed, placed, continued=bool(number))
+                                                  if line else [0])]
             base += len(line) + 1
         return starts
 
