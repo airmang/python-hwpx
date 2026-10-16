@@ -23,9 +23,6 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
-    # Tables of short sentences, one cell holding "… " among its words: Hancom starts a line with the ellipsis after
-    # a space (attached to the character before it, it keeps to that one).
-    "pages_ellipsis_starts_a_cell_line": 4,
     # A picture (or a rectangle) placed top and bottom alone in an empty paragraph whose spacing after is 1000,
     # the next paragraph's spacing before 600, the empty line 1600 tall with its spacing: unless the object
     # moves with the text, may overlap and starts above the line's foot, the empty line stays at the paragraph's
@@ -206,6 +203,9 @@ HANCOM_PAGES = {
     "pages_square_band_then_a_table_margin_top": 1,  # the rectangle's top outer margin 1417 in its band
     "pages_square_band_then_a_table_after_the_band": 1,  # the paragraph after the band
     "pages_fixed_width_spaces": 2,  # rows of a syllable and a fixed-width space: a quarter em that hangs
+    # Tables of short sentences, one cell holding "… " among its words: Hancom starts a line with the ellipsis after
+    # a space (attached to the character before it, it keeps to that one).
+    "pages_ellipsis_starts_a_cell_line": 4,
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word
     "pages_typed_ideographic_spaces": 5,  # cells of "가나다라마" and a U+3000 typed in the text, a full em
