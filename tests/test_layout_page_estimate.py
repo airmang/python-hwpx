@@ -1711,6 +1711,27 @@ def test_the_multi_column_sample_breaks_its_lines_at_each_column_width_without_c
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
 
 
+def test_columns_of_the_same_size_written_as_true_are_of_the_same_size() -> None:
+    # hp:colPr@sameSz is an xs:boolean: "true" is "1" (Hancom writes "1"; other writers "true").
+    document = HwpxDocument.new()
+    document.page.set_columns(2)
+    for number in range(80):
+        document.add_paragraph(f"{number} 단 나누기 문단입니다")
+    data = document.to_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename.startswith("Contents/section"):
+                payload = re.sub(rb'(colCount="2"[^>]*)sameSz="1"', rb'\1sameSz="true"', payload)
+            target.writestr(info, payload)
+    assert b'sameSz="true"' in zipfile.ZipFile(out).read("Contents/section0.xml")
+
+    ones, trues = estimate_pages(data), estimate_pages(out.getvalue())
+
+    assert (trues.unsupported, trues.pages, trues.lines) == ((), ones.pages, ones.lines)
+
+
 def test_a_footnote_in_a_paragraph_without_a_cache_in_columns_of_unequal_width_is_not_followed() -> None:
     document = HwpxDocument.new()
     document.set_columns(2, same_size=False, column_widths=[(10632, 873), (21263, 0)])
