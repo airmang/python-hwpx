@@ -1804,7 +1804,8 @@ def _floating(obj: Any) -> bool:
 
 def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list[int]]:
     """The paragraph's character size (its smallest), the character shapes of its runs holding text
-    (the style comes from the first), and each character's size. An empty run takes no room."""
+    (the style comes from the first), and each character's size. An empty run takes no room; a paragraph
+    without text is as tall as the largest of its runs holding controls or objects and its last run."""
 
     lengths = [sum(len(_t_text(text)) for text in run.findall(f"{HP}t")) for run in runs]
     refs = [run.get("charPrIDRef") for run, length in zip(runs, lengths) if length]
@@ -1813,6 +1814,9 @@ def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list
     sizes: list[int] = []
     for run, length in zip(runs, lengths):
         sizes += [measure.char_height(run.get("charPrIDRef"))] * length
+    if not sizes and runs:  # no text: as tall as its runs holding controls or objects, and its end (the last run)
+        held = [run.get("charPrIDRef") for run in runs[:-1] if any(child.tag != f"{HP}t" for child in run)]
+        return max(measure.char_height(ref) for ref in [*held, runs[-1].get("charPrIDRef")]), refs, sizes
     return min(sizes or [measure.char_height(ref) for ref in refs]), refs, sizes
 
 
