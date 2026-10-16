@@ -1444,13 +1444,19 @@ def _first_columns(section: Any) -> Any:
     return next((cols for cols in section.iter(f"{HP}colPr") if not _in_sub_list(cols)), None)
 
 
+def _true(value: Any) -> bool:
+    """Whether an ``xs:boolean`` attribute *value* is true: ``1`` or ``true`` (Hancom writes ``1``)."""
+
+    return value in ("1", "true")
+
+
 def _column_layout(settings: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
     """:func:`_columns` of the column settings *settings* (``hp:colPr``; ``None``: one column)."""
 
     count = int(settings.get("colCount", "1")) if settings is not None else 1
     if count <= 1:
         return 1, text_width, (), 0
-    if settings.get("sameSz") != "1":  # each column takes its share of 32768 of the text width (hp:colSz),
+    if not _true(settings.get("sameSz")):  # each column takes its share of 32768 of the text width (hp:colSz),
         sizes = settings.findall(f"{HP}colSz")  # rounded, whatever the shares add up to
         total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)
         if len(sizes) != count or total <= 0:
@@ -1519,7 +1525,7 @@ def _note_shape(section: Any) -> _NoteShape:
     if settings is None:
         return _NoteShape()
     placement = settings.find(f"{HP}placement")
-    if placement is not None and placement.get("beneathText") == "1":
+    if placement is not None and _true(placement.get("beneathText")):
         raise _Unsupported("footnotes beneath the text")
     spacing = settings.find(f"{HP}noteSpacing")
     rule = settings.find(f"{HP}noteLine")
