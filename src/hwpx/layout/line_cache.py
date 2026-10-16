@@ -14,8 +14,9 @@ the baseline and the line spacing past it. The others come from :func:`hwpx.layo
 also draws a tab as wide as its ``hp:tab`` says once the paragraph has a cache, so each tab gets its width.
 
 Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs in one
-look (face, 장평, 자간) -- tabs to the default tab stops, line breaks, the section's own controls in the first
-paragraph, and a hanging bullet or number label in the paragraph's size included -- in a section of one column
+look (face, 장평, 자간) -- tabs to the default tab stops, line breaks, controls that take no room on a line (a
+header, a footer, a page number, the section's own definitions in its first paragraph), and a hanging bullet or
+number label in the paragraph's size included -- in a section of one column
 where no object lets text run beside it. Its runs may differ in size: each line is then as tall as its largest
 character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line
 as tall as that one), and the paragraph has no tab. The cells of a table in such a section get caches the
@@ -70,6 +71,8 @@ _PAST_A_BREAK = 40
 _LABELLED = 0x200000
 #: How many characters a control (a section or column definition) takes in a line's text position.
 _CONTROL_LENGTH = 8
+#: The controls that take no room on a line: page headers and footers, page numbers and the page controls.
+_PAGE_CONTROLS = frozenset({"header", "footer", "pageNum", "pageHiding", "pageNumCtrl", "newNum"})
 #: The text children a cached paragraph may hold, as python-hwpx reads them into its text. With a cache Hancom
 #: draws a tab as wide as its ``hp:tab`` says, so a tab gets the width Hancom lays it out at too.
 _TEXT_MARKS = frozenset({"tab", "lineBreak", "nbSpace", "fwSpace"})
@@ -149,7 +152,9 @@ def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str
     table = _pages._table_alone(runs)
     if table is None or any(_pages._local(child) not in ("t", "tbl", "secPr", "ctrl") for run in runs for child in run):
         return None
-    if any(_pages._local(child) == "ctrl" and not _only_columns(child) for run in runs for child in run):
+    if any(_pages._local(child) == "ctrl" and not _takes_no_room(child, True) for run in runs for child in run):
+        return None
+    if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
         return None
     if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
         return None
@@ -234,8 +239,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     writes. Each segment also holds how far down the next line starts (``advance``)."""
 
     runs = paragraph.findall(f"{HP}run")
-    prefix = _control_prefix(runs, first)
-    if prefix is None:
+    controls = _control_places(runs, first)
+    if controls is None:
         return None
     headed = measure.headed(paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
@@ -266,8 +271,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if mixed and _taller_past_a_break(text, sizes, starts, metrics):
         return None
-    if not _sure_of(text, starts, style):
-        return None
+    if not _sure_of(text, starts, style) or any(place in starts[1:] for place in controls):
+        return None  # a line starting at a control: on which side Hancom starts it is not known
     tabs = _tab_widths(text, starts, widths, size, style) if "\t" in text else []
     if tabs is None:
         return None
@@ -279,7 +284,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         text_height = max(drawn) if drawn else height  # a line break larger than the text makes the line taller
         takes_indent = (indented and (shape.indent > 0 if line == 0 else shape.indent < 0)) or (headed and line > 0)
         segments.append({
-            "textpos": prefix + _hancom_offset(text, start) if line else 0,  # the first line starts at 0
+            "textpos": _hancom_offset(text, start, controls) if line else 0,  # the first line starts at 0
             "vertpos": 0,
             "vertsize": height,
             "textheight": text_height,
@@ -377,12 +382,13 @@ def _wraps_text(section: Any) -> bool:
     return False
 
 
-def _control_prefix(runs: list[Any], first: bool) -> int | None:
-    """How many characters the controls before the text take in the line's text position, or None when the
-    paragraph holds anything but text (and, in a section's first paragraph, the section's own controls first)."""
+def _control_places(runs: list[Any], first: bool) -> list[int] | None:
+    """Where in the paragraph's text each of its controls stands, or None when the paragraph holds anything but
+    text and controls that take no room on a line: a header, a footer, a page number and the other page controls
+    (and in a section's first paragraph, the section's own definitions)."""
 
-    controls = 0
-    seen_text = False
+    places: list[int] = []
+    length = 0
     for run in runs:
         for child in run:
             name = _pages._local(child)
@@ -391,24 +397,26 @@ def _control_prefix(runs: list[Any], first: bool) -> int | None:
                     return None
                 if "\n" in (child.text or "") or any("\n" in (mark.tail or "") for mark in child):
                     return None  # a line break typed into the text, which Hancom writes as hp:lineBreak
-                seen_text = seen_text or bool(_pages._t_text(child))
-            elif first and not seen_text and (name == "secPr" or name == "ctrl" and _only_columns(child)):
-                controls += 1
+                length += len(_pages._t_text(child))
+            elif name == "secPr" and first or name == "ctrl" and _takes_no_room(child, first):
+                places.append(length)
             else:
                 return None
-    return controls * _CONTROL_LENGTH
+    return places
 
 
-def _only_columns(ctrl: Any) -> bool:
-    return len(ctrl) == 1 and _pages._local(ctrl[0]) == "colPr"
+def _takes_no_room(ctrl: Any, first: bool) -> bool:
+    kinds = {_pages._local(child) for child in ctrl}
+    return bool(kinds) and kinds <= (_PAGE_CONTROLS | ({"colPr"} if first else set()))
 
 
-def _hancom_offset(text: str, start: int) -> int:
+def _hancom_offset(text: str, start: int, controls: list[int] = ()) -> int:  # type: ignore[assignment]
     """Where *start* (a place in python-hwpx's text) is in Hancom's line text positions: a tab takes eight
-    characters there, a character past the Basic Multilingual Plane two."""
+    characters there, a character past the Basic Multilingual Plane two, and a control before it eight."""
 
     head = text[:start]
-    return start + 7 * head.count("\t") + sum(1 for ch in head if ord(ch) > 0xFFFF)
+    return (start + 7 * head.count("\t") + sum(1 for ch in head if ord(ch) > 0xFFFF)
+            + _CONTROL_LENGTH * sum(1 for place in controls if place < start))
 
 
 def _append_cache(paragraph: Any, segments: list[dict[str, int]], tabs: list[int]) -> None:
