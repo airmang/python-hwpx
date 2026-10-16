@@ -929,6 +929,11 @@ HANCOM_PAGES = {
     "pages_ruby_below_beside_larger_text": 1,  # below it, beside 14 pt text
     "pages_ruby_longer_than_its_text": 2,  # six syllables of ruby over one: as wide as the one
     "pages_ruby_below_in_a_cell": 1,    # ruby text below text in a cell
+    # Paragraphs without text of two or three runs at 10, 14 and 20 pt, each an empty text or a bookmark: the
+    # line is as tall as the largest of the runs holding a control and the last run (an empty text run before
+    # it counts for nothing), each paragraph followed by one of 10 pt
+    "pages_empty_paragraphs_of_runs_of_two_sizes": 1,
+    "pages_empty_paragraphs_of_larger_runs_first": 1,
 }
 
 
