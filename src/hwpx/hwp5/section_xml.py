@@ -1336,7 +1336,7 @@ class SectionWriter(ShapeReader):
         for row_size in tp.row_sizes or [len(cells)]:
             tr = sub(table, "hp:tr")
             for header, paragraphs in cells[position : position + row_size]:
-                self.cell(tr, header, paragraphs)
+                self.cell(tr, header, paragraphs, tp.inner)
             position += row_size
         for data in (r for r in ctrl.children if r.tag == rec.CTRL_DATA):
             if data.payload.startswith(ct.NAME_SET_PREFIX):
@@ -1371,9 +1371,21 @@ class SectionWriter(ShapeReader):
         sub_list = sub(element, "hp:subList", list_attrs(cap.list_props))
         self.paragraphs(sub_list, paragraphs)
 
-    def cell(self, tr: etree._Element, header: rec.Record, paragraphs: list[rec.Record]) -> None:
+    def cell(
+        self,
+        tr: etree._Element,
+        header: rec.Record,
+        paragraphs: list[rec.Record],
+        table_inner: tuple[int, int, int, int] = (510, 510, 141, 141),
+    ) -> None:
         cell = ct.CellHeader.decode(header.payload)
         flags = cell.flags
+        height = cell.height
+        if height >= 1 << 31:
+            # A negative height, kept unsigned: Hancom gives the cell its top and bottom margins (its own, or
+            # the table's inner ones), which it then grows to fit the text.
+            _left, _right, top, bottom = cell.margins if flags & 0x1 else table_inner
+            height = top + bottom
         tc = sub(
             tr,
             "hp:tc",
@@ -1391,7 +1403,7 @@ class SectionWriter(ShapeReader):
         self.paragraphs(sub_list, paragraphs)
         sub(tc, "hp:cellAddr", (("colAddr", cell.col), ("rowAddr", cell.row)))
         sub(tc, "hp:cellSpan", (("colSpan", cell.col_span), ("rowSpan", cell.row_span)))
-        sub(tc, "hp:cellSz", (("width", cell.width), ("height", cell.height)))
+        sub(tc, "hp:cellSz", (("width", cell.width), ("height", height)))
         left, right, top, bottom = cell.margins
         sub(
             tc,

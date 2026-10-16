@@ -1214,3 +1214,26 @@ def test_the_converted_package_saves_as_hwpx(tmp_path: Path) -> None:
     document.save_to_path(target)
     reopened = HwpxDocument.open(target)
     assert [p.text for p in reopened.paragraphs] == [p.text for p in document.paragraphs]
+
+
+@pytest.mark.parametrize(
+    ("name", "margins"),
+    [("cell_height_negative", ("0", "141", "141")), ("cell_height_negative_own_margins", ("1", "300", "500"))],
+)
+def test_a_negative_cell_height_takes_the_cells_top_and_bottom_margins(
+    name: str, margins: tuple[str, str, str]
+) -> None:
+    # Row 2, column 1 of a 3x2 table holds the height -633 (-1000 in the second, whose cell has margins of its
+    # own, top 300 and bottom 500), kept unsigned as the file has it. Hancom converts such a cell with the height
+    # of its top and bottom margins -- the table's inner ones (141 + 141) or its own (300 + 500) -- and grows it
+    # to fit its text; the other cells keep theirs.
+    data = (Path(__file__).parent / "fixtures" / "hwp5" / f"{name}.hwp").read_bytes()
+    root = HwpxDocument.open(data).sections[0].element
+
+    cells = [
+        (tc.get("hasMargin"), tc.find(f"{HP}cellSz").get("height"), tc.find(f"{HP}cellMargin")) for tc in root.iter(f"{HP}tc")
+    ]
+    has_margin, height, margin = cells[2]
+    assert (has_margin, margin.get("top"), margin.get("bottom")) == margins
+    assert int(height) == int(margins[1]) + int(margins[2])
+    assert all(int(other) < 1 << 31 for _, other, _ in cells)
