@@ -2831,25 +2831,28 @@ def _spare_cut(table: Any) -> int:
 
 def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
     """Whether a table moved row by row (TABLE) has no room for its first row from *y*, one set not to
-    split (NONE) no room for all its rows, or one split cell by cell (CELL) no room for the header rows it
-    repeats, so it starts on the next page. At the top of a page it is drawn anyway."""
+    split (NONE) no room for all its rows, or one moved row by row or split cell by cell no room for the
+    header rows it repeats, so it starts on the next page. At the top of a page it is drawn anyway."""
 
     if table.mode not in ("TABLE", "NONE", "CELL") or not table.rows:
         return False
+    if _header_moves(table, y, body - table.margins[1]):
+        return True
     if table.mode == "CELL":
-        return _header_moves(table, y, body - table.margins[1])
+        return False
     first = sum(row.height for row in table.rows) if table.mode == "NONE" else table.rows[0].height
     return y + first > body - table.margins[1] - table.cut \
         and y != _repeated_header(table) + table.margins[0]
 
 
 def _header_moves(table: _FlowTable, y: int, body: int) -> bool:
-    """Whether a table split cell by cell (CELL) has no room from *y* above *body* for the header rows it
-    repeats on every page: Hancom does not split them, so the table starts on the next page. At a page's
-    top they are drawn anyway."""
+    """Whether a table moved row by row or split cell by cell (TABLE, CELL) has no room from *y* above
+    *body* for the header rows it repeats on every page: Hancom does not split them, so the table starts on
+    the next page, the header rows at its top. At a page's top they are drawn anyway."""
 
     header = _repeated_header(table)
-    return bool(header) and y + header > body - table.cut and y > header + table.margins[0]
+    return table.mode in ("TABLE", "CELL") and bool(header) and y + header > body - table.cut \
+        and y > header + table.margins[0]
 
 
 def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:
@@ -2858,7 +2861,7 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
     body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
     header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
     foot = body - table.cut
-    if table.mode == "CELL" and _header_moves(table, y, body):  # its repeated header rows start the next page
+    if _header_moves(table, y, body):  # its repeated header rows start the next page (drawn there once)
         frame, y = frame + 1, table.margins[0]
     if table.mode == "NONE":  # set not to split: its rows move as one, drawn anyway at a page's top
         height = sum(row.height for row in table.rows)

@@ -1009,12 +1009,15 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
         "pages_repeated_header_of_five_lines_without_room",
         "pages_repeated_header_holding_a_table_without_room",  # a line and a table of two rows in it
         "pages_repeated_header_holding_a_taller_table_without_room",  # a line and a table of six rows
+        "pages_repeated_header_moved_row_by_row_without_room",  # a header of three lines, the table moved row
+        "pages_two_repeated_headers_moved_row_by_row_without_room",  # by row; two such headers, the first fitting
     ],
 )
 def test_a_repeated_header_row_without_room_is_not_split(name: str) -> None:
-    # A flowing table of 61 rows split cell by cell, its first row a header repeated on every page, under 37 to
-    # 39 lines: with no room for the header row, Hancom does not split it between its lines but starts the
-    # table on the next page, and the paragraph after it goes on under the anchor line on the first.
+    # A flowing table of 41 to 61 rows split cell by cell or moved row by row, its first rows a header
+    # repeated on every page, under 35 to 39 lines: with no room for the header rows, Hancom does not split
+    # them but starts the table on the next page, the header rows drawn there once, and the paragraph after
+    # it goes on under the anchor line on the first.
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     for source in (data, _without_caches(data)):
