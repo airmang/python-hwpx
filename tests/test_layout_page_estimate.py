@@ -23,6 +23,9 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
+    # Two columns whose gap is written 2**32 - 2**15: a signed 32-bit number, -32768, so the columns overlap and
+    # each is (42520 + 32768) / 2 wide, as Hancom lays them out.
+    "columns_gap_wrapped": 1,
     # A picture (or a rectangle) placed top and bottom alone in an empty paragraph whose spacing after is 1000,
     # the next paragraph's spacing before 600, the empty line 1600 tall with its spacing: unless the object
     # moves with the text, may overlap and starts above the line's foot, the empty line stays at the paragraph's
