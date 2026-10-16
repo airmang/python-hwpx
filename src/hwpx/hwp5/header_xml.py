@@ -676,10 +676,11 @@ def build_header(
         if country:
             attrs.append(("lang", country))
         sub(option, "hh:licensemark", attrs)
-    # Hancom reports 4 for a document that carries the track-change settings
-    # record whatever its value, and 56 for an older one without it.
+    # Hancom writes the first word of the track-change settings record as the
+    # flags, and 56 for an older document without the record.
     settings = _record(info, rec.TRACKCHANGE)
-    config = sub(head, "hh:trackchageConfig", (("flags", 4 if settings is not None else 56),))
+    flags = int.from_bytes(settings.payload[:4], "little") if settings is not None and len(settings.payload) >= 4 else 56
+    config = sub(head, "hh:trackchageConfig", (("flags", flags),))
     # The last word names the algorithm of the change-tracking password: 4 is SHA1.
     if settings is not None and len(settings.payload) >= 8 and settings.payload[-4:] == TRACK_PASSWORD_SHA1:
         password = sub(config, "config:config-item-set", (("name", "TrackChangePasswordInfo"),))

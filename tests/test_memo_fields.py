@@ -91,3 +91,34 @@ def test_a_memo_anchored_by_python_hwpx_counts_once_and_goes_with_its_field() ->
     assert document.notes.memos == []
     assert _memo_fields(document.to_bytes()) == (0, 0)
     assert paragraph.text == "앵커 글"
+
+
+def _field_begins(data: bytes) -> list[dict[str, str]]:
+    root = etree.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml"))
+    return [dict(field.attrib) for field in root.iter(f"{HP}fieldBegin")]
+
+
+def test_an_hwp_file_is_read_with_the_field_and_change_tracking_attributes_hancom_writes() -> None:
+    # Hancom Office 2024 saved a document with memos as .hwp, then that .hwp as .hwpx. Read as HWPX here, the
+    # .hwp gives each field begin Hancom's metaTag and the change-tracking flags Hancom wrote.
+    converted = HwpxDocument.open(FIXTURES / "hancom2024_memo_fields.hwp").to_bytes()
+    hancom = (FIXTURES / "hancom2024_memo_fields.hwpx").read_bytes()
+
+    mine, theirs = _field_begins(converted), _field_begins(hancom)
+    assert mine and [field.get("metaTag") for field in mine] == [field.get("metaTag") for field in theirs] == [""] * len(mine)
+    flags = [
+        etree.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("Contents/header.xml")).find(
+            ".//{http://www.hancom.co.kr/hwpml/2011/head}trackchageConfig"
+        ).get("flags")
+        for data in (converted, hancom)
+    ]
+    assert flags == ["56", "56"]
+
+
+def test_a_new_memo_field_carries_hancoms_meta_tag() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("앵커 글")
+    document.notes.add_memo("메모 글", anchor=paragraph)
+
+    [field] = [field for field in _field_begins(document.to_bytes()) if field["type"] == "MEMO"]
+    assert field.get("metaTag") == ""

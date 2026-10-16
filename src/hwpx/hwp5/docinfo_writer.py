@@ -625,16 +625,17 @@ def _layout_compatibility(compatible: etree._Element | None, target: int) -> tup
 
 
 def _track_settings(head: etree._Element) -> bytes:
-    """The change-tracking settings record: 4 when the header has its settings
-    (56 when not, as Hancom writes it), and the password algorithm last (4 for
+    """The change-tracking settings record: the header's flags first (56 when
+    it gives none, as Hancom writes it), and the password algorithm last (4 for
     SHA1)."""
 
     config = _child(head, _HH, "trackchageConfig")
+    flags = config.get("flags", "") if config is not None else ""
     sha1 = config is not None and any(
         item.get("name") == "algorithm-name" and (item.text or "").strip() == "SHA1"
         for item in config.iter(f"{{{NS['config']}}}config-item")
     )
-    return struct.pack("<I", 4 if config is not None else 56) + b"\0" * 1024 + struct.pack("<I", 4 if sha1 else 0)
+    return struct.pack("<I", int(flags) if flags.isdigit() else 56) + b"\0" * 1024 + struct.pack("<I", 4 if sha1 else 0)
 
 
 def set_bin_count(result: DocInfoResult, items: list[di.BinDataItem]) -> None:

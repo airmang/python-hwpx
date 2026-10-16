@@ -1208,6 +1208,7 @@ class SectionWriter(ShapeReader):
                 ("dirty", flag(field_ctrl.props & 0x8000)),
                 ("zorder", field_ctrl.z_order if field_ctrl.z_order else -1),
                 ("fieldid", field_id),
+                *((("metaTag", ""),) if FIELD_TYPES.get(text_id) != "MAILMERGE" else ()),
             ),
         )
         body = self.memo_bodies.pop(0) if text_id == "%%me" and self.memo_bodies else None
