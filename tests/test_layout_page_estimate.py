@@ -467,6 +467,10 @@ HANCOM_PAGES = {
     "pages_tab_stops_own_decimal_passed_over": 1,
     "pages_tab_stops_own_automatic_right": 1,
     "pages_tab_stops_own_right_no_room": 1,
+    # ... past a stop it could not take, a left stop past the line's end (or whose text would pass it) ends the
+    # text at the end; a tab at the line's end goes on to the next line
+    "pages_tab_stops_own_left_past_a_passed_stop": 1,
+    "pages_tab_stops_own_tab_at_the_margin": 1,
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it

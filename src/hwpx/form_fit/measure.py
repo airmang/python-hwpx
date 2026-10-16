@@ -1260,8 +1260,8 @@ def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], 
     The paragraph's own stops come first, the first one past *x* that the text after the tab can take: a
     left stop starts the text there, a right stop ends it there, a centre stop centres it there and a
     decimal stop puts its last full stop there; a text so aligned does not pass the line's end (a left stop
-    past it takes the tab there all the same), and a stop whose text would have to start before *x* is
-    passed over. The automatic tab at the end (``auto_tab_right``) is a right stop at the line's end among
+    does not hold its text back so, but past a stop already passed over), and a stop whose text would
+    have to start before *x* is passed over. The automatic tab at the end (``auto_tab_right``) is a right stop at the line's end among
     them. Then the default stops; past a stop that could not take the text, a default stop that leaves the
     text no room on the line gives the tab no width."""
 
@@ -1274,7 +1274,6 @@ def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], 
     for position, kind in sorted(stops):
         if position <= x:
             continue
-        passed = True
         if kind == "RIGHT":
             start = position - after(False)
         elif kind == "CENTER":
@@ -1283,10 +1282,11 @@ def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], 
             start = position - after(True)
         else:
             start = position
-        if kind != "LEFT":
+        if kind != "LEFT" or passed:
             start = min(start, right - after(False))
         if start >= x:
             return start - x
+        passed = True
     if not style.tab_stop:
         return None
     reach = _tab_advance(x, style.tab_stop)
@@ -1578,7 +1578,7 @@ def hancom_line_starts(
                 break
             shrink = (inner + pending) * space * style.condense / 100.0
             last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
-            if (used + last - shrink > width or ch == "\t" and last and used + last >= width) and end > start:
+            if (used + last - shrink > width or ch == "\t" and used + last >= width) and end > start:
                 break  # a tab reaching the margin itself no longer fits
             used += advance
             inner += pending
