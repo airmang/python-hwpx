@@ -191,7 +191,7 @@ from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
 from ..oxml.section import _remove_short_paragraph_layout_cache
 from ..oxml.header_part import HwpxOxmlHeader
-from ..oxml.section_format import COLUMN_SHARES, _drawn_page_size
+from ..oxml.section_format import COLUMN_SHARES, _drawn_page_size, _page_margin
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 
 if TYPE_CHECKING:
@@ -1404,12 +1404,17 @@ def _page(section: Any) -> _Page:
     if margin is None:
         raise _Unsupported("no page settings")
     width, height = _drawn_page_size(int(page.get("width", 0)), int(page.get("height", 0)), page.get("landscape"))
-    body = height - sum(int(margin.get(key, 0)) for key in ("top", "bottom", "header", "footer"))
-    text_width = width - sum(int(margin.get(key, 0)) for key in ("left", "right", "gutter"))
+    # A negative margin is kept as an unsigned 32-bit number: Hancom reads it signed, the body growing by it.
+    sides = {key: _page_margin(margin.get(key, 0), key) for key in ("top", "bottom", "header", "footer", "left",
+                                                                   "right", "gutter")}
+    body = height - sides["top"] - sides["bottom"] - sides["header"] - sides["footer"]
+    text_width = width - sides["left"] - sides["right"] - sides["gutter"]
+    if body <= 0 or text_width <= 0:
+        raise _Unsupported("page margins leaving no room for the body")
     columns, column_width, widths, gap = _columns(section, text_width)
     visibility = next(section.iter(f"{HP}visibility"), None)
-    return _Page(body, column_width, columns, int(margin.get("top", 0)) + int(margin.get("header", 0)),
-                 int(margin.get("left", 0)) + int(margin.get("gutter", 0)), text_width, width, bool(widths),
+    return _Page(body, column_width, columns, sides["top"] + sides["header"],
+                 sides["left"] + sides["gutter"], text_width, width, bool(widths),
                  widths, height,
                  visibility is not None and visibility.get("hideFirstEmptyLine") in ("1", "true"), gap)
 

@@ -45,7 +45,7 @@ from hwpx.tools.package_validator import (
 from .report import LayoutFinding, LayoutLintReport
 from ..opc.security import guard_zip_file, read_member
 from ..oxml.header import parse_char_property, parse_paragraph_property
-from ..oxml.section_format import _drawn_page_size
+from ..oxml.section_format import _drawn_page_size, _page_margin
 from ..oxml.table_sizes import cell_margins_of
 
 if TYPE_CHECKING:
@@ -526,7 +526,7 @@ def _page_heights(root: ET.Element) -> tuple[int, int] | None:
             int(page.get("width", "")), int(page.get("height", "")), page.get("landscape")
         )
         top, bottom, header, footer = (
-            int(margin.get(key, "0")) for key in ("top", "bottom", "header", "footer")
+            _page_margin(margin.get(key, "0"), key) for key in ("top", "bottom", "header", "footer")
         )
     except ValueError:
         return None
