@@ -28,7 +28,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
@@ -1205,8 +1205,10 @@ class TextStyle:
     only off the others (see :func:`indented_widths`). ``space_before`` (HWPUNIT) is room above the first
     line; the spacing after the paragraph takes no room in a cell. A tab reaches Hancom's next default tab
     stop, every ``tab_stop`` HWPUNIT from the column's (a cell's: its text area's) left edge, the line
-    starting at ``margin_left`` and its indent or label room; ``tab_stop`` 0 (a paragraph whose tab
-    definition sets stops of its own or automatic tabs) lays a tab out as a space-class glyph. ``hangul_face``
+    starting at ``margin_left`` and its indent or label room; ``tab_stop`` 0 lays a tab out as a
+    space-class glyph. ``tab_stops`` holds the paragraph's own stops, ``(position, kind)`` from that edge
+    in ascending order, which come first (see :func:`tab_reach`), and ``auto_tab_right`` a right-aligned
+    stop at the line's end after them; ``auto_tab_left`` a left one where a hanging indent's lines start. ``hangul_face``
     and ``glyph_face`` name the faces whose design advances Hangul syllables
     and the other glyphs take, laid out as Hancom rounds them (see
     :func:`char_advance`); an empty or unlisted face, or a glyph it does not
@@ -1231,6 +1233,9 @@ class TextStyle:
     head: float = 0.0
     head_hangs: bool = False
     tab_stop: int = _DEFAULT_TAB_STOP
+    tab_stops: tuple[tuple[int, str], ...] = ()
+    auto_tab_left: bool = False
+    auto_tab_right: bool = False
 
 
 def _line_origin(style: TextStyle, first: bool) -> float:
@@ -1249,6 +1254,48 @@ def _tab_advance(x: float, stop: int) -> float:
     """How far a tab at *x* (from the column's left edge) reaches: to the next default tab stop past it."""
 
     return (math.floor(x / stop) + 1) * stop - x
+
+
+def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], float]) -> float | None:
+    """How far a tab at *x* reaches on a line ending at *right* (both from the column's left edge), or None
+    when it is laid out as a glyph. *after* gives the width of the text that follows the tab up to the next
+    tab or the end, or with True up to its last full stop (all of it when it has none).
+
+    The paragraph's own stops come first, the first one past *x* that the text after the tab can take: a
+    left stop starts the text there, a right stop ends it there, a centre stop centres it there and a
+    decimal stop puts its last full stop there; a text so aligned does not pass the line's end (a left stop
+    does not hold its text back so, but past a stop already passed over), and a stop whose text would
+    have to start before *x* is passed over. The automatic tab at the end (``auto_tab_right``) is a right stop at the line's end among
+    them. Then the default stops; past a stop that could not take the text, a default stop that leaves the
+    text no room on the line gives the tab no width."""
+
+    stops = set(style.tab_stops)
+    if style.auto_tab_left and style.indent < 0:  # where the lines of a hanging indent start
+        stops.add((style.margin_left - style.indent, "LEFT"))
+    if style.auto_tab_right:  # a right stop at the line's end, in its place among the others
+        stops.add((int(right), "RIGHT"))
+    passed = False  # a stop past x that could not take the text
+    for position, kind in sorted(stops):
+        if position <= x:
+            continue
+        if kind == "RIGHT":
+            start = position - after(False)
+        elif kind == "CENTER":
+            start = position - after(False) / 2
+        elif kind == "DECIMAL":
+            start = position - after(True)
+        else:
+            start = position
+        if kind != "LEFT" or passed:
+            start = min(start, right - after(False))
+        if start >= x:
+            return start - x
+        passed = True
+    if not style.tab_stop:
+        return None
+    reach = _tab_advance(x, style.tab_stop)
+    # past a stop that could not take the text, a default stop that leaves it no room gives the tab none
+    return 0.0 if passed and x + reach + after(False) > right else reach
 
 
 def indented_widths(line: float, style: TextStyle) -> tuple[float, float]:
@@ -1513,8 +1560,10 @@ def hancom_line_starts(
             size = font_pt if sizes is None else sizes[end]
             look = style if styles is None else styles[end]
             fixed = None if advances is None else advances.get(end)
-            if fixed is None and ch == "\t" and style.tab_stop:
-                fixed = _tab_advance(origin + used, style.tab_stop)
+            if fixed is None and ch == "\t" and (style.tab_stop or style.tab_stops or style.auto_tab_right):
+                fixed = tab_reach(origin + used, origin + width, style,
+                                  lambda point, at=end: _width_after_tab(text, at, font_pt, style, sizes, styles,
+                                                                         advances, point))
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
                 if used >= width and end > start and not full and _spills(ch, text[end - 1]) \
@@ -1535,8 +1584,8 @@ def hancom_line_starts(
                 break
             shrink = (inner + pending) * space * style.condense / 100.0
             last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
-            if used + last - shrink > width and end > start:
-                break
+            if (used + last - shrink > width or ch == "\t" and used + last >= width) and end > start:
+                break  # a tab reaching the margin itself no longer fits
             used += advance
             inner += pending
             pending = 0
@@ -1559,6 +1608,32 @@ def hancom_line_starts(
         if start >= length:
             return starts
         starts.append(start)
+
+
+def _width_after_tab(
+    text: str,
+    tab: int,
+    font_pt: float,
+    style: TextStyle,
+    sizes: Sequence[float] | None,
+    styles: Sequence[TextStyle] | None,
+    advances: Mapping[int, float] | None,
+    point: bool,
+) -> float:
+    """The width of the text after the tab at *tab* up to the next tab or the end, or with *point* up to
+    its last full stop (all of it when it has none)."""
+
+    stop = text.find("\t", tab + 1)
+    stop = len(text) if stop < 0 else stop
+    if point:
+        dot = text.rfind(".", tab + 1, stop)
+        stop = stop if dot < 0 else dot
+    width = 0.0
+    for index in range(tab + 1, stop):
+        fixed = None if advances is None else advances.get(index)
+        width += fixed if fixed is not None else char_advance(
+            text[index], font_pt if sizes is None else sizes[index], style if styles is None else styles[index])
+    return width
 
 
 def _spills(ch: str, previous: str) -> bool:
@@ -2167,13 +2242,12 @@ def text_style_from_refs(
             scripts=scripts,
         )
     breaks = getattr(prop, "break_setting", None)
-    tab_stop = _DEFAULT_TAB_STOP
     try:
         tabs = root.tab_property(getattr(prop, "tab_pr_id_ref", None))
     except Exception:  # pragma: no cover - defensive
         tabs = None
-    if tabs is not None and (tabs.tab_stops or tabs.auto_tab_left or tabs.auto_tab_right):
-        tab_stop = 0  # stops of its own, or automatic tabs: not followed
+    tab_stops = tuple(sorted(
+        (int(stop.pos), str(stop.type or "LEFT").upper()) for stop in getattr(tabs, "tab_stops", None) or ()))
     # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
     switch = getattr(prop, "version_switch", None)
     case = getattr(switch, "case", None) if switch is not None else None
@@ -2194,7 +2268,9 @@ def text_style_from_refs(
         glyph_face=glyph_face,
         hangul_face=hangul_face,
         scripts=scripts,
-        tab_stop=tab_stop,
+        tab_stops=tab_stops,
+        auto_tab_left=bool(getattr(tabs, "auto_tab_left", False)),
+        auto_tab_right=bool(getattr(tabs, "auto_tab_right", False)),
     )
     heading = paragraph_label(root, para_pr_id_ref, label)
     if heading is None:
