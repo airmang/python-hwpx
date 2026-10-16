@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
@@ -36,6 +36,13 @@ if TYPE_CHECKING:
 _CLEAR_BODY_MODES = ("raise", "keep", "strip")
 _CLEAR_BODY_KEPT_TAGS = frozenset({f"{_HP}secPr", f"{_HP}ctrl"})
 _SECTION_STORY_TAGS = frozenset({f"{_HP}header", f"{_HP}footer"})
+# breakSetting flags that belong to the paragraph they were set on, not to the
+# paragraphs appended after it, with their ``ensure_paragraph_format`` keys.
+_PAGE_FLOW_BREAK_FLAGS = {
+    "pageBreakBefore": "page_break_before",
+    "keepWithNext": "keep_with_next",
+    "keepLines": "keep_lines",
+}
 # Reference attributes an apply element may carry (compared case-insensitively),
 # the same set ``HwpxOxmlSectionProperties`` reads.
 _APPLY_REFERENCE_ATTRIBUTES = frozenset(
@@ -360,14 +367,16 @@ class HwpxOxmlSection:
         if prev_para_ref is not None and self._para_pr_is_list(prev_para_ref):
             prev_para_ref = None
             prev_style_ref = None
+        if prev_para_ref is not None:
+            prev_para_ref = self._without_page_flow_breaks(prev_para_ref)
         return prev_para_ref, prev_style_ref, prev_char_ref
 
-    def _para_pr_is_list(self, para_pr_id_ref: str | int) -> bool:
-        """True when the paraPr carries a bullet/numbered heading."""
+    def _para_pr_element(self, para_pr_id_ref: str | int) -> tuple[Any, ET.Element] | None:
+        """The header holding the paraPr *para_pr_id_ref*, and the paraPr."""
 
         document = self.document
         if document is None:
-            return False
+            return None
         wanted = str(para_pr_id_ref)
         for header in getattr(document, "_headers", []):
             para_properties = getattr(header, "_para_properties_element", None)
@@ -377,16 +386,50 @@ class HwpxOxmlSection:
             if container is None:
                 continue
             for para_pr in container:
-                if para_pr.get("id") != wanted:
-                    continue
-                for child in para_pr:
-                    if tag_local_name(child.tag) == "heading":
-                        return str(child.get("type", "")).upper() in {
-                            "BULLET",
-                            "NUMBER",
-                        }
-                return False
+                if para_pr.get("id") == wanted:
+                    return header, para_pr
+        return None
+
+    def _para_pr_is_list(self, para_pr_id_ref: str | int) -> bool:
+        """True when the paraPr carries a bullet/numbered heading."""
+
+        found = self._para_pr_element(para_pr_id_ref)
+        if found is None:
+            return False
+        for child in found[1]:
+            if tag_local_name(child.tag) == "heading":
+                return str(child.get("type", "")).upper() in {
+                    "BULLET",
+                    "NUMBER",
+                }
         return False
+
+    def _without_page_flow_breaks(self, para_pr_id_ref: str) -> str:
+        """*para_pr_id_ref*, or the same paragraph shape without its page-flow
+        settings when it has any.
+
+        A page break before, keep with next and keep lines belong to the
+        paragraph they were set on. Inherited, one ``page_break_before`` would
+        start every following paragraph on a page of its own.
+        """
+
+        found = self._para_pr_element(para_pr_id_ref)
+        if found is None:
+            return para_pr_id_ref
+        header, para_pr = found
+        flags = {
+            attr: key
+            for child in para_pr
+            if tag_local_name(child.tag) == "breakSetting"
+            for attr, key in _PAGE_FLOW_BREAK_FLAGS.items()
+            if str(child.get(attr, "0")).lower() in {"1", "true"}
+        }
+        if not flags:
+            return para_pr_id_ref
+        return header.ensure_paragraph_format(
+            base_para_pr_id=para_pr_id_ref,
+            break_setting={key: False for key in flags.values()},
+        )
 
     def add_paragraph(
         self,
