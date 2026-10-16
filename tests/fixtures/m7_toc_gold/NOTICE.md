@@ -1,6 +1,6 @@
 # m7_toc_gold — 한컴 네이티브 차례/상호참조 gold fixtures
 
-Owner-authored in real Hancom (2026-07-02) for M7/S-062 P0 reverse-engineering.
+Owner-authored in real Hancom (2026-07-02) for M7/S-062 P0 format inference.
 
 - `hancom-native-toc-A.hwpx` — 4 outline headings + native 제목차례
   (TABLEOFCONTENTS field, entries fresh: pages 1,2,2,3) + 1 CROSSREF

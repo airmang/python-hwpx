@@ -18,7 +18,7 @@ engineers structure from the maintainer's private real-world Hancom
 documents when the vendored 47-file corpus has no examples (documented
 practice, see ``docs/_extra/element-census.json``'s populationNote -- the
 private corpus's path is deliberately not recorded anywhere, including
-here, for privacy). That reverse-engineering (75 files, 436 real
+here, for privacy). That format inference (75 files, 436 real
 ``hp:label`` occurrences) found: (a) the parent is always ``hp:tbl``
 (436/436), always as the table's *last* child (spot-checked across
 several files, matching the schema's own sequence position); (b) all 11

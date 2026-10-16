@@ -582,6 +582,14 @@ class Picture:
         value.extra = c.rest()
         return value
 
+    @property
+    def transparency(self) -> int:
+        """The alpha Hancom reads: the byte after the image's own size, 0 when
+        the record has none. Hancom does not read ``alpha`` (the byte after the
+        binary item id) and writes it as 0."""
+
+        return self.extra[0] if self.dim is not None and self.extra else 0
+
     def encode(self) -> bytes:
         b = Builder().u32(self.line_color).i32(self.line_width).u32(self.line_props)
         _points(b, self.corners)

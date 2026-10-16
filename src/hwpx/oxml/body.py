@@ -162,10 +162,10 @@ class Label:
     always the *last* child of ``hp:tbl`` (real corpus: always after every
     ``hp:tr`` row, matching ``ParaList XML schema.xml``'s own sequence
     order -- DEV-023, ``docs/owpml-deviations.md``). Unlike most elements
-    this registry has reverse-engineered, the schema and 75 real private
+    this registry has inferred, the schema and 75 real private
     documents agree completely: all 11 attributes here, no more, no fewer,
     ``landscape`` the only non-integer one (schema enum ``WIDELY``/
-    ``NARROWLY``, only ``WIDELY`` observed in the reverse-engineering
+    ``NARROWLY``, only ``WIDELY`` observed in the format inference
     sample -- ``NARROWLY`` is schema-legal but unconfirmed against real
     output)."""
 
@@ -1378,7 +1378,7 @@ def _table_to_xml(table: Table) -> etree._Element:
 
 def _label_to_xml(label: Label) -> etree._Element:
     # Attribute order matches ParaList XML schema.xml's declared sequence,
-    # which every real occurrence (436/436, private reverse-engineering
+    # which every real occurrence (436/436, private format inference
     # sample) also follows -- see DEV-023.
     attrs: Dict[str, str] = {}
     _set_int_attr(attrs, "topmargin", label.topmargin)

@@ -44,8 +44,8 @@ HANCOM_PAGES = {
     "pages_empty_paragraph_object_overlap_20pt_2000": 1,
     # An empty paragraph holding a table set as a character and a table placed top and bottom from its top (6000
     # tall), the line 42520 wide: a character table wider than the line takes that line alone, the placed
-    # table's anchor going on an empty line of its own above it (anchor first) or below it (anchor last), the
-    # placed table at that line's top; one as wide as the line shares its line with the anchor.
+    # table's anchor going on that line (anchor first) or on an empty line of its own below it (anchor last),
+    # the placed table at that line's top; one as wide as the line shares its line with the anchor.
     # Five pictures 20000 x 11000 set as characters, each in its own paragraph (one page bare), with an effect:
     # Hancom lays each out as large as it and its glow (the radius on each side) or its outer shadow (moved its
     # distance in its direction, spread by its radius), the line that much taller
@@ -68,7 +68,7 @@ HANCOM_PAGES = {
     "pages_para_shape_unsigned_offset_1500_h3000": 1,
     "pages_wide_table_as_character_anchor_first": 1,  # 44000 x 3000
     "pages_wide_table_as_character_anchor_last": 1,
-    "pages_wide_table_as_character_tall_anchor_first": 2,  # 44000 x 60000: on the next page below the empty line
+    "pages_wide_table_as_character_tall_anchor_first": 3,  # 44000 x 60000: on the next page's top, the anchor on its line
     "pages_wide_table_as_character_tall_anchor_last": 2,  # the placed table's rows flowing on to the next page
     "pages_line_wide_table_as_character_anchor_first": 1,  # 42520 x 3000
     "pages_line_wide_table_as_character_anchor_last": 1,
@@ -100,12 +100,12 @@ HANCOM_PAGES = {
     "pages_push_band_group_as_character_alone": 1,  # the group and the polygon, no text
     # A picture wrapped square from an empty paragraph's left, 41631 x 27112, leaving 6557 beside it; the
     # next paragraph holds a table set as a character alone:
-    "pages_square_band_table_as_character_alone": 1,  # 47058 wide: below the picture, the whole width
+    "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
-    # character among it: the first line holding one wider than the room goes below the picture, the whole
-    # width, the rest of the room left empty; one narrower stays beside it.
-    "pages_square_band_table_as_character_among_text": 2,  # a table 47058 wide
+    # character among it: a line holding one stays beside the picture, one wider than the room alone on its
+    # line, reaching past it.
+    "pages_square_band_table_as_character_among_text": 1,  # a table 47058 wide
     "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
     "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
     # A picture 20000 x 27112 wrapped square in the middle of the column (10 pt text spaced 160%), flowing with
@@ -417,16 +417,17 @@ HANCOM_PAGES = {
     "pages_table_as_character_200_short_then_three_12pt_spaces": 1,  # of 12 pt: the third's line 1200 tall
     "pages_table_as_character_200_short_after_two_spaces": 1,  # two before it: the table on the next line
     # A table set as a character (a row 1282 tall) 1000 wider than the column (42520), alone in its paragraph
-    # but for a page-number control: the two never share a line, the control's an empty line of the text.
-    "pages_page_number_then_a_table_wider_than_the_line": 1,  # the control first: an empty line 1600 down,
-                                                              # then the table's
+    # but for a page-number control: a control before it stands on the table's line, one after it on an empty
+    # line of the text under it.
+    "pages_page_number_then_a_table_wider_than_the_line": 1,  # the control first: the table's line alone
     "pages_table_wider_than_the_line_then_a_page_number": 1,  # the table first: the control's line under it
     "pages_page_number_then_a_table_that_fits": 1,  # 1000 narrower than the column: one line
     "pages_table_wider_than_the_line_alone": 1,  # no control: one line
     "pages_section_start_then_a_table_wider_than_the_line": 1,  # the section's and columns' controls before
                                                                 # it: one line
-    # The same table beside one of the other controls: the same two lines, whichever the control. Before the
-    # table, an empty line 1600 down and the table's line under it; after it, the table's line first.
+    # The same table beside one of the other controls: the same lines, whichever the control. Before the
+    # table, on its line; after it, on an empty line under it -- but a number shown as a character before it
+    # takes an empty line 1600 down of its own, the table's line under it.
     "pages_page_hiding_then_a_table_wider_than_the_line": 1,  # a hidden page number
     "pages_table_wider_than_the_line_then_a_page_hiding": 1,
     "pages_auto_number_then_a_table_wider_than_the_line": 1,  # a page's number shown as a character
@@ -445,6 +446,34 @@ HANCOM_PAGES = {
     "pages_table_wider_than_the_line_then_a_click_here_field": 1,
     "pages_index_mark_then_a_table_wider_than_the_line": 1,  # an index mark
     "pages_table_wider_than_the_line_then_an_index_mark": 1,
+    "pages_bookmark_around_a_table_wider_than_the_line": 1,  # before and after it: the table's line, the empty
+    "pages_click_here_field_around_a_table_wider_than_the_line": 1,  # line under it
+    # Tabs: a tab reaches the next default tab stop, every 4000 from the column's left edge (the first line
+    # starting at the left margin and a first-line indent, a hanging indent off the other lines), and a line may
+    # start on either side of one. 90 paragraphs of 바탕 10 pt Hangul, a tab, then two-syllable words, after 0-9
+    # syllables and at left margins 0, 1417 and 2835 with indents 0, 850 and -850:
+    "pages_tab_stops_after_hangul_and_indents": 10,
+    "pages_tab_stops_one_size": 1,  # labels, two tabs and text, at margins and indents
+    "pages_tab_stops_mixed_sizes": 2,  # runs of 9 to 20 pt
+    "pages_tab_stops_mixed_faces": 1,  # runs of six faces
+    # A line break: the line after it is no first line, its room the other lines' (a first-line indent not
+    # taken off it), in runs of several sizes
+    "pages_line_breaks_mixed_sizes_indented": 2,
+    "pages_tabs_breaks_sizes_faces": 1,  # tabs, line breaks, sizes and faces together
+    # Paragraphs with tab stops of their own (left, right, centre, decimal, some past the line's end, with the
+    # automatic tabs or not) after labels, numbers and words: a tab reaches the first stop past it whose text
+    # can be aligned there without starting before the tab or passing the line's end (a left stop past it is
+    # taken all the same), the automatic tab at the end being a right stop there; then the default stops,
+    # which give the tab no width past a stop it could not take when the text has no room after them.
+    "pages_tab_stops_own_centre_then_default": 1,
+    "pages_tab_stops_own_left_past_the_line": 1,
+    "pages_tab_stops_own_decimal_passed_over": 1,
+    "pages_tab_stops_own_automatic_right": 1,
+    "pages_tab_stops_own_right_no_room": 1,
+    # ... past a stop it could not take, a left stop past the line's end (or whose text would pass it) ends the
+    # text at the end; a tab at the line's end goes on to the next line
+    "pages_tab_stops_own_left_past_a_passed_stop": 1,
+    "pages_tab_stops_own_tab_at_the_margin": 1,
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
@@ -989,6 +1018,29 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+@pytest.mark.parametrize("number_format", ["KOREAN_DIGIT", "HANGUL"])
+def test_a_number_label_in_a_format_the_text_export_does_not_write_is_estimated(number_format: str) -> None:
+    # The bullet and number labels above, every number measured, in a character shape of its own and in a
+    # format of Hancom's own documents that the text export does not write: such a number counts as a syllable
+    # instead of failing the estimate.
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO((FIXTURES / "pages_bullet_and_number_labels.hwpx").read_bytes())) as source, \
+            zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/header.xml":
+                payload = re.sub(rb'numFormat="[A-Z_]+"', f'numFormat="{number_format}"'.encode(), payload)
+                payload = re.sub(rb'useInstWidth="\w+"', b'useInstWidth="1"', payload)
+                payload = re.sub(rb'(<hh:paraHead [^>]*)charPrIDRef="\d+"', rb'\1charPrIDRef="0"', payload)
+            target.writestr(info, payload)
+
+    for source_bytes in (out.getvalue(), _without_caches(out.getvalue())):
+        estimate = estimate_pages(source_bytes)
+
+        assert estimate.unsupported == ()
+        assert estimate.pages >= 1
 
 
 def test_an_unsplit_table_without_room_goes_on_alone() -> None:
@@ -1630,6 +1682,19 @@ def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_
         _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
     else:
         assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+
+
+def test_the_estimate_reads_a_paragraphs_tab_definition() -> None:
+    # A paragraph whose tab definition sets a stop of its own takes it.
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("가가가\t가가")
+    doc.styles.apply_paragraph_format(paragraphs=[paragraph], tab_stops=[{"pos_mm": 50, "type": "RIGHT"}])
+    root = HwpxDocument.open(io.BytesIO(doc.to_bytes()))._root
+    element = root.sections[0].element.findall(f"{HP}p")[-1]
+
+    style = page_layout._Measure(root).style(element.get("paraPrIDRef"), ["0"])
+
+    assert style.tab_stops == ((14173, "RIGHT"),)
 
 
 def test_the_lines_a_cell_splits_between_add_up_to_its_height() -> None:

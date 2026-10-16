@@ -72,6 +72,27 @@ def test_all_and_len_agree_with_the_map(document: HwpxDocument) -> None:
     assert all(isinstance(table, model.Table) for table in document.tables)
 
 
+def test_tables_index_and_slice_in_document_order(document: HwpxDocument) -> None:
+    document.add_table(2, 2)
+    document.add_table(3, 1)
+    document.add_table(1, 4)
+    shapes = [(t.row_count, t.column_count) for t in document.tables]
+    assert shapes == [(2, 2), (3, 1), (1, 4)]
+    assert (document.tables[0].row_count, document.tables[0].column_count) == (2, 2)
+    assert (document.tables[-1].row_count, document.tables[-1].column_count) == (1, 4)
+    assert [(t.row_count, t.column_count) for t in document.tables[1:]] == [(3, 1), (1, 4)]
+    assert all(isinstance(table, model.Table) for table in document.tables[:2])
+    with pytest.raises(IndexError):
+        document.tables[3]
+
+
+def test_an_indexed_table_edits_the_document(document: HwpxDocument) -> None:
+    document.add_table(2, 2)
+    document.tables[0].set_cell_text(0, 0, "첫 칸")
+    reopened = HwpxDocument.open(document.to_bytes())
+    assert reopened.tables[0].cell(0, 0).text == "첫 칸"
+
+
 def test_find_cell_by_label_locates_the_neighbour(document: HwpxDocument) -> None:
     table = document.add_table(1, 2)
     table.set_cell_text(0, 0, "이름")

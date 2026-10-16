@@ -7,7 +7,7 @@ Why v11 exists
 
 Cycle 6.7 (train 26) opened one new authoring surface -- ``HwpxOxmlTable.
 set_label``/``.label``/``.remove_label`` (``src/hwpx/oxml/body.py``,
-``src/hwpx/oxml/table.py``) -- reverse-engineered from the maintainer's
+``src/hwpx/oxml/table.py``) -- inferred from the maintainer's
 private real-world corpus (DEV-023, docs/owpml-deviations.md), since the
 47-file vendored corpus has zero real ``hp:label`` samples. That private
 corpus's path is never recorded anywhere (including here); every value

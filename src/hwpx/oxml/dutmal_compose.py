@@ -101,7 +101,7 @@ def _paragraph_add_dutmal(
 ) -> HwpxOxmlInlineObject:
     """Insert ``<hp:dutmal>`` -- 덧말(루비형 주석 텍스트).
 
-    Low-confidence axis, honestly flagged: reverse-engineered from a
+    Low-confidence axis, honestly flagged: inferred from a
     *single* real-corpus sample (``reader_writer__SimpleDutmal.hwpx``),
     confirmed a first-class Hancom editor menu item by the macOS menu scan
     (editor surface inventory, cycle 6.8 train 29) but otherwise
