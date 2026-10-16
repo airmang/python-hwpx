@@ -1046,6 +1046,30 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "pages_repeated_header_of_five_lines_without_room",
+        "pages_repeated_header_holding_a_table_without_room",  # a line and a table of two rows in it
+        "pages_repeated_header_holding_a_taller_table_without_room",  # a line and a table of six rows
+        "pages_repeated_header_moved_row_by_row_without_room",  # a header of three lines, the table moved row
+        "pages_two_repeated_headers_moved_row_by_row_without_room",  # by row; two such headers, the first fitting
+    ],
+)
+def test_a_repeated_header_row_without_room_is_not_split(name: str) -> None:
+    # A flowing table of 41 to 61 rows split cell by cell or moved row by row, its first rows a header
+    # repeated on every page, under 35 to 39 lines: with no room for the header rows, Hancom does not split
+    # them but starts the table on the next page, the header rows drawn there once, and the paragraph after
+    # it goes on under the anchor line on the first.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    for source in (data, _without_caches(data)):
+        estimate = estimate_pages(source)
+
+        assert (estimate.unsupported, estimate.pages) == ((), 3)
+        assert [[line.vertpos for line in lines] for lines in estimate.lines] == _hancom_lines(data)
+
+
 @pytest.mark.parametrize("number_format", ["KOREAN_DIGIT", "HANGUL"])
 def test_a_number_label_in_a_format_the_text_export_does_not_write_is_estimated(number_format: str) -> None:
     # The bullet and number labels above, every number measured, in a character shape of its own and in a
@@ -2080,3 +2104,20 @@ def test_a_document_with_endnotes_is_unsupported() -> None:
     assert estimate.pages is None
     assert estimate.lines == ()
     assert estimate.unsupported == ("section 0: endnotes",)
+
+
+@pytest.mark.parametrize("mode", ["CELL", "TABLE"])
+@pytest.mark.parametrize("top_margin", [0, 200])
+def test_a_repeated_header_taller_than_the_remaining_half_page_moves_whole(mode: str, top_margin: int) -> None:
+    from hwpx.layout.pages import _FlowTable, _Row, _flow_table, _starts_later
+
+    header = _Row(height=6000, lines=6, pitch=1000, size=1000, margins=0, header=True)
+    body = _Row(height=1000, lines=1, pitch=1000, size=1000, margins=0, header=False)
+    table = _FlowTable([header, body], mode, True, (top_margin, 0), cut=0)
+
+    assert _starts_later(table, 5000, 10000)
+    assert _flow_table(table, 0, 5000, 10000) == (1, top_margin + 7000)
+    assert not _starts_later(table, top_margin, 10000)
+    assert _flow_table(table, 0, top_margin, 10000) == (0, top_margin + 7000)
+    assert not _starts_later(table, 4000, 10000)
+    assert _flow_table(table, 0, 4000, 10000) == (1, top_margin + 7000)
