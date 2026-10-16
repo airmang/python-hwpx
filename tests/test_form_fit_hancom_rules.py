@@ -71,6 +71,7 @@ MORE_FACES_FALLBACKS = Path(__file__).parent / "fixtures" / "hancom_saved" / "fo
 MORE_FACES_HANGUL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_more_faces_hangul_cells.hwpx"
 KOPUB_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kopub_faces_cells.hwpx"
 HFT_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_cells.hwpx"
+HFT_STD_GLYPH_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_std_glyph_cells.hwpx"
 DODUM_PUNCTUATION = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_dodum_punctuation_cells.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
@@ -195,6 +196,31 @@ def test_dodum_punctuation_and_the_exclamation_mark_break_where_hancom_breaks_th
         hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
         assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points)
     assert len(cells) == 144
+
+
+def test_latin_greek_cyrillic_and_symbols_in_hancom_font_faces_break_where_hancom_breaks_them() -> None:
+    # The same in the six faces Hancom ships in its own font format, for twenty glyphs beyond ASCII (Latin letters
+    # with marks, Greek, Cyrillic, quotation marks and symbols), which take the advances Hancom lays them out at.
+    # 한양견고딕's § at 30 pt is left out: it is laid out as in a face of 1024 units (659), which no advance in the
+    # face's 4096 gives at 10, 30 and 40 pt together.
+    doc = HwpxDocument.open(HFT_STD_GLYPH_CELLS)
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    faces, checked = set(), 0
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+        if (style.glyph_face, text[0], points) == ("한양견고딕", "§", 30):
+            continue
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        faces.add(style.glyph_face)
+        checked += 1
+        assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points)
+    assert len(cells) == 480 and checked == 478 and len(faces) == 6
 
 
 def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
