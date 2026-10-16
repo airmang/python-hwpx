@@ -445,6 +445,18 @@ HANCOM_PAGES = {
     "pages_table_wider_than_the_line_then_a_click_here_field": 1,
     "pages_index_mark_then_a_table_wider_than_the_line": 1,  # an index mark
     "pages_table_wider_than_the_line_then_an_index_mark": 1,
+    # Tabs: a tab reaches the next default tab stop, every 4000 from the column's left edge (the first line
+    # starting at the left margin and a first-line indent, a hanging indent off the other lines), and a line may
+    # start on either side of one. 90 paragraphs of 바탕 10 pt Hangul, a tab, then two-syllable words, after 0-9
+    # syllables and at left margins 0, 1417 and 2835 with indents 0, 850 and -850:
+    "pages_tab_stops_after_hangul_and_indents": 10,
+    "pages_tab_stops_one_size": 1,  # labels, two tabs and text, at margins and indents
+    "pages_tab_stops_mixed_sizes": 2,  # runs of 9 to 20 pt
+    "pages_tab_stops_mixed_faces": 1,  # runs of six faces
+    # A line break: the line after it is no first line, its room the other lines' (a first-line indent not
+    # taken off it), in runs of several sizes
+    "pages_line_breaks_mixed_sizes_indented": 2,
+    "pages_tabs_breaks_sizes_faces": 1,  # tabs, line breaks, sizes and faces together
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it

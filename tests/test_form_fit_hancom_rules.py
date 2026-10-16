@@ -95,6 +95,20 @@ def test_the_glyph_ending_a_line_takes_no_spacing() -> None:
     assert hancom_line_starts("가나다라마바사", [8300], 10, TextStyle(break_non_latin_word="KEEP_WORD", spacing=20)) == [0]
 
 
+def test_a_tab_reaches_the_next_default_stop_from_the_columns_left_edge() -> None:
+    # Stops every 4000 from the column's left edge: three syllables then a tab reach 4000, and "가가" ends at
+    # 6000; 1417 into the column (a left margin) the tab reaches 8000 instead, 6583 into the line, and "가가"
+    # no longer fits 8500 -- a line may start after a tab, so it goes on to the next line.
+    style = TextStyle()
+    assert hancom_line_starts("가가가\t가가", [8500], 10, style) == [0]
+    assert hancom_line_starts("가가가\t가가", [8500], 10, replace(style, margin_left=1417)) == [0, 4]
+    # A first-line indent moves the first line's text, not the lines after a line break.
+    assert hancom_line_starts("가가가\t가가", [8500], 10, replace(style, indent=1417)) == [0, 4]
+    assert hancom_line_starts("가가가\t가가", [8500], 10, replace(style, indent=1417), continued=True) == [0]
+    # A paragraph whose tab definition sets stops of its own keeps the tab as a space-class glyph.
+    assert hancom_line_starts("가가가\t가가", [8500], 10, replace(style, margin_left=1417, tab_stop=0)) == [0]
+
+
 def test_each_character_can_take_its_own_size() -> None:
     style = TextStyle(break_non_latin_word="KEEP_WORD")
 

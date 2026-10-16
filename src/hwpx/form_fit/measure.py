@@ -138,6 +138,9 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 # and rounded. A face or glyph listed nowhere falls back to the class averages,
 # unrounded.
 _LAYOUT_UNIT = 4
+#: Hancom's default tab stops, this far apart (HWPUNIT) from the column's left edge (the section's
+#: ``tabStopVal``).
+_DEFAULT_TAB_STOP = 4000
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -1196,7 +1199,10 @@ class TextStyle:
     label takes before the text (see :func:`label_room`); it comes off the first
     line, and with ``head_hangs`` (자동 내어 쓰기) off every line, the indent then
     only off the others (see :func:`indented_widths`). ``space_before`` (HWPUNIT) is room above the first
-    line; the spacing after the paragraph takes no room in a cell. ``hangul_face``
+    line; the spacing after the paragraph takes no room in a cell. A tab reaches Hancom's next default tab
+    stop, every ``tab_stop`` HWPUNIT from the column's (a cell's: its text area's) left edge, the line
+    starting at ``margin_left`` and its indent or label room; ``tab_stop`` 0 (a paragraph whose tab
+    definition sets stops of its own or automatic tabs) lays a tab out as a space-class glyph. ``hangul_face``
     and ``glyph_face`` name the faces whose design advances Hangul syllables
     and the other glyphs take, laid out as Hancom rounds them (see
     :func:`char_advance`); an empty or unlisted face, or a glyph it does not
@@ -1220,6 +1226,25 @@ class TextStyle:
     scripts: tuple[tuple[str, float, float], ...] = ()
     head: float = 0.0
     head_hangs: bool = False
+    tab_stop: int = _DEFAULT_TAB_STOP
+
+
+def _line_origin(style: TextStyle, first: bool) -> float:
+    """Where a line starts from the column's left edge, the room :func:`indented_widths` takes off it before
+    its text: the left margin, then the first-line indent and the label's room (a hanging indent off the
+    other lines)."""
+
+    if style.head and style.head_hangs:
+        room = style.head if first else style.head - style.indent
+    else:
+        room = max(style.indent, 0) + style.head if first else max(-style.indent, 0)
+    return style.margin_left + room
+
+
+def _tab_advance(x: float, stop: int) -> float:
+    """How far a tab at *x* (from the column's left edge) reaches: to the next default tab stop past it."""
+
+    return (math.floor(x / stop) + 1) * stop - x
 
 
 def indented_widths(line: float, style: TextStyle) -> tuple[float, float]:
@@ -1415,8 +1440,8 @@ def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
         prev, cur = text[index - 1], text[index]
         if cur in _HANGING_SPACES:
             continue
-        if prev in _HANGING_SPACES:
-            opportunities.add(index)
+        if prev in _HANGING_SPACES or "\t" in (prev, cur):  # a line may start after a space, or at either side
+            opportunities.add(index)  # of a tab
             continue
         if classify_char(prev) in ("hangul", "wide") or classify_char(cur) in ("hangul", "wide"):
             if style.break_non_latin_word == "KEEP_WORD":
@@ -1436,6 +1461,7 @@ def hancom_line_starts(
     styles: Sequence[TextStyle] | None = None,
     advances: Mapping[int, float] | None = None,
     objects: Collection[int] = (),
+    continued: bool = False,
 ) -> list[int]:
     """Where Hancom starts each line of the one-line *text* (no newlines).
 
@@ -1461,6 +1487,9 @@ def hancom_line_starts(
     such as an object set as a character, by their index; *objects* holds
     the indexes of those that are objects: the two spaces right after one
     hang past the margin, and a further space begins the next line as above.
+    A tab reaches the next default tab stop (``style.tab_stop``) from the
+    column's left edge; a line may start on either side of one. *continued*
+    text follows a line break, so its first line is not the paragraph's.
     """
 
     breaks = _hancom_break_opportunities(text, style)
@@ -1471,12 +1500,15 @@ def hancom_line_starts(
     start = 0
     while True:
         width = widths[min(len(starts) - 1, len(widths) - 1)]
+        origin = _line_origin(style, len(starts) == 1 and not continued)
         end, used, inner, pending, seen, spilled, full = start, 0.0, 0, 0, False, False, False
         while end < length:
             ch = text[end]
             size = font_pt if sizes is None else sizes[end]
             look = style if styles is None else styles[end]
             fixed = None if advances is None else advances.get(end)
+            if fixed is None and ch == "\t" and style.tab_stop:
+                fixed = _tab_advance(origin + used, style.tab_stop)
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
                 if used >= width and end > start and not full and _spills(ch, text[end - 1]) \
@@ -1550,7 +1582,7 @@ def _hancom_line_count(
             total += 1
             continue
         widths = [first_width, rest_width] if index == 0 else [rest_width]
-        total += len(hancom_line_starts(line, widths, font_pt, style))
+        total += len(hancom_line_starts(line, widths, font_pt, style, continued=index > 0))
     return max(total, 1)
 
 
@@ -2129,6 +2161,13 @@ def text_style_from_refs(
             scripts=scripts,
         )
     breaks = getattr(prop, "break_setting", None)
+    tab_stop = _DEFAULT_TAB_STOP
+    try:
+        tabs = root.tab_property(getattr(prop, "tab_pr_id_ref", None))
+    except Exception:  # pragma: no cover - defensive
+        tabs = None
+    if tabs is not None and (tabs.tab_stops or tabs.auto_tab_left or tabs.auto_tab_right):
+        tab_stop = 0  # stops of its own, or automatic tabs: not followed
     # hp:case carries the HWPUNIT values Hancom lays out with; hp:default doubles them.
     switch = getattr(prop, "version_switch", None)
     case = getattr(switch, "case", None) if switch is not None else None
@@ -2149,6 +2188,7 @@ def text_style_from_refs(
         glyph_face=glyph_face,
         hangul_face=hangul_face,
         scripts=scripts,
+        tab_stop=tab_stop,
     )
     heading = paragraph_label(root, para_pr_id_ref, label)
     if heading is None:
