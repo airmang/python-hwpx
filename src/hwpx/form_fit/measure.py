@@ -1224,6 +1224,16 @@ def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float) 
     return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
 
 
+def _laid_out_half_glyph(height: int, ratio: float, spacing: float) -> float:
+    """HWPUNIT a glyph of half an em (``_HALF_EM_GLYPHS``) takes at a character height of *height* HWPUNIT, its
+    자간 included: the half em in whole layout units, rounded down as a space's is (a 9 pt "!" is 448, not 452),
+    then scaled by its 장평 as any glyph is."""
+
+    half = Fraction(height // _LAYOUT_UNIT, 2)
+    advance = math.floor(half) if ratio == 100 else math.floor(half * Fraction(ratio) / 100)
+    return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
+
+
 @lru_cache(maxsize=512)
 def _laid_out_space(height: int, ratio: float, spacing: float) -> float:
     """HWPUNIT the half-em space takes at a character height of *height* HWPUNIT,
@@ -1486,7 +1496,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     elif cls == "hangul":
         design, base = _hangul_units(_laid_out_face(style.hangul_face), ch), style.hangul_advance
     elif ch in _HALF_EM_GLYPHS:
-        design, base = (1, 2), _ADVANCE_EM[cls]
+        return _laid_out_half_glyph(height, ratio, spacing)
     else:
         design, base = _design_units(_laid_out_face(style.glyph_face), ch), _ADVANCE_EM[cls]
     if design is not None:
