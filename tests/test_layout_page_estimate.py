@@ -23,15 +23,6 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_PAGES = {
-    # Documents of paragraphs, tables, pictures, shapes and footnotes whose paragraphs set to stay with the next
-    # follow each other (a chain): a paragraph of the chain reaching the page's foot splits there, the chain
-    # before it staying; one that has to go on to the next page whole (its next paragraph's first line, or a
-    # table, no longer fits) takes the whole chain before it along, footnotes of the chain taking their room.
-    "pages_keep_with_next_chain_goes_on": 2,
-    "pages_keep_with_next_chain_before_a_table": 4,
-    "pages_keep_with_next_chain_splits_at_the_foot": 2,
-    "pages_keep_with_next_chain_with_a_footnote": 7,
-    "pages_keep_with_next_chain_of_several_lines_goes_on": 2,
     # A picture (or a rectangle) placed top and bottom alone in an empty paragraph whose spacing after is 1000,
     # the next paragraph's spacing before 600, the empty line 1600 tall with its spacing: unless the object
     # moves with the text, may overlap and starts above the line's foot, the empty line stays at the paragraph's
@@ -248,6 +239,15 @@ HANCOM_PAGES = {
     "pages_line_ends_200_above_page_foot": 2,  # one ending 200 above it stays
     "pages_line_ends_1_above_page_foot": 2,    # and one ending 1 above it
     "pages_line_ends_100_above_page_foot": 2,  # and 100 above it: no room is kept below lines
+    # Documents of paragraphs, tables, pictures, shapes and footnotes whose paragraphs set to stay with the next
+    # follow each other (a chain): a paragraph of the chain reaching the page's foot splits there, the chain
+    # before it staying; one that has to go on to the next page whole (its next paragraph's first line, or a
+    # table, no longer fits) takes the whole chain before it along, footnotes of the chain taking their room.
+    "pages_keep_with_next_chain_goes_on": 2,
+    "pages_keep_with_next_chain_before_a_table": 4,
+    "pages_keep_with_next_chain_splits_at_the_foot": 2,
+    "pages_keep_with_next_chain_with_a_footnote": 7,
+    "pages_keep_with_next_chain_of_several_lines_goes_on": 2,
     "pages_keep_keep_with_next": 3,       # keep with next
     "pages_columns_2_break": 4,           # two columns and a column break
     # Columns changing inside the section (10 pt lines spaced 160%): three lines in one column, a paragraph
