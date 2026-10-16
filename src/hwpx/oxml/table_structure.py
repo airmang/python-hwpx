@@ -117,7 +117,7 @@ class TableStructureEdits:
 
         element = self.element
         if element.prefix != "hp":
-            raise TableStructureError("structure edits read a table whose paragraph namespace is prefixed hp")
+            raise TableStructureError("structure edits need a table whose paragraph namespace is prefixed hp")
         section = self.paragraph.section
         sections = section.document.sections if section.document is not None else [section]
         used = {
