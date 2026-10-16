@@ -1620,6 +1620,19 @@ def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_
         assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
 
 
+def test_the_estimate_reads_a_paragraphs_tab_definition() -> None:
+    # A paragraph whose tab definition sets a stop of its own is not laid out on the default stops.
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("가가가\t가가")
+    doc.styles.apply_paragraph_format(paragraphs=[paragraph], tab_stops=[{"pos_mm": 50, "type": "RIGHT"}])
+    root = HwpxDocument.open(io.BytesIO(doc.to_bytes()))._root
+    element = root.sections[0].element.findall(f"{HP}p")[-1]
+
+    style = page_layout._Measure(root).style(element.get("paraPrIDRef"), ["0"])
+
+    assert style.tab_stop == 0
+
+
 def test_the_lines_a_cell_splits_between_add_up_to_its_height() -> None:
     # A row of several paragraphs splits between their lines, one height and advance each: they add up to
     # the height the cell stacks the paragraphs to, a paragraph mixing character sizes included (each line

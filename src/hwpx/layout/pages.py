@@ -494,6 +494,9 @@ class _Lookups:
             self._paragraph_shapes = self._document.paragraph_properties
         return HwpxOxmlHeader._lookup_by_id(self._paragraph_shapes, para_pr_id)
 
+    def tab_property(self, tab_pr_id: Any) -> Any:
+        return self._document.tab_property(tab_pr_id)
+
 
 class _Measure:
     """Shapes and line breaking of one document."""
