@@ -121,6 +121,14 @@ _HALF_EM_SPACES = frozenset(" \u00a0")
 #: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance (a glyph all the
 #: same: rounded, \uc7a5\ud3c9 and \uc790\uac04 applied as any other is).
 _HALF_EM_GLYPHS = frozenset("!")
+#: Pictographs Hancom draws as color emoji: 1.373 em in every face (a design advance of 1373 in 1000), however
+#: the face draws its other symbols. The pictograph planes past the BMP, and the BMP symbols that take the emoji
+#: presentation there (⚫ ⚡ ⌛ ☎ ✔ ➡ and other symbols stay the face's own). The regional indicators of a flag
+#: are not: Hancom draws the pair of 🇰🇷 under an em.
+_EMOJI_UNITS = (1373, 1000)
+_EMOJI_BMP = frozenset("✅❌❎❗❓❔❕➕➖➗⏰⏳⛔✋✨⭐⬛⬜")
+#: The variation selectors and the zero-width joiner: no advance.
+_ZERO_WIDTH = frozenset("\ufe0e\ufe0f\u200d")
 #: Closing punctuation that never starts a line; it moves down with the
 #: character before it; but the ellipsis starts a line after a space.
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
@@ -1460,8 +1468,12 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
 
     typed = ch == _GLYPH_SPACE
     ch = "\u3000" if typed else ch
+    if ch in _ZERO_WIDTH:
+        return 0.0
+    emoji = ch in _EMOJI_BMP or 0x1F000 <= ord(ch) <= 0x1FAFF and not 0x1F1E6 <= ord(ch) <= 0x1F1FF
     if style is None:
-        return _ADVANCE_EM[classify_char(ch)] * font_pt * 100.0
+        em = _EMOJI_UNITS[0] / _EMOJI_UNITS[1] if emoji else _ADVANCE_EM[classify_char(ch)]
+        return em * font_pt * 100.0
     cls = classify_char(ch)
     height = round(font_pt * 100.0)
     if ch == _FIXED_SPACE and not typed:
@@ -1469,7 +1481,9 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     ratio, spacing = _scaling(ch, style)
     if ch in _HALF_EM_SPACES and not style.use_font_space:
         return _laid_out_space(height, ratio, spacing)
-    if cls == "hangul":
+    if emoji:
+        design, base = _EMOJI_UNITS, _ADVANCE_EM[cls]
+    elif cls == "hangul":
         design, base = _hangul_units(_laid_out_face(style.hangul_face), ch), style.hangul_advance
     elif ch in _HALF_EM_GLYPHS:
         design, base = (1, 2), _ADVANCE_EM[cls]
