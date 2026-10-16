@@ -100,6 +100,12 @@ HANCOM_PAGES = {
     "pages_push_band_group_as_character_alone": 1,  # the group and the polygon, no text
     # A picture wrapped square from an empty paragraph's left, 41631 x 27112, leaving 6557 beside it; the
     # next paragraph holds a table set as a character alone:
+    # An empty paragraph holding a picture wrapped square 14000 from its left, text on both sides: an empty
+    # line reaching the picture is two empty pieces beside it, one above it (the picture placed lower than
+    # the line's foot) is one line
+    "pages_square_picture_reaching_an_empty_line": 1,  # placed 900 below the line's top: two pieces
+    "pages_square_picture_just_below_an_empty_line": 1,  # 1100 below: one line
+    "pages_square_picture_far_below_an_empty_line": 1,  # 8000 below: one line
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
