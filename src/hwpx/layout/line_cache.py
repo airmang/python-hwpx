@@ -19,7 +19,7 @@ controls that take no room on a line (a header, a footer, a page number, the sec
 first paragraph) and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
 face, 장평 or 자간, each character taking its own run's advance, and in size: each line is then as tall as its
 largest character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes
-the line as tall as that one); such a paragraph has no tab.
+the line as tall as that one), and has no tab.
 
 The cells of a table in such a section get caches the same way when every paragraph of the cell is one of
 these: their lines go down from the top of the cell's text area, as wide as that area in whole layout units and
@@ -262,7 +262,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     room = width - shape.left - shape.right
     widths = _pages._line_widths(shape, width, style) if cell else _pages._indented(room, shape, style)
     if mixed or looks is not None:
-        if "\t" in text:
+        if mixed and "\t" in text:  # a tab among characters of several sizes: its width is less sure
             return None
         starts = _pages._metric_starts(measure, text, widths, sizes, style, {}, looks)
         metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
@@ -275,7 +275,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if not _sure_of(text, starts, style, looks) or any(place in starts[1:] for place in controls):
         return None  # a line starting at a control: on which side Hancom starts it is not known
-    tabs = _tab_widths(text, starts, widths, size, style) if "\t" in text else []
+    tabs = _tab_widths(text, starts, widths, size, style, looks) if "\t" in text else []
     if tabs is None:
         return None
     indented = min(widths) < room  # else Hancom dropped the indent: no line takes it
@@ -339,9 +339,11 @@ def _taller_past_a_break(text: str, sizes: list[int], starts: list[int],
     return False
 
 
-def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, style: Any) -> list[int] | None:
-    """The width of each tab of *text* as Hancom lays it out on the lines starting at *starts*, or None when a
-    tab does not reach a default tab stop (the paragraph's own stops, a tab laid out as a glyph)."""
+def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, style: Any,
+                looks: list[Any] | None = None) -> list[int] | None:
+    """The width of each tab of *text* as Hancom lays it out on the lines starting at *starts*, every character
+    in its own look (*looks*) when they differ; None when a tab does not reach a default tab stop (the
+    paragraph's own stops, a tab laid out as a glyph)."""
 
     if style is None or style.tab_stops or style.auto_tab_left or style.auto_tab_right or not style.tab_stop:
         return None
@@ -355,16 +357,17 @@ def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, st
         room = widths if logical == 0 else widths[1:] or widths
         width = room[min(visual, len(room) - 1)]
         origin = _line_origin(style, logical == 0 and visual == 0)
+        own_looks = None if looks is None else looks[logical:logical + len(own)]
         used = 0.0
         for index in range(start, end):
             ch = text[index]
             if ch != "\t":
-                used += char_advance(ch, points, style)
+                used += char_advance(ch, points, style if looks is None else looks[index])
                 continue
             at = index - logical
             reach = tab_reach(origin + used, origin + width, style,
-                                   lambda point, at=at: _width_after_tab(own, at, points, style, None, None, None,
-                                                                              point))
+                              lambda point, at=at: _width_after_tab(own, at, points, style, None, own_looks, None,
+                                                                    point))
             if reach is None:
                 return None
             found.append(round(reach))
