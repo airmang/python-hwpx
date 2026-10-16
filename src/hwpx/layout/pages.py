@@ -1447,6 +1447,8 @@ def _column_layout(settings: Any, text_width: int) -> tuple[int, int, tuple[int,
                        for size in sizes)
         return count, min(widths), widths, 0
     gap = int(settings.get("sameGap", 0))
+    if gap >= 1 << 31:  # a signed 32-bit number written unsigned: Hancom takes a negative gap so
+        gap -= 1 << 32
     return count, (text_width - (count - 1) * gap) // count // 4 * 4, (), gap
 
 
