@@ -2845,7 +2845,7 @@ def _header_moves(table: _FlowTable, y: int, body: int) -> bool:
 
     header = _repeated_header(table)
     return table.mode in ("TABLE", "CELL") and bool(header) and y + header > body - table.cut \
-        and y > header + table.margins[0]
+        and y > table.margins[0]
 
 
 def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:

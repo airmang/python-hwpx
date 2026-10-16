@@ -1967,3 +1967,20 @@ def test_a_document_with_endnotes_is_unsupported() -> None:
     assert estimate.pages is None
     assert estimate.lines == ()
     assert estimate.unsupported == ("section 0: endnotes",)
+
+
+@pytest.mark.parametrize("mode", ["CELL", "TABLE"])
+@pytest.mark.parametrize("top_margin", [0, 200])
+def test_a_repeated_header_taller_than_the_remaining_half_page_moves_whole(mode: str, top_margin: int) -> None:
+    from hwpx.layout.pages import _FlowTable, _Row, _flow_table, _starts_later
+
+    header = _Row(height=6000, lines=6, pitch=1000, size=1000, margins=0, header=True)
+    body = _Row(height=1000, lines=1, pitch=1000, size=1000, margins=0, header=False)
+    table = _FlowTable([header, body], mode, True, (top_margin, 0), cut=0)
+
+    assert _starts_later(table, 5000, 10000)
+    assert _flow_table(table, 0, 5000, 10000) == (1, top_margin + 7000)
+    assert not _starts_later(table, top_margin, 10000)
+    assert _flow_table(table, 0, top_margin, 10000) == (0, top_margin + 7000)
+    assert not _starts_later(table, 4000, 10000)
+    assert _flow_table(table, 0, 4000, 10000) == (1, top_margin + 7000)
