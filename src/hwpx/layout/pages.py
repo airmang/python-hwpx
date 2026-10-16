@@ -185,7 +185,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from ..form_fit.measure import (_GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts, indented_widths,
-                                paragraph_label, text_style_from_refs)
+                                margins_doubled, paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -322,7 +322,11 @@ class _Shape:
     font_line: bool = False  # its lines as tall as the font makes them (fontLineHeight)
 
 
-def _para_shape(header: Any, para_pr_id: str) -> _Shape:
+def _para_shape(header: Any, para_pr_id: str, doubled: bool = False) -> _Shape:
+    """The paragraph shape *para_pr_id*. With *doubled* (a document an older Hancom saved, see
+    :func:`~hwpx.form_fit.measure.margins_doubled`), margins and a line spacing in HWPUNIT outside
+    ``hp:switch`` hold twice the values Hancom lays out with, as ``hp:default`` does."""
+
     shape = next((el for el in header.iter(f"{HH}paraPr") if el.get("id") == para_pr_id), None)
     if shape is None:
         raise _Unsupported(f"paragraph shape {para_pr_id} is missing")
@@ -331,15 +335,18 @@ def _para_shape(header: Any, para_pr_id: str) -> _Shape:
     holder = case if case is not None else shape
     spacing = _child(holder, "lineSpacing")
     margin = _child(holder, "margin")
+    half = 2 if doubled and case is None else 1
 
     def value(name: str) -> int:
         element = _child(margin, name) if margin is not None else None
-        return int(element.get("value", 0)) if element is not None else 0
+        return int(element.get("value", 0)) // half if element is not None else 0
 
     breaks = shape.find(f"{HH}breakSetting")
     kind, amount = ("PERCENT", 160)
     if spacing is not None:
         kind, amount = spacing.get("type", "PERCENT"), int(spacing.get("value", 160))
+        if kind != "PERCENT":
+            amount //= half
     return _Shape(kind, amount, value("prev"), value("next"), value("left"), value("right"), value("intent"),
                   dict(breaks.attrib) if breaks is not None else {}, shape.get("fontLineHeight") in ("1", "true"))
 
@@ -483,6 +490,7 @@ class _Lookups:
     def __init__(self, root: Any) -> None:
         self._document = root
         self.headers = root.headers
+        self.version = root.version  # how the paragraph shapes' margins outside hp:switch read
         self.sections = root.sections  # the outline numbering of a paragraph's label
         self._paragraph_shapes: dict[str, Any] | None = None
 
@@ -505,6 +513,7 @@ class _Measure:
         self._root = root
         self._lookups = _Lookups(root)
         self._header = root.headers[0].element
+        self._doubled = margins_doubled(root)
         self._shapes: dict[str, _Shape] = {}
         self._styles: dict[tuple[str, tuple[str, ...], str | None], Any] = {}
         self._drawn: dict[Any, str] | None = None
@@ -514,7 +523,7 @@ class _Measure:
     def shape(self, para_pr_id: Any) -> _Shape:
         key = str(para_pr_id)
         if key not in self._shapes:
-            self._shapes[key] = _para_shape(self._header, key)
+            self._shapes[key] = _para_shape(self._header, key, self._doubled)
         return self._shapes[key]
 
     def char_height(self, char_pr_id: Any) -> int:

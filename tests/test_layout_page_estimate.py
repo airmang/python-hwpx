@@ -1007,6 +1007,33 @@ def _without_caches(data: bytes) -> bytes:
     return out.getvalue()
 
 
+def _as_an_older_hancom_wrote_it(data: bytes, xml_version: str) -> bytes:
+    """*data* without line caches, each paragraph shape's margins and line spacing written outside hp:switch
+    as hp:default holds them (doubled), and version.xml giving *xml_version*."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(_without_caches(data))) as source, \
+            zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/header.xml":
+                root = etree.fromstring(payload)
+                for shape in root.iter(f"{HH}paraPr"):
+                    for switch in shape.findall(f"{HP}switch"):
+                        default = switch.find(f"{HP}default")
+                        if default is None or default.find(f"{HH}margin") is None:
+                            continue
+                        at = list(shape).index(switch)
+                        for child in reversed(list(default)):
+                            shape.insert(at, child)
+                        shape.remove(switch)
+                payload = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            elif info.filename == "version.xml":
+                payload = re.sub(rb'xmlVersion="[^"]*"', b'xmlVersion="' + xml_version.encode() + b'"', payload)
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
 def _assert_like_hancom(estimate: PageEstimate, data: bytes, pages: int) -> None:
     assert estimate.unsupported == ()
     assert estimate.pages == pages
@@ -1052,6 +1079,23 @@ def test_a_number_label_in_a_format_the_text_export_does_not_write_is_estimated(
 
         assert estimate.unsupported == ()
         assert estimate.pages >= 1
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["pages_paragraph_margins_of_an_older_hancom", "pages_paragraph_margins_and_fixed_spacing_of_an_older_hancom"],
+)
+def test_an_older_hancoms_paragraph_margins_outside_a_switch_read_halved(name: str) -> None:
+    # Twelve paragraphs with left margins, first-line indents and hanging ones, spacing above and below, and in
+    # the second document fixed line spacing. Hancom laid them out from a copy written as an older Hancom
+    # writes it: the margins and spacing outside hp:switch, doubled as hp:default holds them, version.xml
+    # giving xmlVersion 1.0. It reads them halved there; in a document of xmlVersion 1.31 or later, as they are.
+    data = (FIXTURES / f"{name}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_as_an_older_hancom_wrote_it(data, "1.0")), data, 2)
+    _assert_like_hancom(estimate_pages(_as_an_older_hancom_wrote_it(data, "1.3")), data, 2)
+    newer = estimate_pages(_as_an_older_hancom_wrote_it(data, "1.31"))
+    assert [[line.vertpos for line in lines] for lines in newer.lines] != _hancom_lines(data)
 
 
 def test_an_unsplit_table_without_room_goes_on_alone() -> None:
