@@ -74,6 +74,9 @@ HFT_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit
 SINMYEONG_TAEMYEONGJO_CELLS = (
     Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_sinmyeong_taemyeongjo_cells.hwpx"
 )
+SINMYEONG_GYEONGOTHIC_HANYANG_GRAPHIC_CELLS = (
+    Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_sinmyeong_gyeongothic_hanyang_graphic_cells.hwpx"
+)
 DODUM_PUNCTUATION = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_dodum_punctuation_cells.hwpx"
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
 FIXED_WIDTH_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_fixed_width_spaces.hwpx"
@@ -200,11 +203,20 @@ def test_dodum_punctuation_and_the_exclamation_mark_break_where_hancom_breaks_th
     assert len(cells) == 144
 
 
-def test_cells_in_sinmyeong_taemyeongjo_break_where_hancom_breaks_them() -> None:
-    # The same in 신명 태명조, a face Hancom knows on its own (not as 한컴바탕), for 24 glyphs at 10 and 30 pt:
-    # ASCII, quotation marks, Latin, Greek and Cyrillic letters, symbols and Hangul, in 2048 units.
-    doc = HwpxDocument.open(SINMYEONG_TAEMYEONGJO_CELLS)
+@pytest.mark.parametrize(
+    ("fixture", "faces"),
+    [
+        (SINMYEONG_TAEMYEONGJO_CELLS, {"신명 태명조"}),
+        (SINMYEONG_GYEONGOTHIC_HANYANG_GRAPHIC_CELLS, {"신명 견고딕", "한양그래픽"}),
+    ],
+)
+def test_cells_in_faces_hancom_knows_on_their_own_break_where_hancom_breaks_them(fixture: Path, faces: set[str]) -> None:
+    # The same in faces Hancom knows on their own (not as 한컴바탕): 신명 태명조 and 한양그래픽 in 2048 units,
+    # 신명 견고딕 in 1000, for 24 glyphs at 10 and 30 pt: ASCII, quotation marks, Latin, Greek and Cyrillic
+    # letters, symbols and Hangul.
+    doc = HwpxDocument.open(fixture)
     cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    seen = set()
     for cell in cells:
         paragraph = cell.find(f"{HP}subList/{HP}p")
         text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
@@ -214,9 +226,9 @@ def test_cells_in_sinmyeong_taemyeongjo_break_where_hancom_breaks_them() -> None
         margins = cell.find(f"{HP}cellMargin")
         width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
         hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
-        assert style.glyph_face == "신명 태명조"
-        assert estimate_lines(text, width, points, style) == hancom, (f"U+{ord(text[0]):04X}", points)
-    assert len(cells) == 96
+        seen.add(style.glyph_face)
+        assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points)
+    assert len(cells) == 96 * len(faces) and seen == faces
 
 
 def test_cells_in_more_faces_break_where_hancom_breaks_them() -> None:
