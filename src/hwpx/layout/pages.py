@@ -3704,7 +3704,7 @@ class _Paginator:
         if count < remaining:
             count = self._keep_rules(para, start, remaining, count)
         if count == remaining and para.keep_next and index + 1 < len(paras):
-            count = self._keep_with_next(para, paras[index + 1], start, remaining, count)
+            count = self._keep_with_next(para, paras[index + 1:], start, remaining, count)
         return count
 
     def _keep_rules(self, para: _Para, start: int, remaining: int, count: int) -> int:
@@ -3717,11 +3717,40 @@ class _Paginator:
                 return count - 1
         return count
 
-    def _keep_with_next(self, para: _Para, following: _Para, start: int, remaining: int, count: int) -> int:
-        after = start + para.span(0, remaining) + para.next + following.prev
-        need = 2 if following.widow_orphan and following.lines > 1 else 1
-        if self._fits(after, need, following) < need and start != para.prev:
-            return 0
+    def _keep_with_next(self, para: _Para, following: list[_Para], start: int, remaining: int, count: int) -> int:
+        """*count*, or 0 when the paragraph set to stay with the next has to go on to the next frame. Its last
+        line stays with the next paragraph's first line (two under the widow and orphan rule); so does each
+        paragraph after it set so too (a chain). A paragraph of the chain that reaches the frame's foot
+        splits there as any other, the chain before it staying; one that has to go on to the next frame
+        whole takes the whole chain before it along. A paragraph at the frame's top stays."""
+
+        if start == para.prev:
+            return count
+        saved, carry = list(self.page_notes), self.carry
+        try:
+            return self._chain_stays(para, following, start, remaining, count)
+        finally:
+            self.page_notes, self.carry = saved, carry
+
+    def _chain_stays(self, para: _Para, following: list[_Para], start: int, remaining: int, count: int) -> int:
+        for line in range(remaining):  # the notes of the lines placed take room below the chain
+            height, many, _ = para.notes.get(line, (0, 0, 0))
+            self.page_notes = [self.page_notes[0] + height, self.page_notes[1] + many]
+        after = start + para.span(0, remaining) + para.next
+        for item in following:
+            after += item.prev
+            if not item.keep_next or item.table is not None or item.page_break or item.break_before \
+                    or item is following[-1]:
+                need = 2 if item.widow_orphan and item.lines > 1 else 1
+                return count if self._fits(after, need, item) >= need else 0
+            fit = self._fits(after, item.lines, item)
+            if fit == item.lines:
+                after += item.span(0, item.lines) + item.next
+                for height, many, _ in item.notes.values():
+                    self.page_notes = [self.page_notes[0] + height, self.page_notes[1] + many]
+                continue
+            # it splits at the foot, its first lines staying with the paragraph before; or it goes on whole
+            return count if fit and not item.keep_lines else 0
         return count
 
     def _fits(self, start: int, count: int, para: _Para, first: int = 0) -> int:
