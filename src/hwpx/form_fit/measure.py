@@ -2197,11 +2197,18 @@ def _face_names(root: Any, char_pr_id_ref: object) -> tuple[str, str]:
 
 
 def text_style_from_refs(
-    document: object, para_pr_id_ref: object, char_pr_id_refs: "list[object]", label: str | None = None
+    document: object,
+    para_pr_id_ref: object,
+    char_pr_id_refs: "list[object]",
+    label: str | None = None,
+    end_char_pr_id_ref: object = None,
 ) -> TextStyle:
     """Hancom layout settings of a paragraph shape and the first resolvable
     character shape among *char_pr_id_refs*; *label*, when given, is the number
-    Hancom draws before the paragraph (see :func:`paragraph_label`)."""
+    Hancom draws before the paragraph (see :func:`paragraph_label`).
+    *end_char_pr_id_ref* is the character shape of the paragraph's end (its
+    last run): a bullet or number label without a character shape of its own
+    takes that one, else the text's."""
 
     ratio, spacing, use_font_space, hangul_face, glyph_face = 100.0, 0.0, False, "", ""
     scripts: tuple[tuple[str, float, float], ...] = ()
@@ -2278,6 +2285,8 @@ def text_style_from_refs(
     text, head = heading
     own = head.get("charPrIDRef")
     looks, em = style, height
+    if not (own and own != "4294967295" and root.char_property(own) is not None) and end_char_pr_id_ref is not None:
+        own = str(end_char_pr_id_ref)  # a label without a shape of its own takes the paragraph end's
     if own and own != "4294967295" and root.char_property(own) is not None and own != used:
         looks = text_style_from_refs(document, None, [own])
         em = int(_style_number((root.char_property(own).attributes or {}).get("height"), 1000.0))
