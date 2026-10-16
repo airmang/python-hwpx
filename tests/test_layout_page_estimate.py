@@ -1100,8 +1100,6 @@ def test_a_shape_placed_up_from_its_paragraph_takes_no_more_than_its_foot() -> N
         assert estimate.pages == 1
 
 
-
-
 def test_an_offset_written_with_a_minus_sign_is_read_as_zero() -> None:
     # The same rectangle written vertOffset="-1500" (not the unsigned form): Hancom reads it as 0, draws the
     # rectangle at the paragraph's top and saves 0. The fixture is that save; written back with the minus sign,
@@ -1470,7 +1468,6 @@ def test_the_evaluation_plan_form_lays_out_like_hancom_without_caches() -> None:
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 15)
 
 
-@pytest.mark.parametrize("name", ["pages_table_with_cell_spacing", "pages_table_without_cell_spacing"])
 @pytest.mark.parametrize("height", [str((1 << 32) - 633), str((1 << 32) - 1)])
 def test_a_negative_cell_height_kept_unsigned_counts_as_none(height: str) -> None:
     # A 3x2 table whose row-2 cell was written with the height -633 kept unsigned (4294966663), saved by Hancom:
@@ -1495,6 +1492,7 @@ def test_a_negative_cell_height_kept_unsigned_counts_as_none(height: str) -> Non
         assert estimate.pages == 1
 
 
+@pytest.mark.parametrize("name", ["pages_table_with_cell_spacing", "pages_table_without_cell_spacing"])
 def test_a_table_with_cell_spacing_lays_its_cells_out_at_their_own_widths(name: str) -> None:
     # A table 46196 wide: one cell over its three columns, then cells of 15000, 21000 and 9800 with a cell
     # spacing of 198 (10196 without it), the last holding ten "가" (9720), every cell declared 282 tall. With
