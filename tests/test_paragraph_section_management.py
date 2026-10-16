@@ -183,6 +183,17 @@ class TestSectionManagement:
             "t",
         ]
 
+    def test_add_section_writes_the_documents_namespace_prefixes(self):
+        # The new section's XML takes the prefixes of the document's sections (hs:sec, hp:p, ...), so a
+        # table added there can take structure edits like any other.
+        doc = _new()
+        new_section = doc.add_section()
+        table = doc.add_table(3, 3, section=new_section)
+
+        assert (new_section.element.prefix, table.element.prefix) == ("hs", "hp")
+        table.split_cell(2, 2, rows=1, cols=2)
+        assert table.column_count >= 3
+
     def test_add_section_after(self, tmp_path):
         doc = _new()
         second = doc.add_section()
