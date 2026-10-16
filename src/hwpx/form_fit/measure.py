@@ -2252,10 +2252,13 @@ def paragraph_label(root: Any, para_pr_id_ref: object, drawn: str | None = None)
         form = (head.get("numFormat") if head is not None else None) or "DIGIT"
         if not measured:
             return "1" if form in _ASCII_NUMBER_FORMATS else "\uac00"
-        from ..tools.exporter import _number_text
+        from ..tools.exporter import _NUMBER_FORMATS, _number_text
 
         start = int(_style_number(head.get("start") if head is not None else None, 1.0))
-        return _number_text(start, form) if key != "N" else f"{start}."
+        if key == "N":
+            return f"{start}."
+        # a format the text export does not write (KOREAN_DIGIT, HANGUL, ...) counts as one syllable
+        return _number_text(start, form) if form in _NUMBER_FORMATS else "가"
 
     return re.sub(r"\^(\d+|N)", fill, paragraph_head.text or ""), attrs
 
