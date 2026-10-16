@@ -85,6 +85,7 @@ HFT_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit
 HFT_STD_GLYPH_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_std_glyph_cells.hwpx"
 DODUM_PUNCTUATION = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_dodum_punctuation_cells.hwpx"
 UNLISTED_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_unlisted_faces_cells.hwpx"
+EMOJI_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_emoji_cells.hwpx"
 
 
 NO_BREAK_SPACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_no_break_spaces.hwpx"
@@ -1167,3 +1168,43 @@ def test_fixed_width_spaces_break_where_hancom_breaks() -> None:
 
     assert len(rows) == 25
     assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
+def test_an_emoji_is_wider_than_an_em_in_every_face() -> None:
+    # Hancom draws a pictograph as a color emoji 1.373 em wide, in a face that draws its other symbols an em.
+    for face in ("함초롬바탕", "맑은 고딕", ""):
+        style = TextStyle(glyph_face=face, hangul_face=face)
+        for emoji in "😀📌✅⭐❌🟢💡🔹":
+            assert char_advance(emoji, 10, style) == 1372
+            assert char_advance(emoji, 40, style) == 5492
+    assert char_advance("⚫", 10, TextStyle(glyph_face="함초롬바탕")) < 1100
+    # The variation selector and the zero-width joiner take no room.
+    assert estimate_text_width("✔️", 10, TextStyle()) == estimate_text_width("✔", 10, TextStyle())
+    assert char_advance("‍", 10, TextStyle()) == 0
+
+
+def test_an_emoji_moves_down_where_an_em_would_fit() -> None:
+    # "결과 " then an emoji in a line 3800 wide: the emoji (1372) no longer fits after the word, a syllable (1000) does.
+    style = TextStyle(break_non_latin_word="KEEP_WORD")
+    assert hancom_line_starts("결과 😀 漢", [3800], 10, style) == [0, 3]
+    assert hancom_line_starts("결과 가 漢", [3800], 10, style) == [0, 5]
+
+
+def test_cells_of_emoji_break_where_hancom_breaks_them() -> None:
+    # Hancom laid this document out: each cell holds an emoji and five Hangul syllables in 함초롬바탕 or 맑은 고딕,
+    # at 10 pt and at 40 pt, at the two widths where its line count changes.
+    doc = HwpxDocument.open(EMOJI_CELLS)
+    cells = list(doc.oxml.sections[0].element.iter(f"{HP}tc"))
+    faces = set()
+    for cell in cells:
+        paragraph = cell.find(f"{HP}subList/{HP}p")
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        ref = paragraph.find(f"{HP}run").get("charPrIDRef")
+        style = text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref])
+        points = int(doc.oxml.char_property(ref).attributes["height"]) / 100
+        margins = cell.find(f"{HP}cellMargin")
+        width = int(cell.find(f"{HP}cellSz").get("width")) - int(margins.get("left")) - int(margins.get("right"))
+        hancom = len(paragraph.findall(f"{HP}linesegarray/{HP}lineseg"))
+        faces.add(style.glyph_face)
+        assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points, width)
+    assert len(cells) == 64 and faces == {"함초롬바탕", "맑은 고딕"}
