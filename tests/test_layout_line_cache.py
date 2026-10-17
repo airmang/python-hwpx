@@ -9,6 +9,7 @@ import pytest
 
 from hwpx import HwpxDocument
 from hwpx.layout.line_cache import write_line_caches
+from hwpx.layout.pages import estimate_pages
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -46,6 +47,20 @@ def test_the_caches_written_are_the_ones_hancom_wrote(name: str) -> None:
     for mine, theirs in written:
         assert _segments(mine) == _segments(theirs)
         assert [dict(tab.attrib) for tab in mine.iter(f"{HP}tab")] == [dict(tab.attrib) for tab in theirs.iter(f"{HP}tab")]
+
+
+def test_nothing_is_written_once_a_section_is_not_followed() -> None:
+    # The estimate names every section it does not follow; write_line_caches stops at the first one, since it writes
+    # nothing then anyway.
+    document = HwpxDocument.new()
+    document.add_paragraph("가나다")
+    document.add_section()
+    document.page.set_grid(line_grid=1000, section_index=0)
+    document.page.set_grid(line_grid=1000, section_index=1)
+
+    assert len(estimate_pages(document).unsupported) == 2
+    report = write_line_caches(document)
+    assert report.written == 0 and len(report.unsupported) == 1
 
 
 def test_a_new_paragraph_gets_hancoms_line_metrics() -> None:
