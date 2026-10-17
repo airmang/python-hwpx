@@ -2277,3 +2277,32 @@ def test_footnotes_beneath_text_remain_unsupported_with_endnote_support(written:
 
     assert estimate.pages is None
     assert estimate.unsupported == ("section 0: footnotes beneath the text",)
+
+
+def _without_header(data: bytes) -> bytes:
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as src, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            if item.filename == "Contents/header.xml":
+                continue
+            payload = src.read(item.filename)
+            if item.filename == "Contents/content.hpf":
+                payload = re.sub(rb"<opf:item [^>]*href=\"Contents/header.xml\"[^>]*/>", b"", payload)
+            dst.writestr(item, payload)
+    return out.getvalue()
+
+
+def test_a_document_without_a_header_part_is_left_unsupported() -> None:
+    # The paragraph and character shapes every paragraph names live in the header part; without it there is
+    # nothing to lay the text out by, so the estimate says so instead of failing.
+    document = HwpxDocument.new()
+    document.add_paragraph("머리 정보가 없는 문서")
+    data = _without_header(document.to_bytes())
+
+    estimate = estimate_pages(data)
+
+    assert estimate.pages is None and estimate.lines == ()
+    assert estimate.unsupported == ("a document without a header part (Contents/header.xml)",)
+    from hwpx.layout.line_cache import write_line_caches
+    report = write_line_caches(HwpxDocument.open(io.BytesIO(data)))
+    assert report.written == 0 and report.unsupported == estimate.unsupported
