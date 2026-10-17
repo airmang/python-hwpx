@@ -1295,7 +1295,11 @@ class TextStyle:
     and the other glyphs take, laid out as Hancom rounds them (see
     :func:`char_advance`); an empty or unlisted face, or a glyph it does not
     list, falls back to ``hangul_advance`` (a Hangul syllable in em) and to
-    the class averages. ``bold`` glyphs in a face of ``_BOLD_WIDER_FACES``
+    the class averages. ``latin_face`` and ``symbol_face`` name the Latin
+    and symbol scripts' faces: a glyph of those scripts (see
+    :func:`glyph_script`) takes its own script's face, as Hancom lays it
+    out when a character shape gives its scripts different faces (see
+    :func:`glyph_face_of`). ``bold`` glyphs in a face of ``_BOLD_WIDER_FACES``
     (the 한양 faces) are a twentieth of the em wider; in the others bold
     keeps the regular advance.
     """
@@ -1313,6 +1317,8 @@ class TextStyle:
     hangul_advance: float = 1.0
     glyph_face: str = ""
     hangul_face: str = ""
+    latin_face: str = ""
+    symbol_face: str = ""
     scripts: tuple[tuple[str, float, float], ...] = ()
     head: float = 0.0
     head_hangs: bool = False
@@ -1440,6 +1446,20 @@ def glyph_script(ch: str) -> str:
     return "hangul"
 
 
+def glyph_face_of(ch: str, style: TextStyle) -> str:
+    """The face whose design advance a glyph other than a Hangul syllable takes under *style*: a Latin
+    glyph the Latin script's face and a symbol the symbol script's (see :func:`glyph_script`), as Hancom
+    lays them out when a character shape gives its scripts different faces; any other glyph the face all the
+    glyph scripts share (``glyph_face``), or none."""
+
+    script = glyph_script(ch)
+    if script == "latin" and style.latin_face:
+        return style.latin_face
+    if script == "symbol" and style.symbol_face:
+        return style.symbol_face
+    return style.glyph_face
+
+
 def _scaling(ch: str, style: TextStyle) -> tuple[float, float]:
     """The (장평, 자간) *ch* takes under *style*."""
 
@@ -1504,7 +1524,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     if ch in _HALF_EM_SPACES and not style.use_font_space:
         # a no-break space takes its 장평 but no 자간
         return _laid_out_space(height, ratio, 0.0 if ch == " " else spacing)
-    face = style.hangul_face if cls == "hangul" else style.glyph_face
+    face = style.hangul_face if cls == "hangul" else glyph_face_of(ch, style)
     if emoji:
         design, base = _EMOJI_UNITS, _ADVANCE_EM[cls]
     elif cls == "hangul":
@@ -1512,7 +1532,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     elif ch in _HALF_EM_GLYPHS:
         return _laid_out_half_glyph(height, ratio, spacing)
     else:
-        design, base = _design_units(_laid_out_face(style.glyph_face), ch), _ADVANCE_EM[cls]
+        design, base = _design_units(_laid_out_face(face), ch), _ADVANCE_EM[cls]
         if design is None and _KANA_FIRST <= ord(ch) <= _KANA_LAST:
             # a kana the face lacks Hancom lays out as wide as the face's Hangul syllables
             design = _hangul_units(_laid_out_face(style.hangul_face), "가")
@@ -2297,6 +2317,18 @@ def _face_names(root: Any, char_pr_id_ref: object) -> tuple[str, str]:
     return face, face if len(faces) == 1 else ""
 
 
+def _script_faces(root: Any, char_pr_id_ref: object) -> tuple[str, str]:
+    """The faces the character shape names for the Latin and the symbol scripts."""
+
+    from ..oxml.header_fonts import font_face
+
+    try:
+        return (font_face(root.headers[0], char_pr_id_ref, "LATIN") or "",
+                font_face(root.headers[0], char_pr_id_ref, "SYMBOL") or "")
+    except Exception:  # pragma: no cover - defensive
+        return "", ""
+
+
 def margins_doubled(root: object) -> bool:
     """Whether Hancom reads the margins and the line spacing a paragraph shape holds outside ``hp:switch`` as
     ``hp:default`` holds them, doubled: in a document an older Hancom saved, its ``version.xml`` giving an
@@ -2325,6 +2357,7 @@ def text_style_from_refs(
     takes that one, else the text's."""
 
     ratio, spacing, use_font_space, hangul_face, glyph_face, bold = 100.0, 0.0, False, "", "", False
+    latin_face = symbol_face = ""
     scripts: tuple[tuple[str, float, float], ...] = ()
     root = _document_root(document)
     height, used = 1000, None
@@ -2347,6 +2380,7 @@ def text_style_from_refs(
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
         bold = "bold" in children
         hangul_face, glyph_face = _face_names(root, ref)
+        latin_face, symbol_face = _script_faces(root, ref)
         height = int(_style_number((getattr(run_style, "attributes", {}) or {}).get("height"), 1000.0))
         used = ref
         break
@@ -2361,6 +2395,8 @@ def text_style_from_refs(
             use_font_space=use_font_space,
             glyph_face=glyph_face,
             hangul_face=hangul_face,
+            latin_face=latin_face,
+            symbol_face=symbol_face,
             scripts=scripts,
             bold=bold,
         )
@@ -2392,6 +2428,8 @@ def text_style_from_refs(
         space_before=int(_style_number(getattr(margin, "prev", 0), 0.0)) // half,
         glyph_face=glyph_face,
         hangul_face=hangul_face,
+        latin_face=latin_face,
+        symbol_face=symbol_face,
         scripts=scripts,
         tab_stops=tab_stops,
         auto_tab_left=bool(getattr(tabs, "auto_tab_left", False)),

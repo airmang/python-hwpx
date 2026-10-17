@@ -391,6 +391,19 @@ def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -
     assert glyph_advance_em("한컴 윤고딕 230", "(") == 380 / 1000
 
 
+def test_a_glyph_takes_the_face_of_its_own_script() -> None:
+    # When a character shape gives its scripts different faces, Hancom lays a Latin glyph (a letter, a digit, an
+    # ASCII mark, the middle dot) out in the Latin face and a symbol (※, ○, 「, an arrow) in the symbol face.
+    style = TextStyle(hangul_face="휴먼명조", latin_face="맑은 고딕", symbol_face="돋움")
+    malgun = TextStyle(hangul_face="맑은 고딕", glyph_face="맑은 고딕")
+    dotum = TextStyle(hangul_face="돋움", glyph_face="돋움")
+    for ch in "aZ7(.·":
+        assert char_advance(ch, 10, style) == char_advance(ch, 10, malgun), ch
+    for ch in "※○「→":
+        assert char_advance(ch, 10, style) == char_advance(ch, 10, dotum), ch
+    assert char_advance("a", 10, style) != char_advance("a", 10, dotum)
+
+
 def test_a_bold_glyph_in_a_hanyang_face_is_a_twentieth_of_the_em_wider() -> None:
     # Hancom adds a twentieth of the em to a bold glyph's advance in the 한양 faces before rounding it to whole
     # layout units: "가" at 14 pt is 350 + 17.5 units, 368 (1472), against 350 (1400) regular. Bold glyphs in the
