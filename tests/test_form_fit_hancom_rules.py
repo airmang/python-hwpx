@@ -1208,3 +1208,11 @@ def test_cells_of_emoji_break_where_hancom_breaks_them() -> None:
         faces.add(style.glyph_face)
         assert estimate_lines(text, width, points, style) == hancom, (style.glyph_face, f"U+{ord(text[0]):04X}", points, width)
     assert len(cells) == 64 and faces == {"함초롬바탕", "맑은 고딕"}
+
+
+@pytest.mark.parametrize(("points", "width"), [(9, 448), (10, 500), (11, 548), (13, 648)])
+def test_an_exclamation_mark_is_half_an_em_rounded_down_as_a_space(points: int, width: int) -> None:
+    # After a 9 pt "!", Hancom's tab to the next stop is 4 wider than a 452 wide "!" would leave it: the half em
+    # in layout units of 1/1800 inch rounds down, as a space's does.
+    style = TextStyle(glyph_face="함초롬바탕", hangul_face="함초롬바탕")
+    assert char_advance("!", points, style) == width == char_advance(" ", points, style)
