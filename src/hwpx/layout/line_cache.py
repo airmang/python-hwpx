@@ -16,7 +16,8 @@ also draws a tab as wide as its ``hp:tab`` says once the paragraph has a cache, 
 Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs in a
 section of one column where no object lets text run beside it. Tabs to the default tab stops, line breaks,
 controls that take no room on a line (a header, a footer, a page number, the section's own definitions in its
-first paragraph) and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
+first paragraph), the start and end of a field (a hyperlink, a click-here field, a date) anywhere in the text, a
+highlight and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
 face, each character taking its own run's advance, and in size: each line is then as tall as its largest
 character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line as
 tall as that one), and has no tab; a larger empty run ending the paragraph makes its last line's text as tall. A
@@ -115,6 +116,11 @@ _PAGE_CONTROLS = frozenset({"header", "footer", "pageNum", "pageHiding", "pageNu
 #: The text children a cached paragraph may hold, as python-hwpx reads them into its text. With a cache Hancom
 #: draws a tab as wide as its ``hp:tab`` says, so a tab gets the width Hancom lays it out at too.
 _TEXT_MARKS = frozenset({"tab", "lineBreak", "nbSpace", "fwSpace"})
+#: Marks in the text that take neither room on a line nor a text position: a highlight's start and end.
+_EMPTY_MARKS = frozenset({"markpenBegin", "markpenEnd"})
+#: A field's start and end: no room on a line, eight characters each in a line's text position wherever they stand,
+#: and one standing where a line breaks starts the next line.
+_FIELD_MARKS = frozenset({"fieldBegin", "fieldEnd"})
 #: What Hancom writes on a tab that reaches a default tab stop: no leader, a left stop.
 _DEFAULT_TAB = {"leader": "0", "type": "1"}
 
@@ -320,8 +326,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if mixed and _taller_past_a_break(text, sizes, starts, metrics):
         return None
-    if not _sure_of(text, starts, style, looks) or any(place in starts[1:] for place in controls):
-        return None  # a line starting at a control: on which side Hancom starts it is not known
+    if not _sure_of(text, starts, style, looks):
+        return None
     if any(lay_out([room + shift for room in widths]) != starts for shift in (-_MARGIN, _MARGIN)):
         return None  # a line break this close to a line's end may fall elsewhere in Hancom
     tabs = _tab_widths(text, starts, widths, size, style, looks) if "\t" in text else []
@@ -533,7 +539,8 @@ def _wraps_text(section: Any) -> bool:
 def _control_places(runs: list[Any], first: bool) -> list[int] | None:
     """Where in the paragraph's text each of its controls stands, or None when the paragraph holds anything but
     text and controls that take no room on a line: a header, a footer, a page number and the other page controls
-    (and in a section's first paragraph, the section's own definitions), all of them before the text."""
+    (and in a section's first paragraph, the section's own definitions), all of them before the text, and the start
+    and end of a field anywhere."""
 
     places: list[int] = []
     length = 0
@@ -541,13 +548,15 @@ def _control_places(runs: list[Any], first: bool) -> list[int] | None:
         for child in run:
             name = _pages._local(child)
             if name == "t":
-                if any(_pages._local(mark) not in _TEXT_MARKS for mark in child):
+                if any(_pages._local(mark) not in _TEXT_MARKS | _EMPTY_MARKS for mark in child):
                     return None
                 if "\n" in (child.text or "") or any("\n" in (mark.tail or "") for mark in child):
                     return None  # a line break typed into the text, which Hancom writes as hp:lineBreak
                 length += len(_pages._t_text(child))
             elif (name == "secPr" and first or name == "ctrl" and _takes_no_room(child, first)) and not length:
                 places.append(length)  # before the text only: one among it was seen to break the line elsewhere
+            elif name == "ctrl" and len(child) and {_pages._local(mark) for mark in child} <= _FIELD_MARKS:
+                places.append(length)
             else:
                 return None
     return places
