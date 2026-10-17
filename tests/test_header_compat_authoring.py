@@ -291,3 +291,29 @@ def test_real_corpus_document_options_round_trip_untouched(sample_path: Path) ->
         else []
     )
     assert [p.auto_spacing for p in props_before] == [p.auto_spacing for p in props_after]
+
+
+def test_set_paragraph_auto_spacing_drops_the_line_caches_of_its_paragraphs() -> None:
+    """The Hangul-Latin gaps change, so the cached line breaks of the paragraphs
+    with that shape no longer fit; other paragraphs keep their caches, and a
+    call that changes nothing keeps them all."""
+
+    from lxml import etree
+
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    document = HwpxDocument.new()
+    para_pr_id = document.oxml.headers[0].ensure_paragraph_format(alignment="LEFT")
+    edited = document.add_paragraph("한글 English 123").element
+    edited.set("paraPrIDRef", para_pr_id)
+    kept = document.add_paragraph("다른 문단").element
+    kept.set("paraPrIDRef", "0")
+    for paragraph in (edited, kept):
+        cache = etree.SubElement(paragraph, f"{hp}linesegarray")
+        etree.SubElement(cache, f"{hp}lineseg", {"textpos": "0", "vertsize": "1000"})
+
+    document.parts.set_paragraph_auto_spacing(para_pr_id, e_asian_eng=False, e_asian_num=False)
+    assert edited.find(f"{hp}linesegarray") is not None  # already 0/0: nothing changed
+    document.parts.set_paragraph_auto_spacing(para_pr_id, e_asian_eng=True)
+
+    assert edited.find(f"{hp}linesegarray") is None
+    assert kept.find(f"{hp}linesegarray") is not None

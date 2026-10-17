@@ -304,6 +304,7 @@ def apply_paragraph_auto_spacing(
         )
         auto_spacing_elements = [auto_spacing]
 
+    before = [dict(auto_spacing.attrib) for auto_spacing in auto_spacing_elements]
     for auto_spacing in auto_spacing_elements:
         if e_asian_eng is not None:
             auto_spacing.set("eAsianEng", _zero_one_bool_str(e_asian_eng))
@@ -315,3 +316,8 @@ def apply_paragraph_auto_spacing(
             auto_spacing.set("eAsianNum", "0")
 
     header.mark_dirty()
+    document = header.document
+    if document is not None and before != [dict(a.attrib) for a in auto_spacing_elements]:
+        # the gaps between Hangul and Latin or digits change, so do the cached line breaks
+        from .header_fonts import clear_line_caches
+        clear_line_caches(document, para_pr_ids={para_pr.get("id")})

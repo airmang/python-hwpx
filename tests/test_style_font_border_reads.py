@@ -777,3 +777,54 @@ def test_replace_font_rejects_an_unknown_font_type_before_mutating() -> None:
 
     assert caught.value.code == "style-font-type-invalid"
     assert etree.tostring(_header(doc)) == header_before
+
+
+# ---------------------------------------------------------------------------
+# replace_font and the paragraphs' line layout caches
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+
+def _cached_paragraph(doc: HwpxDocument, text: str, char_pr_id: str) -> etree._Element:
+    paragraph = doc.add_paragraph(text).element
+    for run in paragraph.findall(f"{HP}run"):
+        run.set("charPrIDRef", char_pr_id)
+    cache = etree.SubElement(paragraph, f"{HP}linesegarray")
+    etree.SubElement(cache, f"{HP}lineseg", {
+        "textpos": "0", "vertpos": "0", "vertsize": "1000", "textheight": "1000",
+        "baseline": "850", "spacing": "600", "horzpos": "0", "horzsize": "42520", "flags": "393216",
+    })
+    return paragraph
+
+
+def _texts_with_cache(doc: HwpxDocument) -> list[str]:
+    return [
+        "".join(t.text or "" for t in p.iter(f"{HP}t"))
+        for section in doc.oxml.sections
+        for p in section.element.iter(f"{HP}p")
+        if p.find(f"{HP}linesegarray") is not None
+    ]
+
+
+def test_replace_font_drops_the_line_caches_of_paragraphs_it_changes() -> None:
+    doc = _decor_doc()
+    _cached_paragraph(doc, "바뀌는 글꼴의 문단", "0")
+    _cached_paragraph(doc, "그대로인 글꼴의 문단", "1")
+
+    doc.styles.replace_font(DECOR, DST)
+
+    # the old face's line breaks would squeeze the new face; the other paragraph keeps its cache
+    assert _texts_with_cache(doc) == ["그대로인 글꼴의 문단"]
+    reopened = HwpxDocument.open(io.BytesIO(doc.to_bytes()))
+    assert _texts_with_cache(reopened) == ["그대로인 글꼴의 문단"]
+
+
+def test_replace_font_in_other_blocks_only_keeps_unchanged_paragraph_caches() -> None:
+    doc = _decor_doc()
+    _cached_paragraph(doc, "가", "3")
+    _cached_paragraph(doc, "나", "0")
+
+    doc.styles.replace_font(DECOR, DST, langs=["USER"])
+
+    # charPr 3 names no decorative face; charPr 0's user face moved to DST
+    assert _texts_with_cache(doc) == ["가"]
