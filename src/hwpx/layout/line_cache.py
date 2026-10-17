@@ -16,7 +16,8 @@ also draws a tab as wide as its ``hp:tab`` says once the paragraph has a cache, 
 Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs in a
 section of one column where no object lets text run beside it. Tabs to the default tab stops, line breaks,
 controls that take no room on a line (a header, a footer, a page number, the section's own definitions in its
-first paragraph), the start and end of a field (a hyperlink, a click-here field, a date) anywhere in the text, a
+first paragraph), the start and end of a field (a hyperlink, a click-here field, a date, a mail merge field) anywhere in the text but
+in a section's first paragraph, a
 highlight and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
 face, each character taking its own run's advance, and in size: each line is then as tall as its largest
 character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line as
@@ -118,9 +119,10 @@ _PAGE_CONTROLS = frozenset({"header", "footer", "pageNum", "pageHiding", "pageNu
 _TEXT_MARKS = frozenset({"tab", "lineBreak", "nbSpace", "fwSpace"})
 #: Marks in the text that take neither room on a line nor a text position: a highlight's start and end.
 _EMPTY_MARKS = frozenset({"markpenBegin", "markpenEnd"})
-#: A field's start and end: no room on a line, eight characters each in a line's text position wherever they stand,
-#: and one standing where a line breaks starts the next line.
-_FIELD_MARKS = frozenset({"fieldBegin", "fieldEnd"})
+#: The kinds of field whose start and end take no room on a line and eight characters each in a line's text position
+#: wherever they stand (one standing where a line breaks starts the next line). A memo's field, or a field in a
+#: section's first paragraph, Hancom was seen to save without a cache, so those are left for it.
+_FIELD_KINDS = frozenset({"HYPERLINK", "CLICK_HERE", "DATE", "MAILMERGE"})
 #: What Hancom writes on a tab that reaches a default tab stop: no leader, a left stop.
 _DEFAULT_TAB = {"leader": "0", "type": "1"}
 
@@ -555,11 +557,20 @@ def _control_places(runs: list[Any], first: bool) -> list[int] | None:
                 length += len(_pages._t_text(child))
             elif (name == "secPr" and first or name == "ctrl" and _takes_no_room(child, first)) and not length:
                 places.append(length)  # before the text only: one among it was seen to break the line elsewhere
-            elif name == "ctrl" and len(child) and {_pages._local(mark) for mark in child} <= _FIELD_MARKS:
+            elif name == "ctrl" and not first and _field_mark(child):
                 places.append(length)
             else:
                 return None
     return places
+
+
+def _field_mark(ctrl: Any) -> bool:
+    """Whether *ctrl* holds only the start of a field of :data:`_FIELD_KINDS` or a field's end."""
+
+    marks = list(ctrl)
+    return bool(marks) and all(
+        _pages._local(mark) == "fieldEnd" or _pages._local(mark) == "fieldBegin" and mark.get("type") in _FIELD_KINDS
+        for mark in marks)
 
 
 def _takes_no_room(ctrl: Any, first: bool) -> bool:
