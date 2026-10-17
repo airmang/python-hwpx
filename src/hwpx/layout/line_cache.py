@@ -120,7 +120,8 @@ _DEFAULT_TAB = {"leader": "0", "type": "1"}
 @dataclass(frozen=True)
 class LineCacheReport:
     """What :func:`write_line_caches` did: the paragraphs it gave a cache, those it left for Hancom to lay out
-    (``skipped``), those that kept their own, and why it wrote nothing (``unsupported``) when it did not
+    (``skipped``), those that kept their own, and why it wrote nothing (``unsupported``: the first section the
+    estimate does not follow) when it did not
     follow the document."""
 
     written: int
@@ -138,7 +139,7 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
     """
 
     root = document._root
-    estimate = _pages.estimate_pages(document)
+    estimate = _pages._estimate(document, first_reason=True)  # any section not followed: nothing is written
     if estimate.unsupported:
         return LineCacheReport(0, 0, 0, tuple(estimate.unsupported))
     measure = _pages._Measure(root)
