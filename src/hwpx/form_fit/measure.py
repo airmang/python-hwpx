@@ -1269,7 +1269,8 @@ class TextStyle:
     the Hangul script's; ``scripts`` holds ``(script, 장평, 자간)`` for the
     Latin, symbol and Hanja scripts when the character shape gives them values
     of their own, and each glyph takes its script's (see :func:`glyph_script`).
-    A space keeps the Hangul 장평 and takes the Latin 자간.
+    A space keeps the Hangul 장평 and takes the Latin 자간; a no-break space
+    takes the 장평 and no 자간.
     ``break_non_latin_word`` works the reverse of its name in Hancom:
     ``BREAK_WORD`` (the default) keeps Hangul words whole and ``KEEP_WORD``
     breaks between any two syllables; ``break_latin_word`` works as named.
@@ -1499,7 +1500,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         return float(height // _LAYOUT_UNIT // 4 * _LAYOUT_UNIT)
     ratio, spacing = _scaling(ch, style)
     if ch in _HALF_EM_SPACES and not style.use_font_space:
-        return _laid_out_space(height, ratio, spacing)
+        # a no-break space takes its 장평 but no 자간
+        return _laid_out_space(height, ratio, 0.0 if ch == " " else spacing)
     face = style.hangul_face if cls == "hangul" else style.glyph_face
     if emoji:
         design, base = _EMOJI_UNITS, _ADVANCE_EM[cls]
