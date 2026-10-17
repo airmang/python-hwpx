@@ -518,6 +518,14 @@ def test_the_two_spaces_right_after_an_object_hang_past_the_margin() -> None:
     assert hancom_line_starts("\ufffc   ", [42520], 10, TextStyle(), advances=advances) == [0, 2]
 
 
+def test_the_two_spaces_right_after_a_word_hang_past_the_margin() -> None:
+    # A word 200 short of the margin, spaces of 500 after it: the first crosses the margin, the second starts
+    # 300 past it and still stays on the line, the third goes on to the next.
+    assert hancom_line_starts("가나다라마  바", [5200], 10, TextStyle()) == [0, 7]
+    assert hancom_line_starts("가나다라마   바", [5200], 10, TextStyle()) == [0, 7]
+    assert hancom_line_starts("가나다라마 바", [5200], 10, TextStyle()) == [0, 6]
+
+
 def test_a_narrow_cell_still_gets_lines_1440_wide() -> None:
     doc = HwpxDocument.new()
     cell = doc.add_table(1, 1, width=700 + 2 * 510).cell(0, 0)

@@ -114,7 +114,7 @@ _FIXED_SPACE = "\u3000"
 #: python-hwpx reads ``hp:fwSpace`` as U+3000 too), as the page estimate passes it:
 #: the glyph U+3000 at the face's advance, which Hancom may start a line after
 #: and which hangs at a line end however many follow each other (after a word,
-#: only the first fixed-width space or space hangs).
+#: only the first fixed-width space, or the first two spaces, hang).
 _GLYPH_SPACE = "\ufdd0"
 #: The spaces Hancom makes half an em wide (unless the font's own space is used).
 _HALF_EM_SPACES = frozenset(" \u00a0")
@@ -1618,7 +1618,7 @@ def hancom_line_starts(
 
     ``widths[k]`` is the width of line ``k`` in HWPUNIT (the last one repeats).
     A line takes characters while they fit (the last one without its 자간);
-    the space right after a word hangs past the margin, and a further space
+    the two spaces right after a word hang past the margin, and a further space
     that starts at or past it begins the next line, as does a fixed-width
     space that starts there right after a word; typed ideographic spaces all
     hang (see ``_GLYPH_SPACE``). With ``style.condense`` the
@@ -1665,7 +1665,8 @@ def hancom_line_starts(
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
                 if used >= width and end > start and not full and _spills(ch, text[end - 1]) \
-                        and not (end - 2 in objects and text[end - 1] == " "):  # the second after an object
+                        and not (ch == text[end - 1] == " " and end - 2 >= start and (  # the second space
+                            end - 2 in objects or text[end - 2] not in _HANGING_SPACES + "￼")):
                     spilled = True
                     break
                 if seen and used >= width and text[end - 1] not in _HANGING_SPACES:
@@ -1737,7 +1738,8 @@ def _width_after_tab(
 def _spills(ch: str, previous: str) -> bool:
     """Whether the space *ch*, starting at or past the margin after *previous*, begins the next line: a
     fixed-width space does even right after a word, a space only after another space (the first one after a
-    word hangs), and a typed ideographic space never does: however many follow each other, they hang."""
+    word hangs; the caller lets the second one hang too), and a typed ideographic space never does: however many
+    follow each other, they hang."""
 
     if ch == _GLYPH_SPACE:
         return False

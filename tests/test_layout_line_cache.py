@@ -17,7 +17,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
                    "line_cache_indents.hwpx", "line_cache_labels.hwpx",
                    "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx",
-                   "line_cache_mixed_faces_tabs.hwpx"]
+                   "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
