@@ -98,9 +98,9 @@ _SURE_FACES = frozenset({
 #: twentieth of an em wider when bold, and some glyphs of HCI Hollyhock: bold characters in them are left.
 _BOLD_SURE_FACES = _SURE_FACES - {"한양중고딕", "한양신명조", "한양견고딕", "HCI Hollyhock"}
 #: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
-_SURE_RATIOS = (80, 110)
-_SURE_SPACINGS = (-10, 5)
-_SURE_CONDENSE = 20
+_SURE_RATIOS = (50, 200)
+_SURE_SPACINGS = (-30, 30)
+_SURE_CONDENSE = 50
 #: The glyphs other than Hangul syllables whose advances were seen on the desktop in those faces.
 _SURE_GLYPHS = frozenset(_GLYPHS)
 #: How much narrower or wider (HWPUNIT) every line may be laid out and still break at the same places for its
@@ -361,6 +361,9 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
 
     if style is None or style.condense > _SURE_CONDENSE:
         return False
+    if " " in text and (style.condense or any(
+            look.spacing or any(spacing for _, _, spacing in look.scripts) for look in set(looks or [style]))):
+        return False  # a no-break space among spaces that shrink, or with 자간 (it takes none), is left
     for look in set(looks or [style]):
         if any(not _SURE_RATIOS[0] <= ratio <= _SURE_RATIOS[1] or not _SURE_SPACINGS[0] <= spacing <= _SURE_SPACINGS[1]
                for ratio, spacing in [(look.ratio, look.spacing), *((r, sp) for _, r, sp in look.scripts)]):

@@ -128,8 +128,8 @@ def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
     assert (line["vertsize"], line["textheight"], line["baseline"]) == ("1600", "1600", "1360")
 
 
-@pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -17},
-                                   {"ratio": 70}, {"font": "한양신명조", "bold": True},
+@pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -40},
+                                   {"ratio": 210}, {"font": "한양신명조", "bold": True},
                                    {"font": "한양견고딕", "bold": True}])
 def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hancom(style: dict) -> None:
     # A face Hancom may draw in another one, or 장평 and 자간 past those seen on the desktop, are left for Hancom.
@@ -172,6 +172,22 @@ def test_a_page_control_among_the_text_is_left_for_hancom() -> None:
     report = write_line_caches(document)
 
     assert report.written == 0 and report.skipped == 1
+
+
+@pytest.mark.parametrize(("condense", "spacing", "written"), [("0", 0, 1), ("10", 0, 0), ("0", -10, 0)])
+def test_a_no_break_space_among_spaces_that_shrink_is_left_for_hancom(condense: str, spacing: int, written: int) -> None:
+    # A no-break space in a paragraph with 최소 공백 was seen to break a line elsewhere than FormFit, and one with
+    # 자간 takes none of it: such paragraphs are left for Hancom.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run("가나 다라 마바", char_pr_id_ref=document.styles.ensure_run(letter_spacing=spacing))
+    shape_id = _body(document)[-1].get("paraPrIDRef")
+    next(el for el in document.oxml.headers[0].element.iter(f"{HH}paraPr") if el.get("id") == shape_id).set(
+        "condense", condense)
+
+    report = write_line_caches(document)
+
+    assert report.written == written
 
 
 def test_a_glyph_not_seen_on_the_desktop_is_left_for_hancom() -> None:
