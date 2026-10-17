@@ -35,6 +35,8 @@ from ._document_primitives import (
     _FONT_FACE_LANG_TO_REF,
     _HC,
     _HH,
+    _HP,
+    _clear_paragraph_layout_cache,
     _element_local_name,
     _normalize_font_langs,
     _validate_font_type,
@@ -42,9 +44,10 @@ from ._document_primitives import (
 from .header import Font, parse_font
 
 if TYPE_CHECKING:
+    from .document_parts import HwpxOxmlDocument
     from .header_part import HwpxOxmlHeader
 
-__all__ = ["border_fill_info", "font_face", "fonts", "replace_font"]
+__all__ = ["border_fill_info", "clear_line_caches", "font_face", "fonts", "replace_font"]
 
 #: ``hh:borderFill`` side children, in ``BorderFillInfo`` field order.
 _BORDER_SIDES = ("leftBorder", "rightBorder", "topBorder", "bottomBorder", "diagonal")
@@ -226,6 +229,11 @@ def replace_font(
     *dst_face* it is ``<hh:font id=… face=dst type="TTF" isEmbedded="0"/>``.
     *font_type* (``REP``/``TTF``/``HFT``), when given, sets the ``type`` of
     every font this call appends; fonts that already exist are not changed.
+
+    Every paragraph with a run whose ``hh:charPr`` now names another face
+    loses its line layout cache (``hp:linesegarray``): the cached line
+    starts and widths belong to the old face, and Hancom keeps a cache's
+    line breaks, so the new face would be drawn squeezed into the old lines.
     """
 
     src = (src_face or "").strip()
@@ -259,6 +267,7 @@ def replace_font(
         None,
     )
 
+    faces_before = _char_faces(header)
     changed: list[str] = []
     declared: list[str] = []
     repointed = 0
@@ -323,6 +332,11 @@ def replace_font(
         document = header.document
         if document is not None:
             document.invalidate_char_property_cache()
+            faces_after = _char_faces(header)
+            clear_line_caches(
+                document,
+                char_pr_ids={char_id for char_id, faces in faces_after.items() if faces_before.get(char_id) != faces},
+            )
     return FontReplaceReport(
         src_face=src,
         dst_face=dst,
@@ -330,3 +344,50 @@ def replace_font(
         repointed=repointed,
         declared=tuple(declared),
     )
+
+
+def _char_faces(header: "HwpxOxmlHeader | None") -> dict[str | None, tuple[str | None, ...]]:
+    """The faces every ``hh:charPr`` names, one per ``hh:fontRef`` language, by charPr id."""
+
+    if header is None:
+        return {}
+    faces: dict[str | None, tuple[str | None, ...]] = {}
+    blocks = {lang: _fontface_block(header, lang) for lang in _FONT_FACE_LANG_TO_REF}
+    by_id = {
+        lang: {font.get("id"): font.get("face") for font in block.findall(f"{_HH}font")}
+        for lang, block in blocks.items()
+        if block is not None
+    }
+    for char_pr in header.element.iter(f"{_HH}charPr"):
+        font_ref = char_pr.find(f"{_HH}fontRef")
+        faces[char_pr.get("id")] = tuple(
+            None if font_ref is None else by_id.get(lang, {}).get(font_ref.get(attr))
+            for lang, attr in _FONT_FACE_LANG_TO_REF.items()
+        )
+    return faces
+
+
+def clear_line_caches(
+    document: "HwpxOxmlDocument",
+    *,
+    char_pr_ids: Iterable[str | None] = (),
+    para_pr_ids: Iterable[str | None] = (),
+) -> None:
+    """Drop the line caches (``hp:linesegarray``) of every section paragraph whose
+    ``paraPrIDRef`` is in *para_pr_ids* or that has a run whose ``charPrIDRef`` is
+    in *char_pr_ids*: an edit changed that shape in place, so the cached line
+    breaks no longer fit, and Hancom keeps a cache's line breaks.
+    """
+
+    char_ids, para_ids = set(char_pr_ids), set(para_pr_ids)
+    if not char_ids and not para_ids:
+        return
+    for section in document.sections:
+        removed = 0
+        for paragraph in section.element.iter(f"{_HP}p"):
+            if paragraph.get("paraPrIDRef") in para_ids or any(
+                run.get("charPrIDRef") in char_ids for run in paragraph.findall(f"{_HP}run")
+            ):
+                removed += _clear_paragraph_layout_cache(paragraph)
+        if removed:
+            section.mark_dirty()
