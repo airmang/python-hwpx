@@ -212,6 +212,10 @@ HANCOM_PAGES = {
     # Tables of short sentences, one cell holding "… " among its words: Hancom starts a line with the ellipsis after
     # a space (attached to the character before it, it keeps to that one).
     "pages_ellipsis_starts_a_cell_line": 4,
+    # Paragraphs of sentences among which " 」" or " %" stands after a space: Hancom starts a line with the mark
+    # there, as with any closing punctuation after a space (attached to a character, it moves down with it).
+    "pages_closing_bracket_after_a_space_starts_a_line": 2,
+    "pages_percent_after_a_space_starts_a_line": 2,
     "pages_no_break_spaces": 2,  # rows of "가나" and a no-break space: each is half an em and keeps the row
                                   # one word
     "pages_typed_ideographic_spaces": 5,  # cells of "가나다라마" and a U+3000 typed in the text, a full em
@@ -1077,6 +1081,26 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
+
+
+@pytest.mark.parametrize("name", ["pages_closing_bracket_after_a_space_starts_a_line",
+                                  "pages_percent_after_a_space_starts_a_line"])
+def test_a_closing_mark_after_a_space_may_start_a_line(name: str) -> None:
+    # The line count alone does not show where a line starts: each paragraph's lines start where Hancom's do.
+    root = HwpxDocument.open(io.BytesIO((FIXTURES / f"{name}.hwpx").read_bytes()))._root
+    measure = page_layout._Measure(root)
+    page = page_layout._page(root.sections[0].element)
+
+    for paragraph in root.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        size, refs, _ = page_layout._text_size(measure, runs)
+        style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+        shape = measure.shape(paragraph.get("paraPrIDRef"))
+        widths = page_layout._indented(page.column_width - shape.left - shape.right, shape, style)
+
+        starts = measure.line_starts(page_layout._run_text(runs), widths, size, style)
+
+        assert starts == [int(segment.get("textpos")) for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
 
 
 @pytest.mark.parametrize(

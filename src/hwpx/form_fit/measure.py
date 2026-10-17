@@ -129,8 +129,8 @@ _EMOJI_UNITS = (1373, 1000)
 _EMOJI_BMP = frozenset("✅❌❎❗❓❔❕➕➖➗⏰⏳⛔✋✨⭐⬛⬜")
 #: The variation selectors and the zero-width joiner: no advance.
 _ZERO_WIDTH = frozenset("\ufe0e\ufe0f\u200d")
-#: Closing punctuation that never starts a line; it moves down with the
-#: character before it; but the ellipsis starts a line after a space.
+#: Closing punctuation that never starts a line right after a character: it
+#: moves down with that character. After a space it may start a line.
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
 #: Opening punctuation that never ends a line.
 _NO_LINE_END = frozenset("([{‘“〈《「『【〔")
@@ -1608,9 +1608,9 @@ def hancom_line_starts(
     do. Once the line's text reaches the margin (its 자간 included), its spaces
     hang and the next word starts the next line however far the spaces could
     shrink: only the word that crosses the margin shrinks them. The line then
-    ends at the last break opportunity that fits — never before a closing or
-    after an opening punctuation mark — or mid-word when no opportunity is
-    left. *sizes*, when given, holds each character's size in pt (runs of
+    ends at the last break opportunity that fits — never before a closing
+    punctuation mark attached to the character before it, nor after an opening
+    one — or mid-word when no opportunity is left. *sizes*, when given, holds each character's size in pt (runs of
     several sizes): every character, and every space that shrinks, then
     takes its own size.
     *styles*, when given, holds each character's own style (runs of several
@@ -1678,7 +1678,7 @@ def hancom_line_starts(
             options = [
                 index for index in breaks
                 if start < index <= end
-                and (text[index] not in _NO_LINE_START or text[index] == "…" and text[index - 1] in _HANGING_SPACES)
+                and (text[index] not in _NO_LINE_START or text[index - 1] in _HANGING_SPACES)
                 and text[index - 1] not in _NO_LINE_END
             ]
             start = max(options) if options else end
