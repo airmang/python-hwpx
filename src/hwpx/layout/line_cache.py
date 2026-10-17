@@ -17,9 +17,12 @@ Only a paragraph Hancom would lay out from its text alone gets a cache: a body p
 section of one column where no object lets text run beside it. Tabs to the default tab stops, line breaks,
 controls that take no room on a line (a header, a footer, a page number, the section's own definitions in its
 first paragraph) and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
-face, 장평 or 자간, each character taking its own run's advance, and in size: each line is then as tall as its
-largest character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes
-the line as tall as that one), and has no tab.
+face, each character taking its own run's advance, and in size: each line is then as tall as its largest
+character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line as
+tall as that one), and has no tab; a larger empty run ending the paragraph makes its last line's text as tall. A
+paragraph that sets its characters at the top, the centre or the bottom of their lines gets the baseline Hancom
+writes for that (0, half or all of the text height). A table's caption above or below it takes its lines and its
+gap in the table's line, when the caption's paragraphs are laid out surely.
 
 The cells of a table in such a section get caches the same way when every paragraph of the cell is one of
 these: their lines go down from the top of the cell's text area, as wide as that area in whole layout units and
@@ -28,8 +31,11 @@ one line, as tall as the table, and the table its rows' height (``hp:sz``), as H
 paragraph of its cells is laid out surely.
 
 A paragraph is left for Hancom when its line breaks are less sure: a character no glyph table gives an advance
-for, or a word too long for a line. A paragraph that has a cache keeps it. A document mixing paragraphs with and
-without a cache is laid out as one. Nothing is written when the estimate does not follow the document.
+for, a word too long for a line, a line break that moves when every line is laid out :data:`_MARGIN` narrower or
+wider (a line ending that close to its room may end elsewhere in Hancom), or a tab whose text before it is closer
+to a tab stop than a layout unit for each character since the line's start or the last tab stop (at most
+:data:`_MARGIN`). A paragraph that has a cache keeps it. A document mixing paragraphs with and without a cache is
+laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
 from __future__ import annotations
@@ -40,6 +46,7 @@ from typing import TYPE_CHECKING, Any
 from ..form_fit.measure import (
     _FIXED_SPACE,
     _GLYPH_SPACE,
+    _GLYPHS,
     _HALF_EM_GLYPHS,
     _HALF_EM_SPACES,
     _design_units,
@@ -54,7 +61,7 @@ from ..form_fit.measure import (
 )
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 from . import pages as _pages
-from .pages import HP
+from .pages import HH, HP
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
@@ -72,6 +79,33 @@ _LAYOUT_UNIT = 4
 _PAST_A_BREAK = 40
 #: The line starts with the paragraph's bullet or number label.
 _LABELLED = 0x200000
+#: The baseline Hancom writes for a line of text *height* tall, by where its paragraph sets the characters in
+#: their lines (``hh:align``'s ``vertical``).
+_BASELINES = {
+    "BASELINE": lambda height: (height * 85 + 50) // 100,
+    "TOP": lambda height: 0,
+    "CENTER": lambda height: height // 2,
+    "BOTTOM": lambda height: height,
+}
+#: The faces whose glyphs Hancom Office 2024 was seen to lay out at the advances FormFit gives them, on the
+#: desktop: a face Hancom may draw in another (one not installed, a name no table lists) is left for Hancom.
+_SURE_FACES = frozenset({
+    "함초롬바탕", "함초롬돋움", "맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체",
+    "한컴 고딕", "HY헤드라인M", "HY견고딕", "HY울릉도M", "HY견명조", "HY동녘M", "휴먼명조", "휴먼고딕", "휴먼옛체",
+    "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
+})
+#: The faces Hancom was seen to lay bold characters out in at their regular advances. The 한양 faces it draws a
+#: twentieth of an em wider when bold, and some glyphs of HCI Hollyhock: bold characters in them are left.
+_BOLD_SURE_FACES = _SURE_FACES - {"한양중고딕", "한양신명조", "한양견고딕", "HCI Hollyhock"}
+#: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
+_SURE_RATIOS = (50, 200)
+_SURE_SPACINGS = (-30, 30)
+_SURE_CONDENSE = 50
+#: The glyphs other than Hangul syllables whose advances were seen on the desktop in those faces.
+_SURE_GLYPHS = frozenset(_GLYPHS)
+#: How much narrower or wider (HWPUNIT) every line may be laid out and still break at the same places for its
+#: paragraph to get a cache: a width a little off from Hancom's must not move a line break.
+_MARGIN = 100
 #: How many characters a control (a section or column definition) takes in a line's text position.
 _CONTROL_LENGTH = 8
 #: The controls that take no room on a line: page headers and footers, page numbers and the page controls.
@@ -159,12 +193,15 @@ def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str
         return None
     if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
         return None
-    if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
+    if _vertical_align(measure, paragraph.get("paraPrIDRef")) != "BASELINE":
+        return None
+    if not _caption_sure(measure, table):
         return None
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # spaced from its largest characters
     rows = _pages._inline_table_height(measure, table)
-    tall = rows + _pages._extent_margins(table)
+    # a caption above or below the table takes its lines and its gap in the line too, one beside it none
+    tall = rows + _pages._extent_margins(table) + sum(_pages._caption(measure, table))
     advance = _pages._object_pitch(shape, table, tall, size)
     table.find(f"{HP}sz").set("height", str(rows))
     room = width - shape.left - shape.right
@@ -247,7 +284,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     headed = measure.headed(paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    if shape.font_line:
+    vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
+    if shape.font_line or vertical not in _BASELINES or not _bold_sure(measure, paragraph, runs):
         return None
     size, refs, sizes = _pages._text_size(measure, runs)
     end = _pages._end_size(measure, runs, sizes)
@@ -264,10 +302,14 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if mixed or looks is not None:
         if mixed and "\t" in text:  # a tab among characters of several sizes: its width is less sure
             return None
-        starts = _pages._metric_starts(measure, text, widths, sizes, style, {}, looks)
+        def lay_out(room: list[float]) -> list[int]:
+            return _pages._metric_starts(measure, text, room, sizes, style, {}, looks)
+        starts = lay_out(widths)
         metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
     else:
-        starts = measure.line_starts(text, widths, size, style) if text else [0]
+        def lay_out(room: list[float]) -> list[int]:
+            return measure.line_starts(text, room, size, style) if text else [0]
+        starts = lay_out(widths)
         metrics = ((size, _pages._pitch(shape.kind, shape.value, size)),) * len(starts)
     if len(metrics) != len(starts):
         return None
@@ -275,6 +317,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if not _sure_of(text, starts, style, looks) or any(place in starts[1:] for place in controls):
         return None  # a line starting at a control: on which side Hancom starts it is not known
+    if any(lay_out([room + shift for room in widths]) != starts for shift in (-_MARGIN, _MARGIN)):
+        return None  # a line break this close to a line's end may fall elsewhere in Hancom
     tabs = _tab_widths(text, starts, widths, size, style, looks) if "\t" in text else []
     if tabs is None:
         return None
@@ -283,14 +327,18 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     ends = [*starts[1:], len(text)]
     for line, (start, (height, advance)) in enumerate(zip(starts, metrics)):
         drawn = [sizes[index] for index in range(start, ends[line]) if text[index] != "\n"] if mixed else []
+        if end and line == len(starts) - 1:
+            drawn.append(end)  # the paragraph's end, larger than its text: the last line's text is as tall
         text_height = max(drawn) if drawn else height  # a line break larger than the text makes the line taller
+        if vertical == "CENTER" and text_height % 2:
+            return None  # half an odd text height: which way Hancom rounds it was not seen
         takes_indent = (indented and (shape.indent > 0 if line == 0 else shape.indent < 0)) or (headed and line > 0)
         segments.append({
             "textpos": _hancom_offset(text, start, controls) if line else 0,  # the first line starts at 0
             "vertpos": 0,
             "vertsize": height,
             "textheight": text_height,
-            "baseline": (text_height * 85 + 50) // 100,
+            "baseline": _BASELINES[vertical](text_height),
             "spacing": advance - height,
             "horzpos": shape.left,
             # a cell's lines in whole layout units, and never narrower than Hancom's narrowest line
@@ -305,23 +353,78 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
 
 
 def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None = None) -> bool:
-    """Whether the line breaks at *starts* can be trusted to be Hancom's: every character takes an advance a
-    glyph table gives (not a class average), and no line starts inside a word that did not fit on a line of its
-    own. Hancom takes the line breaks from a cache as written (a line short of a break is drawn with its text
+    """Whether the line breaks at *starts* can be trusted to be Hancom's: every character is set in a face of
+    :data:`_SURE_FACES` at 장평, 자간 and 최소 공백 within those seen on the desktop, takes an advance a glyph table gives (not a class
+    average) and is a Hangul syllable or one of :data:`_SURE_GLYPHS`, and no line starts inside a word that did not
+    fit on a line of its own. Hancom takes the line breaks from a cache as written (a line short of a break is drawn with its text
     pressed together), so a paragraph laid out less surely is left for Hancom."""
 
-    if style is None:
+    if style is None or style.condense > _SURE_CONDENSE:
         return False
+    if " " in text and (style.condense or any(
+            look.spacing or any(spacing for _, _, spacing in look.scripts) for look in set(looks or [style]))):
+        return False  # a no-break space among spaces that shrink, or with 자간 (it takes none), is left
+    for look in set(looks or [style]):
+        if any(not _SURE_RATIOS[0] <= ratio <= _SURE_RATIOS[1] or not _SURE_SPACINGS[0] <= spacing <= _SURE_SPACINGS[1]
+               for ratio, spacing in [(look.ratio, look.spacing), *((r, sp) for _, r, sp in look.scripts)]):
+            return False  # 장평 and 자간 past those seen on the desktop
+        if look.hangul_face not in _SURE_FACES or look.glyph_face not in _SURE_FACES:
+            return False
     for ch, look in set(zip(text, looks or [style] * len(text))):
         if ch in "\t\n" or ch in _HALF_EM_SPACES or ch in _HALF_EM_GLYPHS or ch in (_FIXED_SPACE, _GLYPH_SPACE):
             continue
         if classify_char(ch) == "hangul":
             if _hangul_units(_laid_out_face(look.hangul_face), ch) is None:
                 return False
-        elif _design_units(_laid_out_face(look.glyph_face), ch) is None:
+        elif ch not in _SURE_GLYPHS or _design_units(_laid_out_face(look.glyph_face), ch) is None:
             return False
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
+
+
+def _bold_sure(measure: Any, paragraph: Any, runs: list[Any]) -> bool:
+    """Whether every bold run of *paragraph* holding text is set in faces of :data:`_BOLD_SURE_FACES`."""
+
+    bold = getattr(measure, "_line_cache_bold", None)
+    if bold is None:
+        bold = {shape.get("id"): shape.find(f"{HH}bold") is not None for shape in measure._header.iter(f"{HH}charPr")}
+        measure._line_cache_bold = bold
+    for run in runs:
+        ref = run.get("charPrIDRef")
+        if not bold.get(ref) or not _pages._run_text([run]):
+            continue
+        style = measure.style(paragraph.get("paraPrIDRef"), [ref], paragraph)
+        if style is None or style.hangul_face not in _BOLD_SURE_FACES or style.glyph_face not in _BOLD_SURE_FACES:
+            return False
+    return True
+
+
+def _vertical_align(measure: Any, para_pr_id: str | None) -> str | None:
+    """Where a paragraph of the shape *para_pr_id* sets its characters in their lines (``hh:align``'s
+    ``vertical``): BASELINE (the default), TOP, CENTER or BOTTOM; None for a shape not in the header."""
+
+    aligned = getattr(measure, "_line_cache_vertical", None)
+    if aligned is None:
+        aligned = {}
+        for shape in measure._header.iter(f"{HH}paraPr"):
+            align = shape.find(f"{HH}align")
+            aligned[shape.get("id")] = "BASELINE" if align is None else align.get("vertical", "BASELINE")
+        measure._line_cache_vertical = aligned
+    return aligned.get(para_pr_id)
+
+
+def _caption_sure(measure: Any, table: Any) -> bool:
+    """Whether *table*'s caption, if any, takes room Hancom lays out surely: none beside the table, and above or
+    below it only when every paragraph of the caption is one this module lays out."""
+
+    caption = table.find(f"{HP}caption")
+    if caption is None or caption.get("side") in ("LEFT", "RIGHT"):
+        return True
+    if caption.get("side") not in ("TOP", "BOTTOM"):
+        return False
+    width = int(caption.get("lastWidth", 0)) or int(table.find(f"{HP}sz").get("width", 0))
+    paragraphs = caption.findall(f"{HP}subList/{HP}p")
+    return bool(paragraphs) and all(_lines(measure, p, width, first=False, cell=True) is not None for p in paragraphs)
 
 
 def _taller_past_a_break(text: str, sizes: list[int], starts: list[int],
@@ -359,19 +462,31 @@ def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, st
         origin = _line_origin(style, logical == 0 and visual == 0)
         own_looks = None if looks is None else looks[logical:logical + len(own)]
         used = 0.0
+        since = start  # the first character after the line's start or the last tab stop reached: exact places
         for index in range(start, end):
             ch = text[index]
             if ch != "\t":
                 used += char_advance(ch, points, style if looks is None else looks[index])
                 continue
             at = index - logical
-            reach = tab_reach(origin + used, origin + width, style,
-                              lambda point, at=at: _width_after_tab(own, at, points, style, None, own_looks, None,
-                                                                    point))
+
+            def after(point: bool, at: int = at) -> float:
+                return _width_after_tab(own, at, points, style, None, own_looks, None, point)
+
+            reach = tab_reach(origin + used, origin + width, style, after)
             if reach is None:
                 return None
+            # text this close to a tab stop may reach another one in Hancom: a layout unit off for each character
+            # since the line's start or the last tab stop, at most _MARGIN
+            margin = min((index - since) * _LAYOUT_UNIT, _MARGIN)
+            for shift in (-margin, margin) if margin else ():
+                moved = tab_reach(origin + used + shift, origin + width, style, after)
+                if moved is None or abs(shift + moved - reach) > 0.5:
+                    return None
             found.append(round(reach))
             used += reach
+            if reach:
+                since = index + 1
     return found
 
 
@@ -389,7 +504,7 @@ def _wraps_text(section: Any) -> bool:
 def _control_places(runs: list[Any], first: bool) -> list[int] | None:
     """Where in the paragraph's text each of its controls stands, or None when the paragraph holds anything but
     text and controls that take no room on a line: a header, a footer, a page number and the other page controls
-    (and in a section's first paragraph, the section's own definitions)."""
+    (and in a section's first paragraph, the section's own definitions), all of them before the text."""
 
     places: list[int] = []
     length = 0
@@ -402,8 +517,8 @@ def _control_places(runs: list[Any], first: bool) -> list[int] | None:
                 if "\n" in (child.text or "") or any("\n" in (mark.tail or "") for mark in child):
                     return None  # a line break typed into the text, which Hancom writes as hp:lineBreak
                 length += len(_pages._t_text(child))
-            elif name == "secPr" and first or name == "ctrl" and _takes_no_room(child, first):
-                places.append(length)
+            elif (name == "secPr" and first or name == "ctrl" and _takes_no_room(child, first)) and not length:
+                places.append(length)  # before the text only: one among it was seen to break the line elsewhere
             else:
                 return None
     return places
