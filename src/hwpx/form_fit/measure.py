@@ -1301,7 +1301,10 @@ class TextStyle:
     out when a character shape gives its scripts different faces (see
     :func:`glyph_face_of`). ``bold`` glyphs in a face of ``_BOLD_WIDER_FACES``
     (the 한양 faces) are a twentieth of the em wider; in the others bold
-    keeps the regular advance.
+    keeps the regular advance. ``auto_space_latin`` and ``auto_space_digit``
+    are the paragraph shape's automatic spacing (``hh:autoSpacing``): a
+    quarter of the em, 자간 applied, between a Hangul syllable and a Latin
+    letter or a digit right next to it (see :func:`auto_space_gap`).
     """
 
     ratio: float = 100.0
@@ -1327,6 +1330,8 @@ class TextStyle:
     auto_tab_left: bool = False
     auto_tab_right: bool = False
     bold: bool = False
+    auto_space_latin: bool = False
+    auto_space_digit: bool = False
 
 
 def _line_origin(style: TextStyle, first: bool) -> float:
@@ -1703,9 +1708,10 @@ def hancom_line_starts(
                 break
             shrink = (inner + pending) * space * style.condense / 100.0
             last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
-            if (used + last - shrink > width or ch == "\t" and used + last >= width) and end > start:
+            gap = auto_space_gap(ch, text[end + 1], size, style, look) if end + 1 < length else 0.0
+            if (used + last + gap - shrink > width or ch == "\t" and used + last >= width) and end > start:
                 break  # a tab reaching the margin itself no longer fits
-            used += advance
+            used += advance + gap
             inner += pending
             pending = 0
             seen = True
@@ -1754,6 +1760,24 @@ def _width_after_tab(
         width += fixed if fixed is not None else char_advance(
             text[index], font_pt if sizes is None else sizes[index], style if styles is None else styles[index])
     return width
+
+
+def auto_space_gap(previous: str, ch: str, font_pt: float, style: TextStyle, look: TextStyle | None = None) -> float:
+    """The room Hancom's automatic spacing (``style.auto_space_latin``/``auto_space_digit``) puts between
+    *previous* and *ch*: a quarter of the em at *font_pt*, its 자간 (*look*'s, else *style*'s) applied, when one is
+    a Hangul syllable and the other a Latin letter (or a digit) right next to it; else none. 장평 leaves it as it
+    is; a space or a mark between them, or a Latin letter beside a digit, takes none. The gap goes with the
+    character before it: that character fits on its line only with the gap after it, even where the line breaks
+    at the gap."""
+
+    if not (style.auto_space_latin or style.auto_space_digit):
+        return 0.0
+    for hangul, other in ((previous, ch), (ch, previous)):
+        if "\uac00" <= hangul <= "\ud7a3" and other.isascii() and (
+                style.auto_space_latin and other.isalpha() or style.auto_space_digit and other.isdigit()):
+            spacing = (look or style).spacing
+            return font_pt * 100.0 / 4 * (1 + spacing / 100.0)
+    return 0.0
 
 
 def _spills(ch: str, previous: str) -> bool:
@@ -2434,6 +2458,8 @@ def text_style_from_refs(
         tab_stops=tab_stops,
         auto_tab_left=bool(getattr(tabs, "auto_tab_left", False)),
         auto_tab_right=bool(getattr(tabs, "auto_tab_right", False)),
+        auto_space_latin=bool(getattr(getattr(prop, "auto_spacing", None), "e_asian_eng", False)),
+        auto_space_digit=bool(getattr(getattr(prop, "auto_spacing", None), "e_asian_num", False)),
         bold=bold,
     )
     heading = paragraph_label(root, para_pr_id_ref, label)

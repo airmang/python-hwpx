@@ -33,6 +33,7 @@ from hwpx.form_fit import (
 )
 from hwpx.form_fit.measure import (
     _cell_text_style,
+    auto_space_gap,
     char_advance,
     classify_char,
     font_line_height,
@@ -537,6 +538,26 @@ def test_the_two_spaces_right_after_a_word_hang_past_the_margin() -> None:
     assert hancom_line_starts("가나다라마  바", [5200], 10, TextStyle()) == [0, 7]
     assert hancom_line_starts("가나다라마   바", [5200], 10, TextStyle()) == [0, 7]
     assert hancom_line_starts("가나다라마 바", [5200], 10, TextStyle()) == [0, 6]
+
+
+def test_automatic_spacing_puts_a_quarter_em_between_hangul_and_latin_or_digits() -> None:
+    # hh:autoSpacing: a quarter of the em, its 자간 applied (장평 leaves it), between a Hangul syllable and a Latin
+    # letter (eAsianEng) or a digit (eAsianNum) right next to it; none across a space or a mark, or Latin to digit.
+    both = replace(TextStyle(), auto_space_latin=True, auto_space_digit=True)
+    assert auto_space_gap("가", "A", 10, both) == auto_space_gap("1", "가", 10, both) == 250
+    assert auto_space_gap("가", "A", 10, replace(both, spacing=-10.0)) == 225
+    assert auto_space_gap("가", "A", 10, replace(both, ratio=80.0)) == 250
+    assert auto_space_gap("A", "1", 10, both) == auto_space_gap("가", " ", 10, both) == 0
+    assert auto_space_gap("가", "(", 10, both) == auto_space_gap("가", "A", 10, TextStyle()) == 0
+    assert auto_space_gap("가", "1", 10, replace(TextStyle(), auto_space_latin=True)) == 0
+
+
+def test_an_automatic_space_goes_with_the_character_before_it() -> None:
+    # "1" fits only with the gap after it, even where the line breaks at that gap.
+    digits = replace(TextStyle(), auto_space_digit=True)
+    assert hancom_line_starts("가가가1가가", [3900], 10, digits) == [0, 3]
+    assert hancom_line_starts("가가가1가가", [4100], 10, digits) == [0, 4]
+    assert hancom_line_starts("가가가1가가", [3900], 10, TextStyle()) == [0, 4]
 
 
 def test_a_narrow_cell_still_gets_lines_1440_wide() -> None:
