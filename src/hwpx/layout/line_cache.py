@@ -85,6 +85,10 @@ _SURE_FACES = frozenset({
     "한컴 고딕", "HY헤드라인M", "HY견고딕", "HY울릉도M", "HY견명조", "HY동녘M", "휴먼명조", "휴먼고딕", "휴먼옛체",
     "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
 })
+#: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
+_SURE_RATIOS = (80, 110)
+_SURE_SPACINGS = (-10, 5)
+_SURE_CONDENSE = 20
 #: The glyphs other than Hangul syllables whose advances were seen on the desktop in those faces.
 _SURE_GLYPHS = frozenset(_GLYPHS)
 #: How much narrower or wider (HWPUNIT) every line may be laid out and still break at the same places for its
@@ -334,16 +338,17 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
 
 def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None = None) -> bool:
     """Whether the line breaks at *starts* can be trusted to be Hancom's: every character is set in a face of
-    :data:`_SURE_FACES` at 장평 100 % and 자간 0 without 최소 공백, takes an advance a glyph table gives (not a class
+    :data:`_SURE_FACES` at 장평, 자간 and 최소 공백 within those seen on the desktop, takes an advance a glyph table gives (not a class
     average) and is a Hangul syllable or one of :data:`_SURE_GLYPHS`, and no line starts inside a word that did not
     fit on a line of its own. Hancom takes the line breaks from a cache as written (a line short of a break is drawn with its text
     pressed together), so a paragraph laid out less surely is left for Hancom."""
 
-    if style is None or style.condense:
+    if style is None or style.condense > _SURE_CONDENSE:
         return False
     for look in set(looks or [style]):
-        if look.ratio != 100 or look.spacing or any(ratio != 100 or spacing for _, ratio, spacing in look.scripts):
-            return False  # 장평 and 자간 other than the default: left until seen on the desktop
+        if any(not _SURE_RATIOS[0] <= ratio <= _SURE_RATIOS[1] or not _SURE_SPACINGS[0] <= spacing <= _SURE_SPACINGS[1]
+               for ratio, spacing in [(look.ratio, look.spacing), *((r, sp) for _, r, sp in look.scripts)]):
+            return False  # 장평 and 자간 past those seen on the desktop
         if look.hangul_face not in _SURE_FACES or look.glyph_face not in _SURE_FACES:
             return False
     for ch, look in set(zip(text, looks or [style] * len(text))):
@@ -450,7 +455,7 @@ def _wraps_text(section: Any) -> bool:
 def _control_places(runs: list[Any], first: bool) -> list[int] | None:
     """Where in the paragraph's text each of its controls stands, or None when the paragraph holds anything but
     text and controls that take no room on a line: a header, a footer, a page number and the other page controls
-    (and in a section's first paragraph, the section's own definitions)."""
+    (and in a section's first paragraph, the section's own definitions), all of them before the text."""
 
     places: list[int] = []
     length = 0
@@ -463,8 +468,8 @@ def _control_places(runs: list[Any], first: bool) -> list[int] | None:
                 if "\n" in (child.text or "") or any("\n" in (mark.tail or "") for mark in child):
                     return None  # a line break typed into the text, which Hancom writes as hp:lineBreak
                 length += len(_pages._t_text(child))
-            elif name == "secPr" and first or name == "ctrl" and _takes_no_room(child, first):
-                places.append(length)
+            elif (name == "secPr" and first or name == "ctrl" and _takes_no_room(child, first)) and not length:
+                places.append(length)  # before the text only: one among it was seen to break the line elsewhere
             else:
                 return None
     return places

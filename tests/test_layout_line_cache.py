@@ -121,13 +121,43 @@ def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
     assert (line["vertsize"], line["textheight"], line["baseline"]) == ("1600", "1600", "1360")
 
 
-@pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -5},
-                                   {"ratio": 95}])
+@pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -17},
+                                   {"ratio": 70}])
 def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hancom(style: dict) -> None:
-    # A face Hancom may draw in another one, or 장평 and 자간 other than the default, are left for Hancom.
+    # A face Hancom may draw in another one, or 장평 and 자간 past those seen on the desktop, are left for Hancom.
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("가나다 " * 30, char_pr_id_ref=document.styles.ensure_run(**style))
+
+    report = write_line_caches(document)
+
+    assert report.written == 0 and report.skipped == 1
+
+
+@pytest.mark.parametrize("style", [{"letter_spacing": -5}, {"ratio": 90}, {"ratio": 110, "letter_spacing": 5}])
+def test_a_paragraph_at_a_look_seen_on_the_desktop_gets_a_cache(style: dict) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run("가나다 " * 5, char_pr_id_ref=document.styles.ensure_run(**style))
+
+    report = write_line_caches(document)
+
+    assert report.written == 1
+
+
+def test_a_page_control_among_the_text_is_left_for_hancom() -> None:
+    # A page control among the text (not before it) was seen to break the line elsewhere than FormFit.
+    document = HwpxDocument.new()
+    document.add_paragraph("가나다 " * 40)
+    run = _body(document)[-1].find(f"{HP}run")
+    ctrl = run.makeelement(f"{HP}ctrl", {})
+    ctrl.append(ctrl.makeelement(f"{HP}pageHiding", {"hideHeader": "0", "hideFooter": "0", "hideMasterPage": "0",
+                                                     "hideBorder": "0", "hideFill": "0", "hidePageNum": "1"}))
+    text = run.find(f"{HP}t")
+    tail = run.makeelement(f"{HP}t", {})
+    tail.text, text.text = text.text[1:], text.text[:1]
+    text.addnext(ctrl)
+    ctrl.addnext(tail)
 
     report = write_line_caches(document)
 
