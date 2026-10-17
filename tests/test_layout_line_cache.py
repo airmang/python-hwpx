@@ -15,7 +15,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 # Hancom Office laid these documents out from python-hwpx's paragraphs without a cache and saved them.
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
                    "line_cache_indents.hwpx", "line_cache_labels.hwpx",
-                   "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx"]
+                   "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -65,15 +65,17 @@ def test_a_new_paragraph_gets_hancoms_line_metrics() -> None:
     assert _segments(_body(reopened)[-1]) == segments  # the save keeps them
 
 
-def test_a_paragraph_with_an_object_is_left_for_hancom() -> None:
+def test_a_paragraph_holding_a_table_gets_one_line_as_tall_as_it() -> None:
     document = HwpxDocument.new()
     document.add_table(2, 2)
 
     report = write_line_caches(document)
 
-    # The paragraph holding the table is left for Hancom; its four cells' empty paragraphs get caches.
-    assert report.written == 4 and report.skipped == 1
-    assert not _segments(_body(document)[-1])
+    # The paragraph holding the table gets one line as tall as the table, its four cells' empty paragraphs theirs.
+    assert report.written == 5 and report.skipped == 0
+    [line] = _segments(_body(document)[-1])
+    table = _body(document)[-1].find(f"{HP}run/{HP}tbl")
+    assert int(line["vertsize"]) == int(table.find(f"{HP}sz").get("height")) > 282 * 2
 
 
 def _cell_paragraphs(document: HwpxDocument) -> list:
@@ -151,3 +153,15 @@ def test_a_paragraph_of_several_character_sizes_gets_a_cache() -> None:
     assert mixed
     for mine, theirs in mixed:
         assert _segments(mine) == _segments(theirs)
+
+
+def test_a_table_whose_cells_are_not_laid_out_surely_keeps_its_line_for_hancom() -> None:
+    # The table's line is as tall as its rows, and a row as tall as its cells' lines: a cell laid out less surely
+    # leaves the table's line for Hancom too.
+    document = HwpxDocument.new()
+    table = document.add_table(1, 2)
+    table.cell(0, 0).text = "이모지 😀"
+
+    write_line_caches(document)
+
+    assert not _segments(_body(document)[-1])
