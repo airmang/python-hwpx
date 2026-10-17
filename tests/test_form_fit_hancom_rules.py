@@ -57,6 +57,7 @@ LINE_PITCHES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_li
 FONT_LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_font_line_heights.hwpx"
 PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_margins.hwpx"
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
+BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
@@ -385,6 +386,35 @@ def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -
     assert [char_advance("가", 10, style) for style in styles] == [900, 852, 1000, 1000, 948]
     assert [char_advance("(", 10, style) for style in styles] == [380, 276, 312, 364, 476]
     assert glyph_advance_em("한컴 윤고딕 230", "(") == 380 / 1000
+
+
+def test_a_bold_glyph_in_a_hanyang_face_is_a_twentieth_of_the_em_wider() -> None:
+    # Hancom adds a twentieth of the em to a bold glyph's advance in the 한양 faces before rounding it to whole
+    # layout units: "가" at 14 pt is 350 + 17.5 units, 368 (1472), against 350 (1400) regular. Bold glyphs in the
+    # other faces keep their regular advances.
+    hanyang = TextStyle(hangul_face="한양신명조", glyph_face="한양신명조")
+    assert char_advance("가", 14, hanyang) == 1400
+    assert char_advance("가", 14, replace(hanyang, bold=True)) == 1472
+    assert char_advance("가", 9, replace(hanyang, bold=True)) == 900 + 44
+    malgun = TextStyle(hangul_face="맑은 고딕", glyph_face="맑은 고딕")
+    assert char_advance("가", 14, replace(malgun, bold=True)) == char_advance("가", 14, malgun)
+
+
+def test_bold_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three glyphs then a tab, regular and bold, in 한양신명조 at 9 to 20 pt: each tab reaches
+    # the next default stop past the glyphs, so its width shows how wide they are.
+    document = HwpxDocument.open(BOLD_ADVANCES)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    bold_seen = False
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        bold_seen = bold_seen or style.bold
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
+    assert bold_seen
 
 
 def test_a_hangul_syllable_takes_its_own_advance_where_the_font_gives_it_one() -> None:
