@@ -871,6 +871,27 @@ def test_numbering_bookmark_index_and_dutmal_controls_open() -> None:
     assert [dutmal.find(f"{HP}mainText").text, dutmal.find(f"{HP}subText").text] == ["협동조합", "coop"]
 
 
+def _page_number_places(*positions: int) -> list[rec.Record]:
+    """A paragraph of text after a page number place at each of *positions* (PAGE_NUM_POS indices)."""
+
+    text = b"".join(_extended(21, "pgnp") for _ in positions) + "쪽".encode("utf-16-le") + _u16(13)
+    controls = [rec.Record(rec.CTRL_HEADER, 1, ct.PageNumberPosition(position << 8, side_char=ord("-")).encode())
+                for position in positions]
+    return _paragraph(0, text, [(0, 0)], controls)
+
+
+def test_only_the_last_page_number_place_of_a_paragraph_opens() -> None:
+    # Hancom saves a paragraph holding several page number places with the last one alone, the one it numbers
+    # the pages by: Hancom Office 2024 did so with a paragraph of two places (NONE, then BOTTOM_CENTER), and
+    # the SDK with all 59 such .hwp files of a private corpus. Here the page number at the bottom centre is
+    # hidden again by the place after it; a paragraph of one place keeps it.
+    document = HwpxDocument.open(make_hwp(extra_paragraphs=_page_number_places(5, 0) + _page_number_places(3)))
+    paragraphs = [p for p in document.sections[0].element.iter(f"{HP}p") if p.find(f".//{HP}pageNum") is not None]
+
+    assert [[n.get("pos") for n in p.iter(f"{HP}pageNum")] for p in paragraphs] == [["NONE"], ["TOP_RIGHT"]]
+    assert [p.xpath("string(.)") for p in paragraphs] == ["쪽", "쪽"]
+
+
 @pytest.mark.parametrize(("position", "name"), [(0, "TOP"), (1, "BOTTOM"), (2, None)])
 def test_a_dutmal_position_opens_with_its_owpml_name_or_without_one(position: int, name: str | None) -> None:
     """Hancom leaves the dutmal position 2 out of OWPML."""
