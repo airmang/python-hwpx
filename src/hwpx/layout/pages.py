@@ -274,6 +274,13 @@ def estimate_pages(document: "HwpxDocument | bytes | str | os.PathLike[str]") ->
     bytes or path of an HWPX file. See the module description for what the estimate follows.
     """
 
+    return _estimate(document)
+
+
+def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
+    """:func:`estimate_pages`; with *first_reason*, stop at the first section not followed (its reason the only
+    one given) instead of laying every section out to name them all."""
+
     root = getattr(_open(document), "_root")
     measure = _Measure(root)
     layouts: list[_SectionLayout] = []
@@ -285,6 +292,8 @@ def estimate_pages(document: "HwpxDocument | bytes | str | os.PathLike[str]") ->
             layouts.append(_lay_section(measure, section.element))
         except _Unsupported as exc:
             reasons.append(f"section {number}: {exc}")
+            if first_reason:
+                break
     if reasons:
         return PageEstimate(None, (), tuple(reasons))
     notes = [note for section in root.sections for note in section.element.iter(f"{HP}endNote")]
@@ -517,8 +526,8 @@ def _cached_metrics(paragraph: Any) -> tuple[tuple[int, int], ...]:
 
 
 class _Lookups:
-    """The shape lookups FormFit's text style reads, with the paragraph shapes read once: the document
-    reads the header's paragraph shapes again on every lookup. (No ``_root`` attribute, so FormFit
+    """The shape lookups FormFit's text style reads, with the paragraph shapes and tab definitions read once:
+    the document reads them from the header again on every lookup. (No ``_root`` attribute, so FormFit
     uses this object and not the document behind it.)"""
 
     def __init__(self, root: Any) -> None:
@@ -527,6 +536,7 @@ class _Lookups:
         self.version = root.version  # how the paragraph shapes' margins outside hp:switch read
         self.sections = root.sections  # the outline numbering of a paragraph's label
         self._paragraph_shapes: dict[str, Any] | None = None
+        self._tab_definitions: dict[str, Any] | None = None
 
     def char_property(self, char_pr_id: Any) -> Any:
         return self._document.char_property(char_pr_id)
@@ -537,7 +547,9 @@ class _Lookups:
         return HwpxOxmlHeader._lookup_by_id(self._paragraph_shapes, para_pr_id)
 
     def tab_property(self, tab_pr_id: Any) -> Any:
-        return self._document.tab_property(tab_pr_id)
+        if self._tab_definitions is None:
+            self._tab_definitions = self._document.tab_properties
+        return HwpxOxmlHeader._lookup_by_id(self._tab_definitions, tab_pr_id)
 
 
 class _Measure:
