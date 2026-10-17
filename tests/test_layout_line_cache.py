@@ -127,6 +127,18 @@ def test_a_tab_close_to_a_tab_stop_is_left_for_hancom(head: str, written: int) -
     assert report.written == written and report.skipped == 1 - written
 
 
+def test_a_tab_right_after_a_tab_starts_at_its_stop_surely() -> None:
+    # The first tab ends at the stop at 4000, exactly where the second one starts: no character before the second
+    # tab could be off, so it reaches the stop at 8000 surely.
+    document = HwpxDocument.new()
+    document.add_paragraph("항목\t\t내용")
+
+    report = write_line_caches(document)
+
+    assert report.written == 1
+    assert [tab.get("width") for tab in _body(document)[-1].iter(f"{HP}tab")] == ["2056", "4000"]
+
+
 def test_a_line_break_typed_into_the_text_is_left_for_hancom() -> None:
     # Hancom writes a line break as hp:lineBreak; a newline in hp:t's own text is left for it to lay out.
     document = HwpxDocument.new()

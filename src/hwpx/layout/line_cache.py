@@ -30,9 +30,9 @@ paragraph of its cells is laid out surely.
 A paragraph is left for Hancom when its line breaks are less sure: a character no glyph table gives an advance
 for, a word too long for a line, a line break that moves when every line is laid out :data:`_MARGIN` narrower or
 wider (a line ending that close to its room may end elsewhere in Hancom), or a tab whose text before it is closer
-to a tab stop than a layout unit for each of its characters on the line (at most :data:`_MARGIN`). A paragraph that
-has a cache keeps it. A document mixing paragraphs with and without a cache is laid out as one. Nothing is written
-when the estimate does not follow the document.
+to a tab stop than a layout unit for each character since the line's start or the last tab stop (at most
+:data:`_MARGIN`). A paragraph that has a cache keeps it. A document mixing paragraphs with and without a cache is
+laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
 from __future__ import annotations
@@ -369,6 +369,7 @@ def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, st
         origin = _line_origin(style, logical == 0 and visual == 0)
         own_looks = None if looks is None else looks[logical:logical + len(own)]
         used = 0.0
+        since = start  # the first character after the line's start or the last tab stop reached: exact places
         for index in range(start, end):
             ch = text[index]
             if ch != "\t":
@@ -383,14 +384,16 @@ def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, st
             if reach is None:
                 return None
             # text this close to a tab stop may reach another one in Hancom: a layout unit off for each character
-            # before the tab on its line, at most _MARGIN
-            margin = min(max(index - start, 2) * _LAYOUT_UNIT, _MARGIN)
-            for shift in (-margin, margin):
+            # since the line's start or the last tab stop, at most _MARGIN
+            margin = min((index - since) * _LAYOUT_UNIT, _MARGIN)
+            for shift in (-margin, margin) if margin else ():
                 moved = tab_reach(origin + used + shift, origin + width, style, after)
                 if moved is None or abs(shift + moved - reach) > 0.5:
                     return None
             found.append(round(reach))
             used += reach
+            if reach:
+                since = index + 1
     return found
 
 
