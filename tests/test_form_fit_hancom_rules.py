@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 from hwpx.document import HwpxDocument
+from hwpx.layout import pages as page_layout
 from hwpx.form_fit import (
     FitEngine,
     FitPolicy,
@@ -58,6 +59,7 @@ FONT_LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_margins.hwpx"
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
+SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
@@ -415,6 +417,23 @@ def test_bold_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         x = sum(char_advance(ch, size, style) for ch in text[:3])
         assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
     assert bold_seen
+
+
+def test_a_no_break_space_takes_its_ratio_and_no_spacing() -> None:
+    # Hancom laid "가", three no-break spaces (hp:nbSpace), fixed-width spaces or spaces and a tab out at 9, 10
+    # and 14 pt in 맑은 고딕 under several 장평 and 자간: the tab's width shows how wide the spaces are. A
+    # no-break space takes the 장평 but no 자간 (at 120 % and -12 % a 9 pt one is 536, not 472).
+    assert char_advance(" ", 9, TextStyle(ratio=120, spacing=-12)) == 536
+    assert char_advance(" ", 9, TextStyle(ratio=120, spacing=-12)) == 472
+    document = HwpxDocument.open(SPACE_SCALING)
+    for paragraph in document.oxml.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        text = page_layout._run_text(runs)
+        x = sum(char_advance(ch, size, style) for ch in text[:text.index("	")])
+        assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
 
 
 def test_a_hangul_syllable_takes_its_own_advance_where_the_font_gives_it_one() -> None:
