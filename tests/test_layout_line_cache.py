@@ -11,6 +11,7 @@ from hwpx import HwpxDocument
 from hwpx.layout.line_cache import write_line_caches
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 # Hancom Office laid these documents out from python-hwpx's paragraphs without a cache and saved them.
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
@@ -77,6 +78,70 @@ def test_a_paragraph_holding_a_table_gets_one_line_as_tall_as_it() -> None:
     [line] = _segments(_body(document)[-1])
     table = _body(document)[-1].find(f"{HP}run/{HP}tbl")
     assert int(line["vertsize"]) == int(table.find(f"{HP}sz").get("height")) > 282 * 2
+
+
+def test_a_table_with_a_caption_keeps_its_line_for_hancom() -> None:
+    # The line of a table with a caption holds the caption too: left for Hancom.
+    document = HwpxDocument.new()
+    table = document.add_table(2, 2)
+    table.set_caption("표 1")
+
+    write_line_caches(document)
+
+    assert not _segments(_body(document)[-1])
+
+
+@pytest.mark.parametrize("vertical", ["CENTER", "BOTTOM", "TOP"])
+def test_a_paragraph_not_set_on_its_baseline_is_left_for_hancom(vertical: str) -> None:
+    # Hancom writes another baseline for characters aligned to the centre (half the text height) or the bottom
+    # (all of it) of their line.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("가나다")
+    document.styles.apply_paragraph_format(paragraphs=[paragraph], alignment="LEFT")
+    shape_id = _body(document)[-1].get("paraPrIDRef")
+    shape = next(el for el in document.oxml.headers[0].element.iter(f"{HH}paraPr") if el.get("id") == shape_id)
+    shape.find(f"{HH}align").set("vertical", vertical)
+
+    report = write_line_caches(document)
+
+    assert report.written == 0 and report.skipped == 1
+
+
+def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
+    # An empty run ending the paragraph, larger than its text, makes its last line and that line's text as tall.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run("가나다", char_pr_id_ref=document.styles.ensure_run(size=10))
+    paragraph.add_run("", char_pr_id_ref=document.styles.ensure_run(size=16))
+
+    report = write_line_caches(document)
+
+    assert report.written == 1
+    [line] = _segments(_body(document)[-1])
+    assert (line["vertsize"], line["textheight"], line["baseline"]) == ("1600", "1600", "1360")
+
+
+@pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -5},
+                                   {"ratio": 95}])
+def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hancom(style: dict) -> None:
+    # A face Hancom may draw in another one, or 장평 and 자간 other than the default, are left for Hancom.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run("가나다 " * 30, char_pr_id_ref=document.styles.ensure_run(**style))
+
+    report = write_line_caches(document)
+
+    assert report.written == 0 and report.skipped == 1
+
+
+def test_a_glyph_not_seen_on_the_desktop_is_left_for_hancom() -> None:
+    # "｢" (U+FF62) has a table advance read from the font, not one seen on the desktop.
+    document = HwpxDocument.new()
+    document.add_paragraph("｢가나다｣")
+
+    report = write_line_caches(document)
+
+    assert report.written == 0 and report.skipped == 1
 
 
 def _cell_paragraphs(document: HwpxDocument) -> list:

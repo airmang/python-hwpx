@@ -17,9 +17,11 @@ Only a paragraph Hancom would lay out from its text alone gets a cache: a body p
 section of one column where no object lets text run beside it. Tabs to the default tab stops, line breaks,
 controls that take no room on a line (a header, a footer, a page number, the section's own definitions in its
 first paragraph) and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
-face, 장평 or 자간, each character taking its own run's advance, and in size: each line is then as tall as its
-largest character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes
-the line as tall as that one), and has no tab.
+face, each character taking its own run's advance, and in size: each line is then as tall as its largest
+character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line as
+tall as that one), and has no tab; a larger empty run ending the paragraph makes its last line's text as tall. A
+paragraph whose characters align to the centre or the bottom of their lines is left (Hancom writes another
+baseline), and so is a table with a caption.
 
 The cells of a table in such a section get caches the same way when every paragraph of the cell is one of
 these: their lines go down from the top of the cell's text area, as wide as that area in whole layout units and
@@ -43,6 +45,7 @@ from typing import TYPE_CHECKING, Any
 from ..form_fit.measure import (
     _FIXED_SPACE,
     _GLYPH_SPACE,
+    _GLYPHS,
     _HALF_EM_GLYPHS,
     _HALF_EM_SPACES,
     _design_units,
@@ -57,7 +60,7 @@ from ..form_fit.measure import (
 )
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
 from . import pages as _pages
-from .pages import HP
+from .pages import HH, HP
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
@@ -75,6 +78,15 @@ _LAYOUT_UNIT = 4
 _PAST_A_BREAK = 40
 #: The line starts with the paragraph's bullet or number label.
 _LABELLED = 0x200000
+#: The faces whose glyphs Hancom Office 2024 was seen to lay out at the advances FormFit gives them, on the
+#: desktop: a face Hancom may draw in another (one not installed, a name no table lists) is left for Hancom.
+_SURE_FACES = frozenset({
+    "함초롬바탕", "함초롬돋움", "맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체",
+    "한컴 고딕", "HY헤드라인M", "HY견고딕", "HY울릉도M", "HY견명조", "HY동녘M", "휴먼명조", "휴먼고딕", "휴먼옛체",
+    "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
+})
+#: The glyphs other than Hangul syllables whose advances were seen on the desktop in those faces.
+_SURE_GLYPHS = frozenset(_GLYPHS)
 #: How much narrower or wider (HWPUNIT) every line may be laid out and still break at the same places for its
 #: paragraph to get a cache: a width a little off from Hancom's must not move a line break.
 _MARGIN = 100
@@ -165,6 +177,10 @@ def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str
         return None
     if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
         return None
+    if not _on_the_baseline(measure, paragraph.get("paraPrIDRef")):
+        return None
+    if table.find(f"{HP}caption") is not None:  # the line holds the caption too: left for Hancom
+        return None
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # spaced from its largest characters
     rows = _pages._inline_table_height(measure, table)
@@ -251,7 +267,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     headed = measure.headed(paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    if shape.font_line:
+    if shape.font_line or not _on_the_baseline(measure, paragraph.get("paraPrIDRef")):
         return None
     size, refs, sizes = _pages._text_size(measure, runs)
     end = _pages._end_size(measure, runs, sizes)
@@ -293,6 +309,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     ends = [*starts[1:], len(text)]
     for line, (start, (height, advance)) in enumerate(zip(starts, metrics)):
         drawn = [sizes[index] for index in range(start, ends[line]) if text[index] != "\n"] if mixed else []
+        if end and line == len(starts) - 1:
+            drawn.append(end)  # the paragraph's end, larger than its text: the last line's text is as tall
         text_height = max(drawn) if drawn else height  # a line break larger than the text makes the line taller
         takes_indent = (indented and (shape.indent > 0 if line == 0 else shape.indent < 0)) or (headed and line > 0)
         segments.append({
@@ -315,23 +333,44 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
 
 
 def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None = None) -> bool:
-    """Whether the line breaks at *starts* can be trusted to be Hancom's: every character takes an advance a
-    glyph table gives (not a class average), and no line starts inside a word that did not fit on a line of its
-    own. Hancom takes the line breaks from a cache as written (a line short of a break is drawn with its text
+    """Whether the line breaks at *starts* can be trusted to be Hancom's: every character is set in a face of
+    :data:`_SURE_FACES` at 장평 100 % and 자간 0 without 최소 공백, takes an advance a glyph table gives (not a class
+    average) and is a Hangul syllable or one of :data:`_SURE_GLYPHS`, and no line starts inside a word that did not
+    fit on a line of its own. Hancom takes the line breaks from a cache as written (a line short of a break is drawn with its text
     pressed together), so a paragraph laid out less surely is left for Hancom."""
 
-    if style is None:
+    if style is None or style.condense:
         return False
+    for look in set(looks or [style]):
+        if look.ratio != 100 or look.spacing or any(ratio != 100 or spacing for _, ratio, spacing in look.scripts):
+            return False  # 장평 and 자간 other than the default: left until seen on the desktop
+        if look.hangul_face not in _SURE_FACES or look.glyph_face not in _SURE_FACES:
+            return False
     for ch, look in set(zip(text, looks or [style] * len(text))):
         if ch in "\t\n" or ch in _HALF_EM_SPACES or ch in _HALF_EM_GLYPHS or ch in (_FIXED_SPACE, _GLYPH_SPACE):
             continue
         if classify_char(ch) == "hangul":
             if _hangul_units(_laid_out_face(look.hangul_face), ch) is None:
                 return False
-        elif _design_units(_laid_out_face(look.glyph_face), ch) is None:
+        elif ch not in _SURE_GLYPHS or _design_units(_laid_out_face(look.glyph_face), ch) is None:
             return False
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
+
+
+def _on_the_baseline(measure: Any, para_pr_id: str | None) -> bool:
+    """Whether a paragraph of the shape *para_pr_id* sets its characters on their baseline (``hh:align``'s
+    ``vertical``, the default): Hancom writes the baseline elsewhere for the others (half the text height for
+    CENTER, all of it for BOTTOM)."""
+
+    aligned = getattr(measure, "_line_cache_baseline", None)
+    if aligned is None:
+        aligned = {}
+        for shape in measure._header.iter(f"{HH}paraPr"):
+            align = shape.find(f"{HH}align")
+            aligned[shape.get("id")] = align is None or align.get("vertical", "BASELINE") == "BASELINE"
+        measure._line_cache_baseline = aligned
+    return aligned.get(para_pr_id, False)
 
 
 def _taller_past_a_break(text: str, sizes: list[int], starts: list[int],
