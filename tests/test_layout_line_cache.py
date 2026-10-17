@@ -165,3 +165,23 @@ def test_a_table_whose_cells_are_not_laid_out_surely_keeps_its_line_for_hancom()
     write_line_caches(document)
 
     assert not _segments(_body(document)[-1])
+
+
+def test_a_paragraph_holding_page_controls_gets_a_cache() -> None:
+    # A header, a footer and a page number take no room on a line; each control counts eight characters in a
+    # line's text position, as a section's own definitions do.
+    document = HwpxDocument.new()
+    document.set_header_text("머리말")
+    document.set_footer_text("꼬리말")
+    document.add_paragraph("가나다 " * 40)
+
+    first = _body(document)[0]
+    for cache in first.findall(f"{HP}linesegarray"):  # the template's own
+        first.remove(cache)
+
+    report = write_line_caches(document)
+
+    controls = [child for run in first.findall(f"{HP}run") for child in run
+                if child.tag.endswith("}ctrl") and any(not grand.tag.endswith("}colPr") for grand in child)]
+    assert controls and _segments(first)
+    assert report.written == 2
