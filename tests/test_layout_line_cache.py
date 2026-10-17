@@ -15,7 +15,8 @@ FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 # Hancom Office laid these documents out from python-hwpx's paragraphs without a cache and saved them.
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
                    "line_cache_indents.hwpx", "line_cache_labels.hwpx",
-                   "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx"]
+                   "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx",
+                   "line_cache_mixed_faces_tabs.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -205,3 +206,26 @@ def test_a_paragraph_of_several_faces_gets_a_cache() -> None:
     assert len(faces) >= 3
     for mine, theirs in faces:
         assert _segments(mine) == _segments(theirs)
+
+
+def test_a_tab_among_runs_of_several_faces_gets_its_width() -> None:
+    # The text before a tab takes each character's own run's advance, and the tab reaches the next default stop.
+    document = HwpxDocument.open(FIXTURES / "line_cache_mixed_faces_tabs.hwpx")
+    hancom = HwpxDocument.open(FIXTURES / "line_cache_mixed_faces_tabs.hwpx")
+    for paragraph in _body(document):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+        for tab in paragraph.iter(f"{HP}tab"):
+            tab.attrib.clear()
+
+    write_line_caches(document)
+
+    tabbed = [
+        (mine, theirs)
+        for mine, theirs in zip(_body(document), _body(hancom))
+        if _segments(mine) and mine.find(f".//{HP}tab") is not None
+        and len({run.get("charPrIDRef") for run in mine.findall(f"{HP}run")}) > 1
+    ]
+    assert len(tabbed) >= 2
+    for mine, theirs in tabbed:
+        assert [dict(tab.attrib) for tab in mine.iter(f"{HP}tab")] == [dict(tab.attrib) for tab in theirs.iter(f"{HP}tab")]
