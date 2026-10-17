@@ -121,6 +121,9 @@ _HALF_EM_SPACES = frozenset(" \u00a0")
 #: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance (a glyph all the
 #: same: rounded, \uc7a5\ud3c9 and \uc790\uac04 applied as any other is).
 _HALF_EM_GLYPHS = frozenset("!")
+#: The faces Hancom lays a bold glyph out wider in: by a twentieth of the em, added before the advance is rounded
+#: to whole layout units. In the other faces a bold glyph keeps its regular advance.
+_BOLD_WIDER_FACES = frozenset({"한양중고딕", "한양신명조", "한양견고딕"})
 #: Pictographs Hancom draws as color emoji: 1.373 em in every face (a design advance of 1373 in 1000), however
 #: the face draws its other symbols. The pictograph planes past the BMP, and the BMP symbols that take the emoji
 #: presentation there (⚫ ⚡ ⌛ ☎ ✔ ➡ and other symbols stay the face's own). The regional indicators of a flag
@@ -1212,12 +1215,15 @@ def font_line_height(face: str | None, height: int) -> int | None:
 
 
 @lru_cache(maxsize=4096)
-def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float) -> float:
+def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float, bold: bool = False) -> float:
     """HWPUNIT a glyph of design advance *units* (of *upem*) takes at a character
-    height of *height* HWPUNIT, its 자간 included."""
+    height of *height* HWPUNIT, its 자간 included; *bold* in a face of
+    ``_BOLD_WIDER_FACES``, a twentieth of the em wider (seen at 장평 100 %)."""
 
     scaled = Fraction(units * (height // _LAYOUT_UNIT), upem)
     if ratio == 100:
+        if bold:
+            scaled += Fraction(height // _LAYOUT_UNIT, 20)
         advance = math.floor(scaled + Fraction(1, 2))
     else:
         advance = math.floor(scaled * Fraction(ratio) / 100)
@@ -1286,7 +1292,9 @@ class TextStyle:
     and the other glyphs take, laid out as Hancom rounds them (see
     :func:`char_advance`); an empty or unlisted face, or a glyph it does not
     list, falls back to ``hangul_advance`` (a Hangul syllable in em) and to
-    the class averages.
+    the class averages. ``bold`` glyphs in a face of ``_BOLD_WIDER_FACES``
+    (the 한양 faces) are a twentieth of the em wider; in the others bold
+    keeps the regular advance.
     """
 
     ratio: float = 100.0
@@ -1309,6 +1317,7 @@ class TextStyle:
     tab_stops: tuple[tuple[int, str], ...] = ()
     auto_tab_left: bool = False
     auto_tab_right: bool = False
+    bold: bool = False
 
 
 def _line_origin(style: TextStyle, first: bool) -> float:
@@ -1491,6 +1500,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     ratio, spacing = _scaling(ch, style)
     if ch in _HALF_EM_SPACES and not style.use_font_space:
         return _laid_out_space(height, ratio, spacing)
+    face = style.hangul_face if cls == "hangul" else style.glyph_face
     if emoji:
         design, base = _EMOJI_UNITS, _ADVANCE_EM[cls]
     elif cls == "hangul":
@@ -1500,7 +1510,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     else:
         design, base = _design_units(_laid_out_face(style.glyph_face), ch), _ADVANCE_EM[cls]
     if design is not None:
-        return _laid_out(design[0], design[1], height, ratio, spacing)
+        bold = style.bold and not emoji and face in _BOLD_WIDER_FACES
+        return _laid_out(design[0], design[1], height, ratio, spacing, bold)
     return base * font_pt * 100.0 * ratio / 100.0 * (1 + spacing / 100.0)
 
 
@@ -2302,7 +2313,7 @@ def text_style_from_refs(
     last run): a bullet or number label without a character shape of its own
     takes that one, else the text's."""
 
-    ratio, spacing, use_font_space, hangul_face, glyph_face = 100.0, 0.0, False, "", ""
+    ratio, spacing, use_font_space, hangul_face, glyph_face, bold = 100.0, 0.0, False, "", "", False
     scripts: tuple[tuple[str, float, float], ...] = ()
     root = _document_root(document)
     height, used = 1000, None
@@ -2323,6 +2334,7 @@ def text_style_from_refs(
             if (_style_number(ratios.get(name), ratio), _style_number(spacings.get(name), spacing)) != (ratio, spacing)
         )
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
+        bold = "bold" in children
         hangul_face, glyph_face = _face_names(root, ref)
         height = int(_style_number((getattr(run_style, "attributes", {}) or {}).get("height"), 1000.0))
         used = ref
@@ -2339,6 +2351,7 @@ def text_style_from_refs(
             glyph_face=glyph_face,
             hangul_face=hangul_face,
             scripts=scripts,
+            bold=bold,
         )
     breaks = getattr(prop, "break_setting", None)
     try:
@@ -2372,6 +2385,7 @@ def text_style_from_refs(
         tab_stops=tab_stops,
         auto_tab_left=bool(getattr(tabs, "auto_tab_left", False)),
         auto_tab_right=bool(getattr(tabs, "auto_tab_right", False)),
+        bold=bold,
     )
     heading = paragraph_label(root, para_pr_id_ref, label)
     if heading is None:
