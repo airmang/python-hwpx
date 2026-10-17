@@ -28,9 +28,11 @@ one line, as tall as the table, and the table its rows' height (``hp:sz``), as H
 paragraph of its cells is laid out surely.
 
 A paragraph is left for Hancom when its line breaks are less sure: a character no glyph table gives an advance
-for, a word too long for a line, or a line break that moves when every line is laid out :data:`_MARGIN` narrower
-or wider (a line ending that close to its room may end elsewhere in Hancom). A paragraph that has a cache keeps it. A document mixing paragraphs with and
-without a cache is laid out as one. Nothing is written when the estimate does not follow the document.
+for, a word too long for a line, a line break that moves when every line is laid out :data:`_MARGIN` narrower or
+wider (a line ending that close to its room may end elsewhere in Hancom), or a tab whose text before it is closer
+to a tab stop than a layout unit for each of its characters on the line (at most :data:`_MARGIN`). A paragraph that
+has a cache keeps it. A document mixing paragraphs with and without a cache is laid out as one. Nothing is written
+when the estimate does not follow the document.
 """
 
 from __future__ import annotations
@@ -380,7 +382,10 @@ def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, st
             reach = tab_reach(origin + used, origin + width, style, after)
             if reach is None:
                 return None
-            for shift in (-_MARGIN, _MARGIN):  # text this close to a tab stop may reach the next one in Hancom
+            # text this close to a tab stop may reach another one in Hancom: a layout unit off for each character
+            # before the tab on its line, at most _MARGIN
+            margin = min(max(index - start, 2) * _LAYOUT_UNIT, _MARGIN)
+            for shift in (-margin, margin):
                 moved = tab_reach(origin + used + shift, origin + width, style, after)
                 if moved is None or abs(shift + moved - reach) > 0.5:
                     return None

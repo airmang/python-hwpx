@@ -114,10 +114,11 @@ def test_a_tab_gets_the_width_hancom_lays_it_out_at() -> None:
     assert dict(tab.attrib) == {"width": "2056", "leader": "0", "type": "1"}
 
 
-@pytest.mark.parametrize(("head", "written"), [("가가가!", 1), ("가가가!!", 0)])
+@pytest.mark.parametrize(("head", "written"), [("가" * 16, 1), ("가" * 16 + "!", 0)])
 def test_a_tab_close_to_a_tab_stop_is_left_for_hancom(head: str, written: int) -> None:
-    # "가가가!" takes 3,416 (가 972, ! half an em): its tab reaches the stop at 4000 surely. "가가가!!" takes 3,916, 84
-    # short of it, and text a little wider than Hancom's would take its tab on to the next stop.
+    # Sixteen 가 take 15,552 (972 each), 448 short of the stop at 16,000: their tab reaches it surely. With a "!" (half
+    # an em) they take 16,052, 52 past it, closer than a layout unit for each of the 17 characters: text that much
+    # off from Hancom's would take the tab to another stop.
     document = HwpxDocument.new()
     document.add_paragraph(f"{head}\t내용")
 
