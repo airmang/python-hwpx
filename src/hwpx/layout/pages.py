@@ -1592,6 +1592,12 @@ def _check_section(section: Any) -> None:
     # Hancom starts a new section, on a new page, at a later paragraph holding section settings.
     if any(next(paragraph.iter(f"{HP}secPr"), None) is not None for paragraph in section.findall(f"{HP}p")[1:]):
         raise _Unsupported("section settings (hp:secPr) after the first paragraph")
+    # An object in a run's hp:switch (a chart, or the OLE object standing for it) takes its room as any other
+    # does, but the estimate looks for objects among the run's own children only.
+    for switch in section.iter(f"{HP}switch"):
+        if _local(switch.getparent()) == "run" and any(
+                _local(child) in _OBJECTS for branch in switch for child in branch):
+            raise _Unsupported("an object in a switch (hp:switch)")
 
 
 def _objects_reach(runs: list[Any], measure: _Measure) -> int:
