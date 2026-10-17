@@ -403,3 +403,26 @@ def test_a_tab_among_runs_of_several_faces_gets_its_width() -> None:
     assert len(tabbed) >= 2
     for mine, theirs in tabbed:
         assert [dict(tab.attrib) for tab in mine.iter(f"{HP}tab")] == [dict(tab.attrib) for tab in theirs.iter(f"{HP}tab")]
+
+
+@pytest.mark.parametrize(("eng", "num", "text", "written"), [
+    ("1", "0", "가나 ABC 다라마바사 " * 3, True),     # Latin only beside spaces
+    ("1", "0", "가나ABC다라마바사 " * 3, False),      # a Hangul syllable right next to a Latin letter
+    ("0", "1", "제15호에 따른 정의 " * 3, False),     # ... and next to a digit
+    ("0", "0", "제15호에 따른 정의 " * 3, True),      # automatic spacing off
+])
+def test_a_paragraph_with_automatic_spacing_beside_hangul_is_left_for_hancom(
+        eng: str, num: str, text: str, written: bool) -> None:
+    # Hancom widens the gap between Hangul and Latin letters or digits when the paragraph shape turns that on;
+    # how much was not measured, so such a paragraph keeps no cache.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph(text)
+    for shape in document.oxml.headers[0].element.iter(f"{HH}paraPr"):
+        if shape.get("id") == paragraph.element.get("paraPrIDRef"):
+            auto = next(shape.iter(f"{HH}autoSpacing"))
+            auto.set("eAsianEng", eng)
+            auto.set("eAsianNum", num)
+
+    write_line_caches(document)
+
+    assert bool(_segments(paragraph.element)) is written
