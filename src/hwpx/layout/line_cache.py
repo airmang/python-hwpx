@@ -28,7 +28,8 @@ one line, as tall as the table, and the table its rows' height (``hp:sz``), as H
 paragraph of its cells is laid out surely.
 
 A paragraph is left for Hancom when its line breaks are less sure: a character no glyph table gives an advance
-for, or a word too long for a line. A paragraph that has a cache keeps it. A document mixing paragraphs with and
+for, a word too long for a line, or a line break that moves when every line is laid out :data:`_MARGIN` narrower
+or wider (a line ending that close to its room may end elsewhere in Hancom). A paragraph that has a cache keeps it. A document mixing paragraphs with and
 without a cache is laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
@@ -72,6 +73,9 @@ _LAYOUT_UNIT = 4
 _PAST_A_BREAK = 40
 #: The line starts with the paragraph's bullet or number label.
 _LABELLED = 0x200000
+#: How much narrower or wider (HWPUNIT) every line may be laid out and still break at the same places for its
+#: paragraph to get a cache: a width a little off from Hancom's must not move a line break.
+_MARGIN = 100
 #: How many characters a control (a section or column definition) takes in a line's text position.
 _CONTROL_LENGTH = 8
 #: The controls that take no room on a line: page headers and footers, page numbers and the page controls.
@@ -156,8 +160,6 @@ def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str
     if table is None or any(_pages._local(child) not in ("t", "tbl", "secPr", "ctrl") for run in runs for child in run):
         return None
     if any(_pages._local(child) == "ctrl" and not _takes_no_room(child, True) for run in runs for child in run):
-        return None
-    if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
         return None
     if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
         return None
@@ -264,10 +266,14 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if mixed or looks is not None:
         if mixed and "\t" in text:  # a tab among characters of several sizes: its width is less sure
             return None
-        starts = _pages._metric_starts(measure, text, widths, sizes, style, {}, looks)
+        def lay_out(room: list[float]) -> list[int]:
+            return _pages._metric_starts(measure, text, room, sizes, style, {}, looks)
+        starts = lay_out(widths)
         metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
     else:
-        starts = measure.line_starts(text, widths, size, style) if text else [0]
+        def lay_out(room: list[float]) -> list[int]:
+            return measure.line_starts(text, room, size, style) if text else [0]
+        starts = lay_out(widths)
         metrics = ((size, _pages._pitch(shape.kind, shape.value, size)),) * len(starts)
     if len(metrics) != len(starts):
         return None
@@ -275,6 +281,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if not _sure_of(text, starts, style, looks) or any(place in starts[1:] for place in controls):
         return None  # a line starting at a control: on which side Hancom starts it is not known
+    if any(lay_out([room + shift for room in widths]) != starts for shift in (-_MARGIN, _MARGIN)):
+        return None  # a line break this close to a line's end may fall elsewhere in Hancom
     tabs = _tab_widths(text, starts, widths, size, style, looks) if "\t" in text else []
     if tabs is None:
         return None
@@ -365,11 +373,17 @@ def _tab_widths(text: str, starts: list[int], widths: list[float], size: int, st
                 used += char_advance(ch, points, style if looks is None else looks[index])
                 continue
             at = index - logical
-            reach = tab_reach(origin + used, origin + width, style,
-                              lambda point, at=at: _width_after_tab(own, at, points, style, None, own_looks, None,
-                                                                    point))
+
+            def after(point: bool, at: int = at) -> float:
+                return _width_after_tab(own, at, points, style, None, own_looks, None, point)
+
+            reach = tab_reach(origin + used, origin + width, style, after)
             if reach is None:
                 return None
+            for shift in (-_MARGIN, _MARGIN):  # text this close to a tab stop may reach the next one in Hancom
+                moved = tab_reach(origin + used + shift, origin + width, style, after)
+                if moved is None or abs(shift + moved - reach) > 0.5:
+                    return None
             found.append(round(reach))
             used += reach
     return found

@@ -114,6 +114,18 @@ def test_a_tab_gets_the_width_hancom_lays_it_out_at() -> None:
     assert dict(tab.attrib) == {"width": "2056", "leader": "0", "type": "1"}
 
 
+@pytest.mark.parametrize(("head", "written"), [("가가가!", 1), ("가가가!!", 0)])
+def test_a_tab_close_to_a_tab_stop_is_left_for_hancom(head: str, written: int) -> None:
+    # "가가가!" takes 3,416 (가 972, ! half an em): its tab reaches the stop at 4000 surely. "가가가!!" takes 3,916, 84
+    # short of it, and text a little wider than Hancom's would take its tab on to the next stop.
+    document = HwpxDocument.new()
+    document.add_paragraph(f"{head}\t내용")
+
+    report = write_line_caches(document)
+
+    assert report.written == written and report.skipped == 1 - written
+
+
 def test_a_line_break_typed_into_the_text_is_left_for_hancom() -> None:
     # Hancom writes a line break as hp:lineBreak; a newline in hp:t's own text is left for it to lay out.
     document = HwpxDocument.new()
@@ -134,6 +146,19 @@ def test_a_paragraph_laid_out_less_surely_is_left_for_hancom(text: str) -> None:
     report = write_line_caches(document)
 
     assert report.written == 0 and report.skipped == 1
+
+
+@pytest.mark.parametrize(("right_mm", "written"), [(6.0, 1), (7.0, 0)])
+def test_a_line_ending_close_to_its_room_is_left_for_hancom(right_mm: float, written: int) -> None:
+    # Twelve words of 3,416 HWPUNIT (the last without its space) take 40,492 of the line. 7 mm to the right leaves
+    # it 44 more, and a width a little off from Hancom's could break the line elsewhere; 6 mm leaves 327.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("가나다 " * 20)
+    document.styles.apply_paragraph_format(paragraphs=[paragraph], indent_right_mm=right_mm)
+
+    report = write_line_caches(document)
+
+    assert report.written == written and report.skipped == 1 - written
 
 
 def test_a_paragraph_of_several_character_sizes_gets_a_cache() -> None:
