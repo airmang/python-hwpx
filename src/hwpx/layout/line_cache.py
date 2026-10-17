@@ -88,13 +88,15 @@ _BASELINES = {
     "BOTTOM": lambda height: height,
 }
 #: The faces whose glyphs Hancom Office 2024 was seen to lay out at the advances FormFit gives them, on the
-#: desktop: a face Hancom may draw in another (one not installed, a name no table lists) is left for Hancom. The
-#: 한양 faces are left too: one document was seen to draw them wider than in others, for a reason not yet known.
+#: desktop: a face Hancom may draw in another (one not installed, a name no table lists) is left for Hancom.
 _SURE_FACES = frozenset({
     "함초롬바탕", "함초롬돋움", "맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체",
     "한컴 고딕", "HY헤드라인M", "HY견고딕", "HY울릉도M", "HY견명조", "HY동녘M", "휴먼명조", "휴먼고딕", "휴먼옛체",
-    "HCI Poppy", "HCI Hollyhock",
+    "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
 })
+#: The faces Hancom was seen to lay bold characters out in at their regular advances. Others it may draw wider
+#: when bold (한양신명조 bold, for one, is about a twentieth of an em wider): bold characters in them are left.
+_BOLD_SURE_FACES = frozenset({"함초롬바탕", "함초롬돋움", "맑은 고딕", "굴림", "바탕", "돋움"})
 #: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
 _SURE_RATIOS = (80, 110)
 _SURE_SPACINGS = (-10, 5)
@@ -283,7 +285,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     headed = measure.headed(paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
-    if shape.font_line or vertical not in _BASELINES:
+    if shape.font_line or vertical not in _BASELINES or not _bold_sure(measure, paragraph, runs):
         return None
     size, refs, sizes = _pages._text_size(measure, runs)
     end = _pages._end_size(measure, runs, sizes)
@@ -375,6 +377,23 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
             return False
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
+
+
+def _bold_sure(measure: Any, paragraph: Any, runs: list[Any]) -> bool:
+    """Whether every bold run of *paragraph* holding text is set in faces of :data:`_BOLD_SURE_FACES`."""
+
+    bold = getattr(measure, "_line_cache_bold", None)
+    if bold is None:
+        bold = {shape.get("id"): shape.find(f"{HH}bold") is not None for shape in measure._header.iter(f"{HH}charPr")}
+        measure._line_cache_bold = bold
+    for run in runs:
+        ref = run.get("charPrIDRef")
+        if not bold.get(ref) or not _pages._run_text([run]):
+            continue
+        style = measure.style(paragraph.get("paraPrIDRef"), [ref], paragraph)
+        if style is None or style.hangul_face not in _BOLD_SURE_FACES or style.glyph_face not in _BOLD_SURE_FACES:
+            return False
+    return True
 
 
 def _vertical_align(measure: Any, para_pr_id: str | None) -> str | None:

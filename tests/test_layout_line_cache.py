@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx.layout import line_cache
 from hwpx.layout.line_cache import write_line_caches
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -130,7 +129,7 @@ def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
 
 
 @pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -17},
-                                   {"ratio": 70}])
+                                   {"ratio": 70}, {"font": "한양신명조", "bold": True}])
 def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hancom(style: dict) -> None:
     # A face Hancom may draw in another one, or 장평 and 자간 past those seen on the desktop, are left for Hancom.
     document = HwpxDocument.new()
@@ -142,7 +141,8 @@ def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hanco
     assert report.written == 0 and report.skipped == 1
 
 
-@pytest.mark.parametrize("style", [{"letter_spacing": -5}, {"ratio": 90}, {"ratio": 110, "letter_spacing": 5}])
+@pytest.mark.parametrize("style", [{"letter_spacing": -5}, {"ratio": 90}, {"ratio": 110, "letter_spacing": 5},
+                                   {"font": "한양신명조"}, {"font": "맑은 고딕", "bold": True}])
 def test_a_paragraph_at_a_look_seen_on_the_desktop_gets_a_cache(style: dict) -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("", include_run=False)
@@ -187,11 +187,9 @@ def _cell_paragraphs(document: HwpxDocument) -> list:
             for p in cell.findall(f"{HP}subList/{HP}p")]
 
 
-def test_the_caches_written_in_table_cells_are_the_ones_hancom_wrote(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_caches_written_in_table_cells_are_the_ones_hancom_wrote() -> None:
     # Hancom laid out a form of several tables from python-hwpx's cells without a cache: each cell's lines go
-    # down from the top of its text area, as wide as the area in whole layout units. Its cells are set in
-    # 한양신명조, which write_line_caches leaves for now: allowed here, where the cells' places are what is tested.
-    monkeypatch.setattr(line_cache, "_SURE_FACES", line_cache._SURE_FACES | {"한양신명조"})
+    # down from the top of its text area, as wide as the area in whole layout units.
     hancom = HwpxDocument.open(FIXTURES / "line_cache_table_cells.hwpx")
     document = HwpxDocument.open(FIXTURES / "line_cache_table_cells.hwpx")
     for paragraph in document.oxml.sections[0].element.iter(f"{HP}p"):
