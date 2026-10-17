@@ -121,6 +121,8 @@ _HALF_EM_SPACES = frozenset(" \u00a0")
 #: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance (a glyph all the
 #: same: rounded, \uc7a5\ud3c9 and \uc790\uac04 applied as any other is).
 _HALF_EM_GLYPHS = frozenset("!")
+#: The Hiragana and Katakana blocks: a kana no glyph table lists takes the Hangul syllables' advance.
+_KANA_FIRST, _KANA_LAST = 0x3040, 0x30FF
 #: The faces Hancom lays a bold glyph out wider in: by a twentieth of the em, added before the advance is rounded
 #: to whole layout units. In the other faces a bold glyph keeps its regular advance.
 _BOLD_WIDER_FACES = frozenset({"한양중고딕", "한양신명조", "한양견고딕"})
@@ -1511,6 +1513,10 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         return _laid_out_half_glyph(height, ratio, spacing)
     else:
         design, base = _design_units(_laid_out_face(style.glyph_face), ch), _ADVANCE_EM[cls]
+        if design is None and _KANA_FIRST <= ord(ch) <= _KANA_LAST:
+            # a kana the face lacks Hancom lays out as wide as the face's Hangul syllables
+            design = _hangul_units(_laid_out_face(style.hangul_face), "가")
+            face = style.hangul_face
     if design is not None:
         bold = style.bold and not emoji and face in _BOLD_WIDER_FACES
         return _laid_out(design[0], design[1], height, ratio, spacing, bold)

@@ -60,6 +60,7 @@ PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
+KANA_HANJA = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kana_hanja_widths.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
@@ -434,6 +435,23 @@ def test_a_no_break_space_takes_its_ratio_and_no_spacing() -> None:
         text = page_layout._run_text(runs)
         x = sum(char_advance(ch, size, style) for ch in text[:text.index("	")])
         assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
+
+
+def test_a_kana_the_face_lacks_is_as_wide_as_its_hangul_syllables() -> None:
+    # Hancom lays a kana 함초롬바탕 has no glyph for out at the face's Hangul advance (972 of 1000), not the full em;
+    # in 한컴 고딕 at 932. Hanja, Greek and Cyrillic glyphs keep their own advances.
+    batang = TextStyle(hangul_face="함초롬바탕", glyph_face="함초롬바탕")
+    assert [char_advance(ch, 10, batang) for ch in "あカ가"] == [972, 972, 972]
+    assert char_advance("カ", 10, TextStyle(hangul_face="한컴 고딕", glyph_face="한컴 고딕")) == 932
+    document = HwpxDocument.open(KANA_HANJA)
+    for paragraph in document.oxml.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        text = page_layout._run_text(runs)
+        x = sum(char_advance(ch, size, style) for ch in text[:text.index("	")])
+        assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width")), text
 
 
 def test_a_hangul_syllable_takes_its_own_advance_where_the_font_gives_it_one() -> None:
