@@ -13,20 +13,23 @@ place and width again. Those four are written as Hancom writes them: the charact
 the baseline and the line spacing past it. The others come from :func:`hwpx.layout.pages.estimate_pages`. Hancom
 also draws a tab as wide as its ``hp:tab`` says once the paragraph has a cache, so each tab gets its width.
 
-Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs in one
-look (face, 장평, 자간) -- tabs to the default tab stops, line breaks, controls that take no room on a line (a
-header, a footer, a page number, the section's own definitions in its first paragraph), and a hanging bullet or
-number label in the paragraph's size included -- in a section of one column
-where no object lets text run beside it. Its runs may differ in size: each line is then as tall as its largest
-character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line
-as tall as that one), and the paragraph has no tab. The cells of a table in such a section get caches the
-same way when every paragraph of the cell is one of these: their lines go down from the top of the cell's text
-area, as wide as that area in whole layout units and never narrower than Hancom's narrowest line. A paragraph
-holding nothing but a table set as a character gets its one line, as tall as the table, and the table its rows'
-height (``hp:sz``), as Hancom saves them. A paragraph is
-also left when its line breaks are less sure: a character no glyph table gives an advance for, or a word too long
-for a line. A paragraph that has a cache keeps it. The others are left for Hancom;
-a document mixing both is laid out as one. Nothing is written when the estimate does not follow the document.
+Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs in a
+section of one column where no object lets text run beside it. Tabs to the default tab stops, line breaks,
+controls that take no room on a line (a header, a footer, a page number, the section's own definitions in its
+first paragraph) and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
+face, 장평 or 자간, each character taking its own run's advance, and in size: each line is then as tall as its
+largest character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes
+the line as tall as that one); such a paragraph has no tab.
+
+The cells of a table in such a section get caches the same way when every paragraph of the cell is one of
+these: their lines go down from the top of the cell's text area, as wide as that area in whole layout units and
+never narrower than Hancom's narrowest line. A paragraph holding nothing but a table set as a character gets its
+one line, as tall as the table, and the table its rows' height (``hp:sz``), as Hancom saves them, when every
+paragraph of its cells is laid out surely.
+
+A paragraph is left for Hancom when its line breaks are less sure: a character no glyph table gives an advance
+for, or a word too long for a line. A paragraph that has a cache keeps it. A document mixing paragraphs with and
+without a cache is laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
 from __future__ import annotations
@@ -249,8 +252,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     size, refs, sizes = _pages._text_size(measure, runs)
     end = _pages._end_size(measure, runs, sizes)
     mixed = len(set(sizes)) > 1 or bool(end)  # each line as tall as its largest character
-    if _pages._char_styles(measure, paragraph, runs) is not None:  # runs of another face, 장평 or 자간
-        return None
+    looks = _pages._char_styles(measure, paragraph, runs)  # runs of another face, 장평 or 자간: each its own
     if headed and (_pages._head_size(measure, paragraph, sizes) or shape.indent):  # a label of its own size
         return None
     text = _pages._run_text(runs)
@@ -259,11 +261,11 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     room = width - shape.left - shape.right
     widths = _pages._line_widths(shape, width, style) if cell else _pages._indented(room, shape, style)
-    if mixed:
+    if mixed or looks is not None:
         if "\t" in text:
             return None
-        starts = _pages._metric_starts(measure, text, widths, sizes, style, {})
-        metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, {}, end=end)
+        starts = _pages._metric_starts(measure, text, widths, sizes, style, {}, looks)
+        metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
     else:
         starts = measure.line_starts(text, widths, size, style) if text else [0]
         metrics = ((size, _pages._pitch(shape.kind, shape.value, size)),) * len(starts)
@@ -271,7 +273,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if mixed and _taller_past_a_break(text, sizes, starts, metrics):
         return None
-    if not _sure_of(text, starts, style) or any(place in starts[1:] for place in controls):
+    if not _sure_of(text, starts, style, looks) or any(place in starts[1:] for place in controls):
         return None  # a line starting at a control: on which side Hancom starts it is not known
     tabs = _tab_widths(text, starts, widths, size, style) if "\t" in text else []
     if tabs is None:
@@ -302,7 +304,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     return segments, tabs
 
 
-def _sure_of(text: str, starts: list[int], style: Any) -> bool:
+def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None = None) -> bool:
     """Whether the line breaks at *starts* can be trusted to be Hancom's: every character takes an advance a
     glyph table gives (not a class average), and no line starts inside a word that did not fit on a line of its
     own. Hancom takes the line breaks from a cache as written (a line short of a break is drawn with its text
@@ -310,14 +312,13 @@ def _sure_of(text: str, starts: list[int], style: Any) -> bool:
 
     if style is None:
         return False
-    face, hangul_face = _laid_out_face(style.glyph_face), _laid_out_face(style.hangul_face)
-    for ch in set(text):
+    for ch, look in set(zip(text, looks or [style] * len(text))):
         if ch in "\t\n" or ch in _HALF_EM_SPACES or ch in _HALF_EM_GLYPHS or ch in (_FIXED_SPACE, _GLYPH_SPACE):
             continue
         if classify_char(ch) == "hangul":
-            if _hangul_units(hangul_face, ch) is None:
+            if _hangul_units(_laid_out_face(look.hangul_face), ch) is None:
                 return False
-        elif _design_units(face, ch) is None:
+        elif _design_units(_laid_out_face(look.glyph_face), ch) is None:
             return False
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])

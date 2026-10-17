@@ -185,3 +185,23 @@ def test_a_paragraph_holding_page_controls_gets_a_cache() -> None:
                 if child.tag.endswith("}ctrl") and any(not grand.tag.endswith("}colPr") for grand in child)]
     assert controls and _segments(first)
     assert report.written == 2
+
+
+def test_a_paragraph_of_several_faces_gets_a_cache() -> None:
+    # Runs of other faces, 장평 or 자간 break their lines with their own advances, as Hancom lays them out.
+    document = HwpxDocument.open(FIXTURES / "line_cache_mixed_faces.hwpx")
+    hancom = HwpxDocument.open(FIXTURES / "line_cache_mixed_faces.hwpx")
+    for paragraph in _body(document):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    faces = [
+        (mine, theirs)
+        for mine, theirs in zip(_body(document), _body(hancom))
+        if _segments(mine) and len({run.get("charPrIDRef") for run in mine.findall(f"{HP}run")}) > 1
+    ]
+    assert len(faces) >= 3
+    for mine, theirs in faces:
+        assert _segments(mine) == _segments(theirs)
