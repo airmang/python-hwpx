@@ -1267,6 +1267,27 @@ def test_a_page_margin_written_with_a_minus_sign_takes_the_new_page_margin(side:
         assert estimate.pages == 2
 
 
+def test_an_object_in_a_switch_is_not_followed() -> None:
+    # A chart in a run's hp:switch (with the OLE object standing for it in hp:default), wrapped square: Hancom
+    # lays the following lines out beside it, but the estimate looks for objects among a run's own children.
+    document = HwpxDocument.new()
+    document.add_paragraph("앞 문단")
+    paragraph = document.add_paragraph("곁 문단")
+    run = paragraph.element.find(f"{HP}run")
+    switch = etree.SubElement(run, f"{HP}switch")
+    for branch, name in (("case", "chart"), ("default", "ole")):
+        holder = etree.SubElement(switch, f"{HP}{branch}")
+        obj = etree.SubElement(holder, f"{HP}{name}", {"textWrap": "SQUARE"})
+        etree.SubElement(obj, f"{HP}sz", {"width": "32250", "height": "18000"})
+        etree.SubElement(obj, f"{HP}pos", {"treatAsChar": "0", "vertRelTo": "PARA", "horzRelTo": "COLUMN"})
+
+    document.oxml.sections[0].mark_dirty()
+    assert estimate_pages(document.to_bytes()).unsupported == ("section 0: an object in a switch (hp:switch)",)
+    run.remove(switch)
+    document.oxml.sections[0].mark_dirty()
+    assert estimate_pages(document.to_bytes()).unsupported == ()
+
+
 def test_page_margins_leaving_no_body_are_unsupported() -> None:
     data = (FIXTURES / "pages_margin_negative_header_one_page.hwpx").read_bytes()
     out = io.BytesIO()
