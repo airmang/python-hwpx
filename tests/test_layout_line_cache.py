@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from hwpx import HwpxDocument
+from hwpx.layout import line_cache
 from hwpx.layout.line_cache import write_line_caches
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -186,9 +187,11 @@ def _cell_paragraphs(document: HwpxDocument) -> list:
             for p in cell.findall(f"{HP}subList/{HP}p")]
 
 
-def test_the_caches_written_in_table_cells_are_the_ones_hancom_wrote() -> None:
+def test_the_caches_written_in_table_cells_are_the_ones_hancom_wrote(monkeypatch: pytest.MonkeyPatch) -> None:
     # Hancom laid out a form of several tables from python-hwpx's cells without a cache: each cell's lines go
-    # down from the top of its text area, as wide as the area in whole layout units.
+    # down from the top of its text area, as wide as the area in whole layout units. Its cells are set in
+    # 한양신명조, which write_line_caches leaves for now: allowed here, where the cells' places are what is tested.
+    monkeypatch.setattr(line_cache, "_SURE_FACES", line_cache._SURE_FACES | {"한양신명조"})
     hancom = HwpxDocument.open(FIXTURES / "line_cache_table_cells.hwpx")
     document = HwpxDocument.open(FIXTURES / "line_cache_table_cells.hwpx")
     for paragraph in document.oxml.sections[0].element.iter(f"{HP}p"):

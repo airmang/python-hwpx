@@ -88,11 +88,12 @@ _BASELINES = {
     "BOTTOM": lambda height: height,
 }
 #: The faces whose glyphs Hancom Office 2024 was seen to lay out at the advances FormFit gives them, on the
-#: desktop: a face Hancom may draw in another (one not installed, a name no table lists) is left for Hancom.
+#: desktop: a face Hancom may draw in another (one not installed, a name no table lists) is left for Hancom. The
+#: 한양 faces are left too: one document was seen to draw them wider than in others, for a reason not yet known.
 _SURE_FACES = frozenset({
     "함초롬바탕", "함초롬돋움", "맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체",
     "한컴 고딕", "HY헤드라인M", "HY견고딕", "HY울릉도M", "HY견명조", "HY동녘M", "휴먼명조", "휴먼고딕", "휴먼옛체",
-    "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
+    "HCI Poppy", "HCI Hollyhock",
 })
 #: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
 _SURE_RATIOS = (80, 110)
