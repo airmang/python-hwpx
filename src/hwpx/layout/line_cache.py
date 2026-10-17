@@ -20,8 +20,9 @@ first paragraph) and a hanging bullet or number label in the paragraph's size ar
 face, each character taking its own run's advance, and in size: each line is then as tall as its largest
 character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line as
 tall as that one), and has no tab; a larger empty run ending the paragraph makes its last line's text as tall. A
-paragraph whose characters align to the centre or the bottom of their lines is left (Hancom writes another
-baseline), and so is a table with a caption.
+paragraph that sets its characters at the top, the centre or the bottom of their lines gets the baseline Hancom
+writes for that (0, half or all of the text height). A table's caption above or below it takes its lines and its
+gap in the table's line, when the caption's paragraphs are laid out surely.
 
 The cells of a table in such a section get caches the same way when every paragraph of the cell is one of
 these: their lines go down from the top of the cell's text area, as wide as that area in whole layout units and
@@ -78,6 +79,14 @@ _LAYOUT_UNIT = 4
 _PAST_A_BREAK = 40
 #: The line starts with the paragraph's bullet or number label.
 _LABELLED = 0x200000
+#: The baseline Hancom writes for a line of text *height* tall, by where its paragraph sets the characters in
+#: their lines (``hh:align``'s ``vertical``).
+_BASELINES = {
+    "BASELINE": lambda height: (height * 85 + 50) // 100,
+    "TOP": lambda height: 0,
+    "CENTER": lambda height: height // 2,
+    "BOTTOM": lambda height: height,
+}
 #: The faces whose glyphs Hancom Office 2024 was seen to lay out at the advances FormFit gives them, on the
 #: desktop: a face Hancom may draw in another (one not installed, a name no table lists) is left for Hancom.
 _SURE_FACES = frozenset({
@@ -181,14 +190,15 @@ def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str
         return None
     if not _cells_sure(measure, table):  # the rows are as tall as their cells' lines: those must be sure too
         return None
-    if not _on_the_baseline(measure, paragraph.get("paraPrIDRef")):
+    if _vertical_align(measure, paragraph.get("paraPrIDRef")) != "BASELINE":
         return None
-    if table.find(f"{HP}caption") is not None:  # the line holds the caption too: left for Hancom
+    if not _caption_sure(measure, table):
         return None
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # spaced from its largest characters
     rows = _pages._inline_table_height(measure, table)
-    tall = rows + _pages._extent_margins(table)
+    # a caption above or below the table takes its lines and its gap in the line too, one beside it none
+    tall = rows + _pages._extent_margins(table) + sum(_pages._caption(measure, table))
     advance = _pages._object_pitch(shape, table, tall, size)
     table.find(f"{HP}sz").set("height", str(rows))
     room = width - shape.left - shape.right
@@ -271,7 +281,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     headed = measure.headed(paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    if shape.font_line or not _on_the_baseline(measure, paragraph.get("paraPrIDRef")):
+    vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
+    if shape.font_line or vertical not in _BASELINES:
         return None
     size, refs, sizes = _pages._text_size(measure, runs)
     end = _pages._end_size(measure, runs, sizes)
@@ -316,13 +327,15 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         if end and line == len(starts) - 1:
             drawn.append(end)  # the paragraph's end, larger than its text: the last line's text is as tall
         text_height = max(drawn) if drawn else height  # a line break larger than the text makes the line taller
+        if vertical == "CENTER" and text_height % 2:
+            return None  # half an odd text height: which way Hancom rounds it was not seen
         takes_indent = (indented and (shape.indent > 0 if line == 0 else shape.indent < 0)) or (headed and line > 0)
         segments.append({
             "textpos": _hancom_offset(text, start, controls) if line else 0,  # the first line starts at 0
             "vertpos": 0,
             "vertsize": height,
             "textheight": text_height,
-            "baseline": (text_height * 85 + 50) // 100,
+            "baseline": _BASELINES[vertical](text_height),
             "spacing": advance - height,
             "horzpos": shape.left,
             # a cell's lines in whole layout units, and never narrower than Hancom's narrowest line
@@ -363,19 +376,32 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
 
 
-def _on_the_baseline(measure: Any, para_pr_id: str | None) -> bool:
-    """Whether a paragraph of the shape *para_pr_id* sets its characters on their baseline (``hh:align``'s
-    ``vertical``, the default): Hancom writes the baseline elsewhere for the others (half the text height for
-    CENTER, all of it for BOTTOM)."""
+def _vertical_align(measure: Any, para_pr_id: str | None) -> str | None:
+    """Where a paragraph of the shape *para_pr_id* sets its characters in their lines (``hh:align``'s
+    ``vertical``): BASELINE (the default), TOP, CENTER or BOTTOM; None for a shape not in the header."""
 
-    aligned = getattr(measure, "_line_cache_baseline", None)
+    aligned = getattr(measure, "_line_cache_vertical", None)
     if aligned is None:
         aligned = {}
         for shape in measure._header.iter(f"{HH}paraPr"):
             align = shape.find(f"{HH}align")
-            aligned[shape.get("id")] = align is None or align.get("vertical", "BASELINE") == "BASELINE"
-        measure._line_cache_baseline = aligned
-    return aligned.get(para_pr_id, False)
+            aligned[shape.get("id")] = "BASELINE" if align is None else align.get("vertical", "BASELINE")
+        measure._line_cache_vertical = aligned
+    return aligned.get(para_pr_id)
+
+
+def _caption_sure(measure: Any, table: Any) -> bool:
+    """Whether *table*'s caption, if any, takes room Hancom lays out surely: none beside the table, and above or
+    below it only when every paragraph of the caption is one this module lays out."""
+
+    caption = table.find(f"{HP}caption")
+    if caption is None or caption.get("side") in ("LEFT", "RIGHT"):
+        return True
+    if caption.get("side") not in ("TOP", "BOTTOM"):
+        return False
+    width = int(caption.get("lastWidth", 0)) or int(table.find(f"{HP}sz").get("width", 0))
+    paragraphs = caption.findall(f"{HP}subList/{HP}p")
+    return bool(paragraphs) and all(_lines(measure, p, width, first=False, cell=True) is not None for p in paragraphs)
 
 
 def _taller_past_a_break(text: str, sizes: list[int], starts: list[int],

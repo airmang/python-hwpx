@@ -80,21 +80,27 @@ def test_a_paragraph_holding_a_table_gets_one_line_as_tall_as_it() -> None:
     assert int(line["vertsize"]) == int(table.find(f"{HP}sz").get("height")) > 282 * 2
 
 
-def test_a_table_with_a_caption_keeps_its_line_for_hancom() -> None:
-    # The line of a table with a caption holds the caption too: left for Hancom.
+@pytest.mark.parametrize(("side", "gap", "extra"), [("TOP", 850, 1000 + 850), ("BOTTOM", 566, 1000 + 566),
+                                                    ("LEFT", 850, 0), ("RIGHT", 850, 0)])
+def test_a_table_with_a_caption_holds_it_in_its_line(side: str, gap: int, extra: int) -> None:
+    # A caption above or below the table takes its line (1000 for one line of 10 pt) and its gap in the table's
+    # line, as Hancom saves it; one beside the table takes none.
     document = HwpxDocument.new()
     table = document.add_table(2, 2)
-    table.set_caption("표 1")
+    table.set_caption("표 1", side=side, gap=gap)
 
     write_line_caches(document)
 
-    assert not _segments(_body(document)[-1])
+    [line] = _segments(_body(document)[-1])
+    rows = int(_body(document)[-1].find(f"{HP}run/{HP}tbl/{HP}sz").get("height"))
+    assert int(line["vertsize"]) == rows + extra
 
 
-@pytest.mark.parametrize("vertical", ["CENTER", "BOTTOM", "TOP"])
-def test_a_paragraph_not_set_on_its_baseline_is_left_for_hancom(vertical: str) -> None:
-    # Hancom writes another baseline for characters aligned to the centre (half the text height) or the bottom
-    # (all of it) of their line.
+@pytest.mark.parametrize(("vertical", "baseline"), [("BASELINE", "850"), ("TOP", "0"), ("CENTER", "500"),
+                                                   ("BOTTOM", "1000")])
+def test_a_paragraph_gets_the_baseline_of_where_it_sets_its_characters(vertical: str, baseline: str) -> None:
+    # Hancom writes the baseline at 85 % of the text height for characters on their baseline, 0 at the top of
+    # their line, half of it at the centre and all of it at the bottom.
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("가나다")
     document.styles.apply_paragraph_format(paragraphs=[paragraph], alignment="LEFT")
@@ -104,7 +110,8 @@ def test_a_paragraph_not_set_on_its_baseline_is_left_for_hancom(vertical: str) -
 
     report = write_line_caches(document)
 
-    assert report.written == 0 and report.skipped == 1
+    assert report.written == 1
+    assert _segments(_body(document)[-1])[0]["baseline"] == baseline
 
 
 def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
