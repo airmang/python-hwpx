@@ -295,6 +295,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if headed and (_pages._head_size(measure, paragraph, sizes) or shape.indent):  # a label of its own size
         return None
     text = _pages._run_text(runs)
+    if _auto_spaced(measure, paragraph.get("paraPrIDRef"), text):
+        return None  # the gap Hancom adds between Hangul and Latin or digits was not measured
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     if style is not None and style.head and not (headed and style.head_hangs):
         return None
@@ -381,6 +383,28 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
             return False
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
+
+
+def _auto_spaced(measure: Any, para_pr_id: str | None, text: str) -> bool:
+    """Whether the paragraph shape turns on Hancom's automatic spacing between Hangul and Latin letters or
+    digits (``hh:autoSpacing``) and the text puts a Hangul syllable right next to one of those."""
+
+    spacing = getattr(measure, "_line_cache_auto_spacing", None)
+    if spacing is None:
+        spacing = {}
+        for shape in measure._header.iter(f"{HH}paraPr"):
+            auto = next(shape.iter(f"{HH}autoSpacing"), None)
+            if auto is not None:
+                spacing[shape.get("id")] = (auto.get("eAsianEng") in ("1", "true"), auto.get("eAsianNum") in ("1", "true"))
+        measure._line_cache_auto_spacing = spacing
+    latin, digits = spacing.get(para_pr_id, (False, False))
+    if not latin and not digits:
+        return False
+    for before, after in zip(text, text[1:]):
+        for hangul, other in ((before, after), (after, before)):
+            if "가" <= hangul <= "힣" and other.isascii() and (latin and other.isalpha() or digits and other.isdigit()):
+                return True
+    return False
 
 
 def _bold_sure(measure: Any, paragraph: Any, runs: list[Any]) -> bool:

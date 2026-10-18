@@ -282,6 +282,8 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
     one given) instead of laying every section out to name them all."""
 
     root = getattr(_open(document), "_root")
+    if not root.headers:  # the shapes every paragraph names live there
+        return PageEstimate(None, (), ("a document without a header part (Contents/header.xml)",))
     measure = _Measure(root)
     layouts: list[_SectionLayout] = []
     reasons: list[str] = []
