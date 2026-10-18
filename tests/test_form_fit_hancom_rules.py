@@ -547,6 +547,15 @@ def test_closing_punctuation_does_not_start_a_line() -> None:
     assert hancom_line_starts("가나다라마.", [5000], 10, CHARS) == [0, 4]
 
 
+def test_closing_punctuation_may_start_a_line_after_a_tab() -> None:
+    # As after a space: the tab stays on its line and the mark starts the next, where after a character the
+    # mark moves down with it.
+    keep = replace(TextStyle(), break_non_latin_word="KEEP_WORD")
+    assert hancom_line_starts("가나다라	)라마바사", [8200], 10, keep) == [0, 5]
+    assert hancom_line_starts("가나다라 )라마바사", [4200], 10, keep) == [0, 5, 9]
+    assert hancom_line_starts("가나다라)라마바사", [4200], 10, keep) == [0, 3, 7]
+
+
 def test_latin_words_do_not_break_after_inner_punctuation() -> None:
     assert hancom_line_starts("aa-bbbb cc", [3000], 10, TextStyle()) == [0, 5]
 

@@ -135,7 +135,7 @@ _EMOJI_BMP = frozenset("✅❌❎❗❓❔❕➕➖➗⏰⏳⛔✋✨⭐⬛⬜")
 #: The variation selectors and the zero-width joiner: no advance.
 _ZERO_WIDTH = frozenset("\ufe0e\ufe0f\u200d")
 #: Closing punctuation that never starts a line right after a character: it
-#: moves down with that character. After a space it may start a line.
+#: moves down with that character. After a space or a tab it may start a line.
 _NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
 #: Opening punctuation that never ends a line.
 _NO_LINE_END = frozenset("([{‘“〈《「『【〔")
@@ -1698,7 +1698,8 @@ def hancom_line_starts(
             options = [
                 index for index in breaks
                 if start < index <= end
-                and (text[index] not in _NO_LINE_START or text[index - 1] in _HANGING_SPACES)
+                and (text[index] not in _NO_LINE_START or text[index - 1] in _HANGING_SPACES
+                     or text[index - 1] == "	")
                 and text[index - 1] not in _NO_LINE_END
             ]
             start = max(options) if options else end
