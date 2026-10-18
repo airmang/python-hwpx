@@ -701,6 +701,17 @@ def _is_open(run: etree._Element, text: etree._Element | None) -> bool:
     return text is not None and len(run) > 0 and run[-1] is text
 
 
+def last_page_number_place(paragraph: etree._Element) -> None:
+    """Keep only the last page number place (``hp:pageNum``) of *paragraph*'s
+    runs: Hancom numbers the pages by the last one a paragraph holds and saves
+    that one alone."""
+
+    places = [ctrl for run in paragraph.iterchildren(q("hp:run")) for ctrl in run.iterchildren(q("hp:ctrl"))
+              if ctrl.find(q("hp:pageNum")) is not None]
+    for ctrl in places[:-1]:
+        ctrl.getparent().remove(ctrl)
+
+
 def _place_marks(parent: etree._Element, marks: list[Mark], pending: int, position: int) -> int:
     """Append the marks due at *position* to *parent*; return the next pending mark."""
 
@@ -754,6 +765,7 @@ class SectionWriter(ShapeReader):
             ),
         )
         self.runs(element, para, self.marks(record), char_styles(record))
+        last_page_number_place(element)
         # Lists hung on the paragraph itself: memo bodies after MEMO_LIST (the
         # memo fields take them, see memo_bodies), or (on a section's last
         # paragraph) its last-page and optional-page master pages.
