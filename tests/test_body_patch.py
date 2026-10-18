@@ -160,3 +160,31 @@ def test_replace_text_fixes_only_the_touched_cell_when_two_cells_are_squeezed(
     subs = list(_SUBLIST_OPEN_RE.finditer(changed_section))
     assert 'lineWrap="BREAK"' in subs[0].group(0), "편집된 셀만 BREAK로 바뀌어야 함"
     assert 'lineWrap="SQUEEZE"' in subs[1].group(0), "안 건드린 셀은 SQUEEZE 그대로"
+
+
+def test_replace_text_in_a_table_holder_and_its_own_cell_at_once(squeeze_doc_bytes: bytes) -> None:
+    """A match in the paragraph that holds a table and another in a cell of that
+    table nest one edited paragraph inside the other: both are replaced, the
+    squeezed cell turns to BREAK, and no layout cache is left in the holder."""
+
+    section = _section_xml(squeeze_doc_bytes)
+    end = re.search(r"</hp:tbl>.*?</hp:run>", section, re.S)
+    assert end is not None
+    holder_run = '<hp:run charPrIDRef="0"><hp:t>짧은값 옆 글</hp:t></hp:run>'
+    section = section[: end.end()] + holder_run + section[end.end() :]
+    data = _with_section(squeeze_doc_bytes, section)
+
+    result = apply_body_ops(
+        data,
+        [{"op": "replace_text", "find": "짧은값", "replace": "훨씬 더 길게 채운 실제 값입니다", "count": 2}],
+    )
+    assert result.ok, result.skipped
+
+    after = _section_xml(result.data)
+    assert after.count("훨씬 더 길게 채운 실제 값입니다") == 2
+    assert "짧은값" not in after
+    assert 'lineWrap="SQUEEZE"' not in after
+    holder = re.search(r"<hp:p\b(?:(?!<hp:p\b).)*?<hp:tbl\b.*</hp:tbl>.*?</hp:p>", after, re.S)
+    assert holder is not None
+    assert "linesegarray" not in holder.group(0)
+    assert HwpxDocument.open(io.BytesIO(result.data)).paragraphs
