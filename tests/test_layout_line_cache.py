@@ -18,8 +18,9 @@ FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
                    "line_cache_indents.hwpx", "line_cache_labels.hwpx",
                    "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx",
-                   "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx", "line_cache_tab_punctuation.hwpx", "line_cache_script_faces.hwpx", "line_cache_fields.hwpx",
-                   "line_cache_superscripts.hwpx"]
+                   "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx", "line_cache_tab_punctuation.hwpx",
+                   "line_cache_script_faces.hwpx", "line_cache_fields.hwpx", "line_cache_superscripts.hwpx",
+                   "line_cache_auto_spacing.hwpx", "line_cache_auto_spacing_tabs.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -407,18 +408,19 @@ def test_a_tab_among_runs_of_several_faces_gets_its_width() -> None:
         assert [dict(tab.attrib) for tab in mine.iter(f"{HP}tab")] == [dict(tab.attrib) for tab in theirs.iter(f"{HP}tab")]
 
 
-@pytest.mark.parametrize(("eng", "num", "text", "written"), [
-    ("1", "0", "가나 ABC 다라마바사 " * 3, True),     # Latin only beside spaces
-    ("1", "0", "가나ABC다라마바사 " * 3, False),      # a Hangul syllable right next to a Latin letter
-    ("0", "1", "제15호에 따른 정의 " * 3, False),     # ... and next to a digit
-    ("0", "0", "제15호에 따른 정의 " * 3, True),      # automatic spacing off
+@pytest.mark.parametrize(("eng", "num", "spacing", "text", "written"), [
+    ("1", "0", 0, "가나ABC다라마바사 " * 3, True),     # the gap beside a Latin letter is laid out
+    ("0", "1", 0, "제15호에 따른 정의 " * 3, True),    # ... and beside a digit
+    ("1", "1", -10, "제15호에 AI반 정의 " * 3, False),  # under 자간 how Hancom rounds it was not pinned down
+    ("1", "1", -10, "가나 ABC 다라마바사 " * 3, True),  # Latin only beside spaces: no gap
 ])
-def test_a_paragraph_with_automatic_spacing_beside_hangul_is_left_for_hancom(
-        eng: str, num: str, text: str, written: bool) -> None:
-    # Hancom widens the gap between Hangul and Latin letters or digits when the paragraph shape turns that on;
-    # how much was not measured, so such a paragraph keeps no cache.
+def test_a_paragraph_with_automatic_spacing_beside_hangul_gets_a_cache_without_spacing(
+        eng: str, num: str, spacing: int, text: str, written: bool) -> None:
+    # Hancom puts a quarter of the em between Hangul and a Latin letter or digit right next to it when the
+    # paragraph shape turns automatic spacing on; under 자간 such a paragraph is left for Hancom.
     document = HwpxDocument.new()
-    paragraph = document.add_paragraph(text)
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run(text, char_pr_id_ref=document.styles.ensure_run(letter_spacing=spacing))
     for shape in document.oxml.headers[0].element.iter(f"{HH}paraPr"):
         if shape.get("id") == paragraph.element.get("paraPrIDRef"):
             auto = next(shape.iter(f"{HH}autoSpacing"))
