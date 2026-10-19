@@ -379,11 +379,6 @@ def _patch_section_xml(
     skipped: list[PatchSkipped] = []
 
     for patch in patches:
-        if "\n" in patch.text or "\r" in patch.text:
-            skipped.append(
-                PatchSkipped(section_path, patch.paragraph_index, "line break insertion is unsupported")
-            )
-            continue
         span = spans.get(patch.paragraph_index)
         if span is None:
             skipped.append(PatchSkipped(section_path, patch.paragraph_index, "paragraph index not found"))
@@ -418,15 +413,23 @@ def _patch_section_xml(
     return _apply_edits(section_xml, edits), applied, skipped
 
 
+#: A tab, or a line break typed as "\n", "\r\n" or "\r".
+_TEXT_MARK_SPLIT_RE = re.compile(r"(\t|\r\n|\r|\n)")
+
+
 def _escaped_text(text: str, prefix: bytes) -> bytes:
-    """*text* escaped for ``hp:t``, each tab written as an ``hp:tab`` element.
+    """*text* escaped for ``hp:t``, each tab written as an ``hp:tab`` element and
+    each line break as an ``hp:lineBreak``, the way Hancom writes them.
 
     Hancom reads a tab only as that element; a raw tab character inside
     ``hp:t`` keeps it laying the paragraph out forever.
     """
 
-    tab = b"<" + prefix + b"tab/>"
-    return tab.join(html.escape(part, quote=False).encode("utf-8") for part in text.split("\t"))
+    tab, line_break = b"<" + prefix + b"tab/>", b"<" + prefix + b"lineBreak/>"
+    return b"".join(
+        (tab if part == "\t" else line_break) if index % 2 else html.escape(part, quote=False).encode("utf-8")
+        for index, part in enumerate(_TEXT_MARK_SPLIT_RE.split(text))
+    )
 
 
 def _text_edit_for_paragraph(paragraph: bytes, replacement_text: str) -> tuple[int, int, bytes, str] | None:

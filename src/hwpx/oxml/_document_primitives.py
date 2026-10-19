@@ -449,24 +449,35 @@ def _is_tab_control_element(node: ET.Element) -> bool:
     return tag_local_name(node.tag) == "ctrl" and (node.get("id") or "").lower() == "tab"
 
 
-def _append_text_with_tabs(run: ET.Element, value: str) -> None:
-    """Insert *value* as one ``hp:t`` with each tab as an ``hp:tab`` inside it.
+#: A tab, or a line break typed as "\n", "\r\n" or "\r": written as the element Hancom writes for it.
+_TEXT_MARK_SPLIT_RE = _re.compile(r"(\t|\r\n|\r|\n)")
 
-    That is how Hancom writes a tab (``<hp:t>이름<hp:tab/>홍길동</hp:t>``). An
-    ``hp:tab`` beside ``hp:t`` in the run is dropped when Hancom opens the
-    document, so the tab and the tab stops it would use are lost.
+
+def _fill_text_element(text_element: ET.Element, value: str) -> None:
+    """Make *value* the text of the ``hp:t`` *text_element*, each tab as an ``hp:tab`` and each line break
+    (``"\\n"``, ``"\\r\\n"`` or ``"\\r"``) as an ``hp:lineBreak`` inside it.
+
+    That is how Hancom writes them (``<hp:t>이름<hp:tab/>홍길동<hp:lineBreak/>주소</hp:t>``). An ``hp:tab``
+    beside ``hp:t`` in the run is dropped when Hancom opens the document, with the tab stops it would use.
     """
 
-    text_tag = _child_tag_like(run, "t", _HP_NS)
-    tab_tag = _child_tag_like(run, "tab", _HP_NS)
-    segments = value.split("\t")
-    text_element = run.makeelement(text_tag, {})
-    text_element.text = _sanitize_text(segments[0])
+    tab_tag = _child_tag_like(text_element, "tab", _HP_NS)
+    break_tag = _child_tag_like(text_element, "lineBreak", _HP_NS)
+    parts = _TEXT_MARK_SPLIT_RE.split(value)
+    text_element.text = _sanitize_text(parts[0])
+    for mark, segment in zip(parts[1::2], parts[2::2]):
+        element = text_element.makeelement(tab_tag if mark == "\t" else break_tag, {})
+        element.tail = _sanitize_text(segment)
+        text_element.append(element)
+
+
+def _append_text_with_tabs(run: ET.Element, value: str) -> None:
+    """Insert *value* as one ``hp:t``, each tab and line break as the element inside it Hancom writes for
+    it (see :func:`_fill_text_element`)."""
+
+    text_element = run.makeelement(_child_tag_like(run, "t", _HP_NS), {})
     run.append(text_element)
-    for segment in segments[1:]:
-        tab_element = text_element.makeelement(tab_tag, {})
-        tab_element.tail = _sanitize_text(segment)
-        text_element.append(tab_element)
+    _fill_text_element(text_element, value)
 
 
 #: "\n" -> hp:lineBreak, " " (NO-BREAK SPACE) -> hp:nbSpace, "　"

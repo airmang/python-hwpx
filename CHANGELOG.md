@@ -104,6 +104,10 @@
 
 ### 바꿈
 
+- 글에 든 줄바꿈(`"\n"`·`"\r\n"`·`"\r"`)을 한/글이 쓰는 대로 `hp:t` 안의 `<hp:lineBreak/>`로 쓴다. `add_paragraph`·
+  `paragraph.text =`·`add_run`·`cell.text =`·`run.text =`·`paragraph_patch`·`apply_body_ops`의 `replace_text`가 다 그렇다.
+  전에는 `add_run`이 줄바꿈 문자를 글에 그대로 두었고(`expand_special_characters=True`일 때만 요소로 썼다),
+  `paragraph_patch`는 줄바꿈이 든 글을 건너뛰었다. 읽을 때는 전처럼 `"\n"`이다.
 - FormFit과 쪽 수 추정의 글자 폭을 한컴오피스 2024의 한/글에 맞췄다. 칸 채우기 결과와 줄 배치 정보가 없는 문서의 쪽 수가
   달라질 수 있다.
   - `!`는 어느 글꼴에서든 반 em이다(공백처럼, 다만 장평·자간은 다른 글자처럼 받는다).

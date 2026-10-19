@@ -81,13 +81,20 @@ def _build_section_with_properties() -> tuple[HwpxOxmlSection, ET.Element]:
     return section, sec_pr
 
 
+def _xml_text(text_element: ET.Element) -> str:
+    """The text of an ``hp:t``, its ``hp:lineBreak`` and ``hp:tab`` elements read as "\\n" and "\\t"."""
+
+    marks = {f"{HP}lineBreak": "\n", f"{HP}tab": "\t"}
+    return (text_element.text or "") + "".join(marks[child.tag] + (child.tail or "") for child in text_element)
+
+
 def _set_header_text_and_get_xml_text(value: str) -> str:
     section, _ = _build_section_with_properties()
     header = section.properties.set_header_text("seed")
     header.text = value
     text_element = header.element.find(f".//{HP}t")
     assert text_element is not None
-    return text_element.text or ""
+    return _xml_text(text_element)
 
 
 def _set_run_text_and_get_xml_text(value: str) -> str:
@@ -96,7 +103,7 @@ def _set_run_text_and_get_xml_text(value: str) -> str:
     run.text = value
     text_element = run.element.find(f"{HP}t")
     assert text_element is not None
-    return text_element.text or ""
+    return _xml_text(text_element)
 
 
 def _set_table_cell_text_and_get_xml_text(value: str) -> str:
@@ -110,7 +117,7 @@ def _set_table_cell_text_and_get_xml_text(value: str) -> str:
     table.set_cell_text(0, 0, value)
     text_element = table.cell(0, 0).element.find(f".//{HP}t")
     assert text_element is not None
-    return text_element.text or ""
+    return _xml_text(text_element)
 
 
 def _set_paragraph_text_and_get_xml_text(value: str) -> str:
@@ -118,7 +125,7 @@ def _set_paragraph_text_and_get_xml_text(value: str) -> str:
     paragraph.text = value
     text_element = paragraph.element.find(f".//{HP}t")
     assert text_element is not None
-    return text_element.text or ""
+    return _xml_text(text_element)
 
 
 _TEXT_SETTER_APPLIERS: tuple[Callable[[str], str], ...] = (

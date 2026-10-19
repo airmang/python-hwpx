@@ -6,7 +6,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 
 from ..errors import HwpxValueError
-from ._document_primitives import _HP_NS, _child_tag_like, _is_tab_control_element, _sanitize_text
+from ._document_primitives import _HP_NS, _child_tag_like, _fill_text_element, _is_tab_control_element, _sanitize_text
 from .namespaces import tag_local_name
 
 
@@ -51,20 +51,14 @@ def sanitize_keeping_tabs(value: str) -> str:
 def set_text_with_tabs(text_element: ET.Element, value: str) -> None:
     """Make *value* the whole content of the ``hp:t`` *text_element*.
 
-    Each tab becomes an ``hp:tab`` inside it, the way Hancom writes one.
-    Elements already inside it (line breaks, tabs, spaces, marks) go, with the
-    text after them: they belong to the old value.
+    Each tab becomes an ``hp:tab`` and each line break an ``hp:lineBreak`` inside it, the way Hancom writes
+    them. Elements already inside it (line breaks, tabs, spaces, marks) go, with the text after them: they
+    belong to the old value.
     """
 
-    tab_tag = _child_tag_like(text_element, "tab", _HP_NS)
     for child in list(text_element):
         text_element.remove(child)
-    segments = value.split("\t")
-    text_element.text = _sanitize_text(segments[0])
-    for segment in segments[1:]:
-        tab_element = text_element.makeelement(tab_tag, {})
-        tab_element.tail = _sanitize_text(segment)
-        text_element.append(tab_element)
+    _fill_text_element(text_element, value)
 
 
 def clear_text_element(text_element: ET.Element) -> None:
