@@ -18,7 +18,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
                    "line_cache_indents.hwpx", "line_cache_labels.hwpx",
                    "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx",
-                   "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx", "line_cache_tab_punctuation.hwpx"]
+                   "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx", "line_cache_tab_punctuation.hwpx", "line_cache_script_faces.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -426,3 +426,21 @@ def test_a_paragraph_with_automatic_spacing_beside_hangul_is_left_for_hancom(
     write_line_caches(document)
 
     assert bool(_segments(paragraph.element)) is written
+
+
+def test_glyphs_in_a_shape_of_several_script_faces_get_a_cache() -> None:
+    # One character shape gives Hangul 휴먼명조, Latin 맑은 고딕, other scripts 바탕 and symbols 돋움: Hancom lays
+    # a Latin letter, digit or ASCII mark out in the Latin face and a CJK mark or shape in the symbol face.
+    document = HwpxDocument.open(FIXTURES / "line_cache_script_faces.hwpx")
+    hancom = HwpxDocument.open(FIXTURES / "line_cache_script_faces.hwpx")
+    for paragraph in _body(document):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    written = [(mine, theirs) for mine, theirs in zip(_body(document), _body(hancom)) if _segments(mine)]
+    texts = "".join(t.text or "" for mine, _ in written for t in mine.iter(f"{HP}t"))
+    assert any(ch.isascii() and ch.isalnum() for ch in texts) and "※" in texts
+    for mine, theirs in written:
+        assert _segments(mine) == _segments(theirs)

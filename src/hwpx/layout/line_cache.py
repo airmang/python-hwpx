@@ -57,6 +57,7 @@ from ..form_fit.measure import (
     _width_after_tab,
     char_advance,
     classify_char,
+    glyph_face_of,
     tab_reach,
 )
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
@@ -372,16 +373,17 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
         if any(not _SURE_RATIOS[0] <= ratio <= _SURE_RATIOS[1] or not _SURE_SPACINGS[0] <= spacing <= _SURE_SPACINGS[1]
                for ratio, spacing in [(look.ratio, look.spacing), *((r, sp) for _, r, sp in look.scripts)]):
             return False  # 장평 and 자간 past those seen on the desktop
-        if look.hangul_face not in _SURE_FACES or look.glyph_face not in _SURE_FACES:
-            return False
+        if look.hangul_face not in _SURE_FACES or look.use_font_space and look.glyph_face not in _SURE_FACES:
+            return False  # a space of the font's own width in faces that differ by script: not seen
     for ch, look in set(zip(text, looks or [style] * len(text))):
         if ch in "\t\n" or ch in _HALF_EM_SPACES or ch in _HALF_EM_GLYPHS or ch in (_FIXED_SPACE, _GLYPH_SPACE):
             continue
         if classify_char(ch) == "hangul":
             if _hangul_units(_laid_out_face(look.hangul_face), ch) is None:
                 return False
-        elif ch not in _SURE_GLYPHS or _design_units(_laid_out_face(look.glyph_face), ch) is None:
-            return False
+        elif (ch not in _SURE_GLYPHS or glyph_face_of(ch, look) not in _SURE_FACES
+              or _design_units(_laid_out_face(glyph_face_of(ch, look)), ch) is None):
+            return False  # each glyph in its own script's face (see glyph_face_of)
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
 
@@ -420,7 +422,8 @@ def _bold_sure(measure: Any, paragraph: Any, runs: list[Any]) -> bool:
         if not bold.get(ref) or not _pages._run_text([run]):
             continue
         style = measure.style(paragraph.get("paraPrIDRef"), [ref], paragraph)
-        if style is None or style.hangul_face not in _BOLD_SURE_FACES or style.glyph_face not in _BOLD_SURE_FACES:
+        if style is None or any(face not in _BOLD_SURE_FACES for face in (
+                style.hangul_face, style.latin_face or style.glyph_face, style.symbol_face or style.glyph_face)):
             return False
     return True
 
