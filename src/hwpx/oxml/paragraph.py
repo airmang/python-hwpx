@@ -458,20 +458,14 @@ class HwpxOxmlParagraph:
     ) -> HwpxOxmlRun:
         """Append a new run to the paragraph and return its wrapper.
 
-        *expand_special_characters* (default ``False`` — opt-in, no change
-        to any existing caller's output) converts three characters embedded
-        in *text* to their real-corpus OWPML element form instead of
-        leaving them as literal bytes inside ``hp:t``: ``"\\n"`` ->
-        ``hp:lineBreak``, ``"\\u00a0"`` (no-break space) -> ``hp:nbSpace``,
-        ``"\\u3000"`` (CJK full-width space) -> ``hp:fwSpace``. Real corpus
-        (``error__20230818__test.hwpx``, ``error__20251107__test.hwpx``,
-        ``error__20250808__...hwpx``) confirms Hancom always emits these as
-        elements nested inside a single ``hp:t`` — never as literal
-        characters, and never (for these three specifically) as a sibling
-        of ``hp:t`` the way ``hp:tab`` is. Off by default because the plain
-        ``text=`` path here never processed these characters before, and
-        other call sites in this codebase (table cell multiline splitting,
-        for one) already give ``"\\n"`` a different meaning of their own.
+        A tab in *text* becomes an ``hp:tab`` and a line break (``"\\n"``,
+        ``"\\r\\n"`` or ``"\\r"``) an ``hp:lineBreak`` inside the run's
+        ``hp:t``, as Hancom writes them. *expand_special_characters* (default
+        ``False``) also writes a no-break space (``"\\u00a0"``) as
+        ``hp:nbSpace`` and a full-width space (``"\\u3000"``) as
+        ``hp:fwSpace``; real corpus (``error__20230818__test.hwpx``,
+        ``error__20251107__test.hwpx``, ``error__20250808__...hwpx``) has
+        Hancom emit all of these as elements nested inside a single ``hp:t``.
         """
 
         run_attrs = dict(attributes or {})
@@ -503,8 +497,7 @@ class HwpxOxmlParagraph:
         if expand_special_characters:
             _append_text_with_run_choice_atoms(run_element, text)
         else:
-            text_element = _append_child(run_element, f"{_HP}t", {})
-            text_element.text = text
+            _append_text_with_tabs(run_element, text)
         self.section.mark_dirty()
         return HwpxOxmlRun(run_element, self)
 

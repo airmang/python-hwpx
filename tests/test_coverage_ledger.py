@@ -711,7 +711,8 @@ def test_manual_override_reproduces_run_choice_atom_write(
         broken = module.classify_code_usage(
             "hp", name, "paragraph", stripped, dispatch_windows, {}
         )
-        assert broken == (False, False), (
+        # _fill_text_element names lineBreak as a literal (the read side finds it); the write is still missed.
+        assert broken == ((True, False) if name == "lineBreak" else (False, False)), (
             f"hp:{name} should be a false negative in _document_primitives.py "
             "alone without the whitelist"
         )

@@ -42,11 +42,15 @@ def test_add_run_writes_a_tab_as_an_element() -> None:
 
 def test_saving_leaves_the_document_tree_as_it_was() -> None:
     doc = HwpxDocument.new()
-    run = doc.add_paragraph("").add_run("A\tB")
-    doc.to_bytes()
-
+    run = doc.add_paragraph("").add_run("")
     text = run.element.find(f"{HP}t")
-    assert text is not None and text.text == "A\tB" and len(text) == 0
+    assert text is not None
+    text.text = "A\tB"
+    doc.oxml.sections[0].mark_dirty()
+    data = doc.to_bytes()
+
+    assert "A<hp:tab/>B" in _text_nodes(data)
+    assert text.text == "A\tB" and len(text) == 0
 
 
 def test_a_tab_after_an_element_inside_the_text_is_written_as_an_element() -> None:

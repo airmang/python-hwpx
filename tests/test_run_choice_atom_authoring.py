@@ -87,18 +87,19 @@ def test_all_three_atoms_together_preserve_order_in_one_t() -> None:
     assert [c.tail for c in t] == ["b", "c", "d"]
 
 
-def test_default_behaviour_is_unchanged_without_the_flag() -> None:
-    """expand_special_characters 기본값 False — 기존 호출자는 영향 없다
-    (문자가 hp:t 텍스트 노드 안에 리터럴로 그대로 남는다)."""
+def test_without_the_flag_only_a_line_break_becomes_an_element() -> None:
+    """expand_special_characters 기본값 False — 줄바꿈은 그래도 hp:lineBreak로
+    쓰고(한/글이 쓰는 대로), 묶음 빈칸·전각 빈칸은 글자 그대로 남는다."""
 
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("")
-    run = paragraph.add_run("before\nafter")
+    run = paragraph.add_run("before\nafter x")
 
     t_elements = [c for c in run.element if _local(c.tag) == "t"]
     assert len(t_elements) == 1
-    assert t_elements[0].text == "before\nafter"
-    assert len(list(t_elements[0])) == 0
+    assert t_elements[0].text == "before"
+    assert [_local(c.tag) for c in t_elements[0]] == ["lineBreak"]
+    assert t_elements[0][0].tail == "after x"
 
 
 def test_plain_text_without_markers_is_unaffected() -> None:

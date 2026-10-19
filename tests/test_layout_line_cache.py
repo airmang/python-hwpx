@@ -278,7 +278,8 @@ def test_a_tab_right_after_a_tab_starts_at_its_stop_surely() -> None:
 def test_a_line_break_typed_into_the_text_is_left_for_hancom() -> None:
     # Hancom writes a line break as hp:lineBreak; a newline in hp:t's own text is left for it to lay out.
     document = HwpxDocument.new()
-    document.add_paragraph("첫 줄\n둘째 줄")
+    paragraph = document.add_paragraph("첫 줄")
+    paragraph.element.find(f"{HP}run/{HP}t").text = "첫 줄\n둘째 줄"
 
     report = write_line_caches(document)
 
