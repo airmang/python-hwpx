@@ -18,7 +18,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
 HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_cache_hanging_indents.hwpx",
                    "line_cache_indents.hwpx", "line_cache_labels.hwpx",
                    "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx",
-                   "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx", "line_cache_tab_punctuation.hwpx", "line_cache_script_faces.hwpx"]
+                   "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx", "line_cache_tab_punctuation.hwpx", "line_cache_script_faces.hwpx", "line_cache_fields.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -442,5 +442,25 @@ def test_glyphs_in_a_shape_of_several_script_faces_get_a_cache() -> None:
     written = [(mine, theirs) for mine, theirs in zip(_body(document), _body(hancom)) if _segments(mine)]
     texts = "".join(t.text or "" for mine, _ in written for t in mine.iter(f"{HP}t"))
     assert any(ch.isascii() and ch.isalnum() for ch in texts) and "※" in texts
+    for mine, theirs in written:
+        assert _segments(mine) == _segments(theirs)
+
+
+def test_a_paragraph_holding_fields_or_a_highlight_gets_a_cache() -> None:
+    # A field's start and end take no room on a line and eight characters each in its text position, wherever
+    # they stand (one where a line breaks starts the next line); a highlight's marks take neither.
+    document = HwpxDocument.open(FIXTURES / "line_cache_fields.hwpx")
+    hancom = HwpxDocument.open(FIXTURES / "line_cache_fields.hwpx")
+    for paragraph in _body(document):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    written = [(mine, theirs) for mine, theirs in zip(_body(document), _body(hancom)) if _segments(mine)]
+    with_fields = [mine for mine, _ in written if mine.find(f".//{HP}fieldBegin") is not None]
+    with_highlights = [mine for mine, _ in written if mine.find(f".//{HP}markpenBegin") is not None]
+    assert len(with_fields) >= 10 and with_highlights
+    assert any(len(_segments(mine)) > 1 for mine in with_fields)
     for mine, theirs in written:
         assert _segments(mine) == _segments(theirs)
