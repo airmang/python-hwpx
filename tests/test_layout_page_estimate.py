@@ -2306,3 +2306,11 @@ def test_a_document_without_a_header_part_is_left_unsupported() -> None:
     from hwpx.layout.line_cache import write_line_caches
     report = write_line_caches(HwpxDocument.open(io.BytesIO(data)))
     assert report.written == 0 and report.unsupported == estimate.unsupported
+
+
+def test_a_paragraph_its_shape_squeezes_takes_one_line() -> None:
+    # Paragraphs a line and a half to two and a half lines long, their shape's lineWrap BREAK, KEEP or SQUEEZE,
+    # laid out and saved by Hancom: a squeezed one is pressed onto one line, a kept one breaks as BREAK does.
+    data = (FIXTURES / "line_cache_squeezed.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 3)

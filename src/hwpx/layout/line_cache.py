@@ -309,6 +309,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     if style is not None and style.head and not (headed and style.head_hangs):
         return None
+    if style is not None and style.line_wrap == "SQUEEZE":
+        return None  # Hancom presses the paragraph onto one line, as wide as its text: left for it
     if style is not None and (style.auto_space_latin or style.auto_space_digit) and any(
             look.spacing or look.script_size != 1 for look in set(looks or [style])) and any(
             auto_space_gap(a, b, 10, style) for a, b in zip(text, text[1:])):
