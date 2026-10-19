@@ -986,6 +986,9 @@ HANCOM_PAGES = {
     # spacing 150 %: the line is as tall as its text and the picture, its spacing reckoned from the largest of
     # the text's and the picture run's sizes
     "pages_inline_picture_in_a_run_of_another_size": 3,
+    # A table-of-contents mark (hp:titleMark) alone in a run of 8, 12 or 22 pt before, inside, after or without
+    # 10 or 18 pt text, one and three lines long: a character of no width, its line as tall as the mark's run
+    "pages_title_marks_in_runs_of_other_sizes": 4,
 }
 
 
