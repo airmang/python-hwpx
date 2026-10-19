@@ -1334,3 +1334,26 @@ def test_an_exclamation_mark_is_half_an_em_rounded_down_as_a_space(points: int, 
     # in layout units of 1/1800 inch rounds down, as a space's does.
     style = TextStyle(glyph_face="함초롬바탕", hangul_face="함초롬바탕")
     assert char_advance("!", points, style) == width == char_advance(" ", points, style)
+
+
+@pytest.mark.parametrize(("face", "points", "spacing", "width"),
+                         [("바탕", 14, 0, 896), ("바탕", 14, -8, 824), ("바탕", 10, -8, 588), ("함초롬바탕", 10, 0, 620)])
+def test_a_superscript_or_subscript_glyph_is_laid_out_at_less_than_two_thirds_of_the_size(
+        face: str, points: int, spacing: float, width: int) -> None:
+    # Hancom's tab after a raised or lowered syllable: the glyph takes the advance it has at 0.64 of the size,
+    # its 자간 included.
+    style = TextStyle(glyph_face=face, hangul_face=face, spacing=spacing, script_size=0.64)
+    assert char_advance("가", points, style) == width
+
+
+def test_a_superscript_or_subscript_shape_lays_its_glyphs_out_smaller() -> None:
+    doc = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved" / "line_cache_superscripts.hwpx")
+    sizes = {}
+    for paragraph in doc.oxml.sections[0].element.iter(f"{HP}p"):
+        for run in paragraph.findall(f"{HP}run"):
+            ref = run.get("charPrIDRef")
+            children = doc.oxml.char_property(ref).child_attributes
+            raised = "supscript" in children or "subscript" in children
+            sizes[raised] = sizes.get(raised, set()) | {
+                text_style_from_refs(doc.oxml, paragraph.get("paraPrIDRef"), [ref]).script_size}
+    assert sizes == {True: {0.64}, False: {1.0}}
