@@ -434,10 +434,25 @@ def _check_line_seg_tail_coverage(
         )
 
 
+def squeezed_paragraph_shapes(header_root: ET.Element | None) -> frozenset[str]:
+    """The ids of the paragraph shapes that press a paragraph onto one line (``hh:breakSetting@lineWrap``
+    SQUEEZE, 한 줄로 입력): Hancom caches one line for all of such a paragraph's text, however long."""
+
+    if header_root is None:
+        return frozenset()
+    return frozenset(
+        shape.get("id") or ""
+        for shape in header_root.iter()
+        if _local_name(shape) == "paraPr"
+        and any(_local_name(node) == "breakSetting" and node.get("lineWrap") == "SQUEEZE" for node in shape.iter())
+    )
+
+
 def _check_line_seg_text_positions(
     issues: list[PackageValidationIssue],
     part_name: str,
     root: ET.Element,
+    squeezed: frozenset[str] = frozenset(),
 ) -> None:
     if not is_section_part_name(part_name):
         return
@@ -477,9 +492,10 @@ def _check_line_seg_text_positions(
                         f"{paragraph_index} has stale lineseg textpos={textpos} "
                         f"beyond text length {text_length}",
                     )
-            _check_line_seg_tail_coverage(
-                issues, part_name, paragraph_index, text, line_segs
-            )
+            if paragraph.get("paraPrIDRef") not in squeezed:
+                _check_line_seg_tail_coverage(
+                    issues, part_name, paragraph_index, text, line_segs
+                )
 
 
 def _check_table_editor_acceptance(
@@ -1015,6 +1031,13 @@ def _parse_all_xml(
     zf: ZipFile, names: list[str], issues: list[PackageValidationIssue]
 ) -> dict[str, ET.Element]:
     xml_roots: dict[str, ET.Element] = {}
+    squeezed: frozenset[str] = frozenset()
+    if HEADER_PATH in names:
+        header_payload = _safe_read(zf, HEADER_PATH)
+        try:
+            squeezed = squeezed_paragraph_shapes(_parse_xml(header_payload) if header_payload else None)
+        except ValueError:
+            pass  # reported when the header is parsed below
     for name in names:
         if not (name.endswith(".xml") or name.endswith(".hpf")):
             continue
@@ -1026,7 +1049,7 @@ def _parse_all_xml(
             root = _parse_xml(payload)
             xml_roots[name] = root
             _check_hwpml_compat_root(issues, name, payload, root)
-            _check_line_seg_text_positions(issues, name, root)
+            _check_line_seg_text_positions(issues, name, root, squeezed)
             _check_table_editor_acceptance(issues, name, root)
             _check_shape_open_safety_risks(issues, name, root)
             _check_section_properties_location(issues, name, root)
