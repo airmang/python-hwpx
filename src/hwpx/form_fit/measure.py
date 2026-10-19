@@ -158,6 +158,9 @@ _LAYOUT_UNIT = 4
 #: Hancom's default tab stops, this far apart (HWPUNIT) from the column's left edge (the section's
 #: ``tabStopVal``).
 _DEFAULT_TAB_STOP = 4000
+#: The share of the character size a superscript or subscript glyph (``hh:supscript``, ``hh:subscript``) is
+#: laid out at: its advance, 자간 included, is the one it takes at that size.
+_SUPSUB_SIZE = 0.64
 #: The face Hancom lays out a face it does not find with.
 _UNLISTED_FACE = "한컴바탕"
 
@@ -1305,6 +1308,8 @@ class TextStyle:
     are the paragraph shape's automatic spacing (``hh:autoSpacing``): a
     quarter of the em, 자간 applied, between a Hangul syllable and a Latin
     letter or a digit right next to it (see :func:`auto_space_gap`).
+    ``script_size`` is the share of the character size the glyphs are laid
+    out at: :data:`_SUPSUB_SIZE` for superscript or subscript.
     """
 
     ratio: float = 100.0
@@ -1332,6 +1337,7 @@ class TextStyle:
     bold: bool = False
     auto_space_latin: bool = False
     auto_space_digit: bool = False
+    script_size: float = 1.0
 
 
 def _line_origin(style: TextStyle, first: bool) -> float:
@@ -1521,6 +1527,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     if style is None:
         em = _EMOJI_UNITS[0] / _EMOJI_UNITS[1] if emoji else _ADVANCE_EM[classify_char(ch)]
         return em * font_pt * 100.0
+    font_pt *= style.script_size
     cls = classify_char(ch)
     height = round(font_pt * 100.0)
     if ch == _FIXED_SPACE and not typed:
@@ -2382,6 +2389,7 @@ def text_style_from_refs(
 
     ratio, spacing, use_font_space, hangul_face, glyph_face, bold = 100.0, 0.0, False, "", "", False
     latin_face = symbol_face = ""
+    script_size = 1.0
     scripts: tuple[tuple[str, float, float], ...] = ()
     root = _document_root(document)
     height, used = 1000, None
@@ -2403,6 +2411,7 @@ def text_style_from_refs(
         )
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
         bold = "bold" in children
+        script_size = _SUPSUB_SIZE if "supscript" in children or "subscript" in children else 1.0
         hangul_face, glyph_face = _face_names(root, ref)
         latin_face, symbol_face = _script_faces(root, ref)
         height = int(_style_number((getattr(run_style, "attributes", {}) or {}).get("height"), 1000.0))
@@ -2423,6 +2432,7 @@ def text_style_from_refs(
             symbol_face=symbol_face,
             scripts=scripts,
             bold=bold,
+            script_size=script_size,
         )
     breaks = getattr(prop, "break_setting", None)
     try:
@@ -2461,6 +2471,7 @@ def text_style_from_refs(
         auto_space_latin=bool(getattr(getattr(prop, "auto_spacing", None), "e_asian_eng", False)),
         auto_space_digit=bool(getattr(getattr(prop, "auto_spacing", None), "e_asian_num", False)),
         bold=bold,
+        script_size=script_size,
     )
     heading = paragraph_label(root, para_pr_id_ref, label)
     if heading is None:
