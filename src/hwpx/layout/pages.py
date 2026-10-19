@@ -1950,7 +1950,8 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
-    makes the line at least as tall as itself, and counts at its run's size for the spacing; a fixed line spacing
+    makes the line at least as tall as itself; its run's size counts for the line spacing alone, not for the
+    line's height (Hancom: as tall as its characters and objects, spaced from its largest size); a fixed line spacing
     keeps the next line that far down. A composed character or ruby text (*marks*: its place -> its
     width) is a character of its size in *sizes*. The last line is at least as tall as the paragraph's
     end (*end*, see :func:`_end_size`), and the first as its label (*head*, see :func:`_head_size`). In a
@@ -1964,9 +1965,10 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     metrics = []
     for start, stop in zip(starts, [*starts[1:], len(text)]):
         span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
-        size = max([heights[index] for index in span] + ([end] if stop == len(text) else [])
-                   + ([head] if start == 0 else []))
-        height = max([size] + [objects[index][1] for index in span if index in objects])
+        edges = ([end] if stop == len(text) else []) + ([head] if start == 0 else [])
+        size = max([heights[index] for index in span] + edges)
+        glyphs = [heights[index] for index in span if index not in objects] + edges
+        height = max([max(glyphs) if glyphs else size] + [objects[index][1] for index in span if index in objects])
         advance = _pitch(shape.kind, shape.value, size)
         metrics.append((height, advance if shape.kind == "FIXED" else height + advance - size))
     return tuple(metrics)

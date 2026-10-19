@@ -982,6 +982,10 @@ HANCOM_PAGES = {
     # it counts for nothing), each paragraph followed by one of 10 pt
     "pages_empty_paragraphs_of_runs_of_two_sizes": 1,
     "pages_empty_paragraphs_of_larger_runs_first": 1,
+    # A picture set as a character, 500 to 3000 tall, in a run of 8 to 20 pt between 10 or 15 pt text, line
+    # spacing 150 %: the line is as tall as its text and the picture, its spacing reckoned from the largest of
+    # the text's and the picture run's sizes
+    "pages_inline_picture_in_a_run_of_another_size": 3,
 }
 
 
