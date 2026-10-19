@@ -432,6 +432,25 @@ def test_a_paragraph_with_automatic_spacing_beside_hangul_gets_a_cache_without_s
     assert bool(_segments(paragraph.element)) is written
 
 
+def test_a_paragraph_with_automatic_spacing_and_a_superscript_is_left_for_hancom() -> None:
+    # How wide Hancom makes the gap beside a superscript glyph was not measured.
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run("가나ABC다라마바사 " * 3, char_pr_id_ref=document.styles.ensure_run())
+    raised = document.styles.ensure_run(size=11)
+    for shape in document.oxml.headers[0].element.iter(f"{HH}charPr"):
+        if shape.get("id") == str(raised):
+            shape.append(shape.makeelement(f"{HH}supscript", {}))
+    paragraph.add_run("주A", char_pr_id_ref=raised)
+    for shape in document.oxml.headers[0].element.iter(f"{HH}paraPr"):
+        if shape.get("id") == paragraph.element.get("paraPrIDRef"):
+            next(shape.iter(f"{HH}autoSpacing")).set("eAsianEng", "1")
+
+    write_line_caches(document)
+
+    assert not _segments(paragraph.element)
+
+
 def test_glyphs_in_a_shape_of_several_script_faces_get_a_cache() -> None:
     # One character shape gives Hangul 휴먼명조, Latin 맑은 고딕, other scripts 바탕 and symbols 돋움: Hancom lays
     # a Latin letter, digit or ASCII mark out in the Latin face and a CJK mark or shape in the symbol face.
