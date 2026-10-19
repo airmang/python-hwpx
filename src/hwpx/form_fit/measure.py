@@ -1310,6 +1310,8 @@ class TextStyle:
     letter or a digit right next to it (see :func:`auto_space_gap`).
     ``script_size`` is the share of the character size the glyphs are laid
     out at: :data:`_SUPSUB_SIZE` for superscript or subscript.
+    ``line_wrap`` is the paragraph shape's ``hh:breakSetting@lineWrap``: with
+    ``SQUEEZE`` Hancom lays the paragraph out on one line, pressed to fit.
     """
 
     ratio: float = 100.0
@@ -1338,6 +1340,7 @@ class TextStyle:
     auto_space_latin: bool = False
     auto_space_digit: bool = False
     script_size: float = 1.0
+    line_wrap: str = "BREAK"
 
 
 def _line_origin(style: TextStyle, first: bool) -> float:
@@ -2454,6 +2457,7 @@ def text_style_from_refs(
         spacing=spacing,
         use_font_space=use_font_space,
         break_latin_word=getattr(breaks, "break_latin_word", None) or "KEEP_WORD",
+        line_wrap=getattr(breaks, "line_wrap", None) or "BREAK",
         break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
         indent=int(_style_number(getattr(margin, "intent", 0), 0.0)) // half,

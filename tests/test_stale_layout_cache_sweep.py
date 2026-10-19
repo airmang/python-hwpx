@@ -11,9 +11,10 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+from pathlib import Path
 
 from hwpx import HwpxDocument
-from hwpx.tools.package_validator import validate_editor_open_safety
+from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
 
 LONG = "가나다라마바사아자차 " * 12
 SHORT = "짧은 문단"
@@ -172,3 +173,14 @@ def test_save_keeps_a_cache_that_counts_a_tab_as_eight_positions() -> None:
     (tab_paragraph,) = [p for p in reopened.paragraphs if p.element.find(f".//{hp}tab") is not None]
     starts = [s.get("textpos") for s in tab_paragraph.element.iter(f"{hp}lineseg")]
     assert starts == ["0", "19"], "the valid layout cache was dropped on save"
+
+
+def test_saving_keeps_the_one_line_cache_of_a_paragraph_its_shape_squeezes() -> None:
+    # Hancom caches one line for all of a paragraph whose shape presses it onto one line (lineWrap SQUEEZE),
+    # however long its text: that cache is Hancom's own, not one that lacks lines.
+    path = Path(__file__).parent / "fixtures" / "hancom_saved" / "line_cache_squeezed.hwpx"
+    before = zipfile.ZipFile(path).read("Contents/section0.xml")
+    after = zipfile.ZipFile(io.BytesIO(HwpxDocument.open(path).to_bytes())).read("Contents/section0.xml")
+
+    assert after.count(b"<hp:linesegarray>") == before.count(b"<hp:linesegarray>")
+    assert not [issue for issue in validate_package(path).issues if "tail" in issue.message]

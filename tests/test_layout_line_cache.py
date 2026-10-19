@@ -20,7 +20,7 @@ HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_
                    "line_cache_mixed_sizes.hwpx", "line_cache_taller_past_a_break.hwpx", "line_cache_table_cells.hwpx",
                    "line_cache_mixed_faces_tabs.hwpx", "line_cache_space_runs.hwpx", "line_cache_tab_punctuation.hwpx",
                    "line_cache_script_faces.hwpx", "line_cache_fields.hwpx", "line_cache_superscripts.hwpx",
-                   "line_cache_auto_spacing.hwpx", "line_cache_auto_spacing_tabs.hwpx"]
+                   "line_cache_auto_spacing.hwpx", "line_cache_auto_spacing_tabs.hwpx", "line_cache_squeezed.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -487,3 +487,20 @@ def test_a_paragraph_holding_fields_or_a_highlight_gets_a_cache() -> None:
     assert any(len(_segments(mine)) > 1 for mine in with_fields)
     for mine, theirs in written:
         assert _segments(mine) == _segments(theirs)
+
+
+def test_a_paragraph_its_shape_squeezes_onto_one_line_is_left_for_hancom() -> None:
+    # Hancom presses a paragraph whose shape has lineWrap SQUEEZE onto one line however long it is (this file is
+    # its save): its lines are never where they would break.
+    document = HwpxDocument.open(FIXTURES / "line_cache_squeezed.hwpx")
+    shapes = {shape.get("id"): shape.find(f".//{HH}breakSetting").get("lineWrap")
+              for shape in document.oxml.headers[0].element.iter(f"{HH}paraPr")}
+    squeezed = [p for p in _body(document) if shapes.get(p.get("paraPrIDRef")) == "SQUEEZE"]
+    assert squeezed and all(len(_segments(p)) == 1 for p in squeezed)
+    for paragraph in _body(document):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    assert not any(_segments(p) for p in squeezed)

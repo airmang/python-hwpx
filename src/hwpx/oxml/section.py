@@ -371,6 +371,16 @@ class HwpxOxmlSection:
             prev_para_ref = self._without_page_flow_breaks(prev_para_ref)
         return prev_para_ref, prev_style_ref, prev_char_ref
 
+    def _squeezed_paragraph_shapes(self) -> frozenset[str]:
+        """The paragraph shapes Hancom presses onto one line: a cache of one line holds all of their text."""
+
+        from ..tools.package_validator import squeezed_paragraph_shapes
+
+        document = self.document
+        return frozenset().union(*(
+            squeezed_paragraph_shapes(getattr(header, "element", None)) for header in getattr(document, "_headers", [])
+        )) if document is not None else frozenset()
+
     def _para_pr_element(self, para_pr_id_ref: str | int) -> tuple[Any, ET.Element] | None:
         """The header holding the paraPr *para_pr_id_ref*, and the paraPr."""
 
@@ -545,11 +555,12 @@ class HwpxOxmlSection:
         """
 
         removed = 0
+        squeezed = self._squeezed_paragraph_shapes()
         for paragraph in self._element.iter():
             if _element_local_name(paragraph) != "p":
                 continue
-            if _remove_stale_paragraph_layout_cache(paragraph) or _remove_short_paragraph_layout_cache(
-                paragraph
+            if _remove_stale_paragraph_layout_cache(paragraph) or (
+                paragraph.get("paraPrIDRef") not in squeezed and _remove_short_paragraph_layout_cache(paragraph)
             ):
                 removed += 1
         if removed:
