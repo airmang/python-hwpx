@@ -144,8 +144,8 @@ def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
 
 
 @pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -40},
-                                   {"ratio": 210}, {"font": "한양신명조", "bold": True},
-                                   {"font": "한양견고딕", "bold": True}])
+                                   {"ratio": 210}, {"font": "한양견고딕", "bold": True},
+                                   {"font": "HCI Hollyhock", "bold": True}])
 def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hancom(style: dict) -> None:
     # A face Hancom may draw in another one, or 장평 and 자간 past those seen on the desktop, are left for Hancom.
     document = HwpxDocument.new()
@@ -159,7 +159,7 @@ def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hanco
 
 @pytest.mark.parametrize("style", [{"letter_spacing": -5}, {"ratio": 90}, {"ratio": 110, "letter_spacing": 5},
                                    {"font": "한양신명조"}, {"font": "맑은 고딕", "bold": True},
-                                   {"font": "휴먼명조", "bold": True}])
+                                   {"font": "휴먼명조", "bold": True}, {"font": "한양신명조", "bold": True}])
 def test_a_paragraph_at_a_look_seen_on_the_desktop_gets_a_cache(style: dict) -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("", include_run=False)
