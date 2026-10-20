@@ -62,6 +62,8 @@ PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
+FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
+FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
 KANA_HANJA = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kana_hanja_widths.hwpx"
 AUTO_SPACING_LETTER_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing.hwpx"
 AUTO_SPACING_SIZES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing_sizes.hwpx"
@@ -452,6 +454,26 @@ def test_a_no_break_space_takes_its_ratio_and_no_spacing() -> None:
         text = page_layout._run_text(runs)
         x = sum(char_advance(ch, size, style) for ch in text[:text.index("	")])
         assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
+
+
+@pytest.mark.parametrize("fixture", [FIXED_SPACE_SPACING, FIXED_SPACE_RATIO])
+def test_a_fixed_width_space_takes_its_ratio_and_letter_spacing(fixture: Path) -> None:
+    # Hancom laid "'", digits, ".", "월", fixed-width spaces (hp:fwSpace) and words holding them out in 굴림 and
+    # 함초롬바탕 at 11 pt under 자간 0 and -8 %, and in 굴림 at 9 and 11 pt under 장평 80 to 120 % and 자간 -15 to
+    # +5 %, each before a tab: a fixed-width space is a quarter of the em in whole layout units (272 at 11 pt),
+    # scaled by its 장평 and rounded as a space is (328 at 120 %), then takes its 자간 as a glyph does (252 at -8 %).
+    assert char_advance("\u3000", 11, TextStyle()) == 272
+    assert char_advance("\u3000", 11, TextStyle(spacing=-8)) == 252
+    assert char_advance("\u3000", 11, TextStyle(ratio=120)) == 328
+    document = HwpxDocument.open(fixture)
+    for paragraph in document.oxml.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        text = page_layout._run_text(runs)
+        x = sum(char_advance(ch, size, style) for ch in text[:text.index("	")])
+        assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width")), text
 
 
 def test_a_kana_the_face_lacks_is_as_wide_as_its_hangul_syllables() -> None:
@@ -1329,7 +1351,7 @@ def test_no_break_spaces_break_where_hancom_breaks() -> None:
 
 def test_a_fixed_width_space_is_a_quarter_em_and_hangs() -> None:
     assert char_advance("\u3000", 10, TextStyle()) == 248  # a quarter of 250 layout units, rounded down
-    assert char_advance("\u3000", 16, TextStyle(ratio=80, spacing=-10)) == 400  # whatever the 장평 and 자간
+    assert char_advance("\u3000", 16, TextStyle(ratio=80, spacing=-10)) == 288  # 100 units at 장평 80 %, 자간 -10 %
     # Breaking between any two syllables, a line still ends after the space, which hangs past the margin.
     assert hancom_line_starts("가\u3000" * 5, [2900], 10, TextStyle(break_non_latin_word="KEEP_WORD")) == [0, 4, 8]
 
