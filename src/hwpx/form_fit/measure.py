@@ -108,7 +108,7 @@ Confidence = Literal["high", "low"]
 #: does neither: it is a half-em space like the space that keeps the words
 #: beside it on one line.
 _HANGING_SPACES = " \u3000\ufdd0"
-#: The fixed-width space: a quarter of the em, whatever the 장평, 자간 or 최소 공백.
+#: The fixed-width space: a quarter of the em, its 장평 and 자간 applied as a space's are, whatever the 최소 공백.
 _FIXED_SPACE = "\u3000"
 #: An ideographic space typed as a character (U+3000 in the text of ``hp:t``;
 #: python-hwpx reads ``hp:fwSpace`` as U+3000 too), as the page estimate passes it:
@@ -1255,6 +1255,16 @@ def _laid_out_space(height: int, ratio: float, spacing: float) -> float:
     return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
 
 
+def _laid_out_quarter(height: int, ratio: float, spacing: float) -> float:
+    """HWPUNIT the fixed-width space takes at a character height of *height* HWPUNIT: a quarter of the em in
+    whole layout units, rounded down, scaled by its 장평 and rounded as a space is, then its 자간 (at 11 pt, 272;
+    at 장평 120 %, 328; at 자간 -8 %, 252)."""
+
+    quarter = height // _LAYOUT_UNIT // 4
+    advance = math.floor(quarter * Fraction(ratio) / 100 + Fraction(1, 2))
+    return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
+
+
 def _spacing_units(advance: int, spacing: float) -> int:
     """자간 of *spacing* % on *advance* layout units, rounded half away from zero."""
 
@@ -1533,9 +1543,9 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     font_pt *= style.script_size
     cls = classify_char(ch)
     height = round(font_pt * 100.0)
-    if ch == _FIXED_SPACE and not typed:
-        return float(height // _LAYOUT_UNIT // 4 * _LAYOUT_UNIT)
     ratio, spacing = _scaling(ch, style)
+    if ch == _FIXED_SPACE and not typed:
+        return _laid_out_quarter(height, ratio, spacing)
     if ch in _HALF_EM_SPACES and not style.use_font_space:
         # a no-break space takes its 장평 but no 자간
         return _laid_out_space(height, ratio, 0.0 if ch == " " else spacing)

@@ -997,6 +997,9 @@ HANCOM_PAGES = {
     # picture 8000 or 20000 wide in its hp:default: the lines beside it are as narrow as the chart leaves them
     "pages_chart_case_wider_than_its_default": 1,
     "pages_chart_case_narrower_than_its_default": 1,
+    # "'15.", a fixed-width space and "10월" in 굴림 11 pt at 자간 -8 % in cells 4250 to 4380 wide: one line from
+    # 4300, the fixed-width space taking its 자간; the same with a space, and without one, for comparison
+    "pages_fixed_width_space_line_ends": 4,
 }
 
 
