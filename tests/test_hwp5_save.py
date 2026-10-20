@@ -728,6 +728,9 @@ def test_the_old_line_spacing_of_at_least_is_one_hundred_percent(kind: str, valu
         (13, (850, 283), (7200, 14400), (0, 0, 317, 0)),  # narrowed
         (13, (0, 0), (7875, 5850), (600, 0, 600, 0)),
         (14, (283, 850), (7200, 14400), (2117, 0, 3350, 250)),  # enlarged
+        # A quarter of the shape rounds half up: 28347 / 4 = 7086.75 and 42518 / 4 = 10629.5 (Hancom Office 2024).
+        (14, (283, 283), (28347, 42518), (7404, 0, 10947, 0)),
+        (14, (283, 283), (28345, 42521), (7403, 0, 10947, 0)),
         # Offsets to the left or up, which Hancom mirrors side for side.
         (6, (-850, 0), (28800, 3600), (850, 1193, 0, 0)),
         (5, (850, -283), (28800, 3600), (1193, 850, 0, 0)),
@@ -793,18 +796,19 @@ def test_a_shadowed_shape_keeps_its_outer_margin_across_hwpx(kind: int, offset: 
 
 
 @pytest.mark.parametrize(
-    ("kind", "size", "stored"),
+    ("kind", "size", "stored", "opened"),
     [
-        (11, (28346, 42520), (-26411, 283, 0, -22733)),  # perspective, left bottom
-        (12, (28346, 42520), (0, -25845, 0, -22733)),  # perspective, right bottom
-        (7, (20000, 60000), (-31765, 283, 0, 30283)),  # shear, left bottom
+        # Hancom Office 2024 saved shapes with a margin of 500 and these shadows as .hwp (the stored margins, the
+        # reach wrapped past 16 bits) and opened them back: a stored margin below 0 reads as 0 less the reach.
+        (11, (28346, 42520), (-25911, 783, 500, -22233), (26411, 500, 500, 22733)),  # perspective, left bottom
+        (12, (28346, 42520), (500, -25345, 500, -22233), (500, 25845, 500, 22733)),  # perspective, right bottom
+        (9, (10000, 40000), (-28247, 783, 500, 783), (28747, 500, 500, 500)),  # perspective, left top
+        (7, (40000, 60000), (-31265, 783, 500, 30783), (31765, 500, 500, 500)),  # shear, left bottom
     ],
 )
-def test_a_shadow_margin_past_16_bits_is_saved_wrapped_and_opens_as_saved(
-    kind: int, size: tuple[int, int], stored: tuple[int, ...]
+def test_a_shadow_margin_stored_below_0_opens_as_hancom_2024_reads_it(
+    kind: int, size: tuple[int, int], stored: tuple[int, ...], opened: tuple[int, ...]
 ) -> None:
-    """Hancom keeps the low 16 bits of such a margin; opening takes the shadow back out."""
-
     width, height = size
     common = ct.ObjectCommon("gso ", 0x000A2211, 0, 0, width, height, 0, stored, 190, 0, "", bytes(2))
     fill = di.Fill(di.FILL_SOLID, 0x00FFFFFF, 0, -1, additional=b"", alphas=b"\0")
@@ -823,18 +827,14 @@ def test_a_shadow_margin_past_16_bits_is_saved_wrapped_and_opens_as_saved(
     files = convert(_compound(section)).files
     [shape] = list(etree.fromstring(files["Contents/section0.xml"]).iter(f"{HP}rect"))
     margin = shape.find(f"{HP}outMargin")
-    assert [margin.get(side) for side in ("left", "right", "top", "bottom")] == ["0", "0", "0", "0"]
-
-    written = read_hwp5(write_hwp5(files))
-    [header] = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and r.payload[:4] == b" osg"]
-    assert ct.ObjectCommon.decode(header.payload).margins == stored
+    assert tuple(int(margin.get(side)) for side in ("left", "right", "top", "bottom")) == opened
 
 
 def test_a_margin_short_of_its_shadow_keeps_what_is_left() -> None:
-    """Hancom opens such a margin below 0 and saves it back as it was."""
+    """Hancom opens a margin smaller than its shadow's reach below 0, and one stored below 0 as 0 less the reach."""
 
     assert sh.without_shadow((100, 283, 5, 0), (283, 883, 0, 0)) == (-183, -600, 5, 0)
-    assert sh.without_shadow((-26411, 283, 0, -22733), (39125, 283, 0, 42803)) == (0, 0, 0, 0)
+    assert sh.without_shadow((-26411, 283, 0, -22733), (39125, 283, 0, 42803)) == (26411, 0, 0, 22733)
 
 
 def test_characters_overlapped_with_no_frame_keep_their_text_across_hwpx() -> None:
