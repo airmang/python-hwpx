@@ -47,6 +47,7 @@ from hwpx.form_fit.measure import (
 )
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 HANCOM_SAVED = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_line_rules.hwpx"
 FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_face_advance.hwpx"
 INLINE_OBJECTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_inline_objects.hwpx"
@@ -62,6 +63,8 @@ PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 KANA_HANJA = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kana_hanja_widths.hwpx"
+AUTO_SPACING_LETTER_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing.hwpx"
+AUTO_SPACING_SIZES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing_sizes.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
@@ -541,15 +544,67 @@ def test_the_two_spaces_right_after_a_word_hang_past_the_margin() -> None:
 
 
 def test_automatic_spacing_puts_a_quarter_em_between_hangul_and_latin_or_digits() -> None:
-    # hh:autoSpacing: a quarter of the em, its 자간 applied (장평 leaves it), between a Hangul syllable and a Latin
-    # letter (eAsianEng) or a digit (eAsianNum) right next to it; none across a space or a mark, or Latin to digit.
+    # hh:autoSpacing: a quarter of the em (장평 leaves it), between a Hangul syllable and a Latin letter
+    # (eAsianEng) or a digit (eAsianNum) right next to it; none across a space or a mark, or Latin to digit.
     both = replace(TextStyle(), auto_space_latin=True, auto_space_digit=True)
     assert auto_space_gap("가", "A", 10, both) == auto_space_gap("1", "가", 10, both) == 250
-    assert auto_space_gap("가", "A", 10, replace(both, spacing=-10.0)) == 225
+    assert auto_space_gap("가", "A", 10, replace(both, spacing=-10.0)) == 226
     assert auto_space_gap("가", "A", 10, replace(both, ratio=80.0)) == 250
     assert auto_space_gap("A", "1", 10, both) == auto_space_gap("가", " ", 10, both) == 0
     assert auto_space_gap("가", "(", 10, both) == auto_space_gap("가", "A", 10, TextStyle()) == 0
     assert auto_space_gap("가", "1", 10, replace(TextStyle(), auto_space_latin=True)) == 0
+
+
+def test_automatic_spacing_takes_its_letter_spacing_with_the_character_before_it() -> None:
+    # Under 자간 Hancom adds the quarter em to the advance of the character before it and takes the 자간 of the two
+    # together, rounded to whole layout units as a glyph's own: after 함초롬바탕's 가 (972 at 10 pt) a gap is 222 at
+    # -10 % and 278 at +10 %, after 맑은 고딕's (1000) 226 and 274; 장평 leaves the gap as it is.
+    def style(face: str, ratio: float, spacing: float) -> TextStyle:
+        return replace(TextStyle(), glyph_face=face, hangul_face=face, latin_face=face, symbol_face=face,
+                       ratio=ratio, spacing=spacing, auto_space_latin=True, auto_space_digit=True)
+
+    assert [auto_space_gap("가", "A", 10, style("함초롬바탕", 100, s)) for s in (-10, 0, 10)] == [222, 250, 278]
+    assert [auto_space_gap("가", "A", 10, style("맑은 고딕", 100, s)) for s in (-10, 0, 10)] == [226, 250, 274]
+    assert auto_space_gap("가", "A", 10, style("함초롬바탕", 80, -10)) == 222
+    assert auto_space_gap("가", "A", 10, style("함초롬바탕", 150, 5)) == 262
+    assert auto_space_gap("1", "가", 10, style("함초롬바탕", 100, -10)) == 226
+    # A real document's cell (맑은 고딕 9 pt, 장평 80, 자간 -10, line 16373 wide): Hancom keeps "호" on the first
+    # line, six gaps of 201 (not 202.5) leaving room for it.
+    cell = replace(style("맑은 고딕", 80, -10), break_non_latin_word="KEEP_WORD", indent=-672)
+    text = "* 국가통합교통체계효율화법 제2조 제13,호, 제15호에 따른 정의"
+    assert hancom_line_starts(text, [16373, 15701], 9, cell) == [0, 30]
+
+
+@pytest.mark.parametrize("fixture", [AUTO_SPACING_LETTER_SPACING, AUTO_SPACING_SIZES])
+def test_automatic_spacing_under_letter_spacing_is_as_wide_as_hancom_lays_it_out(fixture: Path) -> None:
+    # Hancom laid "가A", "가A가", "가1가" and the like and a tab out in 함초롬바탕 at 10 pt under 장평 80 to 150 and
+    # 자간 -10 to +10, and in 함초롬돋움 at 9 and 11 pt under 장평 80 to 100 and 자간 -15 to +3, each with the
+    # automatic spacing off and on: the tab narrows by the gaps. At 11 pt the gap is 275, but its 자간 is taken
+    # with the quarter em rounded down to 68 layout units (255 after 함초롬돋움's 가 at 장평 80 and 자간 -8, not 251).
+    document = HwpxDocument.open(fixture)
+    root = document._root
+    measure = page_layout._Measure(root)
+    header = document.oxml.headers[0].element
+    modes = {shape.get("id"): (shape.find(f"{HH}autoSpacing").get("eAsianEng"), shape.find(f"{HH}autoSpacing").get("eAsianNum"))
+             for shape in header.iter(f"{HH}paraPr")}
+    tabs: dict[tuple[str, str], dict[tuple[str, str], tuple[int, object]]] = {}
+    for paragraph in root.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        text = page_layout._run_text(runs)
+        key = (runs[0].get("charPrIDRef"), text[:text.index("	")])
+        tabs.setdefault(key, {})[modes[paragraph.get("paraPrIDRef")]] = (
+            int(paragraph.find(f".//{HP}tab").get("width")), paragraph)
+    compared = 0
+    for (ref, text), by_mode in tabs.items():
+        if ("0", "0") not in by_mode or ("1", "1") not in by_mode:
+            continue
+        (off, _), (on, paragraph) = by_mode[("0", "0")], by_mode[("1", "1")]
+        size, refs, _ = page_layout._text_size(measure, paragraph.findall(f"{HP}run"))
+        style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+        gaps = sum(auto_space_gap(a, b, size / 100, style) for a, b in zip(text, text[1:]))
+        assert gaps == (off - on) % 4000, (ref, text)
+        compared += 1
+    assert compared >= 30
 
 
 def test_an_automatic_space_goes_with_the_character_before_it() -> None:

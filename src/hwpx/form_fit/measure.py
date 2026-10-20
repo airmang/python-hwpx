@@ -1774,11 +1774,14 @@ def _width_after_tab(
 
 def auto_space_gap(previous: str, ch: str, font_pt: float, style: TextStyle, look: TextStyle | None = None) -> float:
     """The room Hancom's automatic spacing (``style.auto_space_latin``/``auto_space_digit``) puts between
-    *previous* and *ch*: a quarter of the em at *font_pt*, its 자간 (*look*'s, else *style*'s) applied, when one is
-    a Hangul syllable and the other a Latin letter (or a digit) right next to it; else none. 장평 leaves it as it
-    is; a space or a mark between them, or a Latin letter beside a digit, takes none. The gap goes with the
-    character before it: that character fits on its line only with the gap after it, even where the line breaks
-    at the gap."""
+    *previous* and *ch*: a quarter of the em at *font_pt*, when one is a Hangul syllable and the other a Latin
+    letter (or a digit) right next to it; else none. 장평 leaves it as it is; a space or a mark between them, or a
+    Latin letter beside a digit, takes none. The gap goes with the character before it: that character fits on
+    its line only with the gap after it, even where the line breaks at the gap. Under 자간 (*look*'s, else
+    *style*'s) Hancom takes the 자간 of that character's advance and the gap together (the quarter em in whole
+    layout units, rounded down, as a fixed-width space's), rounded to whole layout units as a glyph's own is: so
+    the gap is the quarter em and what that rounding adds (at 10 pt and 자간 -10 %, 222 after 함초롬바탕's 가 and 226
+    after 맑은 고딕's)."""
 
     if not (style.auto_space_latin or style.auto_space_digit):
         return 0.0
@@ -1786,7 +1789,15 @@ def auto_space_gap(previous: str, ch: str, font_pt: float, style: TextStyle, loo
         if "\uac00" <= hangul <= "\ud7a3" and other.isascii() and (
                 style.auto_space_latin and other.isalpha() or style.auto_space_digit and other.isdigit()):
             spacing = (look or style).spacing
-            return font_pt * 100.0 / 4 * (1 + spacing / 100.0)
+            height = round(font_pt * 100)
+            gap = Fraction(height) / 4
+            if not spacing:
+                return float(gap)
+            units = Fraction(char_advance(previous, font_pt, _without_spacing(look or style))) / _LAYOUT_UNIT
+            if units.denominator != 1:  # a glyph no table lists (class averages, unrounded): the gap's own 자간
+                return float(gap * (1 + Fraction(spacing) / 100))
+            quarter = height // _LAYOUT_UNIT // 4
+            return float(gap + (_spacing_units(units + quarter, spacing) - _spacing_units(units, spacing)) * _LAYOUT_UNIT)
     return 0.0
 
 
