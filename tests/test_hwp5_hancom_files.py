@@ -66,7 +66,6 @@ def _objects(data: bytes) -> list[ct.ObjectCommon]:
 @pytest.mark.parametrize(
     "name",
     [
-        "shadow_pers_leftbottom_28346x42520.hwp",  # past 16 bits
         "shadow_shear_righttop_offset_left.hwp",  # moved to the left
         "shadow_pers_leftbottom_8000x1000.hwp",  # a lean that rounds up
     ],
@@ -79,6 +78,16 @@ def test_a_shadowed_shape_opens_with_its_own_margin_and_saves_back(name: str) ->
     assert margin is not None
     assert [margin.get(side) for side in ("left", "right", "top", "bottom")] == ["0", "0", "0", "0"]
     assert [o.margins for o in _objects(write_hwp5(files))] == [o.margins for o in _objects(data)]
+
+
+def test_a_shadow_margin_wrapped_past_16_bits_opens_as_hancom_2024_reads_it() -> None:
+    # The margin with the shadow's reach (39125 on the left, 42803 below) was saved wrapped below 0. Hancom Office
+    # 2024 opens it as 0 less the wrapped reach, as its own HWPX save of this file has it.
+    files = convert((FIXTURES / "shadow_pers_leftbottom_28346x42520.hwp").read_bytes()).files
+    [shape] = list(etree.fromstring(files["Contents/section0.xml"]).iter(f"{HP}rect"))
+    margin = shape.find(f"{HP}outMargin")
+    assert margin is not None
+    assert [margin.get(side) for side in ("left", "right", "top", "bottom")] == ["26411", "0", "0", "22733"]
 
 
 @pytest.mark.parametrize(
