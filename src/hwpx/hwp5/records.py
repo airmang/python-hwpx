@@ -69,6 +69,8 @@ FORM_OBJECT = BEGIN + 75
 MEMO_LIST = BEGIN + 77
 CHART_DATA = BEGIN + 79
 VIDEO_DATA = BEGIN + 82
+#: The one record of the ``MemoExtended`` stream: which memo answers which.
+MEMO_EXTENDED = BEGIN + 85
 SHAPE_COMPONENT_UNKNOWN = BEGIN + 99
 
 TAG_NAMES: dict[int, str] = {

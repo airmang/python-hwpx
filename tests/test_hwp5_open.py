@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import struct
 import warnings
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -552,7 +553,15 @@ def make_hwp(
     return _compound(section, flags=flags)
 
 
-def _compound(section: list[rec.Record], *, flags: int = 1, docinfo_extra: list[rec.Record] | None = None) -> bytes:
+def _compound(
+    section: list[rec.Record],
+    *,
+    flags: int = 1,
+    docinfo_extra: list[rec.Record] | None = None,
+    streams: list[tuple[str, bytes]] | None = None,
+) -> bytes:
+    """A compound file of *section*; *streams* adds other streams, compressed as the document is."""
+
     compressed = bool(flags & 1)
 
     def pack(records: list[rec.Record]) -> bytes:
@@ -565,8 +574,60 @@ def _compound(section: list[rec.Record], *, flags: int = 1, docinfo_extra: list[
             ("DocInfo", pack(_docinfo() + list(docinfo_extra or []))),
             ("BodyText/Section0", pack(section)),
             ("PrvText", "미리보기".encode("utf-16-le")),
+            *((path, rec.deflate(data) if compressed else data) for path, data in streams or ()),
         ]
     )
+
+
+_MEMOS_EX = "http://www.hancom.co.kr/hwpml/2021/extended"
+
+
+def _hpf_items(data: bytes) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(data)) as package:
+        hpf = etree.fromstring(package.read("Contents/content.hpf"))
+    return [item.get("id") for item in hpf.iter("{*}item")] + ["/"] + [ref.get("idref") for ref in hpf.iter("{*}itemref")]
+
+
+@pytest.mark.parametrize("flags", [0, 1])
+def test_memo_replies_open_as_the_memo_extended_part(flags: int) -> None:
+    # Hancom Office 2024 saves Contents/memoExtended.xml (which memo answers which) as the MemoExtended stream: one
+    # record of the count, then each memo id and its parent's. Its own HWPX save of that .hwp has this part, listed
+    # after the header and in no spine.
+    pairs = [(1001, 1000), (1002, 1000), (1003, 1002)]
+    payload = struct.pack("<I", len(pairs)) + b"".join(struct.pack("<II", *pair) for pair in pairs)
+    stream = rec.serialize_records([rec.Record(rec.MEMO_EXTENDED, 0, payload)])
+    data = HwpxDocument.open(_compound(_section(), flags=flags, streams=[("MemoExtended", stream)])).to_bytes()
+
+    with zipfile.ZipFile(io.BytesIO(data)) as package:
+        memos = etree.fromstring(package.read("Contents/memoExtended.xml"))
+    assert memos.tag == f"{{{_MEMOS_EX}}}memosEx"
+    assert [(m.get("id"), m.get("parentId")) for m in memos] == [("1001", "1000"), ("1002", "1000"), ("1003", "1002")]
+    assert _hpf_items(data) == ["header", "memoextended", "section0", "settings", "/", "header", "section0"]
+
+
+@pytest.mark.parametrize("flags", [0, 1])
+def test_a_bibliography_opens_as_its_custom_part(flags: int) -> None:
+    # Hancom Office 2024 keeps Custom/bibliography.xml in the Bibliography stream as the part's length and then
+    # the part, and saves that .hwp as HWPX with the same bytes, listed last in the manifest and the spine.
+    sources = "﻿<?xml version=\"1.0\"?><b:Sources xmlns:b=\"urn:b\"><b:Source><b:Tag>보고서1</b:Tag></b:Source></b:Sources>"
+    part = sources.encode("utf-8")
+    stream = struct.pack("<I", len(part)) + part
+    data = HwpxDocument.open(_compound(_section(), flags=flags, streams=[("Bibliography", stream)])).to_bytes()
+
+    with zipfile.ZipFile(io.BytesIO(data)) as package:
+        assert package.read("Custom/bibliography.xml") == part
+    assert _hpf_items(data) == ["header", "section0", "settings", "bibliography", "/", "header", "section0", "bibliography"]
+
+
+def test_a_memo_replies_or_bibliography_stream_that_does_not_add_up_is_dropped() -> None:
+    memos = rec.serialize_records([rec.Record(rec.MEMO_EXTENDED, 0, struct.pack("<III", 2, 1001, 1000))])
+    bibliography = struct.pack("<I", 99) + b"<b:Sources/>"
+    document = HwpxDocument.open(_compound(_section(), streams=[("MemoExtended", memos), ("Bibliography", bibliography)]))
+
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as package:
+        names = package.namelist()
+    assert "Contents/memoExtended.xml" not in names and "Custom/bibliography.xml" not in names
+    assert dict(document.conversion_report.dropped) == {"memo-replies": 1, "bibliography": 1}
 
 
 @pytest.mark.parametrize("flags", [0, 1])
