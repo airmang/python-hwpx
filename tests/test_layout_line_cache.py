@@ -51,6 +51,24 @@ def test_the_caches_written_are_the_ones_hancom_wrote(name: str) -> None:
         assert [dict(tab.attrib) for tab in mine.iter(f"{HP}tab")] == [dict(tab.attrib) for tab in theirs.iter(f"{HP}tab")]
 
 
+def test_a_paragraph_breaking_inside_latin_words_is_left_to_hancom() -> None:
+    # Where Hancom breaks a paragraph that breaks inside Latin words (breakLatinWord="BREAK_WORD") beside a closing
+    # mark or a wide bracket was not pinned down, so it gets no cache; the same text keeping Latin words whole does.
+    text = "사업 계획 abc def 교육 운영 " * 8
+    document = HwpxDocument.new()
+    keeping = document.add_paragraph(text)
+    breaking = document.add_paragraph(text)
+    document.styles.apply_paragraph_format(paragraphs=[breaking], alignment="LEFT")  # a shape of its own
+    shape = next(shape for shape in document.oxml.headers[0].element.iter(f"{HH}paraPr")
+                 if shape.get("id") == breaking.element.get("paraPrIDRef"))
+    shape.find(f"{HH}breakSetting").set("breakLatinWord", "BREAK_WORD")
+    document.oxml.headers[0].mark_dirty()
+
+    write_line_caches(document)
+
+    assert _segments(keeping.element) and not _segments(breaking.element)
+
+
 def test_nothing_is_written_once_a_section_is_not_followed() -> None:
     # The estimate names every section it does not follow; write_line_caches stops at the first one, since it writes
     # nothing then anyway.
