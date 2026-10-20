@@ -1413,6 +1413,15 @@ def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], 
     return 0.0 if passed and x + reach + after(False) > right else reach
 
 
+def _on_auto_tab_right(style: TextStyle, reach: float, right: float, after: Callable[[], float]) -> bool:
+    """Whether a tab reaching *reach* ends on the automatic tab at the end of a line ending at *right* (both
+    from the column's left edge, see :func:`tab_reach`) with no text after it (*after* gives the width of the
+    text after it up to the next tab or the end): Hancom keeps such a tab on its line, a tab after it starting
+    the next. A tab with text after it that reaches the margin goes on to the next line."""
+
+    return style.auto_tab_right and abs(reach - int(right)) < 1e-6 and not after()
+
+
 def indented_widths(line: float, style: TextStyle) -> tuple[float, float]:
     """The room of a paragraph's first line and of its other lines, *line* wide inside its margins: less the
     first-line indent (a hanging one comes off the other lines) and the label's room. With ``head_hangs`` the
@@ -1735,8 +1744,12 @@ def hancom_line_starts(
             shrink = (inner + pending) * space * style.condense / 100.0
             last = fixed if fixed is not None else char_advance(ch, size, unspaced if styles is None else _without_spacing(look))
             gap = auto_space_gap(ch, text[end + 1], size, style, look) if end + 1 < length else 0.0
-            if (used + last + gap - shrink > width or ch == "\t" and used + last >= width) and end > start:
-                break  # a tab reaching the margin itself no longer fits
+            if (used + last + gap - shrink > width or ch == "\t" and used + last >= width
+                    and not _on_auto_tab_right(style, origin + used + last, origin + width,
+                                               lambda at=end: _width_after_tab(text, at, font_pt, style, sizes,
+                                                                               styles, advances, False))) \
+                    and end > start:
+                break  # a tab reaching the margin itself no longer fits, but on the automatic tab at the end
             used += advance + gap
             inner += pending
             pending = 0
