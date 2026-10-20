@@ -384,6 +384,38 @@ def _hyperlink_parameters(command: str) -> list[tuple[str, str, str]]:
     return params
 
 
+#: What a cross-reference points at and what of it it shows, by the codes in
+#: its command; Hancom writes an empty value for a code past these.
+_REF_TYPE = ("TARGET_TABLE", "TARGET_PICTURE", "TARGET_EQUATION", "TARGET_FOOTNOTE", "TARGET_ENDNOTE",
+             "TARGET_OUTLINE", "TARGET_BOOKMARK")
+_REF_CONTENT = ("OBJECT_TYPE_PAGE", "OBJECT_TYPE_NUMBER", "OBJECT_TYPE_CONTENTS", "OBJECT_TYPE_UPDOWNPOS")
+_REF_OPEN = ("HWPHYPERLINK_JUMP_CURRENTTAB", "HWPHYPERLINK_JUMP_NEWTAB", "HWPHYPERLINK_JUMP_NEWWINDOW")
+
+
+def _crossref_parameters(command: str) -> list[tuple[str, str, str]]:
+    """``RefPath``, ``RefType``, ``RefContentType``, ``RefHyperLink`` and
+    ``RefOpenType`` of a cross-reference command ``target;type;content;link;open;``."""
+
+    path, _, rest = command.partition(";")
+    codes = rest.split(";")
+
+    def name(table: tuple[str, ...], index: int) -> str:
+        code = codes[index] if len(codes) > index else ""
+        return table[int(code)] if code.isdigit() and int(code) < len(table) else ""
+
+    link = codes[2] if len(codes) > 2 else ""
+    return [
+        ("stringParam", "RefPath", f"{path};"),
+        ("stringParam", "RefType", name(_REF_TYPE, 0)),
+        ("stringParam", "RefContentType", name(_REF_CONTENT, 1)),
+        ("booleanParam", "RefHyperLink", "true" if link not in ("", "0") else "false"),
+        ("stringParam", "RefOpenType", name(_REF_OPEN, 3)),
+    ]
+
+
+#: The field property bit Hancom writes as the ``Fiexde`` parameter (its spelling).
+FIELD_FIXED = 0x2
+
 #: Hancom prints a memo's creation time in Korean time (UTC+9), marked ``Z``.
 MEMO_TIME_OFFSET = timedelta(hours=9)
 
@@ -420,13 +452,15 @@ def _memo_parameters(field: ct.FieldCtrl, shape: int | None) -> list[tuple[str, 
 
 
 def field_parameters(text_id: str, field: ct.FieldCtrl, memo_shape: int | None = None) -> list[tuple[str, str, str]]:
-    """``hp:parameters`` items for a field: ``Prop`` and ``Command``, then what
-    Hancom spells out of the command for the kinds that have it."""
+    """``hp:parameters`` items for a field: ``Fiexde`` when its property says
+    so, ``Prop`` and ``Command``, then what Hancom spells out of the command for
+    the kinds that have it."""
 
     # A control character in a command becomes a space, so its length
     # prefixes still count right.
     command = xml_spaced(field.command)
-    params = [("integerParam", "Prop", str(field.extra))]
+    params = [("booleanParam", "Fiexde", "1")] if field.props & FIELD_FIXED else []
+    params.append(("integerParam", "Prop", str(field.extra)))
     if field.command or text_id == "%%me":
         params.append(("stringParam", "Command", command))
     if text_id == "%clk":
@@ -441,6 +475,10 @@ def field_parameters(text_id: str, field: ct.FieldCtrl, memo_shape: int | None =
         params += _memo_parameters(field, memo_shape)
     elif text_id == "%pat":
         params.append(("stringParam", "Format", command))
+    elif text_id == "%xrf":
+        params += _crossref_parameters(command)
+    elif text_id == "%mmg":
+        params += [("stringParam", "FieldType", "USER_DEFINE"), ("stringParam", "FieldValue", command)]
     elif text_id == "%fmu" and "??" in command:
         # The formula ends where the first run of question marks leaves two:
         # a formula may end with a question mark of its own.
@@ -1220,7 +1258,7 @@ class SectionWriter(ShapeReader):
                 ("dirty", flag(field_ctrl.props & 0x8000)),
                 ("zorder", field_ctrl.z_order if field_ctrl.z_order else -1),
                 ("fieldid", field_id),
-                *((("metaTag", ""),) if FIELD_TYPES.get(text_id) != "MAILMERGE" else ()),
+                ("metaTag", ""),
             ),
         )
         body = self.memo_bodies.pop(0) if text_id == "%%me" and self.memo_bodies else None
