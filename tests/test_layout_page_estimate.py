@@ -1101,6 +1101,29 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+def test_an_opening_bracket_moves_down_with_the_syllable_after_it() -> None:
+    # Hancom laid out "%(평가", ")(평가", "a(평가", "%(34)" and the like after a tab, a space, a syllable or a digit,
+    # breaking between any two syllables, the line ending at the closing mark, at the bracket or at the character
+    # after it: each paragraph's lines start where Hancom's do (a tab counts eight in textpos).
+    root = HwpxDocument.open(io.BytesIO((FIXTURES / "pages_opening_brackets_at_line_ends.hwpx").read_bytes()))._root
+    measure = page_layout._Measure(root)
+    page = page_layout._page(root.sections[0].element)
+
+    for paragraph in root.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        size, refs, _ = page_layout._text_size(measure, runs)
+        style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+        shape = measure.shape(paragraph.get("paraPrIDRef"))
+        widths = page_layout._indented(page.column_width - shape.left - shape.right, shape, style)
+        text = page_layout._run_text(runs)
+
+        starts = measure.line_starts(text, widths, size, style)
+
+        textpos = [sum(8 if ch == "\t" else 1 for ch in text[:start]) for start in starts]
+        assert textpos == [int(segment.get("textpos"))
+                           for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")], text
+
+
 @pytest.mark.parametrize("name", ["pages_closing_bracket_after_a_space_starts_a_line",
                                   "pages_percent_after_a_space_starts_a_line"])
 def test_a_closing_mark_after_a_space_may_start_a_line(name: str) -> None:
