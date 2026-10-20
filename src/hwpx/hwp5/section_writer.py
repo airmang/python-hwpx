@@ -120,8 +120,6 @@ _SECTION_DIRECTION = {"HORIZONTAL": 0, "VERTICAL": 2, "VERTICALALL": 4}
 _FIELD_TEXT_ID = {kind: text_id for text_id, kind in FIELD_TYPES.items() if kind != "UNKNOWN"}
 #: Field types whose control record is headed ``%unk`` while the text keeps the real id.
 _FIELD_HEAD_UNKNOWN = frozenset({"MEMO", "PROOFREADING_MARKS_DELETE", "PROOFREADING_MARKS_SIGN"})
-#: Field types written with property bit 1 set.
-_FIELD_PROPS_BIT1 = frozenset({"MAILMERGE", "CROSSREF"})
 #: ``hp:ctrl`` children written as one control: the control character code and id.
 _MARKERS = {
     "pageNum": (21, "pgnp"),
@@ -1568,7 +1566,8 @@ class SectionRecords:
             params.setdefault(item.get("name", ""), item.text or "")
         extra = _number(params.get("Prop")) & 0xFF
         props = _flag(element, "editable") | _flag(element, "dirty") << 15
-        props |= 2 if kind in _FIELD_PROPS_BIT1 else 0
+        # Hancom keeps the parameter "Fiexde" (its spelling) as property bit 1.
+        props |= 2 if params.get("Fiexde", "").strip().lower() in ("1", "true") else 0
         try:
             instance_id = int(begin_id) & 0xFFFFFFFF
         except ValueError:

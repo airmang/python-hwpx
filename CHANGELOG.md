@@ -200,6 +200,11 @@
   잃지 않는다. 한/글은 둘을 `.hwp`의 MemoExtended·Bibliography 스트림에 두고 HWPX로 저장할 때 그 부분으로 쓴다(매니페스트도
   한/글 순서대로). 전에는 둘 다 빠졌다. 스트림 길이가 맞지 않으면 쓰지 않고 `conversion_report.dropped`에
   `memo-replies`·`bibliography`로 센다.
+- `.hwp`를 HWPX로 읽을 때 상호 참조와 메일 머지 필드의 매개변수를 한/글처럼 쓴다. 상호 참조는 명령(`Command`)에서
+  `RefPath`·`RefType`(표·그림·수식·각주·미주·개요·책갈피)·`RefContentType`(쪽·번호·내용·위/아래)·`RefHyperLink`·
+  `RefOpenType`을, 메일 머지는 `FieldType`(`USER_DEFINE`)·`FieldValue`를 풀어 쓰고 `metaTag=""`를 단다. 필드 속성의
+  비트 0x2는 어느 필드든 첫 매개변수 `Fiexde`(한/글 철자) 1로 쓰고, `.hwp`로 쓸 때도 `Fiexde`가 있는 필드만 그 비트를
+  켠다(전에는 상호 참조·메일 머지면 늘 켰다). 한컴오피스 2024 데스크톱이 같은 `.hwp`를 HWPX로 저장한 값과 같다.
 - `.hwp`를 HWPX로 읽을 때 한 문단에 쪽 번호 위치(`hp:pageNum`)가 여럿이면 마지막 것만 남긴다. 한/글은 마지막 것으로 쪽
   번호를 매기고 그것만 저장한다. 전에는 모두 남겨, 첫째가 "아래 가운데"이고 마지막이 "없음"인 문서를 첫째부터 읽는
   도구는 한/글에 없는 쪽 번호를 보았다.

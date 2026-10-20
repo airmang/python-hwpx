@@ -741,6 +741,72 @@ def test_a_document_that_tracks_changes_opens_with_its_body_and_change_marks() -
     ]
     assert [dict(e.attrib) for e in head.iter(f"{HH}trackChangeAuthor")] == [{"name": "편집자", "mark": "1", "id": "1"}]
 
+def _one_field(ctrl: str, props: int, extra: int, command: str) -> list[rec.Record]:
+    """A paragraph of one field of kind *ctrl* around a word."""
+
+    text = _extended(3, ctrl) + "글".encode("utf-16-le") + _field_end(ctrl, extra, props & 1, 0) + _u16(13)
+    field = ct.FieldCtrl(ctrl, props, extra, command, 2001, 0)
+    return _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, field.encode())])
+
+
+def _field_params(ctrl: str, props: int, extra: int, command: str) -> tuple[etree._Element, list[tuple[str, str, str]]]:
+    document = HwpxDocument.open(make_hwp(extra_paragraphs=_one_field(ctrl, props, extra, command)))
+    [begin] = list(document.sections[0].element.iter(f"{HP}fieldBegin"))
+    params = begin.find(f"{HP}parameters")
+    assert params is not None and params.get("cnt") == str(len(params))
+    return begin, [(etree.QName(p).localname, p.get("name") or "", p.text or "") for p in params]
+
+
+@pytest.mark.parametrize(
+    ("codes", "names"),
+    [
+        ("5;0;0;0;", ("TARGET_OUTLINE", "OBJECT_TYPE_PAGE", "false", "HWPHYPERLINK_JUMP_CURRENTTAB")),
+        ("0;1;0;1;", ("TARGET_TABLE", "OBJECT_TYPE_NUMBER", "false", "HWPHYPERLINK_JUMP_NEWTAB")),
+        ("1;2;1;2;", ("TARGET_PICTURE", "OBJECT_TYPE_CONTENTS", "true", "HWPHYPERLINK_JUMP_NEWWINDOW")),
+        ("2;3;0;0;", ("TARGET_EQUATION", "OBJECT_TYPE_UPDOWNPOS", "false", "HWPHYPERLINK_JUMP_CURRENTTAB")),
+        ("3;0;0;0;", ("TARGET_FOOTNOTE", "OBJECT_TYPE_PAGE", "false", "HWPHYPERLINK_JUMP_CURRENTTAB")),
+        ("4;0;0;0;", ("TARGET_ENDNOTE", "OBJECT_TYPE_PAGE", "false", "HWPHYPERLINK_JUMP_CURRENTTAB")),
+        ("6;0;0;0;", ("TARGET_BOOKMARK", "OBJECT_TYPE_PAGE", "false", "HWPHYPERLINK_JUMP_CURRENTTAB")),
+        ("7;4;0;0;", ("", "", "false", "HWPHYPERLINK_JUMP_CURRENTTAB")),
+    ],
+)
+def test_a_cross_reference_spells_its_command_out_as_hancom_does(codes: str, names: tuple[str, ...]) -> None:
+    # Hancom Office 2024 opens an .hwp cross-reference with these parameters out of its command (target; type;
+    # content; hyperlink; open), an empty name for a code past those it has, and metaTag "".
+    begin, params = _field_params("%xrf", 0, 0, f"?#1882958987;{codes}")
+    assert begin.get("type") == "CROSSREF" and begin.get("metaTag") == ""
+    assert params == [
+        ("integerParam", "Prop", "0"),
+        ("stringParam", "Command", f"?#1882958987;{codes}"),
+        ("stringParam", "RefPath", "?#1882958987;"),
+        ("stringParam", "RefType", names[0]),
+        ("stringParam", "RefContentType", names[1]),
+        ("booleanParam", "RefHyperLink", names[2]),
+        ("stringParam", "RefOpenType", names[3]),
+    ]
+
+
+def test_a_mail_merge_field_opens_with_its_type_and_value() -> None:
+    begin, params = _field_params("%mmg", 0x2, 8, "address")
+    assert begin.get("type") == "MAILMERGE" and begin.get("metaTag") == ""
+    assert params == [
+        ("booleanParam", "Fiexde", "1"),
+        ("integerParam", "Prop", "8"),
+        ("stringParam", "Command", "address"),
+        ("stringParam", "FieldType", "USER_DEFINE"),
+        ("stringParam", "FieldValue", "address"),
+    ]
+
+
+@pytest.mark.parametrize("props", [0x0, 0x2])
+def test_a_fields_fixed_property_opens_as_the_fiexde_parameter(props: int) -> None:
+    # Hancom writes the property bit 0x2 of a field (a hyperlink here; a click-here field, a cross-reference and a
+    # mail merge field alike) as a first booleanParam "Fiexde" (its spelling) of 1, and leaves it out without.
+    _, params = _field_params("%hlk", props, 0, "https\\://example.com;1;0;0;")
+    assert (params[0] == ("booleanParam", "Fiexde", "1")) == bool(props)
+    assert params[1 if props else 0] == ("integerParam", "Prop", "0")
+
+
 def test_fields_open_as_field_begin_and_end() -> None:
     document = HwpxDocument.open(make_hwp(fields=True))
     section = document.sections[0].element

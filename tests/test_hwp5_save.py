@@ -34,6 +34,7 @@ from tests.test_hwp5_open import (
     _compound,
     _docinfo,
     _extended,
+    _one_field,
     _paragraph,
     _picture,
     _section,
@@ -45,6 +46,31 @@ from tests.test_hwp5_open import (
 _PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 )
+
+
+@pytest.mark.parametrize(
+    ("ctrl", "props", "extra", "command"),
+    [
+        ("%xrf", 0x0, 0, "?#1882958987;5;0;0;0;"),
+        ("%xrf", 0x2, 0, "?#1882958987;5;0;0;0;"),
+        ("%mmg", 0x2, 8, "address"),
+        ("%hlk", 0x2, 0, "https\\://example.com;1;0;0;"),
+        ("%hlk", 0x0, 0, "https\\://example.com;1;0;0;"),
+    ],
+)
+def test_a_fields_fixed_property_saves_back_as_hancom_keeps_it(ctrl: str, props: int, extra: int, command: str) -> None:
+    """Hancom Office 2024 saves the parameter Fiexde as property bit 0x2 of any field, and none without it (a
+    cross-reference too)."""
+
+    original = make_hwp(extra_paragraphs=_one_field(ctrl, props, extra, command))
+    written = read_hwp5(write_hwp5(convert(original).files))
+    fields = [
+        ct.FieldCtrl.decode(r.payload)
+        for s in written.sections
+        for r in s.records
+        if r.tag == rec.CTRL_HEADER and r.payload[:4] == struct.pack("<I", bt.ctrl_word(ctrl))
+    ]
+    assert [(f.props, f.extra, f.command) for f in fields] == [(props, extra, command)]
 
 
 def _texts(document: HwpxDocument) -> list[str]:
