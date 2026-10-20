@@ -989,6 +989,10 @@ HANCOM_PAGES = {
     # A table-of-contents mark (hp:titleMark) alone in a run of 8, 12 or 22 pt before, inside, after or without
     # 10 or 18 pt text, one and three lines long: a character of no width, its line as tall as the mark's run
     "pages_title_marks_in_runs_of_other_sizes": 4,
+    # A picture in front of the text, 1000 to 4500 tall and 0 or 800 below its paragraph's top, in the first cell
+    # of a table set as a character, its rows 1500 tall: moving with the text, it pushes no line aside but the
+    # row grows to hold it below the cell's top margin; one that stays put leaves the row as it is
+    "pages_floating_pictures_in_cells": 4,
 }
 
 

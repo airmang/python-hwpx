@@ -670,11 +670,14 @@ class _Measure:
             base += len(line) + 1
         return starts
 
-    def stack(self, paragraphs: list[Any], width: int, caches: bool) -> tuple[int, int, int, int]:
+    def stack(self, paragraphs: list[Any], width: int, caches: bool,
+              floating: bool = False) -> tuple[int, int, int, int]:
         """(height, lines, pitch, size) of *paragraphs* laid out one under another at *width*; pitch
-        and size are the last paragraph's. With *caches* a paragraph keeps the lines of its cache."""
+        and size are the last paragraph's. With *caches* a paragraph keeps the lines of its cache. With
+        *floating* (a cell's paragraphs) the height reaches down to the foot of any object in front of or
+        behind the text placed from a paragraph's top (see :func:`_floating_reach`)."""
 
-        height, lines, pitch, size, pending = 0, 0, 0, 0, None
+        height, lines, pitch, size, pending, far = 0, 0, 0, 0, None, 0
         for paragraph in paragraphs:
             runs = paragraph.findall(f"{HP}run")
             size, refs, _ = _text_size(self, runs)  # an empty run takes no room, as in the body
@@ -700,6 +703,7 @@ class _Measure:
                     if pending is not None:
                         height += pending + shape.prev
                     top = height
+                    far = max(far, top + _floating_reach(runs, self)) if floating else far
                     height += sum(advance for _, advance in cached[:-1]) + cached[-1][0]
                     size, pitch = cached[-1]
                     pending = pitch - size + shape.next
@@ -717,12 +721,13 @@ class _Measure:
             if pending is not None:
                 height += pending + shape.prev
             top = height
+            far = max(far, top + _floating_reach(runs, self)) if floating else far
             height += (count - 1) * pitch + size
             pending = pitch - size + shape.next
             if top + _objects_reach(runs, self) > height:  # an object placed from the paragraph reaches lower
                 height, pending = top + _objects_reach(runs, self), shape.next
             lines += count
-        return height, lines, pitch, size
+        return max(height, far), lines, pitch, size
 
     def mixed_lines(self, paragraph: Any, runs: list[Any], shape: _Shape, width: int) -> tuple[tuple[int, int], ...]:
         """(height, advance) of each line of a paragraph whose characters differ in size or style, or that takes
@@ -1148,7 +1153,7 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     sub_list = cell.find(f"{HP}subList")
     if sub_list is not None and sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):  # never broken into lines:
         inner = _NO_WRAP  # each paragraph one line but for its line breaks, pressed into the cell when drawn
-    content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True)
+    content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True, floating=True)
     # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
     # take that room already)
     before = 0 if drawn or not paragraphs else measure.shape(paragraphs[0].get("paraPrIDRef")).prev
@@ -1637,6 +1642,20 @@ def _objects_reach(runs: list[Any], measure: _Measure) -> int:
         if name not in _OBJECTS or name == "tbl" or pos is None or obj.find(f"{HP}sz") is None \
                 or pos.get("treatAsChar") == "1" or obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") \
                 or pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP":
+            continue
+        reach = max(reach, _down(pos) + _extent(obj, "height", measure))  # one placed up stands at the top
+    return reach
+
+
+def _floating_reach(runs: list[Any], measure: _Measure) -> int:
+    """How far below the top of their paragraph in a cell the pictures and drawings in front of or behind the
+    text placed from it reach, when they move with the text (pos@flowWithText not "0"), their outer margins
+    included: they push no line aside, but the cell grows to hold them. One that stays put does not."""
+
+    reach = 0
+    for obj in (child for run in runs for child in run):
+        pos = obj.find(f"{HP}pos")
+        if _local(obj) not in _OBJECTS or _local(obj) == "tbl" or pos is None or obj.find(f"{HP}sz") is None                 or not _floating(obj) or pos.get("flowWithText") == "0" or pos.get("vertRelTo") != "PARA"                 or pos.get("vertAlign", "TOP") != "TOP":
             continue
         reach = max(reach, _down(pos) + _extent(obj, "height", measure))  # one placed up stands at the top
     return reach
