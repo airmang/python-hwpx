@@ -993,6 +993,10 @@ HANCOM_PAGES = {
     # of a table set as a character, its rows 1500 tall: moving with the text, it pushes no line aside but the
     # row grows to hold it below the cell's top margin; one that stays put leaves the row as it is
     "pages_floating_pictures_in_cells": 4,
+    # A chart wrapped square in a run's hp:switch (Hancom saves every chart in one), 20000 or 8000 wide, with a
+    # picture 8000 or 20000 wide in its hp:default: the lines beside it are as narrow as the chart leaves them
+    "pages_chart_case_wider_than_its_default": 1,
+    "pages_chart_case_narrower_than_its_default": 1,
 }
 
 
@@ -1278,25 +1282,37 @@ def test_a_page_margin_written_with_a_minus_sign_takes_the_new_page_margin(side:
         assert estimate.pages == 2
 
 
-def test_an_object_in_a_switch_is_not_followed() -> None:
-    # A chart in a run's hp:switch (with the OLE object standing for it in hp:default), wrapped square: Hancom
-    # lays the following lines out beside it, but the estimate looks for objects among a run's own children.
-    document = HwpxDocument.new()
-    document.add_paragraph("앞 문단")
-    paragraph = document.add_paragraph("곁 문단")
-    run = paragraph.element.find(f"{HP}run")
-    switch = etree.SubElement(run, f"{HP}switch")
-    for branch, name in (("case", "chart"), ("default", "ole")):
-        holder = etree.SubElement(switch, f"{HP}{branch}")
-        obj = etree.SubElement(holder, f"{HP}{name}", {"textWrap": "SQUARE"})
-        etree.SubElement(obj, f"{HP}sz", {"width": "32250", "height": "18000"})
-        etree.SubElement(obj, f"{HP}pos", {"treatAsChar": "0", "vertRelTo": "PARA", "horzRelTo": "COLUMN"})
+def test_an_object_in_a_switch_is_laid_out_as_its_case() -> None:
+    # A chart in a run's hp:switch, wrapped square, with the OLE object standing for it in hp:default: Hancom lays
+    # the following lines out beside the chart of the hp:case requiring the 2016 chart namespace, as if it stood in
+    # the run itself.
+    def with_switch(branches: tuple[tuple[str, str, str], ...]) -> bytes:
+        document = HwpxDocument.new()
+        document.add_paragraph("앞 문단")
+        paragraph = document.add_paragraph("곁 문단 " * 60)
+        run = paragraph.element.find(f"{HP}run")
+        holders = [run] if len(branches) == 1 else []
+        if not holders:
+            switch = etree.Element(f"{HP}switch")
+            run.insert(0, switch)
+        for branch, name, width in branches:
+            if branch != "run":
+                attributes = {f"{HP}required-namespace": "http://www.hancom.co.kr/hwpml/2016/ooxmlchart"}                     if branch == "case" else {}
+                holders.append(etree.SubElement(switch, f"{HP}{branch}", attributes))
+            obj = etree.Element(f"{HP}{name}", {"textWrap": "SQUARE"})
+            holders[-1].insert(0, obj)
+            etree.SubElement(obj, f"{HP}sz", {"width": width, "height": "9000"})
+            etree.SubElement(obj, f"{HP}pos", {"treatAsChar": "0", "vertRelTo": "PARA", "horzRelTo": "COLUMN",
+                                               "vertAlign": "TOP", "horzAlign": "LEFT"})
+        document.oxml.sections[0].mark_dirty()
+        return document.to_bytes()
 
-    document.oxml.sections[0].mark_dirty()
-    assert estimate_pages(document.to_bytes()).unsupported == ("section 0: an object in a switch (hp:switch)",)
-    run.remove(switch)
-    document.oxml.sections[0].mark_dirty()
-    assert estimate_pages(document.to_bytes()).unsupported == ()
+    switched = estimate_pages(with_switch((("case", "chart", "20000"), ("default", "ole", "8000"))))
+    as_its_case = estimate_pages(with_switch((("run", "chart", "20000"),)))
+    as_its_default = estimate_pages(with_switch((("run", "ole", "8000"),)))
+
+    assert switched.unsupported == ()
+    assert switched.lines == as_its_case.lines != as_its_default.lines
 
 
 def test_page_margins_leaving_no_body_are_unsupported() -> None:
