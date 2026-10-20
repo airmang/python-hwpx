@@ -1004,6 +1004,15 @@ HANCOM_PAGES = {
     # "'15.", a fixed-width space and "10월" in 굴림 11 pt at 자간 -8 % in cells 4250 to 4380 wide: one line from
     # 4300, the fixed-width space taking its 자간; the same with a space, and without one, for comparison
     "pages_fixed_width_space_line_ends": 4,
+    # A picture placed top and bottom or square, 1000 or 3000 tall, from the top of a paragraph in the first
+    # cell of a table set as a character (its rows 1500 tall): its control before, among or after one to five
+    # lines of text or alone, in the cell's first or second paragraph, offset 0 to 3000 below (or up), outer
+    # margins 0 or 300, 5000 to 12000 wide from the cell's left or right, spacing 400 before and 300 after or
+    # lines 200 % apart. It stands its offset below the top of its control's line (of the paragraph, above its
+    # spacing, for the first line); the lines from there on, of its paragraph and the next, reaching a
+    # top-and-bottom one go below its foot and those beside a square one break in the room beside it (none
+    # below 1440). One that stays put (flowWithText 0) pushes nothing
+    "pages_wrapped_pictures_in_cells": 12,
 }
 
 
