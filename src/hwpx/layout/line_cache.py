@@ -158,7 +158,8 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
     index = 0
     for section in root.sections:
         page = _pages._page(section.element)
-        beside = _wraps_text(section.element)  # lines beside an object are narrower: left for Hancom
+        # lines beside an object are narrower, and an object in a switch (a chart) was not checked: left for Hancom
+        beside = _wraps_text(section.element) or bool(_pages._switched(section.element))
         paragraphs = section.element.findall(f"{HP}p")
         lines = estimate.lines[index:index + len(paragraphs)]
         index += len(paragraphs)

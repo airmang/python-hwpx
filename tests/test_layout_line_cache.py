@@ -69,6 +69,24 @@ def test_a_paragraph_breaking_inside_latin_words_is_left_to_hancom() -> None:
     assert _segments(keeping.element) and not _segments(breaking.element)
 
 
+def test_a_section_holding_an_object_in_a_switch_is_left_to_hancom() -> None:
+    # Hancom saves every chart in a run's hp:switch. The estimate lays the chart out as that switch's hp:case, but
+    # no cache is written in its section, even with the chart placed top and bottom (no line beside it).
+    document = HwpxDocument.open(FIXTURES / "pages_chart_case_wider_than_its_default.hwpx")
+    for paragraph in _body(document):
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+    for name in ("chart", "ole"):  # Hancom saved the default picture as an OLE object
+        for obj in document.oxml.sections[0].element.iter(f"{HP}{name}"):
+            obj.set("textWrap", "TOP_AND_BOTTOM")
+    document.oxml.sections[0].mark_dirty()
+
+    report = write_line_caches(document)
+
+    assert not report.unsupported and report.written == 0
+    assert not any(_segments(paragraph) for paragraph in _body(document))
+
+
 def test_nothing_is_written_once_a_section_is_not_followed() -> None:
     # The estimate names every section it does not follow; write_line_caches stops at the first one, since it writes
     # nothing then anyway.

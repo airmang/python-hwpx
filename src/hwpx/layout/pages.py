@@ -291,7 +291,7 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
         try:
             if next(section.element.iter(f"{HP}endNote"), None) is not None:
                 _note_shape(section.element, "endNotePr")
-            layouts.append(_lay_section(measure, section.element))
+            layouts.append(_lay_section(measure, _unswitched(section.element)))
         except _Unsupported as exc:
             reasons.append(f"section {number}: {exc}")
             if first_reason:
@@ -1610,6 +1610,37 @@ def _note_shape(section: Any, kind: str = "footNotePr") -> _NoteShape:
     return _NoteShape(value("aboveLine"), round(millimetres * 7200 / 25.4), value("belowLine"), value("betweenNotes"))
 
 
+#: The namespaces an hp:case Hancom Office 2024 lays out requires: the 2016 chart one (a chart, whose hp:default
+#: holds the OLE object standing for it in older readers).
+_CASE_NAMESPACES = frozenset({"http://www.hancom.co.kr/hwpml/2016/ooxmlchart"})
+
+
+def _switched(section: Any) -> list[Any]:
+    """The hp:switch elements of *section*'s runs holding an object (Hancom saves every chart in one)."""
+
+    return [switch for switch in section.iter(f"{HP}switch")
+            if _local(switch.getparent()) == "run" and any(
+                _local(child) in _OBJECTS for branch in switch for child in branch)]
+
+
+def _unswitched(section: Any) -> Any:
+    """*section*, or a copy of it in which each run's hp:switch holding an object gives way to the branch Hancom
+    lays out: its hp:case requiring a namespace Hancom knows (a chart), else its hp:default."""
+
+    if not _switched(section):
+        return section
+    section = copy.deepcopy(section)
+    for switch in _switched(section):
+        branch = next((case for case in switch.findall(f"{HP}case")
+                       if case.get(f"{HP}required-namespace") in _CASE_NAMESPACES), switch.find(f"{HP}default"))
+        run = switch.getparent()
+        at = list(run).index(switch)
+        for child in reversed(list(branch) if branch is not None else []):
+            run.insert(at, child)
+        run.remove(switch)
+    return section
+
+
 def _check_section(section: Any) -> None:
     grid = next(section.iter(f"{HP}grid"), None)
     if grid is not None and (grid.get("lineGrid", "0") != "0" or grid.get("charGrid", "0") != "0"):
@@ -1617,12 +1648,6 @@ def _check_section(section: Any) -> None:
     # Hancom starts a new section, on a new page, at a later paragraph holding section settings.
     if any(next(paragraph.iter(f"{HP}secPr"), None) is not None for paragraph in section.findall(f"{HP}p")[1:]):
         raise _Unsupported("section settings (hp:secPr) after the first paragraph")
-    # An object in a run's hp:switch (a chart, or the OLE object standing for it) takes its room as any other
-    # does, but the estimate looks for objects among the run's own children only.
-    for switch in section.iter(f"{HP}switch"):
-        if _local(switch.getparent()) == "run" and any(
-                _local(child) in _OBJECTS for branch in switch for child in branch):
-            raise _Unsupported("an object in a switch (hp:switch)")
 
 
 def _objects_reach(runs: list[Any], measure: _Measure) -> int:
