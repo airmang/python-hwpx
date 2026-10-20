@@ -64,6 +64,7 @@ BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_b
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 KANA_HANJA = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kana_hanja_widths.hwpx"
 AUTO_SPACING_LETTER_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing.hwpx"
+AUTO_SPACING_SIZES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing_sizes.hwpx"
 
 CHARS = TextStyle(break_non_latin_word="KEEP_WORD")  # Hancom 글자 단위
 SPACE_RUNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_runs.hwpx"
@@ -574,10 +575,13 @@ def test_automatic_spacing_takes_its_letter_spacing_with_the_character_before_it
     assert hancom_line_starts(text, [16373, 15701], 9, cell) == [0, 30]
 
 
-def test_automatic_spacing_under_letter_spacing_is_as_wide_as_hancom_lays_it_out() -> None:
+@pytest.mark.parametrize("fixture", [AUTO_SPACING_LETTER_SPACING, AUTO_SPACING_SIZES])
+def test_automatic_spacing_under_letter_spacing_is_as_wide_as_hancom_lays_it_out(fixture: Path) -> None:
     # Hancom laid "가A", "가A가", "가1가" and the like and a tab out in 함초롬바탕 at 10 pt under 장평 80 to 150 and
-    # 자간 -10 to +10, each with the automatic spacing off and on: the tab narrows by the gaps.
-    document = HwpxDocument.open(AUTO_SPACING_LETTER_SPACING)
+    # 자간 -10 to +10, and in 함초롬돋움 at 9 and 11 pt under 장평 80 to 100 and 자간 -15 to +3, each with the
+    # automatic spacing off and on: the tab narrows by the gaps. At 11 pt the gap is 275, but its 자간 is taken
+    # with the quarter em rounded down to 68 layout units (255 after 함초롬돋움's 가 at 장평 80 and 자간 -8, not 251).
+    document = HwpxDocument.open(fixture)
     root = document._root
     measure = page_layout._Measure(root)
     header = document.oxml.headers[0].element
@@ -600,7 +604,7 @@ def test_automatic_spacing_under_letter_spacing_is_as_wide_as_hancom_lays_it_out
         gaps = sum(auto_space_gap(a, b, size / 100, style) for a, b in zip(text, text[1:]))
         assert gaps == (off - on) % 4000, (ref, text)
         compared += 1
-    assert compared == 30
+    assert compared >= 30
 
 
 def test_an_automatic_space_goes_with_the_character_before_it() -> None:
