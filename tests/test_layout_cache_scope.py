@@ -76,17 +76,20 @@ def test_single_cell_fill_invalidates_only_that_cell(blank_section: bytes) -> No
             for node in cell.element.iter()
             if node.tag.endswith("}linesegarray")
         )
+        # the paragraph holding the table: its line is as tall as the table
+        holders = sum(1 for node in cell.element.iterancestors() if node.tag.endswith("}p"))
         saved = doc.to_bytes()
     finally:
         doc.close()
 
     blank_count = _cache_count(blank_section)
     filled = _section_bytes(saved)
-    # Only the filled cell's caches may disappear — every other authored cache
-    # survives verbatim. (The old blanket policy dropped all of them: a 3-char
-    # fill removed 644 caches and shifted a 10-page form to 11 pages with 1621
-    # glyph overlaps on real Hancom.)
-    assert blank_count - _cache_count(filled) <= max(1, cell_cache_count + 1)
+    # Only the filled cell's caches and those of the paragraphs holding its table
+    # may disappear — every other authored cache survives verbatim. (The old
+    # blanket policy dropped all of them: a 3-char fill removed 644 caches and
+    # shifted a 10-page form to 11 pages with 1621 glyph overlaps on real Hancom.)
+    assert holders == 1
+    assert blank_count - _cache_count(filled) <= max(1, cell_cache_count + 1) + holders
     assert _cache_count(filled) >= blank_count - 2
     for cache in set(re.findall(rb"<hp:linesegarray>.*?</hp:linesegarray>", blank_section)):
         if cache in blank_section and blank_section.count(cache) > 1:

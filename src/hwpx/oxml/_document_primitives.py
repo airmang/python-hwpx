@@ -26,7 +26,7 @@ from .namespaces import (
     tag_namespace,
 )
 from .color import normalize_color
-from .utils import hancom_text_length, line_seg_past_text, tab_elements_in, tabs_as_elements, without_markup_nodes
+from .utils import hancom_text_length, holding_paragraphs, line_seg_past_text, tab_elements_in, tabs_as_elements, without_markup_nodes
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -266,12 +266,12 @@ _LAYOUT_CACHE_ELEMENT_NAMES = {"linesegarray"}
 
 
 def _clear_paragraph_layout_cache(paragraph: ET.Element) -> int:
-    """Remove cached layout metadata such as ``<hp:lineSegArray>``."""
+    """Remove cached layout metadata such as ``<hp:lineSegArray>``, also of the paragraphs holding its cell or caption."""
 
     removed = 0
-    for child in list(paragraph):
-        if _element_local_name(child).lower() in _LAYOUT_CACHE_ELEMENT_NAMES:
-            paragraph.remove(child)
+    for target in (paragraph, *holding_paragraphs(paragraph)):  # their line is as tall as the table it grows
+        for child in [c for c in target if _element_local_name(c).lower() in _LAYOUT_CACHE_ELEMENT_NAMES]:
+            target.remove(child)
             removed += 1
     return removed
 

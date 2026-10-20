@@ -168,6 +168,34 @@ def line_seg_past_text(line_seg: Any, text_length: int) -> bool:
     return not (textpos == text_length + 1 and flags.isdigit() and int(flags) & LINE_SEG_EMPTY)
 
 
+#: The boxes that grow with their paragraphs: a table cell, and an object's caption.
+_GROWING_BOXES = {"tc", "caption"}
+
+
+def holding_paragraphs(paragraph: Any) -> list[Any]:
+    """The paragraphs holding the table cells and captions *paragraph* (an ``hp:p``) sits in, innermost
+    first. Each holds the table (or object) on one line as tall as it, which grows with its cells' lines."""
+
+    holders: list[Any] = []
+    node = paragraph
+    while True:
+        sublist = _parent(node)
+        box = _parent(sublist) if sublist is not None and tag_local_name(sublist.tag) == "subList" else None
+        if box is None or tag_local_name(box.tag) not in _GROWING_BOXES:
+            return holders
+        node = _parent(box)
+        while node is not None and tag_local_name(node.tag) != "p":
+            node = _parent(node)
+        if node is None:
+            return holders
+        holders.append(node)
+
+
+def _parent(node: Any) -> Any:
+    getparent = getattr(node, "getparent", None)  # a plain ElementTree element knows no parent
+    return getparent() if getparent is not None else None
+
+
 def tabs_as_elements(root: etree._Element) -> bool:
     """Write each tab character inside ``hp:t`` of *root* as an ``hp:tab`` element.
 
