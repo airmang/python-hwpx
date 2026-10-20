@@ -171,6 +171,18 @@ def test_a_tab_reaching_a_right_stop_keeps_the_text_after_it_on_the_line() -> No
     assert hancom_line_starts("가가\t나나", [3500], 10, style) == [0, 3]
 
 
+def test_a_tab_on_the_automatic_tab_at_the_end_stays_on_its_line() -> None:
+    style = TextStyle(auto_tab_right=True)
+    # Nothing after the tab: it reaches the line's end and stays there, after spaces too; a tab after it starts
+    # the next line, where it reaches the end again.
+    assert hancom_line_starts("□ 상세 정보\t", [42520], 10, style) == [0]
+    assert hancom_line_starts("가" * 42 + "\t", [42520], 10, style) == [0]
+    assert hancom_line_starts("가나 \t", [42520], 10, style) == [0]
+    assert hancom_line_starts("가나\t\t", [42520], 10, style) == [0, 3]
+    # Text after it that does not fit: it starts the next line, the tab staying on this one.
+    assert hancom_line_starts("가" * 35 + "\t" + "나" * 12, [42520], 10, style) == [0, 36]
+
+
 def test_each_character_can_take_its_own_size() -> None:
     style = TextStyle(break_non_latin_word="KEEP_WORD")
 

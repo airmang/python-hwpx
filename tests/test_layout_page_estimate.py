@@ -499,6 +499,10 @@ HANCOM_PAGES = {
     # text at the end; a tab at the line's end goes on to the next line
     "pages_tab_stops_own_left_past_a_passed_stop": 1,
     "pages_tab_stops_own_tab_at_the_margin": 1,
+    # ... but the automatic tab at the end with no text after it stays on its line, a tab after it starting the
+    # next: 220 paragraphs of 2-42 syllables, justified and left-aligned, ending in a tab, a space and a tab, two
+    # tabs, or a tab and text
+    "pages_tab_stops_automatic_right_at_the_end": 4,
     "pages_picture_as_character_300_short_then_three_spaces": 1,  # a picture 3000 tall: the same
     "pages_table_cell_table_as_character_300_short_then_three_spaces": 1,  # in a cell of a flowing table
     "pages_table_as_character_then_a_line_break": 1,  # a line break after it: an empty line below it
