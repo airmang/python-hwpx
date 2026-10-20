@@ -805,8 +805,8 @@ class _Measure:
         it, and the paragraph reaches down to the table's foot at least; empty for any other paragraph."""
 
         obj = _object_before_text(runs, self.headed(paragraph))
-        if obj is None:
-            return ()
+        if obj is None or _local(obj) != "tbl" and obj.find(f"{HP}pos").get("flowWithText") == "0":
+            return ()  # a picture or drawing that stays put pushes no line aside in a cell
         top = _down(obj.find(f"{HP}pos"))
         foot = top + (_inline_table_height(self, obj) + _extent_margins(obj) if _local(obj) == "tbl"
                       else _extent(obj, "height", self))
@@ -831,6 +831,96 @@ class _Measure:
         if above + lines[-1][0] < foot:  # every line above the table: the paragraph holds it
             lines[-1] = (foot - above, foot - above)
         return tuple(lines)
+
+    def wrapped_lines(self, paragraphs: list[Any], width: int) -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]]:
+        """(height, advance) of every line of a cell's *paragraphs*, and the room above each when a part of the
+        cell starts with it (a paragraph's spacing before at its first line), when one of them holds a picture
+        or drawing placed top and bottom or square from its top that moves with the text (see
+        :func:`_wraps_in_cell`); empty for any other cell. Hancom stands such an object its offset below the
+        top of the line its control falls on (the paragraph laid out the cell's whole width), or of the
+        paragraph, above its spacing before, when that is the first line (an offset up counts as none), and
+        lays every line from there on, of that paragraph and the next ones, clear of it (see :func:`_clear_of`).
+        The cell reaches down to the lowest object's foot, and to that of any object in front of or behind
+        the text placed from a paragraph's top (see :func:`_floating_reach`). A paragraph with a valid layout
+        cache keeps its lines."""
+
+        owned = [[obj for run in paragraph.findall(f"{HP}run") for obj in run if _wraps_in_cell(obj)]
+                 for paragraph in paragraphs]
+        if not any(owned) or any(len(objects) > 1 for objects in owned):  # several in a paragraph: Hancom
+            return (), ()  # stacks them, which is not followed here (they count as before)
+        bands: list[tuple[int, int, int | None]] = []  # top, foot and room beside it (None: the lines go below)
+        tops: list[int] = []
+        heights: list[int] = []
+        leads: list[int] = []
+        after = 0  # where the next paragraph's first line stands, above its spacing before
+        far = 0  # the foot of the lowest object in front of or behind the text
+        for paragraph, objects in zip(paragraphs, owned):
+            obj = objects[0] if objects else None
+            shape = self.shape(paragraph.get("paraPrIDRef"))
+            runs = paragraph.findall(f"{HP}run")
+            text = _run_text(runs)
+            empty = not text and not self.headed(paragraph)  # a label is text
+            top = after + shape.prev if tops else 0
+            far = max(far, top + _floating_reach(runs, self))
+            place = 0 if obj is None else _control_place(runs, obj)
+            fixed = list(_cached_metrics(paragraph))  # Hancom keeps the lines of a valid cache
+            simple = not fixed and _table_alone(runs) is None and not self.spread_lines(paragraph, runs, width) \
+                and not self.marked_lines(paragraph, runs, width) \
+                and not self.mixed_lines(paragraph, runs, shape, width)
+            if not fixed and not simple:
+                if obj is not None:
+                    raise _Unsupported("an object placed top and bottom or square beside text laid out otherwise "
+                                       "in a cell")
+                fixed = list(self.stack_lines([paragraph], width, caches=True))
+            elif fixed:
+                fixed[-1] = (fixed[-1][0], fixed[-1][1] + shape.next)
+            if fixed:
+                if place:
+                    raise _Unsupported("an object placed top and bottom or square after the text of a paragraph "
+                                       "with a layout cache in a cell")
+                lines, narrow, own = _clear_of(self, fixed, top, shape.prev, 0, obj, bands, empty, width)
+                if narrow and not _cache_lines(paragraph):
+                    raise _Unsupported("text laid out otherwise beside a square-wrapped object in a cell")
+            else:
+                size, refs, _ = _text_size(self, runs)
+                style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+                if shape.font_line:  # an empty line as tall as its font makes it
+                    size = self.font_line(size, style)
+                pitch = _pitch(shape.kind, shape.value, size)
+                full = _line_widths(shape, width, style)
+                starts = self.line_starts(text, full, size, style) if text else [0]
+                anchor = sum(1 for start in starts[1:] if start < place)
+                narrow = {}
+                for _ in range(10):  # FormFit breaks the lines, and which are beside an object follows from them
+                    rooms = [(_line_widths(shape, narrow[index], style) if index in narrow else full)[min(index, 1)]
+                             for index in range(max(narrow, default=0) + 2)]
+                    count = len(self.line_starts(text, rooms, size, style)) if text else 1
+                    metrics = [(size, pitch)] * (count - 1) + [(size, pitch + shape.next)]
+                    lines, found, own = _clear_of(self, metrics, top, shape.prev, anchor, obj, bands, empty, width)
+                    if found == narrow:
+                        break
+                    narrow = found
+                else:
+                    raise _Unsupported("lines beside a square-wrapped object in a cell that do not settle")
+                if narrow and ("\n" in text or shape.left or shape.right or shape.indent or style.head):
+                    raise _Unsupported("a paragraph with margins, a label or line breaks beside a square-wrapped "
+                                       "object in a cell")
+            if obj is not None and own is None:
+                raise _Unsupported("an object placed top and bottom or square past its paragraph's lines in a cell")
+            if own is not None:
+                bands.append(own)
+            for index, (line_top, height, advance) in enumerate(lines):
+                if index == 0 and line_top > top:  # below an object: the line takes the room above it
+                    height, line_top = height + line_top - top, top
+                tops.append(line_top)
+                heights.append(height)
+                leads.append(shape.prev if index == 0 else 0)
+            after = lines[-1][0] + lines[-1][2]
+        heights[-1] = max(heights[-1], max(foot for _, foot, _ in bands) - tops[-1], far - tops[-1])
+        if any(later < earlier for earlier, later in zip(tops, tops[1:])):
+            raise _Unsupported("lines in a cell placed up past an object placed top and bottom or square")
+        return tuple((height, (nxt - line_top) if nxt is not None else height)
+                     for height, line_top, nxt in zip(heights, tops, [*tops[1:], None])), tuple(leads)
 
     def marked_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
         """(height, advance) of each line of a paragraph holding composed characters, ruby text, or objects
@@ -1153,6 +1243,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     sub_list = cell.find(f"{HP}subList")
     if sub_list is not None and sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):  # never broken into lines:
         inner = _NO_WRAP  # each paragraph one line but for its line breaks, pressed into the cell when drawn
+    # an object placed top and bottom or square from a paragraph without a layout cache: the lines clear of it
+    wrapped, wrapped_leads = ((), ()) if drawn or nested or pieces or inner == _NO_WRAP \
+        else measure.wrapped_lines(paragraphs, inner)
     content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True, floating=True)
     # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
     # take that room already)
@@ -1160,17 +1253,20 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     content += before
     if drawn:
         content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
+    elif wrapped:
+        content, lines = before + sum(advance for _, advance in wrapped[:-1]) + wrapped[-1][0], len(wrapped)
     vertical = margins.top + margins.bottom
     height = max(_cell_height(size), vertical + content)
-    first = drawn[0][0] if drawn else \
+    first = drawn[0][0] if drawn else before + wrapped[0][0] if wrapped else \
         before + (measure.stack_lines(paragraphs[:1], inner, caches=True, pieces=pieces) or ((0, 0),))[0][0]
     several = not nested and len(paragraphs) > 1  # its lines split at their own places, spacing included
-    metrics = (drawn or measure.stack_lines(paragraphs, inner, caches=True, pieces=pieces)) if nested or several \
-        else ()
+    metrics = (drawn or wrapped or measure.stack_lines(paragraphs, inner, caches=True, pieces=pieces)) \
+        if nested or several else ()
+    leads = wrapped_leads if wrapped else _line_leads(measure, paragraphs, inner, pieces) \
+        if several or before or pieces else ()
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
-                first=first, leads=_line_leads(measure, paragraphs, inner, pieces) if several or before or pieces
-                else (), pieces=pieces)
+                first=first, leads=leads if several or before or pieces else (), pieces=pieces)
 
 
 def _line_leads(measure: _Measure, paragraphs: list[Any], width: int, pieces: bool = False) -> tuple[int, ...]:
@@ -1652,9 +1748,9 @@ def _check_section(section: Any) -> None:
 
 def _objects_reach(runs: list[Any], measure: _Measure) -> int:
     """How far below the top of their paragraph in a cell, holding no text, the pictures and drawings placed
-    from it reach: top and bottom or square, not set as a character, their outer margins included (the cell
-    holds them, and its row grows to). So do the tables placed top and bottom from it, as tall as their rows
-    (one placed up stands at the paragraph's top)."""
+    from it reach: top and bottom or square, not set as a character, moving with the text, their outer margins
+    included (the cell holds them, and its row grows to; one that stays put does not count). So do the tables
+    placed top and bottom from it, as tall as their rows (one placed up stands at the paragraph's top)."""
 
     reach = 0
     if _run_text(runs).strip():  # text goes on below such an object: not followed here
@@ -1666,7 +1762,8 @@ def _objects_reach(runs: list[Any], measure: _Measure) -> int:
             continue
         if name not in _OBJECTS or name == "tbl" or pos is None or obj.find(f"{HP}sz") is None \
                 or pos.get("treatAsChar") == "1" or obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") \
-                or pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP":
+                or pos.get("flowWithText") == "0" or pos.get("vertRelTo") != "PARA" \
+                or pos.get("vertAlign", "TOP") != "TOP":
             continue
         reach = max(reach, _down(pos) + _extent(obj, "height", measure))  # one placed up stands at the top
     return reach
@@ -1684,6 +1781,91 @@ def _floating_reach(runs: list[Any], measure: _Measure) -> int:
             continue
         reach = max(reach, _down(pos) + _extent(obj, "height", measure))  # one placed up stands at the top
     return reach
+
+
+def _wraps_in_cell(obj: Any) -> bool:
+    """A picture or drawing (not a table) placed top and bottom or square from the top of its paragraph, not
+    set as a character, that moves with the text: in a cell, one that stays put (pos@flowWithText="0") pushes
+    no line aside and leaves the row as it is."""
+
+    pos = obj.find(f"{HP}pos")
+    return _local(obj) in _OBJECTS and _local(obj) != "tbl" and pos is not None and obj.find(f"{HP}sz") is not None \
+        and pos.get("treatAsChar") != "1" and obj.get("textWrap") in ("TOP_AND_BOTTOM", "SQUARE") \
+        and pos.get("flowWithText") != "0" and pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
+
+
+def _control_place(runs: list[Any], obj: Any) -> int:
+    """How many characters of the paragraph's text come before *obj*'s control."""
+
+    place = 0
+    for child in (child for run in runs for child in run):
+        if child is obj:
+            break
+        if _local(child) == "t":
+            place += len(_t_text(child))
+    return place
+
+
+def _cell_band(measure: _Measure, obj: Any, top: int, width: int) -> tuple[int, int, int | None]:
+    """The band an object wrapped in a cell *width* wide (see :func:`_wraps_in_cell`) placed from *top* takes:
+    its top and foot, its outer margins included, and the room beside it, ``None`` when it pushes the lines
+    below it (top and bottom, or less than 1440 beside it). Placed from the paragraph's or the column's left or
+    right, it stands from the cell's text area's."""
+
+    pos = obj.find(f"{HP}pos")
+    up = top + _down(pos)  # one placed up stands at that top
+    foot = up + _extent(obj, "height", measure)
+    if _wraps_top_and_bottom(obj, width):
+        return up, foot, None
+    if pos.get("horzRelTo") not in ("PARA", "COLUMN") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
+            or obj.get("textFlow", "BOTH_SIDES") not in ("BOTH_SIDES", "LARGEST_ONLY", "LEFT_ONLY", "RIGHT_ONLY"):
+        raise _Unsupported(f"{_local(obj)} wrapped square elsewhere than at a cell's edge")
+    wide, offset = _extent(obj, "width"), _pos_offset(pos, "horzOffset")
+    if offset >= 1 << 31:  # kept unsigned: one placed out past the edge
+        offset -= 1 << 32
+    start = offset if pos.get("horzAlign") == "LEFT" else width - wide - offset
+    left, right = start, width - start - wide
+    flow = obj.get("textFlow", "BOTH_SIDES")
+    if flow == "LARGEST_ONLY":
+        flow = "LEFT_ONLY" if left > right else "RIGHT_ONLY"
+    left = left if left >= _MIN_SIDE and flow != "RIGHT_ONLY" else 0
+    right = right if right >= _MIN_SIDE and flow != "LEFT_ONLY" else 0
+    if left and right:
+        raise _Unsupported(f"text on both sides of {_local(obj)} wrapped square in a cell")
+    return up, foot, (left or right) or None
+
+
+def _clear_of(measure: _Measure, metrics: list[tuple[int, int]], top: int, prev: int, anchor: int, obj: Any,
+              bands: list[tuple[int, int, int | None]], empty: bool, width: int
+              ) -> tuple[list[tuple[int, int, int]], dict[int, int], tuple[int, int, int | None] | None]:
+    """(top, height, advance) of each line of a cell paragraph whose lines are *metrics* (height, advance), its
+    first line's top *top* below its spacing before *prev*, laid out clear of the *bands* of the objects above
+    and of the band of its own object *obj* (see :func:`_cell_band`), whose control is on line *anchor*: a
+    line reaching a band with no room beside it goes below its foot, and one in a square object's band takes
+    the room beside it (returned by the line's index), as does *obj*'s band. An *empty* paragraph's line stays
+    beside its own object when that may not overlap the text (pos@allowOverlap="0")."""
+
+    placed: list[tuple[int, int, int]] = []
+    narrow: dict[int, int] = {}
+    own = None
+    for index, (height, advance) in enumerate(metrics):
+        y = placed[-1][0] + placed[-1][2] if placed else top
+        if obj is not None and index == anchor:
+            own = _cell_band(measure, obj, y - (prev if index == 0 else 0), width)
+        stays = own if empty and index == 0 and obj is not None \
+            and obj.find(f"{HP}pos").get("allowOverlap") == "0" else None
+        around = [*bands, *(() if own is None else (own,))]
+        moved = True
+        while moved:
+            moved = False
+            for band in around:
+                if band is not stays and band[2] is None and y < band[1] and y + height > band[0]:
+                    y, moved = band[1], True
+        beside = [band[2] for band in around if band[2] is not None and y < band[1] and y + height > band[0]]
+        if beside:
+            narrow[index] = min(beside)
+        placed.append((y, height, advance))
+    return placed, narrow, own
 
 
 def _placed_top_and_bottom(obj: Any) -> bool:
