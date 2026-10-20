@@ -137,6 +137,33 @@ def test_object_edits_make_what_hancom_makes(base: str, hancom: str, edit, heigh
     assert _table(data).get("rowCnt") == _table(expected).get("rowCnt")
     assert _table(data).get("colCnt") == _table(expected).get("colCnt")
     assert _table(data).find(HP + "sz").get("width") == _table(expected).find(HP + "sz").get("width")
+    # the table's height moves by what its rows gained or lost, as Hancom saves it
+    assert _table(data).find(HP + "sz").get("height") == _table(expected).find(HP + "sz").get("height")
+
+
+@pytest.mark.parametrize(("hancom", "side"), [("table_structure_merged_rows_below1", "below"),
+                                              ("table_structure_merged_rows_above1", "above")])
+def test_a_row_edit_leaves_the_table_as_tall_as_hancom_lays_it_out(hancom: str, side: str) -> None:
+    # Hancom laid out seven tables of 1,000 and 2,000 rows (flat, merged over rows 0-1 or 1-2, one holding three
+    # lines in a cell, one placed top and bottom), each followed by a paragraph, then the same file with a row
+    # inserted below (above) row 1 of each. The cells keep Hancom's line caches, so the page estimate takes the
+    # height a table with merged rows saves.
+    from hwpx.layout.pages import estimate_pages
+
+    document = HwpxDocument.open(str(FIXTURES / "table_structure_merged_rows_base.hwpx"))
+    for table in document.tables.all:
+        table.insert_rows(1, side=side)
+    data = document.to_bytes()
+
+    expected = (FIXTURES / f"{hancom}.hwpx").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as ours, zipfile.ZipFile(io.BytesIO(expected)) as theirs:
+        mine, hancoms = (etree.fromstring(archive.read("Contents/section0.xml")) for archive in (ours, theirs))
+    assert [t.find(HP + "sz").get("height") for t in mine.iter(HP + "tbl")] == \
+        [t.find(HP + "sz").get("height") for t in hancoms.iter(HP + "tbl")]
+    lines = [[int(seg.get("vertpos")) for seg in p.findall(f"{HP}linesegarray/{HP}lineseg")]
+             for p in hancoms.findall(HP + "p")]
+    estimated = [[line.vertpos for line in paragraph] for paragraph in estimate_pages(data).lines]
+    assert [mine for mine, theirs in zip(estimated, lines) if theirs] == [theirs for theirs in lines if theirs]
 
 
 def _merged_document() -> HwpxDocument:
