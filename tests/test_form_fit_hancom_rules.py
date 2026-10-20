@@ -658,6 +658,19 @@ def test_closing_punctuation_does_not_start_a_line() -> None:
     assert hancom_line_starts("가나다라마.", [5000], 10, CHARS) == [0, 4]
 
 
+def test_an_opening_bracket_moves_down_with_the_syllable_after_it() -> None:
+    # Breaking between any two syllables, "%(평가" ends a line before "(" when "%" and "(" fit and "평" does not:
+    # the bracket goes down with the syllable, though no line breaks between "%" and "(" otherwise. When "(" does
+    # not fit either, the line breaks before "%"; before digits ("%(34)") the word stays whole.
+    chars = replace(TextStyle(), break_non_latin_word="KEEP_WORD")
+    assert hancom_line_starts("가나다 %(평가", [4500], 10, chars) == [0, 5]
+    assert hancom_line_starts("가나다 %(평가", [4200], 10, chars) == [0, 4]
+    assert hancom_line_starts("가나다 %(34)", [4500], 10, chars) == [0, 4]
+    assert hancom_line_starts("가나다 a(평가", [4500], 10, chars) == [0, 5]
+    # Keeping Hangul words whole, no line breaks before "평" to begin with.
+    assert hancom_line_starts("가나다 %(평가", [4500], 10, TextStyle()) == [0, 4]
+
+
 def test_closing_punctuation_may_start_a_line_after_a_tab() -> None:
     # As after a space: the tab stays on its line and the mark starts the next, where after a character the
     # mark moves down with it.

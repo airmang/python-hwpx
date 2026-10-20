@@ -1628,6 +1628,12 @@ def _break_opportunities(text: str) -> set[int]:
     return opportunities
 
 
+#: Opening brackets that move down with the character after them: where a line could break before that
+#: character but for the bracket ending the line, Hancom breaks before the bracket instead, whatever stands
+#: before it ("%(평가" breaks as "%" | "(평가" where the "평" does not fit, breaking between any two syllables).
+_OPENING_MOVES_DOWN = frozenset("([")
+
+
 def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
     """Indices before which Hancom may start a new line under *style*."""
 
@@ -1747,6 +1753,10 @@ def hancom_line_starts(
                 and (text[index] not in _NO_LINE_START or text[index - 1] in _HANGING_SPACES
                      or text[index - 1] == "	")
                 and text[index - 1] not in _NO_LINE_END
+            ] + [  # the opening bracket before a break moves down with the character after it
+                index - 1 for index in breaks
+                if start < index - 1 and index <= end and text[index - 1] in _OPENING_MOVES_DOWN
+                and text[index - 2] not in _NO_LINE_END and text[index] not in _NO_LINE_START
             ]
             start = max(options) if options else end
             while start < length and text[start] in _HANGING_SPACES:
