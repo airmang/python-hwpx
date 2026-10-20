@@ -374,10 +374,11 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
     """Whether the line breaks at *starts* can be trusted to be Hancom's: every character is set in a face of
     :data:`_SURE_FACES` at 장평, 자간 and 최소 공백 within those seen on the desktop, takes an advance a glyph table gives (not a class
     average) and is a Hangul syllable or one of :data:`_SURE_GLYPHS`, and no line starts inside a word that did not
-    fit on a line of its own. Hancom takes the line breaks from a cache as written (a line short of a break is drawn with its text
-    pressed together), so a paragraph laid out less surely is left for Hancom."""
+    fit on a line of its own, nor in a paragraph that breaks inside Latin words (where Hancom's breaks beside closing marks
+    and wide brackets were not pinned down). Hancom takes the line breaks from a cache as written (a line short of a break is
+    drawn with its text pressed together), so a paragraph laid out less surely is left for Hancom."""
 
-    if style is None or style.condense > _SURE_CONDENSE:
+    if style is None or style.condense > _SURE_CONDENSE or style.break_latin_word != "KEEP_WORD":
         return False
     if " " in text and (style.condense or any(
             look.spacing or any(spacing for _, _, spacing in look.scripts) for look in set(looks or [style]))):
