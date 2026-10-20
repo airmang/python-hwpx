@@ -128,11 +128,39 @@ class TableStructureEdits:
         }
         xml = etree.tostring(element, encoding="unicode", with_tail=False)
         new = etree.fromstring(_restructure_table(xml, op, used_ids=used))
+        before = self._rows_height()
         for child in list(element):
             element.remove(child)
         element.attrib.clear()
         element.attrib.update(new.attrib)
         element.text = new.text
         element.extend(list(new))
+        self._grow_height(before)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()
+
+    def _rows_height(self) -> int | None:
+        """The table's rows' height as the page estimate measures them (:mod:`hwpx.layout.pages`), or None
+        when it does not follow the table."""
+
+        from ..layout import pages
+
+        document = self.paragraph.section.document
+        if document is None or not document.headers:
+            return None
+        try:
+            return pages._rows_height(pages._Measure(document), self.element)
+        except Exception:  # noqa: BLE001  # the height stays as it was
+            return None
+
+    def _grow_height(self, before: int | None) -> None:
+        """Move the table's saved height (``hp:sz``) by what its rows gained or lost in the edit, as
+        Hancom saves the height of the rows it lays out: the rows left as they were keep the height Hancom
+        gave them. With rows the estimate does not follow, the height stays as it was."""
+
+        after = self._rows_height()
+        size = self.element.find(f"{_HP}sz")
+        if before is None or after is None or size is None or after == before:
+            return
+        height = int(size.get("height", 0) or 0)
+        size.set("height", str(max(0, height + after - before)))
