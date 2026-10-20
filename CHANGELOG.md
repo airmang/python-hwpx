@@ -196,6 +196,10 @@
   쓰는 값이다(대개 56). 전에는 레코드가 있으면 늘 4를 썼다. `.hwp`로 쓸 때도 HWPX의 flags를 그 자리에 쓴다(없으면 56).
 - 메모 필드(`notes.add_memo`)와 `.hwp`에서 읽은 필드의 `hp:fieldBegin`에 한/글처럼 `metaTag=""`를 단다(메일 머지
   표시 필드는 전처럼 달지 않는다).
+- `.hwp`를 HWPX로 읽을 때 메모 답글 관계(`Contents/memoExtended.xml`)와 참고 문헌(`Custom/bibliography.xml`)을
+  잃지 않는다. 한/글은 둘을 `.hwp`의 MemoExtended·Bibliography 스트림에 두고 HWPX로 저장할 때 그 부분으로 쓴다(매니페스트도
+  한/글 순서대로). 전에는 둘 다 빠졌다. 스트림 길이가 맞지 않으면 쓰지 않고 `conversion_report.dropped`에
+  `memo-replies`·`bibliography`로 센다.
 - `.hwp`를 HWPX로 읽을 때 한 문단에 쪽 번호 위치(`hp:pageNum`)가 여럿이면 마지막 것만 남긴다. 한/글은 마지막 것으로 쪽
   번호를 매기고 그것만 저장한다. 전에는 모두 남겨, 첫째가 "아래 가운데"이고 마지막이 "없음"인 문서를 첫째부터 읽는
   도구는 한/글에 없는 쪽 번호를 보았다.
