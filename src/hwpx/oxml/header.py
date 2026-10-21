@@ -447,6 +447,7 @@ class ParagraphMargin:
     prev: Optional[str]
     next: Optional[str]
     other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+    units: Dict[str, Optional[str]] = field(default_factory=dict)  # each margin's unit: HWPUNIT or CHAR
 
 
 @dataclass(slots=True)
@@ -1415,11 +1416,13 @@ def parse_paragraph_margin(node: etree._Element) -> ParagraphMargin:
         "next": None,
     }
     other_children: Dict[str, List[GenericElement]] = {}
+    units: Dict[str, Optional[str]] = {}
 
     for child in node:
         name = local_name(child)
         if name in values:
             values[name] = _margin_value(child)
+            units[name] = child.get("unit")
         else:
             other_children.setdefault(name, []).append(parse_generic_element(child))
 
@@ -1430,6 +1433,7 @@ def parse_paragraph_margin(node: etree._Element) -> ParagraphMargin:
         prev=values["prev"],
         next=values["next"],
         other_children=other_children,
+        units=units,
     )
 
 
