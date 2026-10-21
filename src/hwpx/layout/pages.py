@@ -693,7 +693,7 @@ class _Measure:
         height, lines, pitch, size, pending, far = 0, 0, 0, 0, None, 0
         for paragraph in paragraphs:
             runs = paragraph.findall(f"{HP}run")
-            size, refs, _ = _text_size(self, runs)  # an empty run takes no room, as in the body
+            size, refs, _ = _text_size(self, runs, paragraph)  # an empty run takes no room, as in the body
             shape = self.shape(paragraph.get("paraPrIDRef"))
             pitch = _pitch(shape.kind, shape.value, size)
             table = _table_alone(runs)
@@ -826,7 +826,7 @@ class _Measure:
         shape = self.shape(paragraph.get("paraPrIDRef"))
         lines = list(self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width))
         if not lines:
-            size, refs, _ = _text_size(self, runs)
+            size, refs, _ = _text_size(self, runs, paragraph)
             style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
             count = max(1, self.lines(_run_text(runs), _line_widths(shape, width, style), size, style))
             size = self.font_line(size, style) if shape.font_line else size
@@ -895,7 +895,7 @@ class _Measure:
                 if narrow and not _cache_lines(paragraph):
                     raise _Unsupported("text laid out otherwise beside a square-wrapped object in a cell")
             else:
-                size, refs, _ = _text_size(self, runs)
+                size, refs, _ = _text_size(self, runs, paragraph)
                 style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
                 if shape.font_line:  # an empty line as tall as its font makes it
                     size = self.font_line(size, style)
@@ -2127,10 +2127,12 @@ def _floating(obj: Any) -> bool:
     return obj.get("textWrap") in _FLOATING and (pos is None or pos.get("treatAsChar") != "1")
 
 
-def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list[int]]:
+def _text_size(measure: _Measure, runs: list[Any], paragraph: Any = None) -> tuple[int, list[Any], list[int]]:
     """The paragraph's character size (its smallest), the character shapes of its runs holding text
     (the style comes from the first), and each character's size. An empty run takes no room; a paragraph
-    without text is as tall as the largest of its runs holding controls or objects and its last run."""
+    without text is as tall as the largest of its runs holding controls or objects and its last run, and,
+    given the *paragraph*, as the number label Hancom draws for it (in its own character shape; a bullet's
+    takes the paragraph's end's, see :meth:`_Measure.label_size`)."""
 
     lengths = [sum(len(_t_text(text)) for text in run.findall(f"{HP}t")) for run in runs]
     refs = [run.get("charPrIDRef") for run, length in zip(runs, lengths) if length]
@@ -2141,7 +2143,10 @@ def _text_size(measure: _Measure, runs: list[Any]) -> tuple[int, list[Any], list
         sizes += [measure.char_height(run.get("charPrIDRef"))] * length
     if not sizes and runs:  # no text: as tall as its runs holding controls or objects, and its end (the last run)
         held = [run.get("charPrIDRef") for run in runs[:-1] if any(child.tag != f"{HP}t" for child in run)]
-        return max(measure.char_height(ref) for ref in [*held, runs[-1].get("charPrIDRef")]), refs, sizes
+        tall = max(measure.char_height(ref) for ref in [*held, runs[-1].get("charPrIDRef")])
+        if paragraph is not None and measure.headed(paragraph):
+            tall = max(tall, measure.label_size(paragraph.get("paraPrIDRef"), runs[-1].get("charPrIDRef")))
+        return tall, refs, sizes
     return min(sizes or [measure.char_height(ref) for ref in refs]), refs, sizes
 
 
@@ -2610,7 +2615,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     beside = anchored is not None and len(objects) > 1  # objects set as characters on the lines below it
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
-    size, refs, sizes = _text_size(measure, runs)
+    size, refs, sizes = _text_size(measure, runs, paragraph)
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     widths: list[float] = _indented(page.column_width - shape.left - shape.right, shape, style)
     end = _end_size(measure, runs, sizes)
@@ -2821,7 +2826,7 @@ def _square_anchor_line(measure: _Measure, page: _Page, paragraph: Any, runs: li
             break
         if _local(child) == "t":
             place += len(_t_text(child))
-    size, refs, _ = _text_size(measure, runs)
+    size, refs, _ = _text_size(measure, runs, paragraph)
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     starts = measure.line_starts(_run_text(runs), _line_widths(shape, page.column_width, style), size, style)

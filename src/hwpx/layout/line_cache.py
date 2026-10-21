@@ -301,6 +301,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if shape.font_line or vertical not in _BASELINES or not _bold_sure(measure, paragraph, runs):
         return None
     size, refs, sizes = _pages._text_size(measure, runs)
+    if headed and not sizes and _pages._text_size(measure, runs, paragraph)[0] > size:
+        return None  # an empty paragraph under a taller number label (its line as tall as that): left for Hancom
     end = _pages._end_size(measure, runs, sizes)
     mixed = len(set(sizes)) > 1 or bool(end)  # each line as tall as its largest character
     looks = _pages._char_styles(measure, paragraph, runs)  # runs of another face, 장평 or 자간: each its own
