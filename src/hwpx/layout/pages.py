@@ -187,8 +187,8 @@ from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from ..form_fit.measure import (_GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts, indented_widths,
-                                margins_doubled, paragraph_label, text_style_from_refs)
+from ..form_fit.measure import (_GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts, in_char_units,
+                                indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -352,6 +352,15 @@ def _child(element: Any, name: str) -> Any:
     return next((child for child in element if _local(child) == name), None)
 
 
+def _char_unit_height(header: Any) -> int:
+    """The character size of the first paragraph style (바탕글), which margins in ``unit="CHAR"`` count in."""
+
+    style = next((el for el in header.iter(f"{HH}style") if el.get("id") == "0"), None)
+    ref = style.get("charPrIDRef") if style is not None else None
+    shape = next((el for el in header.iter(f"{HH}charPr") if el.get("id") == ref), None) if ref is not None else None
+    return int(shape.get("height", 1000)) if shape is not None else 1000
+
+
 @dataclass(frozen=True)
 class _Shape:
     """What the estimate reads from a paragraph shape (``hh:paraPr``)."""
@@ -384,7 +393,11 @@ def _para_shape(header: Any, para_pr_id: str, doubled: bool = False) -> _Shape:
 
     def value(name: str) -> int:
         element = _child(margin, name) if margin is not None else None
-        return int(element.get("value", 0)) // half if element is not None else 0
+        if element is None:
+            return 0
+        if element.get("unit") == "CHAR":  # two-hundredths of 바탕글's character size
+            return in_char_units(int(element.get("value", 0)), _char_unit_height(header)) // half
+        return int(element.get("value", 0)) // half
 
     breaks = shape.find(f"{HH}breakSetting")
     kind, amount = ("PERCENT", 160)

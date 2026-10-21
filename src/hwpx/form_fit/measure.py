@@ -2420,6 +2420,36 @@ def margins_doubled(root: object) -> bool:
         return False
 
 
+def in_char_units(value: float, height: int) -> int:
+    """A paragraph margin or spacing given in ``unit="CHAR"`` as HWPUNIT: Hancom Office 2024 counts *value*
+    two-hundredths of *height*, the character size of the first paragraph style (바탕글), whatever the
+    paragraph's own style or characters (80 at 10 pt lays out 400, at 15 pt 600)."""
+
+    return int(value * height / 200)
+
+
+def char_unit_height(root: Any) -> int:
+    """The character size margins in ``unit="CHAR"`` count in: that of the first paragraph style (바탕글)."""
+
+    try:
+        style = root.style(0)
+        run_style = root.char_property(style.char_pr_id_ref) if style is not None else None
+    except Exception:  # pragma: no cover - defensive
+        run_style = None
+    attributes = getattr(run_style, "attributes", None) or {}
+    return int(_style_number(attributes.get("height"), 1000.0))
+
+
+def _margin_hwpunit(root: Any, margin: Any, name: str) -> int:
+    """A paragraph shape's margin *name* (``intent``, ``left``, ...) in HWPUNIT, one in ``unit="CHAR"``
+    converted (see :func:`in_char_units`)."""
+
+    value = _style_number(getattr(margin, name, 0), 0.0)
+    if (getattr(margin, "units", None) or {}).get(name) == "CHAR":
+        return in_char_units(value, char_unit_height(root))
+    return int(value)
+
+
 def text_style_from_refs(
     document: object,
     para_pr_id_ref: object,
@@ -2504,10 +2534,10 @@ def text_style_from_refs(
         line_wrap=getattr(breaks, "line_wrap", None) or "BREAK",
         break_non_latin_word=getattr(breaks, "break_non_latin_word", None) or "BREAK_WORD",
         condense=int(_style_number(getattr(prop, "condense", 0), 0.0)),
-        indent=int(_style_number(getattr(margin, "intent", 0), 0.0)) // half,
-        margin_left=int(_style_number(getattr(margin, "left", 0), 0.0)) // half,
-        margin_right=int(_style_number(getattr(margin, "right", 0), 0.0)) // half,
-        space_before=int(_style_number(getattr(margin, "prev", 0), 0.0)) // half,
+        indent=_margin_hwpunit(root, margin, "intent") // half,
+        margin_left=_margin_hwpunit(root, margin, "left") // half,
+        margin_right=_margin_hwpunit(root, margin, "right") // half,
+        space_before=_margin_hwpunit(root, margin, "prev") // half,
         glyph_face=glyph_face,
         hangul_face=hangul_face,
         latin_face=latin_face,
