@@ -1013,6 +1013,12 @@ HANCOM_PAGES = {
     # top-and-bottom one go below its foot and those beside a square one break in the room beside it (none
     # below 1440). One that stays put (flowWithText 0) pushes nothing
     "pages_wrapped_pictures_in_cells": 12,
+    # Pictures set as characters, 6000 x 3000, with a caption above, below, left or right of them (gap 283, 3000
+    # wide beside), empty or of several lines in 1 pt or 10 pt, alone in their paragraph or after "앞 글 " with 36
+    # characters after them, and alone in the cell of a table: above or below, the caption's lines and gap make the
+    # picture's line taller (3000 + 283 + 100 for an empty 1 pt caption); beside, its width and gap make the picture
+    # wider (the text after it breaks onto a second line), its line staying 3000 tall
+    "pages_captions_on_inline_pictures": 4,
 }
 
 
