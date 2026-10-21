@@ -1117,10 +1117,13 @@ def _extent_margins(obj: Any) -> int:
     return 0 if margin is None else _margin(margin, "top") + _margin(margin, "bottom")
 
 
-def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, int], ...]:
+def _drawn_lines(measure: _Measure, paragraphs: list[Any], width: int | None = None) -> tuple[tuple[int, int], ...]:
     """(height, advance) of every line of *paragraphs* as Hancom placed them, when every paragraph keeps a
     valid layout cache; the last line reaches down to the foot of any top-and-bottom or square-wrapped
-    object placed from its paragraph's top (where the paragraph's first line would stand without it).
+    object placed from its paragraph that moves with the text. A picture or drawing stands from the top of
+    the line its control falls on (see :meth:`_Measure.wrapped_lines`): in a cell *width* wide, the line
+    laid out at the whole width, which is the first one narrower than that when the lines beside the object
+    broke again. A table stands from its paragraph's top (where the first line would stand without it).
     A row that went on over a page end has its cell's lines start over at the top of the next page: a
     line above where it would follow the one before (that one's height and spacing below it, or the
     paragraph's top for a paragraph's first line, the part starting at that top) stands where it would
@@ -1134,15 +1137,20 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, i
     foot, after, base = 0, 0, 0  # after: where the next paragraph's first line would stand
     for paragraph in paragraphs:
         shape = measure.shape(paragraph.get("paraPrIDRef"))
-        top = after + shape.prev if tops else 0
+        start = after if tops else 0  # the paragraph's top, above its spacing before
+        top = start + shape.prev if tops else 0
+        first = len(tops)  # the paragraph's first line's index
+        segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        objects = []
         for obj in (child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) in _OBJECTS):
             pos = obj.find(f"{HP}pos")
             if pos is None or pos.get("treatAsChar") == "1" or _floating(obj):
                 continue
             if obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") or pos.get("vertRelTo") != "PARA":
                 return ()
-            foot = max(foot, top + _down(pos) + _extent(obj, "height", measure))
-        segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+            if _local(obj) != "tbl" and pos.get("flowWithText") == "0":  # stays put: pushes no line, the row
+                continue  # as it is
+            objects.append(obj)
         below = top  # where the paragraph's next line would stand
         for index, segment in enumerate(segments):
             vertpos = int(segment.get("vertpos", 0))
@@ -1154,6 +1162,23 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any]) -> tuple[tuple[int, i
             if index == 0 and tops[-1] > top:  # below an object placed from the paragraph's top: the line
                 heights[-1] += tops[-1] - top  # takes the room above it, and goes on to a next page with it
                 tops[-1] = top
+        for obj in objects:
+            if _local(obj) == "tbl":
+                foot = max(foot, top + _down(obj.find(f"{HP}pos")) + _extent(obj, "height", measure))
+                continue
+            # a picture or drawing stands its offset below the top of the line its control falls on, where
+            # that line would follow the one before (Hancom then moves it clear), or of the paragraph, above
+            # its spacing before, on its first line
+            line = _anchor_line(measure, paragraph, paragraph.findall(f"{HP}run"), "", obj, [], 0, None,
+                                ((0, 0),), len(segments))
+            if width is not None:  # the lines beside it Hancom broke anew, narrower: it stands from the line
+                full = width - shape.left - shape.right  # it fell on at the cell's whole width, the first of them
+                line = next((index for index, segment in enumerate(segments[:line])
+                             if int(segment.get("horzsize", 0)) < full - (abs(shape.indent) if index == 0 else 0)),
+                            line)
+            up = start if line == 0 else \
+                tops[first + line - 1] + heights[first + line - 1] + int(segments[line - 1].get("spacing", 0))
+            foot = max(foot, up + _down(obj.find(f"{HP}pos")) + _extent(obj, "height", measure))
         last = segments[-1]
         after = int(last.get("vertpos", 0)) + base + int(last.get("textheight", 0)) + int(last.get("spacing", 0)) \
             + shape.next
@@ -1225,6 +1250,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     placed = [paragraph for paragraph in paragraphs if _placed_from(paragraph)
               or _holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None]
     pieces = nested and bool(placed) and all(_table_pieces(measure, paragraph) is not None for paragraph in placed)
+    size = cell.find(f"{HP}cellSz")
+    margins = cell_margins_of(cell, table)
+    inner = (int(size.get("width", 0)) if width is None else width) - margins.left - margins.right
     if nested and not pieces and any(_holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None
                                      for paragraph in paragraphs):
         drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
@@ -1236,10 +1264,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
                                  and _table_alone(paragraph.findall(f"{HP}run")) is None):
             raise _Unsupported("a nested table")
     elif not pieces and any(_placed_from(paragraph) for paragraph in paragraphs):  # an object placed from a
-        drawn = _drawn_lines(measure, paragraphs)  # paragraph: the lines as Hancom drew them, below it or beside it
-    size = cell.find(f"{HP}cellSz")
-    margins = cell_margins_of(cell, table)
-    inner = (int(size.get("width", 0)) if width is None else width) - margins.left - margins.right
+        drawn = _drawn_lines(measure, paragraphs, inner)  # paragraph: the lines as Hancom drew them, below it or
+        # beside it
     sub_list = cell.find(f"{HP}subList")
     if sub_list is not None and sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):  # never broken into lines:
         inner = _NO_WRAP  # each paragraph one line but for its line breaks, pressed into the cell when drawn
