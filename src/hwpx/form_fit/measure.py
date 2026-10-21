@@ -1223,12 +1223,12 @@ def font_line_height(face: str | None, height: int) -> int | None:
 def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float, bold: bool = False) -> float:
     """HWPUNIT a glyph of design advance *units* (of *upem*) takes at a character
     height of *height* HWPUNIT, its 자간 included; *bold* in a face of
-    ``_BOLD_WIDER_FACES``, a twentieth of the em wider (seen at 장평 100 %)."""
+    ``_BOLD_WIDER_FACES``, a twentieth of the em wider before its 장평 scales it."""
 
     scaled = Fraction(units * (height // _LAYOUT_UNIT), upem)
+    if bold:
+        scaled += Fraction(height // _LAYOUT_UNIT, 20)
     if ratio == 100:
-        if bold:
-            scaled += Fraction(height // _LAYOUT_UNIT, 20)
         advance = math.floor(scaled + Fraction(1, 2))
     else:
         advance = math.floor(scaled * Fraction(ratio) / 100)
@@ -1313,7 +1313,7 @@ class TextStyle:
     :func:`glyph_script`) takes its own script's face, as Hancom lays it
     out when a character shape gives its scripts different faces (see
     :func:`glyph_face_of`). ``bold`` glyphs in a face of ``_BOLD_WIDER_FACES``
-    (the 한양 faces) are a twentieth of the em wider; in the others bold
+    (the 한양 faces) are a twentieth of the em wider, before their 장평 scales them; in the others bold
     keeps the regular advance. ``auto_space_latin`` and ``auto_space_digit``
     are the paragraph shape's automatic spacing (``hh:autoSpacing``): a
     quarter of the em, 자간 applied, between a Hangul syllable and a Latin
