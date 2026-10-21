@@ -540,3 +540,38 @@ def test_a_paragraph_its_shape_squeezes_onto_one_line_is_left_for_hancom() -> No
     write_line_caches(document)
 
     assert not any(_segments(p) for p in squeezed)
+
+
+def _png() -> bytes:
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", b"\0\0\0\x01\0\0\0\x01\x08\x02\0\0\0")
+            + chunk(b"IDAT", zlib.compress(b"\0\x30\x80\xc0")) + chunk(b"IEND", b""))
+
+
+@pytest.mark.parametrize("flow", ["1", "0"])
+def test_a_cell_holding_a_picture_placed_top_and_bottom_is_left_for_hancom(flow: str) -> None:
+    # Hancom lays a cell's lines out clear of a picture placed top and bottom from one of its paragraphs and grows
+    # its row to hold it; one that does not move with the text moves the table's own line below it instead. The
+    # cell and the paragraph holding the table are left for Hancom; the cell beside it gets its cache.
+    document = HwpxDocument.new()
+    image = document.media.add_image(_png(), "png")
+    table = document.add_table(1, 2)
+    first, second = table.cell(0, 0), table.cell(0, 1)
+    first.paragraphs[0].add_run("가나다라마바사 아자차카타파하")
+    picture = first.paragraphs[0].add_picture(image, width=5000, height=3000, treat_as_char=False).element
+    picture.set("textWrap", "TOP_AND_BOTTOM")
+    picture.find(f"{HP}pos").attrib.update({"flowWithText": flow, "vertRelTo": "PARA", "vertAlign": "TOP",
+                                            "horzRelTo": "PARA", "horzAlign": "LEFT"})
+    first.add_paragraph("뒤 글")
+    second.paragraphs[0].add_run("칸")
+
+    write_line_caches(document)
+
+    assert not _segments(_body(document)[-1])
+    assert not any(_segments(p) for p in first.element.findall(f"{HP}subList/{HP}p"))
+    assert _segments(second.element.find(f"{HP}subList/{HP}p"))

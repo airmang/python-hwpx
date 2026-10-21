@@ -1114,6 +1114,18 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+def test_cells_keeping_their_caches_hold_their_wrapped_pictures_where_hancom_put_them() -> None:
+    # A Hancom Office 2024 save of 50 tables set as characters, every paragraph keeping the layout cache Hancom
+    # wrote, a picture placed top and bottom or square in the first cell of each: its control after the text of a
+    # long paragraph (on its last line, or on the line it falls on laid out the cell's whole width, before the lines
+    # beside the picture broke again), in a paragraph with spacing before, margins, an indent or wider line
+    # spacing, a second picture in the paragraph after, or a picture that does not move with the text (pushing
+    # nothing). Each row reaches down to the picture's foot as Hancom drew it, and the later lines follow.
+    data = (FIXTURES / "pages_wrapped_pictures_in_cached_cells.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, 11)
+
+
 def test_an_opening_bracket_moves_down_with_the_syllable_after_it() -> None:
     # Hancom laid out "%(평가", ")(평가", "a(평가", "%(34)" and the like after a tab, a space, a syllable or a digit,
     # breaking between any two syllables, the line ending at the closing mark, at the bracket or at the character
