@@ -1665,9 +1665,9 @@ def _in_sub_list(element: Any) -> bool:
 
 
 def _caption(measure: _Measure, table: Any) -> tuple[int, int]:
-    """How much room a table's caption takes above it and below it: its first paragraph's spacing before
-    (Hancom starts the caption's first line below it), its lines and its gap (a caption beside the table
-    takes none)."""
+    """How much room a table's (or another object's) caption takes above it and below it: its first
+    paragraph's spacing before (Hancom starts the caption's first line below it), its lines and its gap (a
+    caption beside the object takes none)."""
 
     caption = table.find(f"{HP}caption")
     if caption is None or caption.get("side") not in ("TOP", "BOTTOM"):
@@ -2321,7 +2321,9 @@ def _effect_room(obj: Any, width: int, height: int) -> tuple[int, int, int, int]
 def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
     """(width, height) an object set as a character takes, its outer margins included; a table as tall
     as its rows, a drawing with its shadow's move (see :func:`_shadow_drop`), a picture with the room its
-    effects take (see :func:`_effect_room`)."""
+    effects take (see :func:`_effect_room`). Set as a character, any object's caption takes room as a
+    table's does: above or below it, its lines and its gap in the height (see :func:`_caption`); beside it, its
+    width and its gap in the width, the height staying the object's however tall the caption runs."""
 
     size = obj.find(f"{HP}sz")
     margin = obj.find(f"{HP}outMargin")
@@ -2331,7 +2333,20 @@ def _object_extent(obj: Any, measure: _Measure) -> tuple[int, int]:
         else _drawn_height(obj, measure) + (_shadow_drop(obj) if tac else 0)
     width = int(size.get("width", 0))
     left, right, top, bottom = _effect_room(obj, width, height) if tac else (0, 0, 0, 0)
+    if tac and _local(obj) != "tbl":
+        height += sum(_caption(measure, obj))
+        width += _caption_beside(obj)
     return width + extra[0] + extra[1] + left + right, height + extra[2] + extra[3] + top + bottom
+
+
+def _caption_beside(obj: Any) -> int:
+    """How much wider an object set as a character is for its caption beside it: the caption's width and its
+    gap (none for a caption above or below it)."""
+
+    caption = obj.find(f"{HP}caption")
+    if caption is None or caption.get("side", "LEFT") not in ("LEFT", "RIGHT"):
+        return 0
+    return int(caption.get("width", 0)) + int(caption.get("gap", 0))
 
 
 def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None,
@@ -2504,7 +2519,7 @@ def _object_line(
         else:
             tall += _shadow_drop(obj)
             room = _effect_room(obj, int(obj.find(f"{HP}sz").get("width", 0)), _drawn_height(obj, measure))
-            tall += room[2] + room[3]
+            tall += room[2] + room[3] + sum(_caption(measure, obj))  # as in _object_extent
         tall = max(tall, size)
         return 1, tall, _object_pitch(shape, obj, tall, size), None
     on_paragraph = pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
