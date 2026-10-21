@@ -1019,6 +1019,11 @@ HANCOM_PAGES = {
     # picture's line taller (3000 + 283 + 100 for an empty 1 pt caption); beside, its width and gap make the picture
     # wider (the text after it breaks onto a second line), its line staying 3000 tall
     "pages_captions_on_inline_pictures": 4,
+    # Paragraph shapes giving one margin in unit="CHAR" (hp:case; hp:default holds 2v+1 in HWPUNIT) where 바탕글's
+    # characters are 15 pt, in paragraphs of style 0 and of a style whose characters are 24 pt: spacing after and
+    # before 80, left and right margins 200, an indent of 200 and -200. Hancom counts each two-hundredths of
+    # 바탕글's character size (600 and 1500 here), whatever the paragraph's own style or characters
+    "pages_margins_in_character_units": 3,
 }
 
 
@@ -1153,6 +1158,32 @@ def test_an_opening_bracket_moves_down_with_the_syllable_after_it() -> None:
         textpos = [sum(8 if ch == "\t" else 1 for ch in text[:start]) for start in starts]
         assert textpos == [int(segment.get("textpos"))
                            for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")], text
+
+
+def test_margins_in_character_units_break_lines_where_hancom_does() -> None:
+    # The line count alone does not show a narrower line: the paragraphs with a margin or an indent in unit="CHAR"
+    # start each line where Hancom's do (an indent of 200 takes 1500 off the first line at 바탕글's 15 pt).
+    root = HwpxDocument.open(io.BytesIO((FIXTURES / "pages_margins_in_character_units.hwpx").read_bytes()))._root
+    measure = page_layout._Measure(root)
+    page = page_layout._page(root.sections[0].element)
+    checked = 0
+
+    for paragraph in root.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        text = page_layout._run_text(runs)
+        if len(text) < 40:  # the short paragraphs measure spacing, not line breaks
+            continue
+        size, refs, _ = page_layout._text_size(measure, runs)
+        style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+        shape = measure.shape(paragraph.get("paraPrIDRef"))
+        widths = page_layout._indented(page.column_width - shape.left - shape.right, shape, style)
+
+        starts = measure.line_starts(text, widths, size, style)
+
+        assert starts == [int(segment.get("textpos"))
+                          for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")], text[:20]
+        checked += 1
+    assert checked == 8
 
 
 @pytest.mark.parametrize("name", ["pages_closing_bracket_after_a_space_starts_a_line",
