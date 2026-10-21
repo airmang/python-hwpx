@@ -1024,6 +1024,10 @@ HANCOM_PAGES = {
     # before 80, left and right margins 200, an indent of 200 and -200. Hancom counts each two-hundredths of
     # 바탕글's character size (600 and 1500 here), whatever the paragraph's own style or characters
     "pages_margins_in_character_units": 3,
+    # Numbered and bulleted paragraphs, empty or with text in 10 or 15 pt, each label in its own 8, 13 or 20 pt
+    # character shape or none: an empty numbered paragraph's line is as tall as its number when that is larger, as
+    # one with text is; a bullet's character shape never makes a line taller
+    "pages_empty_numbered_paragraphs": 2,
 }
 
 
