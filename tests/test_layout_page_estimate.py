@@ -1028,6 +1028,12 @@ HANCOM_PAGES = {
     # character shape or none: an empty numbered paragraph's line is as tall as its number when that is larger, as
     # one with text is; a bullet's character shape never makes a line taller
     "pages_empty_numbered_paragraphs": 2,
+    # Three times on A4: 37 lines, an empty paragraph holding a table flowing with the text (8 rows, moved row by
+    # row) whose first row has no room under it, so that it starts on the next page, two empty lines, then a
+    # paragraph that does not fit at the page end. When the table ends 64768 down the body (65762), the line of an
+    # empty paragraph holding another such table goes on to the page after, at its top; when it ends at 64760 the
+    # line still fits below it there. A paragraph of text after a table ending at 65560 also goes to the page after
+    "pages_anchor_lines_past_a_moved_table": 9,
 }
 
 
