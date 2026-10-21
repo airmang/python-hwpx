@@ -140,7 +140,8 @@
   with the default cell margins (the cell's own margins, alignment and character size change
   neither) and none of its text is left: the lines that do not fit go on with it, which is then at
   least as tall as they are with the cell's margins. A flowing table's anchor line that does not fit
-  at the page end goes to the next page, and the table with it. When a table moved row by row has no
+  at the page end goes to the next page, and the table with it (to the page after when an earlier
+  table that started past its anchor ends there too low for the line below it). When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
   room at the foot of the page and go on over the page end. Endnotes go after the document's text,
@@ -3616,6 +3617,8 @@ class _Paginator:
     def _flow(self, para: _Para, table: _FlowTable, start: int) -> None:
         if self.last_vp is not None and start + para.height(0) > self.body:  # the anchor line goes on
             start = self._next_frame(para, 0, True)                         # to the next page
+            if self.reserved.get(self.frame) and start + para.height(0) > self.body:  # below a table started
+                start = self._next_frame(para, 0, True)  # past its anchor there, ending too low for it: the page after
         if self._below_bands(start) != start:
             if self.frame not in self.moved_tops:
                 self._flow_below_band(para, table, self._below_bands(start))
