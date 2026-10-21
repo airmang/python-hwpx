@@ -42,7 +42,7 @@ laid out as one. Nothing is written when the estimate does not follow the docume
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from ..form_fit.measure import (
@@ -323,12 +323,12 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if mixed or looks is not None:
         if mixed and "\t" in text:  # a tab among characters of several sizes: its width is less sure
             return None
-        def lay_out(room: list[float]) -> list[int]:
+        def lay_out(room: list[float], style: Any = style) -> list[int]:
             return _pages._metric_starts(measure, text, room, sizes, style, {}, looks)
         starts = lay_out(widths)
         metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end)
     else:
-        def lay_out(room: list[float]) -> list[int]:
+        def lay_out(room: list[float], style: Any = style) -> list[int]:
             return measure.line_starts(text, room, size, style) if text else [0]
         starts = lay_out(widths)
         metrics = ((size, _pages._pitch(shape.kind, shape.value, size)),) * len(starts)
@@ -336,6 +336,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if mixed and _taller_past_a_break(text, sizes, starts, metrics):
         return None
+    if style is not None and style.condense and "  " in text and lay_out(widths, replace(style, condense=0)) != starts:
+        return None  # 최소 공백 shrinking two spaces in a row decides a break: Hancom shrinks them less (how: not pinned down)
     if not _sure_of(text, starts, style, looks):
         return None
     if any(lay_out([room + shift for room in widths]) != starts for shift in (-_MARGIN, _MARGIN)):
