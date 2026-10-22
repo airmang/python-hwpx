@@ -118,14 +118,23 @@ _FIXED_SPACE = "\u3000"
 _GLYPH_SPACE = "\ufdd0"
 #: The spaces Hancom makes half an em wide (unless the font's own space is used).
 _HALF_EM_SPACES = frozenset(" \u00a0")
-#: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance (a glyph all the
-#: same: rounded, \uc7a5\ud3c9 and \uc790\uac04 applied as any other is).
+#: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance, and as it lays out a
+#: space: 장평 rounded half up, 자간 applied, not widened when bold.
 _HALF_EM_GLYPHS = frozenset("!")
 #: The Hiragana and Katakana blocks: a kana no glyph table lists takes the Hangul syllables' advance.
 _KANA_FIRST, _KANA_LAST = 0x3040, 0x30FF
 #: The faces Hancom lays a bold glyph out wider in: by a twentieth of the em, added before the advance is rounded
 #: to whole layout units. In the other faces a bold glyph keeps its regular advance.
 _BOLD_WIDER_FACES = frozenset({"한양중고딕", "한양신명조", "한양견고딕"})
+#: The glyphs a bold run keeps at their regular advance even in those faces: the Hangul compatibility jamo of
+#: clusters of final consonants, the filler and the archaic jamo (the syllables and the other jamo are widened).
+_BOLD_KEPT_GLYPHS = frozenset("ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ" + "".join(map(chr, range(0x3164, 0x318F))))
+#: The faces whose Latin glyphs Hancom lays out on a grid of its own, in units per em: their design advances
+#: rounded to it ("a" in 한양견고딕, 2278 of 4096, is 667 of 1200). The face's other glyphs keep the font's
+#: advances and are not widened when bold.
+_LATIN_GRID: dict[str, int] = {"한양견고딕": 1200}
+#: The glyphs beyond Latin-1 and Latin Extended-A Hancom lays out on a face's Latin grid.
+_LATIN_GRID_QUOTES = frozenset("‘’“”„‟")
 #: Pictographs Hancom draws as color emoji: 1.373 em in every face (a design advance of 1373 in 1000), however
 #: the face draws its other symbols. The pictograph planes past the BMP, and the BMP symbols that take the emoji
 #: presentation there (⚫ ⚡ ⌛ ☎ ✔ ➡ and other symbols stay the face's own). The regional indicators of a flag
@@ -1055,7 +1064,7 @@ _DESIGN: dict[str, tuple[int, int, int, tuple[int, ...]]] = {
         2956, 2956, 2956, 2956, 2731, 2503, 3188, 2956, 1140, 2278, 2956, 2503, 3414, 2956, 3188, 2731,
         3147, 2956, 2731, 2503, 2956, 2731, 3867, 2731, 2731, 2503, 1379, 1399, 1379, 1752, 2048, 1089,
         2278, 2503, 2278, 2503, 2278, 1366, 2503, 2503, 1140, 1140, 2278, 1140, 3642, 2503, 2503, 2503,
-        2503, 1594, 2278, 1366, 2503, 2278, 3188, 2278, 2278, 2048, 1645, 1235, 1639, 2053, 1561, 3933,
+        2503, 1594, 2278, 1366, 2503, 2278, 3188, 2278, 2278, 2048, 1645, 1235, 1639, 2053, 1561, 3932,
         2253, 2253, 1229, 1229, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048, 3152, 3972, 3972, 3972,
         3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 4096, 2540, 2544, 2738, 1734,
         3972, 4048, 3584, 2560, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972, 3972,
@@ -1238,11 +1247,9 @@ def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float, 
 def _laid_out_half_glyph(height: int, ratio: float, spacing: float) -> float:
     """HWPUNIT a glyph of half an em (``_HALF_EM_GLYPHS``) takes at a character height of *height* HWPUNIT, its
     자간 included: the half em in whole layout units, rounded down as a space's is (a 9 pt "!" is 448, not 452),
-    then scaled by its 장평 as any glyph is."""
+    then scaled by its 장평 and rounded half up as a space's is (at 7 pt and 120 %, 87 x 1.2 = 104.4 units, 416)."""
 
-    half = Fraction(height // _LAYOUT_UNIT, 2)
-    advance = math.floor(half) if ratio == 100 else math.floor(half * Fraction(ratio) / 100)
-    return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
+    return _laid_out_space(height, ratio, spacing)
 
 
 @lru_cache(maxsize=512)
@@ -1559,6 +1566,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         # a no-break space takes its 장평 but no 자간
         return _laid_out_space(height, ratio, 0.0 if ch == " " else spacing)
     face = style.hangul_face if cls == "hangul" else glyph_face_of(ch, style)
+    kept = ch in _BOLD_KEPT_GLYPHS
     if emoji:
         design, base = _EMOJI_UNITS, _ADVANCE_EM[cls]
     elif cls == "hangul":
@@ -1571,8 +1579,14 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
             # a kana the face lacks Hancom lays out as wide as the face's Hangul syllables
             design = _hangul_units(_laid_out_face(style.hangul_face), "가")
             face = style.hangul_face
+        elif design is not None and face in _LATIN_GRID:
+            if ord(ch) < 0x180 or ch in _LATIN_GRID_QUOTES:
+                grid = _LATIN_GRID[face]
+                design = math.floor(Fraction(design[0] * grid, design[1]) + Fraction(1, 2)), grid
+            else:
+                kept = True
     if design is not None:
-        bold = style.bold and not emoji and face in _BOLD_WIDER_FACES
+        bold = style.bold and not emoji and not kept and face in _BOLD_WIDER_FACES
         return _laid_out(design[0], design[1], height, ratio, spacing, bold)
     return base * font_pt * 100.0 * ratio / 100.0 * (1 + spacing / 100.0)
 

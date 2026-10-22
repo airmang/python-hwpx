@@ -62,6 +62,7 @@ PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 BOLD_ADVANCES_UNDER_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances_under_ratio.hwpx"
+HANYANG_GLYPH_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_glyph_grid.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
@@ -476,6 +477,48 @@ def test_bold_glyphs_under_a_ratio_take_the_advances_hancom_lays_them_out_at() -
         x = sum(char_advance(ch, size, style) for ch in text[:3])
         assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
     assert bold_seen == 756
+
+
+def test_hanyang_gyeon_latin_glyphs_lie_on_a_grid_of_its_own() -> None:
+    # Hancom lays 한양견고딕's Latin glyphs out at their design advances (of 4096) rounded to 1200 units per em:
+    # a bold "a" (2278, 667 of 1200) at 10 pt is 250 x 667 / 1200 + 12.5 = 151.46 units, 151 (604), not 152.
+    # Its other glyphs keep the font's advances and are not widened when bold.
+    gyeon = TextStyle(hangul_face="한양견고딕", glyph_face="한양견고딕", bold=True)
+    assert char_advance("a", 10, gyeon) == 604
+    assert char_advance("※", 10, gyeon) == char_advance("※", 10, replace(gyeon, bold=False)) == 768
+
+
+def test_bold_keeps_clustered_and_archaic_jamo_at_their_regular_advance() -> None:
+    # In the 한양 faces Hancom widens a bold Hangul syllable and the jamo of single consonants and vowels, but not
+    # the jamo of clusters of final consonants, the filler or the archaic jamo.
+    jung = TextStyle(hangul_face="한양중고딕", glyph_face="한양중고딕", bold=True)
+    assert char_advance("가", 10, jung) == char_advance("ㄱ", 10, jung) == 1052
+    assert char_advance("ㄳ", 10, jung) == char_advance("ㆍ", 10, jung) == char_advance("ㅥ", 10, jung) == 1000
+
+
+def test_an_exclamation_mark_takes_its_ratio_as_a_space_does() -> None:
+    # Hancom scales the half em of a "!" by its 장평 and rounds half up, as it does a space's: at 7 pt and 120 %,
+    # 87 x 1.2 = 104.4 units (416), and at 6 pt and 50 %, 75 x 0.5 = 37.5 units, 38 (152).
+    style = TextStyle(hangul_face="한양중고딕", glyph_face="한양중고딕")
+    assert char_advance("!", 7, replace(style, ratio=120)) == 416
+    assert char_advance("!", 6, replace(style, ratio=50)) == 152
+
+
+def test_hanyang_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three glyphs then a tab at 7, 11 and 20 pt under 장평 80 to 120 %, regular and bold: Latin
+    # glyphs, full-width symbols, ㆍ and ! in 한양견고딕, and ! and the jamo ㆍ, ㄱ, ㄳ and ㅥ in 한양중고딕 and
+    # 한양신명조. Each tab reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(HANYANG_GLYPH_GRID)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold)
+    assert len(paragraphs) == 600
 
 
 def test_a_no_break_space_takes_its_ratio_and_no_spacing() -> None:
