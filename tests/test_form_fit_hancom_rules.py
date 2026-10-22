@@ -75,6 +75,9 @@ CONDENSE_ROWS = [
     Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_condense_{name}.hwpx"
     for name in ("margin_word", "space_without_spacing", "text_reaching_margin")
 ]
+CONDENSE_SPACE_RUNS = (
+    Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_condense_space_runs_past_margin.hwpx"
+)
 LABELS = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_bullet_and_number_labels.hwpx"
 WINGDINGS_LABEL = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_wingdings_label_rows.hwpx"
 HY_HEADLINE_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hy_headline_cells.hwpx"
@@ -1306,6 +1309,17 @@ def test_condense_breaks_where_hancom_breaks(fixture: Path) -> None:
     rows = _row_line_starts(fixture)
 
     assert len(rows) == 50
+    assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
+
+
+def test_condense_shrinks_a_run_of_spaces_until_a_space_reaches_the_margin() -> None:
+    # Words "가나다" two and three spaces apart with 최소 공백 40, in 함초롬돋움 at 10 pt and 맑은 고딕 at 10 pt (장평
+    # 94, 자간 -8), the first line narrowed so that the fourth or ninth word fits only by shrinking the spaces before
+    # it. Hancom shrank every space of a run alike; once a space started at the margin the next word started the
+    # next line, and a third space starting there began it, even where the text before had reached the margin.
+    rows = _row_line_starts(CONDENSE_SPACE_RUNS)
+
+    assert len(rows) == 32
     assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
 
 
