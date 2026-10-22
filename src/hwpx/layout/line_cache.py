@@ -308,6 +308,9 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     looks = _pages._char_styles(measure, paragraph, runs)  # runs of another face, 장평 or 자간: each its own
     if headed and (_pages._head_size(measure, paragraph, sizes) or shape.indent):  # a label of its own size
         return None
+    if _pages._head_size(measure, paragraph, sizes):
+        return None  # a run holding only controls (a section's definition, a page number) taller than the text
+
     text = _pages._run_text(runs)
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     if style is not None and style.head and not (headed and style.head_hangs):
