@@ -1034,6 +1034,13 @@ HANCOM_PAGES = {
     # empty paragraph holding another such table goes on to the page after, at its top; when it ends at 64760 the
     # line still fits below it there. A paragraph of text after a table ending at 65560 also goes to the page after
     "pages_anchor_lines_past_a_moved_table": 9,
+    # Four times on A4, each from a page break: lines of text, then a paragraph holding a table (20000 tall) placed
+    # top and bottom at the foot of the page's body or of the paper and kept on its paragraph's page
+    # (pos@holdAnchorAndSO="1"), then three lines. When the paragraph's first line with its spacing reaches the
+    # table's band on its page (44400 + 1600 past 45762, 52800 + 1600 past 54266, an empty one at 46400), Hancom
+    # puts that paragraph and its table on the next page, at its top, and leaves the lines above where they are,
+    # even one standing where the band would have been; when it fits (44000 + 1600) only the lines after go on
+    "pages_held_bottom_object_anchors": 8,
 }
 
 

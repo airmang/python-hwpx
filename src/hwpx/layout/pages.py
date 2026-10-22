@@ -44,7 +44,10 @@
   or of the page (its body) keeps every line of its page out of its band (a line reaching it, in any
   paragraph on that page, goes below it -- on to the next page when the band reaches the body's
   foot -- and the lines after follow; with several columns of equal width, in each column it
-  reaches over from the paper's left, centre or right, the others running past it), and so does one
+  reaches over from the paper's left, centre or right, the others running past it; in one column, when
+  such a band reaching the body's foot keeps to its paragraph's page (pos@holdAnchorAndSO="1") and that
+  paragraph's first line with its spacing reaches it there, the paragraph goes on to the next page's
+  top with it and the lines above stay where they are), and so does one
   wrapped square there that leaves less than a line's room
   (1440) on either side of it across the text; one that leaves more (in one column) changes nothing
   when no line, table or object of its page reaches its band, and a line keeping its layout cache
@@ -1463,6 +1466,10 @@ class _Para:
     #: (top, bottom) in the body of an object anchored here and placed on the paper or the page, whether it
     #: leaves a line's room beside it and the columns it reaches over (see :func:`_paper_band`)
     paper: tuple[int, int, bool, tuple[int, ...]] | None = None
+    #: the top of such a band that pushes the lines below it to the body's foot and that keeps the object on its
+    #: paragraph's page (pos@holdAnchorAndSO="1"): when the first line with its spacing reaches it there, the
+    #: paragraph goes on to the next page's top with the object, the lines above staying where they are
+    held: int | None = None
     #: in columns of unequal width, a paragraph without a layout cache: its text, to break again
     reflow: _Reflow | None = None
     #: holding nothing, in a section hiding a page's first empty lines (see :meth:`_Paginator._paragraph`)
@@ -2085,6 +2092,19 @@ def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, in
     else:  # from the body's (the paper's) top or foot
         top = (offset if align == "TOP" else height - offset - tall) + base
     return top, top + tall, square and not across, columns
+
+
+def _held_top(page: _Page, paragraph: Any, band: tuple[int, int, bool, tuple[int, ...]]) -> int | None:
+    """The top of *band*, the band of *paragraph*'s object placed on the paper or the page, when it pushes the
+    lines reaching it below the body's foot and the object keeps to its paragraph's page (see
+    :attr:`_Para.held`) -- in one column only; otherwise ``None``."""
+
+    top, bottom, room, _ = band
+    obj = next(child for run in paragraph.findall(f"{HP}run") for child in run
+               if _local(child) in _OBJECTS and _on_paper(child))
+    if room or page.columns != 1 or bottom < page.body or obj.find(f"{HP}pos").get("holdAnchorAndSO") != "1":
+        return None
+    return top
 
 
 def _across_the_text(obj: Any, page: _Page, slack: int = 0) -> bool:
@@ -3974,6 +3994,10 @@ class _Paginator:
         below = False  # the next line was moved below an object's band
         while remaining:
             done = para.lines - remaining
+            if para.held is not None and first_chunk and not fresh and start < self.body \
+                    and start + para.advance(0) > para.held:
+                start, below = self.body, True  # its object's band, on this page, takes its first line: both go on
+                continue
             hit = self._band_hit(para, done, remaining, start)
             if hit is not None and hit[0] == 0:  # the line reaches an object placed on the paper: below it
                 start, below = hit[1], True
@@ -4232,7 +4256,7 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
         para, wrap = _wrapped_paragraph(measure, page, paragraph, wrap, index in moved)
         band = _paper_band(measure, page, paragraph)
         para = replace(para, kept=bool(_cached_metrics(paragraph)))
-        paras.append(para if band is None else replace(para, paper=band))
+        paras.append(para if band is None else replace(para, paper=band, held=_held_top(page, paragraph, band)))
     paper = {index: para.paper for index, para in enumerate(paras) if para.paper is not None}
     bands: dict[int, list[tuple[int, int]]] = {}
     sides: dict[int, list[tuple[int, int]]] = {}
