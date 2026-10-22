@@ -1682,11 +1682,12 @@ def hancom_line_starts(
     that starts at or past it begins the next line, as does a fixed-width
     space that starts there right after a word; typed ideographic spaces all
     hang (see ``_GLYPH_SPACE``). With ``style.condense`` the
-    spaces after the line's first text may shrink by that share of a space
-    without its 자간 to make room for a character; the spaces before it never
-    do. Once the line's text reaches the margin (its 자간 included), its spaces
-    hang and the next word starts the next line however far the spaces could
-    shrink: only the word that crosses the margin shrinks them. The line then
+    spaces after the line's first text, each space of a run of them alike, may
+    shrink by that share of a space without its 자간 to make room for a
+    character; the spaces before it never do. Once the line's text, or a space
+    after it, reaches the margin (its 자간 included, unshrunk), the spaces that
+    follow hang and the next word starts the next line however far the spaces
+    could shrink: only the word that crosses the margin shrinks them. The line then
     ends at the last break opportunity that fits — never before a closing
     punctuation mark attached to the character before it, nor after an opening
     one — or mid-word when no opportunity is left. *sizes*, when given, holds each character's size in pt (runs of
@@ -1724,13 +1725,13 @@ def hancom_line_starts(
                                                                          advances, point))
             advance = char_advance(ch, size, look) if fixed is None else fixed
             if ch in _HANGING_SPACES:
-                if used >= width and end > start and not full and _spills(ch, text[end - 1]) \
+                if used >= width and end > start and _spills(ch, text[end - 1]) \
                         and not (ch == text[end - 1] == " " and end - 2 >= start and (  # the second space
                             end - 2 in objects or text[end - 2] not in _HANGING_SPACES + "￼")):
                     spilled = True
                     break
-                if seen and used >= width and text[end - 1] not in _HANGING_SPACES:
-                    full = True  # the text reached the margin: its spaces hang, the next word starts the next line
+                if seen and used >= width:
+                    full = True  # the text or a space after it reached the margin: the next word starts the next line
                 used += advance
                 # the spaces before the line's first text never shrink, nor do fixed-width or typed ideographic ones
                 if seen and ch not in (_FIXED_SPACE, _GLYPH_SPACE):
