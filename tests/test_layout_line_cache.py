@@ -23,7 +23,8 @@ HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_
                    "line_cache_auto_spacing.hwpx", "line_cache_auto_spacing_tabs.hwpx", "line_cache_squeezed.hwpx",
                    "pages_empty_numbered_paragraphs.hwpx", "line_cache_condensed_space_runs.hwpx",
                    "line_cache_condensed_space_runs_at_line_ends.hwpx",
-                   "formfit_condense_space_runs_past_margin.hwpx"]
+                   "formfit_condense_space_runs_past_margin.hwpx",
+                   "line_cache_taller_control_runs.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -71,6 +72,22 @@ def test_a_condensed_paragraph_with_spaces_in_a_row_gets_hancoms_cache() -> None
     for name in ("line_cache_condensed_space_runs_at_line_ends.hwpx", "line_cache_condensed_space_runs.hwpx"):
         written, paragraphs = cached(name)
         assert written * 10 >= paragraphs * 8, (name, written, paragraphs)
+
+
+def test_a_paragraph_after_a_taller_run_of_controls_is_left_to_hancom() -> None:
+    # Hancom made the line of 10 pt text as tall as a 20 pt run before it holding only controls: the section's and
+    # columns' definitions and a page number (the first paragraph), or a page hiding (the second). Such a paragraph
+    # gets no cache (the caches written are Hancom's, see HANCOM_LAID_OUT); an empty 20 pt run before the text takes no
+    # room, and one ending the paragraph makes its line as tall as itself, as FormFit has them.
+    document = HwpxDocument.open(FIXTURES / "line_cache_taller_control_runs.hwpx")
+    paragraphs = _body(document)
+    for paragraph in paragraphs:
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    assert [bool(_segments(paragraph)) for paragraph in paragraphs] == [False, False, True, True, True]
 
 
 def test_a_paragraph_breaking_inside_latin_words_is_left_to_hancom() -> None:
