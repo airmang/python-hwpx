@@ -42,7 +42,7 @@ laid out as one. Nothing is written when the estimate does not follow the docume
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..form_fit.measure import (
@@ -336,8 +336,6 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if mixed and _taller_past_a_break(text, sizes, starts, metrics):
         return None
-    if style is not None and style.condense and "  " in text and lay_out(widths, replace(style, condense=0)) != starts:
-        return None  # 최소 공백 shrinking two spaces in a row decides a break: Hancom shrinks them less (how: not pinned down)
     if not _sure_of(text, starts, style, looks):
         return None
     if any(lay_out([room + shift for room in widths]) != starts for shift in (-_MARGIN, _MARGIN)):

@@ -22,7 +22,8 @@ HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_
                    "line_cache_script_faces.hwpx", "line_cache_fields.hwpx", "line_cache_superscripts.hwpx",
                    "line_cache_auto_spacing.hwpx", "line_cache_auto_spacing_tabs.hwpx", "line_cache_squeezed.hwpx",
                    "pages_empty_numbered_paragraphs.hwpx", "line_cache_condensed_space_runs.hwpx",
-                   "line_cache_condensed_space_runs_at_line_ends.hwpx"]
+                   "line_cache_condensed_space_runs_at_line_ends.hwpx",
+                   "formfit_condense_space_runs_past_margin.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -53,24 +54,23 @@ def test_the_caches_written_are_the_ones_hancom_wrote(name: str) -> None:
         assert [dict(tab.attrib) for tab in mine.iter(f"{HP}tab")] == [dict(tab.attrib) for tab in theirs.iter(f"{HP}tab")]
 
 
-def test_a_condensed_paragraph_whose_spaces_in_a_row_decide_a_break_is_left_to_hancom() -> None:
-    # Hancom laid out paragraphs with 최소 공백 50 % whose words are two spaces apart, or one and two by turns, in
-    # 함초롬돋움 at 8 pt and 맑은 고딕 at 10 pt, 장평 and 자간 100/0, 93/-7 or 94/-8. Where shrinking those spaces lets
-    # FormFit take more characters on a line, Hancom takes fewer, and how it shrinks them was not pinned down: such a
-    # paragraph gets no cache (the caches written are Hancom's, see HANCOM_LAID_OUT). With 최소 공백 40 % and words one
-    # space apart the paragraphs keep theirs.
-    def written(name: str) -> tuple[int, int]:
+def test_a_condensed_paragraph_with_spaces_in_a_row_gets_hancoms_cache() -> None:
+    # Hancom laid out paragraphs with 최소 공백 40 % and 50 % whose words are two spaces apart, or one and two by turns,
+    # in 함초롬돋움 at 8 pt and 맑은 고딕 at 10 pt, 장평 and 자간 100/0, 93/-7 or 94/-8. It shrank every space of a run
+    # alike, and once a space started at the margin the next word started the next line: most such paragraphs now get
+    # a cache, and the caches written are Hancom's (see HANCOM_LAID_OUT).
+    def cached(name: str) -> tuple[int, int]:
         document = HwpxDocument.open(FIXTURES / name)
         for paragraph in _body(document):
             for cache in paragraph.findall(f"{HP}linesegarray"):
                 paragraph.remove(cache)
         write_line_caches(document)
-        texts = [("".join(t.text or "" for t in p.iter(f"{HP}t")), bool(_segments(p))) for p in _body(document)]
-        return (sum(1 for text, cached in texts if "  " in text and not cached),
-                sum(1 for text, cached in texts if text and "  " not in text and cached))
+        runs = [bool(_segments(p)) for p in _body(document) if "  " in "".join(t.text or "" for t in p.iter(f"{HP}t"))]
+        return sum(runs), len(runs)
 
-    assert written("line_cache_condensed_space_runs_at_line_ends.hwpx")[0]
-    assert written("line_cache_condensed_space_runs.hwpx")[1]
+    for name in ("line_cache_condensed_space_runs_at_line_ends.hwpx", "line_cache_condensed_space_runs.hwpx"):
+        written, paragraphs = cached(name)
+        assert written * 10 >= paragraphs * 8, (name, written, paragraphs)
 
 
 def test_a_paragraph_breaking_inside_latin_words_is_left_to_hancom() -> None:
