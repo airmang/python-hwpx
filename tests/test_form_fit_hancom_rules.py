@@ -61,6 +61,7 @@ FONT_LINE_HEIGHTS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 PARAGRAPH_MARGINS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_margins.hwpx"
 PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_paragraph_spacing.hwpx"
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
+BOLD_ADVANCES_UNDER_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances_under_ratio.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
@@ -449,6 +450,32 @@ def test_bold_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         x = sum(char_advance(ch, size, style) for ch in text[:3])
         assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
     assert bold_seen
+
+
+def test_a_bold_hanyang_glyph_is_widened_before_its_ratio() -> None:
+    # Under a 장평 other than 100 % Hancom adds the twentieth of the em to a bold glyph's design advance in the
+    # 한양 faces first, then scales it by the 장평 and rounds down to whole layout units: "가" at 12 pt and 95 %
+    # is (300 + 15) x 0.95 = 299.25 units, 299 (1196), against 285 (1140) regular.
+    hanyang = TextStyle(hangul_face="한양중고딕", glyph_face="한양중고딕", ratio=95)
+    assert char_advance("가", 12, hanyang) == 1140
+    assert char_advance("가", 12, replace(hanyang, bold=True)) == 1196
+
+
+def test_bold_glyphs_under_a_ratio_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three glyphs then a tab in 한양중고딕 at 9 to 20 pt, bold under 장평 80 to 120 % and 자간 0,
+    # -5 and 5 % (and regular at 95 %): each tab reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(BOLD_ADVANCES_UNDER_RATIO)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    bold_seen = 0
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        bold_seen += style.bold and style.ratio != 100
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width"))
+    assert bold_seen == 756
 
 
 def test_a_no_break_space_takes_its_ratio_and_no_spacing() -> None:
