@@ -63,6 +63,7 @@ PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 BOLD_ADVANCES_UNDER_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances_under_ratio.hwpx"
 HANYANG_GLYPH_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_glyph_grid.hwpx"
+DOTUM_SYMBOL_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_dotum_symbol_grid.hwpx"
 ANO_TELEIA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_ano_teleia_grid.hwpx"
 HANYANG_BOLD_SYLLABLES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_bold_syllables.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
@@ -524,6 +525,34 @@ def test_hanyang_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold)
     assert len(paragraphs) == 600
+
+
+def test_hancom_dotum_takes_its_symbols_from_hamchorom_dotum() -> None:
+    # Hancom Office 2024 lays 한컴돋움's Latin letters out at the font's advances but its symbols, Greek, Cyrillic
+    # and full-width forms at 함초롬돋움's, as a face lacking them: at 10 pt "※" is 788 of 1024 (768), not an em,
+    # "「" a half em, not an em, and "∘" 968, not a half em.
+    dotum = TextStyle(hangul_face="한컴돋움", glyph_face="한컴돋움")
+    assert char_advance("※", 10, dotum) == 768
+    assert char_advance("「", 10, dotum) == 500
+    assert char_advance("∘", 10, dotum) == 968
+    assert char_advance("a", 10, dotum) == 584 and char_advance("é", 10, dotum) == 560
+
+
+def test_hancom_dotum_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three 한컴돋움 glyphs then a tab at 7, 11 and 20 pt under 장평 80 to 120 %, regular and bold:
+    # Latin letters and quotation marks it lays out at the font's advances, and symbols, Greek, Cyrillic and
+    # full-width forms it takes from 함초롬돋움. Each tab reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(DOTUM_SYMBOL_GRID)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (text[0], size, style.ratio, style.bold)
+    assert len(paragraphs) == 558
 
 
 def test_a_greek_ano_teleia_takes_the_advance_hancom_lays_it_out_at() -> None:
