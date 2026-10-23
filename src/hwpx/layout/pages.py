@@ -191,6 +191,8 @@ from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
+from lxml import etree
+
 from ..form_fit.measure import (_GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts, in_char_units,
                                 indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
@@ -291,32 +293,40 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
     measure = _Measure(root)
     layouts: list[_SectionLayout] = []
     reasons: list[str] = []
+    part = None
+    notes: list[Any] = []  # the endnotes going to the document's end
     for number, section in enumerate(root.sections):
         try:
-            if next(section.element.iter(f"{HP}endNote"), None) is not None:
-                _note_shape(section.element, "endNotePr")
-            layouts.append(_lay_section(measure, _unswitched(section.element)))
+            for part in _section_parts(measure, section.element):
+                own = list(part.iter(f"{HP}endNote"))
+                shape = _note_shape(part, "endNotePr") if own else None
+                layouts.append(_lay_section(measure, _unswitched(part)))
+                if shape is not None and shape.section_end:  # after the section's text, before the next section
+                    layouts[-1] = _with_endnotes(measure, layouts[-1], shape, own)
+                else:
+                    notes += own
         except _Unsupported as exc:
             reasons.append(f"section {number}: {exc}")
             if first_reason:
                 break
     if reasons:
         return PageEstimate(None, (), tuple(reasons))
-    notes = [note for section in root.sections for note in section.element.iter(f"{HP}endNote")]
     if notes:
         last = len(root.sections) - 1
         try:
-            layouts[-1] = _with_endnotes(measure, layouts[-1], _note_shape(root.sections[-1].element, "endNotePr"),
-                                         notes)
+            layouts[-1] = _with_endnotes(measure, layouts[-1], _note_shape(part, "endNotePr"), notes)
         except _Unsupported as exc:
             return PageEstimate(None, (), (f"section {last}: {exc}",))
     return _assemble(layouts)
 
 
 def _with_endnotes(measure: _Measure, layout: _SectionLayout, shape: _NoteShape, notes: list[Any]) -> _SectionLayout:
-    """The last section's layout with the document's endnotes after its text: below the foot of its last
+    """The last section's layout with the document's endnotes after its text (or a section's with its own, placed at
+    each section's end, ``hp:placement@place`` ``END_OF_SECTION``): below the foot of its last
     line (on the next page when footnotes take room on that page), the note area's spacing and separator,
-    then each note's lines, the spacing between notes between them, going on over page ends line by line."""
+    then each note's lines, the spacing between notes between them, going on over page ends line by line. A
+    note's last line takes no line spacing below it (Hancom stacks one-line notes as tall as their text).
+    Endnotes right beneath the text (``hp:placement@beneathText``) are laid out the same."""
 
     if layout.places is not None or layout.columns != 1 or layout.end is None:
         raise _Unsupported("endnotes after columns")
@@ -327,10 +337,11 @@ def _with_endnotes(measure: _Measure, layout: _SectionLayout, shape: _NoteShape,
     for number, note in enumerate(notes):
         if number:
             top += shape.between
-        for height, advance in measure.stack_lines(note.findall(f"{HP}subList/{HP}p"), layout.width, caches=False):
+        lines = measure.stack_lines(note.findall(f"{HP}subList/{HP}p"), layout.width, caches=False)
+        for index, (height, advance) in enumerate(lines):
             if top + height > layout.body and top > 0:
                 frame, top = frame + 1, 0
-            top += advance
+            top += height if index == len(lines) - 1 else advance
     return replace(layout, frames=max(layout.frames, frame + 1))
 
 
@@ -378,6 +389,7 @@ class _Shape:
     indent: int
     flags: dict[str, str]
     font_line: bool = False  # its lines as tall as the font makes them (fontLineHeight)
+    snap: bool = True  # its lines on the section's line grid (snapToGrid)
 
 
 def _para_shape(header: Any, para_pr_id: str, doubled: bool = False) -> _Shape:
@@ -410,7 +422,8 @@ def _para_shape(header: Any, para_pr_id: str, doubled: bool = False) -> _Shape:
         if kind != "PERCENT":
             amount //= half
     return _Shape(kind, amount, value("prev"), value("next"), value("left"), value("right"), value("intent"),
-                  dict(breaks.attrib) if breaks is not None else {}, shape.get("fontLineHeight") in ("1", "true"))
+                  dict(breaks.attrib) if breaks is not None else {}, shape.get("fontLineHeight") in ("1", "true"),
+                  shape.get("snapToGrid", "1") not in ("0", "false"))
 
 
 def _pitch(kind: str, value: int, size: int) -> int:
@@ -645,6 +658,14 @@ class _Measure:
             self._label_sizes[key] = self.char_height(ref) if own else -1 if label is not None else 0
         size = self._label_sizes[key]
         return size if size >= 0 else self.char_height(end) if end is not None else 0
+
+    def copied(self, copies: dict[Any, Any]) -> None:
+        """Give each copied paragraph in *copies* (copy -> original) the label Hancom draws for its original."""
+
+        if self._drawn is None:
+            self._drawn = _drawn_labels(self._root)
+        self._drawn.update({copy: self._drawn[original] for copy, original in copies.items()
+                            if original in self._drawn})
 
     def numbered(self, para_pr_id: Any) -> bool:
         """Whether a paragraph shape heads its paragraphs with a number (``NUMBER`` or ``OUTLINE``)."""
@@ -1476,6 +1497,8 @@ class _Para:
     hides: bool = False
     #: its lines are Hancom's own, from the paragraph's valid layout cache
     kept: bool = False
+    #: the step of the line grid its lines snap to (see :func:`_on_grid`), 0 for none
+    grid: int = 0
     #: an object anchored in this paragraph holding nothing else but spaces on one line: a table of it starting
     #: on the next page goes there as when the paragraph holds it alone, the paragraph's line staying
     spaced: bool = False
@@ -1726,23 +1749,23 @@ class _NoteShape:
     line: int = 0      # the separator's width
     below: int = 0     # hp:noteSpacing@belowLine
     between: int = 0   # hp:noteSpacing@betweenNotes
+    section_end: bool = False  # endnotes placed at each section's end (hp:placement@place END_OF_SECTION)
 
     def area(self, height: int, count: int) -> int:
         return 0 if count == 0 else self.above + self.line + self.below + height + self.between * (count - 1)
 
 
 def _note_shape(section: Any, kind: str = "footNotePr") -> _NoteShape:
-    """The note area of the section's footnotes (or, with *kind* ``endNotePr``, of its endnotes)."""
+    """The note area of the section's footnotes (or, with *kind* ``endNotePr``, of its endnotes). Footnotes right
+    beneath the text (``hp:placement@beneathText``) take the same room on their page as at its foot."""
 
     settings = next(section.iter(f"{HP}{kind}"), None)
     if settings is None:
         return _NoteShape()
     placement = settings.find(f"{HP}placement")
-    if kind == "footNotePr" and placement is not None and _true(placement.get("beneathText")):
-        raise _Unsupported("footnotes beneath the text")
-    if kind == "endNotePr" and placement is not None and (
-            placement.get("place", "END_OF_DOCUMENT") != "END_OF_DOCUMENT" or placement.get("beneathText") in {"1", "true"}):
-        raise _Unsupported("endnotes placed otherwise than at the document's end")
+    place = placement.get("place", "END_OF_DOCUMENT") if placement is not None else "END_OF_DOCUMENT"
+    if kind == "endNotePr" and place not in {"END_OF_DOCUMENT", "END_OF_SECTION"}:
+        raise _Unsupported("endnotes placed otherwise than at the document's or the section's end")
     spacing = settings.find(f"{HP}noteSpacing")
     rule = settings.find(f"{HP}noteLine")
     millimetres = float((rule.get("width", "0 mm") if rule is not None else "0 mm").split()[0])
@@ -1750,7 +1773,8 @@ def _note_shape(section: Any, kind: str = "footNotePr") -> _NoteShape:
     def value(name: str) -> int:
         return int(spacing.get(name, 0)) if spacing is not None else 0
 
-    return _NoteShape(value("aboveLine"), round(millimetres * 7200 / 25.4), value("belowLine"), value("betweenNotes"))
+    return _NoteShape(value("aboveLine"), round(millimetres * 7200 / 25.4), value("belowLine"), value("betweenNotes"),
+                      kind == "endNotePr" and place == "END_OF_SECTION")
 
 
 #: The namespaces an hp:case Hancom Office 2024 lays out requires: the 2016 chart one (a chart, whose hp:default
@@ -1784,13 +1808,97 @@ def _unswitched(section: Any) -> Any:
     return section
 
 
-def _check_section(section: Any) -> None:
+def _check_section(measure: _Measure, section: Any, page: _Page) -> None:
+    paragraphs = section.findall(f"{HP}p")
     grid = next(section.iter(f"{HP}grid"), None)
-    if grid is not None and (grid.get("lineGrid", "0") != "0" or grid.get("charGrid", "0") != "0"):
-        raise _Unsupported("a line or character grid")
-    # Hancom starts a new section, on a new page, at a later paragraph holding section settings.
-    if any(next(paragraph.iter(f"{HP}secPr"), None) is not None for paragraph in section.findall(f"{HP}p")[1:]):
+    if grid is not None and (_grid_step(grid, "lineGrid") or _grid_step(grid, "charGrid")):
+        if page.columns != 1 or _column_areas(section) or any(map(_holds_object, paragraphs)):
+            raise _Unsupported("a line or character grid in columns or with objects, tables or notes")
+        # a character grid widens each character to whole steps: FormFit does not break lines so
+        if _grid_step(grid, "charGrid") and not all(_cached_metrics(paragraph) for paragraph in paragraphs):
+            raise _Unsupported("a character grid in a paragraph without a layout cache")
+    # Each later paragraph holding section settings starts a section of its own (see :func:`_section_parts`);
+    # settings deeper in a paragraph are not followed.
+    if any(next(paragraph.iter(f"{HP}secPr"), None) is not None for paragraph in paragraphs[1:]):
         raise _Unsupported("section settings (hp:secPr) after the first paragraph")
+
+
+def _grid_step(grid: Any, name: str) -> int:
+    """The step of the section's line or character grid (``hp:grid@lineGrid``, ``@charGrid``), in HWPUNIT; 0 for
+    none."""
+
+    value = int(grid.get(name, 0) or 0) if grid is not None else 0
+    return value if value > 0 else 0
+
+
+def _holds_object(paragraph: Any) -> bool:
+    """Whether a body paragraph holds an object, a table or a note."""
+
+    return any(_local(child) in _OBJECTS or _local(child) == "ctrl" and any(
+        _local(item) in {"footNote", "endNote"} for item in child) for run in paragraph.findall(f"{HP}run")
+        for child in run)
+
+
+def _on_grid(para: _Para, step: int) -> _Para:
+    """*para* on a line grid *step* apart, in a paragraph snapping to it (``hh:paraPr@snapToGrid``): its first
+    line goes to the first step at or below where it would go, and each line's height, its advance (its height
+    with its spacing) and the paragraph's spacing before and after each take whole steps, rounded up (a line stays
+    on its page while its top and rounded height are above the body's foot)."""
+
+    def up(value: int) -> int:
+        return -(-value // step) * step if value > 0 else value
+
+    return replace(para, size=up(para.size), pitch=up(para.pitch), prev=up(para.prev), next=up(para.next), grid=step,
+                   cached=tuple((up(height), up(advance)) for height, advance in para.cached))
+
+
+#: The section settings Hancom lays out the paragraphs before a section's first settings with (its first paragraph
+#: holding none, a later one some): its default A4 page (59528 x 84188) and margins, one column, its default notes.
+_DEFAULT_SECTION = (
+    f'<hp:secPr xmlns:hp="{HP[1:-1]}"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/>'
+    '<hp:pagePr landscape="WIDELY" width="59528" height="84188" gutterType="LEFT_ONLY"><hp:margin header="4252" '
+    'footer="4252" gutter="0" left="8504" right="8504" top="5668" bottom="4252"/></hp:pagePr><hp:footNotePr>'
+    '<hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="283" '
+    'belowLine="567" aboveLine="850"/><hp:placement place="EACH_COLUMN" beneathText="0"/></hp:footNotePr>'
+    '<hp:endNotePr><hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing '
+    'betweenNotes="0" belowLine="567" aboveLine="850"/><hp:placement place="END_OF_DOCUMENT" beneathText="0"/>'
+    '</hp:endNotePr></hp:secPr>'
+)
+
+
+def _section_settings(paragraph: Any) -> Any:
+    return paragraph.find(f"{HP}run/{HP}secPr")
+
+
+def _section_parts(measure: _Measure, section: Any) -> list[Any]:
+    """*section* as the sections Hancom lays it out as: a paragraph after its first holding section settings
+    (``hp:secPr`` in a run) starts a new section there, on a new page, with those settings (Hancom saves it as a
+    section of its own), and when the first paragraph holds none, the paragraphs before go on Hancom's default
+    page (:data:`_DEFAULT_SECTION`). The parts are copies, their paragraphs labelled as the originals; *section*
+    itself when there is one part."""
+
+    paragraphs = section.findall(f"{HP}p")
+    starts = [index for index, paragraph in enumerate(paragraphs)
+              if index and _section_settings(paragraph) is not None]
+    if not starts:
+        return [section]
+    parts, copies = [], {}
+    for first, end in zip([0, *starts], [*starts, len(paragraphs)]):
+        part = section.makeelement(section.tag, section.attrib, section.nsmap)
+        for paragraph in paragraphs[first:end]:
+            duplicate = copy.deepcopy(paragraph)
+            copies.update(zip(duplicate.iter(f"{HP}p"), paragraph.iter(f"{HP}p")))
+            part.append(duplicate)
+        parts.append(part)
+    if _section_settings(paragraphs[0]) is None:
+        lead = parts[0][0]
+        run = lead.find(f"{HP}run")
+        if run is None:
+            run = lead.makeelement(f"{HP}run", {})
+            lead.insert(0, run)
+        run.insert(0, etree.fromstring(_DEFAULT_SECTION))
+    measure.copied(copies)
+    return parts
 
 
 def _objects_reach(runs: list[Any], measure: _Measure) -> int:
@@ -3531,6 +3639,8 @@ class _Paginator:
     def _paragraph(self, index: int, paras: list[_Para], para: _Para) -> None:
         hidden, self.hidden = self.hidden, 0
         start = para.prev if self.last_vp is None else self.last_vp + self.last_pitch + self.pending_next + para.prev
+        if para.grid:  # its first line on the line grid, at the first step from where it would go
+            start = -(-start // para.grid) * para.grid
         if self.object_floor is not None and self.object_floor[0] == self.frame:  # below an empty paragraph's
             start = max(start, self.object_floor[1])                             # object (_Para.floor)
         self.object_floor = None
@@ -4225,7 +4335,7 @@ class _SectionLayout:
 def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
     page = _page(section)
     notes = _note_shape(section)
-    _check_section(section)
+    _check_section(measure, section, page)
     areas = _column_areas(section)
     if areas:
         try:
@@ -4252,8 +4362,11 @@ def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
 def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, moved: set[int]) -> _SectionLayout:
     paras = []
     wrap: _Wrap | None = None
+    step = _grid_step(next(section.iter(f"{HP}grid"), None), "lineGrid")
     for index, paragraph in enumerate(section.findall(f"{HP}p")):
         para, wrap = _wrapped_paragraph(measure, page, paragraph, wrap, index in moved)
+        if step and measure.shape(paragraph.get("paraPrIDRef")).snap:
+            para = _on_grid(para, step)
         band = _paper_band(measure, page, paragraph)
         para = replace(para, kept=bool(_cached_metrics(paragraph)))
         paras.append(para if band is None else replace(para, paper=band, held=_held_top(page, paragraph, band)))
