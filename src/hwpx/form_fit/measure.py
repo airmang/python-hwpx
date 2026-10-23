@@ -127,8 +127,9 @@ _KANA_FIRST, _KANA_LAST = 0x3040, 0x30FF
 #: to whole layout units. In the other faces a bold glyph keeps its regular advance.
 _BOLD_WIDER_FACES = frozenset({"한양중고딕", "한양신명조", "한양견고딕"})
 #: The glyphs a bold run keeps at their regular advance even in those faces: the Hangul compatibility jamo of
-#: clusters of final consonants, the filler and the archaic jamo (the syllables and the other jamo are widened).
-_BOLD_KEPT_GLYPHS = frozenset("ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ" + "".join(map(chr, range(0x3164, 0x318F))))
+#: clusters of final consonants, the filler and the archaic jamo (the syllables and the other jamo are widened),
+#: and the Greek ano teleia.
+_BOLD_KEPT_GLYPHS = frozenset("ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ·" + "".join(map(chr, range(0x3164, 0x318F))))
 #: How much wider than the em and its twentieth Hancom lays out a bold Hangul syllable of those faces that KS X 1001
 #: does not list (갂, 똠, 힣; 8,822 of the 11,172): a twelve-hundredth of the em ("힣" at 40 pt is 1,051 units, not 1,050).
 _BOLD_UNLISTED_SYLLABLE_EXTRA = Fraction(1, 1200)
