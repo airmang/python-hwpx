@@ -129,6 +129,9 @@ _BOLD_WIDER_FACES = frozenset({"한양중고딕", "한양신명조", "한양견�
 #: The glyphs a bold run keeps at their regular advance even in those faces: the Hangul compatibility jamo of
 #: clusters of final consonants, the filler and the archaic jamo (the syllables and the other jamo are widened).
 _BOLD_KEPT_GLYPHS = frozenset("ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ" + "".join(map(chr, range(0x3164, 0x318F))))
+#: How much wider than the em and its twentieth Hancom lays out a bold Hangul syllable of those faces that KS X 1001
+#: does not list (갂, 똠, 힣; 8,822 of the 11,172): a twelve-hundredth of the em ("힣" at 40 pt is 1,051 units, not 1,050).
+_BOLD_UNLISTED_SYLLABLE_EXTRA = Fraction(1, 1200)
 #: The faces whose Latin glyphs Hancom lays out on a grid of its own, in units per em: their design advances
 #: rounded to it ("a" in 한양견고딕, 2278 of 4096, is 667 of 1200). The face's other glyphs keep the font's
 #: advances and are not widened when bold.
@@ -1229,19 +1232,33 @@ def font_line_height(face: str | None, height: int) -> int | None:
 
 
 @lru_cache(maxsize=4096)
-def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float, bold: bool = False) -> float:
+def _laid_out(units: int, upem: int, height: int, ratio: float, spacing: float, bold: bool = False,
+              extra: Fraction = Fraction(0)) -> float:
     """HWPUNIT a glyph of design advance *units* (of *upem*) takes at a character
     height of *height* HWPUNIT, its 자간 included; *bold* in a face of
-    ``_BOLD_WIDER_FACES``, a twentieth of the em wider before its 장평 scales it."""
+    ``_BOLD_WIDER_FACES``, a twentieth of the em and *extra* of it wider before its 장평 scales it."""
 
     scaled = Fraction(units * (height // _LAYOUT_UNIT), upem)
     if bold:
-        scaled += Fraction(height // _LAYOUT_UNIT, 20)
+        scaled += (Fraction(1, 20) + extra) * (height // _LAYOUT_UNIT)
     if ratio == 100:
         advance = math.floor(scaled + Fraction(1, 2))
     else:
         advance = math.floor(scaled * Fraction(ratio) / 100)
     return float((advance + _spacing_units(advance, spacing)) * _LAYOUT_UNIT)
+
+
+@lru_cache(maxsize=None)
+def _ksx1001_syllables() -> frozenset[str]:
+    """The 2,350 Hangul syllables KS X 1001 lists (rows 16 to 40 of its EUC-KR code)."""
+
+    return frozenset(bytes((row, cell)).decode("euc_kr") for row in range(0xB0, 0xC9) for cell in range(0xA1, 0xFF))
+
+
+def _unlisted_syllable(ch: str) -> bool:
+    """Whether *ch* is a Hangul syllable KS X 1001 does not list."""
+
+    return "가" <= ch <= "힣" and ch not in _ksx1001_syllables()
 
 
 def _laid_out_half_glyph(height: int, ratio: float, spacing: float) -> float:
@@ -1320,7 +1337,8 @@ class TextStyle:
     :func:`glyph_script`) takes its own script's face, as Hancom lays it
     out when a character shape gives its scripts different faces (see
     :func:`glyph_face_of`). ``bold`` glyphs in a face of ``_BOLD_WIDER_FACES``
-    (the 한양 faces) are a twentieth of the em wider, before their 장평 scales them; in the others bold
+    (the 한양 faces) are a twentieth of the em wider (a Hangul syllable KS X 1001 does not list a
+    twelve-hundredth more), before their 장평 scales them; in the others bold
     keeps the regular advance. ``auto_space_latin`` and ``auto_space_digit``
     are the paragraph shape's automatic spacing (``hh:autoSpacing``): a
     quarter of the em, 자간 applied, between a Hangul syllable and a Latin
@@ -1587,7 +1605,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
                 kept = True
     if design is not None:
         bold = style.bold and not emoji and not kept and face in _BOLD_WIDER_FACES
-        return _laid_out(design[0], design[1], height, ratio, spacing, bold)
+        extra = _BOLD_UNLISTED_SYLLABLE_EXTRA if bold and _unlisted_syllable(ch) else Fraction(0)
+        return _laid_out(design[0], design[1], height, ratio, spacing, bold, extra)
     return base * font_pt * 100.0 * ratio / 100.0 * (1 + spacing / 100.0)
 
 

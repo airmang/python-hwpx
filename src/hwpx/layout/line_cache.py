@@ -98,10 +98,10 @@ _SURE_FACES = frozenset({
     "한컴 고딕", "HY헤드라인M", "HY견고딕", "HY울릉도M", "HY견명조", "HY동녘M", "휴먼명조", "휴먼고딕", "휴먼옛체",
     "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
 })
-#: The faces whose bold characters FormFit lays out at Hancom's advances: their regular ones, or a twentieth of
-#: an em wider in 한양신명조 and 한양중고딕. Some bold glyphs of 한양견고딕 and HCI Hollyhock Hancom lays out at
-#: other advances: bold characters in them are left.
-_BOLD_SURE_FACES = _SURE_FACES - {"한양견고딕", "HCI Hollyhock"}
+#: The faces whose bold characters FormFit lays out at Hancom's advances: their regular ones, or wider in the
+#: 한양 faces (see ``form_fit.measure._BOLD_WIDER_FACES``). Some bold glyphs of HCI Hollyhock Hancom lays out at
+#: other advances: bold characters in it are left.
+_BOLD_SURE_FACES = _SURE_FACES - {"HCI Hollyhock"}
 #: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
 _SURE_RATIOS = (50, 200)
 _SURE_SPACINGS = (-30, 30)
