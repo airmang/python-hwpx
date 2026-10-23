@@ -416,7 +416,12 @@ class HwpxOxmlDocument:
         manifest_path: str = "Contents/content.hpf",
     ):
         self._manifest_path = manifest_path
-        self._manifest = manifest
+        self._manifest_element = manifest
+        # Set by from_package: the package's manifest_tree. The package drops
+        # its cached tree whenever content.hpf is written (add_image persists an
+        # item), so a tree kept here would fall behind and overwrite those items
+        # on save.
+        self._manifest_source: Callable[[], ET.Element] | None = None
         self._sections = list(sections)
         self._headers = list(headers)
         self._master_pages = list(master_pages or [])
@@ -528,7 +533,7 @@ class HwpxOxmlDocument:
         settings = cls._load_optional_simple_part(
             package, settings_path, HwpxOxmlSettings, label="settings"
         )
-        return cls(
+        document = cls(
             manifest,
             sections,
             headers,
@@ -538,6 +543,14 @@ class HwpxOxmlDocument:
             settings=settings,
             manifest_path=package.main_content.full_path,
         )
+        document._manifest_source = package.manifest_tree
+        return document
+
+    @property
+    def _manifest(self) -> ET.Element:
+        if self._manifest_source is not None:
+            return self._manifest_source()
+        return self._manifest_element
 
     @property
     def manifest(self) -> ET.Element:
