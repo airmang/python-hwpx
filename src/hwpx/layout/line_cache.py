@@ -13,8 +13,11 @@ place and width again. Those four are written as Hancom writes them: the charact
 the baseline and the line spacing past it. The others come from :func:`hwpx.layout.pages.estimate_pages`. Hancom
 also draws a tab as wide as its ``hp:tab`` says once the paragraph has a cache, so each tab gets its width.
 
-Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs in a
-section of one column where no object lets text run beside it. Tabs to the default tab stops, line breaks,
+Only a paragraph Hancom would lay out from its text alone gets a cache: a body paragraph of text runs on a page
+where no object lets text run beside it, in one column or in newspaper columns of equal width (as wide as its
+column; where the columns change inside a section, as wide as those it is laid out in). An object letting text run
+beside it (square, tight or through wrapping) leaves the pages its paragraph is on, and the next one, for Hancom.
+Tabs to the default tab stops, line breaks,
 controls that take no room on a line (a header, a footer, a page number, the section's own definitions in its
 first paragraph), the start and end of a field (a hyperlink, a click-here field, a date, a mail merge field) anywhere in the text but
 in a section's first paragraph, a
@@ -26,13 +29,20 @@ paragraph that sets its characters at the top, the centre or the bottom of their
 writes for that (0, half or all of the text height). A table's caption above or below it takes its lines and its
 gap in the table's line, when the caption's paragraphs are laid out surely.
 
-The cells of a table in such a section get caches the same way when every paragraph of the cell is one of
-these: their lines go down from the top of the cell's text area, as wide as that area in whole layout units and
-never narrower than Hancom's narrowest line. A paragraph holding nothing but a table set as a character gets its
-one line, as tall as the table, and the table its rows' height (``hp:sz``), as Hancom saves them, when every
-paragraph of its cells is laid out surely. A paragraph holding nothing but a plain picture set as a character (no
-caption, shadow or effects, in a paragraph spaced by a percentage) gets its one line, as tall as the picture and
-its outer margins or as the paragraph's characters when they are taller.
+The cells of a table in such a paragraph, in one column, get caches the same way when every paragraph of the cell
+is one of these: their lines go down from the top of the cell's text area, as wide as that area in whole layout
+units and never narrower than Hancom's narrowest line. A paragraph in one column holding nothing but a table set as
+a character gets its one line, as tall as the table, and the table its rows' height (``hp:sz``), as Hancom saves
+them, when every paragraph of its cells is laid out surely.
+
+A paragraph holding nothing but a picture set as a character gets its one line, as tall as the picture with its
+outer margins and a caption above or below it (the caption's lines and its gap; one beside it takes none), or as
+the paragraph's characters when they are taller, its baseline where the paragraph sets its characters, spaced as
+its characters are unless the picture affects the line spacing or the spacing is not a percentage. One holding
+several pictures, none of them affecting the line spacing, in a paragraph spaced by a percentage, gets a line for
+each row of pictures as wide as the column, each as tall as its tallest picture. A picture whose glow, outer
+shadow or reflection takes room around it, or with a shadow written as a drawing's (``hp:shadow``), is left for
+Hancom, as is a caption whose lines are less sure.
 
 Saved as ``.hwp``, the caches become the paragraphs' ``PARA_LINE_SEG`` records, which viewers other than Hancom
 Office may need to place a picture; Hancom lays out a paragraph without one when it opens the file.
@@ -163,20 +173,26 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
     index = 0
     for section in root.sections:
         page = _pages._page(section.element)
-        # lines beside an object are narrower, and an object in a switch (a chart) was not checked: left for Hancom
-        beside = _wraps_text(section.element) or bool(_pages._switched(section.element))
+        # an object in a switch (a chart) was not checked: left for Hancom
+        switched = bool(_pages._switched(section.element))
         paragraphs = section.element.findall(f"{HP}p")
+        columns = _column_widths(section.element, page)
         lines = estimate.lines[index:index + len(paragraphs)]
         index += len(paragraphs)
+        # lines beside an object are narrower: the pages where one stands are left for Hancom
+        beside = _pages_beside(section.element, lines) if _wraps_text(section.element) else set()
+        sure = [not switched and beside is not None and width is not None
+                and not any(line.page in beside for line in placed) for width, placed in zip(columns, lines)]
         changed = False
         for number, (paragraph, placed) in enumerate(zip(paragraphs, lines)):
             if paragraph.find(f"{HP}linesegarray") is not None:
                 kept += 1
                 continue
-            laid = None if page.columns != 1 or beside else (
-                _lines(measure, paragraph, page.column_width, first=number == 0)
-                or _table_line(measure, paragraph, page.column_width)
-                or _picture_line(measure, paragraph, page.column_width))
+            width = columns[number]
+            laid = None if not sure[number] else (
+                _lines(measure, paragraph, width, first=number == 0)
+                or (_table_line(measure, paragraph, width) if width == page.text_width else None)  # one column
+                or _picture_lines(measure, paragraph, width))
             if laid is None or len(laid[0]) != len(placed):
                 skipped += 1
                 continue
@@ -186,58 +202,128 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
             _append_cache(paragraph, segments, tabs)
             written += 1
             changed = True
-        if page.columns == 1 and not beside:
-            for table in (child for paragraph in paragraphs for run in paragraph.findall(f"{HP}run")
-                          for child in run if _pages._local(child) == "tbl"):
-                cells = _cell_caches(measure, table)
-                written += cells[0]
-                skipped += cells[1]
-                kept += cells[2]
-                changed = changed or bool(cells[0])
+        for table in (child for number, paragraph in enumerate(paragraphs)
+                      if sure[number] and columns[number] == page.text_width  # in one column
+                      for run in paragraph.findall(f"{HP}run") for child in run if _pages._local(child) == "tbl"):
+            cells = _cell_caches(measure, table)
+            written += cells[0]
+            skipped += cells[1]
+            kept += cells[2]
+            changed = changed or bool(cells[0])
         if changed:
             section.mark_dirty()
     return LineCacheReport(written, skipped, kept)
 
 
-def _picture_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str, int]], list[int]] | None:
-    """The one line of a paragraph holding nothing but a picture set as a character, as Hancom writes it: as tall
-    as the picture and its outer margins, or as the paragraph's characters when they are taller, its baseline at
-    85 % of that, spaced as the paragraph's characters are unless the picture affects the line spacing. Only a
-    plain picture: one with a caption, a shadow or effects, and a line spacing other than a percentage, are left
-    for Hancom. None for any other paragraph."""
+def _picture_lines(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str, int]], list[int]] | None:
+    """The lines of a paragraph holding nothing but pictures set as characters, as Hancom writes them; None for
+    any other paragraph. A picture alone takes one line, as tall as the picture with its outer margins and its
+    caption above or below it (its lines and its gap), or as the paragraph's characters when they are taller,
+    spaced as the paragraph's characters are unless the picture affects the line spacing or the spacing is not a
+    percentage (then from the line's height). Several pictures go on lines as wide as the
+    column, each line as tall as its tallest picture: only plain ones that do not affect the line spacing, in a
+    paragraph spaced by a percentage. A picture with a shadow drawn as a shape's (``hp:shadow``), a glow, an
+    outer shadow or a reflection, which Hancom lays out up to a unit from the estimate, and a caption whose lines
+    are less sure, are left for Hancom."""
 
     runs = paragraph.findall(f"{HP}run")
-    picture = _pages._object_alone(runs)
-    if picture is None or _pages._local(picture) != "pic":
+    children = [child for run in runs for child in run]
+    pictures = [child for child in children if _pages._local(child) == "pic"]
+    if not pictures or _pages._run_text(runs) or any(
+            _pages._local(child) not in ("t", "pic", "secPr", "ctrl")
+            or _pages._local(child) == "ctrl" and not _takes_no_room(child, True) for child in children):
         return None
-    if any(_pages._local(child) not in ("t", "pic", "secPr", "ctrl") for run in runs for child in run):
+    if any(picture.find(f"{HP}pos").get("treatAsChar") != "1" or not _plain_picture(measure, picture)
+           for picture in pictures):
         return None
-    if any(_pages._local(child) == "ctrl" and not _takes_no_room(child, True) for run in runs for child in run):
-        return None
-    shadow = picture.find(f"{HP}shadow")
-    effects = picture.find(f"{HP}effects")
-    if picture.find(f"{HP}caption") is not None or (shadow is not None and shadow.get("type", "NONE") != "NONE") \
-            or (effects is not None and len(effects)):
-        return None
-    if _vertical_align(measure, paragraph.get("paraPrIDRef")) != "BASELINE":
-        return None
+    vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    if shape.kind != "PERCENT":
+    if vertical not in _BASELINES or shape.font_line:
         return None
-    size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)
-    tall = max(_pages._drawn_height(picture, measure) + _pages._extent_margins(picture), size)
-    advance = _pages._object_pitch(shape, picture, tall, size)
+    room = width - shape.left - shape.right
+    headed = measure.headed(paragraph)
+    if len(pictures) == 1:
+        picture = pictures[0]
+        size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)
+        tall = max(_pages._drawn_height(picture, measure) + _pages._extent_margins(picture)
+                   + sum(_pages._caption(measure, picture)), size)
+        return [{
+            "textpos": 0,
+            "vertpos": 0,
+            "vertsize": tall,
+            "textheight": tall,
+            "baseline": _BASELINES[vertical](tall),
+            "spacing": _pages._object_pitch(shape, picture, tall, size) - tall,
+            "horzpos": shape.left,
+            "horzsize": room,
+            "flags": _ONE_SEGMENT | (_LABELLED if headed else 0),
+        }], []
+    if headed or shape.kind != "PERCENT" or vertical != "BASELINE" or any(
+            _pages._local(child) != "t" for child in children if _pages._local(child) != "pic") or any(
+            picture.find(f"{HP}caption") is not None or picture.find(f"{HP}pos").get("affectLSpacing") == "1"
+            for picture in pictures):
+        return None
+    try:
+        text, sizes, _, placed, _ = _pages._inline_content(measure, paragraph, runs)
+    except _pages._Unsupported:
+        return None
+    style = measure.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs], paragraph)
+    widths = _pages._indented(room, shape, style)
+
+    def lay_out(room: list[float]) -> list[int]:
+        return _pages._metric_starts(measure, text, room, sizes, style, placed)
+
+    starts = lay_out(widths)
+    if any(lay_out([line + shift for line in widths]) != starts for shift in (-_MARGIN, _MARGIN)):
+        return None  # a picture ending this close to a line's end may go on to the next line in Hancom
+    metrics = _pages._line_metrics(measure, text, widths, sizes, style, shape, placed)
+    if len(metrics) != len(starts):
+        return None
     return [{
-        "textpos": 0,
+        "textpos": _CONTROL_LENGTH * start,  # each picture takes eight characters
         "vertpos": 0,
-        "vertsize": tall,
-        "textheight": tall,
-        "baseline": (tall * 85 + 50) // 100,
-        "spacing": advance - tall,
+        "vertsize": height,
+        "textheight": height,
+        "baseline": _BASELINES[vertical](height),
+        "spacing": advance - height,
         "horzpos": shape.left,
-        "horzsize": width - shape.left - shape.right,
-        "flags": _ONE_SEGMENT | (_LABELLED if measure.headed(paragraph) else 0),
-    }], []
+        "horzsize": room,
+        "flags": _ONE_SEGMENT,
+    } for start, (height, advance) in zip(starts, metrics)], []
+
+
+def _plain_picture(measure: Any, picture: Any) -> bool:
+    """Whether *picture* takes the room Hancom lays out for it surely: no shadow drawn as a shape's, only effects
+    that take no room (a soft edge, an inner shadow), and a caption beside it or above or below it laid out surely
+    (see :func:`_caption_sure`)."""
+
+    shadow = picture.find(f"{HP}shadow")
+    if shadow is not None and shadow.get("type", "NONE") != "NONE":
+        return False  # Hancom does not count it on a picture's line, the estimate does
+    effects = picture.find(f"{HP}effects")
+    if effects is not None and any(
+            not (_pages._local(effect) == "softEdge"
+                 or _pages._local(effect) == "shadow" and effect.get("style") == "INSIDE") for effect in effects):
+        return False
+    return _caption_sure(measure, picture)
+
+
+def _column_widths(section: Any, page: Any) -> list[int | None]:
+    """The width of the column each body paragraph of *section* is laid out in, as the estimate lays the column
+    areas out (see ``pages._column_areas``); None in columns of unequal width, and in balanced or parallel ones
+    (whose lines the estimate places otherwise than Hancom at times)."""
+
+    paragraphs = section.findall(f"{HP}p")
+    bounds = [(0, _pages._first_columns(section)), *_pages._column_areas(section)]
+    widths: list[int | None] = []
+    settings = None
+    for number, (start, found) in enumerate(bounds):
+        end = bounds[number + 1][0] if number + 1 < len(bounds) else len(paragraphs)
+        settings = found if found is not None else settings
+        count, width, unequal, _ = _pages._column_layout(settings, page.text_width)
+        newspaper = count == 1 or settings.get("type", "NEWSPAPER") == "NEWSPAPER"
+        widths += [width if newspaper and not unequal else None] * (end - start)
+    return widths
 
 
 def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str, int]], list[int]] | None:
@@ -576,6 +662,24 @@ def _wraps_text(section: Any) -> bool:
         if pos.get("treatAsChar") != "1" and obj.get("textWrap") in ("SQUARE", "TIGHT", "THROUGH"):
             return True
     return False
+
+
+def _pages_beside(section: Any, lines: list[Any]) -> set[int] | None:
+    """The pages of *section* where text may run beside an object of it that is not set as a character (square,
+    tight or through wrapping): those its paragraph's lines are on, and the next one (it may reach past the
+    page's foot); None when one is in a header or a footer (on every page) or its paragraph has no line. *lines*:
+    the estimate's lines of each paragraph of the section."""
+
+    pages: set[int] = set()
+    for paragraph, placed in zip(section.findall(f"{HP}p"), lines):
+        for pos in paragraph.iter(f"{HP}pos"):
+            obj = pos.getparent()
+            if pos.get("treatAsChar") == "1" or obj.get("textWrap") not in ("SQUARE", "TIGHT", "THROUGH"):
+                continue
+            if not placed or any(_pages._local(above) in ("header", "footer") for above in obj.iterancestors()):
+                return None
+            pages.update(range(placed[0].page, placed[-1].page + 2))
+    return pages
 
 
 def _control_places(runs: list[Any], first: bool) -> list[int] | None:
