@@ -63,6 +63,7 @@ PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 BOLD_ADVANCES_UNDER_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances_under_ratio.hwpx"
 HANYANG_GLYPH_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_glyph_grid.hwpx"
+HANYANG_BOLD_SYLLABLES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_bold_syllables.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
@@ -522,6 +523,33 @@ def test_hanyang_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold)
     assert len(paragraphs) == 600
+
+
+def test_a_bold_hanyang_syllable_ks_x_1001_does_not_list_is_a_twelve_hundredth_wider() -> None:
+    # Hancom lays a bold Hangul syllable of the 한양 faces out at the em and its twentieth when KS X 1001 lists it,
+    # and a twelve-hundredth of the em wider when it does not: at 40 pt (1000 units) "가" is 1,050 units (4200)
+    # and "힣" 1,050.83, 1,051 (4204). Regular, both are an em.
+    style = TextStyle(hangul_face="한양중고딕", glyph_face="한양중고딕", bold=True)
+    assert char_advance("가", 40, style) == 4200
+    assert char_advance("힣", 40, style) == 4204
+    assert char_advance("힣", 40, replace(style, bold=False)) == 4000
+
+
+def test_bold_hanyang_syllables_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three syllables then a tab in 한양견고딕, 한양중고딕 and 한양신명조: 가, 똘 and 힝, which
+    # KS X 1001 lists, and 갂, 똠, 햏 and 힣, which it does not, bold at sizes and 장평 where the twelve-hundredth
+    # of the em decides the rounding, and regular. Each tab reaches the next default stop past the syllables.
+    document = HwpxDocument.open(HANYANG_BOLD_SYLLABLES)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.hangul_face, text[0], size, style.ratio, style.bold)
+    assert len(paragraphs) == 231
 
 
 def test_a_no_break_space_takes_its_ratio_and_no_spacing() -> None:
