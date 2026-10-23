@@ -147,9 +147,18 @@
   table that started past its anchor ends there too low for the line below it). When a table moved row by row has no
   room for its first row under its anchor line, it starts on the next page and the text after it
   goes on under the anchor, then below the table on the pages the table takes. Footnotes take
-  room at the foot of the page and go on over the page end. Endnotes go after the document's text,
+  room at the foot of the page (or right beneath the text, the same room) and go on over the page end.
+  Endnotes go after the document's text (or, placed at each section's end, after their section's),
   below the foot of its last line (on the next page when footnotes take room on that page): the note
-  area's spacing and separator, then the notes' lines one after another, going on over page ends.
+  area's spacing and separator, then the notes' lines one after another, a note's last line without
+  the line spacing below it, going on over page ends.
+* Sections: a later paragraph holding section settings starts a new section there, on a new page, with
+  those settings; when a section's first paragraph holds none, the paragraphs before go on Hancom's
+  default A4 page (59528 x 84188) with its default margins, in one column.
+* Line grid: in a section with a line grid (``hp:grid@lineGrid``), a paragraph snapping to it
+  (``snapToGrid``) has each line's height and advance and its spacing before and after take whole grid
+  steps, rounded up, its first line going to the first step at or below where it would go. A character
+  grid is followed through layout caches.
 
 A table set as a character that the row model does not follow (merged rows, a nested table) keeps
 the height Hancom saved for it (``hp:sz``) when every paragraph in it keeps a valid layout cache,
@@ -157,12 +166,12 @@ i.e. Hancom laid the table out as it is. Otherwise a table whose cells merge row
 their tallest cells of one row, and each merged cell, the one that ends first first, gives the last
 of its rows what they lack.
 
-Anything else makes the estimate unsupported: endnotes placed otherwise than at the document's end or
-after a section of several columns, an object not set as a character in columns
+Anything else makes the estimate unsupported: endnotes placed otherwise than at the document's or the section's
+end or after a section of several columns, an object not set as a character in columns
 of unequal width, and there a paragraph without such a cache holding objects, composed characters,
 ruby text or footnotes, footnotes or objects placed on the page or the paper in a section whose
-columns change, section settings after a section's first
-paragraph (Hancom starts a new section there), a line or character grid, an object with text or
+columns change, section settings deeper than a run of a later paragraph, a line or character grid in
+columns or with objects, tables or notes, a character grid in a paragraph without such a cache, an object with text or
 other objects in its paragraph (but objects set as characters, with line spacing in percent or
 fixed, one top-and-bottom object placed from the paragraph's top, several so in an empty paragraph
 (but in columns, or a picture or drawing past the page's foot), and one object wrapped square
@@ -1827,8 +1836,7 @@ def _grid_step(grid: Any, name: str) -> int:
     """The step of the section's line or character grid (``hp:grid@lineGrid``, ``@charGrid``), in HWPUNIT; 0 for
     none."""
 
-    value = int(grid.get(name, 0) or 0) if grid is not None else 0
-    return value if value > 0 else 0
+    return max(0, int(grid.get(name, 0) or 0)) if grid is not None else 0
 
 
 def _holds_object(paragraph: Any) -> bool:
