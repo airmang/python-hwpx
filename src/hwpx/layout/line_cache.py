@@ -173,9 +173,11 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
     index = 0
     for section in root.sections:
         page = _pages._page(section.element)
-        # an object in a switch (a chart) was not checked: left for Hancom
-        switched = bool(_pages._switched(section.element))
         paragraphs = section.element.findall(f"{HP}p")
+        # an object in a switch (a chart) was not checked, and a later paragraph's section settings start a
+        # section of its own, of another width: left for Hancom
+        switched = bool(_pages._switched(section.element)) \
+            or any(_pages._section_settings(paragraph) is not None for paragraph in paragraphs[1:])
         columns = _column_widths(section.element, page)
         lines = estimate.lines[index:index + len(paragraphs)]
         index += len(paragraphs)
