@@ -63,6 +63,7 @@ PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 BOLD_ADVANCES_UNDER_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances_under_ratio.hwpx"
 HANYANG_GLYPH_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_glyph_grid.hwpx"
+YUN_GOTHIC_250_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_yun_gothic_250_grid.hwpx"
 DOTUM_SYMBOL_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_dotum_symbol_grid.hwpx"
 ANO_TELEIA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_ano_teleia_grid.hwpx"
 HANYANG_BOLD_SYLLABLES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_bold_syllables.hwpx"
@@ -525,6 +526,31 @@ def test_hanyang_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold)
     assert len(paragraphs) == 600
+
+
+def test_hancom_yun_gothic_250_takes_its_own_advances() -> None:
+    # Hancom Office 2024 ships 한컴 윤고딕 250 and lays it out at its own advances (1000 units): every Hangul syllable
+    # 0.9 em, not 한컴바탕's em a face missing from the table takes, and the glyphs it lacks (— –) at 함초롬돋움's.
+    style = TextStyle(hangul_face="한컴 윤고딕 250", glyph_face="한컴 윤고딕 250")
+    assert char_advance("가", 10, style) == char_advance("힣", 10, style) == 900
+    assert char_advance("—", 10, style) == char_advance("—", 10, TextStyle(hangul_face="함초롬돋움", glyph_face="함초롬돋움"))
+
+
+def test_hancom_yun_gothic_250_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three 한컴 윤고딕 250 glyphs then a tab at 7, 11 and 20 pt under 장평 80 to 120 %, regular and
+    # bold: Hangul syllables, Latin letters, digits and punctuation, symbols the font has and glyphs it lacks. Each
+    # tab reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(YUN_GOTHIC_250_GRID)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (text[0], size, style.ratio, style.bold)
+    assert len(paragraphs) == 396
 
 
 def test_hancom_dotum_takes_its_symbols_from_hamchorom_dotum() -> None:
