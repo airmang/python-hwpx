@@ -30,7 +30,12 @@ The cells of a table in such a section get caches the same way when every paragr
 these: their lines go down from the top of the cell's text area, as wide as that area in whole layout units and
 never narrower than Hancom's narrowest line. A paragraph holding nothing but a table set as a character gets its
 one line, as tall as the table, and the table its rows' height (``hp:sz``), as Hancom saves them, when every
-paragraph of its cells is laid out surely.
+paragraph of its cells is laid out surely. A paragraph holding nothing but a plain picture set as a character (no
+caption, shadow or effects, in a paragraph spaced by a percentage) gets its one line, as tall as the picture and
+its outer margins or as the paragraph's characters when they are taller.
+
+Saved as ``.hwp``, the caches become the paragraphs' ``PARA_LINE_SEG`` records, which viewers other than Hancom
+Office may need to place a picture; Hancom lays out a paragraph without one when it opens the file.
 
 A paragraph is left for Hancom when its line breaks are less sure: a character no glyph table gives an advance
 for, a word too long for a line, a line break that moves when every line is laid out :data:`_MARGIN` narrower or
@@ -170,7 +175,8 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
                 continue
             laid = None if page.columns != 1 or beside else (
                 _lines(measure, paragraph, page.column_width, first=number == 0)
-                or _table_line(measure, paragraph, page.column_width))
+                or _table_line(measure, paragraph, page.column_width)
+                or _picture_line(measure, paragraph, page.column_width))
             if laid is None or len(laid[0]) != len(placed):
                 skipped += 1
                 continue
@@ -191,6 +197,47 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
         if changed:
             section.mark_dirty()
     return LineCacheReport(written, skipped, kept)
+
+
+def _picture_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str, int]], list[int]] | None:
+    """The one line of a paragraph holding nothing but a picture set as a character, as Hancom writes it: as tall
+    as the picture and its outer margins, or as the paragraph's characters when they are taller, its baseline at
+    85 % of that, spaced as the paragraph's characters are unless the picture affects the line spacing. Only a
+    plain picture: one with a caption, a shadow or effects, and a line spacing other than a percentage, are left
+    for Hancom. None for any other paragraph."""
+
+    runs = paragraph.findall(f"{HP}run")
+    picture = _pages._object_alone(runs)
+    if picture is None or _pages._local(picture) != "pic":
+        return None
+    if any(_pages._local(child) not in ("t", "pic", "secPr", "ctrl") for run in runs for child in run):
+        return None
+    if any(_pages._local(child) == "ctrl" and not _takes_no_room(child, True) for run in runs for child in run):
+        return None
+    shadow = picture.find(f"{HP}shadow")
+    effects = picture.find(f"{HP}effects")
+    if picture.find(f"{HP}caption") is not None or (shadow is not None and shadow.get("type", "NONE") != "NONE") \
+            or (effects is not None and len(effects)):
+        return None
+    if _vertical_align(measure, paragraph.get("paraPrIDRef")) != "BASELINE":
+        return None
+    shape = measure.shape(paragraph.get("paraPrIDRef"))
+    if shape.kind != "PERCENT":
+        return None
+    size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)
+    tall = max(_pages._drawn_height(picture, measure) + _pages._extent_margins(picture), size)
+    advance = _pages._object_pitch(shape, picture, tall, size)
+    return [{
+        "textpos": 0,
+        "vertpos": 0,
+        "vertsize": tall,
+        "textheight": tall,
+        "baseline": (tall * 85 + 50) // 100,
+        "spacing": advance - tall,
+        "horzpos": shape.left,
+        "horzsize": width - shape.left - shape.right,
+        "flags": _ONE_SEGMENT | (_LABELLED if measure.headed(paragraph) else 0),
+    }], []
 
 
 def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str, int]], list[int]] | None:

@@ -24,7 +24,7 @@ HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_
                    "pages_empty_numbered_paragraphs.hwpx", "line_cache_condensed_space_runs.hwpx",
                    "line_cache_condensed_space_runs_at_line_ends.hwpx",
                    "formfit_condense_space_runs_past_margin.hwpx",
-                   "line_cache_taller_control_runs.hwpx"]
+                   "line_cache_taller_control_runs.hwpx", "line_cache_pictures_alone.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -614,3 +614,45 @@ def test_a_cell_holding_a_picture_placed_top_and_bottom_is_left_for_hancom(flow:
     assert not _segments(_body(document)[-1])
     assert not any(_segments(p) for p in first.element.findall(f"{HP}subList/{HP}p"))
     assert _segments(second.element.find(f"{HP}subList/{HP}p"))
+
+
+def test_a_paragraph_holding_a_picture_gets_one_line_carried_into_an_hwp_save() -> None:
+    # Hancom writes a picture set as a character on a line of its own as tall as the picture: 20 mm here, 5669,
+    # below the template's first paragraph and the text before it.
+    # A viewer reading the .hwp draws the picture from that line, so the cache goes into PARA_LINE_SEG too.
+    document = HwpxDocument.new()
+    document.add_paragraph("앞 글")
+    document.add_picture(_png(), "png", width_mm=40, height_mm=20)
+
+    write_line_caches(document)
+
+    picture_line = _segments(_body(document)[-1])
+    assert picture_line == [{"textpos": "0", "vertpos": "3200", "vertsize": "5669", "textheight": "5669",
+                             "baseline": "4819", "spacing": "600", "horzpos": "0", "horzsize": "42520",
+                             "flags": "393216"}]
+    reopened = HwpxDocument.open(io.BytesIO(document.to_bytes(format="hwp")))
+    assert _segments(_body(reopened)[-1]) == picture_line
+
+
+@pytest.mark.parametrize("change", ["caption", "shadow", "fixed"])
+def test_a_picture_with_a_caption_a_shadow_or_a_fixed_spacing_is_left_to_hancom(change: str) -> None:
+    document = HwpxDocument.new()
+    picture = document.add_picture(_png(), "png", width_mm=40, height_mm=20)
+    element = _body(document)[-1].find(f".//{HP}pic")
+    if change == "caption":
+        element.append(element.makeelement(f"{HP}caption", {"side": "BOTTOM", "gap": "850"}))
+    elif change == "shadow":
+        element.append(element.makeelement(f"{HP}shadow", {"type": "PARALLEL_RIGHTBOTTOM", "offsetY": "283"}))
+    else:
+        document.styles.apply_paragraph_format(paragraphs=[document.paragraphs[-1]], line_spacing_percent=160)
+        hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+        shape_id = _body(document)[-1].get("paraPrIDRef")
+        for shape in document.oxml.headers[0].element.iter(f"{hh}paraPr"):
+            if shape.get("id") == shape_id:
+                for spacing in shape.iter(f"{hh}lineSpacing"):
+                    spacing.set("type", "FIXED")
+    assert picture is not None
+
+    write_line_caches(document)
+
+    assert not _segments(_body(document)[-1])
