@@ -106,6 +106,28 @@
    },
    "importedModules": 97,
    "importMs": 65
+  },
+  {
+   "version": "6.9.0",
+   "commit": "0f2e1364",
+   "totalLines": 91384,
+   "packages": {
+    ".": 7954,
+    "_document": 10987,
+    "equation": 1931,
+    "form_fit": 10651,
+    "hwp5": 11287,
+    "ingest": 395,
+    "layout": 5954,
+    "objects": 990,
+    "opc": 2033,
+    "oxml": 24065,
+    "plan": 900,
+    "quality": 1227,
+    "tools": 13010
+   },
+   "importedModules": 99,
+   "importMs": 328
   }
  ]
 }
