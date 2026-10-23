@@ -63,6 +63,7 @@ PARAGRAPH_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances.hwpx"
 BOLD_ADVANCES_UNDER_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances_under_ratio.hwpx"
 HANYANG_GLYPH_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_glyph_grid.hwpx"
+ANO_TELEIA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_ano_teleia_grid.hwpx"
 HANYANG_BOLD_SYLLABLES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_bold_syllables.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
@@ -523,6 +524,34 @@ def test_hanyang_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold)
     assert len(paragraphs) == 600
+
+
+def test_a_greek_ano_teleia_takes_the_advance_hancom_lays_it_out_at() -> None:
+    # Hancom lays U+0387 out at its own advance in a face that has one (바탕 321 of 1024, 돋움체 a half em) and at
+    # 161 of 1000 (165 of 1024) in one that lacks it, not at the punctuation average of 0.42 em; bold does not
+    # widen it in the 한양 faces. At 10 pt (250 units): 40.25 units, 40 (160); 78.37, 78 (312).
+    def style(face: str, bold: bool = False) -> TextStyle:
+        return TextStyle(hangul_face=face, glyph_face=face, bold=bold)
+
+    assert char_advance("·", 10, style("함초롬바탕")) == char_advance("·", 10, style("휴먼명조")) == 160
+    assert char_advance("·", 10, style("바탕")) == char_advance("·", 10, style("한양신명조", bold=True)) == 312
+    assert char_advance("·", 10, style("돋움체")) == 500
+
+
+def test_greek_ano_teleias_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three U+0387 then a tab at 7, 11 and 20 pt under 장평 80 to 120 %, regular and bold, in faces
+    # that lack the glyph (함초롬바탕, 함초롬돋움, 맑은 고딕, 휴먼명조, HY헤드라인M, 한컴바탕), faces that have it
+    # (바탕, 굴림, 바탕체, 돋움체) and the 한양 faces. Each tab reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(ANO_TELEIA_GRID)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = 3 * char_advance("·", size, style)
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, size, style.ratio, style.bold)
+    assert len(paragraphs) == 234
 
 
 def test_a_bold_hanyang_syllable_ks_x_1001_does_not_list_is_a_twelve_hundredth_wider() -> None:
