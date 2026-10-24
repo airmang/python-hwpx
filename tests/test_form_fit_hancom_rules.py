@@ -1555,6 +1555,48 @@ def test_a_wingdings_bullet_at_its_own_width_takes_the_glyph_design_advance() ->
     assert [starts for starts, _ in rows] == [hancom for _, hancom in rows]
 
 
+def _picture_bullet(doc: HwpxDocument, head: dict[str, str]) -> str:
+    """A paragraph shape headed by a picture bullet (``useImage``) with *head*'s ``hh:paraHead`` attributes."""
+
+    from lxml import etree
+
+    header = doc.oxml.headers[0].element
+    refs = header.find(f"{HH}refList")
+    bullets = etree.Element(f"{HH}bullets", itemCnt="1")
+    refs.find(f"{HH}numberings").addnext(bullets)
+    bullet = etree.SubElement(bullets, f"{HH}bullet", id="1", char="", useImage="1")
+    etree.SubElement(bullet, "{http://www.hancom.co.kr/hwpml/2011/core}img", binaryItemIDRef="BIN0001")
+    etree.SubElement(bullet, f"{HH}paraHead", {"level": "0", "align": "LEFT", "autoIndent": "1",
+                                                "widthAdjust": "0", "charPrIDRef": "4294967295", **head})
+    paragraph = doc.add_paragraph("가나다")
+    doc.styles.apply_paragraph_format(paragraphs=[paragraph], alignment="LEFT", indent_right_mm=0.5)
+    shape = next(el for el in header.iter(f"{HH}paraPr") if el.get("id") == paragraph.element.get("paraPrIDRef"))
+    shape.find(f"{HH}heading").attrib.update({"type": "BULLET", "idRef": "1", "level": "0"})
+    return paragraph.element.get("paraPrIDRef")
+
+
+@pytest.mark.parametrize(("head", "room"), [
+    ({"useInstWidth": "0", "textOffsetType": "PERCENT", "textOffset": "40"}, 1680),
+    ({"useInstWidth": "0", "textOffsetType": "PERCENT", "textOffset": "0"}, 1200),
+    ({"useInstWidth": "0", "textOffsetType": "HWPUNIT", "textOffset": "500"}, 1700),
+    ({"useInstWidth": "0", "textOffsetType": "PERCENT", "textOffset": "40", "widthAdjust": "500"}, 2180),
+    ({"useInstWidth": "1", "textOffsetType": "PERCENT", "textOffset": "40"}, 0),
+])
+def test_a_picture_bullet_takes_an_em_and_its_gap(head: dict[str, str], room: int) -> None:
+    # Rows of syllables at 10, 12 and 16 pt under picture bullets 1:1, 3:1 and 1:3, laid out and saved by Hancom
+    # 2024: the picture took an em whatever its shape, then the gap (40, 50 or 0 % of the em, or 500 HWPUNIT) and
+    # the width adjustment, off every line with 자동 내어 쓰기 and off the first one without. Sized by the picture
+    # (useInstWidth) it took about 0.9 em, not pinned down: FormFit gives it no room, and the line cache leaves
+    # such paragraphs to Hancom.
+    doc = HwpxDocument.new()
+    shape = _picture_bullet(doc, head)
+    run = doc.styles.ensure_run(font="함초롬바탕", size=12)
+
+    style = text_style_from_refs(doc.oxml, shape, [run])
+
+    assert (style.head, style.head_hangs) == (room, bool(room))
+
+
 def test_a_no_break_space_is_half_an_em_and_keeps_the_words_together() -> None:
     assert char_advance("\u00a0", 10, TextStyle()) == char_advance(" ", 10, TextStyle()) == 500
     # "다라" and "마바" stay together: the line breaks at the space before them, not after the no-break space.

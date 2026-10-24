@@ -1497,6 +1497,9 @@ def label_room(text: str, head: Mapping[str, str], em: int, style: TextStyle) ->
     return width + _style_number(head.get("widthAdjust"), 0.0) + gap
 
 
+#: The label a picture bullet (``hh:bullet@useImage``) is measured as: one character, an em wide (see
+#: :func:`label_room`).
+_PICTURE_BULLET = "●"
 #: Quotation marks Hancom lays out in the Latin script although Unicode puts them among general punctuation.
 _LATIN_QUOTES = frozenset("\u2018\u2019\u201c\u201d")
 #: The scripts whose 장평 and 자간 a character shape may give apart from the Hangul ones (see :func:`glyph_script`).
@@ -2617,7 +2620,7 @@ def text_style_from_refs(
 
 def paragraph_label(root: Any, para_pr_id_ref: object, drawn: str | None = None) -> tuple[str, dict[str, str]] | None:
     """(label, attributes of its ``hh:paraHead``) of a paragraph shape's bullet or number, or None: a bullet's
-    character; a number's head text as Hancom measures it: when it measures the label (``useInstWidth``), the
+    character (a picture bullet's :data:`_PICTURE_BULLET`; None for one sized by its picture); a number's head text as Hancom measures it: when it measures the label (``useInstWidth``), the
     label it draws (*drawn*, from reading the document in order), else the text with each ``^k`` at its
     level's first number; when it does not, the text with each ``^k`` as one character of its number's width
     class."""
@@ -2635,8 +2638,14 @@ def paragraph_label(root: Any, para_pr_id_ref: object, drawn: str | None = None)
     if kind == "BULLET":
         bullet = next((b for b in header.iter(f"{_HH}bullet") if b.get("id") == ref), None)
         paragraph_head = bullet.find(f"{_HH}paraHead") if bullet is not None else None
-        if paragraph_head is None or bullet.get("useImage") in {"1", "true"}:
+        if paragraph_head is None:
             return None
+        if bullet.get("useImage") in {"1", "true"}:
+            # a picture takes an em whatever its shape, as a character does where the label's text does not
+            # give its width; where it does (useInstWidth) the picture's room was not pinned down
+            if paragraph_head.get("useInstWidth") in {"1", "true"}:
+                return None
+            return _PICTURE_BULLET, dict(paragraph_head.attrib)
         return (bullet.get("char") or "")[:1], dict(paragraph_head.attrib)
     if kind == "OUTLINE" and ref == "0":
         section = next(iter(getattr(root, "sections", [])), None)

@@ -17,11 +17,12 @@ Only a paragraph Hancom would lay out from its text alone gets a cache: a body p
 where no object lets text run beside it, in one column or in newspaper columns of equal width (as wide as its
 column; where the columns change inside a section, as wide as those it is laid out in). An object letting text run
 beside it (square, tight or through wrapping) leaves the pages its paragraph is on, and the next one, for Hancom.
-Tabs to the default tab stops, line breaks,
+Tabs to the default tab stops (as far apart as the section sets them, in HWPUNIT), line breaks,
 controls that take no room on a line (a header, a footer, a page number, the section's own definitions in its
 first paragraph), the start and end of a field (a hyperlink, a click-here field, a date, a mail merge field) anywhere in the text but
 in a section's first paragraph, a
-highlight and a hanging bullet or number label in the paragraph's size are fine. Its runs may differ in
+highlight and a hanging bullet or number label in the paragraph's size (a picture bullet taking an em, but one sized
+by its picture) are fine. Its runs may differ in
 face, each character taking its own run's advance, and in size: each line is then as tall as its largest
 character, unless a larger one past the line's end may be the one that did not fit on it (Hancom writes the line as
 tall as that one), and has no tab; a larger empty run ending the paragraph makes its last line's text as tall. A
@@ -174,9 +175,12 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
     for section in root.sections:
         page = _pages._page(section.element)
         paragraphs = section.element.findall(f"{HP}p")
-        # an object in a switch (a chart) was not checked, and a later paragraph's section settings start a
-        # section of its own, of another width: left for Hancom
-        switched = bool(_pages._switched(section.element)) \
+        # an object in a switch (a chart) was not checked, a later paragraph's section settings start a
+        # section of its own, of another width, and tab stops given in another unit than HWPUNIT were not
+        # measured: left for Hancom
+        stop = _pages._tab_stop(section.element)
+        measure.tab_stop = stop or _pages._DEFAULT_TAB_STOP
+        switched = bool(_pages._switched(section.element)) or stop is None \
             or any(_pages._section_settings(paragraph) is not None for paragraph in paragraphs[1:])
         columns = _column_widths(section.element, page)
         lines = estimate.lines[index:index + len(paragraphs)]
@@ -435,6 +439,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
     if shape.font_line or vertical not in _BASELINES or not _bold_sure(measure, paragraph, runs):
         return None
+    if measure.pictured(paragraph.get("paraPrIDRef")):
+        return None  # a picture bullet sized by its picture: its room was not measured
     size, refs, sizes = _pages._text_size(measure, runs)
     if headed and not sizes and _pages._text_size(measure, runs, paragraph)[0] > size:
         return None  # an empty paragraph under a taller number label (its line as tall as that): left for Hancom

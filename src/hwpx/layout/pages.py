@@ -202,8 +202,8 @@ from typing import TYPE_CHECKING, Any
 
 from lxml import etree
 
-from ..form_fit.measure import (_GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts, in_char_units,
-                                indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
+from ..form_fit.measure import (_DEFAULT_TAB_STOP, _GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts,
+                                in_char_units, indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -307,6 +307,7 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
     for number, section in enumerate(root.sections):
         try:
             for part in _section_parts(measure, section.element):
+                measure.tab_stop = _tab_stop(part) or _DEFAULT_TAB_STOP
                 own = list(part.iter(f"{HP}endNote"))
                 shape = _note_shape(part, "endNotePr") if own else None
                 layouts.append(_lay_section(measure, _unswitched(part)))
@@ -612,6 +613,9 @@ class _Measure:
         self._drawn: dict[Any, str] | None = None
         self._numbered: dict[str, bool] = {}
         self._label_sizes: dict[str, int] = {}
+        self._pictured: dict[str, bool] = {}
+        #: how far apart the default tab stops of the section at hand are (see :func:`_tab_stop`)
+        self.tab_stop = _DEFAULT_TAB_STOP
 
     def shape(self, para_pr_id: Any) -> _Shape:
         key = str(para_pr_id)
@@ -649,9 +653,12 @@ class _Measure:
                 self._drawn = _drawn_labels(self._root)
             drawn = self._drawn.get(paragraph)
         end = _end_ref(paragraph) if paragraph is not None else None
-        key = (str(para_pr_id), tuple(str(ref) for ref in char_pr_ids), drawn, end)
+        key = (str(para_pr_id), tuple(str(ref) for ref in char_pr_ids), drawn, end, self.tab_stop)
         if key not in self._styles:
-            self._styles[key] = text_style_from_refs(self._lookups, para_pr_id, char_pr_ids, drawn, end)
+            style = text_style_from_refs(self._lookups, para_pr_id, char_pr_ids, drawn, end)
+            if style is not None and style.tab_stop != self.tab_stop:
+                style = replace(style, tab_stop=self.tab_stop)
+            self._styles[key] = style
         return self._styles[key]
 
     def label_size(self, para_pr_id: Any, end: Any = None) -> int:
@@ -675,6 +682,21 @@ class _Measure:
             self._drawn = _drawn_labels(self._root)
         self._drawn.update({copy: self._drawn[original] for copy, original in copies.items()
                             if original in self._drawn})
+
+    def pictured(self, para_pr_id: Any) -> bool:
+        """Whether a paragraph shape heads its paragraphs with a picture bullet sized by its picture
+        (``hh:paraHead@useInstWidth``), whose room was not measured: FormFit gives it none."""
+
+        key = str(para_pr_id)
+        if key not in self._pictured:
+            shape = next((el for el in self._header.iter(f"{HH}paraPr") if el.get("id") == key), None)
+            heading = paragraph_heading(shape) if shape is not None else None
+            bullet = next((el for el in self._header.iter(f"{HH}bullet") if el.get("id") == heading.get("idRef")),
+                          None) if heading is not None and heading.get("type") == "BULLET" else None
+            head = bullet.find(f"{HH}paraHead") if bullet is not None else None
+            self._pictured[key] = bullet is not None and bullet.get("useImage") in {"1", "true"} \
+                and head is not None and head.get("useInstWidth") in {"1", "true"}
+        return self._pictured[key]
 
     def numbered(self, para_pr_id: Any) -> bool:
         """Whether a paragraph shape heads its paragraphs with a number (``NUMBER`` or ``OUTLINE``)."""
@@ -1876,6 +1898,19 @@ _DEFAULT_SECTION = (
 
 def _section_settings(paragraph: Any) -> Any:
     return paragraph.find(f"{HP}run/{HP}secPr")
+
+
+def _tab_stop(section: Any) -> int | None:
+    """How far apart (HWPUNIT) *section*'s default tab stops are, from the column's left edge
+    (``hp:secPr@tabStopVal``): Hancom's 4,000 when it gives none, None when it gives them in another unit."""
+
+    settings = next(section.iter(f"{HP}secPr"), None)
+    value = settings.get("tabStopVal") if settings is not None else None
+    if value is None:
+        return _DEFAULT_TAB_STOP
+    if settings.get("tabStopUnit", "HWPUNIT") != "HWPUNIT" or not value.isdigit() or not int(value):
+        return None
+    return int(value)
 
 
 def _section_parts(measure: _Measure, section: Any) -> list[Any]:
