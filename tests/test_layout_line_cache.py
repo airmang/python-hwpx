@@ -26,7 +26,8 @@ HANCOM_LAID_OUT = ["line_cache_tabs.hwpx", "line_cache_line_breaks.hwpx", "line_
                    "formfit_condense_space_runs_past_margin.hwpx",
                    "line_cache_taller_control_runs.hwpx", "line_cache_pictures_alone.hwpx",
                    "line_cache_pictures_kinds.hwpx", "line_cache_pictures_columns.hwpx",
-                   "line_cache_pictures_beside.hwpx"]
+                   "line_cache_pictures_beside.hwpx", "line_cache_picture_bullets.hwpx",
+                   "line_cache_section_tab_stops.hwpx"]
 
 
 def _body(document: HwpxDocument) -> list:
@@ -350,6 +351,44 @@ def test_a_tab_gets_the_width_hancom_lays_it_out_at() -> None:
     assert report.written == 1
     [tab] = _body(document)[-1].iter(f"{HP}tab")
     assert dict(tab.attrib) == {"width": "2056", "leader": "0", "type": "1"}
+
+
+def test_a_paragraph_under_a_picture_bullet_gets_hancoms_cache() -> None:
+    # Hancom 2024 laid out paragraphs of 10 and 12 pt text under picture bullets (gaps of 40 % and 500 HWPUNIT,
+    # 자동 내어 쓰기 on and off, a width adjustment of 500, broken by words and by syllables): the picture took an em
+    # and the gap off the first line, and off every line with 자동 내어 쓰기. They get its caches (see
+    # HANCOM_LAID_OUT); the last paragraph's bullet is sized by its picture (useInstWidth) and is left to Hancom.
+    document = HwpxDocument.open(FIXTURES / "line_cache_picture_bullets.hwpx")
+    paragraphs = _body(document)
+    for paragraph in paragraphs:
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+
+    write_line_caches(document)
+
+    cached = [bool(_segments(paragraph)) for paragraph in paragraphs[1:]]
+    assert len(cached) == 34
+    assert sum(cached[:32]) >= 18 and cached[32] and not cached[33]  # the 33rd under a character bullet
+
+
+def test_a_tab_reaches_the_default_stops_of_its_own_section() -> None:
+    # Hancom spaces a section's default tab stops as its hp:secPr@tabStopVal says (3,600 here, laid out and saved
+    # by Hancom 2024 in line_cache_section_tab_stops.hwpx); stops given in another unit were not measured.
+    document = HwpxDocument.new()
+    for value, unit in (("3600", "HWPUNIT"), ("2000", "CHAR")):
+        section = document.add_section()
+        settings = next(section.element.iter(f"{HP}secPr"))
+        settings.set("tabStopVal", value)
+        settings.set("tabStopUnit", unit)
+    for index in range(3):
+        document.add_paragraph("항목\t내용", section_index=index)
+
+    report = write_line_caches(document)
+
+    assert report.skipped == 2  # the last section's two paragraphs
+    widths = [[tab.get("width") for tab in paragraph.iter(f"{HP}tab")] for paragraph in _body(document)
+              if next(paragraph.iter(f"{HP}tab"), None) is not None]
+    assert widths == [["2056"], ["1656"], [None]]  # "항목" takes 1,944: to the stop at 4,000, then at 3,600
 
 
 @pytest.mark.parametrize(("head", "written"), [("가" * 16, 1), ("가" * 16 + "!", 0)])
