@@ -133,13 +133,36 @@ def test_nothing_is_written_once_a_section_is_not_followed() -> None:
     # nothing then anyway.
     document = HwpxDocument.new()
     document.add_paragraph("가나다")
-    document.add_section()
-    document.page.set_grid(line_grid=1000, section_index=0)
-    document.page.set_grid(line_grid=1000, section_index=1)
+    section = document.add_section()
+    document.add_paragraph("라마바", section=section)
+    document.page.set_grid(char_grid=1000, section_index=0)  # a character grid in paragraphs without a cache
+    document.page.set_grid(char_grid=1000, section_index=1)
 
     assert len(estimate_pages(document).unsupported) == 2
     report = write_line_caches(document)
     assert report.written == 0 and len(report.unsupported) == 1
+
+
+def test_a_section_whose_later_paragraph_holds_section_settings_is_left_to_hancom() -> None:
+    # Hancom starts a section of its own at a later paragraph holding section settings, here of a narrower page: the
+    # estimate follows it, but no cache is written in that section (its lines would break at the first settings'
+    # width).
+    import copy
+
+    document = HwpxDocument.new()
+    for number in range(3):
+        document.add_paragraph("가나다 " * 30)
+    first = document.oxml.sections[0].element.findall(f"{HP}p")
+    settings = copy.deepcopy(first[0].find(f"{HP}run/{HP}secPr"))
+    settings.find(f"{HP}pagePr").set("width", "40000")
+    first[2].find(f"{HP}run").insert(0, settings)
+    document.oxml.sections[0].mark_dirty()
+
+    assert estimate_pages(document).unsupported == ()
+    report = write_line_caches(document)
+
+    assert not report.unsupported and report.written == 0
+    assert not any(_segments(paragraph) for paragraph in first[1:])
 
 
 def test_a_new_paragraph_gets_hancoms_line_metrics() -> None:
