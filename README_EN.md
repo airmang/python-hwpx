@@ -97,13 +97,13 @@ Python-block status is frozen in the [execution ledger](docs/python-example-ledg
 We open the files we produce in real Hancom Office and report what we see, with the date and the program
 version next to every figure.
 
-**Layout: Hancom Office 2024 (Windows) · python-hwpx main after 6.9 · 2026-10-24**
+**Layout: python-hwpx main after 6.9 · 2026-10-24**
 
-| What | Result |
-|---|---|
-| Paragraphs of 77 public real-world documents whose line breaks match what Hangul saved | 8,246 / 8,263 (99.8 %) |
-| Of those 77, documents where every line sits on the same page at the same position | 75 / 77 (the other 2: a broken table, a table inside a cell that is not supported) |
-| Documents whose estimated page count equals Hangul's (79 public · 524 private real-world · 779 feature test documents) | 1,363 / 1,382 (15 not estimated, 4 different) |
+| What | Compared with | Result |
+|---|---|---|
+| Paragraphs of 77 public real-world documents whose line breaks match | What Hancom Office 2024 (Windows) laid out and saved | 8,246 / 8,263 (99.8 %) |
+| Of those 77, documents where every line sits on the same page at the same position | Same | 75 / 77 (the other 2: a broken table, a table inside a cell that is not supported) |
+| Documents whose page count, estimated from a copy with the line layout data removed, matches (79 public · 522 private real-world · 780 feature test documents) | The page count of the Hangul that saved each document | 1,343 / 1,381 (17 not estimated) |
 
 **Opening: Hancom Office 12 (macOS)**
 
