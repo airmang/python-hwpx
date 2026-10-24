@@ -102,7 +102,7 @@ version next to every figure.
 | What | Compared with | Result |
 |---|---|---|
 | Paragraphs of 77 public real-world documents whose line breaks match | What Hancom Office 2024 (Windows) laid out and saved | 8,246 / 8,263 (99.8 %) |
-| Of those 77, documents where every line sits on the same page at the same position | Same | 75 / 77 (the other 2: a broken table, a table inside a cell that is not supported) |
+| Of those 77, documents where every line sits on the same page at the same position | Same | 75 / 77 (the other 2: one with a broken table, one with a table in a cell the page estimate cannot lay out yet) |
 | Documents whose page count, estimated from a copy with the line layout data removed, matches (79 public · 522 private real-world · 780 feature test documents) | The page count of the Hangul that saved each document | 1,343 / 1,381 (17 not estimated) |
 
 **Opening: Hancom Office 12 (macOS)**
@@ -184,7 +184,9 @@ An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](d
   (`crop`), and a shadow, glow, soft edge or reflection (`shadow`, `glow`, `soft_edge`, `reflection`) as
   `add_picture()` arguments. Flipping and rotation are not supported yet.
 - Page estimates and line layout writing are experimental. When a document uses something they do not
-  follow, such as a character grid, they return the reason instead of an estimate.
+  follow, they return the reason instead of an estimate. Today that means a paragraph on a character grid
+  without line layout data, and a table placed among text or floating inside a table cell without line layout
+  data. Reading and editing tables is not affected and covers tables inside tables.
 - Encrypted HWPX files and password-protected or distribution HWP files are refused (`Hwp5Error` for HWP).
 
 ## Contributing
