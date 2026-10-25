@@ -259,6 +259,7 @@ ERROR_CODES: dict[str, str] = {
     "story-linkage": "기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다.",
     # -- 문서 파트(doc.parts) ----------------------------------------------
     "parts-no-header-part": "문서에 header.xml 파트가 없다(doc.parts 경로).",
+    "package-text-replacement-key-empty": "치환할 텍스트(키)가 비어 있다.",
     "parts-auto-spacing-unknown-para-pr": "그 id 의 hh:paraPr 를 문서에서 찾지 못했다.",
     "header-compat-empty-target-program": "target_program 값이 비어 있다.",
     "header-compat-empty-flag-name": "layout compatibility 플래그 이름이 비어 있다.",

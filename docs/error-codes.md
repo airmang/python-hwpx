@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 190 | 11 |
+| 개수 | 196 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -177,6 +177,12 @@ except HwpxError as exc:
 |---|---|
 | `open-safety-failed` | 산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다. |
 
+### `package-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `package-text-replacement-key-empty` | 치환할 텍스트(키)가 비어 있다. |
+
 ### `page-*`
 
 | 코드 | 뜻 |
@@ -300,16 +306,16 @@ except HwpxError as exc:
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
+| `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
+| `shape-picture-effect-value` | 그림 그림자·빛남 값이 범위 밖이다(투명도 0~1, 그림자 방향 0~359도 int, 흐림·거리·반경·부드러운 가장자리 0 이상 int, 색 #RRGGBB, 반사 크기 0 초과 1 이하, shadow/glow/reflection 은 PictureShadow/PictureGlow/PictureReflection). |
+| `shape-picture-image-value` | 그림의 밝기·대비(-100~100)·투명도(alpha, 0~255)가 범위 밖의 int 이거나(bool 도 거부) 효과가 REAL_PIC/GRAY_SCALE/BLACK_WHITE 밖이다. |
 | `shape-polygon-too-few-points` | add_polygon 에 꼭짓점을 3개 미만으로 줬다. |
 | `shape-position-frame` | 도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다. |
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
 | `shape-size-value` | 도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
-| `shape-picture-image-value` | 그림의 밝기·대비(-100~100)·투명도(alpha, 0~255)가 범위 밖의 int 이거나(bool 도 거부) 효과가 REAL_PIC/GRAY_SCALE/BLACK_WHITE 밖이다. |
-| `shape-picture-effect-value` | 그림 그림자·빛남 값이 범위 밖이다(투명도 0~1, 그림자 방향 0~359도 int, 흐림·거리·반경·부드러운 가장자리 0 이상 int, 색 #RRGGBB, 반사 크기 0 초과 1 이하, shadow/glow/reflection 은 PictureShadow/PictureGlow/PictureReflection). |
-| `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
-| `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `story-*`
 

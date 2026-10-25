@@ -2,23 +2,28 @@
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import IO, Any, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree
 
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..patch import _gate_and_publish
+from ..quality.report import VisualCompleteReport
 from .package_validator import MIMETYPE_PATH, validate_editor_open_safety, validate_package
 from .recover import recover_entries
-from ..opc.security import guard_zip_file, read_member
+from ..opc.security import guard_xml_bytes, guard_zip_file, read_member
 
 __all__ = [
+    "NamespaceNormalizeResult",
     "RepairResult",
+    "normalize_package_namespaces",
     "repair_from_recovered",
     "repair_repack",
     "main",
@@ -59,7 +64,7 @@ def _clone_info(info: ZipInfo, *, compress_type: int) -> ZipInfo:
 
 
 def _read_entries(
-    source_path: Path,
+    source_path: Path | IO[bytes],
     *,
     max_entry_size: int,
     max_total_size: int,
@@ -290,6 +295,117 @@ def repair_repack(
         reordered=reordered,
         crc_ok=crc_ok,
         open_safety=open_safety,
+    )
+
+
+@dataclass(frozen=True)
+class NamespaceNormalizeResult:
+    """What :func:`normalize_package_namespaces` re-serialized."""
+
+    data: bytes
+    xml_parts: tuple[str, ...]
+    #: XML parts whose bytes changed.
+    normalized_parts: tuple[str, ...]
+    #: XML parts kept as they were because they do not parse.
+    unparsed_parts: tuple[str, ...]
+    open_safety: dict[str, Any]
+    visual_complete: VisualCompleteReport | None = None
+    #: Where the output was written; ``None`` when no path was given or the gate failed.
+    output_path: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.open_safety.get("ok"))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "xmlParts": list(self.xml_parts),
+            "normalizedParts": list(self.normalized_parts),
+            "unparsedParts": list(self.unparsed_parts),
+            "openSafety": self.open_safety,
+            "visualComplete": (
+                None if self.visual_complete is None else self.visual_complete.to_dict()
+            ),
+            "outputPath": self.output_path,
+        }
+
+
+_SAFE_PARSER = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+
+
+def _normalized_xml_part(part_name: str, payload: bytes) -> bytes | None:
+    try:
+        guard_xml_bytes(payload, part_name=part_name)
+        root = etree.fromstring(payload, parser=_SAFE_PARSER)
+    except (etree.XMLSyntaxError, ValueError):
+        return None
+    if (is_section_part_name(part_name) or is_header_part_name(part_name)) and _local_name(root) in {
+        "sec",
+        "head",
+    }:
+        return _serialize_hwpml_compat_root(root)
+    return etree.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def normalize_package_namespaces(
+    source: str | Path | bytes,
+    *,
+    output_path: str | Path | None = None,
+    max_entry_size: int = 64 * 1024 * 1024,
+    max_total_size: int = 512 * 1024 * 1024,
+) -> NamespaceNormalizeResult:
+    """Parse and re-serialize every ``.xml`` part so its namespace declarations are consistent.
+
+    The namespace-only part of :func:`repair_repack`, for packages whose XML
+    was edited as text. Section and header roots (``hs:sec``/``hh:head``)
+    get the full namespace surface Hancom declares
+    (``HWPML_COMPAT_ROOT_NAMESPACES``) and ``standalone="yes"``; other XML
+    parts are written back as lxml serializes them. A part that does not
+    parse keeps its bytes and is listed in ``unparsed_parts``. Nothing else
+    changes: ``.hpf`` and binary entries, entry order, section ids and layout
+    caches stay as they are (``repair_repack`` also repairs those), and
+    ``mimetype`` is stored uncompressed. The output goes through the
+    open-safety gate; *output_path* is written atomically only when the gate
+    passes (``ok``), and otherwise left as it was.
+    """
+
+    archive_source = io.BytesIO(source) if isinstance(source, bytes) else Path(source)
+    entries = _read_entries(archive_source, max_entry_size=max_entry_size, max_total_size=max_total_size)
+
+    xml_parts: list[str] = []
+    normalized: list[str] = []
+    unparsed: list[str] = []
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+        for entry in entries:
+            name = entry.info.filename
+            payload = entry.payload
+            if name.lower().endswith(".xml"):
+                xml_parts.append(name)
+                rewritten = _normalized_xml_part(name, payload)
+                if rewritten is None:
+                    unparsed.append(name)
+                elif rewritten != payload:
+                    normalized.append(name)
+                    payload = rewritten
+            compress_type = ZIP_STORED if name == MIMETYPE_PATH else entry.info.compress_type
+            if compress_type != ZIP_STORED:
+                compress_type = ZIP_DEFLATED
+            archive.writestr(_clone_info(entry.info, compress_type=compress_type), payload)
+    data = buffer.getvalue()
+
+    open_safety, report = _gate_and_publish(
+        data, output_path, source=source, source_label="repair.normalize_package_namespaces"
+    )
+    return NamespaceNormalizeResult(
+        data=data,
+        xml_parts=tuple(xml_parts),
+        normalized_parts=tuple(normalized),
+        unparsed_parts=tuple(unparsed),
+        open_safety=open_safety,
+        visual_complete=report,
+        output_path=None if report is None else report.output_path,
     )
 
 

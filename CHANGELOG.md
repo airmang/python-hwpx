@@ -10,6 +10,10 @@
   스타일 이름으로 `hh:style`을 보장하고(같은 이름이면 다시 쓴다), 문단 모양 id를 만들고, 번호 정의를 읽는다. 지금까지는
   헤더 객체의 내부 메서드(`_styles_element`·`_allocate_ref_id`·`_update_item_count`)를 불러야 했다. 헤더가 없으면
   `document-header-missing`으로 거부한다.
+- `hwpx.patch.replace_package_text()`와 `hwpx.tools.repair.normalize_package_namespaces()`를 공개한다. 앞의 것은 패키지의
+  `.xml`·`.hpf` part에서 텍스트 노드만 치환하고(속성·주석·CDATA는 그대로) 바뀐 part의 줄 캐시를 지운다. 뒤의 것은
+  `repair_repack`의 namespace 정규화만 한다. 둘 다 open-safety 게이트를 통과할 때만 출력 파일을 쓴다. ZIP·XML을 직접
+  고치던 플러그인 지원 스크립트(`zip_replace_all.py`·`fix_namespaces.py`)가 이 둘에 위임한다.
 - (실험) `write_line_caches(doc)`가 줄 배치 정보를 쓰는 문단을 넓힌다. 이 함수를 부른 뒤 `.hwp`로 저장하면 아래 그림
   문단도 `PARA_LINE_SEG`를 얻어, 이 레코드로 그림 자리를 찾는 다른 HWP 뷰어가 그림을 그린다.
   - 글자처럼 놓인 그림 하나만 든 문단: 캡션이 있는 그림(위·아래 캡션은 캡션의 줄과 간격만큼 줄이 높고, 옆 캡션은 그림
