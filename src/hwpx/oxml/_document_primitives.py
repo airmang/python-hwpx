@@ -449,86 +449,63 @@ def _is_tab_control_element(node: ET.Element) -> bool:
     return tag_local_name(node.tag) == "ctrl" and (node.get("id") or "").lower() == "tab"
 
 
+#: U+00A0 (NO-BREAK SPACE) -> hp:nbSpace, U+3000 (IDEOGRAPHIC SPACE) -> hp:fwSpace,
+#: written only when asked for (``add_run(expand_special_characters=True)``).
+#: Real corpus (error__20230818__test.hwpx, error__20251107__test.hwpx,
+#: error__20250808__...hwpx) confirms both sit nested inside a single hp:t via
+#: mixed content (<hp:t>before<hp:nbSpace/>after</hp:t>), the same shape
+#: _fill_text_element gives hp:tab and hp:lineBreak.
+_RUN_CHOICE_ATOM_MARKERS: dict[str, str] = {
+    "\u00a0": "nbSpace",
+    "\u3000": "fwSpace",
+}
+
 #: A tab, or a line break typed as "\n", "\r\n" or "\r": written as the element Hancom writes for it.
 _TEXT_MARK_SPLIT_RE = _re.compile(r"(\t|\r\n|\r|\n)")
+#: The same, plus the special spaces of :data:`_RUN_CHOICE_ATOM_MARKERS`.
+_TEXT_MARK_AND_SPACE_SPLIT_RE = _re.compile(r"(\t|\r\n|\r|\n|[" + "".join(_RUN_CHOICE_ATOM_MARKERS) + "])")
 
 
-def _fill_text_element(text_element: ET.Element, value: str) -> None:
+def _fill_text_element(text_element: ET.Element, value: str, *, special_spaces: bool = False) -> None:
     """Make *value* the text of the ``hp:t`` *text_element*, each tab as an ``hp:tab`` and each line break
     (``"\\n"``, ``"\\r\\n"`` or ``"\\r"``) as an ``hp:lineBreak`` inside it.
 
     That is how Hancom writes them (``<hp:t>이름<hp:tab/>홍길동<hp:lineBreak/>주소</hp:t>``). An ``hp:tab``
     beside ``hp:t`` in the run is dropped when Hancom opens the document, with the tab stops it would use.
+    *special_spaces* also writes each no-break space as ``hp:nbSpace`` and each full-width space as
+    ``hp:fwSpace`` (:data:`_RUN_CHOICE_ATOM_MARKERS`); without it they stay characters of the text.
     """
 
     tab_tag = _child_tag_like(text_element, "tab", _HP_NS)
     break_tag = _child_tag_like(text_element, "lineBreak", _HP_NS)
-    parts = _TEXT_MARK_SPLIT_RE.split(value)
+    parts = (_TEXT_MARK_AND_SPACE_SPLIT_RE if special_spaces else _TEXT_MARK_SPLIT_RE).split(value)
     text_element.text = _sanitize_text(parts[0])
     for mark, segment in zip(parts[1::2], parts[2::2]):
-        element = text_element.makeelement(tab_tag if mark == "\t" else break_tag, {})
+        marker_name = _RUN_CHOICE_ATOM_MARKERS.get(mark)
+        if marker_name is not None:
+            tag = _child_tag_like(text_element, marker_name, _HP_NS)
+        else:
+            tag = tab_tag if mark == "\t" else break_tag
+        element = text_element.makeelement(tag, {})
         element.tail = _sanitize_text(segment)
         text_element.append(element)
 
 
-def _append_text_with_tabs(run: ET.Element, value: str) -> None:
-    """Insert *value* as one ``hp:t``, each tab and line break as the element inside it Hancom writes for
-    it (see :func:`_fill_text_element`)."""
+def _append_text_with_tabs(run: ET.Element, value: str, *, special_spaces: bool = False) -> None:
+    """Insert *value* as one ``hp:t``, each tab and line break (and, with *special_spaces*, each special
+    space) as the element inside it Hancom writes for it (see :func:`_fill_text_element`)."""
 
     text_element = run.makeelement(_child_tag_like(run, "t", _HP_NS), {})
     run.append(text_element)
-    _fill_text_element(text_element, value)
-
-
-#: "\n" -> hp:lineBreak, " " (NO-BREAK SPACE) -> hp:nbSpace, "　"
-#: (IDEOGRAPHIC SPACE) -> hp:fwSpace. Real corpus (error__20230818__test.hwpx,
-#: error__20251107__test.hwpx, error__20250808__...hwpx) confirms all three
-#: sit nested inside a single hp:t via mixed content
-#: (<hp:t>before<hp:lineBreak/>after</hp:t>), the same shape
-#: _append_text_with_tabs above gives hp:tab.
-_RUN_CHOICE_ATOM_MARKERS: dict[str, str] = {
-    "\n": "lineBreak",
-    " ": "nbSpace",
-    "　": "fwSpace",
-}
-_RUN_CHOICE_ATOM_SPLIT_RE = _re.compile(
-    "([" + "".join(_RUN_CHOICE_ATOM_MARKERS) + "])"
-)
+    _fill_text_element(text_element, value, special_spaces=special_spaces)
 
 
 def _append_text_with_run_choice_atoms(run: ET.Element, value: str) -> None:
-    """Insert *value* as a single ``hp:t``, expanding embedded markers to
-    the real-corpus ``hp:lineBreak``/``hp:nbSpace``/``hp:fwSpace`` element
-    form (see :data:`_RUN_CHOICE_ATOM_MARKERS`) instead of leaving them as
-    literal characters in the text node."""
+    """Insert *value* as a single ``hp:t``: tabs and line breaks as :func:`_append_text_with_tabs` writes
+    them, and also each no-break or full-width space as its ``hp:nbSpace``/``hp:fwSpace`` element
+    (:data:`_RUN_CHOICE_ATOM_MARKERS`) instead of a literal character in the text node."""
 
-    text_tag = _child_tag_like(run, "t", _HP_NS)
-    text_element = run.makeelement(text_tag, {})
-    run.append(text_element)
-
-    parts = _RUN_CHOICE_ATOM_SPLIT_RE.split(_sanitize_text(value))
-    last_element: ET.Element | None = None
-    pending: list[str] = []
-
-    def _flush() -> None:
-        joined = "".join(pending) or None
-        if last_element is None:
-            text_element.text = joined
-        else:
-            last_element.tail = joined
-        pending.clear()
-
-    for part in parts:
-        marker_name = _RUN_CHOICE_ATOM_MARKERS.get(part)
-        if marker_name is None:
-            pending.append(part)
-            continue
-        _flush()
-        marker_tag = _child_tag_like(run, marker_name, _HP_NS)
-        marker_element = text_element.makeelement(marker_tag, {})
-        text_element.append(marker_element)
-        last_element = marker_element
-    _flush()
+    _append_text_with_tabs(run, value, special_spaces=True)
 
 
 def _normalize_length(value: str | None) -> str:
