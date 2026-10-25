@@ -97,13 +97,13 @@ Python-block status is frozen in the [execution ledger](docs/python-example-ledg
 We open the files we produce in real Hancom Office and report what we see, with the date and the program
 version next to every figure.
 
-**Layout: python-hwpx main after 6.9 · 2026-10-24**
+**Layout: python-hwpx main after 6.9 · 2026-10-25**
 
 | What | Compared with | Result |
 |---|---|---|
 | Paragraphs of 77 public real-world documents whose line breaks match | What Hancom Office 2024 (Windows) laid out and saved | 8,246 / 8,263 (99.8 %) |
-| Of those 77, documents where every line sits on the same page at the same position | Same | 75 / 77 (the other 2: one with a broken table, one with a table in a cell the page estimate cannot lay out yet) |
-| Documents whose page count, estimated from a copy with the line layout data removed, matches (79 public · 522 private real-world · 780 feature test documents) | The page count of the Hangul that saved each document | 1,343 / 1,381 (17 not estimated) |
+| Of those 77, documents where every line sits on the same page at the same position | Same | 76 / 77 (the other one has a broken table) |
+| Documents whose page count, estimated from a copy with the line layout data removed, matches (79 public · 522 private real-world · 780 feature test documents) | The page count of the Hangul that saved each document | 1,344 / 1,381 (16 not estimated) |
 
 **Opening: Hancom Office 12 (macOS)**
 
@@ -185,8 +185,10 @@ An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](d
   `add_picture()` arguments. Flipping and rotation are not supported yet.
 - Page estimates and line layout writing are experimental. When a document uses something they do not
   follow, they return the reason instead of an estimate. Today that means a paragraph on a character grid
-  without line layout data, and a table placed among text or floating inside a table cell without line layout
-  data. Reading and editing tables is not affected and covers tables inside tables.
+  without line layout data, and, among the tables placed among text or floating inside a table cell, a page
+  end running through one wrapped square or in front of or behind the text, or through a row of several
+  lines. Other tables in cells are laid out as Hancom does, split between their rows at a page end included.
+  Reading and editing tables is not affected and covers tables inside tables.
 - Encrypted HWPX files and password-protected or distribution HWP files are refused (`Hwp5Error` for HWP).
 
 ## Contributing
