@@ -1626,6 +1626,9 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         bold = style.bold and not emoji and not kept and face in _BOLD_WIDER_FACES
         extra = _BOLD_UNLISTED_SYLLABLE_EXTRA if bold and _unlisted_syllable(ch) else Fraction(0)
         return _laid_out(design[0], design[1], height, ratio, spacing, bold, extra)
+    if glyph_script(ch) == "hanja":
+        # Hancom lays a CJK ideograph out an em wide in every face, rounded like a listed glyph and no wider in bold
+        return _laid_out(1, 1, height, ratio, spacing)
     return base * font_pt * 100.0 * ratio / 100.0 * (1 + spacing / 100.0)
 
 
