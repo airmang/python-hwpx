@@ -35,7 +35,15 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
-from ._glyph_table import ADVANCES, FALLBACK, HANGUL_ADVANCES, UNITS_PER_EM, VERTICAL_METRICS
+from ._glyph_table import (
+    ADVANCES,
+    BOLD_ITALIC_ADVANCES,
+    FALLBACK,
+    HANGUL_ADVANCES,
+    ITALIC_ADVANCES,
+    UNITS_PER_EM,
+    VERTICAL_METRICS,
+)
 
 # Advance width as a fraction of the em (font height in HWPUNIT). Hangul/wide are
 # exact (full-width cells); the Latin/digit/punct values are conservative class
@@ -1230,6 +1238,18 @@ def _face_glyphs(face: str) -> dict[str, int]:
     return {ch: units for units, chars in ADVANCES.get(face, {}).items() for ch in chars}
 
 
+@lru_cache(maxsize=None)
+def _slanted_glyphs(face: str, bold: bool) -> dict[str, int]:
+    """Advance (in *face*'s units per em) Hancom lays an italic glyph of *face* out at where it draws italic in a
+    face of its own (``_glyph_table.ITALIC_ADVANCES``), bold italic ones where they differ again
+    (``_glyph_table.BOLD_ITALIC_ADVANCES``)."""
+
+    units = {ch: units for units, chars in ITALIC_ADVANCES.get(face, {}).items() for ch in chars}
+    if bold:
+        units.update({ch: units for units, chars in BOLD_ITALIC_ADVANCES.get(face, {}).items() for ch in chars})
+    return units
+
+
 def font_line_height(face: str | None, height: int) -> int | None:
     """How tall a line of characters *height* HWPUNIT tall in *face* is when its paragraph takes the line
     height from the font (``hh:paraPr@fontLineHeight``): the face's ascent and descent at that height, each
@@ -1355,7 +1375,10 @@ class TextStyle:
     :func:`glyph_face_of`). ``bold`` glyphs in a face of ``_BOLD_WIDER_FACES``
     (the 한양 faces) are a twentieth of the em wider (a Hangul syllable KS X 1001 does not list a
     twelve-hundredth more), before their 장평 scales them; in the others bold
-    keeps the regular advance. ``auto_space_latin`` and ``auto_space_digit``
+    keeps the regular advance. ``italic`` glyphs keep their regular advances too, but in the faces Hancom
+    draws italic in faces of their own (the 한양 faces and HCI Poppy), where they take the advances Hancom lays
+    those out at (see :func:`_slanted_glyphs`); a bold italic one in a 한양 face is widened as a bold one is.
+    ``auto_space_latin`` and ``auto_space_digit``
     are the paragraph shape's automatic spacing (``hh:autoSpacing``): a
     quarter of the em, 자간 applied, between a Hangul syllable and a Latin
     letter or a digit right next to it (see :func:`auto_space_gap`).
@@ -1388,6 +1411,7 @@ class TextStyle:
     auto_tab_left: bool = False
     auto_tab_right: bool = False
     bold: bool = False
+    italic: bool = False
     auto_space_latin: bool = False
     auto_space_digit: bool = False
     script_size: float = 1.0
@@ -1612,6 +1636,9 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         return _laid_out_half_glyph(height, ratio, spacing)
     else:
         design, base = _design_units(_laid_out_face(face), ch), _ADVANCE_EM[cls]
+        slanted = _slanted_glyphs(face, style.bold).get(ch) if style.italic and design is not None else None
+        if slanted is not None:
+            design = slanted, design[1]
         if design is None and _KANA_FIRST <= ord(ch) <= _KANA_LAST:
             # a kana the face lacks Hancom lays out as wide as the face's Hangul syllables
             design = _hangul_units(_laid_out_face(style.hangul_face), "가")
@@ -2521,6 +2548,7 @@ def text_style_from_refs(
     takes that one, else the text's."""
 
     ratio, spacing, use_font_space, hangul_face, glyph_face, bold = 100.0, 0.0, False, "", "", False
+    italic = False
     latin_face = symbol_face = ""
     script_size = 1.0
     scripts: tuple[tuple[str, float, float], ...] = ()
@@ -2544,6 +2572,7 @@ def text_style_from_refs(
         )
         use_font_space = (getattr(run_style, "attributes", {}) or {}).get("useFontSpace") in {"1", "true"}
         bold = "bold" in children
+        italic = "italic" in children
         script_size = _SUPSUB_SIZE if "supscript" in children or "subscript" in children else 1.0
         hangul_face, glyph_face = _face_names(root, ref)
         latin_face, symbol_face = _script_faces(root, ref)
@@ -2565,6 +2594,7 @@ def text_style_from_refs(
             symbol_face=symbol_face,
             scripts=scripts,
             bold=bold,
+            italic=italic,
             script_size=script_size,
         )
     breaks = getattr(prop, "break_setting", None)
@@ -2605,6 +2635,7 @@ def text_style_from_refs(
         auto_space_latin=bool(getattr(getattr(prop, "auto_spacing", None), "e_asian_eng", False)),
         auto_space_digit=bool(getattr(getattr(prop, "auto_spacing", None), "e_asian_num", False)),
         bold=bold,
+        italic=italic,
         script_size=script_size,
     )
     heading = paragraph_label(root, para_pr_id_ref, label)
