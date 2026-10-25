@@ -114,7 +114,10 @@ assigned to), signal and exact count, with a classification and a reason:
   built-in style names or field-type tokens. It stays.
 - `known-leak`: genre or policy logic left over from the layer audit. It is a
   candidate to move to `python-hwpx-automation` in a later major release; when
-  is not decided yet.
+  is not decided yet. [known-leak-migration.md](./known-leak-migration.md) is
+  the contract for that move: the four groups, each one's automation owner,
+  the neutral primitive core keeps, the replacement entry point, and the
+  compatibility options awaiting an owner decision.
 
 `undetected` lists known leaks that neither signal sees (a caption pattern
 without Hangul, Roman-numeral headings). They are not counted, but each named

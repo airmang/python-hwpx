@@ -1,0 +1,120 @@
+{
+ "schemaVersion": "python-hwpx.known-leak-migration/v1",
+ "status": "contract",
+ "note": "The contract for moving the four known-leak groups of tests/data/layer_leak_allowlist.json to python-hwpx-automation. Nothing has moved yet. When and in which release the core names change is an owner decision that is still open (compatibility.decision); no version or date is promised here.",
+ "groups": [
+  {
+   "id": "official-reference-policy",
+   "title": "Official-document reference rules",
+   "allowlist": [
+    {"file": "tools/doc_diff.py", "qualname": "_ATTACHMENT_LINE_RE"},
+    {"file": "tools/doc_diff.py", "qualname": "_ATTACHMENT_REFERENCE_RE"},
+    {"file": "tools/doc_diff.py", "qualname": "_TABLE_NUMBER_RE"},
+    {"file": "tools/doc_diff.py", "qualname": "_FIGURE_NUMBER_RE"}
+   ],
+   "undetected": [],
+   "canonicalOwner": "hwpx_automation.office.compliance",
+   "coreKeeps": [
+    "hwpx.diff_paragraphs and hwpx.doc_diff over documents, paths, text and paragraph sequences",
+    "reading a document's paragraph texts (the source dispatch other than the document-plan branch)"
+   ],
+   "publicReplacement": [
+    "hwpx_automation.office.compliance.inspect_reference_consistency(source) -> reference-consistency-v1 report, same schema",
+    "MCP tool inspect_reference_consistency, routed to the automation owner"
+   ],
+   "coreSurfaceAffected": [
+    "hwpx.inspect_reference_consistency (stable)",
+    "hwpx.tools.doc_diff.inspect_reference_consistency",
+    "hwpx.REFERENCE_CONSISTENCY_REPORT_VERSION (stable)"
+   ],
+   "automationConsumers": [
+    "hwpx_automation.handlers.quality_render.inspect_reference_consistency"
+   ]
+  },
+  {
+   "id": "document-plan-input",
+   "title": "Automation document-plan interpretation",
+   "allowlist": [
+    {"file": "tools/doc_diff.py", "qualname": "_paragraphs_from_document_plan"}
+   ],
+   "undetected": [],
+   "canonicalOwner": "hwpx_automation.office.document_ops",
+   "coreKeeps": [
+    "doc_diff and the reference check accept documents, paths, text, paragraph sequences and {\"paragraphs\"}/{\"text\"} mappings"
+   ],
+   "publicReplacement": [
+    "an automation function that turns a document plan (sections/blocks/children, heading/paragraph/table rows) into the paragraph sequence core takes",
+    "automation comparison and reference-check entry points call it before handing paragraphs to core"
+   ],
+   "coreSurfaceAffected": [
+    "the {\"sections\": ...} input branch of hwpx.doc_diff and hwpx.inspect_reference_consistency (stable names; the branch is behaviour, not a name)"
+   ],
+   "automationConsumers": [
+    "hwpx_automation.handlers.quality_render.inspect_reference_consistency (document_plan argument)",
+    "hwpx_automation.office.document_ops.comparison"
+   ]
+  },
+  {
+   "id": "report-heading-guess",
+   "title": "Report heading guessing in Markdown export",
+   "allowlist": [
+    {"file": "tools/markdown_export.py", "qualname": "ARABIC_HEAD"}
+   ],
+   "undetected": [
+    {"file": "tools/markdown_export.py", "qualname": "ROMAN_HEAD"}
+   ],
+   "canonicalOwner": "hwpx_automation.office.authoring.report_parser",
+   "coreKeeps": [
+    "hwpx.tools.markdown_export.export_markdown and HwpxMarkdownConverter: text, tables, images, notes, and headings read from recorded document structure",
+    "a genre-neutral hook through which a caller supplies its own heading detector (a callable from paragraph text to a Markdown heading or None)"
+   ],
+   "publicReplacement": [
+    "the report heading rule (Roman 'Ⅰ.' -> '#', Arabic '1.' under 40 characters -> '##') as an automation detector passed into export_markdown",
+    "automation Markdown export entry points pass it explicitly"
+   ],
+   "coreSurfaceAffected": [
+    "hwpx.tools.markdown_export.export_markdown(detect_headings=True) default",
+    "HwpxMarkdownConverter where it reaches the same detector"
+   ],
+   "automationConsumers": [
+    "hwpx_automation.ops_services.preview_export.export_markdown"
+   ]
+  },
+  {
+   "id": "evalplan-caption-cleanup",
+   "title": "Evaluation-plan caption cleanup",
+   "allowlist": [],
+   "undetected": [
+    {"file": "table_patch.py", "qualname": "strip_trailing_table_captions"}
+   ],
+   "canonicalOwner": "hwpx_automation.office.evalplan",
+   "coreKeeps": [
+    "a byte-preserving primitive that removes text a caller selects from the trailing run of a table's wrapper paragraph, never crossing a paragraph or table boundary, through the same open-safety finalize path"
+   ],
+   "publicReplacement": [
+    "the '(N) short word' selection rule as an automation predicate passed to that primitive from office.evalplan"
+   ],
+   "coreSurfaceAffected": [
+    "hwpx.table_patch.strip_trailing_table_captions"
+   ],
+   "automationConsumers": [
+    "hwpx_automation.office.evalplan.runtime"
+   ]
+  }
+ ],
+ "sequence": [
+  "1. Automation adds each replacement owner and switches its consumers; core is unchanged and still answers old callers.",
+  "2. Core adds the genre-neutral primitives (heading-detector hook, caller-selected trailing-text removal) in a minor release; the old names delegate to them with today's rule.",
+  "3. Core starts the deprecation the owner chooses (compatibility.options).",
+  "4. In the release that removes a core name, the same change removes its allowlist/undetected entries and this group; the layer leak guard then fails if the pattern comes back."
+ ],
+ "compatibility": {
+  "decision": "pending-owner",
+  "policy": "docs/stable-api.md: a stable name breaks only at a major boundary, after a DeprecationWarning in an earlier major",
+  "options": [
+   {"id": "A", "summary": "Keep every core name working through 6.x; warn in the next major; remove in the major after it."},
+   {"id": "B", "summary": "Warn from a 6.x minor once the automation replacements ship; remove in the next major. Needs an explicit exception to the stable-name policy for the two stable names."},
+   {"id": "C", "summary": "Never remove: freeze the core copies as compatibility code without feature work and keep the allowlist entries."}
+  ]
+ }
+}
