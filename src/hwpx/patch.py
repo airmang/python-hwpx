@@ -553,6 +553,8 @@ class PackageTextReplaceResult:
     """What :func:`replace_package_text` changed, and whether the output may be written."""
 
     data: bytes
+    #: Every ZIP entry of the package, in order.
+    entries: tuple[str, ...]
     scanned_parts: tuple[str, ...]
     changed_parts: tuple[str, ...]
     #: Scanned parts left untouched because they are not UTF-8.
@@ -573,6 +575,7 @@ class PackageTextReplaceResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
+            "entries": list(self.entries),
             "scannedParts": list(self.scanned_parts),
             "changedParts": list(self.changed_parts),
             "undecodableParts": list(self.undecodable_parts),
@@ -699,6 +702,7 @@ def replace_package_text(
     suffixes = tuple(suffix.lower() for suffix in part_suffixes)
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:
         guard_zip_file(archive)
+        entries = tuple(info.filename for info in archive.infolist())
         names = [
             info.filename
             for info in archive.infolist()
@@ -739,6 +743,7 @@ def replace_package_text(
     )
     return PackageTextReplaceResult(
         data=output,
+        entries=entries,
         scanned_parts=tuple(names),
         changed_parts=tuple(changed),
         undecodable_parts=tuple(undecodable),

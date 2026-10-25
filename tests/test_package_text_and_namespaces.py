@@ -65,6 +65,7 @@ def test_replaces_body_cell_and_metadata_text_only() -> None:
     result = replace_package_text(source, {"{NAME}": "A & <B>", "{CELL}": "칸"})
 
     assert result.ok, result.open_safety
+    assert result.entries == tuple(_members(source))
     assert result.replacements == 3
     assert set(result.changed_parts) == {_SECTION, "Contents/content.hpf"}
     reopened = HwpxDocument.open(result.data)
@@ -150,6 +151,7 @@ def test_normalize_namespaces_gives_section_and_header_roots_the_hancom_surface(
 
     assert result.ok, result.open_safety
     members = _members(result.data)
+    assert result.entries == tuple(members)
     assert _SECTION in result.normalized_parts and not result.unparsed_parts
     assert members["Contents/content.hpf"] == hpf_before
     for name in (_SECTION, "Contents/header.xml"):

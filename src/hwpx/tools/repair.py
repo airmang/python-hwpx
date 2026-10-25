@@ -303,6 +303,8 @@ class NamespaceNormalizeResult:
     """What :func:`normalize_package_namespaces` re-serialized."""
 
     data: bytes
+    #: Every ZIP entry of the package, in order.
+    entries: tuple[str, ...]
     xml_parts: tuple[str, ...]
     #: XML parts whose bytes changed.
     normalized_parts: tuple[str, ...]
@@ -320,6 +322,7 @@ class NamespaceNormalizeResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
+            "entries": list(self.entries),
             "xmlParts": list(self.xml_parts),
             "normalizedParts": list(self.normalized_parts),
             "unparsedParts": list(self.unparsed_parts),
@@ -400,6 +403,7 @@ def normalize_package_namespaces(
     )
     return NamespaceNormalizeResult(
         data=data,
+        entries=tuple(entry.info.filename for entry in entries),
         xml_parts=tuple(xml_parts),
         normalized_parts=tuple(normalized),
         unparsed_parts=tuple(unparsed),
