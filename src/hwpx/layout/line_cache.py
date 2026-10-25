@@ -115,9 +115,9 @@ _SURE_FACES = frozenset({
     "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
 })
 #: The faces whose bold characters FormFit lays out at Hancom's advances: their regular ones, or wider in the
-#: 한양 faces (see ``form_fit.measure._BOLD_WIDER_FACES``). Some bold glyphs of HCI Hollyhock Hancom lays out at
-#: other advances: bold characters in it are left.
-_BOLD_SURE_FACES = _SURE_FACES - {"HCI Hollyhock"}
+#: 한양 faces (see ``form_fit.measure._BOLD_WIDER_FACES``). Many bold glyphs of HCI Hollyhock and HCI Poppy Hancom
+#: lays out at other advances: bold characters in them are left.
+_BOLD_SURE_FACES = _SURE_FACES - {"HCI Hollyhock", "HCI Poppy"}
 #: The faces whose italic characters Hancom lays out at their regular advances, slanted in place. In the 한양 faces
 #: and HCI Poppy it draws italic in faces of their own, at other advances (``form_fit._glyph_table.ITALIC_ADVANCES``),
 #: not yet seen on the desktop in whole paragraphs: italic characters in them are left.

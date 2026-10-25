@@ -247,7 +247,7 @@ def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
 
 
 @pytest.mark.parametrize("style", [{"font": "HY신명조"}, {"font": "KoPub바탕체 Light"}, {"letter_spacing": -40},
-                                   {"ratio": 210}, {"font": "HCI Hollyhock", "bold": True},
+                                   {"ratio": 210}, {"font": "HCI Hollyhock", "bold": True}, {"font": "HCI Poppy", "bold": True},
                                    {"font": "한양중고딕", "italic": True}, {"font": "한양신명조", "italic": True},
                                    {"font": "한양견고딕", "italic": True}, {"font": "HCI Poppy", "italic": True},
                                    {"font": "한양신명조", "bold": True, "italic": True}])
