@@ -77,7 +77,7 @@
     "HwpxMarkdownConverter where it reaches the same detector"
    ],
    "automationConsumers": [
-    "hwpx_automation.ops_services.preview_export.export_markdown"
+    "hwpx_automation.handlers.read_export (document ingest: DocumentIngestor.default() reaches HwpxMarkdownConverter with detect_headings on)"
    ]
   },
   {

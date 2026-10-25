@@ -67,7 +67,9 @@ into four groups. `_SAFE_FILENAME_RE` and `_OUTLINE_NAME_RE` are
   genre-neutral hook through which a caller passes its own heading detector
   (paragraph text → Markdown heading or `None`).
 - **Replacement:** the report rule as an automation detector passed to that
-  hook by automation's Markdown export entry points.
+  hook by automation's entry points. Today the rule reaches automation through
+  document ingest (`DocumentIngestor.default()` → `HwpxMarkdownConverter`);
+  `doc.text.markdown()` uses the plain exporter and does not guess headings.
 - **Core surface affected:** the `detect_headings=True` default of
   `export_markdown` and of `HwpxMarkdownConverter`.
 
