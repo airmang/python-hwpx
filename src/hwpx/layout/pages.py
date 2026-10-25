@@ -870,15 +870,15 @@ class _Measure:
 
     def pushed_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
         """(height, advance) of each line of a cell paragraph without a layout cache whose text follows a table
-        placed top and bottom from its top: the first line reaching the table and the lines after it go below
-        it, and the paragraph reaches down to the table's foot at least; empty for any other paragraph."""
+        placed top and bottom from its top: the first line reaching the table (with a caption above or below
+        it) and the lines after it go below it, and the paragraph reaches down to the table's foot at least;
+        empty for any other paragraph."""
 
         obj = _object_before_text(runs, self.headed(paragraph))
         if obj is None or _local(obj) != "tbl" and obj.find(f"{HP}pos").get("flowWithText") == "0":
             return ()  # a picture or drawing that stays put pushes no line aside in a cell
         top = _down(obj.find(f"{HP}pos"))
-        foot = top + (_inline_table_height(self, obj) + _extent_margins(obj) if _local(obj) == "tbl"
-                      else _extent(obj, "height", self))
+        foot = top + (_cell_extent(self, obj) if _local(obj) == "tbl" else _extent(obj, "height", self))
         shape = self.shape(paragraph.get("paraPrIDRef"))
         lines = list(self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width))
         if not lines:
@@ -889,49 +889,63 @@ class _Measure:
             lines = [(size, _pitch(shape.kind, shape.value, size))] * count
         y = 0
         for index, (height, advance) in enumerate(lines):
-            if y < foot and y + height > top:  # it reaches the table: below it, and the lines after it
-                if index:
-                    lines[index - 1] = (lines[index - 1][0], lines[index - 1][1] + foot - y)
-                else:  # the first line takes the room above it
-                    lines[0] = (height + foot - y, advance + foot - y)
-                break
+            if y < foot and y + height > top:  # it reaches the table: below it, and the lines after it; it takes
+                lines[index] = (height + foot - y, advance + foot - y)  # the room above it (and goes on to a next
+                break  # page with the table)
             y += advance
         above = sum(advance for _, advance in lines[:-1])
         if above + lines[-1][0] < foot:  # every line above the table: the paragraph holds it
             lines[-1] = (foot - above, foot - above)
         return tuple(lines)
 
-    def wrapped_lines(self, paragraphs: list[Any], width: int) -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]]:
+    def wrapped_lines(self, paragraphs: list[Any], width: int, tables: bool = False
+                      ) -> tuple[tuple[tuple[int, int], ...], tuple[int, ...], tuple[_Reach, ...]]:
         """(height, advance) of every line of a cell's *paragraphs*, and the room above each when a part of the
         cell starts with it (a paragraph's spacing before at its first line), when one of them holds a picture
         or drawing placed top and bottom or square from its top that moves with the text (see
-        :func:`_wraps_in_cell`); empty for any other cell. Hancom stands such an object its offset below the
+        :func:`_wraps_in_cell`; with *tables*, a table so placed, or in front of or behind the text, too);
+        empty for any other cell. Hancom stands such an object its offset below the
         top of the line its control falls on (the paragraph laid out the cell's whole width), or of the
         paragraph, above its spacing before, when that is the first line (an offset up counts as none), and
         lays every line from there on, of that paragraph and the next ones, clear of it (see :func:`_clear_of`).
         The cell reaches down to the lowest object's foot, and to that of any object in front of or behind
-        the text placed from a paragraph's top (see :func:`_floating_reach`). A paragraph with a valid layout
-        cache keeps its lines."""
+        the text placed from a paragraph's top (see :func:`_floating_reach`; such a table stands from the top
+        of the line its control falls on, as an object wrapped does, and pushes no line aside). A paragraph
+        with a valid layout cache keeps its lines. With *tables*, also where each object stands among the lines
+        (see :class:`_Reach`)."""
 
-        owned = [[obj for run in paragraph.findall(f"{HP}run") for obj in run if _wraps_in_cell(obj)]
+        owned = [[obj for run in paragraph.findall(f"{HP}run") for obj in run if _wraps_in_cell(obj, tables)]
                  for paragraph in paragraphs]
-        if not any(owned) or any(len(objects) > 1 for objects in owned):  # several in a paragraph: Hancom
-            return (), ()  # stacks them, which is not followed here (they count as before)
+        floats = [[obj for run in paragraph.findall(f"{HP}run") for obj in run
+                   if tables and _local(obj) == "tbl" and _floating(obj)] for paragraph in paragraphs]
+        if not any(owned) and not any(floats) or any(len(objects) + len(over) > 1
+                                                     for objects, over in zip(owned, floats)):
+            return (), (), ()  # several in a paragraph: Hancom stacks them, which is not followed here (they
+        # count as before)
+        for table in (obj for over in floats for obj in over):
+            pos = table.find(f"{HP}pos")
+            if pos.get("flowWithText") == "0" or pos.get("vertRelTo") != "PARA" or pos.get("vertAlign", "TOP") != "TOP":
+                raise _Unsupported("a table in front of or behind the text in a cell placed otherwise than from "
+                                   "its paragraph's top, moving with the text")
         bands: list[tuple[int, int, int | None]] = []  # top, foot and room beside it (None: the lines go below)
         tops: list[int] = []
         heights: list[int] = []
         leads: list[int] = []
+        reaches: list[_Reach] = []
         after = 0  # where the next paragraph's first line stands, above its spacing before
         far = 0  # the foot of the lowest object in front of or behind the text
-        for paragraph, objects in zip(paragraphs, owned):
+        for paragraph, objects, over in zip(paragraphs, owned, floats):
             obj = objects[0] if objects else None
             shape = self.shape(paragraph.get("paraPrIDRef"))
             runs = paragraph.findall(f"{HP}run")
             text = _run_text(runs)
             empty = not text and not self.headed(paragraph)  # a label is text
+            if obj is not None and _local(obj) == "tbl" and empty and obj.find(f"{HP}pos").get("allowOverlap") != "0":
+                raise _Unsupported("a table that may overlap the text placed top and bottom or square in an empty "
+                                   "cell paragraph")
             top = after + shape.prev if tops else 0
             far = max(far, top + _floating_reach(runs, self))
-            place = 0 if obj is None else _control_place(runs, obj)
+            place = 0 if obj is None and not over else _control_place(runs, obj if obj is not None else over[0])
             fixed = list(_cached_metrics(paragraph))  # Hancom keeps the lines of a valid cache
             simple = not fixed and _table_alone(runs) is None and not self.spread_lines(paragraph, runs, width) \
                 and not self.marked_lines(paragraph, runs, width) \
@@ -943,6 +957,7 @@ class _Measure:
                 fixed = list(self.stack_lines([paragraph], width, caches=True))
             elif fixed:
                 fixed[-1] = (fixed[-1][0], fixed[-1][1] + shape.next)
+            anchor = 0
             if fixed:
                 if place:
                     raise _Unsupported("an object placed top and bottom or square after the text of a paragraph "
@@ -978,18 +993,40 @@ class _Measure:
                 raise _Unsupported("an object placed top and bottom or square past its paragraph's lines in a cell")
             if own is not None:
                 bands.append(own)
+            anchor = min(anchor, len(lines) - 1)
+            line = top if anchor == 0 else lines[anchor - 1][0] + lines[anchor - 1][2]  # where it would stand
+            if own is not None and tables:
+                if own[2] is None:  # it pushes the lines below it: the first of them, where it would stand
+                    pushed = next(((index, top if index == 0 else lines[index - 1][0] + lines[index - 1][2])
+                                   for index in range(anchor, len(lines))
+                                   if lines[index][0] > (top if index == 0 else lines[index - 1][0] + lines[index - 1][2])),
+                                  None)
+                    reaches.append(_Reach(line, own[0], own[1], _table_first(self, obj),
+                                          None if pushed is None else pushed[1],
+                                          0 if pushed is None else lines[pushed[0]][1], *_split_rows(self, obj)))
+                else:
+                    reaches.append(_Reach(line, own[0], own[1]))
+            for table in over:  # from the top of the line its control falls on, where that line would follow the
+                # one before (of the paragraph, above its spacing before, on its first line)
+                up = (top - shape.prev if anchor == 0 else line) + _down(table.find(f"{HP}pos"))
+                far = max(far, up + _cell_extent(self, table))
+                reaches.append(_Reach(line, up, up + _cell_extent(self, table)))
             for index, (line_top, height, advance) in enumerate(lines):
                 if index == 0 and line_top > top:  # below an object: the line takes the room above it
                     height, line_top = height + line_top - top, top
+                elif index and tables and line_top > lines[index - 1][0] + lines[index - 1][2]:  # so a later
+                    # line (a table goes on over a page end with it)
+                    follow = lines[index - 1][0] + lines[index - 1][2]
+                    height, line_top = height + line_top - follow, follow
                 tops.append(line_top)
                 heights.append(height)
                 leads.append(shape.prev if index == 0 else 0)
             after = lines[-1][0] + lines[-1][2]
-        heights[-1] = max(heights[-1], max(foot for _, foot, _ in bands) - tops[-1], far - tops[-1])
+        heights[-1] = max(heights[-1], max((foot for _, foot, _ in bands), default=0) - tops[-1], far - tops[-1])
         if any(later < earlier for earlier, later in zip(tops, tops[1:])):
             raise _Unsupported("lines in a cell placed up past an object placed top and bottom or square")
         return tuple((height, (nxt - line_top) if nxt is not None else height)
-                     for height, line_top, nxt in zip(heights, tops, [*tops[1:], None])), tuple(leads)
+                     for height, line_top, nxt in zip(heights, tops, [*tops[1:], None])), tuple(leads), tuple(reaches)
 
     def marked_lines(self, paragraph: Any, runs: list[Any], width: int) -> tuple[tuple[int, int], ...]:
         """(height, advance) of each line of a paragraph holding composed characters, ruby text, or objects
@@ -1004,6 +1041,27 @@ class _Measure:
         style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"], paragraph)
         return _line_metrics(self, text, _line_widths(shape, width, style), sizes, style, shape, placed,
                              looks if len(set(looks)) > 1 else None, marked)
+
+
+@dataclass(frozen=True)
+class _Reach:
+    """Where an object placed from a cell paragraph stands among the cell's lines, from the top of its first line:
+    where the line its control falls on would stand (``line``), the object's top and foot, and, for a table
+    pushing the lines below it, how far below its top its first row ends (``first``; 0 for anything else), where
+    the first line it pushes below it would stand (``unit``; ``line`` when it pushes that very line) and how
+    tall that line is (``text``), and, for one that may split between its rows, the room above its first row,
+    the pieces it splits into and the room below its last row (``above``, ``rows``, ``below``; see
+    :func:`_split_rows`)."""
+
+    line: int
+    top: int
+    foot: int
+    first: int = 0
+    unit: int | None = None
+    text: int = 0
+    above: int = 0
+    rows: tuple[tuple[int, int, int, int], ...] = ()
+    below: int = 0
 
 
 @dataclass(frozen=True)
@@ -1027,6 +1085,9 @@ class _Row:
     #: its tables are placed top and bottom on their own and split (see :func:`_table_pieces`): its lines
     #: (those tables' pieces among them) split as any cell's
     pieces: bool = False
+    #: the tables among its tallest cell's text placed top and bottom, square, or in front of or behind it
+    #: (laid out by :meth:`_Measure.wrapped_lines`): a page end is not followed through them
+    reaches: tuple[_Reach, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1073,6 +1134,7 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     cells: list[tuple[int, int, _Row]] = []
     nested: set[int] = set()  # rows with a cell holding a table
     headers: set[int] = set()  # rows with a header cell of their own
+    reached: set[int] = set()  # rows with a table among a cell's text (see _Reach)
     firsts: dict[int, int] = {}  # each row's tallest first line of a cell of its own
     widths = grid_widths_of(table)
     spacing = _cell_spacing(table)
@@ -1089,10 +1151,17 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
             headers.add(first)
         if span == 1:
             firsts[first] = max(firsts.get(first, 0), row.first)
+        if span > 1 and row.reaches:
+            raise _Unsupported("a table among the text of a cell merged over rows")
+        if row.reaches:
+            reached.add(first)
         if span > 1:
             merged.append((first, span, row))
         elif first not in rows or (row.height, row.lines) > (rows[first].height, rows[first].lines):
             rows[first] = row
+    for first in reached:  # one among the text of a cell that is not the tallest: no page end followed
+        if not rows[first].reaches:
+            rows[first] = replace(rows[first], reaches=(_Reach(-1, 0, 1 << 62),))
     for first in headers:  # a header row whatever cell is the tallest
         rows[first] = replace(rows[first], header=True)
     for first, line in firsts.items():
@@ -1186,23 +1255,32 @@ def _extent_margins(obj: Any) -> int:
     return 0 if margin is None else _margin(margin, "top") + _margin(margin, "bottom")
 
 
-def _drawn_lines(measure: _Measure, paragraphs: list[Any], width: int | None = None) -> tuple[tuple[int, int], ...]:
+def _drawn_lines(measure: _Measure, paragraphs: list[Any], width: int | None = None, cell: int | None = None
+                 ) -> tuple[tuple[tuple[int, int], ...], tuple[_Reach, ...]]:
     """(height, advance) of every line of *paragraphs* as Hancom placed them, when every paragraph keeps a
     valid layout cache; the last line reaches down to the foot of any top-and-bottom or square-wrapped
     object placed from its paragraph that moves with the text. A picture or drawing stands from the top of
     the line its control falls on (see :meth:`_Measure.wrapped_lines`): in a cell *width* wide, the line
     laid out at the whole width, which is the first one narrower than that when the lines beside the object
-    broke again. A table stands from its paragraph's top (where the first line would stand without it).
+    broke again (for a table, so in a cell *cell* wide too). A table, with a caption above or below it, stands
+    from its paragraph's top (where the first line would stand without it) on the first line, and from the top
+    of the line its control falls on, where that line would follow the one before, on a later one; so does one
+    in front of or behind the text moving with it (from the paragraph's top above its spacing before on the
+    first line), which pushes no line but makes the cell reach its foot.
     A row that went on over a page end has its cell's lines start over at the top of the next page: a
     line above where it would follow the one before (that one's height and spacing below it, or the
     paragraph's top for a paragraph's first line, the part starting at that top) stands where it would
-    in the unsplit cell. A paragraph's first line below an object placed from its top takes the room
-    above it. Empty otherwise."""
+    in the unsplit cell, and so does a line that starts the part below a table placed top and bottom on it
+    (the table went on with it). A paragraph's first line below an object placed from its top takes the room
+    above it, and so does a later line below a table placed top and bottom on it. Empty otherwise; not followed
+    when a table on a later line, or in front of or behind the text, is not as tall as its rows (Hancom split
+    it over a page end). Also where those tables stand among the lines (see :class:`_Reach`)."""
 
     if not paragraphs or not all(_cached_metrics(paragraph) for paragraph in paragraphs):
-        return ()
+        return (), ()
     tops: list[int] = []
     heights: list[int] = []
+    reaches: list[_Reach] = []
     foot, after, base = 0, 0, 0  # after: where the next paragraph's first line would stand
     for paragraph in paragraphs:
         shape = measure.shape(paragraph.get("paraPrIDRef"))
@@ -1210,20 +1288,53 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any], width: int | None = N
         top = start + shape.prev if tops else 0
         first = len(tops)  # the paragraph's first line's index
         segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        runs = paragraph.findall(f"{HP}run")
         objects = []
-        for obj in (child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) in _OBJECTS):
+        floats = []  # tables in front of or behind the text
+        for obj in (child for run in runs for child in run if _local(child) in _OBJECTS):
             pos = obj.find(f"{HP}pos")
-            if pos is None or pos.get("treatAsChar") == "1" or _floating(obj):
+            if pos is None or pos.get("treatAsChar") == "1":
+                continue
+            if _floating(obj):
+                if _local(obj) == "tbl":
+                    if pos.get("flowWithText") == "0" or pos.get("vertRelTo") != "PARA" \
+                            or pos.get("vertAlign", "TOP") != "TOP":
+                        return (), ()
+                    floats.append(obj)
                 continue
             if obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") or pos.get("vertRelTo") != "PARA":
-                return ()
+                return (), ()
             if _local(obj) != "tbl" and pos.get("flowWithText") == "0":  # stays put: pushes no line, the row
                 continue  # as it is
             objects.append(obj)
+        lines = {id(obj): _anchor_line(measure, paragraph, runs, "", obj, [], 0, None, ((0, 0),), len(segments))
+                 for obj in (*objects, *floats) if _local(obj) == "tbl"}
+        whole = width if width is not None else cell
+        if whole is not None:  # the lines beside a table Hancom broke anew, narrower: it stands from the line it
+            full = whole - shape.left - shape.right  # fell on at the cell's whole width, the first of them
+            lines = {key: next((index for index, segment in enumerate(segments[:line])
+                                if int(segment.get("horzsize", 0)) < full - (abs(shape.indent) if index == 0 else 0)),
+                               line) for key, line in lines.items()}
+        pushing: dict[int, Any] = {}  # a later line: the table placed top and bottom on it (or so wrapped square)
+        for obj in (*objects, *floats):
+            if _local(obj) != "tbl" or not lines[id(obj)] and obj not in floats:
+                continue
+            if int(obj.find(f"{HP}sz").get("height", 0)) != _inline_table_height(measure, obj):
+                raise _Unsupported("a table in a cell not as tall as its rows (split over a page end)")
+            if obj in objects and (obj.get("textWrap") == "TOP_AND_BOTTOM"
+                                   or whole is not None and _wraps_top_and_bottom(obj, whole)):
+                pushing[lines[id(obj)]] = obj
+        follows: list[int] = []  # where each line would follow the one before
+        moved: set[int] = set()  # the lines below a table on a later line
         below = top  # where the paragraph's next line would stand
         for index, segment in enumerate(segments):
             vertpos = int(segment.get("vertpos", 0))
-            if tops and vertpos + base < below:  # the next page's part of a split row: the lines start over
+            follows.append(below)
+            table = pushing.get(index)
+            if table is not None and vertpos == _cell_extent(measure, table) + _down(table.find(f"{HP}pos")) \
+                    and base < below:  # the next page's part of a split row, starting below the table that went
+                base = below  # on with the line
+            elif tops and vertpos + base < below:  # the next page's part of a split row: the lines start over
                 base = (top if index == 0 else below) - (0 if index == 0 else vertpos)
             tops.append(vertpos + base)
             heights.append(int(segment.get("textheight", segment.get("vertsize", 0))))
@@ -1231,9 +1342,25 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any], width: int | None = N
             if index == 0 and tops[-1] > top:  # below an object placed from the paragraph's top: the line
                 heights[-1] += tops[-1] - top  # takes the room above it, and goes on to a next page with it
                 tops[-1] = top
-        for obj in objects:
+            elif table is not None and tops[-1] > follows[-1]:  # so below a table on a later line
+                heights[-1] += tops[-1] - follows[-1]
+                tops[-1] = follows[-1]
+                moved.add(index)
+        for obj in (*objects, *floats):
             if _local(obj) == "tbl":
-                foot = max(foot, top + _down(obj.find(f"{HP}pos")) + _extent(obj, "height", measure))
+                line = lines[id(obj)]
+                if not line and obj not in floats:  # from the paragraph's top
+                    foot = max(foot, top + _down(obj.find(f"{HP}pos")) + _extent(obj, "height", measure)
+                               + sum(_caption(measure, obj)))
+                    continue
+                up = (start if line == 0 else follows[line]) + _down(obj.find(f"{HP}pos"))
+                foot = max(foot, up + _cell_extent(measure, obj))
+                if pushing.get(line) is obj:  # it pushes that very line
+                    reaches.append(_Reach(follows[line], up, up + _cell_extent(measure, obj), _table_first(measure, obj),
+                                          follows[line] if line in moved else None,
+                                          int(segments[line].get("textheight", 0)), *_split_rows(measure, obj)))
+                else:
+                    reaches.append(_Reach(follows[line] if line else top, up, up + _cell_extent(measure, obj)))
                 continue
             # a picture or drawing stands its offset below the top of the line its control falls on, where
             # that line would follow the one before (Hancom then moves it clear), or of the paragraph, above
@@ -1252,10 +1379,10 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any], width: int | None = N
         after = int(last.get("vertpos", 0)) + base + int(last.get("textheight", 0)) + int(last.get("spacing", 0)) \
             + shape.next
     if any(later < earlier for earlier, later in zip(tops, tops[1:])):
-        return ()
+        return (), ()
     heights[-1] = max(heights[-1], foot - tops[-1])
     return tuple((height, (nxt - top) if nxt is not None else height)
-                 for height, top, nxt in zip(heights, tops, [*tops[1:], None]))
+                 for height, top, nxt in zip(heights, tops, [*tops[1:], None])), tuple(reaches)
 
 
 def _holds_table(element: Any) -> bool:
@@ -1322,25 +1449,35 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     size = cell.find(f"{HP}cellSz")
     margins = cell_margins_of(cell, table)
     inner = (int(size.get("width", 0)) if width is None else width) - margins.left - margins.right
+    sub_list = cell.find(f"{HP}subList")
+    squeezed = sub_list is not None and sub_list.get("lineWrap") in ("SQUEEZE", "KEEP")
+    wrapped: tuple[tuple[int, int], ...] = ()
+    wrapped_leads: tuple[int, ...] = ()
+    reaches: tuple[_Reach, ...] = ()
     if nested and not pieces and any(_holds_table(paragraph) and _table_alone(paragraph.findall(f"{HP}run")) is None
                                      for paragraph in paragraphs):
-        drawn = _drawn_lines(measure, paragraphs)  # among text, or not set as a character: as Hancom drew it
+        drawn, reaches = _drawn_lines(measure, paragraphs, cell=inner)  # among text, or not set as a character:
+        # as Hancom drew it
         if not drawn and not all(_table_on_its_own(paragraph)
                                  or _table_before_text(paragraph.findall(f"{HP}run")) is not None
                                  or _objects_among(paragraph.findall(f"{HP}run"))  # laid out as in the body
                                  for paragraph in paragraphs
                                  if _holds_table(paragraph)
                                  and _table_alone(paragraph.findall(f"{HP}run")) is None):
-            raise _Unsupported("a nested table")
+            # placed top and bottom or square among or after the text, or in front of or behind it: clear of
+            # it, as a picture so placed
+            wrapped, wrapped_leads, reaches = ((), (), ()) if squeezed \
+                else measure.wrapped_lines(paragraphs, inner, tables=True)
+            if not wrapped:
+                raise _Unsupported("a nested table")
     elif not pieces and any(_placed_from(paragraph) for paragraph in paragraphs):  # an object placed from a
-        drawn = _drawn_lines(measure, paragraphs, inner)  # paragraph: the lines as Hancom drew them, below it or
+        drawn = _drawn_lines(measure, paragraphs, inner)[0]  # paragraph: the lines as Hancom drew them, below it or
         # beside it
-    sub_list = cell.find(f"{HP}subList")
-    if sub_list is not None and sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):  # never broken into lines:
+    if squeezed:  # never broken into lines:
         inner = _NO_WRAP  # each paragraph one line but for its line breaks, pressed into the cell when drawn
     # an object placed top and bottom or square from a paragraph without a layout cache: the lines clear of it
-    wrapped, wrapped_leads = ((), ()) if drawn or nested or pieces or inner == _NO_WRAP \
-        else measure.wrapped_lines(paragraphs, inner)
+    if not (wrapped or drawn or nested or pieces or inner == _NO_WRAP):
+        wrapped, wrapped_leads, _ = measure.wrapped_lines(paragraphs, inner)
     content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True, floating=True)
     # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
     # take that room already)
@@ -1357,11 +1494,91 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     several = not nested and len(paragraphs) > 1  # its lines split at their own places, spacing included
     metrics = (drawn or wrapped or measure.stack_lines(paragraphs, inner, caches=True, pieces=pieces)) \
         if nested or several else ()
+    if nested and not (drawn or wrapped or pieces):
+        reaches = _pushed_reaches(measure, paragraphs, inner, metrics)
     leads = wrapped_leads if wrapped else _line_leads(measure, paragraphs, inner, pieces) \
         if several or before or pieces else ()
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
-                first=first, leads=leads if several or before or pieces else (), pieces=pieces)
+                first=first, leads=leads if several or before or pieces else (), pieces=pieces, reaches=reaches)
+
+
+def _table_first(measure: _Measure, obj: Any) -> int:
+    """How far below its top a table's first row ends, its top outer margin and a caption above it included; 0 for
+    an object that is not a table."""
+
+    if _local(obj) != "tbl":
+        return 0
+    margin = obj.find(f"{HP}outMargin")
+    rows = _rows(measure, obj)
+    return (0 if margin is None else _margin(margin, "top")) + _caption(measure, obj)[0] + (rows[0].height if rows else 0)
+
+
+def _split_rows(measure: _Measure, obj: Any) -> tuple[int, tuple[tuple[int, int, int, int], ...], int]:
+    """How a table placed top and bottom in a cell may split over a page end: the room above its first row (its
+    top outer margin and a caption above it), the pieces it splits into, and the room below its last row (a
+    caption below it). A piece is a row, or, split between lines (CELL), each line of a row of several, the
+    first with the row's top cell margin, the last with its bottom one: its height, advance, the room it needs
+    below it when a page ends after it (the bottom margin of a row going on) and the room above it when a page
+    starts with it (the top margin of a row going on). No pieces for a table set not to split or not to be
+    adjusted (``noAdjust``), with a bottom outer margin, rows merged together or holding tables, or header rows
+    it repeats, which is not followed."""
+
+    margin = obj.find(f"{HP}outMargin")
+    if _local(obj) != "tbl" or _page_break(obj) not in ("CELL", "TABLE") or obj.get("noAdjust") == "1" \
+            or margin is not None and _margin(margin, "bottom"):
+        return 0, (), 0
+    rows = _rows(measure, obj)
+    if not rows or any(row.merged or row.joined or row.nested or row.header and obj.get("repeatHeader") == "1"
+                       for row in rows):
+        return 0, (), 0
+    above, below = _caption(measure, obj)
+    above += 0 if margin is None else _margin(margin, "top")
+    pieces: list[tuple[int, int, int, int]] = []
+    cells = [tr.find(f"{HP}tc") for tr in obj.findall(f"{HP}tr")]
+    for row, cell in zip(rows, cells):
+        lines = (row.metrics or ((row.size, row.pitch),) * row.lines) if _page_break(obj) == "CELL" else ()
+        if len(lines) < 2 or cell is None:
+            pieces.append((row.height, row.height, 0, 0))
+            continue
+        top = cell_margins_of(cell, obj).top
+        bottom = row.margins - top
+        last = row.height - top - sum(advance for _, advance in lines[:-1])
+        pieces += [(top + lines[0][0], top + lines[0][1], bottom, 0)] \
+            + [(height, advance, bottom, top) for height, advance in lines[1:-1]] + [(last, last, 0, top)]
+    return above, tuple(pieces), below
+
+
+def _pushed_reaches(measure: _Measure, paragraphs: list[Any], width: int,
+                    metrics: tuple[tuple[int, int], ...]) -> tuple[_Reach, ...]:
+    """Where the tables placed top and bottom before the text of a cell's paragraphs without a layout cache
+    (see :meth:`_Measure.pushed_lines`) stand among the cell's lines *metrics* (see :class:`_Reach`): from the
+    top of the paragraph's first line. Only those that may split between their rows (see :func:`_split_rows`):
+    another goes on to the next page whole with the line below it, which is not checked against Hancom here."""
+
+    reaches: list[_Reach] = []
+    index = 0
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        obj = _object_before_text(runs, measure.headed(paragraph))
+        if obj is not None and _local(obj) == "tbl" and measure.pushed_lines(paragraph, runs, width):
+            count = len(measure.stack_lines([paragraph], width, caches=True))
+            line = sum(advance for _, advance in metrics[:index])
+            up = line + _down(obj.find(f"{HP}pos"))
+            foot = up + _cell_extent(measure, obj)
+            unit, text, y = None, 0, line  # the first line reaching it, which goes below it taking the room above
+            for height, advance in metrics[index:index + count]:
+                if y + height > up and y < foot:
+                    unit, text = y, height - (foot - y)
+                    break
+                y += advance
+            split = _split_rows(measure, obj)
+            if split[1]:  # one that may not split goes on whole with its line, as it did before
+                reaches.append(_Reach(line, up, foot, _table_first(measure, obj), unit, text, *split))
+            index += count
+            continue
+        index += len(measure.stack_lines([paragraph], width, caches=True))
+    return tuple(reaches)
 
 
 def _line_leads(measure: _Measure, paragraphs: list[Any], width: int, pieces: bool = False) -> tuple[int, ...]:
@@ -1948,7 +2165,8 @@ def _objects_reach(runs: list[Any], measure: _Measure) -> int:
     """How far below the top of their paragraph in a cell, holding no text, the pictures and drawings placed
     from it reach: top and bottom or square, not set as a character, moving with the text, their outer margins
     included (the cell holds them, and its row grows to; one that stays put does not count). So do the tables
-    placed top and bottom from it, as tall as their rows (one placed up stands at the paragraph's top)."""
+    placed top and bottom from it, as tall as their rows and a caption above or below them (one placed up
+    stands at the paragraph's top)."""
 
     reach = 0
     if _run_text(runs).strip():  # text goes on below such an object: not followed here
@@ -1956,7 +2174,8 @@ def _objects_reach(runs: list[Any], measure: _Measure) -> int:
     for obj in (child for run in runs for child in run):
         name, pos = _local(obj), obj.find(f"{HP}pos")
         if name == "tbl" and _placed_top_and_bottom(obj):
-            reach = max(reach, _down(pos) + _inline_table_height(measure, obj) + _extent_margins(obj))
+            reach = max(reach, _down(pos) + _inline_table_height(measure, obj) + _extent_margins(obj)
+                        + sum(_caption(measure, obj)))
             continue
         if name not in _OBJECTS or name == "tbl" or pos is None or obj.find(f"{HP}sz") is None \
                 or pos.get("treatAsChar") == "1" or obj.get("textWrap") not in ("TOP_AND_BOTTOM", "SQUARE") \
@@ -1981,15 +2200,29 @@ def _floating_reach(runs: list[Any], measure: _Measure) -> int:
     return reach
 
 
-def _wraps_in_cell(obj: Any) -> bool:
-    """A picture or drawing (not a table) placed top and bottom or square from the top of its paragraph, not
-    set as a character, that moves with the text: in a cell, one that stays put (pos@flowWithText="0") pushes
-    no line aside and leaves the row as it is."""
+def _wraps_in_cell(obj: Any, tables: bool = False) -> bool:
+    """A picture or drawing (with *tables*, a table too) placed top and bottom or square from the top of its
+    paragraph, not set as a character, that moves with the text: in a cell, one that stays put
+    (pos@flowWithText="0") pushes no line aside and leaves the row as it is."""
 
     pos = obj.find(f"{HP}pos")
-    return _local(obj) in _OBJECTS and _local(obj) != "tbl" and pos is not None and obj.find(f"{HP}sz") is not None \
+    return _local(obj) in _OBJECTS and (tables or _local(obj) != "tbl") and pos is not None \
+        and obj.find(f"{HP}sz") is not None \
         and pos.get("treatAsChar") != "1" and obj.get("textWrap") in ("TOP_AND_BOTTOM", "SQUARE") \
         and pos.get("flowWithText") != "0" and pos.get("vertRelTo") == "PARA" and pos.get("vertAlign", "TOP") == "TOP"
+
+
+def _cell_extent(measure: _Measure, obj: Any) -> int:
+    """How tall an object placed from a cell paragraph stands, its outer margins included: a table as its rows
+    (see :func:`_inline_table_height`) with a caption above or below it (its lines and its gap; one beside it is
+    not followed), anything else as Hancom draws it."""
+
+    if _local(obj) != "tbl":
+        return _extent(obj, "height", measure)
+    caption = obj.find(f"{HP}caption")
+    if caption is not None and caption.get("side") not in ("TOP", "BOTTOM"):
+        raise _Unsupported("a table in a cell with a caption beside it")
+    return _inline_table_height(measure, obj) + _extent_margins(obj) + sum(_caption(measure, obj))
 
 
 def _control_place(runs: list[Any], obj: Any) -> int:
@@ -2012,7 +2245,7 @@ def _cell_band(measure: _Measure, obj: Any, top: int, width: int) -> tuple[int, 
 
     pos = obj.find(f"{HP}pos")
     up = top + _down(pos)  # one placed up stands at that top
-    foot = up + _extent(obj, "height", measure)
+    foot = up + _cell_extent(measure, obj)
     if _wraps_top_and_bottom(obj, width):
         return up, foot, None
     if pos.get("horzRelTo") not in ("PARA", "COLUMN") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
@@ -3551,10 +3784,13 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
 
     remaining, height, metrics, nested, leads = row.lines, row.height, row.metrics, row.nested, row.leads
     foot = body - cut
+    consumed = 0  # how far down the cell's lines the part on this page starts
     while True:
         if y + height <= foot:
             return frame, y + height
         fresh = y == header
+        if mode == "CELL" and row.reaches and row.spare:
+            raise _Unsupported("a page end in a row declared taller than its text holding a table among its text")
         if mode == "CELL" and nested and not row.pieces and row.spare:  # declared taller than its text: cut
             # like any such row (a row whose tables split goes on below as any cell's)
             if y + row.margins + (metrics[0][0] if metrics else row.size) <= foot:  # once its first line fits
@@ -3576,6 +3812,16 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             while fitting < len(metrics) and top + metrics[fitting][0] <= foot:
                 top += metrics[fitting][1]
                 fitting += 1
+            cut = consumed + sum(advance for _, advance in metrics[:fitting])  # where the line not fitting stands
+            found = _reached(row, cut, top, foot, metrics[fitting], metrics[fitting + 1] if fitting + 1 < len(metrics)
+                             else None) if row.reaches and fitting < len(metrics) else None
+            if found is not None:  # a table among the text splits or goes on alone: what of it goes on, and that line
+                piece, consumed = found
+                metrics = (piece,) + metrics[fitting + 1:]
+                height = row.margins + sum(advance for _, advance in metrics[:-1]) + metrics[-1][0]
+                frame, y = frame + 1, header
+                continue
+            consumed = cut
             if fitting:
                 metrics = metrics[fitting:]
                 height = row.margins + sum(advance for _, advance in metrics[:-1]) + metrics[-1][0]
@@ -3605,6 +3851,64 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
         elif fresh:
             return frame, y + height
         frame, y = frame + 1, header
+
+
+def _reached(row: _Row, cut: int, top: int, foot: int, line: tuple[int, int],
+             after: tuple[int, int] | None) -> tuple[tuple[int, int], int] | None:
+    """Check a page end before the row's *line* (height, advance), which stands *cut* below the top of the
+    cell's lines (and would stand at *top* on the page), against the tables among its text (see
+    :class:`_Reach`; *after*: the line after it, if any). Hancom moves such a table on to the next page with the
+    line its control falls on when that line does not fit and the table would fit (a table that may split:
+    its rows ending a table's cut, 101, above the foot with room for a caption below it), or would start past
+    the page's foot. When the first line it pushes below it does not fit and the table would not, the table
+    splits into its pieces (see :func:`_split_rows`): those so ending (a row going on with room for its bottom
+    margin too) stay, the rest go on at the next page's top (a row going on below its top margin again) and
+    that line below them. When no piece stays, the table goes on alone to the next page's top (whatever its offset): the line
+    its control falls on stays where it is, and so does the line it pushes when that is the same, which then
+    fits, the next line going below the table on the next page (if it does not fit either, the table goes on
+    with it, as Hancom does from the line's top). Returned then: what of that line goes on, and where it starts
+    in the cell's lines. A page end through a table or between it and the line it pushes, past a table on this
+    page reaching the foot (with the cell's margins), before lines that would
+    fit on this page once the table has gone on alone (Hancom keeps them there, as if the table were not
+    there), or anything else about a table that may not split (or is not a table pushing the lines below it)
+    is not followed."""
+
+    found = None
+    height, advance = line
+    for reach in row.reaches:
+        if reach.line < cut and cut != reach.unit and (cut < reach.foot or top - cut + reach.foot > foot):
+            raise _Unsupported("a page end through a table among the text of a cell")
+        start = top + reach.top - cut  # where the table would stand on this page
+        if cut not in (reach.line, reach.unit) or start >= foot or (
+                start + reach.above + sum(piece[1] for piece in reach.rows[:-1]) + reach.rows[-1][0]
+                <= foot - _SPARE_CUT - reach.below
+                if reach.rows else start + reach.foot - reach.top <= foot):
+            continue  # it fits, or starts past the foot: it goes on with the line
+        if cut != reach.unit or found is not None:
+            raise _Unsupported("a page end through a table among the text of a cell")
+        if not reach.rows:  # a table that may not split goes on with the line from the line's top
+            if start + reach.first <= foot or top + reach.text <= foot or reach.top != cut:
+                raise _Unsupported("a page end through a table among the text of a cell")
+            continue
+        y, kept = start + reach.above, 0
+        while kept < len(reach.rows) and y + reach.rows[kept][0] + reach.rows[kept][2] \
+                <= foot - _SPARE_CUT - reach.below:
+            y += reach.rows[kept][1]
+            kept += 1
+        if not kept and reach.line < cut and top + reach.text <= foot:  # the lines would fit without it
+            raise _Unsupported("a page end past a table among the text of a cell going on alone")
+        if kept or reach.line < cut:  # the rest goes on, the line below it
+            stays = reach.top - cut + (reach.above + sum(piece[1] for piece in reach.rows[:kept])
+                                       - reach.rows[kept][3] if kept else 0)
+            found = (height - stays, advance - stays), cut + stays
+        elif top + reach.text <= foot:  # the line stays, the table goes on alone, the next line below it
+            if after is not None and top + advance - (reach.foot - cut) + after[0] <= foot:  # that one would fit
+                raise _Unsupported("a page end past a table among the text of a cell going on alone")
+            tall = reach.foot - reach.top
+            found = (tall, tall), cut + advance - tall
+        elif reach.top != cut:
+            raise _Unsupported("a page end through a table among the text of a cell")
+    return found
 
 
 def _lines_fitting(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], top: int, foot: int) -> int:
