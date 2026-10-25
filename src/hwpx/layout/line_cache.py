@@ -118,6 +118,10 @@ _SURE_FACES = frozenset({
 #: 한양 faces (see ``form_fit.measure._BOLD_WIDER_FACES``). Some bold glyphs of HCI Hollyhock Hancom lays out at
 #: other advances: bold characters in it are left.
 _BOLD_SURE_FACES = _SURE_FACES - {"HCI Hollyhock"}
+#: The faces whose italic characters Hancom lays out at their regular advances, slanted in place. In the 한양 faces
+#: and HCI Poppy it draws italic in faces of their own, at other advances (``form_fit._glyph_table.ITALIC_ADVANCES``),
+#: not yet seen on the desktop in whole paragraphs: italic characters in them are left.
+_ITALIC_SURE_FACES = _SURE_FACES - {"한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy"}
 #: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
 _SURE_RATIOS = (50, 200)
 _SURE_SPACINGS = (-30, 30)
@@ -437,7 +441,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     headed = measure.headed(paragraph)
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
-    if shape.font_line or vertical not in _BASELINES or not _bold_sure(measure, paragraph, runs):
+    if shape.font_line or vertical not in _BASELINES or not _shapes_sure(measure, paragraph, runs):
         return None
     if measure.pictured(paragraph.get("paraPrIDRef")):
         return None  # a picture bullet sized by its picture: its room was not measured
@@ -549,20 +553,27 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])
 
 
-def _bold_sure(measure: Any, paragraph: Any, runs: list[Any]) -> bool:
-    """Whether every bold run of *paragraph* holding text is set in faces of :data:`_BOLD_SURE_FACES`."""
+def _shapes_sure(measure: Any, paragraph: Any, runs: list[Any]) -> bool:
+    """Whether every bold run of *paragraph* holding text is set in faces of :data:`_BOLD_SURE_FACES` and every
+    italic one in faces of :data:`_ITALIC_SURE_FACES`."""
 
-    bold = getattr(measure, "_line_cache_bold", None)
-    if bold is None:
-        bold = {shape.get("id"): shape.find(f"{HH}bold") is not None for shape in measure._header.iter(f"{HH}charPr")}
-        measure._line_cache_bold = bold
+    looks = getattr(measure, "_line_cache_looks", None)
+    if looks is None:
+        looks = {shape.get("id"): (shape.find(f"{HH}bold") is not None, shape.find(f"{HH}italic") is not None)
+                 for shape in measure._header.iter(f"{HH}charPr")}
+        measure._line_cache_looks = looks
     for run in runs:
         ref = run.get("charPrIDRef")
-        if not bold.get(ref) or not _pages._run_text([run]):
+        bold, italic = looks.get(ref, (False, False))
+        if not (bold or italic) or not _pages._run_text([run]):
             continue
         style = measure.style(paragraph.get("paraPrIDRef"), [ref], paragraph)
-        if style is None or any(face not in _BOLD_SURE_FACES for face in (
-                style.hangul_face, style.latin_face or style.glyph_face, style.symbol_face or style.glyph_face)):
+        if style is None:
+            return False
+        faces = (style.hangul_face, style.latin_face or style.glyph_face, style.symbol_face or style.glyph_face)
+        if bold and any(face not in _BOLD_SURE_FACES for face in faces):
+            return False
+        if italic and any(face not in _ITALIC_SURE_FACES for face in faces):
             return False
     return True
 
