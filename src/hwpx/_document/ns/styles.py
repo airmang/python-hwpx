@@ -493,6 +493,38 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     def memo_shape(self, memo_shape_id_ref: "int | str | None") -> "MemoShape | None":
         return self._doc.oxml.memo_shape(memo_shape_id_ref)
 
+    @property
+    def numberings(self) -> dict[str, "GenericElement"]:
+        """번호 정의(`hh:numbering`) 목록(id 문자열 → `GenericElement`).
+
+        첫 헤더의 `hh:refList/hh:numberings`를 읽는다. 문단 모양의
+        `hh:heading@idRef`(종류가 NUMBER·OUTLINE일 때)가 가리키는 정의다.
+        헤더나 정의가 없으면 `{}`. 글머리표 정의는 :attr:`bullets`.
+        """
+
+        header = self._primary_header()
+        if header is None:
+            return {}
+        element = header._numberings_element()
+        if element is None:
+            return {}
+        from ...oxml.header import parse_numberings
+
+        parsed = parse_numberings(header._convert_to_lxml(element))
+        mapping: dict[str, "GenericElement"] = {}
+        for definition in parsed.numberings:
+            identifier = definition.attributes.get("id")
+            if identifier is not None:
+                mapping.setdefault(str(identifier), definition)
+        return mapping
+
+    def numbering(self, numbering_id_ref: "int | str | None") -> "GenericElement | None":
+        """id가 *numbering_id_ref*인 번호 정의. 없으면 `None`. 정수와 문자열을 모두 받는다."""
+
+        if numbering_id_ref is None:
+            return None
+        return self.numberings.get(str(numbering_id_ref).strip())
+
     # -- 서식 id 를 mint 하는 동사 -----------------------------------------
 
     def ensure_run(
@@ -668,6 +700,90 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         """글머리표/번호 정의를 보장하고 참조 id 들을 돌려준다."""
 
         return self._doc.oxml.ensure_numbering(kind=kind, levels=levels)
+
+    def ensure_paragraph_format(
+        self,
+        *,
+        base_para_pr_id: str | int | None = None,
+        alignment: str | None = None,
+        line_spacing_percent: int | float | None = None,
+        margins: Mapping[str, int] | None = None,
+        heading: Mapping[str, str | int] | None = None,
+        border: Mapping[str, str | int] | None = None,
+        break_setting: Mapping[str, bool] | None = None,
+        tab_pr_id_ref: str | None = None,
+    ) -> str:
+        """요청한 문단 모양의 `paraPr` id 를 보장하고 그 id 를 돌려준다.
+
+        :meth:`ensure_run` 의 문단 쪽 짝이다. 기준(`base_para_pr_id`, 없으면 첫
+        `paraPr`)을 복사해 요청한 값만 바꾸고, 내용이 같은 문단 모양이 있으면 그것을
+        다시 쓴다. 문단에는 적용하지 않는다 — 돌려받은 id 를 문단의
+        `para_pr_id_ref` 나 :meth:`ensure_style` 의 `para_pr_id_ref` 에 넘긴다.
+        사람 단위(mm·pt)로 문단에 바로 적용하려면 :meth:`apply_paragraph_format`.
+
+        값은 OWPML 그대로다: `margins` 는 HWPUNIT(`left`·`right`·`intent`·`prev`·
+        `next`), `heading` 은 `hh:heading` 속성(`type`·`idRef`·`level`),
+        `break_setting` 은 `keep_with_next`·`keep_lines`·`page_break_before`·
+        `widow_orphan` 불리언이다. 헤더가 없으면
+        `HwpxStateError(code="document-header-missing")`.
+        """
+
+        return self._require_header().ensure_paragraph_format(
+            base_para_pr_id=base_para_pr_id,
+            alignment=alignment,
+            line_spacing_percent=line_spacing_percent,
+            margins=margins,
+            heading=heading,
+            border=border,
+            break_setting=break_setting,
+            tab_pr_id_ref=tab_pr_id_ref,
+        )
+
+    def ensure_style(
+        self,
+        name: str,
+        *,
+        style_type: str | None = None,
+        eng_name: str | None = None,
+        para_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        next_style_id_ref: str | int | None = None,
+        lang_id: int | None = None,
+        lock_form: bool | None = None,
+    ) -> str:
+        """이름이 *name* 인 스타일(`hh:style`)의 id 를 보장하고 돌려준다.
+
+        한/글은 스타일을 이름으로 구별하므로 *name* 이 중복 제거의 열쇠다. 같은
+        이름의 스타일이 있으면 새로 만들지 않고 그 id 를 돌려주며, `None` 이 아닌
+        키워드만 그 스타일에 덮어쓴다. 없으면 새 id 로 만들고(`style_type` 기본
+        `"PARA"`), `hh:styles@itemCnt` 를 맞춘다. 같은 이름의 다른 스타일을 따로
+        두고 싶으면 먼저 :meth:`names` 로 겹치지 않는 이름을 고른다.
+
+        `next_style_id_ref` 를 자기 자신으로 두려면 한 번 만든 뒤 돌려받은 id 로
+        다시 부른다. 헤더가 없으면 `HwpxStateError(code="document-header-missing")`.
+        """
+
+        return self._require_header().ensure_style(
+            name,
+            style_type=style_type,
+            eng_name=eng_name,
+            para_pr_id_ref=para_pr_id_ref,
+            char_pr_id_ref=char_pr_id_ref,
+            next_style_id_ref=next_style_id_ref,
+            lang_id=lang_id,
+            lock_form=lock_form,
+        )
+
+    def _require_header(self) -> "HwpxOxmlHeader":
+        header = self._primary_header()
+        if header is None:
+            from ...errors import HwpxStateError
+
+            raise HwpxStateError(
+                "document does not contain any headers",
+                code="document-header-missing",
+            )
+        return header
 
     # -- 문단에 서식을 적용하는 동사 ---------------------------------------
 

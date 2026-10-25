@@ -129,6 +129,17 @@
 - `styles.replace_font(src_face, dst_face, *, langs=None, font_type=None) -> FontReplaceReport`
   - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 *dst_face* 글꼴을 더하고(다른 블록에 *dst_face* 선언이 있으면 그 `hh:font`를 id만 바꿔 복사해 `type`·자식 요소가 같고, 어디에도 없으면 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`, *font_type*을 주면 더하는 글꼴의 `type`은 그 값), *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
 
+#### 스타일·문단 모양·번호 정의 (`doc.styles`)
+
+응용 계층이 헤더 내부(`_styles_element()`·`_allocate_ref_id()`·`_update_item_count()`)를 직접 만지지 않고 스타일을 만들 수 있게 하는 공개 동사입니다. id 할당·`itemCnt`·변경 표시는 core가 맡습니다. 헤더가 없으면 `HwpxStateError`(`document-header-missing`)입니다.
+
+- `styles.ensure_style(name, *, style_type=None, eng_name=None, para_pr_id_ref=None, char_pr_id_ref=None, next_style_id_ref=None, lang_id=None, lock_form=None) -> str`
+  - 이름이 *name*인 `hh:style`의 id입니다. 한/글은 스타일을 이름으로 구별하므로 같은 이름이 있으면 새로 만들지 않고 그 id를 돌려주며, `None`이 아닌 키워드만 덮어씁니다. 없으면 새 id로 만들고(`style_type` 기본 `"PARA"`) `itemCnt`를 맞춥니다. 같은 이름을 따로 두려면 `styles.names()`로 겹치지 않는 이름을 먼저 고릅니다. `nextStyleIDRef`를 자기 자신으로 두려면 돌려받은 id로 한 번 더 부릅니다.
+- `styles.ensure_paragraph_format(*, base_para_pr_id=None, alignment=None, line_spacing_percent=None, margins=None, heading=None, border=None, break_setting=None, tab_pr_id_ref=None) -> str`
+  - `ensure_run`의 문단 쪽 짝입니다. 기준 `paraPr`(없으면 첫 문단 모양)을 복사해 요청한 값만 바꾼 문단 모양의 id를 돌려주고, 같은 것이 있으면 다시 씁니다. 문단에 적용하지는 않습니다. 값은 OWPML 그대로입니다(`margins`는 HWPUNIT, `heading`은 `type`·`idRef`·`level`). 사람 단위로 문단에 바로 적용하려면 `styles.apply_paragraph_format()`을 씁니다.
+- `styles.numberings -> dict[str, GenericElement]`, `styles.numbering(numbering_id_ref) -> GenericElement | None`
+  - 첫 헤더의 번호 정의(`hh:numbering`)를 id 문자열로 찾습니다. 문단 모양 `hh:heading@idRef`가 가리키는 정의입니다. 글머리표 정의는 `styles.bullets`입니다.
+
 #### 콘텐츠 생성 헬퍼
 
 - `add_paragraph(text="", ...) -> HwpxOxmlParagraph`

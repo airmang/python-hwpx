@@ -6,6 +6,10 @@
 
 ### 추가
 
+- `doc.styles.ensure_style()`·`doc.styles.ensure_paragraph_format()`·`doc.styles.numberings`/`numbering()`을 공개한다.
+  스타일 이름으로 `hh:style`을 보장하고(같은 이름이면 다시 쓴다), 문단 모양 id를 만들고, 번호 정의를 읽는다. 지금까지는
+  헤더 객체의 내부 메서드(`_styles_element`·`_allocate_ref_id`·`_update_item_count`)를 불러야 했다. 헤더가 없으면
+  `document-header-missing`으로 거부한다.
 - (실험) `write_line_caches(doc)`가 줄 배치 정보를 쓰는 문단을 넓힌다. 이 함수를 부른 뒤 `.hwp`로 저장하면 아래 그림
   문단도 `PARA_LINE_SEG`를 얻어, 이 레코드로 그림 자리를 찾는 다른 HWP 뷰어가 그림을 그린다.
   - 글자처럼 놓인 그림 하나만 든 문단: 캡션이 있는 그림(위·아래 캡션은 캡션의 줄과 간격만큼 줄이 높고, 옆 캡션은 그림
