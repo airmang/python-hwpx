@@ -64,6 +64,7 @@ BOLD_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_b
 BOLD_ADVANCES_UNDER_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_bold_advances_under_ratio.hwpx"
 HANYANG_GLYPH_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_glyph_grid.hwpx"
 YUN_GOTHIC_250_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_yun_gothic_250_grid.hwpx"
+HANJA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_hanja_grid.hwpx"
 DOTUM_SYMBOL_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_dotum_symbol_grid.hwpx"
 ANO_TELEIA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_ano_teleia_grid.hwpx"
 HANYANG_BOLD_SYLLABLES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_bold_syllables.hwpx"
@@ -551,6 +552,32 @@ def test_hancom_yun_gothic_250_glyphs_take_the_advances_hancom_lays_them_out_at(
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (text[0], size, style.ratio, style.bold)
     assert len(paragraphs) == 396
+
+
+def test_hanja_take_an_em_laid_out_on_the_quarter_point_grid() -> None:
+    # Hancom lays a CJK ideograph out an em wide in every face, on the quarter of the character height Hangul
+    # syllables use: under 장평 95 at 10 pt it is 948, not 950, and at 10.5 pt 1,048, not 1,050.
+    style = TextStyle(hangul_face="함초롬바탕", glyph_face="함초롬바탕", ratio=95)
+    assert char_advance("學", 10, style) == 948
+    assert char_advance("學", 10.5, replace(style, ratio=100)) == 1048
+    assert char_advance("學", 10, replace(style, bold=True)) == 948
+
+
+def test_hanja_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three ideographs (CJK unified, extension A, compatibility) then a tab in 함초롬바탕, 맑은 고딕
+    # and 휴먼명조 at 9, 10.5, 13 and 20 pt under 장평 80 to 120 %, 자간 0 and −5, regular and bold. Each tab
+    # reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(HANJA_GRID)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold)
+    assert len(paragraphs) == 576
 
 
 def test_hancom_dotum_takes_its_symbols_from_hamchorom_dotum() -> None:
