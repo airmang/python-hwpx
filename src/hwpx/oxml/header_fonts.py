@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import copy
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Mapping
 
 from ..errors import HwpxValueError
 from ..objects.results import BorderFillInfo, BorderLine, FontReplaceReport
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
     from .header_part import HwpxOxmlHeader
 
-__all__ = ["border_fill_info", "clear_line_caches", "font_face", "fonts", "replace_font"]
+__all__ = ["border_fill_info", "clear_line_caches", "font_face", "fonts", "replace_font", "run_style_font_ref"]
 
 #: ``hh:borderFill`` side children, in ``BorderFillInfo`` field order.
 _BORDER_SIDES = ("leftBorder", "rightBorder", "topBorder", "bottomBorder", "diagonal")
@@ -391,3 +391,67 @@ def clear_line_caches(
                 removed += _clear_paragraph_layout_cache(paragraph)
         if removed:
             section.mark_dirty()
+
+
+def _font_by_lang(font_by_lang: "Mapping[str, str] | None") -> dict[str, str]:
+    """*font_by_lang* checked before anything is declared: lang (``HANGUL``.. ``USER``, any case) -> face."""
+
+    if font_by_lang is None:
+        return {}
+    if not isinstance(font_by_lang, Mapping):
+        raise HwpxValueError(
+            f"font_by_lang must map a lang to a face; got {font_by_lang!r}",
+            code="style-run-font-by-lang-invalid",
+            suggestion='예: font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"}',
+        )
+    resolved: dict[str, str] = {}
+    for key, face in font_by_lang.items():
+        if not isinstance(key, str):
+            raise HwpxValueError(
+                f"font_by_lang key must be one lang name; got {key!r}",
+                code="style-run-font-by-lang-invalid",
+                context={"requested": repr(key)},
+            )
+        lang = _single_lang(key)
+        if lang in resolved:
+            raise HwpxValueError(
+                f"font_by_lang names {lang} twice",
+                code="style-run-font-by-lang-invalid",
+                context={"lang": lang},
+            )
+        if not isinstance(face, str):
+            raise HwpxValueError(
+                f"font_by_lang face for {lang} must be a font name; got {face!r}",
+                code="style-run-font-by-lang-invalid",
+                context={"lang": lang},
+            )
+        if not face.strip():
+            raise HwpxValueError(f"font_by_lang face for {lang} must not be empty", code="style-font-face-empty")
+        resolved[lang] = face.strip()
+    return resolved
+
+
+def run_style_font_ref(
+    header: "HwpxOxmlHeader", font: str | None, font_by_lang: "Mapping[str, str] | None"
+) -> dict[str, str] | None:
+    """The ``hh:fontRef`` attributes a requested run style sets (``ensure_run_style``).
+
+    *font* goes to every language that declares it; a face no language declares is declared in all
+    seven first, as Hancom declares a font it is asked to apply. Then each *font_by_lang* face goes to
+    its own language: declared in that language's block if missing, referenced by that block's id
+    (each language numbers its fonts on its own). So *font_by_lang* wins over *font* for the languages
+    it names, and a language neither names keeps the base style's reference. *font_by_lang* is checked
+    before any font is declared.
+    """
+
+    by_lang = _font_by_lang(font_by_lang)
+    refs = header.font_ref_for_face(font) if font is not None else None
+    if font is not None and refs is None and font.strip():
+        header.ensure_font(font)
+        refs = header.font_ref_for_face(font)
+    if not by_lang:
+        return refs
+    merged = dict(refs or {})
+    for lang, face in by_lang.items():
+        merged[_FONT_FACE_LANG_TO_REF[lang]] = header.ensure_font(face, lang=lang)
+    return merged
