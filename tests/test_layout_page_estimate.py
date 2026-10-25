@@ -2025,21 +2025,79 @@ def test_a_row_holding_a_nested_table_split_over_a_page_splits_where_hancom_spli
 def test_a_cell_holding_a_table_wrapped_square_is_as_tall_as_hancom_drew_it(fixture: str) -> None:
     # A table wrapped square at the left of a paragraph in a cell of a flowing table, alone (the cell
     # reaches down to its foot) or beside text (the lines beside it are narrower, the rest go below
-    # it): the lines of the cell's caches. Without the caches the estimate does not follow such a cell.
+    # it): the lines of the cell's caches. Without the caches the estimate lays the lines out beside the
+    # table, as it does beside a picture so placed.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
-    assert estimate_pages(_without_caches(data)).unsupported == ("section 0: a nested table",)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
+
+
+@pytest.mark.parametrize(("fixture", "pages"), [("pages_table_nested_top_and_bottom_among_text", 2),
+                                                ("pages_table_nested_square_among_text", 1),
+                                                ("pages_table_nested_behind_text_among_text", 1),
+                                                ("pages_table_nested_captioned_among_text", 2)])
+def test_a_table_among_the_text_of_a_cell_stands_at_the_top_of_its_line(fixture: str, pages: int) -> None:
+    # Tables in cells of flowing tables, each in a paragraph of no text, a line or two lines before it and
+    # after it (nine cells a file; in the captioned file a caption above or below a table of one or four
+    # rows, two kinds of text). Without the caches Hancom stands such a table at the top of the line its
+    # control falls on (or of the paragraph, on its first line), its offset below that: placed top and bottom
+    # that line and the rest go below it (as a picture so placed; the caption with it), wrapped square the
+    # lines beside it are narrower, in the paragraph and the next ones, and behind the text it pushes no line
+    # but the cell reaches its foot. The first file's last table goes on to the next page with the line below
+    # it (that line does not fit, the table would).
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(data), data, pages)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, pages)
+
+
+@pytest.mark.parametrize(("fixture", "pages"), [("pages_table_nested_captioned_before_text", 2),
+                                                ("pages_table_nested_paragraph_shapes_around_text", 1)])
+def test_a_captioned_table_in_a_cell_takes_its_caption_with_it(fixture: str, pages: int) -> None:
+    # Tables of one or four rows placed top and bottom before a line or two of text (the last one going over
+    # the page end, split between its rows), and cells of an empty paragraph holding such a table with a caption
+    # above or below it, a paragraph with spacing before, margins or a 200 % line spacing around one, two such
+    # paragraphs: the caption's lines and gap stand with the table, the lines below it. Without the caches the
+    # estimate counted the table alone before, its rows only.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, pages)
+
+
+def test_a_table_among_the_text_of_a_cell_splits_between_its_rows_over_a_page_end() -> None:
+    # The same tables placed top and bottom 600 down, a line of text after each cell: the last but one goes
+    # over the page end through its table, whose first row ends 101 above the foot or higher: Hancom splits the
+    # table between its rows, the rest at the next page's top, the line below it under the rest, and saves the
+    # table as tall as that rest. Without the caches the estimate splits it there too; with them, a table not
+    # as tall as its rows is not followed.
+    data = (FIXTURES / "pages_table_nested_split_at_a_table_among_text.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
+    assert estimate_pages(data).unsupported == ("section 0: a table in a cell not as tall as its rows (split over a "
+                                                "page end)",)
+
+
+@pytest.mark.parametrize("fixture", ["pages_table_nested_split_with_a_caption_among_text",
+                                     "pages_table_nested_moved_alone_among_text"])
+def test_a_table_among_the_text_of_a_cell_at_a_page_end_goes_on_as_hancom_moves_it(fixture: str) -> None:
+    # One cell of two lines, a table of three rows placed top and bottom (400 down, a caption below it; or
+    # right at the line's top) and two lines more, its row at the page end. With the caption below it the
+    # rows that stay end 101 above the foot with room for the caption: two of them, the third, the caption
+    # and the lines below it go on. Without one, when its first row does not end so high, the line its control
+    # falls on stays where it is and the table goes on alone to the next page's top, the next line below it.
+    data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
+
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
 
 
 @pytest.mark.parametrize(("fixture", "followed"), [("pages_table_nested_top_and_bottom_placed_up_alone", True),
-                                                  ("pages_table_nested_square_placed_up_alone", False)])
+                                                  ("pages_table_nested_square_placed_up_alone", True)])
 def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_top(fixture: str,
                                                                                   followed: bool) -> None:
     # A table alone in a cell's paragraph after two lines, placed top and bottom or wrapped square 1000
     # up from the paragraph's top (a negative offset, kept as an unsigned number): Hancom puts it at the
-    # paragraph's top, and the cell reaches down to its foot from there; without the caches as well, for
-    # the table placed top and bottom.
+    # paragraph's top, and the cell reaches down to its foot from there; without the caches as well.
     data = (FIXTURES / f"{fixture}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
