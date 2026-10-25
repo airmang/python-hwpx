@@ -84,3 +84,48 @@ def test_body_ops_replace_text_writes_a_line_break_as_an_element() -> None:
 
     _assert_no_raw_break(result.data)
     assert any("가<hp:lineBreak/>나" in node for node in _text_nodes(result.data))
+
+
+# The same text through both add_run paths (#563): expand_special_characters
+# only adds the special-space atoms; tabs and every typed line break stay.
+_ADD_RUN_CASES = [
+    ("가\t나", "가<hp:tab/>나", "가\t나"),
+    ("가\n나", "가<hp:lineBreak/>나", "가\n나"),
+    ("가\r\n나", "가<hp:lineBreak/>나", "가\n나"),
+    ("가\r나", "가<hp:lineBreak/>나", "가\n나"),
+    (
+        "가\t나\r\n다\r라\n마",
+        "가<hp:tab/>나<hp:lineBreak/>다<hp:lineBreak/>라<hp:lineBreak/>마",
+        "가\t나\n다\n라\n마",
+    ),
+    ("\r\r\n\t", "<hp:lineBreak/><hp:lineBreak/><hp:tab/>", "\n\n\t"),
+]
+
+
+@pytest.mark.parametrize("expand", [False, True], ids=["literal", "expand"])
+@pytest.mark.parametrize(("text", "xml", "reopened"), _ADD_RUN_CASES)
+def test_add_run_keeps_tabs_and_line_breaks_either_way(text: str, xml: str, reopened: str, expand: bool) -> None:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("").add_run(text, expand_special_characters=expand)
+    data = doc.to_bytes()
+
+    _assert_no_raw_break(data)
+    assert xml in _text_nodes(data)
+    assert HwpxDocument.open(data).paragraphs[1].text == reopened
+
+
+@pytest.mark.parametrize(
+    ("expand", "xml"),
+    [
+        (False, "가 나<hp:tab/>다　라<hp:lineBreak/>마"),
+        (True, "가<hp:nbSpace/>나<hp:tab/>다<hp:fwSpace/>라<hp:lineBreak/>마"),
+    ],
+    ids=["literal", "expand"],
+)
+def test_add_run_special_spaces_beside_tabs_and_line_breaks(expand: bool, xml: str) -> None:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("").add_run("가 나\t다　라\r마", expand_special_characters=expand)
+    data = doc.to_bytes()
+
+    assert xml in _text_nodes(data)
+    assert HwpxDocument.open(data).paragraphs[1].text == "가 나\t다　라\n마"
