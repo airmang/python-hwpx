@@ -69,6 +69,9 @@ DOTUM_SYMBOL_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formf
 ANO_TELEIA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_ano_teleia_grid.hwpx"
 HANYANG_BOLD_SYLLABLES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_bold_syllables.hwpx"
 ITALIC_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_italic_advances.hwpx"
+LATIN_FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_latin_face_advances.hwpx"
+LATIN_FACES = ("Times New Roman", "Arial", "Cambria", "Constantia", "Calibri", "Georgia", "Verdana", "Tahoma",
+               "Segoe UI", "Consolas", "Courier New")
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
@@ -587,6 +590,42 @@ def test_italic_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold, style.italic)
     assert italic_seen == 612
+
+
+def test_latin_faces_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom Office 2024 lays the Windows Latin faces out at their own advances (2048 units), not at 한컴바탕's a face
+    # missing from the table takes: "a" in Times New Roman at 10 pt is 444 (909 units), not 500. Italic it draws in
+    # the italic face, at other advances ("a" 500, "f" 276 for a regular 332); bold it draws over the regular glyphs,
+    # at their advances. A Hangul syllable in them it lays out an em wide.
+    times = TextStyle(hangul_face="Times New Roman", glyph_face="Times New Roman")
+    assert [char_advance(ch, 10, times) for ch in "afW“"] == [444, 332, 944, 444]
+    assert [char_advance(ch, 10, replace(times, italic=True)) for ch in "afW“"] == [500, 276, 832, 556]
+    assert [char_advance(ch, 10, replace(times, bold=True)) for ch in "afW“"] == [444, 332, 944, 444]
+    assert char_advance("가", 10, times) == char_advance("가", 10, replace(times, italic=True)) == 1000
+    arial = TextStyle(hangul_face="함초롬바탕", glyph_face="", latin_face="Arial")
+    assert [char_advance(ch, 10, arial) for ch in "afW“"] == [556, 276, 944, 332]
+    courier = TextStyle(hangul_face="Courier New", glyph_face="Courier New")
+    assert {char_advance(ch, 10, replace(courier, italic=italic)) for ch in "afW“é" for italic in (False, True)} == {600}
+
+
+def test_latin_face_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three glyphs then a tab in eleven Windows Latin faces at 7, 11 and 20 pt under 장평 80 to 120 %,
+    # regular and italic, and bold and bold italic at 100 %: Latin letters, a digit, a parenthesis, a curly quote and
+    # a Latin-1 letter. Each tab reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(LATIN_FACE_ADVANCES)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    faces: set[str] = set()
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        faces.add(style.glyph_face)
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold, style.italic)
+    assert faces == set(LATIN_FACES)
+    assert len(paragraphs) == 2112
 
 
 def test_hancom_yun_gothic_250_takes_its_own_advances() -> None:
