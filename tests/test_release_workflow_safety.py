@@ -106,7 +106,7 @@ EXPECTED_RELEASE_STEPS = (
     ),
     (
         "Set up Python",
-        "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+        "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
         False,
         {"python-version": "3.12"},
         None,
@@ -153,7 +153,7 @@ EXPECTED_RELEASE_STEPS = (
     ),
     (
         "Publish package to PyPI",
-        "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
+        "pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086",
         False,
         None,
         None,
@@ -875,7 +875,7 @@ def test_core_release_build_inputs_and_remote_provenance_are_frozen() -> None:
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
     assert pyproject["build-system"]["requires"] == [
-        "setuptools==84.0.0",
+        "setuptools==84.2.1",
         "wheel==0.48.0",
     ]
     assert _workflow_safety_failures(RELEASE.read_text(encoding="utf-8")) == []
