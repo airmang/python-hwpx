@@ -68,6 +68,7 @@ HANJA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanc
 DOTUM_SYMBOL_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_dotum_symbol_grid.hwpx"
 ANO_TELEIA_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_ano_teleia_grid.hwpx"
 HANYANG_BOLD_SYLLABLES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hanyang_bold_syllables.hwpx"
+ITALIC_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_italic_advances.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
@@ -527,6 +528,65 @@ def test_hanyang_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold)
     assert len(paragraphs) == 600
+
+
+def test_italic_glyphs_keep_their_advances_where_hancom_slants_them_in_place() -> None:
+    # In faces without an italic face of their own (함초롬바탕, 맑은 고딕, 바탕, ...) Hancom slants italic glyphs in
+    # place: they keep their regular advances, bold italic ones their bold advances.
+    for face in ("함초롬바탕", "맑은 고딕", "바탕", "휴먼명조", "HCI Hollyhock"):
+        style = TextStyle(hangul_face=face, glyph_face=face)
+        for ch in "가Aaf1.(?※":
+            assert char_advance(ch, 10, replace(style, italic=True)) == char_advance(ch, 10, style), (face, ch)
+            assert char_advance(ch, 10, replace(style, italic=True, bold=True)) == char_advance(
+                ch, 10, replace(style, bold=True)), (face, ch)
+
+
+def test_italic_glyphs_take_their_italic_faces_advances_in_the_hanyang_faces_and_hci_poppy() -> None:
+    # Hancom draws italic in faces of their own in the 한양 faces and HCI Poppy, at other advances: an italic "f" in
+    # 한양신명조 at 10 pt is 240 (60 units of 250), not 352 regular. Its Hangul syllables keep their advances, and a bold
+    # italic glyph in a 한양 face is a twentieth of the em wider, as a bold one is.
+    myeongjo = TextStyle(hangul_face="한양신명조", glyph_face="한양신명조")
+    assert char_advance("f", 10, myeongjo) == 352
+    assert char_advance("f", 10, replace(myeongjo, italic=True)) == 240
+    assert char_advance("f", 10, replace(myeongjo, italic=True, bold=True)) == 292
+    assert char_advance("가", 10, replace(myeongjo, italic=True)) == 1000
+    # 한양견고딕 lays its italic Latin glyphs out on its Latin grid too: "+" is 631 of 1200, a unit past the regular 623.
+    gyeon = TextStyle(hangul_face="한양견고딕", glyph_face="한양견고딕")
+    assert (char_advance("+", 10, gyeon), char_advance("+", 10, replace(gyeon, italic=True))) == (520, 524)
+    # HCI Poppy widens no bold italic glyph: it takes the italic face's advance, but for a few symbols the bold one's.
+    poppy = TextStyle(hangul_face="HCI Poppy", glyph_face="HCI Poppy")
+    assert char_advance("f", 10, replace(poppy, italic=True)) == char_advance("f", 10, replace(poppy, italic=True, bold=True)) == 276
+    assert (char_advance("°", 10, replace(poppy, italic=True)), char_advance("°", 10, replace(poppy, italic=True, bold=True))) == (408, 460)
+
+
+def test_a_character_shapes_italic_reaches_the_layout_style() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run("f", char_pr_id_ref=document.styles.ensure_run(font="한양신명조", italic=True))
+    run = paragraph.element.findall(f"{HP}run")[-1]
+    style = text_style_from_refs(document, paragraph.element.get("paraPrIDRef"), [run.get("charPrIDRef")])
+    assert style.italic and not style.bold
+    assert char_advance("f", 10, style) == 240
+
+
+def test_italic_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
+    # Hancom laid out three glyphs then a tab at 7, 11 and 20 pt under 장평 80 to 120 %, regular, italic and bold italic:
+    # Latin glyphs, digits, punctuation and a Hangul syllable in 한양중고딕, 한양신명조 and HCI Poppy, the Latin glyphs
+    # 한양견고딕 lays out a unit wider in italic, HCI Poppy's symbols that take the bold face's advances in bold italic,
+    # and 함초롬바탕, slanted in place. Each tab reaches the next default stop past the glyphs.
+    document = HwpxDocument.open(ITALIC_ADVANCES)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    italic_seen = 0
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        italic_seen += style.italic
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold, style.italic)
+    assert italic_seen == 612
 
 
 def test_hancom_yun_gothic_250_takes_its_own_advances() -> None:
