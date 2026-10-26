@@ -1,16 +1,28 @@
 {
  "schemaVersion": "python-hwpx.known-leak-migration/v1",
  "status": "contract",
- "note": "The contract for moving the four known-leak groups of tests/data/layer_leak_allowlist.json to python-hwpx-automation. Nothing has moved yet. When and in which release the core names change is an owner decision that is still open (compatibility.decision); no version or date is promised here.",
+ "note": "The contract for moving the four known-leak groups of tests/data/layer_leak_allowlist.json to python-hwpx-automation. Nothing has moved yet. The owner chose compatibility option A: every affected core name keeps working through 6.x, warns in the next major and is removed in the major after it. Releases are named only relative to each other; no version number or date is promised here.",
  "groups": [
   {
    "id": "official-reference-policy",
    "title": "Official-document reference rules",
    "allowlist": [
-    {"file": "tools/doc_diff.py", "qualname": "_ATTACHMENT_LINE_RE"},
-    {"file": "tools/doc_diff.py", "qualname": "_ATTACHMENT_REFERENCE_RE"},
-    {"file": "tools/doc_diff.py", "qualname": "_TABLE_NUMBER_RE"},
-    {"file": "tools/doc_diff.py", "qualname": "_FIGURE_NUMBER_RE"}
+    {
+     "file": "tools/doc_diff.py",
+     "qualname": "_ATTACHMENT_LINE_RE"
+    },
+    {
+     "file": "tools/doc_diff.py",
+     "qualname": "_ATTACHMENT_REFERENCE_RE"
+    },
+    {
+     "file": "tools/doc_diff.py",
+     "qualname": "_TABLE_NUMBER_RE"
+    },
+    {
+     "file": "tools/doc_diff.py",
+     "qualname": "_FIGURE_NUMBER_RE"
+    }
    ],
    "undetected": [],
    "canonicalOwner": "hwpx_automation.office.compliance",
@@ -35,7 +47,10 @@
    "id": "document-plan-input",
    "title": "Automation document-plan interpretation",
    "allowlist": [
-    {"file": "tools/doc_diff.py", "qualname": "_paragraphs_from_document_plan"}
+    {
+     "file": "tools/doc_diff.py",
+     "qualname": "_paragraphs_from_document_plan"
+    }
    ],
    "undetected": [],
    "canonicalOwner": "hwpx_automation.office.document_ops",
@@ -58,10 +73,16 @@
    "id": "report-heading-guess",
    "title": "Report heading guessing in Markdown export",
    "allowlist": [
-    {"file": "tools/markdown_export.py", "qualname": "ARABIC_HEAD"}
+    {
+     "file": "tools/markdown_export.py",
+     "qualname": "ARABIC_HEAD"
+    }
    ],
    "undetected": [
-    {"file": "tools/markdown_export.py", "qualname": "ROMAN_HEAD"}
+    {
+     "file": "tools/markdown_export.py",
+     "qualname": "ROMAN_HEAD"
+    }
    ],
    "canonicalOwner": "hwpx_automation.office.authoring.report_parser",
    "coreKeeps": [
@@ -85,7 +106,10 @@
    "title": "Evaluation-plan caption cleanup",
    "allowlist": [],
    "undetected": [
-    {"file": "table_patch.py", "qualname": "strip_trailing_table_captions"}
+    {
+     "file": "table_patch.py",
+     "qualname": "strip_trailing_table_captions"
+    }
    ],
    "canonicalOwner": "hwpx_automation.office.evalplan",
    "coreKeeps": [
@@ -105,16 +129,32 @@
  "sequence": [
   "1. Automation adds each replacement owner and switches its consumers; core is unchanged and still answers old callers.",
   "2. Core adds the genre-neutral primitives (heading-detector hook, caller-selected trailing-text removal) in a minor release; the old names delegate to them with today's rule.",
-  "3. Core starts the deprecation the owner chooses (compatibility.options).",
-  "4. In the release that removes a core name, the same change removes its allowlist/undetected entries and this group; the layer leak guard then fails if the pattern comes back."
+  "3. In the next major, every affected core name and behaviour emits a DeprecationWarning that names its automation replacement (compatibility.schedule).",
+  "4. In the major after it, the release that removes a core name also removes its allowlist/undetected entries and this group; the layer leak guard then fails if the pattern comes back."
  ],
  "compatibility": {
-  "decision": "pending-owner",
+  "decision": "A",
+  "decidedBy": "owner",
+  "schedule": {
+   "6.x": "Every affected core name and behaviour keeps working without a warning. Automation replacements ship and the neutral core primitives may be added in minors; the old names delegate to them with today's rule.",
+   "nextMajor": "Every affected core name and behaviour emits a DeprecationWarning naming its automation replacement; output does not change.",
+   "majorAfterNext": "The core names and behaviours are removed with their allowlist/undetected entries; only the neutral primitives stay in core."
+  },
+  "appliesTo": "every name and behaviour listed under coreSurfaceAffected, stable or module-level",
   "policy": "docs/stable-api.md: a stable name breaks only at a major boundary, after a DeprecationWarning in an earlier major",
   "options": [
-   {"id": "A", "summary": "Keep every core name working through 6.x; warn in the next major; remove in the major after it."},
-   {"id": "B", "summary": "Warn from a 6.x minor once the automation replacements ship; remove in the next major. Needs an explicit exception to the stable-name policy for the two stable names."},
-   {"id": "C", "summary": "Never remove: freeze the core copies as compatibility code without feature work and keep the allowlist entries."}
+   {
+    "id": "A",
+    "summary": "Keep every core name working through 6.x; warn in the next major; remove in the major after it."
+   },
+   {
+    "id": "B",
+    "summary": "Warn from a 6.x minor once the automation replacements ship; remove in the next major. Needs an explicit exception to the stable-name policy for the two stable names."
+   },
+   {
+    "id": "C",
+    "summary": "Never remove: freeze the core copies as compatibility code without feature work and keep the allowlist entries."
+   }
   ]
  }
 }

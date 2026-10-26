@@ -112,12 +112,12 @@ assigned to), signal and exact count, with a classification and a reason:
 
 - `format-vocabulary`: Hancom format vocabulary any HWPX user needs, such as
   built-in style names or field-type tokens. It stays.
-- `known-leak`: genre or policy logic left over from the layer audit. It is a
-  candidate to move to `python-hwpx-automation` in a later major release; when
-  is not decided yet. [known-leak-migration.md](./known-leak-migration.md) is
-  the contract for that move: the four groups, each one's automation owner,
-  the neutral primitive core keeps, the replacement entry point, and the
-  compatibility options awaiting an owner decision.
+- `known-leak`: genre or policy logic left over from the layer audit. It moves
+  to `python-hwpx-automation`: [known-leak-migration.md](./known-leak-migration.md)
+  is the contract — the four groups, each one's automation owner, the neutral
+  primitive core keeps and the replacement entry point. The core names keep
+  working through 6.x, warn in the next major and are removed in the major
+  after it (the owner's option A).
 
 `undetected` lists known leaks that neither signal sees (a caption pattern
 without Hangul, Roman-numeral headings). They are not counted, but each named

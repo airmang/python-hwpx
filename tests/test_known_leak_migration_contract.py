@@ -5,8 +5,8 @@ docs/architecture/known-leak-migration.json says, for each group of genre or
 policy logic still in core, who owns it after the move, what core keeps and
 what replaces it. These checks keep it in step with the layer leak allowlist:
 every known leak belongs to exactly one group, every group names only real
-leaks, and the contract promises no version or date while the compatibility
-decision is open.
+leaks, and the owner's compatibility decision (option A) is recorded as a
+schedule relative to the next majors, with no version number or date.
 """
 
 from __future__ import annotations
@@ -79,11 +79,16 @@ def test_each_group_names_an_automation_owner_core_primitive_and_replacement() -
         assert f"### {group['id']}" in CONTRACT_DOC, group["id"]
 
 
-def test_no_schedule_is_promised_while_the_decision_is_open() -> None:
+def test_the_owner_decision_is_recorded_as_a_relative_schedule() -> None:
     compatibility = CONTRACT["compatibility"]
-    assert compatibility["decision"] == "pending-owner"
+    assert compatibility["decision"] == "A"
+    assert compatibility["decidedBy"] == "owner"
     assert [option["id"] for option in compatibility["options"]] == ["A", "B", "C"]
+    assert list(compatibility["schedule"]) == ["6.x", "nextMajor", "majorAfterNext"]
+    assert all(str(step).strip() for step in compatibility["schedule"].values())
+    assert "| next major |" in CONTRACT_DOC and "| the major after it |" in CONTRACT_DOC
     text = json.dumps(CONTRACT, ensure_ascii=False)
-    # No release number or date: 6.x / "next major" wording only.
+    # Releases stay relative: 6.x / "next major" wording only, no release
+    # number or date.
     assert not re.search(r"\b\d+\.\d+(\.\d+)?\b", text.replace("6.x", ""))
     assert not re.search(r"\b20\d\d-\d\d-\d\d\b", text)
