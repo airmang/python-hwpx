@@ -233,6 +233,16 @@
   - 기존 ZIP 중앙 디렉터리가 읽히는 HWPX를 재정렬/재패킹하고, CRC, package validation, editor-open safety 검증을 통과한 결과만 대상 경로로 교체합니다. `RepairResult.open_safety`는 handoff evidence입니다.
 - `repair_from_recovered(source, output_path, *, overwrite=False, ...) -> RepairResult`
   - Local File Header 스캔으로 복구한 엔트리를 새 HWPX로 재구성하고, 같은 검증을 통과한 경우에만 출력합니다.
+- `normalize_package_namespaces(source, *, output_path=None, ...) -> NamespaceNormalizeResult`
+  - `repair_repack`의 namespace 부분만 합니다. 모든 `.xml` part를 파싱해 다시 쓰고, 구역·헤더 루트(`hs:sec`·`hh:head`)에는 한/글이 선언하는 namespace 전부(`HWPML_COMPAT_ROOT_NAMESPACES`)와 `standalone="yes"`를 줍니다. 파싱되지 않는 part는 바이트 그대로 두고 `unparsed_parts`에 적습니다. `.hpf`·바이너리 엔트리, 엔트리 순서, 구역 id, 줄 캐시는 바꾸지 않습니다(`repair_repack`은 이것들도 고칩니다). `mimetype`은 압축하지 않고 저장합니다. 결과는 open-safety 게이트를 거치고, `output_path`는 게이트를 통과할 때만 원자적으로 씁니다. 통과하지 못하면 기존 파일을 그대로 둡니다.
+
+***
+
+## 모듈 `hwpx.patch` — 패키지 전체 텍스트 치환
+
+- `replace_package_text(source, replacements, *, output_path=None, part_suffixes=(".xml", ".hpf")) -> PackageTextReplaceResult`
+  - 이름이 *part_suffixes*로 끝나는 part(대소문자 무시)의 **문자 데이터(텍스트 노드)만** 바꿉니다. 본문·표 칸·머리말·꼬리말과 `content.hpf` 메타데이터의 자리표시자를 한 번에 채울 때 씁니다. 요소·속성 이름, 속성 값, 주석, CDATA는 찾지 않습니다. 키와 값은 일반 텍스트이고 `&`·`<`는 알아서 이스케이프합니다. 두 런에 걸쳐 나뉜 키는 찾지 못합니다. 치환은 순서대로 앞 치환이 남긴 텍스트에 적용합니다.
+  - 바뀐 part는 그 안의 `linesegarray` 줄 캐시를 모두 잃습니다(한/글이 새 글을 다시 배치하게). 다른 part와 ZIP 엔트리는 바이트를 유지합니다. UTF-8이 아닌 part는 건드리지 않고 `undecodable_parts`에 적습니다. 결과는 open-safety 게이트를 거치고, `output_path`는 게이트를 통과할 때만(`ok`) 원자적으로 씁니다. 두 결과 모두 패키지의 ZIP 엔트리 이름 전체를 순서대로 `entries`에 담습니다.
 
 ***
 
