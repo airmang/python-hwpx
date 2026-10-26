@@ -9,9 +9,10 @@ holds the same decisions in machine-readable form, and
 `tests/test_known_leak_migration_contract.py` keeps it in step with
 `tests/data/layer_leak_allowlist.json`.
 
-Nothing has moved yet. **When** the core names change, and in which release, is
-an owner decision that is still open (see *Compatibility* below). Nothing here
-promises a version or a date.
+Nothing has moved yet. The owner chose how the core names are retired (option
+A under *Compatibility* below): they keep working through 6.x, warn in the next
+major and go in the major after it. Releases are named only relative to each
+other; nothing here promises a version number or a date.
 
 The placement test is the one in product-boundary.md: generic HWPX capability
 stays in core; a deterministic workflow or policy built from core primitives
@@ -92,10 +93,12 @@ into four groups. `_SAFE_FILENAME_RE` and `_OUTLINE_NAME_RE` are
 2. Core adds the neutral primitives (the heading-detector hook and the
    caller-selected trailing-text removal) in a minor release. The old names
    delegate to them with today's rule, so their output does not change.
-3. Core starts the deprecation the owner chooses below.
-4. The release that removes a core name also removes its allowlist or
-   undetected entries and its group here. From then on the layer leak guard
-   fails if the pattern comes back.
+3. In the next major, every affected core name and behaviour emits a
+   `DeprecationWarning` that names its automation replacement. Output does not
+   change.
+4. In the major after it, the release that removes a core name also removes its
+   allowlist or undetected entries and its group here. From then on the layer
+   leak guard fails if the pattern comes back.
 
 Every step keeps a core-only installation working for the generic features:
 `diff_paragraphs`, document diff, Markdown export, and table and package
@@ -103,19 +106,35 @@ preservation. Regression tests for the current report, plan input, heading
 promotion and caption removal — including body text that only looks numbered
 and text after an ordinary table — come with the step that moves each group.
 
-## Compatibility — owner decision pending
+## Compatibility — owner decision: option A
 
 [stable-api.md](../stable-api.md) lets a stable name break only at a major
 boundary, after a `DeprecationWarning` in an earlier major. Two of the affected
-names are stable; the others are module-level public names. The options:
+names are stable; the others are module-level public names. The owner chose
+option A for all of them, which is the stable-name policy as written:
+
+| Release | What the affected core names and behaviours do |
+|---|---|
+| 6.x | Keep working without a warning. Automation replacements ship, and core may add the neutral primitives in a minor; the old names delegate to them with today's rule. |
+| next major | Emit a `DeprecationWarning` that names the automation replacement. Output does not change. |
+| the major after it | Removed, with their allowlist and undetected entries. Only the neutral primitives stay in core. |
+
+"Affected" means everything listed under *Core surface affected* above: the
+stable `inspect_reference_consistency` and `REFERENCE_CONSISTENCY_REPORT_VERSION`,
+the document-plan input of `doc_diff` and the reference check, the
+`detect_headings=True` default of `export_markdown` and `HwpxMarkdownConverter`,
+and `strip_trailing_table_captions`.
+
+The options that were weighed, for the record:
 
 - **A.** Keep every core name working through 6.x, warn in the next major,
-  remove in the major after it.
+  remove in the major after it. *(chosen)*
 - **B.** Warn from a 6.x minor once the automation replacements ship, remove in
   the next major. This needs an explicit exception to the stable-name policy for
   `inspect_reference_consistency` and the plan input of `doc_diff`.
 - **C.** Never remove: freeze the core copies as compatibility code without
   feature work and keep their allowlist entries.
 
-Until the owner picks one, `compatibility.decision` in the JSON stays
-`pending-owner` and the contract test rejects any version or date in it.
+`compatibility.decision` in the JSON is `A` and `compatibility.schedule` holds
+the table above. The contract test keeps the schedule relative: it rejects any
+version number or date in the contract.
