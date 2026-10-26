@@ -114,14 +114,24 @@ _SURE_FACES = frozenset({
     "한컴 고딕", "HY헤드라인M", "HY견고딕", "HY울릉도M", "HY견명조", "HY동녘M", "휴먼명조", "휴먼고딕", "휴먼옛체",
     "한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy", "HCI Hollyhock",
 })
+#: The Windows Latin faces whose glyphs Hancom Office 2024 was seen to lay out at the advances FormFit gives them,
+#: regular, bold (at their regular advances) and italic (in their italic faces, at ``ITALIC_ADVANCES``): sure as the
+#: face of the Latin or symbol script, not as the Hangul face (Hancom draws a Hangul syllable in them in another face).
+_SURE_LATIN_FACES = frozenset({
+    "Times New Roman", "Arial", "Cambria", "Constantia", "Calibri", "Georgia", "Verdana", "Tahoma", "Segoe UI",
+    "Consolas", "Courier New",
+})
+#: The faces a glyph other than a Hangul syllable may be laid out in for its line to be sure.
+_SURE_GLYPH_FACES = _SURE_FACES | _SURE_LATIN_FACES
 #: The faces whose bold characters FormFit lays out at Hancom's advances: their regular ones, or wider in the
 #: 한양 faces (see ``form_fit.measure._BOLD_WIDER_FACES``). Many bold glyphs of HCI Hollyhock and HCI Poppy Hancom
 #: lays out at other advances: bold characters in them are left.
-_BOLD_SURE_FACES = _SURE_FACES - {"HCI Hollyhock", "HCI Poppy"}
-#: The faces whose italic characters Hancom lays out at their regular advances, slanted in place. In the 한양 faces
-#: and HCI Poppy it draws italic in faces of their own, at other advances (``form_fit._glyph_table.ITALIC_ADVANCES``),
-#: not yet seen on the desktop in whole paragraphs: italic characters in them are left.
-_ITALIC_SURE_FACES = _SURE_FACES - {"한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy"}
+_BOLD_SURE_FACES = _SURE_GLYPH_FACES - {"HCI Hollyhock", "HCI Poppy"}
+#: The faces whose italic characters Hancom lays out at their regular advances, slanted in place, or (the Latin
+#: faces) at their italic faces' advances FormFit gives them. In the 한양 faces and HCI Poppy it draws italic in faces
+#: of their own, at other advances (``form_fit._glyph_table.ITALIC_ADVANCES``), not yet seen on the desktop in whole
+#: paragraphs: italic characters in them are left.
+_ITALIC_SURE_FACES = _SURE_GLYPH_FACES - {"한양중고딕", "한양신명조", "한양견고딕", "HCI Poppy"}
 #: The 장평 (%), 자간 (%) and 최소 공백 (%) Hancom was seen to lay lines out at as FormFit does, on the desktop.
 _SURE_RATIOS = (50, 200)
 _SURE_SPACINGS = (-30, 30)
@@ -523,7 +533,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
 
 def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None = None) -> bool:
     """Whether the line breaks at *starts* can be trusted to be Hancom's: every character is set in a face of
-    :data:`_SURE_FACES` at 장평, 자간 and 최소 공백 within those seen on the desktop, takes an advance a glyph table gives (not a class
+    :data:`_SURE_FACES` (a glyph other than a Hangul syllable: :data:`_SURE_GLYPH_FACES`) at 장평, 자간 and 최소 공백 within
+    those seen on the desktop, takes an advance a glyph table gives (not a class
     average) and is a Hangul syllable or one of :data:`_SURE_GLYPHS`, and no line starts inside a word that did not
     fit on a line of its own, nor in a paragraph that breaks inside Latin words (where Hancom's breaks beside closing marks
     and wide brackets were not pinned down). Hancom takes the line breaks from a cache as written (a line short of a break is
@@ -546,7 +557,7 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
         if classify_char(ch) == "hangul":
             if _hangul_units(_laid_out_face(look.hangul_face), ch) is None:
                 return False
-        elif (ch not in _SURE_GLYPHS or glyph_face_of(ch, look) not in _SURE_FACES
+        elif (ch not in _SURE_GLYPHS or glyph_face_of(ch, look) not in _SURE_GLYPH_FACES
               or _design_units(_laid_out_face(glyph_face_of(ch, look)), ch) is None):
             return False  # each glyph in its own script's face (see glyph_face_of)
     breaks = _hancom_break_opportunities(text, style)

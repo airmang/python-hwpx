@@ -250,7 +250,8 @@ def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
                                    {"ratio": 210}, {"font": "HCI Hollyhock", "bold": True}, {"font": "HCI Poppy", "bold": True},
                                    {"font": "한양중고딕", "italic": True}, {"font": "한양신명조", "italic": True},
                                    {"font": "한양견고딕", "italic": True}, {"font": "HCI Poppy", "italic": True},
-                                   {"font": "한양신명조", "bold": True, "italic": True}])
+                                   {"font": "한양신명조", "bold": True, "italic": True}, {"font": "Times New Roman"},
+                                   {"font": "Arial", "italic": True}])
 def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hancom(style: dict) -> None:
     # A face Hancom may draw in another one, or 장평 and 자간 past those seen on the desktop, are left for Hancom.
     document = HwpxDocument.new()
@@ -272,6 +273,22 @@ def test_a_paragraph_at_a_look_seen_on_the_desktop_gets_a_cache(style: dict) -> 
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("가나다 " * 5, char_pr_id_ref=document.styles.ensure_run(**style))
+
+    report = write_line_caches(document)
+
+    assert report.written == 1
+
+
+@pytest.mark.parametrize("face", ["Times New Roman", "Arial", "Calibri", "Courier New"])
+@pytest.mark.parametrize("look", [{}, {"bold": True}, {"italic": True}, {"bold": True, "italic": True}])
+def test_a_paragraph_in_a_windows_latin_face_with_a_sure_hangul_face_gets_a_cache(face: str, look: dict) -> None:
+    # Hancom Office 2024 was seen to lay the Windows Latin faces out at the advances FormFit gives them, italic in their
+    # italic faces and bold at their regular advances: as the face of the Latin and symbol scripts beside a Hangul
+    # face the cache is sure of, their lines are sure too (a Hangul syllable in them is left, above).
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("", include_run=False)
+    paragraph.add_run("The “data” of 2026 (policy) 가나다, " * 2, char_pr_id_ref=document.styles.ensure_run(
+        font=face, font_by_lang={"HANGUL": "함초롬바탕"}, **look))
 
     report = write_line_caches(document)
 
