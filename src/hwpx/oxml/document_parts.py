@@ -677,6 +677,7 @@ class HwpxOxmlDocument:
         emboss: bool | None = None,
         engrave: bool | None = None,
         base_char_pr_id: str | int | None = None,
+        font_by_lang: Mapping[str, str] | None = None,
     ) -> str:
         """Return the id of a ``hh:charPr`` that is the base with the requested changes.
 
@@ -697,6 +698,11 @@ class HwpxOxmlDocument:
         ``hh:supscript``/``hh:subscript`` element alone, as Hancom does -- the
         element already shrinks and shifts the glyphs (see
         ``_run_style_apply_script_extension``).
+
+        *font_by_lang* maps a language (``HANGUL``/``LATIN``/``HANJA``/
+        ``JAPANESE``/``OTHER``/``SYMBOL``/``USER``) to the face its glyphs use;
+        it wins over *font* for the languages it names (see
+        :func:`~.header_fonts.run_style_font_ref`).
         """
 
         if not self._headers:
@@ -742,12 +748,10 @@ class HwpxOxmlDocument:
                 )
             normalized_outline = candidate
 
+        from .header_fonts import run_style_font_ref  # off the `import hwpx` path
+
         header = self._headers[0]
-        font_ref = header.font_ref_for_face(font) if font is not None else None
-        if font is not None and font_ref is None and font.strip():
-            # Hancom declares a font it is asked to apply; so does ensure_font by default
-            self.ensure_font(font)
-            font_ref = header.font_ref_for_face(font)
+        font_ref = run_style_font_ref(header, font, font_by_lang)
         base = _run_style_base(header, base_char_pr_id)
         spec = _RunStyleSpec(
             flags=_run_style_flags((bold, italic, underline), base, base_char_pr_id is not None),

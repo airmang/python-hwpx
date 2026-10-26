@@ -124,6 +124,8 @@
   - 그 lang 블록의 `hh:font` 목록을 id 문자열 → `hwpx.oxml.Font`로 돌려줍니다. 블록이 없으면 `{}`입니다.
 - `styles.font_face(char_pr_id_ref, lang="HANGUL") -> str | None`
   - 글자 모양의 `fontRef`가 그 lang 블록에서 가리키는 글꼴 이름입니다. 글자 모양·`fontRef`·속성·글꼴 id 중 하나라도 없으면 `None`입니다.
+- `styles.ensure_run(..., font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"}) -> str`
+  - 언어마다 다른 글꼴을 쓰는 글자 모양의 id입니다. 기준 글자 모양을 복사해, 댄 언어마다 글꼴을 그 lang 블록에 등록하고(없으면 더함) 그 블록의 id를 `fontRef/@<lang 소문자>`에 씁니다. 대지 않은 언어와 다른 값은 기준을 따르고 기준 자체는 바뀌지 않습니다. 내용이 같은 글자 모양이 있으면 그 id를 돌려줍니다. `font`와 함께 주면 `font_by_lang`이 댄 언어는 `font_by_lang`을 따릅니다. 모르는 lang은 `style-font-lang-invalid`, 빈 이름은 `style-font-face-empty`, 매핑이 아니거나 같은 lang을 두 번 댄 값은 `style-run-font-by-lang-invalid`로 아무 글꼴도 등록하기 전에 거부합니다. 예제는 [실전 예제 6](examples.md)에 있습니다.
 - `styles.border_fill_info(border_fill_id_ref) -> BorderFillInfo | None`
   - `hh:borderFill` 하나를 `BorderFillInfo(id, left, right, top, bottom, diagonal, fill)`로 읽습니다. 각 변은 `BorderLine(type, width_mm, color)`이고 직계 자식 `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·`hh:diagonal`에서 저장된 값 그대로 읽습니다. 요소가 없으면 `BorderLine("NONE", 0.0, "#000000")`입니다. `fill`은 첫 `hc:winBrush`의 `faceColor`이고, 없거나 `none`이면 `None`입니다. 그라데이션·그림 채우기는 설명하지 않습니다. 너비를 `"<숫자> mm"`로 읽을 수 없으면 `style-border-fill-width-invalid`, 없는 id면 `None`입니다. `border_fill()`은 그대로 `GenericElement`를 돌려줍니다.
 - `styles.replace_font(src_face, dst_face, *, langs=None, font_type=None) -> FontReplaceReport`

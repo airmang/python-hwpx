@@ -14,6 +14,12 @@
   `.xml`·`.hpf` part에서 텍스트 노드만 치환하고(속성·주석·CDATA는 그대로) 바뀐 part의 줄 캐시를 지운다. 뒤의 것은
   `repair_repack`의 namespace 정규화만 한다. 둘 다 open-safety 게이트를 통과할 때만 출력 파일을 쓴다. ZIP·XML을 직접
   고치던 플러그인 지원 스크립트(`zip_replace_all.py`·`fix_namespaces.py`)가 이 둘에 위임한다.
+- `doc.styles.ensure_run(font_by_lang=...)`로 언어마다 다른 글꼴을 쓰는 글자 모양을 만든다(예:
+  `{"HANGUL": "함초롬바탕", "LATIN": "Arial"}`). 기준 글자 모양을 복사해, 언어마다 그 글꼴을 그 언어 블록에 등록하고(없으면
+  더한다) 그 블록의 id로 `fontRef`를 맞춘 뒤, 내용이 같은 글자 모양이 있으면 그것을 다시 쓴다. 이름을 대지 않은 언어와
+  크기·색·굵기는 기준을 따르고, 기준과 다른 글자가 함께 쓰는 글자 모양은 바뀌지 않는다. `font`와 함께 주면 `font_by_lang`이
+  댄 언어는 `font_by_lang`을 따른다. 모르는 언어(`style-font-lang-invalid`), 빈 글꼴 이름(`style-font-face-empty`), 매핑이
+  아니거나 같은 언어를 두 번 댄 값(`style-run-font-by-lang-invalid`)은 아무 글꼴도 등록하기 전에 거부한다. (#564)
 - (실험) `write_line_caches(doc)`가 줄 배치 정보를 쓰는 문단을 넓힌다. 이 함수를 부른 뒤 `.hwp`로 저장하면 아래 그림
   문단도 `PARA_LINE_SEG`를 얻어, 이 레코드로 그림 자리를 찾는 다른 HWP 뷰어가 그림을 그린다.
   - 글자처럼 놓인 그림 하나만 든 문단: 캡션이 있는 그림(위·아래 캡션은 캡션의 줄과 간격만큼 줄이 높고, 옆 캡션은 그림

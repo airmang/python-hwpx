@@ -549,6 +549,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         emboss: bool | None = None,
         engrave: bool | None = None,
         base_char_pr_id: str | int | None = None,
+        font_by_lang: "Mapping[str, str] | None" = None,
     ) -> str:
         """요청한 글자 서식의 `charPr` id 를 보장하고 그 id 를 돌려준다.
 
@@ -561,6 +562,23 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         DASH/DASH_DOT/DASH_DOT_DOT), `emboss`/`engrave` (양각/음각)는 6.3
         추가분이다. `script="sup"/"sub"`는 한컴처럼 `hh:supscript`/`hh:subscript`
         요소만 쓴다(요소가 글자를 줄이고 올리거나 내린다. `relSz`/`offset`은 그대로).
+
+        `font`는 모든 언어의 글꼴을, `font_by_lang`은 언어별 글꼴을 정한다.
+        `font_by_lang`은 언어(HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER,
+        대소문자 무시) → 글꼴 이름 매핑이다. 예:
+        `ensure_run(font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"})`.
+
+        - 언어마다 글꼴 id를 따로 매기므로, 각 글꼴을 그 언어 블록에 등록하고
+          (없으면 더한다) 그 블록의 id를 `fontRef`의 그 언어 속성에 쓴다.
+        - 이름을 대지 않은 언어는 기준 글자 모양의 `fontRef` 값을 그대로 둔다.
+        - `font`와 함께 주면 `font`를 먼저 모든 언어에 적용하고, `font_by_lang`이
+          댄 언어만 그 글꼴로 바꾼다(`font_by_lang`이 이긴다).
+        - 기준 글자 모양은 바꾸지 않는다. 기준을 복사해 바꾼 결과와 내용이 같은
+          글자 모양이 이미 있으면 그 id를, 없으면 새 id를 돌려준다.
+        - 아무 글꼴도 등록하기 전에 인자를 검사한다: 모르는 언어는
+          `style-font-lang-invalid`, 빈 글꼴 이름은 `style-font-face-empty`,
+          매핑이 아니거나 문자열이 아닌 키·값, 대소문자만 다른 같은 언어 두 번은
+          `style-run-font-by-lang-invalid`(`HwpxValueError`).
         """
 
         return self._doc.oxml.ensure_run_style(
@@ -583,6 +601,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             emboss=emboss,
             engrave=engrave,
             base_char_pr_id=base_char_pr_id,
+            font_by_lang=font_by_lang,
         )
 
     def ensure_border_fill(

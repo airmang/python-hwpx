@@ -177,3 +177,32 @@ for element in bookmarked:
 [`python-hwpx-automation` 사용 사례](https://github.com/airmang/python-hwpx-automation/blob/main/docs/use-cases.md)를
 참고하세요. 4.x `python-hwpx` 호출을 옮기는 경우에는
 [5.0 마이그레이션 가이드](migration-5.0.md)에서 대응 경로를 먼저 확인하세요.
+
+## 6. 언어마다 다른 글꼴을 쓰는 글자 모양 만들기
+
+`doc.styles.ensure_run(font_by_lang=...)`은 한글·영문처럼 언어마다 다른 글꼴을 쓰는 글자 모양을 만듭니다. 글꼴 id는 언어 블록마다 따로 매겨지므로, 각 글꼴을 그 언어 블록에 등록하고 그 블록의 id로 참조합니다. 이름을 대지 않은 언어와 크기·색 같은 다른 값은 기준 글자 모양을 따르고, 기준 글자 모양 자체는 바뀌지 않습니다. 저장 뒤에 ZIP 안의 `header.xml`을 고칠 필요가 없습니다.
+
+**독립 실행 예제** — 빈 문서만 사용합니다.
+<!-- standalone-python-example -->
+
+```python
+from hwpx import HwpxDocument
+
+document = HwpxDocument.new()
+
+# 한글은 함초롬바탕, 영문은 Arial. 나머지 언어는 기준 글자 모양의 글꼴 그대로다.
+mixed = document.styles.ensure_run(
+    size=11,
+    font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"},
+)
+document.add_paragraph("").add_run("2026년 사업 Report", char_pr_id_ref=mixed)
+
+# 같은 요청은 같은 글자 모양을 다시 쓴다.
+again = document.styles.ensure_run(size=11, font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"})
+assert again == mixed
+print(document.styles.font_face(mixed, "HANGUL"), document.styles.font_face(mixed, "LATIN"))
+
+document.save_to_path("mixed-fonts.hwpx")
+```
+
+`font`와 함께 주면 `font`를 모든 언어에 먼저 적용하고 `font_by_lang`이 댄 언어만 바꿉니다. 언어 이름은 HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER(대소문자 무시)이고, 그 밖의 이름이나 빈 글꼴 이름은 아무 글꼴도 등록하기 전에 `HwpxValueError`로 거부합니다.
