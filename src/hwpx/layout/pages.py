@@ -787,9 +787,8 @@ class _Measure:
                 count = (_cache_lines(paragraph) if caches else 0) or self.lines(
                     _run_text(runs), _line_widths(shape, width, style), size, style
                 )
-                if shape.font_line:  # an empty line as tall as its font makes it
-                    size = self.font_line(size, style)
-                    pitch = _pitch(shape.kind, shape.value, size)
+                # an empty line keeps the character size: Hancom makes only a line of characters as tall as
+                # its font makes it
             anchor = height - lead if pending is None else height + pending + shape.prev
             if pending is not None:
                 height += pending + shape.prev
@@ -889,8 +888,7 @@ class _Measure:
             size, refs, _ = _text_size(self, runs, paragraph)
             style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
             count = max(1, self.lines(_run_text(runs), _line_widths(shape, width, style), size, style))
-            size = self.font_line(size, style) if shape.font_line else size
-            lines = [(size, _pitch(shape.kind, shape.value, size))] * count
+            lines = [(size, _pitch(shape.kind, shape.value, size))] * count  # an empty line keeps its size
         y = 0
         for index, (height, advance) in enumerate(lines):
             if y < foot and y + height > top:  # it reaches the table: below it, and the lines after it; it takes
@@ -972,9 +970,7 @@ class _Measure:
             else:
                 size, refs, _ = _text_size(self, runs, paragraph)
                 style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
-                if shape.font_line:  # an empty line as tall as its font makes it
-                    size = self.font_line(size, style)
-                pitch = _pitch(shape.kind, shape.value, size)
+                pitch = _pitch(shape.kind, shape.value, size)  # an empty line keeps the character size
                 full = _line_widths(shape, width, style)
                 starts = self.line_starts(text, full, size, style) if text else [0]
                 anchor = sum(1 for start in starts[1:] if start < place)
@@ -3065,9 +3061,6 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end, head=head)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
-    if shape.font_line and not cached and not sizes and not alone:  # an empty line as tall as its font makes it
-        size = measure.font_line(size, style)
-        pitch = _pitch(shape.kind, shape.value, size)
     table, moves, floor = None, 0, 0
     if alone:
         if wrap is not None:
