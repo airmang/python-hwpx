@@ -109,6 +109,8 @@ LaTeX 글꼴로 읽어, 원안지 수식을 되돌렸다가 다시 쓸 때 전�
   `write_line_caches`도 같은 폭으로 줄을 나눈다.
 - 쪽 수 추정이 표 칸 첫 문단에서 글 앞·뒤에 놓인 개체를 칸 맨 위부터 잰다. 전에는 그 문단의 위 간격만큼 더 내려 재서 행을 그만큼
   높였다.
+- 쪽 수 추정이 칸 안에 표가 든 행을 쪽 끝에서 줄 사이로 나눌 때, 각 부분을 그 첫 문단의 위 간격 아래에서 시작한다(표가 없는
+  칸처럼). 전에는 그 간격을 빼고 쌓아 다음 쪽의 글이 그만큼 위에 놓였다.
 - FormFit과 쪽 수 추정이 Windows 영문 글꼴 11종(Times New Roman·Arial·Cambria·Constantia·Calibri·Georgia·Verdana·Tahoma·
   Segoe UI·Consolas·Courier New)을 한/글 2024가 놓는 폭으로 잰다. 전에는 표에 없는 글꼴이라 한컴바탕 폭으로 쟀다(Times
   New Roman "a" 10pt는 444인데 500으로). ASCII·라틴-1·라틴 확장-A·그리스 글자와 따옴표·대시·말줄임표 같은 기호를 글꼴마다

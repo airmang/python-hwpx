@@ -3811,7 +3811,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             # is one)
             if not metrics:
                 raise _Unsupported("a page break in a flowing table row holding a table")
-            fitting, top = 0, y + row.margins
+            fitting, top = 0, y + row.margins + (leads[0] if leads else 0)  # a part starts below its first
+            # paragraph's spacing before, as any cell's
             while fitting < len(metrics) and top + metrics[fitting][0] <= foot:
                 top += metrics[fitting][1]
                 fitting += 1
@@ -3821,13 +3822,14 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             if found is not None:  # a table among the text splits or goes on alone: what of it goes on, and that line
                 piece, consumed = found
                 metrics = (piece,) + metrics[fitting + 1:]
-                height = row.margins + sum(advance for _, advance in metrics[:-1]) + metrics[-1][0]
+                leads = (0,) + leads[fitting + 1:] if leads else ()
+                height = row.margins + _lines_height(metrics, leads)
                 frame, y = frame + 1, header
                 continue
             consumed = cut
             if fitting:
-                metrics = metrics[fitting:]
-                height = row.margins + sum(advance for _, advance in metrics[:-1]) + metrics[-1][0]
+                metrics, leads = metrics[fitting:], leads[fitting:]
+                height = row.margins + _lines_height(metrics, leads)
             elif fresh:
                 return frame, y + height
             frame, y = frame + 1, header

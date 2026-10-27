@@ -1002,6 +1002,10 @@ HANCOM_PAGES = {
     # whose spacing before is 500: the row grows to hold it from the cell's top, above that spacing, not from the
     # paragraph's first line
     "pages_cell_front_object_spacing_before": 2,
+    # Thirteen times, after 0 to 12 lines: a table flowing with the text (CELL) whose one cell holds 40 paragraphs
+    # with 600 of spacing before and a small table set as a character in the fourth: going on over the page end,
+    # the part on the next page starts below its first paragraph's spacing before, as in a cell without a table
+    "pages_nested_cell_split_spacing_before": 27,
     # A chart wrapped square in a run's hp:switch (Hancom saves every chart in one), 20000 or 8000 wide, with a
     # picture 8000 or 20000 wide in its hp:default: the lines beside it are as narrow as the chart leaves them
     "pages_chart_case_wider_than_its_default": 1,
