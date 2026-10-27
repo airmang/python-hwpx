@@ -1038,6 +1038,10 @@ HANCOM_PAGES = {
     # on the first line, the object stands that far below the paragraph's top, above its spacing; on a later line,
     # below that line's top; the lines reaching it go below it
     "pages_objects_offset_down_from_a_paragraph_with_spacing_before": 8,
+    # A table placed top and bottom at its paragraph's top or a rectangle in front of the text, in a run of 16 pt
+    # after, in the middle of or after the spaces of 10 pt text one or three lines long: the line its place falls on
+    # is as tall as a 16 pt character and spaced from it, and the table stands at that line's top
+    "pages_object_runs_after_the_text": 2,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run

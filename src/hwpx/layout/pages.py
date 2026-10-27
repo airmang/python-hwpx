@@ -809,11 +809,12 @@ class _Measure:
         looks = _char_styles(self, paragraph, runs)
         end = _end_size(self, runs, sizes)
         head = _head_size(self, paragraph, sizes)
-        if len(set(sizes)) < 2 and looks is None and not end and not head and not (shape.font_line and sizes):
+        held = _held_sizes(self, runs, sizes)
+        if len(set(sizes)) < 2 and looks is None and not end and not head and not held                 and not (shape.font_line and sizes):
             return ()
         style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
         return _line_metrics(self, _run_text(runs), _line_widths(shape, width, style), sizes, style, shape, {}, looks,
-                             end=end, head=head)
+                             end=end, head=head, held=held)
 
     def stack_lines(self, paragraphs: list[Any], width: int, caches: bool,
                     pieces: bool = False) -> tuple[tuple[int, int], ...]:
@@ -2605,6 +2606,29 @@ def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
     return size if size > min(sizes) else 0
 
 
+def _held_sizes(measure: _Measure, runs: list[Any], sizes: list[int]) -> dict[int, int]:
+    """Where in the text a run holding a control shown on a line (see :func:`_shown_control`; not a note) or an
+    object not set as a character stands after the first character -> that run's size, when it is larger than the
+    smallest character: Hancom sets it as a character of no width, the line it falls on as tall as its run's
+    characters (those before the text, see :func:`_head_size`)."""
+
+    if not sizes:
+        return {}
+    place, held = 0, {}
+    for run in runs:
+        for child in run:
+            name = _local(child)
+            if name == "t":
+                place += len(_t_text(child))
+            elif place and (_shown_control(child) and not any(_local(kind) in ("footNote", "endNote") for kind in child)
+                            or name in _OBJECTS and (child.find(f"{HP}pos") is None
+                                                     or child.find(f"{HP}pos").get("treatAsChar") != "1")):
+                size = measure.char_height(run.get("charPrIDRef"))
+                if size > min(sizes):
+                    held[place] = max(held.get(place, 0), size)
+    return held
+
+
 def _char_styles(measure: _Measure, paragraph: Any, runs: list[Any]) -> list[Any] | None:
     """Each character's style from its own run when the runs holding text differ in face, 장평 or 자간;
     ``None`` when they do not."""
@@ -2639,7 +2663,8 @@ def _metric_starts(measure: _Measure, text: str, widths: list[float], sizes: lis
 
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
-                  marks: dict[int, int] | None = None, end: int = 0, head: int = 0) -> tuple[tuple[int, int], ...]:
+                  marks: dict[int, int] | None = None, end: int = 0, head: int = 0,
+                  held: dict[int, int] | None = None) -> tuple[tuple[int, int], ...]:
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
@@ -2647,7 +2672,9 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     line's height (Hancom: as tall as its characters and objects, spaced from its largest size); a fixed line spacing
     keeps the next line that far down. A composed character or ruby text (*marks*: its place -> its
     width) is a character of its size in *sizes*. The last line is at least as tall as the paragraph's
-    end (*end*, see :func:`_end_size`), and the first as its label (*head*, see :func:`_head_size`). In a
+    end (*end*, see :func:`_end_size`), and the first as its label (*head*, see :func:`_head_size`); a control or
+    an object not set as a character after the first character (*held*: its place -> its run's size, see
+    :func:`_held_sizes`) makes the line it falls on as tall as a character of that size. In a
     paragraph taking its line height from the font each of them counts as tall as its face makes a line
     (:func:`_line_sizes`)."""
 
@@ -2655,10 +2682,11 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     heights = _line_sizes(measure, sizes, style, styles, shape)
     if shape.font_line:
         end, head = measure.font_line(end, style), measure.font_line(head, style)
+        held = {place: measure.font_line(tall, style) for place, tall in (held or {}).items()}
     metrics = []
     for start, stop in zip(starts, [*starts[1:], len(text)]):
         span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
-        edges = ([end] if stop == len(text) else []) + ([head] if start == 0 else [])
+        edges = ([end] if stop == len(text) else []) + ([head] if start == 0 else [])             + [tall for place, tall in (held or {}).items() if start < place <= stop]
         size = max([heights[index] for index in span] + edges)
         glyphs = [heights[index] for index in span if index not in objects] + edges
         height = max([max(glyphs) if glyphs else size] + [objects[index][1] for index in span if index in objects])
@@ -2925,8 +2953,9 @@ def _anchor_line(measure: _Measure, paragraph: Any, runs: list[Any], text: str, 
             place += len(_t_text(child))
         elif _local(child) in _OBJECTS or _local(child) == "ctrl":  # every object and control takes eight
             objects += 1
-    if cached:
-        starts = [int(segment.get("textpos", 0)) for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
+    segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg") if cached else []
+    if segments:  # lines Hancom laid out (not ones laid out here)
+        starts = [int(segment.get("textpos", 0)) for segment in segments]
         place += 8 * objects  # its own place in the cache, before its own eight
     else:
         starts = measure.line_starts(text, widths, size, style)
@@ -3052,7 +3081,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     widths: list[float] = _indented(page.column_width - shape.left - shape.right, shape, style)
     end = _end_size(measure, runs, sizes)
     head = _head_size(measure, paragraph, sizes)
-    mixed = len(set(sizes)) > 1 or bool(end) or bool(head) or (shape.font_line and bool(sizes))
+    held = _held_sizes(measure, runs, sizes)
+    mixed = len(set(sizes)) > 1 or bool(end) or bool(head) or bool(held) or (shape.font_line and bool(sizes))
     looks = _char_styles(measure, paragraph, runs)
     lead = 0  # how far the paragraph's first line goes down below a square-wrapped object's band
     anchor_line = None  # the line the anchored object stands at, when the lines laid out here put it there
@@ -3087,9 +3117,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         widths, firsts = _wrapped_widths(measure, text, widths, size, style, shape, wrap, sizes if mixed else None,
                                          looks)
         cached = _at_one_height(_line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end,
-                                              head=head), firsts)
+                                              head=head, held=held), firsts)
     elif not cached and not alone and (mixed or looks is not None):
-        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end, head=head)
+        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end, head=head, held=held)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
     table, moves, floor = None, 0, 0
