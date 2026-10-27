@@ -2790,7 +2790,9 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
     """The paragraph's text with each object set as a character, composed character and ruby text in its
     place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
     object's place -> its width and height, and each composed character's or ruby text's place -> its
-    width. Objects placed otherwise (but *anchored* and *placed*, laid out apart), and line spacing between
+    width. A control shown on a line (see :func:`_shown_control`) after the first character is an object of no
+    width as tall as its run's characters (those before it stand on the first line, see :func:`_head_size`).
+    Objects placed otherwise (but *anchored* and *placed*, laid out apart), and line spacing between
     lines or at least with an object among text, are not followed."""
 
     shape = measure.shape(paragraph.get("paraPrIDRef"))
@@ -2820,12 +2822,22 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
                 continue
             elif name == "t":
                 part = _t_text(child)
+            elif text and _shown_control(child):  # a character of no width as tall as its run's, on the line it
+                objects[len(text)] = (0, height)  # falls on: an object's that fits, the next past one wider than it
+                part = "￼"
             else:
                 continue
             text += part
             sizes += [height] * len(part)
             looks += [look] * len(part)
     return "".join(text), sizes, looks, objects, marks
+
+
+def _shown_control(child: Any) -> bool:
+    """Whether *child* of a run is a control Hancom sets on a line as a character (a page number, a field, a
+    bookmark and so on -- not a column or section definition)."""
+
+    return _local(child) == "ctrl" and any(_local(kind) not in ("colPr",) for kind in child)
 
 
 def _anchored_object(objects: list[Any], text: str, column: int, headed: bool = False) -> Any:
@@ -2859,7 +2871,7 @@ def _inline_place(runs: list[Any], obj: Any, apart: tuple[Any, ...]) -> int:
             return place
         if name in _OBJECTS:
             place += not (_floating(child) or _on_paper(child) or any(child is other for other in apart))
-        elif name in _MARKS:
+        elif name in _MARKS or place and _shown_control(child):
             place += 1
         elif name == "t":
             place += len(_t_text(child))
@@ -3160,13 +3172,13 @@ def _rises(obj: Any, column: int) -> bool:
 
 
 def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list[Any], list[Any]] | None:
-    """(*obj*'s run, the runs holding controls before it, those holding controls after it) when *obj* is a table
-    set as a character wider than the line (*width*) and controls (``hp:ctrl``, a page number, a hidden page
+    """(*obj*'s run, the runs holding controls before it, those holding controls after it) when *obj* is an
+    object (a table, a drawing ...) set as a character wider than the line (*width*) and controls (``hp:ctrl``, a page number, a hidden page
     number, a field, a bookmark, a header and so on -- but not a column definition) stand beside it in its
     paragraph, else ``None``: Hancom sets the controls before it on the table's line (on an empty line of their
     own above it when they show a number) and the controls after it on the line after that."""
 
-    if _local(obj) != "tbl" or obj.find(f"{HP}pos").get("treatAsChar") != "1" or _extent(obj, "width") <= width:
+    if obj.find(f"{HP}pos").get("treatAsChar") != "1" or _extent(obj, "width") <= width:
         return None
     home, before, after = None, [], []
     for run in runs:
@@ -3181,11 +3193,11 @@ def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list
 
 
 def _controls_after_wide(measure: _Measure, runs: list[Any], objects: list[Any], width: float) -> int:
-    """How tall the characters of the runs holding the controls after a table set as a character wider than the
-    line (see :func:`_controls_beside`) are, when the paragraph starts with that table and has no controls before
-    it: Hancom sets those controls on the line after the table's, not on its line; 0 for any other paragraph."""
+    """How tall the characters of the runs holding the controls after an object set as a character wider than the
+    line (see :func:`_controls_beside`) are, when the paragraph starts with that object and has no controls before
+    it: Hancom sets those controls on the line after the object's, not on its line; 0 for any other paragraph."""
 
-    if not objects or _local(objects[0]) != "tbl":
+    if not objects:
         return 0
     beside = _controls_beside(objects[0], runs, width)
     if beside is None or beside[1] or not beside[2]:

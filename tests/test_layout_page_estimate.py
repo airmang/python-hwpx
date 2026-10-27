@@ -1023,6 +1023,11 @@ HANCOM_PAGES = {
     # own page or after 33 lines: past a table wider than the line, the page number goes on the line after it, which
     # is as tall as the page number's run, and the table's line is spaced without it
     "pages_controls_after_a_wide_table": 51,
+    # A table or a rectangle set as a character, 3000 tall and 42238 or 42600 wide (the line is 42520), alone or
+    # after text, then a page number in a run of 14 pt with or without text of 10 pt after it: the page number is a
+    # character of no width as tall as its run, on the object's line when the object fits (the line spaced from the
+    # page number's size), on the next line past an object wider than the line, whatever the object
+    "pages_controls_beside_objects_wider_than_the_line": 2,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
