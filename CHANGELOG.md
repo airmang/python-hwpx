@@ -12,7 +12,9 @@
   `document-header-missing`으로 거부한다.
 - `hwpx.patch.replace_package_text()`와 `hwpx.tools.repair.normalize_package_namespaces()`를 공개한다. 앞의 것은 패키지의
   `.xml`·`.hpf` part에서 텍스트 노드만 치환하고(속성·주석·CDATA는 그대로) 바뀐 part의 줄 캐시를 지운다. 뒤의 것은
-  `repair_repack`의 namespace 정규화만 한다. 둘 다 open-safety 게이트를 통과할 때만 출력 파일을 쓴다. ZIP·XML을 직접
+  `repair_repack`의 namespace 정규화만 한다. 둘 다 open-safety 게이트를 통과할 때만 출력 파일을 쓴다. 앞의 것이 돌려주는
+  `PackageTextReplaceResult`는 다른 바이트 쓰기 결과처럼 `as_mutation_report()`로 변경 보고(`hwpx.mutation-report/v1`)를
+  낸다. ZIP·XML을 직접
   고치던 플러그인 지원 스크립트(`zip_replace_all.py`·`fix_namespaces.py`)가 이 둘에 위임한다.
 - `doc.styles.ensure_run(font_by_lang=...)`로 언어마다 다른 글꼴을 쓰는 글자 모양을 만든다(예:
   `{"HANGUL": "함초롬바탕", "LATIN": "Arial"}`). 기준 글자 모양을 복사해, 언어마다 그 글꼴을 그 언어 블록에 등록하고(없으면

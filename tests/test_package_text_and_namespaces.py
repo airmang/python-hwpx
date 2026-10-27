@@ -130,6 +130,19 @@ def test_output_path_is_written_only_when_the_gate_passes(tmp_path: Path) -> Non
         assert first.filename == "mimetype" and first.compress_type == zipfile.ZIP_STORED
 
 
+def test_the_result_projects_onto_the_mutation_report() -> None:
+    source = _document_bytes("{A} 님께", "그대로")
+    result = replace_package_text(source, {"{A}": "홍길동"})
+
+    payload = result.as_mutation_report(source=source).to_dict()
+    assert payload["actualMode"] == "patch"
+    assert [part["path"] for part in payload["changedParts"]] == list(result.changed_parts)
+    assert payload["preservation"]["untouchedPartPayloads"]["changed"] == 0
+
+    unmeasured = result.as_mutation_report().to_dict()
+    assert all(part["ranges"] is None for part in unmeasured["changedParts"])
+
+
 def test_an_empty_key_is_refused() -> None:
     with pytest.raises(ValueError):
         replace_package_text(_document_bytes(), {"": "x"})

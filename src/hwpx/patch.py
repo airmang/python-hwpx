@@ -590,6 +590,28 @@ class PackageTextReplaceResult:
             "outputPath": self.output_path,
         }
 
+    def as_mutation_report(self, *, source: bytes | str | Path | None = None) -> MutationReport:
+        """Project this result onto the ``hwpx.mutation-report/v1`` spine, as
+        :meth:`BytePreservingPatchResult.as_mutation_report` does.
+
+        Pass the original *source* to get real changed-part ranges and a
+        measured preservation summary; without it ranges are ``None``.
+        """
+
+        visual = (
+            visual_value_from_status(self.visual_complete.visual_complete_status)
+            if self.visual_complete is not None
+            else "not_performed"
+        )
+        return project_byte_splice(
+            data=self.data,
+            changed_part_names=self.changed_parts,
+            byte_identical=self.byte_identical,
+            open_safety=self.open_safety,
+            visual=visual,
+            source=source,
+        )
+
 
 def _unescape_xml_text(text: str) -> str:
     def resolve(match: re.Match[str]) -> str:
