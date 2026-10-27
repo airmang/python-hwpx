@@ -1793,6 +1793,9 @@ class _Para:
     #: a top-and-bottom object alone in this empty paragraph placed up from its top: (how far up, as a negative
     #: offset, how tall, and the paragraph's own line and advance) -- see :meth:`_Paginator._below_a_rising_object`
     rises: tuple[int, int, int, int] | None = None
+    #: a flowing table alone in this empty paragraph, allowed to overlap and starting on the line: the line goes
+    #: below it (see :meth:`_Paginator._flow`)
+    under: bool = False
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -3150,6 +3153,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         para = replace(para, moves=moves, own=own)
     if floor:
         para = replace(para, floor=floor)
+    if alone and table is not None and controls is None and not text and pos.get("allowOverlap") == "1"             and 0 <= offset < own:  # allowed to overlap, starting on the line: the line goes below it
+        para = replace(para, under=True)
     if alone and table is None and controls is None and not text and _rises(objects[0], page.column_width):
         up = _pos_offset(objects[0].find(f"{HP}pos"), "vertOffset") - (1 << 32)
         para = replace(para, rises=(up, _extent(objects[0], "height", measure), own, own_pitch))
@@ -4143,6 +4148,9 @@ class _Paginator:
                 self._flow_below_band(para, table, self._below_bands(start))
                 return
             start = self._below_bands(start)  # below an object that went on to this page's top: as at the top
+        if para.under and not _starts_later(table, start - para.prev + table.offset + table.above, self.body):
+            self._flow_below_band(para, table, start - para.prev)  # from the paragraph's top, the line below it
+            return
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
         if not para.kept:
             self._reach(self.frame, start, start + para.height(0))
