@@ -8,7 +8,15 @@ from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError
 from ..objects.checkbox import CheckBox
-from ..objects.form_field import CellField, FieldLocation, FieldParameter, FormField, TextBoxField
+from ..objects.form_field import (
+    Bookmark,
+    CellField,
+    FieldLocation,
+    FieldParameter,
+    FormField,
+    FormulaField,
+    TextBoxField,
+)
 from ..objects.results import FieldFillResult
 from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HP
@@ -386,8 +394,15 @@ def _form_field_payload(
     }
 
 
-def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
-    matches: list[dict[str, Any]] = []
+def _iter_content_paragraphs(
+    doc: "HwpxDocument",
+) -> Iterator[tuple[int, int, int, Any, HwpxOxmlParagraph, list[Any]]]:
+    """Every paragraph of the document in order, those in table cells and objects
+    included: section index, paragraph index (over all of them), index among the
+    section's own paragraphs (-1 for a nested one), the ``<hp:p>``, its view and
+    its runs. Memo bodies are not content, and a header/footer python-hwpx keeps
+    twice is walked once."""
+
     paragraph_index = 0
     for section_index, section in enumerate(doc.sections):
         direct_indexes = {
@@ -408,80 +423,106 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
 
         for paragraph_element in iter_content_paragraphs(section.element):
             paragraph = HwpxOxmlParagraph(paragraph_element, section)
-            paragraph_index_in_section = direct_indexes.get(paragraph_element, -1)
-            runs = [child for child in paragraph.element if _local_name(child) == "run"]
-            for run_index, run in enumerate(runs):
-                children = list(run)
-                for child_index, child in enumerate(children):
-                    if _local_name(child) != "ctrl":
-                        continue
-                    for field_begin in child.findall(f"{_HP}fieldBegin"):
-                        if not _is_form_field_begin(child, field_begin):
-                            continue
-                        end_position = _find_field_end_position(
-                            doc,
-                            runs,
-                            begin_run_index=run_index,
-                            begin_child_index=child_index,
-                            field_begin=field_begin,
-                        )
-                        end_run_index: int | None = None
-                        end_child_index: int | None = None
-                        span = None
-                        if end_position is not None:
-                            end_run_index, end_child_index, _field_end = end_position
-                        else:
-                            span = _find_field_end_in_following_paragraphs(paragraph_element, field_begin)
-                        text_nodes = _field_text_nodes(
-                            doc,
-                            runs,
-                            begin_run_index=run_index,
-                            begin_child_index=child_index,
-                            end_run_index=end_run_index if span is None else len(runs) - 1,
-                            end_child_index=end_child_index,
-                        )
-                        current_value = "".join(_text_node_value(node) for node in text_nodes)
-                        if span is not None:
-                            # the content goes on over paragraphs: their texts, one per line
-                            end_paragraph, end_runs, span_run, span_child, middle = span
-                            tail = _field_text_nodes(
-                                doc,
-                                end_runs,
-                                begin_run_index=0,
-                                begin_child_index=-1,
-                                end_run_index=span_run,
-                                end_child_index=span_child,
-                            )
-                            current_value = "\n".join(
-                                [
-                                    current_value,
-                                    *(_run_texts([c for c in p if _local_name(c) == "run"]) for p in middle),
-                                    "".join(_text_node_value(node) for node in tail),
-                                ]
-                            )
-                        payload = _form_field_payload(
-                            doc,
-                            index=len(matches),
-                            section_index=section_index,
-                            paragraph_index=paragraph_index,
-                            paragraph_index_in_section=paragraph_index_in_section,
-                            run_index=run_index,
-                            child_index=child_index,
-                            ctrl=child,
-                            field_begin=field_begin,
-                            current_value=current_value,
-                            has_end=end_position is not None or span is not None,
-                        )
-                        payload["_paragraph"] = paragraph
-                        payload["_runs"] = runs
-                        payload["_begin_run_index"] = run_index
-                        payload["_begin_child_index"] = child_index
-                        payload["_end_run_index"] = end_run_index
-                        payload["_end_child_index"] = end_child_index
-                        payload["_text_nodes"] = text_nodes
-                        payload["_span"] = span
-                        matches.append(payload)
+            runs = [child for child in paragraph_element if _local_name(child) == "run"]
+            yield (
+                section_index,
+                paragraph_index,
+                direct_indexes.get(paragraph_element, -1),
+                paragraph_element,
+                paragraph,
+                runs,
+            )
             paragraph_index += 1
+
+
+def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
+    return _iter_field_matches(doc, _is_form_field_begin)
+
+
+def _iter_field_matches(doc: "HwpxDocument", accept: Any) -> list[dict[str, Any]]:
+    """The fields whose ``<hp:fieldBegin>`` *accept(ctrl, field_begin)* takes, in
+    document order, with their text up to the matching ``<hp:fieldEnd>``."""
+
+    matches: list[dict[str, Any]] = []
+    for (
+        section_index,
+        paragraph_index,
+        paragraph_index_in_section,
+        paragraph_element,
+        paragraph,
+        runs,
+    ) in _iter_content_paragraphs(doc):
+        for run_index, run in enumerate(runs):
+            children = list(run)
+            for child_index, child in enumerate(children):
+                if _local_name(child) != "ctrl":
+                    continue
+                for field_begin in child.findall(f"{_HP}fieldBegin"):
+                    if not accept(child, field_begin):
+                        continue
+                    end_position = _find_field_end_position(
+                        doc,
+                        runs,
+                        begin_run_index=run_index,
+                        begin_child_index=child_index,
+                        field_begin=field_begin,
+                    )
+                    end_run_index: int | None = None
+                    end_child_index: int | None = None
+                    span = None
+                    if end_position is not None:
+                        end_run_index, end_child_index, _field_end = end_position
+                    else:
+                        span = _find_field_end_in_following_paragraphs(paragraph_element, field_begin)
+                    text_nodes = _field_text_nodes(
+                        doc,
+                        runs,
+                        begin_run_index=run_index,
+                        begin_child_index=child_index,
+                        end_run_index=end_run_index if span is None else len(runs) - 1,
+                        end_child_index=end_child_index,
+                    )
+                    current_value = "".join(_text_node_value(node) for node in text_nodes)
+                    if span is not None:
+                        # the content goes on over paragraphs: their texts, one per line
+                        end_paragraph, end_runs, span_run, span_child, middle = span
+                        tail = _field_text_nodes(
+                            doc,
+                            end_runs,
+                            begin_run_index=0,
+                            begin_child_index=-1,
+                            end_run_index=span_run,
+                            end_child_index=span_child,
+                        )
+                        current_value = "\n".join(
+                            [
+                                current_value,
+                                *(_run_texts([c for c in p if _local_name(c) == "run"]) for p in middle),
+                                "".join(_text_node_value(node) for node in tail),
+                            ]
+                        )
+                    payload = _form_field_payload(
+                        doc,
+                        index=len(matches),
+                        section_index=section_index,
+                        paragraph_index=paragraph_index,
+                        paragraph_index_in_section=paragraph_index_in_section,
+                        run_index=run_index,
+                        child_index=child_index,
+                        ctrl=child,
+                        field_begin=field_begin,
+                        current_value=current_value,
+                        has_end=end_position is not None or span is not None,
+                    )
+                    payload["_paragraph"] = paragraph
+                    payload["_runs"] = runs
+                    payload["_begin_run_index"] = run_index
+                    payload["_begin_child_index"] = child_index
+                    payload["_end_run_index"] = end_run_index
+                    payload["_end_child_index"] = end_child_index
+                    payload["_text_nodes"] = text_nodes
+                    payload["_span"] = span
+                    matches.append(payload)
     return matches
 
 
@@ -494,17 +535,8 @@ def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> For
     ``field_type``) that 5.x exposed as separate dict keys (design §2.3).
     """
 
-    location = FieldLocation(
-        section_index=match["section_index"],
-        paragraph_index=match["paragraph_index"],
-        paragraph_index_in_section=match["paragraph_index_in_section"],
-        run_index=match["run_index"],
-        child_index=match["child_index"],
-    )
-    parameters = tuple(
-        FieldParameter(name=parameter.get("name", ""), value=parameter.get("value", ""))
-        for parameter in match.get("parameters", [])
-    )
+    location = _match_location(match)
+    parameters = _match_parameters(match)
     field_begin = match["_field_begin"]
     editable = (field_begin.get("editable") or "").strip().lower() in {"1", "true"}
     return FormField(
@@ -534,6 +566,107 @@ def list_form_fields(doc: "HwpxDocument") -> tuple[FormField, ...]:
     """
 
     return tuple(_form_field_from_match(doc, match) for match in _iter_form_field_matches(doc))
+
+
+def _match_location(match: Mapping[str, Any]) -> FieldLocation:
+    return FieldLocation(
+        section_index=match["section_index"],
+        paragraph_index=match["paragraph_index"],
+        paragraph_index_in_section=match["paragraph_index_in_section"],
+        run_index=match["run_index"],
+        child_index=match["child_index"],
+    )
+
+
+def _match_parameters(match: Mapping[str, Any]) -> tuple[FieldParameter, ...]:
+    return tuple(
+        FieldParameter(name=parameter.get("name", ""), value=parameter.get("value", ""))
+        for parameter in match.get("parameters", [])
+    )
+
+
+def _field_type_is(field_type: str) -> Any:
+    def accept(_ctrl: Any, field_begin: Any) -> bool:
+        return (field_begin.get("type") or "").strip().upper() == field_type
+
+    return accept
+
+
+def _cell_address(element: Any) -> tuple[int, int] | None:
+    """``(row, column)`` of the innermost table cell holding *element*, else ``None``."""
+
+    node = element.getparent()
+    while node is not None:
+        if _local_name(node) == "tc":
+            address = node.find(f"{_HP}cellAddr")
+            if address is None:
+                return None
+            try:
+                return int(address.get("rowAddr", "")), int(address.get("colAddr", ""))
+            except ValueError:
+                return None
+        node = node.getparent()
+    return None
+
+
+def list_formula_fields(doc: "HwpxDocument") -> tuple[FormulaField, ...]:
+    """Return the table formulas Hancom saved (``fieldBegin type="FORMULA"``), in
+    document order, with the values Hancom wrote. Nothing is recomputed."""
+
+    formulas: list[FormulaField] = []
+    for match in _iter_field_matches(doc, _field_type_is("FORMULA")):
+        parameters = match["parameters"]
+        command = _field_parameter_value(parameters, "Command")
+        formulas.append(
+            FormulaField(
+                field_id=match["field_id"],
+                # Hancom also writes the formula as the head of its Command
+                # ("=SUM(A1:A3)??%g,;;6"); read it there when Formula is absent.
+                formula=_field_parameter_value(parameters, "Formula") or command.split("??", 1)[0],
+                result_format=_field_parameter_value(parameters, "ResultFormat"),
+                last_result=_field_parameter_value(parameters, "LastResult"),
+                command=command,
+                value=match["current_value"],
+                location=_match_location(match),
+                cell_address=_cell_address(match["_paragraph"].element),
+                parameters=_match_parameters(match),
+                element=match["_field_begin"],
+            )
+        )
+    return tuple(formulas)
+
+
+def list_bookmarks(doc: "HwpxDocument") -> tuple[Bookmark, ...]:
+    """Return every bookmark in document order, in either form Hancom saves it
+    (see :class:`~hwpx.objects.Bookmark`), those in table cells and objects included."""
+
+    fields = {
+        match["_field_begin"]: match
+        for match in _iter_field_matches(doc, _field_type_is("BOOKMARK"))
+    }
+    bookmarks: list[Bookmark] = []
+    for section_index, paragraph_index, paragraph_index_in_section, _p, _view, runs in _iter_content_paragraphs(doc):
+        for run_index, run in enumerate(runs):
+            for child_index, child in enumerate(run):
+                if _local_name(child) != "ctrl":
+                    continue
+                location = FieldLocation(
+                    section_index=section_index,
+                    paragraph_index=paragraph_index,
+                    paragraph_index_in_section=paragraph_index_in_section,
+                    run_index=run_index,
+                    child_index=child_index,
+                )
+                for mark in child:
+                    if mark.tag == f"{_HP}bookmark":
+                        name = mark.get("name", "")
+                        if name:
+                            bookmarks.append(Bookmark(name, "point", "", location, mark))
+                    elif mark in fields:
+                        name = (mark.get("name") or "").strip()
+                        if name:
+                            bookmarks.append(Bookmark(name, "field", fields[mark]["current_value"], location, mark))
+    return tuple(bookmarks)
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:

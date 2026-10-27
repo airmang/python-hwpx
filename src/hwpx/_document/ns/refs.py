@@ -15,6 +15,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...model import InlineObject, Paragraph, Section
+    from ...objects import Bookmark
 
 __all__ = ["RefsNamespace"]
 
@@ -24,6 +25,19 @@ class RefsNamespace(_Namespace):
 
     __slots__ = ()
     _path = "doc.refs"
+
+    @property
+    def bookmarks(self) -> "tuple[Bookmark, ...]":
+        """문서의 모든 책갈피를 문서 순서로. 표 칸과 개체 안의 것도 본다.
+
+        한/글이 책갈피를 저장하는 두 형태를 함께 낸다: ``hp:bookmark``(``kind="point"``)와
+        ``fieldBegin type="BOOKMARK"``…``fieldEnd`` 짝(``kind="field"``). 필드 형태의 ``text``는
+        시작과 끝 사이의 글이다(한/글은 흔히 사이를 비워 둔다).
+        """
+
+        from .. import fields as _fields
+
+        return _fields.list_bookmarks(self._doc)
 
     def add_bookmark(
         self,

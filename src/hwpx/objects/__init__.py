@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from .binary_item import BinaryItem, PictureRef
 from .checkbox import CheckBox
-from .form_field import CellField, FieldLocation, FieldParameter, FormField, TextBoxField
+from .form_field import Bookmark, CellField, FieldLocation, FieldParameter, FormField, FormulaField, TextBoxField
 from .highlight import Highlight
 from .results import (
     BorderFillInfo,
@@ -44,6 +44,7 @@ from .tracked import TrackedChange, TrackedReplacement
 
 __all__ = [
     "BinaryItem",
+    "Bookmark",
     "BorderFillInfo",
     "BorderLine",
     "CellField",
@@ -57,6 +58,7 @@ __all__ = [
     "FieldParameter",
     "FontReplaceReport",
     "FormField",
+    "FormulaField",
     "Highlight",
     "ListFormatResult",
     "PageMargins",

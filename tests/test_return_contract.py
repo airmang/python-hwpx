@@ -41,6 +41,7 @@ from hwpx.errors import HwpxValueError
 from hwpx.form_fit import FitPolicy
 from hwpx.objects import (
     BinaryItem,
+    Bookmark,
     CheckBox,
     ClearBodyReport,
     ColumnLayout,
@@ -48,6 +49,7 @@ from hwpx.objects import (
     FieldLocation,
     FieldParameter,
     FormField,
+    FormulaField,
     ListFormatResult,
     PageMargins,
     PageSetup,
@@ -251,6 +253,8 @@ _RESULT_DATACLASSES = (
     TrackedChange,
     TrackedReplacement,
     ClearBodyReport,
+    Bookmark,
+    FormulaField,
 )
 
 

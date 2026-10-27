@@ -28,7 +28,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...form_fit.policy import FitPolicy
-    from ...objects import CellField, CheckBox, FieldFillResult, FormField, TextBoxField
+    from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
 
 __all__ = ["FieldsNamespace"]
@@ -141,6 +141,22 @@ class FieldsNamespace(_Namespace):
         from .. import fields as _fields
 
         return _fields.fill_cell_fields(self._doc, value, name=name, index=index)
+
+    # -- 계산식 필드 -------------------------------------------------------
+
+    @property
+    def formulas(self) -> "tuple[FormulaField, ...]":
+        """한/글이 저장한 표 계산식(``fieldBegin type="FORMULA"``)을 문서 순서로. 본문 표와 그 칸
+        안의 표를 본다.
+
+        값은 한/글이 적은 그대로다. 다시 계산하지 않는다: ``formula``는 한/글 표기(``=SUM(?1:?3)``의
+        ``?`` 같은)를 그대로 두고, ``last_result``는 한/글이 마지막으로 계산한 값, ``value``는
+        문서에 보이는 글이다. ``cell_address``는 계산식이 든 칸의 ``(행, 열)``이다.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.list_formula_fields(self._doc)
 
     # -- 글상자 필드 -------------------------------------------------------
 
