@@ -1033,6 +1033,11 @@ HANCOM_PAGES = {
     # below it (one not fitting on the page goes on to the next page's top, the line staying); not allowed, the
     # line stays beside it and the next paragraph comes below the table
     "pages_overlapping_tables_alone_in_empty_paragraphs": 2,
+    # A table 30000 x 1000 or a rectangle as large placed top and bottom 2000 or 5000 down from a paragraph of one or
+    # four lines with 0 or 1000 of spacing before, its control before or after the text, then six short paragraphs:
+    # on the first line, the object stands that far below the paragraph's top, above its spacing; on a later line,
+    # below that line's top; the lines reaching it go below it
+    "pages_objects_offset_down_from_a_paragraph_with_spacing_before": 8,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run

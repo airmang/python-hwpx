@@ -3376,13 +3376,13 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     if pusher is not None:
         para = replace(_paragraph(measure, page, paragraph, None, pusher), bare=bare)
         offset = _pos_offset(pusher.find(f"{HP}pos"), "vertOffset")
+        if not para.wrap_anchor:  # on the first line: from the paragraph's top, above its spacing (on a later
+            offset -= para.prev  # line, from that line's top)
         if _local(pusher) == "tbl" and pusher.get("pageBreak", "CELL") in ("CELL", "TABLE"):  # it flows
             rows, cells = _table_rows(measure, pusher)
             ends = _table_ends(pusher)
             table = _FlowTable(rows, _page_break(pusher), pusher.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, pusher), cut=_spare_cut(pusher))
-            if bare:  # from the paragraph's top, above its spacing, as a table alone (see _Paginator._flow)
-                offset -= para.prev
             return replace(para, band=_Band(para.wrap_anchor, offset, table)), None
         top = para.span(0, para.wrap_anchor) + offset
         tall = _extent(pusher, "height", measure)
@@ -4078,9 +4078,10 @@ class _Paginator:
                 < start + ahead + para.height(anchor):  # the anchor line goes on to the next page, the object
             if self.reserved.get(self.frame + 1, 0) + reach - ahead > self.body:  # with it, from its top there
                 raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot")
-        elif reach and start + reach > self.body and self.columns == 1 \
+        elif reach and start + reach > self.body and self.columns == 1 and start < self.body \
                 and (para.wrap_push or start + para.own <= self.body):  # the empty line fits where it stands:
-            raise _BandMoves(index)  # its object goes on to the next page's top, its lines stay
+            raise _BandMoves(index)  # its object goes on to the next page's top, its lines stay (starting past
+            # the foot, the paragraph goes on to the next page, the object with it)
         first = len(self.out)
         if self._lay(index, paras, para, start, broke):
             last = self.laid or para
