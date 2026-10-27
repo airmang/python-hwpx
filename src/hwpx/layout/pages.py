@@ -3812,11 +3812,15 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int,
     heights = dict.fromkeys(range(cut, last + 1), 0)
     rests: list[tuple[int, int, int]] = []
     cells: list[tuple[int, int, _Row]] = []
+    # a cell of the row the page end falls in keeping none of its lines above it sends the row's cells on whole
+    whole = any(_cell_rest(cell, tops[cut], foot) == (cell.height, cell.lines) and cell.lines and not cell.spare
+                for start, span, cell in table.cells if start == cut and span == 1)
     for start, span, cell in table.cells:
         end = start + span - 1
         if start < first or start > last or end < cut:
             continue  # another row, or done above the page end
-        part = (cell.height, cell.lines) if start > cut else _cell_rest(cell, tops[start], foot)
+        part = (cell.height, cell.lines) if start > cut or whole and start == cut and span == 1 \
+            else _cell_rest(cell, tops[start], foot)
         if part is None:
             continue
         rest, begin = part[0], max(start, cut)

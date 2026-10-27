@@ -1042,6 +1042,11 @@ HANCOM_PAGES = {
     # after, in the middle of or after the spaces of 10 pt text one or three lines long: the line its place falls on
     # is as tall as a 16 pt character and spaced from it, and the table stands at that line's top
     "pages_object_runs_after_the_text": 2,
+    # Thirty-eight times, on a page of its own after 38 lines: a table split by cell 500 to 2300 down from its
+    # paragraph, two rows, the second's middle cell eight lines of 10 pt and the last cell a line of 20 pt, the
+    # first column merged over both rows or not: where the 20 pt line does not fit above the page end, the row goes
+    # on to the next page whole, its other cells too
+    "pages_merged_rows_split_with_a_larger_cell": 76,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
