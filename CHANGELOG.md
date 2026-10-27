@@ -51,6 +51,14 @@
   다음 쪽 맨 위로 가고, 들어가는 기준 줄은 제자리에 남는다. 쪽 끝이 어울림·글 뒤·앞 표, 여러 줄 행, 행 합치기 표(글 앞에 놓인 표는 전처럼 줄과 함께 넘긴다)를 가로지르거나
   표만 옮긴 뒤 다음 줄들이 그 쪽에 들어가는 경우는 아직 추정하지 않는다. 실험 `write_line_caches`는 이런 칸과 그 표를 담은
   문단에 지금처럼 줄 배치 정보를 쓰지 않는다.
+- `doc.fields.formulas`가 한/글이 저장한 표 계산식(`hp:fieldBegin type="FORMULA"`)을 문서 순서로 읽는다. 본문 표와 칸 안의
+  표를 보고, 계산식마다 `FormulaField`(식 `formula`, 표시 형식 `result_format`, 한/글이 마지막으로 계산한 값 `last_result`,
+  `command`, 문서에 보이는 글 `value`, 칸의 `(행, 열)` `cell_address`, 위치)를 돌려준다. 값은 한/글이 적은 그대로이고 다시
+  계산하지 않는다(`=SUM(?1:?3)`의 `?` 같은 표기도 그대로). 지금까지는 계산 결과 글만 보이고 어느 칸이 계산식인지는
+  `ObjectFinder`로 XML을 찾아야 알았다. (#578)
+- `doc.refs.bookmarks`가 문서의 모든 책갈피를 문서 순서로 낸다(표 칸과 개체 안 포함). 한/글이 책갈피를 저장하는 두 형태를
+  함께 보고, 책갈피마다 `Bookmark`(이름, 형태 `kind`: `"point"`=`hp:bookmark`·`"field"`=`fieldBegin type="BOOKMARK"`,
+  필드 형태의 시작과 끝 사이 글 `text`, 위치)를 돌려준다. (#579)
 
 ### 수정
 
@@ -58,6 +66,9 @@
   많은 문서의 쪽 수가 전보다 적게 나올 수 있다.
 ### 고침
 
+- `Paragraph.bookmarks`가 `hp:fieldBegin type="BOOKMARK"`로 저장된 책갈피를 놓치던 문제를 고쳤다. 한/글로 저장한 문서에서
+  책갈피가 모두 이 형태이면 문서에 책갈피가 없는 것처럼 보였다. 이제 `hp:bookmark`와 이 형태를 문단 안 순서대로 함께 낸다.
+  (#579)
 - `paragraph.add_run(..., expand_special_characters=True)`가 탭과 단독 CR(`"\r"`)을 지우던 문제를 고쳤다. 이제 이 옵션을
   켜도 끈 것과 같이 탭은 `hp:tab`, 줄바꿈(`"\n"`·`"\r\n"`·`"\r"`)은 하나마다 `hp:lineBreak`로 쓰고, 옵션은 줄바꿈 없는
   공백(U+00A0)과 전각 공백(U+3000)을 `hp:nbSpace`·`hp:fwSpace`로 바꾸는 일만 더한다. (#563)

@@ -1400,12 +1400,25 @@ class HwpxOxmlParagraph:
 
     @property
     def bookmarks(self) -> list[str]:
-        """Return the names of all bookmarks in this paragraph."""
+        """Return the names of all bookmarks that start in this paragraph.
+
+        Both forms Hancom saves a bookmark in count, in document order:
+        ``<hp:ctrl><hp:bookmark name=".."/></hp:ctrl>`` and
+        ``<hp:fieldBegin type="BOOKMARK" name="..">`` (paired with a fieldEnd).
+        """
         names: list[str] = []
         for run in self._run_elements():
             for ctrl in run.findall(f"{_HP}ctrl"):
-                for bm in ctrl.findall(f"{_HP}bookmark"):
-                    name = bm.get("name", "")
+                for mark in ctrl:
+                    if mark.tag == f"{_HP}bookmark":
+                        name = mark.get("name", "")
+                    elif (
+                        mark.tag == f"{_HP}fieldBegin"
+                        and (mark.get("type") or "").strip().upper() == "BOOKMARK"
+                    ):
+                        name = (mark.get("name") or "").strip()
+                    else:
+                        continue
                     if name:
                         names.append(name)
         return names

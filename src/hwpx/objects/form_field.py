@@ -9,12 +9,16 @@ the two prompt aliases (``prompt``/``instruction``) collapse to
 collapse to :attr:`FormField.field_type`, and the five index keys
 (``section_index``/``paragraph_index``/``paragraph_index_in_section``/
 ``run_index``/``child_index``) collapse to :class:`FieldLocation`.
+
+The read-only snapshots of the other fields Hancom saves, located the same
+way, live here too: :class:`FormulaField` (table formulas) and
+:class:`Bookmark`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
@@ -275,4 +279,70 @@ class TextBoxField:
         return f"TextBoxField(name={self.name!r}, text={self.text!r})"
 
 
-__all__ = ["CellField", "FieldLocation", "FieldParameter", "FormField", "TextBoxField"]
+@dataclass(frozen=True)
+class FormulaField:
+    """One table formula Hancom saved (``<hp:fieldBegin type="FORMULA">``), read as written.
+
+    The values are Hancom's own parameters, not recomputed: ``formula`` keeps
+    Hancom's notation as written (``=SUM(A1:A3)``, ``=SUM(?1:?3)``),
+    ``last_result`` is the value Hancom last
+    computed and ``value`` is the text the document shows. ``cell_address`` is
+    the ``(row, column)`` of the table cell holding the formula, ``None`` when it
+    sits in an ordinary paragraph. ``element`` is the ``<hp:fieldBegin>``.
+    """
+
+    field_id: str
+    formula: str
+    result_format: str
+    last_result: str
+    command: str
+    value: str
+    location: FieldLocation
+    cell_address: tuple[int, int] | None
+    parameters: tuple[FieldParameter, ...]
+    element: Any = field(repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "fieldId": self.field_id,
+            "formula": self.formula,
+            "resultFormat": self.result_format,
+            "lastResult": self.last_result,
+            "command": self.command,
+            "value": self.value,
+            "location": self.location.to_dict(),
+            "cellAddress": list(self.cell_address) if self.cell_address is not None else None,
+            "parameters": [parameter.to_dict() for parameter in self.parameters],
+        }
+
+
+@dataclass(frozen=True)
+class Bookmark:
+    """A bookmark and where it starts.
+
+    Hancom saves a bookmark in one of two forms, and ``kind`` names the form:
+    ``"point"`` is ``<hp:ctrl><hp:bookmark name=".."/></hp:ctrl>`` and ``"field"``
+    is a ``<hp:fieldBegin type="BOOKMARK" name="..">`` paired with its
+    ``<hp:fieldEnd>``. ``text`` is the text between that begin and end, one line
+    per paragraph when they are paragraphs apart; Hancom often writes the pair
+    with nothing between, and a point bookmark has no text. ``element`` is the
+    ``<hp:bookmark>`` or ``<hp:fieldBegin>``.
+    """
+
+    name: str
+    kind: Literal["point", "field"]
+    text: str
+    location: FieldLocation
+    element: Any = field(repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "kind": self.kind,
+            "text": self.text,
+            "location": self.location.to_dict(),
+        }
+
+
+
+__all__ = ["Bookmark", "CellField", "FieldLocation", "FieldParameter", "FormField", "FormulaField", "TextBoxField"]
