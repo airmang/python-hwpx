@@ -1234,6 +1234,14 @@ def _table_alone(runs: list[Any]) -> Any:
     return children[0] if pos is not None and pos.get("treatAsChar") == "1" else None
 
 
+def _size_protected(table: Any) -> bool:
+    """Whether *table* is set not to change size (``hp:sz@protect``): Hancom keeps its rows as declared, however
+    tall their text."""
+
+    size = table.find(f"{HP}sz")
+    return size is not None and size.get("protect") == "1"
+
+
 def _cell_height(size: Any) -> int:
     """A cell's stored height (hp:cellSz): a negative one, which the file keeps as an unsigned 32-bit number,
     counts as none -- Hancom gives that cell its top and bottom margins and grows it to fit its text."""
@@ -1434,7 +1442,8 @@ def _page_break(table: Any) -> str:
 
 
 def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None) -> _Row:
-    if _vertical(cell):  # its lines go across it, the row as declared: one block, not split
+    if _vertical(cell) or _size_protected(table) and _cell_height(cell.find(f"{HP}cellSz")):  # its lines go across
+        # it, or its table is set not to change size (its text cut off below): the row as declared, one block, not split
         margins = cell_margins_of(cell, table)
         vertical = margins.top + margins.bottom
         height = max(_cell_height(cell.find(f"{HP}cellSz")), vertical)
