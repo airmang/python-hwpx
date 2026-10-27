@@ -122,7 +122,8 @@ def test_times_and_relations() -> None:
         ("because x", r"\because x"),
         ("{rm {bold {v}} it} ^{2} w", r"\mathbf{v}^{2} w"),
         ("{rm {bold v} it}", r"\mathbf{v}"),
-        ("{rm {bold {v}}} w", r"{rm {bold {v}}} w"),  # not the authored shape: as before
+        # not the authored shape: ``rm`` carries past its braces, so w is upright too (#582)
+        ("{rm {bold {v}}} w", r"{\mathbf{v}} \mathrm{w}"),
     ],
 )
 def test_thin_space_two_headed_arrow_and_conclusion_signs(script: str, expected: str) -> None:
@@ -137,7 +138,7 @@ def test_thin_space_two_headed_arrow_and_conclusion_signs(script: str, expected:
         ('T _{{rm "max" it}}', r"T_{\text{max}}"),
         ('{rm "판별식" it} = 0', r"\text{판별식} = 0"),
         ('"d" x', r"\text{d} x"),  # a bare quoted run reads as before
-        ('{rm "d"} x', r"{rm \text{d}} x"),  # not the authored shape: as before
+        ('{rm "d"} x', r"{\text{d}} \mathrm{x}"),  # not the authored shape: x is upright too (#582)
         # a quoted reserved word is the writer's identifier protection: plain letters again
         ('T _{"int"}', r"T_{int}"),
         ('e ^{"it"}', r"e^{it}"),  # so with the font switches
@@ -191,11 +192,81 @@ def test_triangle_symbol_uses_exact_evidence_backed_tokens(token: str) -> None:
         "mytriangle PQR",
         "triangleidentifier PQR",
         "rmtriangle PQR",
-        "rm text",
     ],
 )
-def test_triangle_support_does_not_split_identifiers_or_rm_text(script: str) -> None:
+def test_triangle_support_does_not_split_identifiers(script: str) -> None:
     assert eqedit_to_latex(script) == script
+
+
+# --- font switches (#582) -----------------------------------------------------
+# What Hancom draws (macOS Hancom Office HWP render of a synthetic probe, 2026-10-27): ``rm`` sets the Latin
+# letters after it upright until ``it``, past braces, scripts, fractions, roots, LEFT/RIGHT and matrices; Greek
+# letters stay as they are. ``bold`` thickens only the next atom, italic or (after ``rm``) upright, and a
+# ``rm``/``it`` right after ``bold`` uses it up. Before #582 the switches came back as the words rm/it/bold,
+# which latex_to_eqedit quoted, so a re-authored equation drew the letters (``AB = ita``).
+
+
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ("rm A", r"\mathrm{A}"),
+        ("it a", "a"),
+        ("bold x", r"\boldsymbol{x}"),
+        ("RM ab IT fv", r"\mathrm{ab} fv"),
+        ("BOLD ab fv", r"\boldsymbol{ab} fv"),
+        ("5 rm cm", r"5 \mathrm{cm}"),
+        ("rm {bar{BC}}", r"{\bar{\mathrm{BC}}}"),
+        ("rm {bar{BC}} it", r"{\bar{\mathrm{BC}}}"),
+        ("{vec{rm AB}} = it {vec{a}}", r"{\vec{\mathrm{AB}}} = {\vec{a}}"),
+        ("rm ab fv", r"\mathrm{ab} \mathrm{fv}"),
+        ("x ^{rm ab} fv", r"x^{\mathrm{ab}} \mathrm{fv}"),
+        ("{rm ab over cd} fv", r"{\frac{\mathrm{ab}}{\mathrm{cd}}} \mathrm{fv}"),
+        ("sqrt {rm ab} fv", r"\sqrt{\mathrm{ab}} \mathrm{fv}"),
+        ("LEFT ( rm ab RIGHT ) fv", r"\left( \mathrm{ab} \right) \mathrm{fv}"),
+        ("matrix {rm ab & cd} fv", r"\begin{matrix} \mathrm{ab} & \mathrm{cd} \end{matrix} \mathrm{fv}"),
+        ("rm alpha beta ab", r"\alpha \beta \mathrm{ab}"),
+        ("rm sin x", r"\sin \mathrm{x}"),
+        ('rm ab "fv"', r"\mathrm{ab} \text{fv}"),
+        ("bold ab fv", r"\boldsymbol{ab} fv"),
+        ("bold {ab} fv", r"{\boldsymbol{ab}} fv"),
+        ("bold ab + fv", r"\boldsymbol{ab} + fv"),
+        ("bold alpha + 2", r"\boldsymbol{\alpha} + 2"),
+        ("bold 25", r"\mathbf{25}"),
+        ("rm bold ab it fv", r"\mathbf{ab} fv"),
+        ("rm ab bold fv", r"\mathrm{ab} \mathbf{fv}"),
+        ("rm ab {bold fv} cd", r"\mathrm{ab} \mathbf{fv} \mathrm{cd}"),
+        ("bold ab rm fv", r"\boldsymbol{ab} \mathrm{fv}"),
+        ("bold rm v", r"\mathrm{v}"),
+        ("bold {rm v}", r"{\mathbf{v}}"),
+        ("{bold {v}}", r"\boldsymbol{v}"),  # what latex_to_eqedit writes for \boldsymbol
+        ("{bold {rm x}} y", r"{{\mathbf{x}}} \mathrm{y}"),  # rm inside goes on past the bold group
+        ('rm a {rm "x" it} b', r"\mathrm{a} \text{x} b"),  # the authored upright group ends with it
+        ("rm A it ^{2}", r"\mathrm{A}^{2}"),
+        ("x ^{rm}", "x^{}"),  # a switch alone in a script draws nothing
+        ("a rm", "a"),
+    ],
+)
+def test_font_switches_read_as_latex_fonts(script: str, expected: str) -> None:
+    assert eqedit_to_latex(script) == expected
+
+
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ('e ^{"it"}', r"e^{it}"),  # a quoted switch word is an identifier (#360), italic as before
+        ('rm "it" x', r"\mathrm{it} \mathrm{x}"),  # ... upright after rm
+        ("x _{rm}", "x_{}"),
+        ("rmA", "rmA"),  # a switch glued to its letters stays one identifier, as before
+        ("itab fv", "itab fv"),
+        ("bit + item", "bit + item"),
+    ],
+)
+def test_font_switch_words_inside_identifiers(script: str, expected: str) -> None:
+    assert eqedit_to_latex(script) == expected
+
+
+def test_font_switch_runs_do_not_recurse() -> None:
+    assert eqedit_to_latex("rm " * 3000 + "x") == r"\mathrm{x}"
 
 
 def test_existing_angle_symbol_remains_distinct_from_triangle() -> None:

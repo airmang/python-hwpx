@@ -17,6 +17,14 @@ Design notes (matches Hancom EqEdit grouping semantics):
   numerator and the *next atom* as the denominator.  Callers brace multi-token
   operands (``{...} over {...}``) exactly as EqEdit requires.
 * ``^`` / ``_`` are postfix scripts binding the preceding atom.
+* Font switches follow what Hancom draws (render probe, issue #582): ``rm``
+  sets the Latin letters after it upright -- past closing braces, scripts,
+  fractions, roots and ``LEFT``/``RIGHT`` -- until ``it``; Greek letters stay as
+  they are.  ``bold`` makes only the next atom bold (italic bold, or upright
+  bold after ``rm``), and a ``rm``/``it`` right after it uses it up.  Letter runs
+  read as ``\\mathrm``/``\\mathbf``/``\\boldsymbol`` so a switch never comes
+  back as a word that re-authoring would draw as letters.  A switch glued to
+  the letters after it (``rmA``) stays one identifier, as before.
 
 Untrusted input is bounded by :data:`MAX_SOURCE_LENGTH` and
 :data:`MAX_GROUP_DEPTH`; exceeding either raises :class:`EquationConversionError`
@@ -46,6 +54,8 @@ MAX_GROUP_DEPTH = 64
 # with one (``T_{int}`` → ``T _{"int"}``, ``e^{it}`` → ``e ^{"it"}``: a lone ``it`` in a superscript switches to
 # italic and draws nothing); the reader turns such a quoted word back into plain letters.
 _FONT_SWITCHES = frozenset({"rm", "it", "bold", "RM", "IT", "BOLD"})
+# Tokens that end the current atom: a font switch right before one switches and draws nothing.
+_ATOM_END = frozenset({"}", "&", "#", "RIGHT", "^", "_", "over", "atop", "choose"})
 _RESERVED_WORDS = (
     frozenset(GREEK)
     | frozenset(OPERATORS)
@@ -164,6 +174,8 @@ class _Parser:
     def __init__(self, tokens: list[str]) -> None:
         self._tokens = tokens
         self._pos = 0
+        self._upright = False  # after ``rm``, until ``it`` -- braces do not end it
+        self._bold = False  # while reading the atom right after ``bold``
 
     # -- token helpers ------------------------------------------------------
     def _peek(self) -> str | None:
@@ -201,18 +213,40 @@ class _Parser:
                 else:
                     nodes.append(f"{{{numerator} \\atop {denominator}}}")
                 continue
-            nodes.append(self._atom(depth))
+            atom = self._atom(depth)
+            if atom:  # a font switch with nothing after it is not an operand
+                nodes.append(atom)
         return " ".join(part for part in nodes if part != "")
 
     def _atom(self, depth: int) -> str:
         token = self._next()
+        bold = False
+        while token in _FONT_SWITCHES:
+            if token.lower() == "bold":
+                bold = True
+            else:  # ``bold rm v`` is upright, not bold: the switch is the atom ``bold`` applies to
+                self._upright, bold = token.lower() == "rm", False
+            if self._peek() is None or self._peek() in _ATOM_END:
+                return ""
+            token = self._next()
         if token is None:
             return ""
+        if not bold:
+            return self._atom_from(token, depth)
+        outer, self._bold = self._bold, True
+        try:
+            return self._atom_from(token, depth)
+        finally:
+            self._bold = outer
+
+    def _atom_from(self, token: str, depth: int) -> str:
         if token == "{":
             upright = self._upright_text()
             if upright is not None:
                 return upright
             bold = self._upright_bold(depth)
+            if bold is None:
+                bold = self._bold_group(depth)
             if bold is not None:
                 return bold
             return "{" + self._group(depth) + "}"
@@ -249,6 +283,7 @@ class _Parser:
             literal = window[1]
             if len(literal) >= 2 and literal.startswith('"') and literal.endswith('"'):
                 self._pos = start + 4
+                self._upright = False
                 return f"\\text{{{literal[1:-1]}}}"
         return None
 
@@ -259,12 +294,44 @@ class _Parser:
         start = self._pos
         if self._tokens[start : start + 3] == ["rm", "{", "bold"]:
             self._pos = start + 3
-            body = self._atom(depth + 1)
-            if self._tokens[self._pos : self._pos + 3] == ["}", "it", "}"]:
+            body = self._plain_body(depth)
+            if body is not None and self._tokens[self._pos : self._pos + 3] == ["}", "it", "}"]:
                 self._pos += 3
+                self._upright = False
                 return f"\\mathbf{{{_strip_braces(body)}}}"
         self._pos = start
         return None
+
+    def _bold_group(self, depth: int) -> str | None:
+        """``\\boldsymbol{X}`` for the group ``{bold {X}}`` just opened (italic bold, what
+        ``latex_to_eqedit`` writes for ``\\boldsymbol``), ``\\mathbf{X}`` while ``rm`` is on, else
+        ``None`` with nothing consumed."""
+
+        start = self._pos
+        if self._tokens[start : start + 1] == ["bold"] and start + 1 < len(self._tokens):
+            self._pos = start + 1
+            body = self._plain_body(depth)
+            if body is not None and self._peek() == "}":
+                self._next()
+                command = "\\mathbf" if self._upright else "\\boldsymbol"
+                return f"{command}{{{_strip_braces(body)}}}"
+        self._pos = start
+        return None
+
+    def _plain_body(self, depth: int) -> str | None:
+        """The next atom without font styling for the caller to wrap in one command, or ``None`` when a
+        font switch inside it would carry past the wrapper."""
+
+        upright, bold = self._upright, self._bold
+        self._upright = self._bold = False
+        start = self._pos
+        try:
+            body = self._atom(depth + 1)
+        finally:
+            self._upright, self._bold = upright, bold
+        if _FONT_SWITCHES.intersection(self._tokens[start : self._pos]):
+            return None
+        return body
 
     def _group(self, depth: int) -> str:
         if depth + 1 > MAX_GROUP_DEPTH:
@@ -334,7 +401,8 @@ class _Parser:
         if token in SYMBOL_OPERATORS:
             return SYMBOL_OPERATORS[token]
         if token in GREEK:
-            return GREEK[token]
+            # ``rm`` leaves Greek letters as they are; ``bold`` thickens them.
+            return f"\\boldsymbol{{{GREEK[token]}}}" if self._bold else GREEK[token]
         if token in BIG_OPERATORS:
             return BIG_OPERATORS[token]
         if token in OPERATORS:
@@ -348,12 +416,27 @@ class _Parser:
             if literal.isalpha() and literal in _RESERVED_WORDS:
                 # A quoted reserved word is an identifier kept from turning into a symbol; Hancom draws it in
                 # italic, as LaTeX draws plain letters. Upright text is the ``{rm "..." it}`` group.
-                return literal
+                return self._styled(literal)
             return f"\\text{{{literal}}}"
         if token == "#":
             return r"\\"
         if token in ("%", "$", "&", "_"):
             return "\\" + token
+        return self._styled(token)
+
+    def _styled(self, token: str) -> str:
+        """A Latin letter run or a number in the font the switches before it set."""
+
+        if token.isascii() and token.isalpha():
+            if self._bold:
+                command = "\\mathbf" if self._upright else "\\boldsymbol"
+            elif self._upright:
+                command = "\\mathrm"
+            else:
+                return token
+            return f"{command}{{{token}}}"
+        if self._bold and token[:1].isdigit():
+            return f"\\mathbf{{{token}}}"
         return token
 
 

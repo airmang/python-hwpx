@@ -268,6 +268,9 @@ class TestLatexToEqedit:
             (r"\mathbf{v}", "{rm {bold {v}} it}"),
             (r"x = \mathbf{AB} + w", "x = {rm {bold {AB}} it} + w"),
             (r"\mathbf{v}^{2} w", "{rm {bold {v}} it} ^{2} w"),
+            # italic bold: ``bold`` thickens only the next atom (#582)
+            (r"\boldsymbol{x}", "{bold {x}}"),
+            (r"\boldsymbol{\alpha} + x", "{bold {alpha}} + x"),
         ],
     )
     def test_exact_pairs(self, latex: str, expected: str) -> None:
@@ -312,6 +315,8 @@ class TestRoundtripStability:
         r"\overrightarrow{AB} + \overleftrightarrow{CD}",
         r"\therefore a = b \because b = c",
         r"\mathbf{v}^{2} + \mathbf{AB} w",
+        r"\boldsymbol{x} + \boldsymbol{\alpha}^{2}",
+        r"5 \mathrm{cm} + \bar{\mathrm{BC}} = \vec{\mathrm{AB}}",
         r"\frac{\mathrm{d}y}{\mathrm{d}x} + T_{\text{max}} \mbox{cm}",
         r"P(A \mid B) = \binom{n+1}{2} + \binom{a}{b}^{2}",
         r"\begin{pmatrix} \binom{n}{r} & x \mid y \end{pmatrix}",
@@ -390,3 +395,23 @@ def test_eqedit_spaces_survive_a_round_trip_through_latex(script: str) -> None:
     # EqEdit's small (`) and normal (~) spaces come back from LaTeX as themselves.
     back = latex_to_eqedit(eqedit_to_latex(script))
     assert back.replace(" ", "") == script.replace(" ", "")
+
+
+@pytest.mark.parametrize(
+    "script,expected",
+    [
+        ("rm A", '{rm "A" it}'),
+        ("it a", "a"),
+        ("bold x", "{bold {x}}"),
+        ("5 rm cm", '5 {rm "cm" it}'),
+        ("rm {bar{BC}}", '{bar {{rm "BC" it}}}'),
+        ("{vec{rm AB}} = it {vec{a}}", '{vec {{rm "AB" it}}} = {vec {a}}'),
+        ("rm bold ab it fv", "{rm {bold {ab}} it} fv"),
+    ],
+)
+def test_font_switches_are_not_re_authored_as_letters(script: str, expected: str) -> None:
+    # Hancom's original-manuscript font switches survive EqEdit → LaTeX → EqEdit as switches, never as the
+    # quoted words "rm"/"it"/"bold" that Hancom draws as letters (#582).
+    back = latex_to_eqedit(eqedit_to_latex(script))
+    assert back == expected
+    assert not {'"rm"', '"it"', '"bold"'} & set(back.split())

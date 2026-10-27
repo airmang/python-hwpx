@@ -278,6 +278,9 @@ class _LatexParser:
             # ``bold`` alone keeps the letters italic and ``rm`` goes on past its braces: upright bold, then
             # italic again for what follows.
             return f"{{rm {{bold {{{self._group_or_atom(depth)}}}}} it}}"
+        if token == "\\boldsymbol":
+            # ``bold`` thickens only the next atom and keeps the letters italic, as ``\boldsymbol`` does.
+            return f"{{bold {{{self._group_or_atom(depth)}}}}}"
         if token == "\\begin":
             return self._environment(depth)
         if token == "\\left":
