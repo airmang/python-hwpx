@@ -998,6 +998,10 @@ HANCOM_PAGES = {
     # of a table set as a character, its rows 1500 tall: moving with the text, it pushes no line aside but the
     # row grows to hold it below the cell's top margin; one that stays put leaves the row as it is
     "pages_floating_pictures_in_cells": 4,
+    # A rectangle in front of the text, 1000 to 3000 tall, at the top of the first paragraph of a table's cell,
+    # whose spacing before is 500: the row grows to hold it from the cell's top, above that spacing, not from the
+    # paragraph's first line
+    "pages_cell_front_object_spacing_before": 2,
     # A chart wrapped square in a run's hp:switch (Hancom saves every chart in one), 20000 or 8000 wide, with a
     # picture 8000 or 20000 wide in its hp:default: the lines beside it are as narrow as the chart leaves them
     "pages_chart_case_wider_than_its_default": 1,

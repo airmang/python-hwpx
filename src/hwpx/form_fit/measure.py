@@ -1551,7 +1551,11 @@ class TextStyle:
     quarter of the em, 자간 applied, between a Hangul syllable and a Latin
     letter or a digit right next to it (see :func:`auto_space_gap`).
     ``script_size`` is the share of the character size the glyphs are laid
-    out at: :data:`_SUPSUB_SIZE` for superscript or subscript.
+    out at: :data:`_SUPSUB_SIZE` for superscript or subscript, times the
+    Hangul script's 상대 크기 (``hh:relSz``), which leaves the line height alone;
+    ``script_sizes`` holds ``(script, share)`` for the Latin, symbol and Hanja
+    scripts when their 상대 크기 differs, and each glyph takes its script's, a
+    space the Hangul script's.
     ``line_wrap`` is the paragraph shape's ``hh:breakSetting@lineWrap``: with
     ``SQUEEZE`` Hancom lays the paragraph out on one line, pressed to fit.
     """
@@ -1583,6 +1587,7 @@ class TextStyle:
     auto_space_latin: bool = False
     auto_space_digit: bool = False
     script_size: float = 1.0
+    script_sizes: tuple[tuple[str, float], ...] = ()
     line_wrap: str = "BREAK"
 
 
@@ -1741,6 +1746,18 @@ def _scaling(ch: str, style: TextStyle) -> tuple[float, float]:
     return style.ratio, style.spacing
 
 
+def _size_share(ch: str, style: TextStyle) -> float:
+    """The share of the character size *ch* is laid out at under *style*: its script's (a space the Hangul
+    script's)."""
+
+    if style.script_sizes and ch not in _HALF_EM_SPACES:
+        script = glyph_script(ch)
+        for name, share in style.script_sizes:
+            if name == script:
+                return share
+    return style.script_size
+
+
 def classify_char(ch: str) -> str:
     """Bucket *ch* into an advance class (see ``_ADVANCE_EM``)."""
 
@@ -1785,7 +1802,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     if style is None:
         em = _EMOJI_UNITS[0] / _EMOJI_UNITS[1] if emoji else _ADVANCE_EM[classify_char(ch)]
         return em * font_pt * 100.0
-    font_pt *= style.script_size
+    font_pt *= _size_share(ch, style)
     cls = classify_char(ch)
     height = round(font_pt * 100.0)
     ratio, spacing = _scaling(ch, style)
@@ -2719,6 +2736,7 @@ def text_style_from_refs(
     italic = False
     latin_face = symbol_face = ""
     script_size = 1.0
+    script_sizes: tuple[tuple[str, float], ...] = ()
     scripts: tuple[tuple[str, float, float], ...] = ()
     root = _document_root(document)
     height, used = 1000, None
@@ -2742,6 +2760,15 @@ def text_style_from_refs(
         bold = "bold" in children
         italic = "italic" in children
         script_size = _SUPSUB_SIZE if "supscript" in children or "subscript" in children else 1.0
+        # 상대 크기 (hh:relSz) scales the glyphs as a superscript's size does, the line height left alone
+        sizes = children.get("relSz") or {}
+        relative = _style_number(sizes.get("hangul"), 100.0)
+        script_sizes = tuple(
+            (name, script_size * _style_number(sizes.get(name), relative) / 100)
+            for name in SEPARATE_SCRIPTS
+            if _style_number(sizes.get(name), relative) != relative
+        )
+        script_size *= relative / 100
         hangul_face, glyph_face = _face_names(root, ref)
         latin_face, symbol_face = _script_faces(root, ref)
         height = int(_style_number((getattr(run_style, "attributes", {}) or {}).get("height"), 1000.0))
@@ -2764,6 +2791,7 @@ def text_style_from_refs(
             bold=bold,
             italic=italic,
             script_size=script_size,
+            script_sizes=script_sizes,
         )
     breaks = getattr(prop, "break_setting", None)
     try:
@@ -2805,6 +2833,7 @@ def text_style_from_refs(
         bold=bold,
         italic=italic,
         script_size=script_size,
+        script_sizes=script_sizes,
     )
     heading = paragraph_label(root, para_pr_id_ref, label)
     if heading is None:

@@ -740,13 +740,15 @@ class _Measure:
         return starts
 
     def stack(self, paragraphs: list[Any], width: int, caches: bool,
-              floating: bool = False) -> tuple[int, int, int, int]:
+              floating: bool = False, lead: int = 0) -> tuple[int, int, int, int]:
         """(height, lines, pitch, size) of *paragraphs* laid out one under another at *width*; pitch
         and size are the last paragraph's. With *caches* a paragraph keeps the lines of its cache. With
         *floating* (a cell's paragraphs) the height reaches down to the foot of any object in front of or
-        behind the text placed from a paragraph's top (see :func:`_floating_reach`)."""
+        behind the text placed from a paragraph's top (see :func:`_floating_reach`). *lead* is room above
+        the first paragraph's lines (a cell's first paragraph's spacing before): Hancom places an object
+        from that paragraph's top above it."""
 
-        height, lines, pitch, size, pending, far = 0, 0, 0, 0, None, 0
+        height, lines, pitch, size, pending, far = lead, 0, 0, 0, None, 0
         for paragraph in paragraphs:
             runs = paragraph.findall(f"{HP}run")
             size, refs, _ = _text_size(self, runs, paragraph)  # an empty run takes no room, as in the body
@@ -769,10 +771,11 @@ class _Measure:
                 cached = cached or self.pushed_lines(paragraph, runs, width) \
                     or self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width)
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
+                    anchor = height - lead if pending is None else height + pending + shape.prev
                     if pending is not None:
                         height += pending + shape.prev
                     top = height
-                    far = max(far, top + _floating_reach(runs, self)) if floating else far
+                    far = max(far, anchor + _floating_reach(runs, self)) if floating else far
                     height += sum(advance for _, advance in cached[:-1]) + cached[-1][0]
                     size, pitch = cached[-1]
                     pending = pitch - size + shape.next
@@ -787,10 +790,11 @@ class _Measure:
                 if shape.font_line:  # an empty line as tall as its font makes it
                     size = self.font_line(size, style)
                     pitch = _pitch(shape.kind, shape.value, size)
+            anchor = height - lead if pending is None else height + pending + shape.prev
             if pending is not None:
                 height += pending + shape.prev
             top = height
-            far = max(far, top + _floating_reach(runs, self)) if floating else far
+            far = max(far, anchor + _floating_reach(runs, self)) if floating else far
             height += (count - 1) * pitch + size
             pending = pitch - size + shape.next
             if top + _objects_reach(runs, self) > height:  # an object placed from the paragraph reaches lower
@@ -1478,11 +1482,10 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     # an object placed top and bottom or square from a paragraph without a layout cache: the lines clear of it
     if not (wrapped or drawn or nested or pieces or inner == _NO_WRAP):
         wrapped, wrapped_leads, _ = measure.wrapped_lines(paragraphs, inner)
-    content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True, floating=True)
     # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
     # take that room already)
     before = 0 if drawn or not paragraphs else measure.shape(paragraphs[0].get("paraPrIDRef")).prev
-    content += before
+    content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True, floating=True, lead=before)
     if drawn:
         content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     elif wrapped:

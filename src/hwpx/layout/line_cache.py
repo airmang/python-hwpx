@@ -473,7 +473,7 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if style is not None and style.line_wrap == "SQUEEZE":
         return None  # Hancom presses the paragraph onto one line, as wide as its text: left for it
     if style is not None and (style.auto_space_latin or style.auto_space_digit) and any(
-            look.spacing or look.script_size != 1 for look in set(looks or [style])) and any(
+            look.spacing or look.script_size != 1 or look.script_sizes for look in set(looks or [style])) and any(
             auto_space_gap(a, b, 10, style) for a, b in zip(text, text[1:])):
         return None  # automatic spacing under 자간 or beside a superscript: how Hancom sizes the gap was not pinned down
     room = width - shape.left - shape.right
