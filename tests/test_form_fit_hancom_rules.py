@@ -635,6 +635,20 @@ def test_hancom_and_hy_faces_lay_latin_out_at_their_own_advances() -> None:
     assert len(paragraphs) == 14 * 2 * 6
 
 
+def test_bold_widens_shinmyeongjo_by_a_twentieth_of_the_em_but_its_borrowed_glyphs() -> None:
+    # Hancom Office 2024 lays a bold glyph of #신명조 out a twentieth of the em wider, as in the 한양 faces ('"' at
+    # 10 pt 552, not 500; '가' 1052), but not the glyphs the face takes from another: the Greek letters, the
+    # superscript and subscript digits beyond Latin-1 and the low single quotation marks. The other Hancom and HY
+    # faces measured keep their regular advances in bold.
+    shinmyeongjo = TextStyle(hangul_face="#신명조", glyph_face="#신명조")
+    bold = replace(shinmyeongjo, bold=True)
+    assert [char_advance(ch, 10, shinmyeongjo) for ch in '"#aW가'] == [500, 992, 512, 1076, 1000]
+    assert [char_advance(ch, 10, bold) for ch in '"#aW가'] == [552, 1040, 560, 1124, 1052]
+    assert [char_advance(ch, 10, bold) for ch in "α⁵‚"] == [char_advance(ch, 10, shinmyeongjo) for ch in "α⁵‚"]
+    hy = TextStyle(hangul_face="HY태백B", glyph_face="HY태백B")
+    assert [char_advance(ch, 10, replace(hy, bold=True)) for ch in "aWĀ"] == [char_advance(ch, 10, hy) for ch in "aWĀ"]
+
+
 def test_latin_faces_take_the_advances_hancom_lays_them_out_at() -> None:
     # Hancom Office 2024 lays the Windows Latin faces out at their own advances (2048 units), not at 한컴바탕's a face
     # missing from the table takes: "a" in Times New Roman at 10 pt is 444 (909 units), not 500. Italic it draws in

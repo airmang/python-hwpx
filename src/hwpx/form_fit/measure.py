@@ -133,11 +133,16 @@ _HALF_EM_GLYPHS = frozenset("!")
 _KANA_FIRST, _KANA_LAST = 0x3040, 0x30FF
 #: The faces Hancom lays a bold glyph out wider in: by a twentieth of the em, added before the advance is rounded
 #: to whole layout units. In the other faces a bold glyph keeps its regular advance.
-_BOLD_WIDER_FACES = frozenset({"한양중고딕", "한양신명조", "한양견고딕"})
+_BOLD_WIDER_FACES = frozenset({"한양중고딕", "한양신명조", "한양견고딕", "#신명조"})
 #: The glyphs a bold run keeps at their regular advance even in those faces: the Hangul compatibility jamo of
 #: clusters of final consonants, the filler and the archaic jamo (the syllables and the other jamo are widened),
 #: and the Greek ano teleia.
 _BOLD_KEPT_GLYPHS = frozenset("ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ·" + "".join(map(chr, range(0x3164, 0x318F))))
+#: The glyphs a bold run keeps at their regular advance in one of those faces alone: in #신명조, the soft hyphen, the
+#: low single quotation marks, the superscript and subscript digits beyond Latin-1, ㆍ and the Greek letters.
+_BOLD_KEPT_IN_FACE: dict[str, frozenset[str]] = {
+    "#신명조": frozenset("­‚‛⁰⁵⁶⁷⁸⁹₀₅₆₇₈₉ㆍ" + "".join(chr(c) for c in range(0x386, 0x3CF) if c not in (0x387, 0x3A2))),
+}
 #: How much wider than the em and its twentieth Hancom lays out a bold Hangul syllable of those faces that KS X 1001
 #: does not list (갂, 똠, 힣; 8,822 of the 11,172): a twelve-hundredth of the em ("힣" at 40 pt is 1,051 units, not 1,050).
 _BOLD_UNLISTED_SYLLABLE_EXTRA = Fraction(1, 1200)
@@ -1962,7 +1967,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         # a no-break space takes its 장평 but no 자간
         return _laid_out_space(height, ratio, 0.0 if ch == " " else spacing)
     face = style.hangul_face if cls == "hangul" else glyph_face_of(ch, style)
-    kept = ch in _BOLD_KEPT_GLYPHS
+    kept = ch in _BOLD_KEPT_GLYPHS or ch in _BOLD_KEPT_IN_FACE.get(face, ())
     if emoji:
         design, base = _EMOJI_UNITS, _ADVANCE_EM[cls]
     elif cls == "hangul":
