@@ -410,6 +410,10 @@ HANCOM_PAGES = {
     "pages_table_then_nothing_starting_on_the_next_page": 2,
     "pages_table_then_a_space_starting_on_the_next_page": 2,
     "pages_table_not_split_then_a_space_starting_on_the_next_page": 2,  # set not to split: the same
+    # Sixteen times on a page of their own, after 33 to 40 lines: such a table (4 rows, 12900 tall, moved row by row
+    # or split by cells) then a space. Moved row by row and not starting there, it starts at the next page's top and
+    # the paragraph's line stays where it fits; where the line does not fit either, it goes on with the table, below it
+    "pages_table_then_a_space_past_the_page_foot": 33,
     # A cell of a flowing table, a picture 20000 x 10000 placed top and bottom from a paragraph of it:
     "pages_table_cell_picture_first": 1,  # alone in the first: the line on its top, the row as tall as it
     "pages_table_cell_picture_second": 1,  # alone in the second, after a line: from that paragraph's top
