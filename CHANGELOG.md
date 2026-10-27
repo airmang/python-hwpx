@@ -66,6 +66,20 @@
   많은 문서의 쪽 수가 전보다 적게 나올 수 있다.
 ### 고침
 
+- `eqedit_to_latex`가 한/글 수식의 글꼴 전환 `rm`·`it`·`bold`(대문자 포함)를 낱말로 남기던 문제를 고쳤다. 원안지 수식을
+  LaTeX로 되돌린 뒤 `latex_to_eqedit`로 다시 쓰면 그 낱말이 따옴표 글이 되어 한/글이 글자로 찍었다(`AB = ita`). 이제 한/글이
+  그리는 대로 읽는다. `rm` 뒤 영문자는 `it`까지 정자(`\mathrm{…}`)다. 중괄호·첨자·분수·근호·`LEFT`/`RIGHT`·행렬 밖으로도
+  이어지고, 그리스 문자는 그대로다. `bold`는 바로 다음 덩어리만 굵게 한다(`\boldsymbol{…}`, `rm` 뒤면 `\mathbf{…}`). 뒤에
+  곧바로 `rm`·`it`이 오면 굵게는 그 전환에 쓰인다. 예: `rm {bar{BC}}` → `{\bar{\mathrm{BC}}}`,
+  `{vec{rm AB}} = it {vec{a}}` → `{\vec{\mathrm{AB}}} = {\vec{a}}`, `5 rm cm` → `5 \mathrm{cm}`, `bold x` →
+  `\boldsymbol{x}`. 정규 저작 모양(`{rm "…" it}`·`{rm {bold X} it}`)과 따옴표로 감싼 식별자(`e ^{"it"}`)는 전과 같이
+  읽는다. 계약이 바뀐 곳은 다음과 같다. `{rm {bold {v}}} w`·`{rm "d"} x`·`rm text`는 전에는 그대로 돌려줬지만, 이제
+  `{\mathbf{v}} \mathrm{w}`·`{\text{d}} \mathrm{x}`·`\mathrm{text}`로 읽는다. 한/글에서 `rm`이 중괄호 밖까지 이어지기
+  때문이다. 변하지 않는 곳도 있다. 글자에 붙은 전환(`rmA`·`itab`)은 전처럼 한 식별자로 둔다. 따옴표 글에 건 `bold`는
+  LaTeX에서 굵게를 잃는다. 근거는 macOS 한/글로 렌더한 합성 탐침 30개이며, 원본과 왕복한 스크립트가 같게 그려지는 것을
+  확인했다(따옴표 글에 건 `bold` 1건만 다르다). (#582)
+- `latex_to_eqedit`가 `\boldsymbol{X}`를 `{bold {X}}`로 쓴다(굵은 기울임, 뒤로 이어지지 않는다). 전에는
+  `UnsupportedLatexError`로 거부했다. (#582)
 - `Paragraph.bookmarks`가 `hp:fieldBegin type="BOOKMARK"`로 저장된 책갈피를 놓치던 문제를 고쳤다. 한/글로 저장한 문서에서
   책갈피가 모두 이 형태이면 문서에 책갈피가 없는 것처럼 보였다. 이제 `hp:bookmark`와 이 형태를 문단 안 순서대로 함께 낸다.
   (#579)
