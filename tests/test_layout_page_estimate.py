@@ -1010,6 +1010,11 @@ HANCOM_PAGES = {
     # 바탕, 굴림 and HY헤드라인M at 11 and 20 pt, alone, after a line of 바탕 text and with a connected border: an
     # empty line keeps the character size (맑은 고딕 11 pt 1100, not the 1464 a line of its characters takes)
     "pages_empty_paragraphs_font_line_height": 2,
+    # A table set as a character 3000 tall and 42238, 42300 or 42600 wide (the line is 42520) followed by a page
+    # number in a run of 14 or 20 pt and text of 10 or 13 pt, the page number before the table or after it, on its
+    # own page or after 33 lines: past a table wider than the line, the page number goes on the line after it, which
+    # is as tall as the page number's run, and the table's line is spaced without it
+    "pages_controls_after_a_wide_table": 51,
     # A chart wrapped square in a run's hp:switch (Hancom saves every chart in one), 20000 or 8000 wide, with a
     # picture 8000 or 20000 wide in its hp:default: the lines beside it are as narrow as the chart leaves them
     "pages_chart_case_wider_than_its_default": 1,

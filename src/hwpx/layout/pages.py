@@ -3044,8 +3044,11 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             cached = _cached_jumps(paragraph, cached) if cached else lines
         elif not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
+            tall = _controls_after_wide(measure, runs, objects, widths[0])
             cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
-                                   marked, end, head)
+                                   marked, end, 0 if tall else head)
+            if tall and len(cached) > 1 and tall > cached[1][0]:  # the controls on the line after the table
+                cached = (cached[0], (tall, _pitch(shape.kind, shape.value, tall)), *cached[2:])
             if anchored is not None:
                 cached, anchor_line = _apart_from_wide(measure, inline_text, widths, inline_sizes, style, placed,
                                                        looks_or_none, marked, cached, size, shape,
@@ -3162,6 +3165,22 @@ def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list
                 if not side or side[-1] is not run:
                     side.append(run)
     return (home, before, after) if before or after else None
+
+
+def _controls_after_wide(measure: _Measure, runs: list[Any], objects: list[Any], width: float) -> int:
+    """How tall the characters of the runs holding the controls after a table set as a character wider than the
+    line (see :func:`_controls_beside`) are, when the paragraph starts with that table and has no controls before
+    it: Hancom sets those controls on the line after the table's, not on its line; 0 for any other paragraph."""
+
+    if not objects or _local(objects[0]) != "tbl":
+        return 0
+    beside = _controls_beside(objects[0], runs, width)
+    if beside is None or beside[1] or not beside[2]:
+        return 0
+    home = beside[0]
+    if any(_run_text([run]) for run in runs[:runs.index(home)]):  # text before it: the table's line is another
+        return 0
+    return max(measure.char_height(run.get("charPrIDRef")) for run in beside[2])
 
 
 def _extent(obj: Any, side: str, measure: _Measure | None = None) -> int:
