@@ -761,7 +761,7 @@ class _Measure:
             if spread:  # spaces besides it, some of which go on to the next line
                 table = alone = None
             if table is not None:  # one line as tall as the table, spaced like the text
-                tall = _inline_table_height(self, table) + _extent_margins(table)
+                tall = _inline_table_height(self, table) + _extent_margins(table) + sum(_caption(self, table))
                 count, size, pitch = 1, tall, _object_pitch(shape, table, tall, size)
             elif alone is not None:  # so with another object set as a character
                 tall = _object_extent(alone, self)[1]

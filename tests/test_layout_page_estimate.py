@@ -1047,6 +1047,9 @@ HANCOM_PAGES = {
     # first column merged over both rows or not: where the 20 pt line does not fit above the page end, the row goes
     # on to the next page whole, its other cells too
     "pages_merged_rows_split_with_a_larger_cell": 76,
+    # A table set as a character whose cell holds two lines and a table set as a character with no caption or one of
+    # one or two lines below or above it: the cell's line is as tall as the table and its caption with their gap
+    "pages_captioned_tables_in_cells": 1,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
