@@ -1015,6 +1015,10 @@ HANCOM_PAGES = {
     # own page or after 33 lines: past a table wider than the line, the page number goes on the line after it, which
     # is as tall as the page number's run, and the table's line is spaced without it
     "pages_controls_after_a_wide_table": 51,
+    # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
+    # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
+    # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
+    "pages_objects_on_a_text_paragraphs_top": 1,
     # A chart wrapped square in a run's hp:switch (Hancom saves every chart in one), 20000 or 8000 wide, with a
     # picture 8000 or 20000 wide in its hp:default: the lines beside it are as narrow as the chart leaves them
     "pages_chart_case_wider_than_its_default": 1,

@@ -2575,8 +2575,9 @@ def _end_ref(paragraph: Any) -> Any:
 def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
     """The size a bullet or number label (in its own character shape, or without one in that of the
     paragraph's end), or a run holding nothing but controls before the text (a section's or columns'
-    definition, a page number: an empty run takes no room), gives its paragraph's first line: a character of
-    that size there (it counts when it is larger than the smallest character); 0 when not."""
+    definition, a page number: an empty run takes no room) or an object not set as a character, gives its
+    paragraph's first line: a character of that size there (it counts when it is larger than the smallest
+    character); 0 when not."""
 
     if not sizes:
         return 0
@@ -2584,7 +2585,10 @@ def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
     for run in paragraph.findall(f"{HP}run"):
         if any(child.text or len(child) for child in run.findall(f"{HP}t")):  # the text starts
             break
-        if run.find(f"{HP}ctrl") is not None or run.find(f"{HP}secPr") is not None:
+        if run.find(f"{HP}ctrl") is not None or run.find(f"{HP}secPr") is not None or any(
+                _local(child) in _OBJECTS and (child.find(f"{HP}pos") is None
+                                              or child.find(f"{HP}pos").get("treatAsChar") != "1")
+                for child in run):
             size = max(size, measure.char_height(run.get("charPrIDRef")))
     return size if size > min(sizes) else 0
 
@@ -4251,15 +4255,16 @@ class _Paginator:
             if not self._lay(index, paras, head, start, broke):
                 raise _Unsupported("footnotes in a paragraph anchoring a top-and-bottom object")
             top = self.out[-1][1] + head.advance(head.lines - 1)
-        else:  # at the top of the paragraph's first line: below an object placed on the paper, as the line
-            top = self._below_bands(top)
+        else:  # at the top of the paragraph's first line: from the paragraph's top, above its spacing before,
+            # below an object placed on the paper, as the line
+            top = self._below_bands(top - para.prev)
         if anchor.table is not None:
             table = anchor.table
             later = _starts_later(table, top + table.above, self.body)
             if later and para.spaced and not head.lines:  # spaces only: as the table alone in its paragraph
                 self._flow(replace(para, anchor=None, table=table), table, start)
                 return
-            moves = not head.lines and top != self.reserved.get(self.frame, 0) + para.prev
+            moves = not head.lines and top != self.reserved.get(self.frame, 0)
             if moves and table.mode == "NONE" and later and self.alone_at_top and self.columns == 1 \
                     and top + tail.height(0) <= self.body:  # set not to split, with no room below the line's top:
                 raise _BandMoves(index)  # to the next page's top alone, the paragraph's lines staying
