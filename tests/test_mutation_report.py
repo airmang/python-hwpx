@@ -321,3 +321,23 @@ def test_second_save_measures_against_the_published_baseline(tmp_path) -> None:
         assert report.to_dict()["preservation"]["untouchedPartPayloads"]["changed"] == 0
     finally:
         doc.close()
+
+
+def test_every_byte_write_result_model_projects_onto_v1() -> None:
+    """A result dataclass that carries written bytes, changed parts and the
+    open-safety verdict must also offer ``as_mutation_report``. Downstream
+    callers rely on every such model having one."""
+
+    import dataclasses
+    import importlib
+
+    for module_name in ("hwpx.patch", "hwpx.table_patch", "hwpx.body_patch"):
+        module = importlib.import_module(module_name)
+        for value in vars(module).values():
+            if not (isinstance(value, type) and dataclasses.is_dataclass(value)):
+                continue
+            names = {field.name for field in dataclasses.fields(value)}
+            if {"data", "changed_parts", "open_safety"} <= names:
+                assert callable(getattr(value, "as_mutation_report", None)), (
+                    f"{module_name}.{value.__name__} lacks as_mutation_report()"
+                )
