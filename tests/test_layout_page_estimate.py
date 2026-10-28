@@ -1072,6 +1072,12 @@ HANCOM_PAGES = {
     # before, mid-page or at the top of a page after a page break: it stands that far below the paragraph's top,
     # above its spacing, and the next paragraph comes below its foot
     "pages_empty_paragraph_objects_below_spacing_before": 5,
+    # Five times: 39 lines, then two empty paragraphs each holding a table split cell by cell (50 rows under two
+    # header rows it repeats, its first column merged over them and 60 lines long), 1000 or 1500 and 0 or 394 down,
+    # the first placed top and bottom or square, neither's header rows fitting under its anchor; then four lines or a
+    # page break: the first table starts at the next page's top, the second at the top of the page after the first's
+    # foot, and the lines after go on below the first table's foot
+    "pages_tables_starting_past_their_anchors_on_one_page": 27,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run

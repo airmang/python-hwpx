@@ -4515,11 +4515,15 @@ class _Paginator:
     def _starts_next_page(self, para: _Para, table: _FlowTable, start: int, frame: int, end: int) -> None:
         """The anchor line fits but the table's first row does not, so the table starts on the next page
         and ends in *frame* at *end*. The text after it goes on under the anchor line, and on the pages the
-        table takes, below the table."""
+        table takes, below the table. Another such table from the same page starts on the page after the last
+        the one before it takes, at its top."""
 
         taken = range(self.frame + 1, frame + 1)
-        if any(page in self.reserved for page in taken):
-            raise _Unsupported("two tables starting past their anchors on one page")
+        if any(page in self.reserved for page in taken):  # one did before it from this page: it starts at the
+            first = max(page for page in self.reserved if page > self.frame) + 1  # top of the page after that one's
+            frame, end = _flow_table(table, first, table.margins[0], self.body)
+            taken = range(first, frame + 1)
+            self.table_end = max(self.table_end, frame)
         self.reserved.update(dict.fromkeys(taken, self.body))
         self.reserved[frame] = end + table.below
         self.last_vp, self.last_pitch, self.pending_next = start, para.advance(para.lines - 1), para.next
