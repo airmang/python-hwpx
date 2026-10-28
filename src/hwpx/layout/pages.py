@@ -3381,8 +3381,10 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
                 and obj.get("pageBreak", "CELL") != "NONE":  # it splits over the page end instead
             return replace(_paragraph(measure, page, paragraph, None, obj), spans=_spans(measure, page, obj)), None
         at_top = obj is alone and pusher is None
-        if obj is None or wrap is not None or _local(obj) == "tbl" and (obj is not square and not at_top
-                                                                 or obj.get("pageBreak", "CELL") != "NONE"):
+        if obj is None or wrap is not None or _local(obj) == "tbl" and (
+                obj is not square and not at_top
+                or obj.get("pageBreak", "CELL") not in ("NONE", "TABLE" if at_top else "NONE")):  # one moved row by
+            # row goes on whole too, when it is its paragraph's top (see _Paginator._anchored)
             raise _Unsupported("a square-wrapped or offset top-and-bottom object past the page foot")
         tall = _extent(obj, "height", measure)
         if _local(obj) == "tbl":  # as tall as its rows
@@ -4333,10 +4335,12 @@ class _Paginator:
                 top, later = self._next_frame(para, 0, True) - para.prev, False  # where it does not: the line
                 # goes on with the table, below it
             moves = not head.lines and top != self.reserved.get(self.frame, 0)
-            if moves and table.mode == "NONE" and later and self.alone_at_top and self.columns == 1 \
-                    and top + tail.height(0) <= self.body:  # set not to split, with no room below the line's top:
+            whole = table.mode == "NONE" or later and table.mode == "TABLE"  # moved row by row, its first row
+            # with no room on this page: it goes on as one, as one set not to split
+            if moves and whole and later and self.alone_at_top and self.columns == 1 \
+                    and top + tail.height(0) <= self.body:  # with no room below the line's top:
                 raise _BandMoves(index)  # to the next page's top alone, the paragraph's lines staying
-            if moves and table.mode == "NONE":  # set not to split
+            if moves and whole:  # set not to split
                 moves = later or top + table.above + sum(row.height for row in table.rows) + table.below \
                     + tail.height(0) > self.body
             elif moves:  # ending on this page (a row split by cells: its room to spare cut there) but not the line
@@ -4522,6 +4526,8 @@ class _Paginator:
             return start, False
         if para.page_break or para.break_before:
             self.frame = (self.frame // self.columns + 1) * self.columns
+            while self.frame in self.moved_tops or self.frame in self.reserved:  # a page an object or a table
+                self.frame += self.columns  # started past its anchor went on to: the break starts after it
         elif para.column_break:
             self.frame += 1
         else:

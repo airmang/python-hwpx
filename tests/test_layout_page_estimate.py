@@ -1050,6 +1050,12 @@ HANCOM_PAGES = {
     # A table set as a character whose cell holds two lines and a table set as a character with no caption or one of
     # one or two lines below or above it: the cell's line is as tall as the table and its caption with their gap
     "pages_captioned_tables_in_cells": 1,
+    # Forty-eight times, on a page of its own after 33 to 40 lines: a table 7696 tall placed top and bottom 0, 1166 or
+    # 3000 down from a paragraph of text, split by cell or moved row by row, then an empty paragraph and two of text:
+    # a table moved row by row with no room for its first row on the page goes on to the next page's top whole, the
+    # paragraph's line and those after staying where they fit, the rest going below the table there; a page break
+    # after a table that went on to the next page's top starts the page after that
+    "pages_tables_offset_down_past_the_page_foot": 97,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
