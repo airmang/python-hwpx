@@ -4736,7 +4736,9 @@ class _Paginator:
         while fitting < count:
             note_height, notes, head = para.notes.get(first + fitting, (0, 0, 0))
             bottom = start + para.span(first, fitting) + para.height(first + fitting)
-            if bottom < self.body - self.notes.area(height + note_height, many + notes):
+            limit = self.body - self.notes.area(height + note_height, many + notes)
+            if bottom < limit or para.moves and para.own and start + para.own < limit and bottom == limit:
+                # (an object alone in an empty paragraph may end at the foot, its own line not)
                 height, many, fitting = height + note_height, many + notes, fitting + 1
                 continue
             if notes and bottom < self.body - self.notes.area(height + head, many + notes):

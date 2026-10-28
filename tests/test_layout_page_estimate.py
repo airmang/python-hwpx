@@ -1060,6 +1060,10 @@ HANCOM_PAGES = {
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
     "pages_font_line_heights_by_size": 102,
+    # A rectangle placed top and bottom 0 or 1213 down from an empty paragraph after 31 lines, its foot one unit above
+    # the body's foot or right at it: it stays on the page, its paragraph's line too (a line of text ending right at
+    # the foot goes on to the next page, see pages_line_ends_at_page_foot), the next paragraph on the next page
+    "pages_object_ending_at_the_page_foot": 9,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
