@@ -1068,6 +1068,10 @@ HANCOM_PAGES = {
     # run of 12 pt, 48553 wide (the line is 48188), the paragraph's line spacing 160 %: one line, as tall as the
     # table and spaced from the page numbers' size
     "pages_controls_before_a_table_wider_than_the_line": 1,
+    # A rectangle 3000 tall placed top and bottom 0 or 500 down alone in an empty paragraph with 0 or 1000 of spacing
+    # before, mid-page or at the top of a page after a page break: it stands that far below the paragraph's top,
+    # above its spacing, and the next paragraph comes below its foot
+    "pages_empty_paragraph_objects_below_spacing_before": 5,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
