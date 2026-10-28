@@ -3806,15 +3806,19 @@ def _spare_cut(table: Any) -> int:
 
 def _starts_later(table: _FlowTable, y: int, body: int) -> bool:
     """Whether a table moved row by row (TABLE) has no room for its first row from *y*, one set not to
-    split (NONE) no room for all its rows, or one moved row by row or split cell by cell no room for the
-    header rows it repeats, so it starts on the next page. At the top of a page it is drawn anyway."""
+    split (NONE) no room for all its rows, one split cell by cell (CELL) room for none of its first row's
+    lines, or one moved row by row or split cell by cell no room for the header rows it repeats, so it starts
+    on the next page. At the top of a page it is drawn anyway."""
 
     if table.mode not in ("TABLE", "NONE", "CELL") or not table.rows:
         return False
     if _header_moves(table, y, body - table.margins[1]):
         return True
-    if table.mode == "CELL":
-        return False
+    if table.mode == "CELL":  # its first row goes on whole
+        top = _repeated_header(table) + table.margins[0]
+        row = table.rows[0]
+        return not row.joined and y != top \
+            and _flow_row("CELL", row, 0, y, body - table.margins[1], top, table.cut) == (1, top + row.height)
     first = sum(row.height for row in table.rows) if table.mode == "NONE" else table.rows[0].height
     return y + first > body - table.margins[1] - table.cut \
         and y != _repeated_header(table) + table.margins[0]
@@ -4508,8 +4512,9 @@ class _Paginator:
                 top, later = self._next_frame(para, 0, True) - para.prev, False  # where it does not: the line
                 # goes on with the table, below it
             moves = not head.lines and top != self.reserved.get(self.frame, 0)
-            whole = table.mode == "NONE" or later and table.mode == "TABLE"  # moved row by row, its first row
-            # with no room on this page: it goes on as one, as one set not to split
+            whole = table.mode == "NONE" or later and table.mode in ("TABLE", "CELL")  # moved row by row or
+            # split cell by cell, its first row with no room on this page: it goes on as one, as one set not to
+            # split
             if moves and whole and later and self.alone_at_top and self.columns == 1 \
                     and top + tail.height(0) <= self.body:  # with no room below the line's top:
                 raise _BandMoves(index)  # to the next page's top alone, the paragraph's lines staying
