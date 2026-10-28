@@ -1052,7 +1052,8 @@ class _Reach:
     the first line it pushes below it would stand (``unit``; ``line`` when it pushes that very line) and how
     tall that line is (``text``), and, for one that may split between its rows, the room above its first row,
     the pieces it splits into and the room below its last row (``above``, ``rows``, ``below``; see
-    :func:`_split_rows`)."""
+    :func:`_split_rows`), with the table and its rows joined by merged cells, one piece each (where the
+    first's piece stands among the pieces, its first and last row), which a page end splits cell by cell."""
 
     line: int
     top: int
@@ -1063,6 +1064,8 @@ class _Reach:
     above: int = 0
     rows: tuple[tuple[int, int, int, int], ...] = ()
     below: int = 0
+    table: _FlowTable | None = None
+    blocks: tuple[tuple[int, int, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1448,6 +1451,32 @@ def _page_break(table: Any) -> str:
     return table.get("pageBreak", "CELL")
 
 
+def _split_before_text(paragraphs: list[Any]) -> bool:
+    """Whether a cell's paragraphs hold a table placed top and bottom from its paragraph's top before its text
+    where Hancom split the cell over a page end: their layout caches start over at the top of the next page at
+    that paragraph or the next. Its declared height, as those caches, holds a part of it."""
+
+    tops = [int(cache.get("vertpos", 0)) if cache is not None else None
+            for cache in (paragraph.find(f"{HP}linesegarray/{HP}lineseg") for paragraph in paragraphs)]
+    for index, paragraph in enumerate(paragraphs):
+        table = _table_before_text(paragraph.findall(f"{HP}run"))
+        if table is None or _local(table) != "tbl":
+            continue
+        for at in (index, index + 1):
+            if 0 < at < len(tops) and tops[at] is not None and tops[at - 1] is not None and tops[at] < tops[at - 1]:
+                return True
+    return False
+
+
+def _uncached(paragraph: Any) -> Any:
+    """A copy of *paragraph* without its layout caches, its cells' paragraphs' among them."""
+
+    copied = copy.deepcopy(paragraph)
+    for cache in list(copied.iter(f"{HP}linesegarray")):
+        cache.getparent().remove(cache)
+    return copied
+
+
 def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None) -> _Row:
     if _vertical(cell) or _size_protected(table) and _cell_height(cell.find(f"{HP}cellSz")):  # its lines go across
         # it, or its table is set not to change size (its text cut off below): the row as declared, one block, not split
@@ -1457,6 +1486,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
         return _Row(height, 1, height - vertical, height - vertical, vertical, cell.get("header") == "1",
                     first=height - vertical)
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
+    if _split_before_text(paragraphs):  # the lines as Hancom drew them hold the parts: laid out anew
+        paragraphs = [_uncached(paragraph) for paragraph in paragraphs]
     nested = _holds_table(cell)
     drawn: tuple[tuple[int, int], ...] = ()
     placed = [paragraph for paragraph in paragraphs if _placed_from(paragraph)
@@ -1531,30 +1562,39 @@ def _table_first(measure: _Measure, obj: Any) -> int:
     return (0 if margin is None else _margin(margin, "top")) + _caption(measure, obj)[0] + (rows[0].height if rows else 0)
 
 
-def _split_rows(measure: _Measure, obj: Any) -> tuple[int, tuple[tuple[int, int, int, int], ...], int]:
+def _split_rows(measure: _Measure, obj: Any) \
+        -> tuple[int, tuple[tuple[int, int, int, int], ...], int, _FlowTable | None, tuple[tuple[int, int, int], ...]]:
     """How a table placed top and bottom in a cell may split over a page end: the room above its first row (its
     top outer margin and a caption above it), the pieces it splits into, and the room below its last row (a
-    caption below it). A piece is a row, or, split between lines (CELL), each line of a row of several, the
-    first with the row's top cell margin, the last with its bottom one: its height, advance, the room it needs
-    below it when a page ends after it (the bottom margin of a row going on) and the room above it when a page
-    starts with it (the top margin of a row going on). No pieces for a table set not to split or not to be
-    adjusted (``noAdjust``), with a bottom outer margin, rows merged together or holding tables, or header rows
-    it repeats, which is not followed."""
+    caption below it and its bottom outer margin). A piece is a row, or, split between lines (CELL), each
+    line of a row of several, the first with the row's top cell margin, the last with its bottom one: its
+    height, advance, the room it needs below it when a page ends after it (the bottom margin of a row going on)
+    and the room above it when a page starts with it (the top margin of a row going on); rows joined by merged
+    cells are a piece each, split cell by cell (see :func:`_block_rest`): last, the table and those rows (where
+    the first's piece stands, the first and the last). No pieces for a table set not to split or not to be
+    adjusted (``noAdjust``), with rows holding tables, or header rows it repeats, which is not followed."""
 
     margin = obj.find(f"{HP}outMargin")
-    if _local(obj) != "tbl" or _page_break(obj) not in ("CELL", "TABLE") or obj.get("noAdjust") == "1" \
-            or margin is not None and _margin(margin, "bottom"):
-        return 0, (), 0
-    rows = _rows(measure, obj)
-    if not rows or any(row.merged or row.joined or row.nested or row.header and obj.get("repeatHeader") == "1"
-                       for row in rows):
-        return 0, (), 0
+    if _local(obj) != "tbl" or _page_break(obj) not in ("CELL", "TABLE") or obj.get("noAdjust") == "1":
+        return 0, (), 0, None, ()
+    rows, merged = _table_rows(measure, obj)
+    if not rows or any(row.nested or row.header and obj.get("repeatHeader") == "1" for row in rows):
+        return 0, (), 0, None, ()
     above, below = _caption(measure, obj)
     above += 0 if margin is None else _margin(margin, "top")
+    below += 0 if margin is None else _margin(margin, "bottom")
     pieces: list[tuple[int, int, int, int]] = []
+    blocks: list[tuple[int, int, int]] = []
     cells = [tr.find(f"{HP}tc") for tr in obj.findall(f"{HP}tr")]
-    for row, cell in zip(rows, cells):
-        lines = (row.metrics or ((row.size, row.pitch),) * row.lines) if _page_break(obj) == "CELL" else ()
+    for index, (row, cell) in enumerate(zip(rows, cells)):
+        if row.joined and not (index and rows[index - 1].joined):  # the first of rows joined by merged cells
+            last = index
+            while rows[last].joined and last + 1 < len(rows):
+                last += 1
+            blocks.append((len(pieces), index, last))
+        joined = row.joined or index and rows[index - 1].joined
+        lines = (row.metrics or ((row.size, row.pitch),) * row.lines) \
+            if _page_break(obj) == "CELL" and not joined else ()
         if len(lines) < 2 or cell is None:
             pieces.append((row.height, row.height, 0, 0))
             continue
@@ -1563,7 +1603,9 @@ def _split_rows(measure: _Measure, obj: Any) -> tuple[int, tuple[tuple[int, int,
         last = row.height - top - sum(advance for _, advance in lines[:-1])
         pieces += [(top + lines[0][0], top + lines[0][1], bottom, 0)] \
             + [(height, advance, bottom, top) for height, advance in lines[1:-1]] + [(last, last, 0, top)]
-    return above, tuple(pieces), below
+    table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", _table_ends(obj), tuple(merged),
+                       cut=_SPARE_CUT + below) if blocks else None
+    return above, tuple(pieces), below, table, tuple(blocks)
 
 
 def _pushed_reaches(measure: _Measure, paragraphs: list[Any], width: int,
@@ -4049,6 +4091,11 @@ def _reached(row: _Row, cut: int, top: int, foot: int, line: tuple[int, int],
                 <= foot - _SPARE_CUT - reach.below:
             y += reach.rows[kept][1]
             kept += 1
+        joined = _joined_stays(reach, kept, start, foot)
+        if joined:  # among rows joined by merged cells, split cell by cell: what of them stays
+            stays = reach.top - cut + joined
+            found = (height - stays, advance - stays), cut + stays
+            continue
         if not kept and reach.line < cut and top + reach.text <= foot:  # the lines would fit without it
             raise _Unsupported("a page end past a table among the text of a cell going on alone")
         if kept or reach.line < cut:  # the rest goes on, the line below it
@@ -4063,6 +4110,27 @@ def _reached(row: _Row, cut: int, top: int, foot: int, line: tuple[int, int],
         elif reach.top != cut:
             raise _Unsupported("a page end through a table among the text of a cell")
     return found
+
+
+def _joined_stays(reach: _Reach, kept: int, start: int, foot: int) -> int:
+    """How far below its top the part of a table pushing a cell's lines below it (see :func:`_reached`),
+    standing at *start*, that stays above the page end *foot* reaches when that falls among rows joined by
+    merged cells (piece *kept* the first not fitting): each of their cells keeps the lines that fit, a table's
+    cut and the table's bottom margin above *foot* (see :func:`_block_rest`); 0 when it falls elsewhere or
+    nothing of those rows stays."""
+
+    for begin, first, last in reach.blocks:
+        if begin <= kept <= begin + last - first:
+            break
+    else:
+        return 0
+    assert reach.table is not None
+    rows = reach.table.rows
+    top = reach.above + sum(piece[1] for piece in reach.rows[:begin])
+    cut, heights, _ = _block_rest(reach.table, first, last, start + top, foot)
+    if cut == first and all(heights[index] == rows[index].height for index in range(first, last + 1)):
+        return 0
+    return top + sum(row.height for row in rows[first:last + 1]) - sum(heights.values())
 
 
 def _split_joined(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], cuts: tuple[int, ...],

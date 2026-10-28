@@ -1090,6 +1090,10 @@ HANCOM_PAGES = {
     # lines each, taller than the rows they span): a page end among rows so joined splits them cell by cell, as in a
     # table flowing in the body, each cell keeping the lines that end a table's cut above the foot
     "pages_nested_tables_with_merged_rows_split_cell_by_cell": 22,
+    # The merged inner table twelve times (29 to 40 lines), its bottom margin 1417 and "표 뒤 글" after it in its
+    # paragraph: the table splits as one on its own, the text going below it on the next page; when nothing of it
+    # stays, the text stays where the table would have started and the table goes on alone
+    "pages_nested_tables_before_text_with_merged_rows_split": 24,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
