@@ -1074,6 +1074,10 @@ HANCOM_PAGES = {
     # repeated, outer margins 141): the part of the inner table going on to the next page starts below its top
     # margin again, as a table flowing in the body does
     "pages_nested_tables_going_on_below_their_top_margin": 42,
+    # Thirty-eight times: the inner table on its own, or 1488 below "표 뒤 글", its rows declared 466 taller than their
+    # text: a row whose text fits stays on the page, the room it declares to spare under the text cut at the page
+    # end, as a flowing table's row's
+    "pages_nested_table_rows_with_room_to_spare_at_the_page_foot": 76,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
