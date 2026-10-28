@@ -1069,6 +1069,11 @@ HANCOM_PAGES = {
     # The same, the last row holding six tables of two rows set as characters, one per paragraph: it splits between
     # them as between lines, a table being one
     "pages_nested_table_rows_holding_tables_as_characters_split": 26,
+    # Twenty-one times at a page's top: a table split cell by cell, its inner margins 510, holding 34 lines, then
+    # "표 뒤 글" with a table 1488 below its top (12 rows of three cells, their bottom margins 100 to 1300, header rows
+    # repeated, outer margins 141): the part of the inner table going on to the next page starts below its top
+    # margin again, as a table flowing in the body does
+    "pages_nested_tables_going_on_below_their_top_margin": 42,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
