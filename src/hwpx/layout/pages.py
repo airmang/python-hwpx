@@ -1544,6 +1544,9 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
         reaches = _pushed_reaches(measure, paragraphs, inner, metrics)
     leads = wrapped_leads if wrapped else _line_leads(measure, paragraphs, inner, pieces) \
         if several or before or pieces else ()
+    if pieces and metrics:  # as tall as its lines and its tables' pieces: the caches of a cell Hancom split over a
+        content = max(content, _lines_height(metrics, leads))  # page end hold its parts, each from the top
+        height = max(height, vertical + content)
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
                 first=first, leads=leads if several or before or pieces else (), pieces=pieces, reaches=reaches,
