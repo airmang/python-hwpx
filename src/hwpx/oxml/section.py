@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional, Sequence
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
@@ -381,6 +381,17 @@ class HwpxOxmlSection:
             squeezed_paragraph_shapes(getattr(header, "element", None)) for header in getattr(document, "_headers", [])
         )) if document is not None else frozenset()
 
+    def _narrowed_char_shapes(self) -> dict[str, float]:
+        """The character shapes whose glyphs Hancom lays out narrower than their size (상대 크기, 장평), by id."""
+
+        from ..tools.package_validator import narrowed_char_shapes
+
+        document = self.document
+        shares: dict[str, float] = {}
+        for header in getattr(document, "_headers", []) if document is not None else []:
+            shares.update(narrowed_char_shapes(getattr(header, "element", None)))
+        return shares
+
     def _para_pr_element(self, para_pr_id_ref: str | int) -> tuple[Any, ET.Element] | None:
         """The header holding the paraPr *para_pr_id_ref*, and the paraPr."""
 
@@ -556,11 +567,13 @@ class HwpxOxmlSection:
 
         removed = 0
         squeezed = self._squeezed_paragraph_shapes()
+        narrowed = self._narrowed_char_shapes()
         for paragraph in self._element.iter():
             if _element_local_name(paragraph) != "p":
                 continue
             if _remove_stale_paragraph_layout_cache(paragraph) or (
-                paragraph.get("paraPrIDRef") not in squeezed and _remove_short_paragraph_layout_cache(paragraph)
+                paragraph.get("paraPrIDRef") not in squeezed
+                and _remove_short_paragraph_layout_cache(paragraph, narrowed)
             ):
                 removed += 1
         if removed:
@@ -685,7 +698,7 @@ def _apply_reference(apply: ET.Element) -> str | None:
     return None
 
 
-def _remove_short_paragraph_layout_cache(paragraph: ET.Element) -> bool:
+def _remove_short_paragraph_layout_cache(paragraph: ET.Element, narrowed: Mapping[str, float] | None = None) -> bool:
     """Clear a plain paragraph's cache whose lines cannot hold its text.
 
     Uses the editor-open-safety rule itself
@@ -697,6 +710,7 @@ def _remove_short_paragraph_layout_cache(paragraph: ET.Element) -> bool:
         PackageValidationIssue,
         _check_line_seg_tail_coverage,
         _simple_paragraph_text,
+        paragraph_narrowest,
     )
 
     text = _simple_paragraph_text(paragraph)
@@ -707,7 +721,7 @@ def _remove_short_paragraph_layout_cache(paragraph: ET.Element) -> bool:
             continue
         line_segs = [seg for seg in child if _element_local_name(seg).lower() == "lineseg"]
         findings: list[PackageValidationIssue] = []
-        _check_line_seg_tail_coverage(findings, "", 0, text, line_segs)
+        _check_line_seg_tail_coverage(findings, "", 0, text, line_segs, paragraph_narrowest(paragraph, narrowed or {}))
         if findings:
             _clear_paragraph_layout_cache(paragraph)
             return True

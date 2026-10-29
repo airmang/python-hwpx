@@ -998,6 +998,27 @@ HANCOM_PAGES = {
     # of a table set as a character, its rows 1500 tall: moving with the text, it pushes no line aside but the
     # row grows to hold it below the cell's top margin; one that stays put leaves the row as it is
     "pages_floating_pictures_in_cells": 4,
+    # A rectangle in front of the text, 1000 to 3000 tall, at the top of the first paragraph of a table's cell,
+    # whose spacing before is 500: the row grows to hold it from the cell's top, above that spacing, not from the
+    # paragraph's first line
+    "pages_cell_front_object_spacing_before": 2,
+    # Thirteen times, after 0 to 12 lines: a table flowing with the text (CELL) whose one cell holds 40 paragraphs
+    # with 600 of spacing before and a small table set as a character in the fourth: going on over the page end,
+    # the part on the next page starts below its first paragraph's spacing before, as in a cell without a table
+    "pages_nested_cell_split_spacing_before": 27,
+    # Empty paragraphs whose shape takes the line height from the font (fontLineHeight), in 맑은 고딕, 함초롬바탕,
+    # 바탕, 굴림 and HY헤드라인M at 11 and 20 pt, alone, after a line of 바탕 text and with a connected border: an
+    # empty line keeps the character size (맑은 고딕 11 pt 1100, not the 1464 a line of its characters takes)
+    "pages_empty_paragraphs_font_line_height": 2,
+    # A table set as a character 3000 tall and 42238, 42300 or 42600 wide (the line is 42520) followed by a page
+    # number in a run of 14 or 20 pt and text of 10 or 13 pt, the page number before the table or after it, on its
+    # own page or after 33 lines: past a table wider than the line, the page number goes on the line after it, which
+    # is as tall as the page number's run, and the table's line is spaced without it
+    "pages_controls_after_a_wide_table": 51,
+    # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
+    # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
+    # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
+    "pages_objects_on_a_text_paragraphs_top": 1,
     # A chart wrapped square in a run's hp:switch (Hancom saves every chart in one), 20000 or 8000 wide, with a
     # picture 8000 or 20000 wide in its hp:default: the lines beside it are as narrow as the chart leaves them
     "pages_chart_case_wider_than_its_default": 1,

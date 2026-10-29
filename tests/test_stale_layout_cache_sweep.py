@@ -184,3 +184,14 @@ def test_saving_keeps_the_one_line_cache_of_a_paragraph_its_shape_squeezes() -> 
 
     assert after.count(b"<hp:linesegarray>") == before.count(b"<hp:linesegarray>")
     assert not [issue for issue in validate_package(path).issues if "tail" in issue.message]
+
+
+def test_saving_keeps_the_one_line_cache_of_glyphs_laid_out_smaller() -> None:
+    # Hancom lays a character shape's glyphs out at its 상대 크기 times its 장평: thirty syllables at 상대 크기 50 % fit
+    # a line half as wide as their size alone would need. That cache is Hancom's own, not one that lacks lines.
+    path = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_relative_size_rows.hwpx"
+    before = zipfile.ZipFile(path).read("Contents/section0.xml")
+    after = zipfile.ZipFile(io.BytesIO(HwpxDocument.open(path).to_bytes())).read("Contents/section0.xml")
+
+    assert after.count(b"<hp:linesegarray>") == before.count(b"<hp:linesegarray>")
+    assert not [issue for issue in validate_package(path).issues if "tail" in issue.message]

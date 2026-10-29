@@ -740,13 +740,15 @@ class _Measure:
         return starts
 
     def stack(self, paragraphs: list[Any], width: int, caches: bool,
-              floating: bool = False) -> tuple[int, int, int, int]:
+              floating: bool = False, lead: int = 0) -> tuple[int, int, int, int]:
         """(height, lines, pitch, size) of *paragraphs* laid out one under another at *width*; pitch
         and size are the last paragraph's. With *caches* a paragraph keeps the lines of its cache. With
         *floating* (a cell's paragraphs) the height reaches down to the foot of any object in front of or
-        behind the text placed from a paragraph's top (see :func:`_floating_reach`)."""
+        behind the text placed from a paragraph's top (see :func:`_floating_reach`). *lead* is room above
+        the first paragraph's lines (a cell's first paragraph's spacing before): Hancom places an object
+        from that paragraph's top above it."""
 
-        height, lines, pitch, size, pending, far = 0, 0, 0, 0, None, 0
+        height, lines, pitch, size, pending, far = lead, 0, 0, 0, None, 0
         for paragraph in paragraphs:
             runs = paragraph.findall(f"{HP}run")
             size, refs, _ = _text_size(self, runs, paragraph)  # an empty run takes no room, as in the body
@@ -769,10 +771,11 @@ class _Measure:
                 cached = cached or self.pushed_lines(paragraph, runs, width) \
                     or self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width)
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
+                    anchor = height - lead if pending is None else height + pending + shape.prev
                     if pending is not None:
                         height += pending + shape.prev
                     top = height
-                    far = max(far, top + _floating_reach(runs, self)) if floating else far
+                    far = max(far, anchor + _floating_reach(runs, self)) if floating else far
                     height += sum(advance for _, advance in cached[:-1]) + cached[-1][0]
                     size, pitch = cached[-1]
                     pending = pitch - size + shape.next
@@ -784,13 +787,13 @@ class _Measure:
                 count = (_cache_lines(paragraph) if caches else 0) or self.lines(
                     _run_text(runs), _line_widths(shape, width, style), size, style
                 )
-                if shape.font_line:  # an empty line as tall as its font makes it
-                    size = self.font_line(size, style)
-                    pitch = _pitch(shape.kind, shape.value, size)
+                # an empty line keeps the character size: Hancom makes only a line of characters as tall as
+                # its font makes it
+            anchor = height - lead if pending is None else height + pending + shape.prev
             if pending is not None:
                 height += pending + shape.prev
             top = height
-            far = max(far, top + _floating_reach(runs, self)) if floating else far
+            far = max(far, anchor + _floating_reach(runs, self)) if floating else far
             height += (count - 1) * pitch + size
             pending = pitch - size + shape.next
             if top + _objects_reach(runs, self) > height:  # an object placed from the paragraph reaches lower
@@ -885,8 +888,7 @@ class _Measure:
             size, refs, _ = _text_size(self, runs, paragraph)
             style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
             count = max(1, self.lines(_run_text(runs), _line_widths(shape, width, style), size, style))
-            size = self.font_line(size, style) if shape.font_line else size
-            lines = [(size, _pitch(shape.kind, shape.value, size))] * count
+            lines = [(size, _pitch(shape.kind, shape.value, size))] * count  # an empty line keeps its size
         y = 0
         for index, (height, advance) in enumerate(lines):
             if y < foot and y + height > top:  # it reaches the table: below it, and the lines after it; it takes
@@ -968,9 +970,7 @@ class _Measure:
             else:
                 size, refs, _ = _text_size(self, runs, paragraph)
                 style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
-                if shape.font_line:  # an empty line as tall as its font makes it
-                    size = self.font_line(size, style)
-                pitch = _pitch(shape.kind, shape.value, size)
+                pitch = _pitch(shape.kind, shape.value, size)  # an empty line keeps the character size
                 full = _line_widths(shape, width, style)
                 starts = self.line_starts(text, full, size, style) if text else [0]
                 anchor = sum(1 for start in starts[1:] if start < place)
@@ -1478,11 +1478,10 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     # an object placed top and bottom or square from a paragraph without a layout cache: the lines clear of it
     if not (wrapped or drawn or nested or pieces or inner == _NO_WRAP):
         wrapped, wrapped_leads, _ = measure.wrapped_lines(paragraphs, inner)
-    content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True, floating=True)
     # Hancom starts the cell's first line below its first paragraph's spacing before (the lines as drawn
     # take that room already)
     before = 0 if drawn or not paragraphs else measure.shape(paragraphs[0].get("paraPrIDRef")).prev
-    content += before
+    content, lines, pitch, char_size = measure.stack(paragraphs, inner, caches=True, floating=True, lead=before)
     if drawn:
         content, lines = sum(advance for _, advance in drawn[:-1]) + drawn[-1][0], len(drawn)
     elif wrapped:
@@ -2576,8 +2575,9 @@ def _end_ref(paragraph: Any) -> Any:
 def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
     """The size a bullet or number label (in its own character shape, or without one in that of the
     paragraph's end), or a run holding nothing but controls before the text (a section's or columns'
-    definition, a page number: an empty run takes no room), gives its paragraph's first line: a character of
-    that size there (it counts when it is larger than the smallest character); 0 when not."""
+    definition, a page number: an empty run takes no room) or an object not set as a character, gives its
+    paragraph's first line: a character of that size there (it counts when it is larger than the smallest
+    character); 0 when not."""
 
     if not sizes:
         return 0
@@ -2585,7 +2585,10 @@ def _head_size(measure: _Measure, paragraph: Any, sizes: list[int]) -> int:
     for run in paragraph.findall(f"{HP}run"):
         if any(child.text or len(child) for child in run.findall(f"{HP}t")):  # the text starts
             break
-        if run.find(f"{HP}ctrl") is not None or run.find(f"{HP}secPr") is not None:
+        if run.find(f"{HP}ctrl") is not None or run.find(f"{HP}secPr") is not None or any(
+                _local(child) in _OBJECTS and (child.find(f"{HP}pos") is None
+                                              or child.find(f"{HP}pos").get("treatAsChar") != "1")
+                for child in run):
             size = max(size, measure.char_height(run.get("charPrIDRef")))
     return size if size > min(sizes) else 0
 
@@ -3045,8 +3048,11 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             cached = _cached_jumps(paragraph, cached) if cached else lines
         elif not cached:
             looks_or_none = inline_looks if len(set(inline_looks)) > 1 else None
+            tall = _controls_after_wide(measure, runs, objects, widths[0])
             cached = _line_metrics(measure, inline_text, widths, inline_sizes, style, shape, placed, looks_or_none,
-                                   marked, end, head)
+                                   marked, end, 0 if tall else head)
+            if tall and len(cached) > 1 and tall > cached[1][0]:  # the controls on the line after the table
+                cached = (cached[0], (tall, _pitch(shape.kind, shape.value, tall)), *cached[2:])
             if anchored is not None:
                 cached, anchor_line = _apart_from_wide(measure, inline_text, widths, inline_sizes, style, placed,
                                                        looks_or_none, marked, cached, size, shape,
@@ -3062,9 +3068,6 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end, head=head)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
-    if shape.font_line and not cached and not sizes and not alone:  # an empty line as tall as its font makes it
-        size = measure.font_line(size, style)
-        pitch = _pitch(shape.kind, shape.value, size)
     table, moves, floor = None, 0, 0
     if alone:
         if wrap is not None:
@@ -3166,6 +3169,22 @@ def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list
                 if not side or side[-1] is not run:
                     side.append(run)
     return (home, before, after) if before or after else None
+
+
+def _controls_after_wide(measure: _Measure, runs: list[Any], objects: list[Any], width: float) -> int:
+    """How tall the characters of the runs holding the controls after a table set as a character wider than the
+    line (see :func:`_controls_beside`) are, when the paragraph starts with that table and has no controls before
+    it: Hancom sets those controls on the line after the table's, not on its line; 0 for any other paragraph."""
+
+    if not objects or _local(objects[0]) != "tbl":
+        return 0
+    beside = _controls_beside(objects[0], runs, width)
+    if beside is None or beside[1] or not beside[2]:
+        return 0
+    home = beside[0]
+    if any(_run_text([run]) for run in runs[:runs.index(home)]):  # text before it: the table's line is another
+        return 0
+    return max(measure.char_height(run.get("charPrIDRef")) for run in beside[2])
 
 
 def _extent(obj: Any, side: str, measure: _Measure | None = None) -> int:
@@ -3808,7 +3827,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             # is one)
             if not metrics:
                 raise _Unsupported("a page break in a flowing table row holding a table")
-            fitting, top = 0, y + row.margins
+            fitting, top = 0, y + row.margins + (leads[0] if leads else 0)  # a part starts below its first
+            # paragraph's spacing before, as any cell's
             while fitting < len(metrics) and top + metrics[fitting][0] <= foot:
                 top += metrics[fitting][1]
                 fitting += 1
@@ -3818,13 +3838,14 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             if found is not None:  # a table among the text splits or goes on alone: what of it goes on, and that line
                 piece, consumed = found
                 metrics = (piece,) + metrics[fitting + 1:]
-                height = row.margins + sum(advance for _, advance in metrics[:-1]) + metrics[-1][0]
+                leads = (0,) + leads[fitting + 1:] if leads else ()
+                height = row.margins + _lines_height(metrics, leads)
                 frame, y = frame + 1, header
                 continue
             consumed = cut
             if fitting:
-                metrics = metrics[fitting:]
-                height = row.margins + sum(advance for _, advance in metrics[:-1]) + metrics[-1][0]
+                metrics, leads = metrics[fitting:], leads[fitting:]
+                height = row.margins + _lines_height(metrics, leads)
             elif fresh:
                 return frame, y + height
             frame, y = frame + 1, header
@@ -4234,15 +4255,16 @@ class _Paginator:
             if not self._lay(index, paras, head, start, broke):
                 raise _Unsupported("footnotes in a paragraph anchoring a top-and-bottom object")
             top = self.out[-1][1] + head.advance(head.lines - 1)
-        else:  # at the top of the paragraph's first line: below an object placed on the paper, as the line
-            top = self._below_bands(top)
+        else:  # at the top of the paragraph's first line: from the paragraph's top, above its spacing before,
+            # below an object placed on the paper, as the line
+            top = self._below_bands(top - para.prev)
         if anchor.table is not None:
             table = anchor.table
             later = _starts_later(table, top + table.above, self.body)
             if later and para.spaced and not head.lines:  # spaces only: as the table alone in its paragraph
                 self._flow(replace(para, anchor=None, table=table), table, start)
                 return
-            moves = not head.lines and top != self.reserved.get(self.frame, 0) + para.prev
+            moves = not head.lines and top != self.reserved.get(self.frame, 0)
             if moves and table.mode == "NONE" and later and self.alone_at_top and self.columns == 1 \
                     and top + tail.height(0) <= self.body:  # set not to split, with no room below the line's top:
                 raise _BandMoves(index)  # to the next page's top alone, the paragraph's lines staying

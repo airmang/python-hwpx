@@ -72,6 +72,7 @@ ITALIC_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit
 LATIN_FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_latin_face_advances.hwpx"
 LATIN_FACES = ("Times New Roman", "Arial", "Cambria", "Constantia", "Calibri", "Georgia", "Verdana", "Tahoma",
                "Segoe UI", "Consolas", "Courier New")
+RELATIVE_SIZE_ROWS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_relative_size_rows.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
@@ -590,6 +591,29 @@ def test_italic_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
         width = int(paragraph.find(f".//{HP}tab").get("width"))
         assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size, style.ratio, style.bold, style.italic)
     assert italic_seen == 612
+
+
+def test_relative_size_scales_the_glyphs_as_a_superscript_size_does() -> None:
+    # 상대 크기 (hh:relSz) 50 to 150 % under 장평 80 and 100 % and 자간 0 and -9 %: Hancom lays a Hangul syllable, a
+    # Latin letter and a space out as at that share of the character size, 자간 taken on the smaller size, and keeps
+    # the line as tall as the character size (a 10 pt line 1000 high at every share).
+    doc = HwpxDocument.open(RELATIVE_SIZE_ROWS)
+    section = doc.oxml.sections[0].element
+    paragraphs = section.findall(f"{HP}p")[1:]
+    style = text_style_from_refs(doc.oxml, paragraphs[0].get("paraPrIDRef"),
+                                 [paragraphs[0].find(f"{HP}run").get("charPrIDRef")])
+    assert style.script_size in (0.5, 0.67, 0.95, 1.1, 1.5)
+    hangul = TextStyle(hangul_face="함초롬바탕", glyph_face="함초롬바탕")
+    assert [char_advance(ch, 10, replace(hangul, script_size=0.95)) for ch in "가a "] == [920, 540, 472]
+    assert [char_advance(ch, 10, replace(hangul, script_size=1.5, spacing=-9)) for ch in "가a "] == [1324, 776, 680]
+    hancom = [len(p.findall(f"{HP}linesegarray/{HP}lineseg")) for p in paragraphs]
+    assert {int(seg.get("vertsize")) for seg in section.iter(f"{HP}lineseg")} == {1000}
+    for paragraph in paragraphs:
+        for cache in paragraph.findall(f"{HP}linesegarray"):
+            paragraph.remove(cache)
+    estimate = page_layout.estimate_pages(doc)
+    assert [len(lines) for lines in estimate.lines[1:]] == hancom
+    assert hancom.count(1) == hancom.count(2) == 55
 
 
 def test_latin_faces_take_the_advances_hancom_lays_them_out_at() -> None:
