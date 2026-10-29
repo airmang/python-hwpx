@@ -4261,9 +4261,13 @@ class _Paginator:
         if anchor.table is not None:
             table = anchor.table
             later = _starts_later(table, top + table.above, self.body)
-            if later and para.spaced and not head.lines:  # spaces only: as the table alone in its paragraph
-                self._flow(replace(para, anchor=None, table=table), table, start)
-                return
+            if later and para.spaced and not head.lines:  # spaces only: as the table alone in its paragraph,
+                line = para.cached[0][0] if para.cached else para.size  # its line staying where it fits
+                if start + line <= self.body:
+                    self._flow(replace(para, anchor=None, table=table), table, start)
+                    return
+                top, later = self._next_frame(para, 0, True) - para.prev, False  # where it does not: the line
+                # goes on with the table, below it
             moves = not head.lines and top != self.reserved.get(self.frame, 0)
             if moves and table.mode == "NONE" and later and self.alone_at_top and self.columns == 1 \
                     and top + tail.height(0) <= self.body:  # set not to split, with no room below the line's top:
