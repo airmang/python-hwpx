@@ -1712,7 +1712,8 @@ def _table_pieces(measure: _Measure, paragraph: Any) \
     its row over a page end: (height, advance) of each piece and the room above each when a part of the cell
     starts with it. Hancom splits such a table between its rows, one moved row by row (TABLE) as well as one
     split between lines (CELL), which splits a row of several lines between them too, the row's cell
-    margins around each part; a repeated header goes above each part but the first. ``None`` for any other
+    margins around each part; its top outer margin and a repeated header go above each part but the first.
+    ``None`` for any other
     paragraph, and for a table set not to split (NONE), offset down, with a caption, or with rows holding
     tables that do not split so (a row holding one that does splits between its pieces as between lines, and
     one holding tables set as characters between its lines, a table one, as in the body).
@@ -1732,13 +1733,15 @@ def _table_pieces(measure: _Measure, paragraph: Any) \
                                       for row in rows):
         return None
     header = sum(row.height for row in rows if row.header) if table.get("repeatHeader") == "1" else 0
+    margin = table.find(f"{HP}outMargin")
+    above, below = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     pieces: list[tuple[int, int]] = []
     leads: list[int] = []
     starts: list[int] = []
     rooms: list[int] = []
     for index, (row, cell) in enumerate(zip(rows, cells)):
         starts.append(len(pieces))
-        lead = 0 if row.header or not pieces else header
+        lead = 0 if row.header or not pieces else above + header  # a part going on: below its top margin again
         joined = row.joined or index and rows[index - 1].joined
         lines = (row.metrics or ((row.size, row.pitch),) * row.lines) if mode == "CELL" and not joined else ()
         if len(lines) < 2:
@@ -1755,8 +1758,6 @@ def _table_pieces(measure: _Measure, paragraph: Any) \
                   for line in range(len(lines) - 1)]  # bottom margin under it, and what its own tables keep
         rooms.append(0)
         continue
-    margin = table.find(f"{HP}outMargin")
-    above, below = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     pieces[0] = (pieces[0][0] + above, pieces[0][1] + above)
     pieces[-1] = (pieces[-1][0] + below, pieces[-1][1] + below)
     return tuple(pieces), tuple(leads), tuple(starts), tuple(rooms)
@@ -4077,7 +4078,8 @@ def _reached(row: _Row, cut: int, top: int, foot: int, line: tuple[int, int],
     its rows ending a table's cut, 101, above the foot with room for a caption below it), or would start past
     the page's foot. When the first line it pushes below it does not fit and the table would not, the table
     splits into its pieces (see :func:`_split_rows`): those so ending (a row going on with room for its bottom
-    margin too) stay, the rest go on at the next page's top (a row going on below its top margin again) and
+    margin too) stay, the rest go on at the next page's top below the table's top margin again (a row going on
+    below its own top margin again too) and
     that line below them. When no piece stays, the table goes on alone to the next page's top (whatever its offset): the line
     its control falls on stays where it is, and so does the line it pushes when that is the same, which then
     fits, the next line going below the table on the next page (if it does not fit either, the table goes on
@@ -4111,15 +4113,15 @@ def _reached(row: _Row, cut: int, top: int, foot: int, line: tuple[int, int],
             y += reach.rows[kept][1]
             kept += 1
         joined = _joined_stays(reach, kept, start, foot)
-        if joined:  # among rows joined by merged cells, split cell by cell: what of them stays
-            stays = reach.top - cut + joined
+        if joined:  # among rows joined by merged cells, split cell by cell: what of them stays, the rest
+            stays = reach.top - cut + joined - reach.above  # going on below the table's top margin again
             found = (height - stays, advance - stays), cut + stays
             continue
         if not kept and reach.line < cut and top + reach.text <= foot:  # the lines would fit without it
             raise _Unsupported("a page end past a table among the text of a cell going on alone")
         if kept or reach.line < cut:  # the rest goes on, the line below it
-            stays = reach.top - cut + (reach.above + sum(piece[1] for piece in reach.rows[:kept])
-                                       - reach.rows[kept][3] if kept else 0)
+            stays = reach.top - cut + (sum(piece[1] for piece in reach.rows[:kept])  # the rest below the table's
+                                       - reach.rows[kept][3] if kept else 0)  # top margin again
             found = (height - stays, advance - stays), cut + stays
         elif top + reach.text <= foot:  # the line stays, the table goes on alone, the next line below it
             if after is not None and top + advance - (reach.foot - cut) + after[0] <= foot:  # that one would fit
@@ -4180,7 +4182,7 @@ def _split_joined(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], cu
         rest[-1] = (rest[-1][0] + table.below, rest[-1][0] + table.below + advance - height)
         kept[-1] = _SPARE_CUT
     return (tuple(rest) + lines[after:],
-            ((_repeated_header(table),) * len(rest) + leads[after:]) if leads else (),
+            ((table.margins[0] + _repeated_header(table),) * len(rest) + leads[after:]) if leads else (),
             tuple(kept) + cuts[after:],
             tuple((other - after + len(rest), *block) for other, *block in blocks if other >= after))
 
