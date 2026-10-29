@@ -1093,6 +1093,10 @@ HANCOM_PAGES = {
     # The same with the 60 paragraphs all at 10 pt, each spaced 200 before: the part of that cell going on to the
     # next page starts below its first paragraph's spacing before, as at the cell's top
     "pages_merged_rows_with_cells_spaced_before_split": 20,
+    # Twenty-seven times, the page end 1118 to 1518 below a block of five rows joined by a merged cell holding one
+    # line, its paragraph spaced 0 or 200 before (top or centred), in a table split between cell lines: the line
+    # fits above the page end only with its spacing before; when it does not, the merged cell goes on whole
+    "pages_merged_rows_split_by_a_cell_spaced_before": 54,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
