@@ -1086,6 +1086,10 @@ HANCOM_PAGES = {
     # The same twelve times (28 to 39 lines), the inner table's bottom margin 1417: its rows stay on the page only
     # ending that margin and a table's cut above the foot
     "pages_nested_table_rows_with_a_bottom_margin_above_the_page_foot": 24,
+    # The same eleven times, the inner table's first column merged over rows 0-1, 2-3, 4-6 and 7-9 (two or three
+    # lines each, taller than the rows they span): a page end among rows so joined splits them cell by cell, as in a
+    # table flowing in the body, each cell keeping the lines that end a table's cut above the foot
+    "pages_nested_tables_with_merged_rows_split_cell_by_cell": 22,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run

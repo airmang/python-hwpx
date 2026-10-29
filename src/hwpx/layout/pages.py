@@ -1089,6 +1089,9 @@ class _Row:
     #: the room each of those lines needs below it to stay above a page end: a table's piece a table's cut
     #: (101) more than a line of text
     cuts: tuple[int, ...] = ()
+    #: rows of those tables joined by merged cells, one piece each: (where the first's piece stands among the
+    #: lines, the table, its first and last row); a page end among them splits them cell by cell
+    blocks: tuple[tuple[int, _FlowTable, int, int], ...] = ()
     #: the tables among its tallest cell's text placed top and bottom, square, or in front of or behind it
     #: (laid out by :meth:`_Measure.wrapped_lines`): a page end is not followed through them
     reaches: tuple[_Reach, ...] = ()
@@ -1513,7 +1516,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
                 first=first, leads=leads if several or before or pieces else (), pieces=pieces, reaches=reaches,
-                cuts=_line_cuts(measure, paragraphs, inner) if pieces else ())
+                cuts=_line_cuts(measure, paragraphs, inner) if pieces else (),
+                blocks=_line_blocks(measure, paragraphs, inner) if pieces else ())
 
 
 def _table_first(measure: _Measure, obj: Any) -> int:
@@ -1627,14 +1631,45 @@ def _line_cuts(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[in
     return tuple(cuts)
 
 
-def _table_pieces(measure: _Measure, paragraph: Any) -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]] | None:
+def _line_blocks(measure: _Measure, paragraphs: list[Any],
+                 width: int) -> tuple[tuple[int, _FlowTable, int, int], ...]:
+    """The rows joined by merged cells of the tables among the lines of *paragraphs* (as
+    :meth:`_Measure.stack_lines` lays them out with tables' pieces): where the first's piece stands among those
+    lines, the table, and its first and last row."""
+
+    blocks: list[tuple[int, _FlowTable, int, int]] = []
+    count = 0
+    for paragraph in paragraphs:
+        split = _table_pieces(measure, paragraph)
+        if split is None:
+            count += len(measure.stack_lines([paragraph], width, caches=True))
+            continue
+        table = next(child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) == "tbl")
+        rows, cells = _table_rows(measure, table)
+        flowing = _FlowTable(rows, _page_break(table), table.get("repeatHeader") == "1", _table_ends(table),
+                             tuple(cells), cut=_spare_cut(table))
+        first = 0
+        while first < len(rows):
+            last = first
+            while rows[last].joined and last + 1 < len(rows):
+                last += 1
+            if last > first:
+                blocks.append((count + split[2][first], flowing, first, last))
+            first = last + 1
+        count += len(split[0])
+    return tuple(blocks)
+
+
+def _table_pieces(measure: _Measure, paragraph: Any) \
+        -> tuple[tuple[tuple[int, int], ...], tuple[int, ...], tuple[int, ...]] | None:
     """How a table placed top and bottom on its own in a cell paragraph, from the paragraph's top, splits with
     its row over a page end: (height, advance) of each piece and the room above each when a part of the cell
     starts with it. Hancom splits such a table between its rows, one moved row by row (TABLE) as well as one
     split between lines (CELL), which splits a row of several lines between them too, the row's cell
     margins around each part; a repeated header goes above each part but the first. ``None`` for any other
-    paragraph, and for a table set not to split (NONE), offset down, with a caption, or with rows merged or
-    holding tables."""
+    paragraph, and for a table set not to split (NONE), offset down, with a caption, or with rows holding
+    tables. Rows joined by merged cells are a piece each (see :func:`_line_blocks`). Third: where each row's
+    first piece stands among the pieces."""
 
     if not _table_on_its_own(paragraph):
         return None
@@ -1644,14 +1679,17 @@ def _table_pieces(measure: _Measure, paragraph: Any) -> tuple[tuple[tuple[int, i
         return None
     rows = _rows(measure, table)
     cells = [tr.find(f"{HP}tc") for tr in table.findall(f"{HP}tr")]
-    if len(rows) != len(cells) or any(row.merged or row.joined or row.nested for row in rows):
+    if len(rows) != len(cells) or any(row.nested for row in rows):
         return None
     header = sum(row.height for row in rows if row.header) if table.get("repeatHeader") == "1" else 0
     pieces: list[tuple[int, int]] = []
     leads: list[int] = []
-    for row, cell in zip(rows, cells):
+    starts: list[int] = []
+    for index, (row, cell) in enumerate(zip(rows, cells)):
+        starts.append(len(pieces))
         lead = 0 if row.header or not pieces else header
-        lines = (row.metrics or ((row.size, row.pitch),) * row.lines) if mode == "CELL" else ()
+        joined = row.joined or index and rows[index - 1].joined
+        lines = (row.metrics or ((row.size, row.pitch),) * row.lines) if mode == "CELL" and not joined else ()
         if len(lines) < 2:
             pieces.append((row.height, row.height))
             leads.append(lead)
@@ -1664,7 +1702,7 @@ def _table_pieces(measure: _Measure, paragraph: Any) -> tuple[tuple[tuple[int, i
     above, below = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     pieces[0] = (pieces[0][0] + above, pieces[0][1] + above)
     pieces[-1] = (pieces[-1][0] + below, pieces[-1][1] + below)
-    return tuple(pieces), tuple(leads)
+    return tuple(pieces), tuple(leads), tuple(starts)
 
 
 @dataclass(frozen=True)
@@ -3888,7 +3926,7 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
     remaining, height, metrics, nested, leads = row.lines, row.height, row.metrics, row.nested, row.leads
-    cuts = row.cuts
+    cuts, blocks = row.cuts, row.blocks
     foot = body - cut
     consumed = 0  # how far down the cell's lines the part on this page starts
     while True:
@@ -3942,6 +3980,13 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             fitting = _lines_fitting(lines, leads, y + row.margins, foot, cuts)
             if fitting and len(lines) == row.lines and y + row.margins + row.first > foot:
                 fitting = 0  # every cell's first line must fit, or the row goes on whole
+            split = _split_joined(lines, leads, cuts, blocks, fitting, y + row.margins, foot) \
+                if blocks and fitting < len(lines) else None
+            if split is not None:  # among a table's rows joined by merged cells: they split cell by cell
+                metrics, leads, cuts, blocks = split
+                remaining, height = len(metrics), row.margins + _lines_height(metrics, leads)
+                frame, y = frame + 1, header
+                continue
             if fitting and (row.spare or fitting == len(lines)):  # room under its lines: cut like a row's
                 rest = height - (foot - y)
                 if fitting < len(lines) and y + height - row.spare > foot:  # its text does not all fit:
@@ -3949,10 +3994,11 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                 elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
-                remaining, height, metrics, leads, cuts = 1, rest, (), (), ()
+                remaining, height, metrics, leads, cuts, blocks = 1, rest, (), (), (), ()
                 continue
             if fitting:
                 metrics, leads, cuts = lines[fitting:], leads[fitting:], cuts[fitting:]
+                blocks = tuple((start - fitting, *block) for start, *block in blocks if start >= fitting)
                 remaining, height = len(metrics), row.margins + _lines_height(metrics, leads)
             elif fresh:
                 return frame, y + height
@@ -4017,6 +4063,39 @@ def _reached(row: _Row, cut: int, top: int, foot: int, line: tuple[int, int],
         elif reach.top != cut:
             raise _Unsupported("a page end through a table among the text of a cell")
     return found
+
+
+def _split_joined(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], cuts: tuple[int, ...],
+                  blocks: tuple[tuple[int, _FlowTable, int, int], ...], fitting: int, top: int,
+                  foot: int) -> tuple[tuple[tuple[int, int], ...], tuple[int, ...], tuple[int, ...],
+                                      tuple[tuple[int, _FlowTable, int, int], ...]] | None:
+    """A page end before line *fitting* of a cell's *lines* (from *top* down to *foot*) falling among a table's
+    rows joined by merged cells (see :attr:`_Row.blocks`): each of their cells keeps the lines that fit above
+    the page end, a table's cut (101) and the table's bottom margin above *foot* (see :func:`_line_cuts`), the
+    rest going on (see :func:`_block_rest`). The lines, leads, cuts and blocks of what goes on to the next
+    page; ``None`` when the page end falls elsewhere or nothing of those rows stays."""
+
+    for start, table, first, last in blocks:
+        if start <= fitting <= start + last - first:
+            break
+    else:
+        return None
+    y = top + (leads[0] if leads else 0) + sum(advance for _, advance in lines[:start]) \
+        + (table.above if first == 0 else 0)
+    cut, heights, _ = _block_rest(replace(table, cut=_SPARE_CUT + table.below), first, last, y, foot)
+    if cut == first and all(heights[index] == table.rows[index].height for index in range(first, last + 1)):
+        return None
+    after = start + last - first + 1
+    rest = [(heights[index], heights[index]) for index in range(cut, last + 1)]
+    kept = [_SPARE_CUT + table.below] * len(rest)
+    if last == len(table.rows) - 1:  # the table's last: its bottom margin, and the spacing after its paragraph
+        height, advance = lines[after - 1]
+        rest[-1] = (rest[-1][0] + table.below, rest[-1][0] + table.below + advance - height)
+        kept[-1] = _SPARE_CUT
+    return (tuple(rest) + lines[after:],
+            ((_repeated_header(table),) * len(rest) + leads[after:]) if leads else (),
+            tuple(kept) + cuts[after:],
+            tuple((other - after + len(rest), *block) for other, *block in blocks if other >= after))
 
 
 def _lines_fitting(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], top: int, foot: int,
