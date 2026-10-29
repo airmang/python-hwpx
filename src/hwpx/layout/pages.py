@@ -1146,6 +1146,8 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     headers: set[int] = set()  # rows with a header cell of their own
     reached: set[int] = set()  # rows with a table among a cell's text (see _Reach)
     firsts: dict[int, int] = {}  # each row's tallest first line of a cell of its own
+    tallest: dict[int, int] = {}  # each row's tallest cell of its own, and the most any fills with its text
+    filled: dict[int, int] = {}
     widths = grid_widths_of(table)
     spacing = _cell_spacing(table)
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
@@ -1161,14 +1163,16 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
             headers.add(first)
         if span == 1:
             firsts[first] = max(firsts.get(first, 0), row.first)
+            tallest[first] = max(tallest.get(first, 0), row.height)
+            filled[first] = max(filled.get(first, 0), row.height - row.spare)
         if span > 1 and row.reaches:
             raise _Unsupported("a table among the text of a cell merged over rows")
         if row.reaches:
             reached.add(first)
         if span > 1:
             merged.append((first, span, row))
-        elif first not in rows or (row.height, row.lines) > (rows[first].height, rows[first].lines):
-            rows[first] = row
+        elif first not in rows or (row.height - row.spare, row.height, row.lines)                 > (rows[first].height - rows[first].spare, rows[first].height, rows[first].lines):
+            rows[first] = row  # the cell its text fills most: its lines split the row over a page end
     for first in reached:  # one among the text of a cell that is not the tallest: no page end followed
         if not rows[first].reaches:
             rows[first] = replace(rows[first], reaches=(_Reach(-1, 0, 1 << 62),))
@@ -1176,6 +1180,8 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
         rows[first] = replace(rows[first], header=True)
     for first, line in firsts.items():
         rows[first] = replace(rows[first], first=line)
+    for first, height in tallest.items():  # as tall as its tallest cell, with room to spare under the text
+        rows[first] = replace(rows[first], height=height, spare=height - filled[first])  # filling one most
     for first, span, cell in merged:
         for index in range(first, first + span):
             if index not in rows:  # every cell over it is merged over rows
@@ -4021,7 +4027,10 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             # like any such row (a row whose tables split goes on below as any cell's)
             if y + row.margins + (metrics[0][0] if metrics else row.size) <= foot:  # once its first line fits
                 rest = height - (foot - y)
-                if rest <= _SPARE_DROPPED:
+                fitting = _lines_fitting(metrics, leads, y + row.margins, foot) if metrics else 1
+                if fitting < len(metrics):  # its lines do not all fit: those that do not go on, at least
+                    rest = max(rest, row.margins + _lines_height(metrics[fitting:], leads[fitting:]))
+                elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y, nested = frame + 1, header, False
                 remaining, height = 1, rest
@@ -4033,7 +4042,12 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
         if mode == "CELL" and nested and not row.pieces:  # between its lines, each as tall as it is (a table
             # is one)
             if not metrics:
-                raise _Unsupported("a page break in a flowing table row holding a table")
+                if consumed or y + row.margins + row.first <= foot:
+                    raise _Unsupported("a page break in a flowing table row holding a table")
+                if fresh:  # no cell's first line fits (the table one stands on): the row goes on whole
+                    return frame, y + height
+                frame, y = frame + 1, header
+                continue
             fitting, top = 0, y + row.margins + (leads[0] if leads else 0)  # a part starts below its first
             # paragraph's spacing before, as any cell's
             while fitting < len(metrics) and top + metrics[fitting][0] <= foot:
@@ -4050,6 +4064,13 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                 frame, y = frame + 1, header
                 continue
             consumed = cut
+            if fitting == len(metrics):  # every line fits, the cell's bottom margin not: cut like a row's
+                rest = height - (foot - y)
+                if rest <= _SPARE_DROPPED:
+                    return frame, body
+                frame, y, nested = frame + 1, header, False
+                remaining, height, metrics, leads = 1, rest, (), ()
+                continue
             if fitting:
                 metrics, leads = metrics[fitting:], leads[fitting:]
                 height = row.margins + _lines_height(metrics, leads)
