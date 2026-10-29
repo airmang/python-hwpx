@@ -1078,6 +1078,10 @@ HANCOM_PAGES = {
     # text: a row whose text fits stays on the page, the room it declares to spare under the text cut at the page
     # end, as a flowing table's row's
     "pages_nested_table_rows_with_room_to_spare_at_the_page_foot": 76,
+    # Eight times, 0 to 21 empty paragraphs down a page: a flowing table split cell by cell, its two rows joined by
+    # a merged cell, the other cell of the first row holding 60 paragraphs, every fifth at 12 pt and the rest at
+    # 10 pt: the part of that cell going on to the next page is as tall as its own lines, each at its size
+    "pages_merged_rows_with_cells_of_mixed_line_sizes_split": 18,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes

@@ -3952,7 +3952,10 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int,
         if part is None:
             continue
         rest, begin = part[0], max(start, cut)
-        cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=part[1])))
+        left = part[1]  # the lines it has left are its last ones
+        cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=left, **(
+            {"metrics": cell.metrics[len(cell.metrics) - left:], "leads": cell.leads[len(cell.leads) - left:]}
+            if _lists_lines(cell) else {}))))
         if span == 1:
             heights[start] = max(heights[start], rest)
         else:
@@ -3963,25 +3966,37 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int,
     return cut, heights, cells
 
 
+def _lists_lines(cell: _Row) -> bool:
+    """Whether *cell* lists the (height, advance) of each of its lines (``_Row.metrics``): one of several
+    paragraphs, which may differ in size, holding no table."""
+
+    return bool(cell.metrics) and len(cell.metrics) == cell.lines and not cell.nested and not cell.pieces
+
+
 def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
     """How tall the part of a cell starting at *top* that goes on past the page end *foot* is, and how many
-    lines it holds; ``None`` when nothing of it goes on."""
+    lines it holds; ``None`` when nothing of it goes on. Each line takes its own height and advance where the
+    cell lists them (a line of a larger character size among others), else the cell's."""
 
-    fitting = 0
-    while fitting < cell.lines and top + cell.margins + fitting * cell.pitch + cell.size <= foot:
+    lines = cell.metrics if _lists_lines(cell) else ((cell.size, cell.pitch),) * cell.lines
+    fitting, y = 0, top + cell.margins
+    while fitting < cell.lines and y + lines[fitting][0] <= foot:
+        y += lines[fitting][1]
         fitting += 1
+    left = lines[fitting:]
+    height = cell.margins + sum(advance for _, advance in left[:-1]) + left[-1][0] if left else 0
     if cell.spare and (fitting or not cell.lines):  # its text (or what is left: none) starts above the page end:
         # the declared room is cut like a row's, and the lines that do not fit go on with it, which is then
         # at least as tall as they are with the cell's margins
-        rest, left = top + cell.height - foot, cell.lines - fitting
+        rest = top + cell.height - foot
         if left:
-            return max(rest, cell.margins + (left - 1) * cell.pitch + cell.size), left
+            return max(rest, height), len(left)
         return (rest, 0) if rest > _SPARE_DROPPED else None
     if cell.spare:  # none of it fits: it goes on whole
         return cell.height, cell.lines
-    if fitting == cell.lines:
+    if not left:
         return None
-    return cell.margins + (cell.lines - fitting - 1) * cell.pitch + cell.size, cell.lines - fitting
+    return height, len(left)
 
 
 def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
