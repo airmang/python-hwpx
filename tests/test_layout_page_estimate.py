@@ -1056,6 +1056,11 @@ HANCOM_PAGES = {
     # paragraph's line and those after staying where they fit, the rest going below the table there; a page break
     # after a table that went on to the next page's top starts the page after that
     "pages_tables_offset_down_past_the_page_foot": 97,
+    # Eight times, on a page of its own after 39 or 40 lines: a paragraph of text holding a table split cell by cell
+    # (three rows of two lines) placed top and bottom 1000 to 3000 down, then an empty paragraph and two of text:
+    # when not one line of its first row fits under the anchor, the table starts at the next page's top, as one
+    # moved row by row, the empty paragraph staying under the anchor's line where it fits
+    "pages_cell_split_tables_with_no_line_under_the_anchor": 16,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
