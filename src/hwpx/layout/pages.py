@@ -2818,7 +2818,9 @@ def _drawn_height(obj: Any, measure: _Measure) -> int:
     """How tall Hancom draws *obj*: a drawing holding a text box (hp:drawText) as tall as the box's text and
     its margins when that is taller than hp:sz -- Hancom grows the drawing to hold them, writing the grown size
     to hp:curSz alone (negative for a drawing scaled upside down), at times one less, which makes that a lower
-    bound; any other object (a table too) as hp:sz."""
+    bound within a unit or two; a grown size further off was written for other fonts or text, and Hancom lays the
+    text out anew. When the text cannot be laid out, the grown size stands. Any other object (a table too) as
+    hp:sz."""
 
     height = int(obj.find(f"{HP}sz").get("height", 0))
     box = obj.find(f"{HP}drawText")
@@ -2841,8 +2843,10 @@ def _drawn_height(obj: Any, measure: _Measure) -> int:
         content = measure.shape(paragraphs[0].get("paraPrIDRef")).prev \
             + measure.stack(paragraphs, width - left - right, caches=True)[0]
     except _Unsupported:
-        content = 0
-    return max(height, grown, top + content + bottom)
+        return max(height, grown)
+    laid = top + content + bottom
+    # Hancom lays the box's text out anew: a grown size written for other fonts or text does not hold
+    return max(height, laid, grown if abs(grown - laid) <= 2 else 0)
 
 
 #: How far each parallel shadow moves from its object before its own offset: Hancom draws a bottom shadow

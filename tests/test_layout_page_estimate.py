@@ -1272,6 +1272,25 @@ def test_without_line_caches_formfit_breaks_the_lines_the_same(name: str) -> Non
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, HANCOM_PAGES[name])
 
 
+def test_a_text_box_grown_for_other_text_is_laid_out_anew() -> None:
+    # The rectangle holding three lines of text, its current size written 9966 instead of the 4766 Hancom grew it
+    # to, as a document saved with other fonts or text has it: Hancom lays the box's text out anew and draws the
+    # rectangle as tall as that text and its margins, whatever the current size says.
+    data = (FIXTURES / "pages_text_box_grown_by_three_lines.hwpx").read_bytes()
+    stale = _without_caches(data)
+    with zipfile.ZipFile(io.BytesIO(stale)) as source:
+        parts = {info: source.read(info.filename) for info in source.infolist()}
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info, payload in parts.items():
+            if info.filename == "Contents/section0.xml":
+                payload = payload.replace(b'<hp:curSz width="0" height="4766"/>', b'<hp:curSz width="0" height="9966"/>')
+                assert b'height="9966"' in payload
+            target.writestr(info, payload)
+
+    _assert_like_hancom(estimate_pages(out.getvalue()), data, 1)
+
+
 def test_cells_keeping_their_caches_hold_their_wrapped_pictures_where_hancom_put_them() -> None:
     # A Hancom Office 2024 save of 50 tables set as characters, every paragraph keeping the layout cache Hancom
     # wrote, a picture placed top and bottom or square in the first cell of each: its control after the text of a
