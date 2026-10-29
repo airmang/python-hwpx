@@ -520,6 +520,9 @@ HANCOM_PAGES = {
     "pages_picture_as_character_after_a_line_break": 1,  # the same before a picture 3000 tall
     "pages_table_caption_above": 1,  # a caption of one line above a flowing table: the line and a gap of 850
     "pages_table_caption_below": 1,  # the same below it
+    # Eight times, 0 to 3 empty paragraphs down a page: a table of 40 rows split between cell lines, with a caption of
+    # one line below it 141 or 850 away: every page it goes on from keeps the caption's room at its foot
+    "pages_table_split_between_cell_lines_keeping_its_caption_room": 16,
     "pages_table_caption_above_over_pages": 2,  # above a table going over the page end: on its first page
     "pages_table_as_character_caption_two_lines": 1,  # two lines above a table set as a character
     # A caption whose paragraph is spaced 900 before: its line starts 900 down, the room taken with it.
