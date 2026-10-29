@@ -1546,11 +1546,12 @@ def _face_hangul(face: str) -> dict[str, int]:
 
 
 def _own_units(face: str, ch: str) -> int:
-    """Design advance of *ch* in *face* itself; 0 when the face does not have it."""
+    """Design advance of *ch* in *face* itself, from ``measure._GLYPHS`` or else the glyph table (which lists the
+    advance Hancom lays out a glyph the face's font lacks at, for some faces); 0 when neither lists it."""
 
     entry = _DESIGN.get(face)
     index = _GLYPHS.find(ch) if len(ch) == 1 else -1
-    if entry is not None and index >= 0:
+    if entry is not None and index >= 0 and entry[3][index]:
         return entry[3][index]
     return _face_glyphs(face).get(ch, 0)
 
