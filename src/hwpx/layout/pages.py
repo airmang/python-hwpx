@@ -3012,6 +3012,8 @@ def _object_line(
             return count, size, pitch, table
         offset = _pos_offset(pos, "vertOffset")
         below = offset + tall
+        if shape.prev and offset < 1 << 31:  # down from the paragraph's top, above its spacing before: that much
+            below = max(below - shape.prev, size)  # less below its line's top, the line no shorter than its characters
         if offset >= 1 << 31:  # one up, kept as an unsigned 32-bit number: Hancom draws it that far above, the
             below = max(offset - (1 << 32) + tall, size)  # paragraph's line no shorter than its characters
         return 1, below, below, None
