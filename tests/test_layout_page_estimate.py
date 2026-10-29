@@ -1085,6 +1085,11 @@ HANCOM_PAGES = {
     # a merged cell, the other cell of the first row holding 60 paragraphs, every fifth at 12 pt and the rest at
     # 10 pt: the part of that cell going on to the next page is as tall as its own lines, each at its size
     "pages_merged_rows_with_cells_of_mixed_line_sizes_split": 18,
+    # Sixteen times, 30 to 51 empty paragraphs down a page: a flowing table split between cell lines, each of its six
+    # rows a cell of two lines of text and one of an empty line and a table set as a character, both declared as
+    # tall as the table fills its cell, or 300 taller: the row splits by the cell its text fills most, the part going
+    # on as tall as its lines left or as what it declares below the page end, whichever is taller
+    "pages_table_rows_split_by_the_cell_their_text_fills_most": 32,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
