@@ -414,6 +414,10 @@ HANCOM_PAGES = {
     # or split by cells) then a space. Moved row by row and not starting there, it starts at the next page's top and
     # the paragraph's line stays where it fits; where the line does not fit either, it goes on with the table, below it
     "pages_table_then_a_space_past_the_page_foot": 33,
+    # One-cell tables 2000 tall holding one, three or six lines, set as a character or placed top and bottom, set not
+    # to change size (hp:sz@protect) or not: one so set keeps its rows as declared, its text cut off below, and goes
+    # on over a page end whole; one not so set grows to hold its text
+    "pages_tables_set_not_to_change_size": 2,
     # A cell of a flowing table, a picture 20000 x 10000 placed top and bottom from a paragraph of it:
     "pages_table_cell_picture_first": 1,  # alone in the first: the line on its top, the row as tall as it
     "pages_table_cell_picture_second": 1,  # alone in the second, after a line: from that paragraph's top
