@@ -3858,6 +3858,8 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
     body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
     header = _repeated_header(table) + table.margins[0]  # and go on below its top margin on the next page
     foot = body - table.cut
+    # split between cell lines, it keeps the room of a caption below it at the foot of every page it goes on from
+    room = body - table.caption[1] if table.mode == "CELL" else body
     if _header_moves(table, y, body):  # its repeated header rows start the next page (drawn there once)
         frame, y = frame + 1, table.margins[0]
     if table.mode == "NONE":  # set not to split: its rows move as one, drawn anyway at a page's top
@@ -3882,13 +3884,14 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
             continue
         if table.mode == "CELL" and end > index and table.cells \
                 and y + sum(row.height for row in rows[index:end + 1]) > foot:  # split cell by cell
-            frame, y = _split_block(table, index, end, frame, y, body, header)
+            frame, y = _split_block(table, index, end, frame, y, room, header)
             index = end + 1
             continue
         before, start = frame, y
         above = index == len(rows) - 1 and table.caption[1] and table.mode == "CELL" and rows[index].spare \
             and not rows[index].nested  # a caption below keeps its room: the row's room to spare is cut above it
-        frame, y = _flow_row(table.mode, rows[index], frame, y, body - (table.caption[1] if above else 0), header,
+        frame, y = _flow_row(table.mode, rows[index], frame, y,
+                             body - (table.caption[1] if above else 0) if index == len(rows) - 1 else room, header,
                              table.cut)
         if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
