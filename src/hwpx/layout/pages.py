@@ -1599,7 +1599,8 @@ def _split_rows(measure: _Measure, obj: Any) \
         lines = (row.metrics or ((row.size, row.pitch),) * row.lines) \
             if _page_break(obj) == "CELL" and not joined else ()
         if len(lines) < 2 or cell is None:
-            pieces.append((row.height, row.height, 0, 0))
+            pieces.append((row.height - (row.spare if index < len(rows) - 1 else 0), row.height, 0, 0))  # its text
+            # fitting, the room it declares to spare under it is cut at the page end, as a flowing table's row's
             continue
         top = cell_margins_of(cell, obj).top
         bottom = row.margins - top
@@ -1745,7 +1746,8 @@ def _table_pieces(measure: _Measure, paragraph: Any) \
         joined = row.joined or index and rows[index - 1].joined
         lines = (row.metrics or ((row.size, row.pitch),) * row.lines) if mode == "CELL" and not joined else ()
         if len(lines) < 2:
-            pieces.append((row.height, row.height))
+            pieces.append((row.height - (row.spare if index < len(rows) - 1 else 0), row.height))  # room to spare
+            # under its text cut at the page end (see _split_rows)
             leads.append(lead)
             rooms.append(0)
             continue
