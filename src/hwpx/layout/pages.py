@@ -1086,6 +1086,9 @@ class _Row:
     #: its tables are placed top and bottom on their own and split (see :func:`_table_pieces`): its lines
     #: (those tables' pieces among them) split as any cell's
     pieces: bool = False
+    #: the room each of those lines needs below it to stay above a page end: a table's piece a table's cut
+    #: (101) more than a line of text
+    cuts: tuple[int, ...] = ()
     #: the tables among its tallest cell's text placed top and bottom, square, or in front of or behind it
     #: (laid out by :meth:`_Measure.wrapped_lines`): a page end is not followed through them
     reaches: tuple[_Reach, ...] = ()
@@ -1509,7 +1512,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
         if several or before or pieces else ()
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
-                first=first, leads=leads if several or before or pieces else (), pieces=pieces, reaches=reaches)
+                first=first, leads=leads if several or before or pieces else (), pieces=pieces, reaches=reaches,
+                cuts=_line_cuts(measure, paragraphs, inner) if pieces else ())
 
 
 def _table_first(measure: _Measure, obj: Any) -> int:
@@ -1604,6 +1608,23 @@ def _line_leads(measure: _Measure, paragraphs: list[Any], width: int, pieces: bo
         count = len(measure.stack_lines([paragraph], width, caches=True))
         leads += [prev] + [0] * (count - 1)
     return tuple(leads)
+
+
+def _line_cuts(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[int, ...]:
+    """The room each line of *paragraphs* (as :meth:`_Measure.stack_lines` lays them out with tables' pieces)
+    needs below it to stay above a page end: none for a line of text, a table's cut (101) for a piece of a
+    table and its bottom margin under it but for the last (which holds it), as Hancom keeps a table's rows
+    among a cell's text."""
+
+    cuts: list[int] = []
+    for paragraph in paragraphs:
+        split = _table_pieces(measure, paragraph)
+        if split is None:
+            cuts += [0] * len(measure.stack_lines([paragraph], width, caches=True))
+            continue
+        table = next(child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) == "tbl")
+        cuts += [_SPARE_CUT + _table_ends(table)[1]] * (len(split[0]) - 1) + [_SPARE_CUT]
+    return tuple(cuts)
 
 
 def _table_pieces(measure: _Measure, paragraph: Any) -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]] | None:
@@ -3867,6 +3888,7 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
     remaining, height, metrics, nested, leads = row.lines, row.height, row.metrics, row.nested, row.leads
+    cuts = row.cuts
     foot = body - cut
     consumed = 0  # how far down the cell's lines the part on this page starts
     while True:
@@ -3917,7 +3939,7 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             continue
         if mode == "CELL":
             lines = metrics or ((row.size, row.pitch),) * remaining
-            fitting = _lines_fitting(lines, leads, y + row.margins, foot)
+            fitting = _lines_fitting(lines, leads, y + row.margins, foot, cuts)
             if fitting and len(lines) == row.lines and y + row.margins + row.first > foot:
                 fitting = 0  # every cell's first line must fit, or the row goes on whole
             if fitting and (row.spare or fitting == len(lines)):  # room under its lines: cut like a row's
@@ -3927,10 +3949,10 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                 elif rest <= _SPARE_DROPPED:
                     return frame, body
                 frame, y = frame + 1, header
-                remaining, height, metrics, leads = 1, rest, (), ()
+                remaining, height, metrics, leads, cuts = 1, rest, (), (), ()
                 continue
             if fitting:
-                metrics, leads = lines[fitting:], leads[fitting:]
+                metrics, leads, cuts = lines[fitting:], leads[fitting:], cuts[fitting:]
                 remaining, height = len(metrics), row.margins + _lines_height(metrics, leads)
             elif fresh:
                 return frame, y + height
@@ -3997,12 +4019,13 @@ def _reached(row: _Row, cut: int, top: int, foot: int, line: tuple[int, int],
     return found
 
 
-def _lines_fitting(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], top: int, foot: int) -> int:
-    """How many of *lines* ((height, advance) each; *leads*: the room above each when it starts a part) fit
-    from *top* above *foot*."""
+def _lines_fitting(lines: tuple[tuple[int, int], ...], leads: tuple[int, ...], top: int, foot: int,
+                   cuts: tuple[int, ...] = ()) -> int:
+    """How many of *lines* ((height, advance) each; *leads*: the room above each when it starts a part; *cuts*:
+    the room each needs below it) fit from *top* above *foot*."""
 
     fitting, y = 0, top + (leads[0] if leads else 0)
-    while fitting < len(lines) and y + lines[fitting][0] <= foot:
+    while fitting < len(lines) and y + lines[fitting][0] + (cuts[fitting] if cuts else 0) <= foot:
         y += lines[fitting][1]
         fitting += 1
     return fitting

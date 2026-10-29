@@ -1078,6 +1078,14 @@ HANCOM_PAGES = {
     # page break: the first table starts at the next page's top, the second at the top of the page after the first's
     # foot, and the lines after go on below the first table's foot
     "pages_tables_starting_past_their_anchors_on_one_page": 27,
+    # Eleven times at a page's top: a table split cell by cell, one row of two cells, the second holding 30 to 40
+    # lines, then a table placed top and bottom on its own (12 rows of one line, 1282 tall each), then three lines:
+    # the page end falls among the inner table's rows, which stay on the page only ending a table's cut (101)
+    # above the foot the lines of text go down to, the rest going on at the next page's top
+    "pages_nested_table_rows_a_cut_above_the_page_foot": 22,
+    # The same twelve times (28 to 39 lines), the inner table's bottom margin 1417: its rows stay on the page only
+    # ending that margin and a table's cut above the foot
+    "pages_nested_table_rows_with_a_bottom_margin_above_the_page_foot": 24,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
