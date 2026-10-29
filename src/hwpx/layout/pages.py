@@ -3992,12 +3992,15 @@ def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
     cell lists them (a line of a larger character size among others), else the cell's."""
 
     lines = cell.metrics if _lists_lines(cell) else ((cell.size, cell.pitch),) * cell.lines
-    fitting, y = 0, top + cell.margins
+    # the room above each listed line when a part of the cell starts with it: a paragraph's spacing before
+    leads = cell.leads if _lists_lines(cell) and len(cell.leads) == cell.lines else ()
+    fitting, y = 0, top + cell.margins + (leads[0] if leads else 0)
     while fitting < cell.lines and y + lines[fitting][0] <= foot:
         y += lines[fitting][1]
         fitting += 1
     left = lines[fitting:]
-    height = cell.margins + sum(advance for _, advance in left[:-1]) + left[-1][0] if left else 0
+    height = cell.margins + (leads[fitting] if leads and left else 0) \
+        + sum(advance for _, advance in left[:-1]) + left[-1][0] if left else 0
     if cell.spare and (fitting or not cell.lines):  # its text (or what is left: none) starts above the page end:
         # the declared room is cut like a row's, and the lines that do not fit go on with it, which is then
         # at least as tall as they are with the cell's margins

@@ -1090,6 +1090,9 @@ HANCOM_PAGES = {
     # tall as the table fills its cell, or 300 taller: the row splits by the cell its text fills most, the part going
     # on as tall as its lines left or as what it declares below the page end, whichever is taller
     "pages_table_rows_split_by_the_cell_their_text_fills_most": 32,
+    # The same with the 60 paragraphs all at 10 pt, each spaced 200 before: the part of that cell going on to the
+    # next page starts below its first paragraph's spacing before, as at the cell's top
+    "pages_merged_rows_with_cells_spaced_before_split": 20,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
