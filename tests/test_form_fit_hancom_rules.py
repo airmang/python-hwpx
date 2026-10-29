@@ -73,6 +73,7 @@ LATIN_FACE_ADVANCES = Path(__file__).parent / "fixtures" / "hancom_saved" / "for
 LATIN_FACES = ("Times New Roman", "Arial", "Cambria", "Constantia", "Calibri", "Georgia", "Verdana", "Tahoma",
                "Segoe UI", "Consolas", "Courier New")
 RELATIVE_SIZE_ROWS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_relative_size_rows.hwpx"
+HANCOM_LATIN_FACES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hancom_latin_faces.hwpx"
 SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_space_scaling.hwpx"
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
@@ -614,6 +615,38 @@ def test_relative_size_scales_the_glyphs_as_a_superscript_size_does() -> None:
     estimate = page_layout.estimate_pages(doc)
     assert [len(lines) for lines in estimate.lines[1:]] == hancom
     assert hancom.count(1) == hancom.count(2) == 55
+
+
+def test_hancom_and_hy_faces_lay_latin_out_at_their_own_advances() -> None:
+    # Hancom Office 2024 lays the Latin glyphs of these faces out at their own advances (in 1000 units per em for
+    # the Hancom faces, 1024 for the HY faces, 궁서, MD이솝체 and 태 헤드라인D) and their Hangul syllables an em wide:
+    # three of a glyph then a tab, at 10 and 13 pt, the tab reaching the next default stop.
+    document = HwpxDocument.open(HANCOM_LATIN_FACES)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document.oxml, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        text = page_layout._run_text(runs)
+        x = sum(char_advance(ch, size, style) for ch in text[:text.index("\t")])
+        assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width")), (
+            style.glyph_face, size, text[0])
+    assert len(paragraphs) == 14 * 2 * 6
+
+
+def test_bold_widens_shinmyeongjo_by_a_twentieth_of_the_em_but_its_borrowed_glyphs() -> None:
+    # Hancom Office 2024 lays a bold glyph of #신명조 out a twentieth of the em wider, as in the 한양 faces ('"' at
+    # 10 pt 552, not 500; '가' 1052), but not the glyphs the face takes from another: the Greek letters, the
+    # superscript and subscript digits beyond Latin-1 and the low single quotation marks. The other Hancom and HY
+    # faces measured keep their regular advances in bold.
+    shinmyeongjo = TextStyle(hangul_face="#신명조", glyph_face="#신명조")
+    bold = replace(shinmyeongjo, bold=True)
+    assert [char_advance(ch, 10, shinmyeongjo) for ch in '"#aW가'] == [500, 992, 512, 1076, 1000]
+    assert [char_advance(ch, 10, bold) for ch in '"#aW가'] == [552, 1040, 560, 1124, 1052]
+    assert [char_advance(ch, 10, bold) for ch in "α⁵‚"] == [char_advance(ch, 10, shinmyeongjo) for ch in "α⁵‚"]
+    hy = TextStyle(hangul_face="HY태백B", glyph_face="HY태백B")
+    assert [char_advance(ch, 10, replace(hy, bold=True)) for ch in "aWĀ"] == [char_advance(ch, 10, hy) for ch in "aWĀ"]
 
 
 def test_latin_faces_take_the_advances_hancom_lays_them_out_at() -> None:
