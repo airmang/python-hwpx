@@ -1669,7 +1669,8 @@ def _line_cuts(measure: _Measure, paragraphs: list[Any], width: int) -> tuple[in
             cuts += [0] * len(measure.stack_lines([paragraph], width, caches=True))
             continue
         table = next(child for run in paragraph.findall(f"{HP}run") for child in run if _local(child) == "tbl")
-        cuts += [_SPARE_CUT + _table_ends(table)[1]] * (len(split[0]) - 1) + [_SPARE_CUT]
+        below = _table_ends(table)[1]
+        cuts += [_SPARE_CUT + below + room for room in split[3][:-1]] + [_SPARE_CUT]
     return tuple(cuts)
 
 
@@ -1703,15 +1704,18 @@ def _line_blocks(measure: _Measure, paragraphs: list[Any],
 
 
 def _table_pieces(measure: _Measure, paragraph: Any) \
-        -> tuple[tuple[tuple[int, int], ...], tuple[int, ...], tuple[int, ...]] | None:
+        -> tuple[tuple[tuple[int, int], ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]] | None:
     """How a table placed top and bottom on its own in a cell paragraph, from the paragraph's top, splits with
     its row over a page end: (height, advance) of each piece and the room above each when a part of the cell
     starts with it. Hancom splits such a table between its rows, one moved row by row (TABLE) as well as one
     split between lines (CELL), which splits a row of several lines between them too, the row's cell
     margins around each part; a repeated header goes above each part but the first. ``None`` for any other
     paragraph, and for a table set not to split (NONE), offset down, with a caption, or with rows holding
-    tables. Rows joined by merged cells are a piece each (see :func:`_line_blocks`). Third: where each row's
-    first piece stands among the pieces."""
+    tables that do not split so (a row holding one that does splits between its pieces as between lines, and
+    one holding tables set as characters between its lines, a table one, as in the body).
+    Rows joined by merged cells are a piece each (see :func:`_line_blocks`). Third: where each row's first
+    piece stands among the pieces; fourth: the room each needs below it when a page ends after it (the bottom
+    margin of a row going on)."""
 
     if not _table_on_its_own(paragraph):
         return None
@@ -1721,12 +1725,14 @@ def _table_pieces(measure: _Measure, paragraph: Any) \
         return None
     rows = _rows(measure, table)
     cells = [tr.find(f"{HP}tc") for tr in table.findall(f"{HP}tr")]
-    if len(rows) != len(cells) or any(row.nested for row in rows):
+    if len(rows) != len(cells) or any(row.nested and not (row.pieces or row.metrics and not row.reaches)
+                                      for row in rows):
         return None
     header = sum(row.height for row in rows if row.header) if table.get("repeatHeader") == "1" else 0
     pieces: list[tuple[int, int]] = []
     leads: list[int] = []
     starts: list[int] = []
+    rooms: list[int] = []
     for index, (row, cell) in enumerate(zip(rows, cells)):
         starts.append(len(pieces))
         lead = 0 if row.header or not pieces else header
@@ -1735,16 +1741,22 @@ def _table_pieces(measure: _Measure, paragraph: Any) \
         if len(lines) < 2:
             pieces.append((row.height, row.height))
             leads.append(lead)
+            rooms.append(0)
             continue
-        top = cell_margins_of(cell, table).top
+        margins = cell_margins_of(cell, table)
+        top = margins.top
         last = row.height - top - sum(advance for _, advance in lines[:-1])  # its foot, its room to spare
         pieces += [(top + lines[0][0], top + lines[0][1])] + list(lines[1:-1]) + [(last, last)]
         leads += [lead] + [lead + top] * (len(lines) - 1)
+        rooms += [margins.bottom + (row.cuts[line] if row.cuts else 0)  # a part of the row ending there: its
+                  for line in range(len(lines) - 1)]  # bottom margin under it, and what its own tables keep
+        rooms.append(0)
+        continue
     margin = table.find(f"{HP}outMargin")
     above, below = (0, 0) if margin is None else (_margin(margin, "top"), _margin(margin, "bottom"))
     pieces[0] = (pieces[0][0] + above, pieces[0][1] + above)
     pieces[-1] = (pieces[-1][0] + below, pieces[-1][1] + below)
-    return tuple(pieces), tuple(leads), tuple(starts)
+    return tuple(pieces), tuple(leads), tuple(starts), tuple(rooms)
 
 
 @dataclass(frozen=True)

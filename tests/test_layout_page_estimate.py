@@ -1061,6 +1061,14 @@ HANCOM_PAGES = {
     # when not one line of its first row fits under the anchor, the table starts at the next page's top, as one
     # moved row by row, the empty paragraph staying under the anchor's line where it fits
     "pages_cell_split_tables_with_no_line_under_the_anchor": 16,
+    # Thirteen times at a page's top: a table split cell by cell holding 30 to 42 lines, then a table on its own of
+    # four rows, its last holding a table of six rows on its own in turn, then three lines: a page end among the
+    # innermost table's rows splits there, each piece of it kept a table's cut for each table it is in and the bottom
+    # margin of the row holding it above the foot
+    "pages_nested_table_rows_holding_tables_split": 26,
+    # The same, the last row holding six tables of two rows set as characters, one per paragraph: it splits between
+    # them as between lines, a table being one
+    "pages_nested_table_rows_holding_tables_as_characters_split": 26,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
