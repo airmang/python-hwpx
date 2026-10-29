@@ -1056,6 +1056,10 @@ HANCOM_PAGES = {
     # paragraph's line and those after staying where they fit, the rest going below the table there; a page break
     # after a table that went on to the next page's top starts the page after that
     "pages_tables_offset_down_past_the_page_foot": 97,
+    # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
+    # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
+    # descent rounded up at many sizes
+    "pages_font_line_heights_by_size": 102,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run

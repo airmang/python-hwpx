@@ -41,6 +41,7 @@ from ._glyph_table import (
     FALLBACK,
     HANGUL_ADVANCES,
     ITALIC_ADVANCES,
+    LINE_HEIGHTS,
     UNITS_PER_EM,
     VERTICAL_METRICS,
 )
@@ -1577,9 +1578,12 @@ def font_line_height(face: str | None, height: int) -> int | None:
     """How tall a line of characters *height* HWPUNIT tall in *face* is when its paragraph takes the line
     height from the font (``hh:paraPr@fontLineHeight``): the face's ascent and descent at that height, each
     rounded up, or *height* itself for a face whose ascent and descent make up its em (바탕, the HY faces);
-    ``None`` for a face the glyph table does not list. Hancom's own lines come out a unit or two taller at some
-    sizes, as the font's hinting has it."""
+    ``None`` for a face the glyph table does not list. Hancom's own lines come out up to a few units taller or
+    shorter at some sizes; those it was seen to lay out are listed (``_glyph_table.LINE_HEIGHTS``) and win."""
 
+    measured = LINE_HEIGHTS.get(face or "", {}).get(height)
+    if measured is not None:
+        return measured
     metrics = VERTICAL_METRICS.get(face or "")
     if metrics is None or not height:
         return None if metrics is None else 0
