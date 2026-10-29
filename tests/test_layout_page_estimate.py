@@ -1023,6 +1023,39 @@ HANCOM_PAGES = {
     # own page or after 33 lines: past a table wider than the line, the page number goes on the line after it, which
     # is as tall as the page number's run, and the table's line is spaced without it
     "pages_controls_after_a_wide_table": 51,
+    # A table or a rectangle set as a character, 3000 tall and 42238 or 42600 wide (the line is 42520), alone or
+    # after text, then a page number in a run of 14 pt with or without text of 10 pt after it: the page number is a
+    # character of no width as tall as its run, on the object's line when the object fits (the line spaced from the
+    # page number's size), on the next line past an object wider than the line, whatever the object
+    "pages_controls_beside_objects_wider_than_the_line": 2,
+    # A table 20000 x 3000 placed top and bottom alone in an empty paragraph, 0 or 500 down from its top, set to
+    # split by cell, by table or not at all, allowed to overlap or not: allowed, it sends the paragraph's empty line
+    # below it (one not fitting on the page goes on to the next page's top, the line staying); not allowed, the
+    # line stays beside it and the next paragraph comes below the table
+    "pages_overlapping_tables_alone_in_empty_paragraphs": 2,
+    # A table 30000 x 1000 or a rectangle as large placed top and bottom 2000 or 5000 down from a paragraph of one or
+    # four lines with 0 or 1000 of spacing before, its control before or after the text, then six short paragraphs:
+    # on the first line, the object stands that far below the paragraph's top, above its spacing; on a later line,
+    # below that line's top; the lines reaching it go below it
+    "pages_objects_offset_down_from_a_paragraph_with_spacing_before": 8,
+    # A table placed top and bottom at its paragraph's top or a rectangle in front of the text, in a run of 16 pt
+    # after, in the middle of or after the spaces of 10 pt text one or three lines long: the line its place falls on
+    # is as tall as a 16 pt character and spaced from it, and the table stands at that line's top
+    "pages_object_runs_after_the_text": 2,
+    # Thirty-eight times, on a page of its own after 38 lines: a table split by cell 500 to 2300 down from its
+    # paragraph, two rows, the second's middle cell eight lines of 10 pt and the last cell a line of 20 pt, the
+    # first column merged over both rows or not: where the 20 pt line does not fit above the page end, the row goes
+    # on to the next page whole, its other cells too
+    "pages_merged_rows_split_with_a_larger_cell": 76,
+    # A table set as a character whose cell holds two lines and a table set as a character with no caption or one of
+    # one or two lines below or above it: the cell's line is as tall as the table and its caption with their gap
+    "pages_captioned_tables_in_cells": 1,
+    # Forty-eight times, on a page of its own after 33 to 40 lines: a table 7696 tall placed top and bottom 0, 1166 or
+    # 3000 down from a paragraph of text, split by cell or moved row by row, then an empty paragraph and two of text:
+    # a table moved row by row with no room for its first row on the page goes on to the next page's top whole, the
+    # paragraph's line and those after staying where they fit, the rest going below the table there; a page break
+    # after a table that went on to the next page's top starts the page after that
+    "pages_tables_offset_down_past_the_page_foot": 97,
     # A table 20000 x 3000 or a rectangle 3000 x 3000 placed top and bottom at the top of a paragraph with 300 of
     # spacing before, in a run of 10, 14 or 20 pt, then a space of 8 pt and text of 10 pt: the object stands at the
     # paragraph's top, above its spacing, the text right below it, and the line is as tall as the object's run
