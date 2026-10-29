@@ -3128,7 +3128,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
             raise _Unsupported("an object beside a square-wrapped object")
         controls = _controls_beside(objects[0], runs, widths[0])
         if controls is not None:  # a table too wide for the line beside controls: spaced from its own run's
-            size = measure.char_height(controls[0].get("charPrIDRef"))  # characters
+            size = max(measure.char_height(run.get("charPrIDRef"))  # characters, or those of the runs holding the
+                       for run in (controls[0], *controls[1]))  # controls before it on its line when larger
             pitch = _pitch(shape.kind, shape.value, size)
         elif objects[0].find(f"{HP}pos").get("treatAsChar") == "1":  # spaced from the largest character size
             size = max(measure.char_height(run.get("charPrIDRef")) for run in runs)  # of any of its runs
@@ -4736,7 +4737,9 @@ class _Paginator:
         while fitting < count:
             note_height, notes, head = para.notes.get(first + fitting, (0, 0, 0))
             bottom = start + para.span(first, fitting) + para.height(first + fitting)
-            if bottom < self.body - self.notes.area(height + note_height, many + notes):
+            limit = self.body - self.notes.area(height + note_height, many + notes)
+            if bottom < limit or para.moves and para.own and start + para.own < limit and bottom == limit:
+                # (an object alone in an empty paragraph may end at the foot, its own line not)
                 height, many, fitting = height + note_height, many + notes, fitting + 1
                 continue
             if notes and bottom < self.body - self.notes.area(height + head, many + notes):
