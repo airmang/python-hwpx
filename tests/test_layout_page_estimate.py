@@ -1021,6 +1021,9 @@ HANCOM_PAGES = {
     # 10 pt and 11 pt text (one line or two), each ended by a run without characters at 9, 11, 12 or 15 pt (or by
     # none): as in the body, the run ending a paragraph makes its last line as tall as itself when it is larger
     "pages_cell_objects_ending_in_an_empty_larger_run": 7,
+    # The same with the cell's first paragraph spaced 0 before and the others 600: the part on the next page starts
+    # below the spacing before of the paragraph it starts with, though the cell's first paragraph has none
+    "pages_nested_cell_split_with_its_first_paragraph_unspaced": 27,
     # Empty paragraphs whose shape takes the line height from the font (fontLineHeight), in 맑은 고딕, 함초롬바탕,
     # 바탕, 굴림 and HY헤드라인M at 11 and 20 pt, alone, after a line of 바탕 text and with a connected border: an
     # empty line keeps the character size (맑은 고딕 11 pt 1100, not the 1464 a line of its characters takes)
@@ -1094,6 +1097,9 @@ HANCOM_PAGES = {
     # tall as the table fills its cell, or 300 taller: the row splits by the cell its text fills most, the part going
     # on as tall as its lines left or as what it declares below the page end, whichever is taller
     "pages_table_rows_split_by_the_cell_their_text_fills_most": 32,
+    # The same with the 60 paragraphs all at 10 pt, each spaced 200 before: the part of that cell going on to the
+    # next page starts below its first paragraph's spacing before, as at the cell's top
+    "pages_merged_rows_with_cells_spaced_before_split": 20,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
