@@ -1017,6 +1017,10 @@ HANCOM_PAGES = {
     # with 600 of spacing before and a small table set as a character in the fourth: going on over the page end,
     # the part on the next page starts below its first paragraph's spacing before, as in a cell without a table
     "pages_nested_cell_split_spacing_before": 27,
+    # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
+    # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
+    # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
+    "pages_footnotes_in_table_cells": 28,
     # The same with the cell's first paragraph spaced 0 before and the others 600: the part on the next page starts
     # below the spacing before of the paragraph it starts with, though the cell's first paragraph has none
     "pages_nested_cell_split_with_its_first_paragraph_unspaced": 27,
@@ -2807,3 +2811,21 @@ def test_a_split_merged_cell_keeps_its_first_lead_when_no_line_was_consumed() ->
     assert continued[0][2].lines == 1
     assert continued[0][2].first == 1200
     assert page_layout._flow_table(table, 0, 4000, 5000) == (1, 1200)
+
+
+@pytest.mark.parametrize("characters_before", [1, 35])
+def test_a_note_in_a_table_among_text_is_left_for_hancom(characters_before: int) -> None:
+    # Reuse Hancom's table-note fixture at a page boundary. The object can wrap after its preceding text, so
+    # text-only line starts cannot locate its note. Refuse this combination until anchoring follows the object.
+    document = HwpxDocument.open(_without_caches((FIXTURES / "pages_footnotes_in_table_cells.hwpx").read_bytes()))
+    root = document.oxml
+    paragraph = next(paragraph for paragraph in root.sections[0].element.findall(f"{HP}p")
+                     if any(table.find(f"{HP}pos").get("treatAsChar") == "1"
+                            and table.find(f".//{HP}footNote") is not None for table in paragraph.iter(f"{HP}tbl")))
+    run = etree.Element(f"{HP}run", charPrIDRef="0")
+    etree.SubElement(run, f"{HP}t").text = "가" * characters_before
+    paragraph.insert(0, run)
+    page = page_layout._Page(1600, 42520, 1)
+
+    with pytest.raises(page_layout._Unsupported, match="footnotes in a paragraph with objects among its text"):
+        page_layout._paragraph(page_layout._Measure(root), page, paragraph)

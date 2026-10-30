@@ -3152,8 +3152,9 @@ def _object_line(
     raise _Unsupported(f"{name} placed {obj.get('textWrap')} relative to {pos.get('vertRelTo')}")
 
 
-def _note_anchors(runs: list[Any]) -> list[tuple[int, Any]]:
-    """(text offset, hp:footNote) of each footnote in the runs."""
+def _note_anchors(runs: list[Any], in_tables: bool = False) -> list[tuple[int, Any]]:
+    """(text offset, hp:footNote) of each footnote in the runs; *in_tables*: with those in the cells of the tables
+    the runs hold, at the table's place."""
 
     offset, anchors = 0, []
     for run in runs:
@@ -3163,13 +3164,15 @@ def _note_anchors(runs: list[Any]) -> list[tuple[int, Any]]:
                 offset += len(_t_text(child))
             elif name == "ctrl" and child.find(f"{HP}footNote") is not None:
                 anchors.append((offset, child.find(f"{HP}footNote")))
+            elif in_tables and name == "tbl":
+                anchors += [(offset, note) for note in child.iter(f"{HP}footNote")]
     return anchors
 
 
 def _anchored_notes(measure: _Measure, runs: list[Any], text: str, widths: list[float], size: int, style: Any,
                     width: int, sizes: list[int] | None = None,
                     styles: list[Any] | None = None) -> dict[int, tuple[int, int, int]]:
-    anchors = _note_anchors(runs)
+    anchors = _note_anchors(runs, in_tables=True)  # Hancom sets a table's notes at the foot as its paragraph's
     if not anchors:
         return {}
     starts = measure.line_starts(text, widths, size, style, sizes, styles)
@@ -3299,7 +3302,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                                                    cached, count, anchor_line)
     around = 0 if square is None or not text else _anchor_line(measure, paragraph, runs, text, square, widths,
                                                                 size, style, cached, count)
-    if among and _note_anchors(runs):
+    if among and _note_anchors(runs, in_tables=True):
         raise _Unsupported("footnotes in a paragraph with objects among its text")
     notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None,
                             looks)
@@ -4461,6 +4464,8 @@ class _Paginator:
         else:  # the next paragraph goes below the anchor line or the table, whichever is lower
             self.last_vp, self.last_pitch, self.pending_next = start, para.advance(0), para.next
             self.floor = end + table.below
+            for height, many, _ in para.notes.values():  # the notes in its cells take room at the page's foot
+                self.page_notes = [self.page_notes[0] + height, self.page_notes[1] + many]
 
     def _flow_below_band(self, para: _Para, table: _FlowTable, top: int) -> None:
         """A band of an object placed on the paper pushed the table's anchor line down to *top*: the table
