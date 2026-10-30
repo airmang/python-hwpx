@@ -1017,6 +1017,10 @@ HANCOM_PAGES = {
     # with 600 of spacing before and a small table set as a character in the fourth: going on over the page end,
     # the part on the next page starts below its first paragraph's spacing before, as in a cell without a table
     "pages_nested_cell_split_spacing_before": 27,
+    # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
+    # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
+    # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
+    "pages_footnotes_in_table_cells": 28,
     # Empty paragraphs whose shape takes the line height from the font (fontLineHeight), in 맑은 고딕, 함초롬바탕,
     # 바탕, 굴림 and HY헤드라인M at 11 and 20 pt, alone, after a line of 바탕 text and with a connected border: an
     # empty line keeps the character size (맑은 고딕 11 pt 1100, not the 1464 a line of its characters takes)
