@@ -23,8 +23,8 @@ Design notes (matches Hancom EqEdit grouping semantics):
   they are.  ``bold`` makes only the next atom bold (italic bold, or upright
   bold after ``rm``), and a ``rm``/``it`` right after it uses it up.  Letter runs
   read as ``\\mathrm``/``\\mathbf``/``\\boldsymbol`` so a switch never comes
-  back as a word that re-authoring would draw as letters.  A switch glued to
-  the letters after it (``rmA``) stays one identifier, as before.
+  back as a word that re-authoring would draw as letters. A switch at the start
+  of a word also applies without a space (``rmA``), as observed in Hancom.
 
 Untrusted input is bounded by :data:`MAX_SOURCE_LENGTH` and
 :data:`MAX_GROUP_DEPTH`; exceeding either raises :class:`EquationConversionError`
@@ -53,7 +53,8 @@ MAX_GROUP_DEPTH = 64
 # Words EqEdit reads as symbols, structure or font switches. The writer quotes a bare identifier that collides
 # with one (``T_{int}`` → ``T _{"int"}``, ``e^{it}`` → ``e ^{"it"}``: a lone ``it`` in a superscript switches to
 # italic and draws nothing); the reader turns such a quoted word back into plain letters.
-_FONT_SWITCHES = frozenset({"rm", "it", "bold", "RM", "IT", "BOLD"})
+_FONT_PREFIXES = ("bold", "Bold", "BOLD", "rm", "Rm", "RM", "it", "It", "IT")
+_FONT_SWITCHES = frozenset(_FONT_PREFIXES)
 # Tokens that end the current atom: a font switch right before one switches and draws nothing.
 _ATOM_END = frozenset({"}", "&", "#", "RIGHT", "^", "_", "over", "atop", "choose"})
 _RESERVED_WORDS = (
@@ -104,6 +105,11 @@ def _lex_run(source: str, i: int, tokens: list[str], predicate: Any) -> int:
     return j
 
 
+def _needs_literal_quotes(word: str) -> bool:
+    """Keep identifiers distinct from observed EqEdit words and font prefixes."""
+    return word.isalpha() and (word in _RESERVED_WORDS or word.startswith(_FONT_PREFIXES))
+
+
 def _tokenize(source: str) -> list[str]:
     tokens: list[str] = []
     i = 0
@@ -122,7 +128,13 @@ def _tokenize(source: str) -> list[str]:
         elif ch.isdigit() or ch == ".":
             i = _lex_run(source, i, tokens, lambda c: c.isdigit() or c == ".")
         elif ch.isalpha():
-            i = _lex_run(source, i, tokens, str.isalpha)
+            for switch in _FONT_PREFIXES:
+                if source.startswith(switch, i):
+                    tokens.append(switch)
+                    i += len(switch)
+                    break
+            else:
+                i = _lex_run(source, i, tokens, str.isalpha)
         else:
             # Any other single character (operators like + - = < > , ! ; :).
             tokens.append(ch)
@@ -413,7 +425,7 @@ class _Parser:
             return r"\{" if token == "LBRACE" else r"\}"
         if token.startswith('"') and token.endswith('"') and len(token) >= 2:
             literal = token[1:-1]
-            if literal.isalpha() and literal in _RESERVED_WORDS:
+            if _needs_literal_quotes(literal):
                 # A quoted reserved word is an identifier kept from turning into a symbol; Hancom draws it in
                 # italic, as LaTeX draws plain letters. Upright text is the ``{rm "..." it}`` group.
                 return self._styled(literal)

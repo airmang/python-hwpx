@@ -31,7 +31,23 @@ every other part keeps the bytes Hangul wrote.
 `version.xml`). Each keeps the section's first paragraph and one equation paragraph byte for byte; the
 preview image was left out and the author and dates emptied (#351).
 
+The three font-command matrices (`equation_attached_font_commands.hwpx`,
+`equation_font_command_boundaries.hwpx`, `equation_font_command_case.hwpx`) retain
+their complete synthetic sections: 76, 27 and 48 equations respectively. They
+were opened, displayed and saved in Mac Hangul12.30.0 build6446 on2026-10-30
+(#591). Only the preview image and the metadata listed above were removed;
+all equation scripts, geometry and section bytes are untouched. Input, raw-save,
+sanitized-fixture and section hashes are in
+`tests/data/equation_font_boundary_provenance.json`.
+
 ## Adding a file
+
+`formfit_hft_ascii_myeongjo_grid.hwpx` and `formfit_hft_ascii_gothic_grid.hwpx`
+contain 480 paragraphs each in the named face (94 printable ASCII glyphs and
+26 Hangul syllables at 9,10,11,12pt). Tests assert the resolved face as well as
+the saved tab positions. The initial PR filenames were swapped; the corrected
+names and metadata-only redaction are linked to the original section hashes in
+`tests/data/formfit_hft_ascii_provenance.json` (#623).
 
 For any new Hancom-saved file, remove the information listed above before
 committing it, and say in the test what behaviour of Hangul the file shows.
