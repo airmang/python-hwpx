@@ -132,7 +132,12 @@ def test_row_parts_share_the_stored_height_evenly(base: str, row: int, col: int,
 
     parts = [cell for line in _shapes(data) for cell in line if cell[1] == col and cell[0] >= row][:rows]
     assert [cell[5] for cell in parts] == expected
-    assert _table(data).find(HP + "sz").get("height") == _table(_saved(base)).find(HP + "sz").get("height")
+    # Stored cell heights divide evenly; the whole table follows the rows' actual laid-out height.
+    from hwpx import HwpxDocument
+
+    document = HwpxDocument.open(_saved(base))
+    document.tables.all[0].split_cell(row, col, rows=rows)
+    assert int(_table(data).find(HP + "sz").get("height")) == document.tables.all[0].height
 
 
 def test_cell_zones_keep_the_area_they_cover() -> None:
