@@ -1024,6 +1024,10 @@ HANCOM_PAGES = {
     # 6 × 5 tables like those of a document whose fifth row only cells merged over rows cover, solved 1 to 150
     # tall, set to adjust their cells or not (hp:tbl@noAdjust): only the ones set to adjust make it 100 tall
     "pages_merged_rows_at_least_100_tall_unless_not_adjusted": 2,
+    # Paragraph shapes whose line spacing hp:case gives in characters (unit CHAR): fixed, at least and between lines
+    # of 240 to 500, each over a paragraph of three lines and an empty one. Hancom reads the value as a margin in
+    # that unit is read, two-hundredths of 바탕글's character size: 320 is a line 1600 tall at 10 pt
+    "pages_line_spacing_in_char_units": 2,
     # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
     # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
     # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
