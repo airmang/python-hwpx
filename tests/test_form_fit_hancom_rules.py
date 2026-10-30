@@ -418,6 +418,25 @@ def test_kopub_accented_and_other_glyphs_take_the_advances_hancom_lays_them_out_
     assert len(paragraphs) == 12 * 2 * 20
 
 
+@pytest.mark.parametrize("name", ["myeongjo", "gothic"])
+def test_hft_faces_lay_ascii_out_at_half_an_em(name: str) -> None:
+    # Hancom laid out three of each printable ASCII glyph and of 26 Hangul syllables, then a tab, in its own 명조
+    # and 고딕 at 9 to 12 pt: the ASCII glyphs half an em as 바탕체's (113 layout units at 9 pt, where 한컴바탕,
+    # which these faces took before, has their own widths), the syllables an em.
+    fixture = Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_hft_ascii_{name}_grid.hwpx"
+    document = HwpxDocument.open(fixture)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size)
+    assert len(paragraphs) == 120 * 4
+
+
 def test_kopub_supplementary_glyphs_are_single_code_points_without_duplicate_entries() -> None:
     from collections import Counter
     from hwpx.form_fit._glyph_table import ADVANCES
