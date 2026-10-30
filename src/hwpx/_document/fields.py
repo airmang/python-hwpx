@@ -440,6 +440,14 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
 
 
 def _iter_field_matches(doc: "HwpxDocument", accept: Any) -> list[dict[str, Any]]:
+    return _field_matches_in(doc, accept, _iter_content_paragraphs(doc))
+
+
+def _field_matches_in(
+    doc: "HwpxDocument",
+    accept: Any,
+    paragraphs: Iterator[tuple[int, int, int, Any, HwpxOxmlParagraph, list[Any]]],
+) -> list[dict[str, Any]]:
     """The fields whose ``<hp:fieldBegin>`` *accept(ctrl, field_begin)* takes, in
     document order, with their text up to the matching ``<hp:fieldEnd>``."""
 
@@ -451,7 +459,7 @@ def _iter_field_matches(doc: "HwpxDocument", accept: Any) -> list[dict[str, Any]
         paragraph_element,
         paragraph,
         runs,
-    ) in _iter_content_paragraphs(doc):
+    ) in paragraphs:
         for run_index, run in enumerate(runs):
             children = list(run)
             for child_index, child in enumerate(children):
@@ -524,6 +532,22 @@ def _iter_field_matches(doc: "HwpxDocument", accept: Any) -> list[dict[str, Any]
                     payload["_span"] = span
                     matches.append(payload)
     return matches
+
+
+def _refresh_form_field_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> dict[str, Any]:
+    """Re-read the selected field after filling it, without rebuilding unrelated payloads.
+
+    Filling can remove nested fields or following paragraphs, but retains the selected begin and everything
+    before it. Its paragraph location and field index therefore stay valid. Read its runs and matching end
+    afresh: inserting text or collapsing a span can change their indices and the result's style snapshot.
+    """
+
+    paragraph = match["_paragraph"]
+    source = (match["section_index"], match["paragraph_index"], match["paragraph_index_in_section"],
+              paragraph.element, paragraph, [child for child in paragraph.element if _local_name(child) == "run"])
+    refreshed = _field_matches_in(doc, lambda ctrl, begin: begin is match["_field_begin"], iter((source,)))[0]
+    refreshed["index"] = match["index"]
+    return refreshed
 
 
 def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> FormField:
@@ -1230,7 +1254,7 @@ def fill_form_field(
 
     _clear_form_field_layout_cache(paragraph.element)
     paragraph.section.mark_dirty()
-    updated = _iter_form_field_matches(doc)[int(match["index"])]
+    updated = _refresh_form_field_match(doc, match)
     after_style = _field_run_style_snapshot(
         doc,
         updated["_runs"],
