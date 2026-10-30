@@ -1549,14 +1549,16 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
         if nested or several else ()
     if nested and not (drawn or wrapped or pieces):
         reaches = _pushed_reaches(measure, paragraphs, inner, metrics)
+    # its paragraphs, a table's among them, spaced apart (lines drawn as Hancom did hold their spacing already)
+    spaced = several or nested and len(paragraphs) > 1 and not drawn
     leads = wrapped_leads if wrapped else _line_leads(measure, paragraphs, inner, pieces) \
-        if several or before or pieces else ()
+        if spaced or before or pieces else ()
     if pieces and metrics:  # as tall as its lines and its tables' pieces: the caches of a cell Hancom split over a
         content = max(content, _lines_height(metrics, leads))  # page end hold its parts, each from the top
         height = max(height, vertical + content)
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
-                first=first, leads=leads if several or before or pieces else (), pieces=pieces, reaches=reaches,
+                first=first, leads=leads if spaced or before or pieces else (), pieces=pieces, reaches=reaches,
                 cuts=_line_cuts(measure, paragraphs, inner) if pieces else (),
                 blocks=_line_blocks(measure, paragraphs, inner) if pieces else ())
 
@@ -3993,12 +3995,15 @@ def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
     cell lists them (a line of a larger character size among others), else the cell's."""
 
     lines = cell.metrics if _lists_lines(cell) else ((cell.size, cell.pitch),) * cell.lines
-    fitting, y = 0, top + cell.margins
+    # the room above each listed line when a part of the cell starts with it: a paragraph's spacing before
+    leads = cell.leads if _lists_lines(cell) and len(cell.leads) == cell.lines else ()
+    fitting, y = 0, top + cell.margins + (leads[0] if leads else 0)
     while fitting < cell.lines and y + lines[fitting][0] <= foot:
         y += lines[fitting][1]
         fitting += 1
     left = lines[fitting:]
-    height = cell.margins + sum(advance for _, advance in left[:-1]) + left[-1][0] if left else 0
+    height = cell.margins + (leads[fitting] if leads and left else 0) \
+        + sum(advance for _, advance in left[:-1]) + left[-1][0] if left else 0
     if cell.spare and (fitting or not cell.lines):  # its text (or what is left: none) starts above the page end:
         # the declared room is cut like a row's, and the lines that do not fit go on with it, which is then
         # at least as tall as they are with the cell's margins
