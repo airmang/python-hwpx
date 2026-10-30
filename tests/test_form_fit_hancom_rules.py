@@ -108,6 +108,7 @@ SINMYEONG_GYEONGOTHIC_HANYANG_GRAPHIC_CELLS = (
 
 KOPUB_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kopub_faces_cells.hwpx"
 KOPUB_BORROWED_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kopub_borrowed_glyphs_grid.hwpx"
+KOPUB_LACKING_GRID = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kopub_lacking_glyphs_grid.hwpx"
 HFT_FACES_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_cells.hwpx"
 HFT_STD_GLYPH_CELLS = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_hft_faces_std_glyph_cells.hwpx"
 DODUM_PUNCTUATION = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_dodum_punctuation_cells.hwpx"
@@ -394,6 +395,39 @@ def test_kopub_cells_break_where_hancom_breaks_them() -> None:
     assert faces == {f"{family}체 {weight}": 36 if weight == "Light" else 18
                      for family in ("KoPub돋움", "KoPub바탕", "KoPubWorld돋움", "KoPubWorld바탕")
                      for weight in ("Light", "Medium", "Bold")}
+
+
+def test_kopub_accented_and_other_glyphs_take_the_advances_hancom_lays_them_out_at() -> None:
+    # The same for glyphs KoPub documents use that the table lacked: accented Latin letters (à, é, ā, ǎ, ạ, ế),
+    # ․, 〇, ｢, ｣, ･, ▪, ✔, Ⅺ, ➜ and 々, three then a tab in each of the twelve faces at 10 and 12 pt. Ⅺ, which
+    # measure._GLYPHS lists as lacking in these faces, takes the glyph table's advance.
+    document = HwpxDocument.open(KOPUB_LACKING_GRID)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, text[0], size)
+    assert len(paragraphs) == 12 * 2 * 20
+
+
+def test_kopub_supplementary_glyphs_are_single_code_points_without_duplicate_entries() -> None:
+    from collections import Counter
+    from hwpx.form_fit._glyph_table import ADVANCES
+
+    faces = [face for face in ADVANCES if face.startswith("KoPub")]
+    assert len(faces) == 12
+    for face in faces:
+        style = TextStyle(glyph_face=face)
+        for code in (0xF003B, 0xF02EB, 0xF02EF, 0xF0850, 0xF0851):
+            assert char_advance(chr(code), 10, style) == 1000, (face, hex(code))
+        for code in (0xF0800, 0xF0854, 0xF0855):
+            assert char_advance(chr(code), 10, style) == 500, (face, hex(code))
+        counts = Counter("".join(ADVANCES[face].values()))
+        assert not {ch: n for ch, n in counts.items() if n > 1}, face
 
 
 def test_kopub_glyphs_the_fonts_lack_take_the_advances_hancom_lays_them_out_at() -> None:
