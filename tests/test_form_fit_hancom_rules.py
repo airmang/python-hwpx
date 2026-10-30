@@ -413,6 +413,22 @@ def test_kopub_accented_and_other_glyphs_take_the_advances_hancom_lays_them_out_
     assert len(paragraphs) == 12 * 2 * 20
 
 
+def test_kopub_supplementary_glyphs_are_single_code_points_without_duplicate_entries() -> None:
+    from collections import Counter
+    from hwpx.form_fit._glyph_table import ADVANCES
+
+    faces = [face for face in ADVANCES if face.startswith("KoPub")]
+    assert len(faces) == 12
+    for face in faces:
+        style = TextStyle(glyph_face=face)
+        for code in (0xF003B, 0xF02EB, 0xF02EF, 0xF0850, 0xF0851):
+            assert char_advance(chr(code), 10, style) == 1000, (face, hex(code))
+        for code in (0xF0800, 0xF0854, 0xF0855):
+            assert char_advance(chr(code), 10, style) == 500, (face, hex(code))
+        counts = Counter("".join(ADVANCES[face].values()))
+        assert not {ch: n for ch, n in counts.items() if n > 1}, face
+
+
 def test_kopub_glyphs_the_fonts_lack_take_the_advances_hancom_lays_them_out_at() -> None:
     # Hancom laid out three glyphs then a tab in each of the twelve KoPub faces, installed, at 10 and 12 pt and at
     # 12 pt under 자간 −16: glyphs the fonts lack (∙ ∘ ⋅ ・ ‐), archaic jamo (ㆍ ㅥ), kana, Greek and Cyrillic, which
