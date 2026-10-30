@@ -1040,8 +1040,9 @@ class _Measure:
         _check_ruby_spacing(runs, shape)
         text, sizes, looks, placed, marked = _inline_content(self, paragraph, runs)
         style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"], paragraph)
+        end = _end_size(self, runs, _text_size(self, runs)[2])  # an empty run ending it, as in the body
         return _line_metrics(self, text, _line_widths(shape, width, style), sizes, style, shape, placed,
-                             looks if len(set(looks)) > 1 else None, marked)
+                             looks if len(set(looks)) > 1 else None, marked, end)
 
 
 @dataclass(frozen=True)
