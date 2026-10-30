@@ -1536,7 +1536,8 @@ def _glyph_units(face: str, ch: str) -> tuple[int, int] | None:
     units."""
 
     laid = _laid_out_face(face)
-    if laid != _UNLISTED_FACE or face == laid or glyph_script(ch) == "latin":
+    # Hancom keeps GETA MARK at the full-em advance of Hancom Batang.
+    if laid != _UNLISTED_FACE or face == laid or glyph_script(ch) == "latin" or ch == "〓":
         return _design_units(laid, ch)
     other = _design_units(_UNLISTED_GLYPH_FACE, ch)
     if other is None:

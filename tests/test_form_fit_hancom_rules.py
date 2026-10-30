@@ -463,6 +463,15 @@ def test_greek_and_cyrillic_in_a_face_no_table_lists_take_hamchorom_batangs_adva
         assert (char_advance(ch, 10, style), char_advance(ch, 12, style)) == (at_10, at_12), ch
 
 
+def test_geta_mark_keeps_a_full_em_in_an_unlisted_face() -> None:
+    # The exception recorded in the Hancom observation for the unlisted-face grid:
+    # U+3013 retains the full-em advance, rather than borrowing Hamchorom Batang's.
+    style = TextStyle(hangul_face="없는글꼴이름", glyph_face="없는글꼴이름")
+    assert char_advance("〓", 10, style) == 1000
+    assert char_advance("〓", 12, style) == 1200
+    assert estimate_lines("〓" * 10, 9800, 10, style) == 2
+
+
 def test_faces_in_hancoms_own_folder_take_the_design_advances_of_their_fonts() -> None:
     # The faces 한/글 keeps in its own folder are measured from their fonts too: a Hangul syllable takes 900 of
     # 1000 units in 한컴 윤고딕 230, 850 in 한컴 백제 M, the full em in 휴먼고딕 (512 units) and HY울릉도M (1024)
