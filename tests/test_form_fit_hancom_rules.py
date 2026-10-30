@@ -438,6 +438,28 @@ def test_hft_faces_lay_ascii_out_at_half_an_em(name: str, expected_face: str) ->
     assert len(paragraphs) == 120 * 4
 
 
+@pytest.mark.parametrize(
+    "name,expected_face", [("malgun", "맑은 고딕"), ("hamchorom_dotum", "함초롬돋움"), ("human_myeongjo", "휴먼명조")]
+)
+def test_private_use_symbols_take_the_advances_hancom_lays_them_out_at(name: str, expected_face: str) -> None:
+    # Hancom laid out three of each private-use glyph U+F090-F0FF (the Symbol and Wingdings bullets Word documents
+    # carry, U+F0A7 the commonest), then a tab, in 맑은 고딕, 함초롬돋움 and 휴먼명조 at 10 and 12 pt: each takes an
+    # advance of its own, most 0.89 em, set in the face's own units (휴먼명조 its own for some).
+    fixture = Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_private_use_symbols_{name}.hwpx"
+    document = HwpxDocument.open(fixture)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        assert style.glyph_face == expected_face
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, hex(ord(text[0])), size)
+    assert len(paragraphs) == 112 * 2
+
+
 def test_kopub_supplementary_glyphs_are_single_code_points_without_duplicate_entries() -> None:
     from collections import Counter
     from hwpx.form_fit._glyph_table import ADVANCES
