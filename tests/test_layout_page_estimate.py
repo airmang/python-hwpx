@@ -1017,6 +1017,14 @@ HANCOM_PAGES = {
     # with 600 of spacing before and a small table set as a character in the fourth: going on over the page end,
     # the part on the next page starts below its first paragraph's spacing before, as in a cell without a table
     "pages_nested_cell_split_spacing_before": 27,
+    # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
+    # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
+    # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
+    "pages_footnotes_in_table_cells": 28,
+    # Seven times on a page of its own: a table whose cell holds four paragraphs of a picture set as a character,
+    # 10 pt and 11 pt text (one line or two), each ended by a run without characters at 9, 11, 12 or 15 pt (or by
+    # none): as in the body, the run ending a paragraph makes its last line as tall as itself when it is larger
+    "pages_cell_objects_ending_in_an_empty_larger_run": 7,
     # The same with the cell's first paragraph spaced 0 before and the others 600: the part on the next page starts
     # below the spacing before of the paragraph it starts with, though the cell's first paragraph has none
     "pages_nested_cell_split_with_its_first_paragraph_unspaced": 27,
@@ -1096,6 +1104,10 @@ HANCOM_PAGES = {
     # The same with the 60 paragraphs all at 10 pt, each spaced 200 before: the part of that cell going on to the
     # next page starts below its first paragraph's spacing before, as at the cell's top
     "pages_merged_rows_with_cells_spaced_before_split": 20,
+    # Twenty-seven times, the page end 1118 to 1518 below a block of five rows joined by a merged cell holding one
+    # line, its paragraph spaced 0 or 200 before (top or centred), in a table split between cell lines: the line
+    # fits above the page end only with its spacing before; when it does not, the merged cell goes on whole
+    "pages_merged_rows_split_by_a_cell_spaced_before": 54,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
@@ -2779,3 +2791,74 @@ def test_a_paragraph_its_shape_squeezes_takes_one_line() -> None:
     data = (FIXTURES / "line_cache_squeezed.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 3)
+
+
+def test_a_split_merged_cell_drops_its_first_paragraph_lead_after_consuming_a_line() -> None:
+    # One fixed-pitch paragraph over seven pages: only its first part is spaced 200 before.
+    cell = page_layout._Row(30200, 30, 1000, 1000, 0, False, first=1200)
+    rows = [page_layout._Row(15100, 0, 1000, 1000, 0, False, joined=True),
+            page_layout._Row(15100, 0, 1000, 1000, 0, False, merged=True)]
+    table = page_layout._FlowTable(rows, "CELL", False, (0, 0), cells=((0, 2, cell),), cut=0)
+
+    assert page_layout._flow_table(table, 0, 0, 5000) == (6, 1000)
+
+
+def test_a_split_merged_cell_keeps_its_first_lead_when_no_line_was_consumed() -> None:
+    cell = page_layout._Row(1200, 1, 1000, 1000, 0, False, first=1200)
+    rows = [page_layout._Row(600, 0, 1000, 1000, 0, False, joined=True),
+            page_layout._Row(600, 0, 1000, 1000, 0, False, merged=True)]
+    table = page_layout._FlowTable(rows, "CELL", False, (0, 0), cells=((0, 2, cell),), cut=0)
+
+    _, _, continued = page_layout._block_rest(table, 0, 1, 4000, 5000)
+
+    assert len(continued) == 1
+    assert continued[0][2].lines == 1
+    assert continued[0][2].first == 1200
+    assert page_layout._flow_table(table, 0, 4000, 5000) == (1, 1200)
+
+
+@pytest.mark.parametrize("characters_before", [1, 35])
+def test_a_note_in_a_table_among_text_is_left_for_hancom(characters_before: int) -> None:
+    # Reuse Hancom's table-note fixture at a page boundary. The object can wrap after its preceding text, so
+    # text-only line starts cannot locate its note. Refuse this combination until anchoring follows the object.
+    document = HwpxDocument.open(_without_caches((FIXTURES / "pages_footnotes_in_table_cells.hwpx").read_bytes()))
+    root = document.oxml
+    paragraph = next(paragraph for paragraph in root.sections[0].element.findall(f"{HP}p")
+                     if any(table.find(f"{HP}pos").get("treatAsChar") == "1"
+                            and table.find(f".//{HP}footNote") is not None for table in paragraph.iter(f"{HP}tbl")))
+    run = etree.Element(f"{HP}run", charPrIDRef="0")
+    etree.SubElement(run, f"{HP}t").text = "가" * characters_before
+    paragraph.insert(0, run)
+    page = page_layout._Page(1600, 42520, 1)
+
+    with pytest.raises(page_layout._Unsupported, match="footnotes in a paragraph with objects among its text"):
+        page_layout._paragraph(page_layout._Measure(root), page, paragraph)
+
+
+def test_a_flowing_table_reaching_its_footnotes_is_left_for_hancom() -> None:
+    # Move Hancom's 2564-high flowing table near the page foot: its 2351-high note area starts at 10213,
+    # while the table would end at 12364. Counting the notes only after placing the table must not leave a
+    # supposedly supported layout where the table and its footnotes overlap.
+    from dataclasses import replace
+
+    document = HwpxDocument.open(_without_caches((FIXTURES / "pages_footnotes_in_table_cells.hwpx").read_bytes()))
+    root = document.oxml
+    element = next(paragraph for paragraph in root.sections[0].element.findall(f"{HP}p")
+                   if any(table.find(f"{HP}pos").get("treatAsChar") == "0"
+                          and table.find(f".//{HP}footNote") is not None for table in paragraph.iter(f"{HP}tbl")))
+    para = page_layout._paragraph(page_layout._Measure(root), page_layout._Page(12564, 42520, 1), element)
+    assert para.table is not None and para.notes
+    shape = page_layout._note_shape(root.sections[0].element)
+    paginator = page_layout._Paginator(12564, 1, shape)
+
+    with pytest.raises(page_layout._Unsupported, match="flowing table overlapping its footnotes"):
+        paginator._flow(para, para.table, 9800)
+
+    # The same table without notes still fits. The unchanged fixture at the page top also remains supported.
+    unnoted = replace(para, notes={})
+    without_notes = page_layout._Paginator(12564, 1, shape)
+    without_notes._flow(unnoted, unnoted.table, 9800)
+    assert without_notes.frame == 0 and without_notes.floor == 12364
+    at_top = page_layout._Paginator(12564, 1, shape)
+    at_top._flow(para, para.table, 0)
+    assert at_top.frame == 0 and at_top.floor < 12564 - shape.area(*at_top.page_notes)

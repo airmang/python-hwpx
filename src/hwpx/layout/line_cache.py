@@ -67,7 +67,7 @@ from ..form_fit.measure import (
     _GLYPHS,
     _HALF_EM_GLYPHS,
     _HALF_EM_SPACES,
-    _design_units,
+    _glyph_units,
     _hancom_break_opportunities,
     _hangul_units,
     _laid_out_face,
@@ -558,7 +558,7 @@ def _sure_of(text: str, starts: list[int], style: Any, looks: list[Any] | None =
             if _hangul_units(_laid_out_face(look.hangul_face), ch) is None:
                 return False
         elif (ch not in _SURE_GLYPHS or glyph_face_of(ch, look) not in _SURE_GLYPH_FACES
-              or _design_units(_laid_out_face(glyph_face_of(ch, look)), ch) is None):
+              or _glyph_units(glyph_face_of(ch, look), ch) is None):
             return False  # each glyph in its own script's face (see glyph_face_of)
     breaks = _hancom_break_opportunities(text, style)
     return all(start in breaks or text[start - 1] == "\n" for start in starts[1:])

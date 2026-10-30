@@ -202,8 +202,8 @@ from typing import TYPE_CHECKING, Any
 
 from lxml import etree
 
-from ..form_fit.measure import (_DEFAULT_TAB_STOP, _GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts,
-                                in_char_units, indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
+from ..form_fit.measure import (_DEFAULT_TAB_STOP, _GLYPH_SPACE, _TYPED_NO_BREAK_SPACE, char_advance,
+                                font_line_height, hancom_line_starts, in_char_units, indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -470,7 +470,8 @@ def _on(flags: dict[str, str], name: str) -> bool:
 def _t_text(text_element: Any) -> str:
     """The text of one ``hp:t``, with ``hp:lineBreak`` as a newline, ``hp:tab`` as a tab, ``hp:nbSpace`` as a
     no-break space (U+00A0) and ``hp:fwSpace`` as a fixed-width one (U+3000), as python-hwpx reads them; an
-    ideographic space typed in the text is FormFit's ``_GLYPH_SPACE``, so it is not taken for a fixed-width one.
+    ideographic space typed in the text is FormFit's ``_GLYPH_SPACE``, so it is not taken for a fixed-width one, and
+    a no-break space typed in it ``_TYPED_NO_BREAK_SPACE``, which Hancom lays out at the font's own width.
     A table-of-contents mark (``hp:titleMark``) is a character of no width (U+200D): Hancom lays its line out as
     tall as the mark's run and spaces it from that size."""
 
@@ -480,8 +481,8 @@ def _t_text(text_element: Any) -> str:
         parts.append({"lineBreak": "\n", "tab": "\t", "nbSpace": "\u00a0", "fwSpace": "\u3000",
                       "titleMark": "\u200d"}.get(name, ""))
         parts.append(child.tail or "")
-    return "".join(part.replace("\u3000", _GLYPH_SPACE) if index % 2 == 0 else part
-                   for index, part in enumerate(parts))
+    return "".join(part.replace("\u3000", _GLYPH_SPACE).replace("\u00a0", _TYPED_NO_BREAK_SPACE) if index % 2 == 0
+                   else part for index, part in enumerate(parts))
 
 
 def _indented(line: float, shape: _Shape, style: Any) -> list[float]:
@@ -1040,8 +1041,9 @@ class _Measure:
         _check_ruby_spacing(runs, shape)
         text, sizes, looks, placed, marked = _inline_content(self, paragraph, runs)
         style = self.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"], paragraph)
+        end = _end_size(self, runs, _text_size(self, runs)[2])  # an empty run ending it, as in the body
         return _line_metrics(self, text, _line_widths(shape, width, style), sizes, style, shape, placed,
-                             looks if len(set(looks)) > 1 else None, marked)
+                             looks if len(set(looks)) > 1 else None, marked, end)
 
 
 @dataclass(frozen=True)
@@ -3151,8 +3153,9 @@ def _object_line(
     raise _Unsupported(f"{name} placed {obj.get('textWrap')} relative to {pos.get('vertRelTo')}")
 
 
-def _note_anchors(runs: list[Any]) -> list[tuple[int, Any]]:
-    """(text offset, hp:footNote) of each footnote in the runs."""
+def _note_anchors(runs: list[Any], in_tables: bool = False) -> list[tuple[int, Any]]:
+    """(text offset, hp:footNote) of each footnote in the runs; *in_tables*: with those in the cells of the tables
+    the runs hold, at the table's place."""
 
     offset, anchors = 0, []
     for run in runs:
@@ -3162,13 +3165,15 @@ def _note_anchors(runs: list[Any]) -> list[tuple[int, Any]]:
                 offset += len(_t_text(child))
             elif name == "ctrl" and child.find(f"{HP}footNote") is not None:
                 anchors.append((offset, child.find(f"{HP}footNote")))
+            elif in_tables and name == "tbl":
+                anchors += [(offset, note) for note in child.iter(f"{HP}footNote")]
     return anchors
 
 
 def _anchored_notes(measure: _Measure, runs: list[Any], text: str, widths: list[float], size: int, style: Any,
                     width: int, sizes: list[int] | None = None,
                     styles: list[Any] | None = None) -> dict[int, tuple[int, int, int]]:
-    anchors = _note_anchors(runs)
+    anchors = _note_anchors(runs, in_tables=True)  # Hancom sets a table's notes at the foot as its paragraph's
     if not anchors:
         return {}
     starts = measure.line_starts(text, widths, size, style, sizes, styles)
@@ -3298,7 +3303,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                                                    cached, count, anchor_line)
     around = 0 if square is None or not text else _anchor_line(measure, paragraph, runs, text, square, widths,
                                                                 size, style, cached, count)
-    if among and _note_anchors(runs):
+    if among and _note_anchors(runs, in_tables=True):
         raise _Unsupported("footnotes in a paragraph with objects among its text")
     notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None,
                             looks)
@@ -3968,9 +3973,10 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int,
             continue
         rest, begin = part[0], max(start, cut)
         left = part[1]  # the lines it has left are its last ones
+        # Once a line was consumed, a uniform paragraph no longer starts below its original spacing before.
         cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=left, **(
             {"metrics": cell.metrics[len(cell.metrics) - left:], "leads": cell.leads[len(cell.leads) - left:]}
-            if _lists_lines(cell) else {}))))
+            if _lists_lines(cell) else {"first": cell.size if left < cell.lines else cell.first}))))
         if span == 1:
             heights[start] = max(heights[start], rest)
         else:
@@ -3994,8 +4000,11 @@ def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
     cell lists them (a line of a larger character size among others), else the cell's."""
 
     lines = cell.metrics if _lists_lines(cell) else ((cell.size, cell.pitch),) * cell.lines
-    # the room above each listed line when a part of the cell starts with it: a paragraph's spacing before
-    leads = cell.leads if _lists_lines(cell) and len(cell.leads) == cell.lines else ()
+    # the room above each line when a part of the cell starts with it: its paragraph's spacing before where the
+    # cell lists its lines, else above its first line what that line takes beyond the character size (its first
+    # paragraph's spacing before, or a taller first line)
+    leads = cell.leads if _lists_lines(cell) and len(cell.leads) == cell.lines \
+        else (max(cell.first - cell.size, 0),) + (0,) * (cell.lines - 1) if cell.lines else ()
     fitting, y = 0, top + cell.margins + (leads[0] if leads else 0)
     while fitting < cell.lines and y + lines[fitting][0] <= foot:
         y += lines[fitting][1]
@@ -4443,6 +4452,11 @@ class _Paginator:
                 table, self.frame + 1, _repeated_header(table) + table.margins[0], self.body)):  # it goes on to
             below = max(bottom for _, bottom in self.bands[self.frame + 1])  # the next page whole: below the
             frame, end = _flow_table(table, self.frame + 1, below + table.above, self.body)  # object there
+        if para.notes and frame == self.frame:
+            height = self.page_notes[0] + sum(note[0] for note in para.notes.values())
+            many = self.page_notes[1] + sum(note[1] for note in para.notes.values())
+            if end > self.body - self.notes.area(height, many):
+                raise _Unsupported("a flowing table overlapping its footnotes")
         self._clear_of_paper(before, frame, start, end)
         self.table_end = max(self.table_end, frame)
         if later:
@@ -4456,6 +4470,8 @@ class _Paginator:
         else:  # the next paragraph goes below the anchor line or the table, whichever is lower
             self.last_vp, self.last_pitch, self.pending_next = start, para.advance(0), para.next
             self.floor = end + table.below
+            for height, many, _ in para.notes.values():  # the notes in its cells take room at the page's foot
+                self.page_notes = [self.page_notes[0] + height, self.page_notes[1] + many]
 
     def _flow_below_band(self, para: _Para, table: _FlowTable, top: int) -> None:
         """A band of an object placed on the paper pushed the table's anchor line down to *top*: the table

@@ -11,7 +11,7 @@ belong to it: take them again.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 from ._document_primitives import _HP, _clear_paragraph_layout_cache
 
@@ -164,3 +164,48 @@ class TableStructureEdits:
             return
         height = int(size.get("height", 0) or 0)
         size.set("height", str(max(0, height + after - before)))
+
+
+class _ByteTableHeight:
+    """The object path's height adjustment for byte edits, with one read-only document context.
+
+    Only the resulting height is returned: the caller keeps its original XML bytes. Current section
+    snapshots carry earlier operations and their numbering context, including tables nested in cells.
+    """
+
+    def __init__(self, source: bytes) -> None:
+        from ..document import HwpxDocument
+
+        self.document: HwpxDocument | None
+        try:
+            self.document = HwpxDocument.open(source)
+        except Exception:  # noqa: BLE001  # byte edits also accept packages the object model cannot open
+            self.document = None
+
+    def __call__(self, sections: Mapping[str, bytes], sp: str, ti: int, table: str) -> int | None:
+        from ..opc.xml_utils import parse_xml
+        from ..table_patch import _iter_table_spans
+        from .paragraph import HwpxOxmlParagraph
+        from .table import HwpxOxmlTable
+
+        if self.document is None:
+            return None
+        try:
+            for part in self.document.sections:
+                part._element = parse_xml(sections[part.part_name])
+            section = next(part for part in self.document.sections if part.part_name == sp)
+            element: Any = list(section.element.iter(_HP + "tbl"))[ti]
+            paragraph = next(element.iterancestors(_HP + "p"))
+            native = HwpxOxmlTable(element, HwpxOxmlParagraph(paragraph, section))
+            before = native._rows_height()
+            if before is None:
+                return None
+            ts, te = _iter_table_spans(sections[sp])[ti]
+            edited = sections[sp][:ts] + table.encode("utf-8") + sections[sp][te:]
+            replacement = list(parse_xml(edited).iter(_HP + "tbl"))[ti]
+            element.getparent().replace(element, replacement)
+            native.element = replacement
+            native._grow_height(before)
+            return native.height
+        except Exception:  # noqa: BLE001  # as in object edits, unsupported row measurement keeps the height
+            return None

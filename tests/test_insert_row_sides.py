@@ -123,7 +123,7 @@ def test_blank_rows_are_the_ones_hancom_inserts(base: str, inserted: str, ref_ro
     assert _shapes(data) == _shapes(_saved(inserted))
     assert _table(data).get("rowCnt") == _table(_saved(inserted)).get("rowCnt")
     assert _table(data).find(HP + "sz").get("width") == _table(_saved(inserted)).find(HP + "sz").get("width")
-    assert _table(data).find(HP + "sz").get("height") == _table(_saved(base)).find(HP + "sz").get("height")
+    assert _table(data).find(HP + "sz").get("height") == _table(_saved(inserted)).find(HP + "sz").get("height")
 
 
 def test_above_a_row_its_clone_comes_first() -> None:

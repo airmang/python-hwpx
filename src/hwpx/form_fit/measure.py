@@ -125,6 +125,10 @@ _FIXED_SPACE = "\u3000"
 #: and which hangs at a line end however many follow each other (after a word,
 #: only the first fixed-width space, or the first two spaces, hang).
 _GLYPH_SPACE = "\ufdd0"
+#: A no-break space typed as a character (U+00A0 in the text of ``hp:t``; python-hwpx reads ``hp:nbSpace`` as
+#: U+00A0 too), as the page estimate passes it: Hancom keeps the words beside it on one line as it does a no-break
+#: space, but lays it out at the face's own advance for it, as when the font's own space is used.
+_TYPED_NO_BREAK_SPACE = "\ufdd1"
 #: The spaces Hancom makes half an em wide (unless the font's own space is used).
 _HALF_EM_SPACES = frozenset(" \u00a0")
 #: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance, and as it lays out a
@@ -179,7 +183,9 @@ _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
 # regular advances. A glyph a face lacks takes the advance of the face Hancom
 # lays it out from (``_glyph_table.FALLBACK``), moved into the face's own units
 # and rounded. A face no table lists takes 한컴바탕's advances, as Hancom lays out a
-# face it does not find; a glyph listed nowhere falls back to the class averages,
+# face it does not find, but for its glyphs past the Latin ones (symbols, Greek,
+# Cyrillic), which take 함초롬바탕's moved into 한컴바탕's units and rounded; a glyph
+# listed nowhere falls back to the class averages,
 # unrounded, and so does every glyph when no face is named.
 _LAYOUT_UNIT = 4
 #: Hancom's default tab stops, this far apart (HWPUNIT) from the column's left edge (the section's
@@ -188,8 +194,11 @@ _DEFAULT_TAB_STOP = 4000
 #: The share of the character size a superscript or subscript glyph (``hh:supscript``, ``hh:subscript``) is
 #: laid out at: its advance, 자간 included, is the one it takes at that size.
 _SUPSUB_SIZE = 0.64
-#: The face Hancom lays out a face it does not find with.
+#: The face Hancom lays out a face it does not find with. Such a face's glyphs other than Hangul and the Latin
+#: ones (``glyph_script`` "latin") take the advances of ``_UNLISTED_GLYPH_FACE`` instead, moved into
+#: ``_UNLISTED_FACE``'s units and rounded.
 _UNLISTED_FACE = "한컴바탕"
+_UNLISTED_GLYPH_FACE = "함초롬바탕"
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -1525,6 +1534,22 @@ def _laid_out_face(face: str) -> str:
     return face if not face or face in _DESIGN or face in UNITS_PER_EM else _UNLISTED_FACE
 
 
+def _glyph_units(face: str, ch: str) -> tuple[int, int] | None:
+    """``(advance, units per em)`` of the glyph *ch* in *face* as Hancom lays it out (see ``_design_units``): in a
+    face no table lists, a glyph past the Latin ones at ``_UNLISTED_GLYPH_FACE``'s advance in ``_UNLISTED_FACE``'s
+    units."""
+
+    laid = _laid_out_face(face)
+    # Hancom keeps GETA MARK at the full-em advance of Hancom Batang.
+    if laid != _UNLISTED_FACE or face == laid or glyph_script(ch) == "latin" or ch == "〓":
+        return _design_units(laid, ch)
+    other = _design_units(_UNLISTED_GLYPH_FACE, ch)
+    if other is None:
+        return _design_units(laid, ch)
+    upem = UNITS_PER_EM[_UNLISTED_FACE]
+    return math.floor(Fraction(other[0] * upem, other[1]) + Fraction(1, 2)), upem
+
+
 @lru_cache(maxsize=8192)
 def _hangul_units(face: str, ch: str) -> tuple[int, int] | None:
     """``(advance, units per em)`` of the Hangul syllable *ch* in *face*: its own design advance where the
@@ -1546,11 +1571,12 @@ def _face_hangul(face: str) -> dict[str, int]:
 
 
 def _own_units(face: str, ch: str) -> int:
-    """Design advance of *ch* in *face* itself; 0 when the face does not have it."""
+    """Design advance of *ch* in *face* itself, from ``measure._GLYPHS`` or else the glyph table (which lists the
+    advance Hancom lays out a glyph the face's font lacks at, for some faces); 0 when neither lists it."""
 
     entry = _DESIGN.get(face)
     index = _GLYPHS.find(ch) if len(ch) == 1 else -1
-    if entry is not None and index >= 0:
+    if entry is not None and index >= 0 and entry[3][index]:
         return entry[3][index]
     return _face_glyphs(face).get(ch, 0)
 
@@ -1922,6 +1948,8 @@ def classify_char(ch: str) -> str:
 
     if ch in " \t ":
         return "space"
+    if ch == _TYPED_NO_BREAK_SPACE:
+        return "space"
     code = ord(ch)
     # Hangul syllables, jamo, compatibility jamo.
     if 0xAC00 <= code <= 0xD7A3 or 0x1100 <= code <= 0x11FF or 0x3130 <= code <= 0x318F:
@@ -1953,6 +1981,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     ``_LAYOUT_UNIT``); other glyphs scale their class average.
     """
 
+    if ch == _TYPED_NO_BREAK_SPACE:
+        return char_advance("\u00a0", font_pt, None if style is None else replace(style, use_font_space=True))
     typed = ch == _GLYPH_SPACE
     ch = "\u3000" if typed else ch
     if ch in _ZERO_WIDTH:
@@ -1979,7 +2009,7 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     elif ch in _HALF_EM_GLYPHS:
         return _laid_out_half_glyph(height, ratio, spacing)
     else:
-        design, base = _design_units(_laid_out_face(face), ch), _ADVANCE_EM[cls]
+        design, base = _glyph_units(face, ch), _ADVANCE_EM[cls]
         slanted = _slanted_glyphs(face, style.bold).get(ch) if style.italic and design is not None else None
         if slanted is not None:
             design = slanted, design[1]

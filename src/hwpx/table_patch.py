@@ -2300,6 +2300,8 @@ def apply_table_ops(
     ``blank``) and inserts right (left) of that grid column, widening the table.
     ``split_cell`` takes ``row`` + ``col`` (the cell's address) + ``rows`` and/or
     ``cols`` (2..63) and splits that cell as Hancom's cell split does.
+    These row/column/cell edits adjust the table's saved height by its measured row-height delta,
+    as the object path does. If the row model cannot follow it, the saved height stays unchanged.
     ``insert_block_by_clone``
     takes ``ref_rows: [r0, r1]`` (a vertical-merge block) + ``count``;
     ``delete_column`` derives widths from the merged grid when no uniform
@@ -2336,6 +2338,7 @@ def apply_table_ops(
                 for o in ops if o.get("op") == "fill_cell"]
 
     sections = _sections(source_bytes)
+    table_height = None
     skipped: list[CellSkipped] = []
     changed: set[str] = set()
     transcript: list[dict[str, Any]] = []
@@ -2408,6 +2411,12 @@ def apply_table_ops(
                 used_ids = {int(m.group(2)) for data in sections.values()
                             for m in _PARA_ID_RE.finditer(data.decode("utf-8"))} if name in _CLONE_OPS else None
                 new_table = _restructure_table(section[ts:te].decode("utf-8"), op, used_ids=used_ids)
+                if name in {"delete_column", "delete_row", "insert_row_by_clone", "insert_column_by_clone", "split_cell"}:
+                    if table_height is None:
+                        from .oxml.table_structure import _ByteTableHeight
+                        table_height = _ByteTableHeight(source_bytes)
+                    if (height := table_height(sections, sp, ti, new_table)) is not None:
+                        new_table = _ss(new_table, "sz", "height", height)
                 new_section = section[:ts] + new_table.encode("utf-8") + section[te:]
                 dims_after = _table_dims(new_table)
             else:

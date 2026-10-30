@@ -1,0 +1,355 @@
+[
+  {
+    "field": {
+      "editable": true,
+      "field_id": "658590940",
+      "field_type": "CLICK_HERE",
+      "has_end": true,
+      "is_placeholder": false,
+      "location": {
+        "childIndex": 1,
+        "paragraphIndex": 2,
+        "paragraphIndexInSection": 2,
+        "runIndex": 0,
+        "sectionIndex": 0
+      },
+      "memo": "",
+      "name": "본문",
+      "parameters": [
+        {
+          "name": "Prop",
+          "value": "9"
+        },
+        {
+          "name": "Command",
+          "value": "Clickhere:set:42:Direction:wstring:0: HelpState:wstring:0:"
+        }
+      ],
+      "prompt": "",
+      "value": "first\nsecond"
+    },
+    "fixture": "form_fields_spanning_before.hwpx",
+    "output_members": {
+      "Contents/content.hpf": "29f816e12c36c899e45eb0033357db85a2dd53bb6274c693035cbb744d32ca45",
+      "Contents/header.xml": "de05d894b04913e8693a74ff5d19f5ec41c1124a79fdbd7e080968a25d5f0c3a",
+      "Contents/section0.xml": "797c7d806895307bf6ac49899324632b83cc831b365f938f60e675bd98f8a717",
+      "META-INF/container.rdf": "0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89",
+      "META-INF/container.xml": "5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61",
+      "META-INF/manifest.xml": "2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea",
+      "Preview/PrvText.txt": "5e86cae798bb5b8db4ee7532ba80d11413b670f145f42a7c60ee51d19805fd26",
+      "mimetype": "5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2",
+      "settings.xml": "dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f",
+      "version.xml": "4aa2fcf4866d16696818d175eeec6824370b79a773d6e3131582eeb69dfc3408"
+    },
+    "requested": "본문",
+    "result": {
+      "after": "first\nsecond",
+      "before": "첫 줄\n가운데 문단\n\n끝 앞",
+      "field": "658590940",
+      "fit": null,
+      "styleAfter": [
+        "0",
+        "0"
+      ],
+      "styleBefore": [
+        "0"
+      ],
+      "stylePreserved": true
+    }
+  },
+  {
+    "field": {
+      "editable": true,
+      "field_id": "927973788",
+      "field_type": "CLICK_HERE",
+      "has_end": true,
+      "is_placeholder": false,
+      "location": {
+        "childIndex": 1,
+        "paragraphIndex": 8,
+        "paragraphIndexInSection": -1,
+        "runIndex": 0,
+        "sectionIndex": 0
+      },
+      "memo": "",
+      "name": "칸",
+      "parameters": [
+        {
+          "name": "Prop",
+          "value": "9"
+        },
+        {
+          "name": "Command",
+          "value": "Clickhere:set:42:Direction:wstring:0: HelpState:wstring:0:"
+        }
+      ],
+      "prompt": "",
+      "value": "first\nsecond"
+    },
+    "fixture": "form_fields_spanning_before.hwpx",
+    "output_members": {
+      "Contents/content.hpf": "29f816e12c36c899e45eb0033357db85a2dd53bb6274c693035cbb744d32ca45",
+      "Contents/header.xml": "de05d894b04913e8693a74ff5d19f5ec41c1124a79fdbd7e080968a25d5f0c3a",
+      "Contents/section0.xml": "44445da3894f0ed72ecc9429c24bc47f6fa982553eb3497654208fb3cdf82e02",
+      "META-INF/container.rdf": "0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89",
+      "META-INF/container.xml": "5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61",
+      "META-INF/manifest.xml": "2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea",
+      "Preview/PrvText.txt": "5e86cae798bb5b8db4ee7532ba80d11413b670f145f42a7c60ee51d19805fd26",
+      "mimetype": "5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2",
+      "settings.xml": "dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f",
+      "version.xml": "4aa2fcf4866d16696818d175eeec6824370b79a773d6e3131582eeb69dfc3408"
+    },
+    "requested": "칸",
+    "result": {
+      "after": "first\nsecond",
+      "before": "칸 첫 줄\n칸 가운데\n칸 끝 앞",
+      "field": "927973788",
+      "fit": null,
+      "styleAfter": [
+        "0",
+        "0"
+      ],
+      "styleBefore": [
+        "0"
+      ],
+      "stylePreserved": true
+    }
+  },
+  {
+    "field": {
+      "editable": true,
+      "field_id": "209565389",
+      "field_type": "CLICK_HERE",
+      "has_end": true,
+      "is_placeholder": false,
+      "location": {
+        "childIndex": 1,
+        "paragraphIndex": 11,
+        "paragraphIndexInSection": 7,
+        "runIndex": 0,
+        "sectionIndex": 0
+      },
+      "memo": "",
+      "name": "붙음",
+      "parameters": [
+        {
+          "name": "Prop",
+          "value": "9"
+        },
+        {
+          "name": "Command",
+          "value": "Clickhere:set:42:Direction:wstring:0: HelpState:wstring:0:"
+        }
+      ],
+      "prompt": "",
+      "value": "first\nsecond"
+    },
+    "fixture": "form_fields_spanning_before.hwpx",
+    "output_members": {
+      "Contents/content.hpf": "29f816e12c36c899e45eb0033357db85a2dd53bb6274c693035cbb744d32ca45",
+      "Contents/header.xml": "de05d894b04913e8693a74ff5d19f5ec41c1124a79fdbd7e080968a25d5f0c3a",
+      "Contents/section0.xml": "1ffab6a08d9841336c6fc223be575648122835f1fc4042d34700bdfeb82f0c69",
+      "META-INF/container.rdf": "0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89",
+      "META-INF/container.xml": "5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61",
+      "META-INF/manifest.xml": "2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea",
+      "Preview/PrvText.txt": "5e86cae798bb5b8db4ee7532ba80d11413b670f145f42a7c60ee51d19805fd26",
+      "mimetype": "5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2",
+      "settings.xml": "dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f",
+      "version.xml": "4aa2fcf4866d16696818d175eeec6824370b79a773d6e3131582eeb69dfc3408"
+    },
+    "requested": "붙음",
+    "result": {
+      "after": "first\nsecond",
+      "before": "\n",
+      "field": "209565389",
+      "fit": null,
+      "styleAfter": [
+        "0",
+        "0"
+      ],
+      "styleBefore": [
+        "0"
+      ],
+      "stylePreserved": true
+    }
+  },
+  {
+    "field": {
+      "editable": true,
+      "field_id": "1330657622",
+      "field_type": "CLICK_HERE",
+      "has_end": true,
+      "is_placeholder": false,
+      "location": {
+        "childIndex": 1,
+        "paragraphIndex": 13,
+        "paragraphIndexInSection": 9,
+        "runIndex": 0,
+        "sectionIndex": 0
+      },
+      "memo": "",
+      "name": "한줄",
+      "parameters": [
+        {
+          "name": "Prop",
+          "value": "9"
+        },
+        {
+          "name": "Command",
+          "value": "Clickhere:set:42:Direction:wstring:0: HelpState:wstring:0:"
+        }
+      ],
+      "prompt": "",
+      "value": "first\nsecond"
+    },
+    "fixture": "form_fields_spanning_before.hwpx",
+    "output_members": {
+      "Contents/content.hpf": "29f816e12c36c899e45eb0033357db85a2dd53bb6274c693035cbb744d32ca45",
+      "Contents/header.xml": "de05d894b04913e8693a74ff5d19f5ec41c1124a79fdbd7e080968a25d5f0c3a",
+      "Contents/section0.xml": "f7c83761348934059335e883a8f8e320895ce5c68a52a942879621cfa124eeed",
+      "META-INF/container.rdf": "0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89",
+      "META-INF/container.xml": "5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61",
+      "META-INF/manifest.xml": "2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea",
+      "Preview/PrvText.txt": "5e86cae798bb5b8db4ee7532ba80d11413b670f145f42a7c60ee51d19805fd26",
+      "mimetype": "5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2",
+      "settings.xml": "dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f",
+      "version.xml": "4aa2fcf4866d16696818d175eeec6824370b79a773d6e3131582eeb69dfc3408"
+    },
+    "requested": "한줄",
+    "result": {
+      "after": "first\nsecond",
+      "before": "안의 글",
+      "field": "1330657622",
+      "fit": null,
+      "styleAfter": [
+        "0"
+      ],
+      "styleBefore": [
+        "0"
+      ],
+      "stylePreserved": true
+    }
+  },
+  {
+    "field": {
+      "editable": true,
+      "field_id": "1217275006",
+      "field_type": "CLICK_HERE",
+      "has_end": true,
+      "is_placeholder": false,
+      "location": {
+        "childIndex": 0,
+        "paragraphIndex": 2,
+        "paragraphIndexInSection": 2,
+        "runIndex": 0,
+        "sectionIndex": 0
+      },
+      "memo": "",
+      "name": "바깥",
+      "parameters": [
+        {
+          "name": "Prop",
+          "value": "9"
+        },
+        {
+          "name": "Command",
+          "value": "Clickhere:set:47:Direction:wstring:5:바깥 안내 HelpState:wstring:0:"
+        },
+        {
+          "name": "Direction",
+          "value": "바깥 안내"
+        }
+      ],
+      "prompt": "바깥 안내",
+      "value": "first\nsecond"
+    },
+    "fixture": "nested_field_saved.hwpx",
+    "output_members": {
+      "Contents/content.hpf": "29f816e12c36c899e45eb0033357db85a2dd53bb6274c693035cbb744d32ca45",
+      "Contents/header.xml": "efed4a5c5a7fd0506d5995648613dc8d95fdc103bff7002e01fdbd3286bdd660",
+      "Contents/section0.xml": "06b71b5035ff4760ac5072cf2c3d65543bcda478042f665b18813a3872fe20e1",
+      "META-INF/container.rdf": "0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89",
+      "META-INF/container.xml": "5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61",
+      "META-INF/manifest.xml": "2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea",
+      "Preview/PrvText.txt": "471880da57e7bc11c7aa476a97c5fcec66c9b23f732c8f12bfb64d9dab631c3c",
+      "mimetype": "5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2",
+      "settings.xml": "dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f",
+      "version.xml": "4aa2fcf4866d16696818d175eeec6824370b79a773d6e3131582eeb69dfc3408"
+    },
+    "requested": "바깥",
+    "result": {
+      "after": "first\nsecond",
+      "before": "바깥 앞 안쪽 값 바깥 뒤",
+      "field": "1217275006",
+      "fit": null,
+      "styleAfter": [
+        "0"
+      ],
+      "styleBefore": [
+        "0"
+      ],
+      "stylePreserved": true
+    }
+  },
+  {
+    "field": {
+      "editable": true,
+      "field_id": "580778346",
+      "field_type": "CLICK_HERE",
+      "has_end": true,
+      "is_placeholder": false,
+      "location": {
+        "childIndex": 2,
+        "paragraphIndex": 2,
+        "paragraphIndexInSection": 2,
+        "runIndex": 0,
+        "sectionIndex": 0
+      },
+      "memo": "",
+      "name": "안쪽",
+      "parameters": [
+        {
+          "name": "Prop",
+          "value": "9"
+        },
+        {
+          "name": "Command",
+          "value": "Clickhere:set:47:Direction:wstring:5:안쪽 안내 HelpState:wstring:0:"
+        },
+        {
+          "name": "Direction",
+          "value": "안쪽 안내"
+        }
+      ],
+      "prompt": "안쪽 안내",
+      "value": "first\nsecond"
+    },
+    "fixture": "nested_field_saved.hwpx",
+    "output_members": {
+      "Contents/content.hpf": "29f816e12c36c899e45eb0033357db85a2dd53bb6274c693035cbb744d32ca45",
+      "Contents/header.xml": "efed4a5c5a7fd0506d5995648613dc8d95fdc103bff7002e01fdbd3286bdd660",
+      "Contents/section0.xml": "71e97d010a0e432f391b05d86756fbb21c0709abfa50e5f743526b65fefd2c47",
+      "META-INF/container.rdf": "0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89",
+      "META-INF/container.xml": "5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61",
+      "META-INF/manifest.xml": "2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea",
+      "Preview/PrvText.txt": "471880da57e7bc11c7aa476a97c5fcec66c9b23f732c8f12bfb64d9dab631c3c",
+      "mimetype": "5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2",
+      "settings.xml": "dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f",
+      "version.xml": "4aa2fcf4866d16696818d175eeec6824370b79a773d6e3131582eeb69dfc3408"
+    },
+    "requested": "안쪽",
+    "result": {
+      "after": "first\nsecond",
+      "before": "안쪽 값",
+      "field": "580778346",
+      "fit": null,
+      "styleAfter": [
+        "0"
+      ],
+      "styleBefore": [
+        "0"
+      ],
+      "stylePreserved": true
+    }
+  }
+]
