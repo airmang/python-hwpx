@@ -156,5 +156,14 @@
     "summary": "Never remove: freeze the core copies as compatibility code without feature work and keep the allowlist entries."
    }
   ]
+ },
+ "implementation": {
+  "neutralCoreSeams": [
+   "hwpx.tools.doc_diff.paragraph_texts",
+   "hwpx.tools.markdown_export.export_markdown(heading_detector=...)",
+   "hwpx.table_patch.strip_trailing_table_text"
+  ],
+  "automationConsumerRouting": "pending",
+  "compatibilityPolicies": "retained unchanged during6.x"
  }
 }

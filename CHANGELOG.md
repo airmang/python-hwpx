@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 추가
+
+- 응용 정책을 주입할 공용 경로를 추가한다: `paragraph_texts` 문단 읽기,
+  Markdown `heading_detector` 콜백, 호출자가 대상을 고르는 `strip_trailing_table_text`.
+  기존 diff·제목 판정·짧은 캡션 제거의 6.x 이름과 기본 동작은 유지한다.
+
 ### 수정
 
 - 바이트 셀 채움이 중첩 표의 주소·span을 바깥 셀 메타데이터로 읽지 않도록 한다. 충돌·불완전 격자는

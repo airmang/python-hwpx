@@ -179,6 +179,20 @@ def _change_label(tag: str) -> str:
 
 
 def _paragraphs_from_source(source: Any) -> list[str]:
+    # Released diff/reference APIs retain their document-plan compatibility.
+    if isinstance(source, Mapping) and "sections" in source and "paragraphs" not in source and "text" not in source:
+        return _paragraphs_from_document_plan(source)
+    return paragraph_texts(source)
+
+
+def paragraph_texts(source: Any) -> list[str]:
+    """Read paragraph texts from a document, path, text, sequence or mapping.
+
+    Mappings support ``paragraphs`` (first priority) or ``text``. Application
+    document plans are intentionally excluded: normalize them into a paragraph
+    sequence before calling this format-neutral reader. Existing diff/reference
+    entry points continue accepting their legacy plan input without warnings.
+    """
     if isinstance(source, HwpxDocument):
         return [paragraph.text for paragraph in source.paragraphs if paragraph.text.strip()]
     if isinstance(source, Path):
@@ -193,8 +207,6 @@ def _paragraphs_from_source(source: Any) -> list[str]:
             return _paragraphs_from_sequence(source.get("paragraphs"))
         if "text" in source:
             return [line for line in str(source.get("text") or "").splitlines() if line.strip()]
-        if "sections" in source:
-            return _paragraphs_from_document_plan(source)
     if isinstance(source, Sequence) and not isinstance(source, (bytes, bytearray)):
         return _paragraphs_from_sequence(source)
     raise TypeError("source must be a HWPX path, HwpxDocument, mapping, text, or paragraph sequence")
@@ -305,6 +317,7 @@ __all__ = [
     "DOC_DIFF_REPORT_VERSION",
     "REFERENCE_CONSISTENCY_REPORT_VERSION",
     "diff_paragraphs",
+    "paragraph_texts",
     "doc_diff",
     "inspect_reference_consistency",
 ]

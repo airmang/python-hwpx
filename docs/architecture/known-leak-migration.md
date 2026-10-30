@@ -20,6 +20,13 @@ goes to automation. Core never imports automation, so every move below hands
 core a neutral primitive and puts the policy on the automation side, where it is
 passed in or applied before calling core.
 
+The additive neutral core seams are implemented in this source tree:
+`hwpx.tools.doc_diff.paragraph_texts`, the rich exporter's `heading_detector`
+callback, and `hwpx.table_patch.strip_trailing_table_text(predicate=...)`.
+Application consumer routing is still pending. Existing core names and defaults
+continue without new warnings; all eight compatibility leak entries remain.
+See [neutral primitives](../neutral-migration-primitives.md).
+
 ## The four groups
 
 The eight allowlist names (six `known-leak` entries, two `undetected`) fall
