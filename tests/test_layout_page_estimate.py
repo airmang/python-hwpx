@@ -1017,6 +1017,13 @@ HANCOM_PAGES = {
     # with 600 of spacing before and a small table set as a character in the fourth: going on over the page end,
     # the part on the next page starts below its first paragraph's spacing before, as in a cell without a table
     "pages_nested_cell_split_spacing_before": 27,
+    # Tables set as characters, 6 × 4, whose cells merged over rows leave the third row to merged cells alone, solved
+    # 0 to 200 tall (a table's written height hp:sz of 7938, 7985 and 9000 left as it is): Hancom makes such a row
+    # 100 tall at least, the rows below making up for it
+    "pages_merged_rows_at_least_100_tall": 2,
+    # 6 × 5 tables like those of a document whose fifth row only cells merged over rows cover, solved 1 to 150
+    # tall, set to adjust their cells or not (hp:tbl@noAdjust): only the ones set to adjust make it 100 tall
+    "pages_merged_rows_at_least_100_tall_unless_not_adjusted": 2,
     # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
     # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
     # page's foot as one anchored in the table's paragraph would, and the page ends that much higher

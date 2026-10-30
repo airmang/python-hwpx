@@ -238,6 +238,9 @@ _SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
+#: How tall Hancom makes a table's row that only cells merged over rows cover at least, unless the table is set
+#: not to adjust its cells (``hp:tbl@noAdjust``): it starts the merged cells' heights from that.
+_MERGED_ROW_LEAST = 100
 #: the room a cell that never breaks its text into lines (``hp:subList@lineWrap`` SQUEEZE or KEEP) gives a line
 _NO_WRAP = 1 << 40
 #: The narrowest side of a square-wrapped object text goes to (1/5 inch): Hancom leaves a narrower one empty.
@@ -1184,10 +1187,11 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
         rows[first] = replace(rows[first], first=line)
     for first, height in tallest.items():  # as tall as its tallest cell, with room to spare under the text
         rows[first] = replace(rows[first], height=height, spare=height - filled[first])  # filling one most
+    least = 0 if _on(dict(table.attrib), "noAdjust") else _MERGED_ROW_LEAST
     for first, span, cell in merged:
         for index in range(first, first + span):
             if index not in rows:  # every cell over it is merged over rows
-                rows[index] = replace(cell, height=0, lines=1, margins=0, spare=0)
+                rows[index] = replace(cell, height=least, lines=1, margins=0, spare=0)
     for first, span, cell in sorted(merged, key=lambda cell: (cell[0] + cell[1], cell[0])):
         spanned = range(first, first + span)
         for index in spanned:
