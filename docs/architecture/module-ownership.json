@@ -740,6 +740,12 @@
       "disposition": "core",
       "approvedBy": "formfit-glyph-widths",
       "rationale": "FormFit glyph widths beyond measure._GLYPHS: per face, the design advance of each glyph of the KS X 1001 symbols, the full-width forms and eight common Unicode blocks, read from the font files, and the face Hancom lays a glyph out from when a face lacks it. Data only; imports nothing."
+    },
+    {
+      "path": "src/hwpx/_trailing_table_text.py",
+      "disposition": "core",
+      "approvedBy": "owner-authorized issue565 additive implementation",
+      "rationale": "QName-aware bounded byte-span selection of text after a table within its own paragraph; reusable format behavior. The caller supplies the predicate, so this module contains no genre, institution, workflow or caption policy. Secure XML parsing and existing OPC markup tokenization validate namespace scopes without reserializing source bytes."
     }
   ],
   "removed": [

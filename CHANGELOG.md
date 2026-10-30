@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 추가
+
+- 응용 정책을 주입할 공용 경로를 추가한다: `paragraph_texts` 문단 읽기,
+  Markdown `heading_detector` 콜백, 호출자가 대상을 고르는 `strip_trailing_table_text`.
+  기존 diff·제목 판정·짧은 캡션 제거의 6.x 이름과 기본 동작은 유지한다.
+
 ### 수정
 
 - 단 폭을 4의 배수로 내린 뒤 0이 되는 구역은 쪽 수 추정과 줄 배치 캐시 쓰기를 미지원으로 알린다.

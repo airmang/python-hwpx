@@ -2606,6 +2606,34 @@ def strip_trailing_table_captions(
     :class:`CellFillResult` whose ``applied`` records each stripped caption. Only a
     parenthesised-ordinal + short word is removed; anything crossing a paragraph or
     table boundary is left intact (fail-closed)."""
+    return _strip_trailing_table_text(
+        source, predicate=lambda text: bool(re.fullmatch(_TC_CAPTION, text)),
+        output_path=output_path, legacy=True,
+    )
+
+
+def strip_trailing_table_text(
+    source: str | Path | bytes, *, predicate: Callable[[str], bool],
+    output_path: str | Path | None = None,
+) -> CellFillResult:
+    """Remove caller-selected trailing text inside a table's wrapper paragraph.
+
+    ``predicate`` receives stripped, entity-decoded text. Only text/runs before
+    that paragraph's line cache are eligible; other controls, paragraph/table
+    boundaries and missing caches are preserved. Untouched package members keep
+    their bytes. Selection errors propagate before any output is published.
+    """
+    if not callable(predicate):
+        raise TypeError("predicate must be callable")
+    return _strip_trailing_table_text(source, predicate=predicate, output_path=output_path, legacy=False)
+
+
+def _strip_trailing_table_text(
+    source: str | Path | bytes, *, predicate: Callable[[str], bool],
+    output_path: str | Path | None, legacy: bool,
+) -> CellFillResult:
+    # The released caption API retains its exact 6.x splice/selection behavior.
+    # The neutral seam uses QName-aware bounded spans and preserves aliases.
     import html
 
     source_bytes = _read_source_bytes(source)
@@ -2630,14 +2658,22 @@ def strip_trailing_table_captions(
             # never cross a paragraph or table boundary
             if "</hp:p>" in stuff or "<hp:p" in stuff or "tbl>" in stuff or "<hp:tbl" in stuff:
                 return m.group(0)
-            txt = html.unescape("".join(_TC_T.findall(stuff))).strip()
-            if re.fullmatch(_TC_CAPTION, txt):
+            texts = _TC_T.findall(stuff)
+            txt = html.unescape("".join(texts)).strip()
+            if predicate(txt):
                 hits.append(txt)
                 # drop the caption text + trailing runs; close the table's run cleanly
                 return "</hp:tbl></hp:run>"
             return m.group(0)
 
-        new = _TC_AFTER_TBL.sub(_strip, sec)
+        if legacy:
+            new = _TC_AFTER_TBL.sub(_strip, sec)
+        else:
+            from ._trailing_table_text import trailing_text_edits
+
+            edits = trailing_text_edits(sec.encode("utf-8"), predicate)
+            hits.extend(edit[3] for edit in edits)
+            new = _apply_edits(sec.encode("utf-8"), [edit[:3] for edit in edits]).decode("utf-8")
         if new != sec:
             changed_parts[name] = new.encode("utf-8")
             for txt in hits:
@@ -2721,6 +2757,7 @@ __all__ = [
     "resolve_cell_target",
     "section_parts",
     "strip_trailing_table_captions",
+    "strip_trailing_table_text",
     "table_summary",
     "table_text",
     "verify_fill",

@@ -14,6 +14,7 @@ Preserves:
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from html import escape as html_escape
 from pathlib import Path
@@ -482,7 +483,9 @@ def _export_shape_lines(p, doc, notes) -> list[str]:
     return shape_lines
 
 
-def _export_paragraph_lines(p, doc, mapping, notes, detect_headings: bool) -> list[str]:
+def _export_paragraph_lines(
+    p, doc, mapping, notes, detect_headings: bool, heading_detector: Callable[[str], str | None]
+) -> list[str]:
     md = _p_element_to_md(p.element, doc, notes).strip()
     imgs = _paragraph_images(p.element, mapping)
     tables = [_table_to_md(t, doc, mapping, 0, notes) for t in p.tables]
@@ -494,14 +497,14 @@ def _export_paragraph_lines(p, doc, mapping, notes, detect_headings: bool) -> li
     promoted = None
     if detect_headings:
         if md:
-            promoted = _detect_heading(md)
+            promoted = heading_detector(md)
         elif p.tables and len(p.tables) == 1:
             t = p.tables[0]
             if t.row_count == 1 and t.column_count == 1:
                 cell_text = _cell_to_md(
                     t.rows[0].cells[0], doc, mapping, 0, notes
                 )
-                promoted = _detect_heading(cell_text)
+                promoted = heading_detector(cell_text)
                 if promoted:
                     return [promoted]
 
@@ -545,6 +548,7 @@ def export_markdown(
     image_dir: Union[str, Path, None] = None,
     image_ref_prefix: str | None = None,
     detect_headings: bool = True,
+    heading_detector: Callable[[str], str | None] | None = None,
     notes_section_separator: str = "\n\n---\n",
 ) -> str:
     """HWPX → rich markdown.
@@ -559,9 +563,15 @@ def export_markdown(
         markdown 이미지 경로의 prefix. None이면 image_dir의 basename.
     detect_headings : bool
         Ⅰ./1. 패턴 감지로 `#`/`##` 헤딩 격상 여부.
+    heading_detector : callable | None
+        Formatted paragraph/cell Markdown to a heading or None. Omission keeps
+        the legacy detector. ``detect_headings=False`` disables either detector.
     notes_section_separator : str
         각주/미주 정의 부록 앞에 삽입할 separator.
     """
+    detector = _detect_heading if heading_detector is None else heading_detector
+    if not callable(detector):
+        raise TypeError("heading_detector must be callable or None")
     doc = _export_resolve_doc(source)
     mapping = _build_image_map(doc, Path(image_dir) if image_dir else None, image_ref_prefix)
     notes: list[tuple] = []
@@ -569,7 +579,7 @@ def export_markdown(
 
     for section in doc.sections:
         for p in section.paragraphs:
-            lines.extend(_export_paragraph_lines(p, doc, mapping, notes, detect_headings))
+            lines.extend(_export_paragraph_lines(p, doc, mapping, notes, detect_headings, detector))
 
     body = "\n\n".join(lines)
 
