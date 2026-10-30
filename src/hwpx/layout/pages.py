@@ -3968,9 +3968,10 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int,
             continue
         rest, begin = part[0], max(start, cut)
         left = part[1]  # the lines it has left are its last ones
+        # Once a line was consumed, a uniform paragraph no longer starts below its original spacing before.
         cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=left, **(
             {"metrics": cell.metrics[len(cell.metrics) - left:], "leads": cell.leads[len(cell.leads) - left:]}
-            if _lists_lines(cell) else {}))))
+            if _lists_lines(cell) else {"first": cell.size if left < cell.lines else cell.first}))))
         if span == 1:
             heights[start] = max(heights[start], rest)
         else:
