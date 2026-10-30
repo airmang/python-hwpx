@@ -1,0 +1,30 @@
+{
+  "issue": 591,
+  "observer": "Hancom Office HWP macOS",
+  "observed_on": "2026-10-30",
+  "fixtures": [
+    {
+      "file": "equation_attached_font_commands.hwpx",
+      "input_sha256": "3e28eb823920c58f68c60c57c88683c128ed8733809e4ae72dad8556a14d3b66",
+      "raw_saved_sha256": "2b2740b7dcb0ae525f0ea8e1a917f007da7d2458b4a3abc9c24d280911b37ee5",
+      "fixture_sha256": "47a05203f0cdd51c61cc2c84847a2590e20eac0461be805bce116f0732ccb989",
+      "section_sha256": "1f8b0d1d8df93db2477f76f1318e9a299f8a90ec535889fe22986ebefb288802"
+    },
+    {
+      "file": "equation_font_command_boundaries.hwpx",
+      "input_sha256": "838d1d03af2fa277017583f32214396aba81092eb7af326e74c892f13d7546bb",
+      "raw_saved_sha256": "1839a80f4bed40ca2c016d97c734aac818b00b1b12f9f70da37d0b43d44bcf8d",
+      "fixture_sha256": "43538f3507f85c0007dd418457849fb1cb231e963ca138cd8f9d7ce17a2d2d6d",
+      "section_sha256": "8c30a0bd2a8cee081437d6a6cd985a48d9de3e30b3684ec44de4fae67d65713d"
+    },
+    {
+      "file": "equation_font_command_case.hwpx",
+      "input_sha256": "fb06b5f193324cde5e36c046f0a5dd40e95c4a732331a7e1818a70d4f309f7d8",
+      "raw_saved_sha256": "71b234386ebe4e402d139a14335cffb5a0d56a78b4152bbe019e16580bd2f306",
+      "fixture_sha256": "a5ab2cc8a5850e6f883cdc271428f9cb6edeb6a04399ea720cb2a5ba05dfb9db",
+      "section_sha256": "9ed1a10c0e7d46b369d5e786d4e88b9727beb77a2d54fa639772338fe5b801d5"
+    }
+  ],
+  "version": "12.30.0",
+  "build": "6446"
+}
