@@ -1483,22 +1483,7 @@ def _elements_structurally_equal(
     paraPr's shape is too varied for a hand-enumerated field list).
     """
 
-    a_tag = a.tag if isinstance(a.tag, str) else None
-    b_tag = b.tag if isinstance(b.tag, str) else None
-    if a_tag != b_tag:
-        return False
-    a_attrib = {k: v for k, v in a.attrib.items() if k not in ignore_attrs}
-    b_attrib = {k: v for k, v in b.attrib.items() if k not in ignore_attrs}
-    if a_attrib != b_attrib:
-        return False
-    a_children = list(a)
-    b_children = list(b)
-    if len(a_children) != len(b_children):
-        return False
-    return all(
-        _elements_structurally_equal(ac, bc, ignore_attrs=ignore_attrs)
-        for ac, bc in zip(a_children, b_children)
-    )
+    return _compile_element_matcher(b, ignore_attrs=ignore_attrs)(a)
 
 
 def _compile_element_matcher(

@@ -14,6 +14,29 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 EXT = "{urn:paragraph-matcher:unknown}"
 
 
+def _legacy_structurally_equal(
+    a: ET.Element, b: ET.Element, *, ignore_attrs: frozenset[str] = frozenset()
+) -> bool:
+    """Frozen pre-optimization comparator; independent of both production entry points."""
+
+    a_tag = a.tag if isinstance(a.tag, str) else None
+    b_tag = b.tag if isinstance(b.tag, str) else None
+    if a_tag != b_tag:
+        return False
+    a_attrib = {k: v for k, v in a.attrib.items() if k not in ignore_attrs}
+    b_attrib = {k: v for k, v in b.attrib.items() if k not in ignore_attrs}
+    if a_attrib != b_attrib:
+        return False
+    a_children = list(a)
+    b_children = list(b)
+    if len(a_children) != len(b_children):
+        return False
+    return all(
+        _legacy_structurally_equal(ac, bc, ignore_attrs=ignore_attrs)
+        for ac, bc in zip(a_children, b_children)
+    )
+
+
 def _tree(random: Random, depth: int = 0) -> ET.Element:
     node = ET.Element(random.choice((HH + "paraPr", HP + "switch", EXT + "unknown")))
     for key in random.sample(("id", "name", "value", EXT + "id", "level"), random.randrange(6)):
@@ -51,8 +74,9 @@ def test_compiled_matcher_agrees_with_recursive_comparison_on_varied_trees() -> 
                         child.text, child.tail = "different text", "different tail"
                 else:
                     node[:] = list(reversed(node))
-                assert matcher(candidate) == primitives._elements_structurally_equal(
-                    candidate, target, ignore_attrs=ignored)
+                expected = _legacy_structurally_equal(candidate, target, ignore_attrs=ignored)
+                assert matcher(candidate) == expected
+                assert primitives._elements_structurally_equal(candidate, target, ignore_attrs=ignored) == expected
 
 
 def test_comments_and_processing_instructions_keep_their_existing_tag_contract() -> None:
@@ -61,7 +85,9 @@ def test_comments_and_processing_instructions_keep_their_existing_tag_contract()
     candidate = deepcopy(target)
     candidate[0].text = "different"
     matcher = primitives._compile_element_matcher(target, ignore_attrs=frozenset({"id"}))
-    assert matcher(candidate) == primitives._elements_structurally_equal(candidate, target, ignore_attrs=frozenset({"id"}))
+    expected = _legacy_structurally_equal(candidate, target, ignore_attrs=frozenset({"id"}))
+    assert matcher(candidate) == expected
+    assert primitives._elements_structurally_equal(candidate, target, ignore_attrs=frozenset({"id"})) == expected
 
 
 def test_lookup_skips_matching_entries_without_an_id_and_keeps_the_first_usable_id() -> None:

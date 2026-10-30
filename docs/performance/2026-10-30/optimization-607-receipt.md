@@ -5,7 +5,7 @@ Candidate: `dee5d782485f4ef85901f77a94ee1aef02b591a6`, based on `36e68b69`, bran
 ## Scope
 
 Prepare only the built paragraph shape side once per ensure lookup: its tag, filtered attributes and per-child predicates. Existing candidates are compared lazily against that ephemeral structure. Nothing persists across calls or documents. Candidate order, first usable ID, id-ignoring at every depth and text/tail-ignoring behavior stay exactly as before. Unknown extension elements and switch children keep their existing structural meaning.
-The generic recursive comparator remains unchanged, including its existing private import path; parity tests compare it with the per-call matcher. No index, invalidation mechanism or public API was introduced.
+The existing private comparison callable keeps its signature and delegates to the same per-call matcher, so production has one comparison implementation. Tests keep a frozen pre-optimization recursive reference and compare both production entry points with it across3150 mutations. No index, invalidation mechanism or public API was introduced.
 
 ## Five-repeat measurements
 
@@ -65,3 +65,5 @@ PYTHONPATH="$PWD/./src" .bench-610/bin/python scripts/benchmark_paragraph_matche
 | candidate-607-five.json | `95f32268fff7e2d8e7b0b6da0b78a468eb54b3304beed05964da5033072dc17a` |
 
 Published script copies include an added license header. Original executed-probe hashes above identify the pre-header files.
+
+Source-size follow-up: the existing1600-line architecture gate initially rejected1602 lines. Removing the duplicate production algorithm in favor of the compatibility wrapper reduces the module to1587 lines; the original recursive implementation is frozen only in tests. The focused semantic/style/architecture suite passes120 tests, with mypy121 files and pyright still clean. The timed ensure lookup path is unchanged, so the performance matrix above remains applicable.
