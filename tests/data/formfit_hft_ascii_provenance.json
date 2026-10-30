@@ -1,0 +1,22 @@
+{
+  "observer": "Hancom Hangul Windows13.0.0.653",
+  "scope": "9,10,11,12pt, plain100%,94printableASCII+26Hangulsyllables per size",
+  "fixtures": [
+    {
+      "original_name": "formfit_hft_ascii_gothic_grid.hwpx",
+      "file": "formfit_hft_ascii_myeongjo_grid.hwpx",
+      "face": "명조",
+      "raw_sha256": "024166c6cfaabea1d58db88c853201904e4e5882a6e9a1c356853fa1e75cba8e",
+      "fixture_sha256": "578001a8763fb3c3dc15931b63e841d0884e2a3643ee892b2865143656776ec3",
+      "section_sha256": "58960a72d0ebb82297914b017dcf24d17756d0d7e201fb3c8c2e17b576802035"
+    },
+    {
+      "original_name": "formfit_hft_ascii_myeongjo_grid.hwpx",
+      "file": "formfit_hft_ascii_gothic_grid.hwpx",
+      "face": "고딕",
+      "raw_sha256": "d09df2034168c837a7cbcf05102b01d8adf90dd9c0eae7e40adb6e158d88ae22",
+      "fixture_sha256": "d4fb7b8261dc454a33cc4b19dc72701842b1128f921c5d02a1ec701bf8fab58a",
+      "section_sha256": "b15ecfff94050d720421352fc7d68fb577bfed6a372de213791c89c74a7507ec"
+    }
+  ]
+}
