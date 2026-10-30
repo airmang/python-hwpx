@@ -3969,9 +3969,10 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int,
             continue
         rest, begin = part[0], max(start, cut)
         left = part[1]  # the lines it has left are its last ones
+        # Once a line was consumed, a uniform paragraph no longer starts below its original spacing before.
         cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=left, **(
             {"metrics": cell.metrics[len(cell.metrics) - left:], "leads": cell.leads[len(cell.leads) - left:]}
-            if _lists_lines(cell) else {}))))
+            if _lists_lines(cell) else {"first": cell.size if left < cell.lines else cell.first}))))
         if span == 1:
             heights[start] = max(heights[start], rest)
         else:
@@ -3995,8 +3996,11 @@ def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
     cell lists them (a line of a larger character size among others), else the cell's."""
 
     lines = cell.metrics if _lists_lines(cell) else ((cell.size, cell.pitch),) * cell.lines
-    # the room above each listed line when a part of the cell starts with it: a paragraph's spacing before
-    leads = cell.leads if _lists_lines(cell) and len(cell.leads) == cell.lines else ()
+    # the room above each line when a part of the cell starts with it: its paragraph's spacing before where the
+    # cell lists its lines, else above its first line what that line takes beyond the character size (its first
+    # paragraph's spacing before, or a taller first line)
+    leads = cell.leads if _lists_lines(cell) and len(cell.leads) == cell.lines \
+        else (max(cell.first - cell.size, 0),) + (0,) * (cell.lines - 1) if cell.lines else ()
     fitting, y = 0, top + cell.margins + (leads[0] if leads else 0)
     while fitting < cell.lines and y + lines[fitting][0] <= foot:
         y += lines[fitting][1]

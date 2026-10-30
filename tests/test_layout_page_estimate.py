@@ -1096,6 +1096,10 @@ HANCOM_PAGES = {
     # The same with the 60 paragraphs all at 10 pt, each spaced 200 before: the part of that cell going on to the
     # next page starts below its first paragraph's spacing before, as at the cell's top
     "pages_merged_rows_with_cells_spaced_before_split": 20,
+    # Twenty-seven times, the page end 1118 to 1518 below a block of five rows joined by a merged cell holding one
+    # line, its paragraph spaced 0 or 200 before (top or centred), in a table split between cell lines: the line
+    # fits above the page end only with its spacing before; when it does not, the merged cell goes on whole
+    "pages_merged_rows_split_by_a_cell_spaced_before": 54,
     # Every face whose ascent and descent do not make up its em, at every 50 HWPUNIT from 500 to 4000, in paragraphs
     # taking their line height from the font: each line as tall as Hancom lays it out, a few units off the ascent and
     # descent rounded up at many sizes
@@ -2779,3 +2783,27 @@ def test_a_paragraph_its_shape_squeezes_takes_one_line() -> None:
     data = (FIXTURES / "line_cache_squeezed.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 3)
+
+
+def test_a_split_merged_cell_drops_its_first_paragraph_lead_after_consuming_a_line() -> None:
+    # One fixed-pitch paragraph over seven pages: only its first part is spaced 200 before.
+    cell = page_layout._Row(30200, 30, 1000, 1000, 0, False, first=1200)
+    rows = [page_layout._Row(15100, 0, 1000, 1000, 0, False, joined=True),
+            page_layout._Row(15100, 0, 1000, 1000, 0, False, merged=True)]
+    table = page_layout._FlowTable(rows, "CELL", False, (0, 0), cells=((0, 2, cell),), cut=0)
+
+    assert page_layout._flow_table(table, 0, 0, 5000) == (6, 1000)
+
+
+def test_a_split_merged_cell_keeps_its_first_lead_when_no_line_was_consumed() -> None:
+    cell = page_layout._Row(1200, 1, 1000, 1000, 0, False, first=1200)
+    rows = [page_layout._Row(600, 0, 1000, 1000, 0, False, joined=True),
+            page_layout._Row(600, 0, 1000, 1000, 0, False, merged=True)]
+    table = page_layout._FlowTable(rows, "CELL", False, (0, 0), cells=((0, 2, cell),), cut=0)
+
+    _, _, continued = page_layout._block_rest(table, 0, 1, 4000, 5000)
+
+    assert len(continued) == 1
+    assert continued[0][2].lines == 1
+    assert continued[0][2].first == 1200
+    assert page_layout._flow_table(table, 0, 4000, 5000) == (1, 1200)
