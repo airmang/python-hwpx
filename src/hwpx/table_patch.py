@@ -129,11 +129,11 @@ def _direct_cells(table: bytes) -> list[_Cell]:
     masked = _mask_nested_tables(body)
     cells: list[_Cell] = []
     for m in re.finditer(rb"<(?:[A-Za-z_][\w.-]*:)?tc\b.*?</(?:[A-Za-z_][\w.-]*:)?tc>", masked, re.DOTALL):
-        real = table[body_start + m.start(): body_start + m.end()]
-        col = _iattr(real, "cellAddr", "colAddr")
-        row = _iattr(real, "cellAddr", "rowAddr")
-        cspan = _iattr(real, "cellSpan", "colSpan") or 1
-        rspan = _iattr(real, "cellSpan", "rowSpan") or 1
+        own = m.group(0)  # nested tables stay masked during metadata lookup too
+        col = _iattr(own, "cellAddr", "colAddr")
+        row = _iattr(own, "cellAddr", "rowAddr")
+        cspan = _iattr(own, "cellSpan", "colSpan") or 1
+        rspan = _iattr(own, "cellSpan", "rowSpan") or 1
         if row is None or col is None:
             continue
         cells.append(_Cell(body_start + m.start(), body_start + m.end(), row, col, rspan, cspan))
@@ -730,11 +730,17 @@ def fill_cells(
             ts, te = table_spans[ti]
             table = section_xml[ts:te]
             grid, report = build_grid(table)
+            if not report.ok:
+                skipped.append(CellSkipped(section_path, ti, row, col, "table grid is invalid: " + "; ".join(report.issues[:5])))
+                continue
             cell = grid.get((row, col))
             if cell is None:
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell address out of range"))
                 continue
             cell_bytes = table[cell.start:cell.end]
+            if _iter_table_spans(cell_bytes):
+                skipped.append(CellSkipped(section_path, ti, row, col, "cell contains a nested table; target its inner table explicitly"))
+                continue
             p_spans = _all_paragraph_spans(cell_bytes)
             if not p_spans:
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell has no paragraph"))
