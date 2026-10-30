@@ -199,6 +199,10 @@ _SUPSUB_SIZE = 0.64
 #: ``_UNLISTED_FACE``'s units and rounded.
 _UNLISTED_FACE = "한컴바탕"
 _UNLISTED_GLYPH_FACE = "함초롬바탕"
+#: Faces Hancom ships in its own font format whose printable ASCII glyphs it lays out as another face's: half an
+#: em in 1024 units, rounded as 바탕체's. Committed Hancom grids cover 9–12 pt at plain 100% scaling;
+#: their other glyphs keep an unlisted face's advances.
+_ASCII_FACES = {"명조": "바탕체", "고딕": "바탕체"}
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -2001,6 +2005,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
         # a no-break space takes its 장평 but no 자간
         return _laid_out_space(height, ratio, 0.0 if ch == " " else spacing)
     face = style.hangul_face if cls == "hangul" else glyph_face_of(ch, style)
+    if "!" <= ch <= "~":
+        face = _ASCII_FACES.get(face, face)
     kept = ch in _BOLD_KEPT_GLYPHS or ch in _BOLD_KEPT_IN_FACE.get(face, ())
     if emoji:
         design, base = _EMOJI_UNITS, _ADVANCE_EM[cls]
