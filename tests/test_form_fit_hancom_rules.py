@@ -78,6 +78,10 @@ SPACE_SCALING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_s
 FIXED_SPACE_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_letter_spacing.hwpx"
 FIXED_SPACE_RATIO = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_fixed_width_space_ratio_spacing.hwpx"
 KANA_HANJA = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_kana_hanja_widths.hwpx"
+TYPED_NO_BREAK_SPACES = [
+    Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_typed_no_break_{name}.hwpx"
+    for name in ("space_widths", "spaces_between_words")
+]
 AUTO_SPACING_LETTER_SPACING = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing.hwpx"
 AUTO_SPACING_SIZES = Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_auto_spacing_letter_spacing_sizes.hwpx"
 
@@ -875,6 +879,25 @@ def test_a_fixed_width_space_takes_its_ratio_and_letter_spacing(fixture: Path) -
         text = page_layout._run_text(runs)
         x = sum(char_advance(ch, size, style) for ch in text[:text.index("	")])
         assert round((x // 4000 + 1) * 4000 - x) == int(paragraph.find(f".//{HP}tab").get("width")), text
+
+
+@pytest.mark.parametrize("fixture", TYPED_NO_BREAK_SPACES, ids=lambda path: path.stem)
+def test_a_typed_no_break_space_takes_the_fonts_own_width(fixture: Path) -> None:
+    # Hancom laid out no-break spaces typed in the text (U+00A0 in hp:t, not hp:nbSpace): "가", 200 of them and
+    # "가" in 함초롬바탕, 함초롬돋움, 한컴산뜻돋움, 맑은 고딕, 바탕, 굴림 and 돋움 at 10 to 12 pt, 장평 95 and 100, 자간 0 and
+    # -6 %, regular and bold, and Hangul words joined by spaces and them (최소 공백 30) in four of those faces. It
+    # takes the font's own glyph for it, as when the font's own space is used (264 in 한컴산뜻돋움 at 10 pt, where a
+    # no-break space is half an em), and keeps the words beside it on one line.
+    document = HwpxDocument.open(fixture)
+    for paragraph in document.oxml.sections[0].element.findall(f"{HP}p")[1:]:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        starts = hancom_line_starts(page_layout._run_text(runs), [int(seg.get("horzsize")) for seg in segs], size,
+                                    style)
+        assert starts == [int(seg.get("textpos")) for seg in segs]
 
 
 def test_a_kana_the_face_lacks_is_as_wide_as_its_hangul_syllables() -> None:

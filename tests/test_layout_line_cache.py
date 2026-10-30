@@ -320,7 +320,10 @@ def test_a_no_break_space_among_spaces_that_shrink_is_left_for_hancom(condense: 
     # 자간 takes none of it: such paragraphs are left for Hancom.
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("", include_run=False)
-    paragraph.add_run("가나 다라 마바", char_pr_id_ref=document.styles.ensure_run(letter_spacing=spacing))
+    paragraph.add_run("가나", char_pr_id_ref=document.styles.ensure_run(letter_spacing=spacing))
+    text = _body(document)[-1].find(f"{HP}run/{HP}t")
+    text.append(text.makeelement(f"{HP}nbSpace", {}))
+    text[-1].tail = "다라 마바"
     shape_id = _body(document)[-1].get("paraPrIDRef")
     next(el for el in document.oxml.headers[0].element.iter(f"{HH}paraPr") if el.get("id") == shape_id).set(
         "condense", condense)
@@ -328,6 +331,17 @@ def test_a_no_break_space_among_spaces_that_shrink_is_left_for_hancom(condense: 
     report = write_line_caches(document)
 
     assert report.written == written
+
+
+def test_a_no_break_space_typed_in_the_text_is_left_for_hancom() -> None:
+    # A no-break space typed as a character (U+00A0 in hp:t) Hancom lays out at the font's own width, which the
+    # desktop showed in few faces.
+    document = HwpxDocument.new()
+    document.add_paragraph("가나 다라 마바")
+
+    report = write_line_caches(document)
+
+    assert report.written == 0 and report.skipped == 1
 
 
 def test_a_glyph_not_seen_on_the_desktop_is_left_for_hancom() -> None:
