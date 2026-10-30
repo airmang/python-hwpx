@@ -63,9 +63,13 @@ CASES = [
      "reason": "distinct physical cells with repeated text remain ambiguous after merged-cell deduplication"},
     {"id": "repeated-rows", "file": "tool__textextractor__Table.hwpx", "kind": "rows",
      "row": 2, "count": 2, "expected": "completed",
+     # One cached 1000-high line + table top/bottom margins 141 + 141 = 1282 per inserted row.
+     "tableHeight": {"before": 7692, "insertedRow": 1282, "after": 10256},
      "reason": "clone a data row twice; verify row addresses, styles and untouched content"},
     {"id": "merged-row-clone", "file": "reader_writer__SimpleTable.hwpx", "kind": "rows",
      "row": 0, "count": 1, "expected": "completed",
+     # The unmerged third cell fixes row 0 at 2886; the first cell spans two such rows (5772).
+     "tableHeight": {"before": 8657, "insertedRow": 2886, "after": 11543},
      "reason": "a row holding a merged cell that runs on below: the merged cell grows over the new row "
                "and only the other cells are cloned, as Hancom inserts a row"},
 ]
@@ -87,6 +91,25 @@ def _remove_layout_cache(root) -> int:
     for node in nodes:
         node.getparent().remove(node)
     return len(nodes)
+
+
+def _pinned_reference_row_height(table, row_index: int) -> int:
+    """Read the two pinned fixtures' one-line physical rows, independently of the engine's row model."""
+    margins = table.find(HP + "inMargin")
+    margin_height = int(margins.get("top")) + int(margins.get("bottom"))
+    heights = []
+    for cell in table.findall(HP + "tr")[row_index].findall(HP + "tc"):
+        if int(cell.find(HP + "cellSpan").get("rowSpan")) != 1:
+            continue
+        assert cell.get("hasMargin") == "0", "the pinned row inherits table margins"
+        paragraphs = cell.findall(HP + "subList/" + HP + "p")
+        assert len(paragraphs) == 1
+        lines = paragraphs[0].findall(HP + "linesegarray/" + HP + "lineseg")
+        assert len(lines) == 1 and int(lines[0].get("vertpos")) == 0
+        height = int(cell.find(HP + "cellSz").get("height"))
+        heights.append(max(height, int(lines[0].get("textheight")) + margin_height))
+    assert heights, "the pinned row has a non-spanning cell establishing its physical height"
+    return max(heights)
 
 
 def _compare_modified_section(before: bytes, after: bytes, case: dict) -> dict:
@@ -127,6 +150,13 @@ def _compare_modified_section(before: bytes, after: bytes, case: dict) -> dict:
         new_table = next(actual.iter(HP + "tbl"))
         old_rows, new_rows = old_table.findall(HP + "tr"), new_table.findall(HP + "tr")
         row_index, count = case["row"], case["count"]
+        height = case["tableHeight"]
+        assert int(old_table.find(HP + "sz").get("height")) == height["before"]
+        assert _pinned_reference_row_height(next(original.iter(HP + "tbl")), row_index) == height["insertedRow"]
+        assert height["after"] == height["before"] + count * height["insertedRow"]
+        assert int(new_table.find(HP + "sz").get("height")) == height["after"], "unexpected table height"
+        # Change the expected target attribute to its exact independently derived value; do not mask actual XML.
+        old_table.find(HP + "sz").set("height", str(height["after"]))
         assert len(new_rows) == len(old_rows) + count
         # A cell running on below the reference row grows over the new rows
         # instead of being cloned, so the clone holds the reference row's other cells.
@@ -263,4 +293,19 @@ def test_section_guard_rejects_unrequested_style_changes(tmp_path):
     root = etree.fromstring(edited)
     next(root.iter(HP + "run")).set("charPrIDRef", "99999")
     with pytest.raises(AssertionError, match="unexpected change"):
+        _compare_modified_section(original, etree.tostring(root), case)
+
+
+@pytest.mark.parametrize("case", [case for case in CASES if case["kind"] == "rows"], ids=lambda case: case["id"])
+def test_section_guard_rejects_an_incorrect_table_height(case, tmp_path):
+    source = CORPUS / case["file"]
+    output = tmp_path / "out.hwpx"
+    _run(case, source, output)
+    original = read_archive_members(source.read_bytes())[SECTION]
+    edited = read_archive_members(output.read_bytes())[SECTION]
+    _compare_modified_section(original, edited, case)
+    root = etree.fromstring(edited)
+    size = next(root.iter(HP + "tbl")).find(HP + "sz")
+    size.set("height", str(int(size.get("height")) + 1))
+    with pytest.raises(AssertionError, match="unexpected table height"):
         _compare_modified_section(original, etree.tostring(root), case)
