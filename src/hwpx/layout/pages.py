@@ -432,7 +432,9 @@ def _para_shape(header: Any, para_pr_id: str, doubled: bool = False) -> _Shape:
     kind, amount = ("PERCENT", 160)
     if spacing is not None:
         kind, amount = spacing.get("type", "PERCENT"), int(spacing.get("value", 160))
-        if kind != "PERCENT":
+        if kind != "PERCENT" and spacing.get("unit") == "CHAR":  # as a margin in that unit
+            amount = in_char_units(amount, _char_unit_height(header))
+        elif kind != "PERCENT":
             amount //= half
     return _Shape(kind, amount, value("prev"), value("next"), value("left"), value("right"), value("intent"),
                   dict(breaks.attrib) if breaks is not None else {}, shape.get("fontLineHeight") in ("1", "true"),
