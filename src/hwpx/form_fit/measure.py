@@ -2102,7 +2102,8 @@ def _break_opportunities(text: str) -> set[int]:
 #: Opening brackets that move down with the character after them: where a line could break before that
 #: character but for the bracket ending the line, Hancom breaks before the bracket instead, whatever stands
 #: before it ("%(평가" breaks as "%" | "(평가" where the "평" does not fit, breaking between any two syllables).
-_OPENING_MOVES_DOWN = frozenset("([")
+#: An opening curly quote does so too ("가]“가" breaks as "가]" | "“가").
+_OPENING_MOVES_DOWN = frozenset("([“‘")
 
 
 def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
