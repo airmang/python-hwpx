@@ -4452,6 +4452,11 @@ class _Paginator:
                 table, self.frame + 1, _repeated_header(table) + table.margins[0], self.body)):  # it goes on to
             below = max(bottom for _, bottom in self.bands[self.frame + 1])  # the next page whole: below the
             frame, end = _flow_table(table, self.frame + 1, below + table.above, self.body)  # object there
+        if para.notes and frame == self.frame:
+            height = self.page_notes[0] + sum(note[0] for note in para.notes.values())
+            many = self.page_notes[1] + sum(note[1] for note in para.notes.values())
+            if end > self.body - self.notes.area(height, many):
+                raise _Unsupported("a flowing table overlapping its footnotes")
         self._clear_of_paper(before, frame, start, end)
         self.table_end = max(self.table_end, frame)
         if later:
