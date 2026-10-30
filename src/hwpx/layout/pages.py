@@ -2077,8 +2077,8 @@ def _column_layout(settings: Any, text_width: int) -> tuple[int, int, tuple[int,
     """:func:`_columns` of the column settings *settings* (``hp:colPr``; ``None``: one column)."""
 
     count = int(settings.get("colCount", "1")) if settings is not None else 1
-    if count <= 1:
-        return 1, text_width, (), 0
+    if count <= 1:  # one column as several: its width rounded down to whole layout units of 4
+        return 1, text_width // 4 * 4, (), 0
     if not _true(settings.get("sameSz")):  # each column takes its share of 32768 of the text width (hp:colSz),
         sizes = settings.findall(f"{HP}colSz")  # rounded, whatever the shares add up to
         total = sum(int(size.get("width", 0)) + int(size.get("gap", 0)) for size in sizes)

@@ -1028,6 +1028,10 @@ HANCOM_PAGES = {
     # The same with the cell's first paragraph spaced 0 before and the others 600: the part on the next page starts
     # below the spacing before of the paragraph it starts with, though the cell's first paragraph has none
     "pages_nested_cell_split_with_its_first_paragraph_unspaced": 27,
+    # Left and right margins of 8503 (42522 left of the page's width): tables set as characters 42518 to 42523
+    # wide, alone or followed by a page number. The one column is 42520 wide, its width rounded down to a multiple
+    # of 4 as each of several columns is, and the page number goes below a table wider than that
+    "pages_one_column_width_rounded_down_to_four": 2,
     # Empty paragraphs whose shape takes the line height from the font (fontLineHeight), in 맑은 고딕, 함초롬바탕,
     # 바탕, 굴림 and HY헤드라인M at 11 and 20 pt, alone, after a line of 바탕 text and with a connected border: an
     # empty line keeps the character size (맑은 고딕 11 pt 1100, not the 1464 a line of its characters takes)

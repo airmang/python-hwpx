@@ -197,6 +197,7 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
         switched = bool(_pages._switched(section.element)) or stop is None \
             or any(_pages._section_settings(paragraph) is not None for paragraph in paragraphs[1:])
         columns = _column_widths(section.element, page)
+        single = _pages._column_layout(None, page.text_width)[1]  # the width of one column
         lines = estimate.lines[index:index + len(paragraphs)]
         index += len(paragraphs)
         # lines beside an object are narrower: the pages where one stands are left for Hancom
@@ -211,7 +212,7 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
             width = columns[number]
             laid = None if not sure[number] else (
                 _lines(measure, paragraph, width, first=number == 0)
-                or (_table_line(measure, paragraph, width) if width == page.text_width else None)  # one column
+                or (_table_line(measure, paragraph, width) if width == single else None)  # one column
                 or _picture_lines(measure, paragraph, width))
             if laid is None or len(laid[0]) != len(placed):
                 skipped += 1
@@ -223,7 +224,7 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
             written += 1
             changed = True
         for table in (child for number, paragraph in enumerate(paragraphs)
-                      if sure[number] and columns[number] == page.text_width  # in one column
+                      if sure[number] and columns[number] == single  # in one column
                       for run in paragraph.findall(f"{HP}run") for child in run if _pages._local(child) == "tbl"):
             cells = _cell_caches(measure, table)
             written += cells[0]
