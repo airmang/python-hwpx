@@ -31,6 +31,15 @@ every other part keeps the bytes Hangul wrote.
 `version.xml`). Each keeps the section's first paragraph and one equation paragraph byte for byte; the
 preview image was left out and the author and dates emptied (#351).
 
+The three font-command matrices (`equation_attached_font_commands.hwpx`,
+`equation_font_command_boundaries.hwpx`, `equation_font_command_case.hwpx`) retain
+their complete synthetic sections: 76, 27 and 48 equations respectively. They
+were opened, displayed and saved in Mac Hangul12.30.0 build6446 on2026-10-30
+(#591). Only the preview image and the metadata listed above were removed;
+all equation scripts, geometry and section bytes are untouched. Input, raw-save,
+sanitized-fixture and section hashes are in
+`tests/data/equation_font_boundary_provenance.json`.
+
 ## Adding a file
 
 For any new Hancom-saved file, remove the information listed above before

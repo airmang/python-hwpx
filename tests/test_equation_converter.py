@@ -191,7 +191,7 @@ def test_triangle_symbol_uses_exact_evidence_backed_tokens(token: str) -> None:
         "triangles PQR",
         "mytriangle PQR",
         "triangleidentifier PQR",
-        "rmtriangle PQR",
+        "myrmtriangle PQR",
     ],
 )
 def test_triangle_support_does_not_split_identifiers(script: str) -> None:
@@ -210,6 +210,7 @@ def test_triangle_support_does_not_split_identifiers(script: str) -> None:
     "script,expected",
     [
         ("rm A", r"\mathrm{A}"),
+        ("rmtriangle PQR", r"\triangle \mathrm{PQR}"),
         ("it a", "a"),
         ("bold x", r"\boldsymbol{x}"),
         ("RM ab IT fv", r"\mathrm{ab} fv"),
@@ -256,9 +257,9 @@ def test_font_switches_read_as_latex_fonts(script: str, expected: str) -> None:
         ('e ^{"it"}', r"e^{it}"),  # a quoted switch word is an identifier (#360), italic as before
         ('rm "it" x', r"\mathrm{it} \mathrm{x}"),  # ... upright after rm
         ("x _{rm}", "x_{}"),
-        ("rmA", "rmA"),  # a switch glued to its letters stays one identifier, as before
-        ("itab fv", "itab fv"),
-        ("bit + item", "bit + item"),
+        ("rmA", r"\mathrm{A}"),  # Hancom recognizes switches at the start of a word (#591)
+        ("itab fv", "ab fv"),
+        ("bit + item", "bit + em"),
     ],
 )
 def test_font_switch_words_inside_identifiers(script: str, expected: str) -> None:
