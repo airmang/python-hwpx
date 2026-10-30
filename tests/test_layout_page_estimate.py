@@ -1021,6 +1021,10 @@ HANCOM_PAGES = {
     # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
     # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
     "pages_footnotes_in_table_cells": 28,
+    # Seven times on a page of its own: a table whose cell holds four paragraphs of a picture set as a character,
+    # 10 pt and 11 pt text (one line or two), each ended by a run without characters at 9, 11, 12 or 15 pt (or by
+    # none): as in the body, the run ending a paragraph makes its last line as tall as itself when it is larger
+    "pages_cell_objects_ending_in_an_empty_larger_run": 7,
     # The same with the cell's first paragraph spaced 0 before and the others 600: the part on the next page starts
     # below the spacing before of the paragraph it starts with, though the cell's first paragraph has none
     "pages_nested_cell_split_with_its_first_paragraph_unspaced": 27,
