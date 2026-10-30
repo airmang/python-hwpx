@@ -1614,6 +1614,28 @@ def test_page_margins_leaving_no_body_are_unsupported() -> None:
     assert any("no room for the body" in reason for reason in estimate.unsupported)
 
 
+@pytest.mark.parametrize("text_width", [1, 2, 3])
+def test_one_column_rounding_to_zero_is_unsupported_without_cache_mutation(text_width: int) -> None:
+    from hwpx.layout.line_cache import write_line_caches
+
+    document = HwpxDocument.new()
+    document.add_paragraph("너비 없는 줄")
+    page = next(document.oxml.sections[0].element.iter(HP + "pagePr"))
+    page.set("width", str(text_width))
+    margin = page.find(HP + "margin")
+    for side in ("left", "right", "gutter"):
+        margin.set(side, "0")
+    before = document.to_bytes()
+
+    estimate = estimate_pages(document)
+    report = write_line_caches(document)
+
+    assert estimate.pages is None and estimate.lines == ()
+    assert estimate.unsupported == ("section 0: column width leaving no room for the body",)
+    assert report.unsupported == estimate.unsupported and report.written == 0
+    assert document.to_bytes() == before
+
+
 def test_an_offset_written_with_a_minus_sign_is_read_as_zero() -> None:
     # The same rectangle written vertOffset="-1500" (not the unsigned form): Hancom reads it as 0, draws the
     # rectangle at the paragraph's top and saves 0. The fixture is that save; written back with the minus sign,

@@ -197,7 +197,8 @@ def write_line_caches(document: "HwpxDocument") -> LineCacheReport:
         switched = bool(_pages._switched(section.element)) or stop is None \
             or any(_pages._section_settings(paragraph) is not None for paragraph in paragraphs[1:])
         columns = _column_widths(section.element, page)
-        single = _pages._column_layout(None, page.text_width)[1]  # the width of one column
+        # A negative gap may leave several valid columns even where one full-width column would round to zero.
+        single = _pages._column_layout(None, page.text_width)[1] if page.text_width >= 4 else None
         lines = estimate.lines[index:index + len(paragraphs)]
         index += len(paragraphs)
         # lines beside an object are narrower: the pages where one stands are left for Hancom
