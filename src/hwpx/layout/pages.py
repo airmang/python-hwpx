@@ -3301,7 +3301,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                                                    cached, count, anchor_line)
     around = 0 if square is None or not text else _anchor_line(measure, paragraph, runs, text, square, widths,
                                                                 size, style, cached, count)
-    if among and _note_anchors(runs):
+    if among and _note_anchors(runs, in_tables=True):
         raise _Unsupported("footnotes in a paragraph with objects among its text")
     notes = _anchored_notes(measure, runs, text, widths, size, style, page.column_width, sizes if mixed else None,
                             looks)

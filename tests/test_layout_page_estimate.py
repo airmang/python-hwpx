@@ -2783,3 +2783,21 @@ def test_a_paragraph_its_shape_squeezes_takes_one_line() -> None:
     data = (FIXTURES / "line_cache_squeezed.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 3)
+
+
+@pytest.mark.parametrize("characters_before", [1, 35])
+def test_a_note_in_a_table_among_text_is_left_for_hancom(characters_before: int) -> None:
+    # Reuse Hancom's table-note fixture at a page boundary. The object can wrap after its preceding text, so
+    # text-only line starts cannot locate its note. Refuse this combination until anchoring follows the object.
+    document = HwpxDocument.open(_without_caches((FIXTURES / "pages_footnotes_in_table_cells.hwpx").read_bytes()))
+    root = document.oxml
+    paragraph = next(paragraph for paragraph in root.sections[0].element.findall(f"{HP}p")
+                     if any(table.find(f"{HP}pos").get("treatAsChar") == "1"
+                            and table.find(f".//{HP}footNote") is not None for table in paragraph.iter(f"{HP}tbl")))
+    run = etree.Element(f"{HP}run", charPrIDRef="0")
+    etree.SubElement(run, f"{HP}t").text = "가" * characters_before
+    paragraph.insert(0, run)
+    page = page_layout._Page(1600, 42520, 1)
+
+    with pytest.raises(page_layout._Unsupported, match="footnotes in a paragraph with objects among its text"):
+        page_layout._paragraph(page_layout._Measure(root), page, paragraph)
