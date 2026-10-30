@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re as _re
 from copy import deepcopy
-from typing import Iterable, Mapping, Optional, TypeVar
+from typing import Callable, Iterable, Mapping, Optional, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -1483,22 +1483,31 @@ def _elements_structurally_equal(
     paraPr's shape is too varied for a hand-enumerated field list).
     """
 
-    a_tag = a.tag if isinstance(a.tag, str) else None
-    b_tag = b.tag if isinstance(b.tag, str) else None
-    if a_tag != b_tag:
-        return False
-    a_attrib = {k: v for k, v in a.attrib.items() if k not in ignore_attrs}
-    b_attrib = {k: v for k, v in b.attrib.items() if k not in ignore_attrs}
-    if a_attrib != b_attrib:
-        return False
-    a_children = list(a)
-    b_children = list(b)
-    if len(a_children) != len(b_children):
-        return False
-    return all(
-        _elements_structurally_equal(ac, bc, ignore_attrs=ignore_attrs)
-        for ac, bc in zip(a_children, b_children)
-    )
+    return _compile_element_matcher(b, ignore_attrs=ignore_attrs)(a)
+
+
+def _compile_element_matcher(
+    built: ET.Element, *, ignore_attrs: frozenset[str] = frozenset()
+) -> Callable[[ET.Element], bool]:
+    """Prepare the unchanged side of a structural comparison once for this lookup.
+
+    Attribute names/values, child order and ignored names have the same meaning as
+    ``_elements_structurally_equal``. No state survives the ensure call.
+    """
+
+    tag = built.tag if isinstance(built.tag, str) else None
+    attributes = {key: value for key, value in built.attrib.items() if key not in ignore_attrs}
+    children = tuple(_compile_element_matcher(child, ignore_attrs=ignore_attrs) for child in built)
+
+    def matches(candidate: ET.Element) -> bool:
+        candidate_tag = candidate.tag if isinstance(candidate.tag, str) else None
+        if candidate_tag != tag:
+            return False
+        if {key: value for key, value in candidate.attrib.items() if key not in ignore_attrs} != attributes:
+            return False
+        return len(candidate) == len(children) and all(check(child) for child, check in zip(candidate, children))
+
+    return matches
 
 
 def _find_matching_para_pr(para_properties: ET.Element, built: ET.Element) -> str | None:
@@ -1507,11 +1516,12 @@ def _find_matching_para_pr(para_properties: ET.Element, built: ET.Element) -> st
     ``ensure_paragraph_format`` (kept as a separate function rather than
     inlined) purely to keep that function's own cyclomatic complexity
     under the C901 ratchet -- the loop itself has nothing paraPr-specific
-    beyond calling :func:`_elements_structurally_equal`.
+    beyond applying the per-call prepared structural matcher.
     """
 
+    matches = _compile_element_matcher(built, ignore_attrs=frozenset({"id"}))
     for candidate in para_properties.findall(f"{_HH}paraPr"):
-        if _elements_structurally_equal(candidate, built, ignore_attrs=frozenset({"id"})):
+        if matches(candidate):
             existing_id = candidate.get("id")
             if existing_id:
                 return existing_id
