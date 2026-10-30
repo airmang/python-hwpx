@@ -322,7 +322,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: row and column insertion and deletion and cell splits on the table object model
     # (oxml/table_structure.py), outside table.py because that owner file sits at its 1600-line cap.
     # +1: the experimental line layout cache writer (layout/line_cache.py).
-    assert report["classifiedFiles"] == 183
+    # +1: QName-aware trailing-table-text byte spans; caller owns selection policy.
+    assert report["classifiedFiles"] == 184
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

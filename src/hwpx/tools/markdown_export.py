@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Union
 
 from ..document import HwpxDocument
+from ..errors import HwpxTypeError
 from ..oxml._document_primitives import _text_element_content
 from ..oxml.hyperlink_form import hyperlink_target
 from ..oxml.namespaces import tag_local_name
@@ -571,7 +572,7 @@ def export_markdown(
     """
     detector = _detect_heading if heading_detector is None else heading_detector
     if not callable(detector):
-        raise TypeError("heading_detector must be callable or None")
+        raise HwpxTypeError("heading_detector must be callable or None", context={"argument": "heading_detector"})
     doc = _export_resolve_doc(source)
     mapping = _build_image_map(doc, Path(image_dir) if image_dir else None, image_ref_prefix)
     notes: list[tuple] = []

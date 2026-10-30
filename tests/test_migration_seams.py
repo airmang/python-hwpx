@@ -100,3 +100,17 @@ def test_heading_callback_reaches_namespace_and_ingest_without_extension() -> No
     assert "### injected" in document.text.markdown(rich=True, **options)
     result = DocumentIngestor.default().convert(BytesIO(document.to_bytes()), markdown_options=options)
     assert "### injected" in result.markdown and "# Ⅰ." not in result.markdown
+
+
+@pytest.mark.parametrize("argument", ["heading_detector", "predicate"])
+def test_invalid_callbacks_raise_structured_type_errors_before_io(argument) -> None:
+    from hwpx.errors import HwpxTypeError
+    from hwpx.table_patch import strip_trailing_table_text
+
+    with pytest.raises(HwpxTypeError) as found:
+        if argument == "heading_detector":
+            export_markdown(b"not a package", heading_detector=42)
+        else:
+            strip_trailing_table_text(b"not a package", predicate=42)
+    assert found.value.code == "hwpx-type-error"
+    assert found.value.context == {"argument": argument}

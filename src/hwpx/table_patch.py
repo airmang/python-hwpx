@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-from .errors import HwpxError
+from .errors import HwpxError, HwpxTypeError
 from .oxml.table_sizes import COLUMN_FLOOR_EXTRA, effective_cell_margin_source
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice
@@ -2624,7 +2624,7 @@ def strip_trailing_table_text(
     their bytes. Selection errors propagate before any output is published.
     """
     if not callable(predicate):
-        raise TypeError("predicate must be callable")
+        raise HwpxTypeError("predicate must be callable", context={"argument": "predicate"})
     return _strip_trailing_table_text(source, predicate=predicate, output_path=output_path, legacy=False)
 
 

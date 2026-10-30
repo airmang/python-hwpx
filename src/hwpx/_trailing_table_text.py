@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from lxml import etree
 
+from .errors import HwpxValueError
 from .opc.xml_utils import _XML_MARKUP, parse_xml
 from .oxml.namespaces import tag_in_family, tag_local_name
 
@@ -36,7 +37,7 @@ def _element_spans(source: bytes, root: etree._Element) -> dict[etree._Element, 
             if not token.endswith(b"/>"):
                 stack.append(element)
     if stack or next(elements, None) is not None:
-        raise ValueError("could not bind paragraph XML to source bytes")
+        raise HwpxValueError("could not bind paragraph XML to source bytes", context={"operation": "strip_trailing_table_text"})
     return spans
 
 
