@@ -202,8 +202,8 @@ from typing import TYPE_CHECKING, Any
 
 from lxml import etree
 
-from ..form_fit.measure import (_DEFAULT_TAB_STOP, _GLYPH_SPACE, char_advance, font_line_height, hancom_line_starts,
-                                in_char_units, indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
+from ..form_fit.measure import (_DEFAULT_TAB_STOP, _GLYPH_SPACE, _TYPED_NO_BREAK_SPACE, char_advance,
+                                font_line_height, hancom_line_starts, in_char_units, indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -470,7 +470,8 @@ def _on(flags: dict[str, str], name: str) -> bool:
 def _t_text(text_element: Any) -> str:
     """The text of one ``hp:t``, with ``hp:lineBreak`` as a newline, ``hp:tab`` as a tab, ``hp:nbSpace`` as a
     no-break space (U+00A0) and ``hp:fwSpace`` as a fixed-width one (U+3000), as python-hwpx reads them; an
-    ideographic space typed in the text is FormFit's ``_GLYPH_SPACE``, so it is not taken for a fixed-width one.
+    ideographic space typed in the text is FormFit's ``_GLYPH_SPACE``, so it is not taken for a fixed-width one, and
+    a no-break space typed in it ``_TYPED_NO_BREAK_SPACE``, which Hancom lays out at the font's own width.
     A table-of-contents mark (``hp:titleMark``) is a character of no width (U+200D): Hancom lays its line out as
     tall as the mark's run and spaces it from that size."""
 
@@ -480,8 +481,8 @@ def _t_text(text_element: Any) -> str:
         parts.append({"lineBreak": "\n", "tab": "\t", "nbSpace": "\u00a0", "fwSpace": "\u3000",
                       "titleMark": "\u200d"}.get(name, ""))
         parts.append(child.tail or "")
-    return "".join(part.replace("\u3000", _GLYPH_SPACE) if index % 2 == 0 else part
-                   for index, part in enumerate(parts))
+    return "".join(part.replace("\u3000", _GLYPH_SPACE).replace("\u00a0", _TYPED_NO_BREAK_SPACE) if index % 2 == 0
+                   else part for index, part in enumerate(parts))
 
 
 def _indented(line: float, shape: _Shape, style: Any) -> list[float]:

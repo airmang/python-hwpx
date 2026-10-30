@@ -125,6 +125,10 @@ _FIXED_SPACE = "\u3000"
 #: and which hangs at a line end however many follow each other (after a word,
 #: only the first fixed-width space, or the first two spaces, hang).
 _GLYPH_SPACE = "\ufdd0"
+#: A no-break space typed as a character (U+00A0 in the text of ``hp:t``; python-hwpx reads ``hp:nbSpace`` as
+#: U+00A0 too), as the page estimate passes it: Hancom keeps the words beside it on one line as it does a no-break
+#: space, but lays it out at the face's own advance for it, as when the font's own space is used.
+_TYPED_NO_BREAK_SPACE = "\ufdd1"
 #: The spaces Hancom makes half an em wide (unless the font's own space is used).
 _HALF_EM_SPACES = frozenset(" \u00a0")
 #: The glyphs Hancom lays out at half an em in every face, whatever the font's own advance, and as it lays out a
@@ -1944,6 +1948,8 @@ def classify_char(ch: str) -> str:
 
     if ch in " \t ":
         return "space"
+    if ch == _TYPED_NO_BREAK_SPACE:
+        return "space"
     code = ord(ch)
     # Hangul syllables, jamo, compatibility jamo.
     if 0xAC00 <= code <= 0xD7A3 or 0x1100 <= code <= 0x11FF or 0x3130 <= code <= 0x318F:
@@ -1975,6 +1981,8 @@ def char_advance(ch: str, font_pt: float, style: TextStyle | None = None) -> flo
     ``_LAYOUT_UNIT``); other glyphs scale their class average.
     """
 
+    if ch == _TYPED_NO_BREAK_SPACE:
+        return char_advance("\u00a0", font_pt, None if style is None else replace(style, use_font_space=True))
     typed = ch == _GLYPH_SPACE
     ch = "\u3000" if typed else ch
     if ch in _ZERO_WIDTH:
