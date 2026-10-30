@@ -418,8 +418,8 @@ def test_kopub_accented_and_other_glyphs_take_the_advances_hancom_lays_them_out_
     assert len(paragraphs) == 12 * 2 * 20
 
 
-@pytest.mark.parametrize("name", ["myeongjo", "gothic"])
-def test_hft_faces_lay_ascii_out_at_half_an_em(name: str) -> None:
+@pytest.mark.parametrize("name,expected_face", [("myeongjo", "명조"), ("gothic", "고딕")])
+def test_hft_faces_lay_ascii_out_at_half_an_em(name: str, expected_face: str) -> None:
     # Hancom laid out three of each printable ASCII glyph and of 26 Hangul syllables, then a tab, in its own 명조
     # and 고딕 at 9 to 12 pt: the ASCII glyphs half an em as 바탕체's (113 layout units at 9 pt, where 한컴바탕,
     # which these faces took before, has their own widths), the syllables an em.
@@ -429,6 +429,7 @@ def test_hft_faces_lay_ascii_out_at_half_an_em(name: str) -> None:
     for paragraph in paragraphs:
         runs = paragraph.findall(f"{HP}run")
         style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        assert style.glyph_face == expected_face and style.hangul_face == expected_face
         text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
         size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
         x = sum(char_advance(ch, size, style) for ch in text[:3])

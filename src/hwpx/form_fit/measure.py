@@ -200,8 +200,8 @@ _SUPSUB_SIZE = 0.64
 _UNLISTED_FACE = "한컴바탕"
 _UNLISTED_GLYPH_FACE = "함초롬바탕"
 #: Faces Hancom ships in its own font format whose printable ASCII glyphs it lays out as another face's: half an
-#: em in 1024 units, rounded as 바탕체's (seen on the desktop for every ASCII glyph at 6 to 127 pt and 장평 70 to
-#: 150 %); their other glyphs as an unlisted face's.
+#: em in 1024 units, rounded as 바탕체's. Committed Hancom grids cover 9–12 pt at plain 100% scaling;
+#: their other glyphs keep an unlisted face's advances.
 _ASCII_FACES = {"명조": "바탕체", "고딕": "바탕체"}
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"

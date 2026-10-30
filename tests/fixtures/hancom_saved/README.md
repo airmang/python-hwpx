@@ -33,5 +33,12 @@ preview image was left out and the author and dates emptied (#351).
 
 ## Adding a file
 
+`formfit_hft_ascii_myeongjo_grid.hwpx` and `formfit_hft_ascii_gothic_grid.hwpx`
+contain 480 paragraphs each in the named face (94 printable ASCII glyphs and
+26 Hangul syllables at 9,10,11,12pt). Tests assert the resolved face as well as
+the saved tab positions. The initial PR filenames were swapped; the corrected
+names and metadata-only redaction are linked to the original section hashes in
+`tests/data/formfit_hft_ascii_provenance.json` (#623).
+
 For any new Hancom-saved file, remove the information listed above before
 committing it, and say in the test what behaviour of Hangul the file shows.
