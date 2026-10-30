@@ -1548,14 +1548,16 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
         if nested or several else ()
     if nested and not (drawn or wrapped or pieces):
         reaches = _pushed_reaches(measure, paragraphs, inner, metrics)
+    # its paragraphs, a table's among them, spaced apart (lines drawn as Hancom did hold their spacing already)
+    spaced = several or nested and len(paragraphs) > 1 and not drawn
     leads = wrapped_leads if wrapped else _line_leads(measure, paragraphs, inner, pieces) \
-        if several or before or pieces else ()
+        if spaced or before or pieces else ()
     if pieces and metrics:  # as tall as its lines and its tables' pieces: the caches of a cell Hancom split over a
         content = max(content, _lines_height(metrics, leads))  # page end hold its parts, each from the top
         height = max(height, vertical + content)
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
-                first=first, leads=leads if several or before or pieces else (), pieces=pieces, reaches=reaches,
+                first=first, leads=leads if spaced or before or pieces else (), pieces=pieces, reaches=reaches,
                 cuts=_line_cuts(measure, paragraphs, inner) if pieces else (),
                 blocks=_line_blocks(measure, paragraphs, inner) if pieces else ())
 
