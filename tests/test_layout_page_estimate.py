@@ -2833,3 +2833,32 @@ def test_a_note_in_a_table_among_text_is_left_for_hancom(characters_before: int)
 
     with pytest.raises(page_layout._Unsupported, match="footnotes in a paragraph with objects among its text"):
         page_layout._paragraph(page_layout._Measure(root), page, paragraph)
+
+
+def test_a_flowing_table_reaching_its_footnotes_is_left_for_hancom() -> None:
+    # Move Hancom's 2564-high flowing table near the page foot: its 2351-high note area starts at 10213,
+    # while the table would end at 12364. Counting the notes only after placing the table must not leave a
+    # supposedly supported layout where the table and its footnotes overlap.
+    from dataclasses import replace
+
+    document = HwpxDocument.open(_without_caches((FIXTURES / "pages_footnotes_in_table_cells.hwpx").read_bytes()))
+    root = document.oxml
+    element = next(paragraph for paragraph in root.sections[0].element.findall(f"{HP}p")
+                   if any(table.find(f"{HP}pos").get("treatAsChar") == "0"
+                          and table.find(f".//{HP}footNote") is not None for table in paragraph.iter(f"{HP}tbl")))
+    para = page_layout._paragraph(page_layout._Measure(root), page_layout._Page(12564, 42520, 1), element)
+    assert para.table is not None and para.notes
+    shape = page_layout._note_shape(root.sections[0].element)
+    paginator = page_layout._Paginator(12564, 1, shape)
+
+    with pytest.raises(page_layout._Unsupported, match="flowing table overlapping its footnotes"):
+        paginator._flow(para, para.table, 9800)
+
+    # The same table without notes still fits. The unchanged fixture at the page top also remains supported.
+    unnoted = replace(para, notes={})
+    without_notes = page_layout._Paginator(12564, 1, shape)
+    without_notes._flow(unnoted, unnoted.table, 9800)
+    assert without_notes.frame == 0 and without_notes.floor == 12364
+    at_top = page_layout._Paginator(12564, 1, shape)
+    at_top._flow(para, para.table, 0)
+    assert at_top.frame == 0 and at_top.floor < 12564 - shape.area(*at_top.page_notes)
