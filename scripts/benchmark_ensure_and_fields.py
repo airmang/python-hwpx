@@ -30,7 +30,24 @@ HP = '{http://www.hancom.co.kr/hwpml/2011/paragraph}'
 @contextmanager
 def candidate_counts(kind):
     count = Counter()
-    if kind == 'paragraph':
+    if kind == 'paragraph' and hasattr(prim, '_compile_element_matcher'):
+        old = prim._compile_element_matcher
+        def prepared(target, **kwargs):
+            count['pattern_nodes_prepared'] += 1
+            check = old(target, **kwargs)
+            if target.tag != f'{HH}paraPr':
+                return check
+            count['pattern_compilations'] += 1
+            def counted(candidate):
+                count['candidates'] += 1
+                return check(candidate)
+            return counted
+        prim._compile_element_matcher = prepared
+        try:
+            yield count
+        finally:
+            prim._compile_element_matcher = old
+    elif kind == 'paragraph':
         old = prim._elements_structurally_equal
         def wrapped(a, b, **kwargs):
             if a.tag == f'{HH}paraPr':
@@ -110,7 +127,8 @@ def styles():
                 assert all(result for result in results)
                 records.append({'api': kind, 'requested_distinct_styles': n, 'actual_records_after_setup': actual_records, 'case': case, 'requests': len(operations),
                                 'seconds': elapsed, 'us_per_request': elapsed * 1e6 / len(operations),
-                                'candidate_comparisons': counts['candidates'], 'setup_seconds': setup})
+                                'candidate_comparisons': counts['candidates'], 'pattern_compilations': counts['pattern_compilations'],
+                                'pattern_nodes_prepared': counts['pattern_nodes_prepared'], 'setup_seconds': setup})
                 print(kind, n, case, round(elapsed, 4), counts['candidates'], file=sys.stderr, flush=True)
             if kind == 'border':
                 assert header_before == etree.tostring(doc.oxml.headers[0].element)
