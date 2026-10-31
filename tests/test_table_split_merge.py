@@ -198,13 +198,13 @@ def test_apply_table_ops_split_table_succeeds_right_after_a_span_ends(merged) ->
     assert bottom_rep.ok and bottom_rep.row_count == 9
 
 
-def test_apply_table_ops_split_table_refuses_nested_tables(merged) -> None:
+def test_apply_table_ops_split_table_counts_only_its_own_rows(merged) -> None:
     # table 8 declares rowCnt=1 but the raw row scan finds 12 <hp:tr> --
-    # a nested table inside one of its cells (_guard_flat's territory).
+    # the other 11 belong to a table nested in one of its cells.
     res = apply_table_ops(merged, [{"op": "split_table", "table_index": 8, "split_row": 1}])
     assert not res.ok
     assert res.skipped
-    assert "nested" in res.skipped[0].reason
+    assert "out of range (1..0)" in res.skipped[0].reason
 
 
 def test_apply_table_ops_split_table_requires_split_row(merged) -> None:
