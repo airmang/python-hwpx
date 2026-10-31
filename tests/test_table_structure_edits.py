@@ -357,10 +357,14 @@ def test_refused_edits_leave_the_table_as_it_was(edit, message: str) -> None:
     assert etree.tostring(table.element) == before
 
 
-def test_a_table_holding_a_table_is_refused() -> None:
+def test_a_table_holding_a_table_keeps_it_through_an_edit() -> None:
     document = HwpxDocument.new()
     table = document.add_table(rows=2, cols=2)
-    table.cell(0, 0).add_table(1, 1)
+    table.cell(0, 0).add_table(1, 1).cell(0, 0).text = "inner"
 
-    with pytest.raises(TableStructureError, match="nested"):
-        table.insert_rows(0)
+    table.insert_rows(0)
+
+    assert table.row_count == 3
+    assert [table.cell(row, 0).tables[0].cell(0, 0).text for row in (0, 1)] == ["inner", "inner"]
+    with HwpxDocument.open(document.to_bytes()) as reopened:
+        assert reopened.tables[0].row_count == 3

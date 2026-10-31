@@ -24,6 +24,7 @@ fill (FR-001/FR-002) plus the grid validator (FR-004) they share.
 """
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +35,11 @@ from .oxml.table_sizes import COLUMN_FLOOR_EXTRA, effective_cell_margin_source
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
+    _LINESEG_ARRAY_RE,
+    _RUN_OPEN_RE,
+    _TEXT_RE,
     _apply_edits,
+    _escaped_text,
     _patch_zip_entries,
     _read_source_bytes,
     _rewrite_zip_entries,
@@ -191,17 +196,129 @@ _SQUEEZE_WRAP_RE = re.compile(
     rb'<(?:[A-Za-z_][\w.-]*:)?subList\b[^>]*?\blineWrap="(?P<value>SQUEEZE)"'
 )
 
+_SUBLIST_EVENT_RE = re.compile(rb"<(/?)(?:[A-Za-z_][\w.-]*:)?subList\b[^>]*?(/?)>")
+
+
+def _mask_cell_objects(cell: bytes) -> bytes:
+    """`_mask_nested_tables`, plus every paragraph list below the cell's own one
+    (a text box's drawText, a footnote or endnote body ...), offset-preserving.
+    The cell's own paragraphs, runs and ``hp:t`` are then found without
+    descending into an object's paragraphs, whose ``</hp:p>`` would otherwise
+    end the enclosing paragraph's span early."""
+    out = bytearray(_mask_nested_tables(cell))
+    depth = 0
+    start = 0
+    for m in _SUBLIST_EVENT_RE.finditer(bytes(out)):
+        if m.group(2):  # <hp:subList/>
+            continue
+        if not m.group(1):
+            depth += 1
+            if depth == 2:
+                start = m.start()
+        else:
+            if depth == 2:
+                out[start:m.end()] = b" " * (m.end() - start)
+            depth -= 1
+    return bytes(out)
+
+
 def _first_paragraph_span(cell: bytes) -> tuple[int, int] | None:
     """Byte span of the cell's first ``<hp:p>...</hp:p>`` (its own subList's
-    first paragraph), skipping any nested table content."""
-    m = _P_SPAN_RE.search(_mask_nested_tables(cell))
+    first paragraph), skipping nested table and object content."""
+    m = _P_SPAN_RE.search(_mask_cell_objects(cell))
     return (m.start(), m.end()) if m else None
 
 def _all_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
     """Byte spans of every direct ``<hp:p>`` of the cell (its own paragraphs,
-    not nested-table ones)."""
-    masked = _mask_nested_tables(cell)
+    not those of a nested table or object)."""
+    masked = _mask_cell_objects(cell)
     return [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
+
+
+_P_OPEN_TAG_RE = re.compile(rb"<(?P<prefix>(?:[A-Za-z_][\w.-]*:)?)p\b[^>]*>")
+
+
+def _cell_text_edits(cell: bytes, text: str, shrink: tuple[str, str] | None) -> tuple[list[tuple[int, int, bytes]], str | None]:
+    """Cell-relative byte edits that make the cell's own visible text *text*.
+
+    Line k goes to the k-th own text paragraph; lines past the last one stay in
+    it as ``hp:lineBreak``; later own paragraphs are emptied, so stale template
+    text does not survive. A paragraph holding a nested table is never
+    re-serialised: only its own ``hp:t`` outside the nested table are emptied
+    and its own line cache dropped, leaving the nested table's bytes unchanged.
+    A paragraph holding an object with its own paragraphs (a text box, a
+    footnote) is treated the same way. A cell whose only paragraphs hold tables
+    gets a new paragraph (the holder's paragraph/char shape) before the first
+    one. Returns ``(edits, first original own text)``; edits are empty when the
+    cell already shows *text*.
+    """
+    masked = _mask_cell_objects(cell)
+    spans = [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
+    holders = [(s, e) for s, e in spans if masked[s:e] != cell[s:e]]
+    targets = [(s, e) for s, e in spans if masked[s:e] == cell[s:e]]
+    lines = text.split("\n")
+    if targets and len(lines) > len(targets):
+        lines = lines[: len(targets) - 1] + ["\n".join(lines[len(targets) - 1:])]
+
+    def remap(paragraph: bytes) -> bytes:
+        if shrink is None:
+            return paragraph
+        base_id, new_id = shrink
+        return re.sub(rb'(charPrIDRef=")' + re.escape(base_id.encode()) + rb'(")', rb"\g<1>" + new_id.encode() + rb"\g<2>", paragraph)
+
+    edits: list[tuple[int, int, bytes]] = []
+    first_orig: str | None = None
+    for idx, (ps, pe) in enumerate(targets):
+        para = cell[ps:pe]
+        line = lines[idx] if idx < len(lines) else ""
+        edit = _text_edit_for_paragraph(para, line)
+        if edit is None:
+            continue
+        _s, _e, replacement, original_text = edit
+        if idx == 0:
+            first_orig = original_text
+        if original_text == line:
+            continue
+        new_para = _strip_paragraph_layout_cache(replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]))
+        edits.append((ps, pe, remap(new_para)))
+
+    # Own text beside a nested table is cleared -- or, when the cell has no other
+    # text paragraph, replaced in place so the cell keeps its layout.
+    pending = text if not targets else ""
+    for hs, he in holders:
+        own = masked[hs:he]
+        found = [m for m in _TEXT_RE.finditer(own) if m.group("text")]
+        if not found:
+            continue
+        original_text = "".join(html.unescape(m.group("text").decode("utf-8", "replace")) for m in found)
+        if not targets and first_orig is None:
+            first_orig = original_text
+        if original_text == pending:
+            pending = ""
+            continue
+        for k, m in enumerate(found):
+            new = _escaped_text(pending, m.group("prefix")) if k == 0 else b""
+            edits.append((hs + m.start("text"), hs + m.end("text"), new))
+        pending = ""
+        edits.extend((hs + m.start(), hs + m.end(), b"") for m in _LINESEG_ARRAY_RE.finditer(own))
+
+    if not targets and holders and pending:
+        hs, he = holders[0]
+        own = masked[hs:he]
+        p_open = _P_OPEN_TAG_RE.match(own)
+        run = _RUN_OPEN_RE.search(own)
+        if p_open is not None:
+            prefix = p_open.group("prefix")
+            open_tag = re.sub(rb'\b(pageBreak|columnBreak)="1"', rb'\1="0"', p_open.group(0))
+            char_pr = re.search(rb'\bcharPrIDRef="[^"]*"', run.group(0)) if run is not None else None
+            run_open = b"<" + prefix + b"run" + ((b" " + char_pr.group(0)) if char_pr else b"") + b">"
+            new_para = (
+                open_tag + run_open
+                + b"<" + prefix + b"t>" + _escaped_text(pending, prefix) + b"</" + prefix + b"t>"
+                + b"</" + prefix + b"run></" + prefix + b"p>"
+            )
+            edits.append((hs, hs, remap(new_para)))
+    return edits, first_orig
 
 
 def _squeeze_wrap_edit(cell: bytes) -> tuple[int, int, bytes] | None:
@@ -303,7 +420,7 @@ def _shrunk_font_id(header: bytes, table_bytes: bytes, cell_bytes: bytes, text: 
     from .form_fit.measure import SlotMetrics
     from .form_fit.policy import FitPolicy
 
-    base_id = _cell_run_charpr(cell_bytes)
+    base_id = _cell_run_charpr(_mask_cell_objects(cell_bytes))  # the cell's own run, not a nested one
     if base_id is None:
         return None
     inner = _cell_inner_width(table_bytes, cell_bytes)
@@ -722,7 +839,7 @@ def fill_cells(
         table_spans = _iter_table_spans(section_xml)
         # accumulate byte edits over the whole section (table region splices)
         section_edits: list[tuple[int, int, bytes]] = []
-        occupied: list[tuple[int, int]] = []  # filled paragraph spans (merge-collision guard)
+        occupied: list[tuple[int, int]] = []  # filled cell spans (merge-collision guard)
         for ti, row, col, text, mx in section_specs:
             if ti < 0 or ti >= len(table_spans):
                 skipped.append(CellSkipped(section_path, ti, row, col, "table_index out of range"))
@@ -738,9 +855,6 @@ def fill_cells(
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell address out of range"))
                 continue
             cell_bytes = table[cell.start:cell.end]
-            if _iter_table_spans(cell_bytes):
-                skipped.append(CellSkipped(section_path, ti, row, col, "cell contains a nested table; target its inner table explicitly"))
-                continue
             p_spans = _all_paragraph_spans(cell_bytes)
             if not p_spans:
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell has no paragraph"))
@@ -755,40 +869,18 @@ def fill_cells(
                     header_xml, base_id, new_id = res
                     header_changed = True
                     shrink = (base_id, new_id)
-            # Replace the WHOLE cell's visible text with `text`: line k -> paragraph k,
-            # trailing paragraphs are emptied (so stale multi-line template content —
-            # e.g. stacked 성취기준 codes — does not survive). newline-separated text
-            # fills successive paragraphs.
-            lines = text.split("\n")
-            cell_edits: list[tuple[int, int, bytes]] = []
-            first_orig: str | None = None
-            collided = False
-            for idx, (ps, pe) in enumerate(p_spans):
-                para = cell_bytes[ps:pe]
-                line = lines[idx] if idx < len(lines) else ""
-                edit = _text_edit_for_paragraph(para, line)
-                if edit is None:
-                    continue
-                _s, _e, replacement, original_text = edit
-                if idx == 0:
-                    first_orig = original_text
-                if original_text == line:
-                    continue
-                a0, a1 = ts + cell.start + ps, ts + cell.start + pe
-                if any(a0 < oe and os < a1 for os, oe in occupied):
-                    collided = True
-                    break
-                new_para = _strip_paragraph_layout_cache(replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]))
-                if shrink is not None:
-                    base_id, new_id = shrink
-                    new_para = re.sub(rb'(charPrIDRef=")' + re.escape(base_id.encode()) + rb'(")', rb"\g<1>" + new_id.encode() + rb"\g<2>", new_para)
-                occupied.append((a0, a1))
-                cell_edits.append((a0, a1, new_para))
-            if collided:
+            # Replace the WHOLE cell's own visible text with `text` (stale multi-line
+            # template content — e.g. stacked 성취기준 codes — does not survive);
+            # a nested table in the cell keeps its bytes (_cell_text_edits).
+            edits, first_orig = _cell_text_edits(cell_bytes, text, shrink)
+            if not edits:
+                continue
+            span = (ts + cell.start, ts + cell.end)
+            if span in occupied:
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell shares a merged region already filled by an earlier address"))
                 continue
-            if not cell_edits:
-                continue
+            occupied.append(span)
+            cell_edits = [(ts + cell.start + s, ts + cell.start + e, b) for s, e, b in edits]
             # A template's short placeholder may legitimately fit under
             # lineWrap=SQUEEZE, while a real filled value is compressed until
             # glyphs appear to overlap.  Changed non-empty values must wrap and
@@ -834,11 +926,14 @@ def fill_cells(
 # other byte round-trips identical (Constitution VII). The edited table itself is
 # re-serialised (its byte identity is intentionally forfeit -- it is the thing you
 # changed). Every op is grid-validated afterwards and refuses (raises) on an
-# invalid result (fail-closed, Constitution VI). Nested tables are out of scope:
-# a table containing a nested <hp:tbl> refuses structure edits.
+# invalid result (fail-closed, Constitution VI). A table nested in a cell is
+# hidden behind a marker for the edit (_hide_nested_tables) and put back byte
+# for byte, so it moves, stays or goes with its cell but is never re-parsed.
 
 _S_TR = re.compile(r"<hp:tr\b.*?</hp:tr>", re.DOTALL)
 _S_TC = re.compile(r"<hp:tc\b.*?</hp:tc>", re.DOTALL)
+_NESTED_MARK_RE = re.compile(r"<!--hwpx-nested-table:(\d+)-->")
+_S_TBL_EVENT_RE = re.compile(r"<(/?)(?:[A-Za-z_][\w.-]*:)?tbl\b")
 
 
 class TableStructureError(HwpxError, ValueError):
@@ -860,6 +955,80 @@ def _si(chunk: str, tag: str, attr: str) -> int | None:
 
 def _ss(chunk: str, tag: str, attr: str, val: int) -> str:
     return re.sub(rf'(<hp:{tag}\b[^>]*\b{attr}=")-?\d+(")', rf"\g<1>{val}\g<2>", chunk, count=1)
+
+
+def _hide_nested_tables(table: str) -> tuple[str, list[str]]:
+    """*table* with every table nested in its cells replaced by a marker comment,
+    plus those tables in marker order (see :func:`_restore_nested_tables`)."""
+    if _NESTED_MARK_RE.search(table):
+        raise TableStructureError("table already holds a nested-table marker")
+    body = table.index(">") + 1
+    nested: list[str] = []
+    parts: list[str] = [table[:body]]
+    depth, start, last = 0, 0, body
+    for m in _S_TBL_EVENT_RE.finditer(table, body):
+        if not m.group(1):
+            if depth == 0:
+                start = m.start()
+            depth += 1
+            continue
+        depth -= 1
+        if depth == 0:
+            end = table.index(">", m.end()) + 1
+            parts.append(table[last:start] + f"<!--hwpx-nested-table:{len(nested)}-->")
+            nested.append(table[start:end])
+            last = end
+        elif depth < 0:  # the table's own closing tag
+            break
+    parts.append(table[last:])
+    return "".join(parts), nested
+
+
+_S_TBL_OPEN_RE = re.compile(r"<hp:tbl\b[^>]*>")
+
+
+def _clone_nested_table(table: str, copy: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Copy *copy* (1, 2, ...) of nested *table* for a cloned cell: fresh paragraph
+    ids, table ``id``/``instid`` bumped as :func:`_split_table` bumps them; any
+    other identity or reference refuses, as in :func:`_clone_content`."""
+    _clone_content(_S_TBL_OPEN_RE.sub("<hp:tbl>", table), lambda m: m.group(0))
+    bump = 960000 + copy * 7919
+    renumbered = _S_TBL_OPEN_RE.sub(
+        lambda m: re.sub(r'(\b(?:id|instid)=")(\d+)(")',
+                         lambda a: a.group(1) + str((int(a.group(2)) + bump) & 0x7FFFFFFF) + a.group(3), m.group(0)),
+        table,
+    )
+    return _PARA_ID_RE.sub(fresh_id, renumbered)
+
+
+def _restore_nested_tables(table: str, nested: Sequence[str], *, used_ids: set[int] | None = None) -> str:
+    """Put back the tables :func:`_hide_nested_tables` hid. An edit that dropped a
+    marker dropped that table with its cell; a marker it copied (a cloned cell)
+    gets a copy of the table with fresh ids (:func:`_clone_nested_table`)."""
+    seen: dict[int, int] = {}
+    fresh_id = _fresh_ids(table + "".join(nested), used_ids)
+
+    def put(match: re.Match[str]) -> str:
+        k = int(match.group(1))
+        seen[k] = seen.get(k, -1) + 1
+        return nested[k] if not seen[k] else _clone_nested_table(nested[k], seen[k], fresh_id)
+
+    return _NESTED_MARK_RE.sub(put, table)
+
+
+def _with_nested_hidden(table: str, edit: Callable[[str], Any], *, used_ids: set[int] | None = None) -> Any:
+    """Run *edit* on *table* with nested tables hidden; restore them in its result
+    (a table string or a tuple of them, which a nested table goes to only once)."""
+    hidden, nested = _hide_nested_tables(table)
+    if not nested:
+        return edit(table)
+    result = edit(hidden)
+    if isinstance(result, tuple):
+        marks = [m for part in result for m in _NESTED_MARK_RE.findall(part)]
+        if len(marks) != len(set(marks)):
+            raise TableStructureError("a nested table would land in both halves")
+        return tuple(_restore_nested_tables(part, nested, used_ids=used_ids) for part in result)
+    return _restore_nested_tables(result, nested, used_ids=used_ids)
 
 
 def _guard_flat(table: str) -> None:
@@ -1193,7 +1362,7 @@ def _blank_cell_text(tc: str) -> str:
     emptied paragraph makes Hangul reject the file ("stale lineseg beyond text
     length"). Stripping it forces recomputation."""
     tc = re.sub(r"(<hp:t\b[^>]*>).*?(</hp:t>)", r"\1\2", tc, flags=re.S)
-    return _drop_line_caches(tc)
+    return _drop_line_caches(_NESTED_MARK_RE.sub("", tc))  # a blank cell holds no nested table
 
 
 def _drop_line_caches(tc: str) -> str:
@@ -1461,7 +1630,8 @@ def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]
 
 
 def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
-    """Copy paragraph identities only; refuse local identities/references we cannot remap."""
+    """Copy paragraph identities only; refuse local identities/references we cannot remap.
+    A nested table's marker is copied as is; its table gets fresh ids on restore."""
     openings = re.findall(r'''<([\w:.-]+)\b((?:"[^"]*"|'[^']*'|[^'">])*)>''', content)
     for tag, opening in openings:
         attrs = {name: value for name, _, value in re.findall(
@@ -1805,11 +1975,51 @@ def _set_column_widths(table: str, new_widths: dict[int, int]) -> str:
     return _rebuild(prefix, rows, suffix)
 
 
-def _autofit_columns(table: str, *, min_frac: float = 0.06, damp: float = 0.5) -> str:
+def _nested_hosts(table: str) -> dict[str, tuple[int, int, int, int]]:
+    """Each table nested in a direct cell of *table* -> (host colAddr, colSpan,
+    host width, width the host needs: the nested table's plus the cell's side margins)."""
+    tb = table.encode("utf-8")
+    hosts: dict[str, tuple[int, int, int, int]] = {}
+    for cell in _direct_cells(tb):
+        cb = tb[cell.start:cell.end]
+        body = cb.index(b">") + 1
+        width = _iattr(_mask_nested_tables(cb), "cellSz", "width") or 0
+        for s, e in _top_spans(cb[body:], "tbl"):
+            nested = cb[body + s:body + e]
+            sz = re.search(_tag("sz") + rb'[^>]*\bwidth="(\d+)"', _mask_nested_tables(nested[nested.index(b">") + 1:]))
+            need = (int(sz.group(1)) if sz else 0) + _cell_side_margins(tb, cb)
+            hosts[nested.decode("utf-8")] = (cell.col, cell.col_span, width, need)
+    return hosts
+
+
+def _nested_min_widths(table: str) -> dict[int, int]:
+    """Smallest width each column may take so the tables nested in its one-column
+    cells still fit (for :func:`_autofit_columns`)."""
+    need: dict[int, int] = {}
+    for col, span, _width, required in _nested_hosts(table).values():
+        if span == 1:
+            need[col] = max(need.get(col, 0), required)
+    return need
+
+
+def _check_nested_fit(before: str, after: str) -> None:
+    """Refuse an edit that leaves a nested table wider than the cell holding it,
+    unless that cell was already as narrow before the edit."""
+    old = _nested_hosts(before)
+    for nested, (_col, _span, width, need) in _nested_hosts(after).items():
+        if width < need and width < old.get(nested, (0, 0, 0, 0))[2]:
+            raise TableStructureError(
+                f"a cell would become narrower ({width}) than the table nested in it needs ({need})"
+            )
+
+
+def _autofit_columns(table: str, *, min_frac: float = 0.06, damp: float = 0.5,
+                     min_widths: Mapping[int, int] | None = None) -> str:
     """Rebalance column widths to content: content-heavy columns widen, light ones
     narrow, table total width preserved. Demand = longest single-span cell's text
     width (form_fit advance model), sqrt-damped so a paragraph column doesn't run
-    away; every column keeps a floor of *min_frac* of the total."""
+    away; every column keeps a floor of *min_frac* of the total, and a column
+    holding a nested table at least *min_widths* (its width when it is short of that)."""
     from .form_fit.measure import estimate_text_width
 
     _guard_flat(table)
@@ -1829,14 +2039,25 @@ def _autofit_columns(table: str, *, min_frac: float = 0.06, damp: float = 0.5) -
             txt = "".join(re.findall(r"<hp:t>(.*?)</hp:t>", tc, re.DOTALL))
             demand[ca] = max(demand[ca], estimate_text_width(txt, 10.0))
     weight = {c: max(demand[c], 1.0) ** damp for c in range(ncol)}
-    sw = sum(weight.values()) or 1.0
     floor = total * min_frac
-    raw = {c: max(floor, total * weight[c] / sw) for c in range(ncol)}
-    scale = total / (sum(raw.values()) or 1.0)
-    new = {c: int(round(raw[c] * scale)) for c in range(ncol)}
-    # absorb rounding drift into the widest column so the total is exact
+    held = {c: min(int(w), cur[c]) for c, w in (min_widths or {}).items() if c in cur and min(int(w), cur[c]) > floor}
+    fixed: dict[int, float] = {}
+    while True:  # a column below its nested table's width is held there; the rest share what is left
+        free = [c for c in range(ncol) if c not in fixed]
+        rest = total - sum(fixed.values())
+        if rest <= 0 or not free:
+            raise TableStructureError("autofit_columns: the nested tables need more than the table's width")
+        sw = sum(weight[c] for c in free) or 1.0
+        raw = {c: max(floor, rest * weight[c] / sw) for c in free}
+        scale = rest / (sum(raw.values()) or 1.0)
+        low = [c for c in free if c in held and raw[c] * scale < held[c]]
+        if not low:
+            break
+        fixed.update((c, float(held[c])) for c in low)
+    new = {c: int(round(raw[c] * scale)) if c in raw else int(fixed[c]) for c in range(ncol)}
+    # absorb rounding drift into the widest free column so the total is exact
     drift = total - sum(new.values())
-    new[max(new, key=lambda c: new[c])] += drift
+    new[max((c for c in new if c not in fixed), key=lambda c: new[c])] += drift
     return _set_column_widths(table, new)
 
 
@@ -1894,12 +2115,18 @@ def _restructure_table(table: str, op: Mapping[str, Any], *, used_ids: set[int] 
     table nor in *used_ids*. A refused edit raises :class:`TableStructureError`."""
     name = op.get("op")
     if name in _CLONE_OPS:
-        new_table = _CLONE_OPS[name](table, op, set(used_ids or ()))
+        new_table = _with_nested_hidden(table, lambda t: _CLONE_OPS[name](t, op, set(used_ids or ())),
+                                        used_ids=set(used_ids or ()))
+    elif name == "autofit_columns":
+        mins = _nested_min_widths(table)
+        new_table = _with_nested_hidden(table, lambda t: _autofit_columns(
+            t, min_frac=float(op.get("min_frac", 0.06)), damp=float(op.get("damp", 0.5)), min_widths=mins))
     elif name in _STRUCT_OPS:
-        new_table = _STRUCT_OPS[name](table, op)
+        new_table = _with_nested_hidden(table, lambda t: _STRUCT_OPS[name](t, op))
     else:
         raise TableStructureError(f"{name!r} is not a table structure op")
     _validate_or_raise(new_table)
+    _check_nested_fit(table, new_table)
     return new_table
 
 
@@ -2204,9 +2431,12 @@ def _split_table(section: bytes, ts: int, te: int, split_row: int) -> tuple[byte
     """The top rows stay in place; the bottom rows follow in a paragraph of their
     own (a copy of the paragraph when it holds only the table)."""
     ps, pe = _p_wrapper_span(section, ts)
-    top_table, bottom_table = _split_table_rows(section[ts:te].decode("utf-8"), split_row)
+    top_table, bottom_table = _with_nested_hidden(
+        section[ts:te].decode("utf-8"), lambda t: _split_table_rows(t, split_row))
     _validate_or_raise(top_table)
     _validate_or_raise(bottom_table)
+    # tables nested in the bottom rows move with them: they keep their ids
+    bottom_table, bottom_nested = _hide_nested_tables(bottom_table)
     if _table_alone(section, ps, pe, ts, te):
         # top half replaces the table in place -- same wrapper paragraph, same
         # table id (least surprise: it's "the same table", just shorter).
@@ -2217,7 +2447,7 @@ def _split_table(section: bytes, ts: int, te: int, split_row: int) -> tuple[byte
         second_str = _paragraph_for(section, ps, ts, bottom_table)
     # the bottom half gets its own hp:p id and hp:tbl id/instid, bumped so
     # nothing collides -- see _bump_table_id's real-corpus note.
-    second_str = _bump_table_id(_bumped_ids(second_str, 960000), 960000)
+    second_str = _restore_nested_tables(_bump_table_id(_bumped_ids(second_str, 960000), 960000), bottom_nested)
     new_section = section[:ps] + new_first + second_str.encode("utf-8") + section[pe:]
     return new_section, f"{_table_dims(top_table)} + {_table_dims(bottom_table)}"
 
@@ -2226,12 +2456,18 @@ def _merge_tables(section: bytes, spans: list[tuple[int, int]], ti: int) -> tupl
     """The next table's rows join this table. A paragraph that held only the next
     table goes (with the blank paragraphs before it); otherwise only that table
     leaves its paragraph. Real text between the two tables refuses the merge."""
-    if ti + 1 >= len(spans):
-        raise TableStructureError("merge_table: no next table to merge with")
     ts, te = spans[ti]
-    ts2, te2 = spans[ti + 1]
-    if ts2 < te:
-        raise TableStructureError("merge_table: the next table sits inside this one")
+
+    def enclosing(k: int) -> set[int]:
+        s, e = spans[k]
+        return {j for j, (s2, e2) in enumerate(spans) if s2 < s and e <= e2}
+
+    # the next table on this table's own level (tables nested in it come first in
+    # index order but are part of it)
+    nxt = next((k for k in range(ti + 1, len(spans)) if spans[k][0] >= te), None)
+    if nxt is None or enclosing(nxt) != enclosing(ti):
+        raise TableStructureError("merge_table: no next table to merge with")
+    ts2, te2 = spans[nxt]
     ps1, pe1 = _p_wrapper_span(section, ts)
     ps2, pe2 = _p_wrapper_span(section, ts2)
     whole_second = ps2 >= pe1 and _table_alone(section, ps2, pe2, ts2, te2)
@@ -2240,7 +2476,10 @@ def _merge_tables(section: bytes, spans: list[tuple[int, int]], ti: int) -> tupl
             "merge_table: real content (non-empty text) sits between the "
             "two tables -- refusing (would silently discard it)"
         )
-    merged_table = _merge_table_rows(section[ts:te].decode("utf-8"), section[ts2:te2].decode("utf-8"))
+    top, top_nested = _hide_nested_tables(section[ts:te].decode("utf-8"))
+    bottom, bottom_nested = _hide_nested_tables(section[ts2:te2].decode("utf-8"))
+    bottom = _NESTED_MARK_RE.sub(lambda m: f"<!--hwpx-nested-table:{len(top_nested) + int(m.group(1))}-->", bottom)
+    merged_table = _restore_nested_tables(_merge_table_rows(top, bottom), top_nested + bottom_nested)
     _validate_or_raise(merged_table)
     merged = merged_table.encode("utf-8")
     if whole_second:
