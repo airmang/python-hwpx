@@ -302,6 +302,11 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
     root = getattr(_open(document), "_root")
     if not root.headers:  # the shapes every paragraph names live there
         return PageEstimate(None, (), ("a document without a header part (Contents/header.xml)",))
+    # a document kept compatible with MS Word Hancom lays out as Word would (line heights from the font, a
+    # picture's line its height and the font's descent), which the estimate does not follow
+    compatible = next(root.headers[0].element.iter(f"{HH}compatibleDocument"), None)
+    if compatible is not None and compatible.get("targetProgram") == "MS_WORD":
+        return PageEstimate(None, (), ("a document laid out for compatibility with MS Word",))
     measure = _Measure(root)
     layouts: list[_SectionLayout] = []
     reasons: list[str] = []

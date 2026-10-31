@@ -386,6 +386,14 @@ def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str
     }], []
 
 
+def _margins_unread(cell: Any) -> bool:
+    """Whether *cell*'s own margins hold a value written as -1 (unsigned, as documents converted from .hwp carry):
+    Hancom then lays its text out in a width other than the table's margins give, which was not pinned down."""
+
+    own = cell.find(f"{HP}cellMargin")
+    return own is not None and any(value.isdigit() and int(value) >= 1 << 31 for value in own.attrib.values())
+
+
 def _cells_sure(measure: Any, table: Any) -> bool:
     """Whether every paragraph of *table*'s cells is one this module lays out (none of them a table)."""
 
@@ -393,7 +401,7 @@ def _cells_sure(measure: Any, table: Any) -> bool:
     for cell in table.findall(f"{HP}tr/{HP}tc"):
         paragraphs = cell.findall(f"{HP}subList/{HP}p")
         sub_list = cell.find(f"{HP}subList")
-        if not paragraphs or _pages._vertical(cell) or sub_list is None \
+        if not paragraphs or _pages._vertical(cell) or sub_list is None or _margins_unread(cell) \
                 or sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):
             return False
         margins = cell_margins_of(cell, table)
@@ -416,7 +424,7 @@ def _cell_caches(measure: Any, table: Any) -> tuple[int, int, int]:
             kept += len(paragraphs)
             continue
         sub_list = cell.find(f"{HP}subList")
-        if not paragraphs or _pages._vertical(cell) or sub_list is None \
+        if not paragraphs or _pages._vertical(cell) or sub_list is None or _margins_unread(cell) \
                 or sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):
             skipped += len(paragraphs)
             continue
