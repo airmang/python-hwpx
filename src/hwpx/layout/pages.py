@@ -238,6 +238,9 @@ _SPARE_CUT_FIXED = 2
 _SPARE_DROPPED = 1282
 #: The narrowest line FormFit breaks at, in HWPUNIT.
 _MIN_LINE_WIDTH = 1440
+#: How tall Hancom makes a table's row that only cells merged over rows cover at least, unless the table is set
+#: not to adjust its cells (``hp:tbl@noAdjust``): it starts the merged cells' heights from that.
+_MERGED_ROW_LEAST = 100
 #: the room a cell that never breaks its text into lines (``hp:subList@lineWrap`` SQUEEZE or KEEP) gives a line
 _NO_WRAP = 1 << 40
 #: The narrowest side of a square-wrapped object text goes to (1/5 inch): Hancom leaves a narrower one empty.
@@ -299,6 +302,11 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
     root = getattr(_open(document), "_root")
     if not root.headers:  # the shapes every paragraph names live there
         return PageEstimate(None, (), ("a document without a header part (Contents/header.xml)",))
+    # a document kept compatible with MS Word Hancom lays out as Word would (line heights from the font, a
+    # picture's line its height and the font's descent), which the estimate does not follow
+    compatible = next(root.headers[0].element.iter(f"{HH}compatibleDocument"), None)
+    if compatible is not None and compatible.get("targetProgram") == "MS_WORD":
+        return PageEstimate(None, (), ("a document laid out for compatibility with MS Word",))
     measure = _Measure(root)
     layouts: list[_SectionLayout] = []
     reasons: list[str] = []
@@ -429,7 +437,9 @@ def _para_shape(header: Any, para_pr_id: str, doubled: bool = False) -> _Shape:
     kind, amount = ("PERCENT", 160)
     if spacing is not None:
         kind, amount = spacing.get("type", "PERCENT"), int(spacing.get("value", 160))
-        if kind != "PERCENT":
+        if kind != "PERCENT" and spacing.get("unit") == "CHAR":  # as a margin in that unit
+            amount = in_char_units(amount, _char_unit_height(header))
+        elif kind != "PERCENT":
             amount //= half
     return _Shape(kind, amount, value("prev"), value("next"), value("left"), value("right"), value("intent"),
                   dict(breaks.attrib) if breaks is not None else {}, shape.get("fontLineHeight") in ("1", "true"),
@@ -1184,10 +1194,11 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
         rows[first] = replace(rows[first], first=line)
     for first, height in tallest.items():  # as tall as its tallest cell, with room to spare under the text
         rows[first] = replace(rows[first], height=height, spare=height - filled[first])  # filling one most
+    least = 0 if _on(dict(table.attrib), "noAdjust") else _MERGED_ROW_LEAST
     for first, span, cell in merged:
         for index in range(first, first + span):
             if index not in rows:  # every cell over it is merged over rows
-                rows[index] = replace(cell, height=0, lines=1, margins=0, spare=0)
+                rows[index] = replace(cell, height=least, lines=1, margins=0, spare=0)
     for first, span, cell in sorted(merged, key=lambda cell: (cell[0] + cell[1], cell[0])):
         spanned = range(first, first + span)
         for index in spanned:
@@ -4449,8 +4460,14 @@ class _Paginator:
             self._reach(self.frame, start, start + para.height(0))
         before = self.frame
         top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
-        frame, end = _flow_table(table, self.frame, top, self.body)
-        later = start + para.height(0) <= self.body and _starts_later(table, top, self.body)
+        # the notes already on the page keep their room at its foot, all but the separator's width: the rows
+        # end above them there, as if they started that much lower (on the pages after, the table goes on
+        # below the header as ever)
+        noted = self.notes.area(*self.page_notes) - (self.notes.line if self.page_notes[1] else 0)
+        frame, end = _flow_table(table, self.frame, top + noted, self.body)
+        if frame == self.frame:
+            end -= noted
+        later = start + para.height(0) <= self.body and _starts_later(table, top + noted, self.body)
         if self.frame + 1 in self.moved_tops and frame > self.frame and (later or (frame, end) == _flow_table(
                 table, self.frame + 1, _repeated_header(table) + table.margins[0], self.body)):  # it goes on to
             below = max(bottom for _, bottom in self.bands[self.frame + 1])  # the next page whole: below the

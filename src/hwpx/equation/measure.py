@@ -38,7 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import NamedTuple
 
-from .eqedit import _FONT_SWITCHES, MAX_GROUP_DEPTH, MAX_SOURCE_LENGTH, _tokenize
+from .eqedit import _ATOM_END, _FONT_SWITCHES, MAX_GROUP_DEPTH, MAX_SOURCE_LENGTH, _tokenize
 from .tokens import (
     ACCENTS,
     BIG_OPERATORS,
@@ -339,7 +339,14 @@ class _Measurer:
         return True
 
     def _atom(self, depth: int) -> _Box:
+        # A font switch is not the atom: ``x^rmA`` scripts the ``A`` as the converter
+        # reads it, so the switch applies and the next token is measured instead.
         token = self._next()
+        while token in _FONT_SWITCHES:
+            self._symbol(token)
+            if self._peek() is None or self._peek() in _ATOM_END:
+                return _Box(0.0, 0.0, 0.0)
+            token = self._next()
         return _Box(0.0, 0.0, 0.0) if token is None else self._dispatch(token, depth)
 
     def _group(self, depth: int) -> _Box:
