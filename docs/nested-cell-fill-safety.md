@@ -40,12 +40,32 @@ its cell (reordered or shifted rows and columns, a merge), goes with it (a
 deleted row or column) or stays in the first part of a split cell.
 
 - Cloning a cell with its content copies its nested tables with fresh paragraph
-  and table ids. Nested content with other identities (bookmarks, fields,
-  pictures) refuses as flat cell content does; `blank` clones hold no table.
+  and table ids, and their pictures, shapes, fields and memos as any cloned
+  cell's (see "Cloning cell content" below); `blank` clones hold no table.
 - An edit that would leave a cell narrower than the table nested in it (its
   width plus the cell's side margins) refuses, unless the cell was already that
   narrow. `autofit_columns` holds such a column at that width.
 - `merge_table` merges with the next table on the same nesting level.
+
+## Cloning cell content
+
+`insert_row_by_clone`, `insert_column_by_clone` and `split_cell` copy a cell's
+content the way Hancom numbers what it pastes (observed by copying and pasting
+in Hangul and comparing the saved HWPX):
+
+- Pictures, shapes, equations, footnotes and endnotes get a fresh `id` and
+  `instid` (two different numbers) used nowhere in the document, and a `zOrder`
+  above the document's. The shapes inside a group keep `id` and `zOrder` 0, as
+  Hancom saves them; only the group is numbered, and each shape gets a fresh
+  `instid`.
+- A field (click-here, hyperlink, formula, date, ...) gets a fresh `id` and its
+  end follows it; `fieldid` and the field name stay, so two fields may share a
+  name as they do after Hancom's paste. A bookmark keeps its name.
+- A memo takes the next memo number in its `Number`, `zorder`, `memoN` id and
+  command. Hancom drops the range end of a memo numbered like another.
+- A connector copied loses its ends (`subjectIDRef="0"`), as Hancom's does.
+- Content that points into another part or definition refuses: a chart, linked
+  text boxes, a header or footer defined in the cell.
 
 ## Evidence and downstream use
 

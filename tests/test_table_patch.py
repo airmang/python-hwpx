@@ -289,14 +289,17 @@ def test_insert_row_by_clone_grows_and_validates(merged):
     assert rep.ok and rep.row_count == n_before + 2
 
 
-def test_insert_row_refuses_public_form_logo_identity_without_mutation(merged):
+def test_insert_row_copies_public_form_logos_with_fresh_numbers(merged):
     section, tables = _tables(merged)
     first = section[tables[0][0]:tables[0][1]]
     assert first.count(b"<hp:pic ") == 2
     result = apply_table_ops(merged, [{"op": "insert_row_by_clone", "table_index": 0, "ref_row": 0}])
-    assert not result.ok
-    assert result.data == merged
-    assert "local identities or references" in str(result.skipped)
+    assert result.ok, result.skipped
+    section, tables = _tables(result.data)
+    pictures = re.findall(rb"<hp:pic\b[^>]*>", section[tables[0][0]:tables[0][1]])
+    assert len(pictures) == 4
+    ids = [re.search(rb'\bid="(\d+)"', pic).group(1) for pic in pictures]
+    assert len(set(ids)) == 4 and set(ids[:2]) == set(re.findall(rb'<hp:pic\b[^>]*?\bid="(\d+)"', first))
 
 
 def test_delete_table_drops_one_and_keeps_rest(merged):

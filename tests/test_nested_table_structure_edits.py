@@ -9,6 +9,8 @@ import pytest
 from hwpx.document import HwpxDocument
 from hwpx.table_patch import apply_table_ops, build_grid, iter_table_spans, section_parts
 
+_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
 
 def _source(depth=2):
     document = HwpxDocument.new()
@@ -105,14 +107,20 @@ def test_cloning_a_holding_cell_copies_its_nested_table_with_fresh_ids(op, new_c
                 assert inner.cell(1, 1).tables[0].cell(0, 0).text == "deepest"
 
 
-def test_cloning_a_nested_table_with_other_identities_still_refuses():
+def test_cloning_a_nested_table_copies_its_bookmark_and_rectangle_as_hancom_pastes_them():
     document = HwpxDocument.new()
     outer = document.add_table(2, 2)
     inner = outer.cell(1, 1).add_table(1, 1)
     inner.cell(0, 0).paragraphs[0].add_bookmark("mark")
+    inner.cell(0, 0).paragraphs[0].add_rectangle(width=1000, height=500)
     source = document.to_bytes()
     result = _apply(source, {"op": "insert_row_by_clone", "ref_row": 1})
-    assert result.data == source and "local identities" in result.skipped[0].reason
+    assert result.ok, result.skipped
+    with HwpxDocument.open(result.data) as reopened:
+        copies = [reopened.tables[0].cell(row, 1).tables[0].cell(0, 0) for row in (1, 2)]
+        rects = [next(cell.element.iter(f"{_HP}rect")) for cell in copies]
+        assert len({rect.get(name) for rect in rects for name in ("id", "instid")}) == 3
+        assert [next(cell.element.iter(f"{_HP}bookmark")).get("name") for cell in copies] == ["mark", "mark"]
 
 
 def test_blank_clone_of_a_holding_row_adds_empty_cells_without_the_nested_table():

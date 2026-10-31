@@ -384,11 +384,11 @@ class HwpxOxmlTableCell:
 
         for index, line in enumerate(lines):
             source = own[index] if index < len(own) else own[0] if own else holders[0] if holders else None
-            paragraph = _append_child(sublist, f"{_HP}p", self._paragraph_format_attrs(source))
-            sublist.remove(paragraph)
-            sublist.insert(position + index, paragraph)
+            line_paragraph = _append_child(sublist, f"{_HP}p", self._paragraph_format_attrs(source))
+            sublist.remove(line_paragraph)
+            sublist.insert(position + index, line_paragraph)
             run = _append_child(
-                paragraph,
+                line_paragraph,
                 f"{_HP}run",
                 {"charPrIDRef": self._run_char_pr_for_line(own, index)},
             )

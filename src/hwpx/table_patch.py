@@ -989,16 +989,15 @@ _S_TBL_OPEN_RE = re.compile(r"<hp:tbl\b[^>]*>")
 
 def _clone_nested_table(table: str, copy: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
     """Copy *copy* (1, 2, ...) of nested *table* for a cloned cell: fresh paragraph
-    ids, table ``id``/``instid`` bumped as :func:`_split_table` bumps them; any
-    other identity or reference refuses, as in :func:`_clone_content`."""
-    _clone_content(_S_TBL_OPEN_RE.sub("<hp:tbl>", table), lambda m: m.group(0))
+    ids, table ``id``/``instid`` bumped as :func:`_split_table` bumps them; the
+    rest of its content copied as :func:`_clone_content` copies a cell's."""
     bump = 960000 + copy * 7919
     renumbered = _S_TBL_OPEN_RE.sub(
         lambda m: re.sub(r'(\b(?:id|instid)=")(\d+)(")',
                          lambda a: a.group(1) + str((int(a.group(2)) + bump) & 0x7FFFFFFF) + a.group(3), m.group(0)),
         table,
     )
-    return _PARA_ID_RE.sub(fresh_id, renumbered)
+    return _clone_content(renumbered, fresh_id)
 
 
 def _restore_nested_tables(table: str, nested: Sequence[str], *, used_ids: set[int] | None = None) -> str:
@@ -1629,25 +1628,108 @@ def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]
     return fresh_id
 
 
+_OPENING_RE = re.compile(r'''<([\w:.-]+)\b((?:"[^"]*"|'[^']*'|[^'">])*)>''')
+_CLONE_ATTR_RE = re.compile(r'''(\s([\w:.-]+)\s*=\s*)(["'])(.*?)\3''', re.S)
+_MEMO_PARAMS_RE = re.compile(
+    r'(<hp:fieldBegin\b[^>]*\btype=(["\'])MEMO\2[^>]*>)(.*?</hp:parameters>)', re.S)
+#: Marks a number a clone must not share with what it copies; :func:`_number_clones` fills it in.
+_CLONE_MARK_RE = re.compile(r"hwpx-clone:(\d+):([oizfm]):([^\"'<:]*):")
+_clone_serial = iter(range(1, 1 << 62))
+
+
 def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
-    """Copy paragraph identities only; refuse local identities/references we cannot remap.
-    A nested table's marker is copied as is; its table gets fresh ids on restore."""
-    openings = re.findall(r'''<([\w:.-]+)\b((?:"[^"]*"|'[^']*'|[^'">])*)>''', content)
-    for tag, opening in openings:
-        attrs = {name: value for name, _, value in re.findall(
-            r'''\s([\w:.-]+)\s*=\s*(["'])(.*?)\2''', opening, flags=re.S,
-        )}
-        identity = tag != "hp:p" and any(attrs.get(name) not in (None, "")
-                                         for name in ("id", "instid", "instId", "fieldid"))
-        reference = any(name in attrs for name in ("subjectIDRef", "beginIDRef", "chartIDRef"))
+    """Copy cell content as Hancom pastes a copy: fresh paragraph ids here; objects (pictures,
+    shapes, equations, notes), fields and memos marked for fresh numbers (:func:`_number_clones`).
+    A field keeps its ``fieldid`` and name and a bookmark its name, as Hancom's copy does; a
+    connector copied loses its ends (``subjectIDRef="0"``). Content that points into another part
+    or definition (a chart, linked text boxes, a header or footer) refuses. A nested table's
+    marker is copied as is; its table gets fresh ids on restore."""
+    serial = next(_clone_serial)
+
+    def mark(kind: str, value: str) -> str:
+        return f"hwpx-clone:{serial}:{kind}:{value}:"
+
+    def opening(match: re.Match[str]) -> str:
+        tag, body = match.group(1), match.group(2)
+        attrs = {m.group(2): m.group(4) for m in _CLONE_ATTR_RE.finditer(body)}
         linked = any(attrs.get(name) not in (None, "", "0") for name in ("linkListIDRef", "linkListNextIDRef"))
-        if identity or reference or linked or tag in (
-            "hp:bookmark", "hp:fieldBegin", "hp:fieldEnd",
-        ):
+        if linked or "chartIDRef" in attrs or tag in ("hp:header", "hp:footer"):
             raise TableStructureError(
                 "cannot clone content with local identities or references; use empty-cell insertion"
             )
+        if tag in ("hp:p", "hp:tbl"):
+            return match.group(0)
+        memo = tag == "hp:fieldBegin" and attrs.get("type") == "MEMO"
+        # A shape inside a group has id and zOrder 0 in Hancom's files; only the group is numbered.
+        grouped = attrs.get("groupLevel") not in (None, "", "0")
+
+        def attr(m: re.Match[str]) -> str:
+            name, value = m.group(2), m.group(4)
+            if name == "subjectIDRef":
+                value = "0"
+            elif tag == "hp:fieldBegin" and name == "id" and value:
+                value = mark("f", value)
+            elif tag == "hp:fieldEnd" and name == "beginIDRef" and value:
+                value = mark("f", value)
+            elif memo and name == "zorder":
+                value = mark("m", attrs.get("id", ""))
+            elif tag not in ("hp:fieldBegin", "hp:fieldEnd") and name == "id" and value not in ("", "0"):
+                value = mark("o", value)
+            elif name in ("instid", "instId") and value not in ("", "0"):
+                value = mark("i", value)
+            elif name == "zOrder" and value and not grouped:
+                value = mark("z", value)
+            return m.group(1) + m.group(3) + value + m.group(3)
+
+        return "<" + tag + _CLONE_ATTR_RE.sub(attr, body) + ">"
+
+    def memo_params(match: re.Match[str]) -> str:
+        found = re.search(r'''\sid\s*=\s*["']([^"']*)["']''', match.group(1))
+        memo_mark = mark("m", found.group(1) if found else "")
+        params = re.sub(r'(<hp:integerParam name="Number">)[^<]*', lambda m: m.group(1) + memo_mark, match.group(3))
+        params = re.sub(r'(<hp:stringParam name="ID">memo)\d+', lambda m: m.group(1) + memo_mark, params)
+        params = re.sub(r'(<hp:stringParam name="Command">MEMO/[^/<]*/)\d+', lambda m: m.group(1) + memo_mark, params)
+        return match.group(1) + params
+
+    content = _MEMO_PARAMS_RE.sub(memo_params, content)
+    content = _OPENING_RE.sub(opening, content)
     return _PARA_ID_RE.sub(fresh_id, content)
+
+
+def _number_clones(table: str, context: str) -> str:
+    """Fill in the numbers :func:`_clone_content` marked, as Hancom numbers what it pastes: each
+    copied object a fresh ``id`` and ``instid`` used nowhere in *context* (the document), a
+    ``zOrder`` above the document's, each copied field a fresh ``id`` its end follows, and each
+    copied memo the next memo number (its ``Number``, ``zorder``, ``memoN`` id and command)."""
+    if "hwpx-clone:" not in table:
+        return table
+    text = context + table
+    occupied = {int(v) for v in re.findall(r'''\s(?:id|instid|instId|beginIDRef)\s*=\s*["'](\d+)["']''', text)}
+    z_order = max((int(v) for v in re.findall(r'''\szOrder\s*=\s*["'](-?\d+)["']''', text)), default=-1)
+    memo = max((int(v) for v in re.findall(r'<hp:integerParam name="Number">(\d+)<', "".join(
+        m.group(0) for m in _MEMO_PARAMS_RE.finditer(text)))), default=0)
+    assigned: dict[tuple[str, str, str], int] = {}
+    next_number = 1
+
+    def number(match: re.Match[str]) -> str:
+        nonlocal next_number, z_order, memo
+        serial, kind, original = match.groups()
+        key = (serial, kind, original)
+        if key not in assigned:
+            if kind == "z":
+                z_order += 1
+                assigned[key] = z_order
+            elif kind == "m":
+                memo += 1
+                assigned[key] = memo
+            else:
+                while next_number in occupied:
+                    next_number += 1
+                occupied.add(next_number)
+                assigned[key] = next_number
+        return str(assigned[key])
+
+    return _CLONE_MARK_RE.sub(number, table)
 
 
 def _insert_row_by_clone(
@@ -1663,7 +1745,8 @@ def _insert_row_by_clone(
     *ref_row* by cloning it (formatting preserved, paragraph ids refreshed). Rows past
     them shift. With *blank* each new cell holds one empty paragraph of its format, as
     Hancom inserts them.
-    Content with native identities or local references is refused rather than duplicated.
+    Copied objects, fields and memos are numbered as :func:`_clone_content` says; content
+    pointing into another part (a chart, linked text boxes) is refused.
 
     Merged cells follow Hancom's row insertion: a cell running on across the new rows
     grows its rowSpan over them instead of being cloned, and next to a merged cell
@@ -1758,8 +1841,8 @@ def _insert_column_by_clone(
     and the table grows by the new columns, each as wide as *ref_col*, as Hancom's column
     insertion widens it. With *blank* each new cell holds one empty paragraph of its cell's
     paragraph and character shape, as Hancom inserts them.
-    Nonblank content with native identities or local references is refused;
-    their remapping is not supported. Empty-cell insertion keeps the original objects.
+    Copied objects, fields and memos are numbered as :func:`_clone_content` says; content
+    pointing into another part is refused. Empty-cell insertion keeps the original objects.
 
     Merged cells follow Hancom's insertion as in :func:`_insert_row_by_clone`: a cell running
     on across the new columns grows its colSpan and width over them instead of being cloned,
@@ -2109,14 +2192,18 @@ _CLONE_OPS = {
 }
 
 
-def _restructure_table(table: str, op: Mapping[str, Any], *, used_ids: set[int] | None = None) -> str:
+def _restructure_table(
+    table: str, op: Mapping[str, Any], *, used_ids: set[int] | None = None, context: str = "",
+) -> str:
     """One table's XML after *op*, an :func:`apply_table_ops` op dict naming one of its row,
     column and cell edits, with the grid checked. New paragraphs take ids neither in the
-    table nor in *used_ids*. A refused edit raises :class:`TableStructureError`."""
+    table nor in *used_ids*; copied objects, fields and memos take numbers not in *context*
+    (the document's sections) either. A refused edit raises :class:`TableStructureError`."""
     name = op.get("op")
     if name in _CLONE_OPS:
         new_table = _with_nested_hidden(table, lambda t: _CLONE_OPS[name](t, op, set(used_ids or ())),
                                         used_ids=set(used_ids or ()))
+        new_table = _number_clones(new_table, context)
     elif name == "autofit_columns":
         mins = _nested_min_widths(table)
         new_table = _with_nested_hidden(table, lambda t: _autofit_columns(
@@ -2655,7 +2742,9 @@ def apply_table_ops(
             elif name in _STRUCT_OPS:
                 used_ids = {int(m.group(2)) for data in sections.values()
                             for m in _PARA_ID_RE.finditer(data.decode("utf-8"))} if name in _CLONE_OPS else None
-                new_table = _restructure_table(section[ts:te].decode("utf-8"), op, used_ids=used_ids)
+                context = "".join(data.decode("utf-8") for data in sections.values()) if name in _CLONE_OPS else ""
+                new_table = _restructure_table(section[ts:te].decode("utf-8"), op, used_ids=used_ids,
+                                               context=context)
                 if name in {"delete_column", "delete_row", "insert_row_by_clone", "insert_column_by_clone", "split_cell"}:
                     if table_height is None:
                         from .oxml.table_structure import _ByteTableHeight
