@@ -1013,6 +1013,27 @@ def test_a_typed_no_break_space_takes_the_fonts_own_width(fixture: Path) -> None
         assert starts == [int(seg.get("textpos")) for seg in segs]
 
 
+def test_an_opening_quote_moves_down_with_the_character_after_it() -> None:
+    # Hancom laid out words with a closing mark then an opening one inside them ("가가]“가가가가", also )“, ]‘, ’“,
+    # )(, )[, ”(, ]「), each at six places across the line's end, in 함초롬바탕 and 굴림체 at 10 pt, breaking words
+    # and syllables alike. Where the syllable after an opening curly quote does not fit, the quote goes down with it,
+    # as an opening bracket does: "가]“가" breaks as "가]" | "“가", not two syllables earlier.
+    document = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved"
+                                 / "formfit_line_breaks_before_opening_quotes.hwpx")
+    paragraphs = [p for p in document.oxml.sections[0].element.findall(f"{HP}p") if page_layout._run_text(
+        p.findall(f"{HP}run"))]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        text = page_layout._run_text(runs)
+        starts = hancom_line_starts(text, [int(seg.get("horzsize")) for seg in segs], size, style)
+        assert starts == [int(seg.get("textpos")) for seg in segs], text
+    assert len(paragraphs) == 2 * 2 * 8 * 6
+
+
 def test_a_kana_the_face_lacks_is_as_wide_as_its_hangul_syllables() -> None:
     # Hancom lays a kana 함초롬바탕 has no glyph for out at the face's Hangul advance (972 of 1000), not the full em;
     # in 한컴 고딕 at 932. Hanja, Greek and Cyrillic glyphs keep their own advances.
