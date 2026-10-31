@@ -9,6 +9,7 @@ what those scripts now delegate to.
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -112,6 +113,67 @@ def test_a_changed_part_loses_its_layout_caches_and_others_keep_theirs() -> None
     result = replace_package_text(source, {"{A}": "새 글"})
     assert result.layout_caches_removed >= 1
     assert "linesegarray" not in _members(result.data)[_SECTION].decode("utf-8").lower()
+
+
+def test_layout_cache_lookalike_text_in_cdata_survives() -> None:
+    # #568 review: the cache strip ran a regex over the whole part and emptied this CDATA.
+    source = _document_bytes("KEY")
+    section = _members(source)[_SECTION].decode("utf-8")
+    literal = "<hp:linesegarray>literal user text</hp:linesegarray>"
+    marked = section.replace("<hp:t>KEY</hp:t>", f"<hp:t>KEY<![CDATA[{literal}]]></hp:t>", 1)
+    source = _with_member(source, _SECTION, marked.encode("utf-8"))
+    assert f"KEY{literal}" in HwpxDocument.open(source).text.plain()
+
+    result = replace_package_text(source, {"KEY": "NEW"})
+
+    assert result.ok, result.open_safety
+    assert f"<hp:t>NEW<![CDATA[{literal}]]></hp:t>" in _members(result.data)[_SECTION].decode("utf-8")
+    assert f"NEW{literal}" in HwpxDocument.open(result.data).text.plain()
+
+
+def test_only_real_paragraph_namespace_caches_are_cut() -> None:
+    source = _document_bytes("{A}", "그대로")
+    section = _members(source)[_SECTION].decode("utf-8")
+    generated_cache = re.search(r"<hp:linesegarray>.*?</hp:linesegarray>", section).group(0)
+    lineseg = (
+        '<hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" '
+        'baseline="850" spacing="600" horzpos="0" horzsize="42520" flags="393216"/>'
+    )
+    real_container = f"<hp:linesegarray>{lineseg}</hp:linesegarray>"
+    real_self_closing = "<hp:linesegarray/>"
+    real_rebound = (
+        '<p:linesegarray xmlns:p="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+        f"{lineseg.replace('hp:', 'p:')}</p:linesegarray>"
+    )
+    lookalikes = (
+        "<!-- <hp:linesegarray>comment</hp:linesegarray> -->"
+        "<?note <hp:linesegarray/> ?>"
+        '<x:linesegarray xmlns:x="urn:example:other"/>'
+    )
+    marked = section.replace(
+        "<hp:t>{A}</hp:t></hp:run></hp:p>",
+        "<hp:t>{A}<![CDATA[<hp:linesegarray/>cdata]]></hp:t></hp:run>"
+        f"{lookalikes}{real_container}</hp:p>",
+        1,
+    ).replace(
+        "<hp:t>그대로</hp:t></hp:run></hp:p>",
+        f"<hp:t>그대로</hp:t></hp:run>{real_self_closing}{real_rebound}</hp:p>",
+        1,
+    )
+    source = _with_member(source, _SECTION, marked.encode("utf-8"))
+
+    result = replace_package_text(source, {"{A}": "새 글"})
+
+    assert result.ok, result.open_safety
+    assert result.layout_caches_removed == 4
+    expected = (
+        marked.replace("{A}", "새 글", 1)
+        .replace(generated_cache, "", 1)
+        .replace(f"{lookalikes}{real_container}", lookalikes, 1)
+        .replace(f"</hp:run>{real_self_closing}{real_rebound}", "</hp:run>", 1)
+    )
+    # Everything but the four real caches keeps its bytes: CDATA, comment, PI, foreign element.
+    assert _members(result.data)[_SECTION].decode("utf-8") == expected
 
 
 def test_output_path_is_written_only_when_the_gate_passes(tmp_path: Path) -> None:
