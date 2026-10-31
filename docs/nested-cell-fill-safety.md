@@ -55,9 +55,9 @@ in Hangul and comparing the saved HWPX):
 
 - Pictures, shapes, equations, footnotes and endnotes get a fresh `id` and
   `instid` (two different numbers) used nowhere in the document, and a `zOrder`
-  above the document's. The shapes inside a group keep `id` and `zOrder` 0, as
-  Hancom saves them; only the group is numbered, and each shape gets a fresh
-  `instid`.
+  above the document's. The shapes inside a group keep their `id` and `zOrder`
+  (Hancom saves them as 0, or as ids shared within the group); only the group is
+  numbered, and each shape gets a fresh `instid`.
 - A field (click-here, hyperlink, formula, date, ...) gets a fresh `id` and its
   end follows it; `fieldid` and the field name stay, so two fields may share a
   name as they do after Hancom's paste. A bookmark keeps its name.

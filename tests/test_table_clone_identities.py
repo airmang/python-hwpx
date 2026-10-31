@@ -113,20 +113,22 @@ def test_a_copied_connector_loses_its_ends_and_shapes_get_two_fresh_numbers() ->
     assert 'zOrder="5"' in line
 
 
-def test_a_copied_group_numbers_the_group_and_keeps_its_shapes_unnumbered() -> None:
-    """Hancom saves the shapes of a group with id and zOrder 0; only the group and each shape's
-    instid carry numbers, so a copy keeps the zeros and renumbers the rest."""
+def test_a_copied_group_numbers_the_group_and_keeps_its_shapes_ids() -> None:
+    """Hancom saves the shapes of a group with zOrder 0 and ids of 0 or shared within the group;
+    only the group and each shape's instid carry numbers, so a copy renumbers just those."""
     content = ('<hp:p id="1"><hp:run><hp:container id="40" zOrder="3" groupLevel="0" instid="41">'
                '<hp:rect id="0" zOrder="0" groupLevel="1" instid="42"/>'
-               '<hp:rect id="0" zOrder="0" groupLevel="1" instid="43"/></hp:container></hp:run></hp:p>')
+               '<hp:rect id="2" zOrder="0" groupLevel="1" instid="43"/>'
+               '<hp:rect id="2" zOrder="0" groupLevel="1" instid="44"/></hp:container></hp:run></hp:p>')
     copied = _number_clones(_clone_content(content, _fresh_ids(content, None)), content)
 
     group = re.search(r"<hp:container\b[^>]*>", copied).group(0)
     shapes = re.findall(r"<hp:rect\b[^>]*>", copied)
     assert 'zOrder="4"' in group and not set(re.findall(r'\b(?:id|instid)="(\d+)"', group)) & {"40", "41"}
-    assert all('id="0"' in shape and 'zOrder="0"' in shape for shape in shapes)
+    assert [re.search(r'\sid="(\d+)"', shape).group(1) for shape in shapes] == ["0", "2", "2"]
+    assert all('zOrder="0"' in shape for shape in shapes)
     instids = [re.search(r'instid="(\d+)"', shape).group(1) for shape in shapes]
-    assert len(set(instids)) == 2 and not set(instids) & {"0", "42", "43"}
+    assert len(set(instids)) == 3 and not set(instids) & {"0", "2", "42", "43", "44"}
 
 
 _MEMO = (

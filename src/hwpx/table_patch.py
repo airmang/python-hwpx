@@ -1660,7 +1660,8 @@ def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> st
         if tag in ("hp:p", "hp:tbl"):
             return match.group(0)
         memo = tag == "hp:fieldBegin" and attrs.get("type") == "MEMO"
-        # A shape inside a group has id and zOrder 0 in Hancom's files; only the group is numbered.
+        # Hancom saves the shapes inside a group with zOrder 0 and ids of 0 or shared within the
+        # group; only the group is numbered, so a copied shape keeps both.
         grouped = attrs.get("groupLevel") not in (None, "", "0")
 
         def attr(m: re.Match[str]) -> str:
@@ -1673,7 +1674,7 @@ def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> st
                 value = mark("f", value)
             elif memo and name == "zorder":
                 value = mark("m", attrs.get("id", ""))
-            elif tag not in ("hp:fieldBegin", "hp:fieldEnd") and name == "id" and value not in ("", "0"):
+            elif tag not in ("hp:fieldBegin", "hp:fieldEnd") and name == "id" and value not in ("", "0") and not grouped:
                 value = mark("o", value)
             elif name in ("instid", "instId") and value not in ("", "0"):
                 value = mark("i", value)
