@@ -1055,6 +1055,25 @@ def test_ascii_symbols_inside_a_word_break_as_brackets_do() -> None:
     assert len(paragraphs) == 2 * 2 * 6 * 6
 
 
+def test_a_latin1_bullet_takes_half_an_em_as_an_ascii_one_does() -> None:
+    # Hancom laid out 80 syllables after a bullet of a soft hyphen, a middle dot, ×, ÷, § or ° (with "-" and "•"
+    # beside them), its text 50% of the em away, in paragraphs whose right margins go from 0 to 1200: the first line
+    # holds what fits beside half an em and the gap for every character below U+0100, beside an em for "•".
+    assert label_room("\u00ad", {"textOffset": "50"}, 1300, TextStyle()) == 1300
+    assert label_room("\u2022", {"textOffset": "50"}, 1300, TextStyle()) == 1950
+    document = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_latin1_bullet_labels.hwpx")
+    paragraphs = [p for p in document.oxml.sections[0].element.findall(f"{HP}p")
+                  if page_layout._run_text(p.findall(f"{HP}run"))]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        starts = hancom_line_starts(page_layout._run_text(runs), [int(seg.get("horzsize")) - style.head for seg in segs],
+                                    10, style)
+        assert starts == [int(seg.get("textpos")) for seg in segs]
+    assert len(paragraphs) == 8 * 13
+
+
 def test_a_kana_the_face_lacks_is_as_wide_as_its_hangul_syllables() -> None:
     # Hancom lays a kana 함초롬바탕 has no glyph for out at the face's Hangul advance (972 of 1000), not the full em;
     # in 한컴 고딕 at 932. Hanja, Greek and Cyrillic glyphs keep their own advances.

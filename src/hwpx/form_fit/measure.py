@@ -1868,7 +1868,8 @@ _ASCII_NUMBER_FORMATS = frozenset({"DIGIT", "ROMAN_CAPITAL", "ROMAN_SMALL", "LAT
 def label_room(text: str, head: Mapping[str, str], em: int, style: TextStyle) -> float:
     """HWPUNIT a bullet or number label *text* takes before its paragraph's text, by the label's paragraph head
     (the attributes of ``hh:paraHead``) at a character height of *em* and *style*: with ``useInstWidth`` the
-    text's advances, else an em for each character and half an em for each ASCII one; then the width
+    text's advances, else an em for each character and half an em for each one below U+0100 (ASCII and Latin-1, a
+    soft hyphen or middle dot bullet among them); then the width
     adjustment (``widthAdjust``) and the gap to the text (``textOffset``, % of the em or HWPUNIT)."""
 
     if not text:
@@ -1878,7 +1879,7 @@ def label_room(text: str, head: Mapping[str, str], em: int, style: TextStyle) ->
         width = sum(char_advance(ch, points, style) for ch in text[:-1])
         width += char_advance(text[-1], points, _without_spacing(style))
     else:
-        width = sum(em / 2 if ord(ch) < 0x80 else em for ch in text)
+        width = sum(em / 2 if ord(ch) < 0x100 else em for ch in text)
     offset = _style_number(head.get("textOffset"), 50.0)
     gap = offset if head.get("textOffsetType") == "HWPUNIT" else em * offset / 100
     return width + _style_number(head.get("widthAdjust"), 0.0) + gap
