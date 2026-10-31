@@ -3651,8 +3651,9 @@ def _pushing_object(objects: list[Any], text: str, column: int, bare: bool = Fal
 
 def _stacked_objects(objects: list[Any], runs: list[Any], column: int) -> list[Any]:
     """The objects of a paragraph holding no text when there are several and each is placed top and bottom
-    from the paragraph's top (none up from it), from the column's or the paragraph's left or right; none
-    otherwise. Objects set as characters there are the paragraph's line, which goes below them."""
+    from the paragraph's top (one placed up from it stacks as if not moved, see :func:`_stack`), from the column's
+    or the paragraph's left or right; none otherwise. Objects set as characters there are the paragraph's line,
+    which goes below them."""
 
     placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
     if len(placed) < 2 or _run_text(runs).strip() or _marks(runs) or _note_anchors(runs):
@@ -3661,7 +3662,7 @@ def _stacked_objects(objects: list[Any], runs: list[Any], column: int) -> list[A
         pos = obj.find(f"{HP}pos")
         if not _wraps_top_and_bottom(obj, column) \
                 or (pos.get("vertRelTo"), pos.get("vertAlign", "TOP")) != ("PARA", "TOP") \
-                or _pos_offset(pos, "vertOffset") >= 1 << 31 or pos.get("horzRelTo") not in ("COLUMN", "PARA") \
+                or pos.get("horzRelTo") not in ("COLUMN", "PARA") \
                 or pos.get("horzAlign", "LEFT") not in ("LEFT", "RIGHT"):
             return []
     return placed
@@ -3685,7 +3686,8 @@ def _stack(measure: _Measure, objects: list[Any], column: int, shape: _Shape) ->
             ends = _table_ends(obj)
             table = _FlowTable(rows, _page_break(obj), obj.get("repeatHeader") == "1", ends,
                                tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj))
-        stacked.append(_Stacked(_pos_offset(pos, "vertOffset"), left, left + width, height, table))
+        down = _pos_offset(pos, "vertOffset")  # placed up (kept unsigned): Hancom stacks it as if not moved
+        stacked.append(_Stacked(down if down < 1 << 31 else 0, left, left + width, height, table))
     return tuple(stacked)
 
 

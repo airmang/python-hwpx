@@ -167,9 +167,10 @@ _EMOJI_BMP = frozenset("✅❌❎❗❓❔❕➕➖➗⏰⏳⛔✋✨⭐⬛⬜")
 _ZERO_WIDTH = frozenset("\ufe0e\ufe0f\u200d")
 #: Closing punctuation that never starts a line right after a character: it
 #: moves down with that character. After a space or a tab it may start a line.
-_NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。")
-#: Opening punctuation that never ends a line.
-_NO_LINE_END = frozenset("([{‘“〈《「『【〔")
+#: Hancom treats ">", "^" and "~" so too ("가가>가" breaks as "가" | "가>가").
+_NO_LINE_START = frozenset("!%),.:;?]}¢°’”‰′″℃〉》」』】〕…·、。>^~")
+#: Opening punctuation that never ends a line ("$", "<" and "\\" too).
+_NO_LINE_END = frozenset("([{‘“〈《「『【〔$<\\")
 #: The scripts whose faces must match for the per-face glyph table to apply to
 #: the glyphs that are not Hangul.
 _GLYPH_TABLE_SCRIPTS = ("HANGUL", "LATIN", "OTHER", "SYMBOL")
@@ -2102,8 +2103,9 @@ def _break_opportunities(text: str) -> set[int]:
 #: Opening brackets that move down with the character after them: where a line could break before that
 #: character but for the bracket ending the line, Hancom breaks before the bracket instead, whatever stands
 #: before it ("%(평가" breaks as "%" | "(평가" where the "평" does not fit, breaking between any two syllables).
-#: An opening curly quote does so too ("가]“가" breaks as "가]" | "“가").
-_OPENING_MOVES_DOWN = frozenset("([“‘")
+#: An opening curly quote does so too ("가]“가" breaks as "가]" | "“가"), and "$", "<" and "\\" ("가가$가가" breaks as
+#: "가가" | "$가가").
+_OPENING_MOVES_DOWN = frozenset("([“‘$<\\")
 
 
 def _hancom_break_opportunities(text: str, style: TextStyle) -> set[int]:
