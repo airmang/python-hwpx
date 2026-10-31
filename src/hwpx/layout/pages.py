@@ -4460,8 +4460,14 @@ class _Paginator:
             self._reach(self.frame, start, start + para.height(0))
         before = self.frame
         top = start - para.prev + table.offset + table.above  # from the paragraph's top, above its spacing
-        frame, end = _flow_table(table, self.frame, top, self.body)
-        later = start + para.height(0) <= self.body and _starts_later(table, top, self.body)
+        # the notes already on the page keep their room at its foot, all but the separator's width: the rows
+        # end above them there, as if they started that much lower (on the pages after, the table goes on
+        # below the header as ever)
+        noted = self.notes.area(*self.page_notes) - (self.notes.line if self.page_notes[1] else 0)
+        frame, end = _flow_table(table, self.frame, top + noted, self.body)
+        if frame == self.frame:
+            end -= noted
+        later = start + para.height(0) <= self.body and _starts_later(table, top + noted, self.body)
         if self.frame + 1 in self.moved_tops and frame > self.frame and (later or (frame, end) == _flow_table(
                 table, self.frame + 1, _repeated_header(table) + table.margins[0], self.body)):  # it goes on to
             below = max(bottom for _, bottom in self.bands[self.frame + 1])  # the next page whole: below the
