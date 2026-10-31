@@ -66,18 +66,44 @@ def test_set_cell_text_without_preserve_format_resets_only_the_written_run() -> 
 def test_split_paragraphs_rebuilds_one_paragraph_per_line() -> None:
     _, table, cell = _cell_with_three_paragraphs_and_a_nested_table()
     old_ids = [p.element.get("id") for p in cell.paragraphs]
+    host = cell.paragraphs[2].element
+
+    table.set_cell_text(0, 0, "가\n나\n다", split_paragraphs=True)
+
+    paragraphs = cell.paragraphs
+    assert [p.text for p in paragraphs[:3]] == ["가", "나", "다"]
+    # The paragraph holding the nested table stays where it was, with its table.
+    assert paragraphs[3].element is host and len(paragraphs) == 4
+    assert [t.cell(0, 0).text for t in cell.tables] == ["안쪽"]
+    # Line i takes paraPrIDRef and its run's charPrIDRef from old paragraph i.
+    assert paragraphs[1].element.get("paraPrIDRef") == "3"
+    assert paragraphs[1].element.get("styleIDRef") == "2"
+    assert [p.runs[0].char_pr_id_ref for p in paragraphs[:3]] == ["0", "4", "0"]
+    assert [len(p.runs) for p in paragraphs[:3]] == [1, 1, 1]
+    assert not {p.element.get("id") for p in paragraphs[:3]} & set(old_ids)
+
+
+def test_split_paragraphs_puts_the_lines_before_a_table_holder_and_empties_its_text() -> None:
+    doc = HwpxDocument.new()
+    table = doc.add_table(1, 1)
+    cell = table.cell(0, 0)
+    cell.add_table(1, 1).cell(0, 0).text = "안쪽"
+    host = next(p for p in cell.paragraphs if p.element.find(f".//{HP}tbl") is not None).element
+    for p in [p for p in cell.paragraphs if p.element is not host]:
+        p.element.getparent().remove(p.element)
+    run = host.find(f"{HP}run")
+    beside = run.makeelement(f"{HP}t", {})
+    beside.text = "표 옆 글"
+    run.insert(0, beside)
 
     table.set_cell_text(0, 0, "가\n나", split_paragraphs=True)
 
     paragraphs = cell.paragraphs
-    assert [p.text for p in paragraphs] == ["가", "나"]
-    assert cell.tables == []  # the paragraph that held the nested table is gone
-    # Line i takes paraPrIDRef and its run's charPrIDRef from old paragraph i.
-    assert paragraphs[1].element.get("paraPrIDRef") == "3"
-    assert paragraphs[1].element.get("styleIDRef") == "2"
-    assert [p.runs[0].char_pr_id_ref for p in paragraphs] == ["0", "4"]
-    assert [len(p.runs) for p in paragraphs] == [1, 1]
-    assert not {p.element.get("id") for p in paragraphs} & set(old_ids)
+    assert [p.text for p in paragraphs[:2]] == ["가", "나"]
+    assert paragraphs[2].element is host and len(paragraphs) == 3
+    assert beside.text == ""
+    assert [t.cell(0, 0).text for t in cell.tables] == ["안쪽"]
+    assert paragraphs[0].element.get("paraPrIDRef") == host.get("paraPrIDRef")
 
 
 def test_paragraph_char_pr_id_ref_applies_to_every_run_of_that_paragraph() -> None:
