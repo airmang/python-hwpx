@@ -964,19 +964,34 @@ class _Measure:
             simple = not fixed and _table_alone(runs) is None and not self.spread_lines(paragraph, runs, width) \
                 and not self.marked_lines(paragraph, runs, width) \
                 and not self.mixed_lines(paragraph, runs, shape, width)
+            anchor = 0
+            mixed: tuple[tuple[int, int], ...] = ()
             if not fixed and not simple:
-                if obj is not None:
+                if obj is not None and obj.get("textWrap") == "TOP_AND_BOTTOM":
+                    mixed = self.mixed_lines(paragraph, runs, shape, width)
+                if obj is not None and not mixed:
                     raise _Unsupported("an object placed top and bottom or square beside text laid out otherwise "
                                        "in a cell")
-                fixed = list(self.stack_lines([paragraph], width, caches=True))
+                # one placed top and bottom narrows no line: the lines of characters differing in size or style
+                # stand as they are, those up to the one its control falls on above it and the rest below
+                fixed = list(mixed) if mixed else list(self.stack_lines([paragraph], width, caches=True))
+                if mixed and place:
+                    size, refs, sizes = _text_size(self, runs, paragraph)
+                    style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+                    starts = self.line_starts(text, _line_widths(shape, width, style), size, style, sizes,
+                                              _char_styles(self, paragraph, runs))
+                    if len(starts) != len(fixed):
+                        raise _Unsupported("an object placed top and bottom among text laid out otherwise in a cell")
+                    anchor = sum(1 for start in starts[1:] if start < place)
+                if mixed:
+                    fixed[-1] = (fixed[-1][0], fixed[-1][1] + shape.next)
             elif fixed:
                 fixed[-1] = (fixed[-1][0], fixed[-1][1] + shape.next)
-            anchor = 0
             if fixed:
-                if place:
+                if place and not mixed:
                     raise _Unsupported("an object placed top and bottom or square after the text of a paragraph "
                                        "with a layout cache in a cell")
-                lines, narrow, own = _clear_of(self, fixed, top, shape.prev, 0, obj, bands, empty, width)
+                lines, narrow, own = _clear_of(self, fixed, top, shape.prev, anchor, obj, bands, empty, width)
                 if narrow and not _cache_lines(paragraph):
                     raise _Unsupported("text laid out otherwise beside a square-wrapped object in a cell")
             else:
