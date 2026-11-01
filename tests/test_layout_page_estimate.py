@@ -123,6 +123,9 @@ HANCOM_PAGES = {
     # column's left or right and a rectangle 5000 or 25000 wide set as a character, all in one paragraph: the
     # rectangle stands on a line beside the table, as in a paragraph after it, even one wider than the room
     "pages_square_band_rectangle_as_character_among_text": 8,
+    # The same four times with no text: the rectangle alone stands on a line beside the table, and the next
+    # paragraph below it, beside the table too
+    "pages_square_band_rectangle_as_character_alone": 4,
     # A picture 20000 x 27112 wrapped square in the middle of the column (10 pt text spaced 160%), flowing with
     # the text, its band past the body's foot: Hancom sets it alone at the next page's body top, whatever its
     # offset, the lines of its own page the whole width and the lines on the next page whose top is above its
@@ -2532,6 +2535,22 @@ def test_a_square_object_past_the_page_foot_goes_on_at_the_next_page(name: str) 
 
     _assert_like_hancom(estimate_pages(data), data, 2)
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
+
+
+def test_columns_in_a_table_cell_are_unsupported() -> None:
+    # A cell's first paragraph sets two columns: Hancom lays the cell's text out in them, the row as tall as
+    # the longer column, which the estimate does not follow.
+    document, table = _flowing_table_after(2, 2)
+    table.set_cell_text(0, 1, "칸 글 " * 40)
+    run = next(table.element.find(f"{HP}tr").findall(f"{HP}tc")[1].iter(f"{HP}run"))
+    ctrl = etree.SubElement(run, f"{HP}ctrl")
+    etree.SubElement(ctrl, f"{HP}colPr", {"id": "", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "2",
+                                          "sameSz": "1", "sameGap": "2268"})
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: columns in a table cell",)
 
 
 def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
