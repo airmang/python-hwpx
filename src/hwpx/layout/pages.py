@@ -4374,6 +4374,14 @@ class _Paginator:
         if para.stack:
             self._stacked(index, paras, para, start)
             return
+        if self.band is not None and (para.page_break or para.break_before) and not para.column_break \
+                and para.band is None and para.table is None and para.anchor is None and not para.notes \
+                and not para.wrap_bottom:  # a page break before a table's band comes: the table stays where it
+            # stands and the paragraph starts the page after the one the table ends on
+            end_frame = self.band[3]
+            self.band = None
+            if end_frame != self.frame:
+                self.frame, self.page_notes = end_frame, [0, 0]
         if para.band is not None or self.band is not None:
             self._banded(index, paras, para, start)
             return
