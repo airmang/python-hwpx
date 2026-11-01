@@ -1041,6 +1041,10 @@ HANCOM_PAGES = {
     # 40th or 70th): the lines up to the one its control falls on stay above it and the rest go below, each as tall as
     # its characters
     "pages_cell_top_bottom_table_among_mixed_sizes": 17,
+    # Twelve times on a page of its own: a table whose cell paragraph, 0 or 2000 in from the left and indented 0,
+    # 2000 or -2000, starts with a 12000 wide table wrapped square at its left or right: the lines beside it keep
+    # the paragraph's margin and indent within the room the object leaves, as the lines below it do in the cell
+    "pages_cell_square_wrap_beside_margins": 13,
     # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
     # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
     # page's foot as one anchored in the table's paragraph would, and the page ends that much higher

@@ -1013,7 +1013,7 @@ class _Measure:
                     narrow = found
                 else:
                     raise _Unsupported("lines beside a square-wrapped object in a cell that do not settle")
-                if narrow and ("\n" in text or shape.left or shape.right or shape.indent or style.head):
+                if narrow and ("\n" in text or style.head):
                     raise _Unsupported("a paragraph with margins, a label or line breaks beside a square-wrapped "
                                        "object in a cell")
             if obj is not None and own is None:
