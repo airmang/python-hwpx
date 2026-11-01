@@ -14,6 +14,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
+from .oxml.namespaces import NAMESPACE_URIS
 from .quality import QualityPolicy, SavePipeline
 from .quality.report import VisualCompleteReport
 
@@ -541,11 +542,9 @@ _MARKUP_RE = re.compile(
 )
 _XML_REFERENCE_RE = re.compile(r"&(#x[0-9A-Fa-f]+|#[0-9]+|lt|gt|amp|quot|apos);")
 _XML_ENTITIES = {"lt": "<", "gt": ">", "amp": "&", "quot": '"', "apos": "'"}
-_LINESEG_ARRAY_TEXT_RE = re.compile(
-    r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b"
-    r"(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
-    re.DOTALL | re.IGNORECASE,
-)
+_TAG_NAME_RE = re.compile(r"<(/?)([^\s/>]+)")
+_XMLNS_ATTR_RE = re.compile(r"""\sxmlns(?::([^\s=]+))?\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+_PARAGRAPH_NAMESPACES = frozenset(NAMESPACE_URIS["paragraph"].values())
 
 
 @dataclass(frozen=True)
@@ -654,6 +653,62 @@ def _replace_in_text_nodes(xml: str, replacements: Mapping[str, str]) -> tuple[s
     return "".join(pieces), count
 
 
+def _strip_layout_caches(xml: str) -> tuple[str, int]:
+    """Cut every paragraph-namespace ``linesegarray`` element out of *xml*.
+
+    Walks the same markup tokens as :func:`_replace_in_text_nodes`, so text
+    that only looks like the element — inside CDATA, a comment, a processing
+    instruction or an attribute value — is never matched. Prefixes resolve
+    through the ``xmlns`` declarations in scope. Bytes outside the removed
+    elements stay as they are; an element that never closes is left alone.
+    """
+
+    spans: list[tuple[int, int]] = []
+    # One entry per open element: the namespace declarations it adds.
+    scopes: list[dict[str, str]] = []
+    cut_start: int | None = None
+    cut_depth = 0
+    for markup in _MARKUP_RE.finditer(xml):
+        token = markup.group(0)
+        name = _TAG_NAME_RE.match(token)
+        if name is None or token.startswith(("<!", "<?")):
+            continue
+        if name.group(1):
+            if scopes:
+                scopes.pop()
+            if cut_start is not None and len(scopes) == cut_depth:
+                spans.append((cut_start, markup.end()))
+                cut_start = None
+            continue
+        declared = {
+            prefix: _unescape_xml_text(double or single)
+            for prefix, double, single in _XMLNS_ATTR_RE.findall(token)
+        }
+        self_closing = token.endswith("/>")
+        if cut_start is None:
+            prefix, _, local = name.group(2).rpartition(":")
+            uri = declared.get(prefix)
+            if uri is None:
+                uri = next((scope[prefix] for scope in reversed(scopes) if prefix in scope), None)
+            if local.lower() == "linesegarray" and uri in _PARAGRAPH_NAMESPACES:
+                if self_closing:
+                    spans.append((markup.start(), markup.end()))
+                    continue
+                cut_start, cut_depth = markup.start(), len(scopes)
+        if not self_closing:
+            scopes.append(declared)
+
+    if not spans:
+        return xml, 0
+    pieces: list[str] = []
+    cursor = 0
+    for start, end in spans:
+        pieces.append(xml[cursor:start])
+        cursor = end
+    pieces.append(xml[cursor:])
+    return "".join(pieces), len(spans)
+
+
 def _gate_and_publish(
     payload: bytes,
     output_path: str | Path | None,
@@ -705,9 +760,10 @@ def replace_package_text(
     across elements (two runs, say) is not found. *replacements* apply in
     order, each to the text the previous one left.
 
-    A part that changes loses every ``linesegarray`` layout cache it holds,
-    so Hangul lays out the new text again instead of drawing it into stale
-    line slots. Other parts and ZIP entries keep their bytes. The output goes
+    A part that changes loses every ``hp:linesegarray`` layout cache it holds
+    (elements in the paragraph namespace; look-alike text in CDATA, comments,
+    processing instructions or attribute values stays), so Hangul lays out the
+    new text again instead of drawing it into stale line slots. Other parts and ZIP entries keep their bytes. The output goes
     through the open-safety gate; *output_path* is written atomically only
     when the gate passes (``ok``), and otherwise left as it was.
     """
@@ -745,7 +801,7 @@ def replace_package_text(
         replaced, count = _replace_in_text_nodes(xml, replacements)
         if not count or replaced == xml:
             continue
-        replaced, removed = _LINESEG_ARRAY_TEXT_RE.subn("", replaced)
+        replaced, removed = _strip_layout_caches(replaced)
         changed[name] = replaced.encode("utf-8")
         total += count
         caches_removed += removed
