@@ -1045,6 +1045,10 @@ HANCOM_PAGES = {
     # 2000 or -2000, starts with a 12000 wide table wrapped square at its left or right: the lines beside it keep
     # the paragraph's margin and indent within the room the object leaves, as the lines below it do in the cell
     "pages_cell_square_wrap_beside_margins": 13,
+    # Sixteen times: 2 or 25 paragraphs, then one with a table 5000 or 40000 tall placed top and bottom 3000 or
+    # 10000 down from it, none or one paragraph more and one starting a page: the table stays where it stands, going
+    # on over the page end when it does, and the paragraph starts the page after the one the table ends on
+    "pages_page_break_before_table_band": 37,
     # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
     # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
     # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
