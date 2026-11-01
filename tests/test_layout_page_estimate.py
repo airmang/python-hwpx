@@ -1036,6 +1036,11 @@ HANCOM_PAGES = {
     # bottom from it, 3000 and 8000 tall, either or both placed up by 1000 to 20000: Hancom stacks them as if they
     # were not moved, the empty paragraph's line below both, the paragraphs before where they were
     "pages_stacked_objects_placed_up": 15,
+    # Sixteen times on a page of its own: a table whose cell paragraph holds 10 pt and 14 pt text, a table 2000 or
+    # 5000 tall placed top and bottom from the paragraph among it (before its first character, or after the 15th,
+    # 40th or 70th): the lines up to the one its control falls on stay above it and the rest go below, each as tall as
+    # its characters
+    "pages_cell_top_bottom_table_among_mixed_sizes": 17,
     # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
     # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
     # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
