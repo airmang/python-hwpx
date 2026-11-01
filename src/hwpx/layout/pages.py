@@ -1896,9 +1896,9 @@ class _Para:
     #: the line the object laid out around the text (the caller's) stands on
     wrap_anchor: int = 0
     band: _Band | None = None
-    #: (top, bottom) in the body of an object anchored here and placed on the paper or the page, whether it
-    #: leaves a line's room beside it and the columns it reaches over (see :func:`_paper_band`)
-    paper: tuple[int, int, bool, tuple[int, ...]] | None = None
+    #: for each object anchored here and placed on the paper or the page: (top, bottom) in the body, whether it
+    #: leaves a line's room beside it and the columns it reaches over (see :func:`_paper_bands`)
+    paper: tuple[tuple[int, int, bool, tuple[int, ...]], ...] = ()
     #: the top of such a band that pushes the lines below it to the body's foot and that keeps the object on its
     #: paragraph's page (pos@holdAnchorAndSO="1"): when the first line with its spacing reaches it there, the
     #: paragraph goes on to the next page's top with the object, the lines above staying where they are
@@ -2618,22 +2618,31 @@ def _on_paper(obj: Any) -> bool:
 
 
 def _paper_band(measure: _Measure, page: _Page, paragraph: Any) -> tuple[int, int, bool, tuple[int, ...]] | None:
-    """(top, bottom) in the body of the object of *paragraph* placed on the paper, if any, whether it is
-    wrapped square leaving a line's room beside it (Hancom sets the text reaching it beside it, which is
-    not followed, and the text above or below it as if it were not there), and the columns it keeps the
-    lines out of."""
+    """The band of the first object of *paragraph* placed on the paper, if any (see :func:`_paper_bands`)."""
 
-    placed = [child for run in paragraph.findall(f"{HP}run") for child in run
-              if _local(child) in _OBJECTS and _on_paper(child)]
-    if not placed:
-        return None
-    square = placed[0].get("textWrap") == "SQUARE"  # no line beside it: less than a line's room on each side
-    across = _across_the_text(placed[0], page, _MIN_SIDE - 1 if square else 0)
+    bands = _paper_bands(measure, page, paragraph)
+    return bands[0] if bands else None
+
+
+def _paper_bands(measure: _Measure, page: _Page, paragraph: Any) -> tuple[tuple[int, int, bool, tuple[int, ...]], ...]:
+    """For each object of *paragraph* placed on the paper, each on its own as if anchored apart: (top, bottom) in
+    the body, whether it is wrapped square leaving a line's room beside it (Hancom sets the text reaching it
+    beside it, which is not followed, and the text above or below it as if it were not there), and the columns
+    it keeps the lines out of."""
+
+    return tuple(_object_paper_band(measure, page, child) for run in paragraph.findall(f"{HP}run") for child in run
+                 if _local(child) in _OBJECTS and _on_paper(child))
+
+
+def _object_paper_band(measure: _Measure, page: _Page, obj: Any) -> tuple[int, int, bool, tuple[int, ...]]:
+    """The band of *obj*, placed on the paper (see :func:`_paper_bands`)."""
+
+    square = obj.get("textWrap") == "SQUARE"  # no line beside it: less than a line's room on each side
+    across = _across_the_text(obj, page, _MIN_SIDE - 1 if square else 0)
     columns = tuple(range(page.columns)) if across or page.columns == 1 else () if square \
-        else _columns_reached(placed[0], page)
-    if len(placed) > 1 or not columns:
+        else _columns_reached(obj, page)
+    if not columns:
         raise _Unsupported("objects placed on the paper")
-    obj = placed[0]
     tall = _extent(obj, "height", measure)
     if _local(obj) == "tbl":  # as tall as its rows
         tall += _rows_height(measure, obj) - int(obj.find(f"{HP}sz").get("height", 0))
@@ -5122,10 +5131,11 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
         para, wrap = _wrapped_paragraph(measure, page, paragraph, wrap, index in moved)
         if step and measure.shape(paragraph.get("paraPrIDRef")).snap:
             para = _on_grid(para, step)
-        band = _paper_band(measure, page, paragraph)
+        on_paper = _paper_bands(measure, page, paragraph)
         para = replace(para, kept=bool(_cached_metrics(paragraph)))
-        paras.append(para if band is None else replace(para, paper=band, held=_held_top(page, paragraph, band)))
-    paper = {index: para.paper for index, para in enumerate(paras) if para.paper is not None}
+        held = _held_top(page, paragraph, on_paper[0]) if len(on_paper) == 1 else None
+        paras.append(replace(para, paper=on_paper, held=held) if on_paper else para)
+    paper = {index: para.paper for index, para in enumerate(paras) if para.paper}
     bands: dict[int, list[tuple[int, int]]] = {}
     sides: dict[int, list[tuple[int, int]]] = {}
     for _ in range(4):  # an object placed on the paper acts on the page its paragraph lands on
@@ -5136,10 +5146,11 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
             firsts.append(firsts[-1] + count)
         placed: dict[int, list[tuple[int, int]]] = {}
         beside: dict[int, list[tuple[int, int]]] = {}
-        for index, (top, bottom, room, columns) in paper.items():  # on the columns of the page it reaches over
+        for index, objects in paper.items():  # each on the columns of the page it reaches over
             first = paginator.out[firsts[index]][0] // page.columns * page.columns
-            for column in columns:
-                (beside if room else placed).setdefault(first + column, []).append((top, bottom))
+            for top, bottom, room, columns in objects:
+                for column in columns:
+                    (beside if room else placed).setdefault(first + column, []).append((top, bottom))
         if placed == bands and beside == sides:
             break
         bands, sides = placed, beside
