@@ -45,10 +45,13 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 - `preserve_format=False`면 글을 받은 run 하나만 `charPrIDRef="0"`이 된다.
 - 셀 문단의 줄 배치 캐시(`hp:linesegarray`)를 지워 한/글이 줄을 다시 나누게 한다.
 
-`split_paragraphs=True`면 셀 문단을 **다시 만든다**. 기존 문단은 모두 지워지고
-(안쪽 표를 담은 문단도 함께), 줄마다 run 하나짜리 새 문단이 새 id로 생긴다.
-줄 `i`는 기존 `i`번째 문단(없으면 첫 문단)의 `paraPrIDRef`·`styleIDRef`·
+`split_paragraphs=True`면 셀 자신의 글 문단을 **다시 만든다**. 그 문단은 모두
+지워지고, 줄마다 run 하나짜리 새 문단이 새 id로 첫 글 문단 자리에 생긴다. 줄 `i`는
+기존 `i`번째 글 문단(없으면 첫 글 문단)의 `paraPrIDRef`·`styleIDRef`·
 `pageBreak`·`columnBreak`·`merged`와 그 문단 첫 run의 `charPrIDRef`를 이어받는다.
+안쪽 표·개체(그림, 글상자, 컨트롤 등)를 담은 문단은 자리와 담은 것을 그대로 두고 그
+문단 자신의 글만 비운다. 글 문단이 없는 셀은 새 문단을 첫 개체 문단 앞에 두고, 그
+문단의 문단 모양을 쓴다.
 
 ### 셀 여백
 
