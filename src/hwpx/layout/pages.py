@@ -625,6 +625,7 @@ class _Measure:
         self._numbered: dict[str, bool] = {}
         self._label_sizes: dict[str, int] = {}
         self._pictured: dict[str, bool] = {}
+        self._boxes: dict[str, int] = {}
         #: how far apart the default tab stops of the section at hand are (see :func:`_tab_stop`)
         self.tab_stop = _DEFAULT_TAB_STOP
 
@@ -637,6 +638,21 @@ class _Measure:
     def char_height(self, char_pr_id: Any) -> int:
         style = self._root.char_property(char_pr_id)
         return int(style.attributes.get("height", 1000)) if style is not None else 1000
+
+    def char_box(self, char_pr_id: Any) -> int:
+        """How tall a character of *char_pr_id* makes its line: its height, and the width of a border its shape
+        draws above and below it (Hancom: the line that much taller, spaced from that height)."""
+
+        key = str(char_pr_id)
+        if key not in self._boxes:
+            style = self._root.char_property(char_pr_id)
+            fill = self._root.border_fill(style.attributes.get("borderFillIDRef")) if style is not None else None
+            edges = 0
+            for child in getattr(fill, "children", None) or ():
+                if child.name in ("topBorder", "bottomBorder") and child.attributes.get("type", "NONE") != "NONE":
+                    edges += round(float(child.attributes.get("width", "0 mm").split()[0]) * 7200 / 25.4)
+            self._boxes[key] = self.char_height(char_pr_id) + edges
+        return self._boxes[key]
 
     def font_line(self, size: int, style: Any) -> int:
         """How tall a line of characters *size* tall in *style* is in a paragraph taking its line height from
@@ -2745,7 +2761,7 @@ def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
 
     if not runs or not sizes or any(len(child) or child.tag != f"{HP}t" or child.text for child in runs[-1]):
         return 0
-    size = measure.char_height(runs[-1].get("charPrIDRef"))
+    size = measure.char_box(runs[-1].get("charPrIDRef"))
     if _run_text(runs).endswith("\n"):  # after a line break the empty last line is the run alone: as tall as
         return size if size != sizes[-1] else 0  # itself, smaller or larger (see _line_metrics)
     return size if size > min(sizes) else 0
@@ -2783,15 +2799,20 @@ def _held_sizes(measure: _Measure, runs: list[Any], sizes: list[int]) -> dict[in
     """Where in the text a run holding a control shown on a line (see :func:`_shown_control`; not a note) or an
     object not set as a character stands after the first character -> that run's size, when it is larger than the
     smallest character: Hancom sets it as a character of no width, the line it falls on as tall as its run's
-    characters (those before the text, see :func:`_head_size`)."""
+    characters (those before the text, see :func:`_head_size`). Each character whose shape draws a border above
+    or below it is held too, its line as tall as the character and the border (see :meth:`_Measure.char_box`)."""
 
     if not sizes:
         return {}
     place, held = 0, {}
     for run in runs:
+        box = measure.char_box(run.get("charPrIDRef"))
+        boxed = box > measure.char_height(run.get("charPrIDRef"))  # a border above or below its characters
         for child in run:
             name = _local(child)
             if name == "t":
+                for offset in range(len(_t_text(child))) if boxed else ():
+                    held[place + offset + 1] = max(held.get(place + offset + 1, 0), box)
                 place += len(_t_text(child))
             elif place and (_shown_control(child) and not any(_local(kind) in ("footNote", "endNote") for kind in child)
                             or name in _OBJECTS and (child.find(f"{HP}pos") is None
