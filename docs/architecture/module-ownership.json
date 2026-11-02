@@ -739,13 +739,31 @@
       "path": "src/hwpx/form_fit/_glyph_table.py",
       "disposition": "core",
       "approvedBy": "formfit-glyph-widths",
-      "rationale": "FormFit glyph widths beyond measure._GLYPHS: per face, the design advance of each glyph of the KS X 1001 symbols, the full-width forms and eight common Unicode blocks, read from the font files, and the face Hancom lays a glyph out from when a face lacks it. Data only; imports nothing."
+      "rationale": "FormFit glyph widths beyond measure._GLYPHS: per face, the design advance of each glyph of the KS X 1001 symbols, the full-width forms and eight common Unicode blocks, read from the font files, and the face Hancom lays a glyph out from when a face lacks it. Data only; combines the two private readable glyph-advance data modules without changing the existing constants."
     },
     {
       "path": "src/hwpx/_trailing_table_text.py",
       "disposition": "core",
       "approvedBy": "owner-authorized issue565 additive implementation",
       "rationale": "QName-aware bounded byte-span selection of text after a table within its own paragraph; reusable format behavior. The caller supplies the predicate, so this module contains no genre, institution, workflow or caption policy. Secure XML parsing and existing OPC markup tokenization validate namespace scopes without reserializing source bytes."
+    },
+    {
+      "path": "src/hwpx/form_fit/_glyph_advances_1.py",
+      "disposition": "core",
+      "approvedBy": "readable-source-split-pr-650",
+      "rationale": "Readable static font-advance data split from the existing core _glyph_table module to keep individual source files within the conservative plugin inspection policy. No new workflow, dependency or executable loader; the facade retains identical exported values."
+    },
+    {
+      "path": "src/hwpx/form_fit/_glyph_advances_2.py",
+      "disposition": "core",
+      "approvedBy": "readable-source-split-pr-650",
+      "rationale": "Readable static font-advance data split from the existing core _glyph_table module to keep individual source files within the conservative plugin inspection policy. No new workflow, dependency or executable loader; the facade retains identical exported values."
+    },
+    {
+      "path": "src/hwpx/layout/_page_flow.py",
+      "disposition": "core",
+      "approvedBy": "readable-source-split-pr-650",
+      "rationale": "Private implementation split from the existing core layout.pages estimator. Retains paragraph flow and pagination behavior through the pages facade and late-bound helpers; adds no application policy, renderer or document mutation."
     }
   ],
   "removed": [
