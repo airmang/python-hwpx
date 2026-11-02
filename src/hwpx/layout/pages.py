@@ -783,6 +783,7 @@ class _Measure:
                     or self.marked_lines(paragraph, runs, width) or self.mixed_lines(paragraph, runs, shape, width)
                 if cached:  # the lines Hancom laid out, each as tall as it drew it
                     anchor = height - lead if pending is None else height + pending + shape.prev
+                    above = lead if pending is None else shape.prev  # its spacing before, above its line
                     if pending is not None:
                         height += pending + shape.prev
                     top = height
@@ -790,8 +791,8 @@ class _Measure:
                     height += sum(advance for _, advance in cached[:-1]) + cached[-1][0]
                     size, pitch = cached[-1]
                     pending = pitch - size + shape.next
-                    if top + _objects_reach(runs, self) > height:  # an object placed from it reaches lower
-                        height, pending = top + _objects_reach(runs, self), shape.next
+                    if top + _objects_reach(runs, self, above) > height:  # an object placed from it reaches lower
+                        height, pending = top + _objects_reach(runs, self, above), shape.next
                     lines += len(cached)
                     continue
                 style = self.style(paragraph.get("paraPrIDRef"), refs, paragraph)
@@ -801,14 +802,15 @@ class _Measure:
                 # an empty line keeps the character size: Hancom makes only a line of characters as tall as
                 # its font makes it
             anchor = height - lead if pending is None else height + pending + shape.prev
+            above = lead if pending is None else shape.prev  # its spacing before, above its line
             if pending is not None:
                 height += pending + shape.prev
             top = height
             far = max(far, anchor + _floating_reach(runs, self)) if floating else far
             height += (count - 1) * pitch + size
             pending = pitch - size + shape.next
-            if top + _objects_reach(runs, self) > height:  # an object placed from the paragraph reaches lower
-                height, pending = top + _objects_reach(runs, self), shape.next
+            if top + _objects_reach(runs, self, above) > height:  # an object placed from the paragraph reaches lower
+                height, pending = top + _objects_reach(runs, self, above), shape.next
             lines += count
         return max(height, far), lines, pitch, size
 
@@ -2333,12 +2335,12 @@ def _section_parts(measure: _Measure, section: Any) -> list[Any]:
     return parts
 
 
-def _objects_reach(runs: list[Any], measure: _Measure) -> int:
-    """How far below the top of their paragraph in a cell, holding no text, the pictures and drawings placed
-    from it reach: top and bottom or square, not set as a character, moving with the text, their outer margins
-    included (the cell holds them, and its row grows to; one that stays put does not count). So do the tables
-    placed top and bottom from it, as tall as their rows and a caption above or below them (one placed up
-    stands at the paragraph's top)."""
+def _objects_reach(runs: list[Any], measure: _Measure, spacing: int = 0) -> int:
+    """How far below the top of their paragraph's line in a cell, holding no text, the pictures and drawings
+    placed from it reach: top and bottom or square, not set as a character, moving with the text, their outer
+    margins included (the cell holds them, and its row grows to; one that stays put does not count). So do the
+    tables placed top and bottom from it, as tall as their rows and a caption above or below them (one placed
+    up stands at the paragraph's top), placed from the paragraph's top above its *spacing* before."""
 
     reach = 0
     if _run_text(runs).strip():  # text goes on below such an object: not followed here
@@ -2346,7 +2348,7 @@ def _objects_reach(runs: list[Any], measure: _Measure) -> int:
     for obj in (child for run in runs for child in run):
         name, pos = _local(obj), obj.find(f"{HP}pos")
         if name == "tbl" and _placed_top_and_bottom(obj):
-            reach = max(reach, _down(pos) + _inline_table_height(measure, obj) + _extent_margins(obj)
+            reach = max(reach, _down(pos) - spacing + _inline_table_height(measure, obj) + _extent_margins(obj)
                         + sum(_caption(measure, obj)))
             continue
         if name not in _OBJECTS or name == "tbl" or pos is None or obj.find(f"{HP}sz") is None \
