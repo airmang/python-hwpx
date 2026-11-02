@@ -3266,7 +3266,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         spread = measure.spread_lines(paragraph, runs, page.column_width, end, head, caches=True)
         alone, cached = (False, spread) if spread else (alone, cached)
     if among or beside:
-        apart = (*stacked, *(() if square is None or square.get("textWrap") != "TOP_AND_BOTTOM" else (square,)))
+        apart = (*stacked, *(() if square is None else (square,)))
         inline_text, inline_sizes, inline_looks, placed, marked = _inline_content(measure, paragraph, runs, anchored,
                                                                                   apart)
         if wrap is not None:
@@ -3459,11 +3459,12 @@ def _square_object(objects: list[Any], runs: list[Any], column: int) -> Any:
     falls on (:func:`_square_anchor_line`), or ``None`` (:func:`_square_sides` says where the text goes beside
     it)."""
 
-    if len(objects) != 1:
+    placed = [obj for obj in objects if obj.find(f"{HP}pos").get("treatAsChar") != "1"]
+    if len(placed) != 1:  # objects set as characters stand on the lines beside it
         return None
-    obj = objects[0]
+    obj = placed[0]
     pos = obj.find(f"{HP}pos")
-    if pos.get("treatAsChar") == "1" or obj.get("textWrap") != "SQUARE" or _wraps_top_and_bottom(obj, column):
+    if obj.get("textWrap") != "SQUARE" or _wraps_top_and_bottom(obj, column):
         return None
     if (pos.get("vertRelTo"), pos.get("vertAlign", "TOP")) != ("PARA", "TOP") \
             or pos.get("horzRelTo") not in ("COLUMN", "PARA", "PAPER") or pos.get("horzAlign") not in ("LEFT", "RIGHT") \
