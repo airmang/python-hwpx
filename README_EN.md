@@ -56,8 +56,8 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
 - Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
 - Fill forms: find a cell by its label and change only the value; parts you did not touch keep their bytes.
   FormFit decides whether a value should wrap or shrink to fit its cell, measuring with Hangul's glyph widths.
-- Edit table structure: insert and delete rows and columns, split and merge cells; get a table by number
-  with `doc.tables[0]`.
+- Edit table structure: insert and delete rows and columns, split and merge cells, including cells that
+  hold nested tables. Get a table by number with `doc.tables[0]`.
 - Create and batch: new documents, tables of contents and cross-references, mail merge, document diff,
   tracked changes.
 - HWP 5.0: read an `.hwp` file as HWPX, edit it with the same API, and save it as `.hwp`. Anything that
@@ -70,6 +70,28 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
   report (`return_report=True`).
 
 More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md) · [support matrix](docs/support-matrix.md)
+
+### Edit tables inside tables
+
+Since 6.11.0, the byte-preserving edit path supports both filling cells that hold nested tables and
+editing their structure.
+
+- Change only a parent cell's own text while keeping its inner tables byte for byte. Select an inner
+  table explicitly to fill its cells, or fill parent and inner cells in one call.
+- Insert, delete and reorder rows and columns, split cells, and split or merge tables containing nested
+  tables. An inner table moves or is deleted with its parent cell; a split cell keeps it in the first part.
+- Content cloning gives fresh identifiers to the copied inner tables and paragraphs, and to supported
+  pictures, fields, memos and other objects, so they do not collide with the originals.
+
+This path's `table_index` counts inner tables too, in opening-tag order. It is different from the
+top-level indexing of `doc.tables`. Unsupported combinations are not applied and return a reason;
+check both `applied` and `skipped`. For example, cloning content with charts, linked text boxes, or
+headers/footers defined in the cell is refused. Byte preservation and structure checks do not replace
+visual layout checks: inspect the final document separately in Hangul or your target application.
+
+[Scope and limits](docs/nested-cell-fill-safety.md) ·
+[nested-cell fill tests](tests/test_nested_cell_fill_safety.py) ·
+[nested-table structure tests](tests/test_nested_table_structure_edits.py)
 
 ### Filling a form
 
