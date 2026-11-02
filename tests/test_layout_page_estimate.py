@@ -107,6 +107,10 @@ HANCOM_PAGES = {
     "pages_square_picture_reaching_an_empty_line": 1,  # placed 900 below the line's top: two pieces
     "pages_square_picture_just_below_an_empty_line": 1,  # 1100 below: one line
     "pages_square_picture_far_below_an_empty_line": 1,  # 8000 below: one line
+    # Eight times on a page of its own: a paragraph spaced 2000 before, holding a 12000 x 8000 table or rectangle
+    # wrapped square at the column's right, 2500, 2700, 4500 or 4700 below it, then one of 200 characters: Hancom
+    # places the object from the paragraph's top above its spacing, the lines reaching it from there narrower
+    "pages_square_object_down_from_spacing": 8,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
