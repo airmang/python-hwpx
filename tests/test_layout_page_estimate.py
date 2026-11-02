@@ -933,6 +933,9 @@ HANCOM_PAGES = {
     "pages_rectangle_on_paper_over_the_right_column": 2,  # over the second only
     "pages_rectangle_on_paper_partly_over_two_columns": 2,  # 30000 wide, centred: partly over each, the
                                                              # lines of both go below it
+    # Six times on a page of its own: a paragraph holding two tables placed on the paper, each across the text's
+    # width, top and bottom or square: Hancom keeps the lines out of each one's band, as it would for one alone
+    "pages_several_paper_objects": 12,
     "pages_rectangle_on_paper_400_narrower_than_two_columns": 2,  # 400 narrower than the text, centred
     "pages_table_on_paper_400_narrower_than_two_columns": 2,  # a table so
     "pages_rectangle_on_paper_over_the_left_column_from_the_right": 2,  # anchored in the second column
