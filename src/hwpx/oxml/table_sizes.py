@@ -87,6 +87,42 @@ def _column_floors(table: "HwpxOxmlTable") -> list[int]:
     return floors
 
 
+def _keeping_nested_fit(edit: Any) -> Any:
+    """*edit* (a width edit of a table) refused, the table left as it was, when it leaves a cell
+    narrower than the table nested in it (its width plus the cell's side margins) unless the cell
+    was already that narrow -- as the byte edits refuse it (:func:`hwpx.table_patch._check_nested_fit`)."""
+
+    from copy import deepcopy
+    from functools import wraps
+
+    @wraps(edit)
+    def run(table: "HwpxOxmlTable", *args: Any) -> None:
+        from lxml import etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
+
+        from ..table_patch import TableStructureError, _check_nested_fit
+
+        element = table.element
+        if element.find(f".//{_HP}tbl") is None:
+            return edit(table, *args)
+        saved = deepcopy(element)
+        before = etree.tostring(element, encoding="unicode", with_tail=False)
+        edit(table, *args)
+        try:
+            _check_nested_fit(before, etree.tostring(element, encoding="unicode", with_tail=False))
+        except TableStructureError:
+            for child in list(element):
+                element.remove(child)
+            element.attrib.clear()
+            element.attrib.update(saved.attrib)
+            element.text = saved.text
+            element.extend(list(saved))
+            raise
+        return None
+
+    return run
+
+
+@_keeping_nested_fit
 def set_column_widths(table: "HwpxOxmlTable", weights: Sequence[int | float]) -> None:
     if len(weights) != table.column_count:
         raise ValueError("column width weights must match table column count")
@@ -256,6 +292,7 @@ def _zone_moves(
     return moves
 
 
+@_keeping_nested_fit
 def equalize_column_widths(table: "HwpxOxmlTable") -> None:
     grid = table._build_cell_grid()
     rows = _rows_of_cells(table.iter_grid(), table.row_count)
