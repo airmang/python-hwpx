@@ -67,3 +67,11 @@
 - 점진 변환 범위(현재: `src/hwpx/document.py`, `src/hwpx/oxml/document.py`)는 CI에서 다음 항목으로 검증합니다.
   - `scripts/check_typing_generics_scope.py`: `List`/`Dict`/`Tuple` 별칭 사용 금지 확인
   - `mypy`, `pyright`: 지정된 파일 범위 타입 검사
+
+## 번들 소스 모듈 크기
+
+글꼴 데이터와 페이지 흐름의 분할 모듈은 플러그인 저장소의 보수적 검사 정책에 맞춰
+읽을 수 있는 Python 소스로 유지합니다. `tests/test_bundle_source_chunks.py`는 대상 파일을
+240 KiB 미만으로 검사합니다. 이는 호스트의 Python 실행 한도를 뜻하지 않습니다.
+페이지 흐름 구현을 옮길 때는 기존 `hwpx.layout.pages` 경로와 지연 조회되는 보조 함수의
+동작을 유지하고 관련 페이지 추정 회귀 검사도 실행하세요.
