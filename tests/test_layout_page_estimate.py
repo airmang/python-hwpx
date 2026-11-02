@@ -119,6 +119,10 @@ HANCOM_PAGES = {
     "pages_square_band_table_as_character_among_text": 1,  # a table 47058 wide
     "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
     "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
+    # Eight times on a page of its own: 30 or 60 characters, then a 20000 x 8000 table wrapped square at the
+    # column's left or right and a rectangle 5000 or 25000 wide set as a character, all in one paragraph: the
+    # rectangle stands on a line beside the table, as in a paragraph after it, even one wider than the room
+    "pages_square_band_rectangle_as_character_among_text": 8,
     # A picture 20000 x 27112 wrapped square in the middle of the column (10 pt text spaced 160%), flowing with
     # the text, its band past the body's foot: Hancom sets it alone at the next page's body top, whatever its
     # offset, the lines of its own page the whole width and the lines on the next page whose top is above its
