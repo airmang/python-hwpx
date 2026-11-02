@@ -202,26 +202,16 @@ from typing import TYPE_CHECKING, Any
 
 from lxml import etree
 
-from ..form_fit.measure import (
-    _DEFAULT_TAB_STOP,
-    _GLYPH_SPACE,
-    _TYPED_NO_BREAK_SPACE,
-    char_advance,
-    font_line_height,
-    hancom_line_starts,
-    in_char_units,
-    indented_widths,
-    margins_doubled,
-    paragraph_label,
-    text_style_from_refs,
-)
+from ..form_fit.measure import (_DEFAULT_TAB_STOP, _GLYPH_SPACE, _TYPED_NO_BREAK_SPACE, char_advance,
+                                font_line_height, hancom_line_starts, in_char_units, indented_widths, margins_doubled, paragraph_label, text_style_from_refs)
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
-from ..oxml.header_part import HwpxOxmlHeader
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
 from ..oxml.section import _remove_short_paragraph_layout_cache
+from ..oxml.header_part import HwpxOxmlHeader
 from ..oxml.section_format import COLUMN_SHARES, _drawn_page_size, _page_margin
 from ..oxml.table_sizes import cell_margins_of, grid_widths_of
+
 from ._page_flow import (
     _drawn_lines as _drawn_lines,
 )
@@ -2637,6 +2627,8 @@ def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
     if not runs or not sizes or any(len(child) or child.tag != f"{HP}t" or child.text for child in runs[-1]):
         return 0
     size = measure.char_height(runs[-1].get("charPrIDRef"))
+    if _run_text(runs).endswith("\n"):  # after a line break the empty last line is the run alone: as tall as
+        return size if size != sizes[-1] else 0  # itself, smaller or larger (see _line_metrics)
     return size if size > min(sizes) else 0
 
 
@@ -2746,9 +2738,13 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
         end, head = measure.font_line(end, style), measure.font_line(head, style)
         held = {place: measure.font_line(tall, style) for place, tall in (held or {}).items()}
     metrics = []
-    for start, stop in zip(starts, [*starts[1:], len(text)]):
+    broken = text.endswith("\n") and starts[-1] == len(text)  # an empty last line after a line break
+    for number, (start, stop) in enumerate(zip(starts, [*starts[1:], len(text)])):
+        last = number == len(starts) - 1
         span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
-        edges = ([end] if stop == len(text) else []) + ([head] if start == 0 else [])             + [tall for place, tall in (held or {}).items() if start < place <= stop]
+        if last and broken and end:  # the empty line is the paragraph's end alone
+            span = range(0)
+        edges = ([end] if last else []) + ([head] if start == 0 else [])             + [tall for place, tall in (held or {}).items() if start < place <= stop]
         size = max([heights[index] for index in span] + edges)
         glyphs = [heights[index] for index in span if index not in objects] + edges
         height = max([max(glyphs) if glyphs else size] + [objects[index][1] for index in span if index in objects])

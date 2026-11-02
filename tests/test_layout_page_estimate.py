@@ -107,6 +107,10 @@ HANCOM_PAGES = {
     "pages_square_picture_reaching_an_empty_line": 1,  # placed 900 below the line's top: two pieces
     "pages_square_picture_just_below_an_empty_line": 1,  # 1100 below: one line
     "pages_square_picture_far_below_an_empty_line": 1,  # 8000 below: one line
+    # Eight times on a page of its own: a paragraph spaced 2000 before, holding a 12000 x 8000 table or rectangle
+    # wrapped square at the column's right, 2500, 2700, 4500 or 4700 below it, then one of 200 characters: Hancom
+    # places the object from the paragraph's top above its spacing, the lines reaching it from there narrower
+    "pages_square_object_down_from_spacing": 8,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
@@ -227,6 +231,10 @@ HANCOM_PAGES = {
     "pages_empty_run_ending_a_paragraph": 2,  # spaces or text before an empty run of another size (and
                                                # after one): the one ending a paragraph makes its last line
                                                # as tall as itself when larger
+    # Twelve times on a page of its own: ten characters at 16 or 10 pt, a line break or none, then no run or an
+    # empty one at 10 or 20 pt: after the break the empty last line is that run alone, as tall as itself smaller
+    # or larger, the line before it spaced from its own characters
+    "pages_empty_end_run_after_a_line_break": 12,
     # A run of 14 pt before a line of 10 pt text (함초롬바탕, spaced 160%): one holding nothing but controls
     # makes the line as tall as itself (1400, spaced 840), an empty one takes no room:
     "pages_section_controls_run_taller_than_the_text": 1,  # the section's and the columns' definitions

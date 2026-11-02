@@ -130,7 +130,7 @@ def _drawn_lines(measure: _pages._Measure, paragraphs: list[_pages.Any], width: 
         last = segments[-1]
         after = int(last.get("vertpos", 0)) + base + int(last.get("textheight", 0)) + int(last.get("spacing", 0)) \
             + shape.next
-    if any(later < earlier for earlier, later in zip(tops, tops[1:])):  # noqa: RUF007 - preserve the existing layout implementation
+    if any(later < earlier for earlier, later in zip(tops, tops[1:])):
         return (), ()
     heights[-1] = max(heights[-1], foot - tops[-1])
     return tuple((height, (nxt - top) if nxt is not None else height)
@@ -365,8 +365,11 @@ def _wrapped_paragraph(measure: _pages._Measure, page: _pages._Page, paragraph: 
     if square is not None:
         top = _pages._pos_offset(square.find(f"{_pages.HP}pos"), "vertOffset")
         line = _pages._square_anchor_line(measure, page, paragraph, runs, square)
+        unwrapped = _pages._paragraph(measure, page, paragraph, None, square)
         if line:  # after text: from the top of its line, the lines above it the column's whole width
-            top += _pages._paragraph(measure, page, paragraph, None, square).span(0, line)
+            top += unwrapped.span(0, line)
+        else:  # on the first line: from the paragraph's top, above its spacing
+            top -= unwrapped.prev
         left, right = _pages._square_sides(square, page)
         if not left and not right:
             raise _pages._Unsupported(f"{_pages._local(square)} wrapped square leaving little room for text")

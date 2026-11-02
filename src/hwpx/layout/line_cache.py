@@ -469,6 +469,9 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if headed and not sizes and _pages._text_size(measure, runs, paragraph)[0] > size:
         return None  # an empty paragraph under a taller number label (its line as tall as that): left for Hancom
     end = _pages._end_size(measure, runs, sizes)
+    if sizes and end > sizes[-1] and _pages._run_text(runs).endswith("\n"):
+        return None  # a larger empty end after a line break: Hancom writes the line before it as tall as the end
+        # but spaced from its own characters, which these segments cannot hold
     mixed = len(set(sizes)) > 1 or bool(end)  # each line as tall as its largest character
     looks = _pages._char_styles(measure, paragraph, runs)  # runs of another face, 장평 or 자간: each its own
     if headed and (_pages._head_size(measure, paragraph, sizes) or shape.indent):  # a label of its own size
