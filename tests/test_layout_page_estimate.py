@@ -111,6 +111,10 @@ HANCOM_PAGES = {
     # wrapped square at the column's right, 2500, 2700, 4500 or 4700 below it, then one of 200 characters: Hancom
     # places the object from the paragraph's top above its spacing, the lines reaching it from there narrower
     "pages_square_object_down_from_spacing": 8,
+    # Three times on a page of its own: a table whose cell's first paragraph, spaced 0, 200 or 1000 before, holds a
+    # table placed top and bottom 1958 down from it, then three paragraphs: Hancom places the inner table from the
+    # paragraph's top above its spacing, as in the body, the cell's next paragraph below it from there
+    "pages_cell_table_down_from_spacing": 4,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
