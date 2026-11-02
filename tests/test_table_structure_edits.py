@@ -37,7 +37,9 @@ def test_row_only_split_requires_an_exact_anchor_without_mutation(row: int, col:
 
 @pytest.mark.parametrize("axis", ["rows", "columns"])
 @pytest.mark.parametrize("side", ["before", "after"])
-def test_native_content_clones_are_refused_but_blank_insertion_preserves_objects(axis: str, side: str) -> None:
+def test_content_clones_copy_objects_with_fresh_numbers_and_blank_insertion_preserves_them(
+    axis: str, side: str,
+) -> None:
     document = HwpxDocument.new()
     table = document.add_table(rows=2, cols=2)
     table.cell(0, 0).paragraphs[0].add_rectangle(width=2000, height=1000)
@@ -46,9 +48,15 @@ def test_native_content_clones_are_refused_but_blank_insertion_preserves_objects
     position = {("rows", "before"): "above", ("rows", "after"): "below",
                 ("columns", "before"): "left", ("columns", "after"): "right"}[(axis, side)]
 
-    with pytest.raises(TableStructureError, match="local identities or references"):
-        insert(0, 2, side=position)
-    assert document.to_bytes() == before
+    clone = HwpxDocument.open(before)
+    clone_table = clone.tables.all[0]
+    (clone_table.insert_rows if axis == "rows" else clone_table.insert_columns)(0, 2, side=position)
+    copies = list(clone_table.element.iter(HP + "rect"))
+    assert len(copies) == 3
+    numbers = [rect.get(name) for rect in copies for name in ("id", "instid")]
+    assert len(set(numbers)) == 5  # the original's id and instid are one number, as add_rectangle writes them
+    assert len(list(HwpxDocument.open(clone.to_bytes()).tables.all[0].element.iter(HP + "rect"))) == 3
+
     insert(0, 2, side=position, blank=True)
     rectangles = list(table.element.iter(HP + "rect"))
     assert len(rectangles) == 1
@@ -357,10 +365,14 @@ def test_refused_edits_leave_the_table_as_it_was(edit, message: str) -> None:
     assert etree.tostring(table.element) == before
 
 
-def test_a_table_holding_a_table_is_refused() -> None:
+def test_a_table_holding_a_table_keeps_it_through_an_edit() -> None:
     document = HwpxDocument.new()
     table = document.add_table(rows=2, cols=2)
-    table.cell(0, 0).add_table(1, 1)
+    table.cell(0, 0).add_table(1, 1).cell(0, 0).text = "inner"
 
-    with pytest.raises(TableStructureError, match="nested"):
-        table.insert_rows(0)
+    table.insert_rows(0)
+
+    assert table.row_count == 3
+    assert [table.cell(row, 0).tables[0].cell(0, 0).text for row in (0, 1)] == ["inner", "inner"]
+    with HwpxDocument.open(document.to_bytes()) as reopened:
+        assert reopened.tables[0].row_count == 3

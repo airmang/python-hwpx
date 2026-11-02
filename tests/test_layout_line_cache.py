@@ -386,6 +386,40 @@ def test_a_no_break_space_typed_in_the_text_is_left_for_hancom() -> None:
     assert report.written == 0 and report.skipped == 1
 
 
+def test_a_document_kept_compatible_with_ms_word_is_left_for_hancom() -> None:
+    # Hancom lays such a document out as Word would (a line as tall as its font's ascent and descent, a picture's
+    # line its height and the font's descent): unseen documents converted from .hwp showed it on every line.
+    document = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hwp5" / "word_compat_4.hwpx")
+    for paragraph in _body(document):
+        array = paragraph.find(f"{HP}linesegarray")
+        if array is not None:
+            paragraph.remove(array)
+
+    estimate = estimate_pages(document.to_bytes())
+    report = write_line_caches(document)
+
+    assert estimate.pages is None and estimate.unsupported == ("a document laid out for compatibility with MS Word",)
+    assert report.written == 0 and report.unsupported == estimate.unsupported
+
+
+def test_a_cell_whose_margins_are_written_as_minus_one_is_left_for_hancom() -> None:
+    # Documents converted from .hwp carry cell margins written as -1 (unsigned). Hancom then lays the cell's text
+    # out in another width than the table's margins give (2888 where they leave 2175), which was not pinned down.
+    document = HwpxDocument.new()
+    table = document.add_paragraph("").add_table(1, 2)
+    table.set_cell_text(0, 0, "가나다")
+    table.set_cell_text(0, 1, "가나다")
+    odd = table.element.findall(f".//{HP}tc")[1].find(f"{HP}cellMargin")
+    for side in ("left", "right", "top", "bottom"):
+        odd.set(side, str((1 << 32) - 1))
+
+    write_line_caches(document)
+
+    first, second = (cell.find(f"{HP}subList/{HP}p") for cell in table.element.findall(f".//{HP}tc"))
+    assert first.find(f"{HP}linesegarray") is not None
+    assert second.find(f"{HP}linesegarray") is None
+
+
 def test_a_glyph_not_seen_on_the_desktop_is_left_for_hancom() -> None:
     # "｢" (U+FF62) has a table advance read from the font, not one seen on the desktop.
     document = HwpxDocument.new()

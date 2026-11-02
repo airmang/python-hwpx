@@ -79,3 +79,15 @@ def test_literal_mixed_case_words_remain_operands_before_signs(identifier: str, 
 
 def test_long_attached_switch_chain_is_iterative() -> None:
     assert eqedit_to_latex("rm" * 3000 + "A") == r"\mathrm{A}"
+
+
+@pytest.mark.parametrize("attached,braced", [
+    ("x^rmA", "x^{rm A}"), ("x_itx", "x_{it x}"), ("x^boldx", "x^{bold x}"), ("x^rmitA", "x^{rm it A}"),
+    ("x^rmA_rmB", "x^{rm A}_{rm B}"), ("sqrt rmA", "sqrt {rm A}"), ("root 3 of rmA", "root 3 of {rm A}"),
+    ("x over rmA", "x over {rm A}"), ("rmA over rmB", "{rm A} over {rm B}"), ("binom rmA rmB", "binom {rm A} {rm B}"),
+])
+def test_a_switch_in_an_operand_measures_the_letter_it_switches(attached: str, braced: str) -> None:
+    # The switch is not the operand: measuring it alone left the letter on the outer
+    # row and the script, radicand or denominator too short (issue #591 review).
+    for base in (1000, 1100):
+        assert estimate_equation_size(attached, base_unit=base) == estimate_equation_size(braced, base_unit=base)

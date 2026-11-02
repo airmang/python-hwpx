@@ -438,6 +438,28 @@ def test_hft_faces_lay_ascii_out_at_half_an_em(name: str, expected_face: str) ->
     assert len(paragraphs) == 120 * 4
 
 
+@pytest.mark.parametrize(
+    "name,expected_face", [("malgun", "맑은 고딕"), ("hamchorom_dotum", "함초롬돋움"), ("human_myeongjo", "휴먼명조")]
+)
+def test_private_use_symbols_take_the_advances_hancom_lays_them_out_at(name: str, expected_face: str) -> None:
+    # Hancom laid out three of each private-use glyph U+F090-F0FF (the Symbol and Wingdings bullets Word documents
+    # carry, U+F0A7 the commonest), then a tab, in 맑은 고딕, 함초롬돋움 and 휴먼명조 at 10 and 12 pt: each takes an
+    # advance of its own, most 0.89 em, set in the face's own units (휴먼명조 its own for some).
+    fixture = Path(__file__).parent / "fixtures" / "hancom_saved" / f"formfit_private_use_symbols_{name}.hwpx"
+    document = HwpxDocument.open(fixture)
+    paragraphs = document.oxml.sections[0].element.findall(f"{HP}p")[1:]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        assert style.glyph_face == expected_face
+        text = "".join(t.text or "" for t in paragraph.iter(f"{HP}t"))
+        size = int(document.oxml.char_property(runs[0].get("charPrIDRef")).attributes["height"]) / 100
+        x = sum(char_advance(ch, size, style) for ch in text[:3])
+        width = int(paragraph.find(f".//{HP}tab").get("width"))
+        assert round((x // 4000 + 1) * 4000 - x) == width, (style.glyph_face, hex(ord(text[0])), size)
+    assert len(paragraphs) == 112 * 2
+
+
 def test_kopub_supplementary_glyphs_are_single_code_points_without_duplicate_entries() -> None:
     from collections import Counter
     from hwpx.form_fit._glyph_table import ADVANCES
@@ -989,6 +1011,67 @@ def test_a_typed_no_break_space_takes_the_fonts_own_width(fixture: Path) -> None
         starts = hancom_line_starts(page_layout._run_text(runs), [int(seg.get("horzsize")) for seg in segs], size,
                                     style)
         assert starts == [int(seg.get("textpos")) for seg in segs]
+
+
+def test_an_opening_quote_moves_down_with_the_character_after_it() -> None:
+    # Hancom laid out words with a closing mark then an opening one inside them ("가가]“가가가가", also )“, ]‘, ’“,
+    # )(, )[, ”(, ]「), each at six places across the line's end, in 함초롬바탕 and 굴림체 at 10 pt, breaking words
+    # and syllables alike. Where the syllable after an opening curly quote does not fit, the quote goes down with it,
+    # as an opening bracket does: "가]“가" breaks as "가]" | "“가", not two syllables earlier.
+    document = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved"
+                                 / "formfit_line_breaks_before_opening_quotes.hwpx")
+    paragraphs = [p for p in document.oxml.sections[0].element.findall(f"{HP}p") if page_layout._run_text(
+        p.findall(f"{HP}run"))]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        text = page_layout._run_text(runs)
+        starts = hancom_line_starts(text, [int(seg.get("horzsize")) for seg in segs], size, style)
+        assert starts == [int(seg.get("textpos")) for seg in segs], text
+    assert len(paragraphs) == 2 * 2 * 8 * 6
+
+
+def test_ascii_symbols_inside_a_word_break_as_brackets_do() -> None:
+    # Hancom laid out words with an ASCII symbol inside them ("가가$가가가가"), each at six places across the line's
+    # end, in 함초롬바탕 and 굴림체 at 10 pt, breaking words and syllables alike. "$", "<" and "\" never end a line
+    # and go down with the syllable after them, as an opening bracket does ("가가" | "$가가"); ">", "^" and "~"
+    # never start one, going down with the syllable before them as a closing bracket does ("가" | "가>가").
+    document = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved"
+                                 / "formfit_line_breaks_around_ascii_symbols.hwpx")
+    paragraphs = [p for p in document.oxml.sections[0].element.findall(f"{HP}p")
+                  if set("$<\\>^~") & set(page_layout._run_text(p.findall(f"{HP}run")))]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        ref = runs[0].get("charPrIDRef")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [ref])
+        size = int(document.oxml.char_property(ref).attributes["height"]) / 100
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        text = page_layout._run_text(runs)
+        starts = hancom_line_starts(text, [int(seg.get("horzsize")) for seg in segs], size, style)
+        assert starts == [int(seg.get("textpos")) for seg in segs], text
+    assert len(paragraphs) == 2 * 2 * 6 * 6
+
+
+def test_a_latin1_bullet_takes_half_an_em_as_an_ascii_one_does() -> None:
+    # Hancom laid out 80 syllables after a bullet of a soft hyphen, a middle dot, ×, ÷, § or ° (with "-" and "•"
+    # beside them), its text 50% of the em away, in paragraphs whose right margins go from 0 to 1200: the first line
+    # holds what fits beside half an em and the gap for every character below U+0100, beside an em for "•".
+    assert label_room("\u00ad", {"textOffset": "50"}, 1300, TextStyle()) == 1300
+    assert label_room("\u2022", {"textOffset": "50"}, 1300, TextStyle()) == 1950
+    document = HwpxDocument.open(Path(__file__).parent / "fixtures" / "hancom_saved" / "formfit_latin1_bullet_labels.hwpx")
+    paragraphs = [p for p in document.oxml.sections[0].element.findall(f"{HP}p")
+                  if page_layout._run_text(p.findall(f"{HP}run"))]
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        style = text_style_from_refs(document, paragraph.get("paraPrIDRef"), [runs[0].get("charPrIDRef")])
+        segs = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+        starts = hancom_line_starts(page_layout._run_text(runs), [int(seg.get("horzsize")) - style.head for seg in segs],
+                                    10, style)
+        assert starts == [int(seg.get("textpos")) for seg in segs]
+    assert len(paragraphs) == 8 * 13
 
 
 def test_a_kana_the_face_lacks_is_as_wide_as_its_hangul_syllables() -> None:

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import ast
 import importlib
+import io
 import json
 import re
 import subprocess
 import sys
+import tokenize
 from pathlib import Path
 from types import ModuleType
 
@@ -129,6 +131,21 @@ OWNER_FILES = frozenset(module.rsplit(".", 1)[-1] for module in OWNER_MODULES.va
 }
 
 SOURCE_ROOT = Path(__file__).parents[1] / "src" / "hwpx"
+# Owner size is counted in code lines (see _code_lines). Above the review line an
+# owner is listed with why it stays one module; above the ceiling it must split.
+OWNER_CODE_LINE_REVIEW = 1_300
+OWNER_CODE_LINE_CEILING = 2_000
+LARGE_OWNER_REASONS = {
+    "header_part": (
+        "HwpxOxmlHeader owns header.xml's refList: fonts, charPr, paraPr, tabs, numbering, "
+        "border fills, styles, memo shapes, track changes and binData all allocate ids and keep "
+        "itemCnt through the same helpers, so a split would share those privates across modules."
+    ),
+}
+_NON_CODE_TOKENS = frozenset(
+    {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER}
+)
+
 # The agent modules left in 5.0; their line-count ratchet went with them.
 RATCHET_SOURCE_FILES = (
     "document.py",
@@ -349,13 +366,55 @@ def test_touched_runtime_file_sizes_stay_bounded() -> None:
     assert line_count("oxml/document.py") <= 200
     assert line_count("document.py") <= 3_000
 
-    owner_lines = {
-        name: line_count(f"oxml/{name}.py")
-        for name in OWNER_FILES
-    }
-    largest_owner_lines = max(owner_lines.values())
-    assert largest_owner_lines <= 1_600
-    assert largest_owner_lines / sum(owner_lines.values()) <= 0.25
+
+def _code_lines(source: str) -> int:
+    """Lines that carry code: blank lines, comments and docstrings do not count."""
+    docstrings: set[int] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+                docstrings.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+    lines: set[int] = set()
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type not in _NON_CODE_TOKENS:
+            lines.update(line for line in range(token.start[0], token.end[0] + 1) if line not in docstrings)
+    return len(lines)
+
+
+def _owner_code_lines() -> dict[str, int]:
+    return {name: _code_lines((SOURCE_ROOT / f"oxml/{name}.py").read_text(encoding="utf-8")) for name in OWNER_FILES}
+
+
+def test_owner_files_stay_far_from_a_god_module() -> None:
+    # Feature 025 split one 6,866-line file into owners; this keeps any of them from
+    # growing back into one. It counts code, not comments or docstrings, so explaining
+    # code never costs room. The old 1,600-physical-line cap sat at the size the owners
+    # already had: seven of them stood within 75 lines of it and new code went to
+    # whichever module had room left (objects.py, then dutmal_compose.py, then
+    # drop_cap.py for paragraph.py's shapes). Split a module when it holds two jobs,
+    # not when it reaches a number; the number below only stops a god module.
+    owner_lines = _owner_code_lines()
+    over = {name: lines for name, lines in owner_lines.items() if lines > OWNER_CODE_LINE_CEILING}
+    assert not over, f"split these owners by responsibility: {over}"
+    assert max(owner_lines.values()) / sum(owner_lines.values()) <= 0.25
+
+
+def test_large_owner_files_say_why_they_stay_one_module() -> None:
+    # Past the review line an owner needs a recorded reason to stay whole: decided once
+    # per file, in review, instead of a wall each change has to route around. An entry
+    # whose file has shrunk back goes, so the list says what is large now.
+    large = {name for name, lines in _owner_code_lines().items() if lines > OWNER_CODE_LINE_REVIEW}
+    assert large == set(LARGE_OWNER_REASONS), (
+        f"add a reason for {sorted(large - set(LARGE_OWNER_REASONS))}, "
+        f"drop the stale entries {sorted(set(LARGE_OWNER_REASONS) - large)}"
+    )
+    assert all(reason.strip() for reason in LARGE_OWNER_REASONS.values())
+
+
+def test_code_line_count_skips_comments_docstrings_and_blank_lines() -> None:
+    source = '"""Module."""\n\n# note\nclass A:\n    """Doc\n    more."""\n\n    x = (\n        1  # one\n    )\n'
+    assert _code_lines(source) == 4
 
 
 def test_touched_runtime_c901_debt_only_ratchets_down() -> None:

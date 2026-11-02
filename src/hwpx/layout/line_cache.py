@@ -386,6 +386,14 @@ def _table_line(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[str
     }], []
 
 
+def _margins_unread(cell: Any) -> bool:
+    """Whether *cell*'s own margins hold a value written as -1 (unsigned, as documents converted from .hwp carry):
+    Hancom then lays its text out in a width other than the table's margins give, which was not pinned down."""
+
+    own = cell.find(f"{HP}cellMargin")
+    return own is not None and any(value.isdigit() and int(value) >= 1 << 31 for value in own.attrib.values())
+
+
 def _cells_sure(measure: Any, table: Any) -> bool:
     """Whether every paragraph of *table*'s cells is one this module lays out (none of them a table)."""
 
@@ -393,7 +401,7 @@ def _cells_sure(measure: Any, table: Any) -> bool:
     for cell in table.findall(f"{HP}tr/{HP}tc"):
         paragraphs = cell.findall(f"{HP}subList/{HP}p")
         sub_list = cell.find(f"{HP}subList")
-        if not paragraphs or _pages._vertical(cell) or sub_list is None \
+        if not paragraphs or _pages._vertical(cell) or sub_list is None or _margins_unread(cell) \
                 or sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):
             return False
         margins = cell_margins_of(cell, table)
@@ -416,7 +424,7 @@ def _cell_caches(measure: Any, table: Any) -> tuple[int, int, int]:
             kept += len(paragraphs)
             continue
         sub_list = cell.find(f"{HP}subList")
-        if not paragraphs or _pages._vertical(cell) or sub_list is None \
+        if not paragraphs or _pages._vertical(cell) or sub_list is None or _margins_unread(cell) \
                 or sub_list.get("lineWrap") in ("SQUEEZE", "KEEP"):
             skipped += len(paragraphs)
             continue
@@ -461,6 +469,9 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     if headed and not sizes and _pages._text_size(measure, runs, paragraph)[0] > size:
         return None  # an empty paragraph under a taller number label (its line as tall as that): left for Hancom
     end = _pages._end_size(measure, runs, sizes)
+    if sizes and end > sizes[-1] and _pages._run_text(runs).endswith("\n"):
+        return None  # a larger empty end after a line break: Hancom writes the line before it as tall as the end
+        # but spaced from its own characters, which these segments cannot hold
     mixed = len(set(sizes)) > 1 or bool(end)  # each line as tall as its largest character
     looks = _pages._char_styles(measure, paragraph, runs)  # runs of another face, 장평 or 자간: each its own
     if headed and (_pages._head_size(measure, paragraph, sizes) or shape.indent):  # a label of its own size

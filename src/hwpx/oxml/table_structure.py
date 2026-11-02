@@ -113,7 +113,7 @@ class TableStructureEdits:
     def _restructure(self, op: dict[str, Any]) -> None:
         from lxml import etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
-        from ..table_patch import TableStructureError, _restructure_table
+        from ..table_patch import _CLONE_OPS, TableStructureError, _restructure_table
 
         element = self.element
         if element.prefix != "hp":
@@ -127,7 +127,9 @@ class TableStructureEdits:
             if (found := paragraph.get("id") or "").isdigit()
         }
         xml = etree.tostring(element, encoding="unicode", with_tail=False)
-        new = etree.fromstring(_restructure_table(xml, op, used_ids=used))
+        context = "".join(etree.tostring(part.element, encoding="unicode") for part in sections) \
+            if op.get("op") in _CLONE_OPS else ""
+        new = etree.fromstring(_restructure_table(xml, op, used_ids=used, context=context))
         before = self._rows_height()
         for child in list(element):
             element.remove(child)

@@ -107,6 +107,10 @@ HANCOM_PAGES = {
     "pages_square_picture_reaching_an_empty_line": 1,  # placed 900 below the line's top: two pieces
     "pages_square_picture_just_below_an_empty_line": 1,  # 1100 below: one line
     "pages_square_picture_far_below_an_empty_line": 1,  # 8000 below: one line
+    # Eight times on a page of its own: a paragraph spaced 2000 before, holding a 12000 x 8000 table or rectangle
+    # wrapped square at the column's right, 2500, 2700, 4500 or 4700 below it, then one of 200 characters: Hancom
+    # places the object from the paragraph's top above its spacing, the lines reaching it from there narrower
+    "pages_square_object_down_from_spacing": 8,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
@@ -115,6 +119,10 @@ HANCOM_PAGES = {
     "pages_square_band_table_as_character_among_text": 1,  # a table 47058 wide
     "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
     "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
+    # Eight times on a page of its own: 30 or 60 characters, then a 20000 x 8000 table wrapped square at the
+    # column's left or right and a rectangle 5000 or 25000 wide set as a character, all in one paragraph: the
+    # rectangle stands on a line beside the table, as in a paragraph after it, even one wider than the room
+    "pages_square_band_rectangle_as_character_among_text": 8,
     # A picture 20000 x 27112 wrapped square in the middle of the column (10 pt text spaced 160%), flowing with
     # the text, its band past the body's foot: Hancom sets it alone at the next page's body top, whatever its
     # offset, the lines of its own page the whole width and the lines on the next page whose top is above its
@@ -227,6 +235,10 @@ HANCOM_PAGES = {
     "pages_empty_run_ending_a_paragraph": 2,  # spaces or text before an empty run of another size (and
                                                # after one): the one ending a paragraph makes its last line
                                                # as tall as itself when larger
+    # Twelve times on a page of its own: ten characters at 16 or 10 pt, a line break or none, then no run or an
+    # empty one at 10 or 20 pt: after the break the empty last line is that run alone, as tall as itself smaller
+    # or larger, the line before it spaced from its own characters
+    "pages_empty_end_run_after_a_line_break": 12,
     # A run of 14 pt before a line of 10 pt text (함초롬바탕, spaced 160%): one holding nothing but controls
     # makes the line as tall as itself (1400, spaced 840), an empty one takes no room:
     "pages_section_controls_run_taller_than_the_text": 1,  # the section's and the columns' definitions
@@ -933,6 +945,9 @@ HANCOM_PAGES = {
     "pages_rectangle_on_paper_over_the_right_column": 2,  # over the second only
     "pages_rectangle_on_paper_partly_over_two_columns": 2,  # 30000 wide, centred: partly over each, the
                                                              # lines of both go below it
+    # Six times on a page of its own: a paragraph holding two tables placed on the paper, each across the text's
+    # width, top and bottom or square: Hancom keeps the lines out of each one's band, as it would for one alone
+    "pages_several_paper_objects": 12,
     "pages_rectangle_on_paper_400_narrower_than_two_columns": 2,  # 400 narrower than the text, centred
     "pages_table_on_paper_400_narrower_than_two_columns": 2,  # a table so
     "pages_rectangle_on_paper_over_the_left_column_from_the_right": 2,  # anchored in the second column
@@ -1017,6 +1032,38 @@ HANCOM_PAGES = {
     # with 600 of spacing before and a small table set as a character in the fourth: going on over the page end,
     # the part on the next page starts below its first paragraph's spacing before, as in a cell without a table
     "pages_nested_cell_split_spacing_before": 27,
+    # Tables set as characters, 6 × 4, whose cells merged over rows leave the third row to merged cells alone, solved
+    # 0 to 200 tall (a table's written height hp:sz of 7938, 7985 and 9000 left as it is): Hancom makes such a row
+    # 100 tall at least, the rows below making up for it
+    "pages_merged_rows_at_least_100_tall": 2,
+    # 6 × 5 tables like those of a document whose fifth row only cells merged over rows cover, solved 1 to 150
+    # tall, set to adjust their cells or not (hp:tbl@noAdjust): only the ones set to adjust make it 100 tall
+    "pages_merged_rows_at_least_100_tall_unless_not_adjusted": 2,
+    # Paragraph shapes whose line spacing hp:case gives in characters (unit CHAR): fixed, at least and between lines
+    # of 240 to 500, each over a paragraph of three lines and an empty one. Hancom reads the value as a margin in
+    # that unit is read, two-hundredths of 바탕글's character size: 320 is a line 1600 tall at 10 pt
+    "pages_line_spacing_in_char_units": 2,
+    # Twelve times on a page of its own: one or two footnotes of one or two lines (separator 0.4 mm) in the second
+    # paragraph, then a 1 × 1 table flowing with the text (CELL) going over the page's end from 25 to 27 lines down:
+    # its rows end above the notes, whose room there leaves out the separator's width
+    "pages_flowing_table_split_above_page_footnotes": 25,
+    # Fourteen times on a page of its own: 2 or 12 paragraphs, then an empty one holding two tables placed top and
+    # bottom from it, 3000 and 8000 tall, either or both placed up by 1000 to 20000: Hancom stacks them as if they
+    # were not moved, the empty paragraph's line below both, the paragraphs before where they were
+    "pages_stacked_objects_placed_up": 15,
+    # Sixteen times on a page of its own: a table whose cell paragraph holds 10 pt and 14 pt text, a table 2000 or
+    # 5000 tall placed top and bottom from the paragraph among it (before its first character, or after the 15th,
+    # 40th or 70th): the lines up to the one its control falls on stay above it and the rest go below, each as tall as
+    # its characters
+    "pages_cell_top_bottom_table_among_mixed_sizes": 17,
+    # Twelve times on a page of its own: a table whose cell paragraph, 0 or 2000 in from the left and indented 0,
+    # 2000 or -2000, starts with a 12000 wide table wrapped square at its left or right: the lines beside it keep
+    # the paragraph's margin and indent within the room the object leaves, as the lines below it do in the cell
+    "pages_cell_square_wrap_beside_margins": 13,
+    # Sixteen times: 2 or 25 paragraphs, then one with a table 5000 or 40000 tall placed top and bottom 3000 or
+    # 10000 down from it, none or one paragraph more and one starting a page: the table stays where it stands, going
+    # on over the page end when it does, and the paragraph starts the page after the one the table ends on
+    "pages_page_break_before_table_band": 37,
     # Fourteen times on a page of its own: a 2 × 2 table flowing with the text or set as a character, a footnote of
     # one to three lines in its first or last cell (none in two), then 60 paragraphs: the note takes room at the
     # page's foot as one anchored in the table's paragraph would, and the page ends that much higher
