@@ -2742,6 +2742,8 @@ def _end_size(measure: _Measure, runs: list[Any], sizes: list[int]) -> int:
     if not runs or not sizes or any(len(child) or child.tag != f"{HP}t" or child.text for child in runs[-1]):
         return 0
     size = measure.char_height(runs[-1].get("charPrIDRef"))
+    if _run_text(runs).endswith("\n"):  # after a line break the empty last line is the run alone: as tall as
+        return size if size != sizes[-1] else 0  # itself, smaller or larger (see _line_metrics)
     return size if size > min(sizes) else 0
 
 
@@ -2851,9 +2853,13 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
         end, head = measure.font_line(end, style), measure.font_line(head, style)
         held = {place: measure.font_line(tall, style) for place, tall in (held or {}).items()}
     metrics = []
-    for start, stop in zip(starts, [*starts[1:], len(text)]):
+    broken = text.endswith("\n") and starts[-1] == len(text)  # an empty last line after a line break
+    for number, (start, stop) in enumerate(zip(starts, [*starts[1:], len(text)])):
+        last = number == len(starts) - 1
         span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
-        edges = ([end] if stop == len(text) else []) + ([head] if start == 0 else [])             + [tall for place, tall in (held or {}).items() if start < place <= stop]
+        if last and broken and end:  # the empty line is the paragraph's end alone
+            span = range(0)
+        edges = ([end] if last else []) + ([head] if start == 0 else [])             + [tall for place, tall in (held or {}).items() if start < place <= stop]
         size = max([heights[index] for index in span] + edges)
         glyphs = [heights[index] for index in span if index not in objects] + edges
         height = max([max(glyphs) if glyphs else size] + [objects[index][1] for index in span if index in objects])
@@ -3611,8 +3617,11 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     if square is not None:
         top = _pos_offset(square.find(f"{HP}pos"), "vertOffset")
         line = _square_anchor_line(measure, page, paragraph, runs, square)
+        unwrapped = _paragraph(measure, page, paragraph, None, square)
         if line:  # after text: from the top of its line, the lines above it the column's whole width
-            top += _paragraph(measure, page, paragraph, None, square).span(0, line)
+            top += unwrapped.span(0, line)
+        else:  # on the first line: from the paragraph's top, above its spacing
+            top -= unwrapped.prev
         left, right = _square_sides(square, page)
         if not left and not right:
             raise _Unsupported(f"{_local(square)} wrapped square leaving little room for text")
