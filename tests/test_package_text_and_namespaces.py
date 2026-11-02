@@ -176,6 +176,40 @@ def test_only_real_paragraph_namespace_caches_are_cut() -> None:
     assert _members(result.data)[_SECTION].decode("utf-8") == expected
 
 
+def test_an_xmlns_inside_another_attribute_value_declares_nothing() -> None:
+    # #630 review: declarations were read from the whole tag, value text included.
+    source = _document_bytes("{A}", "그대로")
+    section = _members(source)[_SECTION].decode("utf-8")
+    generated_cache = re.search(r"<hp:linesegarray>.*?</hp:linesegarray>", section).group(0)
+    paragraph_uri = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+    foreign = (
+        f"""<x:linesegarray xmlns:x="urn:foreign" hint=" xmlns:x='{paragraph_uri}'">"""
+        "KEEP FOREIGN TEXT</x:linesegarray>"
+    )
+    real = (
+        f"""<hp:linesegarray xmlns:hp="{paragraph_uri}" hint=" xmlns:hp='urn:foreign'">"""
+        '<hp:lineseg textpos="0"/></hp:linesegarray>'
+    )
+    marked = section.replace(
+        "<hp:t>{A}</hp:t></hp:run></hp:p>", f"<hp:t>{{A}}</hp:t></hp:run>{foreign}</hp:p>", 1
+    ).replace(
+        "<hp:t>그대로</hp:t></hp:run></hp:p>", f"<hp:t>그대로</hp:t></hp:run>{real}</hp:p>", 1
+    )
+    source = _with_member(source, _SECTION, marked.encode("utf-8"))
+
+    result = replace_package_text(source, {"{A}": "새 글"})
+
+    assert result.ok, result.open_safety
+    assert result.layout_caches_removed == 2
+    expected = (
+        marked.replace("{A}", "새 글", 1)
+        .replace(generated_cache, "", 1)
+        .replace(real, "", 1)
+    )
+    assert _members(result.data)[_SECTION].decode("utf-8") == expected
+    assert foreign in expected
+
+
 def test_output_path_is_written_only_when_the_gate_passes(tmp_path: Path) -> None:
     target = tmp_path / "out.hwpx"
     target.write_bytes(b"existing output")

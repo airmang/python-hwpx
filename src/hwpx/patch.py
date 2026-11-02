@@ -543,7 +543,9 @@ _MARKUP_RE = re.compile(
 _XML_REFERENCE_RE = re.compile(r"&(#x[0-9A-Fa-f]+|#[0-9]+|lt|gt|amp|quot|apos);")
 _XML_ENTITIES = {"lt": "<", "gt": ">", "amp": "&", "quot": '"', "apos": "'"}
 _TAG_NAME_RE = re.compile(r"<(/?)([^\s/>]+)")
-_XMLNS_ATTR_RE = re.compile(r"""\sxmlns(?::([^\s=]+))?\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+#: One attribute of a start tag. Walking a tag attribute by attribute keeps an
+#: ``xmlns`` that only appears inside another attribute's value from counting.
+_ATTRIBUTE_RE = re.compile(r"""\s+([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
 _PARAGRAPH_NAMESPACES = frozenset(NAMESPACE_URIS["paragraph"].values())
 
 
@@ -653,6 +655,19 @@ def _replace_in_text_nodes(xml: str, replacements: Mapping[str, str]) -> tuple[s
     return "".join(pieces), count
 
 
+def _namespace_declarations(tag: str, start: int) -> dict[str, str]:
+    """The ``xmlns`` / ``xmlns:prefix`` attributes of a start *tag*, read from *start*."""
+
+    declared: dict[str, str] = {}
+    attribute = _ATTRIBUTE_RE.match(tag, start)
+    while attribute is not None:
+        name, double, single = attribute.groups()
+        if name == "xmlns" or name.startswith("xmlns:"):
+            declared[name[6:]] = _unescape_xml_text(double if double is not None else single)
+        attribute = _ATTRIBUTE_RE.match(tag, attribute.end())
+    return declared
+
+
 def _strip_layout_caches(xml: str) -> tuple[str, int]:
     """Cut every paragraph-namespace ``linesegarray`` element out of *xml*.
 
@@ -680,10 +695,7 @@ def _strip_layout_caches(xml: str) -> tuple[str, int]:
                 spans.append((cut_start, markup.end()))
                 cut_start = None
             continue
-        declared = {
-            prefix: _unescape_xml_text(double or single)
-            for prefix, double, single in _XMLNS_ATTR_RE.findall(token)
-        }
+        declared = _namespace_declarations(token, name.end())
         self_closing = token.endswith("/>")
         if cut_start is None:
             prefix, _, local = name.group(2).rpartition(":")
