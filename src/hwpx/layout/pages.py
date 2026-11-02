@@ -3568,7 +3568,10 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
                 and obj.get("pageBreak", "CELL") != "NONE":  # it splits over the page end instead
             return replace(_paragraph(measure, page, paragraph, None, obj), spans=_spans(measure, page, obj)), None
         at_top = obj is alone and pusher is None
-        if obj is None or wrap is not None or _local(obj) == "tbl" and (
+        kept = obj is not None and obj is pusher and _local(obj) == "tbl" and obj.get("pageBreak") == "NONE"
+        # (a table not split, below the first line of a paragraph of text: the line stays where it fits and the
+        # table goes on whole)
+        if obj is None or wrap is not None or _local(obj) == "tbl" and not kept and (
                 obj is not square and not at_top
                 or obj.get("pageBreak", "CELL") not in ("NONE", "TABLE" if at_top else "NONE")):  # one moved row by
             # row goes on whole too, when it is its paragraph's top (see _Paginator._anchored)
@@ -4439,6 +4442,10 @@ class _Paginator:
                 and (para.wrap_push or start + para.own <= self.body):  # the empty line fits where it stands:
             raise _BandMoves(index)  # its object goes on to the next page's top, its lines stay (starting past
             # the foot, the paragraph goes on to the next page, the object with it)
+        elif para.wrap_push and para.wrap_shift and not anchor and self.columns == 1 \
+                and start + para.height(0) > self.body \
+                and start - para.wrap_shift + para.height(0) <= self.body:  # its first line fits where
+            raise _BandMoves(index)  # it stands, not below the object: the object goes on to the next page's top
         first = len(self.out)
         if self._lay(index, paras, para, start, broke):
             last = self.laid or para

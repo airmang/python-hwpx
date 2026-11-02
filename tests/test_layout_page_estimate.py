@@ -1128,6 +1128,11 @@ HANCOM_PAGES = {
     # paragraph's line and those after staying where they fit, the rest going below the table there; a page break
     # after a table that went on to the next page's top starts the page after that
     "pages_tables_offset_down_past_the_page_foot": 97,
+    # Four times, on a page of its own after 36 lines: a paragraph of text holding a table 7696 or 30000 tall placed
+    # top and bottom 174 or 3000 down from it and not split, then an empty paragraph and eight of text: the table
+    # goes on to the next page's top whole, its offset left out, the paragraph's line and those after staying
+    # where they fit, the rest going below the table there
+    "pages_table_not_split_past_the_page_foot_line_stays": 8,
     # Eight times, on a page of its own after 39 or 40 lines: a paragraph of text holding a table split cell by cell
     # (three rows of two lines) placed top and bottom 1000 to 3000 down, then an empty paragraph and two of text:
     # when not one line of its first row fits under the anchor, the table starts at the next page's top, as one
@@ -2561,7 +2566,10 @@ def test_columns_in_a_table_cell_are_unsupported() -> None:
     assert estimate.unsupported == ("section 0: columns in a table cell",)
 
 
-def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
+def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_goes_on_alone() -> None:
+    # A table not split, placed 3000 down from the paragraph of text after 38 lines, past the page foot: as
+    # pages_table_not_split_past_the_page_foot_line_stays measures, the paragraph's line stays where it fits and
+    # the table goes on to the next page's top whole.
     document, table = _flowing_table_after(38, 3)
     table.element.set("pageBreak", "NONE")
     table.element.find(f"{HP}pos").set("vertOffset", "3000")
@@ -2569,9 +2577,8 @@ def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupport
 
     estimate = estimate_pages(document)
 
-    assert estimate.pages is None
-    assert estimate.unsupported == (
-        "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+    assert (estimate.unsupported, estimate.pages) == ((), 2)
+    assert [line.page for line in estimate.lines[-1]] == [0]  # the table's paragraph
 
 
 def test_ruby_text_spaced_otherwise_than_in_percent_is_not_followed_without_a_cache() -> None:
