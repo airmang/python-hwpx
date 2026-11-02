@@ -159,18 +159,18 @@ def test_merge_table_after_a_table_in_the_section_setup_paragraph() -> None:
     assert [(t.row_count, t.column_count) for t in tables] == [(5, 2)]
 
 
-def test_autofit_refuses_a_table_with_a_nested_table() -> None:
+def test_autofit_keeps_a_nested_table_column_wide_enough() -> None:
     # the nested table is narrower than the outer one
     doc = HwpxDocument.new()
     table = doc.add_table(2, 6)
     _fill(table, 2, 6)
     _fill(table.cell(0, 0).add_table(1, 4), 1, 4)
+    width = table.cell(0, 0).width
 
     result = apply_table_ops(doc.to_bytes(), [{"op": "autofit_columns", "table_index": 0}])
 
-    assert [skip.reason for skip in result.skipped] == [
-        "autofit_columns: nested tables are unsupported for structure edits"
-    ]
+    assert not result.skipped
+    assert _reopen(result).tables[0].cell(0, 0).width >= width
 
 
 def test_delete_column_when_rows_below_a_merge_miss_the_last_column() -> None:

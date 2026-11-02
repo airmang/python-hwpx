@@ -201,6 +201,11 @@ def _is_blank_paragraph(paragraph: ET.Element) -> bool:
     return True
 
 
+def _holds_object(paragraph: ET.Element) -> bool:
+    """Whether a paragraph's runs hold anything besides ``hp:t`` (a table, a picture, a control ...)."""
+    return any(_element_local_name(child) != "t" for run in paragraph.findall(f"{_HP}run") for child in run)
+
+
 def _is_blank_cell(element: ET.Element) -> bool:
     """Whether a cell holds one empty paragraph and nothing else, like a new cell."""
     sublist = element.find(f"{_HP}subList")
@@ -353,21 +358,39 @@ class HwpxOxmlTableCell:
 
     def _set_split_paragraph_text(self, value: str) -> None:
         sublist = self._ensure_sublist()
-        existing = self.paragraphs
         lines = (value or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
         if not lines:
             lines = [""]
 
-        for paragraph in list(sublist.findall(f"{_HP}p")):
-            sublist.remove(paragraph)
+        # A paragraph holding a table or an object keeps its place and what it
+        # holds; only its own text goes. The lines replace the cell's other
+        # paragraphs, where the first of them was, or go in front of the first
+        # holder when the cell has none.
+        existing = self.paragraphs
+        holders = [paragraph for paragraph in existing if _holds_object(paragraph.element)]
+        own = [paragraph for paragraph in existing if not _holds_object(paragraph.element)]
+        anchor = own[0].element if own else holders[0].element if holders else None
+        position = 0
+        for child in sublist:
+            if child is anchor:
+                break
+            if not any(child is paragraph.element for paragraph in own):
+                position += 1
+        for paragraph in own:
+            sublist.remove(paragraph.element)
+        for paragraph in holders:
+            for node in paragraph.element.findall(f"{_HP}run/{_HP}t"):
+                clear_text_element(node)
 
         for index, line in enumerate(lines):
-            source = existing[index] if index < len(existing) else existing[0] if existing else None
-            paragraph = _append_child(sublist, f"{_HP}p", self._paragraph_format_attrs(source))
+            source = own[index] if index < len(own) else own[0] if own else holders[0] if holders else None
+            line_paragraph = _append_child(sublist, f"{_HP}p", self._paragraph_format_attrs(source))
+            sublist.remove(line_paragraph)
+            sublist.insert(position + index, line_paragraph)
             run = _append_child(
-                paragraph,
+                line_paragraph,
                 f"{_HP}run",
-                {"charPrIDRef": self._run_char_pr_for_line(existing, index)},
+                {"charPrIDRef": self._run_char_pr_for_line(own, index)},
             )
             _append_text_with_tabs(run, line)
 
