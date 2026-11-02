@@ -3611,8 +3611,11 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
     if square is not None:
         top = _pos_offset(square.find(f"{HP}pos"), "vertOffset")
         line = _square_anchor_line(measure, page, paragraph, runs, square)
+        unwrapped = _paragraph(measure, page, paragraph, None, square)
         if line:  # after text: from the top of its line, the lines above it the column's whole width
-            top += _paragraph(measure, page, paragraph, None, square).span(0, line)
+            top += unwrapped.span(0, line)
+        else:  # on the first line: from the paragraph's top, above its spacing
+            top -= unwrapped.prev
         left, right = _square_sides(square, page)
         if not left and not right:
             raise _Unsupported(f"{_local(square)} wrapped square leaving little room for text")
