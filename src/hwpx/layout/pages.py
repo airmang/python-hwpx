@@ -1166,6 +1166,8 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     taller (a cell merged over rows spans the spacings between them), and the spacing below the last row is
     the table's (see :func:`_table_ends`)."""
 
+    if any(int(cols.get("colCount", "1")) > 1 for cols in table.iter(f"{HP}colPr")):
+        raise _Unsupported("columns in a table cell")  # Hancom lays the cell's text out in them
     rows: dict[int, _Row] = {}
     merged: list[tuple[int, int, _Row]] = []  # (first row, rows spanned, the cell as a row)
     cells: list[tuple[int, int, _Row]] = []
@@ -3628,6 +3630,13 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             wrap = _Wrap(top, top + tall, page.column_width - left - right, split=left, stays=stays)
         else:
             wrap = _Wrap(top, top + tall, page.column_width - left - right, stays=stays)
+    if square is not None and len(objects) > 1 and not _run_text(runs).strip():  # objects set as characters, alone:
+        para = _paragraph(measure, page, paragraph, None, square)  # their line beside it, even wider than the room
+        if len(objects) > 2:
+            raise _Unsupported("objects set as characters beside a square-wrapped object")
+        beside = sum(1 for line in range(para.lines) if para.span(0, line) < wrap.bottom)
+        return replace(para, wrap_lines=beside, wrap_bottom=wrap.bottom, wrap_fixed=bool(_cached_metrics(paragraph)),
+                       wrap_stays=wrap.stays, wrap_free=wrap.stays), wrap.lower(para.span(0, para.lines) + para.next)
     para = _paragraph(measure, page, paragraph, wrap, square)
     if wrap is not None and (para.anchor is not None or para.table is not None):
         raise _Unsupported("an object beside a square-wrapped object")
