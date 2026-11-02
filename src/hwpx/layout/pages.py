@@ -626,6 +626,7 @@ class _Measure:
         self._label_sizes: dict[str, int] = {}
         self._pictured: dict[str, bool] = {}
         self._boxes: dict[str, int] = {}
+        self._edges: dict[str, int] | None = None
         #: how far apart the default tab stops of the section at hand are (see :func:`_tab_stop`)
         self.tab_stop = _DEFAULT_TAB_STOP
 
@@ -643,15 +644,18 @@ class _Measure:
         """How tall a character of *char_pr_id* makes its line: its height, and the width of a border its shape
         draws above and below it (Hancom: the line that much taller, spaced from that height)."""
 
+        if self._edges is None:  # each border fill's width above and below, read once from the header
+            self._edges = {}
+            for fill in self._header.iter(f"{HH}borderFill"):
+                self._edges[fill.get("id")] = sum(
+                    round(float(rule.get("width", "0 mm").split()[0]) * 7200 / 25.4)
+                    for rule in (fill.find(f"{HH}topBorder"), fill.find(f"{HH}bottomBorder"))
+                    if rule is not None and rule.get("type", "NONE") != "NONE")
         key = str(char_pr_id)
         if key not in self._boxes:
             style = self._root.char_property(char_pr_id)
-            fill = self._root.border_fill(style.attributes.get("borderFillIDRef")) if style is not None else None
-            edges = 0
-            for child in getattr(fill, "children", None) or ():
-                if child.name in ("topBorder", "bottomBorder") and child.attributes.get("type", "NONE") != "NONE":
-                    edges += round(float(child.attributes.get("width", "0 mm").split()[0]) * 7200 / 25.4)
-            self._boxes[key] = self.char_height(char_pr_id) + edges
+            fill = style.attributes.get("borderFillIDRef") if style is not None else None
+            self._boxes[key] = self.char_height(char_pr_id) + self._edges.get(fill, 0)
         return self._boxes[key]
 
     def font_line(self, size: int, style: Any) -> int:
