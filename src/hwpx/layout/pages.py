@@ -3394,9 +3394,10 @@ def _rises(obj: Any, column: int) -> bool:
 def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list[Any], list[Any]] | None:
     """(*obj*'s run, the runs holding controls before it, those holding controls after it) when *obj* is an
     object (a table, a drawing ...) set as a character wider than the line (*width*) and controls (``hp:ctrl``, a page number, a hidden page
-    number, a field, a bookmark, a header and so on -- but not a column definition) stand beside it in its
-    paragraph, else ``None``: Hancom sets the controls before it on the table's line (on an empty line of their
-    own above it when they show a number) and the controls after it on the line after that."""
+    number, a field, a bookmark, a header and so on -- but not a column definition, nor the end of a field, which
+    takes no place on a line) stand beside it in its paragraph, else ``None``: Hancom sets the controls before it
+    on the table's line (on an empty line of their own above it when they show a number) and the controls after it
+    on the line after that."""
 
     if obj.find(f"{HP}pos").get("treatAsChar") != "1" or _extent(obj, "width") <= width:
         return None
@@ -3405,7 +3406,7 @@ def _controls_beside(obj: Any, runs: list[Any], width: float) -> tuple[Any, list
         for child in run:
             if child is obj:
                 home = run
-            elif _local(child) == "ctrl" and any(_local(kind) != "colPr" for kind in child):
+            elif _local(child) == "ctrl" and any(_local(kind) not in ("colPr", "fieldEnd") for kind in child):
                 side = before if home is None else after
                 if not side or side[-1] is not run:
                     side.append(run)
