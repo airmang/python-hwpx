@@ -494,6 +494,10 @@ HANCOM_PAGES = {
     "pages_table_wider_than_the_line_then_an_index_mark": 1,
     "pages_bookmark_around_a_table_wider_than_the_line": 1,  # before and after it: the table's line, the empty
     "pages_click_here_field_around_a_table_wider_than_the_line": 1,  # line under it
+    # Six times on a page of its own: a table set as a character 42000 or 42800 wide (its margins 140), then nothing,
+    # the end of a click-here field started two paragraphs before or a bookmark: the field's end takes no place on
+    # a line, the table's paragraph one line even when it is wider than the line; the bookmark goes on to the next
+    "pages_field_end_after_a_wide_table_as_character": 6,
     # Tabs: a tab reaches the next default tab stop, every 4000 from the column's left edge (the first line
     # starting at the left margin and a first-line indent, a hanging indent off the other lines), and a line may
     # start on either side of one. 90 paragraphs of 바탕 10 pt Hangul, a tab, then two-syllable words, after 0-9
