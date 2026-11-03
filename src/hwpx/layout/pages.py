@@ -52,7 +52,9 @@
   (1440) on either side of it across the text; one that leaves more (in one column) narrows each line
   of its page whose top is above its foot and whose characters reach below its top, in any paragraph
   on that page (those before its own too), by what it takes, or splits it in two pieces at one height
-  with room on both sides, as a square-wrapped object flowing with the text does (the rest of a
+  with room on both sides, as a square-wrapped object flowing with the text does -- a line running from
+  the paragraph's margin to the object or from the object to the margin, the margin on the object's
+  side taking no more (the rest of a
   paragraph going on to the next page is broken there as if it were not there); a line keeping its
   layout cache that reaches it stays where it is (beside it); a table or an object reaching it, a
   paragraph holding objects or notes, or one beside two such bands, is not followed. An
@@ -1856,6 +1858,24 @@ class _Wrap:
     #: its object is placed on the paper or the page: the band is in the body of its page, and the lines of
     #: any paragraph there reaching it go beside it
     paper: bool = False
+    #: such an object's room on its left and on its right in a column *column* wide (see :func:`_square_sides`):
+    #: a line beside it runs from the paragraph's left margin to the object, or from the object to the
+    #: paragraph's right margin, the margin on the object's side taking no more (see :meth:`pieces`)
+    room: tuple[int, int] = (0, 0)
+    column: int = 0
+
+    def pieces(self, full: float, right: int) -> list[float]:
+        """The widths of a line beside an object with *room*, its pieces one on each side with text: a line
+        *full* wide, its right margin *right*."""
+
+        end = self.column - right
+        start = end - full
+        left, beside = self.room
+        widths = ([min(end, left) - start] if left else []) + ([end - max(start, self.column - beside)]
+                                                               if beside else [])
+        if any(width <= 0 for width in widths):
+            raise _Unsupported("a paragraph's margin reaching past a square-wrapped object placed on the paper")
+        return widths
 
     def lower(self, by: int) -> "_Wrap | None":
         """The band seen from *by* further down, or ``None`` once it is above."""
@@ -2717,7 +2737,7 @@ def _object_paper_band(measure: _Measure, page: _Page, obj: Any
         left, right = _square_sides(obj, page)
         if left or right:
             wrap = _Wrap(top, top + tall, page.column_width - left - right, split=left if left and right else 0,
-                         paper=True)
+                         paper=True, room=(left, right), column=page.column_width)
     return top, top + tall, square and not across, columns, wrap
 
 
@@ -3857,7 +3877,12 @@ def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int
         firsts: set[int] = set()
         for index in range(max(narrow, default=0) + 2):
             full = widths[min(index, 1)]
-            if index in narrow and wrap.split:
+            if index in narrow and wrap.column:
+                pieces = wrap.pieces(full, shape.right)
+                if len(pieces) > 1:
+                    firsts.add(len(lines))
+                lines += pieces
+            elif index in narrow and wrap.split:
                 firsts.add(len(lines))
                 lines += [wrap.split, full - wrap.cut - wrap.split]
             else:
@@ -5253,7 +5278,9 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
     bands: dict[int, list[tuple[int, int]]] = {}
     sides: dict[int, list[tuple[int, int]]] = {}
     squares: dict[int, list[_Wrap]] = {}
-    for _ in range(4):  # an object placed on the paper acts on the page its paragraph lands on
+    # an object placed on the paper acts on the page its paragraph lands on (each settled one may move the pages
+    # of those after it: a try more for each)
+    for _ in range(max(4, min(len(paper) + 2, 24))):
         paginator = _Paginator(page.body, page.columns, notes, bands, page.widths, sides, page.alone_at_top,
                                squares)
         frames = paginator.run(paras)

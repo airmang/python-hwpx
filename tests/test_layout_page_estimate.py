@@ -126,6 +126,11 @@ HANCOM_PAGES = {
     # its left 5000, reaching 4496 into the text (8000): the lines of the page reaching its band, those of the
     # paragraphs before its own too, are narrower, two pieces at one height where there is room on both sides
     "pages_square_object_on_the_paper": 8,
+    # ... nine times, each over two pages: the ten paragraphs 5 mm from the left and 10 mm from the right, 10 and
+    # 5 mm, or 10 and 10 mm hanging 5 mm, the table in the first one at the text's left, its middle or its right:
+    # a line beside it runs from the paragraph's margin to the table, or from the table to the margin, the margin
+    # on the table's side taking no more
+    "pages_square_object_on_the_paper_beside_margins": 19,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
