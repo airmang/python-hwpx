@@ -468,6 +468,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     size, refs, sizes = _pages._text_size(measure, runs)
     if headed and not sizes and _pages._text_size(measure, runs, paragraph)[0] > size:
         return None  # an empty paragraph under a taller number label (its line as tall as that): left for Hancom
+    if any(measure.char_box(run.get("charPrIDRef")) > measure.char_height(run.get("charPrIDRef")) for run in runs):
+        return None  # a character border above or below: Hancom writes its lines' heights and baselines otherwise
     end = _pages._end_size(measure, runs, sizes)
     if sizes and end > sizes[-1] and _pages._run_text(runs).endswith("\n"):
         return None  # a larger empty end after a line break: Hancom writes the line before it as tall as the end

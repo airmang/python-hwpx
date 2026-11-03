@@ -246,6 +246,10 @@ HANCOM_PAGES = {
     # empty one at 10 or 20 pt: after the break the empty last line is that run alone, as tall as itself smaller
     # or larger, the line before it spaced from its own characters
     "pages_empty_end_run_after_a_line_break": 12,
+    # Twenty-six times on a page of its own: ten characters at 10 or 14 pt, an empty run ending them, all of them
+    # or two amid them in a character shape with a border 0.1 or 0.4 mm on every side, above and below or left
+    # and right: a border above or below makes the line that much taller on each side, spaced from that height
+    "pages_character_border_line_height": 26,
     # A run of 14 pt before a line of 10 pt text (함초롬바탕, spaced 160%): one holding nothing but controls
     # makes the line as tall as itself (1400, spaced 840), an empty one takes no room:
     "pages_section_controls_run_taller_than_the_text": 1,  # the section's and the columns' definitions
