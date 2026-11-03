@@ -111,6 +111,10 @@ HANCOM_PAGES = {
     # wrapped square at the column's right, 2500, 2700, 4500 or 4700 below it, then one of 200 characters: Hancom
     # places the object from the paragraph's top above its spacing, the lines reaching it from there narrower
     "pages_square_object_down_from_spacing": 8,
+    # Three times on a page of its own: a table whose cell's first paragraph, spaced 0, 200 or 1000 before, holds a
+    # table placed top and bottom 1958 down from it, then three paragraphs: Hancom places the inner table from the
+    # paragraph's top above its spacing, as in the body, the cell's next paragraph below it from there
+    "pages_cell_table_down_from_spacing": 4,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
@@ -119,6 +123,13 @@ HANCOM_PAGES = {
     "pages_square_band_table_as_character_among_text": 1,  # a table 47058 wide
     "pages_square_band_narrow_table_as_character_among_text": 1,  # 5000 wide
     "pages_square_band_picture_as_character_among_text": 1,  # a picture 47058 x 5000
+    # Eight times on a page of its own: 30 or 60 characters, then a 20000 x 8000 table wrapped square at the
+    # column's left or right and a rectangle 5000 or 25000 wide set as a character, all in one paragraph: the
+    # rectangle stands on a line beside the table, as in a paragraph after it, even one wider than the room
+    "pages_square_band_rectangle_as_character_among_text": 8,
+    # The same four times with no text: the rectangle alone stands on a line beside the table, and the next
+    # paragraph below it, beside the table too
+    "pages_square_band_rectangle_as_character_alone": 4,
     # A picture 20000 x 27112 wrapped square in the middle of the column (10 pt text spaced 160%), flowing with
     # the text, its band past the body's foot: Hancom sets it alone at the next page's body top, whatever its
     # offset, the lines of its own page the whole width and the lines on the next page whose top is above its
@@ -490,6 +501,10 @@ HANCOM_PAGES = {
     "pages_table_wider_than_the_line_then_an_index_mark": 1,
     "pages_bookmark_around_a_table_wider_than_the_line": 1,  # before and after it: the table's line, the empty
     "pages_click_here_field_around_a_table_wider_than_the_line": 1,  # line under it
+    # Six times on a page of its own: a table set as a character 42000 or 42800 wide (its margins 140), then nothing,
+    # the end of a click-here field started two paragraphs before or a bookmark: the field's end takes no place on
+    # a line, the table's paragraph one line even when it is wider than the line; the bookmark goes on to the next
+    "pages_field_end_after_a_wide_table_as_character": 6,
     # Tabs: a tab reaches the next default tab stop, every 4000 from the column's left edge (the first line
     # starting at the left margin and a first-line indent, a hanging indent off the other lines), and a line may
     # start on either side of one. 90 paragraphs of 바탕 10 pt Hangul, a tab, then two-syllable words, after 0-9
@@ -1117,6 +1132,11 @@ HANCOM_PAGES = {
     # paragraph's line and those after staying where they fit, the rest going below the table there; a page break
     # after a table that went on to the next page's top starts the page after that
     "pages_tables_offset_down_past_the_page_foot": 97,
+    # Four times, on a page of its own after 36 lines: a paragraph of text holding a table 7696 or 30000 tall placed
+    # top and bottom 174 or 3000 down from it and not split, then an empty paragraph and eight of text: the table
+    # goes on to the next page's top whole, its offset left out, the paragraph's line and those after staying
+    # where they fit, the rest going below the table there
+    "pages_table_not_split_past_the_page_foot_line_stays": 8,
     # Eight times, on a page of its own after 39 or 40 lines: a paragraph of text holding a table split cell by cell
     # (three rows of two lines) placed top and bottom 1000 to 3000 down, then an empty paragraph and two of text:
     # when not one line of its first row fits under the anchor, the table starts at the next page's top, as one
@@ -2534,7 +2554,26 @@ def test_a_square_object_past_the_page_foot_goes_on_at_the_next_page(name: str) 
     _assert_like_hancom(estimate_pages(_without_caches(data)), data, 2)
 
 
-def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupported() -> None:
+def test_columns_in_a_table_cell_are_unsupported() -> None:
+    # A cell's first paragraph sets two columns: Hancom lays the cell's text out in them, the row as tall as
+    # the longer column, which the estimate does not follow.
+    document, table = _flowing_table_after(2, 2)
+    table.set_cell_text(0, 1, "칸 글 " * 40)
+    run = next(table.element.find(f"{HP}tr").findall(f"{HP}tc")[1].iter(f"{HP}run"))
+    ctrl = etree.SubElement(run, f"{HP}ctrl")
+    etree.SubElement(ctrl, f"{HP}colPr", {"id": "", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "2",
+                                          "sameSz": "1", "sameGap": "2268"})
+
+    estimate = estimate_pages(document)
+
+    assert estimate.pages is None
+    assert estimate.unsupported == ("section 0: columns in a table cell",)
+
+
+def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_goes_on_alone() -> None:
+    # A table not split, placed 3000 down from the paragraph of text after 38 lines, past the page foot: as
+    # pages_table_not_split_past_the_page_foot_line_stays measures, the paragraph's line stays where it fits and
+    # the table goes on to the next page's top whole.
     document, table = _flowing_table_after(38, 3)
     table.element.set("pageBreak", "NONE")
     table.element.find(f"{HP}pos").set("vertOffset", "3000")
@@ -2542,9 +2581,8 @@ def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_is_unsupport
 
     estimate = estimate_pages(document)
 
-    assert estimate.pages is None
-    assert estimate.unsupported == (
-        "section 0: a square-wrapped or offset top-and-bottom object past the page foot",)
+    assert (estimate.unsupported, estimate.pages) == ((), 2)
+    assert [line.page for line in estimate.lines[-1]] == [0]  # the table's paragraph
 
 
 def test_ruby_text_spaced_otherwise_than_in_percent_is_not_followed_without_a_cache() -> None:
