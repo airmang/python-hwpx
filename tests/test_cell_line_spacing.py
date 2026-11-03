@@ -88,3 +88,90 @@ def test_dry_run_reports_would_apply(work, tmp_path):
     entry = next(t for t in res.transcript if t["op"] == "set_cell_line_spacing")
     assert entry["status"] == "would_apply"
     assert not out.exists()
+
+
+_LINESEG = (b'<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" '
+            b'baseline="850" spacing="600" horzpos="0" horzsize="40000" flags="393216"/></hp:linesegarray>')
+
+
+def _nested_source() -> bytes:
+    """A 3x3 table whose cell (1, 1) holds a 2x2 table and some text; every paragraph has a line cache."""
+    import io
+
+    from hwpx.document import HwpxDocument
+
+    document = HwpxDocument.new()
+    outer = document.add_table(3, 3)
+    for row in range(3):
+        for col in range(3):
+            outer.cell(row, col).text = f"outer:{row}:{col}"
+    inner = outer.cell(1, 1).paragraphs[0].add_table(2, 2)
+    for row in range(2):
+        for col in range(2):
+            inner.cell(row, col).text = f"inner:{row}:{col}"
+    data = document.to_bytes()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/section0.xml":
+                payload = re.sub(rb"<hp:linesegarray>.*?</hp:linesegarray>", b"", payload, flags=re.S)
+                payload = payload.replace(b"</hp:p>", _LINESEG + b"</hp:p>")
+            target.writestr(info, payload)
+    return out.getvalue()
+
+
+def _tables(data: bytes) -> list[bytes]:
+    from hwpx.table_patch import iter_table_spans, section_parts
+
+    section = section_parts(data)["Contents/section0.xml"]
+    return [section[s:e] for s, e in iter_table_spans(section)]
+
+
+def _own_paragraphs(cell: bytes) -> list[bytes]:
+    from hwpx.table_patch import cell_paragraph_spans
+
+    return [cell[s:e] for s, e in cell_paragraph_spans(cell)]
+
+
+def _cell(table: bytes, row: int, col: int) -> bytes:
+    from hwpx.table_patch import direct_table_cells
+
+    cell = next(c for c in direct_table_cells(table) if (c.row, c.col) == (row, col))
+    return table[cell.start:cell.end]
+
+
+def test_a_cell_holding_a_table_changes_only_its_own_paragraphs():
+    source = _nested_source()
+    res = apply_table_ops(source, [{"op": "set_cell_line_spacing", "table_index": 0, "cells": [[1, 1]], "line_spacing": 130}])
+    assert res.ok and not res.skipped, [s.reason for s in res.skipped]
+    before, after = _tables(source), _tables(res.data)
+    assert after[1] == before[1]  # the inner table, line caches included
+    holder = _cell(after[0], 1, 1)
+    old_ids = {re.search(rb'paraPrIDRef="(\d+)"', p).group(1) for p in _own_paragraphs(_cell(before[0], 1, 1))}
+    for paragraph in _own_paragraphs(holder):
+        open_tag = paragraph[: paragraph.index(b">") + 1]
+        assert re.search(rb'paraPrIDRef="(\d+)"', open_tag).group(1) not in old_ids
+        assert not paragraph.endswith(_LINESEG + b"</hp:p>")  # own line cache dropped
+    assert holder.count(_LINESEG) == before[1].count(_LINESEG)  # only the inner table's caches remain
+
+
+def test_a_row_never_reaches_into_a_table_held_by_another_cell():
+    source = _nested_source()
+    res = apply_table_ops(source, [{"op": "set_cell_line_spacing", "table_index": 0, "rows": [0], "line_spacing": 130}])
+    entry = next(t for t in res.transcript if t["op"] == "set_cell_line_spacing")
+    assert entry["cellsTouched"] == 3
+    before, after = _tables(source), _tables(res.data)
+    assert after[1] == before[1]
+    for row in (1, 2):
+        for col in range(3):
+            assert _cell(after[0], row, col) == _cell(before[0], row, col)
+
+
+def test_the_inner_table_is_addressed_by_its_own_index():
+    source = _nested_source()
+    res = apply_table_ops(source, [{"op": "set_cell_line_spacing", "table_index": 1, "cells": [[0, 1]], "line_spacing": 130}])
+    assert res.ok and not res.skipped
+    before, after = _tables(source), _tables(res.data)
+    assert _cell(after[1], 0, 1) != _cell(before[1], 0, 1)
+    assert [_cell(after[1], r, c) for r, c in ((0, 0), (1, 0), (1, 1))] == [_cell(before[1], r, c) for r, c in ((0, 0), (1, 0), (1, 1))]

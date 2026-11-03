@@ -44,15 +44,25 @@ deleted row or column) or stays in the first part of a split cell.
   cell's (see "Cloning cell content" below); `blank` clones hold no table.
 - An edit that would leave a cell narrower than the table nested in it (its
   width plus the cell's side margins) refuses, unless the cell was already that
-  narrow. `autofit_columns` holds such a column at that width.
+  narrow. `autofit_columns` holds such a column at that width. The object
+  model's `set_column_widths` and `equalize_column_widths` refuse the same way
+  and leave the table as it was.
 - `merge_table` merges with the next table on the same nesting level.
+- `set_cell_line_spacing` changes the line spacing of the addressed cell's own
+  paragraphs, including the one holding a table, and drops only their line
+  caches; a table or text box in the cell keeps its bytes. Address an inner
+  table by its own `table_index` to change its cells.
 
 ## Cloning cell content
 
-`insert_row_by_clone`, `insert_column_by_clone` and `split_cell` copy a cell's
-content the way Hancom numbers what it pastes (observed by copying and pasting
-in Hangul and comparing the saved HWPX):
+`insert_row_by_clone`, `insert_column_by_clone`, `insert_block_by_clone`,
+`split_cell` and `clone_table` copy content the way Hancom numbers what it
+pastes (observed by copying and pasting in Hangul and comparing the saved
+HWPX). Copying copies again never repeats a number: paragraphs take ids unused
+in the document.
 
+- A table copied, whole or nested in a copied cell, gets a fresh `id` and a
+  `zOrder` above the document's, as a pasted table does.
 - Pictures, shapes, equations, footnotes and endnotes get a fresh `id` and
   `instid` (two different numbers) used nowhere in the document, and a `zOrder`
   above the document's. The shapes inside a group keep their `id` and `zOrder`
@@ -66,6 +76,8 @@ in Hangul and comparing the saved HWPX):
 - A connector copied loses its ends (`subjectIDRef="0"`), as Hancom's does.
 - Content that points into another part or definition refuses: a chart, linked
   text boxes, a header or footer defined in the cell.
+- `split_cell_vertical` keeps the content in the first part; each new part
+  holds one empty paragraph of the cell's format.
 
 ## Evidence and downstream use
 

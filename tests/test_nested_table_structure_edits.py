@@ -190,3 +190,70 @@ def test_split_and_merge_table_carry_nested_tables():
         assert len(document.tables) == 1 and document.tables[0].row_count == 3
         assert document.tables[0].cell(1, 1).tables[0].cell(1, 1).text == "inner:1:1"
     assert nested in _tables(merged.data)
+
+
+def _numbers(data):
+    section = section_parts(data)["Contents/section0.xml"].decode("utf-8")
+    return (re.findall(r'<hp:tbl\b[^>]*\bid="(\d+)"', section),
+            [v for v in re.findall(r'<hp:p\b[^>]*\bid="(\d+)"', section) if v != "0"],
+            [int(v) for v in re.findall(r'<hp:tbl\b[^>]*\bzOrder="(-?\d+)"', section)])
+
+
+@pytest.mark.parametrize("ops, tables", [
+    ([{"op": "insert_row_by_clone", "ref_row": 1}, {"op": "insert_column_by_clone", "ref_col": 1}], 5),
+    ([{"op": "insert_column_by_clone", "ref_col": 1}, {"op": "insert_row_by_clone", "ref_row": 1}], 5),
+    ([{"op": "insert_block_by_clone", "ref_rows": [1, 1]}, {"op": "insert_block_by_clone", "ref_rows": [1, 2]}], 5),
+])
+def test_copying_copies_again_gives_every_table_and_paragraph_its_own_number(ops, tables):
+    source = _source()
+    result = _apply(source, *ops)
+    assert result.ok, [s.reason for s in result.skipped]
+    table_ids, paragraph_ids, _ = _numbers(result.data)
+    assert len(table_ids) == len(set(table_ids)) == tables
+    assert len(paragraph_ids) == len(set(paragraph_ids))
+    assert "hwpx-clone:" not in section_parts(result.data)["Contents/section0.xml"].decode("utf-8")
+
+
+def test_a_cloned_table_is_numbered_as_hancom_numbers_a_pasted_table():
+    source = _source(depth=3)
+    result = _apply(source, {"op": "clone_table", "count": 2})
+    assert result.ok, [s.reason for s in result.skipped]
+    before_ids, _, before_z = _numbers(source)
+    table_ids, paragraph_ids, z_orders = _numbers(result.data)
+    assert len(table_ids) == len(set(table_ids)) == 3 * len(before_ids)
+    assert table_ids[:len(before_ids)] == before_ids  # the original keeps its numbers
+    assert len(paragraph_ids) == len(set(paragraph_ids))
+    assert min(z_orders[len(before_ids):]) > max(before_z)  # the copies on top
+    with HwpxDocument.open(result.data) as document:
+        assert [t.cell(1, 1).tables[0].cell(1, 1).tables[0].cell(0, 0).text for t in document.tables] == ["deepest"] * 3
+
+
+def test_a_vertical_split_leaves_the_new_parts_empty():
+    document = HwpxDocument.new()
+    outer = document.add_table(3, 2)
+    document.tables.merge_cells(outer, "A1:A3")
+    outer.cell(0, 0).text = "merged"
+    outer.cell(0, 0).paragraphs[0].add_rectangle(width=1000, height=500)
+    outer.cell(0, 0).add_table(1, 1).cell(0, 0).text = "inside"
+    source = document.to_bytes()
+    result = _apply(source, {"op": "split_cell_vertical", "row": 0, "col": 0, "sizes": [1, 2]})
+    assert result.ok, [s.reason for s in result.skipped]
+    section = section_parts(result.data)["Contents/section0.xml"].decode("utf-8")
+    assert section.count("<hp:rect") == 1 and len(re.findall(r"<hp:tbl\b", section)) == 2
+    with HwpxDocument.open(result.data) as reopened:
+        table = reopened.tables[0]
+        assert table.cell(0, 0).text.startswith("merged") and table.cell(0, 0).tables
+        assert table.cell(1, 0).text == "" and not table.cell(1, 0).tables
+
+
+def test_object_model_widths_keep_a_holding_cell_as_wide_as_its_nested_table():
+    from hwpx.table_patch import TableStructureError
+
+    with HwpxDocument.open(_source()) as document:
+        table = document.tables[0]
+        before = document.to_bytes()
+        with pytest.raises(TableStructureError, match="narrower"):
+            table.set_column_widths([10, 1, 10])
+        assert document.to_bytes() == before
+        table.set_column_widths([1, 2, 1])
+        assert table.cell(1, 1).tables[0].cell(0, 0).text == "inner:0:0"

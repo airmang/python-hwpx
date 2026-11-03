@@ -51,8 +51,7 @@ class TableStructureEdits:
         same column in *ref_row* and, unless *blank*, its text; with *blank* it holds one empty
         paragraph of that format, as Hancom inserts it. A cell merged across the new rows grows over
         them, and next to a merged cell that ends (above: starts) at *ref_row* each new row gets an
-        empty cell of its format. A table holding a table is refused
-        (:class:`hwpx.table_patch.TableStructureError`).
+        empty cell of its format. A table nested in a copied cell is copied with fresh numbers.
         """
 
         self._restructure({

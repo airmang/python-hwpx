@@ -984,20 +984,10 @@ def _hide_nested_tables(table: str) -> tuple[str, list[str]]:
     return "".join(parts), nested
 
 
-_S_TBL_OPEN_RE = re.compile(r"<hp:tbl\b[^>]*>")
-
-
-def _clone_nested_table(table: str, copy: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
-    """Copy *copy* (1, 2, ...) of nested *table* for a cloned cell: fresh paragraph
-    ids, table ``id``/``instid`` bumped as :func:`_split_table` bumps them; the
-    rest of its content copied as :func:`_clone_content` copies a cell's."""
-    bump = 960000 + copy * 7919
-    renumbered = _S_TBL_OPEN_RE.sub(
-        lambda m: re.sub(r'(\b(?:id|instid)=")(\d+)(")',
-                         lambda a: a.group(1) + str((int(a.group(2)) + bump) & 0x7FFFFFFF) + a.group(3), m.group(0)),
-        table,
-    )
-    return _clone_content(renumbered, fresh_id)
+def _clone_nested_table(table: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """A copy of nested *table* for a cloned cell, copied as :func:`_clone_content` copies a
+    cell's content: the table, like a pasted one, takes a fresh ``id`` and a ``zOrder`` on top."""
+    return _clone_content(table, fresh_id)
 
 
 def _restore_nested_tables(table: str, nested: Sequence[str], *, used_ids: set[int] | None = None) -> str:
@@ -1010,7 +1000,7 @@ def _restore_nested_tables(table: str, nested: Sequence[str], *, used_ids: set[i
     def put(match: re.Match[str]) -> str:
         k = int(match.group(1))
         seen[k] = seen.get(k, -1) + 1
-        return nested[k] if not seen[k] else _clone_nested_table(nested[k], seen[k], fresh_id)
+        return nested[k] if not seen[k] else _clone_nested_table(nested[k], fresh_id)
 
     return _NESTED_MARK_RE.sub(put, table)
 
@@ -1338,10 +1328,6 @@ def _reorder_rows(table: str, order: Sequence[int]) -> str:
 _PARA_ID_RE = re.compile(r'(<hp:p\b[^>]*\bid=")(\d+)(")')
 
 
-def _refresh_ids(row: str, bump: int) -> str:
-    return _PARA_ID_RE.sub(lambda m: m.group(1) + str((int(m.group(2)) + bump) & 0x7FFFFFFF) + m.group(3), row)
-
-
 def _bump_table_id(table: str, bump: int) -> str:
     """Bump ``<hp:tbl>``'s own ``id``/``instid`` (if present) -- used by
     split_table so its new second table doesn't share the original's id
@@ -1352,16 +1338,6 @@ def _bump_table_id(table: str, bump: int) -> str:
         if current is not None:
             table = _ss(table, "tbl", attr, (current + bump) & 0x7FFFFFFF)
     return table
-
-
-def _blank_cell_text(tc: str) -> str:
-    """Empty every ``<hp:t>`` in a cell + drop stale linesegarray (keep formatting).
-
-    The layout cache references text positions of the OLD text; leaving it on an
-    emptied paragraph makes Hangul reject the file ("stale lineseg beyond text
-    length"). Stripping it forces recomputation."""
-    tc = re.sub(r"(<hp:t\b[^>]*>).*?(</hp:t>)", r"\1\2", tc, flags=re.S)
-    return _drop_line_caches(_NESTED_MARK_RE.sub("", tc))  # a blank cell holds no nested table
 
 
 def _drop_line_caches(tc: str) -> str:
@@ -1384,12 +1360,12 @@ def _insert_tc_in_order(row: str, new_tc: str, col: int) -> str:
     return row[:at] + new_tc + row[at:]
 
 
-def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int]) -> str:
+def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int], *, used_ids: set[int] | None = None) -> str:
     """Split the rowSpan cell at (row, col) into ``len(sizes)`` stacked cells with
     the given rowSpans (``sum(sizes)`` must equal the current rowSpan). The first
-    keeps (row, col); each subsequent boundary gets a NEW cell cloned from the
-    original (borderFill/cellSz/paraPr inherited, text blanked, ids refreshed)
-    inserted in colAddr order. Grid-validated; fail-closed."""
+    keeps (row, col) and the content; each subsequent boundary gets a NEW cell of the
+    original's format (borderFill/cellSz, its first paragraph's shape) holding one empty
+    paragraph with a fresh id, inserted in colAddr order. Grid-validated; fail-closed."""
     _guard_flat(table)
     sizes = [int(s) for s in sizes]
     if len(sizes) < 2 or any(s < 1 for s in sizes):
@@ -1408,6 +1384,7 @@ def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int]) -
     if sum(sizes) != cur:
         raise TableStructureError(f"split_cell_vertical: sizes sum {sum(sizes)} != current rowSpan {cur}")
 
+    fresh_id = _fresh_ids(table, used_ids)
     rows[row] = rows[row].replace(target, _ss(target, "cellSpan", "rowSpan", sizes[0]), 1)
     boundary = row
     for i in range(1, len(sizes)):
@@ -1416,7 +1393,7 @@ def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int]) -
             raise TableStructureError("split_cell_vertical: boundary beyond table rows")
         new_tc = _ss(target, "cellSpan", "rowSpan", sizes[i])
         new_tc = _ss(new_tc, "cellAddr", "rowAddr", boundary)
-        new_tc = _refresh_ids(_blank_cell_text(new_tc), 7000 + i)
+        new_tc = _PARA_ID_RE.sub(fresh_id, _empty_cell_like(new_tc))
         rows[boundary] = _insert_tc_in_order(rows[boundary], new_tc, col)
     out = _rebuild(prefix, rows, suffix)
     _validate_or_raise(out)
@@ -1641,9 +1618,10 @@ def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> st
     """Copy cell content as Hancom pastes a copy: fresh paragraph ids here; objects (pictures,
     shapes, equations, notes), fields and memos marked for fresh numbers (:func:`_number_clones`).
     A field keeps its ``fieldid`` and name and a bookmark its name, as Hancom's copy does; a
-    connector copied loses its ends (``subjectIDRef="0"``). Content that points into another part
+    connector copied loses its ends (``subjectIDRef="0"``). A table copied takes a fresh ``id`` and
+    a ``zOrder`` on top, as Hancom numbers a pasted table. Content that points into another part
     or definition (a chart, linked text boxes, a header or footer) refuses. A nested table's
-    marker is copied as is; its table gets fresh ids on restore."""
+    marker is copied as is; its table is copied on restore."""
     serial = next(_clone_serial)
 
     def mark(kind: str, value: str) -> str:
@@ -1657,7 +1635,7 @@ def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> st
             raise TableStructureError(
                 "cannot clone content with local identities or references; use empty-cell insertion"
             )
-        if tag in ("hp:p", "hp:tbl"):
+        if tag == "hp:p":
             return match.group(0)
         memo = tag == "hp:fieldBegin" and attrs.get("type") == "MEMO"
         # Hancom saves the shapes inside a group with zOrder 0 and ids of 0 or shared within the
@@ -1893,15 +1871,15 @@ def _insert_column_by_clone(
     return _rebuild(prefix, new_rows, suffix, colcnt=columns + count)
 
 
-def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
+def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1, *, used_ids: set[int] | None = None) -> str:
     """Clone a contiguous **vertical-merge block** (physical rows ``r0..r1``) *count*
     times, preserving the block's internal span pattern (FR-001).
 
     The 성취기준 A~E unit is one such block: a leading cell with ``rowSpan=N`` plus
     ``N`` rows of ``rowSpan==1`` cells. :func:`_insert_row_by_clone` would grow the
     leading cell over one new row; this clones the whole unit, offsets the
-    clones' ``rowAddr`` by the block height, shifts every row below, refreshes
-    paragraph ids, and grows ``rowCnt``. Fail-closed (Constitution VI): the block must
+    clones' ``rowAddr`` by the block height, shifts every row below, and grows ``rowCnt``;
+    the content is copied as :func:`_clone_content` copies it. Fail-closed (Constitution VI): the block must
     be a clean merge unit — no cell inside spans out of ``[r0,r1]`` and no cell
     outside straddles the boundary — else it raises. Formatting (borderFill/paraPr/
     charPr/cellSz) is carried verbatim from the reference block.
@@ -1940,6 +1918,7 @@ def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
 
     shifted = [_map_cells(r, shift) for r in rows]
     block = rows[r0:r1 + 1]
+    fresh_id = _fresh_ids(table, used_ids)
     clones: list[str] = []
     for k in range(1, count + 1):
         def _clone_shift(tc: str, _k: int = k) -> str:
@@ -1948,8 +1927,7 @@ def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1) -> str:
             return _ss(tc, "cellAddr", "rowAddr", ra + _k * block_h)
 
         for row in block:
-            clone = _map_cells(row, _clone_shift)
-            clone = _refresh_ids(clone, 100003 * k + 7)
+            clone = _clone_content(_map_cells(row, _clone_shift), fresh_id)
             clones.append(clone)
     new_rows = shifted[: r1 + 1] + clones + shifted[r1 + 1:]
     return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
@@ -2190,6 +2168,10 @@ _CLONE_OPS = {
     "insert_column_by_clone": lambda t, o, ids: _insert_column_by_clone(
         t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
         blank=bool(o.get("blank", False)), used_ids=ids),
+    "insert_block_by_clone": lambda t, o, ids: _insert_block_by_clone(
+        t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1)), used_ids=ids),
+    "split_cell_vertical": lambda t, o, ids: _split_cell_vertical(
+        t, int(o["row"]), int(o["col"]), o["sizes"], used_ids=ids),
 }
 
 
@@ -2310,7 +2292,8 @@ def _apply_cell_line_spacing(
     op: {op:'set_cell_line_spacing', section_path?, table_index|table_anchor,
     cells:[[r,c],...] 또는 rows:[r,...], line_spacing:int(PERCENT)}. 대상 셀의
     각 문단 paraPr을 lineSpacing 변형으로 재매핑하고 linesegarray를 제거한다
-    (stale 캐시 줄겹침 방지). 중첩 표를 품은 셀은 refuse."""
+    (stale 캐시 줄겹침 방지). 표를 품은 셀은 셀 자신의 문단만 바꾸고 안쪽 표·글상자는
+    바이트 그대로 둔다."""
     import io
     import zipfile
     with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
@@ -2354,38 +2337,32 @@ def _apply_cell_line_spacing(
             transcript.append(entry)
             continue
         ts, te = spans[ti]
-        table = section[ts:te].decode("utf-8")
+        table = section[ts:te]
         want_cells = {(int(r), int(c)) for r, c in op.get("cells", [])}
         want_rows = {int(r) for r in op.get("rows", [])}
         touched = 0
         out_table = table
-        for cell_match in sorted(re.finditer(r"<hp:tc\b.*?</hp:tc>", table, re.S), key=lambda x: -x.start()):
-            blk = cell_match.group(0)
-            ra = re.search(r'<hp:cellAddr\b[^>]*\browAddr="(\d+)"', blk)
-            ca = re.search(r'<hp:cellAddr\b[^>]*\bcolAddr="(\d+)"', blk)
-            if ra is None or ca is None:
+        # The table's own cells and each cell's own paragraphs only: a table or text box in a
+        # cell keeps its bytes (address an inner table by its own table_index).
+        for cell in sorted(_direct_cells(table), key=lambda x: -x.start):
+            if not ((cell.row, cell.col) in want_cells or cell.row in want_rows):
                 continue
-            r, c = int(ra.group(1)), int(ca.group(1))
-            if not ((r, c) in want_cells or r in want_rows):
-                continue
-            if "<hp:tbl" in blk:
-                skipped.append(CellSkipped(sp, ti, r, c, "set_cell_line_spacing: nested table in cell — refuse"))
-                continue
+            blk = table[cell.start:cell.end]
             new_blk = blk
-            for pm in sorted(re.finditer(r"<hp:p\b.*?</hp:p>", new_blk, re.S), key=lambda x: -x.start()):
-                pblk = pm.group(0)
-                pid = re.search(r'\bparaPrIDRef="(\d+)"', pblk)
+            for ps, pe in reversed(_all_paragraph_spans(blk)):
+                pblk = new_blk[ps:pe]
+                open_end = pblk.index(b">") + 1
+                pid = re.search(rb'\bparaPrIDRef="(\d+)"', pblk[:open_end])
                 if pid is None:
                     continue
-                header, new_id = _materialize_parapr(header, pid.group(1), spacing, cache)
-                pblk2 = pblk.replace(f'paraPrIDRef="{pid.group(1)}"', f'paraPrIDRef="{new_id}"', 1)
-                pblk2 = _strip_paragraph_layout_cache(pblk2.encode("utf-8")).decode("utf-8")
-                new_blk = new_blk[: pm.start()] + pblk2 + new_blk[pm.end():]
+                header, new_id = _materialize_parapr(header, pid.group(1).decode(), spacing, cache)
+                open_tag = pblk[:open_end].replace(pid.group(0), f'paraPrIDRef="{new_id}"'.encode(), 1)
+                new_blk = new_blk[:ps] + _own_lineseg_dropped(open_tag + pblk[open_end:]) + new_blk[pe:]
             if new_blk != blk:
-                out_table = out_table[: cell_match.start()] + new_blk + out_table[cell_match.end():]
+                out_table = out_table[:cell.start] + new_blk + out_table[cell.end:]
                 touched += 1
         if out_table != table:
-            parts[sp] = section[:ts] + out_table.encode("utf-8") + section[te:]
+            parts[sp] = section[:ts] + out_table + section[te:]
             changed_parts.add(sp)
         entry.update({"tableIndex": ti, "lineSpacing": spacing, "cellsTouched": touched,
                       "status": "applied" if touched else "refused: no matching cells"})
@@ -2501,9 +2478,13 @@ def _delete_table(section: bytes, ts: int, te: int) -> bytes:
     return section[:ps] + _own_lineseg_dropped(section[ps:ts] + section[te:pe]) + section[pe:]
 
 
-def _clone_table(section: bytes, ts: int, te: int, count: int) -> bytes:
+def _clone_table(section: bytes, ts: int, te: int, count: int, *, used_ids: set[int] | None = None,
+                 context: str = "") -> bytes:
     """*count* copies of the table after its paragraph: copies of the paragraph
-    when it holds nothing else, otherwise new paragraphs holding only the table."""
+    when it holds nothing else, otherwise new paragraphs holding only the table.
+    Each copy is numbered as Hancom numbers a pasted table (:func:`_clone_content`):
+    fresh paragraph ids unused in *used_ids*, and the table, the tables nested in it
+    and its objects fresh numbers unused in *context* (the document's sections)."""
     if count < 1:
         raise TableStructureError("clone_table: count must be >= 1")
     ps, pe = _p_wrapper_span(section, ts)
@@ -2511,7 +2492,8 @@ def _clone_table(section: bytes, ts: int, te: int, count: int) -> bytes:
         block = section[ps:pe].decode("utf-8")
     else:
         block = _paragraph_for(section, ps, ts, section[ts:te].decode("utf-8"))
-    clones = "".join(_bumped_ids(block, 900000 + k * 7919) for k in range(1, count + 1))
+    fresh_id = _fresh_ids(section.decode("utf-8"), used_ids)
+    clones = _number_clones("".join(_clone_content(block, fresh_id) for _ in range(count)), context)
     return section[:pe] + clones.encode("utf-8") + section[pe:]
 
 
@@ -2725,7 +2707,11 @@ def apply_table_ops(
                 dims_after = "deleted"
             elif name == "clone_table":
                 count = int(op.get("count", 1))
-                new_section = _clone_table(section, ts, te, count)
+                new_section = _clone_table(
+                    section, ts, te, count,
+                    used_ids={int(m.group(2)) for data in sections.values()
+                              for m in _PARA_ID_RE.finditer(data.decode("utf-8"))},
+                    context="".join(data.decode("utf-8") for data in sections.values()))
                 dims_after = f"cloned x{count}"
             elif name == "split_table":
                 split_row_raw = op.get("split_row")
@@ -2746,7 +2732,8 @@ def apply_table_ops(
                 context = "".join(data.decode("utf-8") for data in sections.values()) if name in _CLONE_OPS else ""
                 new_table = _restructure_table(section[ts:te].decode("utf-8"), op, used_ids=used_ids,
                                                context=context)
-                if name in {"delete_column", "delete_row", "insert_row_by_clone", "insert_column_by_clone", "split_cell"}:
+                if name in {"delete_column", "delete_row", "insert_row_by_clone", "insert_column_by_clone",
+                            "insert_block_by_clone", "split_cell"}:
                     if table_height is None:
                         from .oxml.table_structure import _ByteTableHeight
                         table_height = _ByteTableHeight(source_bytes)
