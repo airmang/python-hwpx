@@ -120,6 +120,17 @@ HANCOM_PAGES = {
     # then six empty paragraphs and two of text: the empty lines reaching it go beside it (two empty pieces at one
     # height), the table as tall as with room on one side only
     "pages_cell_object_on_both_sides_beside_empty_lines": 5,
+    # Eight times on a page of its own: ten paragraphs of two or three lines, one of them (the first or the
+    # seventh) holding a 1x1 table wrapped square, text on both sides, placed on the paper 25000 down: from the
+    # paper's left at the text's left edge (20000 wide), centred (16000), from the paper's right (20000) or from
+    # its left 5000, reaching 4496 into the text (8000): the lines of the page reaching its band, those of the
+    # paragraphs before its own too, are narrower, two pieces at one height where there is room on both sides
+    "pages_square_object_on_the_paper": 8,
+    # ... nine times, each over two pages: the ten paragraphs 5 mm from the left and 10 mm from the right, 10 and
+    # 5 mm, or 10 and 10 mm hanging 5 mm, the table in the first one at the text's left, its middle or its right:
+    # a line beside it runs from the paragraph's margin to the table, or from the table to the margin, the margin
+    # on the table's side taking no more
+    "pages_square_object_on_the_paper_beside_margins": 19,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a
@@ -1929,14 +1940,13 @@ def test_a_header_wrapped_square_with_room_beside_it_is_not_followed() -> None:
     assert estimate_pages(out.getvalue()).unsupported == ("section 0: text beside an object placed on the paper",)
 
 
-def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_keeps_its_cached_place() -> None:
+def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_goes_beside_it() -> None:
     # The picture's top 100 above the fifth line's foot: Hancom sets that line beside it, narrower, at the
-    # same height. Keeping its cache, it is followed; without it, where it breaks is not.
+    # same height, whether it keeps its cache or is broken anew.
     data = (FIXTURES / "pages_square_picture_on_paper_reaching_the_last_line.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, 1)
-    assert estimate_pages(_without_caches(data)).unsupported == (
-        "section 0: text beside an object placed on the paper",)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, 1)
 
 
 @pytest.mark.parametrize(
@@ -1947,16 +1957,14 @@ def test_a_line_reaching_a_picture_on_the_paper_with_room_beside_it_keeps_its_ca
         ("pages_square_picture_on_paper_lines_beside_it_on_page_2", 5),  # anchored after a page break
     ],
 )
-def test_lines_keeping_their_caches_beside_a_picture_on_the_paper_stay_where_hancom_put_them(name: str,
-                                                                                            pages: int) -> None:
+def test_lines_beside_a_picture_on_the_paper_go_where_hancom_put_them(name: str, pages: int) -> None:
     # A picture wrapped square from the paper's top with room beside it, long paragraphs flowing beside
     # it (the line of the paragraph before its anchor too): each line keeps its height and spacing there,
-    # narrower. Without the caches, where the lines beside it break is not followed.
+    # narrower, and without the caches breaks where Hancom broke it.
     data = (FIXTURES / f"{name}.hwpx").read_bytes()
 
     _assert_like_hancom(estimate_pages(data), data, pages)
-    assert estimate_pages(_without_caches(data)).unsupported == (
-        "section 0: text beside an object placed on the paper",)
+    _assert_like_hancom(estimate_pages(_without_caches(data)), data, pages)
 
 
 @pytest.mark.parametrize(("name", "pages"), [("pages_square_picture_staying_above_the_foot", 2),
