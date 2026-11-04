@@ -356,6 +356,21 @@ def test_a_page_control_among_the_text_is_left_for_hancom() -> None:
     assert report.written == 0 and report.skipped == 1
 
 
+@pytest.mark.parametrize("kind", ["BULLET", "NUMBER"])
+def test_a_paragraph_headed_by_a_label_the_header_does_not_define_is_left_for_hancom(kind: str) -> None:
+    # A paragraph shape naming a bullet or a number the header lacks: Hancom still draws a label before the text
+    # (seen with a bullet: its first line holds fewer characters), of a room not known.
+    document = HwpxDocument.new()
+    document.add_paragraph("가나다 " * 40)
+    ref = _body(document)[-1].get("paraPrIDRef")
+    shape = next(s for s in document.oxml.headers[0].element.iter(f"{HH}paraPr") if s.get("id") == ref)
+    shape.find(f"{HH}heading").attrib.update({"type": kind, "idRef": "99"})
+
+    report = write_line_caches(document)
+
+    assert report.written == 0
+
+
 @pytest.mark.parametrize(("condense", "spacing", "written"), [("0", 0, 1), ("10", 0, 0), ("0", -10, 0)])
 def test_a_no_break_space_among_spaces_that_shrink_is_left_for_hancom(condense: str, spacing: int, written: int) -> None:
     # A no-break space in a paragraph with 최소 공백 was seen to break a line elsewhere than FormFit, and one with

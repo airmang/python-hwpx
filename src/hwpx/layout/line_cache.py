@@ -52,7 +52,8 @@ A paragraph is left for Hancom when its line breaks are less sure: a character n
 for, a word too long for a line, a line break that moves when every line is laid out :data:`_MARGIN` narrower or
 wider (a line ending that close to its room may end elsewhere in Hancom), or a tab whose text before it is closer
 to a tab stop than a layout unit for each character since the line's start or the last tab stop (at most
-:data:`_MARGIN`). A paragraph that has a cache keeps it. A document mixing paragraphs with and without a cache is
+:data:`_MARGIN`), or a paragraph shape naming a bullet or a number the header does not define (Hancom draws a label
+there all the same). A paragraph that has a cache keeps it. A document mixing paragraphs with and without a cache is
 laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
@@ -260,7 +261,7 @@ def _picture_lines(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[
         return None
     vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    if vertical not in _BASELINES or shape.font_line:
+    if vertical not in _BASELINES or shape.font_line or _unknown_label(measure, paragraph.get("paraPrIDRef")):
         return None
     room = width - shape.left - shape.right
     headed = measure.headed(paragraph)
@@ -463,6 +464,8 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
     vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
     if shape.font_line or vertical not in _BASELINES or not _shapes_sure(measure, paragraph, runs):
         return None
+    if _unknown_label(measure, paragraph.get("paraPrIDRef")):
+        return None  # a bullet or number the header does not define: Hancom draws a label all the same
     if measure.pictured(paragraph.get("paraPrIDRef")):
         return None  # a picture bullet sized by its picture: its room was not measured
     size, refs, sizes = _pages._text_size(measure, runs)
@@ -602,6 +605,25 @@ def _shapes_sure(measure: Any, paragraph: Any, runs: list[Any]) -> bool:
         if italic and any(face not in _ITALIC_SURE_FACES for face in faces):
             return False
     return True
+
+
+def _unknown_label(measure: Any, para_pr_id: str | None) -> bool:
+    """Whether a paragraph shape *para_pr_id* heads its paragraphs with a bullet or a number the header does not
+    define (``hh:heading`` naming no ``hh:bullet`` or ``hh:numbering``): Hancom still draws a label before their
+    text, of a room not known here."""
+
+    unknown = getattr(measure, "_line_cache_unknown_labels", None)
+    if unknown is None:
+        defined = {"BULLET": {item.get("id") for item in measure._header.iter(f"{HH}bullet")},
+                   "NUMBER": {item.get("id") for item in measure._header.iter(f"{HH}numbering")}}
+        unknown = set()
+        for shape in measure._header.iter(f"{HH}paraPr"):
+            heading = shape.find(f"{HH}heading")
+            if heading is not None and heading.get("type") in defined \
+                    and heading.get("idRef") not in defined[heading.get("type")]:
+                unknown.add(shape.get("id"))
+        measure._line_cache_unknown_labels = unknown
+    return para_pr_id in unknown
 
 
 def _vertical_align(measure: Any, para_pr_id: str | None) -> str | None:
