@@ -115,6 +115,11 @@ HANCOM_PAGES = {
     # table placed top and bottom 1958 down from it, then three paragraphs: Hancom places the inner table from the
     # paragraph's top above its spacing, as in the body, the cell's next paragraph below it from there
     "pages_cell_table_down_from_spacing": 4,
+    # Four times on a page of its own: a table whose cell's empty first paragraph holds a 15000 x 8000 rectangle
+    # wrapped square 12000 from its left, text on both sides of it, 0 or 2000 down, overlapping the text or not,
+    # then six empty paragraphs and two of text: the empty lines reaching it go beside it (two empty pieces at one
+    # height), the table as tall as with room on one side only
+    "pages_cell_object_on_both_sides_beside_empty_lines": 5,
     "pages_square_band_table_as_character_alone": 1,  # 47058 wide: beside it all the same, reaching past the room
     "pages_square_band_narrow_table_as_character_alone": 1,  # 5000 wide: beside it, and the lines after
     # ... or text whose lines in the room beside the picture are as wide as it, and an object set as a

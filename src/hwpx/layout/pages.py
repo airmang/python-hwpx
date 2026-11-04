@@ -1014,6 +1014,7 @@ class _Measure:
                     raise _Unsupported("an object placed top and bottom or square after the text of a paragraph "
                                        "with a layout cache in a cell")
                 lines, narrow, own = _clear_of(self, fixed, top, shape.prev, anchor, obj, bands, empty, width)
+                _beside_one_side(narrow, empty)
                 if narrow and not _cache_lines(paragraph):
                     raise _Unsupported("text laid out otherwise beside a square-wrapped object in a cell")
             else:
@@ -1035,6 +1036,7 @@ class _Measure:
                     narrow = found
                 else:
                     raise _Unsupported("lines beside a square-wrapped object in a cell that do not settle")
+                _beside_one_side(narrow, empty)
                 if narrow and ("\n" in text or style.head):
                     raise _Unsupported("a paragraph with margins, a label or line breaks beside a square-wrapped "
                                        "object in a cell")
@@ -1405,6 +1407,12 @@ def _drawn_lines(measure: _Measure, paragraphs: list[Any], width: int | None = N
         below = top  # where the paragraph's next line would stand
         for index, segment in enumerate(segments):
             vertpos = int(segment.get("vertpos", 0))
+            if index and vertpos == int(segments[index - 1].get("vertpos", 0)) \
+                    and int(segment.get("horzpos", 0)) > int(segments[index - 1].get("horzpos", 0)):
+                follows.append(follows[-1])  # a line's second piece beside an object with text on both sides: at
+                tops.append(tops[-1])  # the first's height
+                heights.append(int(segment.get("textheight", segment.get("vertsize", 0))))
+                continue
             follows.append(below)
             table = pushing.get(index)
             if table is not None and vertpos == _cell_extent(measure, table) + _down(table.find(f"{HP}pos")) \
@@ -2456,8 +2464,21 @@ def _cell_band(measure: _Measure, obj: Any, top: int, width: int) -> tuple[int, 
     left = left if left >= _MIN_SIDE and flow != "RIGHT_ONLY" else 0
     right = right if right >= _MIN_SIDE and flow != "LEFT_ONLY" else 0
     if left and right:
-        raise _Unsupported(f"text on both sides of {_local(obj)} wrapped square in a cell")
+        return up, foot, _BothSides(min(left, right))
     return up, foot, (left or right) or None
+
+
+class _BothSides(int):
+    """The room beside an object wrapped square in a cell with text on both sides of it (the narrower side's): an
+    empty line goes beside it, two empty pieces at one height as tall as the line; text there is not followed."""
+
+
+def _beside_one_side(narrow: dict[int, int], empty: bool) -> None:
+    """Text on lines *narrow* beside an object wrapped square in a cell with text on both sides of it (unless
+    the paragraph is *empty*) is not followed."""
+
+    if not empty and any(isinstance(room, _BothSides) for room in narrow.values()):
+        raise _Unsupported("text on both sides of an object wrapped square in a cell")
 
 
 def _clear_of(measure: _Measure, metrics: list[tuple[int, int]], top: int, prev: int, anchor: int, obj: Any,
@@ -2488,7 +2509,7 @@ def _clear_of(measure: _Measure, metrics: list[tuple[int, int]], top: int, prev:
                     y, moved = band[1], True
         beside = [band[2] for band in around if band[2] is not None and y < band[1] and y + height > band[0]]
         if beside:
-            narrow[index] = min(beside)
+            narrow[index] = _BothSides(min(beside)) if any(isinstance(room, _BothSides) for room in beside)                 else min(beside)
         placed.append((y, height, advance))
     return placed, narrow, own
 
