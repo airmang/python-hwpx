@@ -371,6 +371,22 @@ def test_a_paragraph_headed_by_a_label_the_header_does_not_define_is_left_for_ha
     assert report.written == 0
 
 
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_a_paragraph_with_a_negative_margin_is_left_for_hancom(side: str) -> None:
+    # A margin reaching past the column's edge: Hancom lays such lines out at a width not pinned down (one 500
+    # out on the right, or 339 out on the left in a cell, broke a character or more off FormFit's).
+    document = HwpxDocument.new()
+    document.add_paragraph("가나다 " * 40)
+    ref = _body(document)[-1].get("paraPrIDRef")
+    shape = next(s for s in document.oxml.headers[0].element.iter(f"{HH}paraPr") if s.get("id") == ref)
+    for margin in shape.iter("{http://www.hancom.co.kr/hwpml/2011/core}" + side):
+        margin.set("value", "-500")
+
+    report = write_line_caches(document)
+
+    assert report.written == 0
+
+
 @pytest.mark.parametrize(("condense", "spacing", "written"), [("0", 0, 1), ("10", 0, 0), ("0", -10, 0)])
 def test_a_no_break_space_among_spaces_that_shrink_is_left_for_hancom(condense: str, spacing: int, written: int) -> None:
     # A no-break space in a paragraph with 최소 공백 was seen to break a line elsewhere than FormFit, and one with

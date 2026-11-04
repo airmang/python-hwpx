@@ -52,8 +52,8 @@ A paragraph is left for Hancom when its line breaks are less sure: a character n
 for, a word too long for a line, a line break that moves when every line is laid out :data:`_MARGIN` narrower or
 wider (a line ending that close to its room may end elsewhere in Hancom), or a tab whose text before it is closer
 to a tab stop than a layout unit for each character since the line's start or the last tab stop (at most
-:data:`_MARGIN`), or a paragraph shape naming a bullet or a number the header does not define (Hancom draws a label
-there all the same). A paragraph that has a cache keeps it. A document mixing paragraphs with and without a cache is
+:data:`_MARGIN`), a paragraph shape naming a bullet or a number the header does not define (Hancom draws a label
+there all the same), or one with a negative left or right margin. A paragraph that has a cache keeps it. A document mixing paragraphs with and without a cache is
 laid out as one. Nothing is written when the estimate does not follow the document.
 """
 
@@ -261,7 +261,8 @@ def _picture_lines(measure: Any, paragraph: Any, width: int) -> tuple[list[dict[
         return None
     vertical = _vertical_align(measure, paragraph.get("paraPrIDRef"))
     shape = measure.shape(paragraph.get("paraPrIDRef"))
-    if vertical not in _BASELINES or shape.font_line or _unknown_label(measure, paragraph.get("paraPrIDRef")):
+    if vertical not in _BASELINES or shape.font_line or _unknown_label(measure, paragraph.get("paraPrIDRef")) \
+            or shape.left < 0 or shape.right < 0:
         return None
     room = width - shape.left - shape.right
     headed = measure.headed(paragraph)
@@ -466,6 +467,9 @@ def _lines(measure: Any, paragraph: Any, width: int, *, first: bool,
         return None
     if _unknown_label(measure, paragraph.get("paraPrIDRef")):
         return None  # a bullet or number the header does not define: Hancom draws a label all the same
+    if shape.left < 0 or shape.right < 0:
+        return None  # a margin reaching past the column's or the cell's edge: how wide Hancom lays the lines out
+        # then was not pinned down
     if measure.pictured(paragraph.get("paraPrIDRef")):
         return None  # a picture bullet sized by its picture: its room was not measured
     size, refs, sizes = _pages._text_size(measure, runs)
