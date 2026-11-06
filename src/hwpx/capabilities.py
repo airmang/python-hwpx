@@ -378,6 +378,23 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": (),
     },
     {
+        "area": "markdown-import",
+        "namespace": None,
+        "matrix_row": "Markdown 가져오기(Markdown → 문서)",
+        # 흔한 Markdown 부분 집합(제목·문단·목록·표·굵게/기울임)을 기존
+        # 저작 primitive(add_paragraph·add_run·add_table·apply_list_format)로
+        # 쓴다. 새 요소를 만들지 않으므로 coverage_ledger 등록은 없다.
+        # 진입점은 모듈 함수(from_markdown)이고 기존 문서에는
+        # doc.text.append_markdown 으로 덧붙인다. 6.x 루트 예산에 빈 칸이
+        # 없어 루트 생성자가 아니라 모듈에 산다(mail-merge와 같은 이유로
+        # namespace=None).
+        "entry_points": (
+            "hwpx.tools.markdown_import:from_markdown",
+            "hwpx.tools.markdown_import:append_markdown",
+        ),
+        "authoring_methods": (),
+    },
+    {
         "area": "dutmal-compose",
         "namespace": "doc.shapes",
         "matrix_row": "덧말·글자 겹치기",

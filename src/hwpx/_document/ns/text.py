@@ -20,6 +20,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...objects.highlight import Highlight
+    from ...tools.markdown_import import MarkdownStyle
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
 
 __all__ = ["TextNamespace"]
@@ -121,6 +122,22 @@ class TextNamespace(_Namespace):
         from .. import persistence as _persistence
 
         return _persistence.export_html(self._doc, **kwargs)
+
+    # -- 가져오기 ----------------------------------------------------------
+
+    def append_markdown(self, markdown: str, *, style: "MarkdownStyle | None" = None) -> None:
+        """*markdown* 을 마지막 구역 끝에 문단·목록·표로 덧붙인다.
+
+        ``hwpx.tools.markdown_import.from_markdown`` 과 같은 부분 집합(제목 ``#``~``####``,
+        문단, ``-``/``1.`` 목록, ``|`` 표, ``**굵게**``/``*기울임*``)을 쓴다.
+        새 문단은 앞 문단의 서식을 물려받지 않는다. 모르는 Markdown 은 평문으로
+        쓰고 오류를 내지 않는다. *style* 은
+        :class:`hwpx.tools.markdown_import.MarkdownStyle`.
+        """
+
+        from ...tools.markdown_import import append_markdown
+
+        append_markdown(self._doc, markdown, style=style)
 
     # -- 순회·검색 ---------------------------------------------------------
 

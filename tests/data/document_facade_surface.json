@@ -21,7 +21,7 @@
  },
  "add_paragraph": {
   "kind": "method",
-  "signature": "(self, text: 'str' = '', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, include_run: 'bool' = True, inherit_style: 'bool' = True, **extra_attrs: 'str') -> 'HwpxOxmlParagraph'"
+  "signature": "(self, text: 'str' = '', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, include_run: 'bool' = True, inherit_style: 'bool | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlParagraph'"
  },
  "add_picture": {
   "kind": "method",
@@ -54,7 +54,7 @@
  },
  "new": {
   "kind": "classmethod",
-  "signature": "(cls) -> \"'HwpxDocument'\""
+  "signature": "(cls, *, inherit_style: 'bool' = True) -> \"'HwpxDocument'\""
  },
  "notes": {
   "kind": "property"
