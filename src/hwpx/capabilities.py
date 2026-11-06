@@ -343,6 +343,16 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": (),
     },
     {
+        # id 붙은 글 덩어리: 짧은 목록으로 읽고(outline) id로 일괄 바꾼다(apply_changes).
+        # 기존 문단의 글만 바꾸고 새 요소를 만들지 않으므로 원장 라우팅은 없다
+        # (find-replace와 같은 원칙).
+        "area": "text-blocks",
+        "namespace": "doc.text",
+        "matrix_row": "id 기반 글 읽기·일괄 바꿈(text blocks)",
+        "entry_points": ("hwpx.document:HwpxDocument",),
+        "authoring_methods": (),
+    },
+    {
         "area": "hyperlink-bookmark",
         "namespace": "doc.refs",
         "matrix_row": "하이퍼링크·책갈피",

@@ -21,6 +21,7 @@ from ._base import _Namespace
 if TYPE_CHECKING:
     from ...objects.highlight import Highlight
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
+    from ..text_blocks import TextBlock, TextChangeReport, TextOutline
 
 __all__ = ["TextNamespace"]
 
@@ -153,6 +154,67 @@ class TextNamespace(_Namespace):
                 target_char=target_char,
             )
         ]
+
+    # -- id 붙은 글 덩어리 ---------------------------------------------------
+
+    def blocks(self) -> Iterator["TextBlock"]:
+        """본문 문단과 표 칸 문단(칸 안 표 포함)을 문서 순서대로, 안정적인 id와 함께 내놓는다.
+
+        id는 위치로 정해진다: ``s0p16`` (0번 구역의 16번 본문 문단, 번호는 0부터), ``s0p16t0r3c0q0`` (그 문단의 0번 표,
+        3행 0열 칸의 0번 문단), 칸 안 표는 ``…q0t0r1c1q0`` 처럼 이어진다. 행·열은 칸의 주소라
+        병합 칸은 대표 칸에서 한 번만 나온다. 저장·재열기 뒤에도 같고, 앞쪽에 문단·표·칸을
+        넣거나 지울 때만 바뀐다. 머리말·꼬리말·각주·메모·글상자는 포함하지 않는다.
+        """
+
+        from ..text_blocks import iter_text_blocks
+
+        return iter_text_blocks(self._doc)
+
+    def outline(
+        self,
+        *,
+        max_chars: int = 8000,
+        max_items: int | None = None,
+        max_block_chars: int = 200,
+        after: str | None = None,
+    ) -> "TextOutline":
+        """글자가 있는 덩어리를 ``{"id", "where", "text"}`` 목록으로, 글자 예산 안에서 돌려준다.
+
+        빈 문단은 빼고, 탭·줄 바꿈은 공백으로, 제어 문자는 지운다. *max_block_chars* 보다 긴
+        덩어리는 앞부분만 남기고 ``…`` 로 끝낸다(``"truncated": True``). *max_chars* 는 각 항목의
+        id·위치·글자를 센다. 예산이나 *max_items* 가 다하면 항목 단위로 멈추고 ``complete`` 가
+        ``False``, ``next_after`` 가 마지막 id다 — 다음 쪽은 ``after=next_after`` 로 읽는다. 한 쪽에는 예산보다 큰 항목이라도 적어도 하나가 들어간다.
+        ``to_text()`` 는 한 줄에 한 항목인 가장 짧은 프롬프트 형태다.
+        """
+
+        from ..text_blocks import outline
+
+        return outline(
+            self._doc,
+            max_chars=max_chars,
+            max_items=max_items,
+            max_block_chars=max_block_chars,
+            after=after,
+        )
+
+    def apply_changes(
+        self,
+        changes: "dict[str, str]",
+        *,
+        check_overflow: bool = True,
+    ) -> "TextChangeReport":
+        """``{id: 새 글}`` 을 한 번에 적용하고 id마다 결과를 보고한다.
+
+        모든 id를 먼저 찾은 뒤 쓴다. 없는 id는 ``unknown_ids`` 로 보고하고 나머지는 적용한다.
+        한 런 안에서 끝나는 바꿈은 런과 컨트롤을 모두 지키고, 서식이 다른 런에 걸치거나 탭·줄
+        바꿈을 넣는 바꿈은 문단 첫 런의 서식으로 쓴다(``rewritten``). *check_overflow* 면 바뀐 칸을
+        전후로 재어, 칸이 품는 줄보다 많이(그리고 전보다 많이) 필요할 것으로 추정되는 칸을
+        ``overflow`` 에 넣는다 — 렌더가 아니라 form-fit 측정기의 추정이다.
+        """
+
+        from ..text_blocks import apply_text_changes
+
+        return apply_text_changes(self._doc, changes, check_overflow=check_overflow)
 
     # -- 치환 --------------------------------------------------------------
 
