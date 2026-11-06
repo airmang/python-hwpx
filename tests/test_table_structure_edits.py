@@ -376,3 +376,41 @@ def test_a_table_holding_a_table_keeps_it_through_an_edit() -> None:
     assert [table.cell(row, 0).tables[0].cell(0, 0).text for row in (0, 1)] == ["inner", "inner"]
     with HwpxDocument.open(document.to_bytes()) as reopened:
         assert reopened.tables[0].row_count == 3
+
+
+BLANK_3HAK = Path(__file__).parent / "fixtures" / "m105_evalplan" / "blank_form_3hak.hwpx"
+
+
+def _saved_heights(data: bytes) -> list[int]:
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        section = etree.fromstring(archive.read("Contents/section0.xml"))
+    return [int(table.find(HP + "sz").get("height")) for table in section.iter(HP + "tbl")]
+
+
+def test_a_table_hancom_split_across_pages_keeps_its_saved_height_through_row_edits() -> None:
+    # In this Hancom-saved evaluation plan, tables 19-21 have the same 15 rows and save 30463, 17551 and 5865:
+    # a table split across pages saves the height of its part on the first page, not its rows' height. Table 8
+    # (13 rows of 28762 saved as 13222) is one of them. Moving that height by the rows' delta took it to 0
+    # when the evaluation-plan fill deleted nine of its rows.
+    source = BLANK_3HAK.read_bytes()
+    saved = _saved_heights(source)
+    assert saved[19:22] == [30463, 17551, 5865]
+    op = {"op": "delete_row", "table_index": 8, "rows": list(range(4, 13))}
+
+    by_bytes = apply_table_ops(source, [op])
+    assert by_bytes.ok, by_bytes.skipped
+    assert _saved_heights(by_bytes.data)[8] == saved[8] == 13222
+
+    document = HwpxDocument.open(source)
+    document.tables.all[8].delete_rows(list(range(4, 13)))
+    assert _saved_heights(document.to_bytes())[8] == 13222
+
+
+def test_a_table_saved_as_tall_as_its_rows_still_moves_by_their_delta() -> None:
+    # Table 9 of the same form fits its page: it saves its rows' 25961, so a deleted row takes its height.
+    source = BLANK_3HAK.read_bytes()
+    assert _saved_heights(source)[9] == 25961
+
+    result = apply_table_ops(source, [{"op": "delete_row", "table_index": 9, "rows": [9]}])
+    assert result.ok, result.skipped
+    assert 0 < _saved_heights(result.data)[9] < 25961

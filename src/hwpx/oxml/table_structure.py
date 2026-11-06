@@ -157,13 +157,20 @@ class TableStructureEdits:
     def _grow_height(self, before: int | None) -> None:
         """Move the table's saved height (``hp:sz``) by what its rows gained or lost in the edit, as
         Hancom saves the height of the rows it lays out: the rows left as they were keep the height Hancom
-        gave them. With rows the estimate does not follow, the height stays as it was."""
+        gave them. With rows the estimate does not follow, the height stays as it was.
+
+        A table saved shorter than its rows is one Hancom split across pages: it saves the height of the
+        part on the table's first page (tables of the same rows save different heights by where they start),
+        and the rows' gain or loss does not say how that part changes. Its height also stays as it was, rather
+        than moving by the whole delta, which can take it to nothing."""
 
         after = self._rows_height()
         size = self.element.find(f"{_HP}sz")
         if before is None or after is None or size is None or after == before:
             return
         height = int(size.get("height", 0) or 0)
+        if height < before:
+            return
         size.set("height", str(max(0, height + after - before)))
 
 
