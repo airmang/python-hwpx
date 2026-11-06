@@ -61,10 +61,22 @@ class MarkdownStyle:
     bullet_char: str | None = None
 
     def __post_init__(self) -> None:
+        from ..errors import HwpxValueError
+
         if len(self.heading_sizes) != 4 or any(size <= 0 for size in self.heading_sizes):
-            raise ValueError("heading_sizes must be four positive point sizes (# to ####)")
+            raise HwpxValueError(
+                "heading_sizes must be four positive point sizes (# to ####)",
+                code="text-markdown-style-invalid",
+                context={"heading_sizes": tuple(self.heading_sizes)},
+                suggestion="Give four positive point sizes, one per heading level # to ####.",
+            )
         if self.body_size is not None and self.body_size <= 0:
-            raise ValueError("body_size must be positive")
+            raise HwpxValueError(
+                "body_size must be positive",
+                code="text-markdown-style-invalid",
+                context={"body_size": self.body_size},
+                suggestion="Give a positive point size, or None to keep the document's body size.",
+            )
 
 
 # --------------------------------------------------------------------------
