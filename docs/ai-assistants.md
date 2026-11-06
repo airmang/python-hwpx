@@ -87,6 +87,30 @@ environment where PyPI is unavailable:
    confirm the requested change is present.
 ```
 
+## 작은 모델·로컬 LLM — 짧은 목록으로 읽고 id로 바꾸기
+
+27B급 로컬 모델은 문서 구조를 통째로 읽으면 문맥이 넘치고, 긴 인수를 담은 도구 호출이
+깨지기 쉽습니다. 모델에게는 id 붙은 짧은 목록만 보여 주고, 바꿀 글만 `{id: 새 글}`로
+받아 코드가 문서에 넣는 방식이 안정적입니다.
+
+```python
+from hwpx import HwpxDocument
+
+doc = HwpxDocument.open("학습지.hwpx")
+page = doc.text.outline(max_chars=8000)   # [{"id", "where", "text"}, ...]
+prompt = page.to_text()                    # "[s0p3t0r1c1q0] 표1 2행 2열: ..." 한 줄씩
+# page.complete 가 False 면 doc.text.outline(after=page.next_after) 로 다음 쪽
+
+changes = {"s0p3t0r1c1q0": "바뀐 문항 내용"}  # 모델이 JSON 으로 돌려준 것
+report = doc.text.apply_changes(changes)
+report.unknown_ids   # 문서에 없는 id
+report.overflow      # 칸이 넘칠 것으로 추정되는 곳 — 글을 줄이게 다시 물어보기
+doc.save_to_path("학습지-변형.hwpx")
+```
+
+id는 위치로 정해져 저장·재열기 뒤에도 같습니다. 문단·표·칸을 넣거나 지우면 그 뒤의
+id가 바뀌므로, 목록을 읽은 뒤 구조를 바꿨다면 목록을 다시 읽습니다.
+
 ## 최소 예제
 
 wheel 설치 뒤 새 문서를 만들어 돌려주는 가장 짧은 코드입니다.

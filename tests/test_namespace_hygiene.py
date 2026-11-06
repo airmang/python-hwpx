@@ -100,7 +100,7 @@ def test_the_page_namespace_is_free_of_internal_callbacks() -> None:
         ("refs", ["add_bookmark", "add_hyperlink"]),
         ("tracking", ["insert", "delete", "replace", "add_change", "change", "author"]),
         ("styles", ["resolve", "ensure_run", "apply_paragraph_format"]),
-        ("text", ["plain", "markdown", "html", "runs", "find_runs", "replace", "highlight", "highlights"]),
+        ("text", ["plain", "markdown", "html", "runs", "find_runs", "replace", "highlight", "highlights", "blocks", "outline", "apply_changes"]),
     ],
 )
 def test_every_namespace_exposes_its_verbs(namespace: str, verbs: list[str]) -> None:
@@ -132,6 +132,7 @@ AREA_NAMESPACES = {
     "drop-cap": "shapes",
     "redline": "tracking",
     "highlight": "text",
+    "text-blocks": "text",
     "border-fill-image-gradient": "styles",
     "memo": "notes",
     "footnote-endnote": "notes",
