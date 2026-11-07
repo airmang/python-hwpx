@@ -99,6 +99,8 @@ class HwpxDocument(_LegacyFacade):
         # is resolved lazily and only when a policy actually renders, so normal
         # (transparent) saves never probe Hancom.
         self._save_pipeline = SavePipeline()
+        # What add_paragraph(inherit_style=None) means for this document (new(inherit_style=...)).
+        self._inherit_style_default = True
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of the document state."""
@@ -183,15 +185,24 @@ class HwpxDocument(_LegacyFacade):
         return self._hwp5_report
 
     @classmethod
-    def new(cls) -> "HwpxDocument":
+    def new(cls, *, inherit_style: bool = True) -> "HwpxDocument":
         """Return a new blank document based on the default skeleton template.
 
         Its only paragraph is empty and holds the section settings, and
         :meth:`add_paragraph` appends after it, so the document starts with an
         empty line. Write the first line with ``document.paragraphs[0].text = ...``.
+
+        ``inherit_style=False`` makes a clean document: :meth:`add_paragraph`
+        then starts every paragraph from the base shapes (바탕글) instead of
+        copying the last paragraph's, unless a call passes ``inherit_style``
+        itself. A paragraph added after a heading or a list item then does not
+        pick up its outline or list numbering. The default keeps the inheriting
+        behaviour.
         """
 
-        return cls.open(blank_document_bytes())
+        document = cls.open(blank_document_bytes())
+        document._inherit_style_default = bool(inherit_style)
+        return document
 
     @classmethod
     def from_package(cls, package: HwpxPackage) -> "HwpxDocument":
@@ -411,12 +422,14 @@ class HwpxDocument(_LegacyFacade):
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
-        inherit_style: bool = True,
+        inherit_style: bool | None = None,
         **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
         """Append a paragraph to the document and return it.
 
-        When *inherit_style* is ``True`` (the default) and no explicit
+        *inherit_style* ``None`` (the default) follows the document: ``True``
+        unless it was made with ``HwpxDocument.new(inherit_style=False)``.
+        When it is ``True`` and no explicit
         style references are given, the new paragraph inherits
         ``paraPrIDRef``, ``styleIDRef`` and ``charPrIDRef`` from the
         last paragraph in the target section so that consecutive
@@ -456,7 +469,7 @@ class HwpxDocument(_LegacyFacade):
             char_pr_id_ref=char_pr_id_ref,
             run_attributes=run_attributes,
             include_run=include_run,
-            inherit_style=inherit_style,
+            inherit_style=self._inherit_style_default if inherit_style is None else inherit_style,
             **cast(Any, extra_attrs),
         )
 

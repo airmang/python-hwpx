@@ -748,6 +748,12 @@
       "rationale": "QName-aware bounded byte-span selection of text after a table within its own paragraph; reusable format behavior. The caller supplies the predicate, so this module contains no genre, institution, workflow or caption policy. Secure XML parsing and existing OPC markup tokenization validate namespace scopes without reserializing source bytes."
     },
     {
+      "path": "src/hwpx/tools/markdown_import.py",
+      "disposition": "core",
+      "approvedBy": "markdown-import-for-small-models",
+      "rationale": "from_markdown/append_markdown: writes a common Markdown subset (headings, paragraphs, nested lists, pipe tables, bold/italic) into HWPX through the document's own paragraph, list and table authoring. MarkdownStyle is genre-neutral sizing only; genre presets (official letters, notices) stay with the application layer that passes a style in."
+    },
+    {
       "path": "src/hwpx/_document/text_blocks.py",
       "disposition": "core",
       "approvedBy": "text-blocks-for-small-models",

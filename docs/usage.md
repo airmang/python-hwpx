@@ -995,6 +995,31 @@ options.set_page_margins(left=2000, right=2000, header=1500, footer=1500)
 document.headers[0].set_begin_numbering(page=1)
 ```
 
+## Markdown으로 문서 만들기
+
+언어 모델이 가장 안정적으로 쓰는 형식이 Markdown이다. `from_markdown`은 흔히 쓰는 부분 집합
+(`#`~`####` 제목, 문단, `-`/`1.` 목록, `|` 표, `**굵게**`·`*기울임*`)으로 새 문서를 만들고,
+모르는 Markdown은 평문으로 쓴다. 이미 있는 문서에는 `doc.text.append_markdown`으로 덧붙인다.
+
+<!-- standalone-python-example -->
+```python
+from hwpx.tools.markdown_import import MarkdownStyle, from_markdown
+
+doc = from_markdown(
+    "# 운영 보고\n\n이번 학기 **핵심 성과**를 정리한다.\n\n"
+    "- 참여 학생 120명\n- 만족도 4.6점\n\n"
+    "| 구분 | 목표 | 실적 |\n|---|---|---|\n| 1학기 | 10 | 12 |\n",
+    style=MarkdownStyle(heading_sizes=(18, 13, 11, 10)),
+)
+doc.text.append_markdown("## 맺음\n\n다음 학기에도 이어 간다.")
+doc.save_to_path("report.hwpx")
+```
+
+새 문단은 앞 문단의 모양을 물려받지 않아 제목·목록 번호가 뒤 문단에 따라붙지 않는다. 직접
+`add_paragraph`로 문서를 쌓을 때도 같은 동작을 원하면 `HwpxDocument.new(inherit_style=False)`로
+문서를 만든다. 공문·가정통신문 같은 장르별 모양은 이 라이브러리가 아니라 응용 계층이
+`MarkdownStyle`로 정한다.
+
 ## 단락 삭제
 
 문단 객체의 `remove()` 메서드를 호출하거나, 섹션/문서 수준에서 인덱스 또는 인스턴스로 단락을 삭제할 수 있습니다.
