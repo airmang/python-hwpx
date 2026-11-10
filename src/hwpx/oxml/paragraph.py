@@ -49,6 +49,8 @@ from ._paragraph_text_edit import (
     paragraph_container,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
+    set_text_with_tabs,
+    text_marks_as_elements_in,
 )
 from .objects import (
     HwpxOxmlInlineObject,
@@ -112,6 +114,7 @@ class HwpxOxmlParagraph:
             replacement = LET.fromstring(xml_bytes)
         else:
             replacement = ET.fromstring(xml_bytes)
+        text_marks_as_elements_in(replacement)  # "\n" set on a model span, as hp:lineBreak
         paragraph_children = list(parent)
         index = paragraph_children.index(self.element)
         parent.remove(self.element)
@@ -387,7 +390,8 @@ class HwpxOxmlParagraph:
             )
         node, offset = candidates[0]
         current = node.text or ""
-        node.text = _sanitize_text(current[:prefix - offset] + replacement + current[end - offset:])
+        # A tab goes in as hp:tab and a line break as hp:lineBreak, as the other text setters write them.
+        set_text_with_tabs(node, current[:prefix - offset] + replacement + current[end - offset:])
         _clear_paragraph_layout_cache(self.element)
         self.section.mark_dirty()
 

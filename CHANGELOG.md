@@ -27,6 +27,10 @@
 
 ### 고침
 
+- 찾아 바꾸기와 부분 편집도 줄 바꿈을 `hp:lineBreak`로, 탭을 `hp:tab`으로 쓴다. `run.replace_text`,
+  `doc.text.replace`(기본·`everywhere=True`), `doc.replace_text_in_runs`, `paragraph.apply_model`·`run.apply_model`은
+  바꿀 글의 `"\n"`을 `hp:t` 안에 글자로 남겼고, `paragraph.set_text_preserving_runs`는 `"\n"`을 글자로 남기고 탭은
+  지웠다. 이제 `paragraph.text =`·`add_run`과 같은 요소로 쓴다(`"\r\n"`·`"\r"`도 줄 바꿈 하나).
 - `strip_runs_by_color`가 표·글상자·각주를 품은 대상 색 run에서 안쪽 run의 글을 지우지 않는다. 전에는 run의 여는
   태그를 그 뒤 첫 `</hp:run>`과 짝지어, 빨강 run이 표를 품고 있으면 첫 칸의 검은 글이 지워지고도 `applied`로
   보고됐다. 빈 run(`<hp:run …/>`) 뒤의 다른 색 글도 같은 까닭으로 지워졌다. 이제 대상 run이 직접 가진 글만 비우고,
