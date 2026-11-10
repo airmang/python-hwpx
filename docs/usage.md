@@ -1158,6 +1158,8 @@ for mark in span.marks:
 paragraph.apply_model(model)
 ```
 
+모델로 문단의 글이나 런을 바꾸면 `apply_model()`이 그 문단의 줄 배치 캐시(`hp:linesegarray`)를 지웁니다. 한/글은 캐시의 줄 수를 믿고 글을 그 안에 눌러 담으므로, 바뀐 내용 위에 옛 캐시를 남기지 않습니다. 런 텍스트에 넣은 `"\n"`과 탭은 `hp:lineBreak`·`hp:tab`으로 기록됩니다.
+
 ## 런 서식 지정
 
 헤더의 `<hh:charPr>` 정의는 여러 런이 공유하는 문자 서식을 담고 있습니다. `HwpxDocument.ensure_run_style()`은 굵게/기울임/밑줄 조합에 맞는 `charPr` 항목을 찾아 ID를 반환하고, 필요한 경우 새 항목을 생성합니다. 문단 객체는 `add_run()` 메서드를 통해 해당 서식을 즉시 사용하는 런을 만들 수 있습니다.

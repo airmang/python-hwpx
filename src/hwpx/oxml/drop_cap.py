@@ -57,7 +57,14 @@ import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
-from ._document_primitives import _HC, _HP, _append_child, _object_id, _paragraph_id
+from ._document_primitives import (
+    _HC,
+    _HP,
+    _append_child,
+    _clear_paragraph_layout_cache,
+    _object_id,
+    _paragraph_id,
+)
 from .objects import HwpxOxmlInlineObject
 
 if TYPE_CHECKING:
@@ -264,5 +271,8 @@ def _paragraph_add_drop_cap(
         run.append(drop_cap)
     else:
         run.insert(list(run).index(text), drop_cap)
+    # The text now wraps around the drop cap, so the paragraph's cached lines are those of the old
+    # layout. (The empty hp:linesegarray inside the drop cap itself is not a cache and stays.)
+    _clear_paragraph_layout_cache(self.element)
     self.section.mark_dirty()
     return HwpxOxmlInlineObject(drop_cap, self)

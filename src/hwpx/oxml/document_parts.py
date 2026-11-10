@@ -488,7 +488,9 @@ class HwpxOxmlDocument:
         sections: list[HwpxOxmlSection] = []
         for section_index, path in enumerate(section_paths):
             try:
-                sections.append(HwpxOxmlSection(path, package.get_xml(path)))
+                section = HwpxOxmlSection(path, package.get_xml(path))
+                section.remember_source(package.read(path))
+                sections.append(section)
             except Exception:
                 logger.exception(
                     "section 파싱 실패: section_index=%d, part_path=%s",

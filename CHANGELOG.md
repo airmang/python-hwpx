@@ -27,6 +27,14 @@
 
 ### 고침
 
+- `paragraph.apply_model`(글·런을 바꾼 경우), `add_index_mark`, `add_title_mark`, `add_drop_cap`이 고친 문단의 줄 배치
+  캐시를 지운다. 전에는 문단 내용이 바뀌어도 옛 캐시가 남았다. `apply_model`은 모델이 문단 내용을 바꾸고 캐시는 그대로
+  돌려준 때만 지우므로, 모델로 캐시 자체를 고치는 쓰임은 전과 같다.
+- 저장 때의 낡은 캐시 훑기가, 고친 구역에서 **내용이 바뀐 문단에 남은 옛 캐시**를 지운다. 구역은 읽을 때(그리고 저장할
+  때마다)의 "문단 내용 + 캐시" 짝을 기억하고, 파일에 있던 캐시가 다른 내용 위에 놓여 있으면 그 캐시를 지운다. 편집
+  API가 캐시 지우기를 빠뜨려도 글이 한 글자만 늘어난 경우까지 잡힌다(전에는 마지막 줄 뒤 글이 그 줄 폭의 2배를 넘어야
+  지워졌다). 내용이 그대로인 문단의 캐시와 읽은 뒤 새로 쓴 캐시는 건드리지 않는다. 고치지 않은 구역은 전처럼 바이트
+  그대로 저장된다. 폭 추정으로 지우는 기존 기준(2배)은 그대로다.
 - 찾아 바꾸기와 부분 편집도 줄 바꿈을 `hp:lineBreak`로, 탭을 `hp:tab`으로 쓴다. `run.replace_text`,
   `doc.text.replace`(기본·`everywhere=True`), `doc.replace_text_in_runs`, `paragraph.apply_model`·`run.apply_model`은
   바꿀 글의 `"\n"`을 `hp:t` 안에 글자로 남겼고, `paragraph.set_text_preserving_runs`는 `"\n"`을 글자로 남기고 탭은

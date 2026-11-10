@@ -73,6 +73,10 @@ class HwpxOxmlSection:
         self._document = document
         # the header/footer copies that agree when opened, for the save to tell which copy an edit changed
         self._story_marks = story_marks(element)
+        # the part as it was read, for the save to tell a line cache that outlived its paragraph's content
+        self._source_xml: bytes | None = None
+        self._source_caches: list[Any] | None = None
+        self._tracked_caches: list[tuple[Any, bytes, bytes]] | None = None
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of section structure."""
@@ -563,9 +567,16 @@ class HwpxOxmlSection:
         (the cache lacks lines, so Hancom would draw the tail over itself). The
         save path runs this on every section, so a document whose own caches
         look like that still saves; Hancom lays those paragraphs out again.
+
+        In a section that was edited, a cache the part was read with goes as
+        well when its paragraph no longer has the content it came with,
+        whatever its lines look like: the edit that changed the paragraph left
+        it behind, and Hancom would press the new text into the old line
+        count. A cache on unchanged content, and one written since the part
+        was read, stays.
         """
 
-        removed = 0
+        removed = self._remove_outlived_layout_caches()
         squeezed = self._squeezed_paragraph_shapes()
         narrowed = self._narrowed_char_shapes()
         for paragraph in self._element.iter():
@@ -579,6 +590,44 @@ class HwpxOxmlSection:
         if removed:
             self.mark_dirty()
         return removed
+
+    def _remove_outlived_layout_caches(self) -> int:
+        """Drop the caches an edit left on a paragraph whose content it changed."""
+
+        if not self._dirty:
+            return 0
+        from ._layout_cache_guard import remove_outlived_caches, track
+
+        tracked = self._tracked_caches
+        if tracked is None:
+            if self._source_xml is None or self._source_caches is None:
+                return 0
+            from ..opc.xml_utils import parse_xml
+
+            try:
+                tracked = track(self._source_caches, parse_xml(self._source_xml))
+            except Exception:  # the part was read once already; without it nothing is judged
+                tracked = None
+            self._source_xml = self._source_caches = None
+            if tracked is None:
+                return 0
+        removed, self._tracked_caches = remove_outlived_caches(self._element, tracked)
+        return removed
+
+    def remember_source(self, source_xml: bytes) -> None:
+        """Note the part's bytes and its line caches as read, before anything edits the tree.
+
+        The save uses them to tell a cache that an edit left on a paragraph whose
+        content it changed (``_layout_cache_guard``).
+        """
+
+        if not hasattr(self._element, "getparent"):  # lxml trees only
+            return
+        from ._layout_cache_guard import cache_elements
+
+        self._source_xml = source_xml
+        self._source_caches = cache_elements(self._element)
+        self._tracked_caches = None
 
     def remove_layout_caches(self) -> int:
         """Drop all paragraph layout caches from this section.
