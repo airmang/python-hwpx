@@ -1257,6 +1257,13 @@ for element in paragraphs_with_bookmark:
 | `save_to_stream(stream)` | 검증된 HWPX만 `BinaryIO` 스트림에 기록 |
 | `to_bytes()` | 검증된 HWPX를 `bytes`로 직렬화 |
 
+세 방법의 기본 검사가 보는 범위는 다음과 같습니다.
+
+- 보는 것: ZIP과 각 XML 파트가 읽히는지, 한/글이 열지 못하는 구조(필수 자식이 없는 표·도형·글맵시·OLE·동영상, 빈 컨트롤, 필수 파트·속성 누락), 글보다 뒤를 가리키거나 줄 수가 크게 모자란 줄 배치 캐시.
+- 보지 않는 것: **참조 무결성**. 본문이 가리키는 글자 모양(`charPrIDRef`)·문단 모양(`paraPrIDRef`)·스타일·테두리·그림 자료가 `header.xml`과 패키지에 실제로 있는지는 기본 저장에서 확인하지 않습니다. 없는 id를 가리키는 문서도 기본 검사를 통과해 저장됩니다.
+
+참조까지 확인하려면 `save_report(path, quality=QualityPolicy.strict())`를 쓰거나(`REFERENCE_INTEGRITY_FAILED`로 보고), `hwpx.tools.id_integrity.check_id_integrity(document)`를 직접 부릅니다. 이 검사는 문서를 여는 시간의 0.7배쯤 더 걸리고, 한/글이 저장한 문서 가운데에도 걸리는 것이 있어(정의되지 않은 글머리표 `idRef="0"`) 기본 저장에는 넣지 않았습니다.
+
 ```python
 # 파일로 저장
 document.save_to_path("result.hwpx")
