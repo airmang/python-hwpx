@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import re
@@ -73,20 +74,56 @@ def _load_ledger() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_check_is_green() -> None:
+@pytest.fixture(scope="module")
+def built_ledger():
+    """원장을 한 번만 만든다. ``build_ledger``는 스키마·말뭉치 집계·소스 전체를 훑는 무거운
+    계산이라, 아래 세 테스트가 각자 만들면 테스트 시간의 큰 몫을 쓴다(CI에서 330초).
+    테스트는 이 결과의 사본을 받는다."""
+
+    module = _module()
+    return module, module.build_ledger(module.DEFAULT_CENSUS_PATH)
+
+
+def _use_built_ledger(monkeypatch: pytest.MonkeyPatch, built_ledger) -> tuple:
+    """``main()``이 다시 만드는 대신 한 번 만든 원장의 사본을 쓰게 한다."""
+
+    module, ledger = built_ledger
+    monkeypatch.setattr(module, "build_ledger", lambda _census: copy.deepcopy(ledger))
+    return module, copy.deepcopy(ledger)
+
+
+def test_check_is_green(
+    built_ledger, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """커밋된 원장(JSON+MD)이 재생성본과 바이트 동일하다 — CI 게이트 본체."""
 
+    module, _ = _use_built_ledger(monkeypatch, built_ledger)
+    monkeypatch.setattr(sys, "argv", ["coverage_ledger.py", "--check"])
+
+    status = module.main()
+    captured = capsys.readouterr()
+
+    assert status == 0, captured.out + captured.err
+    assert "in sync" in captured.out
+
+
+def test_script_starts_as_a_process() -> None:
+    """스크립트가 프로세스로 뜬다(원장은 만들지 않는다) — 위 게이트가 프로세스 안에서 도는 대신."""
+
     proc = subprocess.run(
-        [sys.executable, str(SCRIPT), "--check"],
+        [sys.executable, "-X", "utf8", str(SCRIPT), "--help"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=ROOT,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "in sync" in proc.stdout
+    assert "--check" in proc.stdout
 
 
-def test_check_fails_closed_on_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_check_fails_closed_on_drift(
+    built_ledger, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """--check가 실제로 드리프트를 감지하는지 — 위 그린 테스트의 대조군.
 
     커밋된 ``docs/coverage-ledger.json``/``.md``는 절대 건드리지 않는다 —
@@ -99,8 +136,7 @@ def test_check_fails_closed_on_drift(tmp_path: Path, monkeypatch: pytest.MonkeyP
     레포를 읽으므로 진짜 코드 경로를 검증한다.
     """
 
-    module = _module()
-    ledger = module.build_ledger(module.DEFAULT_CENSUS_PATH)
+    module, ledger = _use_built_ledger(monkeypatch, built_ledger)
 
     fake_json = tmp_path / "coverage-ledger.json"
     fake_md = tmp_path / "coverage-ledger.md"
@@ -116,12 +152,11 @@ def test_check_fails_closed_on_drift(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert module.main() == 1
 
 
-def test_generated_from_names_its_inputs_with_forward_slashes() -> None:
+def test_generated_from_names_its_inputs_with_forward_slashes(built_ledger) -> None:
     """원장이 적는 입력 경로는 어느 운영체제에서 만들어도 ``/``로 적힌다 — Windows의
     ``str(Path)``는 역슬래시를 써서, 커밋된 원장과 어긋나 --check가 드리프트로 본다."""
 
-    module = _module()
-    generated = module.build_ledger(module.DEFAULT_CENSUS_PATH)["generatedFrom"]
+    generated = built_ledger[1]["generatedFrom"]
     paths = [generated["corpusCensus"], *generated["openrateReports"]]
 
     assert paths
