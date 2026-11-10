@@ -273,10 +273,11 @@ def merge_template_rows(
                         fit_fields.append(_fit_field_report(key, fit_result))
                 replaced_count += _replace_token(document, token, apply_value)
             document.save_to_path(out_path)
+            saved_report = _open_safety_of_saved_file(document, out_path)
         finally:
             document.close()
 
-        open_safety = validate_editor_open_safety(out_path).to_dict()
+        open_safety = (saved_report or validate_editor_open_safety(out_path)).to_dict()
         unresolved = _unresolved_placeholders(out_path)
         reasons: list[str] = []
         if missing_keys:
@@ -383,6 +384,28 @@ def _find_placeholders(text: str) -> list[dict[str, str]]:
         seen.add((token, key))
         found.append({"token": token, "key": key})
     return found
+
+
+def _open_safety_of_saved_file(document: HwpxDocument, path: Path) -> Any | None:
+    """The open-safety report the save itself reached, when the file holds exactly the bytes it
+    validated; ``None`` otherwise (the caller then validates the file).
+
+    The save validates the archive before writing it, so validating the written file again repeats
+    the same checks on the same bytes for every row.
+    """
+
+    import hashlib
+
+    package = getattr(document, "_package", None)
+    report = getattr(package, "_verified_archive_report", None)
+    digest = getattr(package, "_verified_archive_digest", None)
+    if report is None or digest is None:
+        return None
+    try:
+        written = Path(path).read_bytes()
+    except OSError:
+        return None
+    return report if hashlib.sha256(written).digest() == digest else None
 
 
 def _unresolved_placeholders(path: Path) -> list[str]:
