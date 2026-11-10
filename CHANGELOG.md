@@ -77,6 +77,14 @@
   `HwpxXmlSyntaxError`(`part_name`에 파트 이름)다. 각 클래스는 전에 나던 `zipfile.BadZipFile`·`zlib.error`·
   `lxml.etree.XMLSyntaxError`도 상속하므로 기존 `except`는 그대로 잡고, 원래 예외는 `__cause__`에 있다.
   `HwpxDocument.open`의 독스트링과 `docs/stable-api.md`가 이 표를 적는다.
+- `HwpxDocument.new()`로 만든 문서가 동봉 템플릿의 지은이(`synthetic-fixture-author`)와 만든 날(2025-09-17)을 물려받지
+  않는다. 지은이·마지막 저장한 이·`date`는 비고, `CreatedDate`·`ModifiedDate`는 만든 시각(UTC)이다
+  (`SOURCE_DATE_EPOCH`가 있으면 그 시각). 지은이는 `doc.package.set_document_metadata(creator=...)`로 넣는다.
+- 버전 이력이 있는 한/글 문서에서 `doc.parts.histories`의 `historylastdoc.hml`(마지막 문서의 HWPML 스냅숏)이
+  `to_model()`에서 `HwpxValueError`를 내지 않고 항목 없는 `History`를 돌려준다. 버전 기록인지는 새 속성
+  `is_version_log`로 가린다.
+- `doc.text.html()`이 병합된 표 칸에 `colspan`·`rowspan`을 쓴다. 전에는 병합 표의 뒤 칸이 왼쪽으로 밀렸다.
+- `doc.tables.all`의 설명을 실제 범위(본문 문단에 바로 놓인 표)로 고쳤다. 동작은 그대로다.
 
 ### 수정
 

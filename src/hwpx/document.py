@@ -36,7 +36,7 @@ from .oxml.namespaces import register_owpml_namespaces
 from .oxml.table_sizes import new_table_width
 from .mutation_report import Fallback, Mode, MutationReport
 from .quality import QualityPolicy, SavePipeline, VisualCompleteReport
-from .templates import blank_document_bytes
+from .templates import new_document_bytes
 
 from ._document import fields as _fields
 from ._document import media as _media
@@ -217,9 +217,13 @@ class HwpxDocument(_LegacyFacade):
         itself. A paragraph added after a heading or a list item then does not
         pick up its outline or list numbering. The default keeps the inheriting
         behaviour.
+
+        The document's metadata starts clean: no author, no last-saved-by, and
+        the creation and modification dates set to now (UTC). Set the author
+        with ``document.package.set_document_metadata(creator=...)``.
         """
 
-        document = cls.open(blank_document_bytes())
+        document = cls.open(new_document_bytes())
         document._inherit_style_default = bool(inherit_style)
         return document
 
