@@ -5,9 +5,11 @@ The structured contract covers the safe-write and preservation path, the
 moved-surface guidance, and the failures documented on an individual API: those
 raise a :class:`HwpxError` (or a subclass). It is not a blanket wrapper around
 every call. Operating-system and container-level failures keep the exception
-Python already raises — ``FileNotFoundError`` for a missing path,
-:class:`zipfile.BadZipFile` for a payload that is not an HWPX package — and the
-support matrix documents them in that form.
+Python already raises — ``FileNotFoundError`` for a missing path. A damaged
+package raises a :class:`hwpx.opc.package.HwpxStructureError` subclass that is
+also the exception Python or lxml raised (:class:`zipfile.BadZipFile`,
+``zlib.error``, ``lxml.etree.XMLSyntaxError``); that family does not derive
+from :class:`HwpxError`.
 
 The base carries three machine-readable fields on top of the human-readable
 message, so a caller can branch on a stable ``code``, read the measured

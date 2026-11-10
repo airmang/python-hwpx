@@ -30,6 +30,7 @@ from .oxml import (
 )
 from .opc.package import (
     HwpxPackage,
+    structure_errors,
 )
 from .oxml.namespaces import register_owpml_namespaces
 from .oxml.table_sizes import new_table_width
@@ -128,9 +129,26 @@ class HwpxDocument(_LegacyFacade):
     ) -> "HwpxDocument":
         """Open *source* and return a :class:`HwpxDocument` instance.
 
+        *source*는 경로, 바이트, 또는 읽을 수 있는 이진 스트림이다. 내용이 HWP 5.0
+        복합 파일(``.hwp``)로 시작하면 같은 문서 모델로 바꿔서 연다.
+
         Raises:
-            HwpxStructureError: 필수 파일이나 구조가 올바르지 않은 HWPX를 열 때 발생합니다.
-            HwpxPackageError: 패키지를 여는 과정에서 일반적인 I/O/포맷 오류가 발생하면 전달됩니다.
+            FileNotFoundError: 경로에 파일이 없다. 그 밖의 ``OSError``(권한 등)도
+                파이썬이 낸 그대로 올라온다.
+            HwpxStructureError: 손상됐거나 필수 구성이 없는 HWPX. 손상 종류는 하위
+                클래스로 가린다. 원래 예외는 ``__cause__``에 있다.
+
+                - ``HwpxArchiveError``: ZIP이 아니거나 잘린 파일, 빈 파일.
+                  ``zipfile.BadZipFile``이기도 하다.
+                - ``HwpxCompressedDataError``: 압축 데이터 손상.
+                  ``zlib.error``이기도 하다.
+                - ``HwpxXmlSyntaxError``: 깨진 XML 파트(암호가 걸린 HWPX 포함).
+                  ``lxml.etree.XMLSyntaxError``이기도 하다.
+                - ``HwpxStructureError`` 자체: ``mimetype``·``container.xml``·
+                  rootfile 같은 필수 구성이 없다.
+            HwpxSecurityError: 항목 수·크기·압축률이 안전 상한을 넘는다
+                (``ValueError`` 계열).
+            Hwp5Error: ``.hwp`` 입력이 손상됐거나 암호·배포용·DRM 문서다.
         """
         internal_resources: list[Any] = []
         open_source = source
@@ -143,7 +161,8 @@ class HwpxDocument(_LegacyFacade):
         # HwpxPackage/ZipFile accepts os.PathLike at runtime; its narrower
         # compatibility annotation intentionally remains frozen.
         package = HwpxPackage.open(cast(Any, open_source))
-        root = HwpxOxmlDocument.from_package(package)
+        with structure_errors():
+            root = HwpxOxmlDocument.from_package(package)
         return cls(package, root, managed_resources=tuple(internal_resources))
 
     @classmethod

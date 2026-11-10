@@ -572,7 +572,10 @@
 ### 예외
 
 - `HwpxPackageError`: 패키지 조작 오류에 대한 기본 예외입니다.
-- `HwpxStructureError`: HWPX 패키지의 필수 구조 구성 요소가 없거나 일치하지 않을 때 발생합니다.
+- `HwpxStructureError`: HWPX 패키지의 필수 구조 구성 요소가 없거나 일치하지 않을 때 발생합니다. 아래 셋의 부모입니다.
+- `HwpxArchiveError`: ZIP이 아니거나 잘린 입력. `zipfile.BadZipFile`도 상속합니다.
+- `HwpxCompressedDataError`: 압축 데이터가 손상된 입력. `zlib.error`도 상속합니다.
+- `HwpxXmlSyntaxError`: XML 파트가 깨진 입력. `lxml.etree.XMLSyntaxError`도 상속하고 `part_name`에 파트 이름을 담습니다.
 
 ### 데이터 클래스
 

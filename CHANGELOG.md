@@ -72,6 +72,11 @@
   (`ValueError`·`RuntimeError`)는 그대로라 기존 `except`는 전처럼 잡는다. 각자 `code`가 생겼다
   (`equation-conversion`, `equation-latex-unsupported`, `equation-mathml-unavailable`, `ingest-failed`,
   `ingest-format-unsupported`, `recover-unsafe`, `toc-word-box-extractor-required`).
+- 손상된 HWPX를 열 때 나던 날 예외를 `HwpxStructureError` 하위 클래스로 묶었다. ZIP이 아니거나 잘린 입력은
+  `HwpxArchiveError`, 압축 데이터 손상은 `HwpxCompressedDataError`, 깨진 XML 파트(암호 걸린 HWPX 포함)는
+  `HwpxXmlSyntaxError`(`part_name`에 파트 이름)다. 각 클래스는 전에 나던 `zipfile.BadZipFile`·`zlib.error`·
+  `lxml.etree.XMLSyntaxError`도 상속하므로 기존 `except`는 그대로 잡고, 원래 예외는 `__cause__`에 있다.
+  `HwpxDocument.open`의 독스트링과 `docs/stable-api.md`가 이 표를 적는다.
 
 ### 수정
 

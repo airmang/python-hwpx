@@ -153,8 +153,25 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 아래 표에 있는 예외 — 쓰기 보존 계약, 저장 경로 게이트, 표 구조 편집, 이동된 표면
 안내 — 는 `hwpx.errors.HwpxError`(최상위 `hwpx.HwpxError`로도 import) 베이스를
 상속합니다. 모든 호출을 감싸는 포괄 계약은 아닙니다: 없는 파일은
-`FileNotFoundError`, HWPX 패키지가 아닌 입력은 `zipfile.BadZipFile`처럼 파이썬이
-원래 내는 예외가 그대로 올라옵니다([지원 매트릭스](support-matrix.md) 참조).
+`FileNotFoundError`처럼 파이썬이 원래 내는 예외가 그대로 올라옵니다
+([지원 매트릭스](support-matrix.md) 참조).
+
+손상된 HWPX를 열 때(`HwpxDocument.open`, `HwpxPackage.open`)의 예외는 모두
+`hwpx.opc.package.HwpxStructureError`의 하위 클래스이면서, 파이썬·lxml이 원래 내던
+예외이기도 합니다. 그래서 `except zipfile.BadZipFile` 같은 기존 처리는 그대로 잡고,
+`except HwpxStructureError` 하나로 "손상된 파일"을 모두 잡을 수도 있습니다. 원래
+예외는 `__cause__`에 있습니다.
+
+| 입력 | 예외 | 함께 상속 |
+|---|---|---|
+| ZIP이 아님·잘린 파일·빈 파일 | `HwpxArchiveError` | `zipfile.BadZipFile` |
+| 압축 데이터 손상 | `HwpxCompressedDataError` | `zlib.error` |
+| 깨진 XML 파트, 암호가 걸린 HWPX | `HwpxXmlSyntaxError`(`part_name`) | `lxml.etree.XMLSyntaxError` |
+| `mimetype`·`container.xml`·rootfile 없음 | `HwpxStructureError` | — |
+
+`HwpxPackageError`·`HwpxStructureError` 계열은 `HwpxError`를 상속하지 않습니다
+(`code`·`context`·`suggestion` 필드가 없습니다). 크기·압축률 상한을 넘는 입력은
+`HwpxSecurityError`(`ValueError`)로 거부합니다.
 구조화된 예외는 사람용 문장(`str(exc)`)을 그대로 두고, 세 가지 **기계가 읽는**
 필드를 얹습니다:
 
