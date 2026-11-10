@@ -243,12 +243,12 @@ def _body_indexes(
     the list of body paragraphs once.
     """
 
-    elements = [paragraph.element for paragraph in objects]
+    elements: list[Any] = [paragraph.element for paragraph in objects]
     if len(elements) > 8 or not all(hasattr(element, "itersiblings") for element in elements):
         body_index = {paragraph.element: index for index, paragraph in enumerate(doc.paragraphs)}
         return [body_index.get(element) for element in elements]
 
-    section_roots = [section.element for section in doc.sections]
+    section_roots: list[Any] = [section.element for section in doc.sections]
     starts: list[int] = []  # body index of each section's first paragraph, filled as far as needed
 
     def start_of(section_position: int) -> int:
