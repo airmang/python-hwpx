@@ -489,7 +489,7 @@ class HwpxOxmlDocument:
         for section_index, path in enumerate(section_paths):
             try:
                 section = HwpxOxmlSection(path, package.get_xml(path))
-                section.remember_source(package.read(path))
+                section._remember_source(package.read(path))
                 sections.append(section)
             except Exception:
                 logger.exception(
