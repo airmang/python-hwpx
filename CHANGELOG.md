@@ -62,6 +62,11 @@
   복사해서, 그 칸의 그림·도형이 같은 번호로 겹쳤다.
 - 객체 모델 `set_column_widths`·`equalize_column_widths`가 칸을 안쪽 표보다 좁게 만들면 바이트 편집처럼 거부하고 표를
   그대로 둔다(`TableStructureError`).
+- 폐기 경고와 `docs/migration-6.0.md`가 없는 이름으로 안내하던 두 곳을 바로잡았다. `doc.style(…)`의 이동 대상은
+  `doc.styles.get`, `doc.set_check_box(…)`의 이동 대상은 `doc.fields.set_check_box`다(전에는 없는
+  `doc.styles.style`·`doc.fields.check_box(...).checked`를 가리켰다). 이동 대상 79개가 실제 속성으로 풀리는지
+  테스트가 확인한다. `llms.txt`는 `.hwp`가 열린다고 적고, `examples/build_release_checklist.py`는 6.x 이름으로
+  끝까지 돈다(전에는 없는 `document.save()`를 불렀다).
 
 ### 수정
 

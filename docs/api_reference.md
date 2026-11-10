@@ -206,8 +206,7 @@
 - `conversion_report -> Hwp5ConversionReport | None`
   - `.hwp`를 열 때 문서 모델로 옮기지 못한 내용의 개수(`unconverted`·`dropped`, 읽기 전용).
     `.hwp`로 열지 않은 문서에서는 `None`입니다.
-- `save(path_or_stream=None) -> str | PathLike[str] | BinaryIO | bytes`
-  - 하위 호환용 래퍼입니다. 내부에서 `save_to_path()`/`save_to_stream()`/`to_bytes()`를 호출하며 `DeprecationWarning`을 발생시킵니다.
+- `save()`는 없습니다. 4.0에서 없앴고, 부르면 `AttributeError`가 납니다. 경로에는 `save_to_path()`, 스트림에는 `save_to_stream()`, 바이트에는 `to_bytes()`를 씁니다.
 
 ***
 

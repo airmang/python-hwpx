@@ -15,7 +15,7 @@
 id 별칭은 `field_id` 하나로, 위치 5키는 `location` 하나로 접혔다.
 
 `CheckBox.checked` 가 쓰기 가능한 속성이므로 `set_check_box` 는 사실상
-`doc.fields.check_box(...).checked = False` 로 대체된다. 5.x 이름은 shim 으로
+`doc.fields.check_boxes[i].checked = False` 로 대체된다. 5.x 이름은 shim 으로
 살아 있고, 이 네임스페이스에도 같은 이름을 남겨 이주 중 양쪽이 겹치게 했다.
 """
 
