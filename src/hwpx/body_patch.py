@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .errors import HwpxValueError
 from .opc.security import guard_zip_file, read_member
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
@@ -368,9 +369,10 @@ def _op_delete_paragraph(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str
     a, b = spans[index]
     block = xml[a:b]
     if _holds_section_settings(block):
-        raise ValueError(
+        raise HwpxValueError(
             "delete_paragraph: paragraph holds the section settings (hp:secPr) — refuse; "
-            "clear its text with set_paragraph_text instead"
+            "clear its text with set_paragraph_text instead",
+            code="body-op-section-settings",
         )
     if _TBL_RE.search(block) and not op.get("allow_tables"):
         raise ValueError(
@@ -396,14 +398,16 @@ def _op_insert_paragraph_by_clone(xml: str, op: Mapping[str, Any]) -> tuple[str,
     if _TBL_RE.search(block):
         raise ValueError("insert_paragraph_by_clone: ref paragraph wraps a table — refuse")
     if _holds_section_settings(block):
-        raise ValueError(
+        raise HwpxValueError(
             "insert_paragraph_by_clone: ref paragraph holds the section settings (hp:secPr) — refuse; "
-            "a copy would give the section a second set"
+            "a copy would give the section a second set",
+            code="body-op-section-settings",
         )
     if texts and _holds_another_paragraph(block):
-        raise ValueError(
+        raise HwpxValueError(
             "insert_paragraph_by_clone: ref paragraph holds another paragraph (text box, note) — "
-            "refuse to set texts; its inner text would be emptied"
+            "refuse to set texts; its inner text would be emptied",
+            code="body-op-nested-paragraph",
         )
     stripped = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
     clones: list[str] = []
@@ -440,8 +444,9 @@ def _op_reorder_paragraphs(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[s
             raise ValueError("reorder_paragraphs: non-whitespace content between paragraphs — refuse")
     blocks = [xml[a:b] for a, b in region]
     if any(source != place and _holds_section_settings(blocks[source]) for place, source in enumerate(order)):
-        raise ValueError(
-            "reorder_paragraphs: the paragraph holding the section settings (hp:secPr) would move — refuse"
+        raise HwpxValueError(
+            "reorder_paragraphs: the paragraph holding the section settings (hp:secPr) would move — refuse",
+            code="body-op-section-settings",
         )
     new_region = "".join(blocks[i] for i in order)
     return xml[: region[0][0]] + new_region + xml[region[-1][1]:], {
@@ -543,9 +548,10 @@ def _op_set_paragraph_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[s
     if _TBL_RE.search(block):
         raise ValueError("set_paragraph_text: paragraph wraps a table — refuse")
     if _holds_another_paragraph(block):
-        raise ValueError(
+        raise HwpxValueError(
             "set_paragraph_text: paragraph holds another paragraph (text box, note) — refuse; "
-            "its inner text would be emptied"
+            "its inner text would be emptied",
+            code="body-op-nested-paragraph",
         )
     edited = _text_edit_for_paragraph(block.encode("utf-8"), str(op["text"]))
     if edited is None:
