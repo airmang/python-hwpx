@@ -134,6 +134,46 @@ def test_moved_surface_warns_with_its_destination(name: str) -> None:
     assert func.__hwpx_removed_in__ == LEGACY_REMOVED_IN
 
 
+def _moved_targets(replacement: str) -> list[str]:
+    """경고 문구의 이동 대상에서 점 경로만 뽑는다.
+
+    ``doc.page.set_header(text=...)`` 는 ``doc.page.set_header``,
+    ``a / b`` 는 둘 다, ``paragraph.remove()`` 는 문단 메서드다.
+    """
+
+    return [part.strip().split("(")[0] for part in replacement.split(" / ")]
+
+
+@pytest.mark.parametrize("name", sorted(vars(_LegacyFacade)))
+def test_moved_destination_exists(name: str) -> None:
+    """이동 대상 문자열이 실제 속성으로 풀려야 한다(ARC-08).
+
+    락 파일은 문구만 고정한다. 없는 이름을 가리키는 경고를 따라 고친 코드는
+    ``AttributeError`` 가 난다.
+    """
+
+    if name.startswith("__"):
+        pytest.skip("dunder")
+    static = inspect.getattr_static(_LegacyFacade, name)
+    func = static.fget if isinstance(static, property) else static
+    replacement = getattr(func, "__hwpx_moved_to__", None)
+    if replacement is None:
+        pytest.skip("not a moved name")
+    with HwpxDocument.new() as document:
+        roots = {"doc": document, "paragraph": document.add_paragraph("x")}
+        for target in _moved_targets(replacement):
+            head, *rest = target.split(".")
+            assert head in roots, f"{name}: 모르는 뿌리 {target!r}"
+            assert rest, f"{name}: 속성 없는 대상 {target!r}"
+            owner = roots[head]
+            for attribute in rest[:-1]:
+                owner = getattr(owner, attribute)
+            # 값을 읽지 않고 이름만 본다: 일부 속성은 읽을 때 문서를 훑는다.
+            assert hasattr(type(owner), rest[-1]) or hasattr(owner, rest[-1]), (
+                f"{name}: {target} 가 없습니다"
+            )
+
+
 def test_a_moved_call_warns_and_still_works() -> None:
     document = HwpxDocument.new()
     with pytest.warns(DeprecationWarning) as record:

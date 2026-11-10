@@ -94,7 +94,7 @@ python -W error::DeprecationWarning -m pytest
 | `doc.paragraph_property(…)` | `doc.styles.paragraph_property` |
 | `doc.set_list_format(…)` | `doc.styles.apply_list_format` |
 | `doc.set_paragraph_format(…)` | `doc.styles.apply_paragraph_format` |
-| `doc.style(…)` | `doc.styles.style` |
+| `doc.style(…)` | `doc.styles.get` |
 
 ### `doc.page` — 쪽 기하 (11)
 
@@ -150,7 +150,7 @@ python -W error::DeprecationWarning -m pytest
 | `doc.fill_form_field(…)` | `doc.fields.fill` |
 | `doc.list_check_boxes(…)` | `doc.fields.check_boxes` |
 | `doc.list_form_fields(…)` | `doc.fields.all` |
-| `doc.set_check_box(…)` | `doc.fields.check_box(...).checked` |
+| `doc.set_check_box(…)` | `doc.fields.set_check_box` (또는 `doc.fields.check_boxes[i].checked = …`) |
 
 ### `doc.shapes` — 인라인 개체 (7)
 

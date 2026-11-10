@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from hwpx.document import HwpxDocument
+from hwpx.errors import HwpxError
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _TARGET_RE = re.compile(r"\?#(\d+)")
@@ -255,8 +256,10 @@ def _normalize(text: str) -> str:
 _OUTLINE_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)*\.?")
 
 
-class WordBoxExtractorRequired(RuntimeError):
+class WordBoxExtractorRequired(HwpxError, RuntimeError):
     """``heading_rendered_pages`` was called without a way to read the PDF."""
+
+    default_code = "toc-word-box-extractor-required"
 
 
 def heading_rendered_pages(

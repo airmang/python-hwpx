@@ -17,8 +17,11 @@
 3. **개발 도구를 설치**합니다. 배포 메타데이터가 `pyproject.toml`에 정의되어 있어
   편집 가능한 설치로 개발 의존성을 한 번에 구성할 수 있습니다:
   ```bash
-  python -m pip install -e .[dev]
+  python -m pip install -e ".[dev]"
   ```
+  `dev`에는 CI가 설치하는 `test`·`typecheck`(pytest, ruff, mypy, pyright, 테스트가
+  쓰는 pillow·openpyxl·pyyaml 등)와 배포 점검용 twine이 들어 있습니다. CI와 똑같이
+  맞추려면 `python -m pip install -e ".[test,typecheck]"`를 써도 됩니다.
 4. **임포트 확인**. `pip install -e`를 실행하면 `hwpx` 패키지가 가상 환경에
   설치되어 추가적인 `PYTHONPATH` 설정이 필요 없습니다. 인터프리터에서
   `import hwpx`가 정상적으로 동작하는지 확인하세요.

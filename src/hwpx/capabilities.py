@@ -222,7 +222,9 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
     },
     {
         "area": "toc-crossref",
-        "namespace": "doc.refs",
+        "namespace": None,
+        # 자리: doc.refs에는 차례·상호참조 메서드가 없다(add_bookmark·add_hyperlink
+        # 뿐). 진입점은 아래 모듈 함수라 namespace는 None이다(ENG-33).
         "matrix_row": "네이티브 목차(TOC)/상호참조",
         "entry_points": ("hwpx.tools.toc_author:add_native_toc",),
         # 6.8 트레인㉚: add_bookmark/add_hyperlink는 여기 있었으나(오귀속),
@@ -235,7 +237,9 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
     },
     {
         "area": "title-mark",
-        "namespace": "doc.refs",
+        "namespace": None,
+        # 자리: HwpxOxmlParagraph.add_title_mark. doc.refs에는 없어 namespace는
+        # None이고 진입점은 문단 클래스다(ENG-33).
         "matrix_row": "차례 숨기기·제목 차례 표시",
         # 6.15 트레인 — DEV-044(hp:titleMark, 스키마는 구조 선언·의미는
         # 미문서화). 6.13/6.14는 캐럿 문단 타겟팅을 실측할 수단이 없어
@@ -249,7 +253,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # 다른 진입 경로(hwpx.tools.toc_author 모듈 함수 vs 문단 메서드)라
         # 별도 영역으로 분리 — toc-crossref의 "혼합 지원 영역 오염" 방지
         # 원칙과 같은 이유.
-        "entry_points": ("hwpx.document:HwpxDocument",),
+        "entry_points": ("hwpx.oxml.paragraph:HwpxOxmlParagraph",),
         "authoring_methods": (),
     },
     {
@@ -442,7 +446,9 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
     },
     {
         "area": "date-time-proofreading-mark-fields",
-        "namespace": "doc.fields",
+        "namespace": None,
+        # 자리: HwpxOxmlParagraph.add_date_field·add_proofreading_mark·
+        # add_path_field. doc.fields에는 없어 namespace는 None이다(ENG-33).
         "matrix_row": "날짜/시간·교정 부호·파일 이름 필드",
         # 6.13 트레인㊻ — 팀장 실한컴 macOS GUI 프로브①③(2026-08-11)의
         # gold를 직접 역설계. add_date_field/add_proofreading_mark는
@@ -456,12 +462,14 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # 안 만들고 이 영역에 합류(행 제목도 갱신) — 실 코퍼스(트레인㊺가
         # 이미 확보, markdown_export/99_all_in_one_stress.hwpx)만으로
         # 계약이 나와 GUI 프로브 불필요했다.
-        "entry_points": ("hwpx.document:HwpxDocument",),
+        "entry_points": ("hwpx.oxml.paragraph:HwpxOxmlParagraph",),
         "authoring_methods": (),
     },
     {
         "area": "index-mark",
-        "namespace": "doc.refs",
+        "namespace": None,
+        # 자리: HwpxOxmlParagraph.add_index_mark. doc.refs에는 없어 namespace는
+        # None이다(ENG-33).
         "matrix_row": "색인 표시",
         # P4 — 팀장 실한컴 GUI 프로브 gold 2건(1키/2키) 역설계.
         # HwpxOxmlParagraph.add_index_mark만 있다(HwpxDocument 루트에는
@@ -471,12 +479,14 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # hp:titleMark) 편집기 메뉴도 다르고, 한 영역에 묶으면 매트릭스
         # 등급 하나로 두 기능의 검증 상태를 뭉개게 된다(toc-crossref의
         # "혼합 지원 영역 오염" 방지 원칙).
-        "entry_points": ("hwpx.document:HwpxDocument",),
+        "entry_points": ("hwpx.oxml.paragraph:HwpxOxmlParagraph",),
         "authoring_methods": (),
     },
     {
         "area": "mail-merge-field",
-        "namespace": "doc.fields",
+        "namespace": None,
+        # 자리: HwpxOxmlParagraph.add_mail_merge_field. doc.fields에는 없어
+        # namespace는 None이다(ENG-33).
         "matrix_row": "메일머지 표시 필드",
         # P4 — 팀장 실한컴 GUI 프로브 gold 역설계. 기존 "mail-merge"
         # 영역에 합치지 않고 새로 만든 이유: 그 영역은 namespace=None ·
@@ -491,7 +501,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # field_marks.py·같은 hp:fieldBegin 계열이지만 그쪽에 합류시키지
         # 않은 것도 같은 이유다 — 그 행은 "입력 > 필드" 계열 3종이고
         # 메일머지 표시는 "도구 > 메일 머지" 메뉴다.
-        "entry_points": ("hwpx.document:HwpxDocument",),
+        "entry_points": ("hwpx.oxml.paragraph:HwpxOxmlParagraph",),
         "authoring_methods": (),
     },
     {

@@ -81,9 +81,31 @@ class HwpxOxmlHistory(_HwpxOxmlSimplePart):
     read=none 해소가 목표라 쓰기 경로는 열지 않는다.
     """
 
-    def to_model(self) -> "History":
-        from .history_part import parse_history
+    @property
+    def is_version_log(self) -> bool:
+        """Whether this part is a version log (root ``hhs:history``).
 
+        한/글은 버전 이력이 있는 문서에 ``DocHistory/versionlog*.xml``(버전
+        기록)과 함께 ``DocHistory/historylastdoc.hml``을 둔다. 뒤의 것은 마지막
+        문서의 HWPML 스냅숏(루트 ``HWPML``)이고 버전 기록이 아니다.
+        """
+
+        from .utils import local_name
+
+        return local_name(self._element) == "history"
+
+    def to_model(self) -> "History":
+        """Return the version log, or an empty one for the HWPML snapshot part.
+
+        ``historylastdoc.hml``에는 ``historyEntry``가 없으므로 항목 없는
+        :class:`History`(``version=None``)를 돌려준다. 원본 XML은 ``element``로
+        읽는다. 버전 기록인지는 :attr:`is_version_log`로 가린다.
+        """
+
+        from .history_part import History, parse_history
+
+        if not self.is_version_log:
+            return History(version=None, entries=[])
         return parse_history(self._element)
 
 

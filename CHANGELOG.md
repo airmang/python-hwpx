@@ -68,6 +68,38 @@
   복사해서, 그 칸의 그림·도형이 같은 번호로 겹쳤다.
 - 객체 모델 `set_column_widths`·`equalize_column_widths`가 칸을 안쪽 표보다 좁게 만들면 바이트 편집처럼 거부하고 표를
   그대로 둔다(`TableStructureError`).
+- 폐기 경고와 `docs/migration-6.0.md`가 없는 이름으로 안내하던 두 곳을 바로잡았다. `doc.style(…)`의 이동 대상은
+  `doc.styles.get`, `doc.set_check_box(…)`의 이동 대상은 `doc.fields.set_check_box`다(전에는 없는
+  `doc.styles.style`·`doc.fields.check_box(...).checked`를 가리켰다). 이동 대상 79개가 실제 속성으로 풀리는지
+  테스트가 확인한다. `llms.txt`는 `.hwp`가 열린다고 적고, `examples/build_release_checklist.py`는 6.x 이름으로
+  끝까지 돈다(전에는 없는 `document.save()`를 불렀다).
+- 공개 예외 7종(`EquationConversionError`, `UnsupportedLatexError`, `MathMLUnavailableError`, `DocumentIngestError`,
+  `UnsupportedDocumentFormat`, `RecoverError`, `WordBoxExtractorRequired`)이 `HwpxError`도 상속한다. 기존 부모
+  (`ValueError`·`RuntimeError`)는 그대로라 기존 `except`는 전처럼 잡는다. 각자 `code`가 생겼다
+  (`equation-conversion`, `equation-latex-unsupported`, `equation-mathml-unavailable`, `ingest-failed`,
+  `ingest-format-unsupported`, `recover-unsafe`, `toc-word-box-extractor-required`).
+- 손상된 HWPX를 열 때 나던 날 예외를 `HwpxStructureError` 하위 클래스로 묶었다. ZIP이 아니거나 잘린 입력은
+  `HwpxArchiveError`, 압축 데이터 손상은 `HwpxCompressedDataError`, 깨진 XML 파트(암호 걸린 HWPX 포함)는
+  `HwpxXmlSyntaxError`(`part_name`에 파트 이름)다. 각 클래스는 전에 나던 `zipfile.BadZipFile`·`zlib.error`·
+  `lxml.etree.XMLSyntaxError`도 상속하므로 기존 `except`는 그대로 잡고, 원래 예외는 `__cause__`에 있다.
+  `HwpxDocument.open`의 독스트링과 `docs/stable-api.md`가 이 표를 적는다.
+- `HwpxDocument.new()`로 만든 문서가 동봉 템플릿의 지은이(`synthetic-fixture-author`)와 만든 날(2025-09-17)을 물려받지
+  않는다. 지은이·마지막 저장한 이·`date`는 비고, `CreatedDate`·`ModifiedDate`는 만든 시각(UTC)이다
+  (`SOURCE_DATE_EPOCH`가 있으면 그 시각). 지은이는 `doc.package.set_document_metadata(creator=...)`로 넣는다.
+- 버전 이력이 있는 한/글 문서에서 `doc.parts.histories`의 `historylastdoc.hml`(마지막 문서의 HWPML 스냅숏)이
+  `to_model()`에서 `HwpxValueError`를 내지 않고 항목 없는 `History`를 돌려준다. 버전 기록인지는 새 속성
+  `is_version_log`로 가린다.
+- `doc.text.html()`이 병합된 표 칸에 `colspan`·`rowspan`을 쓴다. 전에는 병합 표의 뒤 칸이 왼쪽으로 밀렸다.
+- `doc.tables.all`의 설명을 실제 범위(본문 문단에 바로 놓인 표)로 고쳤다. 동작은 그대로다.
+- `hwpx.ingest`의 HWPX → Markdown 변환이 손실을 항상 `"low"`로 보고하지 않는다. Markdown에 글이 실리지 않은 요소
+  (머리말·꼬리말·메모·각주·미주·글상자·수식·덧말·글자 겹침·양식 개체 캡션·글맵시·바탕쪽)를 결과와 대조해 종류별로
+  세어 `warnings`와 `metadata["left_out"]`에 싣고, 빠진 것이 있으면 `lossiness`가 `"medium"`(빠진 글이 실린 글보다
+  많으면 `"high"`)이다. 변경 추적으로 지운 글 표시가 있으면 따로 경고한다. 빠진 것이 없으면 전처럼 `"low"`다.
+- `describe_capabilities()`의 자리 안내를 실제와 맞췄다. 차례·상호참조(`hwpx.tools.toc_author`), 제목 차례 표시·색인
+  표시·날짜/교정 부호/파일 이름 필드·메일머지 표시 필드(`HwpxOxmlParagraph.add_*`)는 `doc.refs`·`doc.fields`에 없으므로
+  `namespace`가 `None`이고 진입점이 그 모듈·문단 클래스다. 지원 매트릭스의 같은 표와 arc·polygon·curve·connectLine 행,
+  차트 행(`add_chart(chart_xml)`)도 고쳤다.
+- 커버리지 장부가 `.hwp` 변환기(`hwp5/`)가 써내는 태그를 읽기로 세지 않는다(읽기 266 → 256).
 
 ### 수정
 

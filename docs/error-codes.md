@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 200 | 11 |
+| 개수 | 207 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -45,7 +45,7 @@ except HwpxError as exc:
 `<도메인>-<조건>`, 전부 소문자 kebab-case. 도메인은 6.0 네임스페이스와
 패키지 수준 관심사에서 온다:
 
-`capability`, `cell`, `contract`, `document`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `track`
+`capability`, `cell`, `contract`, `document`, `equation`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `ingest`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `recover`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `toc`, `track`
 
 유예 2건 — `unknown-contract-document`, `unknown-contract-schema` —
 은 5.6.0 에 이미 나간 이름이라 문법에 맞지 않아도 바꾸지 않는다(7.0 정리).
@@ -83,6 +83,14 @@ except HwpxError as exc:
 | `document-settings-root-invalid` | settings.xml 루트가 ha:HWPApplicationSetting이 아니다. |
 | `document-validation-failed` | 저장 전 문서 검증이 실패했다. |
 | `document-version-root-invalid` | version.xml 루트가 HCFVersion 이 아니다. |
+
+### `equation-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `equation-conversion` | 한글 수식 스크립트와 LaTeX 사이의 변환에 실패했다. |
+| `equation-latex-unsupported` | LaTeX 조각이 검증된 명령 집합 밖의 명령을 쓴다. |
+| `equation-mathml-unavailable` | MathML 변환에 필요한 latex2mathml이 설치돼 있지 않다. |
 
 ### `field-*`
 
@@ -144,6 +152,13 @@ except HwpxError as exc:
 | `hwpx-state-error` | 문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음). |
 | `hwpx-type-error` | 인자 타입이 이 연산이 받는 것이 아니다(분류되지 않음). |
 | `hwpx-value-error` | 인자 값이 이 연산에 쓸 수 없다(분류되지 않음). |
+
+### `ingest-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `ingest-failed` | 문서를 Markdown으로 들여오지 못했다(시도한 변환기는 attempts). |
+| `ingest-format-unsupported` | 이 입력을 받는 변환기가 등록돼 있지 않다. |
 
 ### `master-*`
 
@@ -253,6 +268,12 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `quality-gate-failed` | 품질 게이트가 저장을 막았다(quality 코드는 context 에). |
+
+### `recover-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `recover-unsafe` | 로컬 헤더 항목이 있지만 안전하게 복구할 수 없다. |
 
 ### `save-*`
 
@@ -379,6 +400,12 @@ except HwpxError as exc:
 | `text-markdown-style-invalid` | MarkdownStyle 의 제목·본문 글자 크기가 양수가 아니거나 제목 크기가 네 개가 아니다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |
+
+### `toc-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `toc-word-box-extractor-required` | PDF에서 글자 상자를 읽을 방법 없이 차례 쪽 대조를 불렀다. |
 
 ### `track-*`
 
