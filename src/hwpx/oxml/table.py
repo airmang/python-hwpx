@@ -293,6 +293,7 @@ class HwpxOxmlTableCell:
         span = self._span_element()
         span.set("rowSpan", str(max(row_span, 1)))
         span.set("colSpan", str(max(col_span, 1)))
+        self.table._invalidate_grid()
         self.table.mark_dirty()
 
     @property
@@ -311,6 +312,7 @@ class HwpxOxmlTableCell:
             size.set("width", str(max(width, 0)))
         if height is not None:
             size.set("height", str(max(height, 0)))
+        self.table._invalidate_grid()
         self.table.mark_dirty()
 
     margins = property(_table_sizes.cell_margins)
@@ -588,6 +590,87 @@ class HwpxTableGridPosition:
         return self.span[1]
 
 
+_TC_ADDR = f"{_HP}cellAddr"
+_TC_SPAN = f"{_HP}cellSpan"
+_TC_SIZE = f"{_HP}cellSz"
+
+
+def _cell_grid_signature(cell_element: ET.Element) -> tuple[Any, Any, Any]:
+    """The raw attributes of one ``hp:tc`` that decide where it sits in the grid."""
+
+    addr = cell_element.find(_TC_ADDR)
+    span = cell_element.find(_TC_SPAN)
+    size = cell_element.find(_TC_SIZE)
+    return (
+        None if addr is None else (addr.get("rowAddr"), addr.get("colAddr")),
+        None if span is None else (span.get("rowSpan"), span.get("colSpan")),
+        None if size is None else (size.get("width"), size.get("height")),
+    )
+
+
+def _is_zero_single_cell(signature: tuple[Any, Any, Any]) -> bool:
+    """Whether the grid builder may treat the cell as a deactivated placeholder (then its text matters)."""
+
+    _, span, size = signature
+    try:
+        if span is not None and (int(span[0] or 1), int(span[1] or 1)) != (1, 1):
+            return False
+        if size is not None and (int(size[0] or 0) != 0 or int(size[1] or 0) != 0):
+            return False
+    except (TypeError, ValueError):
+        return True
+    return True
+
+
+class _TableGridCache:
+    """One built grid with what it was built from, to tell whether the table changed since.
+
+    ``rows``/``row_lengths``/``cells`` are the table's ``hp:tr`` elements, their child counts and,
+    per physical cell, its element, row and raw address/span/size attributes (plus whether it holds
+    text when it is a zero-sized 1x1 cell, the one case where text changes the grid).
+    """
+
+    __slots__ = ("mapping", "rows", "row_lengths", "cells", "by_cell", "fast")
+
+    def __init__(self, mapping: dict[tuple[int, int], "HwpxTableGridPosition"], table_element: ET.Element):
+        self.mapping = mapping
+        self.rows, self.row_lengths, self.cells, text_matters = self._snapshot(table_element)
+        self.by_cell = {id(cell): (row, signature) for cell, row, signature, _ in self.cells}
+        # Coordinate lookups check only the table's shape and the cell they return.  That is not enough
+        # when text decides the grid, or without ``getparent`` (a plain ElementTree element).
+        self.fast = not text_matters and hasattr(table_element, "getparent")
+
+    @staticmethod
+    def _snapshot(table_element: ET.Element) -> tuple[list[ET.Element], list[int], list[tuple[Any, ...]], bool]:
+        rows = table_element.findall(f"{_HP}tr")
+        cells: list[tuple[Any, ...]] = []
+        text_matters = False
+        for row in rows:
+            for cell in row.findall(f"{_HP}tc"):
+                signature = _cell_grid_signature(cell)
+                has_text: bool | None = None
+                if _is_zero_single_cell(signature):
+                    text_matters = True
+                    has_text = any(node.text for node in cell.findall(f".//{_HP}t"))
+                cells.append((cell, row, signature, has_text))
+        return rows, [len(row) for row in rows], cells, text_matters
+
+    def same_shape(self, table_element: ET.Element) -> bool:
+        rows = table_element.findall(f"{_HP}tr")
+        return rows == self.rows and [len(row) for row in rows] == self.row_lengths
+
+    def cell_unchanged(self, cell_element: ET.Element) -> bool:
+        known = self.by_cell.get(id(cell_element))
+        if known is None:
+            return False
+        row, signature = known
+        return cell_element.getparent() is row and _cell_grid_signature(cell_element) == signature  # type: ignore[attr-defined]
+
+    def still_valid(self, table_element: ET.Element) -> bool:
+        rows, row_lengths, cells, _ = self._snapshot(table_element)
+        return rows == self.rows and row_lengths == self.row_lengths and cells == self.cells
+
+
 class HwpxOxmlTableRow:
     """Represents a table row."""
 
@@ -609,6 +692,7 @@ class HwpxOxmlTable(TableStructureEdits):
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element
         self.paragraph = paragraph
+        self._grid_cache: _TableGridCache | None = None
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of table geometry."""
@@ -883,7 +967,25 @@ class HwpxOxmlTable(TableStructureEdits):
     def rows(self) -> list[HwpxOxmlTableRow]:
         return [HwpxOxmlTableRow(row, self) for row in self.element.findall(f"{_HP}tr")]
 
+    def _invalidate_grid(self) -> None:
+        """Forget the built grid.  Every edit that moves, adds, removes, merges or resizes cells calls this."""
+
+        self._grid_cache = None
+
     def _build_cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
+        """The grid of the table as it is now: the kept one when no row, cell, address, span or size
+        changed since it was built (checked against the XML, so an edit made outside this object is
+        seen too), else a new one.  Callers must not change the returned mapping."""
+
+        cache = getattr(self, "_grid_cache", None)
+        if cache is not None and cache.still_valid(self.element):
+            return cache.mapping
+        self._grid_cache = None
+        mapping = self._compute_cell_grid()
+        self._grid_cache = _TableGridCache(mapping, self.element)
+        return mapping
+
+    def _compute_cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
         mapping: dict[tuple[int, int], HwpxTableGridPosition] = {}
 
         def _is_deactivated_cell(
@@ -961,7 +1063,16 @@ class HwpxOxmlTable(TableStructureEdits):
                 % (row_index, col_index, row_count, col_count)
             )
 
-        entry = self._build_cell_grid().get((row_index, col_index))
+        entry = None
+        cache = getattr(self, "_grid_cache", None)
+        if cache is not None and cache.fast and cache.same_shape(self.element):
+            # The kept grid answers when the table has the same rows and cells and the cell found still
+            # has the address, span and size it was built with; anything else goes through the full check.
+            entry = cache.mapping.get((row_index, col_index))
+            if entry is not None and not cache.cell_unchanged(entry.cell.element):
+                entry = None
+        if entry is None:
+            entry = self._build_cell_grid().get((row_index, col_index))
         if entry is None:
             raise IndexError(
                 "cell coordinates (%d, %d) are covered by a merged cell"
@@ -1449,6 +1560,7 @@ class HwpxOxmlTable(TableStructureEdits):
                     row_offset, col_offset, logical_row, logical_col, row_height, col_width,
                 )
 
+        self._invalidate_grid()
         self.mark_dirty()
         return self.cell(row_index, col_index)
 
@@ -1612,6 +1724,7 @@ class HwpxOxmlTable(TableStructureEdits):
         # line caches no longer describe it
         target._clear_own_layout_caches()
         collapse_merged_grid(self.element)
+        self._invalidate_grid()
         self.mark_dirty()
         return target
 
