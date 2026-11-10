@@ -89,6 +89,11 @@
   (머리말·꼬리말·메모·각주·미주·글상자·수식·덧말·글자 겹침·양식 개체 캡션·글맵시·바탕쪽)를 결과와 대조해 종류별로
   세어 `warnings`와 `metadata["left_out"]`에 싣고, 빠진 것이 있으면 `lossiness`가 `"medium"`(빠진 글이 실린 글보다
   많으면 `"high"`)이다. 변경 추적으로 지운 글 표시가 있으면 따로 경고한다. 빠진 것이 없으면 전처럼 `"low"`다.
+- `describe_capabilities()`의 자리 안내를 실제와 맞췄다. 차례·상호참조(`hwpx.tools.toc_author`), 제목 차례 표시·색인
+  표시·날짜/교정 부호/파일 이름 필드·메일머지 표시 필드(`HwpxOxmlParagraph.add_*`)는 `doc.refs`·`doc.fields`에 없으므로
+  `namespace`가 `None`이고 진입점이 그 모듈·문단 클래스다. 지원 매트릭스의 같은 표와 arc·polygon·curve·connectLine 행,
+  차트 행(`add_chart(chart_xml)`)도 고쳤다.
+- 커버리지 장부가 `.hwp` 변환기(`hwp5/`)가 써내는 태그를 읽기로 세지 않는다(읽기 266 → 256).
 
 ### 수정
 
