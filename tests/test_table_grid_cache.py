@@ -21,13 +21,13 @@ def _table(rows: int = 4, cols: int = 4) -> HwpxOxmlTable:
 @pytest.fixture
 def builds(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     calls: list[int] = []
-    original = HwpxOxmlTable._compute_cell_grid
+    original = HwpxOxmlTable._build_cell_grid
 
     def counting(self: HwpxOxmlTable):
         calls.append(1)
         return original(self)
 
-    monkeypatch.setattr(HwpxOxmlTable, "_compute_cell_grid", counting)
+    monkeypatch.setattr(HwpxOxmlTable, "_build_cell_grid", counting)
     return calls
 
 
