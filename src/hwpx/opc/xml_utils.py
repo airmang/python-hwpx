@@ -9,7 +9,7 @@ from typing import Mapping
 
 import lxml.etree as etree
 
-from .security import guard_xml_bytes, guard_xml_depth
+from .security import HwpxSecurityError, guard_xml_bytes, guard_xml_depth
 
 # Mapping of 2016 HWPML namespace URIs to their 2011 equivalents.
 # Documents created with Hancom Office 2016+ may use these newer URIs.
@@ -97,6 +97,24 @@ def parse_xml(data: bytes) -> etree._Element:
     parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
     root = etree.fromstring(normalize_hwpml_namespaces(data), parser=parser)
     guard_xml_depth(root)
+    return root
+
+
+def parse_untrusted_xml(data: bytes, *, part_name: str = "XML payload") -> etree._Element:
+    """Parse the bytes of a package part as they are, without normalising them.
+
+    The payload is guarded, parsed without resolving entities or reaching the
+    network, and refused when it carries a document type declaration anywhere.
+    Raises :class:`~hwpx.opc.security.HwpxSecurityError` or
+    ``lxml.etree.XMLSyntaxError``.
+    """
+
+    guard_xml_bytes(data, part_name=part_name)
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+    root = etree.fromstring(data, parser=parser)
+    if root.getroottree().docinfo.doctype:
+        raise HwpxSecurityError(f"{part_name} contains a disallowed DTD/entity declaration")
+    guard_xml_depth(root, part_name=part_name)
     return root
 
 

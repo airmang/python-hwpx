@@ -17,7 +17,8 @@ from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import validate_editor_open_safety, validate_package
-from ..opc.security import HwpxSecurityError, guard_xml_bytes, guard_xml_depth, guard_zip_file, read_member
+from ..opc.security import HwpxSecurityError, guard_zip_file, read_member
+from ..opc.xml_utils import parse_untrusted_xml
 
 _XML_SUFFIXES = (".xml", ".hpf")
 _PACK_METADATA_NAME = ".hwpx-pack-metadata.json"
@@ -96,16 +97,8 @@ def _format_xml_bytes(payload: bytes) -> bytes:
     """
 
     try:
-        guard_xml_bytes(payload, part_name="XML part")
-    except HwpxSecurityError:
-        return payload
-    try:
-        element = etree.fromstring(payload)
-    except etree.XMLSyntaxError:
-        return payload
-    try:
-        guard_xml_depth(element, part_name="XML part")
-    except HwpxSecurityError:
+        element = parse_untrusted_xml(payload, part_name="XML part")
+    except (etree.XMLSyntaxError, HwpxSecurityError):
         return payload
     etree.indent(element, space="  ")
     formatted = etree.tostring(
@@ -125,8 +118,8 @@ def _normalize_hwpml_compat_root(rel_path: str, payload: bytes) -> bytes:
     if not (is_section_part_name(rel_path) or is_header_part_name(rel_path)):
         return payload
     try:
-        root = etree.fromstring(payload)
-    except etree.XMLSyntaxError:
+        root = parse_untrusted_xml(payload, part_name=rel_path)
+    except (etree.XMLSyntaxError, HwpxSecurityError):
         return payload
     if not (root.tag.endswith("}sec") or root.tag.endswith("}head")):
         return payload

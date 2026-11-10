@@ -18,7 +18,8 @@ from ..patch import _gate_and_publish
 from ..quality.report import VisualCompleteReport
 from .package_validator import MIMETYPE_PATH, validate_editor_open_safety, validate_package
 from .recover import recover_entries
-from ..opc.security import guard_xml_bytes, guard_zip_file, read_member
+from ..opc.security import HwpxSecurityError, guard_zip_file, read_member
+from ..opc.xml_utils import parse_untrusted_xml
 
 __all__ = [
     "NamespaceNormalizeResult",
@@ -137,8 +138,8 @@ def _normalize_hwpml_compat_root(part_name: str, payload: bytes) -> bytes:
     if not (is_section_part_name(part_name) or is_header_part_name(part_name)):
         return payload
     try:
-        root = etree.fromstring(payload)
-    except etree.XMLSyntaxError:
+        root = parse_untrusted_xml(payload, part_name=part_name)
+    except (etree.XMLSyntaxError, HwpxSecurityError):
         return payload
     if _local_name(root) not in {"sec", "head"}:
         return payload
@@ -157,8 +158,8 @@ def _repair_section_ids(part_name: str, payload: bytes) -> bytes:
     if not part_name.endswith(".hpf"):
         return payload
     try:
-        root = etree.fromstring(payload)
-    except etree.XMLSyntaxError:
+        root = parse_untrusted_xml(payload, part_name=part_name)
+    except (etree.XMLSyntaxError, HwpxSecurityError):
         return payload
     items: dict[str, Any] = {}
     for item in root.iter(f"{_OPF}item"):
@@ -185,8 +186,8 @@ def _repair_section_layout_cache(part_name: str, payload: bytes) -> bytes:
     if not is_section_part_name(part_name):
         return _normalize_hwpml_compat_root(part_name, payload)
     try:
-        root = etree.fromstring(payload)
-    except etree.XMLSyntaxError:
+        root = parse_untrusted_xml(payload, part_name=part_name)
+    except (etree.XMLSyntaxError, HwpxSecurityError):
         return payload
 
     changed = False
@@ -334,13 +335,9 @@ class NamespaceNormalizeResult:
         }
 
 
-_SAFE_PARSER = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
-
-
 def _normalized_xml_part(part_name: str, payload: bytes) -> bytes | None:
     try:
-        guard_xml_bytes(payload, part_name=part_name)
-        root = etree.fromstring(payload, parser=_SAFE_PARSER)
+        root = parse_untrusted_xml(payload, part_name=part_name)
     except (etree.XMLSyntaxError, ValueError):
         return None
     if (is_section_part_name(part_name) or is_header_part_name(part_name)) and _local_name(root) in {
