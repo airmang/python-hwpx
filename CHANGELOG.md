@@ -27,6 +27,10 @@
 
 ### 고침
 
+- XML 주석이나 처리 지시문이 `header.xml`이나 줄 배치 캐시가 있는 문단에 든 문서도 저장된다. 전에는 문서가 열리고
+  열림 검사도 통과했지만, 고치지 않은 저장까지 `TypeError: argument of type 'cython_function_or_method' is not
+  iterable`로 끝났다(저장 때 도는 검사가 주석 노드의 `tag`를 요소 이름으로 읽었다). 문서 병합(`append_document`)도
+  같은 오류였다.
 - 저장 관문이 필수 자식(`offset`·`orgSz`·`curSz`·`sz`·`pos`, `renderingInfo`)이 없는 글맵시(`hp:textart`)·OLE(`hp:ole`)·
   동영상(`hp:video`)도 `hp:rect`처럼 거부한다. `doc.shapes.add_raw("textart"|"ole"|"video")`로 만든 빈 요소는 전에
   저장됐고, 그 파일을 한/글 2024가 열다가 경고 없이 종료했다(종료 코드 0xC0000005). `validate_package`·

@@ -317,6 +317,10 @@ def _check_hwpml_compat_root(
 
 def _local_name(element: ET.Element) -> str:
     tag = element.tag
+    if not isinstance(tag, str):
+        # A comment or processing instruction: its ``tag`` is a function, not
+        # a name. ``""`` matches no element, so every check passes over it.
+        return ""
     if "}" in tag:
         return tag.rsplit("}", 1)[1]
     return tag
