@@ -441,6 +441,8 @@ class HwpxPackage:
         # SHA-256 of the last archive bytes this package's save verified as
         # editor-open safe (see _save_to_zip); None until such a save.
         self._verified_archive_digest: bytes | None = None
+        # The report of that validation, for a caller that needs its evidence for the same bytes.
+        self._verified_archive_report: "EditorOpenSafetyReport | None" = None
         self._validate_structure()
 
     @staticmethod
@@ -1230,11 +1232,9 @@ class HwpxPackage:
                 report = self._verify_editor_open_safe_archive(payload)
                 # Remember which exact bytes passed, so the document-level
                 # check of the same save need not run the validation again.
-                self._verified_archive_digest = (
-                    hashlib.sha256(payload).digest()
-                    if report is not None and report.ok
-                    else None
-                )
+                verified = report is not None and report.ok
+                self._verified_archive_digest = hashlib.sha256(payload).digest() if verified else None
+                self._verified_archive_report = report if verified else None
             _write_stream_or_rollback(pkg_file, payload)
             if mark_clean and version_was_dirty:
                 self._version.mark_clean()
