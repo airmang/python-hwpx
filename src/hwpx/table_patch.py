@@ -839,14 +839,20 @@ def fill_cells(
         table_spans = _iter_table_spans(section_xml)
         # accumulate byte edits over the whole section (table region splices)
         section_edits: list[tuple[int, int, bytes]] = []
-        occupied: list[tuple[int, int]] = []  # filled cell spans (merge-collision guard)
+        occupied: set[tuple[int, int]] = set()  # filled cell spans (merge-collision guard)
+        # One grid per table: the section's bytes stay as read until every edit is collected,
+        # so each address in the same table reads the same table bytes.
+        grids: dict[int, tuple[bytes, dict[tuple[int, int], _Cell], GridReport]] = {}
         for ti, row, col, text, mx in section_specs:
             if ti < 0 or ti >= len(table_spans):
                 skipped.append(CellSkipped(section_path, ti, row, col, "table_index out of range"))
                 continue
             ts, te = table_spans[ti]
-            table = section_xml[ts:te]
-            grid, report = build_grid(table)
+            built = grids.get(ti)
+            if built is None:
+                table = section_xml[ts:te]
+                built = grids[ti] = (table, *build_grid(table))
+            table, grid, report = built
             if not report.ok:
                 skipped.append(CellSkipped(section_path, ti, row, col, "table grid is invalid: " + "; ".join(report.issues[:5])))
                 continue
@@ -879,7 +885,7 @@ def fill_cells(
             if span in occupied:
                 skipped.append(CellSkipped(section_path, ti, row, col, "cell shares a merged region already filled by an earlier address"))
                 continue
-            occupied.append(span)
+            occupied.add(span)
             cell_edits = [(ts + cell.start + s, ts + cell.start + e, b) for s, e, b in edits]
             # A template's short placeholder may legitimately fit under
             # lineWrap=SQUEEZE, while a real filled value is compressed until
