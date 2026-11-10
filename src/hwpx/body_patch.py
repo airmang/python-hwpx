@@ -137,6 +137,86 @@ def _squeeze_wrap_edit_for_sublist(section_xml: str, sublist_span: tuple[int, in
     return start + match.start("value"), start + match.end("value"), "BREAK"
 
 
+@dataclass(frozen=True)
+class _RunScan:
+    """한 ``<hp:run>``과 그 run이 **직접** 가진 ``<hp:t>``들."""
+
+    open_start: int
+    open_end: int
+    char_pr: str | None
+    texts: tuple[tuple[int, int], ...]  # 각 hp:t 내용의 (start, end)
+    holds_runs: bool  # 표·글상자·각주처럼 안에 다른 run을 품었는가
+
+
+_RUN_SCAN_RE = re.compile(
+    r"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>"
+    r"|<hp:run\b[^>]*>|</hp:run>|<hp:t\b[^>]*>",
+    re.S,
+)
+_CHAR_PR_REF_RE = re.compile(r'\bcharPrIDRef="(\d+)"')
+_LINESEG_ARRAY_STR_RE = re.compile(
+    r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
+    re.S | re.I,
+)
+
+
+def _scan_runs(xml: str) -> list[_RunScan]:
+    """모든 깊이의 run을 중첩을 따라가며 읽는다.
+
+    run은 표·글상자·각주를 품을 수 있고 그 안에 다시 run이 있다. 여는 태그를
+    그 뒤 첫 ``</hp:run>``과 짝지으면 안쪽 run의 닫는 태그에 걸려 다른 run의
+    글을 건드리게 되므로, 깊이를 세어 각 ``<hp:t>``를 그것을 직접 가진 run에
+    붙인다. 주석·CDATA·처리 지시문 안의 닮은 글은 건너뛴다.
+    """
+
+    done: list[_RunScan] = []
+    stack: list[dict[str, Any]] = []
+    pos = 0
+    while True:
+        m = _RUN_SCAN_RE.search(xml, pos)
+        if m is None:
+            break
+        token = m.group()
+        pos = m.end()
+        if token.startswith("<hp:run"):
+            ref = _CHAR_PR_REF_RE.search(token)
+            char_pr = ref.group(1) if ref else None
+            if stack:
+                stack[-1]["holds"] = True
+            if token.endswith("/>"):
+                done.append(_RunScan(m.start(), m.end(), char_pr, (), False))
+            else:
+                stack.append({"a": m.start(), "b": m.end(), "id": char_pr, "texts": [], "holds": False})
+        elif token == "</hp:run>":
+            if stack:
+                top = stack.pop()
+                done.append(_RunScan(top["a"], top["b"], top["id"], tuple(top["texts"]), top["holds"]))
+        elif token.startswith("<hp:t"):
+            if token.endswith("/>"):
+                continue
+            close = xml.find("</hp:t>", m.end())
+            if close == -1:
+                break
+            if stack:
+                stack[-1]["texts"].append((m.end(), close))
+            pos = close + len("</hp:t>")
+    done.sort(key=lambda run: run.open_start)
+    return done
+
+
+def _own_layout_cache_spans(
+    xml: str, para_span: tuple[int, int], para_spans: Sequence[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """*para_span* 문단 자신의 ``linesegarray`` 자리(안쪽 문단의 것은 뺀다)."""
+
+    a, b = para_span
+    return [
+        (m.start(), m.end())
+        for m in _LINESEG_ARRAY_STR_RE.finditer(xml, a, b)
+        if _innermost_span(m.start(), para_spans) == para_span
+    ]
+
+
 def _preview(text: str, limit: int = 60) -> str:
     flat = re.sub(r"\s+", " ", text).strip()
     return flat[: limit - 1] + "…" if len(flat) > limit else flat
@@ -526,7 +606,11 @@ def strip_runs_by_color(
     일괄 청소 — 안내문·범례가 셀·헤딩 표에 흩어진 red run이라 문단 op가 못 닿는
     문제를 해결한다. charPrIDRef가 header에서 target textColor를 가리키는 run의
     ``<hp:t>`` 내용을 비우고, 그 run이 든 문단의 stale linesegarray를 제거한다.
-    미변경 부분은 byte-identical."""
+    미변경 부분은 byte-identical.
+
+    대상 run이 표·글상자·각주를 품고 있으면 그 run이 **직접** 가진 글만 비운다.
+    안쪽 run의 글은 안쪽 run의 색으로 따로 판정하고, 그런 run을 비운 수는
+    transcript의 ``runsHoldingNestedRuns``에 싣는다."""
     source_bytes = _read_source_bytes(source)
     import io, zipfile
 
@@ -553,38 +637,42 @@ def strip_runs_by_color(
             ids.add(idm.group(1))
     transcript: list[dict[str, Any]] = []
     changed: set[str] = set()
-    total = 0
-    counter = {"n": 0}
-    run_re = re.compile(
-        r"(?P<open><hp:run\b[^>]*\bcharPrIDRef=\"(\d+)\"[^>]*>)(?P<body>.*?)(?P<close></hp:run>)",
-        re.S,
-    )
-
-    def _sub(m: "re.Match") -> str:
-        if m.group(2) not in ids:
-            return m.group(0)
-        body = re.sub(r"(<hp:t\b[^>]*>).*?(</hp:t>)", r"\1\2", m.group("body"), flags=re.S)
-        if body != m.group("body"):
-            counter["n"] += 1
-        return m.group("open") + body + m.group("close")
 
     for sp, xml in sections.items():
-        counter["n"] = 0
-        new_xml = run_re.sub(_sub, xml)
-        n = counter["n"]
-        if n == 0:
+        # 대상 색 run이 **직접** 가진 hp:t만 비운다. 표·글상자·각주를 품은 run은
+        # 그 안에 다른 run을 담고 있고, 안쪽 run의 글은 안쪽 run의 색을 따른다.
+        blanked: list[tuple[int, int]] = []
+        runs_blanked = 0
+        runs_holding_runs = 0
+        for run in _scan_runs(xml):
+            if run.char_pr not in ids:
+                continue
+            filled = [(a, b) for a, b in run.texts if b > a]
+            if not filled:
+                continue
+            blanked.extend(filled)
+            runs_blanked += 1
+            if run.holds_runs:
+                runs_holding_runs += 1
+        if not blanked:
             continue
-        # 편집된 문단들의 linesegarray 제거(재계산)
-        new_xml = re.sub(
-            r"(<hp:p\b(?:(?!</hp:p>).)*?<hp:t\b[^>]*></hp:t>(?:(?!</hp:p>).)*?)"
-            r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
-            r"\1", new_xml, flags=re.S,
-        )
-        sections[sp] = new_xml
+        # 글이 바뀐 문단 자신의 줄 배치 캐시만 지운다(안쪽·바깥 문단의 캐시는 그대로).
+        para_spans = _all_paragraph_spans(xml)
+        touched = {span for span in (_innermost_span(a, para_spans) for a, _b in blanked) if span}
+        edits: list[tuple[int, int]] = list(blanked)
+        for span in touched:
+            edits.extend(_own_layout_cache_spans(xml, span, para_spans))
+        for a, b in sorted(set(edits), reverse=True):
+            xml = xml[:a] + xml[b:]
+        sections[sp] = xml
         changed.add(sp)
-        total += n
-        transcript.append({"op": "strip_runs_by_color", "sectionPath": sp,
-                           "runsBlanked": n, "status": "would_apply" if dry_run else "applied"})
+        entry: dict[str, Any] = {"op": "strip_runs_by_color", "sectionPath": sp,
+                                 "runsBlanked": runs_blanked,
+                                 "status": "would_apply" if dry_run else "applied"}
+        if runs_holding_runs:
+            # 표·글상자·각주를 품은 run: 그 run의 글만 비웠고 안쪽 글은 남겼다.
+            entry["runsHoldingNestedRuns"] = runs_holding_runs
+        transcript.append(entry)
 
     intermediate = source_bytes
     if changed:
