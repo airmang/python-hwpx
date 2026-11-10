@@ -114,6 +114,7 @@ def test_insert_by_clone_gives_each_copy_its_own_id_and_no_line_cache() -> None:
         ({"ref_index": 9}, "out of range"),
         ({"ref_index": 1, "count": 0}, "count must be >= 1"),
         ({"ref_index": 1, "count": 2, "texts": ["하나"]}, "len(texts) must equal count"),
+        ({"ref_index": 0}, "section settings"),
     ],
 )
 def test_insert_by_clone_refuses_what_it_cannot_do_safely(op: dict, reason: str) -> None:
@@ -162,6 +163,7 @@ def test_reorder_moves_the_paragraph_blocks_without_changing_them() -> None:
         ({"start": 3, "end": 1, "order": [0]}, "out of bounds"),
         ({"start": 1, "end": 2, "order": [0, 0]}, "permutation"),
         ({"start": 1, "end": 2, "order": [0, 1, 2]}, "permutation"),
+        ({"start": 0, "end": 1, "order": [1, 0]}, "section settings"),
     ],
 )
 def test_reorder_refuses_a_bad_range_or_order(op: dict, reason: str) -> None:
@@ -227,6 +229,30 @@ def test_set_paragraph_text_fills_a_paragraph_whose_run_is_empty() -> None:
     assert '<hp:run charPrIDRef="0"><hp:t>채움</hp:t></hp:run>' in _section(result.data)
 
 
+def test_set_paragraph_text_refuses_a_paragraph_holding_a_table_or_a_text_box() -> None:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("각주가 있는 문단").add_footnote("각주 글 KEEP")
+    data = doc.to_bytes()
+    doc.close()
+    source = _with_body(data, _p(100, f'<hp:run charPrIDRef="0">{_table(_p(101, _run("0", "칸 KEEP")))}</hp:run>'))
+
+    result = apply_body_ops(
+        source,
+        [
+            {"op": "set_paragraph_text", "index": 1, "text": "덮어씀"},  # 각주를 품은 문단
+            {"op": "set_paragraph_text", "index": 2, "text": "덮어씀"},  # 표를 품은 문단
+            {"op": "set_paragraph_text", "index": 9, "text": "없음"},
+        ],
+    )
+
+    assert result.byte_identical
+    reasons = [entry["status"] for entry in result.skipped]
+    assert "holds another paragraph" in reasons[0]
+    assert "wraps a table" in reasons[1]
+    assert "out of range" in reasons[2]
+    assert "각주 글 KEEP" in _section(result.data) and "칸 KEEP" in _section(result.data)
+
+
 # -- delete_paragraph ---------------------------------------------------------
 
 
@@ -240,6 +266,34 @@ def test_delete_paragraph_removes_that_block_only() -> None:
     assert _section(result.data) == before.replace(_paragraph_block(before, 101), "")
     assert result.transcript[0]["old"] == "나"
     _only_section_changed(source, result.data)
+
+
+def test_delete_paragraph_refuses_a_table_unless_allowed_and_never_the_section_settings() -> None:
+    doc = HwpxDocument.new()
+    data = doc.to_bytes()
+    doc.close()
+    source = _with_body(
+        data, _p(100, f'<hp:run charPrIDRef="0">{_table(_p(101, _run("0", "칸")))}</hp:run>') + _p(102, _run("0", "끝"))
+    )
+
+    refused = apply_body_ops(
+        source,
+        [
+            {"op": "delete_paragraph", "index": 1},
+            {"op": "delete_paragraph", "index": 0},
+            {"op": "delete_paragraph", "index": 0, "allow_tables": True},
+            {"op": "delete_paragraph", "index": 7},
+        ],
+    )
+    assert refused.byte_identical
+    reasons = [entry["status"] for entry in refused.skipped]
+    assert "wraps a table" in reasons[0]
+    assert "section settings" in reasons[1] and "section settings" in reasons[2]
+    assert "out of range" in reasons[3]
+
+    allowed = apply_body_ops(source, [{"op": "delete_paragraph", "index": 1, "allow_tables": True}])
+    assert allowed.ok
+    assert _texts(allowed.data) == ["끝"]
 
 
 # -- restyle_text -------------------------------------------------------------
@@ -296,6 +350,21 @@ def test_restyle_text_reuses_one_new_shape_for_the_same_change() -> None:
     ids = re.findall(r'<hp:run charPrIDRef="(\d+)"><hp:t>(?:하나|둘)', _section(result.data))
     assert len(ids) == 2 and ids[0] == ids[1] != blue
     assert _header(result.data).count("<hh:charPr ") == _header(source).count("<hh:charPr ") + 1
+
+
+def test_restyle_text_changes_the_run_that_holds_the_text_not_one_inside_it() -> None:
+    """찾은 글이 표 뒤에 있으면 바로 앞의 여는 태그는 칸 안 run의 것이다."""
+
+    data, blue = _blue_italic_doc()
+    holder = f'<hp:run charPrIDRef="{blue}">{_table(_p(101, _run("0", "칸 글")))}<hp:t>표 뒤 채운 글</hp:t></hp:run>'
+    source = _with_body(data, _p(100, holder))
+
+    result = apply_body_ops(source, [{"op": "restyle_text", "find": "표 뒤 채운", "text_color": "#000000"}])
+
+    assert result.ok
+    xml = _section(result.data)
+    assert '<hp:run charPrIDRef="0"><hp:t>칸 글</hp:t></hp:run>' in xml  # 칸 안 run은 그대로
+    assert f'<hp:p id="100" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="{blue}">' not in xml
 
 
 def test_restyle_text_refuses_a_count_mismatch() -> None:

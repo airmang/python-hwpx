@@ -25,6 +25,11 @@ Ops (index = 섹션 직속 ``<hp:p>`` 문서순, **op 실행 시점의 현재 �
     안내용 슬롯 서식(파란 이탤릭 등)을 상속한 채움 텍스트를 "사람이 작성한
     본문"으로 만든다(2026-07-07 AI중점학교 신청서 실측). 원본 charPr은 불변,
     변형은 header에 새 id로 추가(dedupe).
+
+거부(공통): 구역 정의(``hp:secPr``)를 품은 문단은 지우거나 복제하거나 자리를
+옮기지 않는다(구역마다 하나, 첫 문단에 있어야 한다). 글상자·각주·머리말처럼
+다른 문단을 품은 문단에는 ``set_paragraph_text``와 texts를 준 복제를 하지
+않는다(안쪽 글이 비워진다).
 """
 
 from __future__ import annotations
@@ -56,6 +61,20 @@ _P_EDGE_RE = re.compile(r"<hp:p[ >]|</hp:p>")
 _T_CONTENT_RE = re.compile(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", re.S)
 _PARA_ID_RE = re.compile(r'(<hp:p\b[^>]*\bid=")(\d+)(")')
 _TBL_RE = re.compile(r"<hp:tbl\b")
+_SEC_PR_RE = re.compile(r"<hp:secPr\b")
+
+
+def _holds_section_settings(block: str) -> bool:
+    """구역 정의(``hp:secPr``: 용지·여백·단)를 품은 문단인가. 구역의 첫 문단이
+    이것을 갖고, 한/글은 구역마다 하나를 그 자리에서 읽는다."""
+
+    return _SEC_PR_RE.search(block) is not None
+
+
+def _holds_another_paragraph(block: str) -> bool:
+    """글상자·각주·머리말처럼 안에 다른 문단을 품었는가(표가 아니어도)."""
+
+    return sum(1 for m in _P_EDGE_RE.finditer(block) if not m.group().startswith("</")) > 1
 _SUBLIST_EDGE_RE = re.compile(r"<hp:subList\b[^>]*>|</hp:subList>")
 _SQUEEZE_VALUE_RE = re.compile(r'\blineWrap="(?P<value>SQUEEZE)"')
 
@@ -348,6 +367,11 @@ def _op_delete_paragraph(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str
         raise ValueError(f"delete_paragraph: index {index} out of range (0..{len(spans) - 1})")
     a, b = spans[index]
     block = xml[a:b]
+    if _holds_section_settings(block):
+        raise ValueError(
+            "delete_paragraph: paragraph holds the section settings (hp:secPr) — refuse; "
+            "clear its text with set_paragraph_text instead"
+        )
     if _TBL_RE.search(block) and not op.get("allow_tables"):
         raise ValueError(
             "delete_paragraph: paragraph wraps a table — refuse (allow_tables=True to override)"
@@ -371,6 +395,16 @@ def _op_insert_paragraph_by_clone(xml: str, op: Mapping[str, Any]) -> tuple[str,
     block = xml[a:b]
     if _TBL_RE.search(block):
         raise ValueError("insert_paragraph_by_clone: ref paragraph wraps a table — refuse")
+    if _holds_section_settings(block):
+        raise ValueError(
+            "insert_paragraph_by_clone: ref paragraph holds the section settings (hp:secPr) — refuse; "
+            "a copy would give the section a second set"
+        )
+    if texts and _holds_another_paragraph(block):
+        raise ValueError(
+            "insert_paragraph_by_clone: ref paragraph holds another paragraph (text box, note) — "
+            "refuse to set texts; its inner text would be emptied"
+        )
     stripped = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
     clones: list[str] = []
     for i in range(count):
@@ -405,6 +439,10 @@ def _op_reorder_paragraphs(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[s
         if xml[b0:a1].strip():
             raise ValueError("reorder_paragraphs: non-whitespace content between paragraphs — refuse")
     blocks = [xml[a:b] for a, b in region]
+    if any(source != place and _holds_section_settings(blocks[source]) for place, source in enumerate(order)):
+        raise ValueError(
+            "reorder_paragraphs: the paragraph holding the section settings (hp:secPr) would move — refuse"
+        )
     new_region = "".join(blocks[i] for i in order)
     return xml[: region[0][0]] + new_region + xml[region[-1][1]:], {
         "start": start, "end": end, "order": order,
@@ -471,11 +509,14 @@ def _op_restyle_text(xml: str, op: Mapping[str, Any], ctx: dict[str, Any]) -> tu
             f"restyle_text: {find!r} matched {len(hits)} time(s) inside <hp:t> (expected {expected})"
         )
     remapped = []
+    # 찾은 글을 **직접** 가진 run. 바로 앞의 여는 태그는 그 run이 품은 표·글상자 안
+    # run의 것일 수 있다(글이 표 뒤에 올 때).
+    owners = [(a, b, run) for run in _scan_runs(xml) for a, b in run.texts]
     for pos in sorted(hits, reverse=True):
-        run_open = xml.rfind("<hp:run", 0, pos)
-        if run_open < 0:
+        owner = next((run for a, b, run in owners if a <= pos < b), None)
+        if owner is None:
             raise ValueError("restyle_text: enclosing <hp:run> not found")
-        tag_end = xml.find(">", run_open)
+        run_open, tag_end = owner.open_start, owner.open_end - 1
         open_tag = xml[run_open: tag_end + 1]
         m = re.search(r'charPrIDRef="(\d+)"', open_tag)
         if m is None:
@@ -501,6 +542,11 @@ def _op_set_paragraph_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[s
     block = xml[a:b]
     if _TBL_RE.search(block):
         raise ValueError("set_paragraph_text: paragraph wraps a table — refuse")
+    if _holds_another_paragraph(block):
+        raise ValueError(
+            "set_paragraph_text: paragraph holds another paragraph (text box, note) — refuse; "
+            "its inner text would be emptied"
+        )
     edited = _text_edit_for_paragraph(block.encode("utf-8"), str(op["text"]))
     if edited is None:
         raise ValueError("set_paragraph_text: paragraph has no text run to set")
