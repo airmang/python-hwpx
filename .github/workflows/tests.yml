@@ -2,7 +2,14 @@ name: Tests
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+# A new commit on a pull request cancels the run of the one before it. Runs on main are
+# never cancelled: each has its own group.
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
