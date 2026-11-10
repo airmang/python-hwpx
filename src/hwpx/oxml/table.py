@@ -36,8 +36,7 @@ from .table_structure import TableStructureEdits
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
-from .table_grid import TableGridCache as _TableGridCache
-from .table_merge import collapse_merged_grid
+from .table_merge import TableGridCache as _TableGridCache, collapse_merged_grid
 
 if TYPE_CHECKING:
     from hwpx.form_fit.policy import FitPolicy
