@@ -67,6 +67,11 @@
   `doc.styles.style`·`doc.fields.check_box(...).checked`를 가리켰다). 이동 대상 79개가 실제 속성으로 풀리는지
   테스트가 확인한다. `llms.txt`는 `.hwp`가 열린다고 적고, `examples/build_release_checklist.py`는 6.x 이름으로
   끝까지 돈다(전에는 없는 `document.save()`를 불렀다).
+- 공개 예외 7종(`EquationConversionError`, `UnsupportedLatexError`, `MathMLUnavailableError`, `DocumentIngestError`,
+  `UnsupportedDocumentFormat`, `RecoverError`, `WordBoxExtractorRequired`)이 `HwpxError`도 상속한다. 기존 부모
+  (`ValueError`·`RuntimeError`)는 그대로라 기존 `except`는 전처럼 잡는다. 각자 `code`가 생겼다
+  (`equation-conversion`, `equation-latex-unsupported`, `equation-mathml-unavailable`, `ingest-failed`,
+  `ingest-format-unsupported`, `recover-unsafe`, `toc-word-box-extractor-required`).
 
 ### 수정
 

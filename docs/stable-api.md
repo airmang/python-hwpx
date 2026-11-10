@@ -178,6 +178,13 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
 | `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
+| `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
+| `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
+| `hwpx.equation.mathml.MathMLUnavailableError` | `equation-mathml-unavailable` | `HwpxError`, `RuntimeError` | `latex2mathml` 없이 MathML 변환 요청 |
+| `hwpx.ingest.DocumentIngestError` | `ingest-failed` | `HwpxError`, `RuntimeError` | ingest 변환 실패(`attempts`에 시도 기록) |
+| `hwpx.ingest.UnsupportedDocumentFormat` | `ingest-format-unsupported` | `DocumentIngestError` | 입력을 받는 변환기가 없음 |
+| `hwpx.tools.recover.RecoverError` | `recover-unsafe` | `HwpxError`, `ValueError` | 로컬 헤더 항목을 안전하게 복구할 수 없음 |
+| `hwpx.tools.toc_fidelity.WordBoxExtractorRequired` | `toc-word-box-extractor-required` | `HwpxError`, `RuntimeError` | PDF 글자 상자 추출기 없이 차례 쪽 대조 호출 |
 
 ### HWP 5.0 (`.hwp`)
 
