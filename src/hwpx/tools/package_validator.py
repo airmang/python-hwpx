@@ -574,11 +574,17 @@ def _check_table_editor_acceptance(
 #: 의도적으로 이 5종이 없다(DEV-016 — AbstractShapeObjectType 꼬리는
 #: 그룹 자신만 갖는다) -- 422개 최상위 도형 전량 0건 결여, 179개
 #: 컨테이너-내부 부재 179건 "결여"(정상, 결여가 계약)로 실측 확인했다.
-#: pic/equation/ole/chart/video/audio/textart는 이 5종 계약을 공유하지
+#: pic/equation/chart/audio는 이 5종 계약을 공유하지
 #: 않거나(별도 필수요소 계약) 전용 저작 경로가 이미 완전한 구조를 쓰므로
 #: 범위 밖이다.
+#:
+#: 글맵시·OLE·동영상(2026-11 점검 ENG-23): 탈출구(``add_raw``)로 만든 빈
+#: ``hp:textart``·``hp:ole``·``hp:video``를 한/글 2024가 열다가 경고 없이
+#: 죽는다(종료 코드 0xC0000005). 한/글이 저장한 것은 모두 위 5종과
+#: ``renderingInfo``를 갖추고 있다(tests 자료의 글맵시 1·OLE 5·동영상 1개).
+#: 빈 ``hp:equation``은 한/글이 정상으로 열므로 넣지 않는다.
 _SHAPE_OPEN_SAFETY_TAGS = frozenset(
-    {"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "container"}
+    {"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "container", "textart", "ole", "video"}
 )
 
 

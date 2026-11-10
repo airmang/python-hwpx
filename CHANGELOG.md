@@ -27,6 +27,11 @@
 
 ### 고침
 
+- 저장 관문이 필수 자식(`offset`·`orgSz`·`curSz`·`sz`·`pos`, `renderingInfo`)이 없는 글맵시(`hp:textart`)·OLE(`hp:ole`)·
+  동영상(`hp:video`)도 `hp:rect`처럼 거부한다. `doc.shapes.add_raw("textart"|"ole"|"video")`로 만든 빈 요소는 전에
+  저장됐고, 그 파일을 한/글 2024가 열다가 경고 없이 종료했다(종료 코드 0xC0000005). `validate_package`·
+  `validate_editor_open_safety`도 오류로 보고한다. 한/글이 저장한 글맵시·OLE·동영상은 전처럼 통과하고, 빈
+  수식(`hp:equation`)은 한/글이 정상으로 열므로 막지 않는다.
 - `paragraph.apply_model`(글·런을 바꾼 경우), `add_index_mark`, `add_title_mark`, `add_drop_cap`이 고친 문단의 줄 배치
   캐시를 지운다. 전에는 문단 내용이 바뀌어도 옛 캐시가 남았다. `apply_model`은 모델이 문단 내용을 바꾸고 캐시는 그대로
   돌려준 때만 지우므로, 모델로 캐시 자체를 고치는 쓰임은 전과 같다.
