@@ -28,6 +28,7 @@ from .text_extractor import (
     _resolve_control_nested_text,
     _resolve_hyperlink_target,
     _resolve_note_text,
+    _ElementPaths,
     build_parent_map,
     describe_element_path,
     strip_namespace,
@@ -115,7 +116,7 @@ class ObjectFinder:
             for section in extractor.iter_sections():
                 if section_filter is not None and not section_filter(section):
                     continue
-                parent_map = build_parent_map(section.element)
+                paths = _ElementPaths(build_parent_map(section.element))
                 if xpath is not None:
                     candidates = section.element.findall(xpath, namespaces=self.namespaces)
                 else:
@@ -125,7 +126,7 @@ class ObjectFinder:
                         continue
                     if attrs and not self._match_attributes(element, attrs):
                         continue
-                    path = describe_element_path(element, parent_map)
+                    path = paths.describe(element)
                     yield FoundElement(section=section, path=path, element=element)
                     if limit is not None:
                         limit -= 1
