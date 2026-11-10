@@ -64,6 +64,9 @@
   그대로 둔다(`TableStructureError`).
 - `.hwp`의 스크립트 스트림도 다른 스트림과 같은 크기 한도 안에서 읽는다. 한도를 넘으면 `Hwp5Error`
   (`hwp5-limit-exceeded`)로 거부하고, 스크립트를 네 개보다 훨씬 많이 적은 스트림은 읽지 못한 것으로 센다.
+- 손상된 `.hwp`를 열다 나는 `ValueError`·`OverflowError`·`UnicodeEncodeError`·`RecursionError`·`MemoryError` 등이
+  `Hwp5Error`(`hwp5-damaged` 또는 `hwp5-limit-exceeded`)로 나온다. 원래 예외는 `__cause__`에 있다. 512MiB보다 큰
+  `.hwp`는 읽지 않고 `hwp5-limit-exceeded`로 거부한다(`hwpx.hwp5.package.MAX_FILE_BYTES`).
 
 ### 수정
 

@@ -153,14 +153,15 @@ class HwpxDocument(_LegacyFacade):
         import warnings
 
         from .hwp5.errors import Hwp5ConversionReport, Hwp5ConversionWarning
-        from .hwp5.package import convert, to_hwpx_bytes
+        from .hwp5.package import MAX_FILE_BYTES, convert, to_hwpx_bytes
 
+        # One byte past the limit is enough for convert() to refuse the file.
         if isinstance(source, (str, PathLike)):
             with open(source, "rb") as handle:
-                data = handle.read()
+                data = handle.read(MAX_FILE_BYTES + 1)
         else:
             source.seek(0)
-            data = source.read()
+            data = source.read(MAX_FILE_BYTES + 1)
         converted = convert(data)
         package = HwpxPackage.open(to_hwpx_bytes(converted.files))
         root = HwpxOxmlDocument.from_package(package)
