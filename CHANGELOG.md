@@ -62,6 +62,8 @@
   복사해서, 그 칸의 그림·도형이 같은 번호로 겹쳤다.
 - 객체 모델 `set_column_widths`·`equalize_column_widths`가 칸을 안쪽 표보다 좁게 만들면 바이트 편집처럼 거부하고 표를
   그대로 둔다(`TableStructureError`).
+- `.hwp`의 스크립트 스트림도 다른 스트림과 같은 크기 한도 안에서 읽는다. 한도를 넘으면 `Hwp5Error`
+  (`hwp5-limit-exceeded`)로 거부하고, 스크립트를 네 개보다 훨씬 많이 적은 스트림은 읽지 못한 것으로 센다.
 
 ### 수정
 
