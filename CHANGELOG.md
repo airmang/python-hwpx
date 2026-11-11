@@ -106,6 +106,19 @@
   복사해서, 그 칸의 그림·도형이 같은 번호로 겹쳤다.
 - 객체 모델 `set_column_widths`·`equalize_column_widths`가 칸을 안쪽 표보다 좁게 만들면 바이트 편집처럼 거부하고 표를
   그대로 둔다(`TableStructureError`).
+- `.hwp`의 스크립트 스트림도 다른 스트림과 같은 크기 한도 안에서 읽는다. 한도를 넘으면 `Hwp5Error`
+  (`hwp5-limit-exceeded`)로 거부하고, 스크립트를 네 개보다 훨씬 많이 적은 스트림은 읽지 못한 것으로 센다.
+- 손상된 `.hwp`를 열다 나는 `ValueError`·`OverflowError`·`UnicodeEncodeError`·`RecursionError`·`MemoryError` 등이
+  `Hwp5Error`(`hwp5-damaged` 또는 `hwp5-limit-exceeded`)로 나온다. 원래 예외는 `__cause__`에 있다. 512MiB보다 큰
+  `.hwp`는 읽지 않고 `hwp5-limit-exceeded`로 거부한다(`hwpx.hwp5.package.MAX_FILE_BYTES`).
+- `hwpx-repair`와 `hwpx-pack`이 패키지의 XML 부품을 엔티티를 풀지 않는 파서로 읽는다.
+- 수식 안 따옴표 글이 미리보기 MathML에 마크업이 아닌 글로 들어간다(`<`, `&`가 이스케이프된다).
+- 쪽 미리보기와 문서 뷰어가 `hp:t` 안의 줄 바꿈·탭·형광펜 표시 뒤의 글도 보여 준다. 전에는 그 앞 글만 나왔다.
+  미리보기의 글자색·테두리 색은 16진 색, 테두리 굵기는 mm 길이, 정렬은 알려진 값일 때만 쓰고 아니면 기본값을 쓴다.
+- 리치 마크다운 내보내기가 글자색·형광색을 16진 색일 때만 `<span>`·`<mark>`로 감싸고, 하이퍼링크는
+  `http`·`https`·`mailto` 대상만 링크로 쓴다. 그 밖의 대상(문서 안 책갈피, 파일 경로 포함)은 글만 남긴다.
+- `export_markdown(image_dir=…)`이 `BinData/`의 그림 파일(png·jpg·gif·bmp·tif·webp·svg·wmf·emf·ico)만 꺼내고,
+  이름에 드라이브·스트림 표시나 장치 이름이 있으면 꺼내지 않는다.
 - 폐기 경고와 `docs/migration-6.0.md`가 없는 이름으로 안내하던 두 곳을 바로잡았다. `doc.style(…)`의 이동 대상은
   `doc.styles.get`, `doc.set_check_box(…)`의 이동 대상은 `doc.fields.set_check_box`다(전에는 없는
   `doc.styles.style`·`doc.fields.check_box(...).checked`를 가리켰다). 이동 대상 79개가 실제 속성으로 풀리는지
