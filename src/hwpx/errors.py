@@ -125,8 +125,11 @@ class Hwp5Error(HwpxError, ValueError):
     are broken), ``hwp5-password``, ``hwp5-distribution`` and ``hwp5-drm`` (the
     body is encrypted), ``hwp5-not-hwp5`` (a compound file without an HWP 5.0
     file header), ``hwp5-version-unsupported``, ``hwp5-limit-exceeded`` (the
-    input exceeds a parsing limit) and ``hwp5-write-unsupported`` (the document
-    holds content the HWP 5.0 writer cannot express).
+    input exceeds a parsing limit), ``hwp5-write-unsupported`` (the document
+    holds content the HWP 5.0 writer cannot express), ``hwp5-overwrite-source``
+    (an ``.hwp`` save aimed at the file the document was opened from) and
+    ``hwp5-write-lossy-source`` (an ``.hwp`` save of a document that opened with
+    content left out).
     """
 
     default_code = "hwp5-damaged"
@@ -426,6 +429,8 @@ ERROR_CODES: dict[str, str] = {
     "hwp5-version-unsupported": "FileHeader의 주 버전이 5가 아니다.",
     "hwp5-limit-exceeded": "HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다.",
     "hwp5-write-unsupported": "HWP 5.0 작성기가 표현할 수 없는 내용이다.",
+    "hwp5-overwrite-source": "문서를 연 원본 .hwp 경로에 .hwp로 덮어쓰려 했다.",
+    "hwp5-write-lossy-source": "열 때 옮기지 못한 내용이 있는 문서를 .hwp로 쓰려 했다.",
     # -- 수식·ingest·복구·차례 (기존 builtin 부모를 유지한 채 편입) ------
     "equation-conversion": "한글 수식 스크립트와 LaTeX 사이의 변환에 실패했다.",
     "equation-latex-unsupported": "LaTeX 조각이 검증된 명령 집합 밖의 명령을 쓴다.",

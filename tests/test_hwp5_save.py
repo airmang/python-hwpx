@@ -1987,3 +1987,48 @@ def test_hwp_save_skips_xml_comments_in_the_source() -> None:
         commented = HwpxDocument.open(source.getvalue())
         reopened = HwpxDocument.open(commented.to_bytes(format="hwp"))
     assert "가" in reopened.text.plain() and "나" in reopened.text.plain()
+
+
+def test_saving_over_the_hwp_file_a_document_was_opened_from_is_refused(tmp_path: Path) -> None:
+    original = tmp_path / "original.hwp"
+    original.write_bytes(make_hwp())
+    before = original.read_bytes()
+    document = HwpxDocument.open(original)
+
+    for save in (
+        lambda: document.save_to_path(original),
+        lambda: document.save_to_path(f"{tmp_path}/sub/../original.hwp"),
+        lambda: document.save_report(original),
+    ):
+        with pytest.raises(Hwp5Error) as refused:
+            save()
+        assert refused.value.code == "hwp5-overwrite-source"
+    assert original.read_bytes() == before
+
+    copy = tmp_path / "copy.hwp"
+    document.save_to_path(copy)
+    assert HwpxDocument.open(copy).text.plain() == HwpxDocument.open(original).text.plain()
+    document.save_to_path(tmp_path / "original.hwpx")
+
+
+def test_a_document_that_opened_with_content_left_out_is_not_written_as_hwp(tmp_path: Path) -> None:
+    original = tmp_path / "original.hwp"
+    original.write_bytes(_tracked_hwp())
+    document = HwpxDocument.open(original)
+    assert document.conversion_report is not None and document.conversion_report.dropped
+
+    target = tmp_path / "copy.hwp"
+    for save in (
+        lambda: document.save_to_path(target),
+        lambda: document.save_report(target),
+        lambda: document.save_to_stream(io.BytesIO(), format="hwp"),
+        lambda: document.to_bytes(format="hwp"),
+    ):
+        with pytest.raises(Hwp5Error) as refused:
+            save()
+        assert refused.value.code == "hwp5-write-lossy-source"
+        assert refused.value.context["dropped"] == dict(document.conversion_report.dropped)
+    assert not target.exists()
+
+    document.save_to_path(tmp_path / "kept.hwpx")
+    assert (tmp_path / "kept.hwpx").exists()

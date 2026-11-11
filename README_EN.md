@@ -17,7 +17,7 @@
 
 HWPX is XML (OWPML) inside a ZIP file, so Python alone can work with it; Hancom Office is not needed.
 python-hwpx runs on Windows, macOS, Linux, and CI, and its only dependency is `lxml`. HWP 5.0 (`.hwp`)
-files open and save through the same API.
+files open through the same API and convert to HWPX.
 
 We open our output in Hancom Office 2024 and publish what we see, with dates,
 [below](#how-close-to-hangul).
@@ -41,7 +41,7 @@ doc.save_to_path("plan.hwpx")
 
 Styles are picked by name. A name that does not exist fails at that line.
 To edit an existing file, start from `HwpxDocument.open("report.hwpx")`. An `.hwp` file opens the
-same way, and `save_to_path("report.hwp")` writes HWP 5.0.
+same way; save the result as HWPX with `save_to_path("report.hwpx")`.
 
 For higher-level workflows (document authoring, form filling, exam typesetting), install
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) alongside it.
@@ -63,8 +63,9 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
   with `doc.tables[0]`.
 - Create and batch: new documents, tables of contents and cross-references, mail merge, document diff,
   tracked changes.
-- HWP 5.0: read an `.hwp` file as HWPX, edit it with the same API, and save it as `.hwp`. Anything that
-  could not be carried over is listed in `document.conversion_report`.
+- HWP 5.0: read an `.hwp` file as HWPX, edit it with the same API, and save it as HWPX. Anything that
+  could not be carried over is listed in `document.conversion_report`. Writing `.hwp` back is experimental:
+  it never overwrites the file that was opened, and it refuses when something was not carried over.
 - Layout estimates (experimental): `estimate_pages` estimates the page count and each line's page and
   vertical position without Hangul. `write_line_caches` writes the line layout data Hangul saves, but only for
   paragraphs where it is sure to match Hangul. Viewers such as rhwp, which place pictures from that data, then
@@ -165,7 +166,7 @@ An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](d
 
 | | python-hwpx | pyhwpx | pyhwp |
 |---|---|---|---|
-| **Formats** | `.hwpx`, `.hwp` (HWP 5.0), read and write | `.hwpx` | `.hwp` (v5 binary) |
+| **Formats** | `.hwpx` read and write, `.hwp` (HWP 5.0) read | `.hwpx` | `.hwp` (v5 binary) |
 | **Hancom install** | Not required | Required (Windows COM) | Not required |
 | **Platforms** | Linux / macOS / Windows / CI | Windows only | Linux / macOS / Windows |
 | **Edit and create** | ✅ | ✅ (Hangul does it) | Mostly read |

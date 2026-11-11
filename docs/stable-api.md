@@ -92,7 +92,7 @@ major 경계에서만 깨지는 이름들입니다.
 - `SavePipeline`, `QualityPolicy`, `VisualCompleteReport`
 - `MutationReport`, `PreservationDowngradeError`
 - `HwpxError` (구조화 예외 베이스 — 아래 오류 계약 참조)
-- `Hwp5Error`, `Hwp5ConversionWarning` (HWP 5.0 `.hwp` 읽기·쓰기 — 아래 오류 계약 참조)
+- `Hwp5Error`, `Hwp5ConversionWarning` (HWP 5.0 `.hwp` 읽기와 실험 단계의 쓰기 — 아래 오류 계약 참조)
 - `EditorOpenSafetyReport`, `PackageValidationReport`,
   `validate_editor_open_safety`, `validate_package`
 
@@ -194,7 +194,7 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | `hwpx.errors.SaveError` | `save-failed`(기본), `document-validation-failed`·`open-safety-failed`·`quality-gate-failed` | `HwpxError`, `ValueError` | 대표 저장 경로의 사전검증·open-safety·품질 게이트 실패 |
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
-| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
+| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
 | `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
 | `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
 | `hwpx.equation.mathml.MathMLUnavailableError` | `equation-mathml-unavailable` | `HwpxError`, `RuntimeError` | `latex2mathml` 없이 MathML 변환 요청 |
@@ -209,8 +209,10 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 내용은 읽기 전용 `document.conversion_report`(`unconverted`·`dropped` 개수)에 남고,
 `unconverted`가 있으면 `Hwp5ConversionWarning`을 한 번 냅니다. `.hwpx`로 연 문서에서는
 `conversion_report`가 `None`입니다. `save_to_path("x.hwp")`, `save_to_stream(..., format="hwp")`,
-`to_bytes(format="hwp")`는 HWP 5.0으로 씁니다. 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
-`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
+`to_bytes(format="hwp")`는 HWP 5.0으로 씁니다(실험). 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
+`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 쓰지 않고
+(`hwp5-overwrite-source`), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지 않습니다
+(`hwp5-write-lossy-source`). 두 경우 모두 `.hwpx`로 저장하면 됩니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
 주면 `hwpx.errors.HwpxValueError`(`save-format-unsupported`)입니다.
 
 응용 계층의 agent·exam 오류 계약은 `python-hwpx-automation`이 소유합니다.

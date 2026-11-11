@@ -290,6 +290,8 @@ def save_to_path(
     writes nothing when the save cannot keep every untouched part byte-identical.
     """
 
+    if str(path).lower().endswith(".hwp"):
+        _refuse_lossy_hwp5_save(doc, path)
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
@@ -320,6 +322,43 @@ def _write_hwp5(path: str | PathLike[str], archive_bytes: bytes) -> None:
     from ..quality.save_pipeline import write_bytes_atomically
 
     write_bytes_atomically(path, _hwp5_bytes(archive_bytes))
+
+
+def _refuse_lossy_hwp5_save(doc: "HwpxDocument", path: str | PathLike[str] | None = None) -> None:
+    """Raise before an HWP 5.0 save that would lose content without saying so.
+
+    Two cases are refused. Writing over the ``.hwp`` file the document was opened
+    from would replace the only original with a file this library rebuilt. And a
+    document whose ``conversion_report`` is not empty already lacks content of the
+    original, so an ``.hwp`` written from it would pass that loss on as if complete.
+    """
+
+    import os
+
+    from ..hwp5.errors import Hwp5Error
+
+    source = getattr(doc, "_hwp5_source_path", None)
+    if path is not None and source is not None:
+        target = os.path.abspath(os.fspath(path))
+        same = os.path.normcase(target) == os.path.normcase(source)
+        if not same and os.path.exists(target) and os.path.exists(source):
+            same = os.path.samefile(target, source)
+        if same:
+            raise Hwp5Error(
+                "Refusing to overwrite the .hwp file this document was opened from.",
+                code="hwp5-overwrite-source",
+                context={"path": target},
+                suggestion="Save to a different path, or save as .hwpx and keep the original.",
+            )
+    report = getattr(doc, "_hwp5_report", None)
+    if report is not None and (report.unconverted or report.dropped):
+        raise Hwp5Error(
+            "Refusing to write .hwp: opening the original left some of its content out "
+            "(see conversion_report), so the result would be missing it.",
+            code="hwp5-write-lossy-source",
+            context={"unconverted": dict(report.unconverted), "dropped": dict(report.dropped)},
+            suggestion="Save as .hwpx, and keep the original .hwp for the content that was not converted.",
+        )
 
 
 def _hwp5_bytes(archive_bytes: bytes) -> bytes:
@@ -363,6 +402,8 @@ def save_to_stream(
     """
 
     _check_format(format)
+    if format == "hwp":
+        _refuse_lossy_hwp5_save(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
@@ -425,6 +466,7 @@ def save_report(
     # written when the HWP 5.0 writer cannot express the document.
     hwp5 = None
     if output_path is not None and str(output_path).lower().endswith(".hwp"):
+        _refuse_lossy_hwp5_save(doc, output_path)
         hwp5 = _hwp5_bytes(archive_bytes)
 
     report = doc._save_pipeline.run(
@@ -468,6 +510,8 @@ def to_bytes(
     """
 
     _check_format(format)
+    if format == "hwp":
+        _refuse_lossy_hwp5_save(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     _resolve_grade(mode, fallback, measurement)
