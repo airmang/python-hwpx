@@ -34,7 +34,12 @@ hwpx-text-extract sample.hwpx --format markdown --output sample.md
 
 # 문서 구조 변화 징후 점검
 hwpx-page-guard --reference sample.hwpx --output edited.hwpx
+
+# 서식 규칙 파일에 맞는지 점검
+hwpx-check-format rules.json sample.hwpx
 ```
+
+`hwpx-check-format`은 글자 모양·문단 모양·표·문자 범위·하이퍼링크·매크로가 규칙 파일(JSON)에 맞는지 봅니다. 규칙의 항목 이름과 단위는 한컴이 공개한 검사기([hancom-io/dvc](https://github.com/hancom-io/dvc))와 같습니다(`fontsize`는 1/100pt, 길이는 HWPUNIT). 지원하는 항목은 `hwpx.tools.format_rules.SUPPORTED_RULES`에 있고, 그 밖의 항목은 건너뛰지 않고 "점검하지 않음"으로 알립니다. 어긋난 곳은 구역·문단 번호와 그 자리의 글로 알려 주며, 쪽·줄 번호는 주지 않습니다. 규칙에 맞으면 종료 코드 0, 어긋나면 1입니다.
 
 `hwpx-page-guard`는 실제 렌더러의 쪽수를 계산하지 않고, 구조 및 텍스트 통계를 비교해 편집 전후 변화 징후를 점검하는 도구입니다.
 
