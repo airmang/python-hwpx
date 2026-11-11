@@ -5,7 +5,7 @@ Replaces the 6-key dict ``add_check_box``/``set_check_box``/``list_check_boxes``
 returned in 5.x (design §2.4 #1/#4, §2.5). ``checked`` is settable — writing it
 mutates the underlying element and marks the owning section dirty, which is why
 ``set_check_box`` stops being a separate verb once the namespace wires
-``doc.fields.check_box(...).checked = False`` (design table row 81).
+``doc.fields.check_boxes[i].checked = False`` (design table row 81).
 """
 
 from __future__ import annotations

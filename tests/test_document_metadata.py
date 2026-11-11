@@ -29,11 +29,14 @@ def test_metadata_read_on_a_fresh_document() -> None:
 
     assert metadata is not None
     assert metadata.language == "ko"
-    # date/lastsaveby/created_date/modified_date come from the skeleton's
-    # own frozen snapshot -- present, but not asserted on exact value here
-    # (that's the skeleton's own business, not this feature's contract).
-    assert metadata.date is not None
+    # A new document does not inherit the skeleton's author or dates (ENG-36):
+    # creator, lastsaveby and the free-form date are empty, and the two ISO
+    # dates are the moment the document was made.
+    assert metadata.creator is None
+    assert metadata.lastsaveby is None
+    assert metadata.date is None
     assert metadata.created_date is not None
+    assert metadata.modified_date == metadata.created_date
 
 
 def test_set_document_metadata_updates_only_the_given_fields() -> None:

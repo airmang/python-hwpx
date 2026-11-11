@@ -83,7 +83,7 @@
   },
   "History": {
    "implementation": "hwpx.oxml.simple_parts.HwpxOxmlHistory",
-   "internalCount": 9,
+   "internalCount": 10,
    "stable": []
   },
   "InlineObject": {

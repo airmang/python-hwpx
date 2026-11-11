@@ -35,7 +35,13 @@ class TablesNamespace(_Namespace):
 
     @property
     def all(self) -> list["Table"]:
-        """문서의 모든 표를 문서 순서로."""
+        """본문 문단에 바로 놓인 표를 문서 순서로.
+
+        표 칸 안의 표, 머리말·꼬리말·각주·미주·글상자 안의 표는 들어 있지 않다.
+        칸 안의 표는 그 칸에서(``cell.tables``), 글까지 모두
+        훑으려면 ``doc.text.blocks()``를 쓴다. ``len(doc.tables)``와
+        ``for table in doc.tables``도 같은 범위다.
+        """
 
         tables: list["Table"] = []
         for paragraph in self._doc.paragraphs:

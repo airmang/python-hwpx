@@ -206,8 +206,7 @@
 - `conversion_report -> Hwp5ConversionReport | None`
   - `.hwp`를 열 때 문서 모델로 옮기지 못한 내용의 개수(`unconverted`·`dropped`, 읽기 전용).
     `.hwp`로 열지 않은 문서에서는 `None`입니다.
-- `save(path_or_stream=None) -> str | PathLike[str] | BinaryIO | bytes`
-  - 하위 호환용 래퍼입니다. 내부에서 `save_to_path()`/`save_to_stream()`/`to_bytes()`를 호출하며 `DeprecationWarning`을 발생시킵니다.
+- `save()`는 없습니다. 4.0에서 없앴고, 부르면 `AttributeError`가 납니다. 경로에는 `save_to_path()`, 스트림에는 `save_to_stream()`, 바이트에는 `to_bytes()`를 씁니다.
 
 ***
 
@@ -573,7 +572,10 @@
 ### 예외
 
 - `HwpxPackageError`: 패키지 조작 오류에 대한 기본 예외입니다.
-- `HwpxStructureError`: HWPX 패키지의 필수 구조 구성 요소가 없거나 일치하지 않을 때 발생합니다.
+- `HwpxStructureError`: HWPX 패키지의 필수 구조 구성 요소가 없거나 일치하지 않을 때 발생합니다. 아래 셋의 부모입니다.
+- `HwpxArchiveError`: ZIP이 아니거나 잘린 입력. `zipfile.BadZipFile`도 상속합니다.
+- `HwpxCompressedDataError`: 압축 데이터가 손상된 입력. `zlib.error`도 상속합니다.
+- `HwpxXmlSyntaxError`: XML 파트가 깨진 입력. `lxml.etree.XMLSyntaxError`도 상속하고 `part_name`에 파트 이름을 담습니다.
 
 ### 데이터 클래스
 

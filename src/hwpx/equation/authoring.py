@@ -36,6 +36,8 @@ from .tokens import (
 class UnsupportedLatexError(EquationConversionError):
     """Raised when a LaTeX fragment uses commands outside the verified set."""
 
+    default_code = "equation-latex-unsupported"
+
 
 def _invert(*maps: dict[str, str]) -> dict[str, str]:
     """LaTeX command → canonical EqEdit token (first-seen wins per map order)."""

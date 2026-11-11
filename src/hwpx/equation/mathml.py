@@ -12,6 +12,8 @@ from __future__ import annotations
 import re
 from typing import Callable
 
+from ..errors import HwpxError
+
 from .tokens import EQEDIT_MATHML_OPERATOR_COMMANDS
 
 # ``False`` marks a resolved-but-unavailable converter; ``None`` means "not yet
@@ -21,8 +23,10 @@ _LATEX_WORD_COMMAND_RE = re.compile(r"\\[A-Za-z]+")
 _TEXT_COMMAND = "\\text{"
 
 
-class MathMLUnavailableError(RuntimeError):
+class MathMLUnavailableError(HwpxError, RuntimeError):
     """Raised when ``latex2mathml`` is not installed."""
+
+    default_code = "equation-mathml-unavailable"
 
 
 def _load_converter() -> Callable[[str], str] | bool:

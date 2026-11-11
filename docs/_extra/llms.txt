@@ -83,8 +83,12 @@ Use the API paths below rather than inferring names from python-docx.
 - Wrong: `Document()` / `doc.paragraphs[0].runs` — those are python-docx
   idioms. Use `HwpxDocument.new()` / `document.text.runs()`. (`add_paragraph`
   and `add_heading` do exist.)
-- `.hwp` (HWP 5.x binary) is a different format: opening raises `BadZipFile`
-  with guidance. Encrypted HWPX is rejected fail-closed.
+- `.hwp` (HWP 5.x binary) opens too: `HwpxDocument.open("file.hwp")` converts it
+  into the same document model. `document.conversion_report` counts what the
+  conversion could not carry over (`None` for a document opened from HWPX), and
+  a `Hwp5ConversionWarning` is raised once when something was skipped.
+  Password-protected, distribution and DRM `.hwp` files raise `Hwp5Error`.
+  Encrypted HWPX is rejected fail-closed.
 - All `add_*` calls append (not idempotent); check existence first by
   traversal when you need "add once".
 - Report content verification, untouched-part preservation, package/open-safety

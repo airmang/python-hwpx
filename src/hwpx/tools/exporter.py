@@ -447,6 +447,31 @@ def _table_cells_text(
     return rows
 
 
+def _span(value: str | None) -> int:
+    """A ``hp:cellSpan`` count as a positive int; anything unreadable is 1."""
+
+    try:
+        return max(1, int(value or "1"))
+    except ValueError:
+        return 1
+
+
+def _table_cell_spans(tbl: ET.Element) -> list[list[tuple[int, int]]]:
+    """Return ``(colspan, rowspan)`` per cell, in the order of :func:`_table_cells_text`."""
+
+    spans: list[list[tuple[int, int]]] = []
+    for tr in tbl.findall(f"{_HP}tr"):
+        row: list[tuple[int, int]] = []
+        for tc in tr.findall(f"{_HP}tc"):
+            span = tc.find(f"{_HP}cellSpan")
+            if span is None:
+                row.append((1, 1))
+            else:
+                row.append((_span(span.get("colSpan")), _span(span.get("rowSpan"))))
+        spans.append(row)
+    return spans
+
+
 def _cell_text(
     tc: ET.Element,
     *,
@@ -679,11 +704,17 @@ def export_html(
             if labels is not None:
                 labels.count(block)
         if rows:
+            # A merged cell is one hp:tc with a span; the cells it covers are
+            # absent, so without the span attributes later cells shift left.
+            spans = _table_cell_spans(block)
             body_parts.append('<table border="1">')
-            for row in rows:
+            for row, row_spans in zip(rows, spans):
                 body_parts.append("  <tr>")
-                for cell in row:
-                    body_parts.append(f"    <td>{_escape_html(cell)}</td>")
+                for cell, (colspan, rowspan) in zip(row, row_spans):
+                    attrs = (f' colspan="{colspan}"' if colspan > 1 else "") + (
+                        f' rowspan="{rowspan}"' if rowspan > 1 else ""
+                    )
+                    body_parts.append(f"    <td{attrs}>{_escape_html(cell)}</td>")
                 body_parts.append("  </tr>")
             body_parts.append("</table>")
 
