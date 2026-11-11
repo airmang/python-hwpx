@@ -760,6 +760,12 @@
       "rationale": "from_markdown/append_markdown: writes a common Markdown subset (headings, paragraphs, nested lists, pipe tables, bold/italic) into HWPX through the document's own paragraph, list and table authoring. MarkdownStyle is genre-neutral sizing only; genre presets (official letters, notices) stay with the application layer that passes a style in."
     },
     {
+      "path": "src/hwpx/tools/format_rules.py",
+      "disposition": "core",
+      "approvedBy": "owner-2026-11-11-format-rule-check",
+      "rationale": "check_format: compares stored character shapes, paragraph shapes, table placement, character range, hyperlinks and macros with a rule file in the key names and units of Hancom's open-source checker (hancom-io/dvc). It reads values the file stores and carries no organisation's rules; a rule set for a genre (official letters, school notices) stays with the application layer that passes it in."
+    },
+    {
       "path": "src/hwpx/_document/text_blocks.py",
       "disposition": "core",
       "approvedBy": "text-blocks-for-small-models",
