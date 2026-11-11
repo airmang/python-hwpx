@@ -1158,6 +1158,8 @@ for mark in span.marks:
 paragraph.apply_model(model)
 ```
 
+모델로 문단의 글이나 런을 바꾸면 `apply_model()`이 그 문단의 줄 배치 캐시(`hp:linesegarray`)를 지웁니다. 한/글은 캐시의 줄 수를 믿고 글을 그 안에 눌러 담으므로, 바뀐 내용 위에 옛 캐시를 남기지 않습니다. 런 텍스트에 넣은 `"\n"`과 탭은 `hp:lineBreak`·`hp:tab`으로 기록됩니다.
+
 ## 런 서식 지정
 
 헤더의 `<hh:charPr>` 정의는 여러 런이 공유하는 문자 서식을 담고 있습니다. `doc.styles.ensure_run()`은 굵게/기울임/밑줄 조합에 맞는 `charPr` 항목을 찾아 ID를 반환하고, 필요한 경우 새 항목을 생성합니다. 문단 객체는 `add_run()` 메서드를 통해 해당 서식을 즉시 사용하는 런을 만들 수 있습니다.
@@ -1254,6 +1256,13 @@ for element in paragraphs_with_bookmark:
 | `save_to_path(path)` | 원자적 쓰기 + ZIP 무결성 + editor-open safety 검증 후 파일 저장 |
 | `save_to_stream(stream)` | 검증된 HWPX만 `BinaryIO` 스트림에 기록 |
 | `to_bytes()` | 검증된 HWPX를 `bytes`로 직렬화 |
+
+세 방법의 기본 검사가 보는 범위는 다음과 같습니다.
+
+- 보는 것: ZIP과 각 XML 파트가 읽히는지, 한/글이 열지 못하는 구조(필수 자식이 없는 표·도형·글맵시·OLE·동영상, 빈 컨트롤, 필수 파트·속성 누락), 글보다 뒤를 가리키거나 줄 수가 크게 모자란 줄 배치 캐시.
+- 보지 않는 것: **참조 무결성**. 본문이 가리키는 글자 모양(`charPrIDRef`)·문단 모양(`paraPrIDRef`)·스타일·테두리·그림 자료가 `header.xml`과 패키지에 실제로 있는지는 기본 저장에서 확인하지 않습니다. 없는 id를 가리키는 문서도 기본 검사를 통과해 저장됩니다.
+
+참조까지 확인하려면 `save_report(path, quality=QualityPolicy.strict())`를 쓰거나(`REFERENCE_INTEGRITY_FAILED`로 보고), `hwpx.tools.id_integrity.check_id_integrity(document)`를 직접 부릅니다. 이 검사는 문서를 여는 시간의 0.7배쯤 더 걸리고, 한/글이 저장한 문서 가운데에도 걸리는 것이 있어(정의되지 않은 글머리표 `idRef="0"`) 기본 저장에는 넣지 않았습니다.
 
 ```python
 # 파일로 저장

@@ -17,7 +17,12 @@ from ._document_primitives import (
     _element_local_name,
     _text_element_content,
 )
-from ._paragraph_text_edit import clear_text_element, set_text_with_tabs
+from ._paragraph_text_edit import (
+    clear_text_element,
+    set_text_with_tabs,
+    text_marks_as_elements,
+    text_marks_as_elements_in,
+)
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -393,6 +398,8 @@ def replace_across_runs(
             combined = "".join(segment.text for segment in segments)
             position = combined.find(search, position + len(replacement))
     if total:
+        for run in runs:
+            text_marks_as_elements_in(run)  # a tab or line break in the replacement, as Hancom writes it
         _clear_paragraph_layout_cache(paragraph.element)
         paragraph.section.mark_dirty()
     return total
@@ -422,6 +429,7 @@ class HwpxOxmlRun:
             replacement = LET.fromstring(xml_bytes)
         else:
             replacement = ET.fromstring(xml_bytes)
+        text_marks_as_elements_in(replacement)  # "\n" set on a model span, as hp:lineBreak
         run_children = list(parent)
         index = run_children.index(self.element)
         parent.remove(self.element)
@@ -579,6 +587,10 @@ class HwpxOxmlRun:
             total_replacements += _replace_all_occurrences(segments, search, replacement, remaining)
 
         if total_replacements:
+            # A tab or line break in the replacement goes in as hp:tab / hp:lineBreak,
+            # as the text setters write it, not as a character inside hp:t.
+            for node in self.element.findall(f"{_HP}t"):
+                text_marks_as_elements(node)
             if _clear_layout:
                 _clear_paragraph_layout_cache(self.paragraph.element)
             self.paragraph.section.mark_dirty()

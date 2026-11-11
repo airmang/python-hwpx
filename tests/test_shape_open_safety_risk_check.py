@@ -162,3 +162,52 @@ def test_real_corpus_produces_zero_shape_open_safety_risk_warnings() -> None:
             offenders.append(f"{sample.name}: {[str(i) for i in risky]}")
 
     assert offenders == [], offenders
+
+
+# 2026-11 audit ENG-23: an empty 글맵시, OLE object or video made through the
+# escape hatch passed the save gate, and Hancom (desktop 2024) dies opening
+# the file -- exit code 0xC0000005, no warning. An empty equation opens fine.
+@pytest.mark.parametrize("kind", ["textart", "ole", "video"])
+def test_an_empty_text_art_ole_or_video_is_refused_on_save(kind: str) -> None:
+    document = HwpxDocument.new()
+    with pytest.warns(UserWarning):
+        document.shapes.add_raw(kind)
+    with pytest.raises(HwpxPackageError, match=f"hp:{kind} missing"):
+        document.to_bytes()
+
+    safety = validate_editor_open_safety(_bytes_without_open_safety_gate(document))
+
+    assert not safety.ok
+    assert any(f"hp:{kind} missing offset" in str(issue) for issue in safety.blocking_package_errors)
+
+
+def test_an_empty_equation_still_saves() -> None:
+    document = HwpxDocument.new()
+    document.shapes.add_raw("equation")
+
+    assert validate_editor_open_safety(document.to_bytes()).ok
+
+
+@pytest.mark.parametrize(
+    ("fixture", "tag"),
+    [
+        ("reader_writer__SimpleTextArt.hwpx", b"<hp:textart"),
+        ("reader_writer__SimpleOLE.hwpx", b"<hp:ole"),
+        ("reader_writer__SimpleVideo.hwpx", b"<hp:video"),
+        ("unused_chart_saved.hwpx", b"<hp:ole"),
+    ],
+)
+def test_text_art_ole_and_video_as_hancom_saves_them_pass_and_save_again(fixture: str, tag: bytes) -> None:
+    import io
+    import zipfile
+
+    path = next(Path(__file__).parent.glob(f"fixtures/**/{fixture}"))
+    assert validate_editor_open_safety(path.read_bytes()).ok
+
+    document = HwpxDocument.open(path)
+    document.add_paragraph("고친 문단")  # the section is written again, through the gate
+    saved = document.to_bytes()
+
+    assert validate_editor_open_safety(saved).ok
+    with zipfile.ZipFile(io.BytesIO(saved)) as archive:
+        assert any(tag in archive.read(name) for name in archive.namelist() if "section" in name)
