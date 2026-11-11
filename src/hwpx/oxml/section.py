@@ -365,10 +365,14 @@ class HwpxOxmlSection:
         every following paragraph turning into a list item without this guard.
         """
 
-        existing = self.paragraphs
-        if not existing:
+        # Only the last paragraph is read: wrapping every paragraph of the section for each append
+        # made a long run of appends quadratic.
+        last_element = next(
+            (child for child in reversed(self._element) if tag_local_name(child.tag) == "p"), None
+        )
+        if last_element is None:
             return None, None, None
-        last = existing[-1]
+        last = HwpxOxmlParagraph(last_element, self)
         prev_para_ref = last.para_pr_id_ref
         prev_style_ref = last.style_id_ref
         prev_char_ref = last.char_pr_id_ref

@@ -87,6 +87,9 @@ class HwpxOxmlHeader:
         self._element = element
         self._dirty = False
         self._document = document
+        # parsed lookups (paragraph shapes, styles, tab definitions, border fills ...), see _parsed()
+        self._lookup_cache: dict[tuple[object, ET.Element], tuple[bytes, object]] = {}
+        self._para_pr_index: tuple[object, dict[str, ET.Element]] | None = None
 
     @property
     def element(self) -> ET.Element:
@@ -1225,7 +1228,7 @@ class HwpxOxmlHeader:
         if element is None:
             return {}
 
-        fill_list = parse_border_fills(self._convert_to_lxml(element))
+        fill_list = self._parsed(element, parse_border_fills)
         mapping: dict[str, GenericElement] = {}
         for border_fill in fill_list.fills:
             raw_id = border_fill.attributes.get("id")
@@ -1248,7 +1251,31 @@ class HwpxOxmlHeader:
 
     @staticmethod
     def _convert_to_lxml(element: ET.Element) -> LET._Element:
+        # The header tree is lxml already; only a plain ElementTree element needs the round trip.
+        if isinstance(element, LET._Element):
+            return element
         return LET.fromstring(ET.tostring(element, encoding="utf-8"))
+
+    def _parsed(self, element: ET.Element, parse: Callable[[LET._Element], T]) -> T:
+        """``parse(element)``, kept until the header is marked dirty or the element's XML differs.
+
+        The kept result is compared by the element's serialized bytes, so an edit made on the tree
+        without ``mark_dirty()`` is seen as well.  Callers get the kept objects themselves, as
+        ``char_property`` gives its cached styles: treat them as read-only.
+        """
+
+        if not isinstance(element, LET._Element):
+            return parse(self._convert_to_lxml(element))
+        stamp = LET.tostring(element)
+        key = (parse, element)
+        kept = self._lookup_cache.get(key)
+        if kept is not None and kept[0] == stamp:
+            return kept[1]  # type: ignore[return-value]
+        value = parse(element)
+        if len(self._lookup_cache) >= 4096:
+            self._lookup_cache.clear()
+        self._lookup_cache[key] = (stamp, value)
+        return value
 
     @staticmethod
     def _lookup_by_id(mapping: dict[str, T], identifier: int | str | None) -> T | None:
@@ -1397,7 +1424,7 @@ class HwpxOxmlHeader:
         if bullets_element is None:
             return {}
 
-        bullet_list = parse_bullets(self._convert_to_lxml(bullets_element))
+        bullet_list = self._parsed(bullets_element, parse_bullets)
         return bullet_list.as_dict()
 
     def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
@@ -1409,9 +1436,7 @@ class HwpxOxmlHeader:
         if para_props_element is None:
             return {}
 
-        para_properties = parse_paragraph_properties(
-            self._convert_to_lxml(para_props_element)
-        )
+        para_properties = self._parsed(para_props_element, parse_paragraph_properties)
         return para_properties.as_dict()
 
     def paragraph_property(
@@ -1419,22 +1444,30 @@ class HwpxOxmlHeader:
     ) -> ParagraphProperty | None:
         # Parse only the hh:paraPr asked for, under the keys paragraph_properties gives it; parsing
         # them all on each lookup cost most of a second in a header of many paragraph shapes.
-        elements: dict[str, ET.Element] = {}
         parent = self._para_properties_element()
-        for child in [] if parent is None else parent:
-            raw = child.get("id") if _element_local_name(child) == "paraPr" else None
-            for key in (raw, str(int(raw)) if raw and raw.strip().lstrip("+-").isdigit() else None):
-                if key and key not in elements:
-                    elements[key] = child
+        children = [] if parent is None else list(parent)
+        # The id -> element index is kept while the list has the same children with the same ids.
+        stamp = (children, [(child.tag, child.get("id")) for child in children])
+        kept = self._para_pr_index
+        if kept is not None and kept[0] == stamp:
+            elements = kept[1]
+        else:
+            elements = {}
+            for child in children:
+                raw = child.get("id") if _element_local_name(child) == "paraPr" else None
+                for key in (raw, str(int(raw)) if raw and raw.strip().lstrip("+-").isdigit() else None):
+                    if key and key not in elements:
+                        elements[key] = child
+            self._para_pr_index = (stamp, elements)
         found = self._lookup_by_id(elements, para_pr_id_ref)
-        return None if found is None else parse_paragraph_property(self._convert_to_lxml(found))
+        return None if found is None else self._parsed(found, parse_paragraph_property)
 
     @property
     def tab_properties(self) -> dict[str, TabDefinition]:
         element = self._tab_properties_element()
         if element is None:
             return {}
-        return parse_tab_definitions(self._convert_to_lxml(element)).as_dict()
+        return self._parsed(element, parse_tab_definitions).as_dict()
 
     def tab_property(self, tab_pr_id_ref: int | str | None) -> TabDefinition | None:
         return self._lookup_by_id(self.tab_properties, tab_pr_id_ref)
@@ -1445,7 +1478,7 @@ class HwpxOxmlHeader:
         if styles_element is None:
             return {}
 
-        style_list = parse_styles(self._convert_to_lxml(styles_element))
+        style_list = self._parsed(styles_element, parse_styles)
         return style_list.as_dict()
 
     def style(self, style_id_ref: int | str | None) -> Style | None:
@@ -1457,7 +1490,7 @@ class HwpxOxmlHeader:
         if changes_element is None:
             return {}
 
-        change_list = parse_track_changes(self._convert_to_lxml(changes_element))
+        change_list = self._parsed(changes_element, parse_track_changes)
         return change_list.as_dict()
 
     def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
@@ -1469,9 +1502,7 @@ class HwpxOxmlHeader:
         if authors_element is None:
             return {}
 
-        author_list = parse_track_change_authors(
-            self._convert_to_lxml(authors_element)
-        )
+        author_list = self._parsed(authors_element, parse_track_change_authors)
         return author_list.as_dict()
 
     def track_change_author(
@@ -1485,6 +1516,8 @@ class HwpxOxmlHeader:
 
     def mark_dirty(self) -> None:
         self._dirty = True
+        self._lookup_cache.clear()
+        self._para_pr_index = None
 
     def reset_dirty(self) -> None:
         self._dirty = False

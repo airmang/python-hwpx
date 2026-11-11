@@ -170,13 +170,11 @@ def bind_outline_level(
     from . import layout as _layout
 
     _check_level(level)
-    target = paragraph.element
-    for index, candidate in enumerate(document.paragraphs):
-        if candidate.element is target:
-            _layout.set_paragraph_format(
-                document, paragraph_index=index, outline_level=level
-            )
-            return
+    # The paragraph itself is the target: looking its index up in the list of every body paragraph,
+    # and resolving that index back, made a run of headings quadratic.
+    if _layout._body_indexes(document, [paragraph])[0] is not None:
+        _layout.set_paragraph_format(document, paragraphs=[paragraph], outline_level=level)
+        return
     # 방금 만든 문단이라 항상 찾힌다. 못 찾으면 조용히 넘어가는 대신 말한다 —
     # 개요 수준이 빠진 문단은 "번호가 안 붙는 제목"이라 무음 실패가 가장 나쁘다.
     raise HwpxLookupError(  # pragma: no cover - 방어

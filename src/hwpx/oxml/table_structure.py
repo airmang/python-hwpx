@@ -136,6 +136,7 @@ class TableStructureEdits:
         element.attrib.update(new.attrib)
         element.text = new.text
         element.extend(list(new))
+        self._grid_cache = None  # the rows and cells were replaced (HwpxOxmlTable keeps its grid here)
         self._grow_height(before)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()

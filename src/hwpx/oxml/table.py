@@ -36,7 +36,7 @@ from .table_structure import TableStructureEdits
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
-from .table_merge import collapse_merged_grid
+from .table_merge import TableGridCache as _TableGridCache, collapse_merged_grid
 
 if TYPE_CHECKING:
     from hwpx.form_fit.policy import FitPolicy
@@ -293,6 +293,7 @@ class HwpxOxmlTableCell:
         span = self._span_element()
         span.set("rowSpan", str(max(row_span, 1)))
         span.set("colSpan", str(max(col_span, 1)))
+        self.table._invalidate_grid()
         self.table.mark_dirty()
 
     @property
@@ -311,6 +312,7 @@ class HwpxOxmlTableCell:
             size.set("width", str(max(width, 0)))
         if height is not None:
             size.set("height", str(max(height, 0)))
+        self.table._invalidate_grid()
         self.table.mark_dirty()
 
     margins = property(_table_sizes.cell_margins)
@@ -588,6 +590,7 @@ class HwpxTableGridPosition:
         return self.span[1]
 
 
+
 class HwpxOxmlTableRow:
     """Represents a table row."""
 
@@ -609,6 +612,7 @@ class HwpxOxmlTable(TableStructureEdits):
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element
         self.paragraph = paragraph
+        self._grid_cache: _TableGridCache | None = None
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of table geometry."""
@@ -883,6 +887,24 @@ class HwpxOxmlTable(TableStructureEdits):
     def rows(self) -> list[HwpxOxmlTableRow]:
         return [HwpxOxmlTableRow(row, self) for row in self.element.findall(f"{_HP}tr")]
 
+    def _invalidate_grid(self) -> None:
+        """Forget the built grid.  Every edit that moves, adds, removes, merges or resizes cells calls this."""
+
+        self._grid_cache = None
+
+    def _cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
+        """The grid of the table as it is now: the kept one when no row, cell, address, span or size
+        changed since it was built (checked against the XML, so an edit made outside this object is
+        seen too), else a new one.  Callers must not change the returned mapping."""
+
+        cache = getattr(self, "_grid_cache", None)
+        if cache is not None and cache.still_valid(self.element):
+            return cache.mapping
+        self._grid_cache = None
+        mapping = self._build_cell_grid()
+        self._grid_cache = _TableGridCache(mapping, self.element)
+        return mapping
+
     def _build_cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
         mapping: dict[tuple[int, int], HwpxTableGridPosition] = {}
 
@@ -961,7 +983,16 @@ class HwpxOxmlTable(TableStructureEdits):
                 % (row_index, col_index, row_count, col_count)
             )
 
-        entry = self._build_cell_grid().get((row_index, col_index))
+        entry = None
+        cache = getattr(self, "_grid_cache", None)
+        if cache is not None and cache.fast and cache.same_shape(self.element):
+            # The kept grid answers when the table has the same rows and cells and the cell found still
+            # has the address, span and size it was built with; anything else goes through the full check.
+            entry = cache.mapping.get((row_index, col_index))
+            if entry is not None and not cache.cell_unchanged(entry.cell.element):
+                entry = None
+        if entry is None:
+            entry = self._cell_grid().get((row_index, col_index))
         if entry is None:
             raise IndexError(
                 "cell coordinates (%d, %d) are covered by a merged cell"
@@ -973,7 +1004,7 @@ class HwpxOxmlTable(TableStructureEdits):
     def iter_grid(self) -> Iterator[HwpxTableGridPosition]:
         """Yield grid-aware mappings for every logical table position."""
 
-        mapping = self._build_cell_grid()
+        mapping = self._cell_grid()
         row_count = self.row_count
         col_count = self.column_count
         for row_index in range(row_count):
@@ -1449,6 +1480,7 @@ class HwpxOxmlTable(TableStructureEdits):
                     row_offset, col_offset, logical_row, logical_col, row_height, col_width,
                 )
 
+        self._invalidate_grid()
         self.mark_dirty()
         return self.cell(row_index, col_index)
 
@@ -1508,7 +1540,7 @@ class HwpxOxmlTable(TableStructureEdits):
         total_height = 0
         in_order: list[ET.Element] = []
         seen: set[ET.Element] = set()
-        grid = self._build_cell_grid()
+        grid = self._cell_grid()
 
         for row_index in range(start_row, end_row + 1):
             for col_index in range(start_col, end_col + 1):
@@ -1612,6 +1644,7 @@ class HwpxOxmlTable(TableStructureEdits):
         # line caches no longer describe it
         target._clear_own_layout_caches()
         collapse_merged_grid(self.element)
+        self._invalidate_grid()
         self.mark_dirty()
         return target
 
