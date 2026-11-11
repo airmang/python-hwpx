@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 import io
+import os
 import logging
 
 from os import PathLike
@@ -96,6 +97,8 @@ class HwpxDocument(_LegacyFacade):
         self.validate_on_save = validate_on_save
         # What an ``.hwp`` conversion could not carry into the model (None for HWPX).
         self._hwp5_report: Hwp5ConversionReport | None = None
+        # The ``.hwp`` path the document was opened from, so a save cannot replace it.
+        self._hwp5_source_path: str | None = None
         # The one gate every write funnels through (plan §2 Phase B). The oracle
         # is resolved lazily and only when a policy actually renders, so normal
         # (transparent) saves never probe Hancom.
@@ -186,6 +189,8 @@ class HwpxDocument(_LegacyFacade):
         root = HwpxOxmlDocument.from_package(package)
         document = cls(package, root)
         document._hwp5_report = Hwp5ConversionReport.of(converted.report.unconverted, converted.report.dropped)
+        if isinstance(source, (str, PathLike)):
+            document._hwp5_source_path = os.path.abspath(os.fspath(source))
         skipped = converted.report.unconverted
         if skipped:
             summary = ", ".join(f"{kind} x{count}" for kind, count in sorted(skipped.items()))

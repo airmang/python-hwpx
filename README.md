@@ -17,7 +17,7 @@
 
 HWPX는 ZIP 안에 XML(OWPML)을 담은 형식이라, 한컴오피스가 없어도 파이썬만으로 다룰 수 있습니다.
 python-hwpx는 Windows·macOS·Linux·CI 어디서나 돌고 의존성은 `lxml` 하나입니다. HWP 5.0(`.hwp`)도 같은
-API로 열고 저장합니다.
+API로 열어 HWPX로 바꿉니다.
 
 만든 문서는 한컴오피스 2024에서 직접 열어 보고 그 결과를 날짜와 함께
 [아래](#한글과-얼마나-같은가)에 적어 둡니다.
@@ -41,7 +41,7 @@ doc.save_to_path("계획.hwpx")
 
 스타일은 이름으로 고릅니다. 없는 이름을 쓰면 그 줄에서 바로 오류가 납니다.
 있는 문서를 고칠 때는 `HwpxDocument.open("보고서.hwpx")`로 시작합니다. `.hwp`도 똑같이 열고,
-`save_to_path("보고서.hwp")`로 HWP 5.0으로 저장할 수 있습니다.
+고친 결과는 `save_to_path("보고서.hwpx")`로 HWPX로 저장합니다.
 
 문서 저작·양식 채움·시험지 조판 같은 상위 워크플로가 필요하면
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)을 함께 설치하세요.
@@ -60,8 +60,9 @@ doc.save_to_path("계획.hwpx")
   칸에 들어가도록 줄을 바꾸거나 글자를 줄일지 한/글의 글자 폭으로 재서 고릅니다.
 - 표 구조 편집: 행·열 넣기와 지우기, 칸 나누기와 합치기. `doc.tables[0]`처럼 번호로 표를 꺼냅니다.
 - 만들기·일괄 처리: 새 문서, 목차·상호 참조, 메일 머지, 문서 비교, 변경 추적.
-- HWP 5.0: `.hwp`를 HWPX로 읽어 같은 API로 고치고 `.hwp`로 저장합니다. 옮기지 못한 내용은
-  `document.conversion_report`에 남습니다.
+- HWP 5.0: `.hwp`를 HWPX로 읽어 같은 API로 고치고 HWPX로 저장합니다. 옮기지 못한 내용은
+  `document.conversion_report`에 남습니다. `.hwp`로 다시 쓰는 기능은 실험입니다. 연 원본을 덮어쓰지 않고,
+  옮기지 못한 내용이 있으면 쓰지 않습니다.
 - 배치 추정(실험): `estimate_pages`는 한/글 없이 쪽 수와 줄마다의 쪽·세로 위치를 추정합니다.
   `write_line_caches`는 한/글이 저장할 때 쓰는 줄 배치 정보를, 한/글과 같은 값을 확실히 아는 문단에만 씁니다.
   rhwp처럼 이 정보로 그림 자리를 찾는 뷰어에서도 그림이 보이게 됩니다. 기본으로는 쓰지 않습니다.
@@ -157,7 +158,7 @@ AI 도구가 API를 정확히 익히도록 만든 [llms.txt](https://airmang.git
 
 | | python-hwpx | pyhwpx | pyhwp |
 |---|---|---|---|
-| **다루는 형식** | `.hwpx`, `.hwp` (HWP 5.0) 읽기·쓰기 | `.hwpx` | `.hwp` (v5 바이너리) |
+| **다루는 형식** | `.hwpx` 읽기·쓰기, `.hwp` (HWP 5.0) 읽기 | `.hwpx` | `.hwp` (v5 바이너리) |
 | **한/글 설치** | 필요 없음 | 필요 (Windows COM) | 필요 없음 |
 | **운영체제** | Linux / macOS / Windows / CI | Windows 전용 | Linux / macOS / Windows |
 | **편집·생성** | ✅ | ✅ (한/글이 함) | 대부분 읽기 |

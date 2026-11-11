@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 207 | 11 |
+| 개수 | 209 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -139,8 +139,10 @@ except HwpxError as exc:
 | `hwp5-drm` | DRM·인증서로 암호화된 HWP 5.0 문서다. |
 | `hwp5-limit-exceeded` | HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다. |
 | `hwp5-not-hwp5` | 복합 파일이지만 HWP 5.0 FileHeader가 없다. |
+| `hwp5-overwrite-source` | 문서를 연 원본 .hwp 경로에 .hwp로 덮어쓰려 했다. |
 | `hwp5-password` | 암호가 걸린 HWP 5.0 문서다. |
 | `hwp5-version-unsupported` | FileHeader의 주 버전이 5가 아니다. |
+| `hwp5-write-lossy-source` | 열 때 옮기지 못한 내용이 있는 문서를 .hwp로 쓰려 했다. |
 | `hwp5-write-unsupported` | HWP 5.0 작성기가 표현할 수 없는 내용이다. |
 
 ### `hwpx-*`

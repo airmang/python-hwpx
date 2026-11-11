@@ -2,6 +2,16 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 바뀜
+
+- `.hwp`로 쓰기를 실험 기능으로 낮추고 보호 두 가지를 넣었다. `.hwp`에서 연 문서를 그 원본 경로에 `.hwp`로 저장하면
+  `Hwp5Error`(`hwp5-overwrite-source`)로 거부한다. 한/글이 저장한 원본이 이 라이브러리가 다시 만든 파일로 바뀌는 일을
+  막는다. 열 때 옮기지 못한 내용이 있는 문서(`conversion_report`가 비어 있지 않음)는 `.hwp`로 쓰지 않고
+  `Hwp5Error`(`hwp5-write-lossy-source`)로 거부한다. 두 경우 모두 `.hwpx`로는 저장된다. README와 지원 표는 `.hwp`를
+  "읽어서 HWPX로 바꾸는" 입력 형식으로 안내한다.
+
 ## [6.12.0] - 2026-11-11
 
 2026-11 전체 점검에서 나온 수정을 모은 릴리스입니다. 성공으로 보고하면서 내용이 달라지던 편집 경로를 바로잡았습니다. 찾아 바꾸기와 부분 편집이 줄 바꿈과 탭을 한/글의 요소로 쓰고, 내용이 바뀐 문단에 남던 옛 줄 배치 캐시를 저장 때 지우며,
