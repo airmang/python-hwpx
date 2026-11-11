@@ -68,8 +68,9 @@ wheel은 순수 파이썬(`py3-none-any`)이며 유일한 의존성은 `lxml`입
    ```
 3. 편집 가능한 설치와 개발 도구를 한 번에 구성합니다.
    ```bash
-   python -m pip install -e .[dev]
+   python -m pip install -e ".[dev]"
    ```
+   `dev`는 CI가 쓰는 `test`·`typecheck` extra를 모두 담고 있습니다.
 
 `pip install -e`를 사용하면 추가적인 `PYTHONPATH` 수정 없이도 `hwpx` 패키지를 바로 가져올 수 있습니다. 저장소 예제(`examples/FormattingShowcase.hwpx`)는 개발용 설치를 진행한 경우에만 사용할 수 있습니다.
 

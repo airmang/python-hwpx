@@ -35,6 +35,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..errors import HwpxError
+
 from .tokens import (
     ACCENTS,
     BIG_OPERATORS,
@@ -74,8 +76,10 @@ _BREAK_CHARS = frozenset("{}^_&#()[]|")
 _SYMBOL_OPS_SORTED = sorted(SYMBOL_OPERATORS, key=len, reverse=True)
 
 
-class EquationConversionError(ValueError):
+class EquationConversionError(HwpxError, ValueError):
     """Raised when an EqEdit script cannot be converted to LaTeX."""
+
+    default_code = "equation-conversion"
 
 
 def _lex_quoted_literal(source: str, i: int, tokens: list[str]) -> int:

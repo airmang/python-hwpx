@@ -724,6 +724,12 @@
       "rationale": "Experimental page estimate (re-exported from hwpx.experimental): follows each body paragraph onto its page and column from the document alone -- lines from a paragraph's valid layout cache or FormFit line breaking, line and paragraph spacing, page/column breaks and paragraph break rules, equal columns, inline and flowing tables, top-and-bottom objects and footnotes -- and reports anything else as unsupported with a reason. Reads OXML only; writes nothing."
     },
     {
+      "path": "src/hwpx/layout/_page_measure.py",
+      "disposition": "core",
+      "approvedBy": "owner-audit-fix-2026-11-10 (hwpx-plugins issue 66)",
+      "rationale": "The lower half of the experimental page estimate, moved out of layout/pages.py unchanged so that no shipped file passes 256 KiB (the most a plugin directory reads of one file): the constants, the paragraph and table model (_Measure, cell rows and lines, object extents) and the rows of a flowing table. Refers to nothing in layout/pages.py, which imports every name it defines and keeps the public names and the flow over pages and columns. Reads OXML only; writes nothing."
+    },
+    {
       "path": "src/hwpx/layout/line_cache.py",
       "disposition": "core",
       "approvedBy": "owner-line-cache-2026-10-16",
@@ -739,7 +745,7 @@
       "path": "src/hwpx/form_fit/_glyph_table.py",
       "disposition": "core",
       "approvedBy": "formfit-glyph-widths",
-      "rationale": "FormFit glyph widths beyond measure._GLYPHS: per face, the design advance of each glyph of the KS X 1001 symbols, the full-width forms and eight common Unicode blocks, read from the font files, and the face Hancom lays a glyph out from when a face lacks it. Data only; imports nothing."
+      "rationale": "FormFit glyph widths beyond measure._GLYPHS: per face, the design advance of each glyph of the KS X 1001 symbols, the full-width forms and eight common Unicode blocks, read from the font files, and the face Hancom lays a glyph out from when a face lacks it. Data only: reads the tables from _glyph_table.json.gz beside it (gzip-compressed JSON written by scripts/build_glyph_table.py from the readable scripts/glyph_table_source.py) when imported, so that no shipped file passes 256 KiB; imports only the standard library."
     },
     {
       "path": "src/hwpx/_trailing_table_text.py",

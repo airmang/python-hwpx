@@ -13,6 +13,8 @@ import re
 from typing import Callable
 from xml.etree.ElementTree import Element, tostring
 
+from ..errors import HwpxError
+
 from .tokens import EQEDIT_MATHML_OPERATOR_COMMANDS
 
 # ``False`` marks a resolved-but-unavailable converter; ``None`` means "not yet
@@ -23,8 +25,10 @@ _TEXT_COMMAND = "\\text{"
 _ESCAPED_CHARACTER_REFERENCE = re.compile(r"&amp;(#x[0-9A-Fa-f]{1,6};)")
 
 
-class MathMLUnavailableError(RuntimeError):
+class MathMLUnavailableError(HwpxError, RuntimeError):
     """Raised when ``latex2mathml`` is not installed."""
+
+    default_code = "equation-mathml-unavailable"
 
 
 def _load_converter() -> Callable[[str], str] | bool:
