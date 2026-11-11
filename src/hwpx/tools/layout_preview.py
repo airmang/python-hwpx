@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import html
+import re
 import io
 from pathlib import Path
 from typing import Any, Mapping
@@ -171,10 +172,40 @@ def _fmt_pt(value: float) -> str:
     return f"{value:.2f}pt"
 
 
+_HEX_COLOR_RE = re.compile(r"#?([0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\Z")
+_BORDER_WIDTH_RE = re.compile(r"(\d{1,3}(?:\.\d{1,3})?) ?mm\Z")
+_TEXT_ALIGN = {
+    "left": "left",
+    "right": "right",
+    "center": "center",
+    "both": "justify",
+    "justify": "justify",
+    "distribute": "justify",
+    "distribute_space": "justify",
+}
+
+
 def _css_color(value: str | None, default: str = "#000000") -> str:
+    """Return ``value`` as a CSS hex colour, or ``default`` for anything else.
+
+    The value comes from the document and ends up inside a ``style``
+    attribute, so only a bare hex colour is let through.
+    """
+
     if not value or value.lower() == "none":
         return default
-    return value if value.startswith("#") else f"#{value}"
+    match = _HEX_COLOR_RE.match(value.strip())
+    if match is None:
+        return default
+    digits = match.group(1)
+    if len(digits) == 8:  # HWPX writes alpha first (#AARRGGBB); CSS wants it last.
+        digits = digits[2:] + digits[:2]
+    return f"#{digits}"
+
+
+def _css_border_width(value: str | None, default: str = "0.1mm") -> str:
+    match = _BORDER_WIDTH_RE.match((value or "").strip())
+    return f"{match.group(1)}mm" if match else default
 
 
 def _safe_int(value: str | None, default: int = 0) -> int:
@@ -218,11 +249,35 @@ def _section_names(parts: Mapping[str, bytes]) -> list[str]:
     )
 
 
+_INLINE_TEXT = {
+    f"{_HP}lineBreak": "\n",
+    f"{_HP}tab": "\t",
+    f"{_HP}fwSpace": "\u3000",
+    f"{_HP}nbSpace": "\u00a0",
+}
+
+
+def _text_node_content(node: ET.Element) -> str:
+    """Text of an ``hp:t`` node, read as mixed content.
+
+    Line breaks, tabs and marks (highlighter, tracked changes) sit *inside*
+    ``hp:t``; the text after each of them is that element's tail.
+    """
+
+    parts = [node.text or ""]
+    for child in node.iter():
+        if child is node:
+            continue
+        parts.append(_INLINE_TEXT.get(child.tag, ""))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
 def _find_text_in_run(run: ET.Element) -> str:
     parts: list[str] = []
     for child in list(run):
-        if child.tag == f"{_HP}t" and child.text:
-            parts.append(child.text)
+        if child.tag == f"{_HP}t":
+            parts.append(_text_node_content(child))
         elif child.tag == f"{_HP}tab" or (
             child.tag == f"{_HP}ctrl" and (child.get("id") or "").lower() == "tab"
         ):
@@ -273,7 +328,7 @@ def _parse_para_style(node: ET.Element) -> dict[str, Any]:
             if key:
                 margins[key] = _hwp_to_mm(child.get("value"))
     return {
-        "align": horizontal.lower().replace("both", "justify"),
+        "align": _TEXT_ALIGN.get(horizontal.lower(), "left"),
         "line_spacing_percent": _safe_int(
             line_spacing.get("value") if line_spacing is not None else None,
             160,
@@ -294,7 +349,7 @@ def _parse_border_fill(node: ET.Element) -> dict[str, Any]:
         if border is None or (border.get("type") or "NONE").upper() == "NONE":
             sides[side] = "none"
             continue
-        width = border.get("width") or "0.1 mm"
+        width = _css_border_width(border.get("width"))
         color = _css_color(border.get("color"))
         sides[side] = f"{width} solid {color}"
 
