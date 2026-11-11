@@ -109,14 +109,68 @@ def _diff_style(cp, base_cp) -> dict:
     }
 
 
+_HEX_COLOR_RE = re.compile(r"#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\Z")
+_LINK_SCHEMES = ("http://", "https://", "mailto:")
+_LINK_ESCAPES = {ord(ch): f"%{ord(ch):02X}" for ch in " \t\r\n()<>\"'`\\"}
+# Members written to ``image_dir`` keep their name, so only image types go out.
+_IMAGE_SUFFIXES = frozenset(
+    {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp", ".svg", ".wmf", ".emf", ".ico"}
+)
+_WINDOWS_DEVICE_NAMES = frozenset(
+    {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
+)
+
+
+def _hex_color(value: object) -> str | None:
+    """Return ``value`` when it is a bare hex colour; the value goes into raw HTML."""
+
+    return value if isinstance(value, str) and _HEX_COLOR_RE.match(value) else None
+
+
+def _safe_link_url(url: str | None) -> str | None:
+    """Return a link target that cannot leave the ``(...)`` of a Markdown link.
+
+    Only web and mail targets are linked; any other scheme (``javascript:``,
+    ``file:``, a UNC path) is dropped and the text is written unlinked.
+    """
+
+    if not url:
+        return None
+    candidate = url.strip()
+    if not candidate.lower().startswith(_LINK_SCHEMES):
+        return None
+    return candidate.translate(_LINK_ESCAPES)
+
+
+def _image_file_name(member: str) -> str | None:
+    """Return the file name to write for a ``BinData/`` member, or ``None``.
+
+    The name comes from the package, so it is reduced to a single path
+    component with an image suffix: no drive (``C:name``), no stream
+    (``name:x``), no device name and no leading or trailing dot or space.
+    """
+
+    name = member.replace("\\", "/").rsplit("/", 1)[-1]
+    if not name or name != name.strip(" .") or any(ch in name for ch in ':*?"<>|') or any(ord(ch) < 32 for ch in name):
+        return None
+    stem, dot, suffix = name.rpartition(".")
+    if not dot or not stem or f".{suffix.lower()}" not in _IMAGE_SUFFIXES:
+        return None
+    if stem.split(".", 1)[0].lower() in _WINDOWS_DEVICE_NAMES:
+        return None
+    return name
+
+
 def _wrap(text: str, style: dict) -> str:
     if not text:
         return ""
     out = text
-    if style.get("shade"):
-        out = f'<mark style="background-color:{style["shade"]}">{out}</mark>'
-    if style.get("color"):
-        out = f'<span style="color:{style["color"]}">{out}</span>'
+    shade = _hex_color(style.get("shade"))
+    color = _hex_color(style.get("color"))
+    if shade:
+        out = f'<mark style="background-color:{shade}">{out}</mark>'
+    if color:
+        out = f'<span style="color:{color}">{out}</span>'
     if style.get("underline"):
         out = f"<u>{out}</u>"
     if style.get("strike"):
@@ -176,8 +230,10 @@ def _build_image_map(
     for name in pkg.files():
         if not name.startswith("BinData/"):
             continue
+        fname = _image_file_name(name)
+        if fname is None:
+            continue
         data = pkg.read(name)
-        fname = Path(name).name
         (image_dir / fname).write_bytes(data)
         mapping[Path(name).stem] = f"{prefix}/{fname}" if prefix else fname
     return mapping
@@ -208,7 +264,7 @@ def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
         if not ref or not mapping:
             continue
         rel = mapping.get(ref, f"BinData/{ref}")
-        out.append(f"![image]({rel})")
+        out.append(f"![image]({rel.translate(_LINK_ESCAPES)})")
         caption_text = _element_caption_text(pic)
         if caption_text:
             out.append(f"*{caption_text}*")
@@ -243,7 +299,8 @@ def _md_flush_link(state: _MdParagraphState, base_cp, chars) -> None:
         return
     text = _render_runs(state.link_items, base_cp, chars, link=True)
     if text:
-        state.output.append(f"[{text}]({state.link_url})" if state.link_url else text)
+        url = _safe_link_url(state.link_url)
+        state.output.append(f"[{text}]({url})" if url else text)
     state.link_url = None
     state.link_items = []
 

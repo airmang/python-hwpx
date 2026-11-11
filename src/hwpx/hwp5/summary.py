@@ -14,6 +14,9 @@ import datetime as _dt
 import struct
 import zlib
 
+from .errors import Hwp5Error
+from .records import inflate
+
 TITLE = 2
 SUBJECT = 3
 AUTHOR = 4
@@ -149,6 +152,9 @@ DEFAULT_HEADER_SCRIPT = "var Documents = XHwpDocuments;\r\nvar Document = Docume
 DEFAULT_SOURCE_SCRIPT = "function OnDocument_New()\r\n{\r\n\t//todo : \r\n}\r\n"
 #: ``Scripts/JScriptVersion``: version 1, 0.
 SCRIPT_VERSION = struct.pack("<II", 1, 0)
+#: The stream holds four scripts (header, source, before, after); a stream
+#: that lists more than this is not read.
+MAX_SCRIPTS = 64
 
 
 def compressed(raw: bytes) -> bytes:
@@ -162,13 +168,19 @@ def compressed(raw: bytes) -> bytes:
 def read_scripts(data: bytes, *, is_compressed: bool) -> list[str] | None:
     """The scripts of ``Scripts/DefaultJScript``: header, source, before and
     after, each a length in UTF-16 units and the text, until -1; None when the
-    stream cannot be read."""
+    stream cannot be read. A compressed stream is bounded like every other
+    (:func:`hwpx.hwp5.records.inflate`), so one that inflates beyond the limit
+    raises :class:`Hwp5Error`."""
 
     try:
-        raw = zlib.decompressobj(-15).decompress(data) if is_compressed else data
+        raw = _inflate_scripts(data) if is_compressed else data
+        if raw is None:
+            return None
         scripts: list[str] = []
         at = 0
         while True:
+            if len(scripts) > MAX_SCRIPTS:
+                return None
             (units,) = struct.unpack_from("<i", raw, at)
             at += 4
             if units == -1:
@@ -178,6 +190,19 @@ def read_scripts(data: bytes, *, is_compressed: bool) -> list[str] | None:
             scripts.append(raw[at : at + 2 * units].decode("utf-16-le", errors="surrogatepass"))
             at += 2 * units
     except (zlib.error, struct.error, UnicodeDecodeError):
+        return None
+
+
+def _inflate_scripts(data: bytes) -> bytes | None:
+    """The inflated stream, or None when it is not a deflate stream at all.
+    Hancom appends a CRC-32 and a length after the deflate data, which the
+    bounded inflater leaves unread."""
+
+    try:
+        return inflate(data, "Scripts/DefaultJScript")
+    except Hwp5Error as exc:
+        if exc.code == "hwp5-limit-exceeded":
+            raise
         return None
 
 

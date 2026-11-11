@@ -169,8 +169,8 @@ def render_document_viewer(
             indicator) or ``"long"`` for one continuous page.
 
     Returns:
-        A :class:`DocumentViewer` whose ``html`` is a standalone, CSP-safe HTML
-        document (no external resources; equations render as native MathML).
+        A :class:`DocumentViewer` whose ``html`` is a standalone HTML
+        document (no external resources, one inline script; equations render as native MathML).
     """
 
     preview = render_layout_preview(source, mode=mode, title=title)

@@ -2,10 +2,25 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [Unreleased]
+## [6.12.0] - 2026-11-11
+
+2026-11 전체 점검에서 나온 수정을 모은 릴리스입니다. 성공으로 보고하면서 내용이 달라지던 편집 경로를 바로잡았습니다. 찾아 바꾸기와 부분 편집이 줄 바꿈과 탭을 한/글의 요소로 쓰고, 내용이 바뀐 문단에 남던 옛 줄 배치 캐시를 저장 때 지우며,
+한/글을 종료시키던 빈 글맵시·OLE·동영상 요소는 저장 관문이 거부합니다. 신뢰할 수 없는 `.hwp`·`.hwpx`를 다룰 때의 자원
+한도와 출력(미리보기 HTML, 리치 마크다운, 그림 내보내기)을 보강했습니다. 그래서 리치 마크다운은 `http`·`https`·`mailto`가
+아닌 링크를 글로만 남기고, `image_dir`에는 그림 파일만 꺼냅니다. 새 기능으로 Markdown을 HWPX로 쓰는 `from_markdown`,
+id로 가리키는 글 덩어리와 일괄 바꾸기, 서식 규칙 점검(`check_format`, `hwpx-check-format`)이 들어갔습니다. 배포판의
+모든 파일이 256 KiB 아래가 되어, 6.8.0에 멈춰 있던 Claude 플러그인의 엔진을 다시 올릴 수 있습니다. 표 격자·스타일 조회·
+문단 추가의 반복 비용을 줄였습니다. 코어의 줄 수는 6.11.0보다 약 8천8백 줄(8.8%) 줄었는데, FormFit 글꼴 폭 표를
+압축 자료 파일로 옮겼기 때문이고(약 1만 2천 줄), 그 밖에는 도구(약 1,240줄)와 문서 모델(약 530줄)이 늘었습니다.
+`import hwpx`가 읽는 모듈 수는 99개로 그대로입니다. 저장 성공만으로 시각 품질을 보증하지 않습니다.
 
 ### 추가
 
+- 서식 규칙 점검 `check_format(document, rules)`(`hwpx.tools.format_rules`)과 명령 `hwpx-check-format RULES DOCUMENT`. 기관이
+  정한 서식(글꼴·글자 크기·장평·자간, 정렬·줄 간격·들여쓰기·문단 간격, 표의 글자처럼 취급·표 안의 표, 문자 범위,
+  하이퍼링크·매크로 허용 여부)을 JSON 규칙 파일로 적어 문서가 따르는지 본다. 규칙의 항목 이름과 단위는 한컴이 공개한
+  검사기 `hancom-io/dvc`와 같아 그 규칙 파일을 그대로 쓸 수 있다. 지원하지 않는 항목은 `unsupported_rules`로 알리고,
+  어긋난 곳은 구역·문단 번호와 글로 알린다(쪽·줄 번호는 파일에 없어 주지 않는다). 파일에 저장된 값만 읽는다.
 - `from_markdown(markdown, style=...)`(`hwpx.tools.markdown_import`): 흔히 쓰는 Markdown 부분 집합으로 새 문서를 만든다.
   `#`~`####` 제목, 문단, `-`/`*`/`1.` 목록(들여쓰기로 수준을 나누고 한/글 목록으로 적용), `|` 표(구분선 위 행은
   굵게·음영 머리글), `**굵게**`·`*기울임*`을 쓰고, 그 밖의 Markdown은 평문으로 쓰며 오류를 내지 않는다. 이미 있는
@@ -27,6 +42,45 @@
 
 ### 고침
 
+- `apply_body_ops`가 문서를 망가뜨리던 네 경우를 거부하거나 바로잡는다(전에는 모두 `applied`에 열림 검사 통과였다).
+  - 구역 정의(`hp:secPr`)를 품은 문단: `delete_paragraph`는 구역 정의째 지웠고, `insert_paragraph_by_clone`은 구역
+    정의를 한 벌 더 만들었고, `reorder_paragraphs`는 그 문단을 첫 자리에서 옮겼다. 이제 셋 다 거부한다.
+  - 글상자·각주·머리말을 품은 문단: `set_paragraph_text`와 `texts`를 준 `insert_paragraph_by_clone`이 새 글을 안쪽
+    문단의 첫 글 자리에 넣고 나머지 글을 비울 수 있었다. 이제 거부한다(표를 품은 문단은 전부터 거부).
+  - `restyle_text`: 찾은 글이 표 뒤에 있으면 그 글의 run이 아니라 표 마지막 칸 안 run의 글자 모양을 바꿨다. 이제 글을
+    직접 가진 run을 바꾼다.
+- XML 주석이나 처리 지시문이 `header.xml`이나 줄 배치 캐시가 있는 문단에 든 문서도 저장된다. 전에는 문서가 열리고
+  열림 검사도 통과했지만, 고치지 않은 저장까지 `TypeError: argument of type 'cython_function_or_method' is not
+  iterable`로 끝났다(저장 때 도는 검사가 주석 노드의 `tag`를 요소 이름으로 읽었다). 문서 병합(`append_document`)도
+  같은 오류였다.
+- 저장 관문이 필수 자식(`offset`·`orgSz`·`curSz`·`sz`·`pos`, `renderingInfo`)이 없는 글맵시(`hp:textart`)·OLE(`hp:ole`)·
+  동영상(`hp:video`)도 `hp:rect`처럼 거부한다. `doc.shapes.add_raw("textart"|"ole"|"video")`로 만든 빈 요소는 전에
+  저장됐고, 그 파일을 한/글 2024가 열다가 경고 없이 종료했다(종료 코드 0xC0000005). `validate_package`·
+  `validate_editor_open_safety`도 오류로 보고한다. 한/글이 저장한 글맵시·OLE·동영상은 전처럼 통과하고, 빈
+  수식(`hp:equation`)은 한/글이 정상으로 열므로 막지 않는다.
+- `paragraph.apply_model`(글·런을 바꾼 경우), `add_index_mark`, `add_title_mark`, `add_drop_cap`이 고친 문단의 줄 배치
+  캐시를 지운다. 전에는 문단 내용이 바뀌어도 옛 캐시가 남았다. `apply_model`은 모델이 문단 내용을 바꾸고 캐시는 그대로
+  돌려준 때만 지우므로, 모델로 캐시 자체를 고치는 쓰임은 전과 같다.
+- 저장 때의 낡은 캐시 훑기가, 고친 구역에서 **내용이 바뀐 문단에 남은 옛 캐시**를 지운다. 구역은 읽을 때(그리고 저장할
+  때마다)의 "문단 내용 + 캐시" 짝을 기억하고, 파일에 있던 캐시가 다른 내용 위에 놓여 있으면 그 캐시를 지운다. 편집
+  API가 캐시 지우기를 빠뜨려도 글이 한 글자만 늘어난 경우까지 잡힌다(전에는 마지막 줄 뒤 글이 그 줄 폭의 2배를 넘어야
+  지워졌다). 내용이 그대로인 문단의 캐시와 읽은 뒤 새로 쓴 캐시는 건드리지 않는다. 고치지 않은 구역은 전처럼 바이트
+  그대로 저장된다. 폭 추정으로 지우는 기존 기준(2배)은 그대로다.
+- 찾아 바꾸기와 부분 편집도 줄 바꿈을 `hp:lineBreak`로, 탭을 `hp:tab`으로 쓴다. `run.replace_text`,
+  `doc.text.replace`(기본·`everywhere=True`), `doc.replace_text_in_runs`, `paragraph.apply_model`·`run.apply_model`은
+  바꿀 글의 `"\n"`을 `hp:t` 안에 글자로 남겼고, `paragraph.set_text_preserving_runs`는 `"\n"`을 글자로 남기고 탭은
+  지웠다. 이제 `paragraph.text =`·`add_run`과 같은 요소로 쓴다(`"\r\n"`·`"\r"`도 줄 바꿈 하나).
+- `strip_runs_by_color`가 표·글상자·각주를 품은 대상 색 run에서 안쪽 run의 글을 지우지 않는다. 전에는 run의 여는
+  태그를 그 뒤 첫 `</hp:run>`과 짝지어, 빨강 run이 표를 품고 있으면 첫 칸의 검은 글이 지워지고도 `applied`로
+  보고됐다. 빈 run(`<hp:run …/>`) 뒤의 다른 색 글도 같은 까닭으로 지워졌다. 이제 대상 run이 직접 가진 글만 비우고,
+  표 등을 품은 run을 비운 수를 `runsHoldingNestedRuns`로 알린다. 줄 배치 캐시는 글이 바뀐 문단의 것만 지운다(전에는
+  표 뒤 글이 지워진 바깥 문단의 캐시가 남았고, 원래 비어 있던 문단의 캐시는 지워졌다).
+- 배포판에 든 파일이 모두 256 KiB 아래로 내려간다. Claude 플러그인은 엔진 배포판을 풀어 싣는데, 플러그인 디렉터리가 파일
+  하나에서 256 KiB까지만 읽어 6.9.0부터 플러그인의 엔진이 6.8.0에 멈춰 있었다(hwpx-plugins #66). FormFit 글리프
+  표(`form_fit/_glyph_table.py`, 454 KiB)는 gzip으로 압축한 JSON 자료 파일 `_glyph_table.json.gz`(65 KiB)로 싣고
+  모듈을 가져올 때 읽는다. 표의 값과 순서는 그대로다. 쪽 수 추정(`layout/pages.py`, 325 KiB)은 아래쪽 절반을
+  `layout/_page_measure.py`로 옮겼다. 코드는 한 줄도 바꾸지 않았고 `hwpx.layout.pages`에서 전과 같은 이름을 쓴다.
+  배포 파일이 한도에 닿으면 실패하고 80%를 넘으면 경고하는 검사(`tests/test_distribution_file_sizes.py`)를 더했다.
 - 표 행·열·칸 구조 편집(객체 경로와 `apply_table_ops`)이 쪽을 넘어 나뉜 표의 저장 높이(`hp:sz`)를 그대로 둔다. 한/글은
   그런 표에 첫 쪽 조각의 높이만 저장하므로(같은 행의 표가 놓인 자리에 따라 30463·17551·5865로 저장됨) 행 높이 증감을
   더할 근거가 없다. 전에는 증감을 그대로 더해, 평가계획 채우기가 13행 표(행 28762, 저장 13222)에서 9행을 지우면
@@ -62,9 +116,51 @@
   복사해서, 그 칸의 그림·도형이 같은 번호로 겹쳤다.
 - 객체 모델 `set_column_widths`·`equalize_column_widths`가 칸을 안쪽 표보다 좁게 만들면 바이트 편집처럼 거부하고 표를
   그대로 둔다(`TableStructureError`).
-
-### 수정
-
+- `.hwp`의 스크립트 스트림도 다른 스트림과 같은 크기 한도 안에서 읽는다. 한도를 넘으면 `Hwp5Error`
+  (`hwp5-limit-exceeded`)로 거부하고, 스크립트를 네 개보다 훨씬 많이 적은 스트림은 읽지 못한 것으로 센다.
+- 손상된 `.hwp`를 열다 나는 `ValueError`·`OverflowError`·`UnicodeEncodeError`·`RecursionError`·`MemoryError` 등이
+  `Hwp5Error`(`hwp5-damaged` 또는 `hwp5-limit-exceeded`)로 나온다. 원래 예외는 `__cause__`에 있다. 512MiB보다 큰
+  `.hwp`는 읽지 않고 `hwp5-limit-exceeded`로 거부한다(`hwpx.hwp5.package.MAX_FILE_BYTES`).
+- `hwpx-repair`와 `hwpx-pack`이 패키지의 XML 부품을 엔티티를 풀지 않는 파서로 읽는다.
+- 수식 안 따옴표 글이 미리보기 MathML에 마크업이 아닌 글로 들어간다(`<`, `&`가 이스케이프된다).
+- 쪽 미리보기와 문서 뷰어가 `hp:t` 안의 줄 바꿈·탭·형광펜 표시 뒤의 글도 보여 준다. 전에는 그 앞 글만 나왔다.
+  미리보기의 글자색·테두리 색은 16진 색, 테두리 굵기는 mm 길이, 정렬은 알려진 값일 때만 쓰고 아니면 기본값을 쓴다.
+- 리치 마크다운 내보내기가 글자색·형광색을 16진 색일 때만 `<span>`·`<mark>`로 감싸고, 하이퍼링크는
+  `http`·`https`·`mailto` 대상만 링크로 쓴다. 그 밖의 대상(문서 안 책갈피, 파일 경로 포함)은 글만 남긴다.
+- `export_markdown(image_dir=…)`이 `BinData/`의 그림 파일(png·jpg·gif·bmp·tif·webp·svg·wmf·emf·ico)만 꺼내고,
+  이름에 드라이브·스트림 표시나 장치 이름이 있으면 꺼내지 않는다.
+- 폐기 경고와 `docs/migration-6.0.md`가 없는 이름으로 안내하던 두 곳을 바로잡았다. `doc.style(…)`의 이동 대상은
+  `doc.styles.get`, `doc.set_check_box(…)`의 이동 대상은 `doc.fields.set_check_box`다(전에는 없는
+  `doc.styles.style`·`doc.fields.check_box(...).checked`를 가리켰다). 이동 대상 79개가 실제 속성으로 풀리는지
+  테스트가 확인한다. `llms.txt`는 `.hwp`가 열린다고 적고, `examples/build_release_checklist.py`는 6.x 이름으로
+  끝까지 돈다(전에는 없는 `document.save()`를 불렀다).
+- 공개 예외 7종(`EquationConversionError`, `UnsupportedLatexError`, `MathMLUnavailableError`, `DocumentIngestError`,
+  `UnsupportedDocumentFormat`, `RecoverError`, `WordBoxExtractorRequired`)이 `HwpxError`도 상속한다. 기존 부모
+  (`ValueError`·`RuntimeError`)는 그대로라 기존 `except`는 전처럼 잡는다. 각자 `code`가 생겼다
+  (`equation-conversion`, `equation-latex-unsupported`, `equation-mathml-unavailable`, `ingest-failed`,
+  `ingest-format-unsupported`, `recover-unsafe`, `toc-word-box-extractor-required`).
+- 손상된 HWPX를 열 때 나던 날 예외를 `HwpxStructureError` 하위 클래스로 묶었다. ZIP이 아니거나 잘린 입력은
+  `HwpxArchiveError`, 압축 데이터 손상은 `HwpxCompressedDataError`, 깨진 XML 파트(암호 걸린 HWPX 포함)는
+  `HwpxXmlSyntaxError`(`part_name`에 파트 이름)다. 각 클래스는 전에 나던 `zipfile.BadZipFile`·`zlib.error`·
+  `lxml.etree.XMLSyntaxError`도 상속하므로 기존 `except`는 그대로 잡고, 원래 예외는 `__cause__`에 있다.
+  `HwpxDocument.open`의 독스트링과 `docs/stable-api.md`가 이 표를 적는다.
+- `HwpxDocument.new()`로 만든 문서가 동봉 템플릿의 지은이(`synthetic-fixture-author`)와 만든 날(2025-09-17)을 물려받지
+  않는다. 지은이·마지막 저장한 이·`date`는 비고, `CreatedDate`·`ModifiedDate`는 만든 시각(UTC)이다
+  (`SOURCE_DATE_EPOCH`가 있으면 그 시각). 지은이는 `doc.package.set_document_metadata(creator=...)`로 넣는다.
+- 버전 이력이 있는 한/글 문서에서 `doc.parts.histories`의 `historylastdoc.hml`(마지막 문서의 HWPML 스냅숏)이
+  `to_model()`에서 `HwpxValueError`를 내지 않고 항목 없는 `History`를 돌려준다. 버전 기록인지는 새 속성
+  `is_version_log`로 가린다.
+- `doc.text.html()`이 병합된 표 칸에 `colspan`·`rowspan`을 쓴다. 전에는 병합 표의 뒤 칸이 왼쪽으로 밀렸다.
+- `doc.tables.all`의 설명을 실제 범위(본문 문단에 바로 놓인 표)로 고쳤다. 동작은 그대로다.
+- `hwpx.ingest`의 HWPX → Markdown 변환이 손실을 항상 `"low"`로 보고하지 않는다. Markdown에 글이 실리지 않은 요소
+  (머리말·꼬리말·메모·각주·미주·글상자·수식·덧말·글자 겹침·양식 개체 캡션·글맵시·바탕쪽)를 결과와 대조해 종류별로
+  세어 `warnings`와 `metadata["left_out"]`에 싣고, 빠진 것이 있으면 `lossiness`가 `"medium"`(빠진 글이 실린 글보다
+  많으면 `"high"`)이다. 변경 추적으로 지운 글 표시가 있으면 따로 경고한다. 빠진 것이 없으면 전처럼 `"low"`다.
+- `describe_capabilities()`의 자리 안내를 실제와 맞췄다. 차례·상호참조(`hwpx.tools.toc_author`), 제목 차례 표시·색인
+  표시·날짜/교정 부호/파일 이름 필드·메일머지 표시 필드(`HwpxOxmlParagraph.add_*`)는 `doc.refs`·`doc.fields`에 없으므로
+  `namespace`가 `None`이고 진입점이 그 모듈·문단 클래스다. 지원 매트릭스의 같은 표와 arc·polygon·curve·connectLine 행,
+  차트 행(`add_chart(chart_xml)`)도 고쳤다.
+- 커버리지 장부가 `.hwp` 변환기(`hwp5/`)가 써내는 태그를 읽기로 세지 않는다(읽기 266 → 256).
 - 쪽 수 추정이 글 없이 어울림 개체와 글자처럼 취급한 개체 하나만 있는 문단도 추정한다. 한/글처럼 그 개체를 곁 줄에 둔다(곁보다
   넓어도). 전에는 그런 문서를 추정하지 않았다.
 - 쪽 수 추정이 표 칸 안에 다단이 있는 문서를 추정하지 않는다. 한/글은 칸의 글을 그 단에 나눠 놓는데, 전에는 한 단으로 놓아 행

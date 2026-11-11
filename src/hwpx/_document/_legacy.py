@@ -1361,7 +1361,7 @@ class _LegacyFacade:
                 break
         return replacements
 
-    @_moved("doc.fields.check_box(...).checked")
+    @_moved("doc.fields.set_check_box")
     def set_check_box(
         self,
         checked: bool,
@@ -1721,7 +1721,7 @@ class _LegacyFacade:
             border_width=border_width,
         )
 
-    @_moved("doc.styles.style")
+    @_moved("doc.styles.get")
     def style(self, style_id_ref: int | str | None) -> Style | None:
         """Return the style definition referenced by *style_id_ref*."""
 

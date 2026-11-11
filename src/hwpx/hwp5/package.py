@@ -26,7 +26,7 @@ from . import controls as ct
 from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
-from .errors import Hwp5Error
+from .errors import Hwp5Error, damaged, limit_exceeded
 from .header_xml import build_header, track_changes
 from .owpml import NS, XML_DECLARATION, root, serialize, sub, xml_text
 from .reader import Hwp5File, read_hwp5
@@ -313,9 +313,38 @@ def _preview_text(doc: Hwp5File) -> bytes:
     return text.encode("utf-8")
 
 
-def convert(data: bytes) -> Converted:
-    """Convert the bytes of a ``.hwp`` file into HWPX package parts."""
+#: The largest ``.hwp`` file that is read (each stream inside is bounded
+#: separately by :data:`hwpx.hwp5.cfb.MAX_STREAM_BYTES`).
+MAX_FILE_BYTES = 512 * 1024 * 1024
 
+#: What decoding a damaged file can raise below the checks that raise
+#: :class:`Hwp5Error` themselves. Type and attribute errors are left alone:
+#: they are faults of this package, not of the input.
+_INPUT_FAULTS = (ValueError, ArithmeticError, LookupError, struct.error)
+
+
+def convert(data: bytes) -> Converted:
+    """Convert the bytes of a ``.hwp`` file into HWPX package parts.
+
+    Every failure caused by the input is an :class:`Hwp5Error`; when it wraps
+    another exception that one is its ``__cause__``.
+    """
+
+    if len(data) > MAX_FILE_BYTES:
+        raise limit_exceeded("the file is larger than the size limit", size=len(data), limit=MAX_FILE_BYTES)
+    try:
+        return _convert(data)
+    except Hwp5Error:
+        raise
+    except RecursionError as exc:
+        raise limit_exceeded("the file nests its content too deeply", reason=type(exc).__name__) from exc
+    except MemoryError as exc:
+        raise limit_exceeded("the file needs more memory than is available", reason=type(exc).__name__) from exc
+    except _INPUT_FAULTS as exc:
+        raise damaged("the file holds a value that cannot be read", reason=type(exc).__name__) from exc
+
+
+def _convert(data: bytes) -> Converted:
     doc = read_hwp5(data)
     info = di.decode_docinfo(doc.docinfo)
     report = ConversionReport()

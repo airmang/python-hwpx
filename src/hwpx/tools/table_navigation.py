@@ -247,19 +247,38 @@ def _collect_document_tables(document: HwpxDocument) -> list[_IndexedTable]:
     ]
 
 
-def _cell_text(table: HwpxOxmlTable, row_index: int, col_index: int) -> str:
-    cell = table.cell(row_index, col_index)
+def _text_of_cell(cell: object) -> str:
     paragraphs = list(getattr(cell, "paragraphs", []) or [])
     if paragraphs:
         return "\n".join(paragraph.text or "" for paragraph in paragraphs)
-    return cell.text
+    return cell.text  # type: ignore[attr-defined]
+
+
+def _cell_text(table: HwpxOxmlTable, row_index: int, col_index: int) -> str:
+    return _text_of_cell(table.cell(row_index, col_index))
+
+
+def _grid_cells(table: HwpxOxmlTable) -> list[tuple[int, int, object]]:
+    """Every logical position with its cell, row by row, from one pass over the grid.
+
+    A grid with a position no cell covers is read coordinate by coordinate instead, so the
+    error names that position as ``table.cell`` does.
+    """
+
+    try:
+        return [(position.row, position.column, position.cell) for position in table.iter_grid()]
+    except IndexError:
+        return [
+            (row_index, col_index, table.cell(row_index, col_index))
+            for row_index in range(table.row_count)
+            for col_index in range(table.column_count)
+        ]
 
 
 def _table_is_empty(table: HwpxOxmlTable) -> bool:
-    for row_index in range(table.row_count):
-        for col_index in range(table.column_count):
-            if _cell_text(table, row_index, col_index).strip():
-                return False
+    for _, _, cell in _grid_cells(table):
+        if _text_of_cell(cell).strip():
+            return False
     return True
 
 
@@ -290,38 +309,36 @@ def _table_cell_paragraph_location(
 
 def _table_cells(table_ref: _IndexedTable) -> list[dict[str, object]]:
     cells: list[dict[str, object]] = []
-    for row_index in range(table_ref.table.row_count):
-        for col_index in range(table_ref.table.column_count):
-            cell = table_ref.table.cell(row_index, col_index)
-            paragraphs = list(getattr(cell, "paragraphs", []) or [])
-            paragraph_payloads: list[dict[str, object]] = []
-            for cell_paragraph_index, paragraph in enumerate(paragraphs):
-                paragraph_payloads.append(
-                    {
-                        "cell_paragraph_index": cell_paragraph_index,
-                        "text": paragraph.text or "",
-                        "location": _table_cell_paragraph_location(
-                            table_ref.table_index,
-                            row_index,
-                            col_index,
-                            cell_paragraph_index,
-                        ),
-                    }
-                )
-            cells.append(
+    for row_index, col_index, cell in _grid_cells(table_ref.table):
+        paragraphs = list(getattr(cell, "paragraphs", []) or [])
+        paragraph_payloads: list[dict[str, object]] = []
+        for cell_paragraph_index, paragraph in enumerate(paragraphs):
+            paragraph_payloads.append(
                 {
-                    "row": row_index,
-                    "col": col_index,
-                    "text": _cell_text(table_ref.table, row_index, col_index),
-                    "paragraphs": paragraph_payloads,
-                    "location": {
-                        "kind": "table_cell",
-                        "table_index": table_ref.table_index,
-                        "row": row_index,
-                        "col": col_index,
-                    },
+                    "cell_paragraph_index": cell_paragraph_index,
+                    "text": paragraph.text or "",
+                    "location": _table_cell_paragraph_location(
+                        table_ref.table_index,
+                        row_index,
+                        col_index,
+                        cell_paragraph_index,
+                    ),
                 }
             )
+        cells.append(
+            {
+                "row": row_index,
+                "col": col_index,
+                "text": "\n".join(paragraph.text or "" for paragraph in paragraphs) if paragraphs else cell.text,  # type: ignore[attr-defined]
+                "paragraphs": paragraph_payloads,
+                "location": {
+                    "kind": "table_cell",
+                    "table_index": table_ref.table_index,
+                    "row": row_index,
+                    "col": col_index,
+                },
+            }
+        )
     return cells
 
 

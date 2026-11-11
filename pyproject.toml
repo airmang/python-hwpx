@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx"
-version = "6.11.0"
+version = "6.12.0"
 description = "한글 없이 HWPX 문서를 열고, 편집하고, 생성하고, 검증하는 Python 문서 라이브러리"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -45,11 +45,23 @@ xlsx = [
 preview = [
     "latex2mathml>=3.77",
 ]
+# Everything a contributor needs to run the gates in CONTRIBUTING.md: the CI
+# extras (`test` + `typecheck`, what .github/workflows/tests.yml installs) plus
+# twine for checking a built distribution. tests/test_dev_extra_matches_ci.py
+# keeps this a superset of those two.
 dev = [
     "build>=1.0",
     "twine>=4.0",
+    "numpy>=1.26",
+    "openpyxl>=3.1",
+    "pillow>=10.0",
     "pytest>=7.4",
+    "pytest-cov>=5.0",
+    "pyyaml>=6.0,<7",
+    "ruff>=0.12",
     "latex2mathml>=3.77",
+    "mypy>=1.10",
+    "pyright>=1.1.390",
 ]
 test = [
     "build>=1.0",
@@ -86,6 +98,7 @@ hwpx-page-guard = "hwpx.tools.page_guard:main"
 hwpx-analyze-template = "hwpx.tools.template_analyzer:main"
 hwpx-text-extract = "hwpx.tools.text_extract_cli:main"
 hwpx-repair = "hwpx.tools.repair:main"
+hwpx-check-format = "hwpx.tools.format_rules:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -134,6 +147,9 @@ packages = [
 # worse than a longer list. Adding a package here is a deliberate act.
 [tool.setuptools.package-data]
 "hwpx" = ["py.typed"]
+# FormFit's glyph tables: data, not source, so that no shipped file passes 256 KiB (see
+# scripts/build_glyph_table.py and tests/test_distribution_file_sizes.py).
+"hwpx.form_fit" = ["_glyph_table.json.gz"]
 "hwpx.tools" = ["_schemas/*.xsd"]
 "hwpx.data" = ["Skeleton.hwpx", "contract_docs/*.md"]
 

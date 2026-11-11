@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 from typing import Any, BinaryIO, Iterable, Protocol
 
+from ..errors import HwpxError
+
 
 @dataclass(frozen=True, kw_only=True)
 class DocumentSourceInfo:
@@ -83,8 +85,10 @@ class DocumentIngestResult:
         }
 
 
-class DocumentIngestError(RuntimeError):
+class DocumentIngestError(HwpxError, RuntimeError):
     """Base class for ingest failures with converter-attempt diagnostics."""
+
+    default_code = "ingest-failed"
 
     def __init__(self, message: str, *, attempts: Iterable[ConversionAttempt] = ()) -> None:
         super().__init__(message)
@@ -100,6 +104,8 @@ class DocumentIngestError(RuntimeError):
 
 class UnsupportedDocumentFormat(DocumentIngestError):
     """Raised when no registered converter accepts the source."""
+
+    default_code = "ingest-format-unsupported"
 
 
 class DocumentConverter(Protocol):

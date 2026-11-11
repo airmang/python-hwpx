@@ -52,7 +52,10 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
 
 ## What it does
 
-- Read and extract: text, HTML and Markdown export that keeps formatting, nested tables and footnotes.
+- Read and extract: text, HTML and Markdown export that keeps formatting and nested tables. Footnotes and endnotes
+  come out with `notes=True`, `markdown(rich=True)` or `TextExtractor`; headers, footers and memos only from
+  `TextExtractor`. Equations, composed characters and form-object captions are not extracted by any path yet.
+  The Markdown converter (`hwpx.ingest`) reports what it left out in `warnings` and `lossiness`.
 - Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
 - Fill forms: find a cell by its label and change only the value; parts you did not touch keep their bytes.
   FormFit decides whether a value should wrap or shrink to fit its cell, measuring with Hangul's glyph widths.
@@ -67,7 +70,8 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
   paragraphs where it is sure to match Hangul. Viewers such as rhwp, which place pictures from that data, then
   show them too. By default nothing is written.
 - Verify and stay safe: a package-structure validation CLI, an open-safety check before saving, and a save
-  report (`return_report=True`).
+  report (`return_report=True`). A default save does not check that the character and paragraph shapes the
+  text points at exist; `save_report(quality=QualityPolicy.strict())` does.
 
 More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md) · [support matrix](docs/support-matrix.md)
 
@@ -97,13 +101,8 @@ Python-block status is frozen in the [execution ledger](docs/python-example-ledg
 We open the files we produce in real Hancom Office and report what we see, with the date and the program
 version next to every figure.
 
-**Layout: python-hwpx main after 6.9 · 2026-10-25**
-
-| What | Compared with | Result |
-|---|---|---|
-| Paragraphs of 77 public real-world documents whose line breaks match | What Hancom Office 2024 (Windows) laid out and saved | 8,246 / 8,263 (99.8 %) |
-| Of those 77, documents where every line sits on the same page at the same position | Same | 76 / 77 (the other one has a broken table) |
-| Documents whose page count, estimated from a copy with the line layout data removed, matches (79 public · 522 private real-world · 780 feature test documents) | The page count of the Hangul that saved each document | 1,344 / 1,381 (16 not estimated) |
+Line layout and page-count estimation are experimental. Accuracy figures will be listed once the measuring
+script and its records can ship in this repository alongside them.
 
 **Opening: Hancom Office 12 (macOS)**
 

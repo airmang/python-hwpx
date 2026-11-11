@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import re
 from typing import Callable
+from xml.etree.ElementTree import Element, tostring
+
+from ..errors import HwpxError
 
 from .tokens import EQEDIT_MATHML_OPERATOR_COMMANDS
 
@@ -19,10 +22,13 @@ from .tokens import EQEDIT_MATHML_OPERATOR_COMMANDS
 _converter: Callable[[str], str] | bool | None = None
 _LATEX_WORD_COMMAND_RE = re.compile(r"\\[A-Za-z]+")
 _TEXT_COMMAND = "\\text{"
+_ESCAPED_CHARACTER_REFERENCE = re.compile(r"&amp;(#x[0-9A-Fa-f]{1,6};)")
 
 
-class MathMLUnavailableError(RuntimeError):
+class MathMLUnavailableError(HwpxError, RuntimeError):
     """Raised when ``latex2mathml`` is not installed."""
+
+    default_code = "equation-mathml-unavailable"
 
 
 def _load_converter() -> Callable[[str], str] | bool:
@@ -31,12 +37,28 @@ def _load_converter() -> Callable[[str], str] | bool:
     if cached is not None:
         return cached
     try:
-        from latex2mathml.converter import convert
+        from latex2mathml.converter import convert_to_element
     except ImportError:
         _converter = False
         return False
+
+    def convert(latex: str) -> str:
+        return _serialize(convert_to_element(latex))
+
     _converter = convert
     return convert
+
+
+def _serialize(tree: Element) -> str:
+    """Serialize a MathML tree with its text and attribute values escaped.
+
+    ``latex2mathml`` writes symbols into the tree as hexadecimal character
+    references, which serializing escapes; only those are restored. Its own
+    string output unescapes everything instead, which turns text typed in an
+    equation into markup.
+    """
+
+    return _ESCAPED_CHARACTER_REFERENCE.sub(r"&\1", tostring(tree, encoding="unicode"))
 
 
 def latex2mathml_available() -> bool:

@@ -240,8 +240,9 @@ class TextExtractor:
                 if strip_namespace(child.tag) == "p"
             ]
 
+        paths = _ElementPaths(parent_map)
         for index, element in enumerate(paragraph_elements):
-            path = describe_element_path(element, parent_map)
+            path = paths.describe(element)
             hierarchy = tuple(path.split("/"))
             yield ParagraphInfo(
                 section=section,
@@ -831,6 +832,48 @@ def describe_element_path(
             parts.append(local)
         current = parent
     return "/".join(reversed(parts))
+
+
+class _ElementPaths:
+    """:func:`describe_element_path` for many elements of one tree.
+
+    Gives the same strings. The position of every child among its same-named siblings is worked
+    out once per parent and the path of a parent is kept, so describing each paragraph of a section
+    no longer lists the section's paragraphs again (which made it quadratic).
+    """
+
+    def __init__(self, parent_map: Mapping[ET.Element, ET.Element]) -> None:
+        self._parent_map = parent_map
+        self._steps: Dict[ET.Element, Dict[ET.Element, str]] = {}
+        self._paths: Dict[ET.Element, str] = {}
+
+    def _step(self, parent: ET.Element, element: ET.Element) -> str:
+        steps = self._steps.get(parent)
+        if steps is None:
+            by_name: Dict[str, list[ET.Element]] = {}
+            for child in parent:
+                by_name.setdefault(strip_namespace(child.tag), []).append(child)
+            steps = {}
+            for local, siblings in by_name.items():
+                if len(siblings) > 1:
+                    for index, child in enumerate(siblings):
+                        steps[child] = f"{local}[{index}]"
+                else:
+                    steps[siblings[0]] = local
+            self._steps[parent] = steps
+        return steps[element]
+
+    def describe(self, element: ET.Element) -> str:
+        known = self._paths.get(element)
+        if known is not None:
+            return known
+        parent = self._parent_map.get(element)
+        if parent is None:
+            path = strip_namespace(element.tag)
+        else:
+            path = f"{self.describe(parent)}/{self._step(parent, element)}"
+        self._paths[element] = path
+        return path
 
 
 def _section_sort_key(name: str) -> Tuple[int, str]:

@@ -6,7 +6,14 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 
 from ..errors import HwpxValueError
-from ._document_primitives import _HP_NS, _child_tag_like, _fill_text_element, _is_tab_control_element, _sanitize_text
+from ._document_primitives import (
+    _HP_NS,
+    _TEXT_MARK_SPLIT_RE,
+    _child_tag_like,
+    _fill_text_element,
+    _is_tab_control_element,
+    _sanitize_text,
+)
 from .namespaces import tag_local_name
 
 
@@ -59,6 +66,49 @@ def set_text_with_tabs(text_element: ET.Element, value: str) -> None:
     for child in list(text_element):
         text_element.remove(child)
     _fill_text_element(text_element, value)
+
+
+def text_marks_as_elements(text_element: ET.Element) -> bool:
+    """Write each tab or line-break character left in the ``hp:t`` *text_element* as the element
+    Hancom writes for it (``hp:tab``, ``hp:lineBreak``), the way :func:`set_text_with_tabs` does.
+
+    For edits that put characters into the text already there (find and replace, a model applied
+    back) instead of filling the element: the rest of the element stays as it is. Returns whether
+    anything changed.
+    """
+
+    tab_tag = _child_tag_like(text_element, "tab", _HP_NS)
+    break_tag = _child_tag_like(text_element, "lineBreak", _HP_NS)
+    changed = False
+    position = 0  # where the elements for the text in front of the next child go
+    for holder in (None, *list(text_element)):
+        if holder is not None:
+            position += 1
+        value = (text_element.text if holder is None else holder.tail) or ""
+        parts = _TEXT_MARK_SPLIT_RE.split(value)
+        if len(parts) == 1:
+            continue
+        changed = True
+        if holder is None:
+            text_element.text = parts[0]
+        else:
+            holder.tail = parts[0]
+        for mark, segment in zip(parts[1::2], parts[2::2]):
+            element = text_element.makeelement(tab_tag if mark == "\t" else break_tag, {})
+            element.tail = segment
+            text_element.insert(position, element)
+            position += 1
+    return changed
+
+
+def text_marks_as_elements_in(root: ET.Element) -> bool:
+    """:func:`text_marks_as_elements` for every ``hp:t`` at or under *root*."""
+
+    changed = False
+    for node in list(root.iter()):
+        if isinstance(node.tag, str) and tag_local_name(node.tag) == "t":
+            changed = text_marks_as_elements(node) or changed
+    return changed
 
 
 def clear_text_element(text_element: ET.Element) -> None:

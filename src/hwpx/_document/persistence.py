@@ -435,6 +435,7 @@ def save_report(
         before=before,
         edit_mask=edit_mask,
         ledger=ledger,
+        open_safety=_serialize_open_safety(doc, archive_bytes),
         reference_document=doc,
         source_label="document.save_report",
     )
@@ -473,6 +474,25 @@ def to_bytes(
     data = _hwp5_bytes(archive_bytes) if format == "hwp" else archive_bytes
     _mark_save_clean(doc)
     return data
+
+
+def _serialize_open_safety(doc: "HwpxDocument", archive_bytes: bytes) -> OpenSafetyReport | None:
+    """The open-safety verdict the package's save reached for exactly *archive_bytes*, in the form
+    the SavePipeline composes from its own run; ``None`` when the package did not validate these
+    bytes (the pipeline then validates them itself).
+
+    The same validation of the same bytes gives the same report, so ``save_report`` hands the
+    pipeline this one instead of running it a second time.
+    """
+
+    package = doc._package
+    report = getattr(package, "_verified_archive_report", None)
+    digest = getattr(package, "_verified_archive_digest", None)
+    if report is None or digest is None or not report.ok:
+        return None
+    if digest != hashlib.sha256(archive_bytes).digest():
+        return None
+    return OpenSafetyReport(ok=report.ok, summary=report.summary, detail=report.to_dict())
 
 
 def _to_bytes_raw(
