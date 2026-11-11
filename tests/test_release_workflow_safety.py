@@ -32,9 +32,30 @@ BUILD_STEP = "Build distributions (migrated from scripts/build-and-publish.sh)"
 SBOM_STEP = "Generate release SBOM"
 PYPI_ACTION = "pypa/gh-action-pypi-publish@"
 GITHUB_ACTION = "softprops/action-gh-release@"
-CHECKOUT_ACTION = (
-    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
-)
+# Dependabot raises the commit an action is pinned to and cannot edit this file, so the
+# expectations below name the action and require a full commit SHA without fixing its value.
+# A tag or branch reference (``@v7``, ``@main``) is not rewritten and therefore never matches.
+PINNED = "<commit>"
+_PINNED_ACTION = re.compile(r"([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)@[0-9a-f]{40}")
+_CHECKOUT_LINE = re.compile(r"      - uses: actions/checkout@[0-9a-f]{40} # v[0-9.]+\n")
+CHECKOUT_ACTION = f"actions/checkout@{PINNED}"
+
+
+def _action_identity(uses: Any) -> Any:
+    """Return ``owner/name@<commit>`` for an action pinned to a full SHA, else the value as written."""
+    if not isinstance(uses, str):
+        return uses
+    match = _PINNED_ACTION.fullmatch(uses)
+    return f"{match.group(1)}@{PINNED}" if match else uses
+
+
+def _checkout_with_ref_main(text: str) -> str:
+    """Add ``ref: main`` to the prepublish job's checkout step."""
+    head = "  prepublish:\n    needs: legacy-cap\n    runs-on: ubuntu-latest\n    steps:\n"
+    start = text.index(head) + len(head)
+    match = _CHECKOUT_LINE.match(text, start)
+    assert match is not None, "prepublish no longer starts with a pinned checkout"
+    return text[: match.end()] + "        with:\n          ref: main\n" + text[match.end() :]
 EXPECTED_TRIGGER = {
     "push": {
         "tags": [
@@ -97,7 +118,7 @@ mkdir -p release-artifacts
 EXPECTED_RELEASE_STEPS = (
     (
         "Checkout repository",
-        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        f"actions/checkout@{PINNED}",
         False,
         None,
         None,
@@ -106,7 +127,7 @@ EXPECTED_RELEASE_STEPS = (
     ),
     (
         "Set up Python",
-        "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+        f"actions/setup-python@{PINNED}",
         False,
         {"python-version": "3.12"},
         None,
@@ -139,7 +160,7 @@ EXPECTED_RELEASE_STEPS = (
         # Release assets (see wheel-artifact.yml). Upload-only: it reads
         # dist/ and the checksum manifest and mutates nothing.
         "Upload wheel as a workflow artifact",
-        "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+        f"actions/upload-artifact@{PINNED}",
         False,
         {
             "name": "python-hwpx-wheel",
@@ -153,7 +174,7 @@ EXPECTED_RELEASE_STEPS = (
     ),
     (
         "Publish package to PyPI",
-        "pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086",
+        f"pypa/gh-action-pypi-publish@{PINNED}",
         False,
         None,
         None,
@@ -162,7 +183,7 @@ EXPECTED_RELEASE_STEPS = (
     ),
     (
         "Create GitHub Release",
-    "softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64",
+    f"softprops/action-gh-release@{PINNED}",
         False,
         {
             "body_path": "release_notes.md",
@@ -325,7 +346,7 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
 
     for job_name, expected in EXPECTED_PREPUBLICATION_CHECKOUTS.items():
         observed = tuple(
-            (step.get("uses"), step.get("with"))
+            (_action_identity(step.get("uses")), step.get("with"))
             for step in jobs[job_name].get("steps", [])
             if str(step.get("uses", "")).startswith("actions/checkout@")
         )
@@ -365,7 +386,7 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
     release_step_identities = tuple(
         (
             step.get("name"),
-            step.get("uses"),
+            _action_identity(step.get("uses")),
             "run" in step,
             step.get("with"),
             step.get("env"),
@@ -657,21 +678,7 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
             "release trigger must be exactly tag-push-only",
         ),
         (
-            lambda text: text.replace(
-                "  prepublish:\n"
-                "    needs: legacy-cap\n"
-                "    runs-on: ubuntu-latest\n"
-                "    steps:\n"
-                f"      - uses: {CHECKOUT_ACTION} # v7.0.1\n",
-                "  prepublish:\n"
-                "    needs: legacy-cap\n"
-                "    runs-on: ubuntu-latest\n"
-                "    steps:\n"
-                f"      - uses: {CHECKOUT_ACTION} # v7.0.1\n"
-                "        with:\n"
-                "          ref: main\n",
-                1,
-            ),
+            _checkout_with_ref_main,
             "prepublish checkout inputs must match the frozen release source",
         ),
     ),
@@ -712,6 +719,27 @@ def test_release_workflow_mutations_are_rejected(
     failures = _workflow_safety_failures(mutate(workflow))
 
     assert any(expected in failure for failure in failures)
+
+
+def test_raising_a_pinned_commit_is_accepted_and_a_tag_reference_is_not() -> None:
+    workflow = RELEASE.read_text(encoding="utf-8")
+    pinned = re.compile(r"(uses: [A-Za-z0-9_./-]+)@[0-9a-f]{40}")
+    assert len(pinned.findall(workflow)) >= 5
+
+    raised = pinned.sub(lambda match: f"{match.group(1)}@{'0123456789abcdef' * 2}{'0' * 8}", workflow)
+    assert raised != workflow
+    assert _workflow_safety_failures(raised) == _workflow_safety_failures(workflow) == []
+
+    for action, expected in (
+        ("pypa/gh-action-pypi-publish", "release steps must match the exact order and actions"),
+        ("softprops/action-gh-release", "release steps must match the exact order and actions"),
+        ("actions/checkout", "checkout inputs must match the frozen release source"),
+    ):
+        for reference in ("v1", "main", "0123456"):
+            loose = re.sub(rf"(uses: {re.escape(action)})@[0-9a-f]{{40}}", rf"\1@{reference}", workflow)
+            assert loose != workflow
+            failures = _workflow_safety_failures(loose)
+            assert any(expected in failure for failure in failures), (action, reference, failures)
 
 
 def _safe_requirements() -> list[str]:
