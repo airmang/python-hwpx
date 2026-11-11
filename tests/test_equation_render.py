@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from html.parser import HTMLParser
 from xml.etree import ElementTree
 
 import pytest
@@ -138,3 +139,46 @@ def test_latex2mathml_available_reflects_installation() -> None:
 )
 def test_split_text_literals_keeps_quoted_content_opaque(latex: str, expected: list[tuple[str, bool]]) -> None:
     assert _split_text_literals(latex) == expected
+
+
+class _Tags(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.tags: list[str] = []
+        self.text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.tags.append(tag)
+
+    def handle_data(self, data: str) -> None:
+        self.text.append(data)
+
+
+@pytest.mark.parametrize(
+    "typed",
+    [
+        "<b>MARK</b>",
+        "<img/src='missing.png'/onerror='mark()'>",
+        "</mtext></math><i>MARK</i>",
+        "a & b < c",
+    ],
+)
+def test_text_typed_in_an_equation_stays_text_in_the_mathml(typed: str) -> None:
+    pytest.importorskip("latex2mathml")
+    result = render_equation(f'"{typed}"')
+    assert result.mode == "mathml"
+    parsed = _Tags()
+    parsed.feed(result.html)
+    assert parsed.tags == ["span", "math", "mrow", "mtext"]
+    assert "".join(parsed.text).replace(" ", " ") == typed
+    # Well-formed XML too: the text is one mtext node.
+    root = ElementTree.fromstring(result.html)
+    texts = ["".join(node.itertext()) for node in root.iter("{http://www.w3.org/1998/Math/MathML}mtext")]
+    assert [text.replace(" ", " ") for text in texts] == [typed]
+
+
+def test_symbols_keep_their_character_references() -> None:
+    pytest.importorskip("latex2mathml")
+    html = render_equation("{alpha} over {beta} + pi").html
+    assert "<mi>&#x003B1;</mi>" in html
+    assert "&amp;#x" not in html
