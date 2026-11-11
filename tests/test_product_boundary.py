@@ -328,7 +328,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # (_document/text_blocks.py), the owner behind doc.text.blocks/outline/apply_changes.
     # +1: the lower half of the page estimate (layout/_page_measure.py), out of layout/pages.py so that no
     # shipped file passes 256 KiB (tests/test_distribution_file_sizes.py).
-    assert report["classifiedFiles"] == 187
+    # +1: format rule check (tools/format_rules.py); an organisation's rule set stays with the caller.
+    assert report["classifiedFiles"] == 188
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
