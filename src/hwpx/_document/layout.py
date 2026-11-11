@@ -232,6 +232,48 @@ def _resolve_paragraph_objects(
     return resolved
 
 
+def _body_indexes(
+    doc: "HwpxDocument", objects: Sequence[HwpxOxmlParagraph]
+) -> list[int | None]:
+    """Where each paragraph object sits in ``doc.paragraphs``; ``None`` for one outside the body.
+
+    A few objects are placed by counting the paragraphs before them in their section, which reads
+    no other paragraph; wrapping every body paragraph to place one made a run of single-paragraph
+    calls (a heading per call) quadratic. Many objects, or plain ElementTree elements, go through
+    the list of body paragraphs once.
+    """
+
+    elements: list[Any] = [paragraph.element for paragraph in objects]
+    if len(elements) > 8 or not all(hasattr(element, "itersiblings") for element in elements):
+        body_index = {paragraph.element: index for index, paragraph in enumerate(doc.paragraphs)}
+        return [body_index.get(element) for element in elements]
+
+    section_roots: list[Any] = [section.element for section in doc.sections]
+    starts: list[int] = []  # body index of each section's first paragraph, filled as far as needed
+
+    def start_of(section_position: int) -> int:
+        while len(starts) <= section_position:
+            previous = len(starts) - 1
+            starts.append(
+                0 if previous < 0
+                else starts[previous] + sum(1 for _ in section_roots[previous].iterchildren("{*}p"))
+            )
+        return starts[section_position]
+
+    indexes: list[int | None] = []
+    for element in elements:
+        parent = element.getparent()
+        position = next(
+            (index for index, root in enumerate(section_roots) if root is parent), None
+        )
+        if position is None or not isinstance(element.tag, str) or element.tag.rsplit("}", 1)[-1] != "p":
+            indexes.append(None)
+            continue
+        before = sum(1 for _ in element.itersiblings("{*}p", preceding=True))
+        indexes.append(start_of(position) + before)
+    return indexes
+
+
 def set_paragraph_format(
     doc: "HwpxDocument",
     *,
@@ -376,9 +418,7 @@ def set_paragraph_format(
                 suggestion="Pass only one.",
             )
         objects = _resolve_paragraph_objects(doc, paragraphs)
-        body = doc.paragraphs
-        body_index = {paragraph.element: index for index, paragraph in enumerate(body)}
-        targets = [(body_index.get(paragraph.element), paragraph) for paragraph in objects]
+        targets = list(zip(_body_indexes(doc, objects), objects))
     else:
         targets = list(_resolve_paragraph_targets(doc,
             paragraph_index=paragraph_index,

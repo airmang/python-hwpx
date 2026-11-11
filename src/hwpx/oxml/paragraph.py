@@ -49,6 +49,8 @@ from ._paragraph_text_edit import (
     paragraph_container,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
+    set_text_with_tabs,
+    text_marks_as_elements_in,
 )
 from .objects import (
     HwpxOxmlInlineObject,
@@ -72,6 +74,18 @@ from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_widt
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
+
+
+def _content_and_cache(node: "LET._Element") -> tuple[bytes, bytes]:
+    """A serialized paragraph split into its content and its own line cache."""
+
+    copy = LET.fromstring(LET.tostring(node))
+    cache = b""
+    for child in list(copy):
+        if isinstance(child.tag, str) and tag_local_name(child.tag).lower() == "linesegarray":
+            cache += LET.tostring(child, with_tail=False)
+            copy.remove(child)
+    return LET.tostring(copy), cache
 
 
 @dataclass
@@ -103,8 +117,20 @@ class HwpxOxmlParagraph:
         return self.to_model()
 
     def apply_model(self, model: "body.Paragraph") -> None:
+        """Write *model* back over this paragraph.
+
+        When the model changes the paragraph (its text, its runs, what sits in
+        them) and leaves the line cache as it was, the cache is dropped: Hancom
+        would lay the new content into the old lines. A model that changes
+        only the cache, or nothing, is written as given.
+        """
+
         new_node = body.serialize_paragraph(model)
         xml_bytes = LET.tostring(new_node)
+        # Compare through the same serializer, so only what the caller changed differs.
+        before = _content_and_cache(body.serialize_paragraph(self.to_model()))
+        after = _content_and_cache(new_node)
+        content_changed, cache_changed = before[0] != after[0], before[1] != after[1]
         parent = paragraph_container(self.element, self.section.element)
         if parent is None:
             parent = self.section.element
@@ -112,11 +138,16 @@ class HwpxOxmlParagraph:
             replacement = LET.fromstring(xml_bytes)
         else:
             replacement = ET.fromstring(xml_bytes)
+        text_marks_as_elements_in(replacement)  # "\n" set on a model span, as hp:lineBreak
         paragraph_children = list(parent)
         index = paragraph_children.index(self.element)
         parent.remove(self.element)
         parent.insert(index, replacement)
         self.element = replacement
+        if content_changed and not cache_changed:
+            # The model changed the paragraph and brought its old line cache back
+            # unchanged: those lines are the old content's.
+            _clear_paragraph_layout_cache(replacement)
         self.section.mark_dirty()
 
     def _run_elements(self) -> list[ET.Element]:
@@ -387,7 +418,8 @@ class HwpxOxmlParagraph:
             )
         node, offset = candidates[0]
         current = node.text or ""
-        node.text = _sanitize_text(current[:prefix - offset] + replacement + current[end - offset:])
+        # A tab goes in as hp:tab and a line break as hp:lineBreak, as the other text setters write them.
+        set_text_with_tabs(node, current[:prefix - offset] + replacement + current[end - offset:])
         _clear_paragraph_layout_cache(self.element)
         self.section.mark_dirty()
 
@@ -928,6 +960,7 @@ class HwpxOxmlParagraph:
         mark.tail = text_element.text
         text_element.text = None
         text_element.insert(0, mark)
+        _clear_paragraph_layout_cache(self.element)  # the mark takes text positions the cached lines do not count
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(mark, self)
 
@@ -986,6 +1019,7 @@ class HwpxOxmlParagraph:
             second_key = _append_child(mark, _child_tag_like(target_run, "secondKey", _HP_NS), {})
             second_key.text = _sanitize_text(second)
         target_run.insert(list(target_run).index(text_element), ctrl)
+        _clear_paragraph_layout_cache(self.element)  # a control in front of the text moves every cached line start
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl, self)
 

@@ -1665,6 +1665,13 @@ def test_an_object_in_a_switch_is_laid_out_as_its_case() -> None:
                 holders.append(etree.SubElement(switch, f"{HP}{branch}", attributes))
             obj = etree.Element(f"{HP}{name}", {"textWrap": "SQUARE"})
             holders[-1].insert(0, obj)
+            if name == "ole":
+                # the children Hancom writes on every OLE object; the save refuses one without them
+                for child in ("offset", "orgSz", "curSz"):
+                    etree.SubElement(obj, f"{HP}{child}")
+                rendering = etree.SubElement(obj, f"{HP}renderingInfo")
+                for matrix in ("transMatrix", "scaMatrix", "rotMatrix"):
+                    etree.SubElement(rendering, f"{{http://www.hancom.co.kr/hwpml/2011/core}}{matrix}")
             etree.SubElement(obj, f"{HP}sz", {"width": width, "height": "9000"})
             etree.SubElement(obj, f"{HP}pos", {"treatAsChar": "0", "vertRelTo": "PARA", "horzRelTo": "COLUMN",
                                                "vertAlign": "TOP", "horzAlign": "LEFT"})

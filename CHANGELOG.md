@@ -27,6 +27,39 @@
 
 ### 고침
 
+- `apply_body_ops`가 문서를 망가뜨리던 네 경우를 거부하거나 바로잡는다(전에는 모두 `applied`에 열림 검사 통과였다).
+  - 구역 정의(`hp:secPr`)를 품은 문단: `delete_paragraph`는 구역 정의째 지웠고, `insert_paragraph_by_clone`은 구역
+    정의를 한 벌 더 만들었고, `reorder_paragraphs`는 그 문단을 첫 자리에서 옮겼다. 이제 셋 다 거부한다.
+  - 글상자·각주·머리말을 품은 문단: `set_paragraph_text`와 `texts`를 준 `insert_paragraph_by_clone`이 새 글을 안쪽
+    문단의 첫 글 자리에 넣고 나머지 글을 비울 수 있었다. 이제 거부한다(표를 품은 문단은 전부터 거부).
+  - `restyle_text`: 찾은 글이 표 뒤에 있으면 그 글의 run이 아니라 표 마지막 칸 안 run의 글자 모양을 바꿨다. 이제 글을
+    직접 가진 run을 바꾼다.
+- XML 주석이나 처리 지시문이 `header.xml`이나 줄 배치 캐시가 있는 문단에 든 문서도 저장된다. 전에는 문서가 열리고
+  열림 검사도 통과했지만, 고치지 않은 저장까지 `TypeError: argument of type 'cython_function_or_method' is not
+  iterable`로 끝났다(저장 때 도는 검사가 주석 노드의 `tag`를 요소 이름으로 읽었다). 문서 병합(`append_document`)도
+  같은 오류였다.
+- 저장 관문이 필수 자식(`offset`·`orgSz`·`curSz`·`sz`·`pos`, `renderingInfo`)이 없는 글맵시(`hp:textart`)·OLE(`hp:ole`)·
+  동영상(`hp:video`)도 `hp:rect`처럼 거부한다. `doc.shapes.add_raw("textart"|"ole"|"video")`로 만든 빈 요소는 전에
+  저장됐고, 그 파일을 한/글 2024가 열다가 경고 없이 종료했다(종료 코드 0xC0000005). `validate_package`·
+  `validate_editor_open_safety`도 오류로 보고한다. 한/글이 저장한 글맵시·OLE·동영상은 전처럼 통과하고, 빈
+  수식(`hp:equation`)은 한/글이 정상으로 열므로 막지 않는다.
+- `paragraph.apply_model`(글·런을 바꾼 경우), `add_index_mark`, `add_title_mark`, `add_drop_cap`이 고친 문단의 줄 배치
+  캐시를 지운다. 전에는 문단 내용이 바뀌어도 옛 캐시가 남았다. `apply_model`은 모델이 문단 내용을 바꾸고 캐시는 그대로
+  돌려준 때만 지우므로, 모델로 캐시 자체를 고치는 쓰임은 전과 같다.
+- 저장 때의 낡은 캐시 훑기가, 고친 구역에서 **내용이 바뀐 문단에 남은 옛 캐시**를 지운다. 구역은 읽을 때(그리고 저장할
+  때마다)의 "문단 내용 + 캐시" 짝을 기억하고, 파일에 있던 캐시가 다른 내용 위에 놓여 있으면 그 캐시를 지운다. 편집
+  API가 캐시 지우기를 빠뜨려도 글이 한 글자만 늘어난 경우까지 잡힌다(전에는 마지막 줄 뒤 글이 그 줄 폭의 2배를 넘어야
+  지워졌다). 내용이 그대로인 문단의 캐시와 읽은 뒤 새로 쓴 캐시는 건드리지 않는다. 고치지 않은 구역은 전처럼 바이트
+  그대로 저장된다. 폭 추정으로 지우는 기존 기준(2배)은 그대로다.
+- 찾아 바꾸기와 부분 편집도 줄 바꿈을 `hp:lineBreak`로, 탭을 `hp:tab`으로 쓴다. `run.replace_text`,
+  `doc.text.replace`(기본·`everywhere=True`), `doc.replace_text_in_runs`, `paragraph.apply_model`·`run.apply_model`은
+  바꿀 글의 `"\n"`을 `hp:t` 안에 글자로 남겼고, `paragraph.set_text_preserving_runs`는 `"\n"`을 글자로 남기고 탭은
+  지웠다. 이제 `paragraph.text =`·`add_run`과 같은 요소로 쓴다(`"\r\n"`·`"\r"`도 줄 바꿈 하나).
+- `strip_runs_by_color`가 표·글상자·각주를 품은 대상 색 run에서 안쪽 run의 글을 지우지 않는다. 전에는 run의 여는
+  태그를 그 뒤 첫 `</hp:run>`과 짝지어, 빨강 run이 표를 품고 있으면 첫 칸의 검은 글이 지워지고도 `applied`로
+  보고됐다. 빈 run(`<hp:run …/>`) 뒤의 다른 색 글도 같은 까닭으로 지워졌다. 이제 대상 run이 직접 가진 글만 비우고,
+  표 등을 품은 run을 비운 수를 `runsHoldingNestedRuns`로 알린다. 줄 배치 캐시는 글이 바뀐 문단의 것만 지운다(전에는
+  표 뒤 글이 지워진 바깥 문단의 캐시가 남았고, 원래 비어 있던 문단의 캐시는 지워졌다).
 - 배포판에 든 파일이 모두 256 KiB 아래로 내려간다. Claude 플러그인은 엔진 배포판을 풀어 싣는데, 플러그인 디렉터리가 파일
   하나에서 256 KiB까지만 읽어 6.9.0부터 플러그인의 엔진이 6.8.0에 멈춰 있었다(hwpx-plugins #66). FormFit 글리프
   표(`form_fit/_glyph_table.py`, 454 KiB)는 gzip으로 압축한 JSON 자료 파일 `_glyph_table.json.gz`(65 KiB)로 싣고

@@ -65,7 +65,9 @@ doc.save_to_path("계획.hwpx")
 - 배치 추정(실험): `estimate_pages`는 한/글 없이 쪽 수와 줄마다의 쪽·세로 위치를 추정합니다.
   `write_line_caches`는 한/글이 저장할 때 쓰는 줄 배치 정보를, 한/글과 같은 값을 확실히 아는 문단에만 씁니다.
   rhwp처럼 이 정보로 그림 자리를 찾는 뷰어에서도 그림이 보이게 됩니다. 기본으로는 쓰지 않습니다.
-- 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`return_report=True`).
+- 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`return_report=True`). 기본 저장은 없는 글자 모양·
+  문단 모양을 가리키는 참조까지는 확인하지 않습니다. 그 검사는 `save_report(quality=QualityPolicy.strict())`가 합니다
+  ([검사 범위](docs/usage.md#변경-사항-저장과-결과물-확인)).
 
 자세한 내용: [5분 퀵스타트](docs/quickstart.md) · [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md) · [지원 매트릭스](docs/support-matrix.md)
 
