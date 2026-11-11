@@ -17,8 +17,11 @@
 3. **개발 도구를 설치**합니다. 배포 메타데이터가 `pyproject.toml`에 정의되어 있어
   편집 가능한 설치로 개발 의존성을 한 번에 구성할 수 있습니다:
   ```bash
-  python -m pip install -e .[dev]
+  python -m pip install -e ".[dev]"
   ```
+  `dev`에는 CI가 설치하는 `test`·`typecheck`(pytest, ruff, mypy, pyright, 테스트가
+  쓰는 pillow·openpyxl·pyyaml 등)와 배포 점검용 twine이 들어 있습니다. CI와 똑같이
+  맞추려면 `python -m pip install -e ".[test,typecheck]"`를 써도 됩니다.
 4. **임포트 확인**. `pip install -e`를 실행하면 `hwpx` 패키지가 가상 환경에
   설치되어 추가적인 `PYTHONPATH` 설정이 필요 없습니다. 인터프리터에서
   `import hwpx`가 정상적으로 동작하는지 확인하세요.
@@ -67,3 +70,18 @@
 - 점진 변환 범위(현재: `src/hwpx/document.py`, `src/hwpx/oxml/document.py`)는 CI에서 다음 항목으로 검증합니다.
   - `scripts/check_typing_generics_scope.py`: `List`/`Dict`/`Tuple` 별칭 사용 금지 확인
   - `mypy`, `pyright`: 지정된 파일 범위 타입 검사
+
+## 배포 파일 크기
+
+Claude 플러그인은 릴리스한 wheel을 풀어서 싣고, 플러그인 디렉터리는 파일 하나에서 256 KiB까지만 읽습니다
+(hwpx-plugins `scripts/vendor_claude_engine.py`의 `MAX_FILE_BYTES`). 묶음 전체는 512개 파일까지입니다.
+
+- `tests/test_distribution_file_sizes.py`는 `src/hwpx`와 빌드한 wheel의 파일이 256 KiB에 닿으면 실패하고,
+  80%(약 205 KiB)를 넘으면 경고합니다. 경고가 뜨면 한도에 닿기 전에 나누세요. 파일 수 한도가 있으므로 여러
+  모듈보다 새 모듈 하나로 나누는 편이 낫습니다.
+- FormFit 글리프 표는 `scripts/glyph_table_source.py`(읽을 수 있는 Python, 배포하지 않음)에서 고칩니다. 고친 뒤
+  `python scripts/build_glyph_table.py`를 돌려 `src/hwpx/form_fit/_glyph_table.json.gz`를 다시 만들고 둘을 함께
+  커밋하세요. `tests/test_glyph_table_data.py`가 두 파일의 표를 값 하나하나 비교합니다.
+- 쪽 수 추정은 `layout/pages.py`(공개 이름, 쪽·단 흐름)와 `layout/_page_measure.py`(상수, 문단·표 모델)로 나뉘어
+  있습니다. `_page_measure.py`는 `pages.py`를 참조하지 않고, 거기에 새로 정의한 이름은 `pages.py`의 import
+  목록에도 넣습니다(`tests/test_layout_pages_split.py`).

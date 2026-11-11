@@ -8,6 +8,8 @@ import logging
 import io
 import os
 import tempfile
+import zlib
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, BinaryIO, Iterable, Iterator, Mapping, MutableMapping, Sequence
@@ -38,7 +40,16 @@ from .xml_utils import (
     serialize_xml,
 )
 
-__all__ = ["HwpxPackage", "HwpxPackageError", "HwpxStructureError", "RootFile", "VersionInfo"]
+__all__ = [
+    "HwpxArchiveError",
+    "HwpxCompressedDataError",
+    "HwpxPackage",
+    "HwpxPackageError",
+    "HwpxStructureError",
+    "HwpxXmlSyntaxError",
+    "RootFile",
+    "VersionInfo",
+]
 
 logger = logging.getLogger(__name__)
 _UNCHECKED_SAVE_TOKEN = object()
@@ -99,6 +110,68 @@ class HwpxPackageError(Exception):
 
 class HwpxStructureError(HwpxPackageError):
     """Raised when the underlying HWPX package violates the required structure."""
+
+
+class HwpxArchiveError(HwpxStructureError, BadZipFile):
+    """The input is not a readable ZIP archive (empty, truncated, or not a ZIP).
+
+    It is still a :class:`zipfile.BadZipFile`, so callers that catch that keep
+    working; the ``zipfile`` error is the ``__cause__``.
+    """
+
+
+class HwpxCompressedDataError(HwpxStructureError, zlib.error):
+    """A ZIP member's compressed data is damaged.
+
+    It is still a :class:`zlib.error`; the original is the ``__cause__``.
+    """
+
+
+class HwpxXmlSyntaxError(HwpxStructureError, etree.XMLSyntaxError):
+    """An XML part of the package is not well-formed.
+
+    It is still an :class:`lxml.etree.XMLSyntaxError` (``position``, ``lineno``
+    and ``code`` are kept); the original is the ``__cause__``. ``part_name`` is
+    the part that failed when the caller knew it, else ``None``.
+    """
+
+    part_name: str | None = None
+
+    @classmethod
+    def wrap(
+        cls,
+        exc: etree.XMLSyntaxError,
+        *,
+        part_name: str | None = None,
+        message: str | None = None,
+    ) -> "HwpxXmlSyntaxError":
+        line, column = exc.position or (1, 1)
+        if message is None:
+            where = f"'{part_name}' 파트" if part_name else "패키지"
+            message = f"{where}의 XML이 올바르지 않습니다: {exc.msg}"
+        wrapped = cls(message, exc.code, line, column, exc.filename)
+        wrapped.part_name = part_name
+        return wrapped
+
+
+@contextmanager
+def structure_errors() -> Iterator[None]:
+    """Turn the raw exceptions a damaged package raises into structure errors.
+
+    ``zlib.error`` and ``lxml.etree.XMLSyntaxError`` leave as
+    :class:`HwpxCompressedDataError` and :class:`HwpxXmlSyntaxError`, with the
+    original as ``__cause__``. Errors that are already package errors pass
+    through untouched.
+    """
+
+    try:
+        yield
+    except HwpxPackageError:
+        raise
+    except zlib.error as exc:
+        raise HwpxCompressedDataError(f"압축 데이터가 손상됐습니다: {exc}") from exc
+    except etree.XMLSyntaxError as exc:
+        raise HwpxXmlSyntaxError.wrap(exc) from exc
 
 
 def _summarize_validation_issues(issues: Sequence[object], *, limit: int = 5) -> str:
@@ -478,25 +551,30 @@ class HwpxPackage:
                 zip_order = [info.filename for info in infos]
         except BadZipFile as exc:
             if cls._leading_bytes(stream, len(cls.OLE2_MAGIC)) == cls.OLE2_MAGIC:
-                raise BadZipFile(
+                raise HwpxArchiveError(
                     "HwpxPackage는 HWPX 패키지만 엽니다. HWP 5.0(.hwp) 문서는 "
                     "HwpxDocument.open으로 열거나, 한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
                 ) from exc
-            raise
+            # The message stays the one zipfile wrote, so callers that show or
+            # match it see no change; only the type gains the structure base.
+            raise HwpxArchiveError(str(exc)) from exc
+        except zlib.error as exc:
+            raise HwpxCompressedDataError(f"압축 데이터가 손상됐습니다: {exc}") from exc
         logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))
         if cls.MIMETYPE_PATH not in files:
             raise HwpxStructureError("HWPX package is missing the mandatory 'mimetype' file.")
         mimetype = files[cls.MIMETYPE_PATH].decode("utf-8")
-        rootfiles = cls._parse_container(files.get(cls.CONTAINER_PATH))
-        version_info = cls._parse_version(files.get(cls.VERSION_PATH))
-        package = cls(
-            files,
-            rootfiles,
-            version_info,
-            mimetype,
-            zip_infos=zip_infos,
-            zip_order=zip_order,
-        )
+        with structure_errors():
+            rootfiles = cls._parse_container(files.get(cls.CONTAINER_PATH))
+            version_info = cls._parse_version(files.get(cls.VERSION_PATH))
+            package = cls(
+                files,
+                rootfiles,
+                version_info,
+                mimetype,
+                zip_infos=zip_infos,
+                zip_order=zip_order,
+            )
         return package
 
     @staticmethod
@@ -637,20 +715,20 @@ class HwpxPackage:
         try:
             return parse_xml(data)
         except etree.XMLSyntaxError as exc:
-            if self._normalize_path(part_name) not in self._encrypted_parts:
-                raise
-            # Same shape as the HWP v5 guidance in open(): the exception type
-            # callers already catch stays, the message names the next step, and
-            # the original lxml error rides along as __cause__.
-            line, column = exc.position or (1, 1)
-            raise etree.XMLSyntaxError(
-                "암호가 걸린 HWPX 문서는 지원하지 않습니다"
-                f"('{self._normalize_path(part_name)}' 파트가 암호화돼 있습니다). "
-                "한컴오피스에서 문서 암호를 해제한 뒤 다시 저장해 사용하세요.",
-                exc.code,
-                line,
-                column,
-                exc.filename,
+            # The exception type callers already catch (XMLSyntaxError) stays;
+            # it also becomes a structure error, names the part, and carries
+            # the original lxml error as __cause__.
+            normalized = self._normalize_path(part_name)
+            if normalized not in self._encrypted_parts:
+                raise HwpxXmlSyntaxError.wrap(exc, part_name=normalized) from exc
+            raise HwpxXmlSyntaxError.wrap(
+                exc,
+                part_name=normalized,
+                message=(
+                    "암호가 걸린 HWPX 문서는 지원하지 않습니다"
+                    f"('{normalized}' 파트가 암호화돼 있습니다). "
+                    "한컴오피스에서 문서 암호를 해제한 뒤 다시 저장해 사용하세요."
+                ),
             ) from exc
 
     def set_xml(self, part_name: str, element: etree._Element) -> None:

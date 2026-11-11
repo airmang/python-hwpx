@@ -63,3 +63,62 @@ def test_document_ingestor_reports_unsupported_format(tmp_path: Path) -> None:
 
 def test_normalize_markdown_trims_trailing_space_and_extra_blank_lines() -> None:
     assert normalize_markdown("a  \n\n\n\nb\n") == "a\n\nb"
+
+
+def _rich_hwpx() -> bytes:
+    with HwpxDocument.new() as doc:
+        doc.add_paragraph("본문 문장입니다")
+        doc.page.set_header(text="머리말 ZQ글")
+        doc.page.set_footer(text="꼬리말 ZQ글")
+        anchor = doc.add_paragraph("메모 달린 문단")
+        doc.notes.add_memo("메모 ZQ내용", anchor=anchor)
+        doc.shapes.add_equation("x = {-b +- sqrt {b^2 - 4ac}} over {2a}")
+        doc.shapes.add_composed_character("가나")
+        doc.fields.add_check_box(caption="체크ZQ캡션")
+        return doc.to_bytes()
+
+
+def test_ingest_reports_what_the_markdown_leaves_out() -> None:
+    """빠뜨린 요소가 있으면 ``low``가 아니고, 종류와 개수를 알린다(ENG-21).
+
+    보고는 결과와 대조해 만든다. 여기서 보는 것은 "Markdown에 글이 없는 종류는
+    반드시 보고된다"는 한 방향이다. 내보내기가 어떤 종류를 싣게 되면 그 종류는
+    보고에서 빠지고 이 시험은 그대로 통과한다.
+    """
+
+    result = DocumentIngestor.default().convert(_rich_hwpx())
+    markers = {
+        "header": "머리말 ZQ글",
+        "footer": "꼬리말 ZQ글",
+        "memo": "메모 ZQ내용",
+        "equation": "sqrt",
+        "form_caption": "체크ZQ캡션",
+    }
+    left_out = result.metadata["left_out"]
+    absent = {kind for kind, marker in markers.items() if marker not in result.markdown}
+    assert absent, "이 문서에서 Markdown이 모두 싣는다면 시험 문서를 바꿔야 한다"
+    assert absent <= set(left_out)
+    for kind in set(markers) - absent:
+        assert kind not in left_out
+    assert result.lossiness in {"medium", "high"}
+    assert len(result.warnings) == len(left_out)
+    assert all("Markdown에 없는 내용" in warning for warning in result.warnings)
+    assert result.as_dict()["warnings"] == result.warnings
+
+
+def test_ingest_counts_a_header_once_and_stays_low_when_nothing_is_left_out(
+    tmp_path: Path,
+) -> None:
+    plain = DocumentIngestor.default().convert(_sample_hwpx(tmp_path / "plain.hwpx"))
+    assert plain.lossiness == "low"
+    assert plain.warnings == []
+    assert plain.metadata["left_out"] == {}
+
+    with HwpxDocument.new() as doc:
+        doc.add_paragraph("본문 " * 200)
+        doc.page.set_header(text="한 번만 세는 머리말")
+        data = doc.to_bytes()
+    result = DocumentIngestor.default().convert(data)
+    if "한 번만 세는 머리말" not in result.markdown:
+        assert result.metadata["left_out"] == {"header": 1}
+        assert result.lossiness == "medium"

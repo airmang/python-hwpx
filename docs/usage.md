@@ -76,7 +76,7 @@ document.save_to_path("new-document.hwpx")
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-document.replace_text_in_runs("TODO", "DONE", text_color="#FF0000")
+document.text.replace("TODO", "DONE", text_color="#FF0000")
 document.save_to_path("my-document-updated.hwpx")
 ```
 
@@ -88,7 +88,7 @@ document.save_to_path("my-document-updated.hwpx")
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-for memo in document.memos:
+for memo in document.notes.memos:
     print(memo.id, memo.text)
 ```
 
@@ -260,7 +260,7 @@ section.properties.set_footer_text("© Company", page_type="ODD")
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-print([header.part_name for header in document.headers])
+print([header.part_name for header in document.parts.headers])
 ```
 
 ### 예제 18: 메모 모양 ID 확인
@@ -271,7 +271,7 @@ print([header.part_name for header in document.headers])
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-print(sorted(document.memo_shapes.keys()))
+print(sorted(document.styles.memo_shapes.keys()))
 ```
 
 ### 예제 19: 특정 메모 모양 살펴보기
@@ -282,7 +282,7 @@ print(sorted(document.memo_shapes.keys()))
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-shape = document.memo_shape("0")
+shape = document.styles.memo_shape("0")
 if shape:
     print(shape.memo_type, shape.line_color)
 ```
@@ -295,7 +295,7 @@ if shape:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-memo = document.add_memo("검토 메모", section_index=0, memo_shape_id_ref="0")
+memo = document.notes.add_memo("검토 메모", section_index=0, memo_shape_id_ref="0")
 print(memo.text)
 ```
 
@@ -328,9 +328,9 @@ print(memo.field_id)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-for memo in list(document.memos):
+for memo in list(document.notes.memos):
     if memo.text.startswith("임시"):
-        document.remove_memo(memo)
+        document.notes.remove_memo(memo)
 ```
 
 ### 예제 23: 새 문자 서식 확보
@@ -341,7 +341,7 @@ for memo in list(document.memos):
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-style_id = document.ensure_run_style(bold=True, underline=True)
+style_id = document.styles.ensure_run(bold=True, underline=True)
 print("style id:", style_id)
 ```
 
@@ -379,8 +379,8 @@ if paragraph.runs:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-style_id = document.ensure_run_style(bold=True)
-matches = document.find_runs_by_style(char_pr_id_ref=style_id)
+style_id = document.styles.ensure_run(bold=True)
+matches = document.text.find_runs(char_pr_id_ref=style_id)
 print("bold runs:", len(matches))
 ```
 
@@ -392,7 +392,7 @@ print("bold runs:", len(matches))
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-changed = document.replace_text_in_runs("TODO", "DONE", limit=1)
+changed = document.text.replace("TODO", "DONE", limit=1)
 print("replaced:", changed)
 ```
 
@@ -404,7 +404,7 @@ print("replaced:", changed)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-all_text = "".join(run.text for run in document.iter_runs())
+all_text = "".join(run.text for run in document.text.runs())
 print(all_text[:80])
 ```
 
@@ -456,7 +456,7 @@ section = document.sections[0]
 table = document.add_table(rows=3, cols=3, section=section, width=54000)
 ```
 
-`add_table()`은 문서에 등록된 테두리 채우기가 없으면 헤더 참조 목록에 기본 실선 `borderFill`을 자동으로 추가하고 표 전체에 그 ID를 연결합니다. 생성된 항목은 `document.border_fills` 또는 `document.border_fill("0")`으로 확인할 수 있습니다.
+`add_table()`은 문서에 등록된 테두리 채우기가 없으면 헤더 참조 목록에 기본 실선 `borderFill`을 자동으로 추가하고 표 전체에 그 ID를 연결합니다. 생성된 항목은 `document.styles.border_fills` 또는 `document.styles.border_fill("0")`으로 확인할 수 있습니다.
 
 ### 예제 33: 표 헤더 병합
 
@@ -521,9 +521,9 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 section = document.sections[0]
-line = document.add_line(0, 0, 14400, 0, line_color="#333333", section=section)
-rectangle = document.add_rectangle(14400, 7200, fill_color="#FFD9CC", section=section)
-ellipse = document.add_ellipse(9000, 4500, section=section)
+line = document.shapes.add_line(0, 0, 14400, 0, line_color="#333333", section=section)
+rectangle = document.shapes.add_rectangle(14400, 7200, fill_color="#FFD9CC", section=section)
+ellipse = document.shapes.add_ellipse(9000, 4500, section=section)
 ```
 
 ### 예제 37: 도형 크기 변경
@@ -534,14 +534,14 @@ ellipse = document.add_ellipse(9000, 4500, section=section)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-shape = document.add_rectangle(14400, 7200, section=document.sections[0])
+shape = document.shapes.add_rectangle(14400, 7200, section=document.sections[0])
 shape.resize(9000, 4500)
 print(shape.shape_type, shape.width, shape.height)
 ```
 
 ### 예제 38: 컨트롤 객체 추가
 
-`add_control()`은 저수준 탈출구입니다. 건네준 요소와 속성만 쓰고 한컴이 요구하는
+`doc.shapes.add_control()`은 저수준 탈출구입니다. 건네준 요소와 속성만 쓰고 한컴이 요구하는
 나머지 하위 요소는 만들지 않으므로, 호출자가 채우지 않은 채 저장한 문서는 한컴에서
 열리지 않습니다. 그래서 호출 시 `UserWarning`이 나며, 경고 메시지가 대신 쓸 전용
 헬퍼를 알려 줍니다.
@@ -552,7 +552,7 @@ print(shape.shape_type, shape.width, shape.height)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-control = document.add_control(section=document.sections[0], control_type="LINE", attributes={"id": "line1"})
+control = document.shapes.add_control(section=document.sections[0], control_type="LINE", attributes={"id": "line1"})
 ```
 
 ### 예제 39: 컨트롤 속성 변경
@@ -565,7 +565,7 @@ control = document.add_control(section=document.sections[0], control_type="LINE"
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-control = document.add_control(section=document.sections[0], control_type="LINE")
+control = document.shapes.add_control(section=document.sections[0], control_type="LINE")
 control.set_attribute("dirty", "false")
 ```
 
@@ -671,7 +671,7 @@ document.package.set_part("META-INF/notes.txt", "Generated with python-hwpx")
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-for style_id in sorted(document.char_properties.keys()):
+for style_id in sorted(document.styles.char_properties.keys()):
     print("style:", style_id)
 ```
 
@@ -683,8 +683,8 @@ for style_id in sorted(document.char_properties.keys()):
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-style_id = document.ensure_run_style(bold=True)
-style = document.char_property(style_id)
+style_id = document.styles.ensure_run(bold=True)
+style = document.styles.char_property(style_id)
 if style:
     print(style.text_color(), style.underline_type())
 ```
@@ -747,8 +747,8 @@ section.properties.set_start_numbering(page=1, table=1)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-if document.headers:
-    begin = document.headers[0].begin_numbering
+if document.parts.headers:
+    begin = document.parts.headers[0].begin_numbering
     print(begin.page, begin.table)
 ```
 
@@ -760,8 +760,8 @@ if document.headers:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-if document.headers:
-    document.headers[0].set_begin_numbering(page=1, table=1)
+if document.parts.headers:
+    document.parts.headers[0].set_begin_numbering(page=1, table=1)
 ```
 
 ### 예제 56: 헤더 글머리표 정의 나열
@@ -772,7 +772,7 @@ if document.headers:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-for bullet_id, bullet in sorted(document.bullets.items()):
+for bullet_id, bullet in sorted(document.styles.bullets.items()):
     print(bullet_id, bullet.char, bullet.para_head.align)
 ```
 
@@ -784,8 +784,8 @@ for bullet_id, bullet in sorted(document.bullets.items()):
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-para_pr = document.paragraph_property("1")
-style = document.style("0")
+para_pr = document.styles.paragraph_property("1")
+style = document.styles.get("0")
 if para_pr and style:
     print(para_pr.align.horizontal, para_pr.tab_pr_id_ref, style.name)
 ```
@@ -798,9 +798,9 @@ if para_pr and style:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-change = document.track_change("1")
+change = document.tracking.change("1")
 if change:
-    author = document.track_change_author(change.author_id)
+    author = document.tracking.author(change.author_id)
     if author:
         print(change.change_type, author.name, author.color)
 ```
@@ -815,8 +815,8 @@ from hwpx import HwpxDocument
 HM = "{http://www.hancom.co.kr/hwpml/2011/master-page}"
 
 document = HwpxDocument.new()
-if document.master_pages:
-    master = document.master_pages[0]
+if document.parts.master_pages:
+    master = document.parts.master_pages[0]
     item = master.element.find(f"{HM}masterPageItem")
     if item is not None:
         item.set("name", "보고서 바탕쪽")
@@ -834,7 +834,7 @@ from hwpx import HwpxDocument
 HHS = "{http://www.hancom.co.kr/hwpml/2011/history}"
 
 document = HwpxDocument.new()
-for history in document.histories:
+for history in document.parts.histories:
     comment = history.element.find(f"{HHS}historyEntry/{HHS}comment")
     if comment is not None:
         comment.text = "QA 점검 완료"
@@ -850,9 +850,9 @@ document.save_to_path("my-document.hwpx")
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-if document.version:
-    document.version.element.set("appVersion", "15.0.0.100 WIN32")
-    document.version.mark_dirty()
+if document.parts.version:
+    document.parts.version.element.set("appVersion", "15.0.0.100 WIN32")
+    document.parts.version.mark_dirty()
     document.save_to_path("my-document.hwpx")
 ```
 
@@ -866,7 +866,7 @@ from hwpx import HwpxDocument
 document = HwpxDocument.new()
 # 마지막 단락 삭제
 if len(document.sections[0].paragraphs) > 1:
-    document.remove_paragraph(document.paragraphs[-1])
+    document.paragraphs[-1].remove()
 document.save_to_path("my-document.hwpx")
 ```
 
@@ -974,25 +974,25 @@ table.set_cell_text(1, 1, "Actual")
 table.set_cell_text(1, 2, "Forecast")
 
 # 개체도 문서 또는 문단 수준에서 추가할 수 있습니다.
-rectangle = document.add_rectangle(9000, 4500, fill_color="#FFD9CC", section=section)
+rectangle = document.shapes.add_rectangle(9000, 4500, fill_color="#FFD9CC", section=section)
 
 # add_control은 저수준 탈출구입니다 — 필수 하위 요소를 만들지 않아 UserWarning이
 # 나고, 호출자가 채우지 않으면 한컴이 열지 못하는 문서가 됩니다.
-control = document.add_control(
+control = document.shapes.add_control(
     section=section,
     control_type="LINE",
     attributes={"id": "ctrl1"},
 )
 ```
 
-`HwpxDocument.sections`, `HwpxDocument.paragraphs`, `HwpxDocument.headers` 속성은 각각 구역, 모든 문단, 헤더 파트를 리스트로 반환합니다. 섹션 속성(`section.properties`)을 사용하면 페이지 크기, 여백, 바탕쪽 연결과 같은 레이아웃 설정도 쉽게 변경할 수 있습니다. 매니페스트에 등록된 바탕쪽(`document.master_pages`), 문서 이력(`document.histories`), 버전(`document.version`) 파트도 동일한 방식으로 노출되므로 XML 트리를 직접 수정한 뒤 `mark_dirty()`만 호출하면 저장 시 함께 반영됩니다.
+`HwpxDocument.sections`, `HwpxDocument.paragraphs`, `doc.parts.headers` 속성은 각각 구역, 모든 문단, 헤더 파트를 리스트로 반환합니다. 섹션 속성(`section.properties`)을 사용하면 페이지 크기, 여백, 바탕쪽 연결과 같은 레이아웃 설정도 쉽게 변경할 수 있습니다. 매니페스트에 등록된 바탕쪽(`document.parts.master_pages`), 문서 이력(`document.parts.histories`), 버전(`document.parts.version`) 파트도 동일한 방식으로 노출되므로 XML 트리를 직접 수정한 뒤 `mark_dirty()`만 호출하면 저장 시 함께 반영됩니다.
 
 ```python
 options = section.properties
 options.set_page_size(width=72000, height=43200, orientation="LANDSCAPE")
 options.set_page_margins(left=2000, right=2000, header=1500, footer=1500)
 
-document.headers[0].set_begin_numbering(page=1)
+document.parts.headers[0].set_begin_numbering(page=1)
 ```
 
 ## Markdown으로 문서 만들기
@@ -1027,7 +1027,7 @@ doc.save_to_path("report.hwpx")
 ```python
 # 인스턴스로 삭제
 paragraph = document.paragraphs[-1]
-document.remove_paragraph(paragraph)
+paragraph.remove()
 
 # 섹션 내 인덱스로 삭제
 section = document.sections[0]
@@ -1067,23 +1067,23 @@ document.remove_section(1)
 
 ## 메모 다루기
 
-문서에 첨부된 메모는 섹션의 `<hp:memogroup>` 요소와 헤더의 `memoProperties` 정의를 통해 연결됩니다. `HwpxDocument.memos` 속성은 모든 섹션에 포함된 메모 객체를 반환하며, `add_memo()`/`remove_memo()`를 사용하면 새 메모를 생성하거나 삭제할 수 있습니다.
+문서에 첨부된 메모는 섹션의 `<hp:memogroup>` 요소와 헤더의 `memoProperties` 정의를 통해 연결됩니다. `doc.notes.memos` 속성은 모든 섹션에 포함된 메모 객체를 반환하며, `doc.notes.add_memo()`/`doc.notes.remove_memo()`를 사용하면 새 메모를 생성하거나 삭제할 수 있습니다.
 
 ```python
 # 메모 모양 정의는 header.ref_list.memo_properties 또는 document.memo_shapes로 조회할 수 있습니다.
-default_shape = next(iter(document.memo_shapes))  # 첫 번째 모양 ID
+default_shape = next(iter(document.styles.memo_shapes))  # 첫 번째 모양 ID
 
-memo = document.add_memo(
+memo = document.notes.add_memo(
     "검토 의견을 정리했습니다.",
     section=section,
     memo_shape_id_ref=default_shape,
 )
 memo.text = "표 1은 최신 수치로 업데이트가 필요합니다."
 
-for existing in document.memos:
+for existing in document.notes.memos:
     print(existing.id, existing.memo_shape_id_ref, existing.text)
 
-document.remove_memo(memo)
+document.notes.remove_memo(memo)
 ```
 
 > **주의:** 한글 편집기에서 메모 풍선을 표시하려면 본문 문단에 대응되는 MEMO 필드 컨트롤(`hp:fieldBegin`/`hp:fieldEnd`)이 있어야 합니다.
@@ -1091,9 +1091,9 @@ document.remove_memo(memo)
 ```python
 todo = document.add_paragraph("TODO: QA 서명", section=section, char_pr_id_ref=10)
 
-document.add_memo_with_anchor(
+document.notes.add_memo(
     "배포 전 QA 서명을 확인하세요.",
-    paragraph=todo,
+    anchor=todo,
     memo_shape_id_ref="0",
     memo_id="release-memo-qa",
     char_pr_id_ref="10",
@@ -1106,16 +1106,16 @@ document.add_memo_with_anchor(
 
 ## 스타일 기반 텍스트 변환
 
-런(`HwpxOxmlRun`)은 `charPrIDRef`를 통해 헤더의 문자 서식(`charPr`)과 연결됩니다. `HwpxDocument.find_runs_by_style()`는 색상, 밑줄 종류, 문자 속성 ID 등의 조건으로 런을 필터링하고, `replace_text_in_runs()`는 선택된 런 내부의 부분 문자열만 치환하거나 삭제합니다.
+런(`HwpxOxmlRun`)은 `charPrIDRef`를 통해 헤더의 문자 서식(`charPr`)과 연결됩니다. `doc.text.find_runs()`는 색상, 밑줄 종류, 문자 속성 ID 등의 조건으로 런을 필터링하고, `doc.text.replace()`는 선택된 런 내부의 부분 문자열만 치환하거나 삭제합니다.
 
 ```python
 # 빨간색 텍스트에만 TODO 태그가 남아 있는지 검사합니다.
-for run in document.find_runs_by_style(text_color="#FF0000"):
+for run in document.text.find_runs(text_color="#FF0000"):
     if "TODO" in run.text:
         print("검토 필요:", run.text)
 
 # 빨간색 텍스트에서 TODO를 DONE으로 교체하고, 최대 두 번만 수행합니다.
-document.replace_text_in_runs(
+document.text.replace(
     "TODO",
     "DONE",
     text_color="#FF0000",
@@ -1123,10 +1123,10 @@ document.replace_text_in_runs(
 )
 
 # 밑줄이 그어진 텍스트에서 임시 주석을 제거합니다.
-document.replace_text_in_runs(
+document.text.replace(
     "(draft)",
     "",
-    underline_type="SOLID",
+    underline_type="BOTTOM",
 )
 ```
 
@@ -1158,16 +1158,18 @@ for mark in span.marks:
 paragraph.apply_model(model)
 ```
 
+모델로 문단의 글이나 런을 바꾸면 `apply_model()`이 그 문단의 줄 배치 캐시(`hp:linesegarray`)를 지웁니다. 한/글은 캐시의 줄 수를 믿고 글을 그 안에 눌러 담으므로, 바뀐 내용 위에 옛 캐시를 남기지 않습니다. 런 텍스트에 넣은 `"\n"`과 탭은 `hp:lineBreak`·`hp:tab`으로 기록됩니다.
+
 ## 런 서식 지정
 
-헤더의 `<hh:charPr>` 정의는 여러 런이 공유하는 문자 서식을 담고 있습니다. `HwpxDocument.ensure_run_style()`은 굵게/기울임/밑줄 조합에 맞는 `charPr` 항목을 찾아 ID를 반환하고, 필요한 경우 새 항목을 생성합니다. 문단 객체는 `add_run()` 메서드를 통해 해당 서식을 즉시 사용하는 런을 만들 수 있습니다.
+헤더의 `<hh:charPr>` 정의는 여러 런이 공유하는 문자 서식을 담고 있습니다. `doc.styles.ensure_run()`은 굵게/기울임/밑줄 조합에 맞는 `charPr` 항목을 찾아 ID를 반환하고, 필요한 경우 새 항목을 생성합니다. 문단 객체는 `add_run()` 메서드를 통해 해당 서식을 즉시 사용하는 런을 만들 수 있습니다.
 
 ```python
 section = document.sections[0]
 paragraph = section.paragraphs[0]
 
 # 굵은 밑줄 서식을 확보하고, 동일한 서식을 가진 런을 추가합니다.
-style_id = document.ensure_run_style(bold=True, underline=True)
+style_id = document.styles.ensure_run(bold=True, underline=True)
 run = paragraph.add_run("강조된 텍스트", bold=True, underline=True)
 
 # 반환된 런은 즉시 서식 토글 속성을 제공합니다.
@@ -1254,6 +1256,13 @@ for element in paragraphs_with_bookmark:
 | `save_to_path(path)` | 원자적 쓰기 + ZIP 무결성 + editor-open safety 검증 후 파일 저장 |
 | `save_to_stream(stream)` | 검증된 HWPX만 `BinaryIO` 스트림에 기록 |
 | `to_bytes()` | 검증된 HWPX를 `bytes`로 직렬화 |
+
+세 방법의 기본 검사가 보는 범위는 다음과 같습니다.
+
+- 보는 것: ZIP과 각 XML 파트가 읽히는지, 한/글이 열지 못하는 구조(필수 자식이 없는 표·도형·글맵시·OLE·동영상, 빈 컨트롤, 필수 파트·속성 누락), 글보다 뒤를 가리키거나 줄 수가 크게 모자란 줄 배치 캐시.
+- 보지 않는 것: **참조 무결성**. 본문이 가리키는 글자 모양(`charPrIDRef`)·문단 모양(`paraPrIDRef`)·스타일·테두리·그림 자료가 `header.xml`과 패키지에 실제로 있는지는 기본 저장에서 확인하지 않습니다. 없는 id를 가리키는 문서도 기본 검사를 통과해 저장됩니다.
+
+참조까지 확인하려면 `save_report(path, quality=QualityPolicy.strict())`를 쓰거나(`REFERENCE_INTEGRITY_FAILED`로 보고), `hwpx.tools.id_integrity.check_id_integrity(document)`를 직접 부릅니다. 이 검사는 문서를 여는 시간의 0.7배쯤 더 걸리고, 한/글이 저장한 문서 가운데에도 걸리는 것이 있어(정의되지 않은 글머리표 `idRef="0"`) 기본 저장에는 넣지 않았습니다.
 
 ```python
 # 파일로 저장

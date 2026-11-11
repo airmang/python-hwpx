@@ -52,7 +52,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
-- 목록 **밖**의 멤버(156개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
+- 목록 **밖**의 멤버(157개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
   등) → 구현 세부. minor 에서 바뀔 수 있다.
 
 `hwpx.oxml.*` import 경로는 그대로 살아 있다. 옮기지도, deprecate 하지도 않는다.
@@ -153,8 +153,25 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 아래 표에 있는 예외 — 쓰기 보존 계약, 저장 경로 게이트, 표 구조 편집, 이동된 표면
 안내 — 는 `hwpx.errors.HwpxError`(최상위 `hwpx.HwpxError`로도 import) 베이스를
 상속합니다. 모든 호출을 감싸는 포괄 계약은 아닙니다: 없는 파일은
-`FileNotFoundError`, HWPX 패키지가 아닌 입력은 `zipfile.BadZipFile`처럼 파이썬이
-원래 내는 예외가 그대로 올라옵니다([지원 매트릭스](support-matrix.md) 참조).
+`FileNotFoundError`처럼 파이썬이 원래 내는 예외가 그대로 올라옵니다
+([지원 매트릭스](support-matrix.md) 참조).
+
+손상된 HWPX를 열 때(`HwpxDocument.open`, `HwpxPackage.open`)의 예외는 모두
+`hwpx.opc.package.HwpxStructureError`의 하위 클래스이면서, 파이썬·lxml이 원래 내던
+예외이기도 합니다. 그래서 `except zipfile.BadZipFile` 같은 기존 처리는 그대로 잡고,
+`except HwpxStructureError` 하나로 "손상된 파일"을 모두 잡을 수도 있습니다. 원래
+예외는 `__cause__`에 있습니다.
+
+| 입력 | 예외 | 함께 상속 |
+|---|---|---|
+| ZIP이 아님·잘린 파일·빈 파일 | `HwpxArchiveError` | `zipfile.BadZipFile` |
+| 압축 데이터 손상 | `HwpxCompressedDataError` | `zlib.error` |
+| 깨진 XML 파트, 암호가 걸린 HWPX | `HwpxXmlSyntaxError`(`part_name`) | `lxml.etree.XMLSyntaxError` |
+| `mimetype`·`container.xml`·rootfile 없음 | `HwpxStructureError` | — |
+
+`HwpxPackageError`·`HwpxStructureError` 계열은 `HwpxError`를 상속하지 않습니다
+(`code`·`context`·`suggestion` 필드가 없습니다). 크기·압축률 상한을 넘는 입력은
+`HwpxSecurityError`(`ValueError`)로 거부합니다.
 구조화된 예외는 사람용 문장(`str(exc)`)을 그대로 두고, 세 가지 **기계가 읽는**
 필드를 얹습니다:
 
@@ -178,6 +195,13 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
 | `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
+| `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
+| `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
+| `hwpx.equation.mathml.MathMLUnavailableError` | `equation-mathml-unavailable` | `HwpxError`, `RuntimeError` | `latex2mathml` 없이 MathML 변환 요청 |
+| `hwpx.ingest.DocumentIngestError` | `ingest-failed` | `HwpxError`, `RuntimeError` | ingest 변환 실패(`attempts`에 시도 기록) |
+| `hwpx.ingest.UnsupportedDocumentFormat` | `ingest-format-unsupported` | `DocumentIngestError` | 입력을 받는 변환기가 없음 |
+| `hwpx.tools.recover.RecoverError` | `recover-unsafe` | `HwpxError`, `ValueError` | 로컬 헤더 항목을 안전하게 복구할 수 없음 |
+| `hwpx.tools.toc_fidelity.WordBoxExtractorRequired` | `toc-word-box-extractor-required` | `HwpxError`, `RuntimeError` | PDF 글자 상자 추출기 없이 차례 쪽 대조 호출 |
 
 ### HWP 5.0 (`.hwp`)
 

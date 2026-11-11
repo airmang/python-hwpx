@@ -52,7 +52,10 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
 
 ## What it does
 
-- Read and extract: text, HTML and Markdown export that keeps formatting, nested tables and footnotes.
+- Read and extract: text, HTML and Markdown export that keeps formatting and nested tables. Footnotes and endnotes
+  come out with `notes=True`, `markdown(rich=True)` or `TextExtractor`; headers, footers and memos only from
+  `TextExtractor`. Equations, composed characters and form-object captions are not extracted by any path yet.
+  The Markdown converter (`hwpx.ingest`) reports what it left out in `warnings` and `lossiness`.
 - Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
 - Fill forms: find a cell by its label and change only the value; parts you did not touch keep their bytes.
   FormFit decides whether a value should wrap or shrink to fit its cell, measuring with Hangul's glyph widths.
@@ -67,7 +70,8 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
   paragraphs where it is sure to match Hangul. Viewers such as rhwp, which place pictures from that data, then
   show them too. By default nothing is written.
 - Verify and stay safe: a package-structure validation CLI, an open-safety check before saving, and a save
-  report (`return_report=True`).
+  report (`return_report=True`). A default save does not check that the character and paragraph shapes the
+  text points at exist; `save_report(quality=QualityPolicy.strict())` does.
 
 More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md) · [support matrix](docs/support-matrix.md)
 

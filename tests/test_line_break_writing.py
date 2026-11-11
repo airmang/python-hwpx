@@ -129,3 +129,86 @@ def test_add_run_special_spaces_beside_tabs_and_line_breaks(expand: bool, xml: s
 
     assert xml in _text_nodes(data)
     assert HwpxDocument.open(data).paragraphs[1].text == "가 나\t다　라\n마"
+
+
+# Find-and-replace and partial edits write the same elements as the setters
+# (2026-11 audit ENG-05: they left "\n" as a character inside hp:t, and
+# set_text_preserving_runs dropped the tab).
+_VALUE = "가\n나\t다"
+_WRITTEN = "가<hp:lineBreak/>나<hp:tab/>다"
+
+
+def _replaced(edit) -> bytes:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("앞 원래 뒤")
+    edit(doc)
+    return doc.to_bytes()
+
+
+def _model_text(doc: HwpxDocument) -> None:
+    paragraph = doc.paragraphs[1]
+    model = paragraph.to_model()
+    model.runs[0].text_spans[0].text = f"앞 {_VALUE} 뒤"
+    paragraph.apply_model(model)
+
+
+def _run_model_text(doc: HwpxDocument) -> None:
+    run = doc.paragraphs[1].runs[0]
+    model = run.to_model()
+    model.text_spans[0].text = f"앞 {_VALUE} 뒤"
+    run.apply_model(model)
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda doc: doc.paragraphs[1].runs[0].replace_text("원래", _VALUE),
+        lambda doc: doc.text.replace("원래", _VALUE),
+        lambda doc: doc.text.replace("원래", _VALUE, everywhere=True),
+        lambda doc: doc.replace_text_in_runs("원래", _VALUE),
+        lambda doc: doc.paragraphs[1].set_text_preserving_runs(f"앞 {_VALUE} 뒤"),
+        _model_text,
+        _run_model_text,
+    ],
+    ids=[
+        "run.replace_text",
+        "text.replace",
+        "text.replace-everywhere",
+        "replace_text_in_runs",
+        "set_text_preserving_runs",
+        "paragraph.apply_model",
+        "run.apply_model",
+    ],
+)
+def test_replace_and_partial_edits_write_breaks_and_tabs_as_elements(edit, recwarn) -> None:
+    data = _replaced(edit)
+
+    _assert_no_raw_break(data)
+    assert not [node for node in _text_nodes(data) if "\t" in node]
+    assert f"앞 {_WRITTEN} 뒤" in _text_nodes(data)
+    assert HwpxDocument.open(data).paragraphs[1].text == f"앞 {_VALUE} 뒤"
+
+
+def test_replace_keeps_the_marks_around_the_match_in_place() -> None:
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("")
+    paragraph.add_run("하나\t둘 원래 셋\n넷")
+
+    assert paragraph.runs[-1].replace_text("원래", "A\r\nB") == 1
+    data = doc.to_bytes()
+
+    assert "하나<hp:tab/>둘 A<hp:lineBreak/>B 셋<hp:lineBreak/>넷" in _text_nodes(data)
+
+
+def test_replace_across_runs_writes_a_line_break_where_the_match_ended() -> None:
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("")
+    paragraph.add_run("앞 원")
+    bold = doc.styles.ensure_run(bold=True)
+    paragraph.add_run("래 뒤", char_pr_id_ref=bold)
+
+    assert doc.text.replace("원래", "가\n나다", everywhere=True) == 1
+    data = doc.to_bytes()
+
+    _assert_no_raw_break(data)
+    assert HwpxDocument.open(data).paragraphs[1].text == "앞 가\n나다 뒤"

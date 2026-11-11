@@ -81,7 +81,7 @@
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.notes.add_memo(anchor=...)",
-  "signature": "(self, text: 'str' = '', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, paragraph_text: 'str | None' = None, memo_shape_id_ref: 'str | int | None' = None, memo_id: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None, attributes: 'dict[str, str] | None' = None, field_id: 'str | None' = None, author: 'str | None' = None, created: 'datetime | str | None' = None, number: 'int' = 1, anchor_char_pr_id_ref: 'str | int | None' = None) -> 'tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]'"
+  "signature": "(self, text: 'str' = '', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, paragraph_text: 'str | None' = None, memo_shape_id_ref: 'str | int | None' = None, memo_id: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None, attributes: 'dict[str, str] | None' = None, field_id: 'str | None' = None, author: 'str | None' = None, created: 'datetime | str | None' = None, number: 'int | None' = None, anchor_char_pr_id_ref: 'str | int | None' = None) -> 'tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]'"
  },
  "add_rectangle": {
   "kind": "method",
@@ -123,7 +123,7 @@
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.notes.attach",
-  "signature": "(self, paragraph: 'HwpxOxmlParagraph', memo: 'HwpxOxmlMemo', *, field_id: 'str | None' = None, author: 'str | None' = None, created: 'datetime | str | None' = None, number: 'int' = 1, char_pr_id_ref: 'str | int | None' = None) -> 'str'"
+  "signature": "(self, paragraph: 'HwpxOxmlParagraph', memo: 'HwpxOxmlMemo', *, field_id: 'str | None' = None, author: 'str | None' = None, created: 'datetime | str | None' = None, number: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'str'"
  },
  "border_fill": {
   "kind": "method",
@@ -162,7 +162,7 @@
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.styles.ensure_border_fill",
-  "signature": "(self, *, border_color: 'str' = '#BFBFBF', border_width: 'str' = '0.12 mm', fill_color: 'str | None' = None, active_borders: 'Sequence[str] | None' = None, border_type: 'str' = 'SOLID') -> 'str'"
+  "signature": "(self, *, border_color: 'str' = '#BFBFBF', border_width: 'str' = '0.12 mm', fill_color: 'str | None' = None, fill_image: \"'str | BinaryItem | Mapping[str, object] | None'\" = None, fill_gradient: 'Mapping[str, object] | None' = None, active_borders: 'Sequence[str] | None' = None, border_type: 'str' = 'SOLID') -> 'str'"
  },
  "ensure_numbering": {
   "kind": "method",
@@ -353,7 +353,7 @@
  "set_check_box": {
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.fields.check_box(...).checked",
+  "replacement": "doc.fields.set_check_box",
   "signature": "(self, checked: 'bool', *, index: 'int | None' = None, name: 'str | None' = None) -> 'dict[str, Any]'"
  },
  "set_columns": {
@@ -431,7 +431,7 @@
  "style": {
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.style",
+  "replacement": "doc.styles.get",
   "signature": "(self, style_id_ref: 'int | str | None') -> 'Style | None'"
  },
  "track_change": {

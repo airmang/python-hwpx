@@ -48,7 +48,7 @@ def test_bad_sections_are_typed_errors(name, args, kwargs, code, document) -> No
     assert excinfo.value.code == code
 
 
-def test_this_is_where_toc_and_cross_reference_will_live() -> None:
+def test_toc_and_cross_reference_live_in_their_module_not_in_doc_refs() -> None:
     """경계 근거: 능력 레지스트리가 TOC/상호참조와 하이퍼링크/책갈피를 같은
     네임스페이스(doc.refs) 밑에 두되, 서로 다른 캐파빌리티 영역으로 분리해
     등록해 뒀다 (6.8 트레인㉚ -- 하이퍼링크/책갈피는 toc-crossref 영역에
@@ -60,7 +60,10 @@ def test_this_is_where_toc_and_cross_reference_will_live() -> None:
     toc_area = next(row for row in _CAPABILITY_AREAS if row["area"] == "toc-crossref")
     assert toc_area["authoring_methods"] == ()
     assert toc_area["entry_points"] == ("hwpx.tools.toc_author:add_native_toc",)
-    assert toc_area["namespace"] == "doc.refs"
+    # 차례·상호참조 메서드는 doc.refs에 없다(모듈 함수 hwpx.tools.toc_author).
+    # 레지스트리는 실제 자리를 적으므로 namespace는 None이다(ENG-33).
+    assert toc_area["namespace"] is None
+    assert not hasattr(HwpxDocument.new().refs, "add_native_toc")
 
     link_area = next(row for row in _CAPABILITY_AREAS if row["area"] == "hyperlink-bookmark")
     assert set(link_area["authoring_methods"]) == {"add_bookmark", "add_hyperlink"}

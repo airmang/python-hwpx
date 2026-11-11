@@ -5,6 +5,8 @@ import struct
 import zlib
 from pathlib import Path
 
+from ..errors import HwpxError
+
 __all__ = [
     "RecoverError",
     "recover_entries",
@@ -18,8 +20,10 @@ _METHOD_DEFLATED = 8
 _FLAG_DATA_DESCRIPTOR = 0x08
 
 
-class RecoverError(ValueError):
+class RecoverError(HwpxError, ValueError):
     """Raised when a local-header entry is present but unsafe to recover."""
+
+    default_code = "recover-unsafe"
 
 
 def _decompress_deflate(payload: bytes, *, max_entry_size: int) -> bytes:

@@ -51,7 +51,10 @@ doc.save_to_path("계획.hwpx")
 
 ## 할 수 있는 것
 
-- 읽기·추출: 텍스트·HTML·Markdown으로 내보냅니다. 서식, 표 안의 표, 각주를 살립니다.
+- 읽기·추출: 텍스트·HTML·Markdown으로 내보냅니다. 서식과 표 안의 표를 살립니다. 각주·미주는 `notes=True`를 주거나
+  `markdown(rich=True)`·`TextExtractor`를 쓸 때 나오고, 머리말·꼬리말·메모는 `TextExtractor`에서만 나옵니다.
+  수식·글자 겹침·양식 개체 캡션은 아직 어느 경로에서도 나오지 않습니다. Markdown 변환(`hwpx.ingest`)은 빠진
+  종류와 개수를 `warnings`와 `lossiness`로 알립니다.
 - 편집: 문단·표·그림·머리말/꼬리말·메모·각주, 줄 간격·여백·쪽 번호 같은 서식을 고칩니다.
 - 양식 채우기: 라벨로 칸을 찾아 값만 넣고 손대지 않은 부분은 바이트 그대로 둡니다. FormFit은 값이
   칸에 들어가도록 줄을 바꾸거나 글자를 줄일지 한/글의 글자 폭으로 재서 고릅니다.
@@ -62,7 +65,9 @@ doc.save_to_path("계획.hwpx")
 - 배치 추정(실험): `estimate_pages`는 한/글 없이 쪽 수와 줄마다의 쪽·세로 위치를 추정합니다.
   `write_line_caches`는 한/글이 저장할 때 쓰는 줄 배치 정보를, 한/글과 같은 값을 확실히 아는 문단에만 씁니다.
   rhwp처럼 이 정보로 그림 자리를 찾는 뷰어에서도 그림이 보이게 됩니다. 기본으로는 쓰지 않습니다.
-- 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`return_report=True`).
+- 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`return_report=True`). 기본 저장은 없는 글자 모양·
+  문단 모양을 가리키는 참조까지는 확인하지 않습니다. 그 검사는 `save_report(quality=QualityPolicy.strict())`가 합니다
+  ([검사 범위](docs/usage.md#변경-사항-저장과-결과물-확인)).
 
 자세한 내용: [5분 퀵스타트](docs/quickstart.md) · [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md) · [지원 매트릭스](docs/support-matrix.md)
 

@@ -359,6 +359,15 @@ def _strip_non_code_text(text: str) -> str:
     return "".join(chars)
 
 
+def _is_hwp5_emitter(path: Path) -> bool:
+    """``src/hwpx/hwp5/`` 아래 파일인가(.hwp → HWPX 변환기, HWPX XML을 써낸다)."""
+
+    try:
+        return path.relative_to(SRC_DIR).parts[:1] == ("hwp5",)
+    except ValueError:
+        return False
+
+
 def _read_source_corpus(files: list[tuple[Path, str]]) -> str:
     """파일 목록을 주석·독스트링을 지운 뒤 하나의 탐색용 텍스트로 합친다."""
 
@@ -1715,7 +1724,14 @@ def build_ledger(
     census = load_corpus(census_path)
     corpus_counts = census.frequencies
     total_real_files = census.total_real_files
-    source_files = _read_source_files()
+    all_source_files = _read_source_files()
+    # ``hwp5/``는 .hwp를 읽어 HWPX XML을 **써내는** 변환기다. 거기 나오는 HWPX
+    # 태그는 방출이지 HWPX를 읽는 코드가 아니다. 한 덩어리로 훑으면 방출 줄
+    # 근처에 쓰기 표지가 없을 때 "읽기"로 잡혀, 엔진이 읽지 못하는 요소(예:
+    # hp:hiddenComment)가 codeRead=True가 됐다(ENG-33). 그래서 읽기 판정은
+    # ``hwp5/`` 밖의 소스로만 하고, ``hwp5/``는 쓰기 신호로만 본다.
+    source_files = [item for item in all_source_files if not _is_hwp5_emitter(item[0])]
+    hwp5_files = [item for item in all_source_files if _is_hwp5_emitter(item[0])]
     # 평문 마커/디스패치 스캔은 주석·독스트링을 지운 텍스트에서 돈다(§3-C2
     # 위양성 수리). ast 기반 리졸버(루프 태그·인자 태그)는 원본 텍스트를
     # 그대로 쓴다 — 문자열 리터럴 안에서는 진짜 ast 노드가 나올 수 없어
@@ -1725,6 +1741,10 @@ def build_ledger(
     loop_resolved = _resolve_loop_tag_tables(source_files)
     arg_tag_resolved = _resolve_argument_tag_literals(source_files)
     indirect_resolved = _merge_indirect_resolved(loop_resolved, arg_tag_resolved)
+    hwp5_text = _read_source_corpus(hwp5_files)
+    hwp5_indirect = _merge_indirect_resolved(
+        _resolve_loop_tag_tables(hwp5_files), _resolve_argument_tag_literals(hwp5_files)
+    )
     skeleton_text = _read_skeleton_text()
     status_by_area = _parse_support_matrix_status(
         SUPPORT_MATRIX_PATH.read_text(encoding="utf-8")
@@ -1748,6 +1768,12 @@ def build_ledger(
         code_read, code_write_api = classify_code_usage(
             prefix, name, family, source_text, dispatch_windows, indirect_resolved
         )
+        if not code_write_api:
+            # 방출기의 쓰기 신호는 전과 같은 기준(여는 태그 리터럴·쓰기 표지)으로
+            # 센다. 쓰기 표지 없이 태그만 나온 줄은 읽기로도 쓰기로도 세지 않는다.
+            _emitted_read, code_write_api = classify_code_usage(
+                prefix, name, family, hwp5_text, [], hwp5_indirect
+            )
         if code_write_api:
             write_mode = "api"
         elif is_in_skeleton(prefix, name, skeleton_text):
@@ -1821,6 +1847,7 @@ def build_ledger(
             ],
             "skeleton": "src/hwpx/data/Skeleton.hwpx",
             "sourceScanned": "src/hwpx/**/*.py",
+            "readScanExcludes": "src/hwpx/hwp5/**/*.py",
         },
         "corpusTotalFiles": total_real_files,
         "corpusUnknownFiles": census.unknown_files,

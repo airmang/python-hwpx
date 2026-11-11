@@ -78,9 +78,9 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
-| 날짜/시간·교정 부호·파일 이름 필드 | 저작 api | 지원 매트릭스 「날짜/시간·교정 부호·파일 이름 필드」(`Create(experimental)·Render-verified`) · capabilities 영역 `date-time-proofreading-mark-fields` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
+| 날짜/시간·교정 부호·파일 이름 필드 | 저작 api | 지원 매트릭스 「날짜/시간·교정 부호·파일 이름 필드」(`Create(experimental)·Render-verified`) · capabilities 영역 `date-time-proofreading-mark-fields` · 위치 문단 메서드 — `paragraph.add_date_field` · `add_proofreading_mark` · `add_path_field` | Render-verified(experimental 저작 포함) |
 | 누름틀(form field) 생성 | 저작 api | 지원 매트릭스 「누름틀(form field) 생성」(`Parse·Edit·Create(experimental)·Render-verified`) · capabilities 영역 `form-field-create` · 위치 `doc.fields` | Render-verified(experimental 저작 포함) |
-| 메일머지 표시 필드 | 저작 api | 지원 매트릭스 「메일머지 표시 필드」(`Create(experimental)`) · capabilities 영역 `mail-merge-field` · 위치 `doc.fields` | 미실측 |
+| 메일머지 표시 필드 | 저작 api | 지원 매트릭스 「메일머지 표시 필드」(`Create(experimental)`) · capabilities 영역 `mail-merge-field` · 위치 문단 메서드 — `paragraph.add_mail_merge_field` | 미실측 |
 | 양식 채움(byte-splice) | 저작 api | 지원 매트릭스 「양식 채움(byte-splice)」(`Preserve·Edit·Render-verified`) · capabilities 영역 `form-fill` · 위치 `doc.tables` | Render-verified |
 | 체크박스 양식개체 | 저작 api | 지원 매트릭스 「체크박스 양식개체」(`Create·Render-verified`) · capabilities 영역 `check-box` · 위치 `doc.fields` | Render-verified |
 
@@ -89,9 +89,9 @@ support-matrix.md` · `docs/coverage-ledger.json`)과 OWPML 스키마 ·
 | 기능 | 엔진 상태 | 근거 | 실한컴 검증 |
 |---|---|---|---|
 | 각주/미주 | 저작 api | 지원 매트릭스 「각주/미주」(`Edit·Create·Render-verified`) · capabilities 영역 `footnote-endnote` · 위치 `doc.notes` | Render-verified |
-| 네이티브 목차(TOC)/상호참조 | 저작 api | 지원 매트릭스 「네이티브 목차(TOC)/상호참조」(`Create·Render-verified`) · capabilities 영역 `toc-crossref` · 위치 `doc.refs` | Render-verified |
-| 색인 표시 | 저작 api | 지원 매트릭스 「색인 표시」(`Create(experimental)`) · capabilities 영역 `index-mark` · 위치 `doc.refs` | 미실측 |
-| 차례 숨기기·제목 차례 표시 | 저작 api | 지원 매트릭스 「차례 숨기기·제목 차례 표시」(`Create(experimental)·Render-verified`) · capabilities 영역 `title-mark` · 위치 `doc.refs` | Render-verified(experimental 저작 포함) |
+| 네이티브 목차(TOC)/상호참조 | 저작 api | 지원 매트릭스 「네이티브 목차(TOC)/상호참조」(`Create·Render-verified`) · capabilities 영역 `toc-crossref` · 위치 모듈 — `hwpx.tools.toc_author` (`add_native_toc`·`add_page_crossref`) | Render-verified |
+| 색인 표시 | 저작 api | 지원 매트릭스 「색인 표시」(`Create(experimental)`) · capabilities 영역 `index-mark` · 위치 문단 메서드 — `paragraph.add_index_mark` | 미실측 |
+| 차례 숨기기·제목 차례 표시 | 저작 api | 지원 매트릭스 「차례 숨기기·제목 차례 표시」(`Create(experimental)·Render-verified`) · capabilities 영역 `title-mark` · 위치 문단 메서드 — `paragraph.add_title_mark` | Render-verified(experimental 저작 포함) |
 | 하이퍼링크·책갈피 | 저작 api | 지원 매트릭스 「하이퍼링크·책갈피」(`Create·Render-verified`) · capabilities 영역 `hyperlink-bookmark` · 위치 `doc.refs` | Render-verified |
 
 ### 검토
