@@ -3,6 +3,30 @@
 `python-hwpx` is the primary product: an independently useful HWPX document
 library comparable in role to `python-docx`.
 
+## Where the line is
+
+The three products are divided by what installing one brings in and where it
+runs, not by what kind of knowledge a feature holds (owner decision,
+2026-11-12).
+
+| Product | Brings in / runs as | Holds |
+|---|---|---|
+| `python-hwpx` | a Python library with light dependencies, in the caller's process | everything a Python user can do with the library alone: reading and extraction, creating a document that looks like one, editing, filling forms, and thin adapters to other Python frameworks behind optional extras |
+| `python-hwpx-automation` | an MCP server, renderer and Hancom bindings | multi-step workflows, agent plans, and rules about what a document of a given genre must contain |
+| `hwpx-skill` | packaging for Claude | task judgment, routing and prompt guidance |
+
+A newcomer judges the library by what `pip install python-hwpx` gives them, and
+an agent calls whatever is installed; a feature on the far side of the line
+does not exist for either. So a feature that needs no server, renderer, Hancom
+or dependency outside the import allowlist belongs in core, even when it knows
+how Korean documents are written (heading number forms, a default look).
+What stays out is what decides which genre a document is or what it must
+contain, and what needs the automation runtime.
+
+This changes the criterion, not the mechanisms below. The closed import
+allowlist, the ownership ledger and the layer leak guard stay as they are; a
+new third-party import still needs its own entry and its own optional extra.
+
 ## Core owns
 
 - the document object model and public facade;
@@ -10,7 +34,9 @@ library comparable in role to `python-docx`.
 - generic reading, traversal, editing, formatting, and table primitives;
 - serialization, byte/story preservation, validation, rollback, and recovery;
 - renderer-neutral quality contracts such as `RenderBackend`, `EditMask`, and
-  `VisualReport`.
+  `VisualReport`;
+- what a first-time user meets with the library alone: a document that looks
+  like one when created, and Markdown/text output a pipeline can take as it is.
 
 ## Companion layers own
 
@@ -117,8 +143,9 @@ Every existing hit is listed in `tests/data/layer_leak_allowlist.json` by file,
 qualified name (a function, a method, or the module-level constant a regex is
 assigned to), signal and exact count, with a classification and a reason:
 
-- `format-vocabulary`: Hancom format vocabulary any HWPX user needs, such as
-  built-in style names or field-type tokens. It stays.
+- `format-vocabulary`: Hancom format vocabulary or a written convention of
+  Korean documents that any HWPX user needs, such as built-in style names,
+  field-type tokens or heading number forms. It stays.
 - `known-leak`: genre or policy logic left over from the layer audit. It moves
   to `python-hwpx-automation`: [known-leak-migration.md](./known-leak-migration.md)
   is the contract — the four groups, each one's automation owner, the neutral
@@ -134,13 +161,15 @@ code moves.
 A new hit fails. Before allowlisting it, apply the feature-placement test of
 the layer-boundary guardrails (section 4), in order:
 
-1. Is it reusable by any HWPX user without a particular genre, institution or
-   policy? Core.
-2. Is it a deterministic workflow or policy built from core primitives?
+1. Does it work with the library alone, for any HWPX user, without deciding a
+   genre, institution or policy? Core.
+2. Is it a multi-step workflow, a rule about what a document must contain, or
+   something that needs the automation runtime (MCP server, renderer, Hancom)?
    `python-hwpx-automation`.
 3. Does it judge user intent, genre or ambiguity, or choose tools? The plugin.
 
-Touching XML does not make a feature core. Only answer 1 belongs in the
+Touching XML does not make a feature core, and knowing a Korean writing
+convention does not make it application logic. Only answer 1 belongs in the
 allowlist, as `format-vocabulary` with a reason. A count that drops below its
 entry also fails: lower or remove the entry in the same change.
 
