@@ -1021,7 +1021,8 @@ doc.save_to_path("report.hwpx")
 ```
 
 새 문단은 앞 문단의 모양을 물려받지 않아 제목·목록 번호가 뒤 문단에 따라붙지 않는다. 직접
-`add_paragraph`로 문서를 쌓을 때도 같은 동작을 원하면 `HwpxDocument.new(inherit_style=False)`로
+`add_paragraph`로 문서를 쌓을 때도 제목(`add_heading`)과 목록 문단의 모양은 뒤 문단이 물려받지 않고,
+본문 문단의 모양만 다음 문단이 따른다. 그것도 물려받지 않게 하려면 `HwpxDocument.new(inherit_style=False)`로
 문서를 만든다. 공문·가정통신문 같은 장르별 모양은 이 라이브러리가 아니라 응용 계층이
 `MarkdownStyle`로 정한다.
 

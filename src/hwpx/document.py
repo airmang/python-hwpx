@@ -462,7 +462,10 @@ class HwpxDocument(_LegacyFacade):
         style references are given, the new paragraph inherits
         ``paraPrIDRef``, ``styleIDRef`` and ``charPrIDRef`` from the
         last paragraph in the target section so that consecutive
-        paragraphs share the same formatting.
+        paragraphs share the same formatting. A heading is the exception:
+        left at ``None``, a paragraph added after an outline paragraph
+        (``add_heading``) is body text and does not take the heading's
+        paragraph shape and style; pass ``inherit_style=True`` to take them.
 
         Formatting references may be overridden via ``para_pr_id_ref``,
         ``style_id_ref`` and ``char_pr_id_ref``. Any additional keyword
@@ -499,6 +502,7 @@ class HwpxDocument(_LegacyFacade):
             run_attributes=run_attributes,
             include_run=include_run,
             inherit_style=self._inherit_style_default if inherit_style is None else inherit_style,
+            inherit_outline=inherit_style is not None,
             **cast(Any, extra_attrs),
         )
 

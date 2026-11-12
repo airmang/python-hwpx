@@ -1149,6 +1149,7 @@ class HwpxOxmlDocument:
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
         inherit_style: bool = True,
+        inherit_outline: bool = True,
         **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
         """Append a new paragraph to the requested section."""
@@ -1166,6 +1167,7 @@ class HwpxOxmlDocument:
             run_attributes=run_attributes,
             include_run=include_run,
             inherit_style=inherit_style,
+            inherit_outline=inherit_outline,
             **extra_attrs,
         )
 
