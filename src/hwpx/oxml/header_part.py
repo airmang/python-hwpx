@@ -467,13 +467,6 @@ class HwpxOxmlHeader:
         if para_properties is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <paraProperties> element")
 
-        for para_pr in para_properties.findall(f"{_HH}paraPr"):
-            align_element = para_pr.find(f"{_HH}align")
-            if align_element is not None and align_element.get("horizontal") == horizontal:
-                para_pr_id = para_pr.get("id")
-                if para_pr_id:
-                    return para_pr_id
-
         base = para_properties.find(f"{_HH}paraPr")
         para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
         para_pr.attrib.pop("id", None)
@@ -488,12 +481,32 @@ class HwpxOxmlHeader:
             align_element.set("horizontal", horizontal)
             if align_element.get("vertical") is None:
                 align_element.set("vertical", "BASELINE")
+
+        # Reuse a shape only when it is the base shape with this alignment and
+        # nothing else. Any shape that happens to be aligned this way may also
+        # carry a border, spacing or list numbering of the paragraph it was
+        # made for.
+        wanted = self._para_pr_signature(para_pr)
+        for existing in para_properties.findall(f"{_HH}paraPr"):
+            existing_id = existing.get("id")
+            if existing_id and self._para_pr_signature(existing) == wanted:
+                return existing_id
+
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
         para_pr.set("id", para_pr_id)
         para_properties.append(para_pr)
         self._update_item_count(para_properties, f"{_HH}paraPr")
         self.mark_dirty()
         return para_pr_id
+
+    @staticmethod
+    def _para_pr_signature(para_pr: ET.Element) -> bytes:
+        """What a paragraph shape says, whatever its id."""
+
+        clone = deepcopy(para_pr)
+        clone.attrib.pop("id", None)
+        clone.tail = None
+        return LET.tostring(clone, method="c14n")
 
     @staticmethod
     def _normalize_paragraph_alignment(align: str) -> str:
