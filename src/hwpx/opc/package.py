@@ -472,6 +472,7 @@ class HwpxPackage:
     HEADER_PATH = "Contents/header.xml"
     #: OLE2/CFBF container signature — the HWP v5 (``.hwp``) binary format.
     OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+    PREVIEW_PREFIX = "Preview/"
     # An HWP 3.x file is not a compound file: it starts with this text, then the version.
     HWP3_MAGIC = b"HWP Document File V"
     #: ODF package manifest; a password-protected HWPX declares its encrypted
@@ -613,6 +614,13 @@ class HwpxPackage:
 
     def _validate_structure(self) -> None:
         for rootfile in self._rootfiles:
+            if rootfile.full_path.startswith(self.PREVIEW_PREFIX) and rootfile.full_path not in self._files:
+                # A preview holds no content of its own and Hancom opens the document without it.
+                logger.warning(
+                    "container.xml이 가리키는 미리보기 '%s'가 패키지에 없습니다. 본문이 아니어서 그대로 엽니다.",
+                    rootfile.full_path,
+                )
+                continue
             rootfile.ensure_exists(self._files)
 
     @property

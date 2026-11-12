@@ -1119,7 +1119,9 @@ def _check_rootfile_parts(
 ) -> None:
     for rootfile in rootfiles:
         if rootfile.full_path not in name_set:
-            _error(
+            # Hancom opens a document whose declared preview is absent; any other missing root is an error.
+            report = _warning if rootfile.full_path.startswith("Preview/") else _error
+            report(
                 issues,
                 CONTAINER_PATH,
                 f"rootfile points to missing part {rootfile.full_path!r}",
