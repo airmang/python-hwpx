@@ -13,11 +13,11 @@
     "docs/safe-write-contract.md",
     "docs/golden-api.md"
   ],
-  "fenceCount": 118,
-  "sourceSha256": "3f2199e6b50e13966add6ed58eda46f07dbcc342cd7b8292f17994f8df8195d9",
+  "fenceCount": 120,
+  "sourceSha256": "3de3391cc0e38352f3b09fca920f77edf6f392fa105c2e8286e86fa09507aa35",
   "manualSha256": {
-    "README.md": "4a72b16cec03e9c45f6571022ba4e7f82b31fcd1ec0b4b718df1cdcf7c6af60b",
-    "README_EN.md": "a87427a7b44821ee231cd39c2b4362847ab9d9ef3e68c46d8bfd466fce8867f5",
+    "README.md": "c4148670a1266b87ef87124fe98e17bff7b8641974dd7595a24d853ee81b5a47",
+    "README_EN.md": "dd427466c18bdc5b2b4480586511904f89a43fee5efe1323fdba704335def720",
     "docs/quickstart.md": "44d8ca82ee70c0e3dfdf087713a4e4ce935e64cd3f6a546311f95b054a285a18",
     "docs/recipes-traversal.md": "b63f42b1a6ed23812688599474dcf83300509b86a94b5daceae679bfdbde9343",
     "docs/mutation-semantics.md": "6de1471f64c1cd8db2e661c413d92bfd27221f5d930708942ac47c6aff2d608b",
@@ -32,7 +32,9 @@
     "standalone": {
       "ids": [
         "README.md#1",
+        "README.md#2",
         "README_EN.md#1",
+        "README_EN.md#2",
         "docs/quickstart.md#1",
         "docs/quickstart.md#7",
         "docs/usage.md#1",
@@ -141,8 +143,8 @@
     },
     "context-fragment/prior-state": {
       "ids": [
-        "README.md#2",
-        "README_EN.md#2",
+        "README.md#3",
+        "README_EN.md#3",
         "docs/quickstart.md#6",
         "docs/mutation-semantics.md#1",
         "docs/usage.md#34",
@@ -167,10 +169,10 @@
         "Any path or stream subsequently read by the block must contain a valid caller-owned HWPX document."
       ],
       "requiredSymbols": {
-        "README.md#2": [
+        "README.md#3": [
           "HwpxDocument"
         ],
-        "README_EN.md#2": [
+        "README_EN.md#3": [
           "HwpxDocument"
         ],
         "docs/quickstart.md#6": [
