@@ -520,6 +520,8 @@ class HwpxPackage:
     HEADER_PATH = "Contents/header.xml"
     #: OLE2/CFBF container signature — the HWP v5 (``.hwp``) binary format.
     OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+    # An HWP 3.x file is not a compound file: it starts with this text, then the version.
+    HWP3_MAGIC = b"HWP Document File V"
     #: ODF package manifest; a password-protected HWPX declares its encrypted
     #: parts here (``odf:encryption-data``).
     ODF_MANIFEST_PATH = "META-INF/manifest.xml"
@@ -602,10 +604,16 @@ class HwpxPackage:
                 zip_infos = {info.filename: info for info in infos}
                 zip_order = [info.filename for info in infos]
         except BadZipFile as exc:
-            if cls._leading_bytes(stream, len(cls.OLE2_MAGIC)) == cls.OLE2_MAGIC:
+            head = cls._leading_bytes(stream, len(cls.HWP3_MAGIC))
+            if head.startswith(cls.OLE2_MAGIC):
                 raise HwpxArchiveError(
                     "HwpxPackage는 HWPX 패키지만 엽니다. HWP 5.0(.hwp) 문서는 "
                     "HwpxDocument.open으로 열거나, 한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
+                ) from exc
+            if head == cls.HWP3_MAGIC:
+                raise HwpxArchiveError(
+                    "HWP 3.x 이하 형식의 .hwp 문서는 열 수 없습니다. "
+                    "한컴오피스에서 열어 HWPX로 저장한 뒤 사용하세요."
                 ) from exc
             # The message stays the one zipfile wrote, so callers that show or
             # match it see no change; only the type gains the structure base.

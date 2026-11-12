@@ -12,9 +12,10 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any, Iterator, cast
 
-from ...errors import HwpxValueError
+from ...errors import HwpxValueError, ReplaceScopeWarning
 from ...oxml.namespaces import HP, tag_local_name
 from ._base import _Namespace
 
@@ -298,7 +299,29 @@ class TextNamespace(_Namespace):
             replacements += replaced_here
             if limit is not None and replacements >= limit:
                 break
+        unfiltered = text_color is None and underline_type is None and underline_color is None and char_pr_id_ref is None
+        if not replacements and unfiltered and (limit is None or limit > 0):
+            self._warn_when_found_out_of_scope(search)
         return replacements
+
+    def _warn_when_found_out_of_scope(self, search: str) -> None:
+        """Say so when the default scope changed nothing but ``everywhere=True`` has text to look at."""
+
+        from ...oxml import HwpxOxmlParagraph
+
+        found = 0
+        for section in self._doc.sections:
+            for element, role, _key in _paragraphs_everywhere(section.element):
+                if role != "mirror" and search in HwpxOxmlParagraph(element, section).text:
+                    found += 1
+        if found:
+            warnings.warn(
+                f"doc.text.replace가 바꾼 곳이 없습니다. 찾는 글은 문단 {found}곳에 있지만 기본 범위(본문 문단의 "
+                "런 하나 안) 밖입니다: 표 칸·글상자·머리말 등이거나 서식이 다른 런에 걸쳐 있습니다. "
+                "everywhere=True를 주면 그곳도 바꿉니다.",
+                ReplaceScopeWarning,
+                stacklevel=3,
+            )
 
     def _replace_everywhere(
         self,
