@@ -782,6 +782,12 @@
       "disposition": "core",
       "approvedBy": "owner-2026-11-12-boundary-by-runtime",
       "rationale": "HwpxLoader: hands the Markdown and flat metadata of hwpx.ingest to LangChain as one Document per file. Reading is core's job and the adapter adds no workflow, genre or model policy; langchain-core is an optional extra imported only here, like openpyxl for xlsx rosters."
+    },
+    {
+      "path": "src/hwpx/integrations/llama_index.py",
+      "disposition": "core",
+      "approvedBy": "owner-2026-11-12-boundary-by-runtime",
+      "rationale": "HwpxReader: hands the Markdown and flat metadata of hwpx.ingest to LlamaIndex as one Document per file, usable as a SimpleDirectoryReader file extractor. The same thin layer as the LangChain loader, with no workflow, genre or model policy; llama-index-core is an optional extra imported only here."
     }
   ],
   "removed": [

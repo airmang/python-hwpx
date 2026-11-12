@@ -50,6 +50,10 @@ preview = [
 langchain = [
     "langchain-core>=0.3",
 ]
+# LlamaIndex reader (hwpx.integrations.llama_index). Only that module imports it.
+llamaindex = [
+    "llama-index-core>=0.12",
+]
 # Everything a contributor needs to run the gates in CONTRIBUTING.md: the CI
 # extras (`test` + `typecheck`, what .github/workflows/tests.yml installs) plus
 # twine for checking a built distribution. tests/test_dev_extra_matches_ci.py
