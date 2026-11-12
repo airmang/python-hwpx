@@ -356,6 +356,8 @@ class HwpxOxmlSection:
 
     def _inherited_paragraph_refs(
         self,
+        *,
+        inherit_outline: bool = True,
     ) -> tuple[str | None, str | None, str | None]:
         """Style refs the next appended paragraph inherits from the last one.
 
@@ -363,6 +365,10 @@ class HwpxOxmlSection:
         paragraph — in Hancom, Enter continues the list but programmatic
         appends of ordinary text are body text. The fidelity audit reproduced
         every following paragraph turning into a list item without this guard.
+
+        With *inherit_outline* false an outline paragraph (a heading) is held
+        back the same way: body text added after a heading took the heading's
+        shape and style, and Hancom numbered it as the next heading.
         """
 
         # Only the last paragraph is read: wrapping every paragraph of the section for each append
@@ -376,7 +382,10 @@ class HwpxOxmlSection:
         prev_para_ref = last.para_pr_id_ref
         prev_style_ref = last.style_id_ref
         prev_char_ref = last.char_pr_id_ref
-        if prev_para_ref is not None and self._para_pr_is_list(prev_para_ref):
+        if prev_para_ref is not None and (
+            self._para_pr_is_list(prev_para_ref)
+            or (not inherit_outline and self._para_pr_heading_type(prev_para_ref) == "OUTLINE")
+        ):
             prev_para_ref = None
             prev_style_ref = None
         if prev_para_ref is not None:
@@ -423,19 +432,21 @@ class HwpxOxmlSection:
                     return header, para_pr
         return None
 
-    def _para_pr_is_list(self, para_pr_id_ref: str | int) -> bool:
-        """True when the paraPr carries a bullet/numbered heading."""
+    def _para_pr_heading_type(self, para_pr_id_ref: str | int) -> str:
+        """The paraPr's ``hh:heading`` type in upper case, ``""`` when it has none."""
 
         found = self._para_pr_element(para_pr_id_ref)
         if found is None:
-            return False
+            return ""
         for child in found[1]:
             if tag_local_name(child.tag) == "heading":
-                return str(child.get("type", "")).upper() in {
-                    "BULLET",
-                    "NUMBER",
-                }
-        return False
+                return str(child.get("type", "")).upper()
+        return ""
+
+    def _para_pr_is_list(self, para_pr_id_ref: str | int) -> bool:
+        """True when the paraPr carries a bullet/numbered heading."""
+
+        return self._para_pr_heading_type(para_pr_id_ref) in {"BULLET", "NUMBER"}
 
     def _without_page_flow_breaks(self, para_pr_id_ref: str) -> str:
         """*para_pr_id_ref*, or the same paragraph shape without its page-flow
@@ -474,6 +485,7 @@ class HwpxOxmlSection:
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
         inherit_style: bool = True,
+        inherit_outline: bool = True,
         **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
         """Create a new paragraph element appended to this section.
@@ -481,7 +493,9 @@ class HwpxOxmlSection:
         When *inherit_style* is ``True`` (the default) and no explicit
         ``paraPrIDRef``, ``styleIDRef`` or ``charPrIDRef`` is given, the
         values are inherited from the **last** paragraph in the section so
-        that consecutive paragraphs share the same formatting.
+        that consecutive paragraphs share the same formatting. With
+        *inherit_outline* false the paragraph and style references of an
+        outline paragraph (a heading) are not inherited.
 
         The optional ``para_pr_id_ref`` and ``style_id_ref`` parameters
         control the paragraph-level references, while ``char_pr_id_ref`` and
@@ -491,7 +505,7 @@ class HwpxOxmlSection:
 
         # Collect style refs from the last paragraph for inheritance.
         prev_para_ref, prev_style_ref, prev_char_ref = (
-            self._inherited_paragraph_refs() if inherit_style else (None, None, None)
+            self._inherited_paragraph_refs(inherit_outline=inherit_outline) if inherit_style else (None, None, None)
         )
 
         attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}

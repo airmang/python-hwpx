@@ -11,6 +11,11 @@
   막는다. 열 때 옮기지 못한 내용이 있는 문서(`conversion_report`가 비어 있지 않음)는 `.hwp`로 쓰지 않고
   `Hwp5Error`(`hwp5-write-lossy-source`)로 거부한다. 두 경우 모두 `.hwpx`로는 저장된다. README와 지원 표는 `.hwp`를
   "읽어서 HWPX로 바꾸는" 입력 형식으로 안내한다.
+- `add_heading` 뒤에 `add_paragraph`로 더한 본문이 제목의 문단 모양과 스타일(개요)을 물려받지 않는다. 물려받은 본문에는
+  한/글이 다음 개요 번호("나.", "다." …)를 붙였다. 목록 문단 뒤의 문단을 본문으로 두는 것과 같은 규칙이다. 본문 뒤의
+  본문은 전처럼 앞 문단을 따르고, 글자 모양도 전처럼 물려받는다. 제목 모양의 문단이 필요하면 `inherit_style=True`를
+  주거나 모양을 직접 지정한다. 저수준 `section.add_paragraph`와 `oxml` 문서의 `add_paragraph`는 새 인자
+  `inherit_outline`(기본 `True`)으로 전과 같이 동작한다.
 
 ## [6.12.0] - 2026-11-11
 
