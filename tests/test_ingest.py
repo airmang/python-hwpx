@@ -165,6 +165,7 @@ def test_ingest_says_why_an_old_hwp_cannot_be_read(tmp_path: Path) -> None:
     attempt = exc.value.attempts[0]
     assert attempt.accepted is True
     assert "HWP 3.x" in (attempt.message or "")
+    assert "HWP 3.x" in str(exc.value)
 
 
 def test_ingest_reports_what_an_hwp_conversion_left_behind(
@@ -186,3 +187,26 @@ def test_ingest_reports_what_an_hwp_conversion_left_behind(
     }
     assert result.lossiness == "medium"
     assert any("chart 2" in warning and "ole 1" in warning for warning in result.warnings)
+
+
+def test_flat_metadata_holds_only_scalars_a_vector_store_accepts(tmp_path: Path) -> None:
+    source = _sample_hwpx(tmp_path / "sample.hwpx")
+
+    plain = DocumentIngestor.default().convert(source).flat_metadata()
+
+    assert plain["source"] == str(source.resolve())
+    assert plain["source_format"] == "hwpx"
+    assert plain["lossiness"] == "low"
+    assert plain["table_count"] == 1
+    assert "warnings" not in plain
+    assert all(isinstance(value, (str, int)) for value in plain.values())
+
+    with HwpxDocument.new() as doc:
+        doc.add_paragraph("본문")
+        doc.notes.add_memo("메모에만 있는 글")
+        data = doc.to_bytes()
+    lossy = DocumentIngestor.default().convert(data)
+    assert lossy.warnings
+    flat = lossy.flat_metadata()
+    assert flat["warnings"] == "\n".join(lossy.warnings)
+    assert "source" not in flat

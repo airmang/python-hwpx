@@ -10,7 +10,9 @@
   "받는 변환기가 없다"로 거부했다. 결과는 `source_format="hwp"`이고, 문서 모델로 옮기지 못한 내용은
   `metadata["hwp_conversion"]`(`unconverted`·`dropped`)과 `warnings`에 실리며 그때 `lossiness`는 `"medium"`
   이상이다. 경로·바이트·스트림 모두 내용으로 형식을 가린다. HWP 3.x나 암호 문서는 전처럼 거부하되 사유가
-  `attempts`에 남는다.
+  `attempts`에 남고, 오류 문구에도 실린다.
+- `DocumentIngestResult.flat_metadata()`: 출처·형식·제목·문단과 표 개수·손실 정도·경고를 글자와 숫자 값만으로
+  담은 사전을 돌려준다. 목록이나 사전 값을 받지 않는 벡터 저장소에 그대로 넣을 수 있다.
 - `doc.text.replace`가 기본 범위(본문 문단의 런 하나 안)에서 바꾼 곳이 없는데 찾는 글이 표 칸·글상자·머리말 등
   본문 밖이나 서식이 다른 런에 걸쳐 있으면 `ReplaceScopeWarning`(`hwpx.errors`)으로 알리고 `everywhere=True`를
   안내한다. 돌려주는 횟수와 문서는 전과 같다. 서식 조건(`text_color` 등)을 준 호출과 `everywhere=True`는 경고하지
