@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ...tools.table_navigation import (
         SearchDirection,
         TableFillResult,
+        TableFormSlotsResult,
         TableLabelSearchResult,
         TableMapResult,
     )
@@ -84,8 +85,23 @@ class TablesNamespace(_Namespace):
 
         return find_cell_by_label(self._doc, label_text, direction)
 
+    def form_slots(self) -> "TableFormSlotsResult":
+        """양식의 빈 칸(글이 있는 칸의 오른쪽이나 아래에 있는 빈 칸)과 그 칸을 채우는 경로를 나열한다.
+
+        각 항목의 ``path``를 그대로 :meth:`fill_by_path`의 키로 쓴다.
+        """
+
+        from ...tools.table_navigation import form_slots
+
+        return form_slots(self._doc)
+
     def fill_by_path(self, mappings: Mapping[str, str]) -> "TableFillResult":
-        """``표/행/열`` 경로 → 값 매핑으로 셀을 채운다."""
+        """``이름표 > 방향`` 경로 → 값 매핑으로 칸을 채운다.
+
+        이름표는 공백을 무시하고 견준다(``"성명"``이 ``"성  명"`` 칸을 찾는다). 같은 이름표가
+        여러 칸이면 실패로 돌려주며 후보를 ``candidates``에 싣는다. ``"성명[2] > right"``처럼
+        몇 번째인지 적어 고른다.
+        """
 
         from ...tools.table_navigation import fill_by_path
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from ..oxml import HwpxOxmlParagraph, HwpxOxmlTable
 from ..oxml._document_primitives import _text_element_content
@@ -21,18 +21,24 @@ __all__ = [
     "TableFillApplied",
     "TableFillFailed",
     "TableFillResult",
+    "TableFormSlot",
+    "TableFormSlotsResult",
+    "TableLabelCandidate",
     "TableLabelMatch",
     "TableLabelSearchResult",
     "TableMapEntry",
     "TableMapResult",
     "fill_by_path",
     "find_cell_by_label",
+    "form_slots",
     "get_table_map",
 ]
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 _WHITESPACE_RE = re.compile(r"\s+")
+#: ``label[2]``: the second cell, in document order, that the label matches.
+_OCCURRENCE_RE = re.compile(r"^(?P<label>.*\S)\s*\[(?P<number>[1-9][0-9]*)\]$", re.DOTALL)
 
 SearchDirection = Literal["right", "down"]
 PathDirection = Literal["left", "right", "up", "down"]
@@ -93,11 +99,48 @@ class TableFillApplied(TypedDict):
     value: str
 
 
-class TableFillFailed(TypedDict):
-    """A failed path-based fill operation and its reason."""
+class TableLabelCandidate(TypedDict):
+    """One of several cells a label matched, with the label spelling that picks it."""
 
+    table_index: int
+    row: int
+    col: int
+    text: str
+    selector: str
+
+
+class _TableFillFailedRequired(TypedDict):
     path: str
     reason: str
+
+
+class TableFillFailed(_TableFillFailedRequired, total=False):
+    """A failed path-based fill operation and its reason.
+
+    ``candidates`` is present when the reason is ``"ambiguous label"``: every
+    cell the label matched, each with the ``selector`` (``"성명[2]"``) to write
+    in the path instead of the bare label.
+    """
+
+    candidates: list[TableLabelCandidate]
+
+
+class TableFormSlot(TypedDict):
+    """An empty cell next to a cell with text, and the path that fills it."""
+
+    label: str
+    path: str | None
+    direction: SearchDirection
+    table_index: int
+    label_cell: TableCellReference
+    target_cell: TableCellReference
+
+
+class TableFormSlotsResult(TypedDict):
+    """Result payload returned by :func:`form_slots`."""
+
+    slots: list[TableFormSlot]
+    count: int
 
 
 class TableFillResult(TypedDict):
@@ -142,10 +185,14 @@ def _collapse_whitespace(value: str) -> str:
 
 
 def _normalize_label_text(value: str) -> str:
-    normalized = _collapse_whitespace(value).casefold()
-    while normalized.endswith((":", "：")):
-        normalized = normalized[:-1].rstrip()
-    return normalized
+    """The form two labels are compared in: no whitespace, no case, no trailing colon.
+
+    Forms spread a short label over its cell with spaces ("성  명", "주    소") or
+    wrap it over lines; a person reading the form writes "성명". Whitespace
+    therefore never distinguishes two labels.
+    """
+
+    return _WHITESPACE_RE.sub("", value).casefold().rstrip(":：")
 
 
 def _direct_paragraph_text(paragraph: HwpxOxmlParagraph) -> str:
@@ -357,10 +404,12 @@ def _move(
     row_index: int,
     col_index: int,
     direction: PathDirection,
+    grid: Any = None,
 ) -> tuple[int, int] | None:
     # A direction crosses the current physical cell's edge. Moving one grid
     # slot could otherwise stay inside a merged label and overwrite the label.
-    grid = table.get_cell_map()
+    if grid is None:
+        grid = table.get_cell_map()
     current = grid[row_index][col_index]
     anchor_row, anchor_col = current.anchor
     row_delta, col_delta = _direction_delta(direction)
@@ -373,35 +422,107 @@ def _move(
     return grid[target_row][target_col].anchor
 
 
-def _find_label_candidates(
-    tables: list[_IndexedTable],
-    label_text: str,
-) -> list[_LabelCandidate]:
-    normalized_label = _normalize_label_text(label_text)
-    if not normalized_label:
-        raise ValueError("label_text must contain at least one non-whitespace character")
+class _LabelIndex:
+    """Every table cell by the label it would be found under, read once.
 
-    candidates: list[_LabelCandidate] = []
-    for table_ref in tables:
-        # Count physical cells, not every logical slot occupied by a merge.
-        # Distinct cells with the same label remain ambiguous.
-        for position in table_ref.table.iter_grid():
-            if not position.is_anchor:
-                continue
-            row_index, col_index = position.anchor
-            cell_text = _cell_text(table_ref.table, row_index, col_index)
-            if _normalize_label_text(cell_text) != normalized_label:
-                continue
-            candidates.append(
-                _LabelCandidate(
+    A cell whose whole text is the label wins. Only when there is none does a
+    cell match by one of its lines: a two-language label ("성  명" over "Name")
+    is found by either line. Cells are kept in document order.
+    """
+
+    def __init__(self, tables: list[_IndexedTable]) -> None:
+        self.whole: dict[str, list[_LabelCandidate]] = {}
+        self.by_line: dict[str, list[_LabelCandidate]] = {}
+        for table_ref in tables:
+            # Count physical cells, not every logical slot occupied by a merge.
+            # Distinct cells with the same label remain ambiguous.
+            for position in table_ref.table.iter_grid():
+                if not position.is_anchor:
+                    continue
+                row_index, col_index = position.anchor
+                cell_text = _text_of_cell(position.cell)
+                key = _normalize_label_text(cell_text)
+                if not key:
+                    continue
+                candidate = _LabelCandidate(
                     table_index=table_ref.table_index,
                     table=table_ref.table,
                     row=row_index,
                     col=col_index,
                     text=cell_text,
                 )
-            )
-    return candidates
+                self.whole.setdefault(key, []).append(candidate)
+                if "\n" not in cell_text:
+                    continue
+                for line_key in dict.fromkeys(_normalize_label_text(line) for line in cell_text.splitlines()):
+                    if line_key and line_key != key:
+                        self.by_line.setdefault(line_key, []).append(candidate)
+
+    def find(self, label_text: str) -> list[_LabelCandidate]:
+        key = _normalize_label_text(label_text)
+        if not key:
+            raise ValueError("label_text must contain at least one non-whitespace character")
+        return self.whole.get(key) or self.by_line.get(key) or []
+
+
+def _find_label_candidates(
+    tables: list[_IndexedTable],
+    label_text: str,
+) -> list[_LabelCandidate]:
+    return _LabelIndex(tables).find(label_text)
+
+
+def _select_label_candidates(
+    index: _LabelIndex,
+    label_text: str,
+) -> tuple[list[_LabelCandidate], str | None]:
+    """Candidates for a path's label token, honouring ``label[n]``.
+
+    The token is tried as a label first, so a label that really ends in
+    ``[1]`` still works. Returns ``(candidates, error)``.
+    """
+
+    candidates = index.find(label_text)
+    if candidates:
+        return candidates, None
+    occurrence = _OCCURRENCE_RE.match(label_text)
+    if occurrence is None:
+        return [], None
+    pool = index.find(occurrence["label"])
+    number = int(occurrence["number"])
+    if pool and number > len(pool):
+        return [], f"label occurrence out of range: {number} of {len(pool)}"
+    return pool[number - 1 : number], None
+
+
+def _candidate_payload(label_text: str, candidates: list[_LabelCandidate]) -> list[TableLabelCandidate]:
+    label = _collapse_whitespace(label_text)
+    return [
+        {
+            "table_index": candidate.table_index,
+            "row": candidate.row,
+            "col": candidate.col,
+            "text": candidate.text,
+            "selector": f"{label}[{number}]",
+        }
+        for number, candidate in enumerate(candidates, start=1)
+    ]
+
+
+def _cell_is_blank(cell: object) -> bool:
+    """No text and nothing else either: a cell holding a picture, a nested
+    table or a form field has no text but is not a blank to write into."""
+
+    if _text_of_cell(cell).strip():
+        return False
+    element = getattr(cell, "element", None)
+    if element is None:
+        return True
+    for run in element.iter(f"{_HP}run"):
+        for child in run:
+            if child.tag != f"{_HP}t" or len(child):
+                return False
+    return True
 
 
 def _cell_reference(
@@ -485,13 +606,95 @@ def find_cell_by_label(
     }
 
 
+def form_slots(document: HwpxDocument) -> TableFormSlotsResult:
+    """List the blanks of a form: empty cells right of, or below, a cell with text.
+
+    Each slot carries the ``path`` that :func:`fill_by_path` takes to fill it
+    (``"성명 > right"``; ``"성명[2] > right"`` when the label occurs more than
+    once). A blank is offered once, by the cell to its left when that has text,
+    otherwise by the cell above. ``path`` is None when the label cannot be
+    written as a path (it contains ``>``, or is only a colon); the slot's
+    ``table_index`` and ``target_cell`` still say where it is. ``table_index``
+    counts tables as ``get_table_map`` does, tables inside cells included.
+
+    This reads structure only. Whether a cell with text is a label, and what
+    belongs in the blank, is for the caller to decide.
+    """
+
+    tables = _collect_document_tables(document)
+    index = _LabelIndex(tables)
+
+    slots: list[TableFormSlot] = []
+    backwards: tuple[tuple[SearchDirection, PathDirection], ...] = (("right", "left"), ("down", "up"))
+    for table_ref in tables:
+        table = table_ref.table
+        grid = table.get_cell_map()
+        texts: dict[tuple[int, int], str] = {}
+        blanks: list[tuple[int, int]] = []
+        for position in table.iter_grid():
+            if not position.is_anchor:
+                continue
+            texts[position.anchor] = _text_of_cell(position.cell)
+            if _cell_is_blank(position.cell):
+                blanks.append(position.anchor)
+        for row_index, col_index in blanks:
+            for direction, back in backwards:
+                source = _move(table, row_index, col_index, back, grid)
+                if source is None:
+                    continue
+                label_text = texts.get(source, "")
+                if not label_text.strip():
+                    continue
+                # The path walks from the label; a merged label reaches only one
+                # of the cells beside it.
+                if _move(table, source[0], source[1], direction, grid) != (row_index, col_index):
+                    continue
+                label = _collapse_whitespace(label_text)
+                path: str | None = None
+                if ">" not in label and _normalize_label_text(label_text):
+                    same = index.whole.get(_normalize_label_text(label_text), [])
+                    selector = label
+                    if len(same) > 1:
+                        number = next(
+                            number
+                            for number, candidate in enumerate(same, start=1)
+                            if candidate.table is table and (candidate.row, candidate.col) == source
+                        )
+                        selector = f"{label}[{number}]"
+                    path = f"{selector} > {direction}"
+                slots.append(
+                    {
+                        "label": label,
+                        "path": path,
+                        "direction": direction,
+                        "table_index": table_ref.table_index,
+                        "label_cell": {"row": source[0], "col": source[1], "text": label_text},
+                        "target_cell": {"row": row_index, "col": col_index, "text": texts[(row_index, col_index)]},
+                    }
+                )
+                break
+    return {"slots": slots, "count": len(slots)}
+
+
 def fill_by_path(
     document: HwpxDocument,
     mappings: Mapping[str, str],
 ) -> TableFillResult:
-    """Fill multiple table cells using label-based navigation paths."""
+    """Fill multiple table cells using label-based navigation paths.
 
-    indexed_tables = _collect_document_tables(document)
+    A path is a label and one or more directions: ``"성명 > right"``. The label
+    is compared without whitespace, case or a trailing colon, so ``"성명"``
+    finds a cell that reads ``"성  명"``. When the label matches several cells
+    the path fails as ``"ambiguous label"`` and lists them under
+    ``candidates``; write ``"성명[2] > right"`` to pick the second in document
+    order. :func:`form_slots` lists the blanks with their paths.
+    """
+
+    # Labels are resolved against the document as it is when the call starts,
+    # so the outcome does not depend on the order of the paths: a value written
+    # for one path is never taken for the label of another.
+    index = _LabelIndex(_collect_document_tables(document))
+    grids: dict[int, Any] = {}
     applied: list[TableFillApplied] = []
     failed: list[TableFillFailed] = []
 
@@ -502,19 +705,31 @@ def fill_by_path(
             continue
 
         try:
-            candidates = _find_label_candidates(indexed_tables, label_text)
+            candidates, selection_error = _select_label_candidates(index, label_text)
         except ValueError as exc:
             failed.append({"path": path, "reason": str(exc)})
             continue
 
+        if selection_error is not None:
+            failed.append({"path": path, "reason": selection_error})
+            continue
         if not candidates:
             failed.append({"path": path, "reason": "label not found"})
             continue
         if len(candidates) > 1:
-            failed.append({"path": path, "reason": "ambiguous label"})
+            failed.append(
+                {
+                    "path": path,
+                    "reason": "ambiguous label",
+                    "candidates": _candidate_payload(label_text, candidates),
+                }
+            )
             continue
 
         candidate = candidates[0]
+        grid = grids.get(candidate.table_index)
+        if grid is None:
+            grid = grids[candidate.table_index] = candidate.table.get_cell_map()
         current_row = candidate.row
         current_col = candidate.col
         navigation_failed = False
@@ -531,7 +746,7 @@ def fill_by_path(
                 navigation_failed = True
                 break
 
-            next_position = _move(candidate.table, current_row, current_col, direction)
+            next_position = _move(candidate.table, current_row, current_col, direction, grid)
             if next_position is None:
                 failed.append({"path": path, "reason": "navigation out of bounds"})
                 navigation_failed = True
