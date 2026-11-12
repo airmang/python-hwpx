@@ -7,6 +7,7 @@ import hashlib
 import logging
 import io
 import os
+import re
 import tempfile
 import zlib
 from contextlib import contextmanager
@@ -32,7 +33,13 @@ from .relationships import (
     parse_container_rootfiles,
     parse_manifest_relationships,
 )
-from .security import guard_zip_file, read_zip_members
+from .security import (
+    guard_zip_file,
+    open_archive,
+    read_zip_members,
+    register_written_archive,
+    sharing_archive_reads,
+)
 from .xml_utils import (
     extract_xml_declaration,
     iter_declared_namespaces,
@@ -68,6 +75,47 @@ def _is_integer_literal(value: str | None) -> bool:
     except (TypeError, ValueError):
         return False
     return True
+
+
+_STYLE_ID_REF = b"styleIDRef"
+_NUMERIC_STYLE_ID_REF = re.compile(rb'styleIDRef="[0-9]+"')
+_XML_DECLARED_ENCODING = re.compile(rb"""\sencoding\s*=\s*["']([^"']*)["']""")
+_UTF8_BOM = b"\xef\xbb\xbf"
+
+
+def _reads_as_utf8(payload: bytes) -> bool:
+    """True when it is certain an XML parser reads *payload* as UTF-8.
+
+    Either it opens with an XML declaration that names UTF-8 or no encoding, or
+    it opens with ``<`` and no declaration (and is not UTF-16/32 without a byte
+    order mark). Leading whitespace, another encoding or anything unusual
+    answers False.
+    """
+
+    head = payload[:256]
+    if head.startswith(_UTF8_BOM):
+        head = head[len(_UTF8_BOM):]
+    if not head.startswith(b"<?xml"):
+        return head[:1] == b"<" and head[1:2] not in (b"", b"\x00")
+    end = head.find(b"?>")
+    if end < 0:
+        return False
+    declared = _XML_DECLARED_ENCODING.search(head[:end])
+    return declared is None or declared.group(1).lower() == b"utf-8"
+
+
+def _names_no_style(payload: bytes) -> bool:
+    """True when it is certain that no ``styleIDRef`` in *payload* is a style name.
+
+    That is so when the part is read as UTF-8 and every place the bytes
+    ``styleIDRef`` appear is an attribute written ``styleIDRef="<digits>"``.
+    Anything else (another encoding, other quoting, a value that is not plain
+    digits) answers False, and the caller parses the part to find out.
+    """
+
+    if not _reads_as_utf8(payload):
+        return False
+    return payload.count(_STYLE_ID_REF) == len(_NUMERIC_STYLE_ID_REF.findall(payload))
 
 
 def _declared_encrypted_parts(data: bytes | None) -> frozenset[str]:
@@ -543,7 +591,11 @@ class HwpxPackage:
             stream = pkg_file
 
         try:
-            with ZipFile(stream, "r") as zf:
+            # In-memory input goes through ``open_archive`` so the reopen a save
+            # does of its own output shares that save's member reads.
+            with (
+                open_archive(stream) if isinstance(stream, io.BytesIO) else ZipFile(stream, "r")
+            ) as zf:
                 guard_zip_file(zf)
                 infos = [info for info in zf.infolist() if not info.is_dir()]
                 files = read_zip_members(zf)
@@ -1173,6 +1225,8 @@ class HwpxPackage:
             return
 
         for path in self._iter_section_part_paths_for_safety_normalization():
+            if _names_no_style(self._files[path]):
+                continue  # nothing to convert; parsing the part would find the same
             try:
                 root = parse_xml(self._files[path])
             except Exception:
@@ -1298,21 +1352,24 @@ class HwpxPackage:
             buffer = io.BytesIO()
             with ZipFile(buffer, "w") as zf:
                 self._write_archive_from_save(zf)
-            buffer.seek(0)
-            with ZipFile(buffer, "r") as zf_check:
-                bad = zf_check.testzip()
-                if bad is not None:
-                    raise HwpxPackageError(
-                        f"ZIP integrity check failed for entry '{bad}'"
-                    )
             payload = buffer.getvalue()
-            if verify_open_safety:
-                report = self._verify_editor_open_safe_archive(payload)
-                # Remember which exact bytes passed, so the document-level
-                # check of the same save need not run the validation again.
-                verified = report is not None and report.ok
-                self._verified_archive_digest = hashlib.sha256(payload).digest() if verified else None
-                self._verified_archive_report = report if verified else None
+            # The integrity test inflates every member; the checks that follow
+            # read those same members instead of inflating them again.
+            with sharing_archive_reads():
+                register_written_archive(payload)
+                with open_archive(payload) as zf_check:
+                    bad = zf_check.testzip()
+                    if bad is not None:
+                        raise HwpxPackageError(
+                            f"ZIP integrity check failed for entry '{bad}'"
+                        )
+                if verify_open_safety:
+                    report = self._verify_editor_open_safe_archive(payload)
+                    # Remember which exact bytes passed, so the document-level
+                    # check of the same save need not run the validation again.
+                    verified = report is not None and report.ok
+                    self._verified_archive_digest = hashlib.sha256(payload).digest() if verified else None
+                    self._verified_archive_report = report if verified else None
             _write_stream_or_rollback(pkg_file, payload)
             if mark_clean and version_was_dirty:
                 self._version.mark_clean()

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import io
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -16,6 +15,7 @@ from lxml import etree as LET  # type: ignore[reportMissingImports]
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
 from ..oxml.utils import hancom_text_length, line_seg_past_text
+from ..opc.security import note_well_formed, open_archive
 from ..opc.security import HwpxSecurityError, MAX_ZIP_MEMBER_BYTES, MAX_ZIP_MIMETYPE_BYTES, MAX_ZIP_SMALL_PART_BYTES, read_member
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
@@ -255,7 +255,7 @@ def _open_zip(source: str | Path | bytes | BinaryIO) -> ZipFile:
     if isinstance(source, (str, Path)):
         return ZipFile(source, "r")
     if isinstance(source, bytes):
-        return ZipFile(io.BytesIO(source), "r")
+        return open_archive(source)
     return ZipFile(source, "r")
 
 
@@ -1097,6 +1097,8 @@ def _parse_all_xml(
     xml_roots: dict[str, ET.Element] = {}
     squeezed: frozenset[str] = frozenset()
     narrowed: dict[str, float] = {}
+    header_payload: bytes | None = None
+    header_root: ET.Element | None = None
     if HEADER_PATH in names:
         header_payload = _safe_read(zf, HEADER_PATH)
         try:
@@ -1104,7 +1106,7 @@ def _parse_all_xml(
             squeezed = squeezed_paragraph_shapes(header_root)
             narrowed = narrowed_char_shapes(header_root)
         except ValueError:
-            pass  # reported when the header is parsed below
+            header_root = None  # reported when the header is parsed below
     for name in names:
         if not (name.endswith(".xml") or name.endswith(".hpf")):
             continue
@@ -1113,7 +1115,11 @@ def _parse_all_xml(
             _error(issues, name, "unable to read entry for XML parsing")
             continue
         try:
-            root = _parse_xml(payload)
+            if name == HEADER_PATH and header_root is not None and payload == header_payload:
+                root = header_root  # the same bytes were parsed for the shapes above
+            else:
+                root = _parse_xml(payload)
+            note_well_formed(zf, name)
             xml_roots[name] = root
             _check_hwpml_compat_root(issues, name, payload, root)
             _check_line_seg_text_positions(issues, name, root, squeezed, narrowed)
