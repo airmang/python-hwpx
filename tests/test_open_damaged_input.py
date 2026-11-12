@@ -145,6 +145,27 @@ def test_missing_mimetype_stays_a_plain_structure_error(good: bytes) -> None:
     assert type(caught.value) is HwpxStructureError
 
 
+def test_a_declared_preview_that_is_absent_does_not_stop_open_or_save(good: bytes) -> None:
+    # container.xml이 Preview/PrvText.txt를 가리키는데 파일이 없는 문서. 한/글 2024는 그대로 연다.
+    payload = _rebuild(good, lambda name, body: None if name == "Preview/PrvText.txt" else body)
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        assert b'full-path="Preview/PrvText.txt"' in archive.read("META-INF/container.xml")
+
+    document = HwpxDocument.open(payload)
+    assert "가나다" in document.paragraphs[-1].text
+    document.add_paragraph("덧붙인 문단")
+    saved = document.to_bytes()
+
+    assert "덧붙인 문단" in HwpxDocument.open(saved).paragraphs[-1].text
+
+
+@pytest.mark.parametrize("part", ["Contents/content.hpf", "META-INF/container.rdf"])
+def test_another_declared_root_that_is_absent_is_still_an_error(good: bytes, part: str) -> None:
+    payload = _rebuild(good, lambda name, body: None if name == part else body)
+    with pytest.raises(HwpxStructureError):
+        HwpxDocument.open(payload)
+
+
 def test_get_xml_after_open_wraps_the_same_way(good: bytes) -> None:
     package = HwpxPackage.open(_break_part(good, "Contents/section0.xml"))
     with pytest.raises(HwpxPackageError) as caught:
