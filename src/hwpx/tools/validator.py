@@ -387,7 +387,7 @@ def _manifest_drift_issues(package: HwpxPackage) -> list[ValidationIssue]:
 
 
 def validate_document(
-    source: str | Path | bytes | BinaryIO,
+    source: str | Path | bytes | BinaryIO | HwpxDocument,
     *,
     schema_dir: Path | None = None,
     header_schema: etree.XMLSchema | None = None,
@@ -406,9 +406,12 @@ def validate_document(
     schema. Violations that documents Hancom opens also carry (its 2011 practice
     departing from the 2024 schema) are left out; the rest are warnings, so ``ok``
     still reflects hard errors only.
+
+    *source* may be a document that is already open; it is checked as it is,
+    without being opened again.
     """
 
-    document = HwpxDocument.open(source)
+    document = source if isinstance(source, HwpxDocument) else HwpxDocument.open(source)
     if header_schema is None or section_schema is None:
         schemas = load_default_schemas(schema_dir)
         if header_schema is None:

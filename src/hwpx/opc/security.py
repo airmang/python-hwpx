@@ -212,16 +212,17 @@ def guard_xml_depth(
 ) -> None:
     """Reject extremely deep XML trees after parsing."""
 
-    stack: list[tuple[object, int]] = [(root, 1)]
-    while stack:
-        element, depth = stack.pop()
+    # One level at a time: the tree is too deep exactly when a level past
+    # ``max_depth`` has a node in it.
+    level: list[object] = [root]
+    depth = 1
+    while level:
         if depth > max_depth:
             raise HwpxSecurityError(
                 f"{part_name} exceeds XML depth limit: {depth} > {max_depth}"
             )
-        children: Iterable[object] = list(element)  # type: ignore[arg-type]
-        for child in children:
-            stack.append((child, depth + 1))
+        level = [child for element in level for child in element]  # type: ignore[attr-defined]
+        depth += 1
 
 
 def parse_xml_stdlib(
