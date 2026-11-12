@@ -191,11 +191,24 @@ def test_append_markdown_adds_to_an_existing_document() -> None:
 # -- clean new-document mode ----------------------------------------------
 
 
-def test_default_document_still_inherits() -> None:
+def test_default_document_inherits_from_body_text_but_not_from_a_heading() -> None:
     doc = HwpxDocument.new()
     heading = doc.add_heading("제목", 1)
-    paragraph = doc.add_paragraph("본문")
-    assert paragraph.para_pr_id_ref == heading.para_pr_id_ref
+    body = doc.add_paragraph("본문")
+    # 제목 뒤의 본문은 제목의 문단 모양·스타일(개요)을 받지 않는다. 받으면 한/글이 본문에 개요 번호를 붙인다.
+    assert (body.para_pr_id_ref, body.style_id_ref) == ("0", "0")
+    assert body.para_pr_id_ref != heading.para_pr_id_ref
+    # 본문 뒤의 본문은 전처럼 앞 문단을 따른다.
+    styled = doc.add_paragraph("모양을 준 본문", para_pr_id_ref="9", style_id_ref="1")
+    following = doc.add_paragraph("이어지는 본문")
+    assert (following.para_pr_id_ref, following.style_id_ref) == (styled.para_pr_id_ref, "1")
+
+
+def test_a_call_that_asks_to_inherit_takes_the_heading_shape() -> None:
+    doc = HwpxDocument.new()
+    heading = doc.add_heading("제목", 1)
+    paragraph = doc.add_paragraph("제목 모양의 문단", inherit_style=True)
+    assert (paragraph.para_pr_id_ref, paragraph.style_id_ref) == (heading.para_pr_id_ref, heading.style_id_ref)
 
 
 def test_clean_document_does_not_inherit_unless_asked() -> None:

@@ -80,6 +80,17 @@ def test_not_a_zip_is_a_structure_error_and_still_bad_zip_file(opener, payload) 
 
 
 @pytest.mark.parametrize("opener", [HwpxDocument.open, HwpxPackage.open])
+def test_hwp3_file_is_named_in_the_error(opener) -> None:
+    # HWP 3.x 파일의 머리: 서명 글, 판 번호, 고정 바이트. 복합 파일도 ZIP도 아니다.
+    hwp3 = b"HWP Document File V3.00 \x1a\x01\x02\x03\x04\x05" + bytes(200)
+    with pytest.raises(HwpxArchiveError) as caught:
+        opener(hwp3)
+    assert "HWP 3.x" in str(caught.value)
+    assert isinstance(caught.value, zipfile.BadZipFile)
+    assert type(caught.value.__cause__) is zipfile.BadZipFile
+
+
+@pytest.mark.parametrize("opener", [HwpxDocument.open, HwpxPackage.open])
 def test_truncated_zip_is_an_archive_error(opener, good: bytes) -> None:
     with pytest.raises(zipfile.BadZipFile) as caught:
         opener(good[: len(good) // 2])
