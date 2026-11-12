@@ -30,8 +30,9 @@ See [neutral primitives](../neutral-migration-primitives.md).
 ## The four groups
 
 The eight allowlist names (six `known-leak` entries, two `undetected`) fall
-into four groups. `_SAFE_FILENAME_RE` and `_OUTLINE_NAME_RE` are
-`format-vocabulary` and stay.
+into four groups. `_SAFE_FILENAME_RE`, `_OUTLINE_NAME_RE` and the Markdown
+writer's `_OWN_NUMBER` (the numbering markers a heading may already carry, so
+that it is not numbered twice) are `format-vocabulary` and stay.
 
 ### official-reference-policy — official-document reference rules
 

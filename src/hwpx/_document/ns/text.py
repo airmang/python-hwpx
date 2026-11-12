@@ -127,7 +127,7 @@ class TextNamespace(_Namespace):
 
     # -- 가져오기 ----------------------------------------------------------
 
-    def append_markdown(self, markdown: str, *, style: "MarkdownStyle | None" = None) -> None:
+    def append_markdown(self, markdown: str, *, style: "MarkdownStyle | str | None" = None) -> None:
         """*markdown* 을 마지막 구역 끝에 문단·목록·표로 덧붙인다.
 
         ``hwpx.tools.markdown_import.from_markdown`` 과 같은 부분 집합(제목 ``#``~``####``,

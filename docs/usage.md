@@ -1006,7 +1006,7 @@ document.parts.headers[0].set_begin_numbering(page=1)
 (`#`~`####` 제목, 문단, `-`/`1.` 목록, `|` 표, `**굵게**`·`*기울임*`)으로 새 문서를 만들고,
 모르는 Markdown은 평문으로 쓴다. 이미 있는 문서에는 `doc.text.append_markdown`으로 덧붙인다.
 표는 열 너비를 내용에 맞추고(짧은 이름 열은 좁게, 글이 긴 열은 넓게) 머리 행을 가운데로 놓는다.
-구분선의 `:---`·`:---:`·`---:`로 열 정렬을 정할 수 있다.
+구분선의 `:---`·`:---:`·`---:`로 열 정렬을 정할 수 있다. 목록 안의 목록은 깊이마다 오른쪽으로 들여 쓴다.
 
 <!-- standalone-python-example -->
 ```python
@@ -1025,8 +1025,37 @@ doc.save_to_path("report.hwpx")
 새 문단은 앞 문단의 모양을 물려받지 않아 제목·목록 번호가 뒤 문단에 따라붙지 않는다. 직접
 `add_paragraph`로 문서를 쌓을 때도 제목(`add_heading`)과 목록 문단의 모양은 뒤 문단이 물려받지 않고,
 본문 문단의 모양만 다음 문단이 따른다. 그것도 물려받지 않게 하려면 `HwpxDocument.new(inherit_style=False)`로
-문서를 만든다. 공문·가정통신문 같은 장르별 모양은 이 라이브러리가 아니라 응용 계층이
-`MarkdownStyle`로 정한다.
+문서를 만든다.
+
+### 보고서 모양
+
+기본 모양은 어느 문서에나 쓸 수 있게 중립으로 두었다. 보고서처럼 보이게 하려면 `style="report"`(또는
+`"보고서"`)를 준다.
+
+<!-- standalone-python-example -->
+```python
+from hwpx.tools.markdown_import import from_markdown
+
+doc = from_markdown(
+    "# 방과후학교 운영 계획\n\n## 목적\n\n학생의 소질과 적성을 살린다.\n\n"
+    "## 운영 방침\n\n### 프로그램 편성\n\n- 수요 조사 결과를 반영한다.\n  - 조사는 2월에 한다.\n",
+    style="report",
+)
+doc.save_to_path("plan.hwpx")
+```
+
+- `#`은 가운데에 놓는 20pt 제목이고 아래에 줄을 긋는다.
+- `##`·`###`·`####`에는 `1.`·`가.`·`1)` 번호를 붙인다(행정업무운영 편람의 항목 순서). 윗수준 제목이 나오면
+  아랫수준 번호는 다시 시작한다. `## 1. 목적`처럼 번호를 직접 쓴 제목에는 붙이지 않는다.
+- 본문은 12pt, 표 안은 11pt, 글머리표는 깊이에 따라 `○`·`-`·`·`이다.
+- 새 문서의 꼬리말 가운데에 쪽 번호를 넣는다. `doc.text.append_markdown(..., style="report")`는 받은 문서의
+  꼬리말을 건드리지 않는다.
+
+이 모양은 모두 `MarkdownStyle`의 값이다. `MarkdownStyle.report()`를 받아 `dataclasses.replace`로 일부만 바꿀 수
+있고, 번호 형식(`heading_numbers`), 제목 정렬(`title_align`)과 밑줄(`title_rule`), 깊이별 글머리표
+(`bullet_chars`), 목록 들여쓰기(`list_indent_mm`), 표 글자 크기(`table_size`), 쪽 번호(`page_number`)를 따로 줄
+수도 있다. 라이브러리가 이름 붙여 싣는 모양은 이것 하나다. 공문·가정통신문처럼 넣어야 할 내용이 정해진 장르는
+응용 계층이 `MarkdownStyle`로 정한다.
 
 ## 단락 삭제
 

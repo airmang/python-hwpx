@@ -298,6 +298,162 @@ def test_a_one_column_table_and_a_fitted_table_save_and_reopen(tmp_path) -> None
     assert "| 기간 | 2026. 3. 2.(월) ~ 2026. 7. 17.(금) |" in reopened.text.markdown()
 
 
+# -- nested lists and the report look -----------------------------------------
+
+REPORT = (
+    "# 운영 계획\n\n## 목적\n\n본문이다.\n\n## 운영 방침\n\n### 편성\n\n- 하나\n  - 둘\n    - 셋\n\n"
+    "### 선정\n\n#### 기준\n\n## 현황\n\n| 구분 | 내용 |\n|---|---|\n| 기간 | 한 학기 |\n"
+)
+
+
+def _shape(doc, paragraph):
+    return doc.styles.paragraph_property(paragraph.para_pr_id_ref)
+
+
+def test_nested_list_items_move_right_by_depth() -> None:
+    doc = from_markdown("- 하나\n  - 둘\n    - 셋\n- 넷\n\n1. 가\n   1. 나\n")
+    lefts = [int(_shape(doc, paragraph).margin.left) for paragraph in doc.paragraphs]
+
+    assert lefts[0] == lefts[3] == lefts[4] == 0
+    assert 0 < lefts[1] < lefts[2] and lefts[2] == 2 * lefts[1]
+    assert lefts[5] == lefts[1]
+    # the items are still list items of their depth
+    assert [_shape(doc, paragraph).heading.level for paragraph in doc.paragraphs[:3]] == [0, 1, 2]
+
+    flat = from_markdown("- 하나\n  - 둘\n", style=MarkdownStyle(list_indent_mm=0))
+    assert [int(_shape(flat, paragraph).margin.left) for paragraph in flat.paragraphs] == [0, 0]
+    wide = from_markdown("- 하나\n  - 둘\n", style=MarkdownStyle(list_indent_mm=10))
+    assert int(_shape(wide, wide.paragraphs[1]).margin.left) > lefts[1]
+
+
+def test_the_report_look_numbers_headings_and_centres_the_title() -> None:
+    doc = from_markdown(REPORT, style="report")
+    texts = [paragraph.text for paragraph in doc.paragraphs]
+
+    assert texts[0] == "운영 계획"  # the title carries no number
+    assert [text for text in texts if text[:1].isdigit() or text[:2] in ("가.", "나.")] == [
+        "1. 목적",
+        "2. 운영 방침",
+        "가. 편성",
+        "나. 선정",
+        "1) 기준",
+        "3. 현황",
+    ]
+    title = _shape(doc, doc.paragraphs[0])
+    assert title.align.horizontal == "CENTER"
+    assert title.border.border_fill_id_ref != _shape(doc, doc.paragraphs[2]).border.border_fill_id_ref  # the rule
+    assert _shape(doc, doc.paragraphs[1]).align.horizontal != "CENTER"
+    assert _char(doc, doc.paragraphs[0], "운영 계획").height == 2000
+    assert _char(doc, doc.paragraphs[2], "본문이다.").height == 1200
+    assert _char(doc, _table(doc).cell(1, 1).paragraphs[0], "한 학기").height == 1100
+
+
+def test_the_report_look_by_name_is_the_report_style() -> None:
+    by_name = from_markdown(REPORT, style="report")
+    korean = from_markdown(REPORT, style="보고서")
+    by_style = from_markdown(REPORT, style=MarkdownStyle.report())
+
+    assert [p.text for p in by_name.paragraphs] == [p.text for p in by_style.paragraphs] == [p.text for p in korean.paragraphs]
+    with pytest.raises(ValueError, match="unknown Markdown style") as caught:
+        from_markdown("# 제목", style="letter")
+    assert caught.value.code == "text-markdown-style-invalid"  # type: ignore[attr-defined]
+
+
+def test_the_report_look_puts_a_page_number_in_a_new_document_only(tmp_path) -> None:
+    def has_footer(document) -> bool:
+        path = tmp_path / "out.hwpx"
+        document.save_to_path(path)
+        import zipfile
+
+        with zipfile.ZipFile(path) as archive:
+            return b"<hp:footer" in archive.read("Contents/section0.xml")
+
+    assert has_footer(from_markdown(REPORT, style="report")) is True
+    assert has_footer(from_markdown(REPORT)) is False
+    existing = HwpxDocument.new()
+    existing.text.append_markdown(REPORT, style="report")
+    assert has_footer(existing) is False  # the caller's footer is the caller's
+
+
+def test_a_heading_with_its_own_number_is_not_numbered_again() -> None:
+    doc = from_markdown(
+        "# 계획\n\n## 1. 목적\n\n## 2. 방침\n\n### 가. 편성\n\n### 2026학년도 일정\n\n## Ⅲ. 현황\n\n## 제4장 맺음\n",
+        style="report",
+    )
+
+    assert [paragraph.text for paragraph in doc.paragraphs] == [
+        "계획",
+        "1. 목적",
+        "2. 방침",
+        "가. 편성",
+        "가. 2026학년도 일정",  # no number of its own, so it takes the level's first
+        "Ⅲ. 현황",
+        "제4장 맺음",
+    ]
+
+
+def test_heading_numbers_take_the_forms_asked_for() -> None:
+    from hwpx.tools.markdown_import import _NUMBER_FORMS, _ganada
+
+    assert [_ganada(number) for number in (1, 2, 14, 15, 16, 28, 29)] == ["가", "나", "하", "거", "너", "허", "고"]
+    assert _ganada(85) == "85"
+    assert {form: make(3) for form, make in _NUMBER_FORMS.items()} == {
+        "1.": "3.",
+        "가.": "다.",
+        "1)": "3)",
+        "가)": "다)",
+        "(1)": "(3)",
+        "(가)": "(다)",
+        "①": "③",
+        "Ⅰ.": "Ⅲ.",
+    }
+    doc = from_markdown(
+        "## 하나\n\n### 둘\n\n## 셋\n\n### 넷\n",
+        style=MarkdownStyle(heading_numbers=(None, "Ⅰ.", "①", None)),
+    )
+    assert [paragraph.text for paragraph in doc.paragraphs] == ["Ⅰ. 하나", "① 둘", "Ⅱ. 셋", "① 넷"]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"title_align": "middle"},
+        {"heading_numbers": (None, "1.")},
+        {"heading_numbers": (None, "A.", None, None)},
+        {"bullet_chars": ("○", "--")},
+        {"table_size": 0},
+        {"list_indent_mm": -1},
+        {"title_space_after_pt": -1},
+    ],
+)
+def test_a_style_value_that_cannot_be_drawn_is_refused(kwargs) -> None:
+    with pytest.raises(ValueError) as caught:
+        MarkdownStyle(**kwargs)
+    assert caught.value.code == "text-markdown-style-invalid"  # type: ignore[attr-defined]
+
+
+def test_bullets_by_depth_and_one_bullet_for_all() -> None:
+    def bullets(document) -> list[str]:
+        chars = []
+        for paragraph in document.paragraphs:
+            heading = _shape(document, paragraph).heading
+            chars.append(document.styles.bullet(heading.id_ref).char)
+        return chars
+
+    md = "- 하나\n  - 둘\n    - 셋\n      - 넷\n"
+    assert bullets(from_markdown(md, style=MarkdownStyle(bullet_chars=("○", "-", "·")))) == ["○", "-", "·", "·"]
+    assert bullets(from_markdown(md, style=MarkdownStyle(bullet_char="●"))) == ["●"] * 4
+
+
+def test_the_report_look_saves_and_reopens(tmp_path) -> None:
+    path = tmp_path / "report.hwpx"
+
+    from_markdown(REPORT, style="report").save_to_path(path)
+
+    assert validate_editor_open_safety(path).to_dict()["ok"] is True
+    assert "1. 목적" in HwpxDocument.open(path).text.markdown()
+
+
 # -- clean new-document mode ----------------------------------------------
 
 

@@ -32,6 +32,13 @@ core rule is not enough.
 - mail merge keeps generic HWPX binding in core; sanitization/policy is injected.
 - tracked-change format primitives stay core; oracle verification moves.
 - benchmark and conformance campaign runners are repository QA, not product API.
+- the Markdown writer (`hwpx.tools.markdown_import`) keeps one named look in core,
+  `report` (owner decision, 2026-11-12): the first document a newcomer makes with
+  the library alone should look like a document. It is a bundle of `MarkdownStyle`
+  values (sizes, heading numbers, bullets, a page number) and holds no rule about
+  what a document must contain. Looks for genres with content rules (공문,
+  가정통신문 …) stay in `python-hwpx-automation`; a second named look in core
+  needs a new owner decision.
 
 The 5.0 boundary is closed: every non-core disposition (`mcp-migrate`, `split`,
 `dev-only`, and `undecided`) must remain exactly zero. A non-core file fails the

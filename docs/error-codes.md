@@ -399,7 +399,7 @@ except HwpxError as exc:
 | `text-highlight-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `text-highlight-match-empty` | 형광펜으로 감쌀 문자열이 비어 있다. |
 | `text-highlight-match-not-found` | 문단에서 형광펜으로 감쌀 문자열을 찾지 못했다. |
-| `text-markdown-style-invalid` | MarkdownStyle 의 제목·본문 글자 크기가 양수가 아니거나 제목 크기가 네 개가 아니다. |
+| `text-markdown-style-invalid` | MarkdownStyle 의 값(글자 크기·정렬·번호 형식·글머리표·들여쓰기)이 올바르지 않거나 모르는 모양 이름을 주었다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |
 

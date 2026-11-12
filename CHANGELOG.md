@@ -6,6 +6,13 @@
 
 ### 추가
 
+- `from_markdown(text, style="report")`로 보고서 모양의 문서를 만든다(`"보고서"`, `MarkdownStyle.report()`도 같다).
+  `#`은 가운데에 놓는 20pt 제목이고 아래에 줄을 긋는다. `##`·`###`·`####`에는 `1.`·`가.`·`1)` 번호를 붙이고, 번호를
+  직접 쓴 제목(`## 1. 목적`)에는 붙이지 않는다. 본문은 12pt, 표 안은 11pt, 글머리표는 깊이에 따라 `○`·`-`·`·`이고,
+  새 문서의 꼬리말에 쪽 번호를 넣는다. 모두 `MarkdownStyle`의 새 값(`heading_numbers`, `title_align`, `title_rule`,
+  `title_space_after_pt`, `bullet_chars`, `table_size`, `page_number`)이라 일부만 바꾸거나 따로 쓸 수 있다.
+  라이브러리가 이름 붙여 싣는 모양은 이것 하나이고, 내용 규칙이 있는 장르(공문·가정통신문)는 전처럼 응용 계층
+  몫이다. 한/글 2024에서 화면을 확인했다.
 - `doc.text.replace`가 기본 범위(본문 문단의 런 하나 안)에서 바꾼 곳이 없는데 찾는 글이 표 칸·글상자·머리말 등
   본문 밖이나 서식이 다른 런에 걸쳐 있으면 `ReplaceScopeWarning`(`hwpx.errors`)으로 알리고 `everywhere=True`를
   안내한다. 돌려주는 횟수와 문서는 전과 같다. 서식 조건(`text_color` 등)을 준 호출과 `everywhere=True`는 경고하지
@@ -18,6 +25,9 @@
   머리 행은 가운데로 놓고, 구분선의 `:---`·`:---:`·`---:`를 열 정렬로 읽는다. 전처럼 열 너비를 똑같이 하려면
   `MarkdownStyle(table_fit_columns=False)`, 머리 행 정렬을 그대로 두려면 `table_header_align=None`을 준다.
   한/글 2024에서 전후 화면을 확인했다.
+- `from_markdown`·`doc.text.append_markdown`이 목록 안의 목록을 깊이마다 오른쪽으로 들여 쓴다. 전에는 글머리표만
+  달라지고 왼쪽 끝이 같아 깊이가 보이지 않았다. 들여 쓰는 폭은 본문 글자 한 자 반이고
+  `MarkdownStyle(list_indent_mm=)`로 바꾼다(`0`이면 전처럼 들여 쓰지 않는다).
 - `.hwp`로 쓰기를 실험 기능으로 낮추고 보호 두 가지를 넣었다. `.hwp`에서 연 문서를 그 원본 경로에 `.hwp`로 저장하면
   `Hwp5Error`(`hwp5-overwrite-source`)로 거부한다. 한/글이 저장한 원본이 이 라이브러리가 다시 만든 파일로 바뀌는 일을
   막는다. 열 때 옮기지 못한 내용이 있는 문서(`conversion_report`가 비어 있지 않음)는 `.hwp`로 쓰지 않고
