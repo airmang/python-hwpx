@@ -142,6 +142,15 @@ class Hwp5ConversionWarning(UserWarning):
     """
 
 
+class ReplaceScopeWarning(UserWarning):
+    """``doc.text.replace`` changed nothing, but the text is in the document.
+
+    The default looks only inside one run of a body paragraph. The text was found
+    in a table cell, a text box, a header or another place outside the body, or
+    across runs of different formatting; ``everywhere=True`` reaches those.
+    """
+
+
 #: The kebab-case ``HwpxError.code`` vocabulary. Codes are ``<domain>-<condition>``
 #: where the domain names a surface area (the 6.0 namespaces plus the package-level
 #: concerns). This is deliberately **not** unified with the SCREAMING_SNAKE codes in
@@ -449,6 +458,7 @@ __all__ = [
     "GRANDFATHERED_CODES",
     "ERROR_CODE_DOMAINS",
     "Hwp5ConversionWarning",
+    "ReplaceScopeWarning",
     "Hwp5Error",
     "HwpxError",
     "HwpxLookupError",
