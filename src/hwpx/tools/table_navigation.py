@@ -13,6 +13,7 @@ from ..oxml._document_primitives import _text_element_content
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
+    from ..form_fit.policy import FitPolicy
 
 __all__ = [
     "PathDirection",
@@ -37,6 +38,7 @@ __all__ = [
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 _WHITESPACE_RE = re.compile(r"\s+")
+_HWPUNIT_PER_MM = 7200 / 25.4
 #: ``label[2]``: the second cell, in document order, that the label matches.
 _OCCURRENCE_RE = re.compile(r"^(?P<label>.*\S)\s*\[(?P<number>[1-9][0-9]*)\]$", re.DOTALL)
 
@@ -89,14 +91,23 @@ class TableLabelSearchResult(TypedDict):
     count: int
 
 
-class TableFillApplied(TypedDict):
-    """A successfully applied path-based fill operation."""
-
+class _TableFillAppliedRequired(TypedDict):
     path: str
     table_index: int
     row: int
     col: int
     value: str
+
+
+class TableFillApplied(_TableFillAppliedRequired, total=False):
+    """A successfully applied path-based fill operation.
+
+    ``fit`` is present when the fill was given a fit policy: the measured
+    outcome for this cell (``FitResult.to_dict()``: lines, font size, style
+    changes, warnings).
+    """
+
+    fit: dict[str, Any]
 
 
 class TableLabelCandidate(TypedDict):
@@ -119,10 +130,12 @@ class TableFillFailed(_TableFillFailedRequired, total=False):
 
     ``candidates`` is present when the reason is ``"ambiguous label"``: every
     cell the label matched, each with the ``selector`` (``"성명[2]"``) to write
-    in the path instead of the bare label.
+    in the path instead of the bare label. ``fit`` is present when the reason
+    is ``"value does not fit"``: the measured outcome that refused the value.
     """
 
     candidates: list[TableLabelCandidate]
+    fit: dict[str, Any]
 
 
 class TableFormSlot(TypedDict):
@@ -134,6 +147,7 @@ class TableFormSlot(TypedDict):
     table_index: int
     label_cell: TableCellReference
     target_cell: TableCellReference
+    width_mm: float | None
 
 
 class TableFormSlotsResult(TypedDict):
@@ -606,8 +620,22 @@ def find_cell_by_label(
     }
 
 
-def form_slots(document: HwpxDocument) -> TableFormSlotsResult:
+def _cell_width_mm(cell: object) -> float | None:
+    element = getattr(cell, "element", None)
+    size = element.find(f"{_HP}cellSz") if element is not None else None
+    try:
+        return round(int(size.get("width")) / _HWPUNIT_PER_MM, 1)  # type: ignore[union-attr]
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def form_slots(document: HwpxDocument, *, min_width_mm: float = 5.0) -> TableFormSlotsResult:
     """List the blanks of a form: empty cells right of, or below, a cell with text.
+
+    Forms put thin empty cells between a label and its boxes as spacing; a
+    value written there comes out one character per line. Cells narrower than
+    *min_width_mm* (``width_mm`` of each slot) are therefore left out; pass
+    ``0`` to list them too. A path still reaches a cell this list leaves out.
 
     Each slot carries the ``path`` that :func:`fill_by_path` takes to fill it
     (``"성명 > right"``; ``"성명[2] > right"`` when the label occurs more than
@@ -630,13 +658,19 @@ def form_slots(document: HwpxDocument) -> TableFormSlotsResult:
         table = table_ref.table
         grid = table.get_cell_map()
         texts: dict[tuple[int, int], str] = {}
+        widths: dict[tuple[int, int], float | None] = {}
         blanks: list[tuple[int, int]] = []
         for position in table.iter_grid():
             if not position.is_anchor:
                 continue
             texts[position.anchor] = _text_of_cell(position.cell)
-            if _cell_is_blank(position.cell):
-                blanks.append(position.anchor)
+            if not _cell_is_blank(position.cell):
+                continue
+            width = _cell_width_mm(position.cell)
+            if width is not None and width < min_width_mm:
+                continue
+            widths[position.anchor] = width
+            blanks.append(position.anchor)
         for row_index, col_index in blanks:
             for direction, back in backwards:
                 source = _move(table, row_index, col_index, back, grid)
@@ -670,6 +704,7 @@ def form_slots(document: HwpxDocument) -> TableFormSlotsResult:
                         "table_index": table_ref.table_index,
                         "label_cell": {"row": source[0], "col": source[1], "text": label_text},
                         "target_cell": {"row": row_index, "col": col_index, "text": texts[(row_index, col_index)]},
+                        "width_mm": widths[(row_index, col_index)],
                     }
                 )
                 break
@@ -679,6 +714,8 @@ def form_slots(document: HwpxDocument) -> TableFormSlotsResult:
 def fill_by_path(
     document: HwpxDocument,
     mappings: Mapping[str, str],
+    *,
+    fit: "FitPolicy | None" = None,
 ) -> TableFillResult:
     """Fill multiple table cells using label-based navigation paths.
 
@@ -688,6 +725,12 @@ def fill_by_path(
     the path fails as ``"ambiguous label"`` and lists them under
     ``candidates``; write ``"성명[2] > right"`` to pick the second in document
     order. :func:`form_slots` lists the blanks with their paths.
+
+    Without *fit* a value is written as it is and Hancom grows the row when it
+    needs more lines. With a :class:`~hwpx.form_fit.policy.FitPolicy` each
+    value is measured against its cell: it wraps or shrinks as the policy
+    allows, the outcome is reported under ``fit``, and a value the policy
+    refuses fails as ``"value does not fit"`` with its cell left as it was.
     """
 
     # Labels are resolved against the document as it is when the call starts,
@@ -758,16 +801,22 @@ def fill_by_path(
             continue
 
         text_value = str(value)
-        candidate.table.set_cell_text(current_row, current_col, text_value, logical=True)
-        applied.append(
-            {
-                "path": path,
-                "table_index": candidate.table_index,
-                "row": current_row,
-                "col": current_col,
-                "value": text_value,
-            }
+        outcome = candidate.table.set_cell_text(
+            current_row, current_col, text_value, logical=True, fit=fit
         )
+        if outcome is not None and not outcome.ok:
+            failed.append({"path": path, "reason": "value does not fit", "fit": outcome.to_dict()})
+            continue
+        entry: TableFillApplied = {
+            "path": path,
+            "table_index": candidate.table_index,
+            "row": current_row,
+            "col": current_col,
+            "value": text_value,
+        }
+        if outcome is not None:
+            entry["fit"] = outcome.to_dict()
+        applied.append(entry)
 
     return {
         "applied": applied,

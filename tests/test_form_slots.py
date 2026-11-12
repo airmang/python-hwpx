@@ -218,3 +218,46 @@ def test_filling_many_slots_reads_the_tables_once(monkeypatch) -> None:
 
     assert result["applied_count"] == 40
     assert len(built) == 2  # one for the listing, one for the whole fill
+
+
+def test_form_slots_leaves_out_spacer_cells_and_says_how_wide_a_blank_is() -> None:
+    document = HwpxDocument.new()
+    table = document.add_table(1, 3)
+    table.cell(0, 0).text = "연계유형"
+    for col, width in ((1, 600), (2, 20000)):  # about 2 mm and 70 mm
+        table.cell(0, col).element.find(
+            "{http://www.hancom.co.kr/hwpml/2011/paragraph}cellSz"
+        ).set("width", str(width))
+
+    assert document.tables.form_slots()["slots"] == []
+
+    every = document.tables.form_slots(min_width_mm=0)["slots"]
+    assert [(slot["target_cell"]["col"], slot["width_mm"]) for slot in every] == [(1, 2.1)]
+    # The path still reaches the narrow cell when the caller means it.
+    assert document.tables.fill_by_path({every[0]["path"]: "v"})["failed"] == []
+
+
+def test_fit_policy_measures_each_value_and_refuses_what_does_not_fit() -> None:
+    from hwpx.form_fit import FitPolicy
+
+    document = HwpxDocument.new()
+    table = document.add_table(2, 2)
+    table.cell(0, 0).text = "성명"
+    table.cell(1, 0).text = "주소"
+    long_value = "서울특별시 종로구 세종대로 209 정부서울청사 별관 3층 민원실 " * 20
+
+    result = document.tables.fill_by_path(
+        {"성명 > right": "홍길동", "주소 > right": long_value},
+        fit=FitPolicy(mode="fail_on_overflow"),
+    )
+
+    assert [entry["path"] for entry in result["applied"]] == ["성명 > right"]
+    assert result["applied"][0]["fit"]["ok"] is True
+    assert result["failed"][0]["reason"] == "value does not fit"
+    assert result["failed"][0]["fit"]["ok"] is False
+    assert table.cell(0, 1).text == "홍길동"
+    assert table.cell(1, 1).text == ""
+
+    plain = document.tables.fill_by_path({"주소 > right": long_value})
+    assert plain["failed"] == [] and "fit" not in plain["applied"][0]
+    assert table.cell(1, 1).text == long_value
