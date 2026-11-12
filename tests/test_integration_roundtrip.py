@@ -206,10 +206,10 @@ class TestStyleInheritanceRoundtrip:
 
     def test_inherited_styles_persist(self):
         doc = _new()
-        doc.add_paragraph("styled", para_pr_id_ref="5", style_id_ref="3", char_pr_id_ref="7")
+        doc.add_paragraph("styled", para_pr_id_ref="9", style_id_ref="3", char_pr_id_ref="7")
         p2 = doc.add_paragraph("inheriting")
         # Verify inheritance happened
-        assert p2.para_pr_id_ref == "5"
+        assert p2.para_pr_id_ref == "9"
         assert p2.style_id_ref == "3"
         assert p2.char_pr_id_ref == "7"
         doc2 = _roundtrip(doc)
@@ -217,7 +217,7 @@ class TestStyleInheritanceRoundtrip:
         # Find our paragraph
         inherited = [p for p in paras if p.text == "inheriting"]
         assert len(inherited) == 1
-        assert inherited[0].para_pr_id_ref == "5"
+        assert inherited[0].para_pr_id_ref == "9"
         assert inherited[0].style_id_ref == "3"
 
 

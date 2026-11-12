@@ -333,9 +333,9 @@ class TestStylePreservation:
 
     def test_style_inheritance_default(self):
         doc = _new_doc()
-        doc.add_paragraph("first", para_pr_id_ref="5", style_id_ref="3", char_pr_id_ref="7")
+        doc.add_paragraph("first", para_pr_id_ref="9", style_id_ref="3", char_pr_id_ref="7")
         p2 = doc.add_paragraph("second")
-        assert p2.para_pr_id_ref == "5"
+        assert p2.para_pr_id_ref == "9"
         assert p2.style_id_ref == "3"
         assert p2.char_pr_id_ref == "7"
 

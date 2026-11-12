@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import io
 import re
+import warnings
 import zipfile
 
+import pytest
+
+from hwpx.errors import ReplaceScopeWarning
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HP
 
@@ -69,6 +73,30 @@ def test_the_default_still_changes_body_runs_only() -> None:
     assert count == 2  # the body paragraph and the field value, which sits in body runs
     assert "칸사과" in xml and "머리말사과" in xml
     assert "바탕쪽사과" in _master_page_xml(document)
+
+
+def test_the_default_says_so_when_the_text_is_only_outside_its_scope() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    document.add_table(1, 2).cell(0, 0).text = "칸사과"
+    document.page.set_header(text="머리말사과")
+
+    with pytest.warns(ReplaceScopeWarning, match="2곳.*everywhere=True"):
+        count = document.text.replace("사과", "배")
+
+    assert count == 0
+    assert "칸사과" in _section_xml(document)
+
+
+def test_the_default_is_quiet_when_it_changed_something_or_nothing_is_there() -> None:
+    document = _document_with_every_place()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ReplaceScopeWarning)
+        assert document.text.replace("사과", "배") == 2  # found in the body: no hint about the rest
+        assert document.text.replace("어디에도 없는 말", "배") == 0
+        assert document.text.replace("사과", "배", text_color="#FF0000") == 0  # a format filter chose the runs
+        assert document.text.replace("칸사과", "칸배", limit=0) == 0
+        assert document.text.replace("칸사과", "칸배", everywhere=True) == 2  # the cell and the nested cell
 
 
 def test_a_header_written_twice_counts_once_and_both_copies_change() -> None:
