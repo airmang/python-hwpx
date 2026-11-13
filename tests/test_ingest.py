@@ -122,3 +122,91 @@ def test_ingest_counts_a_header_once_and_stays_low_when_nothing_is_left_out(
     if "한 번만 세는 머리말" not in result.markdown:
         assert result.metadata["left_out"] == {"header": 1}
         assert result.lossiness == "medium"
+
+
+_HWP_FIXTURES = Path(__file__).parent / "fixtures" / "hwp5"
+
+
+def test_ingest_reads_hwp_through_the_same_entry_point() -> None:
+    result = DocumentIngestor.default().convert(_HWP_FIXTURES / "border_3d.hwp")
+
+    assert result.source_format == "hwp"
+    assert result.engine == "python-hwpx"
+    assert result.metadata["table_count"] == 1
+    assert result.metadata["hwp_conversion"] == {"unconverted": {}, "dropped": {}}
+    assert result.markdown.strip()
+    assert result.attempts[0].accepted is True
+
+
+def test_ingest_detects_hwp_from_bytes_without_a_name() -> None:
+    data = (_HWP_FIXTURES / "border_3d.hwp").read_bytes()
+
+    from_bytes = DocumentIngestor.default().convert(data)
+    from_stream = DocumentIngestor.default().convert(BytesIO(data))
+
+    assert from_bytes.source_format == from_stream.source_format == "hwp"
+    assert from_bytes.markdown == from_stream.markdown
+
+
+def test_ingest_keeps_hwpx_results_free_of_hwp_conversion_data(tmp_path: Path) -> None:
+    result = DocumentIngestor.default().convert(_sample_hwpx(tmp_path / "plain.hwpx"))
+
+    assert result.source_format == "hwpx"
+    assert "hwp_conversion" not in result.metadata
+
+
+def test_ingest_says_why_an_old_hwp_cannot_be_read(tmp_path: Path) -> None:
+    source = tmp_path / "old.hwp"
+    source.write_bytes(b"HWP Document File V3.00 \x1a\x01\x02\x03\x04\x05" + b"\x00" * 64)
+
+    with pytest.raises(UnsupportedDocumentFormat) as exc:
+        DocumentIngestor.default().convert(source)
+
+    attempt = exc.value.attempts[0]
+    assert attempt.accepted is True
+    assert "HWP 3.x" in (attempt.message or "")
+    assert "HWP 3.x" in str(exc.value)
+
+
+def test_ingest_reports_what_an_hwp_conversion_left_behind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hwpx.hwp5.errors import Hwp5ConversionReport
+
+    monkeypatch.setattr(
+        HwpxDocument,
+        "conversion_report",
+        property(lambda self: Hwp5ConversionReport.of({"chart": 2, "ole": 1}, {"layout_cache": 3})),
+    )
+
+    result = DocumentIngestor.default().convert(_HWP_FIXTURES / "border_3d.hwp")
+
+    assert result.metadata["hwp_conversion"] == {
+        "unconverted": {"chart": 2, "ole": 1},
+        "dropped": {"layout_cache": 3},
+    }
+    assert result.lossiness == "medium"
+    assert any("chart 2" in warning and "ole 1" in warning for warning in result.warnings)
+
+
+def test_flat_metadata_holds_only_scalars_a_vector_store_accepts(tmp_path: Path) -> None:
+    source = _sample_hwpx(tmp_path / "sample.hwpx")
+
+    plain = DocumentIngestor.default().convert(source).flat_metadata()
+
+    assert plain["source"] == str(source.resolve())
+    assert plain["source_format"] == "hwpx"
+    assert plain["lossiness"] == "low"
+    assert plain["table_count"] == 1
+    assert "warnings" not in plain
+    assert all(isinstance(value, (str, int)) for value in plain.values())
+
+    with HwpxDocument.new() as doc:
+        doc.add_paragraph("본문")
+        doc.notes.add_memo("메모에만 있는 글")
+        data = doc.to_bytes()
+    lossy = DocumentIngestor.default().convert(data)
+    assert lossy.warnings
+    flat = lossy.flat_metadata()
+    assert flat["warnings"] == "\n".join(lossy.warnings)
+    assert "source" not in flat

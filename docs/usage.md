@@ -1291,6 +1291,40 @@ with open("result.hwpx", "wb") as fp:
 
 패키지 수준에서 바로 작업하고 싶다면 `HwpxPackage.set_part()`/`save()`를 사용해 XML 조각을 교체할 수도 있습니다. 이 경우에도 최종 출력은 반드시 `HwpxPackage.save()`를 거쳐야 합니다. `_write_archive()`나 `_write_zip_entry()` 같은 raw ZIP writer는 내부 구현 세부사항이며, safety 검증을 건너뛴 산출물을 만들 수 있으므로 직접 호출하지 마세요.
 
+## AI 파이프라인에서 읽기
+
+검색·요약 파이프라인에 넣을 글은 `hwpx.ingest`로 뽑습니다. `.hwpx`와 `.hwp`를 같은 방식으로 받고, 제목·목록·표를
+살린 Markdown과 함께 무엇이 빠졌는지를 알려 줍니다.
+
+```python
+from hwpx.ingest import DocumentIngestor
+
+result = DocumentIngestor.default().convert(path)   # path: .hwpx나 .hwp 파일 경로
+print(result.markdown)
+print(result.lossiness)        # "low": 빠진 것이 없다. "medium"·"high": warnings에 종류와 개수
+print(result.flat_metadata())  # 출처·형식·개수·경고를 글자와 숫자 값만으로
+```
+
+암호 문서나 HWP 3.x처럼 읽을 수 없는 파일은 `UnsupportedDocumentFormat`으로 거부하고, 사유가 오류 문구에
+들어갑니다.
+
+### LangChain 로더
+
+`pip install "python-hwpx[langchain]"`로 `langchain-core`를 함께 설치하면 로더를 쓸 수 있습니다. 파일 하나가
+Markdown 문서 하나가 되고, 메타데이터는 위의 `flat_metadata()`입니다.
+
+```python
+from hwpx.integrations.langchain import HwpxLoader
+
+docs = HwpxLoader(path).load()   # path: .hwpx나 .hwp 파일 경로
+print(docs[0].page_content[:200])
+print(docs[0].metadata["lossiness"])
+```
+
+나누기는 LangChain의 분할기에 맡깁니다. Markdown에 `#` 제목이 남아 있어 `MarkdownHeaderTextSplitter`로 문서의
+절을 따라 자를 수 있습니다. 폴더를 통째로 읽으려면 `DirectoryLoader(폴더, glob="**/*.hwp*", loader_cls=HwpxLoader)`
+처럼 넘깁니다. 로더와 `hwpx.ingest`는 실험 기능이라 6.x 안에서 이름과 메타데이터 키가 바뀔 수 있습니다.
+
 ## 제안서 프리셋 — 5.0에서 이동
 
 제안서·기획안 생성은 `hwpx_automation.office.authoring`이 소유합니다. 5.0의

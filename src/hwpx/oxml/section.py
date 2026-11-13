@@ -392,6 +392,11 @@ class HwpxOxmlSection:
             prev_para_ref = self._without_page_flow_breaks(prev_para_ref)
         return prev_para_ref, prev_style_ref, prev_char_ref
 
+    def _header_shapes(self) -> tuple[frozenset[str], dict[str, float]]:
+        """What the stale-cache sweep reads from the headers: squeezed paragraph shapes, narrowed character shapes."""
+
+        return self._squeezed_paragraph_shapes(), self._narrowed_char_shapes()
+
     def _squeezed_paragraph_shapes(self) -> frozenset[str]:
         """The paragraph shapes Hancom presses onto one line: a cache of one line holds all of their text."""
 
@@ -581,7 +586,9 @@ class HwpxOxmlSection:
     def reset_dirty(self) -> None:
         self._dirty = False
 
-    def remove_stale_layout_caches(self) -> int:
+    def remove_stale_layout_caches(
+        self, *, _header_shapes: tuple[frozenset[str], dict[str, float]] | None = None
+    ) -> int:
         """Drop paragraph layout caches that cannot match the paragraph's text.
 
         A cache is stale when a cached line starts past the plain text, or when
@@ -599,8 +606,9 @@ class HwpxOxmlSection:
         """
 
         removed = self._remove_outlived_layout_caches()
-        squeezed = self._squeezed_paragraph_shapes()
-        narrowed = self._narrowed_char_shapes()
+        # Both come from the document's headers alone, so a save that sweeps
+        # every section reads them once and hands them in.
+        squeezed, narrowed = _header_shapes or self._header_shapes()
         for paragraph in self._element.iter():
             if _element_local_name(paragraph) != "p":
                 continue
