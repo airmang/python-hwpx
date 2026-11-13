@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 from os import PathLike
-from typing import TYPE_CHECKING, Any, BinaryIO, Literal, Sequence
+from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Sequence, TypeVar
 
 from ..errors import HwpxTypeError, HwpxValueError, SaveError
 from ..mutation_report import (
@@ -18,6 +19,7 @@ from ..mutation_report import (
     VerificationValue,
     measure_save,
 )
+from ..opc.security import sharing_archive_reads
 from ..opc.package import _UNCHECKED_SAVE_TOKEN
 from ..quality import QualityPolicy
 from ..quality.report import OpenSafetyReport
@@ -29,6 +31,24 @@ if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
     from ..quality import VisualCompleteReport
     from ..tools.validator import ValidationReport
+
+
+_SaveFunction = TypeVar("_SaveFunction", bound=Callable[..., Any])
+
+
+def _one_archive_read(save: _SaveFunction) -> _SaveFunction:
+    """Run *save* so that its checks share one read of the archive it writes.
+
+    The package check, the reopen, the preservation measurement and the quality
+    gate all read the bytes the save has just built; see ``opc.security``.
+    """
+
+    @functools.wraps(save)
+    def sharing(*args: Any, **kwargs: Any) -> Any:
+        with sharing_archive_reads():
+            return save(*args, **kwargs)
+
+    return sharing  # type: ignore[return-value]
 
 
 def _summarize_validation_issues(issues: Sequence[Any], *, limit: int = 5) -> str:
@@ -273,6 +293,7 @@ def _compose_mutation_report(
     )
 
 
+@_one_archive_read
 def save_to_path(
     doc: "HwpxDocument",
     path: str | PathLike[str],
@@ -384,6 +405,7 @@ def _check_format(format: str) -> None:
         )
 
 
+@_one_archive_read
 def save_to_stream(
     doc: "HwpxDocument",
     stream: BinaryIO,
@@ -429,6 +451,7 @@ def save_to_stream(
     return stream
 
 
+@_one_archive_read
 def save_report(
     doc: "HwpxDocument",
     path_or_stream: str | PathLike[str] | BinaryIO | None = None,
@@ -492,6 +515,7 @@ def save_report(
     return report
 
 
+@_one_archive_read
 def to_bytes(
     doc: "HwpxDocument",
     *,

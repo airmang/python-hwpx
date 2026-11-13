@@ -40,9 +40,9 @@ PYTHON_FENCE = re.compile(
     r"^```(?:python|py)(?:[ \t]+[^\n]*)?\n(.*?)^```[ \t]*$",
     re.MULTILINE | re.DOTALL,
 )
-EXPECTED_FENCE_COUNT = 117
+EXPECTED_FENCE_COUNT = 119
 EXPECTED_FENCE_SHA256 = (
-    "891ead7202ab94725865843fcb951041213b95a879a0ee697918c76ff3d7f758"
+    "780ef8addbc6d9c855c4d8195bc226f23617c200c179eb5ed6e94c4862cb25ec"
 )
 ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {"hwpx"}
 LEDGER = Path("docs/python-example-ledger.json")

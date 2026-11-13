@@ -13,15 +13,15 @@
     "docs/safe-write-contract.md",
     "docs/golden-api.md"
   ],
-  "fenceCount": 117,
-  "sourceSha256": "891ead7202ab94725865843fcb951041213b95a879a0ee697918c76ff3d7f758",
+  "fenceCount": 119,
+  "sourceSha256": "780ef8addbc6d9c855c4d8195bc226f23617c200c179eb5ed6e94c4862cb25ec",
   "manualSha256": {
-    "README.md": "fc1eb09fdd6f735493b3ff9aca3387c81f091eba690bb3b78a52f56b85f1a800",
-    "README_EN.md": "a87427a7b44821ee231cd39c2b4362847ab9d9ef3e68c46d8bfd466fce8867f5",
+    "README.md": "9d0dbe2311ba8858b200285f84a2efe7aba667e9ef8a671e3314fe1a56fe2e61",
+    "README_EN.md": "13e3b818ae7e0bf2dc94ff933e90d1f0f32f3037b0d0b5e568c29d57f97902d4",
     "docs/quickstart.md": "44d8ca82ee70c0e3dfdf087713a4e4ce935e64cd3f6a546311f95b054a285a18",
     "docs/recipes-traversal.md": "b63f42b1a6ed23812688599474dcf83300509b86a94b5daceae679bfdbde9343",
     "docs/mutation-semantics.md": "6de1471f64c1cd8db2e661c413d92bfd27221f5d930708942ac47c6aff2d608b",
-    "docs/usage.md": "69d27295830e92bde19a1a7faa15e14dfd872be2077fc5d032d27873d372245d",
+    "docs/usage.md": "79b5d424f4dfe814937b2293989349b248d46388a83f7ec85b66e29a9eeff8e2",
     "docs/examples.md": "f03f0ecee4faef94dda05c92dd25672dfbde3a7447f823603b611bea59f6432e",
     "docs/faq.md": "cd82e2f1e740cff3f50e620c060ed8ae0aa130271fa373eca3a07a70fb9ca604",
     "docs/index.md": "111754d7637414e0078ba0c7bbcf19d1a4550a68202acf3dd2c89c0748ea0050",
@@ -157,6 +157,8 @@
         "docs/usage.md#80",
         "docs/usage.md#83",
         "docs/usage.md#84",
+        "docs/usage.md#85",
+        "docs/usage.md#86",
         "docs/faq.md#2",
         "docs/faq.md#4",
         "docs/faq.md#5"
@@ -219,6 +221,12 @@
         ],
         "docs/usage.md#84": [
           "document"
+        ],
+        "docs/usage.md#85": [
+          "path"
+        ],
+        "docs/usage.md#86": [
+          "path"
         ],
         "docs/faq.md#2": [
           "document"

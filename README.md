@@ -55,6 +55,8 @@ doc.save_to_path("계획.hwpx")
   `markdown(rich=True)`·`TextExtractor`를 쓸 때 나오고, 머리말·꼬리말·메모는 `TextExtractor`에서만 나옵니다.
   수식·글자 겹침·양식 개체 캡션은 아직 어느 경로에서도 나오지 않습니다. Markdown 변환(`hwpx.ingest`)은 빠진
   종류와 개수를 `warnings`와 `lossiness`로 알립니다.
+  `.hwp`도 같은 호출로 읽고, LangChain에서는 `hwpx.integrations.langchain.HwpxLoader`로 씁니다
+  (`pip install "python-hwpx[langchain]"`, [사용법](docs/usage.md#ai-파이프라인에서-읽기)).
 - 편집: 문단·표·그림·머리말/꼬리말·메모·각주, 줄 간격·여백·쪽 번호 같은 서식을 고칩니다.
 - 양식 채우기: 라벨로 칸을 찾아 값만 넣고 손대지 않은 부분은 바이트 그대로 둡니다. FormFit은 값이
   칸에 들어가도록 줄을 바꾸거나 글자를 줄일지 한/글의 글자 폭으로 재서 고릅니다.
