@@ -6,6 +6,12 @@
 
 ### 추가
 
+- LaTeX → 한/글 수식 변환(`latex_to_eqedit`)이 받는 학교 표기가 늘었다: `\Leftrightarrow`·`\iff`, `\perp`,
+  `\parallel`, `\varnothing`, `\uparrow`·`\downarrow`·`\Uparrow`, 가역 반응 `\rightleftharpoons`, 호
+  `\overset{\frown}{AB}`·`\wideparen{AB}`, `\boxed{}`, 여러 줄 정렬 `aligned`, 띄어쓰기 `\ `·`\;`·`\:`·`\!`·
+  `\quad`·`\qquad`. 모두 한/글 2024(Windows)에서 그려 보고 기호로 나오는 표기만 넣었고, 읽는 쪽
+  (`eqedit_to_latex`)도 같은 표기를 안다. 중·고 수학·과학 표기 229개 가운데 226개가 변환된다(전에는 처음
+  159개 중 147개). `\mathbb`·`\widehat`·`\square`는 맞게 그려지는 표기가 없어 계속 거부한다.
 - `hwpx.ingest`의 Markdown 변환이 `.hwp`(HWP 5.0)도 받는다. `HwpxDocument.open`은 `.hwp`를 읽는데 이 진입점만
   "받는 변환기가 없다"로 거부했다. 결과는 `source_format="hwp"`이고, 문서 모델로 옮기지 못한 내용은
   `metadata["hwp_conversion"]`(`unconverted`·`dropped`)과 `warnings`에 실리며 그때 `lossiness`는 `"medium"`
@@ -37,6 +43,17 @@
 
 ### 고침
 
+- 수식 상자 폭이 좁아 한/글(Windows)에서 수식 뒤 글자가 수식과 겹치던 문제. Windows 한/글은 줄을 짤 때 파일에
+  적힌 `hp:sz` 폭을 그대로 쓰고 수식은 제 크기로 그린다. 폭 표가 맥 한/글이 저장한 상자에 맞춰져 있었는데
+  Windows는 그보다 몇 % 더 필요했고, 관계 기호(`:` `≤` `≥` `≈` `⊂` `→`)는 15~30% 모자랐다. 한/글 2024가
+  실제로 필요로 한 폭 1,032건(`tests/data/equation_windows_needed_widths.json`)에 맞춰 글자·기호 폭 표와
+  간격 규칙을 다시 만들었다. 이제 그 1,032건 모두 필요 폭 이상이고(중앙값 약 7% 넓음), 맞출 때 쓰지 않은 수식
+  63개를 포함한 219개를 10·11·12pt로 한/글에서 열었을 때 뒤 글자에 닿는 것이 없었다. 수식 폭이 글자 크기에
+  비례하지 않는 것(11pt는 10pt보다 2%, 11.5pt는 13% 넓다)도 14개 크기의 실측으로 반영했다. 맥 한/글 상자와
+  견주면 폭이 평균 10% 넓다.
+- `\mathrm{H_2O}`·`\mathrm{m/s^2}`처럼 첨자가 든 곧은 글자 묶음이 `H _ 2 O`라는 글자 그대로 찍히던 문제. 이제
+  곧은 글자의 수식(`{rm H _{2} O it}`)으로 바꾼다. `\text{...}` 안의 `^`·`_`는 글자로 찍히게 두지 않고 거부한다.
+  `\mathrm{km/h}`가 `km / h`로 벌어지던 것도 원문 띄어쓰기를 따른다.
 - HWP 3.x 이하 `.hwp` 파일을 열면 "File is not a zip file" 대신 지원하지 않는 형식임을 알린다. 이 파일은 복합 파일도
   ZIP도 아니어서 사유를 알 수 없었다. 오류 형(`HwpxArchiveError`)은 전과 같다.
 

@@ -8,8 +8,12 @@ equations), each typed into Hancom Office Hangul (macOS) at base sizes 1000,
 1100 and 1300 and saved: the values are the ``<hp:sz>`` width and height and
 the ``baseLine`` Hancom wrote, read back from the saved documents.
 
-The bounds pin the mean width error the measurer reaches and keep the height
-and baseline from getting worse. Hancom's glyph widths do not grow in step
+Since 2026-11 the widths are fitted to what Hangul on Windows needs
+(``test_equation_width_windows_needed.py``): Windows lays the line out with the
+stored width, while macOS was seen to lay the equation out again, and Windows
+needs a few percent more than the boxes macOS saved. So against these macOS
+boxes the estimate is now about a tenth wide, on purpose; the bounds below keep
+it from drifting further and keep the height and baseline from getting worse. Hancom's glyph widths do not grow in step
 with the base size (a letter is as wide at 1100 as at 1000), while the
 measurer scales the whole box with ``baseUnit``; that is why 1100 keeps the
 widest error.
@@ -52,19 +56,19 @@ def test_the_corpus_covers_each_script_at_three_base_sizes() -> None:
 def test_the_mean_width_error_is_small_at_every_base_size() -> None:
     groups = _errors("base_unit")
     widths = {unit: mean(e[0] for e in errors) for unit, errors in groups.items()}
-    assert mean(e[0] for errors in groups.values() for e in errors) < 0.04, widths
-    assert widths[1000] < 0.035 and widths[1300] < 0.03 and widths[1100] < 0.07, widths
+    assert mean(e[0] for errors in groups.values() for e in errors) < 0.12, widths
+    assert widths[1000] < 0.115 and widths[1300] < 0.135 and widths[1100] < 0.115, widths
 
 
 @pytest.mark.parametrize("category", sorted({item["category"] for item in EQUATIONS}))
 def test_the_mean_width_error_is_small_for_every_kind_of_equation(category: str) -> None:
     errors = _errors("category")[category]
-    assert mean(e[0] for e in errors) < 0.055
+    assert mean(e[0] for e in errors) < 0.19
 
 
 def test_no_width_is_far_off() -> None:
     worst = max(e[0] for errors in _errors("base_unit").values() for e in errors)
-    assert worst < 0.22
+    assert worst < 0.40
 
 
 def test_height_and_baseline_stay_close() -> None:
