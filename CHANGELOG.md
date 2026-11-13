@@ -16,6 +16,13 @@
   둔다. `fit` 없이 쓰면 전처럼 값을 그대로 써 넣고, 줄이 모자라면 한/글이 줄 높이를 늘린다.
 - `doc.tables.fill_by_path`의 경로에 `"성명[2] > right"`처럼 몇 번째 이름표인지 적을 수 있다. 이름표가 여러 칸에
   맞아 실패할 때(`"ambiguous label"`)는 후보 칸과 고르는 표기를 `candidates`에 싣는다.
+- `hwpx.ingest`의 Markdown 변환이 `.hwp`(HWP 5.0)도 받는다. `HwpxDocument.open`은 `.hwp`를 읽는데 이 진입점만
+  "받는 변환기가 없다"로 거부했다. 결과는 `source_format="hwp"`이고, 문서 모델로 옮기지 못한 내용은
+  `metadata["hwp_conversion"]`(`unconverted`·`dropped`)과 `warnings`에 실리며 그때 `lossiness`는 `"medium"`
+  이상이다. 경로·바이트·스트림 모두 내용으로 형식을 가린다. HWP 3.x나 암호 문서는 전처럼 거부하되 사유가
+  `attempts`에 남고, 오류 문구에도 실린다.
+- `DocumentIngestResult.flat_metadata()`: 출처·형식·제목·문단과 표 개수·손실 정도·경고를 글자와 숫자 값만으로
+  담은 사전을 돌려준다. 목록이나 사전 값을 받지 않는 벡터 저장소에 그대로 넣을 수 있다.
 - `doc.text.replace`가 기본 범위(본문 문단의 런 하나 안)에서 바꾼 곳이 없는데 찾는 글이 표 칸·글상자·머리말 등
   본문 밖이나 서식이 다른 런에 걸쳐 있으면 `ReplaceScopeWarning`(`hwpx.errors`)으로 알리고 `everywhere=True`를
   안내한다. 돌려주는 횟수와 문서는 전과 같다. 서식 조건(`text_color` 등)을 준 호출과 `everywhere=True`는 경고하지
@@ -40,11 +47,22 @@
   본문은 전처럼 앞 문단을 따르고, 글자 모양도 전처럼 물려받는다. 제목 모양의 문단이 필요하면 `inherit_style=True`를
   주거나 모양을 직접 지정한다. 저수준 `section.add_paragraph`와 `oxml` 문서의 `add_paragraph`는 새 인자
   `inherit_outline`(기본 `True`)으로 전과 같이 동작한다.
+- 큰 문서의 저장이 빨라졌다. 저장 관문이 방금 쓴 문서를 두 번 열던 것을 한 번만 열고, 줄 배치 캐시를 정리할 때
+  구역마다 다시 읽던 머리말(문단 모양·글자 모양)을 저장 한 번에 한 번만 읽는다. 관문의 검사 항목과 결과는 그대로다.
+  공개 문서 1,304개에서 관문 보고, 편집 없는 저장, 문단을 하나 더한 저장의 결과가 모두 전과 같았고, 13.6 MB 문서의
+  저장은 9.4초에서 7.4초로 줄었다. `validate_document`는 이미 연 `HwpxDocument`도 받아 다시 열지 않고 검사한다.
 
 ### 고침
 
 - HWP 3.x 이하 `.hwp` 파일을 열면 "File is not a zip file" 대신 지원하지 않는 형식임을 알린다. 이 파일은 복합 파일도
   ZIP도 아니어서 사유를 알 수 없었다. 오류 형(`HwpxArchiveError`)은 전과 같다.
+
+### 고침
+
+- `META-INF/container.xml`이 가리키는 미리보기(`Preview/PrvText.txt` 등)가 패키지에 없는 문서를 열고 저장한다. 전에는
+  `HwpxStructureError`로 열기를 거부했고, 저장 관문도 같은 사유로 막았다. 한/글 2024는 이런 문서를 그대로 연다. 본문
+  (`Contents/content.hpf`)이나 `META-INF/container.rdf`처럼 미리보기가 아닌 대상이 없으면 전처럼 오류다. 패키지 검증기는
+  미리보기 누락을 오류 대신 경고로 알린다.
 
 ## [6.12.0] - 2026-11-11
 

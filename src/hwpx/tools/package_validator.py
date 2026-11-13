@@ -213,27 +213,33 @@ def validate_editor_open_safety(source: str | Path | bytes) -> EditorOpenSafetyR
         issue for issue in package_report.errors if is_editor_open_blocking_issue(issue)
     )
 
-    document_report: Any | None = None
-    document_error: str | None = None
-    try:
-        from .validator import validate_document
-
-        document_report = validate_document(source)
-    except Exception as exc:  # noqa: BLE001 - reported as evidence, not hidden
-        document_error = f"{type(exc).__name__}: {exc}"
-
+    # The document is opened once: that open is the reopen evidence, and the
+    # document check reads the same open document instead of opening it again.
+    reopened: Any | None = None
     reopen_ok = False
     reopen_error: str | None = None
     try:
         from ..document import HwpxDocument
 
         reopened = HwpxDocument.open(source)
-        try:
-            reopen_ok = True
-        finally:
-            reopened.close()
+        reopen_ok = True
     except Exception as exc:  # noqa: BLE001 - reported as evidence, not hidden
         reopen_error = f"{type(exc).__name__}: {exc}"
+
+    document_report: Any | None = None
+    document_error: str | None = None
+    if reopened is None:
+        # The document check opens the document first, so it stops on the same error.
+        document_error = reopen_error
+    else:
+        try:
+            from .validator import validate_document
+
+            document_report = validate_document(reopened)
+        except Exception as exc:  # noqa: BLE001 - reported as evidence, not hidden
+            document_error = f"{type(exc).__name__}: {exc}"
+        finally:
+            reopened.close()
 
     return EditorOpenSafetyReport(
         validate_package=package_report,
@@ -315,15 +321,25 @@ def _check_hwpml_compat_root(
         )
 
 
+#: Local names by tag. Every check walks the parts and asks for the same few
+#: hundred tags again; the cap keeps a hostile document from growing the table.
+_LOCAL_NAMES: dict[str, str] = {}
+_LOCAL_NAMES_LIMIT = 4096
+
+
 def _local_name(element: ET.Element) -> str:
     tag = element.tag
+    known = _LOCAL_NAMES.get(tag)
+    if known is not None:
+        return known
     if not isinstance(tag, str):
         # A comment or processing instruction: its ``tag`` is a function, not
         # a name. ``""`` matches no element, so every check passes over it.
         return ""
-    if "}" in tag:
-        return tag.rsplit("}", 1)[1]
-    return tag
+    name = tag.rsplit("}", 1)[1] if "}" in tag else tag
+    if len(_LOCAL_NAMES) < _LOCAL_NAMES_LIMIT:
+        _LOCAL_NAMES[tag] = name
+    return name
 
 
 def _children_by_local(element: ET.Element, name: str) -> list[ET.Element]:
@@ -1119,7 +1135,9 @@ def _check_rootfile_parts(
 ) -> None:
     for rootfile in rootfiles:
         if rootfile.full_path not in name_set:
-            _error(
+            # Hancom opens a document whose declared preview is absent; any other missing root is an error.
+            report = _warning if rootfile.full_path.startswith("Preview/") else _error
+            report(
                 issues,
                 CONTAINER_PATH,
                 f"rootfile points to missing part {rootfile.full_path!r}",
