@@ -6,6 +6,9 @@
 
 ### 추가
 
+- Markdown 내보내기가 수식을 실을 수 있다. `doc.text.markdown(rich=True, equations=True)`면 수식이 있던 자리에
+  `$LaTeX$`로 나간다(본문·표 칸·각주·메모 안 모두). LaTeX로 옮기지 못하는 수식은 한/글 수식 문자열을 코드로
+  싣는다. 기본값은 꺼짐이다. `hwpx.ingest`는 켜서 부르며, 본문만 원하면 `markdown_options={"equations": False}`.
 - Markdown 내보내기(`doc.text.markdown(rich=True)`)가 머리말·꼬리말·메모를 실을 수 있다.
   `headers_and_footers=True`면 머리말을 구역 첫머리에, 꼬리말을 구역 끝에 `> 머리말: …` 줄로 싣는다(같은 글은
   한 번). `memos=True`면 메모를 각주처럼 싣는다: 메모가 걸린 글 뒤에 `[^memoN]`, 내용은 부록에 `메모: …`.
