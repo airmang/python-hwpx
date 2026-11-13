@@ -109,6 +109,17 @@ class MarkdownStyle:
     ``byline_size``, ``byline_font`` and ``byline_bold`` draw the byline, the
     right-aligned line under the title that :func:`from_markdown` takes as
     ``byline=``; ``None`` is the body's size or typeface.
+
+    ``sub_bullet_chars`` gives the bullets of a list under a ``####`` heading
+    (empty: ``bullet_chars``). ``note_size`` and ``note_font`` draw a note, a
+    paragraph that starts with ``※``. ``table_align="auto"`` aligns the body
+    cells of a table by what they hold: a column whose cells each fit on one
+    line is centred and one that wraps reads from the left; in a table of two
+    columns the first is spread over its width, as labels are, and the second
+    reads from the left; a column the Markdown aligns itself is left to it.
+    ``list_fit_spacing`` keeps a list item that runs a little past its line on
+    one line by narrowing its letter spacing, by that many percent at most
+    (``0``: never). An item that would need more wraps as it is.
     """
 
     heading_sizes: tuple[float, float, float, float] = (16.0, 12.0, 11.0, 10.0)
@@ -146,6 +157,11 @@ class MarkdownStyle:
     byline_size: float | None = None
     byline_font: str | None = None
     byline_bold: bool = False
+    sub_bullet_chars: tuple[str, ...] = ()
+    note_size: float | None = None
+    note_font: str | None = None
+    table_align: str | None = None
+    list_fit_spacing: int = 0
 
     @classmethod
     def report(cls) -> MarkdownStyle:
@@ -190,6 +206,11 @@ class MarkdownStyle:
             byline_size=13.0,
             byline_font="한컴산뜻돋움",
             byline_bold=True,
+            sub_bullet_chars=("◦", "-", "·"),
+            note_size=10.0,
+            note_font="한컴산뜻돋움",
+            table_align="auto",
+            list_fit_spacing=8,
         )
 
     def __post_init__(self) -> None:
@@ -246,9 +267,10 @@ class MarkdownStyle:
             "list_first_indent_mm",
             "table_row_height_mm",
             "byline_size",
+            "note_size",
         ):
             value = getattr(self, name)
-            positive = name in ("table_size", "table_row_height_mm", "byline_size")
+            positive = name in ("table_size", "table_row_height_mm", "byline_size", "note_size")
             if value is not None and (value < 0 or (value == 0 and positive)):
                 raise HwpxValueError(
                     f"{name} must be positive" if positive else f"{name} must not be negative",
@@ -273,9 +295,11 @@ class MarkdownStyle:
             ("title_look", ("plain", "banner")),
             ("section_look", ("plain", "box")),
             ("table_look", ("grid", "ruled")),
+            ("table_align", (None, "auto")),
         ):
             if getattr(self, name) not in allowed:
-                refuse(name, f"{name} must be one of: {', '.join(allowed)}", f"Use one of: {', '.join(allowed)}.")
+                names = ", ".join(str(value) for value in allowed)
+                refuse(name, f"{name} must be one of: {names}", f"Use one of: {names}.")
         for name, lengths, text in (
             ("heading_fonts", (4,), True),
             ("heading_indents_mm", (4,), False),
@@ -316,7 +340,20 @@ class MarkdownStyle:
                 "page_number_side must be one character or None",
                 "Give the character drawn on each side of the page number, for example '-'.",
             )
-        for name in ("body_font", "table_font", "byline_font", "banner_fill"):
+        if any(not isinstance(char, str) or len(char) != 1 for char in self.sub_bullet_chars):
+            refuse(
+                "sub_bullet_chars",
+                "sub_bullet_chars must be single characters, one per list depth",
+                "Give one character per list depth, for example ('◦', '-', '·').",
+            )
+        fit = self.list_fit_spacing
+        if isinstance(fit, bool) or not isinstance(fit, int) or not 0 <= fit <= _FIT_SPACING_MOST:
+            refuse(
+                "list_fit_spacing",
+                f"list_fit_spacing must be a whole percent from 0 to {_FIT_SPACING_MOST}",
+                "Give how far the letter spacing may be narrowed, in percent; 0 never narrows it.",
+            )
+        for name in ("body_font", "table_font", "byline_font", "note_font", "banner_fill"):
             value = getattr(self, name)
             if (value is not None or name == "banner_fill") and (not isinstance(value, str) or not value.strip()):
                 refuse(name, f"{name} must be a name that is not empty", "Name a typeface, or a colour as #RRGGBB.")
@@ -657,6 +694,8 @@ class _Writer:
         self._heading_counts = [0, 0, 0, 0]
         #: How far right the heading above stands; the paragraphs under it stand as far.
         self._body_indent_mm = 0.0
+        #: The level of the heading above (0: none yet).
+        self._heading_level = 0
 
     def char_id(
         self, bold: bool, italic: bool, size: float | None, font: str | None = None, color: str | None = None
@@ -736,6 +775,7 @@ class _Writer:
         # The levels below start again under every heading, numbered by the look or by its writer.
         for deeper in range(block.level, 4):
             self._heading_counts[deeper] = 0
+        self._heading_level = block.level
         self._body_indent_mm = float(self.style.heading_indents_mm[block.level - 1])
         if block.level == 1 and self.style.title_look == "banner":
             return self.banner(block)
@@ -870,10 +910,56 @@ class _Writer:
         return self.heading_number(2, text).strip().removesuffix("."), text
 
     def paragraph(self, block: _Paragraph) -> None:
+        style = self.style
         paragraph = self.new_paragraph()
-        self.write_runs(paragraph, block.text, size=self.style.body_size, font=self.style.body_font)
+        note = block.text.lstrip().startswith(_NOTE_MARK)  # a note is set smaller, as the look gives it
+        self.write_runs(
+            paragraph,
+            block.text,
+            size=(style.note_size if note else None) or style.body_size,
+            font=(style.note_font if note else None) or style.body_font,
+        )
         if self._body_indent_mm > 0:
             self.doc.styles.apply_paragraph_format(paragraphs=[paragraph], indent_left_mm=self._body_indent_mm)
+
+    def fit_on_one_line(self, paragraph: HwpxOxmlParagraph) -> None:
+        """Narrow the letter spacing of a list item that runs a little past its line, so that it stays on one.
+
+        The spacing is narrowed by whole percents, no further than ``list_fit_spacing``, to the first value at
+        which the text is measured to fit with a little room to spare. An item that would need more keeps its
+        spacing and wraps. A measure that turns out too short costs nothing but a wrapped line: the spacing is
+        a fixed one, never Hancom's fit-to-one-line, which presses a line as far as it takes.
+        """
+
+        from dataclasses import replace
+
+        from ..form_fit.measure import char_advance, indented_widths, text_style_from_refs
+
+        limit = self.style.list_fit_spacing
+        runs = [run for run in paragraph.runs if run.text]
+        text = "".join(run.text for run in runs).rstrip()
+        if not limit or not text or "\n" in text:
+            return
+        look = text_style_from_refs(
+            self.doc, paragraph.para_pr_id_ref, [runs[0].char_pr_id_ref], end_char_pr_id_ref=runs[-1].char_pr_id_ref
+        )
+        line = (paragraph._context_table_width() or _FALLBACK_TEXT_WIDTH) - look.margin_left - look.margin_right
+        room = indented_widths(line, look)[0]
+        points = self.style.body_size or _BASE_SIZE_PT
+
+        def width(spacing: int) -> float:
+            spaced = replace(look, spacing=float(spacing))
+            return sum(char_advance(char, points, spaced) for char in text)
+
+        if room <= 0 or width(0) <= room:
+            return
+        for spacing in range(-1, -limit - 1, -1):
+            if width(spacing) <= room * (1 - _FIT_SPARE):
+                for run in runs:
+                    run.char_pr_id_ref = self.doc.styles.ensure_run(
+                        base_char_pr_id=run.char_pr_id_ref, letter_spacing=spacing
+                    )
+                return
 
     def list(self, block: _List) -> None:
         groups: dict[tuple[str, int], list[int]] = {}
@@ -902,7 +988,7 @@ class _Writer:
                 )
                 numbered = True
             else:
-                chars = self.style.bullet_chars
+                chars = (self.style.sub_bullet_chars if self._heading_level == 4 else ()) or self.style.bullet_chars
                 bullet = chars[min(level, len(chars)) - 1] if chars else self.style.bullet_char
                 self.doc.styles.apply_list_format(paragraph_indexes=indexes, kind="bullet", level=level, bullet_char=bullet)
         step = self.style.list_indent_mm
@@ -913,6 +999,10 @@ class _Writer:
             left = first + step * (level - 1)
             if left > 0:
                 self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, indent_left_mm=left)
+        if self.style.list_fit_spacing:  # once each item has its margins and its bullet
+            for paragraphs in by_level.values():
+                for paragraph in paragraphs:
+                    self.fit_on_one_line(paragraph)
 
     def _index_of(self, paragraph: HwpxOxmlParagraph) -> int:
         element = paragraph.element
@@ -953,11 +1043,18 @@ class _Writer:
                     align = self.style.table_header_align
                 if align in ("center", "right"):
                     aligned.setdefault(align, []).append(cell.paragraphs[0])
-        for align, paragraphs in aligned.items():
-            self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
         if self.style.table_fit_columns and cols > 1:
             total = sum(table.cell(0, col_index).width for col_index in range(cols))
             table.set_column_widths(_column_weights(block.rows, cols, size or _BASE_SIZE_PT, total))
+        if self.style.table_align == "auto":
+            widths = [table.cell(0, col_index).width for col_index in range(cols)]
+            by_column = _body_aligns(block, cols, size or _BASE_SIZE_PT, widths)
+            for row_index in range(1 if block.header else 0, len(block.rows)):
+                for col_index, align in enumerate(by_column):
+                    if align:
+                        aligned.setdefault(align, []).append(table.cell(row_index, col_index).paragraphs[0])
+        for align, paragraphs in aligned.items():
+            self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
         if self.style.table_row_height_mm:
             table.set_row_heights([round(self.style.table_row_height_mm * _HWPUNIT_PER_MM)] * len(block.rows))
 
@@ -1006,6 +1103,61 @@ _BOX_TITLE_SLACK_EMS = 4.0
 _BOX_TITLE_INDENT_MM = 3.0
 #: A bold heading typeface runs wider than the estimate, which is made for body text.
 _BOX_TITLE_WIDER = 1.05
+#: A paragraph that starts with this mark is a note.
+_NOTE_MARK = "※"
+#: The share of its line a list item is measured to leave free before its narrowed spacing is taken to fit.
+_FIT_SPARE = 0.01
+#: The most a look may narrow the letter spacing of a list item, in percent: past it the letters crowd.
+_FIT_SPACING_MOST = 10
+
+
+def _plain_cell(text: str) -> str:
+    return "".join(chunk for chunk, _bold, _italic in parse_inline(_BR.sub("\n", text)))
+
+
+def _column_needs(rows: list[list[str]], cols: int, font_pt: float) -> tuple[list[float], float]:
+    """The width each column needs for its longest line, cell padding included, and the least any column is
+    given (a few characters)."""
+
+    from ..form_fit.measure import estimate_text_width
+
+    em = estimate_text_width("가", font_pt)
+    floor = em * _MIN_COLUMN_CHARS + _CELL_SIDE_PADDING
+    needs: list[float] = []
+    for col_index in range(cols):
+        longest = 0.0
+        for row in rows:
+            text = row[col_index] if col_index < len(row) else ""
+            for line in _plain_cell(text).split("\n"):
+                longest = max(longest, estimate_text_width(line, font_pt))
+        needs.append(max(longest + em * _COLUMN_SLACK_CHARS + _CELL_SIDE_PADDING, floor))
+    return needs, floor
+
+
+def _body_aligns(block: _Table, cols: int, font_pt: float, widths: list[int]) -> list[str | None]:
+    """How the look aligns the body cells of each column (``table_align="auto"``); ``None`` leaves them.
+
+    A column whose cells each fit on one line is centred, and one that wraps reads from the left. A table of
+    two columns is read as labels and what they name: the labels are spread over their column's width and
+    the other column reads from the left. A column the Markdown aligns itself is left to it.
+    """
+
+    body = block.rows[1:] if block.header else block.rows
+    if not body:
+        return [None] * cols
+    needs, _floor = _column_needs(body, cols, font_pt)
+    labels = [_plain_cell(row[0]) if row else "" for row in body]
+    spread = all("\n" not in label and len("".join(label.split())) >= 2 for label in labels)
+    aligns: list[str | None] = []
+    for col_index in range(cols):
+        given = block.aligns[col_index] if col_index < len(block.aligns) else None
+        if given is not None or needs[col_index] > widths[col_index] or (cols == 2 and col_index == 1):
+            aligns.append(None)
+        elif cols == 2 and spread:
+            aligns.append("distribute")
+        else:
+            aligns.append("center")
+    return aligns
 
 
 def _column_weights(rows: list[list[str]], cols: int, font_pt: float, table_width: int) -> list[float]:
@@ -1019,19 +1171,7 @@ def _column_weights(rows: list[list[str]], cols: int, font_pt: float, table_widt
     long text.
     """
 
-    from ..form_fit.measure import estimate_text_width
-
-    em = estimate_text_width("가", font_pt)
-    floor = em * _MIN_COLUMN_CHARS + _CELL_SIDE_PADDING
-    needs: list[float] = []
-    for col_index in range(cols):
-        longest = 0.0
-        for row in rows:
-            text = row[col_index] if col_index < len(row) else ""
-            plain = "".join(chunk for chunk, _bold, _italic in parse_inline(_BR.sub("\n", text)))
-            for line in plain.split("\n"):
-                longest = max(longest, estimate_text_width(line, font_pt))
-        needs.append(max(longest + em * _COLUMN_SLACK_CHARS + _CELL_SIDE_PADDING, floor))
+    needs, floor = _column_needs(rows, cols, font_pt)
     if sum(needs) <= table_width:
         return needs
     if floor * cols >= table_width:

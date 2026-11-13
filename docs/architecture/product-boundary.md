@@ -36,8 +36,9 @@ core rule is not enough.
   `report` (owner decision, 2026-11-12): the first document a newcomer makes with
   the library alone should look like a document. It is a bundle of `MarkdownStyle`
   values (typefaces, sizes, heading numbers, the title banner, the section box,
-  table rules, bullets, page margins, a page number) and holds no rule about
-  what a document must contain. Its values were changed on 2026-11-13 to follow
+  table rules and cell alignment, bullets, the size of a note, how far a list
+  item's letter spacing may be narrowed to keep it on one line, page margins,
+  a page number) and holds no rule about what a document must contain. Its values were changed on 2026-11-13 to follow
   a report the owner supplied; it is still the one named look. Since the same
   day `from_markdown` uses it when no style is given (owner decision), and
   `append_markdown` keeps the plain look so an existing document keeps its own. Looks for genres with content rules (공문,

@@ -784,3 +784,120 @@ def test_append_markdown_takes_a_byline_too() -> None:
 
     assert texts[texts.index("제목") + 1] == "연구부"
     assert _shape(doc, doc.paragraphs[texts.index("연구부")]).align.horizontal == "RIGHT"
+
+
+# -- what the report look does by what the text holds ---------------------------------
+
+
+def _spacing(doc, paragraph) -> int:
+    run = next(run for run in paragraph.runs if run.text)
+    return int((doc.styles.char_property(run.char_pr_id_ref).child_attributes.get("spacing") or {}).get("hangul", "0"))
+
+
+def test_a_two_column_table_spreads_its_labels_and_a_wider_one_centres_what_fits() -> None:
+    doc = from_markdown(
+        "| 구분 | 내용 |\n|---|---|\n| 행사명 | 가을 책 잔치 |\n| 장소 | 도서관 2층 열람실 |\n\n"
+        "| 구분 | 맡은 이 | 하는 일 | 인원 |\n|---|---|---|---|\n"
+        "| 준비 | 책 고르기 모둠 | 학년마다 읽을 책을 열 권씩 골라 목록을 만들고 도서관 누리집에 올려 누구나 미리 볼 수 있게 한다 | 2 |\n\n"
+        "| 번호 | 이름 | 점수 |\n|---|:---|---:|\n| 1 | 가람 | 90 |\n"
+    )
+    labels, wide, given = _tables(doc)
+
+    assert [_align(doc, labels.cell(row, 0)) for row in (1, 2)] == ["DISTRIBUTE", "DISTRIBUTE"]
+    assert _align(doc, labels.cell(1, 1)) not in ("CENTER", "DISTRIBUTE")  # what a label names reads from the left
+    assert _align(doc, labels.cell(0, 0)) == "CENTER"  # the header row is centred as before
+    # a column whose cells fit on one line is centred, the one that wraps is not
+    assert [_align(doc, wide.cell(1, col)) == "CENTER" for col in range(4)] == [True, True, False, True]
+    # a column the Markdown aligns itself is left to it
+    assert [_align(doc, given.cell(1, col)) for col in range(3)] == ["CENTER", _align(doc, labels.cell(1, 1)), "RIGHT"]
+
+    # the plain look leaves body cells as they are
+    plain = _tables(from_markdown("| 구분 | 내용 |\n|---|---|\n| 행사명 | 책 잔치 |\n", style="plain"))[0]
+    assert plain.cell(1, 0).paragraphs[0].para_pr_id_ref == plain.cell(1, 1).paragraphs[0].para_pr_id_ref
+
+
+def test_one_letter_labels_are_centred_not_spread() -> None:
+    doc = from_markdown("| 가 | 첫째 항목 |\n| 나 | 둘째 항목 |\n")
+    table = _tables(doc)[0]
+
+    assert [_align(doc, table.cell(row, 0)) for row in (0, 1)] == ["CENTER", "CENTER"]
+
+
+def test_a_list_under_a_small_heading_takes_its_own_bullets() -> None:
+    doc = from_markdown("### 항목\n\n- 하나\n  - 둘\n\n#### 작은 항목\n\n- 셋\n  - 넷\n\n### 다음\n\n- 다섯\n")
+    by_text = {paragraph.text: paragraph for paragraph in doc.paragraphs}
+
+    def bullet(text: str) -> str:
+        return doc.styles.bullet(_shape(doc, by_text[text]).heading.id_ref).char
+
+    assert [bullet(text) for text in ("하나", "둘", "셋", "넷", "다섯")] == ["□", "-", "◦", "-", "□"]
+    plain = from_markdown("#### 작은 항목\n\n- 셋\n", style=MarkdownStyle(bullet_chars=("○",)))
+    assert plain.styles.bullet(_shape(plain, plain.paragraphs[1]).heading.id_ref).char == "○"
+
+
+def test_a_note_is_set_in_the_note_size() -> None:
+    doc = from_markdown("본문이다.\n\n※ 일정은 바뀔 수 있음\n\n- ※ 목록 안의 표시는 그대로 둔다\n")
+    by_text = {paragraph.text: paragraph for paragraph in doc.paragraphs}
+    note = _run(by_text["※ 일정은 바뀔 수 있음"], "※ 일정은 바뀔 수 있음")
+
+    assert _look(doc, note).height == 1000
+    assert doc.styles.font_face(note.char_pr_id_ref) == "한컴산뜻돋움"
+    assert _char(doc, by_text["본문이다."], "본문이다.").height == 1200
+    item = by_text["※ 목록 안의 표시는 그대로 둔다"]
+    assert _look(doc, next(run for run in item.runs if run.text)).height == 1200
+    plain = from_markdown("※ 일정은 바뀔 수 있음\n", style="plain")
+    assert _look(plain, next(run for run in plain.paragraphs[0].runs if run.text)).height == 1000  # the base size
+
+
+#: In the report look, at the first list depth: a little past one line, and well past it.
+LITTLE_OVER = "도서관 2층 열람실에서 10월 셋째 주 금요일 오후 3시부터 책 읽어 주기 모임을 연다"
+TWO_LINES = "학년마다 읽을 책을 열 권씩 골라 목록을 만들고 도서관 누리집에 올려 누구나 미리 볼 수 있게 하며 빌려 간 책은 두 주 안에 돌려받는다"
+
+
+def test_a_list_item_a_little_too_long_is_kept_on_one_line_by_its_letter_spacing() -> None:
+    doc = from_markdown(f"- 짧은 항목\n- {LITTLE_OVER}\n- {TWO_LINES}\n  - {LITTLE_OVER}\n\n{LITTLE_OVER}\n")
+    short, over, long, nested, body = doc.paragraphs
+
+    assert _spacing(doc, short) == 0  # fits as it is
+    assert -8 <= _spacing(doc, over) < 0
+    assert _spacing(doc, long) == 0  # would need more than the look allows: it wraps as it is
+    assert _spacing(doc, body) == 0  # a paragraph of prose is not a line to keep whole
+    assert -8 <= _spacing(doc, nested) <= 0
+    # every run of the item is narrowed alike, the bold ones too
+    mixed = from_markdown(f"- {LITTLE_OVER[:20]}**{LITTLE_OVER[20:30]}**{LITTLE_OVER[30:]}\n")
+    runs = [run for run in mixed.paragraphs[0].runs if run.text]
+    spacings = {(mixed.styles.char_property(run.char_pr_id_ref).child_attributes.get("spacing") or {}).get("hangul") for run in runs}
+    assert len(runs) == 3 and len(spacings) == 1 and int(spacings.pop()) < 0
+    assert _look(mixed, runs[1]).bold and not _look(mixed, runs[0]).bold
+
+
+def test_the_letter_spacing_is_never_narrowed_past_what_the_style_allows() -> None:
+    from dataclasses import replace
+
+    never = from_markdown(f"- {LITTLE_OVER}\n", style=replace(MarkdownStyle.report(), list_fit_spacing=0))
+    assert _spacing(never, never.paragraphs[0]) == 0
+    plain = from_markdown(f"- {LITTLE_OVER}\n", style="plain")
+    assert _spacing(plain, plain.paragraphs[0]) == 0
+    slight = from_markdown(f"- {LITTLE_OVER}\n", style=replace(MarkdownStyle.report(), list_fit_spacing=1))
+    assert _spacing(slight, slight.paragraphs[0]) in (0, -1)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"table_align": "center"},
+        {"list_fit_spacing": 11},
+        {"list_fit_spacing": -1},
+        {"list_fit_spacing": 2.5},
+        {"list_fit_spacing": True},
+        {"sub_bullet_chars": ("◦◦",)},
+        {"note_size": 0},
+        {"note_font": ""},
+        {"byline_size": 0},
+        {"byline_font": ""},
+    ],
+)
+def test_a_value_of_the_newer_fields_that_cannot_be_drawn_is_refused(kwargs) -> None:
+    with pytest.raises(ValueError) as caught:
+        MarkdownStyle(**kwargs)
+    assert caught.value.code == "text-markdown-style-invalid"  # type: ignore[attr-defined]

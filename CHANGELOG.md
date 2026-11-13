@@ -11,14 +11,22 @@
   - `#`은 제목이다. 본문 너비의 회색 상자 안에 21pt로 가운데 놓고, 상자 위아래에 색 띠를 두른다.
   - `##`은 큰 항목이다. 남색 칸에 번호(`Ⅰ`, `Ⅱ` …)를 넣고 그 옆에 남색 제목과 밑줄을 그린다. `###`·`####`에는
     `1.`·`가.` 번호를 붙인다. 번호를 직접 쓴 제목(`## Ⅱ. 현황`, `### 1. 목적`)은 쓴 번호를 그대로 쓴다.
-  - 본문은 12pt 휴먼명조, 제목은 HY헤드라인M, 글머리표는 깊이에 따라 `□`·`-`·`·`이다.
+  - 본문은 12pt 휴먼명조, 제목은 HY헤드라인M, 글머리표는 깊이에 따라 `□`·`-`·`·`이다. `####` 아래의 목록은
+    `◦`로 시작한다. `※`로 시작하는 문단은 10pt 한컴산뜻돋움으로 쓴다.
+  - 줄 끝을 조금 넘는 목록 항목은 자간을 좁혀 한 줄에 넣는다. 좁히는 폭은 8%까지이고, 그보다 더 좁혀야 하는
+    항목은 손대지 않고 줄을 바꾼다. 한/글의 "한 줄로 입력"은 쓰지 않는다. 그 기능은 들어갈 때까지 좁혀서
+    글자가 겹칠 수 있기 때문이다. 한/글 2024에서 길이를 한 글자씩 바꾼 항목 375개로 확인했다: 잰 폭이 줄의 99%
+    이하인 항목은 모두 한 줄에 들어갔고, 잰 폭은 한/글의 실제 줄 끝과 0.3% 안에서 맞았다. 그래서 여유를 1% 둔다.
   - 표는 12pt 한컴산뜻돋움이다. 좌우를 트고 위아래에 굵은 줄을, 연한 파랑 머리 행 아래에 이중선을 긋는다.
+    한 줄에 들어가는 열은 가운데에, 줄이 바뀌는 열은 왼쪽에 놓는다. 두 열짜리 표는 첫 열을 이름표로 보고 열
+    너비에 고르게 펴며(균등 분할) 둘째 열은 왼쪽에 놓는다. Markdown 구분선으로 정렬을 준 열은 그대로 둔다.
   - 새 문서는 여백을 20mm(아래 15mm)로 잡고 꼬리말 가운데에 `- 1 -`을 넣는다.
 
   모두 `MarkdownStyle`의 값이라 일부만 바꾸거나 따로 쓸 수 있다: 번호와 글머리표(`heading_numbers`, `bullet_chars`),
-  글꼴과 굵기(`heading_fonts`, `body_font`, `table_font`, 수준별 `heading_bold`), 제목 상자(`title_look`,
-  `banner_colors`, `banner_fill`), 큰 항목 상자(`section_look`, `section_colors`), 표(`table_look`,
-  `table_row_height_mm`, `table_size`), 들여쓰기(`heading_indents_mm`, `list_first_indent_mm`), 쪽(`page_margins_mm`,
+  `####` 아래의 글머리표(`sub_bullet_chars`), 글꼴과 굵기(`heading_fonts`, `body_font`, `table_font`, 수준별
+  `heading_bold`), 제목 상자(`title_look`, `banner_colors`, `banner_fill`), 큰 항목 상자(`section_look`,
+  `section_colors`), 표(`table_look`, `table_align`, `table_row_height_mm`, `table_size`), 주석(`note_size`,
+  `note_font`), 한 줄 맞춤(`list_fit_spacing`), 들여쓰기(`heading_indents_mm`, `list_first_indent_mm`), 쪽(`page_margins_mm`,
   `page_number`, `page_number_side`), 상자 없는 제목(`title_align`, `title_rule`, `title_space_after_pt`).
   라이브러리가 이름 붙여 싣는 모양은 이것 하나이고, 내용 규칙이 있는 장르(공문·가정통신문)는 전처럼 응용 계층
   몫이다. 한/글 2024에서 화면을 확인했다. 글꼴 세 가지는 한컴오피스에 들어 있고, 없는 환경에서는 보는 프로그램이
