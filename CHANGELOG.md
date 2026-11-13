@@ -6,6 +6,10 @@
 
 ### 추가
 
+- Markdown 내보내기(`doc.text.markdown(rich=True)`)가 머리말·꼬리말·메모를 실을 수 있다.
+  `headers_and_footers=True`면 머리말을 구역 첫머리에, 꼬리말을 구역 끝에 `> 머리말: …` 줄로 싣는다(같은 글은
+  한 번). `memos=True`면 메모를 각주처럼 싣는다: 메모가 걸린 글 뒤에 `[^memoN]`, 내용은 부록에 `메모: …`.
+  본문에 걸린 자리가 없는 메모는 구역 끝에 `> 메모: …`로 나간다. 기본값은 둘 다 꺼짐이라 지금 결과는 그대로다.
 - `hwpx.ingest`의 Markdown 변환이 `.hwp`(HWP 5.0)도 받는다. `HwpxDocument.open`은 `.hwp`를 읽는데 이 진입점만
   "받는 변환기가 없다"로 거부했다. 결과는 `source_format="hwp"`이고, 문서 모델로 옮기지 못한 내용은
   `metadata["hwp_conversion"]`(`unconverted`·`dropped`)과 `warnings`에 실리며 그때 `lossiness`는 `"medium"`
@@ -20,6 +24,9 @@
 
 ### 바뀜
 
+- `hwpx.ingest`의 Markdown에 머리말·꼬리말·메모가 실린다(위 두 옵션을 켜서 부른다). 전에는 빠진 것으로
+  `metadata["left_out"]`과 `warnings`에 보고만 했다. 본문만 원하면
+  `markdown_options={"headers_and_footers": False, "memos": False}`를 준다.
 - `.hwp`로 쓰기를 실험 기능으로 낮추고 보호 두 가지를 넣었다. `.hwp`에서 연 문서를 그 원본 경로에 `.hwp`로 저장하면
   `Hwp5Error`(`hwp5-overwrite-source`)로 거부한다. 한/글이 저장한 원본이 이 라이브러리가 다시 만든 파일로 바뀌는 일을
   막는다. 열 때 옮기지 못한 내용이 있는 문서(`conversion_report`가 비어 있지 않음)는 `.hwp`로 쓰지 않고

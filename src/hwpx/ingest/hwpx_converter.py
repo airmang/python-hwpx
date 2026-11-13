@@ -56,6 +56,9 @@ class HwpxMarkdownConverter:
 
         markdown_kwargs = dict(kwargs.pop("markdown_options", {}) or {})
         markdown_kwargs.setdefault("detect_headings", True)
+        # 읽는 쪽(LLM·색인)에는 본문 밖의 글도 문서의 글이다.
+        markdown_kwargs.setdefault("headers_and_footers", True)
+        markdown_kwargs.setdefault("memos", True)
 
         doc = HwpxDocument.open(data)
         try:
