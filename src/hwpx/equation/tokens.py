@@ -139,6 +139,19 @@ OPERATORS: dict[str, str] = {
     "Leftarrow": r"\Leftarrow",
     "to": r"\to",
     "mapsto": r"\mapsto",
+    # Render-verified on desktop Hangul 2024 (2026-11-13). The first spelling of each is the one
+    # written when authoring.
+    "LRARROW": r"\Leftrightarrow",
+    "uparrow": r"\uparrow",
+    "downarrow": r"\downarrow",
+    "UPARROW": r"\Uparrow",
+    # The pair of opposite arrows of a reversible reaction.
+    "EXARROW": r"\rightleftharpoons",
+    # Geometry: ``perp`` is not a symbol name (it comes out as letters); ``BOT``/``bot`` is.
+    "BOT": r"\perp",
+    "bot": r"\perp",
+    "parallel": r"\parallel",
+    "PARALLEL": r"\parallel",
     # Spacing: a back quote is a quarter of the ``~`` space.
     "`": r"\,",
 }
@@ -226,6 +239,9 @@ ACCENTS: dict[str, str] = {
     "widetilde": r"\widetilde",
     "overline": r"\overline",
     "underline": r"\underline",
+    # An arc over its argument, and a frame around it (render-verified on desktop Hangul 2024).
+    "arch": r"\wideparen",
+    "box": r"\boxed",
 }
 
 # --- Matrix / environment builders (consume one following group) -----------
@@ -241,6 +257,8 @@ MATRIX_ENVIRONMENTS: dict[str, str] = {
     # literal text on the real build).
     "dmatrix": "vmatrix",
     "cases": "cases",
+    # Lines aligned at ``&``.
+    "eqalign": "aligned",
 }
 
 # --- Delimiters usable after LEFT / RIGHT ----------------------------------
