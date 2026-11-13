@@ -73,6 +73,8 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
   come out with `notes=True`, `markdown(rich=True)` or `TextExtractor`; headers, footers and memos only from
   `TextExtractor`. Equations, composed characters and form-object captions are not extracted by any path yet.
   The Markdown converter (`hwpx.ingest`) reports what it left out in `warnings` and `lossiness`.
+  It reads `.hwp` through the same call, and `hwpx.integrations.langchain.HwpxLoader` hands the result to
+  LangChain (`pip install "python-hwpx[langchain]"`).
 - Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
 - Fill forms: find a cell by its label and change only the value; parts you did not touch keep their bytes.
   FormFit decides whether a value should wrap or shrink to fit its cell, measuring with Hangul's glyph widths.
