@@ -2,12 +2,17 @@
 """Markdown → HWPX: write a small, common Markdown subset into a document.
 
 ``markdown_export`` goes one way (HWPX → Markdown); this module goes the other.
-It knows headings, paragraphs, lists, pipe tables and bold/italic. The default
-look is genre-neutral. One named look ships with the library, ``"report"``
+It knows headings, paragraphs, lists, pipe tables and bold/italic.
+
+One named look ships with the library, ``"report"``
 (:meth:`MarkdownStyle.report`): a title in a banner with colour strips,
 section headings in a numbered box, ruled tables, report typefaces and a page
-number, so the first document a newcomer makes looks like a finished report.
-Everything it does is a :class:`MarkdownStyle` field.
+number. A new document (:func:`from_markdown`) takes it unless another style
+is given, so the first document a newcomer makes looks like a finished report.
+Markdown added to a document that exists (:func:`append_markdown`) takes the
+plain look (``"plain"``, :class:`MarkdownStyle` as it is) unless a style is
+given, so that document keeps its own look. Everything a look does is a
+:class:`MarkdownStyle` field.
 Other genres (공문·가정통신문 …) stay with the application layer, which passes
 its own :class:`MarkdownStyle`; the library holds no knowledge of what such a
 document must contain.
@@ -100,6 +105,10 @@ class MarkdownStyle:
     ``page_margins_mm`` is ``(left, right, top, bottom)`` or, with the header
     and footer margins after them, six values; like ``page_number`` it applies
     to a document made by :func:`from_markdown` only.
+
+    ``byline_size``, ``byline_font`` and ``byline_bold`` draw the byline, the
+    right-aligned line under the title that :func:`from_markdown` takes as
+    ``byline=``; ``None`` is the body's size or typeface.
     """
 
     heading_sizes: tuple[float, float, float, float] = (16.0, 12.0, 11.0, 10.0)
@@ -134,6 +143,9 @@ class MarkdownStyle:
     table_look: str = "grid"
     table_row_height_mm: float | None = None
     page_margins_mm: tuple[float, ...] | None = None
+    byline_size: float | None = None
+    byline_font: str | None = None
+    byline_bold: bool = False
 
     @classmethod
     def report(cls) -> MarkdownStyle:
@@ -146,8 +158,9 @@ class MarkdownStyle:
         with ``□``, ``-``, ``·`` bullets by depth; headings are HY헤드라인M.
         Tables are 12pt 한컴산뜻돋움, open at the sides, with a pale blue
         header row over a double line. The page has 20 mm margins (15 mm at the
-        bottom) and ``- 1 -`` at the bottom centre. Hancom ships these
-        typefaces; where one is missing the viewer substitutes its own.
+        bottom) and ``- 1 -`` at the bottom centre. A byline is 13pt bold
+        한컴산뜻돋움. Hancom ships these typefaces; where one is missing the
+        viewer substitutes its own.
         """
 
         return cls(
@@ -174,6 +187,9 @@ class MarkdownStyle:
             page_margins_mm=(20.0, 20.0, 20.0, 15.0, 10.0, 10.0),
             page_number=True,
             page_number_side="-",
+            byline_size=13.0,
+            byline_font="한컴산뜻돋움",
+            byline_bold=True,
         )
 
     def __post_init__(self) -> None:
@@ -223,9 +239,16 @@ class MarkdownStyle:
                 context={"bullet_chars": tuple(self.bullet_chars)},
                 suggestion="Give one character per list depth, for example ('○', '-', '·').",
             )
-        for name in ("table_size", "title_space_after_pt", "list_indent_mm", "list_first_indent_mm", "table_row_height_mm"):
+        for name in (
+            "table_size",
+            "title_space_after_pt",
+            "list_indent_mm",
+            "list_first_indent_mm",
+            "table_row_height_mm",
+            "byline_size",
+        ):
             value = getattr(self, name)
-            positive = name in ("table_size", "table_row_height_mm")
+            positive = name in ("table_size", "table_row_height_mm", "byline_size")
             if value is not None and (value < 0 or (value == 0 and positive)):
                 raise HwpxValueError(
                     f"{name} must be positive" if positive else f"{name} must not be negative",
@@ -293,7 +316,7 @@ class MarkdownStyle:
                 "page_number_side must be one character or None",
                 "Give the character drawn on each side of the page number, for example '-'.",
             )
-        for name in ("body_font", "table_font", "banner_fill"):
+        for name in ("body_font", "table_font", "byline_font", "banner_fill"):
             value = getattr(self, name)
             if (value is not None or name == "banner_fill") and (not isinstance(value, str) or not value.strip()):
                 refuse(name, f"{name} must be a name that is not empty", "Name a typeface, or a colour as #RRGGBB.")
@@ -340,12 +363,14 @@ _OWN_NUMBER = re.compile(
     r"|\(\d{1,2}\)|\([가나다라마바사아자차카타파하]\)|[①-⑳]|제\s*\d+\s*[장절관조항])"
 )
 #: Names :func:`append_markdown` and :func:`from_markdown` take in place of a style.
-_NAMED_STYLES = {"report": MarkdownStyle.report, "보고서": MarkdownStyle.report}
+_NAMED_STYLES = {"report": MarkdownStyle.report, "보고서": MarkdownStyle.report, "plain": MarkdownStyle}
 
 
-def _resolve_style(style: MarkdownStyle | str | None) -> MarkdownStyle:
+def _resolve_style(style: MarkdownStyle | str | None, default: str = "plain") -> MarkdownStyle:
+    """*style* as a :class:`MarkdownStyle`; ``None`` is the look named *default*."""
+
     if style is None:
-        return MarkdownStyle()
+        style = default
     if isinstance(style, MarkdownStyle):
         return style
     maker = _NAMED_STYLES.get(style) if isinstance(style, str) else None
@@ -356,7 +381,7 @@ def _resolve_style(style: MarkdownStyle | str | None) -> MarkdownStyle:
             f"unknown Markdown style {style!r}",
             code="text-markdown-style-invalid",
             context={"style": style, "known": sorted(_NAMED_STYLES)},
-            suggestion="Pass a MarkdownStyle, None for the neutral look, or the name 'report' (also '보고서').",
+            suggestion="Pass a MarkdownStyle, or a name: 'report' (also '보고서') or 'plain'.",
         )
     return maker()
 
@@ -705,17 +730,17 @@ class _Writer:
         self._heading_counts[level - 1] += 1
         return _NUMBER_FORMS[form](self._heading_counts[level - 1]) + " "
 
-    def heading(self, block: _Heading) -> None:
+    def heading(self, block: _Heading) -> HwpxOxmlParagraph:
+        """Write a heading and return the body paragraph that holds it."""
+
         # The levels below start again under every heading, numbered by the look or by its writer.
         for deeper in range(block.level, 4):
             self._heading_counts[deeper] = 0
         self._body_indent_mm = float(self.style.heading_indents_mm[block.level - 1])
         if block.level == 1 and self.style.title_look == "banner":
-            self.banner(block)
-            return
+            return self.banner(block)
         if block.level == 2 and self.style.section_look == "box":
-            self.section_box(block)
-            return
+            return self.section_box(block)
         paragraph = self.new_paragraph()
         size = self.style.heading_sizes[block.level - 1]
         bold, font = self.heading_bold(block.level), self.heading_font(block.level)
@@ -738,8 +763,26 @@ class _Writer:
             border_color="#000000",
             border_width="0.4 mm",
         )
+        return paragraph
 
-    def banner(self, block: _Heading) -> None:
+    def byline(self, text: str, title: HwpxOxmlParagraph | None) -> None:
+        """The line naming who wrote the document, right-aligned under *title* (``None``: no title)."""
+
+        style = self.style
+        paragraph = self.new_paragraph()
+        self.write_runs(
+            paragraph,
+            text,
+            bold=style.byline_bold,
+            size=style.byline_size or style.body_size,
+            font=style.byline_font or style.body_font,
+        )
+        gap = style.title_space_after_pt if style.title_space_after_pt is not None else style.heading_space_after_pt
+        self.doc.styles.apply_paragraph_format(paragraphs=[paragraph], alignment="right", spacing_after_pt=gap)
+        if title is not None and gap is not None:  # the space under the title is now the space under this line
+            self.doc.styles.apply_paragraph_format(paragraphs=[title], spacing_after_pt=0, keep_with_next=True)
+
+    def banner(self, block: _Heading) -> HwpxOxmlParagraph:
         """The title in a filled box the width of the text, colour strips above and below."""
 
         style = self.style
@@ -764,8 +807,9 @@ class _Writer:
             else style.heading_space_after_pt,
             keep_with_next=True,
         )
+        return paragraph
 
-    def section_box(self, block: _Heading) -> None:
+    def section_box(self, block: _Heading) -> HwpxOxmlParagraph:
         """A section heading: its number in a filled cell, the heading beside it over a line."""
 
         from ..form_fit.measure import estimate_text_width
@@ -806,6 +850,7 @@ class _Writer:
             spacing_after_pt=style.heading_space_after_pt,
             keep_with_next=True,
         )
+        return paragraph
 
     def box_number(self, text: str) -> tuple[str, str]:
         """``(number, heading)`` for a boxed section heading; no number draws the heading alone.
@@ -1008,38 +1053,61 @@ def append_markdown(
     markdown: str,
     *,
     style: MarkdownStyle | str | None = None,
+    byline: str | None = None,
     reuse_first_paragraph: bool = False,
 ) -> None:
     """Append *markdown* to the end of *document*'s last section.
 
-    *style* is a :class:`MarkdownStyle`, ``None`` for the neutral look, or the
-    name of a look the library ships: ``"report"`` (also ``"보고서"``). Heading
-    numbers start at 1 on each call.
+    *style* is a :class:`MarkdownStyle` or the name of a look: ``"plain"``, or
+    the one the library ships, ``"report"`` (also ``"보고서"``). ``None`` is
+    the plain look, so the document keeps the look it has. Heading numbers
+    start at 1 on each call.
+
+    *byline* is a line naming who wrote the document (a department, a date).
+    It is written right-aligned under the first ``#`` title, or as the first
+    line when the Markdown has no title; ``\\n`` in it is a line break.
 
     ``reuse_first_paragraph=True`` writes the first heading, paragraph or list
     item into the document's first paragraph instead of a new one — what
-    :func:`from_markdown` does with a blank document's empty first line. A table never takes that paragraph (it holds the section settings).
+    :func:`from_markdown` does with a blank document's empty first line. A
+    table of the Markdown never takes that paragraph (it holds the section
+    settings).
     """
 
     writer = _Writer(document, _resolve_style(style), reuse_first=reuse_first_paragraph)
-    for block in parse_blocks(markdown):
+    blocks = list(parse_blocks(markdown))
+    pending = (byline or "").strip()
+    if pending and not any(isinstance(block, _Heading) and block.level == 1 for block in blocks):
+        writer.byline(pending, None)
+        pending = ""
+    for block in blocks:
         if isinstance(block, _Table):
             writer.table(block)
             writer.stop_reusing()
         elif isinstance(block, _Heading):
-            writer.heading(block)
+            title = writer.heading(block)
+            if pending and block.level == 1:
+                writer.byline(pending, title)
+                pending = ""
         elif isinstance(block, _List):
             writer.list(block)
         elif isinstance(block, _Paragraph):
             writer.paragraph(block)
 
 
-def from_markdown(markdown: str, *, style: MarkdownStyle | str | None = None) -> HwpxDocument:
+def from_markdown(
+    markdown: str, *, style: MarkdownStyle | str | None = None, byline: str | None = None
+) -> HwpxDocument:
     """Return a new clean document holding *markdown*.
 
-    ``from_markdown(text, style="report")`` gives the report look: the title
-    in a banner, section headings in a numbered box, ruled tables, 12pt body
-    text, report page margins and a page number.
+    The document takes the report look (``"report"``, :meth:`MarkdownStyle.report`)
+    unless *style* says otherwise: the title in a banner, section headings in
+    a numbered box, ruled tables, 12pt body text, report page margins and a
+    page number. ``style="plain"`` gives the undecorated look, and a
+    :class:`MarkdownStyle` any look of your own.
+
+    *byline* is a line naming who wrote the document (a department, a date),
+    written right-aligned under the title; see :func:`append_markdown`.
 
     The document is made with ``HwpxDocument.new(inherit_style=False)`` and the
     first heading, paragraph or list item takes its empty first line. To add
@@ -1051,7 +1119,7 @@ def from_markdown(markdown: str, *, style: MarkdownStyle | str | None = None) ->
 
     from ..document import HwpxDocument
 
-    resolved = _resolve_style(style)
+    resolved = _resolve_style(style, "report")
     document = HwpxDocument.new(inherit_style=False)
     if resolved.page_margins_mm:  # before the text: tables are made as wide as the text
         left, right, top, bottom, *edges = resolved.page_margins_mm
@@ -1063,7 +1131,7 @@ def from_markdown(markdown: str, *, style: MarkdownStyle | str | None = None) ->
             header_margin_mm=edges[0] if edges else None,
             footer_margin_mm=edges[1] if edges else None,
         )
-    append_markdown(document, markdown, style=resolved, reuse_first_paragraph=True)
+    append_markdown(document, markdown, style=resolved, byline=byline, reuse_first_paragraph=True)
     if resolved.page_number:
         side = resolved.page_number_side
         document.page.set_page_number(prefix=f"{side} " if side else "", suffix=f" {side}" if side else "")

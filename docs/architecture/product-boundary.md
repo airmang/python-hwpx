@@ -38,7 +38,9 @@ core rule is not enough.
   values (typefaces, sizes, heading numbers, the title banner, the section box,
   table rules, bullets, page margins, a page number) and holds no rule about
   what a document must contain. Its values were changed on 2026-11-13 to follow
-  a report the owner supplied; it is still the one named look. Looks for genres with content rules (공문,
+  a report the owner supplied; it is still the one named look. Since the same
+  day `from_markdown` uses it when no style is given (owner decision), and
+  `append_markdown` keeps the plain look so an existing document keeps its own. Looks for genres with content rules (공문,
   가정통신문 …) stay in `python-hwpx-automation`; a second named look in core
   needs a new owner decision.
 

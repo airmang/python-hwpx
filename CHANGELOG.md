@@ -6,7 +6,7 @@
 
 ### 추가
 
-- `from_markdown(text, style="report")`로 보고서 모양의 문서를 만든다(`"보고서"`, `MarkdownStyle.report()`도 같다).
+- `from_markdown(text)`이 보고서 모양의 문서를 만든다(`style="report"`, `"보고서"`, `MarkdownStyle.report()`).
   학교와 기관에서 쓰는 운영 계획·안내 문서의 모양이다.
   - `#`은 제목이다. 본문 너비의 회색 상자 안에 21pt로 가운데 놓고, 상자 위아래에 색 띠를 두른다.
   - `##`은 큰 항목이다. 남색 칸에 번호(`Ⅰ`, `Ⅱ` …)를 넣고 그 옆에 남색 제목과 밑줄을 그린다. `###`·`####`에는
@@ -23,6 +23,9 @@
   라이브러리가 이름 붙여 싣는 모양은 이것 하나이고, 내용 규칙이 있는 장르(공문·가정통신문)는 전처럼 응용 계층
   몫이다. 한/글 2024에서 화면을 확인했다. 글꼴 세 가지는 한컴오피스에 들어 있고, 없는 환경에서는 보는 프로그램이
   다른 글꼴로 바꾸어 그린다.
+- `from_markdown(text, byline="교무기획부")`로 제목 아래 오른쪽에 부서·날짜 줄을 쓴다. 제목(`#`)이 없으면 첫
+  줄에 쓰고, `\n`은 줄 바꿈이다. `doc.text.append_markdown`도 받는다. 모양은 `MarkdownStyle`의
+  `byline_size`·`byline_font`·`byline_bold`이고, 보고서 모양에서는 13pt 한컴산뜻돋움 굵게다.
 - `doc.styles.ensure_border_fill(sides=...)`로 면마다 다른 선을 준다. `"left"`·`"right"`·`"top"`·`"bottom"`에
   `{"type", "width", "color"}`를 주거나, 선을 긋지 않을 면에 `None`을 준다. 빠진 값과 대지 않은 면은 전처럼
   `border_type`·`border_width`·`border_color`·`active_borders`를 따른다. 전에는 네 면이 같은 선이어야 해서, 위아래만
@@ -36,6 +39,9 @@
 
 ### 바뀜
 
+- `from_markdown(text)`이 모양을 주지 않으면 보고서 모양으로 만든다. 6.12.0에서는 꾸미지 않은 모양이었다. 전과
+  같은 모양은 `style="plain"`(또는 `MarkdownStyle()`)으로 만든다. 이미 있는 문서에 덧붙이는
+  `doc.text.append_markdown`은 전처럼 꾸미지 않은 모양이 기본이라 받은 문서의 모양을 그대로 둔다.
 - `from_markdown`·`doc.text.append_markdown`이 만드는 표의 기본 모양이 바뀌었다. 열 너비를 내용에 맞춘다. 짧은 이름
   열은 한 줄에 들어갈 만큼만 차지하고 글이 긴 열이 나머지를 받으며, 다 들어가지 않으면 긴 열만 줄여 줄을 바꾼다.
   머리 행은 가운데로 놓고, 구분선의 `:---`·`:---:`·`---:`를 열 정렬로 읽는다. 전처럼 열 너비를 똑같이 하려면

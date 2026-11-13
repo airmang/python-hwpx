@@ -127,19 +127,24 @@ class TextNamespace(_Namespace):
 
     # -- 가져오기 ----------------------------------------------------------
 
-    def append_markdown(self, markdown: str, *, style: "MarkdownStyle | str | None" = None) -> None:
+    def append_markdown(
+        self, markdown: str, *, style: "MarkdownStyle | str | None" = None, byline: str | None = None
+    ) -> None:
         """*markdown* 을 마지막 구역 끝에 문단·목록·표로 덧붙인다.
 
         ``hwpx.tools.markdown_import.from_markdown`` 과 같은 부분 집합(제목 ``#``~``####``,
         문단, ``-``/``1.`` 목록, ``|`` 표, ``**굵게**``/``*기울임*``)을 쓴다.
         새 문단은 앞 문단의 서식을 물려받지 않는다. 모르는 Markdown 은 평문으로
         쓰고 오류를 내지 않는다. *style* 은
-        :class:`hwpx.tools.markdown_import.MarkdownStyle`.
+        :class:`hwpx.tools.markdown_import.MarkdownStyle` 이나 모양 이름
+        (``"report"``·``"plain"``)이다. 주지 않으면 꾸미지 않은 모양(``"plain"``)으로 써서
+        받은 문서의 모양을 그대로 둔다(새 문서를 만드는 ``from_markdown`` 은 주지 않으면
+        보고서 모양이다). *byline* 은 제목 아래 오른쪽에 쓰는 부서·날짜 줄이다.
         """
 
         from ...tools.markdown_import import append_markdown
 
-        append_markdown(self._doc, markdown, style=style)
+        append_markdown(self._doc, markdown, style=style, byline=byline)
 
     # -- 순회·검색 ---------------------------------------------------------
 

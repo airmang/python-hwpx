@@ -1005,6 +1005,8 @@ document.parts.headers[0].set_begin_numbering(page=1)
 언어 모델이 가장 안정적으로 쓰는 형식이 Markdown이다. `from_markdown`은 흔히 쓰는 부분 집합
 (`#`~`####` 제목, 문단, `-`/`1.` 목록, `|` 표, `**굵게**`·`*기울임*`)으로 새 문서를 만들고,
 모르는 Markdown은 평문으로 쓴다. 이미 있는 문서에는 `doc.text.append_markdown`으로 덧붙인다.
+새 문서는 모양을 주지 않으면 아래의 보고서 모양으로 만들고, 덧붙일 때는 받은 문서의 모양을 해치지 않게
+꾸미지 않은 모양(`style="plain"`)으로 쓴다.
 표는 열 너비를 내용에 맞추고(짧은 이름 열은 좁게, 글이 긴 열은 넓게) 머리 행을 가운데로 놓는다.
 구분선의 `:---`·`:---:`·`---:`로 열 정렬을 정할 수 있다. 목록 안의 목록은 깊이마다 오른쪽으로 들여 쓴다.
 
@@ -1029,8 +1031,8 @@ doc.save_to_path("report.hwpx")
 
 ### 보고서 모양
 
-기본 모양은 어느 문서에나 쓸 수 있게 중립으로 두었다. 보고서처럼 보이게 하려면 `style="report"`(또는
-`"보고서"`)를 준다.
+`from_markdown`은 모양을 주지 않으면 보고서 모양(`style="report"`, `"보고서"`)으로 만든다. 꾸미지 않은
+모양은 `style="plain"`이다. `byline`에는 제목 아래 오른쪽에 쓸 부서·날짜 줄을 준다.
 
 <!-- standalone-python-example -->
 ```python
@@ -1039,7 +1041,7 @@ from hwpx.tools.markdown_import import from_markdown
 doc = from_markdown(
     "# 방과후학교 운영 계획\n\n## 목적\n\n학생의 소질과 적성을 살린다.\n\n"
     "## 운영 방침\n\n### 프로그램 편성\n\n- 수요 조사 결과를 반영한다.\n  - 조사는 2월에 한다.\n",
-    style="report",
+    byline="교무기획부",
 )
 doc.save_to_path("plan.hwpx")
 ```
@@ -1055,6 +1057,8 @@ doc.save_to_path("plan.hwpx")
 - 본문은 12pt 휴먼명조, 제목은 HY헤드라인M이다. 글머리표는 깊이에 따라 `□`·`-`·`·`이고 깊이마다 들여 쓴다.
   `####` 아래의 본문은 그 제목만큼 들여 쓴다.
 - 표는 12pt 한컴산뜻돋움이다. 좌우를 트고 위아래에 굵은 줄을, 연한 파랑 머리 행 아래에 이중선을 긋는다.
+- `byline`은 제목 상자 아래 오른쪽에 13pt 한컴산뜻돋움 굵게로 쓴다. 제목(`#`)이 없으면 첫 줄에 쓰고, `\n`은 줄
+  바꿈이다.
 - 새 문서는 여백을 20mm(아래 15mm)로 잡고 꼬리말 가운데에 `- 1 -`을 넣는다.
   `doc.text.append_markdown(..., style="report")`는 받은 문서의 여백과 꼬리말을 건드리지 않는다.
 
@@ -1089,6 +1093,7 @@ doc.save_to_path("plan-blue.hwpx")
 | `section_look`, `section_colors` | `"box"`면 `##`을 번호 상자로 그린다. 색 셋(번호 칸·선·제목 글자) |
 | `table_look`, `table_header_shading`, `table_row_height_mm` | `"ruled"`면 좌우가 트인 줄 표. 머리 행 색, 행의 최소 높이 |
 | `heading_indents_mm`, `list_first_indent_mm`, `list_indent_mm` | 수준별 제목 들여쓰기, 목록 첫 수준과 그다음 수준의 들여쓰기 |
+| `byline_size`, `byline_font`, `byline_bold` | 부서·날짜 줄의 크기·글꼴·굵기 |
 | `page_margins_mm`, `page_number`, `page_number_side` | 새 문서의 여백(왼쪽·오른쪽·위·아래, 이어서 머리말·꼬리말), 쪽 번호와 양옆 글자 |
 
 라이브러리가 이름 붙여 싣는 모양은 이것 하나다. 공문·가정통신문처럼 넣어야 할 내용이 정해진 장르는 응용 계층이

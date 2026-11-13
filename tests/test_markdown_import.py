@@ -84,7 +84,7 @@ SAMPLE = """# 운영 보고
 
 
 def test_from_markdown_writes_each_construct() -> None:
-    doc = from_markdown(SAMPLE)
+    doc = from_markdown(SAMPLE, style="plain")
     texts = [p.text for p in doc.paragraphs]
     assert texts[0] == "운영 보고"  # the blank document's first line is reused
     assert "이 보고서는 핵심 성과와 과제를 정리한다. 둘째 줄은 이어진다." in texts
@@ -120,7 +120,7 @@ def test_from_markdown_writes_each_construct() -> None:
 
 
 def test_no_outline_or_list_numbering_leaks_into_following_paragraphs() -> None:
-    doc = from_markdown("# 제목\n\n본문\n\n1. 하나\n2. 둘\n\n뒤 문단\n")
+    doc = from_markdown("# 제목\n\n본문\n\n1. 하나\n2. 둘\n\n뒤 문단\n", style="plain")
     texts = [p.text for p in doc.paragraphs]
     for name in ("본문", "뒤 문단"):
         paragraph = doc.paragraphs[texts.index(name)]
@@ -129,7 +129,7 @@ def test_no_outline_or_list_numbering_leaks_into_following_paragraphs() -> None:
 
 
 def test_save_reopen_and_editor_open_safety(tmp_path) -> None:
-    doc = from_markdown(SAMPLE)
+    doc = from_markdown(SAMPLE, style="plain")
     path = tmp_path / "md.hwpx"
     doc.save_to_path(path)
     reopened = HwpxDocument.open(path)
@@ -139,7 +139,7 @@ def test_save_reopen_and_editor_open_safety(tmp_path) -> None:
 
 
 def test_unknown_markdown_never_raises() -> None:
-    doc = from_markdown("> 인용\n\n---\n\n<div>html</div>\n\n```\ncode  kept\n```\n\n- - -\n\n####### 7\n")
+    doc = from_markdown("> 인용\n\n---\n\n<div>html</div>\n\n```\ncode  kept\n```\n\n- - -\n\n####### 7\n", style="plain")
     texts = [p.text for p in doc.paragraphs]
     assert "인용" in texts
     assert "<div>html</div>" in texts
@@ -148,21 +148,21 @@ def test_unknown_markdown_never_raises() -> None:
 
 
 def test_empty_and_table_first_markdown() -> None:
-    assert [p.text for p in from_markdown("").paragraphs] == [""]
-    doc = from_markdown("| a | b |\n|---|---|\n| 1 | 2 |\n\n뒤\n")
+    assert [p.text for p in from_markdown("", style="plain").paragraphs] == [""]
+    doc = from_markdown("| a | b |\n|---|---|\n| 1 | 2 |\n\n뒤\n", style="plain")
     assert doc.paragraphs[0].text == ""  # the section paragraph is not a table anchor
     assert doc.paragraphs[-1].text == "뒤"
 
 
 def test_hard_line_break_and_br_in_cells() -> None:
-    doc = from_markdown("첫 줄  \n둘째 줄\n\n| a<br>b |\n")
+    doc = from_markdown("첫 줄  \n둘째 줄\n\n| a<br>b |\n", style="plain")
     assert doc.paragraphs[0].text == "첫 줄\n둘째 줄"
     (table,) = [t for p in doc.paragraphs for t in p.tables]
     assert "a" in table.cell(0, 0).text and "b" in table.cell(0, 0).text
 
 
 def test_numbered_list_start_is_kept() -> None:
-    doc = from_markdown("3. 셋\n4. 넷\n")
+    doc = from_markdown("3. 셋\n4. 넷\n", style="plain")
     numbering_id = doc.styles.paragraph_property(doc.paragraphs[0].para_pr_id_ref).heading.id_ref
     numbering = doc.styles.numbering(numbering_id)
     assert numbering is not None
@@ -208,7 +208,7 @@ LABELLED = (
 
 
 def test_header_cells_are_centred_and_body_cells_are_left_alone() -> None:
-    doc = from_markdown(LABELLED)
+    doc = from_markdown(LABELLED, style="plain")
     table = _table(doc)
     body = _align(doc, table.cell(1, 1))
 
@@ -228,7 +228,8 @@ def test_header_alignment_can_be_left_as_the_body_is() -> None:
 
 def test_the_separator_row_aligns_whole_columns() -> None:
     doc = from_markdown(
-        "| 이름 | 대상 | 인원 | 비고 |\n|:---|:---:|---:|---|\n| 코딩 기초 | 1학년 | 24 | 심화반 예정 |\n"
+        "| 이름 | 대상 | 인원 | 비고 |\n|:---|:---:|---:|---|\n| 코딩 기초 | 1학년 | 24 | 심화반 예정 |\n",
+        style="plain",
     )
     table = _table(doc)
     plain = _align(doc, table.cell(1, 3))
@@ -243,7 +244,7 @@ def test_the_separator_row_aligns_whole_columns() -> None:
 
 
 def test_a_label_column_is_narrow_and_the_text_column_takes_the_rest() -> None:
-    doc = from_markdown(LABELLED)
+    doc = from_markdown(LABELLED, style="plain")
     table = _table(doc)
     equal = _table(from_markdown(LABELLED, style=MarkdownStyle(table_fit_columns=False)))
     label, text = table.cell(0, 0).width, table.cell(0, 1).width
@@ -288,7 +289,7 @@ def test_too_many_columns_share_the_table_alike() -> None:
 
 
 def test_a_one_column_table_and_a_fitted_table_save_and_reopen(tmp_path) -> None:
-    doc = from_markdown("| 하나뿐 |\n|---|\n| 값 |\n\n" + LABELLED)
+    doc = from_markdown("| 하나뿐 |\n|---|\n| 값 |\n\n" + LABELLED, style="plain")
     path = tmp_path / "tables.hwpx"
 
     doc.save_to_path(path)
@@ -311,7 +312,7 @@ def _shape(doc, paragraph):
 
 
 def test_nested_list_items_move_right_by_depth() -> None:
-    doc = from_markdown("- 하나\n  - 둘\n    - 셋\n- 넷\n\n1. 가\n   1. 나\n")
+    doc = from_markdown("- 하나\n  - 둘\n    - 셋\n- 넷\n\n1. 가\n   1. 나\n", style="plain")
     lefts = [int(_shape(doc, paragraph).margin.left) for paragraph in doc.paragraphs]
 
     assert lefts[0] == lefts[3] == lefts[4] == 0
@@ -326,8 +327,8 @@ def test_nested_list_items_move_right_by_depth() -> None:
     assert int(_shape(wide, wide.paragraphs[1]).margin.left) > lefts[1]
 
 
-#: The plain numbered look: a centred title over a rule, headings numbered 1. 가. 1).
-PLAIN = MarkdownStyle(
+#: A numbered look without boxes: a centred title over a rule, headings numbered 1. 가. 1).
+NUMBERED = MarkdownStyle(
     heading_sizes=(20.0, 15.0, 13.0, 12.0),
     body_size=12.0,
     table_size=11.0,
@@ -358,7 +359,7 @@ def _ink(doc, run) -> str:
 
 
 def test_a_style_numbers_headings_and_centres_the_title_over_a_rule() -> None:
-    doc = from_markdown(REPORT, style=PLAIN)
+    doc = from_markdown(REPORT, style=NUMBERED)
     texts = [paragraph.text for paragraph in doc.paragraphs]
 
     assert texts[0] == "운영 계획"  # the title carries no number
@@ -551,7 +552,7 @@ def test_the_report_look_puts_a_page_number_in_a_new_document_only(tmp_path) -> 
             return b"<hp:footer" in archive.read("Contents/section0.xml")
 
     assert has_footer(from_markdown(REPORT, style="report")) is True
-    assert has_footer(from_markdown(REPORT)) is False
+    assert has_footer(from_markdown(REPORT, style="plain")) is False
     existing = HwpxDocument.new()
     existing.text.append_markdown(REPORT, style="report")
     assert has_footer(existing) is False  # the caller's footer is the caller's
@@ -569,7 +570,7 @@ def test_the_page_number_takes_a_character_on_each_side() -> None:
 def test_a_heading_with_its_own_number_is_not_numbered_again() -> None:
     doc = from_markdown(
         "# 계획\n\n## 1. 목적\n\n## 2. 방침\n\n### 가. 편성\n\n### 2026학년도 일정\n\n## Ⅲ. 현황\n\n## 제4장 맺음\n",
-        style=PLAIN,
+        style=NUMBERED,
     )
 
     assert [paragraph.text for paragraph in doc.paragraphs] == [
@@ -729,3 +730,57 @@ def test_clean_document_does_not_inherit_unless_asked() -> None:
     assert paragraph.style_id_ref == "0"
     explicit = doc.add_paragraph("물려받음", inherit_style=True)
     assert explicit.para_pr_id_ref == paragraph.para_pr_id_ref  # inherits from the previous paragraph
+
+
+# -- the default look and the byline ---------------------------------------------
+
+
+def test_a_new_document_takes_the_report_look_and_an_appended_one_the_plain_look() -> None:
+    made = from_markdown(REPORT)
+    assert made.paragraphs[0].tables[0].cell(1, 0).text == "운영 계획"  # the banner: the report look
+    assert [p.text for p in made.paragraphs] == [p.text for p in from_markdown(REPORT, style="report").paragraphs]
+
+    plain = from_markdown(REPORT, style="plain")
+    assert plain.paragraphs[0].text == "운영 계획" and not plain.paragraphs[0].tables
+    assert [p.text for p in plain.paragraphs] == [p.text for p in from_markdown(REPORT, style=MarkdownStyle()).paragraphs]
+
+    existing = HwpxDocument.new()
+    existing.text.append_markdown("# 덧붙인 제목\n\n본문\n")
+    assert "덧붙인 제목" in [p.text for p in existing.paragraphs]  # a paragraph, not a banner
+    assert not _tables(existing)
+
+
+def test_the_byline_stands_right_aligned_under_the_title() -> None:
+    doc = from_markdown("# 운영 계획\n\n## 목적\n\n본문\n\n# 붙임\n", byline="교무기획부")
+    texts = [paragraph.text for paragraph in doc.paragraphs]
+
+    assert texts.count("교무기획부") == 1 and texts[1] == "교무기획부"  # under the first title only
+    line = doc.paragraphs[1]
+    run = _run(line, "교무기획부")
+    assert _shape(doc, line).align.horizontal == "RIGHT"
+    assert (_look(doc, run).height, _look(doc, run).bold) == (1300, True)
+    assert doc.styles.font_face(run.char_pr_id_ref) == "한컴산뜻돋움"
+    # the space kept under the title is kept under the byline instead
+    assert int(_shape(doc, doc.paragraphs[0]).margin.next) == 0 < int(_shape(doc, line).margin.next)
+
+
+def test_the_byline_is_the_first_line_when_there_is_no_title() -> None:
+    doc = from_markdown("## 목적\n\n본문\n", style="plain", byline="교무기획부\n2026. 11. 13.")
+
+    first = doc.paragraphs[0]
+    assert first.text.replace("\n", " ").split() == ["교무기획부", "2026.", "11.", "13."]
+    assert _shape(doc, first).align.horizontal == "RIGHT"
+    assert not _look(doc, next(run for run in first.runs if run.text)).bold  # the plain look does not embolden it
+    assert doc.paragraphs[1].text == "목적"
+
+    none = from_markdown("# 제목\n", byline="  ")
+    assert [paragraph.text for paragraph in none.paragraphs] == [""]  # only the banner's paragraph
+
+
+def test_append_markdown_takes_a_byline_too() -> None:
+    doc = HwpxDocument.new()
+    doc.text.append_markdown("# 제목\n\n본문\n", byline="연구부")
+    texts = [paragraph.text for paragraph in doc.paragraphs]
+
+    assert texts[texts.index("제목") + 1] == "연구부"
+    assert _shape(doc, doc.paragraphs[texts.index("연구부")]).align.horizontal == "RIGHT"
