@@ -37,6 +37,7 @@ from ._document_primitives import (
     _get_bool_attr,
     _get_int_attr,
     _normalize_border_side_names,
+    _normalize_border_sides,
     _normalize_border_type,
     _normalize_color,
     _normalize_font_langs,
@@ -969,6 +970,7 @@ class HwpxOxmlHeader:
         fill_gradient: Mapping[str, object] | None = None,
         active_borders: Iterable[str] | None = None,
         border_type: str = "SOLID",
+        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
     ) -> str:
         element = self._border_fills_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
@@ -980,6 +982,11 @@ class HwpxOxmlHeader:
         normalized_border_width = normalize_line_width(border_width or "0.12 mm")
         normalized_active_borders = _normalize_border_side_names(active_borders)
         normalized_fill_color = _normalize_color(fill_color)
+        side_lines = _normalize_border_sides(
+            sides, border_color=normalized_border_color, border_width=normalized_border_width,
+            border_type=normalized_border_type, allowed_types=self._BORDER_LINE_TYPES,
+            type_aliases=self._BORDER_LINE_TYPE_ALIASES,
+        )
 
         for border_fill in element.findall(f"{_HH}borderFill"):
             if _border_fill_matches(
@@ -989,7 +996,7 @@ class HwpxOxmlHeader:
                 fill_color=normalized_fill_color,
                 fill_image=fill_image, fill_gradient=fill_gradient,
                 active_borders=normalized_active_borders,
-                border_type=normalized_border_type,
+                border_type=normalized_border_type, side_lines=side_lines,
             ):
                 border_id = border_fill.get("id")
                 if border_id:
@@ -1003,7 +1010,7 @@ class HwpxOxmlHeader:
             fill_color=normalized_fill_color,
             fill_image=fill_image, fill_gradient=fill_gradient,
             active_borders=normalized_active_borders,
-            border_type=normalized_border_type,
+            border_type=normalized_border_type, side_lines=side_lines,
         )
         _attach_new_child(element, new_border_fill)
         _update_item_count(element, "borderFill")

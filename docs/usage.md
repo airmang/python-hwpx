@@ -1044,18 +1044,55 @@ doc = from_markdown(
 doc.save_to_path("plan.hwpx")
 ```
 
-- `#`은 가운데에 놓는 20pt 제목이고 아래에 줄을 긋는다.
-- `##`·`###`·`####`에는 `1.`·`가.`·`1)` 번호를 붙인다(행정업무운영 편람의 항목 순서). 윗수준 제목이 나오면
-  아랫수준 번호는 다시 시작한다. `## 1. 목적`처럼 번호를 직접 쓴 제목에는 붙이지 않는다.
-- 본문은 12pt, 표 안은 11pt, 글머리표는 깊이에 따라 `○`·`-`·`·`이다.
-- 새 문서의 꼬리말 가운데에 쪽 번호를 넣는다. `doc.text.append_markdown(..., style="report")`는 받은 문서의
-  꼬리말을 건드리지 않는다.
+학교와 기관에서 쓰는 운영 계획·안내 문서의 모양이다.
+
+- `#`은 제목이다. 본문 너비의 회색 상자 안에 21pt로 가운데 놓고, 상자 위아래에 색 띠를 두른다.
+- `##`은 큰 항목이다. 남색 칸에 번호(`Ⅰ`, `Ⅱ` …)를 넣고 그 옆에 남색 제목과 밑줄을 그린다. 상자 너비는 제목
+  길이에 맞추고, 본문 너비보다 긴 제목은 칸 안에서 줄을 바꾼다.
+- `###`·`####`에는 `1.`·`가.` 번호를 붙인다. 윗수준 제목이 나오면 아랫수준 번호는 다시 시작한다.
+- 번호를 직접 쓴 제목은 쓴 번호를 그대로 쓴다. `## Ⅱ. 현황`은 칸에 `Ⅱ`를 넣고, `### 1. 목적`에는 번호를 더 붙이지
+  않는다. `## 제2장 현황`처럼 칸에 넣기 어려운 번호는 제목에 두고 번호 칸 없이 그린다.
+- 본문은 12pt 휴먼명조, 제목은 HY헤드라인M이다. 글머리표는 깊이에 따라 `□`·`-`·`·`이고 깊이마다 들여 쓴다.
+  `####` 아래의 본문은 그 제목만큼 들여 쓴다.
+- 표는 12pt 한컴산뜻돋움이다. 좌우를 트고 위아래에 굵은 줄을, 연한 파랑 머리 행 아래에 이중선을 긋는다.
+- 새 문서는 여백을 20mm(아래 15mm)로 잡고 꼬리말 가운데에 `- 1 -`을 넣는다.
+  `doc.text.append_markdown(..., style="report")`는 받은 문서의 여백과 꼬리말을 건드리지 않는다.
+
+글꼴 세 가지는 한컴오피스에 들어 있다. 글꼴이 없는 환경에서는 보는 프로그램이 다른 글꼴로 바꾸어 그린다.
 
 이 모양은 모두 `MarkdownStyle`의 값이다. `MarkdownStyle.report()`를 받아 `dataclasses.replace`로 일부만 바꿀 수
-있고, 번호 형식(`heading_numbers`), 제목 정렬(`title_align`)과 밑줄(`title_rule`), 깊이별 글머리표
-(`bullet_chars`), 목록 들여쓰기(`list_indent_mm`), 표 글자 크기(`table_size`), 쪽 번호(`page_number`)를 따로 줄
-수도 있다. 라이브러리가 이름 붙여 싣는 모양은 이것 하나다. 공문·가정통신문처럼 넣어야 할 내용이 정해진 장르는
-응용 계층이 `MarkdownStyle`로 정한다.
+있다. 아래는 색 띠와 큰 항목 상자의 색을 바꾸고 본문 글꼴을 함초롬바탕으로 바꾼 것이다.
+
+<!-- standalone-python-example -->
+```python
+from dataclasses import replace
+
+from hwpx.tools.markdown_import import MarkdownStyle, from_markdown
+
+style = replace(
+    MarkdownStyle.report(),
+    banner_colors=("#1F4E79", "#1F4E79", "#BF9000", "#BF9000"),
+    section_colors=("#1F4E79", "#9DC3E6", "#1F4E79"),
+    body_font="함초롬바탕",
+)
+doc = from_markdown("# 학교 교육 계획\n\n## 교육 목표\n\n- 배움이 즐거운 학교\n", style=style)
+doc.save_to_path("plan-blue.hwpx")
+```
+
+| 값 | 하는 일 |
+|---|---|
+| `heading_numbers`, `bullet_chars` | 수준별 번호 형식, 깊이별 글머리표 |
+| `heading_sizes`, `heading_bold`, `heading_fonts` | 수준별 제목 크기·굵기·글꼴 |
+| `body_size`, `body_font`, `table_size`, `table_font` | 본문과 표의 글자 크기·글꼴 |
+| `title_look`, `banner_colors`, `banner_fill` | `"banner"`면 제목을 색 띠 상자로 그린다. 띠 색 넷(위 왼쪽·위 오른쪽·아래 왼쪽·아래 오른쪽)과 상자 색 |
+| `title_align`, `title_rule`, `title_space_after_pt` | 상자 없는 제목의 정렬과 밑줄, 제목 아래 간격 |
+| `section_look`, `section_colors` | `"box"`면 `##`을 번호 상자로 그린다. 색 셋(번호 칸·선·제목 글자) |
+| `table_look`, `table_header_shading`, `table_row_height_mm` | `"ruled"`면 좌우가 트인 줄 표. 머리 행 색, 행의 최소 높이 |
+| `heading_indents_mm`, `list_first_indent_mm`, `list_indent_mm` | 수준별 제목 들여쓰기, 목록 첫 수준과 그다음 수준의 들여쓰기 |
+| `page_margins_mm`, `page_number`, `page_number_side` | 새 문서의 여백(왼쪽·오른쪽·위·아래, 이어서 머리말·꼬리말), 쪽 번호와 양옆 글자 |
+
+라이브러리가 이름 붙여 싣는 모양은 이것 하나다. 공문·가정통신문처럼 넣어야 할 내용이 정해진 장르는 응용 계층이
+`MarkdownStyle`로 정한다.
 
 ## 단락 삭제
 

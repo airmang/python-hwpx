@@ -35,8 +35,10 @@ core rule is not enough.
 - the Markdown writer (`hwpx.tools.markdown_import`) keeps one named look in core,
   `report` (owner decision, 2026-11-12): the first document a newcomer makes with
   the library alone should look like a document. It is a bundle of `MarkdownStyle`
-  values (sizes, heading numbers, bullets, a page number) and holds no rule about
-  what a document must contain. Looks for genres with content rules (공문,
+  values (typefaces, sizes, heading numbers, the title banner, the section box,
+  table rules, bullets, page margins, a page number) and holds no rule about
+  what a document must contain. Its values were changed on 2026-11-13 to follow
+  a report the owner supplied; it is still the one named look. Looks for genres with content rules (공문,
   가정통신문 …) stay in `python-hwpx-automation`; a second named look in core
   needs a new owner decision.
 

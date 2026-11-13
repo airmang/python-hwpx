@@ -43,8 +43,9 @@ Styles are picked by name. A name that does not exist fails at that line.
 To edit an existing file, start from `HwpxDocument.open("report.hwpx")`. An `.hwp` file opens the
 same way; save the result as HWPX with `save_to_path("report.hwpx")`.
 
-If Markdown is what you have, pass it as it is. `style="report"` gives the look of a Korean report:
-a centred title, numbered section headings (`1.`, `가.`) and a page number.
+If Markdown is what you have, pass it as it is. `style="report"` gives the look of a Korean office
+report: the title in a banner with colour strips, sections in a numbered box (`Ⅰ`, `Ⅱ`), numbered
+headings under them (`1.`, `가.`), ruled tables and a page number.
 
 <!-- standalone-python-example -->
 

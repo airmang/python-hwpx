@@ -43,8 +43,8 @@ doc.save_to_path("계획.hwpx")
 있는 문서를 고칠 때는 `HwpxDocument.open("보고서.hwpx")`로 시작합니다. `.hwp`도 똑같이 열고,
 고친 결과는 `save_to_path("보고서.hwpx")`로 HWPX로 저장합니다.
 
-Markdown이 편하면 그대로 넘깁니다. `style="report"`를 주면 가운데 제목, 번호 붙은 소제목(`1.`·`가.`), 쪽 번호가
-있는 보고서 모양으로 만듭니다.
+Markdown이 편하면 그대로 넘깁니다. `style="report"`를 주면 색 띠를 두른 제목 상자, 번호 상자로 그린 큰 항목(`Ⅰ`·`Ⅱ`),
+번호 붙은 소제목(`1.`·`가.`), 줄 표, 쪽 번호가 있는 보고서 모양으로 만듭니다.
 
 <!-- standalone-python-example -->
 

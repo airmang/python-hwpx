@@ -26,7 +26,10 @@ from .namespaces import (
     tag_namespace,
 )
 from .color import normalize_color
-from .utils import hancom_text_length, holding_paragraphs, line_seg_past_text, tab_elements_in, tabs_as_elements, without_markup_nodes
+from .utils import (
+    hancom_text_length, holding_paragraphs, line_seg_past_text, normalize_line_width, tab_elements_in,
+    tabs_as_elements, without_markup_nodes,
+)
 
 register_owpml_namespaces(ET.register_namespace)
 
@@ -678,6 +681,47 @@ def _normalize_border_side_names(active_borders: Iterable[str] | None) -> set[st
     return normalized
 
 
+def _normalize_border_sides(
+    sides: "Mapping[str, Mapping[str, str] | None] | None",
+    *,
+    border_color: str,
+    border_width: str,
+    border_type: str,
+    allowed_types: frozenset[str],
+    type_aliases: "Mapping[str, str]",
+) -> dict[str, tuple[str, str, str]]:
+    """``{side: (type, width, color)}`` for the sides *sides* draws on their own.
+
+    A side maps to ``{"type", "width", "color"}``, each optional (the uniform
+    border's value stands in), or to ``None`` for no line on that side.
+    """
+
+    from ..errors import HwpxValueError
+
+    lines: dict[str, tuple[str, str, str]] = {}
+    for side, spec in (sides or {}).items():
+        key = str(side).strip().lower()
+        unknown = sorted(set(spec) - {"type", "width", "color"}) if spec is not None else []
+        if key not in _BORDER_SIDE_ELEMENTS or unknown:
+            raise HwpxValueError(
+                f"unsupported keys {unknown!r} for border side {side!r}" if unknown else f"unsupported border side {side!r}",
+                code="style-border-side-invalid",
+                context={"side": str(side), "unknownKeys": unknown},
+                suggestion="Name sides 'left', 'right', 'top' or 'bottom', each mapped to None or to a mapping "
+                "with any of 'type', 'width' and 'color'.",
+            )
+        if spec is None:
+            lines[key] = ("NONE", border_width, border_color)
+            continue
+        line_type = str(spec.get("type") or border_type).upper()
+        lines[key] = (
+            _normalize_border_type(type_aliases.get(line_type, line_type), allowed_types),
+            normalize_line_width(spec.get("width") or border_width),
+            _normalize_color(spec.get("color")) or border_color,
+        )
+    return lines
+
+
 def _border_fill_fill_color(element: ET.Element) -> str | None:
     fill_brush = next(
         (child for child in element if _element_local_name(child) == "fillBrush"),
@@ -728,6 +772,7 @@ def _border_fill_matches(
     fill_gradient: "Mapping[str, object] | None" = None,
     active_borders: set[str],
     border_type: str = "SOLID",
+    side_lines: "Mapping[str, tuple[str, str, str]] | None" = None,
 ) -> bool:
     if _element_local_name(element) != "borderFill":
         return False
@@ -748,12 +793,13 @@ def _border_fill_matches(
         child = element.find(f"{_HH}{child_name}")
         if child is None:
             return False
-        expected_type = border_type if side in active_borders else "NONE"
+        expected_type, expected_width, expected_color = (side_lines or {}).get(side) or (
+            border_type if side in active_borders else "NONE", border_width, border_color)
         if (child.get("type") or "").upper() != expected_type:
             return False
-        if _normalize_length(child.get("width")) != _normalize_length(border_width):
+        if _normalize_length(child.get("width")) != _normalize_length(expected_width):
             return False
-        if (child.get("color") or "").upper() != border_color.upper():
+        if (child.get("color") or "").upper() != expected_color.upper():
             return False
 
     for child_name in ("slash", "backSlash", "diagonal"):
@@ -878,15 +924,19 @@ def _create_border_fill_element(
     fill_gradient: "Mapping[str, object] | None" = None,
     active_borders: set[str],
     border_type: str = "SOLID",
+    side_lines: "Mapping[str, tuple[str, str, str]] | None" = None,
 ) -> ET.Element:
     element = ET.Element(f"{_HH}borderFill", {"id": border_id, **_BASIC_BORDER_FILL_ATTRIBUTES})
     ET.SubElement(element, f"{_HH}slash", {"type": "NONE", "Crooked": "0", "isCounter": "0"})
     ET.SubElement(element, f"{_HH}backSlash", {"type": "NONE", "Crooked": "0", "isCounter": "0"})
     for side, child_name in _BORDER_SIDE_ELEMENTS.items():
+        own = (side_lines or {}).get(side)
         ET.SubElement(
             element,
             f"{_HH}{child_name}",
-            _border_fill_child_attrs(
+            {"type": own[0], "width": own[1], "color": own[2]}
+            if own
+            else _border_fill_child_attrs(
                 active=side in active_borders,
                 color=border_color,
                 width=border_width,

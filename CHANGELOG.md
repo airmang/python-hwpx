@@ -7,12 +7,28 @@
 ### 추가
 
 - `from_markdown(text, style="report")`로 보고서 모양의 문서를 만든다(`"보고서"`, `MarkdownStyle.report()`도 같다).
-  `#`은 가운데에 놓는 20pt 제목이고 아래에 줄을 긋는다. `##`·`###`·`####`에는 `1.`·`가.`·`1)` 번호를 붙이고, 번호를
-  직접 쓴 제목(`## 1. 목적`)에는 붙이지 않는다. 본문은 12pt, 표 안은 11pt, 글머리표는 깊이에 따라 `○`·`-`·`·`이고,
-  새 문서의 꼬리말에 쪽 번호를 넣는다. 모두 `MarkdownStyle`의 새 값(`heading_numbers`, `title_align`, `title_rule`,
-  `title_space_after_pt`, `bullet_chars`, `table_size`, `page_number`)이라 일부만 바꾸거나 따로 쓸 수 있다.
+  학교와 기관에서 쓰는 운영 계획·안내 문서의 모양이다.
+  - `#`은 제목이다. 본문 너비의 회색 상자 안에 21pt로 가운데 놓고, 상자 위아래에 색 띠를 두른다.
+  - `##`은 큰 항목이다. 남색 칸에 번호(`Ⅰ`, `Ⅱ` …)를 넣고 그 옆에 남색 제목과 밑줄을 그린다. `###`·`####`에는
+    `1.`·`가.` 번호를 붙인다. 번호를 직접 쓴 제목(`## Ⅱ. 현황`, `### 1. 목적`)은 쓴 번호를 그대로 쓴다.
+  - 본문은 12pt 휴먼명조, 제목은 HY헤드라인M, 글머리표는 깊이에 따라 `□`·`-`·`·`이다.
+  - 표는 12pt 한컴산뜻돋움이다. 좌우를 트고 위아래에 굵은 줄을, 연한 파랑 머리 행 아래에 이중선을 긋는다.
+  - 새 문서는 여백을 20mm(아래 15mm)로 잡고 꼬리말 가운데에 `- 1 -`을 넣는다.
+
+  모두 `MarkdownStyle`의 값이라 일부만 바꾸거나 따로 쓸 수 있다: 번호와 글머리표(`heading_numbers`, `bullet_chars`),
+  글꼴과 굵기(`heading_fonts`, `body_font`, `table_font`, 수준별 `heading_bold`), 제목 상자(`title_look`,
+  `banner_colors`, `banner_fill`), 큰 항목 상자(`section_look`, `section_colors`), 표(`table_look`,
+  `table_row_height_mm`, `table_size`), 들여쓰기(`heading_indents_mm`, `list_first_indent_mm`), 쪽(`page_margins_mm`,
+  `page_number`, `page_number_side`), 상자 없는 제목(`title_align`, `title_rule`, `title_space_after_pt`).
   라이브러리가 이름 붙여 싣는 모양은 이것 하나이고, 내용 규칙이 있는 장르(공문·가정통신문)는 전처럼 응용 계층
-  몫이다. 한/글 2024에서 화면을 확인했다.
+  몫이다. 한/글 2024에서 화면을 확인했다. 글꼴 세 가지는 한컴오피스에 들어 있고, 없는 환경에서는 보는 프로그램이
+  다른 글꼴로 바꾸어 그린다.
+- `doc.styles.ensure_border_fill(sides=...)`로 면마다 다른 선을 준다. `"left"`·`"right"`·`"top"`·`"bottom"`에
+  `{"type", "width", "color"}`를 주거나, 선을 긋지 않을 면에 `None`을 준다. 빠진 값과 대지 않은 면은 전처럼
+  `border_type`·`border_width`·`border_color`·`active_borders`를 따른다. 전에는 네 면이 같은 선이어야 해서, 위아래만
+  굵은 표나 머리 행 아래 이중선을 만들 수 없었다.
+- `table.set_row_heights([...])`로 행마다 높이(HWPUNIT)를 정한다. 표 높이는 그 합이 되고, 여러 행에 걸친 칸은 걸친
+  행의 합을 받는다. 한/글은 행을 이 높이보다 낮게 그리지 않고 글이 길면 늘린다.
 - `doc.text.replace`가 기본 범위(본문 문단의 런 하나 안)에서 바꾼 곳이 없는데 찾는 글이 표 칸·글상자·머리말 등
   본문 밖이나 서식이 다른 런에 걸쳐 있으면 `ReplaceScopeWarning`(`hwpx.errors`)으로 알리고 `everywhere=True`를
   안내한다. 돌려주는 횟수와 문서는 전과 같다. 서식 조건(`text_color` 등)을 준 호출과 `everywhere=True`는 경고하지
