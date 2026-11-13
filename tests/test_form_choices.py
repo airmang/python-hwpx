@@ -127,3 +127,13 @@ def test_marks_split_over_runs_are_still_one_group() -> None:
     doc.fields.choose({"구분": "을"})
     assert _reopened(doc).text.plain().endswith("구분: □ 갑  ■ 을")
     assert len(list(paragraph.runs)) == 2
+
+
+def test_marks_side_by_side_are_not_choices() -> None:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("○○고등학교 김○○ 교사")
+    doc.add_paragraph("주민등록번호 □□□□□□-□□□□□□□")
+    doc.add_paragraph("구분: □ 갑  □ 을 (○○과 제출)")
+    listed = doc.fields.choices()
+    assert [group["path"] for group in listed["choices"]] == ["구분"]
+    assert [option["text"] for option in listed["choices"][0]["options"]] == ["갑", "을 (○○과 제출)"]

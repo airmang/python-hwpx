@@ -160,6 +160,9 @@ def _read_marks(paragraph: Any) -> tuple[str, list[_Mark]]:
     pieces = _segments(paragraph)
     whole = "".join(text for _, _, text in pieces)
     found = [(match.start(), match.group()) for match in _MARK_RE.finditer(whole)]
+    # Marks side by side are not boxes to tick: a withheld name ("○○고등학교"), digit boxes ("□□□□").
+    starts = {start for start, _ in found}
+    found = [(start, char) for start, char in found if start - 1 not in starts and start + 1 not in starts]
     by_family = Counter(_FAMILY_OF[char] for _, char in found)
     if not by_family:
         return whole, []
@@ -186,7 +189,10 @@ def _read_marks(paragraph: Any) -> tuple[str, list[_Mark]]:
 
 
 def _is_choice_text(text: str) -> bool:
-    return max(Counter(_FAMILY_OF[char] for char in _MARK_RE.findall(text)).values(), default=0) >= 2
+    found = [(match.start(), match.group()) for match in _MARK_RE.finditer(text)]
+    starts = {start for start, _ in found}
+    alone = [char for start, char in found if start - 1 not in starts and start + 1 not in starts]
+    return max(Counter(_FAMILY_OF[char] for char in alone).values(), default=0) >= 2
 
 
 def _label_text(text: str) -> str:
