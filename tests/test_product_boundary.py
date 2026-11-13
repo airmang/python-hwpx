@@ -337,7 +337,7 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: format rule check (tools/format_rules.py); an organisation's rule set stays with the caller.
     # +2: framework adapters (integrations/__init__.py, integrations/langchain.py); the LangChain
     # loader is a thin layer over hwpx.ingest and imports langchain_core only there.
-    assert report["classifiedFiles"] == 190
+    assert report["classifiedFiles"] == 191
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
