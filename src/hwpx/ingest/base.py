@@ -68,6 +68,34 @@ class DocumentIngestResult:
 
         return self.markdown
 
+    def flat_metadata(self) -> dict[str, str | int]:
+        """글자·숫자 값만 담은 메타데이터.
+
+        벡터 저장소 가운데는 목록이나 사전 값을 받지 않는 것이 있다. 검색 결과에
+        붙여 둘 만한 것(출처, 형식, 제목, 개수, 손실 정도)만 한 겹으로 담고,
+        경고는 줄바꿈으로 이은 글 하나로 싣는다.
+        """
+
+        data: dict[str, str | int] = {
+            "source_format": self.source_format,
+            "engine": self.engine,
+            "lossiness": self.lossiness,
+        }
+        source = self.source_info.local_path or self.source_info.filename
+        if source:
+            data["source"] = source
+        if self.engine_version:
+            data["engine_version"] = self.engine_version
+        if self.title:
+            data["title"] = self.title
+        for key in ("section_count", "paragraph_count", "table_count"):
+            value = self.metadata.get(key)
+            if isinstance(value, int):
+                data[key] = value
+        if self.warnings:
+            data["warnings"] = "\n".join(self.warnings)
+        return data
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "markdown": self.markdown,
@@ -203,6 +231,14 @@ class DocumentIngestor:
             result.attempts = attempts
             return result
 
+        failed = [attempt for attempt in attempts if attempt.accepted and attempt.message]
+        if failed:
+            # 받은 변환기가 실패했으면 그 사유를 문구에 싣는다. attempts를 보지 않는
+            # 호출자(로더, 일괄 처리)도 왜 못 읽었는지 알 수 있다.
+            raise UnsupportedDocumentFormat(
+                f"{failed[-1].converter} could not convert the document: {failed[-1].message}",
+                attempts=attempts,
+            )
         raise UnsupportedDocumentFormat("no registered converter accepted the document", attempts=attempts)
 
 
