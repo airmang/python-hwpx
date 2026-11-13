@@ -17,7 +17,6 @@ structural pass (``visual_complete_status == "unverified"``), never a silent pas
 """
 from __future__ import annotations
 
-import io
 import os
 import tempfile
 import zipfile
@@ -48,7 +47,7 @@ from .report import (
     VisualCompleteReport,
     VisualCompleteStatus,
 )
-from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
+from ..opc.security import guard_zip_file, is_known_well_formed, open_archive, parse_xml_stdlib, read_member
 
 PublishMode = Literal["on_pass", "always", "never"]
 
@@ -277,12 +276,14 @@ class SavePipeline:
         """Integrity floor: the archive opens and every XML part parses."""
 
         try:
-            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            with open_archive(data) as archive:
                 guard_zip_file(archive)
                 names = [info.filename for info in archive.infolist() if not info.is_dir()]
                 for name in names:
                     base = os.path.basename(name)
                     if name.endswith(_XML_SUFFIXES) or base in _XML_NAMES:
+                        if is_known_well_formed(archive, name):
+                            continue  # the save's package check parsed these same bytes
                         try:
                             parse_xml_stdlib(read_member(archive, name), part_name=name)
                         except ET.ParseError as exc:
