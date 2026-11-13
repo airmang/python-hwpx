@@ -25,11 +25,12 @@ it is a sign, with space only after it.
 The widths are in em of the base size for the ``HYhwpEQ`` equation font
 python-hwpx writes, at base size 1100. Since 2026-11 they are fitted to what
 desktop Hangul 2024 on Windows needs, because that is the reader that lays the
-line out with the stored box: each of 1,032 synthetic scripts was set alone in
+line out with the stored box: synthetic scripts (1,800 measurements, in the two
+equation fonts ``HYhwpEQ`` and ``HancomEQN``; a glyph gets the wider of the two) were each set alone in
 a box far wider than itself, the page drawn, and the distance from the start
 of the box to the right edge of the ink taken as the needed width (see
 ``tests/data/equation_windows_needed_widths.json``). The estimate is meant
-never to fall below that, so it runs a little wide (about 7% at the median).
+never to fall below that, so it runs a little wide (about 9% at the median).
 Windows needs a few percent more than the boxes macOS saved
 (``tests/data/equation_hancom_boxes.json``), which the tables were fitted to
 before; heights and baselines still come from those.
@@ -77,7 +78,7 @@ _ALONE = {"circ": 0.58}  # the degree sign written as ^{circ}
 _BRACE = 0.56  # { } drawn by lbrace / rbrace
 _BAR = 0.45  # | drawn by LINE / vert
 _DOUBLE_BAR = 1.3  # VERT: the double bar with a space on each side
-_PRIME = 0.12  # ' and prime
+_PRIME = 0.2  # ' and prime
 _DEGREE = 0.47  # DEG
 _OPERATOR_GLYPH = 1.03  # an operator or relation not listed in _OPERATOR_GLYPHS
 _OPERATOR_SPACE = 0.18  # on each side of an operator or relation
@@ -95,7 +96,7 @@ _THIN_SPACE = 0.15  # `
 _OTHER = 0.36
 _SYMBOL = 1.05
 _SCRIPT_SCALE = 0.55
-_SCRIPT_WIDTH = 0.66  # a script's glyphs are drawn this wide, relative to the base size
+_SCRIPT_WIDTH = 0.75  # a script's glyphs are drawn this wide, relative to the base size
 _SCRIPT_RAISE = 0.48
 _SUBSCRIPT_DROP = -0.2
 _FRACTION_PAD = 0.25
@@ -130,21 +131,21 @@ _MATRIX_DELIMITERS = {
 }
 #: Italic Latin letters whose glyph is narrower or wider than the default for their case.
 _LETTER_WIDTHS = {
-    "a": 0.48, "b": 0.40, "c": 0.41, "d": 0.49, "e": 0.46, "f": 0.55, "g": 0.40, "h": 0.54, "i": 0.32,
-    "j": 0.40, "k": 0.48, "l": 0.35, "m": 0.82, "n": 0.55, "o": 0.48, "p": 0.48, "q": 0.42, "r": 0.41,
-    "s": 0.46, "t": 0.33, "u": 0.54, "v": 0.48, "w": 0.68, "x": 0.54, "y": 0.48, "z": 0.48, "A": 0.74,
-    "B": 0.71, "C": 0.74, "D": 0.77, "E": 0.72, "F": 0.66, "G": 0.51, "H": 0.79, "I": 0.39, "J": 0.53,
+    "a": 0.48, "b": 0.41, "c": 0.41, "d": 0.55, "e": 0.46, "f": 0.55, "g": 0.40, "h": 0.54, "i": 0.33,
+    "j": 0.40, "k": 0.48, "l": 0.36, "m": 0.82, "n": 0.55, "o": 0.48, "p": 0.48, "q": 0.42, "r": 0.41,
+    "s": 0.46, "t": 0.33, "u": 0.54, "v": 0.48, "w": 0.68, "x": 0.54, "y": 0.48, "z": 0.48, "A": 0.75,
+    "B": 0.71, "C": 0.74, "D": 0.77, "E": 0.72, "F": 0.66, "G": 0.51, "H": 0.80, "I": 0.39, "J": 0.53,
     "K": 0.80, "L": 0.45, "M": 0.94, "N": 0.80, "O": 0.78, "P": 0.71, "Q": 0.78, "R": 0.70, "S": 0.58,
-    "T": 0.74, "U": 0.79, "V": 0.80, "W": 1.02, "X": 0.79, "Y": 0.80, "Z": 0.65,
+    "T": 0.79, "U": 0.79, "V": 0.80, "W": 1.02, "X": 0.79, "Y": 0.80, "Z": 0.65,
 }
 #: Upright lowercase letters whose glyph is narrower or wider than ``_UPRIGHT_LOWER``.
 _UPRIGHT_WIDTHS = {
-    "a": 0.48, "b": 0.52, "c": 0.46, "d": 0.53, "e": 0.52, "f": 0.34, "g": 0.54, "h": 0.53, "i": 0.26,
-    "j": 0.25, "k": 0.54, "l": 0.26, "m": 0.81, "n": 0.53, "o": 0.52, "p": 0.52, "q": 0.53, "r": 0.39,
-    "s": 0.46, "t": 0.33, "u": 0.53, "v": 0.54, "w": 0.75, "x": 0.54, "y": 0.54, "z": 0.40, "A": 0.74,
-    "B": 0.61, "C": 0.61, "D": 0.67, "E": 0.61, "F": 0.60, "G": 0.68, "H": 0.73, "I": 0.33, "J": 0.40,
-    "K": 0.73, "L": 0.60, "M": 0.88, "N": 0.74, "O": 0.67, "P": 0.60, "Q": 0.68, "R": 0.61, "S": 0.60,
-    "T": 0.73, "U": 0.74, "V": 0.68, "W": 0.90, "X": 0.61, "Y": 0.61, "Z": 0.60,
+    "a": 0.48, "b": 0.54, "c": 0.47, "d": 0.54, "e": 0.52, "f": 0.39, "g": 0.54, "h": 0.54, "i": 0.26,
+    "j": 0.25, "k": 0.55, "l": 0.27, "m": 0.82, "n": 0.55, "o": 0.52, "p": 0.54, "q": 0.54, "r": 0.40,
+    "s": 0.46, "t": 0.34, "u": 0.54, "v": 0.54, "w": 0.75, "x": 0.60, "y": 0.54, "z": 0.46, "A": 0.75,
+    "B": 0.67, "C": 0.61, "D": 0.69, "E": 0.67, "F": 0.61, "G": 0.68, "H": 0.75, "I": 0.33, "J": 0.40,
+    "K": 0.75, "L": 0.61, "M": 0.89, "N": 0.75, "O": 0.68, "P": 0.61, "Q": 0.68, "R": 0.68, "S": 0.60,
+    "T": 0.74, "U": 0.74, "V": 0.75, "W": 0.96, "X": 0.74, "Y": 0.75, "Z": 0.60,
 }
 #: Delimiters that ``LEFT``/``RIGHT`` and matrices stretch, by the opening or closing glyph.
 _STRETCHED = {"(": 0.39, ")": 0.39, "[": 0.44, "]": 0.44, "|": 0.44, "{": 0.58, "}": 0.58}
@@ -159,30 +160,30 @@ _TOKEN_ROOM = {
     "ast": 1.24, "star": 1.24, "circ": 1.30, "bullet": 1.24, "oplus": 0.97, "otimes": 0.97,
     "leq": 1.39, "LEQ": 1.39, "geq": 1.39, "GEQ": 1.39, "neq": 1.24, "NEQ": 1.24,
     "equiv": 1.24, "approx": 1.24, "sim": 1.24, "simeq": 1.24, "cong": 1.24, "propto": 0.97,
-    "prop": 1.85, "ll": 0.56, "gg": 0.97, "in": 0.49, "notin": 1.24, "subset": 1.39,
+    "prop": 1.85, "ll": 0.56, "gg": 0.97, "in": 0.97, "notin": 1.24, "subset": 1.39,
     "subseteq": 1.39, "supset": 1.39, "supseteq": 1.39, "cup": 0.97, "cap": 0.97, "emptyset": 0.97,
     "FORALL": 0.97, "exists": 0.97, "neg": 0.63, "land": 0.97, "lor": 0.97, "infty": 0.97,
-    "inf": 0.97, "infinity": 0.97, "partial": 0.49, "nabla": 0.97, "angle": 0.97, "triangle": 0.62,
-    "TRIANGLE": 0.62, "therefore": 0.97, "THEREFORE": 0.97, "because": 0.97, "cdots": 1.39, "ldots": 0.91,
+    "inf": 0.97, "infinity": 0.97, "partial": 0.49, "nabla": 0.97, "angle": 0.97, "triangle": 0.97,
+    "TRIANGLE": 0.97, "therefore": 0.97, "THEREFORE": 0.97, "because": 0.97, "cdots": 1.39, "ldots": 1.39,
     "vdots": 1.39, "ddots": 1.39, "dots": 0.49, "rightarrow": 0.97, "leftarrow": 0.97, "leftrightarrow": 0.97,
     "Rightarrow": 0.97, "Leftarrow": 0.97, "mapsto": 0.97, "LRARROW": 0.97, "uparrow": 0.97, "downarrow": 0.97,
     "UPARROW": 0.97, "EXARROW": 0.49, "BOT": 0.97, "bot": 0.97, "parallel": 0.49, "PARALLEL": 0.49,
     "+-": 1.04, "-+": 1.24, "<=": 1.39, ">=": 1.39, "!=": 1.24, "==": 1.24,
     "->": 0.97, "<-": 0.97, "<->": 0.97, "=>": 2.00, "~=": 1.67, "~|~": 1.21,
     "+": 1.04, "-": 1.04, "=": 1.19, "<": 1.26, ">": 1.26, ":": 0.71,
-    ",": 0.36, ";": 0.28, "!": 0.28, "/": 0.49, "|": 0.21, "LINE": 0.21, "vert": 0.21,
-    "VERT": 0.49,
+    ",": 0.36, ";": 0.28, "!": 0.28, "/": 0.49, "|": 0.21, "LINE": 0.21,
+    "VERT": 0.49, "vert": 0.21,
 }
 #: Signs that, with nothing before them, mark the sign of what follows.
 _SIGNS = frozenset({"+", "-", "+-", "-+", "pm", "mp"})
 #: Greek letters whose glyph is narrower or wider than the default for their case.
 _GREEK_WIDTHS = {
-    "alpha": 0.61, "beta": 0.55, "gamma": 0.49, "delta": 0.42, "epsilon": 0.39, "varepsilon": 0.41,
-    "zeta": 0.42, "eta": 0.48, "theta": 0.47, "vartheta": 0.55, "iota": 0.33, "kappa": 0.54,
-    "lambda": 0.54, "mu": 0.55, "nu": 0.49, "xi": 0.42, "omicron": 0.48, "pi": 0.55,
-    "varpi": 0.82, "rho": 0.48, "varrho": 0.27, "sigma": 0.55, "varsigma": 0.36, "tau": 0.43,
-    "upsilon": 0.54, "phi": 0.55, "varphi": 0.61, "chi": 0.60, "psi": 0.61, "omega": 0.60,
-    "GAMMA": 0.63, "DELTA": 0.81, "THETA": 0.74, "LAMBDA": 0.68, "XI": 0.70, "PI": 0.83,
+    "alpha": 0.61, "beta": 0.55, "gamma": 0.49, "delta": 0.42, "epsilon": 0.40, "varepsilon": 0.48,
+    "zeta": 0.42, "eta": 0.48, "theta": 0.48, "vartheta": 0.61, "iota": 0.33, "kappa": 0.54,
+    "lambda": 0.54, "mu": 0.55, "nu": 0.49, "xi": 0.48, "omicron": 0.48, "pi": 0.55,
+    "varpi": 0.82, "rho": 0.49, "varrho": 0.27, "sigma": 0.55, "varsigma": 0.40, "tau": 0.43,
+    "upsilon": 0.54, "phi": 0.55, "varphi": 0.61, "chi": 0.60, "psi": 0.62, "omega": 0.61,
+    "GAMMA": 0.64, "DELTA": 0.81, "THETA": 0.74, "LAMBDA": 0.74, "XI": 0.70, "PI": 0.83,
     "SIGMA": 0.76, "UPSILON": 0.60, "PHI": 0.62, "PSI": 0.63, "OMEGA": 0.75,
 }
 #: Keyword names (any case) drawn as one glyph of the given width.

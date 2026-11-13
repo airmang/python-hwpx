@@ -4,8 +4,10 @@
 Hangul on Windows lays a line out with the stored ``<hp:sz>`` width but draws
 the equation at its own size: a stored width below what the equation needs lets
 the next characters run into it. ``tests/data/equation_windows_needed_widths.json``
-holds the needed width of 1,032 synthetic scripts, read off pages drawn by
-Hangul 2024 (see the file's description). The estimate must never be narrower.
+holds 1,800 needed widths of synthetic scripts in the two equation fonts
+(``HYhwpEQ``, which python-hwpx writes, and ``HancomEQN``, which Hangul's own
+editor writes), read off pages drawn by Hangul 2024 (see the file's
+description). The estimate must never be narrower in either font.
 """
 from __future__ import annotations
 
@@ -29,8 +31,11 @@ def _ratios() -> dict[str, list[float]]:
 
 
 def test_the_data_covers_the_sets_and_sizes() -> None:
-    assert len(EQUATIONS) == 1032
-    assert {item["set"] for item in EQUATIONS} == {"glyphs", "pieces", "school", "mac-corpus", "held-out", "sizes"}
+    assert len(EQUATIONS) == 1800
+    assert {item["set"] for item in EQUATIONS} == {
+        "glyphs", "pieces", "school", "mac-corpus", "held-out", "sizes", "school+held-out"
+    }
+    assert {item["font"] for item in EQUATIONS} == {"HYhwpEQ", "HancomEQN"}
     assert {item["base_unit"] for item in EQUATIONS} >= {800, 1000, 1100, 1300, 2000}
 
 
@@ -46,11 +51,11 @@ def test_no_box_is_narrower_than_hangul_needs() -> None:
 def test_the_boxes_are_not_much_wider_than_needed() -> None:
     groups = _ratios()
     everything = [ratio for ratios in groups.values() for ratio in ratios]
-    assert median(everything) < 1.10
-    assert mean(everything) < 1.11
+    assert median(everything) < 1.11
+    assert mean(everything) < 1.13
     # Equations as long as the ones in a document; single glyphs carry the fixed safety margin.
     for name in ("school", "held-out", "mac-corpus"):
-        assert median(groups[name]) < 1.11, name
+        assert median(groups[name]) < 1.13, name
         assert max(groups[name]) < 1.56, name
 
 
