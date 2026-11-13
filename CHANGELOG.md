@@ -6,6 +6,7 @@
 
 ### 추가
 
+- `add_equation`에 `font` 인자가 생겼다(`doc.shapes.add_equation`, 문단의 `add_equation`). 수식 글꼴 이름을 준다.
 - LaTeX → 한/글 수식 변환(`latex_to_eqedit`)이 받는 학교 표기가 늘었다: `\Leftrightarrow`·`\iff`, `\perp`,
   `\parallel`, `\varnothing`, `\uparrow`·`\downarrow`·`\Uparrow`, 가역 반응 `\rightleftharpoons`, 호
   `\overset{\frown}{AB}`·`\wideparen{AB}`, `\boxed{}`, 여러 줄 정렬 `aligned`, 띄어쓰기 `\ `·`\;`·`\:`·`\!`·
@@ -25,6 +26,10 @@
   않는다. 공개 문서 148개에 한 낱말 바꾸기를 해 보니 기본 범위로는 30개(20%)가 0건으로 끝났다.
 
 ### 바뀜
+
+- **`add_equation`이 적는 수식 글꼴이 `HYhwpEQ`에서 `HancomEQN`으로 바뀌었다.** `HancomEQN`은 한/글 수식 편집기가
+  쓰는 글꼴이라, 만든 수식이 한/글에서 직접 넣은 수식과 같은 모양이 된다. 획이 조금 굵어지고 일부 글자의 폭이 달라진다.
+  전의 모양을 원하면 `font="HYhwpEQ"`를 준다. 수식 상자 폭은 두 글꼴 모두에서 겹치지 않게 잡는다.
 
 - `.hwp`로 쓰기를 실험 기능으로 낮추고 보호 두 가지를 넣었다. `.hwp`에서 연 문서를 그 원본 경로에 `.hwp`로 저장하면
   `Hwp5Error`(`hwp5-overwrite-source`)로 거부한다. 한/글이 저장한 원본이 이 라이브러리가 다시 만든 파일로 바뀌는 일을

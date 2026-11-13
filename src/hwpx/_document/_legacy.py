@@ -378,6 +378,7 @@ class _LegacyFacade:
         base_unit: int = 1100,
         size: tuple[int, int] | None = None,
         char_pr_id_ref: str | int | None = None,
+        font: str = "HancomEQN",
     ) -> HwpxOxmlInlineObject:
         """Insert an inline equation from an EqEdit script. **Experimental contract.**
 
@@ -402,6 +403,7 @@ class _LegacyFacade:
             base_unit: Equation base font size in 1/100 pt.
             size: Optional explicit ``(width, height)`` HWPUNIT pair;
                 defaults to a proportional estimate (Hancom re-measures).
+            font: Equation font name (default ``HancomEQN``).
         """
 
         return _shapes.add_equation(
@@ -413,6 +415,7 @@ class _LegacyFacade:
             base_unit=base_unit,
             size=size,
             char_pr_id_ref=char_pr_id_ref,
+            font=font,
         )
 
     @_moved("doc.notes.add_footnote")

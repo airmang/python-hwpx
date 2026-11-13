@@ -68,7 +68,7 @@ from .objects import (
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
-from .shape_position import validate_equation_base_unit, validate_shape_size
+from .shape_position import validate_equation_base_unit, validate_equation_font, validate_shape_size
 from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
@@ -1172,6 +1172,7 @@ class HwpxOxmlParagraph:
         size: tuple[int, int] | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
+        font: str = "HancomEQN",
     ) -> HwpxOxmlInlineObject:
         """Insert an inline ``<hp:equation>`` carrying an EqEdit *script*.
 
@@ -1187,11 +1188,16 @@ class HwpxOxmlParagraph:
             size: Optional explicit ``(width, height)`` HWPUNIT pair for
                 ``<hp:sz>``; when omitted the box is measured from the script.
                 Hancom lays the page out with the stored box on open.
+            font: Equation font name. ``HancomEQN`` is what Hangul's own
+                equation editor writes; ``HYhwpEQ`` is the older, lighter
+                face python-hwpx wrote before 7.0. The measured box is
+                wide enough for either.
         """
         text = script.strip()
         if not text:
             raise ValueError("equation script must be a non-empty string")
         validate_equation_base_unit(base_unit)
+        font = validate_equation_font(font)
         from ..equation.measure import measure_equation
 
         measured = measure_equation(text, base_unit=base_unit)
@@ -1213,7 +1219,7 @@ class HwpxOxmlParagraph:
             "textColor": "#000000",
             "baseUnit": str(base_unit),
             "lineMode": "CHAR",
-            "font": "HYhwpEQ",
+            "font": font,
         })
         _append_child(equation, f"{_HP}sz", {
             "width": str(width),

@@ -52,12 +52,27 @@ class TestGoldContractShape:
         doc.add_equation("{a} over {b}")
         (eq,) = _equations(doc)
         assert eq.get("version") == "Equation Version 60"
-        assert eq.get("font") == "HYhwpEQ"
+        assert eq.get("font") == "HancomEQN"
         assert eq.get("lineMode") == "CHAR"
         assert eq.get("numberingType") == "EQUATION"
         assert eq.get("baseUnit") == "1100"
         assert eq.get("textColor") == "#000000"
         assert eq.get("id")
+
+    def test_the_font_can_be_chosen(self) -> None:
+        doc = HwpxDocument.new()
+        doc.shapes.add_equation("{a} over {b}", font="HYhwpEQ")
+        paragraph = doc.add_paragraph("")
+        paragraph.add_equation("x ^{2}", font="HYhwpEQ")
+        paragraph.add_equation("y ^{2}")
+        assert [eq.get("font") for eq in _equations(doc)] == ["HYhwpEQ", "HYhwpEQ", "HancomEQN"]
+
+    def test_an_empty_font_is_refused(self) -> None:
+        doc = HwpxDocument.new()
+        with pytest.raises(ValueError, match="font"):
+            doc.shapes.add_equation("{a} over {b}", font=" ")
+        with pytest.raises(ValueError, match="font"):
+            doc.add_paragraph("").add_equation("x", font="")
 
     def test_children_order_and_inline_pos(self) -> None:
         doc = HwpxDocument.new()
