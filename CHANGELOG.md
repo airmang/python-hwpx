@@ -13,6 +13,10 @@
   `\quad`·`\qquad`. 모두 한/글 2024(Windows)에서 그려 보고 기호로 나오는 표기만 넣었고, 읽는 쪽
   (`eqedit_to_latex`)도 같은 표기를 안다. 중·고 수학·과학 표기 229개 가운데 226개가 변환된다(전에는 처음
   159개 중 147개). `\mathbb`·`\widehat`·`\square`는 맞게 그려지는 표기가 없어 계속 거부한다.
+- LangChain 로더 `hwpx.integrations.langchain.HwpxLoader`(실험 기능). `.hwpx`·`.hwp` 파일 하나를 제목·목록·표를 살린
+  Markdown 문서 하나로 돌려주고, 메타데이터에 출처·형식·개수와 함께 Markdown에 빠진 내용이 있는지(`lossiness`,
+  `warnings`)를 싣는다. `pip install "python-hwpx[langchain]"`로 `langchain-core`를 함께 설치한다. 이 모듈만
+  LangChain을 가져오므로 로더를 쓰지 않는 설치는 전과 같다.
 - `hwpx.ingest`의 Markdown 변환이 `.hwp`(HWP 5.0)도 받는다. `HwpxDocument.open`은 `.hwp`를 읽는데 이 진입점만
   "받는 변환기가 없다"로 거부했다. 결과는 `source_format="hwp"`이고, 문서 모델로 옮기지 못한 내용은
   `metadata["hwp_conversion"]`(`unconverted`·`dropped`)과 `warnings`에 실리며 그때 `lossiness`는 `"medium"`
@@ -45,6 +49,11 @@
   구역마다 다시 읽던 머리말(문단 모양·글자 모양)을 저장 한 번에 한 번만 읽는다. 관문의 검사 항목과 결과는 그대로다.
   공개 문서 1,304개에서 관문 보고, 편집 없는 저장, 문단을 하나 더한 저장의 결과가 모두 전과 같았고, 13.6 MB 문서의
   저장은 9.4초에서 7.4초로 줄었다. `validate_document`는 이미 연 `HwpxDocument`도 받아 다시 열지 않고 검사한다.
+- 저장 한 번이 방금 쓴 파일의 압축을 한 번만 푼다. ZIP 무결성 검사, 패키지 검사, 다시 열기, 보존 측정, 품질 관문이
+  같은 바이트를 각자 다시 풀던 것을, 저장이 끝날 때까지만 함께 쓴다(바이트가 완전히 같을 때만). 패키지 검사가 이미
+  읽은 XML을 품질 관문이 다시 파싱하지 않고, 머리말을 두 번 파싱하지 않으며, 스타일 이름 참조가 있을 수 없는 구역은
+  그 변환을 위해 파싱하지 않는다. 결과는 위와 같은 1,304개 문서에서 모두 전과 같았다. 위 항목과 합쳐, 1 MB 이상
+  문서 24개의 저장 시간 중앙값이 2.28초에서 1.46초로, 13.6 MB 문서는 8.3초에서 5.1초로 줄었다.
 
 ### 고침
 
