@@ -59,6 +59,7 @@ class HwpxMarkdownConverter:
         # 읽는 쪽(LLM·색인)에는 본문 밖의 글도 문서의 글이다.
         markdown_kwargs.setdefault("headers_and_footers", True)
         markdown_kwargs.setdefault("memos", True)
+        markdown_kwargs.setdefault("equations", True)
 
         doc = HwpxDocument.open(data)
         try:
@@ -168,6 +169,8 @@ def _paragraph_texts(container: Any) -> Iterator[str]:
 def _candidates(root: Any) -> Iterator[tuple[str, list[str]]]:
     """``(종류, 그 요소가 담은 글 조각들)``을 문서 순서로 낸다."""
 
+    from ..tools.markdown_export import equation_markdown
+
     for element in root.iter():
         tag = element.tag
         if not isinstance(tag, str) or not tag.startswith(_HP):
@@ -180,7 +183,8 @@ def _candidates(root: Any) -> Iterator[tuple[str, list[str]]]:
             yield kind, [element.get(attribute) or ""]
         elif name == "equation":
             script = element.find(f"{_HP}script")
-            yield "equation", ["".join(script.itertext()) if script is not None else ""]
+            # 수식은 LaTeX로 바뀌어 실린다. 실린 모양 그대로를 찾는다.
+            yield "equation", [equation_markdown("".join(script.itertext())) if script is not None else ""]
         elif name == "dutmal":
             yield "ruby", [
                 "".join(child.itertext())

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from html import escape as html_escape
 from pathlib import Path
@@ -291,6 +292,31 @@ class _MdParagraphState:
     pending_memos: dict[str, str] = field(default_factory=dict)
 
 
+#: 이 내보내기가 수식을 싣는가. 각주·메모·머리말 안쪽 문단까지 같은 값을 본다.
+_EQUATIONS: ContextVar[bool] = ContextVar("hwpx_markdown_equations", default=False)
+
+
+def equation_markdown(script: str) -> str:
+    """한/글 수식 문자열을 Markdown 인라인 수식(``$LaTeX$``)으로.
+
+    LaTeX로 옮기지 못하는 수식은 한/글 수식 문자열을 그대로 코드(`` `…` ``)로 싣는다.
+    빈 수식은 빈 문자열이다.
+    """
+
+    text = " ".join(script.split())
+    if not text:
+        return ""
+    from ..equation.eqedit import EquationConversionError, eqedit_to_latex
+
+    try:
+        latex = eqedit_to_latex(text)
+    except (EquationConversionError, RecursionError):
+        latex = ""
+    if not latex or "$" in latex:
+        return "`" + text.replace("`", "'") + "`"
+    return f"${latex}$"
+
+
 class _Notes(list):
     """각주·미주(와 메모) 정의를 모으는 목록. ``memos``가 참이면 메모도 모은다."""
 
@@ -409,6 +435,15 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
                     _md_push_text(state, cpr, text)
             elif tag == "ctrl":
                 _md_handle_ctrl_child(child, state, base_cp, chars, doc, notes_out)
+            elif tag == "equation" and _EQUATIONS.get():
+                script = next(iter(_direct_children(child, "script")), None)
+                rendered = equation_markdown("".join(script.itertext())) if script is not None else ""
+                if rendered:
+                    if state.link_url is not None:
+                        _md_flush_link(state, base_cp, chars)
+                    else:
+                        _md_flush_items(state, base_cp, chars)
+                    state.output.append(rendered)
             elif tag in ("footNote", "endNote"):
                 # 구식(5.4 이전 자사 방출) 호환: run 직속 각주도 계속 읽는다.
                 _md_handle_note_child(child, tag, state, base_cp, chars, doc, notes_out)
@@ -698,6 +733,7 @@ def export_markdown(
     notes_section_separator: str = "\n\n---\n",
     headers_and_footers: bool = False,
     memos: bool = False,
+    equations: bool = False,
 ) -> str:
     """HWPX → rich markdown.
 
@@ -722,12 +758,27 @@ def export_markdown(
     memos : bool
         참이면 메모를 각주처럼 싣는다. 메모가 걸린 글 뒤에 ``[^memoN]``, 내용은
         부록에 ``메모: …``로. 작성자와 날짜는 싣지 않는다.
+    equations : bool
+        참이면 수식을 있던 자리에 ``$LaTeX$``로 싣는다. LaTeX로 옮기지 못하는 수식은
+        한/글 수식 문자열을 코드로 싣는다.
     """
     detector = _detect_heading if heading_detector is None else heading_detector
     if not callable(detector):
         raise HwpxTypeError("heading_detector must be callable or None", context={"argument": "heading_detector"})
     doc = _export_resolve_doc(source)
     mapping = _build_image_map(doc, Path(image_dir) if image_dir else None, image_ref_prefix)
+    token = _EQUATIONS.set(bool(equations))
+    try:
+        return _export_markdown(
+            doc, mapping, detect_headings, detector, notes_section_separator, headers_and_footers, memos
+        )
+    finally:
+        _EQUATIONS.reset(token)
+
+
+def _export_markdown(
+    doc, mapping, detect_headings: bool, detector, notes_section_separator: str, headers_and_footers: bool, memos: bool
+) -> str:
     notes: list[tuple] = _Notes()
     notes.memos = bool(memos)  # type: ignore[attr-defined]
     lines: list[str] = []
