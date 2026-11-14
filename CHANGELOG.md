@@ -6,6 +6,10 @@
 
 ### 추가
 
+- Markdown 내보내기(`doc.text.markdown(rich=True)`)가 머리말·꼬리말·메모를 실을 수 있다.
+  `headers_and_footers=True`면 머리말을 구역 첫머리에, 꼬리말을 구역 끝에 `> 머리말: …` 줄로 싣는다(같은 글은
+  한 번). `memos=True`면 메모를 각주처럼 싣는다: 메모가 걸린 글 뒤에 `[^memoN]`, 내용은 부록에 `메모: …`.
+  본문에 걸린 자리가 없는 메모는 구역 끝에 `> 메모: …`로 나간다. 기본값은 둘 다 꺼짐이라 지금 결과는 그대로다.
 - LlamaIndex 리더 `hwpx.integrations.llama_index.HwpxReader`(실험 기능). LangChain 로더와 같은 내용·메타데이터를
   LlamaIndex 문서로 돌려주고, `SimpleDirectoryReader`의 `file_extractor`로 넘겨 폴더를 읽을 수 있다.
   `pip install "python-hwpx[llamaindex]"`로 `llama-index-core`를 함께 설치한다.
@@ -49,6 +53,9 @@
 
 ### 바뀜
 
+- `hwpx.ingest`의 Markdown에 머리말·꼬리말·메모가 실린다(위 두 옵션을 켜서 부른다). 전에는 빠진 것으로
+  `metadata["left_out"]`과 `warnings`에 보고만 했다. 본문만 원하면
+  `markdown_options={"headers_and_footers": False, "memos": False}`를 준다.
 - 표의 이름표를 공백을 무시하고 견준다(`doc.tables.fill_by_path`·`find_cell_by_label`). 양식은 `"성  명"`,
   `"주    소"`처럼 이름표를 벌려 쓰는데 전에는 `"성명"`으로 찾지 못했다. 여러 줄인 이름표(`"성  명"` 아래
   `"Name"`)는 칸 전체가 맞는 것이 없을 때 한 줄만 맞아도 찾는다. 공백만 다른 이름표 둘이 한 문서에 있으면 전에는
