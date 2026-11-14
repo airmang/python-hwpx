@@ -54,10 +54,11 @@ REGEX_FUNCTIONS = frozenset(
 PLAN_SCHEMA_KEYS = frozenset({"sections", "blocks"})
 
 GUIDANCE = (
-    "Genre, institution or policy logic belongs to python-hwpx-automation or the "
+    "Logic that decides a genre, institution or policy belongs to python-hwpx-automation or the "
     "plugin, not core: apply the feature-placement test in the layer-boundary "
     "guardrails (section 4, summarized in docs/architecture/product-boundary.md, "
-    "'Function-level guards'). If the hit is Hancom format vocabulary that any "
+    "'Function-level guards'). If the hit is Hancom format vocabulary or a written "
+    "convention of Korean documents that any "
     "HWPX user needs, add it to tests/data/layer_leak_allowlist.json with a reason "
     "in the same change."
 )
