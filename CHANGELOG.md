@@ -16,6 +16,12 @@
   둔다. `fit` 없이 쓰면 전처럼 값을 그대로 써 넣고, 줄이 모자라면 한/글이 줄 높이를 늘린다.
 - `doc.tables.fill_by_path`의 경로에 `"성명[2] > right"`처럼 몇 번째 이름표인지 적을 수 있다. 이름표가 여러 칸에
   맞아 실패할 때(`"ambiguous label"`)는 후보 칸과 고르는 표기를 `candidates`에 싣는다.
+- LaTeX → 한/글 수식 변환(`latex_to_eqedit`)이 받는 학교 표기가 늘었다: `\Leftrightarrow`·`\iff`, `\perp`,
+  `\parallel`, `\varnothing`, `\uparrow`·`\downarrow`·`\Uparrow`, 가역 반응 `\rightleftharpoons`, 호
+  `\overset{\frown}{AB}`·`\wideparen{AB}`, `\boxed{}`, 여러 줄 정렬 `aligned`, 띄어쓰기 `\ `·`\;`·`\:`·`\!`·
+  `\quad`·`\qquad`. 모두 한/글 2024(Windows)에서 그려 보고 기호로 나오는 표기만 넣었고, 읽는 쪽
+  (`eqedit_to_latex`)도 같은 표기를 안다. 중·고 수학·과학 표기 229개 가운데 226개가 변환된다(전에는 처음
+  159개 중 147개). `\mathbb`·`\widehat`·`\square`는 맞게 그려지는 표기가 없어 계속 거부한다.
 - LangChain 로더 `hwpx.integrations.langchain.HwpxLoader`(실험 기능). `.hwpx`·`.hwp` 파일 하나를 제목·목록·표를 살린
   Markdown 문서 하나로 돌려주고, 메타데이터에 출처·형식·개수와 함께 Markdown에 빠진 내용이 있는지(`lossiness`,
   `warnings`)를 싣는다. `pip install "python-hwpx[langchain]"`로 `langchain-core`를 함께 설치한다. 이 모듈만
@@ -41,6 +47,11 @@
 - `fill_by_path`는 호출을 시작할 때의 문서로 모든 경로의 이름표를 먼저 정한다. 한 경로가 써 넣은 값이 다른 경로의
   이름표로 잡히지 않고, 결과가 경로 순서에 달라지지 않는다. 표를 경로마다 훑지 않아 칸 152개를 채우는 시간이
   11.6초에서 0.1초로 줄었다.
+- `from_markdown`·`doc.text.append_markdown`이 만드는 표의 기본 모양이 바뀌었다. 열 너비를 내용에 맞춘다. 짧은 이름
+  열은 한 줄에 들어갈 만큼만 차지하고 글이 긴 열이 나머지를 받으며, 다 들어가지 않으면 긴 열만 줄여 줄을 바꾼다.
+  머리 행은 가운데로 놓고, 구분선의 `:---`·`:---:`·`---:`를 열 정렬로 읽는다. 전처럼 열 너비를 똑같이 하려면
+  `MarkdownStyle(table_fit_columns=False)`, 머리 행 정렬을 그대로 두려면 `table_header_align=None`을 준다.
+  한/글 2024에서 전후 화면을 확인했다.
 - `.hwp`로 쓰기를 실험 기능으로 낮추고 보호 두 가지를 넣었다. `.hwp`에서 연 문서를 그 원본 경로에 `.hwp`로 저장하면
   `Hwp5Error`(`hwp5-overwrite-source`)로 거부한다. 한/글이 저장한 원본이 이 라이브러리가 다시 만든 파일로 바뀌는 일을
   막는다. 열 때 옮기지 못한 내용이 있는 문서(`conversion_report`가 비어 있지 않음)는 `.hwp`로 쓰지 않고
@@ -63,6 +74,18 @@
 
 ### 고침
 
+- 수식 상자 폭이 좁아 한/글(Windows)에서 수식 뒤 글자가 수식과 겹치던 문제. Windows 한/글은 줄을 짤 때 파일에
+  적힌 `hp:sz` 폭을 그대로 쓰고 수식은 제 크기로 그린다. 폭 표가 맥 한/글이 저장한 상자에 맞춰져 있었는데
+  Windows는 그보다 몇 % 더 필요했고, 관계 기호(`:` `≤` `≥` `≈` `⊂` `→`)는 15~30% 모자랐다. 한/글 2024가
+  실제로 필요로 한 폭 1,800건(`tests/data/equation_windows_needed_widths.json`, 수식 글꼴 `HYhwpEQ`와
+  `HancomEQN` 둘 다)에 맞춰 글자·기호 폭 표와 간격 규칙을 다시 만들었다. 이제 그 1,800건 모두 필요 폭 이상이고
+  (중앙값 약 9% 넓음), 맞출 때 쓰지 않은 수식 63개를 포함한 219개를 두 글꼴로 10~13pt에서 한/글로 열었을 때
+  뒤 글자에 닿는 것이 없었다. 수식 폭이 글자 크기에
+  비례하지 않는 것(11pt는 10pt보다 2%, 11.5pt는 13% 넓다)도 14개 크기의 실측으로 반영했다. 맥 한/글 상자와
+  견주면 폭이 평균 10% 넓다.
+- `\mathrm{H_2O}`·`\mathrm{m/s^2}`처럼 첨자가 든 곧은 글자 묶음이 `H _ 2 O`라는 글자 그대로 찍히던 문제. 이제
+  곧은 글자의 수식(`{rm H _{2} O it}`)으로 바꾼다. `\text{...}` 안의 `^`·`_`는 글자로 찍히게 두지 않고 거부한다.
+  `\mathrm{km/h}`가 `km / h`로 벌어지던 것도 원문 띄어쓰기를 따른다.
 - HWP 3.x 이하 `.hwp` 파일을 열면 "File is not a zip file" 대신 지원하지 않는 형식임을 알린다. 이 파일은 복합 파일도
   ZIP도 아니어서 사유를 알 수 없었다. 오류 형(`HwpxArchiveError`)은 전과 같다.
 
