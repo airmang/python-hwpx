@@ -1210,6 +1210,15 @@ class HwpxOxmlTable(TableStructureEdits):
         """
         _table_sizes.equalize_row_heights(self)
 
+    def set_row_heights(self, heights: Sequence[int]) -> None:
+        """행마다 높이(HWPUNIT)를 주고 표 높이를 그 합으로 맞춘다.
+
+        한/글은 행을 이 높이보다 낮게 그리지 않고, 글이 더 길면 그만큼 늘린다. 여러 행에
+        걸친 칸은 걸친 행 높이의 합을 받는다. 행 수와 개수가 다르거나 양의 정수가 아니면
+        ``table-row-heights-value``로 거부한다.
+        """
+        _table_sizes.set_row_heights(self, heights)
+
     def set_cell_text(
         self,
         row_index: int,

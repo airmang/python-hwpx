@@ -43,6 +43,22 @@ doc.save_to_path("계획.hwpx")
 있는 문서를 고칠 때는 `HwpxDocument.open("보고서.hwpx")`로 시작합니다. `.hwp`도 똑같이 열고,
 고친 결과는 `save_to_path("보고서.hwpx")`로 HWPX로 저장합니다.
 
+Markdown이 편하면 그대로 넘깁니다. 색 띠를 두른 제목 상자, 번호 상자로 그린 큰 항목(`Ⅰ`·`Ⅱ`), 번호 붙은
+소제목(`1.`·`가.`), 줄 표, 쪽 번호가 있는 보고서 모양으로 만듭니다. 꾸미지 않은 모양은 `style="plain"`입니다.
+
+<!-- standalone-python-example -->
+
+```python
+from hwpx.tools.markdown_import import from_markdown
+
+doc = from_markdown(
+    "# 2026 운영계획\n\n## 추진 배경\n\n학생 수요를 반영한다.\n\n"
+    "| 구분 | 내용 |\n|---|---|\n| 기간 | 3월 ~ 7월 |\n",
+    byline="교무기획부",
+)
+doc.save_to_path("계획.hwpx")
+```
+
 문서 저작·양식 채움·시험지 조판 같은 상위 워크플로가 필요하면
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)을 함께 설치하세요.
 

@@ -817,6 +817,7 @@ class HwpxOxmlDocument:
         fill_gradient: Mapping[str, object] | None = None,
         active_borders: Iterable[str] | None = None,
         border_type: str = "SOLID",
+        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
     ) -> str:
         if not self._headers:
             return "0"
@@ -828,6 +829,7 @@ class HwpxOxmlDocument:
             fill_gradient=fill_gradient,
             active_borders=active_borders,
             border_type=border_type,
+            sides=sides,
         )
 
     def ensure_font(

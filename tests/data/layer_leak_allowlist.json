@@ -50,6 +50,14 @@
    "reason": "Report-style text-pattern heading ('1. 제목') guessed from plain text rather than read from the outline level; ROMAN_HEAD next to it is the same guess but has no Hangul, so it is listed under undetected. Known leak — a candidate to move in a later major release."
   },
   {
+   "file": "tools/markdown_import.py",
+   "qualname": "_OWN_NUMBER",
+   "kind": "hangul-regex",
+   "count": 1,
+   "classification": "format-vocabulary",
+   "reason": "Numbering markers a Markdown heading may already carry: the forms MarkdownStyle.heading_numbers itself writes ('1.', '가.', '1)', '(가)', '①', 'Ⅰ.') and '제N장/절'. Used only so a heading the author numbered is not numbered a second time. The heading is known from the Markdown '#', not guessed from text, and no genre is judged."
+  },
+  {
    "file": "tools/mail_merge.py",
    "qualname": "_SAFE_FILENAME_RE",
    "kind": "hangul-regex",

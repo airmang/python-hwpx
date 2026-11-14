@@ -2,10 +2,20 @@
 """Markdown → HWPX: write a small, common Markdown subset into a document.
 
 ``markdown_export`` goes one way (HWPX → Markdown); this module goes the other.
-It is a genre-neutral writer: it knows headings, paragraphs, lists, pipe tables
-and bold/italic, and nothing about reports, official letters or notices. Genre
-presets (공문·가정통신문 …) belong to the application layer, which can pass its
-own :class:`MarkdownStyle`.
+It knows headings, paragraphs, lists, pipe tables and bold/italic.
+
+One named look ships with the library, ``"report"``
+(:meth:`MarkdownStyle.report`): a title in a banner with colour strips,
+section headings in a numbered box, ruled tables, report typefaces and a page
+number. A new document (:func:`from_markdown`) takes it unless another style
+is given, so the first document a newcomer makes looks like a finished report.
+Markdown added to a document that exists (:func:`append_markdown`) takes the
+plain look (``"plain"``, :class:`MarkdownStyle` as it is) unless a style is
+given, so that document keeps its own look. Everything a look does is a
+:class:`MarkdownStyle` field.
+Other genres (공문·가정통신문 …) stay with the application layer, which passes
+its own :class:`MarkdownStyle`; the library holds no knowledge of what such a
+document must contain.
 
 Supported subset:
 
@@ -58,10 +68,62 @@ class MarkdownStyle:
     ``table_header_align`` aligns header cells whose column has no alignment of
     its own in the Markdown (``"center"``, ``"left"``, ``"right"`` or ``None``
     to leave them as body cells are).
+
+    ``title_align``, ``title_rule`` and ``title_space_after_pt`` draw ``#``
+    apart from the other headings. ``heading_numbers`` puts a number before
+    each heading of a level: one of ``"1."``, ``"가."``, ``"1)"``, ``"가)"``,
+    ``"(1)"``, ``"(가)"``, ``"①"``, ``"Ⅰ."`` per level, ``None`` for no number.
+    A level's numbers start again under each heading above it, and a heading
+    that already starts with a number of its own (``## 1. 개요``) is left as it
+    is. ``bullet_chars`` gives the bullet for each list depth (the last one
+    repeats); ``bullet_char`` is one bullet for every depth. Each list depth
+    below the first is indented by ``list_indent_mm`` (``None``: one and a half
+    characters of the body size; ``0``: no indent). ``table_size`` is
+    the size of text in tables (``None``: ``body_size``). ``page_number`` puts
+    the page number at the bottom centre of a document made by
+    :func:`from_markdown`; :func:`append_markdown` never touches the footer of
+    the document it is given. ``page_number_side`` is a character drawn on each
+    side of it (``"-"`` gives ``- 1 -``).
+
+    ``heading_bold`` is one value for every heading or four, one per level.
+    ``heading_fonts`` (per level), ``body_font`` and ``table_font`` name the
+    typefaces; ``None`` keeps the document's. A heading without a font of its
+    own takes ``body_font``. ``heading_indents_mm`` moves the headings of a
+    level right, with the paragraphs under them, and ``list_first_indent_mm``
+    the first list depth (deeper ones add ``list_indent_mm`` each).
+
+    ``title_look="banner"`` draws ``#`` in a filled box (``banner_fill``) the
+    width of the text, with two colour strips above and two below
+    (``banner_colors``: top left, top right, bottom left, bottom right).
+    ``section_look="box"`` draws ``##`` as a filled cell holding the heading's
+    number and, next to it, the heading with a line under it
+    (``section_colors``: the cell's fill, the lines, the heading's text). A
+    number the heading carries itself (``## Ⅱ. 현황``) goes in the cell.
+    ``table_look="ruled"`` draws tables open at the sides, with a heavy line
+    above and below and a double line under the header row.
+    ``table_row_height_mm`` is the least height of a table row.
+    ``page_margins_mm`` is ``(left, right, top, bottom)`` or, with the header
+    and footer margins after them, six values; like ``page_number`` it applies
+    to a document made by :func:`from_markdown` only.
+
+    ``byline_size``, ``byline_font`` and ``byline_bold`` draw the byline, the
+    right-aligned line under the title that :func:`from_markdown` takes as
+    ``byline=``; ``None`` is the body's size or typeface.
+
+    ``sub_bullet_chars`` gives the bullets of a list under a ``####`` heading
+    (empty: ``bullet_chars``). ``note_size`` and ``note_font`` draw a note, a
+    paragraph that starts with ``※``. ``table_align="auto"`` aligns the body
+    cells of a table by what they hold: a column whose cells each fit on one
+    line is centred and one that wraps reads from the left; in a table of two
+    columns the first is spread over its width, as labels are, and the second
+    reads from the left; a column the Markdown aligns itself is left to it.
+    ``list_fit_spacing`` keeps a list item that runs a little past its line on
+    one line by narrowing its letter spacing, by that many percent at most
+    (``0``: never). An item that would need more wraps as it is.
     """
 
     heading_sizes: tuple[float, float, float, float] = (16.0, 12.0, 11.0, 10.0)
-    heading_bold: bool = True
+    heading_bold: bool | tuple[bool, bool, bool, bool] = True
     heading_space_before_pt: float | None = 6.0
     heading_space_after_pt: float | None = 3.0
     body_size: float | None = None
@@ -70,6 +132,86 @@ class MarkdownStyle:
     table_header_align: str | None = "center"
     table_fit_columns: bool = True
     bullet_char: str | None = None
+    bullet_chars: tuple[str, ...] = ()
+    list_indent_mm: float | None = None
+    title_align: str | None = None
+    title_rule: bool = False
+    title_space_after_pt: float | None = None
+    heading_numbers: tuple[str | None, str | None, str | None, str | None] = (None, None, None, None)
+    table_size: float | None = None
+    page_number: bool = False
+    page_number_side: str | None = None
+    heading_fonts: tuple[str | None, str | None, str | None, str | None] = (None, None, None, None)
+    body_font: str | None = None
+    table_font: str | None = None
+    heading_indents_mm: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+    list_first_indent_mm: float | None = None
+    title_look: str = "plain"
+    banner_colors: tuple[str, str, str, str] = ("#0099FF", "#FFCC00", "#339900", "#FF3300")
+    banner_fill: str = "#EFEFEF"
+    section_look: str = "plain"
+    section_colors: tuple[str, str, str] = ("#000066", "#88A1EB", "#1B1760")
+    table_look: str = "grid"
+    table_row_height_mm: float | None = None
+    page_margins_mm: tuple[float, ...] | None = None
+    byline_size: float | None = None
+    byline_font: str | None = None
+    byline_bold: bool = False
+    sub_bullet_chars: tuple[str, ...] = ()
+    note_size: float | None = None
+    note_font: str | None = None
+    table_align: str | None = None
+    list_fit_spacing: int = 0
+
+    @classmethod
+    def report(cls) -> MarkdownStyle:
+        """The ``"report"`` look: a Korean office report as schools and offices write it.
+
+        ``#`` is the title, 21pt in a grey banner with colour strips above and
+        below. ``##`` is a section: its number (``Ⅰ``, ``Ⅱ`` …) in a navy cell
+        and the heading beside it, navy, with a line under it. ``###`` and
+        ``####`` are numbered ``1.`` and ``가.``. Body text is 12pt 휴먼명조
+        with ``□``, ``-``, ``·`` bullets by depth; headings are HY헤드라인M.
+        Tables are 12pt 한컴산뜻돋움, open at the sides, with a pale blue
+        header row over a double line. The page has 20 mm margins (15 mm at the
+        bottom) and ``- 1 -`` at the bottom centre. A byline is 13pt bold
+        한컴산뜻돋움. Hancom ships these typefaces; where one is missing the
+        viewer substitutes its own.
+        """
+
+        return cls(
+            heading_sizes=(21.0, 16.0, 14.0, 12.0),
+            heading_bold=(True, True, False, False),
+            heading_fonts=("HY헤드라인M", "HY헤드라인M", "HY헤드라인M", None),
+            heading_space_before_pt=12.0,
+            heading_space_after_pt=3.0,
+            heading_numbers=(None, "Ⅰ.", "1.", "가."),
+            heading_indents_mm=(0.0, 0.0, 0.0, 4.2),
+            body_size=12.0,
+            body_font="휴먼명조",
+            bullet_chars=("□", "-", "·"),
+            list_first_indent_mm=5.3,
+            list_indent_mm=3.5,
+            title_look="banner",
+            title_space_after_pt=10.0,
+            section_look="box",
+            table_look="ruled",
+            table_size=12.0,
+            table_font="한컴산뜻돋움",
+            table_header_shading="#DFE6F7",
+            table_row_height_mm=9.2,
+            page_margins_mm=(20.0, 20.0, 20.0, 15.0, 10.0, 10.0),
+            page_number=True,
+            page_number_side="-",
+            byline_size=13.0,
+            byline_font="한컴산뜻돋움",
+            byline_bold=True,
+            sub_bullet_chars=("◦", "-", "·"),
+            note_size=10.0,
+            note_font="한컴산뜻돋움",
+            table_align="auto",
+            list_fit_spacing=8,
+        )
 
     def __post_init__(self) -> None:
         from ..errors import HwpxValueError
@@ -95,6 +237,190 @@ class MarkdownStyle:
                 context={"table_header_align": self.table_header_align},
                 suggestion="Use 'center', 'left' or 'right', or None to leave header cells as body cells are.",
             )
+        if self.title_align not in (None, "left", "center", "right"):
+            raise HwpxValueError(
+                "title_align must be 'left', 'center', 'right' or None",
+                code="text-markdown-style-invalid",
+                context={"title_align": self.title_align},
+                suggestion="Use 'center', 'left' or 'right', or None to leave the title as the body is aligned.",
+            )
+        if len(self.heading_numbers) != 4 or any(
+            form is not None and form not in _NUMBER_FORMS for form in self.heading_numbers
+        ):
+            raise HwpxValueError(
+                "heading_numbers must be four number forms (# to ####), each None or one of " + ", ".join(_NUMBER_FORMS),
+                code="text-markdown-style-invalid",
+                context={"heading_numbers": tuple(self.heading_numbers)},
+                suggestion="Give four entries, one per heading level, each None or one of: " + ", ".join(_NUMBER_FORMS),
+            )
+        if any(not isinstance(char, str) or len(char) != 1 for char in self.bullet_chars):
+            raise HwpxValueError(
+                "bullet_chars must be single characters, one per list depth",
+                code="text-markdown-style-invalid",
+                context={"bullet_chars": tuple(self.bullet_chars)},
+                suggestion="Give one character per list depth, for example ('○', '-', '·').",
+            )
+        for name in (
+            "table_size",
+            "title_space_after_pt",
+            "list_indent_mm",
+            "list_first_indent_mm",
+            "table_row_height_mm",
+            "byline_size",
+            "note_size",
+        ):
+            value = getattr(self, name)
+            positive = name in ("table_size", "table_row_height_mm", "byline_size", "note_size")
+            if value is not None and (value < 0 or (value == 0 and positive)):
+                raise HwpxValueError(
+                    f"{name} must be positive" if positive else f"{name} must not be negative",
+                    code="text-markdown-style-invalid",
+                    context={name: value},
+                    suggestion="Give a positive number, or None for the default.",
+                )
+        self._check_looks()
+
+    def _check_looks(self) -> None:
+        from ..errors import HwpxValueError
+
+        def refuse(name: str, message: str, suggestion: str) -> None:
+            raise HwpxValueError(
+                message,
+                code="text-markdown-style-invalid",
+                context={name: repr(getattr(self, name))},
+                suggestion=suggestion,
+            )
+
+        for name, allowed in (
+            ("title_look", ("plain", "banner")),
+            ("section_look", ("plain", "box")),
+            ("table_look", ("grid", "ruled")),
+            ("table_align", (None, "auto")),
+        ):
+            if getattr(self, name) not in allowed:
+                names = ", ".join(str(value) for value in allowed)
+                refuse(name, f"{name} must be one of: {names}", f"Use one of: {names}.")
+        for name, lengths, text in (
+            ("heading_fonts", (4,), True),
+            ("heading_indents_mm", (4,), False),
+            ("banner_colors", (4,), True),
+            ("section_colors", (3,), True),
+            ("page_margins_mm", (4, 6), False),
+        ):
+            values = getattr(self, name)
+            if values is None and name == "page_margins_mm":
+                continue
+            good = isinstance(values, tuple) and len(values) in lengths
+            for value in values if good else ():
+                if text:
+                    unset = value is None and name == "heading_fonts"
+                    good = good and (unset or (isinstance(value, str) and bool(value.strip())))
+                else:
+                    good = good and not isinstance(value, bool) and isinstance(value, (int, float)) and value >= 0
+            if not good:
+                refuse(
+                    name,
+                    f"{name} must be a tuple of {' or '.join(str(length) for length in lengths)} "
+                    + ("names" if text else "numbers that are not negative"),
+                    "See MarkdownStyle for what each value of this field is.",
+                )
+        bold = self.heading_bold
+        if not isinstance(bold, bool) and not (
+            isinstance(bold, tuple) and len(bold) == 4 and all(isinstance(value, bool) for value in bold)
+        ):
+            refuse(
+                "heading_bold",
+                "heading_bold must be True, False or four of them (# to ####)",
+                "Give one bool for every heading, or a tuple of four, one per level.",
+            )
+        side = self.page_number_side
+        if side is not None and (not isinstance(side, str) or len(side) != 1):
+            refuse(
+                "page_number_side",
+                "page_number_side must be one character or None",
+                "Give the character drawn on each side of the page number, for example '-'.",
+            )
+        if any(not isinstance(char, str) or len(char) != 1 for char in self.sub_bullet_chars):
+            refuse(
+                "sub_bullet_chars",
+                "sub_bullet_chars must be single characters, one per list depth",
+                "Give one character per list depth, for example ('◦', '-', '·').",
+            )
+        fit = self.list_fit_spacing
+        if isinstance(fit, bool) or not isinstance(fit, int) or not 0 <= fit <= _FIT_SPACING_MOST:
+            refuse(
+                "list_fit_spacing",
+                f"list_fit_spacing must be a whole percent from 0 to {_FIT_SPACING_MOST}",
+                "Give how far the letter spacing may be narrowed, in percent; 0 never narrows it.",
+            )
+        for name in ("body_font", "table_font", "byline_font", "note_font", "banner_fill"):
+            value = getattr(self, name)
+            if (value is not None or name == "banner_fill") and (not isinstance(value, str) or not value.strip()):
+                refuse(name, f"{name} must be a name that is not empty", "Name a typeface, or a colour as #RRGGBB.")
+
+
+# --------------------------------------------------------------------------
+# Heading numbers
+
+_GANADA_INITIALS = (0, 2, 3, 5, 6, 7, 9, 11, 12, 14, 15, 16, 17, 18)  # 가 나 다 라 마 바 사 아 자 차 카 타 파 하
+_GANADA_VOWELS = (0, 4, 8, 13, 18, 20)  # 가 거 고 구 그 기: the manual's order once 하 is passed
+
+
+def _ganada(number: int) -> str:
+    """가, 나, … 하, 거, 너, … for 1, 2, …; a plain number once the syllables run out."""
+
+    index = number - 1
+    if not 0 <= index < len(_GANADA_INITIALS) * len(_GANADA_VOWELS):
+        return str(number)
+    vowel, initial = divmod(index, len(_GANADA_INITIALS))
+    return chr(0xAC00 + (_GANADA_INITIALS[initial] * 21 + _GANADA_VOWELS[vowel]) * 28)
+
+
+def _roman(number: int) -> str:
+    return chr(0x2160 + number - 1) if 1 <= number <= 12 else str(number)
+
+
+def _circled(number: int) -> str:
+    return chr(0x2460 + number - 1) if 1 <= number <= 20 else f"({number})"
+
+
+_NUMBER_FORMS = {
+    "1.": lambda number: f"{number}.",
+    "가.": lambda number: f"{_ganada(number)}.",
+    "1)": lambda number: f"{number})",
+    "가)": lambda number: f"{_ganada(number)})",
+    "(1)": lambda number: f"({number})",
+    "(가)": lambda number: f"({_ganada(number)})",
+    "①": _circled,
+    "Ⅰ.": lambda number: f"{_roman(number)}.",
+}
+#: A heading that already carries a number of its own: "1. 개요", "가. 목적", "Ⅱ. 현황", "(1) …", "① …", "제2장 …".
+_OWN_NUMBER = re.compile(
+    r"^(?:\d{1,2}[.)]\s|[가나다라마바사아자차카타파하][.)]\s|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+[.\s]|[IVX]+\.\s"
+    r"|\(\d{1,2}\)|\([가나다라마바사아자차카타파하]\)|[①-⑳]|제\s*\d+\s*[장절관조항])"
+)
+#: Names :func:`append_markdown` and :func:`from_markdown` take in place of a style.
+_NAMED_STYLES = {"report": MarkdownStyle.report, "보고서": MarkdownStyle.report, "plain": MarkdownStyle}
+
+
+def _resolve_style(style: MarkdownStyle | str | None, default: str = "plain") -> MarkdownStyle:
+    """*style* as a :class:`MarkdownStyle`; ``None`` is the look named *default*."""
+
+    if style is None:
+        style = default
+    if isinstance(style, MarkdownStyle):
+        return style
+    maker = _NAMED_STYLES.get(style) if isinstance(style, str) else None
+    if maker is None:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"unknown Markdown style {style!r}",
+            code="text-markdown-style-invalid",
+            context={"style": style, "known": sorted(_NAMED_STYLES)},
+            suggestion="Pass a MarkdownStyle, or a name: 'report' (also '보고서') or 'plain'.",
+        )
+    return maker()
 
 
 # --------------------------------------------------------------------------
@@ -362,21 +688,68 @@ class _Writer:
     def __init__(self, document: HwpxDocument, style: MarkdownStyle, *, reuse_first: bool) -> None:
         self.doc = document
         self.style = style
-        self._char_ids: dict[tuple[bool, bool, float | None], str] = {}
+        self._char_ids: dict[tuple[bool, bool, float | None, str | None, str | None], str] = {}
+        self._border_ids: dict[tuple[object, ...], str] = {}
         self._reuse = document.paragraphs[0] if reuse_first else None
+        self._heading_counts = [0, 0, 0, 0]
+        #: How far right the heading above stands; the paragraphs under it stand as far.
+        self._body_indent_mm = 0.0
+        #: The level of the heading above (0: none yet).
+        self._heading_level = 0
 
-    def char_id(self, bold: bool, italic: bool, size: float | None) -> str:
-        key = (bold, italic, size)
+    def char_id(
+        self, bold: bool, italic: bool, size: float | None, font: str | None = None, color: str | None = None
+    ) -> str:
+        key = (bold, italic, size, font, color)
         if key not in self._char_ids:
-            self._char_ids[key] = self.doc.styles.ensure_run(bold=bold, italic=italic, size=size)
+            self._char_ids[key] = self.doc.styles.ensure_run(bold=bold, italic=italic, size=size, font=font, color=color)
         return self._char_ids[key]
 
     def write_runs(
-        self, paragraph: HwpxOxmlParagraph, text: str, *, bold: bool = False, size: float | None = None
+        self,
+        paragraph: HwpxOxmlParagraph,
+        text: str,
+        *,
+        bold: bool = False,
+        size: float | None = None,
+        font: str | None = None,
+        color: str | None = None,
     ) -> None:
         segments = parse_inline(_BR.sub("\n", text)) or [("", False, False)]
         for chunk, seg_bold, seg_italic in segments:
-            paragraph.add_run(chunk, char_pr_id_ref=self.char_id(bold or seg_bold, seg_italic, size))
+            paragraph.add_run(chunk, char_pr_id_ref=self.char_id(bold or seg_bold, seg_italic, size, font, color))
+
+    def heading_bold(self, level: int) -> bool:
+        bold = self.style.heading_bold
+        return bold if isinstance(bold, bool) else bold[level - 1]
+
+    def heading_font(self, level: int) -> str | None:
+        return self.style.heading_fonts[level - 1] or self.style.body_font
+
+    def border_id(
+        self,
+        *,
+        color: str = "#000000",
+        width: str = "0.12 mm",
+        fill: str | None = None,
+        sides: tuple[tuple[str, str] | None, tuple[str, str] | None, tuple[str, str] | None, tuple[str, str] | None]
+        | None = None,
+    ) -> str:
+        """A border/fill id: *sides* is ``(left, right, top, bottom)``, each ``(type, width)`` or ``None`` for no
+        line; without *sides* all four are solid lines of *width*."""
+
+        key = (color, width, fill, sides)
+        if key not in self._border_ids:
+            lines = None
+            if sides is not None:
+                lines = {
+                    name: None if line is None else {"type": line[0], "width": line[1]}
+                    for name, line in zip(("left", "right", "top", "bottom"), sides)
+                }
+            self._border_ids[key] = self.doc.styles.ensure_border_fill(
+                border_color=color, border_width=width, fill_color=fill, sides=lines
+            )
+        return self._border_ids[key]
 
     def stop_reusing(self) -> None:
         self._reuse = None
@@ -387,30 +760,215 @@ class _Writer:
             return paragraph
         return self.doc.add_paragraph("", include_run=False, inherit_style=False)
 
-    def heading(self, block: _Heading) -> None:
+    def heading_number(self, level: int, text: str) -> str:
+        """The number to write before a heading of *level*, or ``""``."""
+
+        form = self.style.heading_numbers[level - 1]
+        if form is None or _OWN_NUMBER.match(text):
+            return ""
+        self._heading_counts[level - 1] += 1
+        return _NUMBER_FORMS[form](self._heading_counts[level - 1]) + " "
+
+    def heading(self, block: _Heading) -> HwpxOxmlParagraph:
+        """Write a heading and return the body paragraph that holds it."""
+
+        # The levels below start again under every heading, numbered by the look or by its writer.
+        for deeper in range(block.level, 4):
+            self._heading_counts[deeper] = 0
+        self._heading_level = block.level
+        self._body_indent_mm = float(self.style.heading_indents_mm[block.level - 1])
+        if block.level == 1 and self.style.title_look == "banner":
+            return self.banner(block)
+        if block.level == 2 and self.style.section_look == "box":
+            return self.section_box(block)
+        paragraph = self.new_paragraph()
+        size = self.style.heading_sizes[block.level - 1]
+        bold, font = self.heading_bold(block.level), self.heading_font(block.level)
+        number = self.heading_number(block.level, block.text)
+        if number:
+            paragraph.add_run(number, char_pr_id_ref=self.char_id(bold, False, size, font))
+        self.write_runs(paragraph, block.text, bold=bold, size=size, font=font)
+        title = block.level == 1
+        space_after = self.style.heading_space_after_pt
+        if title and self.style.title_space_after_pt is not None:
+            space_after = self.style.title_space_after_pt
+        self.doc.styles.apply_paragraph_format(
+            paragraphs=[paragraph],
+            alignment=self.style.title_align if title else None,
+            indent_left_mm=self.style.heading_indents_mm[block.level - 1] or None,
+            spacing_before_pt=self.style.heading_space_before_pt,
+            spacing_after_pt=space_after,
+            keep_with_next=True,
+            bottom_border=title and self.style.title_rule,
+            border_color="#000000",
+            border_width="0.4 mm",
+        )
+        return paragraph
+
+    def byline(self, text: str, title: HwpxOxmlParagraph | None) -> None:
+        """The line naming who wrote the document, right-aligned under *title* (``None``: no title)."""
+
+        style = self.style
         paragraph = self.new_paragraph()
         self.write_runs(
             paragraph,
-            block.text,
-            bold=self.style.heading_bold,
-            size=self.style.heading_sizes[block.level - 1],
+            text,
+            bold=style.byline_bold,
+            size=style.byline_size or style.body_size,
+            font=style.byline_font or style.body_font,
         )
+        gap = style.title_space_after_pt if style.title_space_after_pt is not None else style.heading_space_after_pt
+        self.doc.styles.apply_paragraph_format(paragraphs=[paragraph], alignment="right", spacing_after_pt=gap)
+        if title is not None and gap is not None:  # the space under the title is now the space under this line
+            self.doc.styles.apply_paragraph_format(paragraphs=[title], spacing_after_pt=0, keep_with_next=True)
+
+    def banner(self, block: _Heading) -> HwpxOxmlParagraph:
+        """The title in a filled box the width of the text, colour strips above and below."""
+
+        style = self.style
+        size = style.heading_sizes[0]
+        paragraph = self.new_paragraph()
+        table = paragraph.add_table(3, 2, border_fill_id_ref=self.border_id(sides=(None, None, None, None)))
+        tiny = self.char_id(False, False, _STRIP_FONT_PT)  # an empty line no taller than the strip
+        for (row, col), color in zip(((0, 0), (0, 1), (2, 0), (2, 1)), style.banner_colors):
+            table.set_cell_border_fill(row, col, self.border_id(fill=color, sides=(None, None, None, None)))
+            for run in table.cell(row, col).paragraphs[0].runs:
+                run.char_pr_id_ref = tiny
+        table.merge_cells(1, 0, 1, 1)
+        table.set_cell_border_fill(1, 0, self.border_id(fill=style.banner_fill, sides=(None, None, None, None)))
+        title = table.cell(1, 0).paragraphs[0]
+        self.write_runs(title, block.text, bold=self.heading_bold(1), size=size, font=self.heading_font(1))
+        self.doc.styles.apply_paragraph_format(paragraphs=[title], alignment="center", line_spacing_percent=120)
+        table.set_row_heights([_STRIP_HEIGHT, round(size * 100 * _BANNER_HEIGHT_EMS), _STRIP_HEIGHT])
         self.doc.styles.apply_paragraph_format(
             paragraphs=[paragraph],
-            spacing_before_pt=self.style.heading_space_before_pt,
-            spacing_after_pt=self.style.heading_space_after_pt,
+            spacing_after_pt=style.title_space_after_pt
+            if style.title_space_after_pt is not None
+            else style.heading_space_after_pt,
             keep_with_next=True,
         )
+        return paragraph
+
+    def section_box(self, block: _Heading) -> HwpxOxmlParagraph:
+        """A section heading: its number in a filled cell, the heading beside it over a line."""
+
+        from ..form_fit.measure import estimate_text_width
+
+        style = self.style
+        fill, line, ink = style.section_colors
+        size = style.heading_sizes[1]
+        em = estimate_text_width("가", size)
+        number, text = self.box_number(block.text)
+        paragraph = self.new_paragraph()
+        available = paragraph._context_table_width() or _FALLBACK_TEXT_WIDTH
+        number_width = 0
+        if number:
+            needed = estimate_text_width(number, size + 2) + _CELL_SIDE_PADDING + em / 4
+            number_width = round(max(em * _BOX_NUMBER_EMS, needed))
+        plain = "".join(chunk for chunk, _bold, _italic in parse_inline(_BR.sub("\n", text)))
+        longest = max(estimate_text_width(piece, size) for piece in plain.split("\n")) * _BOX_TITLE_WIDER
+        title_width = round(min(longest + em * _BOX_TITLE_SLACK_EMS + _CELL_SIDE_PADDING, available - number_width))
+        open_box = self.border_id(color=line, sides=(("SOLID", "0.4 mm"), None, None, ("SOLID", "0.4 mm")))
+        table = paragraph.add_table(
+            1, 2 if number else 1, width=number_width + title_width, border_fill_id_ref=open_box
+        )
+        if number:
+            table.set_column_widths([number_width, title_width])
+            table.set_cell_border_fill(0, 0, self.border_id(color=line, width="0.4 mm", fill=fill))
+            label = table.cell(0, 0).paragraphs[0]
+            label.add_run(number, char_pr_id_ref=self.char_id(True, False, size + 2, style.body_font, "#FFFFFF"))
+            self.doc.styles.apply_paragraph_format(paragraphs=[label], alignment="center")
+        heading = table.cell(0, 1 if number else 0).paragraphs[0]
+        self.write_runs(heading, text, bold=self.heading_bold(2), size=size, font=self.heading_font(2), color=ink)
+        self.doc.styles.apply_paragraph_format(
+            paragraphs=[heading], indent_left_mm=_BOX_TITLE_INDENT_MM, line_spacing_percent=130
+        )
+        table.set_row_heights([round(size * 100 * _BOX_HEIGHT_EMS)])
+        self.doc.styles.apply_paragraph_format(
+            paragraphs=[paragraph],
+            spacing_before_pt=style.heading_space_before_pt,
+            spacing_after_pt=style.heading_space_after_pt,
+            keep_with_next=True,
+        )
+        return paragraph
+
+    def box_number(self, text: str) -> tuple[str, str]:
+        """``(number, heading)`` for a boxed section heading; no number draws the heading alone.
+
+        A number the heading carries (``Ⅱ. 현황``, ``2. 현황``) is the one shown; ``제2장 …`` is kept in the
+        heading, which is then drawn without a number cell.
+        """
+
+        own = _OWN_NUMBER.match(text)
+        if own:
+            mark, rest = own.group(0).strip(), text[own.end() :].strip()
+            if rest and mark[-1:] in ".)" and not mark.startswith("("):
+                return mark[:-1], rest
+            if rest and not mark.startswith("제"):
+                return mark, rest
+            return "", text
+        return self.heading_number(2, text).strip().removesuffix("."), text
 
     def paragraph(self, block: _Paragraph) -> None:
-        self.write_runs(self.new_paragraph(), block.text, size=self.style.body_size)
+        style = self.style
+        paragraph = self.new_paragraph()
+        note = block.text.lstrip().startswith(_NOTE_MARK)  # a note is set smaller, as the look gives it
+        self.write_runs(
+            paragraph,
+            block.text,
+            size=(style.note_size if note else None) or style.body_size,
+            font=(style.note_font if note else None) or style.body_font,
+        )
+        if self._body_indent_mm > 0:
+            self.doc.styles.apply_paragraph_format(paragraphs=[paragraph], indent_left_mm=self._body_indent_mm)
+
+    def fit_on_one_line(self, paragraph: HwpxOxmlParagraph) -> None:
+        """Narrow the letter spacing of a list item that runs a little past its line, so that it stays on one.
+
+        The spacing is narrowed by whole percents, no further than ``list_fit_spacing``, to the first value at
+        which the text is measured to fit with a little room to spare. An item that would need more keeps its
+        spacing and wraps. A measure that turns out too short costs nothing but a wrapped line: the spacing is
+        a fixed one, never Hancom's fit-to-one-line, which presses a line as far as it takes.
+        """
+
+        from dataclasses import replace
+
+        from ..form_fit.measure import char_advance, indented_widths, text_style_from_refs
+
+        limit = self.style.list_fit_spacing
+        runs = [run for run in paragraph.runs if run.text]
+        text = "".join(run.text for run in runs).rstrip()
+        if not limit or not text or "\n" in text:
+            return
+        look = text_style_from_refs(
+            self.doc, paragraph.para_pr_id_ref, [runs[0].char_pr_id_ref], end_char_pr_id_ref=runs[-1].char_pr_id_ref
+        )
+        line = (paragraph._context_table_width() or _FALLBACK_TEXT_WIDTH) - look.margin_left - look.margin_right
+        room = indented_widths(line, look)[0]
+        points = self.style.body_size or _BASE_SIZE_PT
+
+        def width(spacing: int) -> float:
+            spaced = replace(look, spacing=float(spacing))
+            return sum(char_advance(char, points, spaced) for char in text)
+
+        if room <= 0 or width(0) <= room:
+            return
+        for spacing in range(-1, -limit - 1, -1):
+            if width(spacing) <= room * (1 - _FIT_SPARE):
+                for run in runs:
+                    run.char_pr_id_ref = self.doc.styles.ensure_run(
+                        base_char_pr_id=run.char_pr_id_ref, letter_spacing=spacing
+                    )
+                return
 
     def list(self, block: _List) -> None:
         groups: dict[tuple[str, int], list[int]] = {}
         starts: dict[tuple[str, int], int | None] = {}
+        by_level: dict[int, list[HwpxOxmlParagraph]] = {}
         for item in block.items:
             paragraph = self.new_paragraph()
-            self.write_runs(paragraph, item.text, size=self.style.body_size)
+            self.write_runs(paragraph, item.text, size=self.style.body_size, font=self.style.body_font)
+            by_level.setdefault(item.level, []).append(paragraph)
             index = self._index_of(paragraph)
             key = (item.kind, item.level)
             if key not in groups:
@@ -430,9 +988,21 @@ class _Writer:
                 )
                 numbered = True
             else:
-                self.doc.styles.apply_list_format(
-                    paragraph_indexes=indexes, kind="bullet", level=level, bullet_char=self.style.bullet_char
-                )
+                chars = (self.style.sub_bullet_chars if self._heading_level == 4 else ()) or self.style.bullet_chars
+                bullet = chars[min(level, len(chars)) - 1] if chars else self.style.bullet_char
+                self.doc.styles.apply_list_format(paragraph_indexes=indexes, kind="bullet", level=level, bullet_char=bullet)
+        step = self.style.list_indent_mm
+        if step is None:
+            step = (self.style.body_size or _BASE_SIZE_PT) * _LIST_INDENT_CHARS * _MM_PER_PT
+        first = self.style.list_first_indent_mm or 0.0
+        for level, paragraphs in by_level.items():
+            left = first + step * (level - 1)
+            if left > 0:
+                self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, indent_left_mm=left)
+        if self.style.list_fit_spacing:  # once each item has its margins and its bullet
+            for paragraphs in by_level.values():
+                for paragraph in paragraphs:
+                    self.fit_on_one_line(paragraph)
 
     def _index_of(self, paragraph: HwpxOxmlParagraph) -> int:
         element = paragraph.element
@@ -446,6 +1016,9 @@ class _Writer:
             return
         cols = max(len(row) for row in block.rows)
         table = self.doc.add_table(len(block.rows), cols)
+        size = self.style.table_size or self.style.body_size
+        font = self.style.table_font or self.style.body_font
+        ruled = self.style.table_look == "ruled"
         aligned: dict[str, list[HwpxOxmlParagraph]] = {}
         for row_index, row in enumerate(block.rows):
             is_header = block.header and row_index == 0
@@ -456,25 +1029,57 @@ class _Writer:
                     cell.paragraphs[0],
                     text,
                     bold=is_header and self.style.table_header_bold,
-                    size=self.style.body_size,
+                    size=size,
+                    font=font,
                 )
-                if is_header and self.style.table_header_shading:
+                if ruled:
+                    table.set_cell_border_fill(
+                        row_index, col_index, self.ruled_border(row_index, col_index, len(block.rows), cols, block.header)
+                    )
+                elif is_header and self.style.table_header_shading:
                     table.set_cell_shading(row_index, col_index, self.style.table_header_shading)
                 align = block.aligns[col_index] if col_index < len(block.aligns) else None
                 if align is None and is_header:
                     align = self.style.table_header_align
                 if align in ("center", "right"):
                     aligned.setdefault(align, []).append(cell.paragraphs[0])
-        for align, paragraphs in aligned.items():
-            self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
         if self.style.table_fit_columns and cols > 1:
             total = sum(table.cell(0, col_index).width for col_index in range(cols))
-            size = self.style.body_size or _BASE_SIZE_PT
-            table.set_column_widths(_column_weights(block.rows, cols, size, total))
+            table.set_column_widths(_column_weights(block.rows, cols, size or _BASE_SIZE_PT, total))
+        if self.style.table_align == "auto":
+            widths = [table.cell(0, col_index).width for col_index in range(cols)]
+            by_column = _body_aligns(block, cols, size or _BASE_SIZE_PT, widths)
+            for row_index in range(1 if block.header else 0, len(block.rows)):
+                for col_index, align in enumerate(by_column):
+                    if align:
+                        aligned.setdefault(align, []).append(table.cell(row_index, col_index).paragraphs[0])
+        for align, paragraphs in aligned.items():
+            self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
+        if self.style.table_row_height_mm:
+            table.set_row_heights([round(self.style.table_row_height_mm * _HWPUNIT_PER_MM)] * len(block.rows))
+
+    def ruled_border(self, row: int, col: int, rows: int, cols: int, header: bool) -> str:
+        """The border of one cell of a ruled table: open sides, a heavy line above and below the table, a
+        double line under the header row and thin lines between cells."""
+
+        heavy, thin, double = ("SOLID", "0.4 mm"), ("SOLID", "0.15 mm"), ("DOUBLE_SLIM", "0.5 mm")
+        under_header = header and rows > 1
+        return self.border_id(
+            fill=self.style.table_header_shading if header and row == 0 else None,
+            sides=(
+                None if col == 0 else thin,
+                None if col == cols - 1 else thin,
+                heavy if row == 0 else double if under_header and row == 1 else thin,
+                heavy if row == rows - 1 else double if under_header and row == 0 else thin,
+            ),
+        )
 
 
 #: The blank document's body size, used to judge how wide a column's text is.
 _BASE_SIZE_PT = 10.0
+#: How far each list depth below the first moves right, in characters of the body size.
+_LIST_INDENT_CHARS = 1.5
+_MM_PER_PT = 25.4 / 72
 #: A table cell's left and right padding together (1.8 mm each side), in HWPUNIT.
 _CELL_SIDE_PADDING = 2 * 510
 #: A column is never judged narrower than this many full-width characters.
@@ -482,6 +1087,77 @@ _MIN_COLUMN_CHARS = 3
 #: Room left beyond the measured text, in full-width characters, so a line that
 #: just fits by the estimate does not wrap in Hancom.
 _COLUMN_SLACK_CHARS = 1.0
+_HWPUNIT_PER_MM = 7200 / 25.4
+#: The text width of the blank document, for a paragraph whose page cannot be measured.
+_FALLBACK_TEXT_WIDTH = 42520
+#: A banner's colour strip: its height, and the size of the empty line inside it.
+_STRIP_HEIGHT = 430
+_STRIP_FONT_PT = 1.0
+#: The heights of the banner's title cell and of a boxed section heading, in lines of their text size.
+_BANNER_HEIGHT_EMS = 1.7
+_BOX_HEIGHT_EMS = 2.2
+#: A boxed section heading: the number cell's least width and the room kept after the heading, in
+#: characters of its size, and how far the heading stands from the line on its left.
+_BOX_NUMBER_EMS = 2.1
+_BOX_TITLE_SLACK_EMS = 4.0
+_BOX_TITLE_INDENT_MM = 3.0
+#: A bold heading typeface runs wider than the estimate, which is made for body text.
+_BOX_TITLE_WIDER = 1.05
+#: A paragraph that starts with this mark is a note.
+_NOTE_MARK = "※"
+#: The share of its line a list item is measured to leave free before its narrowed spacing is taken to fit.
+_FIT_SPARE = 0.01
+#: The most a look may narrow the letter spacing of a list item, in percent: past it the letters crowd.
+_FIT_SPACING_MOST = 10
+
+
+def _plain_cell(text: str) -> str:
+    return "".join(chunk for chunk, _bold, _italic in parse_inline(_BR.sub("\n", text)))
+
+
+def _column_needs(rows: list[list[str]], cols: int, font_pt: float) -> tuple[list[float], float]:
+    """The width each column needs for its longest line, cell padding included, and the least any column is
+    given (a few characters)."""
+
+    from ..form_fit.measure import estimate_text_width
+
+    em = estimate_text_width("가", font_pt)
+    floor = em * _MIN_COLUMN_CHARS + _CELL_SIDE_PADDING
+    needs: list[float] = []
+    for col_index in range(cols):
+        longest = 0.0
+        for row in rows:
+            text = row[col_index] if col_index < len(row) else ""
+            for line in _plain_cell(text).split("\n"):
+                longest = max(longest, estimate_text_width(line, font_pt))
+        needs.append(max(longest + em * _COLUMN_SLACK_CHARS + _CELL_SIDE_PADDING, floor))
+    return needs, floor
+
+
+def _body_aligns(block: _Table, cols: int, font_pt: float, widths: list[int]) -> list[str | None]:
+    """How the look aligns the body cells of each column (``table_align="auto"``); ``None`` leaves them.
+
+    A column whose cells each fit on one line is centred, and one that wraps reads from the left. A table of
+    two columns is read as labels and what they name: the labels are spread over their column's width and
+    the other column reads from the left. A column the Markdown aligns itself is left to it.
+    """
+
+    body = block.rows[1:] if block.header else block.rows
+    if not body:
+        return [None] * cols
+    needs, _floor = _column_needs(body, cols, font_pt)
+    labels = [_plain_cell(row[0]) if row else "" for row in body]
+    spread = all("\n" not in label and len("".join(label.split())) >= 2 for label in labels)
+    aligns: list[str | None] = []
+    for col_index in range(cols):
+        given = block.aligns[col_index] if col_index < len(block.aligns) else None
+        if given is not None or needs[col_index] > widths[col_index] or (cols == 2 and col_index == 1):
+            aligns.append(None)
+        elif cols == 2 and spread:
+            aligns.append("distribute")
+        else:
+            aligns.append("center")
+    return aligns
 
 
 def _column_weights(rows: list[list[str]], cols: int, font_pt: float, table_width: int) -> list[float]:
@@ -495,19 +1171,7 @@ def _column_weights(rows: list[list[str]], cols: int, font_pt: float, table_widt
     long text.
     """
 
-    from ..form_fit.measure import estimate_text_width
-
-    em = estimate_text_width("가", font_pt)
-    floor = em * _MIN_COLUMN_CHARS + _CELL_SIDE_PADDING
-    needs: list[float] = []
-    for col_index in range(cols):
-        longest = 0.0
-        for row in rows:
-            text = row[col_index] if col_index < len(row) else ""
-            plain = "".join(chunk for chunk, _bold, _italic in parse_inline(_BR.sub("\n", text)))
-            for line in plain.split("\n"):
-                longest = max(longest, estimate_text_width(line, font_pt))
-        needs.append(max(longest + em * _COLUMN_SLACK_CHARS + _CELL_SIDE_PADDING, floor))
+    needs, floor = _column_needs(rows, cols, font_pt)
     if sum(needs) <= table_width:
         return needs
     if floor * cols >= table_width:
@@ -528,31 +1192,62 @@ def append_markdown(
     document: HwpxDocument,
     markdown: str,
     *,
-    style: MarkdownStyle | None = None,
+    style: MarkdownStyle | str | None = None,
+    byline: str | None = None,
     reuse_first_paragraph: bool = False,
 ) -> None:
     """Append *markdown* to the end of *document*'s last section.
 
+    *style* is a :class:`MarkdownStyle` or the name of a look: ``"plain"``, or
+    the one the library ships, ``"report"`` (also ``"보고서"``). ``None`` is
+    the plain look, so the document keeps the look it has. Heading numbers
+    start at 1 on each call.
+
+    *byline* is a line naming who wrote the document (a department, a date).
+    It is written right-aligned under the first ``#`` title, or as the first
+    line when the Markdown has no title; ``\\n`` in it is a line break.
+
     ``reuse_first_paragraph=True`` writes the first heading, paragraph or list
     item into the document's first paragraph instead of a new one — what
-    :func:`from_markdown` does with a blank document's empty first line. A table never takes that paragraph (it holds the section settings).
+    :func:`from_markdown` does with a blank document's empty first line. A
+    table of the Markdown never takes that paragraph (it holds the section
+    settings).
     """
 
-    writer = _Writer(document, style or MarkdownStyle(), reuse_first=reuse_first_paragraph)
-    for block in parse_blocks(markdown):
+    writer = _Writer(document, _resolve_style(style), reuse_first=reuse_first_paragraph)
+    blocks = list(parse_blocks(markdown))
+    pending = (byline or "").strip()
+    if pending and not any(isinstance(block, _Heading) and block.level == 1 for block in blocks):
+        writer.byline(pending, None)
+        pending = ""
+    for block in blocks:
         if isinstance(block, _Table):
             writer.table(block)
             writer.stop_reusing()
         elif isinstance(block, _Heading):
-            writer.heading(block)
+            title = writer.heading(block)
+            if pending and block.level == 1:
+                writer.byline(pending, title)
+                pending = ""
         elif isinstance(block, _List):
             writer.list(block)
         elif isinstance(block, _Paragraph):
             writer.paragraph(block)
 
 
-def from_markdown(markdown: str, *, style: MarkdownStyle | None = None) -> HwpxDocument:
+def from_markdown(
+    markdown: str, *, style: MarkdownStyle | str | None = None, byline: str | None = None
+) -> HwpxDocument:
     """Return a new clean document holding *markdown*.
+
+    The document takes the report look (``"report"``, :meth:`MarkdownStyle.report`)
+    unless *style* says otherwise: the title in a banner, section headings in
+    a numbered box, ruled tables, 12pt body text, report page margins and a
+    page number. ``style="plain"`` gives the undecorated look, and a
+    :class:`MarkdownStyle` any look of your own.
+
+    *byline* is a line naming who wrote the document (a department, a date),
+    written right-aligned under the title; see :func:`append_markdown`.
 
     The document is made with ``HwpxDocument.new(inherit_style=False)`` and the
     first heading, paragraph or list item takes its empty first line. To add
@@ -564,6 +1259,20 @@ def from_markdown(markdown: str, *, style: MarkdownStyle | None = None) -> HwpxD
 
     from ..document import HwpxDocument
 
+    resolved = _resolve_style(style, "report")
     document = HwpxDocument.new(inherit_style=False)
-    append_markdown(document, markdown, style=style, reuse_first_paragraph=True)
+    if resolved.page_margins_mm:  # before the text: tables are made as wide as the text
+        left, right, top, bottom, *edges = resolved.page_margins_mm
+        document.page.setup(
+            margin_left_mm=left,
+            margin_right_mm=right,
+            margin_top_mm=top,
+            margin_bottom_mm=bottom,
+            header_margin_mm=edges[0] if edges else None,
+            footer_margin_mm=edges[1] if edges else None,
+        )
+    append_markdown(document, markdown, style=resolved, byline=byline, reuse_first_paragraph=True)
+    if resolved.page_number:
+        side = resolved.page_number_side
+        document.page.set_page_number(prefix=f"{side} " if side else "", suffix=f" {side}" if side else "")
     return document

@@ -43,6 +43,23 @@ Styles are picked by name. A name that does not exist fails at that line.
 To edit an existing file, start from `HwpxDocument.open("report.hwpx")`. An `.hwp` file opens the
 same way; save the result as HWPX with `save_to_path("report.hwpx")`.
 
+If Markdown is what you have, pass it as it is. The document takes the look of a Korean office
+report: the title in a banner with colour strips, sections in a numbered box (`Ⅰ`, `Ⅱ`), numbered
+headings under them (`1.`, `가.`), ruled tables and a page number. `style="plain"` leaves it undecorated.
+
+<!-- standalone-python-example -->
+
+```python
+from hwpx.tools.markdown_import import from_markdown
+
+doc = from_markdown(
+    "# 2026 Operating Plan\n\n## Background\n\nBuilt on what students asked for.\n\n"
+    "| Item | Detail |\n|---|---|\n| Period | March to July |\n",
+    byline="Academic Affairs",
+)
+doc.save_to_path("plan.hwpx")
+```
+
 For higher-level workflows (document authoring, form filling, exam typesetting), install
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) alongside it.
 

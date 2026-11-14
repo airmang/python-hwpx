@@ -59,7 +59,11 @@ def test_format_vocabulary_is_not_scheduled_to_move() -> None:
         for entry in ALLOWLIST["entries"]
         if entry["classification"] == "format-vocabulary"
     }
-    assert vocabulary == {("tools/mail_merge.py", "_SAFE_FILENAME_RE"), ("tools/toc_author.py", "_OUTLINE_NAME_RE")}
+    assert vocabulary == {
+        ("tools/mail_merge.py", "_SAFE_FILENAME_RE"),
+        ("tools/toc_author.py", "_OUTLINE_NAME_RE"),
+        ("tools/markdown_import.py", "_OWN_NUMBER"),
+    }
     assert not vocabulary & set(_names(CONTRACT["groups"], "allowlist"))
 
 

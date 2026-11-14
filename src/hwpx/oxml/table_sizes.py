@@ -345,6 +345,39 @@ def equalize_row_heights(table: "HwpxOxmlTable") -> None:
         entry.cell.set_size(height=height)
 
 
+def set_row_heights(table: "HwpxOxmlTable", heights: "Sequence[int]") -> None:
+    """Give each row of *table* its height (HWPUNIT) and the table their sum.
+
+    Hancom draws a row at least this tall and taller when its text needs it.
+    A cell over several rows takes the sum of their heights.
+    """
+    from ..errors import HwpxValueError
+
+    values = list(heights)
+    if len(values) != table.row_count or any(
+        isinstance(value, bool) or not isinstance(value, int) or not 0 < value < 2**31 for value in values
+    ):
+        raise HwpxValueError(
+            f"heights must be {table.row_count} positive ints (HWPUNIT), one per row; got {values!r}",
+            code="table-row-heights-value",
+            context={"rows": table.row_count, "heights": [repr(value) for value in values]},
+            suggestion="Pass one height in HWP units for each row of the table (1 mm is about 283).",
+        )
+    seen: set[int] = set()
+    for entry in table.iter_grid():
+        marker = id(entry.cell.element)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        start_row, _start_col = entry.cell.address
+        span_row, _span_col = entry.cell.span
+        entry.cell.set_size(height=sum(values[start_row:start_row + max(span_row, 1)]))
+    sz = table.element.find(f"{_HP}sz")
+    if sz is not None:
+        sz.set("height", str(sum(values)))
+    table.mark_dirty()
+
+
 def effective_cell_margin_source(
     has_margin: str | None,
     own: Mapping[str, Any] | Any | None,

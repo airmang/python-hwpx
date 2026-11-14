@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 209 | 11 |
+| 개수 | 211 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -360,6 +360,7 @@ except HwpxError as exc:
 | `style-border-fill-image-missing` | fill_image 가 doc.media 이진 항목을 가리키지 않는다. |
 | `style-border-fill-image-mode-invalid` | fill_image 의 mode 값이 OWPML 어휘(hc:imgBrush/@mode) 밖이다. |
 | `style-border-fill-width-invalid` | hh:borderFill 선의 width 가 '<숫자> mm' 꼴이 아니다(border_fill_info). |
+| `style-border-side-invalid` | ensure_border_fill 의 sides 에 모르는 면이나 type·width·color 밖의 키를 주었다. |
 | `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
 | `style-font-container-create-failed` | fontfaces/fontface 컨테이너를 만들지 못했다. |
@@ -388,6 +389,7 @@ except HwpxError as exc:
 |---|---|
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
+| `table-row-heights-value` | 행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다. |
 | `table-width-value` | 새 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `text-*`
@@ -399,7 +401,7 @@ except HwpxError as exc:
 | `text-highlight-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `text-highlight-match-empty` | 형광펜으로 감쌀 문자열이 비어 있다. |
 | `text-highlight-match-not-found` | 문단에서 형광펜으로 감쌀 문자열을 찾지 못했다. |
-| `text-markdown-style-invalid` | MarkdownStyle 의 제목·본문 글자 크기가 양수가 아니거나 제목 크기가 네 개가 아니다. |
+| `text-markdown-style-invalid` | MarkdownStyle 의 값(글자 크기·글꼴·정렬·번호 형식·글머리표·들여쓰기·상자와 표 모양·색·여백)이 올바르지 않거나 모르는 모양 이름을 주었다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |
 

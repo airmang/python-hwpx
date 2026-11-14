@@ -37,6 +37,7 @@ from ._document_primitives import (
     _get_bool_attr,
     _get_int_attr,
     _normalize_border_side_names,
+    _normalize_border_sides,
     _normalize_border_type,
     _normalize_color,
     _normalize_font_langs,
@@ -467,13 +468,6 @@ class HwpxOxmlHeader:
         if para_properties is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <paraProperties> element")
 
-        for para_pr in para_properties.findall(f"{_HH}paraPr"):
-            align_element = para_pr.find(f"{_HH}align")
-            if align_element is not None and align_element.get("horizontal") == horizontal:
-                para_pr_id = para_pr.get("id")
-                if para_pr_id:
-                    return para_pr_id
-
         base = para_properties.find(f"{_HH}paraPr")
         para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
         para_pr.attrib.pop("id", None)
@@ -488,12 +482,32 @@ class HwpxOxmlHeader:
             align_element.set("horizontal", horizontal)
             if align_element.get("vertical") is None:
                 align_element.set("vertical", "BASELINE")
+
+        # Reuse a shape only when it is the base shape with this alignment and
+        # nothing else. Any shape that happens to be aligned this way may also
+        # carry a border, spacing or list numbering of the paragraph it was
+        # made for.
+        wanted = self._para_pr_signature(para_pr)
+        for existing in para_properties.findall(f"{_HH}paraPr"):
+            existing_id = existing.get("id")
+            if existing_id and self._para_pr_signature(existing) == wanted:
+                return existing_id
+
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
         para_pr.set("id", para_pr_id)
         para_properties.append(para_pr)
         self._update_item_count(para_properties, f"{_HH}paraPr")
         self.mark_dirty()
         return para_pr_id
+
+    @staticmethod
+    def _para_pr_signature(para_pr: ET.Element) -> bytes:
+        """What a paragraph shape says, whatever its id."""
+
+        clone = deepcopy(para_pr)
+        clone.attrib.pop("id", None)
+        clone.tail = None
+        return LET.tostring(clone, method="c14n")
 
     @staticmethod
     def _normalize_paragraph_alignment(align: str) -> str:
@@ -956,6 +970,7 @@ class HwpxOxmlHeader:
         fill_gradient: Mapping[str, object] | None = None,
         active_borders: Iterable[str] | None = None,
         border_type: str = "SOLID",
+        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
     ) -> str:
         element = self._border_fills_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
@@ -967,6 +982,11 @@ class HwpxOxmlHeader:
         normalized_border_width = normalize_line_width(border_width or "0.12 mm")
         normalized_active_borders = _normalize_border_side_names(active_borders)
         normalized_fill_color = _normalize_color(fill_color)
+        side_lines = _normalize_border_sides(
+            sides, border_color=normalized_border_color, border_width=normalized_border_width,
+            border_type=normalized_border_type, allowed_types=self._BORDER_LINE_TYPES,
+            type_aliases=self._BORDER_LINE_TYPE_ALIASES,
+        )
 
         for border_fill in element.findall(f"{_HH}borderFill"):
             if _border_fill_matches(
@@ -976,7 +996,7 @@ class HwpxOxmlHeader:
                 fill_color=normalized_fill_color,
                 fill_image=fill_image, fill_gradient=fill_gradient,
                 active_borders=normalized_active_borders,
-                border_type=normalized_border_type,
+                border_type=normalized_border_type, side_lines=side_lines,
             ):
                 border_id = border_fill.get("id")
                 if border_id:
@@ -990,7 +1010,7 @@ class HwpxOxmlHeader:
             fill_color=normalized_fill_color,
             fill_image=fill_image, fill_gradient=fill_gradient,
             active_borders=normalized_active_borders,
-            border_type=normalized_border_type,
+            border_type=normalized_border_type, side_lines=side_lines,
         )
         _attach_new_child(element, new_border_fill)
         _update_item_count(element, "borderFill")
