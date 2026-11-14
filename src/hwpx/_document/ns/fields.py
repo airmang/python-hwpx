@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from ...form_fit.policy import FitPolicy
     from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
+    from ...tools.form_choices import ChoiceSelection, ChooseResult, FormChoicesResult
+    from collections.abc import Mapping
 
 __all__ = ["FieldsNamespace"]
 
@@ -210,6 +212,31 @@ class FieldsNamespace(_Namespace):
                 self._doc, section, section_index, caller="doc.fields.add_check_box"
             ),
         )
+
+    def choices(self) -> "FormChoicesResult":
+        """글자로 적힌 선택 칸 묶음(``□ 예  □ 아니오``)을 문서 순서로 나열한다.
+
+        한 문단에 같은 종류의 표시(네모 ``□☐■☑`` 또는 동그라미 ``○●``)가 둘 이상 있을 때만 묶음으로
+        본다. 줄 맨 앞에 하나만 있는 표시는 글머리표라 건드리지 않는다. 각 묶음의 ``path``를
+        :meth:`choose`의 키로 쓴다.
+        """
+
+        from ...tools.form_choices import form_choices
+
+        return form_choices(self._doc)
+
+    def choose(self, selections: "Mapping[str, ChoiceSelection]") -> "ChooseResult":
+        """선택 칸 묶음에서 항목을 고른다: ``{"참석 여부": "예"}``.
+
+        키는 묶음의 이름표(공백 무시), ``이름표[2]``, 또는 ``#3``(문서에서 세 번째 묶음)이다. 값은
+        항목 이름, 몇 번째인지(1부터), 또는 그 목록이다. 부른 뒤에는 준 항목만 채워져 있다(빈 목록은
+        모두 비운다). 채운 표시는 그 묶음이나 문서가 이미 쓰는 글자를 따른다. 가릴 수 없는 묶음이나
+        항목은 바꾸지 않고 ``failed``에 후보와 함께 알린다.
+        """
+
+        from ...tools.form_choices import choose
+
+        return choose(self._doc, selections)
 
     @property
     def check_boxes(self) -> "tuple[CheckBox, ...]":
