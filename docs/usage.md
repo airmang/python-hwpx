@@ -1005,6 +1005,8 @@ document.parts.headers[0].set_begin_numbering(page=1)
 언어 모델이 가장 안정적으로 쓰는 형식이 Markdown이다. `from_markdown`은 흔히 쓰는 부분 집합
 (`#`~`####` 제목, 문단, `-`/`1.` 목록, `|` 표, `**굵게**`·`*기울임*`)으로 새 문서를 만들고,
 모르는 Markdown은 평문으로 쓴다. 이미 있는 문서에는 `doc.text.append_markdown`으로 덧붙인다.
+표는 열 너비를 내용에 맞추고(짧은 이름 열은 좁게, 글이 긴 열은 넓게) 머리 행을 가운데로 놓는다.
+구분선의 `:---`·`:---:`·`---:`로 열 정렬을 정할 수 있다.
 
 <!-- standalone-python-example -->
 ```python

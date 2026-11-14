@@ -79,8 +79,10 @@ doc.save_to_path("계획.hwpx")
 
 ```python
 doc = HwpxDocument.open("신청서.hwpx")
+for slot in doc.tables.form_slots()["slots"]:   # 채울 수 있는 빈 칸과 그 경로
+    print(slot["path"])                          # "성 명 > right", "소속 > right", ...
 values = {
-    "성명 > right": "홍길동",
+    "성명 > right": "홍길동",                    # 양식에 "성  명"으로 벌려 써 있어도 찾습니다
     "소속 > right": "플랫폼팀",
 }
 result = doc.tables.fill_by_path(values)
@@ -89,7 +91,8 @@ if result["failed_count"] or result["applied_count"] != len(values):
 report = doc.save_to_path("신청서-작성완료.hwpx", mode="patch", fallback="error", return_report=True)
 ```
 
-라벨이 겹치거나 없으면 실패로 돌려주고 저장하기 전에 멈출 수 있습니다. `mode="patch"`는 고치지 않은
+라벨이 없으면 실패로 돌려주고 저장하기 전에 멈출 수 있습니다. 같은 라벨이 여러 칸이면 후보를
+`candidates`로 돌려주며, `"성명[2] > right"`처럼 몇 번째인지 적어 고릅니다. `mode="patch"`는 고치지 않은
 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고친 파트 안쪽과 화면 배치는 따로 확인해야 합니다. 저장한 파일을
 다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](docs/safe-write-contract.md)에 있습니다.
 

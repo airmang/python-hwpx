@@ -91,6 +91,21 @@ _LATEX_TO_EQEDIT.update(
         "\\ge": "geq",
         "\\ne": "neq",
         "\\dots": "cdots",
+        # Render-verified on desktop Hangul 2024 (2026-11-13): ``LRARROW`` draws the double two-way
+        # arrow (``<=>`` and ``Leftrightarrow`` do not), ``BOT`` the perpendicular sign (``perp`` comes
+        # out as letters), ``EXARROW`` the pair of arrows chemistry writes for a reversible reaction.
+        "\\Leftrightarrow": "LRARROW",
+        "\\iff": "LRARROW",
+        "\\perp": "BOT",
+        "\\parallel": "parallel",
+        "\\varnothing": "emptyset",
+        "\\uparrow": "uparrow",
+        "\\downarrow": "downarrow",
+        "\\Uparrow": "UPARROW",
+        "\\rightleftharpoons": "EXARROW",
+        "\\rightleftarrows": "EXARROW",
+        "\\quad": "~~",
+        "\\qquad": "~~~~",
     }
 )
 _LATEX_ACCENTS: dict[str, str] = {
@@ -109,6 +124,8 @@ _LATEX_DELIMITERS: dict[str, str] = {
     and eqedit not in {"LBRACE", "RBRACE", "LANGLE", "RANGLE"}
 }
 _TEXT_COMMANDS = frozenset({"\\text", "\\mathrm", "\\textrm", "\\mbox"})
+# ``\mathrm`` is upright *math*: scripts and commands inside it keep their meaning (``\mathrm{H_2O}``).
+_UPRIGHT_MATH_COMMANDS = frozenset({"\\mathrm"})
 # LaTeX environment name → render-verified EqEdit builder word. ``Bmatrix`` /
 # ``Vmatrix`` have no verified spelling on the real build (P2 battery R10/R11)
 # and refuse; the determinant matrix is EqEdit ``dmatrix`` (R12).
@@ -118,6 +135,8 @@ _ENV_TO_EQEDIT: dict[str, str] = {
     "bmatrix": "bmatrix",
     "vmatrix": "dmatrix",
     "cases": "cases",
+    # Lines aligned at ``&`` (render-verified on desktop Hangul 2024, 2026-11-13).
+    "aligned": "eqalign",
 }
 
 # Bare identifier runs that would collide with EqEdit vocabulary or font prefixes
@@ -132,17 +151,28 @@ class _LatexLexer:
         self._source = source
         self._pos = 0
         self.tokens: list[str] = []
+        #: For each token, whether white space came before it in the source.
+        self.spaced: list[bool] = []
         self._lex()
+        while len(self.spaced) < len(self.tokens):  # tokens added by _lex_command
+            self.spaced.append(False)
 
     def _lex(self) -> None:
         source = self._source
         i = 0
         n = len(source)
+        gap = False
         while i < n:
             ch = source[i]
+            while len(self.spaced) < len(self.tokens):
+                self.spaced.append(False)
             if ch.isspace():
+                gap = True
                 i += 1
-            elif ch == "\\":
+                continue
+            self.spaced.append(gap)
+            gap = False
+            if ch == "\\":
                 i = self._lex_command(i)
             elif ch in "{}^_&":
                 self.tokens.append(ch)
@@ -190,8 +220,9 @@ class _LatexLexer:
 class _LatexParser:
     """Recursive-descent LaTeX → EqEdit token emitter (verified set only)."""
 
-    def __init__(self, tokens: list[str]) -> None:
+    def __init__(self, tokens: list[str], spaced: list[bool] | None = None) -> None:
         self._tokens = tokens
+        self._spaced = spaced if spaced is not None else [False] * len(tokens)
         self._pos = 0
 
     def _peek(self) -> str | None:
@@ -275,7 +306,16 @@ class _LatexParser:
         if token in ("\\lbrace", "\\rbrace"):  # the command spellings of \{ and \}
             return "LBRACE" if token == "\\lbrace" else "RBRACE"
         if token in _TEXT_COMMANDS:
+            if token in _UPRIGHT_MATH_COMMANDS and self._upright_group_is_math():
+                # ``rm`` sets what follows upright and goes on past its braces; ``it`` ends it.
+                return f"{{rm {self._group_or_atom(depth)} it}}"
             return self._text_literal()
+        if token == "\\boxed":
+            return f"box {{{self._group_or_atom(depth)}}}"
+        if token == "\\wideparen":
+            return f"arch {{{self._group_or_atom(depth)}}}"
+        if token == "\\overset":
+            return self._overset(depth)
         if token == "\\mathbf":
             # ``bold`` alone keeps the letters italic and ``rm`` goes on past its braces: upright bold, then
             # italic again for what follows.
@@ -313,6 +353,12 @@ class _LatexParser:
             return "LBRACE" if char == "{" else "RBRACE"
         if char in "%$&":
             return char
+        if char in " ;":
+            return "~"  # a normal space
+        if char == ":":
+            return "`"  # a small space
+        if char == "!":
+            return ""  # a negative thin space: nothing to write
         raise UnsupportedLatexError(f"unsupported LaTeX escape: \\{char}")
 
     def _plain_token(self, token: str) -> str:
@@ -320,6 +366,35 @@ class _LatexParser:
             # Reserved-word protection: keep the identifier literal in Hancom.
             return f'"{token}"'
         return token
+
+    def _upright_group_is_math(self) -> bool:
+        """Whether the ``{...}`` after ``\\mathrm`` holds scripts, groups or commands (not just characters)."""
+
+        if self._peek() != "{":
+            return False
+        level = 0
+        for token in self._tokens[self._pos :]:
+            if token == "{":
+                level += 1
+                if level > 1:
+                    return True
+            elif token == "}":
+                level -= 1
+                if level == 0:
+                    return False
+            elif token in ("^", "_") or (token.startswith("\\") and len(token) > 2):
+                return True
+        return False
+
+    def _overset(self, depth: int) -> str:
+        """``\\overset{\\frown}{AB}``: the arc over a pair of points. Nothing else has a verified spelling."""
+
+        self._expect("{")
+        mark = self._next()
+        if mark != "\\frown" or self._peek() != "}":
+            raise UnsupportedLatexError("\\overset is supported only as \\overset{\\frown}{...} (an arc)")
+        self._next()
+        return f"arch {{{self._group_or_atom(depth)}}}"
 
     def _text_literal(self) -> str:
         self._expect("{")
@@ -337,9 +412,16 @@ class _LatexParser:
                 raise UnsupportedLatexError(
                     "\\text{...} supports plain characters only"
                 )
+            if token in ("^", "_", "&"):
+                # Inside quotes Hancom prints these as the characters themselves.
+                raise UnsupportedLatexError(
+                    f"\\text{{...}} holds plain characters only; {token!r} needs math mode (\\mathrm{{...}})"
+                )
+            if parts and self._spaced[self._pos]:
+                parts.append(" ")
             self._next()
             parts.append(token[1] if token.startswith("\\") else token)
-        literal = " ".join(parts)
+        literal = "".join(parts)
         if '"' in literal:
             raise UnsupportedLatexError('\\text{...} may not contain a quote (")')
         # Hancom draws a bare quoted run in italic. ``rm`` makes it upright and goes on past its braces,
@@ -448,8 +530,8 @@ def latex_to_eqedit(latex: str) -> str:
         raise UnsupportedLatexError("interior $ math delimiters are not supported")
     if not text:
         raise UnsupportedLatexError("empty LaTeX input")
-    tokens = _LatexLexer(text).tokens
-    return _LatexParser(tokens).parse()
+    lexer = _LatexLexer(text)
+    return _LatexParser(lexer.tokens, lexer.spaced).parse()
 
 
 def estimate_equation_size(script: str, *, base_unit: int = 1100) -> tuple[int, int]:
