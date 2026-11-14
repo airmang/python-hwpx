@@ -9,7 +9,7 @@ from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
 from ..oxml.objects import _closed_points
 from ..oxml.shape_position import (
-    validate_equation_base_unit, validate_original_size, validate_rect_ratio, validate_shape_size,
+    validate_equation_base_unit, validate_equation_font, validate_original_size, validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -502,6 +502,7 @@ def add_equation(
     base_unit: int = 1100,
     size: tuple[int, int] | None = None,
     char_pr_id_ref: str | int | None = None,
+    font: str = "HancomEQN",
 ) -> HwpxOxmlInlineObject:
     """Insert an inline equation and prove the standard reader recognizes it.
 
@@ -530,6 +531,7 @@ def add_equation(
             suggestion="Split the equation.",
         )
     validate_equation_base_unit(base_unit)
+    font = validate_equation_font(font)
     width, height = size if size is not None else estimate_equation_size(text, base_unit=base_unit)
     validate_shape_size(width, height)  # one measured at a huge base_unit too
     if paragraph is None:
@@ -538,7 +540,7 @@ def add_equation(
             include_run=False,
         )
     inline_object = paragraph.add_equation(
-        text, base_unit=base_unit, size=(width, height), char_pr_id_ref=char_pr_id_ref,
+        text, base_unit=base_unit, size=(width, height), char_pr_id_ref=char_pr_id_ref, font=font,
     )
 
     created_id = inline_object.element.get("id", "")

@@ -23,14 +23,22 @@ until ``it`` or the end of the group, and a ``+`` or ``-`` with nothing before
 it is a sign, with space only after it.
 
 The widths are in em of the base size for the ``HYhwpEQ`` equation font
-python-hwpx writes. They were fitted to the boxes Hancom (macOS) saved for a
-synthetic corpus of 132 scripts at base sizes 1000, 1100 and 1300 (see
-``tests/data/equation_hancom_boxes.json``): a glyph class has one width, and
-only letters, operators and delimiters seen often enough have their own. The
-box scales with ``baseUnit``. Hancom's glyph widths do not quite: a letter
-was saved as wide at 1100 as at 1000, so boxes at 1100 come out a little
-wide. Whether Hancom on Windows sizes glyphs the same way has not been
-checked.
+python-hwpx writes, at base size 1100. Since 2026-11 they are fitted to what
+desktop Hangul 2024 on Windows needs, because that is the reader that lays the
+line out with the stored box: synthetic scripts (1,800 measurements, in the two
+equation fonts ``HYhwpEQ`` and ``HancomEQN``; a glyph gets the wider of the two) were each set alone in
+a box far wider than itself, the page drawn, and the distance from the start
+of the box to the right edge of the ink taken as the needed width (see
+``tests/data/equation_windows_needed_widths.json``). The estimate is meant
+never to fall below that, so it runs a little wide (about 9% at the median).
+Windows needs a few percent more than the boxes macOS saved
+(``tests/data/equation_hancom_boxes.json``), which the tables were fitted to
+before; heights and baselines still come from those.
+
+The width does not grow in step with ``baseUnit``: Hangul draws a 1100
+equation 2% wider than a 1000 one and a 1150 one 13% wider. ``_SIZE_FACTORS``
+holds the correction seen at fourteen sizes from 800 to 2000; between two
+measured sizes the wider neighbour is used.
 """
 
 from __future__ import annotations
@@ -52,31 +60,43 @@ from .tokens import (
 __all__ = ["EquationSize", "measure_equation"]
 
 # Widths and gaps in em of the base size.
-_DIGIT = 0.47
+_DIGIT = 0.48
 _LOWER = 0.57  # italic lowercase letters not listed in _LETTER_WIDTHS
 _UPPER = 0.81  # italic capitals not listed in _LETTER_WIDTHS
-_UPRIGHT_LOWER = 0.4  # upright lowercase (function names, ``rm``) not listed in _UPRIGHT_WIDTHS
-_UPRIGHT_UPPER = 0.67
+_UPRIGHT_LOWER = 0.54  # upright lowercase (function names, ``rm``) not listed in _UPRIGHT_WIDTHS
+_UPRIGHT_UPPER = 0.74
 _GREEK = 0.57  # lowercase Greek letters not listed in _GREEK_WIDTHS
 _GREEK_UPPER = 0.78
-_HANGUL = 0.83
-_PUNCT = 0.15
+_HANGUL = 0.96
+_PUNCT = 0.18
 _COMMA_SPACE = 0.17  # after a comma
-_BRACKET = 0.35  # ( ) [ ] and a stretched delimiter not listed in _STRETCHED
+_BRACKET = 0.35  # ( ) and a stretched delimiter not listed in _STRETCHED
+_SQUARE_BRACKET = 0.26  # [ ]
+_SAFETY = 0.05  # added once to every box: the widths were read off page images, a pixel or two coarse
+_ALONE_TRIM = 0.2  # a relation or symbol with nothing on either side loses its spacing
+_ALONE = {"circ": 0.58}  # the degree sign written as ^{circ}
 _BRACE = 0.56  # { } drawn by lbrace / rbrace
 _BAR = 0.45  # | drawn by LINE / vert
 _DOUBLE_BAR = 1.3  # VERT: the double bar with a space on each side
-_PRIME = 0.21  # ' and prime
-_DEGREE = 0.73  # DEG
-_OPERATOR_GLYPH = 0.52  # an operator or relation not listed in _OPERATOR_GLYPHS
+_PRIME = 0.2  # ' and prime
+_DEGREE = 0.47  # DEG
+_OPERATOR_GLYPH = 1.03  # an operator or relation not listed in _OPERATOR_GLYPHS
 _OPERATOR_SPACE = 0.18  # on each side of an operator or relation
 _FUNCTION_PAD = 0.16
-_SPACE = 0.25  # ~
-_THIN_SPACE = 0.09  # `
+_LIMIT_WORD_PAD = 0.32  # after lim, max, min
+_CALL_GAP = 0.1  # before a ( that follows an operand: f ( x )
+_ACCENT_PAD = 0.06  # a bar, arrow or arc reaches a little past what it covers
+_CAPITAL_BASE_SCRIPT = 0.12  # a script after an italic capital stands clear of its slant
+_CAPITAL_SCRIPT = 0.06  # a script that starts with a capital
+_AFTER_SCRIPT = 0.19  # between a script and what follows it on the line
+_BEFORE_FUNCTION = 0.08  # between an operand and a function name: ab sin C
+_EMPTY_BASE = 0.12  # the room of an empty base that only carries scripts: {} _{n}
+_SPACE = 0.52  # ~
+_THIN_SPACE = 0.15  # `
 _OTHER = 0.36
 _SYMBOL = 1.05
 _SCRIPT_SCALE = 0.55
-_SCRIPT_WIDTH = 0.66  # a script's glyphs are drawn this wide, relative to the base size
+_SCRIPT_WIDTH = 0.75  # a script's glyphs are drawn this wide, relative to the base size
 _SCRIPT_RAISE = 0.48
 _SUBSCRIPT_DROP = -0.2
 _FRACTION_PAD = 0.25
@@ -93,6 +113,7 @@ _INTEGRAL_SPACE = 0.36
 _INTEGRAL_HEIGHT = 2.27
 _INTEGRAL_LIMIT_EXTRA = 0.2
 _LIMIT_SCALE = 0.75
+_LIMIT_WIDTH = 0.67  # a limit's glyphs are drawn this wide, relative to the base size
 _LIMIT_GAP = 0.035
 _ACCENT_TOP = 0.25
 _COLUMN_GAP = 0.2
@@ -110,21 +131,61 @@ _MATRIX_DELIMITERS = {
 }
 #: Italic Latin letters whose glyph is narrower or wider than the default for their case.
 _LETTER_WIDTHS = {
-    "a": 0.51, "b": 0.42, "c": 0.32, "d": 0.46, "f": 0.67, "k": 0.4, "n": 0.6, "r": 0.37, "x": 0.52, "y": 0.51,
-    **dict.fromkeys("ijlt", 0.31), **dict.fromkeys("mw", 1.03),
+    "a": 0.48, "b": 0.41, "c": 0.41, "d": 0.55, "e": 0.46, "f": 0.55, "g": 0.40, "h": 0.54, "i": 0.33,
+    "j": 0.40, "k": 0.48, "l": 0.36, "m": 0.82, "n": 0.55, "o": 0.48, "p": 0.48, "q": 0.42, "r": 0.41,
+    "s": 0.46, "t": 0.33, "u": 0.54, "v": 0.48, "w": 0.68, "x": 0.54, "y": 0.48, "z": 0.48, "A": 0.75,
+    "B": 0.71, "C": 0.74, "D": 0.77, "E": 0.72, "F": 0.66, "G": 0.51, "H": 0.80, "I": 0.39, "J": 0.53,
+    "K": 0.80, "L": 0.45, "M": 0.94, "N": 0.80, "O": 0.78, "P": 0.71, "Q": 0.78, "R": 0.70, "S": 0.58,
+    "T": 0.79, "U": 0.79, "V": 0.80, "W": 1.02, "X": 0.79, "Y": 0.80, "Z": 0.65,
 }
 #: Upright lowercase letters whose glyph is narrower or wider than ``_UPRIGHT_LOWER``.
-_UPRIGHT_WIDTHS = {**dict.fromkeys("fijlrt", 0.32), **dict.fromkeys("mw", 0.84)}
+_UPRIGHT_WIDTHS = {
+    "a": 0.48, "b": 0.54, "c": 0.47, "d": 0.54, "e": 0.52, "f": 0.39, "g": 0.54, "h": 0.54, "i": 0.26,
+    "j": 0.25, "k": 0.55, "l": 0.27, "m": 0.82, "n": 0.55, "o": 0.52, "p": 0.54, "q": 0.54, "r": 0.40,
+    "s": 0.46, "t": 0.34, "u": 0.54, "v": 0.54, "w": 0.75, "x": 0.60, "y": 0.54, "z": 0.46, "A": 0.75,
+    "B": 0.67, "C": 0.61, "D": 0.69, "E": 0.67, "F": 0.61, "G": 0.68, "H": 0.75, "I": 0.33, "J": 0.40,
+    "K": 0.75, "L": 0.61, "M": 0.89, "N": 0.75, "O": 0.68, "P": 0.61, "Q": 0.68, "R": 0.68, "S": 0.60,
+    "T": 0.74, "U": 0.74, "V": 0.75, "W": 0.96, "X": 0.74, "Y": 0.75, "Z": 0.60,
+}
 #: Delimiters that ``LEFT``/``RIGHT`` and matrices stretch, by the opening or closing glyph.
-_STRETCHED = {"(": 0.39, ")": 0.39, "[": 0.52, "]": 0.52, "|": 0.52, "{": 0.58, "}": 0.58}
+_STRETCHED = {"(": 0.39, ")": 0.39, "[": 0.44, "]": 0.44, "|": 0.44, "{": 0.58, "}": 0.58}
 _STRETCHED_NAMES = {"lbrace": "{", "rbrace": "}", "langle": "(", "rangle": ")", "lfloor": "[", "rfloor": "]",
                     "lceil": "[", "rceil": "]", "line": "|", "vert": "|"}
 #: Operator and relation glyphs; each also gets ``_OPERATOR_SPACE`` on both sides.
 _OPERATOR_GLYPHS = {"+": 0.65, "-": 0.69, "=": 0.71, "<": 0.8, ">": 0.8, "times": 0.61}
+#: The room an operator, relation, symbol or punctuation mark takes between two operands, spacing
+#: included: what desktop Hangul needed for ``a T b`` beyond ``ab``.
+_TOKEN_ROOM = {
+    "pm": 1.30, "mp": 1.30, "times": 1.04, "TIMES": 1.04, "cdot": 1.02, "div": 1.04,
+    "ast": 1.24, "star": 1.24, "circ": 1.30, "bullet": 1.24, "oplus": 0.97, "otimes": 0.97,
+    "leq": 1.39, "LEQ": 1.39, "geq": 1.39, "GEQ": 1.39, "neq": 1.24, "NEQ": 1.24,
+    "equiv": 1.24, "approx": 1.24, "sim": 1.24, "simeq": 1.24, "cong": 1.24, "propto": 0.97,
+    "prop": 1.85, "ll": 0.56, "gg": 0.97, "in": 0.97, "notin": 1.24, "subset": 1.39,
+    "subseteq": 1.39, "supset": 1.39, "supseteq": 1.39, "cup": 0.97, "cap": 0.97, "emptyset": 0.97,
+    "FORALL": 0.97, "exists": 0.97, "neg": 0.63, "land": 0.97, "lor": 0.97, "infty": 0.97,
+    "inf": 0.97, "infinity": 0.97, "partial": 0.49, "nabla": 0.97, "angle": 0.97, "triangle": 0.97,
+    "TRIANGLE": 0.97, "therefore": 0.97, "THEREFORE": 0.97, "because": 0.97, "cdots": 1.39, "ldots": 1.39,
+    "vdots": 1.39, "ddots": 1.39, "dots": 0.49, "rightarrow": 0.97, "leftarrow": 0.97, "leftrightarrow": 0.97,
+    "Rightarrow": 0.97, "Leftarrow": 0.97, "mapsto": 0.97, "LRARROW": 0.97, "uparrow": 0.97, "downarrow": 0.97,
+    "UPARROW": 0.97, "EXARROW": 0.49, "BOT": 0.97, "bot": 0.97, "parallel": 0.49, "PARALLEL": 0.49,
+    "+-": 1.04, "-+": 1.24, "<=": 1.39, ">=": 1.39, "!=": 1.24, "==": 1.24,
+    "->": 0.97, "<-": 0.97, "<->": 0.97, "=>": 2.00, "~=": 1.67, "~|~": 1.21,
+    "+": 1.04, "-": 1.04, "=": 1.19, "<": 1.26, ">": 1.26, ":": 0.71,
+    ",": 0.36, ";": 0.28, "!": 0.28, "/": 0.49, "|": 0.21, "LINE": 0.21,
+    "VERT": 0.49, "vert": 0.21,
+}
 #: Signs that, with nothing before them, mark the sign of what follows.
 _SIGNS = frozenset({"+", "-", "+-", "-+", "pm", "mp"})
 #: Greek letters whose glyph is narrower or wider than the default for their case.
-_GREEK_WIDTHS = {"alpha": 0.61, "beta": 0.54, "theta": 0.43, "lambda": 0.52, "sigma": 0.52}
+_GREEK_WIDTHS = {
+    "alpha": 0.61, "beta": 0.55, "gamma": 0.49, "delta": 0.42, "epsilon": 0.40, "varepsilon": 0.48,
+    "zeta": 0.42, "eta": 0.48, "theta": 0.48, "vartheta": 0.61, "iota": 0.33, "kappa": 0.54,
+    "lambda": 0.54, "mu": 0.55, "nu": 0.49, "xi": 0.48, "omicron": 0.48, "pi": 0.55,
+    "varpi": 0.82, "rho": 0.49, "varrho": 0.27, "sigma": 0.55, "varsigma": 0.40, "tau": 0.43,
+    "upsilon": 0.54, "phi": 0.55, "varphi": 0.61, "chi": 0.60, "psi": 0.62, "omega": 0.61,
+    "GAMMA": 0.64, "DELTA": 0.81, "THETA": 0.74, "LAMBDA": 0.74, "XI": 0.70, "PI": 0.83,
+    "SIGMA": 0.76, "UPSILON": 0.60, "PHI": 0.62, "PSI": 0.63, "OMEGA": 0.75,
+}
 #: Keyword names (any case) drawn as one glyph of the given width.
 _KEYWORD_GLYPHS = {
     "lbrace": _BRACE, "rbrace": _BRACE, "langle": _BRACKET, "rangle": _BRACKET, "lfloor": _BRACKET,
@@ -148,6 +209,29 @@ _SYMBOL_ORDINARY = frozenset({
     "aleph", "forall", "exists", "neg", "cdots", "ldots", "vdots", "ddots", "dagger", "box", "diamond",
     "centigrade",
 })
+
+
+#: Desktop Hangul does not widen an equation in step with its base size: the width climbs in stairs
+#: (a 1100 equation is 2% wider than a 1000 one, a 1150 one 13%). The glyph tables above are for 1100;
+#: this is the widest ``needed width / (table width scaled to the size)`` seen at each measured size.
+_SIZE_FACTORS = (
+    (800, 1.05), (900, 1.06), (950, 1.03), (1000, 1.08), (1050, 1.05), (1100, 1.0), (1150, 1.09),
+    (1200, 1.06), (1250, 1.04), (1300, 1.09), (1400, 1.04), (1500, 1.09), (1600, 1.11), (2000, 1.08),
+)
+_SIZE_FACTOR_OUTSIDE = 1.11
+
+
+def _size_factor(base_unit: int) -> float:
+    """How much wider than the 1100 tables say an equation at *base_unit* has to be."""
+    if base_unit < _SIZE_FACTORS[0][0] or base_unit > _SIZE_FACTORS[-1][0]:
+        return _SIZE_FACTOR_OUTSIDE
+    for (low, low_factor), (high, high_factor) in zip(_SIZE_FACTORS, _SIZE_FACTORS[1:]):
+        if low <= base_unit <= high:
+            if base_unit in (low, high):
+                return low_factor if base_unit == low else high_factor
+            # Between two measured sizes the stairs are unknown: take the wider neighbour.
+            return max(low_factor, high_factor)
+    return _SIZE_FACTOR_OUTSIDE
 
 
 class EquationSize(NamedTuple):
@@ -217,6 +301,11 @@ def _script(box: _Box) -> _Box:
     return _Box(box.width * _SCRIPT_WIDTH, box.ascent * _SCRIPT_SCALE, box.descent * _SCRIPT_SCALE)
 
 
+def _limit(box: _Box) -> _Box:
+    """*box* set as the limit under ``lim`` or on a big operator."""
+    return _Box(box.width * _LIMIT_WIDTH, box.ascent * _LIMIT_SCALE, box.descent * _LIMIT_SCALE)
+
+
 def _char_width(ch: str, upright: bool = False) -> float:
     if "가" <= ch <= "힣":
         return _HANGUL
@@ -224,8 +313,10 @@ def _char_width(ch: str, upright: bool = False) -> float:
         return _DIGIT
     if ch == " ":
         return _SPACE
+    if not ch.isalnum():
+        return _TOKEN_ROOM.get(ch, 0.3) if ch in ",.;:!'/|" else 0.6
     if upright:
-        return _UPRIGHT_UPPER if ch.isupper() else _UPRIGHT_WIDTHS.get(ch, _UPRIGHT_LOWER)
+        return _UPRIGHT_WIDTHS.get(ch, _UPRIGHT_UPPER if ch.isupper() else _UPRIGHT_LOWER)
     return _LETTER_WIDTHS.get(ch, _UPPER if ch.isupper() else _LOWER)
 
 
@@ -237,10 +328,17 @@ def _is_operator(token: str) -> bool:
     return token in OPERATORS or token in _RELATIONS or token.lower() in _SYMBOL_RELATIONS
 
 
-def _token_width(token: str, upright: bool = False, sign: bool = False) -> float:
+def _token_width(token: str, upright: bool = False, sign: bool = False, alone: bool = False) -> float:
     lower = token.lower()
     if token.startswith('"'):
         return sum(_char_width(ch, upright) for ch in token.strip('"'))
+    if alone and token in _ALONE:
+        return _ALONE[token]
+    if alone and token in _TOKEN_ROOM and _is_operator(token) and token not in _SIGNS:
+        return max(_TOKEN_ROOM[token] - _ALONE_TRIM, 0.3)
+    if token in _TOKEN_ROOM:
+        # A sign with nothing before it to operate on keeps only the space after it.
+        return _TOKEN_ROOM[token] - (_OPERATOR_SPACE if sign and token in _SIGNS else 0.0)
     if token in GREEK:
         return _GREEK_WIDTHS.get(token, _GREEK_UPPER if token.isupper() else _GREEK)
     if token in _CASED_KEYWORD_GLYPHS:
@@ -257,8 +355,10 @@ def _token_width(token: str, upright: bool = False, sign: bool = False) -> float
         return sum(_DIGIT if ch.isdigit() else _PUNCT for ch in token)
     if token.isalpha():
         return sum(_char_width(ch, upright) for ch in token)
-    if token in ("(", ")", "[", "]"):
+    if token in ("(", ")"):
         return _BRACKET
+    if token in ("[", "]"):
+        return _SQUARE_BRACKET
     if token == "|":
         return _BAR
     if token == "'":
@@ -293,6 +393,9 @@ class _Measurer:
         self._pos = 0
         self.too_deep = False
         self._upright = False  # after ``rm``, until ``it`` or the end of the group
+        self._last = ""  # the token before the one being read, for spacing that depends on it
+        self._alone = False  # the token being read has nothing before it and nothing after it
+        self._empty_base = False
 
     def _peek(self) -> str | None:
         return self._tokens[self._pos] if self._pos < len(self._tokens) else None
@@ -318,8 +421,16 @@ class _Measurer:
             elif token == "&":
                 operand = False
             elif not self._infix(token, items, depth):
+                if token == "(" and operand:
+                    items.append(_Box(_CALL_GAP, 0.0, 0.0))
+                elif operand and token in FUNCTIONS:
+                    items.append(_Box(_BEFORE_FUNCTION, 0.0, 0.0))
+                self._alone = not items and self._peek() in (None, "}", stop)
                 items.append(self._dispatch(token, depth, sign=not operand and token in _SIGNS))
+                self._alone = False
                 operand = _follows_operand(token, operand)
+            if token not in ("^", "_"):
+                self._last = token
         if not lines:
             return _row(items)
         return _stack([*lines, _row(items)], _LINE_GAP)
@@ -360,14 +471,33 @@ class _Measurer:
             self._next()
         return inner
 
+    def _script_extra(self) -> float:
+        """Room a script needs beyond its glyphs, from the base before it and its own first glyph."""
+        extra = 0.0
+        last = self._last.strip('"')
+        if last[-1:].isupper() and last.isalpha() and not self._upright:
+            extra += _CAPITAL_BASE_SCRIPT
+        elif self._last in ("}", "") and self._empty_base:
+            extra += _EMPTY_BASE
+        first = self._peek()
+        if first == "{" and self._pos + 1 < len(self._tokens):
+            first = self._tokens[self._pos + 1]
+        if first and first[:1].isupper() and first.isalpha() and first not in GREEK:
+            extra += _CAPITAL_SCRIPT
+        return extra
+
     def _scripts(self, base: _Box, operator: str, depth: int) -> _Box:
+        self._empty_base = base.width == 0.0
+        extra = self._script_extra()
         scripts = {operator: _script(self._atom(depth))}
         following = self._peek()
         if following in ("^", "_") and following != operator:
             self._next()
             scripts[following] = _script(self._atom(depth))
         upper, lower = scripts.get("^"), scripts.get("_")
-        width = base.width + max(upper.width if upper else 0.0, lower.width if lower else 0.0)
+        if self._peek() not in (None, "}", "&", "#", "RIGHT", "right", ")", "]", "over", "atop", "choose"):
+            extra += _AFTER_SCRIPT
+        width = base.width + extra + max(upper.width if upper else 0.0, lower.width if lower else 0.0)
         # Scripts sit against the base's own top and bottom, so a base taller than a
         # line (a LEFT/RIGHT group, a fraction) carries its scripts out with it.
         top, bottom = max(base.ascent - _ASCENT, 0.0), max(base.descent - _DESCENT, 0.0)
@@ -382,7 +512,7 @@ class _Measurer:
             return self._root(token, depth)
         if token in ACCENTS:
             inner = self._atom(depth)
-            return _Box(inner.width, inner.ascent + _ACCENT_TOP, inner.descent)
+            return _Box(inner.width + _ACCENT_PAD, inner.ascent + _ACCENT_TOP, inner.descent)
         if token.lower() == "binom":
             top = self._atom(depth)
             return _binomial(top, self._atom(depth))
@@ -404,7 +534,8 @@ class _Measurer:
 
     def _symbol(self, token: str, sign: bool = False) -> _Box:
         if token in FUNCTIONS or token.lower() in _LIMIT_WORDS:
-            return _Box(_upright_word(token) + _FUNCTION_PAD, _ASCENT, _DESCENT)
+            pad = _LIMIT_WORD_PAD if token.lower() in _LIMIT_WORDS else _FUNCTION_PAD
+            return _Box(_upright_word(token) + pad, _ASCENT, _DESCENT)
         if token in _FONT_SWITCHES or token in ("of", "&"):
             if token.lower() in ("rm", "it"):
                 self._upright = token.lower() == "rm"
@@ -413,7 +544,9 @@ class _Measurer:
             return _Box(_SPACE, 0.0, 0.0)
         if token == "`":
             return _Box(_THIN_SPACE, 0.0, 0.0)
-        return _Box(_token_width(token, self._upright, sign), _ASCENT, _DESCENT)
+        alone = self._alone
+        self._alone = False
+        return _Box(_token_width(token, self._upright, sign, alone), _ASCENT, _DESCENT)
 
     def _root(self, token: str, depth: int) -> _Box:
         index = _Box(0.0, 0.0, 0.0)
@@ -452,8 +585,8 @@ class _Measurer:
 
     def _limit(self, token: str, depth: int) -> _Box:
         self._next()  # _ or from
-        limit = self._atom(depth).scaled(_LIMIT_SCALE)
-        width = _upright_word(token) + _FUNCTION_PAD
+        limit = _limit(self._atom(depth))
+        width = _upright_word(token) + _LIMIT_WORD_PAD
         return _Box(max(width, limit.width), _ASCENT, _DESCENT + limit.height + _LIMIT_GAP)
 
     def _big_operator(self, depth: int) -> _Box:
@@ -461,7 +594,7 @@ class _Measurer:
         limits: list[_Box] = []
         while self._peek() in ("_", "^", "from", "to"):
             self._next()
-            limits.append(self._atom(depth).scaled(_LIMIT_SCALE))
+            limits.append(_limit(self._atom(depth)))
         if not limits:
             return box
         extra = sum(limit.height for limit in limits) / 2
@@ -491,8 +624,14 @@ class _Measurer:
         while self._peek() not in (None, "}", "&", "#"):
             token = self._next() or ""
             if not self._infix(token, items, depth + 1):
+                if token == "(" and operand:
+                    items.append(_Box(_CALL_GAP, 0.0, 0.0))
+                elif operand and token in FUNCTIONS:
+                    items.append(_Box(_BEFORE_FUNCTION, 0.0, 0.0))
                 items.append(self._dispatch(token, depth + 1, sign=not operand and token in _SIGNS))
                 operand = _follows_operand(token, operand)
+            if token not in ("^", "_"):
+                self._last = token
         return _row(items)
 
 
@@ -518,7 +657,7 @@ def measure_equation(script: str, *, base_unit: int = 1100) -> EquationSize:
         box = _Box(max(1, visible) * _LOWER, _ASCENT, _DESCENT)
     height = max(box.height, _ASCENT + _DESCENT)
     return EquationSize(
-        width=max(1, round(box.width * base_unit)),
+        width=max(1, round((box.width + _SAFETY) * base_unit * _size_factor(base_unit))),
         height=max(1, round(height * base_unit)),
         base_line=max(1, min(100, round(100 * box.ascent / height))),
     )

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from html import escape as html_escape
 from pathlib import Path
@@ -249,22 +250,22 @@ def _element_caption_text(el) -> str | None:
     captions = _direct_children(el, "caption")
     if not captions:
         return None
-    text = "".join(t.text or "" for t in _descendants(captions[0], "t")).strip()
+    text = "".join("".join(t.itertext()) for t in _descendants(captions[0], "t")).strip()
     return text or None
 
 
 def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
-    """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인."""
+    """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인.
+
+    그림을 꺼내지 않아(``mapping``이 비어) 이미지 줄을 쓰지 않을 때에도 캡션은 쓴다.
+    캡션은 문서의 글이다."""
     out = []
     for pic in _descendants(p_el, "pic"):
         img = _first_descendant(pic, "img")
-        if img is None:
-            continue
-        ref = img.get("binaryItemIDRef")
-        if not ref or not mapping:
-            continue
-        rel = mapping.get(ref, f"BinData/{ref}")
-        out.append(f"![image]({rel.translate(_LINK_ESCAPES)})")
+        ref = img.get("binaryItemIDRef") if img is not None else None
+        if ref and mapping:
+            rel = mapping.get(ref, f"BinData/{ref}")
+            out.append(f"![image]({rel.translate(_LINK_ESCAPES)})")
         caption_text = _element_caption_text(pic)
         if caption_text:
             out.append(f"*{caption_text}*")
@@ -286,6 +287,40 @@ class _MdParagraphState:
     items: list[tuple] = field(default_factory=list)
     link_url: str | None = None
     link_items: list[tuple] = field(default_factory=list)
+    #: 이 문단 안에서 끝나는 메모 필드의 id (표시를 필드 끝에 둔다).
+    field_ends: frozenset[str] = frozenset()
+    pending_memos: dict[str, str] = field(default_factory=dict)
+
+
+#: 이 내보내기가 수식을 싣는가. 각주·메모·머리말 안쪽 문단까지 같은 값을 본다.
+_EQUATIONS: ContextVar[bool] = ContextVar("hwpx_markdown_equations", default=False)
+
+
+def equation_markdown(script: str) -> str:
+    """한/글 수식 문자열을 Markdown 인라인 수식(``$LaTeX$``)으로.
+
+    LaTeX로 옮기지 못하는 수식은 한/글 수식 문자열을 그대로 코드(`` `…` ``)로 싣는다.
+    빈 수식은 빈 문자열이다.
+    """
+
+    text = " ".join(script.split())
+    if not text:
+        return ""
+    from ..equation.eqedit import EquationConversionError, eqedit_to_latex
+
+    try:
+        latex = eqedit_to_latex(text)
+    except (EquationConversionError, RecursionError):
+        latex = ""
+    if not latex or "$" in latex:
+        return "`" + text.replace("`", "'") + "`"
+    return f"${latex}$"
+
+
+class _Notes(list):
+    """각주·미주(와 메모) 정의를 모으는 목록. ``memos``가 참이면 메모도 모은다."""
+
+    memos: bool = False
 
 
 def _md_flush_items(state: _MdParagraphState, base_cp, chars) -> None:
@@ -318,11 +353,44 @@ def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars, doc=N
         if gctag == "fieldBegin" and gc.get("type") == "HYPERLINK":
             _md_flush_items(state, base_cp, chars)
             state.link_url = hyperlink_target(gc)
+        elif gctag == "fieldBegin" and gc.get("type") == "MEMO":
+            _md_handle_memo(gc, state, base_cp, chars, doc, notes_out)
         elif gctag == "fieldEnd":
             _md_flush_link(state, base_cp, chars)
+            marker = state.pending_memos.pop(gc.get("beginIDRef") or "", None)
+            if marker:
+                _md_flush_items(state, base_cp, chars)
+                state.output.append(marker)
         elif gctag in ("footNote", "endNote"):
             # 실한컴 계약: 각주/미주는 run 안 <hp:ctrl>에 래핑되어 있다.
             _md_handle_note_child(gc, gctag, state, base_cp, chars, doc, notes_out)
+
+
+def _md_handle_memo(field_begin, state: _MdParagraphState, base_cp, chars, doc, notes_out: list | None) -> None:
+    """메모(``fieldBegin type="MEMO"``)를 각주처럼 싣는다: 메모가 걸린 글 뒤에 표시, 내용은 부록.
+
+    메모를 모으지 않는 호출(``memos=False``)과 각주·메모 안쪽(``notes_out is None``)에서는 건너뛴다.
+    """
+
+    if notes_out is None or not getattr(notes_out, "memos", False):
+        return
+    body_parts = []
+    for sub_list in _direct_children(field_begin, "subList"):
+        for memo_p in _descendants(sub_list, "p"):
+            sub_md = _p_element_to_md(memo_p, doc, None).strip()
+            if sub_md:
+                body_parts.append(sub_md)
+    if not body_parts:
+        return
+    field_id = field_begin.get("id") or ""
+    inst_id = f"{field_id}#{len(notes_out)}"
+    marker = f"[^memo{inst_id}]"
+    notes_out.append(("memo", inst_id, "메모: " + " ".join(body_parts)))
+    if field_id and field_id in state.field_ends:
+        state.pending_memos[field_id] = marker  # 메모가 걸린 글 뒤에
+    else:
+        _md_flush_items(state, base_cp, chars)
+        state.output.append(marker)
 
 
 def _md_handle_note_child(
@@ -349,6 +417,13 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
     chars = doc._root.char_properties
     base_cp = chars.get("0")
     state = _MdParagraphState()
+    if getattr(notes_out, "memos", False):
+        state.field_ends = frozenset(
+            end.get("beginIDRef") or ""
+            for run in _direct_children(p_el, "run")
+            for ctrl in _direct_children(run, "ctrl")
+            for end in _direct_children(ctrl, "fieldEnd")
+        )
 
     for run in _direct_children(p_el, "run"):
         cpr = run.get("charPrIDRef", "0")
@@ -360,12 +435,22 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
                     _md_push_text(state, cpr, text)
             elif tag == "ctrl":
                 _md_handle_ctrl_child(child, state, base_cp, chars, doc, notes_out)
+            elif tag == "equation" and _EQUATIONS.get():
+                script = next(iter(_direct_children(child, "script")), None)
+                rendered = equation_markdown("".join(script.itertext())) if script is not None else ""
+                if rendered:
+                    if state.link_url is not None:
+                        _md_flush_link(state, base_cp, chars)
+                    else:
+                        _md_flush_items(state, base_cp, chars)
+                    state.output.append(rendered)
             elif tag in ("footNote", "endNote"):
                 # 구식(5.4 이전 자사 방출) 호환: run 직속 각주도 계속 읽는다.
                 _md_handle_note_child(child, tag, state, base_cp, chars, doc, notes_out)
 
     _md_flush_items(state, base_cp, chars)
     _md_flush_link(state, base_cp, chars)
+    state.output.extend(state.pending_memos.values())
     return "".join(state.output)
 
 
@@ -577,9 +662,47 @@ def _export_paragraph_lines(
     return out
 
 
+_PAGE_TEXT_LABELS = {"header": "머리말", "footer": "꼬리말"}
+_PAGE_TYPE_LABELS = {"EVEN": "짝수 쪽", "ODD": "홀수 쪽"}
+
+
+def _page_text_lines(section_el, tag: str, doc, seen: set[tuple[str, str]]) -> list[str]:
+    """구역의 머리말(또는 꼬리말)을 ``> 머리말: 글`` 줄로. 이미 실은 글(*seen*)은 건너뛴다."""
+
+    lines: list[str] = []
+    for element in _descendants(section_el, tag):
+        parts = [_p_element_to_md(p, doc, None).strip() for p in _descendants(element, "p")]
+        text = " ".join(part for part in parts if part)
+        if not text or (tag, text) in seen:
+            continue
+        seen.add((tag, text))
+        label = _PAGE_TEXT_LABELS[tag]
+        page_type = _PAGE_TYPE_LABELS.get(element.get("applyPageType") or "")
+        if page_type:
+            label = f"{label}({page_type})"
+        lines.append(f"> {label}: {text}")
+    return lines
+
+
+def _unanchored_memo_lines(section_el, doc, notes) -> list[str]:
+    """구역의 메모 목록(``hp:memogroup``) 가운데 본문에 걸린 자리가 없는 메모를 ``> 메모: 글`` 줄로."""
+
+    anchored = {text for kind, _, text in notes if kind == "memo"}
+    lines: list[str] = []
+    for group in _descendants(section_el, "memogroup"):
+        for memo in _direct_children(group, "memo"):
+            parts = [_p_element_to_md(p, doc, None).strip() for p in _descendants(memo, "p")]
+            text = "메모: " + " ".join(part for part in parts if part)
+            if text == "메모: " or text in anchored:
+                continue
+            anchored.add(text)
+            lines.append(f"> {text}")
+    return lines
+
+
 def _export_notes_appendix(body: str, notes, notes_section_separator: str) -> str:
     # 각주/미주 instId → fn1/en1 일련번호 매핑 + 정의 부록
-    seq_map: dict[str, dict[str, int]] = {"fn": {}, "en": {}}
+    seq_map: dict[str, dict[str, int]] = {"fn": {}, "en": {}, "memo": {}}
     for kind, inst_id, _ in notes:
         if inst_id not in seq_map[kind]:
             seq_map[kind][inst_id] = len(seq_map[kind]) + 1
@@ -608,6 +731,9 @@ def export_markdown(
     detect_headings: bool = True,
     heading_detector: Callable[[str], str | None] | None = None,
     notes_section_separator: str = "\n\n---\n",
+    headers_and_footers: bool = False,
+    memos: bool = False,
+    equations: bool = False,
 ) -> str:
     """HWPX → rich markdown.
 
@@ -626,18 +752,48 @@ def export_markdown(
         the legacy detector. ``detect_headings=False`` disables either detector.
     notes_section_separator : str
         각주/미주 정의 부록 앞에 삽입할 separator.
+    headers_and_footers : bool
+        참이면 머리말을 구역 첫머리에, 꼬리말을 구역 끝에 인용 줄(``> 머리말: …``)로
+        싣는다. 같은 글은 한 번만 싣는다. 쪽 번호 같은 자동 번호는 글이 아니라 빠진다.
+    memos : bool
+        참이면 메모를 각주처럼 싣는다. 메모가 걸린 글 뒤에 ``[^memoN]``, 내용은
+        부록에 ``메모: …``로. 작성자와 날짜는 싣지 않는다.
+    equations : bool
+        참이면 수식을 있던 자리에 ``$LaTeX$``로 싣는다. LaTeX로 옮기지 못하는 수식은
+        한/글 수식 문자열을 코드로 싣는다.
     """
     detector = _detect_heading if heading_detector is None else heading_detector
     if not callable(detector):
         raise HwpxTypeError("heading_detector must be callable or None", context={"argument": "heading_detector"})
     doc = _export_resolve_doc(source)
     mapping = _build_image_map(doc, Path(image_dir) if image_dir else None, image_ref_prefix)
-    notes: list[tuple] = []
+    token = _EQUATIONS.set(bool(equations))
+    try:
+        return _export_markdown(
+            doc, mapping, detect_headings, detector, notes_section_separator, headers_and_footers, memos
+        )
+    finally:
+        _EQUATIONS.reset(token)
+
+
+def _export_markdown(
+    doc, mapping, detect_headings: bool, detector, notes_section_separator: str, headers_and_footers: bool, memos: bool
+) -> str:
+    notes: list[tuple] = _Notes()
+    notes.memos = bool(memos)  # type: ignore[attr-defined]
     lines: list[str] = []
+    seen_outside: set[tuple[str, str]] = set()
 
     for section in doc.sections:
+        footers: list[str] = []
+        if headers_and_footers:
+            lines.extend(_page_text_lines(section.element, "header", doc, seen_outside))
+            footers = _page_text_lines(section.element, "footer", doc, seen_outside)
         for p in section.paragraphs:
             lines.extend(_export_paragraph_lines(p, doc, mapping, notes, detect_headings, detector))
+        if memos:
+            lines.extend(_unanchored_memo_lines(section.element, doc, notes))
+        lines.extend(footers)
 
     body = "\n\n".join(lines)
 

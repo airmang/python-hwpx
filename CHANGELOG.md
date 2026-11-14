@@ -6,6 +6,39 @@
 
 ### 추가
 
+- `add_equation`에 `font` 인자가 생겼다(`doc.shapes.add_equation`, 문단의 `add_equation`). 수식 글꼴 이름을 준다.
+- Markdown 내보내기가 수식을 실을 수 있다. `doc.text.markdown(rich=True, equations=True)`면 수식이 있던 자리에
+  `$LaTeX$`로 나간다(본문·표 칸·각주·메모 안 모두). LaTeX로 옮기지 못하는 수식은 한/글 수식 문자열을 코드로
+  싣는다. 기본값은 꺼짐이다. `hwpx.ingest`는 켜서 부르며, 본문만 원하면 `markdown_options={"equations": False}`.
+- Markdown 내보내기(`doc.text.markdown(rich=True)`)가 머리말·꼬리말·메모를 실을 수 있다.
+  `headers_and_footers=True`면 머리말을 구역 첫머리에, 꼬리말을 구역 끝에 `> 머리말: …` 줄로 싣는다(같은 글은
+  한 번). `memos=True`면 메모를 각주처럼 싣는다: 메모가 걸린 글 뒤에 `[^memoN]`, 내용은 부록에 `메모: …`.
+  본문에 걸린 자리가 없는 메모는 구역 끝에 `> 메모: …`로 나간다. 기본값은 둘 다 꺼짐이라 지금 결과는 그대로다.
+- LlamaIndex 리더 `hwpx.integrations.llama_index.HwpxReader`(실험 기능). LangChain 로더와 같은 내용·메타데이터를
+  LlamaIndex 문서로 돌려주고, `SimpleDirectoryReader`의 `file_extractor`로 넘겨 폴더를 읽을 수 있다.
+  `pip install "python-hwpx[llamaindex]"`로 `llama-index-core`를 함께 설치한다.
+- 글자로 적힌 선택 칸을 고른다: `doc.fields.choices()`가 `□ 예  □ 아니오` 같은 묶음을 이름표·항목과 함께
+  나열하고, `doc.fields.choose({"참석 여부": "예"})`가 그 항목을 채우고 나머지를 비운다. 한 문단에 같은 종류의
+  표시(네모 `□☐■☑` 또는 동그라미 `○●`)가 둘 이상일 때만 묶음으로 본다. 줄 맨 앞에 하나만 있는 표시는
+  글머리표라, 붙어 있는 표시(`○○고등학교`, `□□□□`)는 선택 칸이 아니라 건드리지 않는다. 이름표는 표시 앞의 글, 같은 칸의 윗줄, 왼쪽이나 위 칸에서 찾고, 없으면
+  `#3`처럼 번호로 고른다. 채운 표시는 그 묶음이나 문서가 이미 쓰는 글자를 따른다(`☐`면 `☑`). 가릴 수
+  없는 묶음이나 항목은 바꾸지 않고 후보와 함께 알린다.
+- `doc.tables.form_slots()`: 양식의 빈 칸(글이 있는 칸의 오른쪽이나 아래에 있는 빈 칸)을 나열하고, 칸마다
+  `fill_by_path`에 그대로 넣을 경로(`"성명 > right"`)를 준다. 그림·표·누름틀이 든 칸은 빈 칸으로 보지 않는다.
+  이름표와 상자 사이를 띄우는 좁은 칸(기본 5mm 미만, `min_width_mm`)도 뺀다. 거기 쓴 값은 한/글에서 한 글자씩
+  세로로 놓였다. 공개 문서 1,304개 가운데 빈 칸이 있는 103개에서 3,012칸을 찾았고, 경로가 있는 2,914칸이 모두
+  그 칸에 들어갔으며 저장 후 다시 열었을 때 빠진 값은 없었다.
+- `doc.tables.fill_by_path(values, fit=FitPolicy())`: 값을 칸에 맞춰 잰다. 정책이 허용하는 대로 줄을 바꾸거나 글자를
+  줄이고 칸마다 결과를 `fit`에 싣는다. 정책이 거부한 값은 `"value does not fit"`으로 실패하고 그 칸은 그대로
+  둔다. `fit` 없이 쓰면 전처럼 값을 그대로 써 넣고, 줄이 모자라면 한/글이 줄 높이를 늘린다.
+- `doc.tables.fill_by_path`의 경로에 `"성명[2] > right"`처럼 몇 번째 이름표인지 적을 수 있다. 이름표가 여러 칸에
+  맞아 실패할 때(`"ambiguous label"`)는 후보 칸과 고르는 표기를 `candidates`에 싣는다.
+- LaTeX → 한/글 수식 변환(`latex_to_eqedit`)이 받는 학교 표기가 늘었다: `\Leftrightarrow`·`\iff`, `\perp`,
+  `\parallel`, `\varnothing`, `\uparrow`·`\downarrow`·`\Uparrow`, 가역 반응 `\rightleftharpoons`, 호
+  `\overset{\frown}{AB}`·`\wideparen{AB}`, `\boxed{}`, 여러 줄 정렬 `aligned`, 띄어쓰기 `\ `·`\;`·`\:`·`\!`·
+  `\quad`·`\qquad`. 모두 한/글 2024(Windows)에서 그려 보고 기호로 나오는 표기만 넣었고, 읽는 쪽
+  (`eqedit_to_latex`)도 같은 표기를 안다. 중·고 수학·과학 표기 229개 가운데 226개가 변환된다(전에는 처음
+  159개 중 147개). `\mathbb`·`\widehat`·`\square`는 맞게 그려지는 표기가 없어 계속 거부한다.
 - LangChain 로더 `hwpx.integrations.langchain.HwpxLoader`(실험 기능). `.hwpx`·`.hwp` 파일 하나를 제목·목록·표를 살린
   Markdown 문서 하나로 돌려주고, 메타데이터에 출처·형식·개수와 함께 Markdown에 빠진 내용이 있는지(`lossiness`,
   `warnings`)를 싣는다. `pip install "python-hwpx[langchain]"`로 `langchain-core`를 함께 설치한다. 이 모듈만
@@ -58,6 +91,20 @@
 
 ### 바뀜
 
+- **`add_equation`이 적는 수식 글꼴이 `HYhwpEQ`에서 `HancomEQN`으로 바뀌었다.** `HancomEQN`은 한/글 수식 편집기가
+  쓰는 글꼴이라, 만든 수식이 한/글에서 직접 넣은 수식과 같은 모양이 된다. 획이 조금 굵어지고 일부 글자의 폭이 달라진다.
+  전의 모양을 원하면 `font="HYhwpEQ"`를 준다. 수식 상자 폭은 두 글꼴 모두에서 겹치지 않게 잡는다.
+
+- `hwpx.ingest`의 Markdown에 머리말·꼬리말·메모가 실린다(위 두 옵션을 켜서 부른다). 전에는 빠진 것으로
+  `metadata["left_out"]`과 `warnings`에 보고만 했다. 본문만 원하면
+  `markdown_options={"headers_and_footers": False, "memos": False}`를 준다.
+- 표의 이름표를 공백을 무시하고 견준다(`doc.tables.fill_by_path`·`find_cell_by_label`). 양식은 `"성  명"`,
+  `"주    소"`처럼 이름표를 벌려 쓰는데 전에는 `"성명"`으로 찾지 못했다. 여러 줄인 이름표(`"성  명"` 아래
+  `"Name"`)는 칸 전체가 맞는 것이 없을 때 한 줄만 맞아도 찾는다. 공백만 다른 이름표 둘이 한 문서에 있으면 전에는
+  따로 찾았지만 이제 `"ambiguous label"`이다.
+- `fill_by_path`는 호출을 시작할 때의 문서로 모든 경로의 이름표를 먼저 정한다. 한 경로가 써 넣은 값이 다른 경로의
+  이름표로 잡히지 않고, 결과가 경로 순서에 달라지지 않는다. 표를 경로마다 훑지 않아 칸 152개를 채우는 시간이
+  11.6초에서 0.1초로 줄었다.
 - `from_markdown(text)`이 모양을 주지 않으면 보고서 모양으로 만든다. 6.12.0에서는 꾸미지 않은 모양이었다. 전과
   같은 모양은 `style="plain"`(또는 `MarkdownStyle()`)으로 만든다. 이미 있는 문서에 덧붙이는
   `doc.text.append_markdown`은 전처럼 꾸미지 않은 모양이 기본이라 받은 문서의 모양을 그대로 둔다.
@@ -91,6 +138,20 @@
 
 ### 고침
 
+- Markdown 내보내기가 그림을 꺼내지 않을 때(`image_dir` 없이, 기본) 그림 캡션까지 빼던 것을 고쳤다. 캡션은
+  그림 줄 없이도 `*캡션*`으로 나간다. 공개 문서 1,304개에서 그림 캡션 84개 중 61개가 빠져 있었다.
+- 수식 상자 폭이 좁아 한/글(Windows)에서 수식 뒤 글자가 수식과 겹치던 문제. Windows 한/글은 줄을 짤 때 파일에
+  적힌 `hp:sz` 폭을 그대로 쓰고 수식은 제 크기로 그린다. 폭 표가 맥 한/글이 저장한 상자에 맞춰져 있었는데
+  Windows는 그보다 몇 % 더 필요했고, 관계 기호(`:` `≤` `≥` `≈` `⊂` `→`)는 15~30% 모자랐다. 한/글 2024가
+  실제로 필요로 한 폭 1,800건(`tests/data/equation_windows_needed_widths.json`, 수식 글꼴 `HYhwpEQ`와
+  `HancomEQN` 둘 다)에 맞춰 글자·기호 폭 표와 간격 규칙을 다시 만들었다. 이제 그 1,800건 모두 필요 폭 이상이고
+  (중앙값 약 9% 넓음), 맞출 때 쓰지 않은 수식 63개를 포함한 219개를 두 글꼴로 10~13pt에서 한/글로 열었을 때
+  뒤 글자에 닿는 것이 없었다. 수식 폭이 글자 크기에
+  비례하지 않는 것(11pt는 10pt보다 2%, 11.5pt는 13% 넓다)도 14개 크기의 실측으로 반영했다. 맥 한/글 상자와
+  견주면 폭이 평균 10% 넓다.
+- `\mathrm{H_2O}`·`\mathrm{m/s^2}`처럼 첨자가 든 곧은 글자 묶음이 `H _ 2 O`라는 글자 그대로 찍히던 문제. 이제
+  곧은 글자의 수식(`{rm H _{2} O it}`)으로 바꾼다. `\text{...}` 안의 `^`·`_`는 글자로 찍히게 두지 않고 거부한다.
+  `\mathrm{km/h}`가 `km / h`로 벌어지던 것도 원문 띄어쓰기를 따른다.
 - 정렬을 준 머리말·꼬리말과 쪽 번호(`doc.page.set_page_number`, `set_header`/`set_footer`의 `align`)가 본문에
   있는 다른 문단의 모양을 물려받지 않는다. 같은 정렬의 문단 모양이 이미 있으면 그것을 그대로 썼기 때문에, 가운데
   정렬에 아래 테두리와 문단 간격을 준 제목이 있는 문서에서는 쪽 번호 밑에도 줄이 그어졌다. 이제 기본 문단 모양에

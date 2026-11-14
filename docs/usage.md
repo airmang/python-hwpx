@@ -1404,7 +1404,25 @@ print(docs[0].metadata["lossiness"])
 
 나누기는 LangChain의 분할기에 맡깁니다. Markdown에 `#` 제목이 남아 있어 `MarkdownHeaderTextSplitter`로 문서의
 절을 따라 자를 수 있습니다. 폴더를 통째로 읽으려면 `DirectoryLoader(폴더, glob="**/*.hwp*", loader_cls=HwpxLoader)`
-처럼 넘깁니다. 로더와 `hwpx.ingest`는 실험 기능이라 6.x 안에서 이름과 메타데이터 키가 바뀔 수 있습니다.
+처럼 넘깁니다.
+
+### LlamaIndex 리더
+
+`pip install "python-hwpx[llamaindex]"`로 `llama-index-core`를 함께 설치합니다. 내용과 메타데이터는 LangChain
+로더와 같습니다.
+
+```python
+from hwpx.integrations.llama_index import HwpxReader
+
+docs = HwpxReader().load_data(path)   # path: .hwpx나 .hwp 파일 경로
+print(docs[0].text[:200])
+```
+
+폴더는 `SimpleDirectoryReader(폴더, file_extractor={".hwpx": HwpxReader(), ".hwp": HwpxReader()})`로 읽습니다.
+이때 LlamaIndex가 붙이는 파일 이름·날짜가 메타데이터에 함께 들어갑니다. `MarkdownNodeParser`로 문서의 절을 따라
+자를 수 있습니다.
+
+두 어댑터와 `hwpx.ingest`는 실험 기능이라 6.x 안에서 이름과 메타데이터 키가 바뀔 수 있습니다.
 
 ## 제안서 프리셋 — 5.0에서 이동
 
