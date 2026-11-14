@@ -14,9 +14,9 @@
     "docs/golden-api.md"
   ],
   "fenceCount": 119,
-  "sourceSha256": "9029aa202f1dfc42679a47e9736e24d8fa07bbb1f28da128792d17e944dfecd9",
+  "sourceSha256": "780ef8addbc6d9c855c4d8195bc226f23617c200c179eb5ed6e94c4862cb25ec",
   "manualSha256": {
-    "README.md": "854ad575b0cb23cfe7c05411d1a9772e1ad83b1e8d6526b764d63801eaae5d4c",
+    "README.md": "9d0dbe2311ba8858b200285f84a2efe7aba667e9ef8a671e3314fe1a56fe2e61",
     "README_EN.md": "13e3b818ae7e0bf2dc94ff933e90d1f0f32f3037b0d0b5e568c29d57f97902d4",
     "docs/quickstart.md": "44d8ca82ee70c0e3dfdf087713a4e4ce935e64cd3f6a546311f95b054a285a18",
     "docs/recipes-traversal.md": "b63f42b1a6ed23812688599474dcf83300509b86a94b5daceae679bfdbde9343",
