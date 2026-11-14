@@ -437,8 +437,13 @@ class ShapesNamespace(_Namespace):
         base_unit: int = 1100,
         size: tuple[int, int] | None = None,
         char_pr_id_ref: str | int | None = None,
+        font: str = "HancomEQN",
     ) -> "InlineObject":
-        """EqEdit 스크립트를 수식 개체로 넣는다."""
+        """EqEdit 스크립트를 수식 개체로 넣는다.
+
+        ``font``는 수식 글꼴이다. 기본값 ``HancomEQN``은 한/글 수식 편집기가 쓰는 글꼴이고,
+        7.0 전의 모양을 원하면 ``font="HYhwpEQ"``를 준다.
+        """
 
         from .. import shapes as _shapes
 
@@ -450,6 +455,7 @@ class ShapesNamespace(_Namespace):
             base_unit=base_unit,
             size=size,
             char_pr_id_ref=char_pr_id_ref,
+            font=font,
         )
 
     # -- 탈출구 ------------------------------------------------------------

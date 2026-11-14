@@ -45,6 +45,15 @@ xlsx = [
 preview = [
     "latex2mathml>=3.77",
 ]
+# LangChain document loader (hwpx.integrations.langchain). Only that module imports
+# it, so nothing else in the library needs or loads LangChain.
+langchain = [
+    "langchain-core>=0.3",
+]
+# LlamaIndex reader (hwpx.integrations.llama_index). Only that module imports it.
+llamaindex = [
+    "llama-index-core>=0.12",
+]
 # Everything a contributor needs to run the gates in CONTRIBUTING.md: the CI
 # extras (`test` + `typecheck`, what .github/workflows/tests.yml installs) plus
 # twine for checking a built distribution. tests/test_dev_extra_matches_ci.py
@@ -60,6 +69,7 @@ dev = [
     "pyyaml>=6.0,<7",
     "ruff>=0.12",
     "latex2mathml>=3.77",
+    "langchain-core>=0.3",
     "mypy>=1.10",
     "pyright>=1.1.390",
 ]
@@ -73,6 +83,8 @@ test = [
     "pyyaml>=6.0,<7",
     "ruff>=0.12",
     "latex2mathml>=3.77",
+    # so that tests/test_langchain_loader.py runs in CI instead of skipping
+    "langchain-core>=0.3",
 ]
 typecheck = [
     "mypy>=1.10",

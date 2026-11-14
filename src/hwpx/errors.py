@@ -271,6 +271,7 @@ ERROR_CODES: dict[str, str] = {
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
     "table-position-missing": "표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다.",
     "table-width-value": "새 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    "table-row-heights-value": "행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다.",
     "table-cell-zone-grid-mismatch": "셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다.",
     # -- 머리말·꼬리말 story ------------------------------------------------
     "story-ambiguous": "그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다.",
@@ -308,6 +309,7 @@ ERROR_CODES: dict[str, str] = {
     "style-tab-container-create-failed": "tabProperties 컨테이너를 만들지 못했다.",
     "style-container-create-failed": "styles 컨테이너를 만들지 못했다(방어적 분기).",
     "style-border-fill-conflict": "fill_color/fill_image/fill_gradient 를 둘 이상 동시에 지정했다.",
+    "style-border-side-invalid": "ensure_border_fill 의 sides 에 모르는 면이나 type·width·color 밖의 키를 주었다.",
     "style-border-fill-image-missing": "fill_image 가 doc.media 이진 항목을 가리키지 않는다.",
     "style-border-fill-image-mode-invalid": "fill_image 의 mode 값이 OWPML 어휘(hc:imgBrush/@mode) 밖이다.",
     "style-border-fill-image-effect-invalid": "fill_image 의 effect 값이 OWPML 어휘(REAL_PIC/GRAY_SCALE/BLACK_WHITE) 밖이다.",
@@ -419,7 +421,7 @@ ERROR_CODES: dict[str, str] = {
     "text-highlight-match-not-found": "문단에서 형광펜으로 감쌀 문자열을 찾지 못했다.",
     "text-highlight-match-crosses-markup": "찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다.",
     "text-highlight-color-invalid": "형광펜 색이 #RRGGBB 6자리 16진 형식이 아니다.",
-    "text-markdown-style-invalid": "MarkdownStyle 의 값(글자 크기·정렬·번호 형식·글머리표·들여쓰기)이 올바르지 않거나 모르는 모양 이름을 주었다.",
+    "text-markdown-style-invalid": "MarkdownStyle 의 값(글자 크기·글꼴·정렬·번호 형식·글머리표·들여쓰기·상자와 표 모양·색·여백)이 올바르지 않거나 모르는 모양 이름을 주었다.",
     "text-outline-budget": "outline 의 글자·항목 예산이 1보다 작다.",
     "text-block-unknown": "outline 의 after 에 준 글 덩어리 id 가 문서에 없다.",
     # -- 저장·패키지 -----------------------------------------------------

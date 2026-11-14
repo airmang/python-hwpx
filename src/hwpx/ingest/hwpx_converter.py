@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""HWPX ingest converter."""
+"""HWPX and HWP 5.0 ingest converter."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from zipfile import BadZipFile, ZipFile
 from hwpx.document import HwpxDocument
 
 from .base import DocumentIngestResult, DocumentSourceInfo
+from ..opc.package import HwpxPackage
 from ..opc.security import (
     MAX_ZIP_MIMETYPE_BYTES as _MAX_MIMETYPE_BYTES,
     HwpxSecurityError,
@@ -19,7 +20,14 @@ from ..opc.security import (
 
 
 class HwpxMarkdownConverter:
-    """Convert HWPX packages to rich Markdown and lightweight structure metadata."""
+    """Convert HWPX packages and HWP 5.0 (``.hwp``) files to rich Markdown and
+    lightweight structure metadata.
+
+    An ``.hwp`` file is read through the same document model
+    (:meth:`HwpxDocument.open`); the result says ``source_format="hwp"`` and
+    carries what that conversion could not bring over in
+    ``metadata["hwp_conversion"]``.
+    """
 
     name = "HwpxMarkdownConverter"
 
@@ -29,6 +37,10 @@ class HwpxMarkdownConverter:
             return True
         mimetype = (source_info.mimetype or "").lower()
         if mimetype in {"application/hwp+zip", "application/x-hwp+zip"}:
+            return True
+        # 확장자가 .hwp면 내용이 HWP 5.0이 아니어도 받는다. 그래야 HWP 3.x나
+        # 암호 문서를 열 수 없는 사유가 변환 시도 기록에 남는다.
+        if extension == ".hwp" or _starts_with_ole2(file_stream):
             return True
         return _looks_like_hwpx_package(file_stream)
 
@@ -44,6 +56,10 @@ class HwpxMarkdownConverter:
 
         markdown_kwargs = dict(kwargs.pop("markdown_options", {}) or {})
         markdown_kwargs.setdefault("detect_headings", True)
+        # 읽는 쪽(LLM·색인)에는 본문 밖의 글도 문서의 글이다.
+        markdown_kwargs.setdefault("headers_and_footers", True)
+        markdown_kwargs.setdefault("memos", True)
+        markdown_kwargs.setdefault("equations", True)
 
         doc = HwpxDocument.open(data)
         try:
@@ -52,26 +68,43 @@ class HwpxMarkdownConverter:
             tables = _tables_payload(doc)
             paragraph_count = len(list(doc.paragraphs))
             left_out = _left_out_content(doc, markdown)
+            report = doc.conversion_report
         finally:
             doc.close()
+
+        metadata: dict[str, Any] = {
+            "section_count": len(sections),
+            "paragraph_count": paragraph_count,
+            "table_count": len(tables),
+            "converter": self.name,
+            "left_out": {kind: entry["count"] for kind, entry in left_out.items()},
+        }
+        warnings = _left_out_warnings(left_out)
+        lossiness = _lossiness(left_out, markdown)
+        if report is not None:
+            metadata["hwp_conversion"] = {
+                "unconverted": dict(report.unconverted),
+                "dropped": dict(report.dropped),
+            }
+            if report.unconverted:
+                summary = ", ".join(
+                    f"{kind} {count}곳" for kind, count in sorted(report.unconverted.items())
+                )
+                warnings.append(f".hwp에서 문서 모델로 옮기지 못한 내용: {summary}")
+                if lossiness == "low":
+                    lossiness = "medium"
 
         return DocumentIngestResult(
             markdown=markdown,
             source_info=source_info,
-            source_format="hwpx",
+            source_format="hwpx" if report is None else "hwp",
             engine="python-hwpx",
             engine_version=_python_hwpx_version(),
-            metadata={
-                "section_count": len(sections),
-                "paragraph_count": paragraph_count,
-                "table_count": len(tables),
-                "converter": self.name,
-                "left_out": {kind: entry["count"] for kind, entry in left_out.items()},
-            },
+            metadata=metadata,
             sections=sections,
             tables=tables,
-            warnings=_left_out_warnings(left_out),
-            lossiness=_lossiness(left_out, markdown),
+            warnings=warnings,
+            lossiness=lossiness,
         )
 
 
@@ -136,6 +169,8 @@ def _paragraph_texts(container: Any) -> Iterator[str]:
 def _candidates(root: Any) -> Iterator[tuple[str, list[str]]]:
     """``(종류, 그 요소가 담은 글 조각들)``을 문서 순서로 낸다."""
 
+    from ..tools.markdown_export import equation_markdown
+
     for element in root.iter():
         tag = element.tag
         if not isinstance(tag, str) or not tag.startswith(_HP):
@@ -148,7 +183,8 @@ def _candidates(root: Any) -> Iterator[tuple[str, list[str]]]:
             yield kind, [element.get(attribute) or ""]
         elif name == "equation":
             script = element.find(f"{_HP}script")
-            yield "equation", ["".join(script.itertext()) if script is not None else ""]
+            # 수식은 LaTeX로 바뀌어 실린다. 실린 모양 그대로를 찾는다.
+            yield "equation", [equation_markdown("".join(script.itertext())) if script is not None else ""]
         elif name == "dutmal":
             yield "ruby", [
                 "".join(child.itertext())
@@ -220,6 +256,19 @@ def _lossiness(left_out: dict[str, dict[str, int]], markdown: str) -> str:
         return "low"
     missing_chars = sum(entry["chars"] for entry in left_out.values())
     return "high" if missing_chars > len(_squash(markdown)) else "medium"
+
+
+_OLE2_MAGIC = HwpxPackage.OLE2_MAGIC
+
+
+def _starts_with_ole2(file_stream: BinaryIO) -> bool:
+    """HWP 5.0(``.hwp``)이 쓰는 복합 파일로 시작하는가."""
+
+    cur_pos = file_stream.tell()
+    try:
+        return file_stream.read(len(_OLE2_MAGIC)) == _OLE2_MAGIC
+    finally:
+        file_stream.seek(cur_pos)
 
 
 def _looks_like_hwpx_package(file_stream: BinaryIO) -> bool:

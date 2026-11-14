@@ -817,6 +817,7 @@ class HwpxOxmlDocument:
         fill_gradient: Mapping[str, object] | None = None,
         active_borders: Iterable[str] | None = None,
         border_type: str = "SOLID",
+        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
     ) -> str:
         if not self._headers:
             return "0"
@@ -828,6 +829,7 @@ class HwpxOxmlDocument:
             fill_gradient=fill_gradient,
             active_borders=active_borders,
             border_type=border_type,
+            sides=sides,
         )
 
     def ensure_font(
@@ -1510,6 +1512,7 @@ class HwpxOxmlDocument:
         _section_layout.number_section_ids(self)  # files saved with ids out of order are put right
         if self._manifest_dirty:
             updates[self._manifest_path] = _serialize_xml(self._manifest)
+        header_shapes: tuple[frozenset[str], dict[str, float]] | None = None
         for section in self._sections:
             # Edit-scoped invalidation: the mutating APIs (cell/paragraph/run
             # text and style setters) clear the caches of exactly the
@@ -1518,7 +1521,9 @@ class HwpxOxmlDocument:
             # Hancom to re-lay-out untouched pages of multi-page forms, which
             # is what stacked glyphs and shifted page counts in the wild
             # form-fill differential (specs/031 P0 receipt).
-            section.remove_stale_layout_caches()
+            if header_shapes is None:
+                header_shapes = section._header_shapes()
+            section.remove_stale_layout_caches(_header_shapes=header_shapes)
         for section in self._sections:
             if section.dirty:
                 # Header/footer edits land on the secPr story; Hancom reads the control copy.

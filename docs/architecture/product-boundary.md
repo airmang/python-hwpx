@@ -61,8 +61,13 @@ core rule is not enough.
 - the Markdown writer (`hwpx.tools.markdown_import`) keeps one named look in core,
   `report` (owner decision, 2026-11-12): the first document a newcomer makes with
   the library alone should look like a document. It is a bundle of `MarkdownStyle`
-  values (sizes, heading numbers, bullets, a page number) and holds no rule about
-  what a document must contain. Looks for genres with content rules (공문,
+  values (typefaces, sizes, heading numbers, the title banner, the section box,
+  table rules and cell alignment, bullets, the size of a note, how far a list
+  item's letter spacing may be narrowed to keep it on one line, page margins,
+  a page number) and holds no rule about what a document must contain. Its values were changed on 2026-11-13 to follow
+  a report the owner supplied; it is still the one named look. Since the same
+  day `from_markdown` uses it when no style is given (owner decision), and
+  `append_markdown` keeps the plain look so an existing document keeps its own. Looks for genres with content rules (공문,
   가정통신문 …) stay in `python-hwpx-automation`; a second named look in core
   needs a new owner decision.
 
@@ -90,7 +95,10 @@ zero-resurrection inventory.
 
 The gate AST-inspects every core Python module. Absolute imports are fail-closed:
 the allowed roots are the running Python's standard library, `hwpx`, and the
-three declared runtime dependencies `lxml`, `openpyxl`, and `latex2mathml`.
+five declared runtime dependencies `lxml`, `openpyxl`, `latex2mathml`,
+`langchain_core`, and `llama_index`. The last four are optional extras;
+`langchain_core` and `llama_index` are imported only by their adapters,
+`hwpx.integrations.langchain` and `hwpx.integrations.llama_index`.
 Everything else—including the companion products, MCP SDK, PDF/rendering,
 numerical, COM, and macOS GUI bindings—is rejected without maintaining a
 guessable denylist.

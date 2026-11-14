@@ -614,6 +614,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         fill_gradient: "Mapping[str, object] | None" = None,
         active_borders: Sequence[str] | None = None,
         border_type: str = "SOLID",
+        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
     ) -> str:
         """요청한 테두리/채우기의 `borderFill` id 를 보장하고 돌려준다.
 
@@ -621,6 +622,14 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         선택지(Core XML schema.xml:650) 그대로 상호 배타적이다 — 둘 이상
         주면 typed 거부한다. `fill_image` 는 `doc.media.add_image(...)` 가
         돌려준 `BinaryItem`(또는 그 id 문자열)을 그대로 받는다.
+
+        `sides` 는 면마다 다른 선을 준다: `"left"`·`"right"`·`"top"`·`"bottom"` →
+        `{"type", "width", "color"}`(빠진 값은 `border_type`·`border_width`·
+        `border_color`), 또는 그 면에 선을 긋지 않는 `None`. 대지 않은 면은
+        `active_borders` 를 따른다. 예: 위아래만 굵고 옆이 트인 칸은
+        `sides={"top": {"width": "0.4 mm"}, "bottom": {"width": "0.4 mm"},
+        "left": None, "right": None}`. 모르는 면이나 키는
+        `HwpxValueError(code="style-border-side-invalid")`, 모르는 선 종류는 `ValueError`.
         """
 
         given = sum(1 for v in (fill_color, fill_image, fill_gradient) if v is not None)
@@ -641,6 +650,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             fill_gradient=resolved_gradient,
             active_borders=active_borders,
             border_type=border_type,
+            sides=sides,
         )
 
     def ensure_memo_shape(

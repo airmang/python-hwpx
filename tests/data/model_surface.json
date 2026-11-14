@@ -272,6 +272,7 @@
     "set_cell_shading",
     "set_cell_text",
     "set_column_widths",
+    "set_row_heights",
     "split_cell",
     "split_merged_cell"
    ]

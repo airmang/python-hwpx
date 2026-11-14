@@ -43,8 +43,9 @@ Styles are picked by name. A name that does not exist fails at that line.
 To edit an existing file, start from `HwpxDocument.open("report.hwpx")`. An `.hwp` file opens the
 same way; save the result as HWPX with `save_to_path("report.hwpx")`.
 
-If Markdown is what you have, pass it as it is. `style="report"` gives the look of a Korean report:
-a centred title, numbered section headings (`1.`, `가.`) and a page number.
+If Markdown is what you have, pass it as it is. The document takes the look of a Korean office
+report: the title in a banner with colour strips, sections in a numbered box (`Ⅰ`, `Ⅱ`), numbered
+headings under them (`1.`, `가.`), ruled tables and a page number. `style="plain"` leaves it undecorated.
 
 <!-- standalone-python-example -->
 
@@ -54,7 +55,7 @@ from hwpx.tools.markdown_import import from_markdown
 doc = from_markdown(
     "# 2026 Operating Plan\n\n## Background\n\nBuilt on what students asked for.\n\n"
     "| Item | Detail |\n|---|---|\n| Period | March to July |\n",
-    style="report",
+    byline="Academic Affairs",
 )
 doc.save_to_path("plan.hwpx")
 ```
@@ -72,6 +73,9 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
   come out with `notes=True`, `markdown(rich=True)` or `TextExtractor`; headers, footers and memos only from
   `TextExtractor`. Equations, composed characters and form-object captions are not extracted by any path yet.
   The Markdown converter (`hwpx.ingest`) reports what it left out in `warnings` and `lossiness`.
+  It reads `.hwp` through the same call. `hwpx.integrations.langchain.HwpxLoader`
+  (`pip install "python-hwpx[langchain]"`) hands the result to LangChain, and
+  `hwpx.integrations.llama_index.HwpxReader` (`pip install "python-hwpx[llamaindex]"`) to LlamaIndex.
 - Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
 - Fill forms: find a cell by its label and change only the value; parts you did not touch keep their bytes.
   FormFit decides whether a value should wrap or shrink to fit its cell, measuring with Hangul's glyph widths.

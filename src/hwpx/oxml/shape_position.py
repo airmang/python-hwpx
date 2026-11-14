@@ -294,6 +294,19 @@ def validate_equation_base_unit(base_unit: object) -> int:
     return base_unit
 
 
+def validate_equation_font(font: object) -> str:
+    """An equation's *font*, checked to be a non-empty font name."""
+
+    if not isinstance(font, str) or not font.strip():
+        raise HwpxValueError(
+            f"equation font must be a non-empty font name; got {font!r}",
+            code="shape-equation-font-empty",
+            context={"value": repr(font)},
+            suggestion="Leave font out for HancomEQN, or pass a font name such as 'HYhwpEQ'.",
+        )
+    return font.strip()
+
+
 def validate_original_size(original_size: object) -> tuple[int, int] | None:
     """Check *original_size* is ``None`` or two positive integers."""
 
