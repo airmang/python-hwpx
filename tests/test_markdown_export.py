@@ -350,6 +350,21 @@ class TestImages:
         md = export_markdown(showcase_doc, image_dir=None)
         assert "![image]" not in md
 
+    def test_a_picture_caption_is_kept_without_image_dir(self, tmp_path):
+        doc = HwpxDocument.new()
+        paragraph = doc.sections[0].add_paragraph()
+        media = doc.media.add_image(bytes.fromhex("89504e470d0a1a0a") + b"0" * 40, "png")
+        paragraph.add_picture(media.item_id, width=10000, height=8000).set_caption("그림 1. 연도별 추이")
+
+        without = export_markdown(doc, image_dir=None)
+        assert "![image]" not in without
+        assert "*그림 1. 연도별 추이*" in without
+        assert "그림 1. 연도별 추이" in doc.text.markdown()
+
+        extracted = export_markdown(doc, image_dir=tmp_path / "img")
+        assert extracted.count("그림 1. 연도별 추이") == 1
+        assert "![image]" in extracted
+
     def test_image_dir_extracts_bindata(self, table_merge_doc, tmp_path):
         img_dir = tmp_path / "imgs"
         export_markdown(table_merge_doc, image_dir=img_dir, image_ref_prefix="imgs")

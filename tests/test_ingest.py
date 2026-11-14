@@ -203,7 +203,7 @@ def test_flat_metadata_holds_only_scalars_a_vector_store_accepts(tmp_path: Path)
 
     with HwpxDocument.new() as doc:
         doc.add_paragraph("본문")
-        doc.notes.add_memo("메모에만 있는 글")
+        doc.fields.add_check_box(caption="캡션에만 있는 글")
         data = doc.to_bytes()
     lossy = DocumentIngestor.default().convert(data)
     assert lossy.warnings

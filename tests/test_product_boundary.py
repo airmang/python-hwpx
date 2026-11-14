@@ -65,6 +65,7 @@ EXPECTED_FORBIDDEN_RUNTIME_IMPORTS = (
 EXPECTED_ALLOWED_THIRD_PARTY_IMPORTS = (
     "langchain_core",
     "latex2mathml",
+    "llama_index",
     "lxml",
     "openpyxl",
 )
@@ -227,10 +228,14 @@ def test_runtime_import_allowlist_matches_declared_runtime_extras() -> None:
     dependencies.extend(optional["xlsx"])
     dependencies.extend(optional["preview"])
     dependencies.extend(optional["langchain"])
+    dependencies.extend(optional["llamaindex"])
+    # A distribution whose import root is not its own name with "-" turned into "_".
+    import_roots = {"llama_index_core": "llama_index"}
     declared_roots = {
         re.split(r"[\[<>=!~;\s]", requirement, maxsplit=1)[0].replace("-", "_")
         for requirement in dependencies
     }
+    declared_roots = {import_roots.get(root, root) for root in declared_roots}
     assert declared_roots == set(EXPECTED_ALLOWED_THIRD_PARTY_IMPORTS)
 
 
@@ -337,7 +342,9 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: format rule check (tools/format_rules.py); an organisation's rule set stays with the caller.
     # +2: framework adapters (integrations/__init__.py, integrations/langchain.py); the LangChain
     # loader is a thin layer over hwpx.ingest and imports langchain_core only there.
-    assert report["classifiedFiles"] == 190
+    # +1: the LlamaIndex reader (integrations/llama_index.py), the same layer for llama_index.
+    # +1: choices typed as check marks (tools/form_choices.py).
+    assert report["classifiedFiles"] == 192
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

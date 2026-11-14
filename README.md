@@ -55,8 +55,9 @@ doc.save_to_path("계획.hwpx")
   `markdown(rich=True)`·`TextExtractor`를 쓸 때 나오고, 머리말·꼬리말·메모는 `TextExtractor`에서만 나옵니다.
   수식·글자 겹침·양식 개체 캡션은 아직 어느 경로에서도 나오지 않습니다. Markdown 변환(`hwpx.ingest`)은 빠진
   종류와 개수를 `warnings`와 `lossiness`로 알립니다.
-  `.hwp`도 같은 호출로 읽고, LangChain에서는 `hwpx.integrations.langchain.HwpxLoader`로 씁니다
-  (`pip install "python-hwpx[langchain]"`, [사용법](docs/usage.md#ai-파이프라인에서-읽기)).
+  `.hwp`도 같은 호출로 읽습니다. LangChain은 `hwpx.integrations.langchain.HwpxLoader`
+  (`pip install "python-hwpx[langchain]"`), LlamaIndex는 `hwpx.integrations.llama_index.HwpxReader`
+  (`pip install "python-hwpx[llamaindex]"`)로 씁니다([사용법](docs/usage.md#ai-파이프라인에서-읽기)).
 - 편집: 문단·표·그림·머리말/꼬리말·메모·각주, 줄 간격·여백·쪽 번호 같은 서식을 고칩니다.
 - 양식 채우기: 라벨로 칸을 찾아 값만 넣고 손대지 않은 부분은 바이트 그대로 둡니다. FormFit은 값이
   칸에 들어가도록 줄을 바꾸거나 글자를 줄일지 한/글의 글자 폭으로 재서 고릅니다.
@@ -78,8 +79,10 @@ doc.save_to_path("계획.hwpx")
 
 ```python
 doc = HwpxDocument.open("신청서.hwpx")
+for slot in doc.tables.form_slots()["slots"]:   # 채울 수 있는 빈 칸과 그 경로
+    print(slot["path"])                          # "성 명 > right", "소속 > right", ...
 values = {
-    "성명 > right": "홍길동",
+    "성명 > right": "홍길동",                    # 양식에 "성  명"으로 벌려 써 있어도 찾습니다
     "소속 > right": "플랫폼팀",
 }
 result = doc.tables.fill_by_path(values)
@@ -88,7 +91,8 @@ if result["failed_count"] or result["applied_count"] != len(values):
 report = doc.save_to_path("신청서-작성완료.hwpx", mode="patch", fallback="error", return_report=True)
 ```
 
-라벨이 겹치거나 없으면 실패로 돌려주고 저장하기 전에 멈출 수 있습니다. `mode="patch"`는 고치지 않은
+라벨이 없으면 실패로 돌려주고 저장하기 전에 멈출 수 있습니다. 같은 라벨이 여러 칸이면 후보를
+`candidates`로 돌려주며, `"성명[2] > right"`처럼 몇 번째인지 적어 고릅니다. `mode="patch"`는 고치지 않은
 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고친 파트 안쪽과 화면 배치는 따로 확인해야 합니다. 저장한 파일을
 다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](docs/safe-write-contract.md)에 있습니다.
 
