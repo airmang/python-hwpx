@@ -249,22 +249,22 @@ def _element_caption_text(el) -> str | None:
     captions = _direct_children(el, "caption")
     if not captions:
         return None
-    text = "".join(t.text or "" for t in _descendants(captions[0], "t")).strip()
+    text = "".join("".join(t.itertext()) for t in _descendants(captions[0], "t")).strip()
     return text or None
 
 
 def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
-    """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인."""
+    """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인.
+
+    그림을 꺼내지 않아(``mapping``이 비어) 이미지 줄을 쓰지 않을 때에도 캡션은 쓴다.
+    캡션은 문서의 글이다."""
     out = []
     for pic in _descendants(p_el, "pic"):
         img = _first_descendant(pic, "img")
-        if img is None:
-            continue
-        ref = img.get("binaryItemIDRef")
-        if not ref or not mapping:
-            continue
-        rel = mapping.get(ref, f"BinData/{ref}")
-        out.append(f"![image]({rel.translate(_LINK_ESCAPES)})")
+        ref = img.get("binaryItemIDRef") if img is not None else None
+        if ref and mapping:
+            rel = mapping.get(ref, f"BinData/{ref}")
+            out.append(f"![image]({rel.translate(_LINK_ESCAPES)})")
         caption_text = _element_caption_text(pic)
         if caption_text:
             out.append(f"*{caption_text}*")
