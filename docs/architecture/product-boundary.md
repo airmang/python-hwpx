@@ -57,7 +57,10 @@ zero-resurrection inventory.
 
 The gate AST-inspects every core Python module. Absolute imports are fail-closed:
 the allowed roots are the running Python's standard library, `hwpx`, and the
-three declared runtime dependencies `lxml`, `openpyxl`, and `latex2mathml`.
+five declared runtime dependencies `lxml`, `openpyxl`, `latex2mathml`,
+`langchain_core`, and `llama_index`. The last four are optional extras;
+`langchain_core` and `llama_index` are imported only by their adapters,
+`hwpx.integrations.langchain` and `hwpx.integrations.llama_index`.
 Everything else—including the companion products, MCP SDK, PDF/rendering,
 numerical, COM, and macOS GUI bindings—is rejected without maintaining a
 guessable denylist.

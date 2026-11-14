@@ -1005,6 +1005,8 @@ document.parts.headers[0].set_begin_numbering(page=1)
 언어 모델이 가장 안정적으로 쓰는 형식이 Markdown이다. `from_markdown`은 흔히 쓰는 부분 집합
 (`#`~`####` 제목, 문단, `-`/`1.` 목록, `|` 표, `**굵게**`·`*기울임*`)으로 새 문서를 만들고,
 모르는 Markdown은 평문으로 쓴다. 이미 있는 문서에는 `doc.text.append_markdown`으로 덧붙인다.
+표는 열 너비를 내용에 맞추고(짧은 이름 열은 좁게, 글이 긴 열은 넓게) 머리 행을 가운데로 놓는다.
+구분선의 `:---`·`:---:`·`---:`로 열 정렬을 정할 수 있다.
 
 <!-- standalone-python-example -->
 ```python
@@ -1288,6 +1290,58 @@ with open("result.hwpx", "wb") as fp:
 저장 API는 결과 HWPX를 편집기에서 열 수 있는지 확인하기 위해 패키지 검증, document validation, 재오픈 검증을 수행합니다. 별도 pack/repack 파이프라인에서 같은 증거가 필요하면 `hwpx.validate_editor_open_safety(path)` 또는 `hwpx.tools.validate_editor_open_safety(path)`를 호출해 `EditorOpenSafetyReport`를 확인하세요.
 
 패키지 수준에서 바로 작업하고 싶다면 `HwpxPackage.set_part()`/`save()`를 사용해 XML 조각을 교체할 수도 있습니다. 이 경우에도 최종 출력은 반드시 `HwpxPackage.save()`를 거쳐야 합니다. `_write_archive()`나 `_write_zip_entry()` 같은 raw ZIP writer는 내부 구현 세부사항이며, safety 검증을 건너뛴 산출물을 만들 수 있으므로 직접 호출하지 마세요.
+
+## AI 파이프라인에서 읽기
+
+검색·요약 파이프라인에 넣을 글은 `hwpx.ingest`로 뽑습니다. `.hwpx`와 `.hwp`를 같은 방식으로 받고, 제목·목록·표를
+살린 Markdown과 함께 무엇이 빠졌는지를 알려 줍니다.
+
+```python
+from hwpx.ingest import DocumentIngestor
+
+result = DocumentIngestor.default().convert(path)   # path: .hwpx나 .hwp 파일 경로
+print(result.markdown)
+print(result.lossiness)        # "low": 빠진 것이 없다. "medium"·"high": warnings에 종류와 개수
+print(result.flat_metadata())  # 출처·형식·개수·경고를 글자와 숫자 값만으로
+```
+
+암호 문서나 HWP 3.x처럼 읽을 수 없는 파일은 `UnsupportedDocumentFormat`으로 거부하고, 사유가 오류 문구에
+들어갑니다.
+
+### LangChain 로더
+
+`pip install "python-hwpx[langchain]"`로 `langchain-core`를 함께 설치하면 로더를 쓸 수 있습니다. 파일 하나가
+Markdown 문서 하나가 되고, 메타데이터는 위의 `flat_metadata()`입니다.
+
+```python
+from hwpx.integrations.langchain import HwpxLoader
+
+docs = HwpxLoader(path).load()   # path: .hwpx나 .hwp 파일 경로
+print(docs[0].page_content[:200])
+print(docs[0].metadata["lossiness"])
+```
+
+나누기는 LangChain의 분할기에 맡깁니다. Markdown에 `#` 제목이 남아 있어 `MarkdownHeaderTextSplitter`로 문서의
+절을 따라 자를 수 있습니다. 폴더를 통째로 읽으려면 `DirectoryLoader(폴더, glob="**/*.hwp*", loader_cls=HwpxLoader)`
+처럼 넘깁니다.
+
+### LlamaIndex 리더
+
+`pip install "python-hwpx[llamaindex]"`로 `llama-index-core`를 함께 설치합니다. 내용과 메타데이터는 LangChain
+로더와 같습니다.
+
+```python
+from hwpx.integrations.llama_index import HwpxReader
+
+docs = HwpxReader().load_data(path)   # path: .hwpx나 .hwp 파일 경로
+print(docs[0].text[:200])
+```
+
+폴더는 `SimpleDirectoryReader(폴더, file_extractor={".hwpx": HwpxReader(), ".hwp": HwpxReader()})`로 읽습니다.
+이때 LlamaIndex가 붙이는 파일 이름·날짜가 메타데이터에 함께 들어갑니다. `MarkdownNodeParser`로 문서의 절을 따라
+자를 수 있습니다.
+
+두 어댑터와 `hwpx.ingest`는 실험 기능이라 6.x 안에서 이름과 메타데이터 키가 바뀔 수 있습니다.
 
 ## 제안서 프리셋 — 5.0에서 이동
 

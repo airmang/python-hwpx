@@ -15,7 +15,9 @@ Supported subset:
 - ``-``/``*``/``+`` bullets and ``1.``/``1)`` numbered lists, nested by
   indentation, as real Hancom lists (:meth:`doc.styles.apply_list_format`)
 - pipe tables; a row followed by a ``|---|`` separator is the header row
-  (bold, shaded); ``<br>`` in a cell is a line break
+  (bold, shaded, centred); ``:---``/``:---:``/``---:`` in the separator align
+  a column; columns are as wide as their text needs; ``<br>`` in a cell is a
+  line break
 - inline ``**bold**``/``__bold__``, ``*italic*``, ``***both***``,
   ``` `code` ``` (kept as text), ``[text](url)`` (the text), ``\\`` escapes
 - fenced code blocks become one paragraph per block, lines kept
@@ -31,7 +33,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -47,8 +49,15 @@ class MarkdownStyle:
 
     The default is a neutral document look: ``#`` 16pt bold, ``##`` 12pt bold,
     ``###`` 11pt bold, ``####`` 10pt bold, body text at the document's base
-    size, and a light grey header row in tables. Sizes are points; ``None``
-    keeps the document's base character shape.
+    size, and a light grey, centred header row in tables. Sizes are points;
+    ``None`` keeps the document's base character shape.
+
+    ``table_fit_columns`` shares the table's width out by what each column's
+    longest line needs, so a column of short labels is narrow and the text
+    column wide; ``False`` gives every column the same width.
+    ``table_header_align`` aligns header cells whose column has no alignment of
+    its own in the Markdown (``"center"``, ``"left"``, ``"right"`` or ``None``
+    to leave them as body cells are).
     """
 
     heading_sizes: tuple[float, float, float, float] = (16.0, 12.0, 11.0, 10.0)
@@ -58,6 +67,8 @@ class MarkdownStyle:
     body_size: float | None = None
     table_header_shading: str | None = "#D9D9D9"
     table_header_bold: bool = True
+    table_header_align: str | None = "center"
+    table_fit_columns: bool = True
     bullet_char: str | None = None
 
     def __post_init__(self) -> None:
@@ -76,6 +87,13 @@ class MarkdownStyle:
                 code="text-markdown-style-invalid",
                 context={"body_size": self.body_size},
                 suggestion="Give a positive point size, or None to keep the document's body size.",
+            )
+        if self.table_header_align not in (None, "left", "center", "right"):
+            raise HwpxValueError(
+                "table_header_align must be 'left', 'center', 'right' or None",
+                code="text-markdown-style-invalid",
+                context={"table_header_align": self.table_header_align},
+                suggestion="Use 'center', 'left' or 'right', or None to leave header cells as body cells are.",
             )
 
 
@@ -181,6 +199,8 @@ class _List:
 class _Table:
     rows: list[list[str]]
     header: bool
+    #: Per column: "left", "center", "right", or None where the separator says nothing.
+    aligns: list[str | None] = field(default_factory=list)
 
 
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -216,6 +236,16 @@ def _split_row(line: str) -> list[str]:
         i += 1
     cells.append("".join(current).strip())
     return cells
+
+
+def _separator_aligns(line: str) -> list[str | None]:
+    """The alignment each cell of a ``|:---|:---:|---:|`` separator row asks for."""
+
+    aligns: list[str | None] = []
+    for cell in _split_row(line):
+        left, right = cell.startswith(":"), cell.endswith(":")
+        aligns.append("center" if left and right else "left" if left else "right" if right else None)
+    return aligns
 
 
 def _join_lines(lines: list[str]) -> str:
@@ -274,13 +304,16 @@ def parse_blocks(markdown: str) -> Iterator[object]:
             yield from end_paragraph()
             rows: list[list[str]] = []
             header = False
+            aligns: list[str | None] = []
             while i < len(lines) and lines[i].lstrip().startswith("|"):
                 if _TABLE_SEPARATOR.match(lines[i]):
-                    header = header or len(rows) == 1
+                    if len(rows) == 1 and not header:
+                        header = True
+                        aligns = _separator_aligns(lines[i])
                 else:
                     rows.append(_split_row(lines[i]))
                 i += 1
-            yield _Table(rows, header)
+            yield _Table(rows, header, aligns)
             continue
         item = _LIST_ITEM.match(line)
         if item:
@@ -413,6 +446,7 @@ class _Writer:
             return
         cols = max(len(row) for row in block.rows)
         table = self.doc.add_table(len(block.rows), cols)
+        aligned: dict[str, list[HwpxOxmlParagraph]] = {}
         for row_index, row in enumerate(block.rows):
             is_header = block.header and row_index == 0
             for col_index in range(cols):
@@ -426,6 +460,68 @@ class _Writer:
                 )
                 if is_header and self.style.table_header_shading:
                     table.set_cell_shading(row_index, col_index, self.style.table_header_shading)
+                align = block.aligns[col_index] if col_index < len(block.aligns) else None
+                if align is None and is_header:
+                    align = self.style.table_header_align
+                if align in ("center", "right"):
+                    aligned.setdefault(align, []).append(cell.paragraphs[0])
+        for align, paragraphs in aligned.items():
+            self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
+        if self.style.table_fit_columns and cols > 1:
+            total = sum(table.cell(0, col_index).width for col_index in range(cols))
+            size = self.style.body_size or _BASE_SIZE_PT
+            table.set_column_widths(_column_weights(block.rows, cols, size, total))
+
+
+#: The blank document's body size, used to judge how wide a column's text is.
+_BASE_SIZE_PT = 10.0
+#: A table cell's left and right padding together (1.8 mm each side), in HWPUNIT.
+_CELL_SIDE_PADDING = 2 * 510
+#: A column is never judged narrower than this many full-width characters.
+_MIN_COLUMN_CHARS = 3
+#: Room left beyond the measured text, in full-width characters, so a line that
+#: just fits by the estimate does not wrap in Hancom.
+_COLUMN_SLACK_CHARS = 1.0
+
+
+def _column_weights(rows: list[list[str]], cols: int, font_pt: float, table_width: int) -> list[float]:
+    """Width weights by what each column's longest line needs.
+
+    A column needs its longest line of text plus the cell padding, and no less
+    than a few characters. When the needs fit the table, the table's width is
+    shared out in proportion to them. When they do not, the columns that need
+    the most are cut down to a common width and wrap, and the others keep what
+    they need: a column of short labels stays on one line next to a column of
+    long text.
+    """
+
+    from ..form_fit.measure import estimate_text_width
+
+    em = estimate_text_width("가", font_pt)
+    floor = em * _MIN_COLUMN_CHARS + _CELL_SIDE_PADDING
+    needs: list[float] = []
+    for col_index in range(cols):
+        longest = 0.0
+        for row in rows:
+            text = row[col_index] if col_index < len(row) else ""
+            plain = "".join(chunk for chunk, _bold, _italic in parse_inline(_BR.sub("\n", text)))
+            for line in plain.split("\n"):
+                longest = max(longest, estimate_text_width(line, font_pt))
+        needs.append(max(longest + em * _COLUMN_SLACK_CHARS + _CELL_SIDE_PADDING, floor))
+    if sum(needs) <= table_width:
+        return needs
+    if floor * cols >= table_width:
+        return [1.0] * cols  # too many columns to give each even the least: share alike
+    # Cut the widest columns down to one level so that the widths add up to the table.
+    remaining = float(table_width)
+    level = 0.0
+    ordered = sorted(needs)
+    for position, need in enumerate(ordered):
+        level = remaining / (cols - position)
+        if need > level:
+            break
+        remaining -= need
+    return [min(need, level) for need in needs]
 
 
 def append_markdown(

@@ -105,6 +105,10 @@ def test_multiple_tables_with_the_same_label_return_all_matches_and_make_fill_am
     assert fill_result["failed"][0] == {
         "path": "성명 > right",
         "reason": "ambiguous label",
+        "candidates": [
+            {"table_index": 0, "row": 0, "col": 0, "text": "성명", "selector": "성명[1]"},
+            {"table_index": 1, "row": 0, "col": 0, "text": "성명", "selector": "성명[2]"},
+        ],
     }
     assert first.cell(0, 1).text == ""
     assert second.cell(0, 1).text == ""
