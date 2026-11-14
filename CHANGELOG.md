@@ -6,6 +6,7 @@
 
 ### 추가
 
+- `add_equation`에 `font` 인자가 생겼다(`doc.shapes.add_equation`, 문단의 `add_equation`). 수식 글꼴 이름을 준다.
 - Markdown 내보내기가 수식을 실을 수 있다. `doc.text.markdown(rich=True, equations=True)`면 수식이 있던 자리에
   `$LaTeX$`로 나간다(본문·표 칸·각주·메모 안 모두). LaTeX로 옮기지 못하는 수식은 한/글 수식 문자열을 코드로
   싣는다. 기본값은 꺼짐이다. `hwpx.ingest`는 켜서 부르며, 본문만 원하면 `markdown_options={"equations": False}`.
@@ -55,6 +56,10 @@
   않는다. 공개 문서 148개에 한 낱말 바꾸기를 해 보니 기본 범위로는 30개(20%)가 0건으로 끝났다.
 
 ### 바뀜
+
+- **`add_equation`이 적는 수식 글꼴이 `HYhwpEQ`에서 `HancomEQN`으로 바뀌었다.** `HancomEQN`은 한/글 수식 편집기가
+  쓰는 글꼴이라, 만든 수식이 한/글에서 직접 넣은 수식과 같은 모양이 된다. 획이 조금 굵어지고 일부 글자의 폭이 달라진다.
+  전의 모양을 원하면 `font="HYhwpEQ"`를 준다. 수식 상자 폭은 두 글꼴 모두에서 겹치지 않게 잡는다.
 
 - `hwpx.ingest`의 Markdown에 머리말·꼬리말·메모가 실린다(위 두 옵션을 켜서 부른다). 전에는 빠진 것으로
   `metadata["left_out"]`과 `warnings`에 보고만 했다. 본문만 원하면
