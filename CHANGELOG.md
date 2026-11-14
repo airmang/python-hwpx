@@ -6,6 +6,9 @@
 
 ### 추가
 
+- LlamaIndex 리더 `hwpx.integrations.llama_index.HwpxReader`(실험 기능). LangChain 로더와 같은 내용·메타데이터를
+  LlamaIndex 문서로 돌려주고, `SimpleDirectoryReader`의 `file_extractor`로 넘겨 폴더를 읽을 수 있다.
+  `pip install "python-hwpx[llamaindex]"`로 `llama-index-core`를 함께 설치한다.
 - 글자로 적힌 선택 칸을 고른다: `doc.fields.choices()`가 `□ 예  □ 아니오` 같은 묶음을 이름표·항목과 함께
   나열하고, `doc.fields.choose({"참석 여부": "예"})`가 그 항목을 채우고 나머지를 비운다. 한 문단에 같은 종류의
   표시(네모 `□☐■☑` 또는 동그라미 `○●`)가 둘 이상일 때만 묶음으로 본다. 줄 맨 앞에 하나만 있는 표시는
