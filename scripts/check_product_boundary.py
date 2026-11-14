@@ -42,7 +42,13 @@ FORBIDDEN_IMPORTS = (
     + FORBIDDEN_RUNTIME_IMPORTS
     + FORBIDDEN_LEGACY_IMPORTS
 )
-ALLOWED_THIRD_PARTY_IMPORTS = ("latex2mathml", "lxml", "openpyxl")
+ALLOWED_THIRD_PARTY_IMPORTS = (
+    "langchain_core",
+    "latex2mathml",
+    "llama_index",
+    "lxml",
+    "openpyxl",
+)
 ALLOWED_ABSOLUTE_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
     "hwpx",
     *ALLOWED_THIRD_PARTY_IMPORTS,

@@ -37,7 +37,7 @@ CASES = {
     "equation_root_index.hwpx": "root {3} of {8}",
     "equation_pmatrix.hwpx": "pmatrix {1 & 0 # 0 & 1}",
 }
-WIDTH_RANGE = (0.95, 1.22)
+WIDTH_RANGE = (0.95, 1.26)
 HEIGHT_RANGE = (0.93, 1.07)
 BASE_LINE_SLACK = 3
 

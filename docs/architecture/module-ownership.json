@@ -770,6 +770,30 @@
       "disposition": "core",
       "approvedBy": "text-blocks-for-small-models",
       "rationale": "doc.text.blocks/outline/apply_changes: walks body and table-cell paragraphs (nested tables included) in document order with positional ids, lists the non-empty ones within a character budget, and writes {id: text} back through the paragraph's own run-preserving setter, estimating cell overflow with the form-fit measurer. Genre-neutral format behavior with no workflow, prompt or model policy; the owner of doc.text keeps its namespace module short by delegating here like the other _document owners."
+    },
+    {
+      "path": "src/hwpx/integrations/__init__.py",
+      "disposition": "core",
+      "approvedBy": "owner-2026-11-12-boundary-by-runtime",
+      "rationale": "Package marker for thin adapters to other Python frameworks. It imports nothing; each adapter submodule imports its own framework and has its own optional extra."
+    },
+    {
+      "path": "src/hwpx/integrations/langchain.py",
+      "disposition": "core",
+      "approvedBy": "owner-2026-11-12-boundary-by-runtime",
+      "rationale": "HwpxLoader: hands the Markdown and flat metadata of hwpx.ingest to LangChain as one Document per file. Reading is core's job and the adapter adds no workflow, genre or model policy; langchain-core is an optional extra imported only here, like openpyxl for xlsx rosters."
+    },
+    {
+      "path": "src/hwpx/integrations/llama_index.py",
+      "disposition": "core",
+      "approvedBy": "owner-2026-11-12-boundary-by-runtime",
+      "rationale": "HwpxReader: hands the Markdown and flat metadata of hwpx.ingest to LlamaIndex as one Document per file, usable as a SimpleDirectoryReader file extractor. The same thin layer as the LangChain loader, with no workflow, genre or model policy; llama-index-core is an optional extra imported only here."
+    },
+    {
+      "path": "src/hwpx/tools/form_choices.py",
+      "disposition": "core",
+      "approvedBy": "owner-2026-11-13-form-choices",
+      "rationale": "Choices typed as check marks in a form: lists the groups of marks in a paragraph and swaps a mark for its checked or unchecked twin. A structural edit of document text beside table_navigation's fill_by_path; it holds no genre, school or wording policy."
     }
   ],
   "removed": [

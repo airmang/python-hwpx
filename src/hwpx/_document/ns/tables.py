@@ -16,10 +16,12 @@ from typing import TYPE_CHECKING, Iterable, Mapping, overload
 from ._base import _Namespace
 
 if TYPE_CHECKING:
+    from ...form_fit.policy import FitPolicy
     from ...model import Table, TableCell
     from ...tools.table_navigation import (
         SearchDirection,
         TableFillResult,
+        TableFormSlotsResult,
         TableLabelSearchResult,
         TableMapResult,
     )
@@ -84,12 +86,34 @@ class TablesNamespace(_Namespace):
 
         return find_cell_by_label(self._doc, label_text, direction)
 
-    def fill_by_path(self, mappings: Mapping[str, str]) -> "TableFillResult":
-        """``표/행/열`` 경로 → 값 매핑으로 셀을 채운다."""
+    def form_slots(self, *, min_width_mm: float = 5.0) -> "TableFormSlotsResult":
+        """양식의 빈 칸(글이 있는 칸의 오른쪽이나 아래에 있는 빈 칸)과 그 칸을 채우는 경로를 나열한다.
+
+        각 항목의 ``path``를 그대로 :meth:`fill_by_path`의 키로 쓴다. 이름표와 상자 사이를 띄우는
+        좁은 칸(``min_width_mm``보다 좁은 칸)은 뺀다. 거기 쓴 값은 한 글자씩 세로로 놓인다.
+        """
+
+        from ...tools.table_navigation import form_slots
+
+        return form_slots(self._doc, min_width_mm=min_width_mm)
+
+    def fill_by_path(
+        self, mappings: Mapping[str, str], *, fit: "FitPolicy | None" = None
+    ) -> "TableFillResult":
+        """``이름표 > 방향`` 경로 → 값 매핑으로 칸을 채운다.
+
+        이름표는 공백을 무시하고 견준다(``"성명"``이 ``"성  명"`` 칸을 찾는다). 같은 이름표가
+        여러 칸이면 실패로 돌려주며 후보를 ``candidates``에 싣는다. ``"성명[2] > right"``처럼
+        몇 번째인지 적어 고른다.
+
+        ``fit``(:class:`hwpx.form_fit.FitPolicy`)을 주면 값을 칸에 맞춰 잰다. 정책이 허용하는 대로
+        줄을 바꾸거나 글자를 줄이고 결과를 항목의 ``fit``에 싣는다. 정책이 거부한 값은
+        ``"value does not fit"``으로 실패하고 그 칸은 그대로 둔다.
+        """
 
         from ...tools.table_navigation import fill_by_path
 
-        return fill_by_path(self._doc, mappings)
+        return fill_by_path(self._doc, mappings, fit=fit)
 
     def merge_cells(self, table: "Table", cell_range: str) -> "TableCell":
         """``"A1:B2"`` 범위를 병합하고 살아남은 셀을 돌려준다.

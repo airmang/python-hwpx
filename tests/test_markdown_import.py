@@ -188,6 +188,116 @@ def test_append_markdown_adds_to_an_existing_document() -> None:
     assert _has_heading(doc, added) in (None, "NONE")  # not the heading's outline
 
 
+# -- table look -------------------------------------------------------------
+
+
+def _table(doc):
+    (table,) = [t for p in doc.paragraphs for t in p.tables]
+    return table
+
+
+def _align(doc, cell) -> str:
+    return doc.styles.paragraph_property(cell.paragraphs[0].para_pr_id_ref).align.horizontal
+
+
+LABELLED = (
+    "| 구분 | 내용 |\n|---|---|\n"
+    "| 기간 | 2026. 3. 2.(월) ~ 2026. 7. 17.(금) |\n"
+    "| 대상 | 1~3학년 전체 (약 620명) |\n"
+)
+
+
+def test_header_cells_are_centred_and_body_cells_are_left_alone() -> None:
+    doc = from_markdown(LABELLED)
+    table = _table(doc)
+    body = _align(doc, table.cell(1, 1))
+
+    assert [_align(doc, table.cell(0, col)) for col in range(2)] == ["CENTER", "CENTER"]
+    assert body != "CENTER"
+    assert _align(doc, table.cell(1, 0)) == body
+
+
+def test_header_alignment_can_be_left_as_the_body_is() -> None:
+    doc = from_markdown(LABELLED, style=MarkdownStyle(table_header_align=None))
+    table = _table(doc)
+
+    assert _align(doc, table.cell(0, 0)) == _align(doc, table.cell(1, 0))
+    with pytest.raises(ValueError, match="table_header_align"):
+        MarkdownStyle(table_header_align="middle")
+
+
+def test_the_separator_row_aligns_whole_columns() -> None:
+    doc = from_markdown(
+        "| 이름 | 대상 | 인원 | 비고 |\n|:---|:---:|---:|---|\n| 코딩 기초 | 1학년 | 24 | 심화반 예정 |\n"
+    )
+    table = _table(doc)
+    plain = _align(doc, table.cell(1, 3))
+
+    assert [_align(doc, table.cell(1, col)) for col in range(4)] == [plain, "CENTER", "RIGHT", plain]
+    # a header cell follows its column's alignment, and is centred where the column has none
+    assert _align(doc, table.cell(0, 0)) == plain
+    assert _align(doc, table.cell(0, 1)) == "CENTER"
+    assert _align(doc, table.cell(0, 2)) == "RIGHT"
+    assert _align(doc, table.cell(0, 3)) == "CENTER"
+    assert table.cell(1, 2).text == "24"
+
+
+def test_a_label_column_is_narrow_and_the_text_column_takes_the_rest() -> None:
+    doc = from_markdown(LABELLED)
+    table = _table(doc)
+    equal = _table(from_markdown(LABELLED, style=MarkdownStyle(table_fit_columns=False)))
+    label, text = table.cell(0, 0).width, table.cell(0, 1).width
+
+    assert label * 2 < text
+    assert label + text == equal.cell(0, 0).width + equal.cell(0, 1).width  # the table is as wide as before
+    assert abs(equal.cell(0, 0).width - equal.cell(0, 1).width) <= 1
+    assert [table.cell(row, 0).width for row in range(3)] == [label] * 3
+
+
+def test_short_columns_keep_their_line_when_the_text_does_not_fit() -> None:
+    from hwpx.form_fit.measure import estimate_text_width
+    from hwpx.tools.markdown_import import _column_weights
+
+    long_text = "학부모 공개 수업 1회 포함, 도서관과 함께 운영하며 지역 강사가 참여한다. " * 3
+    rows = [["프로그램", "인원", "비고"], ["독서 토론", "31", long_text]]
+    total = 42520
+
+    weights = _column_weights(rows, 3, 10.0, total)
+
+    assert abs(sum(weights) - total) < 1  # the columns fill the table exactly
+    assert weights[0] > estimate_text_width("독서 토론", 10.0)  # no wrap in the label column
+    assert weights[1] > estimate_text_width("인원", 10.0)
+    assert weights[2] == max(weights) and weights[2] < estimate_text_width(long_text, 10.0)
+
+
+def test_columns_that_fit_are_shared_out_by_their_need() -> None:
+    from hwpx.tools.markdown_import import _column_weights
+
+    weights = _column_weights([["가", "가나다라마바사아자차카타파하"]], 2, 10.0, 42520)
+
+    assert sum(weights) < 42520  # set_column_widths stretches them in proportion
+    assert weights[0] < weights[1]
+
+
+def test_too_many_columns_share_the_table_alike() -> None:
+    from hwpx.tools.markdown_import import _column_weights
+
+    weights = _column_weights([["긴 낱말이 들어간 칸"] * 30], 30, 10.0, 42520)
+
+    assert weights == [1.0] * 30
+
+
+def test_a_one_column_table_and_a_fitted_table_save_and_reopen(tmp_path) -> None:
+    doc = from_markdown("| 하나뿐 |\n|---|\n| 값 |\n\n" + LABELLED)
+    path = tmp_path / "tables.hwpx"
+
+    doc.save_to_path(path)
+
+    assert validate_editor_open_safety(path).to_dict()["ok"] is True
+    reopened = HwpxDocument.open(path)
+    assert "| 기간 | 2026. 3. 2.(월) ~ 2026. 7. 17.(금) |" in reopened.text.markdown()
+
+
 # -- clean new-document mode ----------------------------------------------
 
 
