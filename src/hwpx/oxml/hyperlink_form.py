@@ -156,4 +156,120 @@ def hyperlink_char_pr(
     return element.get("id")
 
 
-__all__ = ["HYPERLINK_FIELD_ID", "hyperlink_char_pr", "hyperlink_parameters", "hyperlink_target"]
+def set_hyperlink_target(field_begin: Any, url: str) -> None:
+    """Point the HYPERLINK ``fieldBegin`` at *url*: its parameters are written anew in
+    Hancom's form (:func:`hyperlink_parameters`), and an ``@name`` holding the old target
+    (what python-hwpx wrote before) follows."""
+
+    old = hyperlink_target(field_begin)
+    namespace = field_begin.tag.rsplit("}", 1)[0] + "}" if "}" in field_begin.tag else ""
+    holder = next((child for child in field_begin if _local(child.tag) == "parameters"), None)
+    if holder is None:
+        holder = field_begin.makeelement(f"{namespace}parameters", {"cnt": "0", "name": ""})
+        field_begin.insert(0, holder)
+    for child in list(holder):
+        holder.remove(child)
+    params = hyperlink_parameters(url)
+    for kind, name, text in params:
+        param = holder.makeelement(f"{namespace}{kind}", {"name": name})
+        param.text = text
+        holder.append(param)
+    holder.set("cnt", str(len(params)))
+    if field_begin.get("name") and field_begin.get("name") == old:
+        field_begin.set("name", url)
+
+
+def _runs(paragraph: Any) -> list[Any]:
+    return [child for child in paragraph if _local(child.tag) == "run"]
+
+
+def field_end_in_paragraph(paragraph: Any, field_begin: Any) -> Any:
+    """The ``fieldEnd`` closing *field_begin* later in the same paragraph, or ``None``.
+
+    An end names its begin by ``beginIDRef``; an end naming none closes the first
+    open begin of the same ``fieldid``."""
+
+    begin_id = field_begin.get("id")
+    seen = False
+    for run in _runs(paragraph):
+        for child in run:
+            if child is _ctrl_of(field_begin):
+                seen = True
+                continue
+            if not seen or _local(child.tag) != "ctrl":
+                continue
+            for mark in child:
+                if _local(mark.tag) != "fieldEnd":
+                    continue
+                if mark.get("beginIDRef"):
+                    if mark.get("beginIDRef") == begin_id:
+                        return mark
+                elif mark.get("fieldid") == field_begin.get("fieldid"):
+                    return mark
+    return None
+
+
+def _ctrl_of(mark: Any) -> Any:
+    getparent = getattr(mark, "getparent", None)
+    return getparent() if getparent is not None else None
+
+
+def between_marks(paragraph: Any, begin: Any, end: Any) -> list[tuple[Any, Any]]:
+    """``(run, child)`` for every run child between the controls holding *begin* and
+    *end* in *paragraph*, in order."""
+
+    begin_ctrl, end_ctrl = _ctrl_of(begin), _ctrl_of(end)
+    inside: list[tuple[Any, Any]] = []
+    started = False
+    for run in _runs(paragraph):
+        for child in run:
+            if child is begin_ctrl:
+                started = True
+                continue
+            if child is end_ctrl:
+                return inside
+            if started:
+                inside.append((run, child))
+    return inside
+
+
+def remove_mark(mark: Any) -> Any:
+    """Take a field mark (``fieldBegin``/``fieldEnd``/``bookmark``) out: the mark, the
+    ``hp:ctrl`` it leaves empty and the run left empty by that while its paragraph keeps
+    another run. Returns the paragraph it was in (``None`` when it was not in one)."""
+
+    holder = _ctrl_of(mark)
+    if holder is None:
+        return None
+    holder.remove(mark)
+    run = holder
+    if _local(holder.tag) == "ctrl":
+        if len(holder):
+            return _paragraph_of(holder)
+        run = holder.getparent()
+        if run is None:
+            return None
+        run.remove(holder)
+    paragraph = run.getparent() if _local(run.tag) == "run" else None
+    if paragraph is not None and not len(run) and len(_runs(paragraph)) > 1:
+        paragraph.remove(run)
+    return paragraph
+
+
+def _paragraph_of(element: Any) -> Any:
+    node = element.getparent()
+    while node is not None and _local(node.tag) != "p":
+        node = node.getparent()
+    return node
+
+
+__all__ = [
+    "HYPERLINK_FIELD_ID",
+    "between_marks",
+    "field_end_in_paragraph",
+    "hyperlink_char_pr",
+    "hyperlink_parameters",
+    "hyperlink_target",
+    "remove_mark",
+    "set_hyperlink_target",
+]

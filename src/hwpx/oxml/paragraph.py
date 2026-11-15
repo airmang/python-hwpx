@@ -30,7 +30,7 @@ from ._document_primitives import (
 from .namespaces import XML_NS, tag_local_name
 from .drop_cap import _paragraph_add_drop_cap
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
-from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters, hyperlink_target
+from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters
 from .field_marks import (
     field_type_id,
     _paragraph_add_date_field,
@@ -80,6 +80,7 @@ from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
 if TYPE_CHECKING:
+    from ..objects.form_field import Hyperlink
     from .section import HwpxOxmlSection
 
 
@@ -1583,23 +1584,23 @@ class HwpxOxmlParagraph:
         return names
 
     @property
-    def hyperlinks(self) -> list[dict[str, str]]:
-        """Return metadata for all hyperlinks in this paragraph.
+    def hyperlinks(self) -> "tuple[Hyperlink, ...]":
+        """The hyperlinks that start in this paragraph, as :class:`hwpx.objects.Hyperlink`.
 
-        Each dict has ``id``, ``url`` (the target: ``Path``, else ``Command``,
-        else ``@name`` -- see ``hyperlink_form.hyperlink_target``) and ``type``.
+        ``link.url`` is the target (``Path``, else ``Command``, else ``@name`` --
+        see ``hyperlink_form.hyperlink_target``) and ``link.text`` the text it spans;
+        both are settable. Before 7.0 this gave dicts; ``link["url"]`` still reads,
+        with a ``DeprecationWarning``.
         """
-        result: list[dict[str, str]] = []
-        for run in self._run_elements():
-            for ctrl in run.findall(f"{_HP}ctrl"):
-                for fb in ctrl.findall(f"{_HP}fieldBegin"):
-                    if fb.get("type") == "HYPERLINK":
-                        result.append({
-                            "id": fb.get("id", ""),
-                            "url": hyperlink_target(fb),
-                            "type": fb.get("type", ""),
-                        })
-        return result
+        from ..objects.form_field import Hyperlink
+
+        return tuple(
+            Hyperlink(fb, self)
+            for run in self._run_elements()
+            for ctrl in run.findall(f"{_HP}ctrl")
+            for fb in ctrl.findall(f"{_HP}fieldBegin")
+            if fb.get("type") == "HYPERLINK"
+        )
 
     # Footnote/endnote authoring lives in note_authoring.py (owner-file
     # headroom, see class-attribute assignments near the top of this class).

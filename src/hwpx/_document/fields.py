@@ -11,14 +11,17 @@ from ..objects.checkbox import CheckBox
 from ..objects.form_field import (
     Bookmark,
     CellField,
+    CrossReference,
     FieldLocation,
     FieldParameter,
     FormField,
     FormulaField,
+    Hyperlink,
     TextBoxField,
 )
 from ..objects.results import FieldFillResult
 from ..oxml import HwpxOxmlParagraph
+from ..oxml._document_primitives import _clear_paragraph_layout_cache
 from ..oxml.namespaces import HP
 from ..oxml.section_story import control_twins
 
@@ -681,16 +684,59 @@ def list_bookmarks(doc: "HwpxDocument") -> tuple[Bookmark, ...]:
                     run_index=run_index,
                     child_index=child_index,
                 )
+                section = doc.sections[section_index]
                 for mark in child:
                     if mark.tag == f"{_HP}bookmark":
                         name = mark.get("name", "")
                         if name:
-                            bookmarks.append(Bookmark(name, "point", "", location, mark))
+                            bookmarks.append(Bookmark(name, "point", "", location, mark, section))
                     elif mark in fields:
                         name = (mark.get("name") or "").strip()
                         if name:
-                            bookmarks.append(Bookmark(name, "field", fields[mark]["current_value"], location, mark))
+                            bookmarks.append(
+                                Bookmark(name, "field", fields[mark]["current_value"], location, mark, section)
+                            )
     return tuple(bookmarks)
+
+
+def list_hyperlinks(doc: "HwpxDocument") -> tuple[Hyperlink, ...]:
+    """Every hyperlink of the document in order, those in table cells, text boxes, notes,
+    headers and footers included, as live :class:`~hwpx.objects.Hyperlink` views."""
+
+    links: list[Hyperlink] = []
+    for _section_index, _index, _in_section, _element, paragraph, runs in _iter_content_paragraphs(doc):
+        for run in runs:
+            for child in run:
+                if _local_name(child) != "ctrl":
+                    continue
+                for mark in child.findall(f"{_HP}fieldBegin"):
+                    if (mark.get("type") or "").strip().upper() == "HYPERLINK":
+                        links.append(Hyperlink(mark, paragraph))
+    return tuple(links)
+
+
+def list_cross_references(doc: "HwpxDocument") -> tuple[CrossReference, ...]:
+    """The cross references Hancom saved (``fieldBegin type="CROSSREF"``), in document
+    order, with what each points at, read as written."""
+
+    found: list[CrossReference] = []
+    for match in _iter_field_matches(doc, _field_type_is("CROSSREF")):
+        parameters = match["parameters"]
+        path = _field_parameter_value(parameters, "RefPath")
+        target = path[1:] if path.startswith("?") else path
+        found.append(
+            CrossReference(
+                ref_type=_field_parameter_value(parameters, "RefType"),
+                content_type=_field_parameter_value(parameters, "RefContentType"),
+                target=target[:-1] if target.endswith(";") else target,
+                text=match["current_value"],
+                hyperlink=_field_parameter_value(parameters, "RefHyperLink").lower() in ("1", "true"),
+                location=_match_location(match),
+                parameters=_match_parameters(match),
+                element=match["_field_begin"],
+            )
+        )
+    return tuple(found)
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:
@@ -1286,6 +1332,236 @@ def fill_form_field(
         style_before=tuple(ref or "" for ref in before_style),
         style_after=tuple(ref or "" for ref in after_style),
         fit=fit_result,
+    )
+
+
+def _match_for_begin(doc: "HwpxDocument", field_begin: Any) -> dict[str, Any]:
+    """The match of the field whose ``<hp:fieldBegin>`` is *field_begin*, read afresh."""
+
+    for match in _field_matches_in(doc, lambda _ctrl, begin: begin is field_begin, _iter_content_paragraphs(doc)):
+        return match
+    raise HwpxValueError(
+        "the field is no longer in the document",
+        code="field-not-found",
+        suggestion="List doc.fields.all again to get the current fields.",
+    )
+
+
+def _utf16_length(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+_CLICK_HERE_HEAD = re.compile(r"^Clickhere:set:\d+:")
+_CLICK_HERE_ENTRY = re.compile(r"([A-Za-z]+):([A-Za-z]+):(\d+):")
+
+
+def _click_here_entries(command: str) -> list[list[str]] | None:
+    """The ``name:type:length:value`` entries of a click-here ``Command`` string, or
+    ``None`` when it is not one. Lengths count UTF-16 units, as Hancom writes them."""
+
+    head = _CLICK_HERE_HEAD.match(command)
+    if head is None:
+        return None
+    entries: list[list[str]] = []
+    position = head.end()
+    while position < len(command):
+        if command[position] == " ":
+            position += 1
+            continue
+        found = _CLICK_HERE_ENTRY.match(command, position)
+        if found is None:
+            return None
+        start, units = found.end(), int(found.group(3))
+        end = start
+        while end < len(command) and _utf16_length(command[start:end]) < units:
+            end += 1
+        entries.append([found.group(1), found.group(2), command[start:end]])
+        position = end
+    return entries
+
+
+def _click_here_command(entries: Sequence[Sequence[str]]) -> str:
+    payload = "".join(f"{name}:{kind}:{_utf16_length(value)}:{value} " for name, kind, value in entries)
+    return f"Clickhere:set:{_utf16_length(payload)}:{payload} "
+
+
+def _set_click_here_parameter(field_begin: Any, name: str, value: str) -> None:
+    """Write *value* as the field's *name* parameter (``Direction`` or ``HelpState``):
+    its own string parameter (left out when empty, as Hancom writes it) and its entry in
+    the ``Command`` string."""
+
+    parameters = field_begin.find(f"{_HP}parameters")
+    if parameters is None:
+        parameters = field_begin.makeelement(f"{_HP}parameters", {"cnt": "0", "name": ""})
+        field_begin.insert(0, parameters)
+    params = {param.get("name"): param for param in parameters}
+    command = params.get("Command")
+    if command is not None:
+        entries = _click_here_entries(command.text or "")
+        if entries is not None:
+            for entry in entries:
+                if entry[0] == name:
+                    entry[2] = value
+                    break
+            else:
+                entries.append([name, "wstring", value])
+            command.text = _click_here_command(entries)
+    param = params.get(name)
+    if value:
+        if param is None:
+            param = parameters.makeelement(f"{_HP}stringParam", {"name": name})
+            parameters.append(param)
+        param.text = value
+    elif param is not None:
+        parameters.remove(param)
+    parameters.set("cnt", str(len(parameters)))
+
+
+_UNSET: Any = object()
+
+
+def update_form_field(
+    doc: "HwpxDocument",
+    field_begin: Any,
+    *,
+    name: Any = _UNSET,
+    prompt: Any = _UNSET,
+    memo: Any = _UNSET,
+    editable: Any = _UNSET,
+) -> FormField:
+    """Change a click-here field's name, 안내문 (*prompt*), memo or editable setting, as
+    Hancom's field dialog does, and return the field read afresh.
+
+    A prompt the field shows because nothing was entered yet (``dirty`` is not set)
+    is shown anew; a value someone entered stays.
+    """
+
+    match = _match_for_begin(doc, field_begin)
+    paragraph = match["_paragraph"]
+    if name is not _UNSET:
+        field_begin.set("name", _sanitize_field_text(str(name)).strip())
+    if editable is not _UNSET:
+        field_begin.set("editable", "1" if editable else "0")
+    if memo is not _UNSET:
+        _set_click_here_parameter(field_begin, "HelpState", _sanitize_field_text(str(memo)))
+    if prompt is not _UNSET:
+        new_prompt = _sanitize_field_text(str(prompt))
+        showing_prompt = match["dirty"] != "1" and (match["is_placeholder"] or not match["current_value"])
+        _set_click_here_parameter(field_begin, "Direction", new_prompt)
+        if showing_prompt and match["has_end"] and match.get("_span") is None:
+            text_nodes = match.get("_text_nodes", [])
+            if text_nodes:
+                _write_text_node(text_nodes[0], new_prompt)
+                for node in text_nodes[1:]:
+                    _write_text_node(node, "")
+            elif new_prompt:
+                _insert_form_field_text_run(doc, match, new_prompt)
+            _clear_paragraph_layout_cache(paragraph.element)
+    paragraph.section.mark_dirty()
+    return _form_field_from_match(doc, _match_for_begin(doc, field_begin))
+
+
+def _remove_mark(mark: Any) -> None:
+    """Take a field's begin or end out: the mark, the ``hp:ctrl`` it leaves empty, and the
+    run left empty by that when its paragraph keeps another run."""
+
+    ctrl = mark.getparent()
+    if ctrl is None:
+        return
+    ctrl.remove(mark)
+    if _local_name(ctrl) != "ctrl" or len(ctrl):
+        return
+    run = ctrl.getparent()
+    if run is None:
+        return
+    run.remove(ctrl)
+    paragraph = run.getparent()
+    if not len(run) and paragraph is not None and len([c for c in paragraph if _local_name(c) == "run"]) > 1:
+        paragraph.remove(run)
+
+
+def _field_end_of(match: Mapping[str, Any]) -> Any:
+    field_begin = match["_field_begin"]
+    if match.get("_end_run_index") is not None:
+        ctrl = list(match["_runs"][int(match["_end_run_index"])])[int(match["_end_child_index"])]
+    elif match.get("_span") is not None:
+        _end_paragraph, end_runs, span_run, span_child, _middle = match["_span"]
+        ctrl = list(end_runs[span_run])[span_child]
+    else:
+        return None
+    for field_end in ctrl.findall(f"{_HP}fieldEnd"):
+        if _field_end_matches(field_begin, field_end):
+            return field_end
+    return None
+
+
+def _drop_field_content(match: Mapping[str, Any]) -> None:
+    """Remove what lies between a field's begin and its end in one paragraph."""
+
+    runs: list[Any] = match["_runs"]
+    begin_run_index = int(match["_begin_run_index"])
+    end_run_index = int(match["_end_run_index"])
+    for run_index in range(begin_run_index, end_run_index + 1):
+        run = runs[run_index]
+        children = list(run)
+        start = int(match["_begin_child_index"]) + 1 if run_index == begin_run_index else 0
+        stop = int(match["_end_child_index"]) if run_index == end_run_index else len(children)
+        for child in children[start:stop]:
+            run.remove(child)
+    paragraph = match["_paragraph"].element
+    for run in runs[begin_run_index + 1 : end_run_index]:
+        if not len(run):
+            paragraph.remove(run)
+
+
+def remove_form_field(doc: "HwpxDocument", field_begin: Any, *, keep_text: bool = True) -> None:
+    """Remove a field: its begin and end go, and with them what lies between unless
+    *keep_text* (then the field's text stays as plain text, as Hancom's "누름틀 지우기"
+    leaves it). A field running over paragraphs loses those paragraphs with its
+    content, and the end's paragraph joins the begin's. The paragraphs are laid out
+    again."""
+
+    match = _match_for_begin(doc, field_begin)
+    paragraph = match["_paragraph"]
+    touched = [paragraph.element]
+    if not keep_text and match["has_end"]:
+        if match.get("_span") is not None:
+            _collapse_field_span(match)
+            match = _refresh_form_field_match(doc, match)
+        _drop_field_content(match)
+        match = _refresh_form_field_match(doc, match)
+    elif match.get("_span") is not None:
+        touched.append(match["_span"][0])
+    field_end = _field_end_of(match)
+    _remove_mark(field_begin)
+    if field_end is not None:
+        _remove_mark(field_end)
+    for element in touched:
+        _clear_paragraph_layout_cache(element)
+    paragraph.section.mark_dirty()
+
+
+_FORM_OBJECT_TAGS = {"radioBtn", "comboBox", "edit"}
+
+
+def _iter_form_objects(doc: "HwpxDocument", local: str) -> list[tuple[Any, Any, int, int]]:
+    found: list[tuple[Any, Any, int, int]] = []
+    for section_index, section in enumerate(doc.sections):
+        for element in section.element.iter(f"{_HP}{local}"):
+            found.append((element, section, len(found), section_index))
+    return found
+
+
+def list_form_objects(doc: "HwpxDocument", local: str) -> tuple[Any, ...]:
+    """The document's radio buttons, combo boxes or edit boxes (*local* is the element's
+    name), in document order, as live views."""
+
+    from ..objects.checkbox import ComboBox, EditBox, RadioButton
+
+    cls: Any = {"radioBtn": RadioButton, "comboBox": ComboBox, "edit": EditBox}[local]
+    return tuple(
+        cls(element, section, _owning_paragraph(element, section), index=index, section_index=section_index)
+        for element, section, index, section_index in _iter_form_objects(doc, local)
     )
 
 

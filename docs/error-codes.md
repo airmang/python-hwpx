@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 247 | 11 |
+| 개수 | 254 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -102,6 +102,7 @@ except HwpxError as exc:
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
 | `field-checkbox-not-found` | 그 선택자로 체크박스를 찾지 못했다. |
+| `field-choice-unknown` | 직접 입력할 수 없는 콤보 상자에 그 항목이 없다(combo_box.items 로 항목을 본다). |
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-end-missing` | 누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다). |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
@@ -189,6 +190,7 @@ except HwpxError as exc:
 |---|---|
 | `note-anchor-detached` | 앵커를 걸 문단이 섹션에 속해 있지 않다. |
 | `note-argument-conflict` | 앵커 없는 메모에 앵커 전용 인자를 줬다. |
+| `note-match-not-found` | 메모를 걸 글(match)이 그 문단의 한 런 안에 없다. |
 | `note-memo-detached` | 메모가 섹션에 속해 있지 않다. |
 
 ### `open-*`
@@ -291,6 +293,14 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `recover-unsafe` | 로컬 헤더 항목이 있지만 안전하게 복구할 수 없다. |
+
+### `ref-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `ref-bookmark-name-empty` | 책갈피 이름이 비어 있다. |
+| `ref-link-end-missing` | 하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다. |
+| `ref-link-target-empty` | 하이퍼링크 대상이 비어 있다. |
 
 ### `save-*`
 
@@ -451,10 +461,12 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `track-change-not-found` | 그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다). |
 | `track-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `track-match-empty` | 찾을 문자열이 비어 있다. |
 | `track-match-not-found` | 문단에서 찾을 문자열을 찾지 못했다. |
 | `track-paragraph-empty` | 지울 텍스트가 문단에 없다. |
+| `track-selector-conflict` | 수락·거절할 변경을 change 와 author 로 함께 골랐다(하나만 준다). |
 | `track-text-empty` | 변경추적 삽입 텍스트가 비어 있다. |
 
 ### `unknown-*`
