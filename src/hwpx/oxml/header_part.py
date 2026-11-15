@@ -707,8 +707,7 @@ class HwpxOxmlHeader:
 
         from . import formatting
 
-        spacing = None if line_spacing is None else formatting.line_spacing_value(line_spacing)
-        condense_value = None if condense is None else formatting.check_condense(condense)
+        extras = formatting.paragraph_extras(line_spacing, condense)
 
         para_properties = self._para_properties_element(create=True)
         if para_properties is None:  # pragma: no cover - defensive branch
@@ -744,11 +743,7 @@ class HwpxOxmlHeader:
 
         if break_setting is not None:
             self._apply_paragraph_break_setting(para_pr, break_setting)  # type: ignore[arg-type]  # str keys skipped there
-            formatting.apply_break_words(self, para_pr, break_setting)
-        if spacing is not None:
-            formatting.apply_line_spacing(self, para_pr, spacing)
-        if condense_value is not None:
-            para_pr.set("condense", str(condense_value))
+        extras(self, para_pr, break_setting or {})
         if border is not None:
             self._apply_paragraph_border(para_pr, border)
         if tab_pr_id_ref is not None:

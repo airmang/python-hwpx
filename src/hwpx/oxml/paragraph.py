@@ -45,6 +45,7 @@ from .note_authoring import (
     _paragraph_footnotes,
 )
 from ._paragraph_text_edit import (
+    ParagraphFormats,
     edit_node_candidates,
     insert_paragraph_beside,
     paragraph_container,
@@ -76,8 +77,6 @@ from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
 if TYPE_CHECKING:
-    from ..objects.results import Alignment, LineSpacing
-    from .header import Style
     from .section import HwpxOxmlSection
 
 
@@ -110,7 +109,7 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
 
 
 @dataclass
-class HwpxOxmlParagraph:
+class HwpxOxmlParagraph(ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element."""
 
     element: ET.Element
@@ -1682,216 +1681,5 @@ class HwpxOxmlParagraph:
             # this paragraph no longer holds.
             _clear_paragraph_layout_cache(self.element)
             self.section.mark_dirty()
-
-    # -- Paragraph formats read and written on this paragraph alone ----------
-    # (bodies in formatting.py). Reads come from the paragraph's ``hh:paraPr``
-    # (the ``hp:case`` branch Hancom reads); ``None`` without one. A write gives
-    # this paragraph a derived paragraph shape: others that shared the old one keep
-    # it, and writing the value it has changes nothing. Units follow
-    # ``doc.styles.apply_paragraph_format``: indents in mm, spacing in pt.
-
-    @property
-    def alignment(self) -> "Alignment | None":
-        """The horizontal alignment (:class:`hwpx.objects.Alignment`, also a ``str``)."""
-        from .formatting import paragraph_alignment
-
-        return paragraph_alignment(self)
-
-    @alignment.setter
-    def alignment(self, value: "Alignment | str") -> None:
-        from .formatting import set_paragraph_alignment
-
-        set_paragraph_alignment(self, value)
-
-    def _margin_mm(self, name: str) -> float | None:
-        from .formatting import paragraph_margin
-
-        value = paragraph_margin(self, name)
-        return None if value is None else round(value * 25.4 / 7200, 2)
-
-    def _margin_pt(self, name: str) -> float | None:
-        from .formatting import paragraph_margin
-
-        value = paragraph_margin(self, name)
-        return None if value is None else value / 100
-
-    def _set_margin(self, name: str, value: float, unit: str) -> None:
-        from .formatting import set_paragraph_margin
-
-        set_paragraph_margin(self, name, value, unit=unit)
-
-    @property
-    def indent_left_mm(self) -> float | None:
-        """왼쪽 여백 in mm."""
-        return self._margin_mm("left")
-
-    @indent_left_mm.setter
-    def indent_left_mm(self, value: float) -> None:
-        self._set_margin("left", value, "mm")
-
-    @property
-    def indent_right_mm(self) -> float | None:
-        """오른쪽 여백 in mm."""
-        return self._margin_mm("right")
-
-    @indent_right_mm.setter
-    def indent_right_mm(self, value: float) -> None:
-        self._set_margin("right", value, "mm")
-
-    @property
-    def first_line_indent_mm(self) -> float | None:
-        """첫 줄 들여쓰기 in mm; negative is 내어쓰기 (a hanging indent)."""
-        return self._margin_mm("intent")
-
-    @first_line_indent_mm.setter
-    def first_line_indent_mm(self, value: float) -> None:
-        self._set_margin("intent", value, "mm")
-
-    @property
-    def spacing_before_pt(self) -> float | None:
-        """문단 위 간격 in pt."""
-        return self._margin_pt("prev")
-
-    @spacing_before_pt.setter
-    def spacing_before_pt(self, value: float) -> None:
-        self._set_margin("prev", value, "pt")
-
-    @property
-    def spacing_after_pt(self) -> float | None:
-        """문단 아래 간격 in pt."""
-        return self._margin_pt("next")
-
-    @spacing_after_pt.setter
-    def spacing_after_pt(self, value: float) -> None:
-        self._set_margin("next", value, "pt")
-
-    @property
-    def line_spacing(self) -> "LineSpacing | None":
-        """줄 간격: :class:`hwpx.objects.LineSpacing` (type and value). Set a number
-        for a percentage (``p.line_spacing = 160``) or a ``LineSpacing``
-        (``LineSpacing("FIXED", 2000)``, HWPUNIT)."""
-        from .formatting import paragraph_line_spacing
-
-        return paragraph_line_spacing(self)
-
-    @line_spacing.setter
-    def line_spacing(self, value: "LineSpacing | int | float") -> None:
-        from .formatting import set_paragraph_line_spacing
-
-        set_paragraph_line_spacing(self, value)
-
-    def _break_flag(self, name: str) -> bool | None:
-        from .formatting import paragraph_break_flag
-
-        return paragraph_break_flag(self, name)
-
-    def _set_break_flag(self, name: str, value: bool) -> None:
-        from .formatting import set_paragraph_break_flag
-
-        set_paragraph_break_flag(self, name, value)
-
-    @property
-    def page_break_before(self) -> bool | None:
-        """문단 앞에서 항상 쪽 나눔 (the paragraph shape's ``pageBreakBefore``)."""
-        return self._break_flag("page_break_before")
-
-    @page_break_before.setter
-    def page_break_before(self, value: bool) -> None:
-        self._set_break_flag("page_break_before", value)
-
-    @property
-    def keep_with_next(self) -> bool | None:
-        """다음 문단과 함께."""
-        return self._break_flag("keep_with_next")
-
-    @keep_with_next.setter
-    def keep_with_next(self, value: bool) -> None:
-        self._set_break_flag("keep_with_next", value)
-
-    @property
-    def keep_lines(self) -> bool | None:
-        """문단 보호 (the paragraph's lines kept on one page)."""
-        return self._break_flag("keep_lines")
-
-    @keep_lines.setter
-    def keep_lines(self, value: bool) -> None:
-        self._set_break_flag("keep_lines", value)
-
-    @property
-    def widow_orphan(self) -> bool | None:
-        """외톨이줄 보호."""
-        return self._break_flag("widow_orphan")
-
-    @widow_orphan.setter
-    def widow_orphan(self, value: bool) -> None:
-        self._set_break_flag("widow_orphan", value)
-
-    @property
-    def page_break(self) -> bool:
-        """Whether a page break comes before this paragraph (``hp:p``'s own ``pageBreak``,
-        what Hancom writes for 쪽 나누기 Ctrl+Enter), beside :attr:`column_break`."""
-        return self.element.get("pageBreak") == "1"
-
-    @page_break.setter
-    def page_break(self, value: bool) -> None:
-        from .formatting import set_paragraph_page_break
-
-        set_paragraph_page_break(self, value)
-
-    @property
-    def outline_level(self) -> int:
-        """The outline level 1..10 of an outline paragraph (개요), 0 for any other."""
-        from .formatting import paragraph_outline_level
-
-        return paragraph_outline_level(self)
-
-    @outline_level.setter
-    def outline_level(self, value: int) -> None:
-        from .formatting import set_paragraph_outline_level
-
-        set_paragraph_outline_level(self, value)
-
-    @property
-    def style(self) -> "Style | None":
-        """The paragraph's style (``styleIDRef``), ``None`` without one; its name is ``.name``.
-
-        Setting a style name, English name, id or ``Style`` applies it as Hancom does
-        and as ``doc.add_paragraph(style=...)`` does: the paragraph takes the style's
-        paragraph shape, and every run the style's character shape.
-        """
-        document = self.section.document
-        return None if document is None else document.style(self.style_id_ref)
-
-    @style.setter
-    def style(self, value: "int | str | Style") -> None:
-        from .formatting import apply_paragraph_style
-
-        apply_paragraph_style(self, value)
-
-    def split_run(self, offset: int) -> HwpxOxmlRun:
-        """Make character *offset* (``0 < offset < len(paragraph.text)``) a run boundary
-        and return the run that starts there.
-
-        Positions count as ``paragraph.text`` does: a tab or a line break is one
-        character, a control or an object none. The run holding *offset* becomes two
-        runs with the same attributes; its tabs, line breaks, controls and marks each
-        stay on one side, the zero-width ones at the cut on the left. Already a
-        boundary: nothing changes.
-        """
-        from .formatting import split_run
-
-        return split_run(self, offset)
-
-    def format_range(self, start: int, end: int, **changes: Any) -> tuple[HwpxOxmlRun, ...]:
-        """Give the characters ``[start, end)`` the character *changes* and return their runs.
-
-        *changes* are the keyword arguments of :meth:`HwpxOxmlRun.set_format`
-        (``size``, ``font``, ``color``, ``bold``, ...). The runs are split at *start*
-        and *end* (:meth:`split_run`); each run inside gets its own shape changed
-        (bold added to an italic run stays italic). ``start == end`` changes nothing.
-        """
-        from .formatting import format_range
-
-        return format_range(self, start, end, changes)
 
 __all__ = ["HwpxOxmlParagraph"]

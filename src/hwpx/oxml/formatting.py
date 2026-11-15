@@ -901,6 +901,25 @@ def check_condense(value: object) -> int:
     return int(number)
 
 
+def paragraph_extras(
+    line_spacing: object, condense: object
+) -> Callable[["HwpxOxmlHeader", ET.Element, Mapping[str, object]], None]:
+    """``ensure_paragraph_format``'s *line_spacing*, *condense* and word-break settings,
+    checked now and written by the returned function."""
+
+    spacing = None if line_spacing is None else line_spacing_value(line_spacing)
+    condense_value = None if condense is None else check_condense(condense)
+
+    def write(header: "HwpxOxmlHeader", element: ET.Element, break_setting: Mapping[str, object]) -> None:
+        apply_break_words(header, element, break_setting)
+        if spacing is not None:
+            apply_line_spacing(header, element, spacing)
+        if condense_value is not None:
+            element.set("condense", str(condense_value))
+
+    return write
+
+
 def set_paragraph_outline_level(paragraph: "HwpxOxmlParagraph", value: object) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 10:
         raise HwpxValueError(

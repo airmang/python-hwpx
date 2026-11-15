@@ -175,6 +175,27 @@ class RunStyle:
         return True
 
 
+def _font_faces_by_lang(ref_list: ET.Element) -> dict[str, dict[str, str]]:
+    """Each ``hh:fontface`` block's fonts: lang (``HANGUL`` ..) -> font id -> face."""
+
+    faces: dict[str, dict[str, str]] = {}
+    for fontface in ref_list.iter(f"{_HH}fontface"):
+        faces.setdefault((fontface.get("lang") or "").upper(), {
+            font.get("id") or "": font.get("face") or "" for font in fontface.findall(f"{_HH}font")
+        })
+    return faces
+
+
+def _named_fonts(faces: dict[str, dict[str, str]], refs: dict[str, str]) -> dict[str, str]:
+    """The face a ``hh:fontRef`` (*refs*, ``hangul`` -> id ..) names in each language."""
+
+    return {
+        lang: faces[lang][refs[lang.lower()]]
+        for lang in faces
+        if lang.lower() in refs and refs[lang.lower()] in faces[lang]
+    }
+
+
 def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
     mapping: dict[str, RunStyle] = {}
     ref_list = element.find(f"{_HH}refList")
@@ -184,12 +205,7 @@ def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
     if char_props_element is None:
         return mapping
 
-    faces: dict[str, dict[str, str]] = {}
-    for fontface in ref_list.iter(f"{_HH}fontface"):
-        lang = (fontface.get("lang") or "").upper()
-        faces.setdefault(lang, {
-            font.get("id") or "": font.get("face") or "" for font in fontface.findall(f"{_HH}font")
-        })
+    faces = _font_faces_by_lang(ref_list)
     for child in char_props_element.findall(f"{_HH}charPr"):
         char_id = child.get("id")
         if not char_id:
@@ -201,12 +217,7 @@ def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
                 child_attributes[_element_local_name(grandchild)] = {
                     key: value for key, value in grandchild.attrib.items()
                 }
-        refs = child_attributes.get("fontRef", {})
-        fonts = {
-            lang: faces[lang][refs[lang.lower()]]
-            for lang in faces
-            if lang.lower() in refs and refs[lang.lower()] in faces[lang]
-        }
+        fonts = _named_fonts(faces, child_attributes.get("fontRef", {}))
         style = RunStyle(id=char_id, attributes=attributes, child_attributes=child_attributes, fonts=fonts)
         if char_id not in mapping:
             mapping[char_id] = style
