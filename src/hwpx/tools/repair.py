@@ -481,6 +481,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    from .archive_cli import _input_file_problem
+
+    problem = _input_file_problem(args.input, tool="hwpx-repair")
+    if problem is not None:
+        print(f"ERROR: {problem}")
+        return 1
     try:
         if args.recover:
             result = repair_from_recovered(args.input, args.output, overwrite=args.force)

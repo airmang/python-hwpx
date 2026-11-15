@@ -1543,7 +1543,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("source", help="Path to the HWPX file")
     args = parser.parse_args(argv)
 
-    report = validate_package(args.source)
+    from .archive_cli import _input_file_problem
+
+    problem = _input_file_problem(args.source, tool="hwpx-validate-package")
+    if problem is not None:
+        print(f"ERROR: {problem}")
+        return 1
+    try:
+        report = validate_package(args.source)
+    except Exception as exc:  # noqa: BLE001 - one line for the person at the terminal
+        print(f"ERROR: cannot read {args.source}: {exc}")
+        return 1
     for issue in report.issues:
         prefix = "ERROR" if issue.is_error else "WARN"
         print(f"{prefix}: {issue}")
