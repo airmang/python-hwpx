@@ -39,7 +39,7 @@
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.shapes.add_equation",
-  "signature": "(self, script: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, base_unit: 'int' = 1100, size: 'tuple[int, int] | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlInlineObject'"
+  "signature": "(self, script: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, base_unit: 'int' = 1100, size: 'tuple[int, int] | None' = None, char_pr_id_ref: 'str | int | None' = None, font: 'str' = 'HancomEQN') -> 'HwpxOxmlInlineObject'"
  },
  "add_footnote": {
   "kind": "method",

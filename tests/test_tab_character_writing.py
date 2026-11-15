@@ -31,7 +31,7 @@ def _assert_no_raw_tab(data: bytes) -> None:
 
 
 def test_add_run_writes_a_tab_as_an_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("").add_run("이름\t홍길동\t\t끝")
     data = doc.to_bytes()
 
@@ -41,7 +41,7 @@ def test_add_run_writes_a_tab_as_an_element() -> None:
 
 
 def test_saving_leaves_the_document_tree_as_it_was() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     run = doc.add_paragraph("").add_run("")
     text = run.element.find(f"{HP}t")
     assert text is not None
@@ -54,7 +54,7 @@ def test_saving_leaves_the_document_tree_as_it_was() -> None:
 
 
 def test_a_tab_after_an_element_inside_the_text_is_written_as_an_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     run = doc.add_paragraph("").add_run("앞")
     text = run.element.find(f"{HP}t")
     assert text is not None
@@ -67,7 +67,7 @@ def test_a_tab_after_an_element_inside_the_text_is_written_as_an_element() -> No
 
 
 def test_replacing_text_with_a_tab_writes_an_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("원래 글")
     doc.text.replace("원래", "이름\t값")
     data = doc.to_bytes()
@@ -77,7 +77,7 @@ def test_replacing_text_with_a_tab_writes_an_element() -> None:
 
 
 def _table_doc_bytes() -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("원래 문단")
     doc.add_table(1, 1)
     return doc.to_bytes()

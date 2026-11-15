@@ -445,7 +445,7 @@ def test_a_value_that_squeezes_readably_keeps_the_cell_squeezed() -> None:
     # Hancom keeps a SQUEEZE cell on one line and narrows the spacing; up to 1.1
     # times the line width the text still reads. 10 pt: a Hangul syllable is 972
     # wide and the new cell's line 41,500.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     cell = document.add_table(1, 1).cell(0, 0)
     sublist = cell.element.find(f"{HP}subList")
     assert sublist is not None
@@ -479,7 +479,7 @@ def test_hancom_keeps_a_squeeze_cell_on_one_line_when_it_fills_it() -> None:
 
 
 def test_save_removes_stale_layout_cache_after_low_level_text_edit() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     try:
         paragraph = document.add_paragraph("Original paragraph with enough text for cached layout")
         document.to_bytes()
@@ -530,7 +530,7 @@ def test_save_keeps_a_cached_line_whose_empty_second_piece_starts_past_the_text(
 
 
 def test_save_still_removes_a_cache_whose_piece_starts_two_past_the_text() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     try:
         paragraph = document.add_paragraph("Short")
         document.to_bytes()
@@ -547,7 +547,7 @@ def test_save_still_removes_a_cache_whose_piece_starts_two_past_the_text() -> No
 
 
 def test_save_preserves_unjudgeable_layout_cache_on_dirty_complex_paragraph() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     try:
         paragraph = document.add_paragraph("Complex cached paragraph")
         document.to_bytes()
@@ -1166,7 +1166,7 @@ def test_header_ensure_style_resolves_by_name_immediately_on_a_real_document() -
 
     from hwpx.document import HwpxDocument
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     header = doc.oxml.headers[0]
 
     style_id = header.ensure_style("내설명", eng_name="MyDesc")
@@ -1341,7 +1341,7 @@ def test_document_ensure_font_then_ensure_run_wires_a_real_font_ref() -> None:
 
     from hwpx.document import HwpxDocument
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     face = "체인등록체"
     font_id = doc.styles.ensure_font(face, lang="HANGUL")
     run_id = doc.styles.ensure_run(font=face, bold=True)
@@ -1531,7 +1531,7 @@ def test_document_apply_paragraph_format_wires_tab_pr_id_ref_to_a_resolvable_def
 
     from hwpx.document import HwpxDocument
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("탭 정의 문단입니다.")
     index = len(doc.paragraphs) - 1
 
@@ -1555,7 +1555,7 @@ def test_document_apply_paragraph_format_tab_stops_reject_missing_pos_mm() -> No
     from hwpx.document import HwpxDocument
     from hwpx.errors import HwpxValueError
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("문단")
     with pytest.raises(HwpxValueError) as excinfo:
         doc.styles.apply_paragraph_format(paragraph_index=1, tab_stops=[{"type": "LEFT"}])
@@ -1573,7 +1573,7 @@ def test_header_compatible_document_reports_target_program_and_empty_flags_on_sk
 
     from hwpx.document import HwpxDocument
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     model = doc.oxml.headers[0].to_model()
     compatible = model.compatible_document
     assert compatible is not None
@@ -1669,7 +1669,7 @@ def test_settings_parse_application_settings_rejects_wrong_root() -> None:
 def test_document_parts_settings_available_on_a_new_skeleton_document() -> None:
     from hwpx.document import HwpxDocument
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     settings_part = doc.parts.settings
     assert settings_part is not None
     model = settings_part.to_model()
@@ -1755,7 +1755,7 @@ def test_table_caption_matches_real_hancom_document() -> None:
 def test_shape_set_draw_text_creates_and_round_trips() -> None:
     from hwpx.document import HwpxDocument
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     p = doc.sections[0].add_paragraph()
     rect = p.add_rectangle(20000, 10000, treat_as_char=True)
     assert rect.draw_text is None
@@ -1778,7 +1778,7 @@ def test_shape_set_caption_rejects_invalid_side() -> None:
     from hwpx.document import HwpxDocument
     from hwpx.errors import HwpxValueError
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     p = doc.sections[0].add_paragraph()
     rect = p.add_rectangle(20000, 10000, treat_as_char=True)
     with pytest.raises(HwpxValueError) as excinfo:
@@ -1790,7 +1790,7 @@ def test_shape_set_caption_rejects_invalid_side() -> None:
 def test_shape_remove_caption_and_draw_text() -> None:
     from hwpx.document import HwpxDocument
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     p = doc.sections[0].add_paragraph()
     rect = p.add_rectangle(20000, 10000, treat_as_char=True)
     rect.set_caption("캡션")
@@ -1813,7 +1813,7 @@ def test_table_set_caption_creates_and_round_trips_at_real_document_position() -
     from hwpx.document import HwpxDocument
     from hwpx.oxml.namespaces import tag_local_name
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     p = doc.sections[0].add_paragraph()
     tbl = p.add_table(2, 2)
     assert tbl.caption is None
@@ -1837,7 +1837,7 @@ def test_inline_object_set_caption_on_picture() -> None:
     from hwpx.document import HwpxDocument
     from hwpx.oxml.namespaces import tag_local_name
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     p = doc.sections[0].add_paragraph()
     media = doc.media.add_image(b"\x89PNG\r\n\x1a\n" + b"0" * 40, "png")
     pic = p.add_picture(media.item_id, width=10000, height=8000)
@@ -1870,7 +1870,7 @@ def test_markdown_export_includes_table_caption() -> None:
     from hwpx.document import HwpxDocument
     from hwpx.tools.markdown_export import export_markdown
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     p = doc.sections[0].add_paragraph()
     tbl = p.add_table(1, 1)
     tbl.set_caption("표 1 매출 현황")
@@ -1883,7 +1883,7 @@ def test_markdown_export_includes_picture_caption(tmp_path) -> None:
     from hwpx.document import HwpxDocument
     from hwpx.tools.markdown_export import export_markdown
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     p = doc.sections[0].add_paragraph()
     media = doc.media.add_image(b"\x89PNG\r\n\x1a\n" + b"0" * 40, "png")
     pic = p.add_picture(media.item_id, width=10000, height=8000)
@@ -1968,7 +1968,7 @@ def test_issue_30_set_cell_text_on_blank_cell() -> None:
     ``table.set_cell_text(...)`` on freshly created tables.
     """
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_table(rows=2, cols=2)
 
     # Both the explicit API and the property setter must succeed.
@@ -1988,7 +1988,7 @@ def test_issue_30_add_run_bold() -> None:
     This is the original reproduction from the body of issue #30.
     """
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("")
     run = paragraph.add_run("hello", bold=True)
 

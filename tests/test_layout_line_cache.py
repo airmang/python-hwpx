@@ -82,7 +82,7 @@ def test_one_column_rounding_keeps_table_and_cell_cache_support() -> None:
 
 @pytest.mark.parametrize("text_width", [1, 2, 3])
 def test_a_nonpositive_hypothetical_single_column_does_not_crash_other_column_layouts(text_width: int) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("가나다")
     section = document.oxml.sections[0].element
     page = next(section.iter(HP + "pagePr"))
@@ -139,7 +139,7 @@ def test_a_paragraph_breaking_inside_latin_words_is_left_to_hancom() -> None:
     # Where Hancom breaks a paragraph that breaks inside Latin words (breakLatinWord="BREAK_WORD") beside a closing
     # mark or a wide bracket was not pinned down, so it gets no cache; the same text keeping Latin words whole does.
     text = "사업 계획 abc def 교육 운영 " * 8
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     keeping = document.add_paragraph(text)
     breaking = document.add_paragraph(text)
     document.styles.apply_paragraph_format(paragraphs=[breaking], alignment="LEFT")  # a shape of its own
@@ -174,7 +174,7 @@ def test_a_section_holding_an_object_in_a_switch_is_left_to_hancom() -> None:
 def test_nothing_is_written_once_a_section_is_not_followed() -> None:
     # The estimate names every section it does not follow; write_line_caches stops at the first one, since it writes
     # nothing then anyway.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("가나다")
     section = document.add_section()
     document.add_paragraph("라마바", section=section)
@@ -192,7 +192,7 @@ def test_a_section_whose_later_paragraph_holds_section_settings_is_left_to_hanco
     # width).
     import copy
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for number in range(3):
         document.add_paragraph("가나다 " * 30)
     first = document.oxml.sections[0].element.findall(f"{HP}p")
@@ -209,7 +209,7 @@ def test_a_section_whose_later_paragraph_holds_section_settings_is_left_to_hanco
 
 
 def test_a_new_paragraph_gets_hancoms_line_metrics() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("가나다 " * 40)
 
     report = write_line_caches(document)
@@ -228,7 +228,7 @@ def test_a_new_paragraph_gets_hancoms_line_metrics() -> None:
 
 
 def test_a_paragraph_holding_a_table_gets_one_line_as_tall_as_it() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_table(2, 2)
 
     report = write_line_caches(document)
@@ -245,7 +245,7 @@ def test_a_paragraph_holding_a_table_gets_one_line_as_tall_as_it() -> None:
 def test_a_table_with_a_caption_holds_it_in_its_line(side: str, gap: int, extra: int) -> None:
     # A caption above or below the table takes its line (1000 for one line of 10 pt) and its gap in the table's
     # line, as Hancom saves it; one beside the table takes none.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_table(2, 2)
     table.set_caption("표 1", side=side, gap=gap)
 
@@ -261,7 +261,7 @@ def test_a_table_with_a_caption_holds_it_in_its_line(side: str, gap: int, extra:
 def test_a_paragraph_gets_the_baseline_of_where_it_sets_its_characters(vertical: str, baseline: str) -> None:
     # Hancom writes the baseline at 85 % of the text height for characters on their baseline, 0 at the top of
     # their line, half of it at the centre and all of it at the bottom.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("가나다")
     document.styles.apply_paragraph_format(paragraphs=[paragraph], alignment="LEFT")
     shape_id = _body(document)[-1].get("paraPrIDRef")
@@ -276,7 +276,7 @@ def test_a_paragraph_gets_the_baseline_of_where_it_sets_its_characters(vertical:
 
 def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
     # An empty run ending the paragraph, larger than its text, makes its last line and that line's text as tall.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("가나다", char_pr_id_ref=document.styles.ensure_run(size=10))
     paragraph.add_run("", char_pr_id_ref=document.styles.ensure_run(size=16))
@@ -296,7 +296,7 @@ def test_a_larger_paragraph_end_makes_the_last_lines_text_as_tall() -> None:
                                    {"font": "Arial", "italic": True}])
 def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hancom(style: dict) -> None:
     # A face Hancom may draw in another one, or 장평 and 자간 past those seen on the desktop, are left for Hancom.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("가나다 " * 30, char_pr_id_ref=document.styles.ensure_run(**style))
 
@@ -312,7 +312,7 @@ def test_a_paragraph_in_a_face_or_look_not_seen_on_the_desktop_is_left_for_hanco
                                    {"font": "맑은 고딕", "bold": True, "italic": True},
                                    {"font": "휴먼명조", "italic": True}, {"font": "HCI Hollyhock", "italic": True}])
 def test_a_paragraph_at_a_look_seen_on_the_desktop_gets_a_cache(style: dict) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("가나다 " * 5, char_pr_id_ref=document.styles.ensure_run(**style))
 
@@ -327,7 +327,7 @@ def test_a_paragraph_in_a_windows_latin_face_with_a_sure_hangul_face_gets_a_cach
     # Hancom Office 2024 was seen to lay the Windows Latin faces out at the advances FormFit gives them, italic in their
     # italic faces and bold at their regular advances: as the face of the Latin and symbol scripts beside a Hangul
     # face the cache is sure of, their lines are sure too (a Hangul syllable in them is left, above).
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("The “data” of 2026 (policy) 가나다, " * 2, char_pr_id_ref=document.styles.ensure_run(
         font=face, font_by_lang={"HANGUL": "함초롬바탕"}, **look))
@@ -339,7 +339,7 @@ def test_a_paragraph_in_a_windows_latin_face_with_a_sure_hangul_face_gets_a_cach
 
 def test_a_page_control_among_the_text_is_left_for_hancom() -> None:
     # A page control among the text (not before it) was seen to break the line elsewhere than FormFit.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("가나다 " * 40)
     run = _body(document)[-1].find(f"{HP}run")
     ctrl = run.makeelement(f"{HP}ctrl", {})
@@ -360,7 +360,7 @@ def test_a_page_control_among_the_text_is_left_for_hancom() -> None:
 def test_a_paragraph_headed_by_a_label_the_header_does_not_define_is_left_for_hancom(kind: str) -> None:
     # A paragraph shape naming a bullet or a number the header lacks: Hancom still draws a label before the text
     # (seen with a bullet: its first line holds fewer characters), of a room not known.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("가나다 " * 40)
     ref = _body(document)[-1].get("paraPrIDRef")
     shape = next(s for s in document.oxml.headers[0].element.iter(f"{HH}paraPr") if s.get("id") == ref)
@@ -375,7 +375,7 @@ def test_a_paragraph_headed_by_a_label_the_header_does_not_define_is_left_for_ha
 def test_a_paragraph_with_a_negative_margin_is_left_for_hancom(side: str) -> None:
     # A margin reaching past the column's edge: Hancom lays such lines out at a width not pinned down (one 500
     # out on the right, or 339 out on the left in a cell, broke a character or more off FormFit's).
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("가나다 " * 40)
     ref = _body(document)[-1].get("paraPrIDRef")
     shape = next(s for s in document.oxml.headers[0].element.iter(f"{HH}paraPr") if s.get("id") == ref)
@@ -391,7 +391,7 @@ def test_a_paragraph_with_a_negative_margin_is_left_for_hancom(side: str) -> Non
 def test_a_no_break_space_among_spaces_that_shrink_is_left_for_hancom(condense: str, spacing: int, written: int) -> None:
     # A no-break space in a paragraph with 최소 공백 was seen to break a line elsewhere than FormFit, and one with
     # 자간 takes none of it: such paragraphs are left for Hancom.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("가나", char_pr_id_ref=document.styles.ensure_run(letter_spacing=spacing))
     text = _body(document)[-1].find(f"{HP}run/{HP}t")
@@ -409,7 +409,7 @@ def test_a_no_break_space_among_spaces_that_shrink_is_left_for_hancom(condense: 
 def test_a_no_break_space_typed_in_the_text_is_left_for_hancom() -> None:
     # A no-break space typed as a character (U+00A0 in hp:t) Hancom lays out at the font's own width, which the
     # desktop showed in few faces.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("가나 다라 마바")
 
     report = write_line_caches(document)
@@ -436,7 +436,7 @@ def test_a_document_kept_compatible_with_ms_word_is_left_for_hancom() -> None:
 def test_a_cell_whose_margins_are_written_as_minus_one_is_left_for_hancom() -> None:
     # Documents converted from .hwp carry cell margins written as -1 (unsigned). Hancom then lays the cell's text
     # out in another width than the table's margins give (2888 where they leave 2175), which was not pinned down.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_paragraph("").add_table(1, 2)
     table.set_cell_text(0, 0, "가나다")
     table.set_cell_text(0, 1, "가나다")
@@ -453,7 +453,7 @@ def test_a_cell_whose_margins_are_written_as_minus_one_is_left_for_hancom() -> N
 
 def test_a_glyph_not_seen_on_the_desktop_is_left_for_hancom() -> None:
     # "｢" (U+FF62) has a table advance read from the font, not one seen on the desktop.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("｢가나다｣")
 
     report = write_line_caches(document)
@@ -486,7 +486,7 @@ def test_the_caches_written_in_table_cells_are_the_ones_hancom_wrote() -> None:
 
 def test_a_tab_gets_the_width_hancom_lays_it_out_at() -> None:
     # With a cache Hancom draws a tab as wide as hp:tab says: "항목" (1944 in 함초롬바탕) then a tab to the default stop at 4000.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("항목	내용")
 
     report = write_line_caches(document)
@@ -517,7 +517,7 @@ def test_a_paragraph_under_a_picture_bullet_gets_hancoms_cache() -> None:
 def test_a_tab_reaches_the_default_stops_of_its_own_section() -> None:
     # Hancom spaces a section's default tab stops as its hp:secPr@tabStopVal says (3,600 here, laid out and saved
     # by Hancom 2024 in line_cache_section_tab_stops.hwpx); stops given in another unit were not measured.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for value, unit in (("3600", "HWPUNIT"), ("2000", "CHAR")):
         section = document.add_section()
         settings = next(section.element.iter(f"{HP}secPr"))
@@ -539,7 +539,7 @@ def test_a_tab_close_to_a_tab_stop_is_left_for_hancom(head: str, written: int) -
     # Sixteen 가 take 15,552 (972 each), 448 short of the stop at 16,000: their tab reaches it surely. With a "!" (half
     # an em) they take 16,052, 52 past it, closer than a layout unit for each of the 17 characters: text that much
     # off from Hancom's would take the tab to another stop.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph(f"{head}\t내용")
 
     report = write_line_caches(document)
@@ -550,7 +550,7 @@ def test_a_tab_close_to_a_tab_stop_is_left_for_hancom(head: str, written: int) -
 def test_a_tab_right_after_a_tab_starts_at_its_stop_surely() -> None:
     # The first tab ends at the stop at 4000, exactly where the second one starts: no character before the second
     # tab could be off, so it reaches the stop at 8000 surely.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("항목\t\t내용")
 
     report = write_line_caches(document)
@@ -561,7 +561,7 @@ def test_a_tab_right_after_a_tab_starts_at_its_stop_surely() -> None:
 
 def test_a_line_break_typed_into_the_text_is_left_for_hancom() -> None:
     # Hancom writes a line break as hp:lineBreak; a newline in hp:t's own text is left for it to lay out.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("첫 줄")
     paragraph.element.find(f"{HP}run/{HP}t").text = "첫 줄\n둘째 줄"
 
@@ -574,7 +574,7 @@ def test_a_line_break_typed_into_the_text_is_left_for_hancom() -> None:
 def test_a_paragraph_laid_out_less_surely_is_left_for_hancom(text: str) -> None:
     # Hancom takes the line breaks from a cache as written, so a paragraph with a glyph no table gives an advance
     # for, or with a word too long for a line, is left for Hancom to break.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph(text)
 
     report = write_line_caches(document)
@@ -586,7 +586,7 @@ def test_a_paragraph_laid_out_less_surely_is_left_for_hancom(text: str) -> None:
 def test_a_line_ending_close_to_its_room_is_left_for_hancom(right_mm: float, written: int) -> None:
     # Twelve words of 3,416 HWPUNIT (the last without its space) take 40,492 of the line. 7 mm to the right leaves
     # it 44 more, and a width a little off from Hancom's could break the line elsewhere; 6 mm leaves 327.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("가나다 " * 20)
     document.styles.apply_paragraph_format(paragraphs=[paragraph], indent_right_mm=right_mm)
 
@@ -618,7 +618,7 @@ def test_a_paragraph_of_several_character_sizes_gets_a_cache() -> None:
 def test_a_table_whose_cells_are_not_laid_out_surely_keeps_its_line_for_hancom() -> None:
     # The table's line is as tall as its rows, and a row as tall as its cells' lines: a cell laid out less surely
     # leaves the table's line for Hancom too.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_table(1, 2)
     table.cell(0, 0).text = "이모지 😀"
 
@@ -630,7 +630,7 @@ def test_a_table_whose_cells_are_not_laid_out_surely_keeps_its_line_for_hancom()
 def test_a_paragraph_holding_page_controls_gets_a_cache() -> None:
     # A header, a footer and a page number take no room on a line; each control counts eight characters in a
     # line's text position, as a section's own definitions do.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.set_header_text("머리말")
     document.set_footer_text("꼬리말")
     document.add_paragraph("가나다 " * 40)
@@ -700,7 +700,7 @@ def test_a_paragraph_with_automatic_spacing_beside_hangul_gets_a_cache_without_s
         eng: str, num: str, spacing: int, text: str, written: bool) -> None:
     # Hancom puts a quarter of the em between Hangul and a Latin letter or digit right next to it when the
     # paragraph shape turns automatic spacing on; under 자간 such a paragraph is left for Hancom.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run(text, char_pr_id_ref=document.styles.ensure_run(letter_spacing=spacing))
     for shape in document.oxml.headers[0].element.iter(f"{HH}paraPr"):
@@ -716,7 +716,7 @@ def test_a_paragraph_with_automatic_spacing_beside_hangul_gets_a_cache_without_s
 
 def test_a_paragraph_with_automatic_spacing_and_a_superscript_is_left_for_hancom() -> None:
     # How wide Hancom makes the gap beside a superscript glyph was not measured.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     paragraph.add_run("가나ABC다라마바사 " * 3, char_pr_id_ref=document.styles.ensure_run())
     raised = document.styles.ensure_run(size=11)
@@ -804,7 +804,7 @@ def test_a_cell_holding_a_picture_placed_top_and_bottom_is_left_for_hancom(flow:
     # Hancom lays a cell's lines out clear of a picture placed top and bottom from one of its paragraphs and grows
     # its row to hold it; one that does not move with the text moves the table's own line below it instead. The
     # cell and the paragraph holding the table are left for Hancom; the cell beside it gets its cache.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     image = document.media.add_image(_png(), "png")
     table = document.add_table(1, 2)
     first, second = table.cell(0, 0), table.cell(0, 1)
@@ -827,7 +827,7 @@ def test_a_paragraph_holding_a_picture_gets_one_line_carried_into_an_hwp_save() 
     # Hancom writes a picture set as a character on a line of its own as tall as the picture: 20 mm here, 5669,
     # below the template's first paragraph and the text before it.
     # A viewer reading the .hwp draws the picture from that line, so the cache goes into PARA_LINE_SEG too.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("앞 글")
     document.add_picture(_png(), "png", width_mm=40, height_mm=20)
 
@@ -859,7 +859,7 @@ def test_a_picture_whose_room_is_less_sure_is_left_to_hancom(change: str) -> Non
 
     effects = {"glow": {"glow": PictureGlow(radius=2000)}, "outer shadow": {"shadow": PictureShadow(distance=0)},
                "reflection": {"reflection": PictureReflection()}}
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     picture = document.add_picture(_png(), "png", width_mm=40, height_mm=20, **effects.get(change, {}))
     element = picture.element
     if change == "empty caption":  # a caption without a paragraph
@@ -877,7 +877,7 @@ def test_a_picture_whose_room_is_less_sure_is_left_to_hancom(change: str) -> Non
 def test_a_picture_with_a_caption_holds_it_in_its_line(side: str, tall: int) -> None:
     # Hancom makes a picture's line as tall as the picture, the gap and the caption's line for a caption above or
     # below it, and as the picture alone for one beside it, however tall the caption runs.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_picture(_png(), "png", width_mm=40, height_mm=20).set_caption("그림 1", side=side)
 
     write_line_caches(document)
@@ -892,7 +892,7 @@ def test_a_picture_in_a_paragraph_not_spaced_by_a_percentage_is_spaced_from_its_
         kind: str, value: int, spacing: int) -> None:
     # Hancom spaces such a line from its own height, the picture's: a fixed spacing keeps the next line that far
     # down even below the picture, at least one no less than the picture.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_picture(_png(), "png", width_mm=40, height_mm=20)
     _spaced(document, document.paragraphs[-1], kind, value)
 
@@ -904,7 +904,7 @@ def test_a_picture_in_a_paragraph_not_spaced_by_a_percentage_is_spaced_from_its_
 def test_pictures_side_by_side_go_on_lines_as_wide_as_the_column() -> None:
     # Hancom puts as many pictures on a line as fit it, each line as tall as its tallest picture, each picture
     # eight characters along the line's text: three pictures 20,000 wide (two to a line of 42,520) take two lines.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     image = document.media.add_image(_png(), "png")
     for height in (3000, 5000, 1000):
@@ -917,7 +917,7 @@ def test_pictures_side_by_side_go_on_lines_as_wide_as_the_column() -> None:
 
 
 def test_pictures_side_by_side_affecting_the_line_spacing_are_left_to_hancom() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("", include_run=False)
     image = document.media.add_image(_png(), "png")
     for _ in range(2):
@@ -931,7 +931,7 @@ def test_pictures_side_by_side_affecting_the_line_spacing_are_left_to_hancom() -
 def test_paragraphs_in_newspaper_columns_are_laid_out_as_wide_as_their_column() -> None:
     # Two columns 20,660 wide: text breaks into lines as wide as a column, and from a paragraph starting two columns
     # inside the section (its column definition left for Hancom) the paragraphs after it are laid out in those.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("한 단 " + "가나다라마바사 " * 8)
     document.page.set_columns(2, same_gap=1200, paragraph=document.add_paragraph("두 단 시작"))
     document.add_paragraph("두 단 " + "가나다라마바사 " * 8)
@@ -948,7 +948,7 @@ def test_paragraphs_in_newspaper_columns_are_laid_out_as_wide_as_their_column() 
 
 @pytest.mark.parametrize("kind", ["BALANCED_NEWSPAPER", "PARALLEL"])
 def test_paragraphs_in_balanced_or_parallel_columns_are_left_to_hancom(kind: str) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.page.set_columns(2, col_type=kind)
     document.add_paragraph("두 단 글")
 
@@ -960,7 +960,7 @@ def test_paragraphs_in_balanced_or_parallel_columns_are_left_to_hancom(kind: str
 def test_the_page_of_an_object_text_runs_beside_and_the_next_are_left_to_hancom() -> None:
     # Text beside a square-wrapped picture breaks into shorter lines: the page holding the picture's paragraph and
     # the one after it are left for Hancom, the pages after those laid out as any other.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     image = document.media.add_image(_png(), "png")
     document.add_paragraph("감싸기 그림 문단").add_picture(
         image, width=12000, height=12000, treat_as_char=False, text_wrap="SQUARE",

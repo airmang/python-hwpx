@@ -86,7 +86,7 @@ def test_root_lock_matches_the_live_class() -> None:
 def test_every_namespace_is_exposed_on_the_root() -> None:
     for attr, cls in NAMESPACES.items():
         assert attr in _root_members(), f"네임스페이스 {attr} 가 루트에 없습니다"
-        document = HwpxDocument.new()
+        document = HwpxDocument.new(empty_first_line=True)
         assert isinstance(getattr(document, attr), cls)
 
 
@@ -119,7 +119,7 @@ def test_every_5_x_public_name_still_resolves() -> None:
 
     root = set(json.loads((DATA / "document_facade_surface.json").read_text(encoding="utf-8")))
     shims = set(json.loads((DATA / "document_legacy_shims.json").read_text(encoding="utf-8")))
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for name in root | shims:
         assert hasattr(document, name), name
 
@@ -159,7 +159,7 @@ def test_moved_destination_exists(name: str) -> None:
     replacement = getattr(func, "__hwpx_moved_to__", None)
     if replacement is None:
         pytest.skip("not a moved name")
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         roots = {"doc": document, "paragraph": document.add_paragraph("x")}
         for target in _moved_targets(replacement):
             head, *rest = target.split(".")
@@ -175,7 +175,7 @@ def test_moved_destination_exists(name: str) -> None:
 
 
 def test_a_moved_call_warns_and_still_works() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     with pytest.warns(DeprecationWarning) as record:
         document.set_header_text("머리말", section=0)
     message = str(record[0].message)
@@ -184,7 +184,7 @@ def test_a_moved_call_warns_and_still_works() -> None:
 
 
 def test_repr_does_not_warn_about_its_own_summary() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
         repr(document)
@@ -200,7 +200,7 @@ def test_the_reported_third_party_failure_is_fixed() -> None:
     5.x: AttributeError: 'int' object has no attribute 'properties'
     """
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         document.set_header_text("머리말", section=0)
@@ -264,7 +264,7 @@ _KWARGS: dict[str, dict] = {"set_header_footer": {"kind": "header", "text": "h"}
 
 
 def _prepared(name: str):
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("seed")
 
     def call(doc, **kwargs):
@@ -278,14 +278,14 @@ def _prepared(name: str):
 def test_resolver_rejects_bool_as_an_index() -> None:
     """`section=True` 를 인덱스 1 로 읽으면 조용히 엉뚱한 섹션에 쓴다."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     with pytest.raises(HwpxTypeError) as excinfo:
         _resolve.resolve_section(document, True)
     assert excinfo.value.code == "section-invalid-type"
 
 
 def test_resolver_accepts_objects_negative_indexes_and_none() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     last = document.sections[-1]
     assert _resolve.resolve_section(document, None) is last
     assert _resolve.resolve_section(document, 0) is document.sections[0]
@@ -295,7 +295,7 @@ def test_resolver_accepts_objects_negative_indexes_and_none() -> None:
 
 
 def test_paragraph_resolution_follows_the_same_rule() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("첫 문단")
     # 문단 래퍼는 접근할 때마다 새로 만들어지므로 동일성이 아니라 같은
     # XML 요소를 가리키는지로 확인한다.
@@ -446,7 +446,7 @@ def test_stable_api_doc_counts_match_the_model_surface_lock() -> None:
 def test_add_heading_binds_style_and_outline_level_together(level: int) -> None:
     """5.x의 결함: 개요 번호는 붙는데 스타일은 바탕글(0)."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_heading(f"제목 {level}", level=level)
     style = document.styles[str(paragraph.style_id_ref)]
     assert style.name == f"개요 {level}"
@@ -459,7 +459,7 @@ def test_add_heading_binds_style_and_outline_level_together(level: int) -> None:
 
 @pytest.mark.parametrize("level", [0, 11, -1])
 def test_add_heading_rejects_levels_outside_the_hwpx_outline(level: int) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     with pytest.raises(HwpxValueError) as excinfo:
         document.add_heading("t", level=level)
     assert excinfo.value.code == "heading-level-out-of-range"
@@ -467,13 +467,13 @@ def test_add_heading_rejects_levels_outside_the_hwpx_outline(level: int) -> None
 
 
 def test_add_heading_accepts_an_explicit_style_name() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_heading("t", level=1, style="개요 3")
     assert document.styles[str(paragraph.style_id_ref)].name == "개요 3"
 
 
 def test_add_heading_reports_a_missing_outline_style_with_the_available_list() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     with pytest.raises(HwpxLookupError) as excinfo:
         document.add_heading("t", level=1, style="개요1")  # 공백 누락 오타
     assert excinfo.value.code == "style-not-found"
@@ -485,7 +485,7 @@ def test_add_heading_reports_a_missing_outline_style_with_the_available_list() -
 
 
 def test_styles_namespace_keeps_the_5_x_mapping_contract() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     styles = document.styles
     assert styles["0"].name == "바탕글"
     assert len(styles) == len(document.oxml.styles)
@@ -496,6 +496,6 @@ def test_styles_namespace_keeps_the_5_x_mapping_contract() -> None:
 
 
 def test_namespaces_are_stateless_views_of_the_same_document() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     assert document.styles is not document.styles
     assert document.styles.document is document

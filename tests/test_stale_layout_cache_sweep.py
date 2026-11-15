@@ -44,7 +44,7 @@ def _with_one_line_caches(data: bytes) -> bytes:
 
 
 def _source() -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph(LONG)
     doc.add_paragraph(SHORT)
     return _with_one_line_caches(doc.to_bytes())
@@ -95,7 +95,7 @@ def _cached_paragraph_with_inline_elements(textpos: int):
     from hwpx.document import HwpxDocument
 
     hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("가" * 10)
     text = paragraph.element.find(f".//{hp}t")
     etree.SubElement(text, f"{hp}tab", {"width": "2280", "leader": "0", "type": "1"})
@@ -142,7 +142,7 @@ def test_save_keeps_a_cache_that_counts_a_tab_as_eight_positions() -> None:
     from hwpx.document import HwpxDocument
 
     hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("가" * 10 + "SPLIT" + "나" * 5)
     source = io.BytesIO(doc.to_bytes())
     target = io.BytesIO()

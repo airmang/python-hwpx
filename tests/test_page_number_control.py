@@ -49,7 +49,7 @@ def _section_xml(path) -> str:
 
 
 def test_restart_page_number_emits_the_measured_hancom_shape() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.restart_page_number(paragraph)
 
@@ -58,7 +58,7 @@ def test_restart_page_number_emits_the_measured_hancom_shape() -> None:
 
 
 def test_restart_page_number_with_explicit_number_and_kind() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.restart_page_number(paragraph, number=23, kind="page")
 
@@ -67,7 +67,7 @@ def test_restart_page_number_with_explicit_number_and_kind() -> None:
 
 
 def test_restart_page_number_accepts_paragraph_index_or_object() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("본문")
     doc.page.restart_page_number(1, number=5)
     doc.page.restart_page_number(doc.paragraphs[1], number=6)
@@ -81,7 +81,7 @@ def test_restart_page_number_accepts_paragraph_index_or_object() -> None:
 
 
 def test_hide_page_elements_emits_the_measured_hancom_shape() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.hide_page_elements(paragraph, header=True, master_page=True)
 
@@ -100,7 +100,7 @@ def test_hide_page_elements_emits_the_measured_hancom_shape() -> None:
 
 
 def test_hide_page_elements_default_is_unhidden() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.hide_page_elements(paragraph)
 
@@ -119,7 +119,7 @@ def test_hide_page_elements_default_is_unhidden() -> None:
 
 
 def test_hide_page_elements_all_six_flags() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.hide_page_elements(
         paragraph, header=True, footer=True, master_page=True,
@@ -140,7 +140,7 @@ def test_hide_page_elements_all_six_flags() -> None:
 
 
 def test_restart_page_number_round_trips_through_save_and_reopen(tmp_path) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.restart_page_number(paragraph, number=7)
     path = tmp_path / "restart.hwpx"
@@ -157,7 +157,7 @@ def test_restart_page_number_round_trips_through_save_and_reopen(tmp_path) -> No
 
 
 def test_hide_page_elements_round_trips_through_save_and_reopen(tmp_path) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.hide_page_elements(paragraph, footer=True, page_num=True)
     path = tmp_path / "hide.hwpx"
@@ -178,7 +178,7 @@ def test_hide_page_elements_round_trips_through_save_and_reopen(tmp_path) -> Non
 def test_authored_page_controls_pass_open_safety(tmp_path) -> None:
     from hwpx.tools.package_validator import validate_editor_open_safety
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     doc.page.restart_page_number(paragraph, number=3)
     doc.page.hide_page_elements(paragraph, header=True)
@@ -195,7 +195,7 @@ def test_authored_page_controls_pass_open_safety(tmp_path) -> None:
 
 
 def test_restart_page_number_invalid_kind_is_a_typed_error() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     with pytest.raises(HwpxValueError) as excinfo:
         doc.page.restart_page_number(paragraph, kind="CHAPTER")
@@ -204,7 +204,7 @@ def test_restart_page_number_invalid_kind_is_a_typed_error() -> None:
 
 
 def test_restart_page_number_error_is_still_catchable_as_plain_value_error() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     with pytest.raises(ValueError):
         doc.page.restart_page_number(paragraph, kind="CHAPTER")
@@ -219,7 +219,7 @@ def test_page_control_error_code_is_registered() -> None:
 def test_add_new_num_oxml_layer_rejects_invalid_kind_too() -> None:
     """네임스페이스를 우회해 oxml 계층을 직접 불러도 방어적으로 거부한다."""
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     with pytest.raises(ValueError, match="unsupported kind"):
         paragraph.add_new_num(kind="CHAPTER")
@@ -286,14 +286,14 @@ def test_page_total_format_counts_the_total_pages() -> None:
     # A second PAGE counter drew "1/1, 2/2, 3/3" on a three-page document;
     # Hancom's own page/total footers use TOTAL_PAGE there and draw
     # "1/3, 2/3, 3/3".
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     footer = document.page.set_page_number(format="page/total")
     assert _story_counters(footer) == ["PAGE", "TOTAL_PAGE"]
     assert footer.text.count("/") == 1
 
 
 def test_page_total_format_adds_one_page_number_position_control() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     footer = document.page.set_page_number(format="page/total", prefix="Page ")
     hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
     assert len(footer.element.findall(f".//{hp}ctrl/{hp}pageNum")) == 1
@@ -301,7 +301,7 @@ def test_page_total_format_adds_one_page_number_position_control() -> None:
 
 
 def test_plain_page_format_keeps_a_single_page_counter() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     footer = document.page.set_page_number(format="page")
     assert _story_counters(footer) == ["PAGE"]
 
@@ -316,7 +316,7 @@ def test_titlemark_authoring_lives_on_the_paragraph_not_doc_page() -> None:
     표현이 안 된다.
     """
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     assert not hasattr(doc.page, "add_title_mark")
     assert not hasattr(doc.page, "set_title_mark")
     paragraph = doc.add_paragraph("제목")

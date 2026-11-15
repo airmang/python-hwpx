@@ -1651,7 +1651,7 @@ def test_an_object_in_a_switch_is_laid_out_as_its_case() -> None:
     # the following lines out beside the chart of the hp:case requiring the 2016 chart namespace, as if it stood in
     # the run itself.
     def with_switch(branches: tuple[tuple[str, str, str], ...]) -> bytes:
-        document = HwpxDocument.new()
+        document = HwpxDocument.new(empty_first_line=True)
         document.add_paragraph("앞 문단")
         paragraph = document.add_paragraph("곁 문단 " * 60)
         run = paragraph.element.find(f"{HP}run")
@@ -1708,7 +1708,7 @@ def test_page_margins_leaving_no_body_are_unsupported() -> None:
 def test_one_column_rounding_to_zero_is_unsupported_without_cache_mutation(text_width: int) -> None:
     from hwpx.layout.line_cache import write_line_caches
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("너비 없는 줄")
     page = next(document.oxml.sections[0].element.iter(HP + "pagePr"))
     page.set("width", str(text_width))
@@ -2255,7 +2255,7 @@ def test_the_multi_column_sample_breaks_its_lines_at_each_column_width_without_c
 
 def test_columns_of_the_same_size_written_as_true_are_of_the_same_size() -> None:
     # hp:colPr@sameSz is an xs:boolean: "true" is "1" (Hancom writes "1"; other writers "true").
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.page.set_columns(2)
     for number in range(80):
         document.add_paragraph(f"{number} 단 나누기 문단입니다")
@@ -2275,7 +2275,7 @@ def test_columns_of_the_same_size_written_as_true_are_of_the_same_size() -> None
 
 
 def test_a_footnote_in_a_paragraph_without_a_cache_in_columns_of_unequal_width_is_not_followed() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.set_columns(2, same_size=False, column_widths=[(10632, 873), (21263, 0)])
     document.notes.add_footnote("각주", document.add_paragraph("각주가 달린 문단"))
 
@@ -2393,7 +2393,7 @@ def test_a_table_placed_up_from_its_paragraph_in_a_cell_stands_at_the_paragraph_
 
 def test_the_estimate_reads_a_paragraphs_tab_definition() -> None:
     # A paragraph whose tab definition sets a stop of its own takes it.
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("가가가\t가가")
     doc.styles.apply_paragraph_format(paragraphs=[paragraph], tab_stops=[{"pos_mm": 50, "type": "RIGHT"}])
     root = HwpxDocument.open(io.BytesIO(doc.to_bytes()))._root
@@ -2474,7 +2474,7 @@ def test_an_empty_run_takes_no_room_and_gives_no_character_shape() -> None:
 
 
 def _flowing_table_after(paragraphs: int, rows: int) -> tuple[HwpxDocument, object]:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for index in range(paragraphs):
         document.add_paragraph(f"문단 {index}")
     table = document.add_paragraph("").add_table(rows, 2)
@@ -2532,7 +2532,7 @@ def test_a_flowing_table_whose_anchor_line_has_no_room_starts_on_the_next_page()
 
 def test_a_table_whose_row_addresses_skip_is_estimated_without_the_missing_rows() -> None:
     # Documents edited by other tools can number their rows with gaps (row 2 saved as row 5).
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_table(3, 2)
     for cell in table.element.iter(f"{HP}tc"):
         address = cell.find(f"{HP}cellAddr")
@@ -2612,7 +2612,7 @@ def test_a_top_and_bottom_table_not_split_offset_past_the_page_foot_goes_on_alon
 def test_ruby_text_spaced_otherwise_than_in_percent_is_not_followed_without_a_cache() -> None:
     # A line holding ruby text is spaced from its own height in percent; the estimate does not follow
     # another line spacing there.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("앞 글 ")
     document.shapes.add_dutmal("본문", "덧말", paragraph=paragraph)
     shape = next(element for element in document.parts.headers[0].element.iter(f"{HH}paraPr")
@@ -2640,7 +2640,7 @@ def test_a_document_a_path_and_bytes_give_the_same_estimate() -> None:
 
 
 def test_a_new_document_is_one_page() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("첫 문단")
 
     estimate = estimate_pages(document)
@@ -2743,7 +2743,7 @@ def test_a_notes_last_line_takes_no_line_spacing(name: str) -> None:
 
 
 def test_endnotes_placed_otherwise_are_unsupported() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("본문")
     document.notes.add_endnote("미주", paragraph)
     settings = next(document.sections[0].element.iter(f"{HP}endNotePr"))
@@ -2806,7 +2806,7 @@ def test_a_character_grid_is_followed_through_layout_caches_only() -> None:
 
 
 def test_a_line_grid_with_a_table_is_unsupported() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("격자 위 글")
     document.add_table(2, 2)
     next(document.sections[0].element.iter(f"{HP}grid")).set("lineGrid", "2000")
@@ -2858,7 +2858,7 @@ def test_section_settings_in_a_later_paragraph_start_a_section(name: str, settin
 
 
 def test_section_settings_deeper_in_a_later_paragraph_are_unsupported() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
     table = document.add_table(1, 1)
     settings = copy.deepcopy(next(document.sections[0].element.iter(f"{HP}secPr")))
@@ -2903,7 +2903,7 @@ def _without_header(data: bytes) -> bytes:
 def test_a_document_without_a_header_part_is_left_unsupported() -> None:
     # The paragraph and character shapes every paragraph names live in the header part; without it there is
     # nothing to lay the text out by, so the estimate says so instead of failing.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("머리 정보가 없는 문서")
     data = _without_header(document.to_bytes())
 

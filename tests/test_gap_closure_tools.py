@@ -228,7 +228,7 @@ def _corrupt_first_entry_crc(archive_bytes: bytes) -> bytes:
 
 
 def _document_with_structure() -> HwpxDocument:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("Title")
     document.add_bookmark("bookmark-one")
     document.add_rectangle(7200, 3600)
@@ -263,7 +263,7 @@ def test_add_paragraph_roundtrip_preserves_section_root_compat_metadata() -> Non
 
 
 def test_save_normalizes_named_paragraph_style_references() -> None:
-    package_bytes = HwpxDocument.new().to_bytes()
+    package_bytes = HwpxDocument.new(empty_first_line=True).to_bytes()
     with ZipFile(io.BytesIO(package_bytes), "r") as archive:
         section_path = next(name for name in archive.namelist() if name.startswith("Contents/section"))
         section_xml = archive.read(section_path)
@@ -647,7 +647,7 @@ def test_pack_rejects_editor_open_safety_failure_and_preserves_existing_output(
 def test_page_guard_detects_shape_and_control_drift() -> None:
     reference = _document_with_structure()
 
-    output = HwpxDocument.new()
+    output = HwpxDocument.new(empty_first_line=True)
     output.add_paragraph("Title")
     table = output.add_table(1, 1)
     table.cell(0, 0).text = "Cell"
@@ -777,7 +777,7 @@ def test_text_extract_cli_smoke_on_nondefault_rootfile_package(tmp_path: Path) -
 
 
 def test_validate_preserves_dirty_state() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("dirty paragraph")
 
     section = document.sections[-1]

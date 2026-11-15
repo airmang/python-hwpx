@@ -44,11 +44,11 @@ def _inject_attr(paragraph_element, attr: str, value: str) -> None:
 
 
 def test_append_document_adds_source_paragraphs_at_section_end() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("first")
     source.add_paragraph("second")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
 
     report = append_document(target, source)
@@ -61,17 +61,17 @@ def test_append_document_adds_source_paragraphs_at_section_end() -> None:
 
 
 def test_insert_document_places_content_after_given_paragraph() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("inserted")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("para 0")
     target.add_paragraph("para 1")
 
     report = insert_document(target, source, after_paragraph_index=1)
 
     assert report["position"] == "after_paragraph"
-    # target starts as [default empty, "para 0", "para 1"] (HwpxDocument.new()
+    # target starts as [default empty, "para 0", "para 1"] (HwpxDocument.new(empty_first_line=True)
     # always seeds one empty paragraph); after_paragraph_index=1 is "para 0",
     # so source's own [default empty, "inserted"] lands between it and "para 1".
     assert _texts(target) == ["", "para 0", "", "inserted", "para 1"]
@@ -80,29 +80,29 @@ def test_insert_document_places_content_after_given_paragraph() -> None:
 
 
 def test_insert_document_out_of_range_index_is_a_typed_error() -> None:
-    source = HwpxDocument.new()
-    target = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
+    target = HwpxDocument.new(empty_first_line=True)
     with pytest.raises(HwpxValueError) as excinfo:
         insert_document(target, source, after_paragraph_index=99)
     assert excinfo.value.code == "document-merge-index-out-of-range"
 
 
 def test_append_document_accepts_a_path_and_closes_it_itself(tmp_path) -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("from disk")
     path = tmp_path / "source.hwpx"
     source.save_to_path(path)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     append_document(target, path)
     assert "from disk" in _texts(target)
 
 
 def test_append_document_does_not_close_an_already_open_source() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("still usable after merge")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
 
     # If append_document had closed *source* (opened_here misdetected),
@@ -117,10 +117,10 @@ def test_append_document_does_not_close_an_already_open_source() -> None:
 
 
 def test_insert_before_first_paragraph_preserves_targets_own_section_properties() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("top")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
     target_first = target.sections[0].paragraphs[0].element
     target_secpr = target_first.find(f"{_HP}run/{_HP}secPr")
@@ -149,10 +149,10 @@ def test_insert_before_first_paragraph_preserves_targets_own_section_properties(
 def test_insert_before_first_paragraph_leaves_text_packed_with_section_setup() -> None:
     # Real Hancom files may pack secPr/ctrl/t into one run (the contract
     # doc's reader_writer__SimpleTable.hwpx case): only the setup elements move.
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("top")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     first = target.sections[0].paragraphs[0].element
     setup_run = next(run for run in first.findall(f"{_HP}run") if run.find(f"{_HP}secPr") is not None)
     packed = setup_run.makeelement(f"{_HP}t", {})
@@ -171,10 +171,10 @@ def test_insert_before_first_paragraph_leaves_text_packed_with_section_setup() -
 
 
 def test_insert_after_a_paragraph_does_not_move_section_setup() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("middle")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
     first_id = target.sections[0].paragraphs[0].element.get("id")
 
@@ -187,10 +187,10 @@ def test_insert_after_a_paragraph_does_not_move_section_setup() -> None:
 
 
 def test_append_document_strips_a_second_documents_section_setup_run() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("body")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
 
     report = append_document(target, source)
@@ -218,7 +218,7 @@ def test_merge_copies_a_custom_styles_own_base_charpr_and_parapr() -> None:
     base is genuinely custom.
     """
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     style_cid = source.styles.ensure_run(bold=True)
     style_pids = source.styles.ensure_numbering(kind="number")
     sid = source.parts.headers[0].ensure_style(
@@ -226,7 +226,7 @@ def test_merge_copies_a_custom_styles_own_base_charpr_and_parapr() -> None:
     )
     source.add_paragraph("via style only", style_id_ref=sid)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     # pre-populate target's own spaces so a naive remap could plausibly
     # alias onto them if it silently skipped the style's own base ids.
     target.styles.ensure_run(italic=True)
@@ -241,11 +241,11 @@ def test_merge_copies_a_custom_styles_own_base_charpr_and_parapr() -> None:
 
 
 def test_merge_never_aliases_onto_targets_preexisting_char_and_para_ids() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     cid = source.styles.ensure_run(bold=True, color="#FF0000")
     source.add_paragraph("red bold", char_pr_id_ref=cid)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     for i in range(4):
         target.styles.ensure_run(italic=True, size=9 + i)
 
@@ -283,7 +283,7 @@ def test_merge_allocates_new_ids_in_a_deterministic_order() -> None:
     lexicographic old-id order -> ascending new-id order) rather than
     relying on hash-seed luck to reproduce the original symptom."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     old_ids: list[str] = []
     for i in range(6):
         # each size is distinct so ensure_run's own dedup never reuses an
@@ -302,7 +302,7 @@ def test_merge_allocates_new_ids_in_a_deterministic_order() -> None:
     for old_id in old_ids:
         source.add_paragraph(f"uses {old_id}", char_pr_id_ref=old_id)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source)
     # >= not == -- source's own default (empty) first paragraph carries its
     # own charPrIDRef="0", also remapped, but it is not one of old_ids and
@@ -332,11 +332,11 @@ def test_merge_allocates_new_ids_in_a_deterministic_order() -> None:
 
 
 def test_merge_remaps_heading_numbering_reference() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     para_pr_ids = source.styles.ensure_numbering(kind="number")
     source.add_paragraph("1. numbered item", para_pr_id_ref=para_pr_ids[0])
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     # populate target's own numbering space first to force a real remap,
     # not a coincidental id match.
     target.styles.ensure_numbering(kind="number")
@@ -349,11 +349,11 @@ def test_merge_remaps_heading_numbering_reference() -> None:
 
 
 def test_merge_remaps_bullet_heading_reference() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     para_pr_ids = source.styles.ensure_numbering(kind="bullet")
     source.add_paragraph("• bulleted item", para_pr_id_ref=para_pr_ids[0])
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
 
     report = append_document(target, source)
     assert report["remapped"]["bullet"] == 1
@@ -368,12 +368,12 @@ def test_merge_remaps_bullet_heading_reference() -> None:
 
 
 def test_merge_remaps_font_reference_without_aliasing_onto_targets_own_font() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.styles.ensure_font("맑은 고딕", lang="HANGUL")
     cid = source.styles.ensure_run(font="맑은 고딕")
     source.add_paragraph("font test", char_pr_id_ref=cid)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     # pre-populate target's HANGUL fontface block so the merged font's id
     # cannot coincidentally reuse a value that already means something else.
     target.styles.ensure_font("바탕", lang="HANGUL")
@@ -406,10 +406,10 @@ def test_merge_remaps_font_reference_without_aliasing_onto_targets_own_font() ->
 
 
 def test_merge_copies_binary_image_bytes_and_remaps_binary_item_id_ref() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_picture(PNG_1X1, "png")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source)
     assert report["remapped"]["binaryItem"] == 1
 
@@ -435,10 +435,10 @@ def test_merge_copies_binary_image_bytes_and_remaps_binary_item_id_ref() -> None
 
 
 def test_merge_accepts_a_document_containing_a_table_from_add_table() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_table(rows=2, cols=2)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source)  # must not raise
 
     section = target.sections[0]
@@ -475,7 +475,7 @@ def test_merge_accepts_a_real_corpus_document_containing_a_table() -> None:
     assert sub_lists, "fixture has no hp:subList -- not exercising the fix"
     assert all(sl.get("linkListIDRef") == "0" for sl in sub_lists)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)  # must not raise
     source.close()
 
@@ -494,12 +494,12 @@ def test_merge_accepts_a_real_corpus_document_containing_a_table() -> None:
 
 
 def test_merge_rejects_connect_line_content() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("has a smart connector")
     run = p.element.find(f"{_HP}run")
     run.append(run.makeelement(f"{_HP}connectLine", {"subjectIDRef": "123"}))
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     with pytest.raises(HwpxValueError) as excinfo:
         append_document(target, source)
     assert excinfo.value.code == "document-merge-unsupported-reference"
@@ -507,11 +507,11 @@ def test_merge_rejects_connect_line_content() -> None:
 
 
 def test_merge_rejects_link_list_reference() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("linked textbox")
     _inject_attr(p.element, "linkListIDRef", "1")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     with pytest.raises(HwpxValueError) as excinfo:
         append_document(target, source)
     assert excinfo.value.code == "document-merge-unsupported-reference"
@@ -519,11 +519,11 @@ def test_merge_rejects_link_list_reference() -> None:
 
 
 def test_merge_rejects_chart_id_ref() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("chart placeholder")
     _inject_attr(p.element, "chartIDRef", "1")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     with pytest.raises(HwpxValueError) as excinfo:
         append_document(target, source)
     assert excinfo.value.code == "document-merge-unsupported-reference"
@@ -560,7 +560,7 @@ def _memogroup_memo_ids(doc: HwpxDocument, section_index: int = 0) -> list[str]:
 
 
 def test_merge_copies_referenced_memo_content() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     shape_id = source.styles.ensure_memo_shape(fill_color="#F0FFE9")
     p = source.add_paragraph("annotated text")
     source.notes.add_memo("a comment", anchor=p, memo_shape_id_ref=shape_id)
@@ -571,7 +571,7 @@ def test_merge_copies_referenced_memo_content() -> None:
     # a remap that silently never ran (see this codebase's own
     # _extra_ids_from_style_bases precedent for why coincidental defaults
     # are treated as untrustworthy test setups).
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.styles.ensure_memo_shape(fill_color="#FFFFFF")
     assert shape_id == "1"
 
@@ -609,11 +609,11 @@ def test_merge_memo_default_shape_ref_stays_the_65535_sentinel() -> None:
     sentinel ("65535") on both the field's own stringParam and (its
     absence on) hp:memo's own attribute, unchanged by the merge."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("plain comment")
     source.notes.add_memo("no shape override", anchor=p)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
 
     merged = target.sections[0].paragraphs[-1]
@@ -635,12 +635,12 @@ def test_merge_with_narrowed_source_section_still_copies_referenced_memo() -> No
     scope must never accidentally also narrow away content that *is*
     being copied."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     p0 = source.sections[0].paragraphs[0]
     source.notes.add_memo("in section 0", anchor=p0)
     source.add_paragraph("plain text, still section 0")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source, source_section_index=0)
     assert report["memosCopied"] == 1
     assert len(_memogroup_memo_ids(target)) == 1
@@ -663,13 +663,13 @@ def test_merge_excludes_memo_anchored_in_a_source_section_not_being_copied() -> 
     is the dedicated regression test; this test's own ordering is kept as
     written since reordering it isn't this test's job."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_section()
     p0 = source.sections[0].paragraphs[0]
     source.notes.add_memo("only in section 0", anchor=p0)
     source.sections[1].add_paragraph("section 1, no memo reference")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source, source_section_index=1)
     assert report["memosCopied"] == 0
     assert _memogroup_memo_ids(target) == []
@@ -683,12 +683,12 @@ def test_merge_appends_into_an_existing_target_memogroup_not_a_duplicate() -> No
     second, source-provided memo must land in the SAME memogroup, not a
     second sibling one."""
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target_p = target.add_paragraph("target's own annotated text")
     target.notes.add_memo("target's own comment", anchor=target_p)
     assert len(target.sections[0].element.findall(f"{_HP}memogroup")) == 1
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source_p = source.add_paragraph("source's annotated text")
     source.notes.add_memo("source's comment", anchor=source_p)
 
@@ -711,12 +711,12 @@ def test_merge_memo_survives_real_save_and_reopen() -> None:
     from the header fix, so it gets its own dedicated round-trip test
     rather than relying on other tests' incidental save/reopen coverage."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     shape_id = source.styles.ensure_memo_shape(fill_color="#FFE9CC")
     p = source.add_paragraph("annotated text")
     source.notes.add_memo("survives a real save", anchor=p, memo_shape_id_ref=shape_id)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
 
     data = target.to_bytes()
@@ -756,11 +756,11 @@ def test_merge_refreshes_field_end_fieldid_to_match_its_paired_field_begin() -> 
     dedicated assertion, not a byproduct of the referential-integrity
     gate)."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("annotated text")
     source.notes.add_memo("field pairing test", anchor=p)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
 
     merged = target.sections[0].paragraphs[-1]
@@ -794,7 +794,7 @@ def test_merge_keeps_a_field_pair_that_spans_paragraphs() -> None:
     left the end on the source's old id; Hancom drops such an unpaired
     fieldEnd when it saves."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     opening = source.add_paragraph("click here")
     source.add_paragraph("still inside the field")
     closing = source.add_paragraph("field ends here")
@@ -802,7 +802,7 @@ def test_merge_keeps_a_field_pair_that_spans_paragraphs() -> None:
     _field_run(closing.element, "fieldEnd", {"beginIDRef": "1878228493", "fieldid": "627272811"})
 
     for merge in (append_document, lambda t, s: insert_document(t, s, after_paragraph_index=-1)):
-        target = HwpxDocument.new()
+        target = HwpxDocument.new(empty_first_line=True)
         target.add_paragraph("existing")
         merge(target, source)
 
@@ -832,11 +832,11 @@ def _assert_fields_paired(section_element) -> None:
 
 
 def test_append_keeps_controls_that_share_the_column_layout_ctrl() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("body")
     _pack_controls_beside_colpr(source.sections[0].paragraphs[0].element)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
     report = append_document(target, source)
 
@@ -850,10 +850,10 @@ def test_append_keeps_controls_that_share_the_column_layout_ctrl() -> None:
 
 
 def test_insert_before_first_paragraph_moves_only_the_column_layout() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("top")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
     first = target.sections[0].paragraphs[0].element
     _pack_controls_beside_colpr(first)
@@ -876,14 +876,14 @@ def test_insert_before_first_paragraph_moves_only_the_column_layout() -> None:
 def test_merge_pairs_each_field_end_with_its_own_begin_when_fieldids_repeat() -> None:
     # Hancom gives every field of a type one fieldid, so two click-here
     # fields share 627272811; each end must follow the begin it names.
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     paragraphs = [source.add_paragraph(f"line {i}") for i in range(4)]
     _field_run(paragraphs[0].element, "fieldBegin", {"id": "111", "type": "CLICK_HERE", "fieldid": "627272811"})
     _field_run(paragraphs[1].element, "fieldEnd", {"beginIDRef": "111", "fieldid": "627272811"})
     _field_run(paragraphs[2].element, "fieldBegin", {"id": "222", "type": "CLICK_HERE", "fieldid": "627272811"})
     _field_run(paragraphs[3].element, "fieldEnd", {"beginIDRef": "222", "fieldid": "627272811"})
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
 
     section = target.sections[0].element
@@ -901,7 +901,7 @@ def test_merge_pairs_each_field_end_with_its_own_begin_when_fieldids_repeat() ->
 
 
 def test_merge_remaps_styles_next_style_reference_when_both_styles_are_copied() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     header = source.parts.headers[0]
     first_cid = source.styles.ensure_run(bold=True)
     second_cid = source.styles.ensure_run(italic=True)
@@ -912,7 +912,7 @@ def test_merge_remaps_styles_next_style_reference_when_both_styles_are_copied() 
     source.add_paragraph("first para", style_id_ref=first_sid)
     source.add_paragraph("second para", style_id_ref=second_sid)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source)
     assert report["remapped"]["style"] >= 2
 
@@ -927,14 +927,14 @@ def test_merge_remaps_styles_next_style_reference_when_both_styles_are_copied() 
 
 
 def test_merge_result_round_trips_through_save_and_reopen() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.styles.ensure_font("맑은 고딕", lang="HANGUL")
     cid = source.styles.ensure_run(font="맑은 고딕", bold=True)
     source.add_paragraph("roundtrip para 1", char_pr_id_ref=cid)
     source.add_paragraph("roundtrip para 2", char_pr_id_ref=cid)
     source.add_picture(PNG_1X1, "png")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing target para")
 
     insert_document(target, source, after_paragraph_index=0)
@@ -966,12 +966,12 @@ def test_merge_round_trips_when_no_picture_is_involved() -> None:
     to copy a picture, and add_image's own mark_dirty() call masked the
     bug as a side effect. This test deliberately excludes any picture."""
 
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.styles.ensure_font("맑은 고딕", lang="HANGUL")
     cid = source.styles.ensure_run(font="맑은 고딕", bold=True)
     source.add_paragraph("no picture here", char_pr_id_ref=cid)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing target para")
 
     insert_document(target, source, after_paragraph_index=0)
@@ -988,10 +988,10 @@ def test_merge_round_trips_when_no_picture_is_involved() -> None:
 
 
 def test_untouched_target_paragraphs_are_structurally_unaffected_by_merge() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("incoming")
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("untouched paragraph one")
     target.add_paragraph("untouched paragraph two")
     untouched_ids_before = [
@@ -1015,7 +1015,7 @@ def test_untouched_target_paragraphs_are_structurally_unaffected_by_merge() -> N
 
 
 def test_fresh_document_passes_the_referential_integrity_gate() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     report = check_id_integrity(doc)
     assert report.ok, report.dangling
 
@@ -1038,9 +1038,9 @@ _MERGE_POLICY_AXES = (
 
 
 def test_append_document_default_policy_axes_are_accepted() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("default axes")
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
 
     report = append_document(
         target,
@@ -1053,7 +1053,7 @@ def test_append_document_default_policy_axes_are_accepted() -> None:
     assert "default axes" in _texts(target)
     after = check_id_integrity(target)
     assert after.ok, after.dangling
-    # HwpxDocument.new() ships with its own default empty-text paragraph --
+    # HwpxDocument.new(empty_first_line=True) ships with its own default empty-text paragraph --
     # source_section_index=None (the default) copies every source
     # paragraph, including that pre-existing empty one, not just the one
     # explicitly added above.
@@ -1061,9 +1061,9 @@ def test_append_document_default_policy_axes_are_accepted() -> None:
 
 
 def test_insert_document_default_policy_axes_are_accepted() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("default axes")
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
 
     report = insert_document(
@@ -1088,9 +1088,9 @@ _MERGE_POLICY_DEFAULTS = {
 
 
 def test_append_document_rejects_every_non_default_policy_axis() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("text")
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
 
     for axis in _MERGE_POLICY_AXES:
         kwargs = dict(_MERGE_POLICY_DEFAULTS)
@@ -1102,14 +1102,14 @@ def test_append_document_rejects_every_non_default_policy_axis() -> None:
         assert excinfo.value.context.get("axis") == axis
         assert excinfo.value.context.get("koreanName")
         # rejected before any side effect -- target must stay untouched
-        # (a fresh HwpxDocument.new() ships with one default empty paragraph)
+        # (a fresh HwpxDocument.new(empty_first_line=True) ships with one default empty paragraph)
         assert _texts(target) == [""]
 
 
 def test_insert_document_rejects_every_non_default_policy_axis() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("text")
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     target.add_paragraph("existing")
 
     for axis in _MERGE_POLICY_AXES:
@@ -1183,12 +1183,12 @@ def test_merge_imports_parapr_border_fill_instead_of_aliasing_real_corpus() -> N
 
 
 def test_merge_imports_parapr_tab_definition_instead_of_aliasing() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("tabbed line")
-    # HwpxDocument.new()는 기본 빈 문단 1개를 갖고 시작 — "tabbed line"은 index 1.
+    # HwpxDocument.new(empty_first_line=True)는 기본 빈 문단 1개를 갖고 시작 — "tabbed line"은 index 1.
     source.styles.apply_paragraph_format(paragraph_index=1, tab_stops=[{"pos_mm": 30.0}])
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     # 소스의 raw tabPr id가 타깃에서 "다른 정의"를 가리키도록 선점.
     target.parts.headers[0].ensure_tab_definition(
         tab_stops=[{"pos": 999}], auto_tab_left=True, auto_tab_right=False
@@ -1227,7 +1227,7 @@ def test_merge_imports_parapr_tab_definition_instead_of_aliasing() -> None:
 
 
 def test_merge_imports_charpr_character_border_instead_of_aliasing() -> None:
-    source = HwpxDocument.new()
+    source = HwpxDocument.new(empty_first_line=True)
     char_id = source.styles.ensure_run(bold=True)
     dash_fill = source.parts.headers[0].ensure_border_fill(
         active_borders=("left",), border_type="DASH"
@@ -1240,7 +1240,7 @@ def test_merge_imports_charpr_character_border_instead_of_aliasing() -> None:
     source_char_pr.set("borderFillIDRef", dash_fill)
     source.add_paragraph("char border", char_pr_id_ref=char_id)
 
-    target = HwpxDocument.new()
+    target = HwpxDocument.new(empty_first_line=True)
     # 소스 raw id가 4변 SOLID 정의로 앨리어싱되도록 타깃 공간 선점
     # (색상을 다르게 해 dedupe가 패딩을 접지 않게 한다).
     for color in ("#000000", "#111111", "#222222", "#333333"):

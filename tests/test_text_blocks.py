@@ -13,7 +13,7 @@ from hwpx.oxml.namespaces import HP
 
 
 def _sample() -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("제목 문단")
     doc.add_paragraph("")
     table = doc.add_table(3, 3)
@@ -71,7 +71,7 @@ def test_ids_are_unique_and_survive_save_and_reopen() -> None:
 
 
 def test_a_table_without_cell_addresses_gets_physical_ids() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 2)
     for row in range(2):
         for col in range(2):
@@ -99,7 +99,7 @@ def test_outline_lists_only_non_empty_blocks_with_clean_text() -> None:
 
 
 def test_outline_truncates_a_long_block_and_marks_it() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("가" * 500)
     (item,) = doc.text.outline(max_block_chars=50)
     assert item["truncated"] is True
@@ -159,7 +159,7 @@ def test_apply_changes_reports_each_id() -> None:
 
 
 def test_apply_changes_keeps_runs_when_the_edit_stays_in_one_run() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("이름: ")
     paragraph.add_run("홍길동", bold=True)
     styles_before = [run.char_pr_id_ref for run in paragraph.runs]
@@ -173,7 +173,7 @@ def test_apply_changes_keeps_runs_when_the_edit_stays_in_one_run() -> None:
 
 
 def test_apply_changes_rewrites_an_edit_across_runs_and_says_so() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("앞 ")
     paragraph.add_run("굵게", bold=True)
     block_id = _by_text(doc, "앞 굵게").id
@@ -185,7 +185,7 @@ def test_apply_changes_rewrites_an_edit_across_runs_and_says_so() -> None:
 
 
 def test_a_line_break_in_new_text_becomes_a_line_break_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("한 줄")
     block_id = _by_text(doc, "한 줄").id
     report = doc.text.apply_changes({block_id: "첫 줄\n둘째 줄"})

@@ -34,7 +34,7 @@ def _local(tag: str) -> str:
 
 
 def test_line_break_is_nested_inside_a_single_t_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     run = paragraph.add_run("before\nafter", expand_special_characters=True)
 
@@ -47,7 +47,7 @@ def test_line_break_is_nested_inside_a_single_t_element() -> None:
 
 
 def test_nb_space_is_nested_inside_a_single_t_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     run = paragraph.add_run("a b", expand_special_characters=True)
 
@@ -60,7 +60,7 @@ def test_nb_space_is_nested_inside_a_single_t_element() -> None:
 
 
 def test_fw_space_is_nested_inside_a_single_t_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     run = paragraph.add_run("a　b", expand_special_characters=True)
 
@@ -73,7 +73,7 @@ def test_fw_space_is_nested_inside_a_single_t_element() -> None:
 
 
 def test_all_three_atoms_together_preserve_order_in_one_t() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     run = paragraph.add_run(
         "a\nb c　d", expand_special_characters=True,
@@ -91,7 +91,7 @@ def test_without_the_flag_only_a_line_break_becomes_an_element() -> None:
     """expand_special_characters 기본값 False — 줄바꿈은 그래도 hp:lineBreak로
     쓰고(한/글이 쓰는 대로), 묶음 빈칸·전각 빈칸은 글자 그대로 남는다."""
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     run = paragraph.add_run("before\nafter x")
 
@@ -103,7 +103,7 @@ def test_without_the_flag_only_a_line_break_becomes_an_element() -> None:
 
 
 def test_plain_text_without_markers_is_unaffected() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     run = paragraph.add_run("plain text", expand_special_characters=True)
     t_elements = [c for c in run.element if _local(c.tag) == "t"]
@@ -118,7 +118,7 @@ def test_plain_text_without_markers_is_unaffected() -> None:
 
 
 def test_authored_atoms_round_trip_through_save_and_reopen(tmp_path: Path) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     paragraph.add_run(
         "line1\nline2 nbsp　fwsp", expand_special_characters=True,
@@ -137,7 +137,7 @@ def test_authored_atoms_round_trip_through_save_and_reopen(tmp_path: Path) -> No
 def test_authored_atoms_pass_open_safety(tmp_path: Path) -> None:
     from hwpx.tools.package_validator import validate_editor_open_safety
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     paragraph.add_run(
         "line1\nline2 nbsp　fwsp", expand_special_characters=True,
@@ -160,7 +160,7 @@ def test_tab_and_run_choice_atoms_nest_inside_one_text_element() -> None:
     세 원자도 **하나의** hp:t 안에 중첩된다 — 한컴이 쓰는 모양이다. hp:run의
     형제로 둔 hp:tab은 한컴이 열 때 버린다."""
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     tab_paragraph = doc.add_paragraph("left\tright")
     tab_run = tab_paragraph._run_elements()[0]
     tab_children = [_local(c.tag) for c in tab_run]

@@ -31,52 +31,52 @@ def _roundtrip(document: HwpxDocument) -> HwpxDocument:
 
 
 def _new_document(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         assert len(document.sections) == 1
         assert document.to_bytes().startswith(b"PK")
 
 
 def _open_from_bytes(_: Path) -> None:
-    payload = HwpxDocument.new().to_bytes()
+    payload = HwpxDocument.new(empty_first_line=True).to_bytes()
     with HwpxDocument.open(payload) as reopened:
         assert len(reopened.sections) == 1
 
 
 def _context_manager(_: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     with document as entered:
         assert entered is document
     assert "closed=True" in repr(document)
 
 
 def _add_paragraph(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         paragraph = document.add_paragraph("Hello HWPX")
         assert paragraph.text == "Hello HWPX"
 
 
 def _iterate_runs(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("run text")
         assert any(run.text == "run text" for run in document.iter_runs())
 
 
 def _replace_text(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("before value")
         assert document.replace_text_in_runs("before", "after") == 1
         assert any("after value" in paragraph.text for paragraph in document.paragraphs)
 
 
 def _create_run_style(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         style_id = document.ensure_run_style(bold=True, color="#336699", size=11)
         paragraph = document.add_paragraph("styled", char_pr_id_ref=style_id)
         assert paragraph.runs[0].char_pr_id_ref == style_id
 
 
 def _format_paragraph(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         index = len(document.paragraphs)
         document.add_paragraph("formatted")
         result = document.set_paragraph_format(
@@ -89,7 +89,7 @@ def _format_paragraph(_: Path) -> None:
 
 
 def _format_list(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         index = len(document.paragraphs)
         document.add_paragraph("list item")
         result = document.set_list_format(
@@ -101,7 +101,7 @@ def _format_list(_: Path) -> None:
 
 
 def _add_table(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         table = document.add_table(2, 2)
         table.cell(0, 0).text = "A"
         table.cell(1, 1).text = "D"
@@ -110,7 +110,7 @@ def _add_table(_: Path) -> None:
 
 
 def _merge_table_cells(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         table = document.add_table(2, 2)
         table.cell(0, 0).text = "merged"
         document.merge_table_cells(table, "A1:B1")
@@ -118,7 +118,7 @@ def _merge_table_cells(_: Path) -> None:
 
 
 def _map_tables(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("Table heading")
         document.add_table(2, 3)
         table_map = document.get_table_map()
@@ -127,7 +127,7 @@ def _map_tables(_: Path) -> None:
 
 
 def _find_cell_by_label(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         table = document.add_table(1, 2)
         table.cell(0, 0).text = "Name:"
         found = document.find_cell_by_label("Name")
@@ -136,7 +136,7 @@ def _find_cell_by_label(_: Path) -> None:
 
 
 def _add_remove_section(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         section = document.add_section()
         assert len(document.sections) == 2
         document.remove_section(section)
@@ -144,7 +144,7 @@ def _add_remove_section(_: Path) -> None:
 
 
 def _set_page_setup(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         result = document.set_page_setup(
             paper_size="A4",
             orientation="landscape",
@@ -156,7 +156,7 @@ def _set_page_setup(_: Path) -> None:
 
 
 def _set_header_footer(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         header = document.set_header_text("Header")
         footer = document.set_footer_text("Footer")
         assert header.text == "Header"
@@ -164,38 +164,38 @@ def _set_header_footer(_: Path) -> None:
 
 
 def _set_page_number(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         footer = document.set_page_number(prefix="Page ")
         assert "Page " in footer.text
 
 
 def _add_bookmark(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_bookmark("golden-bookmark")
         assert "golden-bookmark" in document.paragraphs[-1].bookmarks
 
 
 def _add_hyperlink(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_hyperlink("https://example.com", "Example")
         links = document.paragraphs[-1].hyperlinks
         assert links and links[0]["url"] == "https://example.com"
 
 
 def _export_text(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("export me")
         assert "export me" in document.export_text()
 
 
 def _export_markdown(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("markdown text")
         assert "markdown text" in document.export_markdown()
 
 
 def _validate_document(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("valid")
         report = document.validate()
         assert hasattr(report, "ok")
@@ -204,7 +204,7 @@ def _validate_document(_: Path) -> None:
 
 def _save_path_reopen(tmp_path: Path) -> None:
     target = tmp_path / "golden-path.hwpx"
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("saved path")
         assert document.save_to_path(target) == target
     with HwpxDocument.open(target) as reopened:
@@ -213,7 +213,7 @@ def _save_path_reopen(tmp_path: Path) -> None:
 
 def _save_stream_reopen(_: Path) -> None:
     stream = BytesIO()
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("saved stream")
         assert document.save_to_stream(stream) is stream
     with HwpxDocument.open(stream.getvalue()) as reopened:
@@ -221,7 +221,7 @@ def _save_stream_reopen(_: Path) -> None:
 
 
 def _preserve_unmodified_parts(_: Path) -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("preserve before")
         before = document.to_bytes()
     with HwpxDocument.open(before) as document:

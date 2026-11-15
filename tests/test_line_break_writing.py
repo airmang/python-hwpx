@@ -27,7 +27,7 @@ def _assert_no_raw_break(data: bytes) -> None:
 
 @pytest.mark.parametrize("line_break", ["\n", "\r\n", "\r"])
 def test_add_paragraph_writes_a_line_break_as_an_element(line_break: str) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph(f"첫 줄{line_break}둘째 줄\t끝")
     data = doc.to_bytes()
 
@@ -37,7 +37,7 @@ def test_add_paragraph_writes_a_line_break_as_an_element(line_break: str) -> Non
 
 
 def test_setting_paragraph_text_writes_a_line_break_as_an_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("원래")
     paragraph.text = "가\n나"
     data = doc.to_bytes()
@@ -47,7 +47,7 @@ def test_setting_paragraph_text_writes_a_line_break_as_an_element() -> None:
 
 
 def test_add_run_writes_a_line_break_as_an_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("").add_run("앞\n뒤")
     data = doc.to_bytes()
 
@@ -56,7 +56,7 @@ def test_add_run_writes_a_line_break_as_an_element() -> None:
 
 
 def test_cell_text_writes_a_line_break_as_an_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     table.cell(0, 0).text = "칸\n둘"
     data = doc.to_bytes()
@@ -67,7 +67,7 @@ def test_cell_text_writes_a_line_break_as_an_element() -> None:
 
 
 def _doc_bytes() -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("원래 문단")
     return doc.to_bytes()
 
@@ -105,7 +105,7 @@ _ADD_RUN_CASES = [
 @pytest.mark.parametrize("expand", [False, True], ids=["literal", "expand"])
 @pytest.mark.parametrize(("text", "xml", "reopened"), _ADD_RUN_CASES)
 def test_add_run_keeps_tabs_and_line_breaks_either_way(text: str, xml: str, reopened: str, expand: bool) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("").add_run(text, expand_special_characters=expand)
     data = doc.to_bytes()
 
@@ -123,7 +123,7 @@ def test_add_run_keeps_tabs_and_line_breaks_either_way(text: str, xml: str, reop
     ids=["literal", "expand"],
 )
 def test_add_run_special_spaces_beside_tabs_and_line_breaks(expand: bool, xml: str) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("").add_run("가 나\t다　라\r마", expand_special_characters=expand)
     data = doc.to_bytes()
 
@@ -139,7 +139,7 @@ _WRITTEN = "가<hp:lineBreak/>나<hp:tab/>다"
 
 
 def _replaced(edit) -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("앞 원래 뒤")
     edit(doc)
     return doc.to_bytes()
@@ -190,7 +190,7 @@ def test_replace_and_partial_edits_write_breaks_and_tabs_as_elements(edit, recwa
 
 
 def test_replace_keeps_the_marks_around_the_match_in_place() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     paragraph.add_run("하나\t둘 원래 셋\n넷")
 
@@ -201,7 +201,7 @@ def test_replace_keeps_the_marks_around_the_match_in_place() -> None:
 
 
 def test_replace_across_runs_writes_a_line_break_where_the_match_ended() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     paragraph.add_run("앞 원")
     bold = doc.styles.ensure_run(bold=True)

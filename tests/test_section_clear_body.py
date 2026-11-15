@@ -85,7 +85,7 @@ def _replay_manual_blank(section) -> dict[str, int]:
 def _generated_source() -> bytes:
     """Many paragraphs, tables, a picture, and text beside secPr/ctrl."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     first = document.sections[0].paragraphs[0]
     first.text = "첫 문단 본문"
     first.add_table(2, 2)
@@ -191,7 +191,7 @@ def test_a_cleared_section_saves_reopens_and_validates(name: str, data: bytes) -
 
 
 def test_clear_body_leaves_other_section_children_and_attributes_alone() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
     section = document.sections[0]
     section.add_memo("메모")
@@ -229,7 +229,7 @@ def test_clear_body_report_to_dict_is_camel_case() -> None:
 
 
 def _with_header_text() -> bytes:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.page.set_header(text="머리말 글")
     document.add_paragraph("본문")
     first_run = document.sections[0].paragraphs[0].runs[0].element
@@ -288,7 +288,7 @@ def _nonblank_texts(element: etree._Element) -> list[str]:
 def test_strip_removes_the_story_copies_python_hwpx_writes_into_secpr() -> None:
     # set_header()/set_footer() write the story twice: into hp:ctrl (what
     # Hancom reads) and as a non-schema copy inside hp:secPr.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.page.set_header(text="머리말 글")
     document.page.set_footer(text="꼬리말 글")
     document.add_paragraph("본문")
@@ -320,7 +320,7 @@ def test_stripped_stories_do_not_come_back_on_save(round_trip_first: bool) -> No
     # copy. Once "strip" has removed both, saving must not bring either back,
     # including when the hp:secPr copy was edited after set_header() and the
     # control copy is still stale in memory.
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     header = document.page.set_header(text="처음 머리말")
     header.text = "고친 머리말"
     document.page.set_footer(text="꼬리말 글")
@@ -344,7 +344,7 @@ def test_stripped_stories_do_not_come_back_on_save(round_trip_first: bool) -> No
 
 
 def test_strip_refuses_content_it_cannot_remove_and_changes_nothing() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.page.set_header(text="머리말 글")
     document.add_paragraph("본문")
     document = _open(document.to_bytes())
@@ -365,7 +365,7 @@ def test_strip_refuses_content_it_cannot_remove_and_changes_nothing() -> None:
 
 
 def test_control_content_tags_come_in_first_seen_order_without_duplicates() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     first_run = document.sections[0].paragraphs[0].runs[0].element
     ctrl = etree.SubElement(first_run, f"{HP}ctrl")
     footer = etree.SubElement(ctrl, f"{HP}footer")
@@ -408,7 +408,7 @@ def test_the_real_header_footer_fixture_is_refused_and_can_be_stripped() -> None
 
 
 def test_an_unknown_mode_is_refused_before_anything_changes() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
     before = document.to_bytes()
 
@@ -433,7 +433,7 @@ def test_a_first_run_without_section_properties_is_refused() -> None:
 
 
 def test_section_properties_outside_the_first_run_are_refused() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     first = document.sections[0].paragraphs[0]
     first.element.insert(0, first.element.makeelement(f"{HP}run", {"charPrIDRef": "0"}))
     document.add_paragraph("본문")
@@ -447,7 +447,7 @@ def test_section_properties_outside_the_first_run_are_refused() -> None:
 
 
 def test_a_section_without_paragraphs_is_refused() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     section = document.sections[0]
     for paragraph in list(section.element):
         section.element.remove(paragraph)
@@ -485,7 +485,7 @@ def test_a_call_with_nothing_to_remove_leaves_the_section_clean() -> None:
 
 
 def test_a_call_that_only_drops_the_layout_cache_marks_the_section_dirty() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     section = document.sections[0]
     first = section.paragraphs[0]
     for cache in first.element.findall(f"{HP}linesegarray"):
@@ -504,7 +504,7 @@ def test_a_call_that_only_drops_the_layout_cache_marks_the_section_dirty() -> No
     ["btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar", "compose", "dutmal"],
 )
 def test_form_objects_and_text_atoms_in_a_control_count_as_content(name: str) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
     first_run = document.sections[0].paragraphs[0].runs[0].element
     ctrl = etree.SubElement(first_run, f"{HP}ctrl")
@@ -533,7 +533,7 @@ def test_a_form_object_in_the_real_corpus_control_is_refused() -> None:
     # A Hancom-saved form object, moved into a kept control's header story.
     buttons = _open((FIXTURES / "hwpxlib_corpus/reader_writer__SimpleButtons.hwpx").read_bytes())
     button = buttons.sections[0].paragraphs[0].runs[0].element.find(f"{HP}checkBtn")
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     first_run = document.sections[0].paragraphs[0].runs[0].element
     ctrl = etree.SubElement(first_run, f"{HP}ctrl")
     story_run = etree.SubElement(
@@ -590,7 +590,7 @@ def test_page_hiding_and_numbering_in_the_second_run_stay() -> None:
 def test_text_after_a_child_in_a_kept_header_counts_as_content() -> None:
     from hwpx.errors import HwpxValueError
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.page.set_header(text="x")
     section = document.sections[0]
     header = next(section.element.iter(f"{HP}header"))

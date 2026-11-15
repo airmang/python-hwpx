@@ -44,7 +44,7 @@ def test_add_index_mark_first_key_only_matches_the_gold_verbatim() -> None:
     """실측(``index_mark_first_only.hwpx``): 1단계 키만 주면 ``secondKey``를
     방출하지 않는다 -- 스키마는 필수라고 선언하지만 실물이 생략한다."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("apple item paragraph.")
 
     paragraph.add_index_mark("apple")
@@ -58,7 +58,7 @@ def test_add_index_mark_two_keys_matches_the_gold_verbatim() -> None:
     """실측(``index_mark_two_keys.hwpx``): 2단계 키는 ``firstKey`` 뒤
     형제로 붙는다."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("banana item paragraph.")
 
     paragraph.add_index_mark("fruit", second="banana")
@@ -71,7 +71,7 @@ def test_add_index_mark_sits_in_the_text_run_ahead_of_the_text() -> None:
     ``hp:ctrl``이 ``hp:t`` 앞에 온다(``add_title_mark``가 ``hp:t`` 안으로
     들어가는 것과 대조)."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("apple item paragraph.")
 
     result = paragraph.add_index_mark("apple")
@@ -84,7 +84,7 @@ def test_add_index_mark_sits_in_the_text_run_ahead_of_the_text() -> None:
 def test_add_index_mark_targets_whichever_paragraph_is_given() -> None:
     """``add_title_mark``와 같은 타겟팅 계약 -- 항상 첫 문단이 아니다."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("apple item paragraph.")
     second = document.add_paragraph("banana item paragraph.")
 
@@ -106,7 +106,7 @@ def test_add_index_mark_rejects_empty_keys(kwargs: dict[str, str], key_label: st
     """빈 문자열은 생략과 다른 XML을 만든다(``<hp:secondKey/>`` vs 요소
     자체 없음) -- 어느 쪽을 뜻하는지 추측하지 않고 거부한다."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("apple item paragraph.")
 
     with pytest.raises(HwpxValueError) as excinfo:
@@ -116,7 +116,7 @@ def test_add_index_mark_rejects_empty_keys(kwargs: dict[str, str], key_label: st
 
 
 def test_add_index_mark_rejects_a_paragraph_with_no_text_run() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document._root.sections[0].add_paragraph("", include_run=False)
 
     with pytest.raises(HwpxStateError) as excinfo:
@@ -125,7 +125,7 @@ def test_add_index_mark_rejects_a_paragraph_with_no_text_run() -> None:
 
 
 def test_add_index_mark_round_trips_through_save_and_reopen() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("banana item paragraph.")
     paragraph.add_index_mark("fruit", second="banana")
 

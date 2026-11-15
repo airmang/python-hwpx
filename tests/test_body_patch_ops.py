@@ -26,7 +26,7 @@ HEADER = "Contents/header.xml"
 def _doc(*texts: str) -> bytes:
     """구역 정의 문단 뒤에 캐시가 있는 한 줄 문단들(id 100, 101, …)."""
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     data = doc.to_bytes()
     doc.close()
     return _with_body(data, "".join(_p(100 + i, _run("0", text)) for i, text in enumerate(texts)))
@@ -71,7 +71,7 @@ def test_insert_by_clone_copies_the_reference_paragraph_after_it() -> None:
 
 
 def test_insert_by_clone_sets_the_texts_and_keeps_the_reference_formatting() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     bold = str(doc.styles.ensure_run(bold=True))
     data = doc.to_bytes()
     doc.close()
@@ -128,7 +128,7 @@ def test_insert_by_clone_refuses_what_it_cannot_do_safely(op: dict, reason: str)
 
 
 def test_insert_by_clone_refuses_a_reference_paragraph_that_holds_a_table() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     data = doc.to_bytes()
     doc.close()
     source = _with_body(data, _p(100, f'<hp:run charPrIDRef="0">{_table(_p(101, _run("0", "칸")))}</hp:run>'))
@@ -204,7 +204,7 @@ def test_set_paragraph_text_replaces_the_text_and_drops_the_line_cache() -> None
 
 
 def test_set_paragraph_text_puts_the_text_in_the_first_run_and_empties_the_others() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     bold = str(doc.styles.ensure_run(bold=True))
     data = doc.to_bytes()
     doc.close()
@@ -218,7 +218,7 @@ def test_set_paragraph_text_puts_the_text_in_the_first_run_and_empties_the_other
 
 
 def test_set_paragraph_text_fills_a_paragraph_whose_run_is_empty() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     data = doc.to_bytes()
     doc.close()
     source = _with_body(data, _p(100, _run("0", None)))
@@ -230,7 +230,7 @@ def test_set_paragraph_text_fills_a_paragraph_whose_run_is_empty() -> None:
 
 
 def test_set_paragraph_text_refuses_a_paragraph_holding_a_table_or_a_text_box() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("각주가 있는 문단").add_footnote("각주 글 KEEP")
     data = doc.to_bytes()
     doc.close()
@@ -269,7 +269,7 @@ def test_delete_paragraph_removes_that_block_only() -> None:
 
 
 def test_delete_paragraph_refuses_a_table_unless_allowed_and_never_the_section_settings() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     data = doc.to_bytes()
     doc.close()
     source = _with_body(
@@ -300,7 +300,7 @@ def test_delete_paragraph_refuses_a_table_unless_allowed_and_never_the_section_s
 
 
 def _blue_italic_doc() -> tuple[bytes, str]:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     blue = str(doc.styles.ensure_run(color="#0000FF", italic=True))
     data = doc.to_bytes()
     doc.close()
@@ -381,7 +381,7 @@ def test_restyle_text_refuses_a_count_mismatch() -> None:
 
 
 def test_recolor_remaps_runs_of_the_exact_colour_only() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     blue = str(doc.styles.ensure_run(color="#0000FF", bold=True))
     navy = str(doc.styles.ensure_run(color="#0000CC"))
     data = doc.to_bytes()
@@ -408,7 +408,7 @@ def test_recolor_remaps_runs_of_the_exact_colour_only() -> None:
 
 
 def test_recolor_without_a_match_changes_nothing_and_dry_run_writes_nothing(tmp_path: Path) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     blue = str(doc.styles.ensure_run(color="#0000FF"))
     data = doc.to_bytes()
     doc.close()

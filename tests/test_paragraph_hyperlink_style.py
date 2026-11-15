@@ -22,7 +22,7 @@ def _style(document: HwpxDocument, run) -> tuple[str | None, str | None]:
 
 
 def test_a_paragraph_link_uses_hancom_link_style_by_default() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("앞 글 ")
 
     paragraph.add_hyperlink("https://example.com", "링크")
@@ -33,7 +33,7 @@ def test_a_paragraph_link_uses_hancom_link_style_by_default() -> None:
 
 
 def test_the_paragraph_link_style_matches_the_document_level_link() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     first = document.add_paragraph("")
     first.add_hyperlink("https://example.com", "링크")
     second = document.add_paragraph("")
@@ -43,7 +43,7 @@ def test_the_paragraph_link_style_matches_the_document_level_link() -> None:
 
 
 def test_an_explicit_char_pr_still_wins() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("")
 
     paragraph.add_hyperlink("https://example.com", "링크", char_pr_id_ref=0)
@@ -52,7 +52,7 @@ def test_an_explicit_char_pr_still_wins() -> None:
 
 
 def test_the_field_runs_keep_the_paragraph_style() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("")
 
     paragraph.add_hyperlink("https://example.com", "링크")
@@ -62,7 +62,7 @@ def test_the_field_runs_keep_the_paragraph_style() -> None:
 
 
 def test_a_footnote_link_gets_the_same_style() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     note = document.add_paragraph("본문").add_footnote("각주 ")
 
     note.add_hyperlink("https://example.com", "링크")
@@ -80,7 +80,7 @@ def _look(document: HwpxDocument, run) -> tuple:
 
 
 def test_a_link_keeps_the_size_and_weight_of_its_paragraph() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     big = document._root.ensure_run_style(bold=True, size=16)
     paragraph = document.add_paragraph("제목 ", char_pr_id_ref=big)
 
@@ -91,7 +91,7 @@ def test_a_link_keeps_the_size_and_weight_of_its_paragraph() -> None:
 
 
 def test_a_link_style_made_for_one_paragraph_does_not_leak_into_another() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     big = document._root.ensure_run_style(bold=True, size=16)
     title = document.add_paragraph("제목 ", char_pr_id_ref=big)
     title.add_hyperlink("https://example.com", "링크")
@@ -104,7 +104,7 @@ def test_a_link_style_made_for_one_paragraph_does_not_leak_into_another() -> Non
 
 
 def test_links_in_paragraphs_of_the_same_look_share_one_style() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     big = document._root.ensure_run_style(bold=True, size=16)
     first = document.add_paragraph("제목 ", char_pr_id_ref=big)
     first.add_hyperlink("https://example.com", "링크")
@@ -117,7 +117,7 @@ def test_links_in_paragraphs_of_the_same_look_share_one_style() -> None:
 def test_markdown_writes_link_text_without_the_link_style() -> None:
     from hwpx.tools.markdown_export import export_markdown
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("")
     document.refs.add_hyperlink("https://example.com", "링크", paragraph=paragraph)
 

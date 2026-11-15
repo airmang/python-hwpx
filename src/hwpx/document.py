@@ -105,6 +105,9 @@ class HwpxDocument(_LegacyFacade):
         self._save_pipeline = SavePipeline()
         # What add_paragraph(inherit_style=None) means for this document (new(inherit_style=...)).
         self._inherit_style_default = True
+        # True while a document from new() still has only its empty first paragraph: the first
+        # paragraph added then takes that line (see _take_first_line).
+        self._first_line_free = False
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of the document state."""
@@ -210,12 +213,19 @@ class HwpxDocument(_LegacyFacade):
         return self._hwp5_report
 
     @classmethod
-    def new(cls, *, inherit_style: bool = True) -> "HwpxDocument":
+    def new(cls, *, inherit_style: bool = True, empty_first_line: bool = False) -> "HwpxDocument":
         """Return a new blank document based on the default skeleton template.
 
-        Its only paragraph is empty and holds the section settings, and
-        :meth:`add_paragraph` appends after it, so the document starts with an
-        empty line. Write the first line with ``document.paragraphs[0].text = ...``.
+        Its only paragraph is empty and holds the section settings. The first
+        paragraph added with :meth:`add_paragraph` or :meth:`add_heading` takes
+        that line, so the document starts with what was added first. (Up to
+        6.x the first added paragraph came after it and every new document began
+        with an empty line.) A table or another object added first still comes
+        after the empty line: the paragraph holding the section settings does
+        not hold objects.
+
+        ``empty_first_line=True`` keeps the 6.x behaviour: every added paragraph
+        comes after the empty one, so paragraph indexes written for 6.x stay valid.
 
         ``inherit_style=False`` makes a clean document: :meth:`add_paragraph`
         then starts every paragraph from the base shapes (바탕글) instead of
@@ -231,6 +241,7 @@ class HwpxDocument(_LegacyFacade):
 
         document = cls.open(new_document_bytes())
         document._inherit_style_default = bool(inherit_style)
+        document._first_line_free = not empty_first_line
         return document
 
     @classmethod
@@ -492,7 +503,7 @@ class HwpxDocument(_LegacyFacade):
         section = _resolve.resolve_section(
             self, section, section_index, caller="add_paragraph"
         )
-        return self._root.add_paragraph(
+        paragraph = self._root.add_paragraph(
             text,
             section=section,
             section_index=None,
@@ -505,6 +516,51 @@ class HwpxDocument(_LegacyFacade):
             inherit_outline=inherit_style is not None,
             **cast(Any, extra_attrs),
         )
+        if include_run:  # a paragraph made to hold an object does not take the first line
+            self._take_first_line(paragraph)
+        return paragraph
+
+    def _take_first_line(self, paragraph: HwpxOxmlParagraph) -> None:
+        """Put *paragraph*, just appended, on the empty first line of a document from :meth:`new`.
+
+        The empty paragraph's section settings move to the front of *paragraph*
+        and the empty paragraph goes. Only the first paragraph added does this,
+        and only while the document is as :meth:`new` made it: one paragraph in
+        the first section, without text or objects.
+        """
+
+        if not self._first_line_free:
+            return
+        self._first_line_free = False
+        section = self.sections[0]
+        paragraphs = section.paragraphs
+        if len(paragraphs) != 2 or paragraphs[1].element is not paragraph.element:
+            return
+        first = paragraphs[0].element
+
+        def _local(element: Any) -> str:
+            return str(element.tag).rsplit("}", 1)[-1]
+
+        runs = [child for child in first if _local(child) == "run"]
+        # Runs of page-level settings: the section, columns, a header or footer, page numbering.
+        holders = [run for run in runs if len(run) and all(_local(child) in ("secPr", "ctrl") for child in run)]
+        text_nodes = [child for run in runs if run not in holders for child in run]
+        if not holders or any(_local(child) != "t" or (child.text or "") or len(child) for child in text_nodes):
+            return  # not the blank paragraph new() makes: leave the document as it is
+        page_level = {"colPr", "header", "footer", "pageNum", "pageHiding", "newNum", "pageNumCtrl"}
+        if any(
+            _local(inner) not in page_level
+            for run in holders
+            for child in run
+            if _local(child) == "ctrl"
+            for inner in child
+        ):
+            return
+        for position, run in enumerate(holders):
+            first.remove(run)
+            paragraph.element.insert(position, run)
+        section.element.remove(first)
+        section.mark_dirty()
 
     def _style_shapes(
         self,
@@ -601,6 +657,7 @@ class HwpxDocument(_LegacyFacade):
             **cast(Any, extra_attrs),
         )
         _headings.bind_outline_level(self, paragraph, level=level)
+        self._take_first_line(paragraph)
         return paragraph
 
     def add_table(

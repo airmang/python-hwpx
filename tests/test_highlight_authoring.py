@@ -26,7 +26,7 @@ REAL_CORPUS_FILE = (
 
 
 def _document() -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("Hello World")
     return doc
 
@@ -76,7 +76,7 @@ def test_highlight_default_color_is_yellow() -> None:
 
 
 def test_highlights_enumerates_in_document_order() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("alpha beta")
     document.add_paragraph("gamma delta")
     document.text.highlight(1, "beta", color="#FFFF00")

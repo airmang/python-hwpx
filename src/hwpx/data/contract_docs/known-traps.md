@@ -54,9 +54,11 @@
 
 ## 문서 구조
 
-- **새 문서는 빈 줄로 시작한다.** `HwpxDocument.new()`의 첫 문단은 구역 설정
-  (`hp:secPr`)을 담은 빈 문단이고, `add_paragraph()`는 그 뒤에 새 문단을 붙인다.
-  첫 줄부터 쓰려면 첫 글은 `doc.paragraphs[0].text = ...`로 넣는다.
+- **새 문서에 표나 개체를 먼저 더하면 빈 줄로 시작한다.** `HwpxDocument.new()`의 첫 문단은
+  구역 설정(`hp:secPr`)을 담은 빈 문단이다. 7.0부터 처음 더하는 문단(`add_paragraph`,
+  `add_heading`)은 그 빈 줄을 차지하므로 문서가 그 글로 시작한다. 표·그림·수식처럼 개체를
+  먼저 더하면 개체는 빈 줄 다음에 온다. 6.x처럼 모든 문단을 빈 줄 뒤에 붙이려면
+  `HwpxDocument.new(empty_first_line=True)`로 만든다.
 - **목록 기본 모양이 한/글 새 목록과 다르다.** `apply_list_format(kind="bullet")`의
   글머리표는 1수준 `-`, 2수준 `○`이다. 한/글은 새 글머리표 목록에 내장 글머리표
   (`hh:heading type="BULLET" idRef="0"`)를 써서 수준과 상관없이 `●`로 그린다. 번호 목록은

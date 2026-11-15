@@ -14,7 +14,7 @@ from hwpx.oxml.paragraph import HwpxOxmlParagraph
 
 
 def test_a_cell_paragraph_is_removed_from_its_cell() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     cell = doc.add_table(1, 1).cell(0, 0)
     cell.set_text("첫째\n둘째", split_paragraphs=True)
 
@@ -26,7 +26,7 @@ def test_a_cell_paragraph_is_removed_from_its_cell() -> None:
 
 
 def test_the_last_paragraph_of_a_cell_stays() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     cell = doc.add_table(1, 1).cell(0, 0)
     cell.text = "하나"
 
@@ -36,7 +36,7 @@ def test_the_last_paragraph_of_a_cell_stays() -> None:
 
 
 def test_a_header_paragraph_is_removed_from_its_header() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     header = doc.page.set_header(text="머리말")
     header.add_paragraph()
     story = header.element.find(f"{HP}subList")
@@ -48,7 +48,7 @@ def test_a_header_paragraph_is_removed_from_its_header() -> None:
 
 
 def test_a_body_paragraph_still_goes_and_a_second_remove_is_quiet() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("지울 문단")
     before = len(doc.paragraphs)
 
@@ -59,7 +59,7 @@ def test_a_body_paragraph_still_goes_and_a_second_remove_is_quiet() -> None:
 
 
 def test_a_cell_paragraph_takes_its_model_back_in_place() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     cell = doc.add_table(1, 1).cell(0, 0)
     cell.text = "셀 글"
     paragraph = cell.paragraphs[0]
@@ -75,7 +75,7 @@ def test_a_cell_paragraph_takes_its_model_back_in_place() -> None:
     ["section", "cell", "header"],
 )
 def test_the_last_paragraph_refusal_is_typed_and_names_its_container(holder: str) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     if holder == "section":
         paragraph = doc.paragraphs[0]
     elif holder == "cell":
@@ -95,7 +95,7 @@ def test_the_last_paragraph_refusal_is_typed_and_names_its_container(holder: str
 
 
 def _cell_holding_a_nested_table_after_an_empty_paragraph() -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     cell = doc.add_table(1, 1).cell(0, 0)
     cell.add_table(1, 1).cell(0, 0).text = "안쪽"
     assert [(p.text, len(p.tables)) for p in cell.paragraphs] == [("", 0), ("", 1)]
@@ -120,7 +120,7 @@ def test_removing_a_cell_paragraph_writes_the_same_bytes_as_editing_the_tree() -
 
 
 def test_apply_model_on_a_cell_paragraph_does_not_truth_test_an_element() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     cell = doc.add_table(1, 1).cell(0, 0)
     cell.text = "셀 글"
     paragraph = cell.paragraphs[0]

@@ -56,7 +56,7 @@ def test_a_percent_line_spacing_is_written_in_the_unit_hancom_writes() -> None:
     # in HWPUNIT, saved by Hancom: it laid both out alike and wrote HWPUNIT in both, as for any percentage.
     before, after = (_hancom_saved_spacing(f"style_percent_line_spacing_unit_{unit}.hwpx")
                      for unit in ("percent", "hwpunit"))
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("줄간격 130%")
     document.styles.apply_paragraph_format(paragraph_index=len(document.paragraphs) - 1, line_spacing_percent=130)
     written = {(spacing.get("type"), spacing.get("unit"))
@@ -68,7 +68,7 @@ def test_a_percent_line_spacing_is_written_in_the_unit_hancom_writes() -> None:
 
 
 def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph_index = len(document.paragraphs)
     document.add_paragraph("줄간격 160% 확인")
 
@@ -125,7 +125,7 @@ def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> No
 
 
 def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
 
     page = document.set_page_setup(
@@ -163,7 +163,7 @@ def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) ->
 
 
 def test_set_list_format_applies_bullet_and_numbered_properties() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     bullet_index = len(document.paragraphs)
     document.add_paragraph("불릿 항목")
     number_index = len(document.paragraphs)

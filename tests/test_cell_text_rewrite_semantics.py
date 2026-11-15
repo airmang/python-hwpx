@@ -11,7 +11,7 @@ from hwpx.oxml.namespaces import HP
 
 
 def _cell_with_three_paragraphs_and_a_nested_table():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)
     cell.text = "첫째"
@@ -84,7 +84,7 @@ def test_split_paragraphs_rebuilds_one_paragraph_per_line() -> None:
 
 
 def test_split_paragraphs_puts_the_lines_before_a_table_holder_and_empties_its_text() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)
     cell.add_table(1, 1).cell(0, 0).text = "안쪽"
@@ -107,7 +107,7 @@ def test_split_paragraphs_puts_the_lines_before_a_table_holder_and_empties_its_t
 
 
 def test_paragraph_char_pr_id_ref_applies_to_every_run_of_that_paragraph() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("가")
     paragraph.add_run("나", char_pr_id_ref=3)
     paragraph.add_run("다", char_pr_id_ref=4)
@@ -120,7 +120,7 @@ def test_paragraph_char_pr_id_ref_applies_to_every_run_of_that_paragraph() -> No
 
 
 def test_paragraph_char_pr_id_ref_leaves_runs_of_a_nested_table_alone() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     cell = doc.add_table(1, 1).cell(0, 0)
     host = cell.paragraphs[0]
     inner = host.add_table(1, 1).cell(0, 0)
@@ -133,7 +133,7 @@ def test_paragraph_char_pr_id_ref_leaves_runs_of_a_nested_table_alone() -> None:
 
 
 def test_paragraph_char_pr_id_ref_makes_a_run_when_there_is_none_and_none_clears_it() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("")
     for run in paragraph.runs:
         paragraph.element.remove(run.element)
