@@ -4,7 +4,8 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, Union
+from zipfile import ZipFile
 
 from .text_extractor import TextExtractor
 
@@ -15,7 +16,7 @@ __all__ = [
 ]
 
 
-def extract_plain(hwpx_path: str, *, include_tables: bool = False) -> str:
+def extract_plain(hwpx_path: Union[str, ZipFile], *, include_tables: bool = False) -> str:
     with TextExtractor(hwpx_path) as extractor:
         return extractor.extract_text(
             include_nested=include_tables,
@@ -24,7 +25,7 @@ def extract_plain(hwpx_path: str, *, include_tables: bool = False) -> str:
         )
 
 
-def extract_markdown(hwpx_path: str) -> str:
+def extract_markdown(hwpx_path: Union[str, ZipFile]) -> str:
     lines: list[str] = []
     with TextExtractor(hwpx_path) as extractor:
         for section in extractor.iter_sections():
@@ -38,23 +39,57 @@ def extract_markdown(hwpx_path: str) -> str:
     return "\n".join(lines)
 
 
+def _hwpx_source(input_path: Path) -> "str | ZipFile":
+    """The path itself for an HWPX file; for an HWP 5.0 file, the HWPX it converts to."""
+
+    from ..opc.package import HwpxPackage
+
+    with input_path.open("rb") as stream:
+        is_hwp5 = stream.read(len(HwpxPackage.OLE2_MAGIC)) == HwpxPackage.OLE2_MAGIC
+    if not is_hwp5:
+        return str(input_path)
+    import io
+    import warnings
+
+    from ..document import HwpxDocument
+    from ..errors import Hwp5ConversionWarning
+
+    with warnings.catch_warnings():
+        # What the conversion left out is not the text; the text comes out either way.
+        warnings.simplefilter("ignore", Hwp5ConversionWarning)
+        document = HwpxDocument.open(input_path)
+    try:
+        data = document.to_bytes()
+    finally:
+        document.close()
+    return ZipFile(io.BytesIO(data))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Extract text from an HWPX document")
-    parser.add_argument("input", help="Path to the .hwpx file")
+    parser = argparse.ArgumentParser(description="Extract text from an HWPX (or HWP 5.0 .hwp) document")
+    parser.add_argument("input", help="Path to the .hwpx or .hwp file")
     parser.add_argument("--format", "-f", choices=["plain", "markdown"], default="plain")
     parser.add_argument("--include-tables", action="store_true", help="Include nested table text")
     parser.add_argument("--output", "-o", help="Write output to a file instead of stdout")
     args = parser.parse_args(argv)
 
+    from .archive_cli import _input_file_problem
+
     input_path = Path(args.input)
-    if not input_path.is_file():
-        print(f"Error: File not found: {args.input}", file=sys.stderr)
+    problem = _input_file_problem(input_path, tool="hwpx-text-extract", accepts_hwp=True)
+    if problem is not None:
+        print(f"Error: {problem}", file=sys.stderr)
         return 1
 
-    if args.format == "markdown":
-        result = extract_markdown(str(input_path))
-    else:
-        result = extract_plain(str(input_path), include_tables=args.include_tables)
+    try:
+        source = _hwpx_source(input_path)
+        if args.format == "markdown":
+            result = extract_markdown(source)
+        else:
+            result = extract_plain(source, include_tables=args.include_tables)
+    except Exception as exc:  # noqa: BLE001 - one line for the person at the terminal
+        print(f"Error: cannot read {args.input}: {exc}", file=sys.stderr)
+        return 1
 
     if args.output:
         Path(args.output).write_text(result, encoding="utf-8")
