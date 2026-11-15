@@ -102,6 +102,7 @@ except HwpxError as exc:
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
 | `field-checkbox-not-found` | 그 선택자로 체크박스를 찾지 못했다. |
+| `field-choice-unknown` | 직접 입력할 수 없는 콤보 상자에 그 항목이 없다(combo_box.items 로 항목을 본다). |
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-end-missing` | 누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다). |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
@@ -189,6 +190,7 @@ except HwpxError as exc:
 |---|---|
 | `note-anchor-detached` | 앵커를 걸 문단이 섹션에 속해 있지 않다. |
 | `note-argument-conflict` | 앵커 없는 메모에 앵커 전용 인자를 줬다. |
+| `note-match-not-found` | 메모를 걸 글(match)이 그 문단의 한 런 안에 없다. |
 | `note-memo-detached` | 메모가 섹션에 속해 있지 않다. |
 
 ### `open-*`
@@ -297,6 +299,14 @@ except HwpxError as exc:
 |---|---|
 | `recover-unsafe` | 로컬 헤더 항목이 있지만 안전하게 복구할 수 없다. |
 
+### `ref-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `ref-bookmark-name-empty` | 책갈피 이름이 비어 있다. |
+| `ref-link-end-missing` | 하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다. |
+| `ref-link-target-empty` | 하이퍼링크 대상이 비어 있다. |
+
 ### `save-*`
 
 | 코드 | 뜻 |
@@ -344,6 +354,7 @@ except HwpxError as exc:
 | `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
 | `shape-container-picture-image` | 그룹의 그림 부재(ContainerMember.picture)에 그림 이진 항목을 안 줬다. |
 | `shape-curve-too-few-points` | add_curve 에 앵커를 2개(닫으면 3개) 미만으로 줬다. |
+| `shape-description-value` | 개체 설명(hp:shapeComment)이 str 이 아니다. |
 | `shape-draw-text-vert-align` | 도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다. |
 | `shape-drop-cap-anchor-detached` | 만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기). |
 | `shape-drop-cap-character-empty` | 드롭캡으로 키울 문자가 비어 있다. |
@@ -356,6 +367,7 @@ except HwpxError as exc:
 | `shape-equation-script-latex` | 수식 스크립트에 LaTeX 명령(\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다). |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
+| `shape-group-member-unsupported` | 묶음(hp:container) 안의 개체는 혼자 지우거나 돌리거나 설명을 달 수 없다(묶음째 다룬다). |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
@@ -366,7 +378,10 @@ except HwpxError as exc:
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
+| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다). |
+| `shape-rotation-value` | 회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부). |
 | `shape-size-value` | 도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `shape-z-order-value` | 개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부). |
 
 ### `story-*`
 
@@ -458,10 +473,12 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `track-change-not-found` | 그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다). |
 | `track-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `track-match-empty` | 찾을 문자열이 비어 있다. |
 | `track-match-not-found` | 문단에서 찾을 문자열을 찾지 못했다. |
 | `track-paragraph-empty` | 지울 텍스트가 문단에 없다. |
+| `track-selector-conflict` | 수락·거절할 변경을 change 와 author 로 함께 골랐다(하나만 준다). |
 | `track-text-empty` | 변경추적 삽입 텍스트가 비어 있다. |
 
 ### `unknown-*`

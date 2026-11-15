@@ -128,21 +128,67 @@ class FormField:
 
     @property
     def name(self) -> str:
+        """The field's name, by which ``doc.fields.fill`` finds it. Assigning renames it."""
+
         return self._name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._refresh(name=value)
 
     @property
     def prompt(self) -> str:
-        """안내문 shown while the field is empty (absorbs the old ``instruction`` alias)."""
+        """안내문 shown while the field is empty (absorbs the old ``instruction`` alias).
+
+        Assigning it changes the 안내문; a field still showing its old one (nothing
+        entered yet) shows the new one."""
 
         return self._prompt
 
+    @prompt.setter
+    def prompt(self, value: str) -> None:
+        self._refresh(prompt=value)
+
     @property
     def memo(self) -> str:
+        """The field's memo (도움말, ``HelpState``). Assigning it changes the memo."""
+
         return self._memo
+
+    @memo.setter
+    def memo(self, value: str) -> None:
+        self._refresh(memo=value)
 
     @property
     def editable(self) -> bool:
+        """Whether the field may be filled in a form-protected document (양식 모드에서 편집 가능)."""
+
         return self._editable
+
+    @editable.setter
+    def editable(self, value: bool) -> None:
+        self._refresh(editable=bool(value))
+
+    def _refresh(self, **changes: Any) -> None:
+        from .._document.fields import update_form_field
+
+        fresh = update_form_field(self._doc, self._element, **changes)
+        for slot in self.__slots__:
+            if slot not in ("_doc", "_element"):
+                setattr(self, slot, getattr(fresh, slot))
+
+    def remove(self, *, keep_text: bool = True) -> None:
+        """Remove the field (누름틀 지우기).
+
+        Its begin and end controls go. With ``keep_text`` (the default) what the
+        field holds stays as plain text; with ``keep_text=False`` it goes too. A
+        field running over paragraphs loses those paragraphs with its content.
+        The paragraphs are laid out again.
+        """
+
+        from .._document.fields import remove_form_field
+
+        remove_form_field(self._doc, self._element, keep_text=keep_text)
 
     @property
     def value(self) -> str:
@@ -334,6 +380,7 @@ class Bookmark:
     text: str
     location: FieldLocation
     element: Any = field(repr=False, compare=False)
+    _section: Any = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -343,6 +390,273 @@ class Bookmark:
             "location": self.location.to_dict(),
         }
 
+    def rename(self, name: str) -> "Bookmark":
+        """Give the bookmark the name *name* and return it so named.
+
+        The document's hyperlinks to the bookmark (``#old``) are pointed at the new
+        name, so they keep reaching it.
+        """
+
+        from ..errors import HwpxValueError
+        from ..oxml.hyperlink_form import hyperlink_target, set_hyperlink_target
+
+        new_name = str(name).strip()
+        if not new_name:
+            raise HwpxValueError(
+                "a bookmark name must not be empty",
+                code="ref-bookmark-name-empty",
+                suggestion="Pass the new name.",
+            )
+        self.element.set("name", new_name)
+        for section in _document_sections(self._section):
+            changed = False
+            for begin in section.element.iter(self.element.tag.rsplit("}", 1)[0] + "}fieldBegin"):
+                if begin.get("type") == "HYPERLINK" and hyperlink_target(begin) == f"#{self.name}":
+                    set_hyperlink_target(begin, f"#{new_name}")
+                    changed = True
+            if changed or section is self._section:
+                section.mark_dirty()
+        return Bookmark(new_name, self.kind, self.text, self.location, self.element, self._section)
+
+    def remove(self) -> None:
+        """Remove the bookmark. A bookmark spanning text (``kind="field"``) loses its two
+        marks and its text stays. The paragraph is laid out again."""
+
+        from ..oxml._document_primitives import _clear_paragraph_layout_cache
+        from ..oxml.hyperlink_form import field_end_in_paragraph, remove_mark
+
+        paragraphs = []
+        if self.kind == "field":
+            host = _host_paragraph(self.element)
+            end = field_end_in_paragraph(host, self.element) if host is not None else None
+            if end is None:
+                end = _end_elsewhere(self._section, self.element)
+            if end is not None:
+                paragraphs.append(remove_mark(end))
+        paragraphs.append(remove_mark(self.element))
+        for paragraph in paragraphs:
+            if paragraph is not None:
+                _clear_paragraph_layout_cache(paragraph)
+        if self._section is not None:
+            self._section.mark_dirty()
 
 
-__all__ = ["Bookmark", "CellField", "FieldLocation", "FieldParameter", "FormField", "FormulaField", "TextBoxField"]
+def _host_paragraph(element: Any) -> Any:
+    node = element.getparent()
+    while node is not None and node.tag.rsplit("}", 1)[-1] != "p":
+        node = node.getparent()
+    return node
+
+
+def _end_elsewhere(section: Any, begin: Any) -> Any:
+    """The ``fieldEnd`` naming *begin* anywhere in its section (an end in a later paragraph)."""
+
+    if section is None or not begin.get("id"):
+        return None
+    namespace = begin.tag.rsplit("}", 1)[0] + "}"
+    for end in section.element.iter(f"{namespace}fieldEnd"):
+        if end.get("beginIDRef") == begin.get("id"):
+            return end
+    return None
+
+
+def _document_sections(section: Any) -> list[Any]:
+    if section is None:
+        return []
+    document = getattr(section, "document", None)
+    return list(document.sections) if document is not None else [section]
+
+
+class Hyperlink:
+    """A live view over one hyperlink (``<hp:fieldBegin type="HYPERLINK">``) and its text.
+
+    ``url`` is where it points, read as :meth:`hwpx.model.Paragraph.add_hyperlink`
+    takes it (a web address, a ``mailto:`` address, or ``#name`` for the bookmark
+    ``name``); ``text`` is the text the link spans. Both are settable: the target
+    is written in Hancom's form, the text in the link's own character shape.
+    ``remove()`` takes the link out and leaves its text. ``paragraph`` is the
+    paragraph holding the link's start (a table cell's, a text box's or a note's
+    own paragraph when it sits there).
+
+    ``link["url"]`` / ``["id"]`` / ``["type"]`` still read as the dict
+    ``paragraph.hyperlinks`` gave before 7.0, with a ``DeprecationWarning``.
+    """
+
+    __slots__ = ("_element", "_paragraph")
+
+    def __init__(self, element: Any, paragraph: Any) -> None:
+        self._element = element
+        self._paragraph = paragraph
+
+    @property
+    def element(self) -> Any:
+        """The ``<hp:fieldBegin>`` — the escape hatch."""
+
+        return self._element
+
+    @property
+    def paragraph(self) -> Any:
+        return self._paragraph
+
+    @property
+    def field_id(self) -> str:
+        return self._element.get("id", "")
+
+    @property
+    def url(self) -> str:
+        from ..oxml.hyperlink_form import hyperlink_target
+
+        return hyperlink_target(self._element)
+
+    @url.setter
+    def url(self, value: str) -> None:
+        from ..errors import HwpxValueError
+        from ..oxml.hyperlink_form import set_hyperlink_target
+
+        target = str(value).strip()
+        if not target:
+            raise HwpxValueError(
+                "a hyperlink target must not be empty",
+                code="ref-link-target-empty",
+                suggestion="Pass a web address, a mailto: address or #bookmark.",
+            )
+        set_hyperlink_target(self._element, target)
+        self._paragraph.section.mark_dirty()
+
+    def _end(self) -> Any:
+        from ..errors import HwpxValueError
+        from ..oxml.hyperlink_form import field_end_in_paragraph
+
+        end = field_end_in_paragraph(self._paragraph.element, self._element)
+        if end is None:
+            raise HwpxValueError(
+                "the hyperlink does not end in its paragraph",
+                code="ref-link-end-missing",
+                suggestion="Edit a link that runs over paragraphs in the XML (link.element).",
+            )
+        return end
+
+    def _text_nodes(self) -> list[Any]:
+        from ..oxml.hyperlink_form import between_marks
+
+        return [child for _run, child in between_marks(self._paragraph.element, self._element, self._end())
+                if child.tag.rsplit("}", 1)[-1] == "t"]
+
+    @property
+    def text(self) -> str:
+        from ..oxml._document_primitives import _text_element_content
+        from ..oxml.hyperlink_form import field_end_in_paragraph
+
+        if field_end_in_paragraph(self._paragraph.element, self._element) is None:
+            return ""
+        return "".join(_text_element_content(node) for node in self._text_nodes())
+
+    @text.setter
+    def text(self, value: str) -> None:
+        from ..oxml._document_primitives import _clear_paragraph_layout_cache, _sanitize_text
+        from ..oxml._paragraph_text_edit import set_text_with_tabs
+
+        nodes = self._text_nodes()
+        if not nodes:
+            end_ctrl = self._end().getparent()
+            run = end_ctrl.getparent()
+            node = run.makeelement(end_ctrl.tag.rsplit("}", 1)[0] + "}t", {})
+            run.insert(list(run).index(end_ctrl), node)
+            nodes = [node]
+        for node in nodes:
+            for child in list(node):
+                node.remove(child)
+            node.text = ""
+        set_text_with_tabs(nodes[0], _sanitize_text(str(value)))
+        _clear_paragraph_layout_cache(self._paragraph.element)
+        self._paragraph.section.mark_dirty()
+
+    def remove(self, *, keep_text: bool = True) -> None:
+        """Take the link out: its two controls go and its text stays as plain text in the
+        link's character shape (``keep_text=False`` removes the text too). The paragraph
+        is laid out again."""
+
+        from ..oxml._document_primitives import _clear_paragraph_layout_cache
+        from ..oxml.hyperlink_form import between_marks, field_end_in_paragraph, remove_mark
+
+        end = field_end_in_paragraph(self._paragraph.element, self._element)
+        if end is not None and not keep_text:
+            for run, child in between_marks(self._paragraph.element, self._element, end):
+                run.remove(child)
+        if end is not None:
+            remove_mark(end)
+        remove_mark(self._element)
+        _clear_paragraph_layout_cache(self._paragraph.element)
+        self._paragraph.section.mark_dirty()
+
+    def to_dict(self) -> dict[str, Any]:
+        """``id``, ``url`` and ``type``, the dict ``paragraph.hyperlinks`` gave before 7.0, and ``text``."""
+
+        return {"id": self.field_id, "url": self.url, "type": self._element.get("type", ""), "text": self.text}
+
+    def __getitem__(self, key: str) -> str:
+        import warnings
+
+        warnings.warn(
+            "paragraph.hyperlinks returns Hyperlink objects since 7.0: read link.url / link.field_id "
+            "instead of link['url'] / link['id'].",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return {"id": self.field_id, "url": self.url, "type": self._element.get("type", "")}[key]
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Hyperlink) and other._element is self._element
+
+    def __hash__(self) -> int:
+        return id(self._element)
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"Hyperlink(url={self.url!r}, text={self.text!r})"
+
+
+@dataclass(frozen=True)
+class CrossReference:
+    """One cross reference Hancom saved (``<hp:fieldBegin type="CROSSREF">``, 상호 참조), read as written.
+
+    ``ref_type`` says what kind of thing it points at (``RefType``: ``TARGET_OUTLINE``,
+    ``TARGET_BOOKMARK``, ``TARGET_TABLE`` ...) and ``content_type`` what it shows of
+    it (``RefContentType``: ``OBJECT_TYPE_PAGE`` for the page number ...).
+    ``target`` is the target from ``RefPath`` without its ``?`` and ``;``: a
+    paragraph is ``#<paragraph id>``. ``text`` is what the document shows now
+    (Hancom computes it again when it lays the page out), ``hyperlink`` whether
+    clicking jumps to the target. ``element`` is the ``<hp:fieldBegin>``.
+    """
+
+    ref_type: str
+    content_type: str
+    target: str
+    text: str
+    hyperlink: bool
+    location: FieldLocation
+    parameters: tuple[FieldParameter, ...]
+    element: Any = field(repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "refType": self.ref_type,
+            "contentType": self.content_type,
+            "target": self.target,
+            "text": self.text,
+            "hyperlink": self.hyperlink,
+            "location": self.location.to_dict(),
+        }
+
+
+
+__all__ = [
+    "Bookmark",
+    "CellField",
+    "CrossReference",
+    "FieldLocation",
+    "FieldParameter",
+    "FormField",
+    "FormulaField",
+    "Hyperlink",
+    "TextBoxField",
+]

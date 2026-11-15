@@ -29,6 +29,19 @@ if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
 
 
+def text_element_content(element: ET.Element, *, tab_token: str = "\t") -> str:
+    """The text of an ``hp:t`` element as Hancom shows it.
+
+    Hancom writes tabs, line breaks and special spaces *inside* ``hp:t``
+    (``<hp:t>성<hp:fwSpace/>명<hp:tab/>홍길동</hp:t>``): a tab is *tab_token*, a line
+    break ``"\\n"``, a special space its character. Other element children keep their
+    own text; empty marks (highlight, tracked change) add nothing. ``Run.text`` is the
+    run's ``hp:t`` elements read so. Works on lxml and ElementTree elements.
+    """
+
+    return _text_element_content(element, tab=tab_token)
+
+
 #: The closed vocabulary :meth:`HwpxOxmlRun.content_kinds` answers in.
 #: ``"other"`` stands for any element child outside the rest, so a caller that
 #: only knows these names still sees that the run holds something.
@@ -857,4 +870,4 @@ class HwpxOxmlRun:
         self.set_format(ratio=value)
 
 
-__all__ = ["RUN_CONTENT_KINDS", "HwpxOxmlRun", "RunStyle", "replace_across_runs"]
+__all__ = ["RUN_CONTENT_KINDS", "HwpxOxmlRun", "RunStyle", "replace_across_runs", "text_element_content"]

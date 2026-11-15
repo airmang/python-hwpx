@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from ._base import _Namespace
 
 if TYPE_CHECKING:
+    from ...model import Picture
     from ...objects import BinaryItem, PictureRef, PictureReplacement
 
 __all__ = ["MediaNamespace"]
@@ -98,6 +99,20 @@ class MediaNamespace(_Namespace):
         from .. import media as _media
 
         return _media.remove_unused_images(self._doc)
+
+    @property
+    def pictures(self) -> "tuple[Picture, ...]":
+        """문서 본문의 그림 개체 전부를 문서 순서로 돌려준다.
+
+        표 칸·글상자·각주·묶음 안의 그림도 든다. 순서는 :meth:`picture_references`와
+        같아서 ``doc.media.pictures[ref.picture_index]``가 그 참조의 그림이다. 하나하나가
+        ``model.Picture``라 크기(``resize``)·자르기(``set_crop``)·설명·위치를 읽고 고치고
+        ``remove()``로 지운다. 지운 그림의 이진 항목은 :meth:`remove_unused_images`가 지운다.
+        """
+
+        from .. import media as _media
+
+        return _media.pictures(self._doc)
 
     def picture_references(self) -> "tuple[PictureRef, ...]":
         """본문의 그림 개체가 어떤 이진 항목을 가리키는지의 역참조 표."""

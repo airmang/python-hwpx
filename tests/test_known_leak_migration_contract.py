@@ -61,7 +61,7 @@ def test_format_vocabulary_is_not_scheduled_to_move() -> None:
     }
     assert vocabulary == {
         ("tools/mail_merge.py", "_SAFE_FILENAME_RE"),
-        ("tools/toc_author.py", "_OUTLINE_NAME_RE"),
+        ("oxml/paragraph_heading.py", "_OUTLINE_STYLE_NAME"),
         ("tools/markdown_import.py", "_OWN_NUMBER"),
     }
     assert not vocabulary & set(_names(CONTRACT["groups"], "allowlist"))

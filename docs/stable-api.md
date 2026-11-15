@@ -48,11 +48,11 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **19개 클래스 / 226개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **21개 클래스 / 311개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
-- 목록 **밖**의 멤버(163개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
+- 목록 **밖**의 멤버(164개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
   등) → 구현 세부. minor 에서 바뀔 수 있다.
 
 `hwpx.oxml.*` import 경로는 그대로 살아 있다. 옮기지도, deprecate 하지도 않는다.
@@ -76,7 +76,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 226 | `tests/data/model_surface.json` |
+| 반환 객체 계약 | 311 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -141,6 +141,54 @@ major 경계에서만 깨지는 이름들입니다.
 
 > `HwpxMarkdownConverter`(HWPX → Markdown 읽기)는 성숙한 경로라 **stable**입니다.
 > 위 ingestion 프레임워크(임의 포맷 → HWPX)만 experimental입니다.
+
+## 7.0: 엔진의 공개 읽기 (모듈 경로로 import)
+
+7.0은 변환·짐작 기능(Markdown·HTML 내보내기, ingest, 메일머지, 미리보기 …)을
+`python-hwpx-automation`으로 옮긴다. 옮겨 간 코드는 이 문서의 계약만 쓴다. 그 코드가
+쓰던 엔진 기능 가운데 엔진으로서 뜻이 있는 것을 아래 이름으로 계약에 올렸다. 최상위
+`from hwpx import ...`에는 넣지 않고, 적힌 모듈 경로에서 가져온다. `hwpx.oxml.*`의 다른
+이름은 이 목록에 없으면 계약이 아니다(경로는 열려 있다).
+`scripts/check_moved_private_names.py`가 옮겨 갈 코드에서 계약 밖의 이름을 찾는다.
+
+**stable** — major 경계에서만 바뀐다.
+
+| 이름 | 모듈 | 하는 일 |
+|---|---|---|
+| `Paragraph.clear_layout_cache() -> int` | `hwpx.model` | 문단(과 그 문단을 담은 문단)의 줄 배치 캐시를 지운다. XML을 직접 고친 뒤 부른다 |
+| `Paragraph.available_width -> int \| None` | `hwpx.model` | 문단이 쓸 수 있는 폭(HWPUNIT): 칸이면 칸 너비 − 안 여백, 본문이면 본문 폭(다단이면 단 폭) |
+| `doc.styles.outline_style(level) -> Style \| None` | 문서 | 개요 N 수준의 스타일(`add_heading`이 고르는 것) |
+| `doc.styles.outline_level(style) -> int \| None` | 문서 | 스타일이 개요 스타일이면 그 수준 |
+| `ListLabels(doc)` · `.label(paragraph) -> str` · `.kind(paragraph)` | `hwpx.tools.exporter` | 한/글이 문단 앞에 그리는 번호·글머리(`"1."`, `"가."`, `"●"`) |
+| `NoteLabels(doc)` · `.label(note) -> str` | `hwpx.tools.exporter` | 각주·미주 번호(`"1)"`) |
+| `number_text(value, number_format) -> str \| None`, `NUMBER_TEXT_FORMATS` | `hwpx.tools.exporter` | 수를 한/글 번호 형식으로(`3, "HANGUL_SYLLABLE"` → `"다"`) |
+| `table_grid_text(table, *, tab_token) -> tuple[tuple[str, ...], ...]` | `hwpx.tools.exporter` | 표의 칸 글을 열 격자에(한/글 텍스트 저장과 같은 칸 글) |
+| `text_element_content(element, *, tab_token) -> str` | `hwpx.oxml.run` | `hp:t` 요소의 글(안의 탭·줄바꿈·특수 공백 포함) |
+| `heading_outline_level(para_pr)`, `outline_style_level(name)`, `paragraph_heading(para_pr)` | `hwpx.oxml.paragraph_heading` | 문단 모양의 개요 수준, 개요 스타일 이름(`개요 N`/`Outline N`)의 수준 |
+| `hyperlink_target(field_begin) -> str` | `hwpx.oxml.hyperlink_form` | 하이퍼링크 필드가 가리키는 곳(`Paragraph.hyperlinks`의 `url`과 같다) |
+| `cell_margins_of(cell_element, table_element)` | `hwpx.oxml.table_sizes` | `hp:tc` 요소의 실제 안 여백(`TableCell.margins`와 같다) |
+| `PAGE_PORTRAIT`, `PAGE_LANDSCAPE` | `hwpx.oxml.section_format` | `hp:pagePr@landscape`의 세로(`WIDELY`)·가로(`NARROWLY`) 값 |
+| `HP`·`HH`·`HC`·`HS`·`qn`·`tag_local_name` 등 | `hwpx.oxml.namespaces` | OWPML 이름공간과 태그 도우미 |
+| `__all__`의 이름(`guard_zip_file`, `read_member`, `read_zip_members`, `parse_xml_stdlib`, `guard_xml_bytes`, `guard_xml_depth`, `ZipGuardLimits`, `HwpxSecurityError`, `MAX_*`) | `hwpx.opc.security` | HWPX 바이트를 엔진과 같은 상한으로 여는 입력 방어. 상한 값(`MAX_*`)은 보안을 위해 minor에서 좁아질 수 있다 |
+
+XML 요소를 받는 함수(`text_element_content`, `paragraph_heading`, `hyperlink_target`,
+`cell_margins_of` …)는 lxml과 표준 `ElementTree` 요소를 모두 받는다. `ListLabels`·
+`NoteLabels`·`table_grid_text`는 모델 객체(문단·각주·표)와 그 XML 요소를 모두 받고, 문단은
+`doc.paragraphs`의 번호로도 받는다.
+
+**stable 서명, 값은 실측에 따라** — 이름·인자·반환 형식은 major에서만 바뀐다. 돌려주는
+수치는 한/글 실측에 맞춰 minor에서 달라질 수 있다(측정이 더 맞아지는 것은 고침이다).
+
+| 이름 | 모듈 |
+|---|---|
+| `char_advance`, `estimate_text_width`, `indented_widths`, `text_style_from_refs`, `TextStyle` | `hwpx.form_fit` (`hwpx.form_fit.measure`) |
+| `resolve_slot_metrics`, `SlotMetrics`, `FitEngine`, `FitPolicy`, `FitResult` | `hwpx.form_fit` |
+
+**experimental** — minor에서 바뀔 수 있다.
+
+| 이름 | 모듈 | 하는 일 |
+|---|---|---|
+| `input_file_problem(path, *, tool, accepts_hwp=False) -> str \| None` | `hwpx.tools.archive_cli` | 명령줄 도구가 그 경로를 읽을 수 없는 까닭 한 줄(없는 파일, 폴더, HWP 3, HWP 5를 HWPX만 읽는 도구에) |
 
 ## 5.0에서 제거된 deprecated 표면 (4)
 
@@ -241,7 +289,37 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 보존합니다. 모든 인자는 변경 전에 검사합니다 — 글자처럼 배치된 개체, 위치 요소가
 없는 개체는 `shape-position-unsupported`, 잘못된 오프셋은 `shape-position-value`,
 스키마 밖의 프레임·정렬 값은 `shape-position-frame`으로 거부합니다. 이동 후 실제
-배치는 한컴으로 확인해야 합니다.
+배치는 한컴으로 확인해야 합니다. 7.0부터 `Shape.set_position`은 `InlineObject.set_position`과
+같은 호출입니다 — `treat_as_char=`(글자처럼↔떠 있음)와 `text_wrap=`도 받고, 오프셋은 생략할 수
+있으며, 문단의 줄 배치 캐시를 지웁니다. 글자처럼 놓인 채 오프셋을 주면 여전히
+`shape-position-unsupported`입니다.
+
+### 개체의 생명주기·배치·수식 (7.0)
+
+`model.InlineObject`(그림·수식·차트·OLE)와 `model.Shape`(선·사각형·타원·호·다각형·곡선·
+연결선·글상자·묶음)는 같은 배치 어휘를 갖습니다 — 읽기 `position`(`hwpx.objects.ObjectPosition`:
+`set_position`이 받는 이름 그대로), `z_order`/`set_z_order`, `rotation`/`set_rotation`,
+`description`/`set_description`(`hp:shapeComment`, 대체 글), `caption`, 그리고 `remove()`.
+`remove()`는 `table.remove()`와 같은 규칙입니다 — 문단은 남고(다른 것이 없으면 빈 줄),
+빈 run은 빠지며, 문단과 그 문단을 품은 문단의 줄 배치 캐시를 지웁니다. 붙어 있던 연결선은
+끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 그림의 이진 항목은 패키지에 남으니
+`doc.media.remove_unused_images()`로 정리합니다. 묶음 안의 개체는 혼자 지우거나 돌리거나
+설명을 달 수 없습니다(`shape-group-member-unsupported`). `set_rotation`은 한/글 저장본이 보여 주는
+관계(상자 `hp:sz`는 돈 개체를 감싸는 상자, 개체는 그 가운데로 옮겨 자기 가운데를 축으로 돈다)를
+그대로 쓰며, 그 관계가 확인되지 않은 경우 — 늘이거나 줄인 개체(`hc:scaMatrix`가 항등이 아님,
+`resize`한 그림 포함), 뒤집은 개체, 묶음, 글자가 든 도형(한/글은 글을 돈 도형이 아니라 감싸는
+상자에 가로로 놓아 글이 도형 밖으로 나온다) — 는 `shape-rotation-unsupported`로 거부합니다. 각도 0으로
+되돌리는 것은 언제나 됩니다.
+
+`InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
+가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
+`item_id`, `original_size`(`hp:imgDim`), `crop`/`set_crop((left, top, right, bottom))`와
+`add_picture`가 쓰는 값의 읽기(`brightness`·`contrast`·`effect`·`alpha`·`line_color`·`line_width`·
+`shadow`·`glow`)를 더합니다. `Shape`에는 `line_width`·`fill_color` 읽기가 더해졌습니다.
+`model.Equation`(`add_equation`·`paragraph.equations`·`doc.shapes.equations`)은 `script`, `font`,
+`base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
+`Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
+`Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
 
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
 `model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는
