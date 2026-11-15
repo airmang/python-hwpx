@@ -101,7 +101,13 @@
   "MasterPage": {
    "implementation": "hwpx.oxml.simple_parts.HwpxOxmlMasterPage",
    "internalCount": 9,
-   "stable": []
+   "stable": [
+    "add_paragraph",
+    "id",
+    "page_type",
+    "paragraphs",
+    "text"
+   ]
   },
   "Memo": {
    "implementation": "hwpx.oxml.memo.HwpxOxmlMemo",
