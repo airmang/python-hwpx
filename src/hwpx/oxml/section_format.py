@@ -1559,6 +1559,16 @@ class HwpxOxmlSectionProperties:
     def get_footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
         return self._get_story("footer", page_type)
 
+    def header(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
+        """The header drawn on *page_type* pages (``BOTH``, ``EVEN``, ``ODD``, ...), or ``None``."""
+
+        return self._get_story("header", page_type)
+
+    def footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
+        """The footer drawn on *page_type* pages (``BOTH``, ``EVEN``, ``ODD``, ...), or ``None``."""
+
+        return self._get_story("footer", page_type)
+
     def _get_story(self, kind: str, page_type: str) -> Optional[HwpxOxmlSectionHeaderFooter]:
         from ..errors import HwpxValueError
 

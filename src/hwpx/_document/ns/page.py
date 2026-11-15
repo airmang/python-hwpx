@@ -440,6 +440,40 @@ class PageNamespace(_Namespace):
             page_type=page_type,
         ))
 
+    def headers(
+        self, *, section: "int | HwpxOxmlSection | None" = None
+    ) -> "tuple[HwpxOxmlSectionHeaderFooter, ...]":
+        """구역의 머리말을 모두(쪽 종류마다 하나: ``BOTH``·``ODD``·``EVEN``) 모델 객체로.
+
+        한/글이 저장한 문서의 머리말도, python-hwpx 가 쓴 머리말도 하나씩 나온다. 각 객체의
+        ``page_type`` 이 쪽 종류, ``paragraphs`` 가 그 안의 문단이다. 문단을 고치거나
+        ``add_paragraph(text)`` 로 더한 뒤 저장하면 한/글이 읽는 쪽에 반영된다. 첫 쪽에서만
+        감추는 것은 쪽 종류가 아니라 ``visibility().hide_first_header`` 다.
+        """
+
+        return tuple(self._section(section, None, "headers").properties.headers)
+
+    def footers(
+        self, *, section: "int | HwpxOxmlSection | None" = None
+    ) -> "tuple[HwpxOxmlSectionHeaderFooter, ...]":
+        """구역의 꼬리말을 모두 모델 객체로(:meth:`headers` 와 같다)."""
+
+        return tuple(self._section(section, None, "footers").properties.footers)
+
+    def header(
+        self, *, page_type: str = "BOTH", section: "int | HwpxOxmlSection | None" = None
+    ) -> "HwpxOxmlSectionHeaderFooter | None":
+        """*page_type* 쪽의 머리말, 없으면 None. ``set_header(page_type=...)`` 의 읽기 짝."""
+
+        return self._section(section, None, "header").properties.header(page_type)
+
+    def footer(
+        self, *, page_type: str = "BOTH", section: "int | HwpxOxmlSection | None" = None
+    ) -> "HwpxOxmlSectionHeaderFooter | None":
+        """*page_type* 쪽의 꼬리말, 없으면 None. ``set_footer(page_type=...)`` 의 읽기 짝."""
+
+        return self._section(section, None, "footer").properties.footer(page_type)
+
     def set_page_number(
         self,
         *,

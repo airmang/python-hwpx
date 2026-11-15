@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 248 | 11 |
+| 개수 | 249 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -375,6 +375,7 @@ except HwpxError as exc:
 |---|---|
 | `story-ambiguous` | 그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다. |
 | `story-linkage` | 기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다. |
+| `story-paragraph-not-here` | 머리말·꼬리말 메서드에 그 머리말·꼬리말에 없는 문단을 줬다. |
 
 ### `style-*`
 
