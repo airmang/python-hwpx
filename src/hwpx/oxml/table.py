@@ -645,6 +645,9 @@ class HwpxOxmlTable(TableStructureEdits):
         position = self.element.find(f"{_HP}pos")
         return position is not None and position.get("treatAsChar", "1") == "1"
 
+    out_margins = property(_table_sizes.table_out_margins)
+    set_out_margins = _table_sizes.set_table_out_margins
+
     def set_treat_as_char(self, value: bool) -> None:
         """Choose inline layout or flowing table layout across pages."""
         position = self.element.find(f"{_HP}pos")

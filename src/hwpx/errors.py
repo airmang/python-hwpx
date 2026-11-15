@@ -274,6 +274,7 @@ ERROR_CODES: dict[str, str] = {
     # -- 표 셀 -----------------------------------------------------------
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
+    "table-margin-value": "표 바깥 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "table-not-found": "표 인덱스가 범위를 벗어났다(doc.tables[i]).",
     "table-cell-not-found": "칸 좌표가 표 밖이거나 병합에 덮여 가리킬 칸이 없다.",
     "table-merge-range-invalid": "병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다.",

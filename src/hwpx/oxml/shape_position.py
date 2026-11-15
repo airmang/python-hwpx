@@ -245,6 +245,87 @@ def _shape_set_position(
     self.paragraph.section.mark_dirty()
 
 
+#: ``textWrap`` of an object (``AbstractShapeObjectType``): how the body text goes around it.
+TEXT_WRAPS = ("SQUARE", "TIGHT", "THROUGH", "TOP_AND_BOTTOM", "BEHIND_TEXT", "IN_FRONT_OF_TEXT")
+
+
+def _object_set_position(
+    self: Any,
+    *,
+    treat_as_char: bool | None = None,
+    text_wrap: str | None = None,
+    horizontal_offset: int | None = None,
+    vertical_offset: int | None = None,
+    horz_rel_to: str | None = None,
+    vert_rel_to: str | None = None,
+    horz_align: str | None = None,
+    vert_align: str | None = None,
+) -> None:
+    """Place an object (equation, picture, OLE, text art...): as a character in the line or
+    floating, how the text goes around it, and where it floats.
+
+    *treat_as_char* writes ``hp:pos/@treatAsChar`` (``True``: one character in the line;
+    ``False``: floating). *text_wrap* writes the object's ``textWrap``, one of
+    :data:`TEXT_WRAPS` (``TOP_AND_BOTTOM``: text above and below only; ``SQUARE``: around its
+    box; ``BEHIND_TEXT``/``IN_FRONT_OF_TEXT``: under or over the text). The offsets (HWP units,
+    signed 32-bit) and the reference frames and alignment take the values
+    :meth:`HwpxOxmlShape.set_position` takes. ``None`` leaves a setting as it is. Offsets are
+    only for a floating object: given while it stays a character they are refused
+    (``shape-position-unsupported``). Everything is checked before anything changes; the
+    paragraph loses its line layout cache.
+    """
+
+    position = self.element.find(f"{_HP}pos")
+    if position is None:
+        raise HwpxValueError(
+            "the object has no hp:pos to place it by",
+            code="shape-position-unsupported",
+            suggestion="Only objects that carry hp:pos (equations, pictures, shapes, OLE) can be placed.",
+        )
+    for value in (horizontal_offset, vertical_offset):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)
+                                  or not -(2**31) <= value < 2**31):
+            raise HwpxValueError(
+                "object offsets must be signed 32-bit integer HWP units",
+                code="shape-position-value",
+                suggestion="Pass integer offsets in HWP units (1 mm = 283.465).",
+            )
+    floating = position.get("treatAsChar") in {"0", "false", "False"} if treat_as_char is None else not treat_as_char
+    if not floating and (horizontal_offset is not None or vertical_offset is not None):
+        raise HwpxValueError(
+            "an object set as a character has no offsets",
+            code="shape-position-unsupported",
+            suggestion="Pass treat_as_char=False to float it, then its offsets apply.",
+        )
+    attributes: dict[str, str] = {}
+    if text_wrap is not None:
+        attributes["textWrap"] = _require_member(text_wrap, TEXT_WRAPS, argument="text_wrap",
+                                                 code="shape-position-frame")
+    frames: dict[str, str] = {}
+    for argument, attribute, requested, allowed in (
+        ("vert_rel_to", "vertRelTo", vert_rel_to, POS_VERT_REL_TO),
+        ("horz_rel_to", "horzRelTo", horz_rel_to, POS_HORZ_REL_TO),
+        ("vert_align", "vertAlign", vert_align, POS_VERT_ALIGN),
+        ("horz_align", "horzAlign", horz_align, POS_HORZ_ALIGN),
+    ):
+        if requested is not None:
+            frames[attribute] = _require_member(requested, allowed, argument=argument, code="shape-position-frame")
+    if treat_as_char is not None:
+        frames["treatAsChar"] = "1" if treat_as_char else "0"
+    for name, offset in (("horzOffset", horizontal_offset), ("vertOffset", vertical_offset)):
+        if offset is not None:
+            frames[name] = str(offset & 0xFFFFFFFF)  # a negative one in its unsigned 32-bit form, as Hancom writes it
+    for name, value in attributes.items():
+        self.element.set(name, value)
+    for name, value in frames.items():
+        position.set(name, value)
+    if attributes or frames:
+        from ._document_primitives import _clear_paragraph_layout_cache
+
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
+
+
 def _matrix_number(value: float) -> str:
     """A matrix entry as Hancom prints it: six decimals, no trailing zeros."""
 
