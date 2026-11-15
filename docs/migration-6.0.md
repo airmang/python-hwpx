@@ -6,7 +6,9 @@
 ## 6.0 에서 지금 당장 깨지는 것
 
 **경로 이동은 아무것도 깨뜨리지 않는다.** 5.x 이름은 전부 그대로 답하고,
-호출하면 행선지를 담은 `DeprecationWarning` 이 난다. 7.0 에서 제거된다.
+호출하면 행선지를 담은 `DeprecationWarning` 이 난다. 6.x 동안은 7.0 에서
+제거한다고 알렸지만, 7.0 이 바꾸는 동작이 많아 한 major 미뤄 **8.0 에서 제거된다**
+([7.0 이주 가이드](migration-7.0.md)).
 
 깨지는 것은 **반환 타입**뿐이다. `add_*` 가 dict·str·int·tuple 대신 도메인
 객체를 돌려준다.
@@ -39,6 +41,9 @@ document.page.set_header(text="머리말", section=0)   # 인덱스도 객체도
 잘못된 값은 전부 typed error 다 — 범위 밖은 `section-not-found`, 타입 오류는
 `section-invalid-type`, `section_index` 와 동시 지정은 `section-argument-conflict`.
 
+옛 별칭 `section_index=` 는 6.x 동안 경고 없이 동작했다. 7.0 부터
+`DeprecationWarning` 을 내고 8.0 에서 사라진다. `section=` 으로 바꾸면 된다.
+
 **② 스타일을 이름으로 지정하고, 오타를 호출 시점에 잡는다.**
 
 ```python
@@ -47,7 +52,9 @@ document.add_paragraph("본문", style="개요1")
 # HwpxLookupError(code="style-not-found"), context["closest"] == ["개요 1", "개요 10"]
 ```
 
-`style_id_ref=` 는 6.x 동안 계속 동작하며 `DeprecationWarning` 을 낸다.
+숫자 id 를 받는 `style_id_ref=` 는 계속 동작한다. 이 문서는 전에 "6.x 동안
+`DeprecationWarning` 을 낸다"고 적었지만 6.x 와 7.0 은 경고를 내지 않는다. 경고를
+먼저 낸 다음 major 에서야 없앤다.
 
 **③ `add_heading` 이 생겼다.** 개요 스타일과 개요 수준을 **함께** 붙인다 —
 5.x 는 둘이 분리돼 "번호는 붙는데 스타일은 바탕글"인 문단이 나왔다.
@@ -72,8 +79,8 @@ python -W error::DeprecationWarning -m pytest
 
 ## 전수 대응표 (79)
 
-`doc` 는 `HwpxDocument` 인스턴스다. 왼쪽은 6.x 동안 계속 동작하되 경고를 내고,
-7.0 에서 사라진다.
+`doc` 는 `HwpxDocument` 인스턴스다. 왼쪽은 6.x·7.x 동안 계속 동작하되 경고를 내고,
+8.0 에서 사라진다.
 
 ### `doc.styles` — 서식 정의 (16)
 

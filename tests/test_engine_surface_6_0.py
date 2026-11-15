@@ -104,7 +104,7 @@ def test_legacy_shim_lock_is_complete_and_actionable() -> None:
 
 
 def test_legacy_shims_are_a_shrinking_ratchet() -> None:
-    """shim 수는 늘 수 없다. 7.0에서 0이 된다.
+    """shim 수는 늘 수 없다. 8.0에서 0이 된다.
 
     이 숫자를 올리려면 6.0 루트에서 무언가를 새로 강등했다는 뜻이므로,
     설계서 §1의 결정표와 함께 검토돼야 한다.
@@ -180,7 +180,9 @@ def test_a_moved_call_warns_and_still_works() -> None:
         document.set_header_text("머리말", section=0)
     message = str(record[0].message)
     assert "doc.page.set_header" in message
-    assert "7.0" in message
+    # 7.0에서 제거 시점을 한 major 미뤘다. pip 사용자에게 없는 저장소 경로 대신 URL을 준다.
+    assert "8.0에서 제거됩니다" in message
+    assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md" in message
 
 
 def test_repr_does_not_warn_about_its_own_summary() -> None:

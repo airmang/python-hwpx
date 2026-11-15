@@ -534,7 +534,8 @@ _CONTRACT_DOCS_DIR = Path(__file__).resolve().parent / "data" / "contract_docs"
 _PUBLIC_DUNDERS = frozenset({"__init__", "__repr__", "__enter__", "__exit__"})
 
 #: 위임 shim 이 사라지는 major. ``_document._legacy`` 와 같은 값이어야 한다.
-_LEGACY_REMOVED_IN = "7.0"
+#: 6.x 동안 "7.0"이었고 7.0에서 한 major 미뤘다.
+_LEGACY_REMOVED_IN = "8.0"
 
 
 def _extra_installed(extra: str) -> bool:
@@ -618,7 +619,7 @@ def describe_capabilities() -> dict[str, Any]:
             "legacyShimsRemovedIn": _LEGACY_REMOVED_IN,
             "note": (
                 "root 는 6.0 파사드의 공개 멤버 수다. legacyShimCount 는 5.x 이름을 "
-                "유지하는 위임 shim 수이며 7.0에서 0이 된다 — 이동을 제거로 보이지 "
+                "유지하는 위임 shim 수이며 8.0에서 0이 된다 — 이동을 제거로 보이지 "
                 "않게 하려고 따로 센다."
             ),
         },
@@ -638,7 +639,7 @@ def _root_surface_size() -> int:
 
 
 def _legacy_shim_count() -> int:
-    """5.x 이름을 유지하는 위임 shim 수. 7.0에서 0이 된다."""
+    """5.x 이름을 유지하는 위임 shim 수. 8.0에서 0이 된다."""
 
     from ._document._legacy import _LegacyFacade
 

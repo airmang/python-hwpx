@@ -53,7 +53,7 @@ def legacy_shim_surface() -> dict[str, dict[str, str]]:
         entry = {
             "kind": "property" if isinstance(member, property) else "method",
             "replacement": replacement,
-            "removedIn": getattr(func, "__hwpx_removed_in__", "7.0"),
+            "removedIn": getattr(func, "__hwpx_removed_in__", "8.0"),
         }
         if entry["kind"] == "method":
             entry["signature"] = str(inspect.signature(func))

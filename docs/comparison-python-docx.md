@@ -42,7 +42,8 @@
 사용자에게 "이건 도구인가 라이브러리인가"를 묻게 만든다. 신규 추가는 동결했다.
 
 **⑤ 이주 shim 을 79개 지고 있다 — 대조군은 0.** 6.0 이 연 이주 창의 대가다.
-7.0 에서 0 이 되며, 그때까지 `tests/data/document_legacy_shims.json` 이
+8.0 에서 0 이 되며(6.x 동안은 7.0 이라고 알렸으나 한 major 미뤘다), 그때까지
+`tests/data/document_legacy_shims.json` 이
 감소만 허용하는 ratchet 으로 센다.
 
 ## 우리가 이기는 칸

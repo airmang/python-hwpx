@@ -23,14 +23,18 @@
 ## 규약
 
 - `section=`은 인덱스도 객체도 받는다 — 이것이 정본.
-- `section_index=`는 6.x 동안 살아 있는 deprecated 별칭이고 7.0에서 사라진다.
-  6.0에서 바로 없애면 **문서를 읽고 올바르게 쓴 사람만** 깨진다.
+- `section_index=`는 deprecated 별칭이고 8.0에서 사라진다. 6.0에서 바로 없애면
+  **문서를 읽고 올바르게 쓴 사람만** 깨진다. 6.x 문서는 "7.0에서 제거"라고 했지만
+  6.x 동안 경고를 한 번도 내지 않았으므로, 7.0에서 `DeprecationWarning`을 내기
+  시작하고 한 major 뒤(8.0)에 없앤다.
 - 실패는 전부 `HwpxError` 계열이다. `AttributeError`가 공개 경로로 새어
   나가지 않는다.
 """
 
 from __future__ import annotations
 
+import sys
+import warnings
 from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxLookupError, HwpxTypeError, HwpxValueError
@@ -40,6 +44,37 @@ if TYPE_CHECKING:
     from ..document import HwpxDocument
 
 __all__ = ["resolve_section", "resolve_paragraph"]
+
+#: `section_index=` 별칭이 사라지는 major.
+SECTION_INDEX_REMOVED_IN = "8.0"
+
+
+def _caller_stacklevel() -> int:
+    """경고가 hwpx 밖의 호출 줄을 가리키도록 건너뛸 스택 깊이.
+
+    `section_index=`는 공개 메서드 몇 겹 아래에서 해석되므로 고정
+    ``stacklevel``로는 사용자 코드에 닿지 않는다.
+    """
+
+    level = 1
+    frame = sys._getframe(1)
+    while frame is not None:
+        module = frame.f_globals.get("__name__", "")
+        if module != "hwpx" and not module.startswith("hwpx."):
+            return level
+        frame = frame.f_back  # type: ignore[assignment]
+        level += 1
+    return level
+
+
+def _warn_section_index(caller: str) -> None:
+    where = f"{caller}의 " if caller else ""
+    warnings.warn(
+        f"{where}section_index= 인자는 python-hwpx {SECTION_INDEX_REMOVED_IN}에서 "
+        "제거됩니다. section= 을 쓰세요(정수 인덱스와 섹션 객체를 모두 받습니다).",
+        DeprecationWarning,
+        stacklevel=_caller_stacklevel(),
+    )
 
 
 def _sections(document: "HwpxDocument") -> list["HwpxOxmlSection"]:
@@ -70,6 +105,9 @@ def resolve_section(
     from ..oxml import HwpxOxmlSection  # 순환 import 회피 — 런타임에만 필요
 
     ctx: dict[str, Any] = {"caller": caller} if caller else {}
+
+    if section_index is not None:
+        _warn_section_index(caller)
 
     if section is not None and section_index is not None:
         raise HwpxValueError(
