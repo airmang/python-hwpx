@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from ...errors import HwpxValueError
-from .._resolve import resolve_paragraph, resolve_section
+from .._resolve import optional_paragraph, resolve_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
@@ -51,7 +51,13 @@ _TEXT_DIRECTIONS = frozenset({"HORIZONTAL", "VERTICAL", "VERTICALALL"})
 
 
 class PageNamespace(_Namespace):
-    """쪽 기하 — 용지·여백·단·머리말/꼬리말·쪽번호·격자·줄번호."""
+    """쪽 기하 — 용지·여백·단·머리말/꼬리말·쪽번호·격자·줄번호.
+
+    모든 메서드는 ``section=`` (구역 객체 또는 번호)을 받는다. 주지 않으면
+    **마지막 구역**에만 적용된다. 구역이 여럿인 문서에서 ``section`` 없이 바꾸는
+    호출(``setup``·``set_*``·``remove_*``)은 문서마다 한 번 ``UserWarning`` 을 낸다.
+    모든 구역을 바꾸려면 ``for i in range(len(doc.sections)): doc.page.setup(..., section=i)``.
+    """
 
     __slots__ = ()
     _path = "doc.page"
@@ -62,6 +68,31 @@ class PageNamespace(_Namespace):
         section_index: int | None,
         caller: str,
     ) -> "HwpxOxmlSection":
+        """The section a ``doc.page`` call works on: *section*, else the **last** section.
+
+        A change (``setup``, ``set_*``, ``remove_*``) to a document of several sections
+        without *section* touches only the last one, and warns once per document: the
+        first sections keep their paper, margins, header and footer.
+        """
+
+        if (
+            section is None
+            and section_index is None
+            and caller.startswith(("set", "remove_"))
+            and len(self._doc.sections) > 1
+            and not getattr(self._doc, "_page_last_section_warned", False)
+        ):
+            import warnings
+
+            self._doc._page_last_section_warned = True  # type: ignore[attr-defined]
+            warnings.warn(
+                f"doc.page.{caller}() 에 section 을 주지 않아 구역 {len(self._doc.sections)}개 중 "
+                "마지막 구역만 바뀝니다. 모든 구역을 바꾸려면 "
+                "for i in range(len(doc.sections)): doc.page."
+                f"{caller}(..., section=i) 처럼 구역마다 부르세요.",
+                UserWarning,
+                stacklevel=3,
+            )
         return resolve_section(
             self._doc, section, section_index, caller=f"doc.page.{caller}"
         )
@@ -175,11 +206,11 @@ class PageNamespace(_Namespace):
         separator_type: str | None = None,
         separator_width: str | None = None,
         separator_color: str | None = None,
-        paragraph: "HwpxOxmlParagraph | None" = None,
+        paragraph: "HwpxOxmlParagraph | int | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlInlineObject":
-        """단(段) 정의를 삽입한다."""
+        """단(段) 정의를 삽입한다. *paragraph* 는 문단 객체나 인덱스다."""
 
         from .. import layout as _layout
 
@@ -194,7 +225,10 @@ class PageNamespace(_Namespace):
             separator_type=separator_type,
             separator_width=separator_width,
             separator_color=separator_color,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, section_index=section_index,
+                caller="doc.page.set_columns",
+            ),
             section=self._section(section, section_index, "set_columns"),
         )
 
@@ -209,7 +243,24 @@ class PageNamespace(_Namespace):
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
-        """쪽 머리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나."""
+        """쪽 머리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나.
+
+        같은 *page_type* 의 머리말이 이미 있으면(한/글이 만든 문서의 것도) 그것을
+        바꾼다. 새로 쓰는 내용이 있던 쪽 번호나 문구를 지우면 ``UserWarning`` 을
+        낸다. 문구와 쪽 번호를 함께 두려면 ``content=`` 로 한 번에 쓴다::
+
+            doc.page.set_header(content=[
+                {"align": "RIGHT", "children": [
+                    {"type": "run", "text": "2026 업무 계획 · "},
+                    {"type": "page_number", "page_number": "page"},
+                ]},
+            ])
+
+        문단 하나가 ``{"align": ..., "children": [...]}`` 이고, 자식은
+        ``{"type": "run", "text": ..., "bold": ...}`` 또는
+        ``{"type": "page_number", "page_number": "page" | "page/total"}`` 다.
+        *section* 을 주지 않으면 **마지막 구역**만 바뀐다(구역이 둘 이상이면 경고).
+        """
 
         return self._set_header_footer(
             "header",
@@ -229,7 +280,23 @@ class PageNamespace(_Namespace):
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
-        """쪽 꼬리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나."""
+        """쪽 꼬리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나.
+
+        같은 *page_type* 의 꼬리말이 이미 있으면(한/글이 만든 문서의 것도) 그것을
+        바꾼다. ``set_page_number()`` 로 넣은 쪽 번호도 꼬리말의 내용이라
+        ``set_footer(text=...)`` 는 그것을 지운다(경고를 낸다). 반대 순서도 같다.
+        문구와 쪽 번호를 함께 두려면 ``content=`` 로 한 번에 쓴다::
+
+            doc.page.set_footer(content=[
+                {"align": "CENTER", "children": [
+                    {"type": "run", "text": "대외비 - "},
+                    {"type": "page_number", "page_number": "page"},
+                ]},
+            ])
+
+        또는 ``set_page_number(prefix="대외비 - ")``.
+        *section* 을 주지 않으면 **마지막 구역**만 바뀐다(구역이 둘 이상이면 경고).
+        """
 
         return self._set_header_footer(
             "footer",

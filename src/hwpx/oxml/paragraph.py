@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence, cast
+from typing import TYPE_CHECKING, Any, Sequence, cast
 import warnings
 import xml.etree.ElementTree as ET
 
@@ -46,6 +46,7 @@ from .note_authoring import (
 )
 from ._paragraph_text_edit import (
     edit_node_candidates,
+    insert_paragraph_beside,
     paragraph_container,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
@@ -68,7 +69,9 @@ from .objects import (
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
-from .shape_position import validate_equation_base_unit, validate_equation_font, validate_shape_size
+from .shape_position import (
+    validate_equation_base_unit, validate_equation_font, validate_equation_script, validate_shape_size,
+)
 from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
@@ -86,6 +89,22 @@ def _content_and_cache(node: "LET._Element") -> tuple[bytes, bytes]:
             cache += LET.tostring(child, with_tail=False)
             copy.remove(child)
     return LET.tostring(copy), cache
+
+
+def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
+    """The width of a column of the ``hp:colPr`` *settings* over *text_width* (the narrowest of
+    unequal ones), or ``None`` for one column or unreadable sizes, as the page estimate reads them."""
+
+    count = int(settings.get("colCount", "1"))
+    if count <= 1:
+        return None
+    if settings.get("sameSz") not in ("1", "true"):
+        shares = [int(size.get("width", 0)) for size in settings.findall(f"{_HP}colSz")]
+        return min(share * text_width // 32768 for share in shares) if len(shares) == count else None
+    gap = int(settings.get("sameGap", "0"))
+    if gap >= 1 << 31:  # a signed 32-bit number written unsigned
+        gap -= 1 << 32
+    return (text_width - (count - 1) * gap) // count
 
 
 @dataclass
@@ -454,6 +473,39 @@ class HwpxOxmlParagraph:
         if remove_paragraph_element(self.element, self.section.element):
             self.section.mark_dirty()
 
+    def insert_after(self, text: str | None = None) -> "HwpxOxmlParagraph":
+        """Put a new paragraph right after this one (in its section, cell, header or footer) and return it.
+
+        With *text* the new paragraph holds it, in this paragraph's paragraph shape, style and
+        first run's character shape. Without, it is a copy of this paragraph: its runs, tables
+        and objects, with fresh ids (a form field's begin and end get a new pair) and no line
+        layout cache, but not the section settings the first paragraph of a section holds.
+        """
+
+        return HwpxOxmlParagraph(self._insert_beside(text, after=True), self.section)
+
+    def insert_before(self, text: str | None = None) -> "HwpxOxmlParagraph":
+        """Put a new paragraph right before this one and return it, as :meth:`insert_after` does.
+
+        Before the first paragraph of a section, the new paragraph starts the section: the
+        section's settings (paper, margins, columns, header, footer) move to it.
+        """
+
+        return HwpxOxmlParagraph(self._insert_beside(text, after=False), self.section)
+
+    def _insert_beside(self, text: str | None, *, after: bool) -> ET.Element:
+        if text is not None and not isinstance(text, str):
+            from ..errors import HwpxTypeError
+
+            raise HwpxTypeError(
+                f"text must be a str or None, got {type(text).__name__}",
+                code="paragraph-text-invalid-type",
+                suggestion="Pass the new paragraph's text as a str, or nothing to copy this paragraph.",
+            )
+        element = insert_paragraph_beside(self.element, self.section.element, text, after=after)
+        self.section.mark_dirty()
+        return element
+
     def _create_run_for_object(
         self,
         run_attributes: dict[str, str] | None = None,
@@ -593,7 +645,38 @@ class HwpxOxmlParagraph:
         if page.width <= 0:
             return None
         usable = page.drawn_width - margins.left - margins.right - margins.gutter
-        return usable if usable > 0 else None
+        if usable <= 0:
+            return None
+        column = self._column_width(usable)
+        return column if column is not None and column > 0 else usable
+
+    def _column_width(self, text_width: int) -> int | None:
+        """The width of a column of the multi-column layout in effect at this body paragraph, or
+        ``None`` for one column: a table or chart Hancom fits to the line fits to that column.
+
+        The layout in effect is the last ``hp:colPr`` of the section (outside cells and text
+        boxes) at or before this paragraph. Columns of unequal width give the narrowest.
+        """
+
+        top: Any = self.element
+        if not callable(getattr(top, "getparent", None)):
+            return None
+        while (parent := top.getparent()) is not None and parent is not self.section.element:
+            top = parent
+        if parent is None:
+            return None
+        settings: ET.Element | None = None
+        for paragraph in self.section.element.findall(f"{_HP}p"):
+            found = paragraph.findall(f"{_HP}run/{_HP}ctrl/{_HP}colPr")
+            settings = found[-1] if found else settings
+            if paragraph is top:
+                break
+        if settings is None:
+            return None
+        try:
+            return _column_width_of(settings, text_width)
+        except ValueError:
+            return None
 
     def add_table(
         self,
@@ -1196,6 +1279,7 @@ class HwpxOxmlParagraph:
         text = script.strip()
         if not text:
             raise ValueError("equation script must be a non-empty string")
+        validate_equation_script(text)  # LaTeX or unpaired braces: Hancom would not draw it as an equation
         validate_equation_base_unit(base_unit)
         font = validate_equation_font(font)
         from ..equation.measure import measure_equation

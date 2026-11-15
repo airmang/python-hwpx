@@ -13,7 +13,17 @@ import zlib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, BinaryIO, Iterable, Iterator, Mapping, MutableMapping, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    BinaryIO,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+    Sequence,
+    TypeVar,
+)
 from zipfile import BadZipFile, ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
@@ -153,7 +163,55 @@ def _declared_encrypted_parts(data: bytes | None) -> frozenset[str]:
 
 
 class HwpxPackageError(Exception):
-    """Base error raised for issues related to :class:`HwpxPackage`."""
+    """Base error raised for issues related to :class:`HwpxPackage`.
+
+    When the opening code knows the reason it sets ``code`` (a kebab-case
+    ``open-*`` value from ``docs/error-codes.md``), ``suggestion`` and ``context``,
+    as :class:`hwpx.errors.HwpxError` does. They are ``None``/empty otherwise.
+    (:class:`HwpxXmlSyntaxError` keeps lxml's integer ``code`` unless the reason
+    is known, such as an encrypted document.)
+    """
+
+    code: Any = None
+    suggestion: str | None = None
+    context: dict[str, Any] | None = None
+
+
+class _OpenFolderError(HwpxPackageError, IsADirectoryError):
+    """A folder was given where a document file belongs (``code="open-is-folder"``)."""
+
+
+def _looks_like_text(head: bytes) -> bool:
+    """True when *head* decodes as text with almost no control characters."""
+
+    import codecs
+
+    for encoding in ("utf-8", "cp949", "utf-16"):
+        try:
+            # final=False: the head may end in the middle of a character.
+            text = codecs.getincrementaldecoder(encoding)().decode(head, final=False)
+        except UnicodeDecodeError:
+            continue
+        controls = sum(1 for char in text if ord(char) < 32 and char not in "\t\r\n\f")
+        return controls <= len(text) // 50
+    return False
+
+
+_PackageErrorT = TypeVar("_PackageErrorT", bound=BaseException)
+
+
+def _with_reason(
+    error: _PackageErrorT,
+    code: str,
+    suggestion: str,
+    context: dict[str, Any] | None = None,
+) -> _PackageErrorT:
+    """Attach the structured reason to a package error the opening code raises."""
+
+    error.code = code  # type: ignore[attr-defined]
+    error.suggestion = suggestion  # type: ignore[attr-defined]
+    error.context = dict(context or {})  # type: ignore[attr-defined]
+    return error
 
 
 class HwpxStructureError(HwpxPackageError):
@@ -587,7 +645,103 @@ class HwpxPackage:
             return b""
 
     @classmethod
+    def _check_open_source(cls, pkg_file: object) -> None:
+        """Refuse what cannot be a package before ``zipfile`` turns it into an unrelated error."""
+
+        if isinstance(pkg_file, (str, os.PathLike)):
+            path = os.fspath(pkg_file)
+            if isinstance(path, str) and os.path.isdir(path):
+                raise _with_reason(
+                    _OpenFolderError(f"폴더는 문서로 열 수 없습니다: {path}"),
+                    "open-is-folder",
+                    "그 폴더 안의 .hwpx나 .hwp 파일 경로를 주세요.",
+                    {"path": path},
+                )
+            return
+        if isinstance(pkg_file, (bytes, bytearray)):
+            return
+        if callable(getattr(pkg_file, "read", None)) and callable(getattr(pkg_file, "seek", None)):
+            return
+        from ..errors import HwpxTypeError
+
+        raise HwpxTypeError(
+            f"문서로 열 수 없는 값입니다: {type(pkg_file).__name__}. 경로(str·Path), bytes, "
+            "읽고 되감을 수 있는 이진 스트림 중 하나를 주세요.",
+            code="open-invalid-type",
+            context={"type": type(pkg_file).__name__},
+            suggestion="HwpxDocument.open('문서.hwpx')처럼 파일 경로를 넘기세요.",
+        )
+
+    @classmethod
+    def _not_an_archive(
+        cls, stream: str | Path | BinaryIO, exc: BadZipFile
+    ) -> "HwpxArchiveError":
+        """The error for input ``zipfile`` refused, worded by what the input really is."""
+
+        head = cls._leading_bytes(stream, 512)
+        name = os.fspath(stream) if isinstance(stream, (str, os.PathLike)) else getattr(stream, "name", "")
+        suffix = os.path.splitext(name)[1].lower() if isinstance(name, str) else ""
+        context: dict[str, Any] = {"suffix": suffix, "bytes": len(head)}
+        if head.startswith(cls.OLE2_MAGIC):
+            return _with_reason(
+                HwpxArchiveError(
+                    "HwpxPackage는 HWPX 패키지만 엽니다. HWP 5.0(.hwp) 문서는 "
+                    "HwpxDocument.open으로 열거나, 한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
+                ),
+                "open-hwp5-not-package",
+                "HwpxDocument.open(...)으로 여세요.",
+                context,
+            )
+        if head.startswith(cls.HWP3_MAGIC):
+            return _with_reason(
+                HwpxArchiveError(
+                    "HWP 3.x 이하 형식의 .hwp 문서는 열 수 없습니다. "
+                    "한컴오피스에서 열어 HWPX로 저장한 뒤 사용하세요."
+                ),
+                "open-hwp3-unsupported",
+                "한컴오피스에서 열어 HWPX(.hwpx)로 저장한 뒤 그 파일을 여세요.",
+                context,
+            )
+        if not head:
+            return _with_reason(
+                HwpxArchiveError("빈 파일입니다(0바이트). 문서 내용이 없습니다."),
+                "open-empty-file",
+                "저장이 끝난 원본 파일을 다시 받거나 한컴오피스에서 다시 저장하세요.",
+                context,
+            )
+        if suffix == ".hwp":
+            return _with_reason(
+                HwpxArchiveError(
+                    "HWP 문서가 아닙니다: 파일 앞부분이 HWP 5.0 문서 머리(복합 파일)가 아닙니다. "
+                    "다른 형식의 파일이거나 손상된 파일입니다."
+                ),
+                "open-not-hwp",
+                "한컴오피스에서 열리는지 확인하고, 열리면 HWPX(.hwpx)로 다시 저장해 여세요.",
+                context,
+            )
+        if head.startswith(b"PK"):
+            return _with_reason(
+                HwpxArchiveError(
+                    f"HWPX 파일이 잘렸거나 손상됐습니다: ZIP 목록을 읽지 못했습니다({exc})."
+                ),
+                "open-archive-damaged",
+                "내려받기·복사가 끝까지 됐는지 확인하고 원본을 다시 받으세요.",
+                context,
+            )
+        textual = _looks_like_text(head)
+        what = "텍스트 파일" if textual else "다른 형식의 파일"
+        return _with_reason(
+            HwpxArchiveError(
+                f"HWPX 문서가 아닙니다: {what}입니다(HWPX는 ZIP으로 묶인 파일입니다)."
+            ),
+            "open-not-hwpx",
+            "한/글 문서(.hwpx 또는 .hwp)인지 확인하세요. 다른 형식이면 한컴오피스에서 열어 HWPX로 저장하세요.",
+            {**context, "text": textual},
+        )
+
+    @classmethod
     def open(cls, pkg_file: str | Path | bytes | bytearray | BinaryIO) -> HwpxPackage:
+        cls._check_open_source(pkg_file)
         if isinstance(pkg_file, (bytes, bytearray)):
             stream: str | Path | BinaryIO = io.BytesIO(pkg_file)
         else:
@@ -605,25 +759,32 @@ class HwpxPackage:
                 zip_infos = {info.filename: info for info in infos}
                 zip_order = [info.filename for info in infos]
         except BadZipFile as exc:
-            head = cls._leading_bytes(stream, len(cls.HWP3_MAGIC))
-            if head.startswith(cls.OLE2_MAGIC):
-                raise HwpxArchiveError(
-                    "HwpxPackage는 HWPX 패키지만 엽니다. HWP 5.0(.hwp) 문서는 "
-                    "HwpxDocument.open으로 열거나, 한컴오피스에서 HWPX로 변환한 뒤 사용하세요."
-                ) from exc
-            if head == cls.HWP3_MAGIC:
-                raise HwpxArchiveError(
-                    "HWP 3.x 이하 형식의 .hwp 문서는 열 수 없습니다. "
-                    "한컴오피스에서 열어 HWPX로 저장한 뒤 사용하세요."
-                ) from exc
-            # The message stays the one zipfile wrote, so callers that show or
-            # match it see no change; only the type gains the structure base.
-            raise HwpxArchiveError(str(exc)) from exc
+            # Still a BadZipFile (HwpxArchiveError derives from it); the message says what the
+            # input is instead of zipfile's "File is not a zip file".
+            raise cls._not_an_archive(stream, exc) from exc
         except zlib.error as exc:
-            raise HwpxCompressedDataError(f"압축 데이터가 손상됐습니다: {exc}") from exc
+            raise _with_reason(
+                HwpxCompressedDataError(f"압축 데이터가 손상됐습니다: {exc}"),
+                "open-archive-damaged",
+                "내려받기·복사가 끝까지 됐는지 확인하고 원본을 다시 받으세요.",
+            ) from exc
         logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))
         if cls.MIMETYPE_PATH not in files:
-            raise HwpxStructureError("HWPX package is missing the mandatory 'mimetype' file.")
+            if "[Content_Types].xml" in files:
+                raise _with_reason(
+                    HwpxStructureError(
+                        "HWPX package is missing the mandatory 'mimetype' file: this is an Office "
+                        "Open XML file (.docx/.xlsx/.pptx), not HWPX."
+                    ),
+                    "open-not-hwpx",
+                    "Open it in its own program, or in Hancom Office and save it as .hwpx.",
+                    {"format": "ooxml"},
+                )
+            raise _with_reason(
+                HwpxStructureError("HWPX package is missing the mandatory 'mimetype' file."),
+                "open-not-hwpx",
+                "This ZIP is not an HWPX document; save the document from Hancom Office as .hwpx.",
+            )
         mimetype = files[cls.MIMETYPE_PATH].decode("utf-8")
         with structure_errors():
             rootfiles = cls._parse_container(files.get(cls.CONTAINER_PATH))
@@ -647,7 +808,8 @@ class HwpxPackage:
         try:
             root = parse_xml(data)
         except Exception:
-            logger.exception("container.xml 파싱에 실패했습니다.")
+            # The error is raised to the caller, which reports it; a traceback here would be printed twice.
+            logger.debug("container.xml 파싱에 실패했습니다.", exc_info=True)
             raise
         rootfiles = [
             RootFile(ref.full_path, ref.media_type)
@@ -660,15 +822,16 @@ class HwpxPackage:
     @staticmethod
     def _parse_version(data: bytes | None) -> VersionInfo:
         if data is None:
-            logger.warning("HWPX package is missing optional 'version.xml'; using defaults.")
+            logger.info("HWPX package is missing optional 'version.xml'; using defaults.")
             return VersionInfo.default()
         return VersionInfo.from_bytes(data)
 
     def _validate_structure(self) -> None:
         for rootfile in self._rootfiles:
             if rootfile.full_path.startswith(self.PREVIEW_PREFIX) and rootfile.full_path not in self._files:
-                # A preview holds no content of its own and Hancom opens the document without it.
-                logger.warning(
+                # A preview holds no content of its own and Hancom opens the document without it,
+                # so this is information, not something the caller must act on.
+                logger.info(
                     "container.xml이 가리키는 미리보기 '%s'가 패키지에 없습니다. 본문이 아니어서 그대로 엽니다.",
                     rootfile.full_path,
                 )
@@ -707,7 +870,7 @@ class HwpxPackage:
         try:
             return self._files[norm_path]
         except KeyError as exc:
-            logger.warning("파트 누락: path=%s", norm_path)
+            logger.debug("파트 누락: path=%s", norm_path)
             raise HwpxPackageError(f"File '{norm_path}' is not present in the package.") from exc
 
     def write(self, path: str, data: bytes | str) -> None:
@@ -789,7 +952,7 @@ class HwpxPackage:
             normalized = self._normalize_path(part_name)
             if normalized not in self._encrypted_parts:
                 raise HwpxXmlSyntaxError.wrap(exc, part_name=normalized) from exc
-            raise HwpxXmlSyntaxError.wrap(
+            encrypted = HwpxXmlSyntaxError.wrap(
                 exc,
                 part_name=normalized,
                 message=(
@@ -797,6 +960,15 @@ class HwpxPackage:
                     f"('{normalized}' 파트가 암호화돼 있습니다). "
                     "한컴오피스에서 문서 암호를 해제한 뒤 다시 저장해 사용하세요."
                 ),
+            )
+            # The reason is known, so ``code`` is the stable string, not lxml's number for
+            # "start tag expected"; that number stays in ``lxml_code``.
+            encrypted.lxml_code = exc.code  # type: ignore[attr-defined]
+            raise _with_reason(
+                encrypted,
+                "open-encrypted",
+                "한컴오피스에서 문서 암호를 해제하고 다시 저장한 뒤 여세요.",
+                {"part": normalized},
             ) from exc
 
     def set_xml(self, part_name: str, element: etree._Element) -> None:

@@ -538,6 +538,60 @@ def set_cell_margins(
     return margins
 
 
+def table_out_margins(table: "HwpxOxmlTable") -> CellMargins:
+    """The table's outer margins (``hp:outMargin``: the room kept around it), in HWPUNIT; zeros when it has none."""
+
+    own = table.element.find(f"{_HP}outMargin")
+    if own is None:
+        return CellMargins(0, 0, 0, 0)
+    return CellMargins(*(_margin_value(own.get(side)) for side in _MARGIN_SIDES))
+
+
+def set_table_out_margins(
+    table: "HwpxOxmlTable",
+    *,
+    left: int | None = None,
+    right: int | None = None,
+    top: int | None = None,
+    bottom: int | None = None,
+) -> CellMargins:
+    """Set the table's outer margins (``hp:outMargin``, the room between the table and the text
+    around it) and return them, as :meth:`HwpxOxmlTableCell.set_margins` sets a cell's.
+
+    Sides left as ``None`` keep their current value. Values are ints in ``0 <= value < 2**31``
+    (HWPUNIT, 1 mm = 283.465), checked before anything changes (``table-margin-value``). The
+    table's paragraph loses its line layout cache when they change. With no arguments nothing
+    changes.
+    """
+    from ..errors import HwpxValueError
+
+    given = {side: value for side, value in {"left": left, "right": right, "top": top, "bottom": bottom}.items()
+             if value is not None}
+    for side, value in given.items():
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**31:
+            raise HwpxValueError(
+                f"table margin {side} must be an int in 0 <= value < 2**31 (HWPUNIT), got {value!r}",
+                code="table-margin-value",
+                context={"side": side, "value": repr(value)},
+                suggestion="Pass a non-negative int in HWPUNIT (1 mm = 283.465 HWPUNIT).",
+            )
+    before = table_out_margins(table)
+    margins = replace(before, **given)
+    if not given or margins == before and table.element.find(f"{_HP}outMargin") is not None:
+        return before
+    own = table.element.find(f"{_HP}outMargin")
+    if own is None:
+        own = table.element.makeelement(f"{_HP}outMargin", {})
+        names = [_element_local_name(child) for child in table.element]
+        index = names.index("inMargin") if "inMargin" in names else (names.index("pos") + 1 if "pos" in names else 0)
+        table.element.insert(index, own)
+    for side in _MARGIN_SIDES:
+        own.set(side, str(getattr(margins, side)))
+    _clear_paragraph_layout_cache(table.paragraph.element)
+    table.mark_dirty()
+    return margins
+
+
 #: A SQUEEZE line up to this share of the cell's line width still reads in Hancom.
 SQUEEZE_READABLE_RATIO = 1.1
 

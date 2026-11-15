@@ -172,7 +172,14 @@ def _resolve_paragraph_targets(
     targets: list[tuple[int, HwpxOxmlParagraph]] = []
     for index in indexes:
         if index < 0 or index >= len(paragraphs):
-            raise IndexError("paragraph index out of range")
+            from ..oxml.utils import HwpxIndexError
+
+            raise HwpxIndexError(
+                f"paragraph index {index} out of range ({len(paragraphs)} paragraphs)",
+                code="paragraph-not-found",
+                context={"requested": index, "count": len(paragraphs)},
+                suggestion=f"본문 문단 인덱스는 0..{len(paragraphs) - 1} 입니다.",
+            )
         targets.append((index, paragraphs[index]))
     return targets
 
@@ -1005,6 +1012,65 @@ def set_footer_content(
     return target_section.properties.set_footer_content(content, page_type=page_type)
 
 
+def _spec_has(content: Sequence[Mapping[str, Any]], want: str) -> bool:
+    """Whether the header/footer *content* specs write a page number (*want* ``"number"``) or
+    visible text (``"text"``)."""
+
+    for paragraph in content:
+        children = paragraph.get("children") or paragraph.get("runs") or ()
+        if want == "text" and str(paragraph.get("text") or "").strip() and not children:
+            return True
+        for child in children:
+            if want == "number" and (child.get("type") == "page_number" or child.get("page_number")):
+                return True
+            if want == "text" and child.get("type", "run") == "run" and str(child.get("text") or "").strip():
+                return True
+    return False
+
+
+def _warn_story_overwrite(
+    section: "HwpxOxmlSection",
+    kind: str,
+    page_type: str,
+    *,
+    text: str | None,
+    content: Sequence[Mapping[str, Any]] | None,
+) -> None:
+    """Warn when setting a header or footer drops a page number or text it held.
+
+    ``set_footer(text=...)`` after ``set_page_number()`` (or the other way round)
+    replaces the footer: the page number (or the text) goes. Both stay when they
+    are set together in one ``content=``.
+    """
+
+    import warnings
+
+    try:
+        existing = section.properties._get_story(kind, page_type)
+    except HwpxValueError:
+        return
+    if existing is None:
+        return
+    element = existing.element
+    had_number = any(node.get("numType") == "PAGE" for node in element.iter(f"{HP}autoNum"))
+    had_text = any((node.text or "").strip() for node in element.iter(f"{HP}t"))
+    specs = content if content is not None else [{"text": text or ""}]
+    lost = [
+        name for name, had, want in (("쪽 번호", had_number, "number"), ("문구", had_text, "text"))
+        if had and not _spec_has(specs, want)
+    ]
+    if not lost:
+        return
+    label = "머리말" if kind == "header" else "꼬리말"
+    warnings.warn(
+        f"{label}을 새로 쓰면서 있던 {'·'.join(lost)}이(가) 지워집니다. 문구와 쪽 번호를 함께 두려면 "
+        f"doc.page.set_{kind}(content=[{{\"align\": \"CENTER\", \"children\": [{{\"type\": \"run\", "
+        f"\"text\": \"대외비 \"}}, {{\"type\": \"page_number\"}}]}}]) 처럼 한 번에 쓰세요.",
+        UserWarning,
+        stacklevel=4,
+    )
+
+
 def set_header_footer(
     doc: "HwpxDocument",
     *,
@@ -1031,6 +1097,10 @@ def set_header_footer(
             code="page-argument-conflict",
             suggestion="Use text= for one line, content= for multiple paragraphs.",
         )
+    _warn_story_overwrite(
+        _resolve_section(doc, section=section, section_index=section_index),
+        normalized, page_type, text=text, content=content,
+    )
     # Call the local primitives directly rather than `doc.set_header_content`/
     # `doc.set_footer_content`/`doc.set_header_text`/`doc.set_footer_text` —
     # all four names moved in 6.0 (design table rows 83-86), and going

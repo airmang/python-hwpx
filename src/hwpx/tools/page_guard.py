@@ -241,6 +241,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="Print collected metrics as JSON")
     args = parser.parse_args(argv)
 
+    from .archive_cli import _input_file_problem
+
+    for path in (args.reference, args.output):
+        problem = _input_file_problem(path, tool="hwpx-page-guard")
+        if problem is not None:
+            print(f"ERROR: {problem}")
+            return 1
     try:
         reference = collect_metrics(args.reference)
         output = collect_metrics(args.output)

@@ -1,0 +1,8 @@
+# sdist 구성. setuptools는 기본으로 tests/test*.py를 sdist에 싣는데, 그 테스트들이
+# 기대는 fixtures·conftest·스크립트는 실리지 않아 sdist만으로는 돌릴 수 없었다
+# (6.12.0: 테스트 310개). 테스트는 저장소에서 돌리고 sdist에서는 뺀다.
+#
+# CHANGELOG.md는 아직 싣지 않는다. 옛 항목에 내부 작업 번호가 남아 있어
+# scripts/check_public_hygiene.py의 배포본 검사가 막는다. 그 항목을 정리한 뒤
+# `include CHANGELOG.md`를 더한다.
+prune tests

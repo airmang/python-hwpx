@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 211 | 11 |
+| 개수 | 242 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -150,6 +150,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `hwpx-error` | 분류되지 않은 구조화 오류(베이스 기본값). |
+| `hwpx-index-error` | 인덱스가 범위를 벗어났다(분류되지 않음, IndexError 계열이기도 하다). |
 | `hwpx-lookup-error` | 이름·인덱스로 지목한 것이 없다(분류되지 않음). |
 | `hwpx-state-error` | 문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음). |
 | `hwpx-type-error` | 인자 타입이 이 연산이 받는 것이 아니다(분류되지 않음). |
@@ -176,9 +177,11 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `media-image-invalid` | 그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected). |
 | `media-item-id-taken` | 그 이진 항목 id 가 이미 쓰이고 있다. |
 | `media-item-in-use` | 지우려는 이진 항목을 문서가 아직 가리킨다(그림·채우기·동영상·OLE 등). force=True 로만 지운다. |
 | `media-owner-paragraph-missing` | 교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기). |
+| `media-picture-not-found` | picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서). |
 
 ### `note-*`
 
@@ -192,6 +195,15 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `open-archive-damaged` | HWPX(ZIP)가 잘렸거나 압축 데이터가 손상됐다. |
+| `open-empty-file` | 연 파일이 비어 있다(0바이트). HwpxArchiveError 에 실린다. |
+| `open-encrypted` | 암호가 걸린 HWPX 다(HwpxXmlSyntaxError, lxml 의 숫자 코드는 lxml_code 에). |
+| `open-hwp3-unsupported` | HWP 3.x 이하 .hwp 문서다(열지 못한다). |
+| `open-hwp5-not-package` | HwpxPackage.open 에 HWP 5.0(.hwp) 파일을 주었다(HwpxDocument.open 으로 연다). |
+| `open-invalid-type` | HwpxDocument.open 에 경로·bytes·이진 스트림이 아닌 값을 주었다. |
+| `open-is-folder` | 문서 파일 대신 폴더 경로를 주었다(IsADirectoryError 이기도 하다). |
+| `open-not-hwp` | 확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다. |
+| `open-not-hwpx` | 연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서). |
 | `open-safety-failed` | 산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다. |
 
 ### `package-*`
@@ -238,10 +250,13 @@ except HwpxError as exc:
 | `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
 | `paragraph-remove-last` | 구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container). |
+| `paragraph-remove-section-settings` | 구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)을 담은 문단 뒤에 옮겨 받을 문단이 없어 지울 수 없다. |
+| `paragraph-run-section-settings` | 구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)만 담은 run은 지울 수 없다. |
 | `paragraph-tab-leader-invalid` | 탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
 | `paragraph-tab-target-required` | 탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다. |
 | `paragraph-tab-type-invalid` | 탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다. |
+| `paragraph-text-invalid-type` | 문단 글(text)이 문자열이 아니다. |
 | `paragraph-text-missing` | 문단에 고칠 일반 텍스트(hp:t) 노드가 없다. |
 | `paragraph-text-style-ambiguous` | 텍스트 수정이 run 경계를 넘거나 삽입할 글자 모양이 모호하다. |
 | `paragraph-title-mark-no-text-run` | 문단에 hp:t를 가진 run이 없어 titleMark를 넣을 자리가 없다. |
@@ -283,7 +298,12 @@ except HwpxError as exc:
 |---|---|
 | `save-failed` | 저장 경로가 아무것도 쓰기 전에 fail-closed 했다. |
 | `save-format-unsupported` | 저장 형식(format)이 'hwpx'도 'hwp'도 아니다. |
+| `save-mode-invalid` | 저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다. |
 | `save-package-contract-violated` | package.save(None) 이 bytes 를 돌려주지 않았다. |
+| `save-target-denied` | 저장할 파일에 쓸 권한이 없다(읽기 전용이거나 다른 프로그램이 열고 있다). |
+| `save-target-folder-missing` | 저장할 경로의 상위 폴더가 없다. |
+| `save-target-is-folder` | 저장할 경로가 폴더다. |
+| `save-target-unwritable` | 저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error). |
 
 ### `section-*`
 
@@ -296,6 +316,7 @@ except HwpxError as exc:
 | `section-invalid-type` | section 인자가 정수도 섹션 객체도 아니다. |
 | `section-missing` | 문서에 섹션이 하나도 없다. |
 | `section-not-found` | 섹션 인덱스가 범위를 벗어났다. |
+| `section-remove-last` | 문서의 마지막 섹션은 지울 수 없다. |
 
 ### `shape-*`
 
@@ -327,7 +348,9 @@ except HwpxError as exc:
 | `shape-equation-not-created` | 만든 수식을 표준 스캔이 다시 찾지 못했다. |
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
+| `shape-equation-script-latex` | 수식 스크립트에 LaTeX 명령(\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다). |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
+| `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
@@ -371,6 +394,7 @@ except HwpxError as exc:
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
 | `style-list-continue-conflict` | continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다). |
+| `style-list-kind-invalid` | 목록 종류(kind)가 bullet/number/outline 밖이다. |
 | `style-list-level-invalid` | 글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다). |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-list-start-value` | 목록 시작 번호(start)가 0 이상 65535 이하의 int 가 아니다(bool 도 거부, 한/글은 16비트로 둔다). |
@@ -387,9 +411,16 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `table-cell-not-found` | 칸 좌표가 표 밖이거나 병합에 덮여 가리킬 칸이 없다. |
+| `table-cell-remove-unsupported` | 표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다). |
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
+| `table-margin-value` | 표 바깥 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `table-merge-range-invalid` | 병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다. |
+| `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
+| `table-path-invalid-type` | fill_by_path 에 매핑이 아닌 것이나 str 이 아닌 경로(키)를 주었다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 | `table-row-heights-value` | 행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다. |
+| `table-size-invalid` | 새 표의 행·열 수가 1 이상의 int 가 아니다(bool 도 거부). |
 | `table-width-value` | 새 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `text-*`

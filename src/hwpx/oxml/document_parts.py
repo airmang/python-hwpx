@@ -465,7 +465,7 @@ class HwpxOxmlDocument:
         try:
             return part_cls(path, package.get_xml(path))
         except Exception:
-            logger.exception("%s 파싱 실패: part_path=%s", label, path)
+            logger.debug("%s 파싱 실패: part_path=%s", label, path, exc_info=True)
             raise
 
     @classmethod
@@ -492,10 +492,11 @@ class HwpxOxmlDocument:
                 section._remember_source(package.read(path))
                 sections.append(section)
             except Exception:
-                logger.exception(
+                logger.debug(
                     "section 파싱 실패: section_index=%d, part_path=%s",
                     section_index,
                     path,
+                    exc_info=True,
                 )
                 raise
 
@@ -504,7 +505,7 @@ class HwpxOxmlDocument:
             try:
                 headers.append(HwpxOxmlHeader(path, package.get_xml(path)))
             except Exception:
-                logger.exception("header 파싱 실패: part_path=%s", path)
+                logger.debug("header 파싱 실패: part_path=%s", path, exc_info=True)
                 raise
 
         master_pages: list[HwpxOxmlMasterPage] = []
@@ -515,7 +516,7 @@ class HwpxOxmlDocument:
             try:
                 master_pages.append(HwpxOxmlMasterPage(path, package.get_xml(path)))
             except Exception:
-                logger.exception("masterPage 파싱 실패: part_path=%s", path)
+                logger.debug("masterPage 파싱 실패: part_path=%s", path, exc_info=True)
                 raise
 
         histories: list[HwpxOxmlHistory] = []
@@ -526,7 +527,7 @@ class HwpxOxmlDocument:
             try:
                 histories.append(HwpxOxmlHistory(path, package.get_xml(path)))
             except Exception:
-                logger.exception("history 파싱 실패: part_path=%s", path)
+                logger.debug("history 파싱 실패: part_path=%s", path, exc_info=True)
                 raise
 
         version = cls._load_optional_simple_part(
@@ -1358,9 +1359,28 @@ class HwpxOxmlDocument:
         Accepts either a :class:`HwpxOxmlSection` or an integer index.
         Raises ``ValueError`` if the document would be left with no sections.
         """
-        if len(self._sections) <= 1:
-            raise ValueError(
-                "문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션은 삭제할 수 없습니다."
+        from ..errors import HwpxValueError
+        from .utils import HwpxIndexError
+
+        count = len(self._sections)
+        if isinstance(section, int) and not isinstance(section, bool) and not 0 <= section < count:
+            raise HwpxIndexError(
+                f"섹션 인덱스 {section}이(가) 범위를 벗어났습니다 (총 {count}개)",
+                code="section-not-found",
+                context={"requested": section, "count": count},
+                suggestion=f"이 문서의 섹션 인덱스는 0..{count - 1} 입니다.",
+            )
+        if not isinstance(section, int) and not any(existing is section for existing in self._sections):
+            raise HwpxValueError(
+                "해당 섹션이 이 문서에 속하지 않습니다.",
+                code="section-not-found",
+                suggestion="이 문서의 doc.sections[i] 나 정수 인덱스를 넘기세요.",
+            )
+        if count <= 1:
+            raise HwpxValueError(
+                "문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션은 삭제할 수 없습니다.",
+                code="section-remove-last",
+                suggestion="마지막 섹션은 지우지 말고 section.clear_body() 로 본문을 비우세요.",
             )
         if not any(
             _element_local_name(header.element) == "head" for header in self._headers

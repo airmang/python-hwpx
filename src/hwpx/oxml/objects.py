@@ -25,7 +25,7 @@ from ._document_primitives import (
 )
 from .shape_position import (
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
-    _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
+    _object_set_position, _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
     validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_crop, validate_picture_image,
     validate_rect_ratio,
     validate_shape_size,
@@ -73,6 +73,9 @@ class HwpxOxmlInlineObject:
         if self.element.get(name) != new_value:
             self.element.set(name, new_value)
             self.paragraph.section.mark_dirty()
+
+    # Lives in ``oxml/shape_position.py`` (this owner file is at its line cap).
+    set_position = _object_set_position
 
     # --- caption (hp:caption — table/picture/OLE/equation may carry one) ---
 

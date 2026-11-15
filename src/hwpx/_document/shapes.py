@@ -9,7 +9,8 @@ from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
 from ..oxml.objects import _closed_points
 from ..oxml.shape_position import (
-    validate_equation_base_unit, validate_equation_font, validate_original_size, validate_rect_ratio, validate_shape_size,
+    validate_equation_base_unit, validate_equation_font, validate_equation_script, validate_original_size,
+    validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -530,6 +531,7 @@ def add_equation(
             context={"length": len(text), "limit": MAX_SOURCE_LENGTH},
             suggestion="Split the equation.",
         )
+    validate_equation_script(text)  # before a paragraph is added for it
     validate_equation_base_unit(base_unit)
     font = validate_equation_font(font)
     width, height = size if size is not None else estimate_equation_size(text, base_unit=base_unit)

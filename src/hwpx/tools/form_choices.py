@@ -5,7 +5,9 @@ Korean forms rarely use form objects for a choice: the boxes are characters.
 The same characters also start list lines (``○ 추진 배경``), so a mark alone is
 not a choice. Only a paragraph holding two or more marks of one family (squares
 ``□☐■☑☒▣`` or circles ``○◯●``) is read as a group of options; the text after
-each mark, up to the next one, is that option's name.
+each mark, up to the next one, is that option's name. A mark alone in brackets
+(``200,000천원(○)``) is not an option, and a paragraph whose marks stand
+between long clauses (prose using ``○`` as an inline bullet) is not a group.
 
 :func:`form_choices` lists the groups with the label each is chosen by, and
 :func:`choose` checks options by name or position. A mark is replaced by one
@@ -159,10 +161,7 @@ def _read_marks(paragraph: Any) -> tuple[str, list[_Mark]]:
 
     pieces = _segments(paragraph)
     whole = "".join(text for _, _, text in pieces)
-    found = [(match.start(), match.group()) for match in _MARK_RE.finditer(whole)]
-    # Marks side by side are not boxes to tick: a withheld name ("○○고등학교"), digit boxes ("□□□□").
-    starts = {start for start, _ in found}
-    found = [(start, char) for start, char in found if start - 1 not in starts and start + 1 not in starts]
+    found = _lone_marks(whole)
     by_family = Counter(_FAMILY_OF[char] for _, char in found)
     if not by_family:
         return whole, []
@@ -170,6 +169,8 @@ def _read_marks(paragraph: Any) -> tuple[str, list[_Mark]]:
     if count < 2 or list(by_family.values()).count(count) > 1:
         return whole, []  # a single mark is a bullet; two families equally often is not ours to guess
     positions = [(start, char) for start, char in found if _FAMILY_OF[char] == family]
+    if _reads_as_prose(whole, positions):
+        return whole, []
 
     marks: list[_Mark] = []
     cursor = 0
@@ -188,10 +189,50 @@ def _read_marks(paragraph: Any) -> tuple[str, list[_Mark]]:
     return whole[: positions[0][0]], marks
 
 
-def _is_choice_text(text: str) -> bool:
+def _lone_marks(text: str) -> list[tuple[int, str]]:
+    """The marks of *text* that can be boxes to tick, as ``(offset, mark)``.
+
+    Marks side by side are not: a withheld name (``○○고등학교``), digit boxes
+    (``□□□□``). Nor is a mark alone in brackets: ``200,000천원(○)`` writes a
+    verdict in running text, not an option.
+    """
+
     found = [(match.start(), match.group()) for match in _MARK_RE.finditer(text)]
     starts = {start for start, _ in found}
-    alone = [char for start, char in found if start - 1 not in starts and start + 1 not in starts]
+    return [
+        (start, char)
+        for start, char in found
+        if start - 1 not in starts and start + 1 not in starts and not _bracketed(text, start)
+    ]
+
+
+def _bracketed(text: str, start: int) -> bool:
+    before = text[:start].rstrip(" \t")
+    after = text[start + 1 :].lstrip(" \t")
+    return bool(before) and bool(after) and before[-1] in _OPENING and after[0] == _OPENING[before[-1]]
+
+
+_OPENING = {"(": ")", "（": "）", "[": "]", "［": "］", "<": ">", "〈": "〉", "「": "」"}
+#: An option this long (whitespace collapsed) with three or more words is a clause, not a name.
+_PROSE_OPTION_LENGTH = 20
+
+
+def _reads_as_prose(whole: str, positions: list[tuple[int, str]]) -> bool:
+    """True when the text between the marks is sentences, not option names.
+
+    Prose that uses ``○`` as an inline bullet (``a) ○ 성년이고 … ○ 법에 규정된 …``)
+    has two or more long clauses between its marks, at least half of them; a form's
+    options are a few words each.
+    """
+
+    bounds = [start for start, _ in positions] + [len(whole)]
+    texts = [_collapse_whitespace(whole[bounds[n] + 1 : bounds[n + 1]]).strip(_EDGE) for n in range(len(positions))]
+    long = sum(1 for text in texts if len(text) > _PROSE_OPTION_LENGTH and text.count(" ") >= 2)
+    return long >= 2 and long * 2 >= len(texts)
+
+
+def _is_choice_text(text: str) -> bool:
+    alone = [char for _start, char in _lone_marks(text)]
     return max(Counter(_FAMILY_OF[char] for char in alone).values(), default=0) >= 2
 
 

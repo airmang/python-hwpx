@@ -1152,7 +1152,10 @@ def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
     survivors = [c for c in range(ncol) if c not in del_cols]
     if not survivors:
         raise TableStructureError(
-            "delete_column: deleting every column would leave no table -- delete the table instead (delete_table)"
+            "delete_column: deleting every column would leave no table -- delete the table instead "
+            "(table.remove(), or the delete_table op of apply_table_ops)",
+            suggestion="표를 통째로 지우려면 table.remove() 를 쓰세요(바이트 편집은 apply_table_ops 의 "
+            "{'op': 'delete_table'}).",
         )
     targets = [c for c in survivors if c > dmax and c != survivors[-1]] or survivors
     add, rem = divmod(freed, len(targets))
@@ -1258,7 +1261,10 @@ def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
     prefix, rows, suffix = _parse_table(table)
     if set(range(len(rows))) <= set(del_rows):
         raise TableStructureError(
-            "delete_row: deleting every row would leave no table -- delete the table instead (delete_table)"
+            "delete_row: deleting every row would leave no table -- delete the table instead "
+            "(table.remove(), or the delete_table op of apply_table_ops)",
+            suggestion="표를 통째로 지우려면 table.remove() 를 쓰세요(바이트 편집은 apply_table_ops 의 "
+            "{'op': 'delete_table'}).",
         )
     for empty in del_rows:
         if empty >= len(rows):
@@ -1639,7 +1645,10 @@ def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> st
         linked = any(attrs.get(name) not in (None, "", "0") for name in ("linkListIDRef", "linkListNextIDRef"))
         if linked or "chartIDRef" in attrs or tag in ("hp:header", "hp:footer"):
             raise TableStructureError(
-                "cannot clone content with local identities or references; use empty-cell insertion"
+                "cannot copy cell content with local identities or references (a header, footer, chart "
+                "or linked text box); insert blank cells instead",
+                suggestion="빈 칸으로 넣으세요: table.insert_rows(..., blank=True) / "
+                "table.insert_columns(..., blank=True).",
             )
         if tag == "hp:p":
             return match.group(0)

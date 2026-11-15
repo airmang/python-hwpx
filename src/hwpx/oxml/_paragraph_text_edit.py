@@ -131,6 +131,200 @@ def paragraph_container(element: ET.Element, section_element: ET.Element) -> ET.
 #: What holds a ``hp:subList`` paragraph list, as a refusal names it.
 _SUBLIST_OWNERS = {"tc": "cell", "header": "header", "footer": "footer"}
 
+#: What an ``hp:ctrl`` holds when it sets up the pages of a section rather than marking a place in
+#: the text: columns, a header or footer, page numbering, hiding, a new number.
+PAGE_LEVEL_CONTROLS = frozenset({"colPr", "header", "footer", "pageNum", "pageHiding", "newNum", "pageNumCtrl"})
+
+
+def is_section_setting(child: ET.Element) -> bool:
+    """Whether the run child *child* is part of a section's settings: its ``hp:secPr``, or an
+    ``hp:ctrl`` holding only page-level controls (:data:`PAGE_LEVEL_CONTROLS`)."""
+
+    name = tag_local_name(child.tag) if isinstance(child.tag, str) else ""
+    if name == "secPr":
+        return True
+    return name == "ctrl" and len(child) > 0 and all(
+        isinstance(inner.tag, str) and tag_local_name(inner.tag) in PAGE_LEVEL_CONTROLS for inner in child
+    )
+
+
+def section_setting_runs(paragraph: ET.Element) -> list[tuple[ET.Element, list[ET.Element]]]:
+    """The runs of *paragraph* holding section settings, each with those children.
+
+    Empty unless the paragraph holds an ``hp:secPr``: only the paragraph that starts a section
+    carries its settings. Its page-level controls (columns, header, footer, page numbering) go
+    with it, wherever in the paragraph Hancom wrote them.
+    """
+
+    runs = [child for child in paragraph if isinstance(child.tag, str) and tag_local_name(child.tag) == "run"]
+    if not any(isinstance(child.tag, str) and tag_local_name(child.tag) == "secPr" for run in runs for child in run):
+        return []
+    found = []
+    for run in runs:
+        settings = [child for child in run if is_section_setting(child)]
+        if settings:
+            found.append((run, settings))
+    return found
+
+
+def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
+    """Move the section settings of the paragraph *source* to the front of the paragraph *target*.
+
+    A run holding nothing else moves whole; from a run holding text or objects too, only the
+    settings move, into a new run with the same attributes. *target* loses its line layout cache:
+    the controls in front of its text shift every position the cache records. Returns whether
+    anything moved.
+    """
+
+    found = section_setting_runs(source)
+    if not found:
+        return False
+    position = 0
+    for run, settings in found:
+        if len(settings) == len(run):
+            source.remove(run)
+            moved = run
+        else:
+            moved = run.makeelement(run.tag, dict(run.attrib))
+            for child in settings:
+                run.remove(child)
+                moved.append(child)
+        target.insert(position, moved)
+        position += 1
+    for cache in [child for child in target if isinstance(child.tag, str) and tag_local_name(child.tag).lower() == "linesegarray"]:
+        target.remove(cache)
+    return True
+
+
+def _local(element: ET.Element) -> str:
+    return tag_local_name(element.tag) if isinstance(element.tag, str) else ""
+
+
+def blank_settings_paragraph(paragraph: ET.Element) -> bool:
+    """Whether *paragraph* is a blank line that only holds section settings: its runs hold
+    nothing but :func:`is_section_setting` children and empty ``hp:t``, and it holds nothing
+    besides runs and a line cache (the first paragraph :meth:`HwpxDocument.new` makes)."""
+
+    if any(_local(child) not in ("run", "linesegarray") for child in paragraph):
+        return False
+    children = [child for run in paragraph if _local(run) == "run" for child in run]
+    settings = [child for child in children if is_section_setting(child)]
+    rest = [child for child in children if not is_section_setting(child)]
+    return bool(settings) and all(_local(child) == "t" and not (child.text or "") and not len(child) for child in rest)
+
+
+def take_over_paragraph(kept: ET.Element, added: ET.Element) -> None:
+    """Give the blank settings paragraph *kept* the content of *added*.
+
+    *kept* keeps its runs of section settings and its ``id``; its other runs and its line
+    cache go. It takes the attributes of *added* (paragraph shape, style...) and its
+    children, behind the settings. *added* is left empty; the caller removes it.
+    """
+
+    for child in list(kept):
+        if _local(child) == "run":
+            for grand in list(child):
+                if not is_section_setting(grand):
+                    child.remove(grand)
+        if _local(child) != "run" or not len(child):
+            kept.remove(child)
+    for name in [name for name in kept.attrib if name != "id" and name not in added.attrib]:
+        del kept.attrib[name]
+    for name, value in added.attrib.items():
+        if name != "id":
+            kept.set(name, value)
+    for child in list(added):
+        if _local(child) != "linesegarray":
+            kept.append(child)
+
+
+def _next_paragraph(parent: ET.Element, element: ET.Element) -> ET.Element | None:
+    seen = False
+    for child in parent:
+        if child is element:
+            seen = True
+        elif seen and isinstance(child.tag, str) and tag_local_name(child.tag) == "p":
+            return child
+    return None
+
+
+def renumber_copied_fields(copy: ET.Element) -> int:
+    """Give each field whose begin and end are both inside *copy* a new id pair.
+
+    A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
+    keeping them leaves two fields of one id, which readers and form filling cannot tell apart.
+    A ``fieldid`` equal to the old id follows it. A field reaching outside *copy* is left as it is.
+    Returns how many fields were renumbered.
+    """
+
+    from ._document_primitives import _object_id
+
+    hp_begin, hp_end = f"{{{_HP_NS}}}fieldBegin", f"{{{_HP_NS}}}fieldEnd"
+    ends: dict[str, list[ET.Element]] = {}
+    for end in copy.iter(hp_end):
+        ends.setdefault(end.get("beginIDRef") or "", []).append(end)
+    renumbered = 0
+    for begin in copy.iter(hp_begin):
+        old = begin.get("id")
+        if not old or old not in ends:
+            continue
+        new_id = _object_id()
+        for node in (begin, *ends.pop(old)):
+            node.set("id" if node is begin else "beginIDRef", new_id)
+            if node.get("fieldid") == old:
+                node.set("fieldid", new_id)
+        renumbered += 1
+    return renumbered
+
+
+def insert_paragraph_beside(
+    element: ET.Element, section_element: ET.Element, text: str | None, *, after: bool
+) -> ET.Element:
+    """Put a new paragraph next to the paragraph *element* (in its section, cell, header...) and
+    return it.
+
+    *text* ``None`` copies *element* (fresh ids, field ids among them, and no line caches) without
+    its section settings; otherwise the new paragraph holds *text* in *element*'s paragraph shape,
+    style and first run's character shape. Put in front of the paragraph that starts a section,
+    it starts the section instead: the section's settings move to it.
+    """
+
+    from ._document_primitives import (
+        _DEFAULT_PARAGRAPH_ATTRS, _append_text_with_tabs, _clone_paragraph_element, _paragraph_id,
+    )
+
+    parent = paragraph_container(element, section_element)
+    if parent is None:
+        raise HwpxValueError(
+            "이 단락은 문서에서 빠져 있어 옆에 단락을 넣을 수 없습니다.",
+            code="paragraph-not-in-document",
+            suggestion="문서의 doc.paragraphs 에서 단락을 다시 가져오세요.",
+        )
+    if text is None:
+        new = _clone_paragraph_element(element)
+        renumber_copied_fields(new)
+        for run, settings in section_setting_runs(new):
+            for child in settings:
+                run.remove(child)
+            if len(run) == 0:
+                new.remove(run)
+    else:
+        text_run = next((child for child in element if _local(child) == "run" and (
+            not len(child) or not all(is_section_setting(grand) for grand in child))), None)
+        new = element.makeelement(element.tag, {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS})
+        for name in ("paraPrIDRef", "styleIDRef"):
+            if element.get(name) is not None:
+                new.set(name, element.get(name) or "")
+        run = new.makeelement(f"{{{_HP_NS}}}run", {
+            "charPrIDRef": (text_run.get("charPrIDRef") if text_run is not None else None) or "0"})
+        new.append(run)
+        _append_text_with_tabs(run, text)
+    index = list(parent).index(element)
+    parent.insert(index + 1 if after else index, new)
+    if not after and parent is section_element:
+        move_section_settings(element, new)
+    return new
+
 
 def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -> bool:
     """Take the paragraph *element* out of the section or ``hp:subList`` holding it.
@@ -138,11 +332,26 @@ def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -
     Returns ``False`` when it is already gone. The last paragraph of its list
     stays: HWPX needs one ``<hp:p>`` per section, and Hancom cannot open a cell,
     header or footer whose paragraph list is empty.
+
+    The paragraph that starts a section holds the section's settings (``hp:secPr``: paper,
+    margins, numbering start; and its columns, header, footer and page numbering). Those move
+    to the front of the next paragraph, which then starts the section. A paragraph holding them
+    with no paragraph after it is refused (``paragraph-remove-section-settings``).
     """
 
     parent = paragraph_container(element, section_element)
     if parent is None:
         return False
+    if len(parent.findall(f"{{{_HP_NS}}}p")) > 1 and section_setting_runs(element):
+        following = _next_paragraph(parent, element)
+        if following is None:
+            raise HwpxValueError(
+                "이 단락은 구역 설정(용지·여백·단·머리말·꼬리말·쪽 번호)을 담고 있고 뒤에 단락이 없어 지울 수 없습니다.",
+                code="paragraph-remove-section-settings",
+                context={"container": "section"},
+                suggestion='단락을 지우지 말고 글을 비우세요(paragraph.text = "").',
+            )
+        move_section_settings(element, following)
     if len(parent.findall(f"{{{_HP_NS}}}p")) <= 1:
         if parent is section_element:
             container = "section"

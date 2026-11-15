@@ -69,6 +69,17 @@ jobs:
           set -o pipefail
           pytest -v -ra --cov=hwpx --cov-report=term-missing --cov-fail-under=${COVERAGE_FAIL_UNDER} 2>&1 | tee pytest-summary.log
 
+      # The test run above uses the editable install, which reads src/ and so
+      # cannot see a package missing from pyproject's explicit list (6.12.0
+      # shipped without hwpx.integrations). Build the wheel, install it into an
+      # empty venv and import every declared package from there.
+      - name: Import every package from the built wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m build --wheel --outdir "${RUNNER_TEMP}/wheel-check" .
+          python scripts/check_wheel_imports.py "${RUNNER_TEMP}"/wheel-check/*.whl
+
       - name: Upload pytest summary log
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

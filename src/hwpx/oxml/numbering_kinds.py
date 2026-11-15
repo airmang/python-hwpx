@@ -150,7 +150,14 @@ def ensure_numbering_refs(
     if normalized_kind == "outline":
         return _numbering_refs_for_kind(header, "OUTLINE", resolved_levels)
 
-    raise ValueError("kind must be 'bullet', 'number', or 'outline'")
+    from ..errors import HwpxValueError
+
+    raise HwpxValueError(
+        "kind must be 'bullet', 'number', or 'outline'",
+        code="style-list-kind-invalid",
+        context={"kind": kind},
+        suggestion='kind="bullet"(글머리표), "number"(번호), "outline"(개요) 중 하나를 주세요.',
+    )
 
 
 def ensure_numbering_levels(header: "HwpxOxmlHeader", numbering_id: str, levels: int) -> None:

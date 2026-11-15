@@ -24,9 +24,10 @@
   린트가 위반을 경고한다).
 - **`apply_body_ops` 인덱스는 실행 시점 문서 순서다.** 문단 삭제/삽입 op를
   섞으면 뒤 op의 인덱스가 밀린다 — 인덱스 기반 op는 문서 끝에서 앞으로.
-- **저수준 `add_shape`/`add_control`은 OWPML 필수 하위 요소를 만들지 않는다.**
-  그대로 저장하면 실한컴이 문서를 거부한다(경고 `UserWarning` 하나가 유일한
-  신호). 도형은 전용 `add_line`/`add_rectangle`/`add_ellipse`를 쓰라.
+- **저수준 `doc.shapes.add_raw`(구 `add_shape`)/`doc.shapes.add_control`은 OWPML 필수
+  하위 요소를 만들지 않는다.** 그대로 저장하면 실한컴이 문서를 거부한다(경고
+  `UserWarning` 하나가 유일한 신호). 도형은 전용 `doc.shapes.add_line`/`add_rectangle`/
+  `add_ellipse`를 쓰라.
 - **텍스트를 갈아 끼우면 lineseg 캐시가 무효다.** 스플라이스 계열은 편집 문단의
   `<hp:linesegarray>`를 스스로 떨군다(안 떨구면 한컴이 옛 줄 자리에 새 글자를
   그려 겹침이 생긴다). 직접 XML을 만질 때도 같은 규칙을 지켜야 한다.
@@ -80,7 +81,7 @@
   링크를 버린다. 그래서 `headings`를 직접 주면 `dirty` 기본값은 `False`다.
 - **본문 문단이 스타일 0(바탕글)이면 목차에 수집될 수 있다.** 한컴 목차 수집은
   스타일 기반이다 — 본문은 본문 스타일, 제목은 개요 스타일로.
-- **메모 필드는 무음 수용 캐비앗이 있다.** `attach_memo_field`가 앵커를 못
+- **메모 필드는 무음 수용 캐비앗이 있다.** `doc.notes.attach`(구 `attach_memo_field`)가 앵커를 못
   찾아도 조용히 넘어가는 경로가 있다(recipes의 mutation-semantics 표 참조) —
   결과 리포트의 실측 필드를 확인하라.
 - **암호화 HWPX는 열리지 않는 게 정상이다.** 파싱 예외로 fail-closed 거부한다.

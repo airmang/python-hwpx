@@ -1448,6 +1448,10 @@ class HwpxOxmlSectionProperties:
             run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
         return run
 
+    def _first_paragraph_runs(self) -> list[ET.Element]:
+        paragraph = self.section.element.find(f"{_HP}p")
+        return [] if paragraph is None else paragraph.findall(f"{_HP}run")
+
     def _sync_header_footer_control(self, tag: str, source: ET.Element) -> None:
         """Mirror *source* into the ``hp:ctrl`` Hancom reads, replacing only the
         control of the same page type, with ``BOTH`` ahead of ``ODD``/``EVEN``.
@@ -1462,9 +1466,31 @@ class HwpxOxmlSectionProperties:
         EVEN override it on their pages whatever order they were set in. Every
         control also goes ahead of a field that starts in that run: Hancom drops
         a header or footer control inside a field's span.
+
+        A control of the same page type in another run of the section's first
+        paragraph (Hancom writes its header and footer controls in a run of
+        their own after the settings) is replaced where it is: adding another
+        beside it left the document with two. A control later in the body (a
+        header changed from that page on) stays.
         """
         run = self._header_footer_control_run()
         page_type = source.get("applyPageType", "BOTH")
+        holder = next((
+            (other, ctrl)
+            for other in self._first_paragraph_runs()
+            if other is not run
+            for ctrl in other.findall(f"{_HP}ctrl")
+            if (story := ctrl.find(f"{_HP}{tag}")) is not None and story.get("applyPageType", "BOTH") == page_type
+        ), None)
+        if holder is not None:
+            other, existing = holder
+            replacement = existing.makeelement(f"{_HP}ctrl", dict(existing.attrib))
+            replacement.append(deepcopy(source))
+            other.insert(list(other).index(existing), replacement)
+            other.remove(existing)
+            remember_story_pair(self.section, source)
+            self.section.mark_dirty()
+            return
         for ctrl in list(run.findall(f"{_HP}ctrl")):
             story = ctrl.find(f"{_HP}{tag}")
             if story is not None and story.get("applyPageType", "BOTH") == page_type:

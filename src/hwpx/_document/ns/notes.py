@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from ...errors import HwpxValueError
-from .._resolve import resolve_section
+from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
@@ -48,7 +48,7 @@ class NotesNamespace(_Namespace):
     def add_footnote(
         self,
         text: str,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         *,
         section: "int | Section | None" = None,
         section_index: int | None = None,
@@ -61,7 +61,10 @@ class NotesNamespace(_Namespace):
         return _shapes.add_footnote(
             self._doc,
             text=text,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, section_index=section_index,
+                caller="doc.notes.add_footnote",
+            ),
             section=self._section(section, section_index, "add_footnote"),
             char_pr_id_ref=char_pr_id_ref,
         )
@@ -69,7 +72,7 @@ class NotesNamespace(_Namespace):
     def add_endnote(
         self,
         text: str,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         *,
         section: "int | Section | None" = None,
         section_index: int | None = None,
@@ -82,7 +85,10 @@ class NotesNamespace(_Namespace):
         return _shapes.add_endnote(
             self._doc,
             text=text,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, section_index=section_index,
+                caller="doc.notes.add_endnote",
+            ),
             section=self._section(section, section_index, "add_endnote"),
             char_pr_id_ref=char_pr_id_ref,
         )

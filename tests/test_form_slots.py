@@ -164,7 +164,8 @@ def test_a_label_that_cannot_be_a_path_is_listed_without_one() -> None:
 
     slot, colon_slot = document.tables.form_slots()["slots"]
 
-    assert slot["path"] is None
+    # A ">" in the label is written "\>" in the path; only a colon-only label has none.
+    assert slot["path"] == "< 보 기 \\> > right"
     assert colon_slot["path"] is None
     assert (slot["table_index"], slot["target_cell"]["row"], slot["target_cell"]["col"]) == (0, 0, 1)
 

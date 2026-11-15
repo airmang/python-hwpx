@@ -85,6 +85,78 @@ def _png_dimensions(image_data: bytes) -> tuple[int, int] | None:
     return width, height
 
 
+#: The image formats a picture takes, each with the format its bytes must show (``jpeg`` and
+#: ``jpg``, ``tif`` and ``tiff`` are one each).
+_IMAGE_FORMATS = {
+    "png": "png", "jpg": "jpeg", "jpeg": "jpeg", "gif": "gif", "bmp": "bmp",
+    "tif": "tiff", "tiff": "tiff", "svg": "svg", "wmf": "wmf", "emf": "emf",
+}
+
+
+def _sniff_image(data: bytes) -> str | None:
+    """The image format the first bytes of *data* show, or ``None``."""
+
+    head = bytes(data[:64])
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    if head.startswith(b"BM"):
+        return "bmp"
+    if head.startswith((b"II*\x00", b"MM\x00*")):
+        return "tiff"
+    if head.startswith((b"\xd7\xcd\xc6\x9a", b"\x01\x00\x09\x00", b"\x02\x00\x09\x00")):
+        return "wmf"
+    if head.startswith(b"\x01\x00\x00\x00") and head[40:44] == b" EMF":
+        return "emf"
+    text = bytes(data[:1024]).lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    if text.startswith((b"<svg", b"<?xml", b"<!doctype svg")) and b"<svg" in text:
+        return "svg"
+    return None
+
+
+def check_image(image_data: Any, image_format: Any) -> str:
+    """Refuse bytes that are not an image of a format a picture takes; return the format name.
+
+    The format name must be one of :data:`_IMAGE_FORMATS` and the first bytes of *image_data*
+    must show that format: Hancom shows an empty frame for anything else, and the save does
+    not notice. Raises :class:`~hwpx.errors.HwpxValueError` (``code="media-image-invalid"``).
+    """
+
+    fmt = str(image_format).lower().lstrip(".") if isinstance(image_format, str) else ""
+    allowed = sorted(_IMAGE_FORMATS)
+    if fmt not in _IMAGE_FORMATS:
+        raise HwpxValueError(
+            f"그림 형식 이름 {image_format!r} 을(를) 모릅니다.",
+            code="media-image-invalid",
+            context={"format": repr(image_format), "allowed": allowed},
+            suggestion="형식 이름은 " + ", ".join(allowed) + " 중 하나입니다(파일 확장자).",
+        )
+    if not isinstance(image_data, (bytes, bytearray, memoryview)):
+        raise HwpxValueError(
+            f"그림 데이터는 bytes 여야 합니다 — {type(image_data).__name__}.",
+            code="media-image-invalid",
+            context={"format": fmt, "type": type(image_data).__name__},
+            suggestion="파일이면 pathlib.Path(경로).read_bytes() 로 읽어 넘기세요.",
+        )
+    found = _sniff_image(bytes(image_data))
+    if found != _IMAGE_FORMATS[fmt]:
+        what = "그림 파일이 아닙니다" if found is None else f"{found} 그림입니다"
+        raise HwpxValueError(
+            f"{fmt} 형식이라고 했지만 데이터의 첫 바이트를 보면 {what}.",
+            code="media-image-invalid",
+            context={"format": fmt, "detected": found},
+            suggestion=(
+                "그림 파일의 bytes 를 그대로 넘기세요."
+                if found is None
+                else f"형식 이름을 {found!r} 로 주세요."
+            ),
+        )
+    return fmt
+
+
 def _bin_data_stem(value: Any) -> str | None:
     if value is None:
         return None
@@ -131,6 +203,7 @@ def add_picture(
     """Embed image data and place a picture object in a new paragraph, the image adjusted and bordered as
     :meth:`HwpxOxmlParagraph.add_picture` takes it."""
 
+    check_image(image_data, image_format)
     validate_picture_align(align)  # before anything is stored: Hancom reads an unknown one as LEFT
     validate_picture_image(brightness, contrast, effect, alpha)  # ... and draws no other adjustment
     validate_picture_border(line_width)
@@ -254,8 +327,16 @@ def replace_picture(
     rotation, and wrapping geometry remain untouched.
     """
 
+    check_image(image_data, image_format)
+    from ..oxml.utils import HwpxIndexError
+
     if picture_index < 0:
-        raise IndexError("picture_index must be non-negative")
+        raise HwpxIndexError(
+            "picture_index must be non-negative",
+            code="media-picture-not-found",
+            context={"pictureIndex": picture_index},
+            suggestion="picture_index 는 0부터 셉니다. doc.media.picture_references() 로 그림 목록을 보세요.",
+        )
 
     selected: tuple[int, HwpxOxmlSection, Any, Any] | None = None
     matched_index = -1
@@ -270,11 +351,15 @@ def replace_picture(
             break
 
     if selected is None:
-        if binary_item_id_ref is None:
-            raise IndexError(f"picture_index {picture_index} is out of range")
-        raise IndexError(
-            f"picture_index {picture_index} for binaryItemIDRef "
-            f"{binary_item_id_ref!r} is out of range"
+        message = f"picture_index {picture_index} is out of range" if binary_item_id_ref is None else (
+            f"picture_index {picture_index} for binaryItemIDRef {binary_item_id_ref!r} is out of range"
+        )
+        raise HwpxIndexError(
+            message,
+            code="media-picture-not-found",
+            context={"pictureIndex": picture_index, "found": matched_index + 1,
+                     "binaryItemIdRef": binary_item_id_ref},
+            suggestion=f"그림이 {matched_index + 1}개 있습니다. doc.media.picture_references() 로 목록을 보세요.",
         )
 
     section_index, section, picture_element, image = selected

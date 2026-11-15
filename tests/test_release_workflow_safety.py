@@ -56,11 +56,12 @@ def _checkout_with_ref_main(text: str) -> str:
     match = _CHECKOUT_LINE.match(text, start)
     assert match is not None, "prepublish no longer starts with a pinned checkout"
     return text[: match.end()] + "        with:\n          ref: main\n" + text[match.end() :]
+# 7.0: "[0-9]*" 태그는 발행 뒤 해시 검사(verify_release_hashes.py)가 늘 거부하는
+# 모양이라 뺐다. 발행 앞 단계에서도 --tag-only로 같은 규칙을 먼저 본다.
 EXPECTED_TRIGGER = {
     "push": {
         "tags": [
             "v*",
-            "[0-9]*",
         ],
     },
 }
@@ -207,7 +208,8 @@ EXPECTED_RELEASE_STEPS = (
 )
 EXPECTED_PREBUILD_RUN_SHA256 = {
     "Validate tag/version consistency": (
-        "093ec109015dff5f5d6163a548e810c42bff5ecc2dd9308208cc747ca86f292c"
+        # 7.0: 태그 형식 검사(verify_release_hashes.py --tag-only)를 발행 앞으로 옮겼다.
+        "25b7f9afea0b52778cabdafe2623fd57d79ab6d9d485f6f03a8ec9a0480fce21"
     ),
     "Extract latest changelog section for release notes": (
         "0e2f1d7765304dc2377a9dbffd8cb29bf69852817f9e393ac5b4044d33a9d18a"
@@ -650,7 +652,7 @@ def test_public_legacy_cap_is_a_required_fail_closed_job() -> None:
         ),
         (
             lambda text: re.sub(
-                r'on:\n  push:\n    tags:\n      - "v\*"\n      - "\[0-9\]\*"\n',
+                r'on:\n  push:\n    tags:\n      - "v\*"\n',
                 'on:\n  push:\n    branches: ["**"]\n',
                 text,
                 count=1,

@@ -551,8 +551,66 @@ def _cell_reference(
     }
 
 
+def _escape_path_label(label: str) -> str:
+    r"""Write *label* so :func:`_parse_path` reads it back: ``>`` as ``\>``, and a backslash
+    that comes before ``\`` or ``>`` as ``\\``. Other backslashes stay as they are."""
+
+    return re.sub(r"\\(?=[\\>])", r"\\\\", label).replace(">", "\\>")
+
+
+def _split_path(path: str) -> list[str]:
+    r"""Split *path* at each ``>`` that is not written ``\>``; ``\\`` is one backslash.
+
+    A backslash before any other character is kept, so a path written before ``\>``
+    existed reads as it did.
+    """
+
+    tokens: list[str] = []
+    current: list[str] = []
+    index = 0
+    while index < len(path):
+        char = path[index]
+        if char == "\\" and index + 1 < len(path) and path[index + 1] in "\\>":
+            current.append(path[index + 1])
+            index += 2
+            continue
+        if char == ">":
+            tokens.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    tokens.append("".join(current))
+    return tokens
+
+
+def _check_path_types(mappings: object) -> None:
+    """Refuse a mapping that is not one, or a path that is not a ``str``, before anything is written."""
+
+    from ..errors import HwpxTypeError
+
+    if not isinstance(mappings, Mapping):
+        raise HwpxTypeError(
+            f"fill_by_path takes a mapping of path to value, not {type(mappings).__name__}.",
+            code="table-path-invalid-type",
+            context={"type": type(mappings).__name__},
+            suggestion='{"성명 > right": "홍길동"}처럼 경로를 키로 하는 dict를 넘기세요.',
+        )
+    bad = [path for path in mappings if not isinstance(path, str)]
+    if bad:
+        raise HwpxTypeError(
+            f"fill_by_path paths must be str; got {bad[0]!r} ({type(bad[0]).__name__}).",
+            code="table-path-invalid-type",
+            context={"paths": [repr(path) for path in bad[:10]], "count": len(bad)},
+            suggestion=(
+                "form_slots()가 준 path(str)를 키로 쓰세요. path가 None인 칸은 이름표가 콜론뿐인 칸이니 "
+                "그 칸의 table_index와 target_cell이 가리키는 칸에 직접 쓰세요."
+            ),
+        )
+
+
 def _parse_path(path: str) -> tuple[str | None, list[str], str | None]:
-    tokens = [token.strip() for token in path.split(">")]
+    tokens = [token.strip() for token in _split_path(path)]
     if not tokens or not tokens[0]:
         return (None, [], "path must start with a label")
 
@@ -630,7 +688,7 @@ def _cell_width_mm(cell: object) -> float | None:
 
 
 def form_slots(document: HwpxDocument, *, min_width_mm: float = 5.0) -> TableFormSlotsResult:
-    """List the blanks of a form: empty cells right of, or below, a cell with text.
+    r"""List the blanks of a form: empty cells right of, or below, a cell with text.
 
     Forms put thin empty cells between a label and its boxes as spacing; a
     value written there comes out one character per line. Cells narrower than
@@ -640,9 +698,11 @@ def form_slots(document: HwpxDocument, *, min_width_mm: float = 5.0) -> TableFor
     Each slot carries the ``path`` that :func:`fill_by_path` takes to fill it
     (``"성명 > right"``; ``"성명[2] > right"`` when the label occurs more than
     once). A blank is offered once, by the cell to its left when that has text,
-    otherwise by the cell above. ``path`` is None when the label cannot be
-    written as a path (it contains ``>``, or is only a colon); the slot's
-    ``table_index`` and ``target_cell`` still say where it is. ``table_index``
+    otherwise by the cell above. A ``>`` in the label is written ``\>`` in the
+    path (``"수입 > 지출"`` becomes ``"수입 \> 지출 > right"``), and a backslash
+    before ``\`` or ``>`` as ``\\``. ``path`` is None when the label is only a
+    colon; the slot's ``table_index`` and ``target_cell`` still say where it
+    is. ``table_index``
     counts tables as ``get_table_map`` does, tables inside cells included.
 
     This reads structure only. Whether a cell with text is a label, and what
@@ -685,16 +745,16 @@ def form_slots(document: HwpxDocument, *, min_width_mm: float = 5.0) -> TableFor
                     continue
                 label = _collapse_whitespace(label_text)
                 path: str | None = None
-                if ">" not in label and _normalize_label_text(label_text):
+                if _normalize_label_text(label_text):
                     same = index.whole.get(_normalize_label_text(label_text), [])
-                    selector = label
+                    selector = _escape_path_label(label)
                     if len(same) > 1:
                         number = next(
                             number
                             for number, candidate in enumerate(same, start=1)
                             if candidate.table is table and (candidate.row, candidate.col) == source
                         )
-                        selector = f"{label}[{number}]"
+                        selector = f"{selector}[{number}]"
                     path = f"{selector} > {direction}"
                 slots.append(
                     {
@@ -717,14 +777,17 @@ def fill_by_path(
     *,
     fit: "FitPolicy | None" = None,
 ) -> TableFillResult:
-    """Fill multiple table cells using label-based navigation paths.
+    r"""Fill multiple table cells using label-based navigation paths.
 
     A path is a label and one or more directions: ``"성명 > right"``. The label
     is compared without whitespace, case or a trailing colon, so ``"성명"``
     finds a cell that reads ``"성  명"``. When the label matches several cells
     the path fails as ``"ambiguous label"`` and lists them under
     ``candidates``; write ``"성명[2] > right"`` to pick the second in document
-    order. :func:`form_slots` lists the blanks with their paths.
+    order. A label holding ``>`` writes it ``\>`` (``"가 \> 나 > right"``).
+    :func:`form_slots` lists the blanks with their paths. A path that is not a
+    ``str`` raises :class:`~hwpx.errors.HwpxTypeError` before any cell is
+    written.
 
     Without *fit* a value is written as it is and Hancom grows the row when it
     needs more lines. With a :class:`~hwpx.form_fit.policy.FitPolicy` each
@@ -736,6 +799,7 @@ def fill_by_path(
     # Labels are resolved against the document as it is when the call starts,
     # so the outcome does not depend on the order of the paths: a value written
     # for one path is never taken for the label of another.
+    _check_path_types(mappings)
     index = _LabelIndex(_collect_document_tables(document))
     grids: dict[int, Any] = {}
     applied: list[TableFillApplied] = []

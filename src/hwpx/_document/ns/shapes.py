@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Sequence
 
-from .._resolve import resolve_section
+from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
@@ -35,6 +35,14 @@ class ShapesNamespace(_Namespace):
             self._doc, section, section_index, caller=f"doc.shapes.{caller}"
         )
 
+    def _paragraph(self, paragraph, section, section_index) -> "Paragraph | None":
+        """``paragraph=``: an index (in *section* when given, else in the whole document) or a
+        paragraph of this document; ``None`` adds a new one."""
+
+        return optional_paragraph(
+            self._doc, paragraph, section=section, section_index=section_index, caller="doc.shapes"
+        )
+
     # -- 기본 도형 ---------------------------------------------------------
 
     def add_line(
@@ -47,7 +55,7 @@ class ShapesNamespace(_Namespace):
         line_color: str = "#000000",
         line_width: str = "33",
         treat_as_char: bool = True,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
     ) -> "Shape":
@@ -64,7 +72,7 @@ class ShapesNamespace(_Namespace):
             line_color=line_color,
             line_width=line_width,
             treat_as_char=treat_as_char,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_line"),
         )
 
@@ -78,7 +86,7 @@ class ShapesNamespace(_Namespace):
         circle_type: str | None = None,
         char_sz: int | None = None,
         compose_type: str | None = None,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -94,7 +102,7 @@ class ShapesNamespace(_Namespace):
             circle_type=circle_type,
             char_sz=char_sz,
             compose_type=compose_type,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_composed_character"),
             char_pr_id_ref=char_pr_id_ref,
         )
@@ -109,7 +117,7 @@ class ShapesNamespace(_Namespace):
         sz_ratio: int | None = 0,
         option: int | None = 0,
         style_id_ref: str | int | None = None,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -132,7 +140,7 @@ class ShapesNamespace(_Namespace):
             sz_ratio=sz_ratio,
             option=option,
             style_id_ref=style_id_ref,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_dutmal"),
             char_pr_id_ref=char_pr_id_ref,
         )
@@ -147,7 +155,7 @@ class ShapesNamespace(_Namespace):
         line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         original_size: "tuple[int, int] | None" = None,
@@ -170,7 +178,7 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_rectangle"),
             original_size=original_size,
         )
@@ -184,7 +192,7 @@ class ShapesNamespace(_Namespace):
         line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         original_size: "tuple[int, int] | None" = None,
@@ -201,7 +209,7 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_ellipse"),
             original_size=original_size,
         )
@@ -217,7 +225,7 @@ class ShapesNamespace(_Namespace):
         line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
     ) -> "Shape":
@@ -235,7 +243,7 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_arc"),
         )
 
@@ -247,7 +255,7 @@ class ShapesNamespace(_Namespace):
         line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         closed: bool = True,
@@ -266,7 +274,7 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_polygon"),
             closed=closed,
         )
@@ -280,7 +288,7 @@ class ShapesNamespace(_Namespace):
         line_width: str = "33",
         fill_color: str | None = None,
         treat_as_char: bool = True,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
     ) -> "Shape":
@@ -300,7 +308,7 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_curve"),
         )
 
@@ -314,7 +322,7 @@ class ShapesNamespace(_Namespace):
         kind: str = "STRAIGHT",
         line_color: str = "#000000",
         line_width: str = "33",
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
     ) -> "Shape":
         """두 도형을 잇는 연결선을 넣는다(각 도형 상자의 한 변 가운데: top/right/bottom/left).
 
@@ -333,7 +341,7 @@ class ShapesNamespace(_Namespace):
             kind=kind,
             line_color=line_color,
             line_width=line_width,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, None, None),
         )
 
     def add_container(
@@ -341,7 +349,7 @@ class ShapesNamespace(_Namespace):
         members: "Sequence[ContainerMember]",
         *,
         treat_as_char: bool = True,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
     ) -> "Shape":
@@ -354,7 +362,7 @@ class ShapesNamespace(_Namespace):
             self._doc,
             members,
             treat_as_char=treat_as_char,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_container"),
         )
 
@@ -364,7 +372,7 @@ class ShapesNamespace(_Namespace):
         self,
         chart_xml: bytes | str,
         *,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         size: tuple[int, int] | None = None,
@@ -378,7 +386,7 @@ class ShapesNamespace(_Namespace):
         return _shapes.add_chart(
             self._doc,
             chart_xml=chart_xml,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_chart"),
             size=size,
             treat_as_char=treat_as_char,
@@ -405,7 +413,7 @@ class ShapesNamespace(_Namespace):
         width: int,
         height: int,
         style: str = "TripleLine",
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -421,7 +429,7 @@ class ShapesNamespace(_Namespace):
             self._doc,
             character,
             width=width, height=height, style=style,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_drop_cap"),
             char_pr_id_ref=char_pr_id_ref,
             para_pr_id_ref=para_pr_id_ref,
@@ -431,7 +439,7 @@ class ShapesNamespace(_Namespace):
         self,
         script: str,
         *,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         base_unit: int = 1100,
@@ -450,7 +458,7 @@ class ShapesNamespace(_Namespace):
         return _shapes.add_equation(
             self._doc,
             script=script,
-            paragraph=paragraph,
+            paragraph=self._paragraph(paragraph, section, section_index),
             section=self._section(section, section_index, "add_equation"),
             base_unit=base_unit,
             size=size,

@@ -36,6 +36,7 @@ takes no room; a reflection about its ``size`` of the picture's height and its `
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Callable
@@ -245,6 +246,87 @@ def _shape_set_position(
     self.paragraph.section.mark_dirty()
 
 
+#: ``textWrap`` of an object (``AbstractShapeObjectType``): how the body text goes around it.
+TEXT_WRAPS = ("SQUARE", "TIGHT", "THROUGH", "TOP_AND_BOTTOM", "BEHIND_TEXT", "IN_FRONT_OF_TEXT")
+
+
+def _object_set_position(
+    self: Any,
+    *,
+    treat_as_char: bool | None = None,
+    text_wrap: str | None = None,
+    horizontal_offset: int | None = None,
+    vertical_offset: int | None = None,
+    horz_rel_to: str | None = None,
+    vert_rel_to: str | None = None,
+    horz_align: str | None = None,
+    vert_align: str | None = None,
+) -> None:
+    """Place an object (equation, picture, OLE, text art...): as a character in the line or
+    floating, how the text goes around it, and where it floats.
+
+    *treat_as_char* writes ``hp:pos/@treatAsChar`` (``True``: one character in the line;
+    ``False``: floating). *text_wrap* writes the object's ``textWrap``, one of
+    :data:`TEXT_WRAPS` (``TOP_AND_BOTTOM``: text above and below only; ``SQUARE``: around its
+    box; ``BEHIND_TEXT``/``IN_FRONT_OF_TEXT``: under or over the text). The offsets (HWP units,
+    signed 32-bit) and the reference frames and alignment take the values
+    :meth:`HwpxOxmlShape.set_position` takes. ``None`` leaves a setting as it is. Offsets are
+    only for a floating object: given while it stays a character they are refused
+    (``shape-position-unsupported``). Everything is checked before anything changes; the
+    paragraph loses its line layout cache.
+    """
+
+    position = self.element.find(f"{_HP}pos")
+    if position is None:
+        raise HwpxValueError(
+            "the object has no hp:pos to place it by",
+            code="shape-position-unsupported",
+            suggestion="Only objects that carry hp:pos (equations, pictures, shapes, OLE) can be placed.",
+        )
+    for value in (horizontal_offset, vertical_offset):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)
+                                  or not -(2**31) <= value < 2**31):
+            raise HwpxValueError(
+                "object offsets must be signed 32-bit integer HWP units",
+                code="shape-position-value",
+                suggestion="Pass integer offsets in HWP units (1 mm = 283.465).",
+            )
+    floating = position.get("treatAsChar") in {"0", "false", "False"} if treat_as_char is None else not treat_as_char
+    if not floating and (horizontal_offset is not None or vertical_offset is not None):
+        raise HwpxValueError(
+            "an object set as a character has no offsets",
+            code="shape-position-unsupported",
+            suggestion="Pass treat_as_char=False to float it, then its offsets apply.",
+        )
+    attributes: dict[str, str] = {}
+    if text_wrap is not None:
+        attributes["textWrap"] = _require_member(text_wrap, TEXT_WRAPS, argument="text_wrap",
+                                                 code="shape-position-frame")
+    frames: dict[str, str] = {}
+    for argument, attribute, requested, allowed in (
+        ("vert_rel_to", "vertRelTo", vert_rel_to, POS_VERT_REL_TO),
+        ("horz_rel_to", "horzRelTo", horz_rel_to, POS_HORZ_REL_TO),
+        ("vert_align", "vertAlign", vert_align, POS_VERT_ALIGN),
+        ("horz_align", "horzAlign", horz_align, POS_HORZ_ALIGN),
+    ):
+        if requested is not None:
+            frames[attribute] = _require_member(requested, allowed, argument=argument, code="shape-position-frame")
+    if treat_as_char is not None:
+        frames["treatAsChar"] = "1" if treat_as_char else "0"
+    for name, offset in (("horzOffset", horizontal_offset), ("vertOffset", vertical_offset)):
+        if offset is not None:
+            frames[name] = str(offset & 0xFFFFFFFF)  # a negative one in its unsigned 32-bit form, as Hancom writes it
+    for name, setting in attributes.items():
+        self.element.set(name, setting)
+    for name, setting in frames.items():
+        position.set(name, setting)
+    if attributes or frames:
+        from ._document_primitives import _clear_paragraph_layout_cache
+
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
+
+
 def _matrix_number(value: float) -> str:
     """A matrix entry as Hancom prints it: six decimals, no trailing zeros."""
 
@@ -292,6 +374,45 @@ def validate_equation_base_unit(base_unit: object) -> int:
             suggestion="Pass the equation's base font size in 1/100 pt, e.g. 1000 for 10 pt.",
         )
     return base_unit
+
+
+_LATEX_COMMAND = re.compile(r"\\[A-Za-z]+")
+
+
+def validate_equation_script(text: str) -> str:
+    """Refuse an equation script Hancom would show as typed rather than as an equation.
+
+    A LaTeX command (``\\frac``) is not Hancom's equation language: Hancom's own scripts write
+    no backslash (none in 175 equations of Hancom-saved documents), so the backslash and the
+    word after it would be drawn as they are (``shape-equation-script-latex``). Braces group in
+    Hancom's language too, and a script whose braces do not pair is refused
+    (``shape-equation-script-unbalanced``).
+    """
+
+    latex = _LATEX_COMMAND.search(text)
+    if latex is not None:
+        raise HwpxValueError(
+            f"equation script holds the LaTeX command {latex.group(0)!r}; it takes Hancom's equation language",
+            code="shape-equation-script-latex",
+            context={"command": latex.group(0)},
+            suggestion="LaTeX 는 hwpx.equation.latex_to_eqedit(r\"\\frac{1}{2}\") 로 바꿔 넘기세요"
+            "(한/글 수식: {1} over {2}).",
+        )
+    depth, closed_early = 0, None
+    for position, char in enumerate(text):
+        depth += 1 if char == "{" else -1 if char == "}" else 0
+        if depth < 0:
+            closed_early = position
+            break
+    if depth != 0:
+        raise HwpxValueError(
+            "equation script braces do not pair: "
+            + (f"the '}}' at {closed_early} closes nothing" if closed_early is not None else f"{depth} '{{' left open"),
+            code="shape-equation-script-unbalanced",
+            context={"closedEarlyAt": closed_early, "open": max(depth, 0)},
+            suggestion="여는 { 와 닫는 } 의 짝을 맞추세요.",
+        )
+    return text
 
 
 def validate_equation_font(font: object) -> str:

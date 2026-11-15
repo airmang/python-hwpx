@@ -109,6 +109,24 @@ class TableStructureEdits:
             "rows": _whole(rows, "rows"), "cols": _whole(cols, "cols"),
         })
 
+    def remove(self) -> None:
+        """Take this table out of its paragraph, as Hancom deletes a table.
+
+        The paragraph that held it stays (an empty line when it held nothing else) and loses its
+        line layout cache. A run left empty goes. A second call does nothing; the table object
+        should not be used after it.
+        """
+
+        paragraph = self.paragraph.element
+        for run in paragraph.findall(f"{_HP}run"):
+            if any(child is self.element for child in run):
+                run.remove(self.element)
+                if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
+                    paragraph.remove(run)
+                _clear_paragraph_layout_cache(paragraph)
+                self.paragraph.section.mark_dirty()
+                return
+
     def _restructure(self, op: dict[str, Any]) -> None:
         from lxml import etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
@@ -119,6 +137,11 @@ class TableStructureEdits:
             raise TableStructureError("structure edits need a table whose paragraph namespace is prefixed hp")
         section = self.paragraph.section
         sections = section.document.sections if section.document is not None else [section]
+        # A paragraph edited in the tree directly still holds the cache it was read with. The rebuild
+        # below makes new elements, which the save can no longer pair with what was read: drop the
+        # caches that outlived their content now, while it still can.
+        if section._remove_outlived_layout_caches(force=True):
+            section.mark_dirty()
         used = {
             int(found)
             for part in sections
@@ -140,6 +163,7 @@ class TableStructureEdits:
         self._grow_height(before)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()
+        section._remove_outlived_layout_caches()  # track the rebuilt caches with the content they have now
 
     def _rows_height(self) -> int | None:
         """The table's rows' height as the page estimate measures them (:mod:`hwpx.layout.pages`), or None
