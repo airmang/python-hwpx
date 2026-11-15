@@ -128,21 +128,67 @@ class FormField:
 
     @property
     def name(self) -> str:
+        """The field's name, by which ``doc.fields.fill`` finds it. Assigning renames it."""
+
         return self._name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._refresh(name=value)
 
     @property
     def prompt(self) -> str:
-        """안내문 shown while the field is empty (absorbs the old ``instruction`` alias)."""
+        """안내문 shown while the field is empty (absorbs the old ``instruction`` alias).
+
+        Assigning it changes the 안내문; a field still showing its old one (nothing
+        entered yet) shows the new one."""
 
         return self._prompt
 
+    @prompt.setter
+    def prompt(self, value: str) -> None:
+        self._refresh(prompt=value)
+
     @property
     def memo(self) -> str:
+        """The field's memo (도움말, ``HelpState``). Assigning it changes the memo."""
+
         return self._memo
+
+    @memo.setter
+    def memo(self, value: str) -> None:
+        self._refresh(memo=value)
 
     @property
     def editable(self) -> bool:
+        """Whether the field may be filled in a form-protected document (양식 모드에서 편집 가능)."""
+
         return self._editable
+
+    @editable.setter
+    def editable(self, value: bool) -> None:
+        self._refresh(editable=bool(value))
+
+    def _refresh(self, **changes: Any) -> None:
+        from .._document.fields import update_form_field
+
+        fresh = update_form_field(self._doc, self._element, **changes)
+        for slot in self.__slots__:
+            if slot not in ("_doc", "_element"):
+                setattr(self, slot, getattr(fresh, slot))
+
+    def remove(self, *, keep_text: bool = True) -> None:
+        """Remove the field (누름틀 지우기).
+
+        Its begin and end controls go. With ``keep_text`` (the default) what the
+        field holds stays as plain text; with ``keep_text=False`` it goes too. A
+        field running over paragraphs loses those paragraphs with its content.
+        The paragraphs are laid out again.
+        """
+
+        from .._document.fields import remove_form_field
+
+        remove_form_field(self._doc, self._element, keep_text=keep_text)
 
     @property
     def value(self) -> str:

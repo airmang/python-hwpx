@@ -100,4 +100,185 @@ class CheckBox:
         )
 
 
-__all__ = ["CheckBox"]
+class RadioButton(CheckBox):
+    """A live view over one ``<hp:radioBtn>`` (라디오 단추) element.
+
+    Hancom saves it as it saves a check box (``caption``, ``value`` =
+    ``CHECKED``/``UNCHECKED``) with the name of its group in ``radioGroupName``.
+    Checking one button of a named group unchecks the others of that group in
+    the document, as Hancom does when it is clicked.
+    """
+
+    __slots__ = ()
+
+    @property
+    def group(self) -> str:
+        """The button's group (``radioGroupName``); empty when it has none."""
+
+        return self._element.get("radioGroupName", "")
+
+    @property
+    def checked(self) -> bool:
+        return self._element.get("value", "").upper() == "CHECKED"
+
+    @checked.setter
+    def checked(self, value: bool) -> None:
+        CheckBox.checked.fset(self, value)  # type: ignore[attr-defined]
+        if value and self.group:
+            document = self._section.document
+            sections = document.sections if document is not None else [self._section]
+            for section in sections:
+                for other in section.element.iter(self._element.tag):
+                    if other is not self._element and other.get("radioGroupName") == self.group \
+                            and other.get("value") != "UNCHECKED":
+                        other.set("value", "UNCHECKED")
+                        section.mark_dirty()
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"RadioButton(name={self.name!r}, caption={self.caption!r}, checked={self.checked!r})"
+
+
+class _FormControl:
+    """What the form objects without a check state share: a live view over the element."""
+
+    __slots__ = ("_element", "_section", "_paragraph", "_index", "_section_index")
+
+    def __init__(
+        self,
+        element: "ET.Element",
+        section: "HwpxOxmlSection",
+        paragraph: "Paragraph | None",
+        *,
+        index: int,
+        section_index: int,
+    ) -> None:
+        self._element = element
+        self._section = section
+        self._paragraph = paragraph
+        self._index = index
+        self._section_index = section_index
+
+    @property
+    def element(self) -> "ET.Element":
+        """The wrapped form object element — the escape hatch."""
+
+        return self._element
+
+    @property
+    def index(self) -> int:
+        """This object's position among the document's objects of its kind."""
+
+        return self._index
+
+    @property
+    def section_index(self) -> int:
+        return self._section_index
+
+    @property
+    def paragraph(self) -> "Paragraph | None":
+        """The paragraph hosting this object, when it could be located."""
+
+        return self._paragraph
+
+    @property
+    def name(self) -> str:
+        return self._element.get("name", "")
+
+
+class ComboBox(_FormControl):
+    """A live view over one ``<hp:comboBox>`` (콤보 상자) element.
+
+    ``items`` are its list entries as ``(display text, value)`` pairs, read from
+    its ``hp:listItem`` children. ``value`` is the chosen value
+    (``selectedValue``); assigning it writes that attribute. A box whose
+    ``editable_text`` is true (``editEnable``) takes a value outside its items
+    too, as Hancom lets one type it.
+    """
+
+    __slots__ = ()
+
+    @property
+    def items(self) -> tuple[tuple[str, str], ...]:
+        return tuple(
+            (item.get("displayText", ""), item.get("value", ""))
+            for item in self._element
+            if isinstance(item.tag, str) and item.tag.rsplit("}", 1)[-1] == "listItem"
+        )
+
+    @property
+    def editable_text(self) -> bool:
+        return self._element.get("editEnable", "0") in ("1", "true")
+
+    @property
+    def value(self) -> str:
+        return self._element.get("selectedValue", "")
+
+    @value.setter
+    def value(self, value: str) -> None:
+        from ..errors import HwpxValueError
+
+        new_value = str(value)
+        known = {entry for pair in self.items for entry in pair}
+        if not self.editable_text and new_value and new_value not in known:
+            raise HwpxValueError(
+                f"the combo box {self.name!r} has no item {new_value!r}",
+                code="field-choice-unknown",
+                context={"name": self.name, "items": [pair[1] or pair[0] for pair in self.items][:50]},
+                suggestion="Pick one of the box's items (combo_box.items).",
+            )
+        if self._element.get("selectedValue") != new_value:
+            self._element.set("selectedValue", new_value)
+            self._section.mark_dirty()
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"ComboBox(name={self.name!r}, value={self.value!r}, items={len(self.items)})"
+
+
+class EditBox(_FormControl):
+    """A live view over one ``<hp:edit>`` (입력 상자) element.
+
+    ``text`` is what the box holds, its ``hp:text`` child; assigning it writes
+    there. ``multi_line`` and ``read_only`` are its ``multiLine`` and ``readOnly``
+    settings as saved.
+    """
+
+    __slots__ = ()
+
+    def _text_element(self) -> "ET.Element | None":
+        for child in self._element:
+            if isinstance(child.tag, str) and child.tag.rsplit("}", 1)[-1] == "text":
+                return child
+        return None
+
+    @property
+    def text(self) -> str:
+        element = self._text_element()
+        return (element.text or "") if element is not None else ""
+
+    @text.setter
+    def text(self, value: str) -> None:
+        element = self._text_element()
+        if element is None:
+            namespace = self._element.tag.rsplit("}", 1)[0] + "}" if "}" in self._element.tag else ""
+            element = self._element.makeelement(f"{namespace}text", {})
+            self._element.append(element)
+        new_value = str(value)
+        if not self.multi_line:
+            new_value = new_value.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+        if element.text != new_value:
+            element.text = new_value
+            self._section.mark_dirty()
+
+    @property
+    def multi_line(self) -> bool:
+        return self._element.get("multiLine", "0") in ("1", "true")
+
+    @property
+    def read_only(self) -> bool:
+        return self._element.get("readOnly", "0") in ("1", "true")
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"EditBox(name={self.name!r}, text={self.text!r})"
+
+
+__all__ = ["CheckBox", "ComboBox", "EditBox", "RadioButton"]
