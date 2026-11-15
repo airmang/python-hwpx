@@ -600,6 +600,34 @@ class HwpxOxmlParagraph:
                     tables.append(HwpxOxmlTable(child, self))
         return tables
 
+    def clear_layout_cache(self) -> int:
+        """Drop this paragraph's line layout cache (``hp:linesegarray``) so Hancom lays it out again.
+
+        Also of the paragraphs holding it (the cell's or caption's table's paragraph,
+        up to the body): their line is as tall as what they hold. Call it after changing
+        the paragraph's text, size or placement through the XML; the editing methods do
+        it themselves. A cache left over from before makes Hancom draw lines over each
+        other. Returns how many caches went (0 when there were none).
+        """
+
+        removed = _clear_paragraph_layout_cache(self.element)
+        if removed:
+            self.section.mark_dirty()
+        return removed
+
+    @property
+    def available_width(self) -> int | None:
+        """The width this paragraph's content can use, in HWPUNIT, before its own margins.
+
+        In a table cell, the cell's width less its inner margins (``cell.margins``); in
+        the body, the section's text width (the page as drawn less its left, right and
+        gutter margins), or the column's width where a multi-column layout is in effect
+        (the narrowest column when they differ). ``None`` when that cannot be read. This
+        is the width a table added to the paragraph takes by default.
+        """
+
+        return self._context_table_width()
+
     def _context_table_width(self) -> int | None:
         """Hancom-like default table width for this paragraph's context.
 

@@ -66,12 +66,12 @@
    "reason": "Output file-name sanitizer that keeps Hangul letters alongside ASCII; script-neutral character class, no genre or policy."
   },
   {
-   "file": "tools/toc_author.py",
-   "qualname": "_OUTLINE_NAME_RE",
+   "file": "oxml/paragraph_heading.py",
+   "qualname": "_OUTLINE_STYLE_NAME",
    "kind": "hangul-regex",
    "count": 1,
    "classification": "format-vocabulary",
-   "reason": "Hancom's built-in outline style names ('개요 1' / 'Outline 1') that a table of contents is generated from — format vocabulary."
+   "reason": "Hancom's built-in outline style names ('개요 1' / 'Outline 1') behind outline_style_level: the table of contents, doc.styles.outline_level and the exporters read outline styles by them — format vocabulary."
   }
  ],
  "undetected": [

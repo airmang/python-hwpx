@@ -22,7 +22,6 @@ The parameter spelling ``Fiexde`` replicates Hancom's own output verbatim.
 """
 from __future__ import annotations
 
-import re
 from typing import Any, Sequence
 from uuid import uuid4
 
@@ -32,10 +31,11 @@ from lxml import etree as ET
 from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.field_marks import field_type_id
+# The outline style names (개요 N / Outline N) are the engine's: hwpx.oxml.paragraph_heading.outline_style_level.
+from hwpx.oxml.paragraph_heading import _OUTLINE_STYLE_NAME as _OUTLINE_NAME_RE
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _NON_UNIQUE_PARA_ID = "2147483648"
-_OUTLINE_NAME_RE = re.compile(r"^(?:개요|Outline)\s*(\d+)$")
 #: Measured TOC Command (gold contract). ContentsMake:uint:31 = the bitmask the
 #: Hancom dialog emitted (title+table+figure+equation blocks); other values are
 #: unmeasured, so v1 replicates the captured value verbatim.

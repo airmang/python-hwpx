@@ -14,6 +14,28 @@ from zipfile import ZIP_DEFLATED as _ZIP_DEFLATED
 from zipfile import ZIP_STORED as _ZIP_STORED
 from zipfile import ZipFile, ZipInfo
 
+#: The contract (docs/stable-api.md, "입력 방어"): what any reader of HWPX bytes uses to
+#: open them as safely as the engine does. The archive-sharing helpers below these are
+#: the save path's own and are not in it.
+__all__ = [
+    "HwpxSecurityError",
+    "ZipGuardLimits",
+    "guard_zip_file",
+    "read_member",
+    "read_zip_members",
+    "guard_xml_bytes",
+    "guard_xml_depth",
+    "parse_xml_stdlib",
+    "MAX_XML_BYTES",
+    "MAX_XML_DEPTH",
+    "MAX_ZIP_ENTRIES",
+    "MAX_ZIP_MEMBER_BYTES",
+    "MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES",
+    "MAX_ZIP_COMPRESSION_RATIO",
+    "MAX_ZIP_MIMETYPE_BYTES",
+    "MAX_ZIP_SMALL_PART_BYTES",
+]
+
 MAX_XML_BYTES = 64 * 1024 * 1024
 MAX_XML_DEPTH = 256
 MAX_ZIP_ENTRIES = 4096
