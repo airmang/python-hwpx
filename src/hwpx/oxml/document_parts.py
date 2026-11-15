@@ -1358,9 +1358,28 @@ class HwpxOxmlDocument:
         Accepts either a :class:`HwpxOxmlSection` or an integer index.
         Raises ``ValueError`` if the document would be left with no sections.
         """
-        if len(self._sections) <= 1:
-            raise ValueError(
-                "문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션은 삭제할 수 없습니다."
+        from ..errors import HwpxValueError
+        from .utils import HwpxIndexError
+
+        count = len(self._sections)
+        if isinstance(section, int) and not isinstance(section, bool) and not 0 <= section < count:
+            raise HwpxIndexError(
+                f"섹션 인덱스 {section}이(가) 범위를 벗어났습니다 (총 {count}개)",
+                code="section-not-found",
+                context={"requested": section, "count": count},
+                suggestion=f"이 문서의 섹션 인덱스는 0..{count - 1} 입니다.",
+            )
+        if not isinstance(section, int) and not any(existing is section for existing in self._sections):
+            raise HwpxValueError(
+                "해당 섹션이 이 문서에 속하지 않습니다.",
+                code="section-not-found",
+                suggestion="이 문서의 doc.sections[i] 나 정수 인덱스를 넘기세요.",
+            )
+        if count <= 1:
+            raise HwpxValueError(
+                "문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션은 삭제할 수 없습니다.",
+                code="section-remove-last",
+                suggestion="마지막 섹션은 지우지 말고 section.clear_body() 로 본문을 비우세요.",
             )
         if not any(
             _element_local_name(header.element) == "head" for header in self._headers

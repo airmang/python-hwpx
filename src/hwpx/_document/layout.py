@@ -172,7 +172,14 @@ def _resolve_paragraph_targets(
     targets: list[tuple[int, HwpxOxmlParagraph]] = []
     for index in indexes:
         if index < 0 or index >= len(paragraphs):
-            raise IndexError("paragraph index out of range")
+            from ..oxml.utils import HwpxIndexError
+
+            raise HwpxIndexError(
+                f"paragraph index {index} out of range ({len(paragraphs)} paragraphs)",
+                code="paragraph-not-found",
+                context={"requested": index, "count": len(paragraphs)},
+                suggestion=f"본문 문단 인덱스는 0..{len(paragraphs) - 1} 입니다.",
+            )
         targets.append((index, paragraphs[index]))
     return targets
 

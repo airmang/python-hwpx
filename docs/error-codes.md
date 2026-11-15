@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 215 | 11 |
+| 개수 | 224 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -150,6 +150,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `hwpx-error` | 분류되지 않은 구조화 오류(베이스 기본값). |
+| `hwpx-index-error` | 인덱스가 범위를 벗어났다(분류되지 않음, IndexError 계열이기도 하다). |
 | `hwpx-lookup-error` | 이름·인덱스로 지목한 것이 없다(분류되지 않음). |
 | `hwpx-state-error` | 문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음). |
 | `hwpx-type-error` | 인자 타입이 이 연산이 받는 것이 아니다(분류되지 않음). |
@@ -180,6 +181,7 @@ except HwpxError as exc:
 | `media-item-id-taken` | 그 이진 항목 id 가 이미 쓰이고 있다. |
 | `media-item-in-use` | 지우려는 이진 항목을 문서가 아직 가리킨다(그림·채우기·동영상·OLE 등). force=True 로만 지운다. |
 | `media-owner-paragraph-missing` | 교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기). |
+| `media-picture-not-found` | picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서). |
 
 ### `note-*`
 
@@ -245,6 +247,7 @@ except HwpxError as exc:
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
 | `paragraph-tab-target-required` | 탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다. |
 | `paragraph-tab-type-invalid` | 탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다. |
+| `paragraph-text-invalid-type` | 문단 글(text)이 문자열이 아니다. |
 | `paragraph-text-missing` | 문단에 고칠 일반 텍스트(hp:t) 노드가 없다. |
 | `paragraph-text-style-ambiguous` | 텍스트 수정이 run 경계를 넘거나 삽입할 글자 모양이 모호하다. |
 | `paragraph-title-mark-no-text-run` | 문단에 hp:t를 가진 run이 없어 titleMark를 넣을 자리가 없다. |
@@ -299,6 +302,7 @@ except HwpxError as exc:
 | `section-invalid-type` | section 인자가 정수도 섹션 객체도 아니다. |
 | `section-missing` | 문서에 섹션이 하나도 없다. |
 | `section-not-found` | 섹션 인덱스가 범위를 벗어났다. |
+| `section-remove-last` | 문서의 마지막 섹션은 지울 수 없다. |
 
 ### `shape-*`
 
@@ -374,6 +378,7 @@ except HwpxError as exc:
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
 | `style-list-continue-conflict` | continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다). |
+| `style-list-kind-invalid` | 목록 종류(kind)가 bullet/number/outline 밖이다. |
 | `style-list-level-invalid` | 글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다). |
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-list-start-value` | 목록 시작 번호(start)가 0 이상 65535 이하의 int 가 아니다(bool 도 거부, 한/글은 16비트로 둔다). |
@@ -390,10 +395,14 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `table-cell-not-found` | 칸 좌표가 표 밖이거나 병합에 덮여 가리킬 칸이 없다. |
 | `table-cell-remove-unsupported` | 표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다). |
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
+| `table-merge-range-invalid` | 병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다. |
+| `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 | `table-row-heights-value` | 행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다. |
+| `table-size-invalid` | 새 표의 행·열 수가 1 이상의 int 가 아니다(bool 도 거부). |
 | `table-width-value` | 새 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `text-*`

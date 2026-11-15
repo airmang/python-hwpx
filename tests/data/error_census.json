@@ -479,7 +479,7 @@
  "observed": {
   "other": 215,
   "typed": 216,
-  "untyped": 202,
+  "untyped": 198,
   "untypedByFile": {
    "body_patch.py": 20,
    "equation/mathml.py": 1,

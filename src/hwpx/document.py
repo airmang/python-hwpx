@@ -61,7 +61,7 @@ from ._document.ns import (
     TextNamespace,
     TrackingNamespace,
 )
-from .errors import HwpxValueError
+from .errors import HwpxTypeError, HwpxValueError
 from ._document.memos import _append_element  # noqa: F401  # test_coverage_targets imports this name
 
 register_owpml_namespaces(ET.register_namespace)
@@ -493,6 +493,13 @@ class HwpxDocument(_LegacyFacade):
         (``para_pr_id_ref``·``char_pr_id_ref``, ``run_attributes`` 의 ``charPrIDRef``)
         그 값이 먼저다. ``style_id_ref`` 로 준 숫자 id 는 전처럼 스타일 이름만 붙인다.
         """
+        if not isinstance(text, str):
+            raise HwpxTypeError(
+                f"문단 글은 문자열이어야 합니다 — {type(text).__name__} {text!r}.",
+                code="paragraph-text-invalid-type",
+                context={"type": type(text).__name__},
+                suggestion=f"str() 로 바꿔 넘기세요: doc.add_paragraph(str({text!r})).",
+            )
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_paragraph")
         if style is not None:
             para_pr_id_ref, char_pr_id_ref = self._style_shapes(
@@ -674,6 +681,21 @@ class HwpxDocument(_LegacyFacade):
         references or set *inherit_style* to :data:`True`.
         """
 
+        for name, value in (("rows", rows), ("cols", cols)):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise HwpxTypeError(
+                    f"{name} 는 int 여야 합니다 — {type(value).__name__} {value!r}.",
+                    code="table-size-invalid",
+                    context={"name": name, "value": repr(value)},
+                    suggestion="행·열 수는 doc.add_table(2, 3) 처럼 정수로 주세요.",
+                )
+            if value < 1:
+                raise HwpxValueError(
+                    f"{name} 는 1 이상이어야 합니다 — {value}.",
+                    code="table-size-invalid",
+                    context={"name": name, "value": value},
+                    suggestion="표는 적어도 1행 1열입니다.",
+                )
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_table")
         section = _resolve.resolve_section(
             self, section, section_index, caller="add_table"

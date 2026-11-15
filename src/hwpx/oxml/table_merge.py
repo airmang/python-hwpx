@@ -16,7 +16,70 @@ import xml.etree.ElementTree as ET
 
 from ._document_primitives import _HP
 
-__all__ = ["TableGridCache", "collapse_merged_grid"]
+__all__ = ["TableGridCache", "collapse_merged_grid", "cell_out_of_range", "check_merge_range"]
+
+
+def cell_out_of_range(row: int, col: int, rows: int, cols: int) -> Exception:
+    """The error for cell coordinates outside a *rows* x *cols* table (an ``IndexError`` too)."""
+
+    from .utils import HwpxIndexError
+
+    return HwpxIndexError(
+        "cell coordinates (%d, %d) exceed table bounds %dx%d" % (row, col, rows, cols),
+        code="table-cell-not-found",
+        context={"row": row, "col": col, "rows": rows, "cols": cols},
+        suggestion=f"이 표의 칸 좌표는 행 0..{rows - 1}, 열 0..{cols - 1} 입니다.",
+    )
+
+
+def check_merge_range(start_row: int, start_col: int, end_row: int, end_col: int, rows: int, cols: int) -> None:
+    """Refuse a merge rectangle that is reversed (``ValueError``) or outside a *rows* x *cols* table
+    (``IndexError``), as typed errors (``table-merge-range-invalid``)."""
+
+    from ..errors import HwpxValueError
+    from .utils import HwpxIndexError
+
+    context = {"start": [start_row, start_col], "end": [end_row, end_col], "rows": rows, "cols": cols}
+    if start_row > end_row or start_col > end_col:
+        raise HwpxValueError(
+            "merge coordinates must describe a valid rectangle",
+            code="table-merge-range-invalid",
+            context=context,
+            suggestion="시작 칸(위·왼쪽)을 먼저, 끝 칸(아래·오른쪽)을 나중에 주세요: merge_cells(0, 0, 1, 1).",
+        )
+    if start_row < 0 or start_col < 0 or end_row >= rows or end_col >= cols:
+        raise HwpxIndexError(
+            "merge coordinates exceed table bounds",
+            code="table-merge-range-invalid",
+            context=context,
+            suggestion=f"이 표의 칸 좌표는 행 0..{rows - 1}, 열 0..{cols - 1} 입니다.",
+        )
+
+
+def bad_spreadsheet_range(value: object) -> Exception:
+    """The error for a merge range that is not ``"A1:B2"``-shaped (a ``ValueError`` too)."""
+
+    from ..errors import HwpxValueError
+
+    return HwpxValueError(
+        f"invalid spreadsheet range: {value!r}",
+        code="table-merge-range-invalid",
+        context={"range": repr(value)},
+        suggestion='범위는 "A1:B2" 꼴로 주세요(열 글자 + 1부터 세는 행 번호).',
+    )
+
+
+def cell_remove_refused() -> Exception:
+    """The refusal of ``cell.remove()``: one cell out of the grid leaves a hole."""
+
+    from ..errors import HwpxValueError
+
+    return HwpxValueError(
+        "표 칸 하나만 지우면 표 격자에 구멍이 나 한/글이 표를 그리지 못합니다.",
+        code="table-cell-remove-unsupported",
+        suggestion="행이나 열을 통째로 지우려면 table.delete_rows()/table.delete_columns(), "
+        "옆 칸과 합치려면 table.merge_cells(), 내용만 비우려면 cell.text = \"\" 를 쓰세요.",
+    )
 
 
 def _own_cells(table: ET.Element) -> list[tuple[ET.Element, ET.Element]]:

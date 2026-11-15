@@ -65,10 +65,27 @@ class TablesNamespace(_Namespace):
     def __getitem__(self, index: int | slice) -> "Table | list[Table]":
         """문서 순서의 ``index`` 번째 표(``doc.tables[0]``, ``doc.tables[-1]``, ``doc.tables[1:3]``).
 
-        ``doc.tables.all[index]``와 같다. 범위 밖이면 ``IndexError``.
+        ``doc.tables.all[index]``와 같다. 범위 밖이면 ``HwpxIndexError``
+        (``code="table-not-found"``, ``IndexError`` 이기도 하다).
         """
 
-        return self.all[index]
+        tables = self.all
+        if isinstance(index, slice):
+            return tables[index]
+        try:
+            return tables[index]
+        except IndexError:
+            from ...oxml.utils import HwpxIndexError
+
+            raise HwpxIndexError(
+                f"표 인덱스 {index} 가 범위를 벗어났습니다(표 {len(tables)}개).",
+                code="table-not-found",
+                context={"requested": index, "count": len(tables)},
+                suggestion=(
+                    f"이 문서의 표 인덱스는 0..{len(tables) - 1} 입니다. 칸 안의 표는 cell.tables 에 있습니다."
+                    if tables else "이 문서 본문에는 표가 없습니다. 칸 안의 표는 cell.tables 에 있습니다."
+                ),
+            ) from None
 
     def map(self) -> "TableMapResult":
         """모든 표의 위치·모양·헤더 미리보기를 담은 간결 지도."""

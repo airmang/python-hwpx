@@ -328,8 +328,15 @@ def replace_picture(
     """
 
     check_image(image_data, image_format)
+    from ..oxml.utils import HwpxIndexError
+
     if picture_index < 0:
-        raise IndexError("picture_index must be non-negative")
+        raise HwpxIndexError(
+            "picture_index must be non-negative",
+            code="media-picture-not-found",
+            context={"pictureIndex": picture_index},
+            suggestion="picture_index 는 0부터 셉니다. doc.media.picture_references() 로 그림 목록을 보세요.",
+        )
 
     selected: tuple[int, HwpxOxmlSection, Any, Any] | None = None
     matched_index = -1
@@ -344,11 +351,15 @@ def replace_picture(
             break
 
     if selected is None:
-        if binary_item_id_ref is None:
-            raise IndexError(f"picture_index {picture_index} is out of range")
-        raise IndexError(
-            f"picture_index {picture_index} for binaryItemIDRef "
-            f"{binary_item_id_ref!r} is out of range"
+        message = f"picture_index {picture_index} is out of range" if binary_item_id_ref is None else (
+            f"picture_index {picture_index} for binaryItemIDRef {binary_item_id_ref!r} is out of range"
+        )
+        raise HwpxIndexError(
+            message,
+            code="media-picture-not-found",
+            context={"pictureIndex": picture_index, "found": matched_index + 1,
+                     "binaryItemIdRef": binary_item_id_ref},
+            suggestion=f"그림이 {matched_index + 1}개 있습니다. doc.media.picture_references() 로 목록을 보세요.",
         )
 
     section_index, section, picture_element, image = selected

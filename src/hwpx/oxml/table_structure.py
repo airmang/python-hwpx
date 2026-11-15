@@ -109,6 +109,24 @@ class TableStructureEdits:
             "rows": _whole(rows, "rows"), "cols": _whole(cols, "cols"),
         })
 
+    def remove(self) -> None:
+        """Take this table out of its paragraph, as Hancom deletes a table.
+
+        The paragraph that held it stays (an empty line when it held nothing else) and loses its
+        line layout cache. A run left empty goes. A second call does nothing; the table object
+        should not be used after it.
+        """
+
+        paragraph = self.paragraph.element
+        for run in paragraph.findall(f"{_HP}run"):
+            if any(child is self.element for child in run):
+                run.remove(self.element)
+                if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
+                    paragraph.remove(run)
+                _clear_paragraph_layout_cache(paragraph)
+                self.paragraph.section.mark_dirty()
+                return
+
     def _restructure(self, op: dict[str, Any]) -> None:
         from lxml import etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
