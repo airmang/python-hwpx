@@ -440,6 +440,7 @@ ERROR_CODES: dict[str, str] = {
     "note-anchor-detached": "앵커를 걸 문단이 섹션에 속해 있지 않다.",
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",
+    "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",
