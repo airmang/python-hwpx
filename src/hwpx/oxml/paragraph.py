@@ -54,8 +54,12 @@ from ._paragraph_text_edit import (
     text_marks_as_elements_in,
 )
 from .objects import (
+    HwpxOxmlEquation,
     HwpxOxmlInlineObject,
     _missing_shape_children,
+    _paragraph_equations,
+    _paragraph_objects,
+    _paragraph_pictures,
     _paragraph_add_arc,
     _paragraph_add_container,
     _paragraph_add_ellipse,
@@ -811,6 +815,9 @@ class HwpxOxmlParagraph:
     add_connector = _paragraph_add_connector
     add_container = _paragraph_add_container
     shapes = property(_paragraph_shapes)
+    objects = property(_paragraph_objects)
+    pictures = property(_paragraph_pictures)
+    equations = property(_paragraph_equations)
 
     # Implementations live in ``oxml/dutmal_compose.py`` -- ``objects.py``
     # (the shape-helpers' own overflow destination above) itself has no
@@ -1284,7 +1291,7 @@ class HwpxOxmlParagraph:
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         font: str = "HancomEQN",
-    ) -> HwpxOxmlInlineObject:
+    ) -> HwpxOxmlEquation:
         """Insert an inline ``<hp:equation>`` carrying an EqEdit *script*.
 
         Emits the real-Hancom equation shape (contract inferred in
@@ -1364,7 +1371,7 @@ class HwpxOxmlParagraph:
         script_element = _append_child(equation, f"{_HP}script", {})
         script_element.text = text
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(equation, self)
+        return HwpxOxmlEquation(equation, self)
 
     def add_form_field(
         self,

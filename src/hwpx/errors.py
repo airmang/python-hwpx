@@ -429,6 +429,11 @@ ERROR_CODES: dict[str, str] = {
     "shape-drop-cap-character-empty": "드롭캡으로 키울 문자가 비어 있다.",
     "shape-drop-cap-anchor-detached": "만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기).",
     "shape-drop-cap-not-created": "만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다.",
+    "shape-group-member-unsupported": "묶음(hp:container) 안의 개체는 혼자 지우거나 돌리거나 설명을 달 수 없다(묶음째 다룬다).",
+    "shape-z-order-value": "개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부).",
+    "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
+    "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다).",
+    "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
     # -- 미디어 ----------------------------------------------------------
     "media-picture-not-found": "picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서).",
     "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",
