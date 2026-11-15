@@ -249,6 +249,8 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-not-found": "문단 인덱스가 범위를 벗어났다.",
     "paragraph-invalid-type": "paragraph 인자가 정수도 문단 객체도 아니다.",
     "paragraph-not-in-document": "넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단).",
+    "paragraph-remove-section-settings": "구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)을 담은 문단 뒤에 옮겨 받을 문단이 없어 지울 수 없다.",
+    "paragraph-run-section-settings": "구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)만 담은 run은 지울 수 없다.",
     "paragraph-argument-conflict": "paragraph_index·paragraph_indexes·paragraphs 중 둘 이상을 동시에 지정했다.",
     "paragraph-indexes-empty": "paragraph_indexes 또는 paragraphs 가 비어 있다.",
     "paragraph-format-empty": "적용할 문단 서식 항목이 하나도 없다.",
