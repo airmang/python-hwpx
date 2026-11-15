@@ -119,6 +119,11 @@ class TableStructureEdits:
             raise TableStructureError("structure edits need a table whose paragraph namespace is prefixed hp")
         section = self.paragraph.section
         sections = section.document.sections if section.document is not None else [section]
+        # A paragraph edited in the tree directly still holds the cache it was read with. The rebuild
+        # below makes new elements, which the save can no longer pair with what was read: drop the
+        # caches that outlived their content now, while it still can.
+        if section._remove_outlived_layout_caches(force=True):
+            section.mark_dirty()
         used = {
             int(found)
             for part in sections
@@ -140,6 +145,7 @@ class TableStructureEdits:
         self._grow_height(before)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()
+        section._remove_outlived_layout_caches()  # track the rebuilt caches with the content they have now
 
     def _rows_height(self) -> int | None:
         """The table's rows' height as the page estimate measures them (:mod:`hwpx.layout.pages`), or None
