@@ -302,6 +302,19 @@ def master_page_paragraphs(master_page: HwpxOxmlMasterPage) -> "list[HwpxOxmlPar
     return [HwpxOxmlParagraph(element, part) for element in sub_list.findall(f"{_HP}p")]
 
 
+def clear_master_page_layout_cache(master_page: HwpxOxmlMasterPage) -> int:
+    """Remove the line layout caches (``hp:linesegarray``) of a master page's paragraphs."""
+
+    removed = 0
+    for paragraph in master_page.element.iter(f"{_HP}p"):
+        for child in [c for c in paragraph if str(c.tag).endswith("}linesegarray")]:
+            paragraph.remove(child)
+            removed += 1
+    if removed:
+        master_page.mark_dirty()
+    return removed
+
+
 def add_master_page_paragraph(master_page: HwpxOxmlMasterPage, text: str = "") -> "HwpxOxmlParagraph":
     """Append a paragraph with *text* to a master page and return it."""
 
