@@ -47,9 +47,11 @@ from .results import (  # 쪽·구역 설정의 읽기 값 (doc.page / doc.parts
     DocumentOptions,
     NoteShapeInfo,
     NumberRestart,
+    ObjectPlace,
     PageBorder,
     PageHiding,
     PageNumberControl,
+    ParagraphPlace,
     StartNumbers,
 )
 from .tracked import TrackedChange, TrackedReplacement
@@ -61,9 +63,11 @@ __all__ = [
     "DocumentOptions",
     "NoteShapeInfo",
     "NumberRestart",
+    "ObjectPlace",
     "PageBorder",
     "PageHiding",
     "PageNumberControl",
+    "ParagraphPlace",
     "StartNumbers",
     "BinaryItem",
     "Bookmark",

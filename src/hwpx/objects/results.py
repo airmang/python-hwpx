@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..form_fit.report import FitResult
-    from ..model import InlineObject, Paragraph
+    from ..model import InlineObject, Paragraph, Table
     from .form_field import FormField
 
 
@@ -646,7 +646,78 @@ class DocumentOptions:
         }
 
 
+@dataclass(frozen=True)
+class ParagraphPlace:
+    """One paragraph of the whole document and where it sits (``doc.text.paragraphs()``).
+
+    ``where`` is the innermost container: ``body``, ``cell``, ``text_box``,
+    ``caption``, ``header``, ``footer``, ``footnote``, ``endnote``, ``memo`` or
+    ``master_page``. ``section`` is the section index (``None`` on a master page).
+    ``page_type`` is set in a header or footer (``BOTH``, ``ODD``, ``EVEN``).
+    ``table``/``row``/``col`` name the innermost table cell holding the paragraph,
+    when there is one, even inside a text box in that cell. ``owner`` is the
+    innermost object (table, shape, picture...) holding it, and ``depth`` how many
+    objects deep it is (0 in the body, a header, a note or a memo).
+    """
+
+    paragraph: "Paragraph"
+    where: str
+    section: int | None
+    page_type: str | None = None
+    table: "Table | None" = None
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "where": self.where,
+            "section": self.section,
+            "pageType": self.page_type,
+            "row": self.row,
+            "col": self.col,
+            "depth": self.depth,
+            "text": self.paragraph.text,
+        }
+
+
+@dataclass(frozen=True)
+class ObjectPlace:
+    """One object of the whole document and where it sits (``doc.text.objects()``).
+
+    ``kind`` is ``table``, ``picture``, ``equation``, ``shape``, ``ole``,
+    ``chart``, ``video`` or ``textart``; ``object`` is its model object (a table,
+    a shape, or an inline object for the rest). The other fields describe the
+    paragraph holding it, as in :class:`ParagraphPlace`.
+    """
+
+    object: Any
+    kind: str
+    where: str
+    section: int | None
+    page_type: str | None = None
+    table: "Table | None" = None
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "where": self.where,
+            "section": self.section,
+            "pageType": self.page_type,
+            "row": self.row,
+            "col": self.col,
+            "depth": self.depth,
+        }
+
+
 __all__ = [
+    "ObjectPlace",
+    "ParagraphPlace",
     "AutoNumber",
     "BeginNumbers",
     "ColumnDefinition",
