@@ -621,10 +621,16 @@ class HwpxOxmlSection:
             self.mark_dirty()
         return removed
 
-    def _remove_outlived_layout_caches(self) -> int:
-        """Drop the caches an edit left on a paragraph whose content it changed."""
+    def _remove_outlived_layout_caches(self, *, force: bool = False) -> int:
+        """Drop the caches an edit left on a paragraph whose content it changed.
 
-        if not self._dirty:
+        *force* judges them even when the section is not marked edited: an edit about to
+        rebuild elements (a table's structure edit) runs it first, because a rebuilt
+        paragraph no longer matches the cache it was read with by identity, and then once
+        more after, so the rebuilt caches are tracked from there.
+        """
+
+        if not self._dirty and not force:
             return 0
         tracked = self._tracked_caches
         if tracked is None:

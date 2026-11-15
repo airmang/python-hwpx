@@ -19,6 +19,7 @@ from ._document_primitives import (
 )
 from ._paragraph_text_edit import (
     clear_text_element,
+    section_setting_runs,
     set_text_with_tabs,
     text_marks_as_elements,
     text_marks_as_elements_in,
@@ -624,11 +625,32 @@ class HwpxOxmlRun:
         return frozenset(kinds)
 
     def remove(self) -> None:
+        """Remove this run from its paragraph.
+
+        The run that starts a section also holds the section's settings (``hp:secPr``: paper,
+        margins; and its columns, header, footer and page numbering). Those stay: the rest of the
+        run goes and the run is left holding them. A run holding nothing else is refused with
+        :class:`~hwpx.errors.HwpxValueError` (``code="paragraph-run-section-settings"``).
+        """
+
+        from ..errors import HwpxValueError
+
         parent = self.paragraph.element
-        try:
-            parent.remove(self.element)
-        except ValueError:  # pragma: no cover - defensive branch
+        if not any(child is self.element for child in parent):
             return
+        settings = dict(section_setting_runs(parent)).get(self.element, [])
+        if settings:
+            if len(settings) == len(self.element):
+                raise HwpxValueError(
+                    "이 run은 구역 설정(용지·여백·단·머리말·꼬리말·쪽 번호)만 담고 있어 지울 수 없습니다.",
+                    code="paragraph-run-section-settings",
+                    suggestion="글을 지우려면 그 글을 담은 run을 지우거나 paragraph.text 를 바꾸세요.",
+                )
+            for child in list(self.element):
+                if not any(child is kept for kept in settings):
+                    self.element.remove(child)
+        else:
+            parent.remove(self.element)
         _clear_paragraph_layout_cache(parent)  # the cache's line starts would point past what is left
         self.paragraph.section.mark_dirty()
 

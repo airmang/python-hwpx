@@ -33,10 +33,12 @@ from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set
 from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
 from .table_structure import TableStructureEdits
+from .utils import HwpxIndexError
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
 from .table_merge import TableGridCache as _TableGridCache, collapse_merged_grid
+from .table_merge import bad_spreadsheet_range, cell_out_of_range, cell_remove_refused, check_merge_range
 
 if TYPE_CHECKING:
     from hwpx.form_fit.policy import FitPolicy
@@ -470,8 +472,14 @@ class HwpxOxmlTableCell:
                 _clear_paragraph_layout_cache(node)
 
     def remove(self) -> None:
-        self._row_element.remove(self.element)
-        self.table.mark_dirty()
+        """Refused: taking one cell out of the grid leaves a hole Hancom cannot lay out.
+
+        Raises :class:`~hwpx.errors.HwpxValueError` (``code="table-cell-remove-unsupported"``).
+        Delete the whole row or column (``table.delete_rows``, ``table.delete_columns``), merge
+        the cell into its neighbour (``table.merge_cells``), or empty it (``cell.text = ""``).
+        """
+
+        raise cell_remove_refused()
 
     # ------------------------------------------------------------------
     # Nested content helpers
@@ -636,6 +644,9 @@ class HwpxOxmlTable(TableStructureEdits):
         """Whether Hancom lays out this table as one inline character."""
         position = self.element.find(f"{_HP}pos")
         return position is not None and position.get("treatAsChar", "1") == "1"
+
+    out_margins = property(_table_sizes.table_out_margins)
+    set_out_margins = _table_sizes.set_table_out_margins
 
     def set_treat_as_char(self, value: bool) -> None:
         """Choose inline layout or flowing table layout across pages."""
@@ -972,16 +983,10 @@ class HwpxOxmlTable(TableStructureEdits):
         return mapping
 
     def _grid_entry(self, row_index: int, col_index: int) -> HwpxTableGridPosition:
-        if row_index < 0 or col_index < 0:
-            raise IndexError("row_index and col_index must be non-negative")
-
         row_count = self.row_count
         col_count = self.column_count
-        if row_index >= row_count or col_index >= col_count:
-            raise IndexError(
-                "cell coordinates (%d, %d) exceed table bounds %dx%d"
-                % (row_index, col_index, row_count, col_count)
-            )
+        if row_index < 0 or col_index < 0 or row_index >= row_count or col_index >= col_count:
+            raise cell_out_of_range(row_index, col_index, row_count, col_count)
 
         entry = None
         cache = getattr(self, "_grid_cache", None)
@@ -994,10 +999,13 @@ class HwpxOxmlTable(TableStructureEdits):
         if entry is None:
             entry = self._cell_grid().get((row_index, col_index))
         if entry is None:
-            raise IndexError(
+            raise HwpxIndexError(
                 "cell coordinates (%d, %d) are covered by a merged cell"
                 " without an accessible anchor; inspect iter_grid() for details"
-                % (row_index, col_index)
+                % (row_index, col_index),
+                code="table-cell-not-found",
+                context={"row": row_index, "col": col_index},
+                suggestion="table.iter_grid() 로 병합된 칸의 위치를 확인하세요.",
             )
         return entry
 
@@ -1507,7 +1515,7 @@ class HwpxOxmlTable(TableStructureEdits):
     def _parse_spreadsheet_range(cls, value: str) -> tuple[int, int, int, int]:
         match = _re.fullmatch(r"\s*([A-Za-z]+)([0-9]+)\s*:\s*([A-Za-z]+)([0-9]+)\s*", value)
         if match is None:
-            raise ValueError(f"invalid spreadsheet range: {value!r}")
+            raise bad_spreadsheet_range(value)
         start_col_label, start_row_label, end_col_label, end_row_label = match.groups()
         start_row = int(start_row_label) - 1
         end_row = int(end_row_label) - 1
@@ -1518,12 +1526,7 @@ class HwpxOxmlTable(TableStructureEdits):
     def _resolve_merge_target(
         self, start_row: int, start_col: int, end_row: int, end_col: int
     ) -> HwpxOxmlTableCell:
-        if start_row > end_row or start_col > end_col:
-            raise ValueError("merge coordinates must describe a valid rectangle")
-        if start_row < 0 or start_col < 0:
-            raise IndexError("merge coordinates must be non-negative")
-        if end_row >= self.row_count or end_col >= self.column_count:
-            raise IndexError("merge coordinates exceed table bounds")
+        check_merge_range(start_row, start_col, end_row, end_col, self.row_count, self.column_count)
 
         target = self.cell(start_row, start_col)
         addr_row, addr_col = target.address

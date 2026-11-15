@@ -61,7 +61,7 @@ from ._document.ns import (
     TextNamespace,
     TrackingNamespace,
 )
-from .errors import HwpxValueError
+from .errors import HwpxTypeError, HwpxValueError
 from ._document.memos import _append_element  # noqa: F401  # test_coverage_targets imports this name
 
 register_owpml_namespaces(ET.register_namespace)
@@ -493,6 +493,13 @@ class HwpxDocument(_LegacyFacade):
         (``para_pr_id_ref``·``char_pr_id_ref``, ``run_attributes`` 의 ``charPrIDRef``)
         그 값이 먼저다. ``style_id_ref`` 로 준 숫자 id 는 전처럼 스타일 이름만 붙인다.
         """
+        if not isinstance(text, str):
+            raise HwpxTypeError(
+                f"문단 글은 문자열이어야 합니다 — {type(text).__name__} {text!r}.",
+                code="paragraph-text-invalid-type",
+                context={"type": type(text).__name__},
+                suggestion=f"str() 로 바꿔 넘기세요: doc.add_paragraph(str({text!r})).",
+            )
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_paragraph")
         if style is not None:
             para_pr_id_ref, char_pr_id_ref = self._style_shapes(
@@ -523,11 +530,16 @@ class HwpxDocument(_LegacyFacade):
     def _take_first_line(self, paragraph: HwpxOxmlParagraph) -> None:
         """Put *paragraph*, just appended, on the empty first line of a document from :meth:`new`.
 
-        The empty paragraph's section settings move to the front of *paragraph*
-        and the empty paragraph goes. Only the first paragraph added does this,
-        and only while the document is as :meth:`new` made it: one paragraph in
-        the first section, without text or objects.
+        The empty paragraph stays, so a paragraph object taken from it before
+        (``doc.paragraphs[0]``) still writes into the document: what was just
+        appended (its runs, its paragraph shape and style references) moves
+        into it, behind its section settings, and the appended element goes.
+        *paragraph* is pointed at the kept element. Only the first paragraph
+        added does this, and only while the document is as :meth:`new` made
+        it: one paragraph in the first section, without text or objects.
         """
+
+        from .oxml._paragraph_text_edit import blank_settings_paragraph, take_over_paragraph
 
         if not self._first_line_free:
             return
@@ -537,29 +549,11 @@ class HwpxDocument(_LegacyFacade):
         if len(paragraphs) != 2 or paragraphs[1].element is not paragraph.element:
             return
         first = paragraphs[0].element
-
-        def _local(element: Any) -> str:
-            return str(element.tag).rsplit("}", 1)[-1]
-
-        runs = [child for child in first if _local(child) == "run"]
-        # Runs of page-level settings: the section, columns, a header or footer, page numbering.
-        holders = [run for run in runs if len(run) and all(_local(child) in ("secPr", "ctrl") for child in run)]
-        text_nodes = [child for run in runs if run not in holders for child in run]
-        if not holders or any(_local(child) != "t" or (child.text or "") or len(child) for child in text_nodes):
+        if not blank_settings_paragraph(first):
             return  # not the blank paragraph new() makes: leave the document as it is
-        page_level = {"colPr", "header", "footer", "pageNum", "pageHiding", "newNum", "pageNumCtrl"}
-        if any(
-            _local(inner) not in page_level
-            for run in holders
-            for child in run
-            if _local(child) == "ctrl"
-            for inner in child
-        ):
-            return
-        for position, run in enumerate(holders):
-            first.remove(run)
-            paragraph.element.insert(position, run)
-        section.element.remove(first)
+        take_over_paragraph(first, paragraph.element)
+        section.element.remove(paragraph.element)
+        paragraph.element = first
         section.mark_dirty()
 
     def _style_shapes(
@@ -687,6 +681,21 @@ class HwpxDocument(_LegacyFacade):
         references or set *inherit_style* to :data:`True`.
         """
 
+        for name, value in (("rows", rows), ("cols", cols)):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise HwpxTypeError(
+                    f"{name} 는 int 여야 합니다 — {type(value).__name__} {value!r}.",
+                    code="table-size-invalid",
+                    context={"name": name, "value": repr(value)},
+                    suggestion="행·열 수는 doc.add_table(2, 3) 처럼 정수로 주세요.",
+                )
+            if value < 1:
+                raise HwpxValueError(
+                    f"{name} 는 1 이상이어야 합니다 — {value}.",
+                    code="table-size-invalid",
+                    context={"name": name, "value": value},
+                    suggestion="표는 적어도 1행 1열입니다.",
+                )
         style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_table")
         section = _resolve.resolve_section(
             self, section, section_index, caller="add_table"

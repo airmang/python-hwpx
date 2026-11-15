@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._resolve import resolve_section
+from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ class RefsNamespace(_Namespace):
         self,
         name: str,
         *,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
     ) -> "InlineObject":
@@ -54,7 +54,10 @@ class RefsNamespace(_Namespace):
         return _layout.add_bookmark(
             self._doc,
             name=name,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, section_index=section_index,
+                caller="doc.refs.add_bookmark",
+            ),
             section=resolve_section(
                 self._doc, section, section_index, caller="doc.refs.add_bookmark"
             ),
@@ -65,7 +68,7 @@ class RefsNamespace(_Namespace):
         url: str,
         display_text: str,
         *,
-        paragraph: "Paragraph | None" = None,
+        paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -78,7 +81,10 @@ class RefsNamespace(_Namespace):
             self._doc,
             url=url,
             display_text=display_text,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, section_index=section_index,
+                caller="doc.refs.add_hyperlink",
+            ),
             section=resolve_section(
                 self._doc, section, section_index, caller="doc.refs.add_hyperlink"
             ),

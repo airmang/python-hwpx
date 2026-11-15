@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from ..oxml import HwpxOxmlParagraph, HwpxOxmlSection
     from ..document import HwpxDocument
 
-__all__ = ["resolve_section", "resolve_paragraph"]
+__all__ = ["resolve_section", "resolve_paragraph", "optional_paragraph"]
 
 
 def _sections(document: "HwpxDocument") -> list["HwpxOxmlSection"]:
@@ -116,6 +116,39 @@ def resolve_section(
     )
 
 
+def _belongs(document: "HwpxDocument", paragraph: "HwpxOxmlParagraph") -> bool:
+    """Whether *paragraph*'s element sits in one of *document*'s sections (body, cell, header,
+    footer, note or memo): not another document's, and not one taken out."""
+
+    sections = _sections(document)
+    element = paragraph.element
+    if not hasattr(element, "getparent"):  # a stdlib tree: its section must be this document's
+        return any(section is paragraph.section for section in sections) and any(
+            node is element for section in sections for node in section.element.iter()
+        )
+    root = element
+    while (parent := root.getparent()) is not None:
+        root = parent
+    return any(section.element is root for section in sections)
+
+
+def optional_paragraph(
+    document: "HwpxDocument",
+    paragraph: "int | HwpxOxmlParagraph | None",
+    *,
+    section: "int | HwpxOxmlSection | None" = None,
+    section_index: int | None = None,
+    caller: str = "",
+) -> "HwpxOxmlParagraph | None":
+    """:func:`resolve_paragraph` for a ``paragraph=`` that may be left out: ``None`` stays
+    ``None`` (the caller adds a paragraph); an index or a paragraph object is resolved and
+    checked to belong to *document*."""
+
+    if paragraph is None:
+        return None
+    return resolve_paragraph(document, paragraph, section=section, section_index=section_index, caller=caller)
+
+
 def resolve_paragraph(
     document: "HwpxDocument",
     paragraph: "int | HwpxOxmlParagraph | None" = None,
@@ -135,6 +168,13 @@ def resolve_paragraph(
     ctx: dict[str, Any] = {"caller": caller} if caller else {}
 
     if isinstance(paragraph, HwpxOxmlParagraph):
+        if not _belongs(document, paragraph):
+            raise HwpxValueError(
+                "넘긴 문단은 이 문서에 속한 문단이 아닙니다(다른 문서의 문단이거나 지운 문단).",
+                code="paragraph-not-in-document",
+                context=ctx,
+                suggestion="이 문서의 doc.paragraphs, cell.paragraphs, header.paragraphs 에서 문단을 넘기세요.",
+            )
         return paragraph
 
     scoped = section is not None or section_index is not None
