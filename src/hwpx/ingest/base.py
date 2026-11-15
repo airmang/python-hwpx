@@ -40,6 +40,9 @@ class ConversionAttempt:
     accepted: bool
     error_type: str | None = None
     message: str | None = None
+    #: 실패한 변환의 오류가 ``HwpxError`` 이면 그 code와 suggestion.
+    code: str | None = None
+    suggestion: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {key: val for key, val in asdict(self).items() if val is not None}
@@ -192,6 +195,7 @@ class DocumentIngestor:
         stream, inferred = _source_to_stream(source)
         info = inferred if source_info is None else inferred.copy_and_update(source_info)
         attempts: list[ConversionAttempt] = []
+        errors: dict[int, BaseException] = {}
         start_pos = stream.tell()
 
         for _priority, _seq, converter in sorted(self._converters, key=lambda item: (item[0], item[1])):
@@ -224,21 +228,31 @@ class DocumentIngestor:
                     accepted=True,
                     error_type=type(exc).__name__,
                     message=str(exc),
+                    code=getattr(exc, "code", None) if isinstance(exc, HwpxError) else None,
+                    suggestion=getattr(exc, "suggestion", None) if isinstance(exc, HwpxError) else None,
                 )
+                errors[len(attempts) - 1] = exc
                 stream.seek(start_pos)
                 continue
             result.markdown = normalize_markdown(result.markdown)
             result.attempts = attempts
             return result
 
-        failed = [attempt for attempt in attempts if attempt.accepted and attempt.message]
+        failed = [index for index, attempt in enumerate(attempts) if attempt.accepted and attempt.message]
         if failed:
             # 받은 변환기가 실패했으면 그 사유를 문구에 싣는다. attempts를 보지 않는
-            # 호출자(로더, 일괄 처리)도 왜 못 읽었는지 알 수 있다.
-            raise UnsupportedDocumentFormat(
-                f"{failed[-1].converter} could not convert the document: {failed[-1].message}",
+            # 호출자(로더, 일괄 처리)도 왜 못 읽었는지 알 수 있다. 원래 오류의 code는
+            # context["cause_code"]에, suggestion은 그대로 싣는다.
+            last = attempts[failed[-1]]
+            error = UnsupportedDocumentFormat(
+                f"{last.converter} could not convert the document: {last.message}",
                 attempts=attempts,
             )
+            if last.code:
+                error.context["cause_code"] = last.code
+            if last.suggestion:
+                error.suggestion = last.suggestion
+            raise error from errors.get(failed[-1])
         raise UnsupportedDocumentFormat("no registered converter accepted the document", attempts=attempts)
 
 

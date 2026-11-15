@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 from typing import Any, BinaryIO, Iterable, Iterator
 from zipfile import BadZipFile, ZipFile
@@ -10,6 +11,7 @@ from zipfile import BadZipFile, ZipFile
 from hwpx.document import HwpxDocument
 
 from .base import DocumentIngestResult, DocumentSourceInfo
+from ..errors import HwpxValueError
 from ..opc.package import HwpxPackage
 from ..opc.security import (
     MAX_ZIP_MIMETYPE_BYTES as _MAX_MIMETYPE_BYTES,
@@ -42,6 +44,10 @@ class HwpxMarkdownConverter:
         # 암호 문서를 열 수 없는 사유가 변환 시도 기록에 남는다.
         if extension == ".hwp" or _starts_with_ole2(file_stream):
             return True
+        if not extension and not mimetype:
+            # 이름 없는 바이트·스트림: 받아서 열어 본다. 그래야 경로로 넘길 때처럼 못 여는
+            # 사유(HWP 3.x, 빈 파일, 깨진 파일)가 남는다.
+            return True
         return _looks_like_hwpx_package(file_stream)
 
     def convert(
@@ -60,7 +66,16 @@ class HwpxMarkdownConverter:
         markdown_kwargs.setdefault("headers_and_footers", True)
         markdown_kwargs.setdefault("memos", True)
         markdown_kwargs.setdefault("equations", True)
+        # 목록 번호는 글의 일부다. 글자색 표시(<span>)는 읽는 쪽에 잡음이다.
+        markdown_kwargs.setdefault("list_labels", True)
+        markdown_kwargs.setdefault("colors", False)
 
+        if not data:
+            raise HwpxValueError(
+                "빈 파일입니다. HWPX나 HWP 문서가 아닙니다.",
+                context={"bytes": 0},
+                suggestion="파일이 끝까지 저장·전송되었는지 확인하세요.",
+            )
         doc = HwpxDocument.open(data)
         try:
             markdown = doc.text.markdown(rich=True, **markdown_kwargs)
@@ -112,6 +127,8 @@ _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 _HP = f"{{{_HP_NS}}}"
 
 #: 글을 담는 요소 → 종류. 종류 이름은 ``metadata["left_out"]``의 키이자 계약이다.
+#: 문단은 가장 가까운 담는 요소(또는 아래 _SKIPPED_OWNERS)의 것으로 센다. 표 칸 안
+#: 각주는 각주로, 글상자 안 표는 표로 한 번만 센다.
 _TEXT_CONTAINERS: dict[str, str] = {
     "header": "header",
     "footer": "footer",
@@ -119,7 +136,11 @@ _TEXT_CONTAINERS: dict[str, str] = {
     "footNote": "footnote",
     "endNote": "endnote",
     "drawText": "text_box",
+    "caption": "caption",
+    "tbl": "table",
 }
+#: 문단을 품지만 따로 세지 않는 요소: 메모 필드(같은 메모가 ``hp:memo``로도 있다)와 숨은 설명.
+_SKIPPED_OWNERS = frozenset({"fieldBegin", "hiddenComment"})
 #: 글을 속성에 담는 요소 → (종류, 속성 이름).
 _ATTRIBUTE_TEXT: dict[str, tuple[str, str]] = {
     "compose": ("composed_character", "composeText"),
@@ -141,29 +162,78 @@ _KIND_LABELS: dict[str, str] = {
     "form_caption": "양식 개체 캡션",
     "text_art": "글맵시",
     "master_page": "바탕쪽",
+    "caption": "캡션",
+    "table": "표",
 }
-_MARKDOWN_NOISE = re.compile(r"[\\\s]+")
+#: Markdown이 글 사이에 끼우는 표시: 링크 주소, HTML 태그(문서 글의 ``<``는 ``&lt;``로 나간다).
+_LINK_TARGET = re.compile(r"\]\([^)\s]*\)")
+_HTML_TAG = re.compile(r"</?(?:span|mark|u|br|table|tr|td|th|caption|strong|em|del|s|a|img|sup)\b[^<>]*>")
+_BACKSLASH_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
+#: 비교에서 지우는 글자: 공백과 Markdown 서식·이스케이프 기호. 양쪽에서 같이 지운다.
+_MARKDOWN_NOISE = re.compile(r"[\s\\*_~`|#>\[\]]+")
 
 
 def _squash(text: str) -> str:
-    """Markdown 이스케이프(백슬래시)와 공백을 지운 비교용 글."""
+    """공백과 Markdown 서식 기호를 지운 비교용 글."""
 
     return _MARKDOWN_NOISE.sub("", text)
 
 
-def _own_text(paragraph: Any) -> str:
-    """문단 자신의 run에 든 글(문단 안 개체의 글은 뺀다)."""
+def _markdown_haystack(markdown: str) -> str:
+    """Markdown을 글만 남겨 비교용으로: 링크 주소·태그를 빼고 이스케이프와 HTML 엔티티를 되돌린다."""
 
-    return "".join(
-        "".join(text.itertext()) for text in paragraph.iterfind(f"{_HP}run/{_HP}t")
-    )
+    text = _LINK_TARGET.sub("]", markdown)
+    text = _HTML_TAG.sub("", text)
+    text = _BACKSLASH_ESCAPE.sub(r"\1", text)
+    return _squash(html.unescape(text))
+
+
+def _own_segments(paragraph: Any) -> Iterator[str]:
+    """문단 자신의 run에 든 글을, 글이 아닌 run 자식(컨트롤·수식·개체)에서 끊어 낸다.
+
+    Markdown은 그 자리에 각주 표시·수식·링크를 끼우므로 한 덩어리로 찾으면 실린 글도
+    빠진 것으로 보인다.
+    """
+
+    buffer: list[str] = []
+    for run in paragraph.iterfind(f"{_HP}run"):
+        for child in run:
+            if child.tag == f"{_HP}t":
+                # 내보내기는 한/글 하이픈(U+00AD)을 "-"로 쓴다.
+                buffer.append("".join(child.itertext()).replace("­", "-"))
+            elif buffer:
+                yield "".join(buffer)
+                buffer = []
+    if buffer:
+        yield "".join(buffer)
+
+
+def _owned_paragraphs(owner: Any) -> Iterator[Any]:
+    """*owner* 의 문단 가운데 더 가까운 담는 요소가 없는 것."""
+
+    for paragraph in owner.iter(f"{_HP}p"):
+        parent = paragraph.getparent()
+        while parent is not None and parent is not owner:
+            if _owner_name(parent) is not None:
+                break
+            parent = parent.getparent()
+        else:
+            yield paragraph
+
+
+def _owner_name(element: Any) -> str | None:
+    tag = element.tag
+    if not isinstance(tag, str) or not tag.startswith(_HP):
+        return None
+    name = tag[len(_HP) :]
+    return name if name in _TEXT_CONTAINERS or name in _SKIPPED_OWNERS else None
 
 
 def _paragraph_texts(container: Any) -> Iterator[str]:
-    for paragraph in container.iter(f"{_HP}p"):
-        text = _own_text(paragraph)
-        if text.strip():
-            yield text
+    for paragraph in _owned_paragraphs(container):
+        for segment in _own_segments(paragraph):
+            if segment.strip():
+                yield segment
 
 
 def _candidates(root: Any) -> Iterator[tuple[str, list[str]]]:
@@ -203,12 +273,24 @@ def _left_out_content(doc: HwpxDocument, markdown: str) -> dict[str, dict[str, i
     하한이다.
     """
 
-    haystack = _squash(markdown)
+    haystack = _markdown_haystack(markdown)
     found: dict[str, dict[str, int]] = {}
     seen: set[tuple[str, tuple[str, ...]]] = set()
+    cursor = 0
+
+    def present(piece: str) -> bool:
+        # 조각은 대개 문서 순서로 실려 있다. 앞서 찾은 자리부터 찾으면 큰 문서도 한 번 훑는다.
+        nonlocal cursor
+        index = haystack.find(piece, cursor)
+        if index < 0:
+            index = haystack.find(piece)
+        if index < 0:
+            return False
+        cursor = index + len(piece)
+        return True
 
     def record(kind: str, pieces: Iterable[str]) -> None:
-        missing = [piece for piece in pieces if _squash(piece) and _squash(piece) not in haystack]
+        missing = [piece for piece in pieces if _squash(piece) and not present(_squash(piece))]
         if not missing:
             return
         # 머리말·꼬리말은 구역 설정과 본문 컨트롤에 같은 내용이 두 번 저장된다.
@@ -224,7 +306,15 @@ def _left_out_content(doc: HwpxDocument, markdown: str) -> dict[str, dict[str, i
         for kind, pieces in _candidates(section.element):
             record(kind, pieces)
     for master_page in doc.parts.master_pages:
-        record("master_page", _paragraph_texts(master_page.element))
+        record(
+            "master_page",
+            [
+                segment
+                for paragraph in master_page.element.iter(f"{_HP}p")
+                for segment in _own_segments(paragraph)
+                if segment.strip()
+            ],
+        )
 
     deleted = sum(
         1 for section in doc.sections for _ in section.element.iter(f"{_HP}deleteBegin")
