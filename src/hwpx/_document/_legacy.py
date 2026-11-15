@@ -13,9 +13,8 @@ shim을 베이스 클래스에 두면 루트 락은 34개로 정직하게 줄고
 감추는 게 아니라 분리해서 센다 — 그래서 두 번째 락은 감소만 허용하는
 ratchet이고 `describe_capabilities()`가 `legacyShimCount`로 노출한다.
 
-8.0에서 이 모듈 전체가 삭제된다. `docs/stable-api.md`의 최소 deprecation window
-(한 major에서 경고, 그다음 major에서 제거)로는 7.0이 제거 시점이었지만, 7.0에서
-바뀌는 동작이 많아 옛 이름은 한 major 더(7.x 동안) 경고와 함께 남긴다.
+7.0에서 이 모듈 전체가 삭제된다(`docs/stable-api.md`의 최소 deprecation window
+— 한 major에서 경고, 그다음 major에서 제거).
 
 shim 본문은 5.8.0 `document.py`의 것을 **그대로** 옮긴 것이다. 위임 대상
 (`_document/*.py` 소유 모듈)도 바뀌지 않았다. 6.0에서 이 79개 호출의
@@ -88,15 +87,8 @@ if TYPE_CHECKING:
 _F = TypeVar("_F", bound=Callable[..., Any])
 
 #: shim이 가리키는 제거 예정 major. 락(`document_legacy_shims.json`)과
-#: `describe_capabilities()`가 이 값을 읽는다. 6.x 동안은 "7.0"이었고,
-#: 7.0에서 한 major 미뤘다.
-LEGACY_REMOVED_IN = "8.0"
-
-#: 경고가 가리키는 대응표. pip로 설치한 사용자에게는 저장소의 docs/ 폴더가
-#: 없으므로 저장소 문서의 URL을 준다(`hwpx._moved_modules`와 같은 형식).
-MIGRATION_GUIDE_URL = (
-    "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md"
-)
+#: `describe_capabilities()`가 이 값을 읽는다.
+LEGACY_REMOVED_IN = "7.0"
 
 
 def _takes_section_pair(func: Callable[..., Any]) -> bool:
@@ -136,7 +128,7 @@ def _moved(replacement: str, *, removed_in: str = LEGACY_REMOVED_IN) -> Callable
             warnings.warn(
                 f"HwpxDocument.{func.__name__}은(는) python-hwpx 6.0에서 "
                 f"{replacement}(으)로 이동했습니다. {removed_in}에서 제거됩니다. "
-                f"자세한 내용: {MIGRATION_GUIDE_URL}",
+                f"자세한 내용: docs/migration-6.0.md",
                 DeprecationWarning,
                 stacklevel=2,
             )

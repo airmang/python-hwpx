@@ -65,20 +65,17 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 
 ### 6.0 파사드 표면
 
-`HwpxDocument` 의 공개 멤버는 **35개**다(5.x 는 102개, 6.0 출시 때는 34개).
-35개는 공개 이름 31개와 지원 dunder 4개(`__init__`·`__repr__`·`__enter__`·`__exit__`)다.
-나머지 79개는 도메인 네임스페이스로 이동했고, 옛 이름은 `DeprecationWarning` 과
-함께 계속 답한다 — **8.0 에서 제거된다**(6.x 동안은 7.0 이라고 알렸으나 한 major
-미뤘다). 대응표는 [6.0 이주 가이드](migration-6.0.md), 7.0 의 변경은
-[7.0 이주 가이드](migration-7.0.md).
+`HwpxDocument` 의 공개 멤버는 **35개**다(5.x 는 102개). 나머지 79개는 도메인
+네임스페이스로 이동했고, 옛 이름은 `DeprecationWarning` 과 함께 계속 답한다 —
+7.0 에서 제거된다. 대응표는 [6.0 이주 가이드](migration-6.0.md).
 
 이동은 제거가 아니므로 따로 센다:
 
 | | 수 | 락 |
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
-| 위임 shim (8.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 199 | `tests/data/model_surface.json` |
+| 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
+| 반환 객체 계약 | 193 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
