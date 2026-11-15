@@ -118,7 +118,8 @@
 | 덧말·글자 겹치기 | `doc.shapes` |
 
 5.x 의 옛 이름은 6.x 동안 계속 답하되 `DeprecationWarning` 을 내고 7.0 에서
-사라진다 — 대응표는 `docs/migration-6.0.md`.
+사라진다 — 대응표는
+https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md
 
 ## 상태 판정 근거 요약
 
