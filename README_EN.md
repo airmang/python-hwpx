@@ -143,7 +143,7 @@ Full figures and caveats are in [measured corpus metrics](https://airmang.github
 per-feature grades in the [support matrix](docs/support-matrix.md). These numbers measure how Hangul takes the
 files we produce. How well a parser reads documents is a separate measure.
 
-Development status is Beta. What stays backward compatible is listed in [stable API](docs/stable-api.md);
+Development status is Production/Stable. What stays backward compatible is listed in [stable API](docs/stable-api.md);
 `hwpx.experimental` and the features marked experimental above may change.
 
 ## Where you can run it

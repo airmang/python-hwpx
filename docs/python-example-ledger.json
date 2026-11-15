@@ -16,8 +16,8 @@
   "fenceCount": 127,
   "sourceSha256": "1403db7b8028245d7c98ba15e5500c0a0a152b60f7cc61db7e5bfc32b020390f",
   "manualSha256": {
-    "README.md": "295e59616293e3f94899f7d31598fcac6f9127342977813326ef9611f494217c",
-    "README_EN.md": "c5b62da9b28de9f6012aad6195b96b342a25b72025a88a111c4c6035dfd76984",
+    "README.md": "7211be3724517ce96b97b26657df3990db5fa3e22a1d081afeec7188b4b8ea56",
+    "README_EN.md": "739305494d90112b3a0cf4d8895288729694baa927ede6021daded8fecdfb58b",
     "docs/quickstart.md": "e622737fc60ca596429f96146fac34b18915db2ca7892077679917c3c755e20a",
     "docs/recipes-traversal.md": "b63f42b1a6ed23812688599474dcf83300509b86a94b5daceae679bfdbde9343",
     "docs/mutation-semantics.md": "6de1471f64c1cd8db2e661c413d92bfd27221f5d930708942ac47c6aff2d608b",
