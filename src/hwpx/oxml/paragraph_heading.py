@@ -11,15 +11,28 @@ levels back the same way when it saves.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
 from .namespaces import HH, HP
+
+__all__ = [
+    "FIRST_SWITCHED_OUTLINE_LEVEL",
+    "PARAGRAPH_2016_NAMESPACE",
+    "heading_outline_level",
+    "outline_style_level",
+    "paragraph_heading",
+    "set_paragraph_heading",
+]
 
 #: The namespace of the ``hp:case`` holding an outline heading of level 8 to 10.
 PARAGRAPH_2016_NAMESPACE = "http://www.hancom.co.kr/hwpml/2016/paragraph"
 
 #: The first ``level`` (0-based) of an outline heading Hancom writes in an ``hp:switch``.
 FIRST_SWITCHED_OUTLINE_LEVEL = 7
+
+#: The names of Hancom's outline styles: ``개요 1`` … ``개요 10`` (``Outline 1`` … in English).
+_OUTLINE_STYLE_NAME = re.compile(r"^(?:개요|Outline)\s*(\d+)$")
 
 
 def _local(element: Any) -> str:
@@ -44,6 +57,37 @@ def paragraph_heading(para_pr: Any) -> Any | None:
             if found:
                 return found[0]
     return None
+
+
+def heading_outline_level(para_pr: Any) -> int | None:
+    """The outline level (1 to 10) paragraph shape *para_pr* gives its paragraphs, or ``None``.
+
+    A paragraph shape makes its paragraphs outline paragraphs of level L when its heading
+    (:func:`paragraph_heading`) has ``type="OUTLINE"`` and ``level="L-1"``. Any other
+    heading (a number, a bullet, ``NONE``) or no heading gives ``None``; a level that is
+    missing or not a number counts as level 1, as Hancom reads it.
+    *para_pr* is an ``hh:paraPr`` element (lxml or ElementTree).
+    """
+
+    heading = paragraph_heading(para_pr)
+    if heading is None or heading.get("type") != "OUTLINE":
+        return None
+    try:
+        return int(heading.get("level") or "0") + 1
+    except ValueError:
+        return 1
+
+
+def outline_style_level(name: str | None) -> int | None:
+    """The outline level of a style named *name*: 3 for ``개요 3`` or ``Outline 3``, else ``None``.
+
+    These are the names Hancom gives its outline styles. Spaces around the name and
+    between the word and the number do not count; anything else does (``개요3`` is
+    level 3, ``개요 3 강조`` is not an outline style).
+    """
+
+    match = _OUTLINE_STYLE_NAME.match((name or "").strip())
+    return int(match.group(1)) if match else None
 
 
 def set_paragraph_heading(para_pr: Any, attributes: Mapping[str, str]) -> None:

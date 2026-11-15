@@ -29,6 +29,7 @@ __all__ = [
     "PackResult",
     "pack_hwpx",
     "unpack_hwpx",
+    "input_file_problem",
     "pack_main",
     "unpack_main",
     "main",
@@ -336,11 +337,14 @@ def pack_hwpx(
     )
 
 
-def _input_file_problem(path: str | os.PathLike[str], *, tool: str, accepts_hwp: bool = False) -> str | None:
+def input_file_problem(path: str | os.PathLike[str], *, tool: str, accepts_hwp: bool = False) -> str | None:
     """One line saying why a command-line tool cannot read *path*, or ``None`` when it can try.
 
-    Shared by the ``hwpx-*`` commands: a missing path, a folder, and an ``.hwp`` file given
-    to a tool that reads only HWPX get the same short words everywhere.
+    Shared by the ``hwpx-*`` commands (and any command built on python-hwpx): a missing
+    path, a folder, an HWP 3.x file, and an HWP 5.0 ``.hwp`` file given to a tool that
+    reads only HWPX (*accepts_hwp* false) get the same short words everywhere. *tool* is
+    the command's name as the message gives it. Only the first bytes are read; ``None``
+    does not promise the file opens.
     """
 
     from ..opc.package import HwpxPackage
@@ -364,6 +368,9 @@ def _input_file_problem(path: str | os.PathLike[str], *, tool: str, accepts_hwp:
             f"python -c \"from hwpx import HwpxDocument; HwpxDocument.open(r'{target}').save_to_path('{converted}')\""
         )
     return None
+
+
+_input_file_problem = input_file_problem
 
 
 def unpack_main(argv: Sequence[str] | None = None) -> int:

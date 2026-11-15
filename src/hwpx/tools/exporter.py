@@ -24,11 +24,17 @@ TextSanitizer = Callable[[str], str]
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
+    from ..model import Note, Paragraph, Table
 
 __all__ = [
     "export_text",
     "export_html",
     "export_markdown",
+    "ListLabels",
+    "NoteLabels",
+    "NUMBER_TEXT_FORMATS",
+    "number_text",
+    "table_grid_text",
 ]
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
@@ -46,121 +52,6 @@ _SECTION_RE = re.compile(r"^Contents/section\d+\.xml$")
 
 #: Placed blocks whose own paragraphs are exported in place: text boxes and captions.
 _PARAGRAPH_BLOCKS = frozenset((f"{_HP}drawText", f"{_HP}caption"))
-
-
-#: Characters a Markdown reader would take as markup, escaped with a backslash in document text.
-_MARKDOWN_ESCAPES = {ord(char): "\\" + char for char in "\\`*_~[]|"}
-#: ``$…$`` the way Markdown math extensions read it: no space inside the dollars, no digit after.
-_MATH_SPAN = re.compile(r"\$([^\s$](?:[^$\n]*?[^\s$\\])?)\$(?!\d)")
-#: What a ``$…$`` span may not hold to be left unescaped: HTML, a link, a code span.
-_UNSAFE_IN_MATH = re.compile(r"[<>&`]|\]\(")
-_HEADING_LINE = re.compile(r"#{1,6}(?:[ \t]|$)")
-_LIST_LINE = re.compile(r"[-+](?:[ \t]|$)")
-_RULE_LINE = re.compile(r"(?:-[ \t]*)+|=+[ \t]*")
-_ORDERED_LINE = re.compile(r"(\d{1,9})[.)](?:[ \t]|$)")
-
-
-def _escape_markdown_plain(text: str) -> str:
-    escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return escaped.translate(_MARKDOWN_ESCAPES)
-
-
-def escape_markdown(text: str, *, pipe: bool = False) -> str:
-    """Document text as Markdown that reads back as the same text.
-
-    ``& < >`` become entities and ``\\ ` * _ ~ [ ] |`` take a backslash, so the text
-    cannot open emphasis, a link, raw HTML or a table cell. A ``$…$`` span (a formula
-    typed as text) is left as it is for math extensions; only ``|`` in it is escaped,
-    and only in a table cell (*pipe*). A span holding HTML, a link or a code span is
-    escaped like any text.
-    """
-
-    out: list[str] = []
-    last = 0
-    for match in _MATH_SPAN.finditer(text):
-        body = match.group(1)
-        if _UNSAFE_IN_MATH.search(body):
-            continue
-        out.append(_escape_markdown_plain(text[last : match.start()]))
-        out.append("$" + (body.replace("|", "\\|") if pipe else body) + "$")
-        last = match.end()
-    out.append(_escape_markdown_plain(text[last:]))
-    return "".join(out)
-
-
-def _escape_line_start(line: str) -> str:
-    body = line.lstrip(" \t")
-    lead = line[: len(line) - len(body)]
-    if _HEADING_LINE.match(body) or _LIST_LINE.match(body) or (body and _RULE_LINE.fullmatch(body)):
-        return lead + "\\" + body
-    ordered = _ORDERED_LINE.match(body)
-    if ordered:
-        digits = ordered.group(1)
-        return lead + digits + "\\" + body[len(digits) :]
-    return line
-
-
-def escape_line_starts(markdown: str) -> str:
-    """Escape what would start a heading, list, rule or setext underline at the start of a line.
-
-    For text that was already escaped by :func:`escape_markdown` (``>`` is an entity there).
-    """
-
-    return "\n".join(_escape_line_start(line) for line in markdown.split("\n"))
-
-
-def _escape_markdown_block(text: str) -> str:
-    """Document text written as its own lines: escaped, and so are its line starts."""
-    return escape_line_starts(escape_markdown(text))
-
-
-#: An outline paragraph longer than this is body text set in an outline level, not a heading.
-HEADING_MAX_CHARS = 80
-
-class _Headings:
-    """Which paragraphs are headings, and their level, from the document's own structure.
-
-    A paragraph is a heading of level L when its paragraph shape numbers it as outline
-    level L (``hh:heading type="OUTLINE"``), else when its style is an outline style
-    (``개요 L`` / ``Outline L``). Levels deeper than 6 are not headings.
-    """
-
-    def __init__(self, header: ET.Element | None) -> None:
-        self._shapes: dict[str, int] = {}
-        self._styles: dict[str, int] = {}
-        if header is None:
-            return
-        # 한/글 기본 개요 스타일 이름(개요 N / Outline N): 차례 만들기와 같은 어휘를 쓴다.
-        from .toc_author import _OUTLINE_NAME_RE
-
-        for para_pr in header.iter(f"{_HH}paraPr"):
-            heading = paragraph_heading(para_pr)
-            if heading is not None and heading.get("type") == "OUTLINE":
-                self._shapes[para_pr.get("id") or ""] = (_int_attribute(heading, "level") or 0) + 1
-        for style in header.iter(f"{_HH}style"):
-            for name in (style.get("name") or "", style.get("engName") or ""):
-                match = _OUTLINE_NAME_RE.match(name.strip())
-                if match:
-                    self._styles[style.get("id") or ""] = int(match.group(1))
-                    break
-
-    def level(self, p: ET.Element) -> int | None:
-        level = self._shapes.get(p.get("paraPrIDRef") or "")
-        if level is None:
-            level = self._styles.get(p.get("styleIDRef") or "")
-        return level if level is not None and 1 <= level <= 6 else None
-
-    def any_in(self, sections: list[ET.Element]) -> bool:
-        """Whether a body paragraph (one placed in a section) of *sections* that holds text is a heading."""
-        if not self._shapes and not self._styles:
-            return False
-        for section in sections:
-            for p in section.findall(f"{_HP}p"):
-                if self.level(p) is not None and any(
-                    "".join(t.itertext()).strip() for t in p.iterfind(f"{_HP}run/{_HP}t")
-                ):
-                    return True
-        return False
 
 
 def _header_xml(source: HwpxDocument | bytes) -> ET.Element | None:
@@ -766,9 +657,137 @@ def _text_box_paragraphs(block: ET.Element) -> list[ET.Element]:
     return block.findall(f"{_HP}subList/{_HP}p")
 
 
-def _markdown_cell(text: str) -> str:
-    """Cell text on one Markdown table line: escaped, line breaks as ``<br>``, note markers as references."""
-    return _note_marks(escape_markdown(text, pipe=True).replace("\n", "<br>"), "[^{name}]")
+# --------------------------------------------------------------------------- #
+# Public reads: what Hancom draws and writes, for any reader of the document
+# --------------------------------------------------------------------------- #
+
+#: The number formats :func:`number_text` writes (``hh:paraHead@numFormat``, ``hp:autoNumFormat@type``).
+NUMBER_TEXT_FORMATS: frozenset[str] = frozenset(_NUMBER_FORMATS)
+
+
+def number_text(value: int, number_format: str = "DIGIT") -> str | None:
+    """*value* written in Hancom number format *number_format*, as Hancom draws it.
+
+    ``number_text(3, "HANGUL_SYLLABLE")`` is ``"다"``, ``number_text(4, "ROMAN_CAPITAL")``
+    ``"IV"``, ``number_text(2, "CIRCLED_DIGIT")`` ``"②"``. A value below 1 is written in
+    digits. ``None`` when *number_format* is not one of :data:`NUMBER_TEXT_FORMATS`.
+    """
+
+    if number_format not in _NUMBER_FORMATS:
+        return None
+    return _number_text(value, number_format)
+
+
+def _element_of(item: object) -> object:
+    """The XML element a model object wraps (``.element``), or *item* itself."""
+    return getattr(item, "element", item)
+
+
+class ListLabels:
+    """The label Hancom draws before each numbered, outline and bullet paragraph of a document.
+
+    ``ListLabels(doc)`` counts every paragraph once, in Hancom's reading order: each body
+    paragraph, then the paragraphs of the tables (cell by cell, nested tables where they
+    sit), text boxes and captions placed in it. :meth:`label` and :meth:`kind` then look a
+    paragraph up in any order. The count is the document's as it is when the object is
+    made; make a new one after editing.
+
+    The label is the one :func:`export_text` writes with ``list_labels=True``: ``"1."``,
+    ``"가."``, ``"(1)"``, ``"●"`` and so on. A paragraph without a label has ``""``.
+    """
+
+    def __init__(self, document: HwpxDocument) -> None:
+        self._document = document
+        root = document.oxml
+        counter = _ListLabels(root.headers[0].element if root.headers else None)
+        self._labels: dict[object, tuple[str, str | None]] = {}
+
+        def visit(p: ET.Element) -> None:
+            self._labels[p] = (counter.label(p), counter.kind(p))
+            for piece in _paragraph_pieces(p):
+                if isinstance(piece, str):
+                    continue
+                if piece.tag == f"{_HP}tbl":
+                    for tc in piece.findall(f"{_HP}tr/{_HP}tc"):
+                        for inner in _cell_paragraphs(tc):
+                            visit(inner)
+                else:
+                    for inner in _text_box_paragraphs(piece):
+                        visit(inner)
+
+        for section in root.sections:
+            counter.start_section(section.element)
+            for block in _section_blocks(section.element):
+                if block.tag == f"{_HP}p":
+                    visit(block)
+                elif block.tag == f"{_HP}tbl":
+                    for tc in block.findall(f"{_HP}tr/{_HP}tc"):
+                        for inner in _cell_paragraphs(tc):
+                            visit(inner)
+                else:
+                    for inner in _text_box_paragraphs(block):
+                        visit(inner)
+
+    def _entry(self, paragraph: object) -> tuple[str, str | None]:
+        if isinstance(paragraph, int) or hasattr(paragraph, "section"):
+            from .._document._resolve import resolve_paragraph
+
+            paragraph = resolve_paragraph(self._document, paragraph, caller="ListLabels")  # type: ignore[arg-type]
+        return self._labels.get(_element_of(paragraph), ("", None))
+
+    def label(self, paragraph: Paragraph | int | object) -> str:
+        """The label Hancom draws before *paragraph*, ``""`` when it has none.
+
+        *paragraph* is an index into ``doc.paragraphs``, a paragraph object (a body
+        paragraph, one in a table cell, a text box or a caption), or the ``hp:p`` element
+        of one. An element that is not a paragraph of the document has ``""``.
+        """
+
+        return self._entry(paragraph)[0]
+
+    def kind(self, paragraph: Paragraph | int | object) -> str | None:
+        """``"NUMBER"``, ``"OUTLINE"`` or ``"BULLET"`` for a paragraph its shape numbers, else ``None``.
+
+        *paragraph* is taken as in :meth:`label`.
+        """
+
+        return self._entry(paragraph)[1]
+
+
+class NoteLabels:
+    """The number Hancom gives each foot and end note of a document, as it draws it.
+
+    Foot notes and end notes count on their own, in document order, from 1. A section
+    numbered ``ON_SECTION`` starts again at its ``newNum``; any other section runs on (a
+    section numbered per page too: pages are not laid out here). An ``hp:newNum`` control
+    sets the next number. The number is written in the section's ``autoNumFormat``
+    between its prefix and suffix characters: ``"1)"`` when the section says nothing.
+    The count is the document's as it is when the object is made.
+    """
+
+    def __init__(self, document: HwpxDocument) -> None:
+        self._labels = _NoteLabels([section.element for section in document.oxml.sections])._labels
+
+    def label(self, note: Note | object) -> str:
+        """The number of *note* (``paragraph.footnotes[i]``, ``paragraph.endnotes[i]`` or the
+        ``hp:footNote``/``hp:endNote`` element), ``""`` when it is not a note of the document."""
+
+        return self._labels.get(_element_of(note), "")  # type: ignore[call-overload]
+
+
+def table_grid_text(table: Table | object, *, tab_token: str = "\t") -> tuple[tuple[str, ...], ...]:
+    """The text of each cell of *table* on the table's column grid, row by row.
+
+    A cell's text is what :func:`export_text` writes for it: its paragraphs a line each,
+    a nested table's cells and a text box's paragraphs where they sit, tabs as
+    *tab_token*. Each cell goes to its ``hp:cellAddr`` position (a cell without one
+    follows the previous cell of its row), the grid is as wide as its widest row, and
+    the positions a merged cell covers are ``""``. *table* is a table object or its
+    ``hp:tbl`` element. A table without cells gives ``()``.
+    """
+
+    rows = _table_grid_text(_element_of(table), tab_token=tab_token)  # type: ignore[arg-type]
+    return tuple(tuple(row) for row in rows)
 
 
 def export_text(
@@ -833,6 +852,131 @@ def export_text(
                 write_block(block)
         section_texts.append(paragraph_separator.join(para_texts))
     return section_separator.join(section_texts)
+
+
+# --------------------------------------------------------------------------- #
+# HTML and Markdown (above this line: plain text and what it counts; nothing
+# above uses a name from below, so the two halves can live apart)
+# --------------------------------------------------------------------------- #
+
+#: Characters a Markdown reader would take as markup, escaped with a backslash in document text.
+_MARKDOWN_ESCAPES = {ord(char): "\\" + char for char in "\\`*_~[]|"}
+#: ``$…$`` the way Markdown math extensions read it: no space inside the dollars, no digit after.
+_MATH_SPAN = re.compile(r"\$([^\s$](?:[^$\n]*?[^\s$\\])?)\$(?!\d)")
+#: What a ``$…$`` span may not hold to be left unescaped: HTML, a link, a code span.
+_UNSAFE_IN_MATH = re.compile(r"[<>&`]|\]\(")
+_HEADING_LINE = re.compile(r"#{1,6}(?:[ \t]|$)")
+_LIST_LINE = re.compile(r"[-+](?:[ \t]|$)")
+_RULE_LINE = re.compile(r"(?:-[ \t]*)+|=+[ \t]*")
+_ORDERED_LINE = re.compile(r"(\d{1,9})[.)](?:[ \t]|$)")
+
+
+def _escape_markdown_plain(text: str) -> str:
+    escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return escaped.translate(_MARKDOWN_ESCAPES)
+
+
+def escape_markdown(text: str, *, pipe: bool = False) -> str:
+    """Document text as Markdown that reads back as the same text.
+
+    ``& < >`` become entities and ``\\ ` * _ ~ [ ] |`` take a backslash, so the text
+    cannot open emphasis, a link, raw HTML or a table cell. A ``$…$`` span (a formula
+    typed as text) is left as it is for math extensions; only ``|`` in it is escaped,
+    and only in a table cell (*pipe*). A span holding HTML, a link or a code span is
+    escaped like any text.
+    """
+
+    out: list[str] = []
+    last = 0
+    for match in _MATH_SPAN.finditer(text):
+        body = match.group(1)
+        if _UNSAFE_IN_MATH.search(body):
+            continue
+        out.append(_escape_markdown_plain(text[last : match.start()]))
+        out.append("$" + (body.replace("|", "\\|") if pipe else body) + "$")
+        last = match.end()
+    out.append(_escape_markdown_plain(text[last:]))
+    return "".join(out)
+
+
+def _escape_line_start(line: str) -> str:
+    body = line.lstrip(" \t")
+    lead = line[: len(line) - len(body)]
+    if _HEADING_LINE.match(body) or _LIST_LINE.match(body) or (body and _RULE_LINE.fullmatch(body)):
+        return lead + "\\" + body
+    ordered = _ORDERED_LINE.match(body)
+    if ordered:
+        digits = ordered.group(1)
+        return lead + digits + "\\" + body[len(digits) :]
+    return line
+
+
+def escape_line_starts(markdown: str) -> str:
+    """Escape what would start a heading, list, rule or setext underline at the start of a line.
+
+    For text that was already escaped by :func:`escape_markdown` (``>`` is an entity there).
+    """
+
+    return "\n".join(_escape_line_start(line) for line in markdown.split("\n"))
+
+
+def _escape_markdown_block(text: str) -> str:
+    """Document text written as its own lines: escaped, and so are its line starts."""
+    return escape_line_starts(escape_markdown(text))
+
+
+#: An outline paragraph longer than this is body text set in an outline level, not a heading.
+HEADING_MAX_CHARS = 80
+
+class _Headings:
+    """Which paragraphs are headings, and their level, from the document's own structure.
+
+    A paragraph is a heading of level L when its paragraph shape numbers it as outline
+    level L (``hh:heading type="OUTLINE"``), else when its style is an outline style
+    (``개요 L`` / ``Outline L``). Levels deeper than 6 are not headings.
+    """
+
+    def __init__(self, header: ET.Element | None) -> None:
+        self._shapes: dict[str, int] = {}
+        self._styles: dict[str, int] = {}
+        if header is None:
+            return
+        # 한/글 기본 개요 스타일 이름(개요 N / Outline N): 차례 만들기와 같은 어휘를 쓴다.
+        from .toc_author import _OUTLINE_NAME_RE
+
+        for para_pr in header.iter(f"{_HH}paraPr"):
+            heading = paragraph_heading(para_pr)
+            if heading is not None and heading.get("type") == "OUTLINE":
+                self._shapes[para_pr.get("id") or ""] = (_int_attribute(heading, "level") or 0) + 1
+        for style in header.iter(f"{_HH}style"):
+            for name in (style.get("name") or "", style.get("engName") or ""):
+                match = _OUTLINE_NAME_RE.match(name.strip())
+                if match:
+                    self._styles[style.get("id") or ""] = int(match.group(1))
+                    break
+
+    def level(self, p: ET.Element) -> int | None:
+        level = self._shapes.get(p.get("paraPrIDRef") or "")
+        if level is None:
+            level = self._styles.get(p.get("styleIDRef") or "")
+        return level if level is not None and 1 <= level <= 6 else None
+
+    def any_in(self, sections: list[ET.Element]) -> bool:
+        """Whether a body paragraph (one placed in a section) of *sections* that holds text is a heading."""
+        if not self._shapes and not self._styles:
+            return False
+        for section in sections:
+            for p in section.findall(f"{_HP}p"):
+                if self.level(p) is not None and any(
+                    "".join(t.itertext()).strip() for t in p.iterfind(f"{_HP}run/{_HP}t")
+                ):
+                    return True
+        return False
+
+
+def _markdown_cell(text: str) -> str:
+    """Cell text on one Markdown table line: escaped, line breaks as ``<br>``, note markers as references."""
+    return _note_marks(escape_markdown(text, pipe=True).replace("\n", "<br>"), "[^{name}]")
 
 
 def _escape_html(text: str) -> str:
