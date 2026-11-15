@@ -67,10 +67,10 @@ doc.save_to_path("계획.hwpx")
 
 ## 할 수 있는 것
 
-- 읽기·추출: 텍스트·HTML·Markdown으로 내보냅니다. 서식과 표 안의 표를 살립니다. 각주·미주는 `notes=True`를 주거나
-  `markdown(rich=True)`·`TextExtractor`를 쓸 때 나오고, 머리말·꼬리말·메모는 `TextExtractor`에서만 나옵니다.
-  수식·글자 겹침·양식 개체 캡션은 아직 어느 경로에서도 나오지 않습니다. Markdown 변환(`hwpx.ingest`)은 빠진
-  종류와 개수를 `warnings`와 `lossiness`로 알립니다.
+- 읽기·추출: 텍스트·HTML·Markdown으로 내보냅니다. 서식과 표 안의 표를 살립니다. `doc.text.markdown(rich=True)`는
+  각주·미주를 싣고, 여기에 `headers_and_footers=True`·`memos=True`·`equations=True`를 더하면 머리말·꼬리말·메모와
+  수식(`$LaTeX$`)도 싣습니다. AI 파이프라인용 변환(`hwpx.ingest`)은 이 넷을 기본으로 켜고, 그래도 Markdown에 싣지
+  못한 종류와 개수를 `warnings`와 `lossiness`로 알립니다.
   `.hwp`도 같은 호출로 읽습니다. LangChain은 `hwpx.integrations.langchain.HwpxLoader`
   (`pip install "python-hwpx[langchain]"`), LlamaIndex는 `hwpx.integrations.llama_index.HwpxReader`
   (`pip install "python-hwpx[llamaindex]"`)로 씁니다([사용법](docs/usage.md#ai-파이프라인에서-읽기)).
@@ -189,10 +189,11 @@ AI 도구가 API를 정확히 익히도록 만든 [llms.txt](https://airmang.git
 
 ## 알려진 제약
 
-- `add_shape()`·`add_control()`은 저수준 탈출구라, 그대로 저장하면 한/글이 열지 못하는 파일이 됩니다(부를 때
-  경고만 나옵니다). 도형은 한/글이 요구하는 하위 요소까지 만드는 `add_line()`·`add_rectangle()`·`add_ellipse()`·
-  `add_arc()`·`add_polygon()`·`add_curve()`·`add_connector()`·`add_container()`(묶음)를, 컨트롤은
-  `add_column_definition()`·`add_bookmark()`·`add_hyperlink()`를 쓰세요.
+- `doc.shapes.add_raw()`(옛 이름 `add_shape()`)·`doc.shapes.add_control()`은 저수준 탈출구라, 그대로 저장하면
+  한/글이 열지 못하는 파일이 됩니다(부를 때 경고만 나옵니다). 도형은 한/글이 요구하는 하위 요소까지 만드는
+  `doc.shapes`의 `add_line()`·`add_rectangle()`·`add_ellipse()`·`add_arc()`·`add_polygon()`·`add_curve()`·
+  `add_connector()`·`add_container()`(묶음)를, 컨트롤은 문단의 `add_column_definition()`과
+  `doc.refs.add_bookmark()`·`doc.refs.add_hyperlink()`를 쓰세요.
 - 그림은 밝기·대비·회색조·흑백·투명도, 실선 테두리, 자르기(`crop`), 그림자·빛남·부드러운 가장자리·반사
   (`shadow`·`glow`·`soft_edge`·`reflection`)를 `add_picture()` 인자로 줄 수 있습니다. 뒤집기와 회전은 아직 안 됩니다.
 - 쪽 수 추정과 줄 배치 정보 쓰기는 실험 기능입니다. 따르지 못하는 요소가 있으면 추정하지 않고 까닭을 돌려줍니다.
