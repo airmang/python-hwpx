@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **19개 클래스 / 199개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **19개 클래스 / 201개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -76,7 +76,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 199 | `tests/data/model_surface.json` |
+| 반환 객체 계약 | 201 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -141,6 +141,54 @@ major 경계에서만 깨지는 이름들입니다.
 
 > `HwpxMarkdownConverter`(HWPX → Markdown 읽기)는 성숙한 경로라 **stable**입니다.
 > 위 ingestion 프레임워크(임의 포맷 → HWPX)만 experimental입니다.
+
+## 7.0: 엔진의 공개 읽기 (모듈 경로로 import)
+
+7.0은 변환·짐작 기능(Markdown·HTML 내보내기, ingest, 메일머지, 미리보기 …)을
+`python-hwpx-automation`으로 옮긴다. 옮겨 간 코드는 이 문서의 계약만 쓴다. 그 코드가
+쓰던 엔진 기능 가운데 엔진으로서 뜻이 있는 것을 아래 이름으로 계약에 올렸다. 최상위
+`from hwpx import ...`에는 넣지 않고, 적힌 모듈 경로에서 가져온다. `hwpx.oxml.*`의 다른
+이름은 이 목록에 없으면 계약이 아니다(경로는 열려 있다).
+`scripts/check_moved_private_names.py`가 옮겨 갈 코드에서 계약 밖의 이름을 찾는다.
+
+**stable** — major 경계에서만 바뀐다.
+
+| 이름 | 모듈 | 하는 일 |
+|---|---|---|
+| `Paragraph.clear_layout_cache() -> int` | `hwpx.model` | 문단(과 그 문단을 담은 문단)의 줄 배치 캐시를 지운다. XML을 직접 고친 뒤 부른다 |
+| `Paragraph.available_width -> int \| None` | `hwpx.model` | 문단이 쓸 수 있는 폭(HWPUNIT): 칸이면 칸 너비 − 안 여백, 본문이면 본문 폭(다단이면 단 폭) |
+| `doc.styles.outline_style(level) -> Style \| None` | 문서 | 개요 N 수준의 스타일(`add_heading`이 고르는 것) |
+| `doc.styles.outline_level(style) -> int \| None` | 문서 | 스타일이 개요 스타일이면 그 수준 |
+| `ListLabels(doc)` · `.label(paragraph) -> str` · `.kind(paragraph)` | `hwpx.tools.exporter` | 한/글이 문단 앞에 그리는 번호·글머리(`"1."`, `"가."`, `"●"`) |
+| `NoteLabels(doc)` · `.label(note) -> str` | `hwpx.tools.exporter` | 각주·미주 번호(`"1)"`) |
+| `number_text(value, number_format) -> str \| None`, `NUMBER_TEXT_FORMATS` | `hwpx.tools.exporter` | 수를 한/글 번호 형식으로(`3, "HANGUL_SYLLABLE"` → `"다"`) |
+| `table_grid_text(table, *, tab_token) -> tuple[tuple[str, ...], ...]` | `hwpx.tools.exporter` | 표의 칸 글을 열 격자에(한/글 텍스트 저장과 같은 칸 글) |
+| `text_element_content(element, *, tab_token) -> str` | `hwpx.oxml.run` | `hp:t` 요소의 글(안의 탭·줄바꿈·특수 공백 포함) |
+| `heading_outline_level(para_pr)`, `outline_style_level(name)`, `paragraph_heading(para_pr)` | `hwpx.oxml.paragraph_heading` | 문단 모양의 개요 수준, 개요 스타일 이름(`개요 N`/`Outline N`)의 수준 |
+| `hyperlink_target(field_begin) -> str` | `hwpx.oxml.hyperlink_form` | 하이퍼링크 필드가 가리키는 곳(`Paragraph.hyperlinks`의 `url`과 같다) |
+| `cell_margins_of(cell_element, table_element)` | `hwpx.oxml.table_sizes` | `hp:tc` 요소의 실제 안 여백(`TableCell.margins`와 같다) |
+| `PAGE_PORTRAIT`, `PAGE_LANDSCAPE` | `hwpx.oxml.section_format` | `hp:pagePr@landscape`의 세로(`WIDELY`)·가로(`NARROWLY`) 값 |
+| `HP`·`HH`·`HC`·`HS`·`qn`·`tag_local_name` 등 | `hwpx.oxml.namespaces` | OWPML 이름공간과 태그 도우미 |
+| `__all__`의 이름(`guard_zip_file`, `read_member`, `read_zip_members`, `parse_xml_stdlib`, `guard_xml_bytes`, `guard_xml_depth`, `ZipGuardLimits`, `HwpxSecurityError`, `MAX_*`) | `hwpx.opc.security` | HWPX 바이트를 엔진과 같은 상한으로 여는 입력 방어. 상한 값(`MAX_*`)은 보안을 위해 minor에서 좁아질 수 있다 |
+
+XML 요소를 받는 함수(`text_element_content`, `paragraph_heading`, `hyperlink_target`,
+`cell_margins_of` …)는 lxml과 표준 `ElementTree` 요소를 모두 받는다. `ListLabels`·
+`NoteLabels`·`table_grid_text`는 모델 객체(문단·각주·표)와 그 XML 요소를 모두 받고, 문단은
+`doc.paragraphs`의 번호로도 받는다.
+
+**stable 서명, 값은 실측에 따라** — 이름·인자·반환 형식은 major에서만 바뀐다. 돌려주는
+수치는 한/글 실측에 맞춰 minor에서 달라질 수 있다(측정이 더 맞아지는 것은 고침이다).
+
+| 이름 | 모듈 |
+|---|---|
+| `char_advance`, `estimate_text_width`, `indented_widths`, `text_style_from_refs`, `TextStyle` | `hwpx.form_fit` (`hwpx.form_fit.measure`) |
+| `resolve_slot_metrics`, `SlotMetrics`, `FitEngine`, `FitPolicy`, `FitResult` | `hwpx.form_fit` |
+
+**experimental** — minor에서 바뀔 수 있다.
+
+| 이름 | 모듈 | 하는 일 |
+|---|---|---|
+| `input_file_problem(path, *, tool, accepts_hwp=False) -> str \| None` | `hwpx.tools.archive_cli` | 명령줄 도구가 그 경로를 읽을 수 없는 까닭 한 줄(없는 파일, 폴더, HWP 3, HWP 5를 HWPX만 읽는 도구에) |
 
 ## 5.0에서 제거된 deprecated 표면 (4)
 
