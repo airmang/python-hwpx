@@ -470,8 +470,21 @@ class HwpxOxmlTableCell:
                 _clear_paragraph_layout_cache(node)
 
     def remove(self) -> None:
-        self._row_element.remove(self.element)
-        self.table.mark_dirty()
+        """Refused: taking one cell out of the grid leaves a hole Hancom cannot lay out.
+
+        Raises :class:`~hwpx.errors.HwpxValueError` (``code="table-cell-remove-unsupported"``).
+        Delete the whole row or column (``table.delete_rows``, ``table.delete_columns``), merge
+        the cell into its neighbour (``table.merge_cells``), or empty it (``cell.text = ""``).
+        """
+
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            "표 칸 하나만 지우면 표 격자에 구멍이 나 한/글이 표를 그리지 못합니다.",
+            code="table-cell-remove-unsupported",
+            suggestion="행이나 열을 통째로 지우려면 table.delete_rows()/table.delete_columns(), "
+            "옆 칸과 합치려면 table.merge_cells(), 내용만 비우려면 cell.text = \"\" 를 쓰세요.",
+        )
 
     # ------------------------------------------------------------------
     # Nested content helpers
