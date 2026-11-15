@@ -126,7 +126,7 @@ def _belongs(document: "HwpxDocument", paragraph: "HwpxOxmlParagraph") -> bool:
         return any(section is paragraph.section for section in sections) and any(
             node is element for section in sections for node in section.element.iter()
         )
-    root = element
+    root: Any = element  # an lxml element here; the stdlib type has no getparent
     while (parent := root.getparent()) is not None:
         root = parent
     return any(section.element is root for section in sections)
