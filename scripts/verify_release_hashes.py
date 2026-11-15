@@ -242,15 +242,30 @@ def verify_github_release(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--manifest", required=True, type=Path)
-    parser.add_argument("--asset-dir", required=True, type=Path)
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--asset-dir", type=Path)
     parser.add_argument("--tag", required=True)
+    parser.add_argument(
+        "--tag-only",
+        action="store_true",
+        help=(
+            "only check that the tag is v<final version>; the release workflow "
+            "runs this before building so a tag the post-publish check would "
+            "refuse never reaches PyPI"
+        ),
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
     version = version_from_tag(args.tag)
+    if args.tag_only:
+        print(f"[OK] release tag {args.tag!r} -> version {version}")
+        return 0
+    if args.manifest is None or args.asset_dir is None:
+        parser.error("--manifest and --asset-dir are required unless --tag-only")
     expected = read_manifest(args.manifest)
     for filename in expected:
         if version not in filename:
