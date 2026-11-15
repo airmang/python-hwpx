@@ -56,6 +56,7 @@ from .oxml.simple_parts import HwpxOxmlVersion as Version
 from .oxml.table import HwpxOxmlTable as Table
 from .oxml.table import HwpxOxmlTableCell as TableCell
 from .oxml.table import HwpxOxmlTableRow as TableRow
+from .oxml.table_format import HwpxOxmlTableColumn as TableColumn
 
 __all__ = [
     "Document",
@@ -75,6 +76,7 @@ __all__ = [
     "Shape",
     "Table",
     "TableCell",
+    "TableColumn",
     "TableRow",
     "Version",
 ]

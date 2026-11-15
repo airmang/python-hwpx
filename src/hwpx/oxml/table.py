@@ -24,6 +24,7 @@ from ._document_primitives import (
     _default_sublist_attributes,
     _distribute_size,
     _element_local_name,
+    _normalize_color,
     _object_id,
     _paragraph_id,
     FILL_GRADIENT_TYPES,
@@ -32,6 +33,7 @@ from ._document_primitives import (
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
 from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
+from .table_format import TableCellFormat, TableFormat, TableRowFormat, _BorderFills, _set_fill
 from .table_structure import TableStructureEdits
 from .utils import HwpxIndexError
 
@@ -216,7 +218,7 @@ def _is_blank_cell(element: ET.Element) -> bool:
 
 
 
-class HwpxOxmlTableCell:
+class HwpxOxmlTableCell(TableCellFormat):
     """Represents an individual table cell."""
 
     def __init__(
@@ -599,7 +601,7 @@ class HwpxTableGridPosition:
 
 
 
-class HwpxOxmlTableRow:
+class HwpxOxmlTableRow(TableRowFormat):
     """Represents a table row."""
 
     def __init__(self, element: ET.Element, table: "HwpxOxmlTable"):
@@ -614,7 +616,7 @@ class HwpxOxmlTableRow:
         ]
 
 
-class HwpxOxmlTable(TableStructureEdits):
+class HwpxOxmlTable(TableStructureEdits, TableFormat):
     """Representation of an ``<hp:tbl>`` inline object."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
@@ -1084,15 +1086,14 @@ class HwpxOxmlTable(TableStructureEdits):
         _set_cell_borders_preserving(self, cell, color, line_type)
 
     def set_cell_shading(self, row_index: int, col_index: int, color: str) -> None:
+        """Fill one cell with *color*; its lines stay (a fill derived from its own, as ``set_shading``)."""
         cell = self.cell(row_index, col_index)
-        document = self.paragraph.section.document
-        if document is None:
+        if self.paragraph.section.document is None:
             raise ValueError("table is not attached to a document")
-        border_fill_id = document.ensure_shading_border_fill(
-            color,
-            base_border_fill_id=cell.element.get("borderFillIDRef") or self.element.get("borderFillIDRef"),
-        )
-        cell.element.set("borderFillIDRef", border_fill_id)
+        fills = _BorderFills(self)
+        value = _normalize_color(color)
+        cell.element.set("borderFillIDRef", fills.derive(fills.base_id(cell), ("fill", value),
+                                                         lambda candidate: _set_fill(candidate, value)))
         self.mark_dirty()
 
     def set_cell_fill_image(

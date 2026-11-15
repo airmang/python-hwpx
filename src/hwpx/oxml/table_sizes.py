@@ -592,6 +592,248 @@ def set_table_out_margins(
     return margins
 
 
+def table_in_margins(table: "HwpxOxmlTable") -> CellMargins:
+    """The table's default inner cell margins (``hp:inMargin``), in HWPUNIT; zeros when it has none.
+    A cell whose ``hasMargin`` is off is laid out with these (see :attr:`HwpxOxmlTableCell.margins`)."""
+
+    own = table.element.find(f"{_HP}inMargin")
+    if own is None:
+        return CellMargins(0, 0, 0, 0)
+    return CellMargins(*(_margin_value(own.get(side)) for side in _MARGIN_SIDES))
+
+
+def set_table_in_margins(
+    table: "HwpxOxmlTable",
+    *,
+    left: int | None = None,
+    right: int | None = None,
+    top: int | None = None,
+    bottom: int | None = None,
+) -> CellMargins:
+    """Set the table's default inner cell margins (``hp:inMargin``) and return them, as
+    :meth:`set_out_margins` sets the outer ones.
+
+    Sides left as ``None`` keep their value; values are ints in ``0 <= value < 2**31`` (HWPUNIT),
+    checked first (``table-margin-value``). Cells with margins of their own (``hasMargin``) keep
+    them. When they change, the paragraphs of the cells laid out with them and the paragraph
+    holding the table lose their line layout cache.
+    """
+    from ..errors import HwpxValueError
+
+    given = {side: value for side, value in {"left": left, "right": right, "top": top, "bottom": bottom}.items()
+             if value is not None}
+    for side, value in given.items():
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**31:
+            raise HwpxValueError(
+                f"table inner margin {side} must be an int in 0 <= value < 2**31 (HWPUNIT), got {value!r}",
+                code="table-margin-value",
+                context={"side": side, "value": repr(value)},
+                suggestion="Pass a non-negative int in HWPUNIT (1 mm = 283.465 HWPUNIT).",
+            )
+    before = table_in_margins(table)
+    margins = replace(before, **given)
+    if not given or margins == before and table.element.find(f"{_HP}inMargin") is not None:
+        return before
+    own = table.element.find(f"{_HP}inMargin")
+    if own is None:
+        own = table.element.makeelement(f"{_HP}inMargin", {})
+        names = [_element_local_name(child) for child in table.element]
+        index = next((i for i, name in enumerate(names) if name in {"cellzoneList", "tr", "label"}), len(names))
+        table.element.insert(index, own)
+    for side in _MARGIN_SIDES:
+        own.set(side, str(getattr(margins, side)))
+    for row in table.element.findall(f"{_HP}tr"):
+        for cell in row.findall(f"{_HP}tc"):
+            if (cell.get("hasMargin") or "").strip().lower() not in {"1", "true"}:
+                for paragraph in cell.findall(f"{_HP}subList/{_HP}p"):
+                    _clear_paragraph_layout_cache(paragraph)
+    _clear_paragraph_layout_cache(table.paragraph.element)
+    table.mark_dirty()
+    return margins
+
+
+def _grid_edges(table: "HwpxOxmlTable", axis: str) -> list[int] | None:
+    """The edges of the table's grid lines along *axis* (``"col"`` or ``"row"``), from 0: each line
+    at the farthest end the cells before it reach (start plus ``hp:cellSz`` size and the cell
+    spacing). ``None`` when the cells leave a grid line unreached."""
+
+    size_name, span_name = ("width", "colSpan") if axis == "col" else ("height", "rowSpan")
+    count = table.column_count if axis == "col" else table.row_count
+    spacing = int(table.element.get("cellSpacing", 0) or 0)
+    places: list[tuple[int, int, int]] = []
+    for row in table.element.findall(f"{_HP}tr"):
+        for tc in row.findall(f"{_HP}tc"):
+            address, span, size = (tc.find(f"{_HP}{name}") for name in ("cellAddr", "cellSpan", "cellSz"))
+            if address is None or size is None:
+                return None
+            first = int(address.get(f"{axis}Addr", 0) or 0)
+            stop = first + max(1, int((span.get(span_name) if span is not None else None) or 1))
+            places.append((first, stop, int(size.get(size_name, 0) or 0)))
+    edges = {0: 0}
+    for end in range(1, count + 1):
+        reach = [edges[first] + size + spacing for first, stop, size in places if stop == end and first in edges]
+        if not reach:
+            return None
+        edges[end] = max(reach)
+    return [edges[index] for index in range(count + 1)]
+
+
+def _grid_sizes(table: "HwpxOxmlTable", axis: str) -> tuple[int, ...]:
+    edges = _grid_edges(table, axis)
+    count = table.column_count if axis == "col" else table.row_count
+    if edges is None:  # an unreadable grid: the table's own size shared out evenly
+        sz = table.element.find(f"{_HP}sz")
+        total = int((sz.get("width" if axis == "col" else "height") if sz is not None else None) or 0)
+        return tuple(_distribute_size(max(total, 0), count))
+    spacing = int(table.element.get("cellSpacing", 0) or 0)
+    return tuple(max(edges[i + 1] - edges[i] - spacing, 0) for i in range(count))
+
+
+def column_widths(table: "HwpxOxmlTable") -> tuple[int, ...]:
+    """Each grid column's width in HWPUNIT, left to right, read from the cells' ``hp:cellSz`` as
+    Hancom lays the grid out (a merged cell wider than its columns widens the last of them)."""
+
+    return _grid_sizes(table, "col")
+
+
+def row_heights(table: "HwpxOxmlTable") -> tuple[int, ...]:
+    """Each row's stored height in HWPUNIT, top to bottom, read from the cells' ``hp:cellSz``
+    (Hancom draws a row taller when its text needs it)."""
+
+    return _grid_sizes(table, "row")
+
+
+def table_width(table: "HwpxOxmlTable") -> int:
+    """The table's width in HWPUNIT (``hp:sz/@width``)."""
+
+    sz = table.element.find(f"{_HP}sz")
+    return _margin_value(sz.get("width") if sz is not None else None)
+
+
+def _size_value(value: object, argument: str, code: str) -> int:
+    from ..errors import HwpxValueError
+
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 < value < 2**31:
+        raise HwpxValueError(
+            f"{argument} must be an int in 0 < {argument} < 2**31 (HWPUNIT); got {value!r}",
+            code=code,
+            context={"argument": argument, "value": repr(value)},
+            suggestion="Pass a length in HWP units (1 mm is about 283).",
+        )
+    return value
+
+
+def _line_index(table: "HwpxOxmlTable", value: object, axis: str) -> int:
+    from .utils import HwpxIndexError
+
+    count = table.column_count if axis == "col" else table.row_count
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < count:
+        raise HwpxIndexError(
+            f"{axis} {value!r} is outside the table (0..{count - 1})",
+            code="table-cell-not-found",
+            context={axis: repr(value), "count": count},
+            suggestion=f"Pass a {'column' if axis == 'col' else 'row'} index in 0..{count - 1}.",
+        )
+    return value
+
+
+def _resize_line(table: "HwpxOxmlTable", axis: str, index: int, delta: int) -> None:
+    """Grow (shrink) every cell crossing grid line *index* along *axis* by *delta*, and the table."""
+
+    size_name = "width" if axis == "col" else "height"
+    seen: set[int] = set()
+    for entry in table.iter_grid():
+        cell = entry.cell
+        if id(cell.element) in seen:
+            continue
+        first = entry.anchor[1] if axis == "col" else entry.anchor[0]
+        span = entry.span[1] if axis == "col" else entry.span[0]
+        if first <= index < first + max(span, 1):
+            seen.add(id(cell.element))
+            current = cell.width if axis == "col" else cell.height
+            cell.set_size(**{size_name: max(current + delta, 0)})
+            cell._clear_own_layout_caches()
+    sz = table.element.find(f"{_HP}sz")
+    if sz is not None:
+        sz.set(size_name, str(max(_margin_value(sz.get(size_name)) + delta, 0)))
+    _clear_paragraph_layout_cache(table.paragraph.element)
+    table.mark_dirty()
+
+
+@_keeping_nested_fit
+def set_column_width(table: "HwpxOxmlTable", col: int, width: int) -> None:
+    """Give grid column *col* the width *width* (HWPUNIT): every cell crossing it grows or shrinks by
+    the difference, and so does the table (the other columns keep theirs). A width below the
+    narrowest Hancom draws the column (its cells' side margins plus 283) is refused
+    (``table-column-width-value``), as is one leaving a nested table wider than its cell."""
+
+    from ..errors import HwpxValueError
+
+    col = _line_index(table, col, "col")
+    width = _size_value(width, "width", "table-column-width-value")
+    floor = _column_floors(table)[col]
+    if width < floor:
+        raise HwpxValueError(
+            f"column {col} cannot be narrower than {floor} (its cells' side margins plus {COLUMN_FLOOR_EXTRA})",
+            code="table-column-width-value",
+            context={"col": col, "width": width, "floor": floor},
+            suggestion=f"Pass at least {floor}, or narrow the cells' margins first.",
+        )
+    delta = width - column_widths(table)[col]
+    if delta:
+        _resize_line(table, "col", col, delta)
+
+
+def set_row_height(table: "HwpxOxmlTable", row: int, height: int) -> None:
+    """Give row *row* the stored height *height* (HWPUNIT): every cell crossing it grows or shrinks
+    by the difference, and so does the table. Hancom still draws the row taller when its text
+    needs it (``table-row-height-value`` for a height that is not a positive int)."""
+
+    row = _line_index(table, row, "row")
+    height = _size_value(height, "height", "table-row-height-value")
+    delta = height - row_heights(table)[row]
+    if delta:
+        _resize_line(table, "row", row, delta)
+
+
+def _scale_columns(table: "HwpxOxmlTable", width: int, current: tuple[int, ...]) -> None:
+    sz = table.element.find(f"{_HP}sz")
+    if sz is None:
+        sz = table.element.makeelement(f"{_HP}sz", {"width": "0", "widthRelTo": "ABSOLUTE", "height": "0",
+                                                     "heightRelTo": "ABSOLUTE", "protect": "0"})
+        table.element.insert(0, sz)
+    before = sz.get("width")
+    sz.set("width", str(width))
+    try:  # set_column_widths shares the new width out, or leaves the cells as they were and refuses
+        set_column_widths(table, list(current) if any(current) else [1] * len(current))
+    except Exception:
+        sz = table.element.find(f"{_HP}sz")
+        if sz is not None and before is not None:
+            sz.set("width", before)
+        raise
+    for paragraph in table.element.iter(f"{_HP}p"):
+        _clear_paragraph_layout_cache(paragraph)
+    _clear_paragraph_layout_cache(table.paragraph.element)
+    table.mark_dirty()
+
+
+def set_table_width(table: "HwpxOxmlTable", width: int, *, proportional: bool = True) -> None:
+    """Make the table *width* wide (HWPUNIT). With *proportional* every column keeps its share of
+    the width (none narrower than Hancom draws it); without, the last column takes the
+    difference. ``table-width-value`` for a width that is not a positive int."""
+
+    width = _size_value(width, "width", "table-width-value")
+    current = column_widths(table)
+    total = sum(current)
+    if width == table_width(table) and width == total:
+        return
+    if proportional:
+        _scale_columns(table, width, current)
+    else:
+        last = len(current) - 1
+        set_column_width(table, last, current[last] + width - total)
+
+
 #: A SQUEEZE line up to this share of the cell's line width still reads in Hancom.
 SQUEEZE_READABLE_RATIO = 1.1
 

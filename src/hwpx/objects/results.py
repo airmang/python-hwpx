@@ -221,6 +221,23 @@ class CellMargins:
 
 
 @dataclass(frozen=True)
+class CellZone:
+    """One cell zone of a table (``hp:cellzone``, ``table.cell_zones``): the rectangle of cells from
+    (``row``, ``col``) to (``end_row``, ``end_col``), both included, drawn with the border fill
+    ``border_fill_id_ref`` over the cells' own. Values as the file stores them."""
+
+    row: int
+    col: int
+    end_row: int
+    end_col: int
+    border_fill_id_ref: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"row": self.row, "col": self.col, "endRow": self.end_row, "endCol": self.end_col,
+                "borderFillIDRef": self.border_fill_id_ref}
+
+
+@dataclass(frozen=True)
 class ColumnLayout:
     """Column count/gap applied by ``doc.page.setup(columns=...)``."""
 
@@ -359,6 +376,7 @@ __all__ = [
     "BorderFillInfo",
     "BorderLine",
     "CellMargins",
+    "CellZone",
     "ClearBodyReport",
     "ColumnLayout",
     "FieldFillResult",
