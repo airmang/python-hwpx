@@ -186,16 +186,27 @@ def test_triangle_symbol_uses_exact_evidence_backed_tokens(token: str) -> None:
 @pytest.mark.parametrize(
     "script",
     [
-        "Triangle PQR",
         "triAngle PQR",
-        "triangles PQR",
         "mytriangle PQR",
-        "triangleidentifier PQR",
         "myrmtriangle PQR",
     ],
 )
 def test_triangle_support_does_not_split_identifiers(script: str) -> None:
     assert eqedit_to_latex(script) == script
+
+
+@pytest.mark.parametrize(
+    ("script", "latex"),
+    [
+        # Hancom reads a symbol name at the front of a word (``sinx`` is sin x, ``F _{net}`` draws F≠t on
+        # desktop Hangul 2024) and ignores the case of most names (``In`` drew ∈).
+        ("Triangle PQR", r"\triangle PQR"),
+        ("triangles PQR", r"\triangle s PQR"),
+        ("triangleidentifier PQR", r"\triangle identifier PQR"),
+    ],
+)
+def test_a_symbol_name_at_the_front_of_a_word_is_read_as_the_symbol(script: str, latex: str) -> None:
+    assert eqedit_to_latex(script) == latex
 
 
 # --- font switches (#582) -----------------------------------------------------

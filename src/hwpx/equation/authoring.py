@@ -17,6 +17,8 @@ Contract provenance: specs/054-equation-authoring/evidence/p0/equation-contract.
 
 from __future__ import annotations
 
+import unicodedata
+
 from .eqedit import (
     MAX_GROUP_DEPTH,
     MAX_SOURCE_LENGTH,
@@ -106,8 +108,83 @@ _LATEX_TO_EQEDIT.update(
         "\\rightleftarrows": "EXARROW",
         "\\quad": "~~",
         "\\qquad": "~~~~",
+        # Common spellings with the same meaning as a verified one: the long arrows draw the arrow of
+        # their short form, ``\colon`` the colon, ``\vert`` the bar.
+        "\\longrightarrow": "->",
+        "\\longleftarrow": "<-",
+        "\\longleftrightarrow": "<->",
+        "\\Longrightarrow": "Rightarrow",
+        "\\Longleftarrow": "Leftarrow",
+        "\\Longleftrightarrow": "LRARROW",
+        "\\implies": "Rightarrow",
+        "\\impliedby": "Leftarrow",
+        "\\gets": "<-",
+        "\\colon": ":",
+        "\\vert": "|",
+        "\\lvert": "|",
+        "\\rvert": "|",
+        # The double bar (``VERT``, measured on desktop Hangul 2024) and two Hancom symbol names.
+        "\\Vert": "VERT",
+        "\\lVert": "VERT",
+        "\\rVert": "VERT",
+        "\\hbar": "hbar",
+        "\\ell": "ell",
+        # The diagonal arrows as public documents spell them (tables of increase and decrease).
+        "\\nearrow": "NEARROW",
+        "\\searrow": "SEARROW",
     }
 )
+# Size and style commands that change only how big LaTeX draws what follows: Hancom sizes the
+# equation itself, so they are left out (``\Big[`` is ``[``, ``\displaystyle\sum`` is ``\sum``).
+_IGNORED_COMMANDS = frozenset({
+    "\\displaystyle", "\\textstyle", "\\scriptstyle", "\\scriptscriptstyle", "\\limits", "\\nolimits",
+    "\\big", "\\Big", "\\bigg", "\\Bigg", "\\bigl", "\\bigr", "\\Bigl", "\\Bigr", "\\biggl", "\\biggr",
+    "\\Biggl", "\\Biggr", "\\bigm", "\\Bigm", "\\biggm", "\\Biggm",
+})
+# Characters typed for a symbol, read as the LaTeX command for it (``×`` is ``\times``).
+_UNICODE_COMMANDS: dict[str, tuple[str, ...]] = {
+    "×": ("\\times",), "÷": ("\\div",), "±": ("\\pm",), "∓": ("\\mp",), "≤": ("\\leq",), "≥": ("\\geq",),
+    "≦": ("\\leq",), "≧": ("\\geq",), "≠": ("\\neq",), "→": ("\\rightarrow",), "←": ("\\leftarrow",),
+    "↔": ("\\leftrightarrow",), "⇒": ("\\Rightarrow",), "⇐": ("\\Leftarrow",), "⇔": ("\\Leftrightarrow",),
+    "↑": ("\\uparrow",), "↓": ("\\downarrow",), "∞": ("\\infty",), "−": ("-",), "·": ("\\cdot",),
+    "⋅": ("\\cdot",), "…": ("\\ldots",), "⋯": ("\\cdots",), "⋮": ("\\vdots",), "⋱": ("\\ddots",),
+    "△": ("\\triangle",), "∠": ("\\angle",), "⊥": ("\\perp",), "∥": ("\\parallel",), "√": ("\\sqrt",),
+    "∈": ("\\in",), "∉": ("\\notin",), "⊂": ("\\subset",), "⊃": ("\\supset",), "⊆": ("\\subseteq",),
+    "⊇": ("\\supseteq",), "∪": ("\\cup",), "∩": ("\\cap",), "∅": ("\\emptyset",), "∴": ("\\therefore",),
+    "∵": ("\\because",), "≈": ("\\approx",), "≡": ("\\equiv",), "∼": ("\\sim",), "≃": ("\\simeq",),
+    "≅": ("\\cong",), "∝": ("\\propto",), "∀": ("\\forall",), "∃": ("\\exists",), "¬": ("\\neg",),
+    "∧": ("\\land",), "∨": ("\\lor",), "∂": ("\\partial",), "∇": ("\\nabla",), "∑": ("\\sum",),
+    "∏": ("\\prod",), "∫": ("\\int",), "∮": ("\\oint",), "∘": ("\\circ",), "•": ("\\bullet",),
+    "°": ("^", "\\circ"), "′": ("'",), "″": ("'", "'"), "*": ("\\ast",), "∗": ("\\ast",),
+}
+
+
+def _is_drawn_as_itself(char: str) -> bool:
+    """A non-ASCII symbol or numbered mark with no command of its own (□, ㉠, ⑴, Ⅰ, ∾): Hancom draws the
+    character, as public documents type it. Private-use characters have no meaning to keep."""
+
+    return not char.isascii() and unicodedata.category(char) in ("So", "Sm", "No", "Nl")
+
+
+# Opening delimiters LaTeX draws at their own size; with their closer they read as ``\left``…``\right``.
+_BARE_FENCES = {"\\lfloor": "\\rfloor", "\\lceil": "\\rceil", "\\langle": "\\rangle"}
+# What to write instead of a command that has no verified EqEdit spelling.
+_ALTERNATIVES = {
+    "\\setminus": "write the set difference as A - B",
+    "\\rfloor": "use \\left\\lfloor ... \\right\\rfloor",
+    "\\rceil": "use \\left\\lceil ... \\right\\rceil",
+    "\\rangle": "use \\left\\langle ... \\right\\rangle",
+    "\\xrightarrow": "use \\rightarrow (a label over the arrow has no verified spelling)",
+    "\\mathbb": "write the set name upright: \\mathrm{R}",
+    "\\square": "write an empty answer box as \\boxed{~}",
+    "\\widehat": "use \\hat{...}",
+    "\\widetilde": "use \\tilde{...}",
+    "\\overbrace": "write the label as a script: (a+b)^{n}",
+    "\\underbrace": "write the label as a script: (1+\\cdots+1)_{n}",
+    "\\ce": "write the formula with \\mathrm{...}: \\mathrm{H_2O}",
+    "\\color": "equations take one color; leave the command out",
+    "\\cancel": "no strike-through in Hancom equations; leave the command out",
+}
 _LATEX_ACCENTS: dict[str, str] = {
     latex: eqedit
     for latex, eqedit in _invert(ACCENTS).items()
@@ -124,6 +201,12 @@ _LATEX_DELIMITERS: dict[str, str] = {
     and eqedit not in {"LBRACE", "RBRACE", "LANGLE", "RANGLE"}
 }
 _TEXT_COMMANDS = frozenset({"\\text", "\\mathrm", "\\textrm", "\\mbox"})
+# Text commands whose body is text, spaces included; the lexer hands it over as one token marked so.
+_RAW_TEXT_COMMANDS = frozenset({"\\text", "\\textrm", "\\mbox"})
+_RAW_TEXT = "\x00"
+# Tokens that cannot start the argument of a command or a script (``x^^2``, ``x_}``).
+_NOT_AN_ARGUMENT = frozenset({"}", "^", "_", "&", "\\\\", "\\right", "\\end", "]"})
+_TEXT_SYMBOL_COMMANDS = {"\\textbackslash": "\\", "\\textasciicircum": "^", "\\textasciitilde": "~"}
 # ``\mathrm`` is upright *math*: scripts and commands inside it keep their meaning (``\mathrm{H_2O}``).
 _UPRIGHT_MATH_COMMANDS = frozenset({"\\mathrm"})
 # LaTeX environment name → render-verified EqEdit builder word. ``Bmatrix`` /
@@ -174,6 +257,8 @@ class _LatexLexer:
             gap = False
             if ch == "\\":
                 i = self._lex_command(i)
+                if len(self.spaced) > len(self.tokens):  # an ignored command: no token
+                    gap = self.spaced.pop()
             elif ch in "{}^_&":
                 self.tokens.append(ch)
                 i += 1
@@ -190,6 +275,12 @@ class _LatexLexer:
                 self.tokens.append(source[i:j])
                 i = j
             elif ch in _SINGLE_CHAR_PASSTHROUGH:
+                self.tokens.append(ch)
+                i += 1
+            elif ch in _UNICODE_COMMANDS:
+                self.tokens.extend(_UNICODE_COMMANDS[ch])
+                i += 1
+            elif _is_drawn_as_itself(ch):
                 self.tokens.append(ch)
                 i += 1
             else:
@@ -213,8 +304,69 @@ class _LatexLexer:
         j = i + 1
         while j < n and source[j].isalpha():
             j += 1
-        self.tokens.append(source[i:j])
+        command = source[i:j]
+        if command in _IGNORED_COMMANDS:
+            return j
+        self.tokens.append(command)
+        if command in _RAW_TEXT_COMMANDS:
+            k = j
+            while k < n and source[k].isspace():
+                k += 1
+            if k < n and source[k] == "{":
+                return self._lex_raw_text(k)
         return j
+
+    def _lex_raw_text(self, i: int) -> int:
+        """The body of ``\\text{...}`` at *i* (its ``{``) as one token, its spaces kept (``\\text{ 또는 }``)."""
+
+        source = self._source
+        n = len(source)
+        parts: list[str] = []
+        j = i + 1
+        while True:
+            if j >= n:
+                raise UnsupportedLatexError("unterminated \\text{...} literal")
+            char = source[j]
+            if char == "}":
+                break
+            if char == "{":
+                raise UnsupportedLatexError("\\text{...} supports plain characters only")
+            if char in "^_&%#":
+                # LaTeX reads these as commands even in text (``%`` starts a comment); written escaped
+                # (``\%``) they are characters, which Hancom prints as they are inside quotes.
+                raise UnsupportedLatexError(
+                    f"\\text{{...}} holds plain characters only; {char!r} needs math mode (\\mathrm{{...}}) "
+                    f"or an escape (\\{char})"
+                )
+            if char == "\\":
+                j = self._lex_text_escape(j, parts)
+                continue
+            parts.append(" " if char.isspace() or char == "~" else char)
+            j += 1
+        self.tokens.append(_RAW_TEXT + "".join(parts))
+        return j + 1
+
+    def _lex_text_escape(self, j: int, parts: list[str]) -> int:
+        """One ``\\`` escape inside ``\\text{...}`` at *j*: its character goes to *parts*."""
+
+        source = self._source
+        k = j + 1
+        while k < len(source) and source[k].isalpha():
+            k += 1
+        name = source[j:k]
+        if name in _TEXT_SYMBOL_COMMANDS:
+            parts.append(_TEXT_SYMBOL_COMMANDS[name])
+            return k + 2 if source.startswith("{}", k) else k
+        if k > j + 1:
+            raise UnsupportedLatexError("\\text{...} supports plain characters only")
+        escaped = source[j + 1 : j + 2]
+        if escaped and escaped in "%$&#_{}":
+            parts.append(escaped)
+        elif escaped and escaped in " ,;:":
+            parts.append(" ")
+        else:
+            raise UnsupportedLatexError(f"unsupported LaTeX escape in \\text{{...}}: \\{escaped}")
+        return j + 2
 
 
 class _LatexParser:
@@ -254,22 +406,42 @@ class _LatexParser:
         if depth > MAX_GROUP_DEPTH:
             raise EquationConversionError("equation nesting depth exceeded")
         parts: list[str] = []
+        scripts: set[str] = set()  # the scripts already on the last atom
         while True:
             token = self._peek()
             if token is None or token in stop:
                 break
             if token in ("^", "_"):
                 self._next()
-                script = self._group_or_atom(depth)
+                if token in scripts:
+                    kind = "superscript" if token == "^" else "subscript"
+                    raise UnsupportedLatexError(
+                        f"double {kind} ({token} twice on one atom): group it as x{token}{{a{token}b}} or {{x{token}a}}{token}b"
+                    )
+                scripts.add(token)
+                script = self._group_or_atom(depth, what=f"the script after {token}")
                 parts.append(f"{token}{{{script}}}")
                 continue
+            scripts = set()
             parts.append(self._atom(depth))
         return parts
 
-    def _group_or_atom(self, depth: int) -> str:
+    def _argument(self, depth: int, command: str) -> str:
+        """The required, non-empty argument of *command* (``\\sqrt{}`` and ``\\frac{1}`` draw junk in Hancom)."""
+
+        body = self._group_or_atom(depth, what=f"the argument of {command}")
+        if not body.strip():
+            raise UnsupportedLatexError(f"{command} needs a non-empty argument")
+        return body
+
+    def _group_or_atom(self, depth: int, *, what: str = "an argument") -> str:
         """A script/argument body, brace-stripped (rebraced by the caller)."""
 
-        if self._peek() == "{":
+        token = self._peek()
+        if token is None or token in _NOT_AN_ARGUMENT:
+            found = "the end of the input" if token is None else repr(token)
+            raise UnsupportedLatexError(f"missing {what}: found {found}")
+        if token == "{":
             self._next()
             inner = self._sequence(depth=depth + 1, stop=frozenset({"}"}))
             self._expect("}")
@@ -287,22 +459,31 @@ class _LatexParser:
         if token == "}":
             raise UnsupportedLatexError("unbalanced closing brace in LaTeX input")
         if token == "\\frac" or token == "\\dfrac" or token == "\\tfrac":
-            numerator = self._group_or_atom(depth)
-            denominator = self._group_or_atom(depth)
-            return f"{{{numerator}}} over {{{denominator}}}"
+            numerator = self._argument(depth, token)
+            denominator = self._argument(depth, token)
+            return self._stacked(f"{{{numerator}}} over {{{denominator}}}")
         if token == "\\binom":
             # ``choose`` stretches the parentheses; ``( {n} atop {r} )`` does not.
-            top = self._group_or_atom(depth)
-            bottom = self._group_or_atom(depth)
-            return f"{{{top}}} choose {{{bottom}}}"
+            top = self._argument(depth, token)
+            bottom = self._argument(depth, token)
+            return self._stacked(f"{{{top}}} choose {{{bottom}}}")
         if token == "\\sqrt":
             if self._peek() == "[":
                 self._next()
                 index_parts = self._sequence(depth=depth + 1, stop=frozenset({"]"}))
                 self._expect("]")
-                radicand = self._group_or_atom(depth)
+                radicand = self._argument(depth, token)
                 return f"root {{{' '.join(index_parts)}}} of {{{radicand}}}"
-            return f"sqrt {{{self._group_or_atom(depth)}}}"
+            return f"sqrt {{{self._argument(depth, token)}}}"
+        if token in _BARE_FENCES:
+            return self._bare_fence(token, depth)
+        if token == "\\operatorname":
+            return self._operator_name()
+        if token == "\\not":
+            return self._negated()
+        if token == "\\pmod":
+            # `` (mod m)`` after a space, as LaTeX sets it; ``mod`` is the upright function name.
+            return f"~~( mod ~{{{self._argument(depth, token)}}} )"
         if token in ("\\lbrace", "\\rbrace"):  # the command spellings of \{ and \}
             return "LBRACE" if token == "\\lbrace" else "RBRACE"
         if token in _TEXT_COMMANDS:
@@ -319,10 +500,10 @@ class _LatexParser:
         if token == "\\mathbf":
             # ``bold`` alone keeps the letters italic and ``rm`` goes on past its braces: upright bold, then
             # italic again for what follows.
-            return f"{{rm {{bold {{{self._group_or_atom(depth)}}}}} it}}"
+            return f"{{rm {{bold {{{self._argument(depth, token)}}}}} it}}"
         if token == "\\boldsymbol":
             # ``bold`` thickens only the next atom and keeps the letters italic, as ``\boldsymbol`` does.
-            return f"{{bold {{{self._group_or_atom(depth)}}}}}"
+            return f"{{bold {{{self._argument(depth, token)}}}}}"
         if token == "\\begin":
             return self._environment(depth)
         if token == "\\left":
@@ -330,7 +511,7 @@ class _LatexParser:
         if token in ("\\right", "\\end"):
             raise UnsupportedLatexError(f"{token} without a matching opener")
         if token in _LATEX_ACCENTS:
-            return f"{_LATEX_ACCENTS[token]} {{{self._group_or_atom(depth)}}}"
+            return f"{_LATEX_ACCENTS[token]} {{{self._argument(depth, token)}}}"
         if token in _LATEX_TO_EQEDIT:
             return _LATEX_TO_EQEDIT[token]
         if token == "\\\\":
@@ -340,14 +521,68 @@ class _LatexParser:
         if token.startswith("\\") and len(token) == 2 and not token[1].isalpha():
             return self._escaped_char(token[1])
         if token.startswith("\\"):
-            raise UnsupportedLatexError(f"unsupported LaTeX command: {token}")
+            hint = _ALTERNATIVES.get(token)
+            raise UnsupportedLatexError(
+                f"unsupported LaTeX command: {token}" + (f" -- {hint}" if hint else "")
+            )
         if token == "&":
             raise UnsupportedLatexError(
                 "alignment (&) is only supported inside a matrix/cases environment"
             )
         return self._plain_token(token)
 
+    def _stacked(self, script: str) -> str:
+        """A fraction or binomial, braced when a script follows it: Hancom puts the script of
+        ``{a} over {b} ^{2}`` on the denominator, LaTeX ``\\frac{a}{b}^2`` on the whole fraction."""
+
+        return f"{{{script}}}" if self._peek() in ("^", "_") else script
+
+    def _bare_fence(self, opener: str, depth: int) -> str:
+        """``\\lfloor x \\rfloor``: the pair as ``LEFT``/``RIGHT`` (a lone opener has no verified spelling)."""
+
+        closer = _BARE_FENCES[opener]
+        body = self._sequence(depth=depth + 1, stop=frozenset({closer, "\\right"}))
+        if self._peek() != closer:
+            raise UnsupportedLatexError(
+                f"{opener} needs its {closer} in the same group: use \\left{opener} ... \\right{closer}"
+            )
+        self._next()
+        return f"LEFT {self._delimiter(opener)} {' '.join(body)} RIGHT {self._delimiter(closer)}"
+
+    def _operator_name(self) -> str:
+        """``\\operatorname{sgn}``: a known function name as itself, any other name upright."""
+
+        self._expect("{")
+        letters: list[str] = []
+        while self._peek() not in (None, "}"):
+            token = self._next() or ""
+            if not token.isalpha():
+                raise UnsupportedLatexError("\\operatorname{...} takes letters only")
+            letters.append(token)
+        self._expect("}")
+        name = "".join(letters)
+        if not name:
+            raise UnsupportedLatexError("\\operatorname needs a non-empty argument")
+        command = _LATEX_TO_EQEDIT.get("\\" + name)
+        if command is not None and "\\" + name in FUNCTIONS.values():
+            return command
+        return self._quoted_upright(name)
+
+    def _negated(self) -> str:
+        """``\\not=`` and ``\\not\\in``: the verified negated relations. Others have no verified spelling."""
+
+        token = self._next()
+        if token == "=":
+            return "neq"
+        if token == "\\in":
+            return "notin"
+        raise UnsupportedLatexError(
+            f"\\not is supported only before = and \\in (got {token!r}); use \\neq or \\notin"
+        )
+
     def _escaped_char(self, char: str) -> str:
+        if char == "|":
+            return "VERT"  # \| is the double bar
         if char in "{}":
             # EqEdit spells literal braces as the LBRACE/RBRACE words.
             return "LBRACE" if char == "{" else "RBRACE"
@@ -397,6 +632,10 @@ class _LatexParser:
         return f"arch {{{self._group_or_atom(depth)}}}"
 
     def _text_literal(self) -> str:
+        raw = self._peek()
+        if raw is not None and raw.startswith(_RAW_TEXT):
+            self._next()
+            return self._quoted_upright(raw[len(_RAW_TEXT) :])
         self._expect("{")
         parts: list[str] = []
         while True:
@@ -421,7 +660,10 @@ class _LatexParser:
                 parts.append(" ")
             self._next()
             parts.append(token[1] if token.startswith("\\") else token)
-        literal = "".join(parts)
+        return self._quoted_upright("".join(parts))
+
+    @staticmethod
+    def _quoted_upright(literal: str) -> str:
         if '"' in literal:
             raise UnsupportedLatexError('\\text{...} may not contain a quote (")')
         # Hancom draws a bare quoted run in italic. ``rm`` makes it upright and goes on past its braces,
@@ -500,6 +742,8 @@ class _LatexParser:
             return "LBRACE" if token in ("\\{", "\\lbrace") else "RBRACE"
         if token in DELIMITERS and len(token) == 1:
             return token
+        if token in ("\\vert", "\\lvert", "\\rvert"):
+            return "|"
         raise UnsupportedLatexError(f"unsupported \\left/\\right delimiter: {token}")
 
 
@@ -526,7 +770,7 @@ def latex_to_eqedit(latex: str) -> str:
     if len(latex) > MAX_SOURCE_LENGTH:
         raise EquationConversionError("LaTeX input exceeds size limit")
     text = _strip_math_delimiters(latex)
-    if "$" in text:
+    if "$" in text.replace("\\$", ""):
         raise UnsupportedLatexError("interior $ math delimiters are not supported")
     if not text:
         raise UnsupportedLatexError("empty LaTeX input")

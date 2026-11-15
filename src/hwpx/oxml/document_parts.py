@@ -465,7 +465,7 @@ class HwpxOxmlDocument:
         try:
             return part_cls(path, package.get_xml(path))
         except Exception:
-            logger.exception("%s 파싱 실패: part_path=%s", label, path)
+            logger.debug("%s 파싱 실패: part_path=%s", label, path, exc_info=True)
             raise
 
     @classmethod
@@ -492,10 +492,11 @@ class HwpxOxmlDocument:
                 section._remember_source(package.read(path))
                 sections.append(section)
             except Exception:
-                logger.exception(
+                logger.debug(
                     "section 파싱 실패: section_index=%d, part_path=%s",
                     section_index,
                     path,
+                    exc_info=True,
                 )
                 raise
 
@@ -504,7 +505,7 @@ class HwpxOxmlDocument:
             try:
                 headers.append(HwpxOxmlHeader(path, package.get_xml(path)))
             except Exception:
-                logger.exception("header 파싱 실패: part_path=%s", path)
+                logger.debug("header 파싱 실패: part_path=%s", path, exc_info=True)
                 raise
 
         master_pages: list[HwpxOxmlMasterPage] = []
@@ -515,7 +516,7 @@ class HwpxOxmlDocument:
             try:
                 master_pages.append(HwpxOxmlMasterPage(path, package.get_xml(path)))
             except Exception:
-                logger.exception("masterPage 파싱 실패: part_path=%s", path)
+                logger.debug("masterPage 파싱 실패: part_path=%s", path, exc_info=True)
                 raise
 
         histories: list[HwpxOxmlHistory] = []
@@ -526,7 +527,7 @@ class HwpxOxmlDocument:
             try:
                 histories.append(HwpxOxmlHistory(path, package.get_xml(path)))
             except Exception:
-                logger.exception("history 파싱 실패: part_path=%s", path)
+                logger.debug("history 파싱 실패: part_path=%s", path, exc_info=True)
                 raise
 
         version = cls._load_optional_simple_part(

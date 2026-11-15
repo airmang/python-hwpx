@@ -71,16 +71,12 @@ forecast_cell = table.cell(1, 2)
 forecast_cell.text = "44,500"
 
 # 강조 도형을 문단으로 추가합니다. 전용 헬퍼가 한컴이 요구하는 하위 요소까지 채웁니다.
-shape = document.add_rectangle(9000, 3500, fill_color="#FFF2CC", section=section)
+shape = document.shapes.add_rectangle(9000, 3500, fill_color="#FFF2CC", section=section)
 shape.resize(9600, 3500)
 
-# add_control은 저수준 탈출구입니다 — 필수 하위 요소를 만들지 않아 UserWarning이
-# 나고, 호출자가 직접 채우지 않으면 한컴이 열지 못하는 문서가 됩니다.
-document.add_control(
-    section=section,
-    control_type="LINE",
-    attributes={"id": "guideline-1", "type": "LINE"},
-)
+# 컨트롤도 전용 헬퍼로 넣습니다. 저수준 doc.shapes.add_control은 필수 하위 요소를
+# 만들지 않아, 호출자가 채우지 않으면 저장이 거부되거나 한컴이 열지 못하는 문서가 됩니다.
+document.refs.add_bookmark("quarterly-summary", paragraph=headline)
 
 document.save_to_path("examples/FormattingShowcase-updated.hwpx")
 ```
@@ -93,9 +89,11 @@ from hwpx import HwpxDocument
 document = HwpxDocument.open("examples/FormattingShowcase.hwpx")
 section = document.sections[0]
 
-# 빈 단락 제거
-for para in list(section.paragraphs):
-    if not para.text.strip() and len(section.paragraphs) > 1:
+# 빈 단락 제거. 구역의 첫 문단은 구역 설정(용지·여백·단)을 담고 있으므로 남깁니다.
+# 지우면 용지 크기가 없는 문서가 되어 새 구역도 더할 수 없습니다.
+# 글이 없어도 표나 개체가 든 문단은 빈 문단이 아닙니다.
+for para in list(section.paragraphs)[1:]:
+    if not para.text.strip() and not para.tables and not para.shapes:
         para.remove()
 
 # 새 섹션 추가 후 내용 작성

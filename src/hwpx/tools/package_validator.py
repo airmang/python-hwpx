@@ -1423,14 +1423,10 @@ def _check_version_part(
     selected_rootfile: RootFileRef,
     issues: list[PackageValidationIssue],
 ) -> None:
-    if relationships.version_path is None and VERSION_PATH in name_set:
-        _warning(
-            issues,
-            selected_rootfile.full_path,
-            "manifest does not reference a version part; engine will fall back to "
-            f"{VERSION_PATH!r}",
-        )
-    elif (
+    # Hancom does not list version.xml in the manifest: it sits at the fixed path. Every
+    # Hancom-saved HWPX checked (96 public, 1,127 in tests/fixtures/hancom_saved) has it there and
+    # none references it, so a missing reference is the normal state, not a warning.
+    if (
         relationships.version_path is not None
         and relationships.version_path not in name_set
     ):
@@ -1543,7 +1539,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("source", help="Path to the HWPX file")
     args = parser.parse_args(argv)
 
-    report = validate_package(args.source)
+    from .archive_cli import _input_file_problem
+
+    problem = _input_file_problem(args.source, tool="hwpx-validate-package")
+    if problem is not None:
+        print(f"ERROR: {problem}")
+        return 1
+    try:
+        report = validate_package(args.source)
+    except Exception as exc:  # noqa: BLE001 - one line for the person at the terminal
+        print(f"ERROR: cannot read {args.source}: {exc}")
+        return 1
     for issue in report.issues:
         prefix = "ERROR" if issue.is_error else "WARN"
         print(f"{prefix}: {issue}")

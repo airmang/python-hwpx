@@ -46,12 +46,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import NamedTuple
 
+from ..errors import HwpxValueError
 from .eqedit import _ATOM_END, _FONT_SWITCHES, MAX_GROUP_DEPTH, MAX_SOURCE_LENGTH, _tokenize
 from .tokens import (
     ACCENTS,
     BIG_OPERATORS,
     FUNCTIONS,
     GREEK,
+    LEFT_SCRIPTS,
     MATRIX_ENVIRONMENTS,
     OPERATORS,
     SYMBOL_OPERATORS,
@@ -69,6 +71,8 @@ _GREEK = 0.57  # lowercase Greek letters not listed in _GREEK_WIDTHS
 _GREEK_UPPER = 0.78
 _HANGUL = 0.96
 _PUNCT = 0.18
+# ``%``: Hangul saved ``95%`` 1650 wide at baseUnit 900 where it saved ``95`` 900 wide (36 public equations).
+_PERCENT = 0.8
 _COMMA_SPACE = 0.17  # after a comma
 _BRACKET = 0.35  # ( ) and a stretched delimiter not listed in _STRETCHED
 _SQUARE_BRACKET = 0.26  # [ ]
@@ -313,6 +317,8 @@ def _char_width(ch: str, upright: bool = False) -> float:
         return _DIGIT
     if ch == " ":
         return _SPACE
+    if ch == "%":
+        return _PERCENT
     if not ch.isalnum():
         return _TOKEN_ROOM.get(ch, 0.3) if ch in ",.;:!'/|" else 0.6
     if upright:
@@ -367,6 +373,8 @@ def _token_width(token: str, upright: bool = False, sign: bool = False, alone: b
         return _PUNCT + _COMMA_SPACE
     if token in (".", ";", ":", "!"):
         return _PUNCT
+    if token == "%":
+        return _PERCENT
     return _OTHER
 
 
@@ -439,15 +447,25 @@ class _Measurer:
         """Apply a script or a two-part stack to the item before it; False if *token* is neither."""
         if token in ("^", "_"):
             items.append(self._scripts(items.pop() if items else _Box(0.0, 0.0, 0.0), token, depth))
+        elif token in LEFT_SCRIPTS:
+            # ``C LSUB {3}``: a script set before the atom takes the same room as one after it.
+            items.append(self._scripts(items.pop() if items else _Box(0.0, 0.0, 0.0), LEFT_SCRIPTS[token], depth))
         elif token == "over" or token.lower() == "atop":
             numerator = items.pop() if items else _row([])
-            items.append(_fraction(numerator, self._atom(depth), _FRACTION_GAP if token == "over" else _ATOP_GAP))
+            items.append(_fraction(numerator, self._operand(depth), _FRACTION_GAP if token == "over" else _ATOP_GAP))
         elif token.lower() == "choose":
             top = items.pop() if items else _row([])
-            items.append(_binomial(top, self._atom(depth)))
+            items.append(_binomial(top, self._operand(depth)))
         else:
             return False
         return True
+
+    def _operand(self, depth: int) -> _Box:
+        """The denominator of ``over`` with the scripts after it (``a over b^2`` is a/b²)."""
+        box = self._atom(depth)
+        while self._peek() in ("^", "_"):
+            box = self._scripts(box, self._next() or "^", depth)
+        return box
 
     def _atom(self, depth: int) -> _Box:
         # A font switch is not the atom: ``x^rmA`` scripts the ``A`` as the converter
@@ -550,11 +568,11 @@ class _Measurer:
 
     def _root(self, token: str, depth: int) -> _Box:
         index = _Box(0.0, 0.0, 0.0)
-        if token == "root":
-            index = self._atom(depth)
-            if self._peek() == "of":
-                self._next()
         inner = self._atom(depth)
+        if token == "root" and self._peek() == "of":
+            # ``root {n} of {x}``; without ``of`` Hancom draws a square root (``root3`` is √3).
+            self._next()
+            index, inner = inner, self._atom(depth)
         overhang = max(0.0, _script(index).width - _ROOT_INDEX_ROOM)
         return _Box(inner.width + _ROOT_SIGN + overhang, inner.ascent + _ROOT_TOP, inner.descent)
 
@@ -640,8 +658,17 @@ def measure_equation(script: str, *, base_unit: int = 1100) -> EquationSize:
 
     A script the measurer cannot follow gets a box from its visible length,
     one line high.
+
+    Raises:
+        HwpxValueError: *base_unit* is not a positive whole number (code ``shape-equation-base-unit-value``).
     """
 
+    if isinstance(base_unit, bool) or not isinstance(base_unit, int) or not 0 < base_unit < 2**31:
+        raise HwpxValueError(
+            f"base_unit must be a positive int (1/100 pt), got {base_unit!r}",
+            code="shape-equation-base-unit-value",
+            context={"base_unit": repr(base_unit)},
+        )
     text = script.strip()
     box: _Box | None = None
     if len(text) <= MAX_SOURCE_LENGTH:

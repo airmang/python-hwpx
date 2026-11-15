@@ -181,6 +181,8 @@ def test_a_moved_call_warns_and_still_works() -> None:
     message = str(record[0].message)
     assert "doc.page.set_header" in message
     assert "7.0" in message
+    # pip 사용자에게 없는 저장소 경로(docs/...) 대신 저장소 문서의 URL을 준다.
+    assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md" in message
 
 
 def test_repr_does_not_warn_about_its_own_summary() -> None:

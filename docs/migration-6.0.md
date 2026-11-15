@@ -47,7 +47,7 @@ document.add_paragraph("본문", style="개요1")
 # HwpxLookupError(code="style-not-found"), context["closest"] == ["개요 1", "개요 10"]
 ```
 
-`style_id_ref=` 는 6.x 동안 계속 동작하며 `DeprecationWarning` 을 낸다.
+숫자 id 를 받는 `style_id_ref=` 는 6.x 동안 계속 동작한다(경고는 내지 않는다).
 
 **③ `add_heading` 이 생겼다.** 개요 스타일과 개요 수준을 **함께** 붙인다 —
 5.x 는 둘이 분리돼 "번호는 붙는데 스타일은 바탕글"인 문단이 나왔다.

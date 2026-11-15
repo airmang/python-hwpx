@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-      - "[0-9]*"
 
 permissions:
   contents: write
@@ -73,6 +72,9 @@ jobs:
           set -euo pipefail
 
           TAG_NAME="${GITHUB_REF_NAME}"
+          # The post-publish hash check accepts only v<final version>; refuse
+          # any other tag here, before anything is built or published.
+          python scripts/verify_release_hashes.py --tag "${TAG_NAME}" --tag-only
           TAG_VERSION="${TAG_NAME#v}"
 
           PYPROJECT_VERSION=$(python - <<'PY'

@@ -69,10 +69,11 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
 
 ## What it does
 
-- Read and extract: text, HTML and Markdown export that keeps formatting and nested tables. Footnotes and endnotes
-  come out with `notes=True`, `markdown(rich=True)` or `TextExtractor`; headers, footers and memos only from
-  `TextExtractor`. Equations, composed characters and form-object captions are not extracted by any path yet.
-  The Markdown converter (`hwpx.ingest`) reports what it left out in `warnings` and `lossiness`.
+- Read and extract: text, HTML and Markdown export that keeps formatting and nested tables.
+  `doc.text.markdown(rich=True)` carries footnotes and endnotes; add `headers_and_footers=True`, `memos=True` and
+  `equations=True` to carry headers, footers, memos and equations (as `$LaTeX$`) too. The converter for AI
+  pipelines (`hwpx.ingest`) turns those four on by default and reports whatever it still left out of the Markdown
+  in `warnings` and `lossiness`.
   It reads `.hwp` through the same call. `hwpx.integrations.langchain.HwpxLoader`
   (`pip install "python-hwpx[langchain]"`) hands the result to LangChain, and
   `hwpx.integrations.llama_index.HwpxReader` (`pip install "python-hwpx[llamaindex]"`) to LlamaIndex.
@@ -142,7 +143,7 @@ Full figures and caveats are in [measured corpus metrics](https://airmang.github
 per-feature grades in the [support matrix](docs/support-matrix.md). These numbers measure how Hangul takes the
 files we produce. How well a parser reads documents is a separate measure.
 
-Development status is Beta. What stays backward compatible is listed in [stable API](docs/stable-api.md);
+Development status is Production/Stable. What stays backward compatible is listed in [stable API](docs/stable-api.md);
 `hwpx.experimental` and the features marked experimental above may change.
 
 ## Where you can run it
@@ -195,11 +196,11 @@ An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](d
 
 ## Known limitations
 
-- `add_shape()` and `add_control()` are low-level escape hatches: a document saved as-is will not open in
-  Hancom, and the only signal is a warning at call time. For shapes use the helpers that write every child
-  Hancom needs: `add_line()`, `add_rectangle()`, `add_ellipse()`, `add_arc()`, `add_polygon()`,
-  `add_curve()`, `add_connector()`, `add_container()` (groups); for controls, `add_column_definition()`,
-  `add_bookmark()` and `add_hyperlink()`.
+- `doc.shapes.add_raw()` (formerly `add_shape()`) and `doc.shapes.add_control()` are low-level escape hatches:
+  a document saved as-is will not open in Hancom, and the only signal is a warning at call time. For shapes use
+  the `doc.shapes` helpers that write every child Hancom needs: `add_line()`, `add_rectangle()`, `add_ellipse()`,
+  `add_arc()`, `add_polygon()`, `add_curve()`, `add_connector()`, `add_container()` (groups); for controls, the
+  paragraph's `add_column_definition()` and `doc.refs.add_bookmark()` / `doc.refs.add_hyperlink()`.
 - Pictures take brightness, contrast, grayscale, black and white, transparency, a solid border, cropping
   (`crop`), and a shadow, glow, soft edge or reflection (`shadow`, `glow`, `soft_edge`, `reflection`) as
   `add_picture()` arguments. Flipping and rotation are not supported yet.
