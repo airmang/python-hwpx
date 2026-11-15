@@ -405,6 +405,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-drop-cap-anchor-detached": "만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기).",
     "shape-drop-cap-not-created": "만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다.",
     # -- 미디어 ----------------------------------------------------------
+    "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",
     "media-item-id-taken": "그 이진 항목 id 가 이미 쓰이고 있다.",
     "media-item-in-use": "지우려는 이진 항목을 문서가 아직 가리킨다(그림·채우기·동영상·OLE 등). force=True 로만 지운다.",
     "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",

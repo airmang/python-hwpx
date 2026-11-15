@@ -34,10 +34,16 @@ class MediaNamespace(_Namespace):
 
         5.x 는 매니페스트 id 문자열을 돌려줬다. ``str(item)`` 이 여전히 그
         id 라 f-string·경로 조립은 그대로 동작한다(이주 완충).
+
+        *image_format* 은 ``png``·``jpg``(``jpeg``)·``gif``·``bmp``·``tif``(``tiff``)·
+        ``svg``·``wmf``·``emf`` 중 하나이고, *image_data* 의 첫 바이트가 그 형식이어야
+        한다. 아니면 아무것도 넣지 않고 ``HwpxValueError``(``media-image-invalid``)를
+        낸다. 한/글은 그림이 아닌 데이터를 빈 틀로 보여 준다.
         """
 
         from .. import media as _media
 
+        _media.check_image(image_data, image_format)
         return _media.add_image(
             self._doc,
             image_data=image_data,
