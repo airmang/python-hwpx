@@ -40,8 +40,11 @@ if TYPE_CHECKING:
 #: portrait size (width <= height): ``WIDELY`` draws the page as stored, so it
 #: is portrait, and ``NARROWLY`` turns it, so it is landscape. ``NARROWLY`` is
 #: also the schema default, which a missing or unknown value falls back to.
-_PAGE_PORTRAIT = "WIDELY"
-_PAGE_LANDSCAPE = "NARROWLY"
+#: ``PageSize.orientation`` is one of the two.
+PAGE_PORTRAIT = "WIDELY"
+PAGE_LANDSCAPE = "NARROWLY"
+_PAGE_PORTRAIT = PAGE_PORTRAIT
+_PAGE_LANDSCAPE = PAGE_LANDSCAPE
 _PAGE_ORIENTATIONS = {
     "PORTRAIT": _PAGE_PORTRAIT,
     "NARROW": _PAGE_PORTRAIT,

@@ -26,11 +26,14 @@ from .measure import (
     Measurement,
     SlotMetrics,
     TextStyle,
+    char_advance,
     estimate_lines,
     estimate_text_width,
     hancom_line_starts,
+    indented_widths,
     measure,
     resolve_slot_metrics,
+    text_style_from_refs,
 )
 from .policy import FitMode, FitPolicy, OverflowAction
 from .report import FIELD_OVERFLOW, FitResult, to_form_report
@@ -47,9 +50,12 @@ __all__ = [
     "TextStyle",
     "Measurement",
     "measure",
+    "char_advance",
     "estimate_text_width",
     "estimate_lines",
     "hancom_line_starts",
+    "indented_widths",
+    "text_style_from_refs",
     "resolve_slot_metrics",
     "DEFAULT_SAFETY",
 ]
