@@ -692,10 +692,23 @@ class HwpxOxmlHeader:
         margins: Mapping[str, int] | None = None,
         heading: Mapping[str, str | int] | None = None,
         border: Mapping[str, str | int] | None = None,
-        break_setting: Mapping[str, bool] | None = None,
+        break_setting: Mapping[str, bool | str] | None = None,
         tab_pr_id_ref: str | None = None,
+        line_spacing: object = None,
+        condense: int | None = None,
     ) -> str:
-        """Return a new paragraph property id with requested formatting changes."""
+        """Return a new paragraph property id with requested formatting changes.
+
+        *line_spacing* (a ``LineSpacing`` or a percentage) and *condense* (공백 최소값 %)
+        are written as Hancom writes them (``formatting.apply_line_spacing``);
+        *break_setting* also takes ``break_latin_word``/``break_non_latin_word``
+        (``KEEP_WORD``/``BREAK_WORD``/``HYPHENATION``) and ``line_wrap``.
+        """
+
+        from . import formatting
+
+        spacing = None if line_spacing is None else formatting.line_spacing_value(line_spacing)
+        condense_value = None if condense is None else formatting.check_condense(condense)
 
         para_properties = self._para_properties_element(create=True)
         if para_properties is None:  # pragma: no cover - defensive branch
@@ -730,7 +743,12 @@ class HwpxOxmlHeader:
             self._apply_paragraph_line_spacing(para_pr, line_spacing_percent)
 
         if break_setting is not None:
-            self._apply_paragraph_break_setting(para_pr, break_setting)
+            self._apply_paragraph_break_setting(para_pr, break_setting)  # type: ignore[arg-type]  # str keys skipped there
+            formatting.apply_break_words(self, para_pr, break_setting)
+        if spacing is not None:
+            formatting.apply_line_spacing(self, para_pr, spacing)
+        if condense_value is not None:
+            para_pr.set("condense", str(condense_value))
         if border is not None:
             self._apply_paragraph_border(para_pr, border)
         if tab_pr_id_ref is not None:

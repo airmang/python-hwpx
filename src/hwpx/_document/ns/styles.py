@@ -29,7 +29,6 @@
 
 from __future__ import annotations
 
-import difflib
 from typing import TYPE_CHECKING, Iterator, Mapping, Sequence
 
 from ...errors import HwpxLookupError, HwpxValueError
@@ -47,7 +46,9 @@ if TYPE_CHECKING:
     from ...objects import (
         BorderFillInfo,
         FontReplaceReport,
+        LineSpacing,
         ListFormatResult,
+        NumberingInfo,
         ParagraphFormatResult,
     )
     from ...objects.binary_item import BinaryItem
@@ -65,10 +66,6 @@ if TYPE_CHECKING:
     from ...oxml.header_part import HwpxOxmlHeader
 
 __all__ = ["StylesNamespace"]
-
-#: 제안에 나열할 최대 후보 수. 23개를 한 줄에 늘어놓으면 읽히지 않는다.
-_MAX_SUGGESTIONS = 3
-
 
 def _as_int(value: object, default: int) -> int:
     """Narrow an untyped mapping value before ``int()`` — mypy cannot see
@@ -200,8 +197,15 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
     # -- Mapping 프로토콜: 5.x `doc.styles` (dict) 계약 보존 ----------------
 
-    def __getitem__(self, key: str) -> "Style":
-        return self._doc.oxml.styles[key]
+    def __getitem__(self, key: "int | str") -> "Style":  # type: ignore[override]  # 이름·숫자 id 도 받는다
+        """id·이름·영문 이름으로 찾는다(:meth:`resolve` 와 같은 순서).
+
+        ``doc.styles["바탕글"]``·``doc.styles["Normal"]``·``doc.styles[0]``·``doc.styles["0"]``
+        이 같은 스타일이다. 없으면 ``HwpxLookupError``(``KeyError`` 이기도 하다,
+        ``style-not-found``) — 그래서 ``"바탕글" in doc.styles`` 도 이름으로 답한다.
+        """
+
+        return self.resolve(key)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self._doc.oxml.styles)
@@ -257,70 +261,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
                 포함) 또는 ``style-ambiguous`` (같은 이름의 후보 나열).
         """
 
-        if spec is None:
-            raise self._not_found(spec)
-        if not isinstance(spec, (int, str)):
-            return spec  # 이미 Style
+        from ...oxml.formatting import resolve_style
 
-        styles = self._doc.oxml.styles
-        if isinstance(spec, int) or spec.strip().lstrip("-").isdigit():
-            wanted = str(int(str(spec).strip()))
-            for style_id, style in styles.items():
-                if str(style_id) == wanted or str(style.id) == wanted:
-                    return style
-            raise self._not_found(spec)
-
-        wanted = spec.strip()
-        aliases = self._doc.oxml.style_name_aliases()
-        ids = aliases.get(wanted)
-        if ids is None:
-            lowered = wanted.lower()
-            for alias, candidate_ids in aliases.items():
-                if alias.lower() == lowered:
-                    ids = candidate_ids
-                    break
-        if ids is None:
-            raise self._not_found(spec)
-        if len(ids) > 1:
-            raise HwpxLookupError(
-                f"스타일 이름 {wanted!r} 이(가) 모호합니다 — {len(ids)}개가 같은 이름을 씁니다.",
-                code="style-ambiguous",
-                context={
-                    "requested": wanted,
-                    "candidates": [
-                        {"id": style_id, "name": self._label(styles.get(style_id))}
-                        for style_id in ids
-                    ],
-                },
-                suggestion=f"숫자 id 로 지정하세요 — 후보: {', '.join(ids)}.",
-            )
-        resolved = styles.get(ids[0]) if ids else None
-        if resolved is None:  # pragma: no cover - 별칭 표는 같은 헤더에서 나온다
-            raise self._not_found(spec)
-        return resolved
-
-    def _not_found(self, spec: object) -> HwpxLookupError:
-        requested = spec if isinstance(spec, (int, str)) else repr(spec)
-        available = self.names()
-        closest = difflib.get_close_matches(
-            str(requested), available, n=_MAX_SUGGESTIONS, cutoff=0.6
-        )
-        hint = (
-            f"가장 가까운 이름: {', '.join(repr(name) for name in closest)}. "
-            if closest
-            else ""
-        )
-        return HwpxLookupError(
-            f"스타일 {requested!r} 을(를) 찾을 수 없습니다.",
-            code="style-not-found",
-            context={
-                "requested": requested,
-                "available": available,
-                "availableCount": len(available),
-                "closest": closest,
-            },
-            suggestion=f"{hint}전체 목록: doc.styles.names()",
-        )
+        # 해석 본체는 oxml 쪽에 있다 — paragraph.style = "개요 1" 도 같은 규칙으로 찾는다.
+        return resolve_style(self._doc.oxml, spec)
 
     # -- 서식 정의 테이블 --------------------------------------------------
 
@@ -525,6 +469,44 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             return None
         return self.numberings.get(str(numbering_id_ref).strip())
 
+    def numbering_info(self, numbering_id_ref: "int | str | None") -> "NumberingInfo | None":
+        """번호 정의 하나를 값으로 읽는다(없는 id면 `None`).
+
+        `NumberingInfo.levels`는 수준마다 `NumberingLevel`(`level`·`start`·
+        `number_format`(DIGIT·HANGUL_SYLLABLE·CIRCLED_DIGIT …)·`text`(번호 틀,
+        `"^1."`의 `^n`은 n수준 번호)·`align`·`char_pr_id_ref`(번호 글자 모양, 본문을
+        따르면 `None`) …)이다. :meth:`numbering`의 `GenericElement`와 같은 정의를
+        읽고, `hp:switch`에 든 수준은 `hp:case` 쪽을 읽는다. 메모리의 첫 헤더를 읽는다.
+        """
+
+        from ...oxml.formatting import numbering_info
+
+        return numbering_info(self._primary_header(), numbering_id_ref)
+
+    def ensure_tab_definition(
+        self,
+        *,
+        tab_stops: "Sequence[Mapping[str, object]] | None" = None,
+        auto_tab_left: bool = False,
+        auto_tab_right: bool = False,
+    ) -> str:
+        """탭 정의(`hh:tabPr`) id 를 보장하고 돌려준다(같은 정의가 있으면 그 id).
+
+        `tab_stops`는 `{"pos": HWPUNIT 또는 "pos_mm": mm, "type": "LEFT"|"RIGHT"|
+        "CENTER"|"DECIMAL", "leader": "NONE"|…}`의 순서 있는 목록이다(`type`·
+        `leader` 생략 시 "LEFT"·"NONE"). 한/글처럼 탭마다 `hp:switch`에 HWPUNIT 값과
+        그 두 배(`hp:default`)를 쓴다. 돌려받은 id 는
+        ``ensure_paragraph_format(tab_pr_id_ref=...)``에 넘긴다.
+        """
+
+        from ...oxml.formatting import tab_stops_in_hwpunit
+
+        return self._require_header().ensure_tab_definition(
+            tab_stops=tab_stops_in_hwpunit(tab_stops),
+            auto_tab_left=bool(auto_tab_left),
+            auto_tab_right=bool(auto_tab_right),
+        )
+
     # -- 서식 id 를 mint 하는 동사 -----------------------------------------
 
     def ensure_run(
@@ -615,6 +597,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         active_borders: Sequence[str] | None = None,
         border_type: str = "SOLID",
         sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
+        base_border_fill_id: "str | int | None" = None,
     ) -> str:
         """요청한 테두리/채우기의 `borderFill` id 를 보장하고 돌려준다.
 
@@ -630,7 +613,30 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         `sides={"top": {"width": "0.4 mm"}, "bottom": {"width": "0.4 mm"},
         "left": None, "right": None}`. 모르는 면이나 키는
         `HwpxValueError(code="style-border-side-invalid")`, 모르는 선 종류는 `ValueError`.
+
+        `base_border_fill_id` 를 주면 그 정의를 복사해 `sides` 가 댄 면과 `fill_color` 만
+        바꾼다(한 변만 바꾸기). 면 매핑에서 뺀 값(`type`·`width`·`color`)은 기준 면의
+        값을 따르고, 대지 않은 면·대각선·채우기·그 밖의 속성은 기준 그대로다. 같은 내용의
+        정의가 있으면 그 id, 기준과 같으면 기준 id 를 돌려준다. 이때 `border_color`·
+        `border_width`·`border_type`·`active_borders`·`fill_image`·`fill_gradient` 는
+        함께 줄 수 없다(`style-border-base-conflict`). 예: 칸 테두리에서 아래 변만 굵게 —
+        ``ensure_border_fill(base_border_fill_id=cell.border_fill_id_ref,
+        sides={"bottom": {"width": "0.4 mm"}})``.
         """
+
+        if base_border_fill_id is not None:
+            uniform = (border_color, border_width, border_type) != ("#BFBFBF", "0.12 mm", "SOLID")
+            if uniform or any(v is not None for v in (active_borders, fill_image, fill_gradient)):
+                raise HwpxValueError(
+                    "base_border_fill_id changes only sides and fill_color",
+                    code="style-border-base-conflict",
+                    suggestion="Describe each changed side in sides={...}; the rest stays as the base has it.",
+                )
+            from ...oxml.formatting import derive_border_fill
+
+            return derive_border_fill(
+                self._require_header(), base_border_fill_id, sides=sides, fill_color=fill_color
+            )
 
         given = sum(1 for v in (fill_color, fill_image, fill_gradient) if v is not None)
         if given > 1:
@@ -739,8 +745,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         margins: Mapping[str, int] | None = None,
         heading: Mapping[str, str | int] | None = None,
         border: Mapping[str, str | int] | None = None,
-        break_setting: Mapping[str, bool] | None = None,
+        break_setting: Mapping[str, bool | str] | None = None,
         tab_pr_id_ref: str | None = None,
+        line_spacing: "LineSpacing | int | float | None" = None,
+        condense: int | None = None,
     ) -> str:
         """요청한 문단 모양의 `paraPr` id 를 보장하고 그 id 를 돌려준다.
 
@@ -753,8 +761,11 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         값은 OWPML 그대로다: `margins` 는 HWPUNIT(`left`·`right`·`intent`·`prev`·
         `next`), `heading` 은 `hh:heading` 속성(`type`·`idRef`·`level`),
         `break_setting` 은 `keep_with_next`·`keep_lines`·`page_break_before`·
-        `widow_orphan` 불리언이다. 헤더가 없으면
-        `HwpxStateError(code="document-header-missing")`.
+        `widow_orphan` 불리언과 줄 나눔 기준 `break_latin_word`·`break_non_latin_word`
+        (`"KEEP_WORD"`·`"BREAK_WORD"`·`"HYPHENATION"`), `line_wrap`(`"BREAK"`·
+        `"SQUEEZE"`·`"KEEP"`)이다. `line_spacing` 은 `LineSpacing`(종류와 값) 또는
+        퍼센트 수이고(`line_spacing_percent` 보다 먼저다), `condense` 는 공백 최소값
+        0~75(%)다. 헤더가 없으면 `HwpxStateError(code="document-header-missing")`.
         """
 
         return self._require_header().ensure_paragraph_format(
@@ -766,6 +777,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             border=border,
             break_setting=break_setting,
             tab_pr_id_ref=tab_pr_id_ref,
+            line_spacing=line_spacing,
+            condense=condense,
         )
 
     def ensure_style(
@@ -802,6 +815,87 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             lang_id=lang_id,
             lock_form=lock_form,
         )
+
+    def set_style_format(
+        self,
+        style: "int | str | Style",
+        *,
+        size: float | None = None,
+        font: str | None = None,
+        font_by_lang: "Mapping[str, str] | None" = None,
+        color: str | None = None,
+        highlight: str | None = None,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
+        strike: bool | None = None,
+        superscript: bool | None = None,
+        subscript: bool | None = None,
+        letter_spacing: int | None = None,
+        ratio: int | None = None,
+        alignment: str | None = None,
+        line_spacing: "LineSpacing | int | float | None" = None,
+        indent_left_mm: float | None = None,
+        indent_right_mm: float | None = None,
+        first_line_indent_mm: float | None = None,
+        spacing_before_pt: float | None = None,
+        spacing_after_pt: float | None = None,
+    ) -> None:
+        """있는 스타일(이름·영문 이름·id)의 글자 모양·문단 모양을 고친다. 한/글의 스타일 고치기와 같다.
+
+        글자 서식 인자는 ``run.set_format`` 과, 문단 서식 인자는 문단 속성
+        (``paragraph.alignment`` …, 여백 mm·간격 pt)과 같다. 스타일은 고친 사본 모양을
+        가리키게 되고, 그 스타일을 쓰는 문단 가운데 스타일의 옛 문단 모양을 쓰던 문단과
+        그 문단에서 옛 글자 모양을 쓰던 run 이 새 모양을 따른다(그 문단의 줄 배치 캐시를
+        지운다). 따로 서식을 준 run, 다른 스타일, 같은 모양을 함께 쓰던 다른 문단은
+        그대로다. 아무것도 주지 않으면 ``style-format-empty``.
+        """
+
+        from ...oxml.formatting import para_shape_modifier, set_style_format
+
+        char_changes = {
+            name: value
+            for name, value in (
+                ("size", size), ("font", font), ("font_by_lang", font_by_lang), ("color", color),
+                ("highlight", highlight), ("bold", bold), ("italic", italic), ("underline", underline),
+                ("strike", strike), ("superscript", superscript), ("subscript", subscript),
+                ("letter_spacing", letter_spacing), ("ratio", ratio),
+            )
+            if value is not None
+        }
+        modifier = para_shape_modifier(
+            alignment=alignment,
+            line_spacing=line_spacing,
+            margins={
+                "left": indent_left_mm, "right": indent_right_mm, "intent": first_line_indent_mm,
+                "prev": spacing_before_pt, "next": spacing_after_pt,
+            },
+        )
+        if not char_changes and modifier is None:
+            raise HwpxValueError(
+                "no style format to change",
+                code="style-format-empty",
+                suggestion="Pass a character format (size, bold, ...) or a paragraph format (alignment, ...).",
+            )
+        set_style_format(self._doc.oxml, style, char_changes, modifier)
+
+    def remove_style(
+        self, style: "int | str | Style", *, replacement: "int | str | Style | None" = None
+    ) -> None:
+        """스타일 하나를 지운다.
+
+        그 스타일을 쓰는 문단이 있으면 *replacement* 가 있어야 한다(없으면
+        ``HwpxValueError(code="style-in-use")``). 그 문단들은 *replacement* 스타일을
+        한/글이 적용하듯 받는다(문단 모양·글자 모양 포함, ``paragraph.style`` 과 같다).
+        첫 스타일(id 0, 바탕글)은 지울 수 없다(``style-remove-default``). 한/글처럼
+        스타일 id 를 0..N-1 로 이어 두려고 뒤의 스타일 id 를 하나씩 당기고, 본문·바탕쪽
+        문단의 ``styleIDRef`` 와 다른 스타일의 ``nextStyleIDRef`` 도 따라 옮긴다
+        (지운 스타일을 다음 스타일로 두던 스타일은 *replacement*, 없으면 자기 자신).
+        """
+
+        from ...oxml.formatting import remove_style
+
+        remove_style(self._doc.oxml, style, replacement)
 
     def _require_header(self) -> "HwpxOxmlHeader":
         header = self._primary_header()
