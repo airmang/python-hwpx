@@ -783,14 +783,20 @@ _RENDERING_MATRICES = ("transMatrix", "scaMatrix", "rotMatrix")
 #: (the control id's four characters read as a big-endian 32-bit integer).
 #: Hancom opens a field when either one is recognised and refuses it when both
 #: are unknown (e.g. ``type="ClickHere"`` with ``fieldid="field-date"``).
+#: Hancom 2024 writes a date code as ``SUMMERY`` (its spelling, also the OWPML
+#: schema's) with ``%smr``, and the proofreading marks other than the sign and
+#: delete marks as ``PROOFREADING_MARKS_LINEATTACH``/``_ATTACH``/``_CLIPPING``
+#: with ``%%*A``/``%%*a``/``%%*C``.
 _HANCOM_FIELD_TYPES = frozenset({
-    "CLICK_HERE", "HYPERLINK", "BOOKMARK", "FORMULA", "SUMMARY", "USER_INFO", "DATE", "DOC_DATE",
+    "CLICK_HERE", "HYPERLINK", "BOOKMARK", "FORMULA", "SUMMARY", "SUMMERY", "USER_INFO", "DATE", "DOC_DATE",
     "PATH", "CROSSREF", "MAILMERGE", "MEMO", "PROOFREADING_MARKS", "PROOFREADING_MARKS_SIGN",
-    "PROOFREADING_MARKS_DELETE", "PRIVATE_INFO", "METADATA", "CITATION", "BIBLIOGRAPHY", "TABLEOFCONTENTS",
+    "PROOFREADING_MARKS_DELETE", "PROOFREADING_MARKS_LINEATTACH", "PROOFREADING_MARKS_ATTACH",
+    "PROOFREADING_MARKS_CLIPPING", "PRIVATE_INFO", "METADATA", "CITATION", "BIBLIOGRAPHY", "TABLEOFCONTENTS",
 })
 _HANCOM_FIELD_IDS = frozenset({
     "627600491", "627272811", "623209829", "627207531", "627469685", "627340389", "628650598",
     "628387683", "627928423", "628121972", "628320615", "623192676",
+    "628321650", "623192641", "623192673", "623192643",  # %smr, %%*A, %%*a, %%*C
 })
 _RECT_CORNERS = ("pt0", "pt1", "pt2", "pt3")
 
