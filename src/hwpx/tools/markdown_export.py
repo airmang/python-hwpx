@@ -42,21 +42,19 @@ def _local_name(element) -> str:
     return tag_local_name(str(element.tag))
 
 
+# 이름으로 고르는 순회는 lxml(과 ElementTree)의 ``{*}이름`` 태그 지정 순회로 한다. 모든 요소의
+# 이름을 파이썬에서 꺼내 비교하면 큰 표(5천 행)에서 수백만 번 불린다.
 def _direct_children(element, local_name: str):
-    return [child for child in list(element) if _local_name(child) == local_name]
+    return element.findall("{*}" + local_name)
 
 
 def _descendants(element, local_name: str):
-    return [
-        child
-        for child in element.iter()
-        if child is not element and _local_name(child) == local_name
-    ]
+    return [child for child in element.iter("{*}" + local_name) if child is not element]
 
 
 def _first_descendant(element, local_name: str):
-    for child in element.iter():
-        if child is not element and _local_name(child) == local_name:
+    for child in element.iter("{*}" + local_name):
+        if child is not element:
             return child
     return None
 
