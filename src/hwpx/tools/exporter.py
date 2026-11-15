@@ -117,16 +117,12 @@ def _escape_markdown_block(text: str) -> str:
 #: An outline paragraph longer than this is body text set in an outline level, not a heading.
 HEADING_MAX_CHARS = 80
 
-#: Style names that mark an outline (heading) level, Hancom's and Word's.
-_HEADING_STYLE = re.compile(r"^(?:개요|outline|heading)\s*(\d{1,2})\b", re.IGNORECASE)
-
-
 class _Headings:
     """Which paragraphs are headings, and their level, from the document's own structure.
 
     A paragraph is a heading of level L when its paragraph shape numbers it as outline
     level L (``hh:heading type="OUTLINE"``), else when its style is an outline style
-    (``개요 L`` / ``Outline L`` / ``Heading L``). Levels deeper than 6 are not headings.
+    (``개요 L`` / ``Outline L``). Levels deeper than 6 are not headings.
     """
 
     def __init__(self, header: ET.Element | None) -> None:
@@ -134,13 +130,16 @@ class _Headings:
         self._styles: dict[str, int] = {}
         if header is None:
             return
+        # 한/글 기본 개요 스타일 이름(개요 N / Outline N): 차례 만들기와 같은 어휘를 쓴다.
+        from .toc_author import _OUTLINE_NAME_RE
+
         for para_pr in header.iter(f"{_HH}paraPr"):
             heading = paragraph_heading(para_pr)
             if heading is not None and heading.get("type") == "OUTLINE":
                 self._shapes[para_pr.get("id") or ""] = (_int_attribute(heading, "level") or 0) + 1
         for style in header.iter(f"{_HH}style"):
             for name in (style.get("name") or "", style.get("engName") or ""):
-                match = _HEADING_STYLE.match(name.strip())
+                match = _OUTLINE_NAME_RE.match(name.strip())
                 if match:
                     self._styles[style.get("id") or ""] = int(match.group(1))
                     break
