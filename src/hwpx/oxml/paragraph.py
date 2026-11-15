@@ -593,7 +593,53 @@ class HwpxOxmlParagraph:
         if page.width <= 0:
             return None
         usable = page.drawn_width - margins.left - margins.right - margins.gutter
-        return usable if usable > 0 else None
+        if usable <= 0:
+            return None
+        column = self._column_width(usable)
+        return column if column is not None and column > 0 else usable
+
+    def _column_width(self, text_width: int) -> int | None:
+        """The width of a column of the multi-column layout in effect at this body paragraph, or
+        ``None`` for one column: a table or chart Hancom fits to the line fits to that column.
+
+        The layout in effect is the last ``hp:colPr`` of the section (outside cells and text
+        boxes) at or before this paragraph. Columns of unequal width give the narrowest.
+        """
+
+        top = self.element
+        get_parent = getattr(top, "getparent", None)
+        if not callable(get_parent):
+            return None
+        while (parent := top.getparent()) is not None and parent is not self.section.element:
+            top = parent
+        if parent is None:
+            return None
+        settings = None
+        for paragraph in self.section.element:
+            if tag_local_name(paragraph.tag) != "p":
+                continue
+            for run in paragraph.findall(f"{_HP}run"):
+                for cols in run.findall(f"{_HP}ctrl/{_HP}colPr"):
+                    settings = cols
+            if paragraph is top:
+                break
+        if settings is None:
+            return None
+        try:
+            count = int(settings.get("colCount", "1"))
+            if count <= 1:
+                return None
+            if settings.get("sameSz") not in ("1", "true"):
+                shares = [int(size.get("width", 0)) for size in settings.findall(f"{_HP}colSz")]
+                if len(shares) != count:
+                    return None
+                return min(share * text_width // 32768 for share in shares)
+            gap = int(settings.get("sameGap", "0"))
+        except ValueError:
+            return None
+        if gap >= 1 << 31:
+            gap -= 1 << 32
+        return (text_width - (count - 1) * gap) // count
 
     def add_table(
         self,
