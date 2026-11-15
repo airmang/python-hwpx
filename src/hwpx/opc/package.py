@@ -808,7 +808,8 @@ class HwpxPackage:
         try:
             root = parse_xml(data)
         except Exception:
-            logger.exception("container.xml 파싱에 실패했습니다.")
+            # The error is raised to the caller, which reports it; a traceback here would be printed twice.
+            logger.debug("container.xml 파싱에 실패했습니다.", exc_info=True)
             raise
         rootfiles = [
             RootFile(ref.full_path, ref.media_type)
@@ -821,15 +822,16 @@ class HwpxPackage:
     @staticmethod
     def _parse_version(data: bytes | None) -> VersionInfo:
         if data is None:
-            logger.warning("HWPX package is missing optional 'version.xml'; using defaults.")
+            logger.info("HWPX package is missing optional 'version.xml'; using defaults.")
             return VersionInfo.default()
         return VersionInfo.from_bytes(data)
 
     def _validate_structure(self) -> None:
         for rootfile in self._rootfiles:
             if rootfile.full_path.startswith(self.PREVIEW_PREFIX) and rootfile.full_path not in self._files:
-                # A preview holds no content of its own and Hancom opens the document without it.
-                logger.warning(
+                # A preview holds no content of its own and Hancom opens the document without it,
+                # so this is information, not something the caller must act on.
+                logger.info(
                     "container.xml이 가리키는 미리보기 '%s'가 패키지에 없습니다. 본문이 아니어서 그대로 엽니다.",
                     rootfile.full_path,
                 )
@@ -868,7 +870,7 @@ class HwpxPackage:
         try:
             return self._files[norm_path]
         except KeyError as exc:
-            logger.warning("파트 누락: path=%s", norm_path)
+            logger.debug("파트 누락: path=%s", norm_path)
             raise HwpxPackageError(f"File '{norm_path}' is not present in the package.") from exc
 
     def write(self, path: str, data: bytes | str) -> None:
