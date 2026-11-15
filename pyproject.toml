@@ -138,6 +138,10 @@ packages = [
     # 휠에서 `import hwpx`가 깨진다.
     "hwpx.hwp5",
     "hwpx.ingest",
+    # LangChain 로더·LlamaIndex 리더. 7.0 전까지 목록에서 빠져 있어 휠에 실리지
+    # 않았다(편집 설치로만 돌던 CI가 못 봤다). tests/test_packaging_package_list.py가
+    # src/hwpx 아래 __init__.py가 있는 폴더를 이 목록과 견준다.
+    "hwpx.integrations",
     "hwpx.layout",
     # 6.0: add_* 가 반환하는 도메인 객체·결과 dataclass (WP-C가 채운다).
     "hwpx.objects",
