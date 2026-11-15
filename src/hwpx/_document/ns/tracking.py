@@ -130,6 +130,42 @@ class TrackingNamespace(_Namespace):
             self._doc, change_type=change_type, author_name=author_name, date=date
         )
 
+    # -- 수락·거절 ----------------------------------------------------------
+
+    def accept(
+        self,
+        change: "TrackedChange | int | str | None" = None,
+        *,
+        author: str | None = None,
+    ) -> "tuple[TrackedChange, ...]":
+        """변경을 수락하고 수락한 변경들을 돌려준다.
+
+        넣은 글은 표시만 걷혀 남고, 지운 글은 실제로 지워진다(문단 나눔까지 지운
+        변경이면 다음 문단이 붙는다). 아무것도 주지 않으면 문서의 모든 변경,
+        ``change`` 는 그 변경 하나(id 또는 ``TrackedChange``), ``author`` 는 그
+        작성자의 변경 전부. 머리의 변경·작성자 목록도 남은 것만 남는다.
+        """
+
+        from .. import tracked as _tracked
+
+        return _tracked.resolve_tracked_changes(self._doc, accept=True, change=change, author=author)
+
+    def reject(
+        self,
+        change: "TrackedChange | int | str | None" = None,
+        *,
+        author: str | None = None,
+    ) -> "tuple[TrackedChange, ...]":
+        """변경을 거절하고 거절한 변경들을 돌려준다.
+
+        넣은 글은 지워지고, 지운 글은 표시만 걷혀 되살아난다. 고르는 방법은
+        :meth:`accept` 와 같다.
+        """
+
+        from .. import tracked as _tracked
+
+        return _tracked.resolve_tracked_changes(self._doc, accept=False, change=change, author=author)
+
     # -- 조회 --------------------------------------------------------------
 
     @property

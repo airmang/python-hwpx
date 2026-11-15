@@ -230,6 +230,254 @@ def _next_sibling(root: Any, element: Any) -> Any:
     return None
 
 
+_MARKS = {
+    f"{_HP}insertBegin": ("insert", True),
+    f"{_HP}insertEnd": ("insert", False),
+    f"{_HP}deleteBegin": ("delete", True),
+    f"{_HP}deleteEnd": ("delete", False),
+}
+
+
+def _change_key(value: Any) -> str:
+    if isinstance(value, TrackedChange):
+        return str(value.change_id)
+    return str(value).strip()
+
+
+def _drop_keeping_tail(element: Any) -> None:
+    """Remove *element* from its parent; the text after it stays where it was."""
+
+    parent = element.getparent()
+    if parent is None:
+        return
+    tail = element.tail or ""
+    previous = element.getprevious()
+    if tail:
+        if previous is not None:
+            previous.tail = (previous.tail or "") + tail
+        else:
+            parent.text = (parent.text or "") + tail
+    parent.remove(element)
+
+
+#: Run children a resolved deletion leaves in place: what sets up the section or its
+#: columns is no text that can be deleted.
+_KEPT_IN_A_DELETION = {"secPr", "colPr"}
+
+
+def _is_setup(child: Any) -> bool:
+    name = child.tag.rsplit("}", 1)[-1] if isinstance(child.tag, str) else ""
+    if name in _KEPT_IN_A_DELETION:
+        return True
+    return name == "ctrl" and any(
+        isinstance(grand.tag, str) and grand.tag.rsplit("}", 1)[-1] in _KEPT_IN_A_DELETION for grand in child
+    )
+
+
+def _cut_between(paragraph: Any, begin: Any, end: Any) -> None:
+    """Remove the text and inline content of *paragraph* between the marks *begin* and *end*."""
+
+    inside = False
+    for run in [child for child in paragraph if child.tag == f"{_HP}run"]:
+        for child in list(run):
+            if child.tag != f"{_HP}t":
+                if child is begin:
+                    inside = True
+                elif child is end:
+                    inside = False
+                elif inside and not _is_setup(child):
+                    run.remove(child)
+                continue
+            if inside:
+                child.text = ""
+            for grand in list(child):
+                if grand is begin:
+                    inside = True
+                    grand.tail = ""
+                elif grand is end:
+                    inside = False
+                elif inside:
+                    child.remove(grand)
+            # a deleted text node left with nothing goes too
+            if inside and not len(child) and not child.text and child is not begin and child is not end:
+                run.remove(child)
+
+
+def _merge_with_next(paragraph: Any) -> bool:
+    """Join the paragraph after *paragraph* into it, as removing the break between them
+    does: *paragraph* keeps its own shape. A paragraph left with no content gives way
+    to the next instead. Returns whether a paragraph went."""
+
+    following = paragraph.getnext()
+    while following is not None and following.tag != f"{_HP}p":
+        following = following.getnext()
+    if following is None:
+        return False
+    runs = [child for child in paragraph if child.tag == f"{_HP}run"]
+    empty = all(
+        all(child.tag == f"{_HP}t" and not (child.text or "") and not len(child) for child in run) for run in runs
+    )
+    if empty and not paragraph.findall(f".//{_HP}secPr"):
+        paragraph.getparent().remove(paragraph)
+        return True
+    for cache in [c for c in paragraph if c.tag.rsplit("}", 1)[-1].lower() == "linesegarray"]:
+        paragraph.remove(cache)
+    for run in [child for child in following if child.tag == f"{_HP}run"]:
+        paragraph.append(run)
+    following.getparent().remove(following)
+    return True
+
+
+def _resolved_author_name(doc: "HwpxDocument", author_id: Any) -> str:
+    authors = doc.oxml.track_change_authors
+    author = doc.oxml.track_change_author(author_id)
+    if author is None and len(authors) == 1:
+        # Hancom may number the author differently from the change's authorID; one author is that one.
+        author = next(iter(authors.values()))
+    return (getattr(author, "name", None) or "") if author is not None else ""
+
+
+def resolve_tracked_changes(
+    doc: "HwpxDocument",
+    *,
+    accept: bool,
+    change: Any = None,
+    author: str | None = None,
+) -> tuple[TrackedChange, ...]:
+    """Accept or reject tracked changes and return those resolved.
+
+    Accepting keeps inserted text without its marks and removes deleted text; rejecting
+    does the reverse. A change whose end carries ``paraend="1"`` covers its paragraph's
+    break too: removing that text joins the next paragraph in. Exactly one of the whole
+    document (no selector), one change (*change*: its id or a :class:`TrackedChange`) or
+    one author's changes (*author*: the author's name) is resolved. The header's change
+    and author lists keep only what the text still uses. Every paragraph touched is laid
+    out again.
+    """
+
+    from ..oxml._document_primitives import _clear_paragraph_layout_cache
+
+    if change is not None and author is not None:
+        raise HwpxValueError(
+            "pass change= or author=, not both",
+            code="track-selector-conflict",
+            suggestion="Resolve one change, one author's changes, or (with neither) all of them.",
+        )
+    header_changes = doc.oxml.track_changes
+    sections = doc.oxml.sections
+    marked: dict[str, str] = {}
+    for section in sections:
+        for element in section.element.iter(*_MARKS):
+            kind, opens = _MARKS[element.tag]
+            if opens and element.get("TcId") is not None:
+                marked.setdefault(element.get("TcId") or "", kind)
+    known = set(header_changes) | set(marked)
+    if change is not None:
+        wanted = {_change_key(change)}
+        if not wanted <= known:
+            raise HwpxValueError(
+                f"tracked change {_change_key(change)!r} is not in the document",
+                code="track-change-not-found",
+                context={"requested": _change_key(change), "changes": sorted(known)[:50]},
+                suggestion="List doc.tracking.changes to see the change ids.",
+            )
+    elif author is not None:
+        wanted = {
+            change_id
+            for change_id in known
+            if change_id in header_changes
+            and _resolved_author_name(doc, header_changes[change_id].author_id) == author
+        }
+    else:
+        wanted = known
+
+    resolved: list[TrackedChange] = []
+    for section in sections:
+        touched: list[Any] = []
+        begins = [
+            element for element in section.element.iter(f"{_HP}insertBegin", f"{_HP}deleteBegin")
+            if (element.get("TcId") or "") in wanted
+        ]
+        for begin in begins:
+            kind = _MARKS[begin.tag][0]
+            paragraph = begin.getparent()
+            while paragraph is not None and paragraph.tag != f"{_HP}p":
+                paragraph = paragraph.getparent()
+            if paragraph is None:
+                continue
+            end_tag = f"{_HP}{kind}End"
+            ends = [e for e in paragraph.iter(end_tag) if e.get("TcId") == begin.get("TcId")]
+            end = next((e for e in ends if e.get("Id") == begin.get("Id")), ends[0] if ends else None)
+            remove_content = (kind == "delete") == accept
+            if end is not None and remove_content:
+                _cut_between(paragraph, begin, end)
+            joins = end is not None and end.get("paraend") == "1" and remove_content
+            for mark in (begin, end):
+                if mark is not None:
+                    _drop_keeping_tail(mark)
+            if joins:
+                following = paragraph.getnext()
+                if _merge_with_next(paragraph) and paragraph.getparent() is None:
+                    paragraph = following
+            touched.append(paragraph)
+        for paragraph in touched:
+            if paragraph is not None and paragraph.getparent() is not None:
+                _clear_paragraph_layout_cache(paragraph)
+        if begins:
+            section.mark_dirty()
+
+    for change_id in sorted(wanted, key=lambda value: (len(value), value)):
+        entry = header_changes.get(change_id)
+        kind = (getattr(entry, "change_type", None) or marked.get(change_id, "")).upper()
+        date = getattr(entry, "date", None) if entry is not None else None
+        resolved.append(
+            TrackedChange(
+                change_id=int(change_id) if change_id.isdigit() else -1,
+                kind=kind,
+                author=_resolved_author_name(doc, entry.author_id) if entry is not None else "",
+                date=date,
+            )
+        )
+    _prune_track_header(doc, wanted)
+    return tuple(resolved)
+
+
+def _prune_track_header(doc: "HwpxDocument", resolved: set[str]) -> None:
+    """Drop the header's entries for the *resolved* changes the text no longer marks, and
+    the authors no change names any more."""
+
+    still = {
+        element.get("TcId") or ""
+        for section in doc.oxml.sections
+        for element in section.element.iter(*_MARKS)
+    }
+    for header in doc.oxml.headers:
+        changes = header._track_changes_element()
+        if changes is None:
+            continue
+        removed = False
+        for entry in list(changes):
+            if entry.get("id") in resolved and entry.get("id") not in still:
+                changes.remove(entry)
+                removed = True
+        if not removed:
+            continue
+        changes.set("itemCnt", str(len(changes)))
+        authors = header._track_change_authors_element()
+        if authors is not None:
+            named = {entry.get("authorID") for entry in changes}
+            ids = {author.get("id") for author in authors}
+            if not len(changes):
+                for author_element in list(authors):
+                    authors.remove(author_element)
+            elif named <= ids:  # only when the changes name the authors by their ids
+                for author_element in list(authors):
+                    if author_element.get("id") not in named:
+                        authors.remove(author_element)
+            authors.set("itemCnt", str(len(authors)))
+        header.mark_dirty()
+
+
 def add_tracked_replace(
     doc: "HwpxDocument",
     paragraph: "HwpxOxmlParagraph",
