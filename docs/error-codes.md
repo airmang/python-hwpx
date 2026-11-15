@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 217 | 11 |
+| 개수 | 226 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -192,6 +192,15 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `open-archive-damaged` | HWPX(ZIP)가 잘렸거나 압축 데이터가 손상됐다. |
+| `open-empty-file` | 연 파일이 비어 있다(0바이트). HwpxArchiveError 에 실린다. |
+| `open-encrypted` | 암호가 걸린 HWPX 다(HwpxXmlSyntaxError, lxml 의 숫자 코드는 lxml_code 에). |
+| `open-hwp3-unsupported` | HWP 3.x 이하 .hwp 문서다(열지 못한다). |
+| `open-hwp5-not-package` | HwpxPackage.open 에 HWP 5.0(.hwp) 파일을 주었다(HwpxDocument.open 으로 연다). |
+| `open-invalid-type` | HwpxDocument.open 에 경로·bytes·이진 스트림이 아닌 값을 주었다. |
+| `open-is-folder` | 문서 파일 대신 폴더 경로를 주었다(IsADirectoryError 이기도 하다). |
+| `open-not-hwp` | 확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다. |
+| `open-not-hwpx` | 연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서). |
 | `open-safety-failed` | 산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다. |
 
 ### `package-*`
