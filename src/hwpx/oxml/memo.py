@@ -465,8 +465,14 @@ class HwpxOxmlNote:
 
     @property
     def text(self) -> str:
-        """Return the note body text."""
-        return "".join(_text_element_content(t) for t in self.element.findall(f".//{_HP}t"))
+        """Return the note body text, one line per paragraph of the note."""
+        sub_list = self.element.find(f"{_HP}subList")
+        paragraphs = sub_list.findall(f"{_HP}p") if sub_list is not None else []
+        if not paragraphs:
+            return "".join(_text_element_content(t) for t in self.element.findall(f".//{_HP}t"))
+        return "\n".join(
+            "".join(_text_element_content(t) for t in paragraph.iter(f"{_HP}t")) for paragraph in paragraphs
+        )
 
     @text.setter
     def text(self, value: str) -> None:
@@ -501,6 +507,71 @@ class HwpxOxmlNote:
             run.append(auto_num)
         set_text_with_tabs(_append_child(run, f"{_HP}t", {}), value)
         self.paragraph.section.mark_dirty()
+
+    @property
+    def number(self) -> int:
+        """The note's number as Hancom counts it: each kind on its own, from 1, in
+        document order, restarting where a section or an ``hp:newNum`` control says
+        (``ON_PAGE`` numbering is counted as running on: pages are not laid out)."""
+
+        from .note_authoring import note_numbers
+
+        section = self.paragraph.section
+        document = section.document
+        sections = [owner.element for owner in document.sections] if document is not None else [section.element]
+        return note_numbers(sections).get(self.element, 0)
+
+    @property
+    def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
+        """The note's own paragraphs, its text (the first starts with the note's number)."""
+
+        sub_list = self.element.find(f"{_HP}subList")
+        if sub_list is None:
+            return ()
+        return tuple(_wrap_paragraph(node, self.paragraph.section) for node in sub_list.findall(f"{_HP}p"))
+
+    def add_paragraph(
+        self,
+        text: str = "",
+        *,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "HwpxOxmlParagraph":
+        """Add a paragraph holding *text* at the end of the note and return it.
+
+        It takes the paragraph and character shape of the note's first paragraph
+        (the 각주/미주 style) unless *char_pr_id_ref* is given; Hancom numbers only
+        the first paragraph.
+        """
+
+        sublist = self.element.find(f"{_HP}subList")
+        if sublist is None:
+            attrs = _default_sublist_attributes()
+            attrs["vertAlign"] = "TOP"
+            sublist = _append_child(self.element, f"{_HP}subList", attrs)
+        paragraphs = sublist.findall(f"{_HP}p")
+        template = paragraphs[0] if paragraphs else None
+        p_attrs = dict(template.attrib) if template is not None else {"id": "0", **_DEFAULT_PARAGRAPH_ATTRS}
+        first_run = template.find(f"{_HP}run") if template is not None else None
+        run_attrs = dict(first_run.attrib) if first_run is not None else {"charPrIDRef": "0"}
+        if char_pr_id_ref is not None:
+            run_attrs["charPrIDRef"] = str(char_pr_id_ref)
+        paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
+        run = _append_child(paragraph, f"{_HP}run", run_attrs)
+        set_text_with_tabs(_append_child(run, f"{_HP}t", {}), text)
+        self.paragraph.section.mark_dirty()
+        return _wrap_paragraph(paragraph, self.paragraph.section)
+
+    def remove(self) -> None:
+        """Remove the note: its mark in the text and its content go together.
+
+        The paragraph holding the mark is laid out again, and the notes of the
+        same kind after it are numbered again (``number`` and the number their
+        text starts with), as Hancom numbers them.
+        """
+
+        from .note_authoring import remove_note
+
+        remove_note(self)
 
     @property
     def body_paragraph(self) -> "HwpxOxmlParagraph":

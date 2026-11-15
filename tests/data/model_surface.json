@@ -128,10 +128,14 @@
    "internalCount": 0,
    "stable": [
     "add_hyperlink",
+    "add_paragraph",
     "add_run",
     "body_paragraph",
     "inst_id",
     "kind",
+    "number",
+    "paragraphs",
+    "remove",
     "text"
    ]
   },

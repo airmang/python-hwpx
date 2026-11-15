@@ -34,6 +34,7 @@ from .memo import HwpxOxmlNote
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
+    from .section import HwpxOxmlSection
 
 _NOTE_STYLE_NAMES = {"footNote": ("각주", "Footnote"), "endNote": ("미주", "Endnote")}
 _NOTE_STYLE_FALLBACK = {"footNote": ("15", "10", "3"), "endNote": ("16", "10", "3")}
@@ -153,6 +154,8 @@ def _paragraph_add_note(
     set_text_with_tabs(_append_child(note_run, f"{_HP}t", {}), text)
     _clear_paragraph_layout_cache(self.element)  # the note's control takes room in the text: laid out again
     self.section.mark_dirty()
+    # A note added before others takes their place in the count: those after it move up one.
+    renumber_notes(self.section, tag)
     return HwpxOxmlNote(note_element, self)
 
 
@@ -178,17 +181,191 @@ def _paragraph_add_endnote(
     return _paragraph_add_note(self, "endNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
 
 
+def _direct_notes(paragraph: ET.Element, tag: str) -> list[ET.Element]:
+    """The notes of kind *tag* this paragraph holds itself, in order: Hancom's
+    ``hp:run/hp:ctrl/hp:footNote`` and the ``hp:run/hp:footNote`` older python-hwpx
+    wrote. A note in a table cell or text box of the paragraph belongs to that
+    cell's or box's own paragraph."""
+
+    found: list[ET.Element] = []
+    for run in paragraph:
+        if run.tag != f"{_HP}run":
+            continue
+        for child in run:
+            if child.tag == f"{_HP}{tag}":
+                found.append(child)
+            elif child.tag == f"{_HP}ctrl":
+                found.extend(note for note in child if note.tag == f"{_HP}{tag}")
+    return found
+
+
 def _paragraph_footnotes(self: "HwpxOxmlParagraph") -> list[HwpxOxmlNote]:
-    """Return all footnotes in this paragraph."""
-    return [
-        HwpxOxmlNote(el, self)
-        for el in self.element.findall(f".//{_HP}footNote")
-    ]
+    """Return the footnotes this paragraph holds (not those in its tables or boxes)."""
+    return [HwpxOxmlNote(el, self) for el in _direct_notes(self.element, "footNote")]
 
 
 def _paragraph_endnotes(self: "HwpxOxmlParagraph") -> list[HwpxOxmlNote]:
-    """Return all endnotes in this paragraph."""
-    return [
-        HwpxOxmlNote(el, self)
-        for el in self.element.findall(f".//{_HP}endNote")
-    ]
+    """Return the endnotes this paragraph holds (not those in its tables or boxes)."""
+    return [HwpxOxmlNote(el, self) for el in _direct_notes(self.element, "endNote")]
+
+
+_NOTE_NUM_TYPES = {"footNote": "FOOTNOTE", "endNote": "ENDNOTE"}
+
+
+def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
+    """Hancom's number of every foot and end note of the section elements *sections*.
+
+    Each kind counts on its own, from 1, in document order. A section whose note
+    numbering is ``ON_SECTION`` starts again at its ``newNum``; any other runs on
+    from the section before (``ON_PAGE`` too: pages are not laid out here). An
+    ``hp:newNum`` control of the kind sets the next number. The numbers Hancom
+    writes in ``number`` are these (1241 of 1241 notes in the public corpus).
+    """
+
+    counters = {"FOOTNOTE": 1, "ENDNOTE": 1}
+    numbers: dict[ET.Element, int] = {}
+    for section in sections:
+        sec_pr = next(section.iter(f"{_HP}secPr"), None)
+        for tag, kind in _NOTE_NUM_TYPES.items():
+            properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
+            numbering = properties.find(f"{_HP}numbering") if properties is not None else None
+            if numbering is not None and numbering.get("type") == "ON_SECTION":
+                counters[kind] = _int_or(numbering.get("newNum"), 1)
+        for element in section.iter(f"{_HP}newNum", f"{_HP}footNote", f"{_HP}endNote"):
+            if element.tag == f"{_HP}newNum":
+                if element.get("numType") in counters:
+                    counters[element.get("numType") or ""] = _int_or(element.get("num"), 1)
+                continue
+            kind = _NOTE_NUM_TYPES[_element_local(element)]
+            numbers[element] = counters[kind]
+            counters[kind] += 1
+    return numbers
+
+
+def _int_or(value: str | None, default: int) -> int:
+    try:
+        return int(value) if value else default
+    except ValueError:
+        return default
+
+
+def _element_local(element: ET.Element) -> str:
+    return element.tag.rsplit("}", 1)[-1] if isinstance(element.tag, str) else ""
+
+
+def _sections_of(section: "HwpxOxmlSection") -> list["HwpxOxmlSection"]:
+    document = section.document
+    return list(document.sections) if document is not None else [section]
+
+
+def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
+    """Write Hancom's numbers (:func:`note_numbers`) into the notes of kind *tag* of the
+    document *section* belongs to: the note's ``number`` and the ``hp:autoNum`` its body
+    starts with, where they differ. Left alone when a section numbers the kind per page,
+    as the numbers then depend on the page layout. A note whose number changes its count
+    of digits drops its paragraph's line cache, as its mark changes width."""
+
+    sections = _sections_of(section)
+    for owner in sections:
+        sec_pr = next(owner.element.iter(f"{_HP}secPr"), None)
+        properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
+        numbering = properties.find(f"{_HP}numbering") if properties is not None else None
+        if numbering is not None and numbering.get("type") == "ON_PAGE":
+            return
+    numbers = note_numbers([owner.element for owner in sections])
+    for owner in sections:
+        changed = False
+        for note in owner.element.iter(f"{_HP}{tag}"):
+            number = str(numbers.get(note, 0))
+            old = note.get("number")
+            if old is not None and old != number:
+                note.set("number", number)
+                changed = True
+                if len(old) != len(number):
+                    host = _host_paragraph(owner.element, note)
+                    if host is not None:
+                        _clear_paragraph_layout_cache(host)
+            for auto_num in note.iter(f"{_HP}autoNum"):
+                if auto_num.get("numType") == _NOTE_NUM_TYPES[tag] and auto_num.get("num") not in (None, number):
+                    auto_num.set("num", number)
+                    changed = True
+                break
+        if changed:
+            owner.mark_dirty()
+
+
+def _host_paragraph(root: ET.Element, element: ET.Element) -> ET.Element | None:
+    """The innermost ``hp:p`` holding *element* (lxml: up the parents; else down from *root*)."""
+
+    getparent = getattr(element, "getparent", None)
+    if getparent is not None:
+        node = getparent()
+        while node is not None and node.tag != f"{_HP}p":
+            node = node.getparent()
+        return node
+
+    def walk(node: ET.Element, nearest: ET.Element | None) -> ET.Element | None:
+        if node.tag == f"{_HP}p":
+            nearest = node
+        for child in node:
+            if child is element:
+                return nearest
+            found = walk(child, nearest)
+            if found is not None:
+                return found
+        return None
+
+    return walk(root, None)
+
+
+def iter_document_notes(section: "HwpxOxmlSection", tag: str) -> list[HwpxOxmlNote]:
+    """Every note of kind *tag* in the document *section* belongs to, in document order,
+    those in table cells, text boxes and other notes included, each with the paragraph
+    holding it."""
+
+    from .paragraph import HwpxOxmlParagraph
+
+    notes: list[HwpxOxmlNote] = []
+    for owner in _sections_of(section):
+        for element in owner.element.iter(f"{_HP}{tag}"):
+            host = _host_paragraph(owner.element, element)
+            if host is not None:
+                notes.append(HwpxOxmlNote(element, HwpxOxmlParagraph(host, owner)))
+    return notes
+
+
+def remove_note(note: HwpxOxmlNote) -> None:
+    """Take *note* out of the text: its control, the ``hp:ctrl`` it leaves empty and a run
+    left empty by that. The other notes of its kind are numbered again and the paragraph
+    holding it is laid out again."""
+
+    element = note.element
+    section = note.paragraph.section
+    host = _host_paragraph(section.element, element)
+    if host is None:
+        host = note.paragraph.element
+    parent = _parent(host, element)
+    if parent is None:
+        return
+    parent.remove(element)
+    run = parent
+    if parent.tag == f"{_HP}ctrl" and not list(parent):
+        run = _parent(host, parent)
+        if run is not None:
+            run.remove(parent)
+    if run is not None and run.tag == f"{_HP}run" and not list(run) and len(host.findall(f"{_HP}run")) > 1:
+        host.remove(run)
+    _clear_paragraph_layout_cache(host)
+    section.mark_dirty()
+    renumber_notes(section, _element_local(element))
+
+
+def _parent(root: ET.Element, element: ET.Element) -> ET.Element | None:
+    getparent = getattr(element, "getparent", None)
+    if getparent is not None:
+        return getparent()
+    for node in root.iter():
+        for child in node:
+            if child is element:
+                return node
+    return None

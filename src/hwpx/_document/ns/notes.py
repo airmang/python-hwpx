@@ -93,6 +93,31 @@ class NotesNamespace(_Namespace):
             char_pr_id_ref=char_pr_id_ref,
         )
 
+    @property
+    def footnotes(self) -> "tuple[Note, ...]":
+        """문서의 모든 각주를 문서 순서로. 표 칸·글상자 안의 것도 본다.
+
+        번호는 ``note.number`` 로 읽는다(한/글이 매기는 방식: 종류마다 1부터,
+        구역·새 번호 지정이 다시 시작시킨다). ``note.paragraph`` 는 각주 표시가
+        놓인 문단이다.
+        """
+
+        return self._notes("footNote")
+
+    @property
+    def endnotes(self) -> "tuple[Note, ...]":
+        """문서의 모든 미주를 문서 순서로. 표 칸·글상자 안의 것도 본다."""
+
+        return self._notes("endNote")
+
+    def _notes(self, tag: str) -> "tuple[Note, ...]":
+        from ...oxml.note_authoring import iter_document_notes
+
+        sections = self._doc.oxml.sections
+        if not sections:
+            return ()
+        return tuple(iter_document_notes(sections[0], tag))
+
     # -- 메모 --------------------------------------------------------------
 
     @property
