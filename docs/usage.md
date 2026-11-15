@@ -292,7 +292,7 @@ if shape:
     print(shape.memo_type, shape.line_color)
 ```
 
-### 예제 20: 두 번째 섹션에 메모 추가
+### 예제 20: 특정 섹션에 메모 추가
 
 <!-- standalone-python-example -->
 
@@ -300,9 +300,12 @@ if shape:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-memo = document.notes.add_memo("검토 메모", section_index=0, memo_shape_id_ref="0")
+memo = document.notes.add_memo("검토 메모", section=0, memo_shape_id_ref="0")
 print(memo.text)
 ```
+
+`section=`은 섹션 번호(`0`)와 섹션 객체(`document.sections[0]`)를 모두 받습니다. 옛 이름 `section_index=` 대신
+`section=`을 쓰세요.
 
 ### 예제 21: 메모를 필드와 함께 앵커링
 
@@ -371,10 +374,15 @@ paragraph.add_run("강조 텍스트", bold=True, underline=True)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-paragraph = document.paragraphs[0]
-if paragraph.runs:
-    paragraph.runs[0].italic = True
+paragraph = document.add_paragraph("기울일 문장")
+for run in paragraph.runs:
+    if run.text:  # 글이 든 런만. 문서 첫 문단의 첫 런은 구역 설정을 담은 빈 런이다
+        run.italic = True
 ```
+
+문서의 첫 문단은 구역 설정(`hp:secPr`, 용지·여백·단)을 담은 빈 런으로 시작합니다. 7.0부터 `new()`로 만든
+문서에서는 처음 더한 문단이 그 첫 문단이 되므로, `paragraph.runs[0]`이 방금 쓴 글이 아니라 이 빈 런일 수 있습니다.
+런을 고를 때는 번호 대신 글로 고르세요.
 
 ### 예제 26: 특정 서식 ID로 런 찾기
 
@@ -421,11 +429,11 @@ print(all_text[:80])
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-if document.paragraphs:
-    document.paragraphs[0].text = "새로운 첫 문단"
+document.add_paragraph("옛 첫 문단")
+document.paragraphs[0].text = "새로운 첫 문단"  # 구역 설정은 그대로 남는다
 ```
 
-### 예제 30: 첫 런의 텍스트 읽기
+### 예제 30: 문단의 런과 글 읽기
 
 <!-- standalone-python-example -->
 
@@ -433,11 +441,13 @@ if document.paragraphs:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-if document.paragraphs and document.paragraphs[0].runs:
-    print(document.paragraphs[0].runs[0].text)
+document.add_paragraph("첫 문단")
+first = document.paragraphs[0]
+print(first.text)                                  # "첫 문단"
+print([run.text for run in first.runs if run.text])  # 글이 든 런만
 ```
 
-### 예제 31: 첫 런 삭제
+### 예제 31: 글로 골라 런 삭제
 
 <!-- standalone-python-example -->
 
@@ -445,9 +455,17 @@ if document.paragraphs and document.paragraphs[0].runs:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-if document.paragraphs and document.paragraphs[0].runs:
-    document.paragraphs[0].runs[0].remove()
+paragraph = document.add_paragraph("지울 글")
+paragraph.add_run(" 남길 글")
+for run in list(paragraph.runs):
+    if run.text == "지울 글":
+        run.remove()
+print(paragraph.text)  # " 남길 글"
 ```
+
+`runs[0].remove()`처럼 번호로 지우지 마세요. 문서 첫 문단의 첫 런은 구역 설정을 담고 있어서, 그 런을 지우면
+용지 크기가 0×0인 문서가 저장됩니다. 새 문서에서 빈 첫 줄을 지울 필요도 없습니다. 7.0부터 `new()`로 만든 문서는
+처음 더한 문단으로 시작합니다.
 
 ### 예제 32: 고정 폭 표 만들기
 
@@ -544,12 +562,9 @@ shape.resize(9000, 4500)
 print(shape.shape_type, shape.width, shape.height)
 ```
 
-### 예제 38: 컨트롤 객체 추가
+### 예제 38: 책갈피·하이퍼링크 컨트롤 추가
 
-`doc.shapes.add_control()`은 저수준 탈출구입니다. 건네준 요소와 속성만 쓰고 한컴이 요구하는
-나머지 하위 요소는 만들지 않으므로, 호출자가 채우지 않은 채 저장한 문서는 한컴에서
-열리지 않습니다. 그래서 호출 시 `UserWarning`이 나며, 경고 메시지가 대신 쓸 전용
-헬퍼를 알려 줍니다.
+컨트롤은 한컴이 요구하는 하위 요소까지 만드는 전용 헬퍼로 넣습니다.
 
 <!-- standalone-python-example -->
 
@@ -557,12 +572,19 @@ print(shape.shape_type, shape.width, shape.height)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-control = document.shapes.add_control(section=document.sections[0], control_type="LINE", attributes={"id": "line1"})
+paragraph = document.add_paragraph("요약")
+document.refs.add_bookmark("summary", paragraph=paragraph)
+document.refs.add_hyperlink("https://example.com", "예시 사이트", paragraph=paragraph)
+document.save_to_path("controls.hwpx")
 ```
 
-### 예제 39: 컨트롤 속성 변경
+`doc.shapes.add_control()`은 저수준 탈출구입니다. 건네준 요소와 속성만 쓰고 한컴이 요구하는 나머지 하위
+요소는 만들지 않으므로, 호출자가 채우지 않은 채 저장하면 저장이 거부되거나 한컴에서 열리지 않습니다. 그래서
+호출 시 `UserWarning`이 나며, 경고 메시지가 대신 쓸 전용 헬퍼를 알려 줍니다.
 
-앞 예제와 같은 탈출구 경로이므로, 필요한 하위 요소는 호출자가 직접 채워야 합니다.
+### 예제 39: 문단에서 다단 시작하기
+
+단 정의 컨트롤도 전용 헬퍼가 만듭니다. 지정한 문단부터 두 단으로 나뉩니다.
 
 <!-- standalone-python-example -->
 
@@ -570,8 +592,10 @@ control = document.shapes.add_control(section=document.sections[0], control_type
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-control = document.shapes.add_control(section=document.sections[0], control_type="LINE")
-control.set_attribute("dirty", "false")
+document.add_paragraph("한 단으로 쓰는 머리글")
+start = document.add_paragraph("여기부터 두 단")
+document.page.set_columns(2, same_gap=1200, paragraph=start)
+document.save_to_path("columns.hwpx")
 ```
 
 ### 예제 40: 섹션 파트 이름 확인
@@ -869,9 +893,10 @@ if document.parts.version:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
+document.add_paragraph("남길 문단")
+document.add_paragraph("지울 문단")
 # 마지막 단락 삭제
-if len(document.sections[0].paragraphs) > 1:
-    document.paragraphs[-1].remove()
+document.paragraphs[-1].remove()
 document.save_to_path("my-document.hwpx")
 ```
 
@@ -883,10 +908,15 @@ document.save_to_path("my-document.hwpx")
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
+document.add_paragraph("머리 문단")
+document.add_paragraph("지울 문단")
 section = document.sections[0]
-if len(section.paragraphs) > 1:
-    section.remove_paragraph(0)
+section.remove_paragraph(1)
+print([paragraph.text for paragraph in section.paragraphs])  # ['머리 문단']
 ```
+
+구역의 첫 문단(번호 0)은 구역 설정(용지·여백·단)을 담고 있습니다. 첫 문단의 글을 바꾸려면 지우지 말고
+`paragraph.text = ...`로 고치세요.
 
 ### 예제 64: 새 섹션 추가
 
@@ -925,6 +955,116 @@ document = HwpxDocument.new()
 if len(document.sections) > 1:
     document.remove_section(len(document.sections) - 1)
 ```
+
+## 있는 문서 고치기
+
+받은 양식을 열어 글을 바꾸고 빈 칸을 채우는 흐름입니다. 아래 예제는 실습용 양식을 먼저 만들어 메모리에서
+다시 엽니다. 실제로는 `doc = HwpxDocument.open("신청서.hwpx")`부터 시작하면 됩니다.
+
+<!-- standalone-python-example -->
+
+```python
+from io import BytesIO
+
+from hwpx import HwpxDocument
+
+# 실습용 양식
+form = HwpxDocument.new()
+form.page.set_header(text="2025학년도 ○○고등학교")
+form.add_paragraph("2025학년도 현장체험학습 신청서")
+table = form.add_table(2, 2)
+table.cell(0, 0).text = "성  명"
+table.cell(1, 0).text = "학  년"
+form.add_paragraph("참석 여부: □ 예  □ 아니오")
+form.fields.add("연락처", prompt="연락처를 적으세요", paragraph=form.add_paragraph("보호자 연락처: "))
+
+doc = HwpxDocument.open(BytesIO(form.to_bytes()))   # 실제로는 HwpxDocument.open("신청서.hwpx")
+
+# 1. 글 바꾸기. everywhere=True면 표 칸·머리말·꼬리말·글상자의 글까지 바꾼다.
+doc.text.replace("2025학년도", "2026학년도", everywhere=True)
+
+# 2. 이름표 옆 빈 칸 채우기. form_slots()가 채울 칸과 경로를 알려 준다.
+for slot in doc.tables.form_slots()["slots"]:
+    print(slot["path"])                    # "성 명 > right", "학 년 > right"
+result = doc.tables.fill_by_path({"성명 > right": "홍길동", "학년 > right": "3학년"})
+if result["failed_count"]:
+    raise ValueError(result["failed"])
+
+# 3. 표 칸을 번호로 직접 고치기
+doc.tables[0].cell(1, 1).text = "2학년"
+
+# 4. 누름틀(양식 필드) 채우기
+doc.fields.fill("010-1234-5678", name="연락처")
+
+# 5. 글자로 적힌 선택 칸(□ 예 □ 아니오) 고르기
+for group in doc.fields.choices()["choices"]:
+    print(group["label"], [option["text"] for option in group["options"]])
+doc.fields.choose({"참석 여부": "예"})
+
+doc.save_to_path("신청서-작성.hwpx")
+```
+
+- `doc.text.replace()`는 기본으로 본문 문단의 런 하나 안에서만 바꿉니다. 그 범위에서 0건인데 찾는 글이 표 칸이나
+  머리말에 있으면 `ReplaceScopeWarning`으로 `everywhere=True`를 알려 줍니다.
+- `fill_by_path`는 이름표의 공백을 무시하고 찾습니다(`"성명"`으로 `"성  명"` 칸을 찾는다). 같은 이름표가 여러
+  칸이면 실패로 돌려주고 `candidates`에 `"성명[2] > right"` 같은 고르는 표기를 싣습니다.
+- `fields.choose()`는 고른 항목을 채우고 같은 묶음의 나머지를 비웁니다. 가릴 수 없는 묶음은 바꾸지 않고
+  `failed`에 후보와 함께 돌려줍니다.
+
+## 시험지·학습지
+
+2단 편집, 수식, 탭으로 맞춘 선택지, 보기 상자를 쓰는 문항지입니다. 수식은 LaTeX로 적어 한/글 수식 문자열로
+바꿔 넣습니다.
+
+<!-- standalone-python-example -->
+
+```python
+from hwpx import HwpxDocument
+from hwpx.equation import latex_to_eqedit
+
+doc = HwpxDocument.new()
+doc.page.setup(paper_size="A4", columns=2, column_gap_mm=8)   # 2단
+
+# 수식 문항: 문단 끝에 수식을 붙인다
+question = doc.add_paragraph("1. 다음 식의 값을 구하시오. ")
+doc.shapes.add_equation(latex_to_eqedit(r"\frac{1}{2} + \frac{1}{3}"), paragraph=question)
+
+# 선택지: 탭으로 나누고 탭 위치를 mm로 준다
+choices = doc.add_paragraph("① 1/6\t② 2/5\t③ 5/6\t④ 1\t⑤ 7/6")
+doc.styles.apply_paragraph_format(
+    paragraphs=[choices],
+    tab_stops=[{"pos_mm": 16}, {"pos_mm": 32}, {"pos_mm": 48}, {"pos_mm": 64}],
+)
+
+# 보기 상자: 연속한 문단에 같은 테두리를 주고 connect=True로 한 상자로 잇는다
+doc.add_paragraph("2. <보기>에서 옳은 것만을 있는 대로 고른 것은?")
+box = [
+    doc.add_paragraph("<보기>"),
+    doc.add_paragraph("ㄱ. 물은 1기압에서 100 ℃에 끓는다."),
+    doc.add_paragraph("ㄴ. 얼음은 물에 가라앉는다."),
+]
+doc.styles.apply_paragraph_format(
+    paragraphs=box,
+    border={"color": "#000000", "offset_mm": 1.5, "connect": True},
+)
+
+doc.save_to_path("문항지.hwpx")
+```
+
+그림에는 캡션을 붙일 수 있습니다. `add_picture()`는 그림을 담은 새 문단을 문서 끝에 더하고 그림 개체를
+돌려줍니다.
+
+```python
+from pathlib import Path
+
+picture = doc.add_picture(Path("figure.png").read_bytes(), "png", width_mm=40, height_mm=30)
+picture.set_caption("[그림 1] 실험 장치", side="BOTTOM")
+doc.save_to_path("문항지.hwpx")
+```
+
+- `latex_to_eqedit`는 한/글에서 그려 보고 확인한 표기만 바꾸고, 그 밖의 명령은 `UnsupportedLatexError`로
+  거부합니다. 지원 범위는 [지원 매트릭스](support-matrix.md)에 있습니다.
+- 수식 글꼴은 7.0부터 `HancomEQN`입니다. 6.x 모양은 `add_equation(..., font="HYhwpEQ")`.
 
 
 ## 패키지 열기와 기본 점검
@@ -981,13 +1121,9 @@ table.set_cell_text(1, 2, "Forecast")
 # 개체도 문서 또는 문단 수준에서 추가할 수 있습니다.
 rectangle = document.shapes.add_rectangle(9000, 4500, fill_color="#FFD9CC", section=section)
 
-# add_control은 저수준 탈출구입니다 — 필수 하위 요소를 만들지 않아 UserWarning이
-# 나고, 호출자가 채우지 않으면 한컴이 열지 못하는 문서가 됩니다.
-control = document.shapes.add_control(
-    section=section,
-    control_type="LINE",
-    attributes={"id": "ctrl1"},
-)
+# 컨트롤은 전용 헬퍼로 넣습니다. 저수준 doc.shapes.add_control은 필수 하위 요소를
+# 만들지 않아, 호출자가 채우지 않으면 저장이 거부되거나 한컴이 열지 못하는 문서가 됩니다.
+bookmark = document.refs.add_bookmark("generated", paragraph=paragraph)
 ```
 
 `HwpxDocument.sections`, `HwpxDocument.paragraphs`, `doc.parts.headers` 속성은 각각 구역, 모든 문단, 헤더 파트를 리스트로 반환합니다. 섹션 속성(`section.properties`)을 사용하면 페이지 크기, 여백, 바탕쪽 연결과 같은 레이아웃 설정도 쉽게 변경할 수 있습니다. 매니페스트에 등록된 바탕쪽(`document.parts.master_pages`), 문서 이력(`document.parts.histories`), 버전(`document.parts.version`) 파트도 동일한 방식으로 노출되므로 XML 트리를 직접 수정한 뒤 `mark_dirty()`만 호출하면 저장 시 함께 반영됩니다.
@@ -1159,8 +1295,9 @@ document.remove_section(1)
 문서에 첨부된 메모는 섹션의 `<hp:memogroup>` 요소와 헤더의 `memoProperties` 정의를 통해 연결됩니다. `doc.notes.memos` 속성은 모든 섹션에 포함된 메모 객체를 반환하며, `doc.notes.add_memo()`/`doc.notes.remove_memo()`를 사용하면 새 메모를 생성하거나 삭제할 수 있습니다.
 
 ```python
-# 메모 모양 정의는 header.ref_list.memo_properties 또는 document.memo_shapes로 조회할 수 있습니다.
-default_shape = next(iter(document.styles.memo_shapes))  # 첫 번째 모양 ID
+# 메모 모양 정의는 document.styles.memo_shapes로 조회합니다. 새 문서에는 하나도 없을 수 있으므로
+# ensure_memo_shape()로 확보합니다(같은 모양이 있으면 그 ID를 돌려줍니다).
+default_shape = document.styles.ensure_memo_shape()
 
 memo = document.notes.add_memo(
     "검토 의견을 정리했습니다.",
@@ -1225,26 +1362,30 @@ document.text.replace(
 
 `hwpx.oxml.body` 모듈은 `<hp:p>`와 `<hp:run>`을 데이터 클래스(표·컨트롤·인라인 도형·변경 추적 태그 등)로 역직렬화합니다. `HwpxOxmlParagraph.model`과 `HwpxOxmlRun.model` 속성은 이러한 구조화된 모델을 즉시 반환하며, 수정 후 `apply_model()`을 호출하면 변경 사항이 원본 XML에 반영됩니다.
 
+<!-- standalone-python-example -->
+
 ```python
+from hwpx import HwpxDocument
 from hwpx.oxml.body import TrackChangeMark
 
-paragraph = section.paragraphs[0]
+document = HwpxDocument.new()
+paragraph = document.add_paragraph("모델로 고칠 문장")
 model = paragraph.model
-run_model = model.runs[0]
 
-# 컨트롤 유형을 변경하고 ID 속성을 갱신합니다.
-control = run_model.controls[0]
-control.control_type = "PAGE_NUMBER"
-control.attributes["id"] = "ctrl-updated"
-
-# 변경 추적 태그도 타입 안전하게 접근할 수 있습니다.
-span = run_model.text_spans[0]
-for mark in span.marks:
-    if isinstance(mark.element, TrackChangeMark) and mark.element.is_begin:
-        mark.element.tc_id = 99
+for run_model in model.runs:
+    # 글 조각(TextSpan)을 글로 찾아 고칩니다. 문서 첫 문단의 첫 런은 구역 설정 컨트롤을 담은
+    # 빈 런이므로 runs[0]·controls[0] 같은 번호로 고르지 않습니다.
+    for span in run_model.text_spans:
+        if span.leading_text == "모델로 고칠 문장":
+            span.leading_text = "모델로 고친 문장"
+        # 변경 추적 태그도 타입으로 구분해 읽을 수 있습니다.
+        for mark in span.marks:
+            if isinstance(mark.element, TrackChangeMark):
+                print(mark.element.change_type, mark.element.is_begin)
 
 # 수정한 모델을 문단에 적용합니다.
 paragraph.apply_model(model)
+print(paragraph.text)  # "모델로 고친 문장"
 ```
 
 모델로 문단의 글이나 런을 바꾸면 `apply_model()`이 그 문단의 줄 배치 캐시(`hp:linesegarray`)를 지웁니다. 한/글은 캐시의 줄 수를 믿고 글을 그 안에 눌러 담으므로, 바뀐 내용 위에 옛 캐시를 남기지 않습니다. 런 텍스트에 넣은 `"\n"`과 탭은 `hp:lineBreak`·`hp:tab`으로 기록됩니다.
@@ -1380,7 +1521,9 @@ with open("result.hwpx", "wb") as fp:
 ```python
 from hwpx.ingest import DocumentIngestor
 
-result = DocumentIngestor.default().convert(path)   # path: .hwpx나 .hwp 파일 경로
+path = "report.hwpx"   # 읽을 .hwpx나 .hwp 파일
+with open(path, "rb") as stream:   # 경로·바이트·스트림 모두 받는다
+    result = DocumentIngestor.default().convert(stream)
 print(result.markdown)
 print(result.lossiness)        # "low": 빠진 것이 없다. "medium"·"high": warnings에 종류와 개수
 print(result.flat_metadata())  # 출처·형식·개수·경고를 글자와 숫자 값만으로
@@ -1397,7 +1540,7 @@ Markdown 문서 하나가 되고, 메타데이터는 위의 `flat_metadata()`입
 ```python
 from hwpx.integrations.langchain import HwpxLoader
 
-docs = HwpxLoader(path).load()   # path: .hwpx나 .hwp 파일 경로
+docs = HwpxLoader(path).load()   # path: 위 예제의 .hwpx나 .hwp 파일 경로
 print(docs[0].page_content[:200])
 print(docs[0].metadata["lossiness"])
 ```
@@ -1414,7 +1557,7 @@ print(docs[0].metadata["lossiness"])
 ```python
 from hwpx.integrations.llama_index import HwpxReader
 
-docs = HwpxReader().load_data(path)   # path: .hwpx나 .hwp 파일 경로
+docs = HwpxReader().load_data(path)   # path: 위 예제의 .hwpx나 .hwp 파일 경로
 print(docs[0].text[:200])
 ```
 
@@ -1422,7 +1565,12 @@ print(docs[0].text[:200])
 이때 LlamaIndex가 붙이는 파일 이름·날짜가 메타데이터에 함께 들어갑니다. `MarkdownNodeParser`로 문서의 절을 따라
 자를 수 있습니다.
 
-두 어댑터와 `hwpx.ingest`는 실험 기능이라 6.x 안에서 이름과 메타데이터 키가 바뀔 수 있습니다.
+`hwpx.ingest`는 머리말·꼬리말·메모·수식을 기본으로 Markdown에 싣습니다(6.x는 싣지 않았습니다). 6.x처럼 본문만
+원하면 `convert(path, markdown_options={"headers_and_footers": False, "memos": False, "equations": False})`로
+끕니다. 문서 객체에서 직접 뽑을 때는 `doc.text.markdown(rich=True, headers_and_footers=True, memos=True,
+equations=True)`가 같은 내용을 냅니다.
+
+두 어댑터와 `hwpx.ingest`는 실험 기능이라 7.x 안에서 이름과 메타데이터 키가 바뀔 수 있습니다.
 
 ## 제안서 프리셋 — 5.0에서 이동
 

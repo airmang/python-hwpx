@@ -97,6 +97,11 @@ if len(section.paragraphs) > 1:
     section.paragraphs[-1].remove()
 ```
 
+구역의 첫 문단(`section.paragraphs[0]`)은 지우지 마세요. 그 문단에 구역 설정(용지·여백·단)이 들어 있어,
+지우면 용지 크기가 0×0인 문서가 됩니다. 7.0부터 `HwpxDocument.new()`로 만든 문서에서는 처음 더한 문단이 바로
+그 첫 문단이므로, 6.x처럼 "빈 첫 줄"을 지우는 코드는 이제 쓴 글을 지웁니다. 첫 문단의 글을 바꾸려면
+`paragraph.text = ...`로 고치세요.
+
 ## 섹션을 추가하면 한/글에서 보이지 않습니다.
 
 `document.add_section()`은 내부적으로 manifest/spine에 새 섹션을 자동 등록합니다. 반드시 `save_to_path()`로 저장해야 변경 사항이 반영됩니다. 저수준 API를 사용해 직접 섹션 XML을 만들었다면 manifest에 항목을 추가하지 않았을 가능성이 있으므로, 고수준 API(`HwpxDocument.add_section()`)를 사용하는 것을 권장합니다.

@@ -90,6 +90,12 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 #: `describe_capabilities()`가 이 값을 읽는다.
 LEGACY_REMOVED_IN = "7.0"
 
+#: 경고가 가리키는 대응표. pip로 설치한 사용자에게는 저장소의 docs/ 폴더가
+#: 없으므로 저장소 문서의 URL을 준다(`hwpx._moved_modules`와 같은 형식).
+MIGRATION_GUIDE_URL = (
+    "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md"
+)
+
 
 def _takes_section_pair(func: Callable[..., Any]) -> bool:
     """`section` / `section_index` 쌍을 받는 서명인가.
@@ -128,7 +134,7 @@ def _moved(replacement: str, *, removed_in: str = LEGACY_REMOVED_IN) -> Callable
             warnings.warn(
                 f"HwpxDocument.{func.__name__}은(는) python-hwpx 6.0에서 "
                 f"{replacement}(으)로 이동했습니다. {removed_in}에서 제거됩니다. "
-                f"자세한 내용: docs/migration-6.0.md",
+                f"자세한 내용: {MIGRATION_GUIDE_URL}",
                 DeprecationWarning,
                 stacklevel=2,
             )
