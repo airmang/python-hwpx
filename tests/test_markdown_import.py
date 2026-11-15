@@ -296,7 +296,8 @@ def test_a_one_column_table_and_a_fitted_table_save_and_reopen(tmp_path) -> None
 
     assert validate_editor_open_safety(path).to_dict()["ok"] is True
     reopened = HwpxDocument.open(path)
-    assert "| 기간 | 2026. 3. 2.(월) ~ 2026. 7. 17.(금) |" in reopened.text.markdown()
+    # markdown()은 문서 글의 ~를 이스케이프한다
+    assert "| 기간 | 2026. 3. 2.(월) \\~ 2026. 7. 17.(금) |" in reopened.text.markdown()
 
 
 # -- nested lists and the report look -----------------------------------------
@@ -679,7 +680,7 @@ def test_the_report_look_saves_and_reopens(tmp_path) -> None:
     assert validate_editor_open_safety(path).to_dict()["ok"] is True
     reopened = HwpxDocument.open(path)
     assert [box.cell(0, 1).text for box in _tables(reopened)[1:4]] == ["목적", "운영 방침", "현황"]
-    assert "1. 편성" in reopened.text.markdown()
+    assert "### 1. 편성" in reopened.text.markdown()  # 개요 스타일을 받은 제목은 제목으로 되읽힌다
 
 
 def test_heading_bold_and_typefaces_can_be_given_by_level() -> None:
