@@ -197,6 +197,7 @@ def test_a_note_in_a_cell_is_written_in_the_cell() -> None:
 
 
 def test_html_and_markdown_write_notes_too() -> None:
-    assert "본문 앞1)1)각주 글\n본문 뒤" in export_html(body_footnote(), notes=True)
-    assert "본문 앞1)1)각주 글\n본문 뒤" in export_markdown(body_footnote(), notes=True)
+    # notes="inline" writes them as Hancom's text save; notes=True as footnotes (test_export_fix7_convert)
+    assert "본문 앞1)1)각주 글\n본문 뒤" in export_html(body_footnote(), notes="inline")
+    assert "본문 앞1)1)각주 글\n본문 뒤" in export_markdown(body_footnote(), notes="inline")
     assert "각주 글" not in export_markdown(body_footnote())
