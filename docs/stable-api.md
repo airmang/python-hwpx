@@ -259,7 +259,9 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 설명을 달 수 없습니다(`shape-group-member-unsupported`). `set_rotation`은 한/글 저장본이 보여 주는
 관계(상자 `hp:sz`는 돈 개체를 감싸는 상자, 개체는 그 가운데로 옮겨 자기 가운데를 축으로 돈다)를
 그대로 쓰며, 그 관계가 확인되지 않은 경우 — 늘이거나 줄인 개체(`hc:scaMatrix`가 항등이 아님,
-`resize`한 그림 포함), 뒤집은 개체, 묶음 — 는 `shape-rotation-unsupported`로 거부합니다.
+`resize`한 그림 포함), 뒤집은 개체, 묶음, 글자가 든 도형(한/글은 글을 돈 도형이 아니라 감싸는
+상자에 가로로 놓아 글이 도형 밖으로 나온다) — 는 `shape-rotation-unsupported`로 거부합니다. 각도 0으로
+되돌리는 것은 언제나 됩니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는

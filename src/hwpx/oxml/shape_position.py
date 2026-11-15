@@ -390,8 +390,9 @@ class ObjectPlacement:
         about its own middle (``hc:rotMatrix``), and ``hp:rotationInfo`` holds the angle and the middle of the
         box -- the relation every unscaled turned object in Hancom-saved documents shows. Only that case is
         written: an object Hancom has stretched (a ``hc:scaMatrix`` other than identity, as a picture after
-        ``resize``), a flipped one, a group or an object without ``hp:rotationInfo`` (an equation or chart)
-        is refused with ``shape-rotation-unsupported``, a member of a group with
+        ``resize``), a flipped one, a group, a shape holding text (Hancom keeps the text level in the outer
+        box, so it would stick out of the turned shape) or an object without ``hp:rotationInfo`` (an
+        equation or chart) is refused with ``shape-rotation-unsupported``, a member of a group with
         ``shape-group-member-unsupported``, an angle outside 0..359 with ``shape-rotation-value``. 0 turns
         it back. The paragraph loses its line layout cache.
         """
@@ -406,6 +407,11 @@ class ObjectPlacement:
         if _in_group(self.element, self.paragraph.element):
             raise _group_member_refused("turned")
         width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
+        draw_text = self.element.find(f"{_HP}drawText")
+        if angle and draw_text is not None and any((t.text or "").strip() for t in draw_text.iter(f"{_HP}t")):
+            # Hancom lays the text out level in the box around the turned shape, not turned with it, and no
+            # Hancom-saved turned shape holding text is known to write it otherwise.
+            raise _rotation_refused(self.element, "it holds text, which Hancom does not turn with it")
         apply_rotation(self.element, angle, width, height)
         from ._document_primitives import _clear_paragraph_layout_cache
 

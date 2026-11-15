@@ -342,6 +342,22 @@ def test_a_turned_shape_fills_its_box_exactly(angle: int, size: tuple[int, int])
     _reopen(doc)
 
 
+def test_a_shape_holding_text_is_not_turned() -> None:
+    doc = HwpxDocument.new()
+    box = doc.add_paragraph("").add_rectangle(8000, 3000)
+    box.set_draw_text("글상자")
+    before = _turn_record(box.element)
+    with pytest.raises(HwpxValueError) as caught:
+        box.set_rotation(30)
+    assert caught.value.code == "shape-rotation-unsupported"
+    assert _turn_record(box.element) == before
+    box.set_rotation(0)  # turning back is allowed
+    empty = doc.add_paragraph("").add_rectangle(8000, 3000)
+    empty.set_draw_text("")
+    empty.set_rotation(30)  # a text box with no text turns
+    assert empty.rotation == 30
+
+
 def test_resize_and_turn_in_either_order_give_the_same_shape() -> None:
     doc = HwpxDocument.new()
     first = doc.add_paragraph("").add_rectangle(8000, 3000)
