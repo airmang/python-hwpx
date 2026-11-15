@@ -322,6 +322,57 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             suggestion=f"{hint}전체 목록: doc.styles.names()",
         )
 
+    # -- 개요 스타일 -------------------------------------------------------
+
+    def outline_style(self, level: int) -> "Style | None":
+        """개요 *level* 수준(1~10)의 스타일. 이 문서에 없으면 ``None``.
+
+        ``add_heading(level=)`` 이 고르는 스타일과 같다. 찾는 순서: 이름이
+        ``개요 N`` → 영문 이름이 ``Outline N``(대소문자 무시) → 문단 모양이 그 수준의
+        개요(``hh:heading type="OUTLINE"``)를 선언하는 스타일.
+
+        Raises:
+            HwpxValueError: *level* 이 1~10 의 정수가 아니다(``heading-level-invalid`` /
+                ``heading-level-out-of-range``).
+        """
+
+        from ..headings import resolve_heading_style
+
+        try:
+            return resolve_heading_style(self._doc, level=level)
+        except HwpxLookupError:
+            return None
+
+    def outline_level(self, style: "int | str | Style") -> int | None:
+        """*style* 이 개요 스타일이면 그 수준(1~10), 아니면 ``None``.
+
+        *style* 은 스타일 객체·숫자 id·이름(:meth:`resolve` 와 같다). 이름이
+        ``개요 N``/``Outline N`` 이면 N, 아니면 스타일의 문단 모양이 선언한 개요
+        수준이다 — :meth:`outline_style` 이 같은 규칙으로 찾으므로
+        ``outline_level(outline_style(n)) == n`` 이다.
+
+        Raises:
+            HwpxLookupError: 그런 스타일이 없다(``style-not-found`` / ``style-ambiguous``).
+        """
+
+        from ...oxml.paragraph_heading import outline_style_level
+        from ..headings import _OUTLINE_ENG_NAME, MAX_HEADING_LEVEL, MIN_HEADING_LEVEL
+
+        resolved = self.resolve(style)
+        level = outline_style_level(resolved.name)
+        if level is None:
+            match = _OUTLINE_ENG_NAME.match((resolved.eng_name or "").strip())
+            level = int(match.group(1)) if match else None
+        if level is None:
+            para_pr = self._doc.oxml.paragraph_property(resolved.para_pr_id_ref)
+            heading = getattr(para_pr, "heading", None)
+            if heading is not None and (getattr(heading, "type", "") or "").upper() == "OUTLINE":
+                try:
+                    level = int(str(getattr(heading, "level", "")).strip()) + 1
+                except (TypeError, ValueError):
+                    level = None
+        return level if level is not None and MIN_HEADING_LEVEL <= level <= MAX_HEADING_LEVEL else None
+
     # -- 서식 정의 테이블 --------------------------------------------------
 
     @property
