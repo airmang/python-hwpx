@@ -127,11 +127,11 @@ def gen_baseline_regen(bucket_dir: Path) -> list[dict[str, Any]]:
             if idx % 3 == 2:
                 variant = (idx // 3) % 3
                 if variant == 0:
-                    document.add_rectangle(14400, 7200, fill_color="#CCE5FF")
+                    document.shapes.add_rectangle(14400, 7200, fill_color="#CCE5FF", line_width="283")
                 elif variant == 1:
-                    document.add_line(0, 0, 14400, 0)
+                    document.shapes.add_line(0, 0, 14400, 0, line_width="283")
                 else:
-                    document.add_ellipse(10000, 6000, fill_color="#FFD9CC")
+                    document.shapes.add_ellipse(10000, 6000, fill_color="#FFD9CC", line_width="283")
             document.save_to_path(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="baseline-regen", seed=str(idx),
@@ -155,12 +155,12 @@ def gen_footnote(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "각주 표본")
             paragraph = document.add_paragraph(f"본문 문단 {idx} — 각주가 달린 문장입니다.")
             for note_index in range(1 + idx % 3):
-                document.add_footnote(
+                document.notes.add_footnote(
                     f"각주 {note_index + 1}: {cycle(SUBJECT_BANK, idx + note_index)}",
                     paragraph=paragraph,
                 )
             if idx % 3 == 0:
-                document.add_endnote(f"미주: {cycle(DEPT_BANK, idx)} 참고", paragraph=paragraph)
+                document.notes.add_endnote(f"미주: {cycle(DEPT_BANK, idx)} 참고", paragraph=paragraph)
             document.save_to_path(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-footnote", seed=str(idx),
@@ -184,13 +184,13 @@ def gen_formfield(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "누름틀 표본")
             field_count = 1 + idx % 3
             for field_index in range(field_count):
-                document.add_form_field(
+                document.fields.add(
                     f"field_{idx}_{field_index}",
                     prompt=f"{cycle(DEPT_BANK, idx + field_index)} 입력",
                 )
             # fill half the documents so both authored and filled shapes are judged
             if idx % 2 == 0:
-                document.fill_form_field(
+                document.fields.fill(
                     cycle(ORG_BANK, idx), name=f"field_{idx}_0",
                 )
             document.save_to_path(str(out_path))
@@ -219,7 +219,7 @@ def gen_equation(bucket_dir: Path) -> list[dict[str, Any]]:
             script = latex_to_eqedit(latex)
             document = _base_document(idx, "수식 표본")
             document.add_paragraph(f"수식 {idx}:")
-            document.add_equation(script)
+            document.shapes.add_equation(script)
             document.save_to_path(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-equation", seed=latex,
@@ -260,7 +260,7 @@ def gen_chart(bucket_dir: Path) -> list[dict[str, Any]]:
                 chart_type, categories, series, title=f"{chart_type} 표본 {idx}",
             )
             document = _base_document(idx, "차트 표본")
-            document.add_chart(chart_xml, size=(60000, 40000))
+            document.shapes.add_chart(chart_xml, size=(60000, 40000))
             document.save_to_path(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-chart", seed=f"{chart_type}:{idx}",
@@ -284,14 +284,14 @@ def gen_checkbox(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "체크박스 표본")
             box_count = 1 + idx % 3
             for box_index in range(box_count):
-                document.add_check_box(
+                document.fields.add_check_box(
                     f"{cycle(SUBJECT_BANK, idx + box_index)} 여부",
                     checked=(idx + box_index) % 2 == 0,
                     name=f"chk_{idx}_{box_index}",
                 )
             if idx % 3 == 0:
                 # exercise the SET path on an authored box, not only CREATE
-                document.set_check_box(True, name=f"chk_{idx}_0")
+                document.fields.set_check_box(True, name=f"chk_{idx}_0")
             document.save_to_path(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-checkbox", seed=str(idx),

@@ -8,10 +8,10 @@
 - **stable** — `hwpx.__all__`에 있는 이름. 계약(시그니처·동작·반환 스키마)이 굳어
   있고, **major 경계에서만** 깨질 수 있습니다. 접근 시 경고가 없습니다.
 - **experimental** — 계약이 **유동적**입니다. minor 릴리스에서 변경될 수 있으므로
-  `from hwpx.experimental import ...`로 import하세요. 최상위 `from hwpx import ...`
-  경로도 하위 호환을 위해 유지하지만 접근 시 `DeprecationWarning`이 나며, **다음
-  major에서 최상위 재내보내기가 제거**될 예정입니다(실제 구현 모듈·`hwpx.experimental`
-  경로는 유지).
+  `from hwpx.experimental import ...`로 import하세요. 4.0~6.x가 경고와 함께 유지하던
+  최상위 `from hwpx import ...` 재내보내기는 **7.0에서 제거됐습니다** — 접근하면
+  `hwpx.experimental`을 알려 주는 `MovedToExperimental`(ImportError)이 납니다(실제 구현
+  모듈·`hwpx.experimental` 경로는 유지).
 - **deprecated** — 대체 경로로 이전하세요. 접근 시 `DeprecationWarning`이 나고 경고
   메시지에 대체 경로가 포함됩니다. **다음 major에서 제거**될 예정입니다.
 
@@ -67,15 +67,15 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 
 `HwpxDocument` 의 공개 멤버는 **35개**다(5.x 는 102개, 6.0 출시 때는 34개). 35개는 공개
 이름 31개와 지원 dunder 4개(`__init__`·`__repr__`·`__enter__`·`__exit__`)다. 나머지 79개는 도메인
-네임스페이스로 이동했고, 옛 이름은 `DeprecationWarning` 과 함께 계속 답한다 —
-7.0 에서 제거된다. 대응표는 [6.0 이주 가이드](migration-6.0.md).
-
-이동은 제거가 아니므로 따로 센다:
+네임스페이스로 이동했다. 6.x는 옛 이름을 `DeprecationWarning` 과 함께 남겨 두었고,
+**7.0 에서 제거했다** — 부르면 새 자리를 알려 주는 `HwpxAttributeError`
+(`document-name-removed`)가 난다. 같은 때 `section_index=`·`style_id_ref=` 인자도 없어졌다
+(`hwpx-argument-removed`). 대응표는 [6.0 이주 가이드](migration-6.0.md).
 
 | | 수 | 락 |
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
-| 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
+| 위임 shim | 0 (6.x 79, 7.0 제거) | `tests/data/document_legacy_shims.json` (지운 이름의 안내 표) |
 | 반환 객체 계약 | 199 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
@@ -117,7 +117,8 @@ major 경계에서만 깨지는 이름들입니다.
 
 ## experimental (26)
 
-`from hwpx.experimental import ...`로 사용하세요. 계약이 유동적입니다.
+`from hwpx.experimental import ...`로 사용하세요. 계약이 유동적입니다. 7.0부터 최상위
+`hwpx`에서는 가져올 수 없습니다.
 
 - **문서 ingestion 프레임워크**(임의 포맷 → HWPX): `DocumentIngestor`,
   `DocumentConverter`, `DocumentIngestResult`, `DocumentSourceInfo`,
