@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from ...errors import HwpxValueError
-from .._resolve import resolve_paragraph, resolve_section
+from .._resolve import optional_paragraph, resolve_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
@@ -206,11 +206,11 @@ class PageNamespace(_Namespace):
         separator_type: str | None = None,
         separator_width: str | None = None,
         separator_color: str | None = None,
-        paragraph: "HwpxOxmlParagraph | None" = None,
+        paragraph: "HwpxOxmlParagraph | int | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlInlineObject":
-        """단(段) 정의를 삽입한다."""
+        """단(段) 정의를 삽입한다. *paragraph* 는 문단 객체나 인덱스다."""
 
         from .. import layout as _layout
 
@@ -225,7 +225,10 @@ class PageNamespace(_Namespace):
             separator_type=separator_type,
             separator_width=separator_width,
             separator_color=separator_color,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, section_index=section_index,
+                caller="doc.page.set_columns",
+            ),
             section=self._section(section, section_index, "set_columns"),
         )
 
