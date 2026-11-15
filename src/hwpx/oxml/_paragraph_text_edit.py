@@ -248,6 +248,84 @@ def _next_paragraph(parent: ET.Element, element: ET.Element) -> ET.Element | Non
     return None
 
 
+def renumber_copied_fields(copy: ET.Element) -> int:
+    """Give each field whose begin and end are both inside *copy* a new id pair.
+
+    A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
+    keeping them leaves two fields of one id, which readers and form filling cannot tell apart.
+    A ``fieldid`` equal to the old id follows it. A field reaching outside *copy* is left as it is.
+    Returns how many fields were renumbered.
+    """
+
+    from ._document_primitives import _object_id
+
+    hp_begin, hp_end = f"{{{_HP_NS}}}fieldBegin", f"{{{_HP_NS}}}fieldEnd"
+    ends: dict[str, list[ET.Element]] = {}
+    for end in copy.iter(hp_end):
+        ends.setdefault(end.get("beginIDRef") or "", []).append(end)
+    renumbered = 0
+    for begin in copy.iter(hp_begin):
+        old = begin.get("id")
+        if not old or old not in ends:
+            continue
+        new_id = _object_id()
+        for node in (begin, *ends.pop(old)):
+            node.set("id" if node is begin else "beginIDRef", new_id)
+            if node.get("fieldid") == old:
+                node.set("fieldid", new_id)
+        renumbered += 1
+    return renumbered
+
+
+def insert_paragraph_beside(
+    element: ET.Element, section_element: ET.Element, text: str | None, *, after: bool
+) -> ET.Element:
+    """Put a new paragraph next to the paragraph *element* (in its section, cell, header...) and
+    return it.
+
+    *text* ``None`` copies *element* (fresh ids, field ids among them, and no line caches) without
+    its section settings; otherwise the new paragraph holds *text* in *element*'s paragraph shape,
+    style and first run's character shape. Put in front of the paragraph that starts a section,
+    it starts the section instead: the section's settings move to it.
+    """
+
+    from ._document_primitives import (
+        _DEFAULT_PARAGRAPH_ATTRS, _append_text_with_tabs, _clone_paragraph_element, _paragraph_id,
+    )
+
+    parent = paragraph_container(element, section_element)
+    if parent is None:
+        raise HwpxValueError(
+            "이 단락은 문서에서 빠져 있어 옆에 단락을 넣을 수 없습니다.",
+            code="paragraph-not-in-document",
+            suggestion="문서의 doc.paragraphs 에서 단락을 다시 가져오세요.",
+        )
+    if text is None:
+        new = _clone_paragraph_element(element)
+        renumber_copied_fields(new)
+        for run, settings in section_setting_runs(new):
+            for child in settings:
+                run.remove(child)
+            if len(run) == 0:
+                new.remove(run)
+    else:
+        text_run = next((child for child in element if _local(child) == "run" and (
+            not len(child) or not all(is_section_setting(grand) for grand in child))), None)
+        new = element.makeelement(element.tag, {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS})
+        for name in ("paraPrIDRef", "styleIDRef"):
+            if element.get(name) is not None:
+                new.set(name, element.get(name) or "")
+        run = new.makeelement(f"{{{_HP_NS}}}run", {
+            "charPrIDRef": (text_run.get("charPrIDRef") if text_run is not None else None) or "0"})
+        new.append(run)
+        _append_text_with_tabs(run, text)
+    index = list(parent).index(element)
+    parent.insert(index + 1 if after else index, new)
+    if not after and parent is section_element:
+        move_section_settings(element, new)
+    return new
+
+
 def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -> bool:
     """Take the paragraph *element* out of the section or ``hp:subList`` holding it.
 

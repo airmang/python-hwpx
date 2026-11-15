@@ -46,6 +46,7 @@ from .note_authoring import (
 )
 from ._paragraph_text_edit import (
     edit_node_candidates,
+    insert_paragraph_beside,
     paragraph_container,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
@@ -471,6 +472,39 @@ class HwpxOxmlParagraph:
         """
         if remove_paragraph_element(self.element, self.section.element):
             self.section.mark_dirty()
+
+    def insert_after(self, text: str | None = None) -> "HwpxOxmlParagraph":
+        """Put a new paragraph right after this one (in its section, cell, header or footer) and return it.
+
+        With *text* the new paragraph holds it, in this paragraph's paragraph shape, style and
+        first run's character shape. Without, it is a copy of this paragraph: its runs, tables
+        and objects, with fresh ids (a form field's begin and end get a new pair) and no line
+        layout cache, but not the section settings the first paragraph of a section holds.
+        """
+
+        return HwpxOxmlParagraph(self._insert_beside(text, after=True), self.section)
+
+    def insert_before(self, text: str | None = None) -> "HwpxOxmlParagraph":
+        """Put a new paragraph right before this one and return it, as :meth:`insert_after` does.
+
+        Before the first paragraph of a section, the new paragraph starts the section: the
+        section's settings (paper, margins, columns, header, footer) move to it.
+        """
+
+        return HwpxOxmlParagraph(self._insert_beside(text, after=False), self.section)
+
+    def _insert_beside(self, text: str | None, *, after: bool) -> ET.Element:
+        if text is not None and not isinstance(text, str):
+            from ..errors import HwpxTypeError
+
+            raise HwpxTypeError(
+                f"text must be a str or None, got {type(text).__name__}",
+                code="paragraph-text-invalid-type",
+                suggestion="Pass the new paragraph's text as a str, or nothing to copy this paragraph.",
+            )
+        element = insert_paragraph_beside(self.element, self.section.element, text, after=after)
+        self.section.mark_dirty()
+        return element
 
     def _create_run_for_object(
         self,
