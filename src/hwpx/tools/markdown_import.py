@@ -19,21 +19,35 @@ document must contain.
 
 Supported subset:
 
-- ``#`` ~ ``####`` headings (``#####``/``######`` are drawn like ``####``)
+- ``#`` ~ ``######`` headings and Setext headings (``제목`` over ``===`` or
+  ``---``). ``#####``/``######`` are drawn like ``####`` but numbered as levels
+  of their own. Each heading takes the outline style of its level (``개요 1``
+  …), so a table of contents and Hancom's outline find it; see
+  :func:`from_markdown` for how its number is kept from being drawn twice.
 - paragraphs (consecutive lines join with a space; two trailing spaces or a
   trailing ``\\`` is a line break)
 - ``-``/``*``/``+`` bullets and ``1.``/``1)`` numbered lists, nested by
-  indentation, as real Hancom lists (:meth:`doc.styles.apply_list_format`)
-- pipe tables; a row followed by a ``|---|`` separator is the header row
-  (bold, shaded, centred); ``:---``/``:---:``/``---:`` in the separator align
-  a column; columns are as wide as their text needs; ``<br>`` in a cell is a
+  indentation, as real Hancom lists numbered ``1.``, ``가.``, ``1)``, ``가)``,
+  ``(1)``, ``(가)``, ``①`` by depth, as Hancom numbers a new list; ``- [ ]`` and
+  ``- [x]`` items start with ``☐`` and ``☑``
+- pipe tables, with or without the outer ``|``; a row followed by a ``|---|``
+  separator is the header row (bold, shaded, centred, repeated on each page the
+  table runs onto); ``:---``/``:---:``/``---:`` in the separator align a
+  column; columns are as wide as their text needs; ``<br>`` in a cell is a
   line break
-- inline ``**bold**``/``__bold__``, ``*italic*``, ``***both***``,
-  ``` `code` ``` (kept as text), ``[text](url)`` (the text), ``\\`` escapes
-- fenced code blocks become one paragraph per block, lines kept
+- inline ``**bold**``/``__bold__``, ``*italic*``/``_italic_``, ``***both***``,
+  ``~~strike~~``, ``` `code` ``` (in ``MarkdownStyle.code_font``),
+  ``[text](url)``, ``[text][ref]`` and ``<https://…>`` (hyperlinks), ``[^1]``
+  with its ``[^1]: …`` definition (a footnote), ``\\`` escapes
+- ``![description](path)``: a picture, read from a file under the folder given
+  as ``base_dir``, with the description as its caption
+- fenced code blocks become one paragraph per block in the code typeface, every
+  character and line kept as written
+- ``>`` block quotes are indented paragraphs (lists, code and tables in them too)
 
-Anything else — block quotes, rules, HTML — is written as plain text or dropped
-(rules). Unknown Markdown never raises.
+Rules (``---``) are dropped. HTML tags are kept as text. Unknown Markdown never
+raises: what is not carried over (a picture that cannot be read, an HTML tag, a
+footnote without its definition …) is named in one ``UserWarning`` per call.
 
 New paragraphs never inherit the previous paragraph's style, so a heading or a
 list item does not hand its outline or list numbering to the paragraph after it.
@@ -41,10 +55,12 @@ list item does not hand its outline or list numbering to the paragraph after it.
 
 from __future__ import annotations
 
+import os
 import re
+import warnings
 from collections.abc import Iterator
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
@@ -120,6 +136,10 @@ class MarkdownStyle:
     ``list_fit_spacing`` keeps a list item that runs a little past its line on
     one line by narrowing its letter spacing, by that many percent at most
     (``0``: never). An item that would need more wraps as it is.
+
+    ``code_font`` is the typeface of code, inline and fenced; ``None`` sets
+    code in the text's own. The default, 돋움체, is a fixed-width face that
+    Korean Windows ships.
     """
 
     heading_sizes: tuple[float, float, float, float] = (16.0, 12.0, 11.0, 10.0)
@@ -162,6 +182,7 @@ class MarkdownStyle:
     note_font: str | None = None
     table_align: str | None = None
     list_fit_spacing: int = 0
+    code_font: str | None = "돋움체"
 
     @classmethod
     def report(cls) -> MarkdownStyle:
@@ -353,7 +374,7 @@ class MarkdownStyle:
                 f"list_fit_spacing must be a whole percent from 0 to {_FIT_SPACING_MOST}",
                 "Give how far the letter spacing may be narrowed, in percent; 0 never narrows it.",
             )
-        for name in ("body_font", "table_font", "byline_font", "note_font", "banner_fill"):
+        for name in ("body_font", "table_font", "byline_font", "note_font", "code_font", "banner_fill"):
             value = getattr(self, name)
             if (value is not None or name == "banner_fill") and (not isinstance(value, str) or not value.strip()):
                 refuse(name, f"{name} must be a name that is not empty", "Name a typeface, or a colour as #RRGGBB.")
@@ -394,11 +415,31 @@ _NUMBER_FORMS = {
     "①": _circled,
     "Ⅰ.": lambda number: f"{_roman(number)}.",
 }
-#: A heading that already carries a number of its own: "1. 개요", "가. 목적", "Ⅱ. 현황", "(1) …", "① …", "제2장 …".
+#: A heading that already carries a number of its own: "1. 개요", "3.1 범위", "가. 목적", "A. 배경", "Ⅱ. 현황",
+#: "(1) …", "① …", "제2장 …".
 _OWN_NUMBER = re.compile(
-    r"^(?:\d{1,2}[.)]\s|[가나다라마바사아자차카타파하][.)]\s|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+[.\s]|[IVX]+\.\s"
+    r"^(?:\d{1,2}(?:\.\d{1,2})+\.?\s|\d{1,2}[.)]\s|[가나다라마바사아자차카타파하][.)]\s|[A-Za-z][.)]\s"
+    r"|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+[.\s]|[IVX]+\.\s"
     r"|\(\d{1,2}\)|\([가나다라마바사아자차카타파하]\)|[①-⑳]|제\s*\d+\s*[장절관조항])"
 )
+#: The order Korean documents number their levels in. ``#####`` and ``######`` take the forms after the one
+#: ``####`` takes, so the report look numbers them ``1)`` and ``가)``; a look whose ``####`` is not in this order,
+#: or has no number, leaves them unnumbered.
+_FORM_ORDER = ("Ⅰ.", "1.", "가.", "1)", "가)", "(1)", "(가)", "①")
+#: The deepest heading level: ``######``.
+_HEADING_LEVELS = 6
+
+
+def _number_value(label: str, form: str) -> int | None:
+    """The number *label* shows in *form* (``"Ⅲ"`` or ``"Ⅲ. 현황"`` is 3 in ``"Ⅰ."``), or ``None``."""
+
+    make = _NUMBER_FORMS[form]
+    label = label.strip()
+    for number in range(1, 100):
+        shown = make(number)
+        if label in (shown, shown.removesuffix(".")) or label.startswith(shown + " "):
+            return number
+    return None
 #: Names :func:`append_markdown` and :func:`from_markdown` take in place of a style.
 _NAMED_STYLES = {"report": MarkdownStyle.report, "보고서": MarkdownStyle.report, "plain": MarkdownStyle}
 
@@ -426,31 +467,83 @@ def _resolve_style(style: MarkdownStyle | str | None, default: str = "plain") ->
 # --------------------------------------------------------------------------
 # Inline: text → [(text, bold, italic)]
 
-_ESCAPABLE = set("\\`*_{}[]()#+-.!|>~")
-_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]*)(?:\s+\"[^\"]*\")?\)")
+_ESCAPABLE = set("\\`*_{}[]()#+-.!|>~<")
+_LINK = re.compile(r"\[([^\]]*)\]\(\s*<?([^)\s>]*)>?(?:\s+[\"'(][^\"')]*[\"')])?\s*\)")
+_REF_LINK = re.compile(r"\[([^\]]+)\]\[([^\]]*)\]")
+_NOTE_REF = re.compile(r"\[\^([^\]\s]+)\]")
+_AUTOLINK = re.compile(r"<((?:https?|ftp)://[^\s<>]+|mailto:[^\s<>]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+)>")
 _BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+#: An HTML tag other than ``<br>``, or an HTML comment: kept as text, and named in the warning.
+_HTML_TAG = re.compile(r"<!--.*?-->|</?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>")
 
 Segment = tuple[str, bool, bool]
 
 
-def parse_inline(text: str) -> list[Segment]:
-    """Split *text* into ``(text, bold, italic)`` segments.
+@dataclass(frozen=True)
+class _Span:
+    """A piece of inline text and what it is: emphasis, code, a link, a footnote reference or a picture."""
+
+    text: str
+    bold: bool = False
+    italic: bool = False
+    strike: bool = False
+    code: bool = False
+    link: str | None = None
+    #: A footnote reference: the label of its definition (the text is empty).
+    note: str | None = None
+    #: A picture: where it is (the text is its description).
+    image: str | None = None
+
+
+@dataclass
+class _Refs:
+    """What the Markdown defines apart from where it is used: footnotes and link references."""
+
+    notes: dict[str, str] = field(default_factory=dict)
+    links: dict[str, str] = field(default_factory=dict)
+
+
+def _underscore_closes(text: str, start: int) -> bool:
+    """Whether a ``_`` at or after *start* can close an ``_italic_`` (not inside a word such as ``a_b``)."""
+
+    end = text.find("_", start)
+    while end != -1:
+        after = text[end + 1 : end + 2]
+        if not text[end - 1].isspace() and not after.isalnum() and after != "_":
+            return True
+        end = text.find("_", end + 1)
+    return False
+
+
+def _spans(text: str, refs: _Refs | None = None, *, link: str | None = None) -> list[_Span]:
+    """Split *text* into :class:`_Span` pieces.
 
     A marker opens only when its closer appears later; an unmatched marker is
-    kept as text.
+    kept as text. Code is kept exactly as written.
     """
 
-    segments: list[Segment] = []
+    spans: list[_Span] = []
     buffer: list[str] = []
-    bold = italic = False
+    bold = italic = strike = False
+    italic_mark = "*"
+
+    def add(span: _Span) -> None:
+        last = spans[-1] if spans else None
+        if (
+            last is not None
+            and span.note is None
+            and span.image is None
+            and last.note is None
+            and last.image is None
+            and replace(last, text="") == replace(span, text="")
+        ):
+            spans[-1] = replace(last, text=last.text + span.text)
+        else:
+            spans.append(span)
 
     def flush() -> None:
         if buffer:
-            chunk = "".join(buffer)
-            if segments and segments[-1][1:] == (bold, italic):
-                segments[-1] = (segments[-1][0] + chunk, bold, italic)
-            else:
-                segments.append((chunk, bold, italic))
+            add(_Span("".join(buffer), bold, italic, strike, link=link))
             buffer.clear()
 
     i, n = 0, len(text)
@@ -461,16 +554,62 @@ def parse_inline(text: str) -> list[Segment]:
             i += 2
             continue
         if char == "`":
-            end = text.find("`", i + 1)
-            if end > i:
-                buffer.append(text[i + 1 : end])
-                i = end + 1
+            ticks = len(text) - len(text[i:].lstrip("`")) - i
+            fence = "`" * ticks
+            end = text.find(fence, i + ticks)
+            while end != -1 and text[end + ticks : end + ticks + 1] == "`":  # a longer run does not close it
+                end = text.find(fence, end + ticks + 1)
+            if end == -1:
+                buffer.append(fence)
+                i += ticks
+                continue
+            code = text[i + ticks : end]
+            if len(code) > 2 and code[0] == code[-1] == " " and code.strip():
+                code = code[1:-1]
+            flush()
+            add(_Span(code, bold, italic, strike, code=True, link=link))
+            i = end + ticks
+            continue
+        if char == "!" and text.startswith("![", i):
+            match = _LINK.match(text, i + 1)
+            if match:
+                flush()
+                add(_Span(match.group(1), image=match.group(2)))
+                i = match.end()
                 continue
         if char == "[":
-            match = _LINK.match(text, i)
+            note = _NOTE_REF.match(text, i)
+            if note and refs is not None and note.group(1) in refs.notes:
+                flush()
+                add(_Span("", note=note.group(1)))
+                i = note.end()
+                continue
+            target: str | None = None
+            match = _LINK.match(text, i) if link is None else None
             if match:
-                buffer.append(match.group(1))
+                target = match.group(2)
+            elif link is None and refs is not None and refs.links:
+                match = _REF_LINK.match(text, i)
+                if match:
+                    target = refs.links.get((match.group(2) or match.group(1)).strip().lower())
+                    if target is None:
+                        match = None
+            if match:
+                flush()
+                for inner in _spans(match.group(1), refs, link=target or None):
+                    add(replace(inner, bold=inner.bold or bold, italic=inner.italic or italic, strike=inner.strike or strike))
                 i = match.end()
+                continue
+        if char == "<" and link is None:
+            auto = _AUTOLINK.match(text, i)
+            if auto:
+                flush()
+                url = auto.group(1)
+                shown = url.removeprefix("mailto:")
+                if "://" not in url and not url.startswith("mailto:"):
+                    url = "mailto:" + url
+                add(_Span(shown, bold, italic, strike, link=url))
+                i = auto.end()
                 continue
         marker = text[i : i + 2]
         if marker in ("**", "__"):
@@ -480,16 +619,57 @@ def parse_inline(text: str) -> list[Segment]:
                 bold = not bold
                 i += 2
                 continue
-        if char == "*":
+        if marker == "~~":
+            opens = not strike and i + 2 < n and not text[i + 2].isspace() and text.find("~~", i + 2) > i + 2
+            if strike or opens:
+                flush()
+                strike = not strike
+                i += 2
+                continue
+        if char == "*" and (not italic or italic_mark == "*"):
             opens = not italic and i + 1 < n and not text[i + 1].isspace() and text.find("*", i + 1) > i + 1
             if italic or opens:
                 flush()
-                italic = not italic
+                italic, italic_mark = not italic, "*"
+                i += 1
+                continue
+        if char == "_" and (not italic or italic_mark == "_"):
+            if italic:
+                closes = not text[i + 1 : i + 2].isalnum()
+            else:
+                closes = (
+                    (i == 0 or not text[i - 1].isalnum())
+                    and i + 1 < n
+                    and not text[i + 1].isspace()
+                    and _underscore_closes(text, i + 2)
+                )
+            if closes:
+                flush()
+                italic, italic_mark = not italic, "_"
                 i += 1
                 continue
         buffer.append(char)
         i += 1
     flush()
+    return spans
+
+
+def parse_inline(text: str) -> list[Segment]:
+    """Split *text* into ``(text, bold, italic)`` segments.
+
+    A marker opens only when its closer appears later; an unmatched marker is
+    kept as text. A link is its text, code is kept as written and a picture is
+    its description.
+    """
+
+    segments: list[Segment] = []
+    for span in _spans(text):
+        if not span.text:
+            continue
+        if segments and segments[-1][1:] == (span.bold, span.italic):
+            segments[-1] = (segments[-1][0] + span.text, span.bold, span.italic)
+        else:
+            segments.append((span.text, span.bold, span.italic))
     return segments
 
 
@@ -529,12 +709,27 @@ class _Table:
     aligns: list[str | None] = field(default_factory=list)
 
 
-_HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
+@dataclass
+class _Code:
+    text: str
+
+
+@dataclass
+class _Quote:
+    blocks: list[object]
+
+
+_HEADING = re.compile(r"^\s{0,3}(#{1,6})(?:\s+(.*?))?\s*?(?:\s#+)?\s*$")
 _LIST_ITEM = re.compile(r"^(\s*)([-*+]|(\d{1,9})[.)])\s+(.*)$")
 _RULE = re.compile(r"^\s{0,3}([-*_])(\s*\1){2,}\s*$")
-_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+_FENCE = re.compile(r"^\s{0,3}(```+|~~~+)")
 _TABLE_SEPARATOR = re.compile(r"^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$")
 _QUOTE = re.compile(r"^\s{0,3}>\s?")
+_SETEXT_TITLE = re.compile(r"^\s{0,3}=+\s*$")
+_SETEXT_SECTION = re.compile(r"^\s{0,3}-+\s*$")
+_NOTE_DEFINITION = re.compile(r"^\s{0,3}\[\^([^\]\s]+)\]:\s?(.*)$")
+_LINK_DEFINITION = re.compile(r"^\s{0,3}\[([^\]^][^\]]*)\]:\s*<?([^\s>]+)>?(?:\s+[\"'(].*[\"')])?\s*$")
+_TASK = re.compile(r"^\[([ xX])\]\s+")
 
 
 def _indent_width(prefix: str) -> int:
@@ -587,10 +782,77 @@ def _join_lines(lines: list[str]) -> str:
     return text
 
 
+def _take_definitions(lines: list[str], refs: _Refs) -> list[str]:
+    """*lines* without the footnote (``[^1]: …``) and link reference (``[id]: url``) definitions, which go
+    into *refs*. Lines in a fenced code block are never definitions."""
+
+    kept: list[str] = []
+    fence: str | None = None
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        opening = _FENCE.match(line)
+        if fence is not None or opening:
+            if fence is None and opening:
+                fence = opening.group(1)
+            elif fence is not None and line.strip().startswith(fence):
+                fence = None
+            kept.append(line)
+            i += 1
+            continue
+        note = _NOTE_DEFINITION.match(line)
+        if note:
+            parts = [note.group(2).strip()]
+            i += 1
+            while i < len(lines) and lines[i][:1] in (" ", "\t") and lines[i].strip():
+                parts.append(lines[i].strip())  # an indented line goes on with the note
+                i += 1
+            refs.notes.setdefault(note.group(1), " ".join(part for part in parts if part))
+            continue
+        target = _LINK_DEFINITION.match(line)
+        if target:
+            refs.links.setdefault(target.group(1).strip().lower(), target.group(2))
+            i += 1
+            continue
+        kept.append(line)
+        i += 1
+    return kept
+
+
+def _is_bare_table(lines: list[str], i: int) -> bool:
+    """Whether line *i* is the header row of a table written without the outer ``|`` (``a | b`` over ``---|---``)."""
+
+    if i + 1 >= len(lines) or "|" not in lines[i] or "|" not in lines[i + 1]:
+        return False
+    if not _TABLE_SEPARATOR.match(lines[i + 1]):
+        return False
+    return len(_split_row(lines[i])) == len(_split_row(lines[i + 1]))
+
+
+def _task(text: str) -> str:
+    """A task list item's ``[ ]``/``[x]`` as the box Hancom draws as text."""
+
+    match = _TASK.match(text)
+    if not match:
+        return text
+    return ("☐ " if match.group(1) == " " else "☑ ") + text[match.end() :]
+
+
 def parse_blocks(markdown: str) -> Iterator[object]:
     """Yield the blocks of *markdown* in order."""
 
-    lines = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    yield from _parse(markdown)[0]
+
+
+def _parse(markdown: str) -> tuple[list[object], _Refs]:
+    """The blocks of *markdown* and what it defines apart from them (footnotes, link references)."""
+
+    refs = _Refs()
+    lines = _take_definitions(markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n"), refs)
+    return list(_blocks(lines)), refs
+
+
+def _blocks(lines: list[str]) -> Iterator[object]:
     paragraph: list[str] = []
     i = 0
 
@@ -614,24 +876,45 @@ def parse_blocks(markdown: str) -> Iterator[object]:
                 body.append(lines[i])
                 i += 1
             i += 1  # the closing fence (or the end)
-            yield _Paragraph("\n".join(body))
+            yield _Code("\n".join(body))
+            continue
+        if paragraph and (_SETEXT_TITLE.match(line) or (len(paragraph) == 1 and _SETEXT_SECTION.match(line))):
+            text = _join_lines(paragraph).replace("\n", " ")
+            paragraph.clear()
+            yield _Heading(1 if "=" in line else 2, text)
+            i += 1
             continue
         heading = _HEADING.match(line)
         if heading:
             yield from end_paragraph()
-            yield _Heading(min(len(heading.group(1)), 4), heading.group(2))
+            if (heading.group(2) or "").strip():
+                yield _Heading(len(heading.group(1)), heading.group(2).strip())
             i += 1
             continue
         if _RULE.match(line):  # a rule wins over a "- - -" list item, as in CommonMark
             yield from end_paragraph()
             i += 1
             continue
-        if line.lstrip().startswith("|"):
+        if _QUOTE.match(line):
+            yield from end_paragraph()
+            inner: list[str] = []
+            while i < len(lines):
+                quoted = _QUOTE.match(lines[i])
+                if not quoted:
+                    break
+                inner.append(lines[i][quoted.end() :])
+                i += 1
+            yield _Quote(list(_blocks(inner)))
+            continue
+        if line.lstrip().startswith("|") or _is_bare_table(lines, i):
             yield from end_paragraph()
             rows: list[list[str]] = []
             header = False
             aligns: list[str | None] = []
-            while i < len(lines) and lines[i].lstrip().startswith("|"):
+            bare = not line.lstrip().startswith("|")
+            while i < len(lines) and (
+                lines[i].lstrip().startswith("|") or (bare and lines[i].strip() and "|" in lines[i])
+            ):
                 if _TABLE_SEPARATOR.match(lines[i]):
                     if len(rows) == 1 and not header:
                         header = True
@@ -661,7 +944,7 @@ def parse_blocks(markdown: str) -> Iterator[object]:
                         _ListItem(
                             kind="number" if number is not None else "bullet",
                             level=min(len(indents), 10),
-                            text=match.group(4).strip(),
+                            text=_task(match.group(4).strip()),
                             number=int(number) if number is not None else None,
                         )
                     )
@@ -674,8 +957,7 @@ def parse_blocks(markdown: str) -> Iterator[object]:
                 break
             yield _List(items)
             continue
-        quote = _QUOTE.match(line)
-        paragraph.append(line[quote.end() :] if quote else line)
+        paragraph.append(line)
         i += 1
     yield from end_paragraph()
 
@@ -684,26 +966,264 @@ def parse_blocks(markdown: str) -> Iterator[object]:
 # Writing
 
 
+def _local(element: Any) -> str:
+    tag = element.tag
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _outline_heads(document: HwpxDocument) -> dict[int, Any]:
+    """The heads (``hh:paraHead``) of the numbering the last section numbers its outline with, by level."""
+
+    sections = document.oxml.sections
+    headers = document.oxml.headers
+    if not sections or not headers:
+        return {}
+    sec_pr = next((node for node in sections[-1].element.iter() if _local(node) == "secPr"), None)
+    shape = sec_pr.get("outlineShapeIDRef") if sec_pr is not None else None
+    numbering = next(
+        (node for node in headers[0].element.iter() if _local(node) == "numbering" and node.get("id") == shape),
+        None,
+    )
+    if numbering is None:
+        return {}
+    heads: dict[int, Any] = {}
+    for head in numbering:
+        if _local(head) == "paraHead":
+            try:
+                heads[int(head.get("level") or 0)] = head
+            except ValueError:  # pragma: no cover - defensive
+                continue
+    return heads
+
+
+def _unnumber_outline(document: HwpxDocument) -> None:
+    """Make the outline numbering of *document* draw no number at any level.
+
+    Hancom's own blank document leaves the heads of outline levels 9 and 10 empty, and draws no number there;
+    this empties the others too. The Markdown headings write their numbers as text (``Ⅰ``, ``1.``, ``가.``), so
+    an outline number drawn as well would show each number twice.
+    """
+
+    heads = _outline_heads(document)
+    for head in heads.values():
+        head.text = None
+    if heads:
+        document.oxml.headers[0].mark_dirty()
+
+
+#: How many of each loss the warning names by example.
+_LOSS_EXAMPLES = 3
+#: The most a picture file may weigh.
+_IMAGE_MOST_BYTES = 20 * 1024 * 1024
+#: A picture's pixels are taken at 96 to the inch: 7200 HWPUNIT / 96.
+_HWPUNIT_PER_PIXEL = 75
+
+
+def _image_info(data: bytes) -> tuple[str, int, int] | None:
+    """``(format, width, height)`` in pixels of a PNG, JPEG, GIF or BMP picture, or ``None``."""
+
+    import struct
+
+    try:
+        if data[:8] == b"\x89PNG\r\n\x1a\n":
+            width, height = struct.unpack(">II", data[16:24])
+            return "png", width, height
+        if data[:6] in (b"GIF87a", b"GIF89a"):
+            width, height = struct.unpack("<HH", data[6:10])
+            return "gif", width, height
+        if data[:2] == b"BM":
+            width, height = struct.unpack("<ii", data[18:26])
+            return "bmp", abs(width), abs(height)
+        if data[:2] == b"\xff\xd8":
+            index = 2
+            while index + 9 < len(data):
+                if data[index] != 0xFF:
+                    index += 1
+                    continue
+                marker = data[index + 1]
+                if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7 or marker == 0xFF:
+                    index += 1 if marker == 0xFF else 2
+                    continue
+                length = struct.unpack(">H", data[index + 2 : index + 4])[0]
+                if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                    height, width = struct.unpack(">HH", data[index + 5 : index + 9])
+                    return "jpg", width, height
+                index += 2 + length
+            return None
+    except struct.error:
+        return None
+    return None
+
+
 class _Writer:
-    def __init__(self, document: HwpxDocument, style: MarkdownStyle, *, reuse_first: bool) -> None:
+    def __init__(
+        self,
+        document: HwpxDocument,
+        style: MarkdownStyle,
+        *,
+        reuse_first: bool,
+        refs: _Refs | None = None,
+        base_dir: str | os.PathLike[str] | None = None,
+    ) -> None:
         self.doc = document
         self.style = style
-        self._char_ids: dict[tuple[bool, bool, float | None, str | None, str | None], str] = {}
+        self.refs = refs or _Refs()
+        self.base_dir = base_dir
+        self._char_ids: dict[tuple[object, ...], str] = {}
         self._border_ids: dict[tuple[object, ...], str] = {}
         self._reuse = document.paragraphs[0] if reuse_first else None
-        self._heading_counts = [0, 0, 0, 0]
+        self._heading_counts = [0] * _HEADING_LEVELS
         #: How far right the heading above stands; the paragraphs under it stand as far.
         self._body_indent_mm = 0.0
         #: The level of the heading above (0: none yet).
         self._heading_level = 0
+        #: How many block quotes the text being written stands in.
+        self._quote_depth = 0
+        #: What could not be carried over: a kind, and examples of it.
+        self.losses: dict[str, list[str]] = {}
+        self._used_notes: set[str] = set()
+        self._outline_styles = self._find_outline_styles()
+        heads = _outline_heads(document)
+        #: The outline levels the document draws no number for: a heading there can be an outline paragraph.
+        self._silent_outline = {
+            level for level in range(1, _HEADING_LEVELS + 1) if level in heads and not (heads[level].text or "").strip()
+        }
+        self._text_width: int | None = None
+        self._looks: dict[tuple[object, ...], tuple[Any, float]] = {}
+        self._advances: dict[tuple[object, ...], dict[str, float]] = {}
+
+    # -- what is lost --------------------------------------------------------
+
+    def lose(self, kind: str, example: str = "") -> None:
+        examples = self.losses.setdefault(kind, [])
+        examples.append(example)
+
+    def report(self) -> str | None:
+        """One sentence naming what was not carried over, or ``None``."""
+
+        unused = sorted(set(self.refs.notes) - self._used_notes)
+        for label in unused:
+            self.lose("footnote-unused", f"[^{label}]")
+        if not self.losses:
+            return None
+        names = {
+            "image": "picture(s) not read, written as their description",
+            "image-in-text": "picture(s) in a heading, list item or table cell, written as their description",
+            "html": "HTML tag(s) kept as text",
+            "footnote-missing": "footnote reference(s) without a definition, kept as text",
+            "footnote-unused": "footnote definition(s) no text refers to, left out",
+        }
+        parts = []
+        for kind, examples in self.losses.items():
+            shown = [example for example in examples if example][:_LOSS_EXAMPLES]
+            detail = f" ({'; '.join(shown)}{'; …' if len(examples) > len(shown) and shown else ''})" if shown else ""
+            parts.append(f"{len(examples)} {names.get(kind, kind)}{detail}")
+        return "Markdown not carried over: " + ", ".join(parts) + "."
+
+    def count_unread(self, text: str) -> None:
+        """Note what plain text still holds of the Markdown: HTML tags, footnote references with no definition."""
+
+        for tag in _HTML_TAG.findall(text):
+            self.lose("html", tag)
+        for label in _NOTE_REF.findall(text):
+            self.lose("footnote-missing", f"[^{label}]")
+
+    # -- outline -------------------------------------------------------------
+
+    def _find_outline_styles(self) -> dict[int, str]:
+        """The id of the outline style of each heading level the document has (``개요 1`` …)."""
+
+        from .._document.headings import resolve_heading_style
+        from ..errors import HwpxError
+
+        found: dict[int, str] = {}
+        for level in range(1, _HEADING_LEVELS + 1):
+            try:
+                found[level] = str(resolve_heading_style(self.doc, level=level).id)
+            except (HwpxError, LookupError, ValueError):
+                continue
+        return found
+
+    def outline(self, paragraph: HwpxOxmlParagraph, level: int) -> None:
+        """Make *paragraph* a heading of *level*: the outline style of the level, and its outline level where the
+        document draws no outline number for it (elsewhere Hancom would draw its number before the one the
+        heading writes; the style alone still finds it for a table of contents made by its styles)."""
+
+        style_id = self._outline_styles.get(level)
+        if style_id is not None:
+            paragraph.style_id_ref = style_id
+        if level in self._silent_outline:
+            self.doc.styles.apply_paragraph_format(paragraphs=[paragraph], outline_level=level)
+
+    def resume_counts(self) -> None:
+        """Take up the heading numbers where the document's headings leave them.
+
+        The headings are the paragraphs in an outline style, a boxed section heading included; the number a
+        heading shows, in the form the look numbers its level in, is the count its level goes on from.
+        """
+
+        levels = {style_id: level for level, style_id in self._outline_styles.items()}
+        if not levels:
+            return
+        for paragraph in self.doc.paragraphs:
+            found = self._heading_of(paragraph, levels)
+            if found is None:
+                continue
+            level, label = found
+            for deeper in range(level, _HEADING_LEVELS):
+                self._heading_counts[deeper] = 0
+            form = self.number_form(level)
+            value = _number_value(label, form) if form else None
+            if value is not None:
+                self._heading_counts[level - 1] = value
+
+    @staticmethod
+    def _heading_of(paragraph: HwpxOxmlParagraph, levels: dict[str, int]) -> tuple[int, str] | None:
+        """``(level, the text that shows its number)`` of a heading paragraph, or ``None``."""
+
+        level = levels.get(str(paragraph.style_id_ref))
+        if level is not None:
+            return level, paragraph.text
+        for table in paragraph.tables:
+            if table.row_count > 3:
+                continue
+            for row in table.rows:
+                cells = row.cells
+                for index, cell in enumerate(cells):
+                    inner = cell.paragraphs[0] if cell.paragraphs else None
+                    level = levels.get(str(inner.style_id_ref)) if inner is not None else None
+                    if level is not None:
+                        # a boxed section heading shows its number in the cell before it
+                        return level, cells[0].text if index == 1 else cell.text
+        return None
+
+    # -- runs ----------------------------------------------------------------
 
     def char_id(
-        self, bold: bool, italic: bool, size: float | None, font: str | None = None, color: str | None = None
+        self,
+        bold: bool,
+        italic: bool,
+        size: float | None,
+        font: str | None = None,
+        color: str | None = None,
+        *,
+        strike: bool = False,
+        link: bool = False,
     ) -> str:
-        key = (bold, italic, size, font, color)
+        key = (bold, italic, size, font, color, strike, link)
         if key not in self._char_ids:
-            self._char_ids[key] = self.doc.styles.ensure_run(bold=bold, italic=italic, size=size, font=font, color=color)
+            extra: dict[str, Any] = {}
+            if strike:
+                extra["strike"] = True
+            if link:
+                extra.update(color=_LINK_COLOR, underline=True, underline_color=_LINK_COLOR)
+            else:
+                extra["color"] = color
+            self._char_ids[key] = self.doc.styles.ensure_run(bold=bold, italic=italic, size=size, font=font, **extra)
         return self._char_ids[key]
+
+    def spans(self, text: str) -> list[_Span]:
+        return _spans(_BR.sub("\n", text), self.refs)
 
     def write_runs(
         self,
@@ -714,17 +1234,37 @@ class _Writer:
         size: float | None = None,
         font: str | None = None,
         color: str | None = None,
+        spans: list[_Span] | None = None,
     ) -> None:
-        segments = parse_inline(_BR.sub("\n", text)) or [("", False, False)]
-        for chunk, seg_bold, seg_italic in segments:
-            paragraph.add_run(chunk, char_pr_id_ref=self.char_id(bold or seg_bold, seg_italic, size, font, color))
+        if spans is None:
+            spans = self.spans(text)
+        if not spans:
+            spans = [_Span("")]
+        for span in spans:
+            if span.note is not None:
+                self._used_notes.add(span.note)
+                note = "".join(chunk for chunk, _bold, _italic in parse_inline(self.refs.notes[span.note]))
+                self.doc.notes.add_footnote(note, paragraph)  # type: ignore[arg-type]
+                continue
+            if span.image is not None:  # where a picture cannot stand: its description stands for it
+                self.lose("image-in-text", span.image)
+            if not span.code:
+                self.count_unread(span.text)
+            face = (self.style.code_font or font) if span.code else font
+            char = self.char_id(
+                bold or span.bold, span.italic, size, face, color, strike=span.strike, link=span.link is not None
+            )
+            if span.link is not None and span.text:
+                paragraph.add_hyperlink(span.link, span.text, char_pr_id_ref=char)
+            else:
+                paragraph.add_run(span.text, char_pr_id_ref=char)
 
     def heading_bold(self, level: int) -> bool:
         bold = self.style.heading_bold
-        return bold if isinstance(bold, bool) else bold[level - 1]
+        return bold if isinstance(bold, bool) else bold[min(level, 4) - 1]
 
     def heading_font(self, level: int) -> str | None:
-        return self.style.heading_fonts[level - 1] or self.style.body_font
+        return self.style.heading_fonts[min(level, 4) - 1] or self.style.body_font
 
     def border_id(
         self,
@@ -760,10 +1300,21 @@ class _Writer:
             return paragraph
         return self.doc.add_paragraph("", include_run=False, inherit_style=False)
 
+    def number_form(self, level: int) -> str | None:
+        """The number form of headings of *level*; ``#####`` and ``######`` take the forms after ``####``'s."""
+
+        if level <= 4:
+            return self.style.heading_numbers[level - 1]
+        form = self.style.heading_numbers[3]
+        if form not in _FORM_ORDER:
+            return None
+        position = _FORM_ORDER.index(form) + level - 4
+        return _FORM_ORDER[position] if position < len(_FORM_ORDER) else None
+
     def heading_number(self, level: int, text: str) -> str:
         """The number to write before a heading of *level*, or ``""``."""
 
-        form = self.style.heading_numbers[level - 1]
+        form = self.number_form(level)
         if form is None or _OWN_NUMBER.match(text):
             return ""
         self._heading_counts[level - 1] += 1
@@ -773,16 +1324,17 @@ class _Writer:
         """Write a heading and return the body paragraph that holds it."""
 
         # The levels below start again under every heading, numbered by the look or by its writer.
-        for deeper in range(block.level, 4):
+        for deeper in range(block.level, _HEADING_LEVELS):
             self._heading_counts[deeper] = 0
+        drawn = min(block.level, 4)  # ##### and ###### are drawn like ####
         self._heading_level = block.level
-        self._body_indent_mm = float(self.style.heading_indents_mm[block.level - 1])
+        self._body_indent_mm = float(self.style.heading_indents_mm[drawn - 1])
         if block.level == 1 and self.style.title_look == "banner":
             return self.banner(block)
         if block.level == 2 and self.style.section_look == "box":
             return self.section_box(block)
         paragraph = self.new_paragraph()
-        size = self.style.heading_sizes[block.level - 1]
+        size = self.style.heading_sizes[drawn - 1]
         bold, font = self.heading_bold(block.level), self.heading_font(block.level)
         number = self.heading_number(block.level, block.text)
         if number:
@@ -795,7 +1347,7 @@ class _Writer:
         self.doc.styles.apply_paragraph_format(
             paragraphs=[paragraph],
             alignment=self.style.title_align if title else None,
-            indent_left_mm=self.style.heading_indents_mm[block.level - 1] or None,
+            indent_left_mm=self.style.heading_indents_mm[drawn - 1] or None,
             spacing_before_pt=self.style.heading_space_before_pt,
             spacing_after_pt=space_after,
             keep_with_next=True,
@@ -803,6 +1355,7 @@ class _Writer:
             border_color="#000000",
             border_width="0.4 mm",
         )
+        self.outline(paragraph, block.level)
         return paragraph
 
     def byline(self, text: str, title: HwpxOxmlParagraph | None) -> None:
@@ -839,6 +1392,7 @@ class _Writer:
         title = table.cell(1, 0).paragraphs[0]
         self.write_runs(title, block.text, bold=self.heading_bold(1), size=size, font=self.heading_font(1))
         self.doc.styles.apply_paragraph_format(paragraphs=[title], alignment="center", line_spacing_percent=120)
+        self.outline(title, 1)
         table.set_row_heights([_STRIP_HEIGHT, round(size * 100 * _BANNER_HEIGHT_EMS), _STRIP_HEIGHT])
         self.doc.styles.apply_paragraph_format(
             paragraphs=[paragraph],
@@ -883,6 +1437,7 @@ class _Writer:
         self.doc.styles.apply_paragraph_format(
             paragraphs=[heading], indent_left_mm=_BOX_TITLE_INDENT_MM, line_spacing_percent=130
         )
+        self.outline(heading, 2)
         table.set_row_heights([round(size * 100 * _BOX_HEIGHT_EMS)])
         self.doc.styles.apply_paragraph_format(
             paragraphs=[paragraph],
@@ -909,18 +1464,160 @@ class _Writer:
             return "", text
         return self.heading_number(2, text).strip().removesuffix("."), text
 
-    def paragraph(self, block: _Paragraph) -> None:
+    def quote_step_mm(self) -> float:
+        """How far a block quote stands in from the text around it: as far as a list's first depth."""
+
+        if self.style.list_first_indent_mm:
+            return float(self.style.list_first_indent_mm)
+        return self.list_step_mm()
+
+    def list_step_mm(self) -> float:
+        step = self.style.list_indent_mm
+        if step is None:
+            step = (self.style.body_size or _BASE_SIZE_PT) * _LIST_INDENT_CHARS * _MM_PER_PT
+        return float(step)
+
+    def text_indent_mm(self) -> float:
+        """How far right body text stands: under the heading above it, and in from each quote around it."""
+
+        quoted = self.quote_step_mm() * self._quote_depth if self._quote_depth else 0.0
+        return self._body_indent_mm + quoted
+
+    def paragraph(self, block: _Paragraph, *, bold: bool = False) -> None:
         style = self.style
-        paragraph = self.new_paragraph()
-        note = block.text.lstrip().startswith(_NOTE_MARK)  # a note is set smaller, as the look gives it
-        self.write_runs(
-            paragraph,
-            block.text,
-            size=(style.note_size if note else None) or style.body_size,
-            font=(style.note_font if note else None) or style.body_font,
+        pictures: list[tuple[str, tuple[bytes, str, int, int]]] = []
+        spans: list[_Span] = []
+        for span in self.spans(block.text):
+            if span.image is not None:
+                loaded = self.load_image(span.image)
+                if loaded is not None:
+                    pictures.append((span.text, loaded))
+                    continue
+                span = replace(span, image=None)  # its description stands in its place
+            spans.append(span)
+        if any(span.text.strip() or span.note for span in spans) or not pictures:
+            paragraph = self.new_paragraph()
+            note = block.text.lstrip().startswith(_NOTE_MARK)  # a note is set smaller, as the look gives it
+            self.write_runs(
+                paragraph,
+                block.text,
+                bold=bold,
+                size=(style.note_size if note else None) or style.body_size,
+                font=(style.note_font if note else None) or style.body_font,
+                spans=spans,
+            )
+            indent = self.text_indent_mm()
+            if indent > 0:
+                self.doc.styles.apply_paragraph_format(paragraphs=[paragraph], indent_left_mm=indent)
+        for description, loaded in pictures:
+            self.picture(description, loaded)
+
+    def load_image(self, source: str) -> tuple[bytes, str, int, int] | None:
+        """``(data, format, width, height)`` of the picture file *source* names, or ``None`` (and why, noted).
+
+        Only a file under ``base_dir`` is read: Markdown from elsewhere must not pull any file of the machine
+        into the document.
+        """
+
+        from pathlib import Path
+
+        if not source or _SCHEME.match(source):  # a URL (a drive letter is one letter, a scheme more)
+            self.lose("image", f"not a file: {source[:60]}")
+            return None
+        if self.base_dir is None:
+            self.lose("image", f"no base_dir to read {source} from")
+            return None
+        from urllib.parse import unquote
+
+        base = Path(self.base_dir).resolve()
+        path = (base / unquote(source)).resolve()
+        if path != base and base not in path.parents:
+            self.lose("image", f"outside base_dir: {source}")
+            return None
+        try:
+            if path.stat().st_size > _IMAGE_MOST_BYTES:
+                self.lose("image", f"too large: {source}")
+                return None
+            data = path.read_bytes()
+        except OSError:
+            self.lose("image", f"not found: {source}")
+            return None
+        info = _image_info(data)
+        if info is None or info[1] <= 0 or info[2] <= 0:
+            self.lose("image", f"not a PNG, JPEG, GIF or BMP picture: {source}")
+            return None
+        return data, *info
+
+    def text_width(self) -> int:
+        if self._text_width is None:
+            try:
+                size, margins = self.doc.page.size(), self.doc.page.margins()
+                self._text_width = int(size.width - margins.left - margins.right)
+            except Exception:  # pragma: no cover - a page the facade cannot read
+                self._text_width = _FALLBACK_TEXT_WIDTH
+            if self._text_width <= 0:  # pragma: no cover - defensive
+                self._text_width = _FALLBACK_TEXT_WIDTH
+        return self._text_width
+
+    def picture(self, description: str, loaded: tuple[bytes, str, int, int]) -> None:
+        """A picture in a paragraph of its own, centred, as wide as its pixels (no wider than the text), with
+        *description* as its caption under it and as its alternative text."""
+
+        data, image_format, width_px, height_px = loaded
+        width = width_px * _HWPUNIT_PER_PIXEL
+        most = self.text_width() - round(self.text_indent_mm() * _HWPUNIT_PER_MM)
+        if width > most > 0:
+            width = most
+        height = max(1, round(width * height_px / width_px))
+        self.stop_reusing()
+        picture = self.doc.add_picture(
+            data, image_format, width=width, height=height, align="CENTER", para_pr_id_ref="0", style_id_ref="0"
         )
-        if self._body_indent_mm > 0:
-            self.doc.styles.apply_paragraph_format(paragraphs=[paragraph], indent_left_mm=self._body_indent_mm)
+        description = description.strip()
+        if description:
+            comment = next((node for node in picture.element if _local(node) == "shapeComment"), None)
+            if comment is not None:
+                comment.text = description
+            picture.set_caption(description, side="BOTTOM")
+
+    def code(self, block: _Code) -> None:
+        """A fenced code block: one paragraph, its lines kept, every character as written, in the code typeface."""
+
+        paragraph = self.new_paragraph()
+        face = self.style.code_font or self.style.body_font
+        paragraph.add_run(block.text, char_pr_id_ref=self.char_id(False, False, self.style.body_size, face))
+        indent = self.text_indent_mm()
+        self.doc.styles.apply_paragraph_format(
+            paragraphs=[paragraph], alignment="left", indent_left_mm=indent if indent > 0 else None
+        )
+
+    def quote(self, block: _Quote) -> None:
+        """A block quote: what it holds, standing in from the text around it."""
+
+        self._quote_depth += 1
+        try:
+            for inner in block.blocks:
+                if isinstance(inner, _Heading):  # a heading in a quote is no heading of the document
+                    self.paragraph(_Paragraph(inner.text), bold=True)
+                else:
+                    self.block(inner)
+        finally:
+            self._quote_depth -= 1
+
+    def block(self, block: object) -> None:
+        if isinstance(block, _Table):
+            self.table(block)
+            self.stop_reusing()
+        elif isinstance(block, _Heading):
+            self.heading(block)
+        elif isinstance(block, _List):
+            self.list(block)
+        elif isinstance(block, _Paragraph):
+            self.paragraph(block)
+        elif isinstance(block, _Code):
+            self.code(block)
+        elif isinstance(block, _Quote):
+            self.quote(block)
 
     def fit_on_one_line(self, paragraph: HwpxOxmlParagraph) -> None:
         """Narrow the letter spacing of a list item that runs a little past its line, so that it stays on one.
@@ -931,8 +1628,6 @@ class _Writer:
         a fixed one, never Hancom's fit-to-one-line, which presses a line as far as it takes.
         """
 
-        from dataclasses import replace
-
         from ..form_fit.measure import char_advance, indented_widths, text_style_from_refs
 
         limit = self.style.list_fit_spacing
@@ -940,16 +1635,27 @@ class _Writer:
         text = "".join(run.text for run in runs).rstrip()
         if not limit or not text or "\n" in text:
             return
-        look = text_style_from_refs(
-            self.doc, paragraph.para_pr_id_ref, [runs[0].char_pr_id_ref], end_char_pr_id_ref=runs[-1].char_pr_id_ref
-        )
-        line = (paragraph._context_table_width() or _FALLBACK_TEXT_WIDTH) - look.margin_left - look.margin_right
-        room = indented_widths(line, look)[0]
+        key = (paragraph.para_pr_id_ref, runs[0].char_pr_id_ref, runs[-1].char_pr_id_ref)
+        if key not in self._looks:  # items alike measure alike: a long list read its look once per item
+            look = text_style_from_refs(
+                self.doc, paragraph.para_pr_id_ref, [runs[0].char_pr_id_ref], end_char_pr_id_ref=runs[-1].char_pr_id_ref
+            )
+            line = (paragraph._context_table_width() or _FALLBACK_TEXT_WIDTH) - look.margin_left - look.margin_right
+            self._looks[key] = (look, indented_widths(line, look)[0])
+        look, room = self._looks[key]
         points = self.style.body_size or _BASE_SIZE_PT
 
         def width(spacing: int) -> float:
-            spaced = replace(look, spacing=float(spacing))
-            return sum(char_advance(char, points, spaced) for char in text)
+            advances = self._advances.setdefault((key, spacing), {})
+            spaced = None
+            total = 0.0
+            for char in text:
+                advance = advances.get(char)
+                if advance is None:
+                    spaced = spaced or replace(look, spacing=float(spacing))
+                    advance = advances[char] = char_advance(char, points, spaced)
+                total += advance
+            return total
 
         if room <= 0 or width(0) <= room:
             return
@@ -962,54 +1668,59 @@ class _Writer:
                 return
 
     def list(self, block: _List) -> None:
-        groups: dict[tuple[str, int], list[int]] = {}
-        starts: dict[tuple[str, int], int | None] = {}
         by_level: dict[int, list[HwpxOxmlParagraph]] = {}
+        written: list[tuple[_ListItem, HwpxOxmlParagraph]] = []
         for item in block.items:
             paragraph = self.new_paragraph()
             self.write_runs(paragraph, item.text, size=self.style.body_size, font=self.style.body_font)
             by_level.setdefault(item.level, []).append(paragraph)
-            index = self._index_of(paragraph)
-            key = (item.kind, item.level)
-            if key not in groups:
-                groups[key] = []
-                starts[key] = item.number
-            groups[key].append(index)
-        numbered = False
-        for (kind, level), indexes in sorted(groups.items(), key=lambda entry: entry[1][0]):
-            if kind == "number":
-                start = starts[(kind, level)]
-                self.doc.styles.apply_list_format(
-                    paragraph_indexes=indexes,
-                    kind="number",
-                    level=level,
-                    start=None if numbered or start in (None, 1) else start,
-                    continue_list=numbered,
-                )
-                numbered = True
-            else:
-                chars = (self.style.sub_bullet_chars if self._heading_level == 4 else ()) or self.style.bullet_chars
+            written.append((item, paragraph))
+        # One definition for the numbered items of the list and one bullet a depth: Hancom numbers on through
+        # a definition, so the list is numbered as one and the next list starts again.
+        heads: dict[tuple[str, int], dict[str, str]] = {}
+        numbered = [item for item, _paragraph in written if item.kind == "number"]
+        if numbered:
+            first = numbered[0]
+            levels = [dict(spec) for spec in _LIST_NUMBER_LEVELS]
+            if first.number not in (None, 1):
+                levels[first.level - 1]["start"] = str(first.number)
+            self.list_heads(heads, "number", self.doc.styles.ensure_numbering(kind="number", levels=levels))
+        bulleted = [item for item, _paragraph in written if item.kind == "bullet"]
+        if bulleted:
+            chars = (self.style.sub_bullet_chars if self._heading_level >= 4 else ()) or self.style.bullet_chars
+            specs: list[dict[str, str]] = []
+            for level in range(1, max(item.level for item in bulleted) + 1):
                 bullet = chars[min(level, len(chars)) - 1] if chars else self.style.bullet_char
-                self.doc.styles.apply_list_format(paragraph_indexes=indexes, kind="bullet", level=level, bullet_char=bullet)
-        step = self.style.list_indent_mm
-        if step is None:
-            step = (self.style.body_size or _BASE_SIZE_PT) * _LIST_INDENT_CHARS * _MM_PER_PT
-        first = self.style.list_first_indent_mm or 0.0
-        for level, paragraphs in by_level.items():
-            left = first + step * (level - 1)
-            if left > 0:
-                self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, indent_left_mm=left)
+                specs.append({"char": bullet} if bullet else {})
+            self.list_heads(heads, "bullet", self.doc.styles.ensure_numbering(kind="bullet", levels=specs))
+        step = self.list_step_mm()
+        first_indent = (self.style.list_first_indent_mm or 0.0) + (
+            self.quote_step_mm() * self._quote_depth if self._quote_depth else 0.0
+        )
+        # One paragraph shape for the items alike (as a rule all of a depth): finding or making a shape for each
+        # item made a long list slow.
+        shapes: dict[tuple[object, ...], str] = {}
+        for item, paragraph in written:
+            left = first_indent + step * (item.level - 1)
+            key = (paragraph.para_pr_id_ref, item.kind, item.level, left)
+            if key not in shapes:
+                shapes[key] = self.doc.styles.ensure_paragraph_format(
+                    base_para_pr_id=paragraph.para_pr_id_ref,
+                    heading=heads[(item.kind, item.level)],
+                    margins={"left": round(left * _HWPUNIT_PER_MM)} if left > 0 else None,
+                )
+            paragraph.para_pr_id_ref = shapes[key]
         if self.style.list_fit_spacing:  # once each item has its margins and its bullet
             for paragraphs in by_level.values():
                 for paragraph in paragraphs:
                     self.fit_on_one_line(paragraph)
 
-    def _index_of(self, paragraph: HwpxOxmlParagraph) -> int:
-        element = paragraph.element
-        for index, candidate in enumerate(self.doc.paragraphs):
-            if candidate.element is element:
-                return index
-        raise AssertionError("paragraph is not in the body")  # pragma: no cover
+    def list_heads(self, heads: dict[tuple[str, int], dict[str, str]], kind: str, refs: list[str]) -> None:
+        """The list head (``hh:heading``) of each depth of a *kind* list, from its paragraph shapes *refs*."""
+
+        for level, ref in enumerate(refs, start=1):
+            heading = self.doc.styles.paragraph_property(ref).heading
+            heads[(kind, level)] = {"type": str(heading.type), "idRef": str(heading.id_ref), "level": str(level - 1)}
 
     def table(self, block: _Table) -> None:
         if not block.rows:
@@ -1057,6 +1768,12 @@ class _Writer:
             self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
         if self.style.table_row_height_mm:
             table.set_row_heights([round(self.style.table_row_height_mm * _HWPUNIT_PER_MM)] * len(block.rows))
+        if block.header and len(block.rows) > 1:
+            # Hancom draws the header row again at the top of each page a long table runs onto.
+            table.element.set("repeatHeader", "1")
+            for col_index in range(cols):
+                table.cell(0, col_index).element.set("header", "1")
+            table.mark_dirty()
 
     def ruled_border(self, row: int, col: int, rows: int, cols: int, header: bool) -> str:
         """The border of one cell of a ruled table: open sides, a heavy line above and below the table, a
@@ -1109,6 +1826,23 @@ _NOTE_MARK = "※"
 _FIT_SPARE = 0.01
 #: The most a look may narrow the letter spacing of a list item, in percent: past it the letters crowd.
 _FIT_SPACING_MOST = 10
+#: The colour Hancom writes link text in.
+_LINK_COLOR = "#0000FF"
+#: A URL's scheme (``https:``, ``data:``): two letters at least, so a drive letter (``C:``) is not one.
+_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]+:")
+#: The number of each depth of a numbered list, as Hancom numbers a new list: 1. 가. 1) 가) (1) (가) ① ㉮ ㄱ ⅰ.
+_LIST_NUMBER_LEVELS: tuple[dict[str, str], ...] = (
+    {"text": "^1.", "format": "DIGIT"},
+    {"text": "^2.", "format": "HANGUL_SYLLABLE"},
+    {"text": "^3)", "format": "DIGIT"},
+    {"text": "^4)", "format": "HANGUL_SYLLABLE"},
+    {"text": "(^5)", "format": "DIGIT"},
+    {"text": "(^6)", "format": "HANGUL_SYLLABLE"},
+    {"text": "^7", "format": "CIRCLED_DIGIT"},
+    {"text": "^8", "format": "CIRCLED_HANGUL_SYLLABLE"},
+    {"text": "^9", "format": "HANGUL_JAMO"},
+    {"text": "^10", "format": "ROMAN_SMALL"},
+)
 
 
 def _plain_cell(text: str) -> str:
@@ -1188,6 +1922,48 @@ def _column_weights(rows: list[list[str]], cols: int, font_pt: float, table_widt
     return [min(need, level) for need in needs]
 
 
+def _check_markdown(markdown: object, caller: str) -> None:
+    if not isinstance(markdown, str):
+        from ..errors import HwpxTypeError
+
+        raise HwpxTypeError(
+            f"{caller} takes the Markdown as str, not {type(markdown).__name__}",
+            context={"argument": "markdown", "type": type(markdown).__name__},
+            suggestion="Pass the Markdown text; decode bytes first, e.g. data.decode('utf-8').",
+        )
+
+
+def _append(
+    document: HwpxDocument,
+    markdown: str,
+    *,
+    style: MarkdownStyle,
+    byline: str | None,
+    reuse_first: bool,
+    base_dir: str | os.PathLike[str] | None,
+    caller: str,
+) -> None:
+    blocks, refs = _parse(markdown)
+    writer = _Writer(document, style, reuse_first=reuse_first, refs=refs, base_dir=base_dir)
+    writer.resume_counts()
+    pending = (byline or "").strip()
+    if pending and not any(isinstance(block, _Heading) and block.level == 1 for block in blocks):
+        writer.byline(pending, None)
+        pending = ""
+    for block in blocks:
+        if isinstance(block, _Heading):
+            title = writer.heading(block)
+            if pending and block.level == 1:
+                writer.byline(pending, title)
+                pending = ""
+        else:
+            writer.block(block)
+    message = writer.report()
+    if message:
+        # _append, then append_markdown or from_markdown, then the caller
+        warnings.warn(f"{caller}: {message}", UserWarning, stacklevel=3)
+
+
 def append_markdown(
     document: HwpxDocument,
     markdown: str,
@@ -1195,13 +1971,15 @@ def append_markdown(
     style: MarkdownStyle | str | None = None,
     byline: str | None = None,
     reuse_first_paragraph: bool = False,
+    base_dir: str | os.PathLike[str] | None = None,
 ) -> None:
     """Append *markdown* to the end of *document*'s last section.
 
     *style* is a :class:`MarkdownStyle` or the name of a look: ``"plain"``, or
     the one the library ships, ``"report"`` (also ``"보고서"``). ``None`` is
-    the plain look, so the document keeps the look it has. Heading numbers
-    start at 1 on each call.
+    the plain look, so the document keeps the look it has. Heading numbers go
+    on from the headings the document already has: a document made in parts
+    numbers its sections ``Ⅰ``, ``Ⅱ``, ``Ⅲ`` across the calls.
 
     *byline* is a line naming who wrote the document (a department, a date).
     It is written right-aligned under the first ``#`` title, or as the first
@@ -1212,31 +1990,40 @@ def append_markdown(
     :func:`from_markdown` does with a blank document's empty first line. A
     table of the Markdown never takes that paragraph (it holds the section
     settings).
+
+    *base_dir* is the folder pictures (``![설명](그림.png)``) are read from: a
+    path is taken under it, and a file outside it is not read. Without it no
+    picture file is read. A picture that is not read is written as its
+    description.
+
+    Headings take the outline style of their level. Where the document's
+    outline numbering draws no number for the level (a document made by
+    :func:`from_markdown`), the heading is an outline paragraph of that level
+    too; elsewhere it keeps the style only, as an outline number drawn before
+    the heading's own would show it twice.
+
+    What the Markdown holds that is not carried over is named in one
+    ``UserWarning``. *markdown* must be ``str`` (``HwpxTypeError``).
     """
 
-    writer = _Writer(document, _resolve_style(style), reuse_first=reuse_first_paragraph)
-    blocks = list(parse_blocks(markdown))
-    pending = (byline or "").strip()
-    if pending and not any(isinstance(block, _Heading) and block.level == 1 for block in blocks):
-        writer.byline(pending, None)
-        pending = ""
-    for block in blocks:
-        if isinstance(block, _Table):
-            writer.table(block)
-            writer.stop_reusing()
-        elif isinstance(block, _Heading):
-            title = writer.heading(block)
-            if pending and block.level == 1:
-                writer.byline(pending, title)
-                pending = ""
-        elif isinstance(block, _List):
-            writer.list(block)
-        elif isinstance(block, _Paragraph):
-            writer.paragraph(block)
+    _check_markdown(markdown, "append_markdown")
+    _append(
+        document,
+        markdown,
+        style=_resolve_style(style),
+        byline=byline,
+        reuse_first=reuse_first_paragraph,
+        base_dir=base_dir,
+        caller="append_markdown",
+    )
 
 
 def from_markdown(
-    markdown: str, *, style: MarkdownStyle | str | None = None, byline: str | None = None
+    markdown: str,
+    *,
+    style: MarkdownStyle | str | None = None,
+    byline: str | None = None,
+    base_dir: str | os.PathLike[str] | None = None,
 ) -> HwpxDocument:
     """Return a new clean document holding *markdown*.
 
@@ -1248,10 +2035,17 @@ def from_markdown(
 
     *byline* is a line naming who wrote the document (a department, a date),
     written right-aligned under the title; see :func:`append_markdown`.
+    *base_dir* is the folder pictures are read from; see :func:`append_markdown`.
 
     The document is made with ``HwpxDocument.new(inherit_style=False)`` and the
     first heading, paragraph or list item takes its empty first line. To add
     Markdown to a document you already have, use ``doc.text.append_markdown``.
+
+    Every heading is an outline paragraph of its level (``#`` is level 1), so a
+    table of contents (``hwpx.tools.toc_author.add_native_toc``) and Hancom's
+    outline find it. The headings write their numbers as text, so the
+    document's outline numbering is made to draw none: a heading added later
+    with ``doc.add_heading`` gets no number from Hancom either.
 
     The 6.x root of :class:`HwpxDocument` has no free slot for another
     constructor, so this lives here rather than as ``HwpxDocument.from_markdown``.
@@ -1259,8 +2053,10 @@ def from_markdown(
 
     from ..document import HwpxDocument
 
+    _check_markdown(markdown, "from_markdown")
     resolved = _resolve_style(style, "report")
     document = HwpxDocument.new(inherit_style=False)
+    _unnumber_outline(document)
     if resolved.page_margins_mm:  # before the text: tables are made as wide as the text
         left, right, top, bottom, *edges = resolved.page_margins_mm
         document.page.setup(
@@ -1271,7 +2067,15 @@ def from_markdown(
             header_margin_mm=edges[0] if edges else None,
             footer_margin_mm=edges[1] if edges else None,
         )
-    append_markdown(document, markdown, style=resolved, byline=byline, reuse_first_paragraph=True)
+    _append(
+        document,
+        markdown,
+        style=resolved,
+        byline=byline,
+        reuse_first=True,
+        base_dir=base_dir,
+        caller="from_markdown",
+    )
     if resolved.page_number:
         side = resolved.page_number_side
         document.page.set_page_number(prefix=f"{side} " if side else "", suffix=f" {side}" if side else "")
