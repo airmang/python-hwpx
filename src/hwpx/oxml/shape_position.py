@@ -316,10 +316,10 @@ def _object_set_position(
     for name, offset in (("horzOffset", horizontal_offset), ("vertOffset", vertical_offset)):
         if offset is not None:
             frames[name] = str(offset & 0xFFFFFFFF)  # a negative one in its unsigned 32-bit form, as Hancom writes it
-    for name, value in attributes.items():
-        self.element.set(name, value)
-    for name, value in frames.items():
-        position.set(name, value)
+    for name, setting in attributes.items():
+        self.element.set(name, setting)
+    for name, setting in frames.items():
+        position.set(name, setting)
     if attributes or frames:
         from ._document_primitives import _clear_paragraph_layout_cache
 

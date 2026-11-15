@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence, cast
+from typing import TYPE_CHECKING, Any, Sequence, cast
 import warnings
 import xml.etree.ElementTree as ET
 
@@ -658,16 +658,17 @@ class HwpxOxmlParagraph:
         boxes) at or before this paragraph. Columns of unequal width give the narrowest.
         """
 
-        top = self.element
+        top: Any = self.element
         if not callable(getattr(top, "getparent", None)):
             return None
         while (parent := top.getparent()) is not None and parent is not self.section.element:
             top = parent
         if parent is None:
             return None
-        settings = None
+        settings: ET.Element | None = None
         for paragraph in self.section.element.findall(f"{_HP}p"):
-            settings = (paragraph.findall(f"{_HP}run/{_HP}ctrl/{_HP}colPr") or [settings])[-1]
+            found = paragraph.findall(f"{_HP}run/{_HP}ctrl/{_HP}colPr")
+            settings = found[-1] if found else settings
             if paragraph is top:
                 break
         if settings is None:
