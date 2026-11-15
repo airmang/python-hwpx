@@ -69,7 +69,8 @@ def test_reader_passes_markdown_options(tmp_path: Path) -> None:
     plain = HwpxReader(markdown_options={"detect_headings": False}).load_data(source)
 
     assert "## 1. 추진 목적" not in plain[0].text
-    assert "1. 추진 목적" in plain[0].text
+    # 제목이 아닌 문단의 줄머리 번호는 Markdown 목록이 되지 않게 이스케이프된다
+    assert "1\\. 추진 목적" in plain[0].text
 
 
 def test_reader_works_as_a_directory_file_extractor(tmp_path: Path) -> None:
