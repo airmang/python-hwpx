@@ -221,6 +221,26 @@ def test_paragraph_format_setters_change_that_paragraph_alone() -> None:
     assert reopened.paragraphs[2].alignment is Alignment.JUSTIFY
 
 
+def _paragraph_values(paragraph) -> tuple:
+    return (paragraph.alignment, paragraph.indent_left_mm, paragraph.indent_right_mm, paragraph.first_line_indent_mm,
+            paragraph.spacing_before_pt, paragraph.spacing_after_pt, paragraph.line_spacing,
+            paragraph.page_break_before, paragraph.keep_with_next, paragraph.outline_level)
+
+
+@pytest.mark.parametrize("name, value, index", [
+    ("indent_left_mm", 20.0, 1), ("alignment", Alignment.RIGHT, 0), ("line_spacing", LineSpacing("PERCENT", 250), 6),
+])
+def test_one_paragraph_setter_changes_one_value_of_one_paragraph(name, value, index) -> None:
+    document = HwpxDocument.open(HANCOM / "formfit_bold_advances.hwpx")
+    target, other = document.paragraphs[1], document.paragraphs[2]
+    target_before, other_before = _paragraph_values(target), _paragraph_values(other)
+    setattr(target, name, value)
+    after = _paragraph_values(target)
+    assert after[index] == value
+    assert after[:index] + after[index + 1:] == target_before[:index] + target_before[index + 1:]
+    assert _paragraph_values(other) == other_before
+
+
 def test_paragraph_breaks_outline_level_and_style() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("본문")
