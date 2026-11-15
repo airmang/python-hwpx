@@ -88,6 +88,22 @@ def _content_and_cache(node: "LET._Element") -> tuple[bytes, bytes]:
     return LET.tostring(copy), cache
 
 
+def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
+    """The width of a column of the ``hp:colPr`` *settings* over *text_width* (the narrowest of
+    unequal ones), or ``None`` for one column or unreadable sizes, as the page estimate reads them."""
+
+    count = int(settings.get("colCount", "1"))
+    if count <= 1:
+        return None
+    if settings.get("sameSz") not in ("1", "true"):
+        shares = [int(size.get("width", 0)) for size in settings.findall(f"{_HP}colSz")]
+        return min(share * text_width // 32768 for share in shares) if len(shares) == count else None
+    gap = int(settings.get("sameGap", "0"))
+    if gap >= 1 << 31:  # a signed 32-bit number written unsigned
+        gap -= 1 << 32
+    return (text_width - (count - 1) * gap) // count
+
+
 @dataclass
 class HwpxOxmlParagraph:
     """Lightweight wrapper around an ``<hp:p>`` element."""
@@ -607,39 +623,23 @@ class HwpxOxmlParagraph:
         """
 
         top = self.element
-        get_parent = getattr(top, "getparent", None)
-        if not callable(get_parent):
+        if not callable(getattr(top, "getparent", None)):
             return None
         while (parent := top.getparent()) is not None and parent is not self.section.element:
             top = parent
         if parent is None:
             return None
         settings = None
-        for paragraph in self.section.element:
-            if tag_local_name(paragraph.tag) != "p":
-                continue
-            for run in paragraph.findall(f"{_HP}run"):
-                for cols in run.findall(f"{_HP}ctrl/{_HP}colPr"):
-                    settings = cols
+        for paragraph in self.section.element.findall(f"{_HP}p"):
+            settings = (paragraph.findall(f"{_HP}run/{_HP}ctrl/{_HP}colPr") or [settings])[-1]
             if paragraph is top:
                 break
         if settings is None:
             return None
         try:
-            count = int(settings.get("colCount", "1"))
-            if count <= 1:
-                return None
-            if settings.get("sameSz") not in ("1", "true"):
-                shares = [int(size.get("width", 0)) for size in settings.findall(f"{_HP}colSz")]
-                if len(shares) != count:
-                    return None
-                return min(share * text_width // 32768 for share in shares)
-            gap = int(settings.get("sameGap", "0"))
+            return _column_width_of(settings, text_width)
         except ValueError:
             return None
-        if gap >= 1 << 31:
-            gap -= 1 << 32
-        return (text_width - (count - 1) * gap) // count
 
     def add_table(
         self,
