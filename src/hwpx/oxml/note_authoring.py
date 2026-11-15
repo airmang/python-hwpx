@@ -231,7 +231,10 @@ def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
             numbering = properties.find(f"{_HP}numbering") if properties is not None else None
             if numbering is not None and numbering.get("type") == "ON_SECTION":
                 counters[kind] = _int_or(numbering.get("newNum"), 1)
-        for element in section.iter(f"{_HP}newNum", f"{_HP}footNote", f"{_HP}endNote"):
+        wanted = {f"{_HP}newNum", f"{_HP}footNote", f"{_HP}endNote"}
+        for element in section.iter():
+            if element.tag not in wanted:
+                continue
             if element.tag == f"{_HP}newNum":
                 if element.get("numType") in counters:
                     counters[element.get("numType") or ""] = _int_or(element.get("num"), 1)
@@ -348,7 +351,7 @@ def remove_note(note: HwpxOxmlNote) -> None:
     if parent is None:
         return
     parent.remove(element)
-    run = parent
+    run: ET.Element | None = parent
     if parent.tag == f"{_HP}ctrl" and not list(parent):
         run = _parent(host, parent)
         if run is not None:

@@ -394,9 +394,9 @@ def resolve_tracked_changes(
     resolved: list[TrackedChange] = []
     for section in sections:
         touched: list[Any] = []
-        begins = [
-            element for element in section.element.iter(f"{_HP}insertBegin", f"{_HP}deleteBegin")
-            if (element.get("TcId") or "") in wanted
+        begins: list[Any] = [
+            element for element in section.element.iter()
+            if element.tag in (f"{_HP}insertBegin", f"{_HP}deleteBegin") and (element.get("TcId") or "") in wanted
         ]
         for begin in begins:
             kind = _MARKS[begin.tag][0]
