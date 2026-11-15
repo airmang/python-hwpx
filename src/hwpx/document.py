@@ -523,11 +523,16 @@ class HwpxDocument(_LegacyFacade):
     def _take_first_line(self, paragraph: HwpxOxmlParagraph) -> None:
         """Put *paragraph*, just appended, on the empty first line of a document from :meth:`new`.
 
-        The empty paragraph's section settings move to the front of *paragraph*
-        and the empty paragraph goes. Only the first paragraph added does this,
-        and only while the document is as :meth:`new` made it: one paragraph in
-        the first section, without text or objects.
+        The empty paragraph stays, so a paragraph object taken from it before
+        (``doc.paragraphs[0]``) still writes into the document: what was just
+        appended (its runs, its paragraph shape and style references) moves
+        into it, behind its section settings, and the appended element goes.
+        *paragraph* is pointed at the kept element. Only the first paragraph
+        added does this, and only while the document is as :meth:`new` made
+        it: one paragraph in the first section, without text or objects.
         """
+
+        from .oxml._paragraph_text_edit import blank_settings_paragraph, take_over_paragraph
 
         if not self._first_line_free:
             return
@@ -537,29 +542,11 @@ class HwpxDocument(_LegacyFacade):
         if len(paragraphs) != 2 or paragraphs[1].element is not paragraph.element:
             return
         first = paragraphs[0].element
-
-        def _local(element: Any) -> str:
-            return str(element.tag).rsplit("}", 1)[-1]
-
-        runs = [child for child in first if _local(child) == "run"]
-        # Runs of page-level settings: the section, columns, a header or footer, page numbering.
-        holders = [run for run in runs if len(run) and all(_local(child) in ("secPr", "ctrl") for child in run)]
-        text_nodes = [child for run in runs if run not in holders for child in run]
-        if not holders or any(_local(child) != "t" or (child.text or "") or len(child) for child in text_nodes):
+        if not blank_settings_paragraph(first):
             return  # not the blank paragraph new() makes: leave the document as it is
-        page_level = {"colPr", "header", "footer", "pageNum", "pageHiding", "newNum", "pageNumCtrl"}
-        if any(
-            _local(inner) not in page_level
-            for run in holders
-            for child in run
-            if _local(child) == "ctrl"
-            for inner in child
-        ):
-            return
-        for position, run in enumerate(holders):
-            first.remove(run)
-            paragraph.element.insert(position, run)
-        section.element.remove(first)
+        take_over_paragraph(first, paragraph.element)
+        section.element.remove(paragraph.element)
+        paragraph.element = first
         section.mark_dirty()
 
     def _style_shapes(
