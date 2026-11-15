@@ -217,7 +217,7 @@ def _object_set_position(
     position = self.element.find(f"{_HP}pos")
     if position is None:
         raise HwpxValueError(
-            "the object has no hp:pos to place it by",
+            "the object has no hp:pos to place it by (position editing needs a floating or inline object with one)",
             code="shape-position-unsupported",
             suggestion="Only objects that carry hp:pos (equations, pictures, shapes, OLE) can be placed.",
         )
@@ -232,7 +232,7 @@ def _object_set_position(
     floating = position.get("treatAsChar") in {"0", "false", "False"} if treat_as_char is None else not treat_as_char
     if not floating and (horizontal_offset is not None or vertical_offset is not None):
         raise HwpxValueError(
-            "an object set as a character has no offsets",
+            "an object set as a character has no offsets: only a floating object takes them",
             code="shape-position-unsupported",
             suggestion="Pass treat_as_char=False to float it, then its offsets apply.",
         )
