@@ -15,7 +15,7 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any, Iterator, cast
 
-from ...errors import HwpxValueError, ReplaceScopeWarning
+from ...errors import HwpxTypeError, HwpxValueError, ReplaceScopeWarning
 from ...oxml.namespaces import HP, tag_local_name
 from ._base import _Namespace
 
@@ -67,6 +67,42 @@ def _paragraphs_everywhere(section_element: Any) -> Iterator[tuple[Any, str, tup
     yield from walk(section_element, "", "plain", None)
 
 
+def _option_names(function: Any) -> set[str]:
+    import inspect
+
+    return {
+        name
+        for name, parameter in inspect.signature(function).parameters.items()
+        if parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    }
+
+
+def _check_markdown_options(rich: bool, options: dict[str, object]) -> None:
+    """``markdown()`` 의 옵션이 고른 쪽(rich 여부)에 있는지 본다. 없으면 어느 쪽 옵션인지 알린다."""
+
+    from ...tools.exporter import export_markdown as plain_markdown
+    from ...tools.markdown_export import export_markdown as rich_markdown
+
+    plain_names, rich_names = _option_names(plain_markdown), _option_names(rich_markdown)
+    accepted = rich_names if rich else plain_names
+    for name in options:
+        if name in accepted:
+            continue
+        other = plain_names if rich else rich_names
+        if name in other:
+            where = "rich=False" if rich else "rich=True"
+            message = f"markdown(rich={rich})은 {name!r} 옵션을 받지 않습니다. 이 옵션은 markdown({where})의 것입니다."
+            suggestion = f"markdown({where}, {name}=...)로 부르세요."
+        else:
+            message = f"markdown()에 없는 옵션입니다: {name!r}"
+            suggestion = "받는 옵션: " + ", ".join(sorted(accepted))
+        raise HwpxTypeError(
+            message,
+            context={"argument": name, "rich": rich},
+            suggestion=suggestion,
+        )
+
+
 def _run_matches(
     run: "HwpxOxmlRun",
     *,
@@ -114,6 +150,7 @@ class TextNamespace(_Namespace):
 
         from .. import persistence as _persistence
 
+        _check_markdown_options(rich, kwargs)
         if rich:
             return _persistence.export_rich_markdown(self._doc, **kwargs)
         return _persistence.export_markdown(self._doc, **kwargs)
