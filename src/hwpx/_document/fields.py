@@ -11,10 +11,12 @@ from ..objects.checkbox import CheckBox
 from ..objects.form_field import (
     Bookmark,
     CellField,
+    CrossReference,
     FieldLocation,
     FieldParameter,
     FormField,
     FormulaField,
+    Hyperlink,
     TextBoxField,
 )
 from ..objects.results import FieldFillResult
@@ -682,16 +684,59 @@ def list_bookmarks(doc: "HwpxDocument") -> tuple[Bookmark, ...]:
                     run_index=run_index,
                     child_index=child_index,
                 )
+                section = doc.sections[section_index]
                 for mark in child:
                     if mark.tag == f"{_HP}bookmark":
                         name = mark.get("name", "")
                         if name:
-                            bookmarks.append(Bookmark(name, "point", "", location, mark))
+                            bookmarks.append(Bookmark(name, "point", "", location, mark, section))
                     elif mark in fields:
                         name = (mark.get("name") or "").strip()
                         if name:
-                            bookmarks.append(Bookmark(name, "field", fields[mark]["current_value"], location, mark))
+                            bookmarks.append(
+                                Bookmark(name, "field", fields[mark]["current_value"], location, mark, section)
+                            )
     return tuple(bookmarks)
+
+
+def list_hyperlinks(doc: "HwpxDocument") -> tuple[Hyperlink, ...]:
+    """Every hyperlink of the document in order, those in table cells, text boxes, notes,
+    headers and footers included, as live :class:`~hwpx.objects.Hyperlink` views."""
+
+    links: list[Hyperlink] = []
+    for _section_index, _index, _in_section, _element, paragraph, runs in _iter_content_paragraphs(doc):
+        for run in runs:
+            for child in run:
+                if _local_name(child) != "ctrl":
+                    continue
+                for mark in child.findall(f"{_HP}fieldBegin"):
+                    if (mark.get("type") or "").strip().upper() == "HYPERLINK":
+                        links.append(Hyperlink(mark, paragraph))
+    return tuple(links)
+
+
+def list_cross_references(doc: "HwpxDocument") -> tuple[CrossReference, ...]:
+    """The cross references Hancom saved (``fieldBegin type="CROSSREF"``), in document
+    order, with what each points at, read as written."""
+
+    found: list[CrossReference] = []
+    for match in _iter_field_matches(doc, _field_type_is("CROSSREF")):
+        parameters = match["parameters"]
+        path = _field_parameter_value(parameters, "RefPath")
+        target = path[1:] if path.startswith("?") else path
+        found.append(
+            CrossReference(
+                ref_type=_field_parameter_value(parameters, "RefType"),
+                content_type=_field_parameter_value(parameters, "RefContentType"),
+                target=target[:-1] if target.endswith(";") else target,
+                text=match["current_value"],
+                hyperlink=_field_parameter_value(parameters, "RefHyperLink").lower() in ("1", "true"),
+                location=_match_location(match),
+                parameters=_match_parameters(match),
+                element=match["_field_begin"],
+            )
+        )
+    return tuple(found)
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:

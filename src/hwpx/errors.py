@@ -446,6 +446,12 @@ ERROR_CODES: dict[str, str] = {
     "track-match-not-found": "문단에서 찾을 문자열을 찾지 못했다.",
     "track-match-crosses-markup": "찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다.",
     "track-paragraph-empty": "지울 텍스트가 문단에 없다.",
+    "track-change-not-found": "그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다).",
+    "track-selector-conflict": "수락·거절할 변경을 change 와 author 로 함께 골랐다(하나만 준다).",
+    # -- 책갈피·하이퍼링크·상호 참조 ---------------------------------------
+    "ref-bookmark-name-empty": "책갈피 이름이 비어 있다.",
+    "ref-link-target-empty": "하이퍼링크 대상이 비어 있다.",
+    "ref-link-end-missing": "하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다.",
     # -- 텍스트 ----------------------------------------------------------
     "text-search-empty": "바꿀 대상 문자열이 비어 있다.",
     "text-highlight-match-empty": "형광펜으로 감쌀 문자열이 비어 있다.",
