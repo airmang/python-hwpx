@@ -12,15 +12,16 @@ from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from ..document import HwpxDocument
-from .exporter import export_text
 from .package_validator import validate_editor_open_safety
 
 MAIL_MERGE_REPORT_VERSION = "mail-merge-v1"
 
+# A key starts with a letter of any script (or "_"), so ``{{성명}}`` is a placeholder like ``{{name}}``.
+_KEY = r"[^\W\d][\w.-]*"
 _PLACEHOLDER_RE = re.compile(
-    r"(?P<brace>\{\{\s*(?P<brace_key>[A-Za-z_][A-Za-z0-9_.-]*)\s*\}\})"
-    r"|(?P<dollar>\$\{\s*(?P<dollar_key>[A-Za-z_][A-Za-z0-9_.-]*)\s*\})"
-    r"|(?P<angle><<\s*(?P<angle_key>[A-Za-z_][A-Za-z0-9_.-]*)\s*>>)"
+    rf"(?P<brace>\{{\{{\s*(?P<brace_key>{_KEY})\s*\}}\}})"
+    rf"|(?P<dollar>\$\{{\s*(?P<dollar_key>{_KEY})\s*\}})"
+    rf"|(?P<angle><<\s*(?P<angle_key>{_KEY})\s*>>)"
 )
 _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9가-힣._ -]+")
 
@@ -108,7 +109,7 @@ def inspect_mail_merge_placeholders(source: str | Path | HwpxDocument) -> dict[s
         document = HwpxDocument.open(source)
         close_doc = True
     try:
-        text = export_text(document)
+        text = _template_text(document)
     finally:
         if close_doc:
             document.close()
@@ -411,10 +412,43 @@ def _open_safety_of_saved_file(document: HwpxDocument, path: Path) -> Any | None
 def _unresolved_placeholders(path: Path) -> list[str]:
     document = HwpxDocument.open(path)
     try:
-        text = export_text(document)
+        text = _template_text(document)
     finally:
         document.close()
     return [item["token"] for item in _find_placeholders(text)]
+
+
+def _template_text(document: HwpxDocument) -> str:
+    """The text of every place :func:`_replace_token` replaces in, one paragraph per line.
+
+    That is what ``doc.text.replace(..., everywhere=True)`` reaches — body, table cells (nested
+    too), text boxes, captions, headers, footers, notes, master pages — plus 덧말 main/sub text.
+    Finding placeholders and counting the ones left over over the same places keeps a token in a
+    header from going unseen (and the row from passing while it is still there).
+    """
+
+    from .._document.ns.text import _paragraphs_everywhere
+    from ..oxml import HwpxOxmlParagraph
+    from ..oxml.namespaces import HP
+
+    lines: list[str] = []
+
+    def collect(element: Any, part: Any) -> None:
+        for paragraph_element, role, _key in _paragraphs_everywhere(element):
+            if role == "mirror":
+                continue
+            # A paragraph's text is its own runs only: nested paragraphs are visited on their own.
+            lines.append(HwpxOxmlParagraph(paragraph_element, part).text)
+        for dutmal in element.iter(f"{HP}dutmal"):
+            for piece in (dutmal.find(f"{HP}mainText"), dutmal.find(f"{HP}subText")):
+                if piece is not None and piece.text:
+                    lines.append(piece.text)
+
+    for section in document.oxml.sections:
+        collect(section.element, section)
+    for master_page in document.oxml.master_pages:
+        collect(master_page.element, master_page)
+    return "\n".join(lines)
 
 
 def _open_safety_summary(row_reports: Sequence[Mapping[str, Any]], *, created_count: int) -> dict[str, Any]:
