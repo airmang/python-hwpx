@@ -43,7 +43,9 @@ from .oxml.memo import HwpxOxmlMemo as Memo
 from .oxml.memo import HwpxOxmlMemoGroup as MemoGroup
 from .oxml.memo import HwpxOxmlNote as Note
 from .oxml.objects import DrawText as DrawText
+from .oxml.objects import HwpxOxmlEquation as Equation
 from .oxml.objects import HwpxOxmlInlineObject as InlineObject
+from .oxml.objects import HwpxOxmlPicture as Picture
 from .oxml.objects import HwpxOxmlShape as Shape
 from .oxml.paragraph import HwpxOxmlParagraph as Paragraph
 from .oxml.run import HwpxOxmlRun as Run
@@ -60,6 +62,7 @@ from .oxml.table import HwpxOxmlTableRow as TableRow
 __all__ = [
     "Document",
     "DrawText",
+    "Equation",
     "HeaderFooter",
     "HeaderPart",
     "History",
@@ -69,6 +72,7 @@ __all__ = [
     "MemoGroup",
     "Note",
     "Paragraph",
+    "Picture",
     "Run",
     "Section",
     "SectionProperties",

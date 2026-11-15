@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Sequence, cast
 import warnings
 import xml.etree.ElementTree as ET
 
@@ -16,6 +16,7 @@ from ._document_primitives import (
     _normalize_color,
     _append_child,
     _append_text_with_tabs,
+    _clear_paragraph_layout_cache,
     _default_sublist_attributes,
     _element_local_name,
     _object_id,
@@ -24,20 +25,30 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .shape_position import (
+    DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, fill_color_of, keep_ratio, line_width_of, object_size,
+    picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow, resize_object,
+    set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
-    _object_set_position, _shape_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
+    _object_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
     validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_crop, validate_picture_image,
     validate_rect_ratio,
     validate_shape_size,
 )
 
 if TYPE_CHECKING:
+    from typing import Union
+
     from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
+    from .table import HwpxOxmlTable
+
+    #: What ``paragraph.objects`` holds.
+    ParagraphObject = Union["HwpxOxmlTable", "HwpxOxmlInlineObject", "HwpxOxmlShape"]
 
 
-class HwpxOxmlInlineObject:
-    """Wrapper providing attribute helpers for inline objects."""
+class HwpxOxmlInlineObject(ObjectPlacement):
+    """A placed object in a paragraph (picture, equation, chart, OLE, form control...): its attributes,
+    placement (:class:`~hwpx.oxml.shape_position.ObjectPlacement`), size and caption."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element
@@ -77,6 +88,29 @@ class HwpxOxmlInlineObject:
     # Lives in ``oxml/shape_position.py`` (this owner file is at its line cap).
     set_position = _object_set_position
 
+    @property
+    def width(self) -> int:
+        """The object's width as drawn (``hp:sz``, HWPUNIT)."""
+
+        return object_size(self.element)[0]
+
+    @property
+    def height(self) -> int:
+        """The object's height as drawn (``hp:sz``, HWPUNIT)."""
+
+        return object_size(self.element)[1]
+
+    def resize(self, width: int | None = None, height: int | None = None) -> None:
+        """Draw the object *width* x *height* (HWPUNIT); give one alone to keep the aspect ratio.
+
+        ``hp:sz`` and ``hp:curSz`` take the new size and ``hc:scaMatrix`` scales the original size
+        (``hp:orgSz``) to it, as Hancom saves a resized picture. A size that is not an int in
+        ``0 <= value < 2**31`` is refused with ``shape-size-value``. The paragraph loses its line
+        layout cache. An equation's box follows its script: change that with ``set_script``.
+        """
+
+        resize_object(self, width, height)
+
     # --- caption (hp:caption — table/picture/OLE/equation may carry one) ---
 
     @property
@@ -113,6 +147,140 @@ class HwpxOxmlInlineObject:
         """Remove this object's ``hp:caption`` if present. Returns whether one was removed."""
 
         return _remove_caption(self.element, self.paragraph.section)
+
+
+class HwpxOxmlPicture(HwpxOxmlInlineObject):
+    """A picture (``hp:pic``): the image it shows, how much of it is cut away, and its size and placement."""
+
+    @property
+    def item_id(self) -> str | None:
+        """The binary item the picture shows (``hc:img/@binaryItemIDRef``), as ``doc.media.images`` names it."""
+
+        image = self.element.find(f"{_HC}img")
+        return image.get("binaryItemIDRef") if image is not None else None
+
+    @property
+    def original_size(self) -> tuple[int, int] | None:
+        """The whole image's size (``hp:imgDim``) the crop counts in; ``None`` when the picture has none."""
+
+        return picture_original_size(self.element)
+
+    @property
+    def crop(self) -> tuple[int, int, int, int]:
+        """How much is cut from the image's left, top, right and bottom (``hp:imgClip``), in
+        ``original_size`` units; ``(0, 0, 0, 0)`` when nothing is."""
+
+        return picture_crop(self.element)
+
+    def set_crop(self, crop: tuple[int, int, int, int] | None) -> None:
+        """Cut *crop* ``(left, top, right, bottom)`` (``original_size`` units) from the image; ``None`` shows
+        all of it. The picture keeps the scale it is drawn at, so it grows or shrinks by what it shows
+        more or less. Ints from 0 leaving some of the image, else ``shape-picture-crop-value``."""
+
+        set_picture_crop(self, crop)
+
+    # The reads of what ``add_picture`` writes (``hc:img``, ``hp:lineShape``, ``hp:effects``).
+    brightness = property(lambda self: picture_image_value(self.element, "bright"),
+                          doc="Brightness the image is drawn with, -100..100 (``hc:img/@bright``).")
+    contrast = property(lambda self: picture_image_value(self.element, "contrast"),
+                        doc="Contrast the image is drawn with, -100..100 (``hc:img/@contrast``).")
+    effect = property(lambda self: picture_image_value(self.element, "effect"),
+                      doc="``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE`` (``hc:img/@effect``).")
+    alpha = property(lambda self: picture_image_value(self.element, "alpha"),
+                     doc="Transparency, 0 opaque to 255 not drawn (``hc:img/@alpha``).")
+    line_width = property(lambda self: line_width_of(self.element),
+                          doc="Border width (``hp:lineShape/@width``, HWPUNIT); ``None`` without a border.")
+    shadow = property(lambda self: picture_shadow(self.element),
+                      doc="The shadow as a :class:`PictureShadow`, or ``None``.")
+    glow = property(lambda self: picture_glow(self.element), doc="The glow as a :class:`PictureGlow`, or ``None``.")
+
+    @property
+    def line_color(self) -> str | None:
+        """Border colour (``hp:lineShape/@color``); ``None`` without a border."""
+
+        line = self.element.find(f"{_HP}lineShape")
+        return line.get("color") if line is not None else None
+
+
+class HwpxOxmlEquation(HwpxOxmlInlineObject):
+    """An equation (``hp:equation``): its script in Hancom's equation language and the box it is drawn in."""
+
+    @property
+    def script(self) -> str:
+        """The equation's script (``hp:script``), e.g. ``{a} over {b}``."""
+
+        node = self.element.find(f"{_HP}script")
+        return (node.text or "") if node is not None else ""
+
+    @property
+    def font(self) -> str | None:
+        """The equation font (``font``), e.g. ``HancomEQN``."""
+
+        return self.element.get("font")
+
+    @property
+    def base_unit(self) -> int:
+        """The base font size (``baseUnit``) in 1/100 pt; 1000 (the schema's) when not given."""
+
+        value = self.element.get("baseUnit")
+        return int(value) if value is not None and value.isdigit() else 1000
+
+    @property
+    def base_line(self) -> int | None:
+        """Where the base line sits, in per cent of the height from the top (``baseLine``)."""
+
+        value = self.element.get("baseLine")
+        return int(value) if value is not None and value.lstrip("-").isdigit() else None
+
+    def set_script(self, script: str) -> None:
+        """Replace the script and measure the box again as ``add_equation`` does, at this equation's
+        ``base_unit``: ``hp:sz`` and ``baseLine`` follow the new script and the paragraph (and the
+        paragraphs holding it) lose their line layout cache. An empty script, a LaTeX command or braces
+        that do not pair are refused before anything changes."""
+
+        set_equation_script(self, script)
+
+
+def wrap_object(element: ET.Element, paragraph: "HwpxOxmlParagraph") -> "ParagraphObject":
+    """The model object for *element*, an object in *paragraph*: a table, picture, equation, drawing
+    shape or other placed object."""
+
+    name = _element_local_name(element)
+    if name == "tbl":
+        from .table import HwpxOxmlTable
+
+        return HwpxOxmlTable(element, paragraph)
+    if name == "pic":
+        return HwpxOxmlPicture(element, paragraph)
+    if name == "equation":
+        return HwpxOxmlEquation(element, paragraph)
+    if name in DRAWING_SHAPE_NAMES:
+        return HwpxOxmlShape(element, paragraph)
+    return HwpxOxmlInlineObject(element, paragraph)
+
+
+def _paragraph_objects(self: "HwpxOxmlParagraph") -> "tuple[ParagraphObject, ...]":
+    """Every object this paragraph's runs hold, in order: tables, pictures, equations, drawing shapes,
+    charts, OLE objects and form controls. Objects inside them (a table's cells, a text box, a
+    group's members) belong to their own paragraphs or to ``Shape.members``."""
+
+    names = DRAWING_SHAPE_NAMES | PLACED_OBJECT_NAMES | {"tbl"}
+    return tuple(
+        wrap_object(child, self) for run in self._run_elements() for child in run
+        if _element_local_name(child) in names
+    )
+
+
+def _paragraph_pictures(self: "HwpxOxmlParagraph") -> "tuple[HwpxOxmlPicture, ...]":
+    """The pictures this paragraph's runs hold, in order (pictures in a group: ``Shape.members``)."""
+
+    return tuple(obj for obj in _paragraph_objects(self) if isinstance(obj, HwpxOxmlPicture))
+
+
+def _paragraph_equations(self: "HwpxOxmlParagraph") -> "tuple[HwpxOxmlEquation, ...]":
+    """The equations this paragraph's runs hold, in order."""
+
+    return tuple(obj for obj in _paragraph_objects(self) if isinstance(obj, HwpxOxmlEquation))
 
 
 # ------------------------------------------------------------------
@@ -704,7 +872,7 @@ def _paragraph_add_picture(
     reflection: PictureReflection | None = None,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
-) -> HwpxOxmlInlineObject:
+) -> HwpxOxmlPicture:
     """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData.
 
     With ``treat_as_char=False`` and ``pos_overrides`` the picture is placed as a
@@ -761,7 +929,7 @@ def _paragraph_add_picture(
         element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
     run.append(element)
     self.section.mark_dirty()
-    return HwpxOxmlInlineObject(element, self)
+    return HwpxOxmlPicture(element, self)
 
 
 def _paragraph_add_line(
@@ -1254,7 +1422,7 @@ def _remove_draw_text(host: ET.Element, section: "HwpxOxmlSection") -> bool:
     return True
 
 
-class HwpxOxmlShape:
+class HwpxOxmlShape(ObjectPlacement):
     """Wrapper for a drawing shape element (``<hp:line>``, ``<hp:rect>``, ``<hp:ellipse>``, etc.)."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
@@ -1278,8 +1446,21 @@ class HwpxOxmlShape:
 
     # --- size access -------------------------------------------------------
 
-    # Lives in ``oxml/shape_position.py`` (this owner file is at its line cap).
-    set_position = _shape_set_position
+    # Lives in ``oxml/shape_position.py``; the same call as ``InlineObject.set_position``.
+    set_position = _object_set_position
+
+    @property
+    def members(self) -> "tuple[HwpxOxmlShape | HwpxOxmlInlineObject, ...]":
+        """A group's (``hp:container``) members in order -- drawing shapes, pictures and groups in it,
+        each a model object (a text box's text: ``member.draw_text``); ``()`` for any other shape."""
+
+        if self.shape_type != "container":
+            return ()
+        names = DRAWING_SHAPE_NAMES | {"pic"}
+        return tuple(
+            cast("HwpxOxmlShape | HwpxOxmlInlineObject", wrap_object(child, self.paragraph))
+            for child in self.element if _element_local_name(child) in names
+        )
 
     @property
     def width(self) -> int:
@@ -1295,8 +1476,9 @@ class HwpxOxmlShape:
             return int(sz.get("height", "0"))
         return 0
 
-    def resize(self, width: int, height: int) -> None:
-        """Resize the shape, including the geometry Hancom actually draws.
+    def resize(self, width: int | None = None, height: int | None = None) -> None:
+        """Resize the shape, including the geometry Hancom actually draws. Give *width* or *height*
+        alone to keep the aspect ratio.
 
         Hancom renders a drawing object from its type-specific geometry
         (``pt0``–``pt3`` for a rectangle, ``center``/``ax1``/``ax2`` for an
@@ -1311,7 +1493,8 @@ class HwpxOxmlShape:
         :class:`UserWarning` is raised, because the drawn shape cannot follow
         the requested size.
         """
-        validate_shape_size(width, height)
+        width, height = keep_ratio((self.width, self.height), width, height)
+        _clear_paragraph_layout_cache(self.paragraph.element)  # its line is as tall as the shape set as a character
         if self.shape_type == "container" and resize_group(self, width, height):
             return  # a group is drawn at its sz: see shape_position.resize_group
         old_width, old_height = self._geometry_size()
@@ -1425,6 +1608,18 @@ class HwpxOxmlShape:
             ls.set("style", value)
             self.paragraph.section.mark_dirty()
 
+    @property
+    def line_width(self) -> int | None:
+        """Line width (``hp:lineShape/@width``, HWPUNIT) the shape was drawn with; ``None`` without one."""
+
+        return line_width_of(self.element)
+
+    @property
+    def fill_color(self) -> str | None:
+        """Solid fill colour (``hc:winBrush/@faceColor``); ``None`` when the shape is not filled."""
+
+        return fill_color_of(self.element)
+
     # --- generic attribute access ------------------------------------------
 
     def get_attribute(self, name: str) -> str | None:
@@ -1525,7 +1720,10 @@ class HwpxOxmlShape:
     def __repr__(self) -> str:
         return f"<HwpxOxmlShape type={self.shape_type!r} id={self.inst_id!r}>"
 
-__all__ = ["Caption", "ContainerMember", "DrawText", "HwpxOxmlInlineObject", "HwpxOxmlShape"]
+__all__ = [
+    "Caption", "ContainerMember", "DrawText", "HwpxOxmlEquation", "HwpxOxmlInlineObject", "HwpxOxmlPicture",
+    "HwpxOxmlShape",
+]
 
 
 # Groups live in their own module (this owner file's 1,600-line cap); re-exported for existing imports.

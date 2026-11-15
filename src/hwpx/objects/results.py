@@ -81,6 +81,51 @@ class PictureReplacement:
 
 
 @dataclass(frozen=True)
+class ObjectPosition:
+    """Where an object (picture, equation, shape, chart, table...) sits, as ``obj.position`` reads it.
+
+    The names are the ones ``obj.set_position(...)`` takes. *treat_as_char*: one character in its
+    line (``True``) or floating (``False``). *text_wrap* (the object's ``textWrap``: ``SQUARE``,
+    ``TIGHT``, ``THROUGH``, ``TOP_AND_BOTTOM``, ``BEHIND_TEXT``, ``IN_FRONT_OF_TEXT``) and
+    *text_flow* (``textFlow``: ``BOTH_SIDES``, ``LEFT_ONLY``, ``RIGHT_ONLY``, ``LARGEST_ONLY``) say
+    how the body text goes around it. *horz_rel_to*/*vert_rel_to* are the frames the offsets count
+    from (``PAPER``, ``PAGE``, ``COLUMN``, ``PARA``), *horz_align*/*vert_align* the alignment in
+    them, and *horizontal_offset*/*vertical_offset* the offsets in HWPUNIT (signed: Hancom stores a
+    negative one in its unsigned 32-bit form). *flow_with_text* keeps it inside the page body and
+    *allow_overlap* lets it overlap other objects. A value the object does not carry is ``None``
+    (an object without ``hp:pos`` -- a member of a group -- reads ``None`` throughout but
+    *treat_as_char*, which is then ``False``). A snapshot: it does not follow later edits.
+    """
+
+    treat_as_char: bool
+    text_wrap: str | None
+    text_flow: str | None
+    horz_rel_to: str | None
+    vert_rel_to: str | None
+    horz_align: str | None
+    vert_align: str | None
+    horizontal_offset: int | None
+    vertical_offset: int | None
+    flow_with_text: bool | None
+    allow_overlap: bool | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "treatAsChar": self.treat_as_char,
+            "textWrap": self.text_wrap,
+            "textFlow": self.text_flow,
+            "horzRelTo": self.horz_rel_to,
+            "vertRelTo": self.vert_rel_to,
+            "horzAlign": self.horz_align,
+            "vertAlign": self.vert_align,
+            "horizontalOffset": self.horizontal_offset,
+            "verticalOffset": self.vertical_offset,
+            "flowWithText": self.flow_with_text,
+            "allowOverlap": self.allow_overlap,
+        }
+
+
+@dataclass(frozen=True)
 class Units:
     """Self-describing measurement units for a result's numeric fields.
 
@@ -364,6 +409,7 @@ __all__ = [
     "FieldFillResult",
     "FontReplaceReport",
     "ListFormatResult",
+    "ObjectPosition",
     "PageMargins",
     "PageSetup",
     "PageSize",
