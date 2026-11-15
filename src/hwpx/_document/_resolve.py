@@ -7,8 +7,8 @@
 
     AttributeError: 'int' object has no attribute 'properties'
 
-`section=`은 객체를 요구하는데 사용자는 당연히 인덱스를 넘기고, 정답인
-`section_index=`는 이름이 따로 있어 발견되지 않는다. 터지는 것도 내부가
+`section=`은 객체를 요구하는데 사용자는 당연히 인덱스를 넘기고, 정답이던
+`section_index=`는 이름이 따로 있어 발견되지 않았다. 터지는 것도 내부가
 새는 `AttributeError`라 호출자가 잡으려던 `TypeError`에 걸리지 않았다.
 별 142개짜리 서드파티 스킬이 이것 때문에 "python-hwpx API를 우회해 XML을
 손으로 풀라"고 자기 사용자에게 가르치고 있었다.
@@ -22,9 +22,10 @@
 
 ## 규약
 
-- `section=`은 인덱스도 객체도 받는다 — 이것이 정본.
-- `section_index=`는 6.x 동안 살아 있는 deprecated 별칭이고 7.0에서 사라진다.
-  6.0에서 바로 없애면 **문서를 읽고 올바르게 쓴 사람만** 깨진다.
+- `section=`은 인덱스도 객체도 받는다 — 이것이 유일한 인자다.
+- 6.x의 별칭 `section_index=`는 7.0에서 없어졌다. 주면
+  `hwpx-argument-removed` 오류가 `section=`을 알려 준다
+  (:func:`hwpx.errors.rejects_removed_arguments`).
 - 실패는 전부 `HwpxError` 계열이다. `AttributeError`가 공개 경로로 새어
   나가지 않는다.
 """
@@ -49,20 +50,18 @@ def _sections(document: "HwpxDocument") -> list["HwpxOxmlSection"]:
 def resolve_section(
     document: "HwpxDocument",
     section: "int | HwpxOxmlSection | None" = None,
-    section_index: int | None = None,
     *,
     caller: str = "",
 ) -> "HwpxOxmlSection":
-    """`section` / `section_index` 삼형을 하나의 섹션 객체로 해석한다.
+    """`section` 인자(번호·객체·``None``)를 하나의 섹션 객체로 해석한다.
 
     Args:
         document: 대상 문서.
         section: 섹션 객체 **또는 인덱스**. ``None``이면 마지막 섹션.
-        section_index: 6.x deprecated 별칭. ``section``과 동시에 줄 수 없다.
         caller: 오류 ``context``에 실릴 호출 API 이름.
 
     Raises:
-        HwpxValueError: 두 인자를 동시에 줬거나 문서에 섹션이 없다.
+        HwpxValueError: 문서에 섹션이 없다.
         HwpxLookupError: 인덱스가 범위 밖이다.
         HwpxTypeError: 섹션도 정수도 아닌 값을 줬다.
     """
@@ -70,14 +69,6 @@ def resolve_section(
     from ..oxml import HwpxOxmlSection  # 순환 import 회피 — 런타임에만 필요
 
     ctx: dict[str, Any] = {"caller": caller} if caller else {}
-
-    if section is not None and section_index is not None:
-        raise HwpxValueError(
-            "section 과 section_index 를 동시에 지정할 수 없습니다.",
-            code="section-argument-conflict",
-            context={**ctx, "section": repr(section), "sectionIndex": section_index},
-            suggestion="section= 하나만 쓰세요. section= 은 인덱스와 객체를 모두 받습니다.",
-        )
 
     sections = _sections(document)
     if not sections:
@@ -88,7 +79,7 @@ def resolve_section(
             suggestion="doc.add_section() 으로 섹션을 먼저 만드세요.",
         )
 
-    requested = section if section is not None else section_index
+    requested = section
     if requested is None:
         return sections[-1]
 
@@ -137,7 +128,6 @@ def optional_paragraph(
     paragraph: "int | HwpxOxmlParagraph | None",
     *,
     section: "int | HwpxOxmlSection | None" = None,
-    section_index: int | None = None,
     caller: str = "",
 ) -> "HwpxOxmlParagraph | None":
     """:func:`resolve_paragraph` for a ``paragraph=`` that may be left out: ``None`` stays
@@ -146,7 +136,7 @@ def optional_paragraph(
 
     if paragraph is None:
         return None
-    return resolve_paragraph(document, paragraph, section=section, section_index=section_index, caller=caller)
+    return resolve_paragraph(document, paragraph, section=section, caller=caller)
 
 
 def resolve_paragraph(
@@ -154,7 +144,6 @@ def resolve_paragraph(
     paragraph: "int | HwpxOxmlParagraph | None" = None,
     *,
     section: "int | HwpxOxmlSection | None" = None,
-    section_index: int | None = None,
     caller: str = "",
 ) -> "HwpxOxmlParagraph":
     """`paragraph` 인자를 문단 객체로 해석한다 — `section` 과 같은 규약.
@@ -177,9 +166,9 @@ def resolve_paragraph(
             )
         return paragraph
 
-    scoped = section is not None or section_index is not None
+    scoped = section is not None
     if scoped:
-        target = resolve_section(document, section, section_index, caller=caller)
+        target = resolve_section(document, section, caller=caller)
         paragraphs = target.paragraphs
     else:
         paragraphs = document.paragraphs

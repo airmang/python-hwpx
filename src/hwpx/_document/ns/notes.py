@@ -38,9 +38,9 @@ class NotesNamespace(_Namespace):
     __slots__ = ()
     _path = "doc.notes"
 
-    def _section(self, section, section_index, caller: str) -> "Section":
+    def _section(self, section, caller: str) -> "Section":
         return resolve_section(
-            self._doc, section, section_index, caller=f"doc.notes.{caller}"
+            self._doc, section, caller=f"doc.notes.{caller}"
         )
 
     # -- 각주 / 미주 -------------------------------------------------------
@@ -51,7 +51,6 @@ class NotesNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         *,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "Note":
         """쪽 아래 각주를 단다."""
@@ -62,10 +61,10 @@ class NotesNamespace(_Namespace):
             self._doc,
             text=text,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.notes.add_footnote",
             ),
-            section=self._section(section, section_index, "add_footnote"),
+            section=self._section(section, "add_footnote"),
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -75,7 +74,6 @@ class NotesNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         *,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "Note":
         """문서 끝 미주를 단다."""
@@ -86,10 +84,10 @@ class NotesNamespace(_Namespace):
             self._doc,
             text=text,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.notes.add_endnote",
             ),
-            section=self._section(section, section_index, "add_endnote"),
+            section=self._section(section, "add_endnote"),
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -110,7 +108,6 @@ class NotesNamespace(_Namespace):
         *,
         anchor: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         memo_shape_id_ref: str | int | None = None,
         memo_id: str | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -135,7 +132,7 @@ class NotesNamespace(_Namespace):
 
         from .. import memos as _memos
 
-        target = self._section(section, section_index, "add_memo")
+        target = self._section(section, "add_memo")
         if anchor is None:
             if paragraph_text is not None or field_id is not None or author is not None:
                 raise HwpxValueError(

@@ -32,6 +32,9 @@
    "tools/document_merge.py:183",
    "tools/document_merge.py:201"
   ],
+  "document-name-removed": [
+   "_document/_legacy.py:187"
+  ],
   "document-settings-root-invalid": [
    "oxml/settings.py:135"
   ],
@@ -106,6 +109,9 @@
   ],
   "heading-style-missing": [
    "_document/headings.py:141"
+  ],
+  "hwpx-argument-removed": [
+   "errors.py:165"
   ],
   "master-page-in-use": [
    "oxml/master_page_authoring.py:268"
@@ -258,9 +264,6 @@
    "_document/persistence.py:196",
    "_document/persistence.py:489"
   ],
-  "section-argument-conflict": [
-   "_document/_resolve.py:75"
-  ],
   "section-clear-control-content": [
    "oxml/section.py:317"
   ],
@@ -356,9 +359,6 @@
   ],
   "style-ambiguous": [
    "_document/ns/styles.py:285"
-  ],
-  "style-argument-conflict": [
-   "document.py:458"
   ],
   "style-border-fill-conflict": [
    "_document/_legacy.py:883",
@@ -477,9 +477,9 @@
  },
  "malformedCodes": [],
  "observed": {
-  "other": 215,
-  "typed": 216,
-  "untyped": 198,
+  "typed": 316,
+  "untyped": 195,
+  "other": 391,
   "untypedByFile": {
    "body_patch.py": 20,
    "equation/mathml.py": 1,
@@ -489,18 +489,17 @@
    "opc/security.py": 1,
    "oxml/_document_primitives.py": 2,
    "oxml/body.py": 5,
-   "oxml/document_parts.py": 23,
+   "oxml/document_parts.py": 19,
    "oxml/header.py": 6,
    "oxml/header_part.py": 16,
    "oxml/memo.py": 1,
-   "oxml/numbering_kinds.py": 1,
    "oxml/objects.py": 1,
    "oxml/paragraph.py": 17,
    "oxml/parser.py": 2,
    "oxml/run.py": 2,
    "oxml/section.py": 1,
    "oxml/section_story.py": 18,
-   "oxml/table.py": 17,
+   "oxml/table.py": 15,
    "oxml/table_sizes.py": 2,
    "oxml/utils.py": 3,
    "patch.py": 14,
@@ -519,18 +518,18 @@
   }
  },
  "public": {
-  "total": 106,
-  "typed": 106,
-  "typedRatio": 1.0,
+  "typed": 123,
   "untyped": 0,
+  "total": 123,
+  "typedRatio": 1.0,
   "untypedSites": []
  },
  "schemaVersion": "python-hwpx.error-census/v1",
  "scope": {
-  "note": "공개 경로 = 사용자가 HwpxDocument 에서 출발해 닿는 표면. oxml/·patch·table_patch 등 내부는 6.x 에서 점진 전환하며 observed 로만 기록한다.",
   "public": [
    "document.py",
    "_document"
-  ]
+  ],
+  "note": "공개 경로 = 사용자가 HwpxDocument 에서 출발해 닿는 표면. oxml/·patch·table_patch 등 내부는 6.x 에서 점진 전환하며 observed 로만 기록한다."
  }
 }

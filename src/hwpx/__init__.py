@@ -6,8 +6,8 @@
 
 - **stable** — ``__all__``에 있는 이름. 계약이 굳었고 major 경계에서만 깨질 수 있음.
 - **experimental** — 계약이 유동적. ``from hwpx.experimental import ...``로 쓰세요.
-  최상위 재내보내기는 하위 호환을 위해 유지하되 접근 시 ``DeprecationWarning``이 나며
-  다음 major에서 제거될 예정입니다.
+  4.0~6.x의 최상위 재내보내기(경고와 함께)는 7.0에서 없어졌습니다 — ``from hwpx import
+  <실험 기능>``은 ``hwpx.experimental``을 알려 주는 ``MovedToExperimental``(ImportError)을 냅니다.
 - **deprecated** — 대체 경로로 이전하세요. 접근 시 ``DeprecationWarning``이 납니다.
 """
 
@@ -26,11 +26,15 @@ def _resolve_version() -> str:
         return "0+unknown"
 
 
-# --- experimental / deprecated 최상위 표면 (지연 접근, 접근 시 경고) ---------------
+# --- experimental / deprecated 최상위 표면 ----------------------------------------
 #
 # stable 이름은 경고 없이 해석됩니다. 대부분 아래에서 eager import 되고, ``hwpx.tools``의
-# 이름은 ``_TOOLS_STABLE_EXPORTS``가 지연 해석합니다. 여기 등록된 이름만 지연 해석되어
-# 경고를 냅니다. 4.0.0에서 제거되는 이름은 0개 — 모두 계속 import 가능합니다.
+# 이름은 ``_TOOLS_STABLE_EXPORTS``가 지연 해석합니다.
+#
+# ``_EXPERIMENTAL_EXPORTS``는 4.0~6.x가 최상위에서 경고와 함께 재내보내던 실험 기능
+# 26개다. 7.0은 예고대로 그 재내보내기를 지웠다. 표는 남아 오류 메시지 하나를 만든다 —
+# ``from hwpx import latex_to_eqedit``가 ``hwpx.experimental``을 알려 준다
+# (``MovedToExperimental``). 구현 모듈 경로는 그대로다.
 
 _EXPERIMENTAL_EXPORTS = {
     # 문서 ingestion 프레임워크(임의 포맷 -> HWPX). 계약 유동.
@@ -86,9 +90,9 @@ _FORMFIT_REPLACEMENT = (
 
 def _experimental_message(name: str) -> str:
     return (
-        f"'hwpx.{name}'는 실험적(experimental) 표면입니다. 계약이 유동적이므로 "
-        f"'from hwpx.experimental import {name}'로 import하세요. 최상위 재내보내기는 "
-        f"다음 major에서 제거될 예정입니다."
+        f"'hwpx.{name}'는 실험적(experimental) 표면이라 python-hwpx 7.0에서 최상위 "
+        f"재내보내기가 없어졌습니다(4.0부터 예고). 이렇게 가져오세요:\n"
+        f"    from hwpx.experimental import {name}"
     )
 
 
@@ -286,6 +290,14 @@ class MovedToCompanion(ImportError):
     """
 
 
+class MovedToExperimental(ImportError):
+    """최상위에서 빠진 실험 기능에 접근했다(7.0). ``hwpx.experimental``에 있다.
+
+    :class:`MovedToCompanion`과 같은 까닭으로 ImportError다 — ``from hwpx import X``가
+    메시지를 그대로 사용자에게 보여 준다.
+    """
+
+
 class RetiredSurface(ImportError):
     """A removed compatibility surface whose replacement is not another import."""
 
@@ -294,7 +306,8 @@ def __getattr__(name: str) -> object:
     """Resolve dynamic module attributes.
 
     ``__version__``과 ``hwpx.tools``의 stable 이름은 경고 없이 지연 해석하고,
-    experimental/deprecated 이름은 해석 시 ``DeprecationWarning``을 냅니다.
+    deprecated 이름은 해석 시 ``DeprecationWarning``을 냅니다. 7.0에서 최상위에서 빠진
+    실험 기능은 ``hwpx.experimental``을 알려 주는 ``MovedToExperimental``을 냅니다.
     """
 
     if name == "__version__":
@@ -306,8 +319,7 @@ def __getattr__(name: str) -> object:
             raise AttributeError(
                 "hwpx lazy-export targets must remain inside the 'hwpx' package"
             )
-        warnings.warn(_experimental_message(name), DeprecationWarning, stacklevel=2)
-        return getattr(importlib.import_module(module_name), name)
+        raise MovedToExperimental(_experimental_message(name))
 
     module_name = _DEPRECATED_EXPORTS.get(name)
     if module_name is not None:
@@ -358,7 +370,6 @@ def __dir__() -> list[str]:
         set(globals())
         | set(__all__)
         | {"tools"}
-        | set(_EXPERIMENTAL_EXPORTS)
         | set(_DEPRECATED_EXPORTS)
     )
 

@@ -165,7 +165,7 @@ def _run_model_text(doc: HwpxDocument) -> None:
         lambda doc: doc.paragraphs[1].runs[0].replace_text("원래", _VALUE),
         lambda doc: doc.text.replace("원래", _VALUE),
         lambda doc: doc.text.replace("원래", _VALUE, everywhere=True),
-        lambda doc: doc.replace_text_in_runs("원래", _VALUE),
+        lambda doc: doc.text.replace("원래", _VALUE),
         lambda doc: doc.paragraphs[1].set_text_preserving_runs(f"앞 {_VALUE} 뒤"),
         _model_text,
         _run_model_text,

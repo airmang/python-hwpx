@@ -815,7 +815,6 @@ def add_form_field(
     editable: bool = True,
     paragraph: Any | None = None,
     section: Any | None = None,
-    section_index: int | None = None,
 ) -> FormField:
     """Create a click-here (누름틀) form field and return it as a :class:`FormField`.
 
@@ -835,7 +834,7 @@ def add_form_field(
         )
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index, include_run=False,
+            "", section=section, include_run=False,
         )
 
     prompt_char_pr: str | None = None
@@ -920,7 +919,6 @@ def add_check_box(
     name: str | None = None,
     paragraph: Any | None = None,
     section: Any | None = None,
-    section_index: int | None = None,
 ) -> CheckBox:
     """Create a check-box form object and return it as a :class:`CheckBox`.
 
@@ -939,7 +937,7 @@ def add_check_box(
         )
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index, include_run=False,
+            "", section=section, include_run=False,
         )
 
     control = paragraph.add_check_box(caption, checked=checked, name=name)

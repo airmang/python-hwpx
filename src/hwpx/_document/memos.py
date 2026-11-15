@@ -85,7 +85,6 @@ def add_memo(
     text: str = "",
     *,
     section: "HwpxOxmlSection | None" = None,
-    section_index: int | None = None,
     memo_shape_id_ref: str | int | None = None,
     memo_id: str | None = None,
     char_pr_id_ref: str | int | None = None,
@@ -93,8 +92,6 @@ def add_memo(
 ) -> "HwpxOxmlMemo":
     """Create a memo entry inside *section* (or the last section by default)."""
 
-    if section is None and section_index is not None:
-        section = doc._root.sections[section_index]
     if section is None:
         if not doc._root.sections:
             raise HwpxValueError(
@@ -260,7 +257,6 @@ def add_memo_with_anchor(
     *,
     paragraph: "HwpxOxmlParagraph | None" = None,
     section: "HwpxOxmlSection | None" = None,
-    section_index: int | None = None,
     paragraph_text: str | None = None,
     memo_shape_id_ref: str | int | None = None,
     memo_id: str | None = None,
@@ -288,7 +284,6 @@ def add_memo_with_anchor(
         doc,
         text,
         section=section,
-        section_index=section_index,
         memo_shape_id_ref=memo_shape_id_ref,
         memo_id=memo_id,
         char_pr_id_ref=char_pr_id_ref,

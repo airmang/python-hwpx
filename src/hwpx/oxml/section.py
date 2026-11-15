@@ -26,6 +26,7 @@ from ._document_primitives import (
     _remove_stale_paragraph_layout_cache,
     _serialize_xml,
 )
+from ..errors import rejects_removed_arguments
 from .body import INLINE_OBJECT_NAMES
 from .memo import HwpxOxmlFieldMemo, HwpxOxmlMemo, HwpxOxmlMemoGroup, memo_field_id
 from .paragraph import HwpxOxmlParagraph
@@ -36,6 +37,7 @@ from .section_story import HwpxOxmlSectionHeaderFooter, story_marks
 if TYPE_CHECKING:
     from ..objects.results import ClearBodyReport
     from .document_parts import HwpxOxmlDocument
+    from .header import Style
 
 _CLEAR_BODY_MODES = ("raise", "keep", "strip")
 _CLEAR_BODY_KEPT_TAGS = frozenset({f"{_HP}secPr", f"{_HP}ctrl"})
@@ -480,12 +482,13 @@ class HwpxOxmlSection:
             break_setting={key: False for key in flags.values()},
         )
 
+    @rejects_removed_arguments
     def add_paragraph(
         self,
         text: str = "",
         *,
         para_pr_id_ref: str | int | None = None,
-        style_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
@@ -502,11 +505,24 @@ class HwpxOxmlSection:
         *inherit_outline* false the paragraph and style references of an
         outline paragraph (a heading) are not inherited.
 
-        The optional ``para_pr_id_ref`` and ``style_id_ref`` parameters
+        The optional ``para_pr_id_ref`` and ``style`` parameters
         control the paragraph-level references, while ``char_pr_id_ref`` and
         ``run_attributes`` customise the initial ``<hp:run>`` element when
-        ``include_run`` is :data:`True`.
+        ``include_run`` is :data:`True`. ``style`` (a name, a numeric id or a
+        ``Style``) also gives the paragraph that style's paragraph and
+        character shapes unless they are passed, as Hancom does when it applies
+        a style. (7.0 removed ``style_id_ref=``, which set the style reference
+        alone; ``paragraph.style_id_ref = 2`` still does that.)
         """
+
+        style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
+            self.document,
+            style,
+            para_pr_id_ref,
+            char_pr_id_ref,
+            run_attributes,
+            extra_attrs,
+        )
 
         # Collect style refs from the last paragraph for inheritance.
         prev_para_ref, prev_style_ref, prev_char_ref = (
@@ -893,6 +909,82 @@ def _remove_outlived_caches(root: Any, tracked: _TrackedCaches) -> tuple[int, _T
         else:
             following.append((cache, digest, now))
     return removed, following
+
+
+def style_shape_refs(
+    document: "HwpxOxmlDocument | None",
+    style: "int | str | Style | None",
+    para_pr_id_ref: str | int | None,
+    char_pr_id_ref: str | int | None,
+    run_attributes: Mapping[str, str] | None = None,
+    paragraph_attributes: Mapping[str, str] | None = None,
+) -> tuple[str | int | None, str | int | None, str | int | None]:
+    """``(styleIDRef, paraPrIDRef, charPrIDRef)`` for a paragraph made with *style*: the
+    style's id, and its paragraph and character shapes where none were given (a
+    ``charPrIDRef`` in *run_attributes*, a ``paraPrIDRef`` in *paragraph_attributes*
+    counts as given). No *style*: no reference."""
+
+    if style is None:
+        return None, para_pr_id_ref, char_pr_id_ref
+    resolved = resolve_style_spec(document, style)
+    style_id = resolved.id if resolved.id is not None else resolved.raw_id
+    if para_pr_id_ref is None and "paraPrIDRef" not in (paragraph_attributes or {}):
+        para_pr_id_ref = resolved.para_pr_id_ref
+    if char_pr_id_ref is None and "charPrIDRef" not in (run_attributes or {}):
+        char_pr_id_ref = resolved.char_pr_id_ref
+    return style_id, para_pr_id_ref, char_pr_id_ref
+
+
+def resolve_style_spec(document: "HwpxOxmlDocument | None", spec: "int | str | Style") -> "Style":
+    """The style *spec* names in *document*: a ``Style`` as it is, a numeric id, or a
+    ``name``/``engName`` (exact, then ignoring case) — the order ``doc.styles.resolve``
+    uses, for the model-level ``add_paragraph(style=...)``.
+
+    Raises ``HwpxLookupError`` (``style-not-found`` / ``style-ambiguous``).
+    """
+
+    from ..errors import HwpxLookupError
+
+    if not isinstance(spec, (int, str)):
+        return spec
+    styles = document.styles if document is not None else {}
+    if isinstance(spec, int) or spec.strip().lstrip("-").isdigit():
+        wanted = str(int(str(spec).strip()))
+        found = next((s for key, s in styles.items() if wanted in (str(key), str(s.id))), None)
+    else:
+        ids = _style_ids_named(document, spec.strip())
+        if len(ids) > 1:
+            raise HwpxLookupError(
+                f"스타일 이름 {spec.strip()!r} 이(가) 모호합니다 — {len(ids)}개가 같은 이름을 씁니다.",
+                code="style-ambiguous",
+                context={"requested": spec.strip(), "candidates": list(ids)},
+                suggestion=f"숫자 id 로 지정하세요 — 후보: {', '.join(ids)}.",
+            )
+        found = styles.get(ids[0]) if ids else None
+    if found is None:
+        available = sorted({(s.name or "").strip() for s in styles.values() if (s.name or "").strip()})
+        raise HwpxLookupError(
+            f"스타일 {spec!r} 을(를) 찾을 수 없습니다.",
+            code="style-not-found",
+            context={"requested": spec, "available": available, "availableCount": len(available)},
+            suggestion="이 문서의 스타일 이름이나 번호를 주세요(doc.styles.names()).",
+        )
+    return found
+
+
+def _style_ids_named(document: "HwpxOxmlDocument | None", name: str) -> "tuple[str, ...]":
+    """The ids of the styles called *name* (``name`` or ``engName``; exact, then ignoring case)."""
+
+    if document is None:
+        return ()
+    aliases = document.style_name_aliases()
+    if name in aliases:
+        return tuple(aliases[name])
+    lowered = name.lower()
+    for alias, found in aliases.items():
+        if alias.lower() == lowered:
+            return tuple(found)
+    return ()
 
 
 __all__ = ["HwpxOxmlSection", "HwpxOxmlSectionHeaderFooter", "HwpxOxmlSectionProperties"]

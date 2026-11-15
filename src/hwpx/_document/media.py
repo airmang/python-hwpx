@@ -28,7 +28,7 @@ from ._units import _mm_to_hwp_units
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
-    from ..oxml import HwpxOxmlSection
+    from ..oxml import HwpxOxmlSection, Style
 
 _HP = HP
 _HC = HC
@@ -177,7 +177,6 @@ def add_picture(
     image_format: str,
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     width: int | None = None,
     height: int | None = None,
     width_mm: float | None = None,
@@ -195,7 +194,7 @@ def add_picture(
     soft_edge: int | None = None,
     reflection: PictureReflection | None = None,
     para_pr_id_ref: str | int | None = None,
-    style_id_ref: str | int | None = None,
+    style: "int | str | Style | None" = None,
     char_pr_id_ref: str | int | None = None,
     run_attributes: dict[str, str] | None = None,
     **extra_attrs: str,
@@ -238,9 +237,8 @@ def add_picture(
     paragraph = doc.add_paragraph(
         "",
         section=section,
-        section_index=section_index,
         para_pr_id_ref=para_pr_id_ref,
-        style_id_ref=style_id_ref,
+        style=style,
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
         **cast(Any, extra_attrs),

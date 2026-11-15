@@ -25,6 +25,7 @@ from ._document_primitives import (
     _paragraph_id,
     _serialize_xml,
 )
+from ..errors import rejects_removed_arguments
 from .common import GenericElement
 from .header import (
     Bullet,
@@ -1140,14 +1141,26 @@ class HwpxOxmlDocument:
             paragraphs.extend(section.paragraphs)
         return paragraphs
 
+    def _target_section(self, section: "int | HwpxOxmlSection | None") -> HwpxOxmlSection:
+        """*section* as a section: an index into :attr:`sections`, a section, or ``None``
+        for the last one."""
+
+        if section is None:
+            if not self._sections:
+                raise ValueError("document does not contain any sections")
+            return self._sections[-1]
+        if isinstance(section, HwpxOxmlSection):
+            return section
+        return self._sections[section]
+
+    @rejects_removed_arguments
     def add_paragraph(
         self,
         text: str = "",
         *,
-        section: HwpxOxmlSection | None = None,
-        section_index: int | None = None,
+        section: int | HwpxOxmlSection | None = None,
         para_pr_id_ref: str | int | None = None,
-        style_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
@@ -1155,17 +1168,13 @@ class HwpxOxmlDocument:
         inherit_outline: bool = True,
         **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
-        """Append a new paragraph to the requested section."""
-        if section is None and section_index is not None:
-            section = self._sections[section_index]
-        if section is None:
-            if not self._sections:
-                raise ValueError("document does not contain any sections")
-            section = self._sections[-1]
-        return section.add_paragraph(
+        """Append a new paragraph to the requested section (an index or a section;
+        ``None``: the last). ``style`` is a name, a numeric id or a ``Style``, as
+        :meth:`HwpxOxmlSection.add_paragraph` takes it."""
+        return self._target_section(section).add_paragraph(
             text,
             para_pr_id_ref=para_pr_id_ref,
-            style_id_ref=style_id_ref,
+            style=style,
             char_pr_id_ref=char_pr_id_ref,
             run_attributes=run_attributes,
             include_run=include_run,
@@ -1174,12 +1183,12 @@ class HwpxOxmlDocument:
             **extra_attrs,
         )
 
+    @rejects_removed_arguments
     def remove_paragraph(
         self,
         paragraph: HwpxOxmlParagraph | int,
         *,
-        section: "HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
+        section: "int | HwpxOxmlSection | None" = None,
     ) -> None:
         """Remove *paragraph* from the document.
 
@@ -1187,51 +1196,33 @@ class HwpxOxmlDocument:
         paragraphs of the specified (or last) section.
         """
         if isinstance(paragraph, int):
-            if section is None and section_index is not None:
-                section = self._sections[section_index]
-            if section is None:
-                if not self._sections:
-                    raise ValueError("document does not contain any sections")
-                section = self._sections[-1]
-            section.remove_paragraph(paragraph)
+            self._target_section(section).remove_paragraph(paragraph)
         else:
             paragraph.remove()
 
+    @rejects_removed_arguments
     def copy_paragraph_range(
         self,
         start: int,
         end: int,
         *,
-        section: HwpxOxmlSection | None = None,
-        section_index: int | None = None,
+        section: int | HwpxOxmlSection | None = None,
     ) -> list[ET.Element]:
         """Return deep-copied paragraph elements for an inclusive range."""
 
-        if section is None and section_index is not None:
-            section = self._sections[section_index]
-        if section is None:
-            if not self._sections:
-                raise ValueError("document does not contain any sections")
-            section = self._sections[-1]
-        return section.copy_paragraph_range(start, end)
+        return self._target_section(section).copy_paragraph_range(start, end)
 
+    @rejects_removed_arguments
     def insert_paragraphs(
         self,
         index: int,
         paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
         *,
-        section: HwpxOxmlSection | None = None,
-        section_index: int | None = None,
+        section: int | HwpxOxmlSection | None = None,
     ) -> list[HwpxOxmlParagraph]:
         """Insert copied paragraphs into the requested section."""
 
-        if section is None and section_index is not None:
-            section = self._sections[section_index]
-        if section is None:
-            if not self._sections:
-                raise ValueError("document does not contain any sections")
-            section = self._sections[-1]
-        return section.insert_paragraphs(index, paragraphs)
+        return self._target_section(section).insert_paragraphs(index, paragraphs)
 
     # ------------------------------------------------------------------
     # Section management

@@ -201,7 +201,7 @@ def test_form_field_location_collapses_the_five_index_keys() -> None:
 def test_add_form_field_returns_a_live_form_field() -> None:
     document = HwpxDocument.new()
     with _no_warnings():
-        field = document.add_form_field("성명", prompt="이름 입력", memo="도움말")
+        field = document.fields.add("성명", prompt="이름 입력", memo="도움말")
 
     assert isinstance(field, FormField)
     assert field.field_id
@@ -220,13 +220,13 @@ def test_form_field_value_setter_fills_through_the_same_path_as_fill() -> None:
 
     document = HwpxDocument.new()
     with _no_warnings():
-        field = document.add_form_field("이름", prompt="입력하세요")
+        field = document.fields.add("이름", prompt="입력하세요")
         field.value = "홍길동"
 
     assert field.value == "홍길동"
     assert field.is_placeholder is False
     with _no_warnings():
-        (reread,) = document.list_form_fields()
+        (reread,) = document.fields.all
     assert reread.value == "홍길동"
 
 
@@ -286,8 +286,8 @@ def test_checkbox_and_form_field_are_living_views_not_result_dataclasses() -> No
 def test_field_fill_result_to_dict_is_a_plain_camel_case_dict() -> None:
     document = HwpxDocument.new()
     with _no_warnings():
-        document.add_form_field("주소", prompt="입력")
-        result = document.fill_form_field("서울시", name="주소")
+        document.fields.add("주소", prompt="입력")
+        result = document.fields.fill("서울시", name="주소")
     payload = result.to_dict()
     assert payload["before"] == "입력"
     assert payload["after"] == "서울시"
@@ -306,7 +306,7 @@ def test_binary_item_stringifies_to_its_manifest_id() -> None:
     assert str(item) == "BIN0001"
     # And through the still-live 5.x facade name (deprecated, not removed):
     with _no_warnings():
-        legacy_item = document.add_image(_PNG, "png")
+        legacy_item = document.media.add_image(_PNG, "png")
     assert str(legacy_item) == "BIN0002"
 
 
@@ -331,7 +331,7 @@ def test_add_picture_still_works_with_the_binary_item_migration_buffer() -> None
     document = HwpxDocument.new()
     with _no_warnings():
         document.add_picture(_PNG, "png", width=1000, height=1000)
-    (image,) = document.list_images()
+    (image,) = document.media.images
     assert image.item_id == "BIN0001"
 
 
@@ -344,7 +344,7 @@ def test_tracked_change_has_no_implicit_int_conversion() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("some text")
     with _no_warnings():
-        change = document.add_tracked_insert(paragraph, " more")
+        change = document.tracking.insert(paragraph, " more")
     assert isinstance(change, TrackedChange)
     with pytest.raises(TypeError):
         int(change)  # type: ignore[arg-type]
@@ -354,7 +354,7 @@ def test_add_tracked_replace_returns_named_fields_not_a_tuple() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("before old after", char_pr_id_ref="0")
     with _no_warnings():
-        result = document.add_tracked_replace(paragraph, "old", "new")
+        result = document.tracking.replace(paragraph, "old", "new")
     assert isinstance(result, TrackedReplacement)
     assert isinstance(result.insert, TrackedChange) and result.insert.kind == "INSERT"
     assert isinstance(result.delete, TrackedChange) and result.delete.kind == "DELETE"
@@ -384,8 +384,8 @@ def test_add_memo_with_anchor_returns_one_memo_not_a_3_tuple() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("anchor host")
     with _no_warnings():
-        memo = document.add_memo_with_anchor(
-            "anchored text", paragraph=paragraph, memo_shape_id_ref="0"
+        memo = document.notes.add_memo(
+            "anchored text", anchor=paragraph, memo_shape_id_ref="0"
         )
     assert memo.text == "anchored text"
     assert memo.field_id
@@ -398,7 +398,7 @@ def test_attach_memo_field_returns_the_memo_with_field_id_resolvable() -> None:
     paragraph = document.add_paragraph("host")
     memo = _memos.add_memo(document, "comment text")
     with _no_warnings():
-        returned = document.attach_memo_field(paragraph, memo, field_id="field-77")
+        returned = document.notes.attach(paragraph, memo, field_id="field-77")
     assert returned is memo
     assert returned.field_id == "field-77"
 
@@ -443,7 +443,7 @@ def test_fill_form_field_no_longer_has_an_ok_key() -> None:
     document = HwpxDocument.new()
     _click_here_field(document, name="주소")
     with _no_warnings():
-        result = document.fill_form_field("서울시", name="주소")
+        result = document.fields.fill("서울시", name="주소")
     assert isinstance(result, FieldFillResult)
     assert not hasattr(result, "ok")
     assert "ok" not in result.to_dict()
@@ -454,7 +454,7 @@ def test_fill_form_field_fails_closed_on_hard_overflow_instead_of_ok_false() -> 
     _click_here_field(document, name="주소")
     with _no_warnings():
         with pytest.raises(HwpxValueError) as excinfo:
-            document.fill_form_field(
+            document.fields.fill(
                 "가" * 50,
                 name="주소",
                 fit_policy=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
@@ -467,7 +467,7 @@ def test_fill_form_field_fails_closed_on_hard_overflow_instead_of_ok_false() -> 
     # And the field itself was left untouched — fail-closed, not "wrote it
     # anyway and reported failure" (the 5.x `ok: bool` shape).
     with _no_warnings():
-        (field,) = document.list_form_fields()
+        (field,) = document.fields.all
     assert field.value == "입력"
 
 
@@ -478,7 +478,7 @@ def test_fill_form_field_without_box_width_never_hard_fails() -> None:
     document = HwpxDocument.new()
     _click_here_field(document, name="주소")
     with _no_warnings():
-        result = document.fill_form_field(
+        result = document.fields.fill(
             "가" * 50, name="주소", fit_policy=FitPolicy(overflow="fail")
         )
     assert isinstance(result, FieldFillResult)
@@ -493,7 +493,7 @@ def test_fill_form_field_without_box_width_never_hard_fails() -> None:
 def test_page_setup_reports_millimetres_not_relabelled_hwpunit() -> None:
     document = HwpxDocument.new()
     with _no_warnings():
-        result = document.set_page_setup(
+        result = document.page.setup(
             paper_size="A4", orientation="landscape",
             margin_left_mm=20, margin_right_mm=20,
         )
@@ -515,9 +515,9 @@ def test_checkbox_setter_replaces_set_check_box_call_pattern() -> None:
 
     document = HwpxDocument.new()
     with _no_warnings():
-        cb = document.add_check_box("동의")
+        cb = document.fields.add_check_box("동의")
     cb.checked = False
     assert cb.checked is False
     with _no_warnings():
-        (reread,) = document.list_check_boxes()
+        (reread,) = document.fields.check_boxes
     assert reread.checked is False

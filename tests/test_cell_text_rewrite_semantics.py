@@ -15,7 +15,7 @@ def _cell_with_three_paragraphs_and_a_nested_table():
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)
     cell.text = "첫째"
-    cell.add_paragraph("둘째", para_pr_id_ref=3, style_id_ref=2, char_pr_id_ref=4)
+    cell.add_paragraph("둘째", para_pr_id_ref=3, style=2, char_pr_id_ref=4)
     cell.add_table(1, 1).cell(0, 0).text = "안쪽"
     return doc, table, cell
 

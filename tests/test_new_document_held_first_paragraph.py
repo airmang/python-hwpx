@@ -40,7 +40,7 @@ def test_the_added_paragraph_and_the_held_one_are_the_same_element() -> None:
 def test_the_added_paragraphs_shape_and_style_move_in() -> None:
     doc = HwpxDocument.new()
     held = doc.paragraphs[0]
-    added = doc.add_paragraph("가운데", para_pr_id_ref=3, style_id_ref=2, char_pr_id_ref=1)
+    added = doc.add_paragraph("가운데", para_pr_id_ref=3, style=2, char_pr_id_ref=1)
     assert held.element.get("paraPrIDRef") == "3"
     assert held.element.get("styleIDRef") == "2"
     assert added.element.find(f"{HP}run/{HP}t") is not None

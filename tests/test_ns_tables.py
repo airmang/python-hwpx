@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import inspect
-import warnings
 
 import pytest
 
@@ -44,12 +43,14 @@ def test_merge_cells_returns_the_surviving_cell(document: HwpxDocument) -> None:
     assert cell.span == (1, 2)
 
 
-def test_the_moved_root_name_still_answers_with_a_warning(document: HwpxDocument) -> None:
+def test_the_removed_root_name_points_at_doc_tables(document: HwpxDocument) -> None:
+    from hwpx.errors import HwpxAttributeError
+
     table = document.add_table(2, 2)
-    with pytest.warns(DeprecationWarning) as record:
-        cell = document.merge_table_cells(table, "A1:B1")
-    assert "doc.tables.merge_cells" in str(record[0].message)
-    assert isinstance(cell, model.TableCell)
+    with pytest.raises(HwpxAttributeError) as excinfo:
+        document.merge_table_cells(table, "A1:B1")  # type: ignore[attr-defined]
+    assert "doc.tables.merge_cells" in str(excinfo.value)
+    assert isinstance(document.tables.merge_cells(table, "A1:B1"), model.TableCell)
 
 
 # --------------------------------------------------------------------------
@@ -121,10 +122,12 @@ def test_an_empty_mapping_is_a_no_op(document: HwpxDocument) -> None:
     assert result["applied_count"] == 0 and result["failed_count"] == 0
 
 
-def test_the_moved_lookup_names_still_answer(document: HwpxDocument) -> None:
+def test_the_removed_lookup_names_point_at_doc_tables(document: HwpxDocument) -> None:
+    from hwpx.errors import HwpxAttributeError
+
     document.add_table(1, 1)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        assert document.get_table_map() == document.tables.map()
-        assert document.find_cell_by_label("x") == document.tables.find_cell_by_label("x")
-    assert len([w for w in caught if issubclass(w.category, DeprecationWarning)]) == 2
+    for name, target in [("get_table_map", "doc.tables.map"), ("find_cell_by_label", "doc.tables.find_cell_by_label")]:
+        with pytest.raises(HwpxAttributeError) as excinfo:
+            getattr(document, name)
+        assert target in str(excinfo.value)
+        assert excinfo.value.context["movingToAutomation"] is True

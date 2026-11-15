@@ -66,21 +66,21 @@ class TestTableHancomDefaults:
 class TestListParaPrDoesNotLeak:
     def test_plain_paragraph_after_bullet_returns_to_body_text(self) -> None:
         doc = HwpxDocument.new()
-        bullets = doc.ensure_numbering(kind="bullet")
+        bullets = doc.styles.ensure_numbering(kind="bullet")
         doc.add_paragraph("글머리표", para_pr_id_ref=bullets[0])
         after = doc.add_paragraph("일반 본문")
         assert after.element.get("paraPrIDRef") != bullets[0]
 
     def test_plain_paragraph_after_numbered_returns_to_body_text(self) -> None:
         doc = HwpxDocument.new()
-        nums = doc.ensure_numbering(kind="numbered")
+        nums = doc.styles.ensure_numbering(kind="numbered")
         doc.add_paragraph("첫째", para_pr_id_ref=nums[0])
         after = doc.add_paragraph("일반 본문")
         assert after.element.get("paraPrIDRef") != nums[0]
 
     def test_explicit_list_para_pr_still_continues_the_list(self) -> None:
         doc = HwpxDocument.new()
-        bullets = doc.ensure_numbering(kind="bullet")
+        bullets = doc.styles.ensure_numbering(kind="bullet")
         doc.add_paragraph("첫 항목", para_pr_id_ref=bullets[0])
         second = doc.add_paragraph("둘째 항목", para_pr_id_ref=bullets[0])
         assert second.element.get("paraPrIDRef") == bullets[0]
@@ -122,7 +122,7 @@ class TestPageFlowSettingsDoNotLeak:
         doc.add_paragraph("첫 문단")
         set_on = doc.add_paragraph("둘째 문단")
         last = len(doc.paragraphs) - 1
-        doc.set_paragraph_format(paragraph_index=last, alignment="CENTER", **{option: True})
+        doc.styles.apply_paragraph_format(paragraph_index=last, alignment="CENTER", **{option: True})
         after = doc.add_paragraph("셋째 문단")
         later = doc.add_paragraph("넷째 문단")
 
@@ -138,9 +138,9 @@ class TestPageFlowSettingsDoNotLeak:
         doc.add_paragraph("본문")
         target = doc.add_paragraph("가운데")
         last = len(doc.paragraphs) - 1
-        doc.set_paragraph_format(paragraph_index=last, alignment="CENTER")
+        doc.styles.apply_paragraph_format(paragraph_index=last, alignment="CENTER")
         centered = target.element.get("paraPrIDRef")
-        doc.set_paragraph_format(paragraph_index=last, page_break_before=True)
+        doc.styles.apply_paragraph_format(paragraph_index=last, page_break_before=True)
         assert target.element.get("paraPrIDRef") != centered
         after = doc.add_paragraph("다음")
         assert after.element.get("paraPrIDRef") == centered
@@ -148,7 +148,7 @@ class TestPageFlowSettingsDoNotLeak:
     def test_explicit_para_pr_with_a_page_flow_setting_is_kept(self) -> None:
         doc = HwpxDocument.new()
         first = doc.add_paragraph("본문")
-        doc.set_paragraph_format(paragraph_index=len(doc.paragraphs) - 1, page_break_before=True)
+        doc.styles.apply_paragraph_format(paragraph_index=len(doc.paragraphs) - 1, page_break_before=True)
         breaking = first.element.get("paraPrIDRef")
         again = doc.add_paragraph("새 쪽", para_pr_id_ref=breaking)
         assert again.element.get("paraPrIDRef") == breaking
@@ -157,24 +157,24 @@ class TestPageFlowSettingsDoNotLeak:
 class TestBorderSurface:
     def test_border_type_emits_and_dedupes(self) -> None:
         doc = HwpxDocument.new()
-        dashed = doc.ensure_border_fill(
+        dashed = doc.styles.ensure_border_fill(
             border_type="DASH", border_color="#0000FF", border_width="0.4 mm"
         )
-        assert doc.ensure_border_fill(
+        assert doc.styles.ensure_border_fill(
             border_type="DASH", border_color="#0000FF", border_width="0.4 mm"
         ) == dashed
-        solid = doc.ensure_border_fill(border_color="#0000FF", border_width="0.4 mm")
+        solid = doc.styles.ensure_border_fill(border_color="#0000FF", border_width="0.4 mm")
         assert solid != dashed
 
     def test_border_type_outside_owpml_vocabulary_rejected(self) -> None:
         doc = HwpxDocument.new()
         with pytest.raises(ValueError):
-            doc.ensure_border_fill(border_type="ZIGZAG")
+            doc.styles.ensure_border_fill(border_type="ZIGZAG")
 
     def test_set_cell_border_fill_points_one_cell(self) -> None:
         doc = HwpxDocument.new()
         table = doc.add_table(1, 2)
-        dashed = doc.ensure_border_fill(border_type="DASH")
+        dashed = doc.styles.ensure_border_fill(border_type="DASH")
         table.set_cell_border_fill(0, 1, dashed)
         reopened = _roundtrip(doc)
         cells = list(reopened.sections[0].element.iter(f"{HP}tc"))
@@ -187,7 +187,7 @@ class TestHyperlinkConvention:
 
     def test_display_run_gets_blue_underline_by_default(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_hyperlink("https://example.com", "링크")
+        doc.refs.add_hyperlink("https://example.com", "링크")
         reopened = _roundtrip(doc)
         HPNS = HP
         HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -202,7 +202,7 @@ class TestHyperlinkConvention:
         char_id = link_run.get("charPrIDRef")
         char_props = {
             el.get("id"): el
-            for header in reopened.headers
+            for header in reopened.parts.headers
             for el in header._char_properties_element()
         }
         cp = char_props[char_id]
@@ -213,7 +213,7 @@ class TestHyperlinkConvention:
 
     def test_explicit_char_pr_overrides_convention(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_hyperlink("https://example.com", "링크", char_pr_id_ref="0")
+        doc.refs.add_hyperlink("https://example.com", "링크", char_pr_id_ref="0")
         HPNS = HP
         found = None
         for section in doc.sections:
@@ -232,18 +232,18 @@ class TestRunStyleExtensions:
 
     def test_extended_styles_emit_expected_xml(self) -> None:
         doc = HwpxDocument.new()
-        wave = doc.ensure_run_style(underline_shape="WAVE", underline_color="#009900")
-        ratio = doc.ensure_run_style(ratio=200)
-        spacing = doc.ensure_run_style(letter_spacing=30)
-        shadow = doc.ensure_run_style(shadow="#999999")
-        sup = doc.ensure_run_style(script="sup")
-        double_strike = doc.ensure_run_style(strike_shape="DOUBLE_SLIM")
+        wave = doc.styles.ensure_run(underline_shape="WAVE", underline_color="#009900")
+        ratio = doc.styles.ensure_run(ratio=200)
+        spacing = doc.styles.ensure_run(letter_spacing=30)
+        shadow = doc.styles.ensure_run(shadow="#999999")
+        sup = doc.styles.ensure_run(script="sup")
+        double_strike = doc.styles.ensure_run(strike_shape="DOUBLE_SLIM")
         assert len({wave, ratio, spacing, shadow, sup, double_strike}) == 6
 
         HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
         char_props = {
             el.get("id"): el
-            for header in doc.headers
+            for header in doc.parts.headers
             for el in header._char_properties_element()
         }
         underline = char_props[wave].find(f"{HH}underline")
@@ -260,8 +260,8 @@ class TestRunStyleExtensions:
 
     def test_extended_styles_are_idempotent(self) -> None:
         doc = HwpxDocument.new()
-        first = doc.ensure_run_style(ratio=200, letter_spacing=30)
-        assert doc.ensure_run_style(ratio=200, letter_spacing=30) == first
+        first = doc.styles.ensure_run(ratio=200, letter_spacing=30)
+        assert doc.styles.ensure_run(ratio=200, letter_spacing=30) == first
 
     @pytest.mark.parametrize(
         "kwargs",
@@ -277,17 +277,17 @@ class TestRunStyleExtensions:
     def test_out_of_vocabulary_values_rejected(self, kwargs: dict) -> None:
         doc = HwpxDocument.new()
         with pytest.raises(ValueError):
-            doc.ensure_run_style(**kwargs)
+            doc.styles.ensure_run(**kwargs)
 
     def test_sub_script_is_the_subscript_element_alone(self) -> None:
         # Hancom lowers and shrinks a subscript by hh:subscript alone; an extra
         # offset/relSz would move and shrink it a second time.
         doc = HwpxDocument.new()
-        sub = doc.ensure_run_style(script="sub")
+        sub = doc.styles.ensure_run(script="sub")
         HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
         char_props = {
             el.get("id"): el
-            for header in doc.headers
+            for header in doc.parts.headers
             for el in header._char_properties_element()
         }
         assert char_props[sub].find(f"{HH}subscript") is not None

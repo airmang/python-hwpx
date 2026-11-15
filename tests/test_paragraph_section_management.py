@@ -81,7 +81,7 @@ class TestParagraphRemove:
         paras = section.paragraphs
         target = [p for p in paras if p.text == "remove_me"]
         assert target
-        doc.remove_paragraph(target[0])
+        target[0].remove()
 
         remaining = [p.text for p in section.paragraphs]
         assert "remove_me" not in remaining
@@ -92,8 +92,8 @@ class TestParagraphRemove:
         doc.add_paragraph("B")
         section = doc.sections[0]
         count = len(section.paragraphs)
-        # Remove last paragraph by index through document-level method
-        doc.remove_paragraph(count - 1, section=section)
+        # Remove last paragraph by index (7.0: doc.remove_paragraph is gone)
+        section.paragraphs[count - 1].remove()
         assert len(section.paragraphs) == count - 1
 
     def test_remove_paragraph_roundtrip(self, tmp_path):
@@ -157,7 +157,7 @@ class TestSectionManagement:
         new_section = doc.add_section()
         assert len(doc.sections) == initial_count + 1
         assert new_section is doc.sections[-1]
-        assert doc.headers[0].element.get("secCnt") == str(initial_count + 1)
+        assert doc.parts.headers[0].element.get("secCnt") == str(initial_count + 1)
         # New section has at least one paragraph
         assert len(new_section.paragraphs) >= 1
         assert ET.tostring(doc.sections[-2].element) == source_xml
@@ -207,7 +207,7 @@ class TestSectionManagement:
         mid = doc.add_section(after=0)
         assert len(doc.sections) >= 3
         assert doc.sections[1] is mid
-        assert doc.headers[0].element.get("secCnt") == "3"
+        assert doc.parts.headers[0].element.get("secCnt") == "3"
         _, _, page_properties, margin, _ = self._layout(mid)
         assert page_properties.get("width") == "60000"
         assert page_properties.get("height") == "90000"
@@ -253,8 +253,8 @@ class TestSectionManagement:
     def test_add_section_does_not_copy_header_footer_stories(self):
         doc = _new()
         first = doc.sections[0]
-        first_header = doc.set_header_text("first header", section=first)
-        first_footer = doc.set_footer_text("first footer", section=first)
+        first_header = doc.page.set_header(text="first header", section=first)
+        first_footer = doc.page.set_footer(text="first footer", section=first)
 
         second = doc.add_section()
         assert second.properties.get_header("BOTH") is None
@@ -264,8 +264,8 @@ class TestSectionManagement:
             for element in second.element.iter()
         )
 
-        second_header = doc.set_header_text("second header", section=second)
-        second_footer = doc.set_footer_text("second footer", section=second)
+        second_header = doc.page.set_header(text="second header", section=second)
+        second_footer = doc.page.set_footer(text="second footer", section=second)
         assert first_header.element.get("id") != second_header.element.get("id")
         assert first_footer.element.get("id") != second_footer.element.get("id")
         assert first.properties.get_header("BOTH").text == "first header"
@@ -347,7 +347,7 @@ class TestSectionManagement:
 
         doc.remove_section(count - 1)
         assert len(doc.sections) == count - 1
-        assert doc.headers[0].element.get("secCnt") == str(count - 1)
+        assert doc.parts.headers[0].element.get("secCnt") == str(count - 1)
 
     def test_remove_section_by_instance(self):
         doc = _new()
@@ -356,7 +356,7 @@ class TestSectionManagement:
 
         doc.remove_section(new_sec)
         assert len(doc.sections) == count - 1
-        assert doc.headers[0].element.get("secCnt") == str(count - 1)
+        assert doc.parts.headers[0].element.get("secCnt") == str(count - 1)
 
     def test_remove_section_resolves_relative_manifest_href(self):
         doc = _new()
@@ -380,7 +380,7 @@ class TestSectionManagement:
             itemref.get("idref") != "section1"
             for itemref in spine.findall(f"{{{namespace}}}itemref")
         )
-        assert doc.headers[0].element.get("secCnt") == "1"
+        assert doc.parts.headers[0].element.get("secCnt") == "1"
 
     def test_remove_last_section_raises(self):
         doc = _new()
@@ -431,8 +431,8 @@ class TestSectionManagement:
         doc.add_section()
         assert validate_editor_open_safety(doc.to_bytes()).ok
 
-        doc.headers[0].element.set("secCnt", "1")
-        doc.headers[0].mark_dirty()
+        doc.parts.headers[0].element.set("secCnt", "1")
+        doc.parts.headers[0].mark_dirty()
         with pytest.raises(
             HwpxPackageError,
             match="secCnt does not match resolved section count",

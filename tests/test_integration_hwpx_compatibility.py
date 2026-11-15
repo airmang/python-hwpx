@@ -179,18 +179,18 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
 
     document = HwpxDocument.from_package(package)
 
-    assert len(document.master_pages) == 1
-    assert len(document.histories) == 1
-    version_part = document.version
+    assert len(document.parts.master_pages) == 1
+    assert len(document.parts.histories) == 1
+    version_part = document.parts.version
     assert version_part is not None
 
-    master_page = document.master_pages[0]
+    master_page = document.parts.master_pages[0]
     master_item = master_page.element.find(f"{{{hm_ns}}}masterPageItem")
     assert master_item is not None
     master_item.set("name", "검토용 바탕쪽")
     master_page.mark_dirty()
 
-    history_part = document.histories[0]
+    history_part = document.parts.histories[0]
     history_comment = history_part.element.find(
         f"{{{hhs_ns}}}historyEntry/{{{hhs_ns}}}comment"
     )
@@ -205,18 +205,18 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     document.save_to_path(output_path)
 
     reopened = HwpxDocument.open(output_path)
-    assert reopened.master_pages
-    assert reopened.histories
-    reopened_version = reopened.version
+    assert reopened.parts.master_pages
+    assert reopened.parts.histories
+    reopened_version = reopened.parts.version
     assert reopened_version is not None
 
-    reopened_master_item = reopened.master_pages[0].element.find(
+    reopened_master_item = reopened.parts.master_pages[0].element.find(
         f"{{{hm_ns}}}masterPageItem"
     )
     assert reopened_master_item is not None
     assert reopened_master_item.get("name") == "검토용 바탕쪽"
 
-    reopened_history_comment = reopened.histories[0].element.find(
+    reopened_history_comment = reopened.parts.histories[0].element.find(
         f"{{{hhs_ns}}}historyEntry/{{{hhs_ns}}}comment"
     )
     assert reopened_history_comment is not None

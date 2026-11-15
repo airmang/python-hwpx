@@ -117,14 +117,14 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "namespace": "doc.shapes",
         "matrix_row": "도형 저작(선·사각형·타원)",
         "entry_points": ("hwpx.document:HwpxDocument", "hwpx.model:Shape"),
-        "authoring_methods": ("add_line", "add_rectangle", "add_ellipse"),
+        "authoring_methods": (),
     },
     {
         "area": "shape-escape-hatch",
         "namespace": "doc.shapes",
         "matrix_row": "저수준 도형·컨트롤 탈출구",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_shape", "add_control"),
+        "authoring_methods": (),
     },
     {
         "area": "curve-objects",
@@ -158,21 +158,21 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "namespace": None,
         "matrix_row": "그림 삽입/치환",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_picture", "add_image"),
+        "authoring_methods": ("add_picture",),
     },
     {
         "area": "chart",
         "namespace": "doc.shapes",
         "matrix_row": "차트",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_chart",),
+        "authoring_methods": (),
     },
     {
         "area": "equation",
         "namespace": "doc.shapes",
         "matrix_row": "수식",
         "entry_points": ("hwpx.equation.authoring:latex_to_eqedit",),
-        "authoring_methods": ("add_equation",),
+        "authoring_methods": (),
     },
     {
         "area": "drop-cap",
@@ -190,7 +190,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "namespace": "doc.tracking",
         "matrix_row": "변경추적(redline)",
         "entry_points": ("hwpx.tools.redline:verify_redline",),
-        "authoring_methods": ("add_track_change", "add_tracked_insert", "add_tracked_delete", "add_tracked_replace"),
+        "authoring_methods": (),
     },
     {
         "area": "highlight",
@@ -211,14 +211,14 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "namespace": "doc.notes",
         "matrix_row": "메모(코멘트)",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_memo", "add_memo_with_anchor"),
+        "authoring_methods": (),
     },
     {
         "area": "footnote-endnote",
         "namespace": "doc.notes",
         "matrix_row": "각주/미주",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_footnote", "add_endnote"),
+        "authoring_methods": (),
     },
     {
         "area": "toc-crossref",
@@ -275,14 +275,14 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "namespace": "doc.fields",
         "matrix_row": "누름틀(form field) 생성",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_form_field",),
+        "authoring_methods": (),
     },
     {
         "area": "check-box",
         "namespace": "doc.fields",
         "matrix_row": "체크박스 양식개체",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_check_box",),
+        "authoring_methods": (),
     },
     {
         "area": "document-options-compatibility",
@@ -361,7 +361,7 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "namespace": "doc.refs",
         "matrix_row": "하이퍼링크·책갈피",
         "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": ("add_bookmark", "add_hyperlink"),
+        "authoring_methods": (),
     },
     {
         "area": "mail-merge",
@@ -533,7 +533,7 @@ _CONTRACT_DOCS_DIR = Path(__file__).resolve().parent / "data" / "contract_docs"
 #: 파사드 계약의 일부로 인정하는 dunder(락 생성기와 같은 규칙).
 _PUBLIC_DUNDERS = frozenset({"__init__", "__repr__", "__enter__", "__exit__"})
 
-#: 위임 shim 이 사라지는 major. ``_document._legacy`` 와 같은 값이어야 한다.
+#: 옛 루트 이름(6.x 위임 shim)이 사라진 major. ``_document._legacy`` 와 같은 값이어야 한다.
 _LEGACY_REMOVED_IN = "7.0"
 
 
@@ -617,9 +617,9 @@ def describe_capabilities() -> dict[str, Any]:
             "legacyShimCount": _legacy_shim_count(),
             "legacyShimsRemovedIn": _LEGACY_REMOVED_IN,
             "note": (
-                "root 는 6.0 파사드의 공개 멤버 수다. legacyShimCount 는 5.x 이름을 "
-                "유지하는 위임 shim 수이며 7.0에서 0이 된다 — 이동을 제거로 보이지 "
-                "않게 하려고 따로 센다."
+                "root 는 파사드의 공개 멤버 수다. legacyShimCount 는 5.x 이름을 "
+                "아직 받아 주는 위임 shim 수로, 6.x 는 79였고 7.0에서 0이 됐다 — 옛 "
+                "이름을 부르면 새 자리를 알려 주는 오류가 난다."
             ),
         },
     }
@@ -638,11 +638,22 @@ def _root_surface_size() -> int:
 
 
 def _legacy_shim_count() -> int:
-    """5.x 이름을 유지하는 위임 shim 수. 7.0에서 0이 된다."""
+    """5.x 이름을 아직 받아 주는 위임 shim 수(6.x 는 79). 7.0에서 0이다.
 
-    from ._document._legacy import _LegacyFacade
+    지운 이름 표(``REMOVED_NAMES``) 가운데 ``HwpxDocument`` 에 아직 남은 것을 센다 —
+    표가 아니라 클래스를 보므로, 누가 옛 이름을 되살리면 이 수가 말한다.
+    """
 
-    return sum(1 for name in vars(_LegacyFacade) if not name.startswith("__"))
+    import inspect
+
+    from ._document._legacy import REMOVED_NAMES
+    from .document import HwpxDocument
+
+    return sum(
+        1
+        for name in REMOVED_NAMES
+        if inspect.getattr_static(HwpxDocument, name, None) is not None
+    )
 
 
 def contract_document(name: str) -> str:

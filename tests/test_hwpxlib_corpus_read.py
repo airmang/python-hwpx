@@ -33,4 +33,4 @@ def test_corpus_sample_opens(sample: str) -> None:
     doc = HwpxDocument.open(CORPUS / sample)
     # Minimal liveness: sections iterate and text export does not raise.
     assert doc.sections is not None
-    doc.export_text()
+    doc.text.plain()

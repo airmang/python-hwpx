@@ -89,10 +89,11 @@ def test_the_5_x_halves_really_were_separate() -> None:
     assert str(only_level.style_id_ref) == "0", "스타일은 여전히 바탕글이다"
 
     # 절반 B: 스타일만. 문단은 자기 개요 수준을 선언하지 않는다. 5.x 의
-    # ``style=`` 이 이랬고, 숫자 id 를 쓰는 ``style_id_ref`` 는 지금도 이렇다
-    # (``style=`` 은 이제 스타일의 문단 모양까지 쓴다 — test_style_resolution).
+    # ``style=`` 이 이랬고, 문단에 이름표만 붙이는 ``paragraph.style_id_ref = 2`` 는
+    # 지금도 이렇다(``style=`` 은 이제 스타일의 문단 모양까지 쓴다 — test_style_resolution).
     document = HwpxDocument.new()
-    only_style = document.add_paragraph("스타일만", style_id_ref=2)
+    only_style = document.add_paragraph("스타일만")
+    only_style.style_id_ref = 2
     assert str(only_style.style_id_ref) == "2"
     assert _heading_of(document, only_style).type == "NONE"
 

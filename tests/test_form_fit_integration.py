@@ -156,7 +156,7 @@ def _add_click_here_field(doc: HwpxDocument, *, name: str = "주소") -> None:
 def test_fill_form_field_without_box_width_is_low_confidence_never_fails():
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
-    result = doc.fill_form_field(
+    result = doc.fields.fill(
         "가" * 50, name="주소", fit_policy=FitPolicy(overflow="fail")
     )
     # honest: no geometry -> never a hard fail (no ok=False, no raise either)
@@ -169,7 +169,7 @@ def test_fill_form_field_box_width_gross_overflow_fails():
     # 6.0: a hard overflow raises instead of returning ok=False (design §2.4,
     # constitution VI fail-closed) — the field is left untouched.
     with pytest.raises(HwpxValueError) as excinfo:
-        doc.fill_form_field(
+        doc.fields.fill(
             "가" * 50, name="주소",
             fit_policy=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
             box_width=4000,
@@ -184,7 +184,7 @@ def test_fill_form_field_fit_follows_hancom_line_rules():
     space still take one line of a box five syllables wide."""
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
-    result = doc.fill_form_field(
+    result = doc.fields.fill(
         "가나다라마 ", name="주소", fit_policy=FitPolicy.keep(), box_width=5377
     )
     assert result.fit is not None
@@ -195,6 +195,6 @@ def test_fill_form_field_fit_follows_hancom_line_rules():
 def test_fill_form_field_no_fit_policy_unchanged(tmp_path: Path):
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
-    result = doc.fill_form_field("서울시", name="주소")
+    result = doc.fields.fill("서울시", name="주소")
     assert result.fit is None
     assert result.after == "서울시"

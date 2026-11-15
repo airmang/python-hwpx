@@ -206,7 +206,7 @@ class TestStyleInheritanceRoundtrip:
 
     def test_inherited_styles_persist(self):
         doc = _new()
-        doc.add_paragraph("styled", para_pr_id_ref="9", style_id_ref="3", char_pr_id_ref="7")
+        doc.add_paragraph("styled", para_pr_id_ref="9", style="3", char_pr_id_ref="7")
         p2 = doc.add_paragraph("inheriting")
         # Verify inheritance happened
         assert p2.para_pr_id_ref == "9"
@@ -292,7 +292,7 @@ class TestCombinedRoundtrip:
     def test_complex_document_roundtrip(self):
         """Create a document with multiple features, verify after roundtrip."""
         doc = _new()
-        doc.add_paragraph("Title", para_pr_id_ref="1", style_id_ref="0")
+        doc.add_paragraph("Title", para_pr_id_ref="1", style="0")
         doc.add_paragraph("Body paragraph")
 
         tbl = doc.add_table(2, 2)

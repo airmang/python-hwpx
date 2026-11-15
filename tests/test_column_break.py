@@ -97,13 +97,14 @@ def test_apply_paragraph_format_column_break_alone_satisfies_the_empty_options_g
     assert document.sections[0].paragraphs[0].column_break is True
 
 
-def test_legacy_root_facade_does_not_accept_column_break() -> None:
-    """The deprecated `doc.set_paragraph_format` shim is frozen at 5.x parity
-    on purpose -- new post-6.0 options land only on the namespace path
-    (`doc.styles.apply_paragraph_format`), matching how drop cap and the
-    other train-48 gaps were kept out of `_legacy.py`."""
+def test_the_removed_root_facade_points_at_the_namespace() -> None:
+    """`column_break` lives on `doc.styles.apply_paragraph_format` only. The 6.x root
+    `doc.set_paragraph_format` shim (frozen at 5.x, never took it) is gone in 7.0 and
+    names the namespace path."""
+
+    from hwpx.errors import HwpxAttributeError
 
     document = HwpxDocument.new()
     document.add_paragraph("문단")
-    with pytest.raises(TypeError):
-        document.set_paragraph_format(paragraph_index=0, column_break=True)
+    with pytest.raises(HwpxAttributeError, match="apply_paragraph_format"):
+        document.set_paragraph_format(paragraph_index=0, column_break=True)  # type: ignore[attr-defined]

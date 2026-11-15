@@ -36,7 +36,7 @@ def _para_pr_for_paragraph(document: HwpxDocument, paragraph_index: int) -> ET.E
     paragraph = document.paragraphs[paragraph_index]
     para_pr_id = paragraph.para_pr_id_ref
     assert para_pr_id is not None
-    para_pr = document.headers[0].element.find(f".//{HH}paraPr[@id='{para_pr_id}']")
+    para_pr = document.parts.headers[0].element.find(f".//{HH}paraPr[@id='{para_pr_id}']")
     assert para_pr is not None
     return para_pr
 
@@ -72,7 +72,7 @@ def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> No
     paragraph_index = len(document.paragraphs)
     document.add_paragraph("줄간격 160% 확인")
 
-    result = document.set_paragraph_format(
+    result = document.styles.apply_paragraph_format(
         paragraph_index=paragraph_index,
         alignment="center",
         line_spacing_percent=160,
@@ -128,7 +128,7 @@ def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) ->
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
 
-    page = document.set_page_setup(
+    page = document.page.setup(
         paper_size="A4",
         orientation="landscape",
         margin_left_mm=20,
@@ -143,8 +143,8 @@ def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) ->
     assert page.page_size.height_mm == 210.0
     assert page.margins.left == 20
 
-    header = document.set_header_footer(kind="header", text="Confidential")
-    footer = document.set_page_number(target="footer", format="page/total", prefix="Page ")
+    header = document.page.set_header(text="Confidential")
+    footer = document.page.set_page_number(target="footer", format="page/total", prefix="Page ")
     assert header.text == "Confidential"
     assert footer.element.find(f".//{HP}ctrl/{HP}pageNum") is not None
     assert "/" in footer.text
@@ -169,12 +169,12 @@ def test_set_list_format_applies_bullet_and_numbered_properties() -> None:
     number_index = len(document.paragraphs)
     document.add_paragraph("번호 항목")
 
-    bullet_result = document.set_list_format(
+    bullet_result = document.styles.apply_list_format(
         paragraph_index=bullet_index,
         kind="bullet",
         bullet_char="※",
     )
-    number_result = document.set_list_format(
+    number_result = document.styles.apply_list_format(
         paragraph_index=number_index,
         kind="number",
         number_format="roman",
@@ -192,9 +192,9 @@ def test_set_list_format_applies_bullet_and_numbered_properties() -> None:
     assert number_heading is not None
     assert number_heading.get("type") == "NUMBER"
 
-    assert document.headers[0].element.find(f".//{HH}bullet[@char='※']") is not None
+    assert document.parts.headers[0].element.find(f".//{HH}bullet[@char='※']") is not None
     numbering_id = number_heading.get("idRef")
-    para_head = document.headers[0].element.find(
+    para_head = document.parts.headers[0].element.find(
         f".//{HH}numbering[@id='{numbering_id}']/{HH}paraHead"
     )
     assert para_head is not None

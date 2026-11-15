@@ -28,7 +28,7 @@ def test_set_paragraph_format_applies_keep_together():
     document = HwpxDocument.open(FIXTURE)
     before_ids = _para_pr_ids(document)
 
-    result = document.set_paragraph_format(
+    result = document.styles.apply_paragraph_format(
         paragraph_index=0,
         keep_with_next=True,
         keep_lines=True,
@@ -58,7 +58,7 @@ def test_set_paragraph_format_applies_keep_together():
 
 def test_set_paragraph_format_page_break_before():
     document = HwpxDocument.open(FIXTURE)
-    document.set_paragraph_format(paragraph_index=0, page_break_before=True)
+    document.styles.apply_paragraph_format(paragraph_index=0, page_break_before=True)
     para = document.sections[0].paragraphs[0]
     break_setting = document.oxml.headers[0].element.find(
         f".//{HH}paraPr[@id='{para.para_pr_id_ref}']/{HH}breakSetting"
@@ -70,4 +70,4 @@ def test_set_paragraph_format_page_break_before():
 def test_set_paragraph_format_requires_an_option_still_fires():
     document = HwpxDocument.open(FIXTURE)
     with pytest.raises(ValueError):
-        document.set_paragraph_format(paragraph_index=0)
+        document.styles.apply_paragraph_format(paragraph_index=0)

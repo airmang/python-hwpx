@@ -806,8 +806,8 @@ def test_ast_fingerprint_normalizes_only_empty_parser_version_fields() -> None:
             "",
         ),
         (
-            "        warnings.warn(_experimental_message(name)",
-            "\n        warnings.warn(_experimental_message(name)",
+            "        raise MovedToExperimental(_experimental_message(name))",
+            "\n        raise MovedToExperimental(_experimental_message(name))",
         ),
         (
             '        if module_name != "hwpx" and not module_name.startswith("hwpx."):\n'

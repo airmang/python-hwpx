@@ -45,7 +45,6 @@ class RefsNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
     ) -> "InlineObject":
         """책갈피를 넣는다. 상호참조·목차의 앵커가 된다."""
 
@@ -55,11 +54,11 @@ class RefsNamespace(_Namespace):
             self._doc,
             name=name,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.refs.add_bookmark",
             ),
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.refs.add_bookmark"
+                self._doc, section, caller="doc.refs.add_bookmark"
             ),
         )
 
@@ -70,7 +69,6 @@ class RefsNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "InlineObject":
         """표시 문자열을 가진 하이퍼링크를 넣는다."""
@@ -82,11 +80,11 @@ class RefsNamespace(_Namespace):
             url=url,
             display_text=display_text,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.refs.add_hyperlink",
             ),
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.refs.add_hyperlink"
+                self._doc, section, caller="doc.refs.add_hyperlink"
             ),
             char_pr_id_ref=char_pr_id_ref,
         )

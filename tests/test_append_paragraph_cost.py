@@ -25,7 +25,7 @@ def body_lists(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 
 def test_add_paragraph_reads_only_the_last_paragraph(body_lists: list[int]) -> None:
     document = HwpxDocument.new(empty_first_line=True)
-    first = document.add_paragraph("하나", para_pr_id_ref=1, style_id_ref=2)
+    first = document.add_paragraph("하나", para_pr_id_ref=1, style=2)
     second = document.add_paragraph("둘")
 
     assert (second.para_pr_id_ref, second.style_id_ref) == (first.para_pr_id_ref, first.style_id_ref)
