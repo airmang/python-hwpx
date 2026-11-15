@@ -17,7 +17,7 @@ from hwpx.errors import HwpxLookupError
 
 
 def _document() -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("가나다 본문")
     return doc
 

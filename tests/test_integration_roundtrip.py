@@ -19,7 +19,7 @@ from hwpx import HwpxDocument
 
 
 def _new() -> HwpxDocument:
-    return HwpxDocument.new()
+    return HwpxDocument.new(empty_first_line=True)
 
 
 def _roundtrip(doc: HwpxDocument) -> HwpxDocument:

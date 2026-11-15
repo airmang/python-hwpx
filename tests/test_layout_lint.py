@@ -77,7 +77,7 @@ def _first_paragraph(root) -> object:
 # Clean docs pass.
 # --------------------------------------------------------------------------- #
 def test_clean_document_passes():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("정상적인 문단입니다.")
     table = doc.add_table(1, 2)
     table.set_cell_text(0, 0, "이름")
@@ -87,7 +87,7 @@ def test_clean_document_passes():
 
 
 def test_clean_table_document_has_no_findings():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 2)
     for r in range(2):
         for c in range(2):
@@ -119,7 +119,7 @@ def _add_lineseg(root, textpos: str, text: str = "짧은글") -> None:
 
 
 def test_seeded_stale_lineseg_is_caught():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("짧은글")  # 3 chars
     data = _inject_section0(_bytes(doc), lambda root: _add_lineseg(root, "999"))
     report = lint_layout(data)
@@ -148,7 +148,7 @@ def test_grown_text_with_stale_single_line_cache_is_caught():
     """
 
     text = "가" * 120
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph(text)
     data = _inject_section0(
         _bytes(doc),
@@ -166,7 +166,7 @@ def test_valid_multiline_cache_tail_passes():
     """정상 다줄 캐시(한컴 저장 형태): 마지막 줄 이후 꼬리가 한 줄 안 → 침묵."""
 
     text = "가" * 120
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph(text)
     segs = [
         {"textpos": "0", **_A4_LINE},
@@ -188,7 +188,7 @@ def test_tracked_insert_prefix_artifact_replay():
     """
 
     base = "시행문 본문 첫 문단"
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph(base, char_pr_id_ref="0")
     doc.tracking.insert(paragraph, " 추가로 붙는 안내 문구가 길게 이어진다 " + "안내" * 50, date="2026-08-19")
 
@@ -213,7 +213,7 @@ def test_tracked_insert_prefix_artifact_replay():
 # 2: dirty ↔ lineseg leak (ledger-gated).
 # --------------------------------------------------------------------------- #
 def test_dirty_paragraph_retaining_cache_is_a_leak():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("내용")
     # A cache that is itself textpos-valid (so check 1 stays quiet) ...
     data = _inject_section0(_bytes(doc), lambda root: _add_lineseg(root, "0", "내용"))
@@ -240,7 +240,7 @@ def test_dirty_paragraph_retaining_cache_is_a_leak():
 # 3: overflow risk (gross unbreakable token).
 # --------------------------------------------------------------------------- #
 def test_gross_cell_overflow_is_caught():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)
     cell.set_size(width=3000)  # ~3 Hangul wide
@@ -261,7 +261,7 @@ def test_vertical_balloon_long_hangul_is_warned_not_failed():
     # The headline FormFit defect: breakable Korean that needs far more lines than
     # the cell's height budgets for. Hancom grows the row (no open-unsafe defect),
     # so the lint WARNS (caught) but never hard-fails — never wronger than the oracle.
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)
     cell.set_size(width=5000, height=3200)  # budgets ~2 lines
@@ -277,7 +277,7 @@ def test_vertical_balloon_long_hangul_is_warned_not_failed():
 def test_wrapping_korean_value_is_not_flagged_as_overflow():
     # Long but space/Hangul-breakable content wraps fine — must NOT be flagged
     # (would contradict the oracle, which lets Hancom grow the row).
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     cell = table.cell(0, 0)
     cell.set_size(width=6000)
@@ -294,7 +294,7 @@ def test_email_url_path_in_a_cell_do_not_hard_fail():
         "https://www.busanedu.net/board/notice/2026/ai-classroom/view?id=12345",
         "NVIDIA-RTX-A6000-48GB-GPU-Server-Workstation",
     ]:
-        doc = HwpxDocument.new()
+        doc = HwpxDocument.new(empty_first_line=True)
         table = doc.add_table(1, 1)
         table.cell(0, 0).set_size(width=10000)
         table.set_cell_text(0, 0, value)
@@ -305,7 +305,7 @@ def test_email_url_path_in_a_cell_do_not_hard_fail():
 def test_short_token_tiny_sliver_overflow_warns_not_fails():
     # A short ordinary word whose absolute spill is a sliver Hancom absorbs must
     # stay a warning under overflow=fail, not a hard error (measurement honesty).
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     table.cell(0, 0).set_size(width=2500)
     table.set_cell_text(0, 0, "Windows")
@@ -317,7 +317,7 @@ def test_short_token_tiny_sliver_overflow_warns_not_fails():
 def test_genuinely_unbreakable_run_still_hard_fails():
     # The real overflow check must survive the punctuation/floor fixes: a long
     # pure-letter run with a large absolute spill is still a hard error.
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     table.cell(0, 0).set_size(width=3000)
     table.set_cell_text(0, 0, "W" * 30)
@@ -346,7 +346,7 @@ def _add_empty_field(doc: HwpxDocument, name: str) -> None:
 
 
 def test_required_field_empty_is_flagged_when_declared():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     _add_empty_field(doc, name="주소")  # empty required slot
     data = _bytes(doc)
     # Declared required → error; not declared → silent.
@@ -358,7 +358,7 @@ def test_required_field_empty_is_flagged_when_declared():
 def test_dirty_index_convention_handles_body_paragraph_after_table():
     # Pin the flat-document-order convention: a body paragraph AFTER a table is
     # located by its flat index (cell paragraphs included), not its body position.
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("앞")
     doc.add_table(1, 1)
     doc.add_paragraph("뒤")
@@ -389,7 +389,7 @@ def _strip_cell_margin(root) -> None:
 
 
 def test_malformed_table_missing_required_child_is_caught():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_table(1, 1)
     data = _inject_section0(_bytes(doc), _strip_cell_margin)
     report = lint_layout(data)
@@ -400,7 +400,7 @@ def test_malformed_table_missing_required_child_is_caught():
 # SavePipeline gating.
 # --------------------------------------------------------------------------- #
 def _stale_doc_bytes() -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("짧은글")
     return _inject_section0(_bytes(doc), lambda root: _add_lineseg(root, "999"))
 
@@ -426,7 +426,7 @@ def test_pipeline_strict_blocks_seeded_stale(tmp_path):
 def test_pipeline_strict_blocks_dirty_leak(tmp_path):
     # A textpos-valid cache on a paragraph the ledger marks dirty → leak (check 2),
     # driven end-to-end through the gate with a ledger.
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("내용")
     data = _inject_section0(_bytes(doc), lambda root: _add_lineseg(root, "0", "내용"))
     part = _section_name(data)
@@ -455,7 +455,7 @@ def test_pipeline_strict_blocks_dirty_leak(tmp_path):
 
 
 def test_pipeline_strict_blocks_malformed_table(tmp_path):
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_table(1, 1)
     data = _inject_section0(_bytes(doc), _strip_cell_margin)
     out = tmp_path / "badtable.hwpx"
@@ -466,7 +466,7 @@ def test_pipeline_strict_blocks_malformed_table(tmp_path):
 
 
 def test_pipeline_strict_blocks_empty_required_field(tmp_path):
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     _add_empty_field(doc, name="주소")
     data = _bytes(doc)
     out = tmp_path / "missing.hwpx"
@@ -494,7 +494,7 @@ def _overflow_doc_bytes() -> bytes:
     """An otherwise open-safe doc whose only defect is a gross cell overflow
     (a lint-only signal — open-safety/reference validators do not measure it)."""
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(1, 1)
     table.cell(0, 0).set_size(width=3000)
     table.set_cell_text(0, 0, "WWWWWWWWWWWWWWWWWWWWWWWWWWWW")
@@ -546,7 +546,7 @@ def test_pipeline_warn_mode_surfaces_but_does_not_block(tmp_path):
 # bottom edge. These tables have rows 3600 (12.7 mm) high and are kept inline
 # (add_table would make one taller than the page flow).
 def _long_table_doc(rows: int) -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("표 앞 문단")
     table = doc.add_table(rows, 2, height=rows * 3600)
     table.set_treat_as_char(True)
@@ -624,7 +624,7 @@ _FILLED_ROW = 5 * 1600 + 1000 + 282  # six lines
 
 
 def _filled_table_doc(rows: int, *, split_paragraphs: bool) -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("표 앞 문단")
     table = doc.add_table(rows, 2)
     assert table.treat_as_char is True
@@ -666,7 +666,7 @@ def test_filled_lines_that_fit_the_page_body_are_not_flagged():
 
 
 def test_filled_lines_count_the_lines_long_text_wraps_into():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 1)
     table.set_cell_text(0, 0, "긴 글 " * 2000)  # no line breaks: it wraps onto many lines
     [finding] = _page_findings(lint_layout(_bytes(doc)))
@@ -704,7 +704,7 @@ def test_a_wrapped_row_taller_than_the_page_in_a_table_broken_between_rows_is_fl
 
 
 def test_wrapped_lines_of_text_in_several_character_shapes_are_not_counted():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 1)
     paragraph = table.cell(0, 0).paragraphs[0]
     paragraph.add_run("긴 글 " * 1000)
@@ -713,7 +713,7 @@ def test_wrapped_lines_of_text_in_several_character_shapes_are_not_counted():
 
 
 def test_wrapped_lines_of_text_with_a_tab_are_not_counted():
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 1)
     table.set_cell_text(0, 0, "긴 글 " * 1000 + "\t" + "긴 글 " * 1000)
     assert _page_findings(lint_layout(_bytes(doc))) == []
@@ -722,7 +722,7 @@ def test_wrapped_lines_of_text_with_a_tab_are_not_counted():
 def test_the_value_of_a_click_here_field_counts_the_lines_it_wraps_into():
     from hwpx.form_fit import FitPolicy
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 1)
     table.cell(0, 0).paragraphs[0].add_form_field("value", prompt="안내")
     doc.fields.fill("긴 글 " * 2000, name="value", fit_policy=FitPolicy(allow_row_expand=True))
@@ -738,7 +738,7 @@ def test_filled_lines_of_vertical_text_are_not_counted():
 
 
 def _row_table_doc(page_break: str) -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("표 앞 문단")
     table = doc.add_table(3, 2)
     table.set_treat_as_char(False)

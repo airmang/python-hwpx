@@ -17,7 +17,7 @@ HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 
 def _document() -> HwpxDocument:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for index in range(3):
         document.add_paragraph(f"항목 {index + 1}")
     return document

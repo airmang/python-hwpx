@@ -74,10 +74,10 @@ def main() -> int:
     doc = HwpxDocument.new()
     doc.add_paragraph("탭 정의 프로브")
     doc.styles.apply_paragraph_format(
-        paragraph_index=1,
+        paragraph_index=0,
         tab_stops=[{"pos_mm": p} for p in (10, 20, 30, 40)],
     )
-    para_prop = doc.styles.paragraph_property(doc.paragraphs[1].para_pr_id_ref)
+    para_prop = doc.styles.paragraph_property(doc.paragraphs[0].para_pr_id_ref)
     tab_def = doc.styles.tab_property(para_prop.tab_pr_id_ref)
     doc.close()
     assert len(tab_def.tab_stops) == 4, "our own authoring should accept >1 tabItem too"

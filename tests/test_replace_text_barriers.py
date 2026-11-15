@@ -11,7 +11,7 @@ from hwpx.oxml.namespaces import HP
 
 
 def test_a_tab_between_the_letters_is_not_a_match() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("탭사\t과 그리고 사과")
 
     count = document.text.replace("사과", "배")
@@ -21,7 +21,7 @@ def test_a_tab_between_the_letters_is_not_a_match() -> None:
 
 
 def test_a_line_break_between_the_letters_is_not_a_match() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("")
     text = paragraph.runs[0].element.find(f"{HP}t")
     text.text = "사"
@@ -34,7 +34,7 @@ def test_a_line_break_between_the_letters_is_not_a_match() -> None:
 
 
 def test_a_highlighted_word_is_still_one_word() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("앞 사과 뒤")
     document.text.highlight(paragraph, "사과")
 
@@ -45,7 +45,7 @@ def test_a_highlighted_word_is_still_one_word() -> None:
 
 
 def test_limit_still_counts_across_the_stretches_of_a_run() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("사과\t사과\t사과")
 
     count = document.text.replace("사과", "배", limit=2)
@@ -63,7 +63,7 @@ def test_replace_leaves_xml_comment_text_alone() -> None:
 
     from hwpx import HwpxDocument
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("사과 주스")
     source = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as zin, zipfile.ZipFile(source, "w") as zout:
@@ -95,7 +95,7 @@ def test_an_edited_section_with_xml_comments_saves() -> None:
 
     from hwpx import HwpxDocument
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_table(2, 2)
     table.set_cell_text(0, 0, "가")
     source = io.BytesIO()

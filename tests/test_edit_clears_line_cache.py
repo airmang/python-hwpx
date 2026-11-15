@@ -52,7 +52,7 @@ def _with_one_line_caches(data: bytes, texts: tuple[str, ...]) -> bytes:
 def _source(*texts: str) -> bytes:
     """A document whose paragraphs *texts* each carry a one-line cache."""
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     for text in texts:
         doc.add_paragraph(text)
     return _with_one_line_caches(doc.to_bytes(), texts)
@@ -184,7 +184,7 @@ def test_a_cache_written_after_the_edit_stays() -> None:
 
 
 def test_a_cell_edit_drops_the_cache_left_on_the_cell_paragraph() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_table(1, 1).cell(0, 0).text = FITS
     doc.add_paragraph(OTHER)
     doc = HwpxDocument.open(_with_one_line_caches(doc.to_bytes(), (FITS, OTHER)))

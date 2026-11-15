@@ -74,7 +74,7 @@ def _project_tracked_text(document: HwpxDocument, *, accept: bool) -> str:
 
 
 def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("alpha beta gamma", char_pr_id_ref="0")
 
     # .change_id unwraps the 6.0 TrackedChange/TrackedReplacement objects
@@ -138,7 +138,7 @@ def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None
 
 
 def test_tracked_replace_keeps_new_text_at_the_deleted_position() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("before old after", char_pr_id_ref="0")
 
     replacement = document.add_tracked_replace(
@@ -166,7 +166,7 @@ def test_tracked_replace_keeps_new_text_at_the_deleted_position() -> None:
 
 
 def test_tracked_replace_preserves_target_run_style_and_later_insert_order() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     target_style = document.ensure_run_style(bold=True)
     later_style = document.ensure_run_style(italic=True)
     paragraph = document.add_paragraph(
@@ -218,7 +218,7 @@ def test_tracked_replace_preserves_target_run_style_and_later_insert_order() -> 
 
 
 def test_tracked_replace_preflights_cross_inline_match_without_orphan_headers() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("before ", char_pr_id_ref="0")
     insert_id = document.add_tracked_insert(paragraph, "middle", date=DATE).change_id
     existing_change_ids = set(document.track_changes)
@@ -270,7 +270,7 @@ def test_tracked_edits_clear_stale_line_layout_cache() -> None:
     통과) 편집 시점에 반드시 지워야 한다.
     """
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("alpha beta gamma", char_pr_id_ref="0")
 
     _attach_line_layout_cache(paragraph)
@@ -289,7 +289,7 @@ def test_tracked_edits_clear_stale_line_layout_cache() -> None:
 def test_tracked_insert_cache_stays_cleared_at_byte_boundary() -> None:
     """저장 스윕은 트랙마크 문단을 판정 못 하므로 편집 시점 제거가 바이트에 남아야 한다."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("alpha beta gamma", char_pr_id_ref="0")
     _attach_line_layout_cache(paragraph)
     document.tracking.insert(paragraph, " 추가된 내용", date=DATE)

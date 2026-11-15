@@ -8,7 +8,7 @@ from hwpx import HwpxDocument
 
 
 def _form() -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("○ 추진 배경")
     doc.add_paragraph("□ 세부 계획은 붙임과 같다")
     doc.add_paragraph("참석 여부: □ 예  □ 아니오")
@@ -85,7 +85,7 @@ def test_what_cannot_be_told_apart_is_left_alone() -> None:
 
 
 def test_groups_with_one_label_are_numbered_and_unnamed_ones_go_by_position() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("□ 가  □ 나")
     doc.add_paragraph("선택: □ 가  □ 나")
     doc.add_paragraph("선택: □ 다  □ 라")
@@ -101,7 +101,7 @@ def test_groups_with_one_label_are_numbered_and_unnamed_ones_go_by_position() ->
 
 
 def test_the_checked_mark_follows_the_documents_habit() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("가: □ 하나  ▣ 둘")
     doc.add_paragraph("나: □ 셋  □ 넷")
     doc.fields.choose({"나": "셋"})
@@ -109,7 +109,7 @@ def test_the_checked_mark_follows_the_documents_habit() -> None:
 
 
 def test_a_label_can_sit_on_the_line_above_or_in_the_cell_above() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 2)
     table.rows[0].cells[0].paragraphs[0].text = "수령 방법"
     table.rows[1].cells[0].paragraphs[0].text = "□ 방문  □ 우편"
@@ -121,7 +121,7 @@ def test_a_label_can_sit_on_the_line_above_or_in_the_cell_above() -> None:
 
 
 def test_marks_split_over_runs_are_still_one_group() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("구분: □ 갑")
     paragraph.add_run("  □ 을", bold=True)
     doc.fields.choose({"구분": "을"})
@@ -130,7 +130,7 @@ def test_marks_split_over_runs_are_still_one_group() -> None:
 
 
 def test_marks_side_by_side_are_not_choices() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("○○고등학교 김○○ 교사")
     doc.add_paragraph("주민등록번호 □□□□□□-□□□□□□□")
     doc.add_paragraph("구분: □ 갑  □ 을 (○○과 제출)")

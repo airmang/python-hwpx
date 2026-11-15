@@ -17,7 +17,7 @@ from hwpx.errors import HwpxError, HwpxLookupError, HwpxValueError
 
 @pytest.fixture()
 def document() -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("본문 문단")
     return doc
 

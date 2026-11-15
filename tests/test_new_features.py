@@ -31,7 +31,7 @@ HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
 
 def _new_doc() -> HwpxDocument:
     """Create a fresh document for testing."""
-    return HwpxDocument.new()
+    return HwpxDocument.new(empty_first_line=True)
 
 
 # =========================================================================

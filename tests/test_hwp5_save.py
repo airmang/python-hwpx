@@ -78,7 +78,7 @@ def _texts(document: HwpxDocument) -> list[str]:
 
 
 def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("첫 문단")
     document.add_paragraph("둘째 문단")
     table = document.add_table(2, 2)
@@ -156,7 +156,7 @@ def test_a_text_art_name_with_no_code_is_refused(old: bytes, new: bytes, kind: s
 
 
 def test_a_character_style_on_new_text_is_written_as_a_range_tag() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("머리 강조 꼬리")
     buffer = io.BytesIO()
     document.save_to_stream(buffer)
@@ -194,7 +194,7 @@ def _with_raw_settings(extra: str = "") -> dict[str, bytes]:
     They go into the saved XML, as another writer leaves them: python-hwpx's own save checks
     the parameters before the HWP writer could.
     """
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("발표 설정을 날것으로 적은 문서")
     buffer = io.BytesIO()
     document.save_to_stream(buffer)
@@ -243,7 +243,7 @@ def _raw_label(values: tuple[int, ...]) -> str:
 
 
 def _table_with(*parts: str) -> bytes:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_table(1, 1)
     for part in parts:
         table.element.append(etree.fromstring(part))
@@ -333,7 +333,7 @@ _PRINT_ITEMS = (
 
 
 def _with_print_info(items: tuple[tuple[str, str, str], ...]) -> dict[str, bytes]:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("인쇄 설정")
     buffer = io.BytesIO()
     document.save_to_stream(buffer)
@@ -553,7 +553,7 @@ def test_an_end_cap_with_no_name_is_left_out_and_written_flat() -> None:
 
 
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     buffer = io.BytesIO()
     document.save_to_stream(buffer)
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
@@ -987,7 +987,7 @@ def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
 def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: Path) -> None:
     from lxml import etree
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("양식 개체가 있는 문서")
     [run] = list(document.sections[0].element.iter(f"{HP}run"))[-1:]
     combo = etree.SubElement(run, f"{HP}comboBox")
@@ -1003,7 +1003,7 @@ def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: P
 
 
 def test_save_report_writes_an_hwp_path_as_hwp(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("보고서와 함께 저장")
     target = tmp_path / "보고서.hwp"
 
@@ -1021,7 +1021,7 @@ def test_save_report_writes_an_hwp_path_as_hwp(tmp_path: Path) -> None:
 def test_save_report_refuses_an_hwp_path_before_writing_what_hwp_cannot_hold(tmp_path: Path) -> None:
     from lxml import etree
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("양식 개체가 있는 문서")
     [run] = list(document.sections[0].element.iter(f"{HP}run"))[-1:]
     combo = etree.SubElement(run, f"{HP}comboBox")
@@ -1038,7 +1038,7 @@ def test_save_report_refuses_an_hwp_path_before_writing_what_hwp_cannot_hold(tmp
 
 
 def test_a_check_box_made_with_the_api_saves_as_hwp(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("양식 개체가 있는 문서")
     document.fields.add_check_box("동의")
     [before] = list(document.sections[0].element.iter(f"{HP}checkBtn"))
@@ -1054,7 +1054,7 @@ def test_a_check_box_made_with_the_api_saves_as_hwp(tmp_path: Path) -> None:
 
 
 def test_master_pages_save_as_hwp_under_the_section_and_on_its_last_paragraph(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
     both = document.oxml.add_master_page(text="모든 쪽", page_type="BOTH")
     third = document.oxml.add_master_page(text="셋째 쪽", page_type="OPTIONAL_PAGE", page_number=3, page_duplicate=True)
@@ -1097,7 +1097,7 @@ def test_a_master_page_without_its_part_is_refused(tmp_path: Path) -> None:
 
 
 def test_a_picture_saves_as_hwp_with_its_image(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("그림이 있는 문서")
     document.add_picture(_PNG, "png")
     target = tmp_path / "그림.hwp"
@@ -1122,7 +1122,7 @@ def test_image_effects_are_written_with_the_codes_hancom_writes(effect: str, cod
     element = etree.fromstring(f'<hh:bullet {_HEAD_NS} id="1" char="&#x25CF;" useImage="1">{img}</hh:bullet>')
     assert bullet(element, {"image1": 1}).image_props[2] == code
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_picture(_PNG, "png")
     [image] = [i for s in document.sections for i in s.element.iter("{http://www.hancom.co.kr/hwpml/2011/core}img")]
     image.set("effect", effect)
@@ -1138,7 +1138,7 @@ def test_a_picture_alpha_and_reverse_are_written_where_hancom_reads_them(tmp_pat
     size (the byte after the binary item id stays 0), and reverse in bit 24 of
     the component flags."""
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_picture(_PNG, "png")
     [pic] = [p for s in document.sections for p in s.element.iter(f"{HP}pic")]
     pic.set("reverse", "1")
@@ -1157,7 +1157,7 @@ def test_a_picture_alpha_and_reverse_are_written_where_hancom_reads_them(tmp_pat
 
 
 def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("HWPX로 저장")
     target = tmp_path / "out.hwpx"
     document.save_to_path(target)
@@ -1215,7 +1215,7 @@ def test_overlapped_characters_the_record_cannot_hold_are_refused() -> None:
 
 
 def test_a_memo_made_with_the_api_saves_as_hwp_with_its_body(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("메모가 달린 문단")
     document.notes.add_memo("검토 의견", anchor=paragraph, author="검토자")
     target = tmp_path / "메모.hwp"
@@ -1290,7 +1290,7 @@ def test_overlapped_characters_are_written_behind_their_frame(circle: str, text:
 
 
 def test_binary_items_are_numbered_by_their_place() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("그림이 있는 문서")
     document.add_picture(_PNG, "png")
     stream = io.BytesIO()
@@ -1464,7 +1464,7 @@ def test_an_image_item_without_an_extension_keeps_its_image() -> None:
 
 
 def test_a_picture_whose_image_the_package_lacks_is_written_without_one() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_picture(_PNG, "png")
     buffer = io.BytesIO()
     document.save_to_stream(buffer)
@@ -1608,7 +1608,7 @@ def test_a_chart_whose_part_no_longer_matches_its_ole_object_is_refused() -> Non
 
 
 def test_a_chart_made_by_python_hwpx_saves_as_an_ole_object_holding_its_part(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("차트")
     document.shapes.add_chart(_CHART_XML, size=(30000, 20000))
     target = tmp_path / "chart.hwp"
@@ -1727,7 +1727,7 @@ def test_parameter_sets_keep_their_arrays_and_binary_items() -> None:
 
 
 def test_a_header_python_hwpx_also_keeps_in_the_section_properties_is_written_once(tmp_path: Path) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
     document.page.set_header(text="머리말")
     target = tmp_path / "header.hwp"
@@ -1901,7 +1901,7 @@ def test_tracked_change_times_are_kept_in_local_time_and_deletions_hidden() -> N
 
 
 def test_a_document_saves_as_hwp_to_a_stream_and_to_bytes() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("스트림 문단")
     data = document.to_bytes(format="hwp")
     stream = io.BytesIO()
@@ -1917,7 +1917,7 @@ def test_a_document_saves_as_hwp_to_a_stream_and_to_bytes() -> None:
 def test_an_unknown_save_format_is_refused_before_anything_is_written() -> None:
     from hwpx.errors import HwpxValueError
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     stream = io.BytesIO()
     with pytest.raises(HwpxValueError) as refused:
         document.save_to_stream(stream, format="pdf")  # type: ignore[arg-type]
@@ -1928,7 +1928,7 @@ def test_an_unknown_save_format_is_refused_before_anything_is_written() -> None:
 
 
 def test_hwp_bytes_are_refused_for_content_the_writer_cannot_express() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("본문")
     section = document.sections[0].element
     settings = etree.SubElement(next(section.iter(f"{HP}secPr")), f"{HP}presentation")
@@ -1942,7 +1942,7 @@ def test_hwp_bytes_are_refused_for_content_the_writer_cannot_express() -> None:
 def test_the_conversion_report_is_read_only_and_only_for_hwp() -> None:
     import dataclasses
 
-    assert HwpxDocument.new().conversion_report is None
+    assert HwpxDocument.new(empty_first_line=True).conversion_report is None
     report = HwpxDocument.open(make_hwp()).conversion_report
     assert report is not None
     assert dict(report.unconverted) == {} and dict(report.dropped) == {}
@@ -1970,7 +1970,7 @@ def test_the_package_layer_points_an_hwp_file_to_the_document() -> None:
 def test_hwp_save_skips_xml_comments_in_the_source() -> None:
     """XML comments in a section (some real documents carry them inside table
     rows) are not content and must not stop the HWP writer."""
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     table = document.add_table(2, 2)
     table.set_cell_text(0, 0, "가")
     table.set_cell_text(1, 1, "나")

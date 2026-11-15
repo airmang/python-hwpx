@@ -54,7 +54,7 @@
  },
  "new": {
   "kind": "classmethod",
-  "signature": "(cls, *, inherit_style: 'bool' = True) -> \"'HwpxDocument'\""
+  "signature": "(cls, *, inherit_style: 'bool' = True, empty_first_line: 'bool' = False) -> \"'HwpxDocument'\""
  },
  "notes": {
   "kind": "property"

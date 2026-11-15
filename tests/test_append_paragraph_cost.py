@@ -24,7 +24,7 @@ def body_lists(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 
 
 def test_add_paragraph_reads_only_the_last_paragraph(body_lists: list[int]) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     first = document.add_paragraph("하나", para_pr_id_ref=1, style_id_ref=2)
     second = document.add_paragraph("둘")
 
@@ -33,7 +33,7 @@ def test_add_paragraph_reads_only_the_last_paragraph(body_lists: list[int]) -> N
 
 
 def test_heading_and_object_format_do_not_list_the_body(body_lists: list[int]) -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for index in range(5):
         document.add_paragraph(f"문단 {index}")
     body_lists.clear()
@@ -46,13 +46,13 @@ def test_heading_and_object_format_do_not_list_the_body(body_lists: list[int]) -
 
 
 def test_body_indexes_match_the_body_list() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for index in range(6):
         document.add_paragraph(f"문단 {index}")
     table = document.add_table(2, 2)
     body = document.paragraphs
     cell_paragraph = table.cell(0, 0).paragraphs[0]
-    other = HwpxDocument.new().add_paragraph("다른 문서")
+    other = HwpxDocument.new(empty_first_line=True).add_paragraph("다른 문서")
 
     few = [body[4], cell_paragraph, body[0], other, body[-1]]
     assert layout._body_indexes(document, few) == [4, None, 0, None, len(body) - 1]

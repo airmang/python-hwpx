@@ -23,7 +23,7 @@ _SECTION = "Contents/section0.xml"
 
 
 def _document_bytes(*texts: str) -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     for text in texts:
         doc.add_paragraph(text)
     table = doc.add_table(1, 1)

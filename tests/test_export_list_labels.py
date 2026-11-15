@@ -16,7 +16,7 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
 def _numbered(count: int) -> HwpxDocument:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for index in range(1, count + 1):
         document.add_paragraph(f"항목{index}")
     document.styles.apply_list_format(paragraph_indexes=list(range(1, count + 1)), kind="number")
@@ -102,7 +102,7 @@ def test_number_formats() -> None:
 
 
 def test_bullets_take_their_character() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("기본")
     document.add_paragraph("동그라미")
     document.styles.apply_list_format(paragraph_index=1, kind="bullet")
@@ -112,7 +112,7 @@ def test_bullets_take_their_character() -> None:
 
 
 def test_symbol_font_bullets_are_written_as_unicode_symbols() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     for text in ("동그라미", "네모", "그대로"):
         document.add_paragraph(text)
     document.styles.apply_list_format(paragraph_index=1, kind="bullet", bullet_char="\uf09f")
@@ -123,14 +123,14 @@ def test_symbol_font_bullets_are_written_as_unicode_symbols() -> None:
 
 
 def test_symbol_characters_in_the_text_are_kept() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("앞 \uf09f 뒤")
 
     assert export_text(document, list_labels=True) == "앞 \uf09f 뒤"
 
 
 def test_outline_headings_use_the_section_outline_numbering() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_heading("큰 제목", level=1)
     document.add_heading("작은 제목", level=2)
     document.add_heading("다음 큰 제목", level=1)

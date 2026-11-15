@@ -15,7 +15,7 @@ from hwpx.tools.layout_preview import render_layout_preview
 
 
 def _document() -> HwpxDocument:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("앞 문단")
     holder = document.add_paragraph("상자 담은 문단")
     document.shapes.add_rectangle(paragraph=holder).set_draw_text("상자 글")
@@ -25,7 +25,7 @@ def _document() -> HwpxDocument:
 
 
 def test_a_text_box_in_a_table_cell_shows_once_in_the_preview() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     cell = document.add_table(1, 1).cell(0, 0)
     cell.text = "칸 글"
     document.shapes.add_rectangle(paragraph=cell.paragraphs[0]).set_draw_text("칸상자글")
@@ -39,7 +39,7 @@ def test_a_text_box_in_a_table_cell_shows_once_in_the_preview() -> None:
 def test_mail_merge_fills_placeholders_in_text_boxes(tmp_path) -> None:
     from hwpx.tools.mail_merge import merge_template_rows
 
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("이름: {{name}}")
     holder = document.add_paragraph("상자 담은 문단")
     document.shapes.add_rectangle(paragraph=holder).set_draw_text("상자: {{name}}")
@@ -65,7 +65,7 @@ def test_plain_text_puts_the_box_after_its_paragraph_in_document_order() -> None
 
 
 def _box_between_text() -> HwpxDocument:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     holder = document.add_paragraph("상자 앞 글")
     document.shapes.add_rectangle(paragraph=holder).set_draw_text("상자 글")
     holder.add_run("상자 뒤 글")
@@ -105,7 +105,7 @@ def test_without_tables_the_box_text_stays() -> None:
 
 
 def test_a_box_in_a_cell_comes_where_it_sits_in_the_cell() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_table(1, 1).cell(0, 0).paragraphs[0]
     paragraph.add_run("칸 앞")
     document.shapes.add_rectangle(paragraph=paragraph).set_draw_text("칸 상자")
@@ -115,7 +115,7 @@ def test_a_box_in_a_cell_comes_where_it_sits_in_the_cell() -> None:
 
 
 def test_a_box_in_a_cell_is_read_once_with_the_cell() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     cell = document.add_table(1, 1).cell(0, 0)
     document.shapes.add_rectangle(paragraph=cell.paragraphs[0]).set_draw_text("칸 속 상자")
 
@@ -125,7 +125,7 @@ def test_a_box_in_a_cell_is_read_once_with_the_cell() -> None:
 
 
 def test_a_box_in_a_header_is_not_body_text() -> None:
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)
     document.page.set_header(text="머리말")
     section = document.oxml.sections[0]
     for header in section.element.iter(f"{HP}header"):

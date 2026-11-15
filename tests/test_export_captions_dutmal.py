@@ -28,7 +28,7 @@ def _png() -> bytes:
 
 
 def _table_with_caption() -> HwpxDocument:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.sections[0].add_paragraph("표 앞 글")
     table = paragraph.add_table(1, 1)
     table.set_cell_text(0, 0, "칸 글")
@@ -45,7 +45,7 @@ def test_a_table_caption_follows_the_table(export) -> None:
 
 @pytest.mark.parametrize("export", EXPORTS)
 def test_a_picture_caption_is_exported(export) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("그림 앞 글")
     picture = doc.add_picture(_png(), "png")
     picture.set_caption("그림 1 설명")
@@ -54,7 +54,7 @@ def test_a_picture_caption_is_exported(export) -> None:
 
 @pytest.mark.parametrize("export", EXPORTS)
 def test_a_shape_caption_is_exported(export) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("도형 앞 글")
     rect = doc.shapes.add_rectangle(4000, 2000)
     rect.set_caption("도형 설명")
@@ -63,14 +63,14 @@ def test_a_shape_caption_is_exported(export) -> None:
 
 @pytest.mark.parametrize("export", EXPORTS)
 def test_a_dutmal_is_its_main_text_and_its_sub_text(export) -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("덧말 앞 글")
     doc.shapes.add_dutmal("본말", "위 글")
     assert "본말(덧말:위 글)" in export(doc)
 
 
 def test_a_table_in_a_cell_comes_where_it_sits_with_its_caption_after_it() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     cell_paragraph = doc.add_table(1, 1).cell(0, 0).paragraphs[0]
     cell_paragraph.add_run("칸 앞")
     inner = cell_paragraph.add_table(1, 2)
@@ -113,7 +113,7 @@ def _object_with_caption(run, tag: str):
 
 def test_an_object_written_twice_in_a_switch_is_read_once() -> None:
     # Hancom writes a chart in hp:case and the same chart as OLE in hp:default
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     run = doc.add_paragraph("앞").element.find(f"{HP}run")
     switch = run.makeelement(f"{HP}switch", {})
     run.append(switch)
@@ -131,7 +131,7 @@ def test_an_object_written_twice_in_a_switch_is_read_once() -> None:
 def test_mail_merge_fills_captions_and_dutmal(tmp_path) -> None:
     from hwpx.tools.mail_merge import merge_template_rows
 
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("이름: {{name}}")
     paragraph = doc.sections[0].add_paragraph("표 담은 문단")
     table = paragraph.add_table(1, 1)
@@ -151,7 +151,7 @@ def test_mail_merge_fills_captions_and_dutmal(tmp_path) -> None:
 
 
 def test_a_caption_of_a_table_in_a_cell_is_written_once() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.sections[0].add_paragraph("바깥")
     outer = paragraph.add_table(1, 1)
     cell_paragraph = outer.cell(0, 0).paragraphs[0]
