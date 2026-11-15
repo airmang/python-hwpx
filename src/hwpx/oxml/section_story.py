@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
@@ -797,7 +797,8 @@ class HwpxOxmlSectionHeaderFooter:
     def _paragraph_element(self, paragraph: "HwpxOxmlParagraph | ET.Element | None") -> ET.Element:
         if paragraph is None:
             return self._ensure_content_paragraph()
-        element = getattr(paragraph, "element", paragraph)
+        held = getattr(paragraph, "element", None)
+        element = cast(ET.Element, paragraph if held is None else held)
         if not any(node is element for node in self.element.iter(f"{_HP}p")):
             from ..errors import HwpxValueError
 
