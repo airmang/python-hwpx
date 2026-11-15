@@ -40,11 +40,16 @@ from ..errors import HwpxError
 from .tokens import (
     ACCENTS,
     BIG_OPERATORS,
+    CASE_SENSITIVE,
     DELIMITERS,
     FUNCTIONS,
     GREEK,
+    LEFT_SCRIPTS,
     MATRIX_ENVIRONMENTS,
     OPERATORS,
+    PILES,
+    READ_MARKS,
+    READ_SYMBOLS,
     STRUCTURAL,
     SYMBOL_OPERATORS,
 )
@@ -69,6 +74,78 @@ _RESERVED_WORDS = (
     | STRUCTURAL
     | _FONT_SWITCHES
 )
+
+# Every symbol or structure name the reader knows, as spelled, and the lower-case form of those whose
+# case Hancom ignores (``ANGLE``, ``CDOT``, ``In``).
+_KEYWORDS = (
+    _RESERVED_WORDS - _FONT_SWITCHES
+    | frozenset(READ_SYMBOLS)
+    | frozenset(READ_MARKS)
+    | PILES
+    | frozenset(LEFT_SCRIPTS)
+    | frozenset(name for name in DELIMITERS if name.isalpha())
+    | {"from"}
+)
+_CASELESS = frozenset(
+    name.lower() for name in _KEYWORDS if name.lower() not in CASE_SENSITIVE and name.lower() in _KEYWORDS
+)
+# Hancom reads a keyword name at the front of a letter run as the keyword (``sinx`` is ``sin x``,
+# ``1 overa`` is ``1 over a``, ``F _{net}`` draws F≠t), then reads the rest the same way. Desktop Hangul
+# 2024 drew ``E _{total}`` as letters, and ``a ll b``/``a gg b`` as letters, so these do not split a word.
+_NO_PREFIX = frozenset({"to", "from", "of", "ll", "gg"})
+_LONGEST_KEYWORD = max(len(name) for name in _KEYWORDS)
+# Lower-case names a written identifier must not start with (any case): the writer quotes such a word.
+_QUOTE_PREFIXES = tuple(
+    sorted({name.lower() for name in _KEYWORDS if len(name) >= 2} - _NO_PREFIX, key=len, reverse=True)
+)
+
+
+def _keyword(word: str) -> str | None:
+    """The name the reader knows *word* as (``ANGLE`` → ``angle``), or ``None`` for an ordinary word."""
+
+    if word in _KEYWORDS:
+        return word
+    lower = word.lower()
+    if lower in _CASELESS and (word.isupper() or word.istitle()):
+        return lower
+    return None
+
+
+def _split_word(run: str) -> list[str]:
+    """An ASCII letter run as Hancom reads it: keyword names at its front split off, the rest read again."""
+
+    if not run.isascii():
+        return [run]
+    parts: list[str] = []
+    while run:
+        name = _keyword(run)
+        if name is not None:
+            parts.append(name)
+            break
+        for size in range(min(len(run) - 1, _LONGEST_KEYWORD), 1, -1):
+            name = _keyword(run[:size])
+            if name is not None and name not in _NO_PREFIX:
+                break
+        else:
+            parts.append(run)
+            break
+        parts.append(name)
+        run = run[size:]
+    return parts
+
+# The LaTeX of the operators that take limits (``sum from {i=1} to n``).
+_LIMIT_COMMANDS = tuple(BIG_OPERATORS.values())
+# Characters LaTeX reads as commands inside ``\text{...}``, and how to write them there.
+_TEXT_ESCAPES = {
+    "\\": r"\textbackslash{}", "{": r"\{", "}": r"\}", "%": r"\%", "$": r"\$", "&": r"\&", "#": r"\#",
+    "_": r"\_", "^": r"\textasciicircum{}", "~": r"\textasciitilde{}",
+}
+
+
+def _escape_text(text: str) -> str:
+    """Quoted EqEdit text as the body of ``\\text{...}``: ``50%`` → ``50\\%``."""
+    return "".join(_TEXT_ESCAPES.get(char, char) for char in text)
+
 
 # Characters that always terminate a token even when not whitespace separated.
 _BREAK_CHARS = frozenset("{}^_&#()[]|")
@@ -110,8 +187,13 @@ def _lex_run(source: str, i: int, tokens: list[str], predicate: Any) -> int:
 
 
 def _needs_literal_quotes(word: str) -> bool:
-    """Keep identifiers distinct from observed EqEdit words and font prefixes."""
-    return word.isalpha() and (word in _RESERVED_WORDS or word.startswith(_FONT_PREFIXES))
+    """Whether Hancom would read *word* as something other than its letters: a keyword or font switch, or
+    a word that starts with one in any case (``net`` starts with ``ne``, ``In`` is ``in``)."""
+    if not word.isalpha():
+        return False
+    if word in _RESERVED_WORDS or word.startswith(_FONT_PREFIXES):
+        return True
+    return word.isascii() and word.lower().startswith(_QUOTE_PREFIXES)
 
 
 def _tokenize(source: str) -> list[str]:
@@ -139,6 +221,7 @@ def _tokenize(source: str) -> list[str]:
                     break
             else:
                 i = _lex_run(source, i, tokens, str.isalpha)
+                tokens.extend(_split_word(tokens.pop()))
         else:
             # Any other single character (operators like + - = < > , ! ; :).
             tokens.append(ch)
@@ -181,9 +264,34 @@ def _combine_script(base: str, operator: str, script: str) -> str:
         body = "{" + body + "}"
     # Guard the LaTeX "double superscript/subscript" error when the same script
     # kind is already present on the base.
-    if base and (op + "{") in base:
+    if base and _has_outer_script(base, op):
         base = "{" + base + "}"
     return f"{base}{op}{body}"
+
+
+def _has_outer_script(latex: str, op: str) -> bool:
+    """Whether *latex* already carries an *op* script of its own (not one inside braces or ``\\left``…``\\right``,
+    which wrapping again would only pile braces on: ``\\left( x^2 \\right)^n`` stays as it is)."""
+
+    depth = fence = 0
+    i = 0
+    while i < len(latex):
+        char = latex[i]
+        if char == "\\":
+            if latex.startswith("\\left", i) and not latex[i + 5 : i + 6].isalpha():
+                fence += 1
+            elif latex.startswith("\\right", i) and not latex[i + 6 : i + 7].isalpha():
+                fence -= 1
+            i += 2
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+        elif char == op and depth == 0 and fence == 0:
+            return True
+        i += 1
+    return False
 
 
 class _Parser:
@@ -207,21 +315,43 @@ class _Parser:
     def parse(self) -> str:
         return self._sequence(depth=0)
 
-    def _sequence(self, *, depth: int, stop: str | None = None) -> str:
+    def _sequence(self, *, depth: int, stop: str | tuple[str, ...] | None = None) -> str:
+        stops = (stop,) if isinstance(stop, str) else stop or ()
         nodes: list[str] = []
         while True:
             token = self._peek()
-            if token is None or token == stop:
+            if token is None or token in stops:
                 break
+            if token == "}" and depth == 0:
+                # A closing brace with nothing open (``{4!}over3!}``): Hancom draws nothing for it.
+                self._next()
+                continue
+            if token in ("from", "to") and nodes and nodes[-1].startswith(_LIMIT_COMMANDS):
+                # ``sum from {i=1} to n``: the limits of a big operator, as ``_`` and ``^`` set them.
+                token = "_" if token == "from" else "^"
+                self._tokens[self._pos] = token
             if token in ("^", "_"):
                 self._next()
                 base = nodes.pop() if nodes else ""
                 nodes.append(_combine_script(base, token, self._atom(depth)))
                 continue
+            if token in READ_MARKS:
+                self._next()
+                base = nodes.pop() if nodes else ""
+                mark = READ_MARKS[token]
+                nodes.append(_combine_script(base, "^", "{\\circ}") + mark[len("^{\\circ}") :])
+                continue
+            if token in LEFT_SCRIPTS:
+                # ``C LSUB {3}``: the script goes before the atom it follows (₃C).
+                self._next()
+                base = nodes.pop() if nodes else ""
+                nodes.append(_combine_script("{}", LEFT_SCRIPTS[token], self._atom(depth)))
+                nodes.append(base)
+                continue
             if token in ("over", "atop", "choose"):
                 self._next()
                 numerator = _strip_braces(nodes.pop() if nodes else "")
-                denominator = _strip_braces(self._atom(depth))
+                denominator = _strip_braces(self._operand(depth))
                 if token == "over":
                     nodes.append(f"\\frac{{{numerator}}}{{{denominator}}}")
                 elif token == "choose":
@@ -233,6 +363,16 @@ class _Parser:
             if atom:  # a font switch with nothing after it is not an operand
                 nodes.append(atom)
         return " ".join(part for part in nodes if part != "")
+
+    def _operand(self, depth: int) -> str:
+        """The atom after ``over``/``atop``/``choose`` with the scripts that follow it: Hancom sets
+        ``x^2 over a^2 - y^2`` as x²/a² − y², the ``^2`` on the denominator."""
+
+        operand = self._atom(depth)
+        while self._peek() in ("^", "_"):
+            operator = self._next() or "^"
+            operand = _combine_script(operand, operator, self._atom(depth))
+        return operand
 
     def _atom(self, depth: int) -> str:
         token = self._next()
@@ -272,15 +412,23 @@ class _Parser:
             top = _strip_braces(self._atom(depth))
             return f"\\binom{{{top}}}{{{_strip_braces(self._atom(depth))}}}"
         if token == "root":
+            # ``root {n} of {x}`` is the n-th root; without ``of`` Hancom draws a square root
+            # (``root3`` is √3, ``{root3 a}`` √(3a)), as ``sqrt`` does.
             index = _strip_braces(self._atom(depth))
-            if self._peek() == "of":
-                self._next()
+            if self._peek() != "of":
+                return f"\\sqrt{{{index}}}"
+            self._next()
             radicand = _strip_braces(self._atom(depth))
             return f"\\sqrt[{index}]{{{radicand}}}"
         if token in ACCENTS:
             return f"{ACCENTS[token]}{{{_strip_braces(self._atom(depth))}}}"
         if token in MATRIX_ENVIRONMENTS:
             return self._matrix(MATRIX_ENVIRONMENTS[token], depth)
+        if token in PILES:
+            # Rows stacked without delimiters. An empty ``pile{#}`` only props a bracket up: it reads as nothing.
+            pile = self._matrix("matrix", depth)
+            cells = pile.replace("\\\\", " ").replace("\\,", " ").replace("~", " ").replace("&", " ").split()
+            return "" if cells == ["\\begin{matrix}", "\\end{matrix}"] else pile
         if token in ("LEFT", "left"):
             return self._left_right(depth)
         if token in ("RIGHT", "right"):
@@ -300,7 +448,7 @@ class _Parser:
             if len(literal) >= 2 and literal.startswith('"') and literal.endswith('"'):
                 self._pos = start + 4
                 self._upright = False
-                return f"\\text{{{literal[1:-1]}}}"
+                return f"\\text{{{_escape_text(literal[1:-1])}}}"
         return None
 
     def _upright_bold(self, depth: int) -> str | None:
@@ -360,10 +508,8 @@ class _Parser:
     def _left_right(self, depth: int) -> str:
         open_delim = self._next() or "."
         left = DELIMITERS.get(open_delim, open_delim)
-        body = self._sequence(depth=depth, stop="RIGHT")
-        # ``right`` may be spelled either case; the sequence stops on "RIGHT".
-        if self._peek() != "RIGHT":
-            # Try lowercase form by scanning ahead is out of scope; emit as-is.
+        body = self._sequence(depth=depth, stop=("RIGHT", "right"))
+        if self._peek() not in ("RIGHT", "right"):
             return f"\\left{left} {body} \\right."
         self._next()  # consume RIGHT
         close_delim = self._next() or "."
@@ -404,7 +550,7 @@ class _Parser:
             if token in ("over", "choose"):
                 self._next()
                 numerator = _strip_braces(current.pop() if current else "")
-                denominator = _strip_braces(self._atom(depth))
+                denominator = _strip_braces(self._operand(depth))
                 command = "\\frac" if token == "over" else "\\binom"
                 current.append(f"{command}{{{numerator}}}{{{denominator}}}")
                 continue
@@ -425,6 +571,8 @@ class _Parser:
             return OPERATORS[token]
         if token in FUNCTIONS:
             return FUNCTIONS[token]
+        if token in READ_SYMBOLS:
+            return READ_SYMBOLS[token]
         if token in ("LBRACE", "RBRACE"):  # a literal brace outside LEFT/RIGHT
             return r"\{" if token == "LBRACE" else r"\}"
         if token.startswith('"') and token.endswith('"') and len(token) >= 2:
@@ -433,7 +581,7 @@ class _Parser:
                 # A quoted reserved word is an identifier kept from turning into a symbol; Hancom draws it in
                 # italic, as LaTeX draws plain letters. Upright text is the ``{rm "..." it}`` group.
                 return self._styled(literal)
-            return f"\\text{{{literal}}}"
+            return f"\\text{{{_escape_text(literal)}}}"
         if token == "#":
             return r"\\"
         if token in ("%", "$", "&", "_"):

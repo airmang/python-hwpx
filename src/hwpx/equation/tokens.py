@@ -290,6 +290,67 @@ STRUCTURAL = frozenset(
     {"over", "atop", "choose", "binom", "sqrt", "root", "of", "LEFT", "RIGHT", "left", "right"}
 )
 
+# --- Symbol names read from real documents (reader direction only) -----------
+# Hancom symbol names found in public documents that the writer does not emit (it writes the spellings
+# above). The arrows keep their case: lower case is the single arrow, upper case the double one (as
+# ``LRARROW`` is). Desktop Hangul 2024 drew ``rarrow`` as →, ``ANGLE`` as ∠, ``CDOT``/``CDOTS`` as · and ⋯.
+READ_SYMBOLS: dict[str, str] = {
+    "rarrow": r"\rightarrow",
+    "larrow": r"\leftarrow",
+    "lrarrow": r"\leftrightarrow",
+    "RARROW": r"\Rightarrow",
+    "LARROW": r"\Leftarrow",
+    "DOWNARROW": r"\Downarrow",
+    "udarrow": r"\updownarrow",
+    "UDARROW": r"\Updownarrow",
+    "nearrow": r"\nearrow",
+    "NEARROW": r"\nearrow",
+    "searrow": r"\searrow",
+    "SEARROW": r"\searrow",
+    "nwarrow": r"\nwarrow",
+    "NWARROW": r"\nwarrow",
+    "swarrow": r"\swarrow",
+    "SWARROW": r"\swarrow",
+    "VERT": r"\|",
+    "vert": "|",
+    "le": r"\leq",
+    "ge": r"\geq",
+    "ne": r"\neq",
+    "smallinter": r"\cap",
+    "smallunion": r"\cup",
+    "smallprod": r"\prod",
+    "smallsum": r"\sum",
+    "smallcoprod": r"\coprod",
+    "not": r"\not",
+    "ni": r"\ni",
+    "hbar": r"\hbar",
+    "ell": r"\ell",
+    "aleph": r"\aleph",
+    "dagger": r"\dagger",
+    "vee": r"\vee",
+    "wedge": r"\wedge",
+}
+# Names that stand for a mark written as a superscript: the degree sign and degrees Celsius.
+READ_MARKS: dict[str, str] = {
+    "deg": r"^{\circ}",
+    "centigrade": r"^{\circ}\mathrm{C}",
+}
+# ``pile`` stacks its rows like a matrix without delimiters; ``lpile``/``rpile`` align them left or right.
+PILES = frozenset({"pile", "lpile", "rpile"})
+# ``X LSUB {a}`` / ``X LSUP {a}`` set *a* before *X*, low or high (``C LSUB {3} _{1}`` is ₃C₁).
+LEFT_SCRIPTS: dict[str, str] = {"lsub": "_", "lsup": "^"}
+
+# Names whose case Hancom ignores (``ANGLE`` is ``angle``, ``In`` is ``in``; desktop Hangul 2024 drew
+# ``{rm In _{2} O _{3} it}`` as ∈₂O₃). Greek letters, arrows and a few others keep their case:
+# ``PI`` is Π, ``RARROW`` ⇒, ``VERT`` the double bar, and lower-case ``forall``/``iint`` draw as letters.
+CASE_SENSITIVE = (
+    frozenset(GREEK)
+    | frozenset(name.lower() for name in GREEK)
+    | frozenset(name for name in (*OPERATORS, *READ_SYMBOLS) if "arrow" in name.lower())
+    | frozenset({"forall", "iint", "iiint", "vert", "line", "lbrace", "rbrace", "langle", "rangle"})
+    | frozenset({"left", "right", "to", "mapsto", "bmatrix", "vmatrix"})
+)
+
 # LaTeX commands emitted from EqEdit operator tokens that latex2mathml otherwise
 # classifies as identifiers. The render boundary uses this metadata only while
 # producing MathML; the public LaTeX remains the canonical command above.
@@ -299,12 +360,17 @@ EQEDIT_MATHML_OPERATOR_COMMANDS = frozenset({OPERATORS["triangle"]})
 __all__ = [
     "ACCENTS",
     "BIG_OPERATORS",
+    "CASE_SENSITIVE",
     "DELIMITERS",
     "EQEDIT_MATHML_OPERATOR_COMMANDS",
     "FUNCTIONS",
     "GREEK",
+    "LEFT_SCRIPTS",
     "MATRIX_ENVIRONMENTS",
     "OPERATORS",
+    "PILES",
+    "READ_MARKS",
+    "READ_SYMBOLS",
     "STRUCTURAL",
     "SYMBOL_OPERATORS",
 ]
