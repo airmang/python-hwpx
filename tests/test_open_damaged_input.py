@@ -75,8 +75,10 @@ def test_not_a_zip_is_a_structure_error_and_still_bad_zip_file(opener, payload) 
     assert isinstance(caught.value, HwpxStructureError)
     assert isinstance(caught.value, zipfile.BadZipFile)
     assert type(caught.value.__cause__) is zipfile.BadZipFile
-    # 문구는 zipfile이 쓴 그대로다.
-    assert str(caught.value) == str(caught.value.__cause__)
+    # 문구는 zipfile의 "File is not a zip file"이 아니라 입력이 무엇인지 말한다.
+    assert str(caught.value) != str(caught.value.__cause__)
+    assert caught.value.code in {"open-empty-file", "open-not-hwpx"}
+    assert caught.value.suggestion
 
 
 @pytest.mark.parametrize("opener", [HwpxDocument.open, HwpxPackage.open])

@@ -1028,10 +1028,16 @@ def _select_form_field(
         for match in matches:
             if match["index"] == field_index:
                 return match
+        indexes = sorted(int(match["index"]) for match in matches)
+        where = (
+            f"the document has {len(indexes)} form fields, field_index {indexes[0]}..{indexes[-1]}"
+            if indexes
+            else "the document has no form fields"
+        )
         raise HwpxValueError(
-            f"form field index not found: {field_index}",
+            f"form field index not found: {field_index} ({where})",
             code="field-not-found",
-            context={"requested": field_index},
+            context={"requested": field_index, "count": len(indexes), "indexes": indexes[:50]},
             suggestion="List doc.fields.all to see the candidates.",
         )
     if field_id:
@@ -1057,10 +1063,20 @@ def _select_form_field(
         ]
     if not candidates:
         selector = f"field_id={field_id!r}" if field_id else f"name={name!r}"
+        if field_id:
+            known = [str(match.get("field_id") or match.get("id") or "") for match in matches]
+        else:
+            known = [str(match.get("name") or "") for match in matches]
+        known = list(dict.fromkeys(item for item in known if item))
+        if known:
+            shown = ", ".join(repr(item) for item in known[:10]) + (", ..." if len(known) > 10 else "")
+            where = f"the document has: {shown}"
+        else:
+            where = "the document has no named form fields" if matches else "the document has no form fields"
         raise HwpxValueError(
-            f"form field index not found: {field_index}",
+            f"form field not found: {selector} ({where})",
             code="field-not-found",
-            context={"selector": str(selector)},
+            context={"selector": str(selector), "candidates": known[:50], "count": len(matches)},
             suggestion="List doc.fields.all to see the candidates.",
         )
     if len(candidates) > 1:

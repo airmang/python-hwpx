@@ -76,6 +76,19 @@ class SaveError(HwpxError, ValueError):
     default_code = "save-failed"
 
 
+class SaveTargetError(HwpxError, OSError):
+    """Saving could not write the target file: no permission (read-only, or open in
+    another program), a missing folder, or a folder at the path.
+
+    The raised class also derives from the :class:`OSError` subclass Python raised
+    (:class:`PermissionError`, :class:`FileNotFoundError`, …), so an existing
+    ``except PermissionError`` or ``except OSError`` still catches it. The message
+    names the target path, not the temporary file a save writes first.
+    """
+
+    default_code = "save-target-unwritable"
+
+
 class HwpxValueError(HwpxError, ValueError):
     """An argument's *value* is not usable for the requested operation.
 
@@ -273,6 +286,7 @@ ERROR_CODES: dict[str, str] = {
     "table-width-value": "새 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "table-row-heights-value": "행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다.",
     "table-cell-zone-grid-mismatch": "셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다.",
+    "table-path-invalid-type": "fill_by_path 에 매핑이 아닌 것이나 str 이 아닌 경로(키)를 주었다.",
     # -- 머리말·꼬리말 story ------------------------------------------------
     "story-ambiguous": "그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다.",
     "story-linkage": "기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다.",
@@ -428,7 +442,21 @@ ERROR_CODES: dict[str, str] = {
     "save-failed": "저장 경로가 아무것도 쓰기 전에 fail-closed 했다.",
     "save-package-contract-violated": "package.save(None) 이 bytes 를 돌려주지 않았다.",
     "save-format-unsupported": "저장 형식(format)이 'hwpx'도 'hwp'도 아니다.",
+    "save-mode-invalid": "저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다.",
+    "save-target-denied": "저장할 파일에 쓸 권한이 없다(읽기 전용이거나 다른 프로그램이 열고 있다).",
+    "save-target-folder-missing": "저장할 경로의 상위 폴더가 없다.",
+    "save-target-is-folder": "저장할 경로가 폴더다.",
+    "save-target-unwritable": "저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error).",
     "open-safety-failed": "산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다.",
+    "open-empty-file": "연 파일이 비어 있다(0바이트). HwpxArchiveError 에 실린다.",
+    "open-not-hwpx": "연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서).",
+    "open-not-hwp": "확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다.",
+    "open-archive-damaged": "HWPX(ZIP)가 잘렸거나 압축 데이터가 손상됐다.",
+    "open-is-folder": "문서 파일 대신 폴더 경로를 주었다(IsADirectoryError 이기도 하다).",
+    "open-invalid-type": "HwpxDocument.open 에 경로·bytes·이진 스트림이 아닌 값을 주었다.",
+    "open-encrypted": "암호가 걸린 HWPX 다(HwpxXmlSyntaxError, lxml 의 숫자 코드는 lxml_code 에).",
+    "open-hwp5-not-package": "HwpxPackage.open 에 HWP 5.0(.hwp) 파일을 주었다(HwpxDocument.open 으로 연다).",
+    "open-hwp3-unsupported": "HWP 3.x 이하 .hwp 문서다(열지 못한다).",
     "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에).",
     "preservation-downgrade": "요청한 보존 등급을 저장이 달성하지 못했다.",
     # -- HWP 5.0 (.hwp) ------------------------------------------------
@@ -468,4 +496,5 @@ __all__ = [
     "HwpxTypeError",
     "HwpxValueError",
     "SaveError",
+    "SaveTargetError",
 ]

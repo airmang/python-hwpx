@@ -336,6 +336,36 @@ def pack_hwpx(
     )
 
 
+def _input_file_problem(path: str | os.PathLike[str], *, tool: str, accepts_hwp: bool = False) -> str | None:
+    """One line saying why a command-line tool cannot read *path*, or ``None`` when it can try.
+
+    Shared by the ``hwpx-*`` commands: a missing path, a folder, and an ``.hwp`` file given
+    to a tool that reads only HWPX get the same short words everywhere.
+    """
+
+    from ..opc.package import HwpxPackage
+
+    target = Path(path)
+    if not target.exists():
+        return f"file not found: {target}"
+    if target.is_dir():
+        return f"{target} is a folder; give the path of an .hwpx file"
+    try:
+        with target.open("rb") as stream:
+            head = stream.read(len(HwpxPackage.HWP3_MAGIC))
+    except OSError as exc:
+        return f"cannot read {target}: {exc.strerror or exc}"
+    if head.startswith(HwpxPackage.HWP3_MAGIC):
+        return f"{target.name} is an HWP 3.x file, which python-hwpx cannot read; open it in Hancom Office and save it as .hwpx"
+    if head.startswith(HwpxPackage.OLE2_MAGIC) and not accepts_hwp:
+        converted = target.with_suffix(".hwpx").name
+        return (
+            f"{target.name} is an HWP 5.0 (.hwp) file and {tool} reads .hwpx files only; convert it first: "
+            f"python -c \"from hwpx import HwpxDocument; HwpxDocument.open(r'{target}').save_to_path('{converted}')\""
+        )
+    return None
+
+
 def unpack_main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Unpack an HWPX file into a directory (raw XML bytes are preserved by default)"
@@ -350,6 +380,10 @@ def unpack_main(argv: Sequence[str] | None = None) -> int:
     _add_unpack_xml_format_args(parser)
     args = parser.parse_args(argv)
 
+    problem = _input_file_problem(args.input, tool="hwpx-unpack")
+    if problem is not None:
+        print(f"ERROR: {problem}")
+        return 1
     try:
         result = unpack_hwpx(
             args.input,
@@ -377,6 +411,9 @@ def pack_main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if Path(args.input).is_file():
+        print(f"ERROR: {args.input} is a file; hwpx-pack takes the folder hwpx-unpack made")
+        return 1
     try:
         result = pack_hwpx(args.input, args.output, overwrite=args.force)
     except Exception as exc:

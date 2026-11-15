@@ -579,9 +579,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    from .archive_cli import _input_file_problem
+
     input_path = Path(args.input)
-    if not input_path.is_file():
-        print(f"ERROR: file not found: {input_path}")
+    problem = _input_file_problem(input_path, tool="hwpx-analyze-template")
+    if problem is not None:
+        print(f"ERROR: {problem}")
         return 1
 
     try:

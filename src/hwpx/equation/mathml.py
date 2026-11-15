@@ -106,10 +106,23 @@ def eqedit_latex_to_mathml(latex: str) -> str:
 
     return latex_to_mathml(
         "".join(
-            segment if literal else _LATEX_WORD_COMMAND_RE.sub(annotate_role, segment)
+            _unescape_text(segment) if literal else _LATEX_WORD_COMMAND_RE.sub(annotate_role, segment)
             for segment, literal in _split_text_literals(latex)
         )
     )
+
+
+# ``latex2mathml`` copies the body of ``\text{...}`` as it is: the reader's escapes go back to characters.
+_TEXT_UNESCAPES = (
+    ("\\textbackslash{}", "\\"), ("\\textasciicircum{}", "^"), ("\\textasciitilde{}", "~"),
+    ("\\%", "%"), ("\\$", "$"), ("\\&", "&"), ("\\#", "#"), ("\\_", "_"),
+)
+
+
+def _unescape_text(literal: str) -> str:
+    for escaped, char in _TEXT_UNESCAPES:
+        literal = literal.replace(escaped, char)
+    return literal
 
 
 def _split_text_literals(latex: str) -> list[tuple[str, bool]]:
@@ -129,9 +142,14 @@ def _split_text_literals(latex: str) -> list[tuple[str, bool]]:
             break
         depth = 0
         end = -1
+        escaped = False
         for index in range(start + len(_TEXT_COMMAND) - 1, len(latex)):
             char = latex[index]
-            if char == "{":
+            if escaped:  # ``\{`` and ``\}`` are characters of the text, not its braces
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == "{":
                 depth += 1
             elif char == "}":
                 depth -= 1

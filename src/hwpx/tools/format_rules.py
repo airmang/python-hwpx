@@ -30,8 +30,6 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
-from lxml import etree
-
 from ..errors import HwpxValueError
 from ..opc.package import HwpxPackage
 
@@ -509,9 +507,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="print the full report as JSON")
     parser.add_argument("--max-violations", type=int, default=500)
     args = parser.parse_args(argv)
+    from .archive_cli import _input_file_problem
+
+    problem = _input_file_problem(args.document, tool="hwpx-check-format")
+    if problem is None and not Path(args.rules).is_file():
+        problem = f"rule file not found: {args.rules}"
+    if problem is not None:
+        print(f"ERROR: {problem}")
+        return 2
     try:
         report = check_format(args.document, args.rules, max_violations=args.max_violations)
-    except (OSError, ValueError, etree.XMLSyntaxError) as exc:
+    except Exception as exc:  # noqa: BLE001 - one line for the person at the terminal
         print(f"ERROR: {exc}")
         return 2
     if args.json:

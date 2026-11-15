@@ -8,7 +8,7 @@ import hashlib
 from os import PathLike
 from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Sequence, TypeVar
 
-from ..errors import HwpxTypeError, HwpxValueError, SaveError
+from ..errors import HwpxTypeError, HwpxValueError, SaveError, SaveTargetError
 from ..mutation_report import (
     Fallback,
     Mode,
@@ -49,6 +49,108 @@ def _one_archive_read(save: _SaveFunction) -> _SaveFunction:
             return save(*args, **kwargs)
 
     return sharing  # type: ignore[return-value]
+
+
+_SAVE_TARGET_ERRORS: dict[type[OSError], type[SaveTargetError]] = {}
+
+
+def _save_target_error_type(base: type[OSError]) -> type[SaveTargetError]:
+    if base is OSError or issubclass(base, SaveTargetError):
+        return SaveTargetError
+    found = _SAVE_TARGET_ERRORS.get(base)
+    if found is None:
+        found = type(f"SaveTarget{base.__name__}", (SaveTargetError, base), {"__module__": __name__})
+        _SAVE_TARGET_ERRORS[base] = found
+    return found
+
+
+def _save_target_error(path: str | PathLike[str], error: OSError) -> SaveTargetError:
+    import os
+
+    target = os.path.abspath(os.fspath(path))
+    parent = os.path.dirname(target)
+    if os.path.isdir(target):
+        message = f"Cannot save to {target}: it is a folder."
+        code, suggestion = "save-target-is-folder", "Give a file path, for example a name ending in .hwpx inside that folder."
+    elif not os.path.isdir(parent):
+        message = f"Cannot save to {target}: the folder {parent} does not exist."
+        code, suggestion = "save-target-folder-missing", "Create the folder first (Path(...).parent.mkdir(parents=True)) or save elsewhere."
+    elif isinstance(error, PermissionError):
+        message = f"Cannot save to {target}: permission denied (the file may be read-only or open in another program)."
+        code, suggestion = "save-target-denied", "Close the file in Hancom or other programs, clear its read-only flag, or save under another name."
+    else:
+        message = f"Cannot save to {target}: {error.strerror or error}."
+        code, suggestion = "save-target-unwritable", "Check the path, free disk space and permissions, or save elsewhere."
+    return _save_target_error_type(type(error))(
+        message,
+        code=code,
+        context={"path": target, "os_error": type(error).__name__, "errno": error.errno},
+        suggestion=suggestion,
+    )
+
+
+def _check_save_target(path: str | PathLike[str]) -> None:
+    """Refuse a target that cannot be a file before the document is serialized."""
+
+    import os
+
+    target = os.fspath(path)
+    if os.path.isdir(target):
+        raise _save_target_error(path, IsADirectoryError(21, "Is a directory"))
+    parent = os.path.dirname(os.path.abspath(target))
+    if not os.path.isdir(parent):
+        raise _save_target_error(path, FileNotFoundError(2, "No such file or directory"))
+
+
+_MODES = ("auto", "patch", "rebuild")
+_FALLBACKS = ("error", "rebuild")
+
+
+def _check_grade_arguments(mode: object, fallback: object) -> None:
+    if mode not in _MODES:
+        raise HwpxValueError(
+            f"Unknown save mode {mode!r}; use 'auto', 'patch' or 'rebuild'.",
+            code="save-mode-invalid",
+            context={"mode": repr(mode)},
+            suggestion="Leave mode out (the default 'auto'), or pass mode='patch' to keep untouched parts byte-identical.",
+        )
+    if fallback not in _FALLBACKS:
+        raise HwpxValueError(
+            f"Unknown save fallback {fallback!r}; use 'error' or 'rebuild'.",
+            code="save-mode-invalid",
+            context={"fallback": repr(fallback)},
+            suggestion="Leave fallback out (the default 'error') or pass fallback='rebuild'.",
+        )
+
+
+_hwp5_write_warned = False
+
+
+def _warn_about_target_format(path: str | PathLike[str]) -> None:
+    """Say what a save to *path* writes when the name does not say it: once for the experimental
+    HWP 5.0 writer, and every time for a name that is neither ``.hwpx`` nor ``.hwp``."""
+
+    import os
+    import warnings
+
+    global _hwp5_write_warned
+    suffix = os.path.splitext(os.fspath(path))[1].lower()
+    if suffix == ".hwp":
+        if not _hwp5_write_warned:
+            _hwp5_write_warned = True
+            warnings.warn(
+                "Saving as .hwp uses the experimental HWP 5.0 writer; check the file in Hancom, "
+                "and keep an .hwpx copy (save_to_path('….hwpx')) of anything that matters.",
+                UserWarning,
+                stacklevel=5,  # this, save_to_path, the archive-read wrapper, HwpxDocument.save_to_path
+            )
+    elif suffix != ".hwpx":
+        warnings.warn(
+            f"Saving HWPX data to a file named {os.path.basename(os.fspath(path))!r}: only .hwpx and .hwp "
+            "choose a format, so this file holds HWPX and other programs may not open it by that name.",
+            UserWarning,
+            stacklevel=5,
+        )
 
 
 def _summarize_validation_issues(issues: Sequence[Any], *, limit: int = 5) -> str:
@@ -309,23 +411,36 @@ def save_to_path(
     ``fallback`` are the Safe Write Contract grade controls — ``mode="patch"``
     with ``fallback="error"`` raises :class:`PreservationDowngradeError` and
     writes nothing when the save cannot keep every untouched part byte-identical.
+
+    An ``.hwp`` path is written by the experimental HWP 5.0 writer (a warning says so
+    once per process); any name other than ``.hwpx`` or ``.hwp`` still gets HWPX data,
+    with a warning. A target that cannot be written raises :class:`SaveTargetError`,
+    which is also the :class:`OSError` subclass Python raised.
     """
 
+    _check_grade_arguments(mode, fallback)
+    _check_save_target(path)
     if str(path).lower().endswith(".hwp"):
         _refuse_lossy_hwp5_save(doc, path)
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
-    if str(path).lower().endswith(".hwp"):
-        # An .hwp target is written as HWP 5.0 from the validated HWPX parts;
-        # the gate still checks those parts, and nothing is written when the
-        # HWP 5.0 writer cannot express the document.
-        report = _gate_and_write(doc, archive_bytes, source_label="document.save_to_path")
-        _write_hwp5(path, archive_bytes)
-    else:
-        report = _gate_and_write(
-            doc, archive_bytes, output_path=path, source_label="document.save_to_path"
-        )
+    _warn_about_target_format(path)
+    try:
+        if str(path).lower().endswith(".hwp"):
+            # An .hwp target is written as HWP 5.0 from the validated HWPX parts;
+            # the gate still checks those parts, and nothing is written when the
+            # HWP 5.0 writer cannot express the document.
+            report = _gate_and_write(doc, archive_bytes, source_label="document.save_to_path")
+            _write_hwp5(path, archive_bytes)
+        else:
+            report = _gate_and_write(
+                doc, archive_bytes, output_path=path, source_label="document.save_to_path"
+            )
+    except SaveTargetError:
+        raise
+    except OSError as error:
+        raise _save_target_error(path, error) from error
     _mark_save_clean(doc)
     if return_report:
         return _compose_mutation_report(
@@ -424,6 +539,7 @@ def save_to_stream(
     """
 
     _check_format(format)
+    _check_grade_arguments(mode, fallback)
     if format == "hwp":
         _refuse_lossy_hwp5_save(doc)
     _run_pre_save_validation(doc)
@@ -476,15 +592,16 @@ def save_report(
     path is written as HWP 5.0, as :func:`save_to_path` writes it.
     """
 
-    _run_pre_save_validation(doc)
-    archive_bytes = doc._to_bytes_raw(reset_dirty=False)
-
     output_path: str | PathLike[str] | None = None
     output_stream: BinaryIO | None = None
     if isinstance(path_or_stream, (str, PathLike)):
         output_path = path_or_stream
+        _check_save_target(output_path)
     elif path_or_stream is not None:
         output_stream = path_or_stream
+
+    _run_pre_save_validation(doc)
+    archive_bytes = doc._to_bytes_raw(reset_dirty=False)
     # An .hwp target gets HWP 5.0 made from the HWPX parts the gate checks; it raises before anything is
     # written when the HWP 5.0 writer cannot express the document.
     hwp5 = None
@@ -492,24 +609,31 @@ def save_report(
         _refuse_lossy_hwp5_save(doc, output_path)
         hwp5 = _hwp5_bytes(archive_bytes)
 
-    report = doc._save_pipeline.run(
-        archive_bytes,
-        output_path=None if hwp5 is not None else output_path,
-        output_stream=output_stream,
-        quality=quality or QualityPolicy.transparent(),
-        before=before,
-        edit_mask=edit_mask,
-        ledger=ledger,
-        open_safety=_serialize_open_safety(doc, archive_bytes),
-        reference_document=doc,
-        source_label="document.save_report",
-    )
-    if hwp5 is not None and report.ok:  # the gate passed: publish the HWP 5.0 file in its place
-        from ..quality.save_pipeline import write_bytes_atomically
+    try:
+        report = doc._save_pipeline.run(
+            archive_bytes,
+            output_path=None if hwp5 is not None else output_path,
+            output_stream=output_stream,
+            quality=quality or QualityPolicy.transparent(),
+            before=before,
+            edit_mask=edit_mask,
+            ledger=ledger,
+            open_safety=_serialize_open_safety(doc, archive_bytes),
+            reference_document=doc,
+            source_label="document.save_report",
+        )
+        if hwp5 is not None and report.ok:  # the gate passed: publish the HWP 5.0 file in its place
+            from ..quality.save_pipeline import write_bytes_atomically
 
-        assert output_path is not None
-        write_bytes_atomically(output_path, hwp5)
-        report.output_path = str(output_path)
+            assert output_path is not None
+            write_bytes_atomically(output_path, hwp5)
+            report.output_path = str(output_path)
+    except SaveTargetError:
+        raise
+    except OSError as error:
+        if output_path is None:
+            raise
+        raise _save_target_error(output_path, error) from error
     if report.ok:
         _mark_save_clean(doc)
     return report
@@ -534,6 +658,7 @@ def to_bytes(
     """
 
     _check_format(format)
+    _check_grade_arguments(mode, fallback)
     if format == "hwp":
         _refuse_lossy_hwp5_save(doc)
     _run_pre_save_validation(doc)
