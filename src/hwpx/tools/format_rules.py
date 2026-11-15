@@ -30,8 +30,6 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
-from lxml import etree
-
 from ..errors import HwpxValueError
 from ..opc.package import HwpxPackage
 
