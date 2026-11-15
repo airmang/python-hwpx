@@ -383,11 +383,18 @@ class ObjectPlacement:
         return (_number(info.get("angle")) or 0) if info is not None else 0
 
     def set_rotation(self, angle: int) -> None:
-        """Turn the object *angle* degrees clockwise (0..359) about the middle of its box, as Hancom stores a
-        turned object: ``hp:rotationInfo/@angle`` and the rotation matrix (``hc:rotMatrix``) about the middle of
-        its original size. Only an object with ``hp:rotationInfo`` turns (pictures, drawing shapes, OLE); an
-        equation or chart is refused with ``shape-rotation-unsupported``, an angle outside 0..359 with
-        ``shape-rotation-value``. The paragraph loses its line layout cache."""
+        """Turn the object *angle* degrees clockwise (0..359) about its middle, as Hancom saves a turned object.
+
+        The object keeps its own size (``hp:orgSz``); its box (``hp:sz``) becomes the box around the turned
+        object, the object is moved into the middle of that box (``hp:offset``, ``hc:transMatrix``), turned
+        about its own middle (``hc:rotMatrix``), and ``hp:rotationInfo`` holds the angle and the middle of the
+        box -- the relation every unscaled turned object in Hancom-saved documents shows. Only that case is
+        written: an object Hancom has stretched (a ``hc:scaMatrix`` other than identity, as a picture after
+        ``resize``), a flipped one, a group or an object without ``hp:rotationInfo`` (an equation or chart)
+        is refused with ``shape-rotation-unsupported``, a member of a group with
+        ``shape-group-member-unsupported``, an angle outside 0..359 with ``shape-rotation-value``. 0 turns
+        it back. The paragraph loses its line layout cache.
+        """
 
         if isinstance(angle, bool) or not isinstance(angle, int) or not 0 <= angle <= 359:
             raise HwpxValueError(
@@ -396,26 +403,10 @@ class ObjectPlacement:
                 context={"value": repr(angle)},
                 suggestion="Pass the angle in whole degrees clockwise, 0 to 359.",
             )
-        info = self.element.find(f"{_HP}rotationInfo")
-        matrix = self.element.find(f"{_HP}renderingInfo/{_HC}rotMatrix")
-        if info is None or matrix is None:
-            raise HwpxValueError(
-                f"hp:{str(self.element.tag).rsplit('}', 1)[-1]} cannot be turned: it has no hp:rotationInfo",
-                code="shape-rotation-unsupported",
-                suggestion="Pictures, drawing shapes and OLE objects turn; equations and charts do not.",
-            )
         if _in_group(self.element, self.paragraph.element):
             raise _group_member_refused("turned")
-        size = self.element.find(f"{_HP}orgSz")
-        width, height = ((_number(size.get("width")) or 0, _number(size.get("height")) or 0)
-                         if size is not None else (0, 0))
-        cx, cy = width / 2, height / 2
-        radians = math.radians(angle)
-        cos, sin = math.cos(radians), math.sin(radians)
-        for key, value in (("e1", cos), ("e2", -sin), ("e3", cx * (1 - cos) + cy * sin),
-                           ("e4", sin), ("e5", cos), ("e6", cy * (1 - cos) - cx * sin)):
-            matrix.set(key, _matrix_number(value))
-        info.set("angle", str(angle))
+        width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
+        apply_rotation(self.element, angle, width, height)
         from ._document_primitives import _clear_paragraph_layout_cache
 
         _clear_paragraph_layout_cache(self.paragraph.element)
@@ -488,6 +479,96 @@ class ObjectPlacement:
         section.mark_dirty()
 
 
+_IDENTITY = ("1", "0", "0", "0", "1", "0")
+
+
+def _rotation_refused(element: Any, why: str) -> HwpxValueError:
+    return HwpxValueError(
+        f"hp:{str(element.tag).rsplit('}', 1)[-1]} cannot be turned: {why}",
+        code="shape-rotation-unsupported",
+        context={"reason": why},
+        suggestion="Unscaled, unflipped pictures, drawing shapes and OLE objects outside a group turn; "
+                   "turn a stretched picture back to its own size first, or turn it in Hancom.",
+    )
+
+
+def rotation_base_size(element: Any) -> tuple[int, int]:
+    """The object's own (unturned) size, when it is one this package knows how Hancom turns; else refuse.
+
+    Known: an object outside a group whose ``hc:scaMatrix`` is identity (its ``hp:curSz`` 0 or its
+    ``hp:orgSz`` on each side), not flipped and not a group itself -- the case Hancom-saved documents show
+    with one fixed relation between angle, sizes and matrices. Hancom's stretched or grouped turned objects
+    hold more matrices whose relation is not known, so they are not written.
+    """
+
+    info = element.find(f"{_HP}rotationInfo")
+    rendering = element.find(f"{_HP}renderingInfo")
+    if info is None or rendering is None:
+        raise _rotation_refused(element, "it has no hp:rotationInfo")
+    if str(element.tag).rsplit("}", 1)[-1] == "container":
+        raise _rotation_refused(element, "turning a group is not verified against a Hancom-saved group")
+    matrices = [str(child.tag).rsplit("}", 1)[-1] for child in rendering]
+    if matrices != ["transMatrix", "scaMatrix", "rotMatrix"]:
+        raise _rotation_refused(element, "its rendering matrices are not one trans/sca/rot set")
+    scale = rendering[1]
+    # Hancom writes an unstretched one with float noise (1.000037, -0.000023): up to 1/1000 is identity.
+    if any(abs(_fraction(scale.get(key), float(value)) - float(value)) > 1e-3
+           for key, value in zip(("e1", "e2", "e3", "e4", "e5", "e6"), _IDENTITY)):
+        raise _rotation_refused(element, "it is stretched (hc:scaMatrix is not identity)")
+    flip = element.find(f"{_HP}flip")
+    if flip is not None and (flip.get("horizontal", "0") not in _FALSE_FLAGS
+                             or flip.get("vertical", "0") not in _FALSE_FLAGS):
+        raise _rotation_refused(element, "it is flipped")
+    original = element.find(f"{_HP}orgSz")
+    width, height = (_number(original.get("width")) or 0, _number(original.get("height")) or 0) \
+        if original is not None else (0, 0)
+    current = element.find(f"{_HP}curSz")
+    if current is not None:
+        for side, own in (("width", width), ("height", height)):
+            value = _number(current.get(side)) or 0
+            if value != 0 and abs(value - own) > 2:  # Hancom rounds it a unit off (13424 for 13425)
+                raise _rotation_refused(element, "its current size differs from its original size")
+    if width <= 0 or height <= 0:
+        raise _rotation_refused(element, "it has no original size")
+    return width, height
+
+
+def apply_rotation(element: Any, angle: int, width: int, height: int) -> None:
+    """Write *element* (own size *width* x *height*, unscaled) turned *angle* degrees clockwise:
+    ``hp:sz`` the box around it, ``hp:offset``/``hc:transMatrix`` half the growth, ``hc:rotMatrix`` about
+    its own middle and ``hp:rotationInfo`` the angle and the middle of the box."""
+
+    radians = math.radians(angle)
+    cos, sin = math.cos(radians), math.sin(radians)
+    box_width = abs(width * cos) + abs(height * sin)
+    box_height = abs(width * sin) + abs(height * cos)
+    if angle % 90 == 0:  # no float noise on the right angles
+        box_width, box_height = (width, height) if angle % 180 == 0 else (height, width)
+    shift_x, shift_y = (box_width - width) / 2, (box_height - height) / 2
+    cx, cy = width / 2, height / 2
+    rendering = element.find(f"{_HP}renderingInfo")
+    trans, _scale, rot = rendering[0], rendering[1], rendering[2]
+    for key, value in (("e1", 1.0), ("e2", 0.0), ("e3", shift_x), ("e4", 0.0), ("e5", 1.0), ("e6", shift_y)):
+        trans.set(key, _matrix_number(value))
+    for key, value in (("e1", cos), ("e2", -sin), ("e3", cx * (1 - cos) + cy * sin),
+                       ("e4", sin), ("e5", cos), ("e6", cy * (1 - cos) - cx * sin)):
+        rot.set(key, _matrix_number(round(value, 6)))
+    offset = element.find(f"{_HP}offset")
+    if offset is not None:
+        offset.set("x", str(round(shift_x) & 0xFFFFFFFF))  # a negative one as Hancom writes it: unsigned 32-bit
+        offset.set("y", str(round(shift_y) & 0xFFFFFFFF))
+    info = element.find(f"{_HP}rotationInfo")
+    info.set("angle", str(angle))
+    info.set("centerX", str(round(box_width / 2)))
+    info.set("centerY", str(round(box_height / 2)))
+    size = element.find(f"{_HP}sz")
+    if size is not None:
+        if size.get("widthRelTo", "ABSOLUTE") == "ABSOLUTE":
+            size.set("width", str(round(box_width)))
+        if size.get("heightRelTo", "ABSOLUTE") == "ABSOLUTE":
+            size.set("height", str(round(box_height)))
+
+
 def object_size(element: Any) -> tuple[int, int]:
     """An object's ``hp:sz`` width and height (0 when missing)."""
 
@@ -530,6 +611,10 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
     original size (``hp:orgSz``) and the geometry in it stay, and ``hc:scaMatrix`` scales between them."""
 
     element = obj.element
+    info = element.find(f"{_HP}rotationInfo")
+    if info is not None and (_number(info.get("angle")) or 0) % 360:
+        raise _rotation_refused(element, "resizing a turned picture would stretch it in a way not verified; "
+                                         "turn it back to 0, resize, then turn it again")
     width, height = keep_ratio(object_size(element), width, height)
     _set_size(element, "sz", width, height)
     original = element.find(f"{_HP}orgSz")

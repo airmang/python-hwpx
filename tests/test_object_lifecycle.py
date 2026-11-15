@@ -254,18 +254,120 @@ def test_set_position_and_position_use_the_same_names_on_shapes_and_objects() ->
     _reopen(doc)
 
 
+def _turn_record(element) -> dict[str, float]:
+    """What a turn writes: the box (hp:sz, its ABSOLUTE sides), the offset, the centre, the matrices."""
+
+    record: dict[str, float] = {}
+    size = element.find(f"{HP}sz")
+    for side in ("width", "height") if size is not None else ():
+        if size.get(f"{side}RelTo", "ABSOLUTE") == "ABSOLUTE":
+            record[f"sz.{side}"] = float(size.get(side))
+    info = element.find(f"{HP}rotationInfo")
+    record.update({"angle": float(info.get("angle")), "centerX": float(info.get("centerX")),
+                   "centerY": float(info.get("centerY"))})
+    offset = element.find(f"{HP}offset")
+    for axis in ("x", "y"):
+        value = int(offset.get(axis))
+        record[f"offset.{axis}"] = float(value - 2**32 if value >= 2**31 else value)
+    for matrix in list(element.find(f"{HP}renderingInfo"))[:3]:
+        name = str(matrix.tag).rsplit("}", 1)[-1]
+        record.update({f"{name}.{key}": float(matrix.get(key)) for key in ("e1", "e2", "e3", "e4", "e5", "e6")})
+    return record
+
+
+#: Every turned object (rotationInfo angle != 0) of the fixtures: (document, how many turned objects
+#: set_rotation writes back exactly as Hancom saved them, how many it refuses).
+TURNED_FIXTURES = [
+    (FIXTURES / "hwpxlib_corpus" / "reader_writer__SimplePolygon.hwpx", 1, 0),
+    (FIXTURES / "hwpxlib_corpus" / "error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx", 0, 8),
+]
+
+
+@pytest.mark.parametrize(("path", "reproduced", "refused"), TURNED_FIXTURES, ids=lambda v: getattr(v, "stem", v))
+def test_set_rotation_writes_back_every_hancom_turn_it_accepts_and_refuses_the_rest(
+    path: Path, reproduced: int, refused: int
+) -> None:
+    from hwpx.oxml.objects import wrap_object
+
+    doc = HwpxDocument.open(path)
+    counts = {"reproduced": 0, "refused": 0}
+    for section in doc.sections:
+        for info in list(section.element.iter(f"{HP}rotationInfo")):
+            if info.get("angle") == "0":
+                continue
+            element = info.getparent()
+            holder = element.getparent()
+            while str(holder.tag).rsplit("}", 1)[-1] != "p":
+                holder = holder.getparent()
+            obj = wrap_object(element, Paragraph(holder, section))
+            angle = obj.rotation
+            hancom = _turn_record(element)
+            try:
+                obj.set_rotation(0)
+            except HwpxValueError as caught:
+                assert caught.code in {"shape-rotation-unsupported", "shape-group-member-unsupported"}
+                assert _turn_record(element) == hancom  # refused before any change
+                counts["refused"] += 1
+                continue
+            obj.set_rotation(angle)
+            written = _turn_record(element)
+            for key, value in hancom.items():
+                assert math.isclose(written[key], value, abs_tol=1.5), (key, written[key], value)
+            counts["reproduced"] += 1
+    assert counts == {"reproduced": reproduced, "refused": refused}
+
+
+@pytest.mark.parametrize("angle", [30, 45, 90, 135, 270, 359])
+@pytest.mark.parametrize("size", [(8000, 3000), (3000, 8000), (5000, 5000)])
+def test_a_turned_shape_fills_its_box_exactly(angle: int, size: tuple[int, int]) -> None:
+    doc = HwpxDocument.new()
+    shape = doc.add_paragraph("").add_rectangle(*size)
+    shape.set_position(treat_as_char=False, horizontal_offset=0, vertical_offset=0)
+    shape.set_rotation(angle)
+    record = _turn_record(shape.element)
+    width, height = size
+    rot = [record[f"rotMatrix.e{i}"] for i in range(1, 7)]
+    assert math.isclose(rot[0] ** 2 + rot[3] ** 2, 1, abs_tol=1e-5)  # a turn, no stretch:
+    assert math.isclose(rot[0] * rot[1] + rot[3] * rot[4], 0, abs_tol=1e-5)  # the sides stay square
+    corners = [(x * rot[0] + y * rot[1] + rot[2] + record["transMatrix.e3"],
+                x * rot[3] + y * rot[4] + rot[5] + record["transMatrix.e6"])
+               for x, y in ((0, 0), (width, 0), (width, height), (0, height))]
+    xs, ys = [x for x, _ in corners], [y for _, y in corners]
+    assert math.isclose(min(xs), 0, abs_tol=1.5) and math.isclose(max(xs), record["sz.width"], abs_tol=1.5)
+    assert math.isclose(min(ys), 0, abs_tol=1.5) and math.isclose(max(ys), record["sz.height"], abs_tol=1.5)
+    assert abs(record["centerX"] - record["sz.width"] / 2) <= 1
+    assert abs(record["centerY"] - record["sz.height"] / 2) <= 1
+    shape.set_rotation(0)
+    assert (shape.width, shape.height) == size
+    _reopen(doc)
+
+
+def test_resize_and_turn_in_either_order_give_the_same_shape() -> None:
+    doc = HwpxDocument.new()
+    first = doc.add_paragraph("").add_rectangle(8000, 3000)
+    second = doc.add_paragraph("").add_rectangle(8000, 3000)
+    first.resize(width=4000)
+    first.set_rotation(30)
+    second.set_rotation(30)
+    second.resize(width=4000)
+    assert _turn_record(first.element) == _turn_record(second.element)
+    picture = doc.add_picture(PNG, "png", width=6000, height=3000)
+    picture.set_rotation(30)
+    with pytest.raises(HwpxValueError) as caught:
+        picture.resize(width=3000)
+    assert caught.value.code == "shape-rotation-unsupported"
+    picture.set_rotation(0)
+    picture.resize(width=3000)
+    with pytest.raises(HwpxValueError) as caught:
+        picture.set_rotation(30)  # stretched now
+    assert caught.value.code == "shape-rotation-unsupported"
+
+
 def test_z_order_and_rotation_read_and_write() -> None:
     doc = HwpxDocument.open(FIXTURES / "hwpxlib_corpus" / "reader_writer__SimplePolygon.hwpx")
     polygon = doc.sections[0].paragraphs[0].objects[0]
     assert isinstance(polygon, Shape)
     assert polygon.rotation == 40
-    matrix = polygon.element.find(f"{HP}renderingInfo/{HC}rotMatrix")
-    hancom = {key: float(matrix.get(key)) for key in ("e1", "e2", "e3", "e4", "e5", "e6")}
-    polygon.set_rotation(0)
-    assert polygon.rotation == 0 and float(matrix.get("e3")) == 0
-    polygon.set_rotation(40)  # written as Hancom wrote it
-    for key, value in hancom.items():
-        assert math.isclose(float(matrix.get(key)), value, abs_tol=1.0), key
     polygon.set_z_order(7)
     assert polygon.z_order == 7
     for call, code in ((lambda: polygon.set_rotation(360), "shape-rotation-value"),

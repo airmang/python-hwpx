@@ -26,7 +26,8 @@ from ._document_primitives import (
 )
 from .shape_position import (
     DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, fill_color_of, keep_ratio, line_width_of, object_size,
-    picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow, resize_object,
+    apply_rotation, picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
+    resize_object, rotation_base_size,
     set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
     _object_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
@@ -1493,7 +1494,9 @@ class HwpxOxmlShape(ObjectPlacement):
         :class:`UserWarning` is raised, because the drawn shape cannot follow
         the requested size.
         """
-        width, height = keep_ratio((self.width, self.height), width, height)
+        angle = self.rotation % 360
+        own = rotation_base_size(self.element) if angle else (self.width, self.height)  # a turned one: its own size
+        width, height = keep_ratio(own, width, height)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line is as tall as the shape set as a character
         if self.shape_type == "container" and resize_group(self, width, height):
             return  # a group is drawn at its sz: see shape_position.resize_group
@@ -1510,6 +1513,8 @@ class HwpxOxmlShape(ObjectPlacement):
             rot.set("centerX", str(width // 2))
             rot.set("centerY", str(height // 2))
         self._scale_geometry(old_width, old_height, width, height)
+        if angle:  # its box is the box around it turned: write the turn again at the new size
+            apply_rotation(self.element, angle, max(width, 1), max(height, 1))
         self.paragraph.section.mark_dirty()
 
     def _geometry_size(self) -> tuple[int, int]:

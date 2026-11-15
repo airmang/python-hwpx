@@ -256,7 +256,10 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 빈 run은 빠지며, 문단과 그 문단을 품은 문단의 줄 배치 캐시를 지웁니다. 붙어 있던 연결선은
 끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 그림의 이진 항목은 패키지에 남으니
 `doc.media.remove_unused_images()`로 정리합니다. 묶음 안의 개체는 혼자 지우거나 돌리거나
-설명을 달 수 없습니다(`shape-group-member-unsupported`).
+설명을 달 수 없습니다(`shape-group-member-unsupported`). `set_rotation`은 한/글 저장본이 보여 주는
+관계(상자 `hp:sz`는 돈 개체를 감싸는 상자, 개체는 그 가운데로 옮겨 자기 가운데를 축으로 돈다)를
+그대로 쓰며, 그 관계가 확인되지 않은 경우 — 늘이거나 줄인 개체(`hc:scaMatrix`가 항등이 아님,
+`resize`한 그림 포함), 뒤집은 개체, 묶음 — 는 `shape-rotation-unsupported`로 거부합니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
