@@ -95,10 +95,17 @@ def test_the_box_scales_with_the_base_size() -> None:
     assert large[2] == small[2]
 
 
-@pytest.mark.parametrize("script", ["{{{a", "x ^", "over", "matrix{", "left ( a", "}}}", "root 3 of"])
+@pytest.mark.parametrize("script", ["x ^", "over", "left ( a", "root 3 of"])
 def test_a_script_that_does_not_parse_still_gets_a_box(script: str) -> None:
     width, height, base_line = _written(script)
     assert width > 0 and height > 0 and 1 <= base_line <= 100
+
+
+@pytest.mark.parametrize("script", ["{{{a", "matrix{", "}}}"])
+def test_a_script_with_unpaired_braces_still_measures(script: str) -> None:
+    # add_equation refuses these since 7.0 (shape-equation-script-unbalanced); the estimate still answers.
+    width, height = estimate_equation_size(script, base_unit=BASE)
+    assert width > 0 and height > 0
 
 
 def test_an_explicit_size_is_kept_and_the_baseline_still_follows_the_script() -> None:

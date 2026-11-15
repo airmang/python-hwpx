@@ -376,6 +376,8 @@ ERROR_CODES: dict[str, str] = {
     "field-mail-merge-empty-name": "메일 머지 필드 이름이 비어 있다.",
     # -- 인라인 개체 -----------------------------------------------------
     "shape-equation-script-empty": "수식 스크립트가 비어 있다.",
+    "shape-equation-script-latex": "수식 스크립트에 LaTeX 명령(\\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다).",
+    "shape-equation-script-unbalanced": "수식 스크립트의 중괄호 짝이 맞지 않는다.",
     "shape-equation-script-too-large": "수식 스크립트가 크기 한도를 넘었다.",
     "shape-equation-not-verbatim": "만든 수식이 스크립트를 그대로 담지 않았다.",
     "shape-equation-not-created": "만든 수식을 표준 스캔이 다시 찾지 못했다.",

@@ -68,7 +68,9 @@ from .objects import (
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
-from .shape_position import validate_equation_base_unit, validate_equation_font, validate_shape_size
+from .shape_position import (
+    validate_equation_base_unit, validate_equation_font, validate_equation_script, validate_shape_size,
+)
 from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
@@ -1242,6 +1244,7 @@ class HwpxOxmlParagraph:
         text = script.strip()
         if not text:
             raise ValueError("equation script must be a non-empty string")
+        validate_equation_script(text)  # LaTeX or unpaired braces: Hancom would not draw it as an equation
         validate_equation_base_unit(base_unit)
         font = validate_equation_font(font)
         from ..equation.measure import measure_equation

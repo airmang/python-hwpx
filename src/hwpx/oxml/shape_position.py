@@ -36,6 +36,7 @@ takes no room; a reflection about its ``size`` of the picture's height and its `
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Callable
@@ -373,6 +374,45 @@ def validate_equation_base_unit(base_unit: object) -> int:
             suggestion="Pass the equation's base font size in 1/100 pt, e.g. 1000 for 10 pt.",
         )
     return base_unit
+
+
+_LATEX_COMMAND = re.compile(r"\\[A-Za-z]+")
+
+
+def validate_equation_script(text: str) -> str:
+    """Refuse an equation script Hancom would show as typed rather than as an equation.
+
+    A LaTeX command (``\\frac``) is not Hancom's equation language: Hancom's own scripts write
+    no backslash (none in 175 equations of Hancom-saved documents), so the backslash and the
+    word after it would be drawn as they are (``shape-equation-script-latex``). Braces group in
+    Hancom's language too, and a script whose braces do not pair is refused
+    (``shape-equation-script-unbalanced``).
+    """
+
+    latex = _LATEX_COMMAND.search(text)
+    if latex is not None:
+        raise HwpxValueError(
+            f"equation script holds the LaTeX command {latex.group(0)!r}; it takes Hancom's equation language",
+            code="shape-equation-script-latex",
+            context={"command": latex.group(0)},
+            suggestion="LaTeX 는 hwpx.equation.latex_to_eqedit(r\"\\frac{1}{2}\") 로 바꿔 넘기세요"
+            "(한/글 수식: {1} over {2}).",
+        )
+    depth, closed_early = 0, None
+    for position, char in enumerate(text):
+        depth += 1 if char == "{" else -1 if char == "}" else 0
+        if depth < 0:
+            closed_early = position
+            break
+    if depth != 0:
+        raise HwpxValueError(
+            "equation script braces do not pair: "
+            + (f"the '}}' at {closed_early} closes nothing" if closed_early is not None else f"{depth} '{{' left open"),
+            code="shape-equation-script-unbalanced",
+            context={"closedEarlyAt": closed_early, "open": max(depth, 0)},
+            suggestion="여는 { 와 닫는 } 의 짝을 맞추세요.",
+        )
+    return text
 
 
 def validate_equation_font(font: object) -> str:
