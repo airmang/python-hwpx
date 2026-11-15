@@ -76,6 +76,19 @@ class SaveError(HwpxError, ValueError):
     default_code = "save-failed"
 
 
+class SaveTargetError(HwpxError, OSError):
+    """Saving could not write the target file: no permission (read-only, or open in
+    another program), a missing folder, or a folder at the path.
+
+    The raised class also derives from the :class:`OSError` subclass Python raised
+    (:class:`PermissionError`, :class:`FileNotFoundError`, …), so an existing
+    ``except PermissionError`` or ``except OSError`` still catches it. The message
+    names the target path, not the temporary file a save writes first.
+    """
+
+    default_code = "save-target-unwritable"
+
+
 class HwpxValueError(HwpxError, ValueError):
     """An argument's *value* is not usable for the requested operation.
 
@@ -429,6 +442,11 @@ ERROR_CODES: dict[str, str] = {
     "save-failed": "저장 경로가 아무것도 쓰기 전에 fail-closed 했다.",
     "save-package-contract-violated": "package.save(None) 이 bytes 를 돌려주지 않았다.",
     "save-format-unsupported": "저장 형식(format)이 'hwpx'도 'hwp'도 아니다.",
+    "save-mode-invalid": "저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다.",
+    "save-target-denied": "저장할 파일에 쓸 권한이 없다(읽기 전용이거나 다른 프로그램이 열고 있다).",
+    "save-target-folder-missing": "저장할 경로의 상위 폴더가 없다.",
+    "save-target-is-folder": "저장할 경로가 폴더다.",
+    "save-target-unwritable": "저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error).",
     "open-safety-failed": "산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다.",
     "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에).",
     "preservation-downgrade": "요청한 보존 등급을 저장이 달성하지 못했다.",
@@ -469,4 +487,5 @@ __all__ = [
     "HwpxTypeError",
     "HwpxValueError",
     "SaveError",
+    "SaveTargetError",
 ]

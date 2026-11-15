@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 212 | 11 |
+| 개수 | 217 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -283,7 +283,12 @@ except HwpxError as exc:
 |---|---|
 | `save-failed` | 저장 경로가 아무것도 쓰기 전에 fail-closed 했다. |
 | `save-format-unsupported` | 저장 형식(format)이 'hwpx'도 'hwp'도 아니다. |
+| `save-mode-invalid` | 저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다. |
 | `save-package-contract-violated` | package.save(None) 이 bytes 를 돌려주지 않았다. |
+| `save-target-denied` | 저장할 파일에 쓸 권한이 없다(읽기 전용이거나 다른 프로그램이 열고 있다). |
+| `save-target-folder-missing` | 저장할 경로의 상위 폴더가 없다. |
+| `save-target-is-folder` | 저장할 경로가 폴더다. |
+| `save-target-unwritable` | 저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error). |
 
 ### `section-*`
 
