@@ -46,6 +46,7 @@ if TYPE_CHECKING:
         HwpxOxmlVersion,
     )
     from ...oxml.document_metadata import DocumentMetadata
+    from ...objects.results import BeginNumbers, DocumentOptions
 
 __all__ = ["PartsNamespace"]
 
@@ -284,6 +285,78 @@ class PartsNamespace(_Namespace):
     # 자기 owner 파일(header_part.py)의 1600줄 캡에 헤드룸이 없어(측정
     # 1599/1600) 새 모듈에 자유함수로 산다.
     # ------------------------------------------------------------------
+
+    @property
+    def document_options(self) -> "DocumentOptions":
+        """문서 옵션·호환 설정(``hh:compatibleDocument``·``hh:docOption``)의 읽기 값.
+
+        ``set_compatible_document_target_program``·``set_layout_compatibility_flags``·
+        ``set_doc_option_link_info``·``set_license_mark`` 가 쓰는 값을 읽는다.
+        """
+
+        from ...objects.results import DocumentOptions
+
+        model = self._primary_header().to_model()
+        compatible = model.compatible_document
+        option = model.doc_option
+        link = option.link_info if option is not None else None
+        mark = option.license_mark if option is not None else None
+        flags = (
+            compatible.layout_compatibility.flags
+            if compatible is not None and compatible.layout_compatibility is not None
+            else frozenset()
+        )
+        return DocumentOptions(
+            target_program=compatible.target_program if compatible is not None else None,
+            layout_compatibility=tuple(sorted(flags)),
+            link_path=link.path if link is not None else "",
+            page_inherit=bool(link.page_inherit) if link is not None else False,
+            footnote_inherit=bool(link.footnote_inherit) if link is not None else False,
+            license_type=mark.type if mark is not None else None,
+            license_flag=mark.flag if mark is not None else None,
+            license_lang=mark.lang if mark is not None else None,
+        )
+
+    @property
+    def begin_numbers(self) -> "BeginNumbers":
+        """문서 전체의 시작 번호(``hh:beginNum``): 쪽·각주·미주·그림·표·수식."""
+
+        from ...objects.results import BeginNumbers
+
+        value = self._primary_header().begin_numbering
+        return BeginNumbers(
+            page=value.page,
+            footnote=value.footnote,
+            endnote=value.endnote,
+            picture=value.picture,
+            table=value.table,
+            equation=value.equation,
+        )
+
+    def set_begin_numbers(
+        self,
+        *,
+        page: int | None = None,
+        footnote: int | None = None,
+        endnote: int | None = None,
+        picture: int | None = None,
+        table: int | None = None,
+        equation: int | None = None,
+    ) -> None:
+        """문서 전체의 시작 번호를 바꾼다. 주지 않은 값은 그대로 둔다(1..65535)."""
+
+        for name, value in (("page", page), ("footnote", footnote), ("endnote", endnote),
+                            ("picture", picture), ("table", table), ("equation", equation)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 0xFFFF):
+                raise HwpxValueError(
+                    f"{name} 는 1..65535 의 정수여야 합니다 — {value!r}.",
+                    code="parts-begin-numbers-invalid",
+                    context={"argument": name, "value": repr(value)},
+                    suggestion=f"{name}= 에 1 이상의 정수를 주세요.",
+                )
+        self._primary_header().set_begin_numbering(
+            page=page, footnote=footnote, endnote=endnote, picture=picture, table=table, equation=equation
+        )
 
     def set_compatible_document_target_program(self, target_program: str) -> None:
         """`hh:compatibleDocument/@targetProgram` 설정. 실코퍼스 47/47이

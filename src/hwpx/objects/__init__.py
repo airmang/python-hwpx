@@ -40,9 +40,31 @@ from .results import (
     PictureReplacement,
     Units,
 )
+from .results import (  # 쪽·구역 설정의 읽기 값 (doc.page / doc.parts)
+    AutoNumber,
+    BeginNumbers,
+    ColumnDefinition,
+    DocumentOptions,
+    NoteShapeInfo,
+    NumberRestart,
+    PageBorder,
+    PageHiding,
+    PageNumberControl,
+    StartNumbers,
+)
 from .tracked import TrackedChange, TrackedReplacement
 
 __all__ = [
+    "AutoNumber",
+    "BeginNumbers",
+    "ColumnDefinition",
+    "DocumentOptions",
+    "NoteShapeInfo",
+    "NumberRestart",
+    "PageBorder",
+    "PageHiding",
+    "PageNumberControl",
+    "StartNumbers",
     "BinaryItem",
     "Bookmark",
     "BorderFillInfo",

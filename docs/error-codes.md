@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 244 | 11 |
+| 개수 | 248 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -228,10 +228,13 @@ except HwpxError as exc:
 | `page-kind-invalid` | kind 는 'header' 또는 'footer' 여야 한다. |
 | `page-new-num-kind-invalid` | 쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다. |
 | `page-new-num-value` | 새 번호(hp:newNum/@num)가 0 이상 65535 이하가 아니다. |
+| `page-note-shape-invalid` | 각주·미주 모양의 번호 매기기·놓는 곳·시작 번호·간격·구분선 길이가 한/글이 받는 값이 아니다. |
 | `page-number-value` | 줄 번호(시작·간격·거리·재시작)나 구역 시작 번호가 한/글이 두는 범위(16비트 번호, 32비트 거리) 밖이다. |
 | `page-orientation-unsupported` | 지원하지 않는 용지 방향이다. |
 | `page-paper-size-unsupported` | 지원하지 않는 용지 규격이다. |
+| `page-section-all-invalid` | doc.page 의 section='all' 에 한 구역에만 있는 문단을 함께 줬다. |
 | `page-size-value` | 쪽 크기·여백이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부, 음수는 0으로 쓰였다). |
+| `page-start-numbers-invalid` | 구역 시작 번호의 page_starts_on 이 BOTH·EVEN·ODD 가 아니다. |
 | `page-text-direction-unsupported` | 글자 방향 값이 OWPML 어휘(hp:secPr/@textDirection: HORIZONTAL/VERTICAL/VERTICALALL) 밖이다. |
 
 ### `paragraph-*`
@@ -268,6 +271,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `parts-auto-spacing-unknown-para-pr` | 그 id 의 hh:paraPr 를 문서에서 찾지 못했다. |
+| `parts-begin-numbers-invalid` | 문서 시작 번호(hh:beginNum)가 1 이상 65535 이하의 정수가 아니다. |
 | `parts-no-header-part` | 문서에 header.xml 파트가 없다(doc.parts 경로). |
 
 ### `plan-*`

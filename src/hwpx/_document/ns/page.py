@@ -24,11 +24,25 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, Sequence, TypeVar, cast
 
 from ...errors import HwpxValueError
+from ...objects.results import (
+    AutoNumber,
+    BorderLine,
+    ColumnDefinition,
+    NoteShapeInfo,
+    NumberRestart,
+    PageBorder,
+    PageHiding,
+    PageNumberControl,
+    StartNumbers,
+)
+from ...oxml.namespaces import HP
 from .._resolve import optional_paragraph, resolve_paragraph, resolve_section
 from ._base import _Namespace
+
+_T = TypeVar("_T")
 
 if TYPE_CHECKING:
     from ...oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph, HwpxOxmlSection
@@ -56,7 +70,8 @@ class PageNamespace(_Namespace):
     모든 메서드는 ``section=`` (구역 객체 또는 번호)을 받는다. 주지 않으면
     **마지막 구역**에만 적용된다. 구역이 여럿인 문서에서 ``section`` 없이 바꾸는
     호출(``setup``·``set_*``·``remove_*``)은 문서마다 한 번 ``UserWarning`` 을 낸다.
-    모든 구역을 바꾸려면 ``for i in range(len(doc.sections)): doc.page.setup(..., section=i)``.
+    모든 구역을 한 번에 바꾸려면 바꾸는 메서드에 ``section="all"`` 을 준다(돌려주는 값은
+    마지막 구역의 것). 읽는 메서드는 구역 하나를 읽는다.
     """
 
     __slots__ = ()
@@ -88,14 +103,43 @@ class PageNamespace(_Namespace):
             warnings.warn(
                 f"doc.page.{caller}() 에 section 을 주지 않아 구역 {len(self._doc.sections)}개 중 "
                 "마지막 구역만 바뀝니다. 모든 구역을 바꾸려면 "
-                "for i in range(len(doc.sections)): doc.page."
-                f"{caller}(..., section=i) 처럼 구역마다 부르세요.",
+                f"doc.page.{caller}(..., section='all') 처럼 부르세요.",
                 UserWarning,
                 stacklevel=3,
             )
         return resolve_section(
             self._doc, section, section_index, caller=f"doc.page.{caller}"
         )
+
+    def _apply(
+        self,
+        section: "int | HwpxOxmlSection | Literal['all'] | None",
+        section_index: int | None,
+        caller: str,
+        change: "Callable[[HwpxOxmlSection], _T]",
+    ) -> "_T":
+        """Run *change* on the section a setter names, or on every section for ``section="all"``.
+
+        With ``"all"`` the result is what the last section's change returned, so a setter
+        returns the same type whichever sections it changed.
+        """
+
+        if section == ALL_SECTIONS:
+            if section_index is not None:
+                raise HwpxValueError(
+                    "section='all' 과 section_index 를 함께 줄 수 없습니다.",
+                    code="section-argument-conflict",
+                    context={"caller": f"doc.page.{caller}"},
+                    suggestion="section='all' 만 주세요.",
+                )
+            sections = list(self._doc.sections)
+            if not sections:
+                return change(self._section(None, None, caller))
+            result = change(sections[0])
+            for target in sections[1:]:
+                result = change(target)
+            return result
+        return change(self._section(cast(Any, section), section_index, caller))
 
     # -- 용지·여백·단 ------------------------------------------------------
 
@@ -116,14 +160,17 @@ class PageNamespace(_Namespace):
         gutter_mm: float | None = None,
         columns: int | None = None,
         column_gap_mm: float | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> "PageSetup":
-        """용지·여백·단을 **mm 단위**로 한 번에 설정하고 결과를 돌려준다."""
+        """용지·여백·단을 **mm 단위**로 한 번에 설정하고 결과를 돌려준다.
+
+        ``section="all"`` 이면 모든 구역에 같은 값을 쓰고 마지막 구역의 결과를 돌려준다.
+        """
 
         from .. import layout as _layout
 
-        return _layout.set_page_setup(
+        return self._apply(section, section_index, "setup", lambda target: _layout.set_page_setup(
             self._doc,
             paper_size=paper_size,
             width_mm=width_mm,
@@ -139,8 +186,8 @@ class PageNamespace(_Namespace):
             gutter_mm=gutter_mm,
             columns=columns,
             column_gap_mm=column_gap_mm,
-            section=self._section(section, section_index, "setup"),
-        )
+            section=target,
+        ))
 
     def set_size(
         self,
@@ -149,21 +196,21 @@ class PageNamespace(_Namespace):
         height: int | None = None,
         orientation: str | None = None,
         gutter_type: str | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """용지 크기를 **HWPUNIT** 으로 설정한다(정밀 변형)."""
 
         from .. import layout as _layout
 
-        _layout.set_page_size(
+        self._apply(section, section_index, "set_size", lambda target: _layout.set_page_size(
             self._doc,
             width=width,
             height=height,
             orientation=orientation,
             gutter_type=gutter_type,
-            section=self._section(section, section_index, "set_size"),
-        )
+            section=target,
+        ))
 
     def set_margins(
         self,
@@ -175,14 +222,14 @@ class PageNamespace(_Namespace):
         header: int | None = None,
         footer: int | None = None,
         gutter: int | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """여백을 **HWPUNIT** 으로 설정한다(정밀 변형)."""
 
         from .. import layout as _layout
 
-        _layout.set_page_margins(
+        self._apply(section, section_index, "set_margins", lambda target: _layout.set_page_margins(
             self._doc,
             left=left,
             right=right,
@@ -191,8 +238,8 @@ class PageNamespace(_Namespace):
             header=header,
             footer=footer,
             gutter=gutter,
-            section=self._section(section, section_index, "set_margins"),
-        )
+            section=target,
+        ))
 
     def set_columns(
         self,
@@ -207,14 +254,30 @@ class PageNamespace(_Namespace):
         separator_width: str | None = None,
         separator_color: str | None = None,
         paragraph: "HwpxOxmlParagraph | int | None" = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlInlineObject":
-        """단(段) 정의를 삽입한다. *paragraph* 는 문단 객체나 인덱스다."""
+        """단(段) 정의를 삽입한다. *paragraph* 는 문단 객체나 인덱스다.
+
+        지금 단 설정은 :meth:`columns` 로 읽는다. ``section="all"`` 은 *paragraph* 와 함께 줄 수 없다.
+        """
 
         from .. import layout as _layout
 
-        return _layout.set_columns(
+        if section == ALL_SECTIONS and paragraph is not None:
+            raise HwpxValueError(
+                "section='all' 과 paragraph 를 함께 줄 수 없습니다: 문단은 한 구역에만 있습니다.",
+                code="page-section-all-invalid",
+                context={"caller": "doc.page.set_columns"},
+                suggestion="문단 중간에서 단을 바꾸려면 그 문단이 있는 구역을 section= 으로 주세요.",
+            )
+        target_paragraph = None
+        if section != ALL_SECTIONS:
+            target_paragraph = optional_paragraph(
+                self._doc, paragraph, section=cast(Any, section), section_index=section_index,
+                caller="doc.page.set_columns",
+            )
+        return self._apply(section, section_index, "set_columns", lambda target: _layout.set_columns(
             self._doc,
             col_count=col_count,
             col_type=col_type,
@@ -225,12 +288,9 @@ class PageNamespace(_Namespace):
             separator_type=separator_type,
             separator_width=separator_width,
             separator_color=separator_color,
-            paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
-                caller="doc.page.set_columns",
-            ),
-            section=self._section(section, section_index, "set_columns"),
-        )
+            paragraph=target_paragraph,
+            section=target,
+        ))
 
     # -- 머리말 / 꼬리말 ---------------------------------------------------
 
@@ -240,7 +300,7 @@ class PageNamespace(_Namespace):
         text: str | None = None,
         content: "Sequence[Mapping[str, Any]] | None" = None,
         page_type: str = "BOTH",
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         """쪽 머리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나.
@@ -277,7 +337,7 @@ class PageNamespace(_Namespace):
         text: str | None = None,
         content: "Sequence[Mapping[str, Any]] | None" = None,
         page_type: str = "BOTH",
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         """쪽 꼬리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나.
@@ -314,7 +374,7 @@ class PageNamespace(_Namespace):
         text: str | None,
         content: "Sequence[Mapping[str, Any]] | None",
         page_type: str,
-        section: "int | HwpxOxmlSection | None",
+        section: "int | HwpxOxmlSection | Literal['all'] | None",
         section_index: int | None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         from .. import layout as _layout
@@ -337,48 +397,48 @@ class PageNamespace(_Namespace):
                 suggestion=f"내용을 지우려면 doc.page.remove_{kind}() 를 쓰세요.",
             )
 
-        return _layout.set_header_footer(
+        return self._apply(section, section_index, caller, lambda target: _layout.set_header_footer(
             self._doc,
             kind=kind,
             text=text,
             content=content,
-            section=self._section(section, section_index, caller),
+            section=target,
             page_type=page_type,
-        )
+        ))
 
     def remove_header(
         self,
         *,
         page_type: str = "BOTH",
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """쪽 머리말을 제거한다."""
 
         from .. import layout as _layout
 
-        _layout.remove_header(
+        self._apply(section, section_index, "remove_header", lambda target: _layout.remove_header(
             self._doc,
-            section=self._section(section, section_index, "remove_header"),
+            section=target,
             page_type=page_type,
-        )
+        ))
 
     def remove_footer(
         self,
         *,
         page_type: str = "BOTH",
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """쪽 꼬리말을 제거한다."""
 
         from .. import layout as _layout
 
-        _layout.remove_footer(
+        self._apply(section, section_index, "remove_footer", lambda target: _layout.remove_footer(
             self._doc,
-            section=self._section(section, section_index, "remove_footer"),
+            section=target,
             page_type=page_type,
-        )
+        ))
 
     def set_page_number(
         self,
@@ -391,7 +451,7 @@ class PageNamespace(_Namespace):
         prefix: str = "",
         suffix: str = "",
         format_type: str | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         """쪽 번호를 머리말/꼬리말에 넣는다.
@@ -405,7 +465,7 @@ class PageNamespace(_Namespace):
 
         from .. import layout as _layout
 
-        return _layout.set_page_number(
+        return self._apply(section, section_index, "set_page_number", lambda each: _layout.set_page_number(
             self._doc,
             target=target,
             page_type=page_type,
@@ -415,8 +475,8 @@ class PageNamespace(_Namespace):
             prefix=prefix,
             suffix=suffix,
             format_type=format_type,
-            section=self._section(section, section_index, "set_page_number"),
-        )
+            section=each,
+        ))
 
     def restart_page_number(
         self,
@@ -516,16 +576,16 @@ class PageNamespace(_Namespace):
         self,
         master_page_id: str,
         *,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """이 절이 바탕쪽(``doc.parts.add_master_page``가 만든 id)을
         참조하도록 등록한다(6.13 트레인㊻). 이미 참조 중이면 아무 일도
-        안 한다(멱등)."""
+        안 한다(멱등). 연결을 끊는 쪽은 :meth:`remove_master_page`."""
 
-        self._section(
-            section, section_index, "set_master_page"
-        ).properties.add_master_page_reference(master_page_id)
+        self._apply(section, section_index, "set_master_page", lambda target: (
+            target.properties.add_master_page_reference(master_page_id)
+        ))
 
     def grid(
         self,
@@ -543,16 +603,16 @@ class PageNamespace(_Namespace):
         line_grid: int | None = None,
         char_grid: int | None = None,
         wonggoji_format: bool | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """줄/글자 격자(원고지 형식 포함)를 설정한다."""
 
-        self._section(section, section_index, "set_grid").properties.set_grid(
+        self._apply(section, section_index, "set_grid", lambda target: target.properties.set_grid(
             line_grid=line_grid,
             char_grid=char_grid,
             wonggoji_format=wonggoji_format,
-        )
+        ))
 
     def text_direction(
         self,
@@ -571,7 +631,7 @@ class PageNamespace(_Namespace):
         direction: str | None = None,
         *,
         vertical_header_footer: bool | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """글자 방향(세로쓰기 포함)을 설정한다.
@@ -592,11 +652,9 @@ class PageNamespace(_Namespace):
                 },
                 suggestion=f"Supported: {', '.join(sorted(_TEXT_DIRECTIONS))}",
             )
-        self._section(
-            section, section_index, "set_text_direction"
-        ).properties.set_text_direction(
-            direction, vertical_header_footer=vertical_header_footer
-        )
+        self._apply(section, section_index, "set_text_direction", lambda target: (
+            target.properties.set_text_direction(direction, vertical_header_footer=vertical_header_footer)
+        ))
 
     def visibility(
         self,
@@ -619,7 +677,7 @@ class PageNamespace(_Namespace):
         show_line_number: bool | None = None,
         border: str | None = None,
         fill: str | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """첫 쪽 숨김 플래그와 줄번호 표시 여부를 설정한다.
@@ -630,9 +688,7 @@ class PageNamespace(_Namespace):
         때만 그려진다(모양은 ``set_line_numbers()``).
         """
 
-        self._section(
-            section, section_index, "set_visibility"
-        ).properties.set_visibility(
+        self._apply(section, section_index, "set_visibility", lambda target: target.properties.set_visibility(
             hide_first_header=hide_first_header,
             hide_first_footer=hide_first_footer,
             hide_first_master_page=hide_first_master_page,
@@ -641,7 +697,7 @@ class PageNamespace(_Namespace):
             show_line_number=show_line_number,
             border=border,
             fill=fill,
-        )
+        ))
 
     def line_numbers(
         self,
@@ -662,7 +718,7 @@ class PageNamespace(_Namespace):
         count_by: int | None = None,
         distance: int | None = None,
         start_number: int | None = None,
-        section: "int | HwpxOxmlSection | None" = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
         section_index: int | None = None,
     ) -> None:
         """줄번호 재시작·간격·시작값을 설정한다.
@@ -672,11 +728,533 @@ class PageNamespace(_Namespace):
         센다.
         """
 
-        self._section(
-            section, section_index, "set_line_numbers"
-        ).properties.set_line_number_shape(
-            restart_type=restart_type,
-            count_by=count_by,
-            distance=distance,
-            start_number=start_number,
+        self._apply(section, section_index, "set_line_numbers", lambda target: (
+            target.properties.set_line_number_shape(
+                restart_type=restart_type,
+                count_by=count_by,
+                distance=distance,
+                start_number=start_number,
+            )
+        ))
+
+    # -- 읽기 짝: 단·번호 컨트롤 ---------------------------------------------
+
+    def columns(
+        self, *, section: "int | HwpxOxmlSection | None" = None
+    ) -> "tuple[ColumnDefinition, ...]":
+        """구역의 단 설정을 문서 순서로 돌려준다.
+
+        첫 항목은 구역 첫머리의 단(``hp:secPr`` 옆의 ``hp:colPr``)이고, 본문 중간에서
+        단을 바꾼 곳(``set_columns(paragraph=...)``, 한/글의 "단 정의 넣기")이 있으면
+        그 뒤에 온다. 각 값의 ``paragraph`` 가 그 단 정의를 품은 본문 문단이다.
+        """
+
+        target = self._section(section, None, "columns")
+        return tuple(_column_definition(node, paragraph, target) for node, paragraph in _body_column_nodes(target))
+
+    def page_number_controls(
+        self, *, section: "int | HwpxOxmlSection | None" = None
+    ) -> "tuple[PageNumberControl, ...]":
+        """구역의 쪽 번호 컨트롤(``hp:pageNum``, 한/글 "쪽 번호 매기기")의 위치·형식을 문서 순서로.
+
+        ``set_page_number()`` 가 머리말·꼬리말에 쓰는 번호는 컨트롤이 아니라 자동 번호라
+        여기 없고 :meth:`auto_numbers` 에 나온다.
+        """
+
+        target = self._section(section, None, "page_number_controls")
+        return tuple(
+            PageNumberControl(
+                position=node.get("pos", "BOTTOM_CENTER"),
+                format_type=node.get("formatType", "DIGIT"),
+                side_char=node.get("sideChar", ""),
+                paragraph=paragraph,
+            )
+            for node, paragraph in _controls(target, "pageNum")
         )
+
+    def number_restarts(
+        self, *, section: "int | HwpxOxmlSection | None" = None
+    ) -> "tuple[NumberRestart, ...]":
+        """구역의 새 번호 컨트롤(``hp:newNum``, :meth:`restart_page_number` 가 넣는 것)을 문서 순서로."""
+
+        target = self._section(section, None, "number_restarts")
+        return tuple(
+            NumberRestart(kind=node.get("numType", "PAGE"), number=_int(node.get("num"), 1), paragraph=paragraph)
+            for node, paragraph in _controls(target, "newNum")
+        )
+
+    def page_hidings(
+        self, *, section: "int | HwpxOxmlSection | None" = None
+    ) -> "tuple[PageHiding, ...]":
+        """구역의 감추기 컨트롤(``hp:pageHiding``, :meth:`hide_page_elements` 가 넣는 것)을 문서 순서로."""
+
+        target = self._section(section, None, "page_hidings")
+        return tuple(
+            PageHiding(
+                header=_flag(node, "hideHeader"),
+                footer=_flag(node, "hideFooter"),
+                master_page=_flag(node, "hideMasterPage"),
+                border=_flag(node, "hideBorder"),
+                fill=_flag(node, "hideFill"),
+                page_num=_flag(node, "hidePageNum"),
+                paragraph=paragraph,
+            )
+            for node, paragraph in _controls(target, "pageHiding")
+        )
+
+    def auto_numbers(
+        self, *, section: "int | HwpxOxmlSection | None" = None
+    ) -> "tuple[AutoNumber, ...]":
+        """구역의 자동 번호(``hp:autoNum``)를 문서 순서로: 본문·표 칸·글상자·캡션·머리말·꼬리말·각주의 것.
+
+        쪽 번호(``PAGE``)·전체 쪽 수(``TOTAL_PAGE``)·각주/미주 번호·그림·표·수식 번호가 여기 온다.
+        """
+
+        target = self._section(section, None, "auto_numbers")
+        numbers = []
+        for node, paragraph in _controls(target, "autoNum"):
+            fmt = node.find(f"{HP}autoNumFormat")
+            numbers.append(
+                AutoNumber(
+                    kind=node.get("numType", "PAGE"),
+                    number=_int(node.get("num"), 0),
+                    format_type=fmt.get("type", "DIGIT") if fmt is not None else "DIGIT",
+                    prefix=fmt.get("prefixChar") if fmt is not None else None,
+                    suffix=fmt.get("suffixChar") if fmt is not None else None,
+                    superscript=_flag(fmt, "supscript") if fmt is not None else False,
+                    paragraph=paragraph,
+                )
+            )
+        return tuple(numbers)
+
+    def start_numbers(self, *, section: "int | HwpxOxmlSection | None" = None) -> "StartNumbers":
+        """구역의 시작 번호(``hp:startNum``): 쪽·그림·표·수식. 0이면 앞 구역에서 이어 센다."""
+
+        value = self._section(section, None, "start_numbers").properties.start_numbering
+        return StartNumbers(
+            page_starts_on=value.page_starts_on,
+            page=value.page,
+            picture=value.picture,
+            table=value.table,
+            equation=value.equation,
+        )
+
+    def set_start_numbers(
+        self,
+        *,
+        page_starts_on: str | None = None,
+        page: int | None = None,
+        picture: int | None = None,
+        table: int | None = None,
+        equation: int | None = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
+    ) -> None:
+        """구역의 시작 번호를 바꾼다. 주지 않은 값은 그대로 둔다.
+
+        *page_starts_on* 은 ``BOTH``·``EVEN``·``ODD`` (구역이 어떤 쪽에서 시작하는지), 번호는
+        0..65535 (0: 앞 구역에서 이어 센다).
+        """
+
+        if page_starts_on is not None:
+            _one_of("page_starts_on", page_starts_on, ("BOTH", "EVEN", "ODD"), "page-start-numbers-invalid")
+        self._apply(section, None, "set_start_numbers", lambda target: target.properties.set_start_numbering(
+            page_starts_on=page_starts_on, page=page, picture=picture, table=table, equation=equation
+        ))
+
+    # -- 각주·미주 모양 ------------------------------------------------------
+
+    def footnote_shape(self, *, section: "int | HwpxOxmlSection | None" = None) -> "NoteShapeInfo":
+        """구역의 각주 모양(``hp:footNotePr``): 번호 형식, 구분선, 간격, 번호 매기기, 놓는 곳."""
+
+        properties = self._section(section, None, "footnote_shape").properties
+        return _note_shape_info(properties.footnote_shape, "footNotePr")
+
+    def endnote_shape(self, *, section: "int | HwpxOxmlSection | None" = None) -> "NoteShapeInfo":
+        """구역의 미주 모양(``hp:endNotePr``). :meth:`footnote_shape` 와 같은 값."""
+
+        properties = self._section(section, None, "endnote_shape").properties
+        return _note_shape_info(properties.endnote_shape, "endNotePr")
+
+    def set_footnote_shape(
+        self,
+        *,
+        number_format: str | None = None,
+        user_char: str | None = None,
+        prefix: str | None = None,
+        suffix: str | None = None,
+        superscript: bool | None = None,
+        numbering: str | None = None,
+        start: int | None = None,
+        placement: str | None = None,
+        beneath_text: bool | None = None,
+        separator_type: str | None = None,
+        separator_width_mm: float | None = None,
+        separator_color: str | None = None,
+        separator_length: int | None = None,
+        between_notes: int | None = None,
+        below_line: int | None = None,
+        above_line: int | None = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
+    ) -> None:
+        """구역의 각주 모양을 바꾼다. 주지 않은 값은 그대로 둔다(:meth:`footnote_shape` 의 짝).
+
+        *number_format* 은 번호 모양(``DIGIT``·``CIRCLED_DIGIT``·``ROMAN_SMALL``·``USER_CHAR`` …),
+        *numbering* 은 ``CONTINUOUS``·``ON_SECTION``·``ON_PAGE``, *placement* 는 ``EACH_COLUMN``·
+        ``MERGED_COLUMN``·``RIGHT_MOST_COLUMN``. 간격과 *separator_length* 는 HWPUNIT.
+        """
+
+        self._set_note_shape(
+            "footNotePr", "set_footnote_shape", section,
+            number_format=number_format, user_char=user_char, prefix=prefix, suffix=suffix,
+            superscript=superscript, numbering=numbering, start=start, placement=placement,
+            beneath_text=beneath_text, separator_type=separator_type, separator_width_mm=separator_width_mm,
+            separator_color=separator_color, separator_length=separator_length, between_notes=between_notes,
+            below_line=below_line, above_line=above_line,
+        )
+
+    def set_endnote_shape(
+        self,
+        *,
+        number_format: str | None = None,
+        user_char: str | None = None,
+        prefix: str | None = None,
+        suffix: str | None = None,
+        superscript: bool | None = None,
+        numbering: str | None = None,
+        start: int | None = None,
+        placement: str | None = None,
+        beneath_text: bool | None = None,
+        separator_type: str | None = None,
+        separator_width_mm: float | None = None,
+        separator_color: str | None = None,
+        separator_length: int | None = None,
+        between_notes: int | None = None,
+        below_line: int | None = None,
+        above_line: int | None = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
+    ) -> None:
+        """구역의 미주 모양을 바꾼다(:meth:`set_footnote_shape` 와 같은 인자).
+
+        *numbering* 은 ``CONTINUOUS``·``ON_SECTION``, *placement* 는 ``END_OF_DOCUMENT``·``END_OF_SECTION``.
+        """
+
+        self._set_note_shape(
+            "endNotePr", "set_endnote_shape", section,
+            number_format=number_format, user_char=user_char, prefix=prefix, suffix=suffix,
+            superscript=superscript, numbering=numbering, start=start, placement=placement,
+            beneath_text=beneath_text, separator_type=separator_type, separator_width_mm=separator_width_mm,
+            separator_color=separator_color, separator_length=separator_length, between_notes=between_notes,
+            below_line=below_line, above_line=above_line,
+        )
+
+    def _set_note_shape(
+        self,
+        tag: str,
+        caller: str,
+        section: "int | HwpxOxmlSection | Literal['all'] | None",
+        *,
+        number_format: str | None,
+        user_char: str | None,
+        prefix: str | None,
+        suffix: str | None,
+        superscript: bool | None,
+        numbering: str | None,
+        start: int | None,
+        placement: str | None,
+        beneath_text: bool | None,
+        separator_type: str | None,
+        separator_width_mm: float | None,
+        separator_color: str | None,
+        separator_length: int | None,
+        between_notes: int | None,
+        below_line: int | None,
+        above_line: int | None,
+    ) -> None:
+        from ...oxml.color import normalize_color
+        from ...oxml.numbering_kinds import number_format as _number_format
+        from ...oxml.utils import normalize_line_width
+
+        code = "page-note-shape-invalid"
+        # Everything is checked before anything changes: a refused value leaves the shape as it was.
+        if number_format is not None:
+            number_format = _number_format(number_format, note=True)
+        if numbering is not None:
+            allowed = _NOTE_NUMBERINGS[tag]
+            _one_of("numbering", numbering, allowed, code)
+        if placement is not None:
+            _one_of("placement", placement, _NOTE_PLACEMENTS[tag], code)
+        if start is not None:
+            _int_in("start", start, 1, 0xFFFF, code)
+        if separator_length is not None:
+            _int_in("separator_length", separator_length, -1, 0x7FFFFFFF, code)
+        for name, value in (("between_notes", between_notes), ("below_line", below_line), ("above_line", above_line)):
+            if value is not None:
+                _int_in(name, value, 0, 0x7FFFFFFF, code)
+        width = None
+        if separator_width_mm is not None:
+            width = normalize_line_width(f"{float(separator_width_mm):g} mm")
+        color = normalize_color(separator_color) if separator_color is not None else None
+
+        def change(target: "HwpxOxmlSection") -> None:
+            properties = target.properties
+            if any(v is not None for v in (number_format, user_char, prefix, suffix, superscript)):
+                properties._set_note_auto_num_format(
+                    tag, type=number_format, user_char=user_char, prefix_char=prefix, suffix_char=suffix,
+                    supscript=superscript,
+                )
+            if any(v is not None for v in (separator_type, width, color, separator_length)):
+                properties._set_note_line(tag, length=separator_length, type=separator_type, width=width, color=color)
+            if any(v is not None for v in (between_notes, below_line, above_line)):
+                properties._set_note_spacing(
+                    tag, between_notes=between_notes, below_line=below_line, above_line=above_line
+                )
+            if numbering is not None or start is not None:
+                properties._set_note_numbering(tag, type=numbering, new_num=start)
+            if placement is not None or beneath_text is not None:
+                properties._set_note_placement(tag, place=placement, beneath_text=beneath_text)
+
+        self._apply(section, None, caller, change)
+
+    # -- 쪽 테두리·배경 ------------------------------------------------------
+
+    def page_border(
+        self, *, page_type: str = "BOTH", section: "int | HwpxOxmlSection | None" = None
+    ) -> "PageBorder | None":
+        """구역의 쪽 테두리·배경(``hp:pageBorderFill``) 하나. 그 쪽 종류(``BOTH``·``EVEN``·``ODD``)의 것이 없으면 None."""
+
+        _one_of("page_type", page_type, ("BOTH", "EVEN", "ODD"), "page-border-fill-invalid")
+        value = self._section(section, None, "page_border").properties.page_border_fill(page_type)
+        if value is None:
+            return None
+        return PageBorder(
+            page_type=value.page_type,
+            border_fill_id_ref=value.border_fill_id_ref,
+            text_border=value.text_border,
+            header_inside=value.header_inside,
+            footer_inside=value.footer_inside,
+            fill_area=value.fill_area,
+            offset_left=value.offset_left,
+            offset_right=value.offset_right,
+            offset_top=value.offset_top,
+            offset_bottom=value.offset_bottom,
+        )
+
+    def set_page_border(
+        self,
+        *,
+        page_type: str = "BOTH",
+        border_fill_id_ref: str | int | None = None,
+        text_border: str | None = None,
+        header_inside: bool | None = None,
+        footer_inside: bool | None = None,
+        fill_area: str | None = None,
+        offset_left: int | None = None,
+        offset_right: int | None = None,
+        offset_top: int | None = None,
+        offset_bottom: int | None = None,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
+    ) -> None:
+        """구역의 쪽 테두리·배경을 바꾸거나 만든다. 주지 않은 값은 그대로 둔다(:meth:`page_border` 의 짝).
+
+        *border_fill_id_ref* 는 ``doc.styles.ensure_border_fill(...)`` 이 돌려준 id, *text_border* 는
+        ``PAPER``·``CONTENT`` (간격을 종이에서 재는지 본문에서 재는지), *fill_area* 는 ``PAPER``·``PAGE``·
+        ``BORDER``. 간격은 HWPUNIT(0..32767).
+        """
+
+        if text_border is not None:
+            _one_of("text_border", text_border, ("PAPER", "CONTENT"), "page-border-fill-invalid")
+        self._apply(section, None, "set_page_border", lambda target: target.properties.set_page_border_fill(
+            page_type=page_type,
+            border_fill_id_ref=border_fill_id_ref,
+            text_border=text_border,
+            header_inside=header_inside,
+            footer_inside=footer_inside,
+            fill_area=fill_area,
+            offset_left=offset_left,
+            offset_right=offset_right,
+            offset_top=offset_top,
+            offset_bottom=offset_bottom,
+        ))
+
+    # -- 바탕쪽 연결 끊기 ----------------------------------------------------
+
+    def remove_master_page(
+        self,
+        master_page_id: str,
+        *,
+        section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
+    ) -> bool:
+        """이 구역과 바탕쪽 *master_page_id* 의 연결을 끊는다. 끊은 연결이 있으면 True.
+
+        바탕쪽 파트는 남는다. 어느 구역도 쓰지 않게 된 바탕쪽은
+        ``doc.parts.remove_master_page(id)`` 로 지운다. ``section="all"`` 이면 모든 구역에서 끊는다.
+        """
+
+        removed: list[bool] = []
+
+        def change(target: "HwpxOxmlSection") -> bool:
+            removed.append(target.properties.remove_master_page_reference(master_page_id))
+            return removed[-1]
+
+        self._apply(section, None, "remove_master_page", change)
+        return any(removed)
+
+
+#: ``section="all"``: a ``doc.page`` setter changes every section.
+ALL_SECTIONS = "all"
+
+_NOTE_NUMBERINGS = {
+    "footNotePr": ("CONTINUOUS", "ON_SECTION", "ON_PAGE"),
+    "endNotePr": ("CONTINUOUS", "ON_SECTION"),
+}
+_NOTE_PLACEMENTS = {
+    "footNotePr": ("EACH_COLUMN", "MERGED_COLUMN", "RIGHT_MOST_COLUMN"),
+    "endNotePr": ("END_OF_DOCUMENT", "END_OF_SECTION"),
+}
+
+
+def _one_of(argument: str, value: object, allowed: "Sequence[str]", code: str) -> None:
+    if value not in allowed:
+        raise HwpxValueError(
+            f"{argument} 는 {', '.join(allowed)} 중 하나여야 합니다 — {value!r}.",
+            code=code,
+            context={"argument": argument, "value": repr(value), "allowed": list(allowed)},
+            suggestion=f"{argument}= 에 {', '.join(allowed)} 중 하나를 주세요.",
+        )
+
+
+def _int_in(argument: str, value: object, low: int, high: int, code: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise HwpxValueError(
+            f"{argument} 는 {low}..{high} 의 정수여야 합니다 — {value!r}.",
+            code=code,
+            context={"argument": argument, "value": repr(value), "low": low, "high": high},
+            suggestion=f"{argument}= 에 {low}..{high} 의 정수를 주세요.",
+        )
+
+
+def _int(value: "str | None", default: int) -> int:
+    try:
+        return int(value) if value is not None else default
+    except ValueError:
+        return default
+
+
+def _flag(element: Any, name: str) -> bool:
+    return str(element.get(name, "0")).strip().lower() in ("1", "true")
+
+
+def _width_mm(text: "str | None") -> float:
+    try:
+        return float(str(text or "0").replace("mm", "").strip())
+    except ValueError:
+        return 0.0
+
+
+def _controls(section: "HwpxOxmlSection", local: str) -> "list[tuple[Any, HwpxOxmlParagraph]]":
+    """Every ``hp:ctrl/hp:<local>`` of *section*, with the paragraph holding it, in document order.
+
+    Looks in body, table-cell, text-box, caption, header, footer and note paragraphs; skips memo
+    bodies and the second copy python-hwpx keeps of a header or footer.
+    """
+
+    from ...oxml import HwpxOxmlParagraph
+    from .text import _paragraphs_everywhere
+
+    found = []
+    for element, role, _key in _paragraphs_everywhere(section.element):
+        if role == "mirror":
+            continue
+        paragraph = None
+        for run in element.findall(f"{HP}run"):
+            for ctrl in run.findall(f"{HP}ctrl"):
+                for node in ctrl.findall(f"{HP}{local}"):
+                    if paragraph is None:
+                        paragraph = HwpxOxmlParagraph(element, section)
+                    found.append((node, paragraph))
+    return found
+
+
+def _body_column_nodes(section: "HwpxOxmlSection") -> "list[tuple[Any, HwpxOxmlParagraph]]":
+    found = []
+    for paragraph in section.paragraphs:
+        for run in paragraph.element.findall(f"{HP}run"):
+            for ctrl in run.findall(f"{HP}ctrl"):
+                for node in ctrl.findall(f"{HP}colPr"):
+                    found.append((node, paragraph))
+    return found
+
+
+def _text_width(section: "HwpxOxmlSection") -> int:
+    properties = section.properties
+    size, margins = properties.page_size, properties.page_margins
+    gutter = 0 if size.gutter_type == "TOP_BOTTOM" else margins.gutter
+    return max(size.drawn_width - margins.left - margins.right - gutter, 0)
+
+
+def _column_definition(node: Any, paragraph: "HwpxOxmlParagraph", section: "HwpxOxmlSection") -> "ColumnDefinition":
+    from ...oxml.section_format import COLUMN_SHARES
+
+    count = max(_int(node.get("colCount"), 1), 1)
+    same_size = _flag(node, "sameSz") if node.get("sameSz") is not None else True
+    gap = _int(node.get("sameGap"), 0) if same_size else 0
+    text_width = _text_width(section)
+    sizes = [(_int(size.get("width"), 0), _int(size.get("gap"), 0)) for size in node.findall(f"{HP}colSz")]
+    if same_size or not sizes:
+        width = max((text_width - gap * (count - 1)) // count, 0)
+        widths = tuple((width, gap if index < count - 1 else 0) for index in range(count))
+    else:
+        widths = tuple(
+            (share * text_width // COLUMN_SHARES, between * text_width // COLUMN_SHARES) for share, between in sizes
+        )
+    line = node.find(f"{HP}colLine")
+    separator = None
+    if line is not None and line.get("type", "NONE") != "NONE":
+        separator = BorderLine(
+            type=line.get("type", "SOLID"), width_mm=_width_mm(line.get("width")), color=line.get("color", "#000000")
+        )
+    return ColumnDefinition(
+        count=count,
+        type=node.get("type", "NEWSPAPER"),
+        layout=node.get("layout", "LEFT"),
+        same_size=same_size,
+        gap=gap,
+        widths=widths,
+        separator=separator,
+        paragraph=paragraph,
+    )
+
+
+def _note_shape_info(shape: Any, tag: str) -> "NoteShapeInfo":
+    from ...oxml.section_format import NoteAutoNumFormat, NoteLine, NoteNumbering, NotePlacement, NoteShape, NoteSpacing
+
+    if shape is None:  # no hp:footNotePr/endNotePr: what Hancom uses then (the values a new one is made with)
+        shape = NoteShape(
+            auto_num_format=NoteAutoNumFormat(type="DIGIT", user_char=None, prefix_char=None, suffix_char=")",
+                                              supscript=False),
+            note_line=NoteLine(length=0, type="SOLID", width="0.12 mm", color="#000000"),
+            note_spacing=NoteSpacing(between_notes=850, below_line=567, above_line=567),
+            numbering=NoteNumbering(type="CONTINUOUS", new_num=1),
+            placement=NotePlacement(place=_NOTE_PLACEMENTS[tag][0], beneath_text=False),
+        )
+    line = shape.note_line
+    number = shape.auto_num_format
+    length = line.length
+    if length >= 1 << 31:  # stored unsigned: 4294967295 is -1 (the whole column)
+        length -= 1 << 32
+    return NoteShapeInfo(
+        number_format=number.type,
+        user_char=number.user_char,
+        prefix=number.prefix_char,
+        suffix=number.suffix_char,
+        superscript=number.supscript,
+        numbering=shape.numbering.type,
+        start=shape.numbering.new_num,
+        placement=shape.placement.place,
+        beneath_text=shape.placement.beneath_text,
+        separator=BorderLine(type=line.type, width_mm=_width_mm(line.width), color=line.color),
+        separator_length=length,
+        between_notes=shape.note_spacing.between_notes,
+        below_line=shape.note_spacing.below_line,
+        above_line=shape.note_spacing.above_line,
+    )
