@@ -9,15 +9,13 @@ from typing import Callable
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx.tools import archive_cli, format_rules, package_validator, page_guard, repair, template_analyzer
+from hwpx.tools import archive_cli, package_validator, page_guard, repair, template_analyzer
 from hwpx.tools import text_extract_cli, validator
 
 HWP = Path(__file__).parent / "fixtures" / "hwp5" / "border_3d.hwp"
 
 
 def _commands(tmp_path: Path) -> dict[str, Callable[[str], int]]:
-    rules = tmp_path / "rules.json"
-    rules.write_text("{}", encoding="utf-8")
     return {
         "hwpx-unpack": lambda f: archive_cli.unpack_main([f, str(tmp_path / "unpacked")]),
         "hwpx-validate": lambda f: validator.main([f]),
@@ -26,7 +24,6 @@ def _commands(tmp_path: Path) -> dict[str, Callable[[str], int]]:
         "hwpx-analyze-template": lambda f: template_analyzer.main([f]),
         "hwpx-text-extract": lambda f: text_extract_cli.main([f]),
         "hwpx-repair": lambda f: repair.main([f, str(tmp_path / "repaired.hwpx")]),
-        "hwpx-check-format": lambda f: format_rules.main([str(rules), f]),
     }
 
 
@@ -38,7 +35,6 @@ NAMES = [
     "hwpx-analyze-template",
     "hwpx-text-extract",
     "hwpx-repair",
-    "hwpx-check-format",
 ]
 
 

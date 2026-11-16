@@ -125,11 +125,17 @@ def test_a_removed_name_says_where_it_went(name: str) -> None:
         getattr(document, name)
     error = excinfo.value
     assert isinstance(error, AttributeError)
-    assert error.code == "document-name-removed"
     assert error.context["replacement"] == REMOVED_NAMES[name].replacement
     assert REMOVED_NAMES[name].replacement in str(error)
     assert REMOVED_NAMES[name].example in str(error)
     assert "7.0" in str(error)
+    if REMOVED_NAMES[name].moving:
+        # 6.0의 새 자리(doc.text.markdown 등)마저 7.0에서 python-hwpx-automation으로 옮겼다.
+        assert error.code == "document-name-moved"
+        assert "pip install python-hwpx-automation" in str(error)
+        assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md" in str(error.suggestion)
+        return
+    assert error.code == "document-name-removed"
     # pip 사용자에게 없는 저장소 경로(docs/...) 대신 저장소 문서의 URL을 준다.
     assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md" in str(error.suggestion)
 
@@ -151,11 +157,12 @@ def _moved_targets(replacement: str) -> list[str]:
     return [part.strip().split("(")[0] for part in replacement.split(" / ")]
 
 
-@pytest.mark.parametrize("name", sorted(REMOVED_NAMES))
+@pytest.mark.parametrize("name", sorted(name for name, entry in REMOVED_NAMES.items() if not entry.moving))
 def test_moved_destination_exists(name: str) -> None:
     """새 자리 문자열이 실제 속성으로 풀려야 한다(ARC-08).
 
     없는 이름을 가리키는 안내를 따라 고친 코드는 또 ``AttributeError`` 가 난다.
+    7.0에서 python-hwpx-automation으로 옮긴 자리(``moving``)는 ``test_moved_in_7_0.py`` 가 본다.
     """
 
     with HwpxDocument.new(empty_first_line=True) as document:

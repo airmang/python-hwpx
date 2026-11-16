@@ -9,7 +9,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 
 from hwpx.document import HwpxDocument
-from hwpx.tools.exporter import _ListLabels, export_html, export_markdown, export_text
+from hwpx.tools.exporter import _ListLabels, export_text
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -138,11 +138,9 @@ def test_outline_headings_use_the_section_outline_numbering() -> None:
     assert export_text(document, list_labels=True).split("\n") == ["1. 큰 제목", "가. 작은 제목", "2. 다음 큰 제목"]
 
 
-def test_markdown_html_and_the_document_namespace_carry_the_labels() -> None:
+def test_the_document_namespace_carries_the_labels() -> None:
     document = _numbered(2)
 
-    assert "1. 항목1" in export_markdown(document, list_labels=True)
-    assert "<p>2. 항목2</p>" in export_html(document, list_labels=True, full_document=False)
     assert document.text.plain(list_labels=True).startswith("1. 항목1")
 
 
@@ -173,8 +171,6 @@ def test_numbered_paragraphs_in_a_left_out_table_still_count() -> None:
     document = _numbered_with_a_numbered_cell()
 
     assert export_text(document, list_labels=True, include_tables=False).split("\n") == ["1. 항목1", "3. 범위"]
-    assert "3. 범위" in export_markdown(document, list_labels=True, include_tables=False)
-    assert "<p>3. 범위</p>" in export_html(document, list_labels=True, include_tables=False, full_document=False)
 
 
 def test_a_format_the_labels_cannot_write_gets_no_label() -> None:

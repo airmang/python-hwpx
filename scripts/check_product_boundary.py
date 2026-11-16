@@ -42,13 +42,10 @@ FORBIDDEN_IMPORTS = (
     + FORBIDDEN_RUNTIME_IMPORTS
     + FORBIDDEN_LEGACY_IMPORTS
 )
-ALLOWED_THIRD_PARTY_IMPORTS = (
-    "langchain_core",
-    "latex2mathml",
-    "llama_index",
-    "lxml",
-    "openpyxl",
-)
+# 7.0: openpyxl (mail merge rosters), latex2mathml (preview MathML), langchain_core and
+# llama_index (framework loaders) left with the features that imported them
+# (python-hwpx-automation). The engine imports lxml only.
+ALLOWED_THIRD_PARTY_IMPORTS = ("lxml",)
 ALLOWED_ABSOLUTE_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
     "hwpx",
     *ALLOWED_THIRD_PARTY_IMPORTS,
@@ -56,17 +53,19 @@ ALLOWED_ABSOLUTE_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
 FORBIDDEN_EXECUTION_IMPORT_ROOTS = ("ctypes", "subprocess")
 
 LAZY_IMPORT_FILE = "src/hwpx/__init__.py"
-LAZY_IMPORT_CALL_SITES = ((331, 23),)
+LAZY_IMPORT_CALL_SITES = ((360, 23),)
 LAZY_IMPORT_CALL_SHA256 = (
-    "c9be4f10cc58fa41670c3fb7f99a6d24a332e729bf1147bc89d3692b33f1826a"
+    "293840c5a9d6a73308315f39c44dd0279a4579873f8d581ef32d49b9306cebc9"
 )
+# 7.0: __getattr__ gained the per-release wording of _MOVED_TO_COMPANION (moved_in),
+# and the experimental map lost the 12 names that moved to python-hwpx-automation.
 LAZY_GETATTR_SHA256 = (
-    "7c3782c161370d1defbd9adaed3cab81ebb5507a4bd5f4b049d32874975df4a7"
+    "a872c092e272953acd6b4b52b96c2440c3c7499db6f36611ffd0db42c5fb47d4"
 )
 IGNORED_EMPTY_AST_FIELDS = frozenset({"type_params"})
-LAZY_EXPORT_MAP_COUNT = 26
+LAZY_EXPORT_MAP_COUNT = 14
 LAZY_EXPORT_MAP_SHA256 = (
-    "dc55366fcfde80866e7ee2bfa0032f8336abd205d45749d3a481508681aa1f23"
+    "510582d48c3f6fac2805a8fb98725ca6e2b399a7c74791b96e6ccb32706ebef1"
 )
 
 NON_CORE_DISPOSITIONS = ("mcp-migrate", "split", "dev-only", "undecided")

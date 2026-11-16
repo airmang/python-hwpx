@@ -90,7 +90,7 @@ def test_the_page_namespace_is_free_of_internal_callbacks() -> None:
     [
         ("page", ["setup", "set_header", "set_footer", "set_page_number"]),
         ("tables", [
-            "map", "fill_by_path", "find_cell_by_label", "merge_cells",
+            "map", "merge_cells",
             "insert_rows", "insert_columns", "delete_rows", "delete_columns", "split_cell",
         ]),
         ("fields", ["add", "fill", "add_check_box", "set_check_box"]),
@@ -100,7 +100,7 @@ def test_the_page_namespace_is_free_of_internal_callbacks() -> None:
         ("refs", ["add_bookmark", "add_hyperlink"]),
         ("tracking", ["insert", "delete", "replace", "add_change", "change", "author"]),
         ("styles", ["resolve", "ensure_run", "apply_paragraph_format"]),
-        ("text", ["plain", "markdown", "html", "runs", "find_runs", "replace", "highlight", "highlights", "blocks", "outline", "apply_changes"]),
+        ("text", ["plain", "runs", "find_runs", "replace", "highlight", "highlights", "blocks", "outline", "apply_changes"]),
     ],
 )
 def test_every_namespace_exposes_its_verbs(namespace: str, verbs: list[str]) -> None:
@@ -152,15 +152,11 @@ AREA_NAMESPACES = {
     "character-formatting": "styles",
     "list-formatting": "styles",
     "font-registration": "styles",
-    "table-navigation-fill": "tables",
     "find-replace": "text",
     "hyperlink-bookmark": "refs",
-    # 6.8 트레인㉛ — 트레인㉚이 찾은 mail_merge 측정 갭 등재.
-    "mail-merge": None,  # 루트도 아니고 doc.* 네임스페이스도 아님(모듈 함수)
     # 6.9 트레인㉝ — 편집기 표면 인벤토리(트레인㉙)가 찾은 "문서 끼워 넣기" 갭.
-    "document-merge": None,  # mail-merge와 같은 이유, 순수 hwpx.tools 모듈 함수
-    # Markdown 가져오기 — 진입점은 모듈 함수(기존 문서는 doc.text.append_markdown).
-    "markdown-import": None,
+    "document-merge": None,  # 루트도 doc.* 네임스페이스도 아닌 순수 hwpx.tools 모듈 함수
+    # 7.0: mail-merge·markdown-import·table-navigation-fill 영역은 python-hwpx-automation으로 옮겨 빠졌다.
     # 6.9 트레인㉞ — 덧말·글자 겹치기 저작.
     "dutmal-compose": "shapes",
     # 6.12 트레인㊸ — 편집기 메뉴 표면 역매핑(트레인㊷)이 찾은 "문서 정보" 갭.

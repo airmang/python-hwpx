@@ -3,7 +3,6 @@ from __future__ import annotations
 import io
 
 from hwpx import HwpxDocument
-from hwpx.tools.markdown_export import export_markdown
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -79,33 +78,7 @@ class TestGoldShapedEmission:
 
 
 class TestReaderCoversBothShapes:
-    def test_markdown_reads_gold_shaped_notes(self) -> None:
-        doc = HwpxDocument.new()
-        para = doc.add_paragraph("누리호 발사 성공")
-        para.add_footnote("한국형 발사체")
-        md = export_markdown(_roundtrip(doc))
-        assert "[^fn" in md
-        assert "한국형 발사체" in md
-
-    def test_markdown_still_reads_legacy_run_direct_notes(self) -> None:
-        # 5.4 이전 자사 방출(run 직속 footNote) 호환 유지
-        doc = HwpxDocument.new()
-        para = doc.add_paragraph("본문")
-        run = para.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
-        para.element.append(run)
-        note = run.makeelement(f"{HP}footNote", {"instId": "9999"})
-        run.append(note)
-        sub = note.makeelement(f"{HP}subList", {"id": "", "vertAlign": "TOP"})
-        note.append(sub)
-        body_p = sub.makeelement(f"{HP}p", {"id": "0", "paraPrIDRef": "0", "styleIDRef": "0"})
-        sub.append(body_p)
-        body_run = body_p.makeelement(f"{HP}run", {"charPrIDRef": "0"})
-        body_p.append(body_run)
-        t = body_run.makeelement(f"{HP}t", {})
-        t.text = "구식 각주 본문"
-        body_run.append(t)
-        md = export_markdown(_roundtrip(doc))
-        assert "구식 각주 본문" in md
+    # The two Markdown readers of this class moved to python-hwpx-automation in 7.0.
 
     def test_notes_survive_roundtrip_and_are_discoverable(self) -> None:
         doc = HwpxDocument.new()

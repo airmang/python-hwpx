@@ -103,9 +103,9 @@ REMOVED_REFERENCE_PATTERN = re.compile(
 
 
 def test_all_is_exactly_the_stable_set() -> None:
-    """``__all__`` is exactly the 36 stable names — no experimental, no deprecated."""
+    """``__all__`` is exactly the 29 stable names — no experimental, no deprecated."""
 
-    assert len(hwpx.__all__) == 36
+    assert len(hwpx.__all__) == 29
     assert STABLE_NAMES.isdisjoint(EXPERIMENTAL_NAMES)
     assert STABLE_NAMES.isdisjoint(DEPRECATED_NAMES)
     # __all__에 중복 없음.
@@ -114,14 +114,17 @@ def test_all_is_exactly_the_stable_set() -> None:
 
 def test_layer_counts() -> None:
     # 36: the HWP 5.0 error and warning joined the stable surface beside HwpxError.
-    assert len(STABLE_NAMES) == 36
+    # 7.0: -7 to python-hwpx-automation (HwpxMarkdownConverter, the four mail-merge names,
+    # inspect_reference_consistency, REFERENCE_CONSISTENCY_REPORT_VERSION).
+    assert len(STABLE_NAMES) == 29
     # 5.6: +8 — 편집 계획 실행기 5명(hwpx.plan) + 자기서술 3명(hwpx.capabilities).
     # +3 — 쪽 수 추정(hwpx.layout.pages): estimate_pages, PageEstimate, EstimatedLine.
-    assert len(EXPERIMENTAL_NAMES) == 26
+    # 7.0: -12 to python-hwpx-automation (ingest 7, preview 5).
+    assert len(EXPERIMENTAL_NAMES) == 14
     # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
     assert len(DEPRECATED_NAMES) == 0
     # 7.0: the 26 experimental names left the top level (hwpx.experimental only).
-    assert len(ALL_LEGACY_NAMES) == 36
+    assert len(ALL_LEGACY_NAMES) == 29
 
 
 def test_hwpx_error_is_stable_and_importable() -> None:

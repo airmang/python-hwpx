@@ -322,9 +322,6 @@ def test_the_removed_root_names_point_at_doc_styles(document: HwpxDocument) -> N
 def test_text_namespace_exports_and_searches(document: HwpxDocument) -> None:
     document.add_paragraph("첫 문단")
     assert "첫 문단" in document.text.plain()
-    assert "첫 문단" in document.text.markdown()
-    assert "첫 문단" in document.text.markdown(rich=True)
-    assert "첫 문단" in document.text.html()
     assert sum(1 for _ in document.text.runs()) >= 1
     assert document.text.find_runs(char_pr_id_ref=0)
 

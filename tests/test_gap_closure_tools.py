@@ -753,7 +753,7 @@ def test_analyze_template_api_reports_proxy_metrics(tmp_path: Path) -> None:
 
 def test_text_extract_cli_smoke_on_nondefault_rootfile_package(tmp_path: Path) -> None:
     source = tmp_path / "sample.hwpx"
-    output_file = tmp_path / "sample.md"
+    output_file = tmp_path / "sample.txt"
     package_bytes, _ = _build_manual_package(
         manifest_path="Alt/content.hpf",
         header_href="Alt/parts/header-main.xml",
@@ -766,8 +766,6 @@ def test_text_extract_cli_smoke_on_nondefault_rootfile_package(tmp_path: Path) -
     _run_module(
         "hwpx.tools.text_extract_cli",
         str(source),
-        "--format",
-        "markdown",
         "--output",
         str(output_file),
     )

@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx._document.ns.tables import TablesNamespace
 from hwpx.mutation_report import PreservationDowngradeError
+from hwpx.oxml import HwpxOxmlTable
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
@@ -42,7 +42,8 @@ def test_example_verifies_values_without_claiming_visuals(tmp_path, value):
     assert report["mutation"]["path"] == str(output)
     assert report["visual"] == report["withinModifiedParts"] == "not_performed"
     with HwpxDocument.open(output) as document:
-        assert document.tables.find_cell_by_label("성명")["matches"][0]["target_cell"]["text"] == value
+        assert document.tables[0].cell(0, 0).text == "성명"
+        assert document.tables[0].cell(0, 1).text == value
 
 
 @pytest.mark.parametrize("labels,values", [
@@ -79,10 +80,8 @@ def test_reopen_detects_a_success_report_without_the_requested_change(tmp_path, 
     source, output = tmp_path / "input.hwpx", tmp_path / "out.hwpx"
     original = _form(source)
     output.write_bytes(b"existing output")
-    # A lying applied_count must not be enough to publish an unchanged result.
-    monkeypatch.setattr(TablesNamespace, "fill_by_path", lambda self, mappings: {
-        "applied": [], "failed": [], "applied_count": len(mappings), "failed_count": 0,
-    })
+    # A write that returns without writing must not be enough to publish an unchanged result.
+    monkeypatch.setattr(HwpxOxmlTable, "set_cell_text", lambda self, row, col, value, **kwargs: None)
     with pytest.raises(ValueError, match="content verification"):
         example.fill_existing_form(source, output, {"성명": "새 값"})
     assert source.read_bytes() == original

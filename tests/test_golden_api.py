@@ -126,15 +126,6 @@ def _map_tables(_: Path) -> None:
         assert table_map["tables"][0]["cols"] == 3
 
 
-def _find_cell_by_label(_: Path) -> None:
-    with HwpxDocument.new(empty_first_line=True) as document:
-        table = document.add_table(1, 2)
-        table.cell(0, 0).text = "Name:"
-        found = document.tables.find_cell_by_label("Name")
-        assert found["count"] == 1
-        assert found["matches"][0]["target_cell"]["col"] == 1
-
-
 def _add_remove_section(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         section = document.add_section()
@@ -186,12 +177,6 @@ def _export_text(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("export me")
         assert "export me" in document.text.plain()
-
-
-def _export_markdown(_: Path) -> None:
-    with HwpxDocument.new(empty_first_line=True) as document:
-        document.add_paragraph("markdown text")
-        assert "markdown text" in document.text.markdown()
 
 
 def _validate_document(_: Path) -> None:
@@ -253,7 +238,6 @@ SCENARIOS: dict[str, Scenario] = {
     "add-table": _add_table,
     "merge-table-cells": _merge_table_cells,
     "map-tables": _map_tables,
-    "find-cell-by-label": _find_cell_by_label,
     "add-remove-section": _add_remove_section,
     "set-page-setup": _set_page_setup,
     "set-header-footer": _set_header_footer,
@@ -261,7 +245,6 @@ SCENARIOS: dict[str, Scenario] = {
     "add-bookmark": _add_bookmark,
     "add-hyperlink": _add_hyperlink,
     "export-text": _export_text,
-    "export-markdown": _export_markdown,
     "validate-document": _validate_document,
     "save-path-reopen": _save_path_reopen,
     "save-stream-reopen": _save_stream_reopen,

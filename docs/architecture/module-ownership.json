@@ -203,13 +203,7 @@
       "glob": "src/hwpx/tools/doc_diff.py",
       "disposition": "core",
       "futureOwner": "python-hwpx",
-      "rationale": "generic text diff and reference consistency only; comparison-plan composition is application-owned"
-    },
-    {
-      "glob": "src/hwpx/tools/mail_merge.py",
-      "disposition": "core",
-      "futureOwner": "python-hwpx",
-      "rationale": "generic explicit-sanitizer merge seam; application PII and batch policy are absent"
+      "rationale": "generic paragraph diff only; the reference consistency lint moved to hwpx_automation.office.compliance in 7.0 and comparison-plan composition is application-owned"
     },
     {
       "glob": "src/hwpx/tools/redline.py",
@@ -760,46 +754,10 @@
       "rationale": "QName-aware bounded byte-span selection of text after a table within its own paragraph; reusable format behavior. The caller supplies the predicate, so this module contains no genre, institution, workflow or caption policy. Secure XML parsing and existing OPC markup tokenization validate namespace scopes without reserializing source bytes."
     },
     {
-      "path": "src/hwpx/tools/markdown_import.py",
-      "disposition": "core",
-      "approvedBy": "markdown-import-for-small-models",
-      "rationale": "from_markdown/append_markdown: writes a common Markdown subset (headings, paragraphs, nested lists, pipe tables, bold/italic) into HWPX through the document's own paragraph, list and table authoring. MarkdownStyle is genre-neutral sizing only; genre presets (official letters, notices) stay with the application layer that passes a style in."
-    },
-    {
-      "path": "src/hwpx/tools/format_rules.py",
-      "disposition": "core",
-      "approvedBy": "owner-2026-11-11-format-rule-check",
-      "rationale": "check_format: compares stored character shapes, paragraph shapes, table placement, character range, hyperlinks and macros with a rule file in the key names and units of Hancom's open-source checker (hancom-io/dvc). It reads values the file stores and carries no organisation's rules; a rule set for a genre (official letters, school notices) stays with the application layer that passes it in."
-    },
-    {
       "path": "src/hwpx/_document/text_blocks.py",
       "disposition": "core",
       "approvedBy": "text-blocks-for-small-models",
       "rationale": "doc.text.blocks/outline/apply_changes: walks body and table-cell paragraphs (nested tables included) in document order with positional ids, lists the non-empty ones within a character budget, and writes {id: text} back through the paragraph's own run-preserving setter, estimating cell overflow with the form-fit measurer. Genre-neutral format behavior with no workflow, prompt or model policy; the owner of doc.text keeps its namespace module short by delegating here like the other _document owners."
-    },
-    {
-      "path": "src/hwpx/integrations/__init__.py",
-      "disposition": "core",
-      "approvedBy": "owner-2026-11-12-boundary-by-runtime",
-      "rationale": "Package marker for thin adapters to other Python frameworks. It imports nothing; each adapter submodule imports its own framework and has its own optional extra."
-    },
-    {
-      "path": "src/hwpx/integrations/langchain.py",
-      "disposition": "core",
-      "approvedBy": "owner-2026-11-12-boundary-by-runtime",
-      "rationale": "HwpxLoader: hands the Markdown and flat metadata of hwpx.ingest to LangChain as one Document per file. Reading is core's job and the adapter adds no workflow, genre or model policy; langchain-core is an optional extra imported only here, like openpyxl for xlsx rosters."
-    },
-    {
-      "path": "src/hwpx/integrations/llama_index.py",
-      "disposition": "core",
-      "approvedBy": "owner-2026-11-12-boundary-by-runtime",
-      "rationale": "HwpxReader: hands the Markdown and flat metadata of hwpx.ingest to LlamaIndex as one Document per file, usable as a SimpleDirectoryReader file extractor. The same thin layer as the LangChain loader, with no workflow, genre or model policy; llama-index-core is an optional extra imported only here."
-    },
-    {
-      "path": "src/hwpx/tools/form_choices.py",
-      "disposition": "core",
-      "approvedBy": "owner-2026-11-13-form-choices",
-      "rationale": "Choices typed as check marks in a form: lists the groups of marks in a paragraph and swaps a mark for its checked or unchecked twin. A structural edit of document text beside table_navigation's fill_by_path; it holds no genre, school or wording policy."
     }
   ],
   "removed": [
@@ -811,6 +769,128 @@
         "MCP compose_exam / verify_question_splits tools"
       ],
       "rationale": "exam-specific parsing, measurement and composition are application workflow"
+    },
+    {
+      "glob": "src/hwpx/ingest/**",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.ingest",
+      "replacement": [
+        "hwpx_automation.ingest.*"
+      ],
+      "rationale": "conversion of other formats to Markdown (ingest) is conversion, not reading what the file says"
+    },
+    {
+      "glob": "src/hwpx/integrations/**",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.integrations",
+      "replacement": [
+        "hwpx_automation.integrations.langchain",
+        "hwpx_automation.integrations.llama_index"
+      ],
+      "rationale": "framework loaders built on the Markdown ingest"
+    },
+    {
+      "glob": "src/hwpx/tools/markdown_import.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.markdown",
+      "replacement": [
+        "hwpx_automation.markdown.from_markdown",
+        "hwpx_automation.markdown.append_markdown(doc, md)"
+      ],
+      "rationale": "Markdown to HWPX conversion and its report look"
+    },
+    {
+      "glob": "src/hwpx/tools/markdown_export.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.markdown",
+      "replacement": [
+        "hwpx_automation.markdown.to_markdown(doc, rich=True)",
+        "hwpx_automation.markdown.equation_markdown"
+      ],
+      "rationale": "HWPX to Markdown conversion"
+    },
+    {
+      "glob": "src/hwpx/tools/form_choices.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.forms",
+      "replacement": [
+        "hwpx_automation.forms.form_choices(doc)",
+        "hwpx_automation.forms.choose(doc, ...)"
+      ],
+      "rationale": "guessing check-mark choices from paragraph text"
+    },
+    {
+      "glob": "src/hwpx/tools/mail_merge.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.mail_merge",
+      "replacement": [
+        "hwpx_automation.mail_merge.*"
+      ],
+      "rationale": "batch generation from rosters (the native mail-merge field stays in core)"
+    },
+    {
+      "glob": "src/hwpx/tools/layout_preview.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.preview",
+      "replacement": [
+        "hwpx_automation.preview.render_layout_preview"
+      ],
+      "rationale": "drawing an approximate preview"
+    },
+    {
+      "glob": "src/hwpx/tools/document_viewer.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.preview",
+      "replacement": [
+        "hwpx_automation.preview.render_document_viewer"
+      ],
+      "rationale": "drawing a preview viewer"
+    },
+    {
+      "glob": "src/hwpx/equation/render.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.preview",
+      "replacement": [
+        "hwpx_automation.preview.render_equation"
+      ],
+      "rationale": "drawing equations for a preview (LaTeX conversion stays in core)"
+    },
+    {
+      "glob": "src/hwpx/equation/mathml.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.preview",
+      "replacement": [
+        "hwpx_automation.preview.latex_to_mathml"
+      ],
+      "rationale": "LaTeX to MathML for a preview"
+    },
+    {
+      "glob": "src/hwpx/tools/format_rules.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.format_rules",
+      "replacement": [
+        "hwpx_automation.format_rules.check_format",
+        "hwpx-check-format (declared by python-hwpx-automation)"
+      ],
+      "rationale": "judging a document against a rule set"
+    },
+    {
+      "glob": "src/hwpx/tools/table_cleanup.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.office.utilities",
+      "replacement": [
+        "hwpx_automation.office.utilities.*"
+      ],
+      "rationale": "tabular data clean-up with no HWPX semantics"
+    },
+    {
+      "glob": "src/hwpx/tools/report_utils.py",
+      "removedIn": "7.0.0",
+      "newOwner": "hwpx_automation.office.utilities",
+      "replacement": [
+        "hwpx_automation.office.utilities.*"
+      ],
+      "rationale": "report number and date formatting with no HWPX semantics"
     }
   ]
 }

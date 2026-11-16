@@ -1,48 +1,8 @@
 {
  "schemaVersion": "python-hwpx.known-leak-migration/v1",
  "status": "contract",
- "note": "The contract for moving the four known-leak groups of tests/data/layer_leak_allowlist.json to python-hwpx-automation. Nothing has moved yet. The owner chose compatibility option A: every affected core name keeps working through 6.x, warns in the next major and is removed in the major after it. Releases are named only relative to each other; no version number or date is promised here.",
+ "note": "The contract for moving the known-leak groups of tests/data/layer_leak_allowlist.json to python-hwpx-automation. Two of the four groups (official-reference-policy, report-heading-guess) moved with the whole conversion and guessing move and are listed under moved; the two groups left here follow the owner's compatibility option A: every affected core name keeps working through 6.x, warns in the next major and is removed in the major after it. Releases are named only relative to each other; no version number or date is promised here.",
  "groups": [
-  {
-   "id": "official-reference-policy",
-   "title": "Official-document reference rules",
-   "allowlist": [
-    {
-     "file": "tools/doc_diff.py",
-     "qualname": "_ATTACHMENT_LINE_RE"
-    },
-    {
-     "file": "tools/doc_diff.py",
-     "qualname": "_ATTACHMENT_REFERENCE_RE"
-    },
-    {
-     "file": "tools/doc_diff.py",
-     "qualname": "_TABLE_NUMBER_RE"
-    },
-    {
-     "file": "tools/doc_diff.py",
-     "qualname": "_FIGURE_NUMBER_RE"
-    }
-   ],
-   "undetected": [],
-   "canonicalOwner": "hwpx_automation.office.compliance",
-   "coreKeeps": [
-    "hwpx.diff_paragraphs and hwpx.doc_diff over documents, paths, text and paragraph sequences",
-    "reading a document's paragraph texts (the source dispatch other than the document-plan branch)"
-   ],
-   "publicReplacement": [
-    "hwpx_automation.office.compliance.inspect_reference_consistency(source) -> reference-consistency-v1 report, same schema",
-    "MCP tool inspect_reference_consistency, routed to the automation owner"
-   ],
-   "coreSurfaceAffected": [
-    "hwpx.inspect_reference_consistency (stable)",
-    "hwpx.tools.doc_diff.inspect_reference_consistency",
-    "hwpx.REFERENCE_CONSISTENCY_REPORT_VERSION (stable)"
-   ],
-   "automationConsumers": [
-    "hwpx_automation.handlers.quality_render.inspect_reference_consistency"
-   ]
-  },
   {
    "id": "document-plan-input",
    "title": "Automation document-plan interpretation",
@@ -70,38 +30,6 @@
    ]
   },
   {
-   "id": "report-heading-guess",
-   "title": "Report heading guessing in Markdown export",
-   "allowlist": [
-    {
-     "file": "tools/markdown_export.py",
-     "qualname": "ARABIC_HEAD"
-    }
-   ],
-   "undetected": [
-    {
-     "file": "tools/markdown_export.py",
-     "qualname": "ROMAN_HEAD"
-    }
-   ],
-   "canonicalOwner": "hwpx_automation.office.authoring.report_parser",
-   "coreKeeps": [
-    "hwpx.tools.markdown_export.export_markdown and HwpxMarkdownConverter: text, tables, images, notes, and headings read from recorded document structure",
-    "a genre-neutral hook through which a caller supplies its own heading detector (a callable from paragraph text to a Markdown heading or None)"
-   ],
-   "publicReplacement": [
-    "the report heading rule (Roman 'Ⅰ.' -> '#', Arabic '1.' under 40 characters -> '##') as an automation detector passed into export_markdown",
-    "automation Markdown export entry points pass it explicitly"
-   ],
-   "coreSurfaceAffected": [
-    "hwpx.tools.markdown_export.export_markdown(detect_headings=True) default",
-    "HwpxMarkdownConverter where it reaches the same detector"
-   ],
-   "automationConsumers": [
-    "hwpx_automation.handlers.read_export (document ingest: DocumentIngestor.default() reaches HwpxMarkdownConverter with detect_headings on)"
-   ]
-  },
-  {
    "id": "evalplan-caption-cleanup",
    "title": "Evaluation-plan caption cleanup",
    "allowlist": [],
@@ -123,6 +51,37 @@
    ],
    "automationConsumers": [
     "hwpx_automation.office.evalplan.runtime"
+   ]
+  }
+ ],
+ "moved": [
+  {
+   "id": "official-reference-policy",
+   "title": "Official-document reference rules",
+   "canonicalOwner": "hwpx_automation.office.compliance",
+   "movedWith": "the conversion and guessing move to python-hwpx-automation: the owner moved the whole feature in this major, so the core names were removed without the DeprecationWarning step",
+   "removedCoreSurface": [
+    "hwpx.inspect_reference_consistency (stable)",
+    "hwpx.tools.doc_diff.inspect_reference_consistency",
+    "hwpx.REFERENCE_CONSISTENCY_REPORT_VERSION (stable)"
+   ],
+   "replacement": [
+    "hwpx_automation.office.compliance.inspect_reference_consistency(source) -> reference-consistency-v1 report, same schema",
+    "MCP tool inspect_reference_consistency, routed to the automation owner"
+   ]
+  },
+  {
+   "id": "report-heading-guess",
+   "title": "Report heading guessing in Markdown export",
+   "canonicalOwner": "hwpx_automation.markdown",
+   "movedWith": "the conversion and guessing move to python-hwpx-automation: the owner moved the whole feature in this major, so the core names were removed without the DeprecationWarning step",
+   "removedCoreSurface": [
+    "hwpx.tools.markdown_export.export_markdown(detect_headings=True) default",
+    "HwpxMarkdownConverter where it reaches the same detector"
+   ],
+   "replacement": [
+    "hwpx_automation.markdown.to_markdown(doc, rich=True) with the same detect_headings default and heading_detector hook",
+    "the ingest converter in hwpx_automation.ingest"
    ]
   }
  ],
@@ -160,7 +119,6 @@
  "implementation": {
   "neutralCoreSeams": [
    "hwpx.tools.doc_diff.paragraph_texts",
-   "hwpx.tools.markdown_export.export_markdown(heading_detector=...)",
    "hwpx.table_patch.strip_trailing_table_text"
   ],
   "automationConsumerRouting": "pending",

@@ -12,7 +12,7 @@ from collections.abc import Callable
 import pytest
 
 from hwpx.document import HwpxDocument
-from hwpx.tools.exporter import export_html, export_markdown, export_text
+from hwpx.tools.exporter import export_text
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -194,10 +194,3 @@ def test_a_note_in_a_cell_is_written_in_the_cell() -> None:
 
     assert "칸 앞1)1)칸 각주\n칸 뒤" in export_text(document, notes=True)
     assert "칸 각주" not in export_text(document)
-
-
-def test_html_and_markdown_write_notes_too() -> None:
-    # notes="inline" writes them as Hancom's text save; notes=True as footnotes (test_export_fix7_convert)
-    assert "본문 앞1)1)각주 글\n본문 뒤" in export_html(body_footnote(), notes="inline")
-    assert "본문 앞1)1)각주 글\n본문 뒤" in export_markdown(body_footnote(), notes="inline")
-    assert "각주 글" not in export_markdown(body_footnote())

@@ -78,12 +78,12 @@ def test_a_second_hit_in_an_allowlisted_function_fails() -> None:
 
 
 def test_a_fixed_leak_must_leave_the_allowlist() -> None:
-    hits = [h for h in guard.scan() if h.qualname != "ARABIC_HEAD"]
+    hits = [h for h in guard.scan() if h.qualname != "_OUTLINE_STYLE_NAME"]
 
     found = guard.problems(hits, guard.load_allowlist())
 
     assert found == [
-        "stale allowlist entry src/hwpx/tools/markdown_export.py ARABIC_HEAD hangul-regex: "
+        "stale allowlist entry src/hwpx/oxml/paragraph_heading.py _OUTLINE_STYLE_NAME hangul-regex: "
         "1 allowed, 0 found — lower or remove it in tests/data/layer_leak_allowlist.json"
     ]
 

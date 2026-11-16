@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Plain, HTML and Markdown export write captions and 덧말 the way Hancom's text save does.
+"""Plain-text export writes captions and 덧말 the way Hancom's text save does.
 
 A table's caption follows the table, in a cell too, a picture's or a shape's caption comes where it
 sits, and a 덧말 is its main text followed by ``(덧말:<sub text>)``.
@@ -15,9 +15,11 @@ from pathlib import Path
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HP
-from hwpx.tools.exporter import export_html, export_markdown, export_text
+from hwpx.tools.exporter import export_text
 
-EXPORTS = [export_text, export_html, export_markdown]
+# HTML and Markdown export moved to python-hwpx-automation in 7.0; the cases stay
+# parametrized so that a second plain reader can join them.
+EXPORTS = [export_text]
 FIXTURES = Path(__file__).parent / "fixtures" / "hwpxlib_corpus"
 
 
@@ -126,28 +128,6 @@ def test_an_object_written_twice_in_a_switch_is_read_once() -> None:
     run.append(tail)
 
     assert export_text(doc).split("\n") == ["앞", "차트 1 매출", "뒤"]
-
-
-def test_mail_merge_fills_captions_and_dutmal(tmp_path) -> None:
-    from hwpx.tools.mail_merge import merge_template_rows
-
-    doc = HwpxDocument.new(empty_first_line=True)
-    doc.add_paragraph("이름: {{name}}")
-    paragraph = doc.sections[0].add_paragraph("표 담은 문단")
-    table = paragraph.add_table(1, 1)
-    table.set_cell_text(0, 0, "칸")
-    table.set_caption("캡션: {{title}}")
-    doc.shapes.add_dutmal("{{who}}", "덧말", paragraph=doc.add_paragraph(""))
-    template = tmp_path / "tpl.hwpx"
-    doc.save_to_path(template)
-
-    report = merge_template_rows(template, [{"name": "홍길동", "title": "요약", "who": "김"}], output_dir=tmp_path / "out")
-
-    (row,) = report["rows"]
-    assert row["ok"], row
-    assert row["replacedCount"] == 3 and row["unresolvedPlaceholders"] == []
-    text = export_text(HwpxDocument.open(row["filename"]))
-    assert "캡션: 요약" in text and "김(덧말:덧말)" in text and "{{" not in text
 
 
 def test_a_caption_of_a_table_in_a_cell_is_written_once() -> None:
