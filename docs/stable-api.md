@@ -306,9 +306,14 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `set_rotation`은 한/글 저장본이 보여 주는 관계(그려진 크기의 개체를 자기 가운데를 축으로 돌리고, 상자 `hp:sz`는
 돈 개체를 감싸는 상자, 개체는 그 상자의 원점으로 옮긴다)를 그대로 씁니다. 7.0부터 `resize`로 늘이거나
 줄인 그림·도형도 그린 크기대로 돕니다(공개 `ta-pic-001-r.hwp`의 0.2768배로 그려 34° 돈 그림과 상자·가운데·
-그리는 변환이 같다). 돈 그림은 `resize`·`set_crop`하면 그린 크기로 고치고 다시 돌립니다. 뒤집은 개체, 묶음,
-글자가 든 도형(한/글은 글을 돈 도형이 아니라 감싸는 상자에 가로로 놓아 글이 도형 밖으로 나온다)은
-`shape-rotation-unsupported`로 거부합니다. 각도 0으로 되돌리는 것은 언제나 됩니다.
+그리는 변환이 같다. 공개 `el-school-001.hwp`의 늘인 다각형 90°와 편람의 늘인 다각형 35°도 같은 관계이고,
+한/글에서 열어 다시 저장해도 값이 그대로다). 돈 그림은 `resize`·`set_crop`하면 그린 크기로 고치고 다시 돌립니다.
+다음은 `shape-rotation-unsupported`로 바꾸기 전에 거부합니다 — 글자가 든 도형(한/글은 글을 돈 도형이 아니라
+그 도형을 감싸는 상자 폭에 가로로 놓아 그린다: 30~270° 돌린 글상자를 한/글이 다시 저장하면 `drawText/@lastWidth`가
+그 상자 폭이 되고 글이 도형 밖으로 나온다; 공개 문서에 글이 든 돈 도형은 없다), 묶음(한/글은 구성원을 저마다의
+행렬로 그리므로 묶음을 돌리려면 모든 구성원 행렬을 돌려야 하는데, 그 관계를 보이는 공개 한/글 저장본은 묶음 속에서
+180° 돈 묶음 하나뿐이다), 뒤집은 개체, 수식·차트. 묶음 구성원 하나만 돌리는 것도 같은 이유로 거부합니다.
+각도 0으로 되돌리는 것은 언제나 됩니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
@@ -385,7 +390,8 @@ line_type=, width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸�
 (`"HORIZONTAL"`/`"VERTICAL"`, 세로쓰기 — 바꾸면 칸 문단과 표를 품은 문단의 줄 배치 캐시를 지운다),
 `TableCell.protected`(셀 보호)·`editable`(양식 모드에서 편집 가능, 둘 다 `bool`), `Table.cell_spacing`
 (칸 간격, `0..32767`; 칸 크기는 그대로 두고 한/글 저장본처럼 표의 `hp:sz`를 칸들과 간격 수만큼 키운다),
-`Table.border_fill_id_ref`(표 자체의 테두리/배경 — 칸 간격 사이와 둘레에 보인다; 문서에 없는 id 는
+`Table.border_fill_id_ref`(표 자체의 테두리/배경 — 배경은 칸 뒤에 그려져 배경 없는 칸으로 비치고, 선은 칸 간격이
+있을 때 표 둘레에 보인다; 문서에 없는 id 는
 `table-border-fill-not-found`)·`Table.border_fill`(`BorderFillInfo`). 표는 개체와 같은 배치 읽기를 갖는다 —
 `position`(`ObjectPosition`: 떠 있는 표의 오프셋·기준·`text_flow` 포함), `z_order`, `locked`(개체 보호),
 `numbering_type`(캡션 번호 종류 `TABLE`/`PICTURE`/`EQUATION`/`NONE`). `locked`·`numbering_type`은

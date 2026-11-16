@@ -515,8 +515,9 @@ class TableFormat:
     @property
     def border_fill_id_ref(self) -> str | None:
         """The id of the table's own ``hh:borderFill`` (``hp:tbl/@borderFillIDRef``): the border and
-        fill of the table itself, drawn around and between its cells where cell spacing leaves room;
-        a cell without its own reference takes it too. As written; ``None`` when the table names none.
+        fill of the table itself. Hancom draws its fill behind the cells (a cell without a fill of its
+        own shows it) and its lines around the table where cell spacing leaves room (with no spacing the
+        cells' own lines cover them). As written; ``None`` when the table names none.
 
         Setting it takes the id of a border fill the document defines (a ``str`` or ``int``, e.g. one
         ``doc.styles.ensure_border_fill(...)`` returns); an unknown id is refused with

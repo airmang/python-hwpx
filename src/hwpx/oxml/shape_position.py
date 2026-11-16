@@ -527,10 +527,14 @@ class ObjectPlacement:
         box around the turned object, the object as drawn is turned about its own middle (``hc:rotMatrix``)
         and moved into that box (``hp:offset``, ``hc:transMatrix``), and ``hp:rotationInfo`` holds the angle
         and the middle of the box -- the relation the turned objects of Hancom-saved documents show,
-        stretched or not (see :func:`rotation_base_size`). A flipped object, a group, a shape holding text
-        (Hancom keeps the text level in the outer box, so it would stick out of the turned shape) or an
-        object without ``hp:rotationInfo`` (an equation or chart) is refused with
-        ``shape-rotation-unsupported``, a member of a group with ``shape-group-member-unsupported``, an
+        stretched or not (see :func:`rotation_base_size`). Refused with ``shape-rotation-unsupported``:
+        a shape holding text -- Hancom draws the text level, laid out across the box around the turned
+        shape (it saves ``drawText/@lastWidth`` as that box's width and breaks the lines in it), so the
+        text sticks out of the turned shape; no public Hancom document holds a turned shape with text in
+        another form. A group -- Hancom draws each member from its own matrices, so turning a group means
+        turning every member in them, which one public Hancom group (turned 180 degrees inside another)
+        cannot settle for other angles. A flipped object, and an object without ``hp:rotationInfo`` (an
+        equation or chart). A member of a group is refused with ``shape-group-member-unsupported``, an
         angle outside 0..359 with ``shape-rotation-value``. 0 turns it back. The paragraph loses its line
         layout cache.
         """
@@ -547,8 +551,10 @@ class ObjectPlacement:
         width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
         draw_text = self.element.find(f"{_HP}drawText")
         if angle and draw_text is not None and any((t.text or "").strip() for t in draw_text.iter(f"{_HP}t")):
-            # Hancom lays the text out level in the box around the turned shape, not turned with it, and no
-            # Hancom-saved turned shape holding text is known to write it otherwise.
+            # Hancom lays the text out level in the box around the turned shape, not turned with it: text
+            # boxes turned 30-270 degrees, opened and saved again by Hancom, came back with lastWidth set to
+            # that box's width and the text drawn across it, outside the shape. No public Hancom document
+            # (1,338 .hwpx, 304 .hwp) holds a turned shape with text to show another form.
             raise _rotation_refused(self.element, "it holds text, which Hancom does not turn with it")
         apply_rotation(self.element, angle, width, height)
         from ._document_primitives import _clear_paragraph_layout_cache
@@ -1044,7 +1050,7 @@ def _measure_equation_again(obj: Any, text: str, *, script: bool = True) -> None
         from ._document_primitives import _append_child
 
         node = _append_child(element, f"{_HP}script", {})
-    if script:
+    if script and node is not None:
         node.text = text
     from ._document_primitives import _clear_paragraph_layout_cache
 
