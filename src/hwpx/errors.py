@@ -571,6 +571,8 @@ ERROR_CODES: dict[str, str] = {
     "ref-link-end-missing": "하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다.",
     # -- 텍스트 ----------------------------------------------------------
     "text-search-empty": "바꿀 대상 문자열이 비어 있다.",
+    "text-pattern-invalid": "doc.text.find/replace 의 찾을 글이 문자열·re.Pattern 이 아니거나, regex=True 인데 정규식으로 컴파일되지 않는다.",
+    "text-replacement-invalid": "정규식 바꾸기의 바꿀 글이 패턴에 없는 묶음(\\3, \\g<이름>)을 부른다.",
     "text-highlight-match-empty": "형광펜으로 감쌀 문자열이 비어 있다.",
     "text-highlight-match-not-found": "문단에서 형광펜으로 감쌀 문자열을 찾지 못했다.",
     "text-highlight-match-crosses-markup": "찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다.",

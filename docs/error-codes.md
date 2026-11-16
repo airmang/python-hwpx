@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 280 | 11 |
+| 개수 | 282 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -469,7 +469,9 @@ except HwpxError as exc:
 | `text-highlight-match-empty` | 형광펜으로 감쌀 문자열이 비어 있다. |
 | `text-highlight-match-not-found` | 문단에서 형광펜으로 감쌀 문자열을 찾지 못했다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
+| `text-pattern-invalid` | doc.text.find/replace 의 찾을 글이 문자열·re.Pattern 이 아니거나, regex=True 인데 정규식으로 컴파일되지 않는다. |
 | `text-place-invalid` | doc.text.paragraphs()/objects() 의 where·kinds 에 모르는 자리·개체 종류를 줬다. |
+| `text-replacement-invalid` | 정규식 바꾸기의 바꿀 글이 패턴에 없는 묶음(\3, \g<이름>)을 부른다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |
 
 ### `toc-*`

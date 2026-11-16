@@ -883,10 +883,51 @@ class ObjectPlace:
         }
 
 
+@dataclass(frozen=True)
+class TextMatch:
+    """One match of ``doc.text.find()``: where it is and what it matched.
+
+    ``start``/``end`` are positions in ``paragraph.text`` (a tab or a line break is one
+    character, a control or an object none), the ones ``paragraph.format_range(start, end, ...)``
+    takes. ``text`` is the matched text, ``groups`` a regular expression's groups (``None`` for a
+    group that took no part; ``()`` for a plain search). The other fields say where the paragraph
+    sits, as in :class:`ParagraphPlace`.
+    """
+
+    paragraph: "Paragraph"
+    start: int
+    end: int
+    text: str
+    groups: tuple[str | None, ...]
+    where: str
+    section: int | None
+    page_type: str | None = None
+    table: "Table | None" = None
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "start": self.start,
+            "end": self.end,
+            "text": self.text,
+            "groups": list(self.groups),
+            "where": self.where,
+            "section": self.section,
+            "pageType": self.page_type,
+            "row": self.row,
+            "col": self.col,
+            "depth": self.depth,
+        }
+
+
 __all__ = [
     "Alignment",
     "ObjectPlace",
     "ParagraphPlace",
+    "TextMatch",
     "AutoNumber",
     "BeginNumbers",
     "ColumnDefinition",

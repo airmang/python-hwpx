@@ -14,16 +14,17 @@ python-hwpx-automation(`hwpx_automation.markdown`)으로 옮겼다. 부르면 �
 
 from __future__ import annotations
 
+import re
 import warnings
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, cast
 
-from ...errors import HwpxValueError, ReplaceScopeWarning
+from ...errors import HwpxTypeError, HwpxValueError, ReplaceScopeWarning
 from ...oxml.namespaces import HP, tag_local_name
 from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...objects.highlight import Highlight
-    from ...objects.results import ObjectPlace, ParagraphPlace
+    from ...objects.results import ObjectPlace, ParagraphPlace, TextMatch
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
     from ..text_blocks import TextBlock, TextChangeReport, TextOutline
 
@@ -68,6 +69,64 @@ def _paragraphs_everywhere(section_element: Any) -> Iterator[tuple[Any, str, tup
             yield from walk(child, name, child_role, child_key)
 
     yield from walk(section_element, "", "plain", None)
+
+
+def _search_pattern(search: "str | re.Pattern[str]", regex: bool) -> "str | re.Pattern[str]":
+    """*search* checked: a non-empty string, or a compiled regular expression when *regex* (or given one)."""
+
+    if isinstance(search, re.Pattern):
+        if not search.pattern:
+            raise HwpxValueError(
+                "the regular expression is empty",
+                code="text-search-empty",
+                suggestion="Pass the text or the regular expression to look for.",
+            )
+        return search
+    if not isinstance(search, str):
+        raise HwpxTypeError(
+            f"the text to look for must be a str or a compiled regular expression; got {type(search).__name__}",
+            code="text-pattern-invalid",
+            context={"type": type(search).__name__},
+            suggestion='Pass "글" or re.compile(r"\\d+").',
+        )
+    if not search:
+        raise HwpxValueError(
+            "search 는 빈 문자열일 수 없습니다.",
+            code="text-search-empty",
+            context={"search": search},
+            suggestion="바꿀 대상 문자열을 지정하세요.",
+        )
+    if not regex:
+        return search
+    try:
+        return re.compile(search)
+    except re.error as error:
+        raise HwpxValueError(
+            f"the regular expression {search!r} does not compile: {error}",
+            code="text-pattern-invalid",
+            context={"pattern": search, "error": str(error)},
+            suggestion="Write it as Python's re module reads it, or pass regex=False to look for the text as it is.",
+        ) from error
+
+
+def _check_template(pattern: "re.Pattern[str]", replacement: str) -> None:
+    """Refuse a *replacement* whose group references *pattern* cannot fill, before anything changes."""
+
+    groups = [""] * pattern.groups
+    for name, index in pattern.groupindex.items():
+        groups[index - 1] = name
+    # a pattern of the same groups, all matching nothing, gives a match to expand the template on
+    shape = "".join(f"(?P<{name}>)" if name else "()" for name in groups)
+    probe = cast("re.Match[str]", re.compile(shape).match(""))  # an empty shape matches ""
+    try:
+        probe.expand(replacement)
+    except (re.error, IndexError) as error:
+        raise HwpxValueError(
+            f"the replacement {replacement!r} refers to a group the pattern does not have: {error}",
+            code="text-replacement-invalid",
+            context={"replacement": replacement, "groups": pattern.groups, "names": sorted(pattern.groupindex)},
+            suggestion="Refer to groups as \\1 or \\g<name>; write a backslash itself as \\\\.",
+        ) from error
 
 
 def _run_matches(
@@ -174,6 +233,66 @@ class TextNamespace(_Namespace):
 
         return iter_object_places(self._doc, kinds, where)
 
+    def find(
+        self,
+        pattern: "str | re.Pattern[str]",
+        *,
+        regex: bool = False,
+        where: "Iterable[str] | str | None" = None,
+    ) -> tuple["TextMatch", ...]:
+        """*pattern* 이 나오는 곳을 문서 순서로 모두 돌려준다(``TextMatch`` 의 tuple).
+
+        :meth:`paragraphs` 가 훑는 모든 문단(표 칸·칸 안 표·글상자·캡션·머리말·꼬리말·각주·미주·
+        메모·바탕쪽)에서 찾고, *where* 로 자리를 고른다(``where="body"``, ``where={"cell",
+        "header"}``). 각 값의 ``paragraph``·``start``·``end`` 는 ``paragraph.text`` 의 자리라서
+        ``m.paragraph.format_range(m.start, m.end, bold=True)`` 에 그대로 넘길 수 있고, ``text`` 는
+        찾은 글, ``groups`` 는 정규식의 묶음이다.
+
+        ``regex=True`` 면 *pattern* 을 파이썬 ``re`` 정규식으로 읽는다(컴파일한 ``re.Pattern`` 을
+        주면 늘 정규식). 빈 일치(``^``·``\\b`` 만)는 세지 않는다. 서식이 다른 런에 걸친 말도
+        찾지만, :meth:`replace` 의 ``everywhere=True`` 처럼 탭·줄 바꿈·특수 공백이나 컨트롤·개체를
+        사이에 둔 글은 한 말로 보지 않는다(정규식의 ``^``·``$`` 도 그 토막의 처음과 끝이다).
+        대소문자는 가린다(정규식이면 ``(?i)`` 로 끈다). 문서를 바꾸지 않는다.
+        """
+
+        from ...objects.results import TextMatch
+        from ...oxml.run import regex_matches, text_stretch_spans
+        from ..text_blocks import iter_paragraph_places
+
+        search = _search_pattern(pattern, regex)
+        found: list[TextMatch] = []
+        for place in iter_paragraph_places(self._doc, where):
+            runs = [run.element for run in place.paragraph.runs]
+            for offset, segments in text_stretch_spans(runs):
+                combined = "".join(segment.text for segment in segments)
+                if isinstance(search, re.Pattern):
+                    spans = [(m.start(), m.end(), m.groups()) for m in regex_matches(search, combined)]
+                else:
+                    spans = []
+                    position = combined.find(search)
+                    while position != -1:
+                        spans.append((position, position + len(search), ()))
+                        position = combined.find(search, position + len(search))
+                for start, end, groups in spans:
+                    found.append(
+                        TextMatch(
+                            paragraph=place.paragraph,
+                            start=offset + start,
+                            end=offset + end,
+                            text=combined[start:end],
+                            groups=groups,
+                            where=place.where,
+                            section=place.section,
+                            page_type=place.page_type,
+                            table=place.table,
+                            row=place.row,
+                            col=place.col,
+                            owner=place.owner,
+                            depth=place.depth,
+                        )
+                    )
+        return tuple(found)
+
     # -- id 붙은 글 덩어리 ---------------------------------------------------
 
     def blocks(self) -> Iterator["TextBlock"]:
@@ -239,9 +358,10 @@ class TextNamespace(_Namespace):
 
     def replace(
         self,
-        search: str,
+        search: "str | re.Pattern[str]",
         replacement: str,
         *,
+        regex: bool = False,
         text_color: str | None = None,
         underline_type: str | None = None,
         underline_color: str | None = None,
@@ -257,19 +377,22 @@ class TextNamespace(_Namespace):
         남는 글자는 찾은 글의 마지막 글자 뒤에 붙는다. 탭·줄 바꿈이나 컨트롤·개체를 사이에 둔 글은 한 말로 보지 않는다. 메모 본문은
         바꾸지 않는다. 서식 조건을 주면 조건에 맞는 런만 보고, 맞지 않는 런은 말을 끊는다.
         어느 쪽이든 대소문자는 가린다(한/글 "모두 바꾸기"의 기본은 라틴 대소문자를 가리지 않는다).
+
+        ``regex=True`` 면 *search* 를 파이썬 ``re`` 정규식으로 읽고(컴파일한 ``re.Pattern`` 을 주면 늘
+        정규식), *replacement* 의 ``\\1``·``\\g<이름>`` 을 찾은 묶음으로 채운다(``re.sub`` 의 바꿀 글과
+        같다. 백슬래시 자체는 ``\\\\``). 빈 일치는 바꾸지 않고, ``^``·``$`` 는 위의 한 말로 보는
+        토막의 처음과 끝이다. 잘못된 정규식(``text-pattern-invalid``)과 없는 묶음을 부르는 바꿀 글
+        (``text-replacement-invalid``)은 아무것도 바꾸기 전에 거부한다. 바뀐 문단(과 그 문단을 품은
+        표의 문단)의 줄 배치 캐시는 지운다.
         """
 
-        if not search:
-            raise HwpxValueError(
-                "search 는 빈 문자열일 수 없습니다.",
-                code="text-search-empty",
-                context={"search": search},
-                suggestion="바꿀 대상 문자열을 지정하세요.",
-            )
+        pattern = _search_pattern(search, regex)
+        if isinstance(pattern, re.Pattern):
+            _check_template(pattern, replacement)
 
         if everywhere:
             return self._replace_everywhere(
-                search,
+                pattern,
                 replacement,
                 limit=limit,
                 text_color=text_color,
@@ -293,7 +416,12 @@ class TextNamespace(_Namespace):
                 if remaining <= 0:
                     break
             original_char_pr = run.char_pr_id_ref
-            replaced_here = run.replace_text(search, replacement, count=remaining)
+            if isinstance(pattern, re.Pattern):
+                from ...oxml.run import replace_across_runs
+
+                replaced_here = replace_across_runs(run.paragraph, [run.element], pattern, replacement, count=remaining)
+            else:
+                replaced_here = run.replace_text(pattern, replacement, count=remaining)
             if replaced_here and original_char_pr is not None:
                 # 치환 중 XML 노드가 다시 쓰여도 원래 서식 참조를 잃지 않게 한다.
                 run.char_pr_id_ref = original_char_pr
@@ -302,18 +430,22 @@ class TextNamespace(_Namespace):
                 break
         unfiltered = text_color is None and underline_type is None and underline_color is None and char_pr_id_ref is None
         if not replacements and unfiltered and (limit is None or limit > 0):
-            self._warn_when_found_out_of_scope(search)
+            self._warn_when_found_out_of_scope(pattern)
         return replacements
 
-    def _warn_when_found_out_of_scope(self, search: str) -> None:
+    def _warn_when_found_out_of_scope(self, search: "str | re.Pattern[str]") -> None:
         """Say so when the default scope changed nothing but ``everywhere=True`` has text to look at."""
 
         from ...oxml import HwpxOxmlParagraph
+        from ...oxml.run import regex_matches
+
+        def holds(text: str) -> bool:
+            return bool(regex_matches(search, text)) if isinstance(search, re.Pattern) else search in text
 
         found = 0
         for section in self._doc.sections:
             for element, role, _key in _paragraphs_everywhere(section.element):
-                if role != "mirror" and search in HwpxOxmlParagraph(element, section).text:
+                if role != "mirror" and holds(HwpxOxmlParagraph(element, section).text):
                     found += 1
         if found:
             warnings.warn(
@@ -326,7 +458,7 @@ class TextNamespace(_Namespace):
 
     def _replace_everywhere(
         self,
-        search: str,
+        search: "str | re.Pattern[str]",
         replacement: str,
         *,
         limit: int | None,

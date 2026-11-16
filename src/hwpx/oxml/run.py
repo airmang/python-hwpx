@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
 
@@ -379,30 +380,73 @@ _TEXT_CHARACTER_ELEMENTS = frozenset({"tab", "lineBreak", "hyphen", "nbSpace", "
 def _text_stretches(runs: Sequence[ET.Element]) -> list[list[_ReplaceSegment]]:
     """Split the text of consecutive runs into the stretches one match may cover."""
 
-    stretches: list[list[_ReplaceSegment]] = [[]]
+    return [segments for _start, segments in text_stretch_spans(runs)]
+
+
+def text_stretch_spans(runs: Sequence[ET.Element]) -> list[tuple[int, list[_ReplaceSegment]]]:
+    """The stretches of :func:`_text_stretches`, each with where it starts in the runs' text.
+
+    The position counts as ``paragraph.text`` does when *runs* are all of a paragraph's runs: a
+    character element inside ``hp:t`` (tab, line break, special space) and a run-level tab are
+    one character each, other run children (controls, objects) none. A stretch never holds those
+    characters, so a match inside it is text a search can cover as one word.
+    """
+
+    from ._document_primitives import _is_tab_control_element
+
+    stretches: list[tuple[int, list[_ReplaceSegment]]] = []
+    current: list[_ReplaceSegment] = []
+    start = 0
+    position = 0
 
     def cut() -> None:
-        if stretches[-1]:
-            stretches.append([])
+        nonlocal current
+        if current:
+            stretches.append((start, current))
+            current = []
 
-    def visit(element: ET.Element) -> None:
-        stretches[-1].append(_ReplaceSegment(element, "text", element.text or ""))
+    def add(element: ET.Element, attr: str, text: str) -> None:
+        nonlocal start, position
+        if not current:
+            start = position
+        current.append(_ReplaceSegment(element, attr, text))
+        position += len(text)
+
+    def visit(element: ET.Element, top: bool) -> None:
+        nonlocal position
+        add(element, "text", element.text or "")
         for child in list(element):
             if not isinstance(child.tag, str):
                 pass  # a comment or processing instruction: not text, the text around it still joins
             elif _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
                 cut()
+                if top:
+                    position += 1  # paragraph.text reads it as one character
             else:
-                visit(child)
-            stretches[-1].append(_ReplaceSegment(child, "tail", child.tail or ""))
+                visit(child, False)
+            add(child, "tail", child.tail or "")
 
     for run in runs:
         for child in run:
-            if _element_local_name(child) == "t":
-                visit(child)
+            name = _element_local_name(child)
+            if name == "t":
+                visit(child, True)
             else:
                 cut()
-    return [stretch for stretch in stretches if stretch]
+                if name == "tab" or _is_tab_control_element(child):
+                    position += 1
+    cut()
+    return stretches
+
+
+def regex_matches(pattern: "re.Pattern[str]", text: str) -> list["re.Match[str]"]:
+    """The non-empty, non-overlapping matches of *pattern* in *text*, left to right.
+
+    An empty match (``^``, ``\\b``, ``x*`` where there is no ``x``) is no match: a search reports
+    and a replacement changes characters, never the space between two.
+    """
+
+    return [match for match in pattern.finditer(text) if match.end() > match.start()]
 
 
 def _overlay_replacement(segments: Sequence[_ReplaceSegment], start: int, end: int, replacement: str) -> None:
@@ -431,7 +475,7 @@ def _overlay_replacement(segments: Sequence[_ReplaceSegment], start: int, end: i
 def replace_across_runs(
     paragraph: "HwpxOxmlParagraph",
     runs: Sequence[ET.Element],
-    search: str,
+    search: "str | re.Pattern[str]",
     replacement: str,
     *,
     count: int | None = None,
@@ -444,10 +488,24 @@ def replace_across_runs(
     run may be left empty). Text is joined across run boundaries and markup such as
     highlights, but not across a tab, a line break or another character element, nor across a
     control or an object. Returns the number of replacements.
+
+    A compiled regular expression *search* replaces each of its non-empty matches with
+    *replacement* expanded as :meth:`re.Match.expand` does (``\\1``, ``\\g<name>``); its ``^`` and
+    ``$`` are the ends of the stretch of text a match may cover.
     """
 
     total = 0
     for segments in _text_stretches(runs):
+        if count is not None and total >= count:
+            break
+        if isinstance(search, re.Pattern):
+            matches = regex_matches(search, "".join(segment.text for segment in segments))
+            if count is not None:
+                matches = matches[: count - total]
+            for match in reversed(matches):  # from the right, so the earlier positions stay put
+                _overlay_replacement(segments, match.start(), match.end(), match.expand(replacement))
+            total += len(matches)
+            continue
         combined = "".join(segment.text for segment in segments)
         position = combined.find(search)
         while position != -1 and (count is None or total < count):
