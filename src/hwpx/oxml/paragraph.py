@@ -12,6 +12,7 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from . import body
 from ._document_primitives import (
+    SameElement,
     _HP,
     _HP_NS,
     _append_child,
@@ -126,8 +127,8 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
     return (text_width - (count - 1) * gap) // count
 
 
-@dataclass
-class HwpxOxmlParagraph(ParagraphFormats):
+@dataclass(eq=False)
+class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element."""
 
     element: ET.Element
@@ -1718,6 +1719,17 @@ class HwpxOxmlParagraph(ParagraphFormats):
     add_endnote = _paragraph_add_endnote
     footnotes = property(_paragraph_footnotes)
     endnotes = property(_paragraph_endnotes)
+
+    @property
+    def id(self) -> str | None:
+        """The paragraph's id as written (``hp:p/@id``); ``None`` when it has none.
+
+        Not a unique key: Hancom writes ``"0"`` on some paragraphs and a file can repeat an id
+        (2,549 of the 80,545 paragraphs in ``tests/fixtures/hancom_saved`` say ``"0"``). To find a
+        paragraph again compare the objects: ``doc.paragraphs.index(paragraph)``, or use it as a
+        dict key; two paragraph objects are equal when they are the same paragraph."""
+
+        return self.element.get("id")
 
     @property
     def para_pr_id_ref(self) -> str | None:

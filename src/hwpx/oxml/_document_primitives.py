@@ -187,6 +187,27 @@ def _serialize_xml(element: ET.Element) -> bytes:
     return tab_elements_in(ET.tostring(element, encoding="utf-8", xml_declaration=True))
 
 
+class SameElement:
+    """Equality for the document's wrapper objects: two of them are equal when they wrap the same XML
+    element (``doc.paragraphs[3] == p`` whichever call made each), and they hash alike, so a
+    paragraph, run, table, cell, note, memo or object can be a dict key or a set member and
+    ``doc.paragraphs.index(p)`` finds it. A wrapper is never equal to another kind of value.
+
+    The hash follows the element: an object whose element changes (a 6.x memo moved into its MEMO
+    field) is a new key afterwards."""
+
+    __slots__ = ()
+    element: Any
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SameElement):
+            return NotImplemented
+        return self.element is other.element
+
+    def __hash__(self) -> int:
+        return id(self.element)
+
+
 class IdSource:
     """Where the ids and timestamps a document mints come from.
 

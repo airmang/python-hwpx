@@ -464,6 +464,7 @@
 - `set_size(width=None, height=None)`: 크기 속성을 0 또는 그 이상으로 업데이트합니다.
 - `margins`: 한/글이 셀을 배치하는 안쪽 여백을 `CellMargins(left, right, top, bottom)`(HWPUNIT)로 반환하는 프로퍼티입니다. 셀의 `hasMargin`이 꺼져 있으면 표의 `<hp:inMargin>`, 켜져 있으면 셀의 `<hp:cellMargin>`을 읽습니다.
 - `set_margins(*, left=None, right=None, top=None, bottom=None)`: 주지 않은 면은 지금 여백을 유지한 채 네 면을 `<hp:cellMargin>`에 쓰고 `hasMargin="1"`로 켠 뒤 새 `CellMargins`를 반환합니다. 잘못된 값은 `HwpxValueError`(`cell-margin-value`)로 거부합니다.
+- `border_fill_id_ref`: 셀이 가리키는 `hh:borderFill` id(`hp:tc/@borderFillIDRef`). 쓰면 이 셀의 참조만 바뀝니다. 문서에 정의된 id(`doc.styles.ensure_border_fill(...)`이 돌려준 것, `str`·`int`)만 받고 없는 id는 아무것도 바꾸기 전에 `table-border-fill-not-found`로 거절합니다. 크기·여백이 그대로라 줄 배치 캐시를 지우지 않습니다. 이웃 칸과 공유하는 변까지 바꾸려면 `table.set_cell_borders`.
 - `text`: 셀 내부의 첫 번째 텍스트 노드를 반환하는 프로퍼티입니다. setter는 텍스트를 할당하기 전에 중첩된 단락 구조를 보장하고, `<hp:lineSegArray>`와 같은 줄 배치 캐시를 제거하여 한/글이 줄바꿈을 다시 계산하도록 합니다.
 - `remove()`: 행에서 셀 엘리먼트를 제거합니다.
 - `_addr_element()`, `_span_element()`, `_size_element()`, `_ensure_text_element()`: 중첩된 XML 구조를 관리하는 내부 헬퍼입니다.
@@ -493,6 +494,7 @@
 - `set_cell_text(row, col, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
 - `split_merged_cell(row, col)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
 - `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다. 종속 셀 중 글이나 개체가 있는 셀의 문단은 읽기 순서로 대상 셀에 옮기고, 빈 셀은 아무것도 보태지 않습니다.
+- `repeat_header`: 제목 줄이 쪽마다 반복되는지(`hp:tbl/@repeatHeader`, 한/글 표 속성 → 제목 줄 자동 반복). 쓰면 이 값만 바뀌고 제목 칸(`cell.is_header`)은 그대로입니다(한/글이 만든 표도 제목 칸 없이 `repeatHeader="1"`을 적습니다). `True`/`False`만 받고(`table-header-rows-value`), 바뀌면 표를 담은 문단의 줄 배치 캐시를 지웁니다. 제목 행과 함께 정하려면 `set_header_rows(count, repeat=)`.
 - `insert_rows(ref_row, count=1, side="below", copy_content=False)`: 물리 행 `ref_row` 아래(`side="above"`면 위)에 한/글처럼 빈 행을 넣습니다. 새 칸은 같은 열 기준 칸의 서식(칸 속성·테두리/배경·여백·크기·문단 모양·글자 모양)만 받고 빈 문단 하나를 둡니다. `copy_content=True`면 기준 칸의 글·개체까지 복사합니다. 새 행을 가로지르는 합친 칸은 늘어납니다.
 - `insert_columns(ref_col, count=1, side="right", copy_content=False)`: 격자 열 `ref_col` 오른쪽(`side="left"`면 왼쪽)에 빈 열을 넣고, 표는 새 열만큼 넓어집니다. `copy_content=True`면 기준 칸의 글·개체까지 복사합니다.
 - `delete_rows(rows)`, `delete_columns(cols)`: 행·열(번호 하나나 여럿)을 지웁니다. 열을 지우면 그 폭을 남은 열에 나눠 표 폭을 지킵니다. 모든 행·열은 지울 수 없습니다.
@@ -509,6 +511,15 @@
 - `add_table(...)`, `add_line(...)`, `add_rectangle(...)`, `add_ellipse(...)`, `add_arc(...)`, `add_polygon(...)`, `add_curve(...)`, `add_connector(...)`, `add_container(...)`: 적절한 런을 생성하여 인라인 객체(표, 도형, 묶음)를 삽입하고 래퍼 객체를 반환합니다. 도형 헬퍼는 한컴이 요구하는 하위 요소까지 생성합니다.
 - `add_shape(...)`, `add_control(...)`: 같은 자리에 임의의 요소를 넣는 저수준 탈출구입니다. 필수 하위 요소를 만들지 않아 호출 시 `UserWarning`이 나므로, 표준 도형은 위 전용 헬퍼를 쓰세요.
 - `para_pr_id_ref`, `style_id_ref`, `char_pr_id_ref`: 단락 수준의 서식 재정의를 허용하는 setter가 있는 프로퍼티입니다.
+- `id`: 파일에 적힌 문단 id(`hp:p/@id`, 읽기 전용). 한/글도 `"0"`이나 같은 id를 적을 수 있어 고유 키가 아닙니다. 문단을 다시 찾을 때는 객체끼리 견줍니다(아래 「같은 요소의 객체」).
+
+### 같은 요소의 객체
+
+문단·런·표·행·칸·각주/미주·메모·개체(그림·수식·도형 등)·머리말/꼬리말 객체는 같은 XML 요소를 감싸면 같습니다(`==`). 해시도 같아 dict 키나 set 원소로 쓸 수 있고, `doc.paragraphs.index(paragraph)`가 그 문단을 찾습니다. 부를 때마다 새 객체가 만들어지므로 `is`는 쓰지 않습니다. 다른 종류의 값(요소 자체, 글자열)과는 같지 않습니다. 6.x 메모를 누름틀로 옮기는 것처럼 요소가 바뀐 객체는 그 뒤로 다른 키입니다.
+
+### 값 형식 `FormField` (`doc.fields.all`)
+
+- `filled`: 한/글이 누름틀에 남기는 "내용을 넣었음" 표시(`hp:fieldBegin/@dirty`, 읽기 전용). 안내문 대신 넣은 내용을 보이는 누름틀이면 `True`입니다. 파일에 적힌 지금 값을 읽고, 채우기(`field.value = ...`, `doc.fields.fill`)가 켭니다. 적히지 않았으면 스키마 기본값 `False`.
 - `_run_elements()`, `_ensure_run()`, `_create_run_for_object()`: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.
 
 ### 클래스 `HwpxOxmlSection`
