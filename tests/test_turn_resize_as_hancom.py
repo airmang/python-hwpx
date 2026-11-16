@@ -192,6 +192,44 @@ def test_resize_takes_a_turned_objects_own_size(source: str, turned_first: list,
     assert abs(float(scale.get("e2"))) < 1e-6 and abs(float(scale.get("e4"))) < 1e-6  # not skewed
 
 
+#: Objects turned, flipped and stretched by python-hwpx in every way this file goes through.
+STATES = [(source, steps) for _, source, steps in CASES] + [(source, steps) for source, steps, _ in SAME_AS_RESIZED_FIRST] \
+    + [(source, steps) for source, _, steps in SAME_AS_RESIZED_FIRST]
+
+
+@pytest.mark.parametrize(("source", "steps"), STATES, ids=["-".join([s, *steps]) for s, steps in STATES])
+def test_resizing_an_object_to_its_own_width_and_height_changes_nothing(source: str, steps: list) -> None:
+    doc, obj = _made(source, steps)
+    before = doc.to_bytes()
+    obj.resize(obj.width, obj.height)
+    obj.resize(obj.width)
+    obj.resize(height=obj.height)
+    assert doc.to_bytes() == before
+    size = obj.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}sz")
+    assert (obj.box_width, obj.box_height) == (int(size.get("width")), int(size.get("height")))
+    if not obj.rotation:
+        assert (obj.width, obj.height) == (obj.box_width, obj.box_height)
+
+
+def test_width_and_height_read_a_turned_objects_own_size_and_box_the_box_around_it() -> None:
+    _, picture = _made("p", ["r30"])
+    assert (picture.width, picture.height) == (12000, 6000)
+    assert (picture.box_width, picture.box_height) == (13392, 11196)
+    _, group = _made("g", ["s24000x6000", "r30"])
+    assert (group.width, group.height) == (24000, 6000)
+    assert (group.box_width, group.box_height) == (23784, 16330)
+
+
+@pytest.mark.parametrize("fixture", sorted(path.stem for path in HANCOM.glob("*.hwpx")
+                                           if path.stem.startswith(("one_", "flip_", "turn_"))))
+def test_resizing_hancoms_objects_to_their_own_width_and_height_changes_nothing(fixture: str) -> None:
+    doc = HwpxDocument.open(HANCOM / f"{fixture}.hwpx")
+    before = doc.to_bytes()
+    for obj in [obj for paragraph in doc.paragraphs for obj in paragraph.objects]:
+        obj.resize(obj.width, obj.height)  # skewed by Hangul too: its own size as written, read without refusal
+    assert doc.to_bytes() == before
+
+
 def test_one_size_alone_keeps_a_turned_objects_own_aspect_ratio() -> None:
     _, picture = _made("p", ["r30"])
     picture.resize(6000)
@@ -204,9 +242,11 @@ def test_an_object_hancom_stretched_along_the_page_is_read_and_kept_but_not_chan
     path = HANCOM / f"{fixture}.hwpx"
     doc = HwpxDocument.open(path)
     obj = _only_object(doc)
-    # Hangul's object properties resized the turned object's box (18000 x 6000, 24000 x 6000): its scaMatrix skews
-    assert (obj.rotation, obj.width, obj.height) == ((30, 24000, 6000) if fixture == "one_g_f_30_s1" else
-                                                     (30, 18000, 6000))
+    # Hangul's object properties resized the turned object's box (18000 x 6000, 24000 x 6000): its scaMatrix skews;
+    # its own size is read as Hangul wrote it (curSz)
+    assert (obj.rotation, obj.box_width, obj.box_height) == ((30, 24000, 6000) if fixture == "one_g_f_30_s1" else
+                                                             (30, 18000, 6000))
+    assert (obj.width, obj.height) == ((19426, 4247) if fixture == "one_g_f_30_s1" else (13704, 4427))
     assert obj.flip_horizontal is (fixture == "one_g_f_30_s1") and obj.flip_vertical is False
     saved = zipfile.ZipFile(io.BytesIO(doc.to_bytes())).read("Contents/section0.xml")
     assert saved == zipfile.ZipFile(path).read("Contents/section0.xml")

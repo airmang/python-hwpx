@@ -454,6 +454,8 @@
 - `tag`: 엘리먼트의 정규화된 태그를 반환하는 프로퍼티입니다.
 - `attributes`: 인라인 객체 속성의 복사본을 반환하는 프로퍼티입니다.
 - `attributes.get(name)` / `set_attribute(name, value)`: 속성 하나를 읽고, 바꾸면 단락을 dirty로 표시합니다(6.x의 `get_attribute(name)`은 7.0에서 `attributes.get(name)`).
+- `width`·`height`: 개체 자신의, 돌리기 전 그려진 크기(HWPUNIT)입니다. `resize(width, height)`가 받는 크기와 같은 뜻이라 `obj.resize(obj.width, obj.height)`는 아무것도 바꾸지 않습니다. 돈 개체는 한/글이 적은 `curSz`(0인 축은 `orgSz`)를 읽고, 돌지 않은 개체는 `hp:sz`입니다. 그림·도형·묶음(`HwpxOxmlShape`)도 같습니다.
+- `box_width`·`box_height`(읽기 전용): 개체가 문단에서 차지하는 상자(`hp:sz`, HWPUNIT)입니다. 돈 개체는 돈 모양을 감싸는 상자이고, 돌지 않은 개체는 `width`·`height`와 같습니다.
 
 ### 클래스 `HwpxOxmlTableCell`
 

@@ -1366,6 +1366,28 @@ def object_size(element: Any) -> tuple[int, int]:
     return _number(size.get("width")) or 0, _number(size.get("height")) or 0
 
 
+def own_size(element: Any) -> tuple[int, int]:
+    """An object's own size as drawn, before it is turned -- what ``width``/``height`` read and ``resize`` takes.
+
+    Unturned, its box (``hp:sz``). Turned, the size Hancom writes it drawn at: ``hp:curSz``, on an axis where that
+    is 0 (Hancom writes 0 on an axis a resize left alone) its ``hp:orgSz``, and its ``hp:sz`` where neither is
+    written -- as written, also for an object Hancom's object properties skewed (its box stretched along the page),
+    which this only reads."""
+
+    box = object_size(element)
+    info = element.find(f"{_HP}rotationInfo")
+    if info is None or not (_number(info.get("angle")) or 0) % 360:
+        return box
+    current, original = element.find(f"{_HP}curSz"), element.find(f"{_HP}orgSz")
+    sides = []
+    for index, side in enumerate(("width", "height")):
+        value = _number(current.get(side)) if current is not None else None
+        if not value and original is not None:
+            value = _number(original.get(side))
+        sides.append(value or box[index])
+    return sides[0], sides[1]
+
+
 def keep_ratio(current: tuple[int, int], width: int | None, height: int | None) -> tuple[int, int]:
     """*width* x *height*, the one left ``None`` taken at *current*'s aspect ratio."""
 

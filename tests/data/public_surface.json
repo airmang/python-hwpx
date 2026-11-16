@@ -356,6 +356,8 @@
    "members": {
     "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
     "base_line": {"kind": "property", "settable": false, "returns": "int | None"},
+    "box_height": {"kind": "property", "settable": false, "returns": "int"},
+    "box_width": {"kind": "property", "settable": false, "returns": "int"},
     "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
     "copy_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "_Placed"},
     "description": {"kind": "property", "settable": true, "returns": "str"},
@@ -461,6 +463,8 @@
   "InlineObject": {
    "members": {
     "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "box_height": {"kind": "property", "settable": false, "returns": "int"},
+    "box_width": {"kind": "property", "settable": false, "returns": "int"},
     "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
     "copy_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "_Placed"},
     "description": {"kind": "property", "settable": true, "returns": "str"},
@@ -631,6 +635,8 @@
    "members": {
     "alpha": {"kind": "property", "settable": false, "returns": "int"},
     "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "box_height": {"kind": "property", "settable": false, "returns": "int"},
+    "box_width": {"kind": "property", "settable": false, "returns": "int"},
     "brightness": {"kind": "property", "settable": false, "returns": "int"},
     "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
     "contrast": {"kind": "property", "settable": false, "returns": "int"},
@@ -778,6 +784,8 @@
   "Shape": {
    "members": {
     "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "box_height": {"kind": "property", "settable": false, "returns": "int"},
+    "box_width": {"kind": "property", "settable": false, "returns": "int"},
     "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
     "copy_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "_Placed"},
     "description": {"kind": "property", "settable": true, "returns": "str"},

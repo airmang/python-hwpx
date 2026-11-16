@@ -176,14 +176,7 @@ def test_flipping_and_turning_write_what_hancom_wrote(hancom: str, instid: str, 
         (target.flip_horizontal, target.flip_vertical, target.rotation)
 
 
-#: Undone step by step with the values read before each step: ``width``/``height`` read a turned object's box, not the
-#: own size ``resize`` takes, so a case resizing a turned object is not undone so.
-GO_BACK = [case for case in CASES
-           if not any(name == "size" and "rotation" in [n for n, _ in case[2][:index]]
-                      for index, (name, _) in enumerate(case[2]))]
-
-
-@pytest.mark.parametrize(("hancom", "instid", "steps", "untouched"), GO_BACK, ids=[case[0] for case in GO_BACK])
+@pytest.mark.parametrize(("hancom", "instid", "steps", "untouched"), CASES, ids=[case[0] for case in CASES])
 def test_hancoms_flip_and_turn_go_back(hancom: str, instid: str, steps: list, untouched: str) -> None:
     original = _by_instid(HwpxDocument.open(HANCOM / f"{untouched}.hwpx"), instid)
     before = []  # each step's value before it, replayed on the untouched object
