@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 280 | 11 |
+| 개수 | 286 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -348,6 +348,9 @@ except HwpxError as exc:
 | `shape-chart-root-invalid` | 차트 XML 루트가 c:chartSpace 가 아니다. |
 | `shape-chart-xml-empty` | 차트 XML 이 비어 있다. |
 | `shape-chart-xml-malformed` | 차트 XML 이 올바른 XML 이 아니다. |
+| `shape-compose-arrangement-value` | 글자 겹치기 방식(arrangement)이 SPREAD·OVERLAP 밖이다. |
+| `shape-compose-frame-value` | 글자 겹치기 테두리(frame)가 스키마 어휘(CHAR, SHAPE_CIRCLE …) 밖이다. |
+| `shape-compose-text-value` | 글자 겹치기 글자가 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다. |
 | `shape-connector-frame` | 연결선을 이으려는 두 도형이 같은 기준에서 왼쪽·위로 놓여 있지 않다. |
 | `shape-connector-kind-unsupported` | 연결선 모양이 실증된 어휘(STRAIGHT, STROKE) 밖이다(ARC 는 제어점이 필요). |
 | `shape-connector-side-invalid` | 연결선 끝의 변이 top/right/bottom/left 밖이다. |
@@ -381,6 +384,9 @@ except HwpxError as exc:
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
 | `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다). |
 | `shape-rotation-value` | 회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부). |
+| `shape-ruby-alignment-value` | 덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다. |
+| `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
+| `shape-ruby-text-value` | 덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()). |
 | `shape-size-value` | 도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-z-order-value` | 개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부). |
 

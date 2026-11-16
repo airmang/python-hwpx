@@ -546,6 +546,12 @@ ERROR_CODES: dict[str, str] = {
     "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
     "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다).",
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
+    "shape-ruby-text-value": "덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()).",
+    "shape-ruby-position-value": "덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다.",
+    "shape-ruby-alignment-value": "덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다.",
+    "shape-compose-text-value": "글자 겹치기 글자가 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다.",
+    "shape-compose-frame-value": "글자 겹치기 테두리(frame)가 스키마 어휘(CHAR, SHAPE_CIRCLE …) 밖이다.",
+    "shape-compose-arrangement-value": "글자 겹치기 방식(arrangement)이 SPREAD·OVERLAP 밖이다.",
     # -- 미디어 ----------------------------------------------------------
     "media-picture-not-found": "picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서).",
     "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",

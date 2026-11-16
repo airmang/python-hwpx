@@ -33,7 +33,7 @@ from .form_field import (
     Hyperlink,
     TextBoxField,
 )
-from .highlight import Highlight
+from .highlight import ComposedCharacter, Highlight, Ruby
 from .results import (
     Alignment,
     BorderFillInfo,
@@ -98,10 +98,12 @@ __all__ = [
     "CheckBox",
     "ClearBodyReport",
     "ComboBox",
+    "ComposedCharacter",
     "CrossReference",
     "EditBox",
     "Hyperlink",
     "RadioButton",
+    "Ruby",
     "ColumnLayout",
     "FieldFillResult",
     "FieldLocation",
