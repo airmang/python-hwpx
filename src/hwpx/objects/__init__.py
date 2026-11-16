@@ -21,10 +21,21 @@ WP-A는 이 패키지의 자리만 만든다. 내용은 WP-C가 채운다 — �
 from __future__ import annotations
 
 from .binary_item import BinaryItem, PictureRef
-from .checkbox import CheckBox
-from .form_field import Bookmark, CellField, FieldLocation, FieldParameter, FormField, FormulaField, TextBoxField
+from .checkbox import CheckBox, ComboBox, EditBox, RadioButton
+from .form_field import (
+    Bookmark,
+    CellField,
+    CrossReference,
+    FieldLocation,
+    FieldParameter,
+    FormField,
+    FormulaField,
+    Hyperlink,
+    TextBoxField,
+)
 from .highlight import Highlight
 from .results import (
+    Alignment,
     BorderFillInfo,
     BorderLine,
     CellMargins,
@@ -32,7 +43,12 @@ from .results import (
     ColumnLayout,
     FieldFillResult,
     FontReplaceReport,
+    LineSpacing,
+    LineSpacingType,
     ListFormatResult,
+    NumberingInfo,
+    NumberingLevel,
+    ObjectPosition,
     PageMargins,
     PageSetup,
     PageSize,
@@ -57,6 +73,7 @@ from .results import (  # 쪽·구역 설정의 읽기 값 (doc.page / doc.parts
 from .tracked import TrackedChange, TrackedReplacement
 
 __all__ = [
+    "Alignment",
     "AutoNumber",
     "BeginNumbers",
     "ColumnDefinition",
@@ -78,15 +95,25 @@ __all__ = [
     "CellMargins",
     "CheckBox",
     "ClearBodyReport",
+    "ComboBox",
+    "CrossReference",
+    "EditBox",
+    "Hyperlink",
+    "RadioButton",
     "ColumnLayout",
     "FieldFillResult",
     "FieldLocation",
     "FieldParameter",
     "FontReplaceReport",
+    "LineSpacing",
+    "LineSpacingType",
     "FormField",
     "FormulaField",
     "Highlight",
     "ListFormatResult",
+    "NumberingInfo",
+    "NumberingLevel",
+    "ObjectPosition",
     "PageMargins",
     "PageSetup",
     "PageSize",

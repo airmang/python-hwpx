@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
@@ -27,6 +27,19 @@ from ._paragraph_text_edit import (
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
+
+
+def text_element_content(element: ET.Element, *, tab_token: str = "\t") -> str:
+    """The text of an ``hp:t`` element as Hancom shows it.
+
+    Hancom writes tabs, line breaks and special spaces *inside* ``hp:t``
+    (``<hp:t>성<hp:fwSpace/>명<hp:tab/>홍길동</hp:t>``): a tab is *tab_token*, a line
+    break ``"\\n"``, a special space its character. Other element children keep their
+    own text; empty marks (highlight, tracked change) add nothing. ``Run.text`` is the
+    run's ``hp:t`` elements read so. Works on lxml and ElementTree elements.
+    """
+
+    return _text_element_content(element, tab=tab_token)
 
 
 #: The closed vocabulary :meth:`HwpxOxmlRun.content_kinds` answers in.
@@ -104,9 +117,30 @@ class RunStyle:
     id: str
     attributes: dict[str, str]
     child_attributes: dict[str, dict[str, str]]
+    #: The face each language's ``hh:fontRef`` names (``"HANGUL"`` .. ``"USER"`` -> face).
+    fonts: dict[str, str] = field(default_factory=dict)
 
     def text_color(self) -> str | None:
         return self.attributes.get("textColor")
+
+    @property
+    def color(self) -> str | None:
+        """The text colour (``textColor``), as :meth:`text_color` returns it."""
+        return self.attributes.get("textColor")
+
+    @property
+    def size(self) -> float | None:
+        """The character size in points (``height`` / 100), or ``None`` without one."""
+        height = self.attributes.get("height")
+        try:
+            return None if height is None else int(height) / 100
+        except ValueError:
+            return None
+
+    @property
+    def font(self) -> str | None:
+        """The Hangul face of the shape (``fonts["HANGUL"]``)."""
+        return self.fonts.get("HANGUL")
 
     def underline_type(self) -> str | None:
         underline = self.child_attributes.get("underline")
@@ -154,6 +188,27 @@ class RunStyle:
         return True
 
 
+def _font_faces_by_lang(ref_list: ET.Element) -> dict[str, dict[str, str]]:
+    """Each ``hh:fontface`` block's fonts: lang (``HANGUL`` ..) -> font id -> face."""
+
+    faces: dict[str, dict[str, str]] = {}
+    for fontface in ref_list.iter(f"{_HH}fontface"):
+        faces.setdefault((fontface.get("lang") or "").upper(), {
+            font.get("id") or "": font.get("face") or "" for font in fontface.findall(f"{_HH}font")
+        })
+    return faces
+
+
+def _named_fonts(faces: dict[str, dict[str, str]], refs: dict[str, str]) -> dict[str, str]:
+    """The face a ``hh:fontRef`` (*refs*, ``hangul`` -> id ..) names in each language."""
+
+    return {
+        lang: faces[lang][refs[lang.lower()]]
+        for lang in faces
+        if lang.lower() in refs and refs[lang.lower()] in faces[lang]
+    }
+
+
 def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
     mapping: dict[str, RunStyle] = {}
     ref_list = element.find(f"{_HH}refList")
@@ -163,6 +218,7 @@ def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
     if char_props_element is None:
         return mapping
 
+    faces = _font_faces_by_lang(ref_list)
     for child in char_props_element.findall(f"{_HH}charPr"):
         char_id = child.get("id")
         if not char_id:
@@ -174,7 +230,8 @@ def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
                 child_attributes[_element_local_name(grandchild)] = {
                     key: value for key, value in grandchild.attrib.items()
                 }
-        style = RunStyle(id=char_id, attributes=attributes, child_attributes=child_attributes)
+        fonts = _named_fonts(faces, child_attributes.get("fontRef", {}))
+        style = RunStyle(id=char_id, attributes=attributes, child_attributes=child_attributes, fonts=fonts)
         if char_id not in mapping:
             mapping[char_id] = style
         try:
@@ -687,4 +744,130 @@ class HwpxOxmlRun:
     def underline(self, value: bool | None) -> None:
         self._apply_format_change(underline=value)
 
-__all__ = ["RUN_CONTENT_KINDS", "HwpxOxmlRun", "RunStyle", "replace_across_runs"]
+    # -- Character formats read and written on this run alone ----------------
+    #
+    # Reads come from the run's own ``hh:charPr``; ``None`` when the run has none.
+    # A write gives the run a derived character shape (the old one copied and
+    # changed, or an existing one with that content): other runs that shared the
+    # old shape keep it, and writing a value the run has changes nothing.
+
+    def _char_value(self, name: str) -> Any:
+        from .formatting import char_value
+
+        return char_value(self, name)
+
+    def set_format(self, **changes: Any) -> None:
+        """Change several character formats of this run at once (one derived shape).
+
+        Takes ``size`` (pt), ``font`` (a face for every language), ``font_by_lang``
+        (language -> face, as ``doc.styles.ensure_run``), ``color``, ``highlight``
+        (``"none"`` takes it off), ``bold``, ``italic``, ``underline``, ``strike``,
+        ``superscript``, ``subscript``, ``letter_spacing`` (자간 %, -50..50) and
+        ``ratio`` (장평 %, 50..200). Left out or ``None`` means unchanged. An unknown
+        name or a value out of range is refused before anything changes.
+        """
+
+        from .formatting import set_run_format
+
+        set_run_format(self, changes)
+
+    @property
+    def size(self) -> float | None:
+        """The character size in points (``10.0`` for Hancom's default)."""
+        return self._char_value("size")
+
+    @size.setter
+    def size(self, value: float) -> None:
+        self.set_format(size=value)
+
+    @property
+    def font(self) -> str | None:
+        """The face of the run's Hangul text. Setting it sets the face of every
+        language (Hangul, Latin, Hanja, ...), as Hancom's representative font does;
+        :meth:`set_font` names the languages."""
+
+        from .formatting import run_font
+
+        return run_font(self)
+
+    @font.setter
+    def font(self, value: str) -> None:
+        self.set_format(font=value)
+
+    def set_font(self, face: str, *, lang: "str | Sequence[str] | None" = None) -> None:
+        """Use *face* for the languages *lang* (``"HANGUL"``, ``"LATIN"``, ... or several;
+        ``None`` for all seven). A face a language does not declare is declared there."""
+
+        if lang is None:
+            self.set_format(font=face)
+            return
+        langs = [lang] if isinstance(lang, str) else list(lang)
+        self.set_format(font_by_lang={name: face for name in langs})
+
+    @property
+    def color(self) -> str | None:
+        """The text colour as stored (``"#000000"``)."""
+        return self._char_value("color")
+
+    @color.setter
+    def color(self, value: str) -> None:
+        self.set_format(color=value)
+
+    @property
+    def highlight(self) -> str | None:
+        """The shade colour behind the text (``shadeColor``), ``None`` without one.
+        Setting ``None`` takes it off. (A marker-pen highlight, ``add_highlight``, is
+        a mark in the text, not this.)"""
+        return self._char_value("highlight")
+
+    @highlight.setter
+    def highlight(self, value: str | None) -> None:
+        self.set_format(highlight="none" if value is None else value)
+
+    @property
+    def strike(self) -> bool | None:
+        """Whether the run is struck through."""
+        return self._char_value("strike")
+
+    @strike.setter
+    def strike(self, value: bool) -> None:
+        self.set_format(strike=value)
+
+    @property
+    def superscript(self) -> bool | None:
+        """Whether the run is superscript (``hh:supscript``). Setting it ``True`` drops subscript."""
+        return self._char_value("superscript")
+
+    @superscript.setter
+    def superscript(self, value: bool) -> None:
+        self.set_format(superscript=value)
+
+    @property
+    def subscript(self) -> bool | None:
+        """Whether the run is subscript (``hh:subscript``). Setting it ``True`` drops superscript."""
+        return self._char_value("subscript")
+
+    @subscript.setter
+    def subscript(self, value: bool) -> None:
+        self.set_format(subscript=value)
+
+    @property
+    def letter_spacing(self) -> int | None:
+        """자간: the spacing between characters in percent of the size (Hangul's; a write sets every language's)."""
+        return self._char_value("letter_spacing")
+
+    @letter_spacing.setter
+    def letter_spacing(self, value: int) -> None:
+        self.set_format(letter_spacing=value)
+
+    @property
+    def ratio(self) -> int | None:
+        """장평: the width of the characters in percent (Hangul's; a write sets every language's)."""
+        return self._char_value("ratio")
+
+    @ratio.setter
+    def ratio(self, value: int) -> None:
+        self.set_format(ratio=value)
+
+
+__all__ = ["RUN_CONTENT_KINDS", "HwpxOxmlRun", "RunStyle", "replace_across_runs", "text_element_content"]

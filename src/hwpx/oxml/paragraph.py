@@ -30,7 +30,7 @@ from ._document_primitives import (
 from .namespaces import XML_NS, tag_local_name
 from .drop_cap import _paragraph_add_drop_cap
 from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
-from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters, hyperlink_target
+from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters
 from .field_marks import (
     field_type_id,
     _paragraph_add_date_field,
@@ -45,6 +45,7 @@ from .note_authoring import (
     _paragraph_footnotes,
 )
 from ._paragraph_text_edit import (
+    ParagraphFormats,
     edit_node_candidates,
     insert_paragraph_beside,
     paragraph_container,
@@ -54,8 +55,12 @@ from ._paragraph_text_edit import (
     text_marks_as_elements_in,
 )
 from .objects import (
+    HwpxOxmlEquation,
     HwpxOxmlInlineObject,
     _missing_shape_children,
+    _paragraph_equations,
+    _paragraph_objects,
+    _paragraph_pictures,
     _paragraph_add_arc,
     _paragraph_add_container,
     _paragraph_add_ellipse,
@@ -76,6 +81,7 @@ from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
 
 if TYPE_CHECKING:
+    from ..objects.form_field import Hyperlink
     from .section import HwpxOxmlSection
 
 
@@ -108,7 +114,7 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
 
 
 @dataclass
-class HwpxOxmlParagraph:
+class HwpxOxmlParagraph(ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element."""
 
     element: ET.Element
@@ -596,6 +602,34 @@ class HwpxOxmlParagraph:
                     tables.append(HwpxOxmlTable(child, self))
         return tables
 
+    def clear_layout_cache(self) -> int:
+        """Drop this paragraph's line layout cache (``hp:linesegarray``) so Hancom lays it out again.
+
+        Also of the paragraphs holding it (the cell's or caption's table's paragraph,
+        up to the body): their line is as tall as what they hold. Call it after changing
+        the paragraph's text, size or placement through the XML; the editing methods do
+        it themselves. A cache left over from before makes Hancom draw lines over each
+        other. Returns how many caches went (0 when there were none).
+        """
+
+        removed = _clear_paragraph_layout_cache(self.element)
+        if removed:
+            self.section.mark_dirty()
+        return removed
+
+    @property
+    def available_width(self) -> int | None:
+        """The width this paragraph's content can use, in HWPUNIT, before its own margins.
+
+        In a table cell, the cell's width less its inner margins (``cell.margins``); in
+        the body, the section's text width (the page as drawn less its left, right and
+        gutter margins), or the column's width where a multi-column layout is in effect
+        (the narrowest column when they differ). ``None`` when that cannot be read. This
+        is the width a table added to the paragraph takes by default.
+        """
+
+        return self._context_table_width()
+
     def _context_table_width(self) -> int | None:
         """Hancom-like default table width for this paragraph's context.
 
@@ -783,6 +817,9 @@ class HwpxOxmlParagraph:
     add_connector = _paragraph_add_connector
     add_container = _paragraph_add_container
     shapes = property(_paragraph_shapes)
+    objects = property(_paragraph_objects)
+    pictures = property(_paragraph_pictures)
+    equations = property(_paragraph_equations)
 
     # Implementations live in ``oxml/dutmal_compose.py`` -- ``objects.py``
     # (the shape-helpers' own overflow destination above) itself has no
@@ -1256,7 +1293,7 @@ class HwpxOxmlParagraph:
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         font: str = "HancomEQN",
-    ) -> HwpxOxmlInlineObject:
+    ) -> HwpxOxmlEquation:
         """Insert an inline ``<hp:equation>`` carrying an EqEdit *script*.
 
         Emits the real-Hancom equation shape (contract inferred in
@@ -1336,7 +1373,7 @@ class HwpxOxmlParagraph:
         script_element = _append_child(equation, f"{_HP}script", {})
         script_element.text = text
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(equation, self)
+        return HwpxOxmlEquation(equation, self)
 
     def add_form_field(
         self,
@@ -1548,23 +1585,23 @@ class HwpxOxmlParagraph:
         return names
 
     @property
-    def hyperlinks(self) -> list[dict[str, str]]:
-        """Return metadata for all hyperlinks in this paragraph.
+    def hyperlinks(self) -> "tuple[Hyperlink, ...]":
+        """The hyperlinks that start in this paragraph, as :class:`hwpx.objects.Hyperlink`.
 
-        Each dict has ``id``, ``url`` (the target: ``Path``, else ``Command``,
-        else ``@name`` -- see ``hyperlink_form.hyperlink_target``) and ``type``.
+        ``link.url`` is the target (``Path``, else ``Command``, else ``@name`` --
+        see ``hyperlink_form.hyperlink_target``) and ``link.text`` the text it spans;
+        both are settable. Before 7.0 this gave dicts; ``link["url"]`` still reads,
+        with a ``DeprecationWarning``.
         """
-        result: list[dict[str, str]] = []
-        for run in self._run_elements():
-            for ctrl in run.findall(f"{_HP}ctrl"):
-                for fb in ctrl.findall(f"{_HP}fieldBegin"):
-                    if fb.get("type") == "HYPERLINK":
-                        result.append({
-                            "id": fb.get("id", ""),
-                            "url": hyperlink_target(fb),
-                            "type": fb.get("type", ""),
-                        })
-        return result
+        from ..objects.form_field import Hyperlink
+
+        return tuple(
+            Hyperlink(fb, self)
+            for run in self._run_elements()
+            for ctrl in run.findall(f"{_HP}ctrl")
+            for fb in ctrl.findall(f"{_HP}fieldBegin")
+            if fb.get("type") == "HYPERLINK"
+        )
 
     # Footnote/endnote authoring lives in note_authoring.py (owner-file
     # headroom, see class-attribute assignments near the top of this class).

@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 250 | 11 |
+| 개수 | 274 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -104,6 +104,7 @@ except HwpxError as exc:
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
 | `field-checkbox-not-found` | 그 선택자로 체크박스를 찾지 못했다. |
+| `field-choice-unknown` | 직접 입력할 수 없는 콤보 상자에 그 항목이 없다(combo_box.items 로 항목을 본다). |
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-end-missing` | 누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다). |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
@@ -191,6 +192,7 @@ except HwpxError as exc:
 |---|---|
 | `note-anchor-detached` | 앵커를 걸 문단이 섹션에 속해 있지 않다. |
 | `note-argument-conflict` | 앵커 없는 메모에 앵커 전용 인자를 줬다. |
+| `note-match-not-found` | 메모를 걸 글(match)이 그 문단의 한 런 안에 없다. |
 | `note-memo-detached` | 메모가 섹션에 속해 있지 않다. |
 
 ### `open-*`
@@ -241,9 +243,11 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `paragraph-alignment-invalid` | 문단 정렬 값이 LEFT/CENTER/RIGHT/JUSTIFY/DISTRIBUTE/DISTRIBUTE_SPACE 밖이다. |
 | `paragraph-argument-conflict` | paragraph_index·paragraph_indexes·paragraphs 중 둘 이상을 동시에 지정했다. |
 | `paragraph-border-invalid` | 문단 테두리(border) 지정에 모르는 키·면이 있거나 여백이 네 개의 0 이상 수가 아니다. |
 | `paragraph-format-empty` | 적용할 문단 서식 항목이 하나도 없다. |
+| `paragraph-format-invalid` | 문단 서식 값의 형이 틀렸거나 범위 밖이다(여백·간격은 수, 간격은 음수 불가, 줄 나눔 기준·condense 어휘). |
 | `paragraph-index-mark-empty-key` | 찾아보기 표시의 first/second 키가 빈 문자열이다. |
 | `paragraph-index-mark-no-text-run` | 문단에 hp:t를 가진 run이 없어 indexmark를 넣을 자리가 없다. |
 | `paragraph-indexes-empty` | paragraph_indexes 또는 paragraphs 가 비어 있다. |
@@ -254,9 +258,12 @@ except HwpxError as exc:
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
 | `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
+| `paragraph-range-invalid` | 글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다. |
 | `paragraph-remove-last` | 구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container). |
 | `paragraph-remove-section-settings` | 구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)을 담은 문단 뒤에 옮겨 받을 문단이 없어 지울 수 없다. |
 | `paragraph-run-section-settings` | 구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)만 담은 run은 지울 수 없다. |
+| `paragraph-split-inside-element` | 나눌 위치가 hp:t 안의 나눌 수 없는 요소(글자를 가진 요소) 한가운데다. |
+| `paragraph-style-char-type` | 문단에 글자 스타일(type CHAR)을 적용하려 했다. |
 | `paragraph-tab-leader-invalid` | 탭 정지 leader 값이 OWPML 어휘(hc:LineType2) 밖이다. |
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
 | `paragraph-tab-target-required` | 탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다. |
@@ -297,6 +304,14 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `recover-unsafe` | 로컬 헤더 항목이 있지만 안전하게 복구할 수 없다. |
+
+### `ref-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `ref-bookmark-name-empty` | 책갈피 이름이 비어 있다. |
+| `ref-link-end-missing` | 하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다. |
+| `ref-link-target-empty` | 하이퍼링크 대상이 비어 있다. |
 
 ### `save-*`
 
@@ -345,6 +360,7 @@ except HwpxError as exc:
 | `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
 | `shape-container-picture-image` | 그룹의 그림 부재(ContainerMember.picture)에 그림 이진 항목을 안 줬다. |
 | `shape-curve-too-few-points` | add_curve 에 앵커를 2개(닫으면 3개) 미만으로 줬다. |
+| `shape-description-value` | 개체 설명(hp:shapeComment)이 str 이 아니다. |
 | `shape-draw-text-vert-align` | 도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다. |
 | `shape-drop-cap-anchor-detached` | 만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기). |
 | `shape-drop-cap-character-empty` | 드롭캡으로 키울 문자가 비어 있다. |
@@ -357,6 +373,7 @@ except HwpxError as exc:
 | `shape-equation-script-latex` | 수식 스크립트에 LaTeX 명령(\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다). |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
+| `shape-group-member-unsupported` | 묶음(hp:container) 안의 개체는 혼자 지우거나 돌리거나 설명을 달 수 없다(묶음째 다룬다). |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
@@ -367,7 +384,10 @@ except HwpxError as exc:
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
+| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다). |
+| `shape-rotation-value` | 회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부). |
 | `shape-size-value` | 도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `shape-z-order-value` | 개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부). |
 
 ### `story-*`
 
@@ -383,6 +403,7 @@ except HwpxError as exc:
 |---|---|
 | `style-ambiguous` | 같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉). |
 | `style-argument-conflict` | style 과 style_id_ref 를 동시에 지정했다. |
+| `style-border-base-conflict` | base_border_fill_id 와 함께 sides·fill_color 밖의 테두리 인자를 주었다. |
 | `style-border-fill-conflict` | fill_color/fill_image/fill_gradient 를 둘 이상 동시에 지정했다. |
 | `style-border-fill-gradient-colors-invalid` | fill_gradient 의 colors 가 2개 미만이다. |
 | `style-border-fill-gradient-type-invalid` | fill_gradient 의 type 값이 OWPML 어휘(LINEAR/RADIAL/CONICAL/SQUARE) 밖이다. |
@@ -393,12 +414,15 @@ except HwpxError as exc:
 | `style-border-side-invalid` | ensure_border_fill 의 sides 에 모르는 면이나 type·width·color 밖의 키를 주었다. |
 | `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
+| `style-definition-not-found` | 기준으로 준 글자 모양·문단 모양·탭·테두리 정의 id 가 헤더에 없다. |
 | `style-font-container-create-failed` | fontfaces/fontface 컨테이너를 만들지 못했다. |
 | `style-font-face-empty` | face 값이 비어 있다. |
 | `style-font-lang-invalid` | lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다. |
 | `style-font-replace-same-face` | replace_font 의 src_face 와 dst_face 가 같은 글꼴이다. |
 | `style-font-substitute-incomplete` | 대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다). |
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
+| `style-format-empty` | set_style_format 에 고칠 서식이 하나도 없다. |
+| `style-in-use` | 지우려는 스타일을 쓰는 문단이 있는데 replacement 를 주지 않았다(또는 replacement 가 그 스타일이다). |
 | `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
 | `style-list-continue-conflict` | continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다). |
 | `style-list-kind-invalid` | 목록 종류(kind)가 bullet/number/outline 밖이다. |
@@ -409,7 +433,10 @@ except HwpxError as exc:
 | `style-memo-shape-memo-type-invalid` | 메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다. |
 | `style-not-found` | 그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉). |
 | `style-number-format-invalid` | 번호 형식이 한컴 번호 모양 밖이다(목록·개요 머리와 쪽 번호는 hc:NumberType1 15개, 각주·미주 번호는 hc:NumberType2 19개). |
+| `style-remove-default` | 첫 스타일(id 0, 바탕글)은 지울 수 없다. |
 | `style-run-font-by-lang-invalid` | font_by_lang 이 언어 이름 → 글꼴 이름 매핑이 아니다(문자열 아닌 키·값, 같은 언어 두 번). |
+| `style-run-format-empty` | 바꿀 글자 서식이 하나도 없다. |
+| `style-run-format-invalid` | 글자 서식 이름이 모르는 것이거나 값의 형·범위가 틀렸다(자간 -50~50, 장평 50~200, 위·아래 첨자 동시). |
 | `style-run-outline-type-invalid` | ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다. |
 | `style-run-size-value` | 글자 크기(size, pt)가 0 이상의 수가 아니거나 너무 크다(음수는 0으로 쓰였다). |
 | `style-tab-container-create-failed` | tabProperties 컨테이너를 만들지 못했다. |
@@ -454,10 +481,12 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `track-change-not-found` | 그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다). |
 | `track-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `track-match-empty` | 찾을 문자열이 비어 있다. |
 | `track-match-not-found` | 문단에서 찾을 문자열을 찾지 못했다. |
 | `track-paragraph-empty` | 지울 텍스트가 문단에 없다. |
+| `track-selector-conflict` | 수락·거절할 변경을 change 와 author 로 함께 골랐다(하나만 준다). |
 | `track-text-empty` | 변경추적 삽입 텍스트가 비어 있다. |
 
 ### `unknown-*`

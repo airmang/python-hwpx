@@ -12,6 +12,7 @@ frozen with no settable fields.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -77,6 +78,51 @@ class PictureReplacement:
             "itemId": self.item_id,
             "previousItemId": self.previous_item_id,
             "removedOrphans": list(self.removed_orphans),
+        }
+
+
+@dataclass(frozen=True)
+class ObjectPosition:
+    """Where an object (picture, equation, shape, chart, table...) sits, as ``obj.position`` reads it.
+
+    The names are the ones ``obj.set_position(...)`` takes. *treat_as_char*: one character in its
+    line (``True``) or floating (``False``). *text_wrap* (the object's ``textWrap``: ``SQUARE``,
+    ``TIGHT``, ``THROUGH``, ``TOP_AND_BOTTOM``, ``BEHIND_TEXT``, ``IN_FRONT_OF_TEXT``) and
+    *text_flow* (``textFlow``: ``BOTH_SIDES``, ``LEFT_ONLY``, ``RIGHT_ONLY``, ``LARGEST_ONLY``) say
+    how the body text goes around it. *horz_rel_to*/*vert_rel_to* are the frames the offsets count
+    from (``PAPER``, ``PAGE``, ``COLUMN``, ``PARA``), *horz_align*/*vert_align* the alignment in
+    them, and *horizontal_offset*/*vertical_offset* the offsets in HWPUNIT (signed: Hancom stores a
+    negative one in its unsigned 32-bit form). *flow_with_text* keeps it inside the page body and
+    *allow_overlap* lets it overlap other objects. A value the object does not carry is ``None``
+    (an object without ``hp:pos`` -- a member of a group -- reads ``None`` throughout but
+    *treat_as_char*, which is then ``False``). A snapshot: it does not follow later edits.
+    """
+
+    treat_as_char: bool
+    text_wrap: str | None
+    text_flow: str | None
+    horz_rel_to: str | None
+    vert_rel_to: str | None
+    horz_align: str | None
+    vert_align: str | None
+    horizontal_offset: int | None
+    vertical_offset: int | None
+    flow_with_text: bool | None
+    allow_overlap: bool | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "treatAsChar": self.treat_as_char,
+            "textWrap": self.text_wrap,
+            "textFlow": self.text_flow,
+            "horzRelTo": self.horz_rel_to,
+            "vertRelTo": self.vert_rel_to,
+            "horzAlign": self.horz_align,
+            "vertAlign": self.vert_align,
+            "horizontalOffset": self.horizontal_offset,
+            "verticalOffset": self.vertical_offset,
+            "flowWithText": self.flow_with_text,
+            "allowOverlap": self.allow_overlap,
         }
 
 
@@ -353,6 +399,111 @@ class FontReplaceReport:
             "repointed": self.repointed,
             "declared": list(self.declared),
         }
+
+
+class Alignment(str, Enum):
+    """A paragraph's horizontal alignment (``hh:align/@horizontal``), read by
+    ``paragraph.alignment``. A ``str`` too: ``p.alignment == "CENTER"`` holds."""
+
+    LEFT = "LEFT"
+    CENTER = "CENTER"
+    RIGHT = "RIGHT"
+    JUSTIFY = "JUSTIFY"
+    DISTRIBUTE = "DISTRIBUTE"
+    DISTRIBUTE_SPACE = "DISTRIBUTE_SPACE"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class LineSpacingType(str, Enum):
+    """How a paragraph's line spacing is measured (``hh:lineSpacing/@type``)."""
+
+    PERCENT = "PERCENT"
+    FIXED = "FIXED"
+    BETWEEN_LINES = "BETWEEN_LINES"
+    AT_LEAST = "AT_LEAST"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True)
+class LineSpacing:
+    """A paragraph's line spacing (``paragraph.line_spacing``).
+
+    ``value`` is a percentage of the character size for ``PERCENT`` (160 is
+    Hancom's default) and a length in HWPUNIT (1/7200 inch, 100 per point) for
+    ``FIXED``, ``BETWEEN_LINES`` and ``AT_LEAST``: the value Hancom shows in its
+    paragraph dialog, the ``hp:case`` branch of the paragraph shape.
+    """
+
+    type: LineSpacingType
+    value: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "type", LineSpacingType(str(getattr(self.type, "value", self.type)).upper()))
+        object.__setattr__(self, "value", int(self.value))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": self.type.value, "value": self.value}
+
+
+@dataclass(frozen=True)
+class NumberingLevel:
+    """One level (``hh:paraHead``) of a numbering definition.
+
+    ``text`` is the level's number pattern as stored (``"^1."``: ``^n`` stands
+    for the number of level *n*); ``number_format`` the digit style
+    (``DIGIT``, ``HANGUL_SYLLABLE``, ``CIRCLED_DIGIT``, ...); ``char_pr_id_ref``
+    the character shape of the number, ``None`` when it follows the text
+    (Hancom writes 4294967295 for that).
+    """
+
+    level: int
+    start: int
+    number_format: str
+    text: str
+    align: str
+    char_pr_id_ref: str | None
+    auto_indent: bool
+    width_adjust: int
+    text_offset: int
+    text_offset_type: str
+    checkable: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "level": self.level,
+            "start": self.start,
+            "numberFormat": self.number_format,
+            "text": self.text,
+            "align": self.align,
+            "charPrIdRef": self.char_pr_id_ref,
+            "autoIndent": self.auto_indent,
+            "widthAdjust": self.width_adjust,
+            "textOffset": self.text_offset,
+            "textOffsetType": self.text_offset_type,
+            "checkable": self.checkable,
+        }
+
+
+@dataclass(frozen=True)
+class NumberingInfo:
+    """A typed read of one ``hh:numbering`` (``doc.styles.numbering_info``),
+    its levels in document order. A snapshot: later header edits do not show."""
+
+    id: str
+    start: int
+    levels: tuple[NumberingLevel, ...]
+
+    def level(self, level: int) -> NumberingLevel | None:
+        """The level numbered *level* (1 is the first), or ``None``."""
+
+        return next((item for item in self.levels if item.level == level), None)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "start": self.start, "levels": [item.to_dict() for item in self.levels]}
 
 
 # -- 쪽·구역 설정의 읽기 값 (doc.page.* / doc.parts.*) ------------------------
@@ -716,6 +867,7 @@ class ObjectPlace:
 
 
 __all__ = [
+    "Alignment",
     "ObjectPlace",
     "ParagraphPlace",
     "AutoNumber",
@@ -735,7 +887,12 @@ __all__ = [
     "ColumnLayout",
     "FieldFillResult",
     "FontReplaceReport",
+    "LineSpacing",
+    "LineSpacingType",
     "ListFormatResult",
+    "NumberingInfo",
+    "NumberingLevel",
+    "ObjectPosition",
     "PageMargins",
     "PageSetup",
     "PageSize",

@@ -888,7 +888,7 @@ class Header:
                 id=author_id,
                 raw_id=None,
                 name=resolved_author,
-                mark=author_id,
+                mark=True,  # xs:boolean (Hancom writes mark="1"); the id is no mark
                 color=None,
             )
             author_list.authors.append(author)
