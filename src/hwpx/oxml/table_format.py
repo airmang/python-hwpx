@@ -555,7 +555,7 @@ class TableFormat:
             return (position.get("horzAlign") if position is not None else None) or "LEFT"
         model = self.paragraph.section.document
         shape = model.paragraph_property(self.paragraph.element.get("paraPrIDRef")) if model else None
-        horizontal = shape.align.horizontal if shape is not None and shape.align is not None else None
+        horizontal = shape.alignment.horizontal if shape is not None and shape.alignment is not None else None
         return horizontal if horizontal in ("CENTER", "RIGHT") else "LEFT"
 
     def set_alignment(self, alignment: str) -> None:

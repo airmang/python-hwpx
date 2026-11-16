@@ -446,6 +446,13 @@ NAMES: dict[str, dict[str, Removed]] = {
     "Font": {
         "binary_item_id_ref": _gone("Font.item_id", "Font.binary_item_id_ref는 7.0에서 item_id이다", kind="property"),
     },
+    # spec 밖(WP3): Font.substitution 의 형식도 같은 이름으로(N7).
+    "FontSubstitution": {
+        "binary_item_id_ref": _gone(
+            "FontSubstitution.item_id", "FontSubstitution.binary_item_id_ref는 7.0에서 item_id이다(Font.item_id와 같게)",
+            kind="property",
+        ),
+    },
     "ParagraphProperty": {
         "align": _gone("ParagraphProperty.alignment", "ParagraphProperty.align은 7.0에서 alignment이다", kind="property"),
     },
@@ -756,6 +763,7 @@ _PUBLIC_NAMES: dict[str, str] = {
 _OWNER_PATHS: dict[str, str] = {
     "RunStyle": "hwpx.oxml.run:RunStyle",
     "Font": "hwpx.oxml.header:Font",
+    "FontSubstitution": "hwpx.oxml.header:FontSubstitution",
     "ParagraphProperty": "hwpx.oxml.header:ParagraphProperty",
     "Caption": "hwpx.oxml.objects:Caption",
 }

@@ -401,9 +401,9 @@
 - `SectionStartNumbering`: 섹션 수준의 카운터와 페이지 시작 동작을 추적합니다.
 - `DocumentNumbering`: 전체 문서의 기본 번호 매기기 값입니다.
 - `RunStyle`: 확인된 런 서식을 캡슐화하며 다음을 제공합니다:
-  - `text_color()`: 런의 색상 (설정된 경우)을 반환합니다.
-  - `underline_type()`: 밑줄 스타일을 확인합니다.
-  - `underline_color()`: 밑줄 색상을 확인합니다.
+  - `color`: 런의 색상(설정된 경우)인 속성입니다(6.x의 `text_color()`).
+  - `underline_type`·`underline_color`·`outline_type`: 밑줄 모양·밑줄 색·외곽선 모양 속성입니다(7.0부터 속성).
+  - `superscript`·`subscript`·`emboss`·`engrave`: 위첨자·아래첨자·양각·음각 여부(bool) 속성입니다(6.x의 `is_*()`).
   - `matches(...)`: 색상/밑줄 일치를 위한 편의 술어(predicate)입니다.
 
 ### 클래스 `HwpxOxmlSectionHeaderFooter`

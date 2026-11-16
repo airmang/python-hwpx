@@ -392,8 +392,8 @@
   },
   "HeaderPart": {
    "members": {
-    "border_fill": {"kind": "method", "params": [["border_fill_id_ref", "P", false]], "returns": "GenericElement | None"},
-    "border_fills": {"kind": "property", "settable": false, "returns": "dict[str, GenericElement]"},
+    "border_fill": {"kind": "method", "params": [["border_fill_id_ref", "P", false]], "returns": "BorderFillInfo | None"},
+    "border_fills": {"kind": "property", "settable": false, "returns": "dict[str, BorderFillInfo]"},
     "bullet": {"kind": "method", "params": [["bullet_id_ref", "P", false]], "returns": "Bullet | None"},
     "bullets": {"kind": "property", "settable": false, "returns": "dict[str, Bullet]"},
     "memo_shape": {"kind": "method", "params": [["memo_shape_id_ref", "P", false]], "returns": "MemoShape | None"},
@@ -669,7 +669,7 @@
     "bold": {"kind": "property", "settable": true, "returns": "bool | None"},
     "char_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "color": {"kind": "property", "settable": true, "returns": "str | None"},
-    "content_kinds": {"kind": "method", "params": [], "returns": "frozenset[str]"},
+    "content_kinds": {"kind": "property", "settable": false, "returns": "frozenset[str]"},
     "font": {"kind": "property", "settable": true, "returns": "str | None"},
     "fonts": {"kind": "property", "settable": false, "returns": "LanguageFonts"},
     "highlight": {"kind": "property", "settable": true, "returns": "str | None"},
@@ -677,7 +677,7 @@
     "letter_spacing": {"kind": "property", "settable": true, "returns": "int | None"},
     "ratio": {"kind": "property", "settable": true, "returns": "int | None"},
     "remove": {"kind": "method", "params": [], "returns": "None"},
-    "replace_text": {"kind": "method", "params": [["search", "P", false], ["replacement", "P", false], ["count", "K", true], ["_clear_layout", "K", true]], "returns": "int"},
+    "replace_text": {"kind": "method", "params": [["search", "P", false], ["replacement", "P", false], ["count", "K", true]], "returns": "int"},
     "set_font": {"kind": "method", "params": [["face", "P", false], ["lang", "K", true]], "returns": "None"},
     "set_format": {"kind": "method", "params": [["changes", "VK", false]], "returns": "None"},
     "size": {"kind": "property", "settable": true, "returns": "float | None"},

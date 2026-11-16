@@ -437,3 +437,29 @@ def test_save_has_the_signature_the_spec_froze() -> None:
     assert [parameters[name].default for name in ("format", "mode", "fallback", "quality")] == [
         None, "auto", "error", None]
     assert hasattr(hwpx, "MutationReport") and not hasattr(HwpxDocument, "save_to_path")
+
+
+# --------------------------------------------------------------------------
+# 런 서식·머리 정의 읽기 (WP3): 인자 없는 읽기는 속성, 머리 정의는 값 형식
+
+
+def test_run_style_reads_are_properties() -> None:
+    document = HwpxDocument.new()
+    style = document.styles.char_property(document.styles.ensure_run(color="#FF0000", underline=True))
+    assert style is not None
+    assert style.color == "#FF0000" and style.underline_type == "BOTTOM"
+    assert (style.superscript, style.subscript, style.emboss, style.engrave) == (False, False, False, False)
+    assert style.matches(text_color="#FF0000", underline_type="BOTTOM")
+    run = document.add_paragraph("글").runs[-1]
+    assert "text" in run.content_kinds and isinstance(run.content_kinds, frozenset)
+
+
+def test_header_border_fills_read_as_values() -> None:
+    from hwpx.objects import BorderFillInfo
+
+    document = HwpxDocument.new()
+    header = document.oxml.headers[0]
+    infos = header.border_fills
+    assert infos and all(isinstance(info, BorderFillInfo) for info in infos.values())
+    first = next(iter(infos))
+    assert header.border_fill(first) == infos[first] == document.styles.border_fill_info(first)

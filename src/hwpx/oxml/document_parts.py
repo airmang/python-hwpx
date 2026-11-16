@@ -800,7 +800,7 @@ class HwpxOxmlDocument:
     def border_fills(self) -> dict[str, GenericElement]:
         mapping: dict[str, GenericElement] = {}
         for header in self._headers:
-            mapping.update(header.border_fills)
+            mapping.update(header._border_fill_elements())  # the XML; header.border_fills reads values (7.0)
         return mapping
 
     def border_fill(

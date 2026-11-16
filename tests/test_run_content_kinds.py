@@ -64,7 +64,7 @@ def _run(xml_children: str) -> HwpxOxmlRun:
     ],
 )
 def test_content_kinds_classifies_the_direct_children(children: str, expected: set[str]) -> None:
-    kinds = _run(children).content_kinds()
+    kinds = _run(children).content_kinds
 
     assert isinstance(kinds, frozenset)
     assert kinds == expected
@@ -73,7 +73,7 @@ def test_content_kinds_classifies_the_direct_children(children: str, expected: s
 
 def test_content_kinds_only_looks_at_direct_children() -> None:
     run = _run("<hp:ctrl><hp:header><hp:subList><hp:p><hp:run><hp:t>글</hp:t></hp:run></hp:p></hp:subList></hp:header></hp:ctrl>")
-    assert run.content_kinds() == {"control"}
+    assert run.content_kinds == {"control"}
 
 
 def test_the_vocabulary_is_closed() -> None:
@@ -114,4 +114,4 @@ def test_content_kinds_on_real_corpus_first_runs(fixture: str, expected: set[str
     document = HwpxDocument.open(FIXTURES / "hwpxlib_corpus" / fixture)
     run = document.sections[0].paragraphs[0].runs[0]
 
-    assert run.content_kinds() == expected
+    assert run.content_kinds == expected

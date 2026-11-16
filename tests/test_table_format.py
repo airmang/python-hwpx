@@ -98,7 +98,7 @@ def test_inline_table_alignment_is_its_paragraphs_alignment() -> None:
     table.set_alignment("CENTER")
     assert table.alignment == "CENTER"
     shape = document.oxml.paragraph_property(table.paragraph.element.get("paraPrIDRef"))
-    assert shape.align.horizontal == "CENTER"
+    assert shape.alignment.horizontal == "CENTER"
     assert table.element.find(HP + "pos").get("horzAlign") == "LEFT"  # inline: position stays
     table.set_alignment("RIGHT")
     assert _reopen(document).tables[0].alignment == "RIGHT"

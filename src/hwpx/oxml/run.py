@@ -124,12 +124,9 @@ class RunStyle:
     #: The face each language's ``hh:fontRef`` names (``"HANGUL"`` .. ``"USER"`` -> face).
     fonts: dict[str, str] = field(default_factory=dict)
 
-    def text_color(self) -> str | None:
-        return self.attributes.get("textColor")
-
     @property
     def color(self) -> str | None:
-        """The text colour (``textColor``), as :meth:`text_color` returns it."""
+        """The text colour (``textColor``)."""
         return self.attributes.get("textColor")
 
     @property
@@ -146,34 +143,48 @@ class RunStyle:
         """The Hangul face of the shape (``fonts["HANGUL"]``)."""
         return self.fonts.get("HANGUL")
 
+    @property
     def underline_type(self) -> str | None:
+        """The underline's type (``hh:underline/@type``: ``NONE``, ``BOTTOM`` ...), ``None`` without one."""
         underline = self.child_attributes.get("underline")
         if underline is None:
             return None
         return underline.get("type")
 
+    @property
     def underline_color(self) -> str | None:
+        """The underline's colour (``hh:underline/@color``), ``None`` without one."""
         underline = self.child_attributes.get("underline")
         if underline is None:
             return None
         return underline.get("color")
 
+    @property
     def outline_type(self) -> str | None:
+        """The outline's type (``hh:outline/@type``), ``None`` without one."""
         outline = self.child_attributes.get("outline")
         if outline is None:
             return None
         return outline.get("type")
 
-    def is_superscript(self) -> bool:
+    @property
+    def superscript(self) -> bool:
+        """Whether the shape is superscript (``hh:supscript``), as ``run.superscript``."""
         return "supscript" in self.child_attributes
 
-    def is_subscript(self) -> bool:
+    @property
+    def subscript(self) -> bool:
+        """Whether the shape is subscript (``hh:subscript``), as ``run.subscript``."""
         return "subscript" in self.child_attributes
 
-    def is_emboss(self) -> bool:
+    @property
+    def emboss(self) -> bool:
+        """Whether the shape is embossed (``hh:emboss``, 양각)."""
         return "emboss" in self.child_attributes
 
-    def is_engrave(self) -> bool:
+    @property
+    def engrave(self) -> bool:
+        """Whether the shape is engraved (``hh:engrave``, 음각)."""
         return "engrave" in self.child_attributes
 
     def matches(
@@ -183,11 +194,13 @@ class RunStyle:
         underline_type: str | None = None,
         underline_color: str | None = None,
     ) -> bool:
-        if text_color is not None and self.text_color() != text_color:
+        """Whether the shape has the given text colour (``color``), underline type and underline colour;
+        one left as ``None`` matches any."""
+        if text_color is not None and self.color != text_color:
             return False
-        if underline_type is not None and self.underline_type() != underline_type:
+        if underline_type is not None and self.underline_type != underline_type:
             return False
-        if underline_color is not None and self.underline_color() != underline_color:
+        if underline_color is not None and self.underline_color != underline_color:
             return False
         return True
 
@@ -689,7 +702,6 @@ class HwpxOxmlRun:
         replacement: str,
         *,
         count: int | None = None,
-        _clear_layout: bool = True,
     ) -> int:
         """Replace ``search`` with ``replacement`` within ``<hp:t>`` nodes.
 
@@ -718,13 +730,13 @@ class HwpxOxmlRun:
             # as the text setters write it, not as a character inside hp:t.
             for node in self.element.findall(f"{_HP}t"):
                 text_marks_as_elements(node)
-            if _clear_layout:
-                _clear_paragraph_layout_cache(self.paragraph.element)
+            _clear_paragraph_layout_cache(self.paragraph.element)
             self.paragraph.section.mark_dirty()
         return total_replacements
 
+    @property
     def content_kinds(self) -> frozenset[str]:
-        """Return what this run holds, judged from its direct children.
+        """What this run holds, judged from its direct children.
 
         The answer uses the closed vocabulary :data:`RUN_CONTENT_KINDS`:
         ``"text"`` for an ``hp:t`` holding characters or a glyph atom (tab,
