@@ -137,6 +137,10 @@ def test_every_wp_c_add_star_was_actually_found() -> None:
     }
     assert found == {
         "add_check_box",
+        "add_combo_box",
+        "add_cross_reference",
+        "add_edit_box",
+        "add_radio_button",
         "add_form_field",
         "add_image",
         "add_picture",

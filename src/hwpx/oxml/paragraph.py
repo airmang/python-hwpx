@@ -31,7 +31,12 @@ from ._document_primitives import (
 )
 from .namespaces import XML_NS, tag_local_name
 from .drop_cap import _paragraph_add_drop_cap
-from .dutmal_compose import _paragraph_add_composed_character, _paragraph_add_dutmal
+from .dutmal_compose import (
+    _paragraph_add_composed_character,
+    _paragraph_add_dutmal,
+    paragraph_composed_characters,
+    paragraph_rubies,
+)
 from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters
 from .field_marks import (
     field_type_id,
@@ -875,6 +880,11 @@ class HwpxOxmlParagraph(ParagraphFormats):
     # so this is a second overflow module, same reasoning.
     add_composed_character = _paragraph_add_composed_character
     add_dutmal = _paragraph_add_dutmal
+    rubies = property(paragraph_rubies, doc="The 덧말 of this paragraph's runs (hwpx.objects.Ruby), in order.")
+    composed_characters = property(
+        paragraph_composed_characters,
+        doc="The 글자 겹치기 of this paragraph's runs (hwpx.objects.ComposedCharacter), in order.",
+    )
 
     def add_control(
         self,

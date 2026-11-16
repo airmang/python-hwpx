@@ -192,7 +192,8 @@ class ComboBox(_FormControl):
     its ``hp:listItem`` children. ``value`` is the chosen value
     (``selectedValue``); assigning it writes that attribute. A box whose
     ``editable_text`` is true (``editEnable``) takes a value outside its items
-    too, as Hancom lets one type it.
+    too, as Hancom lets one type it. ``text`` is the text the box shows, which
+    Hancom keeps as the value of its one list item.
     """
 
     __slots__ = ()
@@ -208,6 +209,37 @@ class ComboBox(_FormControl):
     @property
     def editable_text(self) -> bool:
         return self._element.get("editEnable", "0") in ("1", "true")
+
+    @property
+    def text(self) -> str:
+        """The text the box shows. Hancom keeps no list of choices in the file (its .hwp form
+        object has none): it writes the box's text as the value of the box's one list item
+        (``hp:listItem/@value``), with ``displayText`` and ``selectedValue`` empty. Assigning
+        it writes that value, as Hancom does."""
+
+        item = self._first_item()
+        return item.get("value", "") if item is not None else ""
+
+    @text.setter
+    def text(self, value: str) -> None:
+        new_value = str(value)
+        item = self._first_item()
+        if item is None:
+            namespace = self._element.tag.rsplit("}", 1)[0] + "}" if "}" in self._element.tag else ""
+            item = self._element.makeelement(f"{namespace}listItem", {"displayText": "", "value": ""})
+            after = [i for i, child in enumerate(self._element)
+                     if isinstance(child.tag, str) and child.tag.rsplit("}", 1)[-1] == "formCharPr"]
+            self._element.insert(after[-1] + 1 if after else 0, item)
+        if item.get("value") != new_value:
+            item.set("value", new_value)  # the box keeps its size: the line does not change
+            self._section.mark_dirty()
+
+    def _first_item(self) -> "ET.Element | None":
+        return next(
+            (item for item in self._element
+             if isinstance(item.tag, str) and item.tag.rsplit("}", 1)[-1] == "listItem"),
+            None,
+        )
 
     @property
     def value(self) -> str:

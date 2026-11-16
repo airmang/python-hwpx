@@ -22,6 +22,7 @@ The parameter spelling ``Fiexde`` replicates Hancom's own output verbatim.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Sequence
 from uuid import uuid4
 
@@ -117,14 +118,15 @@ def ensure_paragraph_anchor_id(doc: HwpxDocument, paragraph: Any) -> str:
 
     Hancom resolves TOC/CROSSREF targets by the paragraph ``id`` attribute, so
     an anchor id must be unique in the document (generated paragraphs may all
-    carry the shared ``2147483648`` constant)."""
+    carry the shared ``2147483648`` constant). Hancom's own anchors are positive
+    numbers, so an id ``0`` (a new document's first paragraph) gets one too."""
     element = paragraph.element
     pid = element.get("id")
     ids = _existing_paragraph_ids(doc)
     duplicated = pid and sum(1 for section in doc.oxml.sections
                              for p in section.element.iter(f"{_HP}p")
                              if p.get("id") == pid) > 1
-    if not pid or pid == _NON_UNIQUE_PARA_ID or duplicated:
+    if not pid or pid in (_NON_UNIQUE_PARA_ID, "0") or not pid.isdigit() or duplicated:
         new_id = _rand_id()
         while new_id in ids:
             new_id = _rand_id()
@@ -345,8 +347,9 @@ def add_native_toc(
     hyperlink: bool = True,
     dirty: bool | None = None,
     headings: Sequence[Any] | None = None,
+    section: int = 0,
 ) -> dict[str, Any]:
-    """Insert a Hancom-native TABLEOFCONTENTS field region at ``at_index``.
+    """Insert a Hancom-native TABLEOFCONTENTS field region at ``at_index`` of section *section*.
 
     Entries are generated from ``headings`` (paragraph wrappers) or, when
     omitted, auto-detected 개요/Outline-styled paragraphs. Emitted entry page
@@ -389,7 +392,7 @@ def add_native_toc(
         anchor = ensure_paragraph_anchor_id(doc, paragraph)
         anchors.append((anchor, lvl, text))
 
-    section = doc.oxml.sections[0]
+    target_section = doc.oxml.sections[section]
     toc_field_id = _rand_id()
 
     # opening paragraph: [ctrl fieldBegin TABLEOFCONTENTS][t title]
@@ -426,9 +429,9 @@ def add_native_toc(
     close_run = ET.SubElement(close_p, f"{_HP}run", {"charPrIDRef": "0"})
     _field_end(close_run, begin)
 
-    section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
+    target_section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
     if at_index == 0:
-        _keep_section_setup_first(section)
+        _keep_section_setup_first(target_section)
     return {
         "tocFieldId": toc_field_id,
         "entryCount": len(anchors),
@@ -473,3 +476,421 @@ def add_page_crossref(
 
     paragraph.section.mark_dirty()
     return {"fieldId": field_id, "targetId": target_id, "cachedPage": cached_page}
+
+
+# ── reading, rebuilding and removing a table of contents (hwpx.objects.TableOfContents) ──
+#
+# What a TOC region holds, as Hancom saves it (m7_toc_gold A/B, gui_probes/title_mark_*): the
+# paragraph with the TABLEOFCONTENTS fieldBegin and the title ("<제목 차례>", style 차례 제목);
+# one paragraph per entry, styled 차례 N for its level, whose text is ``<number> <heading>`` and a
+# tab, then the page number in the tab's tail, wrapped in a HYPERLINK field to ``?#<heading id>``
+# (``ContentsHyperlink:1``) or plain (``ContentsHyperlink:0``, measured on a refreshed save); then,
+# for a TOC that collects tables, pictures and equations too, a 차례 제목 paragraph per kind
+# ("<표 차례>" …) with its own entries; the fieldEnd in the last paragraph. ``dirty="1"`` on the
+# fieldBegin makes Hancom build the whole region again -- entries, styles and page numbers -- the
+# next time it opens the document (docs/internals/toc-dirty.md): that is how a page number nobody
+# but Hancom can know gets filled in.
+
+_TOC_ENTRY_STYLE = re.compile(r"^(?:차례|TOC)\s*(\d+)$")
+_TOC_HEADING_STYLES = ("차례 제목", "TOC Heading")
+_SET_HEAD = re.compile(r"^\s*[A-Za-z]+:set:\d+:")
+_SET_ITEM = re.compile(r"\s*([A-Za-z]+):([A-Za-z]+):")
+_SET_LENGTH = re.compile(r"(\d+):")
+_SET_VALUE = re.compile(r"(\S*)")
+_LINK_TARGET = re.compile(r"^\?(#?[^;]*);")
+
+
+def toc_command_values(command: str) -> dict[str, str]:
+    """The items of a ``TableOfContents:set:…`` command, ``name -> value`` (a ``wstring`` by its length)."""
+
+    head = _SET_HEAD.match(command or "")
+    rest, at, values = (command or "")[head.end() if head else 0:], 0, {}
+    while (item := _SET_ITEM.match(rest, at)) is not None:
+        name, kind, at = item.group(1), item.group(2), item.end()
+        if kind == "wstring":
+            length = _SET_LENGTH.match(rest, at)
+            if length is None:
+                break
+            at = length.end()
+            values[name] = rest[at : at + int(length.group(1))]
+            at += int(length.group(1))
+        else:
+            value = _SET_VALUE.match(rest, at)
+            values[name] = value.group(1) if value else ""
+            at = value.end() if value else at
+    return values
+
+
+def _local(node: Any) -> str:
+    tag = getattr(node, "tag", None)
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _param_text(begin: Any, name: str) -> str:
+    for holder in begin:
+        if _local(holder) == "parameters":
+            for param in holder:
+                if param.get("name") == name:
+                    return param.text or ""
+    return ""
+
+
+def _style_name(doc: HwpxDocument, element: Any) -> tuple[str, str]:
+    style = doc.oxml.style(element.get("styleIDRef"))
+    return ((style.name or "").strip(), (style.eng_name or "").strip()) if style is not None else ("", "")
+
+
+def _entry_level(doc: HwpxDocument, element: Any) -> int | None:
+    for name in _style_name(doc, element):
+        found = _TOC_ENTRY_STYLE.match(name)
+        if found:
+            return int(found.group(1))
+    return None
+
+
+def _is_toc_heading(doc: HwpxDocument, element: Any) -> bool:
+    return any(name in _TOC_HEADING_STYLES for name in _style_name(doc, element))
+
+
+def _entry_text(element: Any) -> tuple[str, str] | None:
+    """(the text before the tab, the text after it) of a TOC entry paragraph, ``None`` without a tab."""
+
+    before: list[str] = []
+    after: list[str] = []
+    into, found = before, False
+    for run in element:
+        if _local(run) != "run":
+            continue
+        for node in run:
+            if _local(node) != "t":
+                continue
+            into.append(node.text or "")
+            for child in node:
+                if _local(child) == "tab" and not found:
+                    found, into = True, after
+                into.append(child.tail or "")
+    return ("".join(before), "".join(after)) if found else None
+
+
+def _entry_link(element: Any) -> Any:
+    for begin in element.iter(f"{_HP}fieldBegin"):
+        if begin.get("type") == "HYPERLINK":
+            return begin
+    return None
+
+
+def _entry_target(element: Any) -> str:
+    begin = _entry_link(element)
+    if begin is None:
+        return ""
+    found = _LINK_TARGET.match(_param_text(begin, "Command"))
+    return found.group(1) if found else ""
+
+
+def _region(doc: HwpxDocument, begin: Any) -> tuple[Any, Any, list[Any]]:
+    """(the begin's paragraph view, the end's paragraph or ``None``, the paragraphs between)."""
+
+    from hwpx._document.fields import _match_for_begin
+
+    match = _match_for_begin(doc, begin)
+    span = match.get("_span")
+    if span is None:
+        return match["_paragraph"], None, []
+    return match["_paragraph"], span[0], list(span[4])
+
+
+def toc_entries(doc: HwpxDocument, begin: Any) -> tuple[Any, ...]:
+    """The entries of the TOC opened by *begin*, as :class:`hwpx.objects.TocEntry` values."""
+
+    from hwpx.objects.form_field import TocEntry
+    from hwpx.oxml import HwpxOxmlParagraph
+
+    paragraph, end, middle = _region(doc, begin)
+    entries = []
+    for element in [*middle, *([end] if end is not None else [])]:
+        parts = _entry_text(element)
+        if parts is None:
+            continue
+        entries.append(TocEntry(
+            text=parts[0],
+            level=_entry_level(doc, element),
+            page=parts[1],
+            target=_entry_target(element),
+            paragraph=HwpxOxmlParagraph(element, paragraph.section),
+        ))
+    return tuple(entries)
+
+
+def toc_title(doc: HwpxDocument, begin: Any) -> str:
+    """The text after *begin* in its paragraph, up to the next field."""
+
+    paragraph, _end, _middle = _region(doc, begin)
+    parts: list[str] = []
+    started = False
+    for run in paragraph.element:
+        if _local(run) != "run":
+            continue
+        for node in run:
+            if _local(node) == "ctrl":
+                if any(child is begin for child in node):
+                    started = True
+                elif started and node.find(f"{_HP}fieldBegin") is not None:
+                    return "".join(parts)
+            elif started and _local(node) == "t":
+                parts.append("".join(node.itertext()))
+    return "".join(parts)
+
+
+def _hidden_from_toc(element: Any) -> bool:
+    """Whether the paragraph carries Hancom's 차례 숨기기 mark (``hp:titleMark ignore="0"``, DEV-044)."""
+
+    for run in element:
+        if _local(run) != "run":
+            continue
+        for node in run:
+            if _local(node) == "t":
+                for child in node:
+                    if _local(child) == "titleMark" and (child.get("ignore") or "false").lower() in ("0", "false"):
+                        return True
+    return False
+
+
+def _outline_labels(doc: HwpxDocument) -> dict[Any, str]:
+    """The number Hancom shows before each numbered body paragraph (``1.``, ``가.``), by element."""
+
+    from hwpx.tools.exporter import _ListLabels
+
+    header = doc.oxml.headers[0].element if doc.oxml.headers else None
+    labels = _ListLabels(header)
+    found: dict[Any, str] = {}
+    for section in doc.oxml.sections:
+        labels.start_section(section.element)
+        for paragraph in section.paragraphs:
+            label = labels.label(paragraph.element)
+            if label:
+                found[paragraph.element] = label
+            for run in paragraph.element.findall(f"{_HP}run"):
+                for node in run:
+                    if _local(node) == "tbl":
+                        labels.count(node)
+    return found
+
+
+def _clean(text: str) -> str:
+    return " ".join(text.replace("\t", " ").replace("\n", " ").split())
+
+
+def toc_headings(doc: HwpxDocument, levels: int, *, exclude: Sequence[Any] = ()) -> list[tuple[Any, int, str]]:
+    """``(paragraph, level, entry text)`` for the body paragraphs a TOC of *levels* collects: outline
+    paragraphs of level 1 to *levels* that are not marked 차례 숨기기 and hold text. The entry text is
+    the paragraph's number and its text, as Hancom writes an entry (``1. 개요 첫 번째``)."""
+
+    skip = {id(element) for element in exclude}
+    labels = _outline_labels(doc)
+    found = []
+    for paragraph in doc.paragraphs:
+        element = paragraph.element
+        level = paragraph.outline_level
+        if id(element) in skip or not 1 <= level <= levels or _hidden_from_toc(element):
+            continue
+        text = _clean(paragraph.text)
+        if not text:
+            continue
+        label = labels.get(element, "")
+        found.append((paragraph, level, f"{label} {text}" if label else text))
+    return found
+
+
+def _toc_refuse(message: str, code: str, suggestion: str, **context: Any) -> HwpxValueError:
+    return HwpxValueError(message, code=code, context=context or None, suggestion=suggestion)
+
+
+def _level_style(doc: HwpxDocument, level: int) -> Any:
+    for style in doc.oxml.styles.values():
+        for name in ((style.name or "").strip(), (style.eng_name or "").strip()):
+            found = _TOC_ENTRY_STYLE.match(name)
+            if found and int(found.group(1)) == level and (style.type or "PARA").upper() == "PARA":
+                return style
+    return None
+
+
+def _run_char_pr(element: Any, predicate: Any) -> str | None:
+    for run in element:
+        if _local(run) == "run" and any(predicate(node) for node in run):
+            return run.get("charPrIDRef")
+    return None
+
+
+def _build_entry(
+    doc: HwpxDocument,
+    *,
+    text: str,
+    level: int,
+    anchor: str,
+    hyperlink: bool,
+    template: Any,
+    leader: int,
+) -> Any:
+    """One entry paragraph: Hancom's shape, the template entry's look, the level's 차례 N style."""
+
+    style = _level_style(doc, level)
+    if template is not None:
+        style_ref = str(style.raw_id if style is not None and style.raw_id is not None else template.get("styleIDRef", "0"))
+        para_ref = (str(style.para_pr_id_ref) if style is not None and style.para_pr_id_ref is not None
+                    else template.get("paraPrIDRef", "0"))
+        tab_t = next((t for t in template.iter(f"{_HP}t") if t.find(f"{_HP}tab") is not None), None)
+        tab_attrs = dict(tab_t.find(f"{_HP}tab").attrib) if tab_t is not None else {}
+        text_char = _run_char_pr(template, lambda node: _local(node) == "t" and node.find(f"{_HP}tab") is not None)
+        link_char = _run_char_pr(template, lambda node: _local(node) == "ctrl" and node.find(f"{_HP}fieldBegin") is not None)
+    else:
+        style_ref = str(style.raw_id) if style is not None and style.raw_id is not None else "0"
+        para_ref = (str(style.para_pr_id_ref) if style is not None and style.para_pr_id_ref is not None
+                    else _entry_para_pr(doc, leader))
+        tab_attrs, text_char, link_char = {}, None, None
+    style_char = str(style.char_pr_id_ref) if style is not None and style.char_pr_id_ref is not None else "0"
+    text_char = text_char or style_char
+    link_char = link_char or text_char
+    if not tab_attrs:
+        tab_attrs = {"width": "34032", "leader": str(leader), "type": "2"}
+    paragraph = ET.Element(f"{_HP}p", {
+        "id": _NON_UNIQUE_PARA_ID, "paraPrIDRef": para_ref, "styleIDRef": style_ref,
+        "pageBreak": "0", "columnBreak": "0", "merged": "0",
+    })
+    begin = None
+    if hyperlink:
+        run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": link_char})
+        begin = _field_begin(run, ftype="HYPERLINK", field_id=_rand_id(), editable="0", dirty="1")
+        params = ET.SubElement(begin, f"{_HP}parameters", {"cnt": "5", "name": ""})
+        _param(params, "integerParam", "Prop", "0")
+        _param(params, "stringParam", "Command", f"?#{anchor};0;1;0;")
+        _param(params, "stringParam", "Category", "HWPHYPERLINK_TYPE_HWP")
+        _param(params, "stringParam", "TargetType", "HWPHYPERLINK_TARGET_OUTLINE")
+        _param(params, "stringParam", "DocOpenType", "HWPHYPERLINK_JUMP_CURRENTTAB")
+    run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": text_char})
+    node = ET.SubElement(run, f"{_HP}t")
+    node.text = text
+    ET.SubElement(node, f"{_HP}tab", tab_attrs).tail = ""  # the page: Hancom fills it in
+    if begin is not None:
+        _field_end(ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": link_char}), begin)
+        ET.SubElement(ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": link_char}), f"{_HP}t")
+    return paragraph
+
+
+def rebuild_toc(doc: HwpxDocument, begin: Any) -> None:
+    """Rewrite the heading entries of the TOC opened by *begin* from the document's outline paragraphs.
+
+    The entries of its first block (up to the next 차례 제목 paragraph: "<표 차례>" …) are replaced by one
+    entry per outline paragraph of level 1 to its ``ContentsLevel`` (not marked 차례 숨기기), in
+    document order, with the paragraph's number and text, its level's 차례 N style and the look of
+    the entries it had; linked to the heading when the TOC links (``ContentsHyperlink``). Page numbers
+    are left empty and the field is marked ``dirty``: Hancom fills them in -- and builds the region
+    again by its own rules -- the next time it opens the document. Other blocks stay as they are.
+    """
+
+    values = toc_command_values(_param_text(begin, "Command"))
+    level_text = values.get("ContentsLevel", "")
+    if not level_text.isdigit():
+        raise _toc_refuse(
+            "the table of contents does not say how many outline levels it collects (ContentsLevel)",
+            "toc-command-unknown",
+            "Mark it for Hancom to rebuild (toc.refresh_on_open = True) instead.",
+            command=_param_text(begin, "Command"),
+        )
+    paragraph, end, middle = _region(doc, begin)
+    if end is None:
+        raise _toc_refuse(
+            "the table of contents begins and ends in one paragraph: there is no place for its entries",
+            "toc-region-unsupported",
+            "Remove it (toc.remove()) and add a new one (doc.refs.add_table_of_contents()).",
+        )
+    block: list[Any] = []
+    for element in middle:
+        if _is_toc_heading(doc, element):
+            break
+        block.append(element)
+    old_entries = [element for element in block if _entry_text(element) is not None]
+    template = old_entries[0] if old_entries else None
+    region = [paragraph.element, *middle, end]
+    hyperlink = values.get("ContentsHyperlink", "1") not in ("0", "false")
+    leader_text = values.get("ContentsLeader", "3")
+    leader = int(leader_text) if leader_text.isdigit() and int(leader_text) < len(_TAB_LEADER_NAMES) else 3
+    new_entries = []
+    for heading, level, text in toc_headings(doc, int(level_text), exclude=region):
+        anchor = ""
+        if hyperlink:
+            before = heading.element.get("id")
+            anchor = ensure_paragraph_anchor_id(doc, heading)  # Hancom finds a heading by a unique id
+            if anchor != before:
+                heading.section.mark_dirty()
+        new_entries.append(_build_entry(doc, text=text, level=level, anchor=anchor, hyperlink=hyperlink,
+                                        template=template, leader=leader))
+    container = paragraph.element.getparent()
+    position = (container.index(old_entries[0]) if old_entries
+                else container.index(middle[0] if middle else end))
+    for element in old_entries:
+        container.remove(element)
+    for offset, element in enumerate(new_entries):
+        container.insert(position + offset, element)
+    begin.set("dirty", "1")
+    paragraph.section.mark_dirty()
+
+
+def remove_toc(doc: HwpxDocument, begin: Any) -> None:
+    """Take the TOC opened by *begin* out: everything between its begin and end, paragraphs and all,
+    as a field's content goes; what follows the end in its paragraph joins the begin's paragraph."""
+
+    from hwpx._document.fields import remove_form_field
+
+    remove_form_field(doc, begin, keep_text=False)
+
+
+def list_tables_of_contents(doc: HwpxDocument) -> tuple[Any, ...]:
+    """The document's tables of contents (``fieldBegin type="TABLEOFCONTENTS"``), in document order."""
+
+    from hwpx._document.fields import _field_type_is, _iter_field_matches
+    from hwpx.objects.form_field import TableOfContents
+
+    return tuple(
+        TableOfContents(doc, match["_field_begin"])
+        for match in _iter_field_matches(doc, _field_type_is("TABLEOFCONTENTS"))
+    )
+
+
+def add_table_of_contents(
+    doc: HwpxDocument,
+    *,
+    index: int = 0,
+    section: int = 0,
+    title: str = "<제목 차례>",
+    levels: int = 2,
+    leader: str = "DASH",
+    hyperlink: bool = True,
+) -> Any:
+    """Put a TOC of the document's outline paragraphs of level 1 to *levels* at paragraph *index* of
+    *section*, written as Hancom writes one, and return it (``refresh_on_open`` on, page numbers empty)."""
+
+    if isinstance(levels, bool) or not isinstance(levels, int) or not 1 <= levels <= 10:
+        raise _toc_refuse(f"levels must be an int from 1 to 10; got {levels!r}", "toc-levels-value",
+                          "Pass how many outline levels the table collects (Hancom's default is 2).",
+                          requested=repr(levels))
+    if leader not in _TAB_LEADER_NAMES:
+        raise _toc_refuse(f"leader must be one of {', '.join(_TAB_LEADER_NAMES)}; got {leader!r}",
+                          "toc-leader-value", "Pass 'DASH' for Hancom's dotted leader, 'NONE' for none.",
+                          requested=repr(leader))
+    if not isinstance(title, str) or not isinstance(hyperlink, bool):
+        raise _toc_refuse("title must be a str and hyperlink True or False", "toc-levels-value",
+                          "Pass the title shown over the entries, e.g. '<제목 차례>'.")
+    headings = toc_headings(doc, levels)
+    if not headings:
+        raise _toc_refuse(
+            f"the document has no outline paragraph of level 1 to {levels} to list",
+            "toc-no-headings",
+            "Add headings first (doc.add_heading), or give a paragraph an outline level.",
+            levels=levels,
+        )
+    summary = add_native_toc(doc, at_index=index, title=title, level=levels,
+                             leader=_TAB_LEADER_NAMES.index(leader), hyperlink=hyperlink, dirty=True,
+                             headings=[heading for heading, _level, _text in headings], section=section)
+    toc = next(toc for toc in list_tables_of_contents(doc) if toc.element.get("id") == summary["tocFieldId"])
+    toc.rebuild()
+    return toc

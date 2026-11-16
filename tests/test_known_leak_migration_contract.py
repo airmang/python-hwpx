@@ -61,8 +61,10 @@ def test_format_vocabulary_is_not_scheduled_to_move() -> None:
         if entry["classification"] == "format-vocabulary"
     }
     # _SAFE_FILENAME_RE (mail merge) and _OWN_NUMBER (Markdown import) left with their modules.
+    # 7.0 native: Hancom's TOC entry style names (차례 N / TOC N), read and written by toc rebuild.
     assert vocabulary == {
         ("oxml/paragraph_heading.py", "_OUTLINE_STYLE_NAME"),
+        ("tools/toc_author.py", "_TOC_ENTRY_STYLE"),
     }
     assert not vocabulary & set(_names(CONTRACT["groups"], "allowlist"))
 
