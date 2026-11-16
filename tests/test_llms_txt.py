@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx._document._legacy import _LegacyFacade
+from hwpx._document._legacy import REMOVED_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
 LLMS = ROOT / "docs" / "_extra" / "llms.txt"
@@ -84,7 +84,7 @@ def _api_claim_errors(text: str) -> list[str]:
             for code in re.findall(r"`([^`]+)`", line):
                 for path in re.findall(r"\b(?:doc|document)((?:\.[A-Za-z_]\w*)+)", code):
                     names = path.lstrip(".").split(".")
-                    if not unavailable and names[0] in vars(_LegacyFacade):
+                    if not unavailable and names[0] in REMOVED_NAMES:
                         errors.append(f"deprecated recommendation: document{path}")
                         continue
                     value = document
