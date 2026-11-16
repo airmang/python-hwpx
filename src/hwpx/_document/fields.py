@@ -740,6 +740,17 @@ _XREF_PARAMS = (("booleanParam", "Fiexde"), ("integerParam", "Prop"), ("stringPa
 def cross_reference_text(doc: "HwpxDocument", field_begin: Any) -> str:
     """What the cross reference shows now: the text between its begin and end."""
 
+    from ..oxml.hyperlink_form import between_marks, field_end_in_paragraph
+
+    paragraph = field_begin.getparent()
+    while paragraph is not None and _local_name(paragraph) != "p":
+        paragraph = paragraph.getparent()
+    end = field_end_in_paragraph(paragraph, field_begin) if paragraph is not None else None
+    if end is not None:  # the usual case: read it in its paragraph, not by walking the document
+        return "".join(
+            _text_node_value(child) for _run, child in between_marks(paragraph, field_begin, end)
+            if _local_name(child) == "t"
+        )
     try:
         return str(_match_for_begin(doc, field_begin)["current_value"])
     except HwpxValueError:
