@@ -393,6 +393,8 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | 용지 크기·여백(`doc.page.size()`·`doc.page.margins()`, `section.properties.page_size`·`page_margins`)이 파일에 적힌 대로다. 적히지 않은 값은 스키마 기본값(용지 59528×84188, 머리말·꼬리말 4252, 제본 0)이고, 기본값이 없는 왼·오른·위·아래 여백이 없거나 숫자가 아니면, 또는 `hp:pagePr`·`hp:margin` 자체가 없으면 `None` 이다(6.x 는 0). 그래서 `PageSize.width`·`height`·`drawn_width`·`drawn_height` 와 `PageMargins` 의 값이 `int | None` 이다. 한/글은 이 값을 늘 적으므로(공개 문서 1,637 구역 모두) 한/글 저장본은 전과 같다 | 셈에 쓰기 전에 `None` 을 본다(`if margins.left is None: ...`). 0 으로 셈하던 6.x 동작은 `margins.left or 0` |
 | `doc.text.highlights` 가 본문만이 아니라 표 칸·글상자·캡션·머리말·꼬리말·각주·메모·바탕쪽의 형광펜도 돌려준다(`doc.text.iter_paragraphs()` 의 문단) | 본문 것만: `[h for h in doc.text.highlights if h.paragraph in doc.paragraphs]` |
 | `doc.save(path, format="hwpx")` 처럼 형식을 밝히면 이름이 `.hwpx` 가 아니어도(임시 이름 `out.hwpx.tmp` 등) 경고하지 않는다. 이름이 `.hwp` 면 여전히 경고한다 | 없음 |
+| `doc.parts.add_master_page(...)` 로 만든 바탕쪽을 저장할 때까지 어느 구역에도 잇지 않으면 저장이 `HwpxValueError`(`master-page-unlinked`)로 거부된다. 6.x 는 잇지 않은 파트를 그대로 썼고, 한/글 2024 는 그 파트를 버렸다(다시 저장하면 바탕쪽과 글이 사라진다). 읽어 온 문서에 있던 바탕쪽은 손대지 않는다 | 만든 뒤 잇는다: `doc.page.set_master_page(mp, section=0)`, 또는 `add_master_page(..., section=0)`. 쓰지 않을 것은 `doc.parts.remove_master_page(mp)` |
+| `doc.text.iter_paragraphs()` 가 MEMO 누름틀 안에만 있는 메모(한/글 2024 가 저장하는 모양)의 문단도 `where="memo"` 로 내놓는다. 6.x 는 `hp:memogroup` 의 메모만 내놓아, 한/글로 다시 저장한 문서에서 메모 글이 빠진 것처럼 보였다(`doc.notes.memos` 는 전에도 읽었다) | 본문 쪽만: `where=` 를 준다 |
 | **`table.insert_rows()`·`insert_columns()`(`doc.tables.` 도)가 한/글처럼 빈 행·열을 넣는다.** 6.x 는 기준 칸의 글·개체까지 복사했다. `blank=` 없이 부르던 코드는 오류 없이 결과가 바뀐다([아래](#표에-넣는-행과-열은-빈-칸이다)) | `copy_content=True` |
 
 ### 표에 넣는 행과 열은 빈 칸이다

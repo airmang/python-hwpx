@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 335 | 11 |
+| 개수 | 336 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -188,6 +188,7 @@ except HwpxError as exc:
 | `master-page-not-found` | 그 id의 바탕쪽 파트가 문서에 없다. |
 | `master-page-pages-taken` | 그 구역에 같은 쪽(종류와 번호)의 바탕쪽이 이미 있다. |
 | `master-page-type-unsupported` | 바탕쪽 type 값이 OWPML 어휘(BOTH/EVEN/ODD/LAST_PAGE/OPTIONAL_PAGE) 밖이다. |
+| `master-page-unlinked` | 이번에 만든 바탕쪽을 어느 구역에도 잇지 않고 저장하려 했다(한/글은 그 파트를 버린다). |
 
 ### `media-*`
 

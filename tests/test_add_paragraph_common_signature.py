@@ -24,7 +24,7 @@ COMMON = ("style", "para_pr_id_ref", "char_pr_id_ref")
 def _containers(document: HwpxDocument) -> dict[str, object]:
     document.add_paragraph("본문")
     header = document.page.set_header(text="머리말")
-    master = document.parts.add_master_page(text="바탕쪽")
+    master = document.parts.add_master_page(text="바탕쪽", section=0)
     master_page = next(page for page in document.parts.master_pages if page.id == getattr(master, "id", master))
     note = document.paragraphs[-1].add_footnote("각주")
     cell = document.add_table(1, 1).cell(0, 0)
