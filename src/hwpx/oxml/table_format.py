@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Sequence, cast
 
-from ..objects.results import BorderFillInfo, CellZone
+from ..objects.results import Alignment, BorderFillInfo, CellZone
 from ._document_primitives import (
     _HP,
     _clear_paragraph_layout_cache,
@@ -33,9 +33,9 @@ if TYPE_CHECKING:
 __all__ = [
     "BORDER_SIDES",
     "CELL_TEXT_DIRECTIONS",
-    "CELL_VERT_ALIGNS",
+    "CELL_VERTICAL_ALIGNMENTS",
     "TABLE_ALIGNMENTS",
-    "TABLE_PAGE_BREAKS",
+    "TABLE_PAGE_SPLITS",
     "HwpxOxmlTableColumn",
     "TableCellFormat",
     "TableFormat",
@@ -43,7 +43,7 @@ __all__ = [
 ]
 
 #: ``hp:subList/@vertAlign`` of a cell: where its lines sit between its top and bottom.
-CELL_VERT_ALIGNS = ("TOP", "CENTER", "BOTTOM")
+CELL_VERTICAL_ALIGNMENTS = ("TOP", "CENTER", "BOTTOM")
 #: ``hp:subList/@textDirection`` of a cell: its text runs left to right in lines going down
 #: (``HORIZONTAL``) or top to bottom (``VERTICAL``, Hancom's 세로쓰기).
 CELL_TEXT_DIRECTIONS = ("HORIZONTAL", "VERTICAL")
@@ -54,7 +54,7 @@ _MAX_CELL_SPACING = 2**15 - 1
 TABLE_ALIGNMENTS = ("LEFT", "CENTER", "RIGHT")
 #: ``hp:tbl/@pageBreak``: at a page end the table splits (``TABLE``), splits between rows of cells
 #: only (``CELL``), or moves whole to the next page (``NONE``).
-TABLE_PAGE_BREAKS = ("TABLE", "CELL", "NONE")
+TABLE_PAGE_SPLITS = ("TABLE", "CELL", "NONE")
 #: The four sides of a cell, as ``doc.styles.ensure_border_fill(sides=...)`` names them.
 BORDER_SIDES = ("left", "right", "top", "bottom")
 _SIDE_ELEMENTS = {"left": "leftBorder", "right": "rightBorder", "top": "topBorder", "bottom": "bottomBorder"}
@@ -167,8 +167,8 @@ def _border_line(line_type: object, width_mm: object, color: object) -> dict[str
                       "Pass an OWPML line type such as 'SOLID', 'DASH', 'DOUBLE_SLIM' or 'NONE' (no line).",
                       line_type=repr(line_type))
     if isinstance(width_mm, bool) or not isinstance(width_mm, (int, float)):
-        raise _refuse(f"width_mm must be a number of millimetres; got {width_mm!r}", "table-border-value",
-                      "Pass a line width in mm such as 0.12 or 0.4.", width_mm=repr(width_mm))
+        raise _refuse(f"border_width_mm must be a number of millimetres; got {width_mm!r}", "table-border-value",
+                      "Pass a line width in mm such as 0.12 or 0.4.", border_width_mm=repr(width_mm))
     return {"type": line_type, "width": normalize_line_width(f"{width_mm} mm"), "color": color.upper()}
 
 
@@ -188,24 +188,25 @@ class TableCellFormat:
         def _clear_own_layout_caches(self) -> None: ...
 
     @property
-    def vert_align(self) -> str:
+    def vertical_alignment(self) -> str:
         """Where the cell's lines sit between its top and bottom: ``"TOP"``, ``"CENTER"`` or ``"BOTTOM"``
-        (``hp:subList/@vertAlign``; ``"TOP"``, the schema default, when the cell does not say)."""
+        (``hp:subList/@vertAlign``; ``"TOP"``, the schema default, when the cell does not say).
+
+        Setting it takes one of the three (exact, uppercase); anything else is refused
+        (``table-cell-vertical-alignment-value``). The cell's paragraphs and the paragraph holding
+        the table lose their line layout cache when it changes.
+        """
 
         sublist = self.element.find(f"{_HP}subList")
         return (sublist.get("vertAlign") if sublist is not None else None) or "TOP"
 
-    def set_vert_align(self, vert_align: str) -> None:
-        """Set where the cell's lines sit: ``"TOP"``, ``"CENTER"`` or ``"BOTTOM"`` (exact, uppercase).
-
-        Anything else is refused (``table-cell-vert-align-value``). The cell's paragraphs and the
-        paragraph holding the table lose their line layout cache when it changes.
-        """
-
-        value = _member(vert_align, CELL_VERT_ALIGNS, argument="vert_align", code="table-cell-vert-align-value")
+    @vertical_alignment.setter
+    def vertical_alignment(self, value: str) -> None:
+        wanted = _member(value, CELL_VERTICAL_ALIGNMENTS, argument="vertical_alignment",
+                         code="table-cell-vertical-alignment-value")
         sublist = self._ensure_sublist()
-        if sublist.get("vertAlign") != value:
-            sublist.set("vertAlign", value)
+        if sublist.get("vertAlign") != wanted:
+            sublist.set("vertAlign", wanted)
             self._clear_own_layout_caches()
             self.table.mark_dirty()
 
@@ -214,15 +215,15 @@ class TableCellFormat:
         """Whether the cell is a title cell (``hp:tc/@header``, Hancom's 셀 속성 → 제목 셀).
 
         A table repeats its rows of title cells at the top of each page it runs onto when
-        :attr:`HwpxOxmlTable.repeat_header` is on.
+        :attr:`HwpxOxmlTable.repeat_header` is on. Setting it takes ``True`` or ``False``
+        (``table-header-rows-value``); :meth:`HwpxOxmlTable.set_header_rows` sets whole rows.
         """
 
         return (self.element.get("header") or "").strip().lower() in _TRUE
 
-    def set_header(self, value: bool = True) -> None:
-        """Mark the cell as a title cell (``True``) or not (``False``); see :meth:`HwpxOxmlTable.set_header_rows`."""
-
-        wanted = "1" if _flag(value, "value", "table-header-rows-value") else "0"
+    @is_header.setter
+    def is_header(self, value: bool) -> None:
+        wanted = "1" if _flag(value, "is_header", "table-header-rows-value") else "0"
         if self.element.get("header") != wanted:
             self.element.set("header", wanted)
             self.table.mark_dirty()
@@ -355,14 +356,13 @@ class TableRowFormat:
     @property
     def height(self) -> int:
         """The row's stored height in HWPUNIT (:attr:`HwpxOxmlTable.row_heights`); Hancom draws it
-        taller when its text needs more room."""
+        taller when its text needs more room. Setting it is :meth:`HwpxOxmlTable.set_row_height`."""
 
         return self.table.row_heights[self.index]
 
-    def set_height(self, height: int) -> None:
-        """Set the row's height (HWPUNIT); see :meth:`HwpxOxmlTable.set_row_height`."""
-
-        self.table.set_row_height(self.index, height)
+    @height.setter
+    def height(self, value: int) -> None:
+        self.table.set_row_height(self.index, value)
 
 
 class HwpxOxmlTableColumn:
@@ -398,14 +398,14 @@ class HwpxOxmlTableColumn:
 
     @property
     def width(self) -> int:
-        """The column's width on the table's grid, in HWPUNIT (:attr:`HwpxOxmlTable.column_widths`)."""
+        """The column's width on the table's grid, in HWPUNIT (:attr:`HwpxOxmlTable.column_widths`).
+        Setting it is :meth:`HwpxOxmlTable.set_column_width`."""
 
         return self.table.column_widths[self.index]
 
-    def set_width(self, width: int) -> None:
-        """Set the column's width (HWPUNIT); see :meth:`HwpxOxmlTable.set_column_width`."""
-
-        self.table.set_column_width(self.index, width)
+    @width.setter
+    def width(self, value: int) -> None:
+        self.table.set_column_width(self.index, value)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -425,7 +425,7 @@ class TableFormat:
 
         def mark_dirty(self) -> None: ...
         def iter_grid(self) -> Any: ...
-        def cell(self, row_index: int, col_index: int) -> "HwpxOxmlTableCell": ...
+        def cell(self, row: int, col: int) -> "HwpxOxmlTableCell": ...
         @classmethod
         def _parse_spreadsheet_range(cls, value: str) -> tuple[int, int, int, int]: ...
 
@@ -541,34 +541,38 @@ class TableFormat:
         return position is not None and (position.get("treatAsChar") or "").strip().lower() not in _TRUE
 
     @property
-    def alignment(self) -> str:
-        """Where the table sits across its line: ``"LEFT"``, ``"CENTER"`` or ``"RIGHT"``.
+    def alignment(self) -> Alignment:
+        """Where the table sits across its line: :class:`hwpx.objects.Alignment` ``LEFT``,
+        ``CENTER`` or ``RIGHT`` (also a ``str``: ``table.alignment == "CENTER"`` holds).
 
         A table set as a character (:attr:`treat_as_char`) sits where its paragraph's alignment puts
-        it: ``"CENTER"`` and ``"RIGHT"`` as they are, anything else (justified, distributed) on the
-        left. A floating table reads its ``hp:pos/@horzAlign`` as written (also ``"INSIDE"`` or
-        ``"OUTSIDE"``), measured in its ``horzRelTo`` frame.
+        it: ``CENTER`` and ``RIGHT`` as they are, anything else (justified, distributed) on the
+        left. A floating table reads its ``hp:pos/@horzAlign``, measured in its ``horzRelTo`` frame;
+        the two values a floating table can have besides those three, ``"INSIDE"`` and
+        ``"OUTSIDE"`` (book-binding sides), read as those plain strings.
+
+        Setting it takes ``LEFT``, ``CENTER`` or ``RIGHT`` (an ``Alignment`` or the exact uppercase
+        string; else ``table-alignment-value``). A table set as a character goes where its
+        paragraph's alignment puts it, as Hancom aligns one, so the paragraph holding it takes that
+        alignment (a paragraph shape derived from its own: line spacing, indents and the rest
+        stay). Other text in that paragraph moves with it. A floating table takes it as
+        ``hp:pos/@horzAlign`` in its own frame; its offset stays. The paragraph holding the table
+        loses its line layout cache.
         """
 
         position = self.element.find(f"{_HP}pos")
         if self._floating():
-            return (position.get("horzAlign") if position is not None else None) or "LEFT"
+            written = (position.get("horzAlign") if position is not None else None) or "LEFT"
+            return Alignment(written) if written in TABLE_ALIGNMENTS else cast(Alignment, written)
         model = self.paragraph.section.document
         shape = model.paragraph_property(self.paragraph.element.get("paraPrIDRef")) if model else None
         horizontal = shape.align.horizontal if shape is not None and shape.align is not None else None
-        return horizontal if horizontal in ("CENTER", "RIGHT") else "LEFT"
+        return Alignment(horizontal) if horizontal in ("CENTER", "RIGHT") else Alignment.LEFT
 
-    def set_alignment(self, alignment: str) -> None:
-        """Put the table on the left, centre or right of its line (``"LEFT"``/``"CENTER"``/``"RIGHT"``).
-
-        A table set as a character goes where its paragraph's alignment puts it, as Hancom aligns
-        one, so the paragraph holding it takes that alignment (a paragraph shape derived from its
-        own: line spacing, indents and the rest stay). Other text in that paragraph moves with it.
-        A floating table takes it as ``hp:pos/@horzAlign`` in its own frame; its offset stays. The
-        paragraph holding the table loses its line layout cache.
-        """
-
-        value = _member(alignment, TABLE_ALIGNMENTS, argument="alignment", code="table-alignment-value")
+    @alignment.setter
+    def alignment(self, alignment: "Alignment | str") -> None:
+        value = _member(str(alignment) if isinstance(alignment, Alignment) else alignment, TABLE_ALIGNMENTS,
+                        argument="alignment", code="table-alignment-value")
         if value == self.alignment:
             return
         if self._floating():
@@ -595,19 +599,22 @@ class TableFormat:
     # -- page flow and header rows -------------------------------------------------------------
 
     @property
-    def page_break(self) -> str:
-        """What the table does at the end of a page (``hp:tbl/@pageBreak``): ``"TABLE"`` splits it,
-        ``"CELL"`` splits it between rows of cells, ``"NONE"`` moves it whole to the next page."""
+    def page_split(self) -> str:
+        """How the table splits where a page ends (``hp:tbl/@pageBreak``, Hancom's 표 속성 → 쪽 경계에서
+        나눔): ``"TABLE"`` splits it, ``"CELL"`` splits it between rows of cells, ``"NONE"`` moves it
+        whole to the next page. (Not ``Paragraph.page_break``, the page break before a paragraph.)
+
+        Setting it takes one of the three (exact, uppercase; else ``table-page-split-value``). The
+        paragraph holding the table loses its line layout cache.
+        """
 
         return self.element.get("pageBreak") or "CELL"
 
-    def set_page_break(self, page_break: str) -> None:
-        """Set :attr:`page_break` (``"TABLE"``, ``"CELL"`` or ``"NONE"``; ``table-page-break-value``).
-        The paragraph holding the table loses its line layout cache."""
-
-        value = _member(page_break, TABLE_PAGE_BREAKS, argument="page_break", code="table-page-break-value")
-        if self.element.get("pageBreak") != value:
-            self.element.set("pageBreak", value)
+    @page_split.setter
+    def page_split(self, value: str) -> None:
+        wanted = _member(value, TABLE_PAGE_SPLITS, argument="page_split", code="table-page-split-value")
+        if self.element.get("pageBreak") != wanted:
+            self.element.set("pageBreak", wanted)
             _clear_paragraph_layout_cache(self.paragraph.element)
             self.mark_dirty()
 
@@ -619,14 +626,14 @@ class TableFormat:
 
     @property
     def no_adjust(self) -> bool:
-        """``hp:tbl/@noAdjust`` as written (Hancom's 표 속성 "자동으로 크기 조절" turned off)."""
+        """``hp:tbl/@noAdjust`` as written (Hancom's 표 속성 "자동으로 크기 조절" turned off).
+        Setting it takes ``True`` or ``False`` (``table-no-adjust-value``)."""
 
         return (self.element.get("noAdjust") or "").strip().lower() in _TRUE
 
-    def set_no_adjust(self, value: bool) -> None:
-        """Write ``hp:tbl/@noAdjust`` (``True``/``False``)."""
-
-        wanted = "1" if _flag(value, "value", "table-no-adjust-value") else "0"
+    @no_adjust.setter
+    def no_adjust(self, value: bool) -> None:
+        wanted = "1" if _flag(value, "no_adjust", "table-no-adjust-value") else "0"
         if self.element.get("noAdjust") != wanted:
             self.element.set("noAdjust", wanted)
             self.mark_dirty()
@@ -666,7 +673,7 @@ class TableFormat:
                               "Split that cell first, or choose a count at the bottom of a merged cell.",
                               row=entry.anchor[0], col=entry.anchor[1])
         for entry in cells.values():
-            entry.cell.set_header(entry.anchor[0] < count)
+            entry.cell.is_header = entry.anchor[0] < count
         wanted = "1" if repeat and count > 0 else "0"
         if self.element.get("repeatHeader") != wanted:
             self.element.set("repeatHeader", wanted)
@@ -721,7 +728,7 @@ class TableFormat:
         *,
         sides: Sequence[str] | None = None,
         line_type: str = "SOLID",
-        width_mm: float = 0.12,
+        border_width_mm: float = 0.12,
         color: str = "#000000",
         inner: bool = True,
     ) -> None:
@@ -729,9 +736,9 @@ class TableFormat:
 
         *sides* picks the cell sides (``"left"``, ``"right"``, ``"top"``, ``"bottom"``; all four when
         ``None``). With *inner* ``False`` only the sides on the range's outline change, so
-        ``table.set_borders(width_mm=0.4, inner=False)`` draws a thick frame around the table.
+        ``table.set_borders(border_width_mm=0.4, inner=False)`` draws a thick frame around the table.
         *line_type* is an OWPML line type (``"SOLID"``, ``"DASH"``, ``"DOUBLE_SLIM"``...; ``"NONE"``
-        draws no line), *width_mm* a width in mm (written as the nearest of Hancom's widths) and
+        draws no line), *border_width_mm* a width in mm (written as the nearest of Hancom's widths) and
         *color* ``#RRGGBB``. A cell outside the range that shares an outline side takes the same
         line on it, as Hancom's cell border command does (a merged neighbour reaching past the range
         keeps its own). Each cell keeps its other sides, diagonals and fill: the line goes into a
@@ -744,7 +751,7 @@ class TableFormat:
             raise _refuse(f"sides must name some of {', '.join(BORDER_SIDES)}; got {sides!r}", "table-border-value",
                           "Pass e.g. sides=('top', 'bottom'), or leave it out for all four.", sides=repr(sides))
         _flag(inner, "inner", "table-border-value")
-        line = _border_line(line_type, width_mm, color)
+        line = _border_line(line_type, border_width_mm, color)
         top, left, bottom, right = self._range(cell_range)
         fills = _BorderFills(self)  # type: ignore[arg-type]
         changes: dict[int, tuple["HwpxOxmlTableCell", set[str]]] = {}
