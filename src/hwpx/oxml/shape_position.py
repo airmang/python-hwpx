@@ -536,16 +536,32 @@ class ObjectPlacement:
         box around the turned object, the object as drawn is turned about its own middle (``hc:rotMatrix``)
         and moved into that box (``hp:offset``, ``hc:transMatrix``), and ``hp:rotationInfo`` holds the angle
         and the middle of the box -- the relation the turned objects of Hancom-saved documents show,
-        stretched or not (see :func:`rotation_base_size`). Refused with ``shape-rotation-unsupported``:
-        a shape holding text -- Hancom draws the text level, laid out across the box around the turned
-        shape (it saves ``drawText/@lastWidth`` as that box's width and breaks the lines in it), so the
-        text sticks out of the turned shape; no public Hancom document holds a turned shape with text in
-        another form. A group -- Hancom draws each member from its own matrices, so turning a group means
-        turning every member in them, which one public Hancom group (turned 180 degrees inside another)
-        cannot settle for other angles. A flipped object, and an object without ``hp:rotationInfo`` (an
-        equation or chart). A member of a group is refused with ``shape-group-member-unsupported``, an
-        angle outside 0..359 with ``shape-rotation-value``. 0 turns it back. The paragraph loses its line
-        layout cache.
+        stretched or not (see :func:`rotation_base_size`). Hancom computes with the cosine and sine as it
+        writes them (six decimals) and moves the box by whole units; so does this. The placement
+        (``hp:pos``) stays: the box keeps its top left corner, where Hancom's own turn commands also move
+        the object so its middle stays on the page.
+
+        A shape holding text (a text box) turns the same way; Hancom does not turn the text with it but
+        lays it out level across the box around the turned shape, so ``hp:drawText/@lastWidth`` becomes
+        that box's width and the text's line layout caches go (rectangles and ellipses with text turned
+        90 and 30 degrees by Hancom 2024 and saved hold exactly this).
+
+        A group (``hp:container``) turns as a whole, as Hancom turns one: every member is drawn from its
+        own matrices, so each member takes the group's turn about the group's middle (its ``hc:rotMatrix``,
+        expressed from its own place) and the group's move (``hc:transMatrix`` and ``hp:offset``: its place
+        plus the group's), and keeps ``rotationInfo/@angle`` 0; the group's box is the box around its turned
+        members and its ``rotationInfo`` centre the turned middle -- what Hancom wrote for groups of a
+        rectangle and an ellipse and of a rectangle and a text box turned 90 and 30 degrees. A member's
+        ``rotationInfo`` centre becomes the middle of its own turned box (it stays at a right angle, as
+        Hancom's turn by 90 degrees leaves it) and a member's text is laid out across that box's width.
+
+        Refused with ``shape-rotation-unsupported`` (``context["reason"]`` says why), because no Hancom-saved
+        document shows how Hancom writes them: a group already turned to another angle than 0 (turn it
+        back to 0 first), resized (stretched) or flipped, or holding a group, a turned, flipped or
+        stretched member; a flipped object; and an object without ``hp:rotationInfo`` (an equation or
+        chart). One member of a group alone is refused with ``shape-group-member-unsupported`` (turn the
+        group), an angle outside 0..359 with ``shape-rotation-value``. 0 turns an object back, a group
+        too. The paragraph loses its line layout cache.
         """
 
         info = self.element.find(f"{_HP}rotationInfo")
@@ -561,16 +577,15 @@ class ObjectPlacement:
                 suggestion="Pass the angle in whole degrees clockwise, 0 to 359.",
             )
         if _in_group(self.element, self.paragraph.element):
-            raise _group_member_refused("turned")
-        width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
-        draw_text = self.element.find(f"{_HP}drawText")
-        if angle and draw_text is not None and any((t.text or "").strip() for t in draw_text.iter(f"{_HP}t")):
-            # Hancom lays the text out level in the box around the turned shape, not turned with it: text
-            # boxes turned 30-270 degrees, opened and saved again by Hancom, came back with lastWidth set to
-            # that box's width and the text drawn across it, outside the shape. No public Hancom document
-            # (1,338 .hwpx, 304 .hwp) holds a turned shape with text to show another form.
-            raise _rotation_refused(self.element, "it holds text, which Hancom does not turn with it")
-        apply_rotation(self.element, angle, width, height)
+            raise _group_member_refused("turned", "a member turns only with its whole group: turn the group "
+                                                  "(group.rotation = angle)")
+        if str(self.element.tag).rsplit("}", 1)[-1] == "container":
+            from .container import turn_group
+
+            turn_group(self.element, angle)  # refuses a group this does not know Hancom's form for
+        else:
+            width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
+            apply_rotation(self.element, angle, width, height)
         from ._document_primitives import _clear_paragraph_layout_cache
 
         _clear_paragraph_layout_cache(self.paragraph.element)
@@ -711,8 +726,10 @@ def _rotation_refused(element: Any, why: str) -> HwpxValueError:
         f"hp:{str(element.tag).rsplit('}', 1)[-1]} cannot be turned: {why}",
         code="shape-rotation-unsupported",
         context={"reason": why},
-        suggestion="Unscaled, unflipped pictures, drawing shapes and OLE objects outside a group turn; "
-                   "turn a stretched picture back to its own size first, or turn it in Hancom.",
+        suggestion="Pictures, drawing shapes (with or without text) and OLE objects turn, stretched or not, and "
+                   "a whole group whose members are unturned and unflipped turns; a flipped object, an "
+                   "equation or chart, a resized or flipped group, a group holding a group and a group "
+                   "already turned to another angle (turn it back to 0 first) do not.",
     )
 
 
@@ -737,7 +754,9 @@ def rotation_base_size(element: Any) -> tuple[int, int]:
     if info is None or rendering is None:
         raise _rotation_refused(element, "it has no hp:rotationInfo")
     if str(element.tag).rsplit("}", 1)[-1] == "container":
-        raise _rotation_refused(element, "turning a group is not verified against a Hancom-saved group")
+        # A group turns as a whole (container.turn_group); a turned group is not resized or cut.
+        raise _rotation_refused(element, "a turned group is not resized: no Hancom-saved document shows one; "
+                                         "turn it back to 0 first")
     matrices = [str(child.tag).rsplit("}", 1)[-1] for child in rendering]
     if matrices != ["transMatrix", "scaMatrix", "rotMatrix"]:
         raise _rotation_refused(element, "its rendering matrices are not one trans/sca/rot set")
@@ -779,36 +798,90 @@ def apply_rotation(element: Any, angle: int, width: int, height: int) -> None:
     ``hc:rotMatrix`` turns it about its middle as drawn, ``hp:offset``/``hc:transMatrix`` move the box around
     it to its origin, ``hp:sz`` is that box and ``hp:rotationInfo`` the angle and the middle of the box."""
 
-    radians = math.radians(angle)
-    cos, sin = math.cos(radians), math.sin(radians)
-    box_width = abs(width * cos) + abs(height * sin)
-    box_height = abs(width * sin) + abs(height * cos)
-    if angle % 90 == 0:  # no float noise on the right angles
-        box_width, box_height = (width, height) if angle % 180 == 0 else (height, width)
-    rendering = element.find(f"{_HP}renderingInfo")
-    trans, scale, rot = rendering[0], rendering[1], rendering[2]
+    cos, sin = turn_cos_sin(angle)
+    scale = element.find(f"{_HP}renderingInfo")[1]
     # The object as drawn starts where its scaMatrix moves it (0, 0 unless Hancom moved it there).
-    cx, cy = _fraction(scale.get("e3"), 0.0) + width / 2, _fraction(scale.get("e6"), 0.0) + height / 2
-    shift_x, shift_y = box_width / 2 - cx, box_height / 2 - cy
-    for key, value in (("e1", 1.0), ("e2", 0.0), ("e3", shift_x), ("e4", 0.0), ("e5", 1.0), ("e6", shift_y)):
-        trans.set(key, _matrix_number(value))
-    for key, value in (("e1", cos), ("e2", -sin), ("e3", cx * (1 - cos) + cy * sin),
-                       ("e4", sin), ("e5", cos), ("e6", cy * (1 - cos) - cx * sin)):
-        rot.set(key, _matrix_number(round(value, 6)))
-    offset = element.find(f"{_HP}offset")
-    if offset is not None:
-        offset.set("x", str(round(shift_x) & 0xFFFFFFFF))  # a negative one as Hancom writes it: unsigned 32-bit
-        offset.set("y", str(round(shift_y) & 0xFFFFFFFF))
+    left, top = _fraction(scale.get("e3"), 0.0), _fraction(scale.get("e6"), 0.0)
+    middle = (left + width / 2, top + height / 2)
+    shift, box = turned_frame(cos, sin, middle, ((left, top), (left + width, top), (left + width, top + height),
+                                                 (left, top + height)))
+    set_turn(element, cos, sin, middle, shift)
     info = element.find(f"{_HP}rotationInfo")
     info.set("angle", str(angle))
-    info.set("centerX", str(round(box_width / 2)))
-    info.set("centerY", str(round(box_height / 2)))
+    if angle:
+        info.set("centerX", str(_half_up(middle[0] + shift[0])))
+        info.set("centerY", str(_half_up(middle[1] + shift[1])))
+    else:  # back to its own size: the centre a new object has
+        info.set("centerX", str(width // 2))
+        info.set("centerY", str(height // 2))
     size = element.find(f"{_HP}sz")
     if size is not None:
         if size.get("widthRelTo", "ABSOLUTE") == "ABSOLUTE":
-            size.set("width", str(round(box_width)))
+            size.set("width", str(box[0]))
         if size.get("heightRelTo", "ABSOLUTE") == "ABSOLUTE":
-            size.set("height", str(round(box_height)))
+            size.set("height", str(box[1]))
+    set_text_width(element, box[0])
+
+
+def _half_up(value: float) -> int:
+    return math.floor(value + 0.5)
+
+
+def turn_cos_sin(angle: int) -> tuple[float, float]:
+    """The cosine and sine of *angle* degrees as Hancom writes them in ``hc:rotMatrix`` (six decimals) -- and
+    computes the rest of a turn with: a rectangle turned 30 degrees holds ``e3="2764.62"`` (7200 x 0.133975 +
+    3600 x 0.5), not 2764.617."""
+
+    radians = math.radians(angle)
+    return round(math.cos(radians), 6) + 0.0, round(math.sin(radians), 6) + 0.0
+
+
+def turned_frame(cos: float, sin: float, middle: tuple[float, float],
+                 points: "tuple[tuple[float, float], ...] | list[tuple[float, float]]",
+                 ) -> tuple[tuple[int, int], tuple[int, int]]:
+    """*points* turned (*cos*, *sin*) about *middle*: how far, in whole units, to move them so the box around
+    them starts at the origin, and that box's size -- Hancom's ``transMatrix`` move and ``hp:sz`` of a turned
+    object or group (a 14400 x 7200 rectangle turned 30 degrees: moved by 835, 3118 into a 16070 x 13436 box)."""
+
+    mx, my = middle
+    xs = [(x - mx) * cos - (y - my) * sin for x, y in points]
+    ys = [(x - mx) * sin + (y - my) * cos for x, y in points]
+    shift = (_half_up(-(mx + min(xs))), _half_up(-(my + min(ys))))
+    return shift, (_half_up(mx + max(xs) + shift[0]), _half_up(my + max(ys) + shift[1]))
+
+
+def set_turn(element: Any, cos: float, sin: float, about: tuple[float, float], move: tuple[float, float]) -> None:
+    """Write *element*'s ``hc:rotMatrix`` turning (*cos*, *sin*) about *about* (in its own space) and its
+    ``hc:transMatrix`` and ``hp:offset`` moving it by *move* (whole units)."""
+
+    rendering = element.find(f"{_HP}renderingInfo")
+    trans, rot = rendering[0], rendering[2]
+    for key, value in (("e1", 1.0), ("e2", 0.0), ("e3", move[0]), ("e4", 0.0), ("e5", 1.0), ("e6", move[1])):
+        trans.set(key, _matrix_number(value))
+    ax, ay = about
+    for key, value in (("e1", cos), ("e2", -sin), ("e3", ax * (1 - cos) + ay * sin),
+                       ("e4", sin), ("e5", cos), ("e6", ay * (1 - cos) - ax * sin)):
+        rot.set(key, _matrix_number(round(value, 6)))
+    offset = element.find(f"{_HP}offset")
+    if offset is not None:
+        offset.set("x", str(round(move[0]) & 0xFFFFFFFF))  # a negative one as Hancom writes it: unsigned 32-bit
+        offset.set("y", str(round(move[1]) & 0xFFFFFFFF))
+
+
+def set_text_width(element: Any, width: int) -> None:
+    """The width a shape's text is laid out across (``hp:drawText/@lastWidth``) after a turn; its paragraphs lose
+    their line layout caches, so Hancom breaks the lines again (it lays a turned shape's text level across the box
+    around it). Nothing for a shape without text."""
+
+    draw_text = element.find(f"{_HP}drawText")
+    if draw_text is None:
+        return
+    draw_text.set("lastWidth", str(width))
+    from ._document_primitives import _LAYOUT_CACHE_ELEMENT_NAMES
+
+    for paragraph in draw_text.iter(f"{_HP}p"):
+        for child in [c for c in paragraph if str(c.tag).rsplit("}", 1)[-1].lower() in _LAYOUT_CACHE_ELEMENT_NAMES]:
+            paragraph.remove(child)
 
 
 def object_size(element: Any) -> tuple[int, int]:

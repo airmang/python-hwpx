@@ -532,7 +532,7 @@
    "oxml/curves.py:120"
   ],
   "shape-description-value": [
-   "oxml/shape_position.py:593"
+   "oxml/shape_position.py:608"
   ],
   "shape-drop-cap-anchor-detached": [
    "_document/shapes.py:839"
@@ -548,11 +548,11 @@
   ],
   "shape-equation-base-unit-value": [
    "equation/measure.py:667",
-   "oxml/shape_position.py:1117",
-   "oxml/shape_position.py:1249"
+   "oxml/shape_position.py:1190",
+   "oxml/shape_position.py:1322"
   ],
   "shape-equation-font-empty": [
-   "oxml/shape_position.py:1301"
+   "oxml/shape_position.py:1374"
   ],
   "shape-equation-not-created": [
    "_document/shapes.py:569"
@@ -563,38 +563,38 @@
   "shape-equation-script-empty": [
    "_document/shapes.py:521",
    "oxml/paragraph.py:1417",
-   "oxml/shape_position.py:1087"
+   "oxml/shape_position.py:1160"
   ],
   "shape-equation-script-latex": [
-   "oxml/shape_position.py:1273"
+   "oxml/shape_position.py:1346"
   ],
   "shape-equation-script-too-large": [
    "_document/shapes.py:527",
-   "oxml/shape_position.py:1093"
+   "oxml/shape_position.py:1166"
   ],
   "shape-equation-script-unbalanced": [
-   "oxml/shape_position.py:1287"
+   "oxml/shape_position.py:1360"
   ],
   "shape-move-into-itself": [
-   "oxml/shape_position.py:1885"
+   "oxml/shape_position.py:1958"
   ],
   "shape-not-in-document": [
-   "oxml/shape_position.py:1874"
+   "oxml/shape_position.py:1947"
   ],
   "shape-original-size-invalid": [
-   "oxml/shape_position.py:1323"
+   "oxml/shape_position.py:1396"
   ],
   "shape-out-margin-value": [
    "oxml/shape_position.py:501"
   ],
   "shape-picture-border-value": [
-   "oxml/shape_position.py:1023",
-   "oxml/shape_position.py:122",
-   "oxml/shape_position.py:994"
+   "oxml/shape_position.py:1067",
+   "oxml/shape_position.py:1096",
+   "oxml/shape_position.py:122"
   ],
   "shape-picture-crop-value": [
    "oxml/shape_position.py:141",
-   "oxml/shape_position.py:915"
+   "oxml/shape_position.py:988"
   ],
   "shape-picture-image-value": [
    "oxml/shape_position.py:107"
@@ -610,17 +610,17 @@
    "oxml/shape_position.py:233"
   ],
   "shape-rect-ratio-value": [
-   "oxml/shape_position.py:1235"
+   "oxml/shape_position.py:1308"
   ],
   "shape-rotation-value": [
-   "oxml/shape_position.py:557"
+   "oxml/shape_position.py:573"
   ],
   "shape-size-value": [
-   "oxml/shape_position.py:1198",
-   "oxml/shape_position.py:1213",
-   "oxml/shape_position.py:1221",
-   "oxml/shape_position.py:827",
-   "oxml/shape_position.py:838"
+   "oxml/shape_position.py:1271",
+   "oxml/shape_position.py:1286",
+   "oxml/shape_position.py:1294",
+   "oxml/shape_position.py:900",
+   "oxml/shape_position.py:911"
   ],
   "shape-z-order-value": [
    "oxml/shape_position.py:448"
