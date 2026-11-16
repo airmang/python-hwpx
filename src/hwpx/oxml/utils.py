@@ -55,8 +55,11 @@ def normalize_line_width(value: str | int | float) -> str:
     return _LINE_WIDTH_BY_MM[nearest]
 
 
-#: :data:`LINE_WIDTHS` as numbers of millimetres (what ``*_width_mm=`` arguments take).
-LINE_WIDTHS_MM = tuple(float(width.split()[0]) for width in LINE_WIDTHS)
+#: Hancom's line widths in mm, thinnest first (stable, 7.0): the only values a border or column line
+#: width (``border_width_mm=``, ``separator_width_mm=``, ``sides={...: {"width_mm": ...}}``) takes --
+#: :data:`LINE_WIDTHS` as numbers. Fitting another width to this list is the caller's choice; the
+#: engine refuses it (``style-line-width-invalid``) rather than writing a width it was not given.
+LINE_WIDTHS_MM: tuple[float, ...] = tuple(float(width.split()[0]) for width in LINE_WIDTHS)
 
 
 def line_width_text(width_mm: object, *, argument: str = "width_mm") -> str:

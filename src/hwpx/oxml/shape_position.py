@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from ..objects.results import CellMargins, ObjectPosition
     from .objects import HwpxOxmlShape
     from .paragraph import HwpxOxmlParagraph
+    from .section import HwpxOxmlSection
 
 POS_VERT_REL_TO = ("PAPER", "PAGE", "PARA")
 POS_HORZ_REL_TO = ("PAPER", "PAGE", "COLUMN", "PARA")
@@ -380,6 +381,18 @@ def remove_orphaned_images(section: Any, references: set[str]) -> None:
         remove_orphaned_items(section.document, references)
 
 
+def object_section(obj: Any) -> "HwpxOxmlSection | None":
+    """The section (``hwpx.model.Section``) whose part holds *obj* -- a picture, equation, shape or table, also one
+    in a table cell, a text box, a header or footer, a footnote or a memo, all of which the section part holds.
+    Its number is ``doc.sections.index(obj.section)``. ``None`` for an object on a master page: that is a part of
+    its own, not a section's (which sections use it is ``section.properties``' to say)."""
+
+    from .section import HwpxOxmlSection
+
+    holder = getattr(getattr(obj, "paragraph", None), "section", None)
+    return holder if isinstance(holder, HwpxOxmlSection) else None
+
+
 _Placed = TypeVar("_Placed", bound="ObjectPlacement")
 
 
@@ -394,6 +407,8 @@ class ObjectPlacement:
 
     element: Any
     paragraph: Any
+
+    section = property(object_section)
 
     @property
     def position(self) -> "ObjectPosition":
@@ -962,7 +977,8 @@ def line_width_of(element: Any) -> int | None:
     return _number(line.get("width")) if line is not None else None
 
 
-#: HWPUNIT a millimetre of line width counts as: Hancom writes the widths it offers so (0.12 mm 33, 0.5 mm 141).
+#: HWPUNIT a millimetre of line width counts as (stable, 7.0): Hancom writes the widths it offers so (0.12 mm 33,
+#: 0.5 mm 141). A picture's or drawing shape's ``hp:lineShape/@width`` is this many HWPUNIT per mm, cut to a whole unit.
 LINE_WIDTH_UNITS_PER_MM = 283
 
 
@@ -970,7 +986,8 @@ def line_width_units(line_width_mm: object) -> int:
     """A picture's or drawing shape's line width in mm (``line_width_mm``) as the HWPUNIT ``hp:lineShape/@width``
     holds: counted at :data:`LINE_WIDTH_UNITS_PER_MM` per mm and cut to a whole unit, as Hancom writes the widths
     it offers, so the default 0.12 mm is the 33 6.x wrote and a Hancom-saved picture's 0.5 mm border is 141.
-    0 draws no line. A width that is not a finite number of mm from 0 is refused (``shape-picture-border-value``)."""
+    0 draws no line. A width that is not a finite number of mm from 0 is refused (``shape-picture-border-value``).
+    (Stable, 7.0.)"""
 
     if (isinstance(line_width_mm, bool) or not isinstance(line_width_mm, (int, float))
             or not math.isfinite(line_width_mm) or not 0 <= line_width_mm * LINE_WIDTH_UNITS_PER_MM < 2**31):
@@ -994,7 +1011,9 @@ def line_width_mm_of(element: Any) -> float | None:
 
 def line_width_mm_for_units(units: object) -> float:
     """The mm that :func:`line_width_units` turns back into exactly *units* (HWPUNIT, an int or a string of
-    one), for a caller that still holds a 6.x HWPUNIT width; ``shape-picture-border-value`` when it is not one."""
+    one): ``(units + 0.5) / 283``, so ``line_width_units(line_width_mm_for_units(n)) == n`` for every *n* -- for a
+    caller that holds a HWPUNIT width (a 6.x ``line_width=``, an ``hp:lineShape/@width`` it read) and gives it to a
+    ``line_width_mm=`` argument. ``shape-picture-border-value`` when it is not an int from 0. (Stable, 7.0.)"""
 
     try:
         whole = int(str(units).strip()) if not isinstance(units, bool) else -1

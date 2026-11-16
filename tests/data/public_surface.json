@@ -372,6 +372,7 @@
     "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
     "rotation": {"kind": "property", "settable": true, "returns": "int"},
     "script": {"kind": "property", "settable": true, "returns": "str"},
+    "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
     "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
@@ -471,6 +472,7 @@
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
     "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
     "rotation": {"kind": "property", "settable": true, "returns": "int"},
+    "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
     "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
@@ -647,6 +649,7 @@
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
     "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
     "rotation": {"kind": "property", "settable": true, "returns": "int"},
+    "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
     "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
@@ -789,6 +792,7 @@
     "remove_draw_text": {"kind": "method", "params": [], "returns": "bool"},
     "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
     "rotation": {"kind": "property", "settable": true, "returns": "int"},
+    "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_draw_text": {"kind": "method", "params": [["text", "P", false], ["name", "K", true], ["editable", "K", true], ["margin", "K", true], ["char_pr_id_ref", "K", true], ["para_pr_id_ref", "K", true], ["vertical_alignment", "K", true]], "returns": "DrawText"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
@@ -842,6 +846,7 @@
     "row_count": {"kind": "property", "settable": false, "returns": "int"},
     "row_heights": {"kind": "property", "settable": false, "returns": "tuple[int, ...]"},
     "rows": {"kind": "property", "settable": false, "returns": "tuple[TableRow, ...]"},
+    "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_borders": {"kind": "method", "params": [["cell_range", "P", true], ["sides", "K", true], ["line_type", "K", true], ["border_width_mm", "K", true], ["color", "K", true], ["inner", "K", true]], "returns": "None"},
     "set_cell_border_fill": {"kind": "method", "params": [["row", "P", false], ["col", "P", false], ["border_fill_id_ref", "P", false]], "returns": "None"},
     "set_cell_borders": {"kind": "method", "params": [["row", "P", false], ["col", "P", false], ["color", "K", false], ["line_type", "K", true]], "returns": "None"},
@@ -1551,7 +1556,8 @@
     ["width_adjust", "int"],
     ["text_offset", "int"],
     ["text_offset_type", "str"],
-    ["checkable", "bool"]
+    ["checkable", "bool"],
+    ["use_instance_width", "bool"]
    ],
    "members": {
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
@@ -2104,6 +2110,14 @@
   "hwpx.oxml.section_format": {
    "PAGE_LANDSCAPE": {"kind": "constant", "type": "str"},
    "PAGE_PORTRAIT": {"kind": "constant", "type": "str"}
+  },
+  "hwpx.oxml.utils": {
+   "LINE_WIDTHS_MM": {"kind": "constant", "type": "tuple"}
+  },
+  "hwpx.oxml.shape_position": {
+   "LINE_WIDTH_UNITS_PER_MM": {"kind": "constant", "type": "int"},
+   "line_width_mm_for_units": {"kind": "function", "params": [["units", "P", false]], "returns": "float"},
+   "line_width_units": {"kind": "function", "params": [["line_width_mm", "P", false]], "returns": "int"}
   },
   "hwpx.oxml.namespaces": {
    "HC": {"kind": "constant", "type": "str"},
