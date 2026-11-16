@@ -41,7 +41,7 @@ SCRIPT = textwrap.dedent(
         table = doc.add_table(2, 2)
         table.cell(0, 0).text = "가"
         doc.add_paragraph("둘째")
-        doc.notes.add_memo("메모", anchor=0)
+        doc.notes.add_memo("메모", paragraph=0)
         doc.notes.add_footnote("각주", paragraph=0)
         doc.tracking.insert(1, "끼움")
         doc.shapes.add_rectangle(width=3000, height=2000)
@@ -115,7 +115,7 @@ def test_ids_keep_the_hancom_range_and_do_not_repeat() -> None:
 
 def test_now_alone_fixes_the_dates_and_memo_times() -> None:
     with HwpxDocument.new(now=FIXED) as doc:
-        memo = doc.notes.add_memo("메모", anchor=0)
+        memo = doc.notes.add_memo("메모", paragraph=0)
         doc.tracking.insert(0, "끼움")
         data = doc.to_bytes()
     parts = _parts(data)
@@ -138,7 +138,7 @@ def test_same_seed_in_one_process_gives_the_same_bytes() -> None:
         with HwpxDocument.new(seed=11, now=FIXED) as doc:
             doc.add_paragraph("하나")
             doc.add_table(2, 3)
-            doc.notes.add_memo("메모", anchor=0)
+            doc.notes.add_memo("메모", paragraph=0)
             return doc.to_bytes()
 
     assert build() == build()

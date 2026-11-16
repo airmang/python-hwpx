@@ -96,7 +96,7 @@ class _BorderFills:
     """Derives new ``hh:borderFill`` definitions from the ones cells use, reusing an identical one.
 
     The derivation itself is :func:`hwpx.oxml.formatting.derive_definition`, the one path
-    ``doc.styles.ensure_border_fill(base_border_fill_id=)`` and the fill setters use too; this
+    ``doc.styles.ensure_border_fill(base_border_fill_id_ref=)`` and the fill setters use too; this
     remembers what each (base, change) gave so a table's cells sharing a border fill derive it once."""
 
     def __init__(self, table: "HwpxOxmlTable") -> None:
@@ -236,7 +236,7 @@ class TableCellFormat:
 
     @property
     def border_fill(self) -> BorderFillInfo | None:
-        """The cell's four lines, diagonal and solid fill as a value (``doc.styles.border_fill_info``'s
+        """The cell's four lines, diagonal and solid fill as a value (``doc.styles.border_fill``'s
         type): the ``hh:borderFill`` the cell names, else the table's. ``None`` when the id names none."""
 
         from .header_fonts import border_fill_info

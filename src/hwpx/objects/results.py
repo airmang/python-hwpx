@@ -32,8 +32,8 @@ class FieldFillResult:
     ``FitPolicy`` cannot be satisfied, so reaching this dataclass at all means
     the fill already succeeded — there is no ``ok`` left to check.
 
-    ``fit`` carries the FormFit engine's verdict when a ``fit_policy`` was
-    supplied (``None`` otherwise): confidence, the font size actually applied,
+    ``fit`` carries the FormFit engine's verdict when a ``FitPolicy`` was
+    supplied (``doc.fields.fill(fit=...)``, ``None`` otherwise): confidence, the font size actually applied,
     and any warnings. It is kept — trimming it would silently drop diagnostics
     the pre-existing FormFit integration suite asserts on — for the case where
     a value fit but only after being shrunk or wrapped.
@@ -388,7 +388,7 @@ class ClearBodyReport:
 
 @dataclass(frozen=True)
 class BorderLine:
-    """One side of an ``hh:borderFill`` (``doc.styles.border_fill_info``).
+    """One side of an ``hh:borderFill`` (``doc.styles.border_fill``).
 
     ``type`` and ``color`` are the stored attribute values, unnormalized;
     ``width_mm`` is the number in front of the stored ``"<n> mm"`` width.
@@ -404,7 +404,7 @@ class BorderLine:
 
 @dataclass(frozen=True)
 class BorderFillInfo:
-    """A typed read of one ``hh:borderFill`` (``doc.styles.border_fill_info``).
+    """A typed read of one ``hh:borderFill`` (``doc.styles.border_fill``).
 
     ``fill`` is the solid ``hc:winBrush`` face colour, or ``None`` when there
     is no solid fill. Gradient and image fills are not described here.
@@ -547,7 +547,7 @@ class NumberingLevel:
 
 @dataclass(frozen=True)
 class NumberingInfo:
-    """A typed read of one ``hh:numbering`` (``doc.styles.numbering_info``),
+    """A typed read of one ``hh:numbering`` (``doc.styles.numbering``),
     its levels in document order. A snapshot: later header edits do not show."""
 
     id: str
@@ -786,7 +786,7 @@ class PageBorder:
     """A page border and fill (``hp:pageBorderFill``) for one kind of page.
 
     ``page_type`` is ``BOTH``, ``EVEN`` or ``ODD``. ``border_fill_id_ref`` names
-    the ``hh:borderFill`` drawn (read it with ``doc.styles.border_fill_info``).
+    the ``hh:borderFill`` drawn (read it with ``doc.styles.border_fill``).
     ``text_border`` is what the offsets are measured from (``PAPER`` or
     ``CONTENT``); ``fill_area`` what is filled (``PAPER``, ``PAGE``, ``BORDER``).
     The offsets are HWPUNIT.
@@ -856,7 +856,7 @@ class DocumentOptions:
 
 @dataclass(frozen=True)
 class ParagraphPlace:
-    """One paragraph of the whole document and where it sits (``doc.text.paragraphs()``).
+    """One paragraph of the whole document and where it sits (``doc.text.iter_paragraphs()``).
 
     ``where`` is the innermost container: ``body``, ``cell``, ``text_box``,
     ``caption``, ``header``, ``footer``, ``footnote``, ``endnote``, ``memo`` or
@@ -892,7 +892,7 @@ class ParagraphPlace:
 
 @dataclass(frozen=True)
 class ObjectPlace:
-    """One object of the whole document and where it sits (``doc.text.objects()``).
+    """One object of the whole document and where it sits (``doc.text.iter_objects()``).
 
     ``kind`` is ``table``, ``picture``, ``equation``, ``shape``, ``ole``,
     ``chart``, ``video`` or ``textart``; ``object`` is its model object (a table,

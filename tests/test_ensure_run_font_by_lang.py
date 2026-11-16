@@ -80,7 +80,7 @@ def test_the_base_style_values_are_kept() -> None:
     doc = HwpxDocument.new()
     base = doc.styles.ensure_run(bold=True, italic=True, color="#C00000", size=14, letter_spacing=-5)
 
-    style = doc.styles.ensure_run(base_char_pr_id=base, font_by_lang={"HANGUL": "궁서", "LATIN": "Arial"})
+    style = doc.styles.ensure_run(base_char_pr_id_ref=base, font_by_lang={"HANGUL": "궁서", "LATIN": "Arial"})
 
     assert style != base
     assert etree.tostring(_without(_char_pr(doc, style), font_ref_attrs=("hangul", "latin"))) == etree.tostring(
@@ -124,7 +124,7 @@ def test_a_shared_style_is_not_changed_in_place() -> None:
     second = doc.add_paragraph("").add_run("둘째 문단 run", char_pr_id_ref=base)
     before = etree.tostring(_char_pr(doc, base))
 
-    style = doc.styles.ensure_run(base_char_pr_id=base, font_by_lang={"LATIN": "Arial"})
+    style = doc.styles.ensure_run(base_char_pr_id_ref=base, font_by_lang={"LATIN": "Arial"})
 
     assert style != base
     assert etree.tostring(_char_pr(doc, base)) == before

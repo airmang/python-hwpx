@@ -55,7 +55,7 @@ def _header_xml(document: HwpxDocument) -> str:
 
 def test_a_border_fill_width_is_written_from_the_list() -> None:
     document = HwpxDocument.new()
-    fill_id = document.styles.ensure_border_fill(border_width="1 mm")
+    fill_id = document.styles.ensure_border_fill(border_width_mm=1.0)
 
     block = re.search(rf'<hh:borderFill id="{fill_id}".*?</hh:borderFill>', _header_xml(document), re.S)
 
@@ -65,7 +65,7 @@ def test_a_border_fill_width_is_written_from_the_list() -> None:
 
 def test_a_border_fill_width_off_the_list_is_written_as_the_nearest() -> None:
     document = HwpxDocument.new()
-    fill_id = document.styles.ensure_border_fill(border_width="0.45 mm")
+    fill_id = document.styles.ensure_border_fill(border_width_mm=0.45)
 
     block = re.search(rf'<hh:borderFill id="{fill_id}".*?</hh:borderFill>', _header_xml(document), re.S)
 
@@ -78,17 +78,19 @@ def test_a_paragraph_border_width_goes_through_the_same_check() -> None:
     document.add_paragraph("테두리 문단")
     index = len(document.paragraphs) - 1
     with pytest.raises(HwpxValueError, match="not a width in millimetres"):
-        document.styles.apply_paragraph_format(paragraph_index=index, border={"width": "3 pt"})
+        document.styles.apply_paragraph_format(paragraph=index, border={"width": "3 pt"})
+    with pytest.raises(HwpxValueError, match="must be a number of millimetres"):  # 7.0: mm as a number
+        document.styles.apply_paragraph_format(paragraph=index, bottom_border=True, border_width_mm="1 cm")
     with pytest.raises(HwpxValueError, match="not a width in millimetres"):
-        document.styles.apply_paragraph_format(paragraph_index=index, bottom_border=True, border_width="1 cm")
+        document.styles.apply_paragraph_format(paragraph=index, bottom_border=True, border_width_mm=0)
 
 
 def test_a_column_separator_width_is_written_from_the_list() -> None:
     document = HwpxDocument.new()
-    document.page.set_columns(2, separator_type="SOLID", separator_width="0.5mm")
+    document.page.set_columns(2, separator_type="SOLID", separator_width_mm=0.5)
     with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as archive:
         section = archive.read("Contents/section0.xml").decode("utf-8")
     assert re.search(r'<hp:colLine [^>]*width="0.5 mm"', section)
 
-    with pytest.raises(HwpxValueError, match="not a width in millimetres"):
-        document.page.set_columns(2, separator_type="SOLID", separator_width="thick")
+    with pytest.raises(HwpxValueError, match="must be a number of millimetres"):
+        document.page.set_columns(2, separator_type="SOLID", separator_width_mm="thick")

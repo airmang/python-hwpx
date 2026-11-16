@@ -52,7 +52,7 @@ def test_a_typo_raises_at_the_call_not_at_save(document: HwpxDocument) -> None:
     assert error.context["requested"] == "개요1"
     # names() 는 한글 이름과 영문명을 모두 싣는다(23 + 23).
     assert error.context["availableCount"] == len(error.context["available"])
-    assert "doc.styles.names()" in error.suggestion
+    assert "doc.styles.names" in error.suggestion
 
 
 def test_the_5_x_typo_only_surfaced_at_save_and_named_nothing(tmp_path) -> None:
@@ -269,7 +269,7 @@ def test_get_follows_the_mapping_contract_and_never_raises(document: HwpxDocumen
 
 
 def test_names_lists_both_korean_and_english_labels(document: HwpxDocument) -> None:
-    names = document.styles.names()
+    names = document.styles.names
     assert "개요 1" in names and "Outline 1" in names
     assert len(names) == len(set(names)), "중복 없이"
 
@@ -278,7 +278,7 @@ def test_definition_tables_are_reachable_from_the_namespace(document: HwpxDocume
     styles = document.styles
     assert styles.char_properties == document.oxml.char_properties
     assert styles.paragraph_properties == document.oxml.paragraph_properties
-    assert styles.border_fills == document.oxml.border_fills
+    assert set(styles.border_fills) == set(document.oxml.border_fills)
     assert styles.bullets == document.oxml.bullets
     assert styles.memo_shapes == document.oxml.memo_shapes
     assert styles.char_property(0) is not None
@@ -295,10 +295,10 @@ def test_ensure_verbs_mint_ids(document: HwpxDocument) -> None:
 
 def test_apply_verbs_reach_the_layout_owner(document: HwpxDocument) -> None:
     document.add_paragraph("본문")
-    result = document.styles.apply_paragraph_format(paragraph_index=0, alignment="CENTER")
+    result = document.styles.apply_paragraph_format(paragraph=0, alignment="CENTER")
     assert result.formatted == 1
     assert result.paragraphs == (0,)
-    listed = document.styles.apply_list_format(paragraph_index=0, kind="bullet")
+    listed = document.styles.apply_list_format(paragraph=0, kind="bullet")
     assert listed.formatted == 1
     assert listed.kind == "bullet"
     # 5.x 의 ``paraPrIDRef`` 카멜 키가 snake_case 속성이 됐다.
@@ -322,7 +322,7 @@ def test_the_removed_root_names_point_at_doc_styles(document: HwpxDocument) -> N
 def test_text_namespace_exports_and_searches(document: HwpxDocument) -> None:
     document.add_paragraph("첫 문단")
     assert "첫 문단" in document.text.plain()
-    assert sum(1 for _ in document.text.runs()) >= 1
+    assert sum(1 for _ in document.text.iter_runs()) >= 1
     assert document.text.find_runs(char_pr_id_ref=0)
 
 

@@ -319,7 +319,7 @@ document = HwpxDocument.new()
 paragraph = document.add_paragraph("앵커 단락", section=0)
 memo = document.notes.add_memo(
     "승인 필요",
-    anchor=paragraph,
+    paragraph=paragraph,
     memo_shape_id_ref="0",
     author="PM",
     created=datetime.now(),
@@ -416,7 +416,7 @@ print("replaced:", changed)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-all_text = "".join(run.text for run in document.text.runs())
+all_text = "".join(run.text for run in document.text.iter_runs())
 print(all_text[:80])
 ```
 
@@ -826,11 +826,15 @@ if para_pr and style:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-change = document.tracking.change("1")
+paragraph = document.add_paragraph("검토할 문장")
+document.tracking.insert(paragraph, " 덧붙인 글", author="검토자")
+for change in document.tracking.changes:  # 문서 순서의 TrackedChange
+    print(change.change_id, change.kind, change.author, change.date)
+change = document.tracking.change(1)
 if change:
-    author = document.tracking.author(change.author_id)
-    if author:
-        print(change.change_type, author.name, author.color)
+    print(change.paragraph.text)
+for author in document.tracking.authors.values():
+    print(author.name, author.color)
 ```
 
 ### 예제 59: 바탕쪽 이름 수정하기
@@ -1227,12 +1231,12 @@ todo = document.add_paragraph("TODO: QA 서명", section=section, char_pr_id_ref
 
 document.notes.add_memo(
     "배포 전 QA 서명을 확인하세요.",
-    anchor=todo,
+    paragraph=todo,
     memo_shape_id_ref="0",
     memo_id="release-memo-qa",
     char_pr_id_ref="10",
     attributes={"author": "QA"},
-    anchor_char_pr_id_ref="10",
+    paragraph_char_pr_id_ref="10",
 )
 ```
 
@@ -1424,7 +1428,7 @@ with open("result.hwpx", "wb") as fp:
 ## AI 파이프라인에서 읽기
 
 검색·요약 파이프라인에 넣을 글은 이 패키지에서 파일에 적힌 그대로 읽습니다. `doc.text.outline()`은 글이 있는
-덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.paragraphs()`는 표 칸·글상자·머리말·각주까지 모든 문단을
+덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.iter_paragraphs()`는 표 칸·글상자·머리말·각주까지 모든 문단을
 자리와 함께 내놓습니다.
 
 <!-- standalone-python-example -->
@@ -1436,7 +1440,7 @@ doc.add_paragraph("운영 보고")
 doc.add_table(1, 2).cell(0, 0).text = "참여 학생"
 outline = doc.text.outline(max_chars=2000)
 print(outline.to_text())                      # [s0p0] 본문 1문단: 운영 보고 ...
-for place in doc.text.paragraphs(where={"cell"}):
+for place in doc.text.iter_paragraphs(where={"cell"}):
     print(place.row, place.col, place.paragraph.text)   # 0 0 참여 학생 ...
 ```
 

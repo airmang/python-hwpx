@@ -12,7 +12,7 @@ from hwpx.document import HwpxDocument
 
 
 def _lines(document: HwpxDocument, fill_id: str) -> dict[str, tuple[str, float, str]]:
-    info = document.styles.border_fill_info(fill_id)
+    info = document.styles.border_fill(fill_id)
     assert info is not None
     return {
         side: (line.type, line.width_mm, line.color)
@@ -25,7 +25,7 @@ def test_each_side_takes_its_own_line() -> None:
 
     fill_id = document.styles.ensure_border_fill(
         border_color="#000000",
-        border_width="0.15 mm",
+        border_width_mm=0.15,
         fill_color="#DFE6F7",
         sides={
             "left": None,
@@ -40,7 +40,7 @@ def test_each_side_takes_its_own_line() -> None:
         "top": ("SOLID", 0.4, "#000000"),  # what a side leaves out is the uniform border's
         "bottom": ("DOUBLE_SLIM", 0.5, "#112233"),
     }
-    info = document.styles.border_fill_info(fill_id)
+    info = document.styles.border_fill(fill_id)
     assert info is not None and info.fill == "#DFE6F7"
 
 

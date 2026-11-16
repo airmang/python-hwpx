@@ -99,7 +99,7 @@ def test_clear_document_metadata_clears_unknown_names_and_keeps_title() -> None:
 
     cleared = document.parts.clear_document_metadata()
 
-    assert cleared == [
+    assert cleared == (
         "creator",
         "subject",
         "description",
@@ -109,7 +109,7 @@ def test_clear_document_metadata_clears_unknown_names_and_keeps_title() -> None:
         "date",
         "keyword",
         "companyName",
-    ]
+    )
     assert _metadata_xml(document.to_bytes()) == (
         "<opf:metadata>"
         '<opf:title xml:space="preserve">■ 3월 </opf:title>'
@@ -132,7 +132,7 @@ def test_clear_document_metadata_with_empty_keep_clears_title_and_language() -> 
 
     cleared = document.parts.clear_document_metadata(keep=(), timestamp="2000-01-01T00:00:00Z")
 
-    assert cleared[:2] == ["title", "language"]
+    assert cleared[:2] == ("title", "language")
     metadata = document.parts.metadata
     assert metadata is not None
     assert metadata.title is None
@@ -160,7 +160,7 @@ def test_clear_document_metadata_without_a_metadata_block_returns_nothing() -> N
     )
     document = HwpxDocument.open(archive)
 
-    assert document.parts.clear_document_metadata() == []
+    assert document.parts.clear_document_metadata() == ()
     assert document.parts.metadata is None
     assert "<opf:metadata" not in _read_part(document.to_bytes(), "Contents/content.hpf").decode()
 
@@ -207,7 +207,7 @@ def test_clear_preview_empties_text_and_neutralizes_image() -> None:
 
     changed = document.parts.clear_preview()
 
-    assert changed == ["Preview/PrvText.txt", "Preview/PrvImage.png"]
+    assert changed == ("Preview/PrvText.txt", "Preview/PrvImage.png")
     archive = document.to_bytes()
     assert _read_part(archive, "Preview/PrvText.txt") == b""
     assert _read_part(archive, "Preview/PrvImage.png") == WHITE_1X1_PNG
@@ -218,7 +218,7 @@ def test_clear_preview_empties_text_and_neutralizes_image() -> None:
 def test_clear_preview_only_touches_the_parts_that_exist() -> None:
     document = HwpxDocument.open(TEXT_PREVIEW_ONLY)
 
-    assert document.parts.clear_preview() == ["Preview/PrvText.txt"]
+    assert document.parts.clear_preview() == ("Preview/PrvText.txt",)
     assert "Preview/PrvImage.png" not in _names(document.to_bytes())
 
 

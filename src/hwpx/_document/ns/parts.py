@@ -69,6 +69,24 @@ def _png_chunk(tag: bytes, body: bytes) -> bytes:
     return struct.pack(">I", len(body)) + tag + body + struct.pack(">I", crc)
 
 
+def _master_page_by_id(
+    master_pages: "Iterable[HwpxOxmlMasterPage]", master_page_id: str
+) -> "HwpxOxmlMasterPage":
+    """The master page part ``add_master_page`` just made under *master_page_id* (its element and manifest
+    item carry the same id)."""
+
+    for master_page in master_pages:
+        if master_page.id == master_page_id:
+            return master_page
+    from ...errors import HwpxLookupError
+
+    raise HwpxLookupError(  # pragma: no cover - add_master_page registers the part it makes
+        f"the new master page {master_page_id!r} is not among the document's master pages",
+        code="master-page-not-found",
+        context={"requested": master_page_id},
+    )
+
+
 #: `clear_preview`가 `Preview/PrvImage.png` 자리에 넣는 1×1 흰 RGB PNG.
 _NEUTRAL_PREVIEW_PNG = (
     b"\x89PNG\r\n\x1a\n"
@@ -106,20 +124,18 @@ class PartsNamespace(_Namespace):
         self,
         *,
         text: str | None = None,
-        paragraphs: Iterable[str] | None = None,
         page_type: str = "OPTIONAL_PAGE",
         page_number: int | None = None,
         page_duplicate: bool = False,
         page_front: bool = False,
         section: "int | HwpxOxmlSection | None" = None,
-    ) -> str:
-        """새 바탕쪽 파트를 만들고, 그 id(``"masterpageN"``)를 돌려준다.
+    ) -> "HwpxOxmlMasterPage":
+        """새 바탕쪽 파트를 만들고 :attr:`master_pages` 가 읽는 ``MasterPage`` 를 돌려준다(id 는 ``.id``).
 
         6.13 트레인㊻ — 편집기 메뉴 표면 역매핑이 [부분 대응](읽기만,
-        쓰기 없음)으로 지목한 갭. 이 메서드는 파트만 만든다 — 어느
-        절에서도 참조하지 않는다. 실제로 쓰려면
-        ``section.properties.add_master_page_reference(id)``를 호출할
-        것(``doc.oxml.sections[i].properties``).
+        쓰기 없음)으로 지목한 갭. *section* 을 주지 않으면 파트만 만든다 — 어느
+        절에서도 참조하지 않는다. 쓰려면 ``doc.page.set_master_page(mp, section=...)`` 로 잇는다.
+        바탕쪽의 글은 *text* (첫 문단)로 주고, 문단을 더 넣으려면 ``mp.add_paragraph("...")``.
 
         기본 ``page_type="OPTIONAL_PAGE"``는 ``page_number``(그 쪽 번호, 주지 않으면 1)
         한 쪽에만 나온다. 모든 쪽이면 ``"BOTH"``, 홀수·짝수 쪽만이면 ``"ODD"``·
@@ -142,28 +158,31 @@ class PartsNamespace(_Namespace):
             if section is not None
             else None
         )
-        return self._doc.oxml.add_master_page(
+        master_page_id = self._doc.oxml.add_master_page(
             text=text,
-            paragraphs=list(paragraphs) if paragraphs is not None else None,
             page_type=page_type,
             page_number=page_number,
             page_duplicate=page_duplicate,
             page_front=page_front,
             section=target,
         )
+        return _master_page_by_id(self._doc.oxml.master_pages, master_page_id)
 
-    def remove_master_page(self, master_page_id: str) -> None:
-        """어느 절도 참조하지 않는 바탕쪽을 문서에서 지운다.
+    def remove_master_page(self, master_page_id: "str | HwpxOxmlMasterPage") -> None:
+        """어느 절도 참조하지 않는 바탕쪽(id 나 ``MasterPage``)을 문서에서 지운다.
 
         매니페스트 항목과 파트를 함께 지운다. 이미 저장된 적이 있어 패키지에
         파트 파일이 있으면 그 파일도 지운다. 없는 id는
         ``HwpxLookupError``(``master-page-not-found``), 아직 어떤 절이
         참조하는 바탕쪽은 ``HwpxValueError``(``master-page-in-use``)로
-        거부한다. 거부되면 아무것도 바뀌지 않는다.
+        거부한다. 거부되면 아무것도 바뀌지 않는다. 구역과의 연결만 끊는 것은
+        ``doc.page.remove_master_page_reference``.
         """
 
         from ...oxml.master_page_authoring import remove_master_page as _remove_master_page
 
+        if isinstance(master_page_id, HwpxOxmlMasterPage):
+            master_page_id = master_page_id.id or ""
         part_name = _remove_master_page(self._doc.oxml, master_page_id)
         package = self._doc.package
         if package.has_part(part_name):
@@ -239,7 +258,7 @@ class PartsNamespace(_Namespace):
         *,
         keep: Iterable[str] = ("title", "language"),
         timestamp: str = "1970-01-01T00:00:00Z",
-    ) -> list[str]:
+    ) -> tuple[str, ...]:
         """``opf:metadata``에서 *keep* 밖의 필드를 모두 비우고, 비운 키를
         문서 순서대로 돌려준다.
 
@@ -250,12 +269,12 @@ class PartsNamespace(_Namespace):
         ``ModifiedDate``)에는 *timestamp*를 넣고, 나머지는 요소와 속성
         (``content="text"`` 등)을 두고 내용만 비운다. 자유형식 ``date``는
         비울 뿐 timestamp를 넣지 않는다. 없는 요소는 만들지 않고, metadata
-        블록이 없으면 ``[]``다. 무엇을 지울지(개인정보 정책)는 호출자가
+        블록이 없으면 ``()``다. 무엇을 지울지(개인정보 정책)는 호출자가
         정한다."""
 
-        return self._doc.package.clear_document_metadata(keep=keep, timestamp=timestamp)
+        return tuple(self._doc.package.clear_document_metadata(keep=keep, timestamp=timestamp))
 
-    def clear_preview(self) -> list[str]:
+    def clear_preview(self) -> tuple[str, ...]:
         """패키지에 저장된 미리 보기를 비우고, 바꾼 파트 이름을 돌려준다.
 
         ``Preview/PrvText.txt``가 있으면 빈 바이트로 덮어쓴다. 지우지 않는
@@ -275,7 +294,7 @@ class PartsNamespace(_Namespace):
             if package.has_part(part_name):
                 package.write(part_name, payload)
                 changed.append(part_name)
-        return changed
+        return tuple(changed)
 
     def _primary_header(self) -> "HwpxOxmlHeader":
         headers = self._doc.oxml.headers
@@ -300,8 +319,7 @@ class PartsNamespace(_Namespace):
     def document_options(self) -> "DocumentOptions":
         """문서 옵션·호환 설정(``hh:compatibleDocument``·``hh:docOption``)의 읽기 값.
 
-        ``set_compatible_document_target_program``·``set_layout_compatibility_flags``·
-        ``set_doc_option_link_info``·``set_license_mark`` 가 쓰는 값을 읽는다.
+        :meth:`set_document_options` 가 쓰는 값을 같은 필드 이름으로 읽는다.
         """
 
         from ...objects.results import DocumentOptions
@@ -368,55 +386,88 @@ class PartsNamespace(_Namespace):
             page=page, footnote=footnote, endnote=endnote, picture=picture, table=table, equation=equation
         )
 
-    def set_compatible_document_target_program(self, target_program: str) -> None:
-        """`hh:compatibleDocument/@targetProgram` 설정. 실코퍼스 47/47이
-        `"HWP201X"`만 관측(다른 값의 실증은 없음 — 값을 강제하지 않는다)."""
-
-        _set_compatible_document_target_program(self._primary_header(), target_program)
-
-    def set_layout_compatibility_flags(self, flags: Iterable[str] = ()) -> None:
-        """`hh:compatibleDocument/hh:layoutCompatibility`의 플래그 자식을
-        *flags*로 교체. 실코퍼스 47/47은 플래그 0개 — 스키마가 선언한 48종
-        중 실사용 관측 0건(read model `LayoutCompatibility`와 대칭 위해
-        존재, 빈 이터러블이 코퍼스 전형)."""
-
-        _set_layout_compatibility_flags(self._primary_header(), flags)
-
-    def set_doc_option_link_info(
+    def set_document_options(
         self,
         *,
-        path: str | None = None,
+        target_program: str | None = None,
+        layout_compatibility: Iterable[str] | None = None,
+        link_path: str | None = None,
         page_inherit: bool | None = None,
         footnote_inherit: bool | None = None,
-    ) -> None:
-        """`hh:docOption/hh:linkinfo` 설정. 실코퍼스: `path`는 항상 빈
-        문자열·`footnoteInherit`는 항상 `"0"`, `pageInherit`만 실제로
-        갈린다(8/47 `"1"`)."""
+        license_type: str | None = None,
+        license_flag: int | None = None,
+        license_lang: int | None = None,
+    ) -> "DocumentOptions":
+        """문서 옵션·호환 설정을 바꾸고, 바꾼 뒤의 :attr:`document_options` 를 돌려준다.
 
-        _set_doc_option_link_info(
-            self._primary_header(),
-            path=path,
-            page_inherit=page_inherit,
-            footnote_inherit=footnote_inherit,
-        )
+        인자 이름은 :attr:`document_options` (``DocumentOptions``)의 필드 이름 그대로이고, 주지 않은
+        (``None``) 값은 그대로 둔다.
 
-    def set_license_mark(
-        self,
-        *,
-        mark_type: str,
-        flag: int,
-        lang: int | None = None,
-    ) -> None:
-        """`hh:docOption/hh:licensemark` 설정("입력 > CCL 넣기…"가 남기는
-        문서 수준 라이선스 레코드). 실측 gold는
-        `type="CCL" flag="0" lang="6"` — 스키마가 `type`을 `xs:unsignedInt`
-        로 선언하는데도 실물은 문자열이라 `mark_type`이 `str`이다.
+        - *target_program*: ``hh:compatibleDocument/@targetProgram``. 실코퍼스 47/47이 ``"HWP201X"``만
+          관측(다른 값의 실증은 없음 — 값을 강제하지 않는다).
+        - *layout_compatibility*: ``hh:compatibleDocument/hh:layoutCompatibility`` 의 플래그 자식을 이것으로
+          바꾼다. 실코퍼스 47/47은 플래그 0개 — 스키마가 선언한 48종 중 실사용 관측 0건(빈 이터러블이 코퍼스 전형).
+        - *link_path*·*page_inherit*·*footnote_inherit*: ``hh:docOption/hh:linkinfo`` 의 ``path``·
+          ``pageInherit``·``footnoteInherit``. 실코퍼스: ``path``는 항상 빈 문자열·``footnoteInherit``는 항상
+          ``"0"``, ``pageInherit``만 실제로 갈린다(8/47 ``"1"``).
+        - *license_type*·*license_flag*·*license_lang*: ``hh:docOption/hh:licensemark`` ("입력 > CCL 넣기…"가
+          남기는 문서 수준 라이선스 레코드). 실측 gold는 ``type="CCL" flag="0" lang="6"`` — 스키마가
+          ``type``을 ``xs:unsignedInt``로 선언하는데도 실물은 문자열이다. 레코드가 없을 때 새로 쓰려면
+          *license_type* 과 *license_flag* 가 함께 있어야 한다(``parts-license-mark-incomplete``). 있는
+          레코드에서는 주지 않은 값이 그대로 남는다(*license_lang* 도). 눈에
+          보이는 CC 배지는 별개다 — 라이선스 증서 URL을 ``href``로 단 평범한 그림(``add_picture``)이다.
+          레코드를 지우는 것은 :meth:`remove_license_mark`.
 
-        눈에 보이는 CC 배지는 별개다 — 라이선스 증서 URL을 `href`로 단
-        평범한 그림(`add_picture`)이고, 이 setter는 문서 수준 레코드만
-        건드린다."""
+        값이 하나도 없으면 아무것도 바꾸지 않는다.
+        """
 
-        _set_license_mark(self._primary_header(), mark_type=mark_type, flag=flag, lang=lang)
+        header = self._primary_header()
+        # Every value is checked before anything changes.
+        if target_program is not None and not target_program:
+            raise HwpxValueError(
+                "target_program must be a non-empty string",
+                code="header-compat-empty-target-program",
+                context={"target_program": target_program},
+                suggestion='Pass the observed real-corpus value, e.g. "HWP201X".',
+            )
+        flags = None if layout_compatibility is None else tuple(layout_compatibility)
+        if flags is not None and not all(flags):
+            raise HwpxValueError(
+                "layout compatibility flag names must be non-empty strings",
+                code="header-compat-empty-flag-name",
+                suggestion="Drop the empty entry, or pass layout_compatibility=() to clear all flags.",
+            )
+        license_mark: tuple[str, int, int | None] | None = None
+        if license_type is not None or license_flag is not None or license_lang is not None:
+            current = self.document_options
+            mark_type = license_type if license_type is not None else current.license_type
+            flag = license_flag if license_flag is not None else current.license_flag
+            if mark_type is None or flag is None:
+                raise HwpxValueError(
+                    "a new license mark needs license_type and license_flag",
+                    code="parts-license-mark-incomplete",
+                    context={"license_type": repr(license_type), "license_flag": repr(license_flag)},
+                    suggestion='Pass both, e.g. set_document_options(license_type="CCL", license_flag=0).',
+                )
+            if not mark_type:
+                raise HwpxValueError(
+                    "license_type must be a non-empty string",
+                    code="header-compat-empty-license-mark-type",
+                    context={"license_type": mark_type},
+                    suggestion='Pass the observed real-Hancom value, e.g. "CCL".',
+                )
+            license_mark = (str(mark_type), int(flag), license_lang if license_lang is not None else current.license_lang)
+        if target_program is not None:
+            _set_compatible_document_target_program(header, target_program)
+        if flags is not None:
+            _set_layout_compatibility_flags(header, flags)
+        if link_path is not None or page_inherit is not None or footnote_inherit is not None:
+            _set_doc_option_link_info(
+                header, path=link_path, page_inherit=page_inherit, footnote_inherit=footnote_inherit
+            )
+        if license_mark is not None:
+            _set_license_mark(header, mark_type=license_mark[0], flag=license_mark[1], lang=license_mark[2])
+        return self.document_options
 
     def remove_license_mark(self) -> bool:
         """`hh:docOption/hh:licensemark`를 지운다. 실제로 지웠으면 True."""
@@ -425,12 +476,12 @@ class PartsNamespace(_Namespace):
 
     def set_paragraph_auto_spacing(
         self,
-        para_pr_id: str | int,
+        para_pr_id_ref: str | int,
         *,
         e_asian_eng: bool | None = None,
         e_asian_num: bool | None = None,
     ) -> None:
-        """*para_pr_id*가 가리키는 `hh:paraPr`의 `hh:autoSpacing`(한글·영문/
+        """*para_pr_id_ref*가 가리키는 `hh:paraPr`의 `hh:autoSpacing`(한글·영문/
         숫자 자동 간격)을 설정. `_apply_paragraph_margins`/
         `_apply_paragraph_line_spacing`과 같은 자손-순회 관용구를 쓰지만,
         margin/lineSpacing과 달리 실 autoSpacing은 hp:switch로 감싸이지
@@ -442,14 +493,14 @@ class PartsNamespace(_Namespace):
         para_pr = None
         if para_properties is not None:
             for candidate in para_properties.findall(f"{_HH}paraPr"):
-                if header._id_matches(candidate.get("id"), para_pr_id):
+                if header._id_matches(candidate.get("id"), para_pr_id_ref):
                     para_pr = candidate
                     break
         if para_pr is None:
             raise HwpxValueError(
-                f"no hh:paraPr with id={para_pr_id!r}",
+                f"no hh:paraPr with id={para_pr_id_ref!r}",
                 code="parts-auto-spacing-unknown-para-pr",
-                context={"para_pr_id": para_pr_id},
+                context={"para_pr_id_ref": para_pr_id_ref},
                 suggestion="Pass an id returned by ensure_paragraph_format or an existing paraPr's id.",
             )
         _apply_paragraph_auto_spacing(

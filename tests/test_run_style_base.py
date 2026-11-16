@@ -58,7 +58,7 @@ def test_a_named_base_is_built_on_even_when_another_shape_has_the_requested_valu
     document.styles.ensure_run(bold=True, size=20, color="#00AA00")
     small = document.styles.ensure_run(size=8)
 
-    bold_small = document.styles.ensure_run(bold=True, base_char_pr_id=small)
+    bold_small = document.styles.ensure_run(bold=True, base_char_pr_id_ref=small)
 
     attributes, children = _shape(document, bold_small)
     assert attributes["height"] == "800"
@@ -71,7 +71,7 @@ def test_a_size_change_on_a_base_keeps_its_bold_italic_and_underline() -> None:
     base = document.styles.ensure_run(bold=True, italic=True, underline=True, size=12)
 
     for smaller in (
-        document.styles.ensure_run(size=9, base_char_pr_id=base),
+        document.styles.ensure_run(size=9, base_char_pr_id_ref=base),
         document.oxml.ensure_run_style(size=9, base_char_pr_id=base),
     ):
         attributes, children = _shape(document, smaller)

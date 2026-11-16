@@ -24,7 +24,7 @@ def _document_with_image():
 
 
 def _img_brush_mode(document: HwpxDocument, border_fill_id: str) -> str:
-    fill_brush = next(c for c in document.styles.border_fill(border_fill_id).children if c.name == "fillBrush")
+    fill_brush = next(c for c in document.oxml.border_fill(border_fill_id).children if c.name == "fillBrush")
     return fill_brush.children[0].attributes["mode"]
 
 

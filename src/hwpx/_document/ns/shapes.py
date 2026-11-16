@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from ...model import Equation, InlineObject, Paragraph, Section, Shape
-from ...objects import ComposedCharacter, Ruby
+from ...objects import Alignment, ComposedCharacter, Ruby
 from ...oxml import ContainerMember, Style
 from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
@@ -43,6 +43,9 @@ class ShapesNamespace(_Namespace):
         )
 
     # -- 기본 도형 ---------------------------------------------------------
+    #
+    # 선 굵기는 어디서나 ``line_width_mm`` (mm, float)다. 기본 0.12 mm 는 HWPUNIT 33 으로 쓰이고
+    # (6.x 의 ``line_width="33"``), 0 은 선이 없다.
 
     def add_line(
         self,
@@ -52,12 +55,12 @@ class ShapesNamespace(_Namespace):
         end_y: int = 0,
         *,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
     ) -> "Shape":
-        """직선을 넣는다."""
+        """직선을 넣는다. 좌표는 HWPUNIT, 선 굵기 *line_width_mm* 는 mm(0 은 선 없음)."""
 
         from .. import shapes as _shapes
 
@@ -68,7 +71,7 @@ class ShapesNamespace(_Namespace):
             end_x=end_x,
             end_y=end_y,
             line_color=line_color,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             treat_as_char=treat_as_char,
             paragraph=self._paragraph(paragraph, section),
             section=self._section(section, "add_line"),
@@ -78,47 +81,58 @@ class ShapesNamespace(_Namespace):
 
     def add_composed_character(
         self,
-        compose_text: str,
+        text: str,
         char_pr_id_refs: Sequence[str | int] | None = None,
         *,
-        circle_type: str | None = None,
-        char_sz: int | None = None,
-        compose_type: str | None = None,
+        frame: str | None = None,
+        inner_size: int | None = None,
+        arrangement: str | None = None,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> "InlineObject":
-        """글자 겹치기(원문자·합자)를 넣는다."""
+    ) -> "ComposedCharacter":
+        """글자 겹치기(원문자·합자)를 넣고 :attr:`composed_characters` 가 읽는 :class:`ComposedCharacter` 를 돌려준다.
+
+        *text* 는 겹칠 글자, *frame* 은 둘레(``"SHAPE_CIRCLE"`` 원·``"SHAPE_RECTANGLE"`` 사각형 …,
+        ``"CHAR"`` 는 둘레 없음), *inner_size* 는 둘레 안 글자 크기 단계(0 은 그대로, 0보다 작으면 작게),
+        *arrangement* 는 글자를 둘레 안에 펼칠지(``"SPREAD"``) 겹칠지(``"OVERLAP"``)다. 주지 않으면 한/글이
+        새로 만드는 값(``SHAPE_CIRCLE``·``-4``·``SPREAD``)이다. *char_pr_id_refs* 는 겹친 글자 자리마다의
+        글자 모양 id, *char_pr_id_ref* 는 이것을 담는 런의 글자 모양이다.
+        """
 
         from .. import shapes as _shapes
 
         return _shapes.add_composed_character(
             self._doc,
-            compose_text,
+            text,
             char_pr_id_refs,
-            circle_type=circle_type,
-            char_sz=char_sz,
-            compose_type=compose_type,
+            frame=frame,
+            inner_size=inner_size,
+            arrangement=arrangement,
             paragraph=self._paragraph(paragraph, section),
             section=self._section(section, "add_composed_character"),
             char_pr_id_ref=char_pr_id_ref,
         )
 
-    def add_dutmal(
+    def add_ruby(
         self,
-        main_text: str,
-        sub_text: str,
+        text: str,
+        ruby_text: str,
         *,
-        pos_type: str = "TOP",
-        align: str = "CENTER",
-        sz_ratio: int | None = 0,
+        position: str = "TOP",
+        alignment: "Alignment | str" = "CENTER",
+        size_ratio: int | None = 0,
         option: int | None = 0,
         style_id_ref: str | int | None = None,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> "InlineObject":
-        """덧말(루비형 주석 텍스트)을 넣는다.
+    ) -> "Ruby":
+        """덧말을 넣고 :attr:`rubies` 가 읽는 :class:`Ruby` 를 돌려준다.
+
+        *text* 는 본말, *ruby_text* 는 그 위(``position="TOP"``)나 아래(``"BOTTOM"``)에 작게 붙는
+        덧말이다. *alignment* 는 덧말을 본말에 맞추는 방식(``Alignment`` 나 그 이름), *size_ratio* 는
+        덧말 크기(본말의 %, 0 은 한/글 기본)다. *style_id_ref* 를 주지 않으면 덧말 스타일은 0 이다.
 
         낮은 확신 축(정직 고지): 실코퍼스 표본 1건에서 리버스엔지니어링했다
         (macOS 편집기 메뉴 스캔이 1급 메뉴 항목으로는 확인했다). 자세한
@@ -127,17 +141,17 @@ class ShapesNamespace(_Namespace):
 
         from .. import shapes as _shapes
 
-        return _shapes.add_dutmal(
+        return _shapes.add_ruby(
             self._doc,
-            main_text,
-            sub_text,
-            pos_type=pos_type,
-            align=align,
-            sz_ratio=sz_ratio,
+            text,
+            ruby_text,
+            position=position,
+            alignment=alignment,
+            size_ratio=size_ratio,
             option=option,
             style_id_ref=style_id_ref,
             paragraph=self._paragraph(paragraph, section),
-            section=self._section(section, "add_dutmal"),
+            section=self._section(section, "add_ruby"),
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -184,7 +198,7 @@ class ShapesNamespace(_Namespace):
         *,
         ratio: int = 0,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
@@ -206,7 +220,7 @@ class ShapesNamespace(_Namespace):
             height=height,
             ratio=ratio,
             line_color=line_color,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
             paragraph=self._paragraph(paragraph, section),
@@ -220,7 +234,7 @@ class ShapesNamespace(_Namespace):
         height: int = 7200,
         *,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
@@ -236,7 +250,7 @@ class ShapesNamespace(_Namespace):
             width=width,
             height=height,
             line_color=line_color,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
             paragraph=self._paragraph(paragraph, section),
@@ -252,7 +266,7 @@ class ShapesNamespace(_Namespace):
         corner: str = "TOP_LEFT",
         arc_type: str = "NORMAL",
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
@@ -269,7 +283,7 @@ class ShapesNamespace(_Namespace):
             corner=corner,
             arc_type=arc_type,
             line_color=line_color,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
             paragraph=self._paragraph(paragraph, section),
@@ -281,7 +295,7 @@ class ShapesNamespace(_Namespace):
         points_mm: Sequence[tuple[float, float]],
         *,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
@@ -299,7 +313,7 @@ class ShapesNamespace(_Namespace):
             self._doc,
             points_mm=points_mm,
             line_color=line_color,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
             paragraph=self._paragraph(paragraph, section),
@@ -313,7 +327,7 @@ class ShapesNamespace(_Namespace):
         *,
         closed: bool = False,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
@@ -332,7 +346,7 @@ class ShapesNamespace(_Namespace):
             points_mm=points_mm,
             closed=closed,
             line_color=line_color,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
             paragraph=self._paragraph(paragraph, section),
@@ -348,7 +362,7 @@ class ShapesNamespace(_Namespace):
         end_side: str = "left",
         kind: str = "STRAIGHT",
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         paragraph: "Paragraph | int | None" = None,
     ) -> "Shape":
         """두 도형을 잇는 연결선을 넣는다(각 도형 상자의 한 변 가운데: top/right/bottom/left).
@@ -367,7 +381,7 @@ class ShapesNamespace(_Namespace):
             end_side=end_side,
             kind=kind,
             line_color=line_color,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             paragraph=self._paragraph(paragraph, None),
         )
 
@@ -400,11 +414,17 @@ class ShapesNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        size: tuple[int, int] | None = None,
         treat_as_char: bool = False,
         char_pr_id_ref: str | int | None = None,
+        width: int | None = None,
+        height: int | None = None,
     ) -> "InlineObject":
-        """ECMA-376 `c:chartSpace` 를 차트 개체로 넣는다."""
+        """ECMA-376 `c:chartSpace` 를 차트 개체로 넣는다.
+
+        *width*·*height* 는 차트 상자(HWPUNIT)다. 둘 다 주지 않으면 한/글 예제 문서의 크기
+        (32250×18750)를 넣을 표 칸·본문 폭에 맞게 같은 비율로 줄여 쓰고, 하나만 주면 나머지는 그
+        예제 문서의 값이다.
+        """
 
         from .. import shapes as _shapes
 
@@ -413,9 +433,10 @@ class ShapesNamespace(_Namespace):
             chart_xml=chart_xml,
             paragraph=self._paragraph(paragraph, section),
             section=self._section(section, "add_chart"),
-            size=size,
             treat_as_char=treat_as_char,
             char_pr_id_ref=char_pr_id_ref,
+            width=width,
+            height=height,
         )
 
     def remove_unused_charts(self) -> tuple[str, ...]:
@@ -437,14 +458,14 @@ class ShapesNamespace(_Namespace):
         *,
         width: int,
         height: int,
-        style: str = "TripleLine",
+        kind: str = "TripleLine",
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         char_pr_id_ref: str | int | None = None,
         para_pr_id_ref: str | int | None = None,
     ) -> "InlineObject":
-        """문단 첫 글자 장식(drop cap) — 실코퍼스 실측 기반, `style="TripleLine"`과
-        `"DoubleLine"`을 지원(`hwpx.oxml.drop_cap` 독스트링 참조). *width*/*height*는 HWPUNIT,
+        """문단 첫 글자 장식(drop cap) — 실코퍼스 실측 기반, 모양 `kind="TripleLine"`(세 줄)과
+        `"DoubleLine"`(두 줄)을 지원(`hwpx.oxml.drop_cap` 독스트링 참조). *width*/*height*는 HWPUNIT,
         자동 계산 안 함(실측된 공식이 없음)."""
 
         from .. import shapes as _shapes
@@ -452,7 +473,7 @@ class ShapesNamespace(_Namespace):
         return _shapes.add_drop_cap(
             self._doc,
             character,
-            width=width, height=height, style=style,
+            width=width, height=height, kind=kind,
             paragraph=self._paragraph(paragraph, section),
             section=self._section(section, "add_drop_cap"),
             char_pr_id_ref=char_pr_id_ref,
@@ -465,15 +486,17 @@ class ShapesNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        base_unit: int = 1100,
-        size: tuple[int, int] | None = None,
+        font_size: float = 11.0,
         char_pr_id_ref: str | int | None = None,
         font: str = "HancomEQN",
+        width: int | None = None,
+        height: int | None = None,
     ) -> "Equation":
         """EqEdit 스크립트를 수식 개체로 넣는다.
 
-        ``font``는 수식 글꼴이다. 기본값 ``HancomEQN``은 한/글 수식 편집기가 쓰는 글꼴이고,
-        7.0 전의 모양을 원하면 ``font="HYhwpEQ"``를 준다.
+        ``font_size``는 수식 글자 크기(pt)다. ``width``·``height``는 수식 상자(HWPUNIT)이고, 주지 않은
+        쪽은 스크립트를 *font_size* 로 재어 정한다. ``font``는 수식 글꼴이다. 기본값 ``HancomEQN``은
+        한/글 수식 편집기가 쓰는 글꼴이고, 7.0 전의 모양을 원하면 ``font="HYhwpEQ"``를 준다.
         """
 
         from .. import shapes as _shapes
@@ -483,10 +506,11 @@ class ShapesNamespace(_Namespace):
             script=script,
             paragraph=self._paragraph(paragraph, section),
             section=self._section(section, "add_equation"),
-            base_unit=base_unit,
-            size=size,
+            font_size=font_size,
             char_pr_id_ref=char_pr_id_ref,
             font=font,
+            width=width,
+            height=height,
         )
 
     @property
@@ -494,7 +518,7 @@ class ShapesNamespace(_Namespace):
         """문서 본문의 수식 전부를 문서 순서로 돌려준다.
 
         표 칸·글상자·각주·미주·머리말·꼬리말 안의 수식도 든다. 하나하나가
-        ``model.Equation``이라 ``script``를 읽고 ``set_script()``로 바꾸고 ``remove()``로 지운다.
+        ``model.Equation``이라 ``script``를 읽고 쓰고(``equation.script = ...``) ``remove()``로 지운다.
         한 문단의 수식만 보려면 ``paragraph.equations``.
         """
 

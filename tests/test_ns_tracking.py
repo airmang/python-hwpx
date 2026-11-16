@@ -22,6 +22,10 @@ def _document() -> HwpxDocument:
     return doc
 
 
+def _change_ids(document: HwpxDocument) -> list[int]:
+    return [change.change_id for change in document.tracking.changes]
+
+
 def _section_xml(document: HwpxDocument) -> str:
     with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as archive:
         return archive.read("Contents/section0.xml").decode("utf-8")
@@ -30,7 +34,7 @@ def _section_xml(document: HwpxDocument) -> str:
 def test_insert_registers_a_tracked_change() -> None:
     document = _document()
     change = document.tracking.insert(1, "삽입된 글")
-    assert str(change.change_id) in document.tracking.changes
+    assert change.change_id in _change_ids(document)
     assert change.kind == "INSERT"
     assert change.paragraph is document.paragraphs[1] or change.paragraph is not None
 
@@ -57,7 +61,7 @@ def test_tracked_insert_text_is_reachable_through_text_extraction() -> None:
 def test_delete_marks_the_matched_text() -> None:
     document = _document()
     change = document.tracking.delete(1, match="본문")
-    assert str(change.change_id) in document.tracking.changes
+    assert change.change_id in _change_ids(document)
     assert change.kind == "DELETE"
 
 
@@ -68,8 +72,7 @@ def test_replace_reports_both_halves() -> None:
     assert result.insert.kind == "INSERT"
     assert result.delete.kind == "DELETE"
     assert result.insert.change_id != result.delete.change_id
-    assert str(result.insert.change_id) in document.tracking.changes
-    assert str(result.delete.change_id) in document.tracking.changes
+    assert {result.insert.change_id, result.delete.change_id} <= set(_change_ids(document))
 
 
 def test_add_change_is_the_low_level_primitive() -> None:
@@ -78,7 +81,7 @@ def test_add_change_is_the_low_level_primitive() -> None:
     document = _document()
     before = document.text.plain()
     change = document.tracking.add_change("INSERT")
-    assert str(change.change_id) in document.tracking.changes
+    assert change.change_id in _change_ids(document)
     assert change.paragraph is None, "본문을 건드리지 않으므로 문단이 없다"
     assert document.text.plain() == before
 
@@ -100,10 +103,14 @@ def test_an_out_of_range_paragraph_is_a_typed_error() -> None:
 def test_lookup_surface_mirrors_the_owner() -> None:
     document = _document()
     document.tracking.insert(1, "삽입")
-    assert document.tracking.changes == document.oxml.track_changes
+    # 7.0: changes is the document-order tuple of TrackedChange; the header entries stay in doc.oxml.
+    assert [str(change.change_id) for change in document.tracking.changes] == list(document.oxml.track_changes)
     assert document.tracking.authors == document.oxml.track_change_authors
-    first = next(iter(document.tracking.changes))
-    assert document.tracking.change(first) is not None
+    first = document.tracking.changes[0]
+    assert document.tracking.change(first.change_id) == first
+    assert document.tracking.change(str(first.change_id)) == first
+    assert first.kind == "INSERT" and first.paragraph is not None
+    assert document.tracking.change(999) is None
     first_author = next(iter(document.tracking.authors))
     assert document.tracking.author(first_author) is not None
 

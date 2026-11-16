@@ -34,7 +34,7 @@ def test_links_are_reached_in_cells_and_notes() -> None:
     host = doc.add_paragraph("표")
     cell = host.add_table(1, 1).cell(0, 0).paragraphs[0]
     cell.add_hyperlink("https://a.example", "칸 링크")
-    note = doc.notes.add_footnote("각주 ", host)
+    note = doc.notes.add_footnote("각주 ", paragraph=host)
     note.add_hyperlink("https://b.example", "각주 링크")
     doc.add_paragraph("본문 ").add_hyperlink("https://c.example", "본문 링크")
     links = doc.refs.hyperlinks

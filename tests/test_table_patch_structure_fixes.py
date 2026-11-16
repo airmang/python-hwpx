@@ -143,7 +143,7 @@ def test_delete_and_clone_table_in_the_section_setup_paragraph() -> None:
     deleted = _reopen(apply_table_ops(source, [{"op": "delete_table", "table_index": 0}]))
     cloned = _reopen(apply_table_ops(source, [{"op": "clone_table", "table_index": 0}]))
 
-    assert deleted.tables.all == []
+    assert deleted.tables.all == ()
     assert "after the table" in deleted.text.plain()
     assert [t.row_count for t in cloned.tables.all] == [4, 4]
 

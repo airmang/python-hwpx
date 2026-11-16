@@ -64,9 +64,10 @@ def test_other_bytes_or_format_names_are_refused_before_anything_is_stored(data,
 def test_replace_picture_refuses_garbage_and_keeps_the_picture() -> None:
     doc = HwpxDocument.new()
     doc.add_picture(PNG, "png")
-    (ref,) = doc.media.picture_references()
+    (picture,) = doc.media.pictures
+    item_id = picture.item_id
     with pytest.raises(HwpxValueError) as excinfo:
         doc.media.replace_picture(b"garbage", "png")
     assert excinfo.value.code == "media-image-invalid"
-    assert doc.media.picture_references() == (ref,)
-    assert doc.media.replace_picture(JPEG, "jpg").item_id != ref.binary_item_id_ref
+    assert [p.item_id for p in doc.media.pictures] == [item_id]
+    assert doc.media.replace_picture(JPEG, "jpg").item_id != item_id

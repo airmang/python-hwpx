@@ -61,7 +61,7 @@ document.add_paragraph("t", style="개요1")
 # HwpxLookupError: 스타일 '개요1' 을(를) 찾을 수 없습니다.
 #   code:       style-not-found
 #   context:    {'closest': ['개요 1', '개요 10'], 'availableCount': 46, …}
-#   suggestion: 가장 가까운 이름: '개요 1', '개요 10'. 전체 목록: doc.styles.names()
+#   suggestion: 가장 가까운 이름: '개요 1', '개요 10'. 전체 목록: doc.styles.names
 ```
 
 **② 실패가 기계가 읽는 형태다.** 공개 경로의 모든 실패는 `code`·`context`·

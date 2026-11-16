@@ -986,7 +986,7 @@ def style_not_found(document: "HwpxOxmlDocument", spec: object) -> HwpxLookupErr
         f"스타일 {requested!r} 을(를) 찾을 수 없습니다.",
         code="style-not-found",
         context={"requested": requested, "available": available, "availableCount": len(available), "closest": closest},
-        suggestion=f"{hint}전체 목록: doc.styles.names()",
+        suggestion=f"{hint}전체 목록: doc.styles.names",
     )
 
 
@@ -1322,7 +1322,7 @@ def derive_border_fill(
 
 
 # The fill of a border fill derived from another: one rule for every derivation (doc.styles.
-# ensure_border_fill(base_border_fill_id=), table.set_shading / set_borders / set_cell_shading,
+# ensure_border_fill(base_border_fill_id_ref=), table.set_shading / set_borders / set_cell_shading,
 # set_cell_fill_image / set_cell_fill_gradient). Hancom's cell fill has a face (a solid colour,
 # hc:winBrush, or a gradation, hc:gradation: one or the other) and, apart from it, a picture
 # (hc:imgBrush). In the 1,299 HWPX files of the public and test corpora a fillBrush holds a winBrush, an imgBrush, a

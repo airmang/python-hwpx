@@ -725,7 +725,7 @@ def test_the_value_of_a_click_here_field_counts_the_lines_it_wraps_into():
     doc = HwpxDocument.new(empty_first_line=True)
     table = doc.add_table(2, 1)
     table.cell(0, 0).paragraphs[0].add_form_field("value", prompt="안내")
-    doc.fields.fill("긴 글 " * 2000, name="value", fit_policy=FitPolicy(allow_row_expand=True))
+    doc.fields.fill("긴 글 " * 2000, name="value", fit=FitPolicy(allow_row_expand=True))
     [finding] = _page_findings(lint_layout(_bytes(doc)))
     assert finding.detail["min_height"] > finding.detail["page_body"]
 

@@ -56,11 +56,9 @@ def _new(*texts: str) -> HwpxDocument:
 
 
 def _numbering(doc: HwpxDocument, numbering_id):
-    """The numbering read as a value: ``numbering_info`` now, ``numbering`` once the naming
-    stage folds the two (spec D12)."""
+    """The numbering read as a value (``doc.styles.numbering``; 7.0 folded ``numbering_info`` into it, D12)."""
 
-    reader = getattr(doc.styles, "numbering_info", None) or doc.styles.numbering
-    return reader(numbering_id)
+    return doc.styles.numbering(numbering_id)
 
 
 def _level_values(level) -> tuple[object, ...]:

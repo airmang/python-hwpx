@@ -82,13 +82,13 @@ def test_a_memo_anchored_by_python_hwpx_counts_once_and_goes_with_its_field() ->
     # id): it is one memo, and removing it removes the field too, so Hancom no longer shows it.
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("앵커 글")
-    memo = document.notes.add_memo("메모 글", anchor=paragraph)
+    memo = document.notes.add_memo("메모 글", paragraph=paragraph)
 
     assert [kept.id for kept in document.notes.memos] == [memo.id]
 
     document.notes.remove_memo(memo)
 
-    assert document.notes.memos == []
+    assert document.notes.memos == ()
     assert _memo_fields(document.to_bytes()) == (0, 0)
     assert paragraph.text == "앵커 글"
 
@@ -118,7 +118,7 @@ def test_an_hwp_file_is_read_with_the_field_and_change_tracking_attributes_hanco
 def test_a_new_memo_field_carries_hancoms_meta_tag() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("앵커 글")
-    document.notes.add_memo("메모 글", anchor=paragraph)
+    document.notes.add_memo("메모 글", paragraph=paragraph)
 
     [field] = [field for field in _field_begins(document.to_bytes()) if field["type"] == "MEMO"]
     assert field.get("metaTag") == ""

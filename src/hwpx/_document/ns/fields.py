@@ -94,7 +94,7 @@ class FieldsNamespace(_Namespace):
         """문서의 모든 누름틀을 문서 순서로.
 
         이름이 빈 누름틀(``name=""``)도 빈 이름으로 나오고 ``field_id``로 구별한다.
-        ``fill(name=)``은 한/글처럼 이런 누름틀을 찾지 않지만, ``fill(field_index=)``·
+        ``fill(name=)``은 한/글처럼 이런 누름틀을 찾지 않지만, ``fill(index=)``·
         ``fill(field_id=)``로는 채울 수 있다.
         """
 
@@ -106,14 +106,17 @@ class FieldsNamespace(_Namespace):
         self,
         value: str,
         *,
-        field_index: int | None = None,
+        index: int | None = None,
         field_id: str | None = None,
         name: str | None = None,
-        fit_policy: "_fit_policy.FitPolicy | None" = None,
+        fit: "_fit_policy.FitPolicy | None" = None,
         box_width: int | None = None,
         font_pt: float | None = None,
     ) -> "FieldFillResult":
         """누름틀 하나를 채우고 채움 결과를 돌려준다.
+
+        채울 누름틀은 *index*(:attr:`all` 의 몇 번째, 0부터)·*field_id*·*name* 가운데 하나로
+        고른다. *fit* (``FitPolicy``)을 주면 칸에 맞게 글자를 줄이거나 줄을 나눈다.
 
         내용이 여러 문단에 걸친 누름틀은 한/글처럼 채운다. 걸친 문단(그 안의 표 포함)을 지우고,
         값과 누름틀 끝을 시작 문단에 둔다. 끝 문단에서 누름틀 끝 뒤에 있던 글은 시작 문단으로 합친다.
@@ -129,10 +132,10 @@ class FieldsNamespace(_Namespace):
         return _fields.fill_form_field(
             self._doc,
             value=value,
-            field_index=field_index,
+            index=index,
             field_id=field_id,
             name=name,
-            fit_policy=fit_policy,
+            fit=fit,
             box_width=box_width,
             font_pt=font_pt,
         )

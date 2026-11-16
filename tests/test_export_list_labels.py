@@ -19,7 +19,7 @@ def _numbered(count: int) -> HwpxDocument:
     document = HwpxDocument.new(empty_first_line=True)
     for index in range(1, count + 1):
         document.add_paragraph(f"항목{index}")
-    document.styles.apply_list_format(paragraph_indexes=list(range(1, count + 1)), kind="number")
+    document.styles.apply_list_format(paragraphs=list(range(1, count + 1)), kind="number")
     return document
 
 
@@ -105,8 +105,8 @@ def test_bullets_take_their_character() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("기본")
     document.add_paragraph("동그라미")
-    document.styles.apply_list_format(paragraph_index=1, kind="bullet")
-    document.styles.apply_list_format(paragraph_index=2, kind="bullet", bullet_char="●")
+    document.styles.apply_list_format(paragraph=1, kind="bullet")
+    document.styles.apply_list_format(paragraph=2, kind="bullet", bullet_char="●")
 
     assert export_text(document, list_labels=True).split("\n") == ["- 기본", "● 동그라미"]
 
@@ -115,9 +115,9 @@ def test_symbol_font_bullets_are_written_as_unicode_symbols() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     for text in ("동그라미", "네모", "그대로"):
         document.add_paragraph(text)
-    document.styles.apply_list_format(paragraph_index=1, kind="bullet", bullet_char="\uf09f")
-    document.styles.apply_list_format(paragraph_index=2, kind="bullet", bullet_char="\uf0a7")
-    document.styles.apply_list_format(paragraph_index=3, kind="bullet", bullet_char="\uf0a2")
+    document.styles.apply_list_format(paragraph=1, kind="bullet", bullet_char="\uf09f")
+    document.styles.apply_list_format(paragraph=2, kind="bullet", bullet_char="\uf0a7")
+    document.styles.apply_list_format(paragraph=3, kind="bullet", bullet_char="\uf0a2")
 
     assert export_text(document, list_labels=True).split("\n") == ["● 동그라미", "■ 네모", "\uf0a2 그대로"]
 

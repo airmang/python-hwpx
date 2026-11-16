@@ -268,7 +268,7 @@ def gen_listformat(bucket_dir: Path) -> list[dict[str, Any]]:
             target_index = _last_paragraph_index(document)
 
             kwargs = dict(_LISTFORMAT_BANK[idx])
-            result = document.styles.apply_list_format(paragraph_index=target_index, **kwargs)
+            result = document.styles.apply_list_format(paragraph=target_index, **kwargs)
             if result.formatted != 1:
                 raise RuntimeError(f"apply_list_format formatted {result.formatted}, expected 1")
 
@@ -530,7 +530,7 @@ def gen_chart(bucket_dir: Path) -> list[dict[str, Any]]:
                 title=f"{cycle(ORG_BANK, idx)} {chart_type} 표본 {idx}",
             )
             document = _base_document(idx, "차트 표본")
-            document.shapes.add_chart(chart_xml, size=(60000, 40000))
+            document.shapes.add_chart(chart_xml, width=60000, height=40000)
 
             document.save(str(out_path))
             records.append(record(
@@ -571,7 +571,7 @@ def gen_picture(bucket_dir: Path) -> list[dict[str, Any]]:
                 # asset-content difference (no second distinct PNG fixture
                 # in this generator family; not worth inventing one for a
                 # structural-only exercise).
-                replacement = document.media.replace_picture(PNG_1X1, "png", picture_index=0)
+                replacement = document.media.replace_picture(PNG_1X1, "png", index=0)
                 if replacement.item_id == replacement.previous_item_id:
                     raise RuntimeError("replace_picture did not mint a new binary item id")
 
@@ -697,7 +697,7 @@ def gen_docmerge2(bucket_dir: Path) -> list[dict[str, Any]]:
             # for robustness rather than relying on that overwrite as an
             # implicit assumption.
             source.notes.add_memo(
-                f"메모 내용 {idx}", anchor=anchor, memo_shape_id_ref=shape_id,
+                f"메모 내용 {idx}", paragraph=anchor, memo_shape_id_ref=shape_id,
                 created=_TIMESTAMP_BANK[idx], field_id=f"v14-docmerge2-{idx:03d}-src-field",
             )
             if idx == 3:
@@ -713,7 +713,7 @@ def gen_docmerge2(bucket_dir: Path) -> list[dict[str, Any]]:
                 # -bearing for determinism, not just defensive.
                 target_anchor = target.sections[0].paragraphs[0]
                 target.notes.add_memo(
-                    "대상 문서 자체 메모", anchor=target_anchor, created=_TIMESTAMP_BANK[idx],
+                    "대상 문서 자체 메모", paragraph=target_anchor, created=_TIMESTAMP_BANK[idx],
                     field_id=f"v14-docmerge2-{idx:03d}-tgt-field",
                 )
 

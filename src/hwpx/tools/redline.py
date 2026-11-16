@@ -39,7 +39,7 @@ def inspect_redline_structure(
 
     if document is not None:
         try:
-            changes = document.tracking.changes
+            changes = document.oxml.track_changes  # the header's trackChanges entries (id -> TrackChange)
             changes_by_id = {
                 int(change.id): change
                 for change in changes.values()

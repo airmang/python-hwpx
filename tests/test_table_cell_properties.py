@@ -132,7 +132,7 @@ def test_border_fill_of_the_table_reads_and_writes() -> None:
     assert isinstance(table.border_fill, BorderFillInfo)
     assert table.border_fill.id == table.border_fill_id_ref
     cell_refs = [cell.border_fill_id_ref for row in table.rows for cell in row.cells]
-    frame = doc.styles.ensure_border_fill(border_color="#FF0000", border_width="0.7 mm", fill_color="#FFFF00")
+    frame = doc.styles.ensure_border_fill(border_color="#FF0000", border_width_mm=0.7, fill_color="#FFFF00")
     table.border_fill_id_ref = frame
     assert table.border_fill_id_ref == str(frame)
     assert table.border_fill.fill == "#FFFF00"

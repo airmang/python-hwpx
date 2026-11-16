@@ -113,7 +113,7 @@ class TestGoldContractShape:
 
     def test_explicit_size_and_base_unit(self) -> None:
         doc = HwpxDocument.new()
-        doc.shapes.add_equation("{a} over {b}", base_unit=1200, size=(18100, 3010))
+        doc.shapes.add_equation("{a} over {b}", font_size=12.0, width=18100, height=3010)
         (eq,) = _equations(doc)
         assert eq.get("baseUnit") == "1200"
         sz = eq.find(f"{HP}sz")

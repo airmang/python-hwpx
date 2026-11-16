@@ -62,8 +62,8 @@ def test_signatures_still_read_as_written() -> None:
     document = HwpxDocument.new()
     assert "section_index" not in inspect.signature(document.add_paragraph).parameters
     assert "section" in inspect.signature(document.page.set_header).parameters
-    # add_dutmal keeps its own style_id_ref (the 덧말's style), so it is not refused.
-    assert "style_id_ref" in inspect.signature(document.shapes.add_dutmal).parameters
+    # add_ruby (6.x add_dutmal) keeps its own style_id_ref (the 덧말's style), so it is not refused.
+    assert "style_id_ref" in inspect.signature(document.shapes.add_ruby).parameters
 
 
 def test_model_add_paragraph_takes_a_style_name_and_its_shapes() -> None:

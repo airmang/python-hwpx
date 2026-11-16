@@ -15,7 +15,7 @@ The package is deliberately layered and pure (no XML side effects):
 * :mod:`~hwpx.form_fit.engine`  — :class:`FitEngine`, the keep→wrap→shrink ladder.
 * :mod:`~hwpx.form_fit.report`  — :class:`FitResult` and the ``FormReport`` adapter.
 
-Callers (``set_cell_text(fit=...)``, ``fill_form_field(fit_policy=...)``) apply the
+Callers (``set_cell_text(fit=...)``, ``doc.fields.fill(fit=...)``) apply the
 returned :class:`FitResult` and fold it into the one ``VisualCompleteReport``.
 """
 from __future__ import annotations

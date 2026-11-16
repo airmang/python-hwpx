@@ -1537,7 +1537,7 @@ def test_document_apply_paragraph_format_wires_tab_pr_id_ref_to_a_resolvable_def
     index = len(doc.paragraphs) - 1
 
     doc.styles.apply_paragraph_format(
-        paragraph_index=index,
+        paragraph=index,
         tab_stops=[{"pos_mm": 10}, {"pos_mm": 30, "type": "CENTER"}],
     )
 
@@ -1559,7 +1559,7 @@ def test_document_apply_paragraph_format_tab_stops_reject_missing_pos_mm() -> No
     doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("문단")
     with pytest.raises(HwpxValueError) as excinfo:
-        doc.styles.apply_paragraph_format(paragraph_index=1, tab_stops=[{"type": "LEFT"}])
+        doc.styles.apply_paragraph_format(paragraph=1, tab_stops=[{"type": "LEFT"}])
     assert excinfo.value.code == "paragraph-tab-pos-invalid"
     doc.close()
 

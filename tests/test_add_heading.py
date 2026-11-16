@@ -83,7 +83,7 @@ def test_the_5_x_halves_really_were_separate() -> None:
     document.add_paragraph("수준만")
     only_level = document.paragraphs[-1]
     document.styles.apply_paragraph_format(
-        paragraph_index=len(document.paragraphs) - 1, outline_level=1
+        paragraph=len(document.paragraphs) - 1, outline_level=1
     )
     assert _heading_of(document, only_level).type == "OUTLINE"
     assert str(only_level.style_id_ref) == "0", "스타일은 여전히 바탕글이다"
@@ -122,7 +122,7 @@ def test_level_zero_is_refused_on_purpose_not_by_accident() -> None:
     """
 
     document = HwpxDocument.new()
-    assert "제목" not in document.styles.names()
+    assert "제목" not in document.styles.names
     with pytest.raises(HwpxValueError):
         document.add_heading("문서 제목", level=0)
 
@@ -164,7 +164,7 @@ def _document_without_outline_styles() -> HwpxDocument:
 
 def test_a_document_without_outline_styles_fails_closed() -> None:
     document = _document_without_outline_styles()
-    assert not any(n.startswith("개요") for n in document.styles.names())
+    assert not any(n.startswith("개요") for n in document.styles.names)
 
     with pytest.raises(HwpxLookupError) as excinfo:
         document.add_heading("제목", level=1)
@@ -211,7 +211,7 @@ def test_a_renamed_outline_style_is_found_by_its_paragraph_property() -> None:
     else:  # pragma: no cover
         pytest.fail("Skeleton 에서 '개요 1' 을 찾지 못했습니다")
 
-    assert "개요 1" not in document.styles.names()
+    assert "개요 1" not in document.styles.names
     paragraph = document.add_heading("제1장", level=1)
     assert document.styles[str(paragraph.style_id_ref)].name == "장 제목"
     assert _heading_of(document, paragraph).type == "OUTLINE"
@@ -318,7 +318,7 @@ def test_a_lower_outline_level_drops_the_switch() -> None:
     document.add_heading("제목", level=8)
     index = len(document.paragraphs) - 1
 
-    document.styles.apply_paragraph_format(paragraph_index=index, outline_level=3)
+    document.styles.apply_paragraph_format(paragraph=index, outline_level=3)
 
     para_pr = _para_pr_element(document, document.paragraphs[index].para_pr_id_ref)
     assert _switched_headings(para_pr) == ([], [])

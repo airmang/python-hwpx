@@ -214,7 +214,7 @@ def _apply_operation(document: HwpxDocument | None, op: Mapping[str, Any]) -> Hw
         # 7.0: add_memo_with_anchor is gone; make the anchor paragraph, then anchor the memo.
         document.notes.add_memo(
             str(op.get("text", "")),
-            anchor=document.add_paragraph(""),
+            paragraph=document.add_paragraph(""),
             paragraph_text=str(op.get("anchor_text", "")),
             memo_id=str(op.get("memo_id", "")),
             field_id=str(op.get("field_id", "")),

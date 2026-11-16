@@ -7,7 +7,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Iterator, NamedTuple, cast
 
 from ..errors import HwpxStateError, HwpxValueError
-from ..objects.binary_item import BinaryItem, PictureRef
+from ..objects.binary_item import BinaryItem
 from ..objects.results import PictureReplacement
 from ..opc.relationships import (
     BINARY_ITEM_REF_ATTRS,
@@ -23,8 +23,7 @@ from ..oxml.objects import HwpxOxmlPicture
 from ..oxml.color import normalize_color
 from ..oxml.shape_position import PictureGlow, PictureReflection, PictureShadow, validate_picture_effects
 from ..oxml.shape_position import (
-    line_width_mm_for_units, validate_picture_align, validate_picture_border, validate_picture_crop,
-    validate_picture_image, validate_shape_size,
+    line_width_units, validate_picture_align, validate_picture_crop, validate_picture_image, validate_shape_size,
 )
 from ._units import _mm_to_hwp_units
 
@@ -183,13 +182,13 @@ def add_picture(
     height: int | None = None,
     width_mm: float | None = None,
     height_mm: float | None = None,
-    align: str | None = None,
+    alignment: str | None = None,
     brightness: int = 0,
     contrast: int = 0,
     effect: str = "REAL_PIC",
     alpha: int = 0,
     line_color: str | None = None,
-    line_width: int = 33,
+    line_width_mm: float = 0.12,
     crop: tuple[int, int, int, int] | None = None,
     shadow: PictureShadow | None = None,
     glow: PictureGlow | None = None,
@@ -199,15 +198,15 @@ def add_picture(
     style: "int | str | Style | None" = None,
     char_pr_id_ref: str | int | None = None,
     run_attributes: dict[str, str] | None = None,
-    **extra_attrs: str,
 ) -> HwpxOxmlPicture:
     """Embed image data and place a picture object in a new paragraph, the image adjusted and bordered as
-    :meth:`HwpxOxmlParagraph.add_picture` takes it."""
+    :meth:`HwpxOxmlParagraph.add_picture` takes it (*alignment* as a name, *line_width_mm* in mm)."""
 
+    align = alignment
     check_image(image_data, image_format)
     validate_picture_align(align)  # before anything is stored: Hancom reads an unknown one as LEFT
     validate_picture_image(brightness, contrast, effect, alpha)  # ... and draws no other adjustment
-    validate_picture_border(line_width)
+    line_width_units(line_width_mm)  # a width in mm from 0, checked before anything is stored too
     if line_color is not None:
         normalize_color(line_color)
     resolved_width = width
@@ -243,7 +242,6 @@ def add_picture(
         style=style,
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
-        **cast(Any, extra_attrs),
     )
     alignment = _INLINE_PICTURE_ALIGNMENT.get(str(align).strip().upper()) if align else None
     if alignment is not None and doc._root.headers:
@@ -262,7 +260,7 @@ def add_picture(
         effect=effect,
         alpha=alpha,
         line_color=line_color,
-        line_width_mm=line_width_mm_for_units(line_width),
+        line_width_mm=line_width_mm,
         crop=crop,
         shadow=shadow,
         glow=glow,
@@ -283,15 +281,6 @@ def _iter_picture_images(
                 yield section_index, section, picture, image
 
 
-def _parse_hwpunit(value: str | None) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except ValueError:  # pragma: no cover - defensive: non-numeric sz attrs
-        return None
-
-
 def _enclosing_paragraph(element: Any, section: "HwpxOxmlSection") -> "HwpxOxmlParagraph | None":
     """The innermost ``hp:p`` holding *element*: up its parents (lxml), else down from the section."""
 
@@ -305,8 +294,8 @@ def _enclosing_paragraph(element: Any, section: "HwpxOxmlSection") -> "HwpxOxmlP
 
 
 def pictures(doc: "HwpxDocument") -> "tuple[HwpxOxmlPicture, ...]":
-    """Every picture in the body, in document order -- the order (and so the ``picture_index``) of
-    :func:`picture_references`: in table cells, text boxes, notes and groups too."""
+    """Every picture in the body, in document order -- the order (and so the ``index``) of
+    :func:`replace_picture`: in table cells, text boxes, notes and groups too."""
 
     found: list[HwpxOxmlPicture] = []
     for _section_index, section, element, _image in _iter_picture_images(doc):
@@ -316,74 +305,57 @@ def pictures(doc: "HwpxDocument") -> "tuple[HwpxOxmlPicture, ...]":
     return tuple(found)
 
 
-def picture_references(doc: "HwpxDocument") -> tuple[PictureRef, ...]:
-    """Return body picture references in document order."""
-
-    refs: list[PictureRef] = []
-    for picture_index, (section_index, _section, picture, image) in enumerate(_iter_picture_images(doc)):
-        size = picture.find(f"{_HP}sz")
-        refs.append(
-            PictureRef(
-                picture_index=picture_index,
-                section_index=section_index,
-                binary_item_id_ref=image.get("binaryItemIDRef"),
-                width=_parse_hwpunit(size.get("width") if size is not None else None),
-                height=_parse_hwpunit(size.get("height") if size is not None else None),
-            )
-        )
-    return tuple(refs)
-
-
 def replace_picture(
     doc: "HwpxDocument",
     image_data: bytes,
     image_format: str,
     *,
-    picture_index: int = 0,
-    binary_item_id_ref: str | None = None,
+    index: int = 0,
+    old_item_id: str | None = None,
     remove_orphaned: bool = True,
     item_id: str | None = None,
 ) -> PictureReplacement:
     """Replace a body picture's image asset while preserving its geometry.
 
-    The existing ``<hp:pic>`` element is left in place.  Only the child
-    ``<hc:img>`` ``binaryItemIDRef`` is changed, so size, position, crop,
+    The picture is the *index*-th of :func:`pictures` (document order), or with *old_item_id*
+    the *index*-th of those showing that binary item. The existing ``<hp:pic>`` element is left
+    in place.  Only the child ``<hc:img>`` ``binaryItemIDRef`` is changed, so size, position, crop,
     rotation, and wrapping geometry remain untouched.
     """
 
     check_image(image_data, image_format)
     from ..errors import HwpxIndexError
 
-    if picture_index < 0:
+    if index < 0:
         raise HwpxIndexError(
-            "picture_index must be non-negative",
+            "index must be non-negative",
             code="media-picture-not-found",
-            context={"pictureIndex": picture_index},
-            suggestion="picture_index 는 0부터 셉니다. doc.media.picture_references() 로 그림 목록을 보세요.",
+            context={"pictureIndex": index},
+            suggestion="index 는 0부터 셉니다. doc.media.pictures 로 그림 목록을 보세요.",
         )
 
     selected: tuple[int, HwpxOxmlSection, Any, Any] | None = None
     matched_index = -1
-    for current_index, picture in enumerate(_iter_picture_images(doc)):
+    for picture in _iter_picture_images(doc):
         _section_index, _section, _picture_element, image = picture
         current_ref = (image.get("binaryItemIDRef") or "").strip()
-        if binary_item_id_ref is not None and current_ref != str(binary_item_id_ref):
+        if old_item_id is not None and current_ref != str(old_item_id):
             continue
         matched_index += 1
-        if matched_index == picture_index:
+        if matched_index == index:
             selected = picture
             break
 
     if selected is None:
-        message = f"picture_index {picture_index} is out of range" if binary_item_id_ref is None else (
-            f"picture_index {picture_index} for binaryItemIDRef {binary_item_id_ref!r} is out of range"
+        message = f"picture index {index} is out of range" if old_item_id is None else (
+            f"picture index {index} for binaryItemIDRef {old_item_id!r} is out of range"
         )
         raise HwpxIndexError(
             message,
             code="media-picture-not-found",
-            context={"pictureIndex": picture_index, "found": matched_index + 1,
-                     "binaryItemIdRef": binary_item_id_ref},
-            suggestion=f"그림이 {matched_index + 1}개 있습니다. doc.media.picture_references() 로 목록을 보세요.",
+            context={"pictureIndex": index, "found": matched_index + 1,
+                     "binaryItemIdRef": old_item_id},
+            suggestion=f"그림이 {matched_index + 1}개 있습니다. doc.media.pictures 로 목록을 보세요.",
         )
 
     section_index, section, picture_element, image = selected
@@ -600,7 +572,7 @@ def remove_image(
                 context={"itemId": item_id, "references": references},
                 suggestion=(
                     "Remove or repoint the objects that use it first "
-                    "(doc.media.picture_references() lists body pictures), "
+                    "(doc.media.pictures lists body pictures), "
                     "or pass force=True to remove it anyway."
                 ),
             )

@@ -47,7 +47,7 @@ def build_checklist(document: HwpxDocument) -> None:
 
     document.notes.add_memo(
         "데이터 차트 수치를 2024년 4분기 기준으로 갱신하세요.",
-        anchor=todo,
+        paragraph=todo,
         memo_shape_id_ref=blue_memo,
         memo_id="release-memo-1",
         attributes={"author": "PM"},
@@ -56,7 +56,7 @@ def build_checklist(document: HwpxDocument) -> None:
     )
     document.notes.add_memo(
         "QA 서명은 12월 15일까지 완료되어야 합니다.",
-        anchor=signoff,
+        paragraph=signoff,
         memo_shape_id_ref=red_memo,
         memo_id="release-memo-2",
         attributes={"author": "QA Lead"},

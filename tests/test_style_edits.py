@@ -100,12 +100,12 @@ def test_remove_style_renumbers_and_hands_paragraphs_over() -> None:
 
 def test_numbering_info_reads_levels_as_values() -> None:
     document = HwpxDocument.new()
-    info = document.styles.numbering_info(1)
+    info = document.styles.numbering(1)
     assert isinstance(info, NumberingInfo)
     first = info.level(1)
     assert first is not None and (first.number_format, first.text, first.char_pr_id_ref) == ("DIGIT", "^1.", None)
     assert info.level(2).number_format == "HANGUL_SYLLABLE"
-    assert document.styles.numbering_info(999) is None
+    assert document.styles.numbering(999) is None
 
 
 def test_ensure_tab_definition_and_widened_paragraph_format() -> None:
@@ -116,7 +116,7 @@ def test_ensure_tab_definition_and_widened_paragraph_format() -> None:
     assert [(stop.pos, stop.type) for stop in stops] == [(8504, "LEFT"), (20000, "RIGHT")]
 
     shape = document.styles.ensure_paragraph_format(
-        base_para_pr_id=0,
+        base_para_pr_id_ref=0,
         line_spacing=LineSpacing("AT_LEAST", 1200),
         condense=20,
         break_setting={"break_non_latin_word": "KEEP_WORD", "keep_lines": True},
@@ -138,20 +138,20 @@ def test_ensure_border_fill_changes_one_side_of_a_base() -> None:
     document = HwpxDocument.new()
     base = document.styles.ensure_border_fill(border_color="#000000")
     before = _definitions(document, "borderFill")
-    derived = document.styles.ensure_border_fill(base_border_fill_id=base, sides={"bottom": {"width": "0.4 mm"}})
+    derived = document.styles.ensure_border_fill(base_border_fill_id_ref=base, sides={"bottom": {"width": "0.4 mm"}})
     assert derived != base
-    assert document.styles.ensure_border_fill(base_border_fill_id=base, sides={"bottom": {"width": "0.4 mm"}}) == derived
-    info, original = document.styles.border_fill_info(derived), document.styles.border_fill_info(base)
+    assert document.styles.ensure_border_fill(base_border_fill_id_ref=base, sides={"bottom": {"width": "0.4 mm"}}) == derived
+    info, original = document.styles.border_fill(derived), document.styles.border_fill(base)
     assert info.bottom.width_mm == 0.4 and info.bottom.color == original.bottom.color
     assert (info.top, info.left, info.right) == (original.top, original.left, original.right)
     assert {key: value for key, value in _definitions(document, "borderFill").items() if key in before} == before
-    filled = document.styles.ensure_border_fill(base_border_fill_id=base, fill_color="#FFFF00")
-    assert document.styles.border_fill_info(filled).fill == "#FFFF00"
+    filled = document.styles.ensure_border_fill(base_border_fill_id_ref=base, fill_color="#FFFF00")
+    assert document.styles.border_fill(filled).fill == "#FFFF00"
     with pytest.raises(HwpxValueError) as conflict:
-        document.styles.ensure_border_fill(base_border_fill_id=base, border_color="#FF0000")
+        document.styles.ensure_border_fill(base_border_fill_id_ref=base, border_color="#FF0000")
     assert conflict.value.code == "style-border-base-conflict"
     with pytest.raises(HwpxLookupError) as missing:
-        document.styles.ensure_border_fill(base_border_fill_id=999, sides={"top": None})
+        document.styles.ensure_border_fill(base_border_fill_id_ref=999, sides={"top": None})
     assert missing.value.code == "style-definition-not-found"
     _item_counts_match(document)
     _reopen(document)

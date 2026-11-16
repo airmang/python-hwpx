@@ -92,7 +92,7 @@ def test_rubies_are_found_in_table_cells_and_paragraph_reads_only_its_own_runs()
 def test_rubies_are_read_in_document_order_from_cells_and_notes() -> None:
     document = HwpxDocument.new()
     body = document.add_paragraph("본문 ")
-    document.shapes.add_dutmal("한자", "かんじ", paragraph=body)
+    document.shapes.add_ruby("한자", "かんじ", paragraph=body)
     table = document.add_table(1, 1)
     cell_paragraph = table.cell(0, 0).paragraphs[0]
     cell_paragraph.add_dutmal("칸", "덧", pos_type="BOTTOM")
@@ -254,7 +254,7 @@ def test_removing_a_composed_character_leaves_its_characters() -> None:
 
 def test_a_created_ruby_and_composed_character_read_back_and_edit() -> None:
     document = HwpxDocument.new()
-    document.shapes.add_dutmal("漢字", "한자")
+    document.shapes.add_ruby("漢字", "한자")
     document.shapes.add_composed_character("3")
     (ruby,) = document.shapes.rubies
     (mark,) = document.shapes.composed_characters

@@ -27,7 +27,7 @@ def _texts_between(paragraph) -> str:
 def test_memo_on_some_characters_of_a_paragraph() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("검토가 필요한 문장입니다.")
-    memo = doc.notes.add_memo("이 낱말을 고칠 것", anchor=paragraph, match="필요한")
+    memo = doc.notes.add_memo("이 낱말을 고칠 것", paragraph=paragraph, match="필요한")
     assert paragraph.text == "검토가 필요한 문장입니다."
     assert _texts_between(paragraph) == "필요한"
     assert memo.paragraph.element is paragraph.element
@@ -51,6 +51,6 @@ def test_memo_range_must_be_in_the_paragraph() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("가나다")
     with pytest.raises(HwpxValueError) as excinfo:
-        doc.notes.add_memo("메모", anchor=paragraph, match="없는 글")
+        doc.notes.add_memo("메모", paragraph=paragraph, match="없는 글")
     assert excinfo.value.code == "note-match-not-found"
-    assert doc.notes.memos == []  # 걸지 못한 메모는 남기지 않는다
+    assert doc.notes.memos == ()  # 걸지 못한 메모는 남기지 않는다

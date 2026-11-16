@@ -86,7 +86,7 @@ print("셀 수:", len(cells))
 from hwpx import HwpxDocument
 
 document = HwpxDocument.open("input.hwpx")
-for run in document.text.runs():
+for run in document.text.iter_runs():
     print(repr(run.text), "charPr:", run.char_pr_id_ref)
 
 red_runs = document.text.find_runs(text_color="#FF0000")

@@ -43,9 +43,9 @@ def _document() -> HwpxDocument:
     document = HwpxDocument.new()
     document.add_paragraph("차트 앞")
     removed = document.add_paragraph("")
-    document.shapes.add_chart(_pie("RemovedA", "RemovedB"), paragraph=removed, size=(12000, 9000))
+    document.shapes.add_chart(_pie("RemovedA", "RemovedB"), paragraph=removed, width=12000, height=9000)
     kept = document.add_paragraph("")
-    document.shapes.add_chart(_pie("KeptA", "KeptB"), paragraph=kept, size=(12000, 9000))
+    document.shapes.add_chart(_pie("KeptA", "KeptB"), paragraph=kept, width=12000, height=9000)
     document.add_paragraph("차트 뒤")
     removed.remove()
     return document
@@ -78,7 +78,7 @@ def test_it_leaves_the_charts_hancom_keeps() -> None:
 def test_the_part_of_a_chart_cleared_from_the_body_goes() -> None:
     document = HwpxDocument.new()
     document.add_paragraph("차트 앞")
-    document.shapes.add_chart(_pie("A", "B"), paragraph=document.add_paragraph(""), size=(12000, 9000))
+    document.shapes.add_chart(_pie("A", "B"), paragraph=document.add_paragraph(""), width=12000, height=9000)
     document.sections[0].clear_body()
 
     assert document.shapes.remove_unused_charts() == ("Chart/chart1.xml",)

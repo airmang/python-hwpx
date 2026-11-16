@@ -50,7 +50,44 @@
   `obj.get_attribute(name)` → `obj.attributes.get(name)`.
 - 바뀐 이름 전체는 이주 가이드의 "이름 규칙과 바뀐 이름" 절에 있다.
 
-<!-- WP2·WP5b(묶음 네임스페이스·값 형식) 이름 정리는 병합 뒤 여기와 이주 가이드에 더한다 -->
+#### 묶음(`doc.*`)
+
+- 문서 전체를 차례로 훑는 메서드는 `iter_`로 시작한다: `doc.text.runs()`·`blocks()` → `iter_runs()`·`iter_blocks()`(7.0 개발
+  중의 `paragraphs()`·`objects()`는 `iter_paragraphs()`·`iter_objects()`). `doc.styles.names()`·`doc.text.highlights()`는 속성이다.
+- 선 굵기는 mm 숫자다: `doc.shapes.add_line`·`add_rectangle`·`add_ellipse`·`add_arc`·`add_polygon`·`add_curve`·`add_connector`의
+  `line_width='33'` → `line_width_mm=0.12`, `doc.styles.ensure_border_fill`·`apply_paragraph_format`의 `border_width='0.12 mm'` →
+  `border_width_mm=0.12`, `doc.page.set_columns(separator_width=)` → `separator_width_mm=`. 테두리·단 구분선은 한/글 굵기 목록의
+  가장 가까운 값으로 쓴다.
+- 문단은 `paragraph=`(하나)·`paragraphs=`(여럿)로 가리키고 번호와 문단 객체를 모두 받는다: `doc.styles.apply_paragraph_format`·
+  `apply_list_format`의 `paragraph_index=`·`paragraph_indexes=`, `doc.notes.add_memo(anchor=)`(`anchor_char_pr_id_ref=` →
+  `paragraph_char_pr_id_ref=`). `doc.notes.add_footnote(text, p)`·`add_endnote(text, p)`는 `paragraph=p`로 부른다.
+- 머리(`header.xml`) 정의를 가리키는 인자는 `…_id_ref`다: `ensure_run(base_char_pr_id=)`, `ensure_paragraph_format(base_para_pr_id=)`,
+  `ensure_border_fill(base_border_fill_id=)`, `doc.parts.set_paragraph_auto_spacing(para_pr_id=)`. 그림 데이터는 `item_id`다:
+  `ensure_font(binary_item_id_ref=, subst_binary_item_id_ref=)` → `item_id=`·`subst_item_id=`,
+  `doc.media.replace_picture(picture_index=, binary_item_id_ref=)` → `index=`·`old_item_id=`. 줄 간격은 `line_spacing=` 하나다
+  (`ensure_paragraph_format`·`apply_paragraph_format`의 `line_spacing_percent=`).
+- 그 밖의 이름: `doc.page.restart_page_number()`·`hide_page_elements()` → `add_number_restart()`(→ `NumberRestart`)·`add_page_hiding()`
+  (→ `PageHiding`), `set_page_number(align=)` → `alignment=`, `doc.shapes.add_dutmal(main_text, sub_text, pos_type=, align=,
+  sz_ratio=)` → `add_ruby(text, ruby_text, position=, alignment=, size_ratio=)`(→ `Ruby`), `add_composed_character(compose_text,
+  circle_type=, char_sz=, compose_type=)` → `add_composed_character(text, frame=, inner_size=, arrangement=)`(→ `ComposedCharacter`),
+  `add_drop_cap(style=)` → `kind=`, `add_equation(base_unit=1100, size=(w, h))` → `font_size=11.0, width=w, height=h`,
+  `add_chart(size=)` → `width=`·`height=`, `doc.fields.fill(field_index=, fit_policy=)` → `index=`·`fit=`,
+  `doc.tracking.add_change(author_name=)` → `author=`.
+- 하나로 합쳤다: `doc.styles.border_fill_info(id)` → `border_fill(id)`, `doc.parts.set_compatible_document_target_program`·
+  `set_layout_compatibility_flags`·`set_doc_option_link_info`·`set_license_mark` → `set_document_options(target_program=,
+  layout_compatibility=, link_path=, page_inherit=, footnote_inherit=, license_type=, license_flag=, license_lang=)`(→ 읽기와 같은
+  `DocumentOptions`), `doc.media.picture_references()` → `doc.media.pictures`. 7.0 개발 중의 `doc.styles.numbering_info(id)`는
+  `numbering(id)`다.
+- `doc.parts.add_master_page(...)`는 id 대신 `MasterPage`를 돌려주고(id는 `.id`), `paragraphs=[...]`는 없어졌다
+  (`mp.add_paragraph(...)`). `doc.page.set_master_page`·`doc.parts.remove_master_page`는 `MasterPage`도 받는다. 7.0 개발 중의
+  `doc.page.remove_master_page(id)`(구역과의 연결 끊기)는 `remove_master_page_reference(id)`다.
+- 반환 형식: `doc.styles.border_fill(id)`·`border_fills`는 `BorderFillInfo`를, `numbering(id)`·`numberings`는 `NumberingInfo`를
+  돌려준다(전: XML 요소). `doc.tracking.changes`는 id를 키로 한 dict가 아니라 문서 순서의 `TrackedChange` tuple이고,
+  `change(id)`도 `TrackedChange`(`change_id`·`kind`·`author`·`date`·`paragraph`)다. `doc.tables.all`·`doc.tables[a:b]`,
+  `doc.text.find_runs()`, `doc.notes.memos`, `doc.styles.ensure_numbering()`, `doc.parts.master_pages`·`histories`·
+  `clear_document_metadata()`·`clear_preview()`는 tuple이다.
+
+<!-- WP5b(값 형식) 이름 정리는 병합 뒤 여기와 이주 가이드에 더한다 -->
 
 #### 옮긴 기능
 
@@ -168,11 +205,11 @@ python-hwpx 7.0을 함께 설치한다.
 - 스타일: `doc.styles.set_style_format(style, ...)`으로 스타일의 글자·문단 모양을 고치고, `remove_style(style, replacement=...)`로
   지운다(쓰던 문단은 대체 스타일을 받는다). `outline_style(3)`은 "개요 3" 스타일을, `outline_level(style)`은 개요 수준을 돌려준다.
   `ensure_tab_definition`, `ensure_paragraph_format(line_spacing=, condense=, break_setting=)`, 한 변만 바꾼 테두리
-  `ensure_border_fill(base_border_fill_id=..., sides={"bottom": {...}})`도 있다. `sides=`에서 `None`을 준 면은 선을 긋지 않아,
+  `ensure_border_fill(base_border_fill_id_ref=..., sides={"bottom": {...}})`도 있다. `sides=`에서 `None`을 준 면은 선을 긋지 않아,
   위아래만 굵은 표나 머리 행 아래 이중선을 만들 수 있다.
 - 번호·글머리표: `doc.styles.add_numbering(levels)`는 한/글이 새 번호 목록에 쓰는 열 수준 정의(`1.`·`가.`·`1)`·`가)` …)를 새로
   만든다. `tests/fixtures`의 번호 정의 1,157개 가운데 1,071개가 이 모양이다. 한/글은 번호를 정의마다 세므로 늘 새 정의(새 목록)다.
-  `ensure_bullet("●")`, `set_numbering_level(...)`, `numbering_info(id)`(값 `NumberingInfo`), 문단에 거는
+  `ensure_bullet("●")`, `set_numbering_level(...)`, `numbering(id)`(값 `NumberingInfo`), 문단에 거는
   `paragraph.set_numbering(numbering, level=1)`·`set_bullet(bullet, level=1)`(`None`은 뗀다), 구역의 개요 번호 정의
   `section.properties.outline_shape_id_ref`도 있다.
 - 찾기·바꾸기: `doc.text.find("글")`·`doc.text.find(r"\d+", regex=True)`가 표 칸·머리말·각주·캡션까지 찾은 곳을 `TextMatch`(문단,
@@ -273,9 +310,9 @@ python-hwpx 7.0을 함께 설치한다.
 - `doc.page`의 설정 메서드에 `section="all"`을 주면 모든 구역을 한 번에 바꾼다.
 - 머리말·꼬리말을 쪽 종류별로 읽고 그 문단을 고친다: `doc.page.headers()`·`footers()`·`header(page_type=)`·`footer(page_type=)`,
   `header.add_paragraph("글")`.
-- 바탕쪽의 문단을 `doc.parts.master_pages[i].paragraphs`로 읽고 고치며(`add_paragraph`, `text`), `doc.page.remove_master_page(id)`로
+- 바탕쪽의 문단을 `doc.parts.master_pages[i].paragraphs`로 읽고 고치며(`add_paragraph`, `text`), `doc.page.remove_master_page_reference(id)`로
   구역과의 연결을 끊는다.
-- 문서 전체 훑기: `doc.text.paragraphs(where=...)`·`doc.text.objects(kinds=..., where=...)`가 표 칸·글상자·캡션·머리말·각주·메모·
+- 문서 전체 훑기: `doc.text.iter_paragraphs(where=...)`·`doc.text.iter_objects(kinds=..., where=...)`가 표 칸·글상자·캡션·머리말·각주·메모·
   바탕쪽까지 자리와 함께 돌려준다.
 
 #### 저장과 검사
@@ -311,7 +348,7 @@ python-hwpx 7.0을 함께 설치한다.
 - 표 칸 안에 떠 있게 만든 그림이 한/글에서 표 밖에 그려지고 표를 밀어내던 문제(6.x부터)를 고쳤다.
 - 묶음 안에 만든 묶음과, 작성자가 둘 이상인 변경 추적이 저장할 때 스키마 경고를 내던 문제를 고쳤다.
 - `paragraph.footnotes`가 표 칸 안 각주를 두 번 세던 문제를 고쳤다.
-- `doc.text.paragraphs()`·`objects()`가 표 캡션 안의 문단과 표를 본문·표 칸의 것으로 표시하던 문제를 고쳤다. 이제
+- `doc.text.iter_paragraphs()`·`iter_objects()`가 표 캡션 안의 문단과 표를 본문·표 칸의 것으로 표시하던 문제를 고쳤다. 이제
   `where="caption"`이고, `where="body"`는 `doc.paragraphs`와 같다.
 - 메모가 걸린 문단이나 표를 `insert_after()`·`copy_after()`로 복사하면 사본과 원본이 한 메모를 같은 번호로 가리키던 문제를 고쳤다.
 - 도형 크기를 바꿔도 그 문단의 옛 줄 배치 캐시가 남던 문제를 고쳤다.

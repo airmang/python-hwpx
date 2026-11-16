@@ -44,7 +44,6 @@ from ...objects.binary_item import BinaryItem
 from ...oxml import (
     Bullet,
     Font,
-    GenericElement,
     HwpxOxmlParagraph,
     MemoShape,
     ParagraphProperty,
@@ -222,15 +221,16 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
     # -- 이름 해석 ---------------------------------------------------------
 
-    def names(self) -> list[str]:
-        """이 문서가 정의한 스타일 이름 목록(한글 `name` 우선, 중복 제거)."""
+    @property
+    def names(self) -> tuple[str, ...]:
+        """이 문서가 정의한 스타일 이름(한글 `name` 우선, 중복 제거)을 정의 순서로."""
 
         seen: dict[str, None] = {}
         for style in self._doc.oxml.styles.values():
             for label in ((style.name or "").strip(), (style.eng_name or "").strip()):
                 if label:
                     seen.setdefault(label, None)
-        return list(seen)
+        return tuple(seen)
 
     def get(  # type: ignore[override]  # Mapping.get 을 id·이름 겸용으로 넓힌다
         self,
@@ -343,15 +343,19 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         return self._doc.oxml.tab_property(tab_pr_id_ref)
 
     @property
-    def border_fills(self) -> dict[str, "GenericElement"]:
-        return self._doc.oxml.border_fills
+    def border_fills(self) -> dict[str, "BorderFillInfo"]:
+        """테두리/배경 정의(`hh:borderFill`) 전체(id 문자열 → `BorderFillInfo`).
+
+        id는 적힌 그대로와 앞의 0을 뗀 숫자 둘 다로 찾는다. 값 하나하나는
+        :meth:`border_fill` 이 읽는 것과 같다. XML이 필요하면 ``doc.oxml.headers[0].element``.
+        """
+
+        mapping: dict[str, BorderFillInfo] = {}
+        for header in self._doc.oxml.headers:
+            mapping.update(header.border_fills)
+        return mapping
 
     def border_fill(
-        self, border_fill_id_ref: "int | str | None"
-    ) -> "GenericElement | None":
-        return self._doc.oxml.border_fill(border_fill_id_ref)
-
-    def border_fill_info(
         self, border_fill_id_ref: "int | str | None"
     ) -> "BorderFillInfo | None":
         """`hh:borderFill` 하나를 값으로 읽는다(없는 id면 `None`).
@@ -367,13 +371,15 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         `fill`은 첫 `hc:winBrush`의 `faceColor`이고, winBrush가 없거나
         `faceColor`가 `"none"`(대소문자 무시)이면 `None`이다. 그라데이션·그림
         채우기는 여기서 설명하지 않는다(`fill`은 `None`) — 그 요소는
-        `border_fill()`의 `GenericElement`로 읽는다. 메모리의 첫 헤더를 읽으므로
+        ``doc.oxml.headers[0].element`` 의 XML로 읽는다. 메모리의 헤더를 읽으므로
         `ensure_border_fill()`로 만든 id도 저장 없이 바로 읽힌다.
         """
 
-        from ...oxml import header_fonts
-
-        return header_fonts.border_fill_info(self._primary_header(), border_fill_id_ref)
+        for header in self._doc.oxml.headers:
+            found = header.border_fill(border_fill_id_ref)
+            if found is not None:
+                return found
+        return None
 
     # -- 글꼴 표 -----------------------------------------------------------
 
@@ -483,13 +489,16 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         return self._doc.oxml.memo_shape(memo_shape_id_ref)
 
     @property
-    def numberings(self) -> dict[str, "GenericElement"]:
-        """번호 정의(`hh:numbering`) 목록(id 문자열 → `GenericElement`).
+    def numberings(self) -> dict[str, "NumberingInfo"]:
+        """번호 정의(`hh:numbering`) 전체(id 문자열 → `NumberingInfo`).
 
         첫 헤더의 `hh:refList/hh:numberings`를 읽는다. 문단 모양의
-        `hh:heading@idRef`(종류가 NUMBER·OUTLINE일 때)가 가리키는 정의다.
-        헤더나 정의가 없으면 `{}`. 글머리표 정의는 :attr:`bullets`.
+        `hh:heading@idRef`(종류가 NUMBER·OUTLINE일 때)가 가리키는 정의다. 값 하나하나는
+        :meth:`numbering` 이 읽는 것과 같다. 헤더나 정의가 없으면 `{}`. 글머리표 정의는
+        :attr:`bullets`.
         """
+
+        from ...oxml.formatting import numbering_info
 
         header = self._primary_header()
         if header is None:
@@ -497,31 +506,27 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         element = header._numberings_element()
         if element is None:
             return {}
-        from ...oxml.header import parse_numberings
-
-        parsed = parse_numberings(header._convert_to_lxml(element))
-        mapping: dict[str, "GenericElement"] = {}
-        for definition in parsed.numberings:
-            identifier = definition.attributes.get("id")
-            if identifier is not None:
-                mapping.setdefault(str(identifier), definition)
+        mapping: dict[str, NumberingInfo] = {}
+        for definition in element:
+            if not isinstance(definition.tag, str) or definition.tag.rsplit("}", 1)[-1] != "numbering":
+                continue
+            identifier = definition.get("id")
+            if identifier is None or str(identifier) in mapping:
+                continue
+            info = numbering_info(header, identifier)
+            if info is not None:
+                mapping[str(identifier)] = info
         return mapping
 
-    def numbering(self, numbering_id_ref: "int | str | None") -> "GenericElement | None":
-        """id가 *numbering_id_ref*인 번호 정의. 없으면 `None`. 정수와 문자열을 모두 받는다."""
-
-        if numbering_id_ref is None:
-            return None
-        return self.numberings.get(str(numbering_id_ref).strip())
-
-    def numbering_info(self, numbering_id_ref: "int | str | None") -> "NumberingInfo | None":
-        """번호 정의 하나를 값으로 읽는다(없는 id면 `None`).
+    def numbering(self, numbering_id_ref: "int | str | None") -> "NumberingInfo | None":
+        """번호 정의 하나를 값으로 읽는다(없는 id면 `None`, 정수와 문자열을 모두 받는다).
 
         `NumberingInfo.levels`는 수준마다 `NumberingLevel`(`level`·`start`·
         `number_format`(DIGIT·HANGUL_SYLLABLE·CIRCLED_DIGIT …)·`text`(번호 틀,
         `"^1."`의 `^n`은 n수준 번호)·`align`·`char_pr_id_ref`(번호 글자 모양, 본문을
-        따르면 `None`) …)이다. :meth:`numbering`의 `GenericElement`와 같은 정의를
-        읽고, `hp:switch`에 든 수준은 `hp:case` 쪽을 읽는다. 메모리의 첫 헤더를 읽는다.
+        따르면 `None`) …)이다. `hp:switch`에 든 수준은 `hp:case` 쪽을 읽는다. 메모리의 첫
+        헤더를 읽으므로 :meth:`ensure_numbering` 직후에도 맞는다. XML이 필요하면
+        ``doc.oxml.headers[0].element``.
         """
 
         from ...oxml.formatting import numbering_info
@@ -651,14 +656,14 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         outline: str | None = None,
         emboss: bool | None = None,
         engrave: bool | None = None,
-        base_char_pr_id: str | int | None = None,
+        base_char_pr_id_ref: str | int | None = None,
         font_by_lang: "Mapping[str, str] | None" = None,
     ) -> str:
         """요청한 글자 서식의 `charPr` id 를 보장하고 그 id 를 돌려준다.
 
-        돌려주는 글자 모양은 기준(`base_char_pr_id`, 없으면 첫 `charPr`)에서 요청한
+        돌려주는 글자 모양은 기준(`base_char_pr_id_ref`, 없으면 첫 `charPr`)에서 요청한
         값만 바꾼 것이다. 내용이 같은 글자 모양이 있으면 그것을 다시 쓴다.
-        `bold`·`italic`·`underline`을 주지 않으면 `base_char_pr_id`의 것을 따르고,
+        `bold`·`italic`·`underline`을 주지 않으면 `base_char_pr_id_ref`의 것을 따르고,
         기준을 주지 않았으면 끈다.
 
         `outline` (외곽선, OWPML `hc:LineType1` 어휘: NONE/SOLID/DOT/THICK/
@@ -703,7 +708,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             outline=outline,
             emboss=emboss,
             engrave=engrave,
-            base_char_pr_id=base_char_pr_id,
+            base_char_pr_id=base_char_pr_id_ref,
             font_by_lang=font_by_lang,
         )
 
@@ -711,16 +716,20 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         self,
         *,
         border_color: str = "#BFBFBF",
-        border_width: str = "0.12 mm",
+        border_width_mm: float = 0.12,
         fill_color: str | None = None,
         fill_image: "str | BinaryItem | Mapping[str, object] | None" = None,
         fill_gradient: "Mapping[str, object] | None" = None,
         active_borders: Sequence[str] | None = None,
         border_type: str = "SOLID",
         sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
-        base_border_fill_id: "str | int | None" = None,
+        base_border_fill_id_ref: "str | int | None" = None,
     ) -> str:
         """요청한 테두리/채우기의 `borderFill` id 를 보장하고 돌려준다.
+
+        `border_width_mm` 는 선 굵기(mm)이고, 한/글의 굵기 목록(0.1·0.12·0.15·0.2·0.25·0.3·
+        0.4·0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm) 가운데 가장 가까운 값으로 쓴다
+        (``table.set_borders(border_width_mm=)`` 와 같다).
 
         `fill_color`/`fill_image`/`fill_gradient` 는 OWPML `hc:fillBrush` 의
         선택지(Core XML schema.xml:650) 그대로 상호 배타적이다 — 둘 이상
@@ -728,35 +737,38 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         돌려준 `BinaryItem`(또는 그 id 문자열)을 그대로 받는다.
 
         `sides` 는 면마다 다른 선을 준다: `"left"`·`"right"`·`"top"`·`"bottom"` →
-        `{"type", "width", "color"}`(빠진 값은 `border_type`·`border_width`·
+        `{"type", "width", "color"}`(빠진 값은 `border_type`·`border_width_mm`·
         `border_color`), 또는 그 면에 선을 긋지 않는 `None`. 대지 않은 면은
         `active_borders` 를 따른다. 예: 위아래만 굵고 옆이 트인 칸은
         `sides={"top": {"width": "0.4 mm"}, "bottom": {"width": "0.4 mm"},
         "left": None, "right": None}`. 모르는 면이나 키는
         `HwpxValueError(code="style-border-side-invalid")`, 모르는 선 종류는 `ValueError`.
 
-        `base_border_fill_id` 를 주면 그 정의를 복사해 `sides` 가 댄 면과 `fill_color` 만
+        `base_border_fill_id_ref` 를 주면 그 정의를 복사해 `sides` 가 댄 면과 `fill_color` 만
         바꾼다(한 변만 바꾸기). 면 매핑에서 뺀 값(`type`·`width`·`color`)은 기준 면의
         값을 따르고, 대지 않은 면·대각선·채우기·그 밖의 속성은 기준 그대로다. 같은 내용의
         정의가 있으면 그 id, 기준과 같으면 기준 id 를 돌려준다. 이때 `border_color`·
-        `border_width`·`border_type`·`active_borders`·`fill_image`·`fill_gradient` 는
+        `border_width_mm`·`border_type`·`active_borders`·`fill_image`·`fill_gradient` 는
         함께 줄 수 없다(`style-border-base-conflict`). 예: 칸 테두리에서 아래 변만 굵게 —
-        ``ensure_border_fill(base_border_fill_id=cell.border_fill_id_ref,
+        ``ensure_border_fill(base_border_fill_id_ref=cell.border_fill_id_ref,
         sides={"bottom": {"width": "0.4 mm"}})``.
         """
 
-        if base_border_fill_id is not None:
+        from .._units import _border_width_mm_text
+
+        border_width = _border_width_mm_text(border_width_mm, argument="border_width_mm")
+        if base_border_fill_id_ref is not None:
             uniform = (border_color, border_width, border_type) != ("#BFBFBF", "0.12 mm", "SOLID")
             if uniform or any(v is not None for v in (active_borders, fill_image, fill_gradient)):
                 raise HwpxValueError(
-                    "base_border_fill_id changes only sides and fill_color",
+                    "base_border_fill_id_ref changes only sides and fill_color",
                     code="style-border-base-conflict",
                     suggestion="Describe each changed side in sides={...}; the rest stays as the base has it.",
                 )
             from ...oxml.formatting import derive_border_fill
 
             return derive_border_fill(
-                self._require_header(), base_border_fill_id, sides=sides, fill_color=fill_color
+                self._require_header(), base_border_fill_id_ref, sides=sides, fill_color=fill_color
             )
 
         given = sum(1 for v in (fill_color, fill_image, fill_gradient) if v is not None)
@@ -849,11 +861,11 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         lang: "Sequence[str] | str | None" = None,
         font_type: str = "TTF",
         is_embedded: bool = False,
-        binary_item_id_ref: str | None = None,
+        item_id: str | None = None,
         subst_face: str | None = None,
         subst_type: str | None = None,
         subst_is_embedded: bool = False,
-        subst_binary_item_id_ref: str | None = None,
+        subst_item_id: str | None = None,
     ) -> str:
         """`hh:fontfaces` 에 *face* 를 선언하고(dedupe) 그 `hh:font` id 를 돌려준다.
 
@@ -861,7 +873,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         (HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 전부에 등록한다 —
         등록 뒤 ``ensure_run(font=face)`` 로 참조하면 ``fontRef`` 의 모든
         속성이 유효한 글꼴을 가리킨다. *subst_face*/*subst_type* 을 주면
-        `hh:substFont` 대체 글꼴도 함께 선언한다.
+        `hh:substFont` 대체 글꼴도 함께 선언한다. *item_id*(대체 글꼴은 *subst_item_id*)는
+        내장 글꼴 파일의 이진 항목 id 다(``binaryItemIDRef``, ``Font.item_id`` 로 읽는다).
         """
 
         return self._doc.oxml.ensure_font(
@@ -869,26 +882,25 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             lang=lang,
             font_type=font_type,
             is_embedded=is_embedded,
-            binary_item_id_ref=binary_item_id_ref,
+            binary_item_id_ref=item_id,
             subst_face=subst_face,
             subst_type=subst_type,
             subst_is_embedded=subst_is_embedded,
-            subst_binary_item_id_ref=subst_binary_item_id_ref,
+            subst_binary_item_id_ref=subst_item_id,
         )
 
     def ensure_numbering(
         self, *, kind: str, levels: Sequence[dict[str, str]] | None = None
-    ) -> list[str]:
-        """글머리표/번호 정의를 보장하고 참조 id 들을 돌려준다."""
+    ) -> tuple[str, ...]:
+        """글머리표/번호 정의를 보장하고 수준마다 그 문단 모양 id 를 돌려준다."""
 
-        return self._doc.oxml.ensure_numbering(kind=kind, levels=levels)
+        return tuple(self._doc.oxml.ensure_numbering(kind=kind, levels=levels))
 
     def ensure_paragraph_format(
         self,
         *,
-        base_para_pr_id: str | int | None = None,
+        base_para_pr_id_ref: str | int | None = None,
         alignment: str | None = None,
-        line_spacing_percent: int | float | None = None,
         margins: Mapping[str, int] | None = None,
         heading: Mapping[str, str | int] | None = None,
         border: Mapping[str, str | int] | None = None,
@@ -899,7 +911,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     ) -> str:
         """요청한 문단 모양의 `paraPr` id 를 보장하고 그 id 를 돌려준다.
 
-        :meth:`ensure_run` 의 문단 쪽 짝이다. 기준(`base_para_pr_id`, 없으면 첫
+        :meth:`ensure_run` 의 문단 쪽 짝이다. 기준(`base_para_pr_id_ref`, 없으면 첫
         `paraPr`)을 복사해 요청한 값만 바꾸고, 내용이 같은 문단 모양이 있으면 그것을
         다시 쓴다. 문단에는 적용하지 않는다 — 돌려받은 id 를 문단의
         `para_pr_id_ref` 나 :meth:`ensure_style` 의 `para_pr_id_ref` 에 넘긴다.
@@ -911,14 +923,13 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         `widow_orphan` 불리언과 줄 나눔 기준 `break_latin_word`·`break_non_latin_word`
         (`"KEEP_WORD"`·`"BREAK_WORD"`·`"HYPHENATION"`), `line_wrap`(`"BREAK"`·
         `"SQUEEZE"`·`"KEEP"`)이다. `line_spacing` 은 `LineSpacing`(종류와 값) 또는
-        퍼센트 수이고(`line_spacing_percent` 보다 먼저다), `condense` 는 공백 최소값
+        퍼센트 수(``160`` 은 160%)이고, `condense` 는 공백 최소값
         0~75(%)다. 헤더가 없으면 `HwpxStateError(code="document-header-missing")`.
         """
 
         return self._require_header().ensure_paragraph_format(
-            base_para_pr_id=base_para_pr_id,
+            base_para_pr_id=base_para_pr_id_ref,
             alignment=alignment,
-            line_spacing_percent=line_spacing_percent,
             margins=margins,
             heading=heading,
             border=border,
@@ -946,7 +957,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         이름의 스타일이 있으면 새로 만들지 않고 그 id 를 돌려주며, `None` 이 아닌
         키워드만 그 스타일에 덮어쓴다. 없으면 새 id 로 만들고(`style_type` 기본
         `"PARA"`), `hh:styles@itemCnt` 를 맞춘다. 같은 이름의 다른 스타일을 따로
-        두고 싶으면 먼저 :meth:`names` 로 겹치지 않는 이름을 고른다.
+        두고 싶으면 먼저 :attr:`names` 로 겹치지 않는 이름을 고른다.
 
         `next_style_id_ref` 를 자기 자신으로 두려면 한 번 만든 뒤 돌려받은 id 로
         다시 부른다. 헤더가 없으면 `HwpxStateError(code="document-header-missing")`.
@@ -1060,11 +1071,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     def apply_paragraph_format(
         self,
         *,
-        paragraph_index: int | None = None,
-        paragraph_indexes: Sequence[int] | None = None,
-        paragraphs: "Sequence[HwpxOxmlParagraph] | None" = None,
+        paragraph: "HwpxOxmlParagraph | int | None" = None,
+        paragraphs: "Sequence[HwpxOxmlParagraph | int] | None" = None,
         alignment: str | None = None,
-        line_spacing_percent: int | float | None = None,
+        line_spacing: "LineSpacing | int | float | None" = None,
         indent_left_mm: float | None = None,
         indent_right_mm: float | None = None,
         first_line_indent_mm: float | None = None,
@@ -1077,7 +1087,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         column_break: bool | None = None,
         bottom_border: bool = False,
         border_color: str = "#BFBFBF",
-        border_width: str = "0.12 mm",
+        border_width_mm: float = 0.12,
         tab_stops: Sequence[Mapping[str, object]] | None = None,
         auto_tab_left: bool | None = None,
         auto_tab_right: bool | None = None,
@@ -1085,13 +1095,17 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     ) -> "ParagraphFormatResult":
         """문단 서식을 사람 단위(mm·pt·%)로 적용한다.
 
-        대상은 본문 문단 인덱스(`paragraph_index`·`paragraph_indexes`, 둘 다 없으면
-        본문 문단 전부) 또는 이 문서의 문단 객체(`paragraphs`)다. `paragraphs`로는
-        본문뿐 아니라 표 셀(중첩 표 포함)·머리말·꼬리말 문단에도 적용한다 —
-        예: `paragraphs=[table.cell(0, 0).paragraphs[0]]`,
+        대상은 `paragraph`(문단 하나) 또는 `paragraphs`(여럿)이고, 둘 다 없으면 본문 문단
+        전부다. 문단은 번호(본문 문단 몇 번째, ``doc.paragraphs`` 의 번호)나 이 문서의 문단
+        객체로 준다. 객체로는 본문뿐 아니라 표 셀(중첩 표 포함)·머리말·꼬리말 문단에도
+        적용한다 — 예: `paragraph=table.cell(0, 0).paragraphs[0]`,
         `paragraphs=header.paragraphs`. 다른 문서의 문단이나 지운 문단이 섞이면
         아무것도 바꾸기 전에 거부한다(`paragraph-not-in-document`). 결과의
-        `paragraphs`에는 본문 문단의 인덱스만 담기고 `formatted`는 대상 수다.
+        `paragraphs`에는 본문 문단의 번호만 담기고 `formatted`는 대상 수다.
+
+        `line_spacing` 은 줄 간격 퍼센트 수(``160`` 은 160%) 또는 `LineSpacing`(종류와 값)이다.
+        `bottom_border=True` 의 선은 `border_color`·`border_width_mm`(mm, 한/글 굵기 목록의
+        가장 가까운 값)로 긋는다.
 
         `border`는 문단 테두리 매핑이다: `sides`(기본 네 면 "left"·"right"·
         "top"·"bottom"), `color`("#000000"), `width`("0.12 mm"), `type`
@@ -1116,11 +1130,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         return _layout.set_paragraph_format(
             self._doc,
-            paragraph_index=paragraph_index,
-            paragraph_indexes=paragraph_indexes,
+            paragraph=paragraph,
             paragraphs=paragraphs,
             alignment=alignment,
-            line_spacing_percent=line_spacing_percent,
+            line_spacing=line_spacing,
             indent_left_mm=indent_left_mm,
             indent_right_mm=indent_right_mm,
             first_line_indent_mm=first_line_indent_mm,
@@ -1133,7 +1146,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             column_break=column_break,
             bottom_border=bottom_border,
             border_color=border_color,
-            border_width=border_width,
+            border_width_mm=border_width_mm,
             tab_stops=tab_stops,
             auto_tab_left=auto_tab_left,
             auto_tab_right=auto_tab_right,
@@ -1143,8 +1156,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     def apply_list_format(
         self,
         *,
-        paragraph_index: int | None = None,
-        paragraph_indexes: Sequence[int] | None = None,
+        paragraph: "HwpxOxmlParagraph | int | None" = None,
+        paragraphs: "Sequence[HwpxOxmlParagraph | int] | None" = None,
         kind: str = "bullet",
         level: int = 1,
         bullet_char: str | None = None,
@@ -1154,13 +1167,17 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     ) -> "ListFormatResult":
         """글머리표/번호 문단 서식을 적용한다.
 
+        대상은 :meth:`apply_paragraph_format` 과 같다: `paragraph`(하나)나 `paragraphs`(여럿)에
+        번호(본문 문단 몇 번째)나 문단 객체를 주고, 둘 다 없으면 본문 문단 전부다. 결과의
+        `paragraphs` 에는 본문 문단의 번호만 담긴다.
+
         기본 모양은 한/글 새 목록과 다르다: 글머리표는 1수준 ``-``·2수준 ``○``(한/글은
         ``●``), 번호 2수준은 ``1.1.``(한/글은 ``가.``)·3수준은 ``1.1.1.``(한/글은 ``1)``).
         글머리표를 한/글처럼 하려면 ``bullet_char="●"``를 준다.
 
         번호 목록은 부를 때마다 새 번호 정의를 만들고, 한/글은 번호 정의마다 번호를
         센다. 그래서 문단마다 따로 부르면 목록이 매번 1부터 다시 시작한다. 이어지는
-        목록은 ``paragraph_indexes=[...]``로 한 번에 적용하거나 ``continue_list=True``를
+        목록은 ``paragraphs=[...]``로 한 번에 적용하거나 ``continue_list=True``를
         준다. 그러면 대상 문단 앞의 마지막 번호 목록(개요는 개요)에 이어 번호를 매긴다.
         앞에 그런 목록이 없으면 새 목록을 만든다. 앞 목록의 번호 정의에 없는 더 깊은
         수준이면 그 수준의 모양을 정의에 더한다(한/글은 없는 수준에 번호를 그리지 않는다).
@@ -1172,8 +1189,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         return _layout.set_list_format(
             self._doc,
-            paragraph_index=paragraph_index,
-            paragraph_indexes=paragraph_indexes,
+            paragraph=paragraph,
+            paragraphs=paragraphs,
             kind=kind,
             level=level,
             bullet_char=bullet_char,

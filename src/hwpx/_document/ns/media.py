@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from ...model import Picture
-from ...objects import BinaryItem, PictureRef, PictureReplacement
+from ...objects import BinaryItem, PictureReplacement
 from ._base import _Namespace
 
 __all__ = ["MediaNamespace"]
@@ -101,35 +101,33 @@ class MediaNamespace(_Namespace):
     def pictures(self) -> "tuple[Picture, ...]":
         """문서 본문의 그림 개체 전부를 문서 순서로 돌려준다.
 
-        표 칸·글상자·각주·묶음 안의 그림도 든다. 순서는 :meth:`picture_references`와
-        같아서 ``doc.media.pictures[ref.picture_index]``가 그 참조의 그림이다. 하나하나가
-        ``model.Picture``라 크기(``resize``)·자르기(``set_crop``)·설명·위치를 읽고 고치고
+        표 칸·글상자·각주·묶음 안의 그림도 든다. 하나하나가 ``model.Picture``라 이진 항목
+        (``item_id``)·크기(``width``·``height``, ``resize``)·자르기(``crop``)·설명·위치를 읽고 고치고
         ``remove()``로 지운다. ``remove()``는 다른 곳에서 쓰지 않게 된 그 그림의 이진 항목도 함께
         지운다(``remove(remove_orphaned=False)``면 남긴다). 남은 것은 :meth:`remove_unused_images`가 지운다.
+        :meth:`replace_picture` 의 ``index`` 가 이 순서다.
         """
 
         from .. import media as _media
 
         return _media.pictures(self._doc)
 
-    def picture_references(self) -> "tuple[PictureRef, ...]":
-        """본문의 그림 개체가 어떤 이진 항목을 가리키는지의 역참조 표."""
-
-        from .. import media as _media
-
-        return _media.picture_references(self._doc)
-
     def replace_picture(
         self,
         image_data: bytes,
         image_format: str,
         *,
-        picture_index: int = 0,
-        binary_item_id_ref: str | None = None,
+        index: int = 0,
+        old_item_id: str | None = None,
         remove_orphaned: bool = True,
         item_id: str | None = None,
     ) -> "PictureReplacement":
-        """그림 개체가 가리키는 이진 항목을 새 이미지로 바꾼다."""
+        """그림 개체가 가리키는 이진 항목을 새 이미지로 바꾼다.
+
+        바꿀 그림은 :attr:`pictures` 의 *index* 번째(0부터)다. *old_item_id* 를 주면 그 이진 항목을
+        보이는 그림들 가운데 *index* 번째다. 새 이미지의 항목 id 는 *item_id* (주지 않으면 새로 매긴다),
+        *remove_orphaned* 면 더 쓰이지 않는 옛 항목을 지운다.
+        """
 
         from .. import media as _media
 
@@ -137,8 +135,8 @@ class MediaNamespace(_Namespace):
             self._doc,
             image_data=image_data,
             image_format=image_format,
-            picture_index=picture_index,
-            binary_item_id_ref=binary_item_id_ref,
+            index=index,
+            old_item_id=old_item_id,
             remove_orphaned=remove_orphaned,
             item_id=item_id,
         )

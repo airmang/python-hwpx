@@ -58,7 +58,7 @@ def test_a_percent_line_spacing_is_written_in_the_unit_hancom_writes() -> None:
                      for unit in ("percent", "hwpunit"))
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("줄간격 130%")
-    document.styles.apply_paragraph_format(paragraph_index=len(document.paragraphs) - 1, line_spacing_percent=130)
+    document.styles.apply_paragraph_format(paragraph=len(document.paragraphs) - 1, line_spacing=130)
     written = {(spacing.get("type"), spacing.get("unit"))
                for spacing in _descendants(_para_pr_for_paragraph(document, len(document.paragraphs) - 1),
                                            "lineSpacing")}
@@ -73,9 +73,9 @@ def test_set_paragraph_format_uses_human_units_and_survives_save(tmp_path) -> No
     document.add_paragraph("줄간격 160% 확인")
 
     result = document.styles.apply_paragraph_format(
-        paragraph_index=paragraph_index,
+        paragraph=paragraph_index,
         alignment="center",
-        line_spacing_percent=160,
+        line_spacing=160,
         indent_left_mm=10,
         first_line_indent_mm=-3,
         spacing_before_pt=6,
@@ -170,12 +170,12 @@ def test_set_list_format_applies_bullet_and_numbered_properties() -> None:
     document.add_paragraph("번호 항목")
 
     bullet_result = document.styles.apply_list_format(
-        paragraph_index=bullet_index,
+        paragraph=bullet_index,
         kind="bullet",
         bullet_char="※",
     )
     number_result = document.styles.apply_list_format(
-        paragraph_index=number_index,
+        paragraph=number_index,
         kind="number",
         number_format="roman",
         start=3,

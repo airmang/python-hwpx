@@ -44,7 +44,7 @@ def test_columns_read_back_what_set_columns_wrote_including_a_mid_section_change
     doc = HwpxDocument.new()
     doc.add_paragraph("첫")
     second = doc.add_paragraph("둘")
-    doc.page.set_columns(2, same_gap=1134, separator_type="SOLID", separator_width="0.4 mm")
+    doc.page.set_columns(2, same_gap=1134, separator_type="SOLID", separator_width_mm=0.4)
     doc.page.set_columns(3, paragraph=second, same_size=False, column_widths=[(1, 0), (2, 1), (1, 0)])
 
     first, changed = _reopen(doc).page.columns()
@@ -78,8 +78,8 @@ def test_number_restarts_page_hidings_and_auto_numbers() -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("하나")
     target = doc.add_paragraph("둘")
-    doc.page.restart_page_number(target, number=5)
-    doc.page.hide_page_elements(target, header=True, page_num=True)
+    doc.page.add_number_restart(target, number=5)
+    doc.page.add_page_hiding(target, header=True, page_num=True)
     doc.page.set_page_number(format="page/total")
     reopened = _reopen(doc)
 
@@ -174,8 +174,8 @@ def test_start_numbers_and_begin_numbers() -> None:
 
 def test_document_options_read_what_the_setters_write() -> None:
     doc = HwpxDocument.new()
-    doc.parts.set_doc_option_link_info(page_inherit=True)
-    doc.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    doc.parts.set_document_options(page_inherit=True)
+    doc.parts.set_document_options(license_type="CCL", license_flag=0, license_lang=6)
     options = _reopen(doc).parts.document_options
     assert isinstance(options, DocumentOptions)
     assert options.target_program == "HWP201X"

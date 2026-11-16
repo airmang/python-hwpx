@@ -263,7 +263,7 @@ def test_copying_a_text_box_with_a_memo_gives_the_copy_its_own_memo() -> None:
     doc = HwpxDocument.new()
     box = doc.add_paragraph("").add_rectangle(6000, 3000)
     box.set_draw_text("메모가 걸린 글")
-    memo = doc.notes.add_memo("살펴볼 것", anchor=box.draw_text.paragraphs[0], section=0)
+    memo = doc.notes.add_memo("살펴볼 것", paragraph=box.draw_text.paragraphs[0], section=0)
     assert memo.paragraph is not None
 
     copy = box.copy_to(doc.add_paragraph(""))
@@ -282,7 +282,7 @@ def test_copying_a_text_box_with_a_memo_gives_the_copy_its_own_memo() -> None:
 def test_paragraph_and_table_copies_give_a_memo_anchor_its_own_memo() -> None:
     doc = HwpxDocument.new()
     anchored = doc.add_paragraph("메모가 걸린 글")
-    memo = doc.notes.add_memo("원본", anchor=anchored, section=0)
+    memo = doc.notes.add_memo("원본", paragraph=anchored, section=0)
 
     copy = anchored.insert_after()
 
@@ -290,7 +290,7 @@ def test_paragraph_and_table_copies_give_a_memo_anchor_its_own_memo() -> None:
     assert [m.text for m in memos] == ["원본", "원본"] and memos[1].id != memo.id
     assert memos[1].paragraph is not None and memos[1].paragraph.element is copy.element
     table = doc.add_paragraph("").add_table(1, 1)
-    doc.notes.add_memo("칸 메모", anchor=table.cell(0, 0).paragraphs[0], section=0)
+    doc.notes.add_memo("칸 메모", paragraph=table.cell(0, 0).paragraphs[0], section=0)
     table.copy_after()
     assert [m.text for m in doc.sections[0].memo_group.memos] == ["원본", "원본", "칸 메모", "칸 메모"]
     numbers = [node.get("zorder") for node in doc.sections[0].element.iter(f"{HP}fieldBegin")
@@ -498,7 +498,7 @@ def test_a_group_member_a_removed_object_and_bad_places_are_refused() -> None:
 
 def test_objects_do_not_go_into_a_memo() -> None:
     doc = HwpxDocument.new()
-    memo = doc.notes.add_memo("메모 글", anchor=doc.add_paragraph("글"), section=0)
+    memo = doc.notes.add_memo("메모 글", paragraph=doc.add_paragraph("글"), section=0)
     equation = doc.add_paragraph("").add_equation("x")
     with pytest.raises(HwpxValueError) as excinfo:
         equation.move_to(memo.paragraphs[0])
@@ -650,7 +650,7 @@ def test_paragraph_move_refusals_and_no_ops() -> None:
         single.move_after(only.add_paragraph("", section=only.add_section()))
     assert excinfo.value.code == "paragraph-remove-last"
 
-    memo = doc.notes.add_memo("메모", anchor=a, section=0)
+    memo = doc.notes.add_memo("메모", paragraph=a, section=0)
     with pytest.raises(HwpxValueError) as excinfo:
         b.move_after(memo.paragraphs[0])
     assert excinfo.value.code == "paragraph-move-place-unsupported"
@@ -660,7 +660,7 @@ def test_a_paragraph_moved_to_another_section_takes_its_memo_along() -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("머리")
     anchored = doc.add_paragraph("메모가 걸린 문단")
-    memo = doc.notes.add_memo("확인", anchor=anchored, section=0)
+    memo = doc.notes.add_memo("확인", paragraph=anchored, section=0)
     second = doc.add_section()
     landing = doc.add_paragraph("둘째 구역", section=second)
 
@@ -709,7 +709,7 @@ def test_an_unanchored_memo_moves_to_another_section_at_an_index() -> None:
 
 def test_an_anchored_memo_stays_with_its_anchor() -> None:
     doc = HwpxDocument.new()
-    memo = doc.notes.add_memo("고리 있음", anchor=doc.add_paragraph("글"), section=0)
+    memo = doc.notes.add_memo("고리 있음", paragraph=doc.add_paragraph("글"), section=0)
     doc.notes.add_memo("다른 메모", section=0)
     doc.add_section()
     with pytest.raises(HwpxValueError) as excinfo:
@@ -722,7 +722,7 @@ def test_an_anchored_memo_stays_with_its_anchor() -> None:
 
 def test_memo_copy_to_makes_an_unanchored_copy_with_a_new_id() -> None:
     doc = HwpxDocument.new()
-    memo = doc.notes.add_memo("원본 메모", anchor=doc.add_paragraph("글"), section=0)
+    memo = doc.notes.add_memo("원본 메모", paragraph=doc.add_paragraph("글"), section=0)
     doc.add_section()
 
     copy = doc.sections[0].memos[0].copy_to(1, index=0)

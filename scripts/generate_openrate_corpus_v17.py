@@ -189,14 +189,14 @@ def gen_outline_numbering(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "개요 번호 모양 저작 표본")
             document.add_paragraph(f"{cycle(DEPT_BANK, idx)} 개요 대상 문단 {idx}")
             document.styles.apply_list_format(
-                paragraph_index=len(document.paragraphs) - 1,
+                paragraph=len(document.paragraphs) - 1,
                 kind="outline", level=level, number_format=number_format, start=start,
             )
             if idx == 4:
                 # proves the two mechanisms (custom outline number +
                 # existing level-increase) compose without conflict.
                 document.styles.apply_paragraph_format(
-                    paragraph_index=len(document.paragraphs) - 1, outline_level=level + 1,
+                    paragraph=len(document.paragraphs) - 1, outline_level=level + 1,
                 )
 
             document.save(str(out_path))
@@ -237,12 +237,12 @@ def gen_master_page(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "바탕쪽 저작 표본")
 
             if idx == 4:
-                paragraphs = [f"{cycle(DEPT_BANK, idx)} 회사명", "기밀문서"]
                 master_page_id = document.parts.add_master_page(
-                    paragraphs=paragraphs, page_type=page_type,
+                    text=f"{cycle(DEPT_BANK, idx)} 회사명", page_type=page_type,
                     page_number=page_number, page_duplicate=page_duplicate,
                     page_front=page_front,
                 )
+                master_page_id.add_paragraph("기밀문서")  # 7.0: paragraphs=[...] is gone
                 # a second master page to prove the part-index
                 # auto-increment produces a document Hancom still accepts.
                 document.parts.add_master_page(text="둘째 바탕쪽")

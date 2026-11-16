@@ -127,11 +127,11 @@ def gen_baseline_regen(bucket_dir: Path) -> list[dict[str, Any]]:
             if idx % 3 == 2:
                 variant = (idx // 3) % 3
                 if variant == 0:
-                    document.shapes.add_rectangle(14400, 7200, fill_color="#CCE5FF", line_width="283")
+                    document.shapes.add_rectangle(14400, 7200, fill_color="#CCE5FF", line_width_mm=1.0)
                 elif variant == 1:
-                    document.shapes.add_line(0, 0, 14400, 0, line_width="283")
+                    document.shapes.add_line(0, 0, 14400, 0, line_width_mm=1.0)
                 else:
-                    document.shapes.add_ellipse(10000, 6000, fill_color="#FFD9CC", line_width="283")
+                    document.shapes.add_ellipse(10000, 6000, fill_color="#FFD9CC", line_width_mm=1.0)
             document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="baseline-regen", seed=str(idx),
@@ -260,7 +260,7 @@ def gen_chart(bucket_dir: Path) -> list[dict[str, Any]]:
                 chart_type, categories, series, title=f"{chart_type} 표본 {idx}",
             )
             document = _base_document(idx, "차트 표본")
-            document.shapes.add_chart(chart_xml, size=(60000, 40000))
+            document.shapes.add_chart(chart_xml, width=60000, height=40000)
             document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-chart", seed=f"{chart_type}:{idx}",

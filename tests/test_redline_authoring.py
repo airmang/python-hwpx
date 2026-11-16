@@ -92,12 +92,13 @@ def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None
 
     reopened = HwpxDocument.open(document.to_bytes())
 
-    assert reopened.tracking.change(insert_id).change_type == "Insert"
-    assert reopened.tracking.change(delete_id).change_type == "Delete"
-    assert reopened.tracking.change(replace_delete_id).change_type == "Delete"
-    assert reopened.tracking.change(replace_insert_id).change_type == "Insert"
+    assert reopened.tracking.change(insert_id).kind == "INSERT"
+    assert reopened.tracking.change(delete_id).kind == "DELETE"
+    assert reopened.tracking.change(replace_delete_id).kind == "DELETE"
+    assert reopened.tracking.change(replace_insert_id).kind == "INSERT"
     assert reopened.tracking.change(insert_id).date == DATE
-    assert reopened.tracking.change(insert_id).author_id == 1
+    assert reopened.oxml.track_change(insert_id).author_id == 1  # the header entry names its author by id
+    assert reopened.tracking.change(insert_id).author == reopened.tracking.authors["1"].name
 
     header_model = reopened.parts.headers[0].to_model()
     assert header_model.ref_list is not None
@@ -221,7 +222,7 @@ def test_tracked_replace_preflights_cross_inline_match_without_orphan_headers() 
     document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("before ", char_pr_id_ref="0")
     insert_id = document.tracking.insert(paragraph, "middle", date=DATE).change_id
-    existing_change_ids = set(document.tracking.changes)
+    existing_change_ids = {str(change.change_id) for change in document.tracking.changes}
 
     with pytest.raises(
         ValueError,
@@ -234,7 +235,7 @@ def test_tracked_replace_preflights_cross_inline_match_without_orphan_headers() 
             date=DATE,
         )
 
-    assert set(document.tracking.changes) == existing_change_ids == {str(insert_id)}
+    assert {str(change.change_id) for change in document.tracking.changes} == existing_change_ids == {str(insert_id)}
 
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"

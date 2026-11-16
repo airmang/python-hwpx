@@ -74,7 +74,7 @@ def main() -> int:
     doc = HwpxDocument.new()
     doc.add_paragraph("탭 정의 프로브")
     doc.styles.apply_paragraph_format(
-        paragraph_index=0,
+        paragraph=0,
         tab_stops=[{"pos_mm": p} for p in (10, 20, 30, 40)],
     )
     para_prop = doc.styles.paragraph_property(doc.paragraphs[0].para_pr_id_ref)

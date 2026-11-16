@@ -291,7 +291,7 @@ class TestSectionManagement:
 
         doc = _new()
         p0 = doc.sections[0].paragraphs[0]
-        doc.notes.add_memo("anchored on the very first paragraph", anchor=p0)
+        doc.notes.add_memo("anchored on the very first paragraph", paragraph=p0)
 
         second = doc.add_section()
 

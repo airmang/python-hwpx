@@ -46,7 +46,6 @@ from ._document.persistence import SaveFormat
 from ._document import _resolve
 from ._document import headings as _headings
 from ._document import layout as _layout
-from ._document._units import _line_width_mm_to_hwp_units
 from .model import Paragraph, Picture
 from ._removed_names import install as _install_removed_name_hints
 from ._removed_names import removed_name_error
@@ -866,13 +865,13 @@ class HwpxDocument(metaclass=_DocumentType):
             height=height,
             width_mm=width_mm,
             height_mm=height_mm,
-            align=None if alignment is None else str(alignment),
+            alignment=None if alignment is None else str(alignment),
             brightness=brightness,
             contrast=contrast,
             effect=effect,
             alpha=alpha,
             line_color=line_color,
-            line_width=_line_width_mm_to_hwp_units(line_width_mm),
+            line_width_mm=line_width_mm,
             crop=crop,
             shadow=shadow,
             glow=glow,

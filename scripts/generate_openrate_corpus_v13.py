@@ -262,13 +262,13 @@ def gen_dutmal_compose(bucket_dir: Path) -> list[dict[str, Any]]:
 
             document = _base_document(idx, "덧말·글자 겹치기 저작 표본")
             paragraph = document.add_paragraph(f"본문 {idx}: ")
-            document.shapes.add_dutmal(
+            document.shapes.add_ruby(
                 f"{main_text}{idx}", f"{sub_text}{idx}",
-                paragraph=paragraph, pos_type=pos_type, align=align,
+                paragraph=paragraph, position=pos_type, alignment=align,
             )
             document.shapes.add_composed_character(
                 compose_text, paragraph=paragraph,
-                circle_type=circle_type, compose_type=compose_type,
+                frame=circle_type, arrangement=compose_type,
             )
 
             document.save(str(out_path))

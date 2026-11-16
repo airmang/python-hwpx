@@ -39,11 +39,11 @@ _OPF_NS = "http://www.idpf.org/2007/opf/"
 def test_add_master_page_creates_a_part_and_registers_it_in_the_manifest() -> None:
     document = HwpxDocument.new()
 
-    master_page_id = document.parts.add_master_page(text="회사명")
+    master_page = document.parts.add_master_page(text="회사명")
 
-    assert master_page_id == "masterpage0"
+    assert master_page.id == "masterpage0"
     parts = document.parts.master_pages
-    assert len(parts) == 1
+    assert len(parts) == 1 and parts[0].id == master_page.id
     assert parts[0].part_name == "Contents/masterpage0.xml"
 
     model = parts[0].to_model()
@@ -61,16 +61,17 @@ def test_add_master_page_creates_a_part_and_registers_it_in_the_manifest() -> No
 def test_add_master_page_supports_multiple_paragraphs_and_type_flags() -> None:
     document = HwpxDocument.new()
 
-    master_page_id = document.parts.add_master_page(
-        paragraphs=["회사명", "기밀문서"],
+    master_page = document.parts.add_master_page(
+        text="회사명",
         page_type="EVEN",
         page_number=3,
         page_duplicate=True,
         page_front=True,
     )
+    master_page.add_paragraph("기밀문서")
 
     model = document.parts.master_pages[0].to_model()
-    assert master_page_id == "masterpage0"
+    assert master_page.id == "masterpage0"
     assert model.type == "EVEN"
     assert model.page_number == 3
     assert model.page_duplicate is True
@@ -82,7 +83,7 @@ def test_add_master_page_without_paragraphs_writes_one_empty_paragraph() -> None
     # Hancom crashes on a master page whose paragraph list is empty.
     document = HwpxDocument.new()
 
-    document.page.set_master_page(document.parts.add_master_page(paragraphs=[]))
+    document.page.set_master_page(document.parts.add_master_page())
 
     assert document.parts.master_pages[0].to_model().paragraph_texts == ("",)
     assert validate_package(document.to_bytes()).ok
@@ -103,7 +104,7 @@ def test_add_master_page_twice_increments_the_part_index() -> None:
     first = document.parts.add_master_page(text="첫째")
     second = document.parts.add_master_page(text="둘째")
 
-    assert (first, second) == ("masterpage0", "masterpage1")
+    assert (first.id, second.id) == ("masterpage0", "masterpage1")
     assert {mp.part_name for mp in document.parts.master_pages} == {
         "Contents/masterpage0.xml",
         "Contents/masterpage1.xml",
@@ -140,9 +141,8 @@ def test_set_master_page_is_idempotent() -> None:
 
 def test_master_page_and_section_reference_round_trip_through_save_and_reopen() -> None:
     document = HwpxDocument.new()
-    master_page_id = document.parts.add_master_page(
-        paragraphs=["회사명", "기밀문서"], page_type="ODD",
-    )
+    master_page_id = document.parts.add_master_page(text="회사명", page_type="ODD")
+    master_page_id.add_paragraph("기밀문서")
     document.page.set_master_page(master_page_id, section=0)
 
     reopened = HwpxDocument.open(document.to_bytes())

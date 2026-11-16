@@ -30,29 +30,29 @@ def _captioned() -> HwpxDocument:
 
 def test_caption_paragraphs_are_in_the_caption() -> None:
     doc = _captioned()
-    places = {place.paragraph.text: place for place in doc.text.paragraphs() if place.paragraph.text}
+    places = {place.paragraph.text: place for place in doc.text.iter_paragraphs() if place.paragraph.text}
     assert places["본문 표 캡션"].where == "caption"
     assert places["칸 안 표 캡션"].where == "caption"
     assert places["캡션 안 표의 칸"].where == "cell"
-    body = [place.paragraph.text for place in doc.text.paragraphs(where="body")]
+    body = [place.paragraph.text for place in doc.text.iter_paragraphs(where="body")]
     assert "본문 표 캡션" not in body and body == [paragraph.text for paragraph in doc.paragraphs]
 
 
 def test_a_table_inside_a_caption_is_in_the_caption() -> None:
     doc = _captioned()
-    tables = list(doc.text.objects(kinds="table"))
+    tables = list(doc.text.iter_objects(kinds="table"))
     assert [place.where for place in tables] == ["body", "body", "cell", "caption"]
-    in_cells = list(doc.text.objects(kinds="table", where="cell"))
+    in_cells = list(doc.text.iter_objects(kinds="table", where="cell"))
     assert len(in_cells) == 1 and in_cells[0].object.caption is not None
     # held by the outer table and by the table whose caption it is in
-    assert [place.depth for place in doc.text.objects(kinds="table", where="caption")] == [2]
+    assert [place.depth for place in doc.text.iter_objects(kinds="table", where="caption")] == [2]
 
 
 def test_hangul_saved_captions_in_cells() -> None:
     doc = HwpxDocument.open(FIXTURES / "hancom_saved" / "pages_captioned_tables_in_cells.hwpx")
-    captions = [place for place in doc.text.paragraphs(where="caption") if place.paragraph.text]
+    captions = [place for place in doc.text.iter_paragraphs(where="caption") if place.paragraph.text]
     assert captions and {place.paragraph.text for place in captions} >= {"캡션 1"}
-    assert not any(place.paragraph.text.startswith("캡션") for place in doc.text.paragraphs(where="cell"))
+    assert not any(place.paragraph.text.startswith("캡션") for place in doc.text.iter_paragraphs(where="cell"))
     saved = HwpxDocument.open(FIXTURES / "hancom_saved" / "pages_table_caption_below.hwpx")
-    assert [place.paragraph.text for place in saved.text.paragraphs(where="caption")] == ["표 캡션 글"]
-    assert "표 캡션 글" not in [place.paragraph.text for place in saved.text.paragraphs(where="body")]
+    assert [place.paragraph.text for place in saved.text.iter_paragraphs(where="caption")] == ["표 캡션 글"]
+    assert "표 캡션 글" not in [place.paragraph.text for place in saved.text.iter_paragraphs(where="body")]

@@ -16,7 +16,7 @@ automation 최다 사용 저작 동사 중 하나). 만든 다음에 하는 일�
 from __future__ import annotations
 
 from types import ModuleType
-from typing import TYPE_CHECKING, Iterable, overload
+from typing import TYPE_CHECKING, Iterable, Iterator, overload
 
 from ...model import Table, TableCell
 from ._base import _LazyModule, _Namespace
@@ -44,19 +44,16 @@ class TablesNamespace(_Namespace):
     _path = "doc.tables"
 
     @property
-    def all(self) -> list["Table"]:
+    def all(self) -> tuple["Table", ...]:
         """본문 문단에 바로 놓인 표를 문서 순서로.
 
         표 칸 안의 표, 머리말·꼬리말·각주·미주·글상자 안의 표는 들어 있지 않다.
-        칸 안의 표는 그 칸에서(``cell.tables``), 글까지 모두
-        훑으려면 ``doc.text.blocks()``를 쓴다. ``len(doc.tables)``와
+        칸 안의 표는 그 칸에서(``cell.tables``, 본문 표와 칸 안의 표 모두는 :attr:`with_nested`),
+        글까지 모두 훑으려면 ``doc.text.iter_blocks()``를 쓴다. ``len(doc.tables)``와
         ``for table in doc.tables``도 같은 범위다.
         """
 
-        tables: list["Table"] = []
-        for paragraph in self._doc.paragraphs:
-            tables.extend(paragraph.tables)
-        return tables
+        return tuple(table for paragraph in self._doc.paragraphs for table in paragraph.tables)
 
     @property
     def with_nested(self) -> tuple["Table", ...]:
@@ -65,7 +62,7 @@ class TablesNamespace(_Namespace):
         표 하나 뒤에 그 칸들의 표가(행 순서, 칸 순서, 칸 문단 순서로, 다시 그 안의 표까지)
         오고, 다음 표로 넘어간다. ``doc.tables.with_nested[i]`` 가 지도의
         ``table_index == i`` 인 표다. 머리말·꼬리말·각주·미주·글상자·캡션 안의 표는
-        지도처럼 들어 있지 않다(그것까지는 ``doc.text.objects(kinds="table")``).
+        지도처럼 들어 있지 않다(그것까지는 ``doc.text.iter_objects(kinds="table")``).
         """
 
         found: list["Table"] = []
@@ -85,16 +82,16 @@ class TablesNamespace(_Namespace):
     def __len__(self) -> int:
         return len(self.all)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator["Table"]:
         return iter(self.all)
 
     @overload
     def __getitem__(self, index: int) -> "Table": ...
 
     @overload
-    def __getitem__(self, index: slice) -> list["Table"]: ...
+    def __getitem__(self, index: slice) -> tuple["Table", ...]: ...
 
-    def __getitem__(self, index: int | slice) -> "Table | list[Table]":
+    def __getitem__(self, index: int | slice) -> "Table | tuple[Table, ...]":
         """문서 순서의 ``index`` 번째 표(``doc.tables[0]``, ``doc.tables[-1]``, ``doc.tables[1:3]``).
 
         ``doc.tables.all[index]``와 같다. 범위 밖이면 ``HwpxIndexError``

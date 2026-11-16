@@ -176,8 +176,8 @@ class TextNamespace(_Namespace):
 
     # -- 순회·검색 ---------------------------------------------------------
 
-    def runs(self) -> Iterator["HwpxOxmlRun"]:
-        """문서의 모든 런을 문서 순서로 내놓는다."""
+    def iter_runs(self) -> Iterator["HwpxOxmlRun"]:
+        """본문 문단(``doc.paragraphs``)의 런을 문서 순서로 하나씩 내놓는다(문단 하나의 런은 ``paragraph.runs``)."""
 
         for paragraph in self._doc.paragraphs:
             for run in paragraph.runs:
@@ -190,13 +190,13 @@ class TextNamespace(_Namespace):
         underline_type: str | None = None,
         underline_color: str | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> list["HwpxOxmlRun"]:
-        """주어진 서식 조건을 모두 만족하는 런을 돌려준다."""
+    ) -> tuple["HwpxOxmlRun", ...]:
+        """본문 런 가운데 주어진 서식 조건을 모두 만족하는 런을 문서 순서로 돌려준다."""
 
         target_char = str(char_pr_id_ref).strip() if char_pr_id_ref is not None else None
-        return [
+        return tuple(
             run
-            for run in self.runs()
+            for run in self.iter_runs()
             if _run_matches(
                 run,
                 text_color=text_color,
@@ -204,11 +204,11 @@ class TextNamespace(_Namespace):
                 underline_color=underline_color,
                 target_char=target_char,
             )
-        ]
+        )
 
     # -- 문서 전체 훑기 ----------------------------------------------------
 
-    def paragraphs(self, *, where: "Iterable[str] | str | None" = None) -> Iterator["ParagraphPlace"]:
+    def iter_paragraphs(self, *, where: "Iterable[str] | str | None" = None) -> Iterator["ParagraphPlace"]:
         """문서의 **모든** 문단을 문서 순서로, 어디에 있는지와 함께 내놓는다.
 
         ``doc.paragraphs`` 는 본문 문단만 보지만, 이것은 표 칸(칸 안 표 포함)·글상자·묶음 개체 안
@@ -223,7 +223,7 @@ class TextNamespace(_Namespace):
 
         return iter_paragraph_places(self._doc, where)
 
-    def objects(
+    def iter_objects(
         self,
         *,
         kinds: "Iterable[str] | str | None" = None,
@@ -233,7 +233,7 @@ class TextNamespace(_Namespace):
 
         본문뿐 아니라 표 칸·글상자·머리말·꼬리말·각주·바탕쪽 안의 개체, 묶음 개체의 구성원도
         나온다. ``kind`` 는 ``"table"``·``"picture"``·``"equation"``·``"shape"``·``"ole"``·
-        ``"chart"``·``"video"``·``"textart"``, 자리 값은 :meth:`paragraphs` 와 같다(그 개체를 품은
+        ``"chart"``·``"video"``·``"textart"``, 자리 값은 :meth:`iter_paragraphs` 와 같다(그 개체를 품은
         문단의 자리). *kinds*·*where* 로 고른다.
         """
 
@@ -250,7 +250,7 @@ class TextNamespace(_Namespace):
     ) -> tuple["TextMatch", ...]:
         """*pattern* 이 나오는 곳을 문서 순서로 모두 돌려준다(``TextMatch`` 의 tuple).
 
-        :meth:`paragraphs` 가 훑는 모든 문단(표 칸·칸 안 표·글상자·캡션·머리말·꼬리말·각주·미주·
+        :meth:`iter_paragraphs` 가 훑는 모든 문단(표 칸·칸 안 표·글상자·캡션·머리말·꼬리말·각주·미주·
         메모·바탕쪽)에서 찾고, *where* 로 자리를 고른다(``where="body"``, ``where={"cell",
         "header"}``). 각 값의 ``paragraph``·``start``·``end`` 는 ``paragraph.text`` 의 자리라서
         ``m.paragraph.format_range(m.start, m.end, bold=True)`` 에 그대로 넘길 수 있고, ``text`` 는
@@ -302,7 +302,7 @@ class TextNamespace(_Namespace):
 
     # -- id 붙은 글 덩어리 ---------------------------------------------------
 
-    def blocks(self) -> Iterator["_text_blocks.TextBlock"]:
+    def iter_blocks(self) -> Iterator["_text_blocks.TextBlock"]:
         """본문 문단과 표 칸 문단(칸 안 표 포함)을 문서 순서대로, 안정적인 id와 함께 내놓는다.
 
         id는 위치로 정해진다: ``s0p16`` (0번 구역의 16번 본문 문단, 번호는 0부터), ``s0p16t0r3c0q0`` (그 문단의 0번 표,
@@ -550,8 +550,9 @@ class TextNamespace(_Namespace):
             color=color,
         )
 
+    @property
     def highlights(self) -> tuple["Highlight", ...]:
-        """문서의 모든 형광펜 구간을 문서 순서로 돌려준다."""
+        """문서의 모든 형광펜 구간을 문서 순서로 돌려준다(:meth:`highlight` 가 넣는 것)."""
 
         from .. import highlight as _highlight
 

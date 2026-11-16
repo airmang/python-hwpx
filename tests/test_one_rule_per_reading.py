@@ -117,7 +117,7 @@ def _base_with_diagonals_and_picture(document: HwpxDocument) -> tuple[str, objec
     """A cell whose border fill has thick lines, both diagonals, a colour and a picture."""
 
     table = document.add_table(1, 3)
-    base = document.styles.ensure_border_fill(border_color="#FF0000", border_width="0.4 mm", fill_color="#00FF00")
+    base = document.styles.ensure_border_fill(border_color="#FF0000", border_width_mm=0.4, fill_color="#00FF00")
     for col in range(3):
         table.set_cell_border_fill(0, col, base)
     element = _border_fill(document, base)
@@ -134,12 +134,12 @@ def _base_with_diagonals_and_picture(document: HwpxDocument) -> tuple[str, objec
 def test_the_reused_border_fill_must_match_the_lines_too() -> None:
     document = HwpxDocument.new()
     unrelated = document.styles.ensure_border_fill(fill_color="#D9D9D9", active_borders=[])
-    thick = document.styles.ensure_border_fill(border_color="#FF0000", border_width="0.4 mm")
+    thick = document.styles.ensure_border_fill(border_color="#FF0000", border_width_mm=0.4)
 
     shaded = document.oxml.ensure_shading_border_fill("#D9D9D9", base_border_fill_id=thick)
 
     assert shaded != unrelated  # 6.x gave the grey border fill with no lines
-    info, base = document.styles.border_fill_info(shaded), document.styles.border_fill_info(thick)
+    info, base = document.styles.border_fill(shaded), document.styles.border_fill(thick)
     assert (info.left, info.right, info.top, info.bottom) == (base.left, base.right, base.top, base.bottom)
     assert info.fill == "#D9D9D9"
     assert document.oxml.ensure_shading_border_fill("#D9D9D9", base_border_fill_id=thick) == shaded
@@ -149,7 +149,7 @@ def test_every_way_of_shading_derives_the_same_border_fill() -> None:
     document = HwpxDocument.new()
     base, table = _base_with_diagonals_and_picture(document)
 
-    by_styles = document.styles.ensure_border_fill(base_border_fill_id=base, fill_color="#0000FF")
+    by_styles = document.styles.ensure_border_fill(base_border_fill_id_ref=base, fill_color="#0000FF")
     by_header = document.oxml.ensure_shading_border_fill("#0000FF", base_border_fill_id=base)
     table.set_shading("A1", color="#0000FF")
     table.set_cell_shading(0, 1, "#0000FF")
@@ -161,7 +161,7 @@ def test_every_way_of_shading_derives_the_same_border_fill() -> None:
     assert [derived.find(f"{HH}{n}").get("type") for n in ("slash", "backSlash")] == ["CENTER", "CENTER"]
     assert _fill_children(derived) == ["winBrush", "imgBrush"]  # the picture stays under a new colour
     assert derived.find(f"{_HC}fillBrush/{_HC}winBrush").get("faceColor") == "#0000FF"
-    assert document.styles.border_fill_info(base).left.width_mm == 0.4
+    assert document.styles.border_fill(base).left.width_mm == 0.4
 
 
 def test_a_gradient_replaces_the_colour_and_keeps_the_picture_and_lines() -> None:
@@ -173,7 +173,7 @@ def test_a_gradient_replaces_the_colour_and_keeps_the_picture_and_lines() -> Non
     derived = _border_fill(document, table.cell(0, 2).element.get("borderFillIDRef"))
     assert _fill_children(derived) == ["gradation", "imgBrush"]
     assert derived.find(f"{HH}slash").get("type") == "CENTER"
-    assert document.styles.border_fill_info(derived.get("id")).left.color == "#FF0000"
+    assert document.styles.border_fill(derived.get("id")).left.color == "#FF0000"
     table.set_shading("C1", color="#123456")  # a colour after a gradient replaces it
     again = _border_fill(document, table.cell(0, 2).element.get("borderFillIDRef"))
     assert _fill_children(again) == ["winBrush", "imgBrush"]
@@ -187,7 +187,7 @@ def test_no_colour_takes_the_face_away_and_keeps_the_picture() -> None:
 
     derived = _border_fill(document, table.cell(0, 1).element.get("borderFillIDRef"))
     assert _fill_children(derived) == ["imgBrush"]
-    assert document.styles.border_fill_info(derived.get("id")).fill is None
+    assert document.styles.border_fill(derived.get("id")).fill is None
 
 
 def test_a_border_edit_that_finds_an_existing_fill_still_sets_the_neighbours_edge() -> None:
@@ -198,7 +198,7 @@ def test_a_border_edit_that_finds_an_existing_fill_still_sets_the_neighbours_edg
     second.set_cell_borders(0, 0, color="#FF0000")  # finds it: 6.x left the neighbour as it was
 
     assert second.cell(0, 0).element.get("borderFillIDRef") == first.cell(0, 0).element.get("borderFillIDRef")
-    neighbour = document.styles.border_fill_info(second.cell(0, 1).element.get("borderFillIDRef"))
+    neighbour = document.styles.border_fill(second.cell(0, 1).element.get("borderFillIDRef"))
     assert neighbour.left.color == "#FF0000"
 
 

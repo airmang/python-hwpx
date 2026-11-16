@@ -28,7 +28,7 @@ from typing import Any, Callable, Literal, Mapping, Sequence, TypeVar, cast
 
 from ...errors import HwpxValueError
 from ...objects import PageSetup
-from ...oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph, HwpxOxmlSection
+from ...oxml import HwpxOxmlInlineObject, HwpxOxmlMasterPage, HwpxOxmlParagraph, HwpxOxmlSection
 from ...oxml.section_format import (
     LineNumberShape,
     PageMargins,
@@ -39,6 +39,7 @@ from ...oxml.section_format import (
 )
 from ...oxml.section_story import HwpxOxmlSectionHeaderFooter
 from ...objects.results import (
+    Alignment,
     AutoNumber,
     BorderLine,
     ColumnDefinition,
@@ -236,14 +237,16 @@ class PageNamespace(_Namespace):
         same_gap: int = 1200,
         column_widths: "Sequence[tuple[int, int]] | None" = None,
         separator_type: str | None = None,
-        separator_width: str | None = None,
+        separator_width_mm: float | None = None,
         separator_color: str | None = None,
         paragraph: "HwpxOxmlParagraph | int | None" = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
     ) -> "HwpxOxmlInlineObject":
         """단(段) 정의를 삽입한다. *paragraph* 는 문단 객체나 인덱스다.
 
-        지금 단 설정은 :meth:`columns` 로 읽는다. ``section="all"`` 은 *paragraph* 와 함께 줄 수 없다.
+        단 사이 구분선은 *separator_type*(``"SOLID"`` …)·*separator_width_mm*(mm, 한/글 굵기 목록의
+        가장 가까운 값)·*separator_color* 로 긋는다. 지금 단 설정은 :meth:`columns` 로 읽는다.
+        ``section="all"`` 은 *paragraph* 와 함께 줄 수 없다.
         """
 
         from .. import layout as _layout
@@ -270,7 +273,7 @@ class PageNamespace(_Namespace):
             same_gap=same_gap,
             column_widths=column_widths,
             separator_type=separator_type,
-            separator_width=separator_width,
+            separator_width_mm=separator_width_mm,
             separator_color=separator_color,
             paragraph=target_paragraph,
             section=target,
@@ -457,20 +460,20 @@ class PageNamespace(_Namespace):
         target: str = "footer",
         page_type: str = "BOTH",
         format: str = "page",
-        align: str = "CENTER",
+        alignment: "Alignment | str" = "CENTER",
         position: str = "BOTTOM_CENTER",
         prefix: str = "",
         suffix: str = "",
         format_type: str | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
-        """쪽 번호를 머리말/꼬리말에 넣는다.
+        """쪽 번호를 머리말/꼬리말에 넣는다. *alignment* 는 번호 문단의 정렬(``Alignment`` 나 그 이름)이다.
 
         번호는 그 머리말/꼬리말의 내용을 바꾼 자동 번호 글이다. 한컴의 쪽 번호
         컨트롤("쪽 번호 매기기")이 아니어서 ``set_visibility(hide_first_page_num=True)``와
-        ``hide_page_elements(page_num=True)``로는 숨지 않는다. 첫 쪽에서 감추려면
+        ``add_page_hiding(page_num=True)``로는 숨지 않는다. 첫 쪽에서 감추려면
         ``set_visibility(hide_first_footer=True)``(머리말이면 ``hide_first_header``)를,
-        한 쪽만 감추려면 ``hide_page_elements(paragraph, footer=True)``를 쓴다.
+        한 쪽만 감추려면 ``add_page_hiding(paragraph, footer=True)``를 쓴다.
         """
 
         from .. import layout as _layout
@@ -480,7 +483,7 @@ class PageNamespace(_Namespace):
             target=target,
             page_type=page_type,
             format=format,
-            align=align,
+            align=str(alignment),
             position=position,
             prefix=prefix,
             suffix=suffix,
@@ -488,29 +491,30 @@ class PageNamespace(_Namespace):
             section=each,
         ))
 
-    def restart_page_number(
+    def add_number_restart(
         self,
         paragraph: "HwpxOxmlParagraph | int",
         *,
         number: int = 1,
         kind: str = "PAGE",
     ) -> "NumberRestart":
-        """*paragraph* 부터 *kind* 의 진행 번호를 *number* 로 재시작한다.
+        """*paragraph* 부터 *kind* 의 진행 번호를 *number* 로 다시 시작하는 새 번호 지정(`hp:newNum`)을 넣는다.
 
         `set_page_number` 가 머리말/꼬리말의 *표시* 필드를 다루는 것과 달리,
-        이건 구역 중간의 재시작 지점(`hp:newNum`)을 문단에 심는다.
+        이건 구역 중간의 재시작 지점을 문단에 심는다. :meth:`number_restarts` 가 읽는
+        :class:`NumberRestart` 를 돌려준다(``paragraph.add_number_restart`` 와 같다).
         """
 
         from .. import layout as _layout
 
-        return _layout.restart_page_number(
+        return _layout.add_number_restart(
             self._doc,
-            resolve_paragraph(self._doc, paragraph, caller="doc.page.restart_page_number"),
+            resolve_paragraph(self._doc, paragraph, caller="doc.page.add_number_restart"),
             number=number,
             kind=kind,
         )
 
-    def hide_page_elements(
+    def add_page_hiding(
         self,
         paragraph: "HwpxOxmlParagraph | int",
         *,
@@ -521,18 +525,19 @@ class PageNamespace(_Namespace):
         fill: bool = False,
         page_num: bool = False,
     ) -> "PageHiding":
-        """*paragraph* 가 있는 쪽에서만 지정한 요소를 숨긴다(`hp:pageHiding`).
+        """*paragraph* 가 있는 쪽에서만 지정한 요소를 숨기는 감추기(`hp:pageHiding`)를 넣는다.
 
         한컴의 "현재 쪽만 감추기"와 같아서 다음 쪽부터는 다시 보인다. *page_num* 은
         한컴 쪽 번호 컨트롤의 번호를 감춘다. ``set_page_number()`` 의 번호는
-        머리말/꼬리말 글이라 *footer* (또는 *header*)로 감춘다.
+        머리말/꼬리말 글이라 *footer* (또는 *header*)로 감춘다. :meth:`page_hidings` 가 읽는
+        :class:`PageHiding` 을 돌려준다(``paragraph.add_page_hiding`` 과 같다).
         """
 
         from .. import layout as _layout
 
-        return _layout.hide_page_elements(
+        return _layout.add_page_hiding(
             self._doc,
-            resolve_paragraph(self._doc, paragraph, caller="doc.page.hide_page_elements"),
+            resolve_paragraph(self._doc, paragraph, caller="doc.page.add_page_hiding"),
             header=header,
             footer=footer,
             master_page=master_page,
@@ -581,13 +586,13 @@ class PageNamespace(_Namespace):
 
     def set_master_page(
         self,
-        master_page_id: str,
+        master_page_id: "str | HwpxOxmlMasterPage",
         *,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
     ) -> None:
-        """이 절이 바탕쪽(``doc.parts.add_master_page``가 만든 id)을
+        """이 절이 바탕쪽(``doc.parts.add_master_page``가 돌려준 ``MasterPage`` 나 그 id)을
         참조하도록 등록한다(6.13 트레인㊻). 이미 참조 중이면 아무 일도
-        안 한다(멱등). 연결을 끊는 쪽은 :meth:`remove_master_page`."""
+        안 한다(멱등). 연결을 끊는 쪽은 :meth:`remove_master_page_reference`."""
 
         self._apply(section, "set_master_page", lambda target: (
             target.properties.add_master_page_reference(master_page_id)
@@ -773,7 +778,7 @@ class PageNamespace(_Namespace):
     def number_restarts(
         self, *, section: "int | HwpxOxmlSection | None" = None
     ) -> "tuple[NumberRestart, ...]":
-        """구역의 새 번호 컨트롤(``hp:newNum``, :meth:`restart_page_number` 가 넣는 것)을 문서 순서로."""
+        """구역의 새 번호 컨트롤(``hp:newNum``, :meth:`add_number_restart` 가 넣는 것)을 문서 순서로."""
 
         target = self._section(section, "number_restarts")
         return tuple(
@@ -784,7 +789,7 @@ class PageNamespace(_Namespace):
     def page_hidings(
         self, *, section: "int | HwpxOxmlSection | None" = None
     ) -> "tuple[PageHiding, ...]":
-        """구역의 감추기 컨트롤(``hp:pageHiding``, :meth:`hide_page_elements` 가 넣는 것)을 문서 순서로."""
+        """구역의 감추기 컨트롤(``hp:pageHiding``, :meth:`add_page_hiding` 이 넣는 것)을 문서 순서로."""
 
         target = self._section(section, "page_hidings")
         return tuple(
@@ -1069,15 +1074,15 @@ class PageNamespace(_Namespace):
 
     # -- 바탕쪽 연결 끊기 ----------------------------------------------------
 
-    def remove_master_page(
+    def remove_master_page_reference(
         self,
-        master_page_id: str,
+        master_page_id: "str | HwpxOxmlMasterPage",
         *,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
     ) -> bool:
-        """이 구역과 바탕쪽 *master_page_id* 의 연결을 끊는다. 끊은 연결이 있으면 True.
+        """이 구역과 바탕쪽 *master_page_id* (id 나 ``MasterPage``)의 연결을 끊는다. 끊은 연결이 있으면 True.
 
-        바탕쪽 파트는 남는다. 어느 구역도 쓰지 않게 된 바탕쪽은
+        :meth:`set_master_page` 의 짝이다. 바탕쪽 파트는 남는다. 어느 구역도 쓰지 않게 된 바탕쪽은
         ``doc.parts.remove_master_page(id)`` 로 지운다. ``section="all"`` 이면 모든 구역에서 끊는다.
         """
 
@@ -1087,7 +1092,7 @@ class PageNamespace(_Namespace):
             removed.append(target.properties.remove_master_page_reference(master_page_id))
             return removed[-1]
 
-        self._apply(section, "remove_master_page", change)
+        self._apply(section, "remove_master_page_reference", change)
         return any(removed)
 
 

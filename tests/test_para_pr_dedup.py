@@ -76,10 +76,10 @@ def test_same_paragraph_format_call_on_two_fresh_paragraphs_dedupes() -> None:
     p2 = document.add_paragraph("문단 B")
 
     document.styles.apply_paragraph_format(
-        paragraph_index=document.paragraphs.index(p1), alignment="CENTER"
+        paragraph=document.paragraphs.index(p1), alignment="CENTER"
     )
     document.styles.apply_paragraph_format(
-        paragraph_index=document.paragraphs.index(p2), alignment="CENTER"
+        paragraph=document.paragraphs.index(p2), alignment="CENTER"
     )
 
     assert p1.para_pr_id_ref == p2.para_pr_id_ref
@@ -100,7 +100,7 @@ def test_paragraph_format_dedupe_does_not_disturb_unrelated_paragraphs() -> None
     document = HwpxDocument.open(fixture)
     try:
         before = [p.para_pr_id_ref for p in document.paragraphs]
-        document.styles.apply_paragraph_format(paragraph_index=5, alignment="CENTER")
+        document.styles.apply_paragraph_format(paragraph=5, alignment="CENTER")
         after = [p.para_pr_id_ref for p in document.paragraphs]
     finally:
         document.close()

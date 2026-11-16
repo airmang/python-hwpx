@@ -548,7 +548,7 @@ def test_header_border_fills_read_as_values() -> None:
     infos = header.border_fills
     assert infos and all(isinstance(info, BorderFillInfo) for info in infos.values())
     first = next(iter(infos))
-    assert header.border_fill(first) == infos[first] == document.styles.border_fill_info(first)
+    assert header.border_fill(first) == infos[first] == document.styles.border_fill(first)
 
 
 def test_the_equation_converters_are_not_in_hwpx_experimental() -> None:

@@ -257,13 +257,47 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | `RunStyle.underline_type()`·`underline_color()`·`outline_type()`, `run.content_kinds()` | 같은 이름의 속성 | 괄호를 뗀다(부르면 `TypeError`) |
 | `note.text` → 문단 글을 붙여서 | 문단 글을 줄 바꿈(`"\n"`)으로 잇는다 | |
 | `doc.oxml` 의 서식 읽기 16개(`char_property`·`styles` 등)가 공개 계약 | 계약에서 내렸다(메서드는 남는다) | `doc.styles` 의 같은 이름을 쓴다 |
+| `doc.styles.names()`, `doc.text.highlights()` | 속성 `doc.styles.names`(tuple)·`doc.text.highlights` | 괄호를 뗀다 |
+| `doc.styles.border_fill(id)`·`border_fills`, `numbering(id)`·`numberings` → XML 요소 | `BorderFillInfo`·`NumberingInfo` | XML 요소는 `doc.oxml.border_fill(id)` |
+| `doc.tracking.changes` → id 를 키로 한 `TrackChange` dict, `change(id)` → `TrackChange` | 문서 순서의 `TrackedChange` tuple, `TrackedChange`(`change_id`·`kind`·`author`·`date`·`paragraph`) | `changes[id]` 는 `doc.tracking.change(id)` 로 |
+| `doc.tables.all`·`doc.tables[a:b]`, `doc.text.find_runs()`, `doc.notes.memos`, `doc.styles.ensure_numbering()`, `doc.parts.clear_document_metadata()`·`clear_preview()` → `list` | `tuple` | 목록을 고치던 코드는 `list(...)` 로 |
+| `doc.refs.add_bookmark()`·`add_hyperlink()` → `InlineObject` | `Bookmark`·`Hyperlink` | XML 요소는 `.element` |
 
 ### 묶음(`doc.*`)과 값 형식
 
-<!-- WP2·WP5b 이름 표는 병합 뒤 -->
+| python-hwpx 6.x | python-hwpx 7.0 |
+|---|---|
+| `doc.text.runs()`·`blocks()` | `doc.text.iter_runs()`·`iter_blocks()`(문서 전체를 차례로 훑는 것은 `iter_`). 7.0 개발 중의 `paragraphs()`·`objects()` 도 `iter_paragraphs()`·`iter_objects()` |
+| `doc.shapes.add_line`·`add_rectangle`·`add_ellipse`·`add_arc`·`add_polygon`·`add_curve`·`add_connector` 의 `line_width='33'` | `line_width_mm=0.12`(0 은 선 없음) |
+| `doc.styles.ensure_border_fill(border_width='0.12 mm', base_border_fill_id=)` | `ensure_border_fill(border_width_mm=0.12, base_border_fill_id_ref=)`. 한/글 굵기 목록의 가장 가까운 값으로 쓴다 |
+| `doc.styles.apply_paragraph_format(paragraph_index=, paragraph_indexes=, line_spacing_percent=, border_width='0.12 mm')` | `apply_paragraph_format(paragraph=, paragraphs=, line_spacing=, border_width_mm=0.12)`. `paragraph=`·`paragraphs=` 는 번호와 문단 객체를 모두 받는다 |
+| `doc.styles.apply_list_format(paragraph_index=, paragraph_indexes=)` | `apply_list_format(paragraph=, paragraphs=)` |
+| `doc.styles.ensure_paragraph_format(base_para_pr_id=, line_spacing_percent=)` | `ensure_paragraph_format(base_para_pr_id_ref=, line_spacing=)` |
+| `doc.styles.ensure_run(base_char_pr_id=)` | `ensure_run(base_char_pr_id_ref=)` |
+| `doc.styles.ensure_font(binary_item_id_ref=, subst_binary_item_id_ref=)` | `ensure_font(item_id=, subst_item_id=)` |
+| `doc.styles.border_fill_info(id)` | `doc.styles.border_fill(id)`(→ `BorderFillInfo`). 7.0 개발 중의 `numbering_info(id)` 는 `numbering(id)` |
+| `doc.page.restart_page_number(p, ...)`·`hide_page_elements(p, ...)` | `doc.page.add_number_restart(p, ...)`(→ `NumberRestart`)·`add_page_hiding(p, ...)`(→ `PageHiding`) |
+| `doc.page.set_page_number(align=)` | `set_page_number(alignment=)` |
+| `doc.page.set_columns(separator_width='0.12 mm')` | `set_columns(separator_width_mm=0.12)` |
+| 7.0 개발 중의 `doc.page.remove_master_page(id)`(구역과의 연결 끊기) | `doc.page.remove_master_page_reference(id)`. 바탕쪽 파트를 지우는 것은 `doc.parts.remove_master_page(id)` |
+| `doc.parts.add_master_page(..., paragraphs=[...])` → id 문자열 | `mp = doc.parts.add_master_page(...)` → `MasterPage`(id 는 `mp.id`), 글은 `mp.add_paragraph("...")`. `doc.page.set_master_page`·`doc.parts.remove_master_page` 는 `MasterPage` 도 받는다 |
+| `doc.parts.set_compatible_document_target_program(...)`·`set_layout_compatibility_flags(...)`·`set_doc_option_link_info(path=, page_inherit=, footnote_inherit=)`·`set_license_mark(mark_type=, flag=, lang=)` | `doc.parts.set_document_options(target_program=, layout_compatibility=, link_path=, page_inherit=, footnote_inherit=, license_type=, license_flag=, license_lang=)` → 읽기 `doc.parts.document_options` 와 같은 `DocumentOptions`. 준 것만 바꾼다 |
+| `doc.parts.set_paragraph_auto_spacing(para_pr_id=)` | `para_pr_id_ref=`(위치 인자로 부르면 그대로) |
+| `doc.shapes.add_dutmal(main_text, sub_text, pos_type=, align=, sz_ratio=)` → `InlineObject` | `doc.shapes.add_ruby(text, ruby_text, position=, alignment=, size_ratio=)` → `Ruby` |
+| `doc.shapes.add_composed_character(compose_text, circle_type=, char_sz=, compose_type=)` → `InlineObject` | `add_composed_character(text, frame=, inner_size=, arrangement=)` → `ComposedCharacter` |
+| `doc.shapes.add_drop_cap(style=)` | `kind=`(`style=` 은 어디서나 문단 스타일) |
+| `doc.shapes.add_equation(script, base_unit=1100, size=(w, h))` | `add_equation(script, font_size=11.0, width=w, height=h)` |
+| `doc.shapes.add_chart(..., size=(w, h))` | `add_chart(..., width=w, height=h)` |
+| `doc.media.replace_picture(picture_index=, binary_item_id_ref=)` | `replace_picture(index=, old_item_id=)` |
+| `doc.media.picture_references()` → `PictureRef` | `doc.media.pictures`(`Picture`: `item_id`·`width`·`height`, 몇 번째는 tuple 순서) |
+| `doc.notes.add_footnote(text, p)`·`add_endnote(text, p)` | `add_footnote(text, paragraph=p)`·`add_endnote(text, paragraph=p)` |
+| `doc.notes.add_memo(anchor=p, anchor_char_pr_id_ref=)` | `add_memo(paragraph=p, paragraph_char_pr_id_ref=)` |
+| `doc.fields.fill(value, field_index=, fit_policy=)` | `fill(value, index=, fit=)` |
+| `doc.tracking.add_change(change_type, author_name=)` | `add_change(change_type, author=)` |
 
-묶음(`doc.styles`·`doc.page`·`doc.text`·`doc.shapes` …)의 인자·반환과 `hwpx.objects` 값 형식의 이름 정리는 병합된 뒤 이 절에
-더한다.
+<!-- WP5b 이름 표는 병합 뒤 -->
+
+`hwpx.objects` 값 형식의 이름 정리는 병합된 뒤 이 절에 더한다.
 
 ```python
 from hwpx import HwpxDocument
@@ -300,7 +334,7 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | 공개 메서드에 잘못된 타입을 주면 `code`·`suggestion` 을 실은 `HwpxError` 계열이 난다(내장 `TypeError` 등도 상속). 문단·런의 글을 잘못 주면 옛 글을 지우기 전에 실패한다 | `except TypeError` 는 그대로 잡는다 |
 | `doc.refs.cross_references` 의 항목이 살아 있는 `CrossReference` 다(값을 바꾸고 지울 수 있다). 같은지는 요소로 견준다 | 없음 |
 | `paragraph.clear_layout_cache()` 가 늘 그 문단의 파트를 바뀐 것으로 표시한다. 고치지 않은 문단에 불러도 그 구역을 다시 쓴다(바이트가 읽은 것과 다를 수 있다) | 고치지 않았으면 부르지 않는다 |
-| `doc.text.paragraphs()`·`objects()` 가 표 캡션 안의 문단과 표를 `where="caption"` 으로 내놓는다(6.x 는 본문·표 칸). `where="body"` 는 이제 `doc.paragraphs` 와 같다 | `where=("body", "caption")` |
+| `doc.text.iter_paragraphs()`·`iter_objects()` 가 표 캡션 안의 문단과 표를 `where="caption"` 으로 내놓는다(6.x 는 본문·표 칸). `where="body"` 는 이제 `doc.paragraphs` 와 같다 | `where=("body", "caption")` |
 | 다단 문서에서 새 표와 차트의 기본 폭이 본문 전체 폭이 아니라 단 폭이다 | `width=` 를 준다 |
 | 구역이 여럿인 문서에서 `doc.page.*` 를 `section` 없이 부르면 마지막 구역만 바뀐다는 경고가 한 번 난다 | `section=` 을 준다. 모든 구역은 `section="all"` |
 

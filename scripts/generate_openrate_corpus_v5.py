@@ -215,7 +215,7 @@ def gen_tabstops(bucket_dir: Path) -> list[dict[str, Any]]:
                 for stop in range(stop_count)
             ]
             document.styles.apply_paragraph_format(
-                paragraph_index=paragraph_index,
+                paragraph=paragraph_index,
                 tab_stops=tab_stops,
                 auto_tab_left=(idx % 2 == 0),
                 auto_tab_right=(idx % 3 == 0),

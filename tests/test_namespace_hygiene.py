@@ -95,12 +95,12 @@ def test_the_page_namespace_is_free_of_internal_callbacks() -> None:
         ]),
         ("fields", ["add", "fill", "add_check_box", "set_check_box"]),
         ("shapes", ["add_line", "add_rectangle", "add_ellipse", "add_chart", "add_equation"]),
-        ("media", ["add_image", "remove_image", "replace_picture", "picture_references"]),
+        ("media", ["add_image", "remove_image", "replace_picture", "pictures"]),
         ("notes", ["add_footnote", "add_endnote", "add_memo", "attach", "remove_memo"]),
         ("refs", ["add_bookmark", "add_hyperlink"]),
         ("tracking", ["insert", "delete", "replace", "add_change", "change", "author"]),
         ("styles", ["resolve", "ensure_run", "apply_paragraph_format"]),
-        ("text", ["plain", "runs", "find_runs", "replace", "highlight", "highlights", "blocks", "outline", "apply_changes"]),
+        ("text", ["plain", "iter_runs", "find_runs", "replace", "highlight", "highlights", "iter_blocks", "outline", "apply_changes"]),
     ],
 )
 def test_every_namespace_exposes_its_verbs(namespace: str, verbs: list[str]) -> None:

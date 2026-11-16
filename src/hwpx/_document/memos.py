@@ -330,7 +330,7 @@ def add_memo_with_anchor(
     author: str | None = None,
     created: "datetime | str | None" = None,
     number: int | None = None,
-    anchor_char_pr_id_ref: str | int | None = None,
+    paragraph_char_pr_id_ref: str | int | None = None,
     match: str | None = None,
 ) -> "HwpxOxmlMemo":
     """Create a memo and ensure it is visible by anchoring a MEMO field.
@@ -339,6 +339,7 @@ def add_memo_with_anchor(
     ``.paragraph``/``.field_id`` properties (``oxml/memo.py``) replace the
     second and third elements of the 3-tuple 5.x returned. With *match* the
     memo is on that text of the paragraph only (see :func:`attach_memo_field`).
+    *paragraph_char_pr_id_ref* is the character shape of the MEMO field's runs.
     """
 
     if match is not None:
@@ -355,7 +356,7 @@ def add_memo_with_anchor(
     # `doc.attach_memo_field` — both names moved in 6.0 (design table rows
     # 35/43), and going through the facade would fire a DeprecationWarning on
     # every call even when this function is reached via the new
-    # `doc.notes.add_memo(anchor=...)` namespace path.
+    # `doc.notes.add_memo(paragraph=...)` namespace path.
     memo = add_memo(
         doc,
         text,
@@ -376,7 +377,7 @@ def add_memo_with_anchor(
             suggestion="Pass a memo created by doc.notes.add_memo().",
         )
         paragraph_value = "" if paragraph_text is None else paragraph_text
-        anchor_char = anchor_char_pr_id_ref or char_pr_id_ref
+        anchor_char = paragraph_char_pr_id_ref or char_pr_id_ref
         target_paragraph = doc.add_paragraph(
             paragraph_value,
             section=memo_section,
@@ -394,7 +395,7 @@ def add_memo_with_anchor(
             author=author,
             created=created,
             number=number,
-            char_pr_id_ref=anchor_char_pr_id_ref,
+            char_pr_id_ref=paragraph_char_pr_id_ref,
             match=match,
         )
     except HwpxValueError:

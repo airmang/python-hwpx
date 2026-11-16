@@ -33,10 +33,10 @@ def test_document_lists_notes_in_order_with_hancom_numbers() -> None:
     doc = HwpxDocument.new()
     first = doc.add_paragraph("첫째")
     second = doc.add_paragraph("둘째")
-    doc.notes.add_footnote("하나", first)
-    doc.notes.add_footnote("셋", second)
-    doc.notes.add_footnote("둘", first)  # 앞 문단에 끼우면 뒤의 번호가 밀린다
-    doc.notes.add_endnote("미주", second)
+    doc.notes.add_footnote("하나", paragraph=first)
+    doc.notes.add_footnote("셋", paragraph=second)
+    doc.notes.add_footnote("둘", paragraph=first)  # 앞 문단에 끼우면 뒤의 번호가 밀린다
+    doc.notes.add_endnote("미주", paragraph=second)
 
     notes = doc.notes.footnotes
     assert [note.text for note in notes] == ["하나", "둘", "셋"]
@@ -49,7 +49,7 @@ def test_document_lists_notes_in_order_with_hancom_numbers() -> None:
 
 def test_note_content_edit_adds_paragraphs_in_the_note_shape() -> None:
     doc = HwpxDocument.new()
-    note = doc.notes.add_footnote("첫 줄", doc.add_paragraph("본문"))
+    note = doc.notes.add_footnote("첫 줄", paragraph=doc.add_paragraph("본문"))
     added = note.add_paragraph("둘째 줄")
     assert added.text == "둘째 줄"
     assert note.text == "첫 줄\n둘째 줄"
@@ -66,8 +66,8 @@ def test_note_content_edit_adds_paragraphs_in_the_note_shape() -> None:
 def test_remove_note_takes_mark_and_content_and_renumbers() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("본문")
-    first = doc.notes.add_footnote("하나", paragraph)
-    doc.notes.add_footnote("둘", paragraph)
+    first = doc.notes.add_footnote("하나", paragraph=paragraph)
+    doc.notes.add_footnote("둘", paragraph=paragraph)
     first.remove()
     assert [n.text for n in doc.notes.footnotes] == ["둘"]
     remaining = doc.notes.footnotes[0]

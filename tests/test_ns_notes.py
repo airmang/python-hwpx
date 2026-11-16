@@ -48,21 +48,21 @@ def test_add_memo_with_an_anchor_folds_the_5_x_second_verb(document: HwpxDocumen
     그리고 3-튜플이 사라졌다 — 문단과 필드 id 는 메모 자신의 속성이다.
     """
 
-    memo = document.notes.add_memo("앵커 메모", anchor=1, section=0)
+    memo = document.notes.add_memo("앵커 메모", paragraph=1, section=0)
     assert isinstance(memo, model.Memo)
     assert isinstance(memo.paragraph, model.Paragraph)
     assert isinstance(memo.field_id, str) and memo.field_id
 
 
 def test_anchor_accepts_an_index_or_an_object(document: HwpxDocument) -> None:
-    by_index = document.notes.add_memo("A", anchor=1, section=0)
-    by_object = document.notes.add_memo("B", anchor=document.paragraphs[1], section=0)
+    by_index = document.notes.add_memo("A", paragraph=1, section=0)
+    by_object = document.notes.add_memo("B", paragraph=document.paragraphs[1], section=0)
     assert by_index.paragraph.element is by_object.paragraph.element
 
 
 def test_an_out_of_range_anchor_is_a_typed_error(document: HwpxDocument) -> None:
     with pytest.raises(HwpxLookupError) as excinfo:
-        document.notes.add_memo("메모", anchor=999, section=0)
+        document.notes.add_memo("메모", paragraph=999, section=0)
     assert excinfo.value.code == "paragraph-not-found"
 
 
@@ -86,7 +86,7 @@ def test_attach_binds_an_existing_memo_and_remove_undoes_it(
     assert memo.paragraph is not None
 
     document.notes.remove_memo(memo)
-    assert document.notes.memos == []
+    assert document.notes.memos == ()
 
 
 # -- section 규약 -----------------------------------------------------------

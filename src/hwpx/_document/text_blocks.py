@@ -219,7 +219,7 @@ def outline(
             f"unknown text block id: {after!r}",
             code="text-block-unknown",
             context={"after": after},
-            suggestion="Pass the next_after of the previous page, or an id from doc.text.blocks().",
+            suggestion="Pass the next_after of the previous page, or an id from doc.text.iter_blocks().",
         )
     complete = len(items) == total
     return TextOutline(
@@ -402,7 +402,7 @@ def apply_text_changes(
 PLACES = (
     "body", "cell", "text_box", "caption", "header", "footer", "footnote", "endnote", "memo", "master_page",
 )
-#: Object kinds ``doc.text.objects()`` reports, by element name.
+#: Object kinds ``doc.text.iter_objects()`` reports, by element name.
 OBJECT_KINDS = {
     "tbl": "table",
     "pic": "picture",

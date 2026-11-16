@@ -49,13 +49,14 @@ def _with_format_change(*, linked: bool, kind: str = "CharShape", spelling: str 
 
 def test_a_format_change_is_read_from_the_header() -> None:
     doc = _with_format_change(linked=True)
-    change = doc.tracking.changes["9"]
+    change = doc.oxml.track_changes["9"]  # the header entry: its shape id
     assert change.change_type == "CharShape" and change.char_shape_id == 0
+    assert doc.tracking.change(9).kind == "CHARSHAPE"
 
 
 def test_the_hwp_converted_spelling_is_read_and_kept() -> None:
     doc = _with_format_change(linked=False, kind="ParaShape", spelling="parashapeID")
-    assert doc.tracking.changes["9"].para_shape_id == 0
+    assert doc.oxml.track_changes["9"].para_shape_id == 0
     doc.tracking.insert(doc.paragraphs[-1], " 하나 더")  # rewrites the header's change list
     head = etree.fromstring(__import__("zipfile").ZipFile(io.BytesIO(doc.to_bytes())).read("Contents/header.xml"))
     entry = next(e for e in head.iter(f"{HH}trackChange") if e.get("id") == "9")
@@ -68,7 +69,7 @@ def test_writing_a_format_change_is_refused(change_type: str) -> None:
     with pytest.raises(HwpxValueError) as caught:
         doc.tracking.add_change(change_type)
     assert caught.value.code == "track-format-change-unconfirmed"
-    assert doc.tracking.changes == {}
+    assert doc.tracking.changes == ()
 
 
 def test_insertions_and_deletions_are_still_written() -> None:
@@ -91,12 +92,12 @@ def test_a_format_change_the_text_points_at_is_neither_accepted_nor_rejected(acc
 
 def test_the_insertion_beside_it_resolves_on_its_own() -> None:
     doc = _with_format_change(linked=True)
-    insert_id = next(key for key, change in doc.tracking.changes.items() if change.change_type == "Insert")
+    insert_id = next(change.change_id for change in doc.tracking.changes if change.kind == "INSERT")
 
     resolved = doc.tracking.reject(change=insert_id)
 
     assert [change.kind for change in resolved] == ["INSERT"]
-    assert set(doc.tracking.changes) == {"9"}
+    assert [change.change_id for change in doc.tracking.changes] == [9]
     assert HwpxDocument.open(doc.to_bytes()).validate().ok
 
 
@@ -107,6 +108,6 @@ def test_a_format_change_nothing_points_at_is_accepted_by_dropping_its_entry(kin
     resolved = doc.tracking.accept()
 
     assert sorted(change.kind for change in resolved) == sorted(["INSERT", kind.upper()])
-    assert doc.tracking.changes == {}
+    assert doc.tracking.changes == ()
     with pytest.raises(HwpxValueError):
         _with_format_change(linked=False, kind=kind).tracking.reject()

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """FormFit wired into the live model (plan §2 Phase C, task 4).
 
-Exercises ``set_cell_text(fit=...)`` and ``fill_form_field(fit_policy=...)``: the
+Exercises ``set_cell_text(fit=...)`` and ``doc.fields.fill(fit=...)``: the
 fit verdict propagates, a shrink is a real ``charPr`` change, the ledger records
 style changes, the output stays open-safe, and — critically — the no-fit calls
 behave exactly as before so the rest of the suite is undisturbed.
@@ -125,7 +125,7 @@ def test_fit_borderline_overflow_downgrades_to_warn():
 
 
 # --------------------------------------------------------------------------- #
-# fill_form_field(fit_policy=..., box_width=...)
+# doc.fields.fill(fit=..., box_width=...)
 # --------------------------------------------------------------------------- #
 def _append(parent, tag: str, attrs: dict[str, str] | None = None):
     child = parent.makeelement(tag, attrs or {})
@@ -157,7 +157,7 @@ def test_fill_form_field_without_box_width_is_low_confidence_never_fails():
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
     result = doc.fields.fill(
-        "가" * 50, name="주소", fit_policy=FitPolicy(overflow="fail")
+        "가" * 50, name="주소", fit=FitPolicy(overflow="fail")
     )
     # honest: no geometry -> never a hard fail (no ok=False, no raise either)
     assert result.fit is not None and result.fit.confidence == "low"
@@ -171,7 +171,7 @@ def test_fill_form_field_box_width_gross_overflow_fails():
     with pytest.raises(HwpxValueError) as excinfo:
         doc.fields.fill(
             "가" * 50, name="주소",
-            fit_policy=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
+            fit=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
             box_width=4000,
         )
     assert excinfo.value.code == "field-fit-failed"
@@ -185,7 +185,7 @@ def test_fill_form_field_fit_follows_hancom_line_rules():
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
     result = doc.fields.fill(
-        "가나다라마 ", name="주소", fit_policy=FitPolicy.keep(), box_width=5377
+        "가나다라마 ", name="주소", fit=FitPolicy.keep(), box_width=5377
     )
     assert result.fit is not None
     assert result.fit.lines == 1

@@ -17,7 +17,7 @@ def _snapshot(field) -> dict[str, object]:
     )}
 
 
-@pytest.mark.parametrize("selector", ["name", "field_id", "field_index"])
+@pytest.mark.parametrize("selector", ["name", "field_id", "index"])
 @pytest.mark.parametrize("prompt", ["", "placeholder"])
 def test_fill_builds_only_one_post_write_payload(
     monkeypatch: pytest.MonkeyPatch, selector: str, prompt: str
@@ -26,7 +26,7 @@ def test_fill_builds_only_one_post_write_payload(
     for index in range(10):
         doc.fields.add(f"field-{index}", prompt=prompt, paragraph=doc.add_paragraph(""))
     target = doc.fields.all[5]
-    requested = {selector: {"name": target.name, "field_id": target.field_id, "field_index": 5}[selector]}
+    requested = {selector: {"name": target.name, "field_id": target.field_id, "index": 5}[selector]}
     original = fields._form_field_payload
     built = []
 

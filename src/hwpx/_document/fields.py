@@ -616,7 +616,7 @@ def list_form_fields(doc: "HwpxDocument") -> tuple[FormField, ...]:
 
     Every field in the document is listed. An unnamed field (an empty ``name``) is
     listed with an empty name and told apart by its id: :func:`fill_form_field`
-    does not find it by name, as Hancom does not, but ``field_index`` and
+    does not find it by name, as Hancom does not, but ``index`` and
     ``field_id`` reach it.
     """
 
@@ -1312,31 +1312,31 @@ def _select_form_field(
     doc: "HwpxDocument",
     matches: Sequence[dict[str, Any]],
     *,
-    field_index: int | None,
+    index: int | None,
     field_id: str | None,
     name: str | None,
 ) -> dict[str, Any]:
-    selectors = [field_index is not None, bool(field_id), bool(name)]
+    selectors = [index is not None, bool(field_id), bool(name)]
     if selectors.count(True) != 1:
         raise HwpxValueError(
-            "provide exactly one of field_index, field_id, or name",
+            "provide exactly one of index, field_id, or name",
             code="field-selector-conflict",
             suggestion="List doc.fields.all to see the candidates.",
         )
-    if field_index is not None:
+    if index is not None:
         for match in matches:
-            if match["index"] == field_index:
+            if match["index"] == index:
                 return match
         indexes = sorted(int(match["index"]) for match in matches)
         where = (
-            f"the document has {len(indexes)} form fields, field_index {indexes[0]}..{indexes[-1]}"
+            f"the document has {len(indexes)} form fields, index {indexes[0]}..{indexes[-1]}"
             if indexes
             else "the document has no form fields"
         )
         raise HwpxValueError(
-            f"form field index not found: {field_index} ({where})",
+            f"form field index not found: {index} ({where})",
             code="field-not-found",
-            context={"requested": field_index, "count": len(indexes), "indexes": indexes[:50]},
+            context={"requested": index, "count": len(indexes), "indexes": indexes[:50]},
             suggestion="List doc.fields.all to see the candidates.",
         )
     if field_id:
@@ -1384,7 +1384,7 @@ def _select_form_field(
             f"form field selector is ambiguous: {labels}",
             code="field-ambiguous",
             context={"candidates": list(labels) if isinstance(labels, (list, tuple)) else str(labels)},
-            suggestion="Pass field_index= to pick one.",
+            suggestion="Pass index= to pick one.",
         )
     return candidates[0]
 
@@ -1472,16 +1472,16 @@ def fill_form_field(
     doc: "HwpxDocument",
     value: str,
     *,
-    field_index: int | None = None,
+    index: int | None = None,
     field_id: str | None = None,
     name: str | None = None,
-    fit_policy: "FitPolicy | None" = None,
+    fit: "FitPolicy | None" = None,
     box_width: int | None = None,
     font_pt: float | None = None,
 ) -> FieldFillResult:
     """Fill a native form/click-here field while preserving surrounding runs.
 
-    When *fit_policy* cannot be satisfied (a hard overflow), this raises
+    When *fit* cannot be satisfied (a hard overflow), this raises
     ``HwpxValueError(code="field-fit-failed")`` *before* touching the XML —
     fail-closed (constitution VI) rather than 5.x's ``ok: bool`` key, which
     reported the failure and still wrote the overflowing value.
@@ -1491,7 +1491,7 @@ def fill_form_field(
     match = _select_form_field(
         doc,
         matches,
-        field_index=field_index,
+        index=index,
         field_id=field_id,
         name=name,
     )
@@ -1514,12 +1514,12 @@ def fill_form_field(
 
     fit_result = None
     write_value = str(value)
-    if fit_policy is not None:
+    if fit is not None:
         fit_result = _measure_form_field_fit(
-            doc, str(value), match, fit_policy, box_width, font_pt
+            doc, str(value), match, fit, box_width, font_pt
         )
         if not fit_result.ok:
-            selector = f"field_index={field_index!r}" if field_id is None and name is None else (
+            selector = f"index={index!r}" if field_id is None and name is None else (
                 f"field_id={field_id!r}" if field_id is not None else f"name={name!r}"
             )
             raise HwpxValueError(

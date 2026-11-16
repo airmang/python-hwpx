@@ -34,7 +34,7 @@ def test_a_list_level_outside_1_to_10_is_refused_before_anything_changes(level: 
     before = _parts(document)
 
     with pytest.raises(HwpxValueError) as caught:
-        document.styles.apply_list_format(paragraph_indexes=[1, 2, 3], kind=kind, level=level)  # type: ignore[arg-type]
+        document.styles.apply_list_format(paragraphs=[1, 2, 3], kind=kind, level=level)  # type: ignore[arg-type]
 
     assert caught.value.code == "style-list-level-invalid"
     assert _parts(document) == before
@@ -44,7 +44,7 @@ def test_a_list_level_outside_1_to_10_is_refused_before_anything_changes(level: 
 def test_the_list_levels_hancom_has_are_written(level: int) -> None:
     document = _document()
 
-    document.styles.apply_list_format(paragraph_indexes=[1, 2, 3], kind="number", level=level)
+    document.styles.apply_list_format(paragraphs=[1, 2, 3], kind="number", level=level)
 
     paragraph = document.paragraphs[1]
     para_pr = next(pr for pr in document.oxml.headers[0].element.iter(f"{HH}paraPr")

@@ -51,7 +51,7 @@ def test_accept_all_keeps_insertions_and_removes_deletions() -> None:
     assert sorted(change.kind for change in resolved) == ["DELETE", "INSERT"]
     assert paragraph.text == "가나다  넣음"
     assert _marks(doc) == []
-    assert doc.tracking.changes == {} and doc.tracking.authors == {}
+    assert doc.tracking.changes == () and doc.tracking.authors == {}
     assert paragraph.element.find(f"{HP}linesegarray") is None
     again = _reopen(doc)
     assert again.paragraphs[-1].text == "가나다  넣음"
@@ -62,7 +62,7 @@ def test_reject_all_removes_insertions_and_keeps_deletions() -> None:
     doc.tracking.reject()
     assert paragraph.text == "가나다 라마바"
     assert _marks(doc) == []
-    assert doc.tracking.changes == {}
+    assert doc.tracking.changes == ()
     _reopen(doc)
 
 
@@ -79,7 +79,7 @@ def test_accept_one_author_leaves_the_other() -> None:
 
 def test_reject_one_change_by_id() -> None:
     doc, paragraph = _two_author_doc()
-    insert_id = next(key for key, change in doc.tracking.changes.items() if change.change_type == "Insert")
+    insert_id = next(change.change_id for change in doc.tracking.changes if change.kind == "INSERT")
     doc.tracking.reject(insert_id)
     assert paragraph.text == "가나다 라마바"
     assert sorted(_marks(doc)) == ["deleteBegin", "deleteEnd"]
@@ -133,7 +133,7 @@ def test_accept_and_reject_a_hancom_saved_change_track() -> None:
     assert rejected.paragraphs[0].text == "변경 추적 \t"
     for doc in (accepted, rejected):
         assert _marks(doc) == []
-        assert doc.tracking.changes == {} and doc.tracking.authors == {}
+        assert doc.tracking.changes == () and doc.tracking.authors == {}
         data = doc.to_bytes()
         again = HwpxDocument.open(data)
         assert not [i for i in again.validate().issues if i.severity == "error"]
@@ -147,5 +147,5 @@ def test_accept_one_of_two_hancom_changes() -> None:
     doc.tracking.accept(2)  # the deletion of " 추적"
     assert doc.paragraphs[0].text == "변경 \t인간은"
     assert sorted(_marks(doc)) == ["insertBegin", "insertEnd"]
-    assert list(doc.tracking.changes) == ["1"]
+    assert [change.change_id for change in doc.tracking.changes] == [1]
     assert len(doc.tracking.authors) == 1  # 한/글의 authorID 가 작성자 id 와 달라도 작성자는 남는다

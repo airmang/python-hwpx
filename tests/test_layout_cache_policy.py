@@ -77,7 +77,7 @@ EDITS: dict[str, Callable[[HwpxDocument, Any], None]] = {
     "paragraph.add_run": lambda doc, p: p.add_run(" 덧붙인 글"),
     "text.replace": lambda doc, p: doc.text.replace(p.text[:2], "바꿈", limit=1),
     "text.apply_changes": lambda doc, p: doc.text.apply_changes(
-        {next(b.id for b in doc.text.blocks() if b.paragraph.element is p.element): "새 글"}
+        {next(b.id for b in doc.text.iter_blocks() if b.paragraph.element is p.element): "새 글"}
     ),
 }
 

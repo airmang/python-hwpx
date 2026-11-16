@@ -31,7 +31,7 @@ def test_apply_list_format_outline_creates_a_custom_numbering_definition() -> No
     document.add_paragraph("첫 번째 개요 제목")
 
     result = document.styles.apply_list_format(
-        paragraph_index=0, kind="outline", level=1, number_format="DIGIT", start=5,
+        paragraph=0, kind="outline", level=1, number_format="DIGIT", start=5,
     )
 
     assert result.kind == "outline"
@@ -47,7 +47,7 @@ def test_apply_list_format_outline_round_trips_through_save_and_reopen() -> None
     document = HwpxDocument.new()
     document.add_paragraph("제목")
     document.styles.apply_list_format(
-        paragraph_index=0, kind="outline", level=1, number_format="HANGUL",
+        paragraph=0, kind="outline", level=1, number_format="HANGUL",
     )
     before = document.oxml.paragraph_property(
         document.sections[0].paragraphs[0].para_pr_id_ref
@@ -95,13 +95,13 @@ def test_apply_paragraph_format_increases_and_decreases_outline_level() -> None:
     document = HwpxDocument.new()
     document.add_heading("제목", level=2)
 
-    document.styles.apply_paragraph_format(paragraph_index=0, outline_level=3)
+    document.styles.apply_paragraph_format(paragraph=0, outline_level=3)
     increased = document.oxml.paragraph_property(
         document.sections[0].paragraphs[0].para_pr_id_ref
     ).heading
     assert increased is not None and str(increased.level) == "2"
 
-    document.styles.apply_paragraph_format(paragraph_index=0, outline_level=1)
+    document.styles.apply_paragraph_format(paragraph=0, outline_level=1)
     decreased = document.oxml.paragraph_property(
         document.sections[0].paragraphs[0].para_pr_id_ref
     ).heading
@@ -112,7 +112,7 @@ def test_apply_paragraph_format_outline_level_zero_removes_the_heading() -> None
     document = HwpxDocument.new()
     document.add_heading("제목", level=1)
 
-    document.styles.apply_paragraph_format(paragraph_index=0, outline_level=0)
+    document.styles.apply_paragraph_format(paragraph=0, outline_level=0)
 
     heading = document.oxml.paragraph_property(
         document.sections[0].paragraphs[0].para_pr_id_ref

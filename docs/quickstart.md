@@ -106,7 +106,7 @@ table.set_cell_text(1, 1, "검토 중")
 
 memo = document.notes.add_memo(
     "이 문단을 다시 확인하세요.",
-    anchor=paragraph,
+    paragraph=paragraph,
     memo_shape_id_ref="0",
 )
 print("메모 ID:", memo.id)

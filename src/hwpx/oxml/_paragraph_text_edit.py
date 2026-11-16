@@ -793,7 +793,7 @@ class ParagraphFormats:
         """Number this paragraph with numbering *numbering* at *level* (1 to 10).
 
         *numbering* is a definition of this document — the ``NumberingInfo``
-        ``doc.styles.add_numbering()`` returns, one from ``doc.styles.numbering_info(id)``, or
+        ``doc.styles.add_numbering()`` returns, one from ``doc.styles.numbering(id)``, or
         its id. Hancom counts on through every paragraph of one definition, so the paragraphs
         given the same one make one list. The rest of the paragraph's shape (margins,
         spacing, alignment) stays; the paragraph is laid out again. ``None`` takes its head

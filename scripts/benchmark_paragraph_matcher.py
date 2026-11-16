@@ -95,7 +95,7 @@ for n in (10, 100, 1000):
 fixture = Path(args.fixtures) / 'hwpxlib_corpus' / 'error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx'
 source = fixture.read_bytes()
 document = HwpxDocument.open(source)
-document.styles.apply_paragraph_format(paragraph_index=5, alignment='CENTER')
+document.styles.apply_paragraph_format(paragraph=5, alignment='CENTER')
 payload = document.to_bytes()
 with zipfile.ZipFile(io.BytesIO(payload)) as archive:
     members = {name: hashlib.sha256(archive.read(name)).hexdigest() for name in sorted(archive.namelist())}

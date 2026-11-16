@@ -39,8 +39,8 @@ def _document_with_every_place() -> HwpxDocument:
     document.shapes.add_rectangle(paragraph=document.add_paragraph("글상자 앞")).set_draw_text("글상자사과")
     document.page.set_header(text="머리말사과")
     document.page.set_footer(text="꼬리말사과")
-    document.notes.add_footnote("각주사과", document.add_paragraph("각주 붙은 문단"))
-    document.notes.add_endnote("미주사과", document.add_paragraph("미주 붙은 문단"))
+    document.notes.add_footnote("각주사과", paragraph=document.add_paragraph("각주 붙은 문단"))
+    document.notes.add_endnote("미주사과", paragraph=document.add_paragraph("미주 붙은 문단"))
     document.fields.add("f1", prompt="안내", paragraph=document.add_paragraph("누름틀: "))
     document.fields.fill("누름틀값사과", name="f1")
     document.add_table(1, 1).set_caption("캡션사과")
@@ -187,7 +187,7 @@ def test_text_on_both_sides_of_a_tab_is_not_one_word() -> None:
 
 def test_memo_bodies_are_left_alone() -> None:
     document = HwpxDocument.new()
-    document.notes.add_memo("메모사과", anchor=document.add_paragraph("본문사과"))
+    document.notes.add_memo("메모사과", paragraph=document.add_paragraph("본문사과"))
 
     count = document.text.replace("사과", "배", everywhere=True)
 

@@ -1217,7 +1217,7 @@ def test_overlapped_characters_the_record_cannot_hold_are_refused() -> None:
 def test_a_memo_made_with_the_api_saves_as_hwp_with_its_body(tmp_path: Path) -> None:
     document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("메모가 달린 문단")
-    document.notes.add_memo("검토 의견", anchor=paragraph, author="검토자")
+    document.notes.add_memo("검토 의견", paragraph=paragraph, author="검토자")
     target = tmp_path / "메모.hwp"
     document.save(target)
     with warnings.catch_warnings():
@@ -1610,7 +1610,7 @@ def test_a_chart_whose_part_no_longer_matches_its_ole_object_is_refused() -> Non
 def test_a_chart_made_by_python_hwpx_saves_as_an_ole_object_holding_its_part(tmp_path: Path) -> None:
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("차트")
-    document.shapes.add_chart(_CHART_XML, size=(30000, 20000))
+    document.shapes.add_chart(_CHART_XML, width=30000, height=20000)
     target = tmp_path / "chart.hwp"
     document.save(target)
 

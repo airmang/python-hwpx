@@ -57,7 +57,7 @@ def test_filling_a_cell_drops_the_cache_of_the_paragraph_holding_the_table() -> 
 def test_formatting_a_cell_paragraph_drops_the_cache_of_the_paragraph_holding_the_table() -> None:
     doc = HwpxDocument.open(HANCOM_SAVED / "auto_grow_cell_saved.hwpx")
     cell_paragraph = doc.tables[0].cell(0, 0).paragraphs[0]
-    doc.styles.apply_paragraph_format(paragraphs=[cell_paragraph], line_spacing_percent=200)
+    doc.styles.apply_paragraph_format(paragraphs=[cell_paragraph], line_spacing=200)
 
     saved = _saved_paragraphs(doc)
     assert [_cached(p) for p in _holders(saved)] == [False]
