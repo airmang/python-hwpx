@@ -228,9 +228,10 @@ def test_position_reads_a_hancom_floating_picture() -> None:
     assert isinstance(position, ObjectPosition)
     assert position.treat_as_char is False
     assert position.text_wrap == "IN_FRONT_OF_TEXT"
-    assert (position.horz_rel_to, position.vert_rel_to) == ("PARA", "PARA")
+    assert (position.horizontal_relative_to, position.vertical_relative_to) == ("PARA", "PARA")
     assert position.horizontal_offset == 300
     assert position.to_dict()["horizontalOffset"] == 300
+    assert position.to_dict()["horizontalRelativeTo"] == "PARA"
 
 
 def test_set_position_and_position_use_the_same_names_on_shapes_and_objects() -> None:
@@ -244,7 +245,7 @@ def test_set_position_and_position_use_the_same_names_on_shapes_and_objects() ->
         assert position.treat_as_char is False
         assert position.text_wrap == "BEHIND_TEXT"
         assert (position.horizontal_offset, position.vertical_offset) == (-500, 1200)
-        assert (position.horz_rel_to, position.vert_rel_to) == ("PAPER", "PAPER")
+        assert (position.horizontal_relative_to, position.vertical_relative_to) == ("PAPER", "PAPER")
         assert not _has_cache(obj.paragraph.element)
         obj.set_position(treat_as_char=True)
         assert obj.position.treat_as_char is True

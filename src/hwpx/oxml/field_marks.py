@@ -570,6 +570,5 @@ def check_box_for(paragraph: "HwpxOxmlParagraph", element: Any) -> "CheckBox":
 
     for match in _iter_check_boxes(_DocumentScope(paragraph.section)):  # type: ignore[arg-type]
         if match["_element"] is element:
-            return CheckBox(element, match["_section"], paragraph, index=match["index"],
-                            section_index=match["sectionIndex"])
-    return CheckBox(element, paragraph.section, paragraph, index=-1, section_index=-1)
+            return CheckBox(element, match["_section"], paragraph, index=match["index"])
+    return CheckBox(element, paragraph.section, paragraph, index=-1)

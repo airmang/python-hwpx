@@ -36,13 +36,24 @@ def test_hangul_saved_memo_shapes_read_in_millimetres(name: str, line_width: str
 
 @pytest.mark.parametrize(
     ("mm", "written", "read"),
-    [(0.12, "1", 0.12), (0.5, "7", 0.5), (0.45, "7", 0.5), (1, "10", 1.0), (9, "15", 5.0), (0.1, "0", 0.1)],
+    [(0.12, "1", 0.12), (0.5, "7", 0.5), (1, "10", 1.0), (5, "15", 5.0), (0.1, "0", 0.1)],
 )
 def test_ensure_memo_shape_takes_millimetres(mm: float, written: str, read: float) -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape(line_width_mm=mm)
     shape = doc.styles.memo_shape(shape_id)
     assert shape is not None and shape.line_width == written and shape.line_width_mm == read
+
+
+@pytest.mark.parametrize("mm", [0.45, 9])
+def test_a_width_off_hancoms_list_is_refused_not_moved_to_the_nearest(mm: float) -> None:
+    # 7.0: the engine does not write another width than the one it was given (as for borders).
+    doc = HwpxDocument.new()
+    before = doc.to_bytes()
+    with pytest.raises(HwpxValueError) as caught:
+        doc.styles.ensure_memo_shape(line_width_mm=mm)
+    assert caught.value.code == "style-line-width-invalid" and "0.12" in caught.value.suggestion
+    assert doc.to_bytes() == before
 
 
 def test_a_memo_with_a_thick_line_saves_and_reopens() -> None:

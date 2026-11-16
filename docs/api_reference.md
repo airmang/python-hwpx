@@ -82,39 +82,33 @@
 - `sections`, `headers`
   - 섹션/헤더 래퍼 목록을 반환하는 프로퍼티입니다.
 
-#### 메모 헬퍼
+#### 메모 헬퍼 (`doc.notes`·`doc.styles`)
 
-- `memo_shapes`
-  - 헤더에 있는 모든 메모 모양 정의를 병합한 딕셔너리를 반환합니다.
-- `memo_shape(memo_shape_id_ref)`
-  - 특정 메모 모양 정의를 가져옵니다. ID는 문자열 또는 숫자 형식과 일치시킵니다.
-- `memos`
-  - 모든 섹션에 걸쳐 있는 메모 항목들을 단일 목록으로 펼쳐서 반환하는 프로퍼티입니다.
-- `add_memo(...) -> HwpxOxmlMemo`
-  - 섹션에 메모 항목을 추가합니다. 대상 섹션은 `section`이나 `section_index` 인자로 지정하거나, 지정하지 않으면 마지막 섹션을 기본값으로 사용합니다.
-- `remove_memo(memo)`
-  - 메모 엘리먼트를 소유한 섹션에서 제거합니다.
-- `attach_memo_field(paragraph, memo, ...) -> str`
-  - 주어진 메모가 한/글에서 보이도록 `paragraph`에 MEMO 필드 컨트롤 런(run)을 삽입합니다. ID를 생성하고 작성자, 생성 타임스탬프, 번호 매기기 같은 주석 메타데이터를 처리합니다.
-- `add_memo_with_anchor(...) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]`
-  - 메모를 생성하고, MEMO 필드를 포함할 단락이 있는지 확인한 후, 필드를 부착하고, (메모, 단락, 필드 ID) 튜플을 반환하는 편의 헬퍼입니다.
+6.x 루트의 메모 이름(`doc.memo_shapes`·`doc.add_memo` …)은 7.0에서 없어졌다(부르면 새 자리를 알려 주는 오류).
 
-#### 텍스트 및 서식 헬퍼
+- `doc.styles.memo_shapes`, `doc.styles.memo_shape(memo_shape_id_ref)`
+  - 헤더의 메모 모양 정의(id 색인)와 그 하나. `doc.styles.ensure_memo_shape(...)`가 정의를 보장하고 id를 돌려준다.
+- `doc.notes.memos`
+  - 모든 구역의 메모(`Memo`)를 문서 순서의 tuple로 돌려주는 프로퍼티입니다.
+- `doc.notes.add_memo(text, *, paragraph=None, section=None, memo_shape_id_ref=None, ...) -> Memo`
+  - 메모를 만들고, `paragraph=`(번호나 문단 객체)를 주면 그 문단에 한/글이 보이는 MEMO 필드를 붙입니다. 구역은 `section=`(번호나 구역 객체), 주지 않으면 마지막 구역입니다.
+- `doc.notes.attach(paragraph, memo) -> Memo`, `doc.notes.remove_memo(memo)`
+  - 이미 있는 메모를 문단에 붙이고, 메모를 지웁니다.
 
-- `paragraphs`
-  - 문서 순서대로 모든 단락 래퍼를 반환하는 프로퍼티입니다.
-- `char_properties`
-  - 확인된(resolved) 글자 스타일 정의를 노출하는 프로퍼티입니다.
-- `char_property(char_pr_id_ref)`
-  - ID를 사용하여 `RunStyle`을 조회합니다.
-- `ensure_run_style(...) -> str`
-  - 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일의 ID를 반환합니다. 내용이 같은 스타일이 있으면 그것을, 없으면 기준을 복제해 만듭니다.
-- `iter_runs()`
-  - 문서 전체의 모든 `HwpxOxmlRun`을 순회(yield)합니다.
-- `find_runs_by_style(...) -> list[HwpxOxmlRun]`
-  - 색상, 밑줄 유형 또는 특정 글자 속성 참조와 같은 스타일 속성으로 런을 필터링합니다.
-- `replace_text_in_runs(search, replacement, ...) -> int`
-  - `find_runs_by_style()`을 사용하여 런을 찾고 문자열을 교체합니다. 선택적으로 교체 횟수를 제한할 수 있으며, 하이라이트나 태그로 나뉜 텍스트도 서식을 유지한 채 치환합니다.
+#### 텍스트 및 서식 헬퍼 (`doc.text`·`doc.styles`)
+
+- `doc.paragraphs`
+  - 본문의 모든 문단을 문서 순서의 tuple로 돌려주는 프로퍼티입니다. 표 칸·머리말까지는 `doc.text.iter_paragraphs()`.
+- `doc.styles.char_properties`, `doc.styles.char_property(char_pr_id_ref)`
+  - 글자 모양 정의(id 색인)와 그 하나(`RunStyle`).
+- `doc.styles.ensure_run(..., base_char_pr_id_ref=None) -> str`
+  - 기준 글자 모양(없으면 첫 글자 모양)에서 요청한 값만 바꾼 글자 모양의 id를 돌려줍니다. 내용이 같은 정의가 있으면 그것을, 없으면 기준을 복제해 만듭니다.
+- `doc.text.iter_runs()`
+  - 문서 본문의 모든 런을 차례로 내놓습니다(`Iterator[Run]`).
+- `doc.text.find_runs(...) -> tuple[Run, ...]`
+  - 색상, 밑줄 유형 또는 특정 글자 속성 참조와 같은 스타일 속성으로 런을 고릅니다.
+- `doc.text.replace(search, replacement, ...) -> int`
+  - 문자열을 바꿉니다. 교체 횟수를 제한할 수 있고, `everywhere=True`면 표 칸·머리말과 서식이 다른 런에 걸친 글도 바꿉니다.
 
 #### 글꼴 표와 테두리 읽기 (`doc.styles`)
 
@@ -146,16 +140,16 @@
 
 - `add_paragraph(text="", ...) -> HwpxOxmlParagraph`
   - 대상 섹션에 단락을 추가합니다. 선택적으로 단락 및 런 서식 참조를 재정의하거나 추가 단락 속성을 주입할 수 있습니다.
-- `remove_paragraph(paragraph_or_index, section=None, section_index=None)`
-  - 단락을 삭제합니다. 인스턴스 또는 인덱스를 받습니다. `section`/`section_index`로 대상 섹션을 지정합니다.
+- `paragraph.remove()`
+  - 단락을 삭제합니다(6.x의 `doc.remove_paragraph(...)`). 모델 `doc.oxml.remove_paragraph(paragraph_or_index, *, section=None)`도 있습니다.
 - `add_section(after=None) -> HwpxOxmlSection`
   - 새 섹션을 문서에 추가합니다. `after`로 삽입 위치를 지정합니다. manifest/spine에 자동 등록됩니다.
 - `remove_section(section_or_index)`
   - 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받습니다. 마지막 섹션 삭제 시 `ValueError`가 발생합니다.
 - `add_table(rows, cols, ...) -> HwpxOxmlTable`
   - 기본적으로 앞 제목·목록 스타일을 상속하지 않는 중립 단락을 삽입하고 그 안에 표 인라인 객체를 생성한 후, 표 래퍼를 반환합니다. 표 앵커가 앞 단락 서식을 의도적으로 이어받아야 하면 `inherit_style=True` 또는 명시적 단락·스타일 참조를 사용합니다. `border_fill_id_ref`를 생략하면 헤더 참조 목록에 기본 실선 `borderFill`을 생성하고 표와 셀에 자동으로 연결합니다.
-- `add_picture(image_data, image_format, *, width, height, width_mm, height_mm, align, brightness, contrast, effect, alpha, line_color, line_width, crop, shadow, glow, soft_edge, reflection, ...) -> HwpxOxmlInlineObject`
-  - 이미지를 이진 항목으로 넣고 새 단락에 그림을 글자처럼 둡니다. 크기는 HWPUNIT(`width`·`height`)나 mm(`width_mm`·`height_mm`)로 받습니다(너비를 빼면 14400). 높이를 빼면 PNG는 그 가로세로 비율을, 다른 형식은 너비와 같은 높이를 씁니다. `align`은 그림을 둔 단락의 정렬입니다.
+- `add_picture(image_data, image_format, *, width, height, width_mm, height_mm, alignment, brightness, contrast, effect, alpha, line_color, line_width_mm, crop, shadow, glow, soft_edge, reflection, ...) -> Picture`
+  - 이미지를 이진 항목으로 넣고 새 단락에 그림을 글자처럼 둡니다. 크기는 HWPUNIT(`width`·`height`)나 mm(`width_mm`·`height_mm`)로 받습니다(너비를 빼면 14400). 높이를 빼면 PNG는 그 가로세로 비율을, 다른 형식은 너비와 같은 높이를 씁니다. `alignment`는 그림을 둔 단락의 정렬, `line_width_mm`은 테두리 굵기(mm, 기본 0.12)입니다.
   - 이미지 조정: `brightness`·`contrast`(-100~100, 기본 0), `effect`(`REAL_PIC` 원래 그림·`GRAY_SCALE` 회색조·`BLACK_WHITE` 흑백, 대소문자 무관), `alpha`(투명도, 0 불투명~255 보이지 않음)를 받습니다.
   - 테두리: `line_color`를 주면 `line_width`(HWPUNIT, 기본 33) 굵기의 실선 테두리를 그립니다.
   - 자르기: `crop=(왼쪽, 위, 오른쪽, 아래)`는 `width` x `height` 그림의 네 변에서 그만큼(HWPUNIT) 잘라 냅니다. 축척은 그대로라 그림이 그만큼 작게 그려집니다.
@@ -554,7 +548,7 @@
 - `memo_shape(memo_shape_id_ref)`: ID로 메모 모양을 가져옵니다.
 - `paragraphs`: 모든 섹션의 단락 래퍼를 연결한 tuple을 반환하는 프로퍼티입니다.
 - `add_paragraph(...)`: `section`(번호나 섹션)으로 대상 섹션을 골라 단락을 추가하도록 섹션에 위임합니다. 기본값은 마지막 섹션입니다.
-- `remove_paragraph(paragraph_or_index, section=None, section_index=None)`: 단락을 삭제합니다. 인스턴스 또는 인덱스를 받습니다.
+- `remove_paragraph(paragraph_or_index, *, section=None)`: 단락을 삭제합니다. 인스턴스 또는 인덱스를 받습니다.
 - `add_section(after=None) -> HwpxOxmlSection`: 새 섹션을 추가합니다. manifest에 `<opf:item>`과 `<opf:itemref>`를 자동 등록합니다.
 - `remove_section(section_or_index)`: 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받으며, 마지막 섹션 삭제 시 `ValueError`가 발생합니다.
 - `serialize() -> dict[str, bytes]`: 변경된(dirty) 섹션/헤더에 대한 업데이트된 파트 페이로드 딕셔너리를 반환합니다. manifest가 변경된 경우 함께 포함됩니다.

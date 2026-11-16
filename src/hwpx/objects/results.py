@@ -17,8 +17,17 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..form_fit.report import FitResult
-    from ..model import InlineObject, Paragraph, Table
+    from ..model import InlineObject, Paragraph, Section, Table
     from .form_field import FormField
+
+
+def _section_number(section: "Section | None") -> int | None:
+    """The number of *section* in its document (what ``to_dict()`` writes), ``None`` without one."""
+
+    document = getattr(section, "document", None) if section is not None else None
+    if document is None:
+        return None
+    return next((index for index, candidate in enumerate(document.sections) if candidate is section), None)
 
 
 @dataclass(frozen=True)
@@ -89,9 +98,9 @@ class ObjectPosition:
     line (``True``) or floating (``False``). *text_wrap* (the object's ``textWrap``: ``SQUARE``,
     ``TIGHT``, ``THROUGH``, ``TOP_AND_BOTTOM``, ``BEHIND_TEXT``, ``IN_FRONT_OF_TEXT``) and
     *text_flow* (``textFlow``: ``BOTH_SIDES``, ``LEFT_ONLY``, ``RIGHT_ONLY``, ``LARGEST_ONLY``) say
-    how the body text goes around it. *horz_rel_to*/*vert_rel_to* are the frames the offsets count
-    from (``PAPER``, ``PAGE``, ``COLUMN``, ``PARA``), *horz_align*/*vert_align* the alignment in
-    them, and *horizontal_offset*/*vertical_offset* the offsets in HWPUNIT (signed: Hancom stores a
+    how the body text goes around it. *horizontal_relative_to*/*vertical_relative_to* are the frames
+    the offsets count from (``PAPER``, ``PAGE``, ``COLUMN``, ``PARA``),
+    *horizontal_alignment*/*vertical_alignment* the alignment in them, and *horizontal_offset*/*vertical_offset* the offsets in HWPUNIT (signed: Hancom stores a
     negative one in its unsigned 32-bit form). *flow_with_text* keeps it inside the page body and
     *allow_overlap* lets it overlap other objects. A value the object does not carry is ``None``
     (an object without ``hp:pos`` -- a member of a group -- reads ``None`` throughout but
@@ -101,10 +110,10 @@ class ObjectPosition:
     treat_as_char: bool
     text_wrap: str | None
     text_flow: str | None
-    horz_rel_to: str | None
-    vert_rel_to: str | None
-    horz_align: str | None
-    vert_align: str | None
+    horizontal_relative_to: str | None
+    vertical_relative_to: str | None
+    horizontal_alignment: str | None
+    vertical_alignment: str | None
     horizontal_offset: int | None
     vertical_offset: int | None
     flow_with_text: bool | None
@@ -115,10 +124,10 @@ class ObjectPosition:
             "treatAsChar": self.treat_as_char,
             "textWrap": self.text_wrap,
             "textFlow": self.text_flow,
-            "horzRelTo": self.horz_rel_to,
-            "vertRelTo": self.vert_rel_to,
-            "horzAlign": self.horz_align,
-            "vertAlign": self.vert_align,
+            "horizontalRelativeTo": self.horizontal_relative_to,
+            "verticalRelativeTo": self.vertical_relative_to,
+            "horizontalAlignment": self.horizontal_alignment,
+            "verticalAlignment": self.vertical_alignment,
             "horizontalOffset": self.horizontal_offset,
             "verticalOffset": self.vertical_offset,
             "flowWithText": self.flow_with_text,
@@ -512,16 +521,17 @@ class NumberingLevel:
 
     ``text`` is the level's number pattern as stored (``"^1."``: ``^n`` stands
     for the number of level *n*); ``number_format`` the digit style
-    (``DIGIT``, ``HANGUL_SYLLABLE``, ``CIRCLED_DIGIT``, ...); ``char_pr_id_ref``
-    the character shape of the number, ``None`` when it follows the text
-    (Hancom writes 4294967295 for that).
+    (``DIGIT``, ``HANGUL_SYLLABLE``, ``CIRCLED_DIGIT``, ...); ``alignment`` where
+    the number sits in its width (``hh:paraHead/@align``, ``LEFT`` when unsaid);
+    ``char_pr_id_ref`` the character shape of the number, ``None`` when it
+    follows the text (Hancom writes 4294967295 for that).
     """
 
     level: int
     start: int
     number_format: str
     text: str
-    align: str
+    alignment: Alignment
     char_pr_id_ref: str | None
     auto_indent: bool
     width_adjust: int
@@ -535,7 +545,7 @@ class NumberingLevel:
             "start": self.start,
             "numberFormat": self.number_format,
             "text": self.text,
-            "align": self.align,
+            "alignment": str(self.alignment),
             "charPrIdRef": self.char_pr_id_ref,
             "autoIndent": self.auto_indent,
             "widthAdjust": self.width_adjust,
@@ -860,7 +870,9 @@ class ParagraphPlace:
 
     ``where`` is the innermost container: ``body``, ``cell``, ``text_box``,
     ``caption``, ``header``, ``footer``, ``footnote``, ``endnote``, ``memo`` or
-    ``master_page``. ``section`` is the section index (``None`` on a master page).
+    ``master_page``. ``section`` is the section holding it, as a model object (``None`` on a
+    master page; its number is ``doc.sections.index(place.section)``, and ``to_dict()`` writes
+    that number).
     ``page_type`` is set in a header or footer (``BOTH``, ``ODD``, ``EVEN``).
     ``table``/``row``/``col`` name the innermost table cell holding the paragraph,
     when there is one, even inside a text box in that cell. ``owner`` is the
@@ -870,7 +882,7 @@ class ParagraphPlace:
 
     paragraph: "Paragraph"
     where: str
-    section: int | None
+    section: "Section | None"
     page_type: str | None = None
     table: "Table | None" = None
     row: int | None = None
@@ -881,7 +893,7 @@ class ParagraphPlace:
     def to_dict(self) -> dict[str, Any]:
         return {
             "where": self.where,
-            "section": self.section,
+            "section": _section_number(self.section),
             "pageType": self.page_type,
             "row": self.row,
             "col": self.col,
@@ -903,7 +915,7 @@ class ObjectPlace:
     object: Any
     kind: str
     where: str
-    section: int | None
+    section: "Section | None"
     page_type: str | None = None
     table: "Table | None" = None
     row: int | None = None
@@ -915,7 +927,7 @@ class ObjectPlace:
         return {
             "kind": self.kind,
             "where": self.where,
-            "section": self.section,
+            "section": _section_number(self.section),
             "pageType": self.page_type,
             "row": self.row,
             "col": self.col,
@@ -940,7 +952,7 @@ class TextMatch:
     text: str
     groups: tuple[str | None, ...]
     where: str
-    section: int | None
+    section: "Section | None"
     page_type: str | None = None
     table: "Table | None" = None
     row: int | None = None
@@ -955,7 +967,7 @@ class TextMatch:
             "text": self.text,
             "groups": list(self.groups),
             "where": self.where,
-            "section": self.section,
+            "section": _section_number(self.section),
             "pageType": self.page_type,
             "row": self.row,
             "col": self.col,

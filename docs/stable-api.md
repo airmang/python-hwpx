@@ -87,10 +87,10 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---|---:|
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
-| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 195 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 373 |
-| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 173 |
-| `hwpx.objects` 58개 값 형식 | 필드 264 · 멤버 151 · enum 값 10 | 425 |
+| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 196 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 374 |
+| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 175 |
+| `hwpx.objects` 83개 값 형식 | 필드 407 · 멤버 194 · enum 값 10 | 611 |
 | 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
 <!-- public-surface-lock:end -->
 
@@ -156,7 +156,12 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`
 9. **공개 이름은 다음 major까지 얼린다.** 7.0의 공개 이름(최상위·루트·묶음·`hwpx.model` 의 계약
    멤버·`hwpx.objects` 값 형식·안정 모듈 이름)은 8.0 전에는 지우거나 바꾸지 않는다. 공개 표면
-   잠금(`tests/data/public_surface.json`)과 다르면 테스트가 실패한다.
+   잠금(`tests/data/public_surface.json`)과 다르면 테스트가 실패한다. stable 이름이 돌려주는 형식도
+   `hwpx.objects` 에서 가져올 수 있고 함께 잠근다(7.0: `Style`·`RunStyle`·`ParagraphProperty`·`Font`·`Bullet`·
+   `MemoShape`·`TabDefinition`·`TrackChange`·`TrackChangeAuthor`·`SectionGrid`·`SectionVisibility`·`LineNumberShape`·
+   `DocumentMetadata`·`TextBlock`·`TextOutline`·`TextChangeReport`·`ValidationReport`·`Hwp5ConversionReport`·
+   `TableMapResult`·`GridPosition`·`Caption`·`PictureShadow`·`PictureGlow`·`PictureReflection`·`ContainerMember`·
+   `GenericElement` — 구현 모듈의 같은 클래스다).
    `tests/test_public_surface.py::test_public_surface_matches_the_lock`,
    `tests/test_public_surface.py::test_lock_major_is_not_behind_the_package`
 
@@ -516,7 +521,7 @@ line_type=, border_width_mm=, color=, inner=)`·`set_shading(cell_range, color=)
 길이는 모두 HWPUNIT, 선 굵기만 `_mm` 이다.
 
 칸과 표의 나머지 속성은 값 하나씩 읽고 쓰는 속성이다(7.0). `TableCell.text_direction`
-(`"HORIZONTAL"`/`"VERTICAL"`, 세로쓰기 — 바꾸면 칸 문단과 표를 품은 문단의 줄 배치 캐시를 지운다),
+(`"HORIZONTAL"`/`"VERTICAL"`, 세로쓰기 — 구역의 `doc.page.text_direction()`과 같은 말이다. 바꾸면 칸 문단과 표를 품은 문단의 줄 배치 캐시를 지운다),
 `TableCell.protected`(셀 보호)·`editable`(양식 모드에서 편집 가능, 둘 다 `bool`), `Table.cell_spacing`
 (칸 간격, `0..32767`; 칸 크기는 그대로 두고 한/글 저장본처럼 표의 `hp:sz`를 칸들과 간격 수만큼 키운다),
 `Table.border_fill_id_ref`(표 자체의 테두리/배경 — 배경은 칸 뒤에 그려져 배경 없는 칸으로 비치고, 선은 칸 간격이

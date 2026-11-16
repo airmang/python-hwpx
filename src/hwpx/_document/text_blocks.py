@@ -554,7 +554,8 @@ def _place_fields(context: _Context) -> dict[str, Any]:
         owner = _object_model(context.owner, HwpxOxmlParagraph(context.owner_paragraph, part))
     return {
         "where": context.where,
-        "section": context.section,
+        # The body part is the section itself; a master page belongs to no section.
+        "section": part if context.section is not None else None,
         "page_type": context.page_type,
         "table": table,
         "row": context.row,

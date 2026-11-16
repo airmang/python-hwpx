@@ -510,6 +510,14 @@ NAMES: dict[str, dict[str, Removed]] = {
             kind="property",
         ),
     },
+    # spec 밖(WP5b): 글머리표 머리(Bullet.para_head)의 정렬도 alignment(Alignment)로(N9, D11).
+    "BulletParaHead": {
+        "align": _gone(
+            "BulletParaHead.alignment",
+            "BulletParaHead.align(문자열)은 7.0에서 alignment(Alignment)이다(ParagraphProperty.alignment와 같은 이름)",
+            kind="property",
+        ),
+    },
     "hwpx.objects": {
         "PictureRef": _gone(
             "doc.media.pictures",
@@ -563,7 +571,7 @@ ARGUMENTS: dict[str, Arguments] = {
         line_spacing_percent="line_spacing",
     ),
     "doc.styles.ensure_border_fill": _args(
-        "doc.styles.ensure_border_fill(border_width='0.7 mm')는 7.0에서 border_width_mm=0.7 이다(한/글 굵기 목록의 가장 가까운 값)",
+        "doc.styles.ensure_border_fill(border_width='0.7 mm')는 7.0에서 border_width_mm=0.7 이다(한/글 굵기 목록의 값만)",
         border_width="border_width_mm",
     ),
     "doc.styles.ensure_font": _args(
@@ -777,6 +785,26 @@ ARGUMENTS: dict[str, Arguments] = {
         row_index="row",
         col_index="col",
     ),
+    # == 값 형식 (WP5b) ====================================================
+    # spec 은 keep 이었지만 묶음 개체의 구성원도 도형과 같은 선 굵기 이름·단위(D2, N4)와 풀어 쓴 이름(N3)으로.
+    "ContainerMember.rect": _args(
+        "ContainerMember.rect(line_width='33')는 7.0에서 line_width_mm=0.12 (mm, float)이다", line_width="line_width_mm"
+    ),
+    "ContainerMember.ellipse": _args(
+        "ContainerMember.ellipse(line_width='33')는 7.0에서 line_width_mm=0.12 (mm, float)이다", line_width="line_width_mm"
+    ),
+    "ContainerMember.polygon": _args(
+        "ContainerMember.polygon(line_width='33')는 7.0에서 line_width_mm=0.12 (mm, float)이다", line_width="line_width_mm"
+    ),
+    "ContainerMember.line": _args(
+        "ContainerMember.line(line_width='33')는 7.0에서 line_width_mm=0.12 (mm, float)이다", line_width="line_width_mm"
+    ),
+    "ContainerMember.text_box": _args(
+        "ContainerMember.text_box(line_width='33', vert_align=)는 7.0에서 line_width_mm=0.12, vertical_alignment= 이다"
+        "(shape.set_draw_text와 같은 이름)",
+        line_width="line_width_mm",
+        vert_align="vertical_alignment",
+    ),
 }
 
 
@@ -817,6 +845,7 @@ _OWNER_PATHS: dict[str, str] = {
     "FontSubstitution": "hwpx.oxml.header:FontSubstitution",
     "ParagraphProperty": "hwpx.oxml.header:ParagraphProperty",
     "Caption": "hwpx.oxml.objects:Caption",
+    "BulletParaHead": "hwpx.oxml.header:BulletParaHead",
 }
 
 #: 표의 주인 가운데 훅이 클래스 정의에 직접 있는 것(:func:`install` 이 건너뛴다).
@@ -1141,8 +1170,12 @@ def install() -> None:
         cls = _resolve_owner(owner)
         assert isinstance(cls, type)
         function = inspect.getattr_static(cls, method, None)
+        # A classmethod (ContainerMember.rect) is guarded inside and wrapped again.
+        wrap = type(function) if isinstance(function, (classmethod, staticmethod)) else None
+        if wrap is not None:
+            function = function.__func__  # type: ignore[union-attr]
         if not inspect.isfunction(function):
             raise AssertionError(f"인자 안내 {caller!r}: {owner} 에 메서드 {method!r} 가 없습니다")
         guarded = guard_arguments(function, caller)
         if guarded is not function:
-            setattr(cls, method, guarded)
+            setattr(cls, method, wrap(guarded) if wrap is not None else guarded)

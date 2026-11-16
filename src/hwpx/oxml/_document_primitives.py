@@ -8,7 +8,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from datetime import datetime, timezone
 from random import Random
-from typing import Callable, Iterable, Mapping, Optional, TypeVar
+from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -788,7 +788,7 @@ def _normalize_border_side_names(active_borders: Iterable[str] | None) -> set[st
 
 
 def _normalize_border_sides(
-    sides: "Mapping[str, Mapping[str, str] | None] | None",
+    sides: "Mapping[str, Mapping[str, Any] | None] | None",
     *,
     border_color: str,
     border_width: str,
@@ -798,31 +798,38 @@ def _normalize_border_sides(
 ) -> dict[str, tuple[str, str, str]]:
     """``{side: (type, width, color)}`` for the sides *sides* draws on their own.
 
-    A side maps to ``{"type", "width", "color"}``, each optional (the uniform
-    border's value stands in), or to ``None`` for no line on that side.
+    A side maps to ``{"type", "width_mm", "color"}``, each optional (the uniform
+    border's value stands in), or to ``None`` for no line on that side. ``width_mm``
+    is a number of mm on Hancom's width list (:func:`~hwpx.oxml.utils.line_width_text`;
+    6.x's ``"width": "0.4 mm"`` string is refused with the new key named).
     """
 
     from ..errors import HwpxValueError
+    from .utils import line_width_text
 
     lines: dict[str, tuple[str, str, str]] = {}
     for side, spec in (sides or {}).items():
         key = str(side).strip().lower()
-        unknown = sorted(set(spec) - {"type", "width", "color"}) if spec is not None else []
+        unknown = sorted(set(spec) - {"type", "width_mm", "color"}) if spec is not None else []
         if key not in _BORDER_SIDE_ELEMENTS or unknown:
+            renamed = " — 7.0: 'width': '0.4 mm' is now 'width_mm': 0.4 (mm, a number)" if "width" in unknown else ""
             raise HwpxValueError(
-                f"unsupported keys {unknown!r} for border side {side!r}" if unknown else f"unsupported border side {side!r}",
+                (f"unsupported keys {unknown!r} for border side {side!r}" if unknown else f"unsupported border side {side!r}")
+                + renamed,
                 code="style-border-side-invalid",
                 context={"side": str(side), "unknownKeys": unknown},
                 suggestion="Name sides 'left', 'right', 'top' or 'bottom', each mapped to None or to a mapping "
-                "with any of 'type', 'width' and 'color'.",
+                "with any of 'type', 'width_mm' (a number of mm on Hancom's width list) and 'color'.",
             )
         if spec is None:
             lines[key] = ("NONE", border_width, border_color)
             continue
         line_type = str(spec.get("type") or border_type).upper()
+        width_mm = spec.get("width_mm")
         lines[key] = (
             _normalize_border_type(type_aliases.get(line_type, line_type), allowed_types),
-            normalize_line_width(spec.get("width") or border_width),
+            normalize_line_width(border_width) if width_mm is None
+            else line_width_text(width_mm, argument=f"sides[{key!r}]['width_mm']"),
             _normalize_color(spec.get("color")) or border_color,
         )
     return lines

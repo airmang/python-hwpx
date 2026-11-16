@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
 
-    from ..model import Paragraph
+    from ..model import Paragraph, Section
     from ..oxml import HwpxOxmlSection
 
 
@@ -27,7 +27,7 @@ class CheckBox:
     is *right now*; writing ``.checked`` writes straight back to the XML.
     """
 
-    __slots__ = ("_element", "_section", "_paragraph", "_index", "_section_index")
+    __slots__ = ("_element", "_section", "_paragraph", "_index")
 
     def __init__(
         self,
@@ -36,13 +36,11 @@ class CheckBox:
         paragraph: "Paragraph | None",
         *,
         index: int,
-        section_index: int,
     ) -> None:
         self._element = element
         self._section = section
         self._paragraph = paragraph
         self._index = index
-        self._section_index = section_index
 
     @property
     def element(self) -> "ET.Element":
@@ -57,10 +55,10 @@ class CheckBox:
         return self._index
 
     @property
-    def section_index(self) -> int:
-        """Index of the section this check box lives in."""
+    def section(self) -> "Section":
+        """The section this check box lives in (its number: ``doc.sections.index(cb.section)``)."""
 
-        return self._section_index
+        return self._section
 
     @property
     def paragraph(self) -> "Paragraph | None":
@@ -141,7 +139,7 @@ class RadioButton(CheckBox):
 class _FormControl:
     """What the form objects without a check state share: a live view over the element."""
 
-    __slots__ = ("_element", "_section", "_paragraph", "_index", "_section_index")
+    __slots__ = ("_element", "_section", "_paragraph", "_index")
 
     def __init__(
         self,
@@ -150,13 +148,11 @@ class _FormControl:
         paragraph: "Paragraph | None",
         *,
         index: int,
-        section_index: int,
     ) -> None:
         self._element = element
         self._section = section
         self._paragraph = paragraph
         self._index = index
-        self._section_index = section_index
 
     @property
     def element(self) -> "ET.Element":
@@ -171,8 +167,10 @@ class _FormControl:
         return self._index
 
     @property
-    def section_index(self) -> int:
-        return self._section_index
+    def section(self) -> "Section":
+        """The section this object lives in (its number: ``doc.sections.index(obj.section)``)."""
+
+        return self._section
 
     @property
     def paragraph(self) -> "Paragraph | None":

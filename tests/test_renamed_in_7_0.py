@@ -461,7 +461,7 @@ def test_paragraph_add_returns_the_value_its_reader_gives() -> None:
     assert (field.field_id, field.location) == (document.fields.all[0].field_id, document.fields.all[0].location)
     box = paragraph.add_check_box("동의")
     assert isinstance(box, CheckBox) and box.element is document.fields.check_boxes[0].element
-    assert (box.index, box.section_index) == (0, 0)
+    assert box.index == 0 and box.section is document.sections[0]
     assert isinstance(paragraph.add_highlight(color="#FFFF00", match="표시"), Highlight)
     restart = paragraph.add_number_restart(number=3)
     assert restart == NumberRestart(kind="PAGE", number=3, paragraph=paragraph)
@@ -561,3 +561,81 @@ def test_the_equation_converters_are_not_in_hwpx_experimental() -> None:
     from hwpx.equation import estimate_equation_size
 
     assert estimate_equation_size("{a} over {b}", font_size=11.0) == estimate_equation_size("{a} over {b}")
+
+# --------------------------------------------------------------------------
+# 값 형식 (WP5b): 구역은 객체, 배치·정렬은 풀어 쓴 이름, D15 형식은 hwpx.objects 에서도
+
+
+def test_form_objects_and_places_read_their_section_as_an_object() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("양식")
+    box = paragraph.add_check_box("동의")
+    radio = document.fields.add_radio_button("예", group="물음")
+    section = document.sections[0]
+    assert box.section is section and radio.section is section
+    assert all(edit.section is section for edit in (document.fields.add_edit_box("칸"),))
+    assert document.sections.index(box.section) == 0
+    place = next(document.text.iter_paragraphs())
+    assert place.section is section and place.to_dict()["section"] == 0
+    match = document.text.find("양식")[0]
+    assert match.section is section and match.to_dict()["section"] == 0
+    master = document.parts.add_master_page()
+    master.add_paragraph("바탕")
+    assert next(p for p in document.text.iter_paragraphs(where="master_page")).section is None
+
+
+def test_object_position_and_numbering_levels_spell_their_names_out() -> None:
+    document = HwpxDocument.new()
+    shape = document.add_paragraph("").add_rectangle(4000, 2000)
+    shape.set_position(treat_as_char=False, horizontal_relative_to="PAPER", vertical_alignment="TOP")
+    position = shape.position
+    assert (position.horizontal_relative_to, position.vertical_alignment) == ("PAPER", "TOP")
+    assert position.to_dict()["horizontalRelativeTo"] == "PAPER"
+    numbering_id = next(iter(document.styles.numberings), None) or document.styles.add_numbering(["^1."]).id
+    level = document.styles.numbering(numbering_id).levels[0]
+    assert isinstance(level.alignment, Alignment) and level.to_dict()["alignment"] == str(level.alignment)
+
+
+def test_the_d15_types_are_the_implementation_classes_under_hwpx_objects() -> None:
+    import hwpx.objects as objects
+    from hwpx.oxml.header import Font, ParagraphProperty
+    from hwpx.oxml.run import RunStyle
+    from hwpx.oxml.table import HwpxTableGridPosition
+
+    assert (objects.Font, objects.ParagraphProperty, objects.RunStyle) == (Font, ParagraphProperty, RunStyle)
+    assert objects.GridPosition is HwpxTableGridPosition
+    assert "GridPosition" in dir(objects) and "PictureRef" not in objects.__all__
+    document = HwpxDocument.new()
+    table = document.add_table(1, 1)
+    assert isinstance(table.cell_map[0][0], objects.GridPosition)
+
+
+def test_page_text_direction_reads_the_words_a_cell_reads() -> None:
+    document = HwpxDocument.new()
+    document.page.set_text_direction("VERTICAL", vertical_header_footer=True)
+    assert document.page.text_direction() == "VERTICAL" and document.page.vertical_header_footer() is True
+    cell = document.add_table(1, 1).cell(0, 0)
+    cell.text_direction = "VERTICAL"
+    assert type(cell.text_direction) is type(document.page.text_direction()) is str
+
+
+def test_a_container_member_takes_its_line_width_in_mm() -> None:
+    from hwpx.objects import ContainerMember
+
+    member = ContainerMember.rect(0, 0, 1000, 1000)
+    assert member.element.find(".//{*}lineShape").get("width") == "33"  # 0.12 mm, as 6.x's default "33"
+    thick = ContainerMember.text_box(0, 0, 1000, 1000, "x", line_width_mm=0.5, vertical_alignment="TOP")
+    assert thick.element.find(".//{*}lineShape").get("width") == "141"
+    with pytest.raises(HwpxTypeError) as raised:
+        ContainerMember.line(0, 0, 10, 10, line_width="33")
+    assert raised.value.context["replacement"] == "line_width_mm"
+
+
+def test_a_bullet_head_reads_its_alignment() -> None:
+    from hwpx.oxml.header import BulletParaHead
+
+    head = BulletParaHead("^1.", 1, 1, Alignment.LEFT, None, None, None, None, None)
+    assert head.alignment == "LEFT"
+    with pytest.raises(HwpxAttributeError) as raised:
+        head.align  # noqa: B018
+    assert raised.value.context["replacement"] == "BulletParaHead.alignment"

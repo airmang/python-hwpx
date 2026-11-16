@@ -389,7 +389,7 @@ except HwpxError as exc:
 | `shape-drop-cap-character-empty` | 드롭캡으로 키울 문자가 비어 있다. |
 | `shape-drop-cap-not-created` | 만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다. |
 | `shape-drop-cap-style-unsupported` | 드롭캡 dropcapstyle 값이 실증된 어휘(DoubleLine, TripleLine) 밖이다. |
-| `shape-equation-base-unit-value` | 수식 기준 크기(base_unit)가 1 이상 2**31 미만의 int(1/100 pt)가 아니다(bool 도 거부). |
+| `shape-equation-base-unit-value` | 수식 글자 크기(font_size)가 0.01 pt 이상의 유한한 pt 수가 아니다(bool 도 거부; 저장 값 baseUnit 은 1/100 pt 정수). |
 | `shape-equation-font-empty` | 수식 글꼴(font)이 비어 있거나 문자열이 아니다. |
 | `shape-equation-not-created` | 만든 수식을 표준 스캔이 다시 찾지 못했다. |
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
@@ -403,7 +403,7 @@ except HwpxError as exc:
 | `shape-not-in-document` | 옮기거나 복사할 개체가 문단에 없다(지운 개체). |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-out-margin-value` | 개체 바깥 여백(out_margins)이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
-| `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `shape-picture-border-value` | 그림 테두리·도형 선 굵기(line_width_mm)가 0 이상의 유한한 mm 수가 아니다(bool 도 거부, 0 은 선 없음; 저장 값은 mm × 283 의 정수 HWPUNIT). |
 | `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
 | `shape-picture-effect-value` | 그림 그림자·빛남 값이 범위 밖이다(투명도 0~1, 그림자 방향 0~359도 int, 흐림·거리·반경·부드러운 가장자리 0 이상 int, 색 #RRGGBB, 반사 크기 0 초과 1 이하, shadow/glow/reflection 은 PictureShadow/PictureGlow/PictureReflection). |
 | `shape-picture-image-value` | 그림의 밝기·대비(-100~100)·투명도(alpha, 0~255)가 범위 밖의 int 이거나(bool 도 거부) 효과가 REAL_PIC/GRAY_SCALE/BLACK_WHITE 밖이다. |
@@ -454,7 +454,7 @@ except HwpxError as exc:
 | `style-font-type-invalid` | font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다. |
 | `style-format-empty` | set_style_format 에 고칠 서식이 하나도 없다. |
 | `style-in-use` | 지우려는 스타일을 쓰는 문단이 있는데 replacement 를 주지 않았다(또는 replacement 가 그 스타일이다). |
-| `style-line-width-invalid` | 선 굵기가 0보다 큰 mm 값이 아니다(목록 밖 값은 가장 가까운 한컴 선 굵기로 쓴다). |
+| `style-line-width-invalid` | 테두리·단 구분선·메모 선 굵기가 한/글 굵기 목록의 mm 값(0.1·0.12·0.15·0.2·0.25·0.3·0.4·0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0)이 아니다(가까운 값으로 바꿔 쓰지 않는다. 쓸 수 있는 값은 suggestion). |
 | `style-list-continue-conflict` | continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다). |
 | `style-list-kind-invalid` | 목록 종류(kind)가 bullet/number/outline 밖이다. |
 | `style-list-level-invalid` | 글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다). |

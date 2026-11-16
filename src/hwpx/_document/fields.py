@@ -1198,7 +1198,6 @@ def _check_box_from_match(match: Mapping[str, Any]) -> CheckBox:
         section,
         _owning_paragraph(element, section),
         index=match["index"],
-        section_index=match["sectionIndex"],
     )
 
 
@@ -1797,11 +1796,11 @@ def remove_form_field(doc: "HwpxDocument", field_begin: Any, *, keep_text: bool 
 _FORM_OBJECT_TAGS = {"radioBtn", "comboBox", "edit"}
 
 
-def _iter_form_objects(doc: "HwpxDocument", local: str) -> list[tuple[Any, Any, int, int]]:
-    found: list[tuple[Any, Any, int, int]] = []
-    for section_index, section in enumerate(doc.sections):
+def _iter_form_objects(doc: "HwpxDocument", local: str) -> list[tuple[Any, Any, int]]:
+    found: list[tuple[Any, Any, int]] = []
+    for section in doc.sections:
         for element in section.element.iter(f"{_HP}{local}"):
-            found.append((element, section, len(found), section_index))
+            found.append((element, section, len(found)))
     return found
 
 
@@ -1813,8 +1812,8 @@ def list_form_objects(doc: "HwpxDocument", local: str) -> tuple[Any, ...]:
 
     cls: Any = {"radioBtn": RadioButton, "comboBox": ComboBox, "edit": EditBox}[local]
     return tuple(
-        cls(element, section, _owning_paragraph(element, section), index=index, section_index=section_index)
-        for element, section, index, section_index in _iter_form_objects(doc, local)
+        cls(element, section, _owning_paragraph(element, section), index=index)
+        for element, section, index in _iter_form_objects(doc, local)
     )
 
 
@@ -1843,7 +1842,7 @@ _FORM_KINDS = ("btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "sc
 
 
 def _next_form_name(doc: "HwpxDocument", local: str) -> str:
-    taken = {element.get("name", "") for element, _s, _i, _x in _iter_form_objects(doc, local)}
+    taken = {element.get("name", "") for element, _s, _i in _iter_form_objects(doc, local)}
     number = len(taken) + 1
     while f"{_FORM_NAMES[local]}{number}" in taken:
         number += 1

@@ -68,7 +68,7 @@ def _normalize_page_orientation(value: str | None) -> str | None:
 
 #: Keys of ``set_paragraph_format(border=...)``.
 _PARAGRAPH_BORDER_KEYS = frozenset(
-    {"sides", "color", "width", "type", "connect", "offset_mm", "ignore_margin"}
+    {"sides", "color", "width_mm", "type", "connect", "offset_mm", "ignore_margin"}
 )
 _PARAGRAPH_BORDER_SIDES = ("left", "right", "top", "bottom")
 
@@ -78,7 +78,8 @@ def _paragraph_border_problem(
 ) -> str | None:
     unknown = sorted(set(spec) - _PARAGRAPH_BORDER_KEYS)
     if unknown:
-        return f"unknown paragraph border keys: {unknown}"
+        renamed = " — 7.0: 'width': '0.4 mm' is now 'width_mm': 0.4 (mm, a number)" if "width" in unknown else ""
+        return f"unknown paragraph border keys: {unknown}{renamed}"
     if not sides or any(side not in _PARAGRAPH_BORDER_SIDES for side in sides):
         return f"unsupported paragraph border sides: {list(sides)}"
     if len(offsets) != 4 or any(
@@ -102,7 +103,7 @@ def _paragraph_border_attrs(
         return None
     spec: Mapping[str, Any] = (
         border if border is not None
-        else {"sides": ("bottom",), "color": border_color, "width": border_width}
+        else {"sides": ("bottom",), "color": border_color}
     )
     raw_sides = spec.get("sides", _PARAGRAPH_BORDER_SIDES)
     sides = tuple(str(side).strip().lower() for side in ((raw_sides,) if isinstance(raw_sides, str) else raw_sides))
@@ -119,13 +120,18 @@ def _paragraph_border_attrs(
             code="paragraph-border-invalid",
             context={"border": {str(key): str(value) for key, value in spec.items()}},
             suggestion=(
-                "border keys: sides, color, width, type, connect, offset_mm "
-                "(mm, one number or left/right/top/bottom), ignore_margin."
+                "border keys: sides, color, width_mm (a number of mm on Hancom's width list), type, connect, "
+                "offset_mm (mm, one number or left/right/top/bottom), ignore_margin."
             ),
         )
+    width = (
+        _border_width_mm_text(spec["width_mm"], argument="border['width_mm']")
+        if spec.get("width_mm") is not None
+        else (border_width if border is None else "0.12 mm")
+    )
     border_fill_id = header.ensure_border_fill(
         border_color=str(spec.get("color", "#000000")),
-        border_width=str(spec.get("width", "0.12 mm")),
+        border_width=width,
         active_borders=sides,
         border_type=str(spec.get("type", "SOLID")),
     )
@@ -423,6 +429,8 @@ def set_paragraph_format(
     # Resolve every target (and the border line width) before the header gains tab or border
     # definitions, so a bad target changes nothing.
     border_width = _border_width_mm_text(border_width_mm, argument="border_width_mm")
+    if isinstance(border, Mapping) and border.get("width_mm") is not None:
+        _border_width_mm_text(border["width_mm"], argument="border['width_mm']")
     targets = _resolve_targets(doc, paragraph=paragraph, paragraphs=paragraphs)
 
     tab_pr_id: str | None = None

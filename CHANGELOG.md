@@ -57,7 +57,7 @@
 - 선 굵기는 mm 숫자다: `doc.shapes.add_line`·`add_rectangle`·`add_ellipse`·`add_arc`·`add_polygon`·`add_curve`·`add_connector`의
   `line_width='33'` → `line_width_mm=0.12`, `doc.styles.ensure_border_fill`·`apply_paragraph_format`의 `border_width='0.12 mm'` →
   `border_width_mm=0.12`, `doc.page.set_columns(separator_width=)` → `separator_width_mm=`. 테두리·단 구분선은 한/글 굵기 목록의
-  가장 가까운 값으로 쓴다.
+  값만 받는다(아래 "값 형식").
 - 문단은 `paragraph=`(하나)·`paragraphs=`(여럿)로 가리키고 번호와 문단 객체를 모두 받는다: `doc.styles.apply_paragraph_format`·
   `apply_list_format`의 `paragraph_index=`·`paragraph_indexes=`, `doc.notes.add_memo(anchor=)`(`anchor_char_pr_id_ref=` →
   `paragraph_char_pr_id_ref=`). `doc.notes.add_footnote(text, p)`·`add_endnote(text, p)`는 `paragraph=p`로 부른다.
@@ -87,7 +87,26 @@
   `doc.text.find_runs()`, `doc.notes.memos`, `doc.styles.ensure_numbering()`, `doc.parts.master_pages`·`histories`·
   `clear_document_metadata()`·`clear_preview()`는 tuple이다.
 
-<!-- WP5b(값 형식) 이름 정리는 병합 뒤 여기와 이주 가이드에 더한다 -->
+#### 값 형식(`hwpx.objects`)
+
+- 구역은 번호가 아니라 구역 객체로 읽는다: `check_box.section_index` → `check_box.section`(번호는
+  `doc.sections.index(check_box.section)`). 7.0 개발 중의 `RadioButton`·`ComboBox`·`EditBox.section_index`와
+  `ParagraphPlace`·`ObjectPlace`·`TextMatch.section`(번호)도 구역 객체다(`to_dict()`는 그대로 번호).
+- `hwpx.objects.PictureRef`를 지웠다: `doc.media.pictures`의 `Picture`(`item_id`·`width`·`height`)를 쓴다.
+- 배치와 정렬을 풀어 쓴다: `obj.position`(`ObjectPosition`)의 `horz_rel_to`·`vert_rel_to`·`horz_align`·`vert_align` →
+  `horizontal_relative_to`·`vertical_relative_to`·`horizontal_alignment`·`vertical_alignment`(`set_position`의 인자와 같은 이름,
+  `to_dict()` 열쇠도), `NumberingLevel.align` → `alignment`(`Alignment`), `bullet.para_head.align` → `alignment`(`Alignment`).
+- 그룹 구성원의 선 굵기도 mm다: `ContainerMember.rect`·`ellipse`·`polygon`·`line`·`text_box(line_width="33")` →
+  `line_width_mm=0.12`, `text_box(vert_align=)` → `vertical_alignment=`.
+- 테두리 면 매핑의 굵기는 mm 숫자다: `ensure_border_fill(sides={"top": {"width": "0.4 mm"}})`·
+  `apply_paragraph_format(border={"width": ...})` → `{"width_mm": 0.4}`.
+- 테두리·단 구분선·각주/미주 구분선·메모 선 굵기는 한/글 굵기 목록(0.1 … 5 mm)의 값만 받는다. 목록에 없는 값은 가장 가까운
+  값으로 바꿔 쓰지 않고 문서를 바꾸기 전에 `HwpxValueError`(`style-line-width-invalid`, `suggestion`에 쓸 수 있는 값)로 거부한다.
+- `doc.page.text_direction(section=)`은 `SectionTextDirection` 대신 표 칸의 `cell.text_direction`과 같은 문자열
+  (`"HORIZONTAL"`·`"VERTICAL"`·`"VERTICALALL"`)을 돌려준다. 머리말·꼬리말 세로쓰기는 새 `doc.page.vertical_header_footer(section=)`로
+  읽는다.
+- stable 이름이 돌려주던 형식 26개(`Style`·`RunStyle`·`ParagraphProperty`·`Font`·`Bullet`·`Caption`·`GridPosition`·
+  `ContainerMember`·`PictureShadow` …)를 `hwpx.objects`에서도 내보내 공개 표면 잠금에 올렸다. `paragraph.section`도 계약이다.
 
 #### 옮긴 기능
 

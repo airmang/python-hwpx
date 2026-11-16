@@ -27,13 +27,14 @@ _LINE_WIDTH_BY_MM = {Decimal(width.split()[0]): width for width in LINE_WIDTHS}
 
 
 def normalize_line_width(value: str | int | float) -> str:
-    """*value* written as one of :data:`LINE_WIDTHS`.
+    """*value* written as one of :data:`LINE_WIDTHS` (internal: widths read from a document).
 
     ``"1 mm"``, ``"1mm"``, ``"1.0 mm"`` and ``1`` are all ``"1.0 mm"``. A width that is not on
     the list is written as the nearest listed width, the thicker one when it lies halfway
     (``"0.45 mm"`` is ``"0.5 mm"``, ``"6 mm"`` is ``"5.0 mm"``), rather than as the ``0.1 mm``
     Hancom would draw. A value that is not a positive number of millimetres is refused with
-    :class:`~hwpx.errors.HwpxValueError`.
+    :class:`~hwpx.errors.HwpxValueError`. A width a caller *gives* goes through
+    :func:`line_width_text` instead, which takes only the listed widths (7.0).
     """
     text = str(value).strip().lower()
     number = (text[:-2] if text.endswith("mm") else text).strip()
@@ -52,6 +53,38 @@ def normalize_line_width(value: str | int | float) -> str:
         )
     nearest = min(_LINE_WIDTH_BY_MM, key=lambda listed: (abs(listed - millimetres), -listed))
     return _LINE_WIDTH_BY_MM[nearest]
+
+
+#: :data:`LINE_WIDTHS` as numbers of millimetres (what ``*_width_mm=`` arguments take).
+LINE_WIDTHS_MM = tuple(float(width.split()[0]) for width in LINE_WIDTHS)
+
+
+def line_width_text(width_mm: object, *, argument: str = "width_mm") -> str:
+    """A border or column line width given in mm (``border_width_mm=``, ``separator_width_mm=``,
+    ``sides={"top": {"width_mm": 0.4}}``) as the ``hc:LineWidth`` text Hancom keeps.
+
+    It must be one of Hancom's widths (:data:`LINE_WIDTHS_MM`: 0.12 is ``"0.12 mm"``, 1 is
+    ``"1.0 mm"``). Any other value -- a width between two listed ones, 0, a string -- is refused
+    before the document changes (``style-line-width-invalid``, the widths it takes in the
+    suggestion): the engine does not write a width other than the one it was given.
+    """
+
+    import math
+
+    listed: str | None = None
+    if not isinstance(width_mm, bool) and isinstance(width_mm, (int, float)) and math.isfinite(width_mm):
+        listed = _LINE_WIDTH_BY_MM.get(Decimal(str(float(width_mm))))
+    if listed is None:
+        from ..errors import HwpxValueError
+
+        offered = ", ".join(f"{width:g}" for width in LINE_WIDTHS_MM)
+        raise HwpxValueError(
+            f"{argument} must be one of Hancom's line widths in mm ({offered}); got {width_mm!r}",
+            code="style-line-width-invalid",
+            context={"argument": argument, "width": repr(width_mm), "allowed": list(LINE_WIDTHS_MM)},
+            suggestion=f"{argument} 에는 한/글 선 굵기 목록의 값(mm)만 줍니다: {offered}",
+        )
+    return listed
 
 
 def local_name(node: etree._Element) -> str:

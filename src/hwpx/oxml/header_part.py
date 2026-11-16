@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Callable, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
@@ -982,7 +982,7 @@ class HwpxOxmlHeader:
         fill_gradient: Mapping[str, object] | None = None,
         active_borders: Iterable[str] | None = None,
         border_type: str = "SOLID",
-        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
+        sides: "Mapping[str, Mapping[str, Any] | None] | None" = None,
     ) -> str:
         element = self._border_fills_element(create=True)
         if element is None:  # pragma: no cover - defensive branch

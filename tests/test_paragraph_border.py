@@ -88,7 +88,7 @@ def test_chosen_sides_line_and_margin_flag() -> None:
 
     document.styles.apply_paragraph_format(
         paragraph=1,
-        border={"sides": ("top", "bottom"), "color": "#FF0000", "width": "0.4 mm", "type": "DASH", "ignore_margin": True},
+        border={"sides": ("top", "bottom"), "color": "#FF0000", "width_mm": 0.4, "type": "DASH", "ignore_margin": True},
     )
 
     header, section = _parts(document)

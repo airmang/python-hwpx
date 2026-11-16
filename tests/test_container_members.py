@@ -71,7 +71,7 @@ def test_text_box_members_get_their_text_with_paragraph_ids_unused_in_the_sectio
     doc.add_paragraph("before")
     doc.shapes.add_container([
         ContainerMember.text_box(0, 0, 12000, 3000, "first"),
-        ContainerMember.text_box(0, 4000, 9000, 3000, "second", vert_align="TOP", margin={"left": 0}),
+        ContainerMember.text_box(0, 4000, 9000, 3000, "second", vertical_alignment="TOP", margin={"left": 0}),
     ])
 
     group = _saved_group(doc)
@@ -94,7 +94,7 @@ def test_a_bad_text_alignment_is_refused_before_the_document_changes() -> None:
     before = doc.to_bytes()
 
     with pytest.raises(HwpxValueError):
-        ContainerMember.text_box(0, 0, 1000, 1000, "x", vert_align="MIDDLE")
+        ContainerMember.text_box(0, 0, 1000, 1000, "x", vertical_alignment="MIDDLE")
 
     assert doc.to_bytes() == before
 

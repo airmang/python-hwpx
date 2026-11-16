@@ -154,7 +154,7 @@ def _set_fill(candidate: Any, color: str | None) -> None:
 
 
 def _border_line(line_type: object, width_mm: object, color: object) -> dict[str, str]:
-    from .utils import normalize_line_width
+    from .utils import line_width_text
 
     if not isinstance(color, str) or re.fullmatch(r"#[0-9A-Fa-f]{6}", color) is None:
         raise _refuse(f"border color must be #RRGGBB; got {color!r}", "table-border-value",
@@ -169,7 +169,7 @@ def _border_line(line_type: object, width_mm: object, color: object) -> dict[str
     if isinstance(width_mm, bool) or not isinstance(width_mm, (int, float)):
         raise _refuse(f"border_width_mm must be a number of millimetres; got {width_mm!r}", "table-border-value",
                       "Pass a line width in mm such as 0.12 or 0.4.", border_width_mm=repr(width_mm))
-    return {"type": line_type, "width": normalize_line_width(f"{width_mm} mm"), "color": color.upper()}
+    return {"type": line_type, "width": line_width_text(width_mm, argument="border_width_mm"), "color": color.upper()}
 
 
 # ----------------------------------------------------------------------------------------------

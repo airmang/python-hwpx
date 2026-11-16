@@ -62,7 +62,7 @@ def _numbering(doc: HwpxDocument, numbering_id):
 
 
 def _level_values(level) -> tuple[object, ...]:
-    return (level.level, level.start, level.number_format, level.text, level.align, level.char_pr_id_ref,
+    return (level.level, level.start, level.number_format, level.text, level.alignment, level.char_pr_id_ref,
             level.auto_indent, level.width_adjust, level.text_offset, level.text_offset_type, level.checkable)
 
 
