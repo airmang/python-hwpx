@@ -31,7 +31,7 @@
   "document-header-missing": [
    "_document/layout.py:361",
    "_document/layout.py:578",
-   "_document/ns/styles.py:1057",
+   "_document/ns/styles.py:1045",
    "oxml/document_parts.py:867",
    "oxml/document_parts.py:994",
    "oxml/formatting.py:1053",
@@ -158,7 +158,7 @@
    "_document/headings.py:133"
   ],
   "hwpx-argument-removed": [
-   "_removed_names.py:1062"
+   "_removed_names.py:1075"
   ],
   "hwpx-type-error": [
    "_document/fields.py:1122",
@@ -704,7 +704,7 @@
    "oxml/_document_primitives.py:1318"
   ],
   "style-format-empty": [
-   "_document/ns/styles.py:1027"
+   "_document/ns/styles.py:1015"
   ],
   "style-in-use": [
    "oxml/formatting.py:1160",
@@ -732,9 +732,6 @@
   "style-list-start-value": [
    "_document/layout.py:584",
    "oxml/numbering_kinds.py:263"
-  ],
-  "style-memo-shape-line-width-conflict": [
-   "_document/ns/styles.py:826"
   ],
   "style-not-found": [
    "oxml/section.py:991"
@@ -882,7 +879,7 @@
  "malformedCodes": [],
  "observed": {
   "other": 468,
-  "typed": 435,
+  "typed": 434,
   "untyped": 173,
   "untypedByFile": {
    "body_patch.py": 20,
@@ -915,8 +912,8 @@
   }
  },
  "public": {
-  "total": 166,
-  "typed": 166,
+  "total": 165,
+  "typed": 165,
   "typedRatio": 1.0,
   "untyped": 0,
   "untypedSites": []

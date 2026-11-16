@@ -132,6 +132,7 @@ def test_parse_header_memo_properties_fixture() -> None:
     assert isinstance(first_shape, MemoShape)
     assert first_shape.width == 15591
     assert first_shape.line_width == "0.6mm"
+    assert first_shape.line_width_mm == 0.1  # Hangul 2024 reads a non-number lineWidth as 0
     assert first_shape.memo_type == "NOMAL"
     assert first_shape.attributes["lineColor"] == "#B6D7AE"
 

@@ -87,7 +87,7 @@ def test_memo_shapes_reflects_a_new_definition_immediately() -> None:
 
     doc = HwpxDocument.new()
     assert doc.styles.memo_shapes == {}
-    shape_id = doc.styles.ensure_memo_shape(line_width=3, fill_color="#CBFF99")
+    shape_id = doc.styles.ensure_memo_shape(line_width_mm=0.2, fill_color="#CBFF99")
     shapes = doc.styles.memo_shapes
     assert shape_id in shapes
     assert shapes[shape_id].line_width == "3"
