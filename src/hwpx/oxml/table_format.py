@@ -801,6 +801,100 @@ class TableFormat:
             zones.append(CellZone(*values, border_fill_id_ref=zone.get("borderFillIDRef")))
         return tuple(zones)
 
+    def _zone_border_fill(self, border_fill_id_ref: object) -> str:
+        if isinstance(border_fill_id_ref, bool) or not isinstance(border_fill_id_ref, (str, int)):
+            raise _refuse(f"border_fill_id_ref must be a border fill id; got {border_fill_id_ref!r}",
+                          "table-cell-zone-border-fill-unknown",
+                          "Pass an id from doc.styles.ensure_border_fill(...).", requested=repr(border_fill_id_ref))
+        reference = str(border_fill_id_ref).strip()
+        model = self.paragraph.section.document
+        if model is None or reference not in model.border_fills:
+            raise _refuse(f"the document has no border fill {reference!r}", "table-cell-zone-border-fill-unknown",
+                          "Make one with doc.styles.ensure_border_fill(...) and pass its id.", requested=reference)
+        return reference
+
+    def _zone_elements(self) -> list[Any]:
+        return self.element.findall(f"{_HP}cellzoneList/{_HP}cellzone")
+
+    def _zone_bounds(self, cell_range: object) -> tuple[int, int, int, int]:
+        """(top, left, bottom, right) of *cell_range* on the table's grid, as written: a zone is a
+        rectangle of grid cells, and Hancom saves zones that cut through a merged cell."""
+
+        from .table_merge import check_merge_range
+
+        if not isinstance(cell_range, str) or not cell_range:
+            raise _refuse(f"cell_range must be a str such as 'A1:B2' or 'B2'; got {cell_range!r}",
+                          "table-merge-range-invalid", "Pass a spreadsheet range such as 'A2:C4'.")
+        text = cell_range if ":" in cell_range else f"{cell_range}:{cell_range}"
+        top, left, bottom, right = self._parse_spreadsheet_range(text)
+        check_merge_range(top, left, bottom, right, self.row_count, self.column_count)
+        return top, left, bottom, right
+
+    def _zone_at(self, index: object) -> Any:
+        zones = self._zone_elements()
+        if isinstance(index, bool) or not isinstance(index, int) or not -len(zones) <= index < len(zones):
+            raise _refuse(f"the table has no cell zone {index!r} ({len(zones)} zones)", "table-cell-zone-not-found",
+                          "Pass an index into table.cell_zones.", requested=repr(index), count=len(zones))
+        return zones[index]
+
+    def add_cell_zone(self, cell_range: str, *, border_fill_id_ref: str | int) -> CellZone:
+        """Draw the border fill *border_fill_id_ref* over the cells of *cell_range* (``"A2:B3"``) as one
+        area, a cell zone (``hp:cellzone``), and return it as :attr:`cell_zones` reads it.
+
+        This is what Hancom saves when a border, a diagonal or a fill is given to several cells at once
+        "as one cell": the zone's lines run around the range and its fill covers it whole. The range is
+        taken on the table's grid as written (Hancom's own zones may cut through a merged cell); the
+        cells keep their own border fills. *border_fill_id_ref* names a border fill of the document
+        (``doc.styles.ensure_border_fill(...)``); an unknown one is refused
+        (``table-cell-zone-border-fill-unknown``), as is a range outside the table. The zone goes after
+        the table's others (``hp:cellzoneList`` before the rows, made when the table has none).
+        """
+
+        top, left, bottom, right = self._zone_bounds(cell_range)
+        reference = self._zone_border_fill(border_fill_id_ref)
+        holder = self.element.find(f"{_HP}cellzoneList")
+        if holder is None:
+            holder = self.element.makeelement(f"{_HP}cellzoneList", {})
+            rows = [i for i, child in enumerate(self.element) if _element_local_name(child) == "tr"]
+            self.element.insert(rows[0] if rows else len(self.element), holder)
+        holder.append(holder.makeelement(f"{_HP}cellzone", {
+            "startRowAddr": str(top), "startColAddr": str(left), "endRowAddr": str(bottom), "endColAddr": str(right),
+            "borderFillIDRef": reference,
+        }))
+        self.mark_dirty()
+        return self.cell_zones[-1]
+
+    def set_cell_zone(
+        self, index: int, *, cell_range: str | None = None, border_fill_id_ref: str | int | None = None
+    ) -> CellZone:
+        """Move cell zone *index* (of :attr:`cell_zones`) to *cell_range* and/or give it the border fill
+        *border_fill_id_ref*, checked as :meth:`add_cell_zone` checks them, and return it as it is now.
+        A zone that is not there is ``table-cell-zone-not-found``."""
+
+        zone = self._zone_at(index)
+        bounds = self._zone_bounds(cell_range) if cell_range is not None else None
+        reference = self._zone_border_fill(border_fill_id_ref) if border_fill_id_ref is not None else None
+        before = dict(zone.attrib)
+        if bounds is not None:
+            for name, value in zip(("startRowAddr", "startColAddr", "endRowAddr", "endColAddr"), bounds):
+                zone.set(name, str(value))
+        if reference is not None:
+            zone.set("borderFillIDRef", reference)
+        if dict(zone.attrib) != before:
+            self.mark_dirty()
+        return self.cell_zones[self._zone_elements().index(zone)]
+
+    def remove_cell_zone(self, index: int) -> None:
+        """Take cell zone *index* (of :attr:`cell_zones`) away; its cells show their own borders and fills
+        again. The list goes with its last zone, as Hancom writes a table without zones."""
+
+        zone = self._zone_at(index)
+        holder = zone.getparent()
+        holder.remove(zone)
+        if not len(holder):
+            self.element.remove(holder)
+        self.mark_dirty()
+
     # -- copy --------------------------------------------------------------------------------
 
     def copy_after(self, paragraph: "int | HwpxOxmlParagraph | None" = None) -> "HwpxOxmlTable":
