@@ -45,10 +45,10 @@ def _write_demo_pair(tmp_path: Path) -> tuple[Path, Path]:
     document.add_paragraph("baseline")
     before = tmp_path / "before.hwpx"
     after = tmp_path / "after.hwpx"
-    document.save_to_path(before)
+    document.save(before)
 
     author_demo_redline(document)
-    document.save_to_path(after)
+    document.save(after)
     return before, after
 
 
@@ -120,7 +120,7 @@ def test_verify_redline_corpus_acceptance_scaffold(tmp_path: Path) -> None:
         before.write_bytes(source.read_bytes())
 
         author_demo_redline(document)
-        document.save_to_path(after)
+        document.save(after)
 
         report = verify_redline(before, after, oracle=_UnavailableOracle())
         assert report["changeCount"] >= 2

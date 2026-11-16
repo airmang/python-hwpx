@@ -144,7 +144,7 @@ def test_restart_page_number_round_trips_through_save_and_reopen(tmp_path) -> No
     paragraph = doc.add_paragraph("본문")
     doc.page.restart_page_number(paragraph, number=7)
     path = tmp_path / "restart.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     xml = _section_xml(path)
@@ -161,7 +161,7 @@ def test_hide_page_elements_round_trips_through_save_and_reopen(tmp_path) -> Non
     paragraph = doc.add_paragraph("본문")
     doc.page.hide_page_elements(paragraph, footer=True, page_num=True)
     path = tmp_path / "hide.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     xml = _section_xml(path)
@@ -183,7 +183,7 @@ def test_authored_page_controls_pass_open_safety(tmp_path) -> None:
     doc.page.restart_page_number(paragraph, number=3)
     doc.page.hide_page_elements(paragraph, header=True)
     path = tmp_path / "safe.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     report = validate_editor_open_safety(path).to_dict()
@@ -256,7 +256,7 @@ def test_real_corpus_new_controls_coexist_with_existing_ones_after_roundtrip(
     document.page.hide_page_elements(new_paragraph, footer=True, border=True)
 
     out = tmp_path / "roundtrip.hwpx"
-    document.save_to_path(out)
+    document.save(out)
     document.close()
 
     reopened = HwpxDocument.open(out)

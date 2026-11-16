@@ -257,7 +257,7 @@ def gen_polygon(bucket_dir: Path) -> list[dict[str, Any]]:
             document.shapes.add_polygon(
                 points_mm, fill_color=fill, line_color=line_color, section=0,
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-polygon", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -287,7 +287,7 @@ def gen_arc(bucket_dir: Path) -> list[dict[str, Any]]:
                 width, height, corner=corner, arc_type=arc_type,
                 fill_color=fill, section=0,
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-arc", seed=str(idx),
                 output_path=out_path, produced=True,

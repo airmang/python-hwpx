@@ -124,7 +124,7 @@ def test_authored_atoms_round_trip_through_save_and_reopen(tmp_path: Path) -> No
         "line1\nline2 nbsp　fwsp", expand_special_characters=True,
     )
     path = tmp_path / "atoms.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     with TextExtractor(path) as extractor:
@@ -143,7 +143,7 @@ def test_authored_atoms_pass_open_safety(tmp_path: Path) -> None:
         "line1\nline2 nbsp　fwsp", expand_special_characters=True,
     )
     path = tmp_path / "safe.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     report = validate_editor_open_safety(path).to_dict()

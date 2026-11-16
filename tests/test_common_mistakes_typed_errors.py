@@ -79,5 +79,5 @@ def test_table_remove_takes_the_table_out_and_keeps_the_line() -> None:
     import io
 
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     assert HwpxDocument.open(buffer.getvalue()).validate().ok

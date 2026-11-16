@@ -35,7 +35,7 @@ def test_floating_shape_preserves_other_fields_and_parts(tmp_path):
         shape.set_position(horizontal_offset=-100, vertical_offset=14000)
         assert fingerprint(shape.element) == fingerprint(expected)
         output = tmp_path / "position.hwpx"
-        doc.save_to_path(output, mode="patch", fallback="error")
+        doc.save(output, mode="patch", fallback="error")
     with HwpxDocument.open(output) as doc:
         assert fingerprint(doc.paragraphs[0].shapes[0].element) == fingerprint(expected)
     with zipfile.ZipFile(source) as old, zipfile.ZipFile(output) as new:
@@ -91,7 +91,7 @@ def test_native_story_preserves_empty_paragraphs_without_new_mirror(
         assert not props.element.findall(HP + kind)
         assert fingerprint(doc.sections[0].element) == fingerprint(expected)
         output = tmp_path / f"{kind}.hwpx"
-        doc.save_to_path(output, mode="patch", fallback="error")
+        doc.save(output, mode="patch", fallback="error")
     with HwpxDocument.open(output) as doc:
         assert getattr(doc.sections[0].properties, "get_" + kind)().text == "검토 완료"
 
@@ -172,7 +172,7 @@ def test_empty_field_same_run_inserts_inside_controls(selector, tmp_path):
         assert result.after == "확인 완료"
         assert fingerprint(doc.sections[0].element) == fingerprint(original)
         output = tmp_path / "field.hwpx"
-        doc.save_to_path(output, mode="patch", fallback="error")
+        doc.save(output, mode="patch", fallback="error")
     with HwpxDocument.open(output) as doc:
         field = next(f for f in doc.fields.all if f.name == "필드1234")
         assert field.value == "확인 완료"
@@ -241,7 +241,7 @@ def test_border_edit_preserves_external_feature_switch_requirements(tmp_path):
         )
         doc.tables.all[0].set_cell_border_fill(0, 0, border)
         output = tmp_path / "border.hwpx"
-        doc.save_to_path(output, mode="patch", fallback="error")
+        doc.save(output, mode="patch", fallback="error")
     with zipfile.ZipFile(output) as z:
         after = etree.fromstring(z.read("Contents/header.xml"))
     assert [
@@ -330,7 +330,7 @@ def test_cell_border_only_edit_preserves_fill_width_and_shared_style(tmp_path):
                 etree.tostring(doc.sections[0].element),
             ) == before_bad
         output = tmp_path / "border-only.hwpx"
-        doc.save_to_path(output, mode="patch", fallback="error")
+        doc.save(output, mode="patch", fallback="error")
     with zipfile.ZipFile(output) as z:
         reopened = etree.fromstring(z.read("Contents/header.xml"))
         assert fingerprint(

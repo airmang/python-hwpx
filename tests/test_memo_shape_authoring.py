@@ -101,7 +101,7 @@ def test_memo_shape_round_trips_through_save_and_reopen(tmp_path) -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape()
     path = tmp_path / "shape.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     xml = _section_xml(path)
@@ -134,7 +134,7 @@ def test_add_memo_with_new_shape_round_trips(tmp_path) -> None:
     paragraph = doc.add_paragraph("본문")
     doc.notes.add_memo("코멘트", anchor=paragraph, memo_shape_id_ref=shape_id)
     path = tmp_path / "memo.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)
@@ -153,7 +153,7 @@ def test_authored_memo_shape_passes_open_safety(tmp_path) -> None:
     paragraph = doc.add_paragraph("본문")
     doc.notes.add_memo("코멘트", anchor=paragraph, memo_shape_id_ref=shape_id)
     path = tmp_path / "safe.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     report = validate_editor_open_safety(path).to_dict()
@@ -228,7 +228,7 @@ def test_real_corpus_new_shape_coexists_with_existing_shapes_after_roundtrip(
     assert new_id == "3"
 
     out = tmp_path / "roundtrip.hwpx"
-    document.save_to_path(out)
+    document.save(out)
     document.close()
 
     with zipfile.ZipFile(REAL_CORPUS_DOUBLE) as archive:

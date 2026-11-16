@@ -162,7 +162,7 @@ def gen_formfield(bucket_dir: Path) -> list[dict[str, Any]]:
             else:
                 document.fields.add(name, **kwargs)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-formfield", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -252,7 +252,7 @@ def gen_charformat_italic(bucket_dir: Path) -> list[dict[str, Any]]:
             cid = document.styles.ensure_run(**_ITALIC_BANK[idx])
             document.add_paragraph(f"{cycle(DEPT_BANK, idx)} 기울임 표본 {idx}", char_pr_id_ref=cid)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-charformat-italic", seed=str(idx),
                 output_path=out_path, produced=True,

@@ -20,10 +20,13 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from io import BytesIO
 from .opc.security import guard_zip_file, open_archive, read_member
-from typing import Any, Literal, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 from zipfile import ZipInfo
 
 from .errors import HwpxError
+
+if TYPE_CHECKING:
+    from .quality.report import VisualCompleteReport
 
 MUTATION_REPORT_SCHEMA = "hwpx.mutation-report/v1"
 COORDINATE_SPACE = "uncompressed-part-bytes"
@@ -199,7 +202,13 @@ class VerificationSummary:
 
 @dataclass(frozen=True)
 class MutationReport:
-    """The ``hwpx.mutation-report/v1`` receipt for one save."""
+    """The ``hwpx.mutation-report/v1`` receipt for one save.
+
+    ``quality`` is the :class:`~hwpx.quality.VisualCompleteReport` of the quality
+    gate a ``doc.save(..., quality=policy)`` ran (``None`` when the save ran the
+    transparent gate). ``to_dict()`` adds a ``quality`` key only when it is set,
+    so the schema's required keys stay as they are.
+    """
 
     requested_mode: Mode
     actual_mode: Literal["patch", "rebuild"]
@@ -208,6 +217,7 @@ class MutationReport:
     preservation: PreservationSummary
     verification: VerificationSummary
     path: str | None = None
+    quality: "VisualCompleteReport | None" = None
     schema_version: str = field(default=MUTATION_REPORT_SCHEMA, init=False)
 
     @property
@@ -220,7 +230,7 @@ class MutationReport:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "schemaVersion": self.schema_version,
             "ok": self.ok,
             "path": self.path,
@@ -231,6 +241,9 @@ class MutationReport:
             "preservation": self.preservation.to_dict(),
             "verification": self.verification.to_dict(),
         }
+        if self.quality is not None:
+            data["quality"] = self.quality.to_dict()
+        return data
 
 
 class PreservationDowngradeError(HwpxError):

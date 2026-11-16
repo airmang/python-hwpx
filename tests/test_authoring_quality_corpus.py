@@ -492,7 +492,7 @@ def test_main_end_to_end_with_real_inspectors_on_tiny_hwpx(tmp_path):
     doc.add_paragraph("○○중학교장")
     target = tmp_path / "authored" / "authored-gajeong-00.hwpx"
     target.parent.mkdir(parents=True)
-    doc.save_to_path(target)
+    doc.save(target)
 
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({

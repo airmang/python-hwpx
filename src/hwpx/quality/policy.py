@@ -52,7 +52,7 @@ class QualityPolicy:
     def transparent(cls) -> "QualityPolicy":
         """Reproduce today's save behaviour: open-safety only, never render.
 
-        Used by the legacy ``save_to_path`` / ``paragraph_patch`` /
+        Used by ``doc.save`` without ``quality=`` and the ``paragraph_patch`` /
         ``apply_template_formfit`` / builder paths so the gate is a no-op pass for
         already-valid documents and the full suite stays green.
         """

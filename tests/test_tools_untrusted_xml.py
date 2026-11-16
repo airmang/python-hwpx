@@ -22,7 +22,7 @@ _FAR = "<!--" + "x" * 5000 + "-->"
 
 
 def _section_with_entity(path: Path, lead: str) -> tuple[dict[str, bytes], list[zipfile.ZipInfo]]:
-    HwpxDocument.new().save_to_path(path)
+    HwpxDocument.new().save(path)
     with zipfile.ZipFile(path) as archive:
         infos = archive.infolist()
         parts = {info.filename: archive.read(info.filename) for info in infos}

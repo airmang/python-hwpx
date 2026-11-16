@@ -60,7 +60,7 @@ def squeeze_doc_bytes(tmp_path_factory: pytest.TempPathFactory) -> bytes:
     table = doc.add_table(1, 2)
     table.cell(0, 0).text = "짧은값"
     table.cell(0, 1).text = "다른값"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     data = path.read_bytes()
@@ -139,7 +139,7 @@ def test_replace_text_fixes_only_the_touched_cell_when_two_cells_are_squeezed(
     table = doc.add_table(1, 2)
     table.cell(0, 0).text = "첫값"
     table.cell(0, 1).text = "둘값"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     data = path.read_bytes()

@@ -72,7 +72,7 @@ def build_checklist(document: HwpxDocument) -> None:
 def main(output_path: Path = OUTPUT_PATH) -> Path:
     with HwpxDocument.open(HPX_SOURCE) as document:
         build_checklist(document)
-        document.save_to_path(output_path)
+        document.save(output_path)
     print(f"Generated {output_path}")
     return output_path
 

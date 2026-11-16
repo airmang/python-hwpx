@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Sequence, cast
+from typing import TYPE_CHECKING, Any, Sequence
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
@@ -46,14 +46,14 @@ def add_shape(
     :func:`add_line`, :func:`add_rectangle`, and :func:`add_ellipse`.
     """
 
-    paragraph = doc.add_paragraph(
+    paragraph = doc._add_paragraph(  # 7.0: doc.add_paragraph no longer takes raw XML attributes
         "",
         section=section,
         para_pr_id_ref=para_pr_id_ref,
         style=style,
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
-        **cast(Any, extra_attrs),
+        xml_attributes=extra_attrs,
     )
     return paragraph.add_shape(
         shape_type,
@@ -82,14 +82,14 @@ def add_control(
     containing an empty one, so this warns until a child is appended.
     """
 
-    paragraph = doc.add_paragraph(
+    paragraph = doc._add_paragraph(  # 7.0: doc.add_paragraph no longer takes raw XML attributes
         "",
         section=section,
         para_pr_id_ref=para_pr_id_ref,
         style=style,
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
-        **cast(Any, extra_attrs),
+        xml_attributes=extra_attrs,
     )
     return paragraph.add_control(
         attributes=attributes,

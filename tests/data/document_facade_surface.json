@@ -17,15 +17,15 @@
  },
  "add_heading": {
   "kind": "method",
-  "signature": "(self, text: 'str' = '', level: 'int' = 1, *, style: 'int | str | Style | None' = None, section: 'int | HwpxOxmlSection | None' = None, char_pr_id_ref: 'str | int | None' = None, **extra_attrs: 'str') -> 'Paragraph'"
+  "signature": "(self, text: 'str' = '', level: 'int' = 1, *, style: 'int | str | Style | None' = None, section: 'int | HwpxOxmlSection | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'Paragraph'"
  },
  "add_paragraph": {
   "kind": "method",
-  "signature": "(self, text: 'str' = '', *, section: 'int | HwpxOxmlSection | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, include_run: 'bool' = True, inherit_style: 'bool | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlParagraph'"
+  "signature": "(self, text: 'str' = '', *, section: 'int | HwpxOxmlSection | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, char_pr_id_ref: 'str | int | None' = None, include_run: 'bool' = True, inherit_style: 'bool | None' = None) -> 'HwpxOxmlParagraph'"
  },
  "add_picture": {
   "kind": "method",
-  "signature": "(self, image_data: 'bytes', image_format: 'str', *, section: 'int | HwpxOxmlSection | None' = None, width: 'int | None' = None, height: 'int | None' = None, width_mm: 'float | None' = None, height_mm: 'float | None' = None, align: 'str | None' = None, brightness: 'int' = 0, contrast: 'int' = 0, effect: 'str' = 'REAL_PIC', alpha: 'int' = 0, line_color: 'str | None' = None, line_width: 'int' = 33, crop: 'tuple[int, int, int, int] | None' = None, shadow: 'PictureShadow | None' = None, glow: 'PictureGlow | None' = None, soft_edge: 'int | None' = None, reflection: 'PictureReflection | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
+  "signature": "(self, image_data: 'bytes', image_format: 'str', *, section: 'int | HwpxOxmlSection | None' = None, width: 'int | None' = None, height: 'int | None' = None, width_mm: 'float | None' = None, height_mm: 'float | None' = None, alignment: 'Alignment | str | None' = None, brightness: 'int' = 0, contrast: 'int' = 0, effect: 'str' = 'REAL_PIC', alpha: 'int' = 0, line_color: 'str | None' = None, line_width_mm: 'float' = 0.12, crop: 'tuple[int, int, int, int] | None' = None, shadow: 'PictureShadow | None' = None, glow: 'PictureGlow | None' = None, soft_edge: 'int | None' = None, reflection: 'PictureReflection | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'Picture'"
  },
  "add_section": {
   "kind": "method",
@@ -33,7 +33,7 @@
  },
  "add_table": {
   "kind": "method",
-  "signature": "(self, rows: 'int', cols: 'int', *, section: 'int | HwpxOxmlSection | None' = None, width: 'int | None' = None, height: 'int | None' = None, border_fill_id_ref: 'str | int | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, inherit_style: 'bool' = False, **extra_attrs: 'str') -> 'HwpxOxmlTable'"
+  "signature": "(self, rows: 'int', cols: 'int', *, section: 'int | HwpxOxmlSection | None' = None, width: 'int | None' = None, height: 'int | None' = None, border_fill_id_ref: 'str | int | None' = None, para_pr_id_ref: 'str | int | None' = None, style: 'int | str | Style | None' = None, char_pr_id_ref: 'str | int | None' = None, inherit_style: 'bool' = False) -> 'HwpxOxmlTable'"
  },
  "close": {
   "kind": "method",
@@ -44,10 +44,6 @@
  },
  "fields": {
   "kind": "property"
- },
- "from_package": {
-  "kind": "classmethod",
-  "signature": "(cls, package: 'HwpxPackage') -> \"'HwpxDocument'\""
  },
  "media": {
   "kind": "property"
@@ -61,7 +57,7 @@
  },
  "open": {
   "kind": "classmethod",
-  "signature": "(cls, source: 'str | PathLike[str] | bytes | BinaryIO', *, seed: 'int | None' = None, now: 'datetime | None' = None) -> \"'HwpxDocument'\""
+  "signature": "(cls, source: 'str | PathLike[str] | bytes | BinaryIO | HwpxPackage', *, seed: 'int | None' = None, now: 'datetime | None' = None) -> \"'HwpxDocument'\""
  },
  "oxml": {
   "kind": "property"
@@ -85,17 +81,9 @@
   "kind": "method",
   "signature": "(self, section: 'HwpxOxmlSection | int') -> 'None'"
  },
- "save_report": {
+ "save": {
   "kind": "method",
-  "signature": "(self, path_or_stream: 'str | PathLike[str] | BinaryIO | None' = None, *, quality: 'QualityPolicy | None' = None, before: 'str | PathLike[str] | None' = None, edit_mask: 'Any | None' = None, ledger: 'Any | None' = None) -> 'VisualCompleteReport'"
- },
- "save_to_path": {
-  "kind": "method",
-  "signature": "(self, path: 'str | PathLike[str]', *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', return_report: 'bool' = False) -> 'str | PathLike[str] | MutationReport'"
- },
- "save_to_stream": {
-  "kind": "method",
-  "signature": "(self, stream: 'BinaryIO', *, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', return_report: 'bool' = False, format: 'SaveFormat' = 'hwpx') -> 'BinaryIO | MutationReport'"
+  "signature": "(self, target: 'str | PathLike[str] | BinaryIO', *, format: 'SaveFormat | None' = None, mode: 'Mode' = 'auto', fallback: 'Fallback' = 'error', quality: 'QualityPolicy | None' = None) -> 'MutationReport'"
  },
  "sections": {
   "kind": "property"

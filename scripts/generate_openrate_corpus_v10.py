@@ -212,7 +212,7 @@ def gen_compat(bucket_dir: Path) -> list[dict[str, Any]]:
                 para_pr_id, e_asian_eng=auto_eng, e_asian_num=auto_num
             )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-compat", seed=str(idx),
                 output_path=out_path, produced=True,

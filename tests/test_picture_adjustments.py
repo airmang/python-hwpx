@@ -21,9 +21,10 @@ PNG_1X1 = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
 )
 
-#: The arguments the fixture's picture was made with, before Hancom opened and saved it again.
+#: The arguments the fixture's picture was made with, before Hancom opened and saved it again
+#: (0.5 mm is the 141 HWPUNIT Hancom keeps).
 FIXTURE_ARGS = {"brightness": 20, "contrast": -30, "effect": "GRAY_SCALE", "alpha": 64, "line_color": "#000000",
-                "line_width": 141}
+                "line_width_mm": 0.5}
 
 
 def _hancom_picture() -> etree._Element:
@@ -81,9 +82,9 @@ def test_a_paragraph_takes_the_same_arguments_and_the_effect_in_any_case() -> No
         ({"brightness": True}, "shape-picture-image-value"),
         ({"contrast": 1.5}, "shape-picture-image-value"),
         ({"effect": "PATTERN8x8"}, "shape-picture-image-value"),  # saved as REAL_PIC
-        ({"line_color": "#000000", "line_width": -1}, "shape-picture-border-value"),
-        ({"line_color": "#000000", "line_width": "33"}, "shape-picture-border-value"),
-        ({"line_width": -1}, "shape-picture-border-value"),  # without a colour too: not dropped quietly
+        ({"line_color": "#000000", "line_width_mm": -1}, "shape-picture-border-value"),
+        ({"line_color": "#000000", "line_width_mm": "33"}, "shape-picture-border-value"),
+        ({"line_width_mm": -1}, "shape-picture-border-value"),  # without a colour too: not dropped quietly
         ({"line_color": "red"}, "style-color-invalid"),
     ],
 )

@@ -140,7 +140,7 @@ def test_a_bordered_box_survives_a_save_and_stays_open_safe(tmp_path: Path) -> N
     document = _document()
     document.styles.apply_paragraph_format(paragraph_indexes=[1, 2, 3], border={"connect": True})
     path = tmp_path / "box.hwpx"
-    document.save_to_path(path)
+    document.save(path)
 
     assert validate_editor_open_safety(path).ok
     header, section = _parts(HwpxDocument.open(path))

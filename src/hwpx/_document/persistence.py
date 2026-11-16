@@ -6,7 +6,7 @@ from __future__ import annotations
 import functools
 import hashlib
 from os import PathLike
-from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Sequence, TypeVar, cast
 
 from ..errors import HwpxTypeError, HwpxValueError, SaveError, SaveTargetError
 from ..mutation_report import (
@@ -126,23 +126,23 @@ def _check_grade_arguments(mode: object, fallback: object) -> None:
 _hwp5_write_warned = False
 
 
-def _warn_about_target_format(path: str | PathLike[str]) -> None:
+def _warn_about_target_format(path: str | PathLike[str], format: SaveFormat) -> None:
     """Say what a save to *path* writes when the name does not say it: once for the experimental
-    HWP 5.0 writer, and every time for a name that is neither ``.hwpx`` nor ``.hwp``."""
+    HWP 5.0 writer, and every time HWPX goes to a name that does not end in ``.hwpx``."""
 
     import os
     import warnings
 
     global _hwp5_write_warned
     suffix = os.path.splitext(os.fspath(path))[1].lower()
-    if suffix == ".hwp":
+    if format == "hwp":
         if not _hwp5_write_warned:
             _hwp5_write_warned = True
             warnings.warn(
                 "Saving as .hwp uses the experimental HWP 5.0 writer; check the file in Hancom, "
-                "and keep an .hwpx copy (save_to_path('….hwpx')) of anything that matters.",
+                "and keep an .hwpx copy (doc.save('….hwpx')) of anything that matters.",
                 UserWarning,
-                stacklevel=5,  # this, save_to_path, the archive-read wrapper, HwpxDocument.save_to_path
+                stacklevel=5,  # this, save, the archive-read wrapper, HwpxDocument.save
             )
     elif suffix != ".hwpx":
         warnings.warn(
@@ -233,35 +233,53 @@ def _gate_and_write(
     *,
     output_path: str | PathLike[str] | None = None,
     output_stream: BinaryIO | None = None,
+    quality: QualityPolicy | None = None,
     source_label: str,
 ) -> VisualCompleteReport:
-    """Funnel a serialized archive through the SavePipeline (transparent).
+    """Funnel a serialized archive through the SavePipeline gate and its single write.
 
-    ``_to_bytes_raw`` already ran open-safety and raised on failure, so the
-    gate is transparent here — it performs the single atomic write and returns
-    the uniform report. Raises if the gate unexpectedly rejects the bytes.
+    Without *quality* the gate is transparent: the serialize step already ran
+    open-safety and raised on failure, so the gate performs the atomic write and
+    returns the uniform report. With a :class:`QualityPolicy` the gate runs that
+    policy (reference integrity, layout, the visual oracle when it renders) and
+    writes only when it passes. A refused archive is not written and raises
+    :class:`SaveError` (``quality-gate-failed``) carrying the report as ``.report``.
     """
 
-    report = doc._save_pipeline.run(
-        archive_bytes,
-        output_path=output_path,
-        output_stream=output_stream,
-        quality=QualityPolicy.transparent(),
-        open_safety=OpenSafetyReport.passed("validated during serialize"),
-        publish="on_pass",
-        source_label=source_label,
-    )
+    if quality is None:
+        report = doc._save_pipeline.run(
+            archive_bytes,
+            output_path=output_path,
+            output_stream=output_stream,
+            quality=QualityPolicy.transparent(),
+            open_safety=OpenSafetyReport.passed("validated during serialize"),
+            publish="on_pass",
+            source_label=source_label,
+        )
+    else:
+        report = doc._save_pipeline.run(
+            archive_bytes,
+            output_path=output_path,
+            output_stream=output_stream,
+            quality=quality,
+            open_safety=_serialize_open_safety(doc, archive_bytes),
+            publish="on_pass",
+            reference_document=doc,
+            source_label=source_label,
+        )
     if not report.ok:
         detail = "; ".join(str(error) for error in report.errors)
-        raise SaveError(
+        refusal = SaveError(
             f"Document save failed the quality gate: {detail}",
             code="quality-gate-failed",
             context={"errors": [str(error) for error in report.errors]},
             suggestion=(
-                "The SavePipeline quality gate rejected the archive; inspect the "
-                "returned report's errors before retrying."
+                "The SavePipeline quality gate rejected the archive and nothing was written; "
+                "read the gate's report (exc.report.errors) before retrying."
             ),
         )
+        refusal.report = report
+        raise refusal
     return report
 
 
@@ -362,6 +380,7 @@ def _compose_mutation_report(
     fallback_used: bool,
     measurement: PreservationMeasurement,
     report: "VisualCompleteReport",
+    quality: "VisualCompleteReport | None" = None,
 ) -> MutationReport:
     return MutationReport(
         requested_mode=requested_mode,
@@ -371,72 +390,120 @@ def _compose_mutation_report(
         preservation=measurement.preservation,
         verification=_verification_summary(report),
         path=path,
+        quality=quality,
     )
 
 
+def _save_target(target: object) -> tuple[str | PathLike[str] | None, BinaryIO | None]:
+    """Split a save *target* into ``(path, None)`` or ``(None, stream)``."""
+
+    if isinstance(target, (str, PathLike)):
+        return target, None
+    if not isinstance(target, (bytes, bytearray)) and callable(getattr(target, "write", None)):
+        return None, cast(BinaryIO, target)
+    raise HwpxTypeError(
+        f"doc.save() needs a path or a writable binary stream, not {type(target).__name__}.",
+        code="save-target-invalid-type",
+        context={"type": type(target).__name__},
+        suggestion='Pass a file path (doc.save("out.hwpx")) or a binary stream (doc.save(io.BytesIO())); '
+        "doc.to_bytes() returns the bytes.",
+    )
+
+
+def _target_format(path: str | PathLike[str] | None, format: object) -> SaveFormat:
+    """*format*, or for ``None`` the one the name says: ``.hwp`` is HWP 5.0, anything else HWPX."""
+
+    import os
+
+    if format is None:
+        if path is not None and os.path.splitext(os.fspath(path))[1].lower() == ".hwp":
+            return "hwp"
+        return "hwpx"
+    _check_format(cast(str, format))
+    return cast(SaveFormat, format)
+
+
 @_one_archive_read
-def save_to_path(
+def save(
     doc: "HwpxDocument",
-    path: str | PathLike[str],
+    target: str | PathLike[str] | BinaryIO,
     *,
+    format: SaveFormat | None = None,
     mode: Mode = "auto",
     fallback: Fallback = "error",
-    return_report: bool = False,
-) -> str | PathLike[str] | MutationReport:
-    """Persist pending changes to *path*.
+    quality: QualityPolicy | None = None,
+) -> MutationReport:
+    """Persist pending changes to *target* (a path or a writable binary stream).
 
-    Returns *path* by default; ``return_report=True`` returns the
-    :class:`~hwpx.mutation_report.MutationReport` receipt instead. ``mode`` and
-    ``fallback`` are the Safe Write Contract grade controls — ``mode="patch"``
-    with ``fallback="error"`` raises :class:`PreservationDowngradeError` and
-    writes nothing when the save cannot keep every untouched part byte-identical.
+    Returns the :class:`~hwpx.mutation_report.MutationReport` receipt (``report.path``
+    is the path written, ``None`` for a stream). ``mode`` and ``fallback`` are the Safe
+    Write Contract grade controls — ``mode="patch"`` with ``fallback="error"`` raises
+    :class:`PreservationDowngradeError` and writes nothing when the save cannot keep
+    every untouched part byte-identical.
 
-    An ``.hwp`` path is written by the experimental HWP 5.0 writer (a warning says so
-    once per process); any name other than ``.hwpx`` or ``.hwp`` still gets HWPX data,
-    with a warning. A target that cannot be written raises :class:`SaveTargetError`,
-    which is also the :class:`OSError` subclass Python raised.
+    *format* ``None`` writes HWP 5.0 to a path ending in ``.hwp`` and HWPX otherwise
+    (a stream included); ``format="hwp"``/``"hwpx"`` says it outright. HWP 5.0 is
+    written by the experimental HWP 5.0 writer (a warning says so once per process);
+    HWPX to a name that does not end in ``.hwpx`` gets a warning. A target that cannot
+    be written raises :class:`SaveTargetError`, which is also the :class:`OSError`
+    subclass Python raised.
+
+    *quality* (a :class:`~hwpx.quality.QualityPolicy`) runs that quality gate before
+    the write; its :class:`~hwpx.quality.VisualCompleteReport` is ``report.quality``.
+    Without it the gate is transparent and ``report.quality`` is ``None``. A refused
+    archive is not written: :class:`SaveError` (``quality-gate-failed``) carries the
+    gate's report as ``.report``.
     """
 
+    path, stream = _save_target(target)
+    resolved = _target_format(path, format)
     _check_grade_arguments(mode, fallback)
-    _check_save_target(path)
-    if str(path).lower().endswith(".hwp"):
+    if path is not None:
+        _check_save_target(path)
+    if resolved == "hwp":
         _refuse_lossy_hwp5_save(doc, path)
     _run_pre_save_validation(doc)
     archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
-    _warn_about_target_format(path)
+    if path is not None:
+        _warn_about_target_format(path, resolved)
+    # HWP 5.0 is made from the validated HWPX parts the gate checks; it raises before
+    # anything is written when the HWP 5.0 writer cannot express the document.
+    hwp5 = _hwp5_bytes(archive_bytes) if resolved == "hwp" else None
     try:
-        if str(path).lower().endswith(".hwp"):
-            # An .hwp target is written as HWP 5.0 from the validated HWPX parts;
-            # the gate still checks those parts, and nothing is written when the
-            # HWP 5.0 writer cannot express the document.
-            report = _gate_and_write(doc, archive_bytes, source_label="document.save_to_path")
-            _write_hwp5(path, archive_bytes)
-        else:
-            report = _gate_and_write(
-                doc, archive_bytes, output_path=path, source_label="document.save_to_path"
-            )
+        report = _gate_and_write(
+            doc,
+            archive_bytes,
+            output_path=path if hwp5 is None else None,
+            output_stream=stream if hwp5 is None else None,
+            quality=quality,
+            source_label="document.save",
+        )
+        if hwp5 is not None:  # the gate passed: publish the HWP 5.0 file in its place
+            if path is not None:
+                from ..quality.save_pipeline import write_bytes_atomically
+
+                write_bytes_atomically(path, hwp5)
+                report.output_path = str(path)
+            else:
+                assert stream is not None
+                stream.write(hwp5)
     except SaveTargetError:
         raise
     except OSError as error:
+        if path is None:
+            raise
         raise _save_target_error(path, error) from error
     _mark_save_clean(doc)
-    if return_report:
-        return _compose_mutation_report(
-            path=str(path),
-            requested_mode=mode,
-            actual_mode=actual_mode,
-            fallback_used=fallback_used,
-            measurement=measurement,
-            report=report,
-        )
-    return path
-
-
-def _write_hwp5(path: str | PathLike[str], archive_bytes: bytes) -> None:
-    from ..quality.save_pipeline import write_bytes_atomically
-
-    write_bytes_atomically(path, _hwp5_bytes(archive_bytes))
+    return _compose_mutation_report(
+        path=None if path is None else str(path),
+        requested_mode=mode,
+        actual_mode=actual_mode,
+        fallback_used=fallback_used,
+        measurement=measurement,
+        report=report,
+        quality=report if quality is not None else None,
+    )
 
 
 def _refuse_lossy_hwp5_save(doc: "HwpxDocument", path: str | PathLike[str] | None = None) -> None:
@@ -500,125 +567,6 @@ def _check_format(format: str) -> None:
 
 
 @_one_archive_read
-def save_to_stream(
-    doc: "HwpxDocument",
-    stream: BinaryIO,
-    *,
-    mode: Mode = "auto",
-    fallback: Fallback = "error",
-    return_report: bool = False,
-    format: SaveFormat = "hwpx",
-) -> BinaryIO | MutationReport:
-    """Persist pending changes to *stream*.
-
-    Returns *stream* by default; ``return_report=True`` returns the
-    :class:`~hwpx.mutation_report.MutationReport` receipt instead. See
-    :func:`save_to_path` for the ``mode``/``fallback`` grade semantics.
-    ``format="hwp"`` writes HWP 5.0 the way an ``.hwp`` path does.
-    """
-
-    _check_format(format)
-    _check_grade_arguments(mode, fallback)
-    if format == "hwp":
-        _refuse_lossy_hwp5_save(doc)
-    _run_pre_save_validation(doc)
-    archive_bytes, measurement = _build_measured(doc, reset_dirty=False)
-    actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
-    if format == "hwp":
-        # As for an .hwp path: the gate checks the HWPX parts, and nothing is
-        # written when the HWP 5.0 writer cannot express the document.
-        report = _gate_and_write(doc, archive_bytes, source_label="document.save_to_stream")
-        stream.write(_hwp5_bytes(archive_bytes))
-    else:
-        report = _gate_and_write(
-            doc, archive_bytes, output_stream=stream, source_label="document.save_to_stream"
-        )
-    _mark_save_clean(doc)
-    if return_report:
-        return _compose_mutation_report(
-            path=None,
-            requested_mode=mode,
-            actual_mode=actual_mode,
-            fallback_used=fallback_used,
-            measurement=measurement,
-            report=report,
-        )
-    return stream
-
-
-@_one_archive_read
-def save_report(
-    doc: "HwpxDocument",
-    path_or_stream: str | PathLike[str] | BinaryIO | None = None,
-    *,
-    quality: QualityPolicy | None = None,
-    before: str | PathLike[str] | None = None,
-    edit_mask: Any | None = None,
-    ledger: Any | None = None,
-) -> VisualCompleteReport:
-    """Save through the SavePipeline and return the full ``VisualCompleteReport``.
-
-    This is the canonical Phase-B write: it funnels through the one gate and
-    returns the uniform report (open-safety, reference integrity, and — when
-    the policy renders and a Hancom oracle is reachable — the visual verdict).
-    ``quality`` defaults to :meth:`QualityPolicy.transparent` so the call is a
-    drop-in for ``save_to_path`` that simply also hands back the report; pass
-    ``QualityPolicy.strict()`` (or ``render_check="required"``) to demand the
-    oracle-verified ``visual_complete`` tier (plan §0.0).
-
-    Like the legacy savers it raises only if the serialize step's open-safety
-    check fails; all other gate outcomes are returned in the report. An ``.hwp``
-    path is written as HWP 5.0, as :func:`save_to_path` writes it.
-    """
-
-    output_path: str | PathLike[str] | None = None
-    output_stream: BinaryIO | None = None
-    if isinstance(path_or_stream, (str, PathLike)):
-        output_path = path_or_stream
-        _check_save_target(output_path)
-    elif path_or_stream is not None:
-        output_stream = path_or_stream
-
-    _run_pre_save_validation(doc)
-    archive_bytes = doc._to_bytes_raw(reset_dirty=False)
-    # An .hwp target gets HWP 5.0 made from the HWPX parts the gate checks; it raises before anything is
-    # written when the HWP 5.0 writer cannot express the document.
-    hwp5 = None
-    if output_path is not None and str(output_path).lower().endswith(".hwp"):
-        _refuse_lossy_hwp5_save(doc, output_path)
-        hwp5 = _hwp5_bytes(archive_bytes)
-
-    try:
-        report = doc._save_pipeline.run(
-            archive_bytes,
-            output_path=None if hwp5 is not None else output_path,
-            output_stream=output_stream,
-            quality=quality or QualityPolicy.transparent(),
-            before=before,
-            edit_mask=edit_mask,
-            ledger=ledger,
-            open_safety=_serialize_open_safety(doc, archive_bytes),
-            reference_document=doc,
-            source_label="document.save_report",
-        )
-        if hwp5 is not None and report.ok:  # the gate passed: publish the HWP 5.0 file in its place
-            from ..quality.save_pipeline import write_bytes_atomically
-
-            assert output_path is not None
-            write_bytes_atomically(output_path, hwp5)
-            report.output_path = str(output_path)
-    except SaveTargetError:
-        raise
-    except OSError as error:
-        if output_path is None:
-            raise
-        raise _save_target_error(output_path, error) from error
-    if report.ok:
-        _mark_save_clean(doc)
-    return report
-
-
-@_one_archive_read
 def to_bytes(
     doc: "HwpxDocument",
     *,
@@ -629,9 +577,9 @@ def to_bytes(
     """Serialize pending changes and return the HWPX archive as bytes.
 
     ``mode``/``fallback`` enforce the Safe Write Contract grade the same way as
-    :func:`save_to_path`: ``mode="patch"`` with ``fallback="error"`` raises
+    :func:`save`: ``mode="patch"`` with ``fallback="error"`` raises
     :class:`PreservationDowngradeError` before returning when the archive is not
-    patch-grade. There is no ``return_report`` — the enforcement is via the typed
+    patch-grade. There is no receipt — the enforcement is via the typed
     exception, so the byte return stays unchanged. ``format="hwp"`` returns an
     HWP 5.0 file instead; the document stays unsaved when that cannot be written.
     """
@@ -653,8 +601,8 @@ def _serialize_open_safety(doc: "HwpxDocument", archive_bytes: bytes) -> OpenSaf
     the SavePipeline composes from its own run; ``None`` when the package did not validate these
     bytes (the pipeline then validates them itself).
 
-    The same validation of the same bytes gives the same report, so ``save_report`` hands the
-    pipeline this one instead of running it a second time.
+    The same validation of the same bytes gives the same report, so ``save(quality=...)`` hands
+    the pipeline this one instead of running it a second time.
     """
 
     package = doc._package

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Saving documents as HWP 5.0 (``.hwp``) through ``save_to_path``."""
+"""Saving documents as HWP 5.0 (``.hwp``) through ``doc.save``."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from hwpx import HwpxDocument
+from hwpx import HwpxDocument, QualityPolicy
 from hwpx.hwp5 import bodytext as bt
 from hwpx.hwp5 import cfb
 from hwpx.hwp5 import controls as ct
@@ -86,7 +86,7 @@ def test_a_new_document_saves_as_hwp_and_reopens(tmp_path: Path) -> None:
     table.set_cell_text(1, 1, "오른쪽 아래")
     target = tmp_path / "새 문서.hwp"
 
-    assert document.save_to_path(target) == target
+    assert document.save(target).path == str(target)
 
     data = target.read_bytes()
     assert data[:8] == cfb.SIGNATURE
@@ -159,7 +159,7 @@ def test_a_character_style_on_new_text_is_written_as_a_range_tag() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("머리 강조 꼬리")
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
         files = {name: package.read(name) for name in package.namelist()}
     # Style 1 over "강조", the middle of the text.
@@ -197,7 +197,7 @@ def _with_raw_settings(extra: str = "") -> dict[str, bytes]:
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("발표 설정을 날것으로 적은 문서")
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
         files = {name: package.read(name) for name in package.namelist()}
     section = files["Contents/section0.xml"].decode("utf-8")
@@ -336,7 +336,7 @@ def _with_print_info(items: tuple[tuple[str, str, str], ...]) -> dict[str, bytes
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("인쇄 설정")
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
         files = {name: package.read(name) for name in package.namelist()}
     listed = "".join(f'<config:config-item name="{n}" type="{k}">{v}</config:config-item>' for n, k, v in items)
@@ -555,7 +555,7 @@ def test_an_end_cap_with_no_name_is_left_out_and_written_flat() -> None:
 def test_a_border_fill_without_a_diagonal_element_draws_no_diagonal() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
         files = {name: package.read(name) for name in package.namelist()}
     header = files["Contents/header.xml"].decode("utf-8")
@@ -972,7 +972,7 @@ def test_a_strikeout_in_the_underline_bits_keeps_its_colour() -> None:
 def test_saving_as_hwp_keeps_text_formatting_and_tables(tmp_path: Path) -> None:
     source = HwpxDocument.open(make_hwp())
     target = tmp_path / "out.hwp"
-    source.save_to_path(target)
+    source.save(target)
     reopened = HwpxDocument.open(target)
     assert _texts(reopened) == _texts(source)
     runs = [
@@ -996,29 +996,29 @@ def test_content_the_writer_cannot_express_is_refused_before_writing(tmp_path: P
     document.sections[0].mark_dirty()
     target = tmp_path / "양식.hwp"
     with pytest.raises(Hwp5Error) as info:
-        document.save_to_path(target)
+        document.save(target)
     assert info.value.code == "hwp5-write-unsupported"
     assert info.value.context["unsupported"].get("comboBox/listItem") == 1
     assert not target.exists()
 
 
-def test_save_report_writes_an_hwp_path_as_hwp(tmp_path: Path) -> None:
+def test_save_with_a_quality_gate_writes_an_hwp_path_as_hwp(tmp_path: Path) -> None:
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("보고서와 함께 저장")
     target = tmp_path / "보고서.hwp"
 
-    report = document.save_report(target)
+    report = document.save(target, quality=QualityPolicy.transparent()).quality
 
-    assert report.ok and report.output_path == str(target)
+    assert report is not None and report.ok and report.output_path == str(target)
     assert target.read_bytes()[:8] == cfb.SIGNATURE
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert "보고서와 함께 저장" in _texts(HwpxDocument.open(target))
     other = tmp_path / "보고서.hwpx"
-    assert document.save_report(other).ok and other.read_bytes()[:4] == b"PK\x03\x04"
+    assert document.save(other, quality=QualityPolicy.transparent()).ok and other.read_bytes()[:4] == b"PK\x03\x04"
 
 
-def test_save_report_refuses_an_hwp_path_before_writing_what_hwp_cannot_hold(tmp_path: Path) -> None:
+def test_save_with_a_quality_gate_refuses_an_hwp_path_before_writing_what_hwp_cannot_hold(tmp_path: Path) -> None:
     from lxml import etree
 
     document = HwpxDocument.new(empty_first_line=True)
@@ -1031,7 +1031,7 @@ def test_save_report_refuses_an_hwp_path_before_writing_what_hwp_cannot_hold(tmp
     target = tmp_path / "양식.hwp"
 
     with pytest.raises(Hwp5Error) as info:
-        document.save_report(target)
+        document.save(target, quality=QualityPolicy.transparent())
 
     assert info.value.code == "hwp5-write-unsupported"
     assert not target.exists()
@@ -1043,7 +1043,7 @@ def test_a_check_box_made_with_the_api_saves_as_hwp(tmp_path: Path) -> None:
     document.fields.add_check_box("동의")
     [before] = list(document.sections[0].element.iter(f"{HP}checkBtn"))
     target = tmp_path / "양식.hwp"
-    document.save_to_path(target)
+    document.save(target)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         reopened = HwpxDocument.open(target)
@@ -1061,7 +1061,7 @@ def test_master_pages_save_as_hwp_under_the_section_and_on_its_last_paragraph(tm
     for page_id in (both, third):
         document.sections[0].properties.add_master_page_reference(page_id)
     target = tmp_path / "바탕쪽.hwp"
-    document.save_to_path(target)
+    document.save(target)
 
     [section] = read_hwp5(target.read_bytes()).sections
     secd = next(r for r in section.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "secd")
@@ -1082,7 +1082,7 @@ def test_a_master_page_without_its_part_is_refused(tmp_path: Path) -> None:
     document.sections[0].properties.add_master_page_reference("masterpage9")
     target = tmp_path / "바탕쪽.hwp"
     with pytest.raises((Hwp5Error, HwpxPackageError)):  # the package check refuses it first
-        document.save_to_path(target)
+        document.save(target)
     assert not target.exists()
 
     # a package written elsewhere with the same reference: the HWP writer refuses it too
@@ -1101,7 +1101,7 @@ def test_a_picture_saves_as_hwp_with_its_image(tmp_path: Path) -> None:
     document.add_paragraph("그림이 있는 문서")
     document.add_picture(_PNG, "png")
     target = tmp_path / "그림.hwp"
-    document.save_to_path(target)
+    document.save(target)
     compound = cfb.CompoundFile(target.read_bytes())
     assert any(path.startswith("BinData/") for path in compound.stream_paths())
     reopened = HwpxDocument.open(target)
@@ -1127,7 +1127,7 @@ def test_image_effects_are_written_with_the_codes_hancom_writes(effect: str, cod
     [image] = [i for s in document.sections for i in s.element.iter("{http://www.hancom.co.kr/hwpml/2011/core}img")]
     image.set("effect", effect)
     target = tmp_path / "effect.hwp"
-    document.save_to_path(target)
+    document.save(target)
     doc = read_hwp5(target.read_bytes())
     pictures = [r for s in doc.sections for r in s.records if r.tag == rec.SHAPE_COMPONENT_PICTURE]
     assert [sh.Picture.decode(r.payload).effect for r in pictures] == [code]
@@ -1144,7 +1144,7 @@ def test_a_picture_alpha_and_reverse_are_written_where_hancom_reads_them(tmp_pat
     pic.set("reverse", "1")
     pic.find("{http://www.hancom.co.kr/hwpml/2011/core}img").set("alpha", "128")
     target = tmp_path / "alpha.hwp"
-    document.save_to_path(target)
+    document.save(target)
     doc = read_hwp5(target.read_bytes())
     records = [r for s in doc.sections for r in s.records]
     [picture] = [sh.Picture.decode(r.payload) for r in records if r.tag == rec.SHAPE_COMPONENT_PICTURE]
@@ -1160,7 +1160,7 @@ def test_hwpx_targets_are_unchanged(tmp_path: Path) -> None:
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("HWPX로 저장")
     target = tmp_path / "out.hwpx"
-    document.save_to_path(target)
+    document.save(target)
     assert target.read_bytes()[:2] == b"PK"
 
 
@@ -1219,7 +1219,7 @@ def test_a_memo_made_with_the_api_saves_as_hwp_with_its_body(tmp_path: Path) -> 
     paragraph = document.add_paragraph("메모가 달린 문단")
     document.notes.add_memo("검토 의견", anchor=paragraph, author="검토자")
     target = tmp_path / "메모.hwp"
-    document.save_to_path(target)
+    document.save(target)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         reopened = HwpxDocument.open(target)
@@ -1294,7 +1294,7 @@ def test_binary_items_are_numbered_by_their_place() -> None:
     document.add_paragraph("그림이 있는 문서")
     document.add_picture(_PNG, "png")
     stream = io.BytesIO()
-    document.save_to_stream(stream)
+    document.save(stream)
     with zipfile.ZipFile(io.BytesIO(stream.getvalue())) as package:
         files = {name: package.read(name) for name in package.namelist()}
     # Another tool may name the only image item BIN0002.
@@ -1467,7 +1467,7 @@ def test_a_picture_whose_image_the_package_lacks_is_written_without_one() -> Non
     document = HwpxDocument.new(empty_first_line=True)
     document.add_picture(_PNG, "png")
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
         files = {name: package.read(name) for name in package.namelist()}
     root = etree.fromstring(files["Contents/content.hpf"])
@@ -1584,7 +1584,7 @@ def test_an_ole_object_that_is_no_chart_opens_as_itself() -> None:
 @pytest.mark.parametrize("storage, kind", [(_chart_storage(), 0), (_storage(_PAINT_CLSID, [("Contents", b"picture")]), 1)])
 def test_an_ole_object_saves_back_to_its_record_and_storage(tmp_path: Path, storage: bytes, kind: int) -> None:
     target = tmp_path / "ole.hwp"
-    HwpxDocument.open(_ole_hwp(storage, kind=kind)).save_to_path(target)
+    HwpxDocument.open(_ole_hwp(storage, kind=kind)).save(target)
 
     written = read_hwp5(target.read_bytes())
     [item] = di.decode_docinfo(written.docinfo).bin_data
@@ -1612,7 +1612,7 @@ def test_a_chart_made_by_python_hwpx_saves_as_an_ole_object_holding_its_part(tmp
     document.add_paragraph("차트")
     document.shapes.add_chart(_CHART_XML, size=(30000, 20000))
     target = tmp_path / "chart.hwp"
-    document.save_to_path(target)
+    document.save(target)
 
     written = read_hwp5(target.read_bytes())
     [item] = di.decode_docinfo(written.docinfo).bin_data
@@ -1683,7 +1683,7 @@ def test_presentation_settings_open_and_save_back_as_they_were(tmp_path: Path) -
     assert [c.get("value") for c in gradation] == ["#D4E6F1", "#FFFFFF"]
 
     target = tmp_path / "presentation.hwp"
-    document.save_to_path(target)
+    document.save(target)
     written = read_hwp5(target.read_bytes())
     [data] = [
         c.payload
@@ -1731,7 +1731,7 @@ def test_a_header_python_hwpx_also_keeps_in_the_section_properties_is_written_on
     document.add_paragraph("본문")
     document.page.set_header(text="머리말")
     target = tmp_path / "header.hwp"
-    document.save_to_path(target)
+    document.save(target)
 
     written = read_hwp5(target.read_bytes())
     heads = [r for s in written.sections for r in s.records if r.tag == rec.CTRL_HEADER and bt.record_ctrl_id(r) == "head"]
@@ -1905,7 +1905,7 @@ def test_a_document_saves_as_hwp_to_a_stream_and_to_bytes() -> None:
     document.add_paragraph("스트림 문단")
     data = document.to_bytes(format="hwp")
     stream = io.BytesIO()
-    assert document.save_to_stream(stream, format="hwp") is stream
+    assert document.save(stream, format="hwp").path is None
 
     for blob in (data, stream.getvalue()):
         assert blob[:8] == cfb.SIGNATURE
@@ -1920,7 +1920,7 @@ def test_an_unknown_save_format_is_refused_before_anything_is_written() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     stream = io.BytesIO()
     with pytest.raises(HwpxValueError) as refused:
-        document.save_to_stream(stream, format="pdf")  # type: ignore[arg-type]
+        document.save(stream, format="pdf")  # type: ignore[arg-type]
     assert refused.value.code == "save-format-unsupported"
     assert stream.getvalue() == b""
     with pytest.raises(HwpxValueError):
@@ -1996,9 +1996,9 @@ def test_saving_over_the_hwp_file_a_document_was_opened_from_is_refused(tmp_path
     document = HwpxDocument.open(original)
 
     for save in (
-        lambda: document.save_to_path(original),
-        lambda: document.save_to_path(f"{tmp_path}/sub/../original.hwp"),
-        lambda: document.save_report(original),
+        lambda: document.save(original),
+        lambda: document.save(f"{tmp_path}/sub/../original.hwp"),
+        lambda: document.save(original, quality=QualityPolicy.transparent()),
     ):
         with pytest.raises(Hwp5Error) as refused:
             save()
@@ -2006,9 +2006,9 @@ def test_saving_over_the_hwp_file_a_document_was_opened_from_is_refused(tmp_path
     assert original.read_bytes() == before
 
     copy = tmp_path / "copy.hwp"
-    document.save_to_path(copy)
+    document.save(copy)
     assert HwpxDocument.open(copy).text.plain() == HwpxDocument.open(original).text.plain()
-    document.save_to_path(tmp_path / "original.hwpx")
+    document.save(tmp_path / "original.hwpx")
 
 
 def test_a_document_that_opened_with_content_left_out_is_not_written_as_hwp(tmp_path: Path) -> None:
@@ -2019,9 +2019,9 @@ def test_a_document_that_opened_with_content_left_out_is_not_written_as_hwp(tmp_
 
     target = tmp_path / "copy.hwp"
     for save in (
-        lambda: document.save_to_path(target),
-        lambda: document.save_report(target),
-        lambda: document.save_to_stream(io.BytesIO(), format="hwp"),
+        lambda: document.save(target),
+        lambda: document.save(target, quality=QualityPolicy.transparent()),
+        lambda: document.save(io.BytesIO(), format="hwp"),
         lambda: document.to_bytes(format="hwp"),
     ):
         with pytest.raises(Hwp5Error) as refused:
@@ -2030,5 +2030,5 @@ def test_a_document_that_opened_with_content_left_out_is_not_written_as_hwp(tmp_
         assert refused.value.context["dropped"] == dict(document.conversion_report.dropped)
     assert not target.exists()
 
-    document.save_to_path(tmp_path / "kept.hwpx")
+    document.save(tmp_path / "kept.hwpx")
     assert (tmp_path / "kept.hwpx").exists()

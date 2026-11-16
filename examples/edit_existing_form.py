@@ -102,9 +102,7 @@ def fill_existing_form(
             for label, value in values.items():
                 target = expected[label]
                 tables[target["table_index"]].set_cell_text(target["row"], target["col"], value, logical=True)
-            report = document.save_to_path(
-                candidate, mode="patch", fallback="error", return_report=True
-            )
+            report = document.save(candidate, mode="patch", fallback="error")
         if not report.ok:
             raise ValueError("save verification failed")
         with HwpxDocument.open(candidate) as reopened:

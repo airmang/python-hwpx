@@ -23,7 +23,7 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 def _reopen(document: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     reopened = HwpxDocument.open(buffer.getvalue())
     assert reopened.validate().ok
     return reopened
@@ -353,7 +353,7 @@ def test_a_format_edit_changes_only_the_header_and_that_section() -> None:
     document.paragraphs[1].runs[0].size = 12
     document.paragraphs[1].alignment = "RIGHT"
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     before, after = zipfile.ZipFile(io.BytesIO(source)), zipfile.ZipFile(buffer)
     changed = {name for name in before.namelist() if before.read(name) != after.read(name)}
     assert changed == {"Contents/header.xml", "Contents/section0.xml"}

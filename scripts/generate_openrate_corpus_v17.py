@@ -139,7 +139,7 @@ def gen_cell_equalize(bucket_dir: Path) -> list[dict[str, Any]]:
             table.set_column_widths([1, 5, 2])
             apply_plan(table)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-cell-equalize", seed=label,
                 output_path=out_path, produced=True,
@@ -199,7 +199,7 @@ def gen_outline_numbering(bucket_dir: Path) -> list[dict[str, Any]]:
                     paragraph_index=len(document.paragraphs) - 1, outline_level=level + 1,
                 )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-outline-numbering", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -254,7 +254,7 @@ def gen_master_page(bucket_dir: Path) -> list[dict[str, Any]]:
                 )
             document.page.set_master_page(master_page_id, section=0)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-master-page", seed=str(idx),
                 output_path=out_path, produced=True,

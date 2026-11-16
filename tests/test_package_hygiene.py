@@ -540,12 +540,12 @@ def test_validate_package_accepts_a_linked_file_outside_the_package() -> None:
 def test_save_with_reference_integrity_accepts_a_linked_file() -> None:
     from hwpx.quality.policy import QualityPolicy
 
-    report = HwpxDocument.open(LINKED_VIDEO).save_report(
+    report = HwpxDocument.open(LINKED_VIDEO).save(
         io.BytesIO(),
         quality=QualityPolicy.transparent().with_(require_reference_integrity=True),
-    )
+    ).quality
 
-    assert report.ok, report
+    assert report is not None and report.ok, report
 
 
 def test_validate_package_still_requires_an_ole_part_marked_not_embedded() -> None:

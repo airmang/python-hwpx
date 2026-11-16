@@ -14,14 +14,12 @@ from typing import (
     TYPE_CHECKING,
     Any,
     BinaryIO,
-    Literal,
+    Mapping,
     cast,
-    overload,
 )
 
 from .oxml import (
     HwpxOxmlDocument,
-    HwpxOxmlInlineObject,
     HwpxOxmlParagraph,
     HwpxOxmlSection,
     HwpxOxmlTable,
@@ -38,7 +36,7 @@ from .oxml.namespaces import register_owpml_namespaces
 from .oxml._document_primitives import IdSource, active_id_source, install_id_source
 from .oxml.table_sizes import new_table_width
 from .mutation_report import Fallback, Mode, MutationReport
-from .quality import QualityPolicy, SavePipeline, VisualCompleteReport
+from .quality import QualityPolicy, SavePipeline
 from .templates import new_document_bytes
 
 from ._document import fields as _fields
@@ -48,8 +46,10 @@ from ._document.persistence import SaveFormat
 from ._document import _resolve
 from ._document import headings as _headings
 from ._document import layout as _layout
-from .model import Paragraph
-from ._document._legacy import removed_name_error
+from ._document._units import _line_width_mm_to_hwp_units
+from .model import Paragraph, Picture
+from ._removed_names import install as _install_removed_name_hints
+from ._removed_names import removed_name_error
 from ._document.ns import (
     FieldsNamespace,
     MediaNamespace,
@@ -72,16 +72,33 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .hwp5.errors import Hwp5ConversionReport
+    from .objects import Alignment
     from .tools.validator import ValidationReport
 
 
-class HwpxDocument:
+class _DocumentType(type):
+    """``HwpxDocument`` 의 메타클래스: 클래스로 부른 없어진 이름(``HwpxDocument.from_package``)도
+    새 자리를 알려 준다. 인스턴스의 이름은 ``HwpxDocument.__getattr__`` 이 맡는다."""
+
+    if not TYPE_CHECKING:  # 타입 검사기에는 숨긴다: 없는 이름을 정적으로 계속 잡게.
+
+        def __getattr__(cls, name: str) -> Any:
+            error = removed_name_error("doc", name)
+            if error is None:
+                error = AttributeError(f"type object {cls.__name__!r} has no attribute {name!r}")
+            error.name = name
+            error.obj = cls
+            raise error
+
+
+class HwpxDocument(metaclass=_DocumentType):
     """Provides a user-friendly API for editing HWPX documents.
 
     6.0의 루트 표면은 34개다(5.x는 102개). 나머지는 도메인 네임스페이스로
-    옮겨갔다. 6.x가 경고와 함께 남겨 둔 옛 이름 79개는 7.0에서 없어졌다 — 부르면
-    새 자리를 알려 주는 :class:`~hwpx.errors.HwpxAttributeError` 가 난다
-    (표: :data:`hwpx._document._legacy.REMOVED_NAMES`, 대응표는 ``docs/migration-6.0.md``).
+    옮겨갔다. 6.x가 경고와 함께 남겨 둔 옛 이름 79개와 7.0이 ``doc.save`` 하나로 합친
+    저장 동사(``save_to_path``·``save_to_stream``·``save_report``), ``from_package`` 는
+    7.0에서 없어졌다 — 부르면 새 자리를 알려 주는 :class:`~hwpx.errors.HwpxAttributeError`
+    가 난다(표: :data:`hwpx._removed_names.NAMES` 의 ``"doc"`` 칸).
     """
 
     def __init__(
@@ -119,7 +136,7 @@ class HwpxDocument:
         def __getattr__(self, name: str) -> Any:
             """7.0에서 지운 옛 루트 이름이면 새 자리를 알려 주는 오류를 낸다."""
 
-            error = removed_name_error(name)
+            error = removed_name_error("doc", name)
             if error is None:
                 error = AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
             error.name = name
@@ -146,14 +163,15 @@ class HwpxDocument:
     @classmethod
     def open(
         cls,
-        source: str | PathLike[str] | bytes | BinaryIO,
+        source: str | PathLike[str] | bytes | BinaryIO | HwpxPackage,
         *,
         seed: int | None = None,
         now: datetime | None = None,
     ) -> "HwpxDocument":
         """Open *source* and return a :class:`HwpxDocument` instance.
 
-        *source*는 경로, 바이트, 또는 읽을 수 있는 이진 스트림이다. 내용이 HWP 5.0
+        *source*는 경로, 바이트, 읽을 수 있는 이진 스트림, 또는 이미 연
+        :class:`~hwpx.opc.package.HwpxPackage` 다(6.x 의 ``from_package``). 내용이 HWP 5.0
         복합 파일(``.hwp``)로 시작하면 같은 문서 모델로 바꿔서 연다.
 
         ``seed=``·``now=`` 는 :meth:`new` 와 같다: 이 문서를 고치며 새로 생기는
@@ -179,6 +197,12 @@ class HwpxDocument:
             Hwp5Error: ``.hwp`` 입력이 손상됐거나 암호·배포용·DRM 문서다.
         """
         id_source = cls._id_source_for(seed, now, "open")
+        if isinstance(source, HwpxPackage):
+            with structure_errors():
+                package_root = HwpxOxmlDocument.from_package(source)
+            from_package = cls(source, package_root)
+            from_package._install_id_source(id_source)
+            return from_package
         internal_resources: list[Any] = []
         open_source = source
         if isinstance(source, bytes):
@@ -329,16 +353,6 @@ class HwpxDocument:
         document._first_line_free = not empty_first_line
         return document
 
-    @classmethod
-    def from_package(cls, package: HwpxPackage) -> "HwpxDocument":
-        """Create a document backed by an existing :class:`HwpxPackage`.
-
-        Args:
-            package: :class:`hwpx.opc.package.HwpxPackage` 인스턴스.
-        """
-        root = HwpxOxmlDocument.from_package(package)
-        return cls(package, root)
-
     def __enter__(self) -> "HwpxDocument":
         """컨텍스트 매니저 진입 시 현재 문서 인스턴스를 반환합니다."""
 
@@ -409,9 +423,9 @@ class HwpxDocument:
         return self._root
 
     @property
-    def sections(self) -> list[HwpxOxmlSection]:
-        """Return the sections contained in the document."""
-        return self._root.sections
+    def sections(self) -> tuple[HwpxOxmlSection, ...]:
+        """Return the sections contained in the document (a tuple, in order)."""
+        return tuple(self._root.sections)
 
     # ------------------------------------------------------------------
     # domain namespaces
@@ -531,9 +545,9 @@ class HwpxDocument:
                 self.package.delete(part_name)
 
     @property
-    def paragraphs(self) -> list[HwpxOxmlParagraph]:
-        """Return all paragraphs across every section."""
-        return self._root.paragraphs
+    def paragraphs(self) -> tuple[HwpxOxmlParagraph, ...]:
+        """Return all paragraphs across every section (a tuple, in document order)."""
+        return tuple(self._root.paragraphs)
 
     # ------------------------------------------------------------------
     # editing helpers
@@ -546,10 +560,8 @@ class HwpxDocument:
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
         char_pr_id_ref: str | int | None = None,
-        run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
         inherit_style: bool | None = None,
-        **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
         """Append a paragraph to the document and return it.
 
@@ -566,8 +578,10 @@ class HwpxDocument:
 
         *section* is a section index or a section object (``None``: the last
         section). Formatting references may be overridden via ``para_pr_id_ref``,
-        ``style`` and ``char_pr_id_ref``. Any additional keyword
-        arguments are added as raw paragraph attributes.
+        ``style`` and ``char_pr_id_ref``. Anything else is a property of the
+        returned paragraph (``p.page_break = True``): 7.0 took away the keyword
+        arguments written as raw XML attributes (``pageBreak="1"``) and
+        ``run_attributes=``, and a call that still passes one is told so.
 
         ``style`` 은 스타일을 **이름으로** 지정한다(``style="개요 1"``). 이름은
         **호출 시점에** 해석되고, 못 찾으면 가용 목록과 가장 가까운 이름을 담은
@@ -577,13 +591,37 @@ class HwpxDocument:
 
         ``style`` 을 주면 문단은 그 스타일의 문단 모양과 글자 모양을 쓴다. 한/글이
         스타일을 적용할 때와 같다. 문단 모양·글자 모양 id 를 함께 주면
-        (``para_pr_id_ref``·``char_pr_id_ref``, ``run_attributes`` 의 ``charPrIDRef``)
-        그 값이 먼저다.
+        (``para_pr_id_ref``·``char_pr_id_ref``) 그 값이 먼저다.
 
         7.0에서 ``style_id_ref=``(스타일 이름표만 붙이던 인자)와 ``section_index=`` 가
         없어졌다. 모양은 그대로 두고 이름표만 붙이려면 만든 문단에
         ``paragraph.style_id_ref = 2`` 처럼 쓴다.
         """
+        return self._add_paragraph(
+            text,
+            section=_resolve.resolve_section(self, section, caller="add_paragraph"),
+            para_pr_id_ref=para_pr_id_ref,
+            style=style,
+            char_pr_id_ref=char_pr_id_ref,
+            include_run=include_run,
+            inherit_style=inherit_style,
+        )
+
+    def _add_paragraph(
+        self,
+        text: str = "",
+        *,
+        section: int | HwpxOxmlSection | None = None,
+        para_pr_id_ref: str | int | None = None,
+        style: int | str | Style | None = None,
+        char_pr_id_ref: str | int | None = None,
+        include_run: bool = True,
+        inherit_style: bool | None = None,
+        xml_attributes: Mapping[str, str] | None = None,
+    ) -> HwpxOxmlParagraph:
+        """:meth:`add_paragraph`, plus raw ``hp:p`` attributes (*xml_attributes*) for the
+        low-level escape hatches that still take them (``doc.shapes.add_raw``/``add_control``)."""
+
         if not isinstance(text, str):
             raise HwpxTypeError(
                 f"문단 글은 문자열이어야 합니다 — {type(text).__name__} {text!r}.",
@@ -591,12 +629,13 @@ class HwpxDocument:
                 context={"type": type(text).__name__},
                 suggestion=f"str() 로 바꿔 넘기세요: doc.add_paragraph(str({text!r})).",
             )
+        extra = dict(xml_attributes or {})
         resolved_style = self.styles.resolve(style) if style is not None else None
         if resolved_style is not None:
             para_pr_id_ref, char_pr_id_ref = self._style_shapes(
                 resolved_style,
-                para_pr_id_ref if para_pr_id_ref is not None else extra_attrs.get("paraPrIDRef"),
-                char_pr_id_ref if char_pr_id_ref is not None else (run_attributes or {}).get("charPrIDRef"),
+                para_pr_id_ref if para_pr_id_ref is not None else extra.get("paraPrIDRef"),
+                char_pr_id_ref,
             )
         section = _resolve.resolve_section(self, section, caller="add_paragraph")
         paragraph = self._root.add_paragraph(
@@ -605,11 +644,10 @@ class HwpxDocument:
             para_pr_id_ref=para_pr_id_ref,
             style=resolved_style,
             char_pr_id_ref=char_pr_id_ref,
-            run_attributes=run_attributes,
             include_run=include_run,
             inherit_style=self._inherit_style_default if inherit_style is None else inherit_style,
             inherit_outline=inherit_style is not None,
-            **cast(Any, extra_attrs),
+            **cast(Any, extra),
         )
         if include_run:  # a paragraph made to hold an object does not take the first line
             self._take_first_line(paragraph)
@@ -669,7 +707,6 @@ class HwpxDocument:
         style: int | str | Style | None = None,
         section: int | HwpxOxmlSection | None = None,
         char_pr_id_ref: str | int | None = None,
-        **extra_attrs: str,
     ) -> Paragraph:
         """개요 수준 *level* 의 제목 문단을 추가하고 반환한다.
 
@@ -708,7 +745,6 @@ class HwpxDocument:
             style=resolved,
             char_pr_id_ref=char_pr_id_ref if char_pr_id_ref is not None else resolved.char_pr_id_ref,
             inherit_style=False,
-            **cast(Any, extra_attrs),
         )
         _headings.bind_outline_level(self, paragraph, level=level)
         self._take_first_line(paragraph)
@@ -727,9 +763,7 @@ class HwpxDocument:
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
         char_pr_id_ref: str | int | None = None,
-        run_attributes: dict[str, str] | None = None,
         inherit_style: bool = False,
-        **extra_attrs: str,
     ) -> HwpxOxmlTable:
         """Create a table in a neutral new paragraph and return it.
 
@@ -769,7 +803,6 @@ class HwpxDocument:
             char_pr_id_ref=char_pr_id_ref,
             include_run=False,
             inherit_style=inherit_style,
-            **cast(Any, extra_attrs),
         )
         table = paragraph.add_table(
             rows,
@@ -777,7 +810,6 @@ class HwpxDocument:
             width=width,
             height=height,
             border_fill_id_ref=resolved_border_fill,
-            run_attributes=run_attributes,
             char_pr_id_ref=char_pr_id_ref,
         )
         _layout.flow_table_taller_than_page(self, table)
@@ -794,13 +826,13 @@ class HwpxDocument:
         height: int | None = None,
         width_mm: float | None = None,
         height_mm: float | None = None,
-        align: str | None = None,
+        alignment: Alignment | str | None = None,
         brightness: int = 0,
         contrast: int = 0,
         effect: str = "REAL_PIC",
         alpha: int = 0,
         line_color: str | None = None,
-        line_width: int = 33,
+        line_width_mm: float = 0.12,
         crop: tuple[int, int, int, int] | None = None,
         shadow: PictureShadow | None = None,
         glow: PictureGlow | None = None,
@@ -809,17 +841,20 @@ class HwpxDocument:
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
         char_pr_id_ref: str | int | None = None,
-        run_attributes: dict[str, str] | None = None,
-        **extra_attrs: str,
-    ) -> HwpxOxmlInlineObject:
+    ) -> Picture:
         """Embed image data and place a picture object in a new paragraph.
 
-        *brightness* and *contrast* (-100 to 100), *effect* (``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE``) and
-        *alpha* (transparency, 0 opaque to 255 not drawn) adjust the image; *line_color* (with *line_width*,
-        HWPUNIT) gives it a solid border. *crop* ``(left, top, right, bottom)`` cuts that much (HWPUNIT) from the
-        sides of the *width* x *height* picture, keeping its scale. *shadow* (``hwpx.oxml.PictureShadow``) and *glow*
-        (``hwpx.oxml.PictureGlow``) draw a shadow and a glow; *soft_edge* (HWPUNIT) fades its edge and *reflection*
-        (``hwpx.oxml.PictureReflection``) reflects it below."""
+        *alignment* (``LEFT``, ``CENTER`` or ``RIGHT``) places the picture in its line. *brightness* and
+        *contrast* (-100 to 100), *effect* (``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE``) and *alpha*
+        (transparency, 0 opaque to 255 not drawn) adjust the image; *line_color* (with *line_width_mm*, mm)
+        gives it a solid border. *crop* ``(left, top, right, bottom)`` cuts that much (HWPUNIT) from the sides
+        of the *width* x *height* picture, keeping its scale. *shadow* (``hwpx.oxml.PictureShadow``) and *glow*
+        (``hwpx.oxml.PictureGlow``) draw a shadow and a glow; *soft_edge* (HWPUNIT) fades its edge and
+        *reflection* (``hwpx.oxml.PictureReflection``) reflects it below.
+
+        7.0: ``align=`` is ``alignment=``, ``line_width=`` (HWPUNIT) is ``line_width_mm=`` (mm, the default
+        0.12 mm is the 33 HWPUNIT 6.x wrote), and ``run_attributes=`` and the raw XML attribute keywords are
+        gone; a call that still passes one is told the new name."""
 
         section = _resolve.resolve_section(self, section, caller="add_picture")
         return _media.add_picture(
@@ -831,13 +866,13 @@ class HwpxDocument:
             height=height,
             width_mm=width_mm,
             height_mm=height_mm,
-            align=align,
+            align=None if alignment is None else str(alignment),
             brightness=brightness,
             contrast=contrast,
             effect=effect,
             alpha=alpha,
             line_color=line_color,
-            line_width=line_width,
+            line_width=_line_width_mm_to_hwp_units(line_width_mm),
             crop=crop,
             shadow=shadow,
             glow=glow,
@@ -846,8 +881,6 @@ class HwpxDocument:
             para_pr_id_ref=para_pr_id_ref,
             style=style,
             char_pr_id_ref=char_pr_id_ref,
-            run_attributes=run_attributes,
-            **extra_attrs,
         )
 
     def _iter_form_field_matches(self) -> list[dict[str, Any]]:
@@ -917,131 +950,44 @@ class HwpxDocument:
             archive_bytes=archive_bytes,
         )
 
-    @overload
-    def save_to_path(
+    def save(
         self,
-        path: str | PathLike[str],
+        target: str | PathLike[str] | BinaryIO,
         *,
-        mode: Mode = ...,
-        fallback: Fallback = ...,
-        return_report: Literal[False] = ...,
-    ) -> str | PathLike[str]: ...
-
-    @overload
-    def save_to_path(
-        self,
-        path: str | PathLike[str],
-        *,
-        mode: Mode = ...,
-        fallback: Fallback = ...,
-        return_report: Literal[True],
-    ) -> MutationReport: ...
-
-    def save_to_path(
-        self,
-        path: str | PathLike[str],
-        *,
+        format: SaveFormat | None = None,
         mode: Mode = "auto",
         fallback: Fallback = "error",
-        return_report: bool = False,
-    ) -> str | PathLike[str] | MutationReport:
-        """Persist pending changes to *path* and return the same path.
-
-        ``return_report=True`` returns the Safe Write Contract
-        :class:`~hwpx.mutation_report.MutationReport` instead. ``mode="patch"``
-        with ``fallback="error"`` raises
-        :class:`~hwpx.mutation_report.PreservationDowngradeError` and writes
-        nothing when an untouched part would not stay byte-identical.
-        """
-
-        return _persistence.save_to_path(
-            self,
-            path=path,
-            mode=mode,
-            fallback=fallback,
-            return_report=return_report,
-        )
-
-    @overload
-    def save_to_stream(
-        self,
-        stream: BinaryIO,
-        *,
-        mode: Mode = ...,
-        fallback: Fallback = ...,
-        return_report: Literal[False] = ...,
-        format: SaveFormat = ...,
-    ) -> BinaryIO: ...
-
-    @overload
-    def save_to_stream(
-        self,
-        stream: BinaryIO,
-        *,
-        mode: Mode = ...,
-        fallback: Fallback = ...,
-        return_report: Literal[True],
-        format: SaveFormat = ...,
-    ) -> MutationReport: ...
-
-    def save_to_stream(
-        self,
-        stream: BinaryIO,
-        *,
-        mode: Mode = "auto",
-        fallback: Fallback = "error",
-        return_report: bool = False,
-        format: SaveFormat = "hwpx",
-    ) -> BinaryIO | MutationReport:
-        """Persist pending changes to *stream* and return the same stream.
-
-        ``return_report=True`` returns the Safe Write Contract
-        :class:`~hwpx.mutation_report.MutationReport` instead. See
-        :meth:`save_to_path` for the ``mode``/``fallback`` grade semantics.
-        ``format="hwp"`` writes HWP 5.0 instead of HWPX.
-        """
-
-        return _persistence.save_to_stream(
-            self,
-            stream=stream,
-            mode=mode,
-            fallback=fallback,
-            return_report=return_report,
-            format=format,
-        )
-
-    def save_report(
-        self,
-        path_or_stream: str | PathLike[str] | BinaryIO | None = None,
-        *,
         quality: QualityPolicy | None = None,
-        before: str | PathLike[str] | None = None,
-        edit_mask: Any | None = None,
-        ledger: Any | None = None,
-    ) -> VisualCompleteReport:
-        """Save through the SavePipeline and return the full ``VisualCompleteReport``.
+    ) -> MutationReport:
+        """Save pending changes to *target* — a file path or a writable binary stream —
+        and return the :class:`~hwpx.mutation_report.MutationReport` receipt.
 
-        This is the canonical Phase-B write: it funnels through the one gate and
-        returns the uniform report (open-safety, reference integrity, and — when
-        the policy renders and a Hancom oracle is reachable — the visual verdict).
-        ``quality`` defaults to :meth:`QualityPolicy.transparent` so the call is a
-        drop-in for ``save_to_path`` that simply also hands back the report; pass
-        ``QualityPolicy.strict()`` (or ``render_check="required"``) to demand the
-        oracle-verified ``visual_complete`` tier (plan §0.0).
+        ``report.path`` is the path written (``None`` for a stream). *format* ``None``
+        writes HWP 5.0 to a path ending in ``.hwp`` and HWPX otherwise, a stream
+        included; ``format="hwp"`` or ``"hwpx"`` says it outright. ``mode="patch"``
+        with ``fallback="error"`` raises
+        :class:`~hwpx.mutation_report.PreservationDowngradeError` and writes nothing
+        when an untouched part would not stay byte-identical.
 
-        Like the legacy savers it raises only if the serialize step's open-safety
-        check fails; all other gate outcomes are returned in the report. An ``.hwp``
-        path is written as HWP 5.0, as :meth:`save_to_path` writes it, and raises
-        :class:`~hwpx.Hwp5Error` before writing when the document cannot be.
+        *quality* (a :class:`~hwpx.quality.QualityPolicy`, e.g.
+        ``QualityPolicy.strict()``) runs that quality gate before the write and puts
+        its :class:`~hwpx.quality.VisualCompleteReport` in ``report.quality``. A gate
+        that refuses the archive writes nothing and raises
+        :class:`~hwpx.errors.SaveError` (``quality-gate-failed``) whose ``.report`` is
+        the gate's report. For a gate run without writing, or with ``before=``/
+        ``edit_mask=``/``ledger=``, use ``SavePipeline().run(doc.to_bytes(), ...)``.
+
+        7.0 folded ``save_to_path``, ``save_to_stream`` and ``save_report`` into this
+        one verb; :meth:`to_bytes` returns the bytes.
         """
 
-        return _persistence.save_report(
+        return _persistence.save(
             self,
-            path_or_stream=path_or_stream,
+            target,
+            format=format,
+            mode=mode,
+            fallback=fallback,
             quality=quality,
-            before=before,
-            edit_mask=edit_mask,
-            ledger=ledger,
         )
 
     def to_bytes(
@@ -1076,3 +1022,8 @@ class HwpxDocument:
             self,
             reset_dirty=reset_dirty,
         )
+
+
+# The guide for 6.x names 7.0 renamed or removed on the model and value-type classes
+# (hwpx._removed_names): the classes all exist once this module has loaded.
+_install_removed_name_hints()
