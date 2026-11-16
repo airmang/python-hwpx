@@ -339,16 +339,20 @@ class HwpxDocument(metaclass=_DocumentType):
         modification date and used for every memo or tracked change made without
         its own date. Both stay in force until :meth:`close` (or the end of a
         ``with`` block); ids minted meanwhile for another document in the same
-        thread come from the same seed. Without them a document gets random ids
+        thread come from the same seed, and a document made meanwhile with
+        ``new()`` and no *now* of its own takes that moment as its dates too (a
+        replay that makes documents through other code runs on one clock). Without them a document gets random ids
         and the current time, as before: documents made separately must not share
         ids when their content is later combined. ``SOURCE_DATE_EPOCH`` still
         fixes the dates when *now* is not given.
         """
 
         source = cls._id_source_for(seed, now, "new")
-        document = cls.open(
-            new_document_bytes(source.now if source is not None else None)
-        )
+        clock = source.now if source is not None else None
+        if clock is None:  # the clock another document's now= keeps in force, as its seed keeps the ids
+            active = active_id_source()
+            clock = active.now if active is not None else None
+        document = cls.open(new_document_bytes(clock))
         document._install_id_source(source)
         document._inherit_style_default = bool(inherit_style)
         document._first_line_free = not empty_first_line

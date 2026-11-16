@@ -9,10 +9,9 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from random import Random
 from typing import Any, Iterable, Iterator, Mapping, Sequence
-from uuid import UUID
 
 # The document builder is the MCP owner's. This fuzz harness is a repository QA
 # asset excluded from the distributed wheel, so depending on the companion
@@ -66,25 +65,26 @@ class FuzzRunResult:
         }
 
 
+#: The moment every replay runs at: a new document's dates and every memo's come from it,
+#: so one seed writes the same bytes whenever it is replayed (#683: two replays a second
+#: apart differed in ``CreatedDate``/``ModifiedDate``).
+REPLAY_CLOCK = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
 @contextmanager
-def _deterministic_oxml_ids(seed: int | None) -> Iterator[None]:
-    import hwpx.oxml.document as oxml_document
+def _replay_clock(seed: int | None) -> Iterator[None]:
+    """Run a replay on :data:`REPLAY_CLOCK` and, with a *seed*, on ids drawn from it.
 
-    if seed is None:
-        yield
-        return
+    ``HwpxDocument.new(seed=..., now=...)`` keeps both in force for this thread until the
+    document is closed, for the documents made meanwhile too -- the builder's
+    (``build_document``) as well as the runner's own. The document opened here only holds them.
+    """
 
-    rng = Random(seed)
-    original_uuid4 = oxml_document.uuid4
-
-    def deterministic_uuid4() -> UUID:
-        return UUID(int=rng.getrandbits(128))
-
-    oxml_document.uuid4 = deterministic_uuid4
+    holder = HwpxDocument.new(seed=seed, now=REPLAY_CLOCK)
     try:
         yield
     finally:
-        oxml_document.uuid4 = original_uuid4
+        holder.close()
 
 
 @contextmanager
@@ -294,7 +294,7 @@ def run_scenario(
 
     digest = scenario_digest(normalized)
     try:
-        with _quiet_package_fallback_warnings(), _deterministic_oxml_ids(seed_value):
+        with _quiet_package_fallback_warnings(), _replay_clock(seed_value):
             document: HwpxDocument | None = None
             for op in normalized.get("operations") or ():
                 document = _apply_operation(document, op)
