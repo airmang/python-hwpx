@@ -60,11 +60,14 @@ def test_a_memo_with_a_thick_line_saves_and_reopens() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("메모를 단 문단")
     shape_id = doc.styles.ensure_memo_shape(line_width_mm=0.5, line_color="#C00000")
-    doc.notes.add_memo("굵은 선", paragraph=paragraph, memo_shape_id_ref=shape_id)
+    doc.notes.set_memo_shape(shape_id, section=0)
+    doc.notes.add_memo("굵은 선", paragraph=paragraph)
     data = doc.to_bytes()
 
     reopened = HwpxDocument.open(data)
     assert reopened.validate().ok
+    # 선 굵기는 hh:memoPr 에 있고, 구역의 memoShapeIDRef 가 그 모양을 가리킨다.
+    assert reopened.sections[0].properties.memo_shape_id_ref == shape_id
     assert reopened.styles.memo_shape(shape_id).line_width_mm == 0.5
     with zipfile.ZipFile(__import__("io").BytesIO(data)) as archive:
         assert 'lineWidth="7"' in archive.read("Contents/header.xml").decode("utf-8")

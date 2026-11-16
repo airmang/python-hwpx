@@ -121,7 +121,9 @@ def test_now_alone_fixes_the_dates_and_memo_times() -> None:
     parts = _parts(data)
     assert b"2026-01-02T03:04:05Z" in parts["Contents/content.hpf"]
     assert b"2026-01-02T03:04:05Z" in parts["Contents/header.xml"]
-    assert b"2026-01-02T03:04:05Z" in parts["Contents/section0.xml"]
+    # A memo's CreateDateTime is the local wall time, as Hangul writes it (its Command FILETIME is UTC).
+    local = FIXED.astimezone().strftime("%Y-%m-%dT%H:%M:%SZ").encode()
+    assert local in parts["Contents/section0.xml"]
     assert memo is not None
 
 

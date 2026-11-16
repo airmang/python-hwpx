@@ -523,17 +523,20 @@
   ],
   "shape-connector-frame": [
    "oxml/curves.py:144",
-   "oxml/curves.py:215"
+   "oxml/curves.py:254"
   ],
   "shape-connector-kind-unsupported": [
-   "oxml/curves.py:197"
+   "oxml/curves.py:236"
+  ],
+  "shape-connector-length-zero": [
+   "oxml/curves.py:266"
   ],
   "shape-connector-side-invalid": [
-   "oxml/curves.py:189"
+   "oxml/curves.py:228"
   ],
   "shape-connector-target-inline": [
    "oxml/curves.py:138",
-   "oxml/curves.py:206"
+   "oxml/curves.py:245"
   ],
   "shape-container-no-members": [
    "oxml/container.py:257"
@@ -911,7 +914,11 @@
  },
  "malformedCodes": [],
  "observed": {
+<<<<<<< HEAD
   "other": 480,
+=======
+  "other": 483,
+>>>>>>> 0dba2ef13435511097175a3f2e2d8d6e86827aad
   "typed": 446,
   "untyped": 171,
   "untypedByFile": {

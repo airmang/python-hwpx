@@ -397,9 +397,7 @@ def test_add_memo_with_anchor_returns_one_memo_not_a_3_tuple() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("anchor host")
     with _no_warnings():
-        memo = document.notes.add_memo(
-            "anchored text", paragraph=paragraph, memo_shape_id_ref="0"
-        )
+        memo = document.notes.add_memo("anchored text", paragraph=paragraph)
     assert memo.text == "anchored text"
     assert memo.field_id
     assert memo.paragraph is not None

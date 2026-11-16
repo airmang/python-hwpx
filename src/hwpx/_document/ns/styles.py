@@ -809,8 +809,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         기본값은 실코퍼스(hwpxlib_corpus, 6파일) 최빈 프로파일이다 —
         width=15591·lineWidth=1·lineType=SOLID·memoType=NOMAL(스키마 원문
         철자, 오타 아님)은 6파일 전량, 색 3종은 그 중 lineWidth=1인 절반이
-        공유하는 조합. 만든 id 는 `doc.notes.add_memo(memo_shape_id_ref=...)`
-        에 바로 넘길 수 있다.
+        공유하는 조합. 만든 id 는 `doc.notes.set_memo_shape(id, section=i)`
+        에 바로 넘길 수 있다(메모 모양은 한/글처럼 구역마다다).
 
         선 굵기는 *line_width_mm* (mm, 기본 0.12)로 준다. 한/글의 선 굵기(0.1·0.12·0.15·0.2·0.25·0.3·0.4·
         0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm) 가운데 하나만 받고(테두리와 같다. 목록에 없는 값은

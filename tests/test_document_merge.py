@@ -594,7 +594,10 @@ def test_merge_copies_referenced_memo_content() -> None:
     source = HwpxDocument.new(empty_first_line=True)
     shape_id = source.styles.ensure_memo_shape(fill_color="#F0FFE9")
     p = source.add_paragraph("annotated text")
-    source.notes.add_memo("a comment", paragraph=p, memo_shape_id_ref=shape_id)
+    memo = source.notes.add_memo("a comment", paragraph=p)
+    # 7.0 writes 65535 in the field (the shape is the section's); a 6.x document wrote a real
+    # memoPr id there -- the merge still remaps such an id.
+    memo.set_attribute("MemoShapeIDRef", shape_id)
     source_id = _memo_field_ids(source)[0]
 
     # target already owns a memo shape at the SAME id -- a remap that silently never
@@ -621,8 +624,8 @@ def test_merge_copies_referenced_memo_content() -> None:
 
 
 def test_merge_memo_default_shape_ref_stays_the_65535_sentinel() -> None:
-    """No memo_shape_id_ref passed -- Hancom's own "no shape override" sentinel ("65535") on
-    the field's own stringParam, unchanged by the merge."""
+    """Hancom's own "the section's shape" sentinel ("65535") on the field's own stringParam,
+    unchanged by the merge."""
 
     source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("plain comment")
@@ -729,7 +732,8 @@ def test_merge_memo_survives_real_save_and_reopen() -> None:
     source = HwpxDocument.new(empty_first_line=True)
     shape_id = source.styles.ensure_memo_shape(fill_color="#FFE9CC")
     p = source.add_paragraph("annotated text")
-    source.notes.add_memo("survives a real save", paragraph=p, memo_shape_id_ref=shape_id)
+    source.notes.set_memo_shape(shape_id, section=0)
+    source.notes.add_memo("survives a real save", paragraph=p)
 
     target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)

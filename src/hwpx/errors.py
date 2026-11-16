@@ -603,6 +603,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-connector-target-inline": "연결선을 이으려는 도형이 글자처럼 놓였거나 instid 가 없다.",
     "shape-connector-frame": "연결선을 이으려는 두 도형이 같은 기준에서 왼쪽·위로 놓여 있지 않다.",
     "shape-connector-side-invalid": "연결선 끝의 변이 top/right/bottom/left 밖이다.",
+    "shape-connector-length-zero": "연결선의 두 끝이 한 점이다(이을 변이나 도형 자리를 바꾼다).",
     "shape-connector-kind-unsupported": "연결선 모양이 실증된 어휘(STRAIGHT, STROKE) 밖이다(ARC 는 제어점이 필요).",
     "shape-drop-cap-style-unsupported": "드롭캡 dropcapstyle 값이 실증된 어휘(DoubleLine, TripleLine) 밖이다.",
     "shape-drop-cap-character-empty": "드롭캡으로 키울 문자가 비어 있다.",
@@ -643,7 +644,8 @@ ERROR_CODES: dict[str, str] = {
     "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
     "note-memo-anchor-elsewhere": "메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모).",
     "note-memo-index-value": "메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다.",
-    "note-memo-unanchored": "이번에 만든 메모를 어느 문단에도 걸지 않고 저장하려 했다(한/글은 메모를 MEMO 누름틀 안에만 둔다).",
+    "note-memo-shape-not-found": "구역에 줄 메모 모양(hh:memoPr) id 가 머리에 없다.",
+    "note-memo-unanchored":"이번에 만든 메모를 어느 문단에도 걸지 않고 저장하려 했다(한/글은 메모를 MEMO 누름틀 안에만 둔다).",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",

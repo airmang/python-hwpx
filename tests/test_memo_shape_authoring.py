@@ -117,32 +117,75 @@ def test_memo_shape_round_trips_through_save_and_reopen(tmp_path) -> None:
 
 
 # --------------------------------------------------------------------------
-# 실 소비 경로 — add_memo(memo_shape_id_ref=...)
+# 실 소비 경로 — 구역의 memoShapeIDRef (doc.notes.set_memo_shape)
 
 
 def test_add_memo_consumes_a_newly_created_shape() -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape(fill_color="#F0FFE9", line_color="#B6D7AE")
     paragraph = doc.add_paragraph("본문")
-    memo = doc.notes.add_memo("코멘트", paragraph=paragraph, memo_shape_id_ref=shape_id)
-    assert memo.memo_shape_id_ref == shape_id
+    doc.notes.set_memo_shape(shape_id, section=0)
+    memo = doc.notes.add_memo("코멘트", paragraph=paragraph)
+    assert doc.sections[0].properties.memo_shape_id_ref == shape_id
+    # 한/글처럼 필드에는 '구역 모양을 따름'(65535)만 적는다.
+    assert memo.attributes["MemoShapeIDRef"] == "65535"
 
 
 def test_add_memo_with_new_shape_round_trips(tmp_path) -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape(fill_color="#F0FFE9", line_color="#B6D7AE")
     paragraph = doc.add_paragraph("본문")
-    doc.notes.add_memo("코멘트", paragraph=paragraph, memo_shape_id_ref=shape_id)
+    doc.notes.set_memo_shape(shape_id, section=0)
+    doc.notes.add_memo("코멘트", paragraph=paragraph)
     path = tmp_path / "memo.hwpx"
     doc.save(path)
     doc.close()
 
+    with zipfile.ZipFile(path) as archive:
+        section_xml = archive.read("Contents/section0.xml").decode("utf-8")
+    assert f'memoShapeIDRef="{shape_id}"' in section_xml  # hp:secPr
+    assert '<hp:stringParam name="MemoShapeIDRef">65535</hp:stringParam>' in section_xml
     reopened = HwpxDocument.open(path)
     memos = [m for section in reopened.oxml.sections for m in section.memos]
     assert len(memos) == 1
-    assert memos[0].memo_shape_id_ref == shape_id
-    assert memos[0].memo_shape_id_ref in reopened.styles.memo_shapes
+    section_shape = reopened.sections[0].properties.memo_shape_id_ref
+    assert section_shape == shape_id
+    assert section_shape in reopened.styles.memo_shapes
     reopened.close()
+
+
+def test_section_memo_shape_rejects_an_unknown_id() -> None:
+    from hwpx.errors import HwpxLookupError
+
+    doc = HwpxDocument.new()
+    with pytest.raises(HwpxLookupError) as excinfo:
+        doc.notes.set_memo_shape("99", section=0)
+    assert excinfo.value.code == "note-memo-shape-not-found"
+    assert doc.sections[0].properties.memo_shape_id_ref is None
+
+
+def test_section_memo_shape_none_restores_the_builtin_look() -> None:
+    doc = HwpxDocument.new()
+    shape_id = doc.styles.ensure_memo_shape()
+    doc.notes.set_memo_shape(shape_id)
+    doc.notes.set_memo_shape(None)
+    assert doc.sections[0].properties.memo_shape_id_ref is None
+    assert doc.sections[0].properties.element.get("memoShapeIDRef") == "0"
+
+
+def test_per_memo_shape_argument_and_property_are_gone() -> None:
+    from hwpx.errors import HwpxError
+
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("본문")
+    with pytest.raises(HwpxError) as excinfo:
+        doc.notes.add_memo("x", paragraph=paragraph, memo_shape_id_ref="1")
+    assert excinfo.value.code == "hwpx-argument-removed"
+    memo = doc.notes.add_memo("메모", paragraph=paragraph)
+    with pytest.raises(HwpxError) as excinfo:
+        _ = memo.memo_shape_id_ref
+    assert excinfo.value.code == "document-name-removed"
+    assert "set_memo_shape" in str(excinfo.value)
 
 
 def test_authored_memo_shape_passes_open_safety(tmp_path) -> None:
@@ -151,7 +194,8 @@ def test_authored_memo_shape_passes_open_safety(tmp_path) -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape()
     paragraph = doc.add_paragraph("본문")
-    doc.notes.add_memo("코멘트", paragraph=paragraph, memo_shape_id_ref=shape_id)
+    doc.notes.set_memo_shape(shape_id, section=0)
+    doc.notes.add_memo("코멘트", paragraph=paragraph)
     path = tmp_path / "safe.hwpx"
     doc.save(path)
     doc.close()

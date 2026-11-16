@@ -303,6 +303,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | `doc.media.picture_references()` → `PictureRef` | `doc.media.pictures`(`Picture`: `item_id`·`width`·`height`, 몇 번째는 tuple 순서) |
 | `doc.notes.add_footnote(text, p)`·`add_endnote(text, p)` | `add_footnote(text, paragraph=p)`·`add_endnote(text, paragraph=p)` |
 | `doc.notes.add_memo(anchor=p, anchor_char_pr_id_ref=)` | `add_memo(paragraph=p, paragraph_char_pr_id_ref=)` |
+| `doc.notes.add_memo(memo_shape_id_ref=id)`(`section.add_memo`·`MemoGroup.add_memo` 도), `memo.memo_shape_id_ref` | 메모 모양은 메모마다가 아니라 구역마다다(한/글은 `hp:secPr@memoShapeIDRef` 에 두고 MEMO 누름틀에는 늘 `65535` 를 쓴다). 쓰기 `doc.notes.set_memo_shape(id, section=i)`(`section="all"` 은 모든 구역), 읽기 `doc.sections[i].properties.memo_shape_id_ref`. 6.x 문서가 누름틀에 적은 id 는 그대로 두며 `memo.attributes["MemoShapeIDRef"]`(6.x `hp:memogroup` 메모는 `["memoShapeIDRef"]`)로 읽는다 |
 | `doc.fields.fill(value, field_index=, fit_policy=)` | `fill(value, index=, fit=)` |
 | `doc.tracking.add_change(change_type, author_name=)` | `add_change(change_type, author=)` |
 
@@ -402,6 +403,7 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | `doc.save(path, format="hwpx")` 처럼 형식을 밝히면 이름이 `.hwpx` 가 아니어도(임시 이름 `out.hwpx.tmp` 등) 경고하지 않는다. 이름이 `.hwp` 면 여전히 경고한다 | 없음 |
 | 메모를 MEMO 누름틀의 `hp:subList` 에만 쓴다(한/글 2024 저장 모양). `hp:memogroup` 을 새로 쓰지 않으므로 `doc.sections[i].memo_group` 이 `None` 이고, 문단에 건 메모는 `HwpxOxmlFieldMemo` 다(`memo.element` 는 `hp:fieldBegin`, `move_to` 는 거부 — 메모는 누름틀이 있는 곳에 있다). `doc.notes.add_memo(text)` 처럼 문단에 걸지 않은 메모는 걸기 전까지 저장이 `HwpxValueError`(`note-memo-unanchored`)로 거부된다. 6.x 문서의 메모를 고치면 그 메모를 누름틀로 옮기고 `hp:memogroup` 사본을 지운다 | 메모는 `doc.notes.memos` 로 읽는다. 걸지 않은 메모는 `doc.notes.attach(paragraph, memo)` 로 건 뒤 저장하거나 `doc.notes.remove_memo(memo)` |
 | `doc.parts.add_master_page(...)` 로 만든 바탕쪽을 저장할 때까지 어느 구역에도 잇지 않으면 저장이 `HwpxValueError`(`master-page-unlinked`)로 거부된다. 6.x 는 잇지 않은 파트를 그대로 썼고, 한/글 2024 는 그 파트를 버렸다(다시 저장하면 바탕쪽과 글이 사라진다). 읽어 온 문서에 있던 바탕쪽은 손대지 않는다 | 만든 뒤 잇는다: `doc.page.set_master_page(mp, section=0)`, 또는 `add_master_page(..., section=0)`. 쓰지 않을 것은 `doc.parts.remove_master_page(mp)` |
+| MEMO 누름틀의 매개변수를 한/글 2024 저장본과 같은 일곱 개로 같은 순서에 쓴다: `Prop`·`Command`(`MEMO/65535/번호/FILETIME/작성자/\;;`)·`ID`·`Number`·`Author`·`MemoShapeIDRef`(늘 `65535`)·`CreateDateTime`. 6.x 는 `ID`·`Number`·`Author`·`MemoShapeIDRef`·`CreateDateTime` 다섯 개였다. `ID` 는 `memo<번호>` 다(`memo_id=` 로 이름을 준 메모만 그 이름). `CreateDateTime` 은 한/글처럼 그 컴퓨터의 시각이다(끝의 `Z` 는 그대로, 6.x 는 UTC). `Command` 의 FILETIME 이 같은 순간의 UTC 다. 6.x 의 다섯 개 꼴도 그대로 읽는다 | 누름틀 매개변수를 직접 읽던 코드는 시각을 그 컴퓨터 시각으로 읽는다. UTC 가 필요하면 `Command` 의 FILETIME 을 쓴다 |
 | `doc.text.iter_paragraphs()` 가 MEMO 누름틀 안에만 있는 메모(한/글 2024 가 저장하는 모양)의 문단도 `where="memo"` 로 내놓는다. 6.x 는 `hp:memogroup` 의 메모만 내놓아, 한/글로 다시 저장한 문서에서 메모 글이 빠진 것처럼 보였다(`doc.notes.memos` 는 전에도 읽었다) | 본문 쪽만: `where=` 를 준다 |
 | **`table.insert_rows()`·`insert_columns()`(`doc.tables.` 도)가 한/글처럼 빈 행·열을 넣는다.** 6.x 는 기준 칸의 글·개체까지 복사했다. `blank=` 없이 부르던 코드는 오류 없이 결과가 바뀐다([아래](#표에-넣는-행과-열은-빈-칸이다)) | `copy_content=True` |
 

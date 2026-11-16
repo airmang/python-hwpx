@@ -421,6 +421,13 @@ python-hwpx 7.0을 함께 설치한다.
   옮기거나 문서를 이어 붙여도(`append_document`) `hp:memogroup`을 새로 쓰지 않는다. 문단에 걸지 않은 채 남은 새 메모는 저장을
   `HwpxValueError`(`note-memo-unanchored`)로 거부한다. 6.x 문서는 그대로 읽히고, 그 메모를 고치면 그 메모만 누름틀로 옮기고
   `hp:memogroup` 사본을 지운다(고치지 않은 저장은 그대로).
+- 메모 모양을 한/글처럼 구역마다 둔다: `doc.notes.set_memo_shape(shape_id, section=i)`가 `hp:secPr@memoShapeIDRef`를 쓰고
+  (`section="all"`은 모든 구역, 헤더에 없는 id는 `note-memo-shape-not-found`), `doc.sections[i].properties.memo_shape_id_ref`로 읽는다.
+  MEMO 누름틀에는 한/글처럼 늘 `MemoShapeIDRef=65535`를 쓴다. 6.x의 메모마다 모양(`add_memo(memo_shape_id_ref=)`,
+  `memo.memo_shape_id_ref`)은 없어졌고 새 자리를 알려 주는 오류를 낸다. 6.x 문서가 누름틀에 적은 id는 그대로 읽힌다.
+- MEMO 누름틀의 매개변수를 한/글 2024 저장본과 같은 일곱 개(`Prop`·`Command`·`ID`·`Number`·`Author`·`MemoShapeIDRef`·
+  `CreateDateTime`)로 같은 순서에 쓴다. `ID`는 `memo<번호>`, `CreateDateTime`은 한/글처럼 그 컴퓨터의 시각, `Command`의 FILETIME은
+  같은 순간의 UTC다. 6.x의 다섯 개 꼴도 그대로 읽는다.
 - `doc.parts.add_master_page(...)`로 만들고 어느 구역에도 잇지 않은 바탕쪽은 저장을 `HwpxValueError`(`master-page-unlinked`)로
   거부한다. 전에는 잇지 않은 파트를 그대로 써서, 한/글 2024가 다시 저장할 때 바탕쪽과 그 글이 사라졌다. 만든 뒤
   `doc.page.set_master_page(mp, section=0)`로 잇거나 `add_master_page(..., section=0)`으로 만든다. 읽어 온 바탕쪽은 그대로 둔다.
