@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
@@ -227,15 +227,23 @@ def _named_fonts(faces: dict[str, dict[str, str]], refs: dict[str, str]) -> dict
 
 
 def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
-    mapping: dict[str, RunStyle] = {}
+    return {key: style for key, (style, _definition) in _char_property_entries(element).items()}
+
+
+def _char_property_box(element: ET.Element) -> ET.Element | None:
     ref_list = element.find(f"{_HH}refList")
-    if ref_list is None:
-        return mapping
-    char_props_element = ref_list.find(f"{_HH}charProperties")
+    return None if ref_list is None else ref_list.find(f"{_HH}charProperties")
+
+
+def _char_property_entries(element: ET.Element) -> dict[str, tuple[RunStyle, ET.Element]]:
+    """Each ``hh:charPr`` of the header *element*, by id (and by its number), with the element read."""
+
+    mapping: dict[str, tuple[RunStyle, ET.Element]] = {}
+    char_props_element = _char_property_box(element)
     if char_props_element is None:
         return mapping
 
-    faces = _font_faces_by_lang(ref_list)
+    faces = _font_faces_by_lang(cast(ET.Element, element.find(f"{_HH}refList")))
     for child in char_props_element.findall(f"{_HH}charPr"):
         char_id = child.get("id")
         if not char_id:
@@ -250,14 +258,83 @@ def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
         fonts = _named_fonts(faces, child_attributes.get("fontRef", {}))
         style = RunStyle(id=char_id, attributes=attributes, child_attributes=child_attributes, fonts=fonts)
         if char_id not in mapping:
-            mapping[char_id] = style
+            mapping[char_id] = (style, child)
         try:
             normalized = str(int(char_id))
         except (TypeError, ValueError):
             normalized = None
         if normalized and normalized not in mapping:
-            mapping[normalized] = style
+            mapping[normalized] = (style, child)
     return mapping
+
+
+def _char_property_signature(definition: ET.Element) -> tuple[Any, ...]:
+    return (tuple(definition.attrib.items()),
+            tuple((child.tag, tuple(child.attrib.items())) for child in definition))
+
+
+class CharPropertyCache:
+    """The character shapes (``hh:charPr``) of a document's headers as :class:`RunStyle`, read
+    from the XML as it is now.
+
+    The parsed shapes are kept between reads, but a read checks them against the header first: a
+    shape added, removed or replaced, or a kept one whose attributes or children changed (through
+    ``.element`` too), is read again. So ``doc.styles.char_property(id)`` always answers what the
+    header holds at that moment, with no cache to invalidate by hand.
+    """
+
+    def __init__(self) -> None:
+        self._stamp: tuple[Any, ...] | None = None
+        # The ``hh:charProperties`` elements the stamp was taken from. Holding them keeps lxml's
+        # proxies alive, so the next lookup finds the very same objects and ``id()`` in the stamp
+        # stays meaningful; without it a proxy freed between reads could come back with another
+        # id and every read parsed every shape again (a big table's page estimate looks a shape
+        # up per cell: quadratic).
+        self._boxes: list[Any] = []
+        self._entries: dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]] = {}
+
+    def clear(self) -> None:
+        self._stamp = None
+        self._boxes = []
+        self._entries = {}
+
+    def _fresh(self, headers: Sequence[Any]) -> dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]]:
+        boxes = [_char_property_box(header.element) for header in headers]
+        stamp = tuple((id(box), -1 if box is None else len(box)) for box in boxes)
+        if stamp != self._stamp:
+            self._boxes = boxes
+            entries: dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]] = {}
+            for header in headers:  # a later header's shape wins, as it always did
+                for key, (style, definition) in _char_property_entries(header.element).items():
+                    entries[key] = (style, definition, _char_property_signature(definition))
+            self._stamp, self._entries = stamp, entries
+        return self._entries
+
+    def _current(self, headers: Sequence[Any], key: str) -> RunStyle | None:
+        entry = self._fresh(headers).get(key)
+        if entry is not None and _char_property_signature(entry[1]) != entry[2]:
+            self._stamp = None  # a shape changed in place: read them all again
+            entry = self._fresh(headers).get(key)
+        return None if entry is None else entry[0]
+
+    def styles(self, headers: Sequence[Any]) -> dict[str, RunStyle]:
+        entries = self._fresh(headers)
+        if any(_char_property_signature(definition) != signature for _style, definition, signature in entries.values()):
+            self._stamp = None
+            entries = self._fresh(headers)
+        return {key: style for key, (style, _definition, _signature) in entries.items()}
+
+    def get(self, headers: Sequence[Any], key: str) -> RunStyle | None:
+        style = self._current(headers, key)
+        if style is not None:
+            return style
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return self._current(headers, normalized)
+
+
 class _ReplaceSegment:
     __slots__ = ("element", "attr", "text")
 

@@ -8,8 +8,9 @@ every call. Operating-system and container-level failures keep the exception
 Python already raises — ``FileNotFoundError`` for a missing path. A damaged
 package raises a :class:`hwpx.opc.package.HwpxStructureError` subclass that is
 also the exception Python or lxml raised (:class:`zipfile.BadZipFile`,
-``zlib.error``, ``lxml.etree.XMLSyntaxError``); that family does not derive
-from :class:`HwpxError`.
+``zlib.error``, ``lxml.etree.XMLSyntaxError``); that family
+(:class:`hwpx.opc.package.HwpxPackageError`) derives from :class:`HwpxError`
+since 7.0 and always carries a ``code``.
 
 The base carries three machine-readable fields on top of the human-readable
 message, so a caller can branch on a stable ``code``, read the measured
@@ -551,6 +552,8 @@ ERROR_CODES: dict[str, str] = {
     "field-fit-failed": "값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉).",
     "field-text-box-not-found": "그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다).",
     "field-end-missing": "누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다).",
+    "field-char-pr-not-found": "fields.fill 의 char_pr_id_ref 가 문서 머리의 글자 모양(hh:charPr) id 가 아니다.",
+    "field-fill-char-shape-conflict": "fields.fill 에 char_pr_id_ref 와 fit 을 함께 줬다(fit 이 값의 글자 모양을 스스로 정한다).",
     "field-choice-unknown": "직접 입력할 수 없는 콤보 상자에 그 항목이 없다(combo_box.items 로 항목을 본다).",
     "field-radio-caption-empty": "라디오 단추 캡션(옆에 그리는 글)이 비어 있다.",
     "field-radio-group-value": "라디오 단추 묶음 이름(group)이 str 가 아니다.",
@@ -606,8 +609,11 @@ ERROR_CODES: dict[str, str] = {
     "shape-drop-cap-not-created": "만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다.",
     "shape-group-member-unsupported": "묶음(hp:container) 안의 개체는 혼자 돌리거나 설명·바깥 여백을 달 수 없고, 묶음의 하나뿐인 구성원이거나 돌았거나 늘인 묶음에서는 혼자 지울 수 없다(묶음째 다룬다).",
     "shape-z-order-value": "개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부).",
-    "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
-    "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 뒤집은 개체, 또는 한/글 저장본으로 확인하지 못한 묶음(이미 돌린 묶음을 다른 각도로·늘인·뒤집은 묶음, 묶음이 든 묶음, 돌리거나 늘인 구성원이 든 묶음)이다. 글이 든 도형과 묶음 전체는 돈다.",
+    "shape-flip-value": "뒤집기(flip_horizontal·flip_vertical)에 bool 이 아닌 값을 주었다.",
+    "shape-flip-unsupported": "한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·그림·묶음 밖의 개체(곡선·호 등), 늘인 개체, 묶음을 양쪽으로·돈 묶음을 상하로 뒤집기, 돌지 않은 그림 밖의 뒤집은 개체 크기 바꾸기, 뒤집은 그림 자르기.",
+    "shape-numbering-type-value": "개체·표의 numbering_type 이 NONE·PICTURE·TABLE·EQUATION 가운데 하나(대문자, 정확히)가 아니다.",
+    "shape-rotation-value": "회전 각도가 int(도)가 아니다(bool 도 거부). 음수·360 이상은 한/글처럼 0~359로 바꿔 쓴다(-30 → 330).",
+    "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 한/글 저장본으로 확인하지 못한 모양이다: 늘인 채 뒤집힌 개체, 사각형·타원·다각형·선·그림·묶음이 아닌 뒤집힌 개체, 행렬이 hp:flip 을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘이거나 묶음을 품거나 양쪽으로 뒤집힌 묶음. 돈 묶음의 크기 바꾸기도 먼저 0으로 되돌려야 한다. 글이 든 도형, 뒤집힌 사각형·타원·다각형·선·그림과 한쪽으로 뒤집힌 묶음, 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다.",
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
     "shape-ruby-text-value": "덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()).",
     "shape-ruby-position-value": "덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다.",
@@ -676,6 +682,10 @@ ERROR_CODES: dict[str, str] = {
     "save-target-is-folder": "저장할 경로가 폴더다.",
     "save-target-unwritable": "저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error).",
     "open-safety-failed": "산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다.",
+    "open-input-unsafe": "입력이 안전한 읽기 한도(ZIP 항목 수·크기·압축률·경로, XML 크기·깊이)를 넘었다(HwpxSecurityError, ValueError 이기도 하다).",
+    "package-invalid":"패키지(HwpxPackage)가 계약을 어겼다(까닭을 따로 가리지 않은 HwpxPackageError 기본값).",
+    "package-structure-invalid": "HWPX 패키지 구조가 요구를 어겼다(HwpxStructureError 기본값).",
+    "package-xml-invalid": "패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에).",
     "open-empty-file": "연 파일이 비어 있다(0바이트). HwpxArchiveError 에 실린다.",
     "open-not-hwpx": "연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서).",
     "open-not-hwp": "확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다.",

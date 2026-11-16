@@ -106,7 +106,7 @@ python-docx 의 `paragraph._p`·`run._r`와 같은 자리다. 이름에 밑줄�
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 196 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 379 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 388 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 175 |
 | `hwpx.objects` 83개 값 형식 | 필드 408 · 멤버 194 · enum 값 10 | 612 |
 | 모듈 수준 stable 이름(13개 모듈) | 서명(클래스는 멤버까지) | 70 |
@@ -141,7 +141,7 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_engine_contract.py::test_same_bytes_give_the_same_answer_in_another_process`
 2. **고치지 않은 저장은 바이트 그대로다.** 열고 고치지 않고 저장하면 모든 파트가 바이트 그대로다.
    대개 파일 전체가 같고, 몇몇은 ZIP 항목의 순서·플래그·폴더 항목만 다르다(공개·시험 HWPX 중
-   열리는 1,299개: 1,112개는 파일째 같고 187개는 파트가 같다).
+   열리는 1,309개: 1,122개는 파일째 같고 187개는 파트가 같다).
    `tests/test_engine_contract.py::test_an_unedited_hancom_document_saves_its_parts_unchanged`,
    `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`
 3. **공개 편집은 그 파트만 바꾸고, 바꾼 파트를 알린다.** 공개 API로 고치면 그 내용을 담은 파트만
@@ -153,7 +153,8 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다). `doc.save(..., pipeline=SavePipeline(oracle_factory=...))`로
    관문에 렌더러를 주어도 같다 — 렌더러는 `quality=` 정책이 렌더링할 때만 만들어지고, 열기 안전 검사는 한 번이다.
    `tests/test_document_save_api.py::test_to_bytes_rejects_generated_package_that_fails_open_safety`,
-   `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`
+   `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`,
+   `tests/test_package_errors_are_hwpx_errors.py::test_a_refused_save_of_a_damaged_input_says_open_safety_failed`
 5. **"한/글에서 열린다"는 한/글 기록이 있는 것에만 말한다.** 한/글에서 열어 확인했다
    (Render-verified)는 말은 실제 한/글로 열어 본 기록(`docs/openrate/` 보고, 한컴 오라클
    측정)이 있는 만들기·편집 영역에만 붙는다([지원 매트릭스](support-matrix.md)).
@@ -172,7 +173,8 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `TypeError`·`AttributeError` 가 그대로 새지 않는다(운영체제·손상 패키지 실패는 아래
    「오류 계약」대로).
    `tests/test_error_contract.py::test_the_public_path_raises_no_bare_builtins`,
-   `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`
+   `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`,
+   `tests/test_package_errors_are_hwpx_errors.py::test_every_package_error_is_an_hwpx_error_with_a_registered_code`
 9. **공개 이름은 다음 major까지 얼린다.** 7.0의 공개 이름(최상위·루트·묶음·`hwpx.model` 의 계약
    멤버·`hwpx.objects` 값 형식·안정 모듈 이름)은 8.0 전에는 지우거나 바꾸지 않는다. 공개 표면
    잠금(`tests/data/public_surface.json`)과 다르면 테스트가 실패한다. stable 이름이 돌려주는 형식도
@@ -315,9 +317,14 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | 깨진 XML 파트, 암호가 걸린 HWPX | `HwpxXmlSyntaxError`(`part_name`) | `lxml.etree.XMLSyntaxError` |
 | `mimetype`·`container.xml`·rootfile 없음 | `HwpxStructureError` | — |
 
-`HwpxPackageError`·`HwpxStructureError` 계열은 `HwpxError`를 상속하지 않습니다
-(`code`·`context`·`suggestion` 필드가 없습니다). 크기·압축률 상한을 넘는 입력은
-`HwpxSecurityError`(`ValueError`)로 거부합니다.
+7.0부터 `HwpxPackageError`(그 아래 `HwpxStructureError` 계열 모두)도 `HwpxError`를 상속해
+늘 `code`·`context`·`suggestion`을 싣습니다. 까닭을 아는 곳은 그 코드(`open-empty-file`,
+`open-encrypted`, 저장 거부의 `open-safety-failed` …)를, 모르는 곳은 클래스 기본값
+(`package-invalid`, `package-structure-invalid`, `open-archive-damaged`, `package-xml-invalid`)을
+냅니다. `HwpxXmlSyntaxError`의 `code`는 이제 이 코드이고 lxml의 숫자 코드는 `lxml_code`에 있습니다.
+크기·압축률 상한을 넘는 입력은 `HwpxSecurityError`(`ValueError`이자 `HwpxError`,
+`open-input-unsafe`)로 거부합니다. 앞에서 잡던 형식(`HwpxPackageError`, `BadZipFile`, `ValueError` …)으로도
+그대로 잡힙니다.
 구조화된 예외는 사람용 문장(`str(exc)`)을 그대로 두고, 세 가지 **기계가 읽는**
 필드를 얹습니다:
 
@@ -416,14 +423,34 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 (상자의 왼쪽 위가 제자리; 한/글의 회전 명령은 개체 가운데가 쪽 위에서 제자리에 있게 `pos`도 옮긴다).
 글이 든 도형(글상자·글이 든 타원)도 같은 방식으로 돕니다. 한/글은 글을 돌리지 않고 돈 도형을 감싸는 상자 폭에
 가로로 놓아 그리므로 `drawText/@lastWidth`가 그 상자 폭이 되고 글의 줄 배치 캐시는 지웁니다(한/글 2024가 90°·30°로
-돌려 저장한 사각형·타원과 같다). 묶음은 통째로 돕니다: 묶음과 모든 구성원이 묶음 가운데를 축으로 한 같은 회전
-(구성원은 자기 자리에서 본 `rotMatrix`)과 같은 이동(`transMatrix`·`offset`)을 갖고, 구성원의 `rotationInfo/@angle`은 0,
-가운데는 자기가 돈 상자의 가운데(직각에서는 그대로)이며, 묶음의 `hp:sz`는 돈 구성원들을 감싸는 상자입니다(한/글
-2024가 사각형+타원, 사각형+글상자 묶음을 90°·30° 돌려 저장한 것과 같다). 그렇게 돈 묶음은 0으로 되돌릴 수 있습니다.
+돌려 저장한 사각형·타원과 같다). 묶음은 통째로 돕니다: 묶음과 그 안의 모든 도형(묶음 안 묶음과 그 구성원까지)이
+묶음 자기 크기(`orgSz`, 늘인 묶음도)의 가운데를 축으로 한 같은 회전(구성원은 자기 자리에서 본 `rotMatrix`)과 같은
+이동(`transMatrix`·`offset`)을 갖고, 구성원의 `rotationInfo/@angle`은 0, 가운데는 그려진 크기로 돈 자기 상자의 가운데
+(안쪽 묶음은 그대로)이며, 묶음의 `hp:sz`는 돈 도형들(안쪽 묶음의 상자가 아니라 그 구성원)을 감싸는 상자입니다.
+한/글 2024의 개체 대화상자가 30·45·90·180·270·330°로 돌려 저장한 묶음(사각형·타원·선·다각형·글상자, 1.5배와 7200×7200으로
+늘인 묶음, 묶음 안 묶음)과 같다(한/글의 90° 회전 명령은 구성원 가운데를 그대로 두지만, 대화상자의 모양을 쓴다).
+각도는 처음 모양에서 잰 절대각이고(30° 돈 글상자·묶음을 45°로 하면 한/글 대화상자처럼 처음부터 45° 돈 모양), 음수와
+360 이상은 0~359로 바꿔 씁니다(-30 → 330, 한/글이 330으로 저장한다). 돈 묶음은 0으로 되돌릴 수도 있습니다.
+늘인 묶음 안의 묶음도 같은 규칙으로 돕니다(한/글 2024가 30° 돌려 저장한 것과 같다).
+
+`flip_horizontal`·`flip_vertical`(7.0)은 개체가 좌우·상하로 뒤집혔는지 읽고 쓰는 속성입니다(`hp:flip`). 사각형(글상자)·
+타원·다각형·선·그림과 묶음 전체를 한/글 2024의 좌우·상하 뒤집기(`ShapeObjHorzFlip`·`ShapeObjVertFlip`)처럼 뒤집습니다: `hp:flip`에
+표시하고 `rotMatrix`가 개체를 자기 가운데에서 거울처럼 뒤집으며(좌우 `-1, 0, 너비`), 상자·자리·글은 그대로입니다(글은 뒤집지
+않는다). 돈 개체를 뒤집으면 그려진 모양 그대로 거울에 비치므로 반대 방향으로 돈 것이 됩니다(30° → 330°, 상자·자리는 그대로).
+양쪽으로 뒤집기도 됩니다. 묶음은 구성원의 `hp:flip`을 0으로 두고 행렬로 뒤집으며, 좌우로 뒤집힌 묶음의 구성원
+`rotationInfo/@angle`은 한/글처럼 "180 − 뒤집을 때 묶음 각도"(돌지 않은 묶음 180, 30° 돈 묶음 150)이고 묶음을 돌려도 그대로입니다.
+뒤집힌 개체를 돌리면 행렬이 먼저 뒤집고 돌립니다. 한/글이 저장한 것과 같다: 뒤집은 글상자 45°, 뒤집은 묶음·타원·다각형·선
+30°, 45°에서 0°로, 30° 돈 글상자를 좌우·상하·양쪽으로, 30° 돈 묶음을 좌우로. `False`로 되돌리면 같은 방법으로 처음 모양입니다.
+그림도 같습니다(뒤집기만, 뒤집은 뒤 30°, 30° 돈 그림 뒤집기, 양쪽). 돌지 않은 뒤집은 그림은 `resize`하면 한/글처럼 거울 축을 자기
+크기의 가운데에 두고 `scaMatrix`가 줄어든 만큼 옮깁니다(12000 너비를 6000으로: `0.5`, `e3` 6000).
+곡선·호 등, 늘인 개체, 묶음의 양쪽 뒤집기, 돈 묶음의 상하 뒤집기, 그림 밖의 뒤집힌 개체·돈 뒤집힌 그림의 크기 바꾸기, 뒤집힌
+그림 자르기는 `shape-flip-unsupported`,
+늘이거나 묶음을 품은 묶음의 뒤집기는 `shape-rotation-unsupported`, bool이 아닌 값은 `shape-flip-value`로 거부합니다.
+
 다음은 한/글 저장본으로 확인하지 못해 `shape-rotation-unsupported`로 바꾸기 전에 거부합니다(`context["reason"]`) —
-이미 돈 묶음을 다른 각도로 다시 돌리기(먼저 0으로), 늘이거나 뒤집은 묶음, 묶음이 든 묶음, 혼자 돌았거나 뒤집혔거나
-늘인 구성원이 든 묶음, 돈 묶음의 `resize`, 뒤집은 개체, 수식·차트. 묶음 구성원 하나만 돌리는 것은
-`shape-group-member-unsupported`로 거부합니다(묶음 전체를 돌린다). 각도 0으로 되돌리는 것은 언제나 됩니다.
+늘인 채 뒤집혔거나 행렬이 `hp:flip`을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 돈 묶음의 `resize`(먼저 0으로), 수식·차트.
+묶음 구성원 하나만 돌리거나 뒤집는 것은 `shape-group-member-unsupported`로 거부합니다(묶음 전체를 다룬다). 각도 0으로
+되돌리는 것은 언제나 됩니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는

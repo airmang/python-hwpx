@@ -14,6 +14,8 @@ from zipfile import ZIP_DEFLATED as _ZIP_DEFLATED
 from zipfile import ZIP_STORED as _ZIP_STORED
 from zipfile import ZipFile, ZipInfo
 
+from ..errors import HwpxError
+
 #: The contract (docs/stable-api.md, "입력 방어"): what any reader of HWPX bytes uses to
 #: open them as safely as the engine does. The archive-sharing helpers below these are
 #: the save path's own and are not in it.
@@ -58,8 +60,13 @@ MAX_ZIP_SMALL_PART_BYTES = 4 * 1024 * 1024
 _ALLOWED_METHODS = (_ZIP_STORED, _ZIP_DEFLATED)
 
 
-class HwpxSecurityError(ValueError):
-    """Raised when an HWPX input exceeds safe parsing limits."""
+class HwpxSecurityError(HwpxError, ValueError):
+    """Raised when an HWPX input exceeds safe parsing limits (``code="open-input-unsafe"``).
+
+    A :class:`hwpx.errors.HwpxError` since 7.0, and still a :class:`ValueError`.
+    """
+
+    default_code = "open-input-unsafe"
 
 
 @dataclass(frozen=True)

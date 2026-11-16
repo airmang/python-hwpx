@@ -206,6 +206,24 @@ def test_an_unpaired_field_end_that_does_not_start_its_run_is_not_an_error(valid
     assert not any("names no hp:fieldBegin" in issue.message for issue in report.errors)
 
 
+@pytest.mark.parametrize(
+    ("field_type", "field_id"),
+    [
+        ("SUMMERY", "628321650"),  # a date code, %smr
+        ("PROOFREADING_MARKS_LINEATTACH", "623192641"),  # %%*A
+        ("PROOFREADING_MARKS_ATTACH", "623192673"),  # %%*a
+        ("PROOFREADING_MARKS_CLIPPING", "623192643"),  # %%*C
+    ],
+)
+def test_the_date_code_and_proofreading_fields_hancom_writes_are_known(
+    valid_bytes: bytes, field_type: str, field_id: str
+) -> None:
+    # Hancom 2024 saves these type/fieldid pairs and opens them again; each half alone is enough.
+    for values in ({"type": field_type, "fieldid": field_id}, {"type": field_type}, {"fieldid": field_id}):
+        report = validate_package(_mutate(valid_bytes, SECTION, set_attributes("fieldBegin", **values)))
+        assert not any("not a Hancom field type" in issue.message for issue in report.errors), values
+
+
 def test_a_known_field_type_or_a_known_field_id_is_enough(valid_bytes: bytes) -> None:
     # Hancom opens a field when either its type or its fieldid is one it knows.
     for values in ({"type": "ClickHere"}, {"fieldid": "field-x"}):

@@ -161,7 +161,7 @@
     - 투명도(`alpha`)는 0~1이고 길이는 HWPUNIT입니다. 한/글은 그림을 바깥 효과(빛남·바깥 그림자·반사)까지 합친 크기로 배치하므로, 그만큼 줄이 높아집니다.
   - 한/글이 그대로 그리지 않는 값은 이진 항목·단락을 더하기 전에 거부합니다: `shape-picture-image-value`(조정), `shape-picture-border-value`(테두리 굵기), `shape-picture-crop-value`(자르기), `shape-picture-effect-value`(효과), `style-color-invalid`(색).
   - 같은 조정·효과를 `paragraph.add_picture(item_id, *, alignment=, line_width_mm=, ...)`도 받습니다(이미 넣은 이진 항목을 쓸 때: `item_id`는 `doc.media.add_image`가 돌려준 `BinaryItem`이나 그 id, 테두리 굵기는 mm).
-  - 회전 인자는 없습니다. 만든 뒤 `picture.rotation = 각도`로 돌립니다. 뒤집기는 아직 지원하지 않습니다.
+  - 회전·뒤집기 인자는 없습니다. 만든 뒤 `picture.rotation = 각도`로 돌리고 `picture.flip_horizontal = True`·`picture.flip_vertical = True`로 뒤집습니다.
 - `get_table_map() -> dict`
   - 문서 순서대로 표를 스캔하고 `table_index`, `paragraph_index`, 행·열 수, 추정 헤더 텍스트, 첫 행 미리보기, 빈 표 여부를 반환합니다.
   - 라벨로 칸을 찾아 채우는 `find_cell_by_label`·`fill_by_path`는 7.0에서 `python-hwpx-automation`(`hwpx_automation.forms`)으로 옮겼습니다.

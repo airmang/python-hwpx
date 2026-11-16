@@ -16,6 +16,7 @@ again; python-hwpx drops them for Hangul to do so), ids and an empty ``hp:shapeC
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -49,17 +50,94 @@ def _local(node) -> str:
     return str(node.tag).rsplit("}", 1)[-1]
 
 
-def _normalized(element, path: str = "") -> list[str]:
+def _normalized(element, path: str = "", *, members_centres: bool = True) -> list[str]:
+    """*element* as lines to compare. ``members_centres=False`` leaves out the ``rotationInfo`` centres of a
+    group's members: Hangul's turn-by-90-degrees command leaves them, its object dialog (which ``rotation``
+    follows, ``turn_shapes_group_resized_by_90``) sets them to the middle of each member's turned box."""
+
     name = _local(element)
     if name in {"curSz", "linesegarray"} or (name == "shapeComment" and not (element.text or "").strip()):
         return []
     attributes = {key: ("0" if value == "-0" else value) for key, value in element.attrib.items()
                   if key not in {"id", "instid"} and not (name == "pos" and key in {"horzOffset", "vertOffset"})}
+    if not members_centres and name in {"rotationInfo", "drawText"} and path.count("/") > 1:
+        attributes = {key: value for key, value in attributes.items()
+                      if key not in {"centerX", "centerY", "lastWidth"}}
     here = f"{path}/{name}"
     lines = [f"{here} {sorted(attributes.items())} {(element.text or '').strip()!r}"]
     for child in element:
-        lines += _normalized(child, here)
+        lines += _normalized(child, here, members_centres=members_centres)
     return lines
+
+
+def _numbers_close(ours: list[str], theirs: list[str], tolerance: float) -> bool:
+    """The same lines, numbers within *tolerance*: Hangul writes a turn's rotMatrix moves a few thousandths
+    apart when it turns an object turned already (4654.416946 for 4654.4148 from its six-decimal cosine)."""
+
+    if len(ours) != len(theirs):
+        return False
+    number = re.compile(r"'(-?\d+(?:\.\d+)?)'")
+    for a, b in zip(ours, theirs):
+        if number.sub("#", a) != number.sub("#", b):
+            return False
+        if any(abs(float(x) - float(y)) > tolerance for x, y in zip(number.findall(a), number.findall(b))):
+            return False
+    return True
+
+
+def _by_instid(doc: HwpxDocument, instid: str):
+    """The object with *instid*: Hangul may anchor a turned object in another paragraph."""
+
+    return next(obj for obj in _objects(doc) if obj.element.get("instid") == instid)
+
+
+#: (file Hangul's object dialog turned the object in, the object's instid, the angle given, a file holding the
+#: same object unturned or turned otherwise, a size Hangul's dialog also drew it at). ``turn_shapes_*``: a text
+#: box, a group of a rectangle and a text box, a group of a rectangle, a line and a polygon; ``turn_resized_*`` /
+#: ``turn_group_in_*``: a group resized to 1.5 times and a group holding a group; ``turn_again_*``: a text box and
+#: a group turned 30 degrees (by python-hwpx, read by Hangul's dialog as 30), turned to 45.
+DIALOG = [
+    ("turn_shapes_text_box_by_330", "1489198821", -30, "turn_shapes_group_with_text_box_by_45", None),
+    ("turn_shapes_group_with_text_box_by_45", "944689471", 45, "turn_shapes_text_box_by_330", None),
+    ("turn_shapes_group_resized_by_90", "944689471", 90, "turn_shapes_text_box_by_330", (7200, 7200)),
+    ("turn_shapes_group_with_line_by_270", "1810697293", 270, "turn_shapes_text_box_by_330", None),
+    ("turn_resized_group_by_30", "252925443", 30, "turn_group_in_group_by_30", None),
+    ("turn_group_in_group_by_30", "1425497838", 30, "turn_resized_group_by_30", None),
+    ("turn_again_text_box_by_45", "1118188575", 45, "turn_again_group_by_45", None),
+    ("turn_again_group_by_45", "2002383626", 45, "turn_again_text_box_by_45", None),
+]
+
+
+@pytest.mark.parametrize(("turned", "instid", "angle", "source", "drawn"), DIALOG, ids=[case[0] for case in DIALOG])
+def test_turning_writes_what_hancoms_dialog_wrote(turned: str, instid: str, angle: int, source: str,
+                                                   drawn: tuple[int, int] | None) -> None:
+    doc = HwpxDocument.open(HANCOM / f"{source}.hwpx")
+    target = _by_instid(doc, instid)
+    if drawn is not None:  # Hangul's dialog also drew the group at this size: resize writes Hangul's resized group
+        target.resize(*drawn)
+    target.rotation = angle
+    hancom = _by_instid(HwpxDocument.open(HANCOM / f"{turned}.hwpx"), instid)
+    assert hancom.rotation == angle % 360 == target.rotation
+    ours, theirs = _normalized(target.element), _normalized(hancom.element)
+    assert ours == theirs if "again" not in turned else _numbers_close(ours, theirs, 0.01)
+    again = _reopen(doc)
+    assert _by_instid(again, instid).rotation == angle % 360
+
+
+@pytest.mark.parametrize(("turned", "instid", "angle", "source", "drawn"), DIALOG, ids=[case[0] for case in DIALOG])
+def test_hancoms_dialog_turn_turns_back(turned: str, instid: str, angle: int, source: str,
+                                        drawn: tuple[int, int] | None) -> None:
+    doc = HwpxDocument.open(HANCOM / f"{turned}.hwpx")
+    target = _by_instid(doc, instid)
+    target.rotation = 0
+    original = _by_instid(HwpxDocument.open(HANCOM / f"{source}.hwpx"), instid)
+    original.rotation = 0  # a turned-again source is the object turned 30 degrees: back to 0 too
+    if drawn is not None:
+        # resize keeps the members' centres and text widths; a turn back writes them as drawn, as Hangul saves a
+        # resized group's members (turn_group_in_group_by_30 holds one: drawn 9000 wide, centre 4500)
+        original.resize(*drawn)
+    assert _normalized(target.element, members_centres=drawn is None) == \
+        _normalized(original.element, members_centres=drawn is None)
 
 
 def _reopen(doc: HwpxDocument) -> HwpxDocument:
@@ -75,7 +153,9 @@ def test_turning_writes_what_hancom_wrote(turned: str, index: int, angle: int, u
     assert target.rotation == 0
     target.rotation = angle
     hancom = _objects(HwpxDocument.open(HANCOM / f"{turned}.hwpx"))[index]
-    assert _normalized(target.element) == _normalized(hancom.element)
+    command = turned.startswith("turn_group") and turned.endswith("_by_90")  # Hangul's turn-by-90 command
+    assert _normalized(target.element, members_centres=not command) == \
+        _normalized(hancom.element, members_centres=not command)
     again = _reopen(doc)
     assert _objects(again)[index].rotation == angle
 
@@ -156,35 +236,42 @@ def test_what_is_not_shown_by_hancom_is_still_refused() -> None:
     doc = HwpxDocument.open(HANCOM / "turn_group_by_30.hwpx")
     turned = _objects(doc)[0]
     for call, code, says in (
-        (lambda: setattr(turned, "rotation", 45), "shape-rotation-unsupported", "turn it back to 0 first"),
         (lambda: setattr(turned.members[0], "rotation", 30), "shape-group-member-unsupported", "whole group"),
         (lambda: turned.resize(20000, 15000), "shape-rotation-unsupported", "turn it back to 0 first"),
+        (lambda: setattr(turned, "rotation", 30.5), "shape-rotation-value", "whole degrees"),
     ):
         with pytest.raises(HwpxValueError) as caught:
             call()
         assert caught.value.code == code and says in str(caught.value)
     fresh = HwpxDocument.new()
-    resized = _group(fresh)
-    resized.resize(30000, 12000)
-    flipped = _group(fresh)
-    flipped.element.find(f"{HP}flip").set("horizontal", "1")
-    nested = fresh.add_paragraph("").add_container([
-        ContainerMember.rect(0, 0, 3000, 3000),
-        ContainerMember.group(4000, 0, [ContainerMember.rect(0, 0, 2000, 2000), ContainerMember.rect(3000, 0, 2000, 2000)]),
-    ])
-    stretched_member = _group(fresh)
-    stretched_member.element.find(f"{HP}rect/{HP}renderingInfo/{HC}scaMatrix").set("e1", "0.5")
-    for group, reason in ((resized, "resized"), (flipped, "flipped"), (nested, "holds a group"),
-                          (stretched_member, "stretched")):
-        before = [dict(node.attrib) for node in group.element.iter()]
+    both_ways = fresh.add_paragraph("").add_rectangle(8000, 4000)
+    both_ways.element.find(f"{HP}flip").attrib.update({"horizontal": "1", "vertical": "1"})
+    flipped_by_flag_only = _group(fresh)  # hp:flip set but no mirror in its matrices: not Hancom's form
+    flipped_by_flag_only.element.find(f"{HP}flip").set("horizontal", "1")
+    member_turned = _group(fresh)
+    member_turned.element.find(f"{HP}rect/{HP}rotationInfo").set("angle", "30")
+    for shape, reason in ((both_ways, "does not flip it"), (flipped_by_flag_only, "not a turn"),
+                          (member_turned, "on its own")):
+        before = [dict(node.attrib) for node in shape.element.iter()]
         with pytest.raises(HwpxValueError) as caught:
-            group.rotation = 30
+            shape.rotation = 45
         assert caught.value.code == "shape-rotation-unsupported" and reason in caught.value.context["reason"]
-        assert [dict(node.attrib) for node in group.element.iter()] == before  # refused before any change
+        assert [dict(node.attrib) for node in shape.element.iter()] == before  # refused before any change
     equation = fresh.shapes.add_equation("x")
     with pytest.raises(HwpxValueError) as caught:
         equation.rotation = 30
     assert caught.value.code == "shape-rotation-unsupported"
+
+
+def test_angles_are_kept_as_hancom_keeps_them() -> None:
+    doc = HwpxDocument.new()
+    box = doc.add_paragraph("").add_rectangle(14400, 7200)
+    for given, kept in ((-30, 330), (390, 30), (720, 0), (-360, 0)):
+        box.rotation = given
+        assert box.rotation == kept
+    group = _group(doc)
+    group.rotation = -90
+    assert group.rotation == 270
 
 
 def test_a_group_turned_back_to_0_is_the_group_it_was() -> None:

@@ -109,33 +109,62 @@ class PageSize:
     ``WIDELY`` for a portrait page and ``NARROWLY`` for a landscape page, and a
     landscape page keeps the paper's portrait width and height.
     ``drawn_width``/``drawn_height`` give the page as Hancom draws it.
+
+    Read as the file has them: an attribute ``hp:pagePr`` leaves out is the schema's
+    default (width 59528, height 84188, ``NARROWLY``, ``LEFT_ONLY``); a size that is
+    not a number, or a section with no ``hp:pagePr``, reads ``None`` (never 0).
     """
 
-    width: int
-    height: int
+    width: int | None
+    height: int | None
     orientation: str
     gutter_type: str
 
     @property
-    def drawn_width(self) -> int:
+    def drawn_width(self) -> int | None:
+        """The page's width as drawn; ``None`` when width or height is not known."""
+        if self.width is None or self.height is None:
+            return None
         return _drawn_page_size(self.width, self.height, self.orientation)[0]
 
     @property
-    def drawn_height(self) -> int:
+    def drawn_height(self) -> int | None:
+        """The page's height as drawn; ``None`` when width or height is not known."""
+        if self.width is None or self.height is None:
+            return None
         return _drawn_page_size(self.width, self.height, self.orientation)[1]
 
 
 @dataclass(slots=True)
 class PageMargins:
-    """Encapsulates page margin values in HWP units."""
+    """Page margins (``hp:pagePr/hp:margin``) in HWP units, as the file has them.
 
-    left: int
-    right: int
-    top: int
-    bottom: int
-    header: int
-    footer: int
-    gutter: int
+    ``header``/``footer``/``gutter`` the file leaves out read the schema's default (4252,
+    4252, 0). ``left``/``right``/``top``/``bottom`` have none (the schema requires them):
+    left out, like a value that is not a number or a section with no ``hp:margin``, they
+    read ``None`` -- never a 0 nobody wrote.
+    """
+
+    left: int | None
+    right: int | None
+    top: int | None
+    bottom: int | None
+    header: int | None
+    footer: int | None
+    gutter: int | None
+
+
+def _stored_length(element: ET.Element, name: str, default: int | None) -> int | None:
+    """The integer attribute *name* of *element*: *default* (the schema's) when left out, ``None``
+    when it is not a number."""
+
+    value = element.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
 @dataclass(slots=True)
@@ -413,12 +442,13 @@ class HwpxOxmlSectionProperties:
 
     @property
     def page_size(self) -> PageSize:
+        """The page size as the file has it (:class:`PageSize`; ``None`` for a size not written or not a number)."""
         page_pr = self._page_pr_element()
         if page_pr is None:
-            return PageSize(width=0, height=0, orientation=_PAGE_LANDSCAPE, gutter_type="LEFT_ONLY")
+            return PageSize(width=None, height=None, orientation=_PAGE_LANDSCAPE, gutter_type="LEFT_ONLY")
         return PageSize(
-            width=_get_int_attr(page_pr, "width", 0),
-            height=_get_int_attr(page_pr, "height", 0),
+            width=_stored_length(page_pr, "width", 59528),  # the schema's defaults
+            height=_stored_length(page_pr, "height", 84188),
             orientation=page_pr.get("landscape", _PAGE_LANDSCAPE),
             gutter_type=page_pr.get("gutterType", "LEFT_ONLY"),
         )
@@ -467,17 +497,18 @@ class HwpxOxmlSectionProperties:
 
     @property
     def page_margins(self) -> PageMargins:
+        """The page margins as the file has them (:class:`PageMargins`; ``None`` for one not known)."""
         margin = self._margin_element()
         if margin is None:
-            return PageMargins(left=0, right=0, top=0, bottom=0, header=0, footer=0, gutter=0)
+            return PageMargins(left=None, right=None, top=None, bottom=None, header=None, footer=None, gutter=None)
         return PageMargins(
-            left=_get_int_attr(margin, "left", 0),
-            right=_get_int_attr(margin, "right", 0),
-            top=_get_int_attr(margin, "top", 0),
-            bottom=_get_int_attr(margin, "bottom", 0),
-            header=_get_int_attr(margin, "header", 0),
-            footer=_get_int_attr(margin, "footer", 0),
-            gutter=_get_int_attr(margin, "gutter", 0),
+            left=_stored_length(margin, "left", None),  # required by the schema: no default
+            right=_stored_length(margin, "right", None),
+            top=_stored_length(margin, "top", None),
+            bottom=_stored_length(margin, "bottom", None),
+            header=_stored_length(margin, "header", 4252),  # the schema's defaults
+            footer=_stored_length(margin, "footer", 4252),
+            gutter=_stored_length(margin, "gutter", 0),
         )
 
     def set_page_margins(

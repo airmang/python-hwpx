@@ -196,7 +196,8 @@ def _entry_para_pr(doc: HwpxDocument, leader: int) -> str:
     """
     properties = doc.oxml.sections[0].properties
     size, margins = properties.page_size, properties.page_margins
-    width = size.drawn_width - margins.left - margins.right - margins.gutter
+    sizes = (size.drawn_width, margins.left, margins.right, margins.gutter)
+    width = 0 if None in sizes else sizes[0] - sizes[1] - sizes[2] - sizes[3]  # type: ignore[operator]
     if width <= 0:
         return "0"
     header = doc.oxml.headers[0]
