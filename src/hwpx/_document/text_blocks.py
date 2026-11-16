@@ -479,6 +479,10 @@ def _walk(
                                 col=_int_attr(address, "colAddr"),
                             )
                             yield from _walk(cell, cell_context, holder, "tc", counts)
+                    elif part_name == "caption":
+                        # A table's caption is a child of hp:tbl like its rows: its paragraphs (and a
+                        # table inside them) sit in the caption, not where the table itself sits.
+                        yield from _walk(part, replace(inner, where="caption"), holder, part_name, counts)
                     else:
                         yield from _walk(part, inner, holder, part_name, counts)
             else:
