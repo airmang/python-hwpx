@@ -23,7 +23,6 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.container import ContainerMember
-from hwpx.oxml.namespaces import HP
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 TEXT_BOX, GROUP, NESTED = "1720249014", "768560093", "2104287188"
