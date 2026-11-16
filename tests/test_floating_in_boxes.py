@@ -13,7 +13,11 @@ import pytest
 
 from hwpx import HwpxDocument
 from hwpx.oxml.namespaces import HP
-from hwpx.oxml.shape_position import fit_new_floating_object, new_object_box
+from hwpx.oxml.shape_position import _stays_in_box, fit_new_floating_object, paragraph_box
+
+
+def new_object_box(paragraph) -> str:
+    return paragraph_box(paragraph.element, paragraph.section.element)
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 
@@ -79,7 +83,7 @@ def test_each_floating_kind_made_in_a_box_is_kept_in_it(box: str) -> None:
 def test_the_body_keeps_its_default_and_a_character_object_is_left_alone() -> None:
     doc = HwpxDocument.new()
     body = doc.add_paragraph("")
-    assert new_object_box(body) is None
+    assert new_object_box(body) == "body"
     assert _frames(body.add_rectangle(3000, 1500, treat_as_char=False)) == BODY_DEFAULT
     cell = doc.add_table(1, 1).cell(0, 0).paragraphs[0]
     inline = cell.add_rectangle(3000, 1500)
@@ -132,8 +136,13 @@ def test_the_placement_satisfies_the_rule_moving_into_a_box_checks() -> None:
     shape = _boxes(doc)["cell"].add_rectangle(3000, 1500, treat_as_char=False)
     position = shape.element.find(f"{HP}pos")
     assert position.get("vertRelTo") == "PARA" and position.get("flowWithText") == "1"
+    assert _stays_in_box(shape.element)
     fit_new_floating_object(shape.element, shape.paragraph)  # a second fit changes nothing
     assert _frames(shape) == IN_A_BOX
+    # and it can be moved into another cell without being refused
+    other = doc.add_table(1, 1).cell(0, 0).paragraphs[0]
+    shape.move_to(other)
+    assert shape.paragraph.element is other.element
 
 
 def _parts(data: bytes) -> dict[str, bytes]:

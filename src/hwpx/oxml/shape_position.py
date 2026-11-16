@@ -268,21 +268,9 @@ def _object_set_position(
 
 _FALSE_FLAGS = frozenset({"0", "false", "False"})
 
-#: What a ``hp:subList`` belongs to, named as the box a new floating object's paragraph sits in. The same
-#: names as the move lane's ``paragraph_box`` (``cell``, ``text_box``, ``note``, ``header_footer``).
-_NEW_OBJECT_BOXES = {"tc": "cell", "drawText": "text_box", "footNote": "note", "endNote": "note",
-                     "header": "header_footer", "footer": "header_footer"}
-
-
-def new_object_box(paragraph: Any) -> str | None:
-    """The box (``cell``, ``text_box``, ``note``, ``header_footer``) the model paragraph *paragraph* sits in,
-    or ``None`` for the body and anything else (a caption, a memo, a master page)."""
-
-    parent = _parent_of(paragraph.element, paragraph.section.element)
-    if parent is None or str(parent.tag).rsplit("}", 1)[-1] != "subList":
-        return None
-    owner = _parent_of(parent, paragraph.section.element)
-    return _NEW_OBJECT_BOXES.get(str(owner.tag).rsplit("}", 1)[-1]) if owner is not None else None
+#: The boxes (:func:`paragraph_box`) whose new floating objects :func:`fit_new_floating_object` places as
+#: Hancom documents place floating objects there.
+_FITTED_BOXES = frozenset({"cell", "text_box", "note", "header_footer"})
 
 
 def fit_new_floating_object(element: Any, paragraph: Any) -> None:
@@ -299,7 +287,8 @@ def fit_new_floating_object(element: Any, paragraph: Any) -> None:
     always), kept in the area (``flowWithText="1"``) and not overlapping (``allowOverlap="0"``). An object
     as a character, one in the body, or one measured from the page or paper (its caller placed it so: a
     connector between shapes, a picture with ``pos_overrides``) is left as it is; a connector keeps the
-    frames of the shapes it joins.
+    frames of the shapes it joins. The object then meets what moving one into such a box asks
+    (:func:`_stays_in_box`).
     """
 
     position = element.find(f"{_HP}pos")
@@ -307,7 +296,7 @@ def fit_new_floating_object(element: Any, paragraph: Any) -> None:
         return
     if position.get("vertRelTo") != "PARA" or position.get("horzRelTo") not in ("PARA", "COLUMN"):
         return
-    if new_object_box(paragraph) is None:
+    if paragraph_box(paragraph.element, paragraph.section.element) not in _FITTED_BOXES:
         return
     if str(element.tag).rsplit("}", 1)[-1] != "connectLine":
         position.set("horzRelTo", "PARA")
@@ -636,11 +625,12 @@ class ObjectPlacement:
             if why is not None:
                 raise _group_member_refused("removed", why)
         images = binary_references(element) if remove_orphaned else set()
-        if groups:
+        _detach_object(element, parent, paragraph, self.paragraph.section)
+        if groups:  # the groups fit the members left, so only after it went
             from .container import fit_groups_after_removal
 
             fit_groups_after_removal(groups)
-        _detach_object(element, parent, paragraph, self.paragraph.section)
+        remove_orphaned_images(self.paragraph.section, images)
 
     def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> None:
         """Move this object into *paragraph* at character *offset* (``None``: the end), as cutting
@@ -689,7 +679,6 @@ class ObjectPlacement:
         """
 
         return place_object(self, paragraph, offset, copy=True)  # type: ignore[no-any-return]
-        remove_orphaned_images(section, images)
 
 
 _IDENTITY = ("1", "0", "0", "0", "1", "0")

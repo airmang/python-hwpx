@@ -379,7 +379,7 @@ except HwpxError as exc:
 | `shape-drop-cap-not-created` | 만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다. |
 | `shape-drop-cap-style-unsupported` | 드롭캡 dropcapstyle 값이 실증된 어휘(DoubleLine, TripleLine) 밖이다. |
 | `shape-equation-base-unit-value` | 수식 기준 크기(base_unit)가 1 이상 2**31 미만의 int(1/100 pt)가 아니다(bool 도 거부). |
-| `shape-equation-font-empty` | 수식 글꼴 이름이 비어 있거나 str 이 아니다. |
+| `shape-equation-font-empty` | 수식 글꼴(font)이 비어 있거나 문자열이 아니다. |
 | `shape-equation-not-created` | 만든 수식을 표준 스캔이 다시 찾지 못했다. |
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
