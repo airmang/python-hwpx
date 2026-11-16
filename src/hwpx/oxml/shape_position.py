@@ -582,13 +582,11 @@ class ObjectPlacement:
 
         A floating object is moved in its frame so the centre it turns about stays where it was on the page, as
         Hancom moves it (:func:`keep_turn_anchor`: placed from the left and top or centred, from a paragraph,
-        column, page or the paper); turned back to 0 it is back where it was. Hancom also hangs it on the paragraph
-        at whose height it then starts. Here one measured from its paragraph that now starts above it is hung so
-        (:func:`hang_on_paragraph_above`; Hangul does not draw it above that paragraph's top where its offset says)
-        when the paragraphs' line layout is known; otherwise, and when it moves down, it stays on its paragraph,
-        measured from it. Above the first paragraph of its page, kept in the page area, Hangul draws it from that
-        paragraph's top and turns it again about there (:func:`kept_in_paragraph`); so does this. An object set as
-        a character keeps its place.
+        column, page or the paper; the offset may become negative); turned back to 0 it is back where it was. The
+        paragraph it hangs on does not change: Hancom's own turn hangs an object moved up on the paragraph at that
+        height (its page layout: ``hancom18`` fc-30, fn-30), which python-hwpx, laying out no pages, does not do.
+        Hangul draws an object kept in the page area whose top would be above the line it hangs on from that line's
+        top (``hancom16`` ha-30, rotate12 check15 case 4). An object set as a character keeps its place.
 
         A flipped rectangle, ellipse, polygon, line or group (:attr:`flip_horizontal`, :attr:`flip_vertical`)
         turns too: its ``hc:rotMatrix`` mirrors, then turns it, as Hancom writes a flipped text box turned 45
@@ -639,15 +637,10 @@ class ObjectPlacement:
             else:
                 width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
                 apply_rotation(self.element, angle, width, height)
-        keep_turn_anchor(self.element, before,
-                         at_top=first_on_its_page(self.paragraph.element, self.paragraph.section.element))
+        keep_turn_anchor(self.element, before)
         from ._document_primitives import _clear_paragraph_layout_cache
 
-        hung = hang_on_paragraph_above(self.element, self.paragraph.element, self.paragraph.section.element)
         _clear_paragraph_layout_cache(self.paragraph.element)
-        if hung is not None:
-            _clear_paragraph_layout_cache(hung)
-            self.paragraph = type(self.paragraph)(hung, self.paragraph.section)
         self.paragraph.section.mark_dirty()
 
     @property
@@ -880,8 +873,7 @@ def turn_anchor(element: Any) -> tuple[tuple[int, int], tuple[int, int]] | None:
     return ((_number(info.get("centerX")) or 0, _number(info.get("centerY")) or 0), object_size(element))
 
 
-def keep_turn_anchor(element: Any, before: tuple[tuple[int, int], tuple[int, int]] | None, *,
-                     at_top: bool = False) -> None:
+def keep_turn_anchor(element: Any, before: tuple[tuple[int, int], tuple[int, int]] | None) -> None:
     """After a turn, move the floating object *element* in its frame so the centre it turns about stays where it was
     on the page, as Hancom 2024 does (rotate9 ``want-float1``, a picture, a rectangle and a group placed from a
     paragraph and column, from the paper, and centred): placed from the left (top), its offset gains the old centre
@@ -889,9 +881,7 @@ def keep_turn_anchor(element: Any, before: tuple[tuple[int, int], tuple[int, int
     the old centre's distance from the middle of the old box less the new one's (a group turned 30, 12330 high with
     its centre at 6598: 433 up; a picture, whose centre is the middle of its box, does not move). Placed from the
     right, bottom, inside or outside it is left: no Hancom-saved document shows one turned. A flip and a resize do
-    not move it (Hancom's neither). On the first paragraph of its page or box (*at_top*), where Hancom too leaves an
-    object turned above it, one drawn from that paragraph's top (:func:`kept_in_paragraph`) turns about where it is
-    drawn; elsewhere it turns about where it is written, so turned back it is where it began."""
+    not move it (Hancom's neither)."""
 
     if before is None:
         return
@@ -911,115 +901,7 @@ def keep_turn_anchor(element: Any, before: tuple[tuple[int, int], tuple[int, int
         else:
             continue
         if moved:
-            offset = _signed_offset(position.get(key)) or 0
-            if key == "vertOffset" and align == "TOP" and offset < 0 and at_top and kept_in_paragraph(position):
-                offset = 0  # drawn at its paragraph's top: Hancom turns it about where it is drawn (ha-30-60)
-            position.set(key, str(offset + moved & 0xFFFFFFFF))
-
-
-def kept_in_paragraph(position: Any) -> bool:
-    """Whether Hangul draws a floating object measured down from its paragraph no higher than that paragraph's
-    top: kept in the page area (``flowWithText="1"``). Hancom 2024 writes such an object turned above its
-    paragraph with the offset it computes (a 12000-long line on the first paragraph turned 30 degrees: -1400)
-    but draws it from the paragraph's top (``hancom16/ha-30.png``: the box starts at the body's top, 1400 lower;
-    ``check15`` case 4: a line at -1000 drawn 9-10 px at 70 dpi lower, its box at its paragraph's top), and turns
-    it again about where it is drawn: back to 0 that line lies 1400 lower than it began, at 60 it is
-    -2196 (``hancom17``)."""
-
-    return position.get("vertRelTo") == "PARA" and (position.get("flowWithText") or "0") not in _FALSE_FLAGS
-
-
-def _line_segments(paragraph: Any) -> list[Any]:
-    return [segment for child in paragraph if str(child.tag).rsplit("}", 1)[-1] == "linesegarray"
-            for segment in child if str(segment.tag).rsplit("}", 1)[-1] == "lineseg"]
-
-
-def _first_line_top(paragraph: Any) -> int | None:
-    """Where the paragraph's first line starts down its page or box (``hp:lineseg/@vertpos``), from its line
-    layout as last saved; ``None`` when it holds none (never saved by Hangul, or an edit here dropped it -- python-hwpx
-    drops the cache of every paragraph it changes, so one still there is Hangul's for that paragraph as it is)."""
-
-    segments = _line_segments(paragraph)
-    return _signed_offset(segments[0].get("vertpos")) if segments else None
-
-
-def first_on_its_page(paragraph: Any, scope: Any) -> bool:
-    """Whether *paragraph* is the first of its box (a cell, a text box) or section, starts a page, or its line
-    layout as last saved starts it at the top (``vertpos`` 0)."""
-
-    holder = _parent_of(paragraph, scope)
-    if holder is not None and next((child for child in holder if str(child.tag).rsplit("}", 1)[-1] == "p"),
-                                   None) is paragraph:
-        return True
-    return paragraph.get("pageBreak") == "1" or _first_line_top(paragraph) == 0
-
-
-def hang_on_paragraph_above(element: Any, paragraph: Any, scope: Any) -> Any | None:
-    """Hang a floating object turned above its paragraph on the paragraph at the height it now starts, as Hancom
-    2024 does, and return that paragraph's element (``None`` when it stays).
-
-    Hangul does not draw an object measured down from its paragraph above that paragraph's top as written: kept
-    in the page area it draws it from that top (:func:`kept_in_paragraph`), and one that text goes around lands
-    one line higher (``check15`` case 2: a group at -915 drawn 15 px at 70 dpi too high, the label above it laid
-    out again around it). Hancom moves the object instead: a curve on the second paragraph turned 30 degrees to
-    -1872 is on the first at -272, a group to -915 on the first (two lines) at 2285 (``hancom18`` fc-30, fn-30),
-    put in that paragraph's text run in front of its text. The heights come from the paragraphs' line layout
-    as last saved (their first line's ``vertpos``), and only when every paragraph from the object's own up to the
-    one it goes on holds it: one without (never laid out by Hangul, or changed here, which drops it), or a page or
-    column starting in between, leaves the object where it is, measured above its paragraph -- nothing is guessed.
-    Above the first paragraph of its page or box it goes on that first paragraph, still above it (``ha-30``: -1400;
-    a picture in a cell's only paragraph, ``cell-p-30``: -1598). Both paragraphs then lose their line layout cache
-    (the caller drops them): one gains a control and the other loses one, so their lines' text positions change,
-    and text goes around the object in its new place."""
-
-    position = element.find(f"{_HP}pos")
-    if position is None or position.get("treatAsChar") not in _FALSE_FLAGS or position.get("vertRelTo") != "PARA" \
-            or position.get("vertAlign", "TOP") != "TOP":
-        return None
-    offset = _signed_offset(position.get("vertOffset")) or 0
-    holder = _parent_of(paragraph, scope)
-    run = _parent_of(element, paragraph)
-    if offset >= 0 or holder is None or run is None or _parent_of(run, paragraph) is not paragraph:
-        return None
-    paragraphs = [child for child in holder if str(child.tag).rsplit("}", 1)[-1] == "p"]
-    index = next((i for i, child in enumerate(paragraphs) if child is paragraph), None)
-    top = _first_line_top(paragraph) if index is not None else None
-    if index is None or top is None:
-        return None
-    height = top + offset
-    target, below = index, top
-    for candidate in reversed(paragraphs[:index]):
-        if paragraphs[paragraphs.index(candidate) + 1].get("pageBreak") == "1" or \
-                paragraphs[paragraphs.index(candidate) + 1].get("columnBreak") == "1":
-            break
-        start = _first_line_top(candidate)
-        if start is None:
-            return None  # its height is not known: leave it
-        if start > below:
-            break  # a page or column starts after it
-        target, below = paragraphs.index(candidate), start
-        if start <= height:
-            break
-    if target == index:
-        return None
-    destination = paragraphs[target]
-    run.remove(element)
-    if not any(True for _ in run) and sum(1 for child in paragraph if str(child.tag).rsplit("}", 1)[-1] == "run") > 1:
-        paragraph.remove(run)
-    text_run = next((child for child in destination if str(child.tag).rsplit("}", 1)[-1] == "run"
-                     and any(str(item.tag).rsplit("}", 1)[-1] == "t" for item in child)), None)
-    if text_run is not None:
-        first_text = next(i for i, item in enumerate(text_run) if str(item.tag).rsplit("}", 1)[-1] == "t")
-        text_run.insert(first_text, element)
-    else:
-        runs = [child for child in destination if str(child.tag).rsplit("}", 1)[-1] == "run"]
-        new_run = destination.makeelement(f"{_HP}run", {"charPrIDRef": runs[-1].get("charPrIDRef", "0") if runs else "0"})
-        new_run.append(element)
-        last_run_at = max((i for i, child in enumerate(destination) if str(child.tag).rsplit("}", 1)[-1] == "run"),
-                          default=-1)
-        destination.insert(last_run_at + 1, new_run)
-    position.set("vertOffset", str(height - below & 0xFFFFFFFF))
-    return destination
+            position.set(key, str((_signed_offset(position.get(key)) or 0) + moved & 0xFFFFFFFF))
 
 
 def rotation_base_size(element: Any) -> tuple[int, int]:
