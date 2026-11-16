@@ -651,13 +651,12 @@ class HwpxDocument:
         char_pr_id_ref: str | int | None,
     ) -> tuple[str | int | None, str | int | None]:
         """The paragraph and character shapes Hancom applies with *style*, where
-        the caller gave none."""
+        the caller gave none (``oxml.section.style_shape_refs``, which every
+        ``add_paragraph(style=)`` uses)."""
 
-        resolved = self.styles.resolve(style)
-        if para_pr_id_ref is None:
-            para_pr_id_ref = resolved.para_pr_id_ref
-        if char_pr_id_ref is None:
-            char_pr_id_ref = resolved.char_pr_id_ref
+        from .oxml.section import style_shape_refs
+
+        _, para_pr_id_ref, char_pr_id_ref = style_shape_refs(self._root, style, para_pr_id_ref, char_pr_id_ref)
         return para_pr_id_ref, char_pr_id_ref
 
     @rejects_removed_arguments

@@ -306,13 +306,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             match = _OUTLINE_ENG_NAME.match((resolved.eng_name or "").strip())
             level = int(match.group(1)) if match else None
         if level is None:
-            para_pr = self._doc.oxml.paragraph_property(resolved.para_pr_id_ref)
-            heading = getattr(para_pr, "heading", None)
-            if heading is not None and (getattr(heading, "type", "") or "").upper() == "OUTLINE":
-                try:
-                    level = int(str(getattr(heading, "level", "")).strip()) + 1
-                except (TypeError, ValueError):
-                    level = None
+            from ...oxml.formatting import para_pr_outline_level
+
+            level = para_pr_outline_level(self._doc.oxml, resolved.para_pr_id_ref)
         return level if level is not None and MIN_HEADING_LEVEL <= level <= MAX_HEADING_LEVEL else None
 
     # -- 서식 정의 테이블 --------------------------------------------------

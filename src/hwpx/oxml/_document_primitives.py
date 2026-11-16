@@ -943,9 +943,10 @@ def _append_fill_brush(
 ) -> None:
     """Append ``hc:fillBrush`` (winBrush/imgBrush/gradation) to *parent* if any
     fill was requested — the schema's fillBrush choice (Core XML
-    schema.xml:650), so at most one branch fires. Shared by
-    :func:`_create_border_fill_element` and
-    ``HwpxOxmlHeader.ensure_shading_border_fill``.
+    schema.xml:650), so at most one branch fires. Used by
+    :func:`_create_border_fill_element`, and for the picture and gradation of a
+    border fill derived from another (``hwpx.oxml.formatting.set_border_fill_image``
+    and ``set_border_fill_gradient``).
     """
 
     if fill_image is not None:
@@ -991,33 +992,6 @@ def _append_fill_brush(
                 f"{_HC}winBrush",
                 {"faceColor": normalized_fill, "hatchColor": "#FF000000", "alpha": "0"},
             )
-
-
-def _find_shading_border_fill_id(
-    element: ET.Element,
-    *,
-    face_color: str | None,
-    fill_image: "Mapping[str, str] | None" = None,
-    fill_gradient: "Mapping[str, object] | None" = None,
-) -> str | None:
-    """Return the id of an existing ``hh:borderFill`` whose fill already
-    matches — the dedupe half of ``HwpxOxmlHeader.ensure_shading_border_fill``,
-    extracted so that caller stays inside header_part.py's line-count ratchet.
-    """
-
-    for border_fill in element.findall(f"{_HH}borderFill"):
-        if fill_image is not None or fill_gradient is not None:
-            image, gradient = _border_fill_image_gradient(border_fill)
-            if image != (dict(fill_image) if fill_image is not None else None):
-                continue
-            if gradient != (dict(fill_gradient) if fill_gradient is not None else None):
-                continue
-        elif _border_fill_fill_color(border_fill) != face_color:
-            continue
-        border_id = border_fill.get("id")
-        if border_id:
-            return border_id
-    return None
 
 
 def _create_border_fill_element(
@@ -1137,8 +1111,7 @@ def _ensure_memo_shape(
     (``hh:memoProperties``). Returns ``(id, None)`` if an existing shape
     already matches, else ``(new_id, new_unattached_element)`` — the caller
     (``HwpxOxmlHeader.ensure_memo_shape``) owns attaching it via
-    :func:`_attach_new_child` plus ``itemCnt``/``mark_dirty`` bookkeeping,
-    the same split :func:`_find_shading_border_fill_id` uses.
+    :func:`_attach_new_child` plus ``itemCnt``/``mark_dirty`` bookkeeping.
     """
 
     for memo_pr in element.findall(f"{_HH}memoPr"):
