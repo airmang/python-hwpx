@@ -25,9 +25,9 @@ from ._document_primitives import (
 )
 from .shape_position import (
     DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, equation_font_size, fill_color_of, keep_ratio,
-    line_width_mm_of, line_width_units, object_size,
+    line_width_mm_of, line_width_units, object_size, own_size,
     picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
-    resize_object, resize_shape, resize_turned_group, _group_member_refused, _in_group,
+    resize_object, resize_shape, resize_turned_as_own, _group_member_refused, _in_group,
     set_equation_font, set_equation_font_size, set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
     _object_set_position, build_at_original_size, fit_new_floating_object, refuse_resizing_flipped, resize_group,
@@ -90,18 +90,33 @@ class HwpxOxmlInlineObject(ObjectPlacement):
 
     @property
     def width(self) -> int:
-        """The object's width as drawn (``hp:sz``, HWPUNIT)."""
+        """The object's own width as drawn, before it is turned (HWPUNIT) -- the size ``resize`` takes, see
+        ``shape_position.own_size``; unturned, the width of ``hp:sz`` (:attr:`box_width`)."""
+
+        return own_size(self.element)[0]
+
+    @property
+    def height(self) -> int:
+        """The object's own height as drawn, before it is turned (HWPUNIT); see :attr:`width`."""
+
+        return own_size(self.element)[1]
+
+    @property
+    def box_width(self) -> int:
+        """The width of the box the object takes in its paragraph (``hp:sz``, HWPUNIT; read only): a turned
+        object's box is the box around it as turned. Unturned, it is :attr:`width`."""
 
         return object_size(self.element)[0]
 
     @property
-    def height(self) -> int:
-        """The object's height as drawn (``hp:sz``, HWPUNIT)."""
+    def box_height(self) -> int:
+        """The height of the box the object takes in its paragraph (``hp:sz``, HWPUNIT; read only)."""
 
         return object_size(self.element)[1]
 
     def resize(self, width: int | None = None, height: int | None = None) -> None:
-        """Draw the object *width* x *height* (HWPUNIT); give one alone to keep the aspect ratio.
+        """Draw the object *width* x *height* (HWPUNIT, its own size -- :attr:`width`, :attr:`height`); give one
+        alone to keep the aspect ratio. Its own size again changes nothing.
 
         ``hp:sz`` and ``hp:curSz`` take the new size and ``hc:scaMatrix`` scales the original size
         (``hp:orgSz``) to it, as Hancom saves a resized picture. A size that is not an int in
@@ -111,6 +126,8 @@ class HwpxOxmlInlineObject(ObjectPlacement):
         ``equation.script`` or ``equation.font_size`` instead.
         """
 
+        if keep_ratio(own_size(self.element), width, height) == own_size(self.element):
+            return
         resize_object(self, width, height)
 
     # --- caption (hp:caption — table/picture/OLE/equation may carry one) ---
@@ -1579,17 +1596,29 @@ class HwpxOxmlShape(ObjectPlacement):
 
     @property
     def width(self) -> int:
-        sz = self.element.find(f"{_HP}sz")
-        if sz is not None:
-            return int(sz.get("width", "0"))
-        return 0
+        """The shape's own width as drawn, before it is turned (HWPUNIT) -- the size ``resize`` takes, see
+        ``shape_position.own_size``; unturned, the width of ``hp:sz`` (:attr:`box_width`)."""
+
+        return own_size(self.element)[0]
 
     @property
     def height(self) -> int:
-        sz = self.element.find(f"{_HP}sz")
-        if sz is not None:
-            return int(sz.get("height", "0"))
-        return 0
+        """The shape's own height as drawn, before it is turned (HWPUNIT); see :attr:`width`."""
+
+        return own_size(self.element)[1]
+
+    @property
+    def box_width(self) -> int:
+        """The width of the box the shape takes in its paragraph (``hp:sz``, HWPUNIT; read only): a turned
+        shape's box is the box around it as turned. Unturned, it is :attr:`width`."""
+
+        return object_size(self.element)[0]
+
+    @property
+    def box_height(self) -> int:
+        """The height of the box the shape takes in its paragraph (``hp:sz``, HWPUNIT; read only)."""
+
+        return object_size(self.element)[1]
 
     def resize(self, width: int | None = None, height: int | None = None) -> None:
         """Draw the shape *width* x *height* (HWPUNIT); give one alone to keep the aspect ratio.
@@ -1598,15 +1627,19 @@ class HwpxOxmlShape(ObjectPlacement):
         ``startPt``/``endPt`` ...) and original size (``hp:orgSz``) stay, and ``hc:scaMatrix`` draws it at
         the new size (``hp:sz``; ``hp:curSz`` the new size on an axis that differs from ``orgSz``, 0 on one
         that does not). A horizontal or vertical line takes a height or width that way too (its ``orgSz``
-        keeps 1 there). A turned shape is resized as drawn before turning and turned again. A group's
-        members are stretched with it (see ``shape_position.resize_group``); a turned group is stretched
-        along the page so the box around it becomes *width* x *height*, its turn kept
-        (``shape_position.resize_turned_group``). Refused: a flipped shape (``shape-flip-unsupported``), a
-        stretched turned group or one holding a group (``shape-rotation-unsupported``), and a member of a
-        group alone (``shape-group-member-unsupported``: a member is resized with its group). A size that is
-        not an int in ``0 <= value < 2**31`` is ``shape-size-value``. The paragraph loses its line layout
-        cache.
+        keeps 1 there). A group's members are stretched with it (see ``shape_position.resize_group``).
+        *width* x *height* is always the shape's own size: a turned shape or group (flipped or not) is
+        turned back, resized and turned again (``shape_position.resize_turned_as_own``), so it stays the
+        same shape turned -- not stretched along the page into a parallelogram as Hancom's object
+        properties stretch the box around it. Refused: a flipped drawing shape other than a group, a group
+        holding a group flipped (``shape-flip-unsupported``), an object skewed by Hancom's resize of a
+        turned one (``shape-rotation-unsupported``), and a member of a group alone
+        (``shape-group-member-unsupported``: a member is resized with its group). A size that is not an int
+        in ``0 <= value < 2**31`` is ``shape-size-value``. The paragraph loses its line layout cache. Its own
+        size again (:attr:`width`, :attr:`height`) changes nothing.
         """
+        if keep_ratio(own_size(self.element), width, height) == own_size(self.element):
+            return
         refuse_resizing_flipped(self.element)
         if _in_group(self.element, self.paragraph.element):
             raise _group_member_refused("resized", "a member is resized with its whole group: no Hancom-saved "
@@ -1614,8 +1647,7 @@ class HwpxOxmlShape(ObjectPlacement):
         angle = self.rotation % 360
         if self.shape_type == "container":
             if angle:
-                width, height = keep_ratio((self.width, self.height), width, height)
-                resize_turned_group(self, width, height)
+                resize_turned_as_own(self, width, height, lambda w, h: self.resize(w, h), unflip=True)
                 return
             width, height = keep_ratio((self.width, self.height), width, height)
             _clear_paragraph_layout_cache(self.paragraph.element)  # its line is as tall as the shape set as a character
