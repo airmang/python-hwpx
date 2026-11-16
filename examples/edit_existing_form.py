@@ -35,7 +35,7 @@ def _targets(document: HwpxDocument, values: Mapping[str, str]) -> dict[str, dic
 
     found: dict[str, list[dict]] = {label: [] for label in values}
     for table_index, table in enumerate(document.tables):
-        grid = table.get_cell_map()
+        grid = table.cell_map
         for position in table.iter_grid():
             label = position.cell.text.strip()
             if not position.is_anchor or label not in found:

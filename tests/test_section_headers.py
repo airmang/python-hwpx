@@ -167,7 +167,7 @@ def test_set_footer_text_writes_one_control_story_and_no_apply() -> None:
 
     assert sec_pr.find(f"{HP}footer") is None
     assert sec_pr.find(f"{HP}footerApply") is None
-    assert footer.apply_page_type == "ODD"
+    assert footer.page_type == "ODD"
     assert _mirrored_stories(section, "footer", footer.id) == [footer.element]
     assert _control_text(section, "footer", "ODD") == "Page"
 
@@ -178,7 +178,7 @@ def test_header_wrapper_updates_its_control_story() -> None:
     wrapper = properties.set_header_text("Initial", page_type="BOTH")
 
     section.reset_dirty()
-    wrapper.apply_page_type = "EVEN"
+    wrapper.page_type = "EVEN"
     assert _control_page_types(section, "header") == ["EVEN"]
     assert section.dirty is True
 
@@ -217,7 +217,7 @@ def test_existing_header_apply_attribute_is_preserved() -> None:
     )
 
     section.reset_dirty()
-    wrapper = section.properties.get_header()
+    wrapper = section.properties.header()
     assert wrapper is not None
 
     section.reset_dirty()
@@ -250,8 +250,8 @@ def test_header_footer_helpers_work_on_real_hwpx_document() -> None:
 
     reopened = HwpxDocument.open(document.to_bytes())
 
-    header = reopened.sections[0].properties.get_header()
-    footer = reopened.sections[0].properties.get_footer()
+    header = reopened.sections[0].properties.header()
+    footer = reopened.sections[0].properties.footer()
 
     assert header is not None
     assert footer is not None
@@ -262,8 +262,8 @@ def test_header_footer_helpers_work_on_real_hwpx_document() -> None:
 def test_preserving_header_text_adds_only_missing_target_mirror() -> None:
     document = HwpxDocument.open(FUZZ_BASELINE)
     section = document.sections[0]
-    target = section.properties.get_header("BOTH")
-    unrelated = section.properties.get_header("EVEN")
+    target = section.properties.header("BOTH")
+    unrelated = section.properties.header("EVEN")
     assert target is not None and target.id is not None
     assert unrelated is not None and unrelated.id is not None
     assert _mirrored_stories(section, "header", target.id) == []
@@ -294,7 +294,7 @@ def test_preserving_header_text_adds_only_missing_target_mirror() -> None:
 def test_preserving_header_text_updates_existing_mirror_in_place() -> None:
     document = HwpxDocument.open(FUZZ_BASELINE)
     section = document.sections[0]
-    target = section.properties.get_header("BOTH")
+    target = section.properties.header("BOTH")
     assert target is not None and target.id is not None
     target.set_simple_text_preserving("first value")
     mirror = _mirrored_stories(section, "header", target.id)[0]
@@ -317,7 +317,7 @@ def test_preserving_header_text_rejects_structural_text_without_mutation(
 ) -> None:
     document = HwpxDocument.open(FUZZ_BASELINE)
     section = document.sections[0]
-    target = section.properties.get_header("BOTH")
+    target = section.properties.header("BOTH")
     assert target is not None
     before = ET.tostring(section.element)
     section.reset_dirty()
@@ -332,7 +332,7 @@ def test_preserving_header_text_rejects_structural_text_without_mutation(
 def test_preserving_header_text_rejects_rich_story_without_mutation() -> None:
     document = HwpxDocument.open(FUZZ_BASELINE)
     section = document.sections[0]
-    target = section.properties.get_header("BOTH")
+    target = section.properties.header("BOTH")
     assert target is not None
     paragraph = target.element.find(f"{HP}subList/{HP}p")
     assert paragraph is not None
@@ -350,7 +350,7 @@ def test_preserving_header_text_rejects_rich_story_without_mutation() -> None:
 def test_preserving_header_text_rejects_duplicate_mirror_without_mutation() -> None:
     document = HwpxDocument.open(FUZZ_BASELINE)
     section = document.sections[0]
-    target = section.properties.get_header("BOTH")
+    target = section.properties.header("BOTH")
     assert target is not None and target.id is not None
     target.set_simple_text_preserving("mirrored")
     mirror = _mirrored_stories(section, "header", target.id)[0]

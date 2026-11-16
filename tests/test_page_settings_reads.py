@@ -199,7 +199,7 @@ def test_section_all_changes_every_section_without_the_last_section_warning() ->
     for index in range(3):
         assert doc.page.margins(section=index).left == 7000
         assert doc.page.footnote_shape(section=index).number_format == "ROMAN_SMALL"
-        assert doc.sections[index].properties.get_footer() is not None
+        assert doc.sections[index].properties.footer() is not None
     assert _reopen(doc).validate().ok
 
 

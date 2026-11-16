@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 __all__ = ["resolve_section", "resolve_paragraph", "optional_paragraph"]
 
 
-def _sections(document: "HwpxDocument") -> list["HwpxOxmlSection"]:
+def _sections(document: "HwpxDocument") -> tuple["HwpxOxmlSection", ...]:
     return document.oxml.sections
 
 

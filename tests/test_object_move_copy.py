@@ -672,7 +672,7 @@ def test_a_paragraph_moved_to_another_section_takes_its_memo_along() -> None:
     assert second.memos[0].paragraph is not None
     again = _reopen(doc)
     assert [m.text for m in again.sections[1].memos] == ["확인"]
-    assert again.sections[0].memos == []
+    assert again.sections[0].memos == ()
     del memo
 
 

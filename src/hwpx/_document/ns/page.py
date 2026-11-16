@@ -828,14 +828,7 @@ class PageNamespace(_Namespace):
     def start_numbers(self, *, section: "int | HwpxOxmlSection | None" = None) -> "StartNumbers":
         """구역의 시작 번호(``hp:startNum``): 쪽·그림·표·수식. 0이면 앞 구역에서 이어 센다."""
 
-        value = self._section(section, "start_numbers").properties.start_numbering
-        return StartNumbers(
-            page_starts_on=value.page_starts_on,
-            page=value.page,
-            picture=value.picture,
-            table=value.table,
-            equation=value.equation,
-        )
+        return self._section(section, "start_numbers").properties.start_numbers
 
     def set_start_numbers(
         self,
@@ -855,7 +848,7 @@ class PageNamespace(_Namespace):
 
         if page_starts_on is not None:
             _one_of("page_starts_on", page_starts_on, ("BOTH", "EVEN", "ODD"), "page-start-numbers-invalid")
-        self._apply(section, "set_start_numbers", lambda target: target.properties.set_start_numbering(
+        self._apply(section, "set_start_numbers", lambda target: target.properties.set_start_numbers(
             page_starts_on=page_starts_on, page=page, picture=picture, table=table, equation=equation
         ))
 
