@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 341 | 11 |
+| 개수 | 342 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -387,6 +387,7 @@ except HwpxError as exc:
 | `shape-compose-text-value` | 글자 겹치기 글자가 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다. |
 | `shape-connector-frame` | 연결선을 이으려는 두 도형이 같은 기준에서 왼쪽·위로 놓여 있지 않다. |
 | `shape-connector-kind-unsupported` | 연결선 모양이 실증된 어휘(STRAIGHT, STROKE) 밖이다(ARC 는 제어점이 필요). |
+| `shape-connector-length-zero` | 연결선의 두 끝이 한 점이다(이을 변이나 도형 자리를 바꾼다). |
 | `shape-connector-side-invalid` | 연결선 끝의 변이 top/right/bottom/left 밖이다. |
 | `shape-connector-target-inline` | 연결선을 이으려는 도형이 글자처럼 놓였거나 instid 가 없다. |
 | `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
