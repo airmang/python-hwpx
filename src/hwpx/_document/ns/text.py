@@ -42,9 +42,10 @@ def _story_key(story: Any) -> tuple[str, str | None, str]:
 def _paragraphs_everywhere(section_element: Any) -> Iterator[tuple[Any, str, tuple[str, str | None, str] | None]]:
     """Every paragraph of a section except memo bodies, in document order, with its role.
 
-    A header or footer python-hwpx writes lives twice: under ``hp:secPr`` (``"story"``, the
-    copy python-hwpx edits) and in a body ``hp:ctrl`` (``"mirror"``, the copy Hancom reads).
-    Both carry the story's key so a caller can make the mirror follow the story.
+    A header or footer python-hwpx up to 6.x wrote lives twice: under ``hp:secPr`` (``"story"``,
+    the copy python-hwpx edited) and in a body ``hp:ctrl`` (``"mirror"``, the copy Hancom reads).
+    Both carry the story's key so a caller can make the mirror follow the story. One written
+    once, as Hancom and python-hwpx 7.0 write it, is ``"plain"``.
     """
 
     counts: dict[tuple[str, str | None, str], int] = {}
@@ -148,7 +149,7 @@ class TextNamespace(_Namespace):
         ``where`` 가 가장 안쪽 자리(``"body"``·``"cell"``·``"text_box"``·``"caption"``·``"header"``·
         ``"footer"``·``"footnote"``·``"endnote"``·``"memo"``·``"master_page"``)이고, 표 칸이면
         ``table``·``row``·``col`` 이 그 칸이다. *where* 로 자리를 고른다
-        (``where={"cell", "text_box"}``). python-hwpx 가 머리말·꼬리말을 두 벌 쓰는 문서에서도 한 번만 나온다.
+        (``where={"cell", "text_box"}``). python-hwpx 6.x 가 머리말·꼬리말을 두 벌 쓴 문서에서도 한 번만 나온다.
         """
 
         from ..text_blocks import iter_paragraph_places

@@ -1,31 +1,25 @@
 #!/usr/bin/env python3
-"""DEV-033 -- ``hp:headerApply``/``hp:footerApply`` (the page-type-scoped
-(BOTH/EVEN/ODD) header/footer application mechanism) are declared nowhere
-in the vendored schema. ``hp:header``/``hp:footer`` themselves are
-declared (``HeaderFooterType``); the separate "apply this header/footer to
-these page types" indirection is a pure Hancom extension.
+"""DEV-033 -- ``hp:headerApply``/``hp:footerApply`` (a page-type-scoped
+(BOTH/EVEN/ODD) header/footer application indirection) are declared nowhere
+in the vendored schema. ``hp:header``/``hp:footer`` themselves are declared
+(``HeaderFooterType``).
 
 Schema claim: none for ``headerApply``/``footerApply``. All 7 vendored
 schema files parse cleanly with 0 declarations of either name.
 
-Real-document measurement: **honest gap, not fabricated** -- neither name
-appears anywhere in this checkout's 47-file vendored corpus, nor in the
-live 237-file element census (``docs/coverage-ledger.json``). This is
-narrower evidence than most entries in this registry: it does not mean
-these elements are rare in the wild (``section_format.py``'s substantial,
-pre-existing ``_ensure_header_footer_apply``/``_apply_elements``/
-``_match_apply_for_element`` machinery did not appear from nothing), only
-that this checkout's available corpus/census population happens not to
-sample a document using page-type-scoped headers/footers. Flagged here
-rather than silently citing a stale count.
+Real-document measurement: Hancom writes neither. Every Hangul-saved
+document of the public corpus that has a header or footer (68 files:
+tests/fixtures, rhwp samples, kordoc fixtures) keeps it as an ``hp:ctrl``
+story in the body only -- no story under ``hp:secPr``, no apply element.
+Only documents python-hwpx up to 6.x wrote carry them (the fuzz baseline
+fixture is one).
 
-Our handling: ``section_format.py``'s header/footer application machinery
-is built entirely on this undeclared mechanism (confirmed by direct source
-read, not just docstring citation). This probe exercises the *actual
-authoring API* (``doc.page.set_header(page_type=...)``) live and confirms
-it emits real ``<hp:headerApply>`` elements with distinct
-``applyPageType`` values -- the strongest evidence available in this
-environment, since no corpus sample exists to grep.
+Our handling (7.0): ``doc.page.set_header``/``set_footer`` write the one
+``hp:ctrl`` story Hancom reads and no ``hp:headerApply``. A 6.x document's
+``hp:secPr`` copy and apply element are still read, kept in step with the
+control copy on save, and dropped when that header is set again. This probe
+authors EVEN/ODD headers live and confirms distinct ``applyPageType``
+values on ``hp:ctrl`` stories and no apply element.
 
 Run: ``python probes/dev033_header_footer_apply_undeclared.py``
 """
@@ -72,17 +66,16 @@ def main() -> int:
         name = next(n for n in archive.namelist() if n.startswith("Contents/section"))
         section_xml = archive.read(name).decode("utf-8")
 
-    apply_elements = re.findall(r'<hp:headerApply[^>]*>', section_xml)
-    assert apply_elements, "expected at least one hp:headerApply element"
-    page_types = re.findall(r'applyPageType="(\w+)"', section_xml)
-    assert "EVEN" in page_types and "ODD" in page_types, (
-        f"expected distinct EVEN/ODD applyPageType values, got: {page_types}"
-    )
-    print(f"confirmed doc.page.set_header(page_type=...) emits real hp:headerApply "
-          f"elements with distinct applyPageType values: {sorted(set(page_types))}")
+    assert "<hp:headerApply" not in section_xml, "7.0 writes no hp:headerApply"
+    sec_pr = re.search(r"<hp:secPr\b.*?</hp:secPr>", section_xml, re.S)
+    assert sec_pr is not None and "<hp:header" not in sec_pr.group(0), "no story under hp:secPr"
+    stories = re.findall(r'<hp:ctrl><hp:header\b[^>]*applyPageType="(\w+)"', section_xml)
+    assert sorted(stories) == ["EVEN", "ODD"], f"expected EVEN/ODD control stories, got: {stories}"
+    print(f"confirmed doc.page.set_header(page_type=...) writes hp:ctrl stories only, with "
+          f"distinct applyPageType values {sorted(stories)} and no hp:headerApply")
 
-    print("PASS: DEV-033 reproduced (schema absence + live authoring API; real-document "
-          "frequency is an honest gap in this checkout's corpus population, not confirmed)")
+    print("PASS: DEV-033 reproduced (schema absence; the authoring API no longer emits the "
+          "undeclared apply element)")
     return 0
 
 

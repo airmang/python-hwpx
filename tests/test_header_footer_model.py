@@ -63,8 +63,9 @@ def test_editing_a_header_through_its_model_objects_reaches_the_copy_hangul_read
 
     data = doc.to_bytes()
     xml = _section_xml(data)
-    # one secPr story and one control copy Hangul reads, both with the new text
-    assert xml.count("바뀐 머리말") == 2 and xml.count("둘째 줄") == 2
+    # the one copy Hangul reads, edited in place
+    assert xml.count("바뀐 머리말") == 1 and xml.count("둘째 줄") == 1
+    assert "<hp:headerApply" not in xml
     reopened = HwpxDocument.open(data)
     assert reopened.validate().ok
     (only,) = reopened.page.headers()

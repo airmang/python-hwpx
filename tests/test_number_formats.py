@@ -122,7 +122,7 @@ def test_a_refused_page_number_format_leaves_the_footer_as_it_was() -> None:
 
     assert document.oxml.sections[0].properties.get_footer().text == "기존 꼬리말"
     section = _section_xml(document)
-    assert section.count("기존 꼬리말") == 2 and ">- <" not in section
+    assert section.count("기존 꼬리말") == 1 and ">- <" not in section
 
 
 def test_every_hancom_format_and_short_name_reads_as_a_hancom_format() -> None:

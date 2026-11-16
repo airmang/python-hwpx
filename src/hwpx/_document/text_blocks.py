@@ -494,7 +494,7 @@ def _walk(
         elif name in ("header", "footer"):
             key = (name, child.get("id"), child.get("applyPageType", "BOTH"))
             if parent == "ctrl" and counts.get(key) == 1:
-                continue  # the copy python-hwpx keeps for Hangul of a story it also keeps under hp:secPr
+                continue  # the control copy of a story python-hwpx 6.x also kept under hp:secPr
             story = replace(context, where=name, page_type=child.get("applyPageType", "BOTH"))
             yield from _walk(child, story, holder, name, counts)
         elif name in _NOTE_PLACES:

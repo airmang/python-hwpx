@@ -276,7 +276,7 @@ def test_control_content_can_be_stripped() -> None:
     assert report.stripped_controls == 1
     names = [tag_local_name(child.tag) for child in section.paragraphs[0].runs[0].element]
     assert names == ["secPr", "ctrl"]
-    assert report.stripped_section_stories == 1
+    assert report.stripped_section_stories == 0  # 7.0 writes no copy under hp:secPr
     assert "머리말 글" not in etree.tostring(section.element, encoding="unicode")
     assert _open(document.to_bytes()).validate().ok
 
@@ -285,14 +285,33 @@ def _nonblank_texts(element: etree._Element) -> list[str]:
     return [t.text for t in element.iter(f"{HP}t") if (t.text or "").strip()]
 
 
+def _as_written_by_6x(document: HwpxDocument) -> HwpxDocument:
+    """*document* with each header/footer also kept under hp:secPr, as python-hwpx up to 6.x wrote it."""
+
+    import copy
+
+    run = document.sections[0].paragraphs[0].runs[0].element
+    section_properties = run.find(f"{HP}secPr")
+    for ctrl in run.findall(f"{HP}ctrl"):
+        for story in ctrl:
+            name = tag_local_name(story.tag)
+            if name in ("header", "footer"):
+                section_properties.append(copy.deepcopy(story))
+                apply = section_properties.makeelement(
+                    f"{HP}{name}Apply", {"idRef": story.get("id"), "applyPageType": story.get("applyPageType")}
+                )
+                section_properties.append(apply)
+    return _open(document.to_bytes())
+
+
 def test_strip_removes_the_story_copies_python_hwpx_writes_into_secpr() -> None:
-    # set_header()/set_footer() write the story twice: into hp:ctrl (what
-    # Hancom reads) and as a non-schema copy inside hp:secPr.
+    # python-hwpx up to 6.x wrote the story twice: into hp:ctrl (what Hancom
+    # reads) and as a non-schema copy inside hp:secPr.
     document = HwpxDocument.new(empty_first_line=True)
     document.page.set_header(text="머리말 글")
     document.page.set_footer(text="꼬리말 글")
     document.add_paragraph("본문")
-    document = _open(document.to_bytes())
+    document = _as_written_by_6x(document)
     section = document.sections[0]
     section_properties = section.paragraphs[0].runs[0].element.find(f"{HP}secPr")
     assert {"머리말 글", "꼬리말 글"} <= set(_nonblank_texts(section_properties))
