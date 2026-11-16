@@ -40,11 +40,16 @@ from .owpml import (
     q,
     root,
     serialize,
+    shape_comment,
     sub,
     token,
     xml_spaced,
     xml_text,
 )
+
+
+#: ``xml:space``, which Hancom sets to ``preserve`` on text that starts or ends with a space.
+XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 
 
 def _unit(raw: int) -> tuple[int, str]:
@@ -503,9 +508,17 @@ RANGE_CHAR_STYLE = 1
 #: The range tag kind of a highlighter (markpen) range; its low 24 bits are the color.
 RANGE_MARKPEN = 2
 #: Range tag kinds of tracked changes: an insertion or deletion becomes a pair
-#: of marks in the text; a paragraph shape change has none (its change in the
-#: header says what it made). The low 24 bits are the change's id.
+#: of marks in the text; a character shape change names its change on the run
+#: it covers (``charTcId``) and a paragraph shape change on the paragraph
+#: (``paraTcId``), the change in the header saying what it made. The low 24
+#: bits are the change's id.
 TRACK_MARKS = {16: "insert", 17: "delete"}
+TRACK_MARK_NAMES = frozenset(f"hp:{name}{end}" for name in TRACK_MARKS.values() for end in ("Begin", "End"))
+#: Local names of the marks of a range in the text.
+RANGE_MARK_NAMES = frozenset(
+    {"markpenBegin", "markpenEnd"} | {f"{name}{end}" for name in TRACK_MARKS.values() for end in ("Begin", "End")}
+)
+TRACK_CHAR_SHAPE = 18
 TRACK_PARA_SHAPE = 19
 #: A mark in the text: position, order at that position, element, attributes.
 Mark = tuple[int, int, str, tuple[tuple[str, object], ...]]
@@ -578,7 +591,8 @@ COMPOSE_FRAME_GLYPH = {
 COMPOSE_DIGIT_GLYPHS: dict[int, dict[int, str]] = {
     1: {n: chr(0x2460 + n - 1) for n in range(1, 10)},
     3: {n: chr(0xF02B1 + n - 1) for n in range(1, 8)},
-    4: {n: chr(0xF02CE + n - 1) for n in range(1, 3)},
+    # 3 (U+F02D0) seen in a public document Hancom converts to "3".
+    4: {n: chr(0xF02CE + n - 1) for n in range(1, 4)},
 }
 COMPOSE_TENS_GLYPHS = {n: chr(0xF0289 + n - 1) for n in range(1, 5)}
 COMPOSE_UNITS_GLYPHS = {n: chr(0xF0292 + n) for n in range(10)}
@@ -733,6 +747,57 @@ def char_styles(record: rec.Record) -> list[CharStyle]:
     return sorted(styles)
 
 
+#: A tracked change of the character shape: start, end (in the paragraph's
+#: characters) and the change's id.
+ShapeChange = tuple[int, int, int]
+
+
+def shape_changes(record: rec.Record) -> tuple[list[int], list[ShapeChange]]:
+    """The tracked paragraph shape changes (their ids) and character shape
+    changes the paragraph's range tags name, in record order."""
+
+    paragraph: list[int] = []
+    chars: list[ShapeChange] = []
+    for child in record.children:
+        if child.tag != rec.PARA_RANGE_TAG:
+            continue
+        for offset in range(0, len(child.payload) - 11, 12):
+            start, end, tag = struct.unpack_from("<III", child.payload, offset)
+            if tag >> 24 == TRACK_PARA_SHAPE:
+                paragraph.append(tag & 0xFFFFFF)
+            elif tag >> 24 == TRACK_CHAR_SHAPE:
+                chars.append((start, end, tag & 0xFFFFFF))
+    return paragraph, chars
+
+
+def char_change(changes: list[ShapeChange], start: int, end: int) -> int | None:
+    """The id of the character shape change over the characters from *start*
+    to *end*: Hancom names one change on a run, the last that reaches into it."""
+
+    found = None
+    for first, last, change in changes:
+        if first < end and max(last, first + 1) > start:
+            found = change
+    return found
+
+
+def _marks_only(text: etree._Element) -> bool:
+    """Whether the text node holds range marks and nothing else."""
+
+    return (
+        len(text) > 0
+        and not (text.text or "")
+        and all(etree.QName(child).localname in RANGE_MARK_NAMES and not (child.tail or "") for child in text)
+    )
+
+
+def _after_control(text: etree._Element) -> bool:
+    """Whether the text node comes right after a control in its run."""
+
+    before = text.getprevious()
+    return before is not None and etree.QName(before).localname != "t"
+
+
 def _is_open(run: etree._Element, text: etree._Element | None) -> bool:
     """Whether *text* is the run's last child, so more text can go into it."""
 
@@ -750,14 +815,39 @@ def last_page_number_place(paragraph: etree._Element) -> None:
         ctrl.getparent().remove(ctrl)
 
 
-def _place_marks(parent: etree._Element, marks: list[Mark], pending: int, position: int) -> int:
-    """Append the marks due at *position* to *parent*; return the next pending mark."""
+def _place_marks(
+    parent: etree._Element, marks: list[Mark], pending: int, position: int, run_end: bool = False, one: bool = False
+) -> int:
+    """Append the marks due at *position* to *parent* (with *one*, only the
+    next); return the next pending mark. With *run_end*, *position* is where
+    the run ends: a change that begins there begins in the next run, as
+    Hancom writes it (a highlighter's marks stay in this one)."""
 
     while pending < len(marks) and marks[pending][0] <= position:
-        _position, _order, name, attrs = marks[pending]
+        _position, order, name, attrs = marks[pending]
+        if run_end and _position == position and not _stays_at_run_end(marks[pending]):
+            break
         sub(parent, name, attrs)
         pending += 1
+        if one:
+            break
     return pending
+
+
+def _stays_at_run_end(mark: Mark) -> bool:
+    """Whether a mark at the end of a run goes in that run: anything but a
+    change beginning there (or ending where it begins)."""
+
+    _position, order, name, _attrs = mark
+    return name not in TRACK_MARK_NAMES or order == 0
+
+
+def _due_at_run_end(marks: list[Mark], pending: int, position: int) -> bool:
+    """Whether a mark goes in the run that ends at *position*."""
+
+    return pending < len(marks) and marks[pending][0] <= position and (
+        marks[pending][0] < position or _stays_at_run_end(marks[pending])
+    )
 
 
 class SectionWriter(ShapeReader):
@@ -802,7 +892,14 @@ class SectionWriter(ShapeReader):
                 ("merged", flag(para.merge_flag)),
             ),
         )
-        self.runs(element, para, self.marks(record), char_styles(record))
+        para_changes, char_changes = shape_changes(record)
+        if para_changes:
+            element.set("paraTcId", str(para_changes[0]))
+            for _ in para_changes[1:]:
+                self.report.drop(f"range-tag-{TRACK_PARA_SHAPE}")
+        marks = self.marks(record)
+        tracked = bool(para_changes or char_changes) or any(name in TRACK_MARK_NAMES for _, _, name, _ in marks)
+        self.runs(element, para, marks, char_styles(record), char_changes, tracked)
         last_page_number_place(element)
         # Lists hung on the paragraph itself: memo bodies after MEMO_LIST (the
         # memo fields take them, see memo_bodies), or (on a section's last
@@ -864,9 +961,10 @@ class SectionWriter(ShapeReader):
                     name, ids = TRACK_MARKS[kind], (("Id", self.track_ids[0]), ("TcId", tag & 0xFFFFFF))
                     events.append((start, 1, f"hp:{name}Begin", ids))
                     events.append((end, closing, f"hp:{name}End", (*ids, ("paraend", flag(end >= chars)))))
-                elif kind == TRACK_PARA_SHAPE:
+                elif kind in (TRACK_CHAR_SHAPE, TRACK_PARA_SHAPE):
+                    # Named on the run or paragraph (see shape_changes); the
+                    # change still counts towards the mark ids.
                     self.track_ids[0] += 1
-                    self.report.drop(f"range-tag-{kind}")
                 elif kind == RANGE_CHAR_STYLE:
                     continue  # see char_styles
                 elif kind == 0:
@@ -877,13 +975,22 @@ class SectionWriter(ShapeReader):
         return events
 
     def runs(
-        self, element: etree._Element, para: bt.Paragraph, marks: list[Mark], styles: list[CharStyle] | None = None
+        self,
+        element: etree._Element,
+        para: bt.Paragraph,
+        marks: list[Mark],
+        styles: list[CharStyle] | None = None,
+        changes: list[ShapeChange] | None = None,
+        tracked: bool = False,
     ) -> None:
         """The runs of a paragraph: one per character shape, text split where
         a mark or a character style begins or ends; styled text goes in text
-        nodes of its own."""
+        nodes of its own. A run names the tracked change of its character
+        shape (*changes*) that reaches into it; *tracked* says the paragraph
+        has tracked changes."""
 
         styles = styles or []
+        changes = changes or []
         edges = sorted({position for start, stop, _ in styles for position in (start, stop)})
 
         def style(position: int) -> int | None:
@@ -900,21 +1007,31 @@ class SectionWriter(ShapeReader):
         last: etree._Element | None = None
         run: etree._Element | None = None
         text: etree._Element | None = None
-        for (_start, shape_id), end in zip(shapes, bounds):
-            run = sub(element, "hp:run", (("charPrIDRef", shape_id),))
+        for number, ((start, shape_id), end) in enumerate(zip(shapes, bounds)):
+            change = char_change(changes, 0 if number == 0 else start, end)
+            run_attrs: tuple[tuple[str, object], ...] = (("charPrIDRef", shape_id),)
+            if change is not None:
+                run_attrs += (("charTcId", change),)
+            run = sub(element, "hp:run", run_attrs)
             text = None
             last = None
             while index < len(chunks) and chunks[index].position < end:
                 chunk = chunks[index]
                 if pending < len(marks) and marks[pending][0] <= chunk.position:
                     # A mark goes into the open text node, into a new one when
-                    # text follows, or straight into the run before a control.
+                    # text follows, or before a control: a change mark into a
+                    # text node of its own, a highlighter mark straight into
+                    # the run, as Hancom writes them.
                     if chunk.kind in ("text", "char") or (chunk.kind == "inline" and chunk.code == bt.TAB):
                         text = self._text(run, text, "", style(chunk.position))
-                    target = text if text is not None and _is_open(run, text) else run
-                    pending = _place_marks(target, marks, pending, chunk.position)
-                    if target is text:
-                        last = text
+                    while pending < len(marks) and marks[pending][0] <= chunk.position:
+                        mark_name = marks[pending][2]
+                        if not (text is not None and _is_open(run, text)) and mark_name in TRACK_MARK_NAMES:
+                            text = self._text(run, text, "", style(chunk.position))
+                        target = text if text is not None and _is_open(run, text) else run
+                        pending = _place_marks(target, marks, pending, marks[pending][0], one=True)
+                        if target is text:
+                            last = text
                 if chunk.kind == "text":
                     limit = end
                     if pending < len(marks) and chunk.position < marks[pending][0] < limit:
@@ -970,11 +1087,14 @@ class SectionWriter(ShapeReader):
                             and following.position < end
                             and following.control_id not in ("secd", "cold")
                         ):
-                            run = sub(element, "hp:run", (("charPrIDRef", shape_id),))
+                            run = sub(element, "hp:run", run_attrs)
                             last = run
-            # A mark where the run ends stays in the run while its text node is open.
-            if text is not None and _is_open(run, text):
-                pending = _place_marks(text, marks, pending, end)
+            # A range that ends where the run ends closes in the run while its
+            # text node is open (after a control, in the next run); a change
+            # that begins there begins in the next run.
+            if end < 1 << 31 and text is not None and _is_open(run, text) and _due_at_run_end(marks, pending, end):
+                pending = _place_marks(text, marks, pending, end, run_end=True)
+                last = text
         end_style = style(para.char_count - 1)
         if run is not None and pending < len(marks):
             text = self._text(run, text, "", end_style)
@@ -987,16 +1107,26 @@ class SectionWriter(ShapeReader):
                 text = last = sub(run, "hp:t")
         # Hancom closes a paragraph that ends on a control with an empty text
         # node: in the control's run, or in the run of the paragraph's end
-        # when that one has nothing else.
+        # when that one has nothing else and the paragraph holds a control or
+        # tracked changes (a paragraph of plain text leaves that run empty).
         if last is not None and etree.QName(last).localname == "run":
             sub(last, "hp:t")
         elif last is not None and etree.QName(last).localname != "t":
             parent = last.getparent()
             if parent is not None:
                 sub(parent, "hp:t")
+        elif last is not None and _marks_only(last) and _after_control(last) and last[-1].get("paraend") == "0":
+            # A change closing right after the control, before the paragraph's
+            # end: its text node, then the empty one that closes the paragraph
+            # (a change over the end, or a highlighter, closes it itself).
+            parent = last.getparent()
+            if parent is not None:
+                sub(parent, "hp:t")
         elif last is None and run is not None and len(run) == 0:
-            filled = [r for r in element if etree.QName(r).localname == "run" and len(r)]
-            if filled and etree.QName(filled[-1][-1]).localname != "t":
+            has_control = any(
+                etree.QName(child).localname != "t" for other in element.iterchildren(q("hp:run")) for child in other
+            )
+            if has_control or tracked:
                 sub(run, "hp:t")
 
     @staticmethod
@@ -1148,9 +1278,14 @@ class SectionWriter(ShapeReader):
         )
         object_layout(element, common)
         if common.description:
-            sub(element, "hp:shapeComment").text = xml_text(common.description)
-        # Hancom's HWPX leaves the carriage returns of a script out.
-        sub(element, "hp:script").text = xml_text(eq.script.replace("\r", ""))
+            sub(element, "hp:shapeComment").text = shape_comment(common.description)
+        # Hancom's HWPX leaves the carriage returns of a script out, and
+        # keeps the spaces a script starts or ends with (xml:space).
+        script = xml_text(eq.script.replace("\r", ""))
+        script_element = sub(element, "hp:script")
+        script_element.text = script
+        if script != script.strip():
+            script_element.set(XML_SPACE, "preserve")
         return element
 
     def dutmal(self, run: etree._Element, ctrl: rec.Record) -> etree._Element:
@@ -1215,7 +1350,9 @@ class SectionWriter(ShapeReader):
         # Hancom reads characters overlapped with no frame as OVERLAP unless
         # their text starts with the frame's glyph, whatever the kind says.
         overlap = value.kind == 1 or (value.circle == 0 and not text.startswith(COMPOSE_FRAME_GLYPH[0]))
-        if len(text) > 1 and text[0] == COMPOSE_FRAME_GLYPH.get(value.circle):
+        # The frame's glyph goes even when nothing follows it (Hancom then
+        # writes an empty composeText).
+        if text and text[0] == COMPOSE_FRAME_GLYPH.get(value.circle):
             text = text[1:]
         digits = COMPOSE_FRAMED_DIGITS.get(value.circle, {})
         text = "".join(digits.get(ord(ch), ch) for ch in text)
@@ -1268,7 +1405,7 @@ class SectionWriter(ShapeReader):
             item = sub(container, f"hp:{kind}", (("name", key),))
             item.text = xml_text(value)
             if value != value.strip():
-                item.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                item.set(XML_SPACE, "preserve")
         if body is not None:
             _, header, paragraphs = body
             sub_list = sub(begin, "hp:subList", list_attrs(ct.ListHeader.decode(header.payload).props))
@@ -1364,6 +1501,9 @@ class SectionWriter(ShapeReader):
         ]
         table = sub(run, "hp:tbl", attrs)
         object_layout(table, common)
+        # A table's description goes where a picture's does: before its caption.
+        if common.description:
+            sub(table, "hp:shapeComment").text = shape_comment(common.description)
         caption, cells = table_lists(ctrl)
         if caption is not None:
             self.caption(table, *caption)

@@ -309,9 +309,11 @@ class Fill:
                 fill.grad_positions = [c.i32() for _ in range(count)]
             fill.grad_colors = [c.u32() for _ in range(count)]
         if fill.kind & FILL_IMAGE:
+            # Contrast comes before brightness, as in a picture's record
+            # (Hancom's conversion reads them so).
             fill.image_mode = c.u8()
-            fill.image_bright = c.i8()
             fill.image_contrast = c.i8()
+            fill.image_bright = c.i8()
             fill.image_effect = c.u8()
             fill.image_bin_id = c.u16()
         # Files from 5.0.0.x end the fill here, without the additional block.
@@ -338,7 +340,7 @@ class Fill:
             for color in self.grad_colors:
                 b.u32(color)
         if self.kind & FILL_IMAGE:
-            b.u8(self.image_mode).i8(self.image_bright).i8(self.image_contrast)
+            b.u8(self.image_mode).i8(self.image_contrast).i8(self.image_bright)
             b.u8(self.image_effect).u16(self.image_bin_id)
         if self.additional is not None:
             b.u32(len(self.additional)).raw(self.additional).raw(self.alphas)
@@ -743,10 +745,10 @@ class ForbiddenChars:
 @dataclass
 class TrackChange:
     """``TRACK_CHANGE``: one tracked change: its kind (16 insertion, 17
-    deletion, 19 paragraph shape), the local time it was made (year, month,
-    day, hour, minute), its author (1 first), then five words. The fourth is
-    whether an insertion or deletion is hidden, or the paragraph shape a
-    paragraph shape change made."""
+    deletion, 18 character shape, 19 paragraph shape), the local time it was
+    made (year, month, day, hour, minute), its author (1 first), then five
+    words. The fourth is whether an insertion or deletion is hidden, or the
+    shape a character or paragraph shape change made."""
 
     kind: int = 16
     time: tuple[int, int, int, int, int] = (1970, 1, 1, 0, 0)

@@ -728,8 +728,9 @@ def test_a_document_that_tracks_changes_opens_with_its_body_and_change_marks() -
     [paragraph] = [p for s in document.sections for p in s.element.iter(f"{HP}p") if "".join(p.itertext()) == "고친 본문"]
     marks = [(etree.QName(e).localname, dict(e.attrib)) for e in paragraph.iter(f"{HP}insertBegin", f"{HP}insertEnd")]
     assert marks == [("insertBegin", {"Id": "2", "TcId": "1"}), ("insertEnd", {"Id": "2", "TcId": "1", "paraend": "0"})]
-    # The paragraph shape change has no mark in the text: counted, not warned about.
-    assert document.conversion_report.dropped == {"range-tag-19": 1}
+    # The paragraph shape change has no mark in the text: the paragraph names it.
+    assert paragraph.get("paraTcId") == "2"
+    assert dict(document.conversion_report.dropped) == {}
 
     from hwpx.hwp5.package import convert
 

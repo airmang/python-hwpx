@@ -1883,7 +1883,9 @@ def test_tracked_changes_save_back_with_their_list_marks_and_stand_in() -> None:
         rec.PARA_HEADER, rec.PARA_TEXT, rec.PARA_CHAR_SHAPE, rec.CTRL_HEADER, rec.CTRL_HEADER,
     ]
     [tags] = [r.payload for s in written.sections for r in s.records if r.tag == rec.PARA_RANGE_TAG]
-    assert tags == struct.pack("<III", 0, 2, 16 << 24 | 1)
+    # The paragraph shape change goes back as the paragraph's range (paraTcId),
+    # after the insertion, as Hancom lists them.
+    assert tags == struct.pack("<III", 0, 2, 16 << 24 | 1) + struct.pack("<III", 0, 6, 19 << 24 | 2)
 
 
 def test_tracked_change_times_are_kept_in_local_time_and_deletions_hidden() -> None:
@@ -2011,9 +2013,20 @@ def test_saving_over_the_hwp_file_a_document_was_opened_from_is_refused(tmp_path
     document.save(tmp_path / "original.hwpx")
 
 
+def _hwp_with_a_dropped_range() -> bytes:
+    """A paragraph with a range tag of kind 0, which HWPX has no place for."""
+
+    para = _paragraph(0, "본문".encode("utf-16-le") + _u16(13), [(0, 0)], [])
+    header = bytearray(para[0].payload)
+    struct.pack_into("<H", header, 14, 1)  # one range tag
+    para[0] = rec.Record(rec.PARA_HEADER, 0, bytes(header))
+    para.append(rec.Record(rec.PARA_RANGE_TAG, 1, struct.pack("<III", 0, 2, 0)))
+    return make_hwp(extra_paragraphs=para)
+
+
 def test_a_document_that_opened_with_content_left_out_is_not_written_as_hwp(tmp_path: Path) -> None:
     original = tmp_path / "original.hwp"
-    original.write_bytes(_tracked_hwp())
+    original.write_bytes(_hwp_with_a_dropped_range())
     document = HwpxDocument.open(original)
     assert document.conversion_report is not None and document.conversion_report.dropped
 
