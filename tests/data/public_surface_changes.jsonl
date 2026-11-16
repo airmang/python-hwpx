@@ -1,1 +1,16 @@
 {"date": "2026-11-16", "version": "6.12.0", "kind": "created", "change": "잠금을 만듦: top 29 · root 35 · 묶음 11개 188 · model 22개 클래스 계약 362/계약 밖 164 · objects 51개 형식(필드 238 · 멤버 104 · enum 값 10) · 모듈 11개 64", "reason": "WP5a: 옛 잠금 model_surface.json(계약 362, 계약 밖 164)과 document_facade_surface.json(루트 35)을 한 파일로 합치고, 묶음 멤버·값 형식·모듈 수준 이름을 함께 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.tables.with_nested: 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_after: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_before: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
