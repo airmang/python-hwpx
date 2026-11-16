@@ -582,9 +582,11 @@ class ObjectPlacement:
 
         A floating object is moved in its frame so the centre it turns about stays where it was on the page, as
         Hancom moves it (:func:`keep_turn_anchor`: placed from the left and top or centred, from a paragraph,
-        column, page or the paper); turned back to 0 it is back where it was. Hancom also hangs it on the paragraph
-        at whose height it then starts; here it stays on its paragraph, measured from it, which draws it in the
-        same spot. An object set as a character keeps its place.
+        column, page or the paper; the offset may become negative); turned back to 0 it is back where it was. The
+        paragraph it hangs on does not change: Hancom's own turn hangs an object moved up on the paragraph at that
+        height (its page layout: ``hancom18`` fc-30, fn-30), which python-hwpx, laying out no pages, does not do.
+        Hangul draws an object kept in the page area whose top would be above the line it hangs on from that line's
+        top (``hancom16`` ha-30, rotate12 check15 case 4). An object set as a character keeps its place.
 
         A flipped rectangle, ellipse, polygon, line or group (:attr:`flip_horizontal`, :attr:`flip_vertical`)
         turns too: its ``hc:rotMatrix`` mirrors, then turns it, as Hancom writes a flipped text box turned 45
@@ -1343,12 +1345,15 @@ def turn_flat_line(element: Any, angle: int, size: tuple[int, int]) -> None:
     """Turn a line drawn 0 high or wide (:func:`flat_line`) *angle* degrees as Hancom 2024 turns one: about its
     middle, its box the box around it so, the flat axis drawn at 0 (rotate11 ``h-30``, ``w-30``, ``ha-30``,
     ``ha-90``); flipped left-right first, drawn turned the angle less 180 (a turn of 210 for 30, no mirror;
-    ``h-f-30``, ``w-f-30``, ``ha-f-30``); ``rotationInfo`` the angle given. Refused (``shape-rotation-unsupported``)
-    for one turned and then flipped (mirrored as drawn): no Hancom-saved document shows it turned again."""
+    ``h-f-30``, ``w-f-30``, ``ha-f-30``); ``rotationInfo`` the angle given. Turned and then flipped (mirrored as
+    drawn, ``ha-30-f``), it turns again as any flipped object does, the mirror kept (``ha-30-f-0``, ``ha-30-f-60``)."""
 
     if _mirrored(element):
-        raise _rotation_refused(element, "it is a line drawn 0 high or wide, turned and then flipped: no "
-                                         "Hancom-saved document shows one turned again")
+        # turned and then flipped, it is mirrored as drawn like any flipped object: turned again (back to 0 too) the
+        # mirror stays and the turn is the angle given (rotate12 ha-30-f-0, ha-30-f-60)
+        apply_rotation(element, angle % 360, *size)
+        _flatten(element, size, True)
+        return
     flip = element.find(f"{_HP}flip")
     flags = (flip.get("horizontal"), flip.get("vertical")) if flip is not None else None
     drawn = (angle - (180 if flip_signs(element)[0] == -1 else 0)) % 360
@@ -1361,7 +1366,8 @@ def turn_flat_line(element: Any, angle: int, size: tuple[int, int]) -> None:
         if flip is not None and flags is not None:
             flip.set("horizontal", flags[0] or "0")
             flip.set("vertical", flags[1] or "0")
-    _flatten(element, size, bool(drawn))
+    # once Hancom has turned it -- back to 0 too -- its box is at least 1 across the flat way (ha-30-0: 12000 x 1)
+    _flatten(element, size, True)
     info = element.find(f"{_HP}rotationInfo")
     if info is not None:
         info.set("angle", str(angle % 360))

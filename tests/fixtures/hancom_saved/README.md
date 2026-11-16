@@ -80,6 +80,12 @@ and a text box (`t`), set as a character (`c`), floating (`f`) or centred (`m`) 
 properties to 24000 x 6000 (`s1`) or 16000 x 16000 (`s2`); `_r`: then saved, opened again and saved again.
 `tests/test_group_resize_text_as_hancom.py` builds them.
 
+`turned_*.hwpx` (rotate12) were made the same way from one floating object on the paragraph under a label -- a
+picture in a table cell (`cell_p`), a triangle (`fy`), an arc (`fa`), a curve (`fc`), a group holding a group (`fn`),
+an ellipse (`fe`, which Hangul's object dialog redrew 7200 x 7200) and an arrow line resized to 18000 (`ha_s1`) --
+turned 30 degrees by Hangul's object dialog. Hangul hangs one turned above its paragraph on the paragraph at that
+height (its page layout; python-hwpx keeps the paragraph). `tests/test_turn_above_paragraph_as_hancom.py` builds them.
+
 ## Adding a file
 
 `formfit_hft_ascii_myeongjo_grid.hwpx` and `formfit_hft_ascii_gothic_grid.hwpx`
