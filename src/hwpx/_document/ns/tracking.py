@@ -121,7 +121,9 @@ class TrackingNamespace(_Namespace):
     ) -> "TrackedChange":
         """변경 항목만 등록한다(저수준 — 본문은 건드리지 않는다).
 
-        본문을 건드리지 않으므로 결과의 ``paragraph`` 는 ``None`` 이다.
+        본문을 건드리지 않으므로 결과의 ``paragraph`` 는 ``None`` 이다. 글자·문단 모양 변경
+        (``CharShape``·``ParaShape``)은 한/글이 그것을 본문에 잇는 모양을 한/글 저장본으로
+        확인하기 전이라 거부한다(``track-format-change-unconfirmed``).
         """
 
         from .. import tracked as _tracked
@@ -144,6 +146,10 @@ class TrackingNamespace(_Namespace):
         변경이면 다음 문단이 붙는다). 아무것도 주지 않으면 문서의 모든 변경,
         ``change`` 는 그 변경 하나(id 또는 ``TrackedChange``), ``author`` 는 그
         작성자의 변경 전부. 머리의 변경·작성자 목록도 남은 것만 남는다.
+
+        글자·문단 모양 변경(``CharShape``·``ParaShape``)은 본문(``charTcId``·``paraTcId``)이
+        가리키지 않을 때만 수락한다(머리 목록에서만 빠지고 글은 지금 모양 그대로다). 본문이
+        가리키면 아무것도 바꾸기 전에 거부한다(``track-format-change-unconfirmed``).
         """
 
         from .. import tracked as _tracked
@@ -159,7 +165,9 @@ class TrackingNamespace(_Namespace):
         """변경을 거절하고 거절한 변경들을 돌려준다.
 
         넣은 글은 지워지고, 지운 글은 표시만 걷혀 되살아난다. 고르는 방법은
-        :meth:`accept` 와 같다.
+        :meth:`accept` 와 같다. 고른 것에 글자·문단 모양 변경이 있으면 되돌릴 옛 모양을
+        확인할 수 없어 아무것도 바꾸기 전에 거부한다(``track-format-change-unconfirmed``) —
+        넣기·지우기는 ``change=`` 로 하나씩 거절한다.
         """
 
         from .. import tracked as _tracked

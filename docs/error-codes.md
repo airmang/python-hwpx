@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 283 | 11 |
+| 개수 | 284 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -486,6 +486,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `track-change-not-found` | 그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다). |
+| `track-format-change-unconfirmed` | 글자·문단 모양 변경 추적(CharShape/ParaShape)은 한/글 저장본으로 구조를 확인하기 전이라 쓰지도 거절하지도 않는다(본문이 가리키는 것은 수락도). |
 | `track-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `track-match-empty` | 찾을 문자열이 비어 있다. |
 | `track-match-not-found` | 문단에서 찾을 문자열을 찾지 못했다. |

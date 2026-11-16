@@ -1687,14 +1687,17 @@ def parse_track_change(node: etree._Element) -> TrackChange:
         key: value for key, value in node.attrib.items() if key not in known_attrs
     }
 
+    # The schema spells charShapeID/paraShapeID; a paragraph shape change converted from
+    # HWP 5.0 is written parashapeID (hwp5.header_xml, as Hancom converts it). That spelling
+    # is read too and stays in ``attributes``, so it is written back as it was.
     return TrackChange(
         id=parse_int(node.get("id")),
         raw_id=node.get("id"),
         change_type=node.get("type"),
         date=node.get("date"),
         author_id=parse_int(node.get("authorID")),
-        char_shape_id=parse_int(node.get("charShapeID")),
-        para_shape_id=parse_int(node.get("paraShapeID")),
+        char_shape_id=parse_int(node.get("charShapeID") or node.get("charshapeID")),
+        para_shape_id=parse_int(node.get("paraShapeID") or node.get("parashapeID")),
         hide=parse_bool(node.get("hide")),
         attributes=attributes,
     )
@@ -1837,8 +1840,10 @@ def track_change_to_xml(change: TrackChange) -> etree._Element:
     _set_optional_str_attr(attributes, "type", change.change_type)
     _set_optional_str_attr(attributes, "date", change.date)
     _set_optional_int_attr(attributes, "authorID", change.author_id)
-    _set_optional_int_attr(attributes, "charShapeID", change.char_shape_id)
-    _set_optional_int_attr(attributes, "paraShapeID", change.para_shape_id)
+    if "charshapeID" not in attributes:  # read from that spelling: written back in it
+        _set_optional_int_attr(attributes, "charShapeID", change.char_shape_id)
+    if "parashapeID" not in attributes:
+        _set_optional_int_attr(attributes, "paraShapeID", change.para_shape_id)
     _set_optional_flag_attr(attributes, "hide", change.hide)
     _set_optional_int_attr(attributes, "id", change.id)
     if change.raw_id is not None and change.id is None:
