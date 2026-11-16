@@ -513,6 +513,9 @@ class HwpxOxmlParagraph(ParagraphFormats):
                 suggestion="Pass the new paragraph's text as a str, or nothing to copy this paragraph.",
             )
         element = insert_paragraph_beside(self.element, self.section.element, text, after=after)
+        # In a table cell (or caption) the new line makes the cell taller, and so the line of the
+        # paragraph holding the table: it loses its cache as when a cell's text changes.
+        _clear_paragraph_layout_cache(element)
         self.section.mark_dirty()
         return element
 

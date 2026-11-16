@@ -257,12 +257,11 @@ def _command_direction(parameters: Sequence[dict[str, str]]) -> str:
 
 
 def _clear_form_field_layout_cache(paragraph: Any) -> int:
-    removed = 0
-    for child in list(paragraph):
-        if _local_name(child).lower() == "linesegarray":
-            paragraph.remove(child)
-            removed += 1
-    return removed
+    """Drop the line layout cache of *paragraph*, whose field or check box changed, and of the
+    paragraphs holding its table cell (or caption): a value that wraps makes the cell, and so
+    the line holding the table, taller; with the old cache Hancom draws what follows over it."""
+
+    return _clear_paragraph_layout_cache(paragraph)
 
 
 def _find_field_end_position(

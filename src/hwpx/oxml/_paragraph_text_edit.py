@@ -179,9 +179,10 @@ def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
     """Move the section settings of the paragraph *source* to the front of the paragraph *target*.
 
     A run holding nothing else moves whole; from a run holding text or objects too, only the
-    settings move, into a new run with the same attributes. *target* loses its line layout cache:
-    the controls in front of its text shift every position the cache records. Returns whether
-    anything moved.
+    settings move, into a new run with the same attributes. Both paragraphs lose their line
+    layout cache: the controls in front of the text (8 positions each in ``lineseg/@textpos``)
+    shift every position the cache records, in *target* by coming and in *source* by going.
+    Returns whether anything moved.
     """
 
     found = section_setting_runs(source)
@@ -199,8 +200,10 @@ def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
                 moved.append(child)
         target.insert(position, moved)
         position += 1
-    for cache in [child for child in target if isinstance(child.tag, str) and tag_local_name(child.tag).lower() == "linesegarray"]:
-        target.remove(cache)
+    for paragraph in (target, source):
+        for cache in [child for child in paragraph
+                      if isinstance(child.tag, str) and tag_local_name(child.tag).lower() == "linesegarray"]:
+            paragraph.remove(cache)
     return True
 
 
