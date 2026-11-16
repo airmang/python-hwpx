@@ -115,6 +115,17 @@ PUSHED_DOWN = {"flip_text_box_left_right_by_45_back", "flip_ellipse_left_right_b
                "turn_flipped_rect_by_30"}
 
 
+#: Turned, these went above the first paragraph of the page, where Hangul leaves them measured from it (negative) and
+#: draws them from its top (``hp:pos/@flowWithText`` 1): turned back they turn about where they were drawn, as Hancom's
+#: own turned-back line does (``hancom17`` ha-30-0: 1400 lower), so they end up that much lower than they began.
+DRAWN_AT_TOP = {"flip_text_box_left_right_by_45", "flip_text_box_up_down_by_45", "flip_picture_left_right_by_30"}
+
+
+def _signed(value) -> int:
+    number = int(value or 0) & 0xFFFFFFFF
+    return number - (1 << 32) if number >= 1 << 31 else number
+
+
 def _same_down_offset(ours, theirs) -> None:
     theirs.find(f"{HP}pos").set("vertOffset", ours.find(f"{HP}pos").get("vertOffset"))
 
@@ -218,6 +229,12 @@ def test_hancoms_flip_and_turn_go_back(hancom: str, instid: str, steps: list, un
                       paragraph_index(doc, target), paragraph_heights(source))
     if hancom in PUSHED_DOWN:
         _same_down_offset(target.element, original.element)
+    if hancom in DRAWN_AT_TOP:  # back from where Hangul drew it: as much lower as it was written above its paragraph
+        above = _signed(_by_instid(HwpxDocument.open(HANCOM / f"{hancom}.hwpx"), instid).element.find(f"{HP}pos")
+                        .get("vertOffset"))
+        assert above < 0
+        position = original.element.find(f"{HP}pos")
+        position.set("vertOffset", str(_signed(position.get("vertOffset")) - above & 0xFFFFFFFF))
     ours, theirs = _normalized(target.element), _normalized(original.element)
     if target.element.tag.endswith("}container") and [n for n, _ in steps] == ["size", "flip_horizontal"]:
         # the flip moved the centres to the middles drawn at 18000 x 9000; resizing back leaves centres, as

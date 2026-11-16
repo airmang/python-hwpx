@@ -24,7 +24,7 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.container import ContainerMember
-from tests.hancom_place import carry_down_offset, paragraph_heights, paragraph_index
+from tests.hancom_place import carry_down_offset, lay_out, paragraph_heights, paragraph_index
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -151,11 +151,13 @@ def _do(obj, step: str) -> None:
         obj.resize(*(int(value) for value in step[1:].split("x")))
 
 
-def _made(source: str, steps: list[str]):
+def _made(source: str, steps: list[str], tops: list[int] | None = None):
     doc = HwpxDocument.new()
     doc.add_paragraph("원본")
     obj = SOURCES[source](doc, doc.add_paragraph("0번"))
     obj.set_position(treat_as_char=False, horizontal_offset=0, vertical_offset=0)
+    if tops:
+        lay_out(doc, tops)
     for step in steps:
         _do(obj, step)
     return doc, obj
@@ -243,11 +245,13 @@ def test_a_flat_line_flipped_back_is_written_unflipped_and_unturned(source: str)
 
 
 #: (fixture, steps, which way Hangul drew the arrow in its png) -- rotate12 (want-flip9): a horizontal line with an
-#: arrow at its end turned 30 degrees and turned again, turned and flipped and turned again. Hangul hangs the line,
-#: kept in the page area (``flowWithText``), on another paragraph and back at a down offset its layout chooses (1400
-#: below where it started after turning back), so only the down offset is not compared here.
+#: arrow at its end turned 30 degrees and turned again, turned and flipped and turned again. Turned 30 the line starts
+#: above the label's paragraph: Hangul hangs it there at -1400 and draws it from that paragraph's top, 1400 lower
+#: (``hancom16/ha-30.png``), and turns it again about where it drew it -- back at 0 it lies 1400 below where it began
+#: (on the paragraph under the label at 1400, ``hancom17/ha-30-0.png``), at 60 it is at -2196. With the same line
+#: layout (one line each, 1600 apart) python-hwpx hangs it and turns it so.
 TURNED_AGAIN = [
-    ("one_ha_30_0", ["r30", "r0"], "level, the arrow at the right: back as it was"),
+    ("one_ha_30_0", ["r30", "r0"], "level, the arrow at the right, 1400 below where it began"),
     ("one_ha_30_60", ["r30", "r60"], "steep, the arrow at the lower right"),
     ("one_ha_30_f_0", ["r30", "f", "r0"], "level, the arrow at the left: the mirror kept, the turn gone"),
     ("one_ha_30_f_60", ["r30", "f", "r60"], "steep, the arrow at the upper left: mirrored, then turned 60"),
@@ -256,9 +260,11 @@ TURNED_AGAIN = [
 
 @pytest.mark.parametrize(("fixture", "steps", "drawn"), TURNED_AGAIN, ids=[case[0] for case in TURNED_AGAIN])
 def test_a_flat_line_turned_again_is_drawn_as_hancom_drew_it(fixture: str, steps: list, drawn: str) -> None:
-    doc, line = _made("ha", steps)
-    hancom = _objects(HwpxDocument.open(HANCOM / f"{fixture}.hwpx"))[0]
-    hancom.element.find(f"{_HP}pos").set("vertOffset", line.element.find(f"{_HP}pos").get("vertOffset"))
+    doc, line = _made("ha", steps, tops=[0, 1600, 3200])
+    saved = HwpxDocument.open(HANCOM / f"{fixture}.hwpx")
+    hancom = _objects(saved)[0]
+    carry_down_offset(hancom.element, paragraph_index(saved, hancom), paragraph_index(doc, line),
+                      paragraph_heights(saved, first_line_only=True))
     assert (line.flip_horizontal, line.flip_vertical, line.rotation) ==         (hancom.flip_horizontal, hancom.flip_vertical, hancom.rotation), drawn
     assert _same(_normalized(line.element), _normalized(hancom.element)), drawn
     line.resize(line.width, line.height)
