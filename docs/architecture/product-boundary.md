@@ -1,75 +1,86 @@
 # python-hwpx product boundary
 
-`python-hwpx` is the primary product: an independently useful HWPX document
-library comparable in role to `python-docx`.
+`python-hwpx` is the engine: an independently useful library that reads and
+writes HWPX (and HWP 5.0) documents, comparable in role to `python-docx`.
 
-## Where the line is
+## Where the line is (7.0)
 
-The three products are divided by what installing one brings in and where it
-runs, not by what kind of knowledge a feature holds (owner decision,
-2026-11-12).
+Since 7.0 the line is drawn by what a feature does with the file (owner
+decision for 7.0; it replaces the 2026-11-12 criterion "by what installing one
+brings in").
 
-| Product | Brings in / runs as | Holds |
-|---|---|---|
-| `python-hwpx` | a Python library with light dependencies, in the caller's process | everything a Python user can do with the library alone: reading and extraction, creating a document that looks like one, editing, filling forms, and thin adapters to other Python frameworks behind optional extras |
-| `python-hwpx-automation` | an MCP server, renderer and Hancom bindings | multi-step workflows, agent plans, and rules about what a document of a given genre must contain |
-| `hwpx-skill` | packaging for Claude | task judgment, routing and prompt guidance |
+- **Engine — `python-hwpx`.** The same file gives the same answer, and the
+  answer is what the file says: open, read, traverse, edit, create, save,
+  validate and preserve, and measure what Hancom would draw from what is stored
+  (line layout, glyph widths, page estimates, equation boxes). A feature that
+  reports or writes what is in the file belongs here, even when it knows Hancom's
+  vocabulary or how Korean documents are written (outline style names, number
+  forms).
+- **Automation — `python-hwpx-automation`.** Everything that converts, guesses,
+  prefers or judges: conversion to and from other formats (Markdown, HTML,
+  ingest of other formats, framework loaders), guessing what a form means (a
+  cell found by the label beside it, check marks typed as text), taste (a named
+  report look, previews drawn approximately), genre rules (official-document
+  references, format rule sets), batch workflows (mail merge), and everything
+  that needs a server, a renderer or Hancom.
+- **Plugin — `hwpx-skill`.** Task judgment, routing and prompt guidance.
 
-A newcomer judges the library by what `pip install python-hwpx` gives them, and
-an agent calls whatever is installed; a feature on the far side of the line
-does not exist for either. So a feature that needs no server, renderer, Hancom
-or dependency outside the import allowlist belongs in core, even when it knows
-how Korean documents are written (heading number forms, a default look).
-What stays out is what decides which genre a document is or what it must
-contain, and what needs the automation runtime.
+| Product | Holds |
+|---|---|
+| `python-hwpx` | the document model and facade, OPC/OXML parts, reading and plain-text extraction, the table map, editing and creating, form fields and cells by position, measurement, validation, preservation and recovery |
+| `python-hwpx-automation` | Markdown/HTML in and out (`hwpx_automation.markdown`), ingest and loaders (`.ingest`, `.integrations`), label-guided forms and choices (`.forms`), mail merge (`.mail_merge`), previews (`.preview`), format rules (`.format_rules`), report helpers and the reference lint (`.office.*`), MCP server, renderer and Hancom bindings, workflows and genre profiles |
+| `hwpx-skill` | task judgment, routing and prompt guidance |
 
-This changes the criterion, not the mechanisms below. The closed import
-allowlist, the ownership ledger and the layer leak guard stay as they are; a
-new third-party import still needs its own entry and its own optional extra.
+7.0 moved the conversion and guessing features accordingly; each old name
+raises an error that names its new place (`hwpx._moved_modules`,
+[migration-7.0.md](../migration-7.0.md#옮겨-간-기능)). Core never imports the
+automation package: the guidance is a table of names.
+
+The mechanisms below do not change with the criterion. The closed import
+allowlist, the ownership ledger and the layer leak guard stay; a new third-party
+import still needs its own entry and its own optional extra.
 
 ## Core owns
 
 - the document object model and public facade;
 - OPC package and OXML part ownership;
-- generic reading, traversal, editing, formatting, and table primitives;
+- generic reading, traversal, editing, formatting, and table primitives, and the
+  table map and plain text as the file stores them;
 - serialization, byte/story preservation, validation, rollback, and recovery;
+- measurement of what Hancom draws from stored values (line layout cache,
+  glyph widths, page estimates, equation sizes);
 - renderer-neutral quality contracts such as `RenderBackend`, `EditMask`, and
-  `VisualReport`;
-- what a first-time user meets with the library alone: a document that looks
-  like one when created, and Markdown/text output a pipeline can take as it is.
+  `VisualReport`.
 
 ## Companion layers own
 
-`python-hwpx-automation` owns office workflows, genre/profile/policy decisions, agent
-plans, Hancom discovery, and renderer binding. `hwpx-skill` owns task judgment,
-routing, and prompt guidance.
+`python-hwpx-automation` owns conversion, guessing, looks, genre/profile/policy
+decisions, office workflows, agent plans, Hancom discovery, and renderer
+binding. `hwpx-skill` owns task judgment, routing, and prompt guidance.
 
 Core must not import either companion package. A new core module that was not
 present at the 4.2.0 baseline requires an explicit entry in
 [`module-ownership.json`](./module-ownership.json); falling through the generic
-core rule is not enough.
+core rule is not enough. The modules 7.0 moved are listed under `removed` there
+with `removedIn: 7.0.0` and their new owner.
 
 ## Mixed-module decisions
 
 - `quality` and `table_patch` stay core.
 - renderer-neutral protocols are core; Hancom/backend binding and visual execution
   belong to `python-hwpx-automation`.
-- document diff keeps a generic diff model in core; task-plan composition moves.
-- mail merge keeps generic HWPX binding in core; sanitization/policy is injected.
+- document diff keeps the generic paragraph diff in core
+  (`hwpx.tools.doc_diff`); the reference consistency lint moved (7.0).
+- the plain-text exporter (`hwpx.tools.exporter.export_text`, the list and note
+  labels Hancom draws) stays core; Markdown and HTML export moved (7.0).
+- the table map (`doc.tables.map`) stays core; finding a cell by its label moved
+  (7.0).
+- the native mail-merge field (`paragraph.add_mail_merge_field`) stays core: it
+  writes a field Hancom defines. Batch mail merge moved (7.0).
+- equation conversion (`latex_to_eqedit`, `eqedit_to_latex`) and measurement
+  stay core; drawing equations for a preview (MathML) moved (7.0).
 - tracked-change format primitives stay core; oracle verification moves.
 - benchmark and conformance campaign runners are repository QA, not product API.
-- the Markdown writer (`hwpx.tools.markdown_import`) keeps one named look in core,
-  `report` (owner decision, 2026-11-12): the first document a newcomer makes with
-  the library alone should look like a document. It is a bundle of `MarkdownStyle`
-  values (typefaces, sizes, heading numbers, the title banner, the section box,
-  table rules and cell alignment, bullets, the size of a note, how far a list
-  item's letter spacing may be narrowed to keep it on one line, page margins,
-  a page number) and holds no rule about what a document must contain. Its values were changed on 2026-11-13 to follow
-  a report the owner supplied; it is still the one named look. Since the same
-  day `from_markdown` uses it when no style is given (owner decision), and
-  `append_markdown` keeps the plain look so an existing document keeps its own. Looks for genres with content rules (공문,
-  가정통신문 …) stay in `python-hwpx-automation`; a second named look in core
-  needs a new owner decision.
 
 The 5.0 boundary is closed: every non-core disposition (`mcp-migrate`, `split`,
 `dev-only`, and `undecided`) must remain exactly zero. A non-core file fails the
@@ -95,10 +106,11 @@ zero-resurrection inventory.
 
 The gate AST-inspects every core Python module. Absolute imports are fail-closed:
 the allowed roots are the running Python's standard library, `hwpx`, and the
-five declared runtime dependencies `lxml`, `openpyxl`, `latex2mathml`,
-`langchain_core`, and `llama_index`. The last four are optional extras;
-`langchain_core` and `llama_index` are imported only by their adapters,
-`hwpx.integrations.langchain` and `hwpx.integrations.llama_index`.
+one declared runtime dependency `lxml`. (Until 7.0 the optional `openpyxl`,
+`latex2mathml`, `langchain_core` and `llama_index` were allowed for mail merge,
+the preview and the framework loaders; those features moved, and the extras
+`xlsx`, `preview`, `langchain` and `llamaindex` stay as empty names so existing
+install commands keep working.)
 Everything else—including the companion products, MCP SDK, PDF/rendering,
 numerical, COM, and macOS GUI bindings—is rejected without maintaining a
 guessable denylist.
@@ -115,11 +127,12 @@ also forbidden. The only exceptions are:
   scope — a module-level binding leaks `hwpx.PackageNotFoundError` onto the
   top-level surface even though it is not in `__all__`, so keep the import in
   the function;
-- the two code-pinned `importlib.import_module(module_name)` calls in
-  `src/hwpx/__init__.py`.
+- the code-pinned `importlib.import_module(module_name)` call in
+  `src/hwpx/__init__.py` (the deprecated-name loader; its map is empty since 5.0).
 
-The two lazy calls, their line/version-neutral AST fingerprint, and their
-12-entry literal-map inventory are pinned. Each call also performs a runtime
+The lazy call, its line/version-neutral AST fingerprint, the `__getattr__` that
+holds it, and the 14-entry literal-map inventory (`_EXPERIMENTAL_EXPORTS` plus
+`_DEPRECATED_EXPORTS`) are pinned. The call also performs a runtime
 fail-closed check that the selected module is exactly `hwpx` or below `hwpx.*`;
 mutating the private map cannot turn it into an external import.
 
@@ -156,13 +169,14 @@ assigned to), signal and exact count, with a classification and a reason:
   field-type tokens or heading number forms. It stays.
 - `known-leak`: genre or policy logic left over from the layer audit. It moves
   to `python-hwpx-automation`: [known-leak-migration.md](./known-leak-migration.md)
-  is the contract — the four groups, each one's automation owner, the neutral
-  primitive core keeps and the replacement entry point. The core names keep
-  working through 6.x, warn in the next major and are removed in the major
-  after it (the owner's option A).
+  is the contract — each group's automation owner, the neutral primitive core
+  keeps and the replacement entry point. Two of the four groups (the reference
+  rules and the report heading guess) moved with the 7.0 conversion move; for
+  the two left the core names keep working through 6.x, warn in the next major
+  and are removed in the major after it (the owner's option A).
 
 `undetected` lists known leaks that neither signal sees (a caption pattern
-without Hangul, Roman-numeral headings). They are not counted, but each named
+without Hangul). They are not counted, but each named
 function or constant must still exist, so the entry leaves the list when the
 code moves.
 

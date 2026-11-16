@@ -20,7 +20,7 @@
   python -m pip install -e ".[dev]"
   ```
   `dev`에는 CI가 설치하는 `test`·`typecheck`(pytest, ruff, mypy, pyright, 테스트가
-  쓰는 pillow·openpyxl·pyyaml 등)와 배포 점검용 twine이 들어 있습니다. CI와 똑같이
+  쓰는 pillow·pyyaml·latex2mathml 등)와 배포 점검용 twine이 들어 있습니다. CI와 똑같이
   맞추려면 `python -m pip install -e ".[test,typecheck]"`를 써도 됩니다.
 4. **임포트 확인**. `pip install -e`를 실행하면 `hwpx` 패키지가 가상 환경에
   설치되어 추가적인 `PYTHONPATH` 설정이 필요 없습니다. 인터프리터에서
