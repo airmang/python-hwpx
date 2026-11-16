@@ -45,34 +45,39 @@ class TableStructureEdits:
     element: Any
     paragraph: "HwpxOxmlParagraph"
 
-    def insert_rows(self, ref_row: int, count: int = 1, *, side: str = "below", blank: bool = False) -> None:
-        """Insert *count* rows below (*side* ``"above"``: above) physical row *ref_row*, cloning it.
+    def insert_rows(self, ref_row: int, count: int = 1, *, side: str = "below", copy_content: bool = False) -> None:
+        """Insert *count* empty rows below (*side* ``"above"``: above) physical row *ref_row*, as Hancom
+        inserts rows.
 
         Each new row is as high as *ref_row*, and each new cell takes the format of the cell of the
-        same column in *ref_row* and, unless *blank*, its text; with *blank* it holds one empty
-        paragraph of that format, as Hancom inserts it. A cell merged across the new rows grows over
-        them, and next to a merged cell that ends (above: starts) at *ref_row* each new row gets an
-        empty cell of its format. A table nested in a copied cell is copied with fresh numbers.
+        same column in *ref_row* (cell properties, border and fill, margins, size, and its first
+        paragraph's paragraph and character shape) and holds one empty paragraph of that format, with
+        no line layout cache. With *copy_content* each new cell holds a copy of that cell's content
+        instead (text, objects, fields; a nested table with fresh numbers). A cell merged across the
+        new rows grows over them, and next to a merged cell that ends (above: starts) at *ref_row* each
+        new row gets an empty cell of its format either way.
         """
 
         self._restructure({
             "op": "insert_row_by_clone", "ref_row": _whole(ref_row, "ref_row"),
-            "count": _whole(count, "count"), "side": side, "blank": bool(blank),
+            "count": _whole(count, "count"), "side": side, "blank": not copy_content,
         })
 
-    def insert_columns(self, ref_col: int, count: int = 1, *, side: str = "right", blank: bool = False) -> None:
-        """Insert *count* columns right (*side* ``"left"``: left) of grid column *ref_col*, cloning it.
+    def insert_columns(self, ref_col: int, count: int = 1, *, side: str = "right", copy_content: bool = False) -> None:
+        """Insert *count* empty columns right (*side* ``"left"``: left) of grid column *ref_col*, as
+        Hancom inserts columns.
 
         Each new column is as wide as *ref_col* and the table grows by it, as Hancom widens it. Each
-        new cell takes the format of the cell of the same row in *ref_col* and, unless *blank*, its
-        text. A cell merged across the new columns grows over them, and next to a merged cell that
-        ends (left: starts) at *ref_col* each new column gets an empty cell of its format. Cell zones
-        move with their columns.
+        new cell takes the format of the cell of the same row in *ref_col* and holds one empty
+        paragraph of that format; with *copy_content* it holds a copy of that cell's content instead.
+        A cell merged across the new columns grows over them, and next to a merged cell that ends
+        (left: starts) at *ref_col* each new column gets an empty cell of its format. Cell zones move
+        with their columns.
         """
 
         self._restructure({
             "op": "insert_column_by_clone", "ref_col": _whole(ref_col, "ref_col"),
-            "count": _whole(count, "count"), "side": side, "blank": bool(blank),
+            "count": _whole(count, "count"), "side": side, "blank": not copy_content,
         })
 
     def delete_rows(self, rows: int | Iterable[int]) -> None:
