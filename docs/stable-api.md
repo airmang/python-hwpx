@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 363개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 381개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -368,3 +368,14 @@ line_type=, width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸�
 `text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`),
 `TableCell.clear()`, `copy_after(paragraph=None)`(새 id 로 복사). 길이는 모두 HWPUNIT,
 선 굵기만 `_mm` 이다.
+
+칸과 표의 나머지 속성은 값 하나씩 읽고 쓰는 속성이다(7.0). `TableCell.text_direction`
+(`"HORIZONTAL"`/`"VERTICAL"`, 세로쓰기 — 바꾸면 칸 문단과 표를 품은 문단의 줄 배치 캐시를 지운다),
+`TableCell.protected`(셀 보호)·`editable`(양식 모드에서 편집 가능, 둘 다 `bool`), `Table.cell_spacing`
+(칸 간격, `0..32767`; 칸 크기는 그대로 두고 한/글 저장본처럼 표의 `hp:sz`를 칸들과 간격 수만큼 키운다),
+`Table.border_fill_id_ref`(표 자체의 테두리/배경 — 칸 간격 사이와 둘레에 보인다; 문서에 없는 id 는
+`table-border-fill-not-found`)·`Table.border_fill`(`BorderFillInfo`). 표는 개체와 같은 배치 읽기를 갖는다 —
+`position`(`ObjectPosition`: 떠 있는 표의 오프셋·기준·`text_flow` 포함), `z_order`, `locked`(개체 보호),
+`numbering_type`(캡션 번호 종류 `TABLE`/`PICTURE`/`EQUATION`/`NONE`). `locked`·`numbering_type`은
+그림·수식·도형(`InlineObject`·`Shape`)에도 같은 이름으로 있다. 잘못된 값은 바꾸기 전에
+`table-cell-text-direction-value`·`table-cell-flag-value`·`table-cell-spacing-value`로 거부한다.

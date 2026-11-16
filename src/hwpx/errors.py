@@ -397,6 +397,10 @@ ERROR_CODES: dict[str, str] = {
     "table-width-value": "표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "table-row-heights-value": "행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다.",
     "table-cell-zone-grid-mismatch": "셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다.",
+    "table-cell-text-direction-value": "칸 글자 방향(text_direction)이 HORIZONTAL·VERTICAL 중 하나가 아니다.",
+    "table-cell-flag-value": "칸 보호(protected)·편집 가능(editable) 값이 bool 이 아니다.",
+    "table-cell-spacing-value": "표의 칸 간격(cell_spacing)이 0 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    "table-border-fill-not-found": "표 자체에 준 테두리/배경 id(border_fill_id_ref)가 문서 머리의 hh:borderFill 에 없다.",
     # -- 머리말·꼬리말 story ------------------------------------------------
     "story-ambiguous": "그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다.",
     "story-linkage": "기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다.",

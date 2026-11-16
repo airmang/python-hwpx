@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 280 | 11 |
+| 개수 | 284 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -440,9 +440,13 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `table-alignment-value` | 표 가로 정렬(alignment)이 LEFT·CENTER·RIGHT 중 하나가 아니거나 문서 머리 정보가 없다. |
+| `table-border-fill-not-found` | 표 자체에 준 테두리/배경 id(border_fill_id_ref)가 문서 머리의 hh:borderFill 에 없다. |
 | `table-border-value` | 칸 테두리의 면·선 종류·굵기·색 지정이 잘못됐거나 문서 머리 정보가 없다. |
+| `table-cell-flag-value` | 칸 보호(protected)·편집 가능(editable) 값이 bool 이 아니다. |
 | `table-cell-not-found` | 칸 좌표가 표 밖이거나 병합에 덮여 가리킬 칸이 없다. |
 | `table-cell-remove-unsupported` | 표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다). |
+| `table-cell-spacing-value` | 표의 칸 간격(cell_spacing)이 0 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `table-cell-text-direction-value` | 칸 글자 방향(text_direction)이 HORIZONTAL·VERTICAL 중 하나가 아니다. |
 | `table-cell-vert-align-value` | 칸 세로 정렬(vert_align)이 TOP·CENTER·BOTTOM 중 하나가 아니다. |
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
 | `table-column-width-value` | 열 폭이 양의 int(HWPUNIT)가 아니거나 한/글이 그리는 최소 폭(칸 좌우 여백+283)보다 좁다. |

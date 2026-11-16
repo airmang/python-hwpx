@@ -408,6 +408,20 @@ class ObjectPlacement:
 
         return _number(self.element.get("zOrder")) or 0
 
+    @property
+    def locked(self) -> bool:
+        """Whether the object is locked (``lock``, Hancom's 개체 보호하기): it cannot be selected,
+        moved or resized in Hancom. Read only."""
+
+        return (self.element.get("lock") or "").strip() not in _FALSE_FLAGS | {""}
+
+    @property
+    def numbering_type(self) -> str:
+        """Which caption numbering the object counts in (``numberingType``): ``"PICTURE"``,
+        ``"TABLE"``, ``"EQUATION"`` or ``"NONE"`` (the schema default, also when not given). Read only."""
+
+        return self.element.get("numberingType") or "NONE"
+
     def set_z_order(self, z_order: int) -> None:
         """Set ``zOrder`` (a signed 32-bit int; a higher one is drawn over a lower one)."""
 
