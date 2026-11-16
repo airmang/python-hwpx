@@ -434,6 +434,63 @@ def resolve_paragraph_in(source: Any, paragraph: Any, *, caller: str) -> Any:
     return paragraph if holder is paragraph.section else HwpxOxmlParagraph(paragraph.element, holder)
 
 
+def _paragraph_lists(paragraph: Any, anchor: Any) -> tuple[ET.Element, ET.Element]:
+    """The lists holding the paragraph objects *paragraph* and *anchor* (a section or ``hp:subList``),
+    after refusing a move of *paragraph* into itself, out of or into a memo, or of a paragraph taken out."""
+
+    from .shape_position import paragraph_box
+
+    element, target = paragraph.element, anchor.element
+    if any(node is target for node in element.iter()):
+        raise HwpxValueError(
+            "a paragraph cannot move into its own table cells, text boxes or notes",
+            code="paragraph-move-into-itself",
+            suggestion="Pick a paragraph outside this one.",
+        )
+    parent = paragraph_container(element, paragraph.section.element)
+    destination = paragraph_container(target, anchor.section.element)
+    if parent is None or destination is None:
+        raise HwpxValueError(
+            "the paragraph is not in a paragraph list any more",
+            code="paragraph-not-in-document",
+            suggestion="Take the paragraphs again from the document.",
+        )
+    for box in (paragraph_box(element, paragraph.section.element), paragraph_box(target, anchor.section.element)):
+        if box in ("memo", "other"):
+            raise HwpxValueError(
+                "paragraphs move between the body, cells, text boxes, notes, captions, headers and footers; "
+                "a memo's text changes through memo.text",
+                code="paragraph-move-place-unsupported",
+                context={"box": box},
+                suggestion="Set the memo's text with memo.set_text(), or move memos with memo.move_to(section).",
+            )
+    return parent, destination
+
+
+def _last_paragraph_refused(parent: ET.Element, section_element: ET.Element) -> HwpxValueError:
+    owner = paragraph_container(parent, section_element) if parent is not section_element else None
+    name = "section" if owner is None else _SUBLIST_OWNERS.get(_local(owner), _local(owner))
+    return HwpxValueError(
+        "the last paragraph of a section, cell, header or footer cannot leave it",
+        code="paragraph-remove-last",
+        context={"container": name},
+        suggestion="Copy it there (insert_after/insert_before on the paragraph beside) and empty this one.",
+    )
+
+
+def _settings_taker(siblings: list[ET.Element], position: int) -> ET.Element:
+    """The paragraph after ``siblings[position]`` (the first of a section, holding its settings) that takes them."""
+
+    if position + 1 >= len(siblings):
+        raise HwpxValueError(
+            "this paragraph holds the section settings and no paragraph after it can take them",
+            code="paragraph-remove-section-settings",
+            context={"container": "section"},
+            suggestion="Add a paragraph after it first, or move the other paragraphs instead.",
+        )
+    return siblings[position + 1]
+
+
 def move_paragraph_beside(paragraph: Any, anchor: Any, *, after: bool) -> Any:
     """``paragraph.move_after``/``move_before``: move the paragraph object *paragraph* right after (or
     before) the paragraph object *anchor* of the same document and return the section now holding it.
@@ -447,36 +504,14 @@ def move_paragraph_beside(paragraph: Any, anchor: Any, *, after: bool) -> Any:
 
     from ._document_primitives import _clear_paragraph_layout_cache
     from .memo import carry_memos
-    from .shape_position import paragraph_box
+    from .shape_position import _sections_of
     from .utils import holding_paragraphs
 
     element, target = paragraph.element, anchor.element
     source_section, target_section = paragraph.section, anchor.section
     if target is element:
         return source_section
-    if any(node is target for node in element.iter()):
-        raise HwpxValueError(
-            "a paragraph cannot move into its own table cells, text boxes or notes",
-            code="paragraph-move-into-itself",
-            suggestion="Pick a paragraph outside this one.",
-        )
-    parent = paragraph_container(element, source_section.element)
-    destination = paragraph_container(target, target_section.element)
-    if parent is None or destination is None:
-        raise HwpxValueError(
-            "the paragraph is not in a paragraph list any more",
-            code="paragraph-not-in-document",
-            suggestion="Take the paragraphs again from the document.",
-        )
-    for box in (paragraph_box(element, source_section.element), paragraph_box(target, target_section.element)):
-        if box in ("memo", "other"):
-            raise HwpxValueError(
-                "paragraphs move between the body, cells, text boxes, notes, captions, headers and footers; "
-                "a memo's text changes through memo.text",
-                code="paragraph-move-place-unsupported",
-                context={"box": box},
-                suggestion="Set the memo's text with memo.set_text(), or move memos with memo.move_to(section).",
-            )
+    parent, destination = _paragraph_lists(paragraph, anchor)
     siblings = [child for child in parent if _local(child) == "p"]
     position = next(index for index, child in enumerate(siblings) if child is element)
     if parent is destination:
@@ -484,24 +519,10 @@ def move_paragraph_beside(paragraph: Any, anchor: Any, *, after: bool) -> Any:
         if anchor_position + (1 if after else -1) == position:
             return source_section  # already there
     elif len(siblings) <= 1:
-        owner = paragraph_container(parent, source_section.element) if parent is not source_section.element else None
-        name = "section" if owner is None else _SUBLIST_OWNERS.get(_local(owner), _local(owner))
-        raise HwpxValueError(
-            "the last paragraph of a section, cell, header or footer cannot leave it",
-            code="paragraph-remove-last",
-            context={"container": name},
-            suggestion="Copy it there (insert_after/insert_before on the paragraph beside) and empty this one.",
-        )
+        raise _last_paragraph_refused(parent, source_section.element)
     following = None
     if parent is source_section.element and section_setting_runs(element):
-        following = siblings[position + 1] if position + 1 < len(siblings) else None
-        if following is None:
-            raise HwpxValueError(
-                "this paragraph holds the section settings and no paragraph after it can take them",
-                code="paragraph-remove-section-settings",
-                context={"container": "section"},
-                suggestion="Add a paragraph after it first, or move the other paragraphs instead.",
-            )
+        following = _settings_taker(siblings, position)
     old_holders = holding_paragraphs(element)
     if following is not None:
         move_section_settings(element, following)
@@ -514,9 +535,7 @@ def move_paragraph_beside(paragraph: Any, anchor: Any, *, after: bool) -> Any:
         _clear_paragraph_layout_cache(holder)
     _clear_paragraph_layout_cache(element)  # laid out where it was; its new cell or caption grows too
     if target_section.element is not source_section.element:
-        document = source_section.document
-        sections = list(document.sections) if document is not None else [source_section, target_section]
-        carry_memos(element, sections, target_section)
+        carry_memos(element, _sections_of(paragraph, anchor), target_section)
     source_section.mark_dirty()
     target_section.mark_dirty()
     return target_section

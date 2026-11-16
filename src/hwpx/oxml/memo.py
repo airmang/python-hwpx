@@ -485,44 +485,53 @@ def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", targ
     takes memos of one number for one memo), and, when it names a memo of a memo group, a copy of that
     memo under a new id in *target*'s memo group. Returns how many fields were renewed."""
 
+    fields = memo_fields_in(root)
+    if not fields:
+        return 0
+    highest = max((_memo_order(field) for section in sections for field in memo_fields_in(section.element)),
+                  default=0)
+    entries: dict[str, ET.Element] = {}
+    for section in sections:
+        for memo in section.element.findall(f"{_HP}memogroup/{_HP}memo"):
+            if memo.get("id"):
+                entries.setdefault(str(memo.get("id")), memo)
+    for field in fields:
+        highest += 1
+        _set_memo_param(field, "integerParam", "Number", str(highest))
+        field.set("zorder", str(highest))
+        source = entries.get(memo_field_id(field) or "")
+        if source is not None:
+            _set_memo_param(field, "stringParam", "ID", _copy_memo_entry(source, target))
+    return len(fields)
+
+
+def _memo_order(field: ET.Element) -> int:
+    try:
+        return int(field.get("zorder", "0"))
+    except ValueError:
+        return 0
+
+
+def _set_memo_param(field: ET.Element, kind: str, name: str, value: str) -> None:
+    for param in field.iter(f"{_HP}{kind}"):
+        if param.get("name") == name:
+            param.text = value
+
+
+def _copy_memo_entry(source: ET.Element, target: "HwpxOxmlSection") -> str:
+    """Append a copy of the memo-group memo *source* to *target*'s group under a new id; return the id."""
+
     from copy import deepcopy
 
     from ._document_primitives import _refresh_copied_paragraph_subtree_ids
 
-    fields = memo_fields_in(root)
-    if not fields:
-        return 0
-    highest = 0
-    entries: dict[str, ET.Element] = {}
-    for section in sections:
-        for field in memo_fields_in(section.element):
-            try:
-                highest = max(highest, int(field.get("zorder", "0")))
-            except ValueError:
-                continue
-        for group in section.element.findall(f"{_HP}memogroup"):
-            for memo in group.findall(f"{_HP}memo"):
-                if memo.get("id"):
-                    entries.setdefault(str(memo.get("id")), memo)
-    for field in fields:
-        highest += 1
-        field.set("zorder", str(highest))
-        for param in field.iter(f"{_HP}integerParam"):
-            if param.get("name") == "Number":
-                param.text = str(highest)
-        source = entries.get(memo_field_id(field) or "")
-        if source is None:
-            continue
-        clone = deepcopy(source)
-        clone.tail = None
-        clone.set("id", _memo_id())
-        _refresh_copied_paragraph_subtree_ids(clone)
-        _ensure_memo_group(target).append(clone)
-        for param in field.iter(f"{_HP}stringParam"):
-            if param.get("name") == "ID":
-                param.text = clone.get("id")
-        target.mark_dirty()
-    return len(fields)
+    clone = deepcopy(source)
+    clone.tail = None
+    clone.set("id", _memo_id())
+    _refresh_copied_paragraph_subtree_ids(clone)
+    _ensure_memo_group(target).append(clone)
+    target.mark_dirty()
+    return str(clone.get("id"))
 
 
 def _remove_field(root: ET.Element, field_begin: ET.Element) -> None:

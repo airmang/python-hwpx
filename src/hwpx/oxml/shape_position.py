@@ -1450,6 +1450,33 @@ def insert_at_offset(paragraph: Any, element: Any, offset: int | None, char_pr_i
     runs[-1].append(element)
 
 
+def _check_place(element: Any, source: Any, target: Any) -> None:
+    """Refuse a place *target* (a paragraph) where Hancom documents never hold the object *element* in the
+    way it is placed, coming from the paragraph *source* (see :data:`OBJECT_PLACES`)."""
+
+    box = paragraph_box(target.element, target.section.element)
+    kind = placement_kind(element)
+    if box not in OBJECT_PLACES.get(kind, frozenset()):
+        if box in ("memo", "other"):
+            why = "objects go into the body, a cell, a text box, a note, a header or a footer"
+        elif kind == "paragraph":
+            why = f"Hancom documents hold no floating object in a {box.replace('_', ' ')}"
+        else:
+            why = f"Hancom measures an object in a {box.replace('_', ' ')} from its paragraph, not from the page"
+        raise _place_refused(element, box, why)
+    if kind == "page" and target.section.element is not source.section.element             and _page_settings(target.section) != _page_settings(source.section):
+        raise _place_refused(element, box, "it is measured from the page, and that section's paper or margins differ")
+
+
+def _sections_of(*paragraphs: Any) -> list[Any]:
+    """The sections of the document the paragraphs belong to (theirs alone without a document)."""
+
+    document = paragraphs[0].section.document
+    if document is not None:
+        return list(document.sections)
+    return list({id(p.section): p.section for p in paragraphs}.values())
+
+
 def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) -> Any:
     """``move_to``/``copy_to`` of an object or table *obj*: check everything, then move it (or put a
     copy) into *paragraph* at *offset*. Returns the copy's model object, or ``None`` for a move."""
@@ -1475,33 +1502,19 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
         raise _group_member_refused("copied" if copy else "moved")
     source = resolve_paragraph_in(source, source.__class__(holder, source.section), caller=caller)
     target = resolve_paragraph_in(source, paragraph, caller=caller)
-    if not copy and (target.element is element or any(node is target.element for node in element.iter())):
+    if not copy and any(node is target.element for node in element.iter()):
         raise HwpxValueError(
             "an object cannot move into one of its own paragraphs (its text box, cell or caption)",
             code="shape-move-into-itself",
             context={"caller": caller},
             suggestion="Pick a paragraph outside the object, or copy it there with copy_to().",
         )
-    box = paragraph_box(target.element, target.section.element)
-    kind = placement_kind(element)
-    if box not in OBJECT_PLACES.get(kind, frozenset()):
-        if box in ("memo", "other"):
-            why = "objects go into the body, a cell, a text box, a note, a header or a footer"
-        elif kind == "paragraph":
-            why = f"Hancom documents hold no floating object in a {box.replace('_', ' ')}"
-        else:
-            why = f"Hancom measures an object in a {box.replace('_', ' ')} from its paragraph, not from the page"
-        raise _place_refused(element, box, why)
-    if kind == "page" and target.section.element is not source.section.element \
-            and _page_settings(target.section) != _page_settings(source.section):
-        raise _place_refused(element, box, "it is measured from the page, and that section's paper or margins differ")
+    _check_place(element, source, target)
     if offset is not None:
         _check_offset("offset", offset, 0, len(target.text))
     if copy:
         placed = fresh_copy(element)
-        sections = list(source.section.document.sections) if source.section.document is not None \
-            else [source.section]
-        renew_copied_memos(placed, sections, target.section)
+        renew_copied_memos(placed, _sections_of(source), target.section)
     else:
         _detach_object(element, parent, source.element, source.section)
         inside = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
@@ -1510,9 +1523,7 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
     _clear_paragraph_layout_cache(target.element)
     if not copy and target.section.element is not source.section.element:
-        sections = list(source.section.document.sections) if source.section.document is not None \
-            else [source.section, target.section]
-        carry_memos(placed, sections, target.section)
+        carry_memos(placed, _sections_of(source, target), target.section)
     target.section.mark_dirty()
     if copy:
         from .objects import wrap_object
