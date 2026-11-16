@@ -181,6 +181,10 @@ def fill_brush(parent: etree._Element, fill: di.Fill) -> None:
         )
 
 
+#: The border and fill property bit of the centre line.
+CENTER_LINE = 1 << 13
+
+
 def _border_fill(parent: etree._Element, index: int, bf: di.BorderFill) -> None:
     props = bf.props
     element = sub(
@@ -190,16 +194,19 @@ def _border_fill(parent: etree._Element, index: int, bf: di.BorderFill) -> None:
             ("id", index + 1),
             ("threeD", flag(props & 0x1)),
             ("shadow", flag(props & 0x2)),
-            ("centerLine", "NONE"),
+            # Bit 13 is the centre line; Hancom's conversion writes it VERTICAL.
+            ("centerLine", "VERTICAL" if props & CENTER_LINE else "NONE"),
             ("breakCellSeparateLine", flag(props & (1 << 10))),
         ),
     )
+    # Bits 8-9 are the slash's bend as a number (Hancom writes Crooked 0-3
+    # from them); the back slash keeps none Hancom writes.
     sub(
         element,
         "hh:slash",
         (
             ("type", SLASH.get(_bits(props, 2, 3), "NONE")),
-            ("Crooked", flag(props & (1 << 8))),
+            ("Crooked", _bits(props, 8, 2)),
             ("isCounter", flag(props & (1 << 11))),
         ),
     )
@@ -208,7 +215,7 @@ def _border_fill(parent: etree._Element, index: int, bf: di.BorderFill) -> None:
         "hh:backSlash",
         (
             ("type", SLASH.get(_bits(props, 5, 3), "NONE")),
-            ("Crooked", flag(props & (1 << 9))),
+            ("Crooked", 0),
             ("isCounter", flag(props & (1 << 12))),
         ),
     )
@@ -378,7 +385,7 @@ def _para_head(
         ("numFormat", token(NUMBER_FORMAT, _bits(props, 5, 5))),
         ("charPrIDRef", head.char_shape_id),
         # Hancom reports checkable from bit 5, the low bit of the number format.
-        ("checkable", flag(props & (1 << 5))),
+        ("checkable", flag(props & CHECKABLE)),
     ]
     element = sub(parent, "hh:paraHead", attrs)
     if text is not None:
@@ -396,6 +403,10 @@ def _numbering(parent: etree._Element, index: int, numbering: di.Numbering) -> N
         _para_head(element, di.ParaHead(0, 0, 0, 0), level, 1, None)
 
 
+#: The paragraph head property bit Hancom reports as ``checkable``.
+CHECKABLE = 1 << 5
+
+
 def _bullet(parent: etree._Element, index: int, bullet: di.Bullet) -> None:
     use_image = bool(bullet.image_id)
     element = sub(
@@ -403,7 +414,9 @@ def _bullet(parent: etree._Element, index: int, bullet: di.Bullet) -> None:
         "hh:bullet",
         (("id", index + 1), ("char", chr(bullet.char) if bullet.char else ""), ("useImage", flag(use_image))),
     )
-    if bullet.check_char:
+    # Hancom writes the checked character of a check bullet only (one whose
+    # head is checkable); other bullets keep one in the record that it leaves out.
+    if bullet.check_char and bullet.head.props & CHECKABLE:
         element.set("checkedChar", chr(bullet.check_char))
     if use_image and len(bullet.image_props) >= 4:
         props = bullet.image_props

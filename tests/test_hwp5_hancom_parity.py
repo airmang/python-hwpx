@@ -224,6 +224,45 @@ def test_a_character_shape_without_border_and_fill_refers_to_the_blank_one() -> 
     assert len(list(head.iter(f"{HH}borderFill"))) == 3
 
 
+def test_a_bent_slash_and_a_centre_line_open_as_hancom_reads_them() -> None:
+    # Bits 8-9 of a border and fill hold the slash's bend as a number (Hancom writes Crooked 0-3 from them) and
+    # bit 13 its centre line (Hancom writes VERTICAL); the back slash's Crooked stays 0. Bit 10 is the split table's
+    # separate line, bits 11-12 the reversed slashes.
+    from hwpx.hwp5.docinfo_writer import border_fill
+    from hwpx.hwp5.header_xml import _border_fill
+
+    cases = {0x2100: ("VERTICAL", "1", "0", "0"), 0x2300: ("VERTICAL", "3", "0", "0"), 0x200: ("NONE", "2", "0", "0"),
+             0x400: ("NONE", "0", "0", "1"), 0x1800: ("NONE", "0", "0", "0")}
+    for props, (centre, slash, back, separate) in cases.items():
+        fills = etree.Element("borderFills")
+        _border_fill(fills, 0, di.BorderFill(props))
+        [element] = fills
+        assert (element.get("centerLine"), element.find(f"{HH}slash").get("Crooked"),
+                element.find(f"{HH}backSlash").get("Crooked"), element.get("breakCellSeparateLine")) == (centre, slash, back, separate)
+        assert border_fill(element).props == props
+
+
+def test_only_a_check_bullet_keeps_its_checked_character() -> None:
+    # Hancom's conversion leaves out the checked character a bullet record keeps unless the bullet is a check
+    # bullet (its head checkable).
+    from hwpx.hwp5.header_xml import _bullet
+
+    bullets = etree.Element("bullets")
+    _bullet(bullets, 0, di.Bullet(di.ParaHead(0, 0, 0, 0), 0x25CF, 0, b"\0\0\0\0", 0x2000, 0))
+    _bullet(bullets, 1, di.Bullet(di.ParaHead(1 << 5, 0, 0, 0), 0x2610, 0, b"\0\0\0\0", 0x2611, 0))
+    assert [b.get("checkedChar") for b in bullets] == [None, "☑"]
+
+
+def test_overlapped_characters_of_only_the_frame_glyph_keep_no_text() -> None:
+    # Hancom writes composeText="" for overlapped characters whose record text is only the frame's glyph.
+    compose = ct.Compose("　", 0, -4, 0, [ct.NO_CHAR_SHAPE] * 10)
+    text = "앞".encode("utf-16-le") + _extended(23, "tcps") + "뒤".encode("utf-16-le") + _u16(13)
+    paragraph = _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, compose.encode())])
+    document = HwpxDocument.open(_compound(_section() + paragraph))
+    [element] = list(document.sections[0].element.iter(f"{HP}compose"))
+    assert (element.get("composeText"), element.get("composeType"), element.get("circleType")) == ("", "SPREAD", "CHAR")
+
+
 def test_an_image_fill_keeps_contrast_before_brightness() -> None:
     # The image of a fill keeps its contrast first, then its brightness, as a picture does; Hancom's conversion
     # of a fill stored as (-50, 70) is contrast -50, brightness 70.
@@ -280,6 +319,16 @@ def test_an_equation_script_keeps_its_outer_spaces() -> None:
     parts = _parts(HwpxDocument.open(_compound(_section() + paragraphs)).to_bytes())
     scripts = [(e.text, e.get("{http://www.w3.org/XML/1998/namespace}space")) for e in parts["Contents/section0.xml"].iter(f"{HP}script")]
     assert scripts == [("a over b ", "preserve"), ("a  over b", None)]
+
+
+def test_saved_versions_are_reported_not_left_out_silently() -> None:
+    # Hancom's conversion keeps a document's saved versions (DocHistory) as parts of their own; this conversion
+    # does not, and says so.
+    data = _compound(_section(), streams=[("DocHistory/VersionLog0", b"\0" * 16)])
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        document = HwpxDocument.open(data)
+    assert document.conversion_report.unconverted["doc-history"] == 1
 
 
 def test_a_section_stream_with_two_section_definitions_opens_as_two_sections() -> None:

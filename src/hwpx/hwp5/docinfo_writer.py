@@ -215,9 +215,12 @@ def border_fill(element: etree._Element, bin_ids: Mapping[str, int] | None = Non
     props = _flag(element, "threeD") | (_flag(element, "shadow") << 1)
     props |= _SLASH.get(slash.get("type", "NONE") if slash is not None else "NONE", 0) << 2
     props |= _SLASH.get(back.get("type", "NONE") if back is not None else "NONE", 0) << 5
-    props |= _flag(slash, "Crooked") << 8 | _flag(back, "Crooked") << 9
+    # The slash's bend is a number in bits 8-9 (Crooked 0-3); a back slash's
+    # has no bit of its own that Hancom reads back.
+    props |= (_int(slash, "Crooked") & 0x3) << 8
     props |= _flag(element, "breakCellSeparateLine") << 10
     props |= _flag(slash, "isCounter") << 11 | _flag(back, "isCounter") << 12
+    props |= (1 << 13) if element.get("centerLine", "NONE") not in ("NONE", "") else 0
     # With no diagonal element there is no diagonal line: Hancom writes it as
     # kind 0, width 1, colour 0 (a drawn line here would show wherever a slash
     # or back slash is on).

@@ -1339,7 +1339,9 @@ class SectionWriter(ShapeReader):
         # Hancom reads characters overlapped with no frame as OVERLAP unless
         # their text starts with the frame's glyph, whatever the kind says.
         overlap = value.kind == 1 or (value.circle == 0 and not text.startswith(COMPOSE_FRAME_GLYPH[0]))
-        if len(text) > 1 and text[0] == COMPOSE_FRAME_GLYPH.get(value.circle):
+        # The frame's glyph goes even when nothing follows it (Hancom then
+        # writes an empty composeText).
+        if text and text[0] == COMPOSE_FRAME_GLYPH.get(value.circle):
             text = text[1:]
         digits = COMPOSE_FRAMED_DIGITS.get(value.circle, {})
         text = "".join(digits.get(ord(ch), ch) for ch in text)

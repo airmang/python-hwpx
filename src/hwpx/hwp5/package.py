@@ -466,6 +466,10 @@ def _convert(data: bytes) -> Converted:
     # The header leaves out tracked changes it cannot express.
     if track_changes(info) is None:
         report.skip("track-changes")
+    # The document's saved versions (DocHistory), which Hancom's conversion
+    # keeps as DocHistory parts, are not converted.
+    if any(path.startswith("DocHistory/") for path in doc.compound.stream_paths()):
+        report.skip("doc-history")
     return Converted(files, report, doc)
 
 
