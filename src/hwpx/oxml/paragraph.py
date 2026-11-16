@@ -541,6 +541,25 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         self.section.mark_dirty()
         return element
 
+    def copy_to(self, paragraph: "HwpxOxmlParagraph", *, before: bool = False) -> "HwpxOxmlParagraph":
+        """Put a copy of this paragraph right after *paragraph* (``before=True``: before it) and return it.
+
+        *paragraph* may be a paragraph of another document -- in its body, a cell, a text box, a note,
+        a header or a footer. The copy comes as ``hwpx.tools.document_merge.insert_document`` brings a
+        paragraph over: the character and paragraph shapes, styles, borders and fills, tabs,
+        numberings, bullets and fonts it uses become definitions of that document, its pictures and
+        charts bring their images and parts, and its fields, bookmarks, objects and paragraphs get fresh
+        ids. A memo anchored in it comes along as a memo of its own. The section settings of a section's
+        first paragraph stay behind; put in front of a section's first paragraph, the copy starts that
+        section and takes its settings. What ``insert_document`` cannot carry is refused the same way
+        (``document-merge-unsupported-reference``). In the same document the copy is the one
+        :meth:`insert_after` makes of a paragraph. No line layout cache comes along.
+        """
+
+        from ..tools.document_merge import copy_paragraph
+
+        return cast("HwpxOxmlParagraph", copy_paragraph(self, paragraph, before=before))
+
     def move_after(self, paragraph: "int | HwpxOxmlParagraph") -> None:
         """Move this paragraph right after *paragraph* (a paragraph of the same document -- in the
         body, a cell, a text box, a note, a header or a footer -- or its index in ``doc.paragraphs``).

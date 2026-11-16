@@ -460,14 +460,17 @@ _HEADING_TYPE_TO_CONTAINER_TAG = {"NUMBER": "numbering", "OUTLINE": "numbering",
 
 
 def _remap_headings(
-    source_header: Any, target_header: Any, para_pr_clones: list[Any]
+    source_header: Any, target_header: Any, para_pr_clones: list[Any],
+    known: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, dict[str, str]]:
     """Returns {"numbering": {old: new}, "bullet": {old: new}}.
 
     Scans *para_pr_clones* (the already-copied paraPr items, from
     :func:`_remap_para_properties` -- not the body paragraphs) for nested
     ``hh:heading`` children, since that is where the reference actually
-    lives.
+    lives. A source definition *known* already maps to (an earlier copy from the same
+    document brought it) is mapped there again instead of copied anew: Hancom counts a
+    numbering per definition, so paragraphs copied one by one keep counting on as one list.
     """
 
     by_space: dict[str, set[str]] = {"numbering": set(), "bullet": set()}
@@ -490,6 +493,10 @@ def _remap_headings(
         if source_container is None:
             continue
         for old_id in sorted(used):
+            earlier = (known or {}).get(space, {}).get(old_id)
+            if earlier is not None and any(c.get("id") == earlier for c in target_container.findall(f"{_HH}{space}")):
+                result[space][old_id] = earlier
+                continue
             item = next(
                 (c for c in source_container.findall(f"{_HH}{space}") if c.get("id") == old_id), None
             )
@@ -1113,15 +1120,20 @@ def _merge_paragraphs(
     source: HwpxDocument,
     *,
     source_section_index: int | None,
+    paragraphs: list[Any] | None = None,
+    known_headings: dict[str, dict[str, str]] | None = None,
 ) -> tuple[list[Any], list[Any], dict[str, Any]]:
-    """Deep-copy source paragraphs, remap every reference, return
-    (paragraph elements, memo clones, report)."""
+    """Deep-copy source paragraphs (*paragraphs*, elements of *source*, or else those of its sections),
+    remap every reference, return (paragraph elements, memo clones, report)."""
 
-    source_sections = (
-        [source.sections[source_section_index]] if source_section_index is not None
-        else list(source.sections)
-    )
-    source_paragraphs = [p.element for section in source_sections for p in section.paragraphs]
+    if paragraphs is not None:
+        source_paragraphs = list(paragraphs)
+    else:
+        source_sections = (
+            [source.sections[source_section_index]] if source_section_index is not None
+            else list(source.sections)
+        )
+        source_paragraphs = [p.element for section in source_sections for p in section.paragraphs]
     if not source_paragraphs:
         return [], [], {"paragraphsInserted": 0}
 
@@ -1211,7 +1223,10 @@ def _merge_paragraphs(
                     if node.get("instid") not in (None, "", "0")]
     # hh:heading (numbering/bullet's own polymorphic idRef) lives inside the
     # just-copied paraPr items, not the body paragraphs -- scan those.
-    headings = _remap_headings(source_header, target_header, para_pr_clones)
+    headings = _remap_headings(source_header, target_header, para_pr_clones, known_headings)
+    if known_headings is not None:
+        for space, mapping in headings.items():
+            known_headings.setdefault(space, {}).update(mapping)
     # hh:fontRef (7 lang-scoped font ids) lives inside the just-copied
     # charPr items, not the body paragraphs -- scan those.
     fonts = _remap_fonts(source_header, target_header, char_pr_clones)
@@ -1390,6 +1405,90 @@ def append_document(
     finally:
         if opened_here:
             source_doc.close()
+
+
+def _facade_of(root: Any) -> HwpxDocument | None:
+    """A document view over the ``HwpxOxmlDocument`` *root* and the package it was read from."""
+
+    package = getattr(getattr(root, "_manifest_source", None), "__self__", None)
+    return None if package is None else HwpxDocument(package, root)
+
+
+def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
+    """``paragraph.copy_to(anchor, before=)``: put a copy of the paragraph object *source* right after
+    (*before*: before) the paragraph object *anchor* and return it.
+
+    *anchor* may belong to another document. The copy is made as :func:`insert_document` copies a
+    paragraph: the definitions its text and objects name (character and paragraph shapes, styles,
+    borders and fills, tabs, numberings and bullets, fonts, memo shapes) become new definitions of
+    *anchor*'s document, pictures bring their images and charts their parts, fields, bookmarks, objects
+    and paragraphs get fresh ids, a memo anchored in it comes along in its field, and section settings
+    stay behind. What :func:`insert_document` refuses is refused the same way
+    (``document-merge-unsupported-reference``). In the same document the copy is the one
+    ``paragraph.insert_after()`` makes. No line layout cache comes along.
+    """
+
+    from ..oxml._document_primitives import _clone_paragraph_element
+    from ..oxml._paragraph_text_edit import (
+        insert_paragraph_copy,
+        renumber_copied_fields,
+        resolve_paragraph_in,
+        section_setting_runs,
+    )
+    from ..oxml.memo import renew_copied_memos
+    from ..oxml.paragraph import HwpxOxmlParagraph
+
+    if not isinstance(before, bool):
+        raise HwpxValueError(f"before must be True or False; got {before!r}", code="paragraph-invalid-type",
+                             suggestion="Pass before=True to put the copy in front of the paragraph.")
+    source = resolve_paragraph_in(source, source, caller="copy_to")
+    if not isinstance(anchor, HwpxOxmlParagraph):
+        from ..errors import HwpxTypeError
+
+        raise HwpxTypeError(
+            f"paragraph must be a paragraph object; got {type(anchor).__name__}",
+            code="paragraph-invalid-type",
+            context={"caller": "copy_to", "type": type(anchor).__name__},
+            suggestion="Pass the paragraph to copy next to, e.g. other_doc.paragraphs[i] or cell.paragraphs[i].",
+        )
+    anchor = resolve_paragraph_in(anchor, anchor, caller="copy_to")
+    source_root, target_root = source.section.document, anchor.section.document
+    if source_root is target_root:
+        copy = _clone_paragraph_element(source.element)
+        renumber_copied_fields(copy)
+        for run, settings in section_setting_runs(copy):
+            for child in settings:
+                run.remove(child)
+            if len(run) == 0:
+                copy.remove(run)
+        insert_paragraph_copy(copy, anchor, before=before)
+        sections = list(target_root.sections) if target_root is not None else [anchor.section]
+        renew_copied_memos(copy, sections, anchor.section)
+        return HwpxOxmlParagraph(copy, anchor.section)
+    source_doc, target_doc = _facade_of(source_root), _facade_of(target_root)
+    if source_doc is None or target_doc is None:
+        raise HwpxValueError(
+            "copying a paragraph into another document needs both documents opened or created as documents",
+            code="paragraph-not-in-document",
+            suggestion="Open both with HwpxDocument.open(...) or make them with HwpxDocument.new().",
+        )
+    # Paragraphs copied one by one from one document keep one numbering: a later copy maps the
+    # source's numbering and bullet definitions to the ones an earlier copy brought.
+    import weakref
+
+    holder: Any = target_root
+    registry = getattr(holder, "_copied_headings", None)
+    if registry is None:
+        registry = weakref.WeakKeyDictionary()
+        holder._copied_headings = registry
+    known: dict[str, dict[str, str]] = registry.setdefault(source_root, {})
+    copies, memo_clones, _report = _merge_paragraphs(
+        target_doc, source_doc, source_section_index=None, paragraphs=[source.element], known_headings=known
+    )
+    copy = copies[0]
+    insert_paragraph_copy(copy, anchor, before=before)
+    _insert_memos_into_target_section(anchor.section, memo_clones)
+    return HwpxOxmlParagraph(copy, anchor.section)
 
 
 def insert_document(

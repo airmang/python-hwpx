@@ -419,6 +419,7 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-alignment-invalid": "문단 정렬 값이 LEFT/CENTER/RIGHT/JUSTIFY/DISTRIBUTE/DISTRIBUTE_SPACE 밖이다.",
     "paragraph-format-invalid": "문단 서식 값의 형이 틀렸거나 범위 밖이다(여백·간격은 수, 간격은 음수 불가, 줄 나눔 기준·condense 어휘).",
     "paragraph-range-invalid": "글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다.",
+    "paragraph-range-crosses-element": "바꿀 글자 범위가 한 덩이 글이 아니다(탭·줄 바꿈·컨트롤·개체가 끼어 있다).",
     "paragraph-split-inside-element": "나눌 위치가 hp:t 안의 나눌 수 없는 요소(글자를 가진 요소) 한가운데다.",
     "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
     "paragraph-move-into-itself": "문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다.",

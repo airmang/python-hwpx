@@ -214,9 +214,10 @@ class TextNamespace(_Namespace):
         ``doc.paragraphs`` 는 본문 문단만 보지만, 이것은 표 칸(칸 안 표 포함)·글상자·묶음 개체 안
         글상자·캡션·머리말·꼬리말·각주·미주·메모·바탕쪽의 문단까지 한 번씩 내놓는다. 각 값의
         ``where`` 가 가장 안쪽 자리(``"body"``·``"cell"``·``"text_box"``·``"caption"``·``"header"``·
-        ``"footer"``·``"footnote"``·``"endnote"``·``"memo"``·``"master_page"``)이고, 표 칸이면
-        ``table``·``row``·``col`` 이 그 칸이다. *where* 로 자리를 고른다
+        ``"footer"``·``"footnote"``·``"endnote"``·``"memo"``·``"master_page"``·``"hidden_comment"``)이고,
+        표 칸이면 ``table``·``row``·``col`` 이 그 칸이다. *where* 로 자리를 고른다
         (``where={"cell", "text_box"}``). python-hwpx 6.x 가 머리말·꼬리말을 두 벌 쓴 문서에서도 한 번만 나온다.
+        ``"hidden_comment"`` 는 숨은 설명(``hp:hiddenComment``): 한/글이 문단에 두지만 보이거나 인쇄하지 않는 글이다.
         """
 
         from ..text_blocks import iter_paragraph_places
@@ -234,7 +235,8 @@ class TextNamespace(_Namespace):
         본문뿐 아니라 표 칸·글상자·머리말·꼬리말·각주·바탕쪽 안의 개체, 묶음 개체의 구성원도
         나온다. ``kind`` 는 ``"table"``·``"picture"``·``"equation"``·``"shape"``·``"ole"``·
         ``"chart"``·``"video"``·``"textart"``, 자리 값은 :meth:`iter_paragraphs` 와 같다(그 개체를 품은
-        문단의 자리). *kinds*·*where* 로 고른다.
+        문단의 자리). *kinds*·*where* 로 고른다. 글맵시의 글은 한/글이 적은 그대로
+        ``place.object.attributes["text"]`` 로 읽는다(``hp:textart/@text``).
         """
 
         from ..text_blocks import iter_object_places

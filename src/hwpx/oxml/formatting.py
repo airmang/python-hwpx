@@ -662,6 +662,56 @@ def format_range(
     return tuple(HwpxOxmlRun(run, paragraph) for run in targets)
 
 
+def replace_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, text: str) -> None:
+    """``paragraph.replace_range``: put *text* in place of characters ``[start, end)``, the runs as
+    they are, by the rule ``doc.text.replace`` follows (each new character takes the run of the old
+    one at its position)."""
+
+    from ._paragraph_text_edit import text_marks_as_elements_in
+    from .run import _overlay_replacement, text_stretch_spans
+
+    if not isinstance(text, str):
+        raise HwpxTypeError(f"text must be a str; got {type(text).__name__}", code="paragraph-text-invalid-type",
+                            suggestion="Pass the new text as a str ('' removes the range).")
+    length = len(paragraph.text)
+    start = _check_offset("start", start, 0, length)
+    end = _check_offset("end", end, start, length)
+    if start == end and not text:
+        return
+    runs = _run_elements(paragraph)
+    chosen = next(
+        ((begin, segments) for begin, segments in text_stretch_spans(runs)
+         if begin <= start and end <= begin + sum(len(segment.text) for segment in segments)),
+        None,
+    )
+    if chosen is None:
+        raise HwpxValueError(
+            f"characters {start}..{end} are not one stretch of text: a tab, a line break, a control or an "
+            "object lies in or around them",
+            code="paragraph-range-crosses-element",
+            context={"start": start, "end": end},
+            suggestion="Replace the text on each side of the tab, line break or object separately.",
+        )
+    begin, segments = chosen
+    local_start, local_end = start - begin, end - begin
+    if start < end:
+        _overlay_replacement(segments, local_start, local_end, text)
+    else:
+        # an insertion goes into the segment holding the character before it (at the start of the
+        # stretch, the first segment)
+        offset = 0
+        for segment in segments:
+            segment_end = offset + len(segment.text)
+            if local_start <= segment_end and (local_start > offset or local_start == 0):
+                at = local_start - offset
+                segment.set(segment.text[:at] + text + segment.text[at:])
+                break
+            offset = segment_end
+    for run in runs:
+        text_marks_as_elements_in(run)
+    _changed(paragraph)
+
+
 # --------------------------------------------------------------------------
 # Paragraph formats
 

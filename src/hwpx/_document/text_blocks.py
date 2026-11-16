@@ -401,6 +401,7 @@ def apply_text_changes(
 #: Where a paragraph can sit (``ParagraphPlace.where``), innermost container first.
 PLACES = (
     "body", "cell", "text_box", "caption", "header", "footer", "footnote", "endnote", "memo", "master_page",
+    "hidden_comment",
 )
 #: Object kinds ``doc.text.iter_objects()`` reports, by element name.
 OBJECT_KINDS = {
@@ -525,6 +526,9 @@ def _walk(
             yield from _walk(child, replace(context, where=_NOTE_PLACES[name]), holder, name, counts)
         elif name == "memogroup":
             yield from _walk(child, replace(context, where="memo"), None, name, counts)
+        elif name == "hiddenComment":
+            # 숨은 설명: text Hancom keeps with the paragraph but neither shows nor prints.
+            yield from _walk(child, replace(context, where="hidden_comment"), holder, name, counts)
         else:
             yield from _walk(child, context, holder, name, counts)
 

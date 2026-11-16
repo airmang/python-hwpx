@@ -546,6 +546,47 @@ def move_paragraph_beside(paragraph: Any, anchor: Any, *, after: bool) -> Any:
     return target_section
 
 
+def insert_paragraph_copy(new: ET.Element, anchor: Any, *, before: bool) -> None:
+    """Put the paragraph element *new* (a copy made for it) right after -- *before*: before -- the paragraph
+    object *anchor*, in whatever list holds it (a section, a cell, a text box, a note, a header or footer).
+
+    In front of a section's first paragraph the copy starts the section: the settings move to it, as
+    :func:`insert_paragraph_beside` puts them. The copy and the paragraphs holding its new cell or caption
+    lose their line layout cache. Refused: a memo's paragraph (``paragraph-move-place-unsupported``), a
+    paragraph taken out (``paragraph-not-in-document``).
+    """
+
+    from ._document_primitives import _clear_paragraph_layout_cache
+    from .shape_position import paragraph_box
+    from .utils import holding_paragraphs
+
+    destination = paragraph_container(anchor.element, anchor.section.element)
+    if destination is None:
+        raise HwpxValueError(
+            "the paragraph is not in a paragraph list any more",
+            code="paragraph-not-in-document",
+            suggestion="Take the paragraphs again from the document.",
+        )
+    if paragraph_box(anchor.element, anchor.section.element) in ("memo", "other"):
+        raise HwpxValueError(
+            "a copy goes into the body, a cell, a text box, a note, a caption, a header or a footer; "
+            "a memo's text changes through memo.text",
+            code="paragraph-move-place-unsupported",
+            context={"box": "memo"},
+            suggestion="Pick a paragraph outside the memo.",
+        )
+    index = next(position for position, child in enumerate(destination) if child is anchor.element)
+    destination.insert(index if before else index + 1, new)
+    if before and destination is anchor.section.element and section_setting_runs(anchor.element):
+        move_section_settings(anchor.element, new)
+    for node in new.iter():
+        if _local(node) == "p":
+            _clear_paragraph_layout_cache(node)
+    for holder in holding_paragraphs(new):
+        _clear_paragraph_layout_cache(holder)
+    anchor.section.mark_dirty()
+
+
 def own_text_nodes(sublist: ET.Element) -> list[ET.Element]:
     """The ``hp:t`` nodes of a cell's own paragraphs (not those of a table or
     object inside them)."""
@@ -925,3 +966,19 @@ class ParagraphFormats:
         from .formatting import format_range
 
         return format_range(self, start, end, changes)
+
+    def replace_range(self, start: int, end: int, text: str) -> None:
+        """Put *text* in place of the characters ``[start, end)``, the runs staying as they are.
+
+        Positions count as ``paragraph.text`` does. Each new character takes the place, and so the
+        run and character shape, of the old character at the same position; new characters beyond
+        the range follow its last character, old ones beyond the text are removed (a run may be left
+        empty) -- what ``doc.text.replace`` and Hancom's 찾아 바꾸기 write. ``start == end`` inserts
+        *text* there, in the shape of the character before it (or after it at the start). A tab or a
+        line break in *text* is written as Hancom writes it. The range must lie in one stretch of
+        text: one not crossing a tab, a line break, a control or an object
+        (``paragraph-range-crosses-element``). The paragraph loses its line layout cache.
+        """
+        from .formatting import replace_range
+
+        replace_range(self, start, end, text)
