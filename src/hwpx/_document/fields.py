@@ -1876,12 +1876,12 @@ def _iter_form_objects(doc: "HwpxDocument", local: str) -> list[tuple[Any, Any, 
 
 
 def list_form_objects(doc: "HwpxDocument", local: str) -> tuple[Any, ...]:
-    """The document's radio buttons, combo boxes or edit boxes (*local* is the element's
-    name), in document order, as live views."""
+    """The document's radio buttons, combo boxes, edit boxes or command buttons (*local* is the
+    element's name), in document order, as live views."""
 
-    from ..objects.checkbox import ComboBox, EditBox, RadioButton
+    from ..objects.checkbox import Button, ComboBox, EditBox, RadioButton
 
-    cls: Any = {"radioBtn": RadioButton, "comboBox": ComboBox, "edit": EditBox}[local]
+    cls: Any = {"radioBtn": RadioButton, "comboBox": ComboBox, "edit": EditBox, "btn": Button}[local]
     return tuple(
         cls(element, section, _owning_paragraph(element, section), index=index)
         for element, section, index in _iter_form_objects(doc, local)

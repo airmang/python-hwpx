@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 
 from ...model import Paragraph, Section
 from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
-from ...objects.checkbox import ComboBox, EditBox, RadioButton
+from ...objects.checkbox import Button, ComboBox, EditBox, RadioButton
 from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
 from .._resolve import optional_paragraph, resolve_section
 from ._base import _LazyModule, _Namespace
@@ -299,6 +299,14 @@ class FieldsNamespace(_Namespace):
         from .. import fields as _fields
 
         return _fields.list_form_objects(self._doc, "edit")
+
+    @property
+    def buttons(self) -> "tuple[Button, ...]":
+        """문서의 모든 명령 단추(``hp:btn``)를 문서 순서로. ``caption`` 은 단추에 적힌 글(읽기만)."""
+
+        from .. import fields as _fields
+
+        return _fields.list_form_objects(self._doc, "btn")
 
     def _place(self, paragraph, section, caller: str):
         return (

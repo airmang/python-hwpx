@@ -452,6 +452,15 @@ python-hwpx 7.0을 함께 설치한다.
 - 누름틀에 내용을 넣었는지 읽는다: `field.filled`(`hp:fieldBegin/@dirty`). 한/글 저장본에서 넣은 내용을 보이는 누름틀은 `"1"`,
   안내문을 보이는 누름틀은 `"0"`이다.
 - 문단의 id를 읽는다: `paragraph.id`(파일에 적힌 대로, 고유 키가 아니다).
+- 문단 하나를 다른 문서로 복사한다: `paragraph.copy_to(other_doc.paragraphs[i], before=False)`. 글자·문단 모양, 스타일, 테두리,
+  탭, 번호·글머리표, 글꼴 정의를 받는 문서에 새로 만들고 그림·차트 파트를 옮기며 누름틀·책갈피·개체·문단 id를 새로 매긴다
+  (`insert_document`가 한/글이 그냥 여는 꼴로 쓰는 규칙과 같고, 거부도 같다). 구역 설정은 따라가지 않는다. 같은 문서에서는
+  `insert_after()` 사본과 같다.
+- 글자 범위를 런 그대로 바꾼다: `paragraph.replace_range(start, end, text)`. 새 글자는 같은 자리 옛 글자의 런에 들어간다
+  (`doc.text.replace`와 같은 규칙). 범위가 탭·줄 바꿈·컨트롤·개체를 건너면 `paragraph-range-crosses-element`.
+- 본문을 비울 때 머리말·꼬리말도 지운다: `section.clear_body(keep_headers=False)`. 구역 설정·단·쪽 번호와 빈 줄 하나가 남는다.
+- 명령 단추를 읽는다: `doc.fields.buttons`(`Button.caption`). 숨은 설명의 문단은 `doc.text.iter_paragraphs()`에서
+  `where="hidden_comment"`로 나오고, 글맵시의 글은 `iter_objects(kinds="textart")`의 `object.attributes["text"]`로 읽는다.
 
 ### 고침
 

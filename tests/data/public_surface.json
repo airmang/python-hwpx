@@ -135,6 +135,7 @@
    "add_edit_box": {"kind": "method", "params": [["text", "P", true], ["multi_line", "K", true], ["read_only", "K", true], ["name", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "EditBox"},
    "add_radio_button": {"kind": "method", "params": [["caption", "P", false], ["group", "K", true], ["checked", "K", true], ["name", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "RadioButton"},
    "all": {"kind": "property", "settable": false, "returns": "tuple[FormField, ...]"},
+   "buttons": {"kind": "property", "settable": false, "returns": "tuple[Button, ...]"},
    "cells": {"kind": "property", "settable": false, "returns": "tuple[CellField, ...]"},
    "check_boxes": {"kind": "property", "settable": false, "returns": "tuple[CheckBox, ...]"},
    "combo_boxes": {"kind": "property", "settable": false, "returns": "tuple[ComboBox, ...]"},
@@ -567,6 +568,7 @@
     "clear_text": {"kind": "method", "params": [], "returns": "None"},
     "column_break": {"kind": "property", "settable": true, "returns": "bool"},
     "composed_characters": {"kind": "property", "settable": false, "returns": "tuple[ComposedCharacter, ...]"},
+    "copy_to": {"kind": "method", "params": [["paragraph", "P", false], ["before", "K", true]], "returns": "Paragraph"},
     "endnotes": {"kind": "property", "settable": false, "returns": "tuple[Note, ...]"},
     "equations": {"kind": "property", "settable": false, "returns": "tuple[Equation, ...]"},
     "first_line_indent_mm": {"kind": "property", "settable": true, "returns": "float | None"},
@@ -592,6 +594,7 @@
     "para_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "pictures": {"kind": "property", "settable": false, "returns": "tuple[Picture, ...]"},
     "remove": {"kind": "method", "params": [], "returns": "None"},
+    "replace_range": {"kind": "method", "params": [["start", "P", false], ["end", "P", false], ["text", "P", false]], "returns": "None"},
     "rubies": {"kind": "property", "settable": false, "returns": "tuple[Ruby, ...]"},
     "runs": {"kind": "property", "settable": false, "returns": "tuple[Run, ...]"},
     "section": {"kind": "attribute", "returns": "Section"},
@@ -709,7 +712,7 @@
    "members": {
     "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
     "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["include_run", "K", true], ["inherit_style", "K", true]], "returns": "Paragraph"},
-    "clear_body": {"kind": "method", "params": [["on_control_content", "K", true]], "returns": "ClearBodyReport"},
+    "clear_body": {"kind": "method", "params": [["on_control_content", "K", true], ["keep_headers", "K", true]], "returns": "ClearBodyReport"},
     "clear_layout_cache": {"kind": "method", "params": [["stale_only", "K", true]], "returns": "int"},
     "copy_paragraph_range": {"kind": "method", "params": [["start", "P", false], ["end", "P", false]], "returns": "tuple[Element, ...]"},
     "insert_paragraphs": {"kind": "method", "params": [["index", "P", false], ["paragraphs", "P", false]], "returns": "tuple[Paragraph, ...]"},
@@ -1060,6 +1063,17 @@
    ],
    "members": {
     "matches_id": {"kind": "method", "params": [["bullet_id_ref", "P", false]], "returns": "bool"}
+   }
+  },
+  "Button": {
+   "kind": "class",
+   "members": {
+    "caption": {"kind": "property", "settable": false, "returns": "str"},
+    "element": {"kind": "property", "settable": false, "returns": "Element"},
+    "index": {"kind": "property", "settable": false, "returns": "int"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
+    "section": {"kind": "property", "settable": false, "returns": "Section"}
    }
   },
   "Caption": {

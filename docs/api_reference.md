@@ -515,6 +515,9 @@
 - `add_shape(...)`, `add_control(...)`: 같은 자리에 임의의 요소를 넣는 저수준 탈출구입니다. 필수 하위 요소를 만들지 않아 호출 시 `UserWarning`이 나므로, 표준 도형은 위 전용 헬퍼를 쓰세요.
 - `para_pr_id_ref`, `style_id_ref`, `char_pr_id_ref`: 단락 수준의 서식 재정의를 허용하는 setter가 있는 프로퍼티입니다.
 - `id`: 파일에 적힌 문단 id(`hp:p/@id`, 읽기 전용). 한/글도 `"0"`이나 같은 id를 적을 수 있어 고유 키가 아닙니다. 문단을 다시 찾을 때는 객체끼리 견줍니다(아래 「같은 요소의 객체」).
+- `replace_range(start, end, text)`: `paragraph.text`로 센 글자 `[start, end)`를 *text*로 바꿉니다. 런은 그대로이고, 새 글자는 같은 자리의 옛 글자의 런(글자 모양)에 들어갑니다(`doc.text.replace`·한/글 찾아 바꾸기와 같은 규칙). 남는 새 글자는 범위 끝 글자를 따르고, `start == end`면 앞 글자의 런에 끼웁니다. 범위가 탭·줄 바꿈·컨트롤·개체를 건너면 `paragraph-range-crosses-element`로 거절합니다. 줄 배치 캐시를 지웁니다.
+- `copy_to(paragraph, *, before=False) -> Paragraph`: 이 문단의 사본을 *paragraph* 뒤(`before=True`면 앞)에 넣고 돌려줍니다. *paragraph*는 다른 문서의 문단(본문·칸·글상자·각주·머리말)이어도 됩니다. 이때 글자·문단 모양, 스타일, 테두리, 탭, 번호·글머리표, 글꼴 정의를 받는 문서에 새로 만들고, 그림·차트의 파트를 함께 옮기며, 누름틀·책갈피·개체·문단 id를 새로 매깁니다(`insert_document`와 같은 규칙, 같은 거부). 구역 설정은 따라가지 않고, 구역 첫 문단 앞에 넣으면 그 구역의 설정을 넘겨받습니다. 같은 문서 안에서는 `insert_after()` 사본과 같습니다.
+- `_run_elements()`, `_ensure_run()`, `_create_run_for_object()`: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.
 
 ### 같은 요소의 객체
 
@@ -523,7 +526,15 @@
 ### 값 형식 `FormField` (`doc.fields.all`)
 
 - `filled`: 한/글이 누름틀에 남기는 "내용을 넣었음" 표시(`hp:fieldBegin/@dirty`, 읽기 전용). 안내문 대신 넣은 내용을 보이는 누름틀이면 `True`입니다. 파일에 적힌 지금 값을 읽고, 채우기(`field.value = ...`, `doc.fields.fill`)가 켭니다. 적히지 않았으면 스키마 기본값 `False`.
-- `_run_elements()`, `_ensure_run()`, `_create_run_for_object()`: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.
+
+### 명령 단추 `Button` (`doc.fields.buttons`)
+
+- `caption`: 단추에 적힌 글(`hp:btn/@caption`, 읽기 전용). `name`·`paragraph`·`section`·`index`는 다른 양식 개체와 같습니다. 엔진은 명령 단추를 만들지 않습니다.
+
+### 글맵시·숨은 설명
+
+- 글맵시의 글: `doc.text.iter_objects(kinds="textart")`의 `place.object.attributes["text"]`(한/글이 `hp:textart/@text`에 적은 그대로).
+- 숨은 설명(`hp:hiddenComment`)의 문단은 `doc.text.iter_paragraphs()`에서 자리 `where="hidden_comment"`로 나옵니다.
 
 ### 클래스 `HwpxOxmlSection`
 
@@ -536,6 +547,7 @@
 - `add_memo(...)`: 메모 그룹이 있는지 확인한 후 `HwpxOxmlMemoGroup.add_memo()`에 위임하는 편의 메서드입니다.
 - `add_paragraph(text="", *, style=, para_pr_id_ref=, char_pr_id_ref=, include_run=, inherit_style=)`: 단락을 추가하고 그 래퍼를 반환합니다. 그 밖의 값(쪽 나눔 등)은 돌려받은 단락의 속성으로 씁니다(7.0에서 `run_attributes=`·`inherit_outline=`·XML 속성 인자는 없어졌습니다).
 - `remove_paragraph(paragraph_or_index)`: 단락 인스턴스 또는 인덱스로 단락을 삭제합니다. 마지막 단락 삭제 시 `ValueError`가 발생합니다.
+- `clear_body(*, on_control_content="raise", keep_headers=True) -> ClearBodyReport`: 본문을 비우고 첫 문단의 구역 설정(`hp:secPr`)과 단·머리말·꼬리말·쪽 번호 컨트롤을 남깁니다. `keep_headers=False`면 머리말·꼬리말을 글이 있든 없든 지우고(`hp:secPr`에 쓴 사본과 그 apply도), 구역 설정·단·쪽 번호와 빈 줄 하나만 남깁니다(한/글 새 문서처럼 머리말 컨트롤이 없는 꼴). `on_control_content`는 남는 컨트롤만 봅니다.
 - `mark_dirty()`, `dirty`, `reset_dirty()`: 섹션을 저장해야 하는지 여부를 추적합니다.
 - `to_bytes() -> bytes`: `_serialize_xml()`을 사용하여 섹션 엘리먼트를 직렬화합니다.
 
