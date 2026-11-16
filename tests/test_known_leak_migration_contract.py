@@ -50,7 +50,8 @@ def test_every_known_leak_belongs_to_exactly_one_group() -> None:
 
     assert sorted(_names(groups, "allowlist")) == known
     assert sorted(_names(groups, "undetected")) == undetected
-    assert len(known) + len(undetected) == 8
+    # Eight names in four groups; two groups (six names) moved with the conversion move.
+    assert len(known) + len(undetected) == 2
 
 
 def test_format_vocabulary_is_not_scheduled_to_move() -> None:
@@ -59,20 +60,34 @@ def test_format_vocabulary_is_not_scheduled_to_move() -> None:
         for entry in ALLOWLIST["entries"]
         if entry["classification"] == "format-vocabulary"
     }
+    # _SAFE_FILENAME_RE (mail merge) and _OWN_NUMBER (Markdown import) left with their modules.
     assert vocabulary == {
-        ("tools/mail_merge.py", "_SAFE_FILENAME_RE"),
         ("oxml/paragraph_heading.py", "_OUTLINE_STYLE_NAME"),
-        ("tools/markdown_import.py", "_OWN_NUMBER"),
     }
     assert not vocabulary & set(_names(CONTRACT["groups"], "allowlist"))
+
+
+def test_the_moved_groups_name_their_owner_and_left_no_core_name() -> None:
+    assert [group["id"] for group in CONTRACT["moved"]] == [
+        "official-reference-policy",
+        "report-heading-guess",
+    ]
+    allowlisted = {entry["file"] for entry in ALLOWLIST["entries"]} | {
+        entry["file"] for entry in ALLOWLIST["undetected"]
+    }
+    assert "tools/markdown_export.py" not in allowlisted
+    for group in CONTRACT["moved"]:
+        assert group["canonicalOwner"].startswith("hwpx_automation."), group["id"]
+        assert group["removedCoreSurface"] and group["replacement"], group["id"]
+        assert f"### {group['id']}" in CONTRACT_DOC, group["id"]
+    source = (ROOT / "src" / "hwpx" / "tools" / "doc_diff.py").read_text(encoding="utf-8")
+    assert "_ATTACHMENT_LINE_RE" not in source and "def inspect_reference_consistency" not in source
 
 
 def test_each_group_names_an_automation_owner_core_primitive_and_replacement() -> None:
     ids = [group["id"] for group in CONTRACT["groups"]]
     assert ids == [
-        "official-reference-policy",
         "document-plan-input",
-        "report-heading-guess",
         "evalplan-caption-cleanup",
     ]
     for group in CONTRACT["groups"]:

@@ -189,25 +189,25 @@
   "replacement": "doc.styles.ensure_run(...)"
  },
  "export_html": {
-  "example": "doc.text.html()",
+  "example": "to_html(doc)",
   "kind": "method",
   "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.text.html(...)"
+  "replacement": "from hwpx_automation.markdown import to_html; to_html(doc)"
  },
  "export_markdown": {
-  "example": "doc.text.markdown()",
+  "example": "to_markdown(doc)",
   "kind": "method",
   "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.text.markdown(...)"
+  "replacement": "from hwpx_automation.markdown import to_markdown; to_markdown(doc)"
  },
  "export_rich_markdown": {
-  "example": "doc.text.markdown(rich=True)",
+  "example": "to_markdown(doc, rich=True)",
   "kind": "method",
   "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.text.markdown(rich=True)"
+  "replacement": "from hwpx_automation.markdown import to_markdown; to_markdown(doc, rich=True)"
  },
  "export_text": {
   "example": "doc.text.plain()",
@@ -216,11 +216,11 @@
   "replacement": "doc.text.plain(...)"
  },
  "fill_by_path": {
-  "example": "doc.tables.fill_by_path({\"성명 > right\": \"홍길동\"})",
+  "example": "fill_by_path(doc, {\"성명 > right\": \"홍길동\"})",
   "kind": "method",
   "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.tables.fill_by_path(...)"
+  "replacement": "from hwpx_automation.forms import fill_by_path; fill_by_path(doc, {\"성명 > right\": \"홍길동\"})"
  },
  "fill_form_field": {
   "example": "doc.fields.fill(\"홍길동\", name=\"성명\")",
@@ -230,11 +230,11 @@
   "returns": "dict → FieldFillResult"
  },
  "find_cell_by_label": {
-  "example": "doc.tables.find_cell_by_label(\"성명\")",
+  "example": "find_cell_by_label(doc, \"성명\")",
   "kind": "method",
   "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.tables.find_cell_by_label(...)"
+  "replacement": "from hwpx_automation.forms import find_cell_by_label; find_cell_by_label(doc, \"성명\")"
  },
  "find_runs_by_style": {
   "example": "doc.text.find_runs(text_color=\"#FF0000\")",
@@ -245,7 +245,6 @@
  "get_table_map": {
   "example": "doc.tables.map()",
   "kind": "method",
-  "movingToAutomation": true,
   "removedIn": "7.0",
   "replacement": "doc.tables.map()"
  },

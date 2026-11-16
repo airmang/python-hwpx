@@ -37,12 +37,13 @@ CAPABILITIES_SCHEMA = "hwpx.capabilities/v1"
 
 _DIST_NAME = "python-hwpx"
 
-#: extras 이름 → 그 extra가 끄는 런타임 모듈들. ``visual``은 5.0부터 의도적으로
-#: 빈 extra(설치 호환 유지용)라 백킹 모듈이 없고, 프로브는 공허하게 참이다.
+#: extras 이름 → 그 extra가 끄는 런타임 모듈들. ``visual``은 5.0부터, ``xlsx``·``preview``는
+#: 7.0부터(메일 머지·미리보기가 python-hwpx-automation으로 옮겨 갔다) 의도적으로 빈
+#: extra(설치 호환 유지용)라 백킹 모듈이 없고, 프로브는 공허하게 참이다.
 _EXTRA_MODULES: dict[str, tuple[str, ...]] = {
     "visual": (),
-    "xlsx": ("openpyxl",),
-    "preview": ("latex2mathml",),
+    "xlsx": (),
+    "preview": (),
 }
 
 #: 능력 영역 레지스트리. ``matrix_row``는 ``docs/support-matrix.md`` 표 1열
@@ -333,13 +334,6 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": (),
     },
     {
-        "area": "table-navigation-fill",
-        "namespace": "doc.tables",
-        "matrix_row": "표 탐색 기반 채움(라벨 매칭 네비게이션)",
-        "entry_points": ("hwpx.document:HwpxDocument",),
-        "authoring_methods": (),
-    },
-    {
         "area": "find-replace",
         "namespace": "doc.text",
         "matrix_row": "찾아바꾸기",
@@ -364,17 +358,6 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "authoring_methods": (),
     },
     {
-        "area": "mail-merge",
-        "namespace": None,
-        "matrix_row": "메일머지(placeholder 템플릿 배치 생성)",
-        # 6.8 트레인㉚가 찾은 신규 측정 갭, 트레인㉛에서 등재. HwpxDocument
-        # 어느 네임스페이스에도 없다(순수 hwpx.tools 모듈 함수 — 이미 연
-        # 문서가 아니라 템플릿 파일 경로를 받아 여러 문서를 배치 생성) —
-        # edit-plan과 같은 이유로 namespace=None, 모듈 진입점만 갖는다.
-        "entry_points": ("hwpx.tools.mail_merge:merge_template_rows",),
-        "authoring_methods": (),
-    },
-    {
         "area": "document-merge",
         "namespace": None,
         "matrix_row": "문서 끼워 넣기(문서 병합)",
@@ -388,23 +371,6 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         "entry_points": (
             "hwpx.tools.document_merge:append_document",
             "hwpx.tools.document_merge:insert_document",
-        ),
-        "authoring_methods": (),
-    },
-    {
-        "area": "markdown-import",
-        "namespace": None,
-        "matrix_row": "Markdown 가져오기(Markdown → 문서)",
-        # 흔한 Markdown 부분 집합(제목·문단·목록·표·굵게/기울임)을 기존
-        # 저작 primitive(add_paragraph·add_run·add_table·apply_list_format)로
-        # 쓴다. 새 요소를 만들지 않으므로 coverage_ledger 등록은 없다.
-        # 진입점은 모듈 함수(from_markdown)이고 기존 문서에는
-        # doc.text.append_markdown 으로 덧붙인다. 6.x 루트 예산에 빈 칸이
-        # 없어 루트 생성자가 아니라 모듈에 산다(mail-merge와 같은 이유로
-        # namespace=None).
-        "entry_points": (
-            "hwpx.tools.markdown_import:from_markdown",
-            "hwpx.tools.markdown_import:append_markdown",
         ),
         "authoring_methods": (),
     },
@@ -500,7 +466,9 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
         # 기능을 담을 수 없다. date-time-proofreading-mark-fields와 같은
         # field_marks.py·같은 hp:fieldBegin 계열이지만 그쪽에 합류시키지
         # 않은 것도 같은 이유다 — 그 행은 "입력 > 필드" 계열 3종이고
-        # 메일머지 표시는 "도구 > 메일 머지" 메뉴다.
+        # 메일머지 표시는 "도구 > 메일 머지" 메뉴다. 7.0: 그 "mail-merge" 영역(배치
+        # 생성)은 python-hwpx-automation(hwpx_automation.mail_merge)으로 옮겨 이
+        # 레지스트리에서 빠졌다. 필드를 만드는 이 영역은 파일에 적는 일이라 엔진에 남는다.
         "entry_points": ("hwpx.oxml.paragraph:HwpxOxmlParagraph",),
         "authoring_methods": (),
     },
@@ -538,26 +506,15 @@ _LEGACY_REMOVED_IN = "7.0"
 
 
 def _extra_installed(extra: str) -> bool:
-    """extra 설치 여부 — 함수 스코프 **정적 import** try/except 프로브.
+    """extra 설치 여부.
 
-    core의 importlib 표면은 boundary ratchet상 ``from importlib import
-    resources`` 한 형태뿐이라 동적 프로브(find_spec/import_module)를 쓰지
-    않는다. 닫힌 extras 집합이므로 하우스 패턴(mail_merge의 지연 import)과
-    같은 정적 guarded import면 충분하다.
+    7.0의 extras는 전부 의도적으로 빈 extra다(설치 호환 유지 — ``visual``은 5.0부터,
+    ``xlsx``·``preview``는 7.0부터). 백킹 모듈이 없으니 공허하게 참이다. 동적 프로브
+    (find_spec/import_module)는 쓰지 않는다 — core의 importlib 표면은 boundary ratchet상
+    ``from importlib import resources`` 한 형태뿐이다.
     """
 
-    if extra == "xlsx":
-        try:
-            import openpyxl  # noqa: F401
-        except Exception:
-            return False
-        return True
-    if extra == "preview":
-        from .equation.mathml import latex2mathml_available
-
-        return latex2mathml_available()
-    # visual: 5.0부터 의도적 빈 extra(설치 호환 유지) — 공허하게 참.
-    return True
+    return not _EXTRA_MODULES.get(extra, ())
 
 
 def _package_version() -> str:

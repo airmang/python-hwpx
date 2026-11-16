@@ -49,6 +49,7 @@ def test_sdist_carries_no_test_files(sdist_members: list[str]) -> None:
 
 def test_sdist_still_carries_every_source_package(sdist_members: list[str]) -> None:
     assert any(name.endswith("/src/hwpx/__init__.py") for name in sdist_members)
-    assert any(name.endswith("/src/hwpx/integrations/langchain.py") for name in sdist_members)
+    assert any(name.endswith("/src/hwpx/hwp5/reader.py") for name in sdist_members)
+    assert any(name.endswith("/src/hwpx/_document/ns/text.py") for name in sdist_members)
     assert any(name.endswith("/pyproject.toml") for name in sdist_members)
     assert any(name.endswith("/README.md") for name in sdist_members)

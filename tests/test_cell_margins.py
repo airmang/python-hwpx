@@ -235,20 +235,6 @@ def test_the_template_analyzer_reports_the_effective_margins(
 
 
 @pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
-def test_the_layout_preview_pads_cells_with_the_effective_margins(has_margin, expected) -> None:
-    from hwpx.tools.layout_preview import _fmt_mm, _hwp_to_mm, render_layout_preview
-
-    doc, _, _ = _cell_with_two_margins(has_margin)
-    buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
-
-    left, right, top, bottom = (_fmt_mm(_hwp_to_mm(value)) for value in expected)
-    assert f"padding:{top} {right} {bottom} {left}" in render_layout_preview(
-        buffer.getvalue()
-    ).html.replace(": ", ":")
-
-
-@pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
 def test_the_byte_patch_font_fit_uses_the_effective_margins(has_margin, expected) -> None:
     from hwpx.table_patch import _cell_inner_width, _direct_cells, _iter_table_spans
 

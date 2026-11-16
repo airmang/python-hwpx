@@ -79,7 +79,7 @@ def test_a_header_set_on_the_page_survives_removing_the_first_paragraph() -> Non
     doc.paragraphs[0].remove()
     again = _reopened(doc)
     assert [p.text for p in again.paragraphs] == ["남는 줄"]
-    assert "머리말" in again.text.markdown(rich=True, headers_and_footers=True)
+    assert [place.paragraph.text for place in again.text.paragraphs(where="header")] == ["머리말"]
 
 
 def test_a_hancom_saved_first_paragraph_hands_over_its_footer() -> None:

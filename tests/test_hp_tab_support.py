@@ -5,7 +5,7 @@ from zipfile import ZipFile
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.parser import parse_section_xml
-from hwpx.tools.exporter import export_html, export_markdown, export_text
+from hwpx.tools.exporter import export_text
 from hwpx.tools.text_extractor import TextExtractor
 
 
@@ -43,8 +43,6 @@ def test_exporters_and_extractor_render_hp_tab_text() -> None:
     payload = buffer.getvalue()
 
     assert export_text(payload) == "left\tright\nctrl\tpath"
-    assert "<p>left\tright</p>" in export_html(payload, full_document=False)
-    assert "left\tright" in export_markdown(payload)
 
     with TextExtractor(io.BytesIO(payload)) as extractor:
         paragraphs = list(extractor.iter_document_paragraphs(include_nested=False))

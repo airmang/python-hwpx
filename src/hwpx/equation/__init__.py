@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Equation support: EqEdit → LaTeX → MathML (reader) and LaTeX → EqEdit (authoring).
+"""Equation support: EqEdit → LaTeX (reader) and LaTeX → EqEdit (authoring).
 
 Clean-room re-derivation of the HULK-style EqEdit vocabulary; see NOTICE for the
-referenced projects.  ``latex2mathml`` is an optional dependency
-(``python-hwpx[preview]``); without it the pipeline fails closed to a LaTeX code
-block rather than dropping the equation.
+referenced projects. Drawing an equation for a preview (LaTeX → MathML,
+``render_equation``) moved to python-hwpx-automation in 7.0
+(``hwpx_automation.preview``); asking this package for one of those names raises an
+``ImportError`` that says so. :data:`EQEDIT_MATHML_OPERATOR_COMMANDS` stays here for
+that renderer: it is part of the EqEdit vocabulary.
 """
 
 from __future__ import annotations
@@ -20,35 +22,26 @@ from .eqedit import (
     EquationConversionError,
     eqedit_to_latex,
 )
-from .mathml import (
-    MathMLUnavailableError,
-    latex2mathml_available,
-    latex_to_mathml,
-)
-from .render import (
-    LABEL_LATEX_ERROR,
-    LABEL_LATEX_NO_LIB,
-    LABEL_MATHML,
-    LABEL_SCRIPT,
-    EquationRender,
-    render_equation,
-)
+from .tokens import EQEDIT_MATHML_OPERATOR_COMMANDS
 
 __all__ = [
-    "LABEL_LATEX_ERROR",
-    "LABEL_LATEX_NO_LIB",
-    "LABEL_MATHML",
-    "LABEL_SCRIPT",
+    "EQEDIT_MATHML_OPERATOR_COMMANDS",
     "MAX_GROUP_DEPTH",
     "MAX_SOURCE_LENGTH",
     "EquationConversionError",
-    "EquationRender",
-    "MathMLUnavailableError",
     "UnsupportedLatexError",
     "eqedit_to_latex",
     "estimate_equation_size",
-    "latex2mathml_available",
     "latex_to_eqedit",
-    "latex_to_mathml",
-    "render_equation",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """7.0에서 python-hwpx-automation으로 옮긴 미리보기 이름이면 새 자리를 알려 준다."""
+
+    from .._moved_modules import moved_name_error
+
+    moved = moved_name_error(__name__, name)
+    if moved is not None:
+        raise moved
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

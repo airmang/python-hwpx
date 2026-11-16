@@ -36,9 +36,8 @@ EXPECTED_PACKAGES = {
     "hwpx.form_fit",
     # HWP 5.0(.hwp) 읽기·쓰기. `hwpx/__init__.py`가 가져오므로 휠에 들어가야 한다.
     "hwpx.hwp5",
-    "hwpx.ingest",
-    # LangChain 로더·LlamaIndex 리더(선택 의존성은 그 모듈 안에서만 가져온다).
-    "hwpx.integrations",
+    # hwpx.ingest·hwpx.integrations(LangChain 로더·LlamaIndex 리더)는 7.0에서
+    # python-hwpx-automation으로 옮겼다.
     "hwpx.layout",
     "hwpx.opc",
     "hwpx.oxml",

@@ -93,12 +93,12 @@ red_runs = document.text.find_runs(text_color="#FF0000")
 print("빨간 런:", len(red_runs))
 ```
 
-## 병합 셀의 라벨 찾기
+## 병합 셀과 칸 좌표
 
-라벨 기반 표 탐색에는 `document.tables.find_cell_by_label(label)`을 쓴다.
-병합 셀 하나는 라벨 한 건으로 세며, 오른쪽/아래쪽 이동은 그 병합 범위 밖의
-인접 셀로 간다. 서로 다른 셀에 같은 라벨이 있으면 여러 결과를 돌려준다.
-논리 좌표 여러 개가 같은 병합 셀을 가리키는 경우와 실제 중복 라벨은 구분한다.
+`table.iter_grid()`는 논리 좌표마다 그 자리를 덮는 실제 칸과 병합의 기준 좌표(`anchor`)·크기(`span`)를
+돌려준다. 병합 칸 하나는 기준 좌표에서 한 번(`is_anchor`)만 세고, 그 칸의 오른쪽 이웃은
+`column + col_span` 열이다. 라벨 글자로 칸을 찾는 탐색(`find_cell_by_label`)은 7.0에서
+python-hwpx-automation(`hwpx_automation.forms`)으로 옮겼다.
 
 ## 메모와 누름틀(필드) 나열하기
 

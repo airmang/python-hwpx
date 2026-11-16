@@ -8,15 +8,12 @@ warnings. These paths now call the current names or the OXML root.
 """
 from __future__ import annotations
 
-import io
 import warnings
 from pathlib import Path
 
 from hwpx import HwpxDocument
 from hwpx.form_fit.apply import fit_cell_text
 from hwpx.form_fit.policy import FitPolicy
-from hwpx.ingest.base import DocumentSourceInfo
-from hwpx.ingest.hwpx_converter import HwpxMarkdownConverter
 from hwpx.layout import lint_layout
 from hwpx.tools.redline import author_demo_redline, inspect_redline_structure
 
@@ -66,12 +63,3 @@ def test_redline_helpers_use_no_moved_names(tmp_path: Path) -> None:
         author_demo_redline(doc)
         doc.save_to_path(target)
         inspect_redline_structure(target)
-
-
-def test_markdown_ingest_uses_no_moved_names() -> None:
-    doc = HwpxDocument.new()
-    doc.add_paragraph("본문")
-    data = doc.to_bytes()
-    source = DocumentSourceInfo(extension=".hwpx", mimetype=None, filename="doc.hwpx")
-    with _NoMoveWarnings():
-        HwpxMarkdownConverter().convert(io.BytesIO(data), source)

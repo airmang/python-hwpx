@@ -3,6 +3,8 @@
 These additions let applications own document-plan interpretation, heading
 guessing and caption selection while core keeps document reading and safe
 format edits. They do not remove or warn on any existing6.x entry point.
+(7.0 moved the reference consistency lint and the Markdown exporter, with its
+heading detector, to python-hwpx-automation; the other primitives stay.)
 
 ## Paragraph texts
 
@@ -19,23 +21,13 @@ The reader rejects application plans containing only `sections`; applications
 must normalize their own plan schema. Existing diff/reference entry points
 still accept their legacy plan inputs without new warnings.
 
-## Heading detector
+## Heading detector — moved with the Markdown export (7.0)
 
-```python
-from hwpx.tools.markdown_export import export_markdown
-
-def heading(text: str) -> str | None:
-    return "### " + text if text.startswith("Topic:") else None
-
-markdown = export_markdown(document, heading_detector=heading)
-```
-
-The callback receives formatted paragraph/cell Markdown. Return a Markdown
-heading or `None` to leave that text unchanged. It also applies to the existing
-one-cell-table promotion path. `detect_headings=False` disables the callback.
-Omission/`None` preserves the released Roman/Arabic detector and defaults.
-The same option passes through `doc.text.markdown(rich=True, ...)` and
-`DocumentIngestor.convert(..., markdown_options={"heading_detector": heading})`.
+The rich Markdown exporter and its `heading_detector=` callback moved to
+`python-hwpx-automation` in 7.0 (`hwpx_automation.markdown.to_markdown(doc,
+rich=True, heading_detector=...)`; document ingest in `hwpx_automation.ingest`).
+The callback keeps its contract there: it receives formatted paragraph/cell
+Markdown and returns a Markdown heading or `None`.
 
 ## Caller-selected trailing text
 

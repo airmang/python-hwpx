@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""``import`` of a module moved out in 5.0 names where it went."""
+"""``import`` of a module moved out in 5.0 or 7.0 names where it went.
+
+The 7.0 moves are checked in detail in ``test_moved_in_7_0.py``; this file keeps the
+5.0 guarantees and the finder's own behaviour for both.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +23,9 @@ REMOVED = ROOT / "docs" / "architecture" / "module-ownership-removed-5.0.json"
 MIGRATION_GUIDE = ROOT / "docs" / "migration-5.0.md"
 
 MOVED = _moved_modules.moved_modules(hwpx._MOVED_TO_COMPANION)
-GUIDED = {**MOVED, **_moved_modules.REPOSITORY_ONLY_MODULES}
+MOVED_IN_5_0 = _moved_modules.module_moves_in(hwpx._MOVED_TO_COMPANION, "5.0")
+MOVED_IN_7_0 = _moved_modules.module_moves_in(hwpx._MOVED_TO_COMPANION, "7.0")
+GUIDED = {**MOVED_IN_5_0, **_moved_modules.REPOSITORY_ONLY_MODULES}
 
 
 def _removed_module_names() -> set[str]:
@@ -47,11 +53,18 @@ def test_importing_a_moved_module_names_its_new_location(legacy: str, target: st
         importlib.import_module(legacy)
 
     message = str(raised.value)
+    release = "7.0" if legacy in MOVED_IN_7_0 else "5.0"
     assert raised.value.name == legacy
     assert f"새 경로: {target}" in message
     assert "pip install python-hwpx-automation" in message
-    assert _moved_modules.MIGRATION_GUIDE_URL in message
+    assert _moved_modules.MIGRATION_GUIDES[release] in message
+    assert f"python-hwpx {release}에서" in message
     assert target.startswith("hwpx_automation.")
+
+
+def test_every_moved_module_belongs_to_exactly_one_release() -> None:
+    assert set(MOVED_IN_5_0) | set(MOVED_IN_7_0) == set(MOVED)
+    assert not set(MOVED_IN_5_0) & set(MOVED_IN_7_0)
 
 
 @pytest.mark.parametrize("legacy", sorted(_moved_modules.REPOSITORY_ONLY_MODULES))
@@ -75,7 +88,7 @@ def test_guidance_does_not_load_the_companion_or_touch_unrelated_names() -> None
         importlib.import_module("hwpx.no_such_module")
     assert str(raised.value) == "No module named 'hwpx.no_such_module'"
     assert importlib.util.find_spec("hwpx.house_style") is None
-    assert importlib.util.find_spec("hwpx.tools.mail_merge") is not None
+    assert importlib.util.find_spec("hwpx.tools.redline") is not None
     assert not any(name.startswith("hwpx_automation") for name in sys.modules)
 
 
@@ -102,4 +115,4 @@ def test_the_migration_guide_module_table_matches_the_guidance() -> None:
             rows[cells[0].strip("`")] = cells[1]
 
     assert set(rows) == set(GUIDED)
-    assert {legacy: rows[legacy].strip("`") for legacy in MOVED} == MOVED
+    assert {legacy: rows[legacy].strip("`") for legacy in MOVED_IN_5_0} == MOVED_IN_5_0

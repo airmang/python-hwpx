@@ -43,42 +43,44 @@ doc.save_to_path("계획.hwpx")
 있는 문서를 고칠 때는 `HwpxDocument.open("보고서.hwpx")`로 시작합니다. `.hwp`도 똑같이 열고,
 고친 결과는 `save_to_path("보고서.hwpx")`로 HWPX로 저장합니다.
 
-Markdown이 편하면 그대로 넘깁니다. 색 띠를 두른 제목 상자, 번호 상자로 그린 큰 항목(`Ⅰ`·`Ⅱ`), 번호 붙은
-소제목(`1.`·`가.`), 줄 표, 쪽 번호가 있는 보고서 모양으로 만듭니다. 꾸미지 않은 모양은 `style="plain"`입니다.
+글자 크기·정렬과 표 칸은 그 자리에서 읽고 고칩니다. 표 칸·머리말·각주까지 문서의 모든 문단을 자리와 함께
+훑을 수 있습니다.
 
 <!-- standalone-python-example -->
 
 ```python
-from hwpx.tools.markdown_import import from_markdown
+from hwpx import HwpxDocument
 
-doc = from_markdown(
-    "# 2026 운영계획\n\n## 추진 배경\n\n학생 수요를 반영한다.\n\n"
-    "| 구분 | 내용 |\n|---|---|\n| 기간 | 3월 ~ 7월 |\n",
-    byline="교무기획부",
-)
+doc = HwpxDocument.new()
+title = doc.add_paragraph("2026 운영계획")
+title.alignment = "CENTER"
+title.runs[-1].size = 16
+table = doc.add_table(2, 2)
+table.cell(0, 0).text = "기간"
+table.cell(0, 1).text = "3월 ~ 7월"
+for place in doc.text.paragraphs(where={"cell"}):
+    print(place.row, place.col, place.paragraph.text)
 doc.save_to_path("계획.hwpx")
 ```
 
-문서 저작·양식 채움·시험지 조판 같은 상위 워크플로가 필요하면
-[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)을 함께 설치하세요.
+Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보기, 문서 저작·시험지 조판 같은 상위 워크플로는
+7.0부터 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)에 있습니다
+(`pip install python-hwpx-automation`). 이 패키지는 파일에 적힌 대로 읽고 씁니다.
 
 > 예전 설치 명령을 위해 `pip install "python-hwpx[visual]"`도 계속 됩니다. 다만 이 extra는 비어 있어
 > 렌더·PDF 의존성을 설치하지 않습니다. 그 일은 `python-hwpx-automation[oracle]`이 맡습니다.
 
 ## 할 수 있는 것
 
-- 읽기·추출: 텍스트·HTML·Markdown으로 내보냅니다. 서식과 표 안의 표를 살립니다. `doc.text.markdown(rich=True)`는
-  각주·미주를 싣고, 여기에 `headers_and_footers=True`·`memos=True`·`equations=True`를 더하면 머리말·꼬리말·메모와
-  수식(`$LaTeX$`)도 싣습니다. AI 파이프라인용 변환(`hwpx.ingest`)은 이 넷을 기본으로 켜고, 그래도 Markdown에 싣지
-  못한 종류와 개수를 `warnings`와 `lossiness`로 알립니다.
-  `.hwp`도 같은 호출로 읽습니다. LangChain은 `hwpx.integrations.langchain.HwpxLoader`
-  (`pip install "python-hwpx[langchain]"`), LlamaIndex는 `hwpx.integrations.llama_index.HwpxReader`
-  (`pip install "python-hwpx[llamaindex]"`)로 씁니다([사용법](docs/usage.md#ai-파이프라인에서-읽기)).
+- 읽기·추출: 한/글의 텍스트 저장처럼 평문으로 내보냅니다(`doc.text.plain()`, 목록 번호·각주 포함 선택).
+  `doc.text.outline()`은 글 덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.paragraphs()`는 표 칸·글상자·
+  머리말·각주의 문단까지 자리와 함께 내놓습니다. `.hwp`도 같은 호출로 읽습니다
+  ([사용법](docs/usage.md#ai-파이프라인에서-읽기)).
 - 편집: 문단·표·그림·머리말/꼬리말·메모·각주, 줄 간격·여백·쪽 번호 같은 서식을 고칩니다.
-- 양식 채우기: 라벨로 칸을 찾아 값만 넣고 손대지 않은 부분은 바이트 그대로 둡니다. FormFit은 값이
+- 양식 채우기: 칸·누름틀에 값만 넣고 손대지 않은 부분은 바이트 그대로 둡니다. FormFit은 값이
   칸에 들어가도록 줄을 바꾸거나 글자를 줄일지 한/글의 글자 폭으로 재서 고릅니다.
 - 표 구조 편집: 행·열 넣기와 지우기, 칸 나누기와 합치기. `doc.tables[0]`처럼 번호로 표를 꺼냅니다.
-- 만들기·일괄 처리: 새 문서, 목차·상호 참조, 메일 머지, 문서 비교, 변경 추적.
+- 만들기·일괄 처리: 새 문서, 목차·상호 참조, 문서 비교, 변경 추적.
 - HWP 5.0: `.hwp`를 HWPX로 읽어 같은 API로 고치고 HWPX로 저장합니다. 옮기지 못한 내용은
   `document.conversion_report`에 남습니다. `.hwp`로 다시 쓰는 기능은 실험입니다. 연 원본을 덮어쓰지 않고,
   옮기지 못한 내용이 있으면 쓰지 않습니다.
@@ -95,22 +97,16 @@ doc.save_to_path("계획.hwpx")
 
 ```python
 doc = HwpxDocument.open("신청서.hwpx")
-for slot in doc.tables.form_slots()["slots"]:   # 채울 수 있는 빈 칸과 그 경로
-    print(slot["path"])                          # "성 명 > right", "소속 > right", ...
-values = {
-    "성명 > right": "홍길동",                    # 양식에 "성  명"으로 벌려 써 있어도 찾습니다
-    "소속 > right": "플랫폼팀",
-}
-result = doc.tables.fill_by_path(values)
-if result["failed_count"] or result["applied_count"] != len(values):
-    raise ValueError(result["failed"])
+for cell in doc.tables.map()["tables"][0]["cells"]:   # 표의 칸마다 행·열과 글
+    print(cell["row"], cell["col"], cell["text"])       # 0 0 성  명 / 0 1 (빈 칸) ...
+doc.tables[0].cell(0, 1).text = "홍길동"
+doc.tables[0].cell(1, 1).text = "플랫폼팀"
 report = doc.save_to_path("신청서-작성완료.hwpx", mode="patch", fallback="error", return_report=True)
 ```
 
-라벨이 없으면 실패로 돌려주고 저장하기 전에 멈출 수 있습니다. 같은 라벨이 여러 칸이면 후보를
-`candidates`로 돌려주며, `"성명[2] > right"`처럼 몇 번째인지 적어 고릅니다. `mode="patch"`는 고치지 않은
-ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고친 파트 안쪽과 화면 배치는 따로 확인해야 합니다. 저장한 파일을
-다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](docs/safe-write-contract.md)에 있습니다.
+`mode="patch"`는 고치지 않은 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고친 파트 안쪽과 화면 배치는 따로
+확인해야 합니다. 저장한 파일을 다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](docs/safe-write-contract.md)에
+있습니다. 이름표 글자로 칸을 찾아 채우는 `fill_by_path`는 python-hwpx-automation(`hwpx_automation.forms`)에 있습니다.
 
 *독립 실행 예제로 표시하지 않은 블록은 여러분이 가진 문서를 입력으로 쓰는 조각입니다. 예제별 Python 블록 판정은
 [실행 기록](docs/python-example-ledger.json)에 남겨 둡니다.*
@@ -185,7 +181,6 @@ AI 도구가 API를 정확히 익히도록 만든 [llms.txt](https://airmang.git
 | **운영체제** | Linux / macOS / Windows / CI | Windows 전용 | Linux / macOS / Windows |
 | **편집·생성** | ✅ | ✅ (한/글이 함) | 대부분 읽기 |
 | **한/글 없이 쪽 수 추정** | ✅ (실험) | 한/글이 계산 | ❌ |
-| **AI 에이전트 연동 (MCP)** | ✅ (automation 경유) | ❌ | ❌ |
 
 ## 알려진 제약
 

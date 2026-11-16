@@ -43,25 +43,30 @@ Styles are picked by name. A name that does not exist fails at that line.
 To edit an existing file, start from `HwpxDocument.open("report.hwpx")`. An `.hwp` file opens the
 same way; save the result as HWPX with `save_to_path("report.hwpx")`.
 
-If Markdown is what you have, pass it as it is. The document takes the look of a Korean office
-report: the title in a banner with colour strips, sections in a numbered box (`Ⅰ`, `Ⅱ`), numbered
-headings under them (`1.`, `가.`), ruled tables and a page number. `style="plain"` leaves it undecorated.
+Font size, alignment and table cells are read and changed in place. Every paragraph of the document,
+in table cells, headers and notes too, can be walked with where it sits.
 
 <!-- standalone-python-example -->
 
 ```python
-from hwpx.tools.markdown_import import from_markdown
+from hwpx import HwpxDocument
 
-doc = from_markdown(
-    "# 2026 Operating Plan\n\n## Background\n\nBuilt on what students asked for.\n\n"
-    "| Item | Detail |\n|---|---|\n| Period | March to July |\n",
-    byline="Academic Affairs",
-)
+doc = HwpxDocument.new()
+title = doc.add_paragraph("2026 Operating Plan")
+title.alignment = "CENTER"
+title.runs[-1].size = 16
+table = doc.add_table(2, 2)
+table.cell(0, 0).text = "Period"
+table.cell(0, 1).text = "March to July"
+for place in doc.text.paragraphs(where={"cell"}):
+    print(place.row, place.col, place.paragraph.text)
 doc.save_to_path("plan.hwpx")
 ```
 
-For higher-level workflows (document authoring, form filling, exam typesetting), install
-[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) alongside it.
+Markdown and HTML conversion, finding form cells by their labels, mail merge, previews, and
+higher-level workflows such as document authoring and exam typesetting live in
+[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) from 7.0
+(`pip install python-hwpx-automation`). This package reads and writes what the file says.
 
 > For older install commands, `pip install "python-hwpx[visual]"` still works, but the `visual`
 > extra is empty and installs no render/PDF dependencies. That runtime belongs to
@@ -69,21 +74,16 @@ For higher-level workflows (document authoring, form filling, exam typesetting),
 
 ## What it does
 
-- Read and extract: text, HTML and Markdown export that keeps formatting and nested tables.
-  `doc.text.markdown(rich=True)` carries footnotes and endnotes; add `headers_and_footers=True`, `memos=True` and
-  `equations=True` to carry headers, footers, memos and equations (as `$LaTeX$`) too. The converter for AI
-  pipelines (`hwpx.ingest`) turns those four on by default and reports whatever it still left out of the Markdown
-  in `warnings` and `lossiness`.
-  It reads `.hwp` through the same call. `hwpx.integrations.langchain.HwpxLoader`
-  (`pip install "python-hwpx[langchain]"`) hands the result to LangChain, and
-  `hwpx.integrations.llama_index.HwpxReader` (`pip install "python-hwpx[llamaindex]"`) to LlamaIndex.
+- Read and extract: plain text the way Hangul's text save writes it (`doc.text.plain()`, with list labels
+  and notes on request). `doc.text.outline()` returns the text blocks with ids within a character budget, and
+  `doc.text.paragraphs()` walks the paragraphs of table cells, text boxes, headers and notes too, with where
+  each sits. It reads `.hwp` through the same calls.
 - Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
-- Fill forms: find a cell by its label and change only the value; parts you did not touch keep their bytes.
+- Fill forms: put values in cells and click-here fields; parts you did not touch keep their bytes.
   FormFit decides whether a value should wrap or shrink to fit its cell, measuring with Hangul's glyph widths.
 - Edit table structure: insert and delete rows and columns, split and merge cells; get a table by number
   with `doc.tables[0]`.
-- Create and batch: new documents, tables of contents and cross-references, mail merge, document diff,
-  tracked changes.
+- Create and batch: new documents, tables of contents and cross-references, document diff, tracked changes.
 - HWP 5.0: read an `.hwp` file as HWPX, edit it with the same API, and save it as HWPX. Anything that
   could not be carried over is listed in `document.conversion_report`. Writing `.hwp` back is experimental:
   it never overwrites the file that was opened, and it refuses when something was not carried over.
@@ -101,19 +101,17 @@ More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.m
 
 ```python
 doc = HwpxDocument.open("application.hwpx")
-values = {
-    "성명 > right": "홍길동",
-    "소속 > right": "플랫폼팀",
-}
-result = doc.tables.fill_by_path(values)
-if result["failed_count"] or result["applied_count"] != len(values):
-    raise ValueError(result["failed"])
+for cell in doc.tables.map()["tables"][0]["cells"]:   # each cell's row, column and text
+    print(cell["row"], cell["col"], cell["text"])
+doc.tables[0].cell(0, 1).text = "홍길동"
+doc.tables[0].cell(1, 1).text = "플랫폼팀"
 report = doc.save_to_path("application-filled.hwpx", mode="patch", fallback="error", return_report=True)
 ```
 
-Duplicate or missing labels come back as failures, so you can stop before saving. `mode="patch"` asks for
-untouched ZIP parts to keep their bytes. What happens inside an edited part, and how the page looks, need
-separate checks. To reopen the output and verify its content, follow the [safe write contract](docs/safe-write-contract.md).
+`mode="patch"` asks for untouched ZIP parts to keep their bytes. What happens inside an edited part, and how
+the page looks, need separate checks. To reopen the output and verify its content, follow the
+[safe write contract](docs/safe-write-contract.md). Filling cells found by their label text (`fill_by_path`)
+lives in python-hwpx-automation (`hwpx_automation.forms`).
 
 *Blocks without a **Standalone example** label take your existing document as input. The per-example
 Python-block status is frozen in the [execution ledger](docs/python-example-ledger.json).*
@@ -192,7 +190,6 @@ An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](d
 | **Platforms** | Linux / macOS / Windows / CI | Windows only | Linux / macOS / Windows |
 | **Edit and create** | ✅ | ✅ (Hangul does it) | Mostly read |
 | **Page estimate without Hangul** | ✅ (experimental) | Hangul computes it | ❌ |
-| **AI agent integration (MCP)** | ✅ (via automation) | ❌ | ❌ |
 
 ## Known limitations
 

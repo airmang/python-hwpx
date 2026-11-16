@@ -94,40 +94,15 @@ def test_an_indexed_table_edits_the_document(document: HwpxDocument) -> None:
     assert reopened.tables[0].cell(0, 0).text == "첫 칸"
 
 
-def test_find_cell_by_label_locates_the_neighbour(document: HwpxDocument) -> None:
-    table = document.add_table(1, 2)
-    table.set_cell_text(0, 0, "이름")
-    found = document.tables.find_cell_by_label("이름")
-    assert found["count"] == 1
-    match = found["matches"][0]
-    assert match["label_cell"]["col"] == 0
-    assert match["target_cell"]["col"] == 1
-
-
-def test_fill_by_path_writes_through_the_label_path(document: HwpxDocument) -> None:
-    table = document.add_table(1, 2)
-    table.set_cell_text(0, 0, "이름")
-    # 경로 문법: ``라벨>방향`` — 방향이 없으면 채우지 않고 이유를 보고한다.
-    result = document.tables.fill_by_path({"이름>right": "홍길동"})
-    assert result["applied_count"] == 1, result
-    assert table.cell(0, 1).text == "홍길동"
-
-    missing_direction = document.tables.fill_by_path({"이름": "값"})
-    assert missing_direction["applied_count"] == 0
-    assert "direction" in missing_direction["failed"][0]["reason"]
-
-
-def test_an_empty_mapping_is_a_no_op(document: HwpxDocument) -> None:
-    result = document.tables.fill_by_path({})
-    assert result["applied_count"] == 0 and result["failed_count"] == 0
-
-
-def test_the_removed_lookup_names_point_at_doc_tables(document: HwpxDocument) -> None:
+def test_the_removed_lookup_names_point_at_their_new_place(document: HwpxDocument) -> None:
     from hwpx.errors import HwpxAttributeError
 
     document.add_table(1, 1)
-    for name, target in [("get_table_map", "doc.tables.map"), ("find_cell_by_label", "doc.tables.find_cell_by_label")]:
+    for name, target, moving in [
+        ("get_table_map", "doc.tables.map", False),
+        ("find_cell_by_label", "from hwpx_automation.forms import find_cell_by_label", True),
+    ]:
         with pytest.raises(HwpxAttributeError) as excinfo:
             getattr(document, name)
         assert target in str(excinfo.value)
-        assert excinfo.value.context["movingToAutomation"] is True
+        assert excinfo.value.context["movingToAutomation"] is moving

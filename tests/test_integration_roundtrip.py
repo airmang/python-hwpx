@@ -236,24 +236,6 @@ class TestExporterFromBytes:
         text = export_text(b)
         assert "Saved text" in text
 
-    def test_export_html_from_saved_bytes(self):
-        from hwpx.tools.exporter import export_html
-        doc = _new()
-        doc.add_paragraph("HTML output")
-        b = doc.to_bytes()
-        html = export_html(b)
-        assert "HTML output" in html
-
-    def test_export_markdown_from_saved_bytes(self):
-        from hwpx.tools.exporter import export_markdown
-        doc = _new()
-        doc.add_paragraph("Markdown output")
-        doc.add_table(1, 2).cell(0, 0).text = "Cell"
-        b = doc.to_bytes()
-        md = export_markdown(b)
-        assert "Markdown output" in md
-        assert "Cell" in md
-
 
 # =========================================================================
 # File I/O roundtrip

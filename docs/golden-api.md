@@ -34,13 +34,15 @@ with HwpxDocument.new() as document:
 | Lifecycle | new document, open bytes, context manager |
 | Text | add paragraph, iterate runs, replace text, create run style |
 | Formatting | paragraph format, list format |
-| Tables | add table, merge cells, map tables, find a cell by label |
+| Tables | add table, merge cells, map tables |
 | Sections/layout | add/remove section, page setup, header/footer, page number |
 | Navigation | bookmark, hyperlink |
-| Reading | export text, export Markdown |
+| Reading | export text |
 | Safety/persistence | validate, save/reopen path, save/reopen stream, preserve all unmodified package parts |
 
-The contract has 25 scenarios. A scenario may change only with a
-reviewed public API decision. Application workflows such as evaluation-plan
+The contract has 23 scenarios. A scenario may change only with a
+reviewed public API decision. 7.0 took out "find a cell by label" and "export
+Markdown": label-guided form filling and Markdown conversion moved to
+`python-hwpx-automation`. Application workflows such as evaluation-plan
 fill, genre authoring, PII policy, or agent blueprint replay belong to
 `python-hwpx-automation` tests instead.

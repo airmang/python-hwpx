@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tooling helpers, loaded on first use rather than on the first save."""
+"""Tooling helpers, loaded on first use rather than on the first save.
+
+7.0 moved the converting and guessing helpers this package used to re-export
+(Markdown/HTML export, the layout preview and document viewer, mail merge, the
+reference consistency lint, label-guided table filling) to python-hwpx-automation.
+Asking for one of those names raises an ``ImportError`` that names its new place
+(:data:`hwpx._moved_modules.MOVED_IN_7_0_NAMES`).
+"""
 
 from __future__ import annotations
 
@@ -8,34 +15,12 @@ from types import ModuleType as _ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .exporter import (
-        export_html,
-        export_markdown,
-        export_text,
-    )
-    from .layout_preview import (
-        LayoutPreview,
-        PreviewPage,
-        render_layout_preview,
-    )
-    from .document_viewer import (
-        DocumentViewer,
-        FIDELITY_BADGE,
-        render_document_viewer,
-    )
+    from .exporter import export_text
     from .object_finder import FoundElement, ObjectFinder
     from .doc_diff import (
         DOC_DIFF_REPORT_VERSION,
-        REFERENCE_CONSISTENCY_REPORT_VERSION,
         diff_paragraphs,
         doc_diff,
-        inspect_reference_consistency,
-    )
-    from .mail_merge import (
-        MAIL_MERGE_REPORT_VERSION,
-        inspect_mail_merge_placeholders,
-        load_mail_merge_rows,
-        merge_template_rows,
     )
     from .package_validator import (
         EDITOR_OPEN_ADVISORY_ERROR_MARKERS,
@@ -61,16 +46,8 @@ if TYPE_CHECKING:
         strip_namespace,
     )
     from .table_navigation import (
-        TableCellReference,
-        TableFillApplied,
-        TableFillFailed,
-        TableFillResult,
-        TableLabelMatch,
-        TableLabelSearchResult,
         TableMapEntry,
         TableMapResult,
-        fill_by_path,
-        find_cell_by_label,
         get_table_map,
     )
     from .validator import (
@@ -82,15 +59,9 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
-    "inspect_reference_consistency",
     "doc_diff",
     "diff_paragraphs",
-    "REFERENCE_CONSISTENCY_REPORT_VERSION",
     "DOC_DIFF_REPORT_VERSION",
-    "merge_template_rows",
-    "load_mail_merge_rows",
-    "inspect_mail_merge_placeholders",
-    "MAIL_MERGE_REPORT_VERSION",
     "DEFAULT_NAMESPACES",
     "ParagraphInfo",
     "SectionInfo",
@@ -98,16 +69,8 @@ __all__ = [
     "build_parent_map",
     "describe_element_path",
     "strip_namespace",
-    "TableCellReference",
-    "TableFillApplied",
-    "TableFillFailed",
-    "TableFillResult",
-    "TableLabelMatch",
-    "TableLabelSearchResult",
     "TableMapEntry",
     "TableMapResult",
-    "fill_by_path",
-    "find_cell_by_label",
     "get_table_map",
     "FoundElement",
     "ObjectFinder",
@@ -127,49 +90,19 @@ __all__ = [
     "load_default_schemas",
     "validate_document",
     "export_text",
-    "export_html",
-    "export_markdown",
-    "LayoutPreview",
-    "PreviewPage",
-    "render_layout_preview",
-    "DocumentViewer",
-    "FIDELITY_BADGE",
-    "render_document_viewer",
 ]
 
 
 _EXPORTS_BY_MODULE = {
-    "exporter": (
-        "export_html",
-        "export_markdown",
-        "export_text",
-    ),
-    "layout_preview": (
-        "LayoutPreview",
-        "PreviewPage",
-        "render_layout_preview",
-    ),
-    "document_viewer": (
-        "DocumentViewer",
-        "FIDELITY_BADGE",
-        "render_document_viewer",
-    ),
+    "exporter": ("export_text",),
     "object_finder": (
         "FoundElement",
         "ObjectFinder",
     ),
     "doc_diff": (
         "DOC_DIFF_REPORT_VERSION",
-        "REFERENCE_CONSISTENCY_REPORT_VERSION",
         "diff_paragraphs",
         "doc_diff",
-        "inspect_reference_consistency",
-    ),
-    "mail_merge": (
-        "MAIL_MERGE_REPORT_VERSION",
-        "inspect_mail_merge_placeholders",
-        "load_mail_merge_rows",
-        "merge_template_rows",
     ),
     "package_validator": (
         "EDITOR_OPEN_ADVISORY_ERROR_MARKERS",
@@ -195,16 +128,8 @@ _EXPORTS_BY_MODULE = {
         "strip_namespace",
     ),
     "table_navigation": (
-        "TableCellReference",
-        "TableFillApplied",
-        "TableFillFailed",
-        "TableFillResult",
-        "TableLabelMatch",
-        "TableLabelSearchResult",
         "TableMapEntry",
         "TableMapResult",
-        "fill_by_path",
-        "find_cell_by_label",
         "get_table_map",
     ),
     "validator": (
@@ -225,10 +150,6 @@ def __getattr__(name: str) -> object:
     owner = _EXPORT_OWNER.get(name, name)
     if owner == "exporter":
         import hwpx.tools.exporter as module
-    elif owner == "layout_preview":
-        import hwpx.tools.layout_preview as module
-    elif owner == "document_viewer":
-        import hwpx.tools.document_viewer as module
     elif owner == "object_finder":
         import hwpx.tools.object_finder as module
     elif owner == "doc_diff":
@@ -236,8 +157,6 @@ def __getattr__(name: str) -> object:
 
         globals()["doc_diff"] = value
         module = _sys.modules[f"{__name__}.doc_diff"]
-    elif owner == "mail_merge":
-        import hwpx.tools.mail_merge as module
     elif owner == "package_validator":
         import hwpx.tools.package_validator as module
     elif owner == "page_guard":
@@ -249,6 +168,11 @@ def __getattr__(name: str) -> object:
     elif owner == "validator":
         import hwpx.tools.validator as module
     else:
+        from .._moved_modules import moved_name_error
+
+        moved = moved_name_error(__name__, name)
+        if moved is not None:
+            raise moved
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     value = getattr(module, name) if name in _EXPORT_OWNER else module

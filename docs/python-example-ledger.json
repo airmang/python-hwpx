@@ -13,20 +13,20 @@
     "docs/safe-write-contract.md",
     "docs/golden-api.md"
   ],
-  "fenceCount": 127,
-  "sourceSha256": "1403db7b8028245d7c98ba15e5500c0a0a152b60f7cc61db7e5bfc32b020390f",
+  "fenceCount": 122,
+  "sourceSha256": "b9c21bb743b195968c05da434805567e6ac66f9d72eb695cfc35b4ff78deaa13",
   "manualSha256": {
-    "README.md": "7211be3724517ce96b97b26657df3990db5fa3e22a1d081afeec7188b4b8ea56",
-    "README_EN.md": "739305494d90112b3a0cf4d8895288729694baa927ede6021daded8fecdfb58b",
+    "README.md": "e30eeb70aa61e005b79715a239aa4770ed826b34fae11ad0d5669c558fc2bbb7",
+    "README_EN.md": "de664b9e35f1047cd4f7bcc5ef9b2939af5f7f7c7aed8fe804ac2f635663c8cd",
     "docs/quickstart.md": "e622737fc60ca596429f96146fac34b18915db2ca7892077679917c3c755e20a",
-    "docs/recipes-traversal.md": "b63f42b1a6ed23812688599474dcf83300509b86a94b5daceae679bfdbde9343",
+    "docs/recipes-traversal.md": "c04bbb8bd0a6ff0b4bd42d0b96a99c1851cf6a2678b0f7b9bdde0aea9387110b",
     "docs/mutation-semantics.md": "6de1471f64c1cd8db2e661c413d92bfd27221f5d930708942ac47c6aff2d608b",
-    "docs/usage.md": "1b4887bb5b454ea1e266a63d8a08d72c24471f2aa888554fb193a28a170b00c3",
+    "docs/usage.md": "d2f0b754100584356bc7acea647be2f73d97e54d19b953114730a7fa4e508f97",
     "docs/examples.md": "81ff4fb4bfc64ac1d318ea6c1ee185439879318ddd2fcfca72aabc57dd18c5c2",
     "docs/faq.md": "f9cd51075c06755b0040e7d338c32b765cd5fb4bac228d98541728acdc8c21f2",
     "docs/index.md": "111754d7637414e0078ba0c7bbcf19d1a4550a68202acf3dd2c89c0748ea0050",
-    "docs/safe-write-contract.md": "da2391531d96db2f90a76be97b7c06168d41a0cfd26082c6affa825b6aba70fd",
-    "docs/golden-api.md": "1897c9ec4aa8355e7697770b943c264496475c8aeb5df032a9ac3a5cf32d6f5b"
+    "docs/safe-write-contract.md": "c8e96e9dfec20299845d0517d65254df885099ddf4ec28cdefb3d39bf897367d",
+    "docs/golden-api.md": "c0d9bf3d9bfb99c91cce90ed958a11a2a10f831b5830d5898563738e658e3cb8"
   },
   "classifications": {
     "standalone": {
@@ -104,10 +104,8 @@
         "docs/usage.md#67",
         "docs/usage.md#68",
         "docs/usage.md#69",
-        "docs/usage.md#75",
-        "docs/usage.md#76",
-        "docs/usage.md#77",
-        "docs/usage.md#83",
+        "docs/usage.md#80",
+        "docs/usage.md#87",
         "docs/examples.md#1",
         "docs/examples.md#6",
         "docs/golden-api.md#1"
@@ -129,9 +127,8 @@
         "docs/usage.md#8",
         "docs/usage.md#71",
         "docs/usage.md#73",
-        "docs/usage.md#86",
-        "docs/usage.md#87",
-        "docs/usage.md#90",
+        "docs/usage.md#83",
+        "docs/usage.md#84",
         "docs/examples.md#2",
         "docs/examples.md#3",
         "docs/examples.md#4",
@@ -156,17 +153,15 @@
         "docs/usage.md#70",
         "docs/usage.md#72",
         "docs/usage.md#74",
+        "docs/usage.md#75",
+        "docs/usage.md#76",
+        "docs/usage.md#77",
         "docs/usage.md#78",
         "docs/usage.md#79",
-        "docs/usage.md#80",
         "docs/usage.md#81",
         "docs/usage.md#82",
-        "docs/usage.md#84",
         "docs/usage.md#85",
-        "docs/usage.md#88",
-        "docs/usage.md#89",
-        "docs/usage.md#91",
-        "docs/usage.md#92",
+        "docs/usage.md#86",
         "docs/faq.md#2",
         "docs/faq.md#4",
         "docs/faq.md#5"
@@ -201,40 +196,34 @@
           "document",
           "section"
         ],
-        "docs/usage.md#78": [
+        "docs/usage.md#75": [
           "document"
+        ],
+        "docs/usage.md#76": [
+          "document"
+        ],
+        "docs/usage.md#77": [
+          "document",
+          "section"
+        ],
+        "docs/usage.md#78": [
+          "document",
+          "section"
         ],
         "docs/usage.md#79": [
           "document"
         ],
-        "docs/usage.md#80": [
-          "document",
-          "section"
-        ],
         "docs/usage.md#81": [
-          "document",
-          "section"
+          "document"
         ],
         "docs/usage.md#82": [
           "document"
         ],
-        "docs/usage.md#84": [
-          "document"
-        ],
         "docs/usage.md#85": [
-          "document"
-        ],
-        "docs/usage.md#88": [
           "finder"
         ],
-        "docs/usage.md#89": [
+        "docs/usage.md#86": [
           "document"
-        ],
-        "docs/usage.md#91": [
-          "path"
-        ],
-        "docs/usage.md#92": [
-          "path"
         ],
         "docs/faq.md#2": [
           "document"

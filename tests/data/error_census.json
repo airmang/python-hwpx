@@ -477,14 +477,12 @@
  },
  "malformedCodes": [],
  "observed": {
-  "typed": 316,
-  "untyped": 195,
-  "other": 391,
+  "typed": 348,
+  "untyped": 178,
+  "other": 406,
   "untypedByFile": {
    "body_patch.py": 20,
-   "equation/mathml.py": 1,
    "form_fit/policy.py": 3,
-   "ingest/base.py": 1,
    "opc/package.py": 1,
    "opc/security.py": 1,
    "oxml/_document_primitives.py": 2,
@@ -506,21 +504,17 @@
    "table_patch.py": 11,
    "tools/archive_cli.py": 4,
    "tools/doc_diff.py": 2,
-   "tools/layout_preview.py": 2,
-   "tools/mail_merge.py": 5,
    "tools/object_finder.py": 1,
    "tools/repair.py": 6,
-   "tools/report_utils.py": 6,
-   "tools/table_navigation.py": 2,
    "tools/text_extractor.py": 2,
    "tools/toc_author.py": 2,
    "tools/validator.py": 1
   }
  },
  "public": {
-  "typed": 123,
+  "typed": 135,
   "untyped": 0,
-  "total": 123,
+  "total": 135,
   "typedRatio": 1.0,
   "untypedSites": []
  },

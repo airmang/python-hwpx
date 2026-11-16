@@ -252,15 +252,18 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # (4.x history: 66 -> 67 when the structured-exception
     # base HwpxError to the stable surface (see docs/stable-api.md 오류 계약 and
     # tests/test_stable_surface.py for the per-name contract).
-    assert len(hwpx.__all__) == 36
+    # 7.0: 36 -> 29 — HwpxMarkdownConverter, the four mail-merge names and the two
+    # reference-consistency names moved to python-hwpx-automation.
+    assert len(hwpx.__all__) == 29
     total_top_level = set(hwpx.__all__) | set(hwpx._DEPRECATED_EXPORTS)
     # 36 stable + 26 experimental + 0 deprecated. The deprecated layer emptied in
     # 5.0 because its 4.x notice said it would go in the next major; 5.2 added the
     # three equation-authoring names, 5.6 adds the edit-plan five and the
     # capabilities three to the experimental layer, and the page estimate adds
     # three more (estimate_pages, PageEstimate, EstimatedLine): 26 experimental.
-    # 7.0 removed those 26 top-level re-exports (hwpx.experimental only): 36.
-    assert len(total_top_level) == 36
+    # 7.0 removed those 26 top-level re-exports (hwpx.experimental only) and moved 7
+    # stable names to python-hwpx-automation: 29.
+    assert len(total_top_level) == 29
     # 110 -> 113: the paragraph tab-stop read model (TabStop, TabDefinition,
     # TabDefinitionList) fills the audit's gap #2 — hh:tabPr/tabItem were
     # frozen-template/unread; this is the "additive model extension" path

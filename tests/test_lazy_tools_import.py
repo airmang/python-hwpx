@@ -2,7 +2,7 @@
 """``import hwpx`` does not load ``hwpx.tools``.
 
 The stable names that live in ``hwpx.tools`` (text extraction, object finding,
-document diff, mail merge, package validation) resolve on first access, with no
+document diff, package validation) resolve on first access, with no
 warning and as the same objects their modules define. ``dir(hwpx)`` and
 ``from hwpx import *`` still list them all.
 """
@@ -68,7 +68,6 @@ def test_tools_names_are_the_objects_their_modules_define() -> None:
             "hwpx.tools.text_extractor",
             "hwpx.tools.object_finder",
             "hwpx.tools.doc_diff",
-            "hwpx.tools.mail_merge",
             "hwpx.tools.package_validator",
         ):
             module = importlib.import_module(module_name)

@@ -797,34 +797,6 @@ def test_declaration_within_limits_cannot_over_allocate() -> None:
     assert peak < 64 * MB, f"read was not bounded: peak {peak / MB:.1f} MB"
 
 
-def test_format_sniffing_does_not_read_an_oversized_mimetype() -> None:
-    """`accepts()` must reject a hostile archive without expanding `mimetype`.
-
-    A 4 MiB `mimetype` deflates to about 4 KB, so the archive is small enough to
-    look harmless while the member itself trips the compression-ratio limit.
-    """
-
-    from hwpx.ingest.base import DocumentSourceInfo
-    from hwpx.ingest.hwpx_converter import HwpxMarkdownConverter
-
-    buffer = io.BytesIO()
-    with ZipFile(buffer, "w", ZIP_DEFLATED, compresslevel=9) as archive:
-        archive.writestr("mimetype", b"\0" * (4 * MB))
-        archive.writestr("Contents/section0.xml", b"<x/>")
-    package = buffer.getvalue()
-    source = DocumentSourceInfo(extension=".bin", mimetype=None, filename="x.bin")
-
-    tracemalloc.start()
-    try:
-        accepted = HwpxMarkdownConverter().accepts(io.BytesIO(package), source)
-        peak = tracemalloc.get_traced_memory()[1]
-    finally:
-        tracemalloc.stop()
-
-    assert accepted is False
-    assert peak < 1 * MB, f"mimetype was expanded: peak {peak / MB:.1f} MB"
-
-
 def test_rewrite_package_parts_rejects_excess_members() -> None:
     """The public rewrite entry point applies the archive-wide limits too."""
 
