@@ -55,7 +55,6 @@ from hwpx.objects import (
     PageSetup,
     PageSize,
     ParagraphFormatResult,
-    PictureRef,
     PictureReplacement,
     TrackedChange,
     TrackedReplacement,
@@ -253,7 +252,6 @@ def test_form_field_value_setter_fills_through_the_same_path_as_fill() -> None:
 _RESULT_DATACLASSES = (
     FieldFillResult,
     PictureReplacement,
-    PictureRef,
     Units,
     ListFormatResult,
     ParagraphFormatResult,

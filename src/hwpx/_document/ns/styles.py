@@ -29,7 +29,7 @@
 
 from __future__ import annotations
 
-from typing import Iterator, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 from ...errors import HwpxLookupError, HwpxValueError
 from ...objects import (
@@ -722,14 +722,15 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         fill_gradient: "Mapping[str, object] | None" = None,
         active_borders: Sequence[str] | None = None,
         border_type: str = "SOLID",
-        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
+        sides: "Mapping[str, Mapping[str, Any] | None] | None" = None,
         base_border_fill_id_ref: "str | int | None" = None,
     ) -> str:
         """요청한 테두리/채우기의 `borderFill` id 를 보장하고 돌려준다.
 
         `border_width_mm` 는 선 굵기(mm)이고, 한/글의 굵기 목록(0.1·0.12·0.15·0.2·0.25·0.3·
-        0.4·0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm) 가운데 가장 가까운 값으로 쓴다
-        (``table.set_borders(border_width_mm=)`` 와 같다).
+        0.4·0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm)에 있는 값만 받는다. 목록에 없는 값은 문서를
+        바꾸기 전에 `HwpxValueError(code="style-line-width-invalid")` 로 거부한다(가까운 값으로
+        바꿔 쓰지 않는다. ``table.set_borders(border_width_mm=)`` 와 같다).
 
         `fill_color`/`fill_image`/`fill_gradient` 는 OWPML `hc:fillBrush` 의
         선택지(Core XML schema.xml:650) 그대로 상호 배타적이다 — 둘 이상
@@ -737,21 +738,21 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         돌려준 `BinaryItem`(또는 그 id 문자열)을 그대로 받는다.
 
         `sides` 는 면마다 다른 선을 준다: `"left"`·`"right"`·`"top"`·`"bottom"` →
-        `{"type", "width", "color"}`(빠진 값은 `border_type`·`border_width_mm`·
-        `border_color`), 또는 그 면에 선을 긋지 않는 `None`. 대지 않은 면은
-        `active_borders` 를 따른다. 예: 위아래만 굵고 옆이 트인 칸은
-        `sides={"top": {"width": "0.4 mm"}, "bottom": {"width": "0.4 mm"},
-        "left": None, "right": None}`. 모르는 면이나 키는
+        `{"type", "width_mm", "color"}`(빠진 값은 `border_type`·`border_width_mm`·
+        `border_color`; `width_mm` 는 굵기 목록의 mm 수), 또는 그 면에 선을 긋지 않는 `None`.
+        대지 않은 면은 `active_borders` 를 따른다. 예: 위아래만 굵고 옆이 트인 칸은
+        `sides={"top": {"width_mm": 0.4}, "bottom": {"width_mm": 0.4},
+        "left": None, "right": None}`. 모르는 면이나 키(6.x 의 `"width": "0.4 mm"` 포함)는
         `HwpxValueError(code="style-border-side-invalid")`, 모르는 선 종류는 `ValueError`.
 
         `base_border_fill_id_ref` 를 주면 그 정의를 복사해 `sides` 가 댄 면과 `fill_color` 만
-        바꾼다(한 변만 바꾸기). 면 매핑에서 뺀 값(`type`·`width`·`color`)은 기준 면의
+        바꾼다(한 변만 바꾸기). 면 매핑에서 뺀 값(`type`·`width_mm`·`color`)은 기준 면의
         값을 따르고, 대지 않은 면·대각선·채우기·그 밖의 속성은 기준 그대로다. 같은 내용의
         정의가 있으면 그 id, 기준과 같으면 기준 id 를 돌려준다. 이때 `border_color`·
         `border_width_mm`·`border_type`·`active_borders`·`fill_image`·`fill_gradient` 는
         함께 줄 수 없다(`style-border-base-conflict`). 예: 칸 테두리에서 아래 변만 굵게 —
         ``ensure_border_fill(base_border_fill_id_ref=cell.border_fill_id_ref,
-        sides={"bottom": {"width": "0.4 mm"}})``.
+        sides={"bottom": {"width_mm": 0.4}})``.
         """
 
         from .._units import _border_width_mm_text
@@ -813,8 +814,8 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         에 바로 넘길 수 있다.
 
         선 굵기는 *line_width_mm* (mm)로 준다. 한/글의 선 굵기(0.1·0.12·0.15·0.2·0.25·0.3·0.4·
-        0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm) 가운데 가장 가까운 것이 되고(테두리와 같다),
-        ``lineWidth`` 에는 그 순번(0.12 mm → ``1``)이 적힌다(순번으로 읽는 것은 한/글 화면으로
+        0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm) 가운데 하나만 받고(테두리와 같다. 목록에 없는 값은
+        ``style-line-width-invalid`` 로 거부), ``lineWidth`` 에는 그 순번(0.12 mm → ``1``)이 적힌다(순번으로 읽는 것은 한/글 화면으로
         아직 확인하지 못한 가설이다 — 한/글은 저장 때 값을 그대로 둔다). 읽을 때는
         ``doc.styles.memo_shape(id).line_width_mm``. *line_width* 는 그 순번을 그대로 적는
         옛 인자로, 주지 않으면 ``1``(0.12 mm)이다. 둘을 함께 주면 거부한다.
@@ -828,16 +829,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
                     context={"line_width": str(line_width), "line_width_mm": repr(line_width_mm)},
                     suggestion="Pass the width in millimetres alone: line_width_mm=0.12.",
                 )
-            from ...oxml.utils import LINE_WIDTHS, normalize_line_width
+            from ...oxml.utils import LINE_WIDTHS, line_width_text
 
-            if isinstance(line_width_mm, bool) or not isinstance(line_width_mm, (int, float)):
-                raise HwpxValueError(
-                    f"line_width_mm must be a number of millimetres; got {line_width_mm!r}",
-                    code="style-line-width-invalid",
-                    context={"width": repr(line_width_mm), "allowed": list(LINE_WIDTHS)},
-                    suggestion="Pass a width in millimetres such as 0.12.",
-                )
-            line_width = LINE_WIDTHS.index(normalize_line_width(f"{float(line_width_mm)} mm"))
+            line_width = LINE_WIDTHS.index(line_width_text(line_width_mm, argument="line_width_mm"))
         return self._doc.oxml.ensure_memo_shape(
             width=width,
             line_width=1 if line_width is None else line_width,
@@ -1105,10 +1099,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         `line_spacing` 은 줄 간격 퍼센트 수(``160`` 은 160%) 또는 `LineSpacing`(종류와 값)이다.
         `bottom_border=True` 의 선은 `border_color`·`border_width_mm`(mm, 한/글 굵기 목록의
-        가장 가까운 값)로 긋는다.
+        값만 — 없는 값은 바꾸기 전에 ``style-line-width-invalid``)로 긋는다.
 
         `border`는 문단 테두리 매핑이다: `sides`(기본 네 면 "left"·"right"·
-        "top"·"bottom"), `color`("#000000"), `width`("0.12 mm"), `type`
+        "top"·"bottom"), `color`("#000000"), `width_mm`(0.12, 굵기 목록의 mm 수), `type`
         ("SOLID"), `offset_mm`(글과의 간격 mm, 수 하나 또는 `(왼쪽, 오른쪽, 위, 아래)`, 기본 0),
         `connect`·`ignore_margin`(기본 False). `connect=True`면 한컴이 같은 문단
         모양을 쓰는 연속 문단을 단·쪽을 넘는 상자 하나로 그린다(문단 테두리 연결).

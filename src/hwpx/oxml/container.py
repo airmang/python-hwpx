@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import _HC, _HP, _append_child
-from .shape_position import validate_draw_text_vert_align, validate_shape_size
+from .shape_position import line_width_units, validate_draw_text_vert_align, validate_shape_size
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
@@ -53,7 +53,9 @@ class ContainerMember:
     the same convention :func:`_create_polygon_element` uses for its own
     vertices). Construct via :meth:`rect`, :meth:`ellipse`, :meth:`polygon`,
     :meth:`line`, :meth:`text_box`, :meth:`picture` or :meth:`group` — not
-    the bare constructor, which expects an already-built element.
+    the bare constructor, which expects an already-built element. Their line
+    width is *line_width_mm* (mm, as for ``doc.shapes.add_rectangle``; the
+    default 0.12 mm is 33 HWPUNIT, 0 draws no line).
 
     A member is a complete, standalone shape element — the same
     ``offset``/``orgSz``/``curSz``/``flip``/``rotationInfo``/
@@ -81,7 +83,7 @@ class ContainerMember:
         *,
         ratio: int = 0,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
     ) -> "ContainerMember":
         """A rectangle member — see :func:`_create_rectangle_element`."""
@@ -90,7 +92,7 @@ class ContainerMember:
 
         element = _create_rectangle_element(
             width, height, ratio=ratio, line_color=line_color,
-            line_width=line_width, fill_color=fill_color,
+            line_width=str(line_width_units(line_width_mm)), fill_color=fill_color,
         )
         return cls(element, x, y)
 
@@ -103,7 +105,7 @@ class ContainerMember:
         height: int,
         *,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
     ) -> "ContainerMember":
         """An ellipse member — see :func:`_create_ellipse_element`."""
@@ -111,7 +113,7 @@ class ContainerMember:
         from .objects import _create_ellipse_element
 
         element = _create_ellipse_element(
-            width, height, line_color=line_color, line_width=line_width,
+            width, height, line_color=line_color, line_width=str(line_width_units(line_width_mm)),
             fill_color=fill_color,
         )
         return cls(element, x, y)
@@ -124,7 +126,7 @@ class ContainerMember:
         points: Sequence[tuple[int, int]],
         *,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
         closed: bool = True,
     ) -> "ContainerMember":
@@ -136,7 +138,7 @@ class ContainerMember:
 
         element = _create_polygon_element(
             _closed_points(points) if closed else points,
-            line_color=line_color, line_width=line_width, fill_color=fill_color,
+            line_color=line_color, line_width=str(line_width_units(line_width_mm)), fill_color=fill_color,
         )
         return cls(element, x, y)
 
@@ -149,7 +151,7 @@ class ContainerMember:
         end_y: int,
         *,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
     ) -> "ContainerMember":
         """A line member from (*start_x*, *start_y*) to (*end_x*, *end_y*) in the
         group's space. Like a freestanding line it is placed at the top-left
@@ -160,7 +162,7 @@ class ContainerMember:
         x, y = min(start_x, end_x), min(start_y, end_y)
         element = _create_line_element(
             start_x - x, start_y - y, end_x - x, end_y - y,
-            line_color=line_color, line_width=line_width,
+            line_color=line_color, line_width=str(line_width_units(line_width_mm)),
         )
         return cls(element, x, y)
 
@@ -175,26 +177,26 @@ class ContainerMember:
         *,
         ratio: int = 0,
         line_color: str = "#000000",
-        line_width: str = "33",
+        line_width_mm: float = 0.12,
         fill_color: str | None = None,
         name: str = "",
         editable: bool = False,
         margin: dict[str, int] | None = None,
         char_pr_id_ref: str | int | None = None,
         para_pr_id_ref: str | int | None = None,
-        vert_align: str | None = None,
+        vertical_alignment: str | None = None,
     ) -> "ContainerMember":
         """A rectangle holding *text*, as :meth:`HwpxOxmlShape.set_draw_text`
         writes it (same *name*, *editable*, *margin*, *char_pr_id_ref*,
-        *para_pr_id_ref* and *vert_align*). The text is written when the group
+        *para_pr_id_ref* and *vertical_alignment*). The text is written when the group
         is inserted, so its paragraphs take ids unused in the section; a bad
-        *vert_align* is refused here, before any document is touched."""
+        *vertical_alignment* is refused here, before any document is touched."""
 
-        validate_draw_text_vert_align(vert_align, argument="vert_align")
+        validate_draw_text_vert_align(vertical_alignment, argument="vertical_alignment")
         member = cls.rect(x, y, width, height, ratio=ratio, line_color=line_color,
-                          line_width=line_width, fill_color=fill_color)
+                          line_width_mm=line_width_mm, fill_color=fill_color)
         spec = _MemberText(text, name, editable, dict(margin) if margin else None,
-                           char_pr_id_ref, para_pr_id_ref, vert_align)
+                           char_pr_id_ref, para_pr_id_ref, vertical_alignment)
         return cls(member.element, x, y, text=spec)
 
     @classmethod

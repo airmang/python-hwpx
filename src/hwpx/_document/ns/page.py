@@ -34,7 +34,6 @@ from ...oxml.section_format import (
     PageMargins,
     PageSize,
     SectionGrid,
-    SectionTextDirection,
     SectionVisibility,
 )
 from ...oxml.section_story import HwpxOxmlSectionHeaderFooter
@@ -58,8 +57,9 @@ _T = TypeVar("_T")
 
 __all__ = ["PageNamespace"]
 
-#: 6.12 트레인㊸ 갭③ — 스키마 선언 열거값(다른 어떤 값도 실코퍼스에 없음,
-#: 실측 근거는 SectionTextDirection 독스트링 참조).
+#: 6.12 트레인㊸ 갭③ — 스키마 선언 열거값. 실코퍼스 67파일의 `hp:secPr` 74건은 모두
+#: `HORIZONTAL`·`textVerticalWidthHead="0"`이었다(VERTICAL·VERTICALALL 실사용 0건 — 렌더는 v16 배치가 확인).
+#: 표 칸의 `TableCell.text_direction` 과 같은 말(str)로 읽는다(7.0, N9).
 _TEXT_DIRECTIONS = frozenset({"HORIZONTAL", "VERTICAL", "VERTICALALL"})
 
 
@@ -245,7 +245,7 @@ class PageNamespace(_Namespace):
         """단(段) 정의를 삽입한다. *paragraph* 는 문단 객체나 인덱스다.
 
         단 사이 구분선은 *separator_type*(``"SOLID"`` …)·*separator_width_mm*(mm, 한/글 굵기 목록의
-        가장 가까운 값)·*separator_color* 로 긋는다. 지금 단 설정은 :meth:`columns` 로 읽는다.
+        값만 — 없는 값은 ``style-line-width-invalid``)·*separator_color* 로 긋는다. 지금 단 설정은 :meth:`columns` 로 읽는다.
         ``section="all"`` 은 *paragraph* 와 함께 줄 수 없다.
         """
 
@@ -627,12 +627,29 @@ class PageNamespace(_Namespace):
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-    ) -> "SectionTextDirection":
-        """글자 방향(가로쓰기/세로쓰기)과 머리말/꼬리말 세로쓰기 여부."""
+    ) -> str:
+        """글자 방향: ``"HORIZONTAL"``(가로쓰기)·``"VERTICAL"``·``"VERTICALALL"``(세로쓰기).
+
+        표 칸의 ``cell.text_direction`` 과 같은 말이다. 머리말/꼬리말 세로쓰기 여부는
+        :meth:`vertical_header_footer`. (6.x 는 둘을 ``SectionTextDirection(direction,
+        vertical_header_footer)`` 하나로 돌려주었다.)
+        """
 
         return self._section(
             section, "text_direction"
         ).properties.text_direction
+
+    def vertical_header_footer(
+        self,
+        *,
+        section: "int | HwpxOxmlSection | None" = None,
+    ) -> bool:
+        """머리말/꼬리말도 세로로 쓰는지(``hp:secPr/@textVerticalWidthHead``). 쓰기는
+        ``set_text_direction(vertical_header_footer=...)``."""
+
+        return self._section(
+            section, "vertical_header_footer"
+        ).properties.vertical_header_footer
 
     def set_text_direction(
         self,
@@ -968,7 +985,7 @@ class PageNamespace(_Namespace):
     ) -> None:
         from ...oxml.color import normalize_color
         from ...oxml.numbering_kinds import number_format as _number_format
-        from ...oxml.utils import normalize_line_width
+        from ...oxml.utils import line_width_text
 
         code = "page-note-shape-invalid"
         # Everything is checked before anything changes: a refused value leaves the shape as it was.
@@ -988,7 +1005,7 @@ class PageNamespace(_Namespace):
                 _int_in(name, value, 0, 0x7FFFFFFF, code)
         width = None
         if separator_width_mm is not None:
-            width = normalize_line_width(f"{float(separator_width_mm):g} mm")
+            width = line_width_text(separator_width_mm, argument="separator_width_mm")
         color = normalize_color(separator_color) if separator_color is not None else None
 
         def change(target: "HwpxOxmlSection") -> None:

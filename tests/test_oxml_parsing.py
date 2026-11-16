@@ -190,7 +190,7 @@ def test_parse_header_full_reference_lists() -> None:
     assert first_bullet.use_image is False
     assert first_bullet.para_head.level == 1
     assert first_bullet.para_head.text == "^1."
-    assert first_bullet.para_head.align == "LEFT"
+    assert first_bullet.para_head.alignment == "LEFT"
     assert header.bullet(0) is first_bullet
     assert header.bullet("0") is first_bullet
 

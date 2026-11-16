@@ -138,9 +138,9 @@ def test_ensure_border_fill_changes_one_side_of_a_base() -> None:
     document = HwpxDocument.new()
     base = document.styles.ensure_border_fill(border_color="#000000")
     before = _definitions(document, "borderFill")
-    derived = document.styles.ensure_border_fill(base_border_fill_id_ref=base, sides={"bottom": {"width": "0.4 mm"}})
+    derived = document.styles.ensure_border_fill(base_border_fill_id_ref=base, sides={"bottom": {"width_mm": 0.4}})
     assert derived != base
-    assert document.styles.ensure_border_fill(base_border_fill_id_ref=base, sides={"bottom": {"width": "0.4 mm"}}) == derived
+    assert document.styles.ensure_border_fill(base_border_fill_id_ref=base, sides={"bottom": {"width_mm": 0.4}}) == derived
     info, original = document.styles.border_fill(derived), document.styles.border_fill(base)
     assert info.bottom.width_mm == 0.4 and info.bottom.color == original.bottom.color
     assert (info.top, info.left, info.right) == (original.top, original.left, original.right)

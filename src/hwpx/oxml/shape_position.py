@@ -409,10 +409,10 @@ class ObjectPlacement:
             treat_as_char=bool(flag("treatAsChar")),
             text_wrap=self.element.get("textWrap"),
             text_flow=self.element.get("textFlow"),
-            horz_rel_to=attrs.get("horzRelTo"),
-            vert_rel_to=attrs.get("vertRelTo"),
-            horz_align=attrs.get("horzAlign"),
-            vert_align=attrs.get("vertAlign"),
+            horizontal_relative_to=attrs.get("horzRelTo"),
+            vertical_relative_to=attrs.get("vertRelTo"),
+            horizontal_alignment=attrs.get("horzAlign"),
+            vertical_alignment=attrs.get("vertAlign"),
             horizontal_offset=_signed_offset(attrs.get("horzOffset")),
             vertical_offset=_signed_offset(attrs.get("vertOffset")),
             flow_with_text=flag("flowWithText"),
@@ -1671,8 +1671,8 @@ def _place_refused(element: Any, box: str, why: str) -> HwpxValueError:
         code="shape-move-place-unsupported",
         context={"box": box, "placement": placement_kind(element), "reason": why, **frames},
         suggestion="글자처럼 취급하는 개체는 본문·표 칸·글상자·각주·머리말·꼬리말 어디로든 옮길 수 있습니다. "
-                   "떠 있는 개체를 칸·글상자·각주로 옮기려면 먼저 set_position(vert_rel_to='PARA', "
-                   "horz_rel_to='PARA')으로 문단 기준·쪽 영역 안으로 바꾼 뒤(또는 treat_as_char=True) 옮기세요. "
+                   "떠 있는 개체를 칸·글상자·각주로 옮기려면 먼저 set_position(vertical_relative_to='PARA', "
+                   "horizontal_relative_to='PARA')으로 문단 기준·쪽 영역 안으로 바꾼 뒤(또는 treat_as_char=True) 옮기세요. "
                    "값을 몰래 바꾸지 않으므로 바꾸기 전에는 거부합니다.",
     )
 

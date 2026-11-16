@@ -29,8 +29,8 @@ def test_each_side_takes_its_own_line() -> None:
         fill_color="#DFE6F7",
         sides={
             "left": None,
-            "top": {"width": "0.4 mm"},
-            "bottom": {"type": "double_slim", "width": 0.5, "color": "#112233"},
+            "top": {"width_mm": 0.4},
+            "bottom": {"type": "double_slim", "width_mm": 0.5, "color": "#112233"},
         },
     )
 
@@ -47,7 +47,7 @@ def test_each_side_takes_its_own_line() -> None:
 def test_a_side_not_named_follows_active_borders() -> None:
     document = HwpxDocument.new()
 
-    fill_id = document.styles.ensure_border_fill(active_borders=("top",), sides={"bottom": {"width": "0.4 mm"}})
+    fill_id = document.styles.ensure_border_fill(active_borders=("top",), sides={"bottom": {"width_mm": 0.4}})
 
     lines = _lines(document, fill_id)
     assert [lines[side][0] for side in ("left", "right", "top", "bottom")] == ["NONE", "NONE", "SOLID", "SOLID"]
@@ -56,12 +56,12 @@ def test_a_side_not_named_follows_active_borders() -> None:
 
 def test_the_same_sides_give_the_same_border_fill() -> None:
     document = HwpxDocument.new()
-    sides = {"left": None, "right": None, "top": {"width": "0.4 mm"}}
+    sides = {"left": None, "right": None, "top": {"width_mm": 0.4}}
 
     first = document.styles.ensure_border_fill(border_color="#000000", sides=sides)
-    again = document.styles.ensure_border_fill(border_color="#000000", sides={"top": {"width": "0.40mm"}, "left": None, "right": None})
+    again = document.styles.ensure_border_fill(border_color="#000000", sides={"top": {"width_mm": 0.4}, "left": None, "right": None})
     uniform = document.styles.ensure_border_fill(border_color="#000000")
-    other = document.styles.ensure_border_fill(border_color="#000000", sides={**sides, "top": {"width": "0.5 mm"}})
+    other = document.styles.ensure_border_fill(border_color="#000000", sides={**sides, "top": {"width_mm": 0.5}})
 
     assert first == again
     assert len({first, uniform, other}) == 3
@@ -89,7 +89,7 @@ def test_a_border_fill_with_its_own_sides_saves_and_reopens(tmp_path) -> None:
     document = HwpxDocument.new()
     table = document.add_table(2, 2)
     fill_id = document.styles.ensure_border_fill(
-        border_color="#000000", sides={"left": None, "bottom": {"type": "DOUBLE_SLIM", "width": "0.5 mm"}}
+        border_color="#000000", sides={"left": None, "bottom": {"type": "DOUBLE_SLIM", "width_mm": 0.5}}
     )
     table.set_cell_border_fill(0, 0, fill_id)
     path = tmp_path / "sides.hwpx"

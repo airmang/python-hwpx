@@ -5,7 +5,7 @@ import logging
 import base64
 import binascii
 from dataclasses import dataclass, field, replace
-from typing import Dict, List, Mapping, Optional
+from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, cast
 
 from lxml import etree
 
@@ -13,6 +13,9 @@ from .common import GenericElement, parse_generic_element
 from .namespaces import HP
 from .paragraph_heading import paragraph_heading
 from .utils import local_name, parse_bool, parse_int, text_or_none
+
+if TYPE_CHECKING:
+    from ..objects.results import Alignment
 
 
 @dataclass(slots=True)
@@ -359,7 +362,7 @@ class BulletParaHead:
     text: str
     level: Optional[int]
     start: Optional[int]
-    align: Optional[str]
+    alignment: "Alignment | None"
     use_inst_width: Optional[bool]
     auto_indent: Optional[bool]
     width_adjust: Optional[int]
@@ -1345,12 +1348,26 @@ def parse_memo_properties(node: etree._Element) -> MemoProperties:
     )
 
 
+def _head_alignment(token: Optional[str]) -> "Alignment | None":
+    """A bullet head's ``align`` as an :class:`~hwpx.objects.Alignment` (``None`` when unsaid; a token
+    outside the list reads as written)."""
+
+    from ..objects.results import Alignment
+
+    if token is None:
+        return None
+    try:
+        return Alignment(token.strip().upper())
+    except ValueError:
+        return cast("Alignment", token)
+
+
 def parse_bullet_para_head(node: etree._Element) -> BulletParaHead:
     return BulletParaHead(
         text=text_or_none(node) or "",
         level=parse_int(node.get("level")),
         start=parse_int(node.get("start")),
-        align=node.get("align"),
+        alignment=_head_alignment(node.get("align")),
         use_inst_width=parse_bool(node.get("useInstWidth")),
         auto_indent=parse_bool(node.get("autoIndent")),
         width_adjust=parse_int(node.get("widthAdjust")),

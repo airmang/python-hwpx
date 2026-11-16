@@ -65,7 +65,8 @@ def test_find_returns_matches_with_their_paragraph_positions_and_places() -> Non
     for match in matches:
         assert match.paragraph.text[match.start:match.end] == match.text
     body = next(m for m in matches if m.where == "body")
-    assert (body.start, body.end, body.section) == (4, 9, 0)  # the tab before counts as one character
+    assert (body.start, body.end) == (4, 9)  # the tab before counts as one character
+    assert body.section is doc.sections[0] and body.to_dict()["section"] == 0  # 7.0: the section object (N9)
     cell = next(m for m in matches if m.where == "cell")
     assert (cell.row, cell.col, cell.depth) == (0, 0, 1) and cell.table is not None
 

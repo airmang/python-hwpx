@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import difflib
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
@@ -1230,6 +1230,17 @@ def _int(raw: str | None, default: int = 0) -> int:
         return default
 
 
+def _level_alignment(head: Any) -> Alignment:
+    """A numbering level's ``hh:paraHead/@align`` as an :class:`Alignment` (``LEFT`` when unsaid);
+    a token outside the list reads as written."""
+
+    token = (head.get("align") or "LEFT").strip().upper()
+    try:
+        return Alignment(token)
+    except ValueError:
+        return cast(Alignment, token)
+
+
 def numbering_info(header: "HwpxOxmlHeader | None", numbering_id_ref: "int | str | None") -> NumberingInfo | None:
     if header is None or numbering_id_ref is None:
         return None
@@ -1253,7 +1264,7 @@ def numbering_info(header: "HwpxOxmlHeader | None", numbering_id_ref: "int | str
             start=_int(head.get("start"), 1),
             number_format=(head.get("numFormat") or "DIGIT"),
             text="".join(head.itertext()),
-            align=(head.get("align") or "LEFT"),
+            alignment=_level_alignment(head),
             char_pr_id_ref=None if char_ref in (None, "", "4294967295") else char_ref,
             auto_indent=(head.get("autoIndent") or "0") in ("1", "true"),
             width_adjust=_int(head.get("widthAdjust")),
@@ -1275,7 +1286,7 @@ def derive_border_fill(
     header: "HwpxOxmlHeader",
     base_id: "int | str",
     *,
-    sides: "Mapping[str, Mapping[str, str] | None] | None",
+    sides: "Mapping[str, Mapping[str, Any] | None] | None",
     fill_color: str | None,
 ) -> str:
     """The id of a ``hh:borderFill`` that is *base_id* with the named *sides* and the
