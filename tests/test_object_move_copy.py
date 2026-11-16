@@ -268,7 +268,8 @@ def test_copying_a_text_box_with_a_memo_gives_the_copy_its_own_memo() -> None:
 
     copy = box.copy_to(doc.add_paragraph(""))
 
-    memos = doc.sections[0].memo_group.memos
+    memos = doc.notes.memos  # 7.0: each memo in its own MEMO field, as Hancom keeps it
+    assert doc.sections[0].memo_group is None
     assert len(memos) == 2 and memos[1].text == "살펴볼 것" and memos[1].id != memo.id
     fields = [node for node in copy.element.iter(f"{HP}fieldBegin") if node.get("type") == "MEMO"]
     assert len(fields) == 1
@@ -286,13 +287,14 @@ def test_paragraph_and_table_copies_give_a_memo_anchor_its_own_memo() -> None:
 
     copy = anchored.insert_after()
 
-    memos = doc.sections[0].memo_group.memos
+    memos = doc.sections[0].memos
     assert [m.text for m in memos] == ["원본", "원본"] and memos[1].id != memo.id
     assert memos[1].paragraph is not None and memos[1].paragraph.element is copy.element
     table = doc.add_paragraph("").add_table(1, 1)
     doc.notes.add_memo("칸 메모", paragraph=table.cell(0, 0).paragraphs[0], section=0)
     table.copy_after()
-    assert [m.text for m in doc.sections[0].memo_group.memos] == ["원본", "원본", "칸 메모", "칸 메모"]
+    assert [m.text for m in doc.sections[0].memos] == ["원본", "원본", "칸 메모", "칸 메모"]
+    assert doc.sections[0].memo_group is None
     numbers = [node.get("zorder") for node in doc.sections[0].element.iter(f"{HP}fieldBegin")
                if node.get("type") == "MEMO"]
     assert len(numbers) == 4 and len(set(numbers)) == 4
@@ -702,9 +704,15 @@ def test_an_unanchored_memo_moves_to_another_section_at_an_index() -> None:
     assert first.group.section.element is second_section.element
     first.move_to(second_section, index=0)
     assert [m.text for m in second_section.memo_group.memos] == ["하나", "가", "나"]
+    # 7.0: a memo is kept in its MEMO field, so one no field anchors is not saved
+    with pytest.raises(HwpxValueError) as refused:
+        doc.to_bytes()
+    assert refused.value.code == "note-memo-unanchored"
+    for memo in (first, *there):
+        doc.notes.attach(second_section.add_paragraph(f"{memo.text}에 단 메모"), memo)
+    assert second_section.memo_group is None  # anchoring moved them into their fields
     again = _reopen(doc)
     assert [m.text for m in again.sections[1].memos] == ["하나", "가", "나"]
-    del there
 
 
 def test_an_anchored_memo_stays_with_its_anchor() -> None:
@@ -712,18 +720,20 @@ def test_an_anchored_memo_stays_with_its_anchor() -> None:
     memo = doc.notes.add_memo("고리 있음", paragraph=doc.add_paragraph("글"), section=0)
     doc.notes.add_memo("다른 메모", section=0)
     doc.add_section()
-    with pytest.raises(HwpxValueError) as excinfo:
-        memo.move_to(1)
-    assert excinfo.value.code == "note-memo-anchor-elsewhere"
-    memo.move_to(0, index=1)  # within its own section it may change place
-    assert [m.text for m in doc.sections[0].memo_group.memos] == ["다른 메모", "고리 있음"]
+    # 7.0: an anchored memo is in its MEMO field -- it is where the field is, in any section
+    assert type(memo).__name__ == "HwpxOxmlFieldMemo"
+    for target in (1, 0):
+        with pytest.raises(HwpxValueError) as excinfo:
+            memo.move_to(target)
+        assert excinfo.value.code == "note-memo-anchor-elsewhere"
+    assert [m.text for m in doc.sections[0].memo_group.memos] == ["다른 메모"]
     assert memo.paragraph is not None
 
 
 def test_memo_copy_to_makes_an_unanchored_copy_with_a_new_id() -> None:
     doc = HwpxDocument.new()
     memo = doc.notes.add_memo("원본 메모", paragraph=doc.add_paragraph("글"), section=0)
-    doc.add_section()
+    second = doc.add_section()
 
     copy = doc.sections[0].memos[0].copy_to(1, index=0)
 
@@ -732,19 +742,25 @@ def test_memo_copy_to_makes_an_unanchored_copy_with_a_new_id() -> None:
     assert [m.text for m in doc.sections[1].memo_group.memos] == ["원본 메모"]
     para_ids = {p.element.get("id") for p in memo.paragraphs}
     assert not para_ids & {p.element.get("id") for p in copy.paragraphs}
-    _reopen(doc)
+    with pytest.raises(HwpxValueError) as refused:  # not anchored yet
+        doc.to_bytes()
+    assert refused.value.code == "note-memo-unanchored"
+    doc.notes.attach(second.add_paragraph("복사본을 단 글"), copy)
+    again = _reopen(doc)
+    assert [m.text for m in again.notes.memos] == ["원본 메모", "원본 메모"]
 
 
 def test_memos_hancom_keeps_in_fields_copy_but_do_not_move() -> None:
     doc = HwpxDocument.open(HANCOM / "memos_in_fields.hwpx")
     memo = doc.sections[0].memos[0]
     assert type(memo).__name__ == "HwpxOxmlFieldMemo"
-    doc.add_section()
+    second = doc.add_section()
     with pytest.raises(HwpxValueError) as excinfo:
         memo.move_to(1)
     assert excinfo.value.code == "note-memo-anchor-elsewhere"
     copy = memo.copy_to(1)
     assert copy.text == memo.text and copy.memo_shape_id_ref == memo.memo_shape_id_ref
+    doc.notes.attach(second.add_paragraph("복사본을 단 글"), copy)
     _reopen(doc)
 
 

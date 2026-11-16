@@ -35,15 +35,12 @@ def test_a_python_hwpx_memo_is_read_once() -> None:
     assert _memo_texts(HwpxDocument.open(data)) == ["검토 메모"]  # memogroup and field hold it; read once
 
 
-def test_the_memo_reads_the_same_after_hancom_drops_the_memogroup() -> None:
+def test_a_python_hwpx_memo_is_written_as_hancom_writes_it() -> None:
+    # 7.0: the memo is in its MEMO field only -- the form Hangul 2024 saves -- so a round trip
+    # through Hangul changes nothing the engine reads
     doc = HwpxDocument.new()
     doc.notes.add_memo("검토 메모", paragraph=doc.add_paragraph("본문"))
     again = HwpxDocument.open(doc.to_bytes())
-    section = again.oxml.sections[0]
-    group = section.element.find(f"{HP}memogroup")
-    assert group is not None
-    section.element.remove(group)  # what Hangul 2024 does on saving
-    section.mark_dirty()
-    after = HwpxDocument.open(again.to_bytes())
-    assert [memo.text for memo in after.notes.memos] == ["검토 메모"]
-    assert _memo_texts(after) == ["검토 메모"]
+    assert again.oxml.sections[0].element.find(f"{HP}memogroup") is None
+    assert [memo.text for memo in again.notes.memos] == ["검토 메모"]
+    assert _memo_texts(again) == ["검토 메모"]

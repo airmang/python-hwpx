@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 336 | 11 |
+| 개수 | 337 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -210,6 +210,7 @@ except HwpxError as exc:
 | `note-memo-anchor-elsewhere` | 메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모). |
 | `note-memo-detached` | 메모가 섹션에 속해 있지 않다. |
 | `note-memo-index-value` | 메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다. |
+| `note-memo-unanchored` | 이번에 만든 메모를 어느 문단에도 걸지 않고 저장하려 했다(한/글은 메모를 MEMO 누름틀 안에만 둔다). |
 
 ### `open-*`
 

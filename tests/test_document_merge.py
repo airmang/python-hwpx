@@ -11,6 +11,8 @@ for why an earlier local version was discarded in favor of it).
 
 from __future__ import annotations
 
+import copy
+
 import base64
 from pathlib import Path
 
@@ -541,21 +543,31 @@ def _memo_field_string_param(paragraph_element, name: str) -> str | None:
     return None
 
 
-def _memogroup_memo_ids(doc: HwpxDocument, section_index: int = 0) -> list[str]:
+def _memo_fields(doc: HwpxDocument, section_index: int = 0) -> list:
+    """The section's MEMO fields: where a memo lives since 7.0, as Hancom keeps it (no hp:memogroup)."""
     section = doc.sections[section_index]
-    ids: list[str] = []
-    for memogroup in section.element.findall(f"{_HP}memogroup"):
-        for memo in memogroup.findall(f"{_HP}memo"):
-            ids.append(memo.get("id"))
+    return [node for node in section.element.iter(f"{_HP}fieldBegin") if node.get("type") == "MEMO"]
+
+
+def _memo_field_ids(doc: HwpxDocument, section_index: int = 0) -> list[str]:
+    ids = []
+    for field in _memo_fields(doc, section_index):
+        for string_param in field.iter(f"{_HP}stringParam"):
+            if string_param.get("name") == "ID":
+                ids.append(string_param.text)
     return ids
 
 
+def _field_text(field) -> str:
+    sub_list = field.find(f"{_HP}subList")
+    return "" if sub_list is None else "".join(t.text or "" for t in sub_list.iter(f"{_HP}t"))
+
+
 # ============================================================================
-# MEMO merge (hp:memogroup content, section-level sibling per DEV-042) --
-# "결함-부활": these were fail-closed rejection tests (v1's explicit 보류
-# scope) until train 38/cycle 6.10 added real memo support; they are now
-# converted to positive support tests rather than deleted, per the same
-# defect-resurrection discipline this module's other bug fixes followed.
+# MEMO merge -- since 7.0 a memo lives in its MEMO field (the field's hp:subList),
+# as Hangul 2024 saves it; no hp:memogroup is written. A merge copies the field
+# with its text and gives the memo a new id; a 6.x memo-group memo the copied
+# field names is folded into the copied field.
 # ============================================================================
 
 
@@ -564,13 +576,10 @@ def test_merge_copies_referenced_memo_content() -> None:
     shape_id = source.styles.ensure_memo_shape(fill_color="#F0FFE9")
     p = source.add_paragraph("annotated text")
     source.notes.add_memo("a comment", paragraph=p, memo_shape_id_ref=shape_id)
+    source_id = _memo_field_ids(source)[0]
 
-    # target already owns a memo shape at the SAME id (both allocators
-    # start at "1" on a fresh document) -- an adversarial, not
-    # coincidentally-matching setup, so a coincidental id match can't mask
-    # a remap that silently never ran (see this codebase's own
-    # _extra_ids_from_style_bases precedent for why coincidental defaults
-    # are treated as untrustworthy test setups).
+    # target already owns a memo shape at the SAME id -- a remap that silently never
+    # ran cannot hide behind a coincidental match.
     target = HwpxDocument.new(empty_first_line=True)
     target.styles.ensure_memo_shape(fill_color="#FFFFFF")
     assert shape_id == "1"
@@ -581,33 +590,20 @@ def test_merge_copies_referenced_memo_content() -> None:
     merged = target.sections[0].paragraphs[-1]
     field_id = _memo_field_string_param(merged.element, "ID")
     field_shape_ref = _memo_field_string_param(merged.element, "MemoShapeIDRef")
-    assert field_id is not None
-
-    memo_ids = _memogroup_memo_ids(target)
-    assert memo_ids == [field_id]
-
-    memo_element = next(
-        m
-        for mg in target.sections[0].element.findall(f"{_HP}memogroup")
-        for m in mg.findall(f"{_HP}memo")
-    )
-    assert memo_element.get("id") == field_id
-    assert memo_element.get("memoShapeIDRef") == field_shape_ref
-    # A remapped memoShapeIDRef must differ from the source's raw id -- an
-    # unchanged value here would mean the remap silently no-op'd (a
-    # dangling/aliased reference), not a genuine "no override" sentinel.
-    assert field_shape_ref != shape_id
-    memo_text = "".join(t.text or "" for t in memo_element.iter(f"{_HP}t"))
-    assert "a comment" in memo_text
+    assert field_id is not None and field_id != source_id  # the copy's own memo id
+    assert _memo_field_ids(target) == [field_id]
+    assert target.sections[0].element.find(f"{_HP}memogroup") is None
+    # A remapped memo shape must differ from the source's raw id.
+    assert field_shape_ref != shape_id and field_shape_ref in target.styles.memo_shapes
+    assert "a comment" in _field_text(_memo_fields(target)[0])
 
     after = check_id_integrity(target)
     assert after.ok, after.dangling
 
 
 def test_merge_memo_default_shape_ref_stays_the_65535_sentinel() -> None:
-    """No memo_shape_id_ref passed -- Hancom's own "no shape override"
-    sentinel ("65535") on both the field's own stringParam and (its
-    absence on) hp:memo's own attribute, unchanged by the merge."""
+    """No memo_shape_id_ref passed -- Hancom's own "no shape override" sentinel ("65535") on
+    the field's own stringParam, unchanged by the merge."""
 
     source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("plain comment")
@@ -618,22 +614,15 @@ def test_merge_memo_default_shape_ref_stays_the_65535_sentinel() -> None:
 
     merged = target.sections[0].paragraphs[-1]
     assert _memo_field_string_param(merged.element, "MemoShapeIDRef") == "65535"
-    memo_element = next(
-        m
-        for mg in target.sections[0].element.findall(f"{_HP}memogroup")
-        for m in mg.findall(f"{_HP}memo")
-    )
-    assert memo_element.get("memoShapeIDRef") is None
+    assert "no shape override" in _field_text(_memo_fields(target)[0])
 
     after = check_id_integrity(target)
     assert after.ok, after.dangling
 
 
 def test_merge_with_narrowed_source_section_still_copies_referenced_memo() -> None:
-    """Narrowing source_section_index to the very section the memo's field
-    lives in must still resolve and copy the memo -- narrowing the scan
-    scope must never accidentally also narrow away content that *is*
-    being copied."""
+    """Narrowing source_section_index to the very section the memo's field lives in must
+    still copy the memo."""
 
     source = HwpxDocument.new(empty_first_line=True)
     p0 = source.sections[0].paragraphs[0]
@@ -643,25 +632,12 @@ def test_merge_with_narrowed_source_section_still_copies_referenced_memo() -> No
     target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source, source_section_index=0)
     assert report["memosCopied"] == 1
-    assert len(_memogroup_memo_ids(target)) == 1
+    assert len(_memo_field_ids(target)) == 1
 
 
 def test_merge_excludes_memo_anchored_in_a_source_section_not_being_copied() -> None:
-    """A memo anchored in a source section that source_section_index
-    excludes must not be copied -- _find_memo_field_ids only sees the
-    fieldBegin controls actually present in the paragraphs being copied,
-    so a memo nobody references in-scope is correctly left behind.
-
-    Section 1 is added *before* the memo is anchored, though it no longer
-    strictly needs to be: anchoring a memo onto a section's very first
-    paragraph used to break add_section() entirely (a real, separate
-    fragility in add_section() unrelated to document_merge, routed around
-    here rather than fixed when this test was written, out of that
-    train's scope). Fixed in cycle 6.11 train 44 --
-    tests/test_paragraph_section_management.py::TestSectionManagement::
-    test_add_section_succeeds_when_first_paragraph_has_an_anchored_memo
-    is the dedicated regression test; this test's own ordering is kept as
-    written since reordering it isn't this test's job."""
+    """A memo anchored in a source section that source_section_index excludes is not copied
+    (see tests/test_paragraph_section_management.py for the add_section ordering note)."""
 
     source = HwpxDocument.new(empty_first_line=True)
     source.add_section()
@@ -672,21 +648,19 @@ def test_merge_excludes_memo_anchored_in_a_source_section_not_being_copied() -> 
     target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source, source_section_index=1)
     assert report["memosCopied"] == 0
-    assert _memogroup_memo_ids(target) == []
+    assert _memo_field_ids(target) == []
 
     after = check_id_integrity(target)
     assert after.ok, after.dangling
 
 
-def test_merge_appends_into_an_existing_target_memogroup_not_a_duplicate() -> None:
-    """Target already has its own memo (its own memogroup) -- merging a
-    second, source-provided memo must land in the SAME memogroup, not a
-    second sibling one."""
+def test_merge_into_a_document_with_its_own_memo_writes_no_memogroup() -> None:
+    """Target already has its own memo -- the merged memo lands in its copied field next to it,
+    and neither document writes an hp:memogroup."""
 
     target = HwpxDocument.new(empty_first_line=True)
     target_p = target.add_paragraph("target's own annotated text")
     target.notes.add_memo("target's own comment", paragraph=target_p)
-    assert len(target.sections[0].element.findall(f"{_HP}memogroup")) == 1
 
     source = HwpxDocument.new(empty_first_line=True)
     source_p = source.add_paragraph("source's annotated text")
@@ -694,22 +668,44 @@ def test_merge_appends_into_an_existing_target_memogroup_not_a_duplicate() -> No
 
     report = append_document(target, source)
     assert report["memosCopied"] == 1
-    assert len(target.sections[0].element.findall(f"{_HP}memogroup")) == 1
-    assert len(_memogroup_memo_ids(target)) == 2
+    assert target.sections[0].element.find(f"{_HP}memogroup") is None
+    ids = _memo_field_ids(target)
+    assert len(ids) == 2 and len(set(ids)) == 2
+    assert [memo.text for memo in target.notes.memos] == ["target's own comment", "source's comment"]
 
     after = check_id_integrity(target)
     assert after.ok, after.dangling
 
 
+def test_merge_folds_a_6x_memogroup_memo_into_the_copied_field() -> None:
+    """A 6.x source keeps the memo in hp:memogroup too (its field may hold an older copy):
+    the merge writes the memo-group text into the copied field and no memogroup."""
+
+    source = HwpxDocument.new(empty_first_line=True)
+    p = source.add_paragraph("annotated text")
+    source.notes.add_memo("old text", paragraph=p)
+    field = _memo_fields(source)[0]
+    memo_id = _memo_field_ids(source)[0]
+    group = source.sections[0].element.makeelement(f"{_HP}memogroup", {})
+    entry = group.makeelement(f"{_HP}memo", {"id": memo_id})
+    para_list = entry.makeelement(f"{_HP}paraList", {})
+    para_list.append(copy.deepcopy(field.find(f"{_HP}subList").find(f"{_HP}p")))
+    para_list.find(f".//{_HP}t").text = "6.x memo-group text"
+    entry.append(para_list)
+    group.append(entry)
+    source.sections[0].element.append(group)  # a 6.x document: the memo in both places
+    source.sections[0].mark_dirty()
+
+    target = HwpxDocument.new(empty_first_line=True)
+    report = append_document(target, source)
+    assert report["memosCopied"] == 1
+    assert target.sections[0].element.find(f"{_HP}memogroup") is None
+    assert _field_text(_memo_fields(target)[0]) == "6.x memo-group text"
+
+
 def test_merge_memo_survives_real_save_and_reopen() -> None:
-    """Save-path dirty-tracking regression for memogroup mutation -- the
-    same failure shape train 33's header fix caught (in-memory checks pass
-    cleanly but the saved bytes silently omit the mutation because nothing
-    marked the owning part dirty). Appending hp:memo directly into
-    hp:memogroup mutates the SECTION's element tree, not the header's --
-    this needs target_section.mark_dirty(), a fully independent code path
-    from the header fix, so it gets its own dedicated round-trip test
-    rather than relying on other tests' incidental save/reopen coverage."""
+    """Save-path dirty-tracking regression: the merged memo field (and its text) must be in
+    the saved bytes, not only in memory."""
 
     source = HwpxDocument.new(empty_first_line=True)
     shape_id = source.styles.ensure_memo_shape(fill_color="#FFE9CC")
@@ -722,17 +718,10 @@ def test_merge_memo_survives_real_save_and_reopen() -> None:
     data = target.to_bytes()
     reopened = HwpxDocument.open(data)
 
-    memo_ids = _memogroup_memo_ids(reopened)
+    memo_ids = _memo_field_ids(reopened)
     assert len(memo_ids) == 1
-    merged = reopened.sections[0].paragraphs[-1]
-    assert _memo_field_string_param(merged.element, "ID") == memo_ids[0]
-    memo_element = next(
-        m
-        for mg in reopened.sections[0].element.findall(f"{_HP}memogroup")
-        for m in mg.findall(f"{_HP}memo")
-    )
-    memo_text = "".join(t.text or "" for t in memo_element.iter(f"{_HP}t"))
-    assert "survives a real save" in memo_text
+    assert [memo.text for memo in reopened.notes.memos] == ["survives a real save"]
+    assert reopened.sections[0].element.find(f"{_HP}memogroup") is None
 
     after = check_id_integrity(reopened)
     assert after.ok, after.dangling

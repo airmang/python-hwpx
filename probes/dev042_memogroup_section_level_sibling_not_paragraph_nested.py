@@ -51,39 +51,26 @@ _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
 def main() -> None:
+    # Reading: a document holding hp:memogroup (python-hwpx 6.x wrote it) keeps it as a section-level
+    # sibling of hp:p, the memo's text outside the anchoring paragraph.
+    legacy = HwpxDocument.open(REPO_ROOT / "tests" / "fixtures" / "fuzz_regressions" / "seed-000000-baseline.hwpx")
+    section = legacy.sections[0].element
+    child_names = [child.tag.rsplit("}", 1)[-1] for child in section]
+    assert "memogroup" in child_names, "the 6.x fixture's hp:memogroup is a direct child of the section"
+    for paragraph in legacy.sections[0].paragraphs:
+        assert "memogroup" not in {node.tag.rsplit("}", 1)[-1] for node in paragraph.element.iter()}
+    print("confirmed (reading 6.x): hp:memogroup is a section-level sibling of hp:p")
+
+    # Writing (7.0): no hp:memogroup at all -- the memo's text is inside the anchoring paragraph,
+    # in the MEMO field's hp:subList, as Hangul 2024 saves it; so copying the paragraph copies the memo.
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("annotated text")
     doc.notes.add_memo("a comment", paragraph=paragraph)
-
-    section = doc.sections[0].element
-    child_names = [child.tag.rsplit("}", 1)[-1] for child in section]
-    print("section direct children:", child_names)
-    assert "memogroup" in child_names, (
-        "expected hp:memogroup as a direct child of the section -- "
-        "DEV-042's premise no longer holds, recheck the deviation entry"
-    )
-
-    paragraph_descendant_names = {
-        node.tag.rsplit("}", 1)[-1] for node in paragraph.element.iter()
-    }
-    assert "memogroup" not in paragraph_descendant_names, (
-        "found hp:memogroup nested inside the anchoring paragraph -- "
-        "DEV-042's premise (section-level sibling, not paragraph-nested) "
-        "no longer holds"
-    )
-    assert "memo" not in paragraph_descendant_names, (
-        "found hp:memo nested inside the anchoring paragraph -- same as above"
-    )
-    assert "fieldBegin" in paragraph_descendant_names, (
-        "expected the anchoring paragraph to carry a fieldBegin control "
-        "(the cross-reference to the sibling memogroup) even though the "
-        "actual memo content itself is not there"
-    )
-    print(
-        "confirmed: hp:memogroup is a section-level sibling of hp:p, "
-        "never nested inside the anchoring paragraph -- only a "
-        "fieldBegin type=MEMO cross-reference lives there"
-    )
+    child_names = [child.tag.rsplit("}", 1)[-1] for child in doc.sections[0].element]
+    assert "memogroup" not in child_names, "7.0 writes no hp:memogroup"
+    field = next(node for node in paragraph.element.iter(f"{_HP}fieldBegin") if node.get("type") == "MEMO")
+    assert "a comment" in "".join(t.text or "" for t in field.iter(f"{_HP}t"))
+    print("confirmed (writing 7.0): the memo's text is in the anchoring paragraph's MEMO field")
 
 
 if __name__ == "__main__":
