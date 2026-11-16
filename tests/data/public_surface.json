@@ -588,6 +588,7 @@
     "line_texts": {"kind": "property", "settable": false, "returns": "tuple[str, ...] | None"},
     "move_after": {"kind": "method", "params": [["paragraph", "P", false]], "returns": "None"},
     "move_before": {"kind": "method", "params": [["paragraph", "P", false]], "returns": "None"},
+    "nested_text": {"kind": "method", "params": [["where", "K", true]], "returns": "str"},
     "objects": {"kind": "property", "settable": false, "returns": "tuple[ParagraphObject, ...]"},
     "outline_level": {"kind": "property", "settable": true, "returns": "int"},
     "page_break": {"kind": "property", "settable": true, "returns": "bool"},
@@ -1035,7 +1036,8 @@
     ["top", "BorderLine"],
     ["bottom", "BorderLine"],
     ["diagonal", "BorderLine"],
-    ["fill", "str | None"]
+    ["fill", "str | None"],
+    ["fill_kinds", "tuple[str, ...]"]
    ],
    "members": {
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}

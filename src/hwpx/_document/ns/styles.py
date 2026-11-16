@@ -369,9 +369,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         읽을 수 없으면 `HwpxValueError(code="style-border-fill-width-invalid")`.
 
         `fill`은 첫 `hc:winBrush`의 `faceColor`이고, winBrush가 없거나
-        `faceColor`가 `"none"`(대소문자 무시)이면 `None`이다. 그라데이션·그림
-        채우기는 여기서 설명하지 않는다(`fill`은 `None`) — 그 요소는
-        ``doc.oxml.headers[0].element`` 의 XML로 읽는다. 메모리의 헤더를 읽으므로
+        `faceColor`가 `"none"`(대소문자 무시)이면 `None`이다. `fill_kinds`는
+        `hc:fillBrush`가 담은 채움의 종류(`"color"`·`"gradation"`·`"image"`·
+        `"unknown"`)를 적힌 차례로, `hc:fillBrush`가 없으면 `()`(채움 없음)다.
+        그러데이션·그림의 자세한 값은 ``doc.oxml.headers[0].element`` 의 XML로 읽는다. 메모리의 헤더를 읽으므로
         `ensure_border_fill()`로 만든 id도 저장 없이 바로 읽힌다.
         """
 

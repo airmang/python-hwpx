@@ -416,7 +416,11 @@ class BorderFillInfo:
     """A typed read of one ``hh:borderFill`` (``doc.styles.border_fill``).
 
     ``fill`` is the solid ``hc:winBrush`` face colour, or ``None`` when there
-    is no solid fill. Gradient and image fills are not described here.
+    is no solid fill. ``fill_kinds`` names what the ``hc:fillBrush`` holds, in
+    file order: ``"color"`` (``hc:winBrush``, 면 색·무늬 -- also when its face
+    colour is ``"none"``, as Hancom often writes it), ``"gradation"``
+    (``hc:gradation``), ``"image"`` (``hc:imgBrush``) and ``"unknown"`` for
+    anything else; ``()`` when there is no ``hc:fillBrush`` at all (채움 없음).
     Like the action results above, it is a snapshot taken at call time and
     does not follow later edits to the header.
     """
@@ -428,6 +432,7 @@ class BorderFillInfo:
     bottom: BorderLine
     diagonal: BorderLine
     fill: str | None
+    fill_kinds: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -438,6 +443,7 @@ class BorderFillInfo:
             "bottom": self.bottom.to_dict(),
             "diagonal": self.diagonal.to_dict(),
             "fill": self.fill,
+            "fillKinds": list(self.fill_kinds),
         }
 
 

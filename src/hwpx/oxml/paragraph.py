@@ -921,6 +921,24 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         from .._document.text_blocks import paragraph_object_places
 
         return paragraph_object_places(self, kinds, where)
+
+    def nested_text(self, *, where: "Iterable[str] | str | None" = None) -> str:
+        """This paragraph's text with the text of every paragraph inside it, in document order.
+
+        :attr:`text` is the paragraph's own text; this also reads the paragraphs of its tables'
+        cells (nested tables too), text boxes, captions, groups, notes and memos. The paragraph's
+        text is cut where an object holding paragraphs sits, each inner paragraph's text (read the
+        same way) comes there, and the stretches that hold text are joined with ``"\\n"``. Each
+        stretch is read as :attr:`text` reads it (a tab ``"\\t"``, a line break ``"\\n"``, special
+        spaces as their characters); nothing is collapsed. *where* (the places of
+        ``doc.text.iter_paragraphs()``) chooses the inner paragraphs whose own text is read, as
+        ``where={"cell", "text_box"}``; the paragraph's own text is always read. A paragraph with
+        nothing inside gives :attr:`text`.
+        """
+
+        from .._document.text_blocks import paragraph_nested_text
+
+        return paragraph_nested_text(self, where)
     equations = property(_paragraph_equations)
     line_segments = property(paragraph_line_segments)  # read only; body in _paragraph_text_edit.py
     line_texts = property(paragraph_line_texts)  # each saved line's text; body in _paragraph_text_edit.py

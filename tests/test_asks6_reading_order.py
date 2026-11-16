@@ -320,3 +320,95 @@ def test_list_labels_take_the_paragraph_object() -> None:
         assert labels.label(paragraph) == labels.label(paragraph.element)
         assert labels.kind(paragraph) == labels.kind(paragraph.element)
     assert any(labels.label(paragraph) for paragraph in doc.paragraphs)
+
+
+# --- the text of a paragraph with its tables' and boxes' text (nested_text) -------------------
+
+
+def test_nested_text_reads_inner_paragraphs_where_their_object_sits() -> None:
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("앞")
+    table = paragraph.add_table(1, 2)
+    table.cell(0, 0).text = "가"
+    table.cell(0, 1).text = "나"
+    paragraph.add_run("뒤")
+    assert paragraph.text == "앞뒤"
+    assert paragraph.nested_text() == "앞\n가\n나\n뒤"
+    assert paragraph.nested_text(where="text_box") == "앞\n뒤"
+    assert paragraph.nested_text(where={"cell"}) == "앞\n가\n나\n뒤"
+    plain = doc.add_paragraph("탭\t글")
+    assert plain.nested_text() == plain.text == "탭\t글"
+    with pytest.raises(HwpxError) as caught:
+        paragraph.nested_text(where="cells")
+    assert caught.value.code == "text-place-invalid"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        SAVED / "pages_table_cell_holding_a_header_with_a_table.hwpx",
+        SAVED / "notes_inst_id.hwpx",
+        CORPUS / "reader_writer__SimpleContainer.hwpx",
+        CORPUS / "reader_writer__SimpleTable.hwpx",
+    ],
+    ids=lambda path: path.stem,
+)
+def test_nested_text_holds_every_text_under_the_paragraph(path: Path) -> None:
+    doc = HwpxDocument.open(path)
+    before = doc.to_bytes()
+    for place in doc.text.iter_paragraphs(where={"body", "cell", "text_box"}):
+        paragraph = place.paragraph
+        written = "".join("".join(t.itertext()) for t in paragraph.element.iter("{*}t"))
+        assert "".join(paragraph.nested_text().replace("\xad", "").split()) == "".join(written.split())
+    assert doc.to_bytes() == before
+
+
+# --- what a border fill fills with (fill_kinds) ----------------------------------------------
+
+
+def _fill_brush_kinds(element: object) -> tuple[str, ...]:
+    names = {"winBrush": "color", "gradation": "gradation", "imgBrush": "image"}
+    return tuple(
+        names.get(_local(child), "unknown")
+        for brush in element  # type: ignore[attr-defined]
+        if _local(brush) == "fillBrush"
+        for child in brush
+        if _local(child)
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [SAVED / "auto_grow_cell_filled.hwpx", CORPUS / "error__20251107__test.hwpx"],
+    ids=lambda path: path.stem,
+)
+def test_fill_kinds_name_what_the_fill_brush_holds(path: Path) -> None:
+    doc = HwpxDocument.open(path)
+    header = doc.oxml.headers[0].element
+    written = {element.get("id"): _fill_brush_kinds(element) for element in header.iter("{*}borderFill")}
+    read = doc.styles.border_fills
+    assert written and {key: read[key].fill_kinds for key in written} == written
+    assert any(kinds for kinds in written.values())
+    assert any(not kinds for kinds in written.values())
+    for info in read.values():
+        assert info.fill is None or info.fill_kinds[:1] == ("color",)
+        assert info.to_dict()["fillKinds"] == list(info.fill_kinds)
+
+
+def test_fill_kinds_tell_gradation_and_image_from_no_fill() -> None:
+    doc = HwpxDocument.new()
+    header = doc.oxml.headers[0].element
+    fills = list(header.iter("{*}borderFill"))
+    namespace = "http://www.hancom.co.kr/hwpml/2011/core"
+    for element, kind in zip(fills, ("gradation", "imgBrush")):
+        for old in [child for child in element if _local(child) == "fillBrush"]:
+            element.remove(old)
+        brush = element.makeelement(f"{{{namespace}}}fillBrush", {})
+        brush.append(brush.makeelement(f"{{{namespace}}}{kind}", {}))
+        element.append(brush)
+    read = doc.styles.border_fills
+    assert read[fills[0].get("id")].fill_kinds == ("gradation",)
+    assert read[fills[0].get("id")].fill is None
+    assert read[fills[1].get("id")].fill_kinds == ("image",)
+    for element in fills[2:]:
+        assert read[element.get("id")].fill_kinds == _fill_brush_kinds(element)

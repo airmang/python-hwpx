@@ -780,6 +780,61 @@ def object_paragraph_places(obj: Any, where: "Iterable[str] | str | None" = None
             yield ParagraphPlace(paragraph=HwpxOxmlParagraph(element, part), **_place_fields(inner))
 
 
+def _top_paragraphs(node: Any) -> Iterator[Any]:
+    """The ``hp:p`` elements inside *node* that no other ``hp:p`` inside it holds, in document order."""
+
+    for child in node:
+        if _local(child) == "p":
+            yield child
+        else:
+            yield from _top_paragraphs(child)
+
+
+def paragraph_nested_text(paragraph: Any, where: "Iterable[str] | str | None" = None) -> str:
+    """The text of *paragraph* with that of the paragraphs inside it (``paragraph.nested_text()``)."""
+
+    from ..oxml._document_primitives import _is_tab_control_element, _text_element_content
+
+    wanted = None if where is None else _check_choices("where", where, PLACES)
+    if next(paragraph.element.iter("{*}p"), None) is None:
+        return paragraph.text  # nothing inside: no need to walk
+    context, _holder, counts = _scope(paragraph.element, paragraph.section)
+    places = {
+        element: inner.where
+        for kind, element, inner, _ in _walk(paragraph.element, context, paragraph.element, "p", counts)
+        if kind == "p"
+    }
+    stretches: list[str] = []
+
+    def read(p_element: Any, own: bool) -> None:
+        current: list[str] = []
+
+        def flush() -> None:
+            if own and current:
+                stretches.append("".join(current))
+            current.clear()
+
+        for run in p_element:
+            if _local(run) != "run":
+                continue
+            for child in run:
+                name = _local(child)
+                if name == "t":
+                    current.append(_text_element_content(child))
+                elif name == "tab" or _is_tab_control_element(child):
+                    current.append("\t")
+                elif name:
+                    inner = [element for element in _top_paragraphs(child) if element in places]
+                    if inner:
+                        flush()
+                        for element in inner:
+                            read(element, wanted is None or places[element] in wanted)
+        flush()
+
+    read(paragraph.element, True)
+    return "\n".join(stretches)
+
+
 def section_blocks(section: Any) -> tuple[Any, ...]:
     """The paragraphs of *section* and the tables placed right in it, in file order (``section.blocks``)."""
 
