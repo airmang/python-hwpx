@@ -89,6 +89,10 @@ CASES = [
      "flip_group_both_ways"),
     ("flip_picture_left_right_resized_by_30", P_PLAIN,
      [("flip_horizontal", True), ("size", (6000, 6000)), ("rotation", 30)], "flip_group_both_ways"),
+    # ``resize`` takes a turned picture's own size: flipped, turned and then resized, it is what Hangul saved flipped,
+    # resized and then turned
+    ("flip_picture_left_right_resized_by_30", P_PLAIN,
+     [("flip_horizontal", True), ("rotation", 30), ("size", (6000, 6000))], "flip_group_both_ways"),
     ("flip_picture_up_down_resized", P_PLAIN, [("flip_vertical", True), ("size", (6000, 9000))],
      "flip_group_both_ways"),
     # rotate6 (``want-flip4``): an arc, a curve, a group, a group holding a group. An arc and a curve flip as the
@@ -172,7 +176,14 @@ def test_flipping_and_turning_write_what_hancom_wrote(hancom: str, instid: str, 
         (target.flip_horizontal, target.flip_vertical, target.rotation)
 
 
-@pytest.mark.parametrize(("hancom", "instid", "steps", "untouched"), CASES, ids=[case[0] for case in CASES])
+#: Undone step by step with the values read before each step: ``width``/``height`` read a turned object's box, not the
+#: own size ``resize`` takes, so a case resizing a turned object is not undone so.
+GO_BACK = [case for case in CASES
+           if not any(name == "size" and "rotation" in [n for n, _ in case[2][:index]]
+                      for index, (name, _) in enumerate(case[2]))]
+
+
+@pytest.mark.parametrize(("hancom", "instid", "steps", "untouched"), GO_BACK, ids=[case[0] for case in GO_BACK])
 def test_hancoms_flip_and_turn_go_back(hancom: str, instid: str, steps: list, untouched: str) -> None:
     original = _by_instid(HwpxDocument.open(HANCOM / f"{untouched}.hwpx"), instid)
     before = []  # each step's value before it, replayed on the untouched object
@@ -254,16 +265,20 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
     resized_rect = doc.add_paragraph("").add_rectangle(8000, 4000)
     resized_rect.element.find(f"{HP}renderingInfo/{HC}scaMatrix").set("e1", "0.5")  # drawn at half its width
     resized_rect.element.find(f"{HP}curSz").set("width", "4000")
-    turned_picture.resize(3000, 1500)  # rotate7: its box stretched along the page (p-f-30-S)
+    turned_picture.resize(3000, 1500)  # rotate7: its own size, turned back, resized and turned again
     both_ways_group.resize(18000, 4000)  # rotate7 g-fv-S
     nested.flip_vertical = True  # rotate7 n-v
     nested.flip_vertical = False
+    resized_group.flip_horizontal = True  # rotate7 g-S-30-f: mirrored as drawn
+    resized_group.flip_horizontal = False
+    turned_rect = doc.add_paragraph("").add_rectangle(8000, 4000)
+    turned_rect.flip_horizontal = True
+    turned_rect.rotation = 30
     for call, code, says in (
         (lambda: setattr(picture, "crop", (0, 0, 1000, 0)), "shape-flip-unsupported", "flip it back first"),
         (lambda: flipped.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
+        (lambda: turned_rect.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(resized_rect, "flip_horizontal", True), "shape-flip-unsupported", "resized"),
-        (lambda: setattr(resized_group, "flip_horizontal", True), "shape-rotation-unsupported", "resized, turned"),
-        (lambda: setattr(turned_picture, "rotation", 0), "shape-rotation-unsupported", "more than scale"),
         (lambda: setattr(nested.members[0], "flip_horizontal", True), "shape-group-member-unsupported", "group"),
         (lambda: setattr(flipped, "flip_horizontal", 1), "shape-flip-value", "True or False"),
     ):

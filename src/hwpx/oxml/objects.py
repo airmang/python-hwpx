@@ -27,7 +27,7 @@ from .shape_position import (
     DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, equation_font_size, fill_color_of, keep_ratio,
     line_width_mm_of, line_width_units, object_size,
     picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
-    resize_object, resize_shape, resize_turned_group, _group_member_refused, _in_group,
+    resize_object, resize_shape, resize_turned_as_own, _group_member_refused, _in_group,
     set_equation_font, set_equation_font_size, set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
     _object_set_position, build_at_original_size, fit_new_floating_object, refuse_resizing_flipped, resize_group,
@@ -1598,14 +1598,15 @@ class HwpxOxmlShape(ObjectPlacement):
         ``startPt``/``endPt`` ...) and original size (``hp:orgSz``) stay, and ``hc:scaMatrix`` draws it at
         the new size (``hp:sz``; ``hp:curSz`` the new size on an axis that differs from ``orgSz``, 0 on one
         that does not). A horizontal or vertical line takes a height or width that way too (its ``orgSz``
-        keeps 1 there). A turned shape is resized as drawn before turning and turned again. A group's
-        members are stretched with it (see ``shape_position.resize_group``); a turned group is stretched
-        along the page so the box around it becomes *width* x *height*, its turn kept
-        (``shape_position.resize_turned_group``). Refused: a flipped shape (``shape-flip-unsupported``), a
-        stretched turned group or one holding a group (``shape-rotation-unsupported``), and a member of a
-        group alone (``shape-group-member-unsupported``: a member is resized with its group). A size that is
-        not an int in ``0 <= value < 2**31`` is ``shape-size-value``. The paragraph loses its line layout
-        cache.
+        keeps 1 there). A group's members are stretched with it (see ``shape_position.resize_group``).
+        *width* x *height* is always the shape's own size: a turned shape or group (flipped or not) is
+        turned back, resized and turned again (``shape_position.resize_turned_as_own``), so it stays the
+        same shape turned -- not stretched along the page into a parallelogram as Hancom's object
+        properties stretch the box around it. Refused: a flipped drawing shape other than a group, a group
+        holding a group flipped (``shape-flip-unsupported``), an object skewed by Hancom's resize of a
+        turned one (``shape-rotation-unsupported``), and a member of a group alone
+        (``shape-group-member-unsupported``: a member is resized with its group). A size that is not an int
+        in ``0 <= value < 2**31`` is ``shape-size-value``. The paragraph loses its line layout cache.
         """
         refuse_resizing_flipped(self.element)
         if _in_group(self.element, self.paragraph.element):
@@ -1614,8 +1615,7 @@ class HwpxOxmlShape(ObjectPlacement):
         angle = self.rotation % 360
         if self.shape_type == "container":
             if angle:
-                width, height = keep_ratio((self.width, self.height), width, height)
-                resize_turned_group(self, width, height)
+                resize_turned_as_own(self, width, height, lambda w, h: self.resize(w, h), unflip=True)
                 return
             width, height = keep_ratio((self.width, self.height), width, height)
             _clear_paragraph_layout_cache(self.paragraph.element)  # its line is as tall as the shape set as a character

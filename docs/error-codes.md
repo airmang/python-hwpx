@@ -410,7 +410,7 @@ except HwpxError as exc:
 | `shape-equation-script-latex` | 수식 스크립트에 LaTeX 명령(\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다). |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
-| `shape-flip-unsupported` | 한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·호·곡선·그림·묶음 밖의 개체(OLE·수식 등), 늘인 사각형·타원·다각형·선 뒤집기, 돌지 않은 뒤집은 도형의 크기 바꾸기, 뒤집은 그림 자르기. |
+| `shape-flip-unsupported` | 한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·호·곡선·그림·묶음 밖의 개체(OLE·수식 등), 늘인 사각형·타원·다각형·선 뒤집기, 뒤집은 사각형·타원·다각형·선의 크기 바꾸기(돌았든 아니든), 묶음을 품은 뒤집은 묶음의 크기 바꾸기, 뒤집은 그림 자르기. |
 | `shape-flip-value` | 뒤집기(flip_horizontal·flip_vertical)에 bool 이 아닌 값을 주었다. |
 | `shape-group-member-unsupported` | 묶음(hp:container) 구성원 하나만은 돌리거나 크기를 바꾸거나 옮길 수 없고(한/글 근거 대기), 설명·바깥 여백은 구성원에 자리가 없다(묶음 단위 속성, 한/글에 없는 기능). 돌았거나 늘인 묶음에서는 혼자 지울 수 없다(묶음째 다루거나 ungroup() 으로 푼다). |
 | `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |
@@ -429,7 +429,7 @@ except HwpxError as exc:
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 | `shape-raw-tag-empty` | 탈출구 add_shape/add_raw 에 줄 태그 이름이 비어 있다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
-| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 한/글 저장본으로 확인하지 못한 모양이다: 늘인 채 뒤집힌 사각형·타원·다각형·선, 뒤집을 수 없는 종류의 뒤집힌 개체, 행렬이 hp:flip 을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘이고 돌린 채 뒤집힌 묶음, 돈 채 크기를 바꿔 기울어진 개체. 수식·차트는 한/글도 돌리지 않는다(한/글에 없는 기능). 늘였거나 묶음을 품은 돈 묶음은 크기를 바꾸지 않는다. 글이 든 도형, 뒤집힌 사각형·타원·다각형·선·그림(늘인 그림 포함)과 뒤집힌 묶음(양쪽·늘인 것 포함), 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다. |
+| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 한/글 저장본으로 확인하지 못한 모양이다: 늘인 채 뒤집힌 사각형·타원·다각형·선, 뒤집을 수 없는 종류의 뒤집힌 개체, 행렬이 hp:flip 을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 뒤집은 뒤 크기를 바꾼 묶음 돌리기, 늘이고 돌리고 뒤집은 묶음 다시 돌리기, 한/글 개체 속성으로 돈 상자의 크기를 바꿔 기울어진 개체(읽고 그대로 둘 뿐 다시 바꾸지 않는다). 수식·차트는 한/글도 돌리지 않는다(한/글에 없는 기능). 글이 든 도형, 뒤집힌 사각형·타원·다각형·선·그림(늘인 그림 포함)과 뒤집힌 묶음(양쪽·늘인 것 포함), 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돌고, 돈 개체의 resize 는 돌리기 전 자기 크기를 받는다. |
 | `shape-rotation-value` | 회전 각도가 int(도)가 아니다(bool 도 거부). 음수·360 이상은 한/글처럼 0~359로 바꿔 쓴다(-30 → 330). |
 | `shape-ruby-alignment-value` | 덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다. |
 | `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
