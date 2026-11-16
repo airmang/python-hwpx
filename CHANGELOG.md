@@ -461,8 +461,21 @@ python-hwpx 7.0을 함께 설치한다.
 - 본문을 비울 때 머리말·꼬리말도 지운다: `section.clear_body(keep_headers=False)`. 구역 설정·단·쪽 번호와 빈 줄 하나가 남는다.
 - 명령 단추를 읽는다: `doc.fields.buttons`(`Button.caption`). 숨은 설명의 문단은 `doc.text.iter_paragraphs()`에서
   `where="hidden_comment"`로 나오고, 글맵시의 글은 `iter_objects(kinds="textart")`의 `object.attributes["text"]`로 읽는다.
+- 개체를 옮길 때 겹친 차례를 지킨다: `obj.move_to(paragraph, keep_order=True)`는 `zOrder`를 그대로 둔다. 기본은 전처럼 한/글의
+  오려 붙이기와 같이 맨 위로 올린다(표는 전에도 `zOrder`를 바꾸지 않았다).
+- 글자 모양 정의 하나를 제자리에서 고친다: `doc.styles.set_char_property(char_pr_id_ref, letter_spacing=-5, ratio=95, ...)`(인자는
+  `run.set_format`과 같다). 사본을 만들지 않으므로 그 id를 가리키는 모든 런·스타일·문단 번호·글머리표가 함께 바뀐다. 그 id를 쓰는
+  런이 있는 문단(문단 번호·글머리표가 이 모양이면 번호·글머리표가 있는 문단도)의 줄 배치 캐시를 지우고 그 수를 돌려준다. 스타일에
+  딸린 모양만 고치려면 전처럼 `doc.styles.set_style_format`(한/글의 스타일 고치기)을 쓴다.
+- 메모를 걸 글이 문단에 여러 번 나오면 몇 번째 것에 걸지 고른다: `doc.notes.add_memo(..., match="답", index=1)`,
+  `doc.notes.attach(..., match=, index=)`(0부터, 한 런 안에 온전히 든 곳만 센다). 메모 본문의 문단 여러 개는
+  `memo.paragraphs[0].insert_after(line)`으로 잇는다(`add_memo` 문서에 예).
 
 ### 고침
+
+- `obj.move_to`·`copy_to`(표의 것도)가 개체를 마지막 런의 빈 `hp:t` 뒤가 아니라 앞에 넣는다(`<hp:run><hp:rect/><hp:t/></hp:run>`).
+  빈 문단으로 옮길 때 7.0 개발 중에는 한/글 저장본에 없는 꼴(`[t/][개체]`)을 썼다. 한/글 저장본(`tests/fixtures/hancom_saved`)에서
+  개체와 빈 `hp:t`만 든 런 4,676개 가운데 4,675개가 빈 `hp:t`로 끝난다.
 
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서를 막는다. 한/글 2024는 첫 문단에서만 구역 설정을 읽어, 그런
   구역을 기본 용지·여백으로 열고 다시 저장할 때 첫 문단에 기본 `hp:secPr`를 새로 쓴다(여백·단이 사라지고 쪽 수가 바뀐다).

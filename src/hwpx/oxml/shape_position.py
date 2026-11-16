@@ -788,7 +788,8 @@ class ObjectPlacement:
             fit_groups_after_removal(groups)
         remove_orphaned_images(self.paragraph.section, images)
 
-    def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> None:
+    def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None,
+                keep_order: bool = False) -> None:
         """Move this object into *paragraph* at character *offset* (``None``: the end), as cutting
         and pasting it in Hancom does.
 
@@ -807,7 +808,10 @@ class ObjectPlacement:
         lose their line layout caches, with the paragraphs holding their cells and captions.
 
         As Hancom pastes an object, it goes over the others (its ``zOrder`` one more than the
-        highest in the section of *paragraph*). In the body, a header or a footer a floating object
+        highest in the section of *paragraph*). With ``keep_order=True`` it keeps the ``zOrder`` it
+        had, so shapes drawn over and under one another stay in that order when they are moved
+        (into another section the number is kept as it is, even where an object there has the
+        same one). In the body, a header or a footer a floating object
         keeps its frames and offsets as they are written. Measured from its paragraph (``PARA``,
         ``COLUMN``) it goes with its new paragraph; measured from the page or paper (``PAGE``,
         ``PAPER``) it stays where it is on the page, also in a section with other paper -- only
@@ -826,7 +830,7 @@ class ObjectPlacement:
         ``shape-not-in-document``. Everything is checked before anything changes.
         """
 
-        place_object(self, paragraph, offset, copy=False)
+        place_object(self, paragraph, offset, copy=False, keep_order=keep_order)
 
     def copy_to(self: _Placed, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> _Placed:
         """Put a copy of this object into *paragraph* at *offset* (``None``: the end) and return it.
@@ -2747,8 +2751,9 @@ def insert_at_offset(paragraph: Any, element: Any, offset: int | None, char_pr_i
 
     Controls and objects already at that place stay in front of it. Inside a text node the node is
     divided and *element* goes between its halves in the same run, as Hancom keeps an object among the
-    text of a run; at a run boundary it goes at the end of the run before. A paragraph with no run gets
-    one (*char_pr_id_ref*, else ``"0"``).
+    text of a run; at a run boundary it goes at the end of the run before. At the end of the paragraph
+    it goes in front of a trailing empty ``hp:t`` of the last run, Hancom's own form. A paragraph with
+    no run gets one (*char_pr_id_ref*, else ``"0"``).
     """
 
     from .formatting import _split_text_element, _unit_length
@@ -2779,7 +2784,14 @@ def insert_at_offset(paragraph: Any, element: Any, offset: int | None, char_pr_i
                     run.insert(index + 2, right)
                     return
                 position += length
-    runs[-1].append(element)
+    last = runs[-1]
+    tail = last[-1] if len(last) else None
+    if tail is not None and _local(tail) == "t" and not (tail.text or "") and not len(tail):
+        # Hancom keeps a run's trailing empty ``hp:t`` last and puts objects in front of it
+        # (``[obj][t/]``), as its own saved files do; an object after it would be a different shape.
+        last.insert(len(last) - 1, element)
+        return
+    last.append(element)
 
 
 #: The boxes Hancom fits a pasted floating object into (:func:`pasted_placement`).
@@ -2849,7 +2861,7 @@ def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
 
 
 def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, offset: int | None, *,
-                             copy: bool) -> Any:
+                             copy: bool, keep_order: bool = False) -> Any:
     """``copy_to``/``move_to`` of *obj* into the paragraph *target* of another document, as Hancom 2024 pastes
     an object copied (or cut) from another document: a copy with fresh ids, the images and charts it shows
     carried into that document (``media.carry_object_parts``; objlim evidence xpic, xeq, xchart, xpic2, xchart2),
@@ -2891,7 +2903,7 @@ def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, of
     if position is not None:
         for name, value in changes.items():
             position.set(name, value)
-    if placed.get("zOrder") is not None:
+    if placed.get("zOrder") is not None and not keep_order:
         placed.set("zOrder", _top_z_order(target.section))
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
     _clear_paragraph_layout_cache(target.element)
@@ -2917,9 +2929,10 @@ def _sections_of(*paragraphs: Any) -> list[Any]:
     return list({id(p.section): p.section for p in paragraphs}.values())
 
 
-def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) -> Any:
+def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool, keep_order: bool = False) -> Any:
     """``move_to``/``copy_to`` of an object or table *obj*: check everything, then move it (or put a
-    copy) into *paragraph* at *offset*. Returns the copy's model object, or ``None`` for a move."""
+    copy) into *paragraph* at *offset*. Returns the copy's model object, or ``None`` for a move.
+    *keep_order* leaves the object's ``zOrder`` as it is instead of putting it over the others."""
 
     from ._document_primitives import _clear_paragraph_layout_cache
     from ._paragraph_text_edit import resolve_paragraph_in
@@ -2944,7 +2957,7 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
     other = getattr(getattr(paragraph, "section", None), "document", None)
     if other is not None and source.section.document is not None and other is not source.section.document:
         return _place_in_other_document(obj, parent, source, resolve_paragraph_in(paragraph, paragraph, caller=caller),
-                                        offset, copy=copy)
+                                        offset, copy=copy, keep_order=keep_order)
     target = resolve_paragraph_in(source, paragraph, caller=caller)
     if not copy and any(node is target.element for node in element.iter()):
         raise HwpxValueError(
@@ -2968,7 +2981,7 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
     if position is not None:
         for name, value in changes.items():
             position.set(name, value)
-    if _local(placed) != "tbl" and placed.get("zOrder") is not None:
+    if _local(placed) != "tbl" and placed.get("zOrder") is not None and not keep_order:
         placed.set("zOrder", _top_z_order(target.section))  # Hancom puts a pasted object over the others
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
     _clear_paragraph_layout_cache(target.element)

@@ -135,6 +135,7 @@ class NotesNamespace(_Namespace):
         number: int | None = None,
         paragraph_char_pr_id_ref: str | int | None = None,
         match: str | None = None,
+        index: int = 0,
     ) -> "Memo":
         """메모를 만든다. ``paragraph`` 를 주면 그 문단에 메모를 건다(앵커).
 
@@ -143,8 +144,19 @@ class NotesNamespace(_Namespace):
                 메모만 만든다. 5.x 의 ``add_memo_with_anchor`` 가 이 인자다.
             paragraph_text: *paragraph* 의 글을 이것으로 바꾼 뒤 건다.
             paragraph_char_pr_id_ref: 문단에 메모를 거는 필드(``fieldBegin type="MEMO"``)의 글자 모양.
-            match: 문단 전체가 아니라 그 글자들에만 메모를 건다(처음 나오는 곳,
-                한 런 안에 있어야 한다). 한/글에서 글을 골라 메모를 넣은 것과 같다.
+            match: 문단 전체가 아니라 그 글자들에만 메모를 건다(한 런 안에 있어야
+                한다). 한/글에서 글을 골라 메모를 넣은 것과 같다.
+            index: *match* 가 문단에 여러 번 나오면 몇 번째(0부터, 기본 0 = 처음) 것에
+                걸지 고른다. 한 런 안에 온전히 든 곳만 앞에서부터 겹치지 않게 센다. 그만큼
+                나오지 않으면 ``note-match-not-found``, *match* 없이 주면 ``note-argument-conflict``.
+
+        메모 본문을 문단 여러 개로 쓰려면 첫 문단 뒤에 문단을 잇는다(한/글의 메모 안 Enter와 같다).
+        *text* 의 ``"\\n"`` 은 문단이 아니라 줄 바꿈(``hp:lineBreak``)이 된다::
+
+            memo = doc.notes.add_memo("첫 줄", paragraph=p, match="정답")
+            last = memo.paragraphs[0]
+            for line in ("둘째 줄", "셋째 줄"):
+                last = last.insert_after(line)
 
         5.x 의 앵커 변형은 ``(Memo, Paragraph, field_id)`` 3-튜플을 돌려줬다.
         이제 메모 하나이고, 문단과 필드 id 는 ``memo.paragraph`` /
@@ -157,7 +169,8 @@ class NotesNamespace(_Namespace):
 
         target = self._section(section, "add_memo")
         if paragraph is None:
-            if paragraph_text is not None or field_id is not None or author is not None or match is not None:
+            if (paragraph_text is not None or field_id is not None or author is not None or match is not None
+                    or index != 0):
                 raise HwpxValueError(
                     "문단에 걸지 않는 메모에는 문단 인자를 줄 수 없습니다.",
                     code="note-argument-conflict",
@@ -192,6 +205,7 @@ class NotesNamespace(_Namespace):
             number=number,
             paragraph_char_pr_id_ref=paragraph_char_pr_id_ref,
             match=match,
+            index=index,
         )
 
     def attach(
@@ -205,10 +219,12 @@ class NotesNamespace(_Namespace):
         number: int | None = None,
         char_pr_id_ref: str | int | None = None,
         match: str | None = None,
+        index: int = 0,
     ) -> "Memo":
         """이미 있는 메모를 문단에 앵커로 걸고 그 메모를 돌려준다.
 
         ``match`` 를 주면 문단 전체가 아니라 그 글자들에만 건다(``add_memo`` 와 같다).
+        ``index`` 는 *match* 가 몇 번째(0부터) 나오는 곳인지 고른다(``add_memo`` 와 같다).
 
         5.x 는 필드 id 문자열만 돌려줘서, 어느 메모가 걸렸는지 호출자가 따로
         들고 있어야 했다. 이제 메모 자신이 ``paragraph``·``field_id`` 를 안다.
@@ -229,6 +245,7 @@ class NotesNamespace(_Namespace):
             number=number,
             char_pr_id_ref=char_pr_id_ref,
             match=match,
+            index=index,
         )
 
     def remove_memo(self, memo: "Memo") -> None:

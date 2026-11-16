@@ -161,12 +161,13 @@ def attach_memo_field(
     number: int | None = None,
     char_pr_id_ref: str | int | None = None,
     match: str | None = None,
+    index: int = 0,
 ) -> "HwpxOxmlMemo":
     """Attach a MEMO field control to *paragraph* so Hangul shows *memo*.
 
-    The field spans the whole paragraph, or with *match* only the first occurrence
-    of that text (it must lie in one run, between no other marks): the memo is then
-    on those characters, as Hancom anchors a memo put on a selection.
+    The field spans the whole paragraph, or with *match* only the *index*-th (from 0)
+    place of that text (it must lie in one run, between no other marks; only such places
+    count): the memo is then on those characters, as Hancom anchors a memo put on a selection.
 
     Returns *memo* itself: once the field exists, ``memo.field_id`` and
     ``memo.paragraph`` (``oxml/memo.py``) resolve it live by searching the
@@ -192,12 +193,22 @@ def attach_memo_field(
             code="note-memo-detached",
             suggestion="Pass a memo created by doc.notes.add_memo().",
         )
-    if match is not None and _find_segment(paragraph.element, match) is None:
+    index = _check_match_index(index)
+    if match is None and index:
         raise HwpxValueError(
-            "the text to put the memo on is not in one run of the paragraph",
+            "index picks a place of match; there is no match",
+            code="note-argument-conflict",
+            context={"caller": "attach_memo_field", "index": index},
+            suggestion="Pass match= with index=, or leave index out.",
+        )
+    if match is not None and _find_segment(paragraph.element, match, index) is None:
+        raise HwpxValueError(
+            "the text to put the memo on is not in one run of the paragraph"
+            + (f" {index + 1} times" if index else ""),
             code="note-match-not-found",
-            context={"match": match, "paragraphText": paragraph.text},
-            suggestion="Pass text that appears in the paragraph within one run (paragraph.runs).",
+            context={"match": match, "index": index, "paragraphText": paragraph.text},
+            suggestion="Pass text that appears in the paragraph within one run (paragraph.runs)"
+                       + (", and an index below the number of its places (from 0)." if index else "."),
         )
 
     field_value = field_id or _object_id()
@@ -306,7 +317,7 @@ def attach_memo_field(
         paragraph.element.insert(start, run_begin)
         paragraph.element.append(run_end)
     else:
-        middle = _split_out(paragraph.element, match)
+        middle = _split_out(paragraph.element, match, index)
         holder = middle.getparent()
         holder.insert(holder.index(middle), ctrl_begin)
         holder.insert(holder.index(middle) + 1, ctrl_end)
@@ -322,27 +333,40 @@ def attach_memo_field(
     return memo
 
 
-def _find_segment(paragraph: Any, match: str) -> tuple[Any, int, int] | None:
-    """Where *match* first lies whole in one stretch of text of *paragraph*'s own runs:
-    the ``hp:t``, the stretch (``-1`` its leading text, ``k`` the text after its child
-    ``k``) and the offset in it."""
+def _find_segment(paragraph: Any, match: str, index: int = 0) -> tuple[Any, int, int] | None:
+    """Where the *index*-th (from 0) place of *match* lying whole in one stretch of text of
+    *paragraph*'s own runs is, in document order and not overlapping: the ``hp:t``, the stretch
+    (``-1`` its leading text, ``k`` the text after its child ``k``) and the offset in it."""
 
-    if not match:
+    if not match or index < 0:
         return None
+    seen = 0
     for run in paragraph.findall(f"{_HP}run"):
         for node in run.findall(f"{_HP}t"):
             stretches = [node.text, *(child.tail for child in node)]
-            for index, text in enumerate(stretches):
-                if text and match in text:
-                    return node, index - 1, text.index(match)
+            for stretch, text in enumerate(stretches):
+                at = text.find(match) if text else -1
+                while at >= 0:
+                    if seen == index:
+                        return node, stretch - 1, at
+                    seen += 1
+                    at = text.find(match, at + len(match))
     return None
 
 
-def _split_out(paragraph: Any, match: str) -> Any:
+def _check_match_index(index: object) -> int:
+    if isinstance(index, bool) or not isinstance(index, int):
+        from ..errors import argument_type_error
+
+        raise argument_type_error("index", index, "int", suggestion="match 가 몇 번째(0부터) 나오는 곳인지 정수로 주세요.")
+    return index
+
+
+def _split_out(paragraph: Any, match: str, index: int = 0) -> Any:
     """Split the ``hp:t`` holding *match* (see :func:`_find_segment`) so that the match is a
     ``hp:t`` of its own, between the text before and after it in the same run; return it."""
 
-    found = _find_segment(paragraph, match)
+    found = _find_segment(paragraph, match, index)
     assert found is not None
     node, stretch, offset = found
     run = node.getparent()
@@ -384,6 +408,7 @@ def add_memo_with_anchor(
     number: int | None = None,
     paragraph_char_pr_id_ref: str | int | None = None,
     match: str | None = None,
+    index: int = 0,
 ) -> "HwpxOxmlMemo":
     """Create a memo and ensure it is visible by anchoring a MEMO field.
 
@@ -394,6 +419,14 @@ def add_memo_with_anchor(
     *paragraph_char_pr_id_ref* is the character shape of the MEMO field's runs.
     """
 
+    index = _check_match_index(index)
+    if match is None and index:
+        raise HwpxValueError(
+            "index picks a place of match; there is no match",
+            code="note-argument-conflict",
+            context={"caller": "doc.notes.add_memo", "index": index},
+            suggestion="Pass match= with index=, or leave index out.",
+        )
     if match is not None:
         probe = paragraph_text if paragraph_text is not None else (paragraph.text if paragraph is not None else "")
         if match == "" or match not in probe:
@@ -448,6 +481,7 @@ def add_memo_with_anchor(
             number=number,
             char_pr_id_ref=paragraph_char_pr_id_ref,
             match=match,
+            index=index,
         )
     except HwpxValueError:
         memo.remove()  # no memo left behind without its anchor
