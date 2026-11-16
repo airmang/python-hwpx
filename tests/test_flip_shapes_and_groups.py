@@ -26,6 +26,7 @@ from hwpx.oxml.container import ContainerMember
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 TEXT_BOX, GROUP, NESTED = "1720249014", "768560093", "2104287188"
+TURNED_BOX, TURNED_GROUP, ELLIPSE, POLYGON, LINE = "1570112883", "1425950003", "741191633", "1881274590", "1207765247"
 
 #: (file Hangul wrote, instid, what was done in order, a file holding the object untouched)
 CASES = [
@@ -42,6 +43,21 @@ CASES = [
     ("turn_group_in_resized_group_by_30", NESTED, [("rotation", 30)], "flip_text_box_left_right"),
     ("turn_flipped_rect_by_30", "67647593", [("flip_horizontal", True), ("rotation", 30)],
      "turn_resized_group_by_30"),
+    # ``flip_turned_*``, ``flip_ellipse_*``, ``flip_polygon_*``, ``flip_line_*``: a text box and a group turned 30
+    # degrees (by python-hwpx), an ellipse, a polygon and a line, flipped (and turned) by Hangul. A turned object
+    # flipped is written turned the other way (30 -> 330) and flipped.
+    ("flip_turned_text_box_left_right", TURNED_BOX, [("flip_horizontal", True)], "flip_ellipse_left_right_by_30"),
+    ("flip_turned_text_box_up_down", TURNED_BOX, [("flip_vertical", True)], "flip_ellipse_left_right_by_30"),
+    ("flip_turned_text_box_both_ways", TURNED_BOX, [("flip_horizontal", True), ("flip_vertical", True)],
+     "flip_ellipse_left_right_by_30"),
+    ("flip_turned_group_left_right", TURNED_GROUP, [("flip_horizontal", True)], "flip_ellipse_left_right_by_30"),
+    ("flip_ellipse_left_right_by_30", ELLIPSE, [("flip_horizontal", True), ("rotation", 30)],
+     "flip_turned_text_box_left_right"),
+    ("flip_polygon_left_right_by_30", POLYGON, [("flip_horizontal", True), ("rotation", 30)],
+     "flip_turned_text_box_left_right"),
+    ("flip_line_left_right_by_30", LINE, [("flip_horizontal", True), ("rotation", 30)],
+     "flip_turned_text_box_left_right"),
+    ("flip_line_up_down", LINE, [("flip_vertical", True)], "flip_turned_text_box_left_right"),
 ]
 
 
@@ -88,7 +104,7 @@ def _reopen(doc: HwpxDocument) -> HwpxDocument:
 def test_flipping_and_turning_write_what_hancom_wrote(hancom: str, instid: str, steps: list, untouched: str) -> None:
     doc = HwpxDocument.open(HANCOM / f"{untouched}.hwpx")
     target = _by_instid(doc, instid)
-    assert (target.flip_horizontal, target.flip_vertical, target.rotation) == (False, False, 0)
+    assert (target.flip_horizontal, target.flip_vertical) == (False, False)
     for name, value in steps:
         setattr(target, name, value)
     theirs = _by_instid(HwpxDocument.open(HANCOM / f"{hancom}.hwpx"), instid)
@@ -102,12 +118,16 @@ def test_flipping_and_turning_write_what_hancom_wrote(hancom: str, instid: str, 
 
 @pytest.mark.parametrize(("hancom", "instid", "steps", "untouched"), CASES, ids=[case[0] for case in CASES])
 def test_hancoms_flip_and_turn_go_back(hancom: str, instid: str, steps: list, untouched: str) -> None:
+    original = _by_instid(HwpxDocument.open(HANCOM / f"{untouched}.hwpx"), instid)
+    before = []  # each step's value before it, replayed on the untouched object
+    replay = _by_instid(HwpxDocument.open(HANCOM / f"{untouched}.hwpx"), instid)
+    for name, value in steps:
+        before.append(getattr(replay, name))
+        setattr(replay, name, value)
     doc = HwpxDocument.open(HANCOM / f"{hancom}.hwpx")
     target = _by_instid(doc, instid)
-    target.rotation = 0
-    target.flip_horizontal = False
-    target.flip_vertical = False
-    original = _by_instid(HwpxDocument.open(HANCOM / f"{untouched}.hwpx"), instid)
+    for (name, _), value in reversed(list(zip(steps, before))):  # undone in the other order
+        setattr(target, name, value)
     assert _same(_normalized(target.element), _normalized(original.element))
 
 
@@ -121,13 +141,36 @@ def test_a_flipped_group_keeps_its_members_unflipped_marked_as_hancom_marks_them
     assert [(m.flip_vertical, m.rotation) for m in group.members] == [(False, 0), (False, 0)]
 
 
+def test_a_turned_object_flipped_turns_the_other_way() -> None:
+    doc = HwpxDocument.new()
+    box = doc.add_paragraph("").add_rectangle(8000, 4000)
+    box.rotation = 30
+    box.flip_horizontal = True
+    assert (box.rotation, box.flip_horizontal) == (330, True)
+    box.flip_vertical = True  # both ways: turned back to 30, mirrored both ways (a half turn)
+    assert (box.rotation, box.flip_horizontal, box.flip_vertical) == (30, True, True)
+    box.flip_horizontal = False
+    box.flip_vertical = False
+    assert (box.rotation, box.flip_horizontal, box.flip_vertical) == (30, False, False)
+    _reopen(doc)
+
+
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000002000000010806000000f478d4fa0000000d49444154789c63f8cfc0f01f0005000201"
+    "a5f6b3a50000000049454e44ae426082"
+)
+
+
 def test_what_hancom_was_not_seen_doing_is_refused() -> None:
     doc = HwpxDocument.new()
-    paragraph = doc.add_paragraph("")
-    turned = paragraph.add_rectangle(8000, 4000)
-    turned.rotation = 30
-    flipped = paragraph.add_rectangle(8000, 4000)
+    flipped = doc.add_paragraph("").add_rectangle(8000, 4000)
     flipped.flip_horizontal = True
+    group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
+                                                 ContainerMember.rect(5000, 0, 4000, 2000)])
+    group.flip_horizontal = True
+    turned_group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
+                                                        ContainerMember.rect(5000, 0, 4000, 2000)])
+    turned_group.rotation = 30
     resized_group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
                                                          ContainerMember.rect(5000, 0, 4000, 2000)])
     resized_group.resize(18000, 4000)
@@ -135,21 +178,19 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
         ContainerMember.rect(0, 0, 3000, 3000),
         ContainerMember.group(4000, 0, [ContainerMember.rect(0, 0, 2000, 2000), ContainerMember.rect(3000, 0, 2000, 2000)]),
     ])
-    line = doc.add_paragraph("").add_line(0, 0, 8000, 2000)
-    ellipse = doc.add_paragraph("").add_ellipse(6000, 3000)
+    picture = doc.add_picture(PNG, "png", width=6000, height=3000)
     for call, code, says in (
-        (lambda: setattr(turned, "flip_horizontal", True), "shape-flip-unsupported", "turn it back to 0"),
-        (lambda: setattr(flipped, "flip_vertical", True), "shape-flip-unsupported", "both"),
+        (lambda: setattr(group, "flip_vertical", True), "shape-flip-unsupported", "both ways"),
+        (lambda: setattr(turned_group, "flip_vertical", True), "shape-flip-unsupported", "up-down"),
         (lambda: flipped.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(resized_group, "flip_horizontal", True), "shape-rotation-unsupported", "resized"),
         (lambda: setattr(nested, "flip_horizontal", True), "shape-rotation-unsupported", "holds a group"),
         (lambda: setattr(nested.members[0], "flip_horizontal", True), "shape-group-member-unsupported", "group"),
-        (lambda: setattr(line, "flip_horizontal", True), "shape-flip-unsupported", "line"),
-        (lambda: setattr(ellipse, "flip_vertical", True), "shape-flip-unsupported", "ellipse"),
+        (lambda: setattr(picture, "flip_horizontal", True), "shape-flip-unsupported", "pic"),
         (lambda: setattr(flipped, "flip_horizontal", 1), "shape-flip-value", "True or False"),
     ):
         with pytest.raises(HwpxValueError) as caught:
             call()
         assert caught.value.code == code and says in str(caught.value), (code, str(caught.value))
-    assert (flipped.flip_horizontal, flipped.flip_vertical, turned.rotation) == (True, False, 30)
+    assert (flipped.flip_horizontal, flipped.flip_vertical, turned_group.rotation) == (True, False, 30)
     _reopen(doc)

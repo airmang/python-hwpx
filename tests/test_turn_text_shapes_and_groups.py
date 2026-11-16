@@ -250,7 +250,7 @@ def test_what_is_not_shown_by_hancom_is_still_refused() -> None:
     flipped_by_flag_only.element.find(f"{HP}flip").set("horizontal", "1")
     member_turned = _group(fresh)
     member_turned.element.find(f"{HP}rect/{HP}rotationInfo").set("angle", "30")
-    for shape, reason in ((both_ways, "both ways"), (flipped_by_flag_only, "not a turn"),
+    for shape, reason in ((both_ways, "does not flip it"), (flipped_by_flag_only, "not a turn"),
                           (member_turned, "on its own")):
         before = [dict(node.attrib) for node in shape.element.iter()]
         with pytest.raises(HwpxValueError) as caught:

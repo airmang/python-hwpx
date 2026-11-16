@@ -578,14 +578,15 @@ class ObjectPlacement:
         30, 45, 90, 180, 270 and 330 degrees and turned again from 30 to 45. (Its 90-degree command leaves
         the members' centres as they are; the dialog's form is written.)
 
-        A flipped rectangle or group (:attr:`flip_horizontal`, :attr:`flip_vertical`) turns too: its
-        ``hc:rotMatrix`` mirrors, then turns it, as Hancom writes a flipped text box turned 45 degrees and a
-        flipped group turned 30; its box is the box around it so.
+        A flipped rectangle, ellipse, polygon, line or group (:attr:`flip_horizontal`, :attr:`flip_vertical`)
+        turns too: its ``hc:rotMatrix`` mirrors, then turns it, as Hancom writes a flipped text box turned 45
+        degrees and a flipped ellipse, polygon, line or group turned 30; its box is the box around it so.
 
         Refused with ``shape-rotation-unsupported`` (``context["reason"]`` says why), because no Hancom-saved
-        document shows how Hancom writes them: an object flipped both ways, or flipped and resized, or another
-        kind of object flipped; a group holding a turned or flipped member, a flipped group resized or holding a
-        group; and an object without ``hp:rotationInfo`` (an equation or chart). One member of a
+        document shows how Hancom writes them: an object flipped and resized, or another kind of object flipped,
+        or one whose ``hp:flip`` its matrices do not follow; a group holding a turned or flipped member, a flipped
+        group resized, holding a group or flipped both ways; and an object without ``hp:rotationInfo`` (an
+        equation or chart). One member of a
         group alone is refused with ``shape-group-member-unsupported`` (turn the group), an angle that is not
         an int with ``shape-rotation-value``. 0 turns an object back, a group too. The paragraph loses its line
         layout cache.
@@ -623,18 +624,20 @@ class ObjectPlacement:
     def flip_horizontal(self) -> bool:
         """Whether the object is flipped left-right (``hp:flip/@horizontal``, Hancom's 좌우 대칭).
 
-        Setting it flips a rectangle (a text box too) or a whole group as Hancom 2024 does
-        (``ShapeObjHorzFlip``, saved): ``hp:flip`` takes the flag and ``hc:rotMatrix`` mirrors the object about
-        its middle (``-1, 0, width``); its box, place and text stay (the text is not mirrored). A flipped group's
-        members keep their own ``hp:flip`` 0 and take the mirror in their ``hc:rotMatrix`` from their own place,
-        with ``rotationInfo/@angle`` 180 (Hancom's form). A flipped object turns (``rotation``): the matrix flips,
-        then turns it. ``False`` flips it back.
+        Setting it flips a rectangle (a text box too), an ellipse, a polygon, a line or a whole group as Hancom
+        2024 does (``ShapeObjHorzFlip``, saved): ``hp:flip`` takes the flag and ``hc:rotMatrix`` mirrors the object
+        about its middle (``-1, 0, width``); its box, place and text stay (the text is not mirrored). A turned
+        object is mirrored as it is drawn: it is written turned the other way (30 becomes 330) and flipped, its
+        box and place unchanged. A flipped object turns (``rotation``): the matrix flips, then turns it. ``False``
+        flips it back the same way. A flipped group's members keep their own ``hp:flip`` 0 and take the mirror in
+        their ``hc:rotMatrix`` from their own place; flipped left-right, they are marked turned 180 less the
+        group's angle then (Hancom's form: 180, or 150 for a group turned 30), and keep that as the group turns.
 
         Refused with ``shape-flip-unsupported`` (``context["reason"]``) where no Hancom-saved document shows the
-        form: an ellipse, picture, line, polygon, curve, arc or other object; a turned object (turn it back to 0, flip,
-        then turn); a resized object or group; a group holding a group; flipping it both ways. A member of a
-        group alone is ``shape-group-member-unsupported``, a value that is not a bool ``shape-flip-value``. The
-        paragraph loses its line layout cache.
+        form: a picture, curve, arc or other object; a resized object or group; a group holding a group; a group
+        flipped both ways, or a turned group flipped up-down. A member of a group alone is
+        ``shape-group-member-unsupported``, a value that is not a bool ``shape-flip-value``. The paragraph loses
+        its line layout cache.
         """
 
         return flip_signs(self.element)[0] == -1
@@ -794,8 +797,9 @@ def _rotation_refused(element: Any, why: str) -> HwpxValueError:
         context={"reason": why},
         suggestion="Pictures, drawing shapes (with or without text) and OLE objects turn, stretched or not, and "
                    "so does a whole group, resized or not, with groups inside, turned or not, and a rectangle, "
-                   "group flipped one way (as Hancom flips them); an object flipped both ways or flipped and resized, a group "
-                   "holding a member turned or flipped on its own, an equation or chart do not. Resize a turned "
+                   "ellipse, polygon, line or group flipped as Hancom flips them; an object flipped and resized, a "
+                   "group flipped both ways, a group holding a member turned or flipped on its own, an equation or "
+                   "chart do not. Resize a turned "
                    "group after turning it back to 0.",
     )
 
@@ -909,8 +913,9 @@ def flip_signs(element: Any) -> tuple[int, int]:
     return (-1 if flags[0] else 1), (-1 if flags[1] else 1)
 
 
-#: Drawing shapes Hancom 2024 was seen flipping (and turning flipped): rectangles (text boxes included) and groups.
-FLIPPED_KINDS = frozenset({"rect", "container"})
+#: Drawing shapes Hancom 2024 was seen flipping (and turning flipped, and flipping turned): rectangles (text boxes
+#: included), ellipses, polygons, lines and groups.
+FLIPPED_KINDS = frozenset({"rect", "ellipse", "polygon", "line", "container"})
 
 
 def _flip_refused(element: Any, why: str) -> HwpxValueError:
@@ -918,15 +923,17 @@ def _flip_refused(element: Any, why: str) -> HwpxValueError:
         f"hp:{str(element.tag).rsplit('}', 1)[-1]} cannot be flipped: {why}",
         code="shape-flip-unsupported",
         context={"reason": why},
-        suggestion="Rectangles, text boxes and whole groups flip one way (left-right or up-down) while "
-                   "unturned; turn them after flipping. Ellipses, pictures, lines, polygons, curves and arcs, a turned or "
-                   "resized object or group, a group holding a group and flipping both ways do not.",
+        suggestion="Rectangles, text boxes, ellipses, polygons and lines flip either way or both, turned or not, "
+                   "and whole groups flip one way (a turned one left-right only). Pictures, curves, arcs, a "
+                   "resized object or group and a group holding a group do not; flip a resized object back "
+                   "before resizing it.",
     )
 
 
 def flip_form_refusal(element: Any) -> str | None:
     """Why *element*'s flip (``hp:flip``) is not one this package knows Hancom's form of, or ``None``: none, or one
-    way on a rectangle or a group whose ``hc:rotMatrix`` flips (then turns) it as Hancom writes."""
+    on a rectangle, ellipse, polygon, line (either way or both) or group (one way), whose ``hc:rotMatrix`` must
+    then flip (then turn) it as Hancom writes."""
 
     flips = flip_signs(element)
     if flips == (1, 1):
@@ -934,8 +941,8 @@ def flip_form_refusal(element: Any) -> str | None:
     kind = str(element.tag).rsplit("}", 1)[-1]
     if kind not in FLIPPED_KINDS:
         return f"a flipped {kind} is not shown by a Hancom-saved document"
-    if flips == (-1, -1):
-        return "it is flipped both ways: no Hancom-saved document shows how Hancom holds one"
+    if flips == (-1, -1) and kind == "container":
+        return "it is flipped both ways: no Hancom-saved document shows how Hancom holds a group so"
     return None
 
 
@@ -962,17 +969,22 @@ def set_flip(obj: Any, axis: int, flipped: object) -> None:
         raise _flip_refused(element, f"no Hancom-saved document shows how Hancom flips a {kind}")
     sides = [-1 if (i == axis and flipped) or (i != axis and flips[i] == -1) else 1 for i in (0, 1)]
     wanted = (sides[0], sides[1])
-    if wanted == (-1, -1):
-        raise _flip_refused(element, "it is flipped the other way already: no Hancom-saved document shows an object "
-                                     "flipped both ways")
     info = element.find(f"{_HP}rotationInfo")
-    if info is not None and (_number(info.get("angle")) or 0) % 360:
-        raise _flip_refused(element, "it is turned: no Hancom-saved document shows a turned object flipped; turn it "
-                                     "back to 0, flip it, then turn it")
+    turned = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    # Flipping a turned object mirrors it as it is drawn: Hancom writes it turned the other way (30 -> 330) and
+    # flipped -- a text box turned 30 degrees and flipped left-right, up-down or both, a group left-right.
+    angle = (-turned) % 360
     if kind == "container":
         from .container import turn_group
 
-        turn_group(element, 0, flips=wanted)  # refuses (shape-rotation-unsupported) a group it cannot write so
+        if wanted == (-1, -1):
+            raise _flip_refused(element, "a group flipped both ways is not shown by a Hancom-saved document")
+        if turned and axis == 1:
+            raise _flip_refused(element, "a turned group flipped up-down is not shown by a Hancom-saved document; "
+                                         "turn it back to 0, flip it, then turn it")
+        # Hancom marks the members of a group flipped left-right as turned 180 less the group's angle then
+        # (180 flipped unturned, 150 flipped turned 30), and leaves them so when the group turns afterwards.
+        turn_group(element, angle, flips=wanted, member_angle=(180 - turned) % 360 if wanted[0] == -1 else 0)
     else:
         try:
             width, height = rotation_base_size(element)
@@ -982,7 +994,7 @@ def set_flip(obj: Any, axis: int, flipped: object) -> None:
             raise _flip_refused(element, "it is resized: no Hancom-saved document shows a resized object flipped")
         flip.set("horizontal", "1" if wanted[0] == -1 else "0")
         flip.set("vertical", "1" if wanted[1] == -1 else "0")
-        apply_rotation(element, 0, width, height)
+        apply_rotation(element, angle, width, height)
     from ._document_primitives import _clear_paragraph_layout_cache
 
     _clear_paragraph_layout_cache(obj.paragraph.element)

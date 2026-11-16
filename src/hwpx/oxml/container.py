@@ -609,12 +609,6 @@ def _close(values: Sequence[float], expected: Sequence[float], tolerance: float)
     return all(abs(a - b) <= tolerance for a, b in zip(values, expected))
 
 
-def _member_angle(flips: tuple[int, int]) -> int:
-    """The ``rotationInfo/@angle`` Hancom gives a flipped group's members: 180 flipped left-right, else 0."""
-
-    return 180 if flips[0] == -1 else 0
-
-
 def _group_turn_refusal(group: Any, shapes: Sequence[Any], turned: int, flips: tuple[int, int],
                         wanted: tuple[int, int]) -> str | None:
     """Why the group cannot be turned by :func:`turn_group` (``None`` when it can). *turned* and *flips* are how it
@@ -654,7 +648,8 @@ def _group_turn_refusal(group: Any, shapes: Sequence[Any], turned: int, flips: t
         if own is None or len(own) != 3 or shape.find(f"{_HP}orgSz") is None:
             return ("a member's rendering matrices are not one trans/sca/rot set: no Hancom-saved document shows "
                     "how one turns")
-        if _flipped(shape) or _angle(shape) not in (0, _member_angle(flips)):
+        if _flipped(shape) or (_angle(shape) != 0 and flips[0] != -1) or _angle(shape) < 0:
+            # members of a group flipped left-right carry Hancom's mark (180 less the group's angle when flipped)
             return "a member is turned or flipped on its own: no Hancom-saved document shows how one turns"
         if not _scales_only(_matrix(own[1])):
             return "a member's scaMatrix does more than scale it"
@@ -670,7 +665,8 @@ def _scales_only(matrix: list[float]) -> bool:
     return abs(matrix[1]) <= 1e-3 and abs(matrix[3]) <= 1e-3 and matrix[0] > 0 and matrix[4] > 0
 
 
-def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None) -> None:
+def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None,
+               member_angle: int | None = None) -> None:
     """Turn the group *group* (``hp:container``) *angle* degrees clockwise about its middle, as Hancom 2024 turns
     one (its object dialog, saved): the group's ``hc:rotMatrix`` turns it about the middle of its own size
     (``hp:orgSz``, also when it is resized) and its ``hc:transMatrix``/``hp:offset`` move the box around its turned
@@ -683,7 +679,8 @@ def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None) 
     A group turned so turns again to another angle (from its unturned form, as Hancom's dialog does) or back
     to 0. *flips* (-1 on an axis to mirror) flips it as Hancom does (``ShapeObjHorzFlip``/``VertFlip``): the
     group's and every member's ``hc:rotMatrix`` mirror before they turn, the group's ``hp:flip`` takes the flags,
-    the members' stay 0 with ``rotationInfo/@angle`` 180 when flipped left-right. ``None`` keeps the group's own.
+    the members' stay 0. ``None`` keeps the group's own. *member_angle* is written as each member's
+    ``rotationInfo/@angle`` (Hancom's mark of a group flipped left-right); ``None`` keeps theirs.
     Refused (``shape-rotation-unsupported``) for what no Hancom-saved document shows: a member turned or flipped
     on its own; a flipped group resized, holding a group or flipped both ways. Everything is checked before
     anything changes."""
@@ -746,8 +743,8 @@ def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None) 
         if _local(shape) == "container":
             continue  # a group inside keeps its centre (Hancom leaves it)
         member_info = shape.find(f"{_HP}rotationInfo")
-        if member_info is not None:  # Hancom marks a member of a group flipped left-right as turned 180
-            member_info.set("angle", str(_member_angle(wanted)))
+        if member_info is not None and member_angle is not None:  # set as the group is flipped, kept as it turns
+            member_info.set("angle", str(member_angle))
         # The middle of its own turned box as drawn, its size rounded first (6363.96 wide: 3182; 8485.28: 4242), and
         # its text across that width -- at 0 too, as Hangul saves a resized group's members (drawn 9000: 4500).
         if not angle and any(_local(other) == "container" for other in shapes):
