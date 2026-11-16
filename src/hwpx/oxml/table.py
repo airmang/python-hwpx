@@ -82,18 +82,13 @@ def _set_cell_borders_preserving(table: Any, cell: Any, color: str, line_type: s
     matches = [n for n in container if n.tag == HH + "borderFill" and n.get("id") == reference]
     if len(matches) != 1:
         refuse("existing cell border style is missing or ambiguous")
-    candidate = deepcopy(matches[0])
-    _color_existing_borders(candidate, color, line_type)
-    key = _border_edit_signature(candidate, root=True)
-    for existing in container:
-        if existing.tag == HH + "borderFill" and _border_edit_signature(existing, root=True) == key:
-            table.set_cell_border_fill(cell.address[0], cell.address[1], existing.get("id"))
-            return
-    candidate.set("id", header._allocate_border_fill_id(container))
-    container.append(candidate)
-    container.set("itemCnt", str(len(container.findall(HH + "borderFill"))))
-    header.mark_dirty()
-    cell.element.set("borderFillIDRef", candidate.get("id"))
+    _color_existing_borders(deepcopy(matches[0]), color, line_type)  # refuses before anything changes
+    from .formatting import derive_definition
+
+    derived = derive_definition(
+        header, "borderFill", reference, lambda candidate: _color_existing_borders(candidate, color, line_type)
+    )
+    cell.element.set("borderFillIDRef", derived)
     table.mark_dirty()
     _match_touching_edges(table, cell)
 
@@ -146,26 +141,19 @@ def _match_touching_edges(table: Any, cell: Any) -> None:
 def _set_shared_side(table: Any, header: Any, container: Any, fills: dict, other: Any, line: Any, side: str) -> None:
     from .namespaces import HH
 
-    base = fills.get(other.element.get("borderFillIDRef") or table.element.get("borderFillIDRef"))
-    if base is None or line is None:
+    from .formatting import derive_definition
+
+    reference = other.element.get("borderFillIDRef") or table.element.get("borderFillIDRef")
+    base = fills.get(reference)
+    if base is None or line is None or base.find(HH + side) is None:
         return
-    candidate = deepcopy(base)
-    target = candidate.find(HH + side)
-    if target is None:
-        return
-    for key, value in line.attrib.items():
-        target.set(key, value)
-    key = _border_edit_signature(candidate, root=True)
-    for existing in container:
-        if existing.tag == HH + "borderFill" and _border_edit_signature(existing, root=True) == key:
-            other.element.set("borderFillIDRef", existing.get("id"))
-            return
-    candidate.set("id", header._allocate_border_fill_id(container))
-    container.append(candidate)
-    container.set("itemCnt", str(len(container.findall(HH + "borderFill"))))
-    fills[candidate.get("id")] = candidate
-    header.mark_dirty()
-    other.element.set("borderFillIDRef", candidate.get("id"))
+
+    def change(candidate: Any) -> None:
+        target = candidate.find(HH + side)
+        for key, value in line.attrib.items():
+            target.set(key, value)
+
+    other.element.set("borderFillIDRef", derive_definition(header, "borderFill", reference, change))
 
 
 def _color_existing_borders(candidate: Any, color: str, line_type: str) -> None:
@@ -182,11 +170,6 @@ def _color_existing_borders(candidate: Any, color: str, line_type: str) -> None:
             )
         sides[0].set("color", color.upper())
         sides[0].set("type", line_type)
-
-
-def _border_edit_signature(node: Any, *, root: bool = False) -> tuple[Any, ...]:
-    attributes = tuple(sorted((k, v) for k, v in node.attrib.items() if not (root and k == "id")))
-    return node.tag, attributes, node.text, node.tail, tuple(_border_edit_signature(c) for c in node)
 
 
 def _wrap_paragraph(
@@ -317,6 +300,11 @@ class HwpxOxmlTableCell(TableCellFormat):
         return int(size.get("height", "0")) if size is not None else 0
 
     def set_size(self, width: int | None = None, height: int | None = None) -> None:
+        for argument, value in (("width", width), ("height", height)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+                from ..errors import argument_type_error
+
+                raise argument_type_error(argument, value, "an int (HWPUNIT) or None")
         size = self._size_element()
         if width is not None:
             size.set("width", str(max(width, 0)))
@@ -1004,6 +992,11 @@ class HwpxOxmlTable(TableStructureEdits, TableFormat):
         return mapping
 
     def _grid_entry(self, row_index: int, col_index: int) -> HwpxTableGridPosition:
+        for argument, value in (("row", row_index), ("col", col_index)):
+            if isinstance(value, bool) or not isinstance(value, int):
+                from ..errors import argument_type_error
+
+                raise argument_type_error(argument, value, "int", suggestion="칸은 table.cell(0, 1) 처럼 행·열 번호로 고르세요.")
         row_count = self.row_count
         col_count = self.column_count
         if row_index < 0 or col_index < 0 or row_index >= row_count or col_index >= col_count:

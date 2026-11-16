@@ -11,19 +11,8 @@ logger = logging.getLogger(__name__)
 
 from lxml import etree
 
-from ..errors import HwpxLookupError
+from ..errors import HwpxIndexError as HwpxIndexError  # moved to hwpx.errors in 7.0; this name stays
 from .namespaces import HP10_NS, HP_NS, tag_local_name
-
-
-class HwpxIndexError(HwpxLookupError, IndexError):
-    """An index (table, cell, picture, paragraph) out of range, as a structured error.
-
-    It is a :class:`~hwpx.errors.HwpxLookupError` (and so a ``KeyError``) and also an
-    ``IndexError``, which these failures raised before 7.0: an ``except IndexError`` keeps
-    catching them. (Kept here until :mod:`hwpx.errors` takes it.)
-    """
-
-    default_code = "hwpx-index-error"
 
 _TRUE_VALUES = {"1", "true", "True", "TRUE"}
 _FALSE_VALUES = {"0", "false", "False", "FALSE"}

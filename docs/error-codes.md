@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 287 | 11 |
+| 개수 | 291 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -45,10 +45,12 @@ except HwpxError as exc:
 `<도메인>-<조건>`, 전부 소문자 kebab-case. 도메인은 6.0 네임스페이스와
 패키지 수준 관심사에서 온다:
 
-`capability`, `cell`, `contract`, `document`, `equation`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `recover`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `toc`, `track`
+`body`, `capability`, `cell`, `contract`, `document`, `equation`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `recover`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `toc`, `track`
 
-유예 2건 — `unknown-contract-document`, `unknown-contract-schema` —
-은 5.6.0 에 이미 나간 이름이라 문법에 맞지 않아도 바꾸지 않는다(7.0 정리).
+문법에 맞지 않는 코드는 없다. 7.0 에서 바뀐 코드(`hwpx.errors.RENAMED_CODES`):
+
+- `unknown-contract-document` → `contract-document-unknown`
+- `unknown-contract-schema` → `contract-schema-unknown`
 
 ## 전체 목록
 
@@ -56,6 +58,13 @@ except HwpxError as exc:
 문서가 사본이다 — 문서끼리 대조하는 가드는 "양쪽에 다 없으면 통과"하므로,
 문서를 코드에서 유도하는 쪽이 옳다.
 
+
+### `body-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `body-op-nested-paragraph` | 본문 op 가 다른 문단(글상자·각주 등)을 품은 문단의 글을 바꾸려 했다(안쪽 글이 지워진다). |
+| `body-op-section-settings` | 본문 op 가 구역 설정(hp:secPr)을 담은 문단을 지우거나 복제하거나 자리를 옮기려 했다(구역마다 하나, 첫 문단에 있어야 한다). |
 
 ### `cell-*`
 
@@ -69,6 +78,8 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `contract-document-missing` | 동봉돼야 할 계약 문서가 휠에 없다. |
+| `contract-document-unknown` | 그런 이름의 계약 문서가 없다(6.x 의 unknown-contract-document). |
+| `contract-schema-unknown` | 그런 이름의 계약 스키마가 없다(6.x 의 unknown-contract-schema). |
 
 ### `document-*`
 
@@ -349,6 +360,7 @@ except HwpxError as exc:
 | `shape-chart-anchor-detached` | 만든 차트 앵커가 자기 파트를 가리키지 않는다. |
 | `shape-chart-axes-missing` | 축이 필요한 차트(막대·꺾은선·영역·분산형·방사형·거품형 등)에 두 축(c:axId와 정의된 축)이 없다(한컴이 빈 차트를 그리거나 멈춘다). |
 | `shape-chart-not-created` | 만든 차트를 표준 스캔이 다시 찾지 못했다. |
+| `shape-chart-reference-empty` | paragraph.add_chart 의 chart_id_ref(차트 파트 경로)가 비어 있다. |
 | `shape-chart-root-invalid` | 차트 XML 루트가 c:chartSpace 가 아니다. |
 | `shape-chart-xml-empty` | 차트 XML 이 비어 있다. |
 | `shape-chart-xml-malformed` | 차트 XML 이 올바른 XML 이 아니다. |
@@ -366,6 +378,7 @@ except HwpxError as exc:
 | `shape-drop-cap-not-created` | 만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다. |
 | `shape-drop-cap-style-unsupported` | 드롭캡 dropcapstyle 값이 실증된 어휘(DoubleLine, TripleLine) 밖이다. |
 | `shape-equation-base-unit-value` | 수식 기준 크기(base_unit)가 1 이상 2**31 미만의 int(1/100 pt)가 아니다(bool 도 거부). |
+| `shape-equation-font-empty` | 수식 글꼴(font)이 비어 있거나 문자열이 아니다. |
 | `shape-equation-not-created` | 만든 수식을 표준 스캔이 다시 찾지 못했다. |
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
@@ -388,7 +401,7 @@ except HwpxError as exc:
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
 | `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다). |
 | `shape-rotation-value` | 회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부). |
-| `shape-size-value` | 도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `shape-size-value` | 도형·그림·수식·차트 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). 수식·차트의 size 는 (너비, 높이) 쌍이어야 하고 0일 수 없다. |
 | `shape-z-order-value` | 개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부). |
 
 ### `story-*`
@@ -496,10 +509,3 @@ except HwpxError as exc:
 | `track-paragraph-empty` | 지울 텍스트가 문단에 없다. |
 | `track-selector-conflict` | 수락·거절할 변경을 change 와 author 로 함께 골랐다(하나만 준다). |
 | `track-text-empty` | 변경추적 삽입 텍스트가 비어 있다. |
-
-### `unknown-*`
-
-| 코드 | 뜻 |
-|---|---|
-| `unknown-contract-document` | 그런 이름의 계약 문서가 없다. |
-| `unknown-contract-schema` | 그런 이름의 계약 스키마가 없다. |

@@ -1880,6 +1880,23 @@
      "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
     }
    },
+   "HwpxIndexError": {
+    "kind": "class",
+    "bases": [
+     "HwpxLookupError",
+     "HwpxError",
+     "KeyError",
+     "IndexError",
+     "LookupError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
    "HwpxLookupError": {
     "kind": "class",
     "bases": [
@@ -1937,6 +1954,7 @@
      "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
     }
    },
+   "RENAMED_CODES": {"kind": "constant", "type": "dict"},
    "ReplaceScopeWarning": {
     "kind": "class",
     "bases": [

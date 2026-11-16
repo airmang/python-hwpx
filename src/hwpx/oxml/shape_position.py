@@ -886,6 +886,29 @@ def validate_shape_size(width: object, height: object) -> tuple[int, int]:
     return width, height  # type: ignore[return-value]
 
 
+def validate_box_size(size: object, *, kind: str) -> tuple[int, int]:
+    """*size* of an equation or chart: a ``(width, height)`` pair of ints in ``0 < value < 2**31``
+    (HWPUNIT). Unlike a line, such a box drawn 0 wide or 0 high shows nothing, so 0 is refused too;
+    so is a size that is not a pair (``size=5``)."""
+
+    if isinstance(size, (str, bytes)) or not isinstance(size, (tuple, list)) or len(size) != 2:
+        raise HwpxValueError(
+            f"{kind} size must be a (width, height) pair of HWP units; got {size!r}",
+            code="shape-size-value",
+            context={"argument": "size", "value": repr(size)},
+            suggestion="Pass size=(width, height), both positive ints in HWP units, or leave it out.",
+        )
+    width, height = validate_shape_size(size[0], size[1])
+    if width == 0 or height == 0:
+        raise HwpxValueError(
+            f"{kind} size must be positive; got {size!r}",
+            code="shape-size-value",
+            context={"argument": "size", "value": repr(size)},
+            suggestion=f"Leave size out to have the {kind} measured, or pass two positive HWP units.",
+        )
+    return width, height
+
+
 def validate_rect_ratio(ratio: object) -> int:
     """A rectangle's corner *ratio* (per cent), checked to be an int in ``0 <= ratio < 2**31``: Hancom reads a
     negative one as 0."""
@@ -1110,6 +1133,7 @@ __all__ = [
     "validate_original_size",
     "validate_rect_ratio",
     "validate_shape_size",
+    "validate_box_size",
 ]
 
 

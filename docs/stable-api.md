@@ -89,7 +89,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 | `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 376 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 164 |
 | `hwpx.objects` 51개 값 형식 | 필드 238 · 멤버 104 · enum 값 10 | 352 |
-| 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 64 |
+| 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
 <!-- public-surface-lock:end -->
 
 공개 이름을 바꾸면 잠금을 손으로 고치지 않고 다시 만든다. 바뀐 것마다
@@ -108,6 +108,56 @@ python scripts/public_surface_lock.py rebuild                                # g
 ```bash
 python -m hwpx.capabilities --verify
 ```
+
+## 엔진 계약 (7.0)
+
+python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉 가지를 약속하고, 약속마다
+그것을 지키는 테스트를 적는다(`tests/test_engine_contract.py` 가 여기 적힌 테스트가 모두
+있는지 확인한다). 약속은 major 경계에서만 바뀐다.
+
+1. **같은 바이트는 같은 결과다.** 같은 바이트를 열면 몇 번을, 어느 프로세스에서 열어도 같은
+   모델·같은 글을 읽고, 고치지 않고 저장하면 같은 바이트가 나온다.
+   `tests/test_engine_contract.py::test_same_bytes_open_to_the_same_model_text_and_bytes`,
+   `tests/test_engine_contract.py::test_same_bytes_give_the_same_answer_in_another_process`
+2. **고치지 않은 저장은 바이트 그대로다.** 열고 고치지 않고 저장하면 모든 파트가 바이트 그대로다.
+   대개 파일 전체가 같고, 몇몇은 ZIP 항목의 순서·플래그·폴더 항목만 다르다(공개·시험 HWPX 중
+   열리는 1,299개: 1,112개는 파일째 같고 187개는 파트가 같다).
+   `tests/test_engine_contract.py::test_an_unedited_hancom_document_saves_its_parts_unchanged`,
+   `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`
+3. **공개 편집은 그 파트만 바꾸고, 바꾼 파트를 알린다.** 공개 API로 고치면 그 내용을 담은 파트만
+   바뀌고 나머지 파트는 바이트 그대로다. 바뀐 파트는 `MutationReport.changed_parts` 에 적힌다
+   (`save_to_path(..., return_report=True)`).
+   `tests/test_engine_contract.py::test_a_public_edit_changes_only_its_part_and_says_so`,
+   `tests/test_mutation_report.py::test_one_cell_edit_patch_lists_dirty_section`
+4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save_to_path`·
+   `save_to_stream`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
+   아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다).
+   `tests/test_document_save_api.py::test_to_bytes_rejects_generated_package_that_fails_open_safety`,
+   `tests/test_document_save_api.py::test_save_to_path_preserves_existing_file_when_open_safety_fails`
+5. **"한/글에서 열린다"는 한/글 기록이 있는 것에만 말한다.** 한/글에서 열어 확인했다
+   (Render-verified)는 말은 실제 한/글로 열어 본 기록(`docs/openrate/` 보고, 한컴 오라클
+   측정)이 있는 만들기·편집 영역에만 붙는다([지원 매트릭스](support-matrix.md)).
+   `tests/test_engine_contract.py::test_render_verified_claims_cite_real_hancom_evidence`
+6. **모르는 요소는 읽은 대로 쓴다.** 엔진이 모르는 요소·속성(다른 이름공간의 요소, 새 버전의
+   목록)은 그 파트를 다시 쓸 때도 이름공간·이름·속성·글·자식이 읽은 그대로 남는다(접두사
+   이름은 바뀔 수 있다).
+   `tests/test_engine_contract.py::test_unknown_elements_are_written_as_read`
+7. **결정 모드에서는 만들기도 결정적이다.** `HwpxDocument.new(seed=, now=)`·
+   `HwpxDocument.open(..., seed=, now=)` 는 새 id와 날짜를 정해진 값으로 만들어, 같은 코드가 어느
+   프로세스에서나 같은 바이트를 쓴다. 주지 않으면 id는 무작위다.
+   `tests/test_deterministic_creation.py::test_two_processes_with_seed_and_now_write_identical_parts`,
+   `tests/test_deterministic_creation.py::test_open_with_seed_makes_edits_deterministic`
+8. **실패는 `HwpxError` 다.** 공개 경로의 실패는 `hwpx.errors.HwpxError` 계열(대체한 내장 예외도
+   함께 상속)로 나가고 `code`·`suggestion` 을 싣는다. 잘못된 타입의 인자도 내장
+   `TypeError`·`AttributeError` 가 그대로 새지 않는다(운영체제·손상 패키지 실패는 아래
+   「오류 계약」대로).
+   `tests/test_error_contract.py::test_the_public_path_raises_no_bare_builtins`,
+   `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`
+9. **공개 이름은 다음 major까지 얼린다.** 7.0의 공개 이름(최상위·루트·묶음·`hwpx.model` 의 계약
+   멤버·`hwpx.objects` 값 형식·안정 모듈 이름)은 8.0 전에는 지우거나 바꾸지 않는다. 공개 표면
+   잠금(`tests/data/public_surface.json`)과 다르면 테스트가 실패한다.
+   `tests/test_public_surface.py::test_public_surface_matches_the_lock`,
+   `tests/test_public_surface.py::test_lock_major_is_not_behind_the_package`
 
 ## stable (29)
 

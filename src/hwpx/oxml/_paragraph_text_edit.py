@@ -14,6 +14,7 @@ from ._document_primitives import (
     _child_tag_like,
     _fill_text_element,
     _is_tab_control_element,
+    _require_text,
     _sanitize_text,
 )
 from .namespaces import tag_local_name
@@ -59,6 +60,7 @@ def edit_node_candidates(
 def sanitize_keeping_tabs(value: str) -> str:
     """``_sanitize_text``, but keep tabs for :func:`set_text_with_tabs`."""
 
+    _require_text(value)
     return "\t".join(_sanitize_text(part) for part in value.split("\t"))
 
 
@@ -178,9 +180,10 @@ def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
     """Move the section settings of the paragraph *source* to the front of the paragraph *target*.
 
     A run holding nothing else moves whole; from a run holding text or objects too, only the
-    settings move, into a new run with the same attributes. *target* loses its line layout cache:
-    the controls in front of its text shift every position the cache records. Returns whether
-    anything moved.
+    settings move, into a new run with the same attributes. Both paragraphs lose their line
+    layout cache: the controls in front of the text (8 positions each in ``lineseg/@textpos``)
+    shift every position the cache records, in *target* by coming and in *source* by going.
+    Returns whether anything moved.
     """
 
     found = section_setting_runs(source)
@@ -198,8 +201,10 @@ def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
                 moved.append(child)
         target.insert(position, moved)
         position += 1
-    for cache in [child for child in target if isinstance(child.tag, str) and tag_local_name(child.tag).lower() == "linesegarray"]:
-        target.remove(cache)
+    for paragraph in (target, source):
+        for cache in [child for child in paragraph
+                      if isinstance(child.tag, str) and tag_local_name(child.tag).lower() == "linesegarray"]:
+            paragraph.remove(cache)
     return True
 
 

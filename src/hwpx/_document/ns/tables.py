@@ -15,13 +15,24 @@ automation 최다 사용 저작 동사 중 하나). 만든 다음에 하는 일�
 
 from __future__ import annotations
 
+from types import ModuleType
 from typing import TYPE_CHECKING, Iterable, overload
 
-from ._base import _Namespace
+from ...model import Table, TableCell
+from ._base import _LazyModule, _Namespace
+
+
+# Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
+def _load_table_navigation() -> ModuleType:
+    from ...tools import table_navigation
+
+    return table_navigation
+
 
 if TYPE_CHECKING:
-    from ...model import Table, TableCell
-    from ...tools.table_navigation import TableMapResult
+    from ...tools import table_navigation as _table_navigation
+else:
+    _table_navigation = _LazyModule(_load_table_navigation)
 
 __all__ = ["TablesNamespace"]
 
@@ -93,10 +104,14 @@ class TablesNamespace(_Namespace):
         tables = self.all
         if isinstance(index, slice):
             return tables[index]
+        if isinstance(index, bool) or not isinstance(index, int):
+            from ...errors import argument_type_error
+
+            raise argument_type_error("index", index, "int or slice", suggestion="doc.tables[0] 처럼 번호로 고르세요.")
         try:
             return tables[index]
         except IndexError:
-            from ...oxml.utils import HwpxIndexError
+            from ...errors import HwpxIndexError
 
             raise HwpxIndexError(
                 f"표 인덱스 {index} 가 범위를 벗어났습니다(표 {len(tables)}개).",
@@ -108,7 +123,7 @@ class TablesNamespace(_Namespace):
                 ),
             ) from None
 
-    def map(self) -> "TableMapResult":
+    def map(self) -> "_table_navigation.TableMapResult":
         """모든 표의 위치·모양·헤더 미리보기를 담은 간결 지도."""
 
         from ...tools.table_navigation import get_table_map

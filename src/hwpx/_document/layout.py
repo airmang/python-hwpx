@@ -172,7 +172,7 @@ def _resolve_paragraph_targets(
     targets: list[tuple[int, HwpxOxmlParagraph]] = []
     for index in indexes:
         if index < 0 or index >= len(paragraphs):
-            from ..oxml.utils import HwpxIndexError
+            from ..errors import HwpxIndexError
 
             raise HwpxIndexError(
                 f"paragraph index {index} out of range ({len(paragraphs)} paragraphs)",
@@ -793,9 +793,9 @@ def set_columns(
             proportions; Hancom keeps them as shares of 32768 of the text width.
         separator_type: Optional column separator line type (e.g. ``SOLID``).
     """
-    if not 1 <= col_count <= 255:
+    if isinstance(col_count, bool) or not isinstance(col_count, int) or not 1 <= col_count <= 255:
         raise HwpxValueError(
-            "col_count must be between 1 and 255",
+            "col_count must be an int between 1 and 255",
             code="page-columns-invalid",
             context={"requested": col_count},
             suggestion="Use columns=1 to remove columns.",

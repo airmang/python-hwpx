@@ -170,7 +170,7 @@ def _add_hyperlink(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.refs.add_hyperlink("https://example.com", "Example")
         links = document.paragraphs[-1].hyperlinks
-        assert links and links[0]["url"] == "https://example.com"
+        assert links and links[0].url == "https://example.com"
 
 
 def _export_text(_: Path) -> None:
