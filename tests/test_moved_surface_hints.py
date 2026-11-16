@@ -15,8 +15,13 @@ EXPECTED_RETIRED_SURFACES = {
 }
 
 
-def test_all_47_moved_surfaces_have_parseable_executable_imports() -> None:
-    assert len(hwpx._MOVED_TO_COMPANION) == 47
+def test_all_moved_surfaces_have_parseable_executable_imports() -> None:
+    by_release: dict[str, int] = {}
+    for surface in hwpx._MOVED_TO_COMPANION.values():
+        by_release[surface.moved_in] = by_release.get(surface.moved_in, 0) + 1
+    # 5.0 moved 47 application names; 7.0 moved 21 (ingest 8 incl. HwpxMarkdownConverter,
+    # mail merge 4, reference consistency 2, preview 5, and the ingest/integrations packages).
+    assert by_release == {"5.0": 47, "7.0": 21}
     assert {surface.kind for surface in hwpx._MOVED_TO_COMPANION.values()} == {
         "module",
         "renamed",

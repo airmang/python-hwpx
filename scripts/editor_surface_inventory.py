@@ -112,16 +112,11 @@ CATEGORY_MAP: dict[str, str] = {
     "character-formatting": "서식",
     "list-formatting": "서식",
     "font-registration": "서식",
-    "table-navigation-fill": "표",
     "find-replace": "서식",
     "text-blocks": "자동화",
     "hyperlink-bookmark": "참조",
-    # 6.8 트레인㉛ — 트레인㉚이 찾은 mail_merge 측정 갭 등재.
-    "mail-merge": "자동화",
     # 6.9 트레인㉝ — 트레인㉙의 macOS 메뉴 전수 스캔이 찾은 문서 병합 갭 등재.
     "document-merge": "자동화",
-    # Markdown 가져오기 — 문서 병합처럼 기존 문서/원고를 문서로 옮기는 자동화.
-    "markdown-import": "자동화",
     # 6.9 트레인㉞ — 덧말·글자 겹치기 저작.
     "dutmal-compose": "개체",
     # 6.13 트레인㊻ — 팀장 실한컴 GUI 프로브①③ gold 기반 날짜/시간·교정

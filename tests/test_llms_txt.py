@@ -104,7 +104,7 @@ def test_llms_document_api_claims_match_live_code() -> None:
     assert not _api_claim_errors(LLMS.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize("path", ["add_heading", "tables.fill_by_path", "text.replace"])
+@pytest.mark.parametrize("path", ["add_heading", "tables.merge_cells", "text.replace"])
 def test_negative_claim_gate_rejects_existing_apis(path: str) -> None:
     assert _api_claim_errors(f"## Unavailable document APIs\n- `doc.{path}(...)`")
 

@@ -76,7 +76,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 362 | `tests/data/model_surface.json` |
+| 반환 객체 계약 | 376 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -84,9 +84,12 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 python -m hwpx.capabilities --verify
 ```
 
-## stable (36)
+## stable (29)
 
-major 경계에서만 깨지는 이름들입니다.
+major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdownConverter`, 메일 머지 4개,
+`inspect_reference_consistency`, `REFERENCE_CONSISTENCY_REPORT_VERSION`)가
+`python-hwpx-automation`으로 옮겨 갔습니다. 부르면 새 자리를 알려 주는 `ImportError`가
+납니다([7.0 이주 가이드](migration-7.0.md#옮겨-간-기능)).
 
 ### 문서 열기·저장·패키지
 - `HwpxDocument`, `HwpxPackage`
@@ -104,31 +107,24 @@ major 경계에서만 깨지는 이름들입니다.
 ### 읽기·추출
 - `TextExtractor`, `ParagraphInfo`, `SectionInfo`, `DEFAULT_NAMESPACES`
 - `ObjectFinder`, `FoundElement`
-- `HwpxMarkdownConverter`
 
-### 비교·메일머지
-- `doc_diff`, `diff_paragraphs`, `inspect_reference_consistency`
-- `merge_template_rows`, `load_mail_merge_rows`, `inspect_mail_merge_placeholders`
-- `DOC_DIFF_REPORT_VERSION`, `REFERENCE_CONSISTENCY_REPORT_VERSION`,
-  `MAIL_MERGE_REPORT_VERSION`
+### 비교
+- `doc_diff`, `diff_paragraphs`, `DOC_DIFF_REPORT_VERSION`
 
 ### 메타
 - `__version__`
 
-## experimental (26)
+## experimental (14)
 
 `from hwpx.experimental import ...`로 사용하세요. 계약이 유동적입니다. 7.0부터 최상위
-`hwpx`에서는 가져올 수 없습니다.
+`hwpx`에서는 가져올 수 없습니다. 문서 ingest 7개(`DocumentIngestor` …)와 미리보기 5개
+(`render_layout_preview`, `LayoutPreview`, `PreviewPage`, `render_document_viewer`,
+`DocumentViewer`)는 7.0에서 `python-hwpx-automation`(`hwpx_automation.ingest`·
+`hwpx_automation.preview`)으로 옮겼습니다.
 
-- **문서 ingestion 프레임워크**(임의 포맷 → HWPX): `DocumentIngestor`,
-  `DocumentConverter`, `DocumentIngestResult`, `DocumentSourceInfo`,
-  `ConversionAttempt`, `DocumentIngestError`, `UnsupportedDocumentFormat`
-- **레이아웃 프리뷰**(한컴 없는 정직 근사): `render_layout_preview`,
-  `LayoutPreview`, `PreviewPage`
 - **쪽 수 추정**(한/글 없이, `hwpx.layout.pages`): `estimate_pages`, `PageEstimate`,
   `EstimatedLine` — 본문 문단의 줄마다 쪽·단·세로 위치를 추정한다. 따르지 않는 요소가
   있으면 `pages`는 `None`이고 `unsupported`가 까닭을 구역마다 적는다
-- **문서 프리뷰 뷰어**(3.8.0 신규): `render_document_viewer`, `DocumentViewer`
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
   `estimate_equation_size`, `UnsupportedLatexError`. 구현 모듈 `hwpx.equation`에서
   가져와도 같은 객체이고, 사용 가이드와 퀵스타트는 `from hwpx.equation import latex_to_eqedit`를 쓴다
@@ -140,17 +136,14 @@ major 경계에서만 깨지는 이름들입니다.
 - **기계가독 자기서술**(5.6.0 신규, `hwpx.capabilities`):
   `describe_capabilities`, `contract_document`, `contract_json_schema`
 
-> `HwpxMarkdownConverter`(HWPX → Markdown 읽기)는 성숙한 경로라 **stable**입니다.
-> 위 ingestion 프레임워크(임의 포맷 → HWPX)만 experimental입니다.
-
 ## 7.0: 엔진의 공개 읽기 (모듈 경로로 import)
 
 7.0은 변환·짐작 기능(Markdown·HTML 내보내기, ingest, 메일머지, 미리보기 …)을
-`python-hwpx-automation`으로 옮긴다. 옮겨 간 코드는 이 문서의 계약만 쓴다. 그 코드가
+`python-hwpx-automation`으로 옮겼다. 옮겨 간 코드는 이 문서의 계약만 쓴다. 그 코드가
 쓰던 엔진 기능 가운데 엔진으로서 뜻이 있는 것을 아래 이름으로 계약에 올렸다. 최상위
 `from hwpx import ...`에는 넣지 않고, 적힌 모듈 경로에서 가져온다. `hwpx.oxml.*`의 다른
-이름은 이 목록에 없으면 계약이 아니다(경로는 열려 있다).
-`scripts/check_moved_private_names.py`가 옮겨 갈 코드에서 계약 밖의 이름을 찾는다.
+이름은 이 목록에 없으면 계약이 아니다(경로는 열려 있다). 미리보기의 MathML 변환이 쓰는
+`EQEDIT_MATHML_OPERATOR_COMMANDS`는 `hwpx.equation`에서 가져온다.
 
 **stable** — major 경계에서만 바뀐다.
 
@@ -248,9 +241,6 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
 | `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
 | `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
-| `hwpx.equation.mathml.MathMLUnavailableError` | `equation-mathml-unavailable` | `HwpxError`, `RuntimeError` | `latex2mathml` 없이 MathML 변환 요청 |
-| `hwpx.ingest.DocumentIngestError` | `ingest-failed` | `HwpxError`, `RuntimeError` | ingest 변환 실패(`attempts`에 시도 기록) |
-| `hwpx.ingest.UnsupportedDocumentFormat` | `ingest-format-unsupported` | `DocumentIngestError` | 입력을 받는 변환기가 없음 |
 | `hwpx.tools.recover.RecoverError` | `recover-unsafe` | `HwpxError`, `ValueError` | 로컬 헤더 항목을 안전하게 복구할 수 없음 |
 | `hwpx.tools.toc_fidelity.WordBoxExtractorRequired` | `toc-word-box-extractor-required` | `HwpxError`, `RuntimeError` | PDF 글자 상자 추출기 없이 차례 쪽 대조 호출 |
 

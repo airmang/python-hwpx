@@ -21,8 +21,8 @@
       "sha256": "a7a68c54304eae4ab2c25ae5c6a841fb9663084b60ac235af1c61e44c265a6b9"
     }
   ],
-  "qualifiedExportCount": 11,
-  "qualifiedSnapshotSha256": "1dbf7b348cdffb99b43133bc2153c4aa93768212cfb18292b2c5f5879257ce16",
+  "qualifiedExportCount": 6,
+  "qualifiedSnapshotSha256": "ed991aa60161496ffc069c3cb52d46be21f36f19f1229df560337555da17e39f",
   "qualifiedExports": [
     {
       "module": "hwpx.tools.doc_diff",
@@ -31,14 +31,6 @@
       "origin": null,
       "signature": null,
       "value": "doc-diff-v1"
-    },
-    {
-      "module": "hwpx.tools.doc_diff",
-      "name": "REFERENCE_CONSISTENCY_REPORT_VERSION",
-      "kind": "str",
-      "origin": null,
-      "signature": null,
-      "value": "reference-consistency-v1"
     },
     {
       "module": "hwpx.tools.doc_diff",
@@ -54,38 +46,6 @@
       "kind": "function",
       "origin": "hwpx.tools.doc_diff",
       "signature": "(old_source: 'Any', new_source: 'Any') -> 'dict[str, Any]'",
-      "value": null
-    },
-    {
-      "module": "hwpx.tools.doc_diff",
-      "name": "inspect_reference_consistency",
-      "kind": "function",
-      "origin": "hwpx.tools.doc_diff",
-      "signature": "(source: 'Any') -> 'dict[str, Any]'",
-      "value": null
-    },
-    {
-      "module": "hwpx.tools.mail_merge",
-      "name": "MAIL_MERGE_REPORT_VERSION",
-      "kind": "str",
-      "origin": null,
-      "signature": null,
-      "value": "mail-merge-v1"
-    },
-    {
-      "module": "hwpx.tools.mail_merge",
-      "name": "inspect_mail_merge_placeholders",
-      "kind": "function",
-      "origin": "hwpx.tools.mail_merge",
-      "signature": "(source: 'str | Path | HwpxDocument') -> 'dict[str, Any]'",
-      "value": null
-    },
-    {
-      "module": "hwpx.tools.mail_merge",
-      "name": "load_mail_merge_rows",
-      "kind": "function",
-      "origin": "hwpx.tools.mail_merge",
-      "signature": "(data: 'str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any]') -> 'list[dict[str, Any]]'",
       "value": null
     },
     {
@@ -113,10 +73,22 @@
       "value": null
     }
   ],
-  "topLevelExportCount": 6,
-  "topLevelSnapshotSha256": "98e444c99cfd6fe5c9370fea335af5415308a5b7f2ca16ec6d23b5a648731875",
-  "toolsExportCount": 6,
-  "toolsSnapshotSha256": "98e444c99cfd6fe5c9370fea335af5415308a5b7f2ca16ec6d23b5a648731875",
-  "deterministicPayloadsSha256": "83615c8ef70b54632e214c3aca58422fba97c987a4d64fed2d450e77e72478dc",
+  "topLevelExportCount": 2,
+  "topLevelSnapshotSha256": "939879f35d58f8118cf53c341407d3d1894400d66d173555c17cb9389962d8f8",
+  "toolsExportCount": 2,
+  "toolsSnapshotSha256": "939879f35d58f8118cf53c341407d3d1894400d66d173555c17cb9389962d8f8",
+  "deterministicPayloadsSha256": "420bd2a493cdffdcb11be0f59b61c542d17b1803ce61924f68fb2b9adfb014f5",
+  "movedIn7_0": {
+    "to": "python-hwpx-automation",
+    "names": [
+      "hwpx.tools.doc_diff.REFERENCE_CONSISTENCY_REPORT_VERSION",
+      "hwpx.tools.doc_diff.inspect_reference_consistency",
+      "hwpx.tools.mail_merge.MAIL_MERGE_REPORT_VERSION",
+      "hwpx.tools.mail_merge.inspect_mail_merge_placeholders",
+      "hwpx.tools.mail_merge.load_mail_merge_rows",
+      "hwpx.tools.mail_merge.merge_template_rows"
+    ],
+    "note": "reference consistency lint -> hwpx_automation.office.compliance; mail merge -> hwpx_automation.mail_merge"
+  },
   "compatibilityRemovalGate": "4.x observation followed by the owner-approved 5.0 core boundary"
 }

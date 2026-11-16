@@ -170,10 +170,7 @@
   - 뒤집기·회전은 아직 지원하지 않습니다.
 - `get_table_map() -> dict`
   - 문서 순서대로 표를 스캔하고 `table_index`, `paragraph_index`, 행·열 수, 추정 헤더 텍스트, 첫 행 미리보기, 빈 표 여부를 반환합니다.
-- `find_cell_by_label(label_text, direction="right") -> dict`
-  - 모든 표를 순회하며 라벨 셀을 찾고, `right`/`down` 방향으로 인접한 타깃 셀 정보를 모두 반환합니다. 라벨 매칭은 공백·대소문자·후행 콜론을 정규화합니다.
-- `fill_by_path(mappings) -> dict`
-  - `"라벨 > 방향 > 방향"` 형식의 경로를 해석해 셀 값을 일괄 기록합니다. 라벨 미발견, 다중 후보, 범위 초과는 개별 실패 항목으로 보고하고 나머지 매핑은 계속 처리합니다.
+  - 라벨로 칸을 찾아 채우는 `find_cell_by_label`·`fill_by_path`는 7.0에서 `python-hwpx-automation`(`hwpx_automation.forms`)으로 옮겼습니다.
 - `add_line(start_x, start_y, end_x, end_y, *, line_color, line_width, ...) -> HwpxOxmlShape`
   - 새 단락에 선을 삽입합니다. 좌표는 HWPUNIT(1인치 = 7200)입니다.
 - `add_rectangle(width, height, *, ratio, line_color, line_width, fill_color, ...) -> HwpxOxmlShape`

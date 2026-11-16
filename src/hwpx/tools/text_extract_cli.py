@@ -11,9 +11,16 @@ from .text_extractor import TextExtractor
 
 __all__ = [
     "extract_plain",
-    "extract_markdown",
     "main",
 ]
+
+#: ``--format markdown`` moved with the Markdown export (python-hwpx-automation, 7.0).
+_MARKDOWN_MOVED = (
+    "--format markdown은 python-hwpx 7.0에서 python-hwpx-automation으로 옮겼습니다.\n"
+    "    pip install python-hwpx-automation\n"
+    "    from hwpx_automation.markdown import to_markdown\n"
+    "글만 뽑으려면 --format plain(기본값)을 쓰세요."
+)
 
 
 def extract_plain(hwpx_path: Union[str, ZipFile], *, include_tables: bool = False) -> str:
@@ -23,20 +30,6 @@ def extract_plain(hwpx_path: Union[str, ZipFile], *, include_tables: bool = Fals
             object_behavior="skip",
             skip_empty=True,
         )
-
-
-def extract_markdown(hwpx_path: Union[str, ZipFile]) -> str:
-    lines: list[str] = []
-    with TextExtractor(hwpx_path) as extractor:
-        for section in extractor.iter_sections():
-            if lines:
-                lines.extend(["", "---", ""])
-            for paragraph in extractor.iter_paragraphs(section, include_nested=True):
-                text = paragraph.text(object_behavior="skip")
-                if not text.strip():
-                    continue
-                lines.append(f"  {text}" if paragraph.is_nested else text)
-    return "\n".join(lines)
 
 
 def _hwpx_source(input_path: Path) -> "str | ZipFile":
@@ -72,6 +65,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--include-tables", action="store_true", help="Include nested table text")
     parser.add_argument("--output", "-o", help="Write output to a file instead of stdout")
     args = parser.parse_args(argv)
+    if args.format == "markdown":
+        print(f"Error: {_MARKDOWN_MOVED}", file=sys.stderr)
+        return 2
 
     from .archive_cli import _input_file_problem
 
@@ -83,10 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         source = _hwpx_source(input_path)
-        if args.format == "markdown":
-            result = extract_markdown(source)
-        else:
-            result = extract_plain(source, include_tables=args.include_tables)
+        result = extract_plain(source, include_tables=args.include_tables)
     except Exception as exc:  # noqa: BLE001 - one line for the person at the terminal
         print(f"Error: cannot read {args.input}: {exc}", file=sys.stderr)
         return 1

@@ -14,7 +14,6 @@ import pytest
 
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxValueError
-from hwpx.tools.layout_preview import render_layout_preview
 from hwpx.tools.template_analyzer import analyze_template
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -153,5 +152,3 @@ def test_a_landscape_page_gives_tables_headers_and_tools_the_landscape_width(tmp
     layout = analyze_template(path).section_layouts[0]
     assert (layout.page_width, layout.page_height) == (A4[1], A4[0])
     assert layout.computed_body_width == body_width
-    page = render_layout_preview(path).pages[0]
-    assert page.width_mm > page.height_mm

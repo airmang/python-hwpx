@@ -18,9 +18,14 @@
 ``None`` 이다. 표의 근거는 6.0의 위임 shim이 기록하던 행선지
 (``tests/data/document_legacy_shims.json``, 7.0부터는 이 표에서 다시 만든다)다.
 
-``moving`` 이 참인 6개(``export_html`` …)는 새 자리(``doc.text.markdown`` 등)마저
-자동화 패키지(python-hwpx-automation)로 이사할 예정이다. 이사 단계가 그 행의
-``replacement``·``example`` 을 고친다.
+``moving`` 이 참인 5개(``export_html``·``export_markdown``·``export_rich_markdown``·
+``fill_by_path``·``find_cell_by_label``)는 6.0이 옮긴 새 자리(``doc.text.markdown`` 등)마저
+7.0에서 자동화 패키지(python-hwpx-automation)로 옮겼다. 그 행은 자동화 패키지의 함수를
+알려 주고 code 는 ``document-name-moved`` 다. ``get_table_map`` 의 새 자리
+``doc.tables.map()`` 은 엔진에 남는다.
+
+:data:`MOVED_METHODS` 는 같은 7.0 이사로 묶음(``doc.text`` 등)에서 빠진 메서드 8개의 표다.
+묶음의 ``__getattr__`` (``ns/_base.py``)가 :func:`moved_method_error` 로 같은 결의 오류를 낸다.
 """
 
 from __future__ import annotations
@@ -30,7 +35,19 @@ from typing import Literal
 
 from ..errors import HwpxAttributeError
 
-__all__ = ["LEGACY_REMOVED_IN", "MIGRATION_GUIDE_URL", "REMOVED_NAMES", "RemovedName", "removed_name_error"]
+__all__ = [
+    "AUTOMATION_INSTALL",
+    "LEGACY_REMOVED_IN",
+    "MIGRATION_GUIDE_URL",
+    "MOVED_GUIDE_URL",
+    "MOVED_IN",
+    "MOVED_METHODS",
+    "MovedMethod",
+    "REMOVED_NAMES",
+    "RemovedName",
+    "moved_method_error",
+    "removed_name_error",
+]
 
 #: 옛 이름이 사라진 major. ``describe_capabilities()`` 가 이 값을 보고한다.
 LEGACY_REMOVED_IN = "7.0"
@@ -39,6 +56,83 @@ LEGACY_REMOVED_IN = "7.0"
 MIGRATION_GUIDE_URL = (
     "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md"
 )
+
+#: 변환·짐작 기능이 python-hwpx-automation으로 옮겨 간 major와 그 안내.
+MOVED_IN = "7.0"
+AUTOMATION_DISTRIBUTION = "python-hwpx-automation"
+AUTOMATION_INSTALL = f"pip install {AUTOMATION_DISTRIBUTION}"
+MOVED_GUIDE_URL = (
+    "https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class MovedMethod:
+    """7.0에서 python-hwpx-automation으로 옮긴 문서 메서드의 새 자리(문서를 첫 인자로 받는 함수)."""
+
+    module: str
+    function: str
+    #: 한 줄 예(``to_markdown(doc)``).
+    example: str
+
+    @property
+    def replacement(self) -> str:
+        """그대로 붙여 쓸 수 있는 한 줄: ``from 모듈 import 함수; 예``."""
+
+        return f"from {self.module} import {self.function}; {self.example}"
+
+
+_MARKDOWN = "hwpx_automation.markdown"
+_FORMS = "hwpx_automation.forms"
+
+#: 7.0에서 묶음에서 빠져 python-hwpx-automation으로 옮긴 메서드 8개: ``"doc.<묶음>.<이름>"`` → 새 자리.
+MOVED_METHODS: dict[str, MovedMethod] = {
+    "doc.text.markdown": MovedMethod(_MARKDOWN, "to_markdown", "to_markdown(doc)"),
+    "doc.text.html": MovedMethod(_MARKDOWN, "to_html", "to_html(doc)"),
+    "doc.text.append_markdown": MovedMethod(_MARKDOWN, "append_markdown", 'append_markdown(doc, "# 제목")'),
+    "doc.tables.find_cell_by_label": MovedMethod(_FORMS, "find_cell_by_label", 'find_cell_by_label(doc, "성명")'),
+    "doc.tables.form_slots": MovedMethod(_FORMS, "form_slots", "form_slots(doc)"),
+    "doc.tables.fill_by_path": MovedMethod(
+        _FORMS, "fill_by_path", 'fill_by_path(doc, {"성명 > right": "홍길동"})'
+    ),
+    "doc.fields.choices": MovedMethod(_FORMS, "form_choices", "form_choices(doc)"),
+    "doc.fields.choose": MovedMethod(_FORMS, "choose", 'choose(doc, {"참석 여부": "예"})'),
+}
+
+#: 6.x 루트 옛 이름 가운데 7.0에서 자동화 패키지로 옮긴 5개의 새 자리.
+_MOVED_ROOT_NAMES: dict[str, MovedMethod] = {
+    "export_html": MOVED_METHODS["doc.text.html"],
+    "export_markdown": MOVED_METHODS["doc.text.markdown"],
+    "export_rich_markdown": MovedMethod(_MARKDOWN, "to_markdown", "to_markdown(doc, rich=True)"),
+    "fill_by_path": MOVED_METHODS["doc.tables.fill_by_path"],
+    "find_cell_by_label": MOVED_METHODS["doc.tables.find_cell_by_label"],
+}
+
+
+def _moved_error(what: str, name: str, moved: MovedMethod, **context: object) -> HwpxAttributeError:
+    return HwpxAttributeError(
+        f"{what} 는 python-hwpx {MOVED_IN}에서 {AUTOMATION_DISTRIBUTION}으로 옮겼습니다: "
+        f"`{moved.replacement}` — `{AUTOMATION_INSTALL}`",
+        code="document-name-moved",
+        context={
+            "name": name,
+            "replacement": moved.replacement,
+            "movedIn": MOVED_IN,
+            "movedTo": moved.module,
+            "install": AUTOMATION_INSTALL,
+            **context,
+        },
+        suggestion=f"{AUTOMATION_INSTALL} 후 {moved.replacement} — 전체 대응표: {MOVED_GUIDE_URL}",
+    )
+
+
+def moved_method_error(path: str, name: str) -> HwpxAttributeError | None:
+    """``doc.<묶음>.<name>`` 이 7.0에서 옮긴 메서드면 새 자리를 알려 주는 오류를, 아니면 ``None``."""
+
+    moved = MOVED_METHODS.get(f"{path}.{name}")
+    if moved is None:
+        return None
+    return _moved_error(f"{path}.{name}(...)", name, moved, namespace=path)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +144,7 @@ class RemovedName:
     example: str
     #: 6.0에서 반환 형식도 바뀌었으면 한 줄 설명(옮길 때 결과를 쓰는 곳을 본다).
     returns: str = ""
-    #: 새 자리마저 자동화 패키지로 이사할 예정인 이름.
+    #: 새 자리마저 7.0에서 자동화 패키지로 옮긴 이름(``replacement`` 가 그 함수다).
     moving: bool = False
 
 
@@ -101,10 +195,18 @@ REMOVED_NAMES: dict[str, RemovedName] = {
     "set_page_number": _m("doc.page.set_page_number(...)", 'doc.page.set_page_number(position="BOTTOM_CENTER")'),
     "set_page_setup": _m("doc.page.setup(...)", 'doc.page.setup(paper_size="A4")', "dict → PageSetup"),
     "set_page_size": _m("doc.page.set_size(...)", 'doc.page.set_size(orientation="LANDSCAPE")'),
-    # -- doc.text -----------------------------------------------------------
-    "export_html": _m("doc.text.html(...)", "doc.text.html()", moving=True),
-    "export_markdown": _m("doc.text.markdown(...)", "doc.text.markdown()", moving=True),
-    "export_rich_markdown": _m("doc.text.markdown(rich=True)", "doc.text.markdown(rich=True)", moving=True),
+    # -- doc.text (Markdown·HTML 은 7.0에서 python-hwpx-automation 으로) -----
+    "export_html": _m(
+        _MOVED_ROOT_NAMES["export_html"].replacement, _MOVED_ROOT_NAMES["export_html"].example, moving=True
+    ),
+    "export_markdown": _m(
+        _MOVED_ROOT_NAMES["export_markdown"].replacement, _MOVED_ROOT_NAMES["export_markdown"].example, moving=True
+    ),
+    "export_rich_markdown": _m(
+        _MOVED_ROOT_NAMES["export_rich_markdown"].replacement,
+        _MOVED_ROOT_NAMES["export_rich_markdown"].example,
+        moving=True,
+    ),
     "export_text": _m("doc.text.plain(...)", "doc.text.plain()"),
     "find_runs_by_style": _m("doc.text.find_runs(...)", 'doc.text.find_runs(text_color="#FF0000")'),
     "iter_runs": _m("doc.text.runs()", "for run in doc.text.runs(): ..."),
@@ -114,10 +216,16 @@ REMOVED_NAMES: dict[str, RemovedName] = {
     "histories": _p("doc.parts.histories"),
     "master_pages": _p("doc.parts.master_pages"),
     "version": _p("doc.parts.version"),
-    # -- doc.tables ---------------------------------------------------------
-    "fill_by_path": _m("doc.tables.fill_by_path(...)", 'doc.tables.fill_by_path({"성명 > right": "홍길동"})', moving=True),
-    "find_cell_by_label": _m("doc.tables.find_cell_by_label(...)", 'doc.tables.find_cell_by_label("성명")', moving=True),
-    "get_table_map": _m("doc.tables.map()", "doc.tables.map()", moving=True),
+    # -- doc.tables (이름표 찾기는 7.0에서 python-hwpx-automation 으로, 표 지도는 남는다) --
+    "fill_by_path": _m(
+        _MOVED_ROOT_NAMES["fill_by_path"].replacement, _MOVED_ROOT_NAMES["fill_by_path"].example, moving=True
+    ),
+    "find_cell_by_label": _m(
+        _MOVED_ROOT_NAMES["find_cell_by_label"].replacement,
+        _MOVED_ROOT_NAMES["find_cell_by_label"].example,
+        moving=True,
+    ),
+    "get_table_map": _m("doc.tables.map()", "doc.tables.map()"),
     "merge_table_cells": _m("doc.tables.merge_cells(...)", 'doc.tables.merge_cells(table, "A1:B1")'),
     # -- doc.fields ---------------------------------------------------------
     "add_check_box": _m("doc.fields.add_check_box(...)", 'doc.fields.add_check_box("동의")', "dict → CheckBox"),
@@ -176,6 +284,10 @@ def removed_name_error(name: str) -> HwpxAttributeError | None:
     if entry is None:
         return None
     what = f"doc.{name}" + ("(...)" if entry.kind == "method" else "")
+    if entry.moving:
+        return _moved_error(
+            what, name, _MOVED_ROOT_NAMES[name], removedIn=LEGACY_REMOVED_IN, movingToAutomation=True
+        )
     message = (
         f"{what} 는 python-hwpx {LEGACY_REMOVED_IN}에서 없어졌습니다. "
         f"{entry.replacement} 를 쓰세요. 예: {entry.example}"

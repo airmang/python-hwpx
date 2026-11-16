@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import io
-import re
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,29 +76,6 @@ def test_history_snapshot_part_does_not_break_to_model() -> None:
         logs = [history for history in histories if history.is_version_log]
         assert len(logs) == 2
         assert [len(log.to_model().entries) for log in logs] == [1, 1]
-
-
-def test_html_export_keeps_merged_cells_in_their_columns() -> None:
-    with HwpxDocument.new() as document:
-        table = document.add_table(rows=3, cols=3)
-        for row in range(3):
-            for col in range(3):
-                table.cell(row, col).text = f"r{row}c{col}"
-        table.merge_cells(0, 0, 0, 1)
-        table.merge_cells(1, 0, 2, 0)
-        html = document.text.html()
-
-    rows = re.findall(r"<tr>(.*?)</tr>", html, flags=re.S)
-    cells = [re.findall(r"<td([^>]*)>", row) for row in rows]
-    assert cells == [
-        [' colspan="2"', ""],
-        [' rowspan="2"', "", ""],
-        ["", ""],
-    ]
-    # 병합이 없는 표는 전과 같은 마크업이다.
-    with HwpxDocument.new() as document:
-        document.add_table(rows=1, cols=2)
-        assert "colspan" not in document.text.html() and "rowspan" not in document.text.html()
 
 
 def test_tables_all_is_body_level_only_as_documented() -> None:

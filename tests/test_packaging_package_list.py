@@ -86,6 +86,10 @@ def test_ci_imports_every_package_from_the_built_wheel() -> None:
     assert set(module.declared_packages()) == _declared_packages()
 
 
-def test_integrations_package_is_declared() -> None:
-    # 6.12.0 휠에 빠졌던 패키지. 목록에서 다시 빠지면 바로 이 이름으로 실패한다.
-    assert "hwpx.integrations" in _declared_packages()
+def test_moved_packages_are_not_declared() -> None:
+    # 6.12.0 휠에 빠졌던 hwpx.integrations는 7.0에서 hwpx.ingest와 함께
+    # python-hwpx-automation으로 옮겼다. 목록에 남으면 없는 패키지를 싣게 된다.
+    declared = _declared_packages()
+    assert "hwpx.integrations" not in declared
+    assert "hwpx.ingest" not in declared
+    assert "hwpx._document.ns" in declared

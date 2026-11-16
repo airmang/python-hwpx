@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Callable-level document-operation ownership and core 4.x compatibility."""
+"""Callable-level document-operation ownership and the released compatibility surface.
+
+The freeze began as the 4.x surface of three modules. 7.0 moved the reference
+consistency lint and mail merge to python-hwpx-automation, so the frozen surface is
+now the document diff and the redline structure (``movedIn7_0`` in the freeze lists
+what left).
+"""
 
 from __future__ import annotations
 
@@ -14,8 +20,7 @@ from typing import Any
 
 import hwpx
 from hwpx import HwpxDocument, tools
-from hwpx.tools.doc_diff import doc_diff, inspect_reference_consistency
-from hwpx.tools.mail_merge import merge_template_rows
+from hwpx.tools.doc_diff import doc_diff
 from hwpx.tools.redline import author_demo_redline, inspect_redline_structure
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +33,6 @@ MODULES = {
     name: importlib.import_module(name)
     for name in (
         "hwpx.tools.doc_diff",
-        "hwpx.tools.mail_merge",
         "hwpx.tools.redline",
     )
 }
@@ -99,22 +103,7 @@ def _reexported_projection(module: Any) -> list[dict[str, Any]]:
 def _deterministic_payloads() -> dict[str, Any]:
     return {
         "diff": doc_diff(["a", "b"], ["a", "c", "d"]),
-        "reference": inspect_reference_consistency(
-            ["표 1 현황", "표 3 결과", "붙임 1. 자료 1부.", "붙임 2 참조"]
-        ),
-        "rows": MODULES["hwpx.tools.mail_merge"].load_mail_merge_rows(
-            [{"name": "A", "score": 0}]
-        ),
     }
-
-
-def _template(path: Path) -> None:
-    document = HwpxDocument.new()
-    try:
-        document.add_paragraph("student={{student}}")
-        document.save_to_path(path)
-    finally:
-        document.close()
 
 
 def test_released_document_ops_4x_surface_is_exact() -> None:
@@ -122,91 +111,15 @@ def test_released_document_ops_4x_surface_is_exact() -> None:
     top_level = _reexported_projection(hwpx)
     tools_level = _reexported_projection(tools)
 
-    assert len(qualified) == FREEZE["qualifiedExportCount"] == 11
+    assert len(qualified) == FREEZE["qualifiedExportCount"] == 6
     assert _sha256(_canonical(qualified)) == FREEZE["qualifiedSnapshotSha256"]
-    assert len(top_level) == FREEZE["topLevelExportCount"] == 6
+    assert len(top_level) == FREEZE["topLevelExportCount"] == 2
     assert _sha256(_canonical(top_level)) == FREEZE["topLevelSnapshotSha256"]
-    assert len(tools_level) == FREEZE["toolsExportCount"] == 6
+    assert len(tools_level) == FREEZE["toolsExportCount"] == 2
     assert _sha256(_canonical(tools_level)) == FREEZE["toolsSnapshotSha256"]
     assert _sha256(_canonical(_deterministic_payloads())) == FREEZE[
         "deterministicPayloadsSha256"
     ]
-
-
-def test_generic_merge_uses_only_the_injected_sanitizer(tmp_path: Path) -> None:
-    template = tmp_path / "template.hwpx"
-    _template(template)
-
-    report = merge_template_rows(
-        template,
-        [{"student": "private"}],
-        output_dir=tmp_path / "out",
-        value_sanitizer=lambda value: value.upper(),
-    )
-
-    assert report["ok"] is True
-    assert report["rows"][0]["maskedFields"] == ["student"]
-    merged = HwpxDocument.open(report["rows"][0]["filename"])
-    try:
-        assert "PRIVATE" in merged.text.plain()
-    finally:
-        merged.close()
-
-    source = inspect.getsource(merge_template_rows)
-    assert "mask_pii" not in source
-    assert "hwpx_automation" not in source
-
-
-def test_merge_template_rows_does_not_use_a_deprecated_internal_api(
-    tmp_path: Path,
-) -> None:
-    """Regression: found live while building the v13 openrate generator
-    (cycle 6.9 cleanup train) -- ``_replace_token`` called the deprecated
-    5.x ``HwpxDocument.replace_text_in_runs`` shim internally instead of
-    the current ``doc.text.replace``. Functionally harmless (the shim still
-    delegates correctly) but a genuine 6.x-migration defect the openrate
-    generator family's own warnings-as-errors discipline exists to catch
-    (every ``generate_openrate_corpus_v*.py`` escalates DeprecationWarning
-    to an error) -- this test locks the same property in at the unit level
-    rather than only when a generator script happens to exercise it. Also
-    exercises the table-cell replacement path (``_replace_token``'s own
-    docstring: body-only ``doc.text.replace`` does not descend into
-    ``hp:tbl`` cells, so that path is handled separately and must not
-    regress either)."""
-
-    template = HwpxDocument.new()
-    try:
-        template.add_paragraph("body: {{org}}")
-        table = template.add_table(rows=1, cols=1)
-        table.cell(0, 0).text = "cell: {{dept}}"
-        template_path = tmp_path / "template.hwpx"
-        template.save_to_path(template_path)
-    finally:
-        template.close()
-
-    import warnings
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        report = merge_template_rows(
-            template_path,
-            [{"org": "테스트조직", "dept": "테스트부서"}],
-            output_dir=tmp_path / "out",
-        )
-
-    deprecation_warnings = [
-        w for w in caught if issubclass(w.category, DeprecationWarning)
-    ]
-    assert not deprecation_warnings, [str(w.message) for w in deprecation_warnings]
-
-    assert report["ok"] is True
-    merged = HwpxDocument.open(report["rows"][0]["filename"])
-    try:
-        text = merged.text.plain()
-        assert "테스트조직" in text
-        assert "테스트부서" in text
-    finally:
-        merged.close()
 
 
 def test_redline_structure_is_renderer_neutral(tmp_path: Path) -> None:

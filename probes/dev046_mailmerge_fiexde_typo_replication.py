@@ -47,6 +47,12 @@ SCHEMA_DIR = REPO_ROOT / "DevDoc" / "OWPML SCHEMA"
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
+#: The ``{{key}}`` placeholder form of the batch mail merge. That generator moved to
+#: python-hwpx-automation in 7.0 (``hwpx_automation.mail_merge``, same syntax); the
+#: probe keeps its double-brace form here so it runs on core alone.
+_KEY = r"[^\W\d][\w.-]*"
+_PLACEHOLDER_RE = re.compile(rf"\{{\{{\s*{_KEY}\s*\}}\}}")
+
 EXPECTED_PARAMETERS = {
     "Fiexde": ("booleanParam", "1"),
     "Prop": ("integerParam", "8"),
@@ -125,7 +131,6 @@ def _check_gold() -> None:
     print(f"confirmed: cached text uses double braces verbatim -- {cached!r}")
 
     sys.path.insert(0, str(REPO_ROOT / "src"))
-    from hwpx.tools.mail_merge import _PLACEHOLDER_RE
 
     for text in cached:
         assert _PLACEHOLDER_RE.search(text), (
@@ -174,7 +179,6 @@ def _check_our_handling() -> None:
     # The native field authoring path replicates the spelling too -- author
     # one live rather than trusting the source text.
     from hwpx.document import HwpxDocument
-    from hwpx.tools.mail_merge import _PLACEHOLDER_RE
 
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("Name: ")

@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Export HWPX document content to plain text, HTML, and Markdown formats.
+"""Export HWPX document content as plain text, and the labels Hancom draws.
 
-All exporters accept either an :class:`~hwpx.document.HwpxDocument` instance
-or raw HWPX file bytes and produce a string in the target format.
+:func:`export_text` accepts either an :class:`~hwpx.document.HwpxDocument` instance
+or raw HWPX file bytes and returns the text as Hancom's text save writes it.
+
+Markdown and HTML export moved to python-hwpx-automation in 7.0
+(``hwpx_automation.markdown.to_markdown`` / ``to_html``).
 """
 
 from __future__ import annotations
@@ -18,8 +21,7 @@ from zipfile import ZipFile
 from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml._document_primitives import _text_element_content
 from ..oxml.paragraph_heading import paragraph_heading
-#: A caller-supplied redaction step. Declared here rather than imported from
-#: mail_merge, which imports export_text — the two would form a cycle.
+#: A caller-supplied redaction step (``export_text(masking_policy=...)``).
 TextSanitizer = Callable[[str], str]
 
 if TYPE_CHECKING:
@@ -28,8 +30,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "export_text",
-    "export_html",
-    "export_markdown",
     "ListLabels",
     "NoteLabels",
     "NUMBER_TEXT_FORMATS",
@@ -255,12 +255,7 @@ class _NoteLabels:
     for the note's reference and its own number alike.
     """
 
-    def __init__(self, sections: list[ET.Element], *, deferred: bool = False) -> None:
-        #: With *deferred*, :meth:`text` writes a marker where a note sits and keeps the
-        #: note's text here as ``(marker name, note text)`` for the caller to write after.
-        self.deferred: list[tuple[str, str]] | None = [] if deferred else None
-        self._names: dict[ET.Element, str] = {}
-        self._counts: dict[str, int] = {}
+    def __init__(self, sections: list[ET.Element]) -> None:
         self._labels: dict[ET.Element, str] = {}
         counters = {"FOOTNOTE": 1, "ENDNOTE": 1}
         for section in sections:
@@ -298,38 +293,12 @@ class _NoteLabels:
         if not notes:
             return None
         parts: list[str] = []
-        if self.deferred is not None:
-            for note in notes:
-                name = self._names.get(note)
-                if name is None:
-                    kind = "fn" if note.tag == f"{_HP}footNote" else "en"
-                    self._counts[kind] = self._counts.get(kind, 0) + 1
-                    name = f"{kind}{self._counts[kind]}"
-                    self._names[note] = name
-                    text = " ".join(
-                        _note_paragraph_text(paragraph, "", tab_token).strip()
-                        for paragraph in note.findall(f"{_HP}subList/{_HP}p")
-                    ).strip()
-                    self.deferred.append((name, " ".join(text.split("\n"))))
-                parts.append(_NOTE_MARK_OPEN + name + _NOTE_MARK_CLOSE)
-            return "".join(parts)
         for note in notes:
             label = self._labels.get(note, "")
             parts.append(label)
             for paragraph in note.findall(f"{_HP}subList/{_HP}p"):
                 parts.append(_note_paragraph_text(paragraph, label, tab_token) + "\n")
         return "".join(parts)
-
-
-#: A note's place in deferred text, from private use characters escaping leaves alone.
-_NOTE_MARK_OPEN = ""
-_NOTE_MARK_CLOSE = ""
-_NOTE_MARK = re.compile("(\\w+)")
-
-
-def _note_marks(text: str, form: str) -> str:
-    """Write the deferred note markers of *text* in *form* (``{name}`` is the marker name)."""
-    return _NOTE_MARK.sub(lambda match: form.format(name=match.group(1)), text)
 
 
 def _note_paragraph_text(p: ET.Element, label: str, tab_token: str) -> str:
@@ -442,13 +411,11 @@ def _emit_paragraph(
     write_text: Callable[[str], None],
     write_block: Callable[[ET.Element], None],
     notes: "_NoteLabels | None" = None,
-    escape: Callable[[str], str] | None = None,
 ) -> None:
     """Write paragraph *p*, its text split where a table, text box or caption sits.
 
     Hancom's text save writes a placed object where its control sits in the paragraph;
-    a numbered paragraph's label goes with the first piece of text. With *escape*, the
-    (masked) text is escaped and the label is put before it as it is.
+    a numbered paragraph's label goes with the first piece of text.
     """
     label = labels.label(p) if labels is not None else ""
     buffer: list[str] = []
@@ -456,10 +423,7 @@ def _emit_paragraph(
         if isinstance(piece, str):
             buffer.append(piece)
             continue
-        if escape is None:
-            text = _mask_text(_labelled("".join(buffer), label), masking_policy)
-        else:
-            text = _labelled(escape(_mask_text("".join(buffer), masking_policy)), label)
+        text = _mask_text(_labelled("".join(buffer), label), masking_policy)
         if text:
             write_text(text)
         label = ""
@@ -854,376 +818,12 @@ def export_text(
     return section_separator.join(section_texts)
 
 
-# --------------------------------------------------------------------------- #
-# HTML and Markdown (above this line: plain text and what it counts; nothing
-# above uses a name from below, so the two halves can live apart)
-# --------------------------------------------------------------------------- #
+def __getattr__(name: str) -> object:
+    """``export_markdown``·``export_html`` (7.0에서 옮김)이면 새 자리를 알려 준다."""
 
-#: Characters a Markdown reader would take as markup, escaped with a backslash in document text.
-_MARKDOWN_ESCAPES = {ord(char): "\\" + char for char in "\\`*_~[]|"}
-#: ``$…$`` the way Markdown math extensions read it: no space inside the dollars, no digit after.
-_MATH_SPAN = re.compile(r"\$([^\s$](?:[^$\n]*?[^\s$\\])?)\$(?!\d)")
-#: What a ``$…$`` span may not hold to be left unescaped: HTML, a link, a code span.
-_UNSAFE_IN_MATH = re.compile(r"[<>&`]|\]\(")
-_HEADING_LINE = re.compile(r"#{1,6}(?:[ \t]|$)")
-_LIST_LINE = re.compile(r"[-+](?:[ \t]|$)")
-_RULE_LINE = re.compile(r"(?:-[ \t]*)+|=+[ \t]*")
-_ORDERED_LINE = re.compile(r"(\d{1,9})[.)](?:[ \t]|$)")
+    from .._moved_modules import moved_name_error
 
-
-def _escape_markdown_plain(text: str) -> str:
-    escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return escaped.translate(_MARKDOWN_ESCAPES)
-
-
-def escape_markdown(text: str, *, pipe: bool = False) -> str:
-    """Document text as Markdown that reads back as the same text.
-
-    ``& < >`` become entities and ``\\ ` * _ ~ [ ] |`` take a backslash, so the text
-    cannot open emphasis, a link, raw HTML or a table cell. A ``$…$`` span (a formula
-    typed as text) is left as it is for math extensions; only ``|`` in it is escaped,
-    and only in a table cell (*pipe*). A span holding HTML, a link or a code span is
-    escaped like any text.
-    """
-
-    out: list[str] = []
-    last = 0
-    for match in _MATH_SPAN.finditer(text):
-        body = match.group(1)
-        if _UNSAFE_IN_MATH.search(body):
-            continue
-        out.append(_escape_markdown_plain(text[last : match.start()]))
-        out.append("$" + (body.replace("|", "\\|") if pipe else body) + "$")
-        last = match.end()
-    out.append(_escape_markdown_plain(text[last:]))
-    return "".join(out)
-
-
-def _escape_line_start(line: str) -> str:
-    body = line.lstrip(" \t")
-    lead = line[: len(line) - len(body)]
-    if _HEADING_LINE.match(body) or _LIST_LINE.match(body) or (body and _RULE_LINE.fullmatch(body)):
-        return lead + "\\" + body
-    ordered = _ORDERED_LINE.match(body)
-    if ordered:
-        digits = ordered.group(1)
-        return lead + digits + "\\" + body[len(digits) :]
-    return line
-
-
-def escape_line_starts(markdown: str) -> str:
-    """Escape what would start a heading, list, rule or setext underline at the start of a line.
-
-    For text that was already escaped by :func:`escape_markdown` (``>`` is an entity there).
-    """
-
-    return "\n".join(_escape_line_start(line) for line in markdown.split("\n"))
-
-
-def _escape_markdown_block(text: str) -> str:
-    """Document text written as its own lines: escaped, and so are its line starts."""
-    return escape_line_starts(escape_markdown(text))
-
-
-#: An outline paragraph longer than this is body text set in an outline level, not a heading.
-HEADING_MAX_CHARS = 80
-
-class _Headings:
-    """Which paragraphs are headings, and their level, from the document's own structure.
-
-    A paragraph is a heading of level L when its paragraph shape numbers it as outline
-    level L (``hh:heading type="OUTLINE"``), else when its style is an outline style
-    (``개요 L`` / ``Outline L``). Levels deeper than 6 are not headings.
-    """
-
-    def __init__(self, header: ET.Element | None) -> None:
-        self._shapes: dict[str, int] = {}
-        self._styles: dict[str, int] = {}
-        if header is None:
-            return
-        # 한/글 기본 개요 스타일 이름(개요 N / Outline N): 차례 만들기와 같은 어휘를 쓴다.
-        from .toc_author import _OUTLINE_NAME_RE
-
-        for para_pr in header.iter(f"{_HH}paraPr"):
-            heading = paragraph_heading(para_pr)
-            if heading is not None and heading.get("type") == "OUTLINE":
-                self._shapes[para_pr.get("id") or ""] = (_int_attribute(heading, "level") or 0) + 1
-        for style in header.iter(f"{_HH}style"):
-            for name in (style.get("name") or "", style.get("engName") or ""):
-                match = _OUTLINE_NAME_RE.match(name.strip())
-                if match:
-                    self._styles[style.get("id") or ""] = int(match.group(1))
-                    break
-
-    def level(self, p: ET.Element) -> int | None:
-        level = self._shapes.get(p.get("paraPrIDRef") or "")
-        if level is None:
-            level = self._styles.get(p.get("styleIDRef") or "")
-        return level if level is not None and 1 <= level <= 6 else None
-
-    def any_in(self, sections: list[ET.Element]) -> bool:
-        """Whether a body paragraph (one placed in a section) of *sections* that holds text is a heading."""
-        if not self._shapes and not self._styles:
-            return False
-        for section in sections:
-            for p in section.findall(f"{_HP}p"):
-                if self.level(p) is not None and any(
-                    "".join(t.itertext()).strip() for t in p.iterfind(f"{_HP}run/{_HP}t")
-                ):
-                    return True
-        return False
-
-
-def _markdown_cell(text: str) -> str:
-    """Cell text on one Markdown table line: escaped, line breaks as ``<br>``, note markers as references."""
-    return _note_marks(escape_markdown(text, pipe=True).replace("\n", "<br>"), "[^{name}]")
-
-
-def _escape_html(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-
-
-def export_html(
-    source: HwpxDocument | bytes,
-    *,
-    include_tables: bool = True,
-    full_document: bool = True,
-    title: str = "HWPX Document",
-    tab_token: str = "\t",
-    masking_policy: "TextSanitizer | None" = None,
-    list_labels: bool = False,
-    notes: bool | str = False,
-    headings: bool = True,
-    nested_tables: bool = True,
-) -> str:
-    """Export document content as HTML.
-
-    A paragraph's tables, text boxes and captions come where they sit in its text, as in
-    Hancom's text save (a table's caption after the table). A 덧말 is its main text and
-    ``(덧말:<sub text>)``.
-    With *headings*, a paragraph the document makes a heading (as in
-    :func:`export_markdown`) is ``<h1>`` … ``<h6>``.
-    With *nested_tables*, a table in a cell is a table in that cell; ``False`` writes its
-    cells' text in the cell, a line each.
-    With *list_labels*, numbered, outline and bullet paragraphs start with their label.
-    With *notes*, a foot or end note is a reference (``<sup>``) where it sits and its text
-    at the end; ``notes="inline"`` writes it where it sits, as :func:`export_text`.
-    """
-    sections = _section_xmls(source)
-    header = _header_xml(source) if (list_labels or headings) else None
-    labels = _ListLabels(header) if list_labels else None
-    heading_levels = _Headings(header) if headings else None
-    note_labels = _NoteLabels(sections, deferred=notes != "inline") if notes else None
-    body_parts: list[str] = []
-    note_form = '<sup><a href="#{name}">{name}</a></sup>'
-
-    def html_text(text: str) -> str:
-        return _note_marks(_escape_html(text), note_form)
-
-    def html_table(block: ET.Element) -> str:
-        spans = _table_cell_spans(block)
-        out = ['<table border="1">']
-        for tr, row_spans in zip(block.findall(f"{_HP}tr"), spans):
-            out.append("  <tr>")
-            for tc, (colspan, rowspan) in zip(tr.findall(f"{_HP}tc"), row_spans):
-                attrs = (f' colspan="{colspan}"' if colspan > 1 else "") + (
-                    f' rowspan="{rowspan}"' if rowspan > 1 else ""
-                )
-                out.append(f"    <td{attrs}>{html_cell(tc)}</td>")
-            out.append("  </tr>")
-        out.append("</table>")
-        return "\n".join(out)
-
-    def html_cell(tc: ET.Element) -> str:
-        parts: list[str] = []
-
-        def write_cell_block(block: ET.Element) -> None:
-            if block.tag in _PARAGRAPH_BLOCKS:
-                for inner in _text_box_paragraphs(block):
-                    emit_cell(inner)
-            else:
-                parts.append(html_table(block))
-
-        def emit_cell(p: ET.Element) -> None:
-            _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
-                            write_text=lambda text: parts.append(html_text(text)),
-                            write_block=write_cell_block, notes=note_labels)
-
-        for paragraph in _cell_paragraphs(tc):
-            emit_cell(paragraph)
-        return "\n".join(parts).strip("\n")
-
-    left_out: set[ET.Element] = set()
-
-    def write_block(block: ET.Element) -> None:
-        if block in left_out:
-            return
-        if block.tag in _PARAGRAPH_BLOCKS:
-            for inner in _text_box_paragraphs(block):
-                emit(inner)
-            return
-        if include_tables and nested_tables:
-            body_parts.append(html_table(block))
-            return
-        rows = (
-            _table_cells_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels, notes=note_labels)
-            if include_tables
-            else []
-        )
-        if not include_tables:
-            left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
-            if labels is not None:
-                labels.count(block)
-        if rows:
-            # A merged cell is one hp:tc with a span; the cells it covers are
-            # absent, so without the span attributes later cells shift left.
-            spans = _table_cell_spans(block)
-            body_parts.append('<table border="1">')
-            for row, row_spans in zip(rows, spans):
-                body_parts.append("  <tr>")
-                for cell, (colspan, rowspan) in zip(row, row_spans):
-                    attrs = (f' colspan="{colspan}"' if colspan > 1 else "") + (
-                        f' rowspan="{rowspan}"' if rowspan > 1 else ""
-                    )
-                    body_parts.append(f"    <td{attrs}>{html_text(cell)}</td>")
-                body_parts.append("  </tr>")
-            body_parts.append("</table>")
-
-    def emit(p: ET.Element) -> None:
-        level = [heading_levels.level(p) if heading_levels is not None else None]
-
-        def write_text(text: str) -> None:
-            tag = f"h{level[0]}" if level[0] is not None and len(text) <= HEADING_MAX_CHARS else "p"
-            level[0] = None  # the paragraph's first piece of text is the heading
-            body_parts.append(f"<{tag}>{html_text(text)}</{tag}>")
-
-        _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
-                        write_text=write_text, write_block=write_block, notes=note_labels)
-
-    for sec_idx, section_root in enumerate(sections):
-        if sec_idx > 0:
-            body_parts.append("<hr />")
-        if labels is not None:
-            labels.start_section(section_root)
-        for block in _section_blocks(section_root):
-            if block.tag == f"{_HP}p":
-                emit(block)
-            else:
-                write_block(block)
-    if note_labels is not None and note_labels.deferred:
-        body_parts.append('<section class="notes">')
-        for name, text in note_labels.deferred:
-            body_parts.append(f'<p id="{name}">{name}: {_escape_html(text)}</p>')
-        body_parts.append("</section>")
-    body = "\n".join(body_parts)
-    if full_document:
-        return (
-            "<!DOCTYPE html>\n"
-            '<html lang="ko">\n'
-            "<head>\n"
-            '  <meta charset="utf-8" />\n'
-            f"  <title>{_escape_html(title)}</title>\n"
-            "</head>\n"
-            "<body>\n"
-            f"{body}\n"
-            "</body>\n"
-            "</html>"
-        )
-    return body
-
-
-def export_markdown(
-    source: HwpxDocument | bytes,
-    *,
-    include_tables: bool = True,
-    section_separator: str = "\n---\n\n",
-    tab_token: str = "\t",
-    masking_policy: "TextSanitizer | None" = None,
-    list_labels: bool = False,
-    notes: bool | str = False,
-    headings: bool = True,
-) -> str:
-    """Export document content as Markdown.
-
-    A paragraph's tables, text boxes and captions come where they sit in its text, as in
-    Hancom's text save (a table's caption after the table). A 덧말 is its main text and
-    ``(덧말:<sub text>)``. Document text is escaped (:func:`escape_markdown`), so it reads
-    back as the same text and cannot become markup, HTML or a link.
-    With *headings*, a paragraph the document makes a heading (an outline paragraph, or
-    one in an outline style ``개요 N``) is a Markdown heading of its level (``#`` …
-    ``######``); ``headings=False`` writes it as a plain paragraph.
-    With *list_labels*, numbered, outline and bullet paragraphs start with their label.
-    With *notes*, foot and end notes are Markdown footnotes: ``[^fn1]`` where the note
-    sits and its text after the last section. ``notes="inline"`` writes them where they
-    sit as :func:`export_text` does (the note's number twice, as Hancom's text save).
-    """
-    sections = _section_xmls(source)
-    header = _header_xml(source) if (list_labels or headings) else None
-    labels = _ListLabels(header) if list_labels else None
-    heading_levels = _Headings(header) if headings else None
-    note_labels = _NoteLabels(sections, deferred=notes != "inline") if notes else None
-    section_parts: list[str] = []
-    for section_root in sections:
-        lines: list[str] = []
-        if labels is not None:
-            labels.start_section(section_root)
-        heading_of: dict[int, int] = {}
-
-        def write_text(text: str) -> None:
-            text = _note_marks(text, "[^{name}]")
-            level = heading_of.pop(0, None)
-            if level is not None and len(text) <= HEADING_MAX_CHARS:
-                lines.append("#" * level + " " + " ".join(text.split()))
-            else:
-                lines.append(text)
-            lines.append("")
-
-        left_out: set[ET.Element] = set()
-
-        def write_block(block: ET.Element) -> None:
-            if block in left_out:
-                return
-            if block.tag in _PARAGRAPH_BLOCKS:
-                for inner in _text_box_paragraphs(block):
-                    emit(inner)
-                return
-            rows = (
-                _table_grid_text(block, tab_token=tab_token, masking_policy=masking_policy, labels=labels, notes=note_labels)
-                if include_tables
-                else []
-            )
-            if not include_tables:
-                left_out.update(block.findall(f"{_HP}caption"))  # a left-out table's captions go with it
-                if labels is not None:
-                    labels.count(block)
-            if rows:
-                header = rows[0]
-                lines.append("| " + " | ".join(_markdown_cell(cell) for cell in header) + " |")
-                lines.append("| " + " | ".join("---" for _ in header) + " |")
-                for row in rows[1:]:
-                    lines.append("| " + " | ".join(_markdown_cell(cell) for cell in row) + " |")
-                lines.append("")
-
-        def emit(p: ET.Element) -> None:
-            heading_of.clear()
-            level = heading_levels.level(p) if heading_levels is not None else None
-            if level is not None:
-                heading_of[0] = level  # the paragraph's first piece of text is the heading
-            _emit_paragraph(p, tab_token=tab_token, labels=labels, masking_policy=masking_policy,
-                            write_text=write_text, write_block=write_block, notes=note_labels,
-                            escape=escape_markdown if level is not None else _escape_markdown_block)
-            heading_of.clear()
-
-        for block in _section_blocks(section_root):
-            if block.tag == f"{_HP}p":
-                emit(block)
-            else:
-                write_block(block)
-        section_parts.append("\n".join(lines).rstrip())
-    body = section_separator.join(section_parts)
-    if note_labels is not None and note_labels.deferred:
-        definitions = "\n".join(
-            f"[^{name}]: {escape_markdown(text)}" for name, text in note_labels.deferred
-        )
-        body = f"{body}\n\n{definitions}" if body else definitions
-    return body
+    moved = moved_name_error(__name__, name)
+    if moved is not None:
+        raise moved
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
