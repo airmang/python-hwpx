@@ -37,13 +37,13 @@ _HWP_UNITS_PER_PT = 100
 
 > Millimetre inputs are converted to HWP units; paragraph spacing uses points; line spacing is stored as a percent value.
 
-즉 문단 위/아래 간격(`spacing_before_pt`, `spacing_after_pt`)은 pt → HWPUNIT으로 변환되지만, `line_spacing_percent`는 `<hp:lineSpacing type="%">`로 퍼센트 그대로 들어갑니다. 단위를 하나로 뭉뚱그리면 틀리는 지점입니다.
+즉 문단 위/아래 간격(`spacing_before_pt`, `spacing_after_pt`)은 pt → HWPUNIT으로 변환되지만, `line_spacing`(수)은 `<hp:lineSpacing type="PERCENT">`로 퍼센트 그대로 들어갑니다. 단위를 하나로 뭉뚱그리면 틀리는 지점입니다.
 
 ## 공개 API가 사람 단위를 쓰는 이유
 
 HWPUNIT은 XML 저장 형식으로는 정확하지만, 사람이 직접 다루기엔 불편합니다("10 pt 글자"를 매번 1000으로 환산해야 함). 그래서 이 라이브러리의 고수준 API는 **사람 단위(pt/mm/%)를 입력받아 내부에서 HWPUNIT으로 변환**합니다.
 
-- 문단 서식: `indent_left_mm`, `first_line_indent_mm`, `spacing_before_pt`, `line_spacing_percent` (`src/hwpx/_document/layout.py`)
+- 문단 서식: `indent_left_mm`, `first_line_indent_mm`, `spacing_before_pt`, `line_spacing`(%), `border_width_mm` (`src/hwpx/_document/layout.py`)
 - 이미지: `width_mm`, `height_mm` (`src/hwpx/_document/media.py`)
 - 페이지·표 응용 명령: `pageWidthMm`, `heightMm` 등 (`hwpx_automation.office.agent.commands`)
 

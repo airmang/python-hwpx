@@ -21,8 +21,8 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | `table.equalize_column_widths()` | `None` | 칸 영역이 새 열 격자에 맞지 않거나 세로로 합친 칸이 행마다 다른 너비를 받아야 하면 표를 그대로 두고 `HwpxValueError` | 행마다 칸을 같게 나눈다(한/글 "셀 너비를 같게", 표 너비는 행별 칸 수의 공배수로 올림). 예전 나눔(표 너비 유지, 앞 `n-1`열 `round(W / n)`, 마지막 열 나머지)이 필요하면 `table.set_column_widths([1] * table.column_count)` |
 | `cell.set_margins(left=, right=, top=, bottom=)` | `CellMargins` | 값이 `int`가 아니거나(`bool` 포함) `0 <= v < 2**31` 밖이면 바꾸기 전에 `HwpxValueError`(`cell-margin-value`) | 같은 값이면 결과 동일(수렴). 인자가 없으면 아무것도 바꾸지 않고 지금 여백을 돌려준다 |
 | `document.text.replace(search, repl, everywhere=False)` | `int` (치환 수) | 빈 `search`는 `ValueError` | 치환할 것이 없으면 `0` — 1회차 후 수렴 |
-| `document.notes.add_memo(..., anchor=p)` | `Memo` (`paragraph`, `field_id` 속성) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
-| `document.notes.add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
+| `document.notes.add_memo(..., paragraph=p)` | `Memo` (`paragraph`, `field_id` 속성) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
+| `document.notes.add_footnote(text, paragraph=p)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
 | `section.clear_body(on_control_content="raise")` | `ClearBodyReport` | 첫 문단 첫 run에 `hp:secPr`가 없으면 `section-clear-no-section-properties`, 남길 `hp:secPr`/`hp:ctrl` 안에 글·표·개체·양식 개체·덧말·글자 겹침이 있으면 `section-clear-control-content`(`context["tags"]`), 모르는 모드면 `section-clear-mode-invalid` — 모두 바꾸기 전에 거부 | 이미 비운 섹션이면 아무것도 바꾸지 않고 dirty로 표시하지도 않는다(멱등, 보고 수치 0) |
 | `run.content_kinds` | `frozenset[str]` (`RUN_CONTENT_KINDS` 어휘) | 사실상 없음 | 읽기 전용 |
 

@@ -70,7 +70,7 @@
 - **번호 목록을 문단마다 따로 적용하면 번호가 이어지지 않는다.**
   `apply_list_format(kind="number")`은 부를 때마다 번호 정의를 새로 만들고, 한/글은
   번호 정의마다 번호를 센다. 그래서 세 문단에 하나씩 부르면 한/글에서 셋 다 `1.`이다.
-  이어지는 목록은 `paragraph_indexes=[...]`로 한 번에 적용하거나, 뒤의 호출에
+  이어지는 목록은 `paragraphs=[...]`로 한 번에 적용하거나, 뒤의 호출에
   `continue_list=True`를 주어 앞 목록에 이어 붙인다.
 - **네이티브 목차는 `dirty="1"`이 재계산 트리거다.** 목차 삽입/문서 변경 후
   `mark_toc_dirty`를 잊으면 한컴이 옛 페이지 번호를 그대로 보여준다. dirty
@@ -105,11 +105,11 @@
   세지 않는다. 탭·개체가 있거나 글자 모양이 여럿인 문단은 접힌 줄을 세지 않는다.
 - **`set_page_number()`의 번호는 한컴의 쪽 번호 감추기로 숨지 않는다.** 이 번호는
   머리말/꼬리말 안의 자동 번호 글이고, `set_visibility(hide_first_page_num=True)`와
-  `hide_page_elements(page_num=True)`는 한컴 쪽 번호 컨트롤("쪽 번호 매기기")만
+  `add_page_hiding(page_num=True)`는 한컴 쪽 번호 컨트롤("쪽 번호 매기기")만
   감춘다. 첫 쪽에서 감추려면 `set_visibility(hide_first_footer=True)`(머리말이면
-  `hide_first_header`), 한 쪽만 감추려면 `hide_page_elements(paragraph, footer=True)`를
+  `hide_first_header`), 한 쪽만 감추려면 `add_page_hiding(paragraph, footer=True)`를
   쓴다. `set_page_number()`는 그 머리말/꼬리말의 내용을 번호로 바꾼다.
-- **`hide_page_elements()`는 그 쪽만 감춘다.** 한컴의 "현재 쪽만 감추기"와 같아서,
+- **`add_page_hiding()`은 그 쪽만 감춘다.** 한컴의 "현재 쪽만 감추기"와 같아서,
   문단이 있는 쪽에서만 숨고 다음 쪽부터는 다시 보인다.
 - **각주·미주 시작 번호는 구역마다 새로 매길 때만 보인다.** `set_footnote_numbering(new_num=)`·
   `set_endnote_numbering(new_num=)`의 시작 번호는 번호 방식이 `ON_SECTION`일 때만 한/글에 보인다.

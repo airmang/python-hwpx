@@ -35,14 +35,14 @@ Use the API paths below rather than inferring names from python-docx.
   `document.add_table(rows, cols)`
   then `table.set_cell_text(row, col, text)`,
   `document.notes.add_footnote(text, paragraph=p)`,
-  `document.notes.add_memo(text, anchor=p, memo_shape_id_ref="0")` (returns a
+  `document.notes.add_memo(text, paragraph=p, memo_shape_id_ref="0")` (returns a
   Memo with `paragraph` and `field_id` attributes, not a tuple),
   `document.text.replace(search, replacement)` (returns count; empty search
   raises `ValueError`). Replacement is within individual body runs, not across
   run boundaries or nested table paragraphs. Check the expected replacement
   count before saving; zero replacements are not task completion.
 - Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
-  `document.text.runs()`, `document.text.plain`, `document.notes.memos`,
+  `document.text.iter_runs()`, `document.text.plain`, `document.notes.memos`,
   `document.fields.all` (a property, not a call).
 - Tables: `document.tables.map()` reports every table in document order with
   each cell's row, column and text as the file stores them;
@@ -84,7 +84,7 @@ Use the API paths below rather than inferring names from python-docx.
 
 ## Common mistakes to avoid
 - Wrong: `Document()` / `doc.paragraphs[0].runs` — those are python-docx
-  idioms. Use `HwpxDocument.new()` / `document.text.runs()`. (`add_paragraph`
+  idioms. Use `HwpxDocument.new()` / `document.text.iter_runs()`. (`add_paragraph`
   and `add_heading` do exist.)
 - `.hwp` (HWP 5.x binary) opens too: `HwpxDocument.open("file.hwp")` converts it
   into the same document model. `document.conversion_report` counts what the

@@ -65,11 +65,11 @@ _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeIDRef"}).tex
 이 세 조각을 손으로 맞추지 않도록, 라이브러리는 앵커 기반 API를 제공합니다.
 
 - `document.notes.add_memo(text, memo_shape_id_ref=...)` — 메모 본체만 추가.
-- `document.notes.add_memo(text, anchor=paragraph)` — 메모 본체 생성 + 대상 문단에 MEMO 필드를 붙여 **표시까지** 보장(`src/hwpx/_document/memos.py`). 돌려받은 메모의 `memo.paragraph`·`memo.field_id`로 앵커를 읽습니다. (5.x·6.x의 `add_memo_with_anchor`는 7.0에서 없어졌습니다.)
+- `document.notes.add_memo(text, paragraph=paragraph)` — 메모 본체 생성 + 대상 문단에 MEMO 필드를 붙여 **표시까지** 보장(`src/hwpx/_document/memos.py`). 돌려받은 메모의 `memo.paragraph`·`memo.field_id`로 앵커를 읽습니다. (5.x·6.x의 `add_memo_with_anchor`는 7.0에서 없어졌습니다.)
 
 필드 run의 `charPrIDRef`는 인자 → 문단의 `char_pr_id_ref` → 메모가 추론한 값 → `"0"` 순으로 해결됩니다(`document.notes.attach`).
 
-> 참고: 이 라이브러리의 앵커 API는 `document.notes.add_memo(anchor=...)`입니다. (MCP 서버 쪽에는 `add_memo_by_anchor`라는 도구 이름이 있지만, 그것은 이 라이브러리 함수를 감싼 래퍼입니다.)
+> 참고: 이 라이브러리의 앵커 API는 `document.notes.add_memo(paragraph=...)`입니다(6.x 는 `anchor=`). (MCP 서버 쪽에는 `add_memo_by_anchor`라는 도구 이름이 있지만, 그것은 이 라이브러리 함수를 감싼 래퍼입니다.)
 
 ## 테스트로 고정된 계약
 
