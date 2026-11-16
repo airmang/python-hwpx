@@ -538,7 +538,15 @@ class TextNamespace(_Namespace):
         *,
         color: str = "#FFFF00",
     ) -> "Highlight":
-        """*match* 의 첫 등장을 형광펜(``markpenBegin``/``markpenEnd``)으로 감싼다."""
+        """*match* 의 첫 등장을 형광펜(``markpenBegin``/``markpenEnd``)으로 감싼다.
+
+        한/글이 저장하는 모양 그대로, 그 글을 담은 ``hp:t`` 안에 쓴다:
+        ``<hp:t>앞 <hp:markpenBegin color="#FFFF00"/>글<hp:markpenEnd/> 뒤</hp:t>``. 글자 수와
+        ``paragraph.text`` 는 그대로이다. *paragraph* 는 번호나 문단 객체(표 칸·글상자·머리말의
+        문단도)이다. 서식이 다른 런에 걸친 *match* 는 거절한다(``text-highlight-match-crosses-markup``).
+        ``format_range(highlight=)``·``ensure_run(highlight=)`` 는 이것이 아니라 글자 모양의 음영 색
+        (``hh:charPr/@shadeColor``)이다.
+        """
 
         from .. import highlight as _highlight
         from .._resolve import resolve_paragraph
@@ -552,7 +560,8 @@ class TextNamespace(_Namespace):
 
     @property
     def highlights(self) -> tuple["Highlight", ...]:
-        """문서의 모든 형광펜 구간을 문서 순서로 돌려준다(:meth:`highlight` 가 넣는 것)."""
+        """문서의 모든 형광펜 구간을 문서 순서로 돌려준다(:meth:`highlight` 가 넣는 것). 본문만이 아니라
+        표 칸·글상자·캡션·머리말·꼬리말·각주·메모·바탕쪽의 문단도 본다(:meth:`iter_paragraphs` 의 문단)."""
 
         from .. import highlight as _highlight
 

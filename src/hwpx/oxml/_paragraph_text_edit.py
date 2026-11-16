@@ -919,6 +919,8 @@ class ParagraphFormats:
         (``size``, ``font``, ``color``, ``bold``, ...). The runs are split at *start*
         and *end* (:meth:`split_run`); each run inside gets its own shape changed
         (bold added to an italic run stays italic). ``start == end`` changes nothing.
+        ``highlight=`` is the character shape's shade colour (``shadeColor``); the marker pen
+        Hancom writes inside ``hp:t`` is ``doc.text.highlight(paragraph, match)``.
         """
         from .formatting import format_range
 
