@@ -77,8 +77,11 @@ _FONT_REF_TO_FACE_LANG = {attr: lang for lang, attr in _FONT_FACE_LANG_TO_REF.it
 #: risk a silent wrong remap -- see the contract doc's "보류" section for the
 #: evidence behind each. Checked on the *source* content being copied, before
 #: any mutation happens (fail before touching anything, not partway through).
-_REJECTED_LOCAL_TAGS = (f"{_HP}connectLine",)
-_REJECTED_ATTRS = ("linkListIDRef", "linkListNextIDRef", "chartIDRef")
+#: Connectors and charts are carried since objlim (Hancom 2024's 문서 끼워 넣기 of a document with both, evidence
+#: merge and merge2): a connector lets go of the shapes it joined (``subjectIDRef="0"``), a chart part takes the
+#: first ``Chart/chartN.xml`` the target does not use (see :func:`_carry_connectors_and_charts`).
+_REJECTED_LOCAL_TAGS: tuple[str, ...] = ()
+_REJECTED_ATTRS = ("linkListIDRef", "linkListNextIDRef")
 #: Sentinel values for a rejected attribute that mean "not actually used,"
 #: safe to pass through rather than reject. Found by team-lead's
 #: independent verification (not assumed in advance): a census of the
@@ -625,6 +628,29 @@ def _remap_binary_items(
     return remap
 
 
+def _carry_connectors_and_charts(source: HwpxDocument, target: HwpxDocument, paragraphs: list[Any]) -> None:
+    """Carry the connectors and charts in the copied *paragraphs* as Hancom 2024's 문서 끼워 넣기 does (objlim
+    evidence merge, merge2): a connector keeps its drawn ends and lets go of the shapes it joined
+    (``subjectIDRef="0"``: the shapes it carries take new instance ids), and each chart's part is written to the
+    first ``Chart/chartN.xml`` the target does not use, the chart pointing at it."""
+
+    for paragraph in paragraphs:
+        for node in paragraph.iter(f"{_HP}startPt", f"{_HP}endPt"):
+            if node.get("subjectIDRef") not in (None, "", "0"):
+                node.set("subjectIDRef", "0")
+        for node in paragraph.iter():
+            chart = node.get("chartIDRef")
+            if not chart or not source._package.has_part(chart):
+                continue
+            used = {name for name in target._package.part_names() if name.startswith("Chart/")}
+            number = 1
+            while f"Chart/chart{number}.xml" in used:
+                number += 1
+            name = f"Chart/chart{number}.xml"
+            target._package.write(name, source._package.read(chart))
+            node.set("chartIDRef", name)
+
+
 def _deep_copy_element(element: Any) -> Any:
     return _copy.deepcopy(element)
 
@@ -1141,6 +1167,7 @@ def _merge_paragraphs(
     )
     memo_shape = _remap_memo_properties(source_header, target_header, remap_scope)
     binary_item = _remap_binary_items(source, target, source_header, target_header, remap_scope)
+    _carry_connectors_and_charts(source, target, remap_scope)
     # hh:heading (numbering/bullet's own polymorphic idRef) lives inside the
     # just-copied paraPr items, not the body paragraphs -- scan those.
     headings = _remap_headings(source_header, target_header, para_pr_clones)

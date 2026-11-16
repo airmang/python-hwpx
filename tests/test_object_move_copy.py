@@ -490,10 +490,12 @@ def test_a_group_member_a_removed_object_and_bad_places_are_refused() -> None:
     assert excinfo.value.code == "shape-not-in-document"
 
     other = HwpxDocument.new()
-    live = fresh.add_paragraph("").add_equation("z")
+    box = fresh.add_paragraph("").add_rectangle(9000, 3000)
+    box.set_draw_text("글상자")
     with pytest.raises(HwpxValueError) as excinfo:
-        live.move_to(other.add_paragraph(""))
-    assert excinfo.value.code == "paragraph-not-in-document"
+        box.move_to(other.add_paragraph(""))
+    assert excinfo.value.code == "shape-copy-document-unsupported"
+    live = fresh.add_paragraph("").add_equation("z")
     with pytest.raises(HwpxLookupError) as lookup:
         live.move_to(99)
     assert lookup.value.code == "paragraph-not-found"

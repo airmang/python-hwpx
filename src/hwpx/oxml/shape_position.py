@@ -753,8 +753,12 @@ class ObjectPlacement:
         """Move this object into *paragraph* at character *offset* (``None``: the end), as cutting
         and pasting it in Hancom does.
 
-        *paragraph* is a paragraph of the same document -- in the body, a table cell, a text box,
-        a note, a header or a footer -- or its index in ``doc.paragraphs``. *offset* counts as
+        *paragraph* is a paragraph -- in the body, a table cell, a text box, a note, a caption, a
+        header or a footer -- or its index in ``doc.paragraphs``. A paragraph of another document
+        takes the object as Hancom 2024 pastes one cut from another document: a copy with fresh ids
+        and the images and charts it shows goes there, a connector in it lets go, and the original
+        is removed; an object holding text (a text box, a caption, a table) is refused there
+        (``shape-copy-document-unsupported``: Hancom could not open such a document again). *offset* counts as
         ``paragraph.text`` does (a tab or a line break is one, an object none); the object goes in
         front of the character there, after the controls and objects already at that place. The
         object keeps its ids, its caption and what it holds; this wrapper then belongs to
@@ -788,8 +792,9 @@ class ObjectPlacement:
     def copy_to(self: _Placed, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> _Placed:
         """Put a copy of this object into *paragraph* at *offset* (``None``: the end) and return it.
 
-        The place is chosen and checked as :meth:`move_to` does, and a copy may go inside the
-        object it copies (a copy of a text box into its own text). The copy has fresh ids (its
+        The place is chosen and checked as :meth:`move_to` does (another document's paragraph too,
+        the images and charts carried there), and a copy may go inside the object it copies (a copy
+        of a text box into its own text). The copy has fresh ids (its
         objects, tables, paragraphs and fields; a connector in it follows the copied objects it
         was attached to and lets go of the others), no line layout caches, and the same images
         (a picture's copy shows the same ``BinData`` item). A memo anchored in it becomes a memo
@@ -2316,6 +2321,58 @@ def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
     return {}
 
 
+def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, offset: int | None, *,
+                             copy: bool) -> Any:
+    """``copy_to``/``move_to`` of *obj* into the paragraph *target* of another document, as Hancom 2024 pastes
+    an object copied (or cut) from another document: a copy with fresh ids, the images and charts it shows
+    carried into that document (``media.carry_object_parts``), a connector in it letting go of what it was
+    attached to (objlim evidence xpic, xeq, xchart, xconn, xpic2, xchart2), placed there as in the same
+    document (:func:`_check_place`). A move removes the original after that, as cutting does.
+
+    An object holding text -- a text box, a caption, a table -- is refused (``shape-copy-document-unsupported``):
+    Hancom 2024 stopped on the document it pasted a text box into from another document (xbox2, xbox2b), and
+    text brings paragraph and character shapes; ``hwpx.tools.document_merge.insert_document`` carries those."""
+
+    from .._document.media import carry_object_parts
+    from ._document_primitives import _clear_paragraph_layout_cache
+    from .formatting import _check_offset
+
+    element = obj.element
+    if element.find(f".//{_HP}subList") is not None or _local(element) == "tbl":
+        raise HwpxValueError(
+            "an object holding text (a text box, a caption, a table) is not copied into another document",
+            code="shape-copy-document-unsupported",
+            context={"caller": "copy_to" if copy else "move_to", "object": _local(element)},
+            suggestion="글이 든 개체는 문서 끼워 넣기(hwpx.tools.document_merge.insert_document)로 가져오세요. "
+                       "한/글 2024는 다른 문서에서 붙인 글상자가 든 문서를 다시 열지 못했습니다.",
+        )
+    changes = _check_place(element, source, target)
+    if offset is not None:
+        _check_offset("offset", offset, 0, len(target.text))
+    placed = fresh_copy(element)
+    _let_go_of_outside(placed, {})
+    carry_object_parts(placed, source.section.document, target.section.document)
+    position = placed.find(f"{_HP}pos")
+    if position is not None:
+        for name, value in changes.items():
+            position.set(name, value)
+    if placed.get("zOrder") is not None:
+        placed.set("zOrder", _top_z_order(target.section))
+    insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
+    _clear_paragraph_layout_cache(target.element)
+    target.section.mark_dirty()
+    from .objects import wrap_object
+
+    if copy:
+        return wrap_object(placed, target)
+    images = binary_references(element)
+    _detach_object(element, parent, source.element, source.section)
+    remove_orphaned_images(source.section, images)
+    obj.element = placed
+    obj.paragraph = target
+    return None
+
+
 def _sections_of(*paragraphs: Any) -> list[Any]:
     """The sections of the document the paragraphs belong to (theirs alone without a document)."""
 
@@ -2349,6 +2406,10 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
     if _local(parent) == "container":
         raise _group_member_refused("copied" if copy else "moved")
     source = resolve_paragraph_in(source, source.__class__(holder, source.section), caller=caller)
+    other = getattr(getattr(paragraph, "section", None), "document", None)
+    if other is not None and source.section.document is not None and other is not source.section.document:
+        return _place_in_other_document(obj, parent, source, resolve_paragraph_in(paragraph, paragraph, caller=caller),
+                                        offset, copy=copy)
     target = resolve_paragraph_in(source, paragraph, caller=caller)
     if not copy and any(node is target.element for node in element.iter()):
         raise HwpxValueError(

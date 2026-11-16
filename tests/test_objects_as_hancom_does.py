@@ -318,3 +318,65 @@ def test_removing_a_groups_only_member_removes_the_group() -> None:
 
     assert [m.shape_type for m in group.members] == ["rect"]
     _reopen(doc)
+
+
+# -- copying into another document (o08 xpic/xeq/xchart/xconn, o11 xpic2/xchart2; xbox2 refused) --------
+
+
+def test_an_object_copied_into_another_document_takes_its_image_and_chart_along() -> None:
+    chart = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+        '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">'
+        '<c:chart><c:plotArea><c:layout/><c:pieChart><c:varyColors val="1"/></c:pieChart></c:plotArea></c:chart>'
+        '</c:chartSpace>'
+    )
+    source, target = HwpxDocument.new(), HwpxDocument.new()
+    picture = source.add_paragraph("").add_picture(str(source.media.add_image(PNG, "png")), width=3000, height=3000)
+    source_chart = source.shapes.add_chart(chart, paragraph=source.add_paragraph(""))
+    target.add_paragraph("").add_picture(str(target.media.add_image(PNG, "png")), width=3000, height=3000)
+    target.shapes.add_chart(chart, paragraph=target.add_paragraph(""))
+    place = target.add_paragraph("붙일 자리: ")
+
+    copied = picture.copy_to(place)
+    copied_chart = source_chart.copy_to(place)
+
+    assert copied.paragraph.element is place.element
+    reference = next(n.get("binaryItemIDRef") for n in copied.element.iter() if n.get("binaryItemIDRef"))
+    assert reference not in {next(n.get("binaryItemIDRef") for n in picture.element.iter() if n.get("binaryItemIDRef"))}
+    assert copied_chart.element.get("chartIDRef") == "Chart/chart2.xml"
+    again = _reopen(target)
+    assert len(again.media.images) == 2
+    assert len(source.paragraphs[0].objects) == 1  # the original stays
+
+
+def test_an_object_moved_into_another_document_leaves_the_first() -> None:
+    source, target = HwpxDocument.new(), HwpxDocument.new()
+    equation = source.add_paragraph("").add_equation("x^2")
+    equation.move_to(target.add_paragraph(""))
+    assert source.shapes.equations == ()
+    assert [e.script for e in target.shapes.equations] == ["x^2"]
+    assert equation.paragraph.section is target.sections[0]
+    _reopen(source), _reopen(target)
+
+
+def test_a_connector_copied_into_another_document_lets_go() -> None:
+    source, target = HwpxDocument.new(), HwpxDocument.new()
+    p = source.add_paragraph("")
+    a = p.add_rectangle(5000, 4000, treat_as_char=False)
+    b = p.add_rectangle(5000, 4000, treat_as_char=False)
+    b.set_position(horizontal_offset=14000)
+    connector = p.add_connector(a, b)
+
+    copied = connector.copy_to(target.add_paragraph(""))
+
+    assert [n.get("subjectIDRef") for n in copied.element.iter(f"{HP}startPt", f"{HP}endPt")] == ["0", "0"]
+    _reopen(target)
+
+
+def test_a_text_box_is_not_copied_into_another_document() -> None:
+    source, target = HwpxDocument.new(), HwpxDocument.new()
+    box = source.add_paragraph("").add_rectangle(9000, 3000)
+    box.set_draw_text("글상자")
+    with pytest.raises(HwpxValueError) as excinfo:
+        box.copy_to(target.add_paragraph(""))
+    assert excinfo.value.code == "shape-copy-document-unsupported"

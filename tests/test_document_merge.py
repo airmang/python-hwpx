@@ -493,17 +493,22 @@ def test_merge_accepts_a_real_corpus_document_containing_a_table() -> None:
 # ============================================================================
 
 
-def test_merge_rejects_connect_line_content() -> None:
+def test_merge_carries_a_connector_letting_go_of_its_shapes() -> None:
+    # Hancom 2024's 문서 끼워 넣기 keeps the connector and lets go of the shapes it joined (objlim merge).
     source = HwpxDocument.new(empty_first_line=True)
-    p = source.add_paragraph("has a smart connector")
-    run = p.element.find(f"{_HP}run")
-    run.append(run.makeelement(f"{_HP}connectLine", {"subjectIDRef": "123"}))
+    p = source.add_paragraph("이어진 사각형 둘")
+    a = p.add_rectangle(5000, 4000, treat_as_char=False)
+    b = p.add_rectangle(5000, 4000, treat_as_char=False)
+    b.set_position(horizontal_offset=14000)
+    p.add_connector(a, b)
 
     target = HwpxDocument.new(empty_first_line=True)
-    with pytest.raises(HwpxValueError) as excinfo:
-        append_document(target, source)
-    assert excinfo.value.code == "document-merge-unsupported-reference"
-    assert excinfo.value.context.get("tag") == "connectLine"
+    append_document(target, source)
+
+    ends = [node.get("subjectIDRef") for node in target.sections[0].element.iter(f"{_HP}startPt", f"{_HP}endPt")]
+    assert ends == ["0", "0"]
+    reopened = HwpxDocument.open(target.to_bytes())
+    reopened.validate()
 
 
 def test_merge_rejects_link_list_reference() -> None:
@@ -518,15 +523,26 @@ def test_merge_rejects_link_list_reference() -> None:
     assert excinfo.value.context.get("attribute") == "linkListIDRef"
 
 
-def test_merge_rejects_chart_id_ref() -> None:
+def test_merge_carries_a_chart_to_the_first_free_part() -> None:
+    # Hancom 2024 put a second chart at Chart/chart2.xml beside the target's chart1 (objlim merge2).
+    chart = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+        '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">'
+        '<c:chart><c:plotArea><c:layout/><c:pieChart><c:varyColors val="1"/></c:pieChart></c:plotArea></c:chart>'
+        '</c:chartSpace>'
+    )
     source = HwpxDocument.new(empty_first_line=True)
-    p = source.add_paragraph("chart placeholder")
-    _inject_attr(p.element, "chartIDRef", "1")
-
+    source.shapes.add_chart(chart, paragraph=source.add_paragraph("차트"))
     target = HwpxDocument.new(empty_first_line=True)
-    with pytest.raises(HwpxValueError) as excinfo:
-        append_document(target, source)
-    assert excinfo.value.code == "document-merge-unsupported-reference"
+    target.shapes.add_chart(chart.replace('val="1"', 'val="0"'), paragraph=target.add_paragraph("받는 차트"))
+
+    append_document(target, source)
+
+    refs = [node.get("chartIDRef") for node in target.sections[0].element.iter(f"{_HP}chart")]
+    assert refs == ["Chart/chart1.xml", "Chart/chart2.xml"]
+    assert target.package.read("Chart/chart2.xml") == source.package.read("Chart/chart1.xml")
+    reopened = HwpxDocument.open(target.to_bytes())
+    reopened.validate()
 
 
 def _memo_field_string_param(paragraph_element, name: str) -> str | None:
