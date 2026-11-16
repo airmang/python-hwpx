@@ -556,6 +556,12 @@
       "rationale": "Hancom's storage of a hyperlink field target: hyperlink_parameters() writes the hp:parameters Hancom reads (Command with : ? ; # backslash-escaped and a ;kind;0;0 tail, Path, Category, TargetType, DocOpenType -- the form Hancom writes for web, mail and bookmark links) and hyperlink_target() reads a target back (Path, else the unescaped Command head, else @name). A new module rather than more paragraph.py lines (1,584/1,600 owner-file cap); paragraph.add_hyperlink, paragraph.hyperlinks, Markdown export and the text extractor all call it, so the three readers that disagreed now read one way. Format-level only: no renderer, application workflow or agent policy."
     },
     {
+      "path": "src/hwpx/oxml/table_format.py",
+      "disposition": "core",
+      "approvedBy": "hancom-table-cell-properties",
+      "rationale": "How a table and its cells look and flow, read and written as the file stores them: a cell's vertical alignment (hp:subList/@vertAlign), title-cell mark and border fill read, emptying a cell; a table's alignment (the host paragraph's for a table set as a character, hp:pos/@horzAlign for a floating one), page breaking, title rows and their repetition, noAdjust, grid columns (HwpxOxmlTableColumn) and ranges of cells, per-side borders and shading derived from each cell's own border fill (other sides, diagonals and fill kept; an identical definition reused; the neighbour across an outline side takes the same line, as Hancom's cell border command does), cell zone reads and copying a table with fresh ids. HwpxOxmlTable, HwpxOxmlTableCell and HwpxOxmlTableRow take these from mixins here; the size members delegate to table_sizes.py and placement reuses shape_position.py's set_position. A new module rather than more table.py lines: that owner file sits near its code-line review line. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/table_sizes.py",
       "disposition": "core",
       "approvedBy": "hancom-distribute-cell-width",

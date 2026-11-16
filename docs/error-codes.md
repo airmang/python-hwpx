@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 271 | 11 |
+| 개수 | 284 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -45,7 +45,7 @@ except HwpxError as exc:
 `<도메인>-<조건>`, 전부 소문자 kebab-case. 도메인은 6.0 네임스페이스와
 패키지 수준 관심사에서 온다:
 
-`capability`, `cell`, `contract`, `document`, `equation`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `recover`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `toc`, `track`
+`capability`, `cell`, `contract`, `document`, `equation`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `ingest`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `recover`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `toc`, `track`
 
 유예 2건 — `unknown-contract-document`, `unknown-contract-schema` —
 은 5.6.0 에 이미 나간 이름이라 문법에 맞지 않아도 바꾸지 않는다(7.0 정리).
@@ -81,7 +81,6 @@ except HwpxError as exc:
 | `document-merge-index-out-of-range` | after_paragraph_index 가 대상 섹션의 문단 개수 범위를 벗어났다. |
 | `document-merge-unsupported-policy-axis` | 그 정책 축의 값이 아직 지원 기본값 밖이다(신규 값 미구현). |
 | `document-merge-unsupported-reference` | 가져올 문단이 아직 지원 안 하는 참조 요소를 담고 있다(예: 메모 필드). |
-| `document-name-moved` | 7.0에서 python-hwpx-automation으로 옮긴 문서 메서드(doc.text.markdown 등 묶음 메서드 8개, export_markdown 등 루트 옛 이름 5개)를 불렀다(새 자리는 context.replacement, 설치는 context.install). |
 | `document-name-removed` | 7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement). |
 | `document-seed-invalid` | new()/open() 의 seed 가 정수가 아니다. |
 | `document-settings-root-invalid` | settings.xml 루트가 ha:HWPApplicationSetting이 아니다. |
@@ -94,6 +93,7 @@ except HwpxError as exc:
 |---|---|
 | `equation-conversion` | 한글 수식 스크립트와 LaTeX 사이의 변환에 실패했다. |
 | `equation-latex-unsupported` | LaTeX 조각이 검증된 명령 집합 밖의 명령을 쓴다. |
+| `equation-mathml-unavailable` | MathML 변환에 필요한 latex2mathml이 설치돼 있지 않다. |
 
 ### `field-*`
 
@@ -161,6 +161,13 @@ except HwpxError as exc:
 | `hwpx-state-error` | 문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음). |
 | `hwpx-type-error` | 인자 타입이 이 연산이 받는 것이 아니다(분류되지 않음). |
 | `hwpx-value-error` | 인자 값이 이 연산에 쓸 수 없다(분류되지 않음). |
+
+### `ingest-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `ingest-failed` | 문서를 Markdown으로 들여오지 못했다(시도한 변환기는 attempts). |
+| `ingest-format-unsupported` | 이 입력을 받는 변환기가 등록돼 있지 않다. |
 
 ### `master-*`
 
@@ -439,16 +446,26 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `table-alignment-value` | 표 가로 정렬(alignment)이 LEFT·CENTER·RIGHT 중 하나가 아니거나 문서 머리 정보가 없다. |
+| `table-border-value` | 칸 테두리의 면·선 종류·굵기·색 지정이 잘못됐거나 문서 머리 정보가 없다. |
 | `table-cell-not-found` | 칸 좌표가 표 밖이거나 병합에 덮여 가리킬 칸이 없다. |
 | `table-cell-remove-unsupported` | 표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다). |
+| `table-cell-vert-align-value` | 칸 세로 정렬(vert_align)이 TOP·CENTER·BOTTOM 중 하나가 아니다. |
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
-| `table-margin-value` | 표 바깥 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `table-column-width-value` | 열 폭이 양의 int(HWPUNIT)가 아니거나 한/글이 그리는 최소 폭(칸 좌우 여백+283)보다 좁다. |
+| `table-header-rows-value` | 제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다. |
+| `table-margin-value` | 표 바깥·안 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `table-merge-range-invalid` | 병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다. |
+| `table-no-adjust-value` | noAdjust 값이 bool 이 아니다. |
 | `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
+| `table-page-break-value` | 표의 쪽 나눔(page_break)이 TABLE·CELL·NONE 중 하나가 아니다. |
+| `table-path-invalid-type` | fill_by_path 에 매핑이 아닌 것이나 str 이 아닌 경로(키)를 주었다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
+| `table-row-height-value` | 행 높이가 양의 int(HWPUNIT)가 아니다. |
 | `table-row-heights-value` | 행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다. |
+| `table-shading-value` | 칸 배경색이 #RRGGBB 나 None 이 아니다. |
 | `table-size-invalid` | 새 표의 행·열 수가 1 이상의 int 가 아니다(bool 도 거부). |
-| `table-width-value` | 새 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
+| `table-width-value` | 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 
 ### `text-*`
 
@@ -459,6 +476,7 @@ except HwpxError as exc:
 | `text-highlight-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `text-highlight-match-empty` | 형광펜으로 감쌀 문자열이 비어 있다. |
 | `text-highlight-match-not-found` | 문단에서 형광펜으로 감쌀 문자열을 찾지 못했다. |
+| `text-markdown-style-invalid` | MarkdownStyle 의 값(글자 크기·글꼴·정렬·번호 형식·글머리표·들여쓰기·상자와 표 모양·색·여백)이 올바르지 않거나 모르는 모양 이름을 주었다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
 | `text-place-invalid` | doc.text.paragraphs()/objects() 의 where·kinds 에 모르는 자리·개체 종류를 줬다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |
