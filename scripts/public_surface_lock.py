@@ -75,6 +75,10 @@ UPDATE_HINT = f'python {SCRIPT} check --update --reason "<무엇을 왜>"'
 ROOT_DUNDERS = frozenset({"__init__", "__repr__", "__enter__", "__exit__"})
 #: 묶음이 꺼내기·세기를 받으면 그것도 계약이다(``doc.tables[0]``, ``len(doc.styles)``).
 NAMESPACE_DUNDERS = frozenset({"__getitem__", "__iter__", "__len__", "__contains__"})
+#: 묶음의 약속하지 않는 탈출구(docs/stable-api.md 「약속하지 않는 탈출구」). 모델 객체의 ``.element`` 처럼
+#: 이름은 있지만 계약 밖이라 잠그지 않는다. 지정한 태그대로 쓰고 엔진의 거부·인자 검사를 거치지 않는다.
+#: ``Paragraph.add_shape``·``add_control`` 은 모델 쪽의 같은 탈출구로 ``internal`` 에 둔다.
+NAMESPACE_ESCAPE_HATCHES: dict[str, frozenset[str]] = {"shapes": frozenset({"add_raw", "add_control"})}
 #: 이 모듈에서 온 멤버는 파이썬의 것이라 잠그지 않는다(버전마다 다르다).
 FOREIGN_MODULES = frozenset({"builtins", "enum", "abc"})
 
@@ -399,7 +403,8 @@ def _build_live(contract: Mapping[str, Iterable[str]], major: int | None) -> dic
     lock["root"] = _members(HwpxDocument, dunders=ROOT_DUNDERS)
 
     lock["namespaces"] = {
-        name: _members(cls, dunders=NAMESPACE_DUNDERS, skip=("document",)) for name, cls in NAMESPACES.items()
+        name: _members(cls, dunders=NAMESPACE_DUNDERS, skip=("document", *NAMESPACE_ESCAPE_HATCHES.get(name, ())))
+        for name, cls in NAMESPACES.items()
     }
 
     classes: dict[str, Any] = {}

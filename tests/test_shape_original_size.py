@@ -143,10 +143,11 @@ def test_the_original_size_survives_save_reopen_and_resize() -> None:
     shape = next(s for p in reopened.paragraphs for s in p.shapes)
     shape.resize(9000, 6000)
     rect = _only_shape(reopened, "rect")
-    # resize() already rescales orgSz-space geometry and resets scaMatrix
-    assert _size(rect, "orgSz") == _size(rect, "curSz") == (9000, 6000)
-    assert _point(rect, "pt2") == (9000, 6000)
-    assert _scale(rect)["e1"] == "1"
+    # resize() keeps orgSz and its geometry and scales them, as Hancom 2024 does (objlim psizerect)
+    assert _size(rect, "orgSz") == (15182, 4070)
+    assert _size(rect, "curSz") == (9000, 6000)
+    assert _point(rect, "pt2") == (15182, 4070)
+    assert float(_scale(rect)["e1"]) == pytest.approx(9000 / 15182, abs=1e-6)
 
 
 @pytest.mark.parametrize(

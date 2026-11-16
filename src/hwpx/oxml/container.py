@@ -486,8 +486,6 @@ def member_removal_refusal(element: Any, chain: Sequence[Any]) -> str | None:
         return "its group is turned, flipped or its sizes disagree"
     for index, group in enumerate(chain):
         members = _shapes_inside(group)
-        if index == 0 and len(members) < 2:
-            return "it is the group's only member: remove the group"
         outermost = index == len(chain) - 1
         if outermost:
             original = group.find(f"{_HP}orgSz")
@@ -780,6 +778,150 @@ def _turned_group_mismatch(group: Any, shapes: Sequence[Any], angle: int, middle
         if not _close(_matrix(own[2]), turn_entries(cos, sin, about, flips), 0.05):
             return "a member is turned otherwise than with its group"
     return None
+
+
+def _ungroup_refused(why: str) -> Any:
+    from ..errors import HwpxValueError
+
+    return HwpxValueError(
+        f"this group cannot be ungrouped: {why}",
+        code="shape-ungroup-unsupported",
+        context={"reason": why},
+        suggestion="묶음의 꼴이 한/글 저장본으로 확인한 것(떠 있는 묶음, 구성원이 혼자 돌거나 뒤집히지 않음, 묶음 안 "
+                   "묶음 없음)일 때 풉니다. 그렇지 않으면 묶음째 다룹니다.",
+    )
+
+
+def _apply(matrix: Sequence[float], point: tuple[float, float]) -> tuple[float, float]:
+    x, y = point
+    return matrix[0] * x + matrix[1] * y + matrix[2], matrix[3] * x + matrix[4] * y + matrix[5]
+
+
+def _unsigned(value: int) -> str:
+    return str(value & 0xFFFFFFFF)  # a negative offset in its unsigned 32-bit form, as Hancom writes it
+
+
+def _signed(value: str | None) -> int:
+    number = int(value or 0) & 0xFFFFFFFF
+    return number - (1 << 32) if number >= 1 << 31 else number
+
+
+def ungroup_refusal(group: Any) -> str | None:
+    """Why the group *group* is not one :func:`ungroup_elements` knows how Hancom ungroups, or ``None``."""
+
+    position = group.find(f"{_HP}pos")
+    if position is None or position.get("treatAsChar") not in ("0", "false", "False"):
+        return "it is set as a character"
+    if position.get("horzAlign", "LEFT") != "LEFT" or position.get("vertAlign", "TOP") != "TOP":
+        return "it is placed from another side of its frame than the left and top"
+    flip = group.find(f"{_HP}flip")
+    if flip is not None and "1" in (flip.get("horizontal"), flip.get("vertical")):
+        return "it is flipped"
+    for member in _shapes_inside(group):
+        if _local(member) == "container":
+            return "it holds a group"
+        rendering = member.find(f"{_HP}renderingInfo")
+        if rendering is None or [_local(child) for child in rendering] != ["transMatrix", "scaMatrix", "rotMatrix"]:
+            return "a member is drawn by other matrices than one move, scale and turn"
+        own_flip = member.find(f"{_HP}flip")
+        own_turn = member.find(f"{_HP}rotationInfo")
+        if (own_flip is not None and "1" in (own_flip.get("horizontal"), own_flip.get("vertical"))) or (
+                own_turn is not None and (own_turn.get("angle") or "0") != "0"):
+            return "a member is turned or flipped on its own"
+        scale = rendering.find(f"{_HC}scaMatrix")
+        if scale is not None and any(abs(float(scale.get(key, "0"))) > 1e-6 for key in ("e2", "e4")):
+            return "it is turned and then stretched (skewed): no Hancom-saved document shows one ungrouped"
+    return None
+
+
+def ungroup_elements(group: Any, top_z_order: int) -> list[Any]:
+    """Take the floating group *group* (``hp:container`` in a run) apart as Hancom 2024 ungroups one and return
+    its members, now shapes of their own, in the order they stand in the run (the group's last member first,
+    as Hancom puts them).
+
+    Each member keeps its matrices, which already draw it where it is in the group (the group's turn and
+    stretch included): where the shape they draw starts (its box's top left in the group, ``(x, y)``) is taken
+    out of its move -- ``transMatrix`` e3/e6 and ``hp:offset`` lose ``(x, y)`` -- and given to its place, the
+    group's ``hp:pos`` offsets plus ``(x, y)``, the rest of the group's ``hp:pos`` (its frames) kept. Its box
+    (``hp:sz``) is the box of the shape drawn, ``hp:curSz`` its own size drawn at its scale (0 on an axis it is
+    not stretched on), the rotation centre the middle of its box and the angle the group's. It takes the
+    group's ``textWrap``, ``textFlow``, ``numberingType`` and outer margins, ``groupLevel`` 0, a new ``id``
+    and a ``zOrder`` above the others (*top_z_order* on), and keeps its ``instid`` (a connector attached to it
+    stays). Hancom 2024 wrote this for a group of a rectangle and an ellipse ungrouped plain, stretched
+    1.6 x 1.8 and 0.6 x 2.4, turned 30, 45 and 90 degrees, and stretched then turned 45 (objlim evidence ungroup2,
+    ungroup3, ungroupstretch, ungroupstretch2, ungroupturned2, ungroupturned45b, ungroupturned90, ungroupturned45: its boxes a unit
+    apart here and there). Hancom also hangs each member on the paragraph at whose height it
+    starts, which needs the line layout; here every member stays in the group's paragraph, measured from it,
+    which draws it in the same spot.
+
+    The caller checks :func:`ungroup_refusal` first.
+    """
+
+    from ._document_primitives import _object_id
+    from .shape_position import _matrix_number
+
+    position = group.find(f"{_HP}pos")
+    turn = group.find(f"{_HP}rotationInfo")
+    angle = (turn.get("angle") or "0") if turn is not None else "0"
+    left, top = _signed(position.get("horzOffset")), _signed(position.get("vertOffset"))
+    margin = group.find(f"{_HP}outMargin")
+    freed: list[Any] = []
+    for index, member in enumerate(_shapes_inside(group)):
+        rendering = member.find(f"{_HP}renderingInfo")
+        trans, scale, rot = ([float(node.get(key, "1" if key in ("e1", "e5") else "0"))
+                              for key in ("e1", "e2", "e3", "e4", "e5", "e6")] for node in rendering)
+        original = member.find(f"{_HP}orgSz")
+        width, height = (int(original.get("width", "0")), int(original.get("height", "0"))) \
+            if original is not None else (0, 0)
+        drawn = [_apply(trans, _apply(rot, _apply(scale, corner)))
+                 for corner in ((0.0, 0.0), (float(width), 0.0), (0.0, float(height)), (float(width), float(height)))]
+        x0, y0 = min(p[0] for p in drawn), min(p[1] for p in drawn)
+        box = (round(max(p[0] for p in drawn) - x0), round(max(p[1] for p in drawn) - y0))
+        start = (round(x0), round(y0))
+        rendering[0].set("e3", _matrix_number(trans[2] - start[0]))
+        rendering[0].set("e6", _matrix_number(trans[5] - start[1]))
+        offset = member.find(f"{_HP}offset")
+        if offset is not None:
+            offset.set("x", _unsigned(round(trans[2]) - start[0]))
+            offset.set("y", _unsigned(round(trans[5]) - start[1]))
+        current = member.find(f"{_HP}curSz")
+        if current is not None:
+            current.set("width", str(int(width * scale[0] + 1e-6)) if abs(scale[0] - 1) > 1e-6 else "0")
+            current.set("height", str(int(height * scale[4] + 1e-6)) if abs(scale[4] - 1) > 1e-6 else "0")
+        own_turn = member.find(f"{_HP}rotationInfo")
+        if own_turn is not None:
+            own_turn.set("angle", angle)
+            own_turn.set("centerX", str(box[0] // 2))
+            own_turn.set("centerY", str(box[1] // 2))
+        for name in ("textWrap", "textFlow", "numberingType"):
+            if group.get(name) is not None:
+                member.set(name, str(group.get(name)))
+        member.set("groupLevel", "0")
+        member.set("id", _object_id())
+        member.set("zOrder", str(top_z_order + index))
+        member.append(member.makeelement(f"{_HP}sz", {
+            "width": str(box[0]), "widthRelTo": "ABSOLUTE", "height": str(box[1]), "heightRelTo": "ABSOLUTE",
+            "protect": "0"}))
+        place = copy.deepcopy(position)
+        place.tail = None
+        place.set("horzOffset", _unsigned(left + start[0]))
+        place.set("vertOffset", _unsigned(top + start[1]))
+        member.append(place)
+        if margin is not None:
+            out = copy.deepcopy(margin)
+            out.tail = None
+        else:
+            out = member.makeelement(f"{_HP}outMargin", {"left": "0", "right": "0", "top": "0", "bottom": "0"})
+        member.append(out)
+        freed.append(member)
+    holder = group.getparent()
+    at = list(holder).index(group)
+    holder.remove(group)
+    for member in reversed(freed):
+        member.tail = None
+        holder.insert(at, member)
+        at += 1
+    return list(reversed(freed))
 
 
 __all__ = ["ContainerMember", "fit_groups_after_removal", "member_removal_refusal", "turn_group"]

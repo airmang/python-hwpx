@@ -177,7 +177,8 @@ def test_a_straight_line_keeps_a_box_of_at_least_one(end) -> None:
         assert min(int(box.get("width", "")), int(box.get("height", ""))) == 1
 
 
-def test_resizing_a_flat_line_keeps_its_box_at_least_one() -> None:
+def test_resizing_a_flat_line_keeps_its_original_box() -> None:
+    # Hancom 2024 resizes a horizontal line through its scaMatrix: orgSz 14400x1 stays (objlim psizeline2).
     shape = _paragraph().add_line(0, 0, 14400, 0)
 
     shape.resize(28800, 0)
@@ -186,9 +187,9 @@ def test_resizing_a_flat_line_keeps_its_box_at_least_one() -> None:
     sz = shape.element.find(f"{HP}sz")
     end_pt = shape.element.find(f"{HC}endPt")
     assert org is not None and sz is not None and end_pt is not None
-    assert (org.get("width"), org.get("height")) == ("28800", "1")
+    assert (org.get("width"), org.get("height")) == ("14400", "1")
     assert (sz.get("width"), sz.get("height")) == ("28800", "0")
-    assert (end_pt.get("x"), end_pt.get("y")) == ("28800", "0")
+    assert (end_pt.get("x"), end_pt.get("y")) == ("14400", "0")
 
 
 def test_diagonal_line_is_not_sized_by_its_hypotenuse() -> None:
@@ -201,26 +202,76 @@ def test_diagonal_line_is_not_sized_by_its_hypotenuse() -> None:
 
 
 # =========================================================================
-# resize() must move the geometry Hancom draws
+# resize() as Hancom 2024 resizes a drawing object: geometry and orgSz stay, scaMatrix draws it
+# (objlim evidence psizerect, psizerect2, psizerect3, psizeline, psizeline2)
 # =========================================================================
 
 
-def test_resize_moves_rectangle_corners() -> None:
-    shape = _paragraph().add_rectangle(7200, 3600)
+def _resized(shape) -> dict[str, tuple[str | None, ...]]:
+    element = shape.element
 
-    shape.resize(14400, 7200)
+    def box(tag: str) -> tuple[str | None, str | None]:
+        child = element.find(f"{HP}{tag}")
+        assert child is not None
+        return child.get("width"), child.get("height")
 
-    corners = [
-        (shape.element.find(f"{HC}pt{i}").get("x"),  # type: ignore[union-attr]
-         shape.element.find(f"{HC}pt{i}").get("y"))  # type: ignore[union-attr]
-        for i in range(4)
-    ]
-    assert corners == [
-        ("0", "0"), ("14400", "0"), ("14400", "7200"), ("0", "7200"),
-    ]
+    scale = element.find(f"{HP}renderingInfo/{HC}scaMatrix")
+    turn = element.find(f"{HP}rotationInfo")
+    assert scale is not None and turn is not None
+    return {"sz": box("sz"), "curSz": box("curSz"), "orgSz": box("orgSz"),
+            "scale": (scale.get("e1"), scale.get("e5")), "centre": (turn.get("centerX"), turn.get("centerY"))}
 
 
-def test_resize_moves_ellipse_axes() -> None:
+@pytest.mark.parametrize(
+    "size, expected",
+    [
+        ((12000, 5000), {"sz": ("12000", "5000"), "curSz": ("12000", "0"), "scale": ("1.5", "1"),
+                         "centre": ("6000", "2500")}),  # psizerect
+        ((4000, 10000), {"sz": ("4000", "10000"), "curSz": ("4000", "10000"), "scale": ("0.5", "2"),
+                         "centre": ("2000", "5000")}),  # psizerect2
+    ],
+)
+def test_resize_draws_a_rectangle_through_its_scale_matrix(size, expected) -> None:
+    shape = _paragraph().add_rectangle(8000, 5000)
+
+    shape.resize(*size)
+
+    assert _resized(shape) == {**expected, "orgSz": ("8000", "5000")}
+    corners = [(shape.element.find(f"{HC}pt{i}").get("x"), shape.element.find(f"{HC}pt{i}").get("y"))  # type: ignore[union-attr]
+               for i in range(4)]
+    assert corners == [("0", "0"), ("8000", "0"), ("8000", "5000"), ("0", "5000")]
+
+
+def test_resize_twice_scales_from_the_original_size() -> None:
+    shape = _paragraph().add_rectangle(8000, 5000)
+
+    shape.resize(12000, 5000)
+    shape.resize(6000, 2500)  # psizerect3
+
+    assert _resized(shape) == {"sz": ("6000", "2500"), "curSz": ("6000", "2500"), "orgSz": ("8000", "5000"),
+                               "scale": ("0.75", "0.5"), "centre": ("3000", "1250")}
+
+
+@pytest.mark.parametrize(
+    "size, expected",
+    [
+        ((14400, 2000), {"sz": ("14400", "2000"), "curSz": ("0", "2000"), "scale": ("1", "2000"),
+                         "centre": ("7200", "1000")}),  # psizeline
+        ((7200, 3000), {"sz": ("7200", "3000"), "curSz": ("7200", "3000"), "scale": ("0.5", "3000"),
+                        "centre": ("3600", "1500")}),  # psizeline2
+    ],
+)
+def test_resize_gives_a_flat_line_a_height_through_its_scale_matrix(size, expected) -> None:
+    shape = _paragraph().add_line(0, 0, 14400, 0)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        shape.resize(*size)
+
+    assert _resized(shape) == {**expected, "orgSz": ("14400", "1")}
+
+
+def test_resize_keeps_the_ellipse_geometry() -> None:
     shape = _paragraph().add_ellipse(7200, 3600)
 
     shape.resize(14400, 7200)
@@ -230,79 +281,8 @@ def test_resize_moves_ellipse_axes() -> None:
         assert child is not None
         return child.get("x"), child.get("y")
 
-    assert point("center") == ("7200", "3600")
-    assert point("ax1") == ("14400", "3600")
-    assert point("ax2") == ("7200", "7200")
-
-
-def test_resize_moves_line_endpoint() -> None:
-    shape = _paragraph().add_line(0, 0, 7200, 3600)
-
-    shape.resize(14400, 7200)
-
-    end_pt = shape.element.find(f"{HC}endPt")
-    assert end_pt is not None
-    assert (end_pt.get("x"), end_pt.get("y")) == ("14400", "7200")
-
-
-@pytest.mark.parametrize(
-    "kind, created, resized",
-    [
-        ("rect", (7200, 3600), (14400, 7200)),
-        ("rect", (14400, 7200), (3600, 1800)),
-        ("ellipse", (7200, 3600), (10000, 6000)),
-    ],
-)
-def test_resize_lands_on_the_geometry_of_a_shape_created_at_that_size(
-    kind, created, resized,
-) -> None:
-    """The point of the fix: a resized shape is drawn like a fresh one."""
-
-    build = {
-        "rect": _create_rectangle_element, "ellipse": _create_ellipse_element,
-    }[kind]
-    paragraph = _paragraph()
-    shape = getattr(paragraph, f"add_{'rectangle' if kind == 'rect' else kind}")(
-        *created,
-    )
-
-    shape.resize(*resized)
-
-    def geometry(element: ET.Element) -> list[tuple[str, str | None, str | None]]:
-        return [
-            (child.tag, child.get("x"), child.get("y"))
-            for child in element
-            if child.tag.startswith(HC) and child.get("x") is not None
-        ]
-
-    assert geometry(shape.element) == geometry(build(*resized))
-
-
-def test_resize_warns_when_an_axis_has_no_geometry_to_scale() -> None:
-    """A flat line cannot gain height — say so instead of reporting a new size."""
-
-    shape = _paragraph().add_line(0, 0, 14400, 0)
-
-    with pytest.warns(UserWarning, match="height"):
-        shape.resize(28800, 7200)
-
-    end_pt = shape.element.find(f"{HC}endPt")
-    assert end_pt is not None
-    assert (end_pt.get("x"), end_pt.get("y")) == ("28800", "0")
-
-
-def test_resize_resets_the_scale_matrix() -> None:
-    """Hancom draws geometry × scaMatrix; a stale scale would undo the resize."""
-
-    shape = _paragraph().add_rectangle(7200, 3600)
-    matrix = shape.element.find(f"{HP}renderingInfo/{HC}scaMatrix")
-    assert matrix is not None
-    matrix.set("e1", "0.5")
-    matrix.set("e5", "2.0")
-
-    shape.resize(14400, 7200)
-
-    assert (matrix.get("e1"), matrix.get("e5")) == ("1", "1")
+    assert point("center") == ("3600", "1800")
+    assert _resized(shape)["scale"] == ("2", "2")
 
 
 # =========================================================================
