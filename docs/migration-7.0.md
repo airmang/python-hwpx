@@ -173,6 +173,13 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 - **한 가지 일은 한 곳에서** 한다(변경 추적은 `doc.tracking`, 서식 정의는 `doc.styles`).
 - **실패는 `hwpx.errors.HwpxError` 계열** 이고 `code`·`suggestion` 을 싣는다. 대신하는 내장 예외(`TypeError` 등)도 함께 상속한다.
 
+### `.element`는 계약 밖이다
+
+모델 객체의 `.element`(감싼 XML 요소)는 7.0에서도 그대로 쓸 수 있다. 다만 공개 계약이 아니다. 요소의 모양은 판 사이에
+바뀔 수 있고, `.element`로 고친 것은 엔진의 거부·검사·줄 배치 캐시 지우기를 거치지 않는다. XML을 직접 고쳤다면 그 문단에
+`paragraph.clear_layout_cache()`를 부른다. 7.0에서 공개 API가 생긴 일(문단·런 서식, 표 속성, 개체 배치, 번호·글머리표, 누름틀 값
+등)은 공개 API로 옮기기를 권한다. 자세한 것은 [stable-api](stable-api.md)의 「`.element` — 약속하지 않는 탈출구」.
+
 ### 안내 오류
 
 6.x 에 나간 이름을 7.0 에서 바꾸거나 지웠으면 새 자리를 알려 주는 오류가 난다. 7.0 개발 중에만 있던 이름은 안내 없이 바뀌었다.
