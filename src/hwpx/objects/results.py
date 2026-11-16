@@ -880,8 +880,8 @@ class ParagraphPlace:
     """One paragraph of the whole document and where it sits (``doc.text.iter_paragraphs()``).
 
     ``where`` is the innermost container: ``body``, ``cell``, ``text_box``,
-    ``caption``, ``header``, ``footer``, ``footnote``, ``endnote``, ``memo`` or
-    ``master_page``. ``section`` is the section holding it, as a model object (``None`` on a
+    ``caption``, ``header``, ``footer``, ``footnote``, ``endnote``, ``memo``,
+    ``master_page`` or ``hidden_comment`` (숨은 설명, ``hp:hiddenComment``). ``section`` is the section holding it, as a model object (``None`` on a
     master page; its number is ``doc.sections.index(place.section)``, and ``to_dict()`` writes
     that number).
     ``page_type`` is set in a header or footer (``BOTH``, ``ODD``, ``EVEN``).

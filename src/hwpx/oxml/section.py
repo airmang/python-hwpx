@@ -222,7 +222,7 @@ class HwpxOxmlSection:
             paragraph = paras[paragraph]
         paragraph.remove()
 
-    def clear_body(self, *, on_control_content: str = "raise") -> ClearBodyReport:
+    def clear_body(self, *, on_control_content: str = "raise", keep_headers: bool = True) -> ClearBodyReport:
         """Blank this section down to a template: keep its page setup, drop the body.
 
         What stays: the first paragraph (its attributes untouched), its first
@@ -256,6 +256,16 @@ class HwpxOxmlSection:
         Deciding what to strip before a document is shared is the caller's
         policy; this call only reports and carries it out.
 
+        Headers and footers belong to the section, so they stay by default.
+        ``keep_headers=False`` removes them, with or without content: the
+        ``hp:header``/``hp:footer`` controls of the first paragraph (a
+        ``hp:ctrl`` holding nothing else goes whole) and the story copies in
+        ``hp:secPr`` with the ``hp:headerApply``/``hp:footerApply`` naming them.
+        The page setup, columns and page numbering stay, so what is left is
+        the section's own settings and one empty line -- the shape of a new
+        Hancom document, which has no header control. ``on_control_content``
+        then judges only the controls that stay.
+
         The first run of the first paragraph must hold an ``hp:secPr``
         directly, or the call raises
         ``HwpxValueError(code="section-clear-no-section-properties")``. Every
@@ -280,6 +290,13 @@ class HwpxOxmlSection:
                 context={"value": on_control_content, "allowed": list(_CLEAR_BODY_MODES)},
             )
 
+        if not isinstance(keep_headers, bool):
+            raise HwpxValueError(
+                f"keep_headers must be True or False: {keep_headers!r}",
+                code="section-clear-mode-invalid",
+                context={"value": repr(keep_headers), "argument": "keep_headers"},
+            )
+
         paragraphs = self.paragraphs
         runs = paragraphs[0].runs if paragraphs else []
         if not runs or runs[0].element.find(f"{_HP}secPr") is None:
@@ -293,7 +310,12 @@ class HwpxOxmlSection:
         first = paragraphs[0]
         run_elements = [run.element for run in runs]
 
-        found, removals = self._plan_control_content(run_elements, on_control_content)
+        header_removals = [] if keep_headers else _plan_header_removal(run_elements)
+        found, removals = self._plan_control_content(
+            run_elements, on_control_content, excluded=[child for _, child in header_removals]
+        )
+        removals = header_removals + [pair for pair in removals if not any(
+            pair[1] is child for _, child in header_removals)]
 
         stripped_children = sum(_strip_to_kept_children(run) for run in run_elements)
         for parent, child in removals:
@@ -322,9 +344,10 @@ class HwpxOxmlSection:
         )
 
     def _plan_control_content(
-        self, runs: Sequence[ET.Element], on_control_content: str
+        self, runs: Sequence[ET.Element], on_control_content: str, *, excluded: Sequence[ET.Element] = ()
     ) -> tuple[list[str], list[tuple[ET.Element, ET.Element]]]:
-        """Scan the kept children and plan the ``"strip"`` removals, or refuse.
+        """Scan the kept children (but *excluded*, which go anyway) and plan the ``"strip"``
+        removals, or refuse.
 
         Refuses (before anything changes) when content is found under
         ``"raise"``, or when content would remain after the ``"strip"`` plan.
@@ -332,11 +355,11 @@ class HwpxOxmlSection:
 
         from ..errors import HwpxValueError
 
-        found = _clear_body_kept_content(runs, excluded=())
+        found = _clear_body_kept_content(runs, excluded=excluded)
         if not found or on_control_content == "keep":
             return found, []
         removals = _plan_control_strip(runs) if on_control_content == "strip" else []
-        remaining = _clear_body_kept_content(runs, excluded=[child for _, child in removals])
+        remaining = _clear_body_kept_content(runs, excluded=[*excluded, *(child for _, child in removals)])
         if not remaining:
             return found, removals
         if on_control_content == "raise":
@@ -842,10 +865,31 @@ def _plan_control_strip(runs: Sequence[ET.Element]) -> list[tuple[ET.Element, ET
     return removals
 
 
-def _plan_section_story_strip(section_properties: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+def _plan_header_removal(runs: Sequence[ET.Element]) -> list[tuple[ET.Element, ET.Element]]:
+    """``(parent, child)`` pairs ``keep_headers=False`` removes: every header and footer of the first
+    paragraph's runs (a ``hp:ctrl`` holding only them goes whole) and the story copies in
+    ``hp:secPr`` with the applies naming them, content or not."""
+
+    removals: list[tuple[ET.Element, ET.Element]] = []
+    for run in runs:
+        for child in run:
+            if child.tag == f"{_HP}ctrl":
+                stories = [node for node in child if node.tag in _SECTION_STORY_TAGS]
+                if stories and len(stories) == len(child):
+                    removals.append((run, child))
+                else:
+                    removals.extend((child, story) for story in stories)
+            elif child.tag == f"{_HP}secPr":
+                removals.extend(_plan_section_story_strip(child, content_only=False))
+    return removals
+
+
+def _plan_section_story_strip(
+    section_properties: ET.Element, *, content_only: bool = True
+) -> list[tuple[ET.Element, ET.Element]]:
     removals: list[tuple[ET.Element, ET.Element]] = []
     for story in section_properties:
-        if story.tag not in _SECTION_STORY_TAGS or not _holds_content(story):
+        if story.tag not in _SECTION_STORY_TAGS or (content_only and not _holds_content(story)):
             continue
         removals.append((section_properties, story))
         story_id = story.get("id")

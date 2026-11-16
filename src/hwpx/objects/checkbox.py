@@ -311,4 +311,22 @@ class EditBox(_FormControl):
         return f"EditBox(name={self.name!r}, text={self.text!r})"
 
 
-__all__ = ["CheckBox", "ComboBox", "EditBox", "RadioButton"]
+class Button(_FormControl):
+    """A live view over one ``<hp:btn>`` (명령 단추) element.
+
+    ``caption`` is the label on the button, as Hancom saves it (``hp:btn/@caption``, the
+    Hancom-saved ``reader_writer__SimpleButtons`` sample). The engine makes no buttons: a button
+    runs a command in Hancom, which a document written here cannot give it.
+    """
+
+    __slots__ = ()
+
+    @property
+    def caption(self) -> str:
+        return self._element.get("caption", "")
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"Button(name={self.name!r}, caption={self.caption!r})"
+
+
+__all__ = ["Button", "CheckBox", "ComboBox", "EditBox", "RadioButton"]
