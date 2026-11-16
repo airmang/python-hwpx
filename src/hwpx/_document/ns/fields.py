@@ -26,11 +26,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._resolve import resolve_section
+from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...form_fit.policy import FitPolicy
+    from ...model import Paragraph, Section
     from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
     from ...objects.checkbox import ComboBox, EditBox, RadioButton
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
@@ -266,3 +267,81 @@ class FieldsNamespace(_Namespace):
         from .. import fields as _fields
 
         return _fields.list_form_objects(self._doc, "edit")
+
+    def _place(self, paragraph, section, caller: str):
+        return (
+            optional_paragraph(self._doc, paragraph, section=section, caller=f"doc.fields.{caller}"),
+            resolve_section(self._doc, section, caller=f"doc.fields.{caller}"),
+        )
+
+    def add_radio_button(
+        self,
+        caption: str,
+        *,
+        group: str = "",
+        checked: bool = False,
+        name: str | None = None,
+        paragraph: "Paragraph | int | None" = None,
+        section: "int | Section | None" = None,
+    ) -> "RadioButton":
+        """라디오 단추를 한/글이 새로 만드는 모양 그대로 만들고 그 라이브 뷰를 돌려준다.
+
+        *group* 이 같은 단추끼리 하나만 고를 수 있다(``radioGroupName``). ``checked=True`` 면
+        같은 묶음의 다른 단추는 풀린다. *name* 을 주지 않으면 한/글처럼 ``RadioButton1``,
+        ``RadioButton2`` … 를 붙인다. *paragraph* 를 주지 않으면 *section* 끝에 새 문단을 만든다.
+        캡션이 비면 ``field-radio-caption-empty``.
+        """
+
+        from .. import fields as _fields
+
+        target, owner = self._place(paragraph, section, "add_radio_button")
+        return _fields.add_radio_button(
+            self._doc, caption, group=group, checked=checked, name=name, paragraph=target, section=owner,
+        )
+
+    def add_combo_box(
+        self,
+        text: str = "",
+        *,
+        editable_text: bool = True,
+        name: str | None = None,
+        paragraph: "Paragraph | int | None" = None,
+        section: "int | Section | None" = None,
+    ) -> "ComboBox":
+        """콤보 상자를 한/글이 새로 만드는 모양 그대로 만들고 그 라이브 뷰를 돌려준다.
+
+        한/글은 콤보 상자의 고를 목록을 파일에 두지 않는다(.hwp 양식 개체에 목록 칸이 없다).
+        상자에 보이는 글 *text* 를 목록 항목 하나의 값으로 둔다 — 한/글 저장본과 같은 모양이다.
+        여러 항목의 목록은 한/글 저장본에서 본 적이 없어 쓰지 않는다. *editable_text* 는 직접
+        입력할 수 있는지(``editEnable``, 한/글 새 상자의 기본은 켬)다.
+        """
+
+        from .. import fields as _fields
+
+        target, owner = self._place(paragraph, section, "add_combo_box")
+        return _fields.add_combo_box(
+            self._doc, text, editable_text=editable_text, name=name, paragraph=target, section=owner,
+        )
+
+    def add_edit_box(
+        self,
+        text: str = "",
+        *,
+        multi_line: bool = False,
+        read_only: bool = False,
+        name: str | None = None,
+        paragraph: "Paragraph | int | None" = None,
+        section: "int | Section | None" = None,
+    ) -> "EditBox":
+        """입력 상자를 한/글이 새로 만드는 모양 그대로 만들고 그 라이브 뷰를 돌려준다.
+
+        *text* 는 상자에 든 글이다. 한 줄 상자(``multi_line=False``)는 줄 바꿈을 빈칸으로 바꾼다.
+        *read_only* 면 양식 모드에서 고칠 수 없다.
+        """
+
+        from .. import fields as _fields
+
+        target, owner = self._place(paragraph, section, "add_edit_box")
+        return _fields.add_edit_box(
+            self._doc, text, multi_line=multi_line, read_only=read_only, name=name, paragraph=target, section=owner,
+        )

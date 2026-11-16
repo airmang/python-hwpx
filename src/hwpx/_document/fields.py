@@ -1562,6 +1562,216 @@ def list_form_objects(doc: "HwpxDocument", local: str) -> tuple[Any, ...]:
     )
 
 
+#: A new form object as Hancom writes one (the Hancom-saved ``reader_writer__SimpleButtons``,
+#: ``SimpleComboBox`` and ``SimpleEdit`` samples, and the form objects of the Hancom-made public
+#: samples ``form-01.hwp``/``form-02.hwp`` as Hancom opens them): the kind's own attributes in
+#: Hancom's order with their values for a new object, then its colours, border type and size. The
+#: attributes every form object has follow the kind's own, as in those samples. A new edit box
+#: masks nothing (``passwordChar=""``, the schema's ``*`` is not what Hancom writes).
+_FORM_OWN_ATTRIBUTES: dict[str, tuple[tuple[str, str], ...]] = {
+    "radioBtn": (("caption", ""), ("value", "UNCHECKED"), ("radioGroupName", ""), ("triState", "0"),
+                 ("backStyle", "OPAQUE")),
+    "comboBox": (("listBoxRows", "10"), ("listBoxWidth", "0"), ("editEnable", "1"), ("selectedValue", "")),
+    "edit": (("multiLine", "0"), ("passwordChar", ""), ("maxLength", "2147483647"), ("scrollBars", "NONE"),
+             ("tabKeyBehavior", "NEXT_OBJECT"), ("numOnly", "0"), ("readOnly", "0"), ("alignText", "LEFT")),
+}
+#: foreColor, backColor, borderTypeIDRef, width and height (HWPUNIT) of a new one.
+_FORM_LOOK: dict[str, tuple[str, str, str, int, int]] = {
+    "radioBtn": ("#000000", "#FFFFFF", "0", 8504, 1984),
+    "comboBox": ("#000000", "#F0F0F0", "5", 9921, 1984),
+    "edit": ("#000000", "#F0F0F0", "5", 7087, 1984),
+}
+#: The name Hancom gives the n-th of a kind (``RadioButton1``, ``ComboBox1``, ``Edit1``).
+_FORM_NAMES = {"radioBtn": "RadioButton", "comboBox": "ComboBox", "edit": "Edit"}
+_FORM_KINDS = ("btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar")
+
+
+def _next_form_name(doc: "HwpxDocument", local: str) -> str:
+    taken = {element.get("name", "") for element, _s, _i, _x in _iter_form_objects(doc, local)}
+    number = len(taken) + 1
+    while f"{_FORM_NAMES[local]}{number}" in taken:
+        number += 1
+    return f"{_FORM_NAMES[local]}{number}"
+
+
+def _next_tab_order(doc: "HwpxDocument") -> str:
+    """One past the highest ``tabOrder`` of the document's form objects, as Hancom numbers them."""
+
+    highest = 0
+    for section in doc.sections:
+        for element in section.element.iter():
+            if _local_name(element) in _FORM_KINDS:
+                value = (element.get("tabOrder") or "").strip()
+                if value.lstrip("-").isdigit():
+                    highest = max(highest, int(value))
+    return str(highest + 1)
+
+
+def _form_name(doc: "HwpxDocument", local: str, name: str | None) -> str:
+    if name is None or not str(name).strip():
+        return _next_form_name(doc, local)
+    return _sanitize_field_text(str(name).strip())
+
+
+def _add_form_object(
+    doc: "HwpxDocument",
+    local: str,
+    own: Mapping[str, str],
+    *,
+    name: str,
+    paragraph: Any | None,
+    section: Any | None,
+    content: Sequence[tuple[str, dict[str, str], str | None]] = (),
+) -> Any:
+    """Append a new ``hp:<local>`` form object, built as Hancom writes one, to *paragraph* (a new
+    paragraph at the end of *section* when ``None``) and return its live view.
+
+    Like a check box it is a direct child of a run, set as a character, with the mandatory
+    ``hp:formCharPr`` first, then *content* (``hp:listItem``, ``hp:text``), size, position and
+    outer margin. The paragraph (and the one holding its table) loses its line layout cache.
+    """
+
+    if paragraph is None:
+        paragraph = doc.add_paragraph("", section=section, include_run=False)
+    fore, back, border, width, height = _FORM_LOOK[local]
+    attributes = {key: own.get(key, default) for key, default in _FORM_OWN_ATTRIBUTES[local]}
+    attributes.update({
+        "name": name, "foreColor": fore, "backColor": back, "groupName": "", "tabStop": "1", "editable": "1",
+        "tabOrder": _next_tab_order(doc), "enabled": "1", "borderTypeIDRef": border, "drawFrame": "1",
+        "printable": "1", "command": "",
+    })
+    run = paragraph._create_run_for_object()
+    element = run.makeelement(f"{_HP}{local}", attributes)
+    run.append(element)
+    element.append(element.makeelement(
+        f"{_HP}formCharPr", {"charPrIDRef": "0", "followContext": "0", "autoSz": "0", "wordWrap": "0"}
+    ))
+    for child_name, child_attributes, text in content:
+        child = element.makeelement(f"{_HP}{child_name}", child_attributes)
+        if text is not None:
+            child.text = text
+        element.append(child)
+    element.append(element.makeelement(f"{_HP}sz", {
+        "width": str(width), "widthRelTo": "ABSOLUTE", "height": str(height), "heightRelTo": "ABSOLUTE",
+        "protect": "0",
+    }))
+    element.append(element.makeelement(f"{_HP}pos", {
+        "treatAsChar": "1", "affectLSpacing": "0", "flowWithText": "1", "allowOverlap": "1",
+        "holdAnchorAndSO": "0", "vertRelTo": "PARA", "horzRelTo": "COLUMN", "vertAlign": "TOP",
+        "horzAlign": "LEFT", "vertOffset": "0", "horzOffset": "0",
+    }))
+    element.append(element.makeelement(f"{_HP}outMargin", {"left": "0", "right": "0", "top": "0", "bottom": "0"}))
+    run.append(run.makeelement(f"{_HP}t", {}))
+    paragraph.section.mark_dirty()
+    for view in list_form_objects(doc, local):
+        if view.element is element:
+            return view
+    raise HwpxStateError(  # pragma: no cover - defensive: the reader walks every section
+        f"the new {local} was not found by the form object reader",
+        code="field-form-not-created",
+        context={"kind": local, "name": name},
+        suggestion="Check that the paragraph belongs to this document.",
+    )
+
+
+def _check_caption(caption: object, code: str) -> str:
+    text = _sanitize_field_text(caption) if isinstance(caption, str) else ""
+    if not text.strip():
+        raise HwpxValueError(
+            "a radio button needs a caption: the text drawn beside it",
+            code=code,
+            context={"requested": repr(caption)},
+            suggestion="Pass the caption printed next to the button.",
+        )
+    return text
+
+
+def add_radio_button(
+    doc: "HwpxDocument",
+    caption: str,
+    *,
+    group: str = "",
+    checked: bool = False,
+    name: str | None = None,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> Any:
+    """Create a radio button (라디오 단추) as Hancom writes one and return it as a
+    :class:`~hwpx.objects.RadioButton`. Checking it unchecks the other buttons of its *group*."""
+
+    text = _check_caption(caption, "field-radio-caption-empty")
+    if not isinstance(group, str):
+        raise HwpxValueError(
+            f"group must be a str (the radio group's name); got {group!r}",
+            code="field-radio-group-value",
+            context={"requested": repr(group)},
+            suggestion="Pass the same group name to the buttons one choice is made among.",
+        )
+    view = _add_form_object(
+        doc, "radioBtn", {"caption": text, "radioGroupName": _sanitize_field_text(group)},
+        name=_form_name(doc, "radioBtn", name), paragraph=paragraph, section=section,
+    )
+    if checked:
+        view.checked = True
+    return view
+
+
+def add_combo_box(
+    doc: "HwpxDocument",
+    text: str = "",
+    *,
+    editable_text: bool = True,
+    name: str | None = None,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> Any:
+    """Create a combo box (콤보 상자) as Hancom writes one and return it as a
+    :class:`~hwpx.objects.ComboBox`: one list item holding the text the box shows."""
+
+    if not isinstance(text, str):
+        raise HwpxValueError(
+            f"text must be a str (what the box shows); got {text!r}",
+            code="field-form-text-value",
+            context={"requested": repr(text)},
+            suggestion="Pass the text the box shows, or leave it out for an empty box.",
+        )
+    return _add_form_object(
+        doc, "comboBox", {"editEnable": "1" if editable_text else "0"},
+        name=_form_name(doc, "comboBox", name), paragraph=paragraph, section=section,
+        content=(("listItem", {"displayText": "", "value": _sanitize_field_text(text)}, None),),
+    )
+
+
+def add_edit_box(
+    doc: "HwpxDocument",
+    text: str = "",
+    *,
+    multi_line: bool = False,
+    read_only: bool = False,
+    name: str | None = None,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> Any:
+    """Create an edit box (입력 상자) as Hancom writes one and return it as an
+    :class:`~hwpx.objects.EditBox`. A box of one line takes line breaks as spaces."""
+
+    if not isinstance(text, str):
+        raise HwpxValueError(
+            f"text must be a str (what the box holds); got {text!r}",
+            code="field-form-text-value",
+            context={"requested": repr(text)},
+            suggestion="Pass the text the box holds, or leave it out for an empty box.",
+        )
+    value = _sanitize_field_text(text)
+    if not multi_line:
+        value = value.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    return _add_form_object(
+        doc, "edit", {"multiLine": "1" if multi_line else "0", "readOnly": "1" if read_only else "0"},
+        name=_form_name(doc, "edit", name), paragraph=paragraph, section=section,
+        content=(("text", {}, value),),
+    )
+
+
 def _measure_form_field_fit(
     doc: "HwpxDocument",
     value: str,

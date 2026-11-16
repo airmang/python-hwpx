@@ -495,6 +495,10 @@ ERROR_CODES: dict[str, str] = {
     "field-text-box-not-found": "그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다).",
     "field-end-missing": "누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다).",
     "field-choice-unknown": "직접 입력할 수 없는 콤보 상자에 그 항목이 없다(combo_box.items 로 항목을 본다).",
+    "field-radio-caption-empty": "라디오 단추 캡션(옆에 그리는 글)이 비어 있다.",
+    "field-radio-group-value": "라디오 단추 묶음 이름(group)이 str 가 아니다.",
+    "field-form-text-value": "콤보 상자·입력 상자에 넣을 글(text)이 str 가 아니다.",
+    "field-form-not-created": "만든 양식 개체(라디오 단추·콤보 상자·입력 상자)를 표준 리더가 다시 찾지 못했다.",
     # -- 자동 갱신 필드(날짜/시간·교정 부호·파일 이름, 누름틀과 다른 부류) --
     "field-date-format-unsupported": "날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다.",
     "field-proofreading-mark-unsupported": "교정 부호 mark 값이 $RevisionSign 인덱스가 확인된 어휘 밖이다.",
