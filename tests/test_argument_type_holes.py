@@ -227,7 +227,7 @@ _WRONG_TYPES = {
     "tables['a']": lambda d: d.tables["a"],
     "add_section(after='a')": lambda d: d.add_section(after="a"),
     "add_section(after=9)": lambda d: d.add_section(after=9),
-    "save_to_path(123)": lambda d: d.save_to_path(123),
+    "save(123)": lambda d: d.save(123),
 }
 
 

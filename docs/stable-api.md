@@ -128,14 +128,13 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`
 3. **공개 편집은 그 파트만 바꾸고, 바꾼 파트를 알린다.** 공개 API로 고치면 그 내용을 담은 파트만
    바뀌고 나머지 파트는 바이트 그대로다. 바뀐 파트는 `MutationReport.changed_parts` 에 적힌다
-   (`save_to_path(..., return_report=True)`).
+   (`doc.save(...)`가 돌려주는 보고).
    `tests/test_engine_contract.py::test_a_public_edit_changes_only_its_part_and_says_so`,
    `tests/test_mutation_report.py::test_one_cell_edit_patch_lists_dirty_section`
-4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save_to_path`·
-   `save_to_stream`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
+4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
    아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다).
    `tests/test_document_save_api.py::test_to_bytes_rejects_generated_package_that_fails_open_safety`,
-   `tests/test_document_save_api.py::test_save_to_path_preserves_existing_file_when_open_safety_fails`
+   `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`
 5. **"한/글에서 열린다"는 한/글 기록이 있는 것에만 말한다.** 한/글에서 열어 확인했다
    (Render-verified)는 말은 실제 한/글로 열어 본 기록(`docs/openrate/` 보고, 한컴 오라클
    측정)이 있는 만들기·편집 영역에만 붙는다([지원 매트릭스](support-matrix.md)).
