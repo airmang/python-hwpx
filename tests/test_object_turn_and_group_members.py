@@ -178,6 +178,25 @@ def test_a_member_that_does_not_reach_the_edge_leaves_the_group_as_it_is() -> No
     _reopen(doc)
 
 
+def test_a_group_made_with_a_group_inside_is_valid_and_its_inner_member_leaves() -> None:
+    doc = HwpxDocument.new()
+    inner = ContainerMember.group(0, 0, [ContainerMember.rect(0, 0, 5000, 2500),
+                                         ContainerMember.ellipse(5500, 500, 3000, 1500)])
+    group = doc.add_paragraph("").add_container([inner, ContainerMember.rect(1000, 3000, 9000, 1200)],
+                                                treat_as_char=False)
+    assert not any(node.get("_treatAsChar") is not None for node in group.element.iter())  # no builder marker left
+    group.members[0].members[0].remove()  # the rectangle at the top left of both groups
+    inner_group = group.members[0]
+    assert inner_group.element.find(f"{HP}offset").attrib == {"x": "4500", "y": "0"}
+    assert _attrs(inner_group, "orgSz") == ("3000", "1500")
+    # What is left: the ellipse (5500, 500)-(8500, 2000) and the band (1000, 3000)-(10000, 4200).
+    assert _attrs(group, "orgSz") == ("9000", "3700")
+    assert group.members[1].element.find(f"{HP}offset").attrib == {"x": "0", "y": "2500"}
+    position = group.element.find(f"{HP}pos")
+    assert (int(position.get("horzOffset")), int(position.get("vertOffset"))) == (1000, 500)
+    _reopen(doc)
+
+
 def test_the_last_member_and_a_turned_group_refuse() -> None:
     doc = HwpxDocument.new()
     group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),

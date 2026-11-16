@@ -294,6 +294,8 @@ def _group_element(
         _build_shape_base_children(el, width, height)
         # The outermost group (not its members) closes with an empty shapeComment, as hp:pic does.
         _append_child(el, f"{_HP}shapeComment", {})
+    else:  # a group inside has no sz/pos tail: drop the builder's marker the tail would have taken
+        el.attrib.pop("_treatAsChar", None)
     return el
 
 
