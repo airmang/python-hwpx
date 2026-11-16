@@ -24,7 +24,7 @@
 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 그래서 **계약은 클래스가 아니라 멤버 allowlist다.**
-`tests/data/model_surface.json`이 클래스별 stable 멤버를 정확히 나열한다.
+공개 표면 잠금 `tests/data/public_surface.json`의 `model` 층이 클래스별 stable 멤버를 정확히 나열한다.
 
 - allowlist **안**의 멤버 → stable. major 경계에서만 바뀐다.
 - allowlist **밖**의 멤버(`apply_model`·`mark_dirty`·`remove_stale_layout_caches` …)

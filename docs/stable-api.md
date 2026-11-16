@@ -47,12 +47,12 @@ assert model.Paragraph is HwpxOxmlParagraph   # 래퍼가 아니라 별칭이다
 stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 있게 되어, 바로 그
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
-**계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 362개
-멤버**.
+**계약은 클래스가 아니라 멤버 목록이다.** 공개 표면 잠금 `tests/data/public_surface.json` 의
+`model` 층이 클래스별로 stable 멤버(`members`, 서명까지)와 목록 밖 공개 이름(`internal`)을
+정확히 나열한다. 수는 아래 「공개 표면 잠금」 표에 있다.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
-- 목록 **밖**의 멤버(164개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
+- 목록 **밖**의 멤버(`apply_model`·`mark_dirty`·`remove_stale_layout_caches`
   등) → 구현 세부. minor 에서 바뀔 수 있다.
 
 `hwpx.oxml.*` import 경로는 그대로 살아 있다. 옮기지도, deprecate 하지도 않는다.
@@ -72,11 +72,36 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 (`document-name-removed`)가 난다. 같은 때 `section_index=`·`style_id_ref=` 인자도 없어졌다
 (`hwpx-argument-removed`). 대응표는 [6.0 이주 가이드](migration-6.0.md).
 
-| | 수 | 락 |
-|---|---:|---|
-| 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
-| 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 362 | `tests/data/model_surface.json` |
+지운 79개 이름의 안내 표는 `tests/data/document_legacy_shims.json` 이 잠근다.
+
+### 공개 표면 잠금
+
+공개 표면 전체를 파일 하나, `tests/data/public_surface.json` 이 잠근다. 멤버마다 종류,
+인자(이름·위치/키워드·기본값 있음), 속성의 쓰기 가능 여부, 반환 표기를 적고,
+`tests/test_public_surface.py` 가 설치본과 하나라도 다르면(늘어도 줄어도) 실패한다.
+
+<!-- public-surface-lock:begin (scripts/public_surface_lock.py가 다시 쓴다. 손으로 고치지 않는다) -->
+| 층 | 잠근 것 | 수 |
+|---|---|---:|
+| 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
+| 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 35 |
+| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 188 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 362 |
+| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 164 |
+| `hwpx.objects` 51개 값 형식 | 필드 238 · 멤버 104 · enum 값 10 | 352 |
+| 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 64 |
+<!-- public-surface-lock:end -->
+
+공개 이름을 바꾸면 잠금을 손으로 고치지 않고 다시 만든다. 바뀐 것마다
+`tests/data/public_surface_changes.jsonl` 에 까닭과 함께 한 줄이 남는다. 지우기·이름
+바꾸기·서명 바꾸기는 패키지 메이저가 잠금의 `major` 보다 클 때만 받는다(다음 메이저를
+만드는 동안에는 `--allow-major-break`). 자세한 절차는 [기여 안내](../CONTRIBUTING.md#공개-표면-잠금).
+
+```bash
+python scripts/public_surface_lock.py check                                  # 같은지 본다
+python scripts/public_surface_lock.py check --update --reason "무엇을 왜"    # 다시 만든다
+python scripts/public_surface_lock.py rebuild                                # git 병합 뒤
+```
 
 설치본에 직접 물어볼 수도 있다:
 

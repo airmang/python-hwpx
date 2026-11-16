@@ -1,0 +1,1965 @@
+{
+ "schemaVersion": "python-hwpx.public-surface/v1",
+ "major": 6,
+ "top": {
+  "BytePreservingPatchResult": {"kind": "class"},
+  "DEFAULT_NAMESPACES": {"kind": "constant", "type": "dict"},
+  "DOC_DIFF_REPORT_VERSION": {"kind": "constant", "type": "str"},
+  "EditorOpenSafetyReport": {"kind": "class"},
+  "FoundElement": {"kind": "class"},
+  "Hwp5ConversionWarning": {"kind": "class"},
+  "Hwp5Error": {"kind": "class"},
+  "HwpxDocument": {"kind": "class"},
+  "HwpxError": {"kind": "class"},
+  "HwpxPackage": {"kind": "class"},
+  "MutationReport": {"kind": "class"},
+  "ObjectFinder": {"kind": "class"},
+  "PackageValidationReport": {"kind": "class"},
+  "ParagraphInfo": {"kind": "class"},
+  "ParagraphTextPatch": {"kind": "class"},
+  "PatchApplied": {"kind": "class"},
+  "PatchSkipped": {"kind": "class"},
+  "PreservationDowngradeError": {"kind": "class"},
+  "QualityPolicy": {"kind": "class"},
+  "SavePipeline": {"kind": "class"},
+  "SectionInfo": {"kind": "class"},
+  "TextExtractor": {"kind": "class"},
+  "VisualCompleteReport": {"kind": "class"},
+  "__version__": {"kind": "constant", "type": "str"},
+  "diff_paragraphs": {"kind": "function", "params": [["old_paragraphs", "P", false], ["new_paragraphs", "P", false]], "returns": "list[dict[str, Any]]"},
+  "doc_diff": {"kind": "function", "params": [["old_source", "P", false], ["new_source", "P", false]], "returns": "dict[str, Any]"},
+  "paragraph_patch": {"kind": "function", "params": [["source", "P", false], ["patches", "P", false], ["output_path", "K", true]], "returns": "BytePreservingPatchResult"},
+  "validate_editor_open_safety": {"kind": "function", "params": [["source", "P", false]], "returns": "EditorOpenSafetyReport"},
+  "validate_package": {"kind": "function", "params": [["source", "P", false]], "returns": "PackageValidationReport"}
+ },
+ "root": {
+  "__enter__": {"kind": "method", "params": [], "returns": "HwpxDocument"},
+  "__exit__": {"kind": "method", "params": [["exc_type", "P", false], ["exc", "P", false], ["tb", "P", false]], "returns": "bool"},
+  "__init__": {"kind": "method", "params": [["package", "P", false], ["root", "P", false], ["managed_resources", "K", true], ["validate_on_save", "K", true]]},
+  "__repr__": {"kind": "method", "params": [], "returns": "str"},
+  "add_heading": {"kind": "method", "params": [["text", "P", true], ["level", "P", true], ["style", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true], ["extra_attrs", "VK", false]], "returns": "Paragraph"},
+  "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["section", "K", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["include_run", "K", true], ["inherit_style", "K", true], ["extra_attrs", "VK", false]], "returns": "Paragraph"},
+  "add_picture": {"kind": "method", "params": [["image_data", "P", false], ["image_format", "P", false], ["section", "K", true], ["width", "K", true], ["height", "K", true], ["width_mm", "K", true], ["height_mm", "K", true], ["align", "K", true], ["brightness", "K", true], ["contrast", "K", true], ["effect", "K", true], ["alpha", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["crop", "K", true], ["shadow", "K", true], ["glow", "K", true], ["soft_edge", "K", true], ["reflection", "K", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["extra_attrs", "VK", false]], "returns": "InlineObject"},
+  "add_section": {"kind": "method", "params": [["after", "K", true]], "returns": "Section"},
+  "add_table": {"kind": "method", "params": [["rows", "P", false], ["cols", "P", false], ["section", "K", true], ["width", "K", true], ["height", "K", true], ["border_fill_id_ref", "K", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["inherit_style", "K", true], ["extra_attrs", "VK", false]], "returns": "Table"},
+  "close": {"kind": "method", "params": [], "returns": "None"},
+  "conversion_report": {"kind": "property", "settable": false, "returns": "Hwp5ConversionReport | None"},
+  "fields": {"kind": "property", "settable": false, "returns": "FieldsNamespace"},
+  "from_package": {"kind": "classmethod", "params": [["package", "P", false]], "returns": "HwpxDocument"},
+  "media": {"kind": "property", "settable": false, "returns": "MediaNamespace"},
+  "new": {"kind": "classmethod", "params": [["inherit_style", "K", true], ["empty_first_line", "K", true], ["seed", "K", true], ["now", "K", true]], "returns": "HwpxDocument"},
+  "notes": {"kind": "property", "settable": false, "returns": "NotesNamespace"},
+  "open": {"kind": "classmethod", "params": [["source", "P", false], ["seed", "K", true], ["now", "K", true]], "returns": "HwpxDocument"},
+  "oxml": {"kind": "property", "settable": false, "returns": "Document"},
+  "package": {"kind": "property", "settable": false, "returns": "HwpxPackage"},
+  "page": {"kind": "property", "settable": false, "returns": "PageNamespace"},
+  "paragraphs": {"kind": "property", "settable": false, "returns": "list[Paragraph]"},
+  "parts": {"kind": "property", "settable": false, "returns": "PartsNamespace"},
+  "refs": {"kind": "property", "settable": false, "returns": "RefsNamespace"},
+  "remove_section": {"kind": "method", "params": [["section", "P", false]], "returns": "None"},
+  "save_report": {"kind": "method", "params": [["path_or_stream", "P", true], ["quality", "K", true], ["before", "K", true], ["edit_mask", "K", true], ["ledger", "K", true]], "returns": "VisualCompleteReport"},
+  "save_to_path": {"kind": "method", "params": [["path", "P", false], ["mode", "K", true], ["fallback", "K", true], ["return_report", "K", true]], "returns": "str | PathLike[str] | MutationReport"},
+  "save_to_stream": {"kind": "method", "params": [["stream", "P", false], ["mode", "K", true], ["fallback", "K", true], ["return_report", "K", true], ["format", "K", true]], "returns": "BinaryIO | MutationReport"},
+  "sections": {"kind": "property", "settable": false, "returns": "list[Section]"},
+  "shapes": {"kind": "property", "settable": false, "returns": "ShapesNamespace"},
+  "styles": {"kind": "property", "settable": false, "returns": "StylesNamespace"},
+  "tables": {"kind": "property", "settable": false, "returns": "TablesNamespace"},
+  "text": {"kind": "property", "settable": false, "returns": "TextNamespace"},
+  "to_bytes": {"kind": "method", "params": [["mode", "K", true], ["fallback", "K", true], ["format", "K", true]], "returns": "bytes"},
+  "tracking": {"kind": "property", "settable": false, "returns": "TrackingNamespace"},
+  "validate": {"kind": "method", "params": [], "returns": "ValidationReport"}
+ },
+ "namespaces": {
+  "styles": {
+   "__contains__": {"kind": "method", "params": [["key", "P", false]]},
+   "__getitem__": {"kind": "method", "params": [["key", "P", false]], "returns": "Style"},
+   "__iter__": {"kind": "method", "params": [], "returns": "Iterator[str]"},
+   "__len__": {"kind": "method", "params": [], "returns": "int"},
+   "all": {"kind": "property", "settable": false, "returns": "dict[str, Style]"},
+   "apply_list_format": {"kind": "method", "params": [["paragraph_index", "K", true], ["paragraph_indexes", "K", true], ["kind", "K", true], ["level", "K", true], ["bullet_char", "K", true], ["number_format", "K", true], ["start", "K", true], ["continue_list", "K", true]], "returns": "ListFormatResult"},
+   "apply_paragraph_format": {"kind": "method", "params": [["paragraph_index", "K", true], ["paragraph_indexes", "K", true], ["paragraphs", "K", true], ["alignment", "K", true], ["line_spacing_percent", "K", true], ["indent_left_mm", "K", true], ["indent_right_mm", "K", true], ["first_line_indent_mm", "K", true], ["spacing_before_pt", "K", true], ["spacing_after_pt", "K", true], ["outline_level", "K", true], ["keep_with_next", "K", true], ["keep_lines", "K", true], ["page_break_before", "K", true], ["column_break", "K", true], ["bottom_border", "K", true], ["border_color", "K", true], ["border_width", "K", true], ["tab_stops", "K", true], ["auto_tab_left", "K", true], ["auto_tab_right", "K", true], ["border", "K", true]], "returns": "ParagraphFormatResult"},
+   "border_fill": {"kind": "method", "params": [["border_fill_id_ref", "P", false]], "returns": "GenericElement | None"},
+   "border_fill_info": {"kind": "method", "params": [["border_fill_id_ref", "P", false]], "returns": "BorderFillInfo | None"},
+   "border_fills": {"kind": "property", "settable": false, "returns": "dict[str, GenericElement]"},
+   "bullet": {"kind": "method", "params": [["bullet_id_ref", "P", false]], "returns": "Bullet | None"},
+   "bullets": {"kind": "property", "settable": false, "returns": "dict[str, Bullet]"},
+   "char_properties": {"kind": "property", "settable": false, "returns": "dict[str, RunStyle]"},
+   "char_property": {"kind": "method", "params": [["char_pr_id_ref", "P", false]], "returns": "RunStyle | None"},
+   "ensure_border_fill": {"kind": "method", "params": [["border_color", "K", true], ["border_width", "K", true], ["fill_color", "K", true], ["fill_image", "K", true], ["fill_gradient", "K", true], ["active_borders", "K", true], ["border_type", "K", true], ["sides", "K", true], ["base_border_fill_id", "K", true]], "returns": "str"},
+   "ensure_font": {"kind": "method", "params": [["face", "P", false], ["lang", "K", true], ["font_type", "K", true], ["is_embedded", "K", true], ["binary_item_id_ref", "K", true], ["subst_face", "K", true], ["subst_type", "K", true], ["subst_is_embedded", "K", true], ["subst_binary_item_id_ref", "K", true]], "returns": "str"},
+   "ensure_memo_shape": {"kind": "method", "params": [["width", "K", true], ["line_width", "K", true], ["line_type", "K", true], ["line_color", "K", true], ["fill_color", "K", true], ["active_color", "K", true], ["memo_type", "K", true]], "returns": "str"},
+   "ensure_numbering": {"kind": "method", "params": [["kind", "K", false], ["levels", "K", true]], "returns": "list[str]"},
+   "ensure_paragraph_format": {"kind": "method", "params": [["base_para_pr_id", "K", true], ["alignment", "K", true], ["line_spacing_percent", "K", true], ["margins", "K", true], ["heading", "K", true], ["border", "K", true], ["break_setting", "K", true], ["tab_pr_id_ref", "K", true], ["line_spacing", "K", true], ["condense", "K", true]], "returns": "str"},
+   "ensure_run": {"kind": "method", "params": [["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["underline_shape", "K", true], ["underline_color", "K", true], ["strike_shape", "K", true], ["ratio", "K", true], ["letter_spacing", "K", true], ["shadow", "K", true], ["script", "K", true], ["outline", "K", true], ["emboss", "K", true], ["engrave", "K", true], ["base_char_pr_id", "K", true], ["font_by_lang", "K", true]], "returns": "str"},
+   "ensure_style": {"kind": "method", "params": [["name", "P", false], ["style_type", "K", true], ["eng_name", "K", true], ["para_pr_id_ref", "K", true], ["char_pr_id_ref", "K", true], ["next_style_id_ref", "K", true], ["lang_id", "K", true], ["lock_form", "K", true]], "returns": "str"},
+   "ensure_tab_definition": {"kind": "method", "params": [["tab_stops", "K", true], ["auto_tab_left", "K", true], ["auto_tab_right", "K", true]], "returns": "str"},
+   "font_face": {"kind": "method", "params": [["char_pr_id_ref", "P", false], ["lang", "P", true]], "returns": "str | None"},
+   "fonts": {"kind": "method", "params": [["lang", "P", true]], "returns": "dict[str, Font]"},
+   "get": {"kind": "method", "params": [["key", "P", false], ["default", "P", true]], "returns": "Style | None"},
+   "items": {"kind": "method", "params": []},
+   "keys": {"kind": "method", "params": []},
+   "memo_shape": {"kind": "method", "params": [["memo_shape_id_ref", "P", false]], "returns": "MemoShape | None"},
+   "memo_shapes": {"kind": "property", "settable": false, "returns": "dict[str, MemoShape]"},
+   "names": {"kind": "method", "params": [], "returns": "list[str]"},
+   "numbering": {"kind": "method", "params": [["numbering_id_ref", "P", false]], "returns": "GenericElement | None"},
+   "numbering_info": {"kind": "method", "params": [["numbering_id_ref", "P", false]], "returns": "NumberingInfo | None"},
+   "numberings": {"kind": "property", "settable": false, "returns": "dict[str, GenericElement]"},
+   "outline_level": {"kind": "method", "params": [["style", "P", false]], "returns": "int | None"},
+   "outline_style": {"kind": "method", "params": [["level", "P", false]], "returns": "Style | None"},
+   "paragraph_properties": {"kind": "property", "settable": false, "returns": "dict[str, ParagraphProperty]"},
+   "paragraph_property": {"kind": "method", "params": [["para_pr_id_ref", "P", false]], "returns": "ParagraphProperty | None"},
+   "remove_style": {"kind": "method", "params": [["style", "P", false], ["replacement", "K", true]], "returns": "None"},
+   "replace_font": {"kind": "method", "params": [["src_face", "P", false], ["dst_face", "P", false], ["langs", "K", true], ["font_type", "K", true]], "returns": "FontReplaceReport"},
+   "resolve": {"kind": "method", "params": [["spec", "P", false]], "returns": "Style"},
+   "set_style_format": {"kind": "method", "params": [["style", "P", false], ["size", "K", true], ["font", "K", true], ["font_by_lang", "K", true], ["color", "K", true], ["highlight", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["strike", "K", true], ["superscript", "K", true], ["subscript", "K", true], ["letter_spacing", "K", true], ["ratio", "K", true], ["alignment", "K", true], ["line_spacing", "K", true], ["indent_left_mm", "K", true], ["indent_right_mm", "K", true], ["first_line_indent_mm", "K", true], ["spacing_before_pt", "K", true], ["spacing_after_pt", "K", true]], "returns": "None"},
+   "tab_properties": {"kind": "property", "settable": false, "returns": "dict[str, TabDefinition]"},
+   "tab_property": {"kind": "method", "params": [["tab_pr_id_ref", "P", false]], "returns": "TabDefinition | None"},
+   "values": {"kind": "method", "params": []}
+  },
+  "tables": {
+   "__getitem__": {"kind": "method", "params": [["index", "P", false]], "returns": "Table | list[Table]"},
+   "__iter__": {"kind": "method", "params": []},
+   "__len__": {"kind": "method", "params": [], "returns": "int"},
+   "all": {"kind": "property", "settable": false, "returns": "list[Table]"},
+   "delete_columns": {"kind": "method", "params": [["table", "P", false], ["cols", "P", false]], "returns": "None"},
+   "delete_rows": {"kind": "method", "params": [["table", "P", false], ["rows", "P", false]], "returns": "None"},
+   "insert_columns": {"kind": "method", "params": [["table", "P", false], ["ref_col", "P", false], ["count", "P", true], ["side", "K", true], ["blank", "K", true]], "returns": "None"},
+   "insert_rows": {"kind": "method", "params": [["table", "P", false], ["ref_row", "P", false], ["count", "P", true], ["side", "K", true], ["blank", "K", true]], "returns": "None"},
+   "map": {"kind": "method", "params": [], "returns": "TableMapResult"},
+   "merge_cells": {"kind": "method", "params": [["table", "P", false], ["cell_range", "P", false]], "returns": "TableCell"},
+   "split_cell": {"kind": "method", "params": [["table", "P", false], ["row", "P", false], ["col", "P", false], ["rows", "K", true], ["cols", "K", true]], "returns": "None"}
+  },
+  "fields": {
+   "add": {"kind": "method", "params": [["name", "P", false], ["prompt", "K", true], ["memo", "K", true], ["editable", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "FormField"},
+   "add_check_box": {"kind": "method", "params": [["caption", "P", false], ["checked", "K", true], ["name", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "CheckBox"},
+   "all": {"kind": "property", "settable": false, "returns": "tuple[FormField, ...]"},
+   "cells": {"kind": "property", "settable": false, "returns": "tuple[CellField, ...]"},
+   "check_boxes": {"kind": "property", "settable": false, "returns": "tuple[CheckBox, ...]"},
+   "combo_boxes": {"kind": "property", "settable": false, "returns": "tuple[ComboBox, ...]"},
+   "edit_boxes": {"kind": "property", "settable": false, "returns": "tuple[EditBox, ...]"},
+   "fill": {"kind": "method", "params": [["value", "P", false], ["field_index", "K", true], ["field_id", "K", true], ["name", "K", true], ["fit_policy", "K", true], ["box_width", "K", true], ["font_pt", "K", true]], "returns": "FieldFillResult"},
+   "fill_cell": {"kind": "method", "params": [["value", "P", false], ["name", "K", false], ["index", "K", true]], "returns": "tuple[CellField, ...]"},
+   "fill_text_box": {"kind": "method", "params": [["value", "P", false], ["name", "K", false], ["index", "K", true]], "returns": "tuple[TextBoxField, ...]"},
+   "formulas": {"kind": "property", "settable": false, "returns": "tuple[FormulaField, ...]"},
+   "radio_buttons": {"kind": "property", "settable": false, "returns": "tuple[RadioButton, ...]"},
+   "set_check_box": {"kind": "method", "params": [["checked", "P", false], ["index", "K", true], ["name", "K", true]], "returns": "CheckBox"},
+   "text_boxes": {"kind": "property", "settable": false, "returns": "tuple[TextBoxField, ...]"}
+  },
+  "shapes": {
+   "add_arc": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["corner", "K", true], ["arc_type", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "Shape"},
+   "add_chart": {"kind": "method", "params": [["chart_xml", "P", false], ["paragraph", "K", true], ["section", "K", true], ["size", "K", true], ["treat_as_char", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+   "add_composed_character": {"kind": "method", "params": [["compose_text", "P", false], ["char_pr_id_refs", "P", true], ["circle_type", "K", true], ["char_sz", "K", true], ["compose_type", "K", true], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+   "add_connector": {"kind": "method", "params": [["start", "P", false], ["end", "P", false], ["start_side", "K", true], ["end_side", "K", true], ["kind", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["paragraph", "K", true]], "returns": "Shape"},
+   "add_container": {"kind": "method", "params": [["members", "P", false], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "Shape"},
+   "add_control": {"kind": "method", "params": [["section", "K", true], ["attributes", "K", true], ["control_type", "K", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["extra_attrs", "VK", false]], "returns": "InlineObject"},
+   "add_curve": {"kind": "method", "params": [["points_mm", "P", false], ["closed", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "Shape"},
+   "add_drop_cap": {"kind": "method", "params": [["character", "P", false], ["width", "K", false], ["height", "K", false], ["style", "K", true], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true], ["para_pr_id_ref", "K", true]], "returns": "InlineObject"},
+   "add_dutmal": {"kind": "method", "params": [["main_text", "P", false], ["sub_text", "P", false], ["pos_type", "K", true], ["align", "K", true], ["sz_ratio", "K", true], ["option", "K", true], ["style_id_ref", "K", true], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+   "add_ellipse": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true], ["original_size", "K", true]], "returns": "Shape"},
+   "add_equation": {"kind": "method", "params": [["script", "P", false], ["paragraph", "K", true], ["section", "K", true], ["base_unit", "K", true], ["size", "K", true], ["char_pr_id_ref", "K", true], ["font", "K", true]], "returns": "Equation"},
+   "add_line": {"kind": "method", "params": [["start_x", "P", true], ["start_y", "P", true], ["end_x", "P", true], ["end_y", "P", true], ["line_color", "K", true], ["line_width", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "Shape"},
+   "add_polygon": {"kind": "method", "params": [["points_mm", "P", false], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true], ["closed", "K", true]], "returns": "Shape"},
+   "add_raw": {"kind": "method", "params": [["shape_type", "P", false], ["section", "K", true], ["attributes", "K", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["extra_attrs", "VK", false]], "returns": "InlineObject"},
+   "add_rectangle": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["ratio", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true], ["original_size", "K", true]], "returns": "Shape"},
+   "equations": {"kind": "property", "settable": false, "returns": "tuple[Equation, ...]"},
+   "remove_unused_charts": {"kind": "method", "params": [], "returns": "tuple[str, ...]"}
+  },
+  "media": {
+   "add_image": {"kind": "method", "params": [["image_data", "P", false], ["image_format", "P", false], ["item_id", "K", true]], "returns": "BinaryItem"},
+   "images": {"kind": "property", "settable": false, "returns": "tuple[BinaryItem, ...]"},
+   "picture_references": {"kind": "method", "params": [], "returns": "tuple[PictureRef, ...]"},
+   "pictures": {"kind": "property", "settable": false, "returns": "tuple[Picture, ...]"},
+   "remove_image": {"kind": "method", "params": [["item_id", "P", false], ["force", "K", true]], "returns": "bool"},
+   "remove_unused_images": {"kind": "method", "params": [], "returns": "tuple[BinaryItem, ...]"},
+   "replace_picture": {"kind": "method", "params": [["image_data", "P", false], ["image_format", "P", false], ["picture_index", "K", true], ["binary_item_id_ref", "K", true], ["remove_orphaned", "K", true], ["item_id", "K", true]], "returns": "PictureReplacement"}
+  },
+  "notes": {
+   "add_endnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "P", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
+   "add_footnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "P", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
+   "add_memo": {"kind": "method", "params": [["text", "P", true], ["anchor", "K", true], ["section", "K", true], ["memo_shape_id_ref", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true], ["paragraph_text", "K", true], ["field_id", "K", true], ["author", "K", true], ["created", "K", true], ["number", "K", true], ["anchor_char_pr_id_ref", "K", true], ["match", "K", true]], "returns": "Memo"},
+   "attach": {"kind": "method", "params": [["paragraph", "P", false], ["memo", "P", false], ["field_id", "K", true], ["author", "K", true], ["created", "K", true], ["number", "K", true], ["char_pr_id_ref", "K", true], ["match", "K", true]], "returns": "Memo"},
+   "endnotes": {"kind": "property", "settable": false, "returns": "tuple[Note, ...]"},
+   "footnotes": {"kind": "property", "settable": false, "returns": "tuple[Note, ...]"},
+   "memos": {"kind": "property", "settable": false, "returns": "list[Memo]"},
+   "remove_memo": {"kind": "method", "params": [["memo", "P", false]], "returns": "None"}
+  },
+  "refs": {
+   "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["paragraph", "K", true], ["section", "K", true]], "returns": "InlineObject"},
+   "add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+   "bookmarks": {"kind": "property", "settable": false, "returns": "tuple[Bookmark, ...]"},
+   "cross_references": {"kind": "property", "settable": false, "returns": "tuple[CrossReference, ...]"},
+   "hyperlinks": {"kind": "property", "settable": false, "returns": "tuple[Hyperlink, ...]"}
+  },
+  "tracking": {
+   "accept": {"kind": "method", "params": [["change", "P", true], ["author", "K", true]], "returns": "tuple[TrackedChange, ...]"},
+   "add_change": {"kind": "method", "params": [["change_type", "P", false], ["author_name", "K", true], ["date", "K", true]], "returns": "TrackedChange"},
+   "author": {"kind": "method", "params": [["author_id_ref", "P", false]], "returns": "TrackChangeAuthor | None"},
+   "authors": {"kind": "property", "settable": false, "returns": "dict[str, TrackChangeAuthor]"},
+   "change": {"kind": "method", "params": [["change_id_ref", "P", false]], "returns": "TrackChange | None"},
+   "changes": {"kind": "property", "settable": false, "returns": "dict[str, TrackChange]"},
+   "delete": {"kind": "method", "params": [["paragraph", "P", false], ["match", "K", true], ["author", "K", true], ["date", "K", true]], "returns": "TrackedChange"},
+   "insert": {"kind": "method", "params": [["paragraph", "P", false], ["text", "P", false], ["author", "K", true], ["date", "K", true], ["char_pr_id_ref", "K", true]], "returns": "TrackedChange"},
+   "reject": {"kind": "method", "params": [["change", "P", true], ["author", "K", true]], "returns": "tuple[TrackedChange, ...]"},
+   "replace": {"kind": "method", "params": [["paragraph", "P", false], ["old", "P", false], ["new", "P", false], ["author", "K", true], ["date", "K", true]], "returns": "TrackedReplacement"}
+  },
+  "page": {
+   "auto_numbers": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[AutoNumber, ...]"},
+   "columns": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[ColumnDefinition, ...]"},
+   "endnote_shape": {"kind": "method", "params": [["section", "K", true]], "returns": "NoteShapeInfo"},
+   "footer": {"kind": "method", "params": [["page_type", "K", true], ["section", "K", true]], "returns": "HeaderFooter | None"},
+   "footers": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[HeaderFooter, ...]"},
+   "footnote_shape": {"kind": "method", "params": [["section", "K", true]], "returns": "NoteShapeInfo"},
+   "grid": {"kind": "method", "params": [["section", "K", true]], "returns": "SectionGrid"},
+   "header": {"kind": "method", "params": [["page_type", "K", true], ["section", "K", true]], "returns": "HeaderFooter | None"},
+   "headers": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[HeaderFooter, ...]"},
+   "hide_page_elements": {"kind": "method", "params": [["paragraph", "P", false], ["header", "K", true], ["footer", "K", true], ["master_page", "K", true], ["border", "K", true], ["fill", "K", true], ["page_num", "K", true]], "returns": "InlineObject"},
+   "line_numbers": {"kind": "method", "params": [["section", "K", true]], "returns": "LineNumberShape"},
+   "margins": {"kind": "method", "params": [["section", "K", true]], "returns": "PageMargins"},
+   "master_page_refs": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[str, ...]"},
+   "number_restarts": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[NumberRestart, ...]"},
+   "page_border": {"kind": "method", "params": [["page_type", "K", true], ["section", "K", true]], "returns": "PageBorder | None"},
+   "page_hidings": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[PageHiding, ...]"},
+   "page_number_controls": {"kind": "method", "params": [["section", "K", true]], "returns": "tuple[PageNumberControl, ...]"},
+   "remove_footer": {"kind": "method", "params": [["page_type", "K", true], ["section", "K", true]], "returns": "None"},
+   "remove_header": {"kind": "method", "params": [["page_type", "K", true], ["section", "K", true]], "returns": "None"},
+   "remove_master_page": {"kind": "method", "params": [["master_page_id", "P", false], ["section", "K", true]], "returns": "bool"},
+   "restart_page_number": {"kind": "method", "params": [["paragraph", "P", false], ["number", "K", true], ["kind", "K", true]], "returns": "InlineObject"},
+   "set_columns": {"kind": "method", "params": [["col_count", "P", true], ["col_type", "K", true], ["layout", "K", true], ["same_size", "K", true], ["same_gap", "K", true], ["column_widths", "K", true], ["separator_type", "K", true], ["separator_width", "K", true], ["separator_color", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "InlineObject"},
+   "set_endnote_shape": {"kind": "method", "params": [["number_format", "K", true], ["user_char", "K", true], ["prefix", "K", true], ["suffix", "K", true], ["superscript", "K", true], ["numbering", "K", true], ["start", "K", true], ["placement", "K", true], ["beneath_text", "K", true], ["separator_type", "K", true], ["separator_width_mm", "K", true], ["separator_color", "K", true], ["separator_length", "K", true], ["between_notes", "K", true], ["below_line", "K", true], ["above_line", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_footer": {"kind": "method", "params": [["text", "K", true], ["content", "K", true], ["page_type", "K", true], ["section", "K", true]], "returns": "HeaderFooter"},
+   "set_footnote_shape": {"kind": "method", "params": [["number_format", "K", true], ["user_char", "K", true], ["prefix", "K", true], ["suffix", "K", true], ["superscript", "K", true], ["numbering", "K", true], ["start", "K", true], ["placement", "K", true], ["beneath_text", "K", true], ["separator_type", "K", true], ["separator_width_mm", "K", true], ["separator_color", "K", true], ["separator_length", "K", true], ["between_notes", "K", true], ["below_line", "K", true], ["above_line", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_grid": {"kind": "method", "params": [["line_grid", "K", true], ["char_grid", "K", true], ["wonggoji_format", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_header": {"kind": "method", "params": [["text", "K", true], ["content", "K", true], ["page_type", "K", true], ["section", "K", true]], "returns": "HeaderFooter"},
+   "set_line_numbers": {"kind": "method", "params": [["restart_type", "K", true], ["count_by", "K", true], ["distance", "K", true], ["start_number", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true], ["header", "K", true], ["footer", "K", true], ["gutter", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_master_page": {"kind": "method", "params": [["master_page_id", "P", false], ["section", "K", true]], "returns": "None"},
+   "set_page_border": {"kind": "method", "params": [["page_type", "K", true], ["border_fill_id_ref", "K", true], ["text_border", "K", true], ["header_inside", "K", true], ["footer_inside", "K", true], ["fill_area", "K", true], ["offset_left", "K", true], ["offset_right", "K", true], ["offset_top", "K", true], ["offset_bottom", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_page_number": {"kind": "method", "params": [["target", "K", true], ["page_type", "K", true], ["format", "K", true], ["align", "K", true], ["position", "K", true], ["prefix", "K", true], ["suffix", "K", true], ["format_type", "K", true], ["section", "K", true]], "returns": "HeaderFooter"},
+   "set_size": {"kind": "method", "params": [["width", "K", true], ["height", "K", true], ["orientation", "K", true], ["gutter_type", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_start_numbers": {"kind": "method", "params": [["page_starts_on", "K", true], ["page", "K", true], ["picture", "K", true], ["table", "K", true], ["equation", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_text_direction": {"kind": "method", "params": [["direction", "P", true], ["vertical_header_footer", "K", true], ["section", "K", true]], "returns": "None"},
+   "set_visibility": {"kind": "method", "params": [["hide_first_header", "K", true], ["hide_first_footer", "K", true], ["hide_first_master_page", "K", true], ["hide_first_page_num", "K", true], ["hide_first_empty_line", "K", true], ["show_line_number", "K", true], ["border", "K", true], ["fill", "K", true], ["section", "K", true]], "returns": "None"},
+   "setup": {"kind": "method", "params": [["paper_size", "K", true], ["width_mm", "K", true], ["height_mm", "K", true], ["orientation", "K", true], ["margins_mm", "K", true], ["margin_left_mm", "K", true], ["margin_right_mm", "K", true], ["margin_top_mm", "K", true], ["margin_bottom_mm", "K", true], ["header_margin_mm", "K", true], ["footer_margin_mm", "K", true], ["gutter_mm", "K", true], ["columns", "K", true], ["column_gap_mm", "K", true], ["section", "K", true]], "returns": "PageSetup"},
+   "size": {"kind": "method", "params": [["section", "K", true]], "returns": "PageSize"},
+   "start_numbers": {"kind": "method", "params": [["section", "K", true]], "returns": "StartNumbers"},
+   "text_direction": {"kind": "method", "params": [["section", "K", true]], "returns": "SectionTextDirection"},
+   "visibility": {"kind": "method", "params": [["section", "K", true]], "returns": "SectionVisibility"}
+  },
+  "text": {
+   "apply_changes": {"kind": "method", "params": [["changes", "P", false], ["check_overflow", "K", true]], "returns": "TextChangeReport"},
+   "blocks": {"kind": "method", "params": [], "returns": "Iterator[TextBlock]"},
+   "find_runs": {"kind": "method", "params": [["text_color", "K", true], ["underline_type", "K", true], ["underline_color", "K", true], ["char_pr_id_ref", "K", true]], "returns": "list[Run]"},
+   "highlight": {"kind": "method", "params": [["paragraph", "P", false], ["match", "P", false], ["color", "K", true]], "returns": "Highlight"},
+   "highlights": {"kind": "method", "params": [], "returns": "tuple[Highlight, ...]"},
+   "objects": {"kind": "method", "params": [["kinds", "K", true], ["where", "K", true]], "returns": "Iterator[ObjectPlace]"},
+   "outline": {"kind": "method", "params": [["max_chars", "K", true], ["max_items", "K", true], ["max_block_chars", "K", true], ["after", "K", true]], "returns": "TextOutline"},
+   "paragraphs": {"kind": "method", "params": [["where", "K", true]], "returns": "Iterator[ParagraphPlace]"},
+   "plain": {"kind": "method", "params": [["kwargs", "VK", false]], "returns": "str"},
+   "replace": {"kind": "method", "params": [["search", "P", false], ["replacement", "P", false], ["text_color", "K", true], ["underline_type", "K", true], ["underline_color", "K", true], ["char_pr_id_ref", "K", true], ["limit", "K", true], ["everywhere", "K", true]], "returns": "int"},
+   "runs": {"kind": "method", "params": [], "returns": "Iterator[Run]"}
+  },
+  "parts": {
+   "add_master_page": {"kind": "method", "params": [["text", "K", true], ["paragraphs", "K", true], ["page_type", "K", true], ["page_number", "K", true], ["page_duplicate", "K", true], ["page_front", "K", true], ["section", "K", true]], "returns": "str"},
+   "begin_numbers": {"kind": "property", "settable": false, "returns": "BeginNumbers"},
+   "clear_document_metadata": {"kind": "method", "params": [["keep", "K", true], ["timestamp", "K", true]], "returns": "list[str]"},
+   "clear_preview": {"kind": "method", "params": [], "returns": "list[str]"},
+   "document_options": {"kind": "property", "settable": false, "returns": "DocumentOptions"},
+   "headers": {"kind": "property", "settable": false, "returns": "list[HeaderPart]"},
+   "histories": {"kind": "property", "settable": false, "returns": "list[History]"},
+   "master_pages": {"kind": "property", "settable": false, "returns": "list[MasterPage]"},
+   "metadata": {"kind": "property", "settable": false, "returns": "DocumentMetadata | None"},
+   "remove_license_mark": {"kind": "method", "params": [], "returns": "bool"},
+   "remove_master_page": {"kind": "method", "params": [["master_page_id", "P", false]], "returns": "None"},
+   "set_begin_numbers": {"kind": "method", "params": [["page", "K", true], ["footnote", "K", true], ["endnote", "K", true], ["picture", "K", true], ["table", "K", true], ["equation", "K", true]], "returns": "None"},
+   "set_compatible_document_target_program": {"kind": "method", "params": [["target_program", "P", false]], "returns": "None"},
+   "set_doc_option_link_info": {"kind": "method", "params": [["path", "K", true], ["page_inherit", "K", true], ["footnote_inherit", "K", true]], "returns": "None"},
+   "set_document_metadata": {"kind": "method", "params": [["title", "K", true], ["creator", "K", true], ["subject", "K", true], ["keyword", "K", true], ["created_date", "K", true], ["modified_date", "K", true]], "returns": "None"},
+   "set_layout_compatibility_flags": {"kind": "method", "params": [["flags", "P", true]], "returns": "None"},
+   "set_license_mark": {"kind": "method", "params": [["mark_type", "K", false], ["flag", "K", false], ["lang", "K", true]], "returns": "None"},
+   "set_paragraph_auto_spacing": {"kind": "method", "params": [["para_pr_id", "P", false], ["e_asian_eng", "K", true], ["e_asian_num", "K", true]], "returns": "None"},
+   "settings": {"kind": "property", "settable": false, "returns": "HwpxOxmlSettings | None"},
+   "version": {"kind": "property", "settable": false, "returns": "Version | None"}
+  }
+ },
+ "model": {
+  "Document": {
+   "members": {
+    "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["section", "K", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["include_run", "K", true], ["inherit_style", "K", true], ["inherit_outline", "K", true], ["extra_attrs", "VK", false]], "returns": "Paragraph"},
+    "add_section": {"kind": "method", "params": [["after", "K", true]], "returns": "Section"},
+    "border_fill": {"kind": "method", "params": [["border_fill_id_ref", "P", false]], "returns": "GenericElement | None"},
+    "border_fills": {"kind": "property", "settable": false, "returns": "dict[str, GenericElement]"},
+    "bullet": {"kind": "method", "params": [["bullet_id_ref", "P", false]], "returns": "Bullet | None"},
+    "bullets": {"kind": "property", "settable": false, "returns": "dict[str, Bullet]"},
+    "char_properties": {"kind": "property", "settable": false, "returns": "dict[str, RunStyle]"},
+    "char_property": {"kind": "method", "params": [["char_pr_id_ref", "P", false]], "returns": "RunStyle | None"},
+    "clear_layout_cache": {"kind": "method", "params": [["stale_only", "K", true]], "returns": "int"},
+    "copy_paragraph_range": {"kind": "method", "params": [["start", "P", false], ["end", "P", false], ["section", "K", true]], "returns": "list[Element]"},
+    "headers": {"kind": "property", "settable": false, "returns": "list[HeaderPart]"},
+    "histories": {"kind": "property", "settable": false, "returns": "list[History]"},
+    "insert_paragraphs": {"kind": "method", "params": [["index", "P", false], ["paragraphs", "P", false], ["section", "K", true]], "returns": "list[Paragraph]"},
+    "master_pages": {"kind": "property", "settable": false, "returns": "list[MasterPage]"},
+    "memo_shape": {"kind": "method", "params": [["memo_shape_id_ref", "P", false]], "returns": "MemoShape | None"},
+    "memo_shapes": {"kind": "property", "settable": false, "returns": "dict[str, MemoShape]"},
+    "paragraph_properties": {"kind": "property", "settable": false, "returns": "dict[str, ParagraphProperty]"},
+    "paragraph_property": {"kind": "method", "params": [["para_pr_id_ref", "P", false]], "returns": "ParagraphProperty | None"},
+    "paragraphs": {"kind": "property", "settable": false, "returns": "list[Paragraph]"},
+    "remove_paragraph": {"kind": "method", "params": [["paragraph", "P", false], ["section", "K", true]], "returns": "None"},
+    "remove_section": {"kind": "method", "params": [["section", "P", false]], "returns": "None"},
+    "sections": {"kind": "property", "settable": false, "returns": "list[Section]"},
+    "style": {"kind": "method", "params": [["style_id_ref", "P", false]], "returns": "Style | None"},
+    "styles": {"kind": "property", "settable": false, "returns": "dict[str, Style]"},
+    "track_change": {"kind": "method", "params": [["change_id_ref", "P", false]], "returns": "TrackChange | None"},
+    "track_change_author": {"kind": "method", "params": [["author_id_ref", "P", false]], "returns": "TrackChangeAuthor | None"},
+    "track_change_authors": {"kind": "property", "settable": false, "returns": "dict[str, TrackChangeAuthor]"},
+    "track_changes": {"kind": "property", "settable": false, "returns": "dict[str, TrackChange]"},
+    "version": {"kind": "property", "settable": false, "returns": "Version | None"}
+   },
+   "internal": [
+    "add_master_page",
+    "add_track_change",
+    "ensure_basic_border_fill",
+    "ensure_border_fill",
+    "ensure_font",
+    "ensure_memo_shape",
+    "ensure_numbering",
+    "ensure_run_style",
+    "ensure_shading_border_fill",
+    "ensure_tab_definition",
+    "from_package",
+    "invalidate_char_property_cache",
+    "manifest",
+    "next_track_change_mark_id",
+    "reset_dirty",
+    "serialize",
+    "settings",
+    "style_name_aliases",
+    "tab_properties",
+    "tab_property"
+   ]
+  },
+  "DrawText": {
+   "members": {
+    "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true]], "returns": "Paragraph"},
+    "editable": {"kind": "property", "settable": false, "returns": "bool"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "paragraphs": {"kind": "property", "settable": false, "returns": "list[Paragraph]"},
+    "text": {"kind": "property", "settable": false, "returns": "str"},
+    "text_margin": {"kind": "property", "settable": false, "returns": "dict[str, int] | None"}
+   },
+   "internal": []
+  },
+  "Equation": {
+   "members": {
+    "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "base_line": {"kind": "property", "settable": false, "returns": "int | None"},
+    "base_unit": {"kind": "property", "settable": false, "returns": "int"},
+    "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
+    "description": {"kind": "property", "settable": false, "returns": "str"},
+    "font": {"kind": "property", "settable": false, "returns": "str | None"},
+    "get_attribute": {"kind": "method", "params": [["name", "P", false]], "returns": "str | None"},
+    "height": {"kind": "property", "settable": false, "returns": "int"},
+    "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
+    "rotation": {"kind": "property", "settable": false, "returns": "int"},
+    "script": {"kind": "property", "settable": false, "returns": "str"},
+    "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
+    "set_description": {"kind": "method", "params": [["text", "P", false]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horz_rel_to", "K", true], ["vert_rel_to", "K", true], ["horz_align", "K", true], ["vert_align", "K", true]], "returns": "None"},
+    "set_rotation": {"kind": "method", "params": [["angle", "P", false]], "returns": "None"},
+    "set_script": {"kind": "method", "params": [["script", "P", false]], "returns": "None"},
+    "set_z_order": {"kind": "method", "params": [["z_order", "P", false]], "returns": "None"},
+    "tag": {"kind": "property", "settable": false, "returns": "str"},
+    "width": {"kind": "property", "settable": false, "returns": "int"},
+    "z_order": {"kind": "property", "settable": false, "returns": "int"}
+   },
+   "internal": [
+    "remove_caption",
+    "set_caption"
+   ]
+  },
+  "HeaderFooter": {
+   "members": {"add_page_number_field": {"kind": "method", "params": [["paragraph", "K", true], ["format", "K", true], ["position", "K", true], ["format_type", "K", true]], "returns": "InlineObject"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["align", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", false], ["paragraph", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true]], "returns": "Run"}, "apply_page_type": {"kind": "property", "settable": true, "returns": "str"}, "clear_content": {"kind": "method", "params": [], "returns": "None"}, "id": {"kind": "property", "settable": true, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "page_type": {"kind": "property", "settable": false, "returns": "str"}, "set_content": {"kind": "method", "params": [["content", "P", false]], "returns": "None"}, "set_simple_text_preserving": {"kind": "method", "params": [["value", "P", false]], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
+   "internal": [
+    "apply_element",
+    "paragraphs"
+   ]
+  },
+  "HeaderPart": {
+   "members": {
+    "border_fill": {"kind": "method", "params": [["border_fill_id_ref", "P", false]], "returns": "GenericElement | None"},
+    "border_fills": {"kind": "property", "settable": false, "returns": "dict[str, GenericElement]"},
+    "bullet": {"kind": "method", "params": [["bullet_id_ref", "P", false]], "returns": "Bullet | None"},
+    "bullets": {"kind": "property", "settable": false, "returns": "dict[str, Bullet]"},
+    "memo_shape": {"kind": "method", "params": [["memo_shape_id_ref", "P", false]], "returns": "MemoShape | None"},
+    "memo_shapes": {"kind": "property", "settable": false, "returns": "dict[str, MemoShape]"},
+    "paragraph_properties": {"kind": "property", "settable": false, "returns": "dict[str, ParagraphProperty]"},
+    "paragraph_property": {"kind": "method", "params": [["para_pr_id_ref", "P", false]], "returns": "ParagraphProperty | None"},
+    "style": {"kind": "method", "params": [["style_id_ref", "P", false]], "returns": "Style | None"},
+    "styles": {"kind": "property", "settable": false, "returns": "dict[str, Style]"},
+    "track_change": {"kind": "method", "params": [["change_id_ref", "P", false]], "returns": "TrackChange | None"},
+    "track_change_author": {"kind": "method", "params": [["author_id_ref", "P", false]], "returns": "TrackChangeAuthor | None"},
+    "track_change_authors": {"kind": "property", "settable": false, "returns": "dict[str, TrackChangeAuthor]"},
+    "track_changes": {"kind": "property", "settable": false, "returns": "dict[str, TrackChange]"}
+   },
+   "internal": [
+    "add_bin_item",
+    "add_track_change",
+    "attach_document",
+    "begin_numbering",
+    "dirty",
+    "document",
+    "element",
+    "ensure_basic_border_fill",
+    "ensure_border_fill",
+    "ensure_char_property",
+    "ensure_font",
+    "ensure_memo_shape",
+    "ensure_numbering",
+    "ensure_paragraph_alignment",
+    "ensure_paragraph_format",
+    "ensure_shading_border_fill",
+    "ensure_style",
+    "ensure_tab_definition",
+    "find_basic_border_fill_id",
+    "font_ref_for_face",
+    "list_bin_items",
+    "mark_dirty",
+    "remove_bin_item",
+    "reset_dirty",
+    "set_begin_numbering",
+    "tab_properties",
+    "tab_property",
+    "to_bytes",
+    "to_model",
+    "track_change_config"
+   ]
+  },
+  "History": {
+   "members": {},
+   "internal": [
+    "attach_document",
+    "dirty",
+    "document",
+    "element",
+    "is_version_log",
+    "mark_dirty",
+    "replace_element",
+    "reset_dirty",
+    "to_bytes",
+    "to_model"
+   ]
+  },
+  "InlineObject": {
+   "members": {
+    "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
+    "description": {"kind": "property", "settable": false, "returns": "str"},
+    "get_attribute": {"kind": "method", "params": [["name", "P", false]], "returns": "str | None"},
+    "height": {"kind": "property", "settable": false, "returns": "int"},
+    "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
+    "rotation": {"kind": "property", "settable": false, "returns": "int"},
+    "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
+    "set_description": {"kind": "method", "params": [["text", "P", false]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horz_rel_to", "K", true], ["vert_rel_to", "K", true], ["horz_align", "K", true], ["vert_align", "K", true]], "returns": "None"},
+    "set_rotation": {"kind": "method", "params": [["angle", "P", false]], "returns": "None"},
+    "set_z_order": {"kind": "method", "params": [["z_order", "P", false]], "returns": "None"},
+    "tag": {"kind": "property", "settable": false, "returns": "str"},
+    "width": {"kind": "property", "settable": false, "returns": "int"},
+    "z_order": {"kind": "property", "settable": false, "returns": "int"}
+   },
+   "internal": [
+    "remove_caption",
+    "set_caption"
+   ]
+  },
+  "MasterPage": {
+   "members": {
+    "add_paragraph": {"kind": "method", "params": [["text", "P", true]], "returns": "Paragraph"},
+    "id": {"kind": "property", "settable": false, "returns": "str | None"},
+    "page_type": {"kind": "property", "settable": false, "returns": "str | None"},
+    "paragraphs": {"kind": "property", "settable": false, "returns": "list[Paragraph]"},
+    "text": {"kind": "property", "settable": false, "returns": "str"}
+   },
+   "internal": [
+    "attach_document",
+    "dirty",
+    "document",
+    "element",
+    "mark_dirty",
+    "replace_element",
+    "reset_dirty",
+    "to_bytes",
+    "to_model"
+   ]
+  },
+  "Memo": {
+   "members": {
+    "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "id": {"kind": "property", "settable": true, "returns": "str | None"},
+    "memo_shape_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
+    "paragraphs": {"kind": "property", "settable": false, "returns": "list[Paragraph]"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
+    "set_text": {"kind": "method", "params": [["value", "P", false], ["char_pr_id_ref", "K", true]], "returns": "None"},
+    "text": {"kind": "property", "settable": true, "returns": "str"}
+   },
+   "internal": [
+    "field_id",
+    "paragraph"
+   ]
+  },
+  "MemoGroup": {
+   "members": {
+    "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_shape_id_ref", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
+    "memos": {"kind": "property", "settable": false, "returns": "list[Memo]"}
+   },
+   "internal": []
+  },
+  "Note": {
+   "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
+   "internal": []
+  },
+  "Paragraph": {
+   "members": {
+    "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_chart": {"kind": "method", "params": [["chart_id_ref", "P", false], ["size", "K", true], ["treat_as_char", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true]], "returns": "InlineObject"},
+    "add_check_box": {"kind": "method", "params": [["caption", "P", false], ["checked", "K", true], ["name", "K", true], ["width", "K", true], ["height", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_control": {"kind": "method", "params": [["attributes", "P", true], ["control_type", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_ellipse": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true], ["original_size", "K", true]], "returns": "Shape"},
+    "add_endnote": {"kind": "method", "params": [["text", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
+    "add_equation": {"kind": "method", "params": [["script", "P", false], ["base_unit", "K", true], ["size", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["font", "K", true]], "returns": "Equation"},
+    "add_footnote": {"kind": "method", "params": [["text", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
+    "add_form_field": {"kind": "method", "params": [["name", "P", false], ["prompt", "K", true], ["memo", "K", true], ["editable", "K", true], ["prompt_char_pr_id_ref", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_highlight": {"kind": "method", "params": [["color", "K", false], ["match", "K", false]], "returns": "None"},
+    "add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_line": {"kind": "method", "params": [["start_x", "P", true], ["start_y", "P", true], ["end_x", "P", true], ["end_y", "P", true], ["line_color", "K", true], ["line_width", "K", true], ["treat_as_char", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Shape"},
+    "add_new_num": {"kind": "method", "params": [["number", "K", true], ["kind", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_page_hiding": {"kind": "method", "params": [["header", "K", true], ["footer", "K", true], ["master_page", "K", true], ["border", "K", true], ["fill", "K", true], ["page_num", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_picture": {"kind": "method", "params": [["binary_item_id_ref", "P", false], ["width", "K", true], ["height", "K", true], ["align", "K", true], ["treat_as_char", "K", true], ["pos_overrides", "K", true], ["text_wrap", "K", true], ["brightness", "K", true], ["contrast", "K", true], ["effect", "K", true], ["alpha", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["crop", "K", true], ["shadow", "K", true], ["glow", "K", true], ["soft_edge", "K", true], ["reflection", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Picture"},
+    "add_rectangle": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["ratio", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true], ["original_size", "K", true]], "returns": "Shape"},
+    "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true], ["expand_special_characters", "K", true]], "returns": "Run"},
+    "add_shape": {"kind": "method", "params": [["shape_type", "P", false], ["attributes", "P", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+    "add_table": {"kind": "method", "params": [["rows", "P", false], ["cols", "P", false], ["width", "K", true], ["height", "K", true], ["border_fill_id_ref", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Table"},
+    "add_tracked_delete": {"kind": "method", "params": [["change_id", "K", false], ["first_mark_id", "K", false], ["match", "K", true]], "returns": "int"},
+    "add_tracked_insert": {"kind": "method", "params": [["text", "P", false], ["change_id", "K", false], ["mark_id", "K", false], ["char_pr_id_ref", "K", true]], "returns": "None"},
+    "alignment": {"kind": "property", "settable": true, "returns": "Alignment | None"},
+    "available_width": {"kind": "property", "settable": false, "returns": "int | None"},
+    "bookmarks": {"kind": "property", "settable": false, "returns": "list[str]"},
+    "char_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
+    "clear_layout_cache": {"kind": "method", "params": [], "returns": "int"},
+    "clear_text": {"kind": "method", "params": [], "returns": "None"},
+    "endnotes": {"kind": "property", "settable": false, "returns": "list[Note]"},
+    "equations": {"kind": "property", "settable": false, "returns": "tuple[Equation, ...]"},
+    "first_line_indent_mm": {"kind": "property", "settable": true, "returns": "float | None"},
+    "footnotes": {"kind": "property", "settable": false, "returns": "list[Note]"},
+    "format_range": {"kind": "method", "params": [["start", "P", false], ["end", "P", false], ["changes", "VK", false]], "returns": "tuple[Run, ...]"},
+    "hyperlinks": {"kind": "property", "settable": false, "returns": "tuple[Hyperlink, ...]"},
+    "indent_left_mm": {"kind": "property", "settable": true, "returns": "float | None"},
+    "indent_right_mm": {"kind": "property", "settable": true, "returns": "float | None"},
+    "keep_lines": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "keep_with_next": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "line_spacing": {"kind": "property", "settable": true, "returns": "LineSpacing | None"},
+    "objects": {"kind": "property", "settable": false, "returns": "tuple[ParagraphObject, ...]"},
+    "outline_level": {"kind": "property", "settable": true, "returns": "int"},
+    "page_break": {"kind": "property", "settable": true, "returns": "bool"},
+    "page_break_before": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "para_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
+    "pictures": {"kind": "property", "settable": false, "returns": "tuple[Picture, ...]"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "runs": {"kind": "property", "settable": false, "returns": "list[Run]"},
+    "shapes": {"kind": "property", "settable": false, "returns": "list[Shape]"},
+    "spacing_after_pt": {"kind": "property", "settable": true, "returns": "float | None"},
+    "spacing_before_pt": {"kind": "property", "settable": true, "returns": "float | None"},
+    "split_run": {"kind": "method", "params": [["offset", "P", false]], "returns": "Run"},
+    "style": {"kind": "property", "settable": true, "returns": "Style | None"},
+    "style_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
+    "tables": {"kind": "property", "settable": false, "returns": "list[Table]"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "widow_orphan": {"kind": "property", "settable": true, "returns": "bool | None"}
+   },
+   "internal": [
+    "add_arc",
+    "add_column_definition",
+    "add_composed_character",
+    "add_connector",
+    "add_container",
+    "add_curve",
+    "add_date_field",
+    "add_drop_cap",
+    "add_dutmal",
+    "add_index_mark",
+    "add_mail_merge_field",
+    "add_path_field",
+    "add_polygon",
+    "add_proofreading_mark",
+    "add_title_mark",
+    "apply_model",
+    "column_break",
+    "insert_after",
+    "insert_before",
+    "model",
+    "set_text_preserving_runs",
+    "to_model"
+   ]
+  },
+  "Picture": {
+   "members": {
+    "alpha": {"kind": "property", "settable": false},
+    "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "brightness": {"kind": "property", "settable": false},
+    "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
+    "contrast": {"kind": "property", "settable": false},
+    "crop": {"kind": "property", "settable": false, "returns": "tuple[int, int, int, int]"},
+    "description": {"kind": "property", "settable": false, "returns": "str"},
+    "effect": {"kind": "property", "settable": false},
+    "get_attribute": {"kind": "method", "params": [["name", "P", false]], "returns": "str | None"},
+    "glow": {"kind": "property", "settable": false},
+    "height": {"kind": "property", "settable": false, "returns": "int"},
+    "item_id": {"kind": "property", "settable": false, "returns": "str | None"},
+    "line_color": {"kind": "property", "settable": false, "returns": "str | None"},
+    "line_width": {"kind": "property", "settable": false},
+    "original_size": {"kind": "property", "settable": false, "returns": "tuple[int, int] | None"},
+    "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
+    "rotation": {"kind": "property", "settable": false, "returns": "int"},
+    "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
+    "set_crop": {"kind": "method", "params": [["crop", "P", false]], "returns": "None"},
+    "set_description": {"kind": "method", "params": [["text", "P", false]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horz_rel_to", "K", true], ["vert_rel_to", "K", true], ["horz_align", "K", true], ["vert_align", "K", true]], "returns": "None"},
+    "set_rotation": {"kind": "method", "params": [["angle", "P", false]], "returns": "None"},
+    "set_z_order": {"kind": "method", "params": [["z_order", "P", false]], "returns": "None"},
+    "shadow": {"kind": "property", "settable": false},
+    "tag": {"kind": "property", "settable": false, "returns": "str"},
+    "width": {"kind": "property", "settable": false, "returns": "int"},
+    "z_order": {"kind": "property", "settable": false, "returns": "int"}
+   },
+   "internal": [
+    "remove_caption",
+    "set_caption"
+   ]
+  },
+  "Run": {
+   "members": {
+    "bold": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "char_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
+    "color": {"kind": "property", "settable": true, "returns": "str | None"},
+    "content_kinds": {"kind": "method", "params": [], "returns": "frozenset[str]"},
+    "font": {"kind": "property", "settable": true, "returns": "str | None"},
+    "highlight": {"kind": "property", "settable": true, "returns": "str | None"},
+    "italic": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "letter_spacing": {"kind": "property", "settable": true, "returns": "int | None"},
+    "ratio": {"kind": "property", "settable": true, "returns": "int | None"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "replace_text": {"kind": "method", "params": [["search", "P", false], ["replacement", "P", false], ["count", "K", true], ["_clear_layout", "K", true]], "returns": "int"},
+    "set_font": {"kind": "method", "params": [["face", "P", false], ["lang", "K", true]], "returns": "None"},
+    "set_format": {"kind": "method", "params": [["changes", "VK", false]], "returns": "None"},
+    "size": {"kind": "property", "settable": true, "returns": "float | None"},
+    "strike": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "style": {"kind": "property", "settable": false, "returns": "RunStyle | None"},
+    "subscript": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "superscript": {"kind": "property", "settable": true, "returns": "bool | None"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "underline": {"kind": "property", "settable": true, "returns": "bool | None"}
+   },
+   "internal": [
+    "apply_model",
+    "model",
+    "to_model"
+   ]
+  },
+  "Section": {
+   "members": {
+    "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_shape_id_ref", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
+    "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["include_run", "K", true], ["inherit_style", "K", true], ["inherit_outline", "K", true], ["extra_attrs", "VK", false]], "returns": "Paragraph"},
+    "clear_body": {"kind": "method", "params": [["on_control_content", "K", true]], "returns": "ClearBodyReport"},
+    "clear_layout_cache": {"kind": "method", "params": [["stale_only", "K", true]], "returns": "int"},
+    "copy_paragraph_range": {"kind": "method", "params": [["start", "P", false], ["end", "P", false]], "returns": "list[Element]"},
+    "insert_paragraphs": {"kind": "method", "params": [["index", "P", false], ["paragraphs", "P", false]], "returns": "list[Paragraph]"},
+    "memo_group": {"kind": "property", "settable": false, "returns": "MemoGroup | None"},
+    "memos": {"kind": "property", "settable": false, "returns": "list[Memo]"},
+    "paragraphs": {"kind": "property", "settable": false, "returns": "list[Paragraph]"},
+    "properties": {"kind": "property", "settable": false, "returns": "SectionProperties"},
+    "remove_paragraph": {"kind": "method", "params": [["paragraph", "P", false]], "returns": "None"}
+   },
+   "internal": [
+    "attach_document",
+    "dirty",
+    "document",
+    "element",
+    "mark_dirty",
+    "remove_layout_caches",
+    "remove_stale_layout_caches",
+    "reset_dirty",
+    "to_bytes"
+   ]
+  },
+  "SectionProperties": {
+   "members": {
+    "footer": {"kind": "method", "params": [["page_type", "P", true]], "returns": "HeaderFooter | None"},
+    "footers": {"kind": "property", "settable": false, "returns": "list[HeaderFooter]"},
+    "get_footer": {"kind": "method", "params": [["page_type", "P", true]], "returns": "HeaderFooter | None"},
+    "get_header": {"kind": "method", "params": [["page_type", "P", true]], "returns": "HeaderFooter | None"},
+    "header": {"kind": "method", "params": [["page_type", "P", true]], "returns": "HeaderFooter | None"},
+    "headers": {"kind": "property", "settable": false, "returns": "list[HeaderFooter]"},
+    "page_margins": {"kind": "property", "settable": false, "returns": "PageMargins"},
+    "page_size": {"kind": "property", "settable": false, "returns": "PageSize"},
+    "remove_footer": {"kind": "method", "params": [["page_type", "P", true]], "returns": "None"},
+    "remove_header": {"kind": "method", "params": [["page_type", "P", true]], "returns": "None"},
+    "remove_master_page_reference": {"kind": "method", "params": [["id_ref", "P", false]], "returns": "bool"},
+    "set_footer_content": {"kind": "method", "params": [["content", "P", false], ["page_type", "P", true]], "returns": "HeaderFooter"},
+    "set_footer_text": {"kind": "method", "params": [["text", "P", false], ["page_type", "P", true]], "returns": "HeaderFooter"},
+    "set_header_content": {"kind": "method", "params": [["content", "P", false], ["page_type", "P", true]], "returns": "HeaderFooter"},
+    "set_header_text": {"kind": "method", "params": [["text", "P", false], ["page_type", "P", true]], "returns": "HeaderFooter"},
+    "set_page_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true], ["header", "K", true], ["footer", "K", true], ["gutter", "K", true]], "returns": "None"},
+    "set_page_size": {"kind": "method", "params": [["width", "K", true], ["height", "K", true], ["orientation", "K", true], ["gutter_type", "K", true]], "returns": "None"},
+    "set_start_numbering": {"kind": "method", "params": [["page_starts_on", "K", true], ["page", "K", true], ["picture", "K", true], ["table", "K", true], ["equation", "K", true]], "returns": "None"},
+    "start_numbering": {"kind": "property", "settable": false, "returns": "SectionStartNumbering"}
+   },
+   "internal": [
+    "add_master_page_reference",
+    "endnote_shape",
+    "footnote_shape",
+    "grid",
+    "line_number_shape",
+    "master_page_refs",
+    "page_border_fill",
+    "set_columns",
+    "set_endnote_auto_num_format",
+    "set_endnote_note_line",
+    "set_endnote_note_spacing",
+    "set_endnote_numbering",
+    "set_endnote_placement",
+    "set_footnote_auto_num_format",
+    "set_footnote_note_line",
+    "set_footnote_note_spacing",
+    "set_footnote_numbering",
+    "set_footnote_placement",
+    "set_grid",
+    "set_line_number_shape",
+    "set_page_border_fill",
+    "set_text_direction",
+    "set_visibility",
+    "text_direction",
+    "visibility"
+   ]
+  },
+  "Shape": {
+   "members": {
+    "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
+    "caption": {"kind": "property", "settable": false, "returns": "Caption | None"},
+    "description": {"kind": "property", "settable": false, "returns": "str"},
+    "draw_text": {"kind": "property", "settable": false, "returns": "DrawText | None"},
+    "fill_color": {"kind": "property", "settable": false, "returns": "str | None"},
+    "get_attribute": {"kind": "method", "params": [["name", "P", false]], "returns": "str | None"},
+    "height": {"kind": "property", "settable": false, "returns": "int"},
+    "inst_id": {"kind": "property", "settable": false, "returns": "str | None"},
+    "line_color": {"kind": "property", "settable": true, "returns": "str | None"},
+    "line_style": {"kind": "property", "settable": true, "returns": "str | None"},
+    "line_width": {"kind": "property", "settable": false, "returns": "int | None"},
+    "members": {"kind": "property", "settable": false, "returns": "tuple[Shape | InlineObject, ...]"},
+    "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "remove_draw_text": {"kind": "method", "params": [], "returns": "bool"},
+    "resize": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
+    "rotation": {"kind": "property", "settable": false, "returns": "int"},
+    "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
+    "set_description": {"kind": "method", "params": [["text", "P", false]], "returns": "None"},
+    "set_draw_text": {"kind": "method", "params": [["text", "P", false], ["name", "K", true], ["editable", "K", true], ["margin", "K", true], ["char_pr_id_ref", "K", true], ["para_pr_id_ref", "K", true], ["vert_align", "K", true]], "returns": "DrawText"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horz_rel_to", "K", true], ["vert_rel_to", "K", true], ["horz_align", "K", true], ["vert_align", "K", true]], "returns": "None"},
+    "set_rotation": {"kind": "method", "params": [["angle", "P", false]], "returns": "None"},
+    "set_z_order": {"kind": "method", "params": [["z_order", "P", false]], "returns": "None"},
+    "shape_type": {"kind": "property", "settable": false, "returns": "str"},
+    "width": {"kind": "property", "settable": false, "returns": "int"},
+    "z_order": {"kind": "property", "settable": false, "returns": "int"}
+   },
+   "internal": [
+    "remove_caption",
+    "set_caption"
+   ]
+  },
+  "Table": {
+   "members": {
+    "alignment": {"kind": "property", "settable": false, "returns": "str"},
+    "cell": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false]], "returns": "TableCell"},
+    "cell_zones": {"kind": "property", "settable": false, "returns": "tuple[CellZone, ...]"},
+    "cells_in": {"kind": "method", "params": [["cell_range", "P", true]], "returns": "tuple[TableCell, ...]"},
+    "column_count": {"kind": "property", "settable": false, "returns": "int"},
+    "column_widths": {"kind": "property", "settable": false, "returns": "tuple[int, ...]"},
+    "columns": {"kind": "property", "settable": false, "returns": "tuple[TableColumn, ...]"},
+    "copy_after": {"kind": "method", "params": [["paragraph", "P", true]], "returns": "Table"},
+    "delete_columns": {"kind": "method", "params": [["cols", "P", false]], "returns": "None"},
+    "delete_rows": {"kind": "method", "params": [["rows", "P", false]], "returns": "None"},
+    "equalize_column_widths": {"kind": "method", "params": [], "returns": "None"},
+    "equalize_row_heights": {"kind": "method", "params": [], "returns": "None"},
+    "get_cell_map": {"kind": "method", "params": [], "returns": "list[list[HwpxTableGridPosition]]"},
+    "header_rows": {"kind": "property", "settable": false, "returns": "int"},
+    "in_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
+    "insert_columns": {"kind": "method", "params": [["ref_col", "P", false], ["count", "P", true], ["side", "K", true], ["blank", "K", true]], "returns": "None"},
+    "insert_rows": {"kind": "method", "params": [["ref_row", "P", false], ["count", "P", true], ["side", "K", true], ["blank", "K", true]], "returns": "None"},
+    "iter_grid": {"kind": "method", "params": [], "returns": "Iterator[HwpxTableGridPosition]"},
+    "merge_cells": {"kind": "method", "params": [["start_row", "P", false], ["start_col", "P", true], ["end_row", "P", true], ["end_col", "P", true]], "returns": "TableCell"},
+    "no_adjust": {"kind": "property", "settable": false, "returns": "bool"},
+    "page_break": {"kind": "property", "settable": false, "returns": "str"},
+    "repeat_header": {"kind": "property", "settable": false, "returns": "bool"},
+    "row_count": {"kind": "property", "settable": false, "returns": "int"},
+    "row_heights": {"kind": "property", "settable": false, "returns": "tuple[int, ...]"},
+    "rows": {"kind": "property", "settable": false, "returns": "list[TableRow]"},
+    "set_alignment": {"kind": "method", "params": [["alignment", "P", false]], "returns": "None"},
+    "set_borders": {"kind": "method", "params": [["cell_range", "P", true], ["sides", "K", true], ["line_type", "K", true], ["width_mm", "K", true], ["color", "K", true], ["inner", "K", true]], "returns": "None"},
+    "set_cell_border_fill": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["border_fill_id_ref", "P", false]], "returns": "None"},
+    "set_cell_borders": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["color", "K", false], ["line_type", "K", true]], "returns": "None"},
+    "set_cell_fill_gradient": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["colors", "P", false], ["gradient_type", "K", true], ["angle", "K", true]], "returns": "None"},
+    "set_cell_fill_image": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["image", "P", false], ["mode", "K", true]], "returns": "None"},
+    "set_cell_shading": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["color", "P", false]], "returns": "None"},
+    "set_cell_text": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["text", "P", false], ["logical", "K", true], ["split_merged", "K", true], ["preserve_format", "K", true], ["split_paragraphs", "K", true], ["fit", "K", true], ["ledger", "K", true]], "returns": "FitResult | None"},
+    "set_column_width": {"kind": "method", "params": [["col", "P", false], ["width", "P", false]], "returns": "None"},
+    "set_column_widths": {"kind": "method", "params": [["weights", "P", false]], "returns": "None"},
+    "set_header_rows": {"kind": "method", "params": [["count", "P", false], ["repeat", "K", true]], "returns": "None"},
+    "set_in_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
+    "set_no_adjust": {"kind": "method", "params": [["value", "P", false]], "returns": "None"},
+    "set_page_break": {"kind": "method", "params": [["page_break", "P", false]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horz_rel_to", "K", true], ["vert_rel_to", "K", true], ["horz_align", "K", true], ["vert_align", "K", true]], "returns": "None"},
+    "set_row_height": {"kind": "method", "params": [["row", "P", false], ["height", "P", false]], "returns": "None"},
+    "set_row_heights": {"kind": "method", "params": [["heights", "P", false]], "returns": "None"},
+    "set_shading": {"kind": "method", "params": [["cell_range", "P", true], ["color", "K", false]], "returns": "None"},
+    "set_width": {"kind": "method", "params": [["width", "P", false], ["proportional", "K", true]], "returns": "None"},
+    "split_cell": {"kind": "method", "params": [["row", "P", false], ["col", "P", false], ["rows", "K", true], ["cols", "K", true]], "returns": "None"},
+    "split_merged_cell": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false]], "returns": "TableCell"},
+    "text_wrap": {"kind": "property", "settable": false, "returns": "str | None"},
+    "width": {"kind": "property", "settable": false, "returns": "int"}
+   },
+   "internal": [
+    "caption",
+    "create",
+    "height",
+    "label",
+    "mark_dirty",
+    "out_margins",
+    "remove",
+    "remove_caption",
+    "remove_label",
+    "set_caption",
+    "set_label",
+    "set_out_margins",
+    "set_treat_as_char",
+    "treat_as_char"
+   ]
+  },
+  "TableCell": {
+   "members": {
+    "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Paragraph"},
+    "add_table": {"kind": "method", "params": [["rows", "P", false], ["cols", "P", false], ["width", "K", true], ["height", "K", true], ["border_fill_id_ref", "K", true]], "returns": "Table"},
+    "address": {"kind": "property", "settable": false, "returns": "tuple[int, int]"},
+    "border_fill": {"kind": "property", "settable": false, "returns": "BorderFillInfo | None"},
+    "border_fill_id_ref": {"kind": "property", "settable": false, "returns": "str | None"},
+    "clear": {"kind": "method", "params": [], "returns": "None"},
+    "height": {"kind": "property", "settable": false, "returns": "int"},
+    "is_header": {"kind": "property", "settable": false, "returns": "bool"},
+    "margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
+    "paragraphs": {"kind": "property", "settable": false, "returns": "list[Paragraph]"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "set_header": {"kind": "method", "params": [["value", "P", true]], "returns": "None"},
+    "set_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
+    "set_size": {"kind": "method", "params": [["width", "P", true], ["height", "P", true]], "returns": "None"},
+    "set_span": {"kind": "method", "params": [["row_span", "P", false], ["col_span", "P", false]], "returns": "None"},
+    "set_text": {"kind": "method", "params": [["value", "P", false], ["preserve_format", "K", true], ["split_paragraphs", "K", true]], "returns": "None"},
+    "set_vert_align": {"kind": "method", "params": [["vert_align", "P", false]], "returns": "None"},
+    "span": {"kind": "property", "settable": false, "returns": "tuple[int, int]"},
+    "tables": {"kind": "property", "settable": false, "returns": "list[Table]"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "vert_align": {"kind": "property", "settable": false, "returns": "str"},
+    "width": {"kind": "property", "settable": false, "returns": "int"}
+   },
+   "internal": [
+    "field_name"
+   ]
+  },
+  "TableColumn": {
+   "members": {
+    "cells": {"kind": "property", "settable": false, "returns": "tuple[TableCell, ...]"},
+    "index": {"kind": "property", "settable": false, "returns": "int"},
+    "set_width": {"kind": "method", "params": [["width", "P", false]], "returns": "None"},
+    "width": {"kind": "property", "settable": false, "returns": "int"}
+   },
+   "internal": []
+  },
+  "TableRow": {
+   "members": {
+    "cells": {"kind": "property", "settable": false, "returns": "list[TableCell]"},
+    "height": {"kind": "property", "settable": false, "returns": "int"},
+    "index": {"kind": "property", "settable": false, "returns": "int"},
+    "set_height": {"kind": "method", "params": [["height", "P", false]], "returns": "None"}
+   },
+   "internal": []
+  },
+  "Version": {
+   "members": {},
+   "internal": [
+    "attach_document",
+    "dirty",
+    "document",
+    "element",
+    "mark_dirty",
+    "replace_element",
+    "reset_dirty",
+    "to_bytes",
+    "to_model"
+   ]
+  }
+ },
+ "objects": {
+  "Alignment": {"kind": "enum", "values": {"LEFT": "LEFT", "CENTER": "CENTER", "RIGHT": "RIGHT", "JUSTIFY": "JUSTIFY", "DISTRIBUTE": "DISTRIBUTE", "DISTRIBUTE_SPACE": "DISTRIBUTE_SPACE"}},
+  "AutoNumber": {
+   "kind": "dataclass",
+   "fields": [
+    ["kind", "str"],
+    ["number", "int"],
+    ["format_type", "str"],
+    ["prefix", "str | None"],
+    ["suffix", "str | None"],
+    ["superscript", "bool"],
+    ["paragraph", "Paragraph | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "BeginNumbers": {
+   "kind": "dataclass",
+   "fields": [
+    ["page", "int"],
+    ["footnote", "int"],
+    ["endnote", "int"],
+    ["picture", "int"],
+    ["table", "int"],
+    ["equation", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "BinaryItem": {
+   "kind": "dataclass",
+   "fields": [
+    ["item_id", "str"],
+    ["format", "str"],
+    ["href", "str"],
+    ["size", "int"]
+   ],
+   "members": {}
+  },
+  "Bookmark": {
+   "kind": "dataclass",
+   "fields": [
+    ["name", "str"],
+    ["kind", "Literal['point', 'field']"],
+    ["text", "str"],
+    ["location", "FieldLocation"],
+    ["element", "Any"]
+   ],
+   "members": {
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "rename": {"kind": "method", "params": [["name", "P", false]], "returns": "Bookmark"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "BorderFillInfo": {
+   "kind": "dataclass",
+   "fields": [
+    ["id", "str"],
+    ["left", "BorderLine"],
+    ["right", "BorderLine"],
+    ["top", "BorderLine"],
+    ["bottom", "BorderLine"],
+    ["diagonal", "BorderLine"],
+    ["fill", "str | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "BorderLine": {
+   "kind": "dataclass",
+   "fields": [
+    ["type", "str"],
+    ["width_mm", "float"],
+    ["color", "str"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "CellField": {
+   "kind": "class",
+   "members": {
+    "cell": {"kind": "property", "settable": false, "returns": "Any"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "CellMargins": {
+   "kind": "dataclass",
+   "fields": [
+    ["left", "int"],
+    ["right", "int"],
+    ["top", "int"],
+    ["bottom", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "CellZone": {
+   "kind": "dataclass",
+   "fields": [
+    ["row", "int"],
+    ["col", "int"],
+    ["end_row", "int"],
+    ["end_col", "int"],
+    ["border_fill_id_ref", "str | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "CheckBox": {
+   "kind": "class",
+   "members": {
+    "caption": {"kind": "property", "settable": false, "returns": "str"},
+    "checked": {"kind": "property", "settable": true, "returns": "bool"},
+    "element": {"kind": "property", "settable": false, "returns": "Element"},
+    "index": {"kind": "property", "settable": false, "returns": "int"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
+    "section_index": {"kind": "property", "settable": false, "returns": "int"},
+    "value": {"kind": "property", "settable": false, "returns": "str"}
+   }
+  },
+  "ClearBodyReport": {
+   "kind": "dataclass",
+   "fields": [
+    ["removed_paragraphs", "int"],
+    ["removed_runs", "int"],
+    ["stripped_run_children", "int"],
+    ["control_content", "tuple[str, ...]"],
+    ["stripped_controls", "int"],
+    ["stripped_section_stories", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "ColumnDefinition": {
+   "kind": "dataclass",
+   "fields": [
+    ["count", "int"],
+    ["type", "str"],
+    ["layout", "str"],
+    ["same_size", "bool"],
+    ["gap", "int"],
+    ["widths", "tuple[tuple[int, int], ...]"],
+    ["separator", "BorderLine | None"],
+    ["paragraph", "Paragraph | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "ColumnLayout": {
+   "kind": "dataclass",
+   "fields": [
+    ["count", "int"],
+    ["gap_mm", "float"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "ComboBox": {
+   "kind": "class",
+   "members": {
+    "editable_text": {"kind": "property", "settable": false, "returns": "bool"},
+    "element": {"kind": "property", "settable": false, "returns": "Element"},
+    "index": {"kind": "property", "settable": false, "returns": "int"},
+    "items": {"kind": "property", "settable": false, "returns": "tuple[tuple[str, str], ...]"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
+    "section_index": {"kind": "property", "settable": false, "returns": "int"},
+    "value": {"kind": "property", "settable": true, "returns": "str"}
+   }
+  },
+  "CrossReference": {
+   "kind": "dataclass",
+   "fields": [
+    ["ref_type", "str"],
+    ["content_type", "str"],
+    ["target", "str"],
+    ["text", "str"],
+    ["hyperlink", "bool"],
+    ["location", "FieldLocation"],
+    ["parameters", "tuple[FieldParameter, ...]"],
+    ["element", "Any"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "DocumentOptions": {
+   "kind": "dataclass",
+   "fields": [
+    ["target_program", "str | None"],
+    ["layout_compatibility", "tuple[str, ...]"],
+    ["link_path", "str"],
+    ["page_inherit", "bool"],
+    ["footnote_inherit", "bool"],
+    ["license_type", "str | None"],
+    ["license_flag", "int | None"],
+    ["license_lang", "int | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "EditBox": {
+   "kind": "class",
+   "members": {
+    "element": {"kind": "property", "settable": false, "returns": "Element"},
+    "index": {"kind": "property", "settable": false, "returns": "int"},
+    "multi_line": {"kind": "property", "settable": false, "returns": "bool"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
+    "read_only": {"kind": "property", "settable": false, "returns": "bool"},
+    "section_index": {"kind": "property", "settable": false, "returns": "int"},
+    "text": {"kind": "property", "settable": true, "returns": "str"}
+   }
+  },
+  "FieldFillResult": {
+   "kind": "dataclass",
+   "fields": [
+    ["field", "FormField"],
+    ["before", "str"],
+    ["after", "str"],
+    ["style_preserved", "bool"],
+    ["style_before", "tuple[str, ...]"],
+    ["style_after", "tuple[str, ...]"],
+    ["fit", "FitResult | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "FieldLocation": {
+   "kind": "dataclass",
+   "fields": [
+    ["section_index", "int"],
+    ["paragraph_index", "int"],
+    ["paragraph_index_in_section", "int"],
+    ["run_index", "int"],
+    ["child_index", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "FieldParameter": {
+   "kind": "dataclass",
+   "fields": [
+    ["name", "str"],
+    ["value", "str"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "FontReplaceReport": {
+   "kind": "dataclass",
+   "fields": [
+    ["src_face", "str"],
+    ["dst_face", "str"],
+    ["langs", "tuple[str, ...]"],
+    ["repointed", "int"],
+    ["declared", "tuple[str, ...]"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "FormField": {
+   "kind": "class",
+   "members": {
+    "editable": {"kind": "property", "settable": true, "returns": "bool"},
+    "element": {"kind": "property", "settable": false, "returns": "Element"},
+    "field_id": {"kind": "property", "settable": false, "returns": "str"},
+    "field_type": {"kind": "property", "settable": false, "returns": "str"},
+    "has_end": {"kind": "property", "settable": false, "returns": "bool"},
+    "is_placeholder": {"kind": "property", "settable": false, "returns": "bool"},
+    "location": {"kind": "property", "settable": false, "returns": "FieldLocation"},
+    "memo": {"kind": "property", "settable": true, "returns": "str"},
+    "name": {"kind": "property", "settable": true, "returns": "str"},
+    "parameters": {"kind": "property", "settable": false, "returns": "tuple[FieldParameter, ...]"},
+    "prompt": {"kind": "property", "settable": true, "returns": "str"},
+    "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
+    "value": {"kind": "property", "settable": true, "returns": "str"}
+   }
+  },
+  "FormulaField": {
+   "kind": "dataclass",
+   "fields": [
+    ["field_id", "str"],
+    ["formula", "str"],
+    ["result_format", "str"],
+    ["last_result", "str"],
+    ["command", "str"],
+    ["value", "str"],
+    ["location", "FieldLocation"],
+    ["cell_address", "tuple[int, int] | None"],
+    ["parameters", "tuple[FieldParameter, ...]"],
+    ["element", "Any"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "Highlight": {
+   "kind": "dataclass",
+   "fields": [
+    ["text", "str"],
+    ["color", "str | None"],
+    ["paragraph", "Paragraph | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "Hyperlink": {
+   "kind": "class",
+   "members": {
+    "element": {"kind": "property", "settable": false, "returns": "Any"},
+    "field_id": {"kind": "property", "settable": false, "returns": "str"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Any"},
+    "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"},
+    "url": {"kind": "property", "settable": true, "returns": "str"}
+   }
+  },
+  "LineSpacing": {
+   "kind": "dataclass",
+   "fields": [
+    ["type", "LineSpacingType"],
+    ["value", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "LineSpacingType": {"kind": "enum", "values": {"PERCENT": "PERCENT", "FIXED": "FIXED", "BETWEEN_LINES": "BETWEEN_LINES", "AT_LEAST": "AT_LEAST"}},
+  "ListFormatResult": {
+   "kind": "dataclass",
+   "fields": [
+    ["formatted", "int"],
+    ["paragraphs", "tuple[int, ...]"],
+    ["kind", "str"],
+    ["level", "int"],
+    ["para_pr_id_ref", "str"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "NoteShapeInfo": {
+   "kind": "dataclass",
+   "fields": [
+    ["number_format", "str"],
+    ["user_char", "str | None"],
+    ["prefix", "str | None"],
+    ["suffix", "str | None"],
+    ["superscript", "bool"],
+    ["numbering", "str"],
+    ["start", "int"],
+    ["placement", "str"],
+    ["beneath_text", "bool"],
+    ["separator", "BorderLine"],
+    ["separator_length", "int"],
+    ["between_notes", "int"],
+    ["below_line", "int"],
+    ["above_line", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "NumberRestart": {
+   "kind": "dataclass",
+   "fields": [
+    ["kind", "str"],
+    ["number", "int"],
+    ["paragraph", "Paragraph | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "NumberingInfo": {
+   "kind": "dataclass",
+   "fields": [
+    ["id", "str"],
+    ["start", "int"],
+    ["levels", "tuple[NumberingLevel, ...]"]
+   ],
+   "members": {
+    "level": {"kind": "method", "params": [["level", "P", false]], "returns": "NumberingLevel | None"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "NumberingLevel": {
+   "kind": "dataclass",
+   "fields": [
+    ["level", "int"],
+    ["start", "int"],
+    ["number_format", "str"],
+    ["text", "str"],
+    ["align", "str"],
+    ["char_pr_id_ref", "str | None"],
+    ["auto_indent", "bool"],
+    ["width_adjust", "int"],
+    ["text_offset", "int"],
+    ["text_offset_type", "str"],
+    ["checkable", "bool"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "ObjectPlace": {
+   "kind": "dataclass",
+   "fields": [
+    ["object", "Any"],
+    ["kind", "str"],
+    ["where", "str"],
+    ["section", "int | None"],
+    ["page_type", "str | None"],
+    ["table", "Table | None"],
+    ["row", "int | None"],
+    ["col", "int | None"],
+    ["owner", "Any"],
+    ["depth", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "ObjectPosition": {
+   "kind": "dataclass",
+   "fields": [
+    ["treat_as_char", "bool"],
+    ["text_wrap", "str | None"],
+    ["text_flow", "str | None"],
+    ["horz_rel_to", "str | None"],
+    ["vert_rel_to", "str | None"],
+    ["horz_align", "str | None"],
+    ["vert_align", "str | None"],
+    ["horizontal_offset", "int | None"],
+    ["vertical_offset", "int | None"],
+    ["flow_with_text", "bool | None"],
+    ["allow_overlap", "bool | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PageBorder": {
+   "kind": "dataclass",
+   "fields": [
+    ["page_type", "str"],
+    ["border_fill_id_ref", "str | None"],
+    ["text_border", "str | None"],
+    ["header_inside", "bool"],
+    ["footer_inside", "bool"],
+    ["fill_area", "str | None"],
+    ["offset_left", "int"],
+    ["offset_right", "int"],
+    ["offset_top", "int"],
+    ["offset_bottom", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PageHiding": {
+   "kind": "dataclass",
+   "fields": [
+    ["header", "bool"],
+    ["footer", "bool"],
+    ["master_page", "bool"],
+    ["border", "bool"],
+    ["fill", "bool"],
+    ["page_num", "bool"],
+    ["paragraph", "Paragraph | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PageMargins": {
+   "kind": "dataclass",
+   "fields": [
+    ["left", "float | None"],
+    ["right", "float | None"],
+    ["top", "float | None"],
+    ["bottom", "float | None"],
+    ["header", "float | None"],
+    ["footer", "float | None"],
+    ["gutter", "float | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PageNumberControl": {
+   "kind": "dataclass",
+   "fields": [
+    ["position", "str"],
+    ["format_type", "str"],
+    ["side_char", "str"],
+    ["paragraph", "Paragraph | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PageSetup": {
+   "kind": "dataclass",
+   "fields": [
+    ["page_size", "PageSize"],
+    ["margins", "PageMargins"],
+    ["columns", "ColumnLayout | None"],
+    ["units", "Units"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PageSize": {
+   "kind": "dataclass",
+   "fields": [
+    ["width_mm", "float | None"],
+    ["height_mm", "float | None"],
+    ["orientation", "str | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "ParagraphFormatResult": {
+   "kind": "dataclass",
+   "fields": [
+    ["formatted", "int"],
+    ["paragraphs", "tuple[int, ...]"],
+    ["units", "Units"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "ParagraphPlace": {
+   "kind": "dataclass",
+   "fields": [
+    ["paragraph", "Paragraph"],
+    ["where", "str"],
+    ["section", "int | None"],
+    ["page_type", "str | None"],
+    ["table", "Table | None"],
+    ["row", "int | None"],
+    ["col", "int | None"],
+    ["owner", "Any"],
+    ["depth", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PictureRef": {
+   "kind": "dataclass",
+   "fields": [
+    ["picture_index", "int"],
+    ["section_index", "int"],
+    ["binary_item_id_ref", "str | None"],
+    ["width", "int | None"],
+    ["height", "int | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "PictureReplacement": {
+   "kind": "dataclass",
+   "fields": [
+    ["picture", "InlineObject"],
+    ["item_id", "str"],
+    ["previous_item_id", "str | None"],
+    ["removed_orphans", "tuple[str, ...]"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "RadioButton": {
+   "kind": "class",
+   "members": {
+    "caption": {"kind": "property", "settable": false, "returns": "str"},
+    "checked": {"kind": "property", "settable": true, "returns": "bool"},
+    "element": {"kind": "property", "settable": false, "returns": "Element"},
+    "group": {"kind": "property", "settable": false, "returns": "str"},
+    "index": {"kind": "property", "settable": false, "returns": "int"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
+    "section_index": {"kind": "property", "settable": false, "returns": "int"},
+    "value": {"kind": "property", "settable": false, "returns": "str"}
+   }
+  },
+  "StartNumbers": {
+   "kind": "dataclass",
+   "fields": [
+    ["page_starts_on", "str"],
+    ["page", "int"],
+    ["picture", "int"],
+    ["table", "int"],
+    ["equation", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "TextBoxField": {
+   "kind": "class",
+   "members": {
+    "element": {"kind": "property", "settable": false, "returns": "Any"},
+    "name": {"kind": "property", "settable": false, "returns": "str"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "TrackedChange": {
+   "kind": "dataclass",
+   "fields": [
+    ["change_id", "int"],
+    ["kind", "str"],
+    ["author", "str"],
+    ["date", "str | None"],
+    ["paragraph", "Paragraph | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "TrackedReplacement": {
+   "kind": "dataclass",
+   "fields": [
+    ["delete", "TrackedChange"],
+    ["insert", "TrackedChange"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "Units": {
+   "kind": "dataclass",
+   "fields": [
+    ["indent", "str | None"],
+    ["paragraph_spacing", "str | None"],
+    ["line_spacing", "str | None"],
+    ["page", "str | None"],
+    ["margins", "str | None"],
+    ["columns_gap", "str | None"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  }
+ },
+ "module": {
+  "hwpx.tools.exporter": {
+   "ListLabels": {
+    "kind": "class",
+    "members": {"__init__": {"kind": "method", "params": [["document", "P", false]], "returns": "None"}, "kind": {"kind": "method", "params": [["paragraph", "P", false]], "returns": "str | None"}, "label": {"kind": "method", "params": [["paragraph", "P", false]], "returns": "str"}}
+   },
+   "NUMBER_TEXT_FORMATS": {"kind": "constant", "type": "frozenset"},
+   "NoteLabels": {
+    "kind": "class",
+    "members": {
+     "__init__": {"kind": "method", "params": [["document", "P", false]], "returns": "None"},
+     "label": {"kind": "method", "params": [["note", "P", false]], "returns": "str"}
+    }
+   },
+   "number_text": {"kind": "function", "params": [["value", "P", false], ["number_format", "P", true]], "returns": "str | None"},
+   "table_grid_text": {"kind": "function", "params": [["table", "P", false], ["tab_token", "K", true]], "returns": "tuple[tuple[str, ...], ...]"}
+  },
+  "hwpx.oxml.run": {
+   "text_element_content": {"kind": "function", "params": [["element", "P", false], ["tab_token", "K", true]], "returns": "str"}
+  },
+  "hwpx.oxml.paragraph_heading": {
+   "heading_outline_level": {"kind": "function", "params": [["para_pr", "P", false]], "returns": "int | None"},
+   "outline_style_level": {"kind": "function", "params": [["name", "P", false]], "returns": "int | None"},
+   "paragraph_heading": {"kind": "function", "params": [["para_pr", "P", false]], "returns": "Any | None"}
+  },
+  "hwpx.oxml.hyperlink_form": {
+   "hyperlink_target": {"kind": "function", "params": [["field_begin", "P", false]], "returns": "str"}
+  },
+  "hwpx.oxml.table_sizes": {
+   "cell_margins_of": {"kind": "function", "params": [["cell_element", "P", false], ["table_element", "P", false]], "returns": "CellMargins | None"}
+  },
+  "hwpx.oxml.section_format": {
+   "PAGE_LANDSCAPE": {"kind": "constant", "type": "str"},
+   "PAGE_PORTRAIT": {"kind": "constant", "type": "str"}
+  },
+  "hwpx.oxml.namespaces": {
+   "HC": {"kind": "constant", "type": "str"},
+   "HH": {"kind": "constant", "type": "str"},
+   "HP": {"kind": "constant", "type": "str"},
+   "HS": {"kind": "constant", "type": "str"},
+   "qn": {"kind": "function", "params": [["family", "P", false], ["local_name", "P", false], ["version", "K", true]], "returns": "str"},
+   "tag_local_name": {"kind": "function", "params": [["tag", "P", false]], "returns": "str"}
+  },
+  "hwpx.opc.security": {
+   "HwpxSecurityError": {
+    "kind": "class",
+    "bases": [
+     "ValueError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {}
+   },
+   "MAX_XML_BYTES": {"kind": "constant", "type": "int"},
+   "MAX_XML_DEPTH": {"kind": "constant", "type": "int"},
+   "MAX_ZIP_COMPRESSION_RATIO": {"kind": "constant", "type": "float"},
+   "MAX_ZIP_ENTRIES": {"kind": "constant", "type": "int"},
+   "MAX_ZIP_MEMBER_BYTES": {"kind": "constant", "type": "int"},
+   "MAX_ZIP_MIMETYPE_BYTES": {"kind": "constant", "type": "int"},
+   "MAX_ZIP_SMALL_PART_BYTES": {"kind": "constant", "type": "int"},
+   "MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES": {"kind": "constant", "type": "int"},
+   "ZipGuardLimits": {
+    "kind": "dataclass",
+    "fields": [
+     ["max_entries", "int"],
+     ["max_member_bytes", "int"],
+     ["max_total_uncompressed_bytes", "int"],
+     ["max_compression_ratio", "float"]
+    ],
+    "members": {}
+   },
+   "guard_xml_bytes": {"kind": "function", "params": [["payload", "P", false], ["part_name", "K", true], ["max_xml_bytes", "K", true]], "returns": "None"},
+   "guard_xml_depth": {"kind": "function", "params": [["root", "P", false], ["part_name", "K", true], ["max_depth", "K", true]], "returns": "None"},
+   "guard_zip_file": {"kind": "function", "params": [["zf", "P", false], ["limits", "K", true]], "returns": "None"},
+   "parse_xml_stdlib": {"kind": "function", "params": [["payload", "P", false], ["part_name", "K", true]], "returns": "Element"},
+   "read_member": {"kind": "function", "params": [["zf", "P", false], ["member", "P", false], ["limit", "K", true]], "returns": "bytes"},
+   "read_zip_members": {"kind": "function", "params": [["zf", "P", false], ["limits", "K", true], ["names", "K", true]], "returns": "dict[str, bytes]"}
+  },
+  "hwpx.form_fit": {
+   "FitEngine": {
+    "kind": "dataclass",
+    "fields": [],
+    "members": {
+     "fit": {"kind": "method", "params": [["value", "P", false], ["slot", "P", false], ["policy", "P", true], ["field_id", "K", true]], "returns": "FitResult"}
+    }
+   },
+   "FitPolicy": {
+    "kind": "dataclass",
+    "fields": [
+     ["mode", "FitMode"],
+     ["max_lines", "int | None"],
+     ["min_font_pt", "float"],
+     ["max_font_pt", "float | None"],
+     ["allow_row_expand", "bool"],
+     ["overflow", "OverflowAction"]
+    ],
+    "members": {
+     "effective_max_lines": {"kind": "property", "settable": false, "returns": "int"},
+     "keep": {"kind": "classmethod", "params": [], "returns": "FitPolicy"},
+     "may_shrink": {"kind": "property", "settable": false, "returns": "bool"},
+     "may_wrap": {"kind": "property", "settable": false, "returns": "bool"},
+     "with_": {"kind": "method", "params": [["changes", "VK", false]], "returns": "FitPolicy"}
+    }
+   },
+   "FitResult": {
+    "kind": "dataclass",
+    "fields": [
+     ["ok", "bool"],
+     ["value", "str"],
+     ["applied_value", "str"],
+     ["applied_style_changes", "dict[str, Any]"],
+     ["lines", "int | None"],
+     ["font_pt", "float | None"],
+     ["overflow_detected", "bool"],
+     ["truncated", "bool"],
+     ["confidence", "str"],
+     ["warnings", "list[str]"],
+     ["errors", "list[str]"],
+     ["field_id", "str | None"]
+    ],
+    "members": {
+     "style_changed": {"kind": "property", "settable": false, "returns": "bool"},
+     "suggested_retry": {"kind": "method", "params": [], "returns": "dict[str, Any] | None"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "SlotMetrics": {
+    "kind": "dataclass",
+    "fields": [
+     ["available_width", "float"],
+     ["font_pt", "float"],
+     ["max_lines", "int"],
+     ["raw_width", "float | None"],
+     ["source", "str"],
+     ["available_height", "float | None"],
+     ["line_spacing_ratio", "float | None"],
+     ["inline_object_width", "float"],
+     ["inline_object_count", "int"],
+     ["height_unavailable", "bool"],
+     ["text_style", "TextStyle | None"],
+     ["line_width", "float | None"],
+     ["min_line_width", "float"],
+     ["line_spacing", "tuple[str, float] | None"],
+     ["font_line", "bool"]
+    ],
+    "members": {
+     "capacity": {"kind": "property", "settable": false, "returns": "float"},
+     "height_lines": {"kind": "method", "params": [["font_pt", "P", true]], "returns": "int | None"},
+     "height_lines_optimistic": {"kind": "method", "params": [["font_pt", "P", true]], "returns": "int | None"},
+     "line_height": {"kind": "method", "params": [["font_pt", "P", true]], "returns": "float"},
+     "line_size": {"kind": "method", "params": [["font_pt", "P", true]], "returns": "float"}
+    }
+   },
+   "TextStyle": {
+    "kind": "dataclass",
+    "fields": [
+     ["ratio", "float"],
+     ["spacing", "float"],
+     ["use_font_space", "bool"],
+     ["break_latin_word", "str"],
+     ["break_non_latin_word", "str"],
+     ["condense", "int"],
+     ["indent", "int"],
+     ["margin_left", "int"],
+     ["margin_right", "int"],
+     ["space_before", "int"],
+     ["hangul_advance", "float"],
+     ["glyph_face", "str"],
+     ["hangul_face", "str"],
+     ["latin_face", "str"],
+     ["symbol_face", "str"],
+     ["scripts", "tuple[tuple[str, float, float], ...]"],
+     ["head", "float"],
+     ["head_hangs", "bool"],
+     ["tab_stop", "int"],
+     ["tab_stops", "tuple[tuple[int, str], ...]"],
+     ["auto_tab_left", "bool"],
+     ["auto_tab_right", "bool"],
+     ["bold", "bool"],
+     ["italic", "bool"],
+     ["auto_space_latin", "bool"],
+     ["auto_space_digit", "bool"],
+     ["script_size", "float"],
+     ["script_sizes", "tuple[tuple[str, float], ...]"],
+     ["line_wrap", "str"]
+    ],
+    "members": {}
+   },
+   "char_advance": {"kind": "function", "params": [["ch", "P", false], ["font_pt", "P", false], ["style", "P", true]], "returns": "float"},
+   "estimate_text_width": {"kind": "function", "params": [["text", "P", false], ["font_pt", "P", false], ["style", "P", true]], "returns": "float"},
+   "indented_widths": {"kind": "function", "params": [["line", "P", false], ["style", "P", false]], "returns": "tuple[float, float]"},
+   "resolve_slot_metrics": {"kind": "function", "params": [["cell", "P", false], ["document", "P", false], ["max_lines", "K", true], ["font_pt", "K", true], ["safety", "K", true]], "returns": "SlotMetrics"},
+   "text_style_from_refs": {"kind": "function", "params": [["document", "P", false], ["para_pr_id_ref", "P", false], ["char_pr_id_refs", "P", false], ["label", "P", true], ["end_char_pr_id_ref", "P", true]], "returns": "TextStyle"}
+  },
+  "hwpx.equation": {
+   "EquationConversionError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "ValueError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "UnsupportedLatexError": {
+    "kind": "class",
+    "bases": [
+     "EquationConversionError",
+     "HwpxError",
+     "ValueError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "eqedit_to_latex": {"kind": "function", "params": [["script", "P", false]], "returns": "str"},
+   "estimate_equation_size": {"kind": "function", "params": [["script", "P", false], ["base_unit", "K", true]], "returns": "tuple[int, int]"},
+   "latex_to_eqedit": {"kind": "function", "params": [["latex", "P", false]], "returns": "str"}
+  },
+  "hwpx.errors": {
+   "ERROR_CODES": {"kind": "constant", "type": "dict"},
+   "ERROR_CODE_DOMAINS": {"kind": "constant", "type": "frozenset"},
+   "GRANDFATHERED_CODES": {"kind": "constant", "type": "frozenset"},
+   "Hwp5ConversionWarning": {
+    "kind": "class",
+    "bases": [
+     "UserWarning",
+     "Warning",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {}
+   },
+   "Hwp5Error": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "ValueError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "HwpxAttributeError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "AttributeError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "HwpxError": {
+    "kind": "class",
+    "bases": [
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "HwpxLookupError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "KeyError",
+     "LookupError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "HwpxStateError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "RuntimeError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "HwpxTypeError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "TypeError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "HwpxValueError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "ValueError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "ReplaceScopeWarning": {
+    "kind": "class",
+    "bases": [
+     "UserWarning",
+     "Warning",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {}
+   },
+   "SaveError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "ValueError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   },
+   "SaveTargetError": {
+    "kind": "class",
+    "bases": [
+     "HwpxError",
+     "OSError",
+     "Exception",
+     "BaseException"
+    ],
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
+   }
+  }
+ }
+}
