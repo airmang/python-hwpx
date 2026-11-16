@@ -266,6 +266,12 @@ def attach_memo_field(
     _clear_paragraph_layout_cache(paragraph.element)  # the field's controls move its text: laid out again
     paragraph.section.mark_dirty()
 
+    # Hancom keeps a memo only in its MEMO field (no hp:memogroup, Hangul 2024): a memo-group memo
+    # moves into the field just made and *memo* becomes that field's memo (same object).
+    from ..oxml.memo import HwpxOxmlMemo as _GroupMemo, fold_into_field
+
+    if type(memo) is _GroupMemo:
+        fold_into_field(memo, field_begin, paragraph.section)
     return memo
 
 

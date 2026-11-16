@@ -89,6 +89,7 @@ class HwpxOxmlMemoGroup:
         if memo_shape_id_ref is not None:
             memo_attrs.setdefault("memoShapeIDRef", str(memo_shape_id_ref))
         memo_element = _append_child(self.element, f"{_HP}memo", memo_attrs)
+        _note_session_memo(self.section, memo_element)
         memo = HwpxOxmlMemo(memo_element, self)
         memo.set_text(text, char_pr_id_ref=char_pr_id_ref)
         self.section.mark_dirty()
@@ -105,11 +106,25 @@ class HwpxOxmlMemoGroup:
 
 
 class HwpxOxmlMemo:
-    """Represents a memo entry contained within a memo group."""
+    """Represents a memo entry contained within a memo group.
+
+    Hancom 2024 keeps a memo only in its MEMO field (the field's ``hp:subList``) and writes no
+    ``hp:memogroup``. A memo-group memo is one not anchored yet (made by ``doc.notes.add_memo``
+    without ``paragraph=``, or a copy), or one of a document python-hwpx 6.x wrote, which kept the
+    memo in both places. Anchoring the first (``doc.notes.attach``) or changing the second moves it
+    into its field and drops the memo-group copy, and this object then is that field's memo
+    (:class:`HwpxOxmlFieldMemo`), so the two copies never disagree.
+    """
 
     def __init__(self, element: ET.Element, group: HwpxOxmlMemoGroup):
         self.element = element
         self.group = group
+
+    def _folded(self) -> bool:
+        """Move this memo-group memo into the MEMO field anchoring it, if one does (see the class);
+        True when it moved (this object is then a :class:`HwpxOxmlFieldMemo`)."""
+
+        return type(self) is HwpxOxmlMemo and fold_into_field(self)
 
     @property
     def id(self) -> str | None:
@@ -117,6 +132,9 @@ class HwpxOxmlMemo:
 
     @id.setter
     def id(self, value: str | None) -> None:
+        if self._folded():
+            self.set_attribute("ID", value)
+            return
         if value is None:
             if "id" in self.element.attrib:
                 del self.element.attrib["id"]
@@ -133,6 +151,9 @@ class HwpxOxmlMemo:
 
     @memo_shape_id_ref.setter
     def memo_shape_id_ref(self, value: str | int | None) -> None:
+        if self._folded():
+            self.set_attribute("MemoShapeIDRef", value)
+            return
         if value is None:
             if "memoShapeIDRef" in self.element.attrib:
                 del self.element.attrib["memoShapeIDRef"]
@@ -148,6 +169,9 @@ class HwpxOxmlMemo:
         return dict(self.element.attrib)
 
     def set_attribute(self, name: str, value: str | int | None) -> None:
+        if self._folded():  # the field's parameter of that meaning
+            self.set_attribute(_FIELD_PARAMS.get(name, name), value)
+            return
         if value is None:
             if name in self.element.attrib:
                 del self.element.attrib[name]
@@ -238,6 +262,9 @@ class HwpxOxmlMemo:
         *,
         char_pr_id_ref: str | int | None = None,
     ) -> None:
+        if self._folded():
+            self.set_text(value, char_pr_id_ref=char_pr_id_ref)
+            return
         desired = value or ""
         existing_char = char_pr_id_ref or self._infer_char_pr_id_ref()
         for child in list(self.element):
@@ -334,6 +361,7 @@ class HwpxOxmlMemo:
             _clear_paragraph_layout_cache(node)
         group = _ensure_memo_group(target)
         _insert_memo_element(group, clone, others, position)
+        _note_session_memo(target, clone)  # not anchored yet: the save refuses it until attached
         target.mark_dirty()
         return HwpxOxmlMemo(clone, HwpxOxmlMemoGroup(group, target))
 
@@ -454,24 +482,97 @@ def memo_fields_in(root: ET.Element) -> list[ET.Element]:
     return [node for node in root.iter(f"{_HP}fieldBegin") if node.get("type") == "MEMO"]
 
 
-def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "HwpxOxmlSection") -> int:
-    """Move the memo-group memos the MEMO fields under *root* anchor into *target*'s memo group: content
-    that moved to *target* takes its memos along, so each memo stays in the section of its anchor.
-    Returns how many moved; a group left empty goes."""
+#: A memo-group memo's attribute -> the MEMO field parameter of the same meaning.
+_FIELD_PARAMS = {"id": "ID", "memoShapeIDRef": "MemoShapeIDRef", "author": "Author", "createDateTime": "CreateDateTime"}
 
-    wanted = {memo_field_id(field) for field in memo_fields_in(root)} - {None, ""}
-    if not wanted:
+
+def _note_session_memo(section: "HwpxOxmlSection", memo: ET.Element) -> None:
+    """Remember a memo-group memo made in this session (not read from the file): the save refuses it
+    while no MEMO field anchors it, since Hancom keeps no memo outside its field."""
+
+    document = getattr(section, "document", None)
+    if document is None:
+        return
+    made = getattr(document, "_session_memo_ids", None)
+    if made is None:
+        made = set()
+        document._session_memo_ids = made
+    if memo.get("id"):
+        made.add(str(memo.get("id")))
+
+
+def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
+    """Make the MEMO field *field* hold the memo-group memo *entry* as Hancom keeps a memo: the field's
+    ``hp:subList`` holds the memo's paragraphs, its ``MemoShapeIDRef`` the memo's shape."""
+
+    from copy import deepcopy
+
+    sub_list = field.find(f"{_HP}subList")
+    if sub_list is None:
+        sub_list = _append_child(field, f"{_HP}subList", {**_default_sublist_attributes(), "vertAlign": "TOP"})
+    paragraphs = entry.findall(f".//{_HP}p")
+    if paragraphs:
+        for node in sub_list.findall(f"{_HP}p"):
+            sub_list.remove(node)
+        for node in paragraphs:
+            copied = deepcopy(node)
+            copied.tail = None
+            copied.set("id", "0")  # Hancom numbers a memo field's paragraphs 0
+            _clear_paragraph_layout_cache(copied)
+            sub_list.append(copied)
+    shape = entry.get("memoShapeIDRef")
+    if shape:
+        for param in field.iter(f"{_HP}stringParam"):
+            if param.get("name") == "MemoShapeIDRef":
+                param.text = shape
+
+
+def fold_into_field(
+    memo: "HwpxOxmlMemo", field: ET.Element | None = None, section: "HwpxOxmlSection | None" = None
+) -> bool:
+    """Move the memo-group memo *memo* into the MEMO field anchoring it (*field* in *section*, or the
+    one of its own section that names it) and drop its memo-group entry (a group left empty goes);
+    *memo* becomes that field's :class:`HwpxOxmlFieldMemo`. False (nothing changes) when no field
+    anchors it."""
+
+    if field is None:
+        field = memo._anchor_field()
+        section = memo.group.section
+    if field is None or section is None:
+        return False
+    _fill_field_from_entry(field, memo.element)
+    group = memo.group
+    try:
+        group.element.remove(memo.element)
+    except ValueError:  # pragma: no cover - defensive branch
+        return False
+    group.section.mark_dirty()
+    group._cleanup()
+    memo.__class__ = HwpxOxmlFieldMemo
+    memo.element = field
+    memo.group = _FieldMemoHost(section)  # type: ignore[assignment]
+    section.mark_dirty()
+    return True
+
+
+def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "HwpxOxmlSection") -> int:
+    """Fold the memo-group memos the MEMO fields under *root* anchor into those fields: content that moved
+    to *target* takes its memos along inside its fields, as Hancom keeps them (no ``hp:memogroup`` is
+    written). Returns how many were folded; a group left empty goes."""
+
+    fields = {memo_field_id(field): field for field in memo_fields_in(root)}
+    fields.pop(None, None)
+    fields.pop("", None)
+    if not fields:
         return 0
     moved = 0
     for section in sections:
-        if section.element is target.element:
-            continue
         group = section.element.find(f"{_HP}memogroup")
         if group is None:
             continue
-        for memo in [memo for memo in group.findall(f"{_HP}memo") if memo.get("id") in wanted]:
+        for memo in [memo for memo in group.findall(f"{_HP}memo") if memo.get("id") in fields]:
+            _fill_field_from_entry(fields[str(memo.get("id"))], memo)
             group.remove(memo)
-            _ensure_memo_group(target).append(memo)
             moved += 1
             section.mark_dirty()
             target.mark_dirty()
@@ -482,8 +583,9 @@ def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "Hw
 def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "HwpxOxmlSection") -> int:
     """Give each MEMO field in the copied content *root* (not in the document yet) a memo of its own:
     the next memo number (its ``Number`` and ``zorder``, as ``doc.notes.attach`` numbers a memo -- Hancom
-    takes memos of one number for one memo), and, when it names a memo of a memo group, a copy of that
-    memo under a new id in *target*'s memo group. Returns how many fields were renewed."""
+    takes memos of one number for one memo), and, when it names a memo of a memo group, that memo's text
+    in the copied field under a new id (as Hancom keeps a memo: no ``hp:memogroup`` entry is written).
+    Returns how many fields were renewed."""
 
     fields = memo_fields_in(root)
     if not fields:
@@ -501,7 +603,10 @@ def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", targ
         field.set("zorder", str(highest))
         source = entries.get(memo_field_id(field) or "")
         if source is not None:
-            _set_memo_param(field, "stringParam", "ID", _copy_memo_entry(source, target))
+            _fill_field_from_entry(field, source)
+        if memo_field_id(field) is not None:  # the copy is a memo of its own: its own id
+            _set_memo_param(field, "stringParam", "ID", _memo_id())
+        target.mark_dirty()
     return len(fields)
 
 
@@ -516,22 +621,6 @@ def _set_memo_param(field: ET.Element, kind: str, name: str, value: str) -> None
     for param in field.iter(f"{_HP}{kind}"):
         if param.get("name") == name:
             param.text = value
-
-
-def _copy_memo_entry(source: ET.Element, target: "HwpxOxmlSection") -> str:
-    """Append a copy of the memo-group memo *source* to *target*'s group under a new id; return the id."""
-
-    from copy import deepcopy
-
-    from ._document_primitives import _refresh_copied_paragraph_subtree_ids
-
-    clone = deepcopy(source)
-    clone.tail = None
-    clone.set("id", _memo_id())
-    _refresh_copied_paragraph_subtree_ids(clone)
-    _ensure_memo_group(target).append(clone)
-    target.mark_dirty()
-    return str(clone.get("id"))
 
 
 def _remove_field(root: ET.Element, field_begin: ET.Element) -> None:
