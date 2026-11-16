@@ -279,7 +279,10 @@ class HwpxOxmlTableCell(TableCellFormat):
 
     @property
     def span(self) -> tuple[int, int]:
-        span = self._span_element()
+        # Reading never writes: a cell without ``hp:cellSpan`` spans one row and one column.
+        span = self.element.find(f"{_HP}cellSpan")
+        if span is None:
+            return (1, 1)
         row_span = int(span.get("rowSpan", "1"))
         col_span = int(span.get("colSpan", "1"))
         return (row_span, col_span)
@@ -304,13 +307,14 @@ class HwpxOxmlTableCell(TableCellFormat):
 
     @property
     def width(self) -> int:
-        size = self._size_element()
-        return int(size.get("width", "0"))
+        # Reading never writes: a cell without ``hp:cellSz`` reads as 0, as an empty one does.
+        size = self.element.find(f"{_HP}cellSz")
+        return int(size.get("width", "0")) if size is not None else 0
 
     @property
     def height(self) -> int:
-        size = self._size_element()
-        return int(size.get("height", "0"))
+        size = self.element.find(f"{_HP}cellSz")
+        return int(size.get("height", "0")) if size is not None else 0
 
     def set_size(self, width: int | None = None, height: int | None = None) -> None:
         size = self._size_element()
