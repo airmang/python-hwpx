@@ -1,85 +1,70 @@
-# 메모(hp:memo) 구조
+# 메모(MEMO 필드) 구조
 
-한/글의 메모(주석)를 프로그램으로 붙일 때 흔히 겪는 함정은 "요소는 만들었는데 한/글에서 메모가 안 보인다"입니다. 메모가 표시되려면 **세 조각 — 메모 본체, 본문의 MEMO 필드, 그리고 둘을 잇는 참조 — 가 모두 맞아야** 하기 때문입니다. 이 문서는 실제로 표시되는 메모의 구조를 코드로 짚습니다.
+한/글의 메모(주석)를 프로그램으로 붙일 때 흔히 겪는 함정은 "요소는 만들었는데 한/글에서 메모가 안 보인다"입니다. 이 문서는 한/글 2024가 저장하는 메모의 구조와, 7.0이 그것을 어떻게 그대로 쓰는지를 코드로 짚습니다.
 
-## 세 조각
+## 두 조각
 
-### 1. 메모 본체: `<hp:memogroup>` 안의 `<hp:memo>`
+### 1. 본문의 MEMO 필드: `<hp:fieldBegin type="MEMO">`
 
-메모 본체는 섹션의 `<hp:memogroup>` 컨테이너 안에 `<hp:memo>`로 들어갑니다(`src/hwpx/oxml/memo.py`의 `HwpxOxmlMemoGroup`, `HwpxOxmlMemo`). 각 `<hp:memo>`는 `id`와 `memoShapeIDRef` 속성을 가집니다.
+메모는 본문 문단에 걸린 MEMO 필드입니다. `src/hwpx/_document/memos.py`의 `attach_memo_field`가 문단 앞에 `<hp:ctrl><hp:fieldBegin type="MEMO">` run을, 뒤에 `<hp:fieldEnd>` run을 넣어 필드가 문단 내용을 감싸게 합니다. `fieldBegin`의 `id`와 `fieldEnd`의 `beginIDRef`가 짝을 이룹니다. 문단 첫 run에 `hp:secPr`가 있으면(구역의 첫 문단) 필드는 한/글처럼 그 run 뒤에 놓입니다.
 
-메모의 **본문 텍스트**는 `<hp:memo>` 안의 `<hp:paraList>` → `<hp:p>` → `<hp:run>` → `<hp:t>`에 놓입니다(`HwpxOxmlMemo.set_text`). 즉 메모 본체가 만들어내는 구조는:
+**메모 글은 이 필드의 `hp:subList` 안에 있습니다.** 한/글 2024는 여백 풍선의 글을 여기서 읽고, 저장할 때 `<hp:memogroup>`을 쓰지 않습니다. 7.0도 `hp:memogroup`을 쓰지 않습니다. subList에 글이 아니라 id를 넣으면 한/글은 코멘트 대신 숫자를 그립니다(과거 회귀).
+
+필드의 매개변수는 한/글 2024 저장본(`tests/fixtures/hancom_saved`)과 같은 일곱 개를 같은 순서로 씁니다.
 
 ```
-<hp:memogroup>
-  <hp:memo id="..." memoShapeIDRef="5">
-    <hp:paraList>
-      <hp:p><hp:run charPrIDRef="0"><hp:t>메모 내용</hp:t></hp:run></hp:p>
-    </hp:paraList>
-  </hp:memo>
-</hp:memogroup>
+<hp:parameters cnt="7" name="">
+  <hp:integerParam name="Prop">0</hp:integerParam>
+  <hp:stringParam name="Command">MEMO/65535/1/<FILETIME 하위>/<FILETIME 상위>/<작성자>/\;;</hp:stringParam>
+  <hp:stringParam name="ID">memo1</hp:stringParam>
+  <hp:integerParam name="Number">1</hp:integerParam>
+  <hp:stringParam name="Author">작성자</hp:stringParam>
+  <hp:stringParam name="MemoShapeIDRef">65535</hp:stringParam>
+  <hp:stringParam name="CreateDateTime">2026-11-17T14:00:00Z</hp:stringParam>
+</hp:parameters>
 ```
 
-> 주의: 여기서 본문을 담는 컨테이너는 `paraList`입니다. 아래에 나오는 MEMO **필드**의 `subList`와 혼동하기 쉬운데, 둘은 서로 다른 위치입니다. (참고로 각주/미주 `<hp:footNote>`/`<hp:endNote>`는 또 별개로 `subList`를 씁니다.)
+- `ID`는 `memo<Number>`입니다. 호출자가 `memo_id=`로 이름을 준 메모만 그 이름을 씁니다.
+- `CreateDateTime`은 그 컴퓨터의 시각입니다(끝에 `Z`가 붙지만 UTC가 아닙니다). `Command`의 FILETIME은 같은 순간을 UTC로, 초 단위로 적습니다. 한/글이 저장한 메모는 모두 두 값이 그 컴퓨터의 UTC 차이(9시간)만큼 다릅니다.
+- 작성자가 없으면 `Author`는 빈 요소입니다.
+- 6.x는 매개변수 다섯 개(`ID`, `Number`, `Author`, `MemoShapeIDRef`, `CreateDateTime`)를 썼습니다. 이 꼴도 그대로 읽습니다.
 
-### 2. 본문의 MEMO 필드: `<hp:fieldBegin type="MEMO">`
+### 2. 메모 모양: 구역의 `memoShapeIDRef`
 
-메모가 한/글 편집기의 여백에 **풍선으로 표시되려면**, 본문 문단에 대응하는 MEMO 필드 컨트롤이 있어야 합니다. `docs/usage.md`가 이를 명시합니다:
+메모 상자의 모양(테두리 선 굵기·색, 채움색, 폭)은 헤더의 `<hh:memoPr>`(모델상 `MemoShape`; `src/hwpx/oxml/header.py`)에 있습니다. 한/글은 이것을 **메모가 아니라 구역**에 겁니다. 구역 속성 `hp:secPr`의 `memoShapeIDRef`가 `hh:memoPr` 하나를 가리키고(`0`은 기본 모양), MEMO 필드에는 늘 `MemoShapeIDRef=65535`를 씁니다. 한/글이 저장한 문서(`hwpxlib_corpus/error__20251107__test.hwpx`)는 구역들이 `memoPr` 1과 2를 가리키고, 필드는 모두 65535입니다.
 
-> 한글 편집기에서 메모 풍선을 표시하려면 본문 문단에 대응되는 MEMO 필드 컨트롤(`hp:fieldBegin`/`hp:fieldEnd`)이 있어야 합니다.
+- 읽기: `document.sections[i].properties.memo_shape_id_ref`(기본 모양이면 `None`)
+- 쓰기: `document.notes.set_memo_shape(shape_id, section=i)`(`section="all"`이면 모든 구역). 헤더에 없는 id는 `note-memo-shape-not-found`.
+- 모양 정의: `document.styles.ensure_memo_shape(...)`, `document.styles.memo_shape(id)`
 
-이 필드는 `src/hwpx/_document/memos.py`의 `attach_memo_field`가 만듭니다. 문단의 앞뒤에 `<hp:ctrl><hp:fieldBegin type="MEMO">`와 `<hp:fieldEnd>` run을 삽입해, 필드가 문단 내용을 감싸게 합니다. `fieldBegin`의 `id`와 `fieldEnd`의 `beginIDRef`가 짝을 이룹니다.
+6.x는 메모마다 모양을 주었습니다(`add_memo(memo_shape_id_ref=)`, `memo.memo_shape_id_ref`). 7.0에서 둘 다 없어졌고, 쓰면 새 자리를 알려 주는 오류(`hwpx-argument-removed`, `document-name-removed`)가 납니다. 6.x 문서가 필드에 65535가 아닌 id를 적어 두었으면 그 값은 읽은 그대로 둡니다. 필드 메모는 `memo.attributes["MemoShapeIDRef"]`로 볼 수 있습니다.
 
-**중요한 실측 함정**: 여백에 실제로 보이는 코멘트 텍스트는 이 MEMO **필드의 `subList`** 에 담깁니다. `memos.py`의 주석이 과거 회귀를 기록합니다:
+> 표기 주의: 6.x `hp:memogroup`의 `<hp:memo>` 속성은 소문자 `memoShapeIDRef`, MEMO 필드 매개변수는 대문자 `MemoShapeIDRef`, 구역 속성은 `hp:secPr@memoShapeIDRef`입니다.
 
-> The MEMO field's subList holds the comment TEXT — this is what Hancom shows in the margin memo box. (Previously this emitted `memo.id`, so Hancom rendered the numeric id instead of the comment.)
+## 6.x 문서의 `hp:memogroup`
 
-즉 이 subList에 텍스트가 아니라 id를 넣으면, 한/글은 코멘트 대신 숫자를 그립니다. 표시는 되지만 내용이 틀린 셈입니다.
-
-### 3. 잇는 참조: MemoShapeIDRef
-
-메모 본체와 그 시각적 속성(메모 상자의 색·테두리 등)을 잇는 것이 **MemoShapeIDRef**입니다. MEMO 필드의 파라미터로 들어갑니다(`attach_memo_field`):
-
-```python
-parameters = _append_element(field_begin, f"{_HP}parameters", {"count": "5", "name": ""})
-_append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
-...
-# Hancom's own files use MemoShapeIDRef (65535 = the built-in default memo
-# shape) — an empty/absent ref leaves the memo box unlinked.
-_append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeIDRef"}).text = (
-    memo_shape_id or "65535"
-)
-```
-
-여기서 두 가지를 알 수 있습니다.
-
-- **`65535`는 기본 메모 상자를 뜻하는 센티넬**입니다. 메모에 고유한 `memoShapeIDRef`가 없으면 이 값을 씁니다.
-- **참조가 비어 있거나 없으면 메모 상자가 연결되지 않습니다**("leaves the memo box unlinked"). 즉 유효한 참조가 있어야 한/글이 메모를 제대로 표시합니다.
-
-한편 메모 본체의 `memoShapeIDRef`는 헤더에 정의된 메모 도형 속성(`<hh:memoPr>`, 모델상 `MemoShape`; `src/hwpx/oxml/header.py`)을 가리킵니다. `document.styles.memo_shape(id)`로 조회할 수 있습니다.
-
-> 표기 주의: 속성 이름은 위치에 따라 다릅니다. 메모 본체 요소의 속성은 소문자 `memoShapeIDRef`이고, MEMO 필드 파라미터의 이름은 대문자 `MemoShapeIDRef`입니다. 코드가 둘을 구분해 씁니다.
+6.x로 만든 문서는 메모 글을 구역의 `<hp:memogroup>/<hp:memo>/<hp:paraList>`에도 적었습니다. 7.0은 이것을 읽기 전용으로 읽습니다(`HwpxOxmlMemoGroup`, `HwpxOxmlMemo`). 그 메모를 고치면 글을 필드의 subList로 옮기고 `hp:memogroup` 쪽 사본은 지웁니다.
 
 ## 고수준 API
 
-이 세 조각을 손으로 맞추지 않도록, 라이브러리는 앵커 기반 API를 제공합니다.
-
-- `document.notes.add_memo(text, memo_shape_id_ref=...)` — 메모 본체만 추가.
-- `document.notes.add_memo(text, paragraph=paragraph)` — 메모 본체 생성 + 대상 문단에 MEMO 필드를 붙여 **표시까지** 보장(`src/hwpx/_document/memos.py`). 돌려받은 메모의 `memo.paragraph`·`memo.field_id`로 앵커를 읽습니다. (5.x·6.x의 `add_memo_with_anchor`는 7.0에서 없어졌습니다.)
+- `document.notes.add_memo(text, paragraph=paragraph)` — 대상 문단에 MEMO 필드를 붙여 **표시까지** 보장합니다(`src/hwpx/_document/memos.py`). 돌려받은 메모의 `memo.paragraph`·`memo.field_id`로 앵커를 읽습니다. (5.x·6.x의 `add_memo_with_anchor`는 7.0에서 없어졌습니다.)
+- `document.notes.add_memo(text)` — 문단에 걸지 않은 메모. 저장 전에 `document.notes.attach(paragraph, memo)`로 걸어야 합니다. 걸리지 않은 메모가 남아 있으면 저장이 `note-memo-unanchored`로 거절됩니다.
+- `document.notes.set_memo_shape(shape_id, section=i)` — 구역의 메모 모양.
 
 필드 run의 `charPrIDRef`는 인자 → 문단의 `char_pr_id_ref` → 메모가 추론한 값 → `"0"` 순으로 해결됩니다(`document.notes.attach`).
 
-> 참고: 이 라이브러리의 앵커 API는 `document.notes.add_memo(paragraph=...)`입니다(6.x 는 `anchor=`). (MCP 서버 쪽에는 `add_memo_by_anchor`라는 도구 이름이 있지만, 그것은 이 라이브러리 함수를 감싼 래퍼입니다.)
+> 참고: MCP 서버 쪽에는 `add_memo_by_anchor`라는 도구 이름이 있지만, 그것은 이 라이브러리 함수를 감싼 래퍼입니다.
 
 ## 테스트로 고정된 계약
 
-- `tests/test_memo_and_style_editing.py::test_attach_memo_field_inserts_control_runs` — 파라미터 개수, `MemoShapeIDRef`가 메모의 참조와 일치, 그리고 (회귀 방지) 필드 subList가 **id가 아니라 코멘트 텍스트**를 담는지 검증.
-- 같은 파일의 `test_section_memo_parsing_exposes_text_and_shape`, `test_document_add_edit_and_remove_memos`, `test_add_memo_with_anchor_roundtrips_on_real_document` — 파싱·추가·편집·삭제·왕복.
+- `tests/test_memo_and_style_editing.py::test_attach_memo_field_inserts_control_runs` — 매개변수 일곱 개와 순서, `MemoShapeIDRef=65535`, `Command` 꼴, 그리고 (회귀 방지) 필드 subList가 **id가 아니라 코멘트 텍스트**를 담는지.
+- 같은 파일의 `test_memo_create_time_is_written_as_hancom_writes_it`, `test_memo_command_filetime_is_the_same_moment_in_utc` — 두 시각.
+- `tests/test_memo_shape_authoring.py` — 구역 메모 모양 쓰기·왕복·거절, 없어진 6.x 이름의 안내.
+- `tests/test_memo_kept_in_field.py` — 메모가 필드에만 있고 `hp:memogroup`이 없음.
 - `tests/test_oxml_parsing.py` — 헤더의 `<hh:memoPr>` 파싱과 id 정규화 조회(`memo_shape("07") == shapes["7"]`).
 
 ## 실전 요약
 
-- 메모를 "보이게" 하려면 세 조각이 다 필요합니다: 본체(`<hp:memo>` + `paraList` 본문), 본문의 MEMO 필드(`fieldBegin`/`fieldEnd`), 그리고 둘을 잇는 유효한 `MemoShapeIDRef`.
-- 여백 풍선에 뜨는 텍스트는 **MEMO 필드의 `subList`** 에서 옵니다. 여기에 텍스트가 아닌 값을 넣으면 엉뚱한 내용이 표시됩니다.
-- 참조가 비면 상자가 연결되지 않습니다. 고유 도형이 없으면 `65535`(기본 도형)를 쓰세요.
-- 직접 XML을 조립하지 말고 `add_memo_with_anchor`를 쓰면 이 배선이 자동입니다.
+- 메모를 "보이게" 하려면 본문 문단에 MEMO 필드(`fieldBegin`/`fieldEnd`)가 있고, 그 subList에 메모 글이 있어야 합니다.
+- 모양은 구역에 겁니다. 필드에는 65535를 씁니다.
+- 직접 XML을 조립하지 말고 `document.notes.add_memo(paragraph=...)`를 쓰면 이 배선이 자동입니다.

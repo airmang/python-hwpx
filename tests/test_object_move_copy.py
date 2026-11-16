@@ -765,8 +765,10 @@ def test_memos_hancom_keeps_in_fields_copy_but_do_not_move() -> None:
         memo.move_to(1)
     assert excinfo.value.code == "note-memo-anchor-elsewhere"
     copy = memo.copy_to(1)
-    assert copy.text == memo.text and copy.memo_shape_id_ref == memo.memo_shape_id_ref
-    doc.notes.attach(second.add_paragraph("복사본을 단 글"), copy)
+    assert copy.text == memo.text
+    attached = doc.notes.attach(second.add_paragraph("복사본을 단 글"), copy)
+    # The shape is the section's: the copy's field says so (65535) as Hangul's field does.
+    assert attached.attributes["MemoShapeIDRef"] == memo.attributes["MemoShapeIDRef"] == "65535"
     _reopen(doc)
 
 

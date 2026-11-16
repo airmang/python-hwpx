@@ -17,18 +17,14 @@ if TYPE_CHECKING:
 
 _HP = HP
 
-#: Hancom writes a memo's ``CreateDateTime`` as UTC ISO 8601 ("2024-03-14T22:38:25Z").
+#: The form of a memo's ``CreateDateTime`` ("2024-03-14T22:38:25Z").
 _HANCOM_MEMO_TIME = "%Y-%m-%dT%H:%M:%SZ"
+_FILETIME_EPOCH = datetime(1601, 1, 1, tzinfo=timezone.utc)
 
 
-def _memo_create_time(value: "datetime | str | None") -> str:
-    """Format a memo timestamp the way Hancom reads it.
-
-    The Hancom engine cannot read "2024-12-02 09:00:00": opening such a file
-    turns the memo's creation time into a 1601 FILETIME, and saving keeps the
-    broken value. Naive values are local time, as ``datetime.now()`` gives, and
-    are converted to UTC. A string that is not a timestamp is kept as given.
-    """
+def _memo_moment(value: "datetime | str | None") -> "datetime | str":
+    """The memo's creation moment (aware), or the string given when it is not a timestamp. Naive
+    values are local time, as ``datetime.now()`` gives; ``…Z`` strings are UTC."""
 
     if value is None:
         moment = current_time()
@@ -40,11 +36,42 @@ def _memo_create_time(value: "datetime | str | None") -> str:
             moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
         except ValueError:
             return text
-    return moment.astimezone(timezone.utc).strftime(_HANCOM_MEMO_TIME)
+    return moment.astimezone()  # naive -> local; aware -> the same moment in local time
+
+
+def _memo_create_time(value: "datetime | str | None") -> str:
+    """A memo's ``CreateDateTime`` as Hancom writes it: the local wall time, written ``…T…Z``.
+
+    Hangul writes the moment twice: ``CreateDateTime`` as local time (with a ``Z`` all the same)
+    and the UTC FILETIME in ``Command`` -- in every memo it saved, the two differ by the writer's
+    UTC offset (9 hours: ``hwpxlib_corpus/error__20251107__test``, ``tests/fixtures/hancom_saved``).
+    Hancom cannot read "2024-12-02 09:00:00" (it makes a 1601 FILETIME of it). A string that is not
+    a timestamp is kept as given.
+    """
+
+    moment = _memo_moment(value)
+    if isinstance(moment, str):
+        return moment
+    return moment.strftime(_HANCOM_MEMO_TIME)
+
+
+def _memo_filetime(value: "datetime | str | None") -> tuple[int, int]:
+    """The memo's moment as Windows FILETIME (100 ns since 1601, UTC), low and high 32 bits, as the
+    ``Command`` parameter holds it. A string that is not a timestamp counts as now."""
+
+    moment = _memo_moment(value)
+    if isinstance(moment, str):
+        moment = _memo_moment(None)
+    assert isinstance(moment, datetime)
+    delta = moment.astimezone(timezone.utc) - _FILETIME_EPOCH
+    ticks = (delta.days * 86_400 + delta.seconds) * 10_000_000  # whole seconds, as CreateDateTime holds
+    return ticks & 0xFFFFFFFF, ticks >> 32
 
 
 #: The ``fieldid`` Hancom gives every memo field: the control id ``%%me`` as a number.
 MEMO_FIELD_ID = str(int.from_bytes(b"%%me", "big"))
+#: The ``MemoShapeIDRef`` Hancom writes in every MEMO field (the memo's shape is its section's).
+_MEMO_SHAPE_NONE = "65535"
 
 
 def _next_memo_zorder(doc: "HwpxDocument") -> str:
@@ -85,12 +112,12 @@ def add_memo(
     text: str = "",
     *,
     section: "HwpxOxmlSection | None" = None,
-    memo_shape_id_ref: str | int | None = None,
     memo_id: str | None = None,
     char_pr_id_ref: str | int | None = None,
     attributes: dict[str, str] | None = None,
 ) -> "HwpxOxmlMemo":
-    """Create a memo entry inside *section* (or the last section by default)."""
+    """Create a memo entry inside *section* (or the last section by default). A *memo_id* given is
+    the memo's ``ID`` (Hancom's own memos are ``memo<number>``, which is used otherwise)."""
 
     if section is None:
         if not doc._root.sections:
@@ -100,13 +127,21 @@ def add_memo(
             suggestion="Call doc.add_section() first.",
         )
         section = doc._root.sections[-1]
-    return section.add_memo(
+    memo = section.add_memo(
         text,
-        memo_shape_id_ref=memo_shape_id_ref,
         memo_id=memo_id,
         char_pr_id_ref=char_pr_id_ref,
         attributes=attributes,
     )
+    if memo_id:  # an id the caller named stays the field's ID (others become memo<Number>, as Hangul's)
+        document: Any = section.document
+        if document is not None:
+            named: set[str] | None = getattr(document, "_named_memo_ids", None)
+            if named is None:
+                named = set()
+                document._named_memo_ids = named
+            named.add(str(memo_id))
+    return memo
 
 
 def remove_memo(doc: "HwpxDocument", memo: "HwpxOxmlMemo") -> None:
@@ -173,8 +208,6 @@ def attach_memo_field(
         created if created is not None else memo.attributes.get("createDateTime")
     )
 
-    memo_shape_id = memo.memo_shape_id_ref or ""
-
     char_ref = char_pr_id_ref
     if char_ref is None:
         char_ref = paragraph.char_pr_id_ref
@@ -202,20 +235,28 @@ def attach_memo_field(
         },
     )
 
-    # ``cnt`` as in Hancom's own fields (and every other python-hwpx field
-    # writer); Hancom rewrites ``count`` to ``cnt`` when it saves.
-    parameters = _append_element(field_begin, f"{_HP}parameters", {"cnt": "5", "name": ""})
-    _append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = memo.id or ""
-    _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = (
-        order if number is None else str(max(1, number))
+    # The seven parameters, in the order and form Hangul 2024 writes them in every memo it saves
+    # (tests/fixtures/hancom_saved memo files, hwpxlib_corpus/error__20251107__test, and its saves
+    # of python-hwpx memos): Prop 0; Command "MEMO/<shape>/<number>/<FILETIME low>/<FILETIME high>/
+    # <author>/\;;"; ID "memo<number>"; Number; Author (empty when none); MemoShapeIDRef 65535 -- a
+    # memo's shape is its section's (SectionProperties.memo_shape_id_ref) -- and CreateDateTime.
+    number_value = order if number is None else str(max(1, number))
+    named: set[str] = getattr(memo.group.section.document, "_named_memo_ids", None) or set()
+    id_value = memo.id if memo.id and memo.id in named else f"memo{number_value}"
+    created_source = created if created is not None else memo.attributes.get("createDateTime")
+    low, high = _memo_filetime(created_source)
+    parameters = _append_element(field_begin, f"{_HP}parameters", {"cnt": "7", "name": ""})
+    _append_element(parameters, f"{_HP}integerParam", {"name": "Prop"}).text = "0"
+    _append_element(parameters, f"{_HP}stringParam", {"name": "Command"}).text = (
+        f"MEMO/{_MEMO_SHAPE_NONE}/{number_value}/{low}/{high}/{author_value}/\\;;"
     )
+    _append_element(parameters, f"{_HP}stringParam", {"name": "ID"}).text = id_value
+    _append_element(parameters, f"{_HP}integerParam", {"name": "Number"}).text = number_value
+    author_param = _append_element(parameters, f"{_HP}stringParam", {"name": "Author"})
+    if author_value:
+        author_param.text = author_value
+    _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeIDRef"}).text = _MEMO_SHAPE_NONE
     _append_element(parameters, f"{_HP}stringParam", {"name": "CreateDateTime"}).text = created_value
-    _append_element(parameters, f"{_HP}stringParam", {"name": "Author"}).text = author_value
-    # Hancom's own files use ``MemoShapeIDRef`` (65535 = the built-in default memo
-    # shape) — an empty/absent ref leaves the memo box unlinked.
-    _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeIDRef"}).text = (
-        memo_shape_id or "65535"
-    )
 
     sub_list = _append_element(
         field_begin,
@@ -256,7 +297,13 @@ def attach_memo_field(
     _append_element(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": MEMO_FIELD_ID})
 
     if match is None:
-        paragraph.element.insert(0, run_begin)
+        # after the run holding the section's setup (hp:secPr), as Hancom places a memo on a section's
+        # first paragraph -- never before it
+        children = list(paragraph.element)
+        start = 0
+        while start < len(children) and children[start].find(f"{_HP}secPr") is not None:
+            start += 1
+        paragraph.element.insert(start, run_begin)
         paragraph.element.append(run_end)
     else:
         middle = _split_out(paragraph.element, match)
@@ -328,7 +375,6 @@ def add_memo_with_anchor(
     paragraph: "HwpxOxmlParagraph | None" = None,
     section: "HwpxOxmlSection | None" = None,
     paragraph_text: str | None = None,
-    memo_shape_id_ref: str | int | None = None,
     memo_id: str | None = None,
     char_pr_id_ref: str | int | None = None,
     attributes: dict[str, str] | None = None,
@@ -367,7 +413,6 @@ def add_memo_with_anchor(
         doc,
         text,
         section=section,
-        memo_shape_id_ref=memo_shape_id_ref,
         memo_id=memo_id,
         char_pr_id_ref=char_pr_id_ref,
         attributes=attributes,

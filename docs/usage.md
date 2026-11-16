@@ -324,7 +324,7 @@ if shape:
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-memo = document.notes.add_memo("검토 메모", section=0, memo_shape_id_ref="0")
+memo = document.notes.add_memo("검토 메모", section=0)
 print(memo.text)
 ```
 
@@ -345,7 +345,6 @@ paragraph = document.add_paragraph("앵커 단락", section=0)
 memo = document.notes.add_memo(
     "승인 필요",
     paragraph=paragraph,
-    memo_shape_id_ref="0",
     author="PM",
     created=datetime.now(),
 )
@@ -1229,41 +1228,58 @@ document.remove_section(1)
 
 ## 메모 다루기
 
-문서에 첨부된 메모는 섹션의 `<hp:memogroup>` 요소와 헤더의 `memoProperties` 정의를 통해 연결됩니다. `doc.notes.memos` 속성은 모든 섹션에 포함된 메모 객체를 반환하며, `doc.notes.add_memo()`/`doc.notes.remove_memo()`를 사용하면 새 메모를 생성하거나 삭제할 수 있습니다.
+7.0은 메모를 한/글 2024가 저장하는 모양 그대로 씁니다. 메모 글은 본문 문단에 걸린 MEMO 필드
+(`hp:fieldBegin type="MEMO"`)의 `hp:subList` 안에 들어가고, `<hp:memogroup>`은 쓰지 않습니다.
+`doc.notes.memos`는 모든 섹션의 메모를 돌려주고, `doc.notes.add_memo()`/`doc.notes.remove_memo()`로
+메모를 달거나 지웁니다. 메모는 문단에 걸어야 합니다(`paragraph=`). 어디에도 걸리지 않은 메모가 남아 있으면
+저장이 `note-memo-unanchored`로 거절됩니다.
 
 ```python
-# 메모 모양 정의는 document.styles.memo_shapes로 조회합니다. 새 문서에는 하나도 없을 수 있으므로
-# ensure_memo_shape()로 확보합니다(같은 모양이 있으면 그 ID를 돌려줍니다).
-default_shape = document.styles.ensure_memo_shape()
+todo = document.add_paragraph("TODO: QA 서명", section=section)
 
 memo = document.notes.add_memo(
-    "검토 의견을 정리했습니다.",
-    section=section,
-    memo_shape_id_ref=default_shape,
+    "배포 전 QA 서명을 확인하세요.",
+    paragraph=todo,
+    author="QA",
 )
 memo.text = "표 1은 최신 수치로 업데이트가 필요합니다."
 
 for existing in document.notes.memos:
-    print(existing.id, existing.memo_shape_id_ref, existing.text)
+    print(existing.id, existing.text)
 
 document.notes.remove_memo(memo)
 ```
 
-> **주의:** 한글 편집기에서 메모 풍선을 표시하려면 본문 문단에 대응되는 MEMO 필드 컨트롤(`hp:fieldBegin`/`hp:fieldEnd`)이 있어야 합니다.
+메모 필드의 매개변수는 한/글과 같은 일곱 개를 같은 순서로 씁니다: `Prop`, `Command`(`MEMO/65535/번호/작성 시각/작성자/…`),
+`ID`(`memo<번호>`), `Number`, `Author`, `MemoShapeIDRef`(늘 `65535`), `CreateDateTime`.
+`CreateDateTime`은 한/글처럼 그 컴퓨터의 시각으로 적고(끝에 `Z`가 붙지만 UTC가 아닙니다), `Command`의 작성 시각은 같은 순간을 UTC로 적습니다.
+
+### 메모 모양은 구역마다
+
+한/글은 메모 모양(테두리 선·채움색·폭)을 메모 하나가 아니라 구역에 둡니다. 구역 속성 `hp:secPr`의 `memoShapeIDRef`가 헤더의
+`hh:memoPr` 하나를 가리키고, 그 구역의 메모는 모두 그 모양으로 그려집니다. 메모 필드에는 늘 `65535`(구역 모양을 따름)를 씁니다.
 
 ```python
-todo = document.add_paragraph("TODO: QA 서명", section=section, char_pr_id_ref=10)
+# 모양 정의는 document.styles.memo_shapes로 조회합니다. ensure_memo_shape()는 같은 모양이 있으면 그 ID를 돌려줍니다.
+shape_id = document.styles.ensure_memo_shape(line_width_mm=0.5, line_color="#C00000", fill_color="#FDE9E9")
 
-document.notes.add_memo(
-    "배포 전 QA 서명을 확인하세요.",
-    paragraph=todo,
-    memo_shape_id_ref="0",
-    memo_id="release-memo-qa",
-    char_pr_id_ref="10",
-    attributes={"author": "QA"},
-    paragraph_char_pr_id_ref="10",
-)
+document.notes.set_memo_shape(shape_id, section=0)      # 한 구역
+document.notes.set_memo_shape(shape_id, section="all")  # 모든 구역
+print(document.sections[0].properties.memo_shape_id_ref)  # 기본 모양("0")이면 None
+
+document.notes.set_memo_shape(None, section=0)          # 기본 모양으로 되돌림
 ```
+
+없는 모양 ID를 주면 `note-memo-shape-not-found`로 거절합니다. 6.x의 `add_memo(memo_shape_id_ref=)` 인자와
+`memo.memo_shape_id_ref` 속성은 7.0에서 없어졌고, 쓰면 새 자리를 알려 주는 오류가 납니다.
+
+### 6.x 문서의 메모
+
+6.x로 만든 문서는 메모 글을 `<hp:memogroup>`에도 적었습니다. 이런 문서는 예전처럼 읽히며, `hp:memogroup`은 읽기 전용입니다.
+메모를 고치면 그 메모를 필드 안으로 옮기고 `hp:memogroup` 쪽 사본은 지웁니다. 6.x 문서가 필드에 `65535`가 아닌 모양 ID를
+적어 두었으면 그 값은 읽은 그대로 둡니다. 필드 메모는 `memo.attributes["MemoShapeIDRef"]`, `hp:memogroup` 메모는
+`memo.attributes["memoShapeIDRef"]`로 볼 수 있습니다. 구역의 모양은 위와 같이
+`document.sections[i].properties.memo_shape_id_ref`로 읽습니다.
 
 `examples/build_release_checklist.py`는 이러한 과정을 자동화하여 QA 점검용 문서를 생성하는 스크립트입니다.
 

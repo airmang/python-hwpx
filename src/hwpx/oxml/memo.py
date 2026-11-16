@@ -79,15 +79,15 @@ class HwpxOxmlMemoGroup:
         self,
         text: str = "",
         *,
-        memo_shape_id_ref: str | int | None = None,
         memo_id: str | None = None,
         char_pr_id_ref: str | int | None = None,
         attributes: Optional[dict[str, str]] = None,
     ) -> "HwpxOxmlMemo":
+        """Add a memo not anchored yet (``doc.notes.attach`` anchors it, moving it into its MEMO field).
+        A memo's shape is its section's: ``section.properties.memo_shape_id_ref``."""
+
         memo_attrs = dict(attributes or {})
         memo_attrs.setdefault("id", memo_id or _memo_id())
-        if memo_shape_id_ref is not None:
-            memo_attrs.setdefault("memoShapeIDRef", str(memo_shape_id_ref))
         memo_element = _append_child(self.element, f"{_HP}memo", memo_attrs)
         _note_session_memo(self.section, memo_element)
         memo = HwpxOxmlMemo(memo_element, self)
@@ -145,24 +145,14 @@ class HwpxOxmlMemo:
             self.element.set("id", new_value)
             self.group.section.mark_dirty()
 
-    @property
-    def memo_shape_id_ref(self) -> str | None:
-        return self.element.get("memoShapeIDRef")
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "memo_shape_id_ref":  # 6.x per-memo shape: refused with its new place (7.0)
+            from .._removed_names import removed_name_error
 
-    @memo_shape_id_ref.setter
-    def memo_shape_id_ref(self, value: str | int | None) -> None:
-        if self._folded():
-            self.set_attribute("MemoShapeIDRef", value)
-            return
-        if value is None:
-            if "memoShapeIDRef" in self.element.attrib:
-                del self.element.attrib["memoShapeIDRef"]
-                self.group.section.mark_dirty()
-            return
-        new_value = str(value)
-        if self.element.get("memoShapeIDRef") != new_value:
-            self.element.set("memoShapeIDRef", new_value)
-            self.group.section.mark_dirty()
+            error = removed_name_error("Memo", name)
+            if error is not None:
+                raise error
+        object.__setattr__(self, name, value)
 
     @property
     def attributes(self) -> dict[str, str]:
@@ -344,9 +334,6 @@ class HwpxOxmlMemo:
         position = _memo_index(index, len(others), caller="copy_to")
         if isinstance(self, HwpxOxmlFieldMemo):
             clone = self.element.makeelement(f"{_HP}memo", {})
-            shape = self.memo_shape_id_ref
-            if shape:
-                clone.set("memoShapeIDRef", shape)
             para_list = clone.makeelement(f"{_HP}paraList", {})
             clone.append(para_list)
             sub_list = self._sub_list()
@@ -503,7 +490,8 @@ def _note_session_memo(section: "HwpxOxmlSection", memo: ET.Element) -> None:
 
 def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
     """Make the MEMO field *field* hold the memo-group memo *entry* as Hancom keeps a memo: the field's
-    ``hp:subList`` holds the memo's paragraphs, its ``MemoShapeIDRef`` the memo's shape."""
+    ``hp:subList`` holds the memo's paragraphs. Its parameters stay as they are: a memo's shape is its
+    section's, and Hancom writes ``MemoShapeIDRef=65535`` in every memo field."""
 
     from copy import deepcopy
 
@@ -520,11 +508,6 @@ def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
             copied.set("id", "0")  # Hancom numbers a memo field's paragraphs 0
             _clear_paragraph_layout_cache(copied)
             sub_list.append(copied)
-    shape = entry.get("memoShapeIDRef")
-    if shape:
-        for param in field.iter(f"{_HP}stringParam"):
-            if param.get("name") == "MemoShapeIDRef":
-                param.text = shape
 
 
 def fold_into_field(
@@ -710,15 +693,6 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
     @id.setter
     def id(self, value: str | None) -> None:
         self.set_attribute("ID", value)
-
-    @property
-    def memo_shape_id_ref(self) -> str | None:
-        param = self._param("MemoShapeIDRef")
-        return None if param is None else (param.text or None)
-
-    @memo_shape_id_ref.setter
-    def memo_shape_id_ref(self, value: str | int | None) -> None:
-        self.set_attribute("MemoShapeIDRef", value)
 
     @property
     def attributes(self) -> dict[str, str]:

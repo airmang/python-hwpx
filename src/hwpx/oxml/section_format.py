@@ -628,6 +628,40 @@ class HwpxOxmlSectionProperties:
         return value or None
 
     @property
+    def memo_shape_id_ref(self) -> str | None:
+        """The memo shape (``hh:memoPr``) this section's memos are drawn with (``memoShapeIDRef``),
+        ``None`` for Hancom's built-in one (``0``, or not written). Hancom keeps a memo's shape here, per
+        section: every MEMO field it writes says ``MemoShapeIDRef=65535`` (Hangul 2024; the sections of
+        ``hwpxlib_corpus/error__20251107__test`` point at memo shapes 1 and 2). Read the shape with
+        ``doc.styles.memo_shape(id)``; make one with ``doc.styles.ensure_memo_shape(...)``.
+
+        Set it to a memo shape's id (``None`` or ``"0"``: the built-in one). An id the header does
+        not define is refused (``note-memo-shape-not-found``)."""
+
+        value = (self.element.get("memoShapeIDRef") or "").strip()
+        return None if value in ("", "0") else value
+
+    @memo_shape_id_ref.setter
+    def memo_shape_id_ref(self, value: "str | int | None") -> None:
+        from ..errors import HwpxLookupError, argument_type_error
+
+        if isinstance(value, bool) or not isinstance(value, (str, int, type(None))):
+            raise argument_type_error("memo_shape_id_ref", value, "a memo shape id (str or int) or None")
+        text = "0" if value is None else str(value).strip() or "0"
+        if text != "0":
+            document = getattr(self.section, "document", None)
+            if document is None or document.memo_shape(text) is None:
+                raise HwpxLookupError(
+                    f"the header defines no memo shape {text!r}",
+                    code="note-memo-shape-not-found",
+                    context={"requested": text},
+                    suggestion="Make one with doc.styles.ensure_memo_shape(...) and pass its id.",
+                )
+        if self.element.get("memoShapeIDRef") != text:
+            self.element.set("memoShapeIDRef", text)
+            self.section.mark_dirty()
+
+    @property
     def start_numbers(self) -> StartNumbers:
         """Where the section's counts start (``hp:startNum``): pages, pictures, tables and
         equations, and the kind of page the section starts on; 0 goes on from the section

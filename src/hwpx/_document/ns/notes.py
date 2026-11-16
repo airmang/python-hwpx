@@ -125,7 +125,6 @@ class NotesNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        memo_shape_id_ref: str | int | None = None,
         memo_id: str | None = None,
         char_pr_id_ref: str | int | None = None,
         attributes: dict[str, str] | None = None,
@@ -150,6 +149,8 @@ class NotesNamespace(_Namespace):
         5.x 의 앵커 변형은 ``(Memo, Paragraph, field_id)`` 3-튜플을 돌려줬다.
         이제 메모 하나이고, 문단과 필드 id 는 ``memo.paragraph`` /
         ``memo.field_id`` 로 읽는다.
+
+        메모 모양은 메모마다가 아니라 구역마다다(한/글 2024 저장본): :meth:`set_memo_shape`.
         """
 
         from .. import memos as _memos
@@ -167,7 +168,6 @@ class NotesNamespace(_Namespace):
                 self._doc,
                 text=text,
                 section=target,
-                memo_shape_id_ref=memo_shape_id_ref,
                 memo_id=memo_id,
                 char_pr_id_ref=char_pr_id_ref,
                 attributes=attributes,
@@ -183,7 +183,6 @@ class NotesNamespace(_Namespace):
             ),
             section=target,
             paragraph_text=paragraph_text,
-            memo_shape_id_ref=memo_shape_id_ref,
             memo_id=memo_id,
             char_pr_id_ref=char_pr_id_ref,
             attributes=attributes,
@@ -238,3 +237,26 @@ class NotesNamespace(_Namespace):
         from .. import memos as _memos
 
         _memos.remove_memo(self._doc, memo)
+
+    def set_memo_shape(
+        self,
+        memo_shape_id_ref: "str | int | None",
+        *,
+        section: "int | Section | str | None" = None,
+    ) -> None:
+        """구역의 메모가 그려질 메모 모양(``hh:memoPr``)을 정한다.
+
+        한/글은 메모 모양을 구역(``hp:secPr`` 의 ``memoShapeIDRef``)에 두고, MEMO 누름틀에는 늘
+        ``MemoShapeIDRef=65535`` 를 쓴다(한/글 2024 저장본). 그래서 메모 하나가 아니라 그 구역의 모든
+        메모가 이 모양이다. ``None``(또는 ``"0"``)은 한/글 기본 모양. ``section`` 은 구역 번호·객체,
+        ``"all"`` 은 모든 구역, 주지 않으면 마지막 구역. 머리에 없는 id 는 거부한다
+        (``note-memo-shape-not-found``). 모양은 ``doc.styles.ensure_memo_shape(...)`` 로 만들고, 구역의
+        것은 ``doc.sections[i].properties.memo_shape_id_ref`` 로 읽는다.
+        """
+
+        if section == "all":
+            targets = list(self._doc.sections)
+        else:
+            targets = [self._section(section, "set_memo_shape")]
+        for target in targets:  # an unknown id fails on the first, before any section changes
+            target.properties.memo_shape_id_ref = memo_shape_id_ref
