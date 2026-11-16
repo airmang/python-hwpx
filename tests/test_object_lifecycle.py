@@ -343,20 +343,19 @@ def test_a_turned_shape_fills_its_box_exactly(angle: int, size: tuple[int, int])
     _reopen(doc)
 
 
-def test_a_shape_holding_text_is_not_turned() -> None:
+def test_a_shape_holding_text_turns_like_one_without() -> None:
+    # Hancom 2024 turns a text box as an empty shape and lays its text level across the turned box
+    # (tests/test_turn_text_shapes_and_groups.py compares with the files it saved).
     doc = HwpxDocument.new()
     box = doc.add_paragraph("").add_rectangle(8000, 3000)
     box.set_draw_text("글상자")
-    before = _turn_record(box.element)
-    with pytest.raises(HwpxValueError) as caught:
-        box.rotation = 30
-    assert caught.value.code == "shape-rotation-unsupported"
-    assert _turn_record(box.element) == before
-    box.rotation = 0  # turning back is allowed
     empty = doc.add_paragraph("").add_rectangle(8000, 3000)
-    empty.set_draw_text("")
-    empty.rotation = 30  # a text box with no text turns
-    assert empty.rotation == 30
+    box.rotation = 30
+    empty.rotation = 30
+    assert _turn_record(box.element) == _turn_record(empty.element)
+    assert box.element.find(f"{HP}drawText").get("lastWidth") == box.element.find(f"{HP}sz").get("width")
+    box.rotation = 0
+    assert box.element.find(f"{HP}drawText").get("lastWidth") == "8000"
 
 
 def test_resize_and_turn_in_either_order_give_the_same_shape() -> None:

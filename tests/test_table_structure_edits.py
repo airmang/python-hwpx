@@ -50,14 +50,14 @@ def test_content_clones_copy_objects_with_fresh_numbers_and_blank_insertion_pres
 
     clone = HwpxDocument.open(before)
     clone_table = clone.tables.all[0]
-    (clone_table.insert_rows if axis == "rows" else clone_table.insert_columns)(0, 2, side=position)
+    (clone_table.insert_rows if axis == "rows" else clone_table.insert_columns)(0, 2, side=position, copy_content=True)
     copies = list(clone_table.element.iter(HP + "rect"))
     assert len(copies) == 3
     numbers = [rect.get(name) for rect in copies for name in ("id", "instid")]
     assert len(set(numbers)) == 5  # the original's id and instid are one number, as add_rectangle writes them
     assert len(list(HwpxDocument.open(clone.to_bytes()).tables.all[0].element.iter(HP + "rect"))) == 3
 
-    insert(0, 2, side=position, blank=True)
+    insert(0, 2, side=position)
     rectangles = list(table.element.iter(HP + "rect"))
     assert len(rectangles) == 1
     original = next(_table(before).iter(HP + "rect"))
@@ -105,25 +105,25 @@ def _edited(fixture: str, edit) -> bytes:
 CASES = [
     # (base, Hangul's result, edit, compare heights, compare widths of cells over several columns)
     ("table_insert_column_base", "table_insert_column_side1_count3",
-     lambda t: t.insert_columns(1, 3, blank=True), True, True),
+     lambda t: t.insert_columns(1, 3), True, True),
     ("table_insert_column_base", "table_insert_column_side0_count1",
-     lambda t: t.insert_columns(1, side="left", blank=True), True, True),
+     lambda t: t.insert_columns(1, side="left"), True, True),
     ("table_insert_column_merge_r0c12_base", "table_insert_column_merge_r0c12_side1",
-     lambda t: t.insert_columns(1, blank=True), True, False),
+     lambda t: t.insert_columns(1), True, False),
     ("table_insert_column_vmerge_c1r01_base", "table_insert_column_vmerge_c1r01_side1",
-     lambda t: t.insert_columns(1, blank=True), True, True),
+     lambda t: t.insert_columns(1), True, True),
     ("table_insert_column_formats_base", "table_insert_column_formats_side1",
-     lambda t: t.insert_columns(1, blank=True), True, True),
+     lambda t: t.insert_columns(1), True, True),
     ("table_insert_row_base", "table_insert_row_above_count1",
-     lambda t: t.insert_rows(1, side="above", blank=True), True, True),
+     lambda t: t.insert_rows(1, side="above"), True, True),
     ("table_insert_row_tall_row1_base", "table_insert_row_tall_row1_below",
-     lambda t: t.insert_rows(1, blank=True), True, True),
+     lambda t: t.insert_rows(1), True, True),
     ("table_insert_row_vmerge_c1r01_base", "table_insert_row_vmerge_c1r01_from00_below",
-     lambda t: t.insert_rows(0, blank=True), True, True),
+     lambda t: t.insert_rows(0), True, True),
     ("table_insert_row_hmerge_r1c01_base", "table_insert_row_hmerge_r1c01_from12_above",
-     lambda t: t.insert_rows(1, side="above", blank=True), True, True),
+     lambda t: t.insert_rows(1, side="above"), True, True),
     ("table_insert_row_formats_row1_base", "table_insert_row_formats_row1_below",
-     lambda t: t.insert_rows(1, blank=True), True, True),
+     lambda t: t.insert_rows(1), True, True),
     ("table_split_cell_base", "table_split_cell_c3", lambda t: t.split_cell(1, 1, cols=3), True, True),
     ("table_split_cell_merge_r0c12_base", "table_split_cell_merge_r0c12_c3",
      lambda t: t.split_cell(0, 1, cols=3), True, True),
@@ -160,7 +160,7 @@ def test_a_row_edit_leaves_the_table_as_tall_as_hancom_lays_it_out(hancom: str, 
 
     document = HwpxDocument.open(str(FIXTURES / "table_structure_merged_rows_base.hwpx"))
     for table in document.tables.all:
-        table.insert_rows(1, side=side)
+        table.insert_rows(1, side=side, copy_content=True)  # the laid-out files hold copied rows
     data = document.to_bytes()
 
     expected = (FIXTURES / f"{hancom}.hwpx").read_bytes()
@@ -188,11 +188,13 @@ def _merged_document() -> HwpxDocument:
 @pytest.mark.parametrize(
     ("edit", "op"),
     [
-        (lambda t: t.insert_rows(1, 2), {"op": "insert_row_by_clone", "ref_row": 1, "count": 2}),
-        (lambda t: t.insert_rows(2, side="above", blank=True),
+        (lambda t: t.insert_rows(1, 2, copy_content=True), {"op": "insert_row_by_clone", "ref_row": 1, "count": 2}),
+        (lambda t: t.insert_rows(1, 2), {"op": "insert_row_by_clone", "ref_row": 1, "count": 2, "blank": True}),
+        (lambda t: t.insert_rows(2, side="above"),
          {"op": "insert_row_by_clone", "ref_row": 2, "side": "above", "blank": True}),
-        (lambda t: t.insert_columns(1), {"op": "insert_column_by_clone", "ref_col": 1}),
-        (lambda t: t.insert_columns(0, 2, side="left", blank=True),
+        (lambda t: t.insert_columns(1, copy_content=True), {"op": "insert_column_by_clone", "ref_col": 1}),
+        (lambda t: t.insert_columns(1), {"op": "insert_column_by_clone", "ref_col": 1, "blank": True}),
+        (lambda t: t.insert_columns(0, 2, side="left"),
          {"op": "insert_column_by_clone", "ref_col": 0, "count": 2, "side": "left", "blank": True}),
         (lambda t: t.delete_rows([1, 3]), {"op": "delete_row", "rows": [1, 3]}),
         (lambda t: t.delete_columns(2), {"op": "delete_column", "cols": [2]}),
@@ -261,9 +263,9 @@ def test_patch_height_uses_nested_table_indices_and_current_sections() -> None:
     nested = outer.cell(0, 0).paragraphs[0].add_table(rows=2, cols=2)
     later = document.add_table(rows=2, cols=2)
     source = document.to_bytes()
-    nested.insert_rows(0)
+    nested.insert_rows(0, copy_content=True)
     nested.delete_rows(1)
-    later.insert_rows(0)
+    later.insert_rows(0, copy_content=True)
     expected = [int(table.find(HP + "sz").get("height"))
                 for table in document.sections[0].element.iter(HP + "tbl")]
     result = apply_table_ops(source, [
@@ -299,8 +301,8 @@ def test_the_table_reads_its_new_shape_and_the_namespace_edits_it_too() -> None:
     document = _merged_document()
     table = document.tables.all[0]
 
-    table.insert_columns(3, blank=True)
-    document.tables.insert_rows(table, 0, side="above", blank=True)
+    table.insert_columns(3)
+    document.tables.insert_rows(table, 0, side="above")
     document.tables.split_cell(table, 4, 0, cols=2)
     document.tables.delete_columns(table, [5])
     document.tables.delete_rows(table, 4)
@@ -318,8 +320,8 @@ def test_new_paragraph_ids_are_unused_anywhere_in_the_document() -> None:
     document.add_paragraph("second section", section=1)
     table = document.tables.all[0]
 
-    table.insert_rows(0, 3)
-    table.insert_columns(0, 2)
+    table.insert_rows(0, 3, copy_content=True)
+    table.insert_columns(0, 2, copy_content=True)
     table.split_cell(0, 0, rows=2, cols=2)
 
     data = document.to_bytes()
@@ -370,7 +372,7 @@ def test_a_table_holding_a_table_keeps_it_through_an_edit() -> None:
     table = document.add_table(rows=2, cols=2)
     table.cell(0, 0).add_table(1, 1).cell(0, 0).text = "inner"
 
-    table.insert_rows(0)
+    table.insert_rows(0, copy_content=True)
 
     assert table.row_count == 3
     assert [table.cell(row, 0).tables[0].cell(0, 0).text for row in (0, 1)] == ["inner", "inner"]

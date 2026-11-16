@@ -191,6 +191,11 @@ def _args(
     return Arguments(hint, dict(renamed), keyword_only, xml_attributes)
 
 
+_INSERT_BLANK_HINT = (
+    "{call}() 는 7.0에서 한/글처럼 빈 칸을 넣는 것이 기본이다: blank=True 는 지우고, "
+    "blank=False(기준 칸의 글·개체까지 복사)는 copy_content=True 로 쓴다"
+)
+
 _MARKDOWN = "hwpx_automation.markdown"
 _FORMS = "hwpx_automation.forms"
 
@@ -801,6 +806,13 @@ ARGUMENTS: dict[str, Arguments] = {
         "table.split_merged_cell(row_index=, col_index=)는 7.0에서 row=, col= 이다(위치 인자로 부르면 그대로)",
         row_index="row",
         col_index="col",
+    ),
+    # rows(소유자 결정 2026-11-16): 행·열 넣기의 기본이 한/글처럼 빈 칸이 되면서 뜻이 뒤집힌 blank= 를 긍정형으로.
+    "Table.insert_rows": _args(_INSERT_BLANK_HINT.format(call="table.insert_rows"), blank="copy_content"),
+    "Table.insert_columns": _args(_INSERT_BLANK_HINT.format(call="table.insert_columns"), blank="copy_content"),
+    "doc.tables.insert_rows": _args(_INSERT_BLANK_HINT.format(call="doc.tables.insert_rows"), blank="copy_content"),
+    "doc.tables.insert_columns": _args(
+        _INSERT_BLANK_HINT.format(call="doc.tables.insert_columns"), blank="copy_content"
     ),
     # == 값 형식 (WP5b) ====================================================
     # spec 은 keep 이었지만 묶음 개체의 구성원도 도형과 같은 선 굵기 이름·단위(D2, N4)와 풀어 쓴 이름(N3)으로.

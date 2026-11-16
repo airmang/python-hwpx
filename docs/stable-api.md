@@ -394,12 +394,18 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 줄인 그림·도형도 그린 크기대로 돕니다(공개 `ta-pic-001-r.hwp`의 0.2768배로 그려 34° 돈 그림과 상자·가운데·
 그리는 변환이 같다. 공개 `el-school-001.hwp`의 늘인 다각형 90°와 편람의 늘인 다각형 35°도 같은 관계이고,
 한/글에서 열어 다시 저장해도 값이 그대로다). 돈 그림은 `resize`하거나 `crop`을 쓰면 그린 크기로 고치고 다시 돌립니다.
-다음은 `shape-rotation-unsupported`로 바꾸기 전에 거부합니다 — 글자가 든 도형(한/글은 글을 돈 도형이 아니라
-그 도형을 감싸는 상자 폭에 가로로 놓아 그린다: 30~270° 돌린 글상자를 한/글이 다시 저장하면 `drawText/@lastWidth`가
-그 상자 폭이 되고 글이 도형 밖으로 나온다; 공개 문서에 글이 든 돈 도형은 없다), 묶음(한/글은 구성원을 저마다의
-행렬로 그리므로 묶음을 돌리려면 모든 구성원 행렬을 돌려야 하는데, 그 관계를 보이는 공개 한/글 저장본은 묶음 속에서
-180° 돈 묶음 하나뿐이다), 뒤집은 개체, 수식·차트. 묶음 구성원 하나만 돌리는 것도 같은 이유로 거부합니다.
-각도 0으로 되돌리는 것은 언제나 됩니다.
+한/글처럼 회전 각도의 cos·sin은 소수 여섯 자리로 계산하고, 상자를 옮기는 양은 정수로 씁니다. `hp:pos`는 그대로 둡니다
+(상자의 왼쪽 위가 제자리; 한/글의 회전 명령은 개체 가운데가 쪽 위에서 제자리에 있게 `pos`도 옮긴다).
+글이 든 도형(글상자·글이 든 타원)도 같은 방식으로 돕니다. 한/글은 글을 돌리지 않고 돈 도형을 감싸는 상자 폭에
+가로로 놓아 그리므로 `drawText/@lastWidth`가 그 상자 폭이 되고 글의 줄 배치 캐시는 지웁니다(한/글 2024가 90°·30°로
+돌려 저장한 사각형·타원과 같다). 묶음은 통째로 돕니다: 묶음과 모든 구성원이 묶음 가운데를 축으로 한 같은 회전
+(구성원은 자기 자리에서 본 `rotMatrix`)과 같은 이동(`transMatrix`·`offset`)을 갖고, 구성원의 `rotationInfo/@angle`은 0,
+가운데는 자기가 돈 상자의 가운데(직각에서는 그대로)이며, 묶음의 `hp:sz`는 돈 구성원들을 감싸는 상자입니다(한/글
+2024가 사각형+타원, 사각형+글상자 묶음을 90°·30° 돌려 저장한 것과 같다). 그렇게 돈 묶음은 0으로 되돌릴 수 있습니다.
+다음은 한/글 저장본으로 확인하지 못해 `shape-rotation-unsupported`로 바꾸기 전에 거부합니다(`context["reason"]`) —
+이미 돈 묶음을 다른 각도로 다시 돌리기(먼저 0으로), 늘이거나 뒤집은 묶음, 묶음이 든 묶음, 혼자 돌았거나 뒤집혔거나
+늘인 구성원이 든 묶음, 돈 묶음의 `resize`, 뒤집은 개체, 수식·차트. 묶음 구성원 하나만 돌리는 것은
+`shape-group-member-unsupported`로 거부합니다(묶음 전체를 돌린다). 각도 0으로 되돌리는 것은 언제나 됩니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
@@ -497,12 +503,13 @@ top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여
 `hasMargin`을 켭니다. 값은 `0 <= v < 2**31`인 `int`여야 하며, 아니면 바꾸기 전에
 `cell-margin-value`로 거부합니다. 인자가 없으면 아무것도 바꾸지 않습니다.
 
-`Table.insert_rows(ref_row, count=1, side="below", blank=False)`,
-`insert_columns(ref_col, count=1, side="right", blank=False)`, `delete_rows(rows)`,
+`Table.insert_rows(ref_row, count=1, side="below", copy_content=False)`,
+`insert_columns(ref_col, count=1, side="right", copy_content=False)`, `delete_rows(rows)`,
 `delete_columns(cols)`, `split_cell(row, col, rows=1, cols=1)`은 행·열을 넣고 지우고 칸을
 나눕니다. `hwpx.table_patch.apply_table_ops`의 같은 편집과 같은 규칙(한/글의 줄/칸
-추가하기·지우기, 셀 나누기)을 따르고, 새 칸은 기준 칸의 글을 복제하며 `blank=True`면
-빈 문단 하나만 둡니다. 거부하면 `TableStructureError`를 내고 표를 바꾸지 않습니다.
+추가하기·지우기, 셀 나누기)을 따릅니다. 새 칸은 한/글처럼 기준 칸의 서식만 받고 빈 문단
+하나를 두며, `copy_content=True`면 기준 칸의 글·개체까지 복사합니다(7.0 전에는 복사가
+기본이었고 `blank=True`가 빈 칸이었습니다). 거부하면 `TableStructureError`를 내고 표를 바꾸지 않습니다.
 편집 전에 얻은 셀·행 객체는 표에 속하지 않으니 다시 얻으세요.
 
 표의 모양과 크기는 7.0 에서 한 줄로 읽고 쓴다. 값 하나는 속성으로 읽고 쓴다(N2):

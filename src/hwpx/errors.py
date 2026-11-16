@@ -610,7 +610,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-z-order-value": "개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부).",
     "shape-numbering-type-value": "개체·표의 numbering_type 이 NONE·PICTURE·TABLE·EQUATION 가운데 하나(대문자, 정확히)가 아니다.",
     "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
-    "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 묶음·뒤집은 개체·글자가 든 도형이다.",
+    "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 뒤집은 개체, 또는 한/글 저장본으로 확인하지 못한 묶음(이미 돌린 묶음을 다른 각도로·늘인·뒤집은 묶음, 묶음이 든 묶음, 돌리거나 늘인 구성원이 든 묶음)이다. 글이 든 도형과 묶음 전체는 돈다.",
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
     "shape-ruby-text-value": "덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()).",
     "shape-ruby-position-value": "덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다.",

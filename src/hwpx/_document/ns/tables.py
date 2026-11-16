@@ -136,21 +136,25 @@ class TablesNamespace(_Namespace):
         return table.merge_cells(cell_range)
 
     def insert_rows(
-        self, table: "Table", ref_row: int, count: int = 1, *, side: str = "below", blank: bool = False
+        self, table: "Table", ref_row: int, count: int = 1, *, side: str = "below", copy_content: bool = False
     ) -> None:
-        """``ref_row`` 행을 복제해 그 아래(``side="above"``면 위)에 ``count`` 행을 넣는다.
+        """``ref_row`` 행 아래(``side="above"``면 위)에 빈 행 ``count``개를 한/글처럼 넣는다.
 
-        새 칸은 같은 열 기준 칸의 서식과 글을 받고, ``blank=True``면 한/글처럼 빈 문단 하나만 둔다.
+        새 칸은 같은 열 기준 칸의 서식(칸 속성·테두리/배경·여백·크기·문단 모양·글자 모양)만 받고 빈 문단 하나를 둔다.
+        ``copy_content=True``면 기준 칸의 글·개체까지 복사한다.
         """
 
-        table.insert_rows(ref_row, count, side=side, blank=blank)
+        table.insert_rows(ref_row, count, side=side, copy_content=copy_content)
 
     def insert_columns(
-        self, table: "Table", ref_col: int, count: int = 1, *, side: str = "right", blank: bool = False
+        self, table: "Table", ref_col: int, count: int = 1, *, side: str = "right", copy_content: bool = False
     ) -> None:
-        """``ref_col`` 열을 복제해 그 오른쪽(``side="left"``면 왼쪽)에 ``count`` 열을 넣는다(표가 넓어진다)."""
+        """``ref_col`` 열 오른쪽(``side="left"``면 왼쪽)에 빈 열 ``count``개를 한/글처럼 넣는다(표가 넓어진다).
 
-        table.insert_columns(ref_col, count, side=side, blank=blank)
+        ``copy_content=True``면 기준 칸의 글·개체까지 복사한다.
+        """
+
+        table.insert_columns(ref_col, count, side=side, copy_content=copy_content)
 
     def delete_rows(self, table: "Table", rows: int | Iterable[int]) -> None:
         """행을 지운다. 모든 행은 지울 수 없다(표 삭제를 쓴다)."""

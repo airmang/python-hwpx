@@ -161,7 +161,7 @@
     - 투명도(`alpha`)는 0~1이고 길이는 HWPUNIT입니다. 한/글은 그림을 바깥 효과(빛남·바깥 그림자·반사)까지 합친 크기로 배치하므로, 그만큼 줄이 높아집니다.
   - 한/글이 그대로 그리지 않는 값은 이진 항목·단락을 더하기 전에 거부합니다: `shape-picture-image-value`(조정), `shape-picture-border-value`(테두리 굵기), `shape-picture-crop-value`(자르기), `shape-picture-effect-value`(효과), `style-color-invalid`(색).
   - 같은 조정·효과를 `paragraph.add_picture(item_id, *, alignment=, line_width_mm=, ...)`도 받습니다(이미 넣은 이진 항목을 쓸 때: `item_id`는 `doc.media.add_image`가 돌려준 `BinaryItem`이나 그 id, 테두리 굵기는 mm).
-  - 뒤집기·회전은 아직 지원하지 않습니다.
+  - 회전 인자는 없습니다. 만든 뒤 `picture.rotation = 각도`로 돌립니다. 뒤집기는 아직 지원하지 않습니다.
 - `get_table_map() -> dict`
   - 문서 순서대로 표를 스캔하고 `table_index`, `paragraph_index`, 행·열 수, 추정 헤더 텍스트, 첫 행 미리보기, 빈 표 여부를 반환합니다.
   - 라벨로 칸을 찾아 채우는 `find_cell_by_label`·`fill_by_path`는 7.0에서 `python-hwpx-automation`(`hwpx_automation.forms`)으로 옮겼습니다.
@@ -491,8 +491,8 @@
 - `set_cell_text(row, col, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
 - `split_merged_cell(row, col)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
 - `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다. 종속 셀 중 글이나 개체가 있는 셀의 문단은 읽기 순서로 대상 셀에 옮기고, 빈 셀은 아무것도 보태지 않습니다.
-- `insert_rows(ref_row, count=1, side="below", blank=False)`: 물리 행 `ref_row`를 복제해 그 아래(`side="above"`면 위)에 행을 넣습니다. 새 칸은 같은 열 기준 칸의 서식과 글을 받고, `blank=True`면 한/글처럼 빈 문단 하나만 둡니다. 새 행을 가로지르는 합친 칸은 늘어납니다.
-- `insert_columns(ref_col, count=1, side="right", blank=False)`: 격자 열 `ref_col`을 복제해 그 오른쪽(`side="left"`면 왼쪽)에 열을 넣고, 표는 새 열만큼 넓어집니다.
+- `insert_rows(ref_row, count=1, side="below", copy_content=False)`: 물리 행 `ref_row` 아래(`side="above"`면 위)에 한/글처럼 빈 행을 넣습니다. 새 칸은 같은 열 기준 칸의 서식(칸 속성·테두리/배경·여백·크기·문단 모양·글자 모양)만 받고 빈 문단 하나를 둡니다. `copy_content=True`면 기준 칸의 글·개체까지 복사합니다. 새 행을 가로지르는 합친 칸은 늘어납니다.
+- `insert_columns(ref_col, count=1, side="right", copy_content=False)`: 격자 열 `ref_col` 오른쪽(`side="left"`면 왼쪽)에 빈 열을 넣고, 표는 새 열만큼 넓어집니다. `copy_content=True`면 기준 칸의 글·개체까지 복사합니다.
 - `delete_rows(rows)`, `delete_columns(cols)`: 행·열(번호 하나나 여럿)을 지웁니다. 열을 지우면 그 폭을 남은 열에 나눠 표 폭을 지킵니다. 모든 행·열은 지울 수 없습니다.
 - `split_cell(row, col, rows=1, cols=1)`: 칸을 줄·칸(각 2~63)으로 나눕니다(한/글의 셀 나누기). 글은 첫 칸에 남습니다.
 - 위 다섯 메서드는 `hwpx.table_patch.apply_table_ops`의 같은 편집과 같은 규칙을 따르고, 칸 영역(`hp:cellzone`)도 함께 옮깁니다. 편집 전에 얻은 셀·행 객체는 더 이상 표에 속하지 않으니 다시 얻습니다. `doc.tables`에도 같은 이름의 메서드가 있습니다(첫 인자로 표).

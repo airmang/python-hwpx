@@ -162,6 +162,12 @@
 - 머리말·꼬리말을 한/글처럼 본문 컨트롤(`hp:ctrl`) 한 곳에만 쓴다. 6.x는 `hp:secPr` 아래에 사본과 `headerApply`를 하나 더 썼다
   (OWPML 스키마에 없는 모양). 공개 한/글 저장본 68개가 모두 한 곳에만 둔다. 6.x로 만든 문서는 그 머리말을 다시 설정할 때 사본을
   걷어 낸다.
+- **`table.insert_rows()`·`insert_columns()`(`doc.tables.insert_rows`·`insert_columns`도)가 한/글처럼 빈 행·열을 넣는다.**
+  6.x는 기준 행의 글·개체까지 복사해서, 제목 행 아래에 넣으면 제목 글이 새 행에 그대로 생겼다. 이제 새 칸은 기준 칸의 서식(칸
+  속성·테두리/배경·여백·크기·문단 모양·글자 모양)만 받고 빈 문단 하나를 둔다(한/글 저장본 `table_insert_row_*`·`table_insert_column_*`와
+  같은 모양). `blank=`를 주지 않던 코드는 오류 없이 결과가 바뀐다. 복사하려면 `copy_content=True`. `blank=`는 없어졌다(부르면
+  `hwpx-argument-removed`가 알려 준다: `blank=True`는 지우고, `blank=False`는 `copy_content=True`). 바이트 편집
+  `apply_table_ops`의 `insert_row_by_clone`·`insert_column_by_clone`은 전처럼 복사가 기본이다(`"blank": True`로 빈 칸).
 - `doc.add_table(style=)`·`doc.add_picture(style=)`가 스타일의 문단·글자 모양도 적용한다. 6.x는 스타일 이름표만 붙였다.
 - `obj.remove()`·`table.remove()`가 다른 곳에서 쓰지 않게 된 그림 데이터도 함께 지운다. 남기려면 `remove_orphaned=False`.
 - 표 칸·글상자·각주·머리말 안에 떠 있게 만든 개체는 문단 기준으로 그 안에 머무르게 놓인다(한/글 저장본의 그 자리 개체들이 쓰는
@@ -293,8 +299,12 @@ python-hwpx 7.0을 함께 설치한다.
   지킨다), 바깥 여백 `out_margins`·`set_out_margins(...)`, `locked`·`numbering_type`.
 - 그림 모델 `hwpx.model.Picture`: `doc.media.pictures`, `original_size`, 읽고 쓰는 `crop`, 밝기·대비·효과·테두리·그림자 읽기,
   `line_width_mm`. 공개 문서의 그림 897개 모두에 공개 API로 닿는다.
-- 회전은 한/글 저장본으로 확인된 모양에만 쓴다. 늘이거나 줄인 그림·도형도 돌리고, 돈 그림의 크기를 바꾸거나 자른다. 글이 든 도형과
-  묶음·묶음 구성원의 회전은 근거가 없어 거부한다(`shape-rotation-unsupported`·`shape-group-member-unsupported`).
+- 회전은 한/글 저장본으로 확인된 모양에만 쓴다. 늘이거나 줄인 그림·도형도 돌리고, 돈 그림의 크기를 바꾸거나 자른다.
+- 글상자·글이 든 타원 같은 글이 든 도형과 묶음 전체를 `obj.rotation = 각도`로 돌린다. 한/글 2024가 90°·30°로 돌려 저장한 사각형·
+  글상자·글이 든 타원, 사각형+타원 묶음, 사각형+글상자 묶음과 개체 부분(크기·변환 행렬·회전 중심·글 폭)이 같다. 글은 한/글처럼 돌지
+  않고 돈 도형을 감싸는 상자 폭에 가로로 다시 놓인다. 돈 묶음은 0으로 되돌릴 수 있다. 묶음 구성원 하나만 돌리기
+  (`shape-group-member-unsupported`), 이미 돈 묶음을 다른 각도로 다시 돌리기·늘이거나 뒤집은 묶음·묶음이 든 묶음·돈 묶음의 크기
+  바꾸기(`shape-rotation-unsupported`)는 근거가 없어 계속 거부하고, 오류가 무엇은 되는지 알려 준다.
 - 묶음의 구성원 `shape.members`. 묶음 안의 개체를 지우면 묶음이 남은 구성원에 맞춰진다.
 - 그림·수식·도형·표가 든 구역을 `obj.section`으로 읽는다(표 칸·글상자·머리말·각주 안의 개체도). 번호는
   `doc.sections.index(obj.section)`이고, 바탕쪽의 개체는 `None`이다.
@@ -403,6 +413,9 @@ python-hwpx 7.0을 함께 설치한다.
 - 표 칸 안에 떠 있게 만든 그림이 한/글에서 표 밖에 그려지고 표를 밀어내던 문제(6.x부터)를 고쳤다.
 - 묶음 안에 만든 묶음과, 작성자가 둘 이상인 변경 추적이 저장할 때 스키마 경고를 내던 문제를 고쳤다.
 - `paragraph.footnotes`가 표 칸 안 각주를 두 번 세던 문제를 고쳤다.
+- 돌린 개체의 숫자가 한/글이 쓰는 값과 한 단위쯤 어긋나던 문제를 고쳤다. 한/글처럼 cos·sin을 소수 여섯 자리로 계산하고
+  상자를 옮기는 양(`transMatrix`)을 정수로 쓴다. 14400×7200 사각형을 30° 돌리면 한/글처럼 상자가 16071×13435가 아니라
+  16070×13436이다.
 - `doc.text.iter_paragraphs()`·`iter_objects()`가 표 캡션 안의 문단과 표를 본문·표 칸의 것으로 표시하던 문제를 고쳤다. 이제
   `where="caption"`이고, `where="body"`는 `doc.paragraphs`와 같다.
 - 메모가 걸린 문단이나 표를 `insert_after()`·`copy_after()`로 복사하면 사본과 원본이 한 메모를 같은 번호로 가리키던 문제를 고쳤다.
