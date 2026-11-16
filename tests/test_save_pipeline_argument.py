@@ -8,6 +8,7 @@ everything else about the save stays as it is without the argument."""
 from __future__ import annotations
 
 import io
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -117,7 +118,8 @@ def test_a_hwp_target_is_written_as_hwp_through_a_pipeline(tmp_path: Path) -> No
     doc = HwpxDocument.new()
     doc.add_paragraph("한/글 5.0")
     factory = _Factory()
-    with pytest.warns(UserWarning):
+    with warnings.catch_warnings():  # the experimental-writer warning comes once per process
+        warnings.simplefilter("ignore", UserWarning)
         report = doc.save(tmp_path / "out.hwp", pipeline=SavePipeline(oracle_factory=factory))
     assert (tmp_path / "out.hwp").read_bytes()[:8] == bytes.fromhex("d0cf11e0a1b11ae1")
     assert report.path == str(tmp_path / "out.hwp")

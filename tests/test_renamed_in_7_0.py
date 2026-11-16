@@ -433,9 +433,10 @@ def test_a_refused_quality_gate_writes_nothing_and_hands_the_report_over(tmp_pat
 
 def test_save_has_the_signature_the_spec_froze() -> None:
     parameters = inspect.signature(HwpxDocument.save).parameters
-    assert list(parameters) == ["self", "target", "format", "mode", "fallback", "quality"]
-    assert [parameters[name].default for name in ("format", "mode", "fallback", "quality")] == [
-        None, "auto", "error", None]
+    assert list(parameters) == ["self", "target", "format", "mode", "fallback", "quality", "pipeline"]
+    assert [parameters[name].default for name in ("format", "mode", "fallback", "quality", "pipeline")] == [
+        None, "auto", "error", None, None]
+    assert parameters["pipeline"].kind is inspect.Parameter.KEYWORD_ONLY
     assert hasattr(hwpx, "MutationReport") and not hasattr(HwpxDocument, "save_to_path")
 
 
