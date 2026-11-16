@@ -130,6 +130,9 @@
   "fields": {
    "add": {"kind": "method", "params": [["name", "P", false], ["prompt", "K", true], ["memo", "K", true], ["editable", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "FormField"},
    "add_check_box": {"kind": "method", "params": [["caption", "P", false], ["checked", "K", true], ["name", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "CheckBox"},
+   "add_combo_box": {"kind": "method", "params": [["text", "P", true], ["editable_text", "K", true], ["name", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "ComboBox"},
+   "add_edit_box": {"kind": "method", "params": [["text", "P", true], ["multi_line", "K", true], ["read_only", "K", true], ["name", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "EditBox"},
+   "add_radio_button": {"kind": "method", "params": [["caption", "P", false], ["group", "K", true], ["checked", "K", true], ["name", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "RadioButton"},
    "all": {"kind": "property", "settable": false, "returns": "tuple[FormField, ...]"},
    "cells": {"kind": "property", "settable": false, "returns": "tuple[CellField, ...]"},
    "check_boxes": {"kind": "property", "settable": false, "returns": "tuple[CheckBox, ...]"},
@@ -159,8 +162,10 @@
    "add_polygon": {"kind": "method", "params": [["points_mm", "P", false], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true], ["closed", "K", true]], "returns": "Shape"},
    "add_raw": {"kind": "method", "params": [["shape_type", "P", false], ["section", "K", true], ["attributes", "K", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["extra_attrs", "VK", false]], "returns": "InlineObject"},
    "add_rectangle": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["ratio", "K", true], ["line_color", "K", true], ["line_width", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["paragraph", "K", true], ["section", "K", true], ["original_size", "K", true]], "returns": "Shape"},
+   "composed_characters": {"kind": "property", "settable": false, "returns": "tuple[ComposedCharacter, ...]"},
    "equations": {"kind": "property", "settable": false, "returns": "tuple[Equation, ...]"},
-   "remove_unused_charts": {"kind": "method", "params": [], "returns": "tuple[str, ...]"}
+   "remove_unused_charts": {"kind": "method", "params": [], "returns": "tuple[str, ...]"},
+   "rubies": {"kind": "property", "settable": false, "returns": "tuple[Ruby, ...]"}
   },
   "media": {
    "add_image": {"kind": "method", "params": [["image_data", "P", false], ["image_format", "P", false], ["item_id", "K", true]], "returns": "BinaryItem"},
@@ -183,10 +188,13 @@
   },
   "refs": {
    "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["paragraph", "K", true], ["section", "K", true]], "returns": "InlineObject"},
+   "add_cross_reference": {"kind": "method", "params": [["target", "P", false], ["content_type", "K", true], ["hyperlink", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "CrossReference"},
    "add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "InlineObject"},
+   "add_table_of_contents": {"kind": "method", "params": [["index", "K", true], ["section", "K", true], ["title", "K", true], ["levels", "K", true], ["leader", "K", true], ["hyperlink", "K", true]], "returns": "TableOfContents"},
    "bookmarks": {"kind": "property", "settable": false, "returns": "tuple[Bookmark, ...]"},
    "cross_references": {"kind": "property", "settable": false, "returns": "tuple[CrossReference, ...]"},
-   "hyperlinks": {"kind": "property", "settable": false, "returns": "tuple[Hyperlink, ...]"}
+   "hyperlinks": {"kind": "property", "settable": false, "returns": "tuple[Hyperlink, ...]"},
+   "tables_of_contents": {"kind": "property", "settable": false, "returns": "tuple[TableOfContents, ...]"}
   },
   "tracking": {
    "accept": {"kind": "method", "params": [["change", "P", true], ["author", "K", true]], "returns": "tuple[TrackedChange, ...]"},
@@ -564,6 +572,7 @@
     "char_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "clear_layout_cache": {"kind": "method", "params": [], "returns": "int"},
     "clear_text": {"kind": "method", "params": [], "returns": "None"},
+    "composed_characters": {"kind": "property", "settable": false, "returns": "tuple[ComposedCharacter, ...]"},
     "endnotes": {"kind": "property", "settable": false, "returns": "list[Note]"},
     "equations": {"kind": "property", "settable": false, "returns": "tuple[Equation, ...]"},
     "first_line_indent_mm": {"kind": "property", "settable": true, "returns": "float | None"},
@@ -585,6 +594,7 @@
     "para_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "pictures": {"kind": "property", "settable": false, "returns": "tuple[Picture, ...]"},
     "remove": {"kind": "method", "params": [], "returns": "None"},
+    "rubies": {"kind": "property", "settable": false, "returns": "tuple[Ruby, ...]"},
     "runs": {"kind": "property", "settable": false, "returns": "list[Run]"},
     "shapes": {"kind": "property", "settable": false, "returns": "list[Shape]"},
     "spacing_after_pt": {"kind": "property", "settable": true, "returns": "float | None"},
@@ -812,6 +822,7 @@
   },
   "Table": {
    "members": {
+    "add_cell_zone": {"kind": "method", "params": [["cell_range", "P", false], ["border_fill_id_ref", "K", false]], "returns": "CellZone"},
     "alignment": {"kind": "property", "settable": false, "returns": "str"},
     "border_fill": {"kind": "property", "settable": false, "returns": "BorderFillInfo | None"},
     "border_fill_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
@@ -841,6 +852,7 @@
     "numbering_type": {"kind": "property", "settable": false, "returns": "str"},
     "page_break": {"kind": "property", "settable": false, "returns": "str"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
+    "remove_cell_zone": {"kind": "method", "params": [["index", "P", false]], "returns": "None"},
     "repeat_header": {"kind": "property", "settable": false, "returns": "bool"},
     "row_count": {"kind": "property", "settable": false, "returns": "int"},
     "row_heights": {"kind": "property", "settable": false, "returns": "tuple[int, ...]"},
@@ -853,6 +865,7 @@
     "set_cell_fill_image": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["image", "P", false], ["mode", "K", true]], "returns": "None"},
     "set_cell_shading": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["color", "P", false]], "returns": "None"},
     "set_cell_text": {"kind": "method", "params": [["row_index", "P", false], ["col_index", "P", false], ["text", "P", false], ["logical", "K", true], ["split_merged", "K", true], ["preserve_format", "K", true], ["split_paragraphs", "K", true], ["fit", "K", true], ["ledger", "K", true]], "returns": "FitResult | None"},
+    "set_cell_zone": {"kind": "method", "params": [["index", "P", false], ["cell_range", "K", true], ["border_fill_id_ref", "K", true]], "returns": "CellZone"},
     "set_column_width": {"kind": "method", "params": [["col", "P", false], ["width", "P", false]], "returns": "None"},
     "set_column_widths": {"kind": "method", "params": [["weights", "P", false]], "returns": "None"},
     "set_header_rows": {"kind": "method", "params": [["count", "P", false], ["repeat", "K", true]], "returns": "None"},
@@ -1131,22 +1144,37 @@
     "name": {"kind": "property", "settable": false, "returns": "str"},
     "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
     "section_index": {"kind": "property", "settable": false, "returns": "int"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
     "value": {"kind": "property", "settable": true, "returns": "str"}
    }
   },
-  "CrossReference": {
-   "kind": "dataclass",
-   "fields": [
-    ["ref_type", "str"],
-    ["content_type", "str"],
-    ["target", "str"],
-    ["text", "str"],
-    ["hyperlink", "bool"],
-    ["location", "FieldLocation"],
-    ["parameters", "tuple[FieldParameter, ...]"],
-    ["element", "Any"]
-   ],
+  "ComposedCharacter": {
+   "kind": "class",
    "members": {
+    "arrangement": {"kind": "property", "settable": true, "returns": "str"},
+    "char_pr_id_refs": {"kind": "property", "settable": false, "returns": "tuple[str, ...]"},
+    "element": {"kind": "property", "settable": false, "returns": "Any"},
+    "frame": {"kind": "property", "settable": true, "returns": "str"},
+    "inner_size": {"kind": "property", "settable": false, "returns": "int"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"},
+    "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "CrossReference": {
+   "kind": "class",
+   "members": {
+    "content_type": {"kind": "property", "settable": true, "returns": "str"},
+    "element": {"kind": "property", "settable": false, "returns": "Any"},
+    "hyperlink": {"kind": "property", "settable": true, "returns": "bool"},
+    "location": {"kind": "property", "settable": false, "returns": "FieldLocation"},
+    "parameters": {"kind": "property", "settable": false, "returns": "tuple[FieldParameter, ...]"},
+    "ref_type": {"kind": "property", "settable": false, "returns": "str"},
+    "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
+    "set_target": {"kind": "method", "params": [["target", "P", false]], "returns": "None"},
+    "target": {"kind": "property", "settable": false, "returns": "str"},
+    "text": {"kind": "property", "settable": false, "returns": "str"},
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
    }
   },
@@ -1596,6 +1624,20 @@
     "value": {"kind": "property", "settable": false, "returns": "str"}
    }
   },
+  "Ruby": {
+   "kind": "class",
+   "members": {
+    "alignment": {"kind": "property", "settable": true, "returns": "Alignment"},
+    "element": {"kind": "property", "settable": false, "returns": "Any"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"},
+    "position": {"kind": "property", "settable": true, "returns": "str"},
+    "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
+    "ruby_text": {"kind": "property", "settable": true, "returns": "str"},
+    "size_ratio": {"kind": "property", "settable": false, "returns": "int"},
+    "text": {"kind": "property", "settable": true, "returns": "str"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
   "StartNumbers": {
    "kind": "dataclass",
    "fields": [
@@ -1606,6 +1648,22 @@
     ["equation", "int"]
    ],
    "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "TableOfContents": {
+   "kind": "class",
+   "members": {
+    "element": {"kind": "property", "settable": false, "returns": "Any"},
+    "entries": {"kind": "property", "settable": false, "returns": "tuple[TocEntry, ...]"},
+    "hyperlink": {"kind": "property", "settable": false, "returns": "bool"},
+    "leader": {"kind": "property", "settable": false, "returns": "str"},
+    "levels": {"kind": "property", "settable": false, "returns": "int | None"},
+    "paragraph": {"kind": "property", "settable": false, "returns": "Any"},
+    "rebuild": {"kind": "method", "params": [], "returns": "None"},
+    "refresh_on_open": {"kind": "property", "settable": true, "returns": "bool"},
+    "remove": {"kind": "method", "params": [], "returns": "None"},
+    "title": {"kind": "property", "settable": false, "returns": "str"},
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
    }
   },
@@ -1634,6 +1692,19 @@
     ["col", "int | None"],
     ["owner", "Any"],
     ["depth", "int"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
+  "TocEntry": {
+   "kind": "dataclass",
+   "fields": [
+    ["text", "str"],
+    ["level", "int | None"],
+    ["page", "str"],
+    ["target", "str"],
+    ["paragraph", "Any"]
    ],
    "members": {
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
