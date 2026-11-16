@@ -103,7 +103,7 @@ def main() -> int:
                         status = "refused_by_policy"
                         reason = "; ".join(fit_result.errors)[:300] or "typed overflow refusal"
                     else:
-                        doc.save_to_path(out_path)
+                        doc.save(out_path)
                 finally:
                     doc.close()
         except Exception as exc:

@@ -182,7 +182,7 @@ def gen_fontface(bucket_dir: Path) -> list[dict[str, Any]]:
             document.styles.ensure_font(face, lang=lang, subst_face=subst_face)
             char_id = document.styles.ensure_run(font=face)
             document.add_paragraph(f"{face} 참조 문단 {idx}", char_pr_id_ref=char_id)
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-fontface", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -220,7 +220,7 @@ def gen_tabstops(bucket_dir: Path) -> list[dict[str, Any]]:
                 auto_tab_left=(idx % 2 == 0),
                 auto_tab_right=(idx % 3 == 0),
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-tabstops", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -258,7 +258,7 @@ def gen_drawtext(bucket_dir: Path) -> list[dict[str, Any]]:
                 name=f"{kind}{idx}",
                 editable=(idx % 3 == 0),
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-drawtext", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -293,7 +293,7 @@ def gen_caption(bucket_dir: Path) -> list[dict[str, Any]]:
                     CAPTION_PNG_BYTES, "png", width=10000, height=8000,
                 )
                 pic.set_caption(f"그림 {idx}. {cycle(ORG_BANK, idx)}", side=side)
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-caption", seed=str(idx),
                 output_path=out_path, produced=True,

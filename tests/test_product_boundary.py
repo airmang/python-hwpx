@@ -363,7 +363,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # tools/document_viewer.py, tools/format_rules.py, tools/table_cleanup.py,
     # tools/report_utils.py, equation/render.py, equation/mathml.py.
     # +1 after the cut: oxml/table_format.py (tables lane).
-    assert report["classifiedFiles"] == 177
+    # +1: the guide table for the 6.x names 7.0 renamed or removed (_removed_names.py).
+    assert report["classifiedFiles"] == 178
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

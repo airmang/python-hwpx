@@ -267,7 +267,7 @@ def test_the_three_survive_a_save_round_trip(document: HwpxDocument, tmp_path) -
     document.page.set_visibility(show_line_number=True, section=0)
     document.page.set_line_numbers(count_by=5, section=0)
     target = tmp_path / "geometry.hwpx"
-    document.save_to_path(target)
+    document.save(target)
 
     with HwpxDocument.open(target) as reopened:
         assert reopened.page.grid(section=0).line_grid == 12

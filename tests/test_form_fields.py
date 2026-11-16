@@ -84,7 +84,7 @@ def test_fill_form_field_preserves_run_formatting_and_open_safety(tmp_path: Path
     _add_click_here_field(doc)
 
     result = doc.fields.fill("2026-06-11 10:00", name="일시")
-    doc.save_to_path(path)
+    doc.save(path)
 
     # No `ok` key: reaching a FieldFillResult at all means the fill succeeded
     # (fail-closed raise on a hard fit failure instead, design §2.4).

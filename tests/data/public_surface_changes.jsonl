@@ -31,3 +31,23 @@
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.HwpxIndexError: 생김", "reason": "fixes: fix: 작은 구멍과 같은 일을 두 곳에서 하던 구현을 정리하고 엔진 약속을 적는다"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.RENAMED_CODES: 생김", "reason": "fixes: fix: 작은 구멍과 같은 일을 두 곳에서 하던 구현을 정리하고 엔진 약속을 적는다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_heading: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_paragraph: 인자 없어짐 run_attributes", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_paragraph: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 align", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 line_width", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 run_attributes", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 반환 InlineObject -> Picture", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_table: 인자 없어짐 run_attributes", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_table: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.from_package: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.paragraphs: 반환 list[Paragraph] -> tuple[Paragraph, ...]", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.save_report: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.save_to_path: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.save_to_stream: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.sections: 반환 list[Section] -> tuple[Section, ...]", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.add_picture: 인자 생김 alignment", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.add_picture: 인자 생김 line_width_mm", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.save: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.SaveError.report: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}

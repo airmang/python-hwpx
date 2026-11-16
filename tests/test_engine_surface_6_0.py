@@ -94,11 +94,14 @@ def test_every_namespace_is_exposed_on_the_root() -> None:
 
 
 def test_removed_name_lock_is_the_guide_table() -> None:
-    """락(6.x 의 shim 락)은 7.0에서 안내 표가 됐다 — 코드의 표와 같아야 한다."""
+    """락(6.x 의 shim 락)은 7.0에서 안내 표가 됐다 — 코드의 표와 같아야 한다.
+
+    6.0이 옮긴 79개에 7.0이 ``doc.save`` 로 합친 저장 동사 셋과 ``from_package`` 가 더해진다.
+    """
 
     locked = json.loads((DATA / "document_legacy_shims.json").read_text(encoding="utf-8"))
     assert set(locked) == set(REMOVED_NAMES)
-    assert len(locked) == 79
+    assert len(locked) == 79 + 4
     for name, entry in locked.items():
         assert entry["replacement"], f"{name} 에 행선지가 없습니다"
         assert entry["example"], f"{name} 에 예가 없습니다"
@@ -133,8 +136,18 @@ def test_a_removed_name_says_where_it_went(name: str) -> None:
         assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md" in str(error.suggestion)
         return
     assert error.code == "document-name-removed"
-    # pip 사용자에게 없는 저장소 경로(docs/...) 대신 저장소 문서의 URL을 준다.
-    assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md" in str(error.suggestion)
+    # pip 사용자에게 없는 저장소 경로(docs/...) 대신 저장소 문서의 URL을 준다: 6.0이 옮긴 이름은
+    # migration-6.0, 7.0이 지운 이름(저장 동사·from_package)은 migration-7.0.
+    guide = "migration-6.0.md" if name not in _REMOVED_IN_7_0 else "migration-7.0.md"
+    assert f"https://github.com/airmang/python-hwpx/blob/main/docs/{guide}" in str(error.suggestion)
+
+
+#: 7.0이 지운 루트 이름(6.0이 옮긴 79개 밖).
+_REMOVED_IN_7_0 = {"save_to_path", "save_to_stream", "save_report", "from_package"}
+
+#: 안내가 가리키는 새 자리 가운데 7.0 이름 정리의 다른 묶음이 아직 만들지 않은 것.
+#: 그 묶음이 이름을 바꾸면 여기서 지운다(``doc.text.runs()`` → ``iter_runs()``, WP2).
+_PENDING_DESTINATIONS = {"doc.text.iter_runs"}
 
 
 def test_an_unknown_name_is_a_plain_attribute_error() -> None:
@@ -163,8 +176,10 @@ def test_moved_destination_exists(name: str) -> None:
     """
 
     with HwpxDocument.new(empty_first_line=True) as document:
-        roots = {"doc": document, "paragraph": document.add_paragraph("x")}
+        roots = {"doc": document, "paragraph": document.add_paragraph("x"), "HwpxDocument": HwpxDocument}
         for target in _moved_targets(REMOVED_NAMES[name].replacement):
+            if target in _PENDING_DESTINATIONS:
+                continue
             head, *rest = target.split(".")
             assert head in roots, f"{name}: 모르는 뿌리 {target!r}"
             assert rest, f"{name}: 속성 없는 대상 {target!r}"

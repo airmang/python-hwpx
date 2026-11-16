@@ -152,7 +152,7 @@ def test_master_page_round_trips_through_save_and_reopen(tmp_path: Path) -> None
     doc = HwpxDocument.open(MASTERPAGE_FIXTURE)
     before = doc.parts.master_pages[0].to_model()
     path = tmp_path / "roundtrip.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)

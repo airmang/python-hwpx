@@ -731,6 +731,9 @@ def _mutation_report_json_schema() -> dict[str, Any]:
                     "visual": verification_value,
                 },
             },
+            # 7.0: doc.save(..., quality=policy) 가 돌린 품질 게이트의 VisualCompleteReport.
+            # 선택 키라서 필수 키 9개(동결 계약)는 그대로다.
+            "quality": {"type": "object"},
         },
     }
 

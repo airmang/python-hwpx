@@ -68,17 +68,17 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 ## 저장 의미론
 
 ```python
-report = document.save_to_path("out.hwpx", return_report=True)
+report = document.save("out.hwpx")
 print(report.actual_mode)
 ```
 
-- `save_to_path()`는 원자적이다: 임시 파일에 쓴 뒤 rename하고, editor-open
+- `save()`는 원자적이다: 임시 파일에 쓴 뒤 rename하고, editor-open
   안전 검증을 통과한 결과만 대상 경로를 교체한다.
 - 요청한 보존 등급(`mode="patch"` 등)을 지킬 수 없으면
   `PreservationDowngradeError`로 실패하고 **아무것도 쓰지 않는다**
   (`mode="patch", fallback="error"`). 기본 `auto`는 달성 가능한 등급을 선택하며,
   명시한 `fallback="rebuild"`는 강등을 허용한다.
-- `return_report=True`는 `MutationReport`를 돌려준다 — 실제 저장 모드,
+- `save()`는 `MutationReport`를 돌려준다 — 실제 저장 모드,
   손대지 않은 파트의 바이트 보존 검증 결과까지. 스키마와 전체 규칙은
   [안전한 쓰기 계약](safe-write-contract.md).
 - `report.ok`는 요청 내용 반영을 검사하지 않는다. 요청 건수와 출력 값을 별도로

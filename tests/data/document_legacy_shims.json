@@ -3,10 +3,11 @@
   "example": "doc.refs.add_bookmark(\"책갈피\", paragraph=paragraph)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.refs.add_bookmark(...)"
+  "replacement": "doc.refs.add_bookmark(...)",
+  "returns": "→ Bookmark"
  },
  "add_chart": {
-  "example": "doc.shapes.add_chart(chart_xml)",
+  "example": "doc.shapes.add_chart(chart_xml, width=14400, height=7200)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.shapes.add_chart(...)"
@@ -25,25 +26,25 @@
   "replacement": "doc.shapes.add_control(...)"
  },
  "add_ellipse": {
-  "example": "doc.shapes.add_ellipse(14400, 7200)",
+  "example": "doc.shapes.add_ellipse(14400, 7200, line_width_mm=0.12)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.shapes.add_ellipse(...)"
  },
  "add_endnote": {
-  "example": "doc.notes.add_endnote(\"미주\", paragraph)",
+  "example": "doc.notes.add_endnote(\"미주\", paragraph=paragraph)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.notes.add_endnote(...)"
  },
  "add_equation": {
-  "example": "doc.shapes.add_equation(\"{a} over {b}\")",
+  "example": "doc.shapes.add_equation(\"{a} over {b}\", font_size=11.0)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.shapes.add_equation(...)"
  },
  "add_footnote": {
-  "example": "doc.notes.add_footnote(\"각주\", paragraph)",
+  "example": "doc.notes.add_footnote(\"각주\", paragraph=paragraph)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.notes.add_footnote(...)"
@@ -59,7 +60,8 @@
   "example": "doc.refs.add_hyperlink(\"https://example.com\", \"누리집\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.refs.add_hyperlink(...)"
+  "replacement": "doc.refs.add_hyperlink(...)",
+  "returns": "→ Hyperlink"
  },
  "add_image": {
   "example": "doc.media.add_image(data, \"png\")",
@@ -69,7 +71,7 @@
   "returns": "str → BinaryItem"
  },
  "add_line": {
-  "example": "doc.shapes.add_line(0, 0, 14400, 0)",
+  "example": "doc.shapes.add_line(0, 0, 14400, 0, line_width_mm=0.12)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.shapes.add_line(...)"
@@ -81,14 +83,14 @@
   "replacement": "doc.notes.add_memo(...)"
  },
  "add_memo_with_anchor": {
-  "example": "doc.notes.add_memo(\"메모\", anchor=paragraph)",
+  "example": "doc.notes.add_memo(\"메모\", paragraph=paragraph)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.notes.add_memo(anchor=...)",
+  "replacement": "doc.notes.add_memo(paragraph=...)",
   "returns": "3-튜플 → Memo"
  },
  "add_rectangle": {
-  "example": "doc.shapes.add_rectangle(14400, 7200)",
+  "example": "doc.shapes.add_rectangle(14400, 7200, line_width_mm=0.12)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.shapes.add_rectangle(...)"
@@ -100,7 +102,7 @@
   "replacement": "doc.shapes.add_raw(...)"
  },
  "add_track_change": {
-  "example": "doc.tracking.add_change(\"Insert\")",
+  "example": "doc.tracking.add_change(\"Insert\", author=\"홍길동\")",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.tracking.add_change(...)",
@@ -138,13 +140,15 @@
   "example": "doc.styles.border_fill(\"1\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.border_fill(...)"
+  "replacement": "doc.styles.border_fill(...)",
+  "returns": "GenericElement → BorderFillInfo"
  },
  "border_fills": {
   "example": "doc.styles.border_fills",
   "kind": "property",
   "removedIn": "7.0",
-  "replacement": "doc.styles.border_fills"
+  "replacement": "doc.styles.border_fills",
+  "returns": "값 GenericElement → BorderFillInfo"
  },
  "bullet": {
   "example": "doc.styles.bullet(\"1\")",
@@ -171,7 +175,7 @@
   "replacement": "doc.styles.char_property(...)"
  },
  "ensure_border_fill": {
-  "example": "doc.styles.ensure_border_fill(fill_color=\"#FFFF00\")",
+  "example": "doc.styles.ensure_border_fill(fill_color=\"#FFFF00\", border_width_mm=0.12)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.styles.ensure_border_fill(...)"
@@ -180,10 +184,11 @@
   "example": "doc.styles.ensure_numbering(kind=\"bullet\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.ensure_numbering(...)"
+  "replacement": "doc.styles.ensure_numbering(...)",
+  "returns": "list → tuple"
  },
  "ensure_run_style": {
-  "example": "doc.styles.ensure_run(bold=True)",
+  "example": "doc.styles.ensure_run(bold=True, base_char_pr_id_ref=\"0\")",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.styles.ensure_run(...)"
@@ -223,7 +228,7 @@
   "replacement": "from hwpx_automation.forms import fill_by_path; fill_by_path(doc, {\"성명 > right\": \"홍길동\"})"
  },
  "fill_form_field": {
-  "example": "doc.fields.fill(\"홍길동\", name=\"성명\")",
+  "example": "doc.fields.fill(\"홍길동\", index=0)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.fields.fill(...)",
@@ -240,7 +245,14 @@
   "example": "doc.text.find_runs(text_color=\"#FF0000\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.text.find_runs(...)"
+  "replacement": "doc.text.find_runs(...)",
+  "returns": "list → tuple"
+ },
+ "from_package": {
+  "example": "HwpxDocument.open(package)",
+  "kind": "method",
+  "removedIn": "7.0",
+  "replacement": "HwpxDocument.open(package)"
  },
  "get_table_map": {
   "example": "doc.tables.map()",
@@ -252,19 +264,21 @@
   "example": "doc.parts.headers",
   "kind": "property",
   "removedIn": "7.0",
-  "replacement": "doc.parts.headers"
+  "replacement": "doc.parts.headers",
+  "returns": "list → tuple"
  },
  "histories": {
   "example": "doc.parts.histories",
   "kind": "property",
   "removedIn": "7.0",
-  "replacement": "doc.parts.histories"
+  "replacement": "doc.parts.histories",
+  "returns": "list → tuple"
  },
  "iter_runs": {
-  "example": "for run in doc.text.runs(): ...",
+  "example": "for run in doc.text.iter_runs(): ...",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.text.runs()"
+  "replacement": "doc.text.iter_runs()"
  },
  "list_check_boxes": {
   "example": "doc.fields.check_boxes",
@@ -291,7 +305,8 @@
   "example": "doc.parts.master_pages",
   "kind": "property",
   "removedIn": "7.0",
-  "replacement": "doc.parts.master_pages"
+  "replacement": "doc.parts.master_pages",
+  "returns": "list → tuple"
  },
  "memo_shape": {
   "example": "doc.styles.memo_shape(\"0\")",
@@ -309,7 +324,8 @@
   "example": "doc.notes.memos",
   "kind": "property",
   "removedIn": "7.0",
-  "replacement": "doc.notes.memos"
+  "replacement": "doc.notes.memos",
+  "returns": "list → tuple"
  },
  "merge_table_cells": {
   "example": "doc.tables.merge_cells(table, \"A1:B1\")",
@@ -330,11 +346,11 @@
   "replacement": "doc.styles.paragraph_property(...)"
  },
  "picture_references": {
-  "example": "doc.media.picture_references()",
+  "example": "doc.media.pictures",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.media.picture_references()",
-  "returns": "list[dict] → tuple[PictureRef, ...]"
+  "replacement": "doc.media.pictures",
+  "returns": "list[dict] → tuple[Picture, ...] (속성)"
  },
  "remove_footer": {
   "example": "doc.page.remove_footer(section=0)",
@@ -367,7 +383,7 @@
   "replacement": "paragraph.remove()"
  },
  "replace_picture": {
-  "example": "doc.media.replace_picture(data, \"png\")",
+  "example": "doc.media.replace_picture(data, \"png\", index=0)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.media.replace_picture(...)",
@@ -379,6 +395,24 @@
   "removedIn": "7.0",
   "replacement": "doc.text.replace(...)"
  },
+ "save_report": {
+  "example": "doc.save(\"out.hwpx\", quality=QualityPolicy.strict()).quality",
+  "kind": "method",
+  "removedIn": "7.0",
+  "replacement": "doc.save(target, quality=...)"
+ },
+ "save_to_path": {
+  "example": "doc.save(\"out.hwpx\")",
+  "kind": "method",
+  "removedIn": "7.0",
+  "replacement": "doc.save(path)"
+ },
+ "save_to_stream": {
+  "example": "doc.save(buffer)",
+  "kind": "method",
+  "removedIn": "7.0",
+  "replacement": "doc.save(stream)"
+ },
  "set_check_box": {
   "example": "doc.fields.set_check_box(True, name=\"동의\")",
   "kind": "method",
@@ -387,7 +421,7 @@
   "returns": "dict → CheckBox"
  },
  "set_columns": {
-  "example": "doc.page.set_columns(2)",
+  "example": "doc.page.set_columns(2, separator_type=\"SOLID\", separator_width_mm=0.12)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.page.set_columns(...)"
@@ -423,7 +457,7 @@
   "replacement": "doc.page.set_header(text=...)"
  },
  "set_list_format": {
-  "example": "doc.styles.apply_list_format(paragraph_index=0, kind=\"number\")",
+  "example": "doc.styles.apply_list_format(paragraph=0, kind=\"number\")",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.styles.apply_list_format(...)",
@@ -436,7 +470,7 @@
   "replacement": "doc.page.set_margins(...)"
  },
  "set_page_number": {
-  "example": "doc.page.set_page_number(position=\"BOTTOM_CENTER\")",
+  "example": "doc.page.set_page_number(position=\"BOTTOM_CENTER\", alignment=\"CENTER\")",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.page.set_page_number(...)"
@@ -455,7 +489,7 @@
   "replacement": "doc.page.set_size(...)"
  },
  "set_paragraph_format": {
-  "example": "doc.styles.apply_paragraph_format(paragraph_index=0, alignment=\"CENTER\")",
+  "example": "doc.styles.apply_paragraph_format(paragraph=0, alignment=\"CENTER\")",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.styles.apply_paragraph_format(...)",
@@ -471,7 +505,8 @@
   "example": "doc.tracking.change(\"1\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.change(...)"
+  "replacement": "doc.tracking.change(...)",
+  "returns": "TrackChange → TrackedChange"
  },
  "track_change_author": {
   "example": "doc.tracking.author(\"1\")",
@@ -489,7 +524,8 @@
   "example": "doc.tracking.changes",
   "kind": "property",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.changes"
+  "replacement": "doc.tracking.changes",
+  "returns": "dict → tuple[TrackedChange, ...]"
  },
  "version": {
   "example": "doc.parts.version",

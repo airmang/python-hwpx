@@ -259,7 +259,7 @@ def gen_pagelayout(bucket_dir: Path) -> list[dict[str, Any]]:
             elif extra_op == "remove_header":
                 document.page.remove_header(page_type=page_type)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-pagelayout", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -310,7 +310,7 @@ def gen_hyperlink_bookmark(bucket_dir: Path) -> list[dict[str, Any]]:
                     f"#{bookmark_name}", f"내부 링크 {idx}", paragraph=link_paragraph,
                 )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-hyperlink-bookmark", seed=str(idx),
                 output_path=out_path, produced=True,

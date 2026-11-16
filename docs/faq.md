@@ -77,11 +77,11 @@ with TextExtractor("sample.hwpx") as extractor:
 
 ## 저장 시 원본 파일을 덮어쓰지 않고 새 파일로 만들고 싶습니다.
 
-`document.save_to_path("output.hwpx")`처럼 경로를 지정하면 해당 경로로 새 ZIP 아카이브가 생성됩니다. 스트림으로 저장하려면 `save_to_stream()`을, 바이트로 변환하려면 `to_bytes()`를 사용하세요.
+`document.save("output.hwpx")`처럼 경로를 지정하면 해당 경로로 새 ZIP 아카이브가 생성됩니다. 스트림으로 저장하려면 `save(stream)`을, 바이트로 변환하려면 `to_bytes()`를 사용하세요.
 
 ```python
 # 파일로 저장
-document.save_to_path("output.hwpx")
+document.save("output.hwpx")
 
 # 바이트로 직렬화
 raw = document.to_bytes()
@@ -104,4 +104,4 @@ if len(section.paragraphs) > 1:
 
 ## 섹션을 추가하면 한/글에서 보이지 않습니다.
 
-`document.add_section()`은 내부적으로 manifest/spine에 새 섹션을 자동 등록합니다. 반드시 `save_to_path()`로 저장해야 변경 사항이 반영됩니다. 저수준 API를 사용해 직접 섹션 XML을 만들었다면 manifest에 항목을 추가하지 않았을 가능성이 있으므로, 고수준 API(`HwpxDocument.add_section()`)를 사용하는 것을 권장합니다.
+`document.add_section()`은 내부적으로 manifest/spine에 새 섹션을 자동 등록합니다. 반드시 `save()`로 저장해야 변경 사항이 반영됩니다. 저수준 API를 사용해 직접 섹션 XML을 만들었다면 manifest에 항목을 추가하지 않았을 가능성이 있으므로, 고수준 API(`HwpxDocument.add_section()`)를 사용하는 것을 권장합니다.

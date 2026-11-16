@@ -103,7 +103,7 @@ def test_a_public_edit_changes_only_its_part_and_says_so(tmp_path: Path) -> None
     document = HwpxDocument.open(source)
     document.paragraphs[3].text = "고친 문단"
 
-    report = document.save_to_path(tmp_path / "edited.hwpx", mode="patch", return_report=True)
+    report = document.save(tmp_path / "edited.hwpx", mode="patch")
 
     changed = {part.path for part in report.changed_parts}
     assert changed == {"Contents/section0.xml"}

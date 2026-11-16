@@ -31,9 +31,7 @@ the structured fields with no raise-site churn (§11 — no bulk raise rewrites)
 
 from __future__ import annotations
 
-import functools
-import inspect
-from typing import Any, Callable, Mapping, TypeVar, cast
+from typing import Any, Callable, Mapping, TypeVar, overload
 
 
 class HwpxError(Exception):
@@ -68,14 +66,19 @@ class HwpxError(Exception):
 
 
 class SaveError(HwpxError, ValueError):
-    """A representative save path (``save_to_path`` / ``save_to_stream`` /
-    ``to_bytes``) failed closed before writing any output.
+    """A save (``doc.save`` / ``doc.to_bytes``) failed closed before writing any output.
 
     Subclasses :class:`ValueError` for backward compatibility: pre-4.0 callers
     caught ``ValueError`` from these paths and must keep working.
+
+    When the quality gate refused the archive (``code == "quality-gate-failed"``),
+    :attr:`report` is the :class:`~hwpx.quality.VisualCompleteReport` the gate
+    composed (its ``errors`` say why); otherwise it is ``None``.
     """
 
     default_code = "save-failed"
+    #: The gate's ``VisualCompleteReport`` on ``quality-gate-failed``; ``None`` otherwise.
+    report: Any = None
 
 
 class SaveTargetError(HwpxError, OSError):
@@ -140,9 +143,12 @@ class HwpxStateError(HwpxError, RuntimeError):
 
 
 class HwpxAttributeError(HwpxError, AttributeError):
-    """A name the object no longer has: 7.0 removed the ``HwpxDocument`` root names
-    6.0 had moved into the namespaces (``doc.set_header_text`` →
-    ``doc.page.set_header(text=...)``). The message names where it went.
+    """A name the object no longer has: a 6.x name 7.0 renamed or removed — the
+    ``HwpxDocument`` root names 6.0 had moved into the namespaces
+    (``doc.set_header_text`` → ``doc.page.set_header(text=...)``), and the
+    namespace, model and value-type names 7.0 renamed (``doc.text.runs()`` →
+    ``doc.text.iter_runs()``). The message names where it went; the table is
+    :mod:`hwpx._removed_names`.
 
     It is an :class:`AttributeError`, so ``hasattr(doc, "set_header_text")`` is
     ``False`` and ``getattr(doc, name, None)`` gives ``None``.
@@ -203,41 +209,48 @@ def argument_type_error(
 _Func = TypeVar("_Func", bound=Callable[..., Any])
 
 
-def rejects_removed_arguments(func: _Func, *, caller: str | None = None) -> _Func:
-    """Make *func* answer a 7.0-removed keyword (:data:`REMOVED_ARGUMENTS`) with
-    :func:`removed_argument_error` instead of a bare ``TypeError``.
+@overload
+def rejects_removed_arguments(func: _Func, *, caller: str | None = None) -> _Func: ...
 
-    The one shared guard for every method that took ``section_index=`` or
-    ``style_id_ref=`` before 7.0 — the namespaces apply it to their methods by
-    themselves (``_Namespace.__init_subclass__``). A name *func* still takes as
-    a parameter of its own (``add_dutmal(style_id_ref=)``, the 덧말's own style)
-    is left alone. ``inspect.signature`` still reports *func*'s signature.
-    *caller* names the method in the message (default: ``doc.<name>`` for an
-    ``HwpxDocument`` method, else the qualified name).
+
+@overload
+def rejects_removed_arguments(
+    func: None = None, *, caller: str | None = None
+) -> Callable[[_Func], _Func]: ...
+
+
+def rejects_removed_arguments(
+    func: _Func | None = None, *, caller: str | None = None
+) -> _Func | Callable[[_Func], _Func]:
+    """Make *func* answer a 7.0-removed or renamed argument with a
+    :class:`HwpxTypeError` (``hwpx-argument-removed``) that names the new one,
+    instead of a bare ``TypeError`` — or, on a method that used to take
+    ``**extra_attrs``, a stray XML attribute written into the document.
+
+    It looks at :data:`REMOVED_ARGUMENTS` (``section_index=``, ``style_id_ref=``)
+    and at the row for *caller* in :data:`hwpx._removed_names.ARGUMENTS` (a
+    method's own old keywords, positional arguments that became keyword-only,
+    removed XML-attribute keywords). A name *func* still takes as a parameter of
+    its own (``add_dutmal(style_id_ref=)``, the 덧말's own style) is left alone,
+    and with nothing to answer *func* comes back unchanged. ``inspect.signature``
+    still reports *func*'s signature. The namespaces apply the same guard to
+    their methods by themselves (``_Namespace.__init_subclass__``), and so does
+    :func:`hwpx._removed_names.install` for the model classes.
+
+    *caller* names the method in the message and picks the row (default:
+    ``doc.<name>`` for an ``HwpxDocument`` method, ``Paragraph.<name>`` for a
+    model method). A module function passes it:
+    ``@rejects_removed_arguments(caller="hwpx.equation.estimate_equation_size")``.
     """
 
-    try:
-        parameters = inspect.signature(func).parameters
-    except (TypeError, ValueError):  # pragma: no cover - builtins
-        return func
-    removed = tuple(name for name in REMOVED_ARGUMENTS if name not in parameters)
-    if not removed:
-        return func
-    if caller is None:
-        caller = func.__qualname__
-        if caller.startswith("HwpxDocument."):
-            caller = "doc." + caller[len("HwpxDocument."):]
-    name_in_message = caller
+    from ._removed_names import caller_name, guard_arguments
 
-    @functools.wraps(func)
-    def guarded(*args: Any, **kwargs: Any) -> Any:
-        if kwargs:
-            for name in removed:
-                if name in kwargs:
-                    raise removed_argument_error(name, name_in_message)
-        return func(*args, **kwargs)
+    def decorate(target: _Func) -> _Func:
+        return guard_arguments(target, caller or caller_name(target), removed_everywhere=True)
 
-    return cast(_Func, guarded)
+    if func is None:
+        return decorate
+    return decorate(func)
 
 
 # Hwp5Error and Hwp5ConversionWarning live here rather than in hwpx.hwp5.errors
@@ -355,7 +368,7 @@ ERROR_CODES: dict[str, str] = {
     "hwpx-lookup-error": "이름·인덱스로 지목한 것이 없다(분류되지 않음).",
     "hwpx-state-error": "문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음).",
     "hwpx-attribute-error": "그런 이름의 속성·메서드가 없다(분류되지 않음, AttributeError 계열이기도 하다).",
-    "hwpx-argument-removed": "7.0에서 없어진 인자(section_index=, style_id_ref=)를 주었다(대신 쓸 인자는 suggestion).",
+    "hwpx-argument-removed": "7.0에서 없어지거나 바뀐 인자(section_index=·style_id_ref=, 메서드마다 이름이 바뀐 키워드, 키워드 전용이 된 위치 인자, 없어진 XML 속성 키워드)를 주었다(새 인자는 context.replacement, 안내는 suggestion).",
     # -- 계약 문서·스키마 ------------------------------------------------
     "contract-document-missing": "동봉돼야 할 계약 문서가 휠에 없다.",
     "contract-document-unknown": "그런 이름의 계약 문서가 없다(6.x 의 unknown-contract-document).",
@@ -367,7 +380,7 @@ ERROR_CODES: dict[str, str] = {
     "document-history-root-invalid": "history.xml 루트가 history 가 아니다.",
     "document-master-page-root-invalid": "바탕쪽 파트 루트가 masterPage 가 아니다.",
     "document-version-root-invalid": "version.xml 루트가 HCFVersion 이 아니다.",
-    "document-name-removed": "7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement).",
+    "document-name-removed": "7.0에서 없어지거나 바뀐 6.x 이름(루트 HwpxDocument·묶음·모델·값 형식·모듈의 이름)을 불렀다(새 자리는 context.replacement).",
     "document-name-moved": "7.0에서 python-hwpx-automation으로 옮긴 문서 메서드(doc.text.markdown 등 묶음 메서드 8개, export_markdown 등 루트 옛 이름 5개)를 불렀다(새 자리는 context.replacement, 설치는 context.install).",
     "document-seed-invalid": "new()/open() 의 seed 가 정수가 아니다.",
     "document-clock-invalid": "new()/open() 의 now 가 datetime 이 아니다.",
@@ -413,9 +426,13 @@ ERROR_CODES: dict[str, str] = {
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
     "table-margin-value": "표 바깥·안 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    # 7.0 이름 정리: 7.0에서 처음 생긴 두 code 를 새 이름(vertical_alignment·page_split)을 따라
+    # 바꾼다. 옛 code 둘은 그 이름(vert_align·page_break)을 바꾸는 단계가 쓰는 곳과 함께 지운다.
     "table-cell-vert-align-value": "칸 세로 정렬(vert_align)이 TOP·CENTER·BOTTOM 중 하나가 아니다.",
+    "table-cell-vertical-alignment-value": "칸 세로 정렬(vertical_alignment)이 TOP·CENTER·BOTTOM 중 하나가 아니다.",
     "table-alignment-value": "표 가로 정렬(alignment)이 LEFT·CENTER·RIGHT 중 하나가 아니거나 문서 머리 정보가 없다.",
     "table-page-break-value": "표의 쪽 나눔(page_break)이 TABLE·CELL·NONE 중 하나가 아니다.",
+    "table-page-split-value": "표가 쪽 경계에서 나뉘는 방식(page_split)이 TABLE·CELL·NONE 중 하나가 아니다.",
     "table-header-rows-value": "제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다.",
     "table-no-adjust-value": "noAdjust 값이 bool 이 아니다.",
     "table-border-value": "칸 테두리의 면·선 종류·굵기·색 지정이 잘못됐거나 문서 머리 정보가 없다.",
@@ -623,6 +640,7 @@ ERROR_CODES: dict[str, str] = {
     "save-package-contract-violated": "package.save(None) 이 bytes 를 돌려주지 않았다.",
     "save-format-unsupported": "저장 형식(format)이 'hwpx'도 'hwp'도 아니다.",
     "save-mode-invalid": "저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다.",
+    "save-target-invalid-type": "doc.save 에 경로도 쓰기 가능한 이진 스트림도 아닌 것을 주었다.",
     "save-target-denied": "저장할 파일에 쓸 권한이 없다(읽기 전용이거나 다른 프로그램이 열고 있다).",
     "save-target-folder-missing": "저장할 경로의 상위 폴더가 없다.",
     "save-target-is-folder": "저장할 경로가 폴더다.",
@@ -637,7 +655,7 @@ ERROR_CODES: dict[str, str] = {
     "open-encrypted": "암호가 걸린 HWPX 다(HwpxXmlSyntaxError, lxml 의 숫자 코드는 lxml_code 에).",
     "open-hwp5-not-package": "HwpxPackage.open 에 HWP 5.0(.hwp) 파일을 주었다(HwpxDocument.open 으로 연다).",
     "open-hwp3-unsupported": "HWP 3.x 이하 .hwp 문서다(열지 못한다).",
-    "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에).",
+    "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에, 게이트의 VisualCompleteReport 는 SaveError.report).",
     "preservation-downgrade": "요청한 보존 등급을 저장이 달성하지 못했다.",
     # -- HWP 5.0 (.hwp) ------------------------------------------------
     "hwp5-damaged": "HWP 5.0 문서의 컨테이너나 레코드가 깨졌다(잘림·범위 밖 섹터·순환·레코드 길이·압축).",

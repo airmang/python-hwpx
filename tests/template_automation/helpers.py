@@ -654,7 +654,7 @@ def execute_scenario(case: ScenarioCase, tmp_path: Path) -> ScenarioRunResult:
                 raise AssertionError(f"unsupported operation kind: {operation.kind}")
 
             output_path = tmp_path / f"{case.fixture_id}-{case.scenario.scenario_id}.hwpx"
-            document.save_to_path(output_path)
+            document.save(output_path)
     except AutomationOperationError as exc:
         if expected_error is None:
             raise

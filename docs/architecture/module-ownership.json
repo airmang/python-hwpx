@@ -592,6 +592,12 @@
       "rationale": "Import-time guidance for the module names removed in 5.0: a finder appended to sys.meta_path raises ModuleNotFoundError naming the python-hwpx-automation module and the migration guide. It never imports the companion and restores no removed path; the top-level names come from hwpx._MOVED_TO_COMPANION."
     },
     {
+      "path": "src/hwpx/_removed_names.py",
+      "disposition": "core",
+      "approvedBy": "name7-wp1-hint-table",
+      "rationale": "The one guide table for 6.x public names 7.0 renamed or removed (root HwpxDocument, namespaces, hwpx.model classes, hwpx.objects value types, module names, arguments, positional arguments that became keyword-only): calling an old name raises HwpxAttributeError/HwpxTypeError naming the new one instead of a bare AttributeError/TypeError. Data plus the __getattr__/argument-guard hooks it installs on the classes it names; it restores no old behaviour and imports no companion."
+    },
+    {
       "path": "src/hwpx/oxml/shape_position.py",
       "disposition": "core",
       "approvedBy": "shape-position-reference-frames",

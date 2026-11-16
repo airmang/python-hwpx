@@ -1359,7 +1359,7 @@ def test_password_protected_hwp_is_refused_with_its_code() -> None:
 def test_the_converted_package_saves_as_hwpx(tmp_path: Path) -> None:
     document = HwpxDocument.open(make_hwp())
     target = tmp_path / "out.hwpx"
-    document.save_to_path(target)
+    document.save(target)
     reopened = HwpxDocument.open(target)
     assert [p.text for p in reopened.paragraphs] == [p.text for p in document.paragraphs]
 

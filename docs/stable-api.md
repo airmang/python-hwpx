@@ -11,7 +11,9 @@
   `from hwpx.experimental import ...`로 import하세요. 4.0~6.x가 경고와 함께 유지하던
   최상위 `from hwpx import ...` 재내보내기는 **7.0에서 제거됐습니다** — 접근하면
   `hwpx.experimental`을 알려 주는 `MovedToExperimental`(ImportError)이 납니다(실제 구현
-  모듈·`hwpx.experimental` 경로는 유지).
+  모듈·`hwpx.experimental` 경로는 유지). 수식 변환 셋(`latex_to_eqedit`·`estimate_equation_size`·
+  `UnsupportedLatexError`)은 7.0에서 `hwpx.equation`의 stable 이름이 되어, 최상위 접근은
+  `hwpx.equation`을 알려 주는 `MovedToSubmodule`(ImportError)을 냅니다.
 - **deprecated** — 대체 경로로 이전하세요. 접근 시 `DeprecationWarning`이 나고 경고
   메시지에 대체 경로가 포함됩니다. **다음 major에서 제거**될 예정입니다.
 
@@ -84,7 +86,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 | 층 | 잠근 것 | 수 |
 |---|---|---:|
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
-| 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 35 |
+| 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 189 |
 | `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 376 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 164 |
@@ -126,14 +128,13 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`
 3. **공개 편집은 그 파트만 바꾸고, 바꾼 파트를 알린다.** 공개 API로 고치면 그 내용을 담은 파트만
    바뀌고 나머지 파트는 바이트 그대로다. 바뀐 파트는 `MutationReport.changed_parts` 에 적힌다
-   (`save_to_path(..., return_report=True)`).
+   (`doc.save(...)`가 돌려주는 보고).
    `tests/test_engine_contract.py::test_a_public_edit_changes_only_its_part_and_says_so`,
    `tests/test_mutation_report.py::test_one_cell_edit_patch_lists_dirty_section`
-4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save_to_path`·
-   `save_to_stream`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
+4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
    아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다).
    `tests/test_document_save_api.py::test_to_bytes_rejects_generated_package_that_fails_open_safety`,
-   `tests/test_document_save_api.py::test_save_to_path_preserves_existing_file_when_open_safety_fails`
+   `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`
 5. **"한/글에서 열린다"는 한/글 기록이 있는 것에만 말한다.** 한/글에서 열어 확인했다
    (Render-verified)는 말은 실제 한/글로 열어 본 기록(`docs/openrate/` 보고, 한컴 오라클
    측정)이 있는 만들기·편집 영역에만 붙는다([지원 매트릭스](support-matrix.md)).
@@ -201,11 +202,9 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   `EstimatedLine` — 본문 문단의 줄마다 쪽·단·세로 위치를 추정한다. 따르지 않는 요소가
   있으면 `pages`는 `None`이고 `unsupported`가 까닭을 구역마다 적는다
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
-  `estimate_equation_size`, `UnsupportedLatexError`. 구현 모듈 `hwpx.equation`에서
-  가져와도 같은 객체이고, 사용 가이드와 퀵스타트는 `from hwpx.equation import latex_to_eqedit`를 쓴다
-  — 이 세 이름은 5.2.0부터 experimental이었으나 이 문서가 누락하고 있었다
-  (자기서술 드리프트 — `describe_capabilities()`의 라이브 census가 이제 이런
-  누락을 구조적으로 막는다)
+  `estimate_equation_size`, `UnsupportedLatexError`. 7.0에서 `hwpx.equation`의 stable
+  이름이 되었다 — `from hwpx.equation import latex_to_eqedit`로 쓴다. `hwpx.experimental`도
+  6.x 경로로 같은 객체를 다시 내보내고, 최상위 `hwpx`에는 없다
 - **편집 계획 실행기**(5.6.0 신규, `hwpx.plan`): `apply_edit_plan`,
   `validate_edit_plan`, `EditPlan`, `PlanReport`, `PlanValidationError`
 - **기계가독 자기서술**(5.6.0 신규, `hwpx.capabilities`):
@@ -309,11 +308,11 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 
 | 예외 | `code` | 상속 | 발생 경로 |
 |---|---|---|---|
-| `PreservationDowngradeError` | `preservation-downgrade` | `HwpxError` | `save_to_path`/`save_to_stream`/`to_bytes`의 `mode="patch"` + `fallback="error"` 미달 |
+| `PreservationDowngradeError` | `preservation-downgrade` | `HwpxError` | `save`/`to_bytes`의 `mode="patch"` + `fallback="error"` 미달 |
 | `hwpx.errors.SaveError` | `save-failed`(기본), `document-validation-failed`·`open-safety-failed`·`quality-gate-failed` | `HwpxError`, `ValueError` | 대표 저장 경로의 사전검증·open-safety·품질 게이트 실패 |
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
-| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
+| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save("x.hwp")`, `format="hwp"`) |
 | `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
 | `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
 | `hwpx.tools.recover.RecoverError` | `recover-unsafe` | `HwpxError`, `ValueError` | 로컬 헤더 항목을 안전하게 복구할 수 없음 |
@@ -324,7 +323,7 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 `HwpxDocument.open`은 `.hwp`(HWP 5.0)도 열어 같은 문서 모델로 바꿉니다. 옮기지 못한
 내용은 읽기 전용 `document.conversion_report`(`unconverted`·`dropped` 개수)에 남고,
 `unconverted`가 있으면 `Hwp5ConversionWarning`을 한 번 냅니다. `.hwpx`로 연 문서에서는
-`conversion_report`가 `None`입니다. `save_to_path("x.hwp")`, `save_to_stream(..., format="hwp")`,
+`conversion_report`가 `None`입니다. `save("x.hwp")`, `save(stream, format="hwp")`,
 `to_bytes(format="hwp")`는 HWP 5.0으로 씁니다(실험). 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
 `Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 쓰지 않고
 (`hwp5-overwrite-source`), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지 않습니다

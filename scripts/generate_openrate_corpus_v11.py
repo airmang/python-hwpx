@@ -220,7 +220,7 @@ def gen_label(bucket_dir: Path) -> list[dict[str, Any]]:
                     pageheight=pageheight,
                 )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-label", seed=str(idx),
                 output_path=out_path, produced=True,
