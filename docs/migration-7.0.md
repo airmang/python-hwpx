@@ -378,6 +378,7 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 |---|---|
 | `add_equation` 이 적는 수식 글꼴이 `HYhwpEQ` 에서 `HancomEQN`(한/글 수식 편집기의 글꼴)으로 바뀌었다. 획이 조금 굵어지고 일부 글자 폭이 달라진다 | `doc.shapes.add_equation(script, font="HYhwpEQ")` |
 | 수식 상자 폭을 한/글 2024(Windows)가 실제로 필요로 한 폭에 맞춰 다시 잡는다. 같은 수식의 `hp:sz` 폭이 6.x 와 다르다(맥 한/글이 저장한 상자보다 평균 10% 넓다) | 없음(6.x 폭은 수식 뒤 글자와 겹쳤다) |
+| `paragraph.column_break` 를 바꾸면 `page_break` 처럼 그 문단의 줄 배치 캐시(`hp:linesegarray`)가 지워진다. 6.x 는 남겼다. 한/글이 열 때 그 문단을 다시 배치한다 | 없음(옛 줄 배치를 남기지 않는다) |
 | `add_heading` 뒤에 `add_paragraph` 로 더한 본문이 제목의 문단 모양·스타일(개요)을 물려받지 않는다. 6.x 에서는 한/글이 그 본문에 다음 개요 번호("나." …)를 붙였다 | `doc.add_paragraph(text, inherit_style=True)` |
 | 정렬을 준 머리말·꼬리말·쪽 번호(`set_header`/`set_footer` 의 `align`, `set_page_number`)가 본문 문단의 테두리·간격을 물려받지 않는다 | 없음(6.x 결과는 쪽 번호 밑에 줄이 그어지던 오류다) |
 | 머리말·꼬리말을 한/글처럼 첫 문단의 본문 컨트롤(`hp:ctrl`) 한 곳에만 쓴다. 6.x 는 `hp:secPr` 아래에 사본과 `headerApply` 를 하나 더 썼다(OWPML 스키마에 없는 모양, 공개 한/글 저장본 68개에는 없다). 6.x 로 만든 문서는 그 머리말을 다시 설정할 때 사본을 걷어 낸다 | 없음 |

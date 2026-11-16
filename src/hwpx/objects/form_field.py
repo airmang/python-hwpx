@@ -234,6 +234,18 @@ class FormField:
         return self._is_placeholder
 
     @property
+    def filled(self) -> bool:
+        """Whether Hancom marks the field as filled in (``hp:fieldBegin/@dirty``): something was typed
+        or filled into it, so it shows its content rather than its 안내문 (:attr:`prompt`).
+
+        Read from the file as it is now. In the repository's Hancom-saved fixtures the 33 누름틀 holding
+        entered text are ``"1"`` and the 16 showing their 안내문 or nothing are ``"0"``; a fill
+        (``value = ...``, ``doc.fields.fill``) turns it on. A field that does not say reads ``False``,
+        the OWPML schema's default."""
+
+        return (self._element.get("dirty") or "").strip().lower() in ("1", "true")
+
+    @property
     def location(self) -> FieldLocation:
         return self._location
 

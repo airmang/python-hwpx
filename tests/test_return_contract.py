@@ -182,6 +182,8 @@ def test_form_field_has_exactly_the_designed_twelve_attributes() -> None:
         "paragraph",
         "end_location",
         "text_elements",
+        # 7.0 asks4: 한/글이 채워진 누름틀에 적는 dirty (자동화가 .element로 읽던 것)
+        "filled",
     }, members
 
 

@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from ._document_primitives import (
+    SameElement,
     _DEFAULT_PARAGRAPH_ATTRS,
     _HC,
     _HP,
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
     ParagraphObject = Union["HwpxOxmlTable", "HwpxOxmlInlineObject", "HwpxOxmlShape"]
 
 
-class HwpxOxmlInlineObject(ObjectPlacement):
+class HwpxOxmlInlineObject(SameElement, ObjectPlacement):
     """A placed object in a paragraph (picture, equation, chart, OLE, form control...): its attributes,
     placement (:class:`~hwpx.oxml.shape_position.ObjectPlacement`), size and caption."""
 
@@ -1520,7 +1521,7 @@ def _remove_draw_text(host: ET.Element, section: "HwpxOxmlSection") -> bool:
     return True
 
 
-class HwpxOxmlShape(ObjectPlacement):
+class HwpxOxmlShape(SameElement, ObjectPlacement):
     """Wrapper for a drawing shape element (``<hp:line>``, ``<hp:rect>``, ``<hp:ellipse>``, etc.)."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):

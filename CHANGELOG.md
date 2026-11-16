@@ -422,9 +422,21 @@ python-hwpx 7.0을 함께 설치한다.
   줄 바꿈 1). 표 칸 안 문단도 `doc.text.iter_paragraphs()`로 읽는다. 셈법이 확인되지 않은 표시(변경 추적의 시작·끝 등)가 든 문단은
   짐작하지 않고 `None`이다. 공개 표본 250개의 한/글 변환본 문단 192,299개에서 강제 줄 바꿈이 늘 줄 끝에 왔다.
 - `doc.save(path, format="hwpx")`처럼 형식을 밝히면 임시 이름(`out.hwpx.tmp` 등)에도 확장자 경고를 내지 않는다(`.hwp` 이름은 여전히 경고).
+- 같은 요소를 감싼 객체는 같다: 문단·런·표·행·칸·각주/미주·메모·개체·머리말/꼬리말 객체를 `==`로 견주고 dict 키·set 원소로 쓴다.
+  `doc.paragraphs.index(paragraph)`도 된다. 전에는 표·행·런·각주 등을 부를 때마다 다른 객체로 보아 `id(x.element)`로 견줘야 했고,
+  문단은 해시가 없어 dict 키로 쓸 수 없었다.
+- 칸 하나의 테두리·배경을 바꾼다: `cell.border_fill_id_ref = doc.styles.ensure_border_fill(...)`. 문서에 없는 id는 아무것도 바꾸기 전에
+  `table-border-fill-not-found`로 거부하고, 이 칸의 참조만 바뀐다(줄 배치 캐시는 그대로).
+- 표의 제목 줄 반복만 켜고 끈다: `table.repeat_header = True`. 제목 칸(`cell.is_header`)은 그대로다. 한/글이 만든 표도 제목 칸 없이
+  `repeatHeader="1"`을 적는다(`tests/fixtures/hancom_saved/cell_border_2x3_base.hwpx` 등). 바뀌면 표를 담은 문단의 줄 배치 캐시를 지운다.
+- 누름틀에 내용을 넣었는지 읽는다: `field.filled`(`hp:fieldBegin/@dirty`). 한/글 저장본에서 넣은 내용을 보이는 누름틀은 `"1"`,
+  안내문을 보이는 누름틀은 `"0"`이다.
+- 문단의 id를 읽는다: `paragraph.id`(파일에 적힌 대로, 고유 키가 아니다).
 
 ### 고침
 
+- `paragraph.column_break = True`도 `page_break`처럼 그 문단의 줄 배치 캐시를 지운다. 전에는 단이 바뀌어 줄의 세로 자리가
+  달라지는데도 옛 줄 배치를 남겼다.
 - 메모를 한/글 2024 저장본처럼 MEMO 누름틀의 `hp:subList`에만 쓴다. 6.x는 `hp:memogroup`에도 사본을 써서, 한/글이 다시 저장할
   때 그 사본을 버렸고(누름틀의 글은 남는다) 메모를 고치면 두 사본이 어긋났다. `doc.notes.add_memo(..., paragraph=)`·
   `doc.notes.attach`가 메모를 누름틀로 옮기고, 같은 객체가 그 누름틀의 메모가 된다. 문단·표·글상자를 복사하거나 다른 구역으로
