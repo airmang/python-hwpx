@@ -35,10 +35,11 @@ def _format_change_links(doc: "HwpxDocument") -> dict[str, int]:
 
     links: dict[str, int] = {}
     for section in doc.oxml.sections:
-        for element in section.element.iter(f"{_HP}run", f"{_HP}p"):
-            value = element.get("charTcId" if element.tag == f"{_HP}run" else "paraTcId")
-            if value is not None:
-                links[value.strip()] = links.get(value.strip(), 0) + 1
+        for tag, attribute in ((f"{_HP}run", "charTcId"), (f"{_HP}p", "paraTcId")):
+            for element in section.element.iter(tag):
+                value = element.get(attribute)
+                if value is not None:
+                    links[value.strip()] = links.get(value.strip(), 0) + 1
     return links
 
 
