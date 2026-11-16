@@ -407,6 +407,8 @@ python-hwpx 7.0을 함께 설치한다.
   `code="open-safety-failed"`·`suggestion`을 싣는다. `HwpxPackageError`·`HwpxStructureError` 계열(`HwpxArchiveError` 등)과
   `HwpxSecurityError`도 `HwpxError`를 상속해 늘 code를 낸다(`package-invalid`·`open-input-unsafe` 등). 앞에서 잡던 형식으로도 그대로
   잡힌다. `HwpxXmlSyntaxError.code`는 이제 이 code이고 lxml의 숫자는 `lxml_code`에 있다.
+- 한 번도 글을 넣지 않은 칸(한/글이 런 없는 `<hp:p/>`로 저장한 칸) 옆에 `insert_rows`·`insert_columns`로 빈 행·열을 넣거나 그 칸을
+  `split_cell`로 나누면 `XMLSyntaxError`가 나던 문제를 고쳤다.
 - `doc.styles.char_property(id)`·`char_properties`·`run.size` 등이 XML(`.element`)로 더하거나 고친 글자 모양을 저장 전까지 못 보던
   문제를 고쳤다. 이제 읽을 때마다 머리의 현재 상태를 본다(`invalidate_char_property_cache()`를 부를 필요가 없다).
 - `table.set_treat_as_char()`가 표를 품은 문단의 줄 배치 캐시를 지우지 않아, 한/글이 옛 줄 높이로 글을 겹쳐 그릴 수 있던 문제를 고쳤다.
