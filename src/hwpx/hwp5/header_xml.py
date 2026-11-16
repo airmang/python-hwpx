@@ -181,6 +181,10 @@ def fill_brush(parent: etree._Element, fill: di.Fill) -> None:
         )
 
 
+#: The border and fill property bit of the centre line.
+CENTER_LINE = 1 << 13
+
+
 def _border_fill(parent: etree._Element, index: int, bf: di.BorderFill) -> None:
     props = bf.props
     element = sub(
@@ -190,16 +194,19 @@ def _border_fill(parent: etree._Element, index: int, bf: di.BorderFill) -> None:
             ("id", index + 1),
             ("threeD", flag(props & 0x1)),
             ("shadow", flag(props & 0x2)),
-            ("centerLine", "NONE"),
+            # Bit 13 is the centre line; Hancom's conversion writes it VERTICAL.
+            ("centerLine", "VERTICAL" if props & CENTER_LINE else "NONE"),
             ("breakCellSeparateLine", flag(props & (1 << 10))),
         ),
     )
+    # Bits 8-9 are the slash's bend as a number (Hancom writes Crooked 0-3
+    # from them); the back slash keeps none Hancom writes.
     sub(
         element,
         "hh:slash",
         (
             ("type", SLASH.get(_bits(props, 2, 3), "NONE")),
-            ("Crooked", flag(props & (1 << 8))),
+            ("Crooked", _bits(props, 8, 2)),
             ("isCounter", flag(props & (1 << 11))),
         ),
     )
@@ -208,7 +215,7 @@ def _border_fill(parent: etree._Element, index: int, bf: di.BorderFill) -> None:
         "hh:backSlash",
         (
             ("type", SLASH.get(_bits(props, 5, 3), "NONE")),
-            ("Crooked", flag(props & (1 << 9))),
+            ("Crooked", 0),
             ("isCounter", flag(props & (1 << 12))),
         ),
     )
@@ -221,6 +228,41 @@ def _border_fill(parent: etree._Element, index: int, bf: di.BorderFill) -> None:
     fill_brush(element, bf.fill)
 
 
+#: The border and fill id 0 means none: no border, no fill. OWPML has no such
+#: id, so the converted header lists a border and fill of nothing after the
+#: document's own ones and refers to that, the way Hancom's conversion does.
+NO_BORDER_FILL = 0
+
+
+def _blank_border_fill(parent: etree._Element, index: int) -> None:
+    """``hh:borderFill`` that draws nothing, as Hancom writes it for id 0."""
+
+    element = sub(
+        parent,
+        "hh:borderFill",
+        (("id", index), ("threeD", 0), ("shadow", 0), ("centerLine", "NONE"), ("breakCellSeparateLine", 0)),
+    )
+    sub(element, "hh:slash", (("type", "NONE"), ("Crooked", 0), ("isCounter", 0)))
+    sub(element, "hh:backSlash", (("type", "NONE"), ("Crooked", 0), ("isCounter", 0)))
+    for side in ("left", "right", "top", "bottom"):
+        sub(element, f"hh:{side}Border", (("type", "NONE"), ("width", "0.1 mm"), ("color", "#000000")))
+    sub(element, "hh:diagonal", (("type", "SOLID"), ("width", "0.1 mm"), ("color", "#000000")))
+
+
+def blank_border_fill_id(info: di.DocInfo) -> int:
+    """The id the converted header gives the border and fill of nothing."""
+
+    return len(info.border_fills) + 1
+
+
+def header_refers_to_no_border_fill(info: di.DocInfo) -> bool:
+    """Whether a character or paragraph shape of *info* has border and fill 0."""
+
+    return any((cs.border_fill_id or NO_BORDER_FILL) == NO_BORDER_FILL for cs in info.char_shapes) or any(
+        ps.border_fill_id == NO_BORDER_FILL for ps in info.para_shapes
+    )
+
+
 # -- character shapes -------------------------------------------------------------------
 
 
@@ -228,8 +270,9 @@ def _lang_attrs(values: list[int]) -> list[tuple[str, object]]:
     return list(zip(LANG_ATTRS, values))
 
 
-def _char_pr(parent: etree._Element, index: int, cs: di.CharShape) -> None:
+def _char_pr(parent: etree._Element, index: int, cs: di.CharShape, blank: int = NO_BORDER_FILL) -> None:
     props = cs.props
+    border_fill = cs.border_fill_id or NO_BORDER_FILL
     element = sub(
         parent,
         "hh:charPr",
@@ -241,7 +284,7 @@ def _char_pr(parent: etree._Element, index: int, cs: di.CharShape) -> None:
             ("useFontSpace", flag(props & (1 << 25))),
             ("useKerning", flag(props & (1 << 30))),
             ("symMark", token(SYM_MARK, _bits(props, 21, 4))),
-            ("borderFillIDRef", cs.border_fill_id if cs.border_fill_id is not None else 0),
+            ("borderFillIDRef", blank if border_fill == NO_BORDER_FILL else border_fill),
         ),
     )
     sub(element, "hh:fontRef", _lang_attrs(cs.font_ids))
@@ -342,7 +385,7 @@ def _para_head(
         ("numFormat", token(NUMBER_FORMAT, _bits(props, 5, 5))),
         ("charPrIDRef", head.char_shape_id),
         # Hancom reports checkable from bit 5, the low bit of the number format.
-        ("checkable", flag(props & (1 << 5))),
+        ("checkable", flag(props & CHECKABLE)),
     ]
     element = sub(parent, "hh:paraHead", attrs)
     if text is not None:
@@ -360,6 +403,10 @@ def _numbering(parent: etree._Element, index: int, numbering: di.Numbering) -> N
         _para_head(element, di.ParaHead(0, 0, 0, 0), level, 1, None)
 
 
+#: The paragraph head property bit Hancom reports as ``checkable``.
+CHECKABLE = 1 << 5
+
+
 def _bullet(parent: etree._Element, index: int, bullet: di.Bullet) -> None:
     use_image = bool(bullet.image_id)
     element = sub(
@@ -367,7 +414,9 @@ def _bullet(parent: etree._Element, index: int, bullet: di.Bullet) -> None:
         "hh:bullet",
         (("id", index + 1), ("char", chr(bullet.char) if bullet.char else ""), ("useImage", flag(use_image))),
     )
-    if bullet.check_char:
+    # Hancom writes the checked character of a check bullet only (one whose
+    # head is checkable); other bullets keep one in the record that it leaves out.
+    if bullet.check_char and bullet.head.props & CHECKABLE:
         element.set("checkedChar", chr(bullet.check_char))
     if use_image and len(bullet.image_props) >= 4:
         props = bullet.image_props
@@ -426,7 +475,7 @@ def _heading(parent: etree._Element, ps: di.ParaShape) -> None:
         sub(parent, "hh:heading", (("type", token(HEADING, kind)), ("idRef", ps.numbering_id), ("level", level)))
 
 
-def _para_pr(parent: etree._Element, index: int, ps: di.ParaShape) -> None:
+def _para_pr(parent: etree._Element, index: int, ps: di.ParaShape, blank: int = NO_BORDER_FILL) -> None:
     p1 = ps.props1
     p2 = ps.props2 or 0
     element = sub(
@@ -467,7 +516,7 @@ def _para_pr(parent: etree._Element, index: int, ps: di.ParaShape) -> None:
         element,
         "hh:border",
         (
-            ("borderFillIDRef", ps.border_fill_id),
+            ("borderFillIDRef", blank if ps.border_fill_id == NO_BORDER_FILL else ps.border_fill_id),
             ("offsetLeft", offsets[0]),
             ("offsetRight", offsets[1]),
             ("offsetTop", offsets[2]),
@@ -527,7 +576,9 @@ def _record(info: di.DocInfo, tag: int) -> rec.Record | None:
 
 
 #: The OWPML type of each kind of tracked change.
-TRACK_CHANGE_TYPE = {16: "Insert", 17: "Delete", 19: "ParaShape"}
+TRACK_CHANGE_TYPE = {16: "Insert", 17: "Delete", 18: "CharShape", 19: "ParaShape"}
+#: Shape changes name the shape they made in their fourth word, as this attribute.
+TRACK_CHANGE_SHAPE = {18: "charshapeID", 19: "parashapeID"}
 #: A tracked change keeps local (Korean) time; OWPML writes it in UTC.
 TRACK_TIME_OFFSET = timedelta(hours=9)
 
@@ -554,16 +605,16 @@ def _track_changes(refs: etree._Element, changes: list[di.TrackChange], authors:
         items = sub(refs, "hh:trackChanges", (("itemCnt", len(changes)),))
         for index, change in enumerate(changes, 1):
             when = datetime(*change.time) - TRACK_TIME_OFFSET
-            paragraph_shape = change.kind == 19
+            shape = TRACK_CHANGE_SHAPE.get(change.kind)
             attrs: list[tuple[str, object]] = [
                 ("type", TRACK_CHANGE_TYPE[change.kind]),
                 ("date", when.strftime("%Y-%m-%dT%H:%M:%SZ")),
                 ("authorID", change.author),
-                ("hide", 0 if paragraph_shape else flag(change.words[3])),
+                ("hide", 0 if shape else flag(change.words[3])),
                 ("id", index),
             ]
-            if paragraph_shape:
-                attrs.append(("parashapeID", change.words[3]))
+            if shape:
+                attrs.append((shape, change.words[3]))
             sub(items, "hh:trackChange", attrs)
     if authors:
         items = sub(refs, "hh:trackChangeAuthors", (("itemCnt", len(authors)),))
@@ -602,8 +653,10 @@ def build_header(
     *,
     link_doc: bytes | None = None,
     license_mark: tuple[str, int, int] | None = None,
+    blank_border_fill: bool = False,
 ) -> bytes:
-    """``Contents/header.xml`` for *info*."""
+    """``Contents/header.xml`` for *info*; *blank_border_fill* says the
+    sections refer to border and fill 0 (by :func:`blank_border_fill_id`)."""
 
     head = root("hh:head")
     head.set("version", "1.5")
@@ -623,12 +676,16 @@ def build_header(
     )
     refs = sub(head, "hh:refList")
     _fontfaces(refs, info)
-    fills = sub(refs, "hh:borderFills", (("itemCnt", len(info.border_fills)),))
+    blank = blank_border_fill_id(info)
+    with_blank = blank_border_fill or header_refers_to_no_border_fill(info)
+    fills = sub(refs, "hh:borderFills", (("itemCnt", len(info.border_fills) + (1 if with_blank else 0)),))
     for index, bf in enumerate(info.border_fills):
         _border_fill(fills, index, bf)
+    if with_blank:
+        _blank_border_fill(fills, blank)
     chars = sub(refs, "hh:charProperties", (("itemCnt", len(info.char_shapes)),))
     for index, cs in enumerate(info.char_shapes):
-        _char_pr(chars, index, cs)
+        _char_pr(chars, index, cs, blank)
     tabs = sub(refs, "hh:tabProperties", (("itemCnt", len(info.tab_defs)),))
     for index, tab in enumerate(info.tab_defs):
         _tab_pr(tabs, index, tab)
@@ -642,7 +699,7 @@ def build_header(
             _bullet(bullets, index, bullet)
     paras = sub(refs, "hh:paraProperties", (("itemCnt", len(info.para_shapes)),))
     for index, ps in enumerate(info.para_shapes):
-        _para_pr(paras, index, ps)
+        _para_pr(paras, index, ps, blank)
     styles = sub(refs, "hh:styles", (("itemCnt", len(info.styles)),))
     for index, style in enumerate(info.styles):
         _style(styles, index, style)

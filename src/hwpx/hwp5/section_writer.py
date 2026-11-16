@@ -418,6 +418,10 @@ def _object_common(ctrl: str, element: etree._Element) -> ct.ObjectCommon:
 #: Range tag kinds of tracked insertions and deletions, by the element that
 #: begins one; its low 24 bits are the change it belongs to (``TcId``).
 _TRACK_KINDS = {"insertBegin": 16, "deleteBegin": 17}
+#: Range tag kinds of tracked character and paragraph shape changes, which a
+#: run (``charTcId``) and a paragraph (``paraTcId``) name.
+_TRACK_CHAR_SHAPE = 18
+_TRACK_PARA_SHAPE = 19
 #: Elements that mark ranges in the text.
 _RANGE_MARKS = frozenset({"markpenBegin", "markpenEnd", "insertBegin", "insertEnd", "deleteBegin", "deleteEnd"})
 
@@ -566,10 +570,15 @@ class SectionRecords:
         controls: list[list[rec.Record]] = []
         codes: set[int] = set()
         has_secd = has_cold = False
+        # Where each run starts and the tracked change of its character shape
+        # (charTcId) if it names one: the change covers the run.
+        run_changes: list[tuple[int, int | None]] = []
         for run in element:
             if _local(run) != "run":
                 continue
             position = len(units) // 2
+            change = run.get("charTcId")
+            run_changes.append((position, None if change is None else _int(run, "charTcId") & 0xFFFFFF))
             shape_id = _int(run, "charPrIDRef")
             if shapes and shapes[-1][0] == position:
                 shapes[-1] = (position, shape_id)
@@ -679,6 +688,16 @@ class SectionRecords:
             if _local(s) == "lineseg"
         ]
         ranges = highlights.take(count - 1)
+        # Shape changes follow the insertions and deletions, as Hancom lists
+        # them: the runs' character shape changes, then the paragraph's.
+        stops = [start for start, _ in run_changes[1:]] + [count]
+        ranges += [
+            (start, stop, _TRACK_CHAR_SHAPE << 24 | change)
+            for (start, change), stop in zip(run_changes, stops)
+            if change is not None and stop > start
+        ]
+        if element.get("paraTcId") is not None:
+            ranges.append((0, count, _TRACK_PARA_SHAPE << 24 | (_int(element, "paraTcId") & 0xFFFFFF)))
         header = struct.pack(
             "<IIHBBHHHIH",
             count | (0x80000000 if last else 0),
@@ -1653,6 +1672,8 @@ class SectionRecords:
 
     def table(self, element: etree._Element, level: int) -> list[rec.Record]:
         common = _object_common("tbl ", element)
+        comment = _find(element, "shapeComment")
+        common.description = "".join(comment.itertext()) if comment is not None else ""
         out = [rec.Record(rec.CTRL_HEADER, level, common.encode())]
         label = _find(element, "label")
         if label is not None:
