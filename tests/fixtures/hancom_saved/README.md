@@ -59,6 +59,11 @@ flip). `tests/test_turn_text_shapes_and_groups.py` says what each
 shows. The preview image was left out and the metadata listed above emptied; every other part keeps Hangul's
 bytes.
 
+`one_*.hwpx` were made from one-object documents python-hwpx wrote (Hangul's control order changes once an object
+turns, so each document holds one), changed by Hangul in the order their names say (`f`/`v` flip, `30` the object
+dialog's angle, `s` the object properties' width and height) and saved; `tests/test_turn_resize_as_hancom.py`
+builds the same documents and changes them with python-hwpx alone.
+
 ## Adding a file
 
 `formfit_hft_ascii_myeongjo_grid.hwpx` and `formfit_hft_ascii_gothic_grid.hwpx`

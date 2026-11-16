@@ -92,14 +92,24 @@ def test_a_resized_shape_turns_and_fills_its_box(angle: int) -> None:
     assert abs(edge - 4000) < 1.5  # drawn 4000 wide, turned: a rectangle, not a stretched parallelogram
 
 
-def test_a_turned_picture_resizes_and_crops_as_drawn() -> None:
+def test_a_turned_picture_resizes_its_box_and_crops_as_drawn() -> None:
+    # rotate7: Hangul resizes a turned picture's box along the page (scaMatrix L^-1 D L), its turn kept --
+    # tests/test_turn_resize_as_hancom.py compares with the files it saved
     doc = HwpxDocument.new()
     turned = doc.add_picture(PNG, "png", width=6000, height=3000)
     turned.rotation = 45
-    turned.resize(width=3000)
+    box = (turned.width, turned.height)
+    turned.resize(width=3000)  # the box's aspect kept: drawn at half its size, still a rectangle
     assert turned.rotation == 45
-    turned.rotation = 0
-    assert (turned.width, turned.height) == (3000, 1500)
+    assert (turned.width, turned.height) == (3000, round(box[1] * 3000 / box[0]))
+    for call in (lambda: turned.resize(3000, 1000), lambda: setattr(skewed, "rotation", 0)):
+        # resized again turned (drawn at another size already) or turned back once skewed: no Hancom form shown
+        skewed = doc.add_picture(PNG, "png", width=6000, height=3000)
+        skewed.rotation = 45
+        skewed.resize(3000, 1000)
+        with pytest.raises(HwpxValueError) as caught:
+            call()
+        assert caught.value.code == "shape-rotation-unsupported"
     cropped = doc.add_picture(PNG, "png", width=6000, height=3000)
     cropped.rotation = 90
     cropped.crop = (0, 0, 3000, 0)

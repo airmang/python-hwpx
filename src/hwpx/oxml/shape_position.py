@@ -584,10 +584,10 @@ class ObjectPlacement:
         degrees and a flipped ellipse, polygon, line or group turned 30; its box is the box around it so.
 
         Refused with ``shape-rotation-unsupported`` (``context["reason"]`` says why), because no Hancom-saved
-        document shows how Hancom writes them: an object flipped and resized, or another kind of object flipped,
-        or one whose ``hp:flip`` its matrices do not follow; a group holding a turned or flipped member, a flipped
-        group resized, holding a group or flipped both ways; and an object without ``hp:rotationInfo`` (an
-        equation or chart). One member of a
+        document shows how Hancom writes them: a rectangle, ellipse, polygon or line flipped and resized, another
+        kind of object flipped, or one whose ``hp:flip`` its matrices do not follow; an object skewed by resizing it
+        turned; a group holding a turned or flipped member, a resized group turned and flipped; and an object
+        without ``hp:rotationInfo`` (an equation or chart). One member of a
         group alone is refused with ``shape-group-member-unsupported`` (turn the group), an angle that is not
         an int with ``shape-rotation-value``. 0 turns an object back, a group too. The paragraph loses its line
         layout cache.
@@ -635,12 +635,16 @@ class ObjectPlacement:
         object about its middle (``-1, 0, width``); its box, place and text stay (the text is not mirrored). A
         flipped picture resizes (``resize``) as Hancom resizes one: its mirror stays about the middle of its own
         size and its ``hc:scaMatrix`` moves it by what it lost on the flipped axis; turned or flipped afterwards it
-        turns about where it holds its middle (Hancom's numbers). A resized picture flips about the middle it is
-        drawn at. A turned object is mirrored as it is drawn: it is written turned the other way (30 becomes 330) and
+        turns about where it holds its middle (Hancom's numbers). A resized picture, arc or curve flips about the
+        middle it is drawn at. A turned object (flipped or not) resizes its box along the page (see ``resize``). A
+        turned object is mirrored as it is drawn: it is written turned the other way (30 becomes 330) and
         flipped, its box and place unchanged. A flipped object turns (``rotation``): the matrix flips, then turns it.
-        ``False`` flips it back the same way. A group flips (either way or both, turned or not, resized or not) in
-        place about the middle of the size it is drawn at -- a turned group keeps its move, box and centre, as
-        Hancom keeps them, and a group holding a group flips left-right (the group inside marked as a member);
+        ``False`` flips it back the same way; an object whose ``hp:flip`` its matrices do not follow (an arc
+        ``add_arc`` drew at a corner) is mirrored as drawn and written with the flags and angle that mirror is, as
+        Hancom does (flagged both ways, ``flip_horizontal = False``: flags 0, 1 and angle 180). A group flips
+        (either way or both, turned or not, resized or not) in place about the middle of the size it is drawn at --
+        a turned group keeps its move, box and centre, as Hancom keeps them, and a group holding a group flips too
+        (the group inside marked as a member);
         its members keep their own ``hp:flip`` 0 and take the mirror in their ``hc:rotMatrix`` from their own place,
         marked turned by (180 left-right, 0 up-down) less their own and the group's angle (Hancom's marks: 180, 150
         for a group turned 30, 330 up-down turned 30), kept as the group turns. A group flipped one way and
@@ -648,11 +652,9 @@ class ObjectPlacement:
         axis (flipped up-down, Hancom also puts the members' centres at their drawn middles).
 
         Refused with ``shape-flip-unsupported`` (``context["reason"]``) where no Hancom-saved document shows the
-        form: an OLE object, equation or other object; a resized drawing shape; a turned flipped object resized
-        (Hancom resizes its box with a skewing ``scaMatrix``), a group flipped both ways resized, any other flipped
-        object resized, and a flipped picture cut. ``shape-rotation-unsupported``: a group holding a group flipped
-        up-down, turned or resized, a resized group both turned and flipped, and an object whose matrices do not
-        follow its ``hp:flip`` (an arc ``add_arc`` drew at a corner). A member of a group alone is
+        form: an OLE object, equation or other object; a resized rectangle, ellipse, polygon or line; an unturned
+        flipped drawing shape resized; a flipped picture cut. ``shape-rotation-unsupported``: a resized group both
+        turned and flipped, an object skewed by a turned resize turned or flipped again. A member of a group alone is
         ``shape-group-member-unsupported``, a value that is not a bool ``shape-flip-value``. The paragraph loses
         its line layout cache.
         """
@@ -869,7 +871,7 @@ def rotation_base_size(element: Any) -> tuple[int, int]:
     flips = flip_signs(element)
     if flips != (1, 1):
         why = flip_form_refusal(element)
-        if why is None and (scale_x, scale_y) != (1.0, 1.0) and str(element.tag).rsplit("}", 1)[-1] != "pic":
+        if why is None and (scale_x, scale_y) != (1.0, 1.0) and str(element.tag).rsplit("}", 1)[-1] not in STRETCHED_FLIPS:
             # Hancom was seen flipping, turning and resizing a flipped picture only
             why = "it is resized too: no Hancom-saved document shows a resized flipped object other than a picture"
         if why is None and not flipped_form_matches(rendering[2], (_number(info.get("angle")) or 0) % 360, flips):
@@ -1035,6 +1037,9 @@ def flip_signs(element: Any) -> tuple[int, int]:
 #: Drawing shapes Hancom 2024 was seen flipping (and turning flipped, and flipping turned): rectangles (text boxes
 #: included), ellipses, polygons, lines and groups.
 FLIPPED_KINDS = frozenset({"rect", "ellipse", "polygon", "line", "arc", "curve", "pic", "container"})
+#: Objects Hancom 2024 was seen flipping after they were resized (drawn at another size through ``scaMatrix``):
+#: pictures (rotate6) and arcs and curves (rotate7 a-S-f, c-S-f); it flips them about the middle they are drawn at.
+STRETCHED_FLIPS = frozenset({"pic", "arc", "curve"})
 
 
 def _flip_refused(element: Any, why: str) -> HwpxValueError:
@@ -1042,10 +1047,9 @@ def _flip_refused(element: Any, why: str) -> HwpxValueError:
         f"hp:{str(element.tag).rsplit('}', 1)[-1]} cannot be flipped: {why}",
         code="shape-flip-unsupported",
         context={"reason": why},
-        suggestion="Rectangles, text boxes, ellipses, polygons, lines, arcs, curves, pictures (resized too) and "
-                   "whole groups flip either way or both, turned or not; an unturned flipped picture and an "
-                   "unturned group flipped one way resize. A resized drawing shape does not flip, a group holding "
-                   "a group flips left-right only; flip any other object back before resizing it.",
+        suggestion="Rectangles, text boxes, ellipses, polygons, lines, arcs, curves (resized arcs and curves too), "
+                   "pictures (resized too) and whole groups flip either way or both, turned or not. A resized "
+                   "rectangle, ellipse, polygon or line does not flip.",
     )
 
 
@@ -1102,11 +1106,27 @@ def set_flip(obj: Any, axis: int, flipped: object) -> None:
         # group turns afterwards. A group flipped back to neither way gets its members' 0 back.
         turn_group(element, angle, flips=wanted, member_flip=(axis, turned))
     else:
+        flagged_only = _flagged_only(element, flips, turned)
+        if flagged_only is not None:
+            # hp:flip set but matrices left plain (add_arc's corner arcs): Hancom's flip mirrors the object as it is
+            # drawn -- its rotMatrix the mirror about its middle -- and writes the flags and the angle the mirror
+            # then is (a corner arc flagged both ways, flipped left-right: flags 0,1, angle 180; rotate7 ac-f, ac-v)
+            mirror = (-1, 1) if axis == 0 else (1, -1)
+            r00, r10 = mirror[0] * wanted[0], 0.0  # R(angle) = mirror . diag(wanted)
+            angle = round(math.degrees(math.atan2(r10, r00))) % 360
+            flip.set("horizontal", "1" if wanted[0] == -1 else "0")
+            flip.set("vertical", "1" if wanted[1] == -1 else "0")
+            apply_rotation(element, angle, *flagged_only)
+            from ._document_primitives import _clear_paragraph_layout_cache
+
+            _clear_paragraph_layout_cache(obj.paragraph.element)
+            obj.paragraph.section.mark_dirty()
+            return
         try:
             width, height = rotation_base_size(element)
         except HwpxValueError as refused:
             raise _flip_refused(element, str(refused.context.get("reason") or refused)) from None
-        if _drawn_scale(element.find(f"{_HP}renderingInfo")[1]) != (1.0, 1.0) and kind != "pic":
+        if _drawn_scale(element.find(f"{_HP}renderingInfo")[1]) != (1.0, 1.0) and kind not in STRETCHED_FLIPS:
             # a picture resized and then flipped mirrors about the middle it is drawn at (Hancom's form)
             raise _flip_refused(element, "it is resized: no Hancom-saved document shows a resized object other "
                                          "than a picture flipped")
@@ -1119,27 +1139,99 @@ def set_flip(obj: Any, axis: int, flipped: object) -> None:
     obj.paragraph.section.mark_dirty()
 
 
-def refuse_resizing_flipped(element: Any) -> None:
-    """Refuse (``shape-flip-unsupported``) to resize or cut a flipped object: its mirror is about its middle, and
-    the Hancom-saved documents show only an unturned flipped picture resized (``resize_object`` writes that)."""
+def _flagged_only(element: Any, flips: tuple[int, int], turned: int) -> tuple[int, int] | None:
+    """The drawn size of an unturned object whose ``hp:flip`` is set while its matrices are plain (its rotMatrix
+    does not mirror it), or ``None``."""
+
+    if flips == (1, 1) or turned:
+        return None
+    rendering = element.find(f"{_HP}renderingInfo")
+    if rendering is None or [str(child.tag).rsplit("}", 1)[-1] for child in rendering] != [
+            "transMatrix", "scaMatrix", "rotMatrix"]:
+        return None
+    if any(abs(value - plain) > 1e-3 for value, plain in zip(_matrix_values(rendering[2]), (1, 0, 0, 0, 1, 0))):
+        return None
+    scale_x, scale_y = _drawn_scale(rendering[1])
+    original = element.find(f"{_HP}orgSz")
+    if original is None or scale_x <= 0 or scale_y <= 0:
+        return None
+    width = round((_number(original.get("width")) or 0) * scale_x)
+    height = round((_number(original.get("height")) or 0) * scale_y)
+    return (width, height) if width > 0 and height > 0 else None
+
+
+def refuse_resizing_flipped(element: Any, *, cutting: bool = False) -> None:
+    """Refuse (``shape-flip-unsupported``) to resize (or, *cutting*, to crop) a flipped object where no Hancom-saved
+    document shows the form: a turned flipped object resizes (its box stretched along the page, see
+    :func:`resize_turned_object` and ``resize_turned_group``), an unturned flipped picture and an unturned group
+    flipped one way or both too; an unturned flipped drawing shape does not, nor is a flipped picture cut."""
 
     flips = flip_signs(element)
     if flips == (1, 1):
         return
-    if str(element.tag).rsplit("}", 1)[-1] == "container" and flips in ((-1, 1), (1, -1)):
-        info = element.find(f"{_HP}rotationInfo")
+    kind = str(element.tag).rsplit("}", 1)[-1]
+    info = element.find(f"{_HP}rotationInfo")
+    turned = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    if not cutting:
+        if turned:
+            return  # stretched along the page with its flip, as Hancom resizes a turned flipped object's box
         nested = any(str(child.tag).rsplit("}", 1)[-1] == "container" for child in element)
-        if not ((_number(info.get("angle")) or 0) % 360 if info is not None else 0) and not nested:
-            return  # a group flipped left-right, unturned: resize_group writes Hancom's form (shift_flipped_group)
-    why = ("it is flipped: no Hancom-saved document shows it resized or cut so (Hancom resizes a turned object's "
-           "box, not its own size); flip it back first")
+        if kind == "container" and not nested:
+            return  # resize_group writes Hancom's form (shift_flipped_group)
+    why = ("it is flipped: no Hancom-saved document shows it " + ("cut" if cutting else "resized")
+           + " so; flip it back first")
     raise HwpxValueError(
-        f"hp:{str(element.tag).rsplit('}', 1)[-1]} cannot be resized or cut: {why}",
+        f"hp:{kind} cannot be {'cut' if cutting else 'resized'}: {why}",
         code="shape-flip-unsupported",
         context={"reason": why},
-        suggestion="An unturned flipped picture resizes, and a group flipped left-right and unturned; flip any "
-                   "other flipped object back before resizing or cutting it.",
+        suggestion="A turned flipped object, an unturned flipped picture and an unturned flipped group resize; "
+                   "flip an unturned drawing shape back before resizing it, and a picture before cutting it.",
     )
+
+
+def resize_turned_object(obj: Any, width: int | None, height: int | None) -> None:
+    """Resize a turned picture or drawing shape (flipped or not) so the box around it (``hp:sz``) is *width* x
+    *height* (one alone keeps the box's aspect ratio), as Hancom 2024 resizes one through its object properties:
+    its turn, flip and move stay (``rotMatrix``, ``transMatrix``, ``hp:offset``) and it is stretched along the
+    page's axes (:func:`stretch_along_page`: ``scaMatrix`` = ``L^-1 D L`` moved by ``L^-1 (D - I) t``, ``curSz``
+    ``orgSz`` times its diagonal), its ``rotationInfo`` centre the middle of the new box. Hancom wrote exactly this
+    for a picture and a text box turned 30 degrees, flipped or not, resized to 18000 x 6000 and 12000 x 12000
+    (rotate7 evidence). Refused (``shape-rotation-unsupported``) for an object already drawn at another size or
+    skewed: no Hancom-saved document shows one resized turned."""
+
+    element = obj.element
+    rendering = element.find(f"{_HP}renderingInfo")
+    if rendering is None or [str(child.tag).rsplit("}", 1)[-1] for child in rendering] != [
+            "transMatrix", "scaMatrix", "rotMatrix"] or any(
+            abs(value - plain) > 1e-3 for value, plain in zip(_matrix_values(rendering[1]), (1, 0, 0, 0, 1, 0))):
+        raise _rotation_refused(element, "it is drawn at another size or skewed: no Hancom-saved document shows "
+                                         "one resized turned; turn it back to 0 first")
+    old = object_size(element)
+    if min(old) <= 0:
+        raise _rotation_refused(element, "it has no size")
+    width, height = keep_ratio(old, width, height)
+    stretch_along_page(element, (width / old[0], height / old[1]))
+    _set_size(element, "sz", width, height)
+    info = element.find(f"{_HP}rotationInfo")
+    if info is not None:
+        info.set("centerX", str(width // 2))
+        info.set("centerY", str(height // 2))
+    set_text_width(element, width)  # its text across the new box (r-30-S: lastWidth 18000, 12000)
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(obj.paragraph.element)
+    obj.paragraph.section.mark_dirty()
+
+
+def scale_member_text_widths(group: Any, factor: float) -> None:
+    """After a turned group is stretched along the page by *factor* across: each member's text is laid out across
+    its turned box that much wider, as Hancom writes it (a text box member 10294 wide: 15105 at 1.46735, 10070 at
+    0.97823 -- rotate7 g-f-30-S, g-v-30-S, g-30-f-S2)."""
+
+    for member, _ in _group_members(group, 1):
+        draw_text = member.find(f"{_HP}drawText")
+        if draw_text is not None:
+            set_text_width(member, _half_up((_number(draw_text.get("lastWidth")) or 0) * factor))
 
 
 def shift_flipped_group(element: Any, sizes: tuple[int, int], width: int, height: int) -> None:
@@ -1151,12 +1243,19 @@ def shift_flipped_group(element: Any, sizes: tuple[int, int], width: int, height
     flips = flip_signs(element)
     if flips == (1, 1):
         return
-    key, gained = ("e3", sizes[0] - width) if flips[0] == -1 else ("e6", sizes[1] - height)  # up-down: e6
+    moves = [(key, gained) for key, gained, flipped in (("e3", sizes[0] - width, flips[0] == -1),
+                                                        ("e6", sizes[1] - height, flips[1] == -1)) if flipped]
     for node in [element, *(member for member, _ in _group_members(element, 1))]:
         scales = node.findall(f"{_HP}renderingInfo/{_HC}scaMatrix")
-        if scales:
+        for key, gained in moves if scales else ():
             scales[0].set(key, _matrix_number(_fraction(scales[0].get(key), 0.0) + gained))
-        if flips[1] == -1 and node is not element:
+        if flips == (-1, -1) and node is not element and node.find(f"{_HP}drawText") is not None and scales:
+            # flipped both ways, Hancom lays a member's text across the width it is drawn at (9000 at 1.5: 13500)
+            # and leaves the centres (rotate7 g-fv-S)
+            own = node.find(f"{_HP}orgSz")
+            if own is not None:
+                set_text_width(node, _half_up((_number(own.get("width")) or 0) * _matrix_values(scales[0])[0]))
+        if flips == (1, -1) and node is not element:
             # flipped up-down, Hancom also puts each member's centre in the middle of the size it is drawn at (a
             # 6000 x 6000 member drawn 9000 x 9000: 4500); flipped left-right it leaves them (group-f-S vs group-v-S)
             own, scale = node.find(f"{_HP}orgSz"), _matrix_values(scales[0]) if scales else None
@@ -1294,8 +1393,8 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
     """Resize a placed object (picture, OLE, chart, equation) to *width* x *height* (one alone keeps the
     aspect ratio), as Hancom stores a resized one: ``hp:sz`` and ``hp:curSz`` take the new size, the
     original size (``hp:orgSz``) and the geometry in it stay, and ``hc:scaMatrix`` scales between them.
-    A turned object is resized as drawn before turning and turned again (see :func:`rotation_base_size`):
-    its ``hp:sz`` is the box around it turned at the new size. An unturned flipped picture keeps its mirror about
+    A turned object takes *width* x *height* as the box around it, stretched along the page with its turn and
+    flip kept (:func:`resize_turned_object`), as Hancom resizes one. An unturned flipped picture keeps its mirror about
     the middle of its own size, its ``hc:scaMatrix`` moving it by what it lost on the flipped axis, as Hancom
     resizes one; any other flipped object is refused (``shape-flip-unsupported``)."""
 
@@ -1311,10 +1410,13 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
         )
     info = element.find(f"{_HP}rotationInfo")
     angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    if angle:  # its box, stretched along the page, as Hancom resizes a turned picture
+        resize_turned_object(obj, width, height)
+        return
     flips = flip_signs(element)
-    if flips != (1, 1) and (str(element.tag).rsplit("}", 1)[-1] != "pic" or angle):
-        refuse_resizing_flipped(element)  # Hancom was seen resizing a flipped picture, unturned, only
-    width, height = keep_ratio(rotation_base_size(element) if angle else object_size(element), width, height)
+    if flips != (1, 1) and str(element.tag).rsplit("}", 1)[-1] != "pic":
+        refuse_resizing_flipped(element)  # an unturned flipped picture: below, as Hancom resizes one
+    width, height = keep_ratio(object_size(element), width, height)
     if not angle:
         _set_size(element, "sz", width, height)
     original = element.find(f"{_HP}orgSz")
@@ -1350,15 +1452,17 @@ def resize_shape(obj: Any, width: int | None, height: int | None) -> None:
     on one that does not, the scale the new size over ``orgSz``, the rotation centre the middle of the new
     size (objlim evidence psizerect 8000x5000 -> 12000x5000: curSz 12000x0, e1 1.5; psizerect2 -> 4000x10000;
     psizerect3 twice, the scale over ``orgSz``; psizeline a horizontal line 14400x0 -> 14400x2000: orgSz
-    14400x1 kept, e5 2000, and 7200x3000). A turned shape is resized as drawn before turning and turned again
-    (:func:`apply_rotation`), as :func:`resize_object` does a picture."""
+    14400x1 kept, e5 2000, and 7200x3000). A turned shape takes *width* x *height* as the box around it, stretched
+    along the page (:func:`resize_turned_object`), as Hancom resizes one."""
 
     element = obj.element
     info = element.find(f"{_HP}rotationInfo")
     angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
-    width, height = keep_ratio(rotation_base_size(element) if angle else object_size(element), width, height)
-    if not angle:
-        _set_size(element, "sz", width, height)
+    if angle:  # its box, stretched along the page, as Hancom resizes a turned shape (rotate7 r-30-S)
+        resize_turned_object(obj, width, height)
+        return
+    width, height = keep_ratio(object_size(element), width, height)
+    _set_size(element, "sz", width, height)
     original = element.find(f"{_HP}orgSz")
     org = (_number(original.get("width")) or 0, _number(original.get("height")) or 0) \
         if original is not None else (0, 0)
@@ -1449,6 +1553,7 @@ def resize_turned_group(shape: Any, width: int, height: int, *,
     for node in shapes:
         stretch_along_page(node, factors, linear(node) if linear is not None else None)
     _set_size(element, "sz", width, height)
+    scale_member_text_widths(element, factors[0])
     from ._document_primitives import _clear_paragraph_layout_cache
 
     _clear_paragraph_layout_cache(shape.paragraph.element)
@@ -1493,7 +1598,7 @@ def set_picture_crop(obj: Any, crop: tuple[int, int, int, int] | None) -> None:
             suggestion="Only a picture that records its whole image size (hp:imgDim) can be cropped.",
         )
     left, top, right, bottom = validate_picture_crop(crop, *whole)
-    refuse_resizing_flipped(element)
+    refuse_resizing_flipped(element, cutting=True)
     info = element.find(f"{_HP}rotationInfo")
     angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
     if angle:

@@ -254,14 +254,16 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
     resized_rect = doc.add_paragraph("").add_rectangle(8000, 4000)
     resized_rect.element.find(f"{HP}renderingInfo/{HC}scaMatrix").set("e1", "0.5")  # drawn at half its width
     resized_rect.element.find(f"{HP}curSz").set("width", "4000")
+    turned_picture.resize(3000, 1500)  # rotate7: its box stretched along the page (p-f-30-S)
+    both_ways_group.resize(18000, 4000)  # rotate7 g-fv-S
+    nested.flip_vertical = True  # rotate7 n-v
+    nested.flip_vertical = False
     for call, code, says in (
-        (lambda: turned_picture.resize(3000, 1500), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(picture, "crop", (0, 0, 1000, 0)), "shape-flip-unsupported", "flip it back first"),
-        (lambda: both_ways_group.resize(18000, 4000), "shape-flip-unsupported", "flip it back first"),  # unseen
         (lambda: flipped.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(resized_rect, "flip_horizontal", True), "shape-flip-unsupported", "resized"),
         (lambda: setattr(resized_group, "flip_horizontal", True), "shape-rotation-unsupported", "resized, turned"),
-        (lambda: setattr(nested, "flip_vertical", True), "shape-rotation-unsupported", "holds a group"),
+        (lambda: setattr(turned_picture, "rotation", 0), "shape-rotation-unsupported", "more than scale"),
         (lambda: setattr(nested.members[0], "flip_horizontal", True), "shape-group-member-unsupported", "group"),
         (lambda: setattr(flipped, "flip_horizontal", 1), "shape-flip-value", "True or False"),
     ):

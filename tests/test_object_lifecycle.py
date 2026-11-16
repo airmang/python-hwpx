@@ -358,25 +358,24 @@ def test_a_shape_holding_text_turns_like_one_without() -> None:
     assert box.element.find(f"{HP}drawText").get("lastWidth") == "8000"
 
 
-def test_resize_and_turn_in_either_order_give_the_same_shape() -> None:
+def test_resize_then_turn_turns_as_drawn_and_turn_then_resize_stretches_the_box() -> None:
+    # rotate7: as Hangul 2024 does -- a resized shape turns as drawn; a turned one takes the new size as the box
+    # around it, stretched along the page with its turn kept (r-30-S, p-30-S)
     doc = HwpxDocument.new()
-    first = doc.add_paragraph("").add_rectangle(8000, 3000)
-    second = doc.add_paragraph("").add_rectangle(8000, 3000)
-    first.resize(width=4000)
-    first.rotation = 30
-    second.rotation = 30
-    second.resize(width=4000)
-    assert _turn_record(first.element) == _turn_record(second.element)
-    turned_first = doc.add_picture(PNG, "png", width=6000, height=3000)
-    stretched_first = doc.add_picture(PNG, "png", width=6000, height=3000)
-    turned_first.rotation = 30
-    turned_first.resize(width=3000)  # a turned picture resizes as drawn and turns again
-    stretched_first.resize(width=3000)
-    stretched_first.rotation = 30  # a stretched picture turns as drawn
-    assert _turn_record(turned_first.element) == _turn_record(stretched_first.element)
-    assert turned_first.rotation == 30
-    turned_first.rotation = 0
-    assert (turned_first.width, turned_first.height) == (3000, 1500)
+    for make in (lambda: doc.add_paragraph("").add_rectangle(8000, 3000),
+                 lambda: doc.add_picture(PNG, "png", width=8000, height=3000)):
+        stretched = make()
+        stretched.resize(width=4000)
+        stretched.rotation = 30
+        assert stretched.rotation == 30 and stretched.width > 4000  # the box around 4000 x 1500 turned
+        turned = make()
+        turned.rotation = 30
+        before = _turn_record(turned.element)
+        turned.resize(width=4000)
+        assert turned.rotation == 30 and turned.width == 4000  # the box itself
+        after = _turn_record(turned.element)
+        assert all(after[f"rotMatrix.e{i}"] == before[f"rotMatrix.e{i}"] for i in range(1, 7))  # its turn kept
+        assert (after["transMatrix.e3"], after["transMatrix.e6"]) == (before["transMatrix.e3"], before["transMatrix.e6"])
 
 
 def test_z_order_and_rotation_read_and_write() -> None:
