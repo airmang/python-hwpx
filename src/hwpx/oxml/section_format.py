@@ -610,6 +610,15 @@ class HwpxOxmlSectionProperties:
 
     # -- numbering ----------------------------------------------------------
     @property
+    def outline_shape_id_ref(self) -> str | None:
+        """The id of the numbering this section draws its outline numbers with (개요 번호 모양,
+        ``outlineShapeIDRef``) as written, ``None`` when the section names none. Read the
+        definition with ``doc.styles.numbering(id)``; change a level with
+        ``doc.styles.set_numbering_level(id, level, text=...)``."""
+        value = (self.element.get("outlineShapeIDRef") or "").strip()
+        return value or None
+
+    @property
     def start_numbers(self) -> StartNumbers:
         """Where the section's counts start (``hp:startNum``): pages, pictures, tables and
         equations, and the kind of page the section starts on; 0 goes on from the section

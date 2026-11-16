@@ -360,7 +360,7 @@ README_REWRITE_PENDING = {"README.md", "README_EN.md"}
 
 
 def test_recommended_manuals_do_not_teach_legacy_document_paths() -> None:
-    from hwpx._document._legacy import _LegacyFacade
+    from hwpx._document._legacy import REMOVED_NAMES
 
     offenders = []
     for document, ordinal, tree in _parsed_fences():
@@ -370,7 +370,7 @@ def test_recommended_manuals_do_not_teach_legacy_document_paths() -> None:
             if (isinstance(node, ast.Attribute)
                     and isinstance(node.value, ast.Name)
                     and node.value.id in {"doc", "document"}
-                    and node.attr in vars(_LegacyFacade)):
+                    and node.attr in REMOVED_NAMES):
                 offenders.append(f"{document}#{ordinal}: {node.attr}")
     assert not offenders, "deprecated recommendations: " + ", ".join(offenders)
 

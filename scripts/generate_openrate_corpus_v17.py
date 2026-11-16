@@ -237,12 +237,12 @@ def gen_master_page(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "바탕쪽 저작 표본")
 
             if idx == 4:
-                paragraphs = [f"{cycle(DEPT_BANK, idx)} 회사명", "기밀문서"]
                 master_page_id = document.parts.add_master_page(
-                    paragraphs=paragraphs, page_type=page_type,
+                    text=f"{cycle(DEPT_BANK, idx)} 회사명", page_type=page_type,
                     page_number=page_number, page_duplicate=page_duplicate,
                     page_front=page_front,
                 )
+                master_page_id.add_paragraph("기밀문서")  # 7.0: paragraphs=[...] is gone
                 # a second master page to prove the part-index
                 # auto-increment produces a document Hancom still accepts.
                 document.parts.add_master_page(text="둘째 바탕쪽")

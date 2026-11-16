@@ -82,17 +82,3 @@ def moved_method_error(path: str, name: str) -> HwpxError | None:
     if f"{path}.{name}" not in MOVED_METHODS:
         return None
     return _removed_name_error(path, name)
-
-
-class _LegacyFacade:
-    """지운 루트 이름의 목록을 클래스 꼴로 한 번 더 보인다(``HwpxDocument`` 는 상속하지 않는다).
-
-    ``tests/test_documentation_code_fences.py``·``tests/test_llms_txt.py`` 가 ``vars(_LegacyFacade)`` 로
-    "문서가 옛 이름을 가르치지 않는가"를 검사한다. 값은 :data:`REMOVED_NAMES` 의 항목이다 — 부를 수
-    있는 것은 없다.
-    """
-
-
-for _name, _entry in REMOVED_NAMES.items():
-    setattr(_LegacyFacade, _name, _entry)
-del _name, _entry

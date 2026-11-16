@@ -4,239 +4,409 @@
 
 ## [Unreleased]
 
+7.0은 python-hwpx를 한/글 문서를 위한 파이썬 기본 엔진으로 정리한 판입니다. 엔진은 같은 파일이면 같은 결과를 내고, 파일에 적힌
+대로만 읽고 쓰며, 한/글 근거가 없는 쓰기는 하지 않고 거부합니다. 변환·짐작·취향·미리보기·AI 연동(Markdown·HTML, 양식 칸 찾기,
+메일 머지, ingest, LangChain·LlamaIndex, 서식 규칙 검사)은 python-hwpx-automation 8.0으로 옮겼습니다. 공개 이름은 한 가지 규칙으로
+맞춰 `tests/data/public_surface.json`으로 고정했고, 6.x 이름을 부르면 새 이름을 알려 주는 오류가 납니다. 그 대신 표·개체·서식·누름틀·
+각주·차례·상호 참조·변경 추적처럼 XML을 직접 고쳐야 하던 일을 한/글 저장본을 근거로 공개 API로 열었습니다. 올리기 전에 7.0 이주
+가이드(`docs/migration-7.0.md`)를 보세요.
+
+### 깨지는 변경
+
+#### 저장
+
+- 저장을 `doc.save(target)` 하나로 모았다. `doc.save_to_path(path)`는 `doc.save(path)`, `doc.save_to_stream(stream)`은
+  `doc.save(stream)`, `doc.save_report(target, quality=q)`는 `doc.save(target, quality=q)`, `HwpxDocument.from_package(pkg)`는
+  `HwpxDocument.open(pkg)`이다. `save()`는 늘 `MutationReport`를 돌려준다(저장한 경로는 `report.path`, 품질 보고는
+  `report.quality`). `return_report=`는 없어졌고, 품질 게이트 실패는 `SaveError`(`quality-gate-failed`)의 `.report`에 있다.
+- `.hwp`로 쓰기는 실험 기능이다. `.hwp`에서 연 문서를 그 원본 경로에 `.hwp`로 저장하면 `Hwp5Error`(`hwp5-overwrite-source`),
+  열 때 옮기지 못한 내용이 있는 문서(`conversion_report`가 비어 있지 않음)를 `.hwp`로 쓰면 `Hwp5Error`(`hwp5-write-lossy-source`)로
+  거부한다. 두 경우 모두 `.hwpx`로는 저장된다. 처음 `.hwp`로 저장할 때 실험 기능이라고 한 번 알린다.
+- `doc.save(path, mode="fast")`처럼 없는 `mode`나 `fallback`은 거부한다. `.hwpx`도 `.hwp`도 아닌 이름으로 저장하면 경고한다.
+
+#### 이름 규칙
+
+- 7.0이 마지막 이름 변경이다. 공개 이름(최상위·루트·묶음·`hwpx.model`·`hwpx.objects`·안정 모듈)은 다음 major까지 바뀌지 않는다.
+  6.x 이름을 부르면 `HwpxAttributeError`(`document-name-removed`)나 `HwpxTypeError`(`hwpx-argument-removed`)가 새 이름과 한 줄
+  예를 알려 준다. `hasattr`는 `False`다.
+- 6.0이 묶음(`doc.styles`·`doc.page` …)으로 옮기고 경고와 함께 남겨 둔 루트 이름 79개를 지웠다(예: `doc.set_header_text(...)` →
+  `doc.page.set_header(text=...)`). 6.0이 예고한 `section_index=`(→ `section=`)와 `style_id_ref=`(→ `style=`, 스타일의 문단·글자
+  모양까지 적용)도 지웠다. 스타일 번호만 붙이려면 `paragraph.style_id_ref = 2`라고 쓴다.
+- `from hwpx import`로 가져오던 실험 기능 26개는 `from hwpx.experimental import ...`로 가져온다. 수식 변환(`latex_to_eqedit`·
+  `estimate_equation_size`·`UnsupportedLatexError`)은 안정 계약이 되어 `from hwpx.equation import ...`로 가져온다.
+- 이름에 줄임말과 XML 이름을 쓰지 않는다: `row_index=`·`col_index=` → `row=`·`col=`, `binary_item_id_ref` → `item_id`,
+  `align=` → `alignment=`, `full_sz` → `full_size`, `horz_rel_to=` → `horizontal_relative_to=`.
+- 길이 단위는 이름에 붙인다: 선 굵기 `line_width='33'` → `line_width_mm=0.12`, 수식 `base_unit=1100` → `font_size=11.0`(pt),
+  `size=(w, h)` → `width=w, height=h`.
+- 인자 없는 읽기는 속성이고 `get_`을 붙이지 않는다: `table.get_cell_map()` → `table.cell_map`, `run.content_kinds()` →
+  `run.content_kinds`, `RunStyle.is_superscript()` → `superscript`(`text_color()` → `color`), `properties.get_header()` →
+  `properties.header()`.
+- `add_<종류>`는 읽을 때와 같은 객체를 돌려준다: `add_bookmark` → `Bookmark`, `add_hyperlink` → `Hyperlink`, `add_picture` →
+  `Picture`, `add_equation` → `Equation`. `paragraph.add_new_num()`은 `add_number_restart()`다.
+- 문단을 담는 그릇(문서·구역·표 칸·각주·머리말·바탕쪽)의 `add_paragraph`는 모두 `text`와 `style=`·`para_pr_id_ref=`·
+  `char_pr_id_ref=`를 같은 이름으로 받는다. `run_attributes=`·`inherit_outline=`·XML 속성 키워드(`pageBreak="1"`)와 머리말의
+  `align=`은 없어졌다. 돌려받은 객체의 속성으로 쓴다(`p.page_break = True`, `p.alignment = "CENTER"`).
+- 한 가지 일은 한 곳에서 한다: `paragraph.add_tracked_insert()`·`add_tracked_delete()` → `doc.tracking.insert()`·`delete()`,
+  `obj.get_attribute(name)` → `obj.attributes.get(name)`.
+- 바뀐 이름 전체는 이주 가이드의 "이름 규칙과 바뀐 이름" 절에 있다.
+
+#### 묶음(`doc.*`)
+
+- 문서 전체를 차례로 훑는 메서드는 `iter_`로 시작한다: `doc.text.runs()`·`blocks()` → `iter_runs()`·`iter_blocks()`(7.0 개발
+  중의 `paragraphs()`·`objects()`는 `iter_paragraphs()`·`iter_objects()`). `doc.styles.names()`·`doc.text.highlights()`는 속성이다.
+- 선 굵기는 mm 숫자다: `doc.shapes.add_line`·`add_rectangle`·`add_ellipse`·`add_arc`·`add_polygon`·`add_curve`·`add_connector`의
+  `line_width='33'` → `line_width_mm=0.12`, `doc.styles.ensure_border_fill`·`apply_paragraph_format`의 `border_width='0.12 mm'` →
+  `border_width_mm=0.12`, `doc.page.set_columns(separator_width=)` → `separator_width_mm=`. 테두리·단 구분선은 한/글 굵기 목록의
+  가장 가까운 값으로 쓴다.
+- 문단은 `paragraph=`(하나)·`paragraphs=`(여럿)로 가리키고 번호와 문단 객체를 모두 받는다: `doc.styles.apply_paragraph_format`·
+  `apply_list_format`의 `paragraph_index=`·`paragraph_indexes=`, `doc.notes.add_memo(anchor=)`(`anchor_char_pr_id_ref=` →
+  `paragraph_char_pr_id_ref=`). `doc.notes.add_footnote(text, p)`·`add_endnote(text, p)`는 `paragraph=p`로 부른다.
+- 머리(`header.xml`) 정의를 가리키는 인자는 `…_id_ref`다: `ensure_run(base_char_pr_id=)`, `ensure_paragraph_format(base_para_pr_id=)`,
+  `ensure_border_fill(base_border_fill_id=)`, `doc.parts.set_paragraph_auto_spacing(para_pr_id=)`. 그림 데이터는 `item_id`다:
+  `ensure_font(binary_item_id_ref=, subst_binary_item_id_ref=)` → `item_id=`·`subst_item_id=`,
+  `doc.media.replace_picture(picture_index=, binary_item_id_ref=)` → `index=`·`old_item_id=`. 줄 간격은 `line_spacing=` 하나다
+  (`ensure_paragraph_format`·`apply_paragraph_format`의 `line_spacing_percent=`).
+- 그 밖의 이름: `doc.page.restart_page_number()`·`hide_page_elements()` → `add_number_restart()`(→ `NumberRestart`)·`add_page_hiding()`
+  (→ `PageHiding`), `set_page_number(align=)` → `alignment=`, `doc.shapes.add_dutmal(main_text, sub_text, pos_type=, align=,
+  sz_ratio=)` → `add_ruby(text, ruby_text, position=, alignment=, size_ratio=)`(→ `Ruby`), `add_composed_character(compose_text,
+  circle_type=, char_sz=, compose_type=)` → `add_composed_character(text, frame=, inner_size=, arrangement=)`(→ `ComposedCharacter`),
+  `add_drop_cap(style=)` → `kind=`, `add_equation(base_unit=1100, size=(w, h))` → `font_size=11.0, width=w, height=h`,
+  `add_chart(size=)` → `width=`·`height=`, `doc.fields.fill(field_index=, fit_policy=)` → `index=`·`fit=`,
+  `doc.tracking.add_change(author_name=)` → `author=`.
+- 하나로 합쳤다: `doc.styles.border_fill_info(id)` → `border_fill(id)`, `doc.parts.set_compatible_document_target_program`·
+  `set_layout_compatibility_flags`·`set_doc_option_link_info`·`set_license_mark` → `set_document_options(target_program=,
+  layout_compatibility=, link_path=, page_inherit=, footnote_inherit=, license_type=, license_flag=, license_lang=)`(→ 읽기와 같은
+  `DocumentOptions`), `doc.media.picture_references()` → `doc.media.pictures`. 7.0 개발 중의 `doc.styles.numbering_info(id)`는
+  `numbering(id)`다.
+- `doc.parts.add_master_page(...)`는 id 대신 `MasterPage`를 돌려주고(id는 `.id`), `paragraphs=[...]`는 없어졌다
+  (`mp.add_paragraph(...)`). `doc.page.set_master_page`·`doc.parts.remove_master_page`는 `MasterPage`도 받는다. 7.0 개발 중의
+  `doc.page.remove_master_page(id)`(구역과의 연결 끊기)는 `remove_master_page_reference(id)`다.
+- 반환 형식: `doc.styles.border_fill(id)`·`border_fills`는 `BorderFillInfo`를, `numbering(id)`·`numberings`는 `NumberingInfo`를
+  돌려준다(전: XML 요소). `doc.tracking.changes`는 id를 키로 한 dict가 아니라 문서 순서의 `TrackedChange` tuple이고,
+  `change(id)`도 `TrackedChange`(`change_id`·`kind`·`author`·`date`·`paragraph`)다. `doc.tables.all`·`doc.tables[a:b]`,
+  `doc.text.find_runs()`, `doc.notes.memos`, `doc.styles.ensure_numbering()`, `doc.parts.master_pages`·`histories`·
+  `clear_document_metadata()`·`clear_preview()`는 tuple이다.
+
+<!-- WP5b(값 형식) 이름 정리는 병합 뒤 여기와 이주 가이드에 더한다 -->
+
+#### 옮긴 기능
+
+- 변환·짐작 기능을 본체에서 지웠다(목록은 아래 "옮긴 것"). 옛 이름을 부르면 `hwpx.MovedToCompanion`(`ImportError`),
+  `ModuleNotFoundError`, 문서 메서드면 `HwpxAttributeError`(`document-name-moved`)가 새 자리와 `pip install python-hwpx-automation`을
+  알려 준다. 본체는 자동화 패키지를 import 하지 않는다.
+- extra `xlsx`·`preview`·`langchain`·`llamaindex`는 `pip install "python-hwpx[xlsx]"`가 깨지지 않게 이름만 남고 아무것도 깔지
+  않는다. 같은 이름의 extra가 python-hwpx-automation에 있다. 명령 `hwpx-check-format`은 자동화 패키지가 선언하고,
+  `hwpx-text-extract --format markdown`은 옮겼다는 안내를 내고 종료 코드 2로 끝난다(`--format plain`은 그대로다).
+
+#### 반환 형식
+
+- 여러 개를 돌려주는 읽기는 `tuple`이다: `doc.paragraphs`, `doc.sections`, `section.paragraphs`, `paragraph.runs`·`tables`,
+  `table.rows`, `row.cells`, `cell.paragraphs`, `memo.paragraphs`, `doc.parts.headers` 등. 목록을 고치던 코드(`append`)는
+  `list(...)`로 바꾼다.
+- `paragraph.bookmarks`는 이름 목록이 아니라 `Bookmark`의 tuple이다. `paragraph.hyperlinks`는 `Hyperlink`의 tuple이고,
+  `link["url"]` 대신 `link.url`이나 `link.to_dict()`를 쓴다.
+- `add_*`가 `InlineObject`나 `None` 대신 그 종류의 객체를 돌려준다(위 이름 규칙). 머리말·꼬리말의 `add_paragraph`·`add_run`·
+  `add_page_number_field`는 문단·런·개체 객체를 돌려준다(옛 요소는 `.element`).
+- `HeaderPart.border_fill(id)`·`border_fills`는 `BorderFillInfo`를, `properties.start_numbers`는 `hwpx.objects.StartNumbers`를
+  돌려준다(`hwpx.oxml.SectionStartNumbering`은 없어졌다).
+- `doc.oxml`의 서식 읽기 16개(`char_property` 등)는 공개 계약에서 내렸다. 메서드는 남아 있으니 `doc.styles`의 같은 이름을 쓴다.
+
+#### 오류 code
+
+- `unknown-contract-document`·`unknown-contract-schema`가 `contract-document-unknown`·`contract-schema-unknown`이 되었다.
+  `section-argument-conflict`·`style-argument-conflict`는 인자와 함께 없어졌다.
+- `ingest-failed`·`ingest-format-unsupported`·`equation-mathml-unavailable`·`text-markdown-style-invalid`·`table-path-invalid-type`은
+  그 기능과 함께 옮겼다(자동화 패키지가 같은 code로 내고, 예외는 모두 `hwpx.errors.HwpxError` 계열이다).
+- 공개 메서드에 잘못된 타입을 주면 내장 `TypeError`·`AttributeError` 대신 `code`·`suggestion`을 실은 `HwpxError` 계열이 난다.
+  흔한 실수(표 번호·칸 좌표 범위 밖, 잘못된 표 크기, 문자열이 아닌 문단 글)도 같다. 내장 예외도 함께 상속하므로 기존 `except`는
+  그대로 잡는다.
+- 열지 못하는 파일(빈 파일, 텍스트 파일, 잘린 HWPX, 이름만 바꾼 Office 문서, 폴더, 암호 문서, HWP 3.x)은 사유별 문구와
+  `code`·`suggestion`을 싣는다. 형은 그대로라 `except BadZipFile`이 잡고, `.hwp`에는 ZIP 얘기를 하지 않는다.
+  `HwpxDocument.open(123)`처럼 경로·bytes·스트림이 아닌 값은 `HwpxTypeError`다.
+- `HwpxIndexError`가 `hwpx.errors`에 있다(옛 경로도 된다). 새 code는 `docs/error-codes.md`에 있다.
+
+#### 행동 변화
+
+- **`HwpxDocument.new()`로 만든 문서가 처음 더한 문단으로 시작한다.** 전에는 처음 더한 문단이 빈 첫 문단 뒤에 붙어 모든 새 문서가
+  빈 줄로 시작했다. 이제 처음 더하는 문단(`add_paragraph`, `add_heading`)이 그 빈 줄을 차지하고, 구역 설정과 먼저 넣어 둔
+  머리말·꼬리말·쪽 번호는 그 문단으로 옮겨 간다. **문단 번호가 하나씩 당겨진다**: 6.x의 `doc.paragraphs[1]`이 7.0의
+  `doc.paragraphs[0]`이다. 6.x 동작은 `HwpxDocument.new(empty_first_line=True)`. 표나 개체를 먼저 더한 문서, 첫 줄을 직접 쓴 문서,
+  열어서 고치는 문서는 전과 같다.
+- **`add_equation`이 적는 수식 글꼴이 `HYhwpEQ`에서 `HancomEQN`으로 바뀌었다.** 한/글 수식 편집기의 글꼴이라 한/글에서 직접 넣은
+  수식과 같은 모양이 된다. 획이 조금 굵어지고 일부 글자의 폭이 달라진다. 전의 모양은 `font="HYhwpEQ"`.
+- `add_heading` 뒤에 `add_paragraph`로 더한 본문이 제목의 문단 모양과 스타일(개요)을 물려받지 않는다. 물려받은 본문에는 한/글이
+  다음 개요 번호("나.", "다." …)를 붙였다. 본문 뒤의 본문은 전처럼 앞 문단을 따른다. 제목 모양이 필요하면 `inherit_style=True`.
+  모델의 `section.add_paragraph`는 전처럼 앞 문단을 그대로 따른다.
+- 머리말·꼬리말을 한/글처럼 본문 컨트롤(`hp:ctrl`) 한 곳에만 쓴다. 6.x는 `hp:secPr` 아래에 사본과 `headerApply`를 하나 더 썼다
+  (OWPML 스키마에 없는 모양). 공개 한/글 저장본 68개가 모두 한 곳에만 둔다. 6.x로 만든 문서는 그 머리말을 다시 설정할 때 사본을
+  걷어 낸다.
+- `doc.add_table(style=)`·`doc.add_picture(style=)`가 스타일의 문단·글자 모양도 적용한다. 6.x는 스타일 이름표만 붙였다.
+- `obj.remove()`·`table.remove()`가 다른 곳에서 쓰지 않게 된 그림 데이터도 함께 지운다. 남기려면 `remove_orphaned=False`.
+- 표 칸·글상자·각주·머리말 안에 떠 있게 만든 개체는 문단 기준으로 그 안에 머무르게 놓인다(한/글 저장본의 그 자리 개체들이 쓰는
+  배치). 본문에 만드는 개체의 기본값은 그대로다.
+- 각주·미주를 더하거나 지우면 같은 종류의 번호를 문서 순서대로 다시 매긴다. 쪽마다 새로 매기는 각주(`ON_PAGE`)가 있는 문서는
+  다시 매기지 않는다(아래 "한/글이 하는 것"). `note.text`는 문단을 줄 바꿈으로 잇는다.
+- 칸에 색을 칠해도(`set_cell_shading`, `set_shading`) 그 칸의 선·대각선과 그림 배경은 그대로 남고, 그러데이션은 새 색으로 바뀐다.
+  그림을 넣으면 면 색이 남는다. 칸마다 제 테두리 정의에서 사본을 만들므로 `header.xml`의 테두리 정의가 늘 수 있다.
+- 글자·문단 모양 변경 추적은 쓰지도 거절하지도 않는다(`track-format-change-unconfirmed`). 6.x의 거절은 표시만 걷어 수락처럼 굴었다.
+- `doc.styles["바탕글"]`처럼 이름·영문 이름·번호로 스타일을 찾는다(6.x는 `KeyError`). `"바탕글" in doc.styles`도 `True`다.
+- 크기가 0인 수식·차트, 빈 책갈피 이름, 빈 링크 주소를 거부한다. `paragraph.style`에 스타일이 아닌 값을 주면 `HwpxTypeError`다.
+- `doc.refs.cross_references`의 항목이 살아 있는 `CrossReference`라 값을 바꾸고 지울 수 있다(같은지는 요소로 견준다).
+- `paragraph.clear_layout_cache()`가 늘 그 문단의 파트를 바뀐 것으로 표시한다. 고치지 않은 문단에 불러도 그 구역을 다시 쓴다.
+- 다단 문서에서 새 표와 차트의 기본 폭이 본문 전체 폭이 아니라 단 폭이다.
+- 구역이 여럿인 문서에서 `doc.page.*`를 `section` 없이 부르면 마지막 구역만 바뀐다는 경고가 한 번 나온다. 모든 구역은
+  `section="all"`.
+- 열기에 실패할 때 stderr에 traceback을 찍지 않는다. 미리보기 파트가 없는 문서도 경고 없이 연다.
+- `.hwp`를 연 문서의 `conversion_report`: 글자·문단 모양 변경 추적을 옮기므로 `range-tag-18`(옮기지 못함)·`range-tag-19`(버림)가 더
+  나오지 않는다. 문서 이력(DocHistory)이 있으면 `unconverted["doc-history"]`로 알리고, 그 문서는 `.hwp`로 다시 쓰지 않는다.
+- 배포: sdist에 테스트 파일을 싣지 않는다. 릴리스 태그는 `v7.0.0`처럼 `v` 접두사가 붙은 최종판 버전만 받는다. 개발 단계 분류는
+  안정(Production/Stable)이다.
+
+### 옮긴 것(python-hwpx-automation 8.0)
+
+인자와 결과는 6.x와 같고, 문서의 메서드였던 것은 문서를 첫 인자로 받는 함수가 됐다. `pip install python-hwpx-automation`이
+python-hwpx 7.0을 함께 설치한다.
+
+- Markdown으로 문서 만들기: `hwpx.tools.markdown_import.from_markdown`·`MarkdownStyle`, `doc.text.append_markdown(md)` →
+  `hwpx_automation.markdown.from_markdown`·`MarkdownStyle`, `append_markdown(doc, md)`.
+- Markdown·HTML 내보내기: `doc.text.markdown()`·`html()`, `hwpx.tools.exporter.export_markdown`·`export_html`,
+  `hwpx.tools.markdown_export` → `hwpx_automation.markdown.to_markdown(doc)`·`to_html(doc)`·`equation_markdown`.
+- 색인용 변환: `hwpx.ingest`, `hwpx.HwpxMarkdownConverter`, `hwpx.experimental`의 ingest 7개 → `hwpx_automation.ingest`.
+- LangChain 로더·LlamaIndex 리더: `hwpx.integrations.langchain.HwpxLoader`, `hwpx.integrations.llama_index.HwpxReader` →
+  `hwpx_automation.integrations.langchain`·`hwpx_automation.integrations.llama_index`.
+- 양식 칸 찾기·채우기: `doc.tables.find_cell_by_label`·`form_slots`·`fill_by_path` → `hwpx_automation.forms.find_cell_by_label(doc, ...)`·
+  `form_slots(doc)`·`fill_by_path(doc, ...)`.
+- 글자로 적힌 선택 칸: `doc.fields.choices()`·`choose()` → `hwpx_automation.forms.form_choices(doc)`·`choose(doc, ...)`.
+- 메일 머지: `hwpx.merge_template_rows`·`load_mail_merge_rows`·`inspect_mail_merge_placeholders`·`MAIL_MERGE_REPORT_VERSION`,
+  `hwpx.tools.mail_merge` → `hwpx_automation.mail_merge`. 한/글의 메일 머지 필드를 넣는 `paragraph.add_mail_merge_field`는 엔진에 남는다.
+- 미리보기: `render_layout_preview`·`render_document_viewer`(`hwpx.experimental`, `hwpx.tools.layout_preview`·`document_viewer`)와 수식
+  그림 `hwpx.equation.render_equation`·`latex_to_mathml` 등 → `hwpx_automation.preview`.
+- 서식 규칙 검사: `hwpx.tools.format_rules.check_format`, 명령 `hwpx-check-format` → `hwpx_automation.format_rules`, 같은 이름의 명령.
+- 표 정리·보고서 수치: `hwpx.tools.table_cleanup`·`hwpx.tools.report_utils` → `hwpx_automation.office.utilities`.
+- 참조 일관성 검사: `hwpx.inspect_reference_consistency`·`REFERENCE_CONSISTENCY_REPORT_VERSION` → `hwpx_automation.office.compliance`.
+- 6.x 루트 이름 `doc.export_markdown()`·`export_rich_markdown()`·`export_html()`·`fill_by_path()`·`find_cell_by_label()` → 위의 새 자리.
+
+6.12.0 뒤 이 기능들에 생긴 변화(보고서 모양이 기본인 `from_markdown`, Markdown의 그림·링크·각주·인용·수식·머리말·메모, 양식
+이름표의 공백 무시와 몇 번째 이름표 고르기, 메일 머지의 한글 키 등)는 자동화 8.0에 그대로 있다. 결과가 달라지는 것은 이주 가이드에 있다.
+
 ### 추가
 
-- LaTeX→한/글 수식이 유니코드 기호(× ÷ ± ≤ → ∞ ° √ 등), \displaystyle·\limits·\Big, \ell, \hbar, \colon, \pmod, \operatorname, 긴 화살표, \not=, \lfloor…\rfloor 같은 짝 괄호, \|, \nearrow·\searrow를 받는다. 받지 못하는 표기는 거부 문구에 대신 쓸 표기를 알려 준다.
-- `from_markdown`·`append_markdown`이 `base_dir=`를 받아, 그 폴더 아래의 그림(`![설명](그림.png)`)을 넣고 설명을 캡션으로 단다.
-- Markdown 링크와 `<https://…>`가 하이퍼링크로, `[^1]` 각주가 문서 각주로, `> 인용`이 들여 쓴 문단으로 들어간다. 취소선·`_기울임_`·할 일 목록·Setext 제목·바깥 `|` 없는 표도 읽는다.
-- Markdown 제목이 개요 스타일을 받아 차례와 한/글 개요 보기에 잡힌다. 보고서 모양처럼 번호를 글자로 쓰는 문서에서도 번호가 두 번 보이지 않는다.
-- 옮기지 못한 Markdown(읽지 못한 그림, HTML 태그, 정의 없는 각주 등)을 한 번의 경고로 알려 준다.
-- `doc.text.markdown(rich=True)`에 `list_labels=`(번호·글머리를 `- `·`1.` 목록으로 싣는다), `colors=`(글자색 표시를 끈다), `heading_source=`(`"auto"`/`"outline"`/`"text"`) 옵션이 생겼습니다.
-- `doc.text.markdown()`·`html()`에 `headings=`, `html()`에 `nested_tables=` 옵션이 생기고, `notes=`에 `"inline"`을 줄 수 있습니다. 문서 글을 Markdown으로 안전하게 쓰는 `hwpx.tools.exporter.escape_markdown`이 생겼습니다.
-- `table.set_out_margins()`로 표 바깥 여백을, 수식·그림 같은 개체의 `set_position()`으로 글자처럼 취급 여부·본문과의 배치·위치를 XML을 고치지 않고 정할 수 있다.
-- `paragraph.insert_after()`·`insert_before()`로 원하는 자리에 문단을 넣거나 복사할 수 있다(누름틀 id는 새로 매긴다). `table.remove()`로 표를 지울 수 있다.
+#### 글과 서식
+
+- 런의 서식을 한 줄로 읽고 바꾼다: `run.size = 14`(pt), `font`, `color`, `highlight`, `strike`, `superscript`, `subscript`,
+  `letter_spacing`, `ratio`, 여럿은 `run.set_format(...)`, 언어별 글꼴은 `run.set_font(face, lang=...)`. 엔진이 그 런만의 글자 모양
+  사본을 만들고(같은 정의가 있으면 그것을 쓴다), 같은 모양을 쓰던 다른 런은 그대로다. `run.fonts`는 일곱 언어(한글·영문·한자·
+  일본어·기타·기호·사용자)의 글꼴을 한 값(`LanguageFonts`)으로 돌려준다.
+- 문단의 서식도 속성으로 읽고 바꾼다: `alignment`, `indent_left_mm`, `indent_right_mm`, `first_line_indent_mm`, `spacing_before_pt`,
+  `spacing_after_pt`, `line_spacing`, `page_break_before`, `keep_with_next`, `keep_lines`, `widow_orphan`, `page_break`,
+  `outline_level`, `style`(스타일의 문단·글자 모양까지 적용).
+- `paragraph.format_range(start, end, bold=True)`로 문단 안 글자 범위에 서식을 주고, `paragraph.split_run(offset)`으로 런을
+  나눈다. 위치는 `paragraph.text`대로 세고, 탭·줄 바꿈·책갈피는 그대로 남는다.
+- 스타일: `doc.styles.set_style_format(style, ...)`으로 스타일의 글자·문단 모양을 고치고, `remove_style(style, replacement=...)`로
+  지운다(쓰던 문단은 대체 스타일을 받는다). `outline_style(3)`은 "개요 3" 스타일을, `outline_level(style)`은 개요 수준을 돌려준다.
+  `ensure_tab_definition`, `ensure_paragraph_format(line_spacing=, condense=, break_setting=)`, 한 변만 바꾼 테두리
+  `ensure_border_fill(base_border_fill_id_ref=..., sides={"bottom": {...}})`도 있다. `sides=`에서 `None`을 준 면은 선을 긋지 않아,
+  위아래만 굵은 표나 머리 행 아래 이중선을 만들 수 있다.
+- 번호·글머리표: `doc.styles.add_numbering(levels)`는 한/글이 새 번호 목록에 쓰는 열 수준 정의(`1.`·`가.`·`1)`·`가)` …)를 새로
+  만든다. `tests/fixtures`의 번호 정의 1,157개 가운데 1,071개가 이 모양이다. 한/글은 번호를 정의마다 세므로 늘 새 정의(새 목록)다.
+  `ensure_bullet("●")`, `set_numbering_level(...)`, `numbering(id)`(값 `NumberingInfo`), 문단에 거는
+  `paragraph.set_numbering(numbering, level=1)`·`set_bullet(bullet, level=1)`(`None`은 뗀다), 구역의 개요 번호 정의
+  `section.properties.outline_shape_id_ref`도 있다.
+- 찾기·바꾸기: `doc.text.find("글")`·`doc.text.find(r"\d+", regex=True)`가 표 칸·머리말·각주·캡션까지 찾은 곳을 `TextMatch`(문단,
+  `paragraph.text` 기준 위치, 자리)로 돌려준다. 그 위치는 `format_range`에 그대로 넘긴다. `doc.text.replace(..., regex=True)`는
+  바꿀 글에 `\1`·`\g<이름>`을 쓴다. 기본 범위(본문 문단의 런 하나 안)에서 0건인데 찾는 글이 그 밖에 있으면
+  `ReplaceScopeWarning`(`hwpx.errors`)으로 `everywhere=True`를 알린다. 돌려주는 횟수와 문서는 같다.
+- 덧말·글자 겹치기를 읽고 고치고 지운다: `doc.shapes.rubies`·`composed_characters`, `paragraph.rubies`·`composed_characters`,
+  `ruby.remove()`(본말은 글로 남긴다). 한/글 저장본으로 읽기·고치기·지우기를 확인했다.
+- 문단: `paragraph.insert_after()`·`insert_before()`로 원하는 자리에 문단을 넣거나 복사하고(누름틀 id는 새로 매긴다),
+  `move_after()`·`move_before()`로 옮긴다(구역 설정과 걸린 메모도 함께 옮긴다). `paragraph.objects`·`pictures`·`equations`가 문단의
+  개체를 모델 객체로 돌려준다.
+- 줄 배치: `paragraph.line_segments`로 한/글이 저장한 줄 배치(줄마다 시작 글자·세로 위치·높이·기준선·폭)를 읽는다. XML을 직접
+  고친 뒤에는 `paragraph.clear_layout_cache()`·`section.clear_layout_cache()`·`doc.oxml.clear_layout_cache(stale_only=...)`로 옛
+  캐시를 지운다. 공개 편집 API는 캐시를 알아서 지운다. `paragraph.available_width`는 문단이 쓸 수 있는 폭이다.
+- `hwpx.tools.exporter`의 `ListLabels(doc).label(paragraph)`가 한/글이 문단 앞에 그리는 번호("1.", "가.", "●")를,
+  `NoteLabels(doc).label(note)`가 각주 번호를 돌려준다. `number_text`, `table_grid_text`, `hwpx.oxml.run.text_element_content`도
+  공개다.
 - `doc.shapes.*`·`doc.refs.*`·`doc.notes.add_footnote`·`doc.page.set_columns`의 `paragraph=`에 문단 번호(정수)를 줄 수 있다.
-- `hwpx-text-extract`가 `.hwp`(HWP 5.0) 파일에서도 글을 뽑습니다.
-- 저장에 실패하면 `hwpx.errors.SaveTargetError`가 납니다. 대상 경로와 할 일을 말하고, Python이 낸 `PermissionError`·`FileNotFoundError` 등이기도 해서 기존 `except`가 그대로 잡습니다.
+
+#### 표
+
+- 정렬: 칸의 세로 정렬 `cell.vertical_alignment`, 표의 가로 정렬 `table.alignment`.
+- 크기: `table.width`·`set_width(w, proportional=True)`, `column_widths`·`row_heights`, `set_column_width`·`set_row_height`,
+  `set_row_heights([...])`, `table.columns[i].width = w`, `table.rows[i].height = h`. 병합 칸도 함께 맞춘다. 한/글은 행을 정한
+  높이보다 낮게 그리지 않고 글이 길면 늘린다.
+- 테두리와 배경: `table.set_borders(cell_range, sides=, line_type=, border_width_mm=, color=, inner=)`,
+  `set_shading(cell_range, color=)`, `cell.border_fill`, 표 자체의 `table.border_fill_id_ref`·`border_fill`.
+- 칸 영역(여러 칸에 한 칸처럼 테두리·배경을 줄 때 한/글이 저장하는 것)을 만들고 고치고 지운다: `table.add_cell_zone("A2:C4",
+  border_fill_id_ref=...)`, `set_cell_zone`, `remove_cell_zone`, `cell_zones`. 행·열을 넣고 지우면 영역이 따라간다(한/글
+  저장본으로 확인).
+- 제목 행 `header_rows`·`set_header_rows(n, repeat=True)`·`repeat_header`·`cell.is_header`, 쪽 경계에서 나누는 방식
+  `table.page_split`, `no_adjust`, 칸 간격 `cell_spacing`, 안 여백 `in_margins`·`set_in_margins`, 바깥 여백 `out_margins`·
+  `set_out_margins`, 배치 `text_wrap`·`set_position`(개체와 같은 인자). 표도 개체처럼 `position`·`z_order`·`locked`·
+  `numbering_type`을 읽는다.
+- 칸: 세로쓰기 `cell.text_direction = "VERTICAL"`, 셀 보호 `cell.protected`, 양식 모드 편집 `cell.editable`, 칸 비우기
+  `cell.clear()`.
+- 열 단위 접근 `table.columns`(`TableColumn`), 범위의 칸 `cells_in("A1:C2")`, 표 복사 `copy_after()`(새 id), 표 지우기
+  `table.remove()`, 칸 안의 표까지 표 지도(`doc.tables.map()`)와 같은 순서·번호로 돌려주는 `doc.tables.with_nested`.
+
+#### 개체
+
+- 그림·수식·차트·도형·글상자·묶음·표를 지우고(`obj.remove()`, 문단은 남고 연결선은 연결만 놓는다), 같은 문서의 다른 문단(표 칸·
+  글상자·각주·머리말 포함)의 원하는 글자 자리로 옮기거나 복사한다(`obj.move_to(paragraph, offset=...)`, 사본을 돌려주는
+  `obj.copy_to(...)`). 사본은 새 id를 받고 그림은 같은 이미지를 쓴다. 한/글 문서가 두지 않는 자리(쪽 기준으로 떠 있는 개체를 표
+  칸으로 등)는 바꾸기 전에 거부한다. 한/글 저장본의 칸 안 개체 634개 가운데 633개가 문단 기준이다. 공개 문서 990개에서 2,756번
+  옮기고 복사해 편집 탓 오류와 다른 파트의 바이트 변화가 없었다.
+- 배치와 크기: `obj.position`(`ObjectPosition`), 읽고 쓰는 속성 `z_order`·`rotation`·`description`(대체 글),
+  `obj.set_position(treat_as_char=, text_wrap=, ...)`(도형도 같은 인자), `width`·`height`·`resize(width=...)`(한쪽만 주면 비율을
+  지킨다), 바깥 여백 `out_margins`·`set_out_margins(...)`, `locked`·`numbering_type`.
+- 그림 모델 `hwpx.model.Picture`: `doc.media.pictures`, `original_size`, 읽고 쓰는 `crop`, 밝기·대비·효과·테두리·그림자 읽기,
+  `line_width_mm`. 공개 문서의 그림 897개 모두에 공개 API로 닿는다.
+- 회전은 한/글 저장본으로 확인된 모양에만 쓴다. 늘이거나 줄인 그림·도형도 돌리고, 돈 그림의 크기를 바꾸거나 자른다. 글이 든 도형과
+  묶음·묶음 구성원의 회전은 근거가 없어 거부한다(`shape-rotation-unsupported`·`shape-group-member-unsupported`).
+- 묶음의 구성원 `shape.members`. 묶음 안의 개체를 지우면 묶음이 남은 구성원에 맞춰진다.
+
+#### 수식
+
+- 수식 모델 `hwpx.model.Equation`: `paragraph.equations`, `doc.shapes.equations`(표 칸·글상자·각주 안까지), `eq.script = ...`(상자를
+  다시 잰다), `eq.font_size`(pt), `eq.font`. 공개 문서의 수식 23,079개 모두에 공개 API로 닿는다.
+- `add_equation`의 `font=`로 수식 글꼴을 준다(`doc.shapes.add_equation`, 문단의 `add_equation`).
+- 수식 변환 `latex_to_eqedit`·`eqedit_to_latex`·`estimate_equation_size`가 안정 계약(`hwpx.equation`)이 되었다.
+- LaTeX → 한/글 수식이 받는 표기가 늘었다: 유니코드 기호(× ÷ ± ≤ → ∞ ° √ 등), `\displaystyle`·`\limits`·`\Big`, `\ell`, `\hbar`,
+  `\colon`, `\pmod`, `\operatorname`, 긴 화살표, `\not=`, `\lfloor…\rfloor` 같은 짝 괄호, `\|`, `\nearrow`·`\searrow`,
+  `\Leftrightarrow`·`\iff`, `\perp`, `\parallel`, `\varnothing`, `\uparrow`·`\downarrow`·`\Uparrow`, 가역 반응
+  `\rightleftharpoons`, 호 `\overset{\frown}{AB}`·`\wideparen{AB}`, `\boxed{}`, 여러 줄 정렬 `aligned`, 띄어쓰기
+  `\ `·`\;`·`\:`·`\!`·`\quad`·`\qquad`. 모두 한/글 2024(Windows)에서 그려 보고 기호로 나오는 표기만 넣었고, 읽는 쪽
+  (`eqedit_to_latex`)도 같은 표기를 안다. 중·고 수학·과학 표기 229개 가운데 226개가 변환된다. `\mathbb`·`\widehat`·`\square`는
+  맞게 그려지는 표기가 없어 계속 거부하고, 받지 못하는 표기는 거부 문구에 대신 쓸 표기를 알려 준다.
+
+#### 표시(누름틀·각주·메모·차례·상호 참조·변경 추적)
+
+- 각주·미주: `doc.notes.footnotes`·`endnotes`가 문서의 모든 각주·미주를 한/글 번호(`note.number`)와 함께 돌려준다.
+  `note.add_paragraph()`로 문단을 더하고, `note.remove()`로 표시와 내용을 함께 지운다.
+- 누름틀: `field.remove()`는 틀만, `keep_text=False`면 내용까지 지운다. 이름·안내문·메모·편집 가능 여부를 바꾼다. 시작을 담은
+  문단(`field.paragraph`), 끝 위치(`end_location`), 값을 담은 요소(`text_elements`)를 읽는다.
+- 양식 개체: `doc.fields.radio_buttons`·`combo_boxes`·`edit_boxes`로 읽고 값을 쓰고, `add_radio_button`·`add_combo_box`·
+  `add_edit_box`로 만든다. 요소 순서·속성·기본값은 한/글 저장본과 한/글이 만든 공개 표본을 따른다. 한/글 파일에는 콤보 상자의
+  고를 목록이 없어 목록은 쓰지 않는다.
+- 하이퍼링크·책갈피: `doc.refs.hyperlinks`가 표 칸·글상자·각주 안까지 모든 링크를 돌려준다. 링크 주소와 표시 글을 바꾸거나
+  `link.remove()`로 링크만 걷어 낸다(글자 모양은 한/글처럼 그대로 둔다). `bookmark.rename(name)`은 그 책갈피로 가는 링크도 함께
+  바꾸고, `bookmark.remove()`는 책갈피를 지운다.
+- 상호 참조: `doc.refs.add_cross_reference(target, content_type=..., hyperlink=...)`로 만들고, 가리키는 대상(`set_target`)·보일 것·
+  링크를 바꾸고, `remove()`로 보이던 글을 남기고 지운다. 대상은 한/글 파일에서 본 것만 받는다: 개요 문단, 표, 책갈피. 그림·수식·
+  각주는 거부한다.
+- 차례: `doc.refs.tables_of_contents`로 읽고, `add_table_of_contents(levels=2, leader="DASH", hyperlink=True)`로 만들고, 개요가
+  바뀐 뒤 `toc.rebuild()`로 항목을 다시 만들고, `toc.remove()`로 지운다.
+- 메모: `doc.notes.add_memo(..., match="글")`로 문단 일부 글자에만 건다. `memo.move_to(section, index=...)`·`memo.copy_to(...)`로
+  다른 구역 메모 묶음의 원하는 자리로 옮기거나 복사한다. 메모 선 굵기는 `doc.styles.ensure_memo_shape(line_width_mm=...)`로 주고
+  `memo_shape.line_width_mm`로 읽는다.
+- 변경 추적: `doc.tracking.accept()`·`reject()`로 하나, 작성자별(`author=`), 전체를 수락·거절한다.
+
+#### 쪽과 구역
+
+- 쪽·구역 설정을 읽는다: `doc.page.columns()`(문단 중간 단 바꿈 포함), `page_number_controls()`, `number_restarts()`,
+  `page_hidings()`, `auto_numbers()`, `start_numbers()`, `doc.parts.begin_numbers`, `doc.parts.document_options`.
+- 각주·미주 모양과 쪽 테두리: `doc.page.footnote_shape()`·`set_footnote_shape()`, `endnote_shape()`·`set_endnote_shape()`,
+  `page_border()`·`set_page_border()`.
+- `doc.page`의 설정 메서드에 `section="all"`을 주면 모든 구역을 한 번에 바꾼다.
+- 머리말·꼬리말을 쪽 종류별로 읽고 그 문단을 고친다: `doc.page.headers()`·`footers()`·`header(page_type=)`·`footer(page_type=)`,
+  `header.add_paragraph("글")`.
+- 바탕쪽의 문단을 `doc.parts.master_pages[i].paragraphs`로 읽고 고치며(`add_paragraph`, `text`), `doc.page.remove_master_page_reference(id)`로
+  구역과의 연결을 끊는다.
+- 문서 전체 훑기: `doc.text.iter_paragraphs(where=...)`·`doc.text.iter_objects(kinds=..., where=...)`가 표 칸·글상자·캡션·머리말·각주·메모·
+  바탕쪽까지 자리와 함께 돌려준다.
+
+#### 저장과 검사
+
+- `HwpxDocument.new(seed=..., now=...)`(그리고 `open`)로 같은 스크립트가 다른 프로세스에서도 바이트까지 같은 파일을 만든다. 시각까지
+  고정하므로 초 경계에서 바이트가 달라지던 일(#683)도 없다. 기본은 전처럼 무작위 id다.
+- `doc.save()`의 영수증(`MutationReport`)에 품질 보고(`quality`)와, 저장한 바이트에 대해 이미 낸 열기 안전 보고
+  (`editor_open_safety`)가 있다. 다시 검사하지 않는다.
+- 저장에 실패하면 `hwpx.errors.SaveTargetError`가 대상 경로와 할 일을 말한다. Python의 `PermissionError`·`FileNotFoundError`
+  등이기도 해서 기존 `except`가 그대로 잡는다.
+- `docs/stable-api.md`에 엔진이 지키는 약속 아홉 가지(같은 바이트면 같은 결과, 고치지 않은 저장은 바이트 그대로, 공개 편집은 그
+  파트만 바꾸고 알린다 등)와 약속마다 그것을 지키는 테스트를 적었다.
+- 공개 표면 잠금이 `tests/data/public_surface.json` 하나다. 이름·서명·반환이 바뀌면 `tests/test_public_surface.py`가 실패한다
+  (기여자용, `CONTRIBUTING.md`의 "공개 표면 잠금").
+- 입력 방어 함수(`hwpx.opc.security`)와 글자 폭 측정 함수(`hwpx.form_fit`)가 공개 계약에 들어왔다.
+- 큰 문서의 저장이 빨라졌다. 저장 관문이 방금 쓴 문서를 한 번만 열고 압축을 한 번만 푼다. 결과는 공개 문서 1,304개에서 모두 같았고,
+  1 MB 이상 문서의 저장 시간 중앙값이 2.28초에서 1.46초로 줄었다. `validate_document`는 이미 연 `HwpxDocument`도 받는다.
 - 문서: 7.0 이주 가이드(`docs/migration-7.0.md`), 사용 가이드의 "있는 문서 고치기"와 "시험지·학습지" 절.
-- `add_equation`에 `font` 인자가 생겼다(`doc.shapes.add_equation`, 문단의 `add_equation`). 수식 글꼴 이름을 준다.
-- Markdown 내보내기가 수식을 실을 수 있다. `doc.text.markdown(rich=True, equations=True)`면 수식이 있던 자리에
-  `$LaTeX$`로 나간다(본문·표 칸·각주·메모 안 모두). LaTeX로 옮기지 못하는 수식은 한/글 수식 문자열을 코드로
-  싣는다. 기본값은 꺼짐이다. `hwpx.ingest`는 켜서 부르며, 본문만 원하면 `markdown_options={"equations": False}`.
-- Markdown 내보내기(`doc.text.markdown(rich=True)`)가 머리말·꼬리말·메모를 실을 수 있다.
-  `headers_and_footers=True`면 머리말을 구역 첫머리에, 꼬리말을 구역 끝에 `> 머리말: …` 줄로 싣는다(같은 글은
-  한 번). `memos=True`면 메모를 각주처럼 싣는다: 메모가 걸린 글 뒤에 `[^memoN]`, 내용은 부록에 `메모: …`.
-  본문에 걸린 자리가 없는 메모는 구역 끝에 `> 메모: …`로 나간다. 기본값은 둘 다 꺼짐이라 지금 결과는 그대로다.
-- LlamaIndex 리더 `hwpx.integrations.llama_index.HwpxReader`(실험 기능). LangChain 로더와 같은 내용·메타데이터를
-  LlamaIndex 문서로 돌려주고, `SimpleDirectoryReader`의 `file_extractor`로 넘겨 폴더를 읽을 수 있다.
-  `pip install "python-hwpx[llamaindex]"`로 `llama-index-core`를 함께 설치한다.
-- 글자로 적힌 선택 칸을 고른다: `doc.fields.choices()`가 `□ 예  □ 아니오` 같은 묶음을 이름표·항목과 함께
-  나열하고, `doc.fields.choose({"참석 여부": "예"})`가 그 항목을 채우고 나머지를 비운다. 한 문단에 같은 종류의
-  표시(네모 `□☐■☑` 또는 동그라미 `○●`)가 둘 이상일 때만 묶음으로 본다. 줄 맨 앞에 하나만 있는 표시는
-  글머리표라, 붙어 있는 표시(`○○고등학교`, `□□□□`)는 선택 칸이 아니라 건드리지 않는다. 이름표는 표시 앞의 글, 같은 칸의 윗줄, 왼쪽이나 위 칸에서 찾고, 없으면
-  `#3`처럼 번호로 고른다. 채운 표시는 그 묶음이나 문서가 이미 쓰는 글자를 따른다(`☐`면 `☑`). 가릴 수
-  없는 묶음이나 항목은 바꾸지 않고 후보와 함께 알린다.
-- `doc.tables.form_slots()`: 양식의 빈 칸(글이 있는 칸의 오른쪽이나 아래에 있는 빈 칸)을 나열하고, 칸마다
-  `fill_by_path`에 그대로 넣을 경로(`"성명 > right"`)를 준다. 그림·표·누름틀이 든 칸은 빈 칸으로 보지 않는다.
-  이름표와 상자 사이를 띄우는 좁은 칸(기본 5mm 미만, `min_width_mm`)도 뺀다. 거기 쓴 값은 한/글에서 한 글자씩
-  세로로 놓였다. 공개 문서 1,304개 가운데 빈 칸이 있는 103개에서 3,012칸을 찾았고, 경로가 있는 2,914칸이 모두
-  그 칸에 들어갔으며 저장 후 다시 열었을 때 빠진 값은 없었다.
-- `doc.tables.fill_by_path(values, fit=FitPolicy())`: 값을 칸에 맞춰 잰다. 정책이 허용하는 대로 줄을 바꾸거나 글자를
-  줄이고 칸마다 결과를 `fit`에 싣는다. 정책이 거부한 값은 `"value does not fit"`으로 실패하고 그 칸은 그대로
-  둔다. `fit` 없이 쓰면 전처럼 값을 그대로 써 넣고, 줄이 모자라면 한/글이 줄 높이를 늘린다.
-- `doc.tables.fill_by_path`의 경로에 `"성명[2] > right"`처럼 몇 번째 이름표인지 적을 수 있다. 이름표가 여러 칸에
-  맞아 실패할 때(`"ambiguous label"`)는 후보 칸과 고르는 표기를 `candidates`에 싣는다.
-- LaTeX → 한/글 수식 변환(`latex_to_eqedit`)이 받는 학교 표기가 늘었다: `\Leftrightarrow`·`\iff`, `\perp`,
-  `\parallel`, `\varnothing`, `\uparrow`·`\downarrow`·`\Uparrow`, 가역 반응 `\rightleftharpoons`, 호
-  `\overset{\frown}{AB}`·`\wideparen{AB}`, `\boxed{}`, 여러 줄 정렬 `aligned`, 띄어쓰기 `\ `·`\;`·`\:`·`\!`·
-  `\quad`·`\qquad`. 모두 한/글 2024(Windows)에서 그려 보고 기호로 나오는 표기만 넣었고, 읽는 쪽
-  (`eqedit_to_latex`)도 같은 표기를 안다. 중·고 수학·과학 표기 229개 가운데 226개가 변환된다(전에는 처음
-  159개 중 147개). `\mathbb`·`\widehat`·`\square`는 맞게 그려지는 표기가 없어 계속 거부한다.
-- LangChain 로더 `hwpx.integrations.langchain.HwpxLoader`(실험 기능). `.hwpx`·`.hwp` 파일 하나를 제목·목록·표를 살린
-  Markdown 문서 하나로 돌려주고, 메타데이터에 출처·형식·개수와 함께 Markdown에 빠진 내용이 있는지(`lossiness`,
-  `warnings`)를 싣는다. `pip install "python-hwpx[langchain]"`로 `langchain-core`를 함께 설치한다. 이 모듈만
-  LangChain을 가져오므로 로더를 쓰지 않는 설치는 전과 같다.
-- `hwpx.ingest`의 Markdown 변환이 `.hwp`(HWP 5.0)도 받는다. `HwpxDocument.open`은 `.hwp`를 읽는데 이 진입점만
-  "받는 변환기가 없다"로 거부했다. 결과는 `source_format="hwp"`이고, 문서 모델로 옮기지 못한 내용은
-  `metadata["hwp_conversion"]`(`unconverted`·`dropped`)과 `warnings`에 실리며 그때 `lossiness`는 `"medium"`
-  이상이다. 경로·바이트·스트림 모두 내용으로 형식을 가린다. HWP 3.x나 암호 문서는 전처럼 거부하되 사유가
-  `attempts`에 남고, 오류 문구에도 실린다.
-- `DocumentIngestResult.flat_metadata()`: 출처·형식·제목·문단과 표 개수·손실 정도·경고를 글자와 숫자 값만으로
-  담은 사전을 돌려준다. 목록이나 사전 값을 받지 않는 벡터 저장소에 그대로 넣을 수 있다.
-- `from_markdown(text)`이 보고서 모양의 문서를 만든다(`style="report"`, `"보고서"`, `MarkdownStyle.report()`).
-  학교와 기관에서 쓰는 운영 계획·안내 문서의 모양이다.
-  - `#`은 제목이다. 본문 너비의 회색 상자 안에 21pt로 가운데 놓고, 상자 위아래에 색 띠를 두른다.
-  - `##`은 큰 항목이다. 남색 칸에 번호(`Ⅰ`, `Ⅱ` …)를 넣고 그 옆에 남색 제목과 밑줄을 그린다. `###`·`####`에는
-    `1.`·`가.` 번호를 붙인다. 번호를 직접 쓴 제목(`## Ⅱ. 현황`, `### 1. 목적`)은 쓴 번호를 그대로 쓴다.
-  - 본문은 12pt 휴먼명조, 제목은 HY헤드라인M, 글머리표는 깊이에 따라 `□`·`-`·`·`이다. `####` 아래의 목록은
-    `◦`로 시작한다. `※`로 시작하는 문단은 10pt 한컴산뜻돋움으로 쓴다.
-  - 줄 끝을 조금 넘는 목록 항목은 자간을 좁혀 한 줄에 넣는다. 좁히는 폭은 8%까지이고, 그보다 더 좁혀야 하는
-    항목은 손대지 않고 줄을 바꾼다. 한/글의 "한 줄로 입력"은 쓰지 않는다. 그 기능은 들어갈 때까지 좁혀서
-    글자가 겹칠 수 있기 때문이다. 한/글 2024에서 길이를 한 글자씩 바꾼 항목 375개로 확인했다: 잰 폭이 줄의 99%
-    이하인 항목은 모두 한 줄에 들어갔고, 잰 폭은 한/글의 실제 줄 끝과 0.3% 안에서 맞았다. 그래서 여유를 1% 둔다.
-  - 표는 12pt 한컴산뜻돋움이다. 좌우를 트고 위아래에 굵은 줄을, 연한 파랑 머리 행 아래에 이중선을 긋는다.
-    한 줄에 들어가는 열은 가운데에, 줄이 바뀌는 열은 왼쪽에 놓는다. 두 열짜리 표는 첫 열을 이름표로 보고 열
-    너비에 고르게 펴며(균등 분할) 둘째 열은 왼쪽에 놓는다. Markdown 구분선으로 정렬을 준 열은 그대로 둔다.
-  - 새 문서는 여백을 20mm(아래 15mm)로 잡고 꼬리말 가운데에 `- 1 -`을 넣는다.
 
-  모두 `MarkdownStyle`의 값이라 일부만 바꾸거나 따로 쓸 수 있다: 번호와 글머리표(`heading_numbers`, `bullet_chars`),
-  `####` 아래의 글머리표(`sub_bullet_chars`), 글꼴과 굵기(`heading_fonts`, `body_font`, `table_font`, 수준별
-  `heading_bold`), 제목 상자(`title_look`, `banner_colors`, `banner_fill`), 큰 항목 상자(`section_look`,
-  `section_colors`), 표(`table_look`, `table_align`, `table_row_height_mm`, `table_size`), 주석(`note_size`,
-  `note_font`), 한 줄 맞춤(`list_fit_spacing`), 들여쓰기(`heading_indents_mm`, `list_first_indent_mm`), 쪽(`page_margins_mm`,
-  `page_number`, `page_number_side`), 상자 없는 제목(`title_align`, `title_rule`, `title_space_after_pt`).
-  라이브러리가 이름 붙여 싣는 모양은 이것 하나이고, 내용 규칙이 있는 장르(공문·가정통신문)는 전처럼 응용 계층
-  몫이다. 한/글 2024에서 화면을 확인했다. 글꼴 세 가지는 한컴오피스에 들어 있고, 없는 환경에서는 보는 프로그램이
-  다른 글꼴로 바꾸어 그린다.
-- `from_markdown(text, byline="교무기획부")`로 제목 아래 오른쪽에 부서·날짜 줄을 쓴다. 제목(`#`)이 없으면 첫
-  줄에 쓰고, `\n`은 줄 바꿈이다. `doc.text.append_markdown`도 받는다. 모양은 `MarkdownStyle`의
-  `byline_size`·`byline_font`·`byline_bold`이고, 보고서 모양에서는 13pt 한컴산뜻돋움 굵게다.
-- `doc.styles.ensure_border_fill(sides=...)`로 면마다 다른 선을 준다. `"left"`·`"right"`·`"top"`·`"bottom"`에
-  `{"type", "width", "color"}`를 주거나, 선을 긋지 않을 면에 `None`을 준다. 빠진 값과 대지 않은 면은 전처럼
-  `border_type`·`border_width`·`border_color`·`active_borders`를 따른다. 전에는 네 면이 같은 선이어야 해서, 위아래만
-  굵은 표나 머리 행 아래 이중선을 만들 수 없었다.
-- `table.set_row_heights([...])`로 행마다 높이(HWPUNIT)를 정한다. 표 높이는 그 합이 되고, 여러 행에 걸친 칸은 걸친
-  행의 합을 받는다. 한/글은 행을 이 높이보다 낮게 그리지 않고 글이 길면 늘린다.
-- `doc.text.replace`가 기본 범위(본문 문단의 런 하나 안)에서 바꾼 곳이 없는데 찾는 글이 표 칸·글상자·머리말 등
-  본문 밖이나 서식이 다른 런에 걸쳐 있으면 `ReplaceScopeWarning`(`hwpx.errors`)으로 알리고 `everywhere=True`를
-  안내한다. 돌려주는 횟수와 문서는 전과 같다. 서식 조건(`text_color` 등)을 준 호출과 `everywhere=True`는 경고하지
-  않는다. 공개 문서 148개에 한 낱말 바꾸기를 해 보니 기본 범위로는 30개(20%)가 0건으로 끝났다.
+#### `.hwp` 읽기
 
-### 바뀜
-
-- 중첩 번호 목록을 한/글처럼 `1.` `가.` `1)` `가)` 차례로 매긴다(전에는 `1.1.`).
-- `append_markdown`을 여러 번 불러도 장·절 번호가 앞에 쓴 제목에 이어진다.
-- 머리 행이 있는 표는 다음 쪽에서도 머리 행을 되풀이한다.
-- `#####`·`######` 제목이 제 수준으로 번호를 받는다(보고서 모양은 `1)`, `가)`).
-- 코드는 고정폭 글꼴(돋움체)로 쓴다.
-- Markdown 내보내기의 제목이 문단의 개요 수준(개요 번호, `개요 N` 스타일)을 따릅니다. `add_heading`으로 만든 제목이 `#`으로 나오고, 시험 문항이나 차례 줄이 제목으로 잘못 나오지 않습니다. 기본 `markdown()`과 `html()`도 개요 문단을 제목으로 씁니다.
-- `markdown()`이 문서 글을 이스케이프합니다. 글에 든 `<img …>`, `[x](javascript:…)`, `*별표*`, 줄머리 `#`·`-`·`1.`이 서식이나 HTML로 읽히지 않습니다. 글에 적힌 `$…$` 수식은 그대로 둡니다.
-- `markdown(notes=True)`와 `html(notes=True)`가 각주를 각주 문법으로 싣습니다(번호가 두 번 붙던 "문장1)1)각주"가 사라집니다).
-- 문서 읽기(ingest)의 Markdown에 목록 번호가 실리고, 글자색 `<span>` 표시는 빠집니다.
-- 다단 문서에서 새 표와 차트의 기본 폭이 본문 전체 폭이 아니라 단 폭이 된다.
-- 구역이 여럿인 문서에서 `doc.page.*`를 `section` 없이 부르면 마지막 구역만 바뀐다는 경고가 한 번 나온다.
-- 흔한 실수(표 번호·칸 좌표 범위 밖, 잘못된 표 크기, 문자열이 아닌 문단 글 등)가 코드와 다음 할 일을 담은 오류로 바뀐다. 기존 `except IndexError/ValueError/TypeError`는 그대로 잡는다.
-- 문서를 열지 못하면 빈 파일, 텍스트 파일, 잘린 HWPX, 이름만 바꾼 Office 문서, 폴더, 암호 문서를 사유별 문구로 알리고 `code`·`suggestion`을 싣습니다. 형은 그대로라 기존 `except BadZipFile`이 잡습니다. `.hwp` 파일에는 ZIP 얘기를 하지 않습니다.
-- `HwpxDocument.open(123)`처럼 경로·bytes·스트림이 아닌 값은 `HwpxTypeError`가 납니다.
-- `save_to_path(mode="fast")`처럼 없는 mode나 fallback은 거부합니다.
-- `.hwpx`도 `.hwp`도 아닌 이름으로 저장하면 경고합니다. `.hwp` 저장은 실험 기능인 HWP 5.0 작성기를 쓴다고 한 번 알립니다.
-- 열기에 실패할 때 오류를 던지기 전에 stderr에 traceback을 찍지 않습니다. 미리보기 파트가 없는 문서도 경고 없이 엽니다.
-- `form_slots()`가 이름표에 `>`가 든 칸에도 path를 줍니다. 경로 안의 `>`는 `\>`로 씁니다.
-- sdist에 테스트 파일을 싣지 않는다(fixtures 없이 실려 돌릴 수 없었다).
-- 릴리스 태그는 `v7.0.0` 같은 `v` 접두사와 최종판 버전만 받고, 발행 전에 검사한다.
-- 개발 단계 분류를 안정(Production/Stable)으로 바꿨다.
-- **`HwpxDocument.new()`로 만든 문서가 처음 더한 문단으로 시작한다.** 전에는 처음 더한 문단이 빈 첫 문단 뒤에
-  붙어 모든 새 문서가 빈 줄로 시작했다. 이제 처음 더하는 문단(`add_paragraph`, `add_heading`)이 그 빈 줄을
-  차지한다. 구역 설정과 먼저 넣어 둔 머리말·꼬리말·쪽 번호는 그 문단으로 옮겨 간다. **문단 번호가 하나씩
-  당겨진다**: 6.x에서 `doc.paragraphs[1]`이던 첫 글이 `doc.paragraphs[0]`이다. 6.x 동작이 필요하면
-  `HwpxDocument.new(empty_first_line=True)`로 만든다. 표나 개체를 먼저 더한 문서, 첫 줄을 직접 쓴 문서
-  (`doc.paragraphs[0].text = ...`), 열어서 고치는 문서는 전과 같다.
-- **`add_equation`이 적는 수식 글꼴이 `HYhwpEQ`에서 `HancomEQN`으로 바뀌었다.** `HancomEQN`은 한/글 수식 편집기가
-  쓰는 글꼴이라, 만든 수식이 한/글에서 직접 넣은 수식과 같은 모양이 된다. 획이 조금 굵어지고 일부 글자의 폭이 달라진다.
-  전의 모양을 원하면 `font="HYhwpEQ"`를 준다. 수식 상자 폭은 두 글꼴 모두에서 겹치지 않게 잡는다.
-
-- `hwpx.ingest`의 Markdown에 머리말·꼬리말·메모가 실린다(위 두 옵션을 켜서 부른다). 전에는 빠진 것으로
-  `metadata["left_out"]`과 `warnings`에 보고만 했다. 본문만 원하면
-  `markdown_options={"headers_and_footers": False, "memos": False}`를 준다.
-- 표의 이름표를 공백을 무시하고 견준다(`doc.tables.fill_by_path`·`find_cell_by_label`). 양식은 `"성  명"`,
-  `"주    소"`처럼 이름표를 벌려 쓰는데 전에는 `"성명"`으로 찾지 못했다. 여러 줄인 이름표(`"성  명"` 아래
-  `"Name"`)는 칸 전체가 맞는 것이 없을 때 한 줄만 맞아도 찾는다. 공백만 다른 이름표 둘이 한 문서에 있으면 전에는
-  따로 찾았지만 이제 `"ambiguous label"`이다.
-- `fill_by_path`는 호출을 시작할 때의 문서로 모든 경로의 이름표를 먼저 정한다. 한 경로가 써 넣은 값이 다른 경로의
-  이름표로 잡히지 않고, 결과가 경로 순서에 달라지지 않는다. 표를 경로마다 훑지 않아 칸 152개를 채우는 시간이
-  11.6초에서 0.1초로 줄었다.
-- `from_markdown(text)`이 모양을 주지 않으면 보고서 모양으로 만든다. 6.12.0에서는 꾸미지 않은 모양이었다. 전과
-  같은 모양은 `style="plain"`(또는 `MarkdownStyle()`)으로 만든다. 이미 있는 문서에 덧붙이는
-  `doc.text.append_markdown`은 전처럼 꾸미지 않은 모양이 기본이라 받은 문서의 모양을 그대로 둔다.
-- `from_markdown`·`doc.text.append_markdown`이 만드는 표의 기본 모양이 바뀌었다. 열 너비를 내용에 맞춘다. 짧은 이름
-  열은 한 줄에 들어갈 만큼만 차지하고 글이 긴 열이 나머지를 받으며, 다 들어가지 않으면 긴 열만 줄여 줄을 바꾼다.
-  머리 행은 가운데로 놓고, 구분선의 `:---`·`:---:`·`---:`를 열 정렬로 읽는다. 전처럼 열 너비를 똑같이 하려면
-  `MarkdownStyle(table_fit_columns=False)`, 머리 행 정렬을 그대로 두려면 `table_header_align=None`을 준다.
-  한/글 2024에서 전후 화면을 확인했다.
-- `from_markdown`·`doc.text.append_markdown`이 목록 안의 목록을 깊이마다 오른쪽으로 들여 쓴다. 전에는 글머리표만
-  달라지고 왼쪽 끝이 같아 깊이가 보이지 않았다. 들여 쓰는 폭은 본문 글자 한 자 반이고
-  `MarkdownStyle(list_indent_mm=)`로 바꾼다(`0`이면 전처럼 들여 쓰지 않는다).
-- `.hwp`로 쓰기를 실험 기능으로 낮추고 보호 두 가지를 넣었다. `.hwp`에서 연 문서를 그 원본 경로에 `.hwp`로 저장하면
-  `Hwp5Error`(`hwp5-overwrite-source`)로 거부한다. 한/글이 저장한 원본이 이 라이브러리가 다시 만든 파일로 바뀌는 일을
-  막는다. 열 때 옮기지 못한 내용이 있는 문서(`conversion_report`가 비어 있지 않음)는 `.hwp`로 쓰지 않고
-  `Hwp5Error`(`hwp5-write-lossy-source`)로 거부한다. 두 경우 모두 `.hwpx`로는 저장된다. README와 지원 표는 `.hwp`를
-  "읽어서 HWPX로 바꾸는" 입력 형식으로 안내한다.
-- `add_heading` 뒤에 `add_paragraph`로 더한 본문이 제목의 문단 모양과 스타일(개요)을 물려받지 않는다. 물려받은 본문에는
-  한/글이 다음 개요 번호("나.", "다." …)를 붙였다. 목록 문단 뒤의 문단을 본문으로 두는 것과 같은 규칙이다. 본문 뒤의
-  본문은 전처럼 앞 문단을 따르고, 글자 모양도 전처럼 물려받는다. 제목 모양의 문단이 필요하면 `inherit_style=True`를
-  주거나 모양을 직접 지정한다. 저수준 `section.add_paragraph`와 `oxml` 문서의 `add_paragraph`는 새 인자
-  `inherit_outline`(기본 `True`)으로 전과 같이 동작한다.
-- 큰 문서의 저장이 빨라졌다. 저장 관문이 방금 쓴 문서를 두 번 열던 것을 한 번만 열고, 줄 배치 캐시를 정리할 때
-  구역마다 다시 읽던 머리말(문단 모양·글자 모양)을 저장 한 번에 한 번만 읽는다. 관문의 검사 항목과 결과는 그대로다.
-  공개 문서 1,304개에서 관문 보고, 편집 없는 저장, 문단을 하나 더한 저장의 결과가 모두 전과 같았고, 13.6 MB 문서의
-  저장은 9.4초에서 7.4초로 줄었다. `validate_document`는 이미 연 `HwpxDocument`도 받아 다시 열지 않고 검사한다.
-- 저장 한 번이 방금 쓴 파일의 압축을 한 번만 푼다. ZIP 무결성 검사, 패키지 검사, 다시 열기, 보존 측정, 품질 관문이
-  같은 바이트를 각자 다시 풀던 것을, 저장이 끝날 때까지만 함께 쓴다(바이트가 완전히 같을 때만). 패키지 검사가 이미
-  읽은 XML을 품질 관문이 다시 파싱하지 않고, 머리말을 두 번 파싱하지 않으며, 스타일 이름 참조가 있을 수 없는 구역은
-  그 변환을 위해 파싱하지 않는다. 결과는 위와 같은 1,304개 문서에서 모두 전과 같았다. 위 항목과 합쳐, 1 MB 이상
-  문서 24개의 저장 시간 중앙값이 2.28초에서 1.46초로, 13.6 MB 문서는 8.3초에서 5.1초로 줄었다.
+- `hwpx-text-extract`가 `.hwp`(HWP 5.0)에서도 글을 뽑는다.
+- `.hwp`를 HWPX로 열 때 한/글 자체 변환이 담는 것을 담는다: 글자·문단 모양 변경 추적과 그 정의(작성자·시각·종류), 꺾인 대각선과
+  중심선이 있는 칸, 채우기 그림의 밝기·명암, 표의 개체 설명, 공백으로 시작·끝나는 수식, 반전 사각형 속 숫자. 공개 표본 250개를
+  한/글이 같은 `.hwp`를 HWPX로 저장한 것과 구조로 견주니, 뜻이 다른 문서가 151개에서 9개로 줄었다. 옮기지 못하는 것은
+  `conversion_report`에 알린다.
 
 ### 고침
 
+- 표 칸의 크기·병합 값을 읽기만 해도 문서가 바뀌던 문제를 고쳤다. `TableCell.span`·`width`·`height`가 없는 요소를 새로 만들어
+  저장하면 문서가 달라졌고, lxml로 연 문서에서는 `TypeError`가 났다.
+- 선이 굵은 칸에 색을 칠하면 같은 색의 다른 테두리 정의를 가져와 칸의 선이 바뀌거나 사라지던 문제를 고쳤다.
+- 표 칸 안에 떠 있게 만든 그림이 한/글에서 표 밖에 그려지고 표를 밀어내던 문제(6.x부터)를 고쳤다.
+- 묶음 안에 만든 묶음과, 작성자가 둘 이상인 변경 추적이 저장할 때 스키마 경고를 내던 문제를 고쳤다.
+- `paragraph.footnotes`가 표 칸 안 각주를 두 번 세던 문제를 고쳤다.
+- `doc.text.iter_paragraphs()`·`iter_objects()`가 표 캡션 안의 문단과 표를 본문·표 칸의 것으로 표시하던 문제를 고쳤다. 이제
+  `where="caption"`이고, `where="body"`는 `doc.paragraphs`와 같다.
+- 메모가 걸린 문단이나 표를 `insert_after()`·`copy_after()`로 복사하면 사본과 원본이 한 메모를 같은 번호로 가리키던 문제를 고쳤다.
+- 도형 크기를 바꿔도 그 문단의 옛 줄 배치 캐시가 남던 문제를 고쳤다.
+- `.element`로 문단을 고친 뒤 `paragraph.clear_layout_cache()`를 불러도, 지울 캐시가 없으면 고친 것이 저장되지 않던 문제를 고쳤다.
+- `add_paragraph` 등에 옛 인자(`section_index=0`)를 주면 XML 속성으로 몰래 써지던 문제를 고쳤다. 이제
+  `HwpxTypeError`(`hwpx-argument-removed`)다.
+- `doc.fields.add`·`add_check_box`에 `paragraph=0`처럼 번호를 주면 `AttributeError`가 나던 문제, 문단·런의 글을 잘못된 타입으로
+  주면 옛 글이 지워진 채 실패하던 문제, `typing.get_type_hints`가 묶음 메서드에서 `NameError`를 내던 문제를 고쳤다.
+- 새 차례를 한/글이 열면서 다시 만들 때 부르지 않은 표·그림·수식 차례까지 생기던 문제를 고쳤다(#735). 새 차례는 제목 차례만
+  만든다(`ContentsMake` 17, 한/글 2024에서 값을 바꿔 열어 확인).
+- `.hwp`를 열어 HWPX로 저장할 때 글자 모양 변경 추적이 든 문서에서 변경 추적 정의가 통째로 빠져, 한/글이 지운 글까지 보통 글로
+  그리던 문제(6쪽 문서가 15쪽)를 고쳤다. 그림·표 같은 개체 바로 앞에서 시작하는 삭제 표시가 한/글이 읽지 않는 자리에 들어가 지운
+  그림이 다른 쪽에 나타나던 문제도 고쳤다.
+- `.hwp`에서 연 문서의 쪽 테두리·글자 모양·문단 모양·표 칸이 테두리/배경 "없음"을 없는 id(0)로 가리키던 문제를 고쳤다(공개 표본
+  250개 중 117개). 한/글처럼 아무것도 그리지 않는 테두리/배경을 더해 가리킨다. 한 구역 스트림에 구역 정의가 여럿 든 `.hwp`(한/글이
+  쓰지 않은 파일)는 구역별로 나눠 연다.
 - LaTeX에서 net, initial, In처럼 한/글 예약어로 시작하는 이름을 쓰면 한/글이 F≠t, ∈₂O₃처럼 다른 기호로 그리던 문제를 고쳤다.
-- 한/글 수식을 LaTeX로 읽을 때 root3를 빈 세제곱근으로, a over b^2를 (a/b)²로 읽던 문제를 고쳤다. rarrow, ANGLE, CDOT, INF, pile, 붙여 쓴 sinx·1 overa 같은 한/글 낱말도 이제 LaTeX로 바뀐다. 공개 문서 5.5만 개 수식에서 이상한 LaTeX가 2,978개에서 8개로 줄었다.
-- \text{ 또는 }의 앞뒤 공백이 사라지던 문제와, 따옴표 글의 %·_·}가 LaTeX를 깨던 문제를 고쳤다.
-- \frac{1}, \sqrt{}, x^^2처럼 틀린 LaTeX를 받아 한/글에서 깨진 수식을 만들던 문제를 고쳤다. 이제 거부한다.
-- 수식 폭 어림이 %를 좁게 잡아 뒤 글자가 겹칠 수 있던 문제와, base_unit 0을 받던 문제를 고쳤다.
-- 코드 블록·인라인 코드 안의 `*`·`_`가 서식으로 읽혀 사라지던 문제.
-- 그림이 "!설명" 글자로 남고 링크 주소가 사라지던 문제.
-- 직접 쓴 번호 "3.1", "A."에 번호가 또 붙던 문제.
-- 문자열이 아닌 입력에 날것의 AttributeError가 나던 문제.
-- 긴 목록(글머리 1,600개)이 3초 가까이 걸리던 문제.
-- 문서 읽기(ingest)가 실린 글을 빠졌다고 보고하던 문제를 고쳤습니다(공개 문서에서 1,822곳 보고 중 실제는 148곳). 이제 캡션·표도 대조해 빠진 글만 보고합니다.
-- rich Markdown의 표가 칸 안 줄바꿈, 칸 안 표, HTML 표 칸의 `**`·`\|` 때문에 깨지던 문제를 고쳤습니다.
-- .hwp에서 옮긴 문서의 각주가 첫 각주 글만 남던 문제, 묶음 개체 캡션·덧말·구역에 바로 놓인 표의 글이 빠지던 문제를 고쳤습니다.
-- `markdown()`에 다른 쪽(rich 여부) 옵션을 주면 이제 어느 쪽 옵션인지 알려 주는 오류가 납니다.
-- 바이트나 스트림으로 넘긴 HWP 3.x·빈 파일도 못 여는 사유가 오류에 남습니다.
-- 한/글 하이픈이 보이지 않는 U+00AD로 나오던 문제를 고쳤습니다.
-- 큰 표 문서의 rich Markdown 변환이 빨라졌습니다(5,277행 표 5.9초→3.6초).
+- 한/글 수식을 LaTeX로 읽을 때 root3를 빈 세제곱근으로, a over b^2를 (a/b)²로 읽던 문제를 고쳤다. rarrow, ANGLE, CDOT, INF, pile,
+  붙여 쓴 sinx·1 overa 같은 한/글 낱말도 이제 LaTeX로 바뀐다. 공개 문서 5.5만 개 수식에서 이상한 LaTeX가 2,978개에서 8개로 줄었다.
+- `\text{ 또는 }`의 앞뒤 공백이 사라지던 문제와, 따옴표 글의 %·_·}가 LaTeX를 깨던 문제를 고쳤다.
+- `\frac{1}`, `\sqrt{}`, `x^^2`처럼 틀린 LaTeX를 받아 한/글에서 깨진 수식을 만들던 문제를 고쳤다. 이제 거부한다. LaTeX 원문이나
+  짝이 안 맞는 중괄호를 수식 스크립트로 저장하는 것도 막았다.
+- `\mathrm{H_2O}`·`\mathrm{m/s^2}`처럼 첨자가 든 곧은 글자 묶음이 `H _ 2 O`라는 글자 그대로 찍히던 문제를 고쳤다. 이제 곧은
+  글자의 수식으로 바꾼다. `\text{...}` 안의 `^`·`_`는 거부한다. `\mathrm{km/h}`가 `km / h`로 벌어지던 것도 원문 띄어쓰기를 따른다.
+- 수식 상자 폭이 좁아 한/글(Windows)에서 수식 뒤 글자가 수식과 겹치던 문제를 고쳤다. 한/글 2024가 실제로 필요로 한 폭 1,800건
+  (`tests/data/equation_windows_needed_widths.json`)에 맞춰 폭 표를 다시 만들었고, 수식 219개를 두 글꼴로 10~13pt에서 열었을 때
+  뒤 글자에 닿는 것이 없었다. 맥 한/글이 저장한 상자보다 폭이 평균 10% 넓다.
 - 구역의 첫 문단을 지우면 쪽 설정이 사라져 저장이 실패하던 문제를 고쳤다. 설정은 다음 문단으로 옮겨 간다.
 - `doc.paragraphs[0]`을 먼저 잡아 둔 뒤 첫 문단을 더하면 그 객체에 쓴 글이 사라지던 문제를 고쳤다.
-- 한/글이 만든 문서에서 머리말·꼬리말·쪽 번호를 설정하면 하나가 더 생기던 문제를 고쳤다. 쪽 번호와 꼬리말 문구가 서로를 지우면 경고한다.
+- 한/글이 만든 문서에서 머리말·꼬리말·쪽 번호를 설정하면 하나가 더 생기던 문제를 고쳤다. 쪽 번호와 꼬리말 문구가 서로를 지우면
+  경고한다.
+- 정렬을 준 머리말·꼬리말과 쪽 번호(`doc.page.set_page_number`, `set_header`/`set_footer`의 `align`)가 본문 문단의 테두리·간격을
+  물려받아 쪽 번호 밑에 줄이 그어지던 문제를 고쳤다. 이제 기본 문단 모양에 정렬만 바꾼 모양을 쓴다.
 - XML을 직접 고친 표에 행·열 삽입·삭제나 칸 나누기를 하면 옛 줄 배치 정보가 남아 한/글에서 글자가 겹치던 문제를 고쳤다.
-- 표 칸 하나를 지워 격자에 구멍을 내던 `cell.remove()`를 막았다.
-- 그림이 아닌 데이터나 모르는 형식 이름을 그림으로 넣던 것을 막았다.
-- LaTeX 원문이나 짝이 안 맞는 중괄호를 수식으로 저장하던 것을 막았다.
-- 다른 문서의 문단을 넘기면 그 문서가 조용히 바뀌던 것을 막았다.
-- 메일 머지가 `{{성명}}`처럼 한글로 된 키와 머리말·꼬리말·글상자 등의 자리 표시를 찾아 바꿉니다. 바꾸지 못한 자리 표시가 남으면 그 행을 실패로 보고합니다. 전에는 그대로 남은 채 성공이라고 했습니다.
-- `fill_by_path`에 str이 아닌 키를 넘기면 `AttributeError` 대신 `HwpxTypeError`가 납니다.
-- `fields.choices()`가 문장 속 `(○)`나 긴 문장 사이의 `○`를 선택 묶음으로 잡지 않습니다.
-- `fields.fill(name="없는이름")`의 오류가 "form field index not found: None" 대신 준 이름과 문서에 있는 누름틀 이름을 말합니다.
-- 명령줄 도구가 없는 파일, 폴더, `.hwp`에 traceback 대신 한 줄 오류와 실패 종료 코드를 냅니다. `hwpx-validate`는 `.hwp`를 변환본으로 검사했다고 밝힙니다.
-- `hwpx-validate` 도움말의 스키마 폴더 설명을 실제와 맞췄습니다.
-- `hwpx-validate-package`가 manifest에 version.xml이 없다는 경고를 더 내지 않습니다. 한/글이 저장한 문서와 같은 정상 상태입니다.
-- pip로 설치한 휠에 `hwpx.integrations`가 빠져 있어 `hwpx.integrations.langchain`·`llama_index`를 가져올 수 없던 문제. CI가 빌드한 휠을 빈 환경에 깔아 모든 하위 패키지를 가져와 본다.
-- 옛 이름(5.x 이름)의 DeprecationWarning이 설치본에 없는 `docs/migration-6.0.md`를 가리키던 것을 저장소 문서의 주소로 바꿨다.
-- 사용 가이드와 예제가 새 문서의 첫 문단이나 첫 런을 지우라고 가르쳐, 따라 하면 용지 크기가 0×0인 문서가 저장되던 예제를 고쳤다.
-- Markdown 내보내기가 그림을 꺼내지 않을 때(`image_dir` 없이, 기본) 그림 캡션까지 빼던 것을 고쳤다. 캡션은
-  그림 줄 없이도 `*캡션*`으로 나간다. 공개 문서 1,304개에서 그림 캡션 84개 중 61개가 빠져 있었다.
-- 수식 상자 폭이 좁아 한/글(Windows)에서 수식 뒤 글자가 수식과 겹치던 문제. Windows 한/글은 줄을 짤 때 파일에
-  적힌 `hp:sz` 폭을 그대로 쓰고 수식은 제 크기로 그린다. 폭 표가 맥 한/글이 저장한 상자에 맞춰져 있었는데
-  Windows는 그보다 몇 % 더 필요했고, 관계 기호(`:` `≤` `≥` `≈` `⊂` `→`)는 15~30% 모자랐다. 한/글 2024가
-  실제로 필요로 한 폭 1,800건(`tests/data/equation_windows_needed_widths.json`, 수식 글꼴 `HYhwpEQ`와
-  `HancomEQN` 둘 다)에 맞춰 글자·기호 폭 표와 간격 규칙을 다시 만들었다. 이제 그 1,800건 모두 필요 폭 이상이고
-  (중앙값 약 9% 넓음), 맞출 때 쓰지 않은 수식 63개를 포함한 219개를 두 글꼴로 10~13pt에서 한/글로 열었을 때
-  뒤 글자에 닿는 것이 없었다. 수식 폭이 글자 크기에
-  비례하지 않는 것(11pt는 10pt보다 2%, 11.5pt는 13% 넓다)도 14개 크기의 실측으로 반영했다. 맥 한/글 상자와
-  견주면 폭이 평균 10% 넓다.
-- `\mathrm{H_2O}`·`\mathrm{m/s^2}`처럼 첨자가 든 곧은 글자 묶음이 `H _ 2 O`라는 글자 그대로 찍히던 문제. 이제
-  곧은 글자의 수식(`{rm H _{2} O it}`)으로 바꾼다. `\text{...}` 안의 `^`·`_`는 글자로 찍히게 두지 않고 거부한다.
-  `\mathrm{km/h}`가 `km / h`로 벌어지던 것도 원문 띄어쓰기를 따른다.
-- 정렬을 준 머리말·꼬리말과 쪽 번호(`doc.page.set_page_number`, `set_header`/`set_footer`의 `align`)가 본문에
-  있는 다른 문단의 모양을 물려받지 않는다. 같은 정렬의 문단 모양이 이미 있으면 그것을 그대로 썼기 때문에, 가운데
-  정렬에 아래 테두리와 문단 간격을 준 제목이 있는 문서에서는 쪽 번호 밑에도 줄이 그어졌다. 이제 기본 문단 모양에
-  정렬만 바꾼 모양을 쓴다.
-- HWP 3.x 이하 `.hwp` 파일을 열면 "File is not a zip file" 대신 지원하지 않는 형식임을 알린다. 이 파일은 복합 파일도
-  ZIP도 아니어서 사유를 알 수 없었다. 오류 형(`HwpxArchiveError`)은 전과 같다.
+- 표 칸 하나를 지워 격자에 구멍을 내던 `cell.remove()`를 막았다. 그림이 아닌 데이터나 모르는 형식 이름을 그림으로 넣는 것, 다른
+  문서의 문단을 넘겨 그 문서가 조용히 바뀌는 것도 막았다.
+- `fields.fill(name="없는이름")`의 오류가 "form field index not found: None" 대신 준 이름과 문서에 있는 누름틀 이름을 말한다.
+- 명령줄 도구가 없는 파일, 폴더, `.hwp`에 traceback 대신 한 줄 오류와 실패 종료 코드를 낸다. `hwpx-validate`는 `.hwp`를 변환본으로
+  검사했다고 밝히고, 도움말의 스키마 폴더 설명을 실제와 맞췄다. `hwpx-validate-package`는 manifest에 version.xml이 없다는 경고를
+  내지 않는다(한/글이 저장한 문서와 같은 정상 상태).
+- HWP 3.x 이하 `.hwp`를 열면 "File is not a zip file" 대신 지원하지 않는 형식임을 알린다. 오류 형(`HwpxArchiveError`)은 전과 같다.
 - `META-INF/container.xml`이 가리키는 미리보기(`Preview/PrvText.txt` 등)가 패키지에 없는 문서를 열고 저장한다. 전에는
-  `HwpxStructureError`로 열기를 거부했고, 저장 관문도 같은 사유로 막았다. 한/글 2024는 이런 문서를 그대로 연다. 본문
-  (`Contents/content.hpf`)이나 `META-INF/container.rdf`처럼 미리보기가 아닌 대상이 없으면 전처럼 오류다. 패키지 검증기는
-  미리보기 누락을 오류 대신 경고로 알린다.
+  `HwpxStructureError`로 거부했지만 한/글 2024는 이런 문서를 그대로 연다. 본문처럼 미리보기가 아닌 대상이 없으면 전처럼 오류다.
+- 사용 가이드와 예제가 새 문서의 첫 문단이나 첫 런을 지우라고 가르쳐, 따라 하면 용지 크기가 0×0인 문서가 저장되던 예제를 고쳤다.
+
+### 한/글이 하는 것
+
+엔진은 쪽을 배치하지 않는다. 쪽 배치에 달린 값은 짐작해 쓰지 않고, 한/글이 문서를 열거나 다시 저장할 때 정한다.
+
+- 줄 배치: 글·크기·배치가 바뀐 문단(과 그 문단을 담은 문단)의 줄 배치 캐시를 지운다. 한/글이 열 때 그 문단을 다시 배치한다.
+  옛 캐시가 남으면 한/글이 글자를 겹쳐 그린다.
+- 쪽마다 새로 매기는 각주(`ON_PAGE`)의 번호: 엔진은 각주를 더하거나 지워도 적힌 번호를 다시 쓰지 않고, 새 각주에는 문서 순번을
+  적는다. `note.number`는 파일에 적힌 번호다. 한/글 2024는 열 때 쪽마다 번호를 다시 매기고, 저장할 때 쪽별 번호를 적는다(확인함).
+- 차례의 쪽 번호: `add_table_of_contents`와 `toc.rebuild()`는 쪽 번호를 비우고 `refresh_on_open`을 켠다. 한/글이 열 때 항목과 쪽
+  번호를 다시 만든다(확인함).
+- 상호 참조의 보일 글: 대상이나 보일 것이 바뀌면 보이던 글을 비운다. 쪽 번호·번호는 한/글이 쪽을 배치하며 채운다(확인함).
+- 글자·문단 모양 변경 추적: 엔진은 새로 쓰거나 거절하지 않고, 파일에 있는 항목은 읽고 그대로 둔다. 한/글 2024는 다시 저장할 때 그
+  항목을 버린다(확인함).
 
 ## [6.12.0] - 2026-11-11
 
