@@ -26,17 +26,19 @@
    "capabilities.py:860"
   ],
   "document-clock-invalid": [
-   "document.py:278"
+   "document.py:279"
   ],
   "document-header-missing": [
    "_document/layout.py:347",
    "_document/layout.py:572",
-   "_document/ns/styles.py:976",
+   "_document/ns/styles.py:1052",
    "oxml/document_parts.py:863",
    "oxml/document_parts.py:990",
    "oxml/formatting.py:1053",
    "oxml/formatting.py:173",
-   "oxml/formatting.py:223"
+   "oxml/formatting.py:223",
+   "oxml/numbering_kinds.py:380",
+   "oxml/numbering_kinds.py:436"
   ],
   "document-history-root-invalid": [
    "oxml/history_part.py:151"
@@ -55,35 +57,35 @@
    "tools/document_merge.py:202"
   ],
   "document-seed-invalid": [
-   "document.py:271"
+   "document.py:272"
   ],
   "document-settings-root-invalid": [
    "oxml/settings.py:135"
   ],
   "document-validation-failed": [
-   "_document/persistence.py:199"
+   "_document/persistence.py:200"
   ],
   "document-version-root-invalid": [
    "oxml/version_part.py:52"
   ],
   "field-ambiguous": [
-   "_document/fields.py:1353"
+   "_document/fields.py:1383"
   ],
   "field-cell-not-found": [
-   "_document/fields.py:983"
+   "_document/fields.py:1013"
   ],
   "field-checkbox-ambiguous": [
-   "_document/fields.py:1269"
+   "_document/fields.py:1299"
   ],
   "field-checkbox-caption-empty": [
-   "_document/fields.py:1204"
+   "_document/fields.py:1234"
   ],
   "field-checkbox-not-created": [
-   "_document/fields.py:1221"
+   "_document/fields.py:1251"
   ],
   "field-checkbox-not-found": [
-   "_document/fields.py:1252",
-   "_document/fields.py:1262"
+   "_document/fields.py:1282",
+   "_document/fields.py:1292"
   ],
   "field-choice-unknown": [
    "objects/checkbox.py:255"
@@ -92,31 +94,31 @@
    "oxml/field_marks.py:222"
   ],
   "field-end-missing": [
-   "_document/fields.py:1469"
+   "_document/fields.py:1499"
   ],
   "field-fit-failed": [
-   "_document/fields.py:1495"
+   "_document/fields.py:1525"
   ],
   "field-form-not-created": [
-   "_document/fields.py:1895"
+   "_document/fields.py:1925"
   ],
   "field-form-text-value": [
-   "_document/fields.py:1958",
-   "_document/fields.py:1985"
+   "_document/fields.py:1988",
+   "_document/fields.py:2015"
   ],
   "field-mail-merge-empty-name": [
    "oxml/field_marks.py:336"
   ],
   "field-name-empty": [
-   "_document/fields.py:1094"
+   "_document/fields.py:1124"
   ],
   "field-not-created": [
-   "_document/fields.py:1130"
+   "_document/fields.py:1160"
   ],
   "field-not-found": [
-   "_document/fields.py:1306",
-   "_document/fields.py:1345",
-   "_document/fields.py:1566"
+   "_document/fields.py:1336",
+   "_document/fields.py:1375",
+   "_document/fields.py:1596"
   ],
   "field-path-format-unsupported": [
    "oxml/field_marks.py:290"
@@ -125,14 +127,14 @@
    "oxml/field_marks.py:254"
   ],
   "field-radio-group-value": [
-   "_document/fields.py:1930"
+   "_document/fields.py:1960"
   ],
   "field-selector-conflict": [
-   "_document/fields.py:1243",
-   "_document/fields.py:1291"
+   "_document/fields.py:1273",
+   "_document/fields.py:1321"
   ],
   "field-text-box-not-found": [
-   "_document/fields.py:1017"
+   "_document/fields.py:1047"
   ],
   "header-compat-empty-flag-name": [
    "oxml/header_compat.py:142"
@@ -156,15 +158,15 @@
    "_removed_names.py:974"
   ],
   "hwpx-type-error": [
-   "_document/fields.py:1092",
-   "_document/fields.py:1101",
-   "_document/fields.py:1200",
-   "_document/fields.py:1202",
+   "_document/fields.py:1122",
+   "_document/fields.py:1131",
+   "_document/fields.py:1230",
+   "_document/fields.py:1232",
    "_document/highlight.py:95",
    "_document/ns/tables.py:110",
    "_document/ns/text.py:397",
    "_document/ns/text.py:97",
-   "_document/persistence.py:100",
+   "_document/persistence.py:101",
    "_document/shapes.py:504",
    "_document/shapes.py:671",
    "_document/text_blocks.py:334",
@@ -172,8 +174,8 @@
    "oxml/_document_primitives.py:113",
    "oxml/document_parts.py:1278",
    "oxml/formatting.py:1005",
-   "oxml/paragraph.py:1308",
-   "oxml/paragraph.py:1393",
+   "oxml/paragraph.py:1309",
+   "oxml/paragraph.py:1394",
    "oxml/table.py:307",
    "oxml/table.py:999"
   ],
@@ -232,7 +234,7 @@
    "opc/package.py:667"
   ],
   "open-safety-failed": [
-   "_document/persistence.py:225"
+   "_document/persistence.py:228"
   ],
   "package-text-replacement-key-empty": [
    "patch.py:786"
@@ -296,10 +298,10 @@
    "oxml/formatting.py:960"
   ],
   "paragraph-index-mark-empty-key": [
-   "oxml/paragraph.py:1190"
+   "oxml/paragraph.py:1191"
   ],
   "paragraph-index-mark-no-text-run": [
-   "oxml/paragraph.py:1182"
+   "oxml/paragraph.py:1183"
   ],
   "paragraph-indexes-empty": [
    "_document/layout.py:166",
@@ -384,7 +386,7 @@
    "oxml/_document_primitives.py:1496"
   ],
   "paragraph-text-invalid-type": [
-   "document.py:626",
+   "document.py:631",
    "oxml/_document_primitives.py:131",
    "oxml/paragraph.py:518"
   ],
@@ -395,7 +397,7 @@
    "oxml/paragraph.py:450"
   ],
   "paragraph-title-mark-no-text-run": [
-   "oxml/paragraph.py:1138"
+   "oxml/paragraph.py:1139"
   ],
   "parts-auto-spacing-unknown-para-pr": [
    "_document/ns/parts.py:449"
@@ -407,33 +409,33 @@
    "_document/ns/parts.py:283"
   ],
   "ref-bookmark-name-empty": [
-   "objects/form_field.py:405"
+   "objects/form_field.py:445"
   ],
   "ref-cross-reference-content-value": [
-   "_document/fields.py:873"
+   "_document/fields.py:903"
   ],
   "ref-cross-reference-hyperlink-value": [
-   "_document/fields.py:881"
+   "_document/fields.py:911"
   ],
   "ref-link-end-missing": [
-   "objects/form_field.py:532"
+   "objects/form_field.py:572"
   ],
   "ref-link-target-empty": [
-   "objects/form_field.py:518"
+   "objects/form_field.py:558"
   ],
   "save-format-unsupported": [
-   "_document/persistence.py:568"
+   "_document/persistence.py:576"
   ],
   "save-mode-invalid": [
-   "_document/persistence.py:118",
-   "_document/persistence.py:125"
+   "_document/persistence.py:119",
+   "_document/persistence.py:126"
   ],
   "save-package-contract-violated": [
-   "_document/persistence.py:322",
-   "_document/persistence.py:648"
+   "_document/persistence.py:327",
+   "_document/persistence.py:656"
   ],
   "save-target-invalid-type": [
-   "_document/persistence.py:411"
+   "_document/persistence.py:418"
   ],
   "section-clear-control-content": [
    "oxml/section.py:352"
@@ -486,7 +488,7 @@
    "_document/shapes.py:732"
   ],
   "shape-chart-reference-empty": [
-   "oxml/paragraph.py:1311"
+   "oxml/paragraph.py:1312"
   ],
   "shape-chart-root-invalid": [
    "_document/shapes.py:693"
@@ -550,7 +552,7 @@
   ],
   "shape-equation-script-empty": [
    "_document/shapes.py:507",
-   "oxml/paragraph.py:1396",
+   "oxml/paragraph.py:1397",
    "oxml/shape_position.py:1013"
   ],
   "shape-equation-script-latex": [
@@ -613,7 +615,7 @@
    "oxml/shape_position.py:441"
   ],
   "story-ambiguous": [
-   "oxml/section_format.py:1526",
+   "oxml/section_format.py:1535",
    "oxml/section_story.py:332"
   ],
   "story-linkage": [
@@ -626,10 +628,10 @@
    "oxml/formatting.py:1025"
   ],
   "style-border-base-conflict": [
-   "_document/ns/styles.py:675"
+   "_document/ns/styles.py:751"
   ],
   "style-border-fill-conflict": [
-   "_document/ns/styles.py:688"
+   "_document/ns/styles.py:764"
   ],
   "style-border-fill-gradient-colors-invalid": [
    "_document/ns/styles.py:151"
@@ -652,6 +654,9 @@
   "style-border-side-invalid": [
    "oxml/_document_primitives.py:812"
   ],
+  "style-bullet-char-invalid": [
+   "oxml/numbering_kinds.py:407"
+  ],
   "style-color-invalid": [
    "oxml/color.py:49",
    "oxml/formatting.py:333",
@@ -663,7 +668,8 @@
   "style-definition-not-found": [
    "oxml/formatting.py:1288",
    "oxml/formatting.py:179",
-   "oxml/formatting.py:420"
+   "oxml/formatting.py:420",
+   "oxml/numbering_kinds.py:421"
   ],
   "style-font-container-create-failed": [
    "oxml/header_part.py:1172",
@@ -690,39 +696,53 @@
    "oxml/_document_primitives.py:1311"
   ],
   "style-format-empty": [
-   "_document/ns/styles.py:946"
+   "_document/ns/styles.py:1022"
   ],
   "style-in-use": [
    "oxml/formatting.py:1160",
    "oxml/formatting.py:1163"
   ],
   "style-line-width-invalid": [
-   "_document/ns/styles.py:746",
+   "_document/ns/styles.py:822",
    "oxml/utils.py:47"
   ],
   "style-list-continue-conflict": [
    "_document/layout.py:557"
   ],
   "style-list-kind-invalid": [
-   "oxml/numbering_kinds.py:155"
+   "oxml/numbering_kinds.py:168"
   ],
   "style-list-level-invalid": [
-   "_document/layout.py:565"
+   "_document/layout.py:565",
+   "oxml/numbering_kinds.py:250",
+   "oxml/numbering_kinds.py:368"
   ],
   "style-list-property-failed": [
-   "_document/layout.py:608"
+   "_document/layout.py:608",
+   "_document/ns/styles.py:559"
   ],
   "style-list-start-value": [
-   "_document/layout.py:578"
+   "_document/layout.py:578",
+   "oxml/numbering_kinds.py:263"
   ],
   "style-memo-shape-line-width-conflict": [
-   "_document/ns/styles.py:737"
+   "_document/ns/styles.py:813"
   ],
   "style-not-found": [
    "oxml/section.py:965"
   ],
   "style-number-format-invalid": [
-   "oxml/numbering_kinds.py:79"
+   "oxml/numbering_kinds.py:92"
+  ],
+  "style-numbering-level-invalid": [
+   "oxml/numbering_kinds.py:279",
+   "oxml/numbering_kinds.py:287",
+   "oxml/numbering_kinds.py:298",
+   "oxml/numbering_kinds.py:359",
+   "oxml/numbering_kinds.py:494"
+  ],
+  "style-numbering-level-missing": [
+   "oxml/numbering_kinds.py:507"
   ],
   "style-remove-default": [
    "oxml/formatting.py:1149"
@@ -779,8 +799,8 @@
    "oxml/table_sizes.py:399"
   ],
   "table-size-invalid": [
-   "document.py:778",
-   "document.py:785",
+   "document.py:783",
+   "document.py:790",
    "oxml/table_sizes.py:63",
    "oxml/table_sizes.py:70"
   ],
@@ -820,7 +840,7 @@
    "_document/ns/text.py:90"
   ],
   "toc-refresh-value": [
-   "objects/form_field.py:835"
+   "objects/form_field.py:875"
   ],
   "track-change-not-found": [
    "_document/tracked.py:420"
@@ -853,8 +873,8 @@
  },
  "malformedCodes": [],
  "observed": {
-  "other": 464,
-  "typed": 415,
+  "other": 466,
+  "typed": 429,
   "untyped": 173,
   "untypedByFile": {
    "body_patch.py": 20,
@@ -887,8 +907,8 @@
   }
  },
  "public": {
-  "total": 164,
-  "typed": 164,
+  "total": 165,
+  "typed": 165,
   "typedRatio": 1.0,
   "untyped": 0,
   "untypedSites": []
