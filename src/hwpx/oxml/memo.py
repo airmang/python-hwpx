@@ -511,8 +511,11 @@ class HwpxOxmlNote:
     @property
     def number(self) -> int:
         """The note's number as Hancom counts it: each kind on its own, from 1, in
-        document order, restarting where a section or an ``hp:newNum`` control says
-        (``ON_PAGE`` numbering is counted as running on: pages are not laid out)."""
+        document order, restarting where a section or an ``hp:newNum`` control says.
+
+        In a section that numbers notes ``ON_PAGE`` (again on every page) the number
+        depends on a page layout this engine does not make: it is the ``number`` the
+        file holds."""
 
         from .note_authoring import note_numbers
 

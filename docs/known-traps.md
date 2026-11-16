@@ -114,6 +114,12 @@
 - **각주·미주 시작 번호는 구역마다 새로 매길 때만 보인다.** `set_footnote_numbering(new_num=)`·
   `set_endnote_numbering(new_num=)`의 시작 번호는 번호 방식이 `ON_SECTION`일 때만 한/글에 보인다.
   `CONTINUOUS`와 `ON_PAGE`에서는 1부터 매기고, 값은 파일에만 남는다.
+- **쪽마다 새로 매기는 각주(`ON_PAGE`)의 번호는 엔진이 매기지 않는다.** 그 번호는 쪽 배치에
+  달려 있어서, 그런 구역이 하나라도 있으면 각주를 더하거나 지워도 이미 적힌 `number`를 다시
+  쓰지 않고(다른 구역도), 새 각주에는 문서 전체에서의 순번을 적는다. `note.number`는 그
+  구역에서 파일에 적힌 값을 돌려준다. 공개 문서에는 `ON_PAGE` 구역이 없어(HWPX 1,339·HWP 319
+  구역) 한/글이 저장 때 무엇을 적는지는 아직 모른다 — 한/글은 쪽을 나눌 때 번호를 다시 그린다고
+  보고 그대로 둔다.
 - **줄 번호는 `show_line_number=True`일 때만 보인다.** `set_line_numbers()`는 모양
   (재시작·간격·거리·시작 번호)만 정한다. `set_visibility(show_line_number=True)`를
   함께 준다. `restart_type=1`이면 쪽마다 1부터 다시 센다.
