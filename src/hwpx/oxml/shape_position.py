@@ -530,8 +530,10 @@ class ObjectPlacement:
     def rotation(self) -> int:
         """The angle the object is turned by, in degrees clockwise (``hp:rotationInfo/@angle``); 0 when it has none.
 
-        Setting it turns the object that many degrees clockwise (0..359) about its middle, as Hancom
-        saves a turned object. The object keeps its own size (``hp:orgSz``) and the size it is drawn at (``hc:scaMatrix``,
+        Setting it turns the object that many degrees clockwise about its middle, as Hancom saves a turned
+        object. The angle is kept as Hancom keeps it, from 0 to 359 (-30 is 330, 390 is 30). It is the angle from
+        the object's unturned form, not added to the angle it has: an object turned 30 degrees and set to 45
+        is written as one turned 45 from the start, as Hancom's object dialog writes it. The object keeps its own size (``hp:orgSz``) and the size it is drawn at (``hc:scaMatrix``,
         ``hp:curSz``: a picture after ``resize`` is drawn smaller or larger); its box (``hp:sz``) becomes the
         box around the turned object, the object as drawn is turned about its own middle (``hc:rotMatrix``)
         and moved into that box (``hp:offset``, ``hc:transMatrix``), and ``hp:rotationInfo`` holds the angle
@@ -550,18 +552,22 @@ class ObjectPlacement:
         own matrices, so each member takes the group's turn about the group's middle (its ``hc:rotMatrix``,
         expressed from its own place) and the group's move (``hc:transMatrix`` and ``hp:offset``: its place
         plus the group's), and keeps ``rotationInfo/@angle`` 0; the group's box is the box around its turned
-        members and its ``rotationInfo`` centre the turned middle -- what Hancom wrote for groups of a
-        rectangle and an ellipse and of a rectangle and a text box turned 90 and 30 degrees. A member's
-        ``rotationInfo`` centre becomes the middle of its own turned box (it stays at a right angle, as
-        Hancom's turn by 90 degrees leaves it) and a member's text is laid out across that box's width.
+        members (the shapes of a group inside included, not that group's own box) and its ``rotationInfo``
+        centre the turned middle. The turn is about the middle of the group's own size (``hp:orgSz``) even
+        when the group is resized, in the space its members are drawn in. A shape's ``rotationInfo`` centre
+        becomes the middle of its own turned box as drawn (a group inside keeps its centre) and a shape's
+        text is laid out across that box's width -- what Hancom 2024's object dialog wrote for groups of
+        rectangles, an ellipse, a text box, a line and a polygon, resized or not, with a group inside, turned
+        30, 45, 90, 180, 270 and 330 degrees and turned again from 30 to 45. (Its 90-degree command leaves
+        the members' centres as they are; the dialog's form is written.)
 
         Refused with ``shape-rotation-unsupported`` (``context["reason"]`` says why), because no Hancom-saved
-        document shows how Hancom writes them: a group already turned to another angle than 0 (turn it
-        back to 0 first), resized (stretched) or flipped, or holding a group, a turned, flipped or
-        stretched member; a flipped object; and an object without ``hp:rotationInfo`` (an equation or
-        chart). One member of a group alone is refused with ``shape-group-member-unsupported`` (turn the
-        group), an angle outside 0..359 with ``shape-rotation-value``. 0 turns an object back, a group
-        too. The paragraph loses its line layout cache.
+        document shows how Hancom writes them: a flipped object or group (Hancom turns one, but how it holds
+        one flipped and unturned is not shown); a group holding a turned or flipped member, or a group inside
+        a resized group; and an object without ``hp:rotationInfo`` (an equation or chart). One member of a
+        group alone is refused with ``shape-group-member-unsupported`` (turn the group), an angle that is not
+        an int with ``shape-rotation-value``. 0 turns an object back, a group too. The paragraph loses its line
+        layout cache.
         """
 
         info = self.element.find(f"{_HP}rotationInfo")
@@ -569,13 +575,14 @@ class ObjectPlacement:
 
     @rotation.setter
     def rotation(self, angle: int) -> None:
-        if isinstance(angle, bool) or not isinstance(angle, int) or not 0 <= angle <= 359:
+        if isinstance(angle, bool) or not isinstance(angle, int):
             raise HwpxValueError(
-                f"angle must be an int from 0 to 359 (degrees); got {angle!r}",
+                f"angle must be an int (whole degrees); got {angle!r}",
                 code="shape-rotation-value",
                 context={"value": repr(angle)},
-                suggestion="Pass the angle in whole degrees clockwise, 0 to 359.",
+                suggestion="Pass the angle in whole degrees clockwise; -30 is 330.",
             )
+        angle %= 360  # as Hancom keeps it: turned by -30 degrees it saves 330
         if _in_group(self.element, self.paragraph.element):
             raise _group_member_refused("turned", "a member turns only with its whole group: turn the group "
                                                   "(group.rotation = angle)")
@@ -727,9 +734,9 @@ def _rotation_refused(element: Any, why: str) -> HwpxValueError:
         code="shape-rotation-unsupported",
         context={"reason": why},
         suggestion="Pictures, drawing shapes (with or without text) and OLE objects turn, stretched or not, and "
-                   "a whole group whose members are unturned and unflipped turns; a flipped object, an "
-                   "equation or chart, a resized or flipped group, a group holding a group and a group "
-                   "already turned to another angle (turn it back to 0 first) do not.",
+                   "so does a whole group, resized or not, with groups inside, turned or not; a flipped object "
+                   "or group, a group holding a member turned or flipped on its own, a group inside a resized "
+                   "group, an equation or chart do not. Resize a turned group after turning it back to 0.",
     )
 
 

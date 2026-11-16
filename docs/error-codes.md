@@ -413,8 +413,8 @@ except HwpxError as exc:
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
-| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 뒤집은 개체, 또는 한/글 저장본으로 확인하지 못한 묶음(이미 돌린 묶음을 다른 각도로·늘인·뒤집은 묶음, 묶음이 든 묶음, 돌리거나 늘인 구성원이 든 묶음)이다. 글이 든 도형과 묶음 전체는 돈다. |
-| `shape-rotation-value` | 회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부). |
+| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 뒤집은 개체·묶음, 또는 한/글 저장본으로 확인하지 못한 묶음(혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘인 묶음 안의 묶음)이다. 돈 묶음의 크기 바꾸기도 먼저 0으로 되돌려야 한다. 글이 든 도형과 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다. |
+| `shape-rotation-value` | 회전 각도가 int(도)가 아니다(bool 도 거부). 음수·360 이상은 한/글처럼 0~359로 바꿔 쓴다(-30 → 330). |
 | `shape-ruby-alignment-value` | 덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다. |
 | `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
 | `shape-ruby-text-value` | 덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()). |
