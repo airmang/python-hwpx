@@ -628,6 +628,9 @@ class HwpxOxmlTableRow(SameElement, TableRowFormat):
 class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
     """Representation of an ``<hp:tbl>`` inline object."""
 
+    #: The section of a table placed right in it (``section.blocks``), which has no paragraph.
+    _section: "HwpxOxmlSection | None" = None
+
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element
         self.paragraph = paragraph
@@ -678,7 +681,9 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
     def caption(self) -> "Caption | None":
         """This table's ``hp:caption``, or ``None`` if it doesn't have one."""
 
-        return _read_caption(self.element, self.paragraph.section)
+        # A table placed right in a section (``section.blocks``) has no paragraph; it knows its section.
+        section = self.paragraph.section if self.paragraph is not None else self._section
+        return _read_caption(self.element, section)  # type: ignore[arg-type]
 
     def set_caption(
         self,

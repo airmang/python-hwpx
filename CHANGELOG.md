@@ -231,6 +231,16 @@ python-hwpx 7.0을 함께 설치한다.
 
 #### 글과 서식
 
+- 내용을 파일에 적힌 차례대로 읽는다. `run.content`는 런이 담은 것을 조각(`InlineItem`)마다 차례로 돌려준다: 글자, 탭·줄 바꿈·
+  묶음 빈칸·고정폭 빈칸·하이픈, 형광펜·차례 표시·변경 추적 표시, 누름틀 시작·끝, 각주·미주, 책갈피, 자동 번호 같은 컨트롤,
+  개체·덧말·글자 겹치기. 모르는 요소도 버리지 않고 `"unknown"`과 요소 이름으로 낸다. `run.to_model()`이 버리던 글자 원자가
+  모두 나오고(공개 견본 1,300여 개의 런 약 10만 개 중 1만 2천 개에서 둘이 달랐다), 트리를 다시 파싱하지 않는다.
+  `paragraph.iter_objects(kinds=, where=)`는 문단 안의 개체를 표 칸·글상자·묶음·각주 속까지 문서 차례로,
+  `shape.iter_paragraphs(where=)`는 도형 안의 문단(글상자·캡션·구성원·안쪽 표)을, `section.blocks`는 구역의 문단과 다른
+  프로그램이 구역 바로 아래 쓴 표를 파일 차례로 돌려준다. `paragraph.nested_text(where=)`는 문단의 글에 문단 안 표 칸·글상자·
+  캡션·각주 문단의 글을 문서 차례로 더해 읽는다(`paragraph.text`는 그대로 문단 자신의 글이다). 모두 읽기만 한다.
+- `BorderFillInfo.fill_kinds`: 테두리/배경 정의의 채움 종류를 적힌 차례로 읽는다(`"color"`·`"gradation"`·`"image"`, 채움이
+  아예 없으면 `()`). 전에는 `fill`(단색)만 있어 그러데이션·그림 채움과 채움 없음을 가르지 못했다.
 - 런의 서식을 한 줄로 읽고 바꾼다: `run.size = 14`(pt), `font`, `color`, `highlight`, `strike`, `superscript`, `subscript`,
   `letter_spacing`, `ratio`, 여럿은 `run.set_format(...)`, 언어별 글꼴은 `run.set_font(face, lang=...)`. 엔진이 그 런만의 글자 모양
   사본을 만들고(같은 정의가 있으면 그것을 쓴다), 같은 모양을 쓰던 다른 런은 그대로다. `run.fonts`는 일곱 언어(한글·영문·한자·

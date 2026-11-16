@@ -11,7 +11,7 @@ frozen with no settable fields.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field as _field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -416,7 +416,11 @@ class BorderFillInfo:
     """A typed read of one ``hh:borderFill`` (``doc.styles.border_fill``).
 
     ``fill`` is the solid ``hc:winBrush`` face colour, or ``None`` when there
-    is no solid fill. Gradient and image fills are not described here.
+    is no solid fill. ``fill_kinds`` names what the ``hc:fillBrush`` holds, in
+    file order: ``"color"`` (``hc:winBrush``, 면 색·무늬 -- also when its face
+    colour is ``"none"``, as Hancom often writes it), ``"gradation"``
+    (``hc:gradation``), ``"image"`` (``hc:imgBrush``) and ``"unknown"`` for
+    anything else; ``()`` when there is no ``hc:fillBrush`` at all (채움 없음).
     Like the action results above, it is a snapshot taken at call time and
     does not follow later edits to the header.
     """
@@ -428,6 +432,7 @@ class BorderFillInfo:
     bottom: BorderLine
     diagonal: BorderLine
     fill: str | None
+    fill_kinds: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -438,6 +443,7 @@ class BorderFillInfo:
             "bottom": self.bottom.to_dict(),
             "diagonal": self.diagonal.to_dict(),
             "fill": self.fill,
+            "fillKinds": list(self.fill_kinds),
         }
 
 
@@ -943,6 +949,71 @@ class ObjectPlace:
             "row": self.row,
             "col": self.col,
             "depth": self.depth,
+        }
+
+
+@dataclass(frozen=True)
+class InlineItem:
+    """One piece of a run's content, in the order the file writes it (``run.content``).
+
+    ``kind`` says what the piece is; ``name`` is the XML element's local name (``""`` for
+    plain characters); ``container`` is where the file writes it: ``"t"`` (inside an
+    ``hp:t``), ``"ctrl"`` (inside an ``hp:ctrl``) or ``"run"`` (a child of the run itself).
+
+    Inside ``hp:t``: ``"text"`` (characters), ``"tab"``, ``"line_break"``, ``"nb_space"``
+    (묶음 빈칸), ``"fw_space"`` (고정폭 빈칸), ``"hyphen"``, ``"markpen_begin"``/``"markpen_end"``
+    (형광펜), ``"title_mark"`` (차례 표시), ``"insert_begin"``/``"insert_end"``/``"delete_begin"``/
+    ``"delete_end"`` (변경 추적 표시). ``text`` is the character a glyph stands for (``"\\t"``,
+    ``"\\n"``, ``"\\xa0"``, ``"\\u3000"``, ``"\\xad"``) and ``""`` for a mark, so the ``text`` of the
+    ``"t"`` pieces joined is ``run.text``.
+
+    Inside ``hp:ctrl``: ``"field_begin"``, ``"field_end"``, ``"footnote"``, ``"endnote"``,
+    ``"bookmark"``, ``"auto_number"``, ``"page_number"`` (쪽 번호 매기기), ``"page_number_ctrl"``,
+    ``"number_restart"``, ``"page_hiding"``, ``"column_definition"``, ``"header"``, ``"footer"``,
+    ``"index_mark"``, ``"hidden_comment"``.
+
+    Run children: objects by the kind ``doc.text.iter_objects()`` gives them (``"table"``,
+    ``"picture"``, ``"equation"``, ``"shape"``, ``"textart"``, ``"ole"``, ``"chart"``,
+    ``"video"``) and ``"form"`` (단추·선택 상자·입력 상자 …), ``"ruby"`` (덧말),
+    ``"composed_character"`` (글자 겹치기), ``"section_properties"`` (``hp:secPr``),
+    ``"switch"`` (``hp:switch``), and the marks and glyphs above when a writer puts them
+    in the run instead of ``hp:t``.
+
+    Anything else is ``"unknown"``, with its ``name``; nothing the file holds is left out
+    (an empty ``hp:t`` or ``hp:ctrl`` holds nothing and gives no piece). ``attributes``
+    are the element's attributes as written, in file order (``item.attribute("type")``).
+    ``object`` is the model object for the piece when there is one: the table, picture,
+    shape … (as ``paragraph.objects`` gives it), the note (``paragraph.footnotes``), the
+    :class:`Hyperlink` of a ``HYPERLINK`` field, the memo of a ``MEMO`` field that holds its
+    text, the :class:`Ruby` or :class:`ComposedCharacter`, and :class:`AutoNumber`,
+    :class:`PageNumberControl`, :class:`NumberRestart`, :class:`PageHiding` or
+    :class:`ColumnDefinition` for those controls; else ``None``. ``element`` is the XML
+    element, the escape hatch (``None`` for characters). Neither takes part in ``==``.
+    """
+
+    kind: str
+    name: str
+    container: str
+    text: str = ""
+    attributes: tuple[tuple[str, str], ...] = ()
+    object: Any = _field(default=None, compare=False, repr=False)
+    element: Any = _field(default=None, compare=False, repr=False)
+
+    def attribute(self, name: str, default: str | None = None) -> str | None:
+        """The value of the attribute *name* as written, *default* when the element has none."""
+
+        for key, value in self.attributes:
+            if key == name:
+                return value
+        return default
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "name": self.name,
+            "container": self.container,
+            "text": self.text,
+            "attributes": dict(self.attributes),
         }
 
 

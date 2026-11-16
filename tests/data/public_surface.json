@@ -580,6 +580,7 @@
     "indent_right_mm": {"kind": "property", "settable": true, "returns": "float | None"},
     "insert_after": {"kind": "method", "params": [["text", "P", true]], "returns": "Paragraph"},
     "insert_before": {"kind": "method", "params": [["text", "P", true]], "returns": "Paragraph"},
+    "iter_objects": {"kind": "method", "params": [["kinds", "K", true], ["where", "K", true]], "returns": "Iterator[ObjectPlace]"},
     "keep_lines": {"kind": "property", "settable": true, "returns": "bool | None"},
     "keep_with_next": {"kind": "property", "settable": true, "returns": "bool | None"},
     "line_segments": {"kind": "property", "settable": false, "returns": "tuple[LineSegment, ...]"},
@@ -587,6 +588,7 @@
     "line_texts": {"kind": "property", "settable": false, "returns": "tuple[str, ...] | None"},
     "move_after": {"kind": "method", "params": [["paragraph", "P", false]], "returns": "None"},
     "move_before": {"kind": "method", "params": [["paragraph", "P", false]], "returns": "None"},
+    "nested_text": {"kind": "method", "params": [["where", "K", true]], "returns": "str"},
     "objects": {"kind": "property", "settable": false, "returns": "tuple[ParagraphObject, ...]"},
     "outline_level": {"kind": "property", "settable": true, "returns": "int"},
     "page_break": {"kind": "property", "settable": true, "returns": "bool"},
@@ -683,6 +685,7 @@
     "bold": {"kind": "property", "settable": true, "returns": "bool | None"},
     "char_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "color": {"kind": "property", "settable": true, "returns": "str | None"},
+    "content": {"kind": "property", "settable": false, "returns": "tuple[InlineItem, ...]"},
     "content_kinds": {"kind": "property", "settable": false, "returns": "frozenset[str]"},
     "font": {"kind": "property", "settable": true, "returns": "str | None"},
     "fonts": {"kind": "property", "settable": false, "returns": "LanguageFonts"},
@@ -712,6 +715,7 @@
    "members": {
     "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
     "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["include_run", "K", true], ["inherit_style", "K", true]], "returns": "Paragraph"},
+    "blocks": {"kind": "property", "settable": false, "returns": "tuple[Paragraph | Table, ...]"},
     "clear_body": {"kind": "method", "params": [["on_control_content", "K", true], ["keep_headers", "K", true]], "returns": "ClearBodyReport"},
     "clear_layout_cache": {"kind": "method", "params": [["stale_only", "K", true]], "returns": "int"},
     "copy_paragraph_range": {"kind": "method", "params": [["start", "P", false], ["end", "P", false]], "returns": "tuple[Element, ...]"},
@@ -799,6 +803,7 @@
     "flip_vertical": {"kind": "property", "settable": true, "returns": "bool"},
     "height": {"kind": "property", "settable": false, "returns": "int"},
     "inst_id": {"kind": "property", "settable": false, "returns": "str | None"},
+    "iter_paragraphs": {"kind": "method", "params": [["where", "K", true]], "returns": "Iterator[ParagraphPlace]"},
     "line_color": {"kind": "property", "settable": true, "returns": "str | None"},
     "line_style": {"kind": "property", "settable": true, "returns": "str | None"},
     "line_width_mm": {"kind": "property", "settable": true, "returns": "float | None"},
@@ -1031,7 +1036,8 @@
     ["top", "BorderLine"],
     ["bottom", "BorderLine"],
     ["diagonal", "BorderLine"],
-    ["fill", "str | None"]
+    ["fill", "str | None"],
+    ["fill_kinds", "tuple[str, ...]"]
    ],
    "members": {
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
@@ -1445,6 +1451,22 @@
     "text": {"kind": "property", "settable": true, "returns": "str"},
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"},
     "url": {"kind": "property", "settable": true, "returns": "str"}
+   }
+  },
+  "InlineItem": {
+   "kind": "dataclass",
+   "fields": [
+    ["kind", "str"],
+    ["name", "str"],
+    ["container", "str"],
+    ["text", "str"],
+    ["attributes", "tuple[tuple[str, str], ...]"],
+    ["object", "Any"],
+    ["element", "Any"]
+   ],
+   "members": {
+    "attribute": {"kind": "method", "params": [["name", "P", false], ["default", "P", true]], "returns": "str | None"},
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
    }
   },
   "LanguageFonts": {
