@@ -934,23 +934,13 @@ def _line_segments(paragraph: Any) -> list[Any]:
             for segment in child if str(segment.tag).rsplit("}", 1)[-1] == "lineseg"]
 
 
-def _first_line_top(paragraph: Any, before: Any = None) -> int | None:
+def _first_line_top(paragraph: Any) -> int | None:
     """Where the paragraph's first line starts down its page or box (``hp:lineseg/@vertpos``), from its line
-    layout as last saved; without one (an edit dropped it), where the paragraph *before* it ends (its last line, its
-    height and the spacing after it: 1600 a line in Hangul's files), unless it starts a page or column; else
-    ``None``."""
+    layout as last saved; ``None`` when it holds none (never saved by Hangul, or an edit here dropped it -- python-hwpx
+    drops the cache of every paragraph it changes, so one still there is Hangul's for that paragraph as it is)."""
 
     segments = _line_segments(paragraph)
-    if segments:
-        return _signed_offset(segments[0].get("vertpos"))
-    if before is None or paragraph.get("pageBreak") == "1" or paragraph.get("columnBreak") == "1":
-        return None
-    segments = _line_segments(before)
-    if not segments:
-        return None
-    last = segments[-1]
-    parts = [_signed_offset(last.get(key)) for key in ("vertpos", "vertsize", "spacing")]
-    return None if any(part is None for part in parts) else sum(parts)  # type: ignore[arg-type]
+    return _signed_offset(segments[0].get("vertpos")) if segments else None
 
 
 def first_on_its_page(paragraph: Any, scope: Any) -> bool:
@@ -974,9 +964,13 @@ def hang_on_paragraph_above(element: Any, paragraph: Any, scope: Any) -> Any | N
     out again around it). Hancom moves the object instead: a curve on the second paragraph turned 30 degrees to
     -1872 is on the first at -272, a group to -915 on the first (two lines) at 2285 (``hancom18`` fc-30, fn-30),
     put in that paragraph's text run in front of its text. The heights come from the paragraphs' line layout
-    as last saved (their first line's ``vertpos``); a paragraph without one, or the page or column starting in
-    between, leaves the object where it is. Above the first paragraph of its page or box it goes on that first
-    paragraph, still above it (``ha-30``: -1400; a picture in a cell's only paragraph, ``cell-p-30``: -1598)."""
+    as last saved (their first line's ``vertpos``), and only when every paragraph from the object's own up to the
+    one it goes on holds it: one without (never laid out by Hangul, or changed here, which drops it), or a page or
+    column starting in between, leaves the object where it is, measured above its paragraph -- nothing is guessed.
+    Above the first paragraph of its page or box it goes on that first paragraph, still above it (``ha-30``: -1400;
+    a picture in a cell's only paragraph, ``cell-p-30``: -1598). Both paragraphs then lose their line layout cache
+    (the caller drops them): one gains a control and the other loses one, so their lines' text positions change,
+    and text goes around the object in its new place."""
 
     position = element.find(f"{_HP}pos")
     if position is None or position.get("treatAsChar") not in _FALSE_FLAGS or position.get("vertRelTo") != "PARA" \
@@ -989,7 +983,7 @@ def hang_on_paragraph_above(element: Any, paragraph: Any, scope: Any) -> Any | N
         return None
     paragraphs = [child for child in holder if str(child.tag).rsplit("}", 1)[-1] == "p"]
     index = next((i for i, child in enumerate(paragraphs) if child is paragraph), None)
-    top = _first_line_top(paragraph, paragraphs[index - 1] if index else None) if index is not None else None
+    top = _first_line_top(paragraph) if index is not None else None
     if index is None or top is None:
         return None
     height = top + offset

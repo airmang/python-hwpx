@@ -26,7 +26,7 @@ import pytest
 
 from hwpx import HwpxDocument
 from hwpx.oxml.container import ContainerMember
-from tests.hancom_place import lay_out
+from tests.hancom_place import carry_down_offset, lay_out
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -165,14 +165,24 @@ def test_a_turned_floating_shape_is_hung_where_hancom_hangs_it(fixture: str, kin
     assert _where(again) == _where(saved)
 
 
-def test_a_resized_arrow_line_turned_above_the_first_paragraph_stays_measured_above_it() -> None:
+def test_a_resized_arrow_line_turned_above_the_first_paragraph_is_where_hancom_puts_it() -> None:
     doc, line = _arrow_line([0, 1600])
-    line.resize(18000, 0)
+    line.resize(18000, 0)  # the resize drops its paragraph's line layout: the height above is no longer known
     line.rotation = 30
     saved = HwpxDocument.open(HANCOM / "turned_ha_s1_30.hwpx")
-    assert _where(doc) == _where(saved) == [(0, "line")]
+    assert _where(saved) == [(0, "line")] and _where(doc) == [(1, "line")]  # left on its paragraph, nothing guessed
     theirs = next(o for p in saved.paragraphs for o in p.objects)
-    assert _same(_normalized(line.element), _normalized(theirs.element))  # -2900 on the label
+    carry_down_offset(theirs.element, 0, 1, [1600])  # Hangul's -2900 on the label is -4500 on the paragraph below
+    assert _same(_normalized(line.element), _normalized(theirs.element))
+
+
+def test_without_a_line_layout_on_every_paragraph_in_between_it_is_not_hung() -> None:
+    doc, obj = _floating("fn", [0, 3200, 4800, 6400])
+    for child in [c for c in doc.paragraphs[0].element if str(c.tag).endswith("}linesegarray")]:
+        doc.paragraphs[0].element.remove(child)  # the label changed: its layout gone
+    obj.rotation = 30
+    assert _where(doc) == [(1, "container")]
+    assert obj.position.vertical_offset == -915
 
 
 def test_a_picture_in_a_cells_only_paragraph_stays_on_it_measured_above_it() -> None:
