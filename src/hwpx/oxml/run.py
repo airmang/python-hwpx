@@ -27,6 +27,7 @@ from ._paragraph_text_edit import (
 )
 
 if TYPE_CHECKING:
+    from ..objects.results import LanguageFonts
     from .paragraph import HwpxOxmlParagraph
 
 
@@ -851,6 +852,19 @@ class HwpxOxmlRun:
     @font.setter
     def font(self, value: str) -> None:
         self.set_format(font=value)
+
+    @property
+    def fonts(self) -> "LanguageFonts":
+        """The face of the run's text in each language block, as a value: ``run.fonts.latin``.
+
+        Hancom keeps one face per language (Hangul, Latin, Hanja, Japanese, other, symbol and
+        user) in the run's character shape; :attr:`font` is the Hangul one. A language with no
+        face (or a run with no character shape) reads ``None``. :meth:`set_font` changes them.
+        """
+
+        from .formatting import run_fonts
+
+        return run_fonts(self)
 
     def set_font(self, face: str, *, lang: "str | Sequence[str] | None" = None) -> None:
         """Use *face* for the languages *lang* (``"HANGUL"``, ``"LATIN"``, ... or several;

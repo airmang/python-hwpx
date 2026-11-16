@@ -231,6 +231,7 @@
     "color",
     "content_kinds",
     "font",
+    "fonts",
     "highlight",
     "italic",
     "letter_spacing",

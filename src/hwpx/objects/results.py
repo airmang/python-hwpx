@@ -923,8 +923,38 @@ class TextMatch:
         }
 
 
+@dataclass(frozen=True)
+class LanguageFonts:
+    """The face a run's text uses in each language block (``run.fonts``).
+
+    Hancom gives a character shape one face per language (``hh:fontRef``): Hangul, Latin,
+    Hanja, Japanese, other scripts, symbols and the user block. A field is ``None`` when the
+    shape names no face there (or the run has no character shape). ``run.font`` is ``hangul``.
+    """
+
+    hangul: str | None = None
+    latin: str | None = None
+    hanja: str | None = None
+    japanese: str | None = None
+    other: str | None = None
+    symbol: str | None = None
+    user: str | None = None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "hangul": self.hangul,
+            "latin": self.latin,
+            "hanja": self.hanja,
+            "japanese": self.japanese,
+            "other": self.other,
+            "symbol": self.symbol,
+            "user": self.user,
+        }
+
+
 __all__ = [
     "Alignment",
+    "LanguageFonts",
     "ObjectPlace",
     "ParagraphPlace",
     "TextMatch",
