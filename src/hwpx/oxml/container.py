@@ -17,6 +17,7 @@ at its own transMatrix there). Only the outermost group carries the tail and ``n
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
@@ -621,15 +622,6 @@ def _group_turn_refusal(group: Any, shapes: Sequence[Any], turned: int, flips: t
     scale = _matrix(rendering[1])
     if not _scales_only(scale) or abs(scale[2]) > 0.5 or abs(scale[5]) > 0.5:
         return "its scaMatrix does more than scale it"
-    for state in {flips, wanted} - {(1, 1)}:
-        if any(_local(shape) == "container" for shape in shapes) and (
-                state != (-1, 1) or turned or not _close([scale[0], scale[4]], [1, 1], 1e-3)):
-            # Hancom was seen flipping a group holding a group left-right, unturned and not resized, only
-            return ("it holds a group: no Hancom-saved document shows one flipped otherwise than left-right, "
-                    "unturned and not resized")
-        if turned and not _close([scale[0], scale[4]], [1, 1], 1e-3):
-            return ("it is resized, turned and flipped: no Hancom-saved document shows a resized group both "
-                    "turned and flipped")
     if not turned and flips == (1, 1):
         width, height = float(original.get("width", "0")), float(original.get("height", "0"))
         size = group.find(f"{_HP}sz")
@@ -702,9 +694,12 @@ def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None,
     middle of its own size, or for a group Hancom resized, of the size it is drawn at (Hancom moves the centre so;
     a group resized by ``resize`` keeps it).
 
+    A group resized and then turned flips as Hancom flips one, mirrored as drawn
+    (:func:`_mirror_resized_turned_group`).
+
     Refused (``shape-rotation-unsupported``) for what no Hancom-saved document shows: a member turned or flipped
-    on its own; a flipped group holding a group; a resized group both turned and flipped. Everything is checked
-    before anything changes."""
+    on its own; a group flipped and then resized (its ``scaMatrix`` moves it) turned; a group resized, turned and
+    flipped turned again. Everything is checked before anything changes."""
 
     from .shape_position import (
         _half_up, _rotation_refused, flip_signs, set_text_width, set_turn, turn_cos_sin, turned_frame,
@@ -720,7 +715,19 @@ def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None,
         if original is not None else (0.0, 0.0)
     middle = (width / 2, height / 2)
     rendering = group.find(f"{_HP}renderingInfo")
-    if member_flip is not None and rendering is not None:
+    if why is None and member_flip is not None and rendering is not None and turned \
+            and not _close([_matrix(rendering[1])[0], _matrix(rendering[1])[4]], [1, 1], 1e-3):
+        # resized and turned: Hancom mirrors it as drawn (rotate7 g-S1-30-f/v, g-S2-30-f/v)
+        why = _mirror_resized_turned_group(group, shapes, now, wanted, member_flip, angle)
+        if why is not None:
+            raise _rotation_refused(group, why)
+        return
+    if member_flip is not None and rendering is not None and turned:
+        # A turned group flips in place about where it holds its middle: the centre of its turn (less its move)
+        held = _held_middle(group)
+        if held is not None:
+            middle = held
+    elif member_flip is not None and rendering is not None:
         # A flip mirrors the group about the middle of the size it is drawn at (its own size through its
         # scaMatrix): a 12000 x 6000 group resized to 18000 x 9000 and flipped holds rotMatrix e3 18000 and centre
         # 9000 x 4500 -- whatever centre its resize left (Hancom's and resize both leave the old one).
@@ -789,7 +796,7 @@ def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None,
             continue  # a group inside keeps its centre (Hancom leaves it)
         # The middle of its own turned box as drawn, its size rounded first (6363.96 wide: 3182; 8485.28: 4242), and
         # its text across that width -- at 0 too, as Hangul saves a resized group's members (drawn 9000: 4500).
-        if not angle and any(_local(other) == "container" for other in shapes):
+        if not angle and member_flip is None and any(_local(other) == "container" for other in shapes):
             # unturned in a group holding a group, Hancom keeps a resized member's own centre (1500 for 3000 drawn
             # at 4500), where it writes the drawn one in a group holding none
             own = shape.find(f"{_HP}orgSz")
@@ -800,6 +807,87 @@ def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None,
             shape_info.set("centerX", str(_half_up(turned_width) // 2))
             shape_info.set("centerY", str(_half_up(turned_height) // 2))
         set_text_width(shape, _half_up(turned_width))
+
+
+def _mirror_axis_middle(group: Any, axis: int) -> float:
+    """Where on *axis* (0 across, 1 down) Hancom mirrors a resized turned group: the middle of the whole-unit box
+    around the group's own rectangle as drawn (its ``orgSz`` through its ``scaMatrix``, turned by its ``rotMatrix``
+    and moved by its ``transMatrix``) -- for a group turned about the middle of its size as drawn, that middle."""
+
+    rendering, original = group.find(f"{_HP}renderingInfo"), group.find(f"{_HP}orgSz")
+    trans, scale, rot = (_matrix(matrix) for matrix in rendering)
+    width = float(original.get("width", "0")) * scale[0]
+    height = float(original.get("height", "0")) * scale[4]
+    left, top = scale[2], scale[5]
+    corners = [_apply(rot, point) for point in ((left, top), (left + width, top), (left + width, top + height),
+                                                (left, top + height))]
+    along = [corner[axis] + (trans[2] if axis == 0 else trans[5]) for corner in corners]
+    return (math.floor(min(along) + 0.5) + math.floor(max(along) + 0.5)) / 2
+
+
+def _mirror_rot(node: Any, axis: int, middle: float) -> None:
+    """Mirror *node* as drawn about the page line *middle* on *axis*: its ``hc:rotMatrix`` row on that axis negated
+    and moved so the drawn point lands at ``2 * middle`` less where it was (its ``transMatrix`` kept)."""
+
+    from .shape_position import _matrix_number
+
+    rendering = node.find(f"{_HP}renderingInfo")
+    trans, rot = _matrix(rendering[0]), rendering[2]
+    keys = ("e1", "e2", "e3") if axis == 0 else ("e4", "e5", "e6")
+    move = trans[2] if axis == 0 else trans[5]
+    values = [float(rot.get(key, "0")) for key in keys]
+    for key, value in zip(keys, (-values[0], -values[1], 2 * middle - 2 * move - values[2])):
+        rot.set(key, _matrix_number(round(value, 6) + 0.0))
+
+
+def _mirror_resized_turned_group(group: Any, shapes: Sequence[Any], now: tuple[int, int], wanted: tuple[int, int],
+                                 member_flip: tuple[int, int], angle: int) -> str | None:
+    """Flip the resized and turned group *group* as Hancom 2024 flips one (rotate7 ``g-S1-30-f``, ``g-S1-30-v``,
+    ``g-S2-30-f``, ``g-S2-30-v``: a group resized to 24000 x 6000 or 16000 x 16000 and turned 30 degrees, then
+    flipped): the group and every member, as drawn, are mirrored about the middle of the box around the group's own
+    rectangle as drawn (:func:`_mirror_axis_middle`; a group resized before its turn turns about the middle of its
+    own size, not of the size it is drawn at, so that box is not its ``hp:sz``) -- each ``hc:rotMatrix`` row on
+    the axis negated and moved, every ``transMatrix``, ``hp:offset``, ``hp:sz`` and member's centre kept. The
+    group is turned the other way (*angle*), flagged *wanted*, its centre the middle of its ``hp:sz``, and its
+    members marked as :func:`turn_group` marks them. ``None`` when done, else why not (nothing changed): before the
+    flip the group must hold the form :func:`turn_group` writes, mirrored on the axes it is flipped on."""
+
+    axis, before = member_flip
+    check = copy.deepcopy(group)
+    check_shapes = _all_shapes_inside(check)
+    for flipped_axis in (0, 1):  # undo the mirrors it holds: mirrors about lines across each other commute
+        if now[flipped_axis] == -1:
+            middle = _mirror_axis_middle(check, flipped_axis)
+            for node in [check, *check_shapes]:
+                _mirror_rot(node, flipped_axis, middle)
+    unturned_angle = _angle(group) if now in ((1, 1), (-1, -1)) else (-_angle(group)) % 360
+    rot = _matrix(check.find(f"{_HP}renderingInfo")[2])
+    a, b, c, d = rot[0], rot[1], rot[3], rot[4]
+    det = (1 - a) * (1 - d) - b * c  # the point it turns about: (I - L) P = e
+    if abs(det) < 1e-9:
+        return "its matrices are not a turn about one point"
+    pivot = (((1 - d) * rot[2] + b * rot[5]) / det, (c * rot[2] + (1 - a) * rot[5]) / det)
+    why = _turned_group_mismatch(check, check_shapes, unturned_angle, pivot, (1, 1))
+    if why is not None:
+        return why
+    middle = _mirror_axis_middle(group, axis)
+    for node in [group, *shapes]:
+        _mirror_rot(node, axis, middle)
+    flip = group.find(f"{_HP}flip")
+    if flip is not None:
+        flip.set("horizontal", "1" if wanted[0] == -1 else "0")
+        flip.set("vertical", "1" if wanted[1] == -1 else "0")
+    info, size = group.find(f"{_HP}rotationInfo"), group.find(f"{_HP}sz")
+    info.set("angle", str(angle))
+    if size is not None:
+        info.set("centerX", str(int(size.get("width", "0")) // 2))
+        info.set("centerY", str(int(size.get("height", "0")) // 2))
+    for shape in shapes:
+        member_info = shape.find(f"{_HP}rotationInfo")
+        if member_info is not None:
+            mark = 0 if wanted == (1, 1) else ((180 if axis == 0 else 0) - _angle(shape) - before) % 360
+            member_info.set("angle", str(mark))
+    return None
 
 
 def _turned_group_mismatch(group: Any, shapes: Sequence[Any], angle: int, middle: tuple[float, float],

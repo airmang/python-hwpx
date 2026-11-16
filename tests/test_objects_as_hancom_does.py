@@ -153,13 +153,24 @@ def test_a_group_resized_is_stretched_with_its_members_as_hancom_does() -> None:
     _reopen(doc)
 
 
-def test_a_turned_group_resized_is_stretched_along_the_page_as_hancom_does() -> None:
+def _stretched_by_hancom(doc):
+    """A group turned 30 degrees whose box Hancom's object properties stretched to 24000 x 9000 (psizegrpturn): the
+    skewed form written by the internal ``resize_turned_group``, as ``resize`` does not write it."""
+
+    from hwpx.oxml.shape_position import resize_turned_group
+
+    group = _o03_group(doc)
+    group.rotation = 30
+    resize_turned_group(group, 24000, 9000)
+    return group
+
+
+def test_hancoms_stretch_of_a_turned_groups_box_is_the_skewed_form_it_saved() -> None:
     doc = HwpxDocument.new()
     group = _o03_group(doc)
     group.rotation = 30
     assert _box(group.element, "sz") == (15490, 11830)
-
-    group.resize(24000, 9000)
+    group = _stretched_by_hancom(doc)
 
     rect, ellipse = (child for child in group.element if child.find(f"{HP}renderingInfo") is not None)
     linear = [1.352234, -0.341478, None, -0.341478, 0.95793, None]
@@ -175,11 +186,23 @@ def test_a_turned_group_resized_is_stretched_along_the_page_as_hancom_does() -> 
     _reopen(doc)
 
 
+def test_a_turned_group_resized_takes_its_own_size_as_one_resized_and_then_turned() -> None:
+    doc = HwpxDocument.new()
+    turned_first, resized_first = _o03_group(doc), _o03_group(doc)
+    turned_first.rotation = 30
+    turned_first.resize(24000, 9000)
+    resized_first.resize(24000, 9000)
+    resized_first.rotation = 30
+    rendering = [node.find(f"{HP}renderingInfo") for node in (turned_first.element, resized_first.element)]
+    assert [[m.attrib for m in r] for r in rendering[:1]] == [[m.attrib for m in r] for r in rendering[1:]]
+    assert _box(turned_first.element, "sz") == _box(resized_first.element, "sz")
+    assert _scale(turned_first.element) == pytest.approx([1.6, 0, 0, 0, 1.8, 0])  # not skewed
+    _reopen(doc)
+
+
 def test_a_stretched_turned_group_is_not_resized() -> None:
     doc = HwpxDocument.new()
-    group = _o03_group(doc)
-    group.rotation = 30
-    group.resize(24000, 9000)
+    group = _stretched_by_hancom(doc)
     with pytest.raises(HwpxValueError) as excinfo:
         group.resize(20000, 9000)
     assert excinfo.value.code == "shape-rotation-unsupported"
@@ -428,9 +451,7 @@ def test_a_stretched_and_turned_group_is_ungrouped_as_hancom_does() -> None:
 
 def test_a_group_turned_and_then_stretched_is_not_ungrouped() -> None:
     doc = HwpxDocument.new()
-    group = _o03_group(doc)
-    group.rotation = 30
-    group.resize(24000, 9000)
+    group = _stretched_by_hancom(doc)
     with pytest.raises(HwpxValueError) as excinfo:
         group.ungroup()
     assert excinfo.value.code == "shape-ungroup-unsupported" and "skewed" in excinfo.value.context["reason"]

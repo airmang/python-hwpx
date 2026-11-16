@@ -89,6 +89,10 @@ CASES = [
      "flip_group_both_ways"),
     ("flip_picture_left_right_resized_by_30", P_PLAIN,
      [("flip_horizontal", True), ("size", (6000, 6000)), ("rotation", 30)], "flip_group_both_ways"),
+    # ``resize`` takes a turned picture's own size: flipped, turned and then resized, it is what Hangul saved flipped,
+    # resized and then turned
+    ("flip_picture_left_right_resized_by_30", P_PLAIN,
+     [("flip_horizontal", True), ("rotation", 30), ("size", (6000, 6000))], "flip_group_both_ways"),
     ("flip_picture_up_down_resized", P_PLAIN, [("flip_vertical", True), ("size", (6000, 9000))],
      "flip_group_both_ways"),
     # rotate6 (``want-flip4``): an arc, a curve, a group, a group holding a group. An arc and a curve flip as the
@@ -254,14 +258,20 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
     resized_rect = doc.add_paragraph("").add_rectangle(8000, 4000)
     resized_rect.element.find(f"{HP}renderingInfo/{HC}scaMatrix").set("e1", "0.5")  # drawn at half its width
     resized_rect.element.find(f"{HP}curSz").set("width", "4000")
+    turned_picture.resize(3000, 1500)  # rotate7: its own size, turned back, resized and turned again
+    both_ways_group.resize(18000, 4000)  # rotate7 g-fv-S
+    nested.flip_vertical = True  # rotate7 n-v
+    nested.flip_vertical = False
+    resized_group.flip_horizontal = True  # rotate7 g-S-30-f: mirrored as drawn
+    resized_group.flip_horizontal = False
+    turned_rect = doc.add_paragraph("").add_rectangle(8000, 4000)
+    turned_rect.flip_horizontal = True
+    turned_rect.rotation = 30
     for call, code, says in (
-        (lambda: turned_picture.resize(3000, 1500), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(picture, "crop", (0, 0, 1000, 0)), "shape-flip-unsupported", "flip it back first"),
-        (lambda: both_ways_group.resize(18000, 4000), "shape-flip-unsupported", "flip it back first"),  # unseen
         (lambda: flipped.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
+        (lambda: turned_rect.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(resized_rect, "flip_horizontal", True), "shape-flip-unsupported", "resized"),
-        (lambda: setattr(resized_group, "flip_horizontal", True), "shape-rotation-unsupported", "resized, turned"),
-        (lambda: setattr(nested, "flip_vertical", True), "shape-rotation-unsupported", "holds a group"),
         (lambda: setattr(nested.members[0], "flip_horizontal", True), "shape-group-member-unsupported", "group"),
         (lambda: setattr(flipped, "flip_horizontal", 1), "shape-flip-value", "True or False"),
     ):
