@@ -476,7 +476,9 @@ def forbidden_chars(head: etree._Element) -> di.ForbiddenChars | None:
 
 
 #: The kind of each OWPML tracked change type.
-_TRACK_CHANGE_KINDS = {"Insert": 16, "Delete": 17, "ParaShape": 19}
+_TRACK_CHANGE_KINDS = {"Insert": 16, "Delete": 17, "CharShape": 18, "ParaShape": 19}
+#: The attribute naming the shape a shape change made, by kind.
+_TRACK_CHANGE_SHAPES = {18: "charshapeID", 19: "parashapeID"}
 #: A tracked change keeps local (Korean) time; OWPML writes it in UTC.
 _TRACK_TIME_OFFSET = timedelta(hours=9)
 
@@ -496,9 +498,9 @@ def _track_time(value: str) -> datetime | None:
 
 def track_changes(head: etree._Element) -> tuple[list[di.TrackChange], list[di.TrackChangeAuthor]] | None:
     """The head's tracked changes and their authors as Hancom writes them:
-    the time to the minute, a deletion hidden, a paragraph shape change with
-    its paragraph shape. None when a change has a type with no kind or a date
-    that is no date."""
+    the time to the minute, a deletion hidden, a character or paragraph shape
+    change with the shape it made. None when a change has a type with no kind
+    or a date that is no date."""
 
     changes: list[di.TrackChange] = []
     for element in head.iter(f"{{{_HH}}}trackChange"):
@@ -506,8 +508,8 @@ def track_changes(head: etree._Element) -> tuple[list[di.TrackChange], list[di.T
         when = _track_time(element.get("date", ""))
         if kind is None or when is None:
             return None
-        shape = kind == 19
-        fourth = _int(element, "parashapeID") if shape else 1 if kind == 17 else _flag(element, "hide")
+        shape = kind in _TRACK_CHANGE_SHAPES
+        fourth = _int(element, _TRACK_CHANGE_SHAPES[kind]) if shape else 1 if kind == 17 else _flag(element, "hide")
         changes.append(
             di.TrackChange(
                 kind,

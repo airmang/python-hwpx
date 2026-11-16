@@ -23,7 +23,7 @@ from . import records as rec
 from . import shapes as sh
 from .errors import Hwp5Error, damaged
 from .header_xml import fill_brush
-from .owpml import NS, color, flag, image_effect, q, sub, token, xml_text
+from .owpml import NS, color, flag, image_effect, q, shape_comment, sub, token, xml_text
 from .section_common import ConversionReport, _bits, _u32, list_attrs, lists, object_attrs, object_layout
 
 LINE_STYLE = (
@@ -482,7 +482,7 @@ class ShapeReader:
                 common = dataclasses.replace(common, margins=margins)  # type: ignore[arg-type]
             object_layout(element, common)
             if common.description:
-                sub(element, "hp:shapeComment").text = xml_text(common.description)
+                sub(element, "hp:shapeComment").text = shape_comment(common.description)
         return element
 
     @staticmethod

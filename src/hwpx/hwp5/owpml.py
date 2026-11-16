@@ -66,6 +66,13 @@ def xml_text(value: object) -> str:
     return _NOT_XML.sub("", text) if _NOT_XML.search(text) else text
 
 
+def shape_comment(value: str) -> str:
+    """An object's description as ``hp:shapeComment`` text: Hancom's HWPX
+    leaves its carriage returns out, keeping the line feeds."""
+
+    return xml_text(value.replace("\r", ""))
+
+
 def sub(parent: etree._Element, name: str, attrs: Sequence[tuple[str, object]] = ()) -> etree._Element:
     element = etree.SubElement(parent, q(name))
     for key, value in attrs:

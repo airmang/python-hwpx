@@ -16,18 +16,20 @@ ordinary HWPX reader can open them.
 from __future__ import annotations
 
 import io
+import re
 import struct
 import zipfile
 from dataclasses import dataclass
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from . import bodytext as bt
 from . import controls as ct
 from . import docinfo as di
 from . import records as rec
 from . import shapes as sh
 from .errors import Hwp5Error, damaged, limit_exceeded
-from .header_xml import build_header, track_changes
+from .header_xml import blank_border_fill_id, build_header, track_changes
 from .owpml import NS, XML_DECLARATION, root, serialize, sub, xml_text
 from .reader import Hwp5File, read_hwp5
 from .section_xml import ConversionReport, build_section, memo_bodies
@@ -313,6 +315,25 @@ def _preview_text(doc: Hwp5File) -> bytes:
     return text.encode("utf-8")
 
 
+#: A section's reference to border and fill 0 (none), as serialized: pages,
+#: tables, cells and cell zones without a border and fill.
+_NO_BORDER_FILL = b' borderFillIDRef="0"'
+#: A start tag of a serialized part (attribute values keep < and > escaped).
+_START_TAG = re.compile(rb"<[^<>]*>")
+
+
+def _refers_to_no_border_fill(part: bytes) -> bool:
+    return _NO_BORDER_FILL in part and any(_NO_BORDER_FILL in tag.group(0) for tag in _START_TAG.finditer(part))
+
+
+def _to_blank_border_fill(part: bytes, blank: int) -> bytes:
+    """*part* with its references to border and fill 0 made to the blank one."""
+
+    if _NO_BORDER_FILL not in part:
+        return part
+    to = f' borderFillIDRef="{blank}"'.encode()
+    return _START_TAG.sub(lambda tag: tag.group(0).replace(_NO_BORDER_FILL, to), part)
+
 #: The largest ``.hwp`` file that is read (each stream inside is bounded
 #: separately by :data:`hwpx.hwp5.cfb.MAX_STREAM_BYTES`).
 MAX_FILE_BYTES = 512 * 1024 * 1024
@@ -344,8 +365,35 @@ def convert(data: bytes) -> Converted:
         raise damaged("the file holds a value that cannot be read", reason=type(exc).__name__) from exc
 
 
+def _defines_section(paragraph: rec.Record) -> bool:
+    """Whether the paragraph holds a section definition (``secd``)."""
+
+    return any(bt.record_ctrl_id(child) == "secd" for child in paragraph.children)
+
+
+def _sections(doc: Hwp5File) -> list[rec.RecordStream]:
+    """The document's sections. A section stream whose later paragraph
+    defines a section of its own (a file not written by Hancom) holds that
+    many sections: Hancom starts a section at each definition."""
+
+    out: list[rec.RecordStream] = []
+    for stream in doc.sections:
+        groups: list[list[rec.Record]] = [[]]
+        for record in stream.roots:
+            if record.tag == rec.PARA_HEADER and groups[-1] and _defines_section(record):
+                groups.append([])
+            groups[-1].append(record)
+        if len(groups) == 1:
+            out.append(stream)
+            continue
+        for group in groups:
+            out.append(rec.RecordStream([r for top in group for r in top.walk()], group))
+    return out
+
+
 def _convert(data: bytes) -> Converted:
     doc = read_hwp5(data)
+    doc.sections = _sections(doc)
     info = di.decode_docinfo(doc.docinfo)
     report = ConversionReport()
     header = doc.header
@@ -365,9 +413,9 @@ def _convert(data: bytes) -> Converted:
             files[charts[item_id]] = chart
         if href.startswith("BinData/"):
             files[href] = payload
-    files["Contents/header.xml"] = build_header(
-        info, len(doc.sections), link_doc=link_doc, license_mark=license_mark
-    )
+    # The header goes before the sections in the package; it is built after
+    # them, as it lists a border and fill of nothing when they refer to one.
+    files["Contents/header.xml"] = b""
     memos = memo_bodies(doc.sections)
     master_pages: list[bytes] = []
     counts: list[int] = []
@@ -379,6 +427,14 @@ def _convert(data: bytes) -> Converted:
         counts.append(len(master_pages) - before)
     for _ in memos:
         report.skip("memo-body")
+    blank_used = any(_refers_to_no_border_fill(part) for part in parts + master_pages)
+    if blank_used:
+        blank = blank_border_fill_id(info)
+        parts = [_to_blank_border_fill(part, blank) for part in parts]
+        master_pages = [_to_blank_border_fill(page, blank) for page in master_pages]
+    files["Contents/header.xml"] = build_header(
+        info, len(doc.sections), link_doc=link_doc, license_mark=license_mark, blank_border_fill=blank_used
+    )
     # Each section's master pages come just before it, as Hancom stores them.
     first = 0
     for index, (part, count) in enumerate(zip(parts, counts)):
