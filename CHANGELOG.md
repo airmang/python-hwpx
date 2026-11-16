@@ -168,6 +168,9 @@
   배치). 본문에 만드는 개체의 기본값은 그대로다.
 - 각주·미주를 더하거나 지우면 같은 종류의 번호를 문서 순서대로 다시 매긴다. 쪽마다 새로 매기는 각주(`ON_PAGE`)가 있는 문서는
   다시 매기지 않는다(아래 "한/글이 하는 것"). `note.text`는 문단을 줄 바꿈으로 잇는다.
+- 파일에 적히지 않은 속성은 OWPML 스키마의 기본값으로 읽는다: `editable`이 없는 누름틀의 `field.editable`이 `True`(6.x는
+  `False`), `autoIndent`·`textOffset`이 없는 번호 수준의 `auto_indent`·`text_offset`이 `True`·`50`(6.x는 `False`·`0`). 한/글은
+  두 속성을 늘 적으므로 한/글 저장본은 전과 같다(공개 문서의 필드 703개·번호 수준 12,872개 모두 적혀 있다).
 - 칸에 색을 칠해도(`set_cell_shading`, `set_shading`) 그 칸의 선·대각선과 그림 배경은 그대로 남고, 그러데이션은 새 색으로 바뀐다.
   그림을 넣으면 면 색이 남는다. 칸마다 제 테두리 정의에서 사본을 만들므로 `header.xml`의 테두리 정의가 늘 수 있다.
 - 글자·문단 모양 변경 추적은 쓰지도 거절하지도 않는다(`track-format-change-unconfirmed`). 6.x의 거절은 표시만 걷어 수락처럼 굴었다.
@@ -234,6 +237,8 @@ python-hwpx 7.0을 함께 설치한다.
   `ensure_bullet("●")`, `set_numbering_level(...)`, `numbering(id)`(값 `NumberingInfo`), 문단에 거는
   `paragraph.set_numbering(numbering, level=1)`·`set_bullet(bullet, level=1)`(`None`은 뗀다), 구역의 개요 번호 정의
   `section.properties.outline_shape_id_ref`도 있다.
+- `NumberingLevel.use_instance_width`(`hh:paraHead/@useInstWidth`, 번호 너비를 번호 글자 너비에 맞추는지)로 번호 수준의 속성 11개를
+  모두 값으로 읽는다. 머리 XML을 직접 읽지 않아도 된다.
 - 찾기·바꾸기: `doc.text.find("글")`·`doc.text.find(r"\d+", regex=True)`가 표 칸·머리말·각주·캡션까지 찾은 곳을 `TextMatch`(문단,
   `paragraph.text` 기준 위치, 자리)로 돌려준다. 그 위치는 `format_range`에 그대로 넘긴다. `doc.text.replace(..., regex=True)`는
   바꿀 글에 `\1`·`\g<이름>`을 쓴다. 기본 범위(본문 문단의 런 하나 안)에서 0건인데 찾는 글이 그 밖에 있으면
@@ -286,6 +291,11 @@ python-hwpx 7.0을 함께 설치한다.
 - 회전은 한/글 저장본으로 확인된 모양에만 쓴다. 늘이거나 줄인 그림·도형도 돌리고, 돈 그림의 크기를 바꾸거나 자른다. 글이 든 도형과
   묶음·묶음 구성원의 회전은 근거가 없어 거부한다(`shape-rotation-unsupported`·`shape-group-member-unsupported`).
 - 묶음의 구성원 `shape.members`. 묶음 안의 개체를 지우면 묶음이 남은 구성원에 맞춰진다.
+- 그림·수식·도형·표가 든 구역을 `obj.section`으로 읽는다(표 칸·글상자·머리말·각주 안의 개체도). 번호는
+  `doc.sections.index(obj.section)`이고, 바탕쪽의 개체는 `None`이다.
+- 한/글 선 굵기 목록(`hwpx.oxml.utils.LINE_WIDTHS_MM`, 테두리 굵기가 받는 값 16개)과 그림·도형 선 굵기의 mm↔HWPUNIT 변환
+  (`hwpx.oxml.shape_position.line_width_units`·`line_width_mm_for_units`·`LINE_WIDTH_UNITS_PER_MM`)이 안정 계약이 되었다.
+  목록 밖 굵기를 가까운 값으로 맞추는 일은 하지 않는다(그런 굵기는 계속 거부한다).
 
 #### 수식
 

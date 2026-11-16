@@ -321,7 +321,9 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 `SectionGrid`·`SectionVisibility`·`LineNumberShape`·`DocumentMetadata`·`TextBlock`·`TextOutline`·`TextChangeReport`·
 `ValidationReport`·`Hwp5ConversionReport`·`TableMapResult`·`GridPosition`(`table.cell_map` 의 칸)·`Caption`·`PictureShadow`·
 `PictureGlow`·`PictureReflection`·`ContainerMember`·`GenericElement`(구현 모듈의 같은 클래스다). `paragraph.section`(문단이 든
-구역)도 계약이다.
+구역)도 계약이다. 그림·수식·도형·표도 `obj.section`(바탕쪽이면 `None`)으로 구역을 읽는다 — 6.x 에서 `obj.paragraph.section.element`
+를 `doc.sections` 와 견주던 코드는 `doc.sections.index(obj.section)`. 번호 수준은 `NumberingLevel.use_instance_width`
+(`useInstWidth`)까지 값으로 읽으므로 머리 XML(`hh:paraHead`)을 직접 읽을 필요가 없다.
 
 ### 가장 자주 고치는 곳
 
@@ -381,7 +383,8 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | `doc.text.iter_paragraphs()`·`iter_objects()` 가 표 캡션 안의 문단과 표를 `where="caption"` 으로 내놓는다(6.x 는 본문·표 칸). `where="body"` 는 이제 `doc.paragraphs` 와 같다 | `where=("body", "caption")` |
 | 다단 문서에서 새 표와 차트의 기본 폭이 본문 전체 폭이 아니라 단 폭이다 | `width=` 를 준다 |
 | 구역이 여럿인 문서에서 `doc.page.*` 를 `section` 없이 부르면 마지막 구역만 바뀐다는 경고가 한 번 난다 | `section=` 을 준다. 모든 구역은 `section="all"` |
-| 테두리·단 구분선·각주/미주 구분선·메모 선 굵기(`border_width_mm=`·`sides`/`border` 의 `width_mm`·`table.set_borders(border_width_mm=)`·`separator_width_mm=`·`ensure_memo_shape(line_width_mm=)`)는 한/글 굵기 목록(0.1·0.12·0.15·0.2·0.25·0.3·0.4·0.5·0.6·0.7·1·1.5·2·3·4·5 mm)의 값만 받는다. 목록에 없는 값(0.45 등)은 문서를 바꾸기 전에 `HwpxValueError`(`style-line-width-invalid`, `suggestion` 에 쓸 수 있는 값)로 거부한다. 6.x 와 7.0 개발 중에는 가장 가까운 값으로 바꿔 썼다. 도형·그림 선(`line_width_mm=`)은 그대로 mm × 283 HWPUNIT 이다 | 목록의 값을 직접 고른다(0.45 → 0.4 또는 0.5) |
+| 테두리·단 구분선·각주/미주 구분선·메모 선 굵기(`border_width_mm=`·`sides`/`border` 의 `width_mm`·`table.set_borders(border_width_mm=)`·`separator_width_mm=`·`ensure_memo_shape(line_width_mm=)`)는 한/글 굵기 목록(0.1·0.12·0.15·0.2·0.25·0.3·0.4·0.5·0.6·0.7·1·1.5·2·3·4·5 mm)의 값만 받는다. 목록에 없는 값(0.45 등)은 문서를 바꾸기 전에 `HwpxValueError`(`style-line-width-invalid`, `suggestion` 에 쓸 수 있는 값)로 거부한다. 6.x 와 7.0 개발 중에는 가장 가까운 값으로 바꿔 썼다. 도형·그림 선(`line_width_mm=`)은 그대로 mm × 283 HWPUNIT 이다 | 목록의 값을 직접 고른다(0.45 → 0.4 또는 0.5). 목록은 `hwpx.oxml.utils.LINE_WIDTHS_MM` 에 있다. 6.x 의 HWPUNIT 선 굵기 `n` 은 `hwpx.oxml.shape_position.line_width_mm_for_units(n)` 이 같은 HWPUNIT 으로 돌아가는 mm 다 |
+| `editable` 속성이 없는 누름틀의 `field.editable` 이 OWPML 스키마 기본값 `True` 다(6.x 는 `False`). 번호 수준(`NumberingLevel`)의 `autoIndent`·`textOffset` 이 없으면 `auto_indent`·`text_offset` 이 스키마 기본값 `True`·`50` 이다(6.x 는 `False`·`0`). 한/글은 이 속성들을 늘 적으므로 한/글 저장본은 전과 같다 | 없음. "적히지 않음"을 따로 보려면 `field.element.get("editable")` |
 
 ## 쪽마다 새로 매기는 각주
 

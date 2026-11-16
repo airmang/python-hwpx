@@ -171,7 +171,10 @@ class FormField:
 
     @property
     def editable(self) -> bool:
-        """Whether the field may be filled in a form-protected document (양식 모드에서 편집 가능)."""
+        """Whether the field may be filled in a form-protected document (양식 모드에서 편집 가능,
+        ``hp:fieldBegin/@editable``). A field that does not say reads ``True``, the OWPML schema's
+        default (7.0; 6.x read ``False``); Hancom writes the attribute on every field it saves.
+        Assigning it writes ``"1"`` or ``"0"``."""
 
         return self._editable
 

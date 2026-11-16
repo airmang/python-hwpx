@@ -589,7 +589,8 @@ def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> For
     location = _match_location(match)
     parameters = _match_parameters(match)
     field_begin = match["_field_begin"]
-    editable = (field_begin.get("editable") or "").strip().lower() in {"1", "true"}
+    # Left out, ``editable`` is the OWPML schema's default for hp:fieldBegin, true (7.0; 6.x read false).
+    editable = (field_begin.get("editable") or "1").strip().lower() in {"1", "true"}
     end = match.get("_end_location")
     return FormField(
         doc,
