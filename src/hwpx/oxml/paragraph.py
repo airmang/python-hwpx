@@ -57,6 +57,7 @@ from ._paragraph_text_edit import (
     insert_paragraph_beside,
     paragraph_container,
     paragraph_line_segments,
+    paragraph_line_texts,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
     set_text_with_tabs,
@@ -731,9 +732,10 @@ class HwpxOxmlParagraph(ParagraphFormats):
             margins = properties.page_margins
         except Exception:
             return None
-        if page.width <= 0:
-            return None
-        usable = page.drawn_width - margins.left - margins.right - margins.gutter
+        sizes = (page.drawn_width, margins.left, margins.right, margins.gutter)
+        if page.width is None or page.width <= 0 or any(size is None for size in sizes):
+            return None  # a page size or margin the file does not give
+        usable = cast(int, page.drawn_width) - cast(int, margins.left) - cast(int, margins.right) - cast(int, margins.gutter)
         if usable <= 0:
             return None
         column = self._column_width(usable)
@@ -877,6 +879,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
     pictures = property(_paragraph_pictures)
     equations = property(_paragraph_equations)
     line_segments = property(paragraph_line_segments)  # read only; body in _paragraph_text_edit.py
+    line_texts = property(paragraph_line_texts)  # each saved line's text; body in _paragraph_text_edit.py
 
     # Implementations live in ``oxml/dutmal_compose.py`` -- ``objects.py``
     # (the shape-helpers' own overflow destination above) itself has no

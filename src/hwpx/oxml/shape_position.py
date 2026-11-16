@@ -64,6 +64,8 @@ CAPTION_SIDES = frozenset({"LEFT", "RIGHT", "TOP", "BOTTOM"})
 #: ``hc:img/@effect`` values Hancom keeps and draws (as they are, in grey, in black and white); it saves any other
 #: value as ``REAL_PIC``.
 PICTURE_EFFECTS = ("REAL_PIC", "GRAY_SCALE", "BLACK_WHITE")
+#: ``numberingType`` values (the schema's four; the 250 Hancom 2024 conversions write each of them).
+NUMBERING_TYPES = ("NONE", "PICTURE", "TABLE", "EQUATION")
 
 
 def _require_member(
@@ -465,9 +467,24 @@ class ObjectPlacement:
     @property
     def numbering_type(self) -> str:
         """Which caption numbering the object counts in (``numberingType``): ``"PICTURE"``,
-        ``"TABLE"``, ``"EQUATION"`` or ``"NONE"`` (the schema default, also when not given). Read only."""
+        ``"TABLE"``, ``"EQUATION"`` or ``"NONE"`` (the schema default, also when not given).
+
+        Setting it takes one of the four, exactly (else ``shape-numbering-type-value``) and writes
+        it as given; Hancom writes any of them on any kind of object (a rectangle counted as a
+        picture, a table not counted). The paragraph holding the object loses its line layout cache.
+        """
 
         return self.element.get("numberingType") or "NONE"
+
+    @numbering_type.setter
+    def numbering_type(self, value: str) -> None:
+        wanted = _require_member(value, NUMBERING_TYPES, argument="numbering_type", code="shape-numbering-type-value")
+        if self.element.get("numberingType") != wanted:
+            from ._document_primitives import _clear_paragraph_layout_cache
+
+            self.element.set("numberingType", wanted)
+            _clear_paragraph_layout_cache(self.paragraph.element)
+            self.paragraph.section.mark_dirty()
 
     @property
     def out_margins(self) -> "CellMargins":
