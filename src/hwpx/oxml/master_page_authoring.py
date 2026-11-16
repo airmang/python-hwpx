@@ -46,6 +46,7 @@ from .simple_parts import HwpxOxmlMasterPage
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
+    from .header import Style
     from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
 
@@ -286,7 +287,7 @@ def _master_page_sublist(master_page: HwpxOxmlMasterPage, *, create: bool = Fals
     return sub_list
 
 
-def master_page_paragraphs(master_page: HwpxOxmlMasterPage) -> "list[HwpxOxmlParagraph]":
+def master_page_paragraphs(master_page: HwpxOxmlMasterPage) -> "tuple[HwpxOxmlParagraph, ...]":
     """The paragraphs of a master page's ``hp:subList``, as paragraph objects.
 
     A master page part gives a paragraph what it needs from a section (``mark_dirty``,
@@ -297,9 +298,9 @@ def master_page_paragraphs(master_page: HwpxOxmlMasterPage) -> "list[HwpxOxmlPar
 
     sub_list = _master_page_sublist(master_page)
     if sub_list is None:
-        return []
+        return ()
     part = cast(Any, master_page)
-    return [HwpxOxmlParagraph(element, part) for element in sub_list.findall(f"{_HP}p")]
+    return tuple(HwpxOxmlParagraph(element, part) for element in sub_list.findall(f"{_HP}p"))
 
 
 def clear_master_page_layout_cache(master_page: HwpxOxmlMasterPage) -> int:
@@ -315,15 +316,31 @@ def clear_master_page_layout_cache(master_page: HwpxOxmlMasterPage) -> int:
     return removed
 
 
-def add_master_page_paragraph(master_page: HwpxOxmlMasterPage, text: str = "") -> "HwpxOxmlParagraph":
-    """Append a paragraph with *text* to a master page and return it."""
+def add_master_page_paragraph(
+    master_page: HwpxOxmlMasterPage,
+    text: str = "",
+    *,
+    style: "int | str | Style | None" = None,
+    para_pr_id_ref: str | int | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "HwpxOxmlParagraph":
+    """Append a paragraph with *text* to a master page and return it (``MasterPage.add_paragraph``)."""
 
     from .paragraph import HwpxOxmlParagraph
+    from .section import style_shape_refs
 
+    style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
+        master_page.document, style, para_pr_id_ref, char_pr_id_ref
+    )
     sub_list = _master_page_sublist(master_page, create=True)
     assert sub_list is not None
-    element = _append_child(sub_list, f"{_HP}p", {**_DEFAULT_PARAGRAPH_ATTRS, "id": _paragraph_id()})
-    run = _append_child(element, f"{_HP}run", {"charPrIDRef": "0"})
+    attributes = {**_DEFAULT_PARAGRAPH_ATTRS, "id": _paragraph_id()}
+    if para_pr_id_ref is not None:
+        attributes["paraPrIDRef"] = str(para_pr_id_ref)
+    if style_id_ref is not None:
+        attributes["styleIDRef"] = str(style_id_ref)
+    element = _append_child(sub_list, f"{_HP}p", attributes)
+    run = _append_child(element, f"{_HP}run", {"charPrIDRef": str(char_pr_id_ref if char_pr_id_ref is not None else "0")})
     _append_child(run, f"{_HP}t", {})
     paragraph = HwpxOxmlParagraph(element, cast(Any, master_page))
     if text:

@@ -20,7 +20,8 @@ from ._document_primitives import (
 from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
-    from .objects import HwpxOxmlInlineObject
+    from ..objects.form_field import Hyperlink
+    from .header import Style
     from .paragraph import HwpxOxmlParagraph
     from .run import HwpxOxmlRun
     from .section import HwpxOxmlSection
@@ -67,11 +68,12 @@ class HwpxOxmlMemoGroup:
         self.section = section
 
     @property
-    def memos(self) -> list["HwpxOxmlMemo"]:
-        return [
+    def memos(self) -> tuple["HwpxOxmlMemo", ...]:
+        """The memos of this ``hp:memogroup``, in order."""
+        return tuple(
             HwpxOxmlMemo(child, self)
             for child in self.element.findall(f"{_HP}memo")
-        ]
+        )
 
     def add_memo(
         self,
@@ -217,11 +219,9 @@ class HwpxOxmlMemo:
         return _wrap_paragraph(node, self.group.section)
 
     @property
-    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
-        paragraphs: list[HwpxOxmlParagraph] = []
-        for node in self.element.findall(f".//{_HP}p"):
-            paragraphs.append(_wrap_paragraph(node, self.group.section))
-        return paragraphs
+    def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
+        """The memo's paragraphs (its text), in order."""
+        return tuple(_wrap_paragraph(node, self.group.section) for node in self.element.findall(f".//{_HP}p"))
 
     @property
     def text(self) -> str:
@@ -668,11 +668,12 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         return self.element.find(f"{_HP}subList")
 
     @property
-    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+    def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
+        """The memo's paragraphs (the text the field holds), in order."""
         sub_list = self._sub_list()
         if sub_list is None:
-            return []
-        return [_wrap_paragraph(node, self.group.section) for node in sub_list.findall(f"{_HP}p")]
+            return ()
+        return tuple(_wrap_paragraph(node, self.group.section) for node in sub_list.findall(f"{_HP}p"))
 
     def set_text(self, value: str, *, char_pr_id_ref: str | int | None = None) -> None:
         """Replace the memo's text: one paragraph shaped like the field's first one."""
@@ -801,14 +802,23 @@ class HwpxOxmlNote:
         text: str = "",
         *,
         char_pr_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
+        para_pr_id_ref: str | int | None = None,
     ) -> "HwpxOxmlParagraph":
         """Add a paragraph holding *text* at the end of the note and return it.
 
-        It takes the paragraph and character shape of the note's first paragraph
-        (the 각주/미주 style) unless *char_pr_id_ref* is given; Hancom numbers only
-        the first paragraph.
+        It takes the style, paragraph and character shape of the note's first paragraph
+        (the 각주/미주 style) unless they are given: ``style`` (a name, a numeric id or a
+        ``Style``, with its shapes unless those are passed), ``para_pr_id_ref``,
+        ``char_pr_id_ref``, as every ``add_paragraph`` takes them. Hancom numbers only the
+        first paragraph.
         """
 
+        from .section import style_shape_refs
+
+        style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
+            self.paragraph.section.document, style, para_pr_id_ref, char_pr_id_ref
+        )
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
             attrs = _default_sublist_attributes()
@@ -821,6 +831,10 @@ class HwpxOxmlNote:
         run_attrs = dict(first_run.attrib) if first_run is not None else {"charPrIDRef": "0"}
         if char_pr_id_ref is not None:
             run_attrs["charPrIDRef"] = str(char_pr_id_ref)
+        if para_pr_id_ref is not None:
+            p_attrs["paraPrIDRef"] = str(para_pr_id_ref)
+        if style_id_ref is not None:
+            p_attrs["styleIDRef"] = str(style_id_ref)
         paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
         run = _append_child(paragraph, f"{_HP}run", run_attrs)
         set_text_with_tabs(_append_child(run, f"{_HP}t", {}), text)
@@ -892,13 +906,12 @@ class HwpxOxmlNote:
         display_text: str,
         *,
         char_pr_id_ref: str | int | None = None,
-    ) -> "HwpxOxmlInlineObject":
-        """Append a hyperlink to the note body paragraph.
-
-        Convenience wrapper around ``body_paragraph.add_hyperlink``.
+    ) -> "Hyperlink":
+        """Append a hyperlink to the note body paragraph and return it, as ``paragraph.hyperlinks``
+        reads it (``body_paragraph.add_hyperlink``).
         """
-        return self.body_paragraph.add_hyperlink(
-            url, display_text, char_pr_id_ref=char_pr_id_ref
-        )
+        body = self.body_paragraph
+        body.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)
+        return body.hyperlinks[-1]  # the link just appended is the paragraph's last
 
 __all__ = ["HwpxOxmlMemo", "HwpxOxmlMemoGroup", "HwpxOxmlNote"]

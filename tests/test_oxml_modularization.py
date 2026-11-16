@@ -66,7 +66,6 @@ DOCUMENT_EXPORTS = (
     "PageSize",
     "ParagraphProperty",
     "RunStyle",
-    "SectionStartNumbering",
     "Sequence",
     "Style",
     "T",
@@ -122,7 +121,6 @@ OWNER_MODULES = {
     "PageMargins": "hwpx.oxml.section_format",
     "PageSize": "hwpx.oxml.section_format",
     "RunStyle": "hwpx.oxml.run",
-    "SectionStartNumbering": "hwpx.oxml.numbering",
 }
 
 OWNER_FILES = frozenset(module.rsplit(".", 1)[-1] for module in OWNER_MODULES.values()) | {
@@ -311,7 +309,8 @@ def test_frozen_facade_exports_remain_exact() -> None:
     # shadow= and glow= take (hp:effects/hp:shadow, hp:glow), as ContainerMember
     # is add_container's.
     # 136 -> 137: PictureReflection -- add_picture's reflection= input type.
-    assert len(oxml.__all__) == 137
+    # 137 -> 136: SectionStartNumbering went into hwpx.objects.StartNumbers (7.0, D21).
+    assert len(oxml.__all__) == 136
     assert tuple(document_facade.__all__) == DOCUMENT_EXPORTS
 
 

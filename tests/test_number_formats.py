@@ -120,7 +120,7 @@ def test_a_refused_page_number_format_leaves_the_footer_as_it_was() -> None:
     with pytest.raises(HwpxValueError):
         document.page.set_page_number(format_type="decimal", prefix="- ")
 
-    assert document.oxml.sections[0].properties.get_footer().text == "기존 꼬리말"
+    assert document.oxml.sections[0].properties.footer().text == "기존 꼬리말"
     section = _section_xml(document)
     assert section.count("기존 꼬리말") == 1 and ">- <" not in section
 

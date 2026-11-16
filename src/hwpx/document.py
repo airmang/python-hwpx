@@ -643,7 +643,7 @@ class HwpxDocument(metaclass=_DocumentType):
                 char_pr_id_ref,
             )
         section = _resolve.resolve_section(self, section, caller="add_paragraph")
-        paragraph = self._root.add_paragraph(
+        paragraph = self._root._add_paragraph(
             text,
             section=section,
             para_pr_id_ref=para_pr_id_ref,
@@ -652,7 +652,7 @@ class HwpxDocument(metaclass=_DocumentType):
             include_run=include_run,
             inherit_style=self._inherit_style_default if inherit_style is None else inherit_style,
             inherit_outline=inherit_style is not None,
-            **cast(Any, extra),
+            xml_attributes=extra,
         )
         if include_run:  # a paragraph made to hold an object does not take the first line
             self._take_first_line(paragraph)

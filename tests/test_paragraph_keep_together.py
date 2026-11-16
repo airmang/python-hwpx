@@ -38,7 +38,8 @@ def test_ensure_paragraph_format_writes_keep_together_break_setting():
 def test_paragraph_can_carry_column_break():
     document = HwpxDocument.open(FIXTURE)
     section = document.sections[0]
-    para = section.add_paragraph("다음 단으로", columnBreak="1")
+    para = section.add_paragraph("다음 단으로")
+    para.column_break = True
     assert para.element.get("columnBreak") == "1"
 
     reopened = _reopen(document)

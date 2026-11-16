@@ -60,7 +60,7 @@ def _read_everything(doc: HwpxDocument) -> int:
         for column in getattr(table, "columns", ()):
             column.width
             column.cells
-        table.get_cell_map()
+        table.cell_map
     return count
 
 
