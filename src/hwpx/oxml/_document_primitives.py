@@ -99,7 +99,42 @@ def _sanitize_text(value: str) -> str:
     Carriage return (``\\r`` / U+000D) is stripped; newline (``\\n`` / U+000A)
     is preserved for multiline cells.
     """
+    _require_text(value)
     return _ILLEGAL_XML_CHARS.sub("", value)
+
+
+def _require_nonempty_str(argument: str, value: object, *, code: str, suggestion: str) -> str:
+    """*value* of a name-like *argument* (a bookmark name, a link target, a field name), checked to be
+    a ``str`` (a typed ``TypeError`` otherwise) that is not blank (``HwpxValueError`` with *code*)."""
+
+    from ..errors import HwpxValueError, argument_type_error
+
+    if not isinstance(value, str):
+        raise argument_type_error(argument, value, "str", suggestion=suggestion)
+    if not value.strip():
+        raise HwpxValueError(
+            f"{argument} must not be empty",
+            code=code,
+            context={"argument": argument},
+            suggestion=suggestion,
+        )
+    return value
+
+
+def _require_text(value: object) -> None:
+    """Refuse text that is not a ``str`` before it is written into ``hp:t``: the typed
+    ``paragraph-text-invalid-type`` error, not a bare ``TypeError`` from a regular expression."""
+
+    if not isinstance(value, str):
+        from ..errors import argument_type_error
+
+        raise argument_type_error(
+            "text",
+            value,
+            "str",
+            code="paragraph-text-invalid-type",
+            suggestion=f"Convert it first: str({value!r}).",
+        )
 
 
 def _child_tag_like(parent: ET.Element, local_name: str, fallback_namespace: str) -> str:
@@ -549,9 +584,10 @@ def _fill_text_element(text_element: ET.Element, value: str, *, special_spaces: 
     ``hp:fwSpace`` (:data:`_RUN_CHOICE_ATOM_MARKERS`); without it they stay characters of the text.
     """
 
+    _require_text(value)
     tab_tag = _child_tag_like(text_element, "tab", _HP_NS)
     break_tag = _child_tag_like(text_element, "lineBreak", _HP_NS)
-    parts = (_TEXT_MARK_AND_SPACE_SPLIT_RE if special_spaces else _TEXT_MARK_SPLIT_RE).split(value)
+    parts =(_TEXT_MARK_AND_SPACE_SPLIT_RE if special_spaces else _TEXT_MARK_SPLIT_RE).split(value)
     text_element.text = _sanitize_text(parts[0])
     for mark, segment in zip(parts[1::2], parts[2::2]):
         marker_name = _RUN_CHOICE_ATOM_MARKERS.get(mark)

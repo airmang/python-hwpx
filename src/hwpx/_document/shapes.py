@@ -6,11 +6,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from ._units import _mm_to_hwp_units
-from ..errors import HwpxStateError, HwpxValueError
+from ..errors import HwpxStateError, HwpxValueError, argument_type_error
 from ..oxml.objects import HwpxOxmlEquation, _closed_points
 from ..oxml.shape_position import (
-    validate_equation_base_unit, validate_equation_font, validate_equation_script, validate_original_size,
-    validate_rect_ratio, validate_shape_size,
+    validate_box_size, validate_equation_base_unit, validate_equation_font, validate_equation_script,
+    validate_original_size, validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -500,6 +500,8 @@ def add_equation(
     from ..equation.eqedit import MAX_SOURCE_LENGTH
     from ..oxml.namespaces import HP
 
+    if script is not None and not isinstance(script, str):
+        raise argument_type_error("script", script, "str", suggestion="Pass the EqEdit script as a str.")
     text = (script or "").strip()
     if not text:
         raise HwpxValueError(
@@ -517,8 +519,11 @@ def add_equation(
     validate_equation_script(text)  # before a paragraph is added for it
     validate_equation_base_unit(base_unit)
     font = validate_equation_font(font)
-    width, height = size if size is not None else estimate_equation_size(text, base_unit=base_unit)
-    validate_shape_size(width, height)  # one measured at a huge base_unit too
+    if size is not None:
+        width, height = validate_box_size(size, kind="equation")
+    else:
+        width, height = estimate_equation_size(text, base_unit=base_unit)
+        validate_shape_size(width, height)  # one measured at a huge base_unit too
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section,
@@ -662,6 +667,13 @@ def add_chart(
 
     _CHART_SPACE = "{http://schemas.openxmlformats.org/drawingml/2006/chart}chartSpace"
 
+    if not isinstance(chart_xml, (str, bytes, bytearray, memoryview)):
+        raise argument_type_error(
+            "chart_xml", chart_xml, "bytes or str",
+            suggestion="Pass the ECMA-376 c:chartSpace document as bytes or a str.",
+        )
+    if size is not None:
+        validate_box_size(size, kind="chart")  # before the chart part is written
     data = chart_xml.encode("utf-8") if isinstance(chart_xml, str) else bytes(chart_xml)
     if not data.strip():
         raise HwpxValueError(

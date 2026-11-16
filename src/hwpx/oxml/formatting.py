@@ -976,8 +976,17 @@ def resolve_style(document: "HwpxOxmlDocument", spec: "int | str | Style | None"
 
     if spec is None:
         raise style_not_found(document, spec)
-    if not isinstance(spec, (int, str)):
-        return spec
+    if not isinstance(spec, (int, str)) or isinstance(spec, bool):
+        from .header import Style
+
+        if isinstance(spec, Style):
+            return spec
+        from ..errors import argument_type_error
+
+        raise argument_type_error(
+            "style", spec, "a style name, id or Style",
+            suggestion="Pass the style's name ('본문'), its id (2) or a Style from doc.styles.",
+        )
     styles = document.styles
     if isinstance(spec, int) or spec.strip().lstrip("-").isdigit():
         wanted = str(int(str(spec).strip()))

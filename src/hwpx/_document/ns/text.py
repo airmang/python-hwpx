@@ -15,16 +15,20 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, cast
 
-from ...errors import HwpxTypeError, HwpxValueError, ReplaceScopeWarning
+from ...errors import HwpxTypeError, HwpxValueError, ReplaceScopeWarning, argument_type_error
+from ...objects.highlight import Highlight
+from ...objects.results import ObjectPlace, ParagraphPlace
+from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
 from ...oxml.namespaces import HP, tag_local_name
-from ._base import _Namespace
+from ._base import _LazyModule, _Namespace
 
+# Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
 if TYPE_CHECKING:
-    from ...objects.highlight import Highlight
-    from ...objects.results import ObjectPlace, ParagraphPlace
-    from ...tools.markdown_import import MarkdownStyle
-    from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
-    from ..text_blocks import TextBlock, TextChangeReport, TextOutline
+    from ...tools import markdown_import as _markdown_import
+    from .. import text_blocks as _text_blocks
+else:
+    _markdown_import = _LazyModule("hwpx.tools.markdown_import")
+    _text_blocks = _LazyModule("hwpx._document.text_blocks")
 
 __all__ = ["TextNamespace"]
 
@@ -166,7 +170,11 @@ class TextNamespace(_Namespace):
     # -- 가져오기 ----------------------------------------------------------
 
     def append_markdown(
-        self, markdown: str, *, style: "MarkdownStyle | str | None" = None, byline: str | None = None
+        self,
+        markdown: str,
+        *,
+        style: "_markdown_import.MarkdownStyle | str | None" = None,
+        byline: str | None = None,
     ) -> None:
         """*markdown* 을 마지막 구역 끝에 문단·목록·표로 덧붙인다.
 
@@ -253,7 +261,7 @@ class TextNamespace(_Namespace):
 
     # -- id 붙은 글 덩어리 ---------------------------------------------------
 
-    def blocks(self) -> Iterator["TextBlock"]:
+    def blocks(self) -> Iterator["_text_blocks.TextBlock"]:
         """본문 문단과 표 칸 문단(칸 안 표 포함)을 문서 순서대로, 안정적인 id와 함께 내놓는다.
 
         id는 위치로 정해진다: ``s0p16`` (0번 구역의 16번 본문 문단, 번호는 0부터), ``s0p16t0r3c0q0`` (그 문단의 0번 표,
@@ -273,7 +281,7 @@ class TextNamespace(_Namespace):
         max_items: int | None = None,
         max_block_chars: int = 200,
         after: str | None = None,
-    ) -> "TextOutline":
+    ) -> "_text_blocks.TextOutline":
         """글자가 있는 덩어리를 ``{"id", "where", "text"}`` 목록으로, 글자 예산 안에서 돌려준다.
 
         빈 문단은 빼고, 탭·줄 바꿈은 공백으로, 제어 문자는 지운다. *max_block_chars* 보다 긴
@@ -298,7 +306,7 @@ class TextNamespace(_Namespace):
         changes: "dict[str, str]",
         *,
         check_overflow: bool = True,
-    ) -> "TextChangeReport":
+    ) -> "_text_blocks.TextChangeReport":
         """``{id: 새 글}`` 을 한 번에 적용하고 id마다 결과를 보고한다.
 
         모든 id를 먼저 찾은 뒤 쓴다. 없는 id는 ``unknown_ids`` 로 보고하고 나머지는 적용한다.
@@ -336,6 +344,9 @@ class TextNamespace(_Namespace):
         어느 쪽이든 대소문자는 가린다(한/글 "모두 바꾸기"의 기본은 라틴 대소문자를 가리지 않는다).
         """
 
+        for argument, value in (("search", search), ("replacement", replacement)):
+            if not isinstance(value, str):
+                raise argument_type_error(argument, value, "str", suggestion=f"str({value!r}) 처럼 글로 바꿔 넘기세요.")
         if not search:
             raise HwpxValueError(
                 "search 는 빈 문자열일 수 없습니다.",

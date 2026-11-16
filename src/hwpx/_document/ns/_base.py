@@ -13,13 +13,40 @@ WP-A 소유다. 각 네임스페이스의 **메서드 본문**은 WP-B1/B2/B3이
 
 from __future__ import annotations
 
+import importlib
 import inspect
 from typing import TYPE_CHECKING, Any
 
 from ...errors import rejects_removed_arguments
 
+
+class _LazyModule:
+    """A module imported on its first attribute access.
+
+    A namespace method's annotations must resolve under :func:`typing.get_type_hints`
+    (tool-schema builders call it on every method), so the names they use are bound at
+    run time. A type from a module ``import hwpx`` must not load (``hwpx.tools``,
+    ``hwpx.form_fit``) or that would close an import cycle (``hwpx.document``) is named
+    through one of these instead, as ``"_module.Name"``: resolving the hint imports the
+    module then, and ``import hwpx`` stays as light as before.
+    """
+
+    __slots__ = ("_name",)
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __getattr__(self, attribute: str) -> Any:
+        return getattr(importlib.import_module(self._name), attribute)
+
+    def __repr__(self) -> str:
+        return f"<lazy module {self._name!r}>"
+
+
 if TYPE_CHECKING:
-    from ...document import HwpxDocument
+    from ... import document as _document
+else:
+    _document = _LazyModule("hwpx.document")
 
 
 class _Namespace:
@@ -30,7 +57,7 @@ class _Namespace:
     #: `doc.<이 이름>`으로 접근하는 경로. 오류 메시지·`__repr__`에 쓰인다.
     _path = "doc"
 
-    def __init__(self, document: "HwpxDocument") -> None:
+    def __init__(self, document: "_document.HwpxDocument") -> None:
         self._doc = document
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -49,7 +76,7 @@ class _Namespace:
                 setattr(cls, name, rejects_removed_arguments(member, caller=f"{cls._path}.{name}"))
 
     @property
-    def document(self) -> "HwpxDocument":
+    def document(self) -> "_document.HwpxDocument":
         """이 네임스페이스가 붙어 있는 문서."""
 
         return self._doc

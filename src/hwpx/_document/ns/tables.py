@@ -13,18 +13,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable, Mapping, overload
 
-from ._base import _Namespace
+from ...model import Table, TableCell
+from ._base import _LazyModule, _Namespace
 
+# Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
 if TYPE_CHECKING:
-    from ...form_fit.policy import FitPolicy
-    from ...model import Table, TableCell
-    from ...tools.table_navigation import (
-        SearchDirection,
-        TableFillResult,
-        TableFormSlotsResult,
-        TableLabelSearchResult,
-        TableMapResult,
-    )
+    from ...form_fit import policy as _fit_policy
+    from ...tools import table_navigation as _table_navigation
+else:
+    _fit_policy = _LazyModule("hwpx.form_fit.policy")
+    _table_navigation = _LazyModule("hwpx.tools.table_navigation")
 
 __all__ = ["TablesNamespace"]
 
@@ -72,10 +70,14 @@ class TablesNamespace(_Namespace):
         tables = self.all
         if isinstance(index, slice):
             return tables[index]
+        if isinstance(index, bool) or not isinstance(index, int):
+            from ...errors import argument_type_error
+
+            raise argument_type_error("index", index, "int or slice", suggestion="doc.tables[0] 처럼 번호로 고르세요.")
         try:
             return tables[index]
         except IndexError:
-            from ...oxml.utils import HwpxIndexError
+            from ...errors import HwpxIndexError
 
             raise HwpxIndexError(
                 f"표 인덱스 {index} 가 범위를 벗어났습니다(표 {len(tables)}개).",
@@ -87,7 +89,7 @@ class TablesNamespace(_Namespace):
                 ),
             ) from None
 
-    def map(self) -> "TableMapResult":
+    def map(self) -> "_table_navigation.TableMapResult":
         """모든 표의 위치·모양·헤더 미리보기를 담은 간결 지도."""
 
         from ...tools.table_navigation import get_table_map
@@ -95,15 +97,17 @@ class TablesNamespace(_Namespace):
         return get_table_map(self._doc)
 
     def find_cell_by_label(
-        self, label_text: str, direction: "SearchDirection" = "right"
-    ) -> "TableLabelSearchResult":
+        self, label_text: str, direction: "_table_navigation.SearchDirection" = "right"
+    ) -> "_table_navigation.TableLabelSearchResult":
         """라벨 셀과 그 옆(기본 오른쪽) 대상 셀 쌍을 전부 찾는다."""
 
         from ...tools.table_navigation import find_cell_by_label
 
         return find_cell_by_label(self._doc, label_text, direction)
 
-    def form_slots(self, *, min_width_mm: float = 5.0) -> "TableFormSlotsResult":
+    def form_slots(
+        self, *, min_width_mm: float = 5.0
+    ) -> "_table_navigation.TableFormSlotsResult":
         """양식의 빈 칸(글이 있는 칸의 오른쪽이나 아래에 있는 빈 칸)과 그 칸을 채우는 경로를 나열한다.
 
         각 항목의 ``path``를 그대로 :meth:`fill_by_path`의 키로 쓴다. 이름표와 상자 사이를 띄우는
@@ -115,8 +119,8 @@ class TablesNamespace(_Namespace):
         return form_slots(self._doc, min_width_mm=min_width_mm)
 
     def fill_by_path(
-        self, mappings: Mapping[str, str], *, fit: "FitPolicy | None" = None
-    ) -> "TableFillResult":
+        self, mappings: Mapping[str, str], *, fit: "_fit_policy.FitPolicy | None" = None
+    ) -> "_table_navigation.TableFillResult":
         """``이름표 > 방향`` 경로 → 값 매핑으로 칸을 채운다.
 
         이름표는 공백을 무시하고 견준다(``"성명"``이 ``"성  명"`` 칸을 찾는다). 같은 이름표가

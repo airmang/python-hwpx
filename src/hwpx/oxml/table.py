@@ -317,6 +317,11 @@ class HwpxOxmlTableCell(TableCellFormat):
         return int(size.get("height", "0")) if size is not None else 0
 
     def set_size(self, width: int | None = None, height: int | None = None) -> None:
+        for argument, value in (("width", width), ("height", height)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+                from ..errors import argument_type_error
+
+                raise argument_type_error(argument, value, "an int (HWPUNIT) or None")
         size = self._size_element()
         if width is not None:
             size.set("width", str(max(width, 0)))
@@ -1004,6 +1009,11 @@ class HwpxOxmlTable(TableStructureEdits, TableFormat):
         return mapping
 
     def _grid_entry(self, row_index: int, col_index: int) -> HwpxTableGridPosition:
+        for argument, value in (("row", row_index), ("col", col_index)):
+            if isinstance(value, bool) or not isinstance(value, int):
+                from ..errors import argument_type_error
+
+                raise argument_type_error(argument, value, "int", suggestion="칸은 table.cell(0, 1) 처럼 행·열 번호로 고르세요.")
         row_count = self.row_count
         col_count = self.column_count
         if row_index < 0 or col_index < 0 or row_index >= row_count or col_index >= col_count:

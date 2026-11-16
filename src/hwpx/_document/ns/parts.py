@@ -33,20 +33,23 @@ from ...oxml.header_compat import (
     set_layout_compatibility_flags as _set_layout_compatibility_flags,
     set_license_mark as _set_license_mark,
 )
+from ...oxml import (
+    HwpxOxmlHeader,
+    HwpxOxmlHistory,
+    HwpxOxmlMasterPage,
+    HwpxOxmlSection,
+    HwpxOxmlSettings,
+    HwpxOxmlVersion,
+)
+from ...objects.results import BeginNumbers, DocumentOptions
 from .._resolve import resolve_section
-from ._base import _Namespace
+from ._base import _LazyModule, _Namespace
 
+# Named in an annotation only; loaded when the hint is resolved (``import hwpx`` stays light).
 if TYPE_CHECKING:
-    from ...oxml import (
-        HwpxOxmlHeader,
-        HwpxOxmlHistory,
-        HwpxOxmlMasterPage,
-        HwpxOxmlSection,
-        HwpxOxmlSettings,
-        HwpxOxmlVersion,
-    )
-    from ...oxml.document_metadata import DocumentMetadata
-    from ...objects.results import BeginNumbers, DocumentOptions
+    from ...oxml import document_metadata as _document_metadata
+else:
+    _document_metadata = _LazyModule("hwpx.oxml.document_metadata")
 
 __all__ = ["PartsNamespace"]
 
@@ -186,7 +189,7 @@ class PartsNamespace(_Namespace):
         return self._doc.oxml.settings
 
     @property
-    def metadata(self) -> "DocumentMetadata | None":
+    def metadata(self) -> "_document_metadata.DocumentMetadata | None":
         """``Contents/content.hpf``의 ``opf:metadata`` 스냅샷(제목·작성자·
         주제·키워드·작성일·수정일 등). 실코퍼스 67파일 전수 역설계 기반
         (`hwpx.oxml.document_metadata` 모듈 독스트링 참조). `None`이면

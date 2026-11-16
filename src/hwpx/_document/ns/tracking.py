@@ -11,14 +11,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from ...model import Paragraph
+from ...objects import TrackedChange, TrackedReplacement
+from ...oxml import TrackChange, TrackChangeAuthor
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...model import Paragraph
-    from ...objects import TrackedChange, TrackedReplacement
-    from ...oxml import TrackChange, TrackChangeAuthor
 
 __all__ = ["TrackingNamespace"]
 

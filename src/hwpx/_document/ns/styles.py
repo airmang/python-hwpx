@@ -29,10 +29,31 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator, Mapping, Sequence
+from typing import Iterator, Mapping, Sequence
 
 from ...errors import HwpxLookupError, HwpxValueError
+from ...objects import (
+    BorderFillInfo,
+    FontReplaceReport,
+    LineSpacing,
+    ListFormatResult,
+    NumberingInfo,
+    ParagraphFormatResult,
+)
+from ...objects.binary_item import BinaryItem
+from ...oxml import (
+    Bullet,
+    Font,
+    GenericElement,
+    HwpxOxmlParagraph,
+    MemoShape,
+    ParagraphProperty,
+    RunStyle,
+    Style,
+    TabDefinition,
+)
 from ...oxml.color import rgb_color
+from ...oxml.header_part import HwpxOxmlHeader
 from ...oxml._document_primitives import (
     FILL_GRADIENT_TYPES,
     FILL_IMAGE_EFFECTS,
@@ -41,29 +62,6 @@ from ...oxml._document_primitives import (
     MEMO_TYPE_VALUES,
 )
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...objects import (
-        BorderFillInfo,
-        FontReplaceReport,
-        LineSpacing,
-        ListFormatResult,
-        NumberingInfo,
-        ParagraphFormatResult,
-    )
-    from ...objects.binary_item import BinaryItem
-    from ...oxml import (
-        Bullet,
-        Font,
-        GenericElement,
-        HwpxOxmlParagraph,
-        MemoShape,
-        ParagraphProperty,
-        RunStyle,
-        Style,
-        TabDefinition,
-    )
-    from ...oxml.header_part import HwpxOxmlHeader
 
 __all__ = ["StylesNamespace"]
 

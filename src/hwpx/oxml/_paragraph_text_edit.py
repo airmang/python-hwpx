@@ -13,6 +13,7 @@ from ._document_primitives import (
     _child_tag_like,
     _fill_text_element,
     _is_tab_control_element,
+    _require_text,
     _sanitize_text,
 )
 from .namespaces import tag_local_name
@@ -58,6 +59,7 @@ def edit_node_candidates(
 def sanitize_keeping_tabs(value: str) -> str:
     """``_sanitize_text``, but keep tabs for :func:`set_text_with_tabs`."""
 
+    _require_text(value)
     return "\t".join(_sanitize_text(part) for part in value.split("\t"))
 
 

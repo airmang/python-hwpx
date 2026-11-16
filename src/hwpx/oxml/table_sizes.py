@@ -38,6 +38,7 @@ __all__ = [
     "COLUMN_FLOOR_EXTRA",
     "NEW_TABLE_COLUMN_FLOOR",
     "new_table_width",
+    "validate_table_size",
 ]
 
 _MARGIN_SIDES = ("left", "right", "top", "bottom")
@@ -49,6 +50,30 @@ COLUMN_FLOOR_EXTRA = 283
 NEW_TABLE_COLUMN_FLOOR = sum(
     int(_default_cell_inner_margin_attributes()[side]) for side in ("left", "right")
 ) + COLUMN_FLOOR_EXTRA
+
+
+def validate_table_size(rows: object, cols: object) -> tuple[int, int]:
+    """*rows* and *cols* of a new table, checked to be ints of at least 1 (``bool`` refused):
+    ``table-size-invalid``, a ``TypeError`` for a wrong type and a ``ValueError`` for less than 1."""
+
+    from ..errors import HwpxTypeError, HwpxValueError
+
+    for name, value in (("rows", rows), ("cols", cols)):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise HwpxTypeError(
+                f"{name} must be an int, got {type(value).__name__} {value!r}",
+                code="table-size-invalid",
+                context={"name": name, "value": repr(value)},
+                suggestion="Pass the row and column counts as ints, e.g. add_table(2, 3).",
+            )
+        if value < 1:
+            raise HwpxValueError(
+                f"{name} must be at least 1, got {value}",
+                code="table-size-invalid",
+                context={"name": name, "value": value},
+                suggestion="A table has at least one row and one column.",
+            )
+    return rows, cols  # type: ignore[return-value]
 
 
 @overload
@@ -124,11 +149,25 @@ def _keeping_nested_fit(edit: Any) -> Any:
 
 @_keeping_nested_fit
 def set_column_widths(table: "HwpxOxmlTable", weights: Sequence[int | float]) -> None:
+    from ..errors import HwpxValueError
+
+    def refuse(message: str) -> HwpxValueError:
+        return HwpxValueError(
+            message,
+            code="table-column-width-value",
+            context={"weights": repr(weights), "columns": table.column_count},
+            suggestion=f"Pass {table.column_count} numbers, one per column, at least one of them positive.",
+        )
+
+    if isinstance(weights, (str, bytes)) or not isinstance(weights, Sequence):
+        raise refuse("column width weights must be a sequence of numbers")
     if len(weights) != table.column_count:
-        raise ValueError("column width weights must match table column count")
+        raise refuse("column width weights must match table column count")
+    if any(isinstance(weight, bool) or not isinstance(weight, (int, float)) for weight in weights):
+        raise refuse("column width weights must be numbers")
     numeric_weights = [max(float(weight), 0.0) for weight in weights]
     if not any(numeric_weights):
-        raise ValueError("at least one column width weight must be positive")
+        raise refuse("at least one column width weight must be positive")
 
     sz = table.element.find(f"{_HP}sz")
     if sz is not None and sz.get("width", "").isdigit():
