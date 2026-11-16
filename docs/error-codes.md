@@ -436,7 +436,7 @@ except HwpxError as exc:
 | `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
 | `shape-ruby-text-value` | 덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()). |
 | `shape-size-value` | 도형·그림·수식·차트 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). 수식·차트의 size 는 (너비, 높이) 쌍이어야 하고 0일 수 없다. |
-| `shape-ungroup-unsupported` | 풀 수 없는 묶음이다: 묶음이 아니거나, 한/글 저장본으로 확인하지 못한 꼴(양쪽으로 뒤집힌 묶음, 뒤집고 늘인 묶음, 혼자 돌았거나 뒤집힌 구성원, 돈 뒤 늘여 기울어진 묶음)이다; context.reason. |
+| `shape-ungroup-unsupported` | 풀 수 없는 묶음이다: 묶음이 아니거나, 글자처럼 놓였거나 오른쪽·아래·안쪽·바깥쪽 정렬이거나, 한/글 저장본으로 확인하지 못한 꼴(양쪽으로 뒤집힌 묶음, 뒤집고 늘인 묶음, 혼자 돌았거나 뒤집힌 구성원, 돈 뒤 늘여 기울어진 묶음)이다; context.reason. |
 | `shape-z-order-value` | 개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부). |
 
 ### `story-*`

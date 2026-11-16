@@ -24,6 +24,7 @@ from hwpx import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.container import ContainerMember
 from hwpx.oxml.namespaces import HC, HP
+from tests.hancom_place import carry_down_offset, paragraph_heights, paragraph_index
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 TEXT_BOX, GROUP, NESTED = "1720249014", "768560093", "2104287188"
@@ -107,6 +108,17 @@ CASES = [
 ]
 
 
+#: Turned, these overlapped another object of their document; Hangul (``allowOverlap`` 0) pushed each down below the
+#: others, which needs the page's layout. python-hwpx keeps it where the turn leaves it: only the down offset differs.
+PUSHED_DOWN = {"flip_text_box_left_right_by_45_back", "flip_ellipse_left_right_by_30", "flip_polygon_left_right_by_30",
+               "flip_line_left_right_by_30", "flip_picture_left_right_resized_by_30", "flip_curve_left_right_by_30",
+               "turn_flipped_rect_by_30"}
+
+
+def _same_down_offset(ours, theirs) -> None:
+    theirs.find(f"{HP}pos").set("vertOffset", ours.find(f"{HP}pos").get("vertOffset"))
+
+
 def _set(obj, name: str, value) -> None:
     if name == "size":
         obj.resize(*value)
@@ -126,6 +138,11 @@ def _by_instid(doc: HwpxDocument, instid: str):
     return next(obj for obj in _objects(doc) if obj.element.get("instid") == instid)
 
 
+def _signed(value: str) -> int:
+    number = int(value) & 0xFFFFFFFF
+    return number - (1 << 32) if number >= 1 << 31 else number
+
+
 def _normalized(element, path: str = "") -> list[str]:
     name = str(element.tag).rsplit("}", 1)[-1]
     # imgDim/imgClip: Hangul measures again the image of a picture it changed (40 x 20 px: 3000 x 1500), not a flip
@@ -133,8 +150,10 @@ def _normalized(element, path: str = "") -> list[str]:
             name == "shapeComment" and not (element.text or "").strip()):
         return []
     attributes = {key: ("0" if value == "-0" else value) for key, value in element.attrib.items()
-                  if key not in {"id", "instid", "binaryItemIDRef"}  # Hangul renames the items it saves
-                  and not (name == "pos" and key in {"horzOffset", "vertOffset"})}
+                  if key not in {"id", "instid", "binaryItemIDRef"}}  # Hangul renames the items it saves
+    if name == "pos":  # offsets as signed numbers: Hangul writes a negative one unsigned too
+        attributes = {key: (str(_signed(value)) if key in {"horzOffset", "vertOffset"} else value)
+                      for key, value in attributes.items()}
     here = f"{path}/{name}"
     lines = [f"{here} {sorted(attributes.items())} {(element.text or '').strip()!r}"]
     for child in element:
@@ -167,9 +186,15 @@ def test_flipping_and_turning_write_what_hancom_wrote(hancom: str, instid: str, 
     assert (target.flip_horizontal, target.flip_vertical) == (False, False)
     for name, value in steps:
         _set(target, name, value)
-    theirs = _by_instid(HwpxDocument.open(HANCOM / f"{hancom}.hwpx"), instid)
+    saved = HwpxDocument.open(HANCOM / f"{hancom}.hwpx")
+    theirs = _by_instid(saved, instid)
     assert (theirs.flip_horizontal, theirs.flip_vertical, theirs.rotation) == \
         (target.flip_horizontal, target.flip_vertical, target.rotation)
+    # Hangul hangs an object it moved on the paragraph at that height: its offset carried to python-hwpx's
+    carry_down_offset(theirs.element, paragraph_index(saved, theirs), paragraph_index(doc, target),
+                      paragraph_heights(HwpxDocument.open(HANCOM / f"{untouched}.hwpx")))
+    if hancom in PUSHED_DOWN:
+        _same_down_offset(target.element, theirs.element)
     assert _same(_normalized(target.element), _normalized(theirs.element))
     again = _by_instid(_reopen(doc), instid)
     assert (again.flip_horizontal, again.flip_vertical, again.rotation) == \
@@ -188,6 +213,11 @@ def test_hancoms_flip_and_turn_go_back(hancom: str, instid: str, steps: list, un
     target = _by_instid(doc, instid)
     for (name, _), value in reversed(list(zip(steps, before))):  # undone in the other order
         _set(target, name, value)
+    source = HwpxDocument.open(HANCOM / f"{untouched}.hwpx")
+    carry_down_offset(original.element, paragraph_index(source, _by_instid(source, instid)),
+                      paragraph_index(doc, target), paragraph_heights(source))
+    if hancom in PUSHED_DOWN:
+        _same_down_offset(target.element, original.element)
     ours, theirs = _normalized(target.element), _normalized(original.element)
     if target.element.tag.endswith("}container") and [n for n, _ in steps] == ["size", "flip_horizontal"]:
         # the flip moved the centres to the middles drawn at 18000 x 9000; resizing back leaves centres, as

@@ -69,6 +69,12 @@ into a parallelogram; they are kept to show that python-hwpx reads that form and
 line), `one_g_*` and `one_n_*` files with `60` or `u` in their names were made the same way in rotate8 (`60` the
 dialog's angle given again, `u` Hangul's ungroup command); `tests/test_flip_resize_ungroup_as_hancom.py` builds them.
 
+`float_*.hwpx` (rotate9) were made the same way from one floating object -- a picture, a rectangle or a group, placed
+from a paragraph and column, from the paper, or centred -- turned, turned again or back, resized and turned or
+ungrouped by Hangul as their names say; `float_z_u.hwpx` from a group between two overlapping rectangles, each on a
+paragraph of its own, ungrouped. `tests/test_floating_turn_place_as_hancom.py` builds them and compares where each
+object is placed.
+
 ## Adding a file
 
 `formfit_hft_ascii_myeongjo_grid.hwpx` and `formfit_hft_ascii_gothic_grid.hwpx`

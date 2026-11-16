@@ -580,6 +580,12 @@ class ObjectPlacement:
         30, 45, 90, 180, 270 and 330 degrees and turned again from 30 to 45. (Its 90-degree command leaves
         the members' centres as they are; the dialog's form is written.)
 
+        A floating object is moved in its frame so the centre it turns about stays where it was on the page, as
+        Hancom moves it (:func:`keep_turn_anchor`: placed from the left and top or centred, from a paragraph,
+        column, page or the paper); turned back to 0 it is back where it was. Hancom also hangs it on the paragraph
+        at whose height it then starts; here it stays on its paragraph, measured from it, which draws it in the
+        same spot. An object set as a character keeps its place.
+
         A flipped rectangle, ellipse, polygon, line or group (:attr:`flip_horizontal`, :attr:`flip_vertical`)
         turns too: its ``hc:rotMatrix`` mirrors, then turns it, as Hancom writes a flipped text box turned 45
         degrees and a flipped ellipse, polygon, line or group turned 30; its box is the box around it so.
@@ -616,6 +622,7 @@ class ObjectPlacement:
             # Hancom 2024 refuses its 90-degree turn on an equation or a chart and keeps no angle its object
             # dialog is given (objlim evidence eqturn, eqangle, chartturn, chartangle): not a Hancom feature.
             raise _rotation_refused(self.element, "Hancom does not turn an equation or a chart")
+        before = turn_anchor(self.element)
         if str(self.element.tag).rsplit("}", 1)[-1] == "container":
             from .container import turn_group
 
@@ -623,6 +630,7 @@ class ObjectPlacement:
         else:
             width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
             apply_rotation(self.element, angle, width, height)
+        keep_turn_anchor(self.element, before)
         from ._document_primitives import _clear_paragraph_layout_cache
 
         _clear_paragraph_layout_cache(self.paragraph.element)
@@ -842,6 +850,47 @@ def _rotation_refused(element: Any, why: str) -> HwpxValueError:
                    "object properties skewed, a group holding a member turned or flipped on its own, an equation or "
                    "chart do not.",
     )
+
+
+def turn_anchor(element: Any) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Where a floating object holds the centre it turns about, in its box (``rotationInfo`` centre), and its box
+    (``hp:sz``) -- before a turn, for :func:`keep_turn_anchor`; ``None`` for an object set as a character."""
+
+    position, info = element.find(f"{_HP}pos"), element.find(f"{_HP}rotationInfo")
+    if position is None or info is None or (position.get("treatAsChar") or "0") not in _FALSE_FLAGS:
+        return None
+    return ((_number(info.get("centerX")) or 0, _number(info.get("centerY")) or 0), object_size(element))
+
+
+def keep_turn_anchor(element: Any, before: tuple[tuple[int, int], tuple[int, int]] | None) -> None:
+    """After a turn, move the floating object *element* in its frame so the centre it turns about stays where it was
+    on the page, as Hancom 2024 does (rotate9 ``want-float1``, a picture, a rectangle and a group placed from a
+    paragraph and column, from the paper, and centred): placed from the left (top), its offset gains the old centre
+    less the new one (a group turned 30 degrees: 428 left, 3598 up -- its ``transMatrix`` move taken back); centred,
+    the old centre's distance from the middle of the old box less the new one's (a group turned 30, 12330 high with
+    its centre at 6598: 433 up; a picture, whose centre is the middle of its box, does not move). Placed from the
+    right, bottom, inside or outside it is left: no Hancom-saved document shows one turned. A flip and a resize do
+    not move it (Hancom's neither)."""
+
+    if before is None:
+        return
+    position, info = element.find(f"{_HP}pos"), element.find(f"{_HP}rotationInfo")
+    if position is None or info is None:
+        return
+    (old_x, old_y), (old_w, old_h) = before
+    new_x, new_y = _number(info.get("centerX")) or 0, _number(info.get("centerY")) or 0
+    new_w, new_h = object_size(element)
+    for key, align, old_centre, new_centre, old_size, new_size, start in (
+            ("horzOffset", position.get("horzAlign", "LEFT"), old_x, new_x, old_w, new_w, "LEFT"),
+            ("vertOffset", position.get("vertAlign", "TOP"), old_y, new_y, old_h, new_h, "TOP")):
+        if align == start:
+            moved = old_centre - new_centre
+        elif align == "CENTER":
+            moved = (old_centre - old_size // 2) - (new_centre - new_size // 2)  # 14849 high: 7424 (g-center-45)
+        else:
+            continue
+        if moved:
+            position.set(key, str((_signed_offset(position.get(key)) or 0) + moved & 0xFFFFFFFF))
 
 
 def rotation_base_size(element: Any) -> tuple[int, int]:
