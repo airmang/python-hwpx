@@ -2140,11 +2140,16 @@
    "HwpxSecurityError": {
     "kind": "class",
     "bases": [
+     "HwpxError",
      "ValueError",
      "Exception",
      "BaseException"
     ],
-    "members": {}
+    "members": {
+     "__init__": {"kind": "method", "params": [["message", "P", false], ["code", "K", true], ["context", "K", true], ["suggestion", "K", true]], "returns": "None"},
+     "default_code": {"kind": "attribute", "returns": "str"},
+     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+    }
    },
    "MAX_XML_BYTES": {"kind": "constant", "type": "int"},
    "MAX_XML_DEPTH": {"kind": "constant", "type": "int"},

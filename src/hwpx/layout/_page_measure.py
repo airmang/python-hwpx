@@ -324,6 +324,7 @@ class _Measure:
         self._label_sizes: dict[str, int] = {}
         self._pictured: dict[str, bool] = {}
         self._boxes: dict[str, int] = {}
+        self._heights: dict[str, int] = {}
         self._edges: dict[str, int] | None = None
         #: how far apart the default tab stops of the section at hand are (see :func:`_tab_stop`)
         self.tab_stop = _DEFAULT_TAB_STOP
@@ -335,8 +336,12 @@ class _Measure:
         return self._shapes[key]
 
     def char_height(self, char_pr_id: Any) -> int:
-        style = self._root.char_property(char_pr_id)
-        return int(style.attributes.get("height", 1000)) if style is not None else 1000
+        # read once per shape, like the paragraph shapes above: a table's estimate asks per character
+        key = str(char_pr_id)
+        if key not in self._heights:
+            style = self._root.char_property(char_pr_id)
+            self._heights[key] = int(style.attributes.get("height", 1000)) if style is not None else 1000
+        return self._heights[key]
 
     def char_box(self, char_pr_id: Any) -> int:
         """How tall a character of *char_pr_id* makes its line: its height, and the width of a border its shape

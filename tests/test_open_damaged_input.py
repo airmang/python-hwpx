@@ -126,7 +126,8 @@ def test_broken_xml_part_names_the_part(good: bytes, part: str, payload: bytes |
     assert error.part_name == part
     assert part in str(error)
     assert error.position == error.__cause__.position
-    assert error.code == error.__cause__.code
+    assert error.lxml_code == error.__cause__.code  # 7.0: ``code`` is the python-hwpx code
+    assert error.code == "package-xml-invalid"
 
 
 @pytest.mark.parametrize("opener", [HwpxDocument.open, HwpxPackage.open])

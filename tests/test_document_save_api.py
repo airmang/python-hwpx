@@ -9,6 +9,7 @@ import pytest
 from lxml import etree
 
 from hwpx.document import HwpxDocument
+from hwpx.errors import HwpxError
 from hwpx.opc.package import HwpxPackageError
 from hwpx.tools.package_validator import validate_editor_open_safety
 from hwpx.tools import validator as validator_module
@@ -61,8 +62,12 @@ def test_to_bytes_rejects_generated_package_that_fails_open_safety() -> None:
     document = HwpxDocument.new()
     document._package._mimetype = "application/octet-stream"
 
-    with pytest.raises((ValueError, HwpxPackageError), match="open-safety validation"):
+    with pytest.raises(HwpxError, match="open-safety validation") as caught:
         document.to_bytes()
+    # the contract's code and family; still the package error older callers caught
+    assert caught.value.code == "open-safety-failed"
+    assert isinstance(caught.value, HwpxPackageError)
+    assert caught.value.suggestion
 
 
 def test_to_bytes_rejects_document_validation_failure(monkeypatch) -> None:
@@ -122,9 +127,11 @@ def test_save_to_a_path_preserves_existing_file_when_open_safety_fails(tmp_path:
     document = HwpxDocument.new()
     document._package._mimetype = "application/octet-stream"
 
-    with pytest.raises((ValueError, HwpxPackageError), match="open-safety validation"):
+    with pytest.raises(HwpxError, match="open-safety validation") as caught:
         document.save(target)
 
+    assert caught.value.code == "open-safety-failed"
+    assert isinstance(caught.value, HwpxPackageError)
     assert target.read_bytes() == original
 
 

@@ -220,12 +220,14 @@ class TableStructureEdits:
         and the rows' gain or loss does not say how that part changes. Its height also stays as it was, rather
         than moving by the whole delta, which can take it to nothing."""
 
-        after = self._rows_height()
         size = self.element.find(f"{_HP}sz")
-        if before is None or after is None or size is None or after == before:
+        if before is None or size is None:
             return
         height = int(size.get("height", 0) or 0)
         if height < before:
+            return  # decided before measuring the rows again (a big table's estimate is not free)
+        after = self._rows_height()
+        if after is None or after == before:
             return
         size.set("height", str(max(0, height + after - before)))
 
