@@ -13,7 +13,9 @@ the shapes' current boxes and each end's ``subjectIdx`` -- the middle of the box
 bottom (2) or left (3) side -- whatever its stored points say; a straight one runs between the two
 points, a bent (``STROKE``) one leaves each side square to it on a path Hancom chooses. The writer
 stores the points at those side middles all the same, in the frame the two shapes share, so that other
-readers see the connector where Hancom draws it. An arc (``ARC``) needs control points and is not
+readers see the connector where Hancom draws it. A horizontal or vertical connector (no height or no width)
+takes the form Hancom gives a flat drawing object (``orgSz`` 100x100, flattened by ``scaMatrix``): with a 0
+side in ``orgSz`` Hancom draws it nowhere (:func:`_flat_connector_form`). An arc (``ARC``) needs control points and is not
 written, nor a curve with straight (``LINE``) segments or one inside a group, whose boxes Hancom's
 curves do not follow.
 """
@@ -25,8 +27,8 @@ from typing import TYPE_CHECKING, Sequence
 import xml.etree.ElementTree as ET
 
 from ..errors import HwpxValueError
-from ._document_primitives import _HP, _append_child
-from .shape_position import line_width_units
+from ._document_primitives import _HC, _HP, _append_child
+from .shape_position import _matrix_number, line_width_units
 from .objects import (
     HwpxOxmlShape,
     _build_drawing_object_children,
@@ -165,6 +167,45 @@ def _side_point(box: tuple[int, int, int, int], side: int) -> tuple[int, int]:
             (left + width // 2, top + height), (left, top + height // 2)][side]
 
 
+#: The box Hancom gives a drawing object with no height or no width: its geometry in a 100 x 100 box, drawn
+#: flat by ``hc:scaMatrix`` (the horizontal and vertical lines of the public documents: ``orgSz`` 100x100,
+#: ``endPt`` (100, 100), scale (width / 100, 0) or (0, height / 100)).
+_FLAT_BOX = 100
+
+
+def _flat_connector_form(element: ET.Element, local: list[tuple[int, int]], width: int, height: int
+                         ) -> list[tuple[int, int]]:
+    """Write a horizontal or vertical connector (*width* or *height* 0) the way Hancom writes a flat drawing
+    object, and return its two points in that form.
+
+    A connector whose ``orgSz`` has a 0 side Hancom 2024 draws nowhere: it divides by it when it redraws the
+    connector from its shapes and saves ``scaMatrix`` e4-e6 as ``-nan(ind)`` (objlim evidence keepsrc,
+    grpconn, the engine's objlim-merge-conn opened in Hancom). Hancom's own flat lines keep their geometry in
+    a 100 x 100 box -- ``orgSz`` 100x100, the start at (0, 0) and the end at (100, 100) -- and flatten it with
+    ``scaMatrix`` (width / 100 and 0, or 0 and height / 100), ``curSz`` and ``sz`` the drawn size (five in the
+    public documents). The start keeps its side along the axis that has length."""
+
+    org = element.find(f"{_HP}orgSz")
+    current = element.find(f"{_HP}curSz")
+    scale = element.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+    assert org is not None and current is not None and scale is not None
+    org.set("width", str(_FLAT_BOX))
+    org.set("height", str(_FLAT_BOX))
+    current.set("width", str(width))
+    current.set("height", str(height))
+    scale.set("e1", _matrix_number(width / _FLAT_BOX))
+    scale.set("e5", _matrix_number(height / _FLAT_BOX))
+    (x1, y1), (x2, y2) = local
+
+    def unit(start: int, end: int, length: int) -> tuple[int, int]:
+        if length == 0:
+            return 0, _FLAT_BOX
+        return round(start * _FLAT_BOX / length), round(end * _FLAT_BOX / length)
+
+    xs, ys = unit(x1, x2, width), unit(y1, y2, height)
+    return [(xs[0], ys[0]), (xs[1], ys[1])]
+
+
 def _paragraph_add_connector(
     self: "HwpxOxmlParagraph",
     start: HwpxOxmlShape,
@@ -223,13 +264,23 @@ def _paragraph_add_connector(
     points = [_side_point(box[1:], side) for box, side in zip(ends, sides)]
     left, top = min(x for x, _ in points), min(y for _, y in points)
     width, height = max(x for x, _ in points) - left, max(y for _, y in points) - top
+    if width == 0 and height == 0:
+        raise HwpxValueError(
+            "the connector's two ends are at one point",
+            code="shape-connector-length-zero",
+            context={"start": list(points[0]), "end": list(points[1])},
+            suggestion="Join other sides, or place the shapes apart.",
+        )
     element = ET.Element(f"{_HP}connectLine")
     element.set("textWrap", "IN_FRONT_OF_TEXT")
     _build_shape_common_children(element, width, height, treat_as_char=False)
     element.set("type", CONNECTOR_KINDS[kind])
     _build_drawing_object_children(element, line_color=line_color, line_width=str(line_width_units(line_width_mm)))
-    for tag, (x, y), shape, side in zip(("startPt", "endPt"), points, (start, end), sides):
-        _append_child(element, f"{_HP}{tag}", {"x": str(x - left), "y": str(y - top),
+    local = [(x - left, y - top) for x, y in points]
+    if width == 0 or height == 0:
+        local = _flat_connector_form(element, local, width, height)
+    for tag, (x, y), shape, side in zip(("startPt", "endPt"), local, (start, end), sides):
+        _append_child(element, f"{_HP}{tag}", {"x": str(x), "y": str(y),
                                                "subjectIDRef": str(shape.inst_id), "subjectIdx": str(side)})
     _build_shape_base_children(element, width, height)
     position = element.find(f"{_HP}pos")

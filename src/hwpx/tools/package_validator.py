@@ -933,6 +933,15 @@ def _check_required_drawing_structure(
                 _error(issues, part_name, f"hp:{name} missing hp:renderingInfo matrices; Hancom crashes on the document")
             if name == "pic" and _first_child_by_local(element, "img") is None:
                 _error(issues, part_name, "hp:pic missing hc:img; Hancom refuses to open the document")
+        if name == "connectLine":
+            original = _first_child_by_local(element, "orgSz")
+            if original is not None and "0" in (original.get("width"), original.get("height")):
+                # Hancom 2024 divides by it when it redraws the connector from its shapes, saves its scaMatrix
+                # as -nan(ind) and draws it nowhere (objlim keepsrc, grpconn); it opens the document all the
+                # same, so this warns and does not block.
+                _warning(issues, part_name, "hp:connectLine has an orgSz side of 0; Hancom draws such a connector "
+                                            "nowhere (python-hwpx before 7.0 wrote horizontal and vertical "
+                                            "connectors so: make it again with doc.shapes.add_connector)")
         if name == "rect" and any(_first_child_by_local(element, pt) is None for pt in _RECT_CORNERS):
             _error(issues, part_name, "hp:rect missing a corner point (hc:pt0..pt3); Hancom refuses to open the document")
         for child in element:
