@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
     from .history_part import History
     from .master_page import MasterPage
+    from .paragraph import HwpxOxmlParagraph
     from .settings import ApplicationSettings
     from .version_part import HcfVersion
 
@@ -71,6 +72,40 @@ class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
         from .master_page import parse_master_page
 
         return parse_master_page(self._element)
+
+    @property
+    def id(self) -> str | None:
+        """The id sections link with (``hp:masterPage/@idRef``, ``doc.page.master_page_refs()``)."""
+
+        return self._element.get("id")
+
+    @property
+    def page_type(self) -> str | None:
+        """The pages it is drawn on: ``BOTH``, ``EVEN``, ``ODD``, ``LAST_PAGE`` or ``OPTIONAL_PAGE``."""
+
+        return self._element.get("type")
+
+    @property
+    def paragraphs(self) -> "list[HwpxOxmlParagraph]":
+        """The master page's paragraphs as paragraph objects (tables, pictures and
+        shapes on it are reached through them, as in the body). Edits are saved."""
+
+        from .master_page_authoring import master_page_paragraphs
+
+        return master_page_paragraphs(self)
+
+    @property
+    def text(self) -> str:
+        """The master page's paragraph texts, one line each."""
+
+        return "\n".join(paragraph.text for paragraph in self.paragraphs)
+
+    def add_paragraph(self, text: str = "") -> "HwpxOxmlParagraph":
+        """Append a paragraph (with *text*) to the master page and return it."""
+
+        from .master_page_authoring import add_master_page_paragraph
+
+        return add_master_page_paragraph(self, text)
 
 
 class HwpxOxmlHistory(_HwpxOxmlSimplePart):

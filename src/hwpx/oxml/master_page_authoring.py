@@ -31,7 +31,7 @@ read=none 해소만 목표한 의도적 스코프 축소). 이 모듈이 그 쓰
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from lxml import etree as _etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
@@ -46,6 +46,7 @@ from .simple_parts import HwpxOxmlMasterPage
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
+    from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
 
 __all__ = ["add_master_page", "refuse_pages_taken", "remove_master_page"]
@@ -275,3 +276,57 @@ def remove_master_page(document: "HwpxOxmlDocument", id_ref: str) -> str:
     document._manifest_dirty = True
     document._master_pages.remove(master_page)
     return part_name
+
+
+def _master_page_sublist(master_page: HwpxOxmlMasterPage, *, create: bool = False) -> "_etree._Element | None":
+    sub_list = master_page.element.find(f"{_HP}subList")
+    if sub_list is None and create:
+        sub_list = _append_child(master_page.element, f"{_HP}subList", dict(_default_sublist_attributes()))
+        master_page.mark_dirty()
+    return sub_list
+
+
+def master_page_paragraphs(master_page: HwpxOxmlMasterPage) -> "list[HwpxOxmlParagraph]":
+    """The paragraphs of a master page's ``hp:subList``, as paragraph objects.
+
+    A master page part gives a paragraph what it needs from a section (``mark_dirty``,
+    ``document``), so an edit through these objects marks the part to be saved.
+    """
+
+    from .paragraph import HwpxOxmlParagraph
+
+    sub_list = _master_page_sublist(master_page)
+    if sub_list is None:
+        return []
+    part = cast(Any, master_page)
+    return [HwpxOxmlParagraph(element, part) for element in sub_list.findall(f"{_HP}p")]
+
+
+def clear_master_page_layout_cache(master_page: HwpxOxmlMasterPage) -> int:
+    """Remove the line layout caches (``hp:linesegarray``) of a master page's paragraphs."""
+
+    removed = 0
+    for paragraph in master_page.element.iter(f"{_HP}p"):
+        for child in [c for c in paragraph if str(c.tag).endswith("}linesegarray")]:
+            paragraph.remove(child)
+            removed += 1
+    if removed:
+        master_page.mark_dirty()
+    return removed
+
+
+def add_master_page_paragraph(master_page: HwpxOxmlMasterPage, text: str = "") -> "HwpxOxmlParagraph":
+    """Append a paragraph with *text* to a master page and return it."""
+
+    from .paragraph import HwpxOxmlParagraph
+
+    sub_list = _master_page_sublist(master_page, create=True)
+    assert sub_list is not None
+    element = _append_child(sub_list, f"{_HP}p", {**_DEFAULT_PARAGRAPH_ATTRS, "id": _paragraph_id()})
+    run = _append_child(element, f"{_HP}run", {"charPrIDRef": "0"})
+    _append_child(run, f"{_HP}t", {})
+    paragraph = HwpxOxmlParagraph(element, cast(Any, master_page))
+    if text:
+        paragraph.text = text
+    master_page.mark_dirty()
+    return paragraph

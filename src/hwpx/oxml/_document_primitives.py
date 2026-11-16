@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import re as _re
+from contextvars import ContextVar
 from copy import deepcopy
+from datetime import datetime, timezone
+from random import Random
 from typing import Callable, Iterable, Mapping, Optional, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
@@ -159,19 +162,86 @@ def _serialize_xml(element: ET.Element) -> bytes:
     return tab_elements_in(ET.tostring(element, encoding="utf-8", xml_declaration=True))
 
 
+class IdSource:
+    """Where the ids and timestamps a document mints come from.
+
+    ``HwpxDocument.new(seed=..., now=...)`` installs one. With a *seed*, every
+    paragraph/object/memo id is drawn from ``random.Random(seed)`` instead of
+    ``uuid4``: the same calls in the same order give the same ids, in another
+    process too. The values keep the range of the random ids (1 .. 2**31 - 1)
+    and never repeat within one source. With *now*, every automatic timestamp
+    (the new document's creation date, memo and tracked-change dates) is that
+    moment instead of the clock.
+    """
+
+    __slots__ = ("seed", "now", "_rng", "_issued")
+
+    def __init__(self, seed: "int | None" = None, now: "datetime | None" = None) -> None:
+        if now is not None and now.tzinfo is None:
+            now = now.astimezone()
+        self.seed = seed
+        self.now = now.astimezone(timezone.utc) if now is not None else None
+        self._rng = Random(seed) if seed is not None else None
+        self._issued: set[int] = set()
+
+    def next_id(self) -> "str | None":
+        if self._rng is None:
+            return None
+        while True:
+            value = self._rng.getrandbits(31)
+            if value and value not in self._issued:
+                self._issued.add(value)
+                return str(value)
+
+
+_ID_SOURCE: "ContextVar[IdSource | None]" = ContextVar("hwpx_id_source", default=None)
+
+
+def active_id_source() -> "IdSource | None":
+    """The source installed by ``HwpxDocument.new(seed=..., now=...)``, if any."""
+
+    return _ID_SOURCE.get()
+
+
+def install_id_source(source: "IdSource | None") -> "IdSource | None":
+    """Make *source* the active one and return the one it replaced."""
+
+    previous = _ID_SOURCE.get()
+    _ID_SOURCE.set(source)
+    return previous
+
+
+def current_time() -> datetime:
+    """Now in UTC, unless the active id source fixes the clock."""
+
+    source = _ID_SOURCE.get()
+    if source is not None and source.now is not None:
+        return source.now
+    return datetime.now(timezone.utc)
+
+
+def _new_id() -> str:
+    source = _ID_SOURCE.get()
+    if source is not None:
+        value = source.next_id()
+        if value is not None:
+            return value
+    return str(uuid4().int & 0x7FFFFFFF)
+
+
 def _paragraph_id() -> str:
     """Generate an identifier for a new paragraph element."""
-    return str(uuid4().int & 0x7FFFFFFF)
+    return _new_id()
 
 
 def _object_id() -> str:
     """Generate an identifier suitable for table and shape objects."""
-    return str(uuid4().int & 0x7FFFFFFF)
+    return _new_id()
 
 
 def _memo_id() -> str:
     """Generate a lightweight identifier for memo elements."""
-    return str(uuid4().int & 0x7FFFFFFF)
+    return _new_id()
 
 
 def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:

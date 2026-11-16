@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
 
-from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_id
+from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_id, current_time
 from ..oxml.namespaces import HP
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ def _memo_create_time(value: "datetime | str | None") -> str:
     """
 
     if value is None:
-        moment = datetime.now(timezone.utc)
+        moment = current_time()
     elif isinstance(value, datetime):
         moment = value
     else:

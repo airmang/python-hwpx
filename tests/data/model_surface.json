@@ -12,6 +12,7 @@
     "bullets",
     "char_properties",
     "char_property",
+    "clear_layout_cache",
     "copy_paragraph_range",
     "headers",
     "histories",
@@ -56,6 +57,8 @@
     "apply_page_type",
     "clear_content",
     "id",
+    "kind",
+    "page_type",
     "set_content",
     "set_simple_text_preserving",
     "text"
@@ -112,7 +115,13 @@
   "MasterPage": {
    "implementation": "hwpx.oxml.simple_parts.HwpxOxmlMasterPage",
    "internalCount": 9,
-   "stable": []
+   "stable": [
+    "add_paragraph",
+    "id",
+    "page_type",
+    "paragraphs",
+    "text"
+   ]
   },
   "Memo": {
    "implementation": "hwpx.oxml.memo.HwpxOxmlMemo",
@@ -246,6 +255,7 @@
     "add_memo",
     "add_paragraph",
     "clear_body",
+    "clear_layout_cache",
     "copy_paragraph_range",
     "insert_paragraphs",
     "memo_group",
@@ -259,14 +269,17 @@
    "implementation": "hwpx.oxml.section_format.HwpxOxmlSectionProperties",
    "internalCount": 25,
    "stable": [
+    "footer",
     "footers",
     "get_footer",
     "get_header",
+    "header",
     "headers",
     "page_margins",
     "page_size",
     "remove_footer",
     "remove_header",
+    "remove_master_page_reference",
     "set_footer_content",
     "set_footer_text",
     "set_header_content",

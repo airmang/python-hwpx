@@ -586,6 +586,35 @@ class HwpxOxmlSection:
     def reset_dirty(self) -> None:
         self._dirty = False
 
+    def clear_layout_cache(self, *, stale_only: bool = False) -> int:
+        """Remove the line layout caches (``hp:linesegarray``) of this section and return how many.
+
+        Every paragraph of the section counts: body, table cells, text boxes,
+        captions, headers, footers and notes. Hancom lays a paragraph without a
+        cache out again when it opens the file, so removing a cache never draws
+        text over itself; a cache left on text that changed does. The public
+        editing calls already remove the caches of what they change; call this
+        after changing the XML yourself.
+
+        ``stale_only=True`` removes only the caches that cannot match their
+        paragraph (what every save does anyway): a cached line starting past the
+        text, a cache too short for the text, or, in an edited section, a cache
+        the part was read with on a paragraph whose content changed since.
+        """
+
+        if stale_only:
+            return self.remove_stale_layout_caches()
+        removed = 0
+        for paragraph in self._element.iter():
+            if _element_local_name(paragraph) != "p":
+                continue
+            for child in [c for c in paragraph if _element_local_name(c).lower() == "linesegarray"]:
+                paragraph.remove(child)
+                removed += 1
+        if removed:
+            self.mark_dirty()
+        return removed
+
     def remove_stale_layout_caches(
         self, *, _header_shapes: tuple[frozenset[str], dict[str, float]] | None = None
     ) -> int:

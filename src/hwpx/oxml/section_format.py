@@ -778,6 +778,21 @@ class HwpxOxmlSectionProperties:
         self.element.set("masterPageCnt", str(len(self.master_page_refs)))
         self.section.mark_dirty()
 
+    def remove_master_page_reference(self, id_ref: str) -> bool:
+        """이 절의 ``hp:masterPage/@idRef == id_ref`` 연결을 끊는다. 끊었으면 True.
+
+        바탕쪽 파트는 그대로 둔다. ``masterPageCnt`` 를 남은 개수로 맞춘다.
+        """
+        removed = False
+        for child in list(self.element.findall(f"{_HP}masterPage")):
+            if child.get("idRef", "") == id_ref:
+                self.element.remove(child)
+                removed = True
+        if removed:
+            self.element.set("masterPageCnt", str(len(self.master_page_refs)))
+            self.section.mark_dirty()
+        return removed
+
     @property
     def visibility(self) -> SectionVisibility:
         element = self.element.find(f"{_HP}visibility")
@@ -1545,6 +1560,16 @@ class HwpxOxmlSectionProperties:
         return self._get_story("header", page_type)
 
     def get_footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
+        return self._get_story("footer", page_type)
+
+    def header(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
+        """The header drawn on *page_type* pages (``BOTH``, ``EVEN``, ``ODD``, ...), or ``None``."""
+
+        return self._get_story("header", page_type)
+
+    def footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
+        """The footer drawn on *page_type* pages (``BOTH``, ``EVEN``, ``ODD``, ...), or ``None``."""
+
         return self._get_story("footer", page_type)
 
     def _get_story(self, kind: str, page_type: str) -> Optional[HwpxOxmlSectionHeaderFooter]:

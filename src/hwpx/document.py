@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 import io
+from datetime import datetime
 import os
 import logging
 
@@ -34,6 +35,7 @@ from .opc.package import (
     structure_errors,
 )
 from .oxml.namespaces import register_owpml_namespaces
+from .oxml._document_primitives import IdSource, active_id_source, install_id_source
 from .oxml.table_sizes import new_table_width
 from .mutation_report import Fallback, Mode, MutationReport
 from .quality import QualityPolicy, SavePipeline, VisualCompleteReport
@@ -108,6 +110,9 @@ class HwpxDocument(_LegacyFacade):
         # True while a document from new() still has only its empty first paragraph: the first
         # paragraph added then takes that line (see _take_first_line).
         self._first_line_free = False
+        # The id/clock source from new(seed=..., now=...) / open(...), and the one it replaced.
+        self._id_source: IdSource | None = None
+        self._replaced_id_source: IdSource | None = None
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of the document state."""
@@ -132,11 +137,18 @@ class HwpxDocument(_LegacyFacade):
     def open(
         cls,
         source: str | PathLike[str] | bytes | BinaryIO,
+        *,
+        seed: int | None = None,
+        now: datetime | None = None,
     ) -> "HwpxDocument":
         """Open *source* and return a :class:`HwpxDocument` instance.
 
         *source*는 경로, 바이트, 또는 읽을 수 있는 이진 스트림이다. 내용이 HWP 5.0
         복합 파일(``.hwp``)로 시작하면 같은 문서 모델로 바꿔서 연다.
+
+        ``seed=``·``now=`` 는 :meth:`new` 와 같다: 이 문서를 고치며 새로 생기는
+        문단·개체·메모 id 와 메모·변경 추적의 날짜를 고정해서, 같은 파일에 같은
+        편집을 하면 같은 바이트가 나온다. 파일에 이미 있는 값은 바꾸지 않는다.
 
         Raises:
             FileNotFoundError: 경로에 파일이 없다. 그 밖의 ``OSError``(권한 등)도
@@ -156,6 +168,7 @@ class HwpxDocument(_LegacyFacade):
                 (``ValueError`` 계열).
             Hwp5Error: ``.hwp`` 입력이 손상됐거나 암호·배포용·DRM 문서다.
         """
+        id_source = cls._id_source_for(seed, now, "open")
         internal_resources: list[Any] = []
         open_source = source
         if isinstance(source, bytes):
@@ -163,13 +176,17 @@ class HwpxDocument(_LegacyFacade):
             open_source = stream
             internal_resources.append(stream)
         if HwpxPackage._leading_bytes(cast(Any, open_source), 8) == HwpxPackage.OLE2_MAGIC:
-            return cls._open_hwp5(open_source)
+            converted = cls._open_hwp5(open_source)
+            converted._install_id_source(id_source)
+            return converted
         # HwpxPackage/ZipFile accepts os.PathLike at runtime; its narrower
         # compatibility annotation intentionally remains frozen.
         package = HwpxPackage.open(cast(Any, open_source))
         with structure_errors():
             root = HwpxOxmlDocument.from_package(package)
-        return cls(package, root, managed_resources=tuple(internal_resources))
+        document = cls(package, root, managed_resources=tuple(internal_resources))
+        document._install_id_source(id_source)
+        return document
 
     @classmethod
     def _open_hwp5(cls, source: Any) -> "HwpxDocument":
@@ -212,8 +229,44 @@ class HwpxDocument(_LegacyFacade):
 
         return self._hwp5_report
 
+    @staticmethod
+    def _id_source_for(seed: "int | None", now: "datetime | None", caller: str) -> "IdSource | None":
+        if seed is None and now is None:
+            return None
+        if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int)):
+            raise HwpxTypeError(
+                f"seed 는 int 여야 합니다 — {type(seed).__name__} {seed!r}.",
+                code="document-seed-invalid",
+                context={"caller": caller, "type": type(seed).__name__},
+                suggestion=f"HwpxDocument.{caller}(seed=7) 처럼 정수를 주세요.",
+            )
+        if now is not None and not isinstance(now, datetime):
+            raise HwpxTypeError(
+                f"now 는 datetime 이어야 합니다 — {type(now).__name__} {now!r}.",
+                code="document-clock-invalid",
+                context={"caller": caller, "type": type(now).__name__},
+                suggestion=(
+                    f"HwpxDocument.{caller}(now=datetime(2026, 1, 1, tzinfo=timezone.utc)) "
+                    "처럼 시각을 주세요."
+                ),
+            )
+        return IdSource(seed, now)
+
+    def _install_id_source(self, source: "IdSource | None") -> None:
+        if source is None:
+            return
+        self._id_source = source
+        self._replaced_id_source = install_id_source(source)
+
     @classmethod
-    def new(cls, *, inherit_style: bool = True, empty_first_line: bool = False) -> "HwpxDocument":
+    def new(
+        cls,
+        *,
+        inherit_style: bool = True,
+        empty_first_line: bool = False,
+        seed: int | None = None,
+        now: datetime | None = None,
+    ) -> "HwpxDocument":
         """Return a new blank document based on the default skeleton template.
 
         Its only paragraph is empty and holds the section settings. The first
@@ -237,9 +290,31 @@ class HwpxDocument(_LegacyFacade):
         The document's metadata starts clean: no author, no last-saved-by, and
         the creation and modification dates set to now (UTC). Set the author
         with ``document.package.set_document_metadata(creator=...)``.
+
+        **Same input, same file.** ``seed=`` and ``now=`` fix what a new document
+        otherwise draws from chance and the clock, so the same calls in the same
+        order write the same bytes, in another process too::
+
+            doc = HwpxDocument.new(seed=7, now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+        *seed* (int) makes every paragraph, object and memo id come from
+        ``random.Random(seed)`` instead of ``uuid4``. The ids keep the range of
+        the random ones (1 .. 2**31 - 1) and do not repeat. *now* (a
+        ``datetime``; a naive one is local time) is written as the creation and
+        modification date and used for every memo or tracked change made without
+        its own date. Both stay in force until :meth:`close` (or the end of a
+        ``with`` block); ids minted meanwhile for another document in the same
+        thread come from the same seed. Without them a document gets random ids
+        and the current time, as before: documents made separately must not share
+        ids when their content is later combined. ``SOURCE_DATE_EPOCH`` still
+        fixes the dates when *now* is not given.
         """
 
-        document = cls.open(new_document_bytes())
+        source = cls._id_source_for(seed, now, "new")
+        document = cls.open(
+            new_document_bytes(source.now if source is not None else None)
+        )
+        document._install_id_source(source)
         document._inherit_style_default = bool(inherit_style)
         document._first_line_free = not empty_first_line
         return document
@@ -287,6 +362,8 @@ class HwpxDocument(_LegacyFacade):
             self._close_resource(resource)
 
         self._managed_resources.clear()
+        if self._id_source is not None and active_id_source() is self._id_source:
+            install_id_source(self._replaced_id_source)
         self._closed = True
 
     @staticmethod

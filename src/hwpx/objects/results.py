@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..form_fit.report import FitResult
-    from ..model import InlineObject
+    from ..model import InlineObject, Paragraph, Table
     from .form_field import FormField
 
 
@@ -506,8 +506,380 @@ class NumberingInfo:
         return {"id": self.id, "start": self.start, "levels": [item.to_dict() for item in self.levels]}
 
 
+# -- 쪽·구역 설정의 읽기 값 (doc.page.* / doc.parts.*) ------------------------
+#
+# Each is a snapshot taken at call time, like BorderFillInfo. Lengths without a
+# suffix are HWPUNIT; ``paragraph`` (where a value has one) is the body paragraph
+# holding the control, as a model object, and is left out of ``to_dict()``.
+
+
+@dataclass(frozen=True)
+class ColumnDefinition:
+    """One column layout (``hp:colPr``), as ``doc.page.columns()`` reads it.
+
+    ``type`` is ``NEWSPAPER``, ``BALANCED_NEWSPAPER`` or ``PARALLEL``; ``layout``
+    is ``LEFT``, ``RIGHT`` or ``MIRROR``. ``gap`` is the gap between columns of
+    the same width (0 when the widths differ). ``widths`` holds a
+    ``(width, gap)`` pair per column in HWPUNIT, worked out from the shares the
+    file keeps and the section's text width (paper width less the left and right
+    margins and a left gutter); it is the shape ``doc.page.set_columns(
+    column_widths=...)`` takes. ``separator`` is the line drawn between columns,
+    or ``None``.
+    """
+
+    count: int
+    type: str
+    layout: str
+    same_size: bool
+    gap: int
+    widths: tuple[tuple[int, int], ...]
+    separator: "BorderLine | None"
+    paragraph: "Paragraph | None" = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "count": self.count,
+            "type": self.type,
+            "layout": self.layout,
+            "sameSize": self.same_size,
+            "gap": self.gap,
+            "widths": [list(pair) for pair in self.widths],
+            "separator": self.separator.to_dict() if self.separator is not None else None,
+        }
+
+
+@dataclass(frozen=True)
+class PageNumberControl:
+    """A page-number control (``hp:pageNum``, Hancom's 쪽 번호 매기기).
+
+    ``position`` is where the number is drawn (``BOTTOM_CENTER``, ``TOP_LEFT``,
+    ``NONE``, ...), ``format_type`` the number style (``DIGIT``, ``ROMAN_SMALL``,
+    ...) and ``side_char`` the character drawn on both sides (``"-"``) or ``""``.
+    """
+
+    position: str
+    format_type: str
+    side_char: str
+    paragraph: "Paragraph | None" = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"position": self.position, "formatType": self.format_type, "sideChar": self.side_char}
+
+
+@dataclass(frozen=True)
+class NumberRestart:
+    """A new-number control (``hp:newNum``): *kind*'s count restarts at *number*."""
+
+    kind: str
+    number: int
+    paragraph: "Paragraph | None" = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind, "number": self.number}
+
+
+@dataclass(frozen=True)
+class PageHiding:
+    """A hide-on-this-page control (``hp:pageHiding``, 현재 쪽만 감추기)."""
+
+    header: bool
+    footer: bool
+    master_page: bool
+    border: bool
+    fill: bool
+    page_num: bool
+    paragraph: "Paragraph | None" = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "header": self.header,
+            "footer": self.footer,
+            "masterPage": self.master_page,
+            "border": self.border,
+            "fill": self.fill,
+            "pageNum": self.page_num,
+        }
+
+
+@dataclass(frozen=True)
+class AutoNumber:
+    """An automatic number in the text (``hp:autoNum``): a page, footnote,
+    picture, table or equation number Hancom counts itself.
+
+    ``number`` is the value stored with it (Hancom recounts on layout).
+    """
+
+    kind: str
+    number: int
+    format_type: str
+    prefix: str | None
+    suffix: str | None
+    superscript: bool
+    paragraph: "Paragraph | None" = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "number": self.number,
+            "formatType": self.format_type,
+            "prefix": self.prefix,
+            "suffix": self.suffix,
+            "superscript": self.superscript,
+        }
+
+
+@dataclass(frozen=True)
+class StartNumbers:
+    """Where a section's counts start (``hp:startNum``); 0 goes on from the section before.
+
+    ``page_starts_on`` is ``BOTH``, ``EVEN`` or ``ODD``: the kind of page the
+    section starts on.
+    """
+
+    page_starts_on: str
+    page: int
+    picture: int
+    table: int
+    equation: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "pageStartsOn": self.page_starts_on,
+            "page": self.page,
+            "picture": self.picture,
+            "table": self.table,
+            "equation": self.equation,
+        }
+
+
+@dataclass(frozen=True)
+class BeginNumbers:
+    """Where the document's counts start (``hh:beginNum`` in header.xml)."""
+
+    page: int
+    footnote: int
+    endnote: int
+    picture: int
+    table: int
+    equation: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "page": self.page,
+            "footnote": self.footnote,
+            "endnote": self.endnote,
+            "picture": self.picture,
+            "table": self.table,
+            "equation": self.equation,
+        }
+
+
+@dataclass(frozen=True)
+class NoteShapeInfo:
+    """How a section draws its footnotes or endnotes (``hp:footNotePr``/``hp:endNotePr``).
+
+    ``number_format`` is the number style (``DIGIT``, ``CIRCLED_DIGIT``,
+    ``USER_CHAR``, ...), with ``user_char`` for ``USER_CHAR``; ``prefix`` and
+    ``suffix`` are drawn around the number, raised when ``superscript``.
+    ``numbering`` is ``CONTINUOUS``, ``ON_SECTION`` or ``ON_PAGE`` and ``start``
+    the first number (Hancom uses it with ``ON_SECTION``). ``placement`` is
+    where the notes go (``EACH_COLUMN``, ``MERGED_COLUMN``, ``RIGHT_MOST_COLUMN``
+    for footnotes; ``END_OF_DOCUMENT``, ``END_OF_SECTION`` for endnotes).
+    ``separator`` is the line above the notes and ``separator_length`` its
+    length (0: Hancom's default, a third of the column; -1: the whole column).
+    The spacings are HWPUNIT.
+    """
+
+    number_format: str
+    user_char: str | None
+    prefix: str | None
+    suffix: str | None
+    superscript: bool
+    numbering: str
+    start: int
+    placement: str
+    beneath_text: bool
+    separator: "BorderLine"
+    separator_length: int
+    between_notes: int
+    below_line: int
+    above_line: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "numberFormat": self.number_format,
+            "userChar": self.user_char,
+            "prefix": self.prefix,
+            "suffix": self.suffix,
+            "superscript": self.superscript,
+            "numbering": self.numbering,
+            "start": self.start,
+            "placement": self.placement,
+            "beneathText": self.beneath_text,
+            "separator": self.separator.to_dict(),
+            "separatorLength": self.separator_length,
+            "betweenNotes": self.between_notes,
+            "belowLine": self.below_line,
+            "aboveLine": self.above_line,
+        }
+
+
+@dataclass(frozen=True)
+class PageBorder:
+    """A page border and fill (``hp:pageBorderFill``) for one kind of page.
+
+    ``page_type`` is ``BOTH``, ``EVEN`` or ``ODD``. ``border_fill_id_ref`` names
+    the ``hh:borderFill`` drawn (read it with ``doc.styles.border_fill_info``).
+    ``text_border`` is what the offsets are measured from (``PAPER`` or
+    ``CONTENT``); ``fill_area`` what is filled (``PAPER``, ``PAGE``, ``BORDER``).
+    The offsets are HWPUNIT.
+    """
+
+    page_type: str
+    border_fill_id_ref: str | None
+    text_border: str | None
+    header_inside: bool
+    footer_inside: bool
+    fill_area: str | None
+    offset_left: int
+    offset_right: int
+    offset_top: int
+    offset_bottom: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "pageType": self.page_type,
+            "borderFillIDRef": self.border_fill_id_ref,
+            "textBorder": self.text_border,
+            "headerInside": self.header_inside,
+            "footerInside": self.footer_inside,
+            "fillArea": self.fill_area,
+            "offset": {
+                "left": self.offset_left,
+                "right": self.offset_right,
+                "top": self.offset_top,
+                "bottom": self.offset_bottom,
+            },
+        }
+
+
+@dataclass(frozen=True)
+class DocumentOptions:
+    """Document-wide options and compatibility settings in header.xml.
+
+    ``target_program`` is ``hh:compatibleDocument/@targetProgram`` (Hancom
+    writes ``HWP201X``) and ``layout_compatibility`` the names of the layout
+    compatibility flags set (Hancom writes none). ``link_path``,
+    ``page_inherit`` and ``footnote_inherit`` come from ``hh:docOption/
+    hh:linkinfo``; the ``license_*`` fields from ``hh:licensemark`` (``None``
+    when there is none). These are what ``doc.parts.set_*`` write.
+    """
+
+    target_program: str | None
+    layout_compatibility: tuple[str, ...]
+    link_path: str
+    page_inherit: bool
+    footnote_inherit: bool
+    license_type: str | None
+    license_flag: int | None
+    license_lang: int | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "targetProgram": self.target_program,
+            "layoutCompatibility": list(self.layout_compatibility),
+            "linkPath": self.link_path,
+            "pageInherit": self.page_inherit,
+            "footnoteInherit": self.footnote_inherit,
+            "licenseType": self.license_type,
+            "licenseFlag": self.license_flag,
+            "licenseLang": self.license_lang,
+        }
+
+
+@dataclass(frozen=True)
+class ParagraphPlace:
+    """One paragraph of the whole document and where it sits (``doc.text.paragraphs()``).
+
+    ``where`` is the innermost container: ``body``, ``cell``, ``text_box``,
+    ``caption``, ``header``, ``footer``, ``footnote``, ``endnote``, ``memo`` or
+    ``master_page``. ``section`` is the section index (``None`` on a master page).
+    ``page_type`` is set in a header or footer (``BOTH``, ``ODD``, ``EVEN``).
+    ``table``/``row``/``col`` name the innermost table cell holding the paragraph,
+    when there is one, even inside a text box in that cell. ``owner`` is the
+    innermost object (table, shape, picture...) holding it, and ``depth`` how many
+    objects deep it is (0 in the body, a header, a note or a memo).
+    """
+
+    paragraph: "Paragraph"
+    where: str
+    section: int | None
+    page_type: str | None = None
+    table: "Table | None" = None
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "where": self.where,
+            "section": self.section,
+            "pageType": self.page_type,
+            "row": self.row,
+            "col": self.col,
+            "depth": self.depth,
+            "text": self.paragraph.text,
+        }
+
+
+@dataclass(frozen=True)
+class ObjectPlace:
+    """One object of the whole document and where it sits (``doc.text.objects()``).
+
+    ``kind`` is ``table``, ``picture``, ``equation``, ``shape``, ``ole``,
+    ``chart``, ``video`` or ``textart``; ``object`` is its model object (a table,
+    a shape, or an inline object for the rest). The other fields describe the
+    paragraph holding it, as in :class:`ParagraphPlace`.
+    """
+
+    object: Any
+    kind: str
+    where: str
+    section: int | None
+    page_type: str | None = None
+    table: "Table | None" = None
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "where": self.where,
+            "section": self.section,
+            "pageType": self.page_type,
+            "row": self.row,
+            "col": self.col,
+            "depth": self.depth,
+        }
+
+
 __all__ = [
     "Alignment",
+    "ObjectPlace",
+    "ParagraphPlace",
+    "AutoNumber",
+    "BeginNumbers",
+    "ColumnDefinition",
+    "DocumentOptions",
+    "NoteShapeInfo",
+    "NumberRestart",
+    "PageBorder",
+    "PageHiding",
+    "PageNumberControl",
+    "StartNumbers",
     "BorderFillInfo",
     "BorderLine",
     "CellMargins",
