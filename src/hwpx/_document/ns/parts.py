@@ -85,7 +85,7 @@ class PartsNamespace(_Namespace):
     _path = "doc.parts"
 
     @property
-    def headers(self) -> list["HwpxOxmlHeader"]:
+    def headers(self) -> tuple["HwpxOxmlHeader", ...]:
         """문서가 참조하는 `Contents/header.xml` 파트들.
 
         쪽 머리말이 아니다 — 그쪽은 `doc.page.set_header(...)`.
@@ -94,7 +94,7 @@ class PartsNamespace(_Namespace):
         return self._doc.oxml.headers
 
     @property
-    def master_pages(self) -> list["HwpxOxmlMasterPage"]:
+    def master_pages(self) -> tuple["HwpxOxmlMasterPage", ...]:
         """매니페스트가 선언한 바탕쪽 파트들. `.to_model()`로 `MasterPage`를
         얻는다. 실코퍼스 1파일 역설계 기반(`hwpx.oxml.master_page` 모듈
         독스트링 참조) — 스키마 문서의 루트 네임스페이스는 실 산출물과
@@ -170,7 +170,7 @@ class PartsNamespace(_Namespace):
             package.delete(part_name)
 
     @property
-    def histories(self) -> list["HwpxOxmlHistory"]:
+    def histories(self) -> tuple["HwpxOxmlHistory", ...]:
         """매니페스트가 참조하는 문서 이력 파트들. `.to_model()`로
         `History`를 얻는다. **스키마 전용**: 실코퍼스 0건이라
         (`hwpx.oxml.history_part` 모듈 독스트링 참조) 상세 필드는 실 문서로
