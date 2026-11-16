@@ -347,9 +347,9 @@ def test_draw_text_is_a_contract_named_stable_type() -> None:
 
     assert model.DrawText is DrawText
     lock = json.loads(
-        (Path(__file__).parent / "data" / "model_surface.json").read_text(encoding="utf-8")
-    )["classes"]
-    assert {"draw_text", "remove_draw_text", "set_draw_text"} <= set(lock["Shape"]["stable"])
-    assert lock["DrawText"]["stable"] == sorted(
+        (Path(__file__).parent / "data" / "public_surface.json").read_text(encoding="utf-8")
+    )["model"]
+    assert {"draw_text", "remove_draw_text", "set_draw_text"} <= set(lock["Shape"]["members"])
+    assert sorted(lock["DrawText"]["members"]) == sorted(
         ["add_paragraph", "editable", "name", "paragraphs", "text", "text_margin"]
     )

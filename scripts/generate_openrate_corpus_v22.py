@@ -127,7 +127,7 @@ def gen_index_mark(bucket_dir: Path) -> list[dict[str, Any]]:
                 cid = document.styles.ensure_run(bold=True, color="#1F4E79")
                 h = document.add_heading("색인 합성 표제", level=1, char_pr_id_ref=cid)
                 h.add_index_mark("표제")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-index-mark", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -166,7 +166,7 @@ def gen_mailmerge_field(bucket_dir: Path) -> list[dict[str, Any]]:
                 table = document.add_table(rows=2, cols=2)
                 cell_paragraph = table.cell(0, 1).paragraphs[0]
                 cell_paragraph.add_mail_merge_field("cellfield")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-mailmerge-field", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -202,7 +202,7 @@ def gen_license_mark(bucket_dir: Path) -> list[dict[str, Any]]:
                 # re-set idempotence: second call replaces, no duplicate.
                 set_license_mark(header, mark_type="CCL", flag="1", lang="0")
                 set_license_mark(header, mark_type="CCL", flag="0", lang="6")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-license-mark", seed=str(idx),
                 output_path=out_path, produced=True,

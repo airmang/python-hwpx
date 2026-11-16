@@ -23,9 +23,9 @@ Use the API paths below rather than inferring names from python-docx.
 - `from hwpx import HwpxDocument` — the document facade.
 - Open: `HwpxDocument.open("file.hwpx")` (path, bytes, or file object; usable
   as a context manager). New: `HwpxDocument.new()`.
-- Save a new document: `document.save_to_path("out.hwpx")` (default mode: auto).
+- Save a new document: `document.save("out.hwpx")` (default mode: auto).
   For strict preservation of an existing document, use a distinct output path:
-  `document.save_to_path("out.hwpx", mode="patch", fallback="error", return_report=True)`.
+  `document.save("out.hwpx", mode="patch", fallback="error")`.
   An unavailable patch grade raises `PreservationDowngradeError` before writing.
   Auto selects the achievable grade; it does not promise patch preservation.
   `MutationReport` records the actual save and checks performed. Its `ok` does
@@ -74,7 +74,8 @@ Use the API paths below rather than inferring names from python-docx.
 
 ## Unavailable document APIs
 
-- `document.save()` does not exist. Use `save_to_path` or `save_to_stream`.
+- `document.save_to_path()` does not exist since 7.0, nor do `document.save_to_stream()` and
+  `document.save_report()`: use `save(path_or_stream)`, which always returns the `MutationReport`.
 - `document.text.markdown()` and `document.text.html()` moved to
   `python-hwpx-automation` in 7.0: `from hwpx_automation.markdown import to_markdown`.
 - `document.tables.find_cell_by_label()` and `document.tables.fill_by_path()`

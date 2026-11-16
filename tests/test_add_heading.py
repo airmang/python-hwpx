@@ -59,7 +59,7 @@ def test_the_binding_survives_a_save_round_trip(level: int, tmp_path) -> None:
     document = HwpxDocument.new()
     document.add_heading(f"제목 {level}", level=level)
     target = tmp_path / f"heading-{level}.hwpx"
-    document.save_to_path(target)
+    document.save(target)
 
     with HwpxDocument.open(target) as reopened:
         paragraph = reopened.paragraphs[-1]
@@ -342,7 +342,7 @@ def test_the_three_line_demo_runs_and_its_render_claim_stays_unverified(tmp_path
     document.add_heading("2026 학년도 운영계획", level=1)
     document.add_paragraph("추진 배경", style="개요 2")
     target = tmp_path / "plan.hwpx"
-    document.save_to_path(target)
+    document.save(target)
 
     with HwpxDocument.open(target) as reopened:
         written = [p for p in reopened.paragraphs if p.text.strip()]

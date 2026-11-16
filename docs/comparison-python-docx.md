@@ -28,7 +28,7 @@
 **① 문서 객체가 아직 제일 크다 — 34 대 19.** 6.0 이 102 → 34 로 줄였지만
 `python-docx` 보다 **15개 많다.** HWPX 고유 구조(섹션·양식개체·변경추적)가
 일부를 설명하지만 전부는 아니다. 다음 감축 대상은 루트에 남은 IO 동사
-(`save_to_path`/`save_to_stream`/`to_bytes`/`save_report` 4종)다.
+(7.0: `save`/`to_bytes` 2종, 6.x는 `save_to_path`/`save_to_stream`/`to_bytes`/`save_report` 4종)다.
 
 **② 최상위 이름이 34개다 — `python-docx` 는 1개.** `python-docx` 는
 `Document()` 하나로 시작하고 나머지는 객체를 타고 들어간다. 우리는 도구·리포트·

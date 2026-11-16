@@ -144,7 +144,7 @@ def gen_cross_real_merge(bucket_dir: Path) -> list[dict[str, Any]]:
         out_path = bucket_dir / f"{rec_id}.hwpx"
         try:
             merged = build()
-            merged.save_to_path(str(out_path))
+            merged.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="cross-real-merge", seed=seed,
                 output_path=out_path, produced=True,

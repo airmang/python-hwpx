@@ -1272,11 +1272,20 @@ class HwpxOxmlDocument:
         """Resolve a Python-style section index without mutating the document."""
         if after is None:
             return None
+        if isinstance(after, bool) or not isinstance(after, int):
+            from ..errors import argument_type_error
+
+            raise argument_type_error("after", after, "an int section index or None")
         section_count = len(self._sections)
         normalized = after if after >= 0 else section_count + after
         if normalized < 0 or normalized >= section_count:
-            raise IndexError(
-                f"section index {after} is out of range ({section_count} sections)"
+            from ..errors import HwpxIndexError
+
+            raise HwpxIndexError(
+                f"section index {after} is out of range ({section_count} sections)",
+                code="section-not-found",
+                context={"requested": after, "count": section_count},
+                suggestion=f"이 문서의 섹션 인덱스는 0..{section_count - 1} 입니다.",
             )
         return normalized
 

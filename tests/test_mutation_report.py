@@ -1,7 +1,7 @@
 """Safe Write Contract — MutationReport measurement and enforcement.
 
-Covers the ``mode``/``fallback``/``return_report`` additions to the save funnel:
-the default return is unchanged, ``mode="patch"`` publishes when preservation
+Covers the ``mode``/``fallback`` grade controls of the save funnel (``doc.save``
+always returns the receipt since 7.0), ``mode="patch"`` publishes when preservation
 holds, and a downgrade is rejected before any byte is written (``fallback=
 "error"``) or accepted with ``fallbackUsed`` (``fallback="rebuild"``).
 """
@@ -33,7 +33,7 @@ def _base_document(path: Path) -> None:
     table = document.add_table(2, 2)
     table.cell(0, 0).text = "a"
     table.cell(0, 1).text = "b"
-    document.save_to_path(path)
+    document.save(path)
 
 
 def _first_table(document: HwpxDocument):
@@ -43,16 +43,16 @@ def _first_table(document: HwpxDocument):
 # --------------------------------------------------------------------------- #
 # 1. Default save is unchanged (the wider suite green is the real proof).
 # --------------------------------------------------------------------------- #
-def test_default_save_to_path_still_returns_path(tmp_path: Path) -> None:
+def test_default_save_returns_the_receipt(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("x")
     target = tmp_path / "out.hwpx"
 
-    result = document.save_to_path(target)
+    result = document.save(target)
 
-    assert result == target
+    assert isinstance(result, MutationReport)
+    assert result.path == str(target) and result.quality is None
     assert target.exists()
-    assert not isinstance(result, MutationReport)
 
 
 def test_default_to_bytes_still_returns_bytes() -> None:
@@ -71,7 +71,7 @@ def test_noop_patch_save_reports_whole_package_identical(tmp_path: Path) -> None
 
     reopened = HwpxDocument.open(base)
     target = tmp_path / "noop.hwpx"
-    report = reopened.save_to_path(target, mode="patch", return_report=True)
+    report = reopened.save(target, mode="patch")
 
     assert isinstance(report, MutationReport)
     assert target.exists()
@@ -92,7 +92,7 @@ def test_one_cell_edit_patch_lists_dirty_section(tmp_path: Path) -> None:
     reopened = HwpxDocument.open(base)
     _first_table(reopened).cell(0, 0).text = "EDITED"
     target = tmp_path / "edited.hwpx"
-    report = reopened.save_to_path(target, mode="patch", return_report=True)
+    report = reopened.save(target, mode="patch")
 
     assert isinstance(report, MutationReport)
     assert target.exists()
@@ -144,7 +144,7 @@ def test_patch_error_rejects_downgrade_before_writing(
     target = tmp_path / "rejected.hwpx"
 
     with pytest.raises(PreservationDowngradeError) as excinfo:
-        document.save_to_path(target, mode="patch", fallback="error")
+        document.save(target, mode="patch", fallback="error")
 
     assert not target.exists()
     error = excinfo.value
@@ -176,8 +176,8 @@ def test_patch_rebuild_fallback_publishes_with_flag(
     document.add_paragraph("x")
     target = tmp_path / "rebuilt.hwpx"
 
-    report = document.save_to_path(
-        target, mode="patch", fallback="rebuild", return_report=True
+    report = document.save(
+        target, mode="patch", fallback="rebuild"
     )
 
     assert isinstance(report, MutationReport)
@@ -187,14 +187,14 @@ def test_patch_rebuild_fallback_publishes_with_flag(
 
 
 # --------------------------------------------------------------------------- #
-# 5. return_report overload + camelCase to_dict round-trip.
+# 5. The receipt's camelCase to_dict round-trip.
 # --------------------------------------------------------------------------- #
-def test_return_report_to_dict_camel_case_round_trip(tmp_path: Path) -> None:
+def test_report_to_dict_camel_case_round_trip(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("본문")
     target = tmp_path / "report.hwpx"
 
-    report = document.save_to_path(target, return_report=True)
+    report = document.save(target)
 
     assert isinstance(report, MutationReport)
     payload = report.to_dict()
@@ -227,14 +227,14 @@ def test_return_report_to_dict_camel_case_round_trip(tmp_path: Path) -> None:
     assert payload["verification"]["visual"] == "not_performed"
 
 
-def test_stream_return_report_has_null_path() -> None:
+def test_stream_report_has_null_path() -> None:
     import io
 
     document = HwpxDocument.new()
     document.add_paragraph("stream")
     buffer = io.BytesIO()
 
-    report = document.save_to_stream(buffer, return_report=True)
+    report = document.save(buffer)
 
     assert isinstance(report, MutationReport)
     assert report.path is None
@@ -286,11 +286,11 @@ def test_sneaky_low_level_part_swap_is_refused_under_patch_mode(tmp_path) -> Non
         payload = doc._package.read("Contents/header.xml")
         doc._package.set_part("Contents/header.xml", payload + b"<!-- sneaky -->")
         with pytest.raises(PreservationDowngradeError):
-            doc.save_to_path(target, mode="patch")
+            doc.save(target, mode="patch")
         assert not target.exists()
         # fallback="rebuild" is the explicit consent path — publishes + reports.
-        report = doc.save_to_path(
-            target, mode="patch", fallback="rebuild", return_report=True
+        report = doc.save(
+            target, mode="patch", fallback="rebuild"
         )
         assert target.exists()
         payload_dict = report.to_dict()
@@ -312,11 +312,11 @@ def test_second_save_measures_against_the_published_baseline(tmp_path) -> None:
     doc = HwpxDocument.open(fixture)
     try:
         doc.add_paragraph("첫 저장")
-        doc.save_to_path(tmp_path / "one.hwpx")
+        doc.save(tmp_path / "one.hwpx")
         # After a successful publish the baseline advances: an immediate
         # unchanged save is whole-package quiet, not a re-report of save one.
-        report = doc.save_to_path(
-            tmp_path / "two.hwpx", mode="patch", return_report=True
+        report = doc.save(
+            tmp_path / "two.hwpx", mode="patch"
         )
         assert report.to_dict()["preservation"]["untouchedPartPayloads"]["changed"] == 0
     finally:

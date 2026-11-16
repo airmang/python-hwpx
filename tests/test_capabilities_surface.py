@@ -174,10 +174,10 @@ def test_contract_documents_served_and_fail_closed() -> None:
         assert contract_document(name).strip(), name
     with pytest.raises(HwpxError) as excinfo:
         contract_document("no-such-doc")
-    assert excinfo.value.code == "unknown-contract-document"
+    assert excinfo.value.code == "contract-document-unknown"
     with pytest.raises(HwpxError) as excinfo2:
         contract_json_schema("no-such-schema")
-    assert excinfo2.value.code == "unknown-contract-schema"
+    assert excinfo2.value.code == "contract-schema-unknown"
 
 
 def test_capabilities_validates_against_own_schema_structure() -> None:

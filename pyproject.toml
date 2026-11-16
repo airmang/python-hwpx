@@ -199,12 +199,10 @@ files = [
     # 목록이 옛 모듈을 점진 편입하는 것이라고 해서, 새로 만드는 것까지 밖에
     # 둘 이유는 없다.
     #
-    # 예외 하나: `_document/_legacy.py`. 본문이 5.8.0 `document.py`의 것을
-    # **그대로** 옮긴 것이고(그 자리에서는 타입 청결했다), 믹스인으로 분리된
-    # 탓에 `self`가 `HwpxDocument`가 아니라 `Self@_LegacyFacade`로 좁혀져
-    # 위임 호출 52건이 전부 같은 한 가지 이유로 붉어진다. `self` 주석을 달면
-    # `inspect.signature`가 바뀌어 shim 락의 시그니처 동일성(이주 창의 핵심
-    # 약속)이 깨진다. 7.0에서 파일째 삭제되므로 편입하지 않는다.
+    # 7.0: 6.x 이름의 안내 표(`_removed_names.py`)와 그 루트 칸을 보는 창
+    # (`_document/_legacy.py`, 6.x 의 위임 shim 은 7.0에서 지웠다)도 게이트 안이다.
+    "src/hwpx/_removed_names.py",
+    "src/hwpx/_document/_legacy.py",
     "src/hwpx/model.py",
     "src/hwpx/objects/__init__.py",
     # 6.0 (062-engine-surface WP-C): 반환 규약 소유 모듈 5종 — 같은 이유로
@@ -407,12 +405,10 @@ include = [
     # 목록이 옛 모듈을 점진 편입하는 것이라고 해서, 새로 만드는 것까지 밖에
     # 둘 이유는 없다.
     #
-    # 예외 하나: `_document/_legacy.py`. 본문이 5.8.0 `document.py`의 것을
-    # **그대로** 옮긴 것이고(그 자리에서는 타입 청결했다), 믹스인으로 분리된
-    # 탓에 `self`가 `HwpxDocument`가 아니라 `Self@_LegacyFacade`로 좁혀져
-    # 위임 호출 52건이 전부 같은 한 가지 이유로 붉어진다. `self` 주석을 달면
-    # `inspect.signature`가 바뀌어 shim 락의 시그니처 동일성(이주 창의 핵심
-    # 약속)이 깨진다. 7.0에서 파일째 삭제되므로 편입하지 않는다.
+    # 7.0: 6.x 이름의 안내 표(`_removed_names.py`)와 그 루트 칸을 보는 창
+    # (`_document/_legacy.py`, 6.x 의 위임 shim 은 7.0에서 지웠다)도 게이트 안이다.
+    "src/hwpx/_removed_names.py",
+    "src/hwpx/_document/_legacy.py",
     "src/hwpx/model.py",
     "src/hwpx/objects/__init__.py",
     # 6.0 (062-engine-surface WP-C): 반환 규약 소유 모듈 5종 — 같은 이유로

@@ -72,7 +72,7 @@ def test_add_control_survives_a_save_and_reopen(tmp_path) -> None:
         ctrl.append(ctrl.makeelement(f"{HP}colPr", {
             "id": "", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "1", "sameSz": "1", "sameGap": "0",
         }))
-        document.save_to_path(path)
+        document.save(path)
     finally:
         document.close()
 

@@ -15,7 +15,7 @@ DATA = Path(__file__).parent / "data"
 
 def _roundtrip(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     buffer.seek(0)
     return HwpxDocument.open(buffer)
 
@@ -181,7 +181,7 @@ class TestRoundTrip:
         doc = HwpxDocument.new()
         doc.fields.add("f", prompt="입력")
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         report = validate_editor_open_safety(buffer.getvalue())
         assert report.ok, report
 

@@ -24,7 +24,7 @@ with HwpxDocument.new() as document:
     table = document.add_table(2, 2)
     table.cell(0, 0).text = "Name"
     table.cell(0, 1).text = "Value"
-    document.save_to_path("example.hwpx")
+    document.save("example.hwpx")
 ```
 
 ## Contract scenarios

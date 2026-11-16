@@ -351,7 +351,7 @@ def replace_picture(
     """
 
     check_image(image_data, image_format)
-    from ..oxml.utils import HwpxIndexError
+    from ..errors import HwpxIndexError
 
     if picture_index < 0:
         raise HwpxIndexError(

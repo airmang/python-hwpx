@@ -46,7 +46,7 @@ def _build_enriched_template(path: Path) -> str:
     sublist.set("vertAlign", "BOTTOM")
     table.mark_dirty()
 
-    document.save_to_path(path)
+    document.save(path)
     return rich_style
 
 

@@ -73,7 +73,7 @@ AXIS_KINDS = {
 
 def _roundtrip(doc: HwpxDocument) -> tuple[HwpxDocument, bytes]:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     payload = buffer.getvalue()
     return HwpxDocument.open(io.BytesIO(payload)), payload
 
@@ -202,7 +202,7 @@ class TestSelfRoundtrip:
             before = {name: package.read(name) for name in package.namelist()}
         doc.shapes.add_chart(PIE_CHARTML)
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
             after = {name: package.read(name) for name in package.namelist()}
         changed = {
@@ -219,7 +219,7 @@ class TestSelfRoundtrip:
         doc = HwpxDocument.new()
         doc.shapes.add_chart(PIE_CHARTML)
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         report = validate_editor_open_safety(buffer.getvalue())
         assert report.ok, report
 
@@ -242,7 +242,7 @@ class TestValidation:
             doc.shapes.add_chart("<c:chartSpace")
         assert _anchors(doc) == []
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
             assert not [n for n in package.namelist() if n.startswith("Chart/")]
 
@@ -261,7 +261,7 @@ class TestValidation:
         assert caught.value.suggestion
         assert _anchors(doc) == []
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
             assert not [n for n in package.namelist() if n.startswith("Chart/")]
 

@@ -449,7 +449,7 @@ def test_picture_and_shape_read_what_their_creation_wrote() -> None:
     shadow = PictureShadow(color="#336699", alpha=0.25, blur=300, direction=90, distance=400, inside=True)
     glow = PictureGlow(color="#FF0000", alpha=0.5, radius=200)
     picture = doc.add_picture(PNG, "png", brightness=10, contrast=-20, effect="GRAY_SCALE", alpha=30,
-                              line_color="#112233", line_width=50, shadow=shadow, glow=glow)
+                              line_color="#112233", line_width_mm=0.18, shadow=shadow, glow=glow)
     assert (picture.brightness, picture.contrast, picture.effect, picture.alpha) == (10, -20, "GRAY_SCALE", 30)
     assert (picture.line_color, picture.line_width) == ("#112233", 50)
     assert picture.shadow == shadow and picture.glow == glow

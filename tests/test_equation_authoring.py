@@ -25,7 +25,7 @@ GOLD_RENDERED = FIXTURES / "equation_preview" / "equation_p0.hwpx"
 
 def _roundtrip(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     buffer.seek(0)
     return HwpxDocument.open(buffer)
 
@@ -97,7 +97,7 @@ class TestGoldContractShape:
         doc = HwpxDocument.new()
         doc.shapes.add_equation("{1} over {2}")
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
             section = package.read("Contents/section0.xml").decode("utf-8")
         equation_paragraph = section[section.find("<hp:equation") :]
@@ -153,7 +153,7 @@ class TestSelfRoundtrip:
             before = {name: package.read(name) for name in package.namelist()}
         doc.shapes.add_equation("{new} over {eq}")
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
             after = {name: package.read(name) for name in package.namelist()}
         changed = {
@@ -168,7 +168,7 @@ class TestSelfRoundtrip:
         doc = HwpxDocument.new()
         doc.shapes.add_equation("x = {-b +- sqrt{b^2 -4ac}} over {2a}")
         buffer = io.BytesIO()
-        doc.save_to_stream(buffer)
+        doc.save(buffer)
         report = validate_editor_open_safety(buffer.getvalue())
         assert report.ok, report
 

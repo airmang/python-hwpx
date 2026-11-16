@@ -8,14 +8,10 @@ Q3/Q4 의 네이티브 목차·상호참조(`hwpx.tools.toc_author`)가 들어�
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from ...model import InlineObject, Paragraph, Section
+from ...objects import Bookmark, CrossReference, Hyperlink
 from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...model import InlineObject, Paragraph, Section
-    from ...objects import Bookmark, CrossReference, Hyperlink
 
 __all__ = ["RefsNamespace"]
 

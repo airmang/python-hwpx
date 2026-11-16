@@ -16,3 +16,6 @@
 /src/hwpx/data/contract_docs/mutation-semantics.md text eol=lf
 # Compressed data: never converted.
 /src/hwpx/form_fit/_glyph_table.json.gz binary
+# The public-surface change ledger only grows by appended lines: a merge keeps the lines of both sides.
+# (The lock itself is never merged by hand: scripts/public_surface_lock.py rebuild.)
+/tests/data/public_surface_changes.jsonl text eol=lf merge=union

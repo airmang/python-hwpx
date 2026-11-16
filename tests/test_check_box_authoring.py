@@ -33,7 +33,7 @@ def test_add_check_box_emits_the_measured_hancom_shape(tmp_path) -> None:
     doc = HwpxDocument.new()
     doc.fields.add_check_box("동의합니다", checked=True, name="Agree")
     path = tmp_path / "checkbox.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     xml = _section_xml(path)
@@ -52,7 +52,7 @@ def test_check_box_children_are_inside_the_element(tmp_path) -> None:
     doc = HwpxDocument.new()
     doc.fields.add_check_box("자식 위치", checked=False)
     path = tmp_path / "children.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)
@@ -71,7 +71,7 @@ def test_unchecked_is_the_default_and_round_trips(tmp_path) -> None:
     doc = HwpxDocument.new()
     doc.fields.add_check_box("기본 상태")
     path = tmp_path / "default.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     assert 'value="UNCHECKED"' in _section_xml(path)
@@ -98,7 +98,7 @@ def test_list_and_set_by_index_and_name(tmp_path) -> None:
     assert [b.checked for b in doc.fields.check_boxes] == [True, False]
 
     path = tmp_path / "toggled.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
     reopened = HwpxDocument.open(path)
     assert [b.checked for b in reopened.fields.check_boxes] == [True, False]
@@ -132,7 +132,7 @@ def test_check_box_inside_a_table_cell(tmp_path) -> None:
     cell_paragraph.add_check_box("셀 안", checked=True)
 
     path = tmp_path / "cell.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)
@@ -147,7 +147,7 @@ def test_authored_document_passes_open_safety(tmp_path) -> None:
     doc = HwpxDocument.new()
     doc.fields.add_check_box("열림 안전", checked=True)
     path = tmp_path / "safe.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     report = validate_editor_open_safety(path).to_dict()

@@ -18,7 +18,7 @@ HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 def _reopen(document: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     reopened = HwpxDocument.open(buffer.getvalue())
     assert reopened.validate().ok
     return reopened

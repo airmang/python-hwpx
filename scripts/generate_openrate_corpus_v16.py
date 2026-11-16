@@ -142,7 +142,7 @@ def gen_document_metadata(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "문서 정보 저작 표본")
             document.parts.set_document_metadata(**_METADATA_BANK[idx])
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-document-metadata", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -181,7 +181,7 @@ def gen_drop_cap(bucket_dir: Path) -> list[dict[str, Any]]:
             document.shapes.add_drop_cap(character, width=width, height=height)
             document.add_paragraph(f"{cycle(DEPT_BANK, idx)} 드롭캡 본문 표본 {idx}")
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-drop-cap", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -221,7 +221,7 @@ def gen_text_direction(bucket_dir: Path) -> list[dict[str, Any]]:
                 direction, vertical_header_footer=vertical_header_footer, section=0,
             )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-text-direction", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -253,7 +253,7 @@ def gen_column_break(bucket_dir: Path) -> list[dict[str, Any]]:
             # position per record, proving it's per-paragraph, not global.
             document.styles.apply_paragraph_format(paragraph_index=idx, column_break=True)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-column-break", seed=str(idx),
                 output_path=out_path, produced=True,

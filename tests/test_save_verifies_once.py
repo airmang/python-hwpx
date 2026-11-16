@@ -27,17 +27,17 @@ def _count_validations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return calls
 
 
-@pytest.mark.parametrize("how", ["to_bytes", "save_to_path", "save_to_stream"])
+@pytest.mark.parametrize("how", ["to_bytes", "save_path", "save_stream"])
 def test_save_validates_the_archive_once(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, how: str) -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("한 번만 검증")
     calls = _count_validations(monkeypatch)
     if how == "to_bytes":
         doc.to_bytes()
-    elif how == "save_to_path":
-        doc.save_to_path(tmp_path / "out.hwpx")
+    elif how == "save_path":
+        doc.save(tmp_path / "out.hwpx")
     else:
-        doc.save_to_stream(io.BytesIO())
+        doc.save(io.BytesIO())
     assert len(calls) == 1
 
 

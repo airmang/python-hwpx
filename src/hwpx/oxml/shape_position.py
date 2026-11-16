@@ -39,7 +39,7 @@ import math
 import re
 from dataclasses import dataclass
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from ..errors import HwpxValueError
 from ._document_primitives import _HC, _HP
@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
     from ..objects.results import CellMargins, ObjectPosition
     from .objects import HwpxOxmlShape
+    from .paragraph import HwpxOxmlParagraph
 
 POS_VERT_REL_TO = ("PAPER", "PAGE", "PARA")
 POS_HORZ_REL_TO = ("PAPER", "PAGE", "COLUMN", "PARA")
@@ -386,6 +387,9 @@ def remove_orphaned_images(section: Any, references: set[str]) -> None:
         remove_orphaned_items(section.document, references)
 
 
+_Placed = TypeVar("_Placed", bound="ObjectPlacement")
+
+
 class ObjectPlacement:
     """Reads and edits every placed object shares: pictures, equations, charts, OLE and drawing shapes.
 
@@ -615,8 +619,6 @@ class ObjectPlacement:
         call does nothing; the object should not be used after it.
         """
 
-        from ._document_primitives import _clear_paragraph_layout_cache
-
         element = self.element
         paragraph = self.paragraph.element
         parent = _parent_of(element, paragraph)
@@ -633,24 +635,60 @@ class ObjectPlacement:
             why = member_removal_refusal(element, groups)
             if why is not None:
                 raise _group_member_refused("removed", why)
-        ids = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
         images = binary_references(element) if remove_orphaned else set()
-        parent.remove(element)
         if groups:
             from .container import fit_groups_after_removal
 
             fit_groups_after_removal(groups)
-        if (str(parent.tag).rsplit("}", 1)[-1] == "run" and len(parent) == 0
-                and len(paragraph.findall(f"{_HP}run")) > 1 and any(c is parent for c in paragraph)):
-            paragraph.remove(parent)
-        section = self.paragraph.section
-        if ids:
-            for connector in section.element.iter(f"{_HP}connectLine"):
-                for end in connector:
-                    if str(end.tag).rsplit("}", 1)[-1] in ("startPt", "endPt") and end.get("subjectIDRef") in ids:
-                        end.set("subjectIDRef", "0")
-        _clear_paragraph_layout_cache(paragraph)
-        section.mark_dirty()
+        _detach_object(element, parent, paragraph, self.paragraph.section)
+
+    def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> None:
+        """Move this object into *paragraph* at character *offset* (``None``: the end), as cutting
+        and pasting it in Hancom does.
+
+        *paragraph* is a paragraph of the same document -- in the body, a table cell, a text box,
+        a note, a header or a footer -- or its index in ``doc.paragraphs``. *offset* counts as
+        ``paragraph.text`` does (a tab or a line break is one, an object none); the object goes in
+        front of the character there, after the controls and objects already at that place. The
+        object keeps its ids, its caption and what it holds; this wrapper then belongs to
+        *paragraph*. Where it left, its place is cleaned up as :meth:`remove` does (a run left
+        empty goes, a connector attached to it lets go of it), and the paragraphs on both sides
+        lose their line layout caches, with the paragraphs holding their cells and captions.
+
+        A floating object keeps its frames and offsets as they are written; nothing is changed
+        for it. Measured from its paragraph (``PARA``, ``COLUMN``) it goes with its new paragraph.
+        Measured from the page or paper (``PAGE``, ``PAPER``) it stays where it is on the page:
+        only the page it is drawn on follows its new paragraph, so moved within one page it does
+        not move at all -- ``set_position`` puts it elsewhere. Where Hancom documents never hold
+        such an object the move is refused with ``shape-move-place-unsupported``: into a table
+        cell, a text box or a note, a floating object that is not measured down from its
+        paragraph and kept in the page area (``vertRelTo="PARA"`` and either ``flowWithText="1"``
+        or ``horzRelTo="PARA"``; Hancom draws another one over the cells above it), so a page-
+        or paper-measured one never; a page-measured object into a section whose paper or margins
+        differ; any floating object into a caption, and any object into a memo or a master page.
+        Change the placement first with ``set_position(vert_rel_to="PARA", horz_rel_to="PARA")``
+        or ``treat_as_char=True``. Moving an object into itself (a paragraph of its own text box
+        or caption) is ``shape-move-into-itself``, a member of a group alone
+        ``shape-group-member-unsupported``, a removed object ``shape-not-in-document``. Everything
+        is checked before anything changes.
+        """
+
+        place_object(self, paragraph, offset, copy=False)
+
+    def copy_to(self: _Placed, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> _Placed:
+        """Put a copy of this object into *paragraph* at *offset* (``None``: the end) and return it.
+
+        The place is chosen and checked as :meth:`move_to` does, and a copy may go inside the
+        object it copies (a copy of a text box into its own text). The copy has fresh ids (its
+        objects, tables, paragraphs and fields; a connector in it follows the copied objects it
+        was attached to and lets go of the others), no line layout caches, and the same images
+        (a picture's copy shows the same ``BinData`` item). A memo anchored in it becomes a memo
+        of its own with the next memo number. The original stays as it was. A copy of an object
+        floating at a place on the page or paper (``PAGE``, ``PAPER``) has the same place: on the
+        same page it is drawn exactly over the original until ``set_position`` moves it.
+        """
+
+        return place_object(self, paragraph, offset, copy=True)  # type: ignore[no-any-return]
         remove_orphaned_images(section, images)
 
 
@@ -1080,6 +1118,29 @@ def validate_shape_size(width: object, height: object) -> tuple[int, int]:
     return width, height  # type: ignore[return-value]
 
 
+def validate_box_size(size: object, *, kind: str) -> tuple[int, int]:
+    """*size* of an equation or chart: a ``(width, height)`` pair of ints in ``0 < value < 2**31``
+    (HWPUNIT). Unlike a line, such a box drawn 0 wide or 0 high shows nothing, so 0 is refused too;
+    so is a size that is not a pair (``size=5``)."""
+
+    if isinstance(size, (str, bytes)) or not isinstance(size, (tuple, list)) or len(size) != 2:
+        raise HwpxValueError(
+            f"{kind} size must be a (width, height) pair of HWP units; got {size!r}",
+            code="shape-size-value",
+            context={"argument": "size", "value": repr(size)},
+            suggestion="Pass size=(width, height), both positive ints in HWP units, or leave it out.",
+        )
+    width, height = validate_shape_size(size[0], size[1])
+    if width == 0 or height == 0:
+        raise HwpxValueError(
+            f"{kind} size must be positive; got {size!r}",
+            code="shape-size-value",
+            context={"argument": "size", "value": repr(size)},
+            suggestion=f"Leave size out to have the {kind} measured, or pass two positive HWP units.",
+        )
+    return width, height
+
+
 def validate_rect_ratio(ratio: object) -> int:
     """A rectangle's corner *ratio* (per cent), checked to be an int in ``0 <= ratio < 2**31``: Hancom reads a
     negative one as 0."""
@@ -1304,6 +1365,7 @@ __all__ = [
     "validate_original_size",
     "validate_rect_ratio",
     "validate_shape_size",
+    "validate_box_size",
 ]
 
 
@@ -1463,3 +1525,301 @@ def append_picture_effects(effects: "ET.Element", shadow: PictureShadow | None, 
             "start": _alpha("reflection.alpha_start", reflection.alpha_start),
             "end": _alpha("reflection.alpha_end", reflection.alpha_end)}))
         element.append(element.makeelement(f"{_HP}pos", {"start": "0", "end": f"{float(reflection.size):g}"}))
+
+
+# --------------------------------------------------------------------------
+# Moving and copying an object to another paragraph (``move_to``/``copy_to`` of objects and tables)
+
+
+def _local(node: Any) -> str:
+    return node.tag.rsplit("}", 1)[-1] if isinstance(node.tag, str) else ""
+
+
+#: What a ``hp:subList`` belongs to, named as the box its paragraphs sit in.
+_SUBLIST_BOXES = {
+    "tc": "cell", "drawText": "text_box", "footNote": "note", "endNote": "note", "header": "header_footer",
+    "footer": "header_footer", "caption": "caption", "fieldBegin": "memo",
+}
+
+#: The boxes Hancom documents hold objects in, by how the object is placed: ``char`` (as a character),
+#: ``paragraph`` (floating, measured from its paragraph: ``PARA``/``COLUMN``) and ``page`` (floating,
+#: measured from the page or paper on either axis). Counted over the 1,304 public documents (rhwp
+#: samples, kordoc fixtures, the repository's fixtures): floating objects sit in table cells 634 times,
+#: in notes 40, in text boxes 2 -- every one of them measured from its paragraph -- and in headers and
+#: footers 7 (from the paragraph or the paper); none sits in a caption. In a cell, a text box or a note
+#: the object must also be kept in the page area or measured across from its paragraph
+#: (:func:`_stays_in_box`).
+OBJECT_PLACES: dict[str, frozenset[str]] = {
+    "char": frozenset({"body", "cell", "text_box", "note", "header_footer", "caption"}),
+    "paragraph": frozenset({"body", "cell", "text_box", "note", "header_footer"}),
+    "page": frozenset({"body", "header_footer"}),
+}
+
+#: Drawing objects whose ``id`` a copy renews besides those ``_refresh_copied_paragraph_subtree_ids``
+#: renews. An ``id="0"`` stays: Hancom writes group members so (pictures, lines, rectangles, groups).
+_COPY_RENEWED_IDS = frozenset({"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "chart"})
+
+
+def paragraph_box(paragraph: Any, root: Any) -> str:
+    """The box the paragraph element *paragraph* sits in under *root* (its section element): ``body``,
+    ``cell``, ``text_box``, ``note``, ``header_footer``, ``caption``, ``memo`` or ``other``."""
+
+    parent = _parent_of(paragraph, root)
+    if parent is None:
+        return "other"
+    if parent is root:
+        return "body"
+    name = _local(parent)
+    if name == "subList":
+        owner = _parent_of(parent, root)
+        return _SUBLIST_BOXES.get(_local(owner) if owner is not None else "", "other")
+    return "memo" if name == "paraList" else "other"
+
+
+def placement_kind(element: Any) -> str:
+    """How an object is placed: ``char`` (as a character, or without ``hp:pos``), ``page`` (floating and
+    measured from the page or paper on either axis) or ``paragraph`` (floating, from its paragraph)."""
+
+    position = element.find(f"{_HP}pos")
+    if position is None or position.get("treatAsChar") not in (*_FALSE_FLAGS, None):
+        return "char"
+    frames = (position.get("vertRelTo"), position.get("horzRelTo"))
+    return "page" if any(frame in ("PAGE", "PAPER") for frame in frames) else "paragraph"
+
+
+def _page_settings(section: Any) -> tuple[dict[str, str], dict[str, str]]:
+    """The section's paper (``hp:pagePr``: width, height, landscape) and margins (``hp:margin``)."""
+
+    page = section.element.find(f".//{_HP}secPr/{_HP}pagePr")
+    margin = page.find(f"{_HP}margin") if page is not None else None
+    return (dict(page.attrib) if page is not None else {}), (dict(margin.attrib) if margin is not None else {})
+
+
+def _place_refused(element: Any, box: str, why: str) -> HwpxValueError:
+    position = element.find(f"{_HP}pos")
+    frames = {name: position.get(name) for name in ("vertRelTo", "horzRelTo", "flowWithText")}         if position is not None else {}
+    return HwpxValueError(
+        f"hp:{_local(element)} cannot go there: {why}",
+        code="shape-move-place-unsupported",
+        context={"box": box, "placement": placement_kind(element), "reason": why, **frames},
+        suggestion="글자처럼 취급하는 개체는 본문·표 칸·글상자·각주·머리말·꼬리말 어디로든 옮길 수 있습니다. "
+                   "떠 있는 개체를 칸·글상자·각주로 옮기려면 먼저 set_position(vert_rel_to='PARA', "
+                   "horz_rel_to='PARA')으로 문단 기준·쪽 영역 안으로 바꾼 뒤(또는 treat_as_char=True) 옮기세요. "
+                   "값을 몰래 바꾸지 않으므로 바꾸기 전에는 거부합니다.",
+    )
+
+
+#: The boxes whose floating objects Hancom keeps inside the page area of their paragraph.
+_BOXED = frozenset({"cell", "text_box", "note"})
+
+
+def _stays_in_box(element: Any) -> bool:
+    """Whether a floating object Hancom documents hold in a table cell, text box or note is placed so:
+    measured down from its paragraph (``vertRelTo="PARA"``) and either kept in the page area
+    (``flowWithText="1"``) or measured across from its paragraph too (``horzRelTo="PARA"``). In the public
+    documents (1,304): of 634 floating objects in cells, 343 are PARA/PARA/1, 257 PARA/COLUMN/1, 33
+    PARA/PARA/0 and 1 PARA/COLUMN/0; all 40 in notes and both in text boxes are kept in the page area.
+    A PARA/COLUMN/0 picture moved into a cell, Hancom draws over the cells above it."""
+
+    position = element.find(f"{_HP}pos")
+    if position is None:
+        return True
+    return position.get("vertRelTo") == "PARA" and (
+        position.get("flowWithText") in ("1", "true") or position.get("horzRelTo") == "PARA")
+
+
+def _nearest_paragraph(node: Any) -> Any:
+    """The innermost ``hp:p`` holding *node* (lxml only), or ``None``."""
+
+    getparent = getattr(node, "getparent", None)
+    current = getparent() if getparent is not None else None
+    while current is not None and _local(current) != "p":
+        current = current.getparent()
+    return current
+
+
+def _detach_object(element: Any, parent: Any, paragraph: Any, section: Any) -> None:
+    """Take *element* (an object) out of *parent* in the paragraph element *paragraph*, as ``remove()``
+    does: a run left empty goes (not the last), a connector attached to it lets go, the paragraph and
+    the paragraphs holding it lose their line layout caches."""
+
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    ids = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
+    parent.remove(element)
+    if (_local(parent) == "run" and len(parent) == 0
+            and len(paragraph.findall(f"{_HP}run")) > 1 and any(child is parent for child in paragraph)):
+        paragraph.remove(parent)
+    if ids:
+        for connector in section.element.iter(f"{_HP}connectLine"):
+            for end in connector:
+                if _local(end) in ("startPt", "endPt") and end.get("subjectIDRef") in ids:
+                    end.set("subjectIDRef", "0")
+    _clear_paragraph_layout_cache(paragraph)
+    section.mark_dirty()
+
+
+def _let_go_of_outside(element: Any, kept: dict[str, str]) -> None:
+    """Point the connector ends inside *element* at the objects they follow (*kept*: old instid to the
+    one it now has); an end attached to an object outside *element* lets go (``subjectIDRef="0"``)."""
+
+    for connector in element.iter(f"{_HP}connectLine"):
+        for end in connector:
+            subject = end.get("subjectIDRef")
+            if _local(end) in ("startPt", "endPt") and subject not in (None, "", "0"):
+                end.set("subjectIDRef", kept.get(subject, "0"))
+
+
+def fresh_copy(element: Any) -> Any:
+    """A copy of the object *element* with fresh ids (objects, tables, paragraphs, fields), no line
+    layout caches and its connectors following the copied objects."""
+
+    from copy import deepcopy
+
+    from ._document_primitives import _clear_paragraph_layout_cache, _object_id, _refresh_copied_paragraph_subtree_ids
+    from ._paragraph_text_edit import renumber_copied_fields
+
+    copy = deepcopy(element)
+    copy.tail = None
+    before = [(node, node.get("instid")) for node in copy.iter() if node.get("instid") not in (None, "", "0")]
+    members = [node for node in copy.iter() if _local(node) != "p" and node.get("id") == "0"]
+    _refresh_copied_paragraph_subtree_ids(copy)
+    for node in copy.iter():
+        if _local(node) in _COPY_RENEWED_IDS and node.get("id") not in (None, "", "0"):
+            node.set("id", _object_id())
+    for node in members:  # a group member's id="0", as Hancom writes members, stays
+        node.set("id", "0")
+    _let_go_of_outside(copy, {old: str(node.get("instid")) for node, old in before})
+    renumber_copied_fields(copy)
+    for node in copy.iter():
+        if _local(node) == "p":
+            _clear_paragraph_layout_cache(node)
+    return copy
+
+
+def insert_at_offset(paragraph: Any, element: Any, offset: int | None, char_pr_id_ref: str | None = None) -> None:
+    """Put *element* into the runs of the paragraph element *paragraph* in front of character *offset*
+    (``None``: at the end), counted as ``paragraph.text`` counts.
+
+    Controls and objects already at that place stay in front of it. Inside a text node the node is
+    divided and *element* goes between its halves in the same run, as Hancom keeps an object among the
+    text of a run; at a run boundary it goes at the end of the run before. A paragraph with no run gets
+    one (*char_pr_id_ref*, else ``"0"``).
+    """
+
+    from .formatting import _split_text_element, _unit_length
+
+    runs = [child for child in paragraph if _local(child) == "run"]
+    if not runs:
+        run = paragraph.makeelement(f"{_HP}run", {"charPrIDRef": char_pr_id_ref or "0"})
+        caches = [index for index, child in enumerate(paragraph) if _local(child).lower() == "linesegarray"]
+        paragraph.insert(caches[0] if caches else len(paragraph), run)
+        run.append(element)
+        return
+    if offset is not None:
+        position = 0
+        for run_index, run in enumerate(runs):
+            for index, child in enumerate(list(run)):
+                length = _unit_length(child)
+                if not length:
+                    continue
+                if position >= offset:
+                    if index or not run_index:
+                        run.insert(index, element)
+                    else:
+                        runs[run_index - 1].append(element)
+                    return
+                if offset < position + length:
+                    right = _split_text_element(child, offset - position)
+                    run.insert(index + 1, element)
+                    run.insert(index + 2, right)
+                    return
+                position += length
+    runs[-1].append(element)
+
+
+def _check_place(element: Any, source: Any, target: Any) -> None:
+    """Refuse a place *target* (a paragraph) where Hancom documents never hold the object *element* in the
+    way it is placed, coming from the paragraph *source* (see :data:`OBJECT_PLACES`)."""
+
+    box = paragraph_box(target.element, target.section.element)
+    kind = placement_kind(element)
+    if box not in OBJECT_PLACES.get(kind, frozenset()):
+        if box in ("memo", "other"):
+            why = "objects go into the body, a cell, a text box, a note, a header or a footer"
+        elif kind == "paragraph":
+            why = f"Hancom documents hold no floating object in a {box.replace('_', ' ')}"
+        else:
+            why = f"Hancom measures an object in a {box.replace('_', ' ')} from its paragraph, not from the page"
+        raise _place_refused(element, box, why)
+    if kind == "paragraph" and box in _BOXED and not _stays_in_box(element):
+        raise _place_refused(element, box, f"Hancom draws a floating object in a {box.replace('_', ' ')} where it "
+                                           "belongs only when it is measured from its paragraph and kept in the "
+                                           "page area (vertRelTo PARA, and flowWithText 1 or horzRelTo PARA)")
+    if kind == "page" and target.section.element is not source.section.element             and _page_settings(target.section) != _page_settings(source.section):
+        raise _place_refused(element, box, "it is measured from the page, and that section's paper or margins differ")
+
+
+def _sections_of(*paragraphs: Any) -> list[Any]:
+    """The sections of the document the paragraphs belong to (theirs alone without a document)."""
+
+    document = paragraphs[0].section.document
+    if document is not None:
+        return list(document.sections)
+    return list({id(p.section): p.section for p in paragraphs}.values())
+
+
+def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) -> Any:
+    """``move_to``/``copy_to`` of an object or table *obj*: check everything, then move it (or put a
+    copy) into *paragraph* at *offset*. Returns the copy's model object, or ``None`` for a move."""
+
+    from ._document_primitives import _clear_paragraph_layout_cache
+    from ._paragraph_text_edit import resolve_paragraph_in
+    from .formatting import _check_offset
+    from .memo import carry_memos, renew_copied_memos
+
+    caller = "copy_to" if copy else "move_to"
+    element = obj.element
+    source = obj.paragraph
+    parent = _parent_of(element, source.element)
+    holder = _nearest_paragraph(parent) if parent is not None and hasattr(parent, "getparent") else source.element
+    if parent is None or holder is None or not any(child is element for child in parent):
+        raise HwpxValueError(
+            "the object is no longer in a paragraph (it was removed)",
+            code="shape-not-in-document",
+            context={"caller": caller},
+            suggestion="Take the object again from paragraph.objects of the document.",
+        )
+    if _local(parent) == "container":
+        raise _group_member_refused("copied" if copy else "moved")
+    source = resolve_paragraph_in(source, source.__class__(holder, source.section), caller=caller)
+    target = resolve_paragraph_in(source, paragraph, caller=caller)
+    if not copy and any(node is target.element for node in element.iter()):
+        raise HwpxValueError(
+            "an object cannot move into one of its own paragraphs (its text box, cell or caption)",
+            code="shape-move-into-itself",
+            context={"caller": caller},
+            suggestion="Pick a paragraph outside the object, or copy it there with copy_to().",
+        )
+    _check_place(element, source, target)
+    if offset is not None:
+        _check_offset("offset", offset, 0, len(target.text))
+    if copy:
+        placed = fresh_copy(element)
+        renew_copied_memos(placed, _sections_of(source), target.section)
+    else:
+        _detach_object(element, parent, source.element, source.section)
+        inside = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
+        _let_go_of_outside(element, {value: value for value in inside if value})
+        placed = element
+    insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
+    _clear_paragraph_layout_cache(target.element)
+    if not copy and target.section.element is not source.section.element:
+        carry_memos(placed, _sections_of(source, target), target.section)
+    target.section.mark_dirty()
+    if copy:
+        from .objects import wrap_object
+
+        return wrap_object(placed, target)
+    obj.paragraph = target
+    return None

@@ -21,7 +21,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "hancom_saved" / "new_page_number
 
 def _reopened(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     return HwpxDocument.open(buffer.getvalue())
 
 

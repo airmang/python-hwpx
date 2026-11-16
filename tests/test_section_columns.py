@@ -182,7 +182,7 @@ def test_columns_at_a_sections_first_paragraph_rewrite_its_settings_own(text: st
     assert added.element.find(f"{HP}colPr") is definitions[0]
     assert first.text == text
     path = tmp_path / "first-paragraph-columns.hwpx"
-    document.save_to_path(path)
+    document.save(path)
     reopened = HwpxDocument.open(path).paragraphs[0]
     assert reopened.text == text
     assert [definition.get("colCount") for definition in reopened.element.iter(f"{HP}colPr")] == ["2"]
@@ -229,7 +229,7 @@ def test_columns_survive_a_save_and_stay_open_safe(tmp_path: Path) -> None:
     document = _document_with_body()
     document.page.setup(columns=2, column_gap_mm=8)
     path = tmp_path / "columns.hwpx"
-    document.save_to_path(path)
+    document.save(path)
 
     assert validate_editor_open_safety(path).ok
     reopened = HwpxDocument.open(path)

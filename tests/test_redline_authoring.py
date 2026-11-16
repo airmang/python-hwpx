@@ -306,7 +306,7 @@ def test_tracked_insert_only_rewrites_header_and_edited_section(tmp_path: Path) 
     document = HwpxDocument.open(source)
     document.tracking.insert(document.paragraphs[0], " BYTE-ID", date=DATE)
     output = tmp_path / "edited.hwpx"
-    document.save_to_path(output)
+    document.save(output)
 
     edited_payloads = _zip_payloads(output)
     assert edited_payloads.keys() == original_payloads.keys()

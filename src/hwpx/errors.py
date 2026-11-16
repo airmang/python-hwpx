@@ -31,9 +31,7 @@ the structured fields with no raise-site churn (§11 — no bulk raise rewrites)
 
 from __future__ import annotations
 
-import functools
-import inspect
-from typing import Any, Callable, Mapping, TypeVar, cast
+from typing import Any, Callable, Mapping, TypeVar, overload
 
 
 class HwpxError(Exception):
@@ -68,14 +66,19 @@ class HwpxError(Exception):
 
 
 class SaveError(HwpxError, ValueError):
-    """A representative save path (``save_to_path`` / ``save_to_stream`` /
-    ``to_bytes``) failed closed before writing any output.
+    """A save (``doc.save`` / ``doc.to_bytes``) failed closed before writing any output.
 
     Subclasses :class:`ValueError` for backward compatibility: pre-4.0 callers
     caught ``ValueError`` from these paths and must keep working.
+
+    When the quality gate refused the archive (``code == "quality-gate-failed"``),
+    :attr:`report` is the :class:`~hwpx.quality.VisualCompleteReport` the gate
+    composed (its ``errors`` say why); otherwise it is ``None``.
     """
 
     default_code = "save-failed"
+    #: The gate's ``VisualCompleteReport`` on ``quality-gate-failed``; ``None`` otherwise.
+    report: Any = None
 
 
 class SaveTargetError(HwpxError, OSError):
@@ -122,6 +125,17 @@ class HwpxLookupError(HwpxError, KeyError):
         return self.message
 
 
+class HwpxIndexError(HwpxLookupError, IndexError):
+    """An index (table, cell, picture, paragraph, section) out of range, as a structured error.
+
+    It is a :class:`HwpxLookupError` (and so a ``KeyError``) and also an ``IndexError``, which
+    these failures raised before 7.0: an ``except IndexError`` keeps catching them. Until 7.0 it
+    lived in ``hwpx.oxml.utils``, which still exports the same class.
+    """
+
+    default_code = "hwpx-index-error"
+
+
 class HwpxStateError(HwpxError, RuntimeError):
     """The document is not in a state where the operation is meaningful."""
 
@@ -129,9 +143,12 @@ class HwpxStateError(HwpxError, RuntimeError):
 
 
 class HwpxAttributeError(HwpxError, AttributeError):
-    """A name the object no longer has: 7.0 removed the ``HwpxDocument`` root names
-    6.0 had moved into the namespaces (``doc.set_header_text`` →
-    ``doc.page.set_header(text=...)``). The message names where it went.
+    """A name the object no longer has: a 6.x name 7.0 renamed or removed — the
+    ``HwpxDocument`` root names 6.0 had moved into the namespaces
+    (``doc.set_header_text`` → ``doc.page.set_header(text=...)``), and the
+    namespace, model and value-type names 7.0 renamed (``doc.text.runs()`` →
+    ``doc.text.iter_runs()``). The message names where it went; the table is
+    :mod:`hwpx._removed_names`.
 
     It is an :class:`AttributeError`, so ``hasattr(doc, "set_header_text")`` is
     ``False`` and ``getattr(doc, name, None)`` gives ``None``.
@@ -168,44 +185,72 @@ def removed_argument_error(name: str, caller: str) -> HwpxTypeError:
     )
 
 
+def argument_type_error(
+    argument: str,
+    value: object,
+    expected: str,
+    *,
+    code: str = "hwpx-type-error",
+    suggestion: str | None = None,
+) -> HwpxTypeError:
+    """The error a public method raises when its *argument* got a *value* of the wrong type
+    (*expected* names the types it takes, e.g. ``"str"``), so a wrong type never leaves the
+    method as Python's bare ``TypeError``/``AttributeError`` from deep inside it."""
+
+    got = type(value).__name__
+    return HwpxTypeError(
+        f"{argument} must be {expected}, got {got}",
+        code=code,
+        context={"argument": argument, "expected": expected, "type": got},
+        suggestion=suggestion or f"Pass {argument} as {expected}.",
+    )
+
+
 _Func = TypeVar("_Func", bound=Callable[..., Any])
 
 
-def rejects_removed_arguments(func: _Func, *, caller: str | None = None) -> _Func:
-    """Make *func* answer a 7.0-removed keyword (:data:`REMOVED_ARGUMENTS`) with
-    :func:`removed_argument_error` instead of a bare ``TypeError``.
+@overload
+def rejects_removed_arguments(func: _Func, *, caller: str | None = None) -> _Func: ...
 
-    The one shared guard for every method that took ``section_index=`` or
-    ``style_id_ref=`` before 7.0 — the namespaces apply it to their methods by
-    themselves (``_Namespace.__init_subclass__``). A name *func* still takes as
-    a parameter of its own (``add_dutmal(style_id_ref=)``, the 덧말's own style)
-    is left alone. ``inspect.signature`` still reports *func*'s signature.
-    *caller* names the method in the message (default: ``doc.<name>`` for an
-    ``HwpxDocument`` method, else the qualified name).
+
+@overload
+def rejects_removed_arguments(
+    func: None = None, *, caller: str | None = None
+) -> Callable[[_Func], _Func]: ...
+
+
+def rejects_removed_arguments(
+    func: _Func | None = None, *, caller: str | None = None
+) -> _Func | Callable[[_Func], _Func]:
+    """Make *func* answer a 7.0-removed or renamed argument with a
+    :class:`HwpxTypeError` (``hwpx-argument-removed``) that names the new one,
+    instead of a bare ``TypeError`` — or, on a method that used to take
+    ``**extra_attrs``, a stray XML attribute written into the document.
+
+    It looks at :data:`REMOVED_ARGUMENTS` (``section_index=``, ``style_id_ref=``)
+    and at the row for *caller* in :data:`hwpx._removed_names.ARGUMENTS` (a
+    method's own old keywords, positional arguments that became keyword-only,
+    removed XML-attribute keywords). A name *func* still takes as a parameter of
+    its own (``add_dutmal(style_id_ref=)``, the 덧말's own style) is left alone,
+    and with nothing to answer *func* comes back unchanged. ``inspect.signature``
+    still reports *func*'s signature. The namespaces apply the same guard to
+    their methods by themselves (``_Namespace.__init_subclass__``), and so does
+    :func:`hwpx._removed_names.install` for the model classes.
+
+    *caller* names the method in the message and picks the row (default:
+    ``doc.<name>`` for an ``HwpxDocument`` method, ``Paragraph.<name>`` for a
+    model method). A module function passes it:
+    ``@rejects_removed_arguments(caller="hwpx.equation.estimate_equation_size")``.
     """
 
-    try:
-        parameters = inspect.signature(func).parameters
-    except (TypeError, ValueError):  # pragma: no cover - builtins
-        return func
-    removed = tuple(name for name in REMOVED_ARGUMENTS if name not in parameters)
-    if not removed:
-        return func
-    if caller is None:
-        caller = func.__qualname__
-        if caller.startswith("HwpxDocument."):
-            caller = "doc." + caller[len("HwpxDocument."):]
-    name_in_message = caller
+    from ._removed_names import caller_name, guard_arguments
 
-    @functools.wraps(func)
-    def guarded(*args: Any, **kwargs: Any) -> Any:
-        if kwargs:
-            for name in removed:
-                if name in kwargs:
-                    raise removed_argument_error(name, name_in_message)
-        return func(*args, **kwargs)
+    def decorate(target: _Func) -> _Func:
+        return guard_arguments(target, caller or caller_name(target), removed_everywhere=True)
 
-    return cast(_Func, guarded)
+    if func is None:
+        return decorate
+    return decorate(func)
 
 
 # Hwp5Error and Hwp5ConversionWarning live here rather than in hwpx.hwp5.errors
@@ -255,6 +300,7 @@ class ReplaceScopeWarning(UserWarning):
 #: :mod:`hwpx._document.persistence` wraps a quality failure as ``quality-gate-failed``.
 ERROR_CODE_DOMAINS = frozenset(
     {
+        "body",
         "capability",
         "cell",
         "contract",
@@ -291,19 +337,18 @@ ERROR_CODE_DOMAINS = frozenset(
 )
 
 
-#: 5.x 에 이미 나간 코드 중 ``<도메인>-<조건>`` 문법에 맞지 않는 것들.
+#: ``<도메인>-<조건>`` 문법에 맞지 않지만 이미 나가서 그대로 둔 코드들. 7.0 에서 비었다.
 #:
-#: 이름이 "무엇이"가 아니라 "무슨 일이"로 시작해서 도메인이 성립하지 않는다
-#: (``unknown-contract-document`` 의 도메인은 ``unknown`` 이 아니라
-#: ``contract`` 이어야 했다). 그런데 이 코드들은 5.6.0 에 발행됐고, 계약상
-#: 코드는 호출자가 분기하는 값이다. 문법을 지키자고 **이미 나간 값을 바꾸는
-#: 것**보다 유예 목록을 명시하는 쪽이 정직하다. 7.0 에서 정리한다.
-GRANDFATHERED_CODES = frozenset(
-    {
-        "unknown-contract-document",
-        "unknown-contract-schema",
-    }
-)
+#: 5.6.0 이 낸 두 코드는 "무엇이"가 아니라 "무슨 일이"로 시작해 도메인이 성립하지
+#: 않았다. 코드는 호출자가 분기하는 값이라 major 경계에서만 바꾸므로 그때까지 여기에
+#: 유예해 두었고, 7.0 에서 문법대로 바꿨다(:data:`RENAMED_CODES`). 유예는 다시 늘지 않는다.
+GRANDFATHERED_CODES: frozenset[str] = frozenset()
+
+#: 7.0 에서 바뀐 코드: 옛 코드 → 새 코드. 옛 코드로 분기하던 호출자가 고칠 곳을 찾게 남긴다.
+RENAMED_CODES: dict[str, str] = {
+    "unknown-contract-document": "contract-document-unknown",
+    "unknown-contract-schema": "contract-schema-unknown",
+}
 
 #: The public-path code vocabulary: ``code`` → one-line meaning.
 #:
@@ -323,11 +368,11 @@ ERROR_CODES: dict[str, str] = {
     "hwpx-lookup-error": "이름·인덱스로 지목한 것이 없다(분류되지 않음).",
     "hwpx-state-error": "문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음).",
     "hwpx-attribute-error": "그런 이름의 속성·메서드가 없다(분류되지 않음, AttributeError 계열이기도 하다).",
-    "hwpx-argument-removed": "7.0에서 없어진 인자(section_index=, style_id_ref=)를 주었다(대신 쓸 인자는 suggestion).",
+    "hwpx-argument-removed": "7.0에서 없어지거나 바뀐 인자(section_index=·style_id_ref=, 메서드마다 이름이 바뀐 키워드, 키워드 전용이 된 위치 인자, 없어진 XML 속성 키워드)를 주었다(새 인자는 context.replacement, 안내는 suggestion).",
     # -- 계약 문서·스키마 ------------------------------------------------
     "contract-document-missing": "동봉돼야 할 계약 문서가 휠에 없다.",
-    "unknown-contract-document": "그런 이름의 계약 문서가 없다.",
-    "unknown-contract-schema": "그런 이름의 계약 스키마가 없다.",
+    "contract-document-unknown": "그런 이름의 계약 문서가 없다(6.x 의 unknown-contract-document).",
+    "contract-schema-unknown": "그런 이름의 계약 스키마가 없다(6.x 의 unknown-contract-schema).",
     # -- 문서·섹션·문단 --------------------------------------------------
     "document-header-missing": "문서에 header.xml 파트가 없다.",
     "document-settings-root-invalid": "settings.xml 루트가 ha:HWPApplicationSetting이 아니다.",
@@ -335,7 +380,7 @@ ERROR_CODES: dict[str, str] = {
     "document-history-root-invalid": "history.xml 루트가 history 가 아니다.",
     "document-master-page-root-invalid": "바탕쪽 파트 루트가 masterPage 가 아니다.",
     "document-version-root-invalid": "version.xml 루트가 HCFVersion 이 아니다.",
-    "document-name-removed": "7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement).",
+    "document-name-removed": "7.0에서 없어지거나 바뀐 6.x 이름(루트 HwpxDocument·묶음·모델·값 형식·모듈의 이름)을 불렀다(새 자리는 context.replacement).",
     "document-name-moved": "7.0에서 python-hwpx-automation으로 옮긴 문서 메서드(doc.text.markdown 등 묶음 메서드 8개, export_markdown 등 루트 옛 이름 5개)를 불렀다(새 자리는 context.replacement, 설치는 context.install).",
     "document-seed-invalid": "new()/open() 의 seed 가 정수가 아니다.",
     "document-clock-invalid": "new()/open() 의 now 가 datetime 이 아니다.",
@@ -375,13 +420,19 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-range-invalid": "글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다.",
     "paragraph-split-inside-element": "나눌 위치가 hp:t 안의 나눌 수 없는 요소(글자를 가진 요소) 한가운데다.",
     "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
+    "paragraph-move-into-itself": "문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다.",
+    "paragraph-move-place-unsupported": "메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다).",
     # -- 표 셀 -----------------------------------------------------------
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
     "table-margin-value": "표 바깥·안 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    # 7.0 이름 정리: 7.0에서 처음 생긴 두 code 를 새 이름(vertical_alignment·page_split)을 따라
+    # 바꾼다. 옛 code 둘은 그 이름(vert_align·page_break)을 바꾸는 단계가 쓰는 곳과 함께 지운다.
     "table-cell-vert-align-value": "칸 세로 정렬(vert_align)이 TOP·CENTER·BOTTOM 중 하나가 아니다.",
+    "table-cell-vertical-alignment-value": "칸 세로 정렬(vertical_alignment)이 TOP·CENTER·BOTTOM 중 하나가 아니다.",
     "table-alignment-value": "표 가로 정렬(alignment)이 LEFT·CENTER·RIGHT 중 하나가 아니거나 문서 머리 정보가 없다.",
     "table-page-break-value": "표의 쪽 나눔(page_break)이 TABLE·CELL·NONE 중 하나가 아니다.",
+    "table-page-split-value": "표가 쪽 경계에서 나뉘는 방식(page_split)이 TABLE·CELL·NONE 중 하나가 아니다.",
     "table-header-rows-value": "제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다.",
     "table-no-adjust-value": "noAdjust 값이 bool 이 아니다.",
     "table-border-value": "칸 테두리의 면·선 종류·굵기·색 지정이 잘못됐거나 문서 머리 정보가 없다.",
@@ -521,13 +572,15 @@ ERROR_CODES: dict[str, str] = {
     "shape-caption-gap-value": "캡션 간격(gap)이 -32768 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "shape-draw-text-vert-align": "도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다.",
     "shape-original-size-invalid": "add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다.",
-    "shape-size-value": "도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    "shape-size-value": "도형·그림·수식·차트 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). 수식·차트의 size 는 (너비, 높이) 쌍이어야 하고 0일 수 없다.",
+    "shape-chart-reference-empty": "paragraph.add_chart 의 chart_id_ref(차트 파트 경로)가 비어 있다.",
     "shape-picture-image-value": "그림의 밝기·대비(-100~100)·투명도(alpha, 0~255)가 범위 밖의 int 이거나(bool 도 거부) 효과가 REAL_PIC/GRAY_SCALE/BLACK_WHITE 밖이다.",
     "shape-picture-effect-value": "그림 그림자·빛남 값이 범위 밖이다(투명도 0~1, 그림자 방향 0~359도 int, 흐림·거리·반경·부드러운 가장자리 0 이상 int, 색 #RRGGBB, 반사 크기 0 초과 1 이하, shadow/glow/reflection 은 PictureShadow/PictureGlow/PictureReflection).",
     "shape-picture-crop-value": "그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다.",
     "shape-picture-border-value": "그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "shape-rect-ratio-value": "사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부).",
     "shape-equation-base-unit-value": "수식 기준 크기(base_unit)가 1 이상 2**31 미만의 int(1/100 pt)가 아니다(bool 도 거부).",
+    "shape-equation-font-empty": "수식 글꼴(font)이 비어 있거나 문자열이 아니다.",
     "shape-position-value": "도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다.",
     "shape-position-unsupported": "위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다.",
     "shape-position-frame": "도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다.",
@@ -550,6 +603,9 @@ ERROR_CODES: dict[str, str] = {
     "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
     "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 묶음·뒤집은 개체·글자가 든 도형이다.",
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
+    "shape-not-in-document": "옮기거나 복사할 개체가 문단에 없다(지운 개체).",
+    "shape-move-into-itself": "개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다).",
+    "shape-move-place-unsupported": "한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(표 칸·글상자·각주로는 문단 기준(vertRelTo=PARA)이고 쪽 영역 안(flowWithText=1)이거나 가로도 문단 기준(horzRelTo=PARA)인 떠 있는 개체만, 쪽 기준 개체를 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement·vertRelTo·horzRelTo·flowWithText).",
     "shape-out-margin-value": "개체 바깥 여백(out_margins)이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "shape-equation-font-empty": "수식 글꼴 이름이 비어 있거나 str 이 아니다.",
     # -- 미디어 ----------------------------------------------------------
@@ -563,6 +619,8 @@ ERROR_CODES: dict[str, str] = {
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",
     "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
+    "note-memo-anchor-elsewhere": "메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모).",
+    "note-memo-index-value": "메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다.",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",
@@ -588,6 +646,7 @@ ERROR_CODES: dict[str, str] = {
     "save-package-contract-violated": "package.save(None) 이 bytes 를 돌려주지 않았다.",
     "save-format-unsupported": "저장 형식(format)이 'hwpx'도 'hwp'도 아니다.",
     "save-mode-invalid": "저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다.",
+    "save-target-invalid-type": "doc.save 에 경로도 쓰기 가능한 이진 스트림도 아닌 것을 주었다.",
     "save-target-denied": "저장할 파일에 쓸 권한이 없다(읽기 전용이거나 다른 프로그램이 열고 있다).",
     "save-target-folder-missing": "저장할 경로의 상위 폴더가 없다.",
     "save-target-is-folder": "저장할 경로가 폴더다.",
@@ -602,7 +661,7 @@ ERROR_CODES: dict[str, str] = {
     "open-encrypted": "암호가 걸린 HWPX 다(HwpxXmlSyntaxError, lxml 의 숫자 코드는 lxml_code 에).",
     "open-hwp5-not-package": "HwpxPackage.open 에 HWP 5.0(.hwp) 파일을 주었다(HwpxDocument.open 으로 연다).",
     "open-hwp3-unsupported": "HWP 3.x 이하 .hwp 문서다(열지 못한다).",
-    "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에).",
+    "quality-gate-failed": "품질 게이트가 저장을 막았다(quality 코드는 context 에, 게이트의 VisualCompleteReport 는 SaveError.report).",
     "preservation-downgrade": "요청한 보존 등급을 저장이 달성하지 못했다.",
     # -- HWP 5.0 (.hwp) ------------------------------------------------
     "hwp5-damaged": "HWP 5.0 문서의 컨테이너나 레코드가 깨졌다(잘림·범위 밖 섹터·순환·레코드 길이·압축).",
@@ -625,18 +684,23 @@ ERROR_CODES: dict[str, str] = {
     "toc-word-box-extractor-required": "PDF에서 글자 상자를 읽을 방법 없이 차례 쪽 대조를 불렀다.",
     # -- 계획 실행기 -----------------------------------------------------
     "plan-invalid": "편집 계획이 v1 계약을 위반한다.",
+    # -- 본문 바이트 보존 op(hwpx.body_patch) -----------------------------
+    "body-op-section-settings": "본문 op 가 구역 설정(hp:secPr)을 담은 문단을 지우거나 복제하거나 자리를 옮기려 했다(구역마다 하나, 첫 문단에 있어야 한다).",
+    "body-op-nested-paragraph": "본문 op 가 다른 문단(글상자·각주 등)을 품은 문단의 글을 바꾸려 했다(안쪽 글이 지워진다).",
 }
 
 
 __all__ = [
     "ERROR_CODES",
     "GRANDFATHERED_CODES",
+    "RENAMED_CODES",
     "ERROR_CODE_DOMAINS",
     "Hwp5ConversionWarning",
     "ReplaceScopeWarning",
     "Hwp5Error",
     "HwpxAttributeError",
     "HwpxError",
+    "HwpxIndexError",
     "HwpxLookupError",
     "HwpxStateError",
     "HwpxTypeError",

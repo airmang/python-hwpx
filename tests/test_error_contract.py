@@ -25,6 +25,7 @@ from hwpx.errors import (
     ERROR_CODE_DOMAINS,
     ERROR_CODES,
     GRANDFATHERED_CODES,
+    RENAMED_CODES,
     HwpxError,
     HwpxLookupError,
     HwpxStateError,
@@ -125,16 +126,50 @@ def test_the_ratchet_can_actually_fail(tmp_path: pathlib.Path) -> None:
 @pytest.mark.parametrize("code", sorted(ERROR_CODES))
 def test_every_registered_code_matches_the_format(code: str) -> None:
     assert CODE_PATTERN.match(code), f"{code} 는 <도메인>-<조건> 이 아니다"
-    if code in GRANDFATHERED_CODES:
-        pytest.skip("5.x 에 이미 나간 코드 — 7.0 에서 정리(errors.GRANDFATHERED_CODES)")
     assert code.split("-", 1)[0] in ERROR_CODE_DOMAINS, f"{code} 의 도메인이 미등록"
 
 
-def test_the_grandfathered_list_only_shrinks() -> None:
-    """유예는 부채다 — 늘 수 없다."""
+def test_no_code_is_grandfathered_after_7_0() -> None:
+    """유예는 부채였다 — 7.0 에서 비웠고 다시 늘지 않는다."""
 
-    assert len(GRANDFATHERED_CODES) <= 2
-    assert GRANDFATHERED_CODES <= set(ERROR_CODES)
+    assert GRANDFATHERED_CODES == frozenset()
+
+
+def test_codes_renamed_in_7_0_point_at_registered_codes() -> None:
+    for old, new in RENAMED_CODES.items():
+        assert old not in ERROR_CODES, f"{old} 는 7.0 에서 {new} 로 바뀌었다"
+        assert new in ERROR_CODES
+    assert "contract-document-unknown" in ERROR_CODES
+
+
+def test_unknown_contract_names_raise_the_7_0_codes() -> None:
+    from hwpx.capabilities import contract_document, contract_json_schema
+
+    with pytest.raises(HwpxError) as document:
+        contract_document("no-such-doc")
+    with pytest.raises(HwpxError) as schema:
+        contract_json_schema("no-such-schema")
+    assert (document.value.code, schema.value.code) == ("contract-document-unknown", "contract-schema-unknown")
+
+
+def test_index_error_lives_in_errors_and_keeps_its_old_import_path() -> None:
+    from hwpx.errors import HwpxIndexError
+    from hwpx.oxml.utils import HwpxIndexError as old_path
+
+    assert old_path is HwpxIndexError
+    assert HwpxIndexError.__module__ == "hwpx.errors"
+    assert issubclass(HwpxIndexError, (HwpxLookupError, IndexError))
+    with pytest.raises(HwpxIndexError) as caught:
+        HwpxDocument.new().tables[3]
+    assert caught.value.code == "table-not-found"
+
+
+def test_census_counts_the_typed_error_factories() -> None:
+    """``raise argument_type_error(...)`` is a typed raise with a code, not an untyped one."""
+
+    census = json.loads(CENSUS.read_text(encoding="utf-8"))
+    assert "hwpx-type-error" in census["codes"]
+    assert any("_document/" in site for site in census["codes"]["hwpx-type-error"])
 
 
 def test_every_raised_code_is_registered() -> None:

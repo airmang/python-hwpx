@@ -34,7 +34,7 @@ def base_doc(tmp_path_factory: pytest.TempPathFactory) -> Path:
     doc.add_paragraph("원본 첫 문단입니다.")
     doc.add_paragraph("두 번째 문단은 그대로 둡니다.")
     doc.add_table(2, 2)
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
     return path
 

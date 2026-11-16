@@ -155,7 +155,7 @@ def gen_path_field(bucket_dir: Path) -> list[dict[str, Any]]:
                 paragraph = document.add_paragraph("파일명 ", include_run=True)
                 paragraph.add_path_field(cached_text)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-path-field", seed=cached_text,
                 output_path=out_path, produced=True,

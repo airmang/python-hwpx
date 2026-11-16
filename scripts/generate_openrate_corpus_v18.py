@@ -168,7 +168,7 @@ def gen_date_field(bucket_dir: Path) -> list[dict[str, Any]]:
                 paragraph = document.add_paragraph("작성일 ", include_run=True)
                 paragraph.add_date_field(cached_text)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-date-field", seed=cached_text,
                 output_path=out_path, produced=True,
@@ -225,7 +225,7 @@ def gen_proofreading_marks(bucket_dir: Path) -> list[dict[str, Any]]:
                 paragraph.add_proofreading_mark("space")
                 paragraph.add_run("입니다.")
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-proofreading-marks", seed=str(idx),
                 output_path=out_path, produced=True,

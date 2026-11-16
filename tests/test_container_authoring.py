@@ -239,7 +239,7 @@ def test_container_round_trips_through_save_and_reopen(tmp_path) -> None:
         section=0,
     )
     path = tmp_path / "container.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)
@@ -337,7 +337,7 @@ def test_authored_container_passes_open_safety(tmp_path) -> None:
     )
     assert _missing_shape_children(shape.element) == []
     path = tmp_path / "safe.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     report = validate_editor_open_safety(path).to_dict()

@@ -108,6 +108,6 @@ def test_a_document_saved_after_the_new_calls_reopens_valid(tmp_path: Path) -> N
     document.add_paragraph("본문", section=0, style="개요 1")
     document.sections[0].add_paragraph("모델", style=0)
     target = tmp_path / "removed_7_0.hwpx"
-    document.save_to_path(target)
+    document.save(target)
     with HwpxDocument.open(target) as reopened:
         assert reopened.validate().ok

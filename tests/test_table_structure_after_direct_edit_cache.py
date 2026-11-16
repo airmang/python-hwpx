@@ -70,7 +70,7 @@ def test_a_directly_edited_cell_loses_its_old_cache(document: str, operation: st
     OPERATIONS[name](doc.tables[0])
 
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     again = HwpxDocument.open(buffer.getvalue())
     holders = [
         paragraph

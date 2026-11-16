@@ -11,13 +11,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from ...model import Picture
+from ...objects import BinaryItem, PictureRef, PictureReplacement
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...model import Picture
-    from ...objects import BinaryItem, PictureRef, PictureReplacement
 
 __all__ = ["MediaNamespace"]
 

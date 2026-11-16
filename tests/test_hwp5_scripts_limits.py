@@ -32,7 +32,7 @@ def test_a_script_stream_beyond_the_inflate_limit_is_refused(monkeypatch: pytest
 
 def test_opening_a_document_with_an_oversized_script_stream_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     buffer = io.BytesIO()
-    HwpxDocument.new().save_to_stream(buffer, format="hwp")
+    HwpxDocument.new().save(buffer, format="hwp")
     streams = [
         (name, data)
         for name, data in cfb.read_all_streams(cfb.CompoundFile(buffer.getvalue()))
