@@ -42,7 +42,9 @@ if TYPE_CHECKING:
     from typing import Union
 
     from ..objects.binary_item import BinaryItem
-    from ..objects.results import Alignment
+    from typing import Iterable, Iterator
+
+    from ..objects.results import Alignment, ParagraphPlace
     from .header import Style
     from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
@@ -1767,6 +1769,16 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
         """Text drawn inside this shape (a text box), or ``None`` if none."""
 
         return _read_draw_text(self.element, self.paragraph.section)
+
+    def iter_paragraphs(self, *, where: "Iterable[str] | str | None" = None) -> "Iterator[ParagraphPlace]":
+        """Every paragraph inside this shape, in document order, with where it sits: its text box's
+        (``"text_box"``), its caption's (``"caption"``), those of a group's members and of tables
+        inside (``"cell"``), at any depth. *where* and the :class:`~hwpx.objects.ParagraphPlace`
+        values are those of ``doc.text.iter_paragraphs()``."""
+
+        from .._document.text_blocks import object_paragraph_places
+
+        return object_paragraph_places(self, where)
 
     def set_draw_text(
         self,

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import copy
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 from ..errors import HwpxValueError
 from ..objects.results import BorderFillInfo, BorderLine, FontReplaceReport
@@ -191,9 +191,23 @@ def border_fill_info(
         face_color = brush.get("faceColor")
         if face_color is not None and face_color.lower() != "none":
             fill = face_color
+    kinds: list[str] = []
+    for brush_box in border_fill:
+        if _local_name(brush_box) == "fillBrush":
+            kinds.extend(_FILL_KINDS.get(_local_name(child), "unknown") for child in brush_box if _local_name(child))
     return BorderFillInfo(
-        id=fill_id, left=left, right=right, top=top, bottom=bottom, diagonal=diagonal, fill=fill
+        id=fill_id, left=left, right=right, top=top, bottom=bottom, diagonal=diagonal, fill=fill,
+        fill_kinds=tuple(kinds),
     )
+
+
+#: ``BorderFillInfo.fill_kinds`` by the local name of a ``hc:fillBrush`` child.
+_FILL_KINDS = {"winBrush": "color", "gradation": "gradation", "imgBrush": "image"}
+
+
+def _local_name(node: Any) -> str:
+    tag = getattr(node, "tag", None)
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
 
 
 def replace_font(

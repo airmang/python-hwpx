@@ -19,6 +19,7 @@ from ._document_primitives import (
     _element_local_name,
     _is_tab_control_element,
     _require_text,
+    _TEXT_INLINE_ATOMS,
     _text_element_content,
 )
 from ._paragraph_text_edit import (
@@ -30,7 +31,7 @@ from ._paragraph_text_edit import (
 )
 
 if TYPE_CHECKING:
-    from ..objects.results import LanguageFonts
+    from ..objects.results import InlineItem, LanguageFonts
     from .paragraph import HwpxOxmlParagraph
 
 
@@ -107,6 +108,183 @@ _RUN_CHILD_KINDS: dict[str, str] = {
     "ctrl": "control",
     "secPr": "section_properties",
 }
+
+
+#: ``InlineItem.kind`` of the glyphs and marks written inside ``hp:t`` (also taken when a
+#: writer puts them right in the run).
+_TEXT_PIECE_KINDS: dict[str, str] = {
+    "tab": "tab",
+    "lineBreak": "line_break",
+    "nbSpace": "nb_space",
+    "fwSpace": "fw_space",
+    "hyphen": "hyphen",
+    "markpenBegin": "markpen_begin",
+    "markpenEnd": "markpen_end",
+    "titleMark": "title_mark",
+    "insertBegin": "insert_begin",
+    "insertEnd": "insert_end",
+    "deleteBegin": "delete_begin",
+    "deleteEnd": "delete_end",
+}
+#: ``InlineItem.kind`` of the controls of ``hp:ctrl``.
+_CONTROL_PIECE_KINDS: dict[str, str] = {
+    "fieldBegin": "field_begin",
+    "fieldEnd": "field_end",
+    "footNote": "footnote",
+    "endNote": "endnote",
+    "bookmark": "bookmark",
+    "autoNum": "auto_number",
+    "pageNum": "page_number",
+    "pageNumCtrl": "page_number_ctrl",
+    "newNum": "number_restart",
+    "pageHiding": "page_hiding",
+    "colPr": "column_definition",
+    "header": "header",
+    "footer": "footer",
+    "indexmark": "index_mark",
+    "hiddenComment": "hidden_comment",
+}
+#: ``InlineItem.kind`` of the other run children (objects as ``doc.text.iter_objects()`` names them).
+_RUN_PIECE_KINDS: dict[str, str] = {
+    "tbl": "table",
+    "pic": "picture",
+    "equation": "equation",
+    "ole": "ole",
+    "chart": "chart",
+    "video": "video",
+    "textart": "textart",
+    **{name: "shape" for name in ("line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "container")},
+    **{name: "form" for name in ("btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar")},
+    "dutmal": "ruby",
+    "compose": "composed_character",
+    "secPr": "section_properties",
+    "switch": "switch",
+    **_TEXT_PIECE_KINDS,
+}
+_OBJECT_PIECE_KINDS = frozenset({"table", "picture", "equation", "ole", "chart", "video", "textart", "shape", "form"})
+
+
+def _piece_object(kind: str, element: Any, run: "HwpxOxmlRun") -> Any:
+    """The model object a piece of *run* stands for, ``None`` when it has none."""
+
+    paragraph = run.paragraph
+    if kind in _OBJECT_PIECE_KINDS:
+        from .objects import wrap_object
+
+        return wrap_object(element, paragraph)
+    if kind in ("footnote", "endnote"):
+        from .memo import HwpxOxmlNote
+
+        return HwpxOxmlNote(element, paragraph)
+    if kind == "field_begin":
+        if element.get("type") == "HYPERLINK":
+            from ..objects.form_field import Hyperlink
+
+            return Hyperlink(element, paragraph)
+        if element.get("type") == "MEMO" and element.find(f"{_HP}subList") is not None:
+            from .memo import HwpxOxmlFieldMemo
+
+            return HwpxOxmlFieldMemo(element, paragraph.section)
+        return None
+    if kind in ("ruby", "composed_character"):
+        from ..objects.highlight import ComposedCharacter, Ruby
+
+        return (Ruby if kind == "ruby" else ComposedCharacter)(element, paragraph)
+    if kind in ("auto_number", "page_number", "number_restart", "page_hiding"):
+        from .._document.ns import page as _page
+
+        build = {
+            "auto_number": _page.auto_number,
+            "page_number": _page.page_number_control,
+            "number_restart": _page.number_restart,
+            "page_hiding": _page.page_hiding,
+        }[kind]
+        return build(element, paragraph)
+    if kind == "column_definition":
+        from .._document.ns.page import _column_definition
+        from .section import HwpxOxmlSection
+
+        section = paragraph.section
+        return _column_definition(element, paragraph, section) if isinstance(section, HwpxOxmlSection) else None
+    return None
+
+
+#: Local names by tag, so reading a run's pieces does not split the same tags over and over.
+_LOCAL_NAMES: dict[str, str] = {}
+
+
+def _local_name(node: Any) -> str:
+    tag = node.tag
+    if not isinstance(tag, str):
+        return ""  # a comment or processing instruction
+    name = _LOCAL_NAMES.get(tag)
+    if name is None:
+        name = _LOCAL_NAMES[tag] = _element_local_name(node)
+    return name
+
+
+def _piece(kind: str, element: Any, container: str, run: "HwpxOxmlRun", text: str = "") -> "InlineItem":
+    from ..objects.results import InlineItem
+
+    return InlineItem(
+        kind=kind,
+        name=_local_name(element),
+        container=container,
+        text=text,
+        attributes=tuple((str(key), str(value)) for key, value in element.attrib.items()),
+        object=_piece_object(kind, element, run),
+        element=element,
+    )
+
+
+def _text_pieces(node: Any, run: "HwpxOxmlRun", pieces: "list[InlineItem]", item: Any) -> None:
+    """The pieces of the ``hp:t`` *node*: its characters, and the glyphs and marks between them.
+
+    A comment or processing instruction inside ``hp:t`` holds no text of its own: the characters on
+    either side of it are one stretch of text.
+    """
+
+    stretch: list[str] = [node.text] if node.text else []
+    for child in node:
+        name = _local_name(child)
+        if name:
+            if stretch:
+                pieces.append(item(kind="text", name="", container="t", text="".join(stretch)))
+                stretch = []
+            kind = _TEXT_PIECE_KINDS.get(name, "unknown")
+            if name in _TEXT_INLINE_ATOMS:
+                text = _TEXT_INLINE_ATOMS[name]
+            elif kind == "unknown":
+                text = "".join(child.itertext())
+            else:
+                text = ""
+            pieces.append(_piece(kind, child, "t", run, text))
+        if child.tail:
+            stretch.append(child.tail)
+    if stretch:
+        pieces.append(item(kind="text", name="", container="t", text="".join(stretch)))
+
+
+def run_content(run: "HwpxOxmlRun") -> "tuple[InlineItem, ...]":
+    """The pieces of *run* in file order (:attr:`HwpxOxmlRun.content`)."""
+
+    from ..objects.results import InlineItem
+
+    pieces: list[InlineItem] = []
+    for child in run.element:
+        name = _local_name(child)
+        if not name:
+            continue  # a comment or processing instruction
+        if name == "t":
+            _text_pieces(child, run, pieces, InlineItem)
+        elif name == "ctrl":
+            for control in child:
+                control_name = _local_name(control)
+                if control_name:
+                    pieces.append(_piece(_CONTROL_PIECE_KINDS.get(control_name, "unknown"), control, "ctrl", run))
+        else:
+            pieces.append(_piece(_RUN_PIECE_KINDS.get(name, "unknown"), child, "run", run, _TEXT_INLINE_ATOMS.get(name, "")))
+    return tuple(pieces)
 
 
 def _text_element_holds_text(node: ET.Element) -> bool:
@@ -839,6 +1017,22 @@ class HwpxOxmlRun(SameElement):
                 continue
             kinds.add(_RUN_CHILD_KINDS.get(name, "other"))
         return frozenset(kinds)
+
+    @property
+    def content(self) -> "tuple[InlineItem, ...]":
+        """Everything this run holds, piece by piece, in the order the file writes it.
+
+        Each piece is an :class:`hwpx.objects.InlineItem`: the characters of an ``hp:t`` and
+        the glyphs between them (tab, line break, 묶음 빈칸, 고정폭 빈칸, hyphen), the marks
+        written there (형광펜, 차례 표시, 변경 추적), each control of an ``hp:ctrl`` (field
+        begin and end, note, bookmark, auto number, ...) and each object, 덧말 or 글자 겹치기
+        of the run. Nothing is interpreted or dropped: an element this reading does not know
+        comes as ``kind="unknown"`` with its ``name``. The ``text`` of the pieces written in
+        ``hp:t``, joined, is :attr:`text`. The document's tree is read where it is; nothing is
+        copied or parsed again, and the document is not changed.
+        """
+
+        return run_content(self)
 
     def remove(self) -> None:
         """Remove this run from its paragraph.

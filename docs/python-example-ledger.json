@@ -13,15 +13,15 @@
     "docs/safe-write-contract.md",
     "docs/golden-api.md"
   ],
-  "fenceCount": 123,
-  "sourceSha256": "edc3e9cf170154b4de70a1eec536c1a122135cdcc4172f5b5258b3b9dcaa94d6",
+  "fenceCount": 125,
+  "sourceSha256": "83a07d589b8b530a2b5c7eef0bb24e5865b617cb358cde951c214f17c7e9ecd1",
   "manualSha256": {
     "README.md": "e30eeb70aa61e005b79715a239aa4770ed826b34fae11ad0d5669c558fc2bbb7",
     "README_EN.md": "de664b9e35f1047cd4f7bcc5ef9b2939af5f7f7c7aed8fe804ac2f635663c8cd",
     "docs/quickstart.md": "ac10c58577cf9e479237aa5d7e448ebdbe8ca70c3ae3c2be8f3acf5774a67af5",
     "docs/recipes-traversal.md": "6a15a67e070085e292b6d8fc9638e00cfdf1c8b4137dee91939c1f7052233796",
     "docs/mutation-semantics.md": "90b9d0bc18e7816425b653919f45b0084a5eafb1a5120304554b9ab3efd332f6",
-    "docs/usage.md": "6b43cc59d865df023de28d05d7b411259ece1ee435eaf4c0a2530fa9400209ae",
+    "docs/usage.md": "5b3fe439c29721e3f581782cb83f83e5da115a86069ba771585b58fa9c40b95a",
     "docs/examples.md": "bb6e8d31731ee9507aa060b50d75b794847ad8451c524e87d9f799ac87622f1f",
     "docs/faq.md": "f0e4d539d2b9f97e977a1a5a01274a2c6b1668103e89c8ba2f92dba5ef4df040",
     "docs/index.md": "44cedc83e77ce49abb62b6a3db0f6ad3bd71d16b1dd3fd5f7054c197a980c70b",
@@ -105,8 +105,8 @@
         "docs/usage.md#68",
         "docs/usage.md#69",
         "docs/usage.md#70",
-        "docs/usage.md#81",
-        "docs/usage.md#88",
+        "docs/usage.md#83",
+        "docs/usage.md#90",
         "docs/examples.md#1",
         "docs/examples.md#6",
         "docs/golden-api.md#1"
@@ -128,8 +128,8 @@
         "docs/usage.md#9",
         "docs/usage.md#72",
         "docs/usage.md#74",
-        "docs/usage.md#84",
-        "docs/usage.md#85",
+        "docs/usage.md#86",
+        "docs/usage.md#87",
         "docs/examples.md#2",
         "docs/examples.md#3",
         "docs/examples.md#4",
@@ -159,10 +159,12 @@
         "docs/usage.md#78",
         "docs/usage.md#79",
         "docs/usage.md#80",
+        "docs/usage.md#81",
         "docs/usage.md#82",
-        "docs/usage.md#83",
-        "docs/usage.md#86",
-        "docs/usage.md#87",
+        "docs/usage.md#84",
+        "docs/usage.md#85",
+        "docs/usage.md#88",
+        "docs/usage.md#89",
         "docs/faq.md#2",
         "docs/faq.md#4",
         "docs/faq.md#5",
@@ -209,21 +211,29 @@
           "section"
         ],
         "docs/usage.md#79": [
-          "document"
+          "document",
+          "section"
         ],
         "docs/usage.md#80": [
           "document"
         ],
+        "docs/usage.md#81": [
+          "document"
+        ],
         "docs/usage.md#82": [
+          "document",
+          "paragraph"
+        ],
+        "docs/usage.md#84": [
           "document"
         ],
-        "docs/usage.md#83": [
+        "docs/usage.md#85": [
           "document"
         ],
-        "docs/usage.md#86": [
+        "docs/usage.md#88": [
           "finder"
         ],
-        "docs/usage.md#87": [
+        "docs/usage.md#89": [
           "document"
         ],
         "docs/faq.md#2": [

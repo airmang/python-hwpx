@@ -288,6 +288,7 @@ def test_border_fill_info_reads_sides_raw_and_fill() -> None:
         bottom=BorderLine("NONE", 0.0, "#000000"),
         diagonal=BorderLine("SOLID", 0.1, "#000000"),
         fill="#DDEBF7",
+        fill_kinds=("color",),
     )
     assert doc.styles.border_fill("7") == info
     assert info.to_dict() == {
@@ -298,6 +299,7 @@ def test_border_fill_info_reads_sides_raw_and_fill() -> None:
         "bottom": {"type": "NONE", "widthMm": 0.0, "color": "#000000"},
         "diagonal": {"type": "SOLID", "widthMm": 0.1, "color": "#000000"},
         "fill": "#DDEBF7",
+        "fillKinds": ["color"],
     }
 
 

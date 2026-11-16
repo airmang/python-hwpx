@@ -123,7 +123,7 @@
 - `styles.ensure_run(..., font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"}) -> str`
   - 언어마다 다른 글꼴을 쓰는 글자 모양의 id입니다. 기준 글자 모양을 복사해, 댄 언어마다 글꼴을 그 lang 블록에 등록하고(없으면 더함) 그 블록의 id를 `fontRef/@<lang 소문자>`에 씁니다. 대지 않은 언어와 다른 값은 기준을 따르고 기준 자체는 바뀌지 않습니다. 내용이 같은 글자 모양이 있으면 그 id를 돌려줍니다. `font`와 함께 주면 `font_by_lang`이 댄 언어는 `font_by_lang`을 따릅니다. 모르는 lang은 `style-font-lang-invalid`, 빈 이름은 `style-font-face-empty`, 매핑이 아니거나 같은 lang을 두 번 댄 값은 `style-run-font-by-lang-invalid`로 아무 글꼴도 등록하기 전에 거부합니다. 예제는 [실전 예제 6](examples.md)에 있습니다.
 - `styles.border_fill(border_fill_id_ref) -> BorderFillInfo | None`, `styles.border_fills -> dict[str, BorderFillInfo]`
-  - `hh:borderFill` 하나를 `BorderFillInfo(id, left, right, top, bottom, diagonal, fill)`로 읽습니다. 각 변은 `BorderLine(type, width_mm, color)`이고 직계 자식 `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·`hh:diagonal`에서 저장된 값 그대로 읽습니다. 요소가 없으면 `BorderLine("NONE", 0.0, "#000000")`입니다. `fill`은 첫 `hc:winBrush`의 `faceColor`이고, 없거나 `none`이면 `None`입니다. 그라데이션·그림 채우기는 설명하지 않습니다(XML은 `doc.oxml.headers[0].element`). 너비를 `"<숫자> mm"`로 읽을 수 없으면 `style-border-fill-width-invalid`, 없는 id면 `None`입니다. 6.x의 `border_fill_info()`는 7.0에서 `border_fill()`로 합쳤습니다.
+  - `hh:borderFill` 하나를 `BorderFillInfo(id, left, right, top, bottom, diagonal, fill, fill_kinds)`로 읽습니다. 각 변은 `BorderLine(type, width_mm, color)`이고 직계 자식 `hh:leftBorder`·`hh:rightBorder`·`hh:topBorder`·`hh:bottomBorder`·`hh:diagonal`에서 저장된 값 그대로 읽습니다. 요소가 없으면 `BorderLine("NONE", 0.0, "#000000")`입니다. `fill`은 첫 `hc:winBrush`의 `faceColor`이고, 없거나 `none`이면 `None`입니다. `fill_kinds`는 `hc:fillBrush`가 담은 채움의 종류를 적힌 차례대로 돌려줍니다: `"color"`(`hc:winBrush`, 면 색·무늬. `faceColor="none"`이어도 적힌 대로 `"color"`), `"gradation"`(`hc:gradation`), `"image"`(`hc:imgBrush`), 그 밖은 `"unknown"`. `hc:fillBrush`가 아예 없으면 `()`(채움 없음)입니다. 그러데이션의 색·그림의 파일 같은 자세한 값은 아직 XML(`doc.oxml.headers[0].element`)로 읽습니다. 너비를 `"<숫자> mm"`로 읽을 수 없으면 `style-border-fill-width-invalid`, 없는 id면 `None`입니다. 6.x의 `border_fill_info()`는 7.0에서 `border_fill()`로 합쳤습니다.
 - `styles.replace_font(src_face, dst_face, *, langs=None, font_type=None) -> FontReplaceReport`
   - 글꼴 하나를 문서 전체에서 다른 글꼴로 바꿉니다. lang 블록마다(`langs`를 주면 그 블록만) *src_face*가 없으면 건너뛰고, *dst_face*가 없으면 블록 끝에 *dst_face* 글꼴을 더하고(다른 블록에 *dst_face* 선언이 있으면 그 `hh:font`를 id만 바꿔 복사해 `type`·자식 요소가 같고, 어디에도 없으면 `<hh:font id=… face=… type="TTF" isEmbedded="0"/>`, *font_type*을 주면 더하는 글꼴의 `type`은 그 값), *src_face*를 가리키던 `fontRef`를 *dst_face*로 옮긴 뒤 *src_face*를 지우고 남은 글꼴 id를 순서대로 0..N-1로 다시 매깁니다(`fontCnt`도 맞춤). 다른 `fontRef`는 모두 전과 같은 글꼴 이름을 가리킵니다. 결과 `FontReplaceReport`의 `langs`는 바뀐 블록, `declared`는 *dst_face*를 새로 더한 블록, `repointed`는 옮긴 `fontRef` 속성 수입니다. 빈 이름은 `style-font-face-empty`, 같은 이름 둘은 `style-font-replace-same-face`로 바꾸기 전에 거부합니다.
 
@@ -430,6 +430,7 @@
 - `replace_text(search, replacement, count=None)`: 일반 텍스트 노드에서 문자열을 교체하고 교체 횟수를 반환합니다.
 - `remove()`: 부모 단락에서 런 엘리먼트를 삭제합니다.
 - `bold`, `italic`, `underline`: 일치하는 런 스타일을 보장하여 서식 플래그를 토글하는 프로퍼티입니다.
+- `content -> tuple[InlineItem, ...]`: 런이 담은 것을 파일에 적힌 차례대로 하나씩 돌려줍니다(아래 「적힌 차례대로 읽기」). `run.to_model()`과 달리 고정폭 빈칸·묶음 빈칸·하이픈 같은 글자 원자를 버리지 않고, 요소를 직렬화해 다시 파싱하지 않습니다.
 - `_current_format_flags()`, `_apply_format_change(...)`, `_plain_text_nodes()`, `_ensure_plain_text_node()`: 서식 로직을 관리하는 내부 헬퍼입니다.
 
 ### 클래스 `HwpxOxmlMemoGroup`
@@ -457,6 +458,7 @@
 - `width`·`height`: 개체 자신의, 돌리기 전 그려진 크기(HWPUNIT)입니다. `resize(width, height)`가 받는 크기와 같은 뜻이라 `obj.resize(obj.width, obj.height)`는 아무것도 바꾸지 않습니다. 돈 개체는 한/글이 적은 `curSz`(0인 축은 `orgSz`)를 읽고, 돌지 않은 개체는 `hp:sz`입니다. 그림·도형·묶음(`HwpxOxmlShape`)도 같습니다.
 - `box_width`·`box_height`(읽기 전용): 개체가 문단에서 차지하는 상자(`hp:sz`, HWPUNIT)입니다. 돈 개체는 돈 모양을 감싸는 상자이고, 돌지 않은 개체는 `width`·`height`와 같습니다.
 - `flip_horizontal`·`flip_vertical`·`rotation`: 높이나 너비가 0인 선(수평선·수직선)은 한/글처럼 뒤집어도 그림이 바뀌지 않게 저장합니다. 한/글은 뒤집기 표시와 반 바퀴 회전을 함께 적고(좌우 뒤집기면 각도 180, 행렬은 그대로) 화살표 끝도 그대로입니다(한/글 2024 저장본과 그 쪽 그림). 그래서 뒤집은 수평선은 `flip_horizontal == True`, `rotation == 180`으로 읽습니다. 다시 뒤집으면 표시 0, 각도 0입니다.
+- `rotation`(떠 있는 개체의 자리): 떠 있는 개체를 돌리면 돌리는 가운데가 제자리에 있도록 `hp:pos` 오프셋을 옮깁니다(음수가 될 수 있고, `rotation = 0`이면 언제나 처음 오프셋). 개체가 걸린 문단은 바꾸지 않습니다. 한/글에서 직접 돌리면 한/글은 위로 올라간 개체를 그 높이의 문단에 다시 걸지만(한/글의 쪽 배치), 엔진은 그렇게 하지 않습니다. 쪽 영역 안으로 제한된 개체(`flowWithText`)의 위 끝이 걸린 줄보다 위로 가야 하면 한/글은 그 줄 위 끝에 맞춰 그립니다(근거: 한/글 2024가 30° 돌린 12000 수평선을 1400 아래에 그림, rotate12 check15 4번).
 
 ### 클래스 `HwpxOxmlTableCell`
 
@@ -517,6 +519,8 @@
 - `id`: 파일에 적힌 문단 id(`hp:p/@id`, 읽기 전용). 한/글도 `"0"`이나 같은 id를 적을 수 있어 고유 키가 아닙니다. 문단을 다시 찾을 때는 객체끼리 견줍니다(아래 「같은 요소의 객체」).
 - `replace_range(start, end, text)`: `paragraph.text`로 센 글자 `[start, end)`를 *text*로 바꿉니다. 런은 그대로이고, 새 글자는 같은 자리의 옛 글자의 런(글자 모양)에 들어갑니다(`doc.text.replace`·한/글 찾아 바꾸기와 같은 규칙). 남는 새 글자는 범위 끝 글자를 따르고, `start == end`면 앞 글자의 런에 끼웁니다. 범위가 탭·줄 바꿈·컨트롤·개체를 건너면 `paragraph-range-crosses-element`로 거절합니다. 줄 배치 캐시를 지웁니다.
 - `copy_to(paragraph, *, before=False) -> Paragraph`: 이 문단의 사본을 *paragraph* 뒤(`before=True`면 앞)에 넣고 돌려줍니다. *paragraph*는 다른 문서의 문단(본문·칸·글상자·각주·머리말)이어도 됩니다. 이때 글자·문단 모양, 스타일, 테두리, 탭, 번호·글머리표, 글꼴 정의를 받는 문서에 새로 만들고, 그림·차트의 파트를 함께 옮기며, 누름틀·책갈피·개체·문단 id를 새로 매깁니다(`insert_document`와 같은 규칙, 같은 거부). 구역 설정은 따라가지 않고, 구역 첫 문단 앞에 넣으면 그 구역의 설정을 넘겨받습니다. 같은 문서 안에서는 `insert_after()` 사본과 같습니다.
+- `nested_text(*, where=None) -> str`: 이 문단의 글에 문단 안 표 칸(칸 안 표까지)·글상자·캡션·묶음·각주·메모 문단의 글을 문서 차례로 더해 읽습니다. 문단의 글은 안쪽 문단을 품은 개체가 있는 자리에서 끊기고, 그 자리에 안쪽 문단의 글(같은 방식으로 읽음)이 들어가며, 글이 있는 토막을 `"\n"`으로 잇습니다. 토막마다 `text`처럼 읽고(탭 `"\t"`, 줄 바꿈 `"\n"`, 특수 빈칸은 그 글자), 공백을 접지 않습니다. *where*(`doc.text.iter_paragraphs()`의 자리 값)로 글을 읽을 안쪽 문단을 고르고, 문단 자신의 글은 늘 읽습니다. 안에 문단이 없으면 `text`와 같습니다. `text`의 뜻은 바뀌지 않습니다.
+- `iter_objects(*, kinds=None, where=None) -> Iterator[ObjectPlace]`: 이 문단 안의 모든 개체를 깊이와 상관없이 문서 차례로 내놓습니다. 문단 자신의 개체와 그 표 칸·글상자·캡션·묶음·각주·메모 안의 개체까지입니다. `doc.text.iter_objects()`를 이 문단으로 좁힌 것과 같고(값과 `kinds`·`where`도 같습니다), `paragraph.objects`·`paragraph.pictures`는 바로 아래 것만입니다. 문단 자신의 XML과 조상만 읽습니다.
 - `_run_elements()`, `_ensure_run()`, `_create_run_for_object()`: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.
 
 ### 같은 요소의 객체
@@ -536,12 +540,36 @@
 - 글맵시의 글: `doc.text.iter_objects(kinds="textart")`의 `place.object.attributes["text"]`(한/글이 `hp:textart/@text`에 적은 그대로).
 - 숨은 설명(`hp:hiddenComment`)의 문단은 `doc.text.iter_paragraphs()`에서 자리 `where="hidden_comment"`로 나옵니다.
 
+### 적힌 차례대로 읽기 — `run.content`, `InlineItem`
+
+`run.content`의 값 `InlineItem`(`hwpx.objects`, 고정된 값)은 `kind`·`name`(XML 요소의 지역 이름, 글자는 `""`)·`container`(`"t"`·`"ctrl"`·`"run"`: 파일에서 적힌 곳)·`text`·`attributes`(요소의 속성을 적힌 차례대로 `(이름, 값)`의 tuple, `item.attribute("type")`)·`object`·`element`를 가집니다.
+
+- `hp:t` 안: `"text"`(글자), `"tab"`, `"line_break"`, `"nb_space"`(묶음 빈칸), `"fw_space"`(고정폭 빈칸), `"hyphen"`, `"markpen_begin"`·`"markpen_end"`, `"title_mark"`, `"insert_begin"`·`"insert_end"`·`"delete_begin"`·`"delete_end"`. 글자 원자의 `text`는 그 글자(`"	"`, `"
+"`, `" "`, `"　"`, `"­"`)이고 표시는 `""`라서, `container == "t"`인 조각의 `text`를 이으면 `run.text`입니다.
+- `hp:ctrl` 안: `"field_begin"`, `"field_end"`, `"footnote"`, `"endnote"`, `"bookmark"`, `"auto_number"`, `"page_number"`, `"page_number_ctrl"`, `"number_restart"`, `"page_hiding"`, `"column_definition"`, `"header"`, `"footer"`, `"index_mark"`, `"hidden_comment"`.
+- 런의 자식: 개체는 `doc.text.iter_objects()`의 종류 이름(`"table"`·`"picture"`·`"equation"`·`"shape"`·`"textart"`·`"ole"`·`"chart"`·`"video"`)과 `"form"`, 그리고 `"ruby"`(덧말), `"composed_character"`(글자 겹치기), `"section_properties"`(`hp:secPr`), `"switch"`.
+- 모르는 요소는 버리지 않고 `"unknown"`과 그 `name`으로 내놓습니다. 빈 `hp:t`·`hp:ctrl`은 담은 것이 없어 조각이 없습니다.
+- `object`는 조각에 맞는 모델 객체입니다: 개체(`paragraph.objects`와 같은 객체), 각주·미주(`paragraph.footnotes`와 같은 객체), `HYPERLINK` 누름틀의 `Hyperlink`, 글을 품은 `MEMO` 누름틀의 메모, `Ruby`·`ComposedCharacter`, 그리고 `AutoNumber`·`PageNumberControl`·`NumberRestart`·`PageHiding`·`ColumnDefinition`. 없으면 `None`입니다. `element`는 탈출구입니다. 둘은 `==`에 들지 않습니다.
+
+```python
+for paragraph in doc.paragraphs:
+    for run in paragraph.runs:
+        for item in run.content:
+            if item.kind == "field_begin" and item.attribute("type") == "HYPERLINK":
+                print("link", item.object.url)
+            elif item.container == "t":
+                print(repr(item.text))
+```
+
+도형 안의 문단은 `shape.iter_paragraphs(*, where=None) -> Iterator[ParagraphPlace]`로 읽습니다: 글상자(`"text_box"`)·캡션(`"caption"`)·묶음 구성원·안쪽 표 칸(`"cell"`)의 문단을 깊이와 상관없이 문서 차례로, `doc.text.iter_paragraphs()`와 같은 값으로 내놓습니다.
+
 ### 클래스 `HwpxOxmlSection`
 
 - `properties`: `<hp:secPr>` 계층이 필요할 때 이를 생성하며 `HwpxOxmlSectionProperties` 래퍼를 반환하는 프로퍼티입니다.
 - `element`: 원시 섹션 `Element`를 반환하는 프로퍼티입니다.
 - `document`: 소유 `HwpxOxmlDocument`를 참조하는 프로퍼티입니다. `attach_document()`는 섹션을 문서 인스턴스와 연결합니다.
 - `paragraphs`: 문서 순서대로 단락 래퍼의 tuple을 반환하는 프로퍼티입니다.
+- `blocks -> tuple[Paragraph | Table, ...]`: 구역의 문단과 구역 바로 아래 놓인 표를 파일에 적힌 차례로 돌려줍니다. 한/글은 표를 늘 문단 안에 두므로 한/글 파일에서는 `paragraphs`와 같습니다. 다른 프로그램이 구역 바로 아래 쓴 표(`hp:tbl`)는 그 자리에 `paragraph`가 `None`인 표 객체로 나옵니다. 글은 `hwpx.tools.exporter.table_grid_text(table)`, 캡션은 `table.caption`으로 읽습니다. `hp:memogroup`(→ `memo_group`) 같은 다른 자식은 들어가지 않습니다.
 - `memo_group`: 메모 그룹이 존재할 때 `HwpxOxmlMemoGroup` 래퍼를 반환하는 프로퍼티입니다.
 - `memos`: 섹션의 메모 래퍼의 tuple을 반환하는 프로퍼티입니다.
 - `add_memo(...)`: 메모 그룹이 있는지 확인한 후 `HwpxOxmlMemoGroup.add_memo()`에 위임하는 편의 메서드입니다.
