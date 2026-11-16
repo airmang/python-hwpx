@@ -453,6 +453,8 @@ def _field_matches_in(
     document order, with their text up to the matching ``<hp:fieldEnd>``."""
 
     matches: list[dict[str, Any]] = []
+    # where each paragraph is, for the end of a field running over paragraphs (made when one does)
+    indexes: dict[Any, tuple[int, int]] | None = None
     for (
         section_index,
         paragraph_index,
@@ -492,6 +494,13 @@ def _field_matches_in(
                         end_child_index=end_child_index,
                     )
                     current_value = "".join(_text_node_value(node) for node in text_nodes)
+                    all_text_nodes = list(text_nodes)
+                    end_location: tuple[int, int, int, int, int] | None = None
+                    if end_run_index is not None and end_child_index is not None:
+                        end_location = (
+                            section_index, paragraph_index, paragraph_index_in_section,
+                            end_run_index, end_child_index,
+                        )
                     if span is not None:
                         # the content goes on over paragraphs: their texts, one per line
                         end_paragraph, end_runs, span_run, span_child, middle = span
@@ -510,6 +519,21 @@ def _field_matches_in(
                                 "".join(_text_node_value(node) for node in tail),
                             ]
                         )
+                        all_text_nodes += [
+                            node
+                            for p in middle
+                            for run in p
+                            if _local_name(run) == "run"
+                            for node in run
+                            if _local_name(node) == "t"
+                        ] + tail
+                        if indexes is None:
+                            indexes = {
+                                element: (overall, own)
+                                for _section, overall, own, element, _view, _runs in _iter_content_paragraphs(doc)
+                            }
+                        overall_index, own_index = indexes.get(end_paragraph, (-1, -1))
+                        end_location = (section_index, overall_index, own_index, span_run, span_child)
                     payload = _form_field_payload(
                         doc,
                         index=len(matches),
@@ -530,6 +554,8 @@ def _field_matches_in(
                     payload["_end_run_index"] = end_run_index
                     payload["_end_child_index"] = end_child_index
                     payload["_text_nodes"] = text_nodes
+                    payload["_all_text_nodes"] = all_text_nodes
+                    payload["_end_location"] = end_location
                     payload["_span"] = span
                     matches.append(payload)
     return matches
@@ -564,6 +590,7 @@ def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> For
     parameters = _match_parameters(match)
     field_begin = match["_field_begin"]
     editable = (field_begin.get("editable") or "").strip().lower() in {"1", "true"}
+    end = match.get("_end_location")
     return FormField(
         doc,
         field_begin,
@@ -578,6 +605,9 @@ def _form_field_from_match(doc: "HwpxDocument", match: Mapping[str, Any]) -> For
         location=location,
         parameters=parameters,
         has_end=match["has_end"],
+        paragraph=match.get("_paragraph"),
+        end_location=None if end is None else FieldLocation(*end),
+        text_elements=tuple(match.get("_all_text_nodes") or ()),
     )
 
 

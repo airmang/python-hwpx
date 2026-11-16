@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
 
     from ..document import HwpxDocument
+    from ..model import Paragraph
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,9 @@ class FormField:
         "_location",
         "_parameters",
         "_has_end",
+        "_paragraph",
+        "_end_location",
+        "_text_elements",
     )
 
     def __init__(
@@ -101,6 +105,9 @@ class FormField:
         location: FieldLocation,
         parameters: tuple[FieldParameter, ...],
         has_end: bool,
+        paragraph: "Paragraph | None" = None,
+        end_location: FieldLocation | None = None,
+        text_elements: "tuple[ET.Element, ...]" = (),
     ) -> None:
         self._doc = doc
         self._element = element
@@ -115,6 +122,9 @@ class FormField:
         self._location = location
         self._parameters = parameters
         self._has_end = has_end
+        self._paragraph = paragraph
+        self._end_location = end_location
+        self._text_elements = text_elements
 
     @property
     def element(self) -> "ET.Element":
@@ -234,6 +244,36 @@ class FormField:
         paragraph or in a later paragraph beside it."""
 
         return self._has_end
+
+    @property
+    def paragraph(self) -> "Paragraph | None":
+        """The paragraph holding the field's begin (a :class:`hwpx.model.Paragraph`): one of
+        the body, a table cell, a text box or a header, where :attr:`location` points."""
+
+        return self._paragraph
+
+    @property
+    def end_location(self) -> FieldLocation | None:
+        """Where the field's ``<hp:fieldEnd>`` sits, located as :attr:`location` locates the
+        begin; ``None`` when the field has no end (:attr:`has_end` is ``False``).
+
+        Its paragraph is the begin's unless the field's text runs over paragraphs: then it is
+        the later paragraph beside it that holds the end (compare ``paragraph_index``). The
+        run holding the end is ``paragraph.runs[end_location.run_index]`` when it is the
+        begin's paragraph. A snapshot, like :attr:`location`."""
+
+        return self._end_location
+
+    @property
+    def text_elements(self) -> "tuple[ET.Element, ...]":
+        """The ``<hp:t>`` elements holding the field's text, what :attr:`value` reads, in
+        document order -- the escape hatch, like :attr:`element`, for code that locates or
+        edits that text in the XML itself (after such an edit, call
+        ``field.paragraph.clear_layout_cache()``). For a field running over paragraphs, those
+        of the later paragraphs follow. Empty when the field holds no text. A snapshot: a
+        fill (``value = ...``) writes new elements; read the field again for them."""
+
+        return self._text_elements
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return (
