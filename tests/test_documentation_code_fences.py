@@ -42,7 +42,7 @@ PYTHON_FENCE = re.compile(
 )
 EXPECTED_FENCE_COUNT = 122
 EXPECTED_FENCE_SHA256 = (
-    "b691ec6ed524d043f4e41903d0cb2df9d543805046a92465ab589bdc252ede93"
+    "5304f7eebdba9e45809172a7d4035ea83101cb31d97f48789a57b48343221615"
 )
 ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {"hwpx"}
 LEDGER = Path("docs/python-example-ledger.json")

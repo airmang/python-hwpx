@@ -269,7 +269,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 |---|---|
 | `doc.text.runs()`·`blocks()` | `doc.text.iter_runs()`·`iter_blocks()`(문서 전체를 차례로 훑는 것은 `iter_`). 7.0 개발 중의 `paragraphs()`·`objects()` 도 `iter_paragraphs()`·`iter_objects()` |
 | `doc.shapes.add_line`·`add_rectangle`·`add_ellipse`·`add_arc`·`add_polygon`·`add_curve`·`add_connector` 의 `line_width='33'` | `line_width_mm=0.12`(0 은 선 없음) |
-| `doc.styles.ensure_border_fill(border_width='0.12 mm', base_border_fill_id=)` | `ensure_border_fill(border_width_mm=0.12, base_border_fill_id_ref=)`. 한/글 굵기 목록의 가장 가까운 값으로 쓴다 |
+| `doc.styles.ensure_border_fill(border_width='0.12 mm', base_border_fill_id=)` | `ensure_border_fill(border_width_mm=0.12, base_border_fill_id_ref=)`. 한/글 굵기 목록에 있는 값만 받는다(아래 "결과가 달라지는 것") |
 | `doc.styles.apply_paragraph_format(paragraph_index=, paragraph_indexes=, line_spacing_percent=, border_width='0.12 mm')` | `apply_paragraph_format(paragraph=, paragraphs=, line_spacing=, border_width_mm=0.12)`. `paragraph=`·`paragraphs=` 는 번호와 문단 객체를 모두 받는다 |
 | `doc.styles.apply_list_format(paragraph_index=, paragraph_indexes=)` | `apply_list_format(paragraph=, paragraphs=)` |
 | `doc.styles.ensure_paragraph_format(base_para_pr_id=, line_spacing_percent=)` | `ensure_paragraph_format(base_para_pr_id_ref=, line_spacing=)` |
@@ -295,9 +295,52 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | `doc.fields.fill(value, field_index=, fit_policy=)` | `fill(value, index=, fit=)` |
 | `doc.tracking.add_change(change_type, author_name=)` | `add_change(change_type, author=)` |
 
-<!-- WP5b 이름 표는 병합 뒤 -->
+값 형식(`hwpx.objects`)과 그 안의 매핑:
 
-`hwpx.objects` 값 형식의 이름 정리는 병합된 뒤 이 절에 더한다.
+| python-hwpx 6.x | python-hwpx 7.0 |
+|---|---|
+| `check_box.section_index`(구역 번호) | `check_box.section`(구역 객체). 번호는 `doc.sections.index(check_box.section)` |
+| `from hwpx.objects import PictureRef`, `PictureRef.picture_index`·`section_index`·`binary_item_id_ref`·`width`·`height` | 없어졌다: `doc.media.pictures` 의 `Picture`(`item_id`·`width`·`height`, 몇 번째는 tuple 순서) |
+| `ensure_border_fill(sides={"top": {"width": "0.4 mm"}})`, `apply_paragraph_format(border={"width": "0.4 mm"})` | `"width_mm": 0.4`(mm 수, 한/글 굵기 목록의 값). 옛 키는 `style-border-side-invalid`·`paragraph-border-invalid` 로 거부하며 문장이 `width_mm` 을 알려 준다 |
+| `ContainerMember.rect`·`ellipse`·`polygon`·`line`·`text_box` 의 `line_width="33"`, `text_box(vert_align=)` | `line_width_mm=0.12`, `vertical_alignment=`(도형·`set_draw_text` 와 같은 이름) |
+| `doc.styles.bullet(id).para_head.align`(문자열) | `.para_head.alignment`(`Alignment`) |
+| `doc.page.text_direction(section=s)` → `SectionTextDirection(direction, vertical_header_footer)` | `doc.page.text_direction(section=s)` → `"HORIZONTAL"`·`"VERTICAL"`·`"VERTICALALL"`(표 칸의 `cell.text_direction` 과 같은 말), 머리말·꼬리말 세로쓰기는 `doc.page.vertical_header_footer(section=s)`. 쓰기 `set_text_direction(...)` 은 그대로. 반환 모양이 바뀐 것이라 안내 오류는 없다(`.direction` 을 부르면 `AttributeError`) |
+
+7.0 개발 중에 생긴 값 형식의 이름(안내 없이 바꿈):
+
+| 7.0 개발 중 | python-hwpx 7.0 |
+|---|---|
+| `RadioButton`·`ComboBox`·`EditBox` 의 `section_index` | `section`(구역 객체) |
+| `ParagraphPlace`·`ObjectPlace`(`doc.text.iter_paragraphs()`·`iter_objects()`)·`TextMatch`(`doc.text.find()`) 의 `section`(번호) | 구역 객체(바탕쪽이면 `None`). `to_dict()` 의 `"section"` 은 그대로 번호 |
+| `ObjectPosition.horz_rel_to`·`vert_rel_to`·`horz_align`·`vert_align`(`obj.position`) | `horizontal_relative_to`·`vertical_relative_to`·`horizontal_alignment`·`vertical_alignment`(`set_position` 의 인자와 같은 이름. `to_dict()` 열쇠도 `horizontalRelativeTo` …) |
+| `NumberingLevel.align`(문자열, `doc.styles.numbering(id).levels`) | `alignment`(`Alignment`. `to_dict()` 열쇠도 `alignment`) |
+
+새로 계약에 올린 것(이름은 그대로, 다음 major 까지 고정): stable 이름이 돌려주던 형식 26개를 `hwpx.objects` 에서도 가져올
+수 있다 — `Style`·`RunStyle`·`ParagraphProperty`·`Bullet`·`Font`·`MemoShape`·`TabDefinition`·`TrackChange`·`TrackChangeAuthor`·
+`SectionGrid`·`SectionVisibility`·`LineNumberShape`·`DocumentMetadata`·`TextBlock`·`TextOutline`·`TextChangeReport`·
+`ValidationReport`·`Hwp5ConversionReport`·`TableMapResult`·`GridPosition`(`table.cell_map` 의 칸)·`Caption`·`PictureShadow`·
+`PictureGlow`·`PictureReflection`·`ContainerMember`·`GenericElement`(구현 모듈의 같은 클래스다). `paragraph.section`(문단이 든
+구역)도 계약이다.
+
+### 가장 자주 고치는 곳
+
+자동화·학교 도구 저장소에서 센 깨지는 호출 수(받는 쪽을 가리지 못한 수는 상한)가 많은 순서다. 대부분 이름만 바꾸면 된다.
+
+| 6.x | 7.0 | 옮기는 법 |
+|---|---|---|
+| `doc.save_to_path(p)` | `doc.save(p)` | 이름만. 반환값(경로)을 쓰던 곳은 `report.path` |
+| `doc.styles.paragraph_property(id).align` | `.alignment` | 이름만 |
+| `apply_paragraph_format(paragraph_index=, line_spacing_percent=, border_width=)` | `paragraph=`, `line_spacing=`, `border_width_mm=` | 키워드 이름. `border_width_mm` 은 mm 수 |
+| `doc.save_report(t, quality=q)` | `doc.save(t, quality=q).quality` | 게이트 실패는 반환 대신 `SaveError` |
+| `table.get_cell_map()` | `table.cell_map` | 괄호를 뗀다 |
+| `doc.add_picture(..., line_width=33, align=)`, `paragraph.add_picture(binary_item_id_ref, ...)` | `line_width_mm=0.12, alignment=`, `item_id` | 값도 mm 로 |
+| `doc.add_paragraph(..., pageBreak="1")` | `p = doc.add_paragraph(...)`; `p.page_break = True` | 손으로 |
+| `ensure_border_fill(border_width="0.4 mm", sides={...: {"width": "0.4 mm"}})` | `border_width_mm=0.4`, `{"width_mm": 0.4}` | 값도 mm 수로 |
+| `ensure_run(base_char_pr_id=)` | `base_char_pr_id_ref=` | 이름만 |
+| `RunStyle.text_color()` | `RunStyle.color` | 속성 |
+| `doc.notes.add_memo(anchor=p)` | `paragraph=p` | 이름만 |
+| `doc.media.picture_references()`, `PictureRef` | `doc.media.pictures`(`Picture`) | 필드: `binary_item_id_ref` → `item_id`, 번호는 순서 |
+| `from hwpx.experimental import latex_to_eqedit` | `from hwpx.equation import latex_to_eqedit` | 가져오는 자리만 |
 
 ```python
 from hwpx import HwpxDocument
@@ -337,6 +380,7 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | `doc.text.iter_paragraphs()`·`iter_objects()` 가 표 캡션 안의 문단과 표를 `where="caption"` 으로 내놓는다(6.x 는 본문·표 칸). `where="body"` 는 이제 `doc.paragraphs` 와 같다 | `where=("body", "caption")` |
 | 다단 문서에서 새 표와 차트의 기본 폭이 본문 전체 폭이 아니라 단 폭이다 | `width=` 를 준다 |
 | 구역이 여럿인 문서에서 `doc.page.*` 를 `section` 없이 부르면 마지막 구역만 바뀐다는 경고가 한 번 난다 | `section=` 을 준다. 모든 구역은 `section="all"` |
+| 테두리·단 구분선·각주/미주 구분선·메모 선 굵기(`border_width_mm=`·`sides`/`border` 의 `width_mm`·`table.set_borders(border_width_mm=)`·`separator_width_mm=`·`ensure_memo_shape(line_width_mm=)`)는 한/글 굵기 목록(0.1·0.12·0.15·0.2·0.25·0.3·0.4·0.5·0.6·0.7·1·1.5·2·3·4·5 mm)의 값만 받는다. 목록에 없는 값(0.45 등)은 문서를 바꾸기 전에 `HwpxValueError`(`style-line-width-invalid`, `suggestion` 에 쓸 수 있는 값)로 거부한다. 6.x 와 7.0 개발 중에는 가장 가까운 값으로 바꿔 썼다. 도형·그림 선(`line_width_mm=`)은 그대로 mm × 283 HWPUNIT 이다 | 목록의 값을 직접 고른다(0.45 → 0.4 또는 0.5) |
 
 ## 쪽마다 새로 매기는 각주
 

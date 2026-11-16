@@ -801,7 +801,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 for bullet_id, bullet in sorted(document.styles.bullets.items()):
-    print(bullet_id, bullet.char, bullet.para_head.align)
+    print(bullet_id, bullet.char, bullet.para_head.alignment)
 ```
 
 ### 예제 57: 문단/스타일 참조 살펴보기
