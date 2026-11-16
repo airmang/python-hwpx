@@ -1620,8 +1620,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
         ``link.url`` is the target (``Path``, else ``Command``, else ``@name`` --
         see ``hyperlink_form.hyperlink_target``) and ``link.text`` the text it spans;
-        both are settable. Before 7.0 this gave dicts; ``link["url"]`` still reads,
-        with a ``DeprecationWarning``.
+        both are settable. Before 7.0 this gave dicts: read ``link.url`` / ``link.field_id``
+        (or ``link.to_dict()``) where ``link["url"]`` / ``link["id"]`` was read.
         """
         from ..objects.form_field import Hyperlink
 

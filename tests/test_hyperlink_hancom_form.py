@@ -64,7 +64,7 @@ def test_bookmark_link_uses_hancoms_in_document_form() -> None:
 def test_every_reader_gives_back_the_url_it_was_given() -> None:
     doc = HwpxDocument.new()
     doc.refs.add_hyperlink("https://example.com/a?b=c", "링크")
-    assert doc.paragraphs[-1].hyperlinks[0]["url"] == "https://example.com/a?b=c"
+    assert doc.paragraphs[-1].hyperlinks[0].url == "https://example.com/a?b=c"
     # the link text may carry the link's own character styling
     assert "](https://example.com/a?b=c)" in export_markdown(doc)
     options = AnnotationOptions(hyperlink="target", hyperlink_target_format="<{target}>")
@@ -93,7 +93,7 @@ def test_readers_resolve_a_hancom_authored_web_link() -> None:
     doc = HwpxDocument.new()
     _hancom_link(doc, {"Prop": "0", "Command": "https\\://www.example.go.kr;1;0;0;",
                        "Path": "https://www.example.go.kr", "Category": "HWPHYPERLINK_TYPE_URL"})
-    assert doc.paragraphs[-1].hyperlinks[0]["url"] == "https://www.example.go.kr"
+    assert doc.paragraphs[-1].hyperlinks[0].url == "https://www.example.go.kr"
     assert "](https://www.example.go.kr)" in export_markdown(doc)
 
 
@@ -101,10 +101,10 @@ def test_command_only_link_is_unescaped_and_loses_its_tail() -> None:
     doc = HwpxDocument.new()
     _hancom_link(doc, {"Prop": "0", "Command": "http\\://example.kr/a\\?b=1|tip;1;0;0;",
                        "Category": "HWPHYPERLINK_TYPE_URL"})
-    assert doc.paragraphs[-1].hyperlinks[0]["url"] == "http://example.kr/a?b=1"
+    assert doc.paragraphs[-1].hyperlinks[0].url == "http://example.kr/a?b=1"
 
 
 def test_hancom_bookmark_link_reads_back_as_hash_name() -> None:
     doc = HwpxDocument.new()
     _hancom_link(doc, {"Prop": "0", "Command": "?책갈피1;0;0;0;", "Category": "HWPHYPERLINK_TYPE_HWP"})
-    assert doc.paragraphs[-1].hyperlinks[0]["url"] == "#책갈피1"
+    assert doc.paragraphs[-1].hyperlinks[0].url == "#책갈피1"
