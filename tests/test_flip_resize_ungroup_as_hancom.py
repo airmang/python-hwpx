@@ -27,6 +27,7 @@ from hwpx.oxml.container import ContainerMember
 from tests.hancom_place import carry_down_offset, paragraph_heights, paragraph_index
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
+_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 GSO = {"rect", "ellipse", "polygon", "line", "container", "pic", "arc", "curve"}
 
 def _arrow(line):
@@ -241,13 +242,30 @@ def test_a_flat_line_flipped_back_is_written_unflipped_and_unturned(source: str)
     assert not HwpxDocument.open(doc.to_bytes()).validate().issues
 
 
-def test_a_flat_line_turned_and_then_flipped_is_not_turned_again() -> None:
-    # Hangul mirrors a turned flat line as drawn (ha-30-f); no Hancom-saved document shows one turned again
-    _, line = _made("ha", ["r30", "f"])
-    assert (line.flip_horizontal, line.rotation) == (True, 330)
-    with pytest.raises(HwpxValueError) as caught:
-        line.rotation = 0
-    assert caught.value.code == "shape-rotation-unsupported"
+#: (fixture, steps, which way Hangul drew the arrow in its png) -- rotate12 (want-flip9): a horizontal line with an
+#: arrow at its end turned 30 degrees and turned again, turned and flipped and turned again. The paragraph it hangs on
+#: and its down offset are Hangul's page layout: turned 30 it starts above the page's first line, where Hangul draws
+#: it from that line's top (``hancom16/ha-30.png``: 1400 lower) and turns it again about there (``hancom17``: back at 0
+#: on the next paragraph 1400 lower, at 60 -2196). python-hwpx lays out no pages: it keeps the paragraph and turns
+#: about the centre as written (back at 0 where it began), so the down offset is not compared here.
+TURNED_AGAIN = [
+    ("one_ha_30_0", ["r30", "r0"], "level, the arrow at the right: back as it was"),
+    ("one_ha_30_60", ["r30", "r60"], "steep, the arrow at the lower right"),
+    ("one_ha_30_f_0", ["r30", "f", "r0"], "level, the arrow at the left: the mirror kept, the turn gone"),
+    ("one_ha_30_f_60", ["r30", "f", "r60"], "steep, the arrow at the upper left: mirrored, then turned 60"),
+]
+
+
+@pytest.mark.parametrize(("fixture", "steps", "drawn"), TURNED_AGAIN, ids=[case[0] for case in TURNED_AGAIN])
+def test_a_flat_line_turned_again_is_drawn_as_hancom_drew_it(fixture: str, steps: list, drawn: str) -> None:
+    doc, line = _made("ha", steps)
+    hancom = _objects(HwpxDocument.open(HANCOM / f"{fixture}.hwpx"))[0]
+    hancom.element.find(f"{_HP}pos").set("vertOffset", line.element.find(f"{_HP}pos").get("vertOffset"))
+    assert (line.flip_horizontal, line.flip_vertical, line.rotation) ==         (hancom.flip_horizontal, hancom.flip_vertical, hancom.rotation), drawn
+    assert _same(_normalized(line.element), _normalized(hancom.element)), drawn
+    line.resize(line.width, line.height)
+    assert _same(_normalized(line.element), _normalized(hancom.element))
+    assert not HwpxDocument.open(doc.to_bytes()).validate().issues
 
 
 @pytest.mark.parametrize("source", ["h", "w", "ha"])
