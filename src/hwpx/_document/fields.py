@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
-from ..objects.checkbox import CheckBox
+from ..objects.checkbox import CheckBox, ComboBox, EditBox, RadioButton
 from ..objects.form_field import (
     Bookmark,
     CellField,
@@ -747,24 +747,242 @@ def list_cross_references(doc: "HwpxDocument") -> tuple[CrossReference, ...]:
     """The cross references Hancom saved (``fieldBegin type="CROSSREF"``), in document
     order, with what each points at, read as written."""
 
-    found: list[CrossReference] = []
-    for match in _iter_field_matches(doc, _field_type_is("CROSSREF")):
-        parameters = match["parameters"]
-        path = _field_parameter_value(parameters, "RefPath")
-        target = path[1:] if path.startswith("?") else path
-        found.append(
-            CrossReference(
-                ref_type=_field_parameter_value(parameters, "RefType"),
-                content_type=_field_parameter_value(parameters, "RefContentType"),
-                target=target[:-1] if target.endswith(";") else target,
-                text=match["current_value"],
-                hyperlink=_field_parameter_value(parameters, "RefHyperLink").lower() in ("1", "true"),
-                location=_match_location(match),
-                parameters=_match_parameters(match),
-                element=match["_field_begin"],
-            )
+    return tuple(
+        CrossReference(doc, match["_field_begin"], _match_location(match))
+        for match in _iter_field_matches(doc, _field_type_is("CROSSREF"))
+    )
+
+
+#: What a cross reference points at, what of it it shows and how it opens, by the code Hancom writes
+#: for each in its ``Command`` (``<path>;<type>;<content>;<hyperlink>;<open>;``). The codes are those
+#: Hancom Office 2024 reads out of an .hwp cross reference into these parameters (hwp5/section_xml.py).
+_XREF_TYPES = ("TARGET_TABLE", "TARGET_PICTURE", "TARGET_EQUATION", "TARGET_FOOTNOTE", "TARGET_ENDNOTE",
+               "TARGET_OUTLINE", "TARGET_BOOKMARK")
+_XREF_CONTENTS = ("OBJECT_TYPE_PAGE", "OBJECT_TYPE_NUMBER", "OBJECT_TYPE_CONTENTS", "OBJECT_TYPE_UPDOWNPOS")
+_XREF_OPEN = ("HWPHYPERLINK_JUMP_CURRENTTAB", "HWPHYPERLINK_JUMP_NEWTAB", "HWPHYPERLINK_JUMP_NEWWINDOW")
+#: The parameters of a CROSSREF field in Hancom's order (``Fiexde`` is Hancom's spelling).
+_XREF_PARAMS = (("booleanParam", "Fiexde"), ("integerParam", "Prop"), ("stringParam", "Command"),
+                ("stringParam", "RefPath"), ("stringParam", "RefType"), ("stringParam", "RefContentType"),
+                ("booleanParam", "RefHyperLink"), ("stringParam", "RefOpenType"))
+
+
+def cross_reference_text(doc: "HwpxDocument", field_begin: Any) -> str:
+    """What the cross reference shows now: the text between its begin and end."""
+
+    from ..oxml.hyperlink_form import between_marks, field_end_in_paragraph
+
+    paragraph = field_begin.getparent()
+    while paragraph is not None and _local_name(paragraph) != "p":
+        paragraph = paragraph.getparent()
+    end = field_end_in_paragraph(paragraph, field_begin) if paragraph is not None else None
+    if end is not None:  # the usual case: read it in its paragraph, not by walking the document
+        return "".join(
+            _text_node_value(child) for _run, child in between_marks(paragraph, field_begin, end)
+            if _local_name(child) == "t"
         )
-    return tuple(found)
+    try:
+        return str(_match_for_begin(doc, field_begin)["current_value"])
+    except HwpxValueError:
+        return ""
+
+
+def _xref_refuse(message: str, suggestion: str, **context: Any) -> HwpxValueError:
+    return HwpxValueError(message, code="ref-cross-reference-target-unsupported", context=context or None,
+                          suggestion=suggestion)
+
+
+def _cross_reference_target(doc: "HwpxDocument", target: Any) -> tuple[str, str]:
+    """``(RefPath without its ';', RefType)`` for *target*, as Hancom writes a cross reference to it.
+
+    An outline paragraph is ``?#<paragraph id>`` (the Hancom-saved m7_toc_gold pair), a table
+    ``?#<table id>`` and a bookmark ``?<name>`` (the cross references of Hancom-made public .hwp
+    samples, as Hancom opens them). Nothing else has been seen in a Hancom file, so nothing else is
+    written."""
+
+    from ..oxml import HwpxOxmlParagraph, HwpxOxmlTable
+    from ..objects.form_field import Bookmark
+
+    if isinstance(target, HwpxOxmlTable):
+        table_id = (target.element.get("id") or "").strip()
+        if not table_id.isdigit() or not any(
+            element is target.element for section in doc.sections for element in section.element.iter(f"{_HP}tbl")
+        ):
+            raise _xref_refuse("the table is not a numbered table of this document",
+                               "Pass a table of this document (doc.tables).")
+        return f"?#{table_id}", "TARGET_TABLE"
+    if isinstance(target, HwpxOxmlParagraph):
+        from ._resolve import resolve_paragraph
+
+        paragraph = resolve_paragraph(doc, target, caller="cross reference target")
+        if not paragraph.outline_level:
+            raise _xref_refuse(
+                "a cross reference points at an outline paragraph (개요), a bookmark or a table; "
+                "this paragraph is none of them",
+                "Make the paragraph a heading (doc.add_heading, paragraph.outline_level = 1), or put a "
+                "bookmark on it (doc.refs.add_bookmark) and point at the bookmark.",
+            )
+        from ..tools.toc_author import ensure_paragraph_anchor_id
+
+        before = paragraph.element.get("id")
+        anchor = ensure_paragraph_anchor_id(doc, paragraph)  # Hancom finds it by a unique paragraph id
+        if anchor != before:
+            paragraph.section.mark_dirty()
+        return f"?#{anchor}", "TARGET_OUTLINE"
+    if isinstance(target, (Bookmark, str)):
+        name = target.name if isinstance(target, Bookmark) else target.strip()
+        if not name or ";" in name or name.startswith("#"):
+            raise _xref_refuse(f"{name!r} cannot name a bookmark in a cross reference",
+                               "Pass the name of a bookmark of this document (doc.refs.bookmarks).",
+                               requested=name)
+        if name not in {bookmark.name for bookmark in list_bookmarks(doc)}:
+            raise _xref_refuse(f"this document has no bookmark named {name!r}",
+                               "Add it first (doc.refs.add_bookmark), or pass a name from doc.refs.bookmarks.",
+                               requested=name)
+        return f"?{name}", "TARGET_BOOKMARK"
+    raise _xref_refuse(
+        f"a cross reference points at an outline paragraph, a bookmark or a table; got {type(target).__name__}",
+        "Pass a heading paragraph, a bookmark (or its name) or a table of this document. Pictures, "
+        "equations and notes are not written: python-hwpx has seen no Hancom file pointing at them.",
+        requested=type(target).__name__,
+    )
+
+
+def _set_parameter(holder: Any, kind: str, name: str, value: str) -> None:
+    for param in holder:
+        if param.get("name") == name:
+            if param.text != value:
+                param.text = value
+            return
+    param = holder.makeelement(f"{_HP}{kind}", {"name": name})
+    param.text = value
+    order = [n for _k, n in _XREF_PARAMS]
+    rank = order.index(name) if name in order else len(order)
+    position = sum(1 for other in holder if other.get("name") in order[:rank])
+    holder.insert(position, param)
+    holder.set("cnt", str(len(holder)))
+
+
+def _write_cross_reference(
+    field_begin: Any, *, path: str, ref_type: str, content_type: str, hyperlink: bool
+) -> None:
+    """Write the CROSSREF parameters of *field_begin*: ``Command`` and the parameters it spells out."""
+
+    holder = next((child for child in field_begin if _local_name(child) == "parameters"), None)
+    if holder is None:
+        holder = field_begin.makeelement(f"{_HP}parameters", {"cnt": "0", "name": ""})
+        field_begin.insert(0, holder)
+    open_type = next((p.text for p in holder if p.get("name") == "RefOpenType" and p.text in _XREF_OPEN),
+                     _XREF_OPEN[0])
+    command = (f"{path};{_XREF_TYPES.index(ref_type)};{_XREF_CONTENTS.index(content_type)};"
+               f"{1 if hyperlink else 0};{_XREF_OPEN.index(open_type)};")
+    for kind, name, value in (
+        ("booleanParam", "Fiexde", next((p.text or "1" for p in holder if p.get("name") == "Fiexde"), "1")),
+        ("integerParam", "Prop", next((p.text or "0" for p in holder if p.get("name") == "Prop"), "0")),
+        ("stringParam", "Command", command),
+        ("stringParam", "RefPath", f"{path};"),
+        ("stringParam", "RefType", ref_type),
+        ("stringParam", "RefContentType", content_type),
+        ("booleanParam", "RefHyperLink", "true" if hyperlink else "false"),
+        ("stringParam", "RefOpenType", open_type),
+    ):
+        _set_parameter(holder, kind, name, value)
+
+
+def _empty_field_text(doc: "HwpxDocument", field_begin: Any) -> None:
+    """Take out what lies between the field's begin and end (its shown text), in its paragraph."""
+
+    match = _match_for_begin(doc, field_begin)
+    if match.get("_end_run_index") is None:
+        return
+    _drop_field_content(match)
+    _clear_paragraph_layout_cache(match["_paragraph"].element)
+
+
+def _check_xref_choices(content_type: Any, hyperlink: Any) -> None:
+    if content_type is not None and content_type not in _XREF_CONTENTS:
+        raise HwpxValueError(
+            f"content_type must be one of {', '.join(_XREF_CONTENTS)}; got {content_type!r}",
+            code="ref-cross-reference-content-value",
+            context={"requested": repr(content_type)},
+            suggestion="OBJECT_TYPE_PAGE shows the page number, OBJECT_TYPE_NUMBER its number, "
+            "OBJECT_TYPE_CONTENTS its text, OBJECT_TYPE_UPDOWNPOS above or below.",
+        )
+    if hyperlink is not None and not isinstance(hyperlink, bool):
+        raise HwpxValueError(
+            f"hyperlink must be True or False; got {hyperlink!r}",
+            code="ref-cross-reference-hyperlink-value",
+            context={"requested": repr(hyperlink)},
+            suggestion="Pass True to jump to the target on a click, False not to.",
+        )
+
+
+def set_cross_reference(
+    view: Any, *, target: Any = None, content_type: Any = None, hyperlink: Any = None
+) -> None:
+    """Change what the cross reference *view* points at, what it shows or whether it links. When
+    the target or what is shown changes, the shown text is emptied for Hancom to fill in."""
+
+    doc, begin = view._doc, view.element
+    _check_xref_choices(content_type, hyperlink)
+    old_path = view._parameter("RefPath")
+    old_path = old_path[:-1] if old_path.endswith(";") else old_path
+    old_type, old_content = view.ref_type, view.content_type
+    path, ref_type = old_path, old_type
+    if target is not None:
+        path, ref_type = _cross_reference_target(doc, target)
+    elif ref_type not in _XREF_TYPES or not path:
+        raise _xref_refuse(
+            f"the cross reference points at {ref_type or 'nothing'!r}, which python-hwpx does not write",
+            "Point it at a heading paragraph, a bookmark or a table first (set_target).",
+            ref_type=ref_type,
+        )
+    new_content = content_type if content_type is not None else (
+        old_content if old_content in _XREF_CONTENTS else _XREF_CONTENTS[0])
+    link = view.hyperlink if hyperlink is None else hyperlink
+    if (path, ref_type, new_content, link) == (old_path, old_type, old_content, view.hyperlink):
+        return
+    _write_cross_reference(begin, path=path, ref_type=ref_type, content_type=new_content, hyperlink=link)
+    if (path, ref_type, new_content) != (old_path, old_type, old_content):
+        _empty_field_text(doc, begin)
+    _match_for_begin(doc, begin)["_paragraph"].section.mark_dirty()
+
+
+def add_cross_reference(
+    doc: "HwpxDocument",
+    target: Any,
+    *,
+    content_type: str = "OBJECT_TYPE_PAGE",
+    hyperlink: bool = False,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> CrossReference:
+    """Append a cross reference to *target* at the end of *paragraph* (a new paragraph at the end of
+    *section* when ``None``), written as Hancom writes one, and return it.
+
+    It shows nothing yet: Hancom fills in the page, number or text when it lays the page out."""
+
+    _check_xref_choices(content_type, hyperlink)
+    path, ref_type = _cross_reference_target(doc, target)
+    if paragraph is None:
+        paragraph = doc.add_paragraph("", section=section, include_run=False)
+    from ..oxml._document_primitives import _object_id
+    from ..oxml.field_marks import field_type_id
+
+    field_id = _object_id()
+    begin_run = paragraph._create_run_for_object()
+    ctrl = begin_run.makeelement(f"{_HP}ctrl", {})
+    begin_run.append(ctrl)
+    begin = ctrl.makeelement(f"{_HP}fieldBegin", {
+        "id": field_id, "type": "CROSSREF", "name": "", "editable": "0", "dirty": "0", "zorder": "-1",
+        "fieldid": field_type_id("CROSSREF"), "metaTag": "",
+    })
+    ctrl.append(begin)
+    _write_cross_reference(begin, path=path, ref_type=ref_type, content_type=content_type, hyperlink=hyperlink)
+    end_ctrl = begin_run.makeelement(f"{_HP}ctrl", {})
+    end_ctrl.append(end_ctrl.makeelement(f"{_HP}fieldEnd", {"beginIDRef": field_id, "fieldid": begin.get("fieldid")}))
+    begin_run.append(end_ctrl)
+    paragraph.section.mark_dirty()
+    return CrossReference(doc, begin, _match_location(_match_for_begin(doc, begin)))
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:
@@ -1598,6 +1816,216 @@ def list_form_objects(doc: "HwpxDocument", local: str) -> tuple[Any, ...]:
         cls(element, section, _owning_paragraph(element, section), index=index, section_index=section_index)
         for element, section, index, section_index in _iter_form_objects(doc, local)
     )
+
+
+#: A new form object as Hancom writes one (the Hancom-saved ``reader_writer__SimpleButtons``,
+#: ``SimpleComboBox`` and ``SimpleEdit`` samples, and the form objects of the Hancom-made public
+#: samples ``form-01.hwp``/``form-02.hwp`` as Hancom opens them): the kind's own attributes in
+#: Hancom's order with their values for a new object, then its colours, border type and size. The
+#: attributes every form object has follow the kind's own, as in those samples. A new edit box
+#: masks nothing (``passwordChar=""``, the schema's ``*`` is not what Hancom writes).
+_FORM_OWN_ATTRIBUTES: dict[str, tuple[tuple[str, str], ...]] = {
+    "radioBtn": (("caption", ""), ("value", "UNCHECKED"), ("radioGroupName", ""), ("triState", "0"),
+                 ("backStyle", "OPAQUE")),
+    "comboBox": (("listBoxRows", "10"), ("listBoxWidth", "0"), ("editEnable", "1"), ("selectedValue", "")),
+    "edit": (("multiLine", "0"), ("passwordChar", ""), ("maxLength", "2147483647"), ("scrollBars", "NONE"),
+             ("tabKeyBehavior", "NEXT_OBJECT"), ("numOnly", "0"), ("readOnly", "0"), ("alignText", "LEFT")),
+}
+#: foreColor, backColor, borderTypeIDRef, width and height (HWPUNIT) of a new one.
+_FORM_LOOK: dict[str, tuple[str, str, str, int, int]] = {
+    "radioBtn": ("#000000", "#FFFFFF", "0", 8504, 1984),
+    "comboBox": ("#000000", "#F0F0F0", "5", 9921, 1984),
+    "edit": ("#000000", "#F0F0F0", "5", 7087, 1984),
+}
+#: The name Hancom gives the n-th of a kind (``RadioButton1``, ``ComboBox1``, ``Edit1``).
+_FORM_NAMES = {"radioBtn": "RadioButton", "comboBox": "ComboBox", "edit": "Edit"}
+_FORM_KINDS = ("btn", "radioBtn", "checkBtn", "comboBox", "listBox", "edit", "scrollBar")
+
+
+def _next_form_name(doc: "HwpxDocument", local: str) -> str:
+    taken = {element.get("name", "") for element, _s, _i, _x in _iter_form_objects(doc, local)}
+    number = len(taken) + 1
+    while f"{_FORM_NAMES[local]}{number}" in taken:
+        number += 1
+    return f"{_FORM_NAMES[local]}{number}"
+
+
+def _next_tab_order(doc: "HwpxDocument") -> str:
+    """One past the highest ``tabOrder`` of the document's form objects, as Hancom numbers them."""
+
+    highest = 0
+    for section in doc.sections:
+        for element in section.element.iter():
+            if _local_name(element) in _FORM_KINDS:
+                value = (element.get("tabOrder") or "").strip()
+                if value.lstrip("-").isdigit():
+                    highest = max(highest, int(value))
+    return str(highest + 1)
+
+
+def _form_name(doc: "HwpxDocument", local: str, name: str | None) -> str:
+    if name is None or not str(name).strip():
+        return _next_form_name(doc, local)
+    return _sanitize_field_text(str(name).strip())
+
+
+def _add_form_object(
+    doc: "HwpxDocument",
+    local: str,
+    own: Mapping[str, str],
+    *,
+    name: str,
+    paragraph: Any | None,
+    section: Any | None,
+    content: Sequence[tuple[str, dict[str, str], str | None]] = (),
+) -> Any:
+    """Append a new ``hp:<local>`` form object, built as Hancom writes one, to *paragraph* (a new
+    paragraph at the end of *section* when ``None``) and return its live view.
+
+    Like a check box it is a direct child of a run, set as a character, with the mandatory
+    ``hp:formCharPr`` first, then *content* (``hp:listItem``, ``hp:text``), size, position and
+    outer margin. The paragraph (and the one holding its table) loses its line layout cache.
+    """
+
+    if paragraph is None:
+        paragraph = doc.add_paragraph("", section=section, include_run=False)
+    fore, back, border, width, height = _FORM_LOOK[local]
+    attributes = {key: own.get(key, default) for key, default in _FORM_OWN_ATTRIBUTES[local]}
+    attributes.update({
+        "name": name, "foreColor": fore, "backColor": back, "groupName": "", "tabStop": "1", "editable": "1",
+        "tabOrder": _next_tab_order(doc), "enabled": "1", "borderTypeIDRef": border, "drawFrame": "1",
+        "printable": "1", "command": "",
+    })
+    run = paragraph._create_run_for_object()
+    element = run.makeelement(f"{_HP}{local}", attributes)
+    run.append(element)
+    element.append(element.makeelement(
+        f"{_HP}formCharPr", {"charPrIDRef": "0", "followContext": "0", "autoSz": "0", "wordWrap": "0"}
+    ))
+    for child_name, child_attributes, text in content:
+        child = element.makeelement(f"{_HP}{child_name}", child_attributes)
+        if text is not None:
+            child.text = text
+        element.append(child)
+    element.append(element.makeelement(f"{_HP}sz", {
+        "width": str(width), "widthRelTo": "ABSOLUTE", "height": str(height), "heightRelTo": "ABSOLUTE",
+        "protect": "0",
+    }))
+    element.append(element.makeelement(f"{_HP}pos", {
+        "treatAsChar": "1", "affectLSpacing": "0", "flowWithText": "1", "allowOverlap": "1",
+        "holdAnchorAndSO": "0", "vertRelTo": "PARA", "horzRelTo": "COLUMN", "vertAlign": "TOP",
+        "horzAlign": "LEFT", "vertOffset": "0", "horzOffset": "0",
+    }))
+    element.append(element.makeelement(f"{_HP}outMargin", {"left": "0", "right": "0", "top": "0", "bottom": "0"}))
+    run.append(run.makeelement(f"{_HP}t", {}))
+    paragraph.section.mark_dirty()
+    for view in list_form_objects(doc, local):
+        if view.element is element:
+            return view
+    raise HwpxStateError(  # pragma: no cover - defensive: the reader walks every section
+        f"the new {local} was not found by the form object reader",
+        code="field-form-not-created",
+        context={"kind": local, "name": name},
+        suggestion="Check that the paragraph belongs to this document.",
+    )
+
+
+def _check_caption(caption: object, code: str) -> str:
+    text = _sanitize_field_text(caption) if isinstance(caption, str) else ""
+    if not text.strip():
+        raise HwpxValueError(
+            "a radio button needs a caption: the text drawn beside it",
+            code=code,
+            context={"requested": repr(caption)},
+            suggestion="Pass the caption printed next to the button.",
+        )
+    return text
+
+
+def add_radio_button(
+    doc: "HwpxDocument",
+    caption: str,
+    *,
+    group: str = "",
+    checked: bool = False,
+    name: str | None = None,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> RadioButton:
+    """Create a radio button (라디오 단추) as Hancom writes one and return it as a
+    :class:`~hwpx.objects.RadioButton`. Checking it unchecks the other buttons of its *group*."""
+
+    text = _check_caption(caption, "field-radio-caption-empty")
+    if not isinstance(group, str):
+        raise HwpxValueError(
+            f"group must be a str (the radio group's name); got {group!r}",
+            code="field-radio-group-value",
+            context={"requested": repr(group)},
+            suggestion="Pass the same group name to the buttons one choice is made among.",
+        )
+    view = _add_form_object(
+        doc, "radioBtn", {"caption": text, "radioGroupName": _sanitize_field_text(group)},
+        name=_form_name(doc, "radioBtn", name), paragraph=paragraph, section=section,
+    )
+    if checked:
+        view.checked = True
+    return cast(RadioButton, view)
+
+
+def add_combo_box(
+    doc: "HwpxDocument",
+    text: str = "",
+    *,
+    editable_text: bool = True,
+    name: str | None = None,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> ComboBox:
+    """Create a combo box (콤보 상자) as Hancom writes one and return it as a
+    :class:`~hwpx.objects.ComboBox`: one list item holding the text the box shows."""
+
+    if not isinstance(text, str):
+        raise HwpxValueError(
+            f"text must be a str (what the box shows); got {text!r}",
+            code="field-form-text-value",
+            context={"requested": repr(text)},
+            suggestion="Pass the text the box shows, or leave it out for an empty box.",
+        )
+    return cast(ComboBox, _add_form_object(
+        doc, "comboBox", {"editEnable": "1" if editable_text else "0"},
+        name=_form_name(doc, "comboBox", name), paragraph=paragraph, section=section,
+        content=(("listItem", {"displayText": "", "value": _sanitize_field_text(text)}, None),),
+    ))
+
+
+def add_edit_box(
+    doc: "HwpxDocument",
+    text: str = "",
+    *,
+    multi_line: bool = False,
+    read_only: bool = False,
+    name: str | None = None,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> EditBox:
+    """Create an edit box (입력 상자) as Hancom writes one and return it as an
+    :class:`~hwpx.objects.EditBox`. A box of one line takes line breaks as spaces."""
+
+    if not isinstance(text, str):
+        raise HwpxValueError(
+            f"text must be a str (what the box holds); got {text!r}",
+            code="field-form-text-value",
+            context={"requested": repr(text)},
+            suggestion="Pass the text the box holds, or leave it out for an empty box.",
+        )
+    value = _sanitize_field_text(text)
+    if not multi_line:
+        value = value.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    return cast(EditBox, _add_form_object(
+        doc, "edit", {"multiLine": "1" if multi_line else "0", "readOnly": "1" if read_only else "0"},
+        name=_form_name(doc, "edit", name), paragraph=paragraph, section=section,
+        content=(("text", {}, value),),
+    ))
 
 
 def _measure_form_field_fit(

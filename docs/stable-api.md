@@ -87,10 +87,10 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---|---:|
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
-| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 190 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 404 |
+| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 198 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 409 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 164 |
-| `hwpx.objects` 54개 값 형식 | 필드 267 · 멤버 107 · enum 값 10 | 384 |
+| `hwpx.objects` 58개 값 형식 | 필드 264 · 멤버 148 · enum 값 10 | 422 |
 | 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
 <!-- public-surface-lock:end -->
 
@@ -401,7 +401,9 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 모든 개체는 `out_margins`(`hp:outMargin`, `CellMargins`, 표의 `out_margins`와 같은 형식)와
 `set_out_margins(left=, right=, top=, bottom=)`(주지 않은 면은 그대로, 잘못된 값은 `shape-out-margin-value`)을 갖습니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
-`Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
+`Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다. `Paragraph.rubies`/`composed_characters`는
+그 문단의 덧말(`hwpx.objects.Ruby`)·글자 겹치기(`hwpx.objects.ComposedCharacter`)를 순서대로
+돌려줍니다(문서 전체는 `doc.shapes.rubies`/`composed_characters`).
 
 `Paragraph.line_segments`(7.0, 읽기 전용)는 그 문단이 마지막으로 배치되어 저장된 줄 배치
 (`hp:linesegarray`)를 줄마다 `hwpx.objects.LineSegment` 하나씩, 위에서 아래로 tuple로 돌려줍니다 —
@@ -499,7 +501,9 @@ line_type=, width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸�
 배경은 그대로 두고 그 칸의 테두리 정의에서 파생), `TableCell.border_fill`(`BorderFillInfo`),
 `header_rows`/`set_header_rows(n, repeat=True)`·`repeat_header`·`TableCell.is_header`/`set_header`,
 `page_break`/`set_page_break("CELL")`, `no_adjust`/`set_no_adjust`, `in_margins`/`set_in_margins`,
-`text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`),
+`text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`)·
+`add_cell_zone(cell_range, border_fill_id_ref=)`·`set_cell_zone(index, cell_range=, border_fill_id_ref=)`·
+`remove_cell_zone(index)`(칸 영역: 격자 위 사각형에 테두리/배경 하나, 행·열 편집을 따라간다),
 `TableCell.clear()`, `copy_after(paragraph=None)`(새 id 로 복사). 길이는 모두 HWPUNIT,
 선 굵기만 `_mm` 이다.
 

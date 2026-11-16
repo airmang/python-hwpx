@@ -1048,9 +1048,11 @@ def test_checkbox_area_openrate_signal_does_not_bleed_onto_radio_and_button() ->
     ledger = _load_ledger()
     by_key = {(e["namespace"], e["element"]): e for e in ledger["elements"]}
 
-    for name in ("btn", "radioBtn"):
+    # 7.0: doc.fields.add_radio_button이 hp:radioBtn을 쓴다(codeWrite=api). 그래도 그 저작은
+    # openrate 코퍼스로 실한컴 검증되지 않았으므로 영역의 openrate 성분은 여전히 받지 않는다.
+    for name, written in (("btn", "none"), ("radioBtn", "api")):
         entry = by_key[("hp", name)]
-        assert entry["codeWrite"] == "none"
+        assert entry["codeWrite"] == written
         assert entry["capabilityArea"] == "체크박스 양식개체"  # 라벨은 유지
         assert entry["verificationBasis"] == "by-capability-area"  # openrate 성분 제거
         assert entry["verificationBasis"] is None or "openrate-corpus" not in entry["verificationBasis"]
