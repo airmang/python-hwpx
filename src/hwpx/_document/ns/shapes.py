@@ -540,7 +540,10 @@ class ShapesNamespace(_Namespace):
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
     ) -> "InlineObject":
-        """모델이 없는 도형 태그를 그대로 내보낸다(저수준 탈출구).
+        """모델이 없는 도형 태그를 그대로 내보낸다 — 약속하지 않는 탈출구(계약 밖, ``.element`` 와 같은 자리).
+
+        지정한 태그와 속성만 쓰고 엔진의 거부·인자 검사를 거치지 않는다. 공개 표면 잠금에 들지 않아 판 사이에
+        바뀔 수 있다(docs/stable-api.md).
 
         Warning:
             필수 기하 자식(`offset`·`orgSz`·`curSz`·`sz`·`pos`)을 직접 채우지
@@ -575,7 +578,10 @@ class ShapesNamespace(_Namespace):
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
     ) -> "InlineObject":
-        """모델이 없는 `hp:ctrl` 을 그대로 내보낸다(저수준 탈출구)."""
+        """모델이 없는 `hp:ctrl` 을 그대로 내보낸다 — 약속하지 않는 탈출구(계약 밖, ``.element`` 와 같은 자리).
+
+        빈 ``hp:ctrl`` 은 한/글이 열지 못하므로 저장 전 열기 안전 검사가 막는다. 공개 표면 잠금에 들지 않는다.
+        """
 
         from .. import shapes as _shapes
 

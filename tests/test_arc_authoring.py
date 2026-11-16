@@ -171,7 +171,8 @@ def test_arc_invalid_type_is_a_typed_error() -> None:
 # ============================================================================
 
 
-def test_resize_moves_arc_axis_points() -> None:
+def test_resize_draws_the_arc_through_its_scale_matrix() -> None:
+    # As Hancom 2024 resizes a drawing object (objlim psizerect): the axis points stay, scaMatrix scales.
     paragraph = HwpxDocument.new().add_paragraph("")
     shape = paragraph.add_arc(12450, 11225)
 
@@ -179,8 +180,10 @@ def test_resize_moves_arc_axis_points() -> None:
 
     points = _points(shape.element, "center", "ax1", "ax2")
     assert points == {
-        "center": ("0", "0"), "ax1": ("0", "22450"), "ax2": ("24900", "0"),
+        "center": ("0", "0"), "ax1": ("0", "11225"), "ax2": ("12450", "0"),
     }
+    scale = shape.element.find(f"{HP}renderingInfo/{HC}scaMatrix")
+    assert (scale.get("e1"), scale.get("e5")) == ("2", "2")
 
 
 # ============================================================================

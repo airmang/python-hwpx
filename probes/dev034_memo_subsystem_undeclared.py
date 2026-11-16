@@ -54,8 +54,10 @@ def main() -> int:
 
     from hwpx.document import HwpxDocument
 
+    # 7.0: python-hwpx writes a memo as Hangul 2024 saves it -- in the MEMO field's hp:subList, with
+    # no hp:memogroup/hp:memo/hp:paraList (the undeclared triple is only read, from 6.x documents).
     doc = HwpxDocument.new()
-    doc.notes.add_memo("메모 본문 텍스트")
+    doc.notes.add_memo("메모 본문 텍스트", paragraph=doc.add_paragraph("메모가 달린 문단"))
     data = doc.to_bytes()
     doc.close()
 
@@ -64,12 +66,17 @@ def main() -> int:
         section_xml = archive.read(name).decode("utf-8")
 
     for literal in ("<hp:memo ", "<hp:memogroup", "<hp:paraList"):
-        assert literal in section_xml, f"expected {literal!r} in the serialized memo output"
-    print("confirmed doc.notes.add_memo() emits the full undeclared triple: "
-          "hp:memo / hp:memogroup / hp:paraList")
+        assert literal not in section_xml, f"{literal!r} written: 7.0 keeps a memo only in its field"
+    assert 'type="MEMO"' in section_xml and "메모 본문 텍스트" in section_xml
+    print("confirmed doc.notes.add_memo() writes the memo in its MEMO field only (no undeclared triple)")
 
-    print("PASS: DEV-034 reproduced (schema absence + live authoring API, "
-          "census: 24/237 real files = 10.1%)")
+    fixture = ROOT / "tests" / "fixtures" / "fuzz_regressions" / "seed-000000-baseline.hwpx"
+    if fixture.exists():
+        legacy = HwpxDocument.open(fixture)  # a document holding the triple (6.x form) still reads
+        assert any(memo.text for memo in legacy.notes.memos)
+        print("confirmed a document holding hp:memogroup/hp:memo/hp:paraList still reads its memos")
+
+    print("PASS: DEV-034 (schema absence; 7.0 writes no undeclared memo element, reads them)")
     return 0
 
 

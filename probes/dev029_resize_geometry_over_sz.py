@@ -18,13 +18,11 @@ render verification (5.0.0 shape-authoring namespace defect) of this
 exact geometry-over-sz mechanism. Not re-observable here (no Hancom
 oracle in this environment).
 
-Our handling: ``objects.py``'s ``resize()`` docstring states the
-mechanism directly ("Hancom renders a drawing object from its
-type-specific geometry ... scaled by scaMatrix -- not from sz") and the
-method scales both the size elements *and* the geometry together. This
-probe demonstrates, live, that (a) ``resize()`` changes both, and (b) a
-naive "just set sz" edit -- which a schema-only reading would consider
-sufficient -- would silently leave the drawn geometry at the old size.
+Our handling (7.0, objlim): ``resize()`` writes what Hancom 2024 writes when it resizes a drawing object
+(objlim evidence psizerect: a rectangle 8000x5000 resized to 12000x5000 keeps ``pt0``-``pt3`` and ``orgSz``,
+and its ``scaMatrix`` e1 becomes 1.5) -- the geometry stays and ``scaMatrix`` draws it at the new size, so the
+drawn size follows ``sz``. This probe demonstrates, live, that (a) a naive "just set sz" edit leaves the drawn
+geometry and its scale at the old size, and (b) ``resize()`` changes ``sz`` and the scale together.
 
 Run: ``python probes/dev029_resize_geometry_over_sz.py``
 """
@@ -85,12 +83,12 @@ def main() -> int:
     rect.resize(20000, 16000)
     after_geometry = geometry(rect)
     sz_after = rect.element.find(f"{HP_NS}sz")
+    scale = rect.element.find(f"{HP_NS}renderingInfo/{{http://www.hancom.co.kr/hwpml/2011/core}}scaMatrix")
     assert (sz_after.get("width"), sz_after.get("height")) == ("20000", "16000")
-    assert after_geometry != before_geometry, "expected resize() to also move the geometry"
-    assert after_geometry["pt1"] == ("20000", "0"), after_geometry
-    assert after_geometry["pt2"] == ("20000", "16000"), after_geometry
-    print(f"confirmed resize() updates both sz AND the drawn geometry together: "
-          f"{after_geometry}")
+    assert after_geometry == before_geometry, "expected resize() to keep the geometry, as Hancom 2024 does"
+    assert (scale.get("e1"), scale.get("e5")) == ("2", "2"), (scale.get("e1"), scale.get("e5"))
+    print(f"confirmed resize() updates sz AND the scale that draws the geometry together: "
+          f"{after_geometry} x {scale.get('e1')}, {scale.get('e5')}")
 
     print("PASS: DEV-029 reproduced (schema silence + live geometry-vs-sz contrast, "
           "render confirmation is previously-verified per owner memory only)")

@@ -598,6 +598,58 @@ def remove_unused_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
     return tuple(removed)
 
 
+def _document_view(root: Any) -> "HwpxDocument | None":
+    """The document *root* (a ``HwpxOxmlDocument``) and the package it was read from, as the helpers here take
+    one; ``None`` for a document read from no package."""
+
+    package = getattr(getattr(root, "_manifest_source", None), "__self__", None)
+    if package is None:
+        return None
+    from types import SimpleNamespace
+
+    from ..document import HwpxDocument
+
+    return cast("HwpxDocument", SimpleNamespace(_root=root, _package=package,
+                                                _FORMAT_TO_MEDIA_TYPE=HwpxDocument._FORMAT_TO_MEDIA_TYPE))
+
+
+def carry_object_parts(element: Any, source_root: Any, target_root: Any) -> None:
+    """Give the document *target_root* the images and charts the object *element* (a copy from the document
+    *source_root*) shows, and point *element* at them there, as Hancom 2024 does when it pastes an object
+    copied from another document (objlim evidence xpic, xpic2, xchart, xchart2): each image becomes a new
+    binary item of the target, and each chart part a ``Chart/chartN.xml`` with the first number the target
+    does not use (``chart2.xml`` beside a ``chart1.xml``)."""
+
+    from ..opc.relationships import BINARY_ITEM_REF_ATTRS
+
+    source, target = _document_view(source_root), _document_view(target_root)
+    if source is None or target is None:
+        return
+    carried: dict[str, str] = {}
+    for node in element.iter():
+        for attribute in BINARY_ITEM_REF_ATTRS:
+            reference = node.get(attribute)
+            if not reference:
+                continue
+            if reference not in carried:
+                found = _find_binary_item(source, reference)
+                if found is None or not found.bin_data_path or not source._package.has_part(found.bin_data_path):
+                    continue
+                data = source._package.read(found.bin_data_path)
+                fmt = PurePosixPath(found.bin_data_path).suffix.lstrip(".").lower() or "png"
+                carried[reference] = str(add_image(target, data, fmt))
+            node.set(attribute, carried[reference])
+        chart = node.get("chartIDRef")
+        if chart and source._package.has_part(chart):
+            used = {name for name in target._package.part_names() if name.startswith("Chart/")}
+            number = 1
+            while f"Chart/chart{number}.xml" in used:
+                number += 1
+            name = f"Chart/chart{number}.xml"
+            target._package.write(name, source._package.read(chart))
+            node.set("chartIDRef", name)
+
+
 def remove_orphaned_items(root: Any, references: "set[str]") -> tuple[BinaryItem, ...]:
     """Remove the binary items *references* name (``binaryItemIDRef`` values and the like of an object just
     taken out of the document *root*, a ``HwpxOxmlDocument``) that nothing in the document points at any

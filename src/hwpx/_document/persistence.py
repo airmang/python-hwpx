@@ -194,6 +194,71 @@ def validate(doc: "HwpxDocument") -> "ValidationReport":
     return validate_document(_to_bytes_for_validation(doc))
 
 
+def _refuse_unlinked_master_pages(doc: "HwpxDocument") -> None:
+    """Raise before writing anything when a master page made in this session is linked to no section.
+
+    Hancom drops a master page part no section's ``hp:masterPage`` points at (``masterPageCnt="0"``):
+    opened and saved again, the part and its text are gone (Hangul 2024, out/metrics7 ``page-00·03·06``).
+    One the document was read with stays as it was read (an unedited save keeps every part).
+    """
+
+    master_pages = list(getattr(doc.oxml, "_master_pages", ()) or ())
+    created = [page for page in master_pages if getattr(page, "_created_in_session", False)]
+    if not created:
+        return
+    linked = {ref for section in doc.oxml.sections for ref in section.properties.master_page_refs}
+    unlinked = [page for page in created if (page.element.get("id") or "") not in linked]
+    if not unlinked:
+        return
+    from ..errors import HwpxValueError
+
+    ids = [page.element.get("id") or page.part_name for page in unlinked]
+    raise HwpxValueError(
+        f"master page {', '.join(map(repr, ids))} is linked to no section; Hancom drops such a part when it saves",
+        code="master-page-unlinked",
+        context={"master_pages": ids},
+        suggestion=(
+            "Link it to a section: doc.page.set_master_page(master_page, section=0) (or create it with "
+            "doc.parts.add_master_page(..., section=0)), or remove it: doc.parts.remove_master_page(master_page)."
+        ),
+    )
+
+
+def _refuse_unanchored_memos(doc: "HwpxDocument") -> None:
+    """Raise before writing anything when a memo made in this session is anchored by no MEMO field.
+
+    Hancom keeps a memo only in its MEMO field (Hangul 2024 saves no ``hp:memogroup``; the public
+    and test documents it saved with memos all hold them so), so a memo no field holds has nowhere
+    Hancom reads it from. A memo is anchored by ``doc.notes.add_memo(..., paragraph=)`` or
+    ``doc.notes.attach(paragraph, memo)``, which move it into the field. Memos the document was read
+    with stay as they were read.
+    """
+
+    made = getattr(doc.oxml, "_session_memo_ids", None)
+    if not made:
+        return
+    from ..oxml.namespaces import HP as _HP_NS
+
+    pending = [
+        memo.get("id") for section in doc.oxml.sections
+        for memo in section.element.iter(f"{_HP_NS}memo") if memo.get("id") in made
+    ]
+    if not pending:
+        return
+    from ..errors import HwpxValueError
+
+    raise HwpxValueError(
+        f"memo {', '.join(map(repr, pending))} is not anchored to a paragraph; Hancom keeps a memo only in its "
+        "MEMO field",
+        code="note-memo-unanchored",
+        context={"memos": pending},
+        suggestion=(
+            "Anchor it: doc.notes.attach(paragraph, memo) (or make it with doc.notes.add_memo(text, paragraph=...)), "
+            "or remove it: doc.notes.remove_memo(memo)."
+        ),
+    )
+
+
 def _run_pre_save_validation(doc: "HwpxDocument") -> None:
     """Raise if validate_on_save is enabled and the document is invalid."""
     if not doc.validate_on_save:
@@ -500,6 +565,8 @@ def save(
         _check_save_target(path)
     if resolved == "hwp":
         _refuse_lossy_hwp5_save(doc, path)
+    _refuse_unlinked_master_pages(doc)
+    _refuse_unanchored_memos(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement, open_safety = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
@@ -628,6 +695,8 @@ def to_bytes(
     _check_grade_arguments(mode, fallback)
     if format == "hwp":
         _refuse_lossy_hwp5_save(doc)
+    _refuse_unlinked_master_pages(doc)
+    _refuse_unanchored_memos(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement, _open_safety = _build_measured(doc, reset_dirty=False)
     _resolve_grade(mode, fallback, measurement)

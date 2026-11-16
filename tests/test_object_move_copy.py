@@ -268,7 +268,8 @@ def test_copying_a_text_box_with_a_memo_gives_the_copy_its_own_memo() -> None:
 
     copy = box.copy_to(doc.add_paragraph(""))
 
-    memos = doc.sections[0].memo_group.memos
+    memos = doc.notes.memos  # 7.0: each memo in its own MEMO field, as Hancom keeps it
+    assert doc.sections[0].memo_group is None
     assert len(memos) == 2 and memos[1].text == "살펴볼 것" and memos[1].id != memo.id
     fields = [node for node in copy.element.iter(f"{HP}fieldBegin") if node.get("type") == "MEMO"]
     assert len(fields) == 1
@@ -286,13 +287,14 @@ def test_paragraph_and_table_copies_give_a_memo_anchor_its_own_memo() -> None:
 
     copy = anchored.insert_after()
 
-    memos = doc.sections[0].memo_group.memos
+    memos = doc.sections[0].memos
     assert [m.text for m in memos] == ["원본", "원본"] and memos[1].id != memo.id
     assert memos[1].paragraph is not None and memos[1].paragraph.element is copy.element
     table = doc.add_paragraph("").add_table(1, 1)
     doc.notes.add_memo("칸 메모", paragraph=table.cell(0, 0).paragraphs[0], section=0)
     table.copy_after()
-    assert [m.text for m in doc.sections[0].memo_group.memos] == ["원본", "원본", "칸 메모", "칸 메모"]
+    assert [m.text for m in doc.sections[0].memos] == ["원본", "원본", "칸 메모", "칸 메모"]
+    assert doc.sections[0].memo_group is None
     numbers = [node.get("zorder") for node in doc.sections[0].element.iter(f"{HP}fieldBegin")
                if node.get("type") == "MEMO"]
     assert len(numbers) == 4 and len(set(numbers)) == 4
@@ -342,31 +344,40 @@ def _floating_picture(doc: HwpxDocument, paragraph: Paragraph, frame: str) -> Pi
     )
 
 
-def test_a_page_measured_floating_object_does_not_go_into_a_cell_and_nothing_changes() -> None:
+def test_a_page_measured_floating_object_goes_into_a_cell_as_hancom_pastes_it() -> None:
+    # objlim evidence cl2 (Hancom 2024, PAPER/PAPER pasted into a cell, saved and opened again): measured
+    # from the paragraph and the column at offset 0, kept in the page area, not let overlap.
     doc = HwpxDocument.new()
     source = doc.add_paragraph("도장")
     picture = _floating_picture(doc, source, "PAPER")
     cell_paragraph = doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0]
-    before = doc.to_bytes()
 
-    with pytest.raises(HwpxValueError) as excinfo:
-        picture.move_to(cell_paragraph)
-    assert excinfo.value.code == "shape-move-place-unsupported"
-    with pytest.raises(HwpxValueError):
-        picture.copy_to(cell_paragraph)
-    assert doc.to_bytes() == before
-    assert picture.paragraph.element is source.element
-
-
-def test_a_paragraph_measured_floating_object_keeps_its_frames_in_a_cell() -> None:
-    doc = HwpxDocument.new()
-    picture = _floating_picture(doc, doc.add_paragraph("떠 있는 그림"), "PARA")
-    cell_paragraph = doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0]
-    position = picture.position
-
+    copy = picture.copy_to(cell_paragraph)
     picture.move_to(cell_paragraph)
 
-    assert picture.position == position
+    for placed in (copy, picture):
+        position = placed.element.find(f"{HP}pos")
+        assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
+                position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==             ("PARA", "COLUMN", "0", "0", "1", "0")
+    _reopen(doc)
+
+
+def test_a_paragraph_measured_object_moved_to_its_top_goes_into_a_cell_and_a_text_box() -> None:
+    # Measured from its paragraph both ways and not kept in the page area: Hancom 2024 pastes it measured from
+    # its paragraph at offset 0, kept in the area (objlim evidence cl1d in a cell, tb1 in a text box).
+    doc = HwpxDocument.new()
+    picture = _floating_picture(doc, doc.add_paragraph("떠 있는 그림"), "PARA")
+    picture.element.find(f"{HP}pos").set("flowWithText", "0")
+    cell_paragraph = doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0]
+    target = _boxes(doc)["text_box"]
+
+    copy = picture.copy_to(cell_paragraph)
+    picture.move_to(target)
+
+    for placed in (copy, picture):
+        position = placed.element.find(f"{HP}pos")
+        assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
+                position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==             ("PARA", "PARA", "0", "1000", "1", "0")
     _reopen(doc)
 
 
@@ -383,30 +394,25 @@ def _boxes(doc: HwpxDocument) -> dict[str, Paragraph]:
 
 
 @pytest.mark.parametrize("box", ["cell", "text_box", "note"])
-def test_a_floating_object_not_kept_in_the_page_area_does_not_go_into_a_box(box: str) -> None:
-    # add_picture(treat_as_char=False) writes vertRelTo=PARA, horzRelTo=COLUMN, flowWithText=0: in a
-    # cell Hancom draws such a picture over the cells above it, and no Hancom document holds one in a
-    # text box or a note.
+def test_a_floating_object_not_kept_in_the_page_area_is_kept_there_in_a_box(box: str) -> None:
+    # add_picture(treat_as_char=False) writes vertRelTo=PARA, horzRelTo=COLUMN, flowWithText=0. Pasted
+    # into a cell, a text box or a note Hancom 2024 keeps it in the page area, at the top of its
+    # paragraph, not let overlap, its offset across kept (objlim evidence cellcol0, boxcol0, notecol0, tb5,
+    # cl5; the cell one opened again).
     doc = HwpxDocument.new()
     item = doc.media.add_image(PNG, "png")
     picture = doc.add_paragraph("").add_picture(str(item), width=3000, height=3000, treat_as_char=False)
+    picture.set_position(horizontal_offset=2000, vertical_offset=1000)
     target = _boxes(doc)[box]
-    before = doc.to_bytes()
-    position = picture.element.find(f"{HP}pos")
-    assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("flowWithText")) == \
-        ("PARA", "COLUMN", "0")
 
-    for call in (picture.move_to, picture.copy_to):
-        with pytest.raises(HwpxValueError) as excinfo:
-            call(target)
-        assert excinfo.value.code == "shape-move-place-unsupported"
-        assert excinfo.value.context["flowWithText"] == "0" and excinfo.value.context["box"] == box
-        assert "set_position" in excinfo.value.suggestion
-    assert doc.to_bytes() == before  # nothing changed, the placement included
-
-    picture.set_position(horizontal_relative_to="PARA")  # measured across from its paragraph: it may go in
+    copy = picture.copy_to(target)
     picture.move_to(target)
-    assert picture.paragraph.element is target.element
+
+    for placed in (copy, picture):
+        assert placed.paragraph.element is target.element
+        position = placed.element.find(f"{HP}pos")
+        assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
+                position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==             ("PARA", "COLUMN", "0", "2000", "1", "0")
     _reopen(doc)
 
 
@@ -444,20 +450,20 @@ def test_a_page_measured_copy_keeps_the_place_of_the_original() -> None:
     _reopen(doc)
 
 
-def test_a_page_measured_object_moves_to_a_section_of_the_same_paper_only() -> None:
+def test_a_page_measured_object_keeps_its_place_in_a_section_of_other_paper() -> None:
+    # objlim evidence secpaper: Hancom 2024 pasted a PAGE/PAGE picture into a section of other paper and
+    # kept its frames and offsets.
     doc = HwpxDocument.new()
     picture = _floating_picture(doc, doc.add_paragraph("도장"), "PAGE")
-    same = doc.add_section()
-    same_paragraph = doc.add_paragraph("같은 용지", section=same)
-    picture.move_to(same_paragraph)
-    assert picture.paragraph.element is same_paragraph.element
-
+    before = dict(picture.element.find(f"{HP}pos").attrib)
     other = doc.add_section()
     other.properties.set_page_size(orientation="LANDSCAPE")
     other_paragraph = doc.add_paragraph("가로 용지", section=other)
-    with pytest.raises(HwpxValueError) as excinfo:
-        picture.move_to(other_paragraph)
-    assert excinfo.value.code == "shape-move-place-unsupported"
+
+    picture.move_to(other_paragraph)
+
+    assert picture.paragraph.element is other_paragraph.element
+    assert dict(picture.element.find(f"{HP}pos").attrib) == before
     _reopen(doc)
 
 
@@ -480,10 +486,12 @@ def test_a_group_member_a_removed_object_and_bad_places_are_refused() -> None:
     assert excinfo.value.code == "shape-not-in-document"
 
     other = HwpxDocument.new()
-    live = fresh.add_paragraph("").add_equation("z")
+    box = fresh.add_paragraph("").add_rectangle(9000, 3000)
+    box.set_draw_text("글상자")
     with pytest.raises(HwpxValueError) as excinfo:
-        live.move_to(other.add_paragraph(""))
-    assert excinfo.value.code == "paragraph-not-in-document"
+        box.move_to(other.add_paragraph(""))
+    assert excinfo.value.code == "shape-copy-document-unsupported"
+    live = fresh.add_paragraph("").add_equation("z")
     with pytest.raises(HwpxLookupError) as lookup:
         live.move_to(99)
     assert lookup.value.code == "paragraph-not-found"
@@ -702,9 +710,15 @@ def test_an_unanchored_memo_moves_to_another_section_at_an_index() -> None:
     assert first.group.section.element is second_section.element
     first.move_to(second_section, index=0)
     assert [m.text for m in second_section.memo_group.memos] == ["하나", "가", "나"]
+    # 7.0: a memo is kept in its MEMO field, so one no field anchors is not saved
+    with pytest.raises(HwpxValueError) as refused:
+        doc.to_bytes()
+    assert refused.value.code == "note-memo-unanchored"
+    for memo in (first, *there):
+        doc.notes.attach(second_section.add_paragraph(f"{memo.text}에 단 메모"), memo)
+    assert second_section.memo_group is None  # anchoring moved them into their fields
     again = _reopen(doc)
     assert [m.text for m in again.sections[1].memos] == ["하나", "가", "나"]
-    del there
 
 
 def test_an_anchored_memo_stays_with_its_anchor() -> None:
@@ -712,18 +726,20 @@ def test_an_anchored_memo_stays_with_its_anchor() -> None:
     memo = doc.notes.add_memo("고리 있음", paragraph=doc.add_paragraph("글"), section=0)
     doc.notes.add_memo("다른 메모", section=0)
     doc.add_section()
-    with pytest.raises(HwpxValueError) as excinfo:
-        memo.move_to(1)
-    assert excinfo.value.code == "note-memo-anchor-elsewhere"
-    memo.move_to(0, index=1)  # within its own section it may change place
-    assert [m.text for m in doc.sections[0].memo_group.memos] == ["다른 메모", "고리 있음"]
+    # 7.0: an anchored memo is in its MEMO field -- it is where the field is, in any section
+    assert type(memo).__name__ == "HwpxOxmlFieldMemo"
+    for target in (1, 0):
+        with pytest.raises(HwpxValueError) as excinfo:
+            memo.move_to(target)
+        assert excinfo.value.code == "note-memo-anchor-elsewhere"
+    assert [m.text for m in doc.sections[0].memo_group.memos] == ["다른 메모"]
     assert memo.paragraph is not None
 
 
 def test_memo_copy_to_makes_an_unanchored_copy_with_a_new_id() -> None:
     doc = HwpxDocument.new()
     memo = doc.notes.add_memo("원본 메모", paragraph=doc.add_paragraph("글"), section=0)
-    doc.add_section()
+    second = doc.add_section()
 
     copy = doc.sections[0].memos[0].copy_to(1, index=0)
 
@@ -732,19 +748,25 @@ def test_memo_copy_to_makes_an_unanchored_copy_with_a_new_id() -> None:
     assert [m.text for m in doc.sections[1].memo_group.memos] == ["원본 메모"]
     para_ids = {p.element.get("id") for p in memo.paragraphs}
     assert not para_ids & {p.element.get("id") for p in copy.paragraphs}
-    _reopen(doc)
+    with pytest.raises(HwpxValueError) as refused:  # not anchored yet
+        doc.to_bytes()
+    assert refused.value.code == "note-memo-unanchored"
+    doc.notes.attach(second.add_paragraph("복사본을 단 글"), copy)
+    again = _reopen(doc)
+    assert [m.text for m in again.notes.memos] == ["원본 메모", "원본 메모"]
 
 
 def test_memos_hancom_keeps_in_fields_copy_but_do_not_move() -> None:
     doc = HwpxDocument.open(HANCOM / "memos_in_fields.hwpx")
     memo = doc.sections[0].memos[0]
     assert type(memo).__name__ == "HwpxOxmlFieldMemo"
-    doc.add_section()
+    second = doc.add_section()
     with pytest.raises(HwpxValueError) as excinfo:
         memo.move_to(1)
     assert excinfo.value.code == "note-memo-anchor-elsewhere"
     copy = memo.copy_to(1)
     assert copy.text == memo.text and copy.memo_shape_id_ref == memo.memo_shape_id_ref
+    doc.notes.attach(second.add_paragraph("복사본을 단 글"), copy)
     _reopen(doc)
 
 

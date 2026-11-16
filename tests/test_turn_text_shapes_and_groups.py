@@ -237,7 +237,6 @@ def test_what_is_not_shown_by_hancom_is_still_refused() -> None:
     turned = _objects(doc)[0]
     for call, code, says in (
         (lambda: setattr(turned.members[0], "rotation", 30), "shape-group-member-unsupported", "whole group"),
-        (lambda: turned.resize(20000, 15000), "shape-rotation-unsupported", "turn it back to 0 first"),
         (lambda: setattr(turned, "rotation", 30.5), "shape-rotation-value", "whole degrees"),
     ):
         with pytest.raises(HwpxValueError) as caught:

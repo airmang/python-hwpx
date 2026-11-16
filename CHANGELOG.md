@@ -414,6 +414,17 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- 메모를 한/글 2024 저장본처럼 MEMO 누름틀의 `hp:subList`에만 쓴다. 6.x는 `hp:memogroup`에도 사본을 써서, 한/글이 다시 저장할
+  때 그 사본을 버렸고(누름틀의 글은 남는다) 메모를 고치면 두 사본이 어긋났다. `doc.notes.add_memo(..., paragraph=)`·
+  `doc.notes.attach`가 메모를 누름틀로 옮기고, 같은 객체가 그 누름틀의 메모가 된다. 문단·표·글상자를 복사하거나 다른 구역으로
+  옮기거나 문서를 이어 붙여도(`append_document`) `hp:memogroup`을 새로 쓰지 않는다. 문단에 걸지 않은 채 남은 새 메모는 저장을
+  `HwpxValueError`(`note-memo-unanchored`)로 거부한다. 6.x 문서는 그대로 읽히고, 그 메모를 고치면 그 메모만 누름틀로 옮기고
+  `hp:memogroup` 사본을 지운다(고치지 않은 저장은 그대로).
+- `doc.parts.add_master_page(...)`로 만들고 어느 구역에도 잇지 않은 바탕쪽은 저장을 `HwpxValueError`(`master-page-unlinked`)로
+  거부한다. 전에는 잇지 않은 파트를 그대로 써서, 한/글 2024가 다시 저장할 때 바탕쪽과 그 글이 사라졌다. 만든 뒤
+  `doc.page.set_master_page(mp, section=0)`로 잇거나 `add_master_page(..., section=0)`으로 만든다. 읽어 온 바탕쪽은 그대로 둔다.
+- `doc.text.iter_paragraphs()`가 MEMO 누름틀에만 있는 메모(한/글 2024가 저장하는 모양)의 글을 `where="memo"`로 내놓지 않아,
+  한/글로 다시 저장한 문서에서 메모 글이 빠진 것처럼 보이던 문제를 고쳤다.
 - 열기 안전 검사가 저장을 거부할 때 `to_bytes()`·`save()`가 code 없는 `HwpxPackageError`를 내던 문제를 고쳤다. 이제 엔진 계약대로
   `code="open-safety-failed"`·`suggestion`을 싣는다. `HwpxPackageError`·`HwpxStructureError` 계열(`HwpxArchiveError` 등)과
   `HwpxSecurityError`도 `HwpxError`를 상속해 늘 code를 낸다(`package-invalid`·`open-input-unsafe` 등). 앞에서 잡던 형식으로도 그대로

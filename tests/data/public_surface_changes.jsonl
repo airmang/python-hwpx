@@ -657,3 +657,8 @@
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.flip_vertical: 계약에 생김", "reason": "rotate3: 개체 뒤집기 읽기·쓰기 속성 flip_horizontal·flip_vertical (N2, 한/글 2024 ShapeObjHorzFlip/VertFlip 저장본 근거)"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.flip_horizontal: 계약에 생김", "reason": "rotate3: 개체 뒤집기 읽기·쓰기 속성 flip_horizontal·flip_vertical (N2, 한/글 2024 ShapeObjHorzFlip/VertFlip 저장본 근거)"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.flip_vertical: 계약에 생김", "reason": "rotate3: 개체 뒤집기 읽기·쓰기 속성 flip_horizontal·flip_vertical (N2, 한/글 2024 ShapeObjHorzFlip/VertFlip 저장본 근거)"}
+{"date": "2026-11-17", "version": "6.12.0", "kind": "additive", "change": "model.Shape.ungroup: 계약에 생김", "reason": "objlim: Shape.ungroup — 묶음을 한/글처럼 푼다"}
+{"date": "2026-11-17", "version": "6.12.0", "kind": "breaking", "change": "doc.shapes.add_control: 없어짐", "reason": "objlim: add_raw·add_control 은 .element 와 같은 약속하지 않는 탈출구(계약 밖)"}
+{"date": "2026-11-17", "version": "6.12.0", "kind": "breaking", "change": "doc.shapes.add_raw: 없어짐", "reason": "objlim: add_raw·add_control 은 .element 와 같은 약속하지 않는 탈출구(계약 밖)"}
+{"date": "2026-11-17", "version": "6.12.0", "kind": "breaking", "change": "model.Paragraph.add_control: 계약에서 내림(계약 밖으로)", "reason": "objlim: add_raw·add_control 은 .element 와 같은 약속하지 않는 탈출구(계약 밖)"}
+{"date": "2026-11-17", "version": "6.12.0", "kind": "breaking", "change": "model.Paragraph.add_shape: 계약에서 내림(계약 밖으로)", "reason": "objlim: add_raw·add_control 은 .element 와 같은 약속하지 않는 탈출구(계약 밖)"}

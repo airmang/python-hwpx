@@ -294,8 +294,9 @@ def fit_new_floating_object(element: Any, paragraph: Any) -> None:
     always), kept in the area (``flowWithText="1"``) and not overlapping (``allowOverlap="0"``). An object
     as a character, one in the body, or one measured from the page or paper (its caller placed it so: a
     connector between shapes, a picture with ``pos_overrides``) is left as it is; a connector keeps the
-    frames of the shapes it joins. The object then meets what moving one into such a box asks
-    (:func:`_stays_in_box`).
+    frames of the shapes it joins. This is how such an object is *made* there; moving or copying one into
+    a box follows what Hancom does when it pastes one (:func:`pasted_placement`), and the placement made
+    here is left as it is by that.
     """
 
     position = element.find(f"{_HP}pos")
@@ -525,7 +526,7 @@ class ObjectPlacement:
         if not given:
             return before
         if self.element.find(f"{_HP}pos") is None:
-            raise _group_member_refused("given outer margins")
+            raise _group_member_refused("given outer margins", "a group member has no place for it: Hancom keeps it on the group (none of 2,068 public members holds one)")
         margins = replace(before, **given)
         own = self.element.find(f"{_HP}outMargin")
         if own is None:
@@ -608,6 +609,10 @@ class ObjectPlacement:
         if _in_group(self.element, self.paragraph.element):
             raise _group_member_refused("turned", "a member turns only with its whole group: turn the group "
                                                   "(group.rotation = angle)")
+        if _local(self.element) in ("equation", "chart") and angle % 360:
+            # Hancom 2024 refuses its 90-degree turn on an equation or a chart and keeps no angle its object
+            # dialog is given (objlim evidence eqturn, eqangle, chartturn, chartangle): not a Hancom feature.
+            raise _rotation_refused(self.element, "Hancom does not turn an equation or a chart")
         if str(self.element.tag).rsplit("}", 1)[-1] == "container":
             from .container import turn_group
 
@@ -689,7 +694,7 @@ class ObjectPlacement:
                 suggestion="Pass the description as text; '' empties it.",
             )
         if _in_group(self.element, self.paragraph.element):
-            raise _group_member_refused("described")
+            raise _group_member_refused("described", "a group member has no place for it: Hancom keeps it on the group (none of 2,068 public members holds one)")
         from ._document_primitives import _append_child, _reposition_child_after_any
 
         comment = self.element.find(f"{_HP}shapeComment")
@@ -717,8 +722,9 @@ class ObjectPlacement:
         left in it, and the outermost group moves every shape in it so that box starts at its origin, takes
         its size (drawn at the size Hancom or ``resize`` gave it) and, floating from the left and top of its
         frame, moves on the page by as much, so the members left stay where they were drawn. That is
-        refused (``shape-group-member-unsupported``, with ``context["reason"]``) for a group's only member
-        and where a group or a member of one is turned, flipped or stretched otherwise than so. A second
+        refused (``shape-group-member-unsupported``, with ``context["reason"]``) where a group or a member
+        of one is turned, flipped or stretched otherwise than so. A group's only member takes the group with
+        it (a group inside a group so, the group that held it fitting what is left). A second
         call does nothing; the object should not be used after it.
         """
 
@@ -727,6 +733,12 @@ class ObjectPlacement:
         parent = _parent_of(element, paragraph)
         if parent is None or not any(child is element for child in parent):
             return
+        from .container import _shapes_inside
+
+        # A group's only member taken out takes the group with it: no Hancom-saved document holds an empty
+        # group, nor a group of one (773 public groups have two or more members).
+        while _local(parent) == "container" and len(_shapes_inside(parent)) < 2:
+            element, parent = parent, _parent_of(parent, paragraph)
         groups = []
         node = parent
         while node is not None and str(node.tag).rsplit("}", 1)[-1] == "container":
@@ -750,8 +762,13 @@ class ObjectPlacement:
         """Move this object into *paragraph* at character *offset* (``None``: the end), as cutting
         and pasting it in Hancom does.
 
-        *paragraph* is a paragraph of the same document -- in the body, a table cell, a text box,
-        a note, a header or a footer -- or its index in ``doc.paragraphs``. *offset* counts as
+        *paragraph* is a paragraph -- in the body, a table cell, a text box, a note, a caption, a
+        header or a footer -- or its index in ``doc.paragraphs``. A paragraph of another document
+        takes the object as Hancom 2024 pastes one cut from another document: a copy with fresh ids
+        and the images and charts it shows goes there, and the original is removed. Refused there
+        (``shape-copy-document-unsupported``): an object holding text (a text box, a caption, a
+        table: Hancom could not open such a document again) and a connector (it would let go of its
+        shapes, and Hancom draws such a connector nowhere). *offset* counts as
         ``paragraph.text`` does (a tab or a line break is one, an object none); the object goes in
         front of the character there, after the controls and objects already at that place. The
         object keeps its ids, its caption and what it holds; this wrapper then belongs to
@@ -759,22 +776,24 @@ class ObjectPlacement:
         empty goes, a connector attached to it lets go of it), and the paragraphs on both sides
         lose their line layout caches, with the paragraphs holding their cells and captions.
 
-        A floating object keeps its frames and offsets as they are written; nothing is changed
-        for it. Measured from its paragraph (``PARA``, ``COLUMN``) it goes with its new paragraph.
-        Measured from the page or paper (``PAGE``, ``PAPER``) it stays where it is on the page:
-        only the page it is drawn on follows its new paragraph, so moved within one page it does
-        not move at all -- ``set_position`` puts it elsewhere. Where Hancom documents never hold
-        such an object the move is refused with ``shape-move-place-unsupported``: into a table
-        cell, a text box or a note, a floating object that is not measured down from its
-        paragraph and kept in the page area (``vertRelTo="PARA"`` and either ``flowWithText="1"``
-        or ``horzRelTo="PARA"``; Hancom draws another one over the cells above it), so a page-
-        or paper-measured one never; a page-measured object into a section whose paper or margins
-        differ; any floating object into a caption, and any object into a memo or a master page.
-        Change the placement first with ``set_position(vertical_relative_to="PARA",
-        horizontal_relative_to="PARA")`` or ``treat_as_char=True``. Moving an object into itself (a paragraph of its own text box
-        or caption) is ``shape-move-into-itself``, a member of a group alone
-        ``shape-group-member-unsupported``, a removed object ``shape-not-in-document``. Everything
-        is checked before anything changes.
+        As Hancom pastes an object, it goes over the others (its ``zOrder`` one more than the
+        highest in the section of *paragraph*). In the body, a header or a footer a floating object
+        keeps its frames and offsets as they are written. Measured from its paragraph (``PARA``,
+        ``COLUMN``) it goes with its new paragraph; measured from the page or paper (``PAGE``,
+        ``PAPER``) it stays where it is on the page, also in a section with other paper -- only
+        the page it is drawn on follows its new paragraph, so moved within one page it does not
+        move at all (``set_position`` puts it elsewhere). Into a table cell, a text box, a note or
+        a caption a floating object takes the placement Hancom 2024 gives one pasted there
+        (:func:`pasted_placement`; read it back from ``position``): one not measured down from its
+        paragraph, or not kept in the page area, is measured from its paragraph at offset 0, kept
+        in the area and not let overlap; one measured across from the page or paper is measured
+        from the column at offset 0. Refused with ``shape-move-place-unsupported``: a floating table
+        into a cell, text box, note or caption unless it is
+        measured down from its paragraph and kept in the page area, and any object into a memo or a
+        master page (no Hancom-saved document shows how Hancom puts one there). Moving an object
+        into itself (a paragraph of its own text box or caption) is ``shape-move-into-itself``, a
+        member of a group alone ``shape-group-member-unsupported``, a removed object
+        ``shape-not-in-document``. Everything is checked before anything changes.
         """
 
         place_object(self, paragraph, offset, copy=False)
@@ -782,8 +801,9 @@ class ObjectPlacement:
     def copy_to(self: _Placed, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> _Placed:
         """Put a copy of this object into *paragraph* at *offset* (``None``: the end) and return it.
 
-        The place is chosen and checked as :meth:`move_to` does, and a copy may go inside the
-        object it copies (a copy of a text box into its own text). The copy has fresh ids (its
+        The place is chosen and checked as :meth:`move_to` does (another document's paragraph too,
+        the images and charts carried there), and a copy may go inside the object it copies (a copy
+        of a text box into its own text). The copy has fresh ids (its
         objects, tables, paragraphs and fields; a connector in it follows the copied objects it
         was attached to and lets go of the others), no line layout caches, and the same images
         (a picture's copy shows the same ``BinData`` item). A memo anchored in it becomes a memo
@@ -1253,6 +1273,15 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
     resizes one; any other flipped object is refused (``shape-flip-unsupported``)."""
 
     element = obj.element
+    if _local(element) == "equation":
+        raise HwpxValueError(
+            "an equation's box follows its script: Hancom 2024 measures it again whatever size it is given "
+            "(objlim evidence psizeeq, eqsize)",
+            code="shape-equation-resize-unsupported",
+            context={"width": repr(width), "height": repr(height)},
+            suggestion="수식 상자 크기는 스크립트와 글자 크기로 정해집니다. equation.font_size 나 equation.script 를 "
+                       "바꾸세요.",
+        )
     info = element.find(f"{_HP}rotationInfo")
     angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
     flips = flip_signs(element)
@@ -1285,6 +1314,118 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
 
     _clear_paragraph_layout_cache(obj.paragraph.element)
     obj.paragraph.section.mark_dirty()
+
+
+def resize_shape(obj: Any, width: int | None, height: int | None) -> None:
+    """Resize a drawing shape (not a group) to *width* x *height* (one alone keeps the aspect ratio) as Hancom
+    2024 resizes one: its geometry and original size (``hp:orgSz``) stay and ``hc:scaMatrix`` draws it at the
+    new size -- ``hp:sz`` the new size, ``hp:curSz`` the new size on an axis that differs from ``orgSz`` and 0
+    on one that does not, the scale the new size over ``orgSz``, the rotation centre the middle of the new
+    size (objlim evidence psizerect 8000x5000 -> 12000x5000: curSz 12000x0, e1 1.5; psizerect2 -> 4000x10000;
+    psizerect3 twice, the scale over ``orgSz``; psizeline a horizontal line 14400x0 -> 14400x2000: orgSz
+    14400x1 kept, e5 2000, and 7200x3000). A turned shape is resized as drawn before turning and turned again
+    (:func:`apply_rotation`), as :func:`resize_object` does a picture."""
+
+    element = obj.element
+    info = element.find(f"{_HP}rotationInfo")
+    angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    width, height = keep_ratio(rotation_base_size(element) if angle else object_size(element), width, height)
+    if not angle:
+        _set_size(element, "sz", width, height)
+    original = element.find(f"{_HP}orgSz")
+    org = (_number(original.get("width")) or 0, _number(original.get("height")) or 0) \
+        if original is not None else (0, 0)
+    if min(org) > 0:
+        _set_size(element, "curSz", width if width != org[0] else 0, height if height != org[1] else 0)
+        scale = element.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+        if scale is not None:
+            scale.set("e1", _matrix_number(width / org[0]))
+            scale.set("e5", _matrix_number(height / org[1]))
+    else:  # no original size to draw from: the box alone
+        _set_size(element, "curSz", width, height)
+    if info is not None:
+        info.set("centerX", str(width // 2))
+        info.set("centerY", str(height // 2))
+    if angle:
+        apply_rotation(element, angle, width, height)
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(obj.paragraph.element)
+    obj.paragraph.section.mark_dirty()
+
+
+def _matrix_values(matrix: Any) -> list[float]:
+    return [_fraction(matrix.get(key), 1.0 if key in ("e1", "e5") else 0.0)
+            for key in ("e1", "e2", "e3", "e4", "e5", "e6")]
+
+
+def stretch_along_page(node: Any, factors: tuple[float, float],
+                       linear: tuple[float, float, float, float] | None = None) -> None:
+    """Stretch the drawn shape *node* by *factors* along the page's axes, keeping its turn and move, as Hancom
+    2024 resizes a turned group: with ``L`` the 2x2 part of what turns it (``linear``; by default its
+    ``hc:rotMatrix``'s, which may also mirror it), ``D`` the factors and ``t`` the move of its ``transMatrix`` and
+    ``rotMatrix`` (e3/e6), its ``hc:scaMatrix`` becomes ``L^-1 D L`` moved by ``L^-1 (D - I) t``, and its
+    ``hp:curSz`` its ``orgSz`` times the diagonal of that (rounded down)."""
+
+    trans = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}transMatrix"))
+    rot = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}rotMatrix"))
+    l11, l12, l21, l22 = linear if linear is not None else (rot[0], rot[1], rot[3], rot[4])
+    det = l11 * l22 - l12 * l21
+    i11, i12, i21, i22 = l22 / det, -l12 / det, -l21 / det, l11 / det  # L^-1
+    dx, dy = factors
+    # L^-1 D L
+    a11 = i11 * dx * l11 + i12 * dy * l21
+    a12 = i11 * dx * l12 + i12 * dy * l22
+    a21 = i21 * dx * l11 + i22 * dy * l21
+    a22 = i21 * dx * l12 + i22 * dy * l22
+    move = (trans[2] + rot[2], trans[5] + rot[5])
+    stretched = ((dx - 1) * move[0], (dy - 1) * move[1])  # (D - I) t
+    offset = (i11 * stretched[0] + i12 * stretched[1], i21 * stretched[0] + i22 * stretched[1])
+    scale = node.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+    for key, value in zip(("e1", "e2", "e3", "e4", "e5", "e6"), (a11, a12, offset[0], a21, a22, offset[1])):
+        scale.set(key, _matrix_number(value))
+    original = node.find(f"{_HP}orgSz")
+    if original is not None:
+        _set_size(node, "curSz", int((_number(original.get("width")) or 0) * a11 + 1e-6),
+                  int((_number(original.get("height")) or 0) * a22 + 1e-6))
+
+
+def resize_turned_group(shape: Any, width: int, height: int, *,
+                        linear: "Callable[[Any], tuple[float, float, float, float]] | None" = None) -> None:
+    """Resize the turned group *shape* so the box around it (``hp:sz``) is *width* x *height*, as Hancom 2024
+    resizes one: the turn and the move stay (``rotMatrix``, ``transMatrix``, ``hp:offset``, ``rotationInfo``)
+    and it is stretched along the page's axes. With ``R`` the turn, ``D`` the box's new size over its old one
+    on each axis and ``t`` the move of the shape's own turn and move (``transMatrix`` and ``rotMatrix`` e3/e6),
+    the group and every member take ``scaMatrix`` = ``R^-1 D R`` moved by ``R^-1 (D - I) t``, and ``curSz`` its
+    ``orgSz`` times the diagonal of that (rounded down). Hancom wrote exactly this for a group turned 30 and 45
+    degrees and resized (objlim evidence psizegrpturn, psizegrpturn45; the form rotate5 worked out, within
+    0.02). *linear* gives each shape's ``L`` (:func:`stretch_along_page`); by default its ``rotMatrix``'s 2x2 part,
+    so a branch for flipped shapes can pass the mirror along. Refused (``shape-rotation-unsupported``) for a group already stretched or holding a group: no
+    Hancom-saved document shows those resized."""
+
+    element = shape.element
+    size = element.find(f"{_HP}sz")
+    old = (_number(size.get("width")) or 0, _number(size.get("height")) or 0) if size is not None else (0, 0)
+    shapes = [element] + [child for child in element if child.find(f"{_HP}renderingInfo") is not None]
+    for node in shapes:
+        sets = [_local(child) for child in node.find(f"{_HP}renderingInfo")]
+        scale = node.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+        if node is not element and _local(node) == "container":
+            raise _rotation_refused(element, "it holds a group: no Hancom-saved document shows one resized turned")
+        if sets != ["transMatrix", "scaMatrix", "rotMatrix"] or scale is None or any(
+                abs(value - plain) > 1e-3 for value, plain in zip(_matrix_values(scale), (1, 0, 0, 0, 1, 0))):
+            raise _rotation_refused(element, "it is stretched: no Hancom-saved document shows a stretched turned "
+                                             "group resized")
+    if min(old) <= 0:
+        raise _rotation_refused(element, "it has no size")
+    factors = (width / old[0], height / old[1])
+    for node in shapes:
+        stretch_along_page(node, factors, linear(node) if linear is not None else None)
+    _set_size(element, "sz", width, height)
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(shape.paragraph.element)
+    shape.paragraph.section.mark_dirty()
 
 
 def picture_crop(element: Any) -> tuple[int, int, int, int]:
@@ -2044,7 +2185,9 @@ _SUBLIST_BOXES = {
 #: in notes 40, in text boxes 2 -- every one of them measured from its paragraph -- and in headers and
 #: footers 7 (from the paragraph or the paper); none sits in a caption. In a cell, a text box or a note
 #: the object must also be kept in the page area or measured across from its paragraph
-#: (:func:`_stays_in_box`).
+#: (:func:`_stays_in_box`). This is what a *table* moved or copied there must meet (no Hancom paste of
+#: one has been seen); a picture, equation, chart, OLE or drawing object is placed there as Hancom pastes
+#: it instead (:func:`pasted_placement`).
 OBJECT_PLACES: dict[str, frozenset[str]] = {
     "char": frozenset({"body", "cell", "text_box", "note", "header_footer", "caption"}),
     "paragraph": frozenset({"body", "cell", "text_box", "note", "header_footer"}),
@@ -2234,12 +2377,55 @@ def insert_at_offset(paragraph: Any, element: Any, offset: int | None, char_pr_i
     runs[-1].append(element)
 
 
-def _check_place(element: Any, source: Any, target: Any) -> None:
-    """Refuse a place *target* (a paragraph) where Hancom documents never hold the object *element* in the
-    way it is placed, coming from the paragraph *source* (see :data:`OBJECT_PLACES`)."""
+#: The boxes Hancom fits a pasted floating object into (:func:`pasted_placement`).
+_PASTE_FITTED = frozenset({"cell", "text_box", "note", "caption"})
+
+
+def pasted_placement(element: Any) -> dict[str, str]:
+    """The ``hp:pos`` attributes Hancom 2024 changes when it pastes the floating object *element* into a table
+    cell, a text box, a note or a caption (``{}`` when it changes none), each axis on its own:
+
+    - down: an object not measured from its paragraph (``vertRelTo`` PAGE or PAPER) or not kept in the page
+      area (``flowWithText="0"``) is measured from its paragraph at offset 0, kept in the area and not let
+      overlap: ``vertRelTo="PARA"``, ``vertOffset="0"``, ``flowWithText="1"``, ``allowOverlap="0"``;
+    - across: one measured from the page or paper (``horzRelTo`` PAGE or PAPER) is measured from the column
+      at offset 0: ``horzRelTo="COLUMN"``, ``horzOffset="0"``; this leaves ``allowOverlap`` as it is.
+
+    An object measured from its paragraph and kept in the area keeps everything (its offsets too). Hancom
+    2024 pasted nine placements into text boxes, cells, notes and captions and wrote exactly this (objlim
+    evidence o01/o10: PAGE/PAGE, PAPER/PAPER, PAGE/COLUMN, PARA/PAGE, PARA/COLUMN with flowWithText 0 and
+    allowOverlap 1 or 0, PARA/PARA with flowWithText 0; PARA/COLUMN and PARA/PARA kept in the area stayed). The
+    cell ones opened again in Hancom 2024 (cl0, cl1d, cl2, cl5; cl1s, cl1b, cl1c opened by hand).
+    """
+
+    position = element.find(f"{_HP}pos")
+    if position is None or position.get("treatAsChar") not in _FALSE_FLAGS:
+        return {}
+    changes: dict[str, str] = {}
+    if position.get("vertRelTo") != "PARA" or position.get("flowWithText") in _FALSE_FLAGS:
+        changes.update(vertRelTo="PARA", vertOffset="0", flowWithText="1", allowOverlap="0")
+    if position.get("horzRelTo") in ("PAGE", "PAPER"):
+        changes.update(horzRelTo="COLUMN", horzOffset="0")
+    return {name: value for name, value in changes.items() if position.get(name) != value}
+
+
+def _top_z_order(section: Any) -> str:
+    """One more than the highest ``zOrder`` in *section*'s part: Hancom gives a pasted object the top one."""
+
+    orders = [_number(node.get("zOrder")) for node in section.element.iter() if node.get("zOrder") is not None]
+    return str(max([order for order in orders if order is not None] or [-1]) + 1)
+
+
+def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
+    """Refuse a place *target* (a paragraph) where the object *element*, coming from the paragraph *source*,
+    is not put the way Hancom puts it, and return the ``hp:pos`` changes it takes there
+    (:func:`pasted_placement`; tables meet :data:`OBJECT_PLACES` and take none)."""
 
     box = paragraph_box(target.element, target.section.element)
     kind = placement_kind(element)
+    if _local(element) != "tbl" and box not in ("memo", "other"):
+        changes = pasted_placement(element) if kind != "char" and box in _PASTE_FITTED else {}
+        return changes
     if box not in OBJECT_PLACES.get(kind, frozenset()):
         if box in ("memo", "other"):
             why = "objects go into the body, a cell, a text box, a note, a header or a footer"
@@ -2254,6 +2440,67 @@ def _check_place(element: Any, source: Any, target: Any) -> None:
                                            "page area (vertRelTo PARA, and flowWithText 1 or horzRelTo PARA)")
     if kind == "page" and target.section.element is not source.section.element             and _page_settings(target.section) != _page_settings(source.section):
         raise _place_refused(element, box, "it is measured from the page, and that section's paper or margins differ")
+    return {}
+
+
+def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, offset: int | None, *,
+                             copy: bool) -> Any:
+    """``copy_to``/``move_to`` of *obj* into the paragraph *target* of another document, as Hancom 2024 pastes
+    an object copied (or cut) from another document: a copy with fresh ids, the images and charts it shows
+    carried into that document (``media.carry_object_parts``; objlim evidence xpic, xeq, xchart, xpic2, xchart2),
+    placed there as in the same document (:func:`_check_place`). A move removes the original after that, as
+    cutting does. A connector (or an object holding one) is refused: pasted into another document it lets go of
+    its shapes, and Hancom 2024 draws it nowhere (xconn, and the engine's copy opened in Hancom, objlim-xdoc).
+
+    An object holding text -- a text box, a caption, a table -- is refused (``shape-copy-document-unsupported``):
+    Hancom 2024 stopped on the document it pasted a text box into from another document (xbox2, xbox2b), and
+    text brings paragraph and character shapes; ``hwpx.tools.document_merge.insert_document`` carries those."""
+
+    from .._document.media import carry_object_parts
+    from ._document_primitives import _clear_paragraph_layout_cache
+    from .formatting import _check_offset
+
+    element = obj.element
+    if _local(element) == "connectLine" or element.find(f".//{_HP}connectLine") is not None:
+        raise HwpxValueError(
+            "a connector is not copied into another document: it lets go of its shapes there, and Hancom 2024 "
+            "draws such a connector nowhere (objlim evidence xconn, objlim-xdoc)",
+            code="shape-copy-document-unsupported",
+            context={"caller": "copy_to" if copy else "move_to", "object": _local(element)},
+            suggestion="연결선은 이은 도형과 함께 문서 끼워 넣기(insert_document)로 가져오세요(연결이 이어진 채 옵니다).",
+        )
+    if element.find(f".//{_HP}subList") is not None or _local(element) == "tbl":
+        raise HwpxValueError(
+            "an object holding text (a text box, a caption, a table) is not copied into another document",
+            code="shape-copy-document-unsupported",
+            context={"caller": "copy_to" if copy else "move_to", "object": _local(element)},
+            suggestion="글이 든 개체는 문서 끼워 넣기(hwpx.tools.document_merge.insert_document)로 가져오세요. "
+                       "한/글 2024는 다른 문서에서 붙인 글상자가 든 문서를 다시 열지 못했습니다.",
+        )
+    changes = _check_place(element, source, target)
+    if offset is not None:
+        _check_offset("offset", offset, 0, len(target.text))
+    placed = fresh_copy(element)
+    carry_object_parts(placed, source.section.document, target.section.document)
+    position = placed.find(f"{_HP}pos")
+    if position is not None:
+        for name, value in changes.items():
+            position.set(name, value)
+    if placed.get("zOrder") is not None:
+        placed.set("zOrder", _top_z_order(target.section))
+    insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
+    _clear_paragraph_layout_cache(target.element)
+    target.section.mark_dirty()
+    from .objects import wrap_object
+
+    if copy:
+        return wrap_object(placed, target)
+    images = binary_references(element)
+    _detach_object(element, parent, source.element, source.section)
+    remove_orphaned_images(source.section, images)
+    obj.element = placed
+    obj.paragraph = target
+    return None
 
 
 def _sections_of(*paragraphs: Any) -> list[Any]:
@@ -2289,6 +2536,10 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
     if _local(parent) == "container":
         raise _group_member_refused("copied" if copy else "moved")
     source = resolve_paragraph_in(source, source.__class__(holder, source.section), caller=caller)
+    other = getattr(getattr(paragraph, "section", None), "document", None)
+    if other is not None and source.section.document is not None and other is not source.section.document:
+        return _place_in_other_document(obj, parent, source, resolve_paragraph_in(paragraph, paragraph, caller=caller),
+                                        offset, copy=copy)
     target = resolve_paragraph_in(source, paragraph, caller=caller)
     if not copy and any(node is target.element for node in element.iter()):
         raise HwpxValueError(
@@ -2297,7 +2548,7 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
             context={"caller": caller},
             suggestion="Pick a paragraph outside the object, or copy it there with copy_to().",
         )
-    _check_place(element, source, target)
+    changes = _check_place(element, source, target)
     if offset is not None:
         _check_offset("offset", offset, 0, len(target.text))
     if copy:
@@ -2308,6 +2559,12 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
         inside = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
         _let_go_of_outside(element, {value: value for value in inside if value})
         placed = element
+    position = placed.find(f"{_HP}pos")
+    if position is not None:
+        for name, value in changes.items():
+            position.set(name, value)
+    if _local(placed) != "tbl" and placed.get("zOrder") is not None:
+        placed.set("zOrder", _top_z_order(target.section))  # Hancom puts a pasted object over the others
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
     _clear_paragraph_layout_cache(target.element)
     if not copy and target.section.element is not source.section.element:
