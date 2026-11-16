@@ -87,8 +87,9 @@ class MediaNamespace(_Namespace):
     def remove_unused_images(self) -> "tuple[BinaryItem, ...]":
         """문서가 어디서도 가리키지 않는 이진 항목을 모두 지우고, 지운 항목을 돌려준다.
 
-        한/글은 문서를 저장할 때 쓰지 않는 이진 항목을 지운다. 본문에서 그림을 지우면
-        (``section.clear_body()``, 문단 삭제) 그 그림의 이진 항목은 패키지에 남는다.
+        한/글은 문서를 저장할 때 쓰지 않는 이진 항목을 지운다. 개체의 ``remove()``는 그 개체가
+        보이던 이진 항목만 바로 정리하고, 다른 길로 그림을 지우면(``section.clear_body()``, 문단 삭제,
+        ``remove(remove_orphaned=False)``) 그 이진 항목은 패키지에 남는다. 이것은 그런 항목을 한꺼번에 지운다.
         :meth:`remove_image`가 확인하는 참조(그림, 채우기 그림·그림 글머리표, 바탕쪽,
         동영상, OLE, 내장 글꼴)가 하나라도 있으면 지우지 않는다."""
 
@@ -103,7 +104,8 @@ class MediaNamespace(_Namespace):
         표 칸·글상자·각주·묶음 안의 그림도 든다. 순서는 :meth:`picture_references`와
         같아서 ``doc.media.pictures[ref.picture_index]``가 그 참조의 그림이다. 하나하나가
         ``model.Picture``라 크기(``resize``)·자르기(``set_crop``)·설명·위치를 읽고 고치고
-        ``remove()``로 지운다. 지운 그림의 이진 항목은 :meth:`remove_unused_images`가 지운다.
+        ``remove()``로 지운다. ``remove()``는 다른 곳에서 쓰지 않게 된 그 그림의 이진 항목도 함께
+        지운다(``remove(remove_orphaned=False)``면 남긴다). 남은 것은 :meth:`remove_unused_images`가 지운다.
         """
 
         from .. import media as _media

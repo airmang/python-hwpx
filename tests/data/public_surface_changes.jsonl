@@ -51,3 +51,71 @@
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.add_picture: 인자 생김 line_width_mm", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.save: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.SaveError.report: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.base_unit: 쓰기 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.font: 쓰기 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.remove: 인자 생김 remove_orphaned", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.locked: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.numbering_type: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.set_out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.remove: 인자 생김 remove_orphaned", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.locked: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.numbering_type: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.set_out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.line_segments: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.remove: 인자 생김 remove_orphaned", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.locked: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.numbering_type: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.set_out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.remove: 인자 생김 remove_orphaned", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.locked: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.numbering_type: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.set_out_margins: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.border_fill: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.border_fill_id_ref: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.cell_spacing: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.locked: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.numbering_type: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.position: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.z_order: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.TableCell.editable: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.TableCell.protected: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.TableCell.text_direction: 계약에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "objects.LineSegment: hwpx.objects에 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.base_unit: 쓰기 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.font: 쓰기 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.remove: 인자 생김 remove_orphaned", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.locked: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.numbering_type: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.set_out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.remove: 인자 생김 remove_orphaned", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.locked: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.numbering_type: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.set_out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.line_segments: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.remove: 인자 생김 remove_orphaned", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.locked: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.numbering_type: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.set_out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.remove: 인자 생김 remove_orphaned", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.locked: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.numbering_type: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.set_out_margins: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.border_fill: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.border_fill_id_ref: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.cell_spacing: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.locked: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.numbering_type: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.position: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.z_order: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.TableCell.editable: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.TableCell.protected: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.TableCell.text_direction: 계약에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "objects.LineSegment: hwpx.objects에 생김", "reason": "objrest: feat(objects): 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성과 개체 회전·여백"}

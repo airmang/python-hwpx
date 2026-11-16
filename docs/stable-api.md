@@ -88,9 +88,9 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 189 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 376 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 403 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 164 |
-| `hwpx.objects` 51개 값 형식 | 필드 238 · 멤버 104 · enum 값 10 | 352 |
+| `hwpx.objects` 52개 값 형식 | 필드 247 · 멤버 105 · enum 값 10 | 362 |
 | 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
 <!-- public-surface-lock:end -->
 
@@ -367,14 +367,27 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `description`/`set_description`(`hp:shapeComment`, 대체 글), `caption`, 그리고 `remove()`.
 `remove()`는 `table.remove()`와 같은 규칙입니다 — 문단은 남고(다른 것이 없으면 빈 줄),
 빈 run은 빠지며, 문단과 그 문단을 품은 문단의 줄 배치 캐시를 지웁니다. 붙어 있던 연결선은
-끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 그림의 이진 항목은 패키지에 남으니
-`doc.media.remove_unused_images()`로 정리합니다. 묶음 안의 개체는 혼자 지우거나 돌리거나
-설명을 달 수 없습니다(`shape-group-member-unsupported`). `set_rotation`은 한/글 저장본이 보여 주는
-관계(상자 `hp:sz`는 돈 개체를 감싸는 상자, 개체는 그 가운데로 옮겨 자기 가운데를 축으로 돈다)를
-그대로 쓰며, 그 관계가 확인되지 않은 경우 — 늘이거나 줄인 개체(`hc:scaMatrix`가 항등이 아님,
-`resize`한 그림 포함), 뒤집은 개체, 묶음, 글자가 든 도형(한/글은 글을 돈 도형이 아니라 감싸는
-상자에 가로로 놓아 글이 도형 밖으로 나온다) — 는 `shape-rotation-unsupported`로 거부합니다. 각도 0으로
-되돌리는 것은 언제나 됩니다.
+끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 지운 개체(그림, 묶음 안 그림, 그림 채우기, 표 칸의
+그림)가 보이던 이진 항목은 문서의 다른 곳이 가리키지 않으면 함께 지웁니다 — 한/글이 저장할 때 쓰지 않는
+이진 항목을 지우는 것과 같습니다(`remove(remove_orphaned=True)`, `doc.media.replace_picture`의 같은 인자;
+`False`면 남기고 `doc.media.remove_unused_images()`가 나중에 한꺼번에 지웁니다). 묶음 안의 개체를
+`remove()`하면 묶음들이 남은 구성원에 맞춰집니다(7.0) — 한/글 저장본의 묶음은 구성원을 감싸는 상자이므로
+안쪽 묶음은 남은 구성원을 감싸는 상자를 제 자리·크기로 갖고, 가장 바깥 묶음은 그 상자가 원점에서
+시작하도록 구성원을 옮기고 그 크기(한/글이나 `resize`로 키운 묶음은 그 배율로 그린 크기)를 가지며, 왼쪽·위
+기준으로 떠 있으면 쪽 위에서 그만큼 옮겨 남은 구성원이 그려지던 자리에 그대로 있습니다. 묶음의 하나뿐인
+구성원, 돌았거나 뒤집혔거나 그 밖의 방식으로 늘인 묶음·구성원은 거부합니다(`shape-group-member-unsupported`,
+`context["reason"]`). 묶음 안의 개체를 혼자 돌리거나 설명·바깥 여백을 다는 것은 여전히 거부합니다.
+`set_rotation`은 한/글 저장본이 보여 주는 관계(그려진 크기의 개체를 자기 가운데를 축으로 돌리고, 상자 `hp:sz`는
+돈 개체를 감싸는 상자, 개체는 그 상자의 원점으로 옮긴다)를 그대로 씁니다. 7.0부터 `resize`로 늘이거나
+줄인 그림·도형도 그린 크기대로 돕니다(공개 `ta-pic-001-r.hwp`의 0.2768배로 그려 34° 돈 그림과 상자·가운데·
+그리는 변환이 같다. 공개 `el-school-001.hwp`의 늘인 다각형 90°와 편람의 늘인 다각형 35°도 같은 관계이고,
+한/글에서 열어 다시 저장해도 값이 그대로다). 돈 그림은 `resize`·`set_crop`하면 그린 크기로 고치고 다시 돌립니다.
+다음은 `shape-rotation-unsupported`로 바꾸기 전에 거부합니다 — 글자가 든 도형(한/글은 글을 돈 도형이 아니라
+그 도형을 감싸는 상자 폭에 가로로 놓아 그린다: 30~270° 돌린 글상자를 한/글이 다시 저장하면 `drawText/@lastWidth`가
+그 상자 폭이 되고 글이 도형 밖으로 나온다; 공개 문서에 글이 든 돈 도형은 없다), 묶음(한/글은 구성원을 저마다의
+행렬로 그리므로 묶음을 돌리려면 모든 구성원 행렬을 돌려야 하는데, 그 관계를 보이는 공개 한/글 저장본은 묶음 속에서
+180° 돈 묶음 하나뿐이다), 뒤집은 개체, 수식·차트. 묶음 구성원 하나만 돌리는 것도 같은 이유로 거부합니다.
+각도 0으로 되돌리는 것은 언제나 됩니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
@@ -383,8 +396,20 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `shadow`·`glow`)를 더합니다. `Shape`에는 `line_width`·`fill_color` 읽기가 더해졌습니다.
 `model.Equation`(`add_equation`·`paragraph.equations`·`doc.shapes.equations`)은 `script`, `font`,
 `base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
+`Equation.base_unit`(기준 글자 크기, 1/100 pt)은 쓰면 상자를 그 크기로 `add_equation`처럼 다시 재고,
+`Equation.font`는 쓰면 상자는 그대로 두고(측정은 글꼴에 매이지 않는다) 줄 배치 캐시를 지웁니다(7.0).
+모든 개체는 `out_margins`(`hp:outMargin`, `CellMargins`, 표의 `out_margins`와 같은 형식)와
+`set_out_margins(left=, right=, top=, bottom=)`(주지 않은 면은 그대로, 잘못된 값은 `shape-out-margin-value`)을 갖습니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
 `Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
+
+`Paragraph.line_segments`(7.0, 읽기 전용)는 그 문단이 마지막으로 배치되어 저장된 줄 배치
+(`hp:linesegarray`)를 줄마다 `hwpx.objects.LineSegment` 하나씩, 위에서 아래로 tuple로 돌려줍니다 —
+`text_position`(줄이 시작하는 글자 위치, 한/글이 세는 대로: 탭·조판 부호는 8자리, BMP 밖 글자는 2자리),
+`vertical_position`·`height`·`text_height`·`baseline`·`spacing`·`horizontal_position`·`width`(HWPUNIT),
+`flags`(한/글의 줄 비트 값 그대로). 새 문단, 그리고 저장 뒤 글·크기·배치를 고쳐 캐시가 지워진 문단은
+`()`입니다. 값은 저장된 문서를 말하며 그 뒤의 편집을 따라가지 않습니다. 줄 배치를 쓰는 것은 실험 기능
+`hwpx.layout.line_cache.write_line_caches`의 몫입니다.
 
 ### 개체·표·문단·메모 옮기기와 복사 (7.0)
 
@@ -477,3 +502,15 @@ line_type=, width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸�
 `text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`),
 `TableCell.clear()`, `copy_after(paragraph=None)`(새 id 로 복사). 길이는 모두 HWPUNIT,
 선 굵기만 `_mm` 이다.
+
+칸과 표의 나머지 속성은 값 하나씩 읽고 쓰는 속성이다(7.0). `TableCell.text_direction`
+(`"HORIZONTAL"`/`"VERTICAL"`, 세로쓰기 — 바꾸면 칸 문단과 표를 품은 문단의 줄 배치 캐시를 지운다),
+`TableCell.protected`(셀 보호)·`editable`(양식 모드에서 편집 가능, 둘 다 `bool`), `Table.cell_spacing`
+(칸 간격, `0..32767`; 칸 크기는 그대로 두고 한/글 저장본처럼 표의 `hp:sz`를 칸들과 간격 수만큼 키운다),
+`Table.border_fill_id_ref`(표 자체의 테두리/배경 — 배경은 칸 뒤에 그려져 배경 없는 칸으로 비치고, 선은 칸 간격이
+있을 때 표 둘레에 보인다; 문서에 없는 id 는
+`table-border-fill-not-found`)·`Table.border_fill`(`BorderFillInfo`). 표는 개체와 같은 배치 읽기를 갖는다 —
+`position`(`ObjectPosition`: 떠 있는 표의 오프셋·기준·`text_flow` 포함), `z_order`, `locked`(개체 보호),
+`numbering_type`(캡션 번호 종류 `TABLE`/`PICTURE`/`EQUATION`/`NONE`). `locked`·`numbering_type`은
+그림·수식·도형(`InlineObject`·`Shape`)에도 같은 이름으로 있다. 잘못된 값은 바꾸기 전에
+`table-cell-text-direction-value`·`table-cell-flag-value`·`table-cell-spacing-value`로 거부한다.

@@ -110,22 +110,27 @@ class TableStructureEdits:
             "rows": _whole(rows, "rows"), "cols": _whole(cols, "cols"),
         })
 
-    def remove(self) -> None:
+    def remove(self, *, remove_orphaned: bool = True) -> None:
         """Take this table out of its paragraph, as Hancom deletes a table.
 
         The paragraph that held it stays (an empty line when it held nothing else) and loses its
-        line layout cache. A run left empty goes. A second call does nothing; the table object
-        should not be used after it.
+        line layout cache. A run left empty goes. The images the pictures in its cells showed leave
+        the package with it when nothing else points at them (*remove_orphaned*, as ``obj.remove()``
+        takes it). A second call does nothing; the table object should not be used after it.
         """
+
+        from .shape_position import binary_references, remove_orphaned_images
 
         paragraph = self.paragraph.element
         for run in paragraph.findall(f"{_HP}run"):
             if any(child is self.element for child in run):
+                images = binary_references(self.element) if remove_orphaned else set()
                 run.remove(self.element)
                 if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
                     paragraph.remove(run)
                 _clear_paragraph_layout_cache(paragraph)
                 self.paragraph.section.mark_dirty()
+                remove_orphaned_images(self.paragraph.section, images)
                 return
 
     def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> None:

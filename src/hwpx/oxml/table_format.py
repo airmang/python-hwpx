@@ -24,7 +24,7 @@ from ._document_primitives import (
 )
 from . import table_sizes as _table_sizes
 from .namespaces import HH
-from .shape_position import _object_set_position
+from .shape_position import ObjectPlacement, _object_set_position
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BORDER_SIDES",
+    "CELL_TEXT_DIRECTIONS",
     "CELL_VERT_ALIGNS",
     "TABLE_ALIGNMENTS",
     "TABLE_PAGE_BREAKS",
@@ -43,6 +44,11 @@ __all__ = [
 
 #: ``hp:subList/@vertAlign`` of a cell: where its lines sit between its top and bottom.
 CELL_VERT_ALIGNS = ("TOP", "CENTER", "BOTTOM")
+#: ``hp:subList/@textDirection`` of a cell: its text runs left to right in lines going down
+#: (``HORIZONTAL``) or top to bottom (``VERTICAL``, Hancom's 세로쓰기).
+CELL_TEXT_DIRECTIONS = ("HORIZONTAL", "VERTICAL")
+#: The largest cell spacing (``hp:tbl/@cellSpacing``, HWPUNIT): Hancom keeps it as a 16-bit number.
+_MAX_CELL_SPACING = 2**15 - 1
 #: Where a table sits across its line: the host paragraph's alignment for a table set as a
 #: character, ``hp:pos/@horzAlign`` for a floating one.
 TABLE_ALIGNMENTS = ("LEFT", "CENTER", "RIGHT")
@@ -239,6 +245,59 @@ class TableCellFormat:
         reference = self.element.get("borderFillIDRef") or self.table.element.get("borderFillIDRef")
         return border_fill_info(header, reference)
 
+    @property
+    def text_direction(self) -> str:
+        """How the cell's text runs (``hp:subList/@textDirection``): ``"HORIZONTAL"``, left to right in
+        lines going down, or ``"VERTICAL"``, top to bottom (Hancom's 셀 속성 → 세로쓰기).
+        ``"HORIZONTAL"``, the schema default, when the cell does not say.
+
+        Setting it takes one of the two (exact, uppercase; else ``table-cell-text-direction-value``).
+        The cell keeps its size; its paragraphs and the paragraphs holding the table lose their line
+        layout cache, as the lines are laid out anew.
+        """
+
+        sublist = self.element.find(f"{_HP}subList")
+        return (sublist.get("textDirection") if sublist is not None else None) or "HORIZONTAL"
+
+    @text_direction.setter
+    def text_direction(self, value: str) -> None:
+        wanted = _member(value, CELL_TEXT_DIRECTIONS, argument="text_direction",
+                         code="table-cell-text-direction-value")
+        sublist = self._ensure_sublist()
+        if sublist.get("textDirection") != wanted:
+            sublist.set("textDirection", wanted)
+            self._clear_own_layout_caches()
+            self.table.mark_dirty()
+
+    @property
+    def protected(self) -> bool:
+        """Whether the cell is protected (``hp:tc/@protect``, Hancom's 셀 보호): its content cannot be
+        changed in Hancom. Setting it takes ``True`` or ``False`` (``table-cell-flag-value``)."""
+
+        return (self.element.get("protect") or "").strip().lower() in _TRUE
+
+    @protected.setter
+    def protected(self, value: bool) -> None:
+        self._set_flag("protect", _flag(value, "protected", "table-cell-flag-value"))
+
+    @property
+    def editable(self) -> bool:
+        """Whether the cell can be typed into while the document is in form mode (``hp:tc/@editable``,
+        Hancom's 양식 모드에서 편집 가능). Setting it takes ``True`` or ``False``
+        (``table-cell-flag-value``)."""
+
+        return (self.element.get("editable") or "").strip().lower() in _TRUE
+
+    @editable.setter
+    def editable(self, value: bool) -> None:
+        self._set_flag("editable", _flag(value, "editable", "table-cell-flag-value"))
+
+    def _set_flag(self, attribute: str, value: bool) -> None:
+        wanted = "1" if value else "0"
+        if self.element.get(attribute) != wanted:
+            self.element.set(attribute, wanted)
+            self.table.mark_dirty()
+
     def clear(self) -> None:
         """Empty the cell: its paragraphs, tables and objects go, one empty paragraph stays.
 
@@ -382,6 +441,100 @@ class TableFormat:
     set_in_margins = _table_sizes.set_table_in_margins
     # The same placement call every object takes: treat_as_char, text_wrap, offsets, frames.
     set_position = _object_set_position
+    # The same placement reads every object has (bodies in shape_position.ObjectPlacement): where it
+    # sits (frames, offsets of a floating table, text wrap and flow), its drawing order, its lock and
+    # the caption numbering it counts in.
+    position = ObjectPlacement.position
+    z_order = ObjectPlacement.z_order
+    locked = ObjectPlacement.locked
+    numbering_type = ObjectPlacement.numbering_type
+
+    @property
+    def cell_spacing(self) -> int:
+        """The room between the table's cells and around them (``hp:tbl/@cellSpacing``, HWPUNIT);
+        0 when they touch.
+
+        Setting it takes an int in ``0 <= value <= 32767`` (``table-cell-spacing-value``). The cells
+        keep their sizes and the table grows or shrinks around them, as Hancom stores a spaced table:
+        its ``hp:sz`` width is the columns plus one spacing more than there are columns, its height
+        the rows on its first page plus one spacing more than those rows (Hancom-saved tables with
+        spacings 200 and 850 hold exactly these). The paragraph holding the table loses its line
+        layout cache. With spacing, the table's own border and fill (:attr:`border_fill_id_ref`)
+        show in the gaps.
+        """
+
+        try:
+            return int(self.element.get("cellSpacing") or 0)
+        except ValueError:
+            return 0
+
+    @cell_spacing.setter
+    def cell_spacing(self, value: int) -> None:
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= _MAX_CELL_SPACING:
+            raise _refuse(f"cell_spacing must be an int in 0..{_MAX_CELL_SPACING} (HWPUNIT); got {value!r}",
+                          "table-cell-spacing-value", "Pass the room between cells in HWPUNIT, e.g. 283 for 1 mm.",
+                          value=repr(value))
+        before = self.cell_spacing
+        if value == before and self.element.get("cellSpacing") is not None:
+            return
+        size = self.element.find(f"{_HP}sz")
+        if size is not None:
+            size.set("width", str(sum(_table_sizes.column_widths(self)) + (self.column_count + 1) * value))
+            heights = _table_sizes.row_heights(self)
+            try:
+                stored = int(size.get("height") or 0)
+            except ValueError:
+                stored = -1
+            # Hancom stores the height of the rows on the table's first page with their spacings: the same
+            # rows take the new spacing (a table on one page: all of them).
+            for count in range(len(heights), 0, -1):
+                if stored == sum(heights[:count]) + (count + 1) * before:
+                    size.set("height", str(sum(heights[:count]) + (count + 1) * value))
+                    break
+        self.element.set("cellSpacing", str(value))
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.mark_dirty()
+
+    @property
+    def border_fill_id_ref(self) -> str | None:
+        """The id of the table's own ``hh:borderFill`` (``hp:tbl/@borderFillIDRef``): the border and
+        fill of the table itself. Hancom draws its fill behind the cells (a cell without a fill of its
+        own shows it) and its lines around the table where cell spacing leaves room (with no spacing the
+        cells' own lines cover them). As written; ``None`` when the table names none.
+
+        Setting it takes the id of a border fill the document defines (a ``str`` or ``int``, e.g. one
+        ``doc.styles.ensure_border_fill(...)`` returns); an unknown id is refused with
+        ``table-border-fill-not-found``. The cells keep their own.
+        """
+
+        return self.element.get("borderFillIDRef")
+
+    @border_fill_id_ref.setter
+    def border_fill_id_ref(self, value: "str | int") -> None:
+        model = self.paragraph.section.document
+        header = model.headers[0] if model is not None and model.headers else None
+        fills = header._border_fills_element() if header is not None else None
+        known = fills is not None and not isinstance(value, bool) and isinstance(value, (str, int)) and any(
+            node.get("id") == str(value) for node in fills)
+        if not known:
+            raise _refuse(f"border fill {value!r} is not defined in the document's header",
+                          "table-border-fill-not-found",
+                          "Pass the id of an existing border fill, e.g. one doc.styles.ensure_border_fill(...) returns.",
+                          value=repr(value))
+        if self.element.get("borderFillIDRef") != str(value):
+            self.element.set("borderFillIDRef", str(value))
+            self.mark_dirty()
+
+    @property
+    def border_fill(self) -> BorderFillInfo | None:
+        """The table's own four lines, diagonal and solid fill (:attr:`border_fill_id_ref`) as a value,
+        ``TableCell.border_fill``'s type; ``None`` when the id names none."""
+
+        from .header_fonts import border_fill_info
+
+        model = self.paragraph.section.document
+        header = model.headers[0] if model is not None and model.headers else None
+        return border_fill_info(header, self.element.get("borderFillIDRef"))
 
     def _floating(self) -> bool:
         position = self.element.find(f"{_HP}pos")
