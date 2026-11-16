@@ -1647,8 +1647,8 @@ def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> st
             raise TableStructureError(
                 "cannot copy cell content with local identities or references (a header, footer, chart "
                 "or linked text box); insert blank cells instead",
-                suggestion="빈 칸으로 넣으세요: table.insert_rows(..., blank=True) / "
-                "table.insert_columns(..., blank=True).",
+                suggestion="빈 칸으로 넣으세요: table.insert_rows(...) / table.insert_columns(...)는 기본이 빈 칸이다"
+                "(copy_content=True 를 빼세요). apply_table_ops 는 \"blank\": True.",
             )
         if tag == "hp:p":
             return match.group(0)

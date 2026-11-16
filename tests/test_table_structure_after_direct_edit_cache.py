@@ -31,13 +31,16 @@ OPERATIONS = {
     "insert_rows_above": lambda table: table.insert_rows(0, side="above"),
     "insert_columns_right": lambda table: table.insert_columns(0),
     "insert_columns_left": lambda table: table.insert_columns(0, side="left"),
+    # the copies of the edited paragraph lose the old cache too
+    "insert_rows_below_copy": lambda table: table.insert_rows(0, copy_content=True),
+    "insert_columns_right_copy": lambda table: table.insert_columns(0, copy_content=True),
     "split_cell_columns": lambda table: table.split_cell(0, 0, cols=2),
     "split_cell_rows": lambda table: table.split_cell(0, 0, rows=2),
     "delete_last_row": lambda table: table.delete_rows(table.row_count - 1),
 }
 COMBINATIONS = [
     (document, operation) for document in DOCUMENTS for operation in OPERATIONS
-] + [("line_cache_table_cells.hwpx", "insert_rows_below-no-mark-dirty")]  # 6 x 7 + 1 = 43
+] + [("line_cache_table_cells.hwpx", "insert_rows_below-no-mark-dirty")]  # 6 x 9 + 1 = 55
 
 
 def _cached_cell_text(table) -> object:
@@ -89,7 +92,7 @@ def test_caches_of_cells_nobody_edited_stay() -> None:
     node = _cached_cell_text(table)
     node.text = ("X" if node.text[0] != "X" else "Y") + node.text[1:]
     doc.sections[0].mark_dirty()
-    table.insert_columns(0)
+    table.insert_columns(0, copy_content=True)
     after = len(list(doc.tables[0].element.iter(f"{HP}linesegarray")))
     assert 0 < after  # only the edited paragraph (and its copies) lost theirs
     assert before > 1
