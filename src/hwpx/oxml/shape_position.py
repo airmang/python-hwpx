@@ -294,8 +294,9 @@ def fit_new_floating_object(element: Any, paragraph: Any) -> None:
     always), kept in the area (``flowWithText="1"``) and not overlapping (``allowOverlap="0"``). An object
     as a character, one in the body, or one measured from the page or paper (its caller placed it so: a
     connector between shapes, a picture with ``pos_overrides``) is left as it is; a connector keeps the
-    frames of the shapes it joins. The object then meets what moving one into such a box asks
-    (:func:`_stays_in_box`).
+    frames of the shapes it joins. This is how such an object is *made* there; moving or copying one into
+    a box follows what Hancom does when it pastes one (:func:`pasted_placement`), and the placement made
+    here is left as it is by that.
     """
 
     position = element.find(f"{_HP}pos")
@@ -754,22 +755,25 @@ class ObjectPlacement:
         empty goes, a connector attached to it lets go of it), and the paragraphs on both sides
         lose their line layout caches, with the paragraphs holding their cells and captions.
 
-        A floating object keeps its frames and offsets as they are written; nothing is changed
-        for it. Measured from its paragraph (``PARA``, ``COLUMN``) it goes with its new paragraph.
-        Measured from the page or paper (``PAGE``, ``PAPER``) it stays where it is on the page:
-        only the page it is drawn on follows its new paragraph, so moved within one page it does
-        not move at all -- ``set_position`` puts it elsewhere. Where Hancom documents never hold
-        such an object the move is refused with ``shape-move-place-unsupported``: into a table
-        cell, a text box or a note, a floating object that is not measured down from its
-        paragraph and kept in the page area (``vertRelTo="PARA"`` and either ``flowWithText="1"``
-        or ``horzRelTo="PARA"``; Hancom draws another one over the cells above it), so a page-
-        or paper-measured one never; a page-measured object into a section whose paper or margins
-        differ; any floating object into a caption, and any object into a memo or a master page.
-        Change the placement first with ``set_position(vertical_relative_to="PARA",
-        horizontal_relative_to="PARA")`` or ``treat_as_char=True``. Moving an object into itself (a paragraph of its own text box
-        or caption) is ``shape-move-into-itself``, a member of a group alone
-        ``shape-group-member-unsupported``, a removed object ``shape-not-in-document``. Everything
-        is checked before anything changes.
+        As Hancom pastes an object, it goes over the others (its ``zOrder`` one more than the
+        highest in the section of *paragraph*). In the body, a header or a footer a floating object
+        keeps its frames and offsets as they are written. Measured from its paragraph (``PARA``,
+        ``COLUMN``) it goes with its new paragraph; measured from the page or paper (``PAGE``,
+        ``PAPER``) it stays where it is on the page, also in a section with other paper -- only
+        the page it is drawn on follows its new paragraph, so moved within one page it does not
+        move at all (``set_position`` puts it elsewhere). Into a table cell, a text box, a note or
+        a caption a floating object takes the placement Hancom 2024 gives one pasted there
+        (:func:`pasted_placement`; read it back from ``position``): one not measured down from its
+        paragraph, or not kept in the page area, is measured from its paragraph at offset 0, kept
+        in the area and not let overlap; one measured across from the page or paper is measured
+        from the column at offset 0. Refused with ``shape-move-place-unsupported``: into a table
+        cell, such a floating object measured across from its paragraph (Hancom 2024 could not open
+        that document again), a floating table into a cell, text box, note or caption unless it is
+        measured down from its paragraph and kept in the page area, and any object into a memo or a
+        master page (no Hancom-saved document shows how Hancom puts one there). Moving an object
+        into itself (a paragraph of its own text box or caption) is ``shape-move-into-itself``, a
+        member of a group alone ``shape-group-member-unsupported``, a removed object
+        ``shape-not-in-document``. Everything is checked before anything changes.
         """
 
         place_object(self, paragraph, offset, copy=False)
@@ -1938,7 +1942,9 @@ _SUBLIST_BOXES = {
 #: in notes 40, in text boxes 2 -- every one of them measured from its paragraph -- and in headers and
 #: footers 7 (from the paragraph or the paper); none sits in a caption. In a cell, a text box or a note
 #: the object must also be kept in the page area or measured across from its paragraph
-#: (:func:`_stays_in_box`).
+#: (:func:`_stays_in_box`). This is what a *table* moved or copied there must meet (no Hancom paste of
+#: one has been seen); a picture, equation, chart, OLE or drawing object is placed there as Hancom pastes
+#: it instead (:func:`pasted_placement`).
 OBJECT_PLACES: dict[str, frozenset[str]] = {
     "char": frozenset({"body", "cell", "text_box", "note", "header_footer", "caption"}),
     "paragraph": frozenset({"body", "cell", "text_box", "note", "header_footer"}),
@@ -2128,12 +2134,61 @@ def insert_at_offset(paragraph: Any, element: Any, offset: int | None, char_pr_i
     runs[-1].append(element)
 
 
-def _check_place(element: Any, source: Any, target: Any) -> None:
-    """Refuse a place *target* (a paragraph) where Hancom documents never hold the object *element* in the
-    way it is placed, coming from the paragraph *source* (see :data:`OBJECT_PLACES`)."""
+#: The boxes Hancom fits a pasted floating object into (:func:`pasted_placement`).
+_PASTE_FITTED = frozenset({"cell", "text_box", "note", "caption"})
+
+
+def pasted_placement(element: Any) -> dict[str, str]:
+    """The ``hp:pos`` attributes Hancom 2024 changes when it pastes the floating object *element* into a table
+    cell, a text box, a note or a caption (``{}`` when it changes none), each axis on its own:
+
+    - down: an object not measured from its paragraph (``vertRelTo`` PAGE or PAPER) or not kept in the page
+      area (``flowWithText="0"``) is measured from its paragraph at offset 0, kept in the area and not let
+      overlap: ``vertRelTo="PARA"``, ``vertOffset="0"``, ``flowWithText="1"``, ``allowOverlap="0"``;
+    - across: one measured from the page or paper (``horzRelTo`` PAGE or PAPER) is measured from the column
+      at offset 0: ``horzRelTo="COLUMN"``, ``horzOffset="0"``; this leaves ``allowOverlap`` as it is.
+
+    An object measured from its paragraph and kept in the area keeps everything (its offsets too). Hancom
+    2024 pasted nine placements into text boxes, cells, notes and captions and wrote exactly this (objlim
+    evidence o01/o10: PAGE/PAGE, PAPER/PAPER, PAGE/COLUMN, PARA/PAGE, PARA/COLUMN with flowWithText 0 and
+    allowOverlap 1 or 0, PARA/PARA with flowWithText 0; PARA/COLUMN and PARA/PARA kept in the area stayed).
+    """
+
+    position = element.find(f"{_HP}pos")
+    if position is None or position.get("treatAsChar") not in _FALSE_FLAGS:
+        return {}
+    changes: dict[str, str] = {}
+    if position.get("vertRelTo") != "PARA" or position.get("flowWithText") in _FALSE_FLAGS:
+        changes.update(vertRelTo="PARA", vertOffset="0", flowWithText="1", allowOverlap="0")
+    if position.get("horzRelTo") in ("PAGE", "PAPER"):
+        changes.update(horzRelTo="COLUMN", horzOffset="0")
+    return {name: value for name, value in changes.items() if position.get(name) != value}
+
+
+def _top_z_order(section: Any) -> str:
+    """One more than the highest ``zOrder`` in *section*'s part: Hancom gives a pasted object the top one."""
+
+    orders = [_number(node.get("zOrder")) for node in section.element.iter() if node.get("zOrder") is not None]
+    return str(max([order for order in orders if order is not None] or [-1]) + 1)
+
+
+def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
+    """Refuse a place *target* (a paragraph) where the object *element*, coming from the paragraph *source*,
+    is not put the way Hancom puts it, and return the ``hp:pos`` changes it takes there
+    (:func:`pasted_placement`; tables meet :data:`OBJECT_PLACES` and take none)."""
 
     box = paragraph_box(target.element, target.section.element)
     kind = placement_kind(element)
+    if _local(element) != "tbl" and box not in ("memo", "other"):
+        changes = pasted_placement(element) if kind != "char" and box in _PASTE_FITTED else {}
+        position = element.find(f"{_HP}pos")
+        moved_down = position is not None and (position.get("vertRelTo") != "PARA"
+                                               or position.get("flowWithText") in _FALSE_FLAGS)
+        if box == "cell" and kind != "char" and moved_down and changes.get("horzRelTo", position.get("horzRelTo")) == "PARA":
+            raise _place_refused(element, box, "Hancom 2024 could not open again a document with an object pasted "
+                                               "into a table cell so (measured from its paragraph both ways, moved "
+                                               "to its top: objlim evidence cl1)")
+        return changes
     if box not in OBJECT_PLACES.get(kind, frozenset()):
         if box in ("memo", "other"):
             why = "objects go into the body, a cell, a text box, a note, a header or a footer"
@@ -2148,6 +2203,7 @@ def _check_place(element: Any, source: Any, target: Any) -> None:
                                            "page area (vertRelTo PARA, and flowWithText 1 or horzRelTo PARA)")
     if kind == "page" and target.section.element is not source.section.element             and _page_settings(target.section) != _page_settings(source.section):
         raise _place_refused(element, box, "it is measured from the page, and that section's paper or margins differ")
+    return {}
 
 
 def _sections_of(*paragraphs: Any) -> list[Any]:
@@ -2191,7 +2247,7 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
             context={"caller": caller},
             suggestion="Pick a paragraph outside the object, or copy it there with copy_to().",
         )
-    _check_place(element, source, target)
+    changes = _check_place(element, source, target)
     if offset is not None:
         _check_offset("offset", offset, 0, len(target.text))
     if copy:
@@ -2202,6 +2258,12 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool) ->
         inside = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
         _let_go_of_outside(element, {value: value for value in inside if value})
         placed = element
+    position = placed.find(f"{_HP}pos")
+    if position is not None:
+        for name, value in changes.items():
+            position.set(name, value)
+    if _local(placed) != "tbl" and placed.get("zOrder") is not None:
+        placed.set("zOrder", _top_z_order(target.section))  # Hancom puts a pasted object over the others
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
     _clear_paragraph_layout_cache(target.element)
     if not copy and target.section.element is not source.section.element:

@@ -342,31 +342,46 @@ def _floating_picture(doc: HwpxDocument, paragraph: Paragraph, frame: str) -> Pi
     )
 
 
-def test_a_page_measured_floating_object_does_not_go_into_a_cell_and_nothing_changes() -> None:
+def test_a_page_measured_floating_object_goes_into_a_cell_as_hancom_pastes_it() -> None:
+    # objlim evidence cl2 (Hancom 2024, PAPER/PAPER pasted into a cell, saved and opened again): measured
+    # from the paragraph and the column at offset 0, kept in the page area, not let overlap.
     doc = HwpxDocument.new()
     source = doc.add_paragraph("도장")
     picture = _floating_picture(doc, source, "PAPER")
     cell_paragraph = doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0]
-    before = doc.to_bytes()
 
-    with pytest.raises(HwpxValueError) as excinfo:
-        picture.move_to(cell_paragraph)
-    assert excinfo.value.code == "shape-move-place-unsupported"
-    with pytest.raises(HwpxValueError):
-        picture.copy_to(cell_paragraph)
-    assert doc.to_bytes() == before
-    assert picture.paragraph.element is source.element
-
-
-def test_a_paragraph_measured_floating_object_keeps_its_frames_in_a_cell() -> None:
-    doc = HwpxDocument.new()
-    picture = _floating_picture(doc, doc.add_paragraph("떠 있는 그림"), "PARA")
-    cell_paragraph = doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0]
-    position = picture.position
-
+    copy = picture.copy_to(cell_paragraph)
     picture.move_to(cell_paragraph)
 
-    assert picture.position == position
+    for placed in (copy, picture):
+        position = placed.element.find(f"{HP}pos")
+        assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
+                position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==             ("PARA", "COLUMN", "0", "0", "1", "0")
+    _reopen(doc)
+
+
+def test_a_paragraph_measured_object_moved_to_its_top_does_not_go_into_a_cell() -> None:
+    # Measured from its paragraph both ways and not kept in the page area: Hancom pastes it into a cell
+    # measured from its paragraph at offset 0 (PARA/PARA), a document Hancom 2024 could not open again
+    # (objlim evidence cl1, cl1b, cl1c, cl1s). Refused there; a text box takes it (evidence tb1).
+    doc = HwpxDocument.new()
+    picture = _floating_picture(doc, doc.add_paragraph("떠 있는 그림"), "PARA")
+    picture.element.find(f"{HP}pos").set("flowWithText", "0")
+    cell_paragraph = doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0]
+    target = _boxes(doc)["text_box"]
+    before = doc.to_bytes()
+
+    for call in (picture.move_to, picture.copy_to):
+        with pytest.raises(HwpxValueError) as excinfo:
+            call(cell_paragraph)
+        assert excinfo.value.code == "shape-move-place-unsupported"
+        assert excinfo.value.context["box"] == "cell"
+    assert doc.to_bytes() == before
+
+    picture.move_to(target)
+    position = picture.element.find(f"{HP}pos")
+    assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
+            position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==         ("PARA", "PARA", "0", "1000", "1", "0")
     _reopen(doc)
 
 
@@ -383,30 +398,25 @@ def _boxes(doc: HwpxDocument) -> dict[str, Paragraph]:
 
 
 @pytest.mark.parametrize("box", ["cell", "text_box", "note"])
-def test_a_floating_object_not_kept_in_the_page_area_does_not_go_into_a_box(box: str) -> None:
-    # add_picture(treat_as_char=False) writes vertRelTo=PARA, horzRelTo=COLUMN, flowWithText=0: in a
-    # cell Hancom draws such a picture over the cells above it, and no Hancom document holds one in a
-    # text box or a note.
+def test_a_floating_object_not_kept_in_the_page_area_is_kept_there_in_a_box(box: str) -> None:
+    # add_picture(treat_as_char=False) writes vertRelTo=PARA, horzRelTo=COLUMN, flowWithText=0. Pasted
+    # into a cell, a text box or a note Hancom 2024 keeps it in the page area, at the top of its
+    # paragraph, not let overlap, its offset across kept (objlim evidence cellcol0, boxcol0, notecol0, tb5,
+    # cl5; the cell one opened again).
     doc = HwpxDocument.new()
     item = doc.media.add_image(PNG, "png")
     picture = doc.add_paragraph("").add_picture(str(item), width=3000, height=3000, treat_as_char=False)
+    picture.set_position(horizontal_offset=2000, vertical_offset=1000)
     target = _boxes(doc)[box]
-    before = doc.to_bytes()
-    position = picture.element.find(f"{HP}pos")
-    assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("flowWithText")) == \
-        ("PARA", "COLUMN", "0")
 
-    for call in (picture.move_to, picture.copy_to):
-        with pytest.raises(HwpxValueError) as excinfo:
-            call(target)
-        assert excinfo.value.code == "shape-move-place-unsupported"
-        assert excinfo.value.context["flowWithText"] == "0" and excinfo.value.context["box"] == box
-        assert "set_position" in excinfo.value.suggestion
-    assert doc.to_bytes() == before  # nothing changed, the placement included
-
-    picture.set_position(horizontal_relative_to="PARA")  # measured across from its paragraph: it may go in
+    copy = picture.copy_to(target)
     picture.move_to(target)
-    assert picture.paragraph.element is target.element
+
+    for placed in (copy, picture):
+        assert placed.paragraph.element is target.element
+        position = placed.element.find(f"{HP}pos")
+        assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
+                position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==             ("PARA", "COLUMN", "0", "2000", "1", "0")
     _reopen(doc)
 
 
@@ -444,20 +454,20 @@ def test_a_page_measured_copy_keeps_the_place_of_the_original() -> None:
     _reopen(doc)
 
 
-def test_a_page_measured_object_moves_to_a_section_of_the_same_paper_only() -> None:
+def test_a_page_measured_object_keeps_its_place_in_a_section_of_other_paper() -> None:
+    # objlim evidence secpaper: Hancom 2024 pasted a PAGE/PAGE picture into a section of other paper and
+    # kept its frames and offsets.
     doc = HwpxDocument.new()
     picture = _floating_picture(doc, doc.add_paragraph("도장"), "PAGE")
-    same = doc.add_section()
-    same_paragraph = doc.add_paragraph("같은 용지", section=same)
-    picture.move_to(same_paragraph)
-    assert picture.paragraph.element is same_paragraph.element
-
+    before = dict(picture.element.find(f"{HP}pos").attrib)
     other = doc.add_section()
     other.properties.set_page_size(orientation="LANDSCAPE")
     other_paragraph = doc.add_paragraph("가로 용지", section=other)
-    with pytest.raises(HwpxValueError) as excinfo:
-        picture.move_to(other_paragraph)
-    assert excinfo.value.code == "shape-move-place-unsupported"
+
+    picture.move_to(other_paragraph)
+
+    assert picture.paragraph.element is other_paragraph.element
+    assert dict(picture.element.find(f"{HP}pos").attrib) == before
     _reopen(doc)
 
 
