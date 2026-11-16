@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 343 | 11 |
+| 개수 | 344 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -366,6 +366,7 @@ except HwpxError as exc:
 | `section-invalid-type` | section 인자가 정수도 섹션 객체도 아니다. |
 | `section-missing` | 문서에 섹션이 하나도 없다. |
 | `section-not-found` | 섹션 인덱스가 범위를 벗어났다. |
+| `section-properties-not-first` | 구역 설정(hp:secPr)이 구역 첫 문단이 아닌 뒤 문단에 있다(한/글은 첫 문단에서만 읽고 구역을 기본 용지·여백으로 바꾼다). |
 | `section-remove-last` | 문서의 마지막 섹션은 지울 수 없다. |
 
 ### `shape-*`

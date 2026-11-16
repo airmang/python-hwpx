@@ -590,7 +590,17 @@ class HwpxOxmlSection:
         index: int,
         paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
     ) -> tuple[HwpxOxmlParagraph, ...]:
-        """Insert copies of *paragraphs* at *index* and return the inserted paragraphs."""
+        """Insert copies of *paragraphs* at *index* and return the inserted paragraphs.
+
+        The copies come without section settings (``hp:secPr`` and the columns, header, footer and
+        page numbering that go with it), as :meth:`HwpxOxmlParagraph.insert_after` copies: the
+        section keeps its own. At index 0 the copies start the section, so its settings move from the
+        paragraph that held them to the front of the first copy. Hancom reads a section's settings
+        only from its first paragraph: with them in a later one, it saves the section with default
+        paper and margins (``section-properties-not-first``).
+        """
+
+        from ._paragraph_text_edit import move_section_settings, section_setting_runs
 
         existing = self.paragraphs
         if index < 0 or index > len(existing):
@@ -600,10 +610,17 @@ class HwpxOxmlSection:
         for offset, paragraph in enumerate(paragraphs):
             source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
             cloned = _clone_paragraph_element(source_element)
+            for run, settings in section_setting_runs(cloned):
+                for child in settings:
+                    run.remove(child)
+                if len(run) == 0:
+                    cloned.remove(run)
             self._element.insert(index + offset, cloned)
             inserted.append(HwpxOxmlParagraph(cloned, self))
 
         if inserted:
+            if index == 0 and existing:
+                move_section_settings(existing[0].element, inserted[0].element)
             self._dirty = True
         return tuple(inserted)
 
