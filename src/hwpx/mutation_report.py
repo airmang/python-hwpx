@@ -27,6 +27,7 @@ from .errors import HwpxError
 
 if TYPE_CHECKING:
     from .quality.report import VisualCompleteReport
+    from .tools.package_validator import EditorOpenSafetyReport
 
 MUTATION_REPORT_SCHEMA = "hwpx.mutation-report/v1"
 COORDINATE_SPACE = "uncompressed-part-bytes"
@@ -208,6 +209,13 @@ class MutationReport:
     gate a ``doc.save(..., quality=policy)`` ran (``None`` when the save ran the
     transparent gate). ``to_dict()`` adds a ``quality`` key only when it is set,
     so the schema's required keys stay as they are.
+
+    ``editor_open_safety`` is the :class:`~hwpx.EditorOpenSafetyReport` the save
+    reached for the archive it wrote -- what ``validate_editor_open_safety`` gives
+    for those bytes, without running it again (for an ``.hwp`` save, the HWPX it
+    was made from). A save that returns has passed it; ``verification.open_safety``
+    says so in one word. ``None`` only for a receipt not made by ``doc.save``.
+    ``to_dict()`` leaves it out (``report.editor_open_safety.to_dict()`` gives it).
     """
 
     requested_mode: Mode
@@ -218,6 +226,7 @@ class MutationReport:
     verification: VerificationSummary
     path: str | None = None
     quality: "VisualCompleteReport | None" = None
+    editor_open_safety: "EditorOpenSafetyReport | None" = field(default=None, compare=False)
     schema_version: str = field(default=MUTATION_REPORT_SCHEMA, init=False)
 
     @property
