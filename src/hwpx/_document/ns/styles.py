@@ -797,13 +797,12 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         self,
         *,
         width: int = 15591,
-        line_width: int | str | None = None,
+        line_width_mm: float = 0.12,
         line_type: str = "SOLID",
         line_color: str = "#000000",
         fill_color: str = "#CCFF99",
         active_color: str = "#FFFF99",
         memo_type: str = "NOMAL",
-        line_width_mm: float | None = None,
     ) -> str:
         """요청한 메모 모양의 `memoPr` id 를 보장하고 돌려준다.
 
@@ -813,28 +812,17 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         공유하는 조합. 만든 id 는 `doc.notes.add_memo(memo_shape_id_ref=...)`
         에 바로 넘길 수 있다.
 
-        선 굵기는 *line_width_mm* (mm)로 준다. 한/글의 선 굵기(0.1·0.12·0.15·0.2·0.25·0.3·0.4·
+        선 굵기는 *line_width_mm* (mm, 기본 0.12)로 준다. 한/글의 선 굵기(0.1·0.12·0.15·0.2·0.25·0.3·0.4·
         0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm) 가운데 하나만 받고(테두리와 같다. 목록에 없는 값은
-        ``style-line-width-invalid`` 로 거부), ``lineWidth`` 에는 그 순번(0.12 mm → ``1``)이 적힌다(순번으로 읽는 것은 한/글 화면으로
-        아직 확인하지 못한 가설이다 — 한/글은 저장 때 값을 그대로 둔다). 읽을 때는
-        ``doc.styles.memo_shape(id).line_width_mm``. *line_width* 는 그 순번을 그대로 적는
-        옛 인자로, 주지 않으면 ``1``(0.12 mm)이다. 둘을 함께 주면 거부한다.
+        ``style-line-width-invalid`` 로 거부), ``lineWidth`` 에는 그 순번(0.12 mm → ``1``)이 적힌다.
+        한/글 2024 가 이 값을 1바이트 순번으로 다루는 것을 확인했다(다시 저장하면 283 은 27, "0.6mm" 은
+        0 이 되고 목록 안의 순번은 그대로). 읽을 때는 ``doc.styles.memo_shape(id).line_width_mm``.
+        6.x 의 ``line_width=``(XML 값을 그대로 적던 인자)는 7.0에서 없어졌다.
         """
 
-        if line_width_mm is not None:
-            if line_width is not None:
-                raise HwpxValueError(
-                    "pass line_width_mm or line_width, not both",
-                    code="style-memo-shape-line-width-conflict",
-                    context={"line_width": str(line_width), "line_width_mm": repr(line_width_mm)},
-                    suggestion="Pass the width in millimetres alone: line_width_mm=0.12.",
-                )
-            from ...oxml.utils import LINE_WIDTHS, line_width_text
-
-            line_width = LINE_WIDTHS.index(line_width_text(line_width_mm, argument="line_width_mm"))
         return self._doc.oxml.ensure_memo_shape(
             width=width,
-            line_width=1 if line_width is None else line_width,
+            line_width_mm=line_width_mm,
             line_type=_validate_memo_enum(
                 line_type, LINE_TYPE2_VALUES, arg="line_type",
                 code="style-memo-shape-line-type-invalid",

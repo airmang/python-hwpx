@@ -1434,13 +1434,19 @@ class HwpxOxmlHeader:
         self,
         *,
         width: int = 15591,
-        line_width: int | str = 1,
+        line_width_mm: float = 0.12,
         line_type: str = "SOLID",
         line_color: str = "#000000",
         fill_color: str = "#CCFF99",
         active_color: str = "#FFFF99",
         memo_type: str = "NOMAL",
     ) -> str:
+        """The id of a ``hh:memoPr`` with these values (made when none matches). *line_width_mm* is one of
+        Hancom's line widths in mm, written as its index (``lineWidth``, :func:`~hwpx.oxml.header.memo_line_width_index`)."""
+
+        from .header import memo_line_width_index
+
+        line_width = memo_line_width_index(line_width_mm)  # checked before the header changes
         element = self._memo_properties_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create <memoProperties> element")

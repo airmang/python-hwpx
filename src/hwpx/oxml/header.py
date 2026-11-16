@@ -263,6 +263,21 @@ class ForbiddenWordList:
     words: List[str]
 
 
+def memo_line_width_index(line_width_mm: object, *, argument: str = "line_width_mm") -> int:
+    """The ``hh:memoPr@lineWidth`` value for a memo line *line_width_mm* mm thick: its index in Hancom's line
+    width list, which takes only the listed widths (``style-line-width-invalid`` otherwise).
+
+    Evidence (Hangul 2024, observed only): re-saving memos written with lineWidth 0, 1, 2, 6, 10, 12, 15,
+    33, 141 keeps them, 283 becomes 27 (one byte) and "0.6mm"/"0.4 mm" become 0; the 54 public Hangul-saved
+    documents hold only 1 (62 memo shapes) and 3 (6) — as HWPUNIT 1 would be an invisible line and 1 mm (283)
+    would not fit in the byte. Hangul draws no memo on the page, so the width itself was not seen on screen.
+    """
+
+    from .utils import LINE_WIDTHS, line_width_text
+
+    return LINE_WIDTHS.index(line_width_text(line_width_mm, argument=argument))
+
+
 @dataclass(slots=True)
 class MemoShape:
     id: Optional[int]
@@ -279,21 +294,21 @@ class MemoShape:
     def line_width_mm(self) -> float | None:
         """The memo's line width in millimetres (``0.12`` for ``lineWidth="1"``), or ``None``.
 
-        ``hh:memoPr@lineWidth`` is not a length: Hancom keeps there the one-byte line width of
-        the HWP 5.0 memo shape record and writes it out unchanged (``"1"`` in 36 of the public
-        corpus's 41 memo shapes, ``"3"`` in the rest). It is read as the index into Hancom's line
-        widths (0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0,
-        5.0 mm) that borders use. That is a hypothesis not yet seen on Hangul's screen: Hangul 2024
-        keeps the value when it saves, but its printout draws no memo to measure. A value that is
-        no index on that list reads ``None``.
+        ``hh:memoPr@lineWidth`` is not a length but the index into Hancom's line widths (0.1,
+        0.12, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0 mm) that
+        borders use: see :func:`memo_line_width_index`. It is read as Hangul 2024 reads it: a
+        value that is no whole number (``"0.6mm"``) is ``0`` (0.1 mm) and a number is kept as one
+        byte (283 is 27). A byte past the list reads ``None``.
         """
 
         from .utils import LINE_WIDTHS
 
-        try:
-            index = int(str(self.line_width).strip())
-        except (TypeError, ValueError):
+        if self.line_width is None:
             return None
+        try:
+            index = int(str(self.line_width).strip()) % 256
+        except ValueError:
+            index = 0  # Hangul 2024 saves "0.6mm" / "0.4 mm" back as lineWidth="0"
         if not 0 <= index < len(LINE_WIDTHS):
             return None
         return float(LINE_WIDTHS[index].split()[0])

@@ -304,6 +304,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | `ensure_border_fill(sides={"top": {"width": "0.4 mm"}})`, `apply_paragraph_format(border={"width": "0.4 mm"})` | `"width_mm": 0.4`(mm 수, 한/글 굵기 목록의 값). 옛 키는 `style-border-side-invalid`·`paragraph-border-invalid` 로 거부하며 문장이 `width_mm` 을 알려 준다 |
 | `ContainerMember.rect`·`ellipse`·`polygon`·`line`·`text_box` 의 `line_width="33"`, `text_box(vert_align=)` | `line_width_mm=0.12`, `vertical_alignment=`(도형·`set_draw_text` 와 같은 이름) |
 | `doc.styles.bullet(id).para_head.align`(문자열) | `.para_head.alignment`(`Alignment`) |
+| `doc.styles.ensure_memo_shape(line_width=1)`(XML `lineWidth` 를 그대로 적음, 모델 `ensure_memo_shape` 도) | `ensure_memo_shape(line_width_mm=0.12)`. `lineWidth` 는 한/글 굵기 목록의 순번이고(0.12 mm → 1, 0.2 mm → 3) 목록의 값만 받는다. `memo_shape(id).line_width_mm` 은 순번이 아닌 값(`"0.6mm"`)을 한/글처럼 0.1 mm 로 읽는다 |
 | `doc.page.text_direction(section=s)` → `SectionTextDirection(direction, vertical_header_footer)` | `doc.page.text_direction(section=s)` → `"HORIZONTAL"`·`"VERTICAL"`·`"VERTICALALL"`(표 칸의 `cell.text_direction` 과 같은 말), 머리말·꼬리말 세로쓰기는 `doc.page.vertical_header_footer(section=s)`. 쓰기 `set_text_direction(...)` 은 그대로. 반환 모양이 바뀐 것이라 안내 오류는 없다(`.direction` 을 부르면 `AttributeError`) |
 
 7.0 개발 중에 생긴 값 형식의 이름(안내 없이 바꿈):

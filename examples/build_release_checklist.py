@@ -19,7 +19,7 @@ def build_checklist(document: HwpxDocument) -> None:
     # that already exists and returns its id either way.
     blue_memo = document.styles.ensure_memo_shape(
         width=14000,
-        line_width="0.6mm",
+        line_width_mm=0.6,
         line_type="SOLID",
         line_color="#4F81BD",
         fill_color="#EEF4FB",
@@ -27,7 +27,7 @@ def build_checklist(document: HwpxDocument) -> None:
     )
     red_memo = document.styles.ensure_memo_shape(
         width=16000,
-        line_width="0.6mm",
+        line_width_mm=0.6,
         line_type="DOT",
         line_color="#C0504D",
         fill_color="#FDE9E9",

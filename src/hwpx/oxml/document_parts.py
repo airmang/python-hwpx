@@ -924,7 +924,7 @@ class HwpxOxmlDocument:
         self,
         *,
         width: int = 15591,
-        line_width: int | str = 1,
+        line_width_mm: float = 0.12,
         line_type: str = "SOLID",
         line_color: str = "#000000",
         fill_color: str = "#CCFF99",
@@ -935,7 +935,7 @@ class HwpxOxmlDocument:
             return "0"
         return self._headers[0].ensure_memo_shape(
             width=width,
-            line_width=line_width,
+            line_width_mm=line_width_mm,
             line_type=line_type,
             line_color=line_color,
             fill_color=fill_color,

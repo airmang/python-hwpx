@@ -579,6 +579,11 @@ ARGUMENTS: dict[str, Arguments] = {
         binary_item_id_ref="item_id",
         subst_binary_item_id_ref="subst_item_id",
     ),
+    # 메모 선 굵기: 한/글 2024 로 lineWidth 가 굵기 목록의 순번임을 확인한 뒤(후속 memow) mm 하나로.
+    "doc.styles.ensure_memo_shape": _args(
+        "doc.styles.ensure_memo_shape(line_width=1)은 7.0에서 line_width_mm=0.12 (mm, 한/글 굵기 목록의 값)이다",
+        line_width="line_width_mm",
+    ),
     "doc.styles.ensure_paragraph_format": _args(
         "doc.styles.ensure_paragraph_format(base_para_pr_id=, line_spacing_percent=)는 7.0에서 base_para_pr_id_ref=, line_spacing= 이다",
         base_para_pr_id="base_para_pr_id_ref",
@@ -744,6 +749,14 @@ ARGUMENTS: dict[str, Arguments] = {
     "HeaderFooter.add_paragraph": _args(
         "HeaderFooter.add_paragraph(align=)는 7.0에서 없어졌다: p = hf.add_paragraph('글'); p.alignment = 'CENTER'",
         align=None,
+    ),
+    "Document.ensure_memo_shape": _args(
+        "Document.ensure_memo_shape(line_width=1)은 7.0에서 line_width_mm=0.12 (mm, 한/글 굵기 목록의 값)이다",
+        line_width="line_width_mm",
+    ),
+    "HeaderPart.ensure_memo_shape": _args(
+        "HeaderPart.ensure_memo_shape(line_width=1)은 7.0에서 line_width_mm=0.12 (mm, 한/글 굵기 목록의 값)이다",
+        line_width="line_width_mm",
     ),
     "Table.cell": _args(
         "table.cell(row_index=, col_index=)는 7.0에서 row=, col= 이다(위치 인자로 부르면 그대로)",

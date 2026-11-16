@@ -102,6 +102,9 @@
   `apply_paragraph_format(border={"width": ...})` → `{"width_mm": 0.4}`.
 - 테두리·단 구분선·각주/미주 구분선·메모 선 굵기는 한/글 굵기 목록(0.1 … 5 mm)의 값만 받는다. 목록에 없는 값은 가장 가까운
   값으로 바꿔 쓰지 않고 문서를 바꾸기 전에 `HwpxValueError`(`style-line-width-invalid`, `suggestion`에 쓸 수 있는 값)로 거부한다.
+- 메모 선 굵기는 `doc.styles.ensure_memo_shape(line_width_mm=0.12)` 하나로 준다. XML 값을 그대로 적던 6.x `line_width=1`은
+  없어졌다(`lineWidth`는 한/글 굵기 목록의 순번임을 한/글 2024로 확인했다). 순번이 아닌 `lineWidth`(`"0.6mm"`)는 한/글처럼
+  0(0.1 mm)으로 읽는다.
 - `doc.page.text_direction(section=)`은 `SectionTextDirection` 대신 표 칸의 `cell.text_direction`과 같은 문자열
   (`"HORIZONTAL"`·`"VERTICAL"`·`"VERTICALALL"`)을 돌려준다. 머리말·꼬리말 세로쓰기는 새 `doc.page.vertical_header_footer(section=)`로
   읽는다.

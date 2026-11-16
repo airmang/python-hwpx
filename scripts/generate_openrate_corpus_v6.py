@@ -186,7 +186,7 @@ FILL_GRADIENT_COLOR_SETS: tuple[tuple[str, ...], ...] = (
     ("#000000", "#888888", "#FFFFFF"),
 )
 
-MEMO_LINE_WIDTH_BANK = (1, 2, 3)
+MEMO_LINE_WIDTH_BANK = (0.12, 0.15, 0.2)  # mm: lineWidth 1, 2, 3 (indexes into the line widths)
 MEMO_LINE_COLOR_BANK = ("#000000", "#B6D7AE", "#A9A9A9", "#333333")
 MEMO_FILL_COLOR_BANK = ("#CCFF99", "#F0FFE9", "#CBFF99", "#FFEEDD")
 MEMO_ACTIVE_COLOR_BANK = ("#FFFF99", "#CFF1C7", "#FDBCDD", "#FFD9CC")
@@ -301,7 +301,7 @@ def gen_memoshape(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "메모 모양 표본")
             paragraph = document.add_paragraph(f"검토 대상 문단 {idx}")
             shape_id = document.styles.ensure_memo_shape(
-                line_width=MEMO_LINE_WIDTH_BANK[idx % len(MEMO_LINE_WIDTH_BANK)],
+                line_width_mm=MEMO_LINE_WIDTH_BANK[idx % len(MEMO_LINE_WIDTH_BANK)],
                 line_color=MEMO_LINE_COLOR_BANK[idx % len(MEMO_LINE_COLOR_BANK)],
                 fill_color=MEMO_FILL_COLOR_BANK[idx % len(MEMO_FILL_COLOR_BANK)],
                 active_color=MEMO_ACTIVE_COLOR_BANK[idx % len(MEMO_ACTIVE_COLOR_BANK)],

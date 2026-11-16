@@ -74,7 +74,7 @@ def test_the_default_is_still_lineWidth_1() -> None:
     doc = HwpxDocument.new()
     shape = doc.styles.memo_shape(doc.styles.ensure_memo_shape())
     assert shape.line_width == "1" and shape.line_width_mm == 0.12
-    assert doc.styles.memo_shape(doc.styles.ensure_memo_shape(line_width=3)).line_width_mm == 0.2
+    assert doc.styles.memo_shape(doc.styles.ensure_memo_shape(line_width_mm=0.2)).line_width == "3"
 
 
 @pytest.mark.parametrize("value", [0, -0.5, "0.5", True, float("nan")])
@@ -85,14 +85,30 @@ def test_a_width_that_is_no_length_is_refused(value: object) -> None:
     assert caught.value.code == "style-line-width-invalid"
 
 
-def test_both_widths_are_refused() -> None:
+@pytest.mark.parametrize("owner", ["doc.styles", "Document", "HeaderPart"])
+def test_the_6x_raw_line_width_argument_names_line_width_mm(owner: str) -> None:
+    from hwpx.errors import HwpxTypeError
+
     doc = HwpxDocument.new()
-    with pytest.raises(HwpxValueError) as caught:
-        doc.styles.ensure_memo_shape(line_width=1, line_width_mm=0.12)
-    assert caught.value.code == "style-memo-shape-line-width-conflict"
+    call = {
+        "doc.styles": doc.styles.ensure_memo_shape,
+        "Document": doc.oxml.ensure_memo_shape,
+        "HeaderPart": doc.oxml.headers[0].ensure_memo_shape,
+    }[owner]
+    with pytest.raises(HwpxTypeError) as caught:
+        call(line_width=1)
+    assert caught.value.code == "hwpx-argument-removed"
+    assert caught.value.context["replacement"] == "line_width_mm"
 
 
-def test_a_line_width_that_is_no_index_reads_none() -> None:
-    doc = HwpxDocument.new()
-    assert doc.styles.memo_shape(doc.styles.ensure_memo_shape(line_width="0.12 mm")).line_width_mm is None
-    assert doc.styles.memo_shape(doc.styles.ensure_memo_shape(line_width=16)).line_width_mm is None
+@pytest.mark.parametrize(
+    ("written", "read"),
+    # Hangul 2024 re-saves these as 0, 0, 27, 1 (observed): a string is 0, a number is one byte.
+    [("0.6mm", 0.1), ("0.4 mm", 0.1), ("283", None), ("257", 0.12), ("16", None), ("15", 5.0)],
+)
+def test_a_line_width_reads_as_hangul_reads_it(written: str, read: float | None) -> None:
+    from hwpx.oxml.header import MemoShape
+
+    shape = MemoShape(id=0, width=15591, line_width=written, line_type="SOLID", line_color=None, fill_color=None,
+                      active_color=None, memo_type="NOMAL")
+    assert shape.line_width_mm == read
