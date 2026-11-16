@@ -456,6 +456,7 @@
 - `attributes.get(name)` / `set_attribute(name, value)`: 속성 하나를 읽고, 바꾸면 단락을 dirty로 표시합니다(6.x의 `get_attribute(name)`은 7.0에서 `attributes.get(name)`).
 - `width`·`height`: 개체 자신의, 돌리기 전 그려진 크기(HWPUNIT)입니다. `resize(width, height)`가 받는 크기와 같은 뜻이라 `obj.resize(obj.width, obj.height)`는 아무것도 바꾸지 않습니다. 돈 개체는 한/글이 적은 `curSz`(0인 축은 `orgSz`)를 읽고, 돌지 않은 개체는 `hp:sz`입니다. 그림·도형·묶음(`HwpxOxmlShape`)도 같습니다.
 - `box_width`·`box_height`(읽기 전용): 개체가 문단에서 차지하는 상자(`hp:sz`, HWPUNIT)입니다. 돈 개체는 돈 모양을 감싸는 상자이고, 돌지 않은 개체는 `width`·`height`와 같습니다.
+- `flip_horizontal`·`flip_vertical`·`rotation`: 높이나 너비가 0인 선(수평선·수직선)은 한/글처럼 뒤집어도 그림이 바뀌지 않게 저장합니다. 한/글은 뒤집기 표시와 반 바퀴 회전을 함께 적고(좌우 뒤집기면 각도 180, 행렬은 그대로) 화살표 끝도 그대로입니다(한/글 2024 저장본과 그 쪽 그림). 그래서 뒤집은 수평선은 `flip_horizontal == True`, `rotation == 180`으로 읽습니다. 다시 뒤집으면 표시 0, 각도 0입니다.
 
 ### 클래스 `HwpxOxmlTableCell`
 

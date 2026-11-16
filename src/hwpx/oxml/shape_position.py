@@ -591,7 +591,8 @@ class ObjectPlacement:
         degrees and a flipped ellipse, polygon, line or group turned 30; its box is the box around it so.
 
         Refused with ``shape-rotation-unsupported`` (``context["reason"]`` says why), because no Hancom-saved
-        document shows how Hancom writes them: a line drawn 0 high or wide, flipped; another kind of object
+        document shows how Hancom writes them: a line drawn 0 high or wide flipped, turned and flipped again;
+        another kind of object
         flipped, or one whose ``hp:flip`` its matrices do not follow; an object Hancom's object properties skewed (a
         turned object's box resized there); a group holding a turned or flipped member; and an object without
         ``hp:rotationInfo`` (an equation or chart). A group flipped and then resized turns about the centre it holds,
@@ -628,8 +629,12 @@ class ObjectPlacement:
 
             turn_group(self.element, angle)  # refuses a group this does not know Hancom's form for
         else:
-            width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
-            apply_rotation(self.element, angle, width, height)
+            flat = flat_line(self.element) or flat_flip_form(self.element)
+            if flat is not None:
+                turn_flat_line(self.element, angle, flat)
+            else:
+                width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
+                apply_rotation(self.element, angle, width, height)
         keep_turn_anchor(self.element, before)
         from ._document_primitives import _clear_paragraph_layout_cache
 
@@ -667,8 +672,12 @@ class ObjectPlacement:
         axis (flipped up-down, Hancom also puts the members' centres at their drawn middles).
 
         Refused with ``shape-flip-unsupported`` (``context["reason"]``) where no Hancom-saved document shows the
-        form: an OLE object, equation or other object; a line drawn 0 high or wide (Hancom writes its flip as a half
-        turn); a flipped line resized (Hancom drops its mirror); a flipped picture cut. ``shape-rotation-unsupported``:
+        form: an OLE object, equation or other object; a line drawn 0 high or wide turned and then flipped; a
+        sloping flipped line resized (Hancom drops its mirror); a flipped picture cut. A line drawn 0 high or wide
+        flips as Hancom flips one: nothing drawn changes (an arrow at its end stays there), and Hancom writes the
+        flags with an angle 180 more for a flip left-right -- so it reads ``flip_horizontal`` True and ``rotation``
+        180 -- its matrices plain (:func:`flip_flat_line`); turned afterwards, it is drawn turned the angle less
+        180 (:func:`turn_flat_line`). ``shape-rotation-unsupported``:
         an object Hancom's object properties skewed, flipped. A member of a group alone is
         ``shape-group-member-unsupported``, a value that is not a bool ``shape-flip-value``. The paragraph loses
         its line layout cache.
@@ -1133,7 +1142,7 @@ def _flip_refused(element: Any, why: str) -> HwpxValueError:
         code="shape-flip-unsupported",
         context={"reason": why},
         suggestion="Rectangles, text boxes, ellipses, polygons, lines, arcs, curves, pictures and whole groups flip "
-                   "either way or both, turned or not, resized or not. A line drawn 0 high or wide does not.",
+                   "either way or both, turned or not, resized or not; a line drawn 0 high or wide flips unturned.",
     )
 
 
@@ -1190,6 +1199,14 @@ def set_flip(obj: Any, axis: int, flipped: object) -> None:
         # group turns afterwards. A group flipped back to neither way gets its members' 0 back.
         turn_group(element, angle, flips=wanted, member_flip=(axis, turned))
     else:
+        flat = flat_line(element)
+        if flat is not None:
+            flip_flat_line(element, wanted, flat)
+            from ._document_primitives import _clear_paragraph_layout_cache
+
+            _clear_paragraph_layout_cache(obj.paragraph.element)
+            obj.paragraph.section.mark_dirty()
+            return
         flagged_only = _flagged_only(element, flips, turned)
         if flagged_only is not None:
             # hp:flip set but matrices left plain (add_arc's corner arcs): Hancom's flip mirrors the object as it is
@@ -1219,6 +1236,135 @@ def set_flip(obj: Any, axis: int, flipped: object) -> None:
 
     _clear_paragraph_layout_cache(obj.paragraph.element)
     obj.paragraph.section.mark_dirty()
+
+
+def flat_line(element: Any) -> tuple[int, int] | None:
+    """The size a line drawn 0 high or 0 wide (a horizontal or vertical line) is drawn at, as Hancom writes it --
+    its ``orgSz`` through its ``scaMatrix``, the 1 it keeps on the flat axis drawn 0 -- or ``None`` for any other
+    object."""
+
+    if str(element.tag).rsplit("}", 1)[-1] != "line":
+        return None
+    original, rendering = element.find(f"{_HP}orgSz"), element.find(f"{_HP}renderingInfo")
+    if original is None or rendering is None or len(rendering) != 3:
+        return None
+    scale = _matrix_values(rendering[1])
+    if abs(scale[1]) > 1e-3 or abs(scale[3]) > 1e-3:
+        return None
+    width = (_number(original.get("width")) or 0) * scale[0]
+    height = (_number(original.get("height")) or 0) * scale[4]
+    size = object_size(element)
+    flat_across = abs(scale[0]) < 1e-9 or (size[0] == 0 and abs(width) <= 1 + 1e-6)
+    flat_down = abs(scale[4]) < 1e-9 or (size[1] == 0 and abs(height) <= 1 + 1e-6)
+    if flat_across == flat_down:  # a sloping line, or a point
+        return None
+    return (0 if flat_across else _half_up(width)), (0 if flat_down else _half_up(height))
+
+
+def flat_flip_form(element: Any) -> tuple[int, int] | None:
+    """The size a line is drawn at when it holds the form Hancom writes for a flat line flipped and then resized off
+    flat (flags set, ``rotMatrix`` plain, angle 180 flipped left-right or 0 up-down; rotate8 ``h-f-S2``), or
+    ``None``: it turns as a flat line does (:func:`turn_flat_line`; rotate8 ``h-f-S2-30``)."""
+
+    if str(element.tag).rsplit("}", 1)[-1] != "line" or flip_signs(element) == (1, 1):
+        return None
+    rendering, original = element.find(f"{_HP}renderingInfo"), element.find(f"{_HP}orgSz")
+    if rendering is None or original is None or len(rendering) != 3:
+        return None
+    if any(abs(a - b) > 1e-6 for a, b in zip(_matrix_values(rendering[2]), (1, 0, 0, 0, 1, 0))):
+        return None
+    if _flat_drawn_angle(element):
+        return None
+    scale = _matrix_values(rendering[1])
+    return (_half_up((_number(original.get("width")) or 0) * scale[0]),
+            _half_up((_number(original.get("height")) or 0) * scale[4]))
+
+
+def _flat_drawn_angle(element: Any) -> int:
+    """The angle a flat line is drawn turned: Hancom writes it flipped left-right as turned 180 more (rotate11)."""
+
+    info = element.find(f"{_HP}rotationInfo")
+    angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    return (angle - (180 if flip_signs(element)[0] == -1 else 0)) % 360
+
+
+def _mirrored(element: Any) -> bool:
+    """Whether *element*'s ``hc:rotMatrix`` mirrors it (its 2 x 2 part turns the page over)."""
+
+    rot = _matrix_values(element.find(f"{_HP}renderingInfo")[2])
+    return rot[0] * rot[4] - rot[1] * rot[3] < 0
+
+
+def _flatten(element: Any, size: tuple[int, int], turned: bool) -> None:
+    """Write a flat line as Hancom does once it has changed it: the flat axis drawn at 0 (``scaMatrix`` 0 there) and,
+    turned, its box at least 1 across that way (turned 90 degrees: 1 x 12000; rotate11 ``ha-90``)."""
+
+    scale = element.find(f"{_HP}renderingInfo")[1]
+    for key, flat in (("e1", size[0] == 0), ("e5", size[1] == 0)):
+        if flat:
+            scale.set(key, "0")
+    box = element.find(f"{_HP}sz")
+    if turned and box is not None:
+        for side in ("width", "height"):
+            if box.get(side) == "0":
+                box.set(side, "1")
+
+
+def flip_flat_line(element: Any, wanted: tuple[int, int], size: tuple[int, int]) -> None:
+    """Flip a line drawn 0 high or wide (:func:`flat_line`) as Hancom 2024 flips one (rotate11 ``want-flip7``: a
+    horizontal line, a vertical line and a horizontal line with an arrow at its end, flipped left-right, up-down and
+    both ways): flipping it unturned changes nothing drawn -- the arrow stays at its end -- and Hancom writes the
+    flags, an angle 180 more for a flip left-right (``rotationInfo`` 180 flipped left-right or both ways, 0 up-down),
+    its matrices plain and the flat axis drawn at 0 (``scaMatrix`` 0 there). Turned, it is flipped as any turned
+    object is -- mirrored as drawn and written turned the other way (30 becomes 330; rotate11 ``ha-30-f``). Refused
+    (``shape-flip-unsupported``) for one flipped, turned and flipped again: no Hancom-saved document shows it."""
+
+    drawn = _flat_drawn_angle(element)
+    flip = element.find(f"{_HP}flip")
+    info = element.find(f"{_HP}rotationInfo")
+    if drawn:
+        if flip_signs(element) != (1, 1) or _mirrored(element):
+            raise _flip_refused(element, "it is a line drawn 0 high or wide, flipped and turned: no Hancom-saved "
+                                         "document shows one flipped again")
+        turned = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+        flip.set("horizontal", "1" if wanted[0] == -1 else "0")
+        flip.set("vertical", "1" if wanted[1] == -1 else "0")
+        apply_rotation(element, (-turned) % 360, *size)
+        _flatten(element, size, True)
+        return
+    flip.set("horizontal", "1" if wanted[0] == -1 else "0")
+    flip.set("vertical", "1" if wanted[1] == -1 else "0")
+    _flatten(element, size, False)
+    if info is not None:
+        info.set("angle", str(180 if wanted[0] == -1 else 0))
+
+
+def turn_flat_line(element: Any, angle: int, size: tuple[int, int]) -> None:
+    """Turn a line drawn 0 high or wide (:func:`flat_line`) *angle* degrees as Hancom 2024 turns one: about its
+    middle, its box the box around it so, the flat axis drawn at 0 (rotate11 ``h-30``, ``w-30``, ``ha-30``,
+    ``ha-90``); flipped left-right first, drawn turned the angle less 180 (a turn of 210 for 30, no mirror;
+    ``h-f-30``, ``w-f-30``, ``ha-f-30``); ``rotationInfo`` the angle given. Refused (``shape-rotation-unsupported``)
+    for one turned and then flipped (mirrored as drawn): no Hancom-saved document shows it turned again."""
+
+    if _mirrored(element):
+        raise _rotation_refused(element, "it is a line drawn 0 high or wide, turned and then flipped: no "
+                                         "Hancom-saved document shows one turned again")
+    flip = element.find(f"{_HP}flip")
+    flags = (flip.get("horizontal"), flip.get("vertical")) if flip is not None else None
+    drawn = (angle - (180 if flip_signs(element)[0] == -1 else 0)) % 360
+    if flip is not None:  # drawn unmirrored: a flip of a flat line is the half turn above
+        flip.set("horizontal", "0")
+        flip.set("vertical", "0")
+    try:
+        apply_rotation(element, drawn, *size)
+    finally:
+        if flip is not None and flags is not None:
+            flip.set("horizontal", flags[0] or "0")
+            flip.set("vertical", flags[1] or "0")
+    _flatten(element, size, bool(drawn))
+    info = element.find(f"{_HP}rotationInfo")
+    if info is not None:
+        info.set("angle", str(angle % 360))
 
 
 def _flagged_only(element: Any, flips: tuple[int, int], turned: int) -> tuple[int, int] | None:
@@ -1255,6 +1401,8 @@ def refuse_resizing_flipped(element: Any, *, cutting: bool = False) -> None:
     kind = str(element.tag).rsplit("}", 1)[-1]
     if not cutting and kind in ("pic", "rect", "ellipse", "polygon", "container"):
         return  # resize_object / resize_shape / resize_group write Hancom's form
+    if not cutting and flat_line(element) is not None and not _flat_drawn_angle(element):
+        return  # a flat line's flip mirrors nothing: Hancom resizes it keeping its flags and angle (rotate8 h-f-S)
     if cutting:
         why = "it is flipped: no Hancom-saved document shows it cut so; flip it back first"
     elif kind == "line":
@@ -1560,6 +1708,9 @@ def resize_shape(obj: Any, width: int | None, height: int | None) -> None:
     element = obj.element
     info = element.find(f"{_HP}rotationInfo")
     angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    flat = flat_line(element) is not None
+    if flat:  # a flat line flipped left-right is written turned 180 more, drawn unturned
+        angle = _flat_drawn_angle(element)
     if angle:  # its own size: turned back, resized and turned again
         resize_turned_as_own(obj, width, height, lambda w, h: resize_shape(obj, w, h))
         return
@@ -1574,7 +1725,7 @@ def resize_shape(obj: Any, width: int | None, height: int | None) -> None:
         if scale is not None:
             scale.set("e1", _matrix_number(width / org[0]))
             scale.set("e5", _matrix_number(height / org[1]))
-            flips = flip_signs(element)
+            flips = flip_signs(element) if not flat else (1, 1)  # a flat line's flip mirrors nothing
             if flips != (1, 1):
                 # as a flipped picture: its mirror stays about the middle of its own size and Hancom moves it by
                 # what it lost on the flipped axis (a 12000 x 6000 rectangle flipped, drawn 18000 wide: e3 -6000)

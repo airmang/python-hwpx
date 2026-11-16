@@ -1052,15 +1052,6 @@ def ungroup_refusal(group: Any) -> str | None:
         return "it is placed from another side of its frame than the left, top or centre"
     flip = group.find(f"{_HP}flip")
     flipped = flip is not None and "1" in (flip.get("horizontal"), flip.get("vertical"))
-    if flip is not None and flipped:
-        # Hancom was seen ungrouping a group flipped one way, turned or not, at its own size (rotate8 g-f-u,
-        # g-v-u, g-30-f-u)
-        if flip.get("horizontal") == "1" and flip.get("vertical") == "1":
-            return "it is flipped both ways: no Hancom-saved document shows one ungrouped"
-        group_rendering = group.find(f"{_HP}renderingInfo")
-        factors = _matrix(group_rendering[1]) if group_rendering is not None and len(group_rendering) == 3             else [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-        if not _close([factors[0], factors[4]], [1, 1], 1e-3):
-            return "it is flipped and resized: no Hancom-saved document shows one ungrouped"
     for member in _shapes_inside(group):
         rendering = member.find(f"{_HP}renderingInfo")
         if rendering is None or [_local(child) for child in rendering] != ["transMatrix", "scaMatrix", "rotMatrix"]:
@@ -1157,12 +1148,12 @@ def ungroup_elements(group: Any) -> list[Any]:
             for inner in _all_shapes_inside(member):
                 inner_rendering = inner.find(f"{_HP}renderingInfo")
                 inner_move = _matrix(inner_rendering[0])
-                inner_rendering[0].set("e3", _matrix_number(inner_move[2] - trans[2]))
-                inner_rendering[0].set("e6", _matrix_number(inner_move[5] - trans[5]))
+                inner_rendering[0].set("e3", _matrix_number(inner_move[2] - start[0]))
+                inner_rendering[0].set("e6", _matrix_number(inner_move[5] - start[1]))
                 inner_offset = inner.find(f"{_HP}offset")
                 if inner_offset is not None:
-                    inner_offset.set("x", _unsigned(round(inner_move[2] - trans[2])))
-                    inner_offset.set("y", _unsigned(round(inner_move[5] - trans[5])))
+                    inner_offset.set("x", _unsigned(round(inner_move[2] - start[0])))
+                    inner_offset.set("y", _unsigned(round(inner_move[5] - start[1])))
                 inner.set("groupLevel", str(max(0, int(inner.get("groupLevel", "1")) - 1)))
         for name in ("textWrap", "textFlow", "numberingType"):
             if group.get(name) is not None:
