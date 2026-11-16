@@ -673,8 +673,9 @@ class TableFormat:
         *paragraph* is a paragraph of the same document (also one in a cell), or its index in the
         document's paragraphs; ``None`` is the paragraph holding this table. The copy has fresh
         ids (its tables, objects and paragraphs; a field's begin and end get a new pair, so a
-        copied form field fills apart from the original) and no line layout caches. The new
-        paragraph takes the paragraph shape and style of the one holding this table.
+        copied form field fills apart from the original; a memo anchored in a cell becomes a memo
+        of its own) and no line layout caches. The new paragraph takes the paragraph shape and
+        style of the one holding this table. ``copy_to`` puts a copy into an existing paragraph.
         """
 
         from .paragraph import HwpxOxmlParagraph
@@ -717,6 +718,9 @@ class TableFormat:
         renumber_copied_fields(copy)
         for node in copy.iter(f"{_HP}p"):
             _clear_paragraph_layout_cache(node)
+        from .memo import renew_copied_memos  # a copied memo anchor gets a memo of its own
+
+        renew_copied_memos(copy, list(model.sections) if model is not None else [section], target.section)
         run.append(copy)
         parent.insert(list(parent).index(target.element) + 1, new)
         _clear_paragraph_layout_cache(new)
