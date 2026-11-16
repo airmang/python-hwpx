@@ -32,6 +32,11 @@ def test_the_control_ids_are_the_numbers_hancom_writes() -> None:
     assert field_type_id("MEMO") == "623209829"
     assert field_type_id("HYPERLINK") == "627600491"
     assert field_type_id("MAILMERGE") == "627928423"
+    assert field_type_id("SUMMERY") == "628321650"
+    assert field_type_id("PROOFREADING_MARKS_DELETE") == "623192676"
+    assert field_type_id("PROOFREADING_MARKS_LINEATTACH") == "623192641"
+    assert field_type_id("PROOFREADING_MARKS_ATTACH") == "623192673"
+    assert field_type_id("PROOFREADING_MARKS_CLIPPING") == "623192643"
 
 
 def test_every_field_hancom_saved_carries_its_type_control_id() -> None:
@@ -101,6 +106,55 @@ def test_a_copied_field_carries_its_type_control_id() -> None:
     begins, ends = _pairs(target)
     assert begins == [("CLICK_HERE", "627272811")]
     assert ends == [("627272811", "627272811")]
+
+
+def test_a_copied_date_code_keeps_hancoms_control_id() -> None:
+    # Before, a SUMMERY field took a new random fieldid when copied, which Hancom cannot open.
+    source = HwpxDocument.new()
+    paragraph = source.add_paragraph("")
+    source.fields.add(name="날짜", paragraph=paragraph)
+    begin = next(paragraph.element.iter(f"{HP}fieldBegin"))
+    begin.set("type", "SUMMERY")
+    for node in (begin, next(paragraph.element.iter(f"{HP}fieldEnd"))):
+        node.set("fieldid", "628321650")
+
+    target = HwpxDocument.new()
+    append_document(target, source)
+
+    begins, ends = _pairs(target)
+    assert begins == [("SUMMERY", "628321650")]
+    assert ends == [("628321650", "628321650")]
+
+
+@pytest.mark.parametrize(
+    ("field_type", "field_id"),
+    [
+        ("SUMMERY", "628321650"),
+        ("PROOFREADING_MARKS_LINEATTACH", "623192641"),
+        ("PROOFREADING_MARKS_ATTACH", "623192673"),
+        ("PROOFREADING_MARKS_CLIPPING", "623192643"),
+    ],
+)
+def test_a_document_with_a_field_hancom_writes_saves_and_reopens(
+    tmp_path: Path, field_type: str, field_id: str
+) -> None:
+    # Hancom 2024 saves these pairs; before, doc.save refused them as "Hancom refuses to open".
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("")
+    document.fields.add(name="칸", paragraph=paragraph)
+    begin = next(paragraph.element.iter(f"{HP}fieldBegin"))
+    begin.set("type", field_type)
+    for node in (begin, next(paragraph.element.iter(f"{HP}fieldEnd"))):
+        node.set("fieldid", field_id)
+    target = tmp_path / "fields.hwpx"
+    document.save(target)
+
+    reopened = HwpxDocument.open(target)
+    try:
+        assert _pairs(reopened)[0] == [(field_type, field_id)]
+        reopened.save(tmp_path / "again.hwpx")
+    finally:
+        reopened.close()
 
 
 def test_a_field_without_an_end_does_not_take_the_next_fields_end() -> None:

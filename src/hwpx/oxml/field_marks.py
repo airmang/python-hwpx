@@ -138,9 +138,14 @@ FIELD_TYPE_CONTROL_IDS: dict[str, str] = {
     "MAILMERGE": "%mmg",
     "CROSSREF": "%xrf",
     "SUMMARY": "%sum",
+    "SUMMERY": "%smr",  # a date code, as Hancom 2024 spells and writes it
     "USER_INFO": "%usr",
     "MEMO": "%%me",
     "PROOFREADING_MARKS_SIGN": "%sig",
+    "PROOFREADING_MARKS_DELETE": "%%*d",
+    "PROOFREADING_MARKS_LINEATTACH": "%%*A",
+    "PROOFREADING_MARKS_ATTACH": "%%*a",
+    "PROOFREADING_MARKS_CLIPPING": "%%*C",
 }
 
 
