@@ -64,7 +64,10 @@ turns, so each document holds one), changed by Hangul in the order their names s
 dialog's angle, `s` the object properties' width and height) and saved; `tests/test_turn_resize_as_hancom.py`
 builds the same documents and changes them with python-hwpx alone. In `one_p_30_s1`, `one_r_30_s1` and
 `one_g_f_30_s1` the object properties resized a turned object's box, which Hangul does by stretching it along the page
-into a parallelogram; they are kept to show that python-hwpx reads that form and leaves it as it is.
+into a parallelogram; they are kept to show that python-hwpx reads that form and leaves it as it is. The
+`one_q_*`, `one_e_*`, `one_y_*`, `one_l_*`, `one_h_*` (a rectangle, an ellipse, a triangle, a diagonal and a horizontal
+line), `one_g_*` and `one_n_*` files with `60` or `u` in their names were made the same way in rotate8 (`60` the
+dialog's angle given again, `u` Hangul's ungroup command); `tests/test_flip_resize_ungroup_as_hancom.py` builds them.
 
 ## Adding a file
 

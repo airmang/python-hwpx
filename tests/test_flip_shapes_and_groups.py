@@ -267,11 +267,14 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
     turned_rect = doc.add_paragraph("").add_rectangle(8000, 4000)
     turned_rect.flip_horizontal = True
     turned_rect.rotation = 30
+    flipped.resize(8000, 4000)  # its own size: nothing changes
+    turned_rect.resize(4000, 2000)  # rotate8 q-f-S-30
+    resized_rect.flip_horizontal = True  # rotate8 q-S-f
+    flipped_line = doc.add_paragraph("").add_line(0, 0, 8000, 4000)
+    flipped_line.flip_horizontal = True
     for call, code, says in (
         (lambda: setattr(picture, "crop", (0, 0, 1000, 0)), "shape-flip-unsupported", "flip it back first"),
-        (lambda: flipped.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
-        (lambda: turned_rect.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
-        (lambda: setattr(resized_rect, "flip_horizontal", True), "shape-flip-unsupported", "resized"),
+        (lambda: flipped_line.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(nested.members[0], "flip_horizontal", True), "shape-group-member-unsupported", "group"),
         (lambda: setattr(flipped, "flip_horizontal", 1), "shape-flip-value", "True or False"),
     ):
