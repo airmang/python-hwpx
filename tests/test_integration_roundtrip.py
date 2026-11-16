@@ -159,7 +159,7 @@ class TestBookmarkHyperlinkRoundtrip:
         has_link = False
         for p2 in doc2.paragraphs:
             for hl in p2.hyperlinks:
-                if hl["url"] == "https://example.com":
+                if hl.url == "https://example.com":
                     has_link = True
                     break
         assert has_link

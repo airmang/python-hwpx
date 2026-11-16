@@ -24,6 +24,8 @@ from ._document_primitives import (
     _text_element_content,
     _normalize_enum_attr,
     _object_id,
+    _require_nonempty_str,
+    _require_text,
     _sanitize_text,
     NEW_NUM_KINDS,
 )
@@ -75,10 +77,11 @@ from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
 from .shape_position import (
-    validate_equation_base_unit, validate_equation_font, validate_equation_script, validate_shape_size,
+    validate_box_size, validate_equation_base_unit, validate_equation_font, validate_equation_script,
+    validate_shape_size,
 )
 from .table import HwpxOxmlTable
-from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width
+from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width, validate_table_size
 
 if TYPE_CHECKING:
     from ..objects.form_field import Hyperlink
@@ -385,6 +388,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
         the text the paragraph already has changes nothing: its runs and its
         line layout caches stay.
         """
+        _require_text(value)  # before the old text goes
         if value == self.text:
             return
         runs = self._run_elements()
@@ -484,8 +488,10 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
         With *text* the new paragraph holds it, in this paragraph's paragraph shape, style and
         first run's character shape. Without, it is a copy of this paragraph: its runs, tables
-        and objects, with fresh ids (a form field's begin and end get a new pair) and no line
-        layout cache, but not the section settings the first paragraph of a section holds.
+        and objects, with fresh ids (a form field's begin and end get a new pair; a memo anchored
+        in it becomes a memo of its own with the next memo number) and no line layout cache, but
+        not the section settings the first paragraph of a section holds. :meth:`move_after`
+        moves the paragraph itself instead.
         """
 
         return HwpxOxmlParagraph(self._insert_beside(text, after=True), self.section)
@@ -509,8 +515,47 @@ class HwpxOxmlParagraph(ParagraphFormats):
                 suggestion="Pass the new paragraph's text as a str, or nothing to copy this paragraph.",
             )
         element = insert_paragraph_beside(self.element, self.section.element, text, after=after)
+        # In a table cell (or caption) the new line makes the cell taller, and so the line of the
+        # paragraph holding the table: it loses its cache as when a cell's text changes.
+        _clear_paragraph_layout_cache(element)
+        if text is None:  # a copied memo anchor gets a memo of its own, as obj.copy_to gives one
+            from .memo import renew_copied_memos
+
+            document = self.section.document
+            renew_copied_memos(element, list(document.sections) if document is not None else [self.section],
+                               self.section)
         self.section.mark_dirty()
         return element
+
+    def move_after(self, paragraph: "int | HwpxOxmlParagraph") -> None:
+        """Move this paragraph right after *paragraph* (a paragraph of the same document -- in the
+        body, a cell, a text box, a note, a header or a footer -- or its index in ``doc.paragraphs``).
+
+        The paragraph itself moves: it keeps its id, its runs, tables and objects, and this object
+        stays valid. It loses its line layout cache, as do the paragraphs holding the cells and
+        captions it left and joined. The first paragraph of a section hands the section's settings
+        to the paragraph after it, as :meth:`remove` does; memos anchored in it go to its new
+        section's memo group. Refused: the last paragraph of a section, cell, header or footer
+        (``paragraph-remove-last``), a move into its own cells or text boxes
+        (``paragraph-move-into-itself``), a memo's paragraph (``paragraph-move-place-unsupported``).
+        :meth:`insert_after` makes a copy instead.
+        """
+
+        self._move_beside(paragraph, after=True)
+
+    def move_before(self, paragraph: "int | HwpxOxmlParagraph") -> None:
+        """Move this paragraph right before *paragraph*, as :meth:`move_after` does. In front of the
+        first paragraph of a section it starts the section: the section's settings move to it."""
+
+        self._move_beside(paragraph, after=False)
+
+    def _move_beside(self, paragraph: "int | HwpxOxmlParagraph", *, after: bool) -> None:
+        from ._paragraph_text_edit import move_paragraph_beside, resolve_paragraph_in
+
+        caller = "move_after" if after else "move_before"
+        own = resolve_paragraph_in(self, self, caller=caller)
+        anchor = resolve_paragraph_in(own, paragraph, caller=caller)
+        self.section = move_paragraph_beside(own, anchor, after=after)
 
     def _create_run_for_object(
         self,
@@ -723,6 +768,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlTable:
+        validate_table_size(rows, cols)
         if width is not None:
             width = new_table_width(width, cols)  # checked, and floored as Hancom draws it, before its run is added
         elif (context := self._context_table_width()) is not None:  # a narrow cell's may be below the floor
@@ -977,6 +1023,9 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
         The bookmark name can be referenced by hyperlinks or cross-references.
         """
+        _require_nonempty_str(
+            "name", name, code="ref-bookmark-name-empty", suggestion="Pass the bookmark's name."
+        )
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref,
         )
@@ -1004,6 +1053,11 @@ class HwpxOxmlParagraph(ParagraphFormats):
         Returns:
             The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
         """
+        _require_nonempty_str(
+            "url", url, code="ref-link-target-empty",
+            suggestion="Pass a web address, a mailto: address or #bookmark.",
+        )
+        _require_text(display_text)
         field_id = _object_id()
 
         # 실한컴 gold 관례: 링크 서식(charPr)은 표시 텍스트 런에만 싣고
@@ -1236,10 +1290,18 @@ class HwpxOxmlParagraph(ParagraphFormats):
             treat_as_char: ``True`` places the chart inline in the text flow;
                 the default mirrors the gold float placement.
         """
+        from ..errors import HwpxValueError, argument_type_error
+
+        if not isinstance(chart_id_ref, str):
+            raise argument_type_error("chart_id_ref", chart_id_ref, "str")
         reference = chart_id_ref.strip()
         if not reference:
-            raise ValueError("chart_id_ref must be a non-empty package path")
-        width, height = size if size is not None else (32250, 18750)
+            raise HwpxValueError(
+                "chart_id_ref must be a non-empty package path",
+                code="shape-chart-reference-empty",
+                suggestion="Pass the chart part's path, e.g. 'Chart/chart1.xml' (doc.shapes.add_chart writes one).",
+            )
+        width, height = validate_box_size(size, kind="chart") if size is not None else (32250, 18750)
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref
         )
@@ -1313,16 +1375,25 @@ class HwpxOxmlParagraph(ParagraphFormats):
                 face python-hwpx wrote before 7.0. The measured box is
                 wide enough for either.
         """
+        from ..errors import HwpxValueError, argument_type_error
+
+        if not isinstance(script, str):
+            raise argument_type_error("script", script, "str", suggestion="Pass the EqEdit script as a str.")
         text = script.strip()
         if not text:
-            raise ValueError("equation script must be a non-empty string")
+            raise HwpxValueError(
+                "equation script must be a non-empty string",
+                code="shape-equation-script-empty",
+                suggestion="Pass an EqEdit script (convert LaTeX with hwpx.equation).",
+            )
         validate_equation_script(text)  # LaTeX or unpaired braces: Hancom would not draw it as an equation
         validate_equation_base_unit(base_unit)
         font = validate_equation_font(font)
+        explicit = validate_box_size(size, kind="equation") if size is not None else None
         from ..equation.measure import measure_equation
 
         measured = measure_equation(text, base_unit=base_unit)
-        width, height = size if size is not None else (measured.width, measured.height)
+        width, height = explicit if explicit is not None else (measured.width, measured.height)
         validate_shape_size(width, height)
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref
@@ -1590,8 +1661,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
         ``link.url`` is the target (``Path``, else ``Command``, else ``@name`` --
         see ``hyperlink_form.hyperlink_target``) and ``link.text`` the text it spans;
-        both are settable. Before 7.0 this gave dicts; ``link["url"]`` still reads,
-        with a ``DeprecationWarning``.
+        both are settable. Before 7.0 this gave dicts: read ``link.url`` / ``link.field_id``
+        (or ``link.to_dict()``) where ``link["url"]`` / ``link["id"]`` was read.
         """
         from ..objects.form_field import Hyperlink
 

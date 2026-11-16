@@ -94,6 +94,13 @@ def _check_save_target(path: str | PathLike[str]) -> None:
 
     import os
 
+    if not isinstance(path, (str, bytes, os.PathLike)):
+        from ..errors import argument_type_error
+
+        raise argument_type_error(
+            "path", path, "a str or os.PathLike path",
+            suggestion="Pass a file path, or use save_to_stream/to_bytes for a stream or bytes.",
+        )
     target = os.fspath(path)
     if os.path.isdir(target):
         raise _save_target_error(path, IsADirectoryError(21, "Is a directory"))

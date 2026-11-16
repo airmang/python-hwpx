@@ -18,6 +18,10 @@ _TRACKED_TEXT_ILLEGAL = re.compile(r"[\x00-\x08\x09\x0b\x0c\x0d\x0e-\x1f\ufffe\u
 
 
 def _sanitize_tracked_text(value: str) -> str:
+    if not isinstance(value, str):
+        from ..errors import argument_type_error
+
+        raise argument_type_error("text", value, "str", suggestion="Pass the tracked text as a str.")
     return _TRACKED_TEXT_ILLEGAL.sub("", value)
 
 

@@ -125,6 +125,17 @@ class HwpxLookupError(HwpxError, KeyError):
         return self.message
 
 
+class HwpxIndexError(HwpxLookupError, IndexError):
+    """An index (table, cell, picture, paragraph, section) out of range, as a structured error.
+
+    It is a :class:`HwpxLookupError` (and so a ``KeyError``) and also an ``IndexError``, which
+    these failures raised before 7.0: an ``except IndexError`` keeps catching them. Until 7.0 it
+    lived in ``hwpx.oxml.utils``, which still exports the same class.
+    """
+
+    default_code = "hwpx-index-error"
+
+
 class HwpxStateError(HwpxError, RuntimeError):
     """The document is not in a state where the operation is meaningful."""
 
@@ -171,6 +182,27 @@ def removed_argument_error(name: str, caller: str) -> HwpxTypeError:
         code="hwpx-argument-removed",
         context={"caller": caller, "argument": name, "removedIn": "7.0"},
         suggestion=REMOVED_ARGUMENTS[name],
+    )
+
+
+def argument_type_error(
+    argument: str,
+    value: object,
+    expected: str,
+    *,
+    code: str = "hwpx-type-error",
+    suggestion: str | None = None,
+) -> HwpxTypeError:
+    """The error a public method raises when its *argument* got a *value* of the wrong type
+    (*expected* names the types it takes, e.g. ``"str"``), so a wrong type never leaves the
+    method as Python's bare ``TypeError``/``AttributeError`` from deep inside it."""
+
+    got = type(value).__name__
+    return HwpxTypeError(
+        f"{argument} must be {expected}, got {got}",
+        code=code,
+        context={"argument": argument, "expected": expected, "type": got},
+        suggestion=suggestion or f"Pass {argument} as {expected}.",
     )
 
 
@@ -268,6 +300,7 @@ class ReplaceScopeWarning(UserWarning):
 #: :mod:`hwpx._document.persistence` wraps a quality failure as ``quality-gate-failed``.
 ERROR_CODE_DOMAINS = frozenset(
     {
+        "body",
         "capability",
         "cell",
         "contract",
@@ -304,19 +337,18 @@ ERROR_CODE_DOMAINS = frozenset(
 )
 
 
-#: 5.x 에 이미 나간 코드 중 ``<도메인>-<조건>`` 문법에 맞지 않는 것들.
+#: ``<도메인>-<조건>`` 문법에 맞지 않지만 이미 나가서 그대로 둔 코드들. 7.0 에서 비었다.
 #:
-#: 이름이 "무엇이"가 아니라 "무슨 일이"로 시작해서 도메인이 성립하지 않는다
-#: (``unknown-contract-document`` 의 도메인은 ``unknown`` 이 아니라
-#: ``contract`` 이어야 했다). 그런데 이 코드들은 5.6.0 에 발행됐고, 계약상
-#: 코드는 호출자가 분기하는 값이다. 문법을 지키자고 **이미 나간 값을 바꾸는
-#: 것**보다 유예 목록을 명시하는 쪽이 정직하다. 7.0 에서 정리한다.
-GRANDFATHERED_CODES = frozenset(
-    {
-        "unknown-contract-document",
-        "unknown-contract-schema",
-    }
-)
+#: 5.6.0 이 낸 두 코드는 "무엇이"가 아니라 "무슨 일이"로 시작해 도메인이 성립하지
+#: 않았다. 코드는 호출자가 분기하는 값이라 major 경계에서만 바꾸므로 그때까지 여기에
+#: 유예해 두었고, 7.0 에서 문법대로 바꿨다(:data:`RENAMED_CODES`). 유예는 다시 늘지 않는다.
+GRANDFATHERED_CODES: frozenset[str] = frozenset()
+
+#: 7.0 에서 바뀐 코드: 옛 코드 → 새 코드. 옛 코드로 분기하던 호출자가 고칠 곳을 찾게 남긴다.
+RENAMED_CODES: dict[str, str] = {
+    "unknown-contract-document": "contract-document-unknown",
+    "unknown-contract-schema": "contract-schema-unknown",
+}
 
 #: The public-path code vocabulary: ``code`` → one-line meaning.
 #:
@@ -339,8 +371,8 @@ ERROR_CODES: dict[str, str] = {
     "hwpx-argument-removed": "7.0에서 없어지거나 바뀐 인자(section_index=·style_id_ref=, 메서드마다 이름이 바뀐 키워드, 키워드 전용이 된 위치 인자, 없어진 XML 속성 키워드)를 주었다(새 인자는 context.replacement, 안내는 suggestion).",
     # -- 계약 문서·스키마 ------------------------------------------------
     "contract-document-missing": "동봉돼야 할 계약 문서가 휠에 없다.",
-    "unknown-contract-document": "그런 이름의 계약 문서가 없다.",
-    "unknown-contract-schema": "그런 이름의 계약 스키마가 없다.",
+    "contract-document-unknown": "그런 이름의 계약 문서가 없다(6.x 의 unknown-contract-document).",
+    "contract-schema-unknown": "그런 이름의 계약 스키마가 없다(6.x 의 unknown-contract-schema).",
     # -- 문서·섹션·문단 --------------------------------------------------
     "document-header-missing": "문서에 header.xml 파트가 없다.",
     "document-settings-root-invalid": "settings.xml 루트가 ha:HWPApplicationSetting이 아니다.",
@@ -388,6 +420,8 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-range-invalid": "글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다.",
     "paragraph-split-inside-element": "나눌 위치가 hp:t 안의 나눌 수 없는 요소(글자를 가진 요소) 한가운데다.",
     "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
+    "paragraph-move-into-itself": "문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다.",
+    "paragraph-move-place-unsupported": "메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다).",
     # -- 표 셀 -----------------------------------------------------------
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
@@ -534,13 +568,15 @@ ERROR_CODES: dict[str, str] = {
     "shape-caption-gap-value": "캡션 간격(gap)이 -32768 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "shape-draw-text-vert-align": "도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다.",
     "shape-original-size-invalid": "add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다.",
-    "shape-size-value": "도형·그림·수식 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
+    "shape-size-value": "도형·그림·수식·차트 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). 수식·차트의 size 는 (너비, 높이) 쌍이어야 하고 0일 수 없다.",
+    "shape-chart-reference-empty": "paragraph.add_chart 의 chart_id_ref(차트 파트 경로)가 비어 있다.",
     "shape-picture-image-value": "그림의 밝기·대비(-100~100)·투명도(alpha, 0~255)가 범위 밖의 int 이거나(bool 도 거부) 효과가 REAL_PIC/GRAY_SCALE/BLACK_WHITE 밖이다.",
     "shape-picture-effect-value": "그림 그림자·빛남 값이 범위 밖이다(투명도 0~1, 그림자 방향 0~359도 int, 흐림·거리·반경·부드러운 가장자리 0 이상 int, 색 #RRGGBB, 반사 크기 0 초과 1 이하, shadow/glow/reflection 은 PictureShadow/PictureGlow/PictureReflection).",
     "shape-picture-crop-value": "그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다.",
     "shape-picture-border-value": "그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "shape-rect-ratio-value": "사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부).",
     "shape-equation-base-unit-value": "수식 기준 크기(base_unit)가 1 이상 2**31 미만의 int(1/100 pt)가 아니다(bool 도 거부).",
+    "shape-equation-font-empty": "수식 글꼴(font)이 비어 있거나 문자열이 아니다.",
     "shape-position-value": "도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다.",
     "shape-position-unsupported": "위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다.",
     "shape-position-frame": "도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다.",
@@ -563,6 +599,9 @@ ERROR_CODES: dict[str, str] = {
     "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
     "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다).",
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
+    "shape-not-in-document": "옮기거나 복사할 개체가 문단에 없다(지운 개체).",
+    "shape-move-into-itself": "개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다).",
+    "shape-move-place-unsupported": "한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(표 칸·글상자·각주로는 문단 기준(vertRelTo=PARA)이고 쪽 영역 안(flowWithText=1)이거나 가로도 문단 기준(horzRelTo=PARA)인 떠 있는 개체만, 쪽 기준 개체를 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement·vertRelTo·horzRelTo·flowWithText).",
     # -- 미디어 ----------------------------------------------------------
     "media-picture-not-found": "picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서).",
     "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",
@@ -574,6 +613,8 @@ ERROR_CODES: dict[str, str] = {
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",
     "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
+    "note-memo-anchor-elsewhere": "메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모).",
+    "note-memo-index-value": "메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다.",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",
@@ -637,18 +678,23 @@ ERROR_CODES: dict[str, str] = {
     "toc-word-box-extractor-required": "PDF에서 글자 상자를 읽을 방법 없이 차례 쪽 대조를 불렀다.",
     # -- 계획 실행기 -----------------------------------------------------
     "plan-invalid": "편집 계획이 v1 계약을 위반한다.",
+    # -- 본문 바이트 보존 op(hwpx.body_patch) -----------------------------
+    "body-op-section-settings": "본문 op 가 구역 설정(hp:secPr)을 담은 문단을 지우거나 복제하거나 자리를 옮기려 했다(구역마다 하나, 첫 문단에 있어야 한다).",
+    "body-op-nested-paragraph": "본문 op 가 다른 문단(글상자·각주 등)을 품은 문단의 글을 바꾸려 했다(안쪽 글이 지워진다).",
 }
 
 
 __all__ = [
     "ERROR_CODES",
     "GRANDFATHERED_CODES",
+    "RENAMED_CODES",
     "ERROR_CODE_DOMAINS",
     "Hwp5ConversionWarning",
     "ReplaceScopeWarning",
     "Hwp5Error",
     "HwpxAttributeError",
     "HwpxError",
+    "HwpxIndexError",
     "HwpxLookupError",
     "HwpxStateError",
     "HwpxTypeError",

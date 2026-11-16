@@ -15,6 +15,7 @@ from ._document_primitives import (
     _HP,
     _clear_paragraph_layout_cache,
     _element_local_name,
+    _require_text,
     _text_element_content,
 )
 from ._paragraph_text_edit import (
@@ -594,6 +595,7 @@ class HwpxOxmlRun:
         # (which may sit between field controls) takes it, tabs as hp:tab
         # elements, and every hp:t loses its old text together with the line
         # breaks, tabs and spaces inside it and the text after them.
+        _require_text(value)  # before the old text goes
         changed = self.text != value
         nodes = self.element.findall(f"{_HP}t")
         primary = nodes[0] if nodes else self._ensure_plain_text_node()

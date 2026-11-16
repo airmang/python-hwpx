@@ -29,10 +29,31 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator, Mapping, Sequence
+from typing import Iterator, Mapping, Sequence
 
 from ...errors import HwpxLookupError, HwpxValueError
+from ...objects import (
+    BorderFillInfo,
+    FontReplaceReport,
+    LineSpacing,
+    ListFormatResult,
+    NumberingInfo,
+    ParagraphFormatResult,
+)
+from ...objects.binary_item import BinaryItem
+from ...oxml import (
+    Bullet,
+    Font,
+    GenericElement,
+    HwpxOxmlParagraph,
+    MemoShape,
+    ParagraphProperty,
+    RunStyle,
+    Style,
+    TabDefinition,
+)
 from ...oxml.color import rgb_color
+from ...oxml.header_part import HwpxOxmlHeader
 from ...oxml._document_primitives import (
     FILL_GRADIENT_TYPES,
     FILL_IMAGE_EFFECTS,
@@ -41,29 +62,6 @@ from ...oxml._document_primitives import (
     MEMO_TYPE_VALUES,
 )
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...objects import (
-        BorderFillInfo,
-        FontReplaceReport,
-        LineSpacing,
-        ListFormatResult,
-        NumberingInfo,
-        ParagraphFormatResult,
-    )
-    from ...objects.binary_item import BinaryItem
-    from ...oxml import (
-        Bullet,
-        Font,
-        GenericElement,
-        HwpxOxmlParagraph,
-        MemoShape,
-        ParagraphProperty,
-        RunStyle,
-        Style,
-        TabDefinition,
-    )
-    from ...oxml.header_part import HwpxOxmlHeader
 
 __all__ = ["StylesNamespace"]
 
@@ -308,13 +306,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             match = _OUTLINE_ENG_NAME.match((resolved.eng_name or "").strip())
             level = int(match.group(1)) if match else None
         if level is None:
-            para_pr = self._doc.oxml.paragraph_property(resolved.para_pr_id_ref)
-            heading = getattr(para_pr, "heading", None)
-            if heading is not None and (getattr(heading, "type", "") or "").upper() == "OUTLINE":
-                try:
-                    level = int(str(getattr(heading, "level", "")).strip()) + 1
-                except (TypeError, ValueError):
-                    level = None
+            from ...oxml.formatting import para_pr_outline_level
+
+            level = para_pr_outline_level(self._doc.oxml, resolved.para_pr_id_ref)
         return level if level is not None and MIN_HEADING_LEVEL <= level <= MAX_HEADING_LEVEL else None
 
     # -- 서식 정의 테이블 --------------------------------------------------

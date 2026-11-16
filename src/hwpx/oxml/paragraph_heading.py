@@ -64,18 +64,24 @@ def heading_outline_level(para_pr: Any) -> int | None:
 
     A paragraph shape makes its paragraphs outline paragraphs of level L when its heading
     (:func:`paragraph_heading`) has ``type="OUTLINE"`` and ``level="L-1"``. Any other
-    heading (a number, a bullet, ``NONE``) or no heading gives ``None``; a level that is
-    missing or not a number counts as level 1, as Hancom reads it.
+    heading (a number, a bullet, ``NONE``) or no heading gives ``None``.
+
+    This is the one rule every reader of a paragraph's outline level uses
+    (``Paragraph.outline_level``, ``doc.styles.outline_level``, the heading levels of the
+    exports). It reads the attributes as OWPML declares them and as Hancom writes them —
+    in the 1,299 HWPX files of the public and test corpora (32,133 headings) every
+    ``type`` is upper case and every outline ``level`` is 0 to 9. So ``type`` is compared
+    as written (``"outline"`` is not ``"OUTLINE"``), and a ``level`` that is missing or
+    not a whole number from 0 to 9 takes the attribute's default 0, level 1.
     *para_pr* is an ``hh:paraPr`` element (lxml or ElementTree).
     """
 
     heading = paragraph_heading(para_pr)
     if heading is None or heading.get("type") != "OUTLINE":
         return None
-    try:
-        return int(heading.get("level") or "0") + 1
-    except ValueError:
-        return 1
+    raw = (heading.get("level") or "").strip()
+    level = int(raw) if raw.isdecimal() else 0
+    return level + 1 if level <= 9 else 1
 
 
 def outline_style_level(name: str | None) -> int | None:
