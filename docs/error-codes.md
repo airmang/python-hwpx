@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 290 | 11 |
+| 개수 | 293 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -310,6 +310,9 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `ref-bookmark-name-empty` | 책갈피 이름이 비어 있다. |
+| `ref-cross-reference-content-value` | 상호 참조에 보일 것(content_type)이 OBJECT_TYPE_PAGE·NUMBER·CONTENTS·UPDOWNPOS 밖이다. |
+| `ref-cross-reference-hyperlink-value` | 상호 참조 hyperlink 가 True·False 가 아니다. |
+| `ref-cross-reference-target-unsupported` | 상호 참조 대상이 이 문서의 개요 문단·책갈피·표가 아니다(한/글 파일에서 본 대상만 쓴다). |
 | `ref-link-end-missing` | 하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다. |
 | `ref-link-target-empty` | 하이퍼링크 대상이 비어 있다. |
 

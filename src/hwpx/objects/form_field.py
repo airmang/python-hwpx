@@ -615,27 +615,113 @@ class Hyperlink:
         return f"Hyperlink(url={self.url!r}, text={self.text!r})"
 
 
-@dataclass(frozen=True)
 class CrossReference:
-    """One cross reference Hancom saved (``<hp:fieldBegin type="CROSSREF">``, 상호 참조), read as written.
+    """A live view over one cross reference (``<hp:fieldBegin type="CROSSREF">``, 상호 참조).
 
     ``ref_type`` says what kind of thing it points at (``RefType``: ``TARGET_OUTLINE``,
     ``TARGET_BOOKMARK``, ``TARGET_TABLE`` ...) and ``content_type`` what it shows of
-    it (``RefContentType``: ``OBJECT_TYPE_PAGE`` for the page number ...).
-    ``target`` is the target from ``RefPath`` without its ``?`` and ``;``: a
-    paragraph is ``#<paragraph id>``. ``text`` is what the document shows now
+    it (``RefContentType``: ``OBJECT_TYPE_PAGE`` for the page number, ``OBJECT_TYPE_NUMBER``,
+    ``OBJECT_TYPE_CONTENTS``, ``OBJECT_TYPE_UPDOWNPOS``). ``target`` is the target from
+    ``RefPath`` without its ``?`` and ``;``: an outline paragraph is ``#<paragraph id>``, a
+    table ``#<table id>``, a bookmark its name. ``text`` is what the document shows now
     (Hancom computes it again when it lays the page out), ``hyperlink`` whether
     clicking jumps to the target. ``element`` is the ``<hp:fieldBegin>``.
+
+    ``content_type`` and ``hyperlink`` are settable and :meth:`set_target` points it
+    elsewhere; ``remove()`` takes it out and leaves its text. When what it shows changes,
+    its text is emptied: Hancom fills it in when it lays the page out, and python-hwpx
+    writes no number it cannot know.
     """
 
-    ref_type: str
-    content_type: str
-    target: str
-    text: str
-    hyperlink: bool
-    location: FieldLocation
-    parameters: tuple[FieldParameter, ...]
-    element: Any = field(repr=False, compare=False)
+    __slots__ = ("_doc", "_element", "_location")
+
+    def __init__(self, doc: "HwpxDocument", element: Any, location: FieldLocation) -> None:
+        self._doc = doc
+        self._element = element
+        self._location = location
+
+    def _parameter(self, name: str) -> str:
+        for holder in self._element:
+            if holder.tag.rsplit("}", 1)[-1] != "parameters":
+                continue
+            for param in holder:
+                if param.get("name") == name:
+                    return param.text or ""
+        return ""
+
+    @property
+    def element(self) -> Any:
+        return self._element
+
+    @property
+    def ref_type(self) -> str:
+        return self._parameter("RefType")
+
+    @property
+    def content_type(self) -> str:
+        return self._parameter("RefContentType")
+
+    @content_type.setter
+    def content_type(self, value: str) -> None:
+        from .._document.fields import set_cross_reference
+
+        set_cross_reference(self, content_type=value)
+
+    @property
+    def target(self) -> str:
+        path = self._parameter("RefPath")
+        target = path[1:] if path.startswith("?") else path
+        return target[:-1] if target.endswith(";") else target
+
+    def set_target(self, target: Any) -> None:
+        """Point the cross reference at *target*: an outline paragraph (개요, ``TARGET_OUTLINE``),
+        a bookmark (a :class:`Bookmark` or its name, ``TARGET_BOOKMARK``) or a table
+        (``TARGET_TABLE``) of this document, written as Hancom writes each. Its text is emptied
+        for Hancom to fill in. Other targets are refused (``ref-cross-reference-target-unsupported``):
+        python-hwpx has seen no Hancom file pointing at them."""
+
+        from .._document.fields import set_cross_reference
+
+        set_cross_reference(self, target=target)
+
+    @property
+    def text(self) -> str:
+        from .._document.fields import cross_reference_text
+
+        return cross_reference_text(self._doc, self._element)
+
+    @property
+    def hyperlink(self) -> bool:
+        return self._parameter("RefHyperLink").strip().lower() in ("1", "true")
+
+    @hyperlink.setter
+    def hyperlink(self, value: bool) -> None:
+        from .._document.fields import set_cross_reference
+
+        set_cross_reference(self, hyperlink=value)
+
+    @property
+    def location(self) -> FieldLocation:
+        """Where the cross reference was when it was read."""
+
+        return self._location
+
+    @property
+    def parameters(self) -> tuple[FieldParameter, ...]:
+        return tuple(
+            FieldParameter(name=param.get("name", ""), value=param.text or "")
+            for holder in self._element
+            if holder.tag.rsplit("}", 1)[-1] == "parameters"
+            for param in holder
+        )
+
+    def remove(self, *, keep_text: bool = True) -> None:
+        """Take the cross reference out (its begin and end): the text it shows stays as plain
+        text, or goes too with ``keep_text=False``. The paragraph is laid out again."""
+
+        from .._document.fields import remove_form_field
+
+        remove_form_field(self._doc, self._element, keep_text=keep_text)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -646,6 +732,15 @@ class CrossReference:
             "hyperlink": self.hyperlink,
             "location": self.location.to_dict(),
         }
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, CrossReference) and other._element is self._element
+
+    def __hash__(self) -> int:
+        return id(self._element)
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"CrossReference(ref_type={self.ref_type!r}, target={self.target!r}, text={self.text!r})"
 
 
 

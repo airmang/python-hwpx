@@ -579,6 +579,9 @@ ERROR_CODES: dict[str, str] = {
     "ref-bookmark-name-empty": "책갈피 이름이 비어 있다.",
     "ref-link-target-empty": "하이퍼링크 대상이 비어 있다.",
     "ref-link-end-missing": "하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다.",
+    "ref-cross-reference-target-unsupported": "상호 참조 대상이 이 문서의 개요 문단·책갈피·표가 아니다(한/글 파일에서 본 대상만 쓴다).",
+    "ref-cross-reference-content-value": "상호 참조에 보일 것(content_type)이 OBJECT_TYPE_PAGE·NUMBER·CONTENTS·UPDOWNPOS 밖이다.",
+    "ref-cross-reference-hyperlink-value": "상호 참조 hyperlink 가 True·False 가 아니다.",
     # -- 텍스트 ----------------------------------------------------------
     "text-search-empty": "바꿀 대상 문자열이 비어 있다.",
     "text-highlight-match-empty": "형광펜으로 감쌀 문자열이 비어 있다.",

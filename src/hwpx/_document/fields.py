@@ -718,24 +718,231 @@ def list_cross_references(doc: "HwpxDocument") -> tuple[CrossReference, ...]:
     """The cross references Hancom saved (``fieldBegin type="CROSSREF"``), in document
     order, with what each points at, read as written."""
 
-    found: list[CrossReference] = []
-    for match in _iter_field_matches(doc, _field_type_is("CROSSREF")):
-        parameters = match["parameters"]
-        path = _field_parameter_value(parameters, "RefPath")
-        target = path[1:] if path.startswith("?") else path
-        found.append(
-            CrossReference(
-                ref_type=_field_parameter_value(parameters, "RefType"),
-                content_type=_field_parameter_value(parameters, "RefContentType"),
-                target=target[:-1] if target.endswith(";") else target,
-                text=match["current_value"],
-                hyperlink=_field_parameter_value(parameters, "RefHyperLink").lower() in ("1", "true"),
-                location=_match_location(match),
-                parameters=_match_parameters(match),
-                element=match["_field_begin"],
+    return tuple(
+        CrossReference(doc, match["_field_begin"], _match_location(match))
+        for match in _iter_field_matches(doc, _field_type_is("CROSSREF"))
+    )
+
+
+#: What a cross reference points at, what of it it shows and how it opens, by the code Hancom writes
+#: for each in its ``Command`` (``<path>;<type>;<content>;<hyperlink>;<open>;``). The codes are those
+#: Hancom Office 2024 reads out of an .hwp cross reference into these parameters (hwp5/section_xml.py).
+_XREF_TYPES = ("TARGET_TABLE", "TARGET_PICTURE", "TARGET_EQUATION", "TARGET_FOOTNOTE", "TARGET_ENDNOTE",
+               "TARGET_OUTLINE", "TARGET_BOOKMARK")
+_XREF_CONTENTS = ("OBJECT_TYPE_PAGE", "OBJECT_TYPE_NUMBER", "OBJECT_TYPE_CONTENTS", "OBJECT_TYPE_UPDOWNPOS")
+_XREF_OPEN = ("HWPHYPERLINK_JUMP_CURRENTTAB", "HWPHYPERLINK_JUMP_NEWTAB", "HWPHYPERLINK_JUMP_NEWWINDOW")
+#: The parameters of a CROSSREF field in Hancom's order (``Fiexde`` is Hancom's spelling).
+_XREF_PARAMS = (("booleanParam", "Fiexde"), ("integerParam", "Prop"), ("stringParam", "Command"),
+                ("stringParam", "RefPath"), ("stringParam", "RefType"), ("stringParam", "RefContentType"),
+                ("booleanParam", "RefHyperLink"), ("stringParam", "RefOpenType"))
+
+
+def cross_reference_text(doc: "HwpxDocument", field_begin: Any) -> str:
+    """What the cross reference shows now: the text between its begin and end."""
+
+    try:
+        return str(_match_for_begin(doc, field_begin)["current_value"])
+    except HwpxValueError:
+        return ""
+
+
+def _xref_refuse(message: str, suggestion: str, **context: Any) -> HwpxValueError:
+    return HwpxValueError(message, code="ref-cross-reference-target-unsupported", context=context or None,
+                          suggestion=suggestion)
+
+
+def _cross_reference_target(doc: "HwpxDocument", target: Any) -> tuple[str, str]:
+    """``(RefPath without its ';', RefType)`` for *target*, as Hancom writes a cross reference to it.
+
+    An outline paragraph is ``?#<paragraph id>`` (the Hancom-saved m7_toc_gold pair), a table
+    ``?#<table id>`` and a bookmark ``?<name>`` (the cross references of Hancom-made public .hwp
+    samples, as Hancom opens them). Nothing else has been seen in a Hancom file, so nothing else is
+    written."""
+
+    from ..oxml import HwpxOxmlParagraph, HwpxOxmlTable
+    from ..objects.form_field import Bookmark
+
+    if isinstance(target, HwpxOxmlTable):
+        table_id = (target.element.get("id") or "").strip()
+        if not table_id.isdigit() or not any(
+            element is target.element for section in doc.sections for element in section.element.iter(f"{_HP}tbl")
+        ):
+            raise _xref_refuse("the table is not a numbered table of this document",
+                               "Pass a table of this document (doc.tables).")
+        return f"?#{table_id}", "TARGET_TABLE"
+    if isinstance(target, HwpxOxmlParagraph):
+        from ._resolve import resolve_paragraph
+
+        paragraph = resolve_paragraph(doc, target, caller="cross reference target")
+        if not paragraph.outline_level:
+            raise _xref_refuse(
+                "a cross reference points at an outline paragraph (개요), a bookmark or a table; "
+                "this paragraph is none of them",
+                "Make the paragraph a heading (doc.add_heading, paragraph.outline_level = 1), or put a "
+                "bookmark on it (doc.refs.add_bookmark) and point at the bookmark.",
             )
+        from ..tools.toc_author import ensure_paragraph_anchor_id
+
+        before = paragraph.element.get("id")
+        anchor = ensure_paragraph_anchor_id(doc, paragraph)  # Hancom finds it by a unique paragraph id
+        if anchor != before:
+            paragraph.section.mark_dirty()
+        return f"?#{anchor}", "TARGET_OUTLINE"
+    if isinstance(target, (Bookmark, str)):
+        name = target.name if isinstance(target, Bookmark) else target.strip()
+        if not name or ";" in name or name.startswith("#"):
+            raise _xref_refuse(f"{name!r} cannot name a bookmark in a cross reference",
+                               "Pass the name of a bookmark of this document (doc.refs.bookmarks).",
+                               requested=name)
+        if name not in {bookmark.name for bookmark in list_bookmarks(doc)}:
+            raise _xref_refuse(f"this document has no bookmark named {name!r}",
+                               "Add it first (doc.refs.add_bookmark), or pass a name from doc.refs.bookmarks.",
+                               requested=name)
+        return f"?{name}", "TARGET_BOOKMARK"
+    raise _xref_refuse(
+        f"a cross reference points at an outline paragraph, a bookmark or a table; got {type(target).__name__}",
+        "Pass a heading paragraph, a bookmark (or its name) or a table of this document. Pictures, "
+        "equations and notes are not written: python-hwpx has seen no Hancom file pointing at them.",
+        requested=type(target).__name__,
+    )
+
+
+def _set_parameter(holder: Any, kind: str, name: str, value: str) -> None:
+    for param in holder:
+        if param.get("name") == name:
+            if param.text != value:
+                param.text = value
+            return
+    param = holder.makeelement(f"{_HP}{kind}", {"name": name})
+    param.text = value
+    order = [n for _k, n in _XREF_PARAMS]
+    rank = order.index(name) if name in order else len(order)
+    position = sum(1 for other in holder if other.get("name") in order[:rank])
+    holder.insert(position, param)
+    holder.set("cnt", str(len(holder)))
+
+
+def _write_cross_reference(
+    field_begin: Any, *, path: str, ref_type: str, content_type: str, hyperlink: bool
+) -> None:
+    """Write the CROSSREF parameters of *field_begin*: ``Command`` and the parameters it spells out."""
+
+    holder = next((child for child in field_begin if _local_name(child) == "parameters"), None)
+    if holder is None:
+        holder = field_begin.makeelement(f"{_HP}parameters", {"cnt": "0", "name": ""})
+        field_begin.insert(0, holder)
+    open_type = next((p.text for p in holder if p.get("name") == "RefOpenType" and p.text in _XREF_OPEN),
+                     _XREF_OPEN[0])
+    command = (f"{path};{_XREF_TYPES.index(ref_type)};{_XREF_CONTENTS.index(content_type)};"
+               f"{1 if hyperlink else 0};{_XREF_OPEN.index(open_type)};")
+    for kind, name, value in (
+        ("booleanParam", "Fiexde", next((p.text or "1" for p in holder if p.get("name") == "Fiexde"), "1")),
+        ("integerParam", "Prop", next((p.text or "0" for p in holder if p.get("name") == "Prop"), "0")),
+        ("stringParam", "Command", command),
+        ("stringParam", "RefPath", f"{path};"),
+        ("stringParam", "RefType", ref_type),
+        ("stringParam", "RefContentType", content_type),
+        ("booleanParam", "RefHyperLink", "true" if hyperlink else "false"),
+        ("stringParam", "RefOpenType", open_type),
+    ):
+        _set_parameter(holder, kind, name, value)
+
+
+def _empty_field_text(doc: "HwpxDocument", field_begin: Any) -> None:
+    """Take out what lies between the field's begin and end (its shown text), in its paragraph."""
+
+    match = _match_for_begin(doc, field_begin)
+    if match.get("_end_run_index") is None:
+        return
+    _drop_field_content(match)
+    _clear_paragraph_layout_cache(match["_paragraph"].element)
+
+
+def _check_xref_choices(content_type: Any, hyperlink: Any) -> None:
+    if content_type is not None and content_type not in _XREF_CONTENTS:
+        raise HwpxValueError(
+            f"content_type must be one of {', '.join(_XREF_CONTENTS)}; got {content_type!r}",
+            code="ref-cross-reference-content-value",
+            context={"requested": repr(content_type)},
+            suggestion="OBJECT_TYPE_PAGE shows the page number, OBJECT_TYPE_NUMBER its number, "
+            "OBJECT_TYPE_CONTENTS its text, OBJECT_TYPE_UPDOWNPOS above or below.",
         )
-    return tuple(found)
+    if hyperlink is not None and not isinstance(hyperlink, bool):
+        raise HwpxValueError(
+            f"hyperlink must be True or False; got {hyperlink!r}",
+            code="ref-cross-reference-hyperlink-value",
+            context={"requested": repr(hyperlink)},
+            suggestion="Pass True to jump to the target on a click, False not to.",
+        )
+
+
+def set_cross_reference(
+    view: Any, *, target: Any = None, content_type: Any = None, hyperlink: Any = None
+) -> None:
+    """Change what the cross reference *view* points at, what it shows or whether it links. When
+    the target or what is shown changes, the shown text is emptied for Hancom to fill in."""
+
+    doc, begin = view._doc, view.element
+    _check_xref_choices(content_type, hyperlink)
+    old_path = view._parameter("RefPath")
+    old_path = old_path[:-1] if old_path.endswith(";") else old_path
+    old_type, old_content = view.ref_type, view.content_type
+    path, ref_type = old_path, old_type
+    if target is not None:
+        path, ref_type = _cross_reference_target(doc, target)
+    elif ref_type not in _XREF_TYPES or not path:
+        raise _xref_refuse(
+            f"the cross reference points at {ref_type or 'nothing'!r}, which python-hwpx does not write",
+            "Point it at a heading paragraph, a bookmark or a table first (set_target).",
+            ref_type=ref_type,
+        )
+    new_content = content_type if content_type is not None else (
+        old_content if old_content in _XREF_CONTENTS else _XREF_CONTENTS[0])
+    link = view.hyperlink if hyperlink is None else hyperlink
+    if (path, ref_type, new_content, link) == (old_path, old_type, old_content, view.hyperlink):
+        return
+    _write_cross_reference(begin, path=path, ref_type=ref_type, content_type=new_content, hyperlink=link)
+    if (path, ref_type, new_content) != (old_path, old_type, old_content):
+        _empty_field_text(doc, begin)
+    _match_for_begin(doc, begin)["_paragraph"].section.mark_dirty()
+
+
+def add_cross_reference(
+    doc: "HwpxDocument",
+    target: Any,
+    *,
+    content_type: str = "OBJECT_TYPE_PAGE",
+    hyperlink: bool = False,
+    paragraph: Any | None = None,
+    section: Any | None = None,
+) -> CrossReference:
+    """Append a cross reference to *target* at the end of *paragraph* (a new paragraph at the end of
+    *section* when ``None``), written as Hancom writes one, and return it.
+
+    It shows nothing yet: Hancom fills in the page, number or text when it lays the page out."""
+
+    _check_xref_choices(content_type, hyperlink)
+    path, ref_type = _cross_reference_target(doc, target)
+    if paragraph is None:
+        paragraph = doc.add_paragraph("", section=section, include_run=False)
+    from ..oxml._document_primitives import _object_id
+    from ..oxml.field_marks import field_type_id
+
+    field_id = _object_id()
+    begin_run = paragraph._create_run_for_object()
+    ctrl = begin_run.makeelement(f"{_HP}ctrl", {})
+    begin_run.append(ctrl)
+    begin = ctrl.makeelement(f"{_HP}fieldBegin", {
+        "id": field_id, "type": "CROSSREF", "name": "", "editable": "0", "dirty": "0", "zorder": "-1",
+        "fieldid": field_type_id("CROSSREF"), "metaTag": "",
+    })
+    ctrl.append(begin)
+    _write_cross_reference(begin, path=path, ref_type=ref_type, content_type=content_type, hyperlink=hyperlink)
+    end_ctrl = begin_run.makeelement(f"{_HP}ctrl", {})
+    end_ctrl.append(end_ctrl.makeelement(f"{_HP}fieldEnd", {"beginIDRef": field_id, "fieldid": begin.get("fieldid")}))
+    begin_run.append(end_ctrl)
+    paragraph.section.mark_dirty()
+    return CrossReference(doc, begin, _match_location(_match_for_begin(doc, begin)))
 
 
 def _named_cells(paragraphs: Any) -> Iterator[Any]:
