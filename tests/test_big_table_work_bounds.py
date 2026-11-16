@@ -80,6 +80,24 @@ def test_a_table_estimate_looks_shapes_up_a_fixed_number_of_times(monkeypatch) -
     assert 0 < counts[0] == counts[1]  # not one per cell: four times the rows, the same lookups
 
 
+def test_a_table_saved_shorter_than_its_rows_is_measured_once_per_insertion(monkeypatch) -> None:
+    # Hancom saves a table split across pages with the height of its first page's part; the row
+    # insertion keeps that height, so it need not measure the rows again after the edit.
+    doc = _big_table_document(30)
+    table = doc.tables.all[0]
+    measured = []
+    original = type(table)._rows_height
+    monkeypatch.setattr(type(table), "_rows_height", lambda self: measured.append(1) or original(self))
+    sz = "{http://www.hancom.co.kr/hwpml/2011/paragraph}sz"
+    table.element.find(sz).set("height", "100")
+    doc.tables.insert_rows(table, 29, 1)
+    assert len(measured) == 1 and table.element.find(sz).get("height") == "100"
+    measured.clear()
+    table.element.find(sz).set("height", "999999")  # taller than its rows: grows by the new row
+    doc.tables.insert_rows(table, 30, 1)
+    assert len(measured) == 2 and int(table.element.find(sz).get("height")) > 999999
+
+
 def test_writing_a_part_does_not_move_its_children() -> None:
     data = zipfile.ZipFile(FIXTURES / "hancom_saved" / "fill_image_left_top.hwpx").read("Contents/section0.xml")
     for root in (etree.fromstring(data), parse_xml(data)):  # as read: hp10 bound to 2016, then normalised to 2011
