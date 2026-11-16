@@ -1288,36 +1288,67 @@ def _flat_drawn_angle(element: Any) -> int:
     return (angle - (180 if flip_signs(element)[0] == -1 else 0)) % 360
 
 
-def flip_flat_line(element: Any, wanted: tuple[int, int], size: tuple[int, int]) -> None:
-    """Flip a line drawn 0 high or wide (:func:`flat_line`) as Hancom 2024 flips one (rotate11 ``want-flip7``: a
-    horizontal line, a vertical line and a horizontal line with an arrow at its end, flipped left-right, up-down and
-    both ways): flipping it changes nothing drawn -- the arrow stays at its end -- and Hancom writes the flags, an
-    angle 180 more for a flip left-right (``rotationInfo`` 180 flipped left-right or both ways, 0 up-down), its
-    matrices plain and the flat axis drawn at 0 (``scaMatrix`` 0 there). Refused (``shape-flip-unsupported``) for one
-    turned: no Hancom-saved document shows it."""
+def _mirrored(element: Any) -> bool:
+    """Whether *element*'s ``hc:rotMatrix`` mirrors it (its 2 x 2 part turns the page over)."""
 
-    drawn = _flat_drawn_angle(element)
-    if drawn:
-        raise _flip_refused(element, "it is a line drawn 0 high or wide and turned: no Hancom-saved document shows "
-                                     "one flipped")
-    flip = element.find(f"{_HP}flip")
-    flip.set("horizontal", "1" if wanted[0] == -1 else "0")
-    flip.set("vertical", "1" if wanted[1] == -1 else "0")
+    rot = _matrix_values(element.find(f"{_HP}renderingInfo")[2])
+    return rot[0] * rot[4] - rot[1] * rot[3] < 0
+
+
+def _flatten(element: Any, size: tuple[int, int], turned: bool) -> None:
+    """Write a flat line as Hancom does once it has changed it: the flat axis drawn at 0 (``scaMatrix`` 0 there) and,
+    turned, its box at least 1 across that way (turned 90 degrees: 1 x 12000; rotate11 ``ha-90``)."""
+
     scale = element.find(f"{_HP}renderingInfo")[1]
     for key, flat in (("e1", size[0] == 0), ("e5", size[1] == 0)):
         if flat:
             scale.set(key, "0")
+    box = element.find(f"{_HP}sz")
+    if turned and box is not None:
+        for side in ("width", "height"):
+            if box.get(side) == "0":
+                box.set(side, "1")
+
+
+def flip_flat_line(element: Any, wanted: tuple[int, int], size: tuple[int, int]) -> None:
+    """Flip a line drawn 0 high or wide (:func:`flat_line`) as Hancom 2024 flips one (rotate11 ``want-flip7``: a
+    horizontal line, a vertical line and a horizontal line with an arrow at its end, flipped left-right, up-down and
+    both ways): flipping it unturned changes nothing drawn -- the arrow stays at its end -- and Hancom writes the
+    flags, an angle 180 more for a flip left-right (``rotationInfo`` 180 flipped left-right or both ways, 0 up-down),
+    its matrices plain and the flat axis drawn at 0 (``scaMatrix`` 0 there). Turned, it is flipped as any turned
+    object is -- mirrored as drawn and written turned the other way (30 becomes 330; rotate11 ``ha-30-f``). Refused
+    (``shape-flip-unsupported``) for one flipped, turned and flipped again: no Hancom-saved document shows it."""
+
+    drawn = _flat_drawn_angle(element)
+    flip = element.find(f"{_HP}flip")
     info = element.find(f"{_HP}rotationInfo")
+    if drawn:
+        if flip_signs(element) != (1, 1) or _mirrored(element):
+            raise _flip_refused(element, "it is a line drawn 0 high or wide, flipped and turned: no Hancom-saved "
+                                         "document shows one flipped again")
+        turned = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+        flip.set("horizontal", "1" if wanted[0] == -1 else "0")
+        flip.set("vertical", "1" if wanted[1] == -1 else "0")
+        apply_rotation(element, (-turned) % 360, *size)
+        _flatten(element, size, True)
+        return
+    flip.set("horizontal", "1" if wanted[0] == -1 else "0")
+    flip.set("vertical", "1" if wanted[1] == -1 else "0")
+    _flatten(element, size, False)
     if info is not None:
         info.set("angle", str(180 if wanted[0] == -1 else 0))
 
 
 def turn_flat_line(element: Any, angle: int, size: tuple[int, int]) -> None:
-    """Turn a line drawn 0 high or wide (:func:`flat_line`) *angle* degrees as Hancom 2024 turns one: drawn turned
-    the angle less 180 when it is flipped left-right (flipped and turned 30: ``rotMatrix`` a turn of 210 about its
-    middle, no mirror; rotate11 ``h-f-30``, ``w-f-30``, ``ha-f-30``), its box the box around it so, ``rotationInfo``
-    the angle given."""
+    """Turn a line drawn 0 high or wide (:func:`flat_line`) *angle* degrees as Hancom 2024 turns one: about its
+    middle, its box the box around it so, the flat axis drawn at 0 (rotate11 ``h-30``, ``w-30``, ``ha-30``,
+    ``ha-90``); flipped left-right first, drawn turned the angle less 180 (a turn of 210 for 30, no mirror;
+    ``h-f-30``, ``w-f-30``, ``ha-f-30``); ``rotationInfo`` the angle given. Refused (``shape-rotation-unsupported``)
+    for one turned and then flipped (mirrored as drawn): no Hancom-saved document shows it turned again."""
 
+    if _mirrored(element):
+        raise _rotation_refused(element, "it is a line drawn 0 high or wide, turned and then flipped: no "
+                                         "Hancom-saved document shows one turned again")
     flip = element.find(f"{_HP}flip")
     flags = (flip.get("horizontal"), flip.get("vertical")) if flip is not None else None
     drawn = (angle - (180 if flip_signs(element)[0] == -1 else 0)) % 360
@@ -1330,6 +1361,7 @@ def turn_flat_line(element: Any, angle: int, size: tuple[int, int]) -> None:
         if flip is not None and flags is not None:
             flip.set("horizontal", flags[0] or "0")
             flip.set("vertical", flags[1] or "0")
+    _flatten(element, size, bool(drawn))
     info = element.find(f"{_HP}rotationInfo")
     if info is not None:
         info.set("angle", str(angle % 360))

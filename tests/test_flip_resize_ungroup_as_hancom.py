@@ -89,6 +89,12 @@ CASES = [
     ("one_ha_f", "ha", ["f"]),
     ("one_ha_v", "ha", ["v"]),
     ("one_ha_f_30", "ha", ["f", "r30"]),
+    # rotate11 (want-flip8): flat lines turned 30 and 90 degrees, and turned and then flipped (mirrored as drawn)
+    ("one_h_30", "h", ["r30"]),
+    ("one_w_30", "w", ["r30"]),
+    ("one_ha_30", "ha", ["r30"]),
+    ("one_ha_90", "ha", ["r90"]),
+    ("one_ha_30_f", "ha", ["r30", "f"]),
     ("one_r_s1", "r", ["s18000x6000"]),
     ("one_r_s2", "r", ["s8000x12000"]),
 ]
@@ -232,4 +238,30 @@ def test_a_flat_line_flipped_back_is_written_unflipped_and_unturned(source: str)
     assert (line.flip_horizontal, line.flip_vertical, line.rotation) == (False, False, 0)
     rot = line.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}renderingInfo")[2]
     assert [float(rot.get(key)) for key in ("e1", "e2", "e3", "e4", "e5", "e6")] == [1, 0, 0, 0, 1, 0]
+    assert not HwpxDocument.open(doc.to_bytes()).validate().issues
+
+
+def test_a_flat_line_turned_and_then_flipped_is_not_turned_again() -> None:
+    # Hangul mirrors a turned flat line as drawn (ha-30-f); no Hancom-saved document shows one turned again
+    _, line = _made("ha", ["r30", "f"])
+    assert (line.flip_horizontal, line.rotation) == (True, 330)
+    with pytest.raises(HwpxValueError) as caught:
+        line.rotation = 0
+    assert caught.value.code == "shape-rotation-unsupported"
+
+
+@pytest.mark.parametrize("source", ["h", "w", "ha"])
+def test_a_flat_line_turned_is_drawn_turned_and_turns_back(source: str) -> None:
+    # a line drawn 0 high or wide turns about its middle (h-30, w-30, ha-30): its flat axis written drawn at 0 as
+    # Hangul writes it (a scale of 1 on it, Hangul draws the turned line unturned)
+    doc, line = _made(source, ["r30"])
+    scale = line.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}renderingInfo")[1]
+    assert "0" in (scale.get("e1"), scale.get("e5"))
+    rot = line.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}renderingInfo")[2]
+    assert abs(float(rot.get("e1")) - 0.866025) < 1e-6
+    pos = dict(line.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}pos").attrib)
+    line.rotation = 0
+    assert line.rotation == 0
+    assert float(rot.get("e1")) == 1 and float(rot.get("e2")) == 0
+    assert dict(line.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}pos").attrib) != pos  # moved back
     assert not HwpxDocument.open(doc.to_bytes()).validate().issues
