@@ -1568,14 +1568,17 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
         Each is drawn where it was in the group: its own matrices are kept (the group's turn and stretch with
         them), its box (``hp:sz``) is the box it is drawn in, and it is placed from the group's frames at the
         group's offsets plus where it starts in the group, with the group's text wrapping and outer margins, a
-        new ``id`` and a ``zOrder`` above the others. Turned members keep the group's angle. This is what Hancom
-        2024 wrote for groups ungrouped plain, stretched and turned 30 and 90 degrees; Hancom also hangs a
-        member on the paragraph at whose height it starts, here it stays in this paragraph at the same spot.
+        new ``id`` and a ``zOrder`` above the others. Turned members keep the group's angle; members of a
+        flipped group take its flags (their matrices already mirror them). A group inside comes out whole, its
+        shapes measured from it a level up. This is what Hancom 2024 wrote for groups ungrouped plain,
+        stretched, turned 30 and 90 degrees, flipped left-right or up-down (turned 30 too) and holding a group;
+        Hancom also hangs a member on the paragraph at whose height it starts, here it stays in this paragraph
+        at the same spot.
 
         Refused with ``shape-ungroup-unsupported`` (``context["reason"]``) before anything changes: a shape
         that is not a group, a group set as a character or placed from another side than the left and top, a
-        flipped group, one holding a group, one turned and then stretched (skewed), and one with a member turned
-        or flipped on its own. The paragraph
+        group flipped both ways or flipped and resized, one turned and then stretched (skewed), and one with a
+        member turned or flipped on its own. The paragraph
         loses its line layout cache; this group object should not be used after it.
         """
 
@@ -1632,8 +1635,9 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
         *width* x *height* is always the shape's own size: a turned shape or group (flipped or not) is
         turned back, resized and turned again (``shape_position.resize_turned_as_own``), so it stays the
         same shape turned -- not stretched along the page into a parallelogram as Hancom's object
-        properties stretch the box around it. Refused: a flipped drawing shape other than a group, a group
-        holding a group flipped (``shape-flip-unsupported``), an object skewed by Hancom's resize of a
+        properties stretch the box around it. A flipped shape or group keeps its mirror about the middle of its
+        own size, its ``scaMatrix`` moved by what it gained on the flipped axis, as Hancom resizes one. Refused: a
+        flipped line (``shape-flip-unsupported``: Hancom drops its mirror), an object skewed by Hancom's resize of a
         turned one (``shape-rotation-unsupported``), and a member of a group alone
         (``shape-group-member-unsupported``: a member is resized with its group). A size that is not an int
         in ``0 <= value < 2**31`` is ``shape-size-value``. The paragraph loses its line layout cache. Its own

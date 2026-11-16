@@ -325,13 +325,13 @@ def test_what_is_not_ungrouped_is_refused_before_anything_changes() -> None:
     doc = HwpxDocument.new()
     inline = doc.shapes.add_container([ContainerMember.rect(0, 0, 100, 100), ContainerMember.rect(200, 0, 100, 100)],
                                       paragraph=doc.add_paragraph(""))
-    nested = doc.shapes.add_container(
-        [ContainerMember.rect(0, 0, 100, 100),
-         ContainerMember.group(200, 0, [ContainerMember.rect(0, 0, 50, 50), ContainerMember.rect(60, 0, 50, 50)])],
-        treat_as_char=False, paragraph=doc.add_paragraph(""))
+    both_ways = doc.shapes.add_container([ContainerMember.rect(0, 0, 100, 100), ContainerMember.rect(200, 0, 100, 100)],
+                                         treat_as_char=False, paragraph=doc.add_paragraph(""))
+    both_ways.flip_horizontal = True
+    both_ways.flip_vertical = True
     rectangle = doc.add_paragraph("").add_rectangle(100, 100)
     before = doc.to_bytes()
-    for shape, says in ((inline, "character"), (nested, "holds a group"), (rectangle, "not a group")):
+    for shape, says in ((inline, "character"), (both_ways, "both ways"), (rectangle, "not a group")):
         with pytest.raises(HwpxValueError) as excinfo:
             shape.ungroup()
         assert excinfo.value.code == "shape-ungroup-unsupported" and says in excinfo.value.context["reason"]
