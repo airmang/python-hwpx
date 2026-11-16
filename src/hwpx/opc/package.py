@@ -29,7 +29,7 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..errors import HwpxError
-from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..oxml.namespaces import serialize_compat_root
 from ..oxml.utils import hancom_text_length
 
 if TYPE_CHECKING:
@@ -484,19 +484,7 @@ def _serialize_hwpml_root(root: etree._Element) -> bytes:
     local_name = _local_name(root)
     if local_name not in {"sec", "head"}:
         return serialize_xml(root, xml_declaration=True)
-
-    wrapped = etree.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
-    wrapped.attrib.update(root.attrib)
-    wrapped.text = root.text
-    wrapped.tail = root.tail
-    for child in root:
-        wrapped.append(child)
-    return etree.tostring(
-        wrapped,
-        encoding="UTF-8",
-        xml_declaration=True,
-        standalone=True,
-    )
+    return serialize_compat_root(root)
 
 
 def _normalize_hwpml_root_payload(path: str, payload: bytes) -> bytes:

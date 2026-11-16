@@ -16,6 +16,7 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from .namespaces import (
     HWPML_COMPAT_ROOT_NAMESPACES,
+    serialize_compat_root,
     HC,
     HC_NS,
     HH,
@@ -182,18 +183,7 @@ def _serialize_xml(element: ET.Element) -> bytes:
     if element.tag in {_HS + "sec", _HH + "head"}:
         root = LET.fromstring(xml_bytes)
         tabs_as_elements(root)
-        wrapped = LET.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
-        wrapped.attrib.update(root.attrib)
-        wrapped.text = root.text
-        wrapped.tail = root.tail
-        for child in root:
-            wrapped.append(child)
-        return LET.tostring(
-            wrapped,
-            encoding="UTF-8",
-            xml_declaration=True,
-            standalone=True,
-        )
+        return serialize_compat_root(root)
     return tab_elements_in(ET.tostring(element, encoding="utf-8", xml_declaration=True))
 
 

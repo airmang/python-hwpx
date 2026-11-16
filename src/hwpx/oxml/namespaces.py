@@ -200,3 +200,44 @@ HWPML_COMPAT_ROOT_NAMESPACES = {
 }
 
 DEFAULT_NAMESPACES: Mapping[str, str] = HWPML_COMPAT_ROOT_NAMESPACES
+
+
+def serialize_compat_root(root: Any) -> bytes:
+    """*root* (an lxml ``hs:sec``/``hh:head``) serialized with the namespace declarations of
+    :data:`HWPML_COMPAT_ROOT_NAMESPACES` on its start tag, as Hancom writes a section or header
+    (with the XML declaration, ``standalone='yes'``).
+
+    This is what serializing a new root with those declarations after moving *root*'s children
+    into it gives, but without the move: lxml rewrites the namespace references of every node it
+    moves, and for a big section (a table of thousands of rows in one paragraph) that took time
+    growing with the square of its size. When each declaration *root* has is one of the compat
+    declarations (the usual case), the children serialize the same under either start tag, so
+    *root* is serialized once and only its start tag is replaced. Otherwise the children are
+    moved, as before.
+    """
+
+    from lxml import etree  # local: this module is imported by code that does not need lxml
+
+    wrapped = etree.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+    wrapped.attrib.update(root.attrib)
+    wrapped.text = root.text
+    wrapped.tail = root.tail
+    own = dict(root.nsmap)
+    if len(root) and None not in own:
+        # A declaration of *root* that the compat set binds otherwise (a parsed Hancom part
+        # declares ``hp10`` to the 2016 URI, which reading rewrites to the 2011 one) changes
+        # nothing below as long as nothing below uses its prefix.
+        differing = [prefix for prefix, uri in own.items() if HWPML_COMPAT_ROOT_NAMESPACES.get(prefix) != uri]
+        whole = etree.tostring(root, encoding="UTF-8", xml_declaration=True, standalone=True)
+        start = whole.index(b"<", whole.index(b"?>") + 2)
+        start_end = whole.index(b">", start) + 1
+        body = whole[start_end:]
+        if not any(prefix.encode() + b":" in body for prefix in differing):
+            wrapped.text = "x"  # a start tag to cut out (lxml escapes ">" inside attribute values)
+            head = etree.tostring(wrapped, encoding="UTF-8", xml_declaration=True, standalone=True)
+            wrapped.text = root.text
+            head_end = head.index(b">", head.index(b"<", head.index(b"?>") + 2)) + 1
+            return head[:head_end] + body
+    for child in root:
+        wrapped.append(child)
+    return etree.tostring(wrapped, encoding="UTF-8", xml_declaration=True, standalone=True)
