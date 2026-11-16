@@ -13,40 +13,47 @@ WP-A 소유다. 각 네임스페이스의 **메서드 본문**은 WP-B1/B2/B3이
 
 from __future__ import annotations
 
-import importlib
 import inspect
-from typing import TYPE_CHECKING, Any
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, Callable
 
 from ...errors import rejects_removed_arguments
 
 
 class _LazyModule:
-    """A module imported on its first attribute access.
+    """A module imported on its first attribute access, by the loader function given.
 
     A namespace method's annotations must resolve under :func:`typing.get_type_hints`
     (tool-schema builders call it on every method), so the names they use are bound at
     run time. A type from a module ``import hwpx`` must not load (``hwpx.tools``,
     ``hwpx.form_fit``) or that would close an import cycle (``hwpx.document``) is named
-    through one of these instead, as ``"_module.Name"``: resolving the hint imports the
-    module then, and ``import hwpx`` stays as light as before.
+    through one of these instead, as ``"_module.Name"``: resolving the hint runs the
+    loader (a plain ``from ... import module``) then, and ``import hwpx`` stays as light
+    as before.
     """
 
-    __slots__ = ("_name",)
+    __slots__ = ("_load",)
 
-    def __init__(self, name: str) -> None:
-        self._name = name
+    def __init__(self, load: Callable[[], ModuleType]) -> None:
+        self._load = load
 
     def __getattr__(self, attribute: str) -> Any:
-        return getattr(importlib.import_module(self._name), attribute)
+        return getattr(self._load(), attribute)
 
     def __repr__(self) -> str:
-        return f"<lazy module {self._name!r}>"
+        return f"<lazy module {self._load.__name__}>"
+
+
+def _load_document() -> ModuleType:
+    from ... import document
+
+    return document
 
 
 if TYPE_CHECKING:
     from ... import document as _document
 else:
-    _document = _LazyModule("hwpx.document")
+    _document = _LazyModule(_load_document)
 
 
 class _Namespace:

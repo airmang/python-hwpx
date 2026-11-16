@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import struct
 import zlib
+from types import ModuleType
 from typing import TYPE_CHECKING, Iterable
 
 from ...errors import HwpxValueError
@@ -46,10 +47,16 @@ from .._resolve import resolve_section
 from ._base import _LazyModule, _Namespace
 
 # Named in an annotation only; loaded when the hint is resolved (``import hwpx`` stays light).
+def _load_document_metadata() -> ModuleType:
+    from ...oxml import document_metadata
+
+    return document_metadata
+
+
 if TYPE_CHECKING:
     from ...oxml import document_metadata as _document_metadata
 else:
-    _document_metadata = _LazyModule("hwpx.oxml.document_metadata")
+    _document_metadata = _LazyModule(_load_document_metadata)
 
 __all__ = ["PartsNamespace"]
 

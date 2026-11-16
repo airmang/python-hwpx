@@ -11,18 +11,31 @@ automation 최다 사용 저작 동사 중 하나). 만든 다음에 하는 일�
 
 from __future__ import annotations
 
+from types import ModuleType
 from typing import TYPE_CHECKING, Iterable, Mapping, overload
 
 from ...model import Table, TableCell
 from ._base import _LazyModule, _Namespace
 
 # Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
+def _load_fit_policy() -> ModuleType:
+    from ...form_fit import policy
+
+    return policy
+
+
+def _load_table_navigation() -> ModuleType:
+    from ...tools import table_navigation
+
+    return table_navigation
+
+
 if TYPE_CHECKING:
     from ...form_fit import policy as _fit_policy
     from ...tools import table_navigation as _table_navigation
 else:
-    _fit_policy = _LazyModule("hwpx.form_fit.policy")
-    _table_navigation = _LazyModule("hwpx.tools.table_navigation")
+    _fit_policy = _LazyModule(_load_fit_policy)
+    _table_navigation = _LazyModule(_load_table_navigation)
 
 __all__ = ["TablesNamespace"]
 

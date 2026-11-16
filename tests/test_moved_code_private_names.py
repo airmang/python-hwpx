@@ -48,7 +48,6 @@ EXPECTED = (
     "hwpx/tools/exporter.py:left-behind:hwpx.tools.exporter:_cell_paragraphs",
     "hwpx/tools/exporter.py:left-behind:hwpx.tools.exporter:_emit_paragraph",
     "hwpx/tools/exporter.py:left-behind:hwpx.tools.exporter:_header_xml",
-    "hwpx/tools/exporter.py:left-behind:hwpx.tools.exporter:_int_attribute",
     "hwpx/tools/exporter.py:left-behind:hwpx.tools.exporter:_note_marks",
     "hwpx/tools/exporter.py:left-behind:hwpx.tools.exporter:_section_blocks",
     "hwpx/tools/exporter.py:left-behind:hwpx.tools.exporter:_section_xmls",

@@ -22,6 +22,7 @@ id 별칭은 `field_id` 하나로, 위치 5키는 `location` 하나로 접혔다
 from __future__ import annotations
 
 from collections.abc import Mapping
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
@@ -31,12 +32,24 @@ from .._resolve import optional_paragraph, resolve_section
 from ._base import _LazyModule, _Namespace
 
 # Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
+def _load_fit_policy() -> ModuleType:
+    from ...form_fit import policy
+
+    return policy
+
+
+def _load_form_choices() -> ModuleType:
+    from ...tools import form_choices
+
+    return form_choices
+
+
 if TYPE_CHECKING:
     from ...form_fit import policy as _fit_policy
     from ...tools import form_choices as _form_choices
 else:
-    _fit_policy = _LazyModule("hwpx.form_fit.policy")
-    _form_choices = _LazyModule("hwpx.tools.form_choices")
+    _fit_policy = _LazyModule(_load_fit_policy)
+    _form_choices = _LazyModule(_load_form_choices)
 
 __all__ = ["FieldsNamespace"]
 

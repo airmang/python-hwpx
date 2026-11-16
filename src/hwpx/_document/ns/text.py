@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import warnings
+from types import ModuleType
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, cast
 
 from ...errors import HwpxTypeError, HwpxValueError, ReplaceScopeWarning, argument_type_error
@@ -23,12 +24,24 @@ from ...oxml.namespaces import HP, tag_local_name
 from ._base import _LazyModule, _Namespace
 
 # Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
+def _load_markdown_import() -> ModuleType:
+    from ...tools import markdown_import
+
+    return markdown_import
+
+
+def _load_text_blocks() -> ModuleType:
+    from .. import text_blocks
+
+    return text_blocks
+
+
 if TYPE_CHECKING:
     from ...tools import markdown_import as _markdown_import
     from .. import text_blocks as _text_blocks
 else:
-    _markdown_import = _LazyModule("hwpx.tools.markdown_import")
-    _text_blocks = _LazyModule("hwpx._document.text_blocks")
+    _markdown_import = _LazyModule(_load_markdown_import)
+    _text_blocks = _LazyModule(_load_text_blocks)
 
 __all__ = ["TextNamespace"]
 
