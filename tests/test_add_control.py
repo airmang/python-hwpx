@@ -38,7 +38,7 @@ def test_add_control_creates_an_element_of_the_tree_s_own_kind(control_type: str
         document.add_paragraph("도형이 붙을 문단")
         # 자식 없는 <hp:ctrl>은 한컴이 열지 못한다 — 만들어지되 경고한다.
         with pytest.warns(UserWarning, match="no control child"):
-            obj = document.add_control(
+            obj = document.shapes.add_control(
                 section=document.sections[0],
                 control_type=control_type,
                 attributes={"id": f"guide-{control_type}", "type": control_type},
@@ -63,7 +63,7 @@ def test_add_control_survives_a_save_and_reopen(tmp_path) -> None:
     try:
         document.add_paragraph("본문")
         with pytest.warns(UserWarning, match="no control child"):
-            obj = document.add_control(
+            obj = document.shapes.add_control(
                 section=document.sections[0],
                 control_type="LINE",
                 attributes={"id": "keepme", "type": "LINE"},

@@ -29,6 +29,7 @@ from ._base import _Namespace
 if TYPE_CHECKING:
     from ...form_fit.policy import FitPolicy
     from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
+    from ...objects.checkbox import ComboBox, EditBox, RadioButton
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
     from ...tools.form_choices import ChoiceSelection, ChooseResult, FormChoicesResult
     from collections.abc import Mapping
@@ -53,7 +54,6 @@ class FieldsNamespace(_Namespace):
         editable: bool = True,
         paragraph: "HwpxOxmlParagraph | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "FormField":
         """누름틀(form field)을 만들고 그 라이브 뷰를 돌려준다."""
 
@@ -67,7 +67,7 @@ class FieldsNamespace(_Namespace):
             editable=editable,
             paragraph=paragraph,
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.fields.add"
+                self._doc, section, caller="doc.fields.add"
             ),
         )
 
@@ -196,7 +196,6 @@ class FieldsNamespace(_Namespace):
         name: str | None = None,
         paragraph: "HwpxOxmlParagraph | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "CheckBox":
         """체크박스 양식개체를 만들고 그 라이브 뷰를 돌려준다."""
 
@@ -209,7 +208,7 @@ class FieldsNamespace(_Namespace):
             name=name,
             paragraph=paragraph,
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.fields.add_check_box"
+                self._doc, section, caller="doc.fields.add_check_box"
             ),
         )
 
@@ -262,3 +261,32 @@ class FieldsNamespace(_Namespace):
         from .. import fields as _fields
 
         return _fields.set_check_box(self._doc, checked=checked, index=index, name=name)
+
+    # -- 그 밖의 양식 개체 ---------------------------------------------------
+
+    @property
+    def radio_buttons(self) -> "tuple[RadioButton, ...]":
+        """문서의 모든 라디오 단추(``hp:radioBtn``)를 문서 순서로.
+
+        ``checked`` 를 쓰면 같은 묶음(``group``)의 다른 단추는 풀린다.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.list_form_objects(self._doc, "radioBtn")
+
+    @property
+    def combo_boxes(self) -> "tuple[ComboBox, ...]":
+        """문서의 모든 콤보 상자(``hp:comboBox``)를 문서 순서로. ``items`` 는 항목 목록, ``value`` 는 고른 값."""
+
+        from .. import fields as _fields
+
+        return _fields.list_form_objects(self._doc, "comboBox")
+
+    @property
+    def edit_boxes(self) -> "tuple[EditBox, ...]":
+        """문서의 모든 입력 상자(``hp:edit``)를 문서 순서로. ``text`` 를 읽고 쓴다."""
+
+        from .. import fields as _fields
+
+        return _fields.list_form_objects(self._doc, "edit")

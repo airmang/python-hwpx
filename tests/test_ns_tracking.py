@@ -108,14 +108,16 @@ def test_lookup_surface_mirrors_the_owner() -> None:
     assert document.tracking.author(first_author) is not None
 
 
-def test_the_moved_root_names_still_answer() -> None:
+def test_the_removed_root_names_point_at_doc_tracking() -> None:
+    from hwpx.errors import HwpxAttributeError
+
     document = _document()
-    with pytest.warns(DeprecationWarning):
-        document.add_tracked_insert(document.paragraphs[1], "삽입")
-    with pytest.warns(DeprecationWarning):
-        document.add_track_change("INSERT")
-    with pytest.warns(DeprecationWarning):
-        assert isinstance(document.track_changes, dict)
+    for name, target in [("add_tracked_insert", "doc.tracking.insert"),
+                         ("add_track_change", "doc.tracking.add_change"),
+                         ("track_changes", "doc.tracking.changes")]:
+        with pytest.raises(HwpxAttributeError) as excinfo:
+            getattr(document, name)
+        assert target in str(excinfo.value)
 
 
 def test_the_return_contract_is_domain_objects() -> None:

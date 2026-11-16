@@ -80,9 +80,9 @@ def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None
     # .change_id unwraps the 6.0 TrackedChange/TrackedReplacement objects
     # (design §2.6) right at the call site, so the rest of this test's
     # int-keyed logic is unchanged.
-    insert_id = document.add_tracked_insert(paragraph, " INSERT", date=DATE).change_id
-    delete_id = document.add_tracked_delete(paragraph, match="beta", date=DATE).change_id
-    replacement = document.add_tracked_replace(
+    insert_id = document.tracking.insert(paragraph, " INSERT", date=DATE).change_id
+    delete_id = document.tracking.delete(paragraph, match="beta", date=DATE).change_id
+    replacement = document.tracking.replace(
         paragraph,
         "gamma",
         " delta",
@@ -92,14 +92,14 @@ def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None
 
     reopened = HwpxDocument.open(document.to_bytes())
 
-    assert reopened.track_change(insert_id).change_type == "Insert"
-    assert reopened.track_change(delete_id).change_type == "Delete"
-    assert reopened.track_change(replace_delete_id).change_type == "Delete"
-    assert reopened.track_change(replace_insert_id).change_type == "Insert"
-    assert reopened.track_change(insert_id).date == DATE
-    assert reopened.track_change(insert_id).author_id == 1
+    assert reopened.tracking.change(insert_id).change_type == "Insert"
+    assert reopened.tracking.change(delete_id).change_type == "Delete"
+    assert reopened.tracking.change(replace_delete_id).change_type == "Delete"
+    assert reopened.tracking.change(replace_insert_id).change_type == "Insert"
+    assert reopened.tracking.change(insert_id).date == DATE
+    assert reopened.tracking.change(insert_id).author_id == 1
 
-    header_model = reopened.headers[0].to_model()
+    header_model = reopened.parts.headers[0].to_model()
     assert header_model.ref_list is not None
     assert header_model.ref_list.track_change_authors is not None
     assert len(header_model.ref_list.track_change_authors.authors) == 1
@@ -141,7 +141,7 @@ def test_tracked_replace_keeps_new_text_at_the_deleted_position() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("before old after", char_pr_id_ref="0")
 
-    replacement = document.add_tracked_replace(
+    replacement = document.tracking.replace(
         paragraph,
         "old",
         "new",
@@ -167,21 +167,21 @@ def test_tracked_replace_keeps_new_text_at_the_deleted_position() -> None:
 
 def test_tracked_replace_preserves_target_run_style_and_later_insert_order() -> None:
     document = HwpxDocument.new(empty_first_line=True)
-    target_style = document.ensure_run_style(bold=True)
-    later_style = document.ensure_run_style(italic=True)
+    target_style = document.styles.ensure_run(bold=True)
+    later_style = document.styles.ensure_run(italic=True)
     paragraph = document.add_paragraph(
         "before old after",
         char_pr_id_ref=target_style,
     )
     paragraph.add_run(" tail", char_pr_id_ref=later_style)
-    prior_insert_id = document.add_tracked_insert(
+    prior_insert_id = document.tracking.insert(
         paragraph,
         " prior",
         date=DATE,
         char_pr_id_ref=later_style,
     ).change_id
 
-    replacement = document.add_tracked_replace(
+    replacement = document.tracking.replace(
         paragraph,
         "old",
         "new",
@@ -220,21 +220,21 @@ def test_tracked_replace_preserves_target_run_style_and_later_insert_order() -> 
 def test_tracked_replace_preflights_cross_inline_match_without_orphan_headers() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("before ", char_pr_id_ref="0")
-    insert_id = document.add_tracked_insert(paragraph, "middle", date=DATE).change_id
-    existing_change_ids = set(document.track_changes)
+    insert_id = document.tracking.insert(paragraph, "middle", date=DATE).change_id
+    existing_change_ids = set(document.tracking.changes)
 
     with pytest.raises(
         ValueError,
         match="match crosses inline markup and cannot be wrapped safely",
     ):
-        document.add_tracked_replace(
+        document.tracking.replace(
             paragraph,
             "before middle",
             "replacement",
             date=DATE,
         )
 
-    assert set(document.track_changes) == existing_change_ids == {str(insert_id)}
+    assert set(document.tracking.changes) == existing_change_ids == {str(insert_id)}
 
 
 _HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
@@ -304,7 +304,7 @@ def test_tracked_insert_only_rewrites_header_and_edited_section(tmp_path: Path) 
     original_payloads = _zip_payloads(source)
 
     document = HwpxDocument.open(source)
-    document.add_tracked_insert(document.paragraphs[0], " BYTE-ID", date=DATE)
+    document.tracking.insert(document.paragraphs[0], " BYTE-ID", date=DATE)
     output = tmp_path / "edited.hwpx"
     document.save_to_path(output)
 

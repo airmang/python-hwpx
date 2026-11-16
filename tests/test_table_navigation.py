@@ -50,7 +50,7 @@ def test_fill_by_path_handles_unique_labels_in_a_single_table() -> None:
     table.cell(0, 0).text = "성명:"
     table.cell(1, 0).text = "소속"
 
-    result = document.fill_by_path(
+    result = document.tables.fill_by_path(
         {
             "성명 > right": "홍길동",
             "소속 > right": "플랫폼팀",
@@ -69,7 +69,7 @@ def test_find_cell_by_label_normalizes_trailing_colons() -> None:
     table = document.add_table(1, 2)
     table.cell(0, 0).text = "성명:"
 
-    result = document.find_cell_by_label("성명")
+    result = document.tables.find_cell_by_label("성명")
 
     assert result["count"] == 1
     assert result["matches"][0]["table_index"] == 0
@@ -95,8 +95,8 @@ def test_multiple_tables_with_the_same_label_return_all_matches_and_make_fill_am
     second = document.add_table(1, 2)
     second.cell(0, 0).text = "성명"
 
-    matches = document.find_cell_by_label("성명")
-    fill_result = document.fill_by_path({"성명 > right": "홍길동"})
+    matches = document.tables.find_cell_by_label("성명")
+    fill_result = document.tables.fill_by_path({"성명 > right": "홍길동"})
 
     assert matches["count"] == 2
     assert [match["table_index"] for match in matches["matches"]] == [0, 1]
@@ -121,9 +121,9 @@ def test_out_of_bounds_candidates_are_skipped_and_reported_for_batch_fill() -> N
     table.cell(0, 1).text = "마지막열"
     table.cell(1, 0).text = "마지막행"
 
-    right_matches = document.find_cell_by_label("마지막열", direction="right")
-    down_matches = document.find_cell_by_label("마지막행", direction="down")
-    fill_result = document.fill_by_path(
+    right_matches = document.tables.find_cell_by_label("마지막열", direction="right")
+    down_matches = document.tables.find_cell_by_label("마지막행", direction="down")
+    fill_result = document.tables.fill_by_path(
         {
             "마지막열 > right": "실패",
             "마지막행 > down": "실패",
@@ -146,7 +146,7 @@ def test_fill_by_path_supports_multi_step_navigation() -> None:
     table = document.add_table(3, 2)
     table.cell(0, 0).text = "합계"
 
-    result = document.fill_by_path({"합계 > down > right": "100"})
+    result = document.tables.fill_by_path({"합계 > down > right": "100"})
 
     assert result["applied"] == [
         {
@@ -176,7 +176,7 @@ def test_get_table_map_reports_stable_order_shape_and_header_text() -> None:
     second.cell(0, 0).text = "항목"
     second.cell(0, 1).text = "값"
 
-    result = document.get_table_map()
+    result = document.tables.map()
     first_entry = result["tables"][0]
     second_entry = result["tables"][1]
 
@@ -219,7 +219,7 @@ def test_get_table_map_marks_tables_with_only_empty_strings_as_empty() -> None:
     document.add_paragraph("빈 표")
     table = document.add_table(2, 2)
 
-    result = document.get_table_map()
+    result = document.tables.map()
     entry = result["tables"][0]
 
     assert entry["table_index"] == 0
@@ -238,7 +238,7 @@ def test_get_table_map_preserves_cell_paragraph_boundaries_in_preview() -> None:
     cell = table.cell(0, 0)
     cell.set_text("line 1\nline 2", split_paragraphs=True)
 
-    result = document.get_table_map()
+    result = document.tables.map()
     entry = result["tables"][0]
 
     assert entry["first_row_preview"] == ["line 1\nline 2"]

@@ -224,7 +224,7 @@ def test_merge_copies_a_custom_styles_own_base_charpr_and_parapr() -> None:
     sid = source.parts.headers[0].ensure_style(
         "Body Custom", para_pr_id_ref=style_pids[0], char_pr_id_ref=style_cid
     )
-    source.add_paragraph("via style only", style_id_ref=sid)
+    source.add_paragraph("via style only").style_id_ref = sid
 
     target = HwpxDocument.new(empty_first_line=True)
     # pre-populate target's own spaces so a naive remap could plausibly
@@ -909,8 +909,8 @@ def test_merge_remaps_styles_next_style_reference_when_both_styles_are_copied() 
     first_sid = header.ensure_style(
         "First", char_pr_id_ref=first_cid, next_style_id_ref=second_sid
     )
-    source.add_paragraph("first para", style_id_ref=first_sid)
-    source.add_paragraph("second para", style_id_ref=second_sid)
+    source.add_paragraph("first para").style_id_ref = first_sid
+    source.add_paragraph("second para").style_id_ref = second_sid
 
     target = HwpxDocument.new(empty_first_line=True)
     report = append_document(target, source)

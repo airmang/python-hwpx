@@ -51,11 +51,10 @@ def test_pages_keeps_the_names_it_imported_before_the_split() -> None:
 def test_the_public_names_stay_in_pages() -> None:
     assert pages.__all__ == ["EstimatedLine", "PageEstimate", "estimate_pages"]
     assert {getattr(pages, name).__module__ for name in pages.__all__} == {"hwpx.layout.pages"}
-    import hwpx
     from hwpx import experimental
 
     assert experimental.estimate_pages is pages.estimate_pages
-    assert hwpx.PageEstimate is pages.PageEstimate and hwpx.EstimatedLine is pages.EstimatedLine
+    assert experimental.PageEstimate is pages.PageEstimate and experimental.EstimatedLine is pages.EstimatedLine
 
 
 def test_the_lower_half_does_not_refer_to_pages() -> None:

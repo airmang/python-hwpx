@@ -711,7 +711,7 @@ def test_default_document_inherits_from_body_text_but_not_from_a_heading() -> No
     assert (body.para_pr_id_ref, body.style_id_ref) == ("0", "0")
     assert body.para_pr_id_ref != heading.para_pr_id_ref
     # 본문 뒤의 본문은 전처럼 앞 문단을 따른다.
-    styled = doc.add_paragraph("모양을 준 본문", para_pr_id_ref="9", style_id_ref="1")
+    styled = doc.add_paragraph("모양을 준 본문", para_pr_id_ref="9", style="1")
     following = doc.add_paragraph("이어지는 본문")
     assert (following.para_pr_id_ref, following.style_id_ref) == (styled.para_pr_id_ref, "1")
 

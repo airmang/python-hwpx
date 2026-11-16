@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
 
-from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_id
+from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_id, current_time
 from ..oxml.namespaces import HP
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ def _memo_create_time(value: "datetime | str | None") -> str:
     """
 
     if value is None:
-        moment = datetime.now(timezone.utc)
+        moment = current_time()
     elif isinstance(value, datetime):
         moment = value
     else:
@@ -85,7 +85,6 @@ def add_memo(
     text: str = "",
     *,
     section: "HwpxOxmlSection | None" = None,
-    section_index: int | None = None,
     memo_shape_id_ref: str | int | None = None,
     memo_id: str | None = None,
     char_pr_id_ref: str | int | None = None,
@@ -93,8 +92,6 @@ def add_memo(
 ) -> "HwpxOxmlMemo":
     """Create a memo entry inside *section* (or the last section by default)."""
 
-    if section is None and section_index is not None:
-        section = doc._root.sections[section_index]
     if section is None:
         if not doc._root.sections:
             raise HwpxValueError(
@@ -128,8 +125,13 @@ def attach_memo_field(
     created: "datetime | str | None" = None,
     number: int | None = None,
     char_pr_id_ref: str | int | None = None,
+    match: str | None = None,
 ) -> "HwpxOxmlMemo":
     """Attach a MEMO field control to *paragraph* so Hangul shows *memo*.
+
+    The field spans the whole paragraph, or with *match* only the first occurrence
+    of that text (it must lie in one run, between no other marks): the memo is then
+    on those characters, as Hancom anchors a memo put on a selection.
 
     Returns *memo* itself: once the field exists, ``memo.field_id`` and
     ``memo.paragraph`` (``oxml/memo.py``) resolve it live by searching the
@@ -154,6 +156,13 @@ def attach_memo_field(
             "memo is not attached to a section",
             code="note-memo-detached",
             suggestion="Pass a memo created by doc.notes.add_memo().",
+        )
+    if match is not None and _find_segment(paragraph.element, match) is None:
+        raise HwpxValueError(
+            "the text to put the memo on is not in one run of the paragraph",
+            code="note-match-not-found",
+            context={"match": match, "paragraphText": paragraph.text},
+            suggestion="Pass text that appears in the paragraph within one run (paragraph.runs).",
         )
 
     field_value = field_id or _object_id()
@@ -246,12 +255,64 @@ def attach_memo_field(
     ctrl_end = _append_element(run_end, f"{_HP}ctrl")
     _append_element(ctrl_end, f"{_HP}fieldEnd", {"beginIDRef": field_value, "fieldid": MEMO_FIELD_ID})
 
-    paragraph.element.insert(0, run_begin)
-    paragraph.element.append(run_end)
+    if match is None:
+        paragraph.element.insert(0, run_begin)
+        paragraph.element.append(run_end)
+    else:
+        middle = _split_out(paragraph.element, match)
+        holder = middle.getparent()
+        holder.insert(holder.index(middle), ctrl_begin)
+        holder.insert(holder.index(middle) + 1, ctrl_end)
     _clear_paragraph_layout_cache(paragraph.element)  # the field's controls move its text: laid out again
     paragraph.section.mark_dirty()
 
     return memo
+
+
+def _find_segment(paragraph: Any, match: str) -> tuple[Any, int, int] | None:
+    """Where *match* first lies whole in one stretch of text of *paragraph*'s own runs:
+    the ``hp:t``, the stretch (``-1`` its leading text, ``k`` the text after its child
+    ``k``) and the offset in it."""
+
+    if not match:
+        return None
+    for run in paragraph.findall(f"{_HP}run"):
+        for node in run.findall(f"{_HP}t"):
+            stretches = [node.text, *(child.tail for child in node)]
+            for index, text in enumerate(stretches):
+                if text and match in text:
+                    return node, index - 1, text.index(match)
+    return None
+
+
+def _split_out(paragraph: Any, match: str) -> Any:
+    """Split the ``hp:t`` holding *match* (see :func:`_find_segment`) so that the match is a
+    ``hp:t`` of its own, between the text before and after it in the same run; return it."""
+
+    found = _find_segment(paragraph, match)
+    assert found is not None
+    node, stretch, offset = found
+    run = node.getparent()
+    children = list(node)
+    text = node.text if stretch < 0 else children[stretch].tail
+    before, after = text[:offset], text[offset + len(match):]
+    middle = node.makeelement(node.tag, dict(node.attrib))
+    middle.text = match
+    rest = node.makeelement(node.tag, dict(node.attrib))
+    rest.text = after
+    for child in children[stretch + 1:]:
+        rest.append(child)  # moves the child (and its tail) out of node
+    if stretch < 0:
+        node.text = before
+    else:
+        children[stretch].tail = before
+    position = run.index(node)
+    run.insert(position + 1, middle)
+    if rest.text or len(rest):
+        run.insert(position + 2, rest)
+    if not node.text and not len(node):
+        run.remove(node)
+    return middle
 
 
 def add_memo_with_anchor(
@@ -260,7 +321,6 @@ def add_memo_with_anchor(
     *,
     paragraph: "HwpxOxmlParagraph | None" = None,
     section: "HwpxOxmlSection | None" = None,
-    section_index: int | None = None,
     paragraph_text: str | None = None,
     memo_shape_id_ref: str | int | None = None,
     memo_id: str | None = None,
@@ -271,13 +331,25 @@ def add_memo_with_anchor(
     created: "datetime | str | None" = None,
     number: int | None = None,
     anchor_char_pr_id_ref: str | int | None = None,
+    match: str | None = None,
 ) -> "HwpxOxmlMemo":
     """Create a memo and ensure it is visible by anchoring a MEMO field.
 
     Returns the anchored :class:`~hwpx.oxml.memo.HwpxOxmlMemo` — its
     ``.paragraph``/``.field_id`` properties (``oxml/memo.py``) replace the
-    second and third elements of the 3-tuple 5.x returned.
+    second and third elements of the 3-tuple 5.x returned. With *match* the
+    memo is on that text of the paragraph only (see :func:`attach_memo_field`).
     """
+
+    if match is not None:
+        probe = paragraph_text if paragraph_text is not None else (paragraph.text if paragraph is not None else "")
+        if match == "" or match not in probe:
+            raise HwpxValueError(
+                "the text to put the memo on is not in the paragraph",
+                code="note-match-not-found",
+                context={"match": match, "paragraphText": probe},
+                suggestion="Pass text that appears in the paragraph within one run (paragraph.runs).",
+            )
 
     # Call the local primitives directly rather than `doc.add_memo`/
     # `doc.attach_memo_field` — both names moved in 6.0 (design table rows
@@ -288,7 +360,6 @@ def add_memo_with_anchor(
         doc,
         text,
         section=section,
-        section_index=section_index,
         memo_shape_id_ref=memo_shape_id_ref,
         memo_id=memo_id,
         char_pr_id_ref=char_pr_id_ref,
@@ -314,15 +385,20 @@ def add_memo_with_anchor(
     elif paragraph_text is not None:
         target_paragraph.text = paragraph_text
 
-    attach_memo_field(
-        doc,
-        target_paragraph,
-        memo,
-        field_id=field_id,
-        author=author,
-        created=created,
-        number=number,
-        char_pr_id_ref=anchor_char_pr_id_ref,
-    )
+    try:
+        attach_memo_field(
+            doc,
+            target_paragraph,
+            memo,
+            field_id=field_id,
+            author=author,
+            created=created,
+            number=number,
+            char_pr_id_ref=anchor_char_pr_id_ref,
+            match=match,
+        )
+    except HwpxValueError:
+        memo.remove()  # no memo left behind without its anchor
+        raise
 
     return memo

@@ -322,12 +322,12 @@ def test_generic_add_control_warns_that_it_is_empty() -> None:
 
 def test_document_facade_add_shape_warns() -> None:
     with pytest.warns(UserWarning, match="orgSz"):
-        HwpxDocument.new().add_shape("rect")
+        HwpxDocument.new().shapes.add_raw("rect")
 
 
 def test_document_facade_add_control_warns() -> None:
     with pytest.warns(UserWarning, match="no control child"):
-        HwpxDocument.new().add_control(control_type="LINE")
+        HwpxDocument.new().shapes.add_control(control_type="LINE")
 
 
 def test_dedicated_shape_helpers_do_not_warn() -> None:

@@ -82,7 +82,7 @@ def test_set_header_reproduces_the_old_text_verb(document: HwpxDocument) -> None
     old = HwpxDocument.new()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        old.set_header_text("머리말", section_index=0)
+        old.page.set_header(text="머리말", section=0)
 
     assert _canonical_ids(_part(new)) == _canonical_ids(_part(old))
 
@@ -96,17 +96,19 @@ def test_set_footer_reproduces_the_old_content_verb(document: HwpxDocument) -> N
     old = HwpxDocument.new()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        old.set_footer_content(content, section_index=0)
+        old.page.set_footer(content=content, section=0)
 
     assert _canonical_ids(_part(new)) == _canonical_ids(_part(old))
 
 
-def test_the_demoted_kind_dispatcher_still_answers_with_a_warning(
+def test_the_removed_kind_dispatcher_points_at_set_header(
     document: HwpxDocument,
 ) -> None:
-    with pytest.warns(DeprecationWarning) as record:
-        document.set_header_footer(kind="header", text="머리말")
-    assert "doc.page.set_header" in str(record[0].message)
+    from hwpx.errors import HwpxAttributeError
+
+    with pytest.raises(HwpxAttributeError) as excinfo:
+        document.set_header_footer(kind="header", text="머리말")  # type: ignore[attr-defined]
+    assert "doc.page.set_header" in str(excinfo.value)
 
 
 def test_text_and_content_together_is_refused(document: HwpxDocument) -> None:
@@ -167,9 +169,9 @@ def test_every_page_member_accepts_a_section_index(name: str) -> None:
     [
         ({"section": 999}, "section-not-found"),
         ({"section": "0"}, "section-invalid-type"),
-        ({"section": 0, "section_index": 0}, "section-argument-conflict"),
+        ({"section_index": 0}, "hwpx-argument-removed"),
     ],
-    ids=["out-of-range", "wrong-type", "conflict"],
+    ids=["out-of-range", "wrong-type", "removed-section-index"],
 )
 def test_page_members_report_bad_sections_as_typed_errors(name, kwargs, code) -> None:
     document = HwpxDocument.new()

@@ -101,9 +101,9 @@ def test_attach_binds_an_existing_memo_and_remove_undoes_it(
     [
         ({"section": 999}, "section-not-found"),
         ({"section": "0"}, "section-invalid-type"),
-        ({"section": 0, "section_index": 0}, "section-argument-conflict"),
+        ({"section_index": 0}, "hwpx-argument-removed"),
     ],
-    ids=["out-of-range", "wrong-type", "conflict"],
+    ids=["out-of-range", "wrong-type", "removed-section-index"],
 )
 def test_bad_sections_are_typed_errors(name, args, kwargs, code, document) -> None:
     with pytest.raises(HwpxError) as excinfo:
@@ -111,10 +111,17 @@ def test_bad_sections_are_typed_errors(name, args, kwargs, code, document) -> No
     assert excinfo.value.code == code
 
 
-def test_the_moved_root_names_still_answer(document: HwpxDocument) -> None:
-    with pytest.warns(DeprecationWarning):
-        document.add_footnote("각주", section_index=0)
-    with pytest.warns(DeprecationWarning):
-        document.add_memo("메모", section_index=0)
-    with pytest.warns(DeprecationWarning):
-        assert isinstance(document.memos, list)
+def test_the_removed_root_names_point_at_doc_notes(document: HwpxDocument) -> None:
+    """7.0: 6.x 가 경고와 함께 남겨 둔 루트 이름은 없어졌고, 부르면 새 자리를 말한다."""
+
+    from hwpx.errors import HwpxAttributeError
+
+    for name, target in [
+        ("add_footnote", "doc.notes.add_footnote"),
+        ("add_memo", "doc.notes.add_memo"),
+        ("add_memo_with_anchor", "doc.notes.add_memo(anchor=...)"),
+        ("memos", "doc.notes.memos"),
+    ]:
+        with pytest.raises(HwpxAttributeError) as excinfo:
+            getattr(document, name)
+        assert target in str(excinfo.value)

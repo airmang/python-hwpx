@@ -56,7 +56,7 @@ _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeIDRef"}).tex
 - **`65535`는 기본 메모 상자를 뜻하는 센티넬**입니다. 메모에 고유한 `memoShapeIDRef`가 없으면 이 값을 씁니다.
 - **참조가 비어 있거나 없으면 메모 상자가 연결되지 않습니다**("leaves the memo box unlinked"). 즉 유효한 참조가 있어야 한/글이 메모를 제대로 표시합니다.
 
-한편 메모 본체의 `memoShapeIDRef`는 헤더에 정의된 메모 도형 속성(`<hh:memoPr>`, 모델상 `MemoShape`; `src/hwpx/oxml/header.py`)을 가리킵니다. `document.memo_shape(id)`로 조회할 수 있습니다.
+한편 메모 본체의 `memoShapeIDRef`는 헤더에 정의된 메모 도형 속성(`<hh:memoPr>`, 모델상 `MemoShape`; `src/hwpx/oxml/header.py`)을 가리킵니다. `document.styles.memo_shape(id)`로 조회할 수 있습니다.
 
 > 표기 주의: 속성 이름은 위치에 따라 다릅니다. 메모 본체 요소의 속성은 소문자 `memoShapeIDRef`이고, MEMO 필드 파라미터의 이름은 대문자 `MemoShapeIDRef`입니다. 코드가 둘을 구분해 씁니다.
 
@@ -64,12 +64,12 @@ _append_element(parameters, f"{_HP}stringParam", {"name": "MemoShapeIDRef"}).tex
 
 이 세 조각을 손으로 맞추지 않도록, 라이브러리는 앵커 기반 API를 제공합니다.
 
-- `document.add_memo(text, memo_shape_id_ref=...)` — 메모 본체만 추가.
-- `document.add_memo_with_anchor(text, paragraph=...)` — 메모 본체 생성 + 대상 문단(없으면 새로 생성)에 MEMO 필드를 붙여 **표시까지** 보장(`src/hwpx/_document/memos.py`). 문단을 지정하지 않으면 `anchor_char_pr_id_ref`/`char_pr_id_ref`로 새 문단을 만듭니다.
+- `document.notes.add_memo(text, memo_shape_id_ref=...)` — 메모 본체만 추가.
+- `document.notes.add_memo(text, anchor=paragraph)` — 메모 본체 생성 + 대상 문단에 MEMO 필드를 붙여 **표시까지** 보장(`src/hwpx/_document/memos.py`). 돌려받은 메모의 `memo.paragraph`·`memo.field_id`로 앵커를 읽습니다. (5.x·6.x의 `add_memo_with_anchor`는 7.0에서 없어졌습니다.)
 
-필드 run의 `charPrIDRef`는 인자 → 문단의 `char_pr_id_ref` → 메모가 추론한 값 → `"0"` 순으로 해결됩니다(`attach_memo_field`).
+필드 run의 `charPrIDRef`는 인자 → 문단의 `char_pr_id_ref` → 메모가 추론한 값 → `"0"` 순으로 해결됩니다(`document.notes.attach`).
 
-> 참고: 이 라이브러리의 앵커 API 이름은 `add_memo_with_anchor`입니다. (MCP 서버 쪽에는 `add_memo_by_anchor`라는 도구 이름이 있지만, 그것은 이 라이브러리 함수를 감싼 래퍼입니다.)
+> 참고: 이 라이브러리의 앵커 API는 `document.notes.add_memo(anchor=...)`입니다. (MCP 서버 쪽에는 `add_memo_by_anchor`라는 도구 이름이 있지만, 그것은 이 라이브러리 함수를 감싼 래퍼입니다.)
 
 ## 테스트로 고정된 계약
 

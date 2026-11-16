@@ -15,7 +15,7 @@ HH = f"{{{HH_NS}}}"
 def test_add_table_injects_basic_border_fill_when_missing() -> None:
     document = HwpxDocument.new()
 
-    header = document.headers[0]
+    header = document.parts.headers[0]
     ref_list = header.element.find(f"{HH}refList")
     if ref_list is not None:
         existing = ref_list.find(f"{HH}borderFills")

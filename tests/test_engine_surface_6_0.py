@@ -16,10 +16,11 @@ from pathlib import Path
 import pytest
 
 from hwpx._document import _resolve
-from hwpx._document._legacy import LEGACY_REMOVED_IN, _LegacyFacade
+from hwpx._document._legacy import LEGACY_REMOVED_IN, REMOVED_NAMES
 from hwpx._document.ns import NAMESPACES
 from hwpx.document import HwpxDocument
 from hwpx.errors import (
+    HwpxAttributeError,
     HwpxError,
     HwpxLookupError,
     HwpxTypeError,
@@ -43,8 +44,8 @@ def _root_members() -> dict[str, object]:
     }
 
 
-def _pair_members() -> list[str]:
-    """`section` / `section_index` 쌍을 받는 공개 멤버."""
+def _section_members() -> list[str]:
+    """`section` 을 받는 루트 공개 멤버(6.x 는 `section_index` 와 쌍이었다)."""
 
     found = []
     for name in dir(HwpxDocument):
@@ -58,7 +59,8 @@ def _pair_members() -> list[str]:
             params = inspect.signature(func).parameters
         except (TypeError, ValueError):
             continue
-        if "section" in params and "section_index" in params:
+        # `remove_section(section)` 은 지울 구역을 위치로 받는 다른 계약이다.
+        if "section" in params and params["section"].kind is inspect.Parameter.KEYWORD_ONLY:
             found.append(name)
     return sorted(found)
 
@@ -91,51 +93,56 @@ def test_every_namespace_is_exposed_on_the_root() -> None:
 
 
 # --------------------------------------------------------------------------
-# 게이트 ② shim 락 — 각 항목이 행선지와 제거 버전을 갖는다
+# 게이트 ② 지운 이름 표 — 각 항목이 새 자리와 한 줄 예를 갖고, 부르면 그것을 말한다
 
 
-def test_legacy_shim_lock_is_complete_and_actionable() -> None:
+def test_removed_name_lock_is_the_guide_table() -> None:
+    """락(6.x 의 shim 락)은 7.0에서 안내 표가 됐다 — 코드의 표와 같아야 한다."""
+
     locked = json.loads((DATA / "document_legacy_shims.json").read_text(encoding="utf-8"))
-    live = {n for n in vars(_LegacyFacade) if not n.startswith("__")}
-    assert set(locked) == live, "shim 락이 _LegacyFacade 와 어긋났습니다"
+    assert set(locked) == set(REMOVED_NAMES)
+    assert len(locked) == 79
     for name, entry in locked.items():
         assert entry["replacement"], f"{name} 에 행선지가 없습니다"
-        assert entry["removedIn"] == LEGACY_REMOVED_IN, name
+        assert entry["example"], f"{name} 에 예가 없습니다"
+        assert entry["removedIn"] == LEGACY_REMOVED_IN == "7.0", name
 
 
-def test_legacy_shims_are_a_shrinking_ratchet() -> None:
-    """shim 수는 늘 수 없다. 7.0에서 0이 된다.
+def test_the_root_answers_no_removed_name() -> None:
+    """7.0: 79개 가운데 루트에 남은 것은 없다(`hasattr` 는 False)."""
 
-    이 숫자를 올리려면 6.0 루트에서 무언가를 새로 강등했다는 뜻이므로,
-    설계서 §1의 결정표와 함께 검토돼야 한다.
-    """
-
-    locked = json.loads((DATA / "document_legacy_shims.json").read_text(encoding="utf-8"))
-    assert len(locked) <= 79
-
-
-def test_every_5_x_public_name_still_resolves() -> None:
-    """5.8.0의 102개 이름 중 6.0에서 사라진 것은 없다 — 이동은 제거가 아니다."""
-
-    root = set(json.loads((DATA / "document_facade_surface.json").read_text(encoding="utf-8")))
-    shims = set(json.loads((DATA / "document_legacy_shims.json").read_text(encoding="utf-8")))
     document = HwpxDocument.new(empty_first_line=True)
-    for name in root | shims:
-        assert hasattr(document, name), name
+    for name in REMOVED_NAMES:
+        assert inspect.getattr_static(HwpxDocument, name, None) is None, name
+        assert not hasattr(document, name), name
+        assert getattr(document, name, None) is None, name
 
 
-@pytest.mark.parametrize("name", sorted(vars(_LegacyFacade)))
-def test_moved_surface_warns_with_its_destination(name: str) -> None:
-    if name.startswith("__"):
-        pytest.skip("dunder")
-    static = inspect.getattr_static(_LegacyFacade, name)
-    func = static.fget if isinstance(static, property) else static
-    assert func.__hwpx_moved_to__, name
-    assert func.__hwpx_removed_in__ == LEGACY_REMOVED_IN
+@pytest.mark.parametrize("name", sorted(REMOVED_NAMES))
+def test_a_removed_name_says_where_it_went(name: str) -> None:
+    document = HwpxDocument.new(empty_first_line=True)
+    with pytest.raises(HwpxAttributeError) as excinfo:
+        getattr(document, name)
+    error = excinfo.value
+    assert isinstance(error, AttributeError)
+    assert error.code == "document-name-removed"
+    assert error.context["replacement"] == REMOVED_NAMES[name].replacement
+    assert REMOVED_NAMES[name].replacement in str(error)
+    assert REMOVED_NAMES[name].example in str(error)
+    assert "7.0" in str(error)
+    # pip 사용자에게 없는 저장소 경로(docs/...) 대신 저장소 문서의 URL을 준다.
+    assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md" in str(error.suggestion)
+
+
+def test_an_unknown_name_is_a_plain_attribute_error() -> None:
+    document = HwpxDocument.new(empty_first_line=True)
+    with pytest.raises(AttributeError) as excinfo:
+        getattr(document, "no_such_name")
+    assert not isinstance(excinfo.value, HwpxError)
 
 
 def _moved_targets(replacement: str) -> list[str]:
-    """경고 문구의 이동 대상에서 점 경로만 뽑는다.
+    """안내 문구의 새 자리에서 점 경로만 뽑는다.
 
     ``doc.page.set_header(text=...)`` 는 ``doc.page.set_header``,
     ``a / b`` 는 둘 다, ``paragraph.remove()`` 는 문단 메서드다.
@@ -144,24 +151,16 @@ def _moved_targets(replacement: str) -> list[str]:
     return [part.strip().split("(")[0] for part in replacement.split(" / ")]
 
 
-@pytest.mark.parametrize("name", sorted(vars(_LegacyFacade)))
+@pytest.mark.parametrize("name", sorted(REMOVED_NAMES))
 def test_moved_destination_exists(name: str) -> None:
-    """이동 대상 문자열이 실제 속성으로 풀려야 한다(ARC-08).
+    """새 자리 문자열이 실제 속성으로 풀려야 한다(ARC-08).
 
-    락 파일은 문구만 고정한다. 없는 이름을 가리키는 경고를 따라 고친 코드는
-    ``AttributeError`` 가 난다.
+    없는 이름을 가리키는 안내를 따라 고친 코드는 또 ``AttributeError`` 가 난다.
     """
 
-    if name.startswith("__"):
-        pytest.skip("dunder")
-    static = inspect.getattr_static(_LegacyFacade, name)
-    func = static.fget if isinstance(static, property) else static
-    replacement = getattr(func, "__hwpx_moved_to__", None)
-    if replacement is None:
-        pytest.skip("not a moved name")
     with HwpxDocument.new(empty_first_line=True) as document:
         roots = {"doc": document, "paragraph": document.add_paragraph("x")}
-        for target in _moved_targets(replacement):
+        for target in _moved_targets(REMOVED_NAMES[name].replacement):
             head, *rest = target.split(".")
             assert head in roots, f"{name}: 모르는 뿌리 {target!r}"
             assert rest, f"{name}: 속성 없는 대상 {target!r}"
@@ -172,17 +171,6 @@ def test_moved_destination_exists(name: str) -> None:
             assert hasattr(type(owner), rest[-1]) or hasattr(owner, rest[-1]), (
                 f"{name}: {target} 가 없습니다"
             )
-
-
-def test_a_moved_call_warns_and_still_works() -> None:
-    document = HwpxDocument.new(empty_first_line=True)
-    with pytest.warns(DeprecationWarning) as record:
-        document.set_header_text("머리말", section=0)
-    message = str(record[0].message)
-    assert "doc.page.set_header" in message
-    assert "7.0" in message
-    # pip 사용자에게 없는 저장소 경로(docs/...) 대신 저장소 문서의 URL을 준다.
-    assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-6.0.md" in message
 
 
 def test_repr_does_not_warn_about_its_own_summary() -> None:
@@ -197,43 +185,38 @@ def test_repr_does_not_warn_about_its_own_summary() -> None:
 
 
 def test_the_reported_third_party_failure_is_fixed() -> None:
-    """jkf87/hwpx-skill 이 우회 코드를 심게 만든 바로 그 호출.
+    """jkf87/hwpx-skill 이 우회 코드를 심게 만든 바로 그 호출(지금은 새 자리에서).
 
     5.x: AttributeError: 'int' object has no attribute 'properties'
     """
 
     document = HwpxDocument.new(empty_first_line=True)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        document.set_header_text("머리말", section=0)
+    document.page.set_header(text="머리말", section=0)
 
 
-@pytest.mark.parametrize("name", _pair_members())
-def test_section_index_is_accepted_everywhere(name: str) -> None:
+@pytest.mark.parametrize("name", _section_members())
+def test_a_section_index_is_accepted_everywhere(name: str) -> None:
     document, call = _prepared(name)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        call(document, section=0)
+    call(document, section=0)
 
 
-@pytest.mark.parametrize("name", _pair_members())
+@pytest.mark.parametrize("name", _section_members())
 @pytest.mark.parametrize(
     "kwargs,code",
     [
         ({"section": 999}, "section-not-found"),
         ({"section": "0"}, "section-invalid-type"),
-        ({"section": 0, "section_index": 0}, "section-argument-conflict"),
+        ({"section_index": 0}, "hwpx-argument-removed"),
+        ({"style_id_ref": 0}, "hwpx-argument-removed"),
     ],
-    ids=["out-of-range", "wrong-type", "conflict"],
+    ids=["out-of-range", "wrong-type", "removed-section-index", "removed-style-id-ref"],
 )
 def test_bad_section_arguments_raise_typed_errors(name, kwargs, code) -> None:
     """`AttributeError` 가 공개 경로로 새지 않는다 — 전부 typed 다."""
 
     document, call = _prepared(name)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        with pytest.raises(HwpxError) as excinfo:
-            call(document, **kwargs)
+    with pytest.raises(HwpxError) as excinfo:
+        call(document, **kwargs)
     assert excinfo.value.code == code
     assert excinfo.value.suggestion
 
@@ -245,24 +228,7 @@ _ARGS: dict[str, tuple] = {
     "add_heading": ("t",),
     "add_table": (1, 1),
     "add_picture": (_PNG, "png"),
-    "add_bookmark": ("bm",),
-    "add_hyperlink": ("https://example.invalid", "link"),
-    "add_footnote": ("fn",),
-    "add_endnote": ("en",),
-    "add_memo": ("m",),
-    "add_memo_with_anchor": ("m",),
-    "add_form_field": ("f",),
-    "add_check_box": ("cb",),
-    "add_chart": (_CHART,),
-    "add_equation": ("x=1",),
-    "add_shape": ("rect",),
-    "set_header_text": ("h",),
-    "set_footer_text": ("f",),
-    "set_header_content": ([{"text": "h"}],),
-    "set_footer_content": ([{"text": "f"}],),
-    "remove_paragraph": (0,),
 }
-_KWARGS: dict[str, dict] = {"set_header_footer": {"kind": "header", "text": "h"}}
 
 
 def _prepared(name: str):
@@ -272,7 +238,7 @@ def _prepared(name: str):
     def call(doc, **kwargs):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            return getattr(doc, name)(*_ARGS.get(name, ()), **_KWARGS.get(name, {}), **kwargs)
+            return getattr(doc, name)(*_ARGS.get(name, ()), **kwargs)
 
     return document, call
 
@@ -293,7 +259,6 @@ def test_resolver_accepts_objects_negative_indexes_and_none() -> None:
     assert _resolve.resolve_section(document, 0) is document.sections[0]
     assert _resolve.resolve_section(document, -1) is last
     assert _resolve.resolve_section(document, last) is last
-    assert _resolve.resolve_section(document, None, 0) is document.sections[0]
 
 
 def test_paragraph_resolution_follows_the_same_rule() -> None:
@@ -321,47 +286,25 @@ def _class_functions(path: Path, class_name: str):
 
 
 def test_no_public_section_path_bypasses_the_resolver() -> None:
-    """`section` 쌍을 받는 함수는 전부 한 리졸버를 거친다.
+    """`section` 을 받는 루트 함수는 전부 한 리졸버를 거친다.
 
     5.x는 31개 중 6개만 거쳤고, 나머지가 int를 그대로 흘려 `AttributeError`를
     냈다. 이 검사가 그 상태로 되돌아가는 것을 막는다.
     """
 
     offenders = []
-    for path, cls, decorated_ok in (
-        (SRC / "document.py", "HwpxDocument", False),
-        (SRC / "_document" / "_legacy.py", "_LegacyFacade", True),
-    ):
-        for func in _class_functions(path, cls):
-            args = func.args
-            names = {a.arg for a in (*args.args, *args.kwonlyargs)}
-            if not {"section", "section_index"} <= names:
-                continue
-            calls_resolver = any(
-                isinstance(node, ast.Attribute) and node.attr in {"resolve_section"}
-                for node in ast.walk(func)
-            )
-            wrapped = decorated_ok and any(
-                isinstance(d, ast.Call)
-                and isinstance(d.func, ast.Name)
-                and d.func.id == "_moved"
-                for d in func.decorator_list
-            )
-            if not (calls_resolver or wrapped):
-                offenders.append(f"{path.name}::{func.name}")
+    for func in _class_functions(SRC / "document.py", "HwpxDocument"):
+        args = func.args
+        names = {a.arg for a in args.kwonlyargs}
+        if "section" not in names:
+            continue
+        calls_resolver = any(
+            isinstance(node, ast.Attribute) and node.attr in {"resolve_section"}
+            for node in ast.walk(func)
+        )
+        if not calls_resolver:
+            offenders.append(f"document.py::{func.name}")
     assert not offenders, f"리졸버를 우회하는 section 경로: {offenders}"
-
-
-def test_the_moved_decorator_really_normalizes_the_pair() -> None:
-    """위 검사가 인정하는 `@_moved` 경로가 실제로 정규화하는지 확인한다.
-
-    데코레이터가 통과 사유인 이상, 그것이 일을 한다는 증거가 같이 있어야 한다.
-    """
-
-    static = inspect.getattr_static(_LegacyFacade, "set_header_text")
-    assert static.__hwpx_resolves_section__ is True
-    static = inspect.getattr_static(_LegacyFacade, "export_text")
-    assert static.__hwpx_resolves_section__ is False
 
 
 # --------------------------------------------------------------------------
@@ -371,9 +314,8 @@ def test_the_moved_decorator_really_normalizes_the_pair() -> None:
 def test_new_public_signatures_name_model_types_not_oxml_ones() -> None:
     """6.0에 새로 생긴 루트 표면은 `hwpx.model` 어휘로 말한다.
 
-    5.x부터 있던 79개 shim의 시그니처는 **동결**이다 — 그것을 고치면 이주
-    창의 의미가 없어진다(호출자가 보던 계약이 그대로여야 한다). 그래서 이
-    검사는 6.0이 새로 만든 표면에만 적용된다.
+    5.x부터 있던 유지 멤버(아래 `_FROZEN_5X_RETURNS`)는 빼고 6.0이 새로 만든
+    표면에만 적용된다. 7.0에서 지운 79개 이름은 루트에 없다.
     """
 
     locked_5x = set(json.loads((DATA / "document_legacy_shims.json").read_text(encoding="utf-8")))

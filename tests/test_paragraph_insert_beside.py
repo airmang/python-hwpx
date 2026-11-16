@@ -46,7 +46,7 @@ def test_before_the_first_paragraph_the_new_one_starts_the_section() -> None:
 
 def test_the_new_paragraph_takes_the_shapes_of_its_neighbour() -> None:
     doc = HwpxDocument.new()
-    source = doc.add_paragraph("기준", para_pr_id_ref=3, style_id_ref=2, char_pr_id_ref=1)
+    source = doc.add_paragraph("기준", para_pr_id_ref=3, style=2, char_pr_id_ref=1)
     new = source.insert_after("옆")
     assert (new.element.get("paraPrIDRef"), new.element.get("styleIDRef")) == ("3", "2")
     assert new.element.find(f"{HP}run").get("charPrIDRef") == "1"

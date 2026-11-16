@@ -144,7 +144,7 @@ class TestInlineStyles:
 
     def test_strikeout_preserved(self):
         doc = HwpxDocument.new()
-        strike_id = doc.ensure_run_style(strike=True)
+        strike_id = doc.styles.ensure_run(strike=True)
         p = doc.sections[0].add_paragraph()
         p.add_run("취소선", char_pr_id_ref=strike_id)
 
@@ -390,7 +390,7 @@ class TestRoundtrip:
 
         before = snap(HwpxDocument.open(str(src)))
         doc = HwpxDocument.open(str(src))
-        doc.replace_text_in_runs("우주", "★우주★")
+        doc.text.replace("우주", "★우주★")
         dst = tmp_path / "dst.hwpx"
         doc.save_to_path(str(dst))
         after = snap(HwpxDocument.open(str(dst)))
@@ -404,7 +404,7 @@ class TestRoundtrip:
         src = tmp_path / "src.hwpx"
         notes_doc.save_to_path(str(src))
         doc = HwpxDocument.open(str(src))
-        doc.replace_text_in_runs("우주", "★우주★")
+        doc.text.replace("우주", "★우주★")
         dst = tmp_path / "dst.hwpx"
         doc.save_to_path(str(dst))
         # 라운드트립 후에도 markdown 변환 성공 + 각주/링크 보존
@@ -432,7 +432,7 @@ class TestSourceInputs:
         assert len(md) > 0
 
     def test_via_document_method(self, showcase_doc):
-        md = showcase_doc.export_rich_markdown()
+        md = showcase_doc.text.markdown(rich=True)
         direct = export_markdown(showcase_doc)
         assert md == direct
 

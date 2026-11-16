@@ -148,7 +148,7 @@ def test_generic_merge_uses_only_the_injected_sanitizer(tmp_path: Path) -> None:
     assert report["rows"][0]["maskedFields"] == ["student"]
     merged = HwpxDocument.open(report["rows"][0]["filename"])
     try:
-        assert "PRIVATE" in merged.export_text()
+        assert "PRIVATE" in merged.text.plain()
     finally:
         merged.close()
 

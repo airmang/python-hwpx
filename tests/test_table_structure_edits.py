@@ -315,7 +315,7 @@ def test_the_table_reads_its_new_shape_and_the_namespace_edits_it_too() -> None:
 def test_new_paragraph_ids_are_unused_anywhere_in_the_document() -> None:
     document = _merged_document()
     document.add_section()
-    document.add_paragraph("second section", section_index=1)
+    document.add_paragraph("second section", section=1)
     table = document.tables.all[0]
 
     table.insert_rows(0, 3)

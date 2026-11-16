@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 
 from hwpx.document import HwpxDocument
-from hwpx.errors import HwpxLookupError, HwpxValueError
+from hwpx.errors import HwpxLookupError, HwpxTypeError, HwpxValueError
 
 #: Skeleton 이 싣는 스타일 수. 하나라도 사라지면 이 파일 전체가 근거를 잃는다.
 SKELETON_STYLE_COUNT = 23
@@ -58,8 +58,9 @@ def test_a_typo_raises_at_the_call_not_at_save(document: HwpxDocument) -> None:
 def test_the_5_x_typo_only_surfaced_at_save_and_named_nothing(tmp_path) -> None:
     """5.x 결함의 정확한 형태(실측): **터지긴 하는데 저장 시점이고 무정보다.**
 
-    ``style_id_ref`` 는 6.x 내내 살아 있는 하위 호환 경로이고 그 동작은 바꾸지
-    않았다. 이 테스트가 못박는 것은 **왜 ``style=`` 이 필요한가**다 — 같은
+    5.x·6.x 의 ``style_id_ref=`` 인자는 7.0에서 없어졌고, 같은 일은 이제 문단의
+    이름표를 직접 쓰는 ``paragraph.style_id_ref = ...`` 로만 한다(검사하지 않는
+    저수준 길). 이 테스트가 못박는 것은 **왜 ``style=`` 이 필요한가**다 — 같은
     오타가 여기서는 저장할 때까지 잠자코 있다가 스타일도, 가용 목록도,
     제안도 말하지 않는 `HwpxPackageError` 로 터진다.
     """
@@ -67,7 +68,7 @@ def test_the_5_x_typo_only_surfaced_at_save_and_named_nothing(tmp_path) -> None:
     from hwpx.opc.package import HwpxPackageError
 
     document = HwpxDocument.new()
-    document.add_paragraph("본문", style_id_ref="개요1")  # 호출 시점: 무반응
+    document.add_paragraph("본문").style_id_ref = "개요1"  # 호출 시점: 무반응
     with pytest.raises(HwpxPackageError) as excinfo:
         document.save_to_path(tmp_path / "late.hwpx")
     message = str(excinfo.value)
@@ -89,7 +90,7 @@ def test_a_dangling_numeric_id_used_to_save_silently(tmp_path) -> None:
     import zipfile
 
     document = HwpxDocument.new()
-    document.add_paragraph("본문", style_id_ref=9999)
+    document.add_paragraph("본문").style_id_ref = 9999
     target = tmp_path / "dangling.hwpx"
     document.save_to_path(target)  # 5.x 경로: 무음 성공
     xml = zipfile.ZipFile(target).read("Contents/section0.xml").decode("utf-8")
@@ -103,10 +104,12 @@ def test_style_closes_the_dangling_id_hole_at_the_call() -> None:
     assert excinfo.value.code == "style-not-found"
 
 
-def test_style_and_style_id_ref_together_is_refused(document: HwpxDocument) -> None:
-    with pytest.raises(HwpxValueError) as excinfo:
-        document.add_paragraph("본문", style="개요 1", style_id_ref=2)
-    assert excinfo.value.code == "style-argument-conflict"
+def test_the_removed_style_id_ref_argument_names_style(document: HwpxDocument) -> None:
+    with pytest.raises(HwpxTypeError) as excinfo:
+        document.add_paragraph("본문", style_id_ref=2)
+    assert excinfo.value.code == "hwpx-argument-removed"
+    assert "style=" in str(excinfo.value)
+    assert "paragraph.style_id_ref" in excinfo.value.suggestion
 
 
 # --------------------------------------------------------------------------
@@ -191,8 +194,9 @@ def test_shape_ids_given_with_a_style_win(document: HwpxDocument) -> None:
     assert str(in_run.para_pr_id_ref) == str(document.styles.resolve("차례 제목").para_pr_id_ref)
 
 
-def test_a_numeric_style_id_ref_still_only_names_the_style(document: HwpxDocument) -> None:
-    paragraph = document.add_paragraph("t", style_id_ref=document.styles.resolve("차례 제목").id)
+def test_setting_style_id_ref_only_names_the_style(document: HwpxDocument) -> None:
+    paragraph = document.add_paragraph("t")
+    paragraph.style_id_ref = document.styles.resolve("차례 제목").id
     assert (str(paragraph.para_pr_id_ref), _run_char_pr(paragraph)) == ("0", "0")
 
 
@@ -301,11 +305,14 @@ def test_apply_verbs_reach_the_layout_owner(document: HwpxDocument) -> None:
     assert listed.para_pr_id_ref
 
 
-def test_the_moved_root_names_still_answer_with_a_warning(document: HwpxDocument) -> None:
-    with pytest.warns(DeprecationWarning):
-        assert document.ensure_run_style(bold=True)
-    with pytest.warns(DeprecationWarning):
-        assert document.style(2).name == "개요 1"
+def test_the_removed_root_names_point_at_doc_styles(document: HwpxDocument) -> None:
+    from hwpx.errors import HwpxAttributeError
+
+    for name, target in [("ensure_run_style", "doc.styles.ensure_run"), ("style", "doc.styles.get")]:
+        with pytest.raises(HwpxAttributeError) as excinfo:
+            getattr(document, name)
+        assert target in str(excinfo.value)
+    assert document.styles.get(2).name == "개요 1"
 
 
 # --------------------------------------------------------------------------
@@ -343,6 +350,6 @@ def test_parts_namespace_separates_header_parts_from_page_headers(
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        document.set_header_text("진짜 쪽 머리말", section=0)
+        document.page.set_header(text="진짜 쪽 머리말", section=0)
     # 쪽 머리말을 넣어도 header.xml 파트 수는 그대로다 — 서로 다른 것이다.
     assert len(document.parts.headers) == 1

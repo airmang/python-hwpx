@@ -86,9 +86,9 @@ def test_creating_members_accept_a_section_index(name, args) -> None:
     [
         ({"section": 999}, "section-not-found"),
         ({"section": "0"}, "section-invalid-type"),
-        ({"section": 0, "section_index": 0}, "section-argument-conflict"),
+        ({"section_index": 0}, "hwpx-argument-removed"),
     ],
-    ids=["out-of-range", "wrong-type", "conflict"],
+    ids=["out-of-range", "wrong-type", "removed-section-index"],
 )
 def test_bad_sections_are_typed_errors(name, args, kwargs, code) -> None:
     document = HwpxDocument.new()
@@ -102,21 +102,22 @@ def test_bad_sections_are_typed_errors(name, args, kwargs, code) -> None:
 # 옛 루트 이름은 경고와 함께 같은 결과를 낸다
 
 
-def test_every_moved_root_name_still_answers(document: HwpxDocument) -> None:
-    with pytest.warns(DeprecationWarning):
-        document.add_form_field("이름", section_index=0)
-    with pytest.warns(DeprecationWarning):
-        legacy = document.list_form_fields()
-    assert [f.field_id for f in legacy] == [f.field_id for f in document.fields.all]
-    with pytest.warns(DeprecationWarning):
-        document.add_check_box("동의", name="agree", section_index=0)
-    with pytest.warns(DeprecationWarning):
-        legacy_boxes = document.list_check_boxes()
-    assert [b.name for b in legacy_boxes] == [b.name for b in document.fields.check_boxes]
-    with pytest.warns(DeprecationWarning):
-        document.set_check_box(True, name="agree")
-    with pytest.warns(DeprecationWarning):
-        document.fill_form_field("홍길동", name="이름")
+def test_every_removed_root_name_points_at_doc_fields(document: HwpxDocument) -> None:
+    """7.0: 6.x 가 경고와 함께 남겨 둔 루트 이름은 없어졌고, 부르면 새 자리를 말한다."""
+
+    from hwpx.errors import HwpxAttributeError
+
+    for name, target in [
+        ("add_form_field", "doc.fields.add"),
+        ("list_form_fields", "doc.fields.all"),
+        ("add_check_box", "doc.fields.add_check_box"),
+        ("list_check_boxes", "doc.fields.check_boxes"),
+        ("set_check_box", "doc.fields.set_check_box"),
+        ("fill_form_field", "doc.fields.fill"),
+    ]:
+        with pytest.raises(HwpxAttributeError) as excinfo:
+            getattr(document, name)
+        assert target in str(excinfo.value)
 
 
 # --------------------------------------------------------------------------

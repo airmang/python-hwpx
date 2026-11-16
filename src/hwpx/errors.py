@@ -31,7 +31,9 @@ the structured fields with no raise-site churn (§11 — no bulk raise rewrites)
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+import functools
+import inspect
+from typing import Any, Callable, Mapping, TypeVar, cast
 
 
 class HwpxError(Exception):
@@ -124,6 +126,86 @@ class HwpxStateError(HwpxError, RuntimeError):
     """The document is not in a state where the operation is meaningful."""
 
     default_code = "hwpx-state-error"
+
+
+class HwpxAttributeError(HwpxError, AttributeError):
+    """A name the object no longer has: 7.0 removed the ``HwpxDocument`` root names
+    6.0 had moved into the namespaces (``doc.set_header_text`` →
+    ``doc.page.set_header(text=...)``). The message names where it went.
+
+    It is an :class:`AttributeError`, so ``hasattr(doc, "set_header_text")`` is
+    ``False`` and ``getattr(doc, name, None)`` gives ``None``.
+    """
+
+    default_code = "hwpx-attribute-error"
+
+
+#: Keyword arguments 7.0 removed, with what to pass instead. A call that still
+#: gives one gets :class:`HwpxTypeError` (``hwpx-argument-removed``) naming the
+#: replacement, not Python's bare "unexpected keyword argument" — and, on the
+#: methods that take ``**extra_attrs``, not a stray XML attribute written into
+#: the document.
+REMOVED_ARGUMENTS: dict[str, str] = {
+    "section_index": (
+        "section= 에 번호를 주세요(section= 은 번호와 구역 객체를 모두 받습니다). "
+        "예: section=0"
+    ),
+    "style_id_ref": (
+        "style= 을 쓰세요(이름·번호·Style 객체를 받고, 그 스타일의 문단·글자 모양도 적용합니다). "
+        "모양은 그대로 두고 스타일 이름표만 붙이려면 만든 문단에 paragraph.style_id_ref = 번호."
+    ),
+}
+
+
+def removed_argument_error(name: str, caller: str) -> HwpxTypeError:
+    """The error a call gets for passing the 7.0-removed keyword *name*."""
+
+    return HwpxTypeError(
+        f"{caller}() 의 {name}= 인자는 python-hwpx 7.0에서 없어졌습니다. {REMOVED_ARGUMENTS[name]}",
+        code="hwpx-argument-removed",
+        context={"caller": caller, "argument": name, "removedIn": "7.0"},
+        suggestion=REMOVED_ARGUMENTS[name],
+    )
+
+
+_Func = TypeVar("_Func", bound=Callable[..., Any])
+
+
+def rejects_removed_arguments(func: _Func, *, caller: str | None = None) -> _Func:
+    """Make *func* answer a 7.0-removed keyword (:data:`REMOVED_ARGUMENTS`) with
+    :func:`removed_argument_error` instead of a bare ``TypeError``.
+
+    The one shared guard for every method that took ``section_index=`` or
+    ``style_id_ref=`` before 7.0 — the namespaces apply it to their methods by
+    themselves (``_Namespace.__init_subclass__``). A name *func* still takes as
+    a parameter of its own (``add_dutmal(style_id_ref=)``, the 덧말's own style)
+    is left alone. ``inspect.signature`` still reports *func*'s signature.
+    *caller* names the method in the message (default: ``doc.<name>`` for an
+    ``HwpxDocument`` method, else the qualified name).
+    """
+
+    try:
+        parameters = inspect.signature(func).parameters
+    except (TypeError, ValueError):  # pragma: no cover - builtins
+        return func
+    removed = tuple(name for name in REMOVED_ARGUMENTS if name not in parameters)
+    if not removed:
+        return func
+    if caller is None:
+        caller = func.__qualname__
+        if caller.startswith("HwpxDocument."):
+            caller = "doc." + caller[len("HwpxDocument."):]
+    name_in_message = caller
+
+    @functools.wraps(func)
+    def guarded(*args: Any, **kwargs: Any) -> Any:
+        if kwargs:
+            for name in removed:
+                if name in kwargs:
+                    raise removed_argument_error(name, name_in_message)
+        return func(*args, **kwargs)
+
+    return cast(_Func, guarded)
 
 
 # Hwp5Error and Hwp5ConversionWarning live here rather than in hwpx.hwp5.errors
@@ -241,6 +323,8 @@ ERROR_CODES: dict[str, str] = {
     "hwpx-index-error": "인덱스가 범위를 벗어났다(분류되지 않음, IndexError 계열이기도 하다).",
     "hwpx-lookup-error": "이름·인덱스로 지목한 것이 없다(분류되지 않음).",
     "hwpx-state-error": "문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음).",
+    "hwpx-attribute-error": "그런 이름의 속성·메서드가 없다(분류되지 않음, AttributeError 계열이기도 하다).",
+    "hwpx-argument-removed": "7.0에서 없어진 인자(section_index=, style_id_ref=)를 주었다(대신 쓸 인자는 suggestion).",
     # -- 계약 문서·스키마 ------------------------------------------------
     "contract-document-missing": "동봉돼야 할 계약 문서가 휠에 없다.",
     "unknown-contract-document": "그런 이름의 계약 문서가 없다.",
@@ -252,11 +336,13 @@ ERROR_CODES: dict[str, str] = {
     "document-history-root-invalid": "history.xml 루트가 history 가 아니다.",
     "document-master-page-root-invalid": "바탕쪽 파트 루트가 masterPage 가 아니다.",
     "document-version-root-invalid": "version.xml 루트가 HCFVersion 이 아니다.",
+    "document-name-removed": "7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement).",
+    "document-seed-invalid": "new()/open() 의 seed 가 정수가 아니다.",
+    "document-clock-invalid": "new()/open() 의 now 가 datetime 이 아니다.",
     "section-missing": "문서에 섹션이 하나도 없다.",
     "section-not-found": "섹션 인덱스가 범위를 벗어났다.",
     "section-remove-last": "문서의 마지막 섹션은 지울 수 없다.",
     "section-invalid-type": "section 인자가 정수도 섹션 객체도 아니다.",
-    "section-argument-conflict": "section 과 section_index 를 동시에 지정했다.",
     "section-clear-mode-invalid": "clear_body 의 on_control_content 값이 raise/keep/strip 밖이다.",
     "section-clear-no-section-properties": "섹션 첫 문단의 첫 run 에 hp:secPr 가 없어 clear_body 가 남길 쪽 설정이 없다.",
     "section-clear-control-content": "clear_body 가 남길 hp:secPr/hp:ctrl 안에 글·표·개체가 있다(머리말·꼬리말 등, strip 으로도 못 지우는 경우 포함, 태그는 context 에).",
@@ -284,6 +370,11 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-mixed-text-unsupported": "hp:t 안에 인라인 마크업이 섞여 있어 안전하게 고칠 수 없다.",
     "paragraph-tab-target-required": "탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다.",
     "paragraph-remove-last": "구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container).",
+    "paragraph-alignment-invalid": "문단 정렬 값이 LEFT/CENTER/RIGHT/JUSTIFY/DISTRIBUTE/DISTRIBUTE_SPACE 밖이다.",
+    "paragraph-format-invalid": "문단 서식 값의 형이 틀렸거나 범위 밖이다(여백·간격은 수, 간격은 음수 불가, 줄 나눔 기준·condense 어휘).",
+    "paragraph-range-invalid": "글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다.",
+    "paragraph-split-inside-element": "나눌 위치가 hp:t 안의 나눌 수 없는 요소(글자를 가진 요소) 한가운데다.",
+    "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
     # -- 표 셀 -----------------------------------------------------------
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
@@ -329,7 +420,6 @@ ERROR_CODES: dict[str, str] = {
     # -- 스타일·제목 -----------------------------------------------------
     "style-not-found": "그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉).",
     "style-ambiguous": "같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉).",
-    "style-argument-conflict": "style 과 style_id_ref 를 동시에 지정했다.",
     "style-list-continue-conflict": "continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다).",
     "style-list-kind-invalid": "목록 종류(kind)가 bullet/number/outline 밖이다.",
     "style-list-level-invalid": "글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다).",
@@ -359,6 +449,13 @@ ERROR_CODES: dict[str, str] = {
     "style-run-outline-type-invalid": "ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다.",
     "style-list-start-value": "목록 시작 번호(start)가 0 이상 65535 이하의 int 가 아니다(bool 도 거부, 한/글은 16비트로 둔다).",
     "style-run-size-value": "글자 크기(size, pt)가 0 이상의 수가 아니거나 너무 크다(음수는 0으로 쓰였다).",
+    "style-definition-not-found": "기준으로 준 글자 모양·문단 모양·탭·테두리 정의 id 가 헤더에 없다.",
+    "style-in-use": "지우려는 스타일을 쓰는 문단이 있는데 replacement 를 주지 않았다(또는 replacement 가 그 스타일이다).",
+    "style-remove-default": "첫 스타일(id 0, 바탕글)은 지울 수 없다.",
+    "style-format-empty": "set_style_format 에 고칠 서식이 하나도 없다.",
+    "style-border-base-conflict": "base_border_fill_id 와 함께 sides·fill_color 밖의 테두리 인자를 주었다.",
+    "style-run-format-invalid": "글자 서식 이름이 모르는 것이거나 값의 형·범위가 틀렸다(자간 -50~50, 장평 50~200, 위·아래 첨자 동시).",
+    "style-run-format-empty": "바꿀 글자 서식이 하나도 없다.",
     "heading-level-invalid": "개요 수준이 정수가 아니다.",
     "heading-level-out-of-range": "개요 수준이 1~10 밖이다.",
     "heading-style-missing": "이 문서에 해당 수준의 개요 스타일이 없다.",
@@ -372,7 +469,13 @@ ERROR_CODES: dict[str, str] = {
     "page-orientation-unsupported": "지원하지 않는 용지 방향이다.",
     "page-paper-size-unsupported": "지원하지 않는 용지 규격이다.",
     "page-new-num-kind-invalid": "쪽번호 재시작 kind 값이 OWPML 어휘(hp:AutoNumNewNumType/@numType) 밖이다.",
-    "page-new-num-value": "새 번호(hp:newNum/@num)가 0 이상 65535 이하가 아니다.",
+    "text-place-invalid": "doc.text.paragraphs()/objects() 의 where·kinds 에 모르는 자리·개체 종류를 줬다.",
+    "story-paragraph-not-here":"머리말·꼬리말 메서드에 그 머리말·꼬리말에 없는 문단을 줬다.",
+    "page-section-all-invalid":"doc.page 의 section='all' 에 한 구역에만 있는 문단을 함께 줬다.",
+    "page-start-numbers-invalid": "구역 시작 번호의 page_starts_on 이 BOTH·EVEN·ODD 가 아니다.",
+    "page-note-shape-invalid": "각주·미주 모양의 번호 매기기·놓는 곳·시작 번호·간격·구분선 길이가 한/글이 받는 값이 아니다.",
+    "parts-begin-numbers-invalid": "문서 시작 번호(hh:beginNum)가 1 이상 65535 이하의 정수가 아니다.",
+    "page-new-num-value":"새 번호(hp:newNum/@num)가 0 이상 65535 이하가 아니다.",
     "page-text-direction-unsupported": "글자 방향 값이 OWPML 어휘(hp:secPr/@textDirection: HORIZONTAL/VERTICAL/VERTICALALL) 밖이다.",
     "page-size-value": "쪽 크기·여백이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부, 음수는 0으로 쓰였다).",
     "page-gutter-type-invalid": "제본 방식(gutter_type)이 OWPML 어휘(LEFT_ONLY/LEFT_RIGHT/TOP_BOTTOM) 밖이다(한/글은 LEFT_ONLY 로 읽는다).",
@@ -392,6 +495,7 @@ ERROR_CODES: dict[str, str] = {
     "field-fit-failed": "값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉).",
     "field-text-box-not-found": "그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다).",
     "field-end-missing": "누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다).",
+    "field-choice-unknown": "직접 입력할 수 없는 콤보 상자에 그 항목이 없다(combo_box.items 로 항목을 본다).",
     # -- 자동 갱신 필드(날짜/시간·교정 부호·파일 이름, 누름틀과 다른 부류) --
     "field-date-format-unsupported": "날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다.",
     "field-proofreading-mark-unsupported": "교정 부호 mark 값이 $RevisionSign 인덱스가 확인된 어휘 밖이다.",
@@ -438,6 +542,11 @@ ERROR_CODES: dict[str, str] = {
     "shape-drop-cap-character-empty": "드롭캡으로 키울 문자가 비어 있다.",
     "shape-drop-cap-anchor-detached": "만든 드롭캡이 요청한 dropcapstyle 을 안 갖고 있다(방어적 분기).",
     "shape-drop-cap-not-created": "만든 드롭캡을 표준 섹션 스캔이 다시 찾지 못했다.",
+    "shape-group-member-unsupported": "묶음(hp:container) 안의 개체는 혼자 지우거나 돌리거나 설명을 달 수 없다(묶음째 다룬다).",
+    "shape-z-order-value": "개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부).",
+    "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
+    "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다).",
+    "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
     # -- 미디어 ----------------------------------------------------------
     "media-picture-not-found": "picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서).",
     "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",
@@ -448,12 +557,19 @@ ERROR_CODES: dict[str, str] = {
     "note-anchor-detached": "앵커를 걸 문단이 섹션에 속해 있지 않다.",
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",
+    "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",
     "track-match-not-found": "문단에서 찾을 문자열을 찾지 못했다.",
     "track-match-crosses-markup": "찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다.",
     "track-paragraph-empty": "지울 텍스트가 문단에 없다.",
+    "track-change-not-found": "그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다).",
+    "track-selector-conflict": "수락·거절할 변경을 change 와 author 로 함께 골랐다(하나만 준다).",
+    # -- 책갈피·하이퍼링크·상호 참조 ---------------------------------------
+    "ref-bookmark-name-empty": "책갈피 이름이 비어 있다.",
+    "ref-link-target-empty": "하이퍼링크 대상이 비어 있다.",
+    "ref-link-end-missing": "하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다.",
     # -- 텍스트 ----------------------------------------------------------
     "text-search-empty": "바꿀 대상 문자열이 비어 있다.",
     "text-highlight-match-empty": "형광펜으로 감쌀 문자열이 비어 있다.",
@@ -515,6 +631,7 @@ __all__ = [
     "Hwp5ConversionWarning",
     "ReplaceScopeWarning",
     "Hwp5Error",
+    "HwpxAttributeError",
     "HwpxError",
     "HwpxLookupError",
     "HwpxStateError",

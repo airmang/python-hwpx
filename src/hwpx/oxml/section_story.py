@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
@@ -21,7 +21,9 @@ from ._paragraph_text_edit import set_text_with_tabs
 from .numbering_kinds import number_format
 
 if TYPE_CHECKING:
+    from .objects import HwpxOxmlInlineObject
     from .paragraph import HwpxOxmlParagraph
+    from .run import HwpxOxmlRun
     from .section_format import HwpxOxmlSectionProperties
 
 
@@ -697,7 +699,35 @@ class HwpxOxmlSectionHeaderFooter:
         section = self._properties.section
         return [HwpxOxmlParagraph(element, section) for element in sublist.findall(f"{_HP}p")]
 
-    def add_paragraph(self, *, align: str | None = None) -> ET.Element:
+    @property
+    def kind(self) -> str:
+        """``"header"`` or ``"footer"``."""
+
+        return _story_kind(self.element)
+
+    @property
+    def page_type(self) -> str:
+        """The pages this header/footer is drawn on: ``BOTH``, ``EVEN``, ``ODD``, ``FIRST`` or ``LAST``.
+
+        The same value as :attr:`apply_page_type`, under the name ``doc.page.set_header(page_type=...)`` uses.
+        """
+
+        return self.apply_page_type
+
+    def add_paragraph(self, text: str = "", *, align: str | None = None) -> "HwpxOxmlParagraph":
+        """Append a paragraph (with *text*, if given) and return it as a paragraph object.
+
+        Up to 6.x this returned the bare ``hp:p`` element and took no text.
+        """
+
+        from .paragraph import HwpxOxmlParagraph
+
+        element = self._append_paragraph_element(align=align)
+        if text:
+            self.add_run(text, paragraph=element)
+        return HwpxOxmlParagraph(element, self._properties.section)
+
+    def _append_paragraph_element(self, *, align: str | None = None) -> ET.Element:
         """Append an empty paragraph to the header/footer subList."""
 
         sublist = self._ensure_sublist()
@@ -717,14 +747,14 @@ class HwpxOxmlSectionHeaderFooter:
         sublist = self._ensure_sublist()
         paragraph = sublist.find(f"{_HP}p")
         if paragraph is None:
-            paragraph = self.add_paragraph()
+            paragraph = self._append_paragraph_element()
         return paragraph
 
     def add_run(
         self,
         text: str,
         *,
-        paragraph: ET.Element | None = None,
+        paragraph: "HwpxOxmlParagraph | ET.Element | None" = None,
         bold: bool = False,
         italic: bool = False,
         underline: bool = False,
@@ -733,10 +763,17 @@ class HwpxOxmlSectionHeaderFooter:
         size: int | float | None = None,
         highlight: str | None = None,
         strike: bool | None = None,
-    ) -> ET.Element:
-        """Append a text run to a header/footer paragraph."""
+    ) -> "HwpxOxmlRun":
+        """Append a text run to a header/footer paragraph and return it as a run object.
 
-        target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        *paragraph* is one of :attr:`paragraphs` (or its element); by default the first.
+        Up to 6.x this returned the bare ``hp:run`` element.
+        """
+
+        from .paragraph import HwpxOxmlParagraph
+        from .run import HwpxOxmlRun
+
+        target = self._paragraph_element(paragraph)
         char_pr_id_ref = "0"
         if any((bold, italic, underline, color, font, size, highlight, strike)):
             document = self._properties.section.document
@@ -755,19 +792,41 @@ class HwpxOxmlSectionHeaderFooter:
         set_text_with_tabs(_append_child(run, f"{_HP}t"), text)
         _clear_paragraph_layout_cache(target)
         self._properties.section.mark_dirty()
-        return run
+        return HwpxOxmlRun(run, HwpxOxmlParagraph(target, self._properties.section))
+
+    def _paragraph_element(self, paragraph: "HwpxOxmlParagraph | ET.Element | None") -> ET.Element:
+        if paragraph is None:
+            return self._ensure_content_paragraph()
+        held = getattr(paragraph, "element", None)
+        element = cast(ET.Element, paragraph if held is None else held)
+        if not any(node is element for node in self.element.iter(f"{_HP}p")):
+            from ..errors import HwpxValueError
+
+            raise HwpxValueError(
+                "the paragraph is not in this header/footer",
+                code="story-paragraph-not-here",
+                suggestion="Pass one of this header/footer's own paragraphs (story.paragraphs).",
+            )
+        return element
 
     def add_page_number_field(
         self,
         *,
-        paragraph: ET.Element | None = None,
+        paragraph: "HwpxOxmlParagraph | ET.Element | None" = None,
         format: str = "page",
         position: str = "BOTTOM_CENTER",
         format_type: str | None = None,
-    ) -> ET.Element:
-        """Append the corpus-observed automatic page-number control."""
+    ) -> "HwpxOxmlInlineObject":
+        """Append the corpus-observed automatic page-number control.
 
-        target = paragraph if paragraph is not None else self._ensure_content_paragraph()
+        Returns the page-number control (``hp:pageNum``) as an inline object; up to 6.x
+        the bare element.
+        """
+
+        from .objects import HwpxOxmlInlineObject
+        from .paragraph import HwpxOxmlParagraph
+
+        target = self._paragraph_element(paragraph)
         normalized_format = str(format_type or format or "DIGIT").strip().upper()
         # ``format`` also names the display ("page", "page/total"); those count in digits.
         page_format_type = number_format("DIGIT" if normalized_format in {"PAGE", "PAGE/TOTAL"} else normalized_format)
@@ -783,7 +842,7 @@ class HwpxOxmlSectionHeaderFooter:
         )
         _clear_paragraph_layout_cache(target)
         self._properties.section.mark_dirty()
-        return page_number
+        return HwpxOxmlInlineObject(page_number, HwpxOxmlParagraph(target, self._properties.section))
 
     def _add_total_page_counter(self, paragraph: ET.Element, format_type: str = "DIGIT") -> None:
         """Append the total-page counter of a "page/total" field.
@@ -834,7 +893,7 @@ class HwpxOxmlSectionHeaderFooter:
         self._remove_sublists()
         self._properties.section.mark_dirty()
         for paragraph_spec in content:
-            paragraph = self.add_paragraph(align=paragraph_spec.get("align"))
+            paragraph = self._append_paragraph_element(align=paragraph_spec.get("align"))
             children = paragraph_spec.get("children")
             if children is None:
                 children = paragraph_spec.get("runs")
@@ -868,7 +927,7 @@ class HwpxOxmlSectionHeaderFooter:
                     )
                     if page_format == "page/total":
                         self.add_run("/", paragraph=paragraph)
-                        self._add_total_page_counter(paragraph, page_number.get("formatType") or "DIGIT")
+                        self._add_total_page_counter(paragraph, page_number.element.get("formatType") or "DIGIT")
                     continue
                 raise ValueError(f"unsupported header/footer content type: {kind}")
 

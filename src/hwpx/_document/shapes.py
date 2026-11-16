@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
-from ..oxml.objects import _closed_points
+from ..oxml.objects import HwpxOxmlEquation, _closed_points
 from ..oxml.shape_position import (
     validate_equation_base_unit, validate_equation_font, validate_equation_script, validate_original_size,
     validate_rect_ratio, validate_shape_size,
@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         HwpxOxmlParagraph,
         HwpxOxmlSection,
         HwpxOxmlShape,
+        Style,
     )
 
 
@@ -30,10 +31,9 @@ def add_shape(
     shape_type: str,
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     attributes: dict[str, str] | None = None,
     para_pr_id_ref: str | int | None = None,
-    style_id_ref: str | int | None = None,
+    style: "int | str | Style | None" = None,
     char_pr_id_ref: str | int | None = None,
     run_attributes: dict[str, str] | None = None,
     **extra_attrs: str,
@@ -49,9 +49,8 @@ def add_shape(
     paragraph = doc.add_paragraph(
         "",
         section=section,
-        section_index=section_index,
         para_pr_id_ref=para_pr_id_ref,
-        style_id_ref=style_id_ref,
+        style=style,
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
         **cast(Any, extra_attrs),
@@ -68,11 +67,10 @@ def add_control(
     doc: "HwpxDocument",
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     attributes: dict[str, str] | None = None,
     control_type: str | None = None,
     para_pr_id_ref: str | int | None = None,
-    style_id_ref: str | int | None = None,
+    style: "int | str | Style | None" = None,
     char_pr_id_ref: str | int | None = None,
     run_attributes: dict[str, str] | None = None,
     **extra_attrs: str,
@@ -87,9 +85,8 @@ def add_control(
     paragraph = doc.add_paragraph(
         "",
         section=section,
-        section_index=section_index,
         para_pr_id_ref=para_pr_id_ref,
-        style_id_ref=style_id_ref,
+        style=style,
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
         **cast(Any, extra_attrs),
@@ -108,7 +105,6 @@ def add_footnote(
     paragraph: HwpxOxmlParagraph | None = None,
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlNote:
     """Add a footnote to an existing paragraph, or create a new one.
@@ -121,7 +117,6 @@ def add_footnote(
         paragraph = doc.add_paragraph(
             "",
             section=section,
-            section_index=section_index,
             include_run=False,
         )
     return paragraph.add_footnote(text, char_pr_id_ref=char_pr_id_ref)
@@ -133,7 +128,6 @@ def add_endnote(
     paragraph: HwpxOxmlParagraph | None = None,
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlNote:
     """Add an endnote to an existing paragraph, or create a new one."""
@@ -142,7 +136,6 @@ def add_endnote(
         paragraph = doc.add_paragraph(
             "",
             section=section,
-            section_index=section_index,
             include_run=False,
         )
     return paragraph.add_endnote(text, char_pr_id_ref=char_pr_id_ref)
@@ -160,7 +153,6 @@ def add_line(
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlShape:
     """Insert a line drawing shape.
 
@@ -168,7 +160,7 @@ def add_line(
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_line(
@@ -188,7 +180,6 @@ def add_composed_character(
     compose_type: str | None = None,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlInlineObject:
     """Insert ``hp:compose`` (글자 겹치기/원문자) inline, in *paragraph* if
@@ -199,7 +190,7 @@ def add_composed_character(
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_composed_character(
@@ -224,7 +215,6 @@ def add_dutmal(
     style_id_ref: str | int | None = None,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlInlineObject:
     """Insert ``hp:dutmal`` (덧말) inline, in *paragraph* if given, else a
@@ -233,7 +223,7 @@ def add_dutmal(
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_dutmal(
@@ -260,7 +250,6 @@ def add_rectangle(
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     original_size: tuple[int, int] | None = None,
 ) -> HwpxOxmlShape:
     """Insert a rectangle drawing shape.
@@ -273,7 +262,7 @@ def add_rectangle(
     validate_original_size(original_size)
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_rectangle(
@@ -295,7 +284,6 @@ def add_ellipse(
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     original_size: tuple[int, int] | None = None,
 ) -> HwpxOxmlShape:
     """Insert an ellipse drawing shape.
@@ -306,7 +294,7 @@ def add_ellipse(
     validate_original_size(original_size)
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_ellipse(
@@ -330,7 +318,6 @@ def add_arc(
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlShape:
     """Insert a quarter-ellipse arc drawing shape.
 
@@ -343,7 +330,7 @@ def add_arc(
     validate_shape_size(width, height)
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_arc(
@@ -364,7 +351,6 @@ def add_polygon(
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     closed: bool = True,
 ) -> HwpxOxmlShape:
     """Insert a polygon drawing shape.
@@ -390,7 +376,7 @@ def add_polygon(
         )
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     hwp_points = [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points]
@@ -414,7 +400,6 @@ def add_curve(
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlShape:
     """Insert a curve through *points_mm* (millimetre anchors, 2 or more; 3 or more when *closed*).
 
@@ -424,7 +409,7 @@ def add_curve(
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_curve(
@@ -463,7 +448,6 @@ def add_container(
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlShape:
     """Insert a group (``<hp:container>``) wrapping *members*.
 
@@ -487,7 +471,7 @@ def add_container(
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_container(members, treat_as_char=treat_as_char)
@@ -499,12 +483,11 @@ def add_equation(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     base_unit: int = 1100,
     size: tuple[int, int] | None = None,
     char_pr_id_ref: str | int | None = None,
     font: str = "HancomEQN",
-) -> HwpxOxmlInlineObject:
+) -> HwpxOxmlEquation:
     """Insert an inline equation and prove the standard reader recognizes it.
 
     The emitted XML follows the real-Hancom ``<hp:equation>`` contract
@@ -538,7 +521,7 @@ def add_equation(
     validate_shape_size(width, height)  # one measured at a huge base_unit too
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     inline_object = paragraph.add_equation(
@@ -563,6 +546,22 @@ def add_equation(
         code="shape-equation-not-created",
         suggestion="Check that this document has a standard section structure.",
     )
+
+
+def equations(doc: "HwpxDocument") -> tuple[HwpxOxmlEquation, ...]:
+    """Every equation in the body, in document order: in table cells, text boxes, notes, headers and
+    footers too."""
+
+    from ..oxml.namespaces import HP
+    from .media import _enclosing_paragraph
+
+    found: list[HwpxOxmlEquation] = []
+    for section in doc._root.sections:
+        for element in section.element.iter(f"{HP}equation"):
+            paragraph = _enclosing_paragraph(element, section)
+            if paragraph is not None:
+                found.append(HwpxOxmlEquation(element, paragraph))
+    return tuple(found)
 
 
 _CHART_NS = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
@@ -638,7 +637,6 @@ def add_chart(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     size: tuple[int, int] | None = None,
     treat_as_char: bool = False,
     char_pr_id_ref: str | int | None = None,
@@ -696,7 +694,7 @@ def add_chart(
 
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     doc._package.write(part_path, data)
@@ -764,7 +762,6 @@ def add_drop_cap(
     style: str = "TripleLine",
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     char_pr_id_ref: str | int | None = None,
     para_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlInlineObject:
@@ -785,7 +782,7 @@ def add_drop_cap(
 
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index, include_run=False,
+            "", section=section, include_run=False,
         )
     inline_object = paragraph.add_drop_cap(
         character,

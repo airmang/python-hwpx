@@ -2,7 +2,8 @@
 """최상위 ``hwpx`` 공개 표면의 3계층 경계 계약.
 
 - stable: ``__all__`` 고정 집합. 접근 시 경고 없음.
-- experimental: ``hwpx.experimental``로 재내보내짐. 최상위 접근 시 ``DeprecationWarning``.
+- experimental: ``hwpx.experimental``에서만 가져온다. 4.0~6.x의 최상위 재내보내기는
+  7.0에서 없어졌고, 최상위 접근은 ``MovedToExperimental``(ImportError)로 자리를 알려 준다.
 - deprecated: 대체 경로 안내 경고. 최상위 접근 시 ``DeprecationWarning``.
 
 4.0.0에서 제거되는 이름은 0개 — 기존 82개 이름 전부 최상위로 계속 import 가능해야
@@ -31,7 +32,7 @@ EXPERIMENTAL_NAMES = frozenset(_EXPERIMENTAL_EXPORTS)
 
 DEPRECATED_NAMES = frozenset(_DEPRECATED_EXPORTS)
 
-ALL_LEGACY_NAMES = STABLE_NAMES | EXPERIMENTAL_NAMES | DEPRECATED_NAMES
+ALL_LEGACY_NAMES = STABLE_NAMES | DEPRECATED_NAMES
 RETIRED_NAMES = frozenset(
     {
         "analyze_template_formfit",
@@ -119,7 +120,8 @@ def test_layer_counts() -> None:
     assert len(EXPERIMENTAL_NAMES) == 26
     # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
     assert len(DEPRECATED_NAMES) == 0
-    assert len(ALL_LEGACY_NAMES) == 62
+    # 7.0: the 26 experimental names left the top level (hwpx.experimental only).
+    assert len(ALL_LEGACY_NAMES) == 36
 
 
 def test_hwpx_error_is_stable_and_importable() -> None:
@@ -133,7 +135,7 @@ def test_hwpx_error_is_stable_and_importable() -> None:
 
 @pytest.mark.parametrize("name", sorted(ALL_LEGACY_NAMES))
 def test_every_name_still_importable(name: str) -> None:
-    """제거 0건: 82개 이름 전부 최상위 접근으로 여전히 해석된다."""
+    """stable 이름은 전부 최상위 접근으로 해석된다."""
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
@@ -155,12 +157,20 @@ def test_version_access_does_not_warn() -> None:
 
 
 @pytest.mark.parametrize("name", sorted(EXPERIMENTAL_NAMES))
-def test_experimental_top_level_access_warns(name: str) -> None:
-    with pytest.warns(DeprecationWarning) as record:
+def test_experimental_top_level_access_names_hwpx_experimental(name: str) -> None:
+    """7.0: 4.0부터 예고한 대로 최상위 재내보내기가 없어졌다 — 오류가 자리를 알려 준다."""
+
+    with pytest.raises(hwpx.MovedToExperimental) as excinfo:
         getattr(hwpx, name)
-    message = str(record[0].message)
-    assert name in message
-    assert "hwpx.experimental" in message
+    message = str(excinfo.value)
+    assert f"from hwpx.experimental import {name}" in message
+    assert "7.0" in message
+    assert isinstance(excinfo.value, ImportError)
+
+
+def test_from_import_of_an_experimental_name_shows_the_new_path() -> None:
+    with pytest.raises(ImportError, match="from hwpx.experimental import latex_to_eqedit"):
+        exec("from hwpx import latex_to_eqedit", {})
 
 
 # The deprecated-access test is gone rather than left parametrized over an empty
@@ -205,18 +215,10 @@ def test_experimental_module_import_does_not_warn() -> None:
             getattr(experimental, name)
 
 
-def test_experimental_top_level_resolves_same_object_as_experimental_module() -> None:
-    experimental = importlib.import_module("hwpx.experimental")
-    for name in EXPERIMENTAL_NAMES:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            top_level = getattr(hwpx, name)
-        assert top_level is getattr(experimental, name)
-
-
-def test_dir_includes_all_three_layers() -> None:
+def test_dir_lists_stable_but_not_the_removed_experimental_names() -> None:
     listing = set(dir(hwpx))
     assert ALL_LEGACY_NAMES <= listing
+    assert not (EXPERIMENTAL_NAMES & listing)
 
 
 def test_unknown_attribute_still_raises_attribute_error() -> None:

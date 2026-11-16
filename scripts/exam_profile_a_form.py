@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     rows = []
     for idx, para in enumerate(section.paragraphs):
         sid = para.style_id_ref
-        style = doc.style(sid) if sid is not None else None
+        style = doc.styles.get(sid) if sid is not None else None
         name = style.name if style else None
         rows.append(
             {

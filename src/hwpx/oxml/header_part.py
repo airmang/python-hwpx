@@ -692,10 +692,22 @@ class HwpxOxmlHeader:
         margins: Mapping[str, int] | None = None,
         heading: Mapping[str, str | int] | None = None,
         border: Mapping[str, str | int] | None = None,
-        break_setting: Mapping[str, bool] | None = None,
+        break_setting: Mapping[str, bool | str] | None = None,
         tab_pr_id_ref: str | None = None,
+        line_spacing: object = None,
+        condense: int | None = None,
     ) -> str:
-        """Return a new paragraph property id with requested formatting changes."""
+        """Return a new paragraph property id with requested formatting changes.
+
+        *line_spacing* (a ``LineSpacing`` or a percentage) and *condense* (공백 최소값 %)
+        are written as Hancom writes them (``formatting.apply_line_spacing``);
+        *break_setting* also takes ``break_latin_word``/``break_non_latin_word``
+        (``KEEP_WORD``/``BREAK_WORD``/``HYPHENATION``) and ``line_wrap``.
+        """
+
+        from . import formatting
+
+        extras = formatting.paragraph_extras(line_spacing, condense)
 
         para_properties = self._para_properties_element(create=True)
         if para_properties is None:  # pragma: no cover - defensive branch
@@ -730,7 +742,8 @@ class HwpxOxmlHeader:
             self._apply_paragraph_line_spacing(para_pr, line_spacing_percent)
 
         if break_setting is not None:
-            self._apply_paragraph_break_setting(para_pr, break_setting)
+            self._apply_paragraph_break_setting(para_pr, break_setting)  # type: ignore[arg-type]  # str keys skipped there
+        extras(self, para_pr, break_setting or {})
         if border is not None:
             self._apply_paragraph_border(para_pr, border)
         if tab_pr_id_ref is not None:

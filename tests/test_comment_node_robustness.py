@@ -36,7 +36,7 @@ def test_open_file_with_comment_nodes_does_not_crash() -> None:
     assert paragraphs, "expected real <hp:p> paragraphs to be enumerated"
 
     # The hand-authored comments must not be mistaken for content paragraphs.
-    text = doc.export_text()
+    text = doc.text.plain()
     assert "연구계획서" in text
     assert "제목 단락" not in text  # comment body must never leak into text
 

@@ -346,7 +346,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: choices typed as check marks (tools/form_choices.py).
     # +1: how a table and its cells look and flow (oxml/table_format.py), outside table.py because
     # that owner file sits near its code-line review line.
-    assert report["classifiedFiles"] == 193
+    # +1: run and paragraph formats, run splitting and range formatting (oxml/formatting.py).
+    assert report["classifiedFiles"] == 194
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
@@ -808,8 +809,8 @@ def test_ast_fingerprint_normalizes_only_empty_parser_version_fields() -> None:
             "",
         ),
         (
-            "        warnings.warn(_experimental_message(name)",
-            "\n        warnings.warn(_experimental_message(name)",
+            "        raise MovedToExperimental(_experimental_message(name))",
+            "\n        raise MovedToExperimental(_experimental_message(name))",
         ),
         (
             '        if module_name != "hwpx" and not module_name.startswith("hwpx."):\n'

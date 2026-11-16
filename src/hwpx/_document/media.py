@@ -17,8 +17,9 @@ from ..opc.relationships import (
     normalize_part_name,
     resolve_part_name,
 )
-from ..oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph
+from ..oxml import HwpxOxmlParagraph
 from ..oxml.namespaces import HC, HP
+from ..oxml.objects import HwpxOxmlPicture
 from ..oxml.color import normalize_color
 from ..oxml.shape_position import PictureGlow, PictureReflection, PictureShadow, validate_picture_effects
 from ..oxml.shape_position import (
@@ -28,7 +29,7 @@ from ._units import _mm_to_hwp_units
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
-    from ..oxml import HwpxOxmlSection
+    from ..oxml import HwpxOxmlSection, Style
 
 _HP = HP
 _HC = HC
@@ -177,7 +178,6 @@ def add_picture(
     image_format: str,
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     width: int | None = None,
     height: int | None = None,
     width_mm: float | None = None,
@@ -195,11 +195,11 @@ def add_picture(
     soft_edge: int | None = None,
     reflection: PictureReflection | None = None,
     para_pr_id_ref: str | int | None = None,
-    style_id_ref: str | int | None = None,
+    style: "int | str | Style | None" = None,
     char_pr_id_ref: str | int | None = None,
     run_attributes: dict[str, str] | None = None,
     **extra_attrs: str,
-) -> HwpxOxmlInlineObject:
+) -> HwpxOxmlPicture:
     """Embed image data and place a picture object in a new paragraph, the image adjusted and bordered as
     :meth:`HwpxOxmlParagraph.add_picture` takes it."""
 
@@ -238,9 +238,8 @@ def add_picture(
     paragraph = doc.add_paragraph(
         "",
         section=section,
-        section_index=section_index,
         para_pr_id_ref=para_pr_id_ref,
-        style_id_ref=style_id_ref,
+        style=style,
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
         **cast(Any, extra_attrs),
@@ -290,6 +289,30 @@ def _parse_hwpunit(value: str | None) -> int | None:
         return int(value)
     except ValueError:  # pragma: no cover - defensive: non-numeric sz attrs
         return None
+
+
+def _enclosing_paragraph(element: Any, section: "HwpxOxmlSection") -> "HwpxOxmlParagraph | None":
+    """The innermost ``hp:p`` holding *element*: up its parents (lxml), else down from the section."""
+
+    getparent = getattr(element, "getparent", None)
+    if getparent is None:
+        return _owning_paragraph(element, section)
+    node = getparent()
+    while node is not None and _local_name(node) != "p":
+        node = node.getparent()
+    return HwpxOxmlParagraph(node, section) if node is not None else None
+
+
+def pictures(doc: "HwpxDocument") -> "tuple[HwpxOxmlPicture, ...]":
+    """Every picture in the body, in document order -- the order (and so the ``picture_index``) of
+    :func:`picture_references`: in table cells, text boxes, notes and groups too."""
+
+    found: list[HwpxOxmlPicture] = []
+    for _section_index, section, element, _image in _iter_picture_images(doc):
+        paragraph = _enclosing_paragraph(element, section)
+        if paragraph is not None:
+            found.append(HwpxOxmlPicture(element, paragraph))
+    return tuple(found)
 
 
 def picture_references(doc: "HwpxDocument") -> tuple[PictureRef, ...]:
@@ -388,7 +411,7 @@ def replace_picture(
         )
 
     return PictureReplacement(
-        picture=HwpxOxmlInlineObject(picture_element, paragraph),
+        picture=HwpxOxmlPicture(picture_element, paragraph),
         item_id=new_ref,
         previous_item_id=old_ref or None,
         removed_orphans=(old_ref,) if removed_old_image else (),

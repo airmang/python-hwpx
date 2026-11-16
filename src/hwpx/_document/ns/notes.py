@@ -38,9 +38,9 @@ class NotesNamespace(_Namespace):
     __slots__ = ()
     _path = "doc.notes"
 
-    def _section(self, section, section_index, caller: str) -> "Section":
+    def _section(self, section, caller: str) -> "Section":
         return resolve_section(
-            self._doc, section, section_index, caller=f"doc.notes.{caller}"
+            self._doc, section, caller=f"doc.notes.{caller}"
         )
 
     # -- 각주 / 미주 -------------------------------------------------------
@@ -51,7 +51,6 @@ class NotesNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         *,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "Note":
         """쪽 아래 각주를 단다."""
@@ -62,10 +61,10 @@ class NotesNamespace(_Namespace):
             self._doc,
             text=text,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.notes.add_footnote",
             ),
-            section=self._section(section, section_index, "add_footnote"),
+            section=self._section(section, "add_footnote"),
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -75,7 +74,6 @@ class NotesNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         *,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "Note":
         """문서 끝 미주를 단다."""
@@ -86,12 +84,37 @@ class NotesNamespace(_Namespace):
             self._doc,
             text=text,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.notes.add_endnote",
             ),
-            section=self._section(section, section_index, "add_endnote"),
+            section=self._section(section, "add_endnote"),
             char_pr_id_ref=char_pr_id_ref,
         )
+
+    @property
+    def footnotes(self) -> "tuple[Note, ...]":
+        """문서의 모든 각주를 문서 순서로. 표 칸·글상자 안의 것도 본다.
+
+        번호는 ``note.number`` 로 읽는다(한/글이 매기는 방식: 종류마다 1부터,
+        구역·새 번호 지정이 다시 시작시킨다). ``note.paragraph`` 는 각주 표시가
+        놓인 문단이다.
+        """
+
+        return self._notes("footNote")
+
+    @property
+    def endnotes(self) -> "tuple[Note, ...]":
+        """문서의 모든 미주를 문서 순서로. 표 칸·글상자 안의 것도 본다."""
+
+        return self._notes("endNote")
+
+    def _notes(self, tag: str) -> "tuple[Note, ...]":
+        from ...oxml.note_authoring import iter_document_notes
+
+        sections = self._doc.oxml.sections
+        if not sections:
+            return ()
+        return tuple(iter_document_notes(sections[0], tag))
 
     # -- 메모 --------------------------------------------------------------
 
@@ -110,7 +133,6 @@ class NotesNamespace(_Namespace):
         *,
         anchor: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         memo_shape_id_ref: str | int | None = None,
         memo_id: str | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -121,12 +143,15 @@ class NotesNamespace(_Namespace):
         created: "datetime | str | None" = None,
         number: int | None = None,
         anchor_char_pr_id_ref: str | int | None = None,
+        match: str | None = None,
     ) -> "Memo":
         """메모를 만든다. ``anchor`` 를 주면 그 문단에 앵커까지 건다.
 
         Args:
             anchor: 앵커를 걸 문단(객체 또는 인덱스). ``None`` 이면 앵커 없는
                 메모만 만든다. 5.x 의 ``add_memo_with_anchor`` 가 이 인자다.
+            match: 문단 전체가 아니라 그 글자들에만 메모를 건다(처음 나오는 곳,
+                한 런 안에 있어야 한다). 한/글에서 글을 골라 메모를 넣은 것과 같다.
 
         5.x 의 앵커 변형은 ``(Memo, Paragraph, field_id)`` 3-튜플을 돌려줬다.
         이제 메모 하나이고, 문단과 필드 id 는 ``memo.paragraph`` /
@@ -135,9 +160,9 @@ class NotesNamespace(_Namespace):
 
         from .. import memos as _memos
 
-        target = self._section(section, section_index, "add_memo")
+        target = self._section(section, "add_memo")
         if anchor is None:
-            if paragraph_text is not None or field_id is not None or author is not None:
+            if paragraph_text is not None or field_id is not None or author is not None or match is not None:
                 raise HwpxValueError(
                     "앵커 없는 메모에는 앵커 인자를 줄 수 없습니다.",
                     code="note-argument-conflict",
@@ -173,6 +198,7 @@ class NotesNamespace(_Namespace):
             created=created,
             number=number,
             anchor_char_pr_id_ref=anchor_char_pr_id_ref,
+            match=match,
         )
 
     def attach(
@@ -185,8 +211,11 @@ class NotesNamespace(_Namespace):
         created: "datetime | str | None" = None,
         number: int | None = None,
         char_pr_id_ref: str | int | None = None,
+        match: str | None = None,
     ) -> "Memo":
         """이미 있는 메모를 문단에 앵커로 걸고 그 메모를 돌려준다.
+
+        ``match`` 를 주면 문단 전체가 아니라 그 글자들에만 건다(``add_memo`` 와 같다).
 
         5.x 는 필드 id 문자열만 돌려줘서, 어느 메모가 걸렸는지 호출자가 따로
         들고 있어야 했다. 이제 메모 자신이 ``paragraph``·``field_id`` 를 안다.
@@ -206,6 +235,7 @@ class NotesNamespace(_Namespace):
             created=created,
             number=number,
             char_pr_id_ref=char_pr_id_ref,
+            match=match,
         )
 
     def remove_memo(self, memo: "Memo") -> None:

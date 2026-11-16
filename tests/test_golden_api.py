@@ -58,19 +58,19 @@ def _add_paragraph(_: Path) -> None:
 def _iterate_runs(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("run text")
-        assert any(run.text == "run text" for run in document.iter_runs())
+        assert any(run.text == "run text" for run in document.text.runs())
 
 
 def _replace_text(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("before value")
-        assert document.replace_text_in_runs("before", "after") == 1
+        assert document.text.replace("before", "after") == 1
         assert any("after value" in paragraph.text for paragraph in document.paragraphs)
 
 
 def _create_run_style(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
-        style_id = document.ensure_run_style(bold=True, color="#336699", size=11)
+        style_id = document.styles.ensure_run(bold=True, color="#336699", size=11)
         paragraph = document.add_paragraph("styled", char_pr_id_ref=style_id)
         assert paragraph.runs[0].char_pr_id_ref == style_id
 
@@ -79,7 +79,7 @@ def _format_paragraph(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         index = len(document.paragraphs)
         document.add_paragraph("formatted")
-        result = document.set_paragraph_format(
+        result = document.styles.apply_paragraph_format(
             paragraph_index=index,
             alignment="center",
             line_spacing_percent=160,
@@ -92,7 +92,7 @@ def _format_list(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         index = len(document.paragraphs)
         document.add_paragraph("list item")
-        result = document.set_list_format(
+        result = document.styles.apply_list_format(
             paragraph_index=index,
             kind="bullet",
             bullet_char="•",
@@ -113,7 +113,7 @@ def _merge_table_cells(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         table = document.add_table(2, 2)
         table.cell(0, 0).text = "merged"
-        document.merge_table_cells(table, "A1:B1")
+        document.tables.merge_cells(table, "A1:B1")
         assert table.cell(0, 0).text == "merged"
 
 
@@ -121,7 +121,7 @@ def _map_tables(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("Table heading")
         document.add_table(2, 3)
-        table_map = document.get_table_map()
+        table_map = document.tables.map()
         assert table_map["tables"][0]["rows"] == 2
         assert table_map["tables"][0]["cols"] == 3
 
@@ -130,7 +130,7 @@ def _find_cell_by_label(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         table = document.add_table(1, 2)
         table.cell(0, 0).text = "Name:"
-        found = document.find_cell_by_label("Name")
+        found = document.tables.find_cell_by_label("Name")
         assert found["count"] == 1
         assert found["matches"][0]["target_cell"]["col"] == 1
 
@@ -145,7 +145,7 @@ def _add_remove_section(_: Path) -> None:
 
 def _set_page_setup(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
-        result = document.set_page_setup(
+        result = document.page.setup(
             paper_size="A4",
             orientation="landscape",
             margin_left_mm=20,
@@ -157,27 +157,27 @@ def _set_page_setup(_: Path) -> None:
 
 def _set_header_footer(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
-        header = document.set_header_text("Header")
-        footer = document.set_footer_text("Footer")
+        header = document.page.set_header(text="Header")
+        footer = document.page.set_footer(text="Footer")
         assert header.text == "Header"
         assert footer.text == "Footer"
 
 
 def _set_page_number(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
-        footer = document.set_page_number(prefix="Page ")
+        footer = document.page.set_page_number(prefix="Page ")
         assert "Page " in footer.text
 
 
 def _add_bookmark(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
-        document.add_bookmark("golden-bookmark")
+        document.refs.add_bookmark("golden-bookmark")
         assert "golden-bookmark" in document.paragraphs[-1].bookmarks
 
 
 def _add_hyperlink(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
-        document.add_hyperlink("https://example.com", "Example")
+        document.refs.add_hyperlink("https://example.com", "Example")
         links = document.paragraphs[-1].hyperlinks
         assert links and links[0]["url"] == "https://example.com"
 
@@ -185,13 +185,13 @@ def _add_hyperlink(_: Path) -> None:
 def _export_text(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("export me")
-        assert "export me" in document.export_text()
+        assert "export me" in document.text.plain()
 
 
 def _export_markdown(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("markdown text")
-        assert "markdown text" in document.export_markdown()
+        assert "markdown text" in document.text.markdown()
 
 
 def _validate_document(_: Path) -> None:
@@ -225,7 +225,7 @@ def _preserve_unmodified_parts(_: Path) -> None:
         document.add_paragraph("preserve before")
         before = document.to_bytes()
     with HwpxDocument.open(before) as document:
-        assert document.replace_text_in_runs("before", "after") == 1
+        assert document.text.replace("before", "after") == 1
         after = document.to_bytes()
 
     with ZipFile(BytesIO(before)) as before_zip, ZipFile(BytesIO(after)) as after_zip:

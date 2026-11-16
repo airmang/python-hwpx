@@ -95,40 +95,40 @@ def test_section_memo_parsing_exposes_text_and_shape() -> None:
     assert memo.text == "Initial memo"
     assert memo.memo_shape_id_ref == "5"
 
-    shapes = document.memo_shapes
+    shapes = document.styles.memo_shapes
     assert "5" in shapes
     assert shapes["5"].fill_color == "#eeeeee"
-    assert document.memo_shape(5) == shapes["5"]
+    assert document.styles.memo_shape(5) == shapes["5"]
 
 
 def test_document_add_edit_and_remove_memos() -> None:
     document, section, _ = _build_document()
 
-    new_memo = document.add_memo("Another memo", memo_shape_id_ref="5")
+    new_memo = document.notes.add_memo("Another memo", memo_shape_id_ref="5")
     assert any(memo.id == new_memo.id for memo in section.memos)
     assert new_memo.text == "Another memo"
 
     new_memo.text = "Edited memo"
     assert any(memo.text == "Edited memo" for memo in section.memos)
 
-    document.remove_memo(new_memo)
+    document.notes.remove_memo(new_memo)
     assert all(memo.id != new_memo.id for memo in section.memos)
 
     # Removing the remaining memo should clean up the memo group element entirely.
-    document.remove_memo(section.memos[0])
+    document.notes.remove_memo(section.memos[0])
     assert section.element.find(f"{HP}memogroup") is None
 
 
 def test_find_runs_by_style_and_replace_text_marks_section_dirty() -> None:
     document, section, _ = _build_document()
 
-    runs = document.find_runs_by_style(text_color="#FF0000")
+    runs = document.text.find_runs(text_color="#FF0000")
     assert len(runs) == 1
     run = runs[0]
     assert run.text == "Hello memo world"
 
     section.reset_dirty()
-    replaced = document.replace_text_in_runs("memo", "note", text_color="#FF0000")
+    replaced = document.text.replace("memo", "note", text_color="#FF0000")
     assert replaced == 1
     assert run.text == "Hello note world"
     assert section.dirty is True
@@ -140,7 +140,7 @@ def test_replace_text_in_runs_respects_limit() -> None:
     run.text = "red red red"
     section.reset_dirty()
 
-    replaced = document.replace_text_in_runs(
+    replaced = document.text.replace(
         "red",
         "blue",
         text_color="#FF0000",
@@ -153,7 +153,7 @@ def test_replace_text_in_runs_respects_limit() -> None:
 def test_char_property_lookup_returns_style() -> None:
     document, _, _ = _build_document()
 
-    style = document.char_property("10")
+    style = document.styles.char_property("10")
     assert isinstance(style, RunStyle)
     assert style.text_color() == "#FF0000"
     assert style.underline_type() == "SOLID"
@@ -163,26 +163,26 @@ def test_replace_text_requires_non_empty_search() -> None:
     document, _, _ = _build_document()
 
     with pytest.raises(ValueError):
-        document.replace_text_in_runs("", "ignored")
+        document.text.replace("", "ignored")
 
 
 def test_find_runs_by_style_can_filter_by_char_pr() -> None:
     document, section, _ = _build_document()
     run = section.paragraphs[0].runs[0]
 
-    matches = document.find_runs_by_style(char_pr_id_ref="10")
+    matches = document.text.find_runs(char_pr_id_ref="10")
     assert len(matches) == 1
     assert matches[0].element is run.element
-    assert document.find_runs_by_style(char_pr_id_ref="99") == []
+    assert document.text.find_runs(char_pr_id_ref="99") == []
 
 
 def test_attach_memo_field_inserts_control_runs() -> None:
     document, section, _ = _build_document()
     paragraph = section.paragraphs[0]
 
-    memo = document.add_memo("Follow-up", memo_shape_id_ref="5", memo_id="release-1", char_pr_id_ref="10")
+    memo = document.notes.add_memo("Follow-up", memo_shape_id_ref="5", memo_id="release-1", char_pr_id_ref="10")
 
-    returned = document.attach_memo_field(
+    returned = document.notes.attach(
         paragraph,
         memo,
         field_id="field-01",
@@ -241,11 +241,11 @@ def test_memo_fields_get_distinct_positive_zorder() -> None:
     # A MEMO fieldBegin without zorder, or with -1, loses its fieldEnd when
     # Hancom saves the file; a positive zorder keeps it.
     document, section, _ = _build_document()
-    first = document.add_memo("First", memo_shape_id_ref="5", memo_id="z-1", char_pr_id_ref="10")
-    second = document.add_memo("Second", memo_shape_id_ref="5", memo_id="z-2", char_pr_id_ref="10")
+    first = document.notes.add_memo("First", memo_shape_id_ref="5", memo_id="z-1", char_pr_id_ref="10")
+    second = document.notes.add_memo("Second", memo_shape_id_ref="5", memo_id="z-2", char_pr_id_ref="10")
 
-    document.attach_memo_field(section.paragraphs[0], first, field_id="field-z1")
-    document.attach_memo_field(section.paragraphs[0], second, field_id="field-z2")
+    document.notes.attach(section.paragraphs[0], first, field_id="field-z1")
+    document.notes.attach(section.paragraphs[0], second, field_id="field-z2")
 
     zorders = [node.get("zorder") for node in _memo_field_begins(section)]
     assert sorted(zorders, key=int) == ["1", "2"]
@@ -329,9 +329,9 @@ def test_memo_create_time_is_written_as_utc_iso(created: object, expected: str) 
     # Hancom cannot read "2024-12-02 09:00:00" -- it turns it into a 1601
     # FILETIME -- while "…T…Z" survives a save.
     document, section, _ = _build_document()
-    memo = document.add_memo("Dated", memo_shape_id_ref="5", memo_id="t-1", char_pr_id_ref="10")
+    memo = document.notes.add_memo("Dated", memo_shape_id_ref="5", memo_id="t-1", char_pr_id_ref="10")
 
-    document.attach_memo_field(section.paragraphs[0], memo, field_id="field-t1", created=created)
+    document.notes.attach(section.paragraphs[0], memo, field_id="field-t1", created=created)
 
     (field_begin,) = _memo_field_begins(section)
     assert _create_time(field_begin) == expected
@@ -339,10 +339,10 @@ def test_memo_create_time_is_written_as_utc_iso(created: object, expected: str) 
 
 def test_memo_create_time_defaults_to_now_in_utc() -> None:
     document, section, _ = _build_document()
-    memo = document.add_memo("Now", memo_shape_id_ref="5", memo_id="n-1", char_pr_id_ref="10")
+    memo = document.notes.add_memo("Now", memo_shape_id_ref="5", memo_id="n-1", char_pr_id_ref="10")
 
     before = datetime.now(timezone.utc).replace(microsecond=0)
-    document.attach_memo_field(section.paragraphs[0], memo, field_id="field-n1")
+    document.notes.attach(section.paragraphs[0], memo, field_id="field-n1")
     after = datetime.now(timezone.utc)
 
     (field_begin,) = _memo_field_begins(section)
@@ -352,14 +352,16 @@ def test_memo_create_time_defaults_to_now_in_utc() -> None:
     assert before <= stamp <= after
 
 
-def test_add_memo_with_anchor_creates_paragraph_when_missing() -> None:
+def test_add_memo_anchored_to_a_new_paragraph() -> None:
     document, section, _ = _build_document()
 
-    # add_memo_with_anchor returns the single anchored Memo (6.0 return
-    # contract, design §2.6) — .paragraph/.field_id (oxml/memo.py) replace
-    # the second/third elements of the 3-tuple 5.x returned.
-    memo = document.add_memo_with_anchor(
+    # 5.x add_memo_with_anchor made the anchor paragraph when none was given; 7.0
+    # removed it — make the paragraph, then doc.notes.add_memo(anchor=...). The
+    # memo knows its .paragraph/.field_id (oxml/memo.py).
+    anchor = document.add_paragraph("", section=section, char_pr_id_ref="10")
+    memo = document.notes.add_memo(
         "Anchored memo",
+        anchor=anchor,
         section=section,
         memo_shape_id_ref="5",
         memo_id="release-2",
@@ -390,9 +392,9 @@ def test_add_memo_with_anchor_roundtrips_on_real_document() -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("Quick start anchor")
 
-    memo = document.add_memo_with_anchor(
+    memo = document.notes.add_memo(
         "Quick start memo",
-        paragraph=paragraph,
+        anchor=paragraph,
         memo_shape_id_ref="0",
     )
 
@@ -404,7 +406,7 @@ def test_add_memo_with_anchor_roundtrips_on_real_document() -> None:
     assert memo.field_id
 
     reopened = HwpxDocument.open(document.to_bytes())
-    assert any(item.text == "Quick start memo" for item in reopened.memos)
+    assert any(item.text == "Quick start memo" for item in reopened.notes.memos)
 
 
 def test_document_ensure_run_style_creates_bold_entry() -> None:
@@ -414,7 +416,7 @@ def test_document_ensure_run_style_creates_bold_entry() -> None:
     assert char_props is not None
     initial_count = len(list(char_props.findall(f"{HH}charPr")))
 
-    style_id = document.ensure_run_style(bold=True)
+    style_id = document.styles.ensure_run(bold=True)
     assert style_id != "10"
 
     assert char_props.get("itemCnt") == str(initial_count + 1)
@@ -424,10 +426,10 @@ def test_document_ensure_run_style_creates_bold_entry() -> None:
     underline = created.find(f"{HH}underline")
     assert underline is not None and underline.get("type") == "NONE"
 
-    style = document.char_property(style_id)
+    style = document.styles.char_property(style_id)
     assert style is not None and "bold" in style.child_attributes
 
-    assert document.ensure_run_style(bold=True) == style_id
+    assert document.styles.ensure_run(bold=True) == style_id
     assert char_props.get("itemCnt") == str(initial_count + 1)
 
 

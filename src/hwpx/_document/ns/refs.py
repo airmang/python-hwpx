@@ -15,7 +15,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...model import InlineObject, Paragraph, Section
-    from ...objects import Bookmark
+    from ...objects import Bookmark, CrossReference, Hyperlink
 
 __all__ = ["RefsNamespace"]
 
@@ -39,13 +39,36 @@ class RefsNamespace(_Namespace):
 
         return _fields.list_bookmarks(self._doc)
 
+    @property
+    def hyperlinks(self) -> "tuple[Hyperlink, ...]":
+        """문서의 모든 하이퍼링크를 문서 순서로. 표 칸·글상자·각주·머리말 안의 것도 본다.
+
+        ``link.url``·``link.text`` 는 읽고 쓸 수 있고, ``link.remove()`` 는 링크만
+        걷어 내고 글은 남긴다.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.list_hyperlinks(self._doc)
+
+    @property
+    def cross_references(self) -> "tuple[CrossReference, ...]":
+        """문서의 모든 상호 참조(``fieldBegin type="CROSSREF"``)를 문서 순서로.
+
+        무엇을 가리키는지(``ref_type``·``target``), 무엇을 보이는지(``content_type``),
+        지금 보이는 글(``text``)을 적힌 그대로 읽는다.
+        """
+
+        from .. import fields as _fields
+
+        return _fields.list_cross_references(self._doc)
+
     def add_bookmark(
         self,
         name: str,
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
     ) -> "InlineObject":
         """책갈피를 넣는다. 상호참조·목차의 앵커가 된다."""
 
@@ -55,11 +78,11 @@ class RefsNamespace(_Namespace):
             self._doc,
             name=name,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.refs.add_bookmark",
             ),
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.refs.add_bookmark"
+                self._doc, section, caller="doc.refs.add_bookmark"
             ),
         )
 
@@ -70,7 +93,6 @@ class RefsNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "InlineObject":
         """표시 문자열을 가진 하이퍼링크를 넣는다."""
@@ -82,11 +104,11 @@ class RefsNamespace(_Namespace):
             url=url,
             display_text=display_text,
             paragraph=optional_paragraph(
-                self._doc, paragraph, section=section, section_index=section_index,
+                self._doc, paragraph, section=section,
                 caller="doc.refs.add_hyperlink",
             ),
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.refs.add_hyperlink"
+                self._doc, section, caller="doc.refs.add_hyperlink"
             ),
             char_pr_id_ref=char_pr_id_ref,
         )

@@ -178,8 +178,8 @@ def test_nothing_is_written_once_a_section_is_not_followed() -> None:
     document.add_paragraph("가나다")
     section = document.add_section()
     document.add_paragraph("라마바", section=section)
-    document.page.set_grid(char_grid=1000, section_index=0)  # a character grid in paragraphs without a cache
-    document.page.set_grid(char_grid=1000, section_index=1)
+    document.page.set_grid(char_grid=1000, section=0)  # a character grid in paragraphs without a cache
+    document.page.set_grid(char_grid=1000, section=1)
 
     assert len(estimate_pages(document).unsupported) == 2
     report = write_line_caches(document)
@@ -524,7 +524,7 @@ def test_a_tab_reaches_the_default_stops_of_its_own_section() -> None:
         settings.set("tabStopVal", value)
         settings.set("tabStopUnit", unit)
     for index in range(3):
-        document.add_paragraph("항목\t내용", section_index=index)
+        document.add_paragraph("항목\t내용", section=index)
 
     report = write_line_caches(document)
 
@@ -631,8 +631,8 @@ def test_a_paragraph_holding_page_controls_gets_a_cache() -> None:
     # A header, a footer and a page number take no room on a line; each control counts eight characters in a
     # line's text position, as a section's own definitions do.
     document = HwpxDocument.new(empty_first_line=True)
-    document.set_header_text("머리말")
-    document.set_footer_text("꼬리말")
+    document.page.set_header(text="머리말")
+    document.page.set_footer(text="꼬리말")
     document.add_paragraph("가나다 " * 40)
 
     first = _body(document)[0]

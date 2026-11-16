@@ -158,17 +158,17 @@ class TestShapeInsertion:
 
     def test_document_add_line(self):
         doc = _new_doc()
-        shape = doc.add_line()
+        shape = doc.shapes.add_line()
         assert shape.shape_type == "line"
 
     def test_document_add_rectangle(self):
         doc = _new_doc()
-        shape = doc.add_rectangle(200, 100)
+        shape = doc.shapes.add_rectangle(200, 100)
         assert shape.shape_type == "rect"
 
     def test_document_add_ellipse(self):
         doc = _new_doc()
-        shape = doc.add_ellipse(200, 200)
+        shape = doc.shapes.add_ellipse(200, 200)
         assert shape.shape_type == "ellipse"
 
 
@@ -191,7 +191,7 @@ class TestColumnEditing:
 
     def test_set_columns_convenience(self):
         doc = _new_doc()
-        doc.set_columns(3, same_gap=567)
+        doc.page.set_columns(3, same_gap=567)
         b = doc.to_bytes()
         assert len(b) > 0
 
@@ -243,13 +243,13 @@ class TestBookmarkHyperlink:
 
     def test_document_add_bookmark(self):
         doc = _new_doc()
-        doc.add_bookmark("doc_bm")
+        doc.refs.add_bookmark("doc_bm")
         p = doc.paragraphs[-1]
         assert "doc_bm" in p.bookmarks
 
     def test_document_add_hyperlink(self):
         doc = _new_doc()
-        doc.add_hyperlink("https://example.com", "Link")
+        doc.refs.add_hyperlink("https://example.com", "Link")
         p = doc.paragraphs[-1]
         links = p.hyperlinks
         assert len(links) >= 1
@@ -303,7 +303,7 @@ class TestStylePreservation:
 
     def test_text_setter_preserves_paragraph_refs(self):
         doc = _new_doc()
-        p = doc.add_paragraph("original", para_pr_id_ref="5", style_id_ref="3")
+        p = doc.add_paragraph("original", para_pr_id_ref="5", style="3")
         p.text = "replaced"
         assert p.para_pr_id_ref == "5"
         assert p.style_id_ref == "3"
@@ -325,7 +325,7 @@ class TestStylePreservation:
 
     def test_clear_text_preserves_refs(self):
         doc = _new_doc()
-        p = doc.add_paragraph("content", para_pr_id_ref="2", style_id_ref="1")
+        p = doc.add_paragraph("content", para_pr_id_ref="2", style="1")
         p.clear_text()
         assert p.text == ""
         assert p.para_pr_id_ref == "2"
@@ -333,7 +333,7 @@ class TestStylePreservation:
 
     def test_style_inheritance_default(self):
         doc = _new_doc()
-        doc.add_paragraph("first", para_pr_id_ref="9", style_id_ref="3", char_pr_id_ref="7")
+        doc.add_paragraph("first", para_pr_id_ref="9", style="3", char_pr_id_ref="7")
         p2 = doc.add_paragraph("second")
         assert p2.para_pr_id_ref == "9"
         assert p2.style_id_ref == "3"
@@ -350,7 +350,7 @@ class TestStylePreservation:
         doc.add_paragraph(
             "numbered heading",
             para_pr_id_ref="5",
-            style_id_ref="3",
+            style="3",
             char_pr_id_ref="7",
         )
 
@@ -365,7 +365,7 @@ class TestStylePreservation:
         doc.add_paragraph(
             "numbered heading",
             para_pr_id_ref="5",
-            style_id_ref="3",
+            style="3",
             char_pr_id_ref="7",
         )
 
@@ -373,7 +373,7 @@ class TestStylePreservation:
             1,
             1,
             para_pr_id_ref="8",
-            style_id_ref="4",
+            style="4",
             char_pr_id_ref="9",
         )
 
@@ -386,7 +386,7 @@ class TestStylePreservation:
         doc.add_paragraph(
             "numbered heading",
             para_pr_id_ref="5",
-            style_id_ref="3",
+            style="3",
             char_pr_id_ref="7",
         )
 
@@ -579,15 +579,15 @@ class TestExporters:
 
     def test_document_export_text_method(self):
         doc = self._doc_with_content()
-        text = doc.export_text()
+        text = doc.text.plain()
         assert "Hello" in text
 
     def test_document_export_html_method(self):
         doc = self._doc_with_content()
-        html = doc.export_html(full_document=False)
+        html = doc.text.html(full_document=False)
         assert "<p>Hello</p>" in html
 
     def test_document_export_markdown_method(self):
         doc = self._doc_with_content()
-        md = doc.export_markdown()
+        md = doc.text.markdown()
         assert "Hello" in md
