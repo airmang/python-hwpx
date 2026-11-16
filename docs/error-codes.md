@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 280 | 11 |
+| 개수 | 283 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -82,7 +82,7 @@ except HwpxError as exc:
 | `document-merge-unsupported-policy-axis` | 그 정책 축의 값이 아직 지원 기본값 밖이다(신규 값 미구현). |
 | `document-merge-unsupported-reference` | 가져올 문단이 아직 지원 안 하는 참조 요소를 담고 있다(예: 메모 필드). |
 | `document-name-moved` | 7.0에서 python-hwpx-automation으로 옮긴 문서 메서드(doc.text.markdown 등 묶음 메서드 8개, export_markdown 등 루트 옛 이름 5개)를 불렀다(새 자리는 context.replacement, 설치는 context.install). |
-| `document-name-removed` | 7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement). |
+| `document-name-removed` | 7.0에서 없어지거나 바뀐 6.x 이름(루트 HwpxDocument·묶음·모델·값 형식·모듈의 이름)을 불렀다(새 자리는 context.replacement). |
 | `document-seed-invalid` | new()/open() 의 seed 가 정수가 아니다. |
 | `document-settings-root-invalid` | settings.xml 루트가 ha:HWPApplicationSetting이 아니다. |
 | `document-validation-failed` | 저장 전 문서 검증이 실패했다. |
@@ -153,7 +153,7 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
-| `hwpx-argument-removed` | 7.0에서 없어진 인자(section_index=, style_id_ref=)를 주었다(대신 쓸 인자는 suggestion). |
+| `hwpx-argument-removed` | 7.0에서 없어지거나 바뀐 인자(section_index=·style_id_ref=, 메서드마다 이름이 바뀐 키워드, 키워드 전용이 된 위치 인자, 없어진 XML 속성 키워드)를 주었다(새 인자는 context.replacement, 안내는 suggestion). |
 | `hwpx-attribute-error` | 그런 이름의 속성·메서드가 없다(분류되지 않음, AttributeError 계열이기도 하다). |
 | `hwpx-error` | 분류되지 않은 구조화 오류(베이스 기본값). |
 | `hwpx-index-error` | 인덱스가 범위를 벗어났다(분류되지 않음, IndexError 계열이기도 하다). |
@@ -293,7 +293,7 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
-| `quality-gate-failed` | 품질 게이트가 저장을 막았다(quality 코드는 context 에). |
+| `quality-gate-failed` | 품질 게이트가 저장을 막았다(quality 코드는 context 에, 게이트의 VisualCompleteReport 는 SaveError.report). |
 
 ### `recover-*`
 
@@ -319,6 +319,7 @@ except HwpxError as exc:
 | `save-package-contract-violated` | package.save(None) 이 bytes 를 돌려주지 않았다. |
 | `save-target-denied` | 저장할 파일에 쓸 권한이 없다(읽기 전용이거나 다른 프로그램이 열고 있다). |
 | `save-target-folder-missing` | 저장할 경로의 상위 폴더가 없다. |
+| `save-target-invalid-type` | doc.save 에 경로도 쓰기 가능한 이진 스트림도 아닌 것을 주었다. |
 | `save-target-is-folder` | 저장할 경로가 폴더다. |
 | `save-target-unwritable` | 저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error). |
 
@@ -444,6 +445,7 @@ except HwpxError as exc:
 | `table-cell-not-found` | 칸 좌표가 표 밖이거나 병합에 덮여 가리킬 칸이 없다. |
 | `table-cell-remove-unsupported` | 표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다). |
 | `table-cell-vert-align-value` | 칸 세로 정렬(vert_align)이 TOP·CENTER·BOTTOM 중 하나가 아니다. |
+| `table-cell-vertical-alignment-value` | 칸 세로 정렬(vertical_alignment)이 TOP·CENTER·BOTTOM 중 하나가 아니다. |
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
 | `table-column-width-value` | 열 폭이 양의 int(HWPUNIT)가 아니거나 한/글이 그리는 최소 폭(칸 좌우 여백+283)보다 좁다. |
 | `table-header-rows-value` | 제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다. |
@@ -452,6 +454,7 @@ except HwpxError as exc:
 | `table-no-adjust-value` | noAdjust 값이 bool 이 아니다. |
 | `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
 | `table-page-break-value` | 표의 쪽 나눔(page_break)이 TABLE·CELL·NONE 중 하나가 아니다. |
+| `table-page-split-value` | 표가 쪽 경계에서 나뉘는 방식(page_split)이 TABLE·CELL·NONE 중 하나가 아니다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 | `table-row-height-value` | 행 높이가 양의 int(HWPUNIT)가 아니다. |
 | `table-row-heights-value` | 행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다. |
