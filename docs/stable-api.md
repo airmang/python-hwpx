@@ -59,6 +59,12 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 
 `hwpx.oxml.*` import 경로는 그대로 살아 있다. 옮기지도, deprecate 하지도 않는다.
 
+**약속하지 않는 탈출구(7.0).** `doc.shapes.add_raw`·`doc.shapes.add_control`과 `Paragraph.add_shape`·
+`Paragraph.add_control`은 모델 객체의 `.element`와 같은 자리다. 이름은 있지만 계약에는 들지 않는다(공개 표면 잠금에서
+뺐다 — `scripts/public_surface_lock.py`의 `NAMESPACE_ESCAPE_HATCHES`, 모델은 `internal`). 지정한 태그와 속성대로 요소를
+쓰고 엔진의 거부·인자 검사를 거치지 않으므로, 필요한 하위 요소를 직접 채우지 않으면 한/글이 열지 못한다. 저장 전 열기
+안전 검사는 그대로 돈다. 같은 일을 하는 정식 메서드(`add_rectangle`·`add_picture`·`doc.fields.add_*` …)가 있으면 그것을 쓴다.
+
 ### 지원되지 않는(비공개) 표면
 
 `hwpx._document.*` 등 구현 모듈을 직접 import 하는 것은 공개 표면이 아니다.
@@ -87,9 +93,9 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---|---:|
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
-| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 196 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 389 |
-| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 175 |
+| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 194 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 387 |
+| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 177 |
 | `hwpx.objects` 83개 값 형식 | 필드 408 · 멤버 194 · enum 값 10 | 612 |
 | 모듈 수준 stable 이름(13개 모듈) | 서명(클래스는 멤버까지) | 70 |
 <!-- public-surface-lock:end -->
@@ -394,8 +400,18 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 안쪽 묶음은 남은 구성원을 감싸는 상자를 제 자리·크기로 갖고, 가장 바깥 묶음은 그 상자가 원점에서
 시작하도록 구성원을 옮기고 그 크기(한/글이나 `resize`로 키운 묶음은 그 배율로 그린 크기)를 가지며, 왼쪽·위
 기준으로 떠 있으면 쪽 위에서 그만큼 옮겨 남은 구성원이 그려지던 자리에 그대로 있습니다. 묶음의 하나뿐인
-구성원, 돌았거나 뒤집혔거나 그 밖의 방식으로 늘인 묶음·구성원은 거부합니다(`shape-group-member-unsupported`,
-`context["reason"]`). 묶음 안의 개체를 혼자 돌리거나 설명·바깥 여백을 다는 것은 여전히 거부합니다.
+구성원을 지우면 묶음째 지웁니다(한/글 저장본에 빈 묶음·구성원 하나짜리 묶음이 없다). 돌았거나 뒤집혔거나 그 밖의
+방식으로 늘인 묶음·구성원은 거부합니다(`shape-group-member-unsupported`, `context["reason"]`). 묶음 안의 개체 하나만
+돌리거나 크기를 바꾸는 것은 거부합니다(한/글이 그렇게 한 근거를 기다린다). 구성원에는 설명·바깥 여백의 자리가 없습니다
+(묶음 단위 속성 — 공개 문서의 구성원 2,068개 어디에도 없다. 한/글에 없는 기능).
+
+`Shape.ungroup()`(7.0)은 묶음을 한/글처럼 풀고 구성원을 그 문단의 개체로 돌려줍니다(마지막 구성원부터, 한/글이 놓는
+순서). 구성원은 자기 행렬(묶음의 회전·늘이기를 담은)을 그대로 지니고, 그려진 상자의 왼쪽 위만큼 이동을 빼서 묶음 자리
++ 그만큼에 놓입니다. 상자(`hp:sz`)는 그려진 상자, `curSz`는 늘인 축의 그린 크기(아니면 0), 회전 가운데는 상자 가운데,
+각도는 묶음의 각도, 글 배치·바깥 여백은 묶음의 것, `zOrder`는 맨 위입니다. 한/글 2024가 풀어 저장한 묶음(그냥, 1.6×1.8·
+0.6×2.4로 늘인 것, 30°·90° 돈 것)과 같다. 한/글은 구성원을 그것이 시작하는 높이의 문단에 다시 거는데(줄 배치가 필요),
+엔진은 묶음의 문단에 두어 같은 자리에 그립니다. 글자처럼 놓인 묶음, 왼쪽·위가 아닌 정렬, 뒤집힌 묶음, 묶음이 든 묶음,
+혼자 돌았거나 뒤집힌 구성원이 든 묶음은 `shape-ungroup-unsupported`입니다.
 `rotation`을 쓰면 한/글 저장본이 보여 주는 관계(그려진 크기의 개체를 자기 가운데를 축으로 돌리고, 상자 `hp:sz`는
 돈 개체를 감싸는 상자, 개체는 그 상자의 원점으로 옮긴다)를 그대로 씁니다. 7.0부터 `resize`로 늘이거나
 줄인 그림·도형도 그린 크기대로 돕니다(공개 `ta-pic-001-r.hwp`의 0.2768배로 그려 34° 돈 그림과 상자·가운데·
@@ -430,12 +446,16 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 늘이거나 묶음을 품은 묶음의 뒤집기는 `shape-rotation-unsupported`, bool이 아닌 값은 `shape-flip-value`로 거부합니다.
 
 다음은 한/글 저장본으로 확인하지 못해 `shape-rotation-unsupported`로 바꾸기 전에 거부합니다(`context["reason"]`) —
-늘인 채 뒤집혔거나 행렬이 `hp:flip`을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 돈 묶음의 `resize`(먼저 0으로), 수식·차트.
+늘인 채 뒤집혔거나 행렬이 `hp:flip`을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘였거나 묶음을 품은 돈 묶음의
+`resize`. 수식·차트는 한/글도 돌리지 않습니다(90° 회전 동작을 거부하고, 대화상자 각도는 저장하지 않는다 — 한/글에 없는 기능).
 묶음 구성원 하나만 돌리거나 뒤집는 것은 `shape-group-member-unsupported`로 거부합니다(묶음 전체를 다룬다). 각도 0으로
 되돌리는 것은 언제나 됩니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
-가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
+가로세로 비율을 지킵니다. `Shape.resize`(7.0)는 한/글 2024처럼 기하 점과 `orgSz`를 두고 `scaMatrix`로 늘입니다
+(`curSz`는 `orgSz`와 다른 축만, 가로선에 높이를 주어도 같다). 돈 묶음은 돈 모양을 두고 쪽의 가로·세로로 늘여 상자가
+준 크기가 되게 합니다(`scaMatrix` = R⁻¹DR, 이동 R⁻¹(D−I)t — 30°·45° 근거). 수식은 상자가 스크립트와 글자 크기로 정해지고
+한/글도 준 크기를 버리므로 `shape-equation-resize-unsupported`로 거부합니다(`font_size`·`script`를 바꿉니다). `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
 `item_id`, `original_size`(`hp:imgDim`), 읽고 쓰는 `crop`(`(left, top, right, bottom)`)과
 `add_picture`가 쓰는 값의 읽기(`brightness`·`contrast`·`effect`·`alpha`·`line_color`·`line_width_mm`·
 `shadow`·`glow`)를 더합니다. `Shape`에는 `line_width_mm`(읽고 쓰기)·`fill_color` 읽기가 더해졌습니다.
@@ -463,7 +483,7 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 ### 개체·표·문단·메모 옮기기와 복사 (7.0)
 
 `InlineObject`·`Picture`·`Equation`·`Shape`·`Table`의 `move_to(paragraph, *, offset=None)`는 개체를
-같은 문서의 다른 문단(본문·표 칸·글상자·각주·미주·머리말·꼬리말)으로 옮기고,
+다른 문단(본문·표 칸·글상자·각주·미주·캡션·머리말·꼬리말, 다른 문서의 문단도)으로 옮기고,
 `copy_to(paragraph, *, offset=None)`는 복사본을 넣어 그 모델 객체를 돌려줍니다. `paragraph`는 문단
 객체나 `doc.paragraphs`의 번호, `offset`은 `paragraph.text`와 같은 규칙으로 센 글자 위치(`None`은
 끝)이고, 개체는 그 글자 앞, 그 자리에 이미 있는 컨트롤·개체 뒤에 놓입니다(글 노드 한가운데면 노드를
@@ -472,21 +492,20 @@ run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문
 `id="0"`은 그대로), 그림은 같은 이진 항목을 함께 쓰며, 그 안에 걸린 메모는 다음 번호를 받은 메모가
 따로 생깁니다. 두 문단과 그 문단의 칸·캡션을 품은 문단은 줄 배치 캐시를 잃습니다.
 
-떠 있는 개체는 기준과 오프셋을 파일에 적힌 그대로 가져가고, 엔진이 몰래 바꾸지 않습니다 — 문단
-기준(`PARA`·`COLUMN`)이면 새 문단을 따라가고, 쪽·용지 기준(`PAGE`·`PAPER`)이면 쪽 위의 자리가 그대로라
-새 문단이 놓인 쪽만 따라갑니다. 그래서 같은 쪽 안에서 쪽·용지 기준 개체를 `copy_to`하면 사본이 원본과
-정확히 같은 자리에 겹쳐 그려지고, `move_to`해도 제자리입니다. 다른 자리에 두려면 `set_position`으로
-옮깁니다. 한/글 문서가 그런 개체를 두지 않는 곳은 바꾸기 전에 `shape-move-place-unsupported`로
-거부합니다: 표 칸·글상자·각주로는 문단에서 세로로 재고(`vertRelTo="PARA"`) 쪽 영역 안에 두거나
-(`flowWithText="1"`) 가로도 문단에서 재는(`horzRelTo="PARA"`) 떠 있는 개체만 갑니다(공개 문서 1,304개의
-칸 634개 중 633개, 각주 40개·글상자 2개 전부가 이 모양이고, 아닌 그림을 칸에 넣으면 한/글은 위 칸에
-겹쳐 그립니다 — 먼저 `set_position(vertical_relative_to="PARA", horizontal_relative_to="PARA")`나 `treat_as_char=True`로
-바꿉니다). 쪽 기준 개체를 용지나 여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 어떤 개체든
-메모·바탕쪽으로도 거부합니다. 자기 글상자·칸·
-캡션으로 옮기기는 `shape-move-into-itself`(복사는 됨), 묶음 구성원은 `shape-group-member-unsupported`,
-지운 개체는 `shape-not-in-document`, 다른 문서의 문단은 `paragraph-not-in-document`입니다. 다른
-문서로 가져오기는 머리 정의·이진 항목을 함께 옮겨야 하므로 `hwpx.tools.document_merge.insert_document`
-(문단 단위)를 씁니다.
+옮기거나 복사한 개체는 한/글이 붙인 개체처럼 그 구역의 맨 위(`zOrder`)로 갑니다. 본문·머리말·꼬리말에서는 떠 있는
+개체가 기준과 오프셋을 파일에 적힌 그대로 가져갑니다 — 문단 기준(`PARA`·`COLUMN`)이면 새 문단을 따라가고, 쪽·용지
+기준(`PAGE`·`PAPER`)이면 쪽 위의 자리가 그대로라 새 문단이 놓인 쪽만 따라갑니다(용지가 다른 구역에서도 그대로 — 한/글
+2024가 그렇게 붙였다). 같은 쪽 안에서 쪽·용지 기준 개체를 `copy_to`하면 사본이 원본 위에 겹쳐 그려집니다.
+표 칸·글상자·각주·캡션으로는 한/글 2024가 붙이는 배치로 넣습니다(9가지 배치를 붙여 저장한 근거): 세로가 문단 기준이 아니거나
+쪽 영역 밖(`flowWithText="0"`)이면 문단 기준·세로 오프셋 0·영역 안·겹치지 않음으로, 가로가 쪽·용지 기준이면 단 기준·가로
+오프셋 0으로 바꾸고, 문단 기준·영역 안인 개체는 그대로 둡니다. 바뀐 값은 `position`으로 읽습니다. 표 칸에서 그 결과가
+가로·세로 모두 문단 기준이 되는 개체(가로 문단 기준에 세로를 고치는 것)는 한/글이 그 문서를 다시 열지 못했으므로
+`shape-move-place-unsupported`로 거부합니다. 메모·바탕쪽으로 옮기기(근거 대기)와, 문단 기준·영역 안이 아닌 떠 있는 표를
+칸·글상자·각주·캡션으로 옮기기도 같은 code로 거부합니다. 다른 문서로는 한/글처럼 새 id의 사본이 가고 그림·차트(빈 첫
+`Chart/chartN.xml`)를 그 문서로 가져오며 연결선은 붙은 도형을 놓습니다(`move_to`는 원본을 지움). 글이 든 개체(글상자·캡션·표)는
+한/글이 다시 열지 못했으므로 `shape-copy-document-unsupported`로 거부합니다 — 문단째 `hwpx.tools.document_merge.insert_document`를
+씁니다(연결선·차트도 가져온다). 자기 글상자·칸·캡션으로 옮기기는 `shape-move-into-itself`(복사는 됨), 묶음 구성원은
+`shape-group-member-unsupported`, 지운 개체는 `shape-not-in-document`입니다.
 
 `Paragraph.move_after(paragraph)`/`move_before(paragraph)`는 문단 자체를 옮깁니다(복사는
 `insert_after`/`insert_before`). id·내용을 지키고, 구역의 첫 문단이면 구역 설정이 다음 문단으로 가고,

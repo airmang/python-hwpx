@@ -820,7 +820,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlInlineObject:
-        """Insert a generic shape element.
+        """Insert a generic shape element -- an escape hatch outside the contract, like ``.element``
+        (not in the public surface lock; it may change between releases).
 
         This is a low-level escape hatch: it writes the element and the
         attributes it is handed and nothing else, so the result is **not a
@@ -904,7 +905,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlInlineObject:
-        """Insert a generic ``<hp:ctrl>`` control element.
+        """Insert a generic ``<hp:ctrl>`` control element -- an escape hatch outside the contract, like
+        ``.element`` (not in the public surface lock; it may change between releases).
 
         This is a low-level escape hatch: an ``<hp:ctrl>`` carries no meaning
         of its own — the control it represents is its child element (
