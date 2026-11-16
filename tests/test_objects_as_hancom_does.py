@@ -380,3 +380,12 @@ def test_a_text_box_is_not_copied_into_another_document() -> None:
     with pytest.raises(HwpxValueError) as excinfo:
         box.copy_to(target.add_paragraph(""))
     assert excinfo.value.code == "shape-copy-document-unsupported"
+
+
+def test_an_equation_or_a_chart_is_not_turned_because_hancom_does_not_turn_one() -> None:
+    doc = HwpxDocument.new()
+    equation = doc.add_paragraph("").add_equation("x")
+    with pytest.raises(HwpxValueError) as excinfo:
+        equation.rotation = 30
+    assert excinfo.value.code == "shape-rotation-unsupported"
+    assert "Hancom does not turn" in excinfo.value.context["reason"]

@@ -26,8 +26,8 @@ from ._document_primitives import (
 from .shape_position import (
     DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, equation_font_size, fill_color_of, keep_ratio,
     line_width_mm_of, line_width_units, object_size,
-    apply_rotation, picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
-    resize_object, resize_shape, resize_turned_group, rotation_base_size, _group_member_refused, _in_group,
+    picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
+    resize_object, resize_shape, resize_turned_group, _group_member_refused, _in_group,
     set_equation_font, set_equation_font_size, set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
     _object_set_position, build_at_original_size, fit_new_floating_object, refuse_resizing_flipped, resize_group,

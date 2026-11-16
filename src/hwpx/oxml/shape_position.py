@@ -526,7 +526,7 @@ class ObjectPlacement:
         if not given:
             return before
         if self.element.find(f"{_HP}pos") is None:
-            raise _group_member_refused("given outer margins")
+            raise _group_member_refused("given outer margins", "a group member has no place for it: Hancom keeps it on the group (none of 2,068 public members holds one)")
         margins = replace(before, **given)
         own = self.element.find(f"{_HP}outMargin")
         if own is None:
@@ -609,6 +609,10 @@ class ObjectPlacement:
         if _in_group(self.element, self.paragraph.element):
             raise _group_member_refused("turned", "a member turns only with its whole group: turn the group "
                                                   "(group.rotation = angle)")
+        if _local(self.element) in ("equation", "chart") and angle % 360:
+            # Hancom 2024 refuses its 90-degree turn on an equation or a chart and keeps no angle its object
+            # dialog is given (objlim evidence eqturn, eqangle, chartturn, chartangle): not a Hancom feature.
+            raise _rotation_refused(self.element, "Hancom does not turn an equation or a chart")
         if str(self.element.tag).rsplit("}", 1)[-1] == "container":
             from .container import turn_group
 
@@ -685,7 +689,7 @@ class ObjectPlacement:
                 suggestion="Pass the description as text; '' empties it.",
             )
         if _in_group(self.element, self.paragraph.element):
-            raise _group_member_refused("described")
+            raise _group_member_refused("described", "a group member has no place for it: Hancom keeps it on the group (none of 2,068 public members holds one)")
         from ._document_primitives import _append_child, _reposition_child_after_any
 
         comment = self.element.find(f"{_HP}shapeComment")
@@ -2297,9 +2301,10 @@ def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
     if _local(element) != "tbl" and box not in ("memo", "other"):
         changes = pasted_placement(element) if kind != "char" and box in _PASTE_FITTED else {}
         position = element.find(f"{_HP}pos")
+        across = changes.get("horzRelTo", position.get("horzRelTo") if position is not None else None)
         moved_down = position is not None and (position.get("vertRelTo") != "PARA"
                                                or position.get("flowWithText") in _FALSE_FLAGS)
-        if box == "cell" and kind != "char" and moved_down and changes.get("horzRelTo", position.get("horzRelTo")) == "PARA":
+        if box == "cell" and kind != "char" and moved_down and across == "PARA":
             raise _place_refused(element, box, "Hancom 2024 could not open again a document with an object pasted "
                                                "into a table cell so (measured from its paragraph both ways, moved "
                                                "to its top: objlim evidence cl1)")
