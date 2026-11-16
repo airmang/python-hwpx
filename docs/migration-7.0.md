@@ -387,6 +387,9 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | 구역이 여럿인 문서에서 `doc.page.*` 를 `section` 없이 부르면 마지막 구역만 바뀐다는 경고가 한 번 난다 | `section=` 을 준다. 모든 구역은 `section="all"` |
 | 테두리·단 구분선·각주/미주 구분선·메모 선 굵기(`border_width_mm=`·`sides`/`border` 의 `width_mm`·`table.set_borders(border_width_mm=)`·`separator_width_mm=`·`ensure_memo_shape(line_width_mm=)`)는 한/글 굵기 목록(0.1·0.12·0.15·0.2·0.25·0.3·0.4·0.5·0.6·0.7·1·1.5·2·3·4·5 mm)의 값만 받는다. 목록에 없는 값(0.45 등)은 문서를 바꾸기 전에 `HwpxValueError`(`style-line-width-invalid`, `suggestion` 에 쓸 수 있는 값)로 거부한다. 6.x 와 7.0 개발 중에는 가장 가까운 값으로 바꿔 썼다. 도형·그림 선(`line_width_mm=`)은 그대로 mm × 283 HWPUNIT 이다 | 목록의 값을 직접 고른다(0.45 → 0.4 또는 0.5). 목록은 `hwpx.oxml.utils.LINE_WIDTHS_MM` 에 있다. 6.x 의 HWPUNIT 선 굵기 `n` 은 `hwpx.oxml.shape_position.line_width_mm_for_units(n)` 이 같은 HWPUNIT 으로 돌아가는 mm 다 |
 | `editable` 속성이 없는 누름틀의 `field.editable` 이 OWPML 스키마 기본값 `True` 다(6.x 는 `False`). 번호 수준(`NumberingLevel`)의 `autoIndent`·`textOffset` 이 없으면 `auto_indent`·`text_offset` 이 스키마 기본값 `True`·`50` 이다(6.x 는 `False`·`0`). 한/글은 이 속성들을 늘 적으므로 한/글 저장본은 전과 같다 | 없음. "적히지 않음"을 따로 보려면 `field.element.get("editable")` |
+| 용지 크기·여백(`doc.page.size()`·`doc.page.margins()`, `section.properties.page_size`·`page_margins`)이 파일에 적힌 대로다. 적히지 않은 값은 스키마 기본값(용지 59528×84188, 머리말·꼬리말 4252, 제본 0)이고, 기본값이 없는 왼·오른·위·아래 여백이 없거나 숫자가 아니면, 또는 `hp:pagePr`·`hp:margin` 자체가 없으면 `None` 이다(6.x 는 0). 그래서 `PageSize.width`·`height`·`drawn_width`·`drawn_height` 와 `PageMargins` 의 값이 `int | None` 이다. 한/글은 이 값을 늘 적으므로(공개 문서 1,637 구역 모두) 한/글 저장본은 전과 같다 | 셈에 쓰기 전에 `None` 을 본다(`if margins.left is None: ...`). 0 으로 셈하던 6.x 동작은 `margins.left or 0` |
+| `doc.text.highlights` 가 본문만이 아니라 표 칸·글상자·캡션·머리말·꼬리말·각주·메모·바탕쪽의 형광펜도 돌려준다(`doc.text.iter_paragraphs()` 의 문단) | 본문 것만: `[h for h in doc.text.highlights if h.paragraph in doc.paragraphs]` |
+| `doc.save(path, format="hwpx")` 처럼 형식을 밝히면 이름이 `.hwpx` 가 아니어도(임시 이름 `out.hwpx.tmp` 등) 경고하지 않는다. 이름이 `.hwp` 면 여전히 경고한다 | 없음 |
 
 ## 쪽마다 새로 매기는 각주
 
