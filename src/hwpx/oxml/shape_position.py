@@ -1338,12 +1338,6 @@ def shift_flipped_group(element: Any, sizes: tuple[int, int], width: int, height
         scales = node.findall(f"{_HP}renderingInfo/{_HC}scaMatrix")
         for key, gained in moves if scales else ():
             scales[0].set(key, _matrix_number(_fraction(scales[0].get(key), 0.0) + gained))
-        if flips == (-1, -1) and node is not element and node.find(f"{_HP}drawText") is not None and scales:
-            # flipped both ways, Hancom lays a member's text across the width it is drawn at (9000 at 1.5: 13500)
-            # and leaves the centres (rotate7 g-fv-S)
-            own = node.find(f"{_HP}orgSz")
-            if own is not None:
-                set_text_width(node, _half_up((_number(own.get("width")) or 0) * _matrix_values(scales[0])[0]))
         if flips == (1, -1) and node is not element and not nested:
             # flipped up-down, Hancom also puts each member's centre in the middle of the size it is drawn at (a
             # 6000 x 6000 member drawn 9000 x 9000: 4500); flipped left-right it leaves them (group-f-S vs group-v-S)
@@ -1591,6 +1585,11 @@ def resize_shape(obj: Any, width: int | None, height: int | None) -> None:
     if info is not None:
         info.set("centerX", str(width // 2))
         info.set("centerY", str(height // 2))
+    draw_text = element.find(f"{_HP}drawText")
+    if draw_text is not None and draw_text.get("lastWidth") != str(width):
+        # its text laid out across the width it is drawn at, as Hancom writes a text box drawn at another width in
+        # a group, turned, and turned back (no Hancom-saved document shows a lone text box resized unturned)
+        set_text_width(element, width)
     from ._document_primitives import _clear_paragraph_layout_cache
 
     _clear_paragraph_layout_cache(obj.paragraph.element)
@@ -2173,8 +2172,11 @@ def resize_group(shape: "HwpxOxmlShape", width: int, height: int) -> bool:
     offset (its ``transMatrix``) times the factor less 1, so the group grows
     from its origin, and takes ``curSz`` = its ``orgSz`` times the factors
     of the groups it is in (rounded down, 0 on an axis they leave alone).
-    Offsets, rotation centres and the members' own matrices stay. ``False``,
-    with nothing changed, for a group without an original size.
+    Offsets, rotation centres and the members' own matrices stay; a member's text is laid out across the width it
+    is drawn at (``drawText/@lastWidth``, its line caches dropped), as Hancom writes it. (Hancom's members' centres
+    follow no one rule -- kept or moved to the middles drawn at, differently when the same document is saved again
+    -- and draw nothing while they are unturned; a turn writes them again.) ``False``, with nothing changed, for a
+    group without an original size.
     """
 
     element = shape.element
@@ -2202,6 +2204,12 @@ def resize_group(shape: "HwpxOxmlShape", width: int, height: int) -> bool:
                  for factor, key in zip(factors, ("e1", "e5"))]
         _set_size(member, "curSz", *(int(int(own.get(side, "0")) * factor + 1e-6) if factor != 1 else 0
                                       for side, factor in zip(("width", "height"), grown)))
+        # a member's text is laid out across the width it is drawn at, as Hancom writes it after resizing the
+        # group: flipped or not, set as a character or floating, centred or not, and saved again (a 9000 wide text
+        # box drawn at 1.5: 13500; at 1 across: 9000 -- rotate9 g-*-S, rotate7 g-fv-S, rotate10 tc/tf/tm-S, -R)
+        draw_text, laid = member.find(f"{_HP}drawText"), _half_up(int(own.get("width", "0")) * grown[0])
+        if draw_text is not None and draw_text.get("lastWidth") != str(laid):
+            set_text_width(member, laid)  # its lines laid out again (their caches dropped)
     shift_flipped_group(element, sizes, width, height)
     shape.paragraph.section.mark_dirty()
     return True
