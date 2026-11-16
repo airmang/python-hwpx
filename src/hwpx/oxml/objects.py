@@ -30,7 +30,8 @@ from .shape_position import (
     resize_object, rotation_base_size,
     set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
-    _object_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
+    _object_set_position, build_at_original_size, fit_new_floating_object, resize_group,
+    validate_draw_text_vert_align, validate_picture_align,
     validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_crop, validate_picture_image,
     validate_rect_ratio,
     validate_shape_size,
@@ -846,6 +847,7 @@ def _paragraph_insert_shape_element(
     if type(element) is not type(run):
         element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
     run.append(element)
+    fit_new_floating_object(element, self)  # in a cell, text box, note or header: placed as Hancom does there
     self.section.mark_dirty()
     return HwpxOxmlShape(element, self)
 
@@ -929,6 +931,8 @@ def _paragraph_add_picture(
     if type(element) is not type(run):
         element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
     run.append(element)
+    if not pos_overrides:  # placed by its caller otherwise
+        fit_new_floating_object(element, self)
     self.section.mark_dirty()
     return HwpxOxmlPicture(element, self)
 

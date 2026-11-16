@@ -267,6 +267,53 @@ def _object_set_position(
 
 _FALSE_FLAGS = frozenset({"0", "false", "False"})
 
+#: What a ``hp:subList`` belongs to, named as the box a new floating object's paragraph sits in. The same
+#: names as the move lane's ``paragraph_box`` (``cell``, ``text_box``, ``note``, ``header_footer``).
+_NEW_OBJECT_BOXES = {"tc": "cell", "drawText": "text_box", "footNote": "note", "endNote": "note",
+                     "header": "header_footer", "footer": "header_footer"}
+
+
+def new_object_box(paragraph: Any) -> str | None:
+    """The box (``cell``, ``text_box``, ``note``, ``header_footer``) the model paragraph *paragraph* sits in,
+    or ``None`` for the body and anything else (a caption, a memo, a master page)."""
+
+    parent = _parent_of(paragraph.element, paragraph.section.element)
+    if parent is None or str(parent.tag).rsplit("}", 1)[-1] != "subList":
+        return None
+    owner = _parent_of(parent, paragraph.section.element)
+    return _NEW_OBJECT_BOXES.get(str(owner.tag).rsplit("}", 1)[-1]) if owner is not None else None
+
+
+def fit_new_floating_object(element: Any, paragraph: Any) -> None:
+    """Give a floating object just made with the default placement the placement Hancom documents give a
+    floating object in a table cell, a text box, a note or a header or footer, when *paragraph* is in one.
+
+    The default (``vertRelTo="PARA"``, ``horzRelTo="COLUMN"``, ``flowWithText="0"``, ``allowOverlap="1"``)
+    is the body's; Hancom draws such a picture in a cell outside the table, at the body's top left, and
+    pushes the table aside. In the public documents (1,304) the floating objects in cells, text boxes and
+    notes are measured from their paragraph and kept in its area: of 634 in cells 343 are PARA/PARA with
+    ``flowWithText="1"``, 257 PARA/COLUMN/1, 33 PARA/PARA/0, 1 PARA/COLUMN/0; all 40 in notes and both in
+    text boxes keep ``flowWithText="1"``; most with ``allowOverlap="0"``. So the object becomes measured
+    across from its paragraph too (``horzRelTo="PARA"``, the most common in cells, shapes there nearly
+    always), kept in the area (``flowWithText="1"``) and not overlapping (``allowOverlap="0"``). An object
+    as a character, one in the body, or one measured from the page or paper (its caller placed it so: a
+    connector between shapes, a picture with ``pos_overrides``) is left as it is; a connector keeps the
+    frames of the shapes it joins.
+    """
+
+    position = element.find(f"{_HP}pos")
+    if position is None or position.get("treatAsChar") not in _FALSE_FLAGS:
+        return
+    if position.get("vertRelTo") != "PARA" or position.get("horzRelTo") not in ("PARA", "COLUMN"):
+        return
+    if new_object_box(paragraph) is None:
+        return
+    if str(element.tag).rsplit("}", 1)[-1] != "connectLine":
+        position.set("horzRelTo", "PARA")
+    position.set("flowWithText", "1")
+    position.set("allowOverlap", "0")
+
+
 #: Object kinds a paragraph's runs hold, by local name. Drawing shapes (``model.Shape``) carry line and
 #: fill; the rest are placed objects (``model.InlineObject``). Form controls carry ``hp:pos`` too.
 DRAWING_SHAPE_NAMES = frozenset({
