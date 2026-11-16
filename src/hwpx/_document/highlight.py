@@ -153,10 +153,14 @@ def _span_highlights(span: "TextSpan") -> list[tuple[str, "str | None"]]:
 
 
 def list_highlights(doc: "HwpxDocument") -> tuple[Highlight, ...]:
-    """Return every markpen highlight in the document, in document order."""
+    """Return every markpen highlight in the document, in document order: in the body and in table
+    cells, text boxes, captions, headers, footers, notes, memos and master pages
+    (``doc.text.iter_paragraphs()``'s paragraphs)."""
+
+    from .text_blocks import iter_paragraph_places
 
     results: list[Highlight] = []
-    for paragraph in doc.paragraphs:
+    for paragraph in (place.paragraph for place in iter_paragraph_places(doc, None)):
         for run in paragraph.runs:
             model = run.to_model()
             for span in model.text_spans:

@@ -668,6 +668,7 @@ class HwpxOxmlTable(TableStructureEdits, TableFormat):
         desired = "1" if value else "0"
         if position.get("treatAsChar") != desired:
             position.set("treatAsChar", desired)
+            _clear_paragraph_layout_cache(self.paragraph.element)  # the table leaves (or joins) its line
             self.mark_dirty()
 
     # --- caption (hp:caption) -----------------------------------------

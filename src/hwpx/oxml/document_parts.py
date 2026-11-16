@@ -39,7 +39,7 @@ from .header import (
 from .header_part import HwpxOxmlHeader
 from .namespaces import tag_local_name
 from .paragraph import HwpxOxmlParagraph
-from .run import RunStyle, _char_properties_from_header
+from .run import CharPropertyCache, RunStyle
 from .section import HwpxOxmlSection
 from .section_story import sync_story_mirrors
 from . import section_layout as _section_layout
@@ -429,7 +429,7 @@ class HwpxOxmlDocument:
         self._histories = list(histories or [])
         self._version = version
         self._settings = settings
-        self._char_property_cache: dict[str, RunStyle] | None = None
+        self._char_property_cache = CharPropertyCache()
         self._manifest_dirty = False
 
         for section in self._sections:
@@ -630,36 +630,21 @@ class HwpxOxmlDocument:
     def settings(self) -> HwpxOxmlSettings | None:
         return self._settings
 
-    def _ensure_char_property_cache(self) -> dict[str, RunStyle]:
-        if self._char_property_cache is None:
-            mapping: dict[str, RunStyle] = {}
-            for header in self._headers:
-                mapping.update(_char_properties_from_header(header.element))
-            self._char_property_cache = mapping
-        return self._char_property_cache
-
     def invalidate_char_property_cache(self) -> None:
-        self._char_property_cache = None
+        """Forget the parsed character shapes. Not needed after an XML edit any more: every read
+        checks the header first (:class:`~hwpx.oxml.run.CharPropertyCache`)."""
+        self._char_property_cache.clear()
 
     @property
     def char_properties(self) -> dict[str, RunStyle]:
-        return dict(self._ensure_char_property_cache())
+        """Every character shape of the headers, read from them as they are now."""
+        return self._char_property_cache.styles(self._headers)
 
     def char_property(self, char_pr_id_ref: int | str | None) -> RunStyle | None:
-        if char_pr_id_ref is None:
-            return None
-        key = str(char_pr_id_ref).strip()
-        if not key:
-            return None
-        cache = self._ensure_char_property_cache()
-        style = cache.get(key)
-        if style is not None:
-            return style
-        try:
-            normalized = str(int(key))
-        except (TypeError, ValueError):
-            return None
-        return cache.get(normalized)
+        """The character shape *char_pr_id_ref* names, read from the headers as they are now (one
+        added or changed through ``.element`` included); ``None`` when there is none."""
+        key = "" if char_pr_id_ref is None else str(char_pr_id_ref).strip()
+        return self._char_property_cache.get(self._headers, key) if key else None
 
     _UNDERLINE_SHAPES = frozenset({
         "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
