@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 345 | 11 |
+| 개수 | 346 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -465,6 +465,7 @@ except HwpxError as exc:
 | `style-bullet-char-invalid` | 글머리표 글자(char)가 글자 하나짜리 문자열이 아니다. |
 | `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
+| `style-definition-kind-invalid` | remove_unused_definitions 의 kinds 가 비었거나 char_properties·paragraph_properties·border_fills·tab_properties 밖의 이름이다. |
 | `style-definition-not-found` | 기준으로 준 글자 모양·문단 모양·탭·테두리·번호·글머리표 정의 id 가 헤더에 없다. |
 | `style-font-container-create-failed` | fontfaces/fontface 컨테이너를 만들지 못했다. |
 | `style-font-face-empty` | face 값이 비어 있다. |

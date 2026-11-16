@@ -85,7 +85,7 @@ from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
 from .shape_position import (
-    equation_base_unit, validate_box_size, validate_equation_font, validate_equation_script,
+    equation_base_unit, stack_new_object, validate_box_size, validate_equation_font, validate_equation_script,
     validate_shape_size,
 )
 from .table import HwpxOxmlTable
@@ -831,6 +831,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             table_element = LET.fromstring(ET.tostring(table_element, encoding="utf-8"))
 
         run.append(table_element)
+        stack_new_object(table_element, self.section)  # tables take their numbers too, as Hancom numbers them
         self.section.mark_dirty()
         return HwpxOxmlTable(table_element, self)
 
@@ -1438,6 +1439,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "top": "0",
             "bottom": "0",
         })
+        stack_new_object(chart, self.section)
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(chart, self)
 
@@ -1545,6 +1547,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         comment.text = "수식입니다."
         script_element = _append_child(equation, f"{_HP}script", {})
         script_element.text = text
+        stack_new_object(equation, self.section)
         self.section.mark_dirty()
         return HwpxOxmlEquation(equation, self)
 

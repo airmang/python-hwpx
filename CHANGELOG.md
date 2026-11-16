@@ -480,8 +480,23 @@ python-hwpx 7.0을 함께 설치한다.
 - 메모를 걸 글이 문단에 여러 번 나오면 몇 번째 것에 걸지 고른다: `doc.notes.add_memo(..., match="답", index=1)`,
   `doc.notes.attach(..., match=, index=)`(0부터, 한 런 안에 온전히 든 곳만 센다). 메모 본문의 문단 여러 개는
   `memo.paragraphs[0].insert_after(line)`으로 잇는다(`add_memo` 문서에 예).
+- 안 쓰게 된 서식 정의를 걷어 낸다: `doc.styles.remove_unused_definitions(kinds=None)`. 글자·문단 모양, 테두리, 탭 정의 목록 끝에서
+  아무것도 가리키지 않는 정의를 지우고 지운 id를 돌려준다. 끝에서부터 처음 쓰이는 정의를 만날 때까지만 지우고 첫 정의는 남겨,
+  남은 id가 바뀌지 않는다. 한/글 저장본은 정의 id가 늘 빈틈없이 이어진다(`tests/fixtures/hancom_saved` 1,257개 모두).
+  엔진 문서를 한/글이 다시 저장하면 쓰지 않는 정의를 지우고 id를 다시 매긴다(재저장 짝에서 쓰지 않는 문단 모양이 있던 29쌍 중 20쌍).
+  `run.set_format`으로 시험값 사본을 만들었다가 되돌린 뒤 걷어 내는 쓰임에 맞다.
 
 ### 고침
+
+- 새로 만든 개체의 `zOrder`가 모두 0이던 것을 고쳤다. `add_rectangle`·`add_picture`·`add_equation`·`add_chart`·`add_table`(칸 안 표 포함)·
+  `add_container`·`add_line`·`add_connector` 등으로 만든 개체는 한/글처럼 문서의 지금 최댓값 + 1을 받아, 나중에 만든 것이 위에 그려진다.
+  - 근거:
+    - `tests/fixtures/hancom_saved`에서 개체를 한/글이 만든 문서는 만든 차례대로 번호를 매긴다. 글자처럼 놓인 표도 센다(`memos_in_fields`: 표 0, 타원 1).
+    - 묶음 구성원은 0이다(구성원이 있는 77개 문서 모두).
+    - 뒤 구역은 앞 구역 번호를 잇는다(hwpxlib_corpus `error__20251107__test`: 0-4, 그다음 5-30).
+  - 한/글은 다시 저장할 때 `zOrder`를 고치지 않으므로, 6.x·7.0 개발 중에 만든 문서의 0은 그대로 남는다.
+  - 붙여 넣은 개체(`copy_to`, 표의 `copy_to`·`copy_after` 포함)도 문서 전체의 맨 위로 간다. 전에는 구역 안 맨 위였고, 표 사본은 원본 번호 그대로였다.
+  - 옮기기(`move_to`)는 전처럼 개체는 맨 위, 표는 그대로다.
 
 - `obj.move_to`·`copy_to`(표의 것도)가 개체를 마지막 런의 빈 `hp:t` 뒤가 아니라 앞에 넣는다(`<hp:run><hp:rect/><hp:t/></hp:run>`).
   빈 문단으로 옮길 때 7.0 개발 중에는 한/글 저장본에 없는 꼴(`[t/][개체]`)을 썼다. 한/글 저장본(`tests/fixtures/hancom_saved`)에서

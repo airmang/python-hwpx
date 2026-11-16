@@ -1002,6 +1002,9 @@ class TableFormat:
         renew_copied_memos(copy, list(model.sections) if model is not None else [section], target.section)
         run.append(copy)
         parent.insert(list(parent).index(target.element) + 1, new)
+        from .shape_position import stack_new_object
+
+        stack_new_object(copy, target.section)  # over the others, as Hancom pastes a copy
         _clear_paragraph_layout_cache(new)
         target.section.mark_dirty()
         return HwpxOxmlTable(copy, HwpxOxmlParagraph(new, target.section))

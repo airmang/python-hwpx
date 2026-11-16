@@ -810,7 +810,7 @@ class ObjectPlacement:
         lose their line layout caches, with the paragraphs holding their cells and captions.
 
         As Hancom pastes an object, it goes over the others (its ``zOrder`` one more than the
-        highest in the section of *paragraph*). With ``keep_order=True`` it keeps the ``zOrder`` it
+        highest in the document of *paragraph*, whose sections Hancom numbers as one). With ``keep_order=True`` it keeps the ``zOrder`` it
         had, so shapes drawn over and under one another stay in that order when they are moved
         (into another section the number is kept as it is, even where an object there has the
         same one). In the body, a header or a footer a floating object
@@ -2832,11 +2832,52 @@ def pasted_placement(element: Any) -> dict[str, str]:
     return {name: value for name, value in changes.items() if position.get(name) != value}
 
 
-def _top_z_order(section: Any) -> str:
-    """One more than the highest ``zOrder`` in *section*'s part: Hancom gives a pasted object the top one."""
+def _top_z_order(section: Any, *, skip: Any = None) -> str:
+    """One more than the highest ``zOrder`` in the document of *section* (its sections; *section*'s part alone
+    when it has no document), *skip* (an element) left out: Hancom gives a pasted or a new object the top one.
 
-    orders = [_number(node.get("zOrder")) for node in section.element.iter() if node.get("zOrder") is not None]
-    return str(max([order for order in orders if order is not None] or [-1]) + 1)
+    Hancom numbers objects across the document, not per section: in its documents with objects in several
+    sections a later section's numbers go on from the earlier ones' (hwpxlib_corpus ``error__20251107__test``:
+    0-4 then 5-30; ``error__20250808__…``: 0-554 then 557)."""
+
+    document = getattr(section, "document", None)
+    parts = list(document.sections) if document is not None else [section]
+    if not any(part is section or part.element is section.element for part in parts):
+        parts.append(section)
+    highest = -1
+    # it and its members; the set holds them, so lxml hands out the same proxies below
+    inside = set(skip.iter()) if skip is not None else set()
+    for part in parts:
+        root = part.element
+        nodes = root.iter(*_Z_ORDERED) if hasattr(root, "getparent") else (
+            node for node in root.iter() if node.tag in _Z_ORDERED_SET)  # a stdlib tree's iter takes one tag
+        for node in nodes:
+            if node in inside:
+                continue
+            order = _number(node.get("zOrder"))
+            if order is not None and order > highest:
+                highest = order
+    return str(highest + 1)
+
+
+#: The elements that carry a ``zOrder`` (OWPML AbstractShapeObjectType and its kinds).
+_Z_ORDERED = tuple(f"{_HP}{name}" for name in (
+    "tbl", "pic", "equation", "rect", "ellipse", "line", "arc", "polygon", "curve", "connectLine", "container",
+    "ole", "chart", "textart", "video",
+))
+_Z_ORDERED_SET = frozenset(_Z_ORDERED)
+
+
+def stack_new_object(element: Any, section: Any) -> None:
+    """Give the new object *element* (already in *section*) the next ``zOrder`` of the document, as Hancom
+    numbers the objects it makes: each one over those made before it (hancom_saved: in the documents whose
+    objects Hancom made, tables and objects placed like characters take their numbers too, and a group the
+    number after its members'). A member of a group is not given one (Hancom saves members with 0)."""
+
+    parent = element.getparent() if hasattr(element, "getparent") else None
+    if parent is not None and _local(parent) == "container":
+        return
+    element.set("zOrder", _top_z_order(section, skip=element))
 
 
 def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
@@ -2987,8 +3028,8 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool, ke
     if position is not None:
         for name, value in changes.items():
             position.set(name, value)
-    if _local(placed) != "tbl" and placed.get("zOrder") is not None and not keep_order:
-        placed.set("zOrder", _top_z_order(target.section))  # Hancom puts a pasted object over the others
+    if (copy or _local(placed) != "tbl") and placed.get("zOrder") is not None and not keep_order:
+        placed.set("zOrder", _top_z_order(target.section))  # Hancom puts a pasted object (a copied table too) on top
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
     _clear_paragraph_layout_cache(target.element)
     if not copy and target.section.element is not source.section.element:

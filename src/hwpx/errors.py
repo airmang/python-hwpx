@@ -513,6 +513,7 @@ ERROR_CODES: dict[str, str] = {
     "style-in-use": "지우려는 스타일을 쓰는 문단이 있는데 replacement 를 주지 않았다(또는 replacement 가 그 스타일이다).",
     "style-remove-default": "첫 스타일(id 0, 바탕글)은 지울 수 없다.",
     "style-format-empty": "set_style_format 에 고칠 서식이 하나도 없다.",
+    "style-definition-kind-invalid": "remove_unused_definitions 의 kinds 가 비었거나 char_properties·paragraph_properties·border_fills·tab_properties 밖의 이름이다.",
     "style-border-base-conflict": "base_border_fill_id 와 함께 sides·fill_color 밖의 테두리 인자를 주었다.",
     "style-run-format-invalid": "글자 서식 이름이 모르는 것이거나 값의 형·범위가 틀렸다(자간 -50~50, 장평 50~200, 위·아래 첨자 동시).",
     "style-run-format-empty": "바꿀 글자 서식이 하나도 없다.",
