@@ -1272,7 +1272,8 @@ def flow_table_taller_than_page(doc: "HwpxDocument", table: Any) -> None:
 
     properties = table.paragraph.section.properties
     size, margins = properties.page_size, properties.page_margins
-    body = size.drawn_height - margins.top - margins.bottom - margins.header - margins.footer
+    sizes = (size.drawn_height, margins.top, margins.bottom, margins.header, margins.footer)
+    body = 0 if None in sizes else sizes[0] - sizes[1] - sizes[2] - sizes[3] - sizes[4]  # type: ignore[operator]
     if body > 0 and _table_min_height(doc, table.element) > body:
         table.set_treat_as_char(False)
 

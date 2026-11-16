@@ -134,15 +134,19 @@ def _check_grade_arguments(mode: object, fallback: object) -> None:
 _hwp5_write_warned = False
 
 
-def _warn_about_target_format(path: str | PathLike[str], format: SaveFormat) -> None:
+def _warn_about_target_format(path: str | PathLike[str], format: SaveFormat, *, stated: bool = False) -> None:
     """Say what a save to *path* writes when the name does not say it: once for the experimental
-    HWP 5.0 writer, and every time HWPX goes to a name that does not end in ``.hwpx``."""
+    HWP 5.0 writer, and every time HWPX goes to a name that does not end in ``.hwpx`` -- unless the
+    caller *stated* the format (``save(..., format="hwpx")``) and the name says no other one (a
+    temporary ``.tmp`` name, say). HWPX stated for a ``.hwp`` name still warns: the name says HWP."""
 
     import os
     import warnings
 
     global _hwp5_write_warned
     suffix = os.path.splitext(os.fspath(path))[1].lower()
+    if format == "hwpx" and stated and suffix != ".hwp":
+        return
     if format == "hwp":
         if not _hwp5_write_warned:
             _hwp5_write_warned = True
@@ -465,7 +469,9 @@ def save(
     *format* ``None`` writes HWP 5.0 to a path ending in ``.hwp`` and HWPX otherwise
     (a stream included); ``format="hwp"``/``"hwpx"`` says it outright. HWP 5.0 is
     written by the experimental HWP 5.0 writer (a warning says so once per process);
-    HWPX to a name that does not end in ``.hwpx`` gets a warning. A target that cannot
+    HWPX to a name that does not end in ``.hwpx`` gets a warning, unless ``format="hwpx"``
+    says it outright and the name is not ``.hwp`` (a temporary name such as
+    ``out.hwpx.tmp`` then saves quietly; ``.hwp`` still warns). A target that cannot
     be written raises :class:`SaveTargetError`, which is also the :class:`OSError`
     subclass Python raised.
 
@@ -498,7 +504,7 @@ def save(
     archive_bytes, measurement, open_safety = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
     if path is not None:
-        _warn_about_target_format(path, resolved)
+        _warn_about_target_format(path, resolved, stated=format is not None)
     # HWP 5.0 is made from the validated HWPX parts the gate checks; it raises before
     # anything is written when the HWP 5.0 writer cannot express the document.
     hwp5 = _hwp5_bytes(archive_bytes) if resolved == "hwp" else None

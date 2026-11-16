@@ -1202,7 +1202,8 @@ def _text_width(section: "HwpxOxmlSection") -> int:
     properties = section.properties
     size, margins = properties.page_size, properties.page_margins
     gutter = 0 if size.gutter_type == "TOP_BOTTOM" else margins.gutter
-    return max(size.drawn_width - margins.left - margins.right - gutter, 0)
+    sizes = (size.drawn_width, margins.left, margins.right, gutter)
+    return 0 if None in sizes else max(sizes[0] - sizes[1] - sizes[2] - sizes[3], 0)  # type: ignore[operator]
 
 
 def _column_definition(node: Any, paragraph: "HwpxOxmlParagraph", section: "HwpxOxmlSection") -> "ColumnDefinition":
