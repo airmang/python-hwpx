@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **21개 클래스 / 323개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 362개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -75,8 +75,8 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 | | 수 | 락 |
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
-| 위임 shim | 0 (6.x 79, 7.0 제거) | `tests/data/document_legacy_shims.json` (지운 이름의 안내 표) |
-| 반환 객체 계약 | 323 | `tests/data/model_surface.json` |
+| 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
+| 반환 객체 계약 | 362 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -356,3 +356,17 @@ top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여
 추가하기·지우기, 셀 나누기)을 따르고, 새 칸은 기준 칸의 글을 복제하며 `blank=True`면
 빈 문단 하나만 둡니다. 거부하면 `TableStructureError`를 내고 표를 바꾸지 않습니다.
 편집 전에 얻은 셀·행 객체는 표에 속하지 않으니 다시 얻으세요.
+
+표의 모양과 크기는 7.0 에서 한 줄로 읽고 쓴다. `TableCell.vert_align`/`set_vert_align("CENTER")`
+(칸 세로 정렬), `Table.alignment`/`set_alignment("CENTER")`(글자처럼 취급한 표는 그 문단의
+정렬, 떠 있는 표는 `hp:pos/@horzAlign`), `Table.width`/`set_width(w, proportional=True)`,
+`column_widths`·`row_heights`(격자 열 폭·행 높이 tuple), `set_column_width(col, w)`·
+`set_row_height(row, h)`, `Table.columns`(`TableColumn`: `index`·`cells`·`width`·`set_width`),
+`TableRow.index`·`height`·`set_height`, `cells_in("A1:C2")`, `set_borders(cell_range, sides=,
+line_type=, width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸의 다른 변·대각선·
+배경은 그대로 두고 그 칸의 테두리 정의에서 파생), `TableCell.border_fill`(`BorderFillInfo`),
+`header_rows`/`set_header_rows(n, repeat=True)`·`repeat_header`·`TableCell.is_header`/`set_header`,
+`page_break`/`set_page_break("CELL")`, `no_adjust`/`set_no_adjust`, `in_margins`/`set_in_margins`,
+`text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`),
+`TableCell.clear()`, `copy_after(paragraph=None)`(새 id 로 복사). 길이는 모두 HWPUNIT,
+선 굵기만 `_mm` 이다.

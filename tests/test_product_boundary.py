@@ -344,8 +344,10 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # loader is a thin layer over hwpx.ingest and imports langchain_core only there.
     # +1: the LlamaIndex reader (integrations/llama_index.py), the same layer for llama_index.
     # +1: choices typed as check marks (tools/form_choices.py).
+    # +1: how a table and its cells look and flow (oxml/table_format.py), outside table.py because
+    # that owner file sits near its code-line review line.
     # +1: run and paragraph formats, run splitting and range formatting (oxml/formatting.py).
-    assert report["classifiedFiles"] == 193
+    assert report["classifiedFiles"] == 194
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
