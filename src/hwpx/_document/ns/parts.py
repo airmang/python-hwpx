@@ -135,6 +135,8 @@ class PartsNamespace(_Namespace):
         6.13 트레인㊻ — 편집기 메뉴 표면 역매핑이 [부분 대응](읽기만,
         쓰기 없음)으로 지목한 갭. *section* 을 주지 않으면 파트만 만든다 — 어느
         절에서도 참조하지 않는다. 쓰려면 ``doc.page.set_master_page(mp, section=...)`` 로 잇는다.
+        저장할 때까지 어느 절에도 잇지 않으면 저장이 ``HwpxValueError``(``master-page-unlinked``)로
+        거부된다 — 한/글은 어느 절도 가리키지 않는 바탕쪽 파트를 버린다(한/글 2024에서 열고 다시 저장해 확인).
         바탕쪽의 글은 *text* (첫 문단)로 주고, 문단을 더 넣으려면 ``mp.add_paragraph("...")``.
 
         기본 ``page_type="OPTIONAL_PAGE"``는 ``page_number``(그 쪽 번호, 주지 않으면 1)

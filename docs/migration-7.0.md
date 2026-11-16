@@ -173,6 +173,13 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 - **한 가지 일은 한 곳에서** 한다(변경 추적은 `doc.tracking`, 서식 정의는 `doc.styles`).
 - **실패는 `hwpx.errors.HwpxError` 계열** 이고 `code`·`suggestion` 을 싣는다. 대신하는 내장 예외(`TypeError` 등)도 함께 상속한다.
 
+### `.element`는 계약 밖이다
+
+모델 객체의 `.element`(감싼 XML 요소)는 7.0에서도 그대로 쓸 수 있다. 다만 공개 계약이 아니다. 요소의 모양은 판 사이에
+바뀔 수 있고, `.element`로 고친 것은 엔진의 거부·검사·줄 배치 캐시 지우기를 거치지 않는다. XML을 직접 고쳤다면 그 문단에
+`paragraph.clear_layout_cache()`를 부른다. 7.0에서 공개 API가 생긴 일(문단·런 서식, 표 속성, 개체 배치, 번호·글머리표, 누름틀 값
+등)은 공개 API로 옮기기를 권한다. 자세한 것은 [stable-api](stable-api.md)의 「`.element` — 약속하지 않는 탈출구」.
+
 ### 안내 오류
 
 6.x 에 나간 이름을 7.0 에서 바꾸거나 지웠으면 새 자리를 알려 주는 오류가 난다. 7.0 개발 중에만 있던 이름은 안내 없이 바뀌었다.
@@ -393,6 +400,8 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | 용지 크기·여백(`doc.page.size()`·`doc.page.margins()`, `section.properties.page_size`·`page_margins`)이 파일에 적힌 대로다. 적히지 않은 값은 스키마 기본값(용지 59528×84188, 머리말·꼬리말 4252, 제본 0)이고, 기본값이 없는 왼·오른·위·아래 여백이 없거나 숫자가 아니면, 또는 `hp:pagePr`·`hp:margin` 자체가 없으면 `None` 이다(6.x 는 0). 그래서 `PageSize.width`·`height`·`drawn_width`·`drawn_height` 와 `PageMargins` 의 값이 `int | None` 이다. 한/글은 이 값을 늘 적으므로(공개 문서 1,637 구역 모두) 한/글 저장본은 전과 같다 | 셈에 쓰기 전에 `None` 을 본다(`if margins.left is None: ...`). 0 으로 셈하던 6.x 동작은 `margins.left or 0` |
 | `doc.text.highlights` 가 본문만이 아니라 표 칸·글상자·캡션·머리말·꼬리말·각주·메모·바탕쪽의 형광펜도 돌려준다(`doc.text.iter_paragraphs()` 의 문단) | 본문 것만: `[h for h in doc.text.highlights if h.paragraph in doc.paragraphs]` |
 | `doc.save(path, format="hwpx")` 처럼 형식을 밝히면 이름이 `.hwpx` 가 아니어도(임시 이름 `out.hwpx.tmp` 등) 경고하지 않는다. 이름이 `.hwp` 면 여전히 경고한다 | 없음 |
+| `doc.parts.add_master_page(...)` 로 만든 바탕쪽을 저장할 때까지 어느 구역에도 잇지 않으면 저장이 `HwpxValueError`(`master-page-unlinked`)로 거부된다. 6.x 는 잇지 않은 파트를 그대로 썼고, 한/글 2024 는 그 파트를 버렸다(다시 저장하면 바탕쪽과 글이 사라진다). 읽어 온 문서에 있던 바탕쪽은 손대지 않는다 | 만든 뒤 잇는다: `doc.page.set_master_page(mp, section=0)`, 또는 `add_master_page(..., section=0)`. 쓰지 않을 것은 `doc.parts.remove_master_page(mp)` |
+| `doc.text.iter_paragraphs()` 가 MEMO 누름틀 안에만 있는 메모(한/글 2024 가 저장하는 모양)의 문단도 `where="memo"` 로 내놓는다. 6.x 는 `hp:memogroup` 의 메모만 내놓아, 한/글로 다시 저장한 문서에서 메모 글이 빠진 것처럼 보였다(`doc.notes.memos` 는 전에도 읽었다) | 본문 쪽만: `where=` 를 준다 |
 | **`table.insert_rows()`·`insert_columns()`(`doc.tables.` 도)가 한/글처럼 빈 행·열을 넣는다.** 6.x 는 기준 칸의 글·개체까지 복사했다. `blank=` 없이 부르던 코드는 오류 없이 결과가 바뀐다([아래](#표에-넣는-행과-열은-빈-칸이다)) | `copy_content=True` |
 
 ### 표에 넣는 행과 열은 빈 칸이다

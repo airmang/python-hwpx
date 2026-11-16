@@ -228,6 +228,8 @@ def add_master_page(
     document._manifest_dirty = True
 
     new_master_page = HwpxOxmlMasterPage(part_name, root, document)
+    # The save refuses a master page made here that no section is linked to by then (Hancom drops it).
+    new_master_page._created_in_session = True  # type: ignore[attr-defined]
     new_master_page.mark_dirty()
     document._master_pages.append(new_master_page)
 

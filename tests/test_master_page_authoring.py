@@ -39,7 +39,7 @@ _OPF_NS = "http://www.idpf.org/2007/opf/"
 def test_add_master_page_creates_a_part_and_registers_it_in_the_manifest() -> None:
     document = HwpxDocument.new()
 
-    master_page = document.parts.add_master_page(text="회사명")
+    master_page = document.parts.add_master_page(text="회사명", section=0)
 
     assert master_page.id == "masterpage0"
     parts = document.parts.master_pages

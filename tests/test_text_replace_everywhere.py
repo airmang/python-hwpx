@@ -44,7 +44,7 @@ def _document_with_every_place() -> HwpxDocument:
     document.fields.add("f1", prompt="안내", paragraph=document.add_paragraph("누름틀: "))
     document.fields.fill("누름틀값사과", name="f1")
     document.add_table(1, 1).set_caption("캡션사과")
-    document.parts.add_master_page(text="바탕쪽사과")
+    document.parts.add_master_page(text="바탕쪽사과", section=0)
     return document
 
 

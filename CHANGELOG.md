@@ -27,6 +27,8 @@
 #### 이름 규칙
 
 - 7.0이 마지막 이름 변경이다. 공개 이름(최상위·루트·묶음·`hwpx.model`·`hwpx.objects`·안정 모듈)은 다음 major까지 바뀌지 않는다.
+  모델 객체의 `.element`(감싼 XML 요소)는 이 약속에 들어 있지 않다. 쓸 수는 있지만 모양을 약속하지 않고, 이것으로 고친 것은 엔진의
+  거부와 검사를 거치지 않는다(`docs/stable-api.md`의 「`.element` — 약속하지 않는 탈출구」).
   6.x 이름을 부르면 `HwpxAttributeError`(`document-name-removed`)나 `HwpxTypeError`(`hwpx-argument-removed`)가 새 이름과 한 줄
   예를 알려 준다. `hasattr`는 `False`다.
 - 6.0이 묶음(`doc.styles`·`doc.page` …)으로 옮기고 경고와 함께 남겨 둔 루트 이름 79개를 지웠다(예: `doc.set_header_text(...)` →
@@ -411,6 +413,11 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- `doc.parts.add_master_page(...)`로 만들고 어느 구역에도 잇지 않은 바탕쪽은 저장을 `HwpxValueError`(`master-page-unlinked`)로
+  거부한다. 전에는 잇지 않은 파트를 그대로 써서, 한/글 2024가 다시 저장할 때 바탕쪽과 그 글이 사라졌다. 만든 뒤
+  `doc.page.set_master_page(mp, section=0)`로 잇거나 `add_master_page(..., section=0)`으로 만든다. 읽어 온 바탕쪽은 그대로 둔다.
+- `doc.text.iter_paragraphs()`가 MEMO 누름틀에만 있는 메모(한/글 2024가 저장하는 모양)의 글을 `where="memo"`로 내놓지 않아,
+  한/글로 다시 저장한 문서에서 메모 글이 빠진 것처럼 보이던 문제를 고쳤다.
 - 열기 안전 검사가 저장을 거부할 때 `to_bytes()`·`save()`가 code 없는 `HwpxPackageError`를 내던 문제를 고쳤다. 이제 엔진 계약대로
   `code="open-safety-failed"`·`suggestion`을 싣는다. `HwpxPackageError`·`HwpxStructureError` 계열(`HwpxArchiveError` 등)과
   `HwpxSecurityError`도 `HwpxError`를 상속해 늘 code를 낸다(`package-invalid`·`open-input-unsafe` 등). 앞에서 잡던 형식으로도 그대로
