@@ -190,7 +190,6 @@ class HwpxOxmlSection:
         self,
         text: str = "",
         *,
-        memo_shape_id_ref: str | int | None = None,
         memo_id: str | None = None,
         char_pr_id_ref: str | int | None = None,
         attributes: Optional[dict[str, str]] = None,
@@ -201,7 +200,6 @@ class HwpxOxmlSection:
         group = HwpxOxmlMemoGroup(element, self)
         return group.add_memo(
             text,
-            memo_shape_id_ref=memo_shape_id_ref,
             memo_id=memo_id,
             char_pr_id_ref=char_pr_id_ref,
             attributes=attributes,

@@ -107,7 +107,6 @@ table.set_cell_text(1, 1, "검토 중")
 memo = document.notes.add_memo(
     "이 문단을 다시 확인하세요.",
     paragraph=paragraph,
-    memo_shape_id_ref="0",
 )
 print("메모 ID:", memo.id)
 print("필드 ID:", memo.field_id)
@@ -120,7 +119,7 @@ print("저장 완료: output/hello-final.hwpx")
 섹션에는 최소 하나의 단락이 필요합니다. 마지막 단락을 삭제하면 `ValueError`가 발생합니다.
 ```
 
-기본 템플릿에는 적어도 하나의 메모 모양이 포함되어 있으므로 `memo_shape_id_ref="0"`부터 시작하면 된다. 더 복잡한 표 편집, 병합 셀, 섹션 추가/삭제는 {doc}`usage`에서 이어서 보면 된다.
+메모 모양은 메모마다가 아니라 구역마다다(한/글과 같다). 모양을 바꾸려면 `document.notes.set_memo_shape(document.styles.ensure_memo_shape(...), section=0)`. 더 복잡한 표 편집, 병합 셀, 섹션 추가/삭제는 {doc}`usage`에서 이어서 보면 된다.
 
 ## 5. 저장에는 영수증이 따라온다
 

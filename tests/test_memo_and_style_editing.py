@@ -93,7 +93,9 @@ def test_section_memo_parsing_exposes_text_and_shape() -> None:
     assert len(memos) == 1
     memo = memos[0]
     assert memo.text == "Initial memo"
-    assert memo.memo_shape_id_ref == "5"
+    # 7.0: a memo has no shape of its own (its section's memoShapeIDRef has); the id a 6.x
+    # memogroup memo carries is read as written.
+    assert memo.attributes["memoShapeIDRef"] == "5"
 
     shapes = document.styles.memo_shapes
     assert "5" in shapes
@@ -104,7 +106,7 @@ def test_section_memo_parsing_exposes_text_and_shape() -> None:
 def test_document_add_edit_and_remove_memos() -> None:
     document, section, _ = _build_document()
 
-    new_memo = document.notes.add_memo("Another memo", memo_shape_id_ref="5")
+    new_memo = document.notes.add_memo("Another memo")
     assert any(memo.id == new_memo.id for memo in section.memos)
     assert new_memo.text == "Another memo"
 
@@ -180,7 +182,7 @@ def test_attach_memo_field_inserts_control_runs() -> None:
     document, section, _ = _build_document()
     paragraph = section.paragraphs[0]
 
-    memo = document.notes.add_memo("Follow-up", memo_shape_id_ref="5", memo_id="release-1", char_pr_id_ref="10")
+    memo = document.notes.add_memo("Follow-up", memo_id="release-1", char_pr_id_ref="10")
 
     returned = document.notes.attach(
         paragraph,
@@ -206,11 +208,26 @@ def test_attach_memo_field_inserts_control_runs() -> None:
 
     parameters = field_begin.find(f"{HP}parameters")
     assert parameters is not None
-    assert parameters.get("cnt") == "5"
+    # Hangul 2024's own MEMO field: seven parameters in this order (tests/fixtures/hancom_saved).
+    assert parameters.get("cnt") == "7"
     assert parameters.get("count") is None
+    assert [(_local(p), p.get("name")) for p in parameters] == [
+        ("integerParam", "Prop"),
+        ("stringParam", "Command"),
+        ("stringParam", "ID"),
+        ("integerParam", "Number"),
+        ("stringParam", "Author"),
+        ("stringParam", "MemoShapeIDRef"),
+        ("stringParam", "CreateDateTime"),
+    ]
     memo_shape_param = parameters.find(f"{HP}stringParam[@name='MemoShapeIDRef']")
     assert memo_shape_param is not None
-    assert memo_shape_param.text == memo.memo_shape_id_ref
+    assert memo_shape_param.text == "65535"  # the shape is the section's
+    command = parameters.find(f"{HP}stringParam[@name='Command']")
+    assert command is not None and command.text is not None
+    assert re.fullmatch(r"MEMO/65535/3/\d+/\d+/QA/\\;;", command.text), command.text
+    # An id the caller named is kept; otherwise the field's ID is memo<Number>, as Hangul's.
+    assert parameters.find(f"{HP}stringParam[@name='ID']").text == "release-1"
 
     # Regression (Hancom oracle): the MEMO field subList carries the comment TEXT —
     # this is what Hancom shows in the margin memo box. Previously it emitted the memo
@@ -222,6 +239,10 @@ def test_attach_memo_field_inserts_control_runs() -> None:
     field_end = runs[-1].find(f"{HP}ctrl/{HP}fieldEnd")
     assert field_end is not None
     assert field_end.get("beginIDRef") == "field-01"
+
+
+def _local(element: ET.Element) -> str:
+    return element.tag.rsplit("}", 1)[-1]
 
 
 def _memo_field_begins(section: HwpxOxmlSection) -> list[ET.Element]:
@@ -241,8 +262,8 @@ def test_memo_fields_get_distinct_positive_zorder() -> None:
     # A MEMO fieldBegin without zorder, or with -1, loses its fieldEnd when
     # Hancom saves the file; a positive zorder keeps it.
     document, section, _ = _build_document()
-    first = document.notes.add_memo("First", memo_shape_id_ref="5", memo_id="z-1", char_pr_id_ref="10")
-    second = document.notes.add_memo("Second", memo_shape_id_ref="5", memo_id="z-2", char_pr_id_ref="10")
+    first = document.notes.add_memo("First", memo_id="z-1", char_pr_id_ref="10")
+    second = document.notes.add_memo("Second", memo_id="z-2", char_pr_id_ref="10")
 
     document.notes.attach(section.paragraphs[0], first, field_id="field-z1")
     document.notes.attach(section.paragraphs[0], second, field_id="field-z2")
@@ -315,21 +336,28 @@ def test_hancom_keeps_the_end_of_every_memo_only_when_their_numbers_differ() -> 
     assert _closed_memos(same) == [True, False]
 
 
+_NINE_UTC = datetime(2024, 12, 2, 9, 0, tzinfo=timezone.utc)
+_NINE_UTC_LOCAL = _NINE_UTC.astimezone().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 @pytest.mark.parametrize(
     ("created", "expected"),
     [
-        (datetime(2024, 12, 2, 9, 0, tzinfo=timezone.utc), "2024-12-02T09:00:00Z"),
-        (datetime(2024, 12, 2, 18, 0, tzinfo=timezone(timedelta(hours=9))), "2024-12-02T09:00:00Z"),
-        ("2024-12-02T09:00:00Z", "2024-12-02T09:00:00Z"),
-        ("2024-12-02 18:00:00+09:00", "2024-12-02T09:00:00Z"),
+        (_NINE_UTC, _NINE_UTC_LOCAL),
+        (datetime(2024, 12, 2, 18, 0, tzinfo=timezone(timedelta(hours=9))), _NINE_UTC_LOCAL),
+        ("2024-12-02T09:00:00Z", _NINE_UTC_LOCAL),
+        ("2024-12-02 18:00:00+09:00", _NINE_UTC_LOCAL),
+        (datetime(2024, 12, 2, 18, 0), "2024-12-02T18:00:00Z"),  # naive = local wall time
         ("not a timestamp", "not a timestamp"),
     ],
 )
-def test_memo_create_time_is_written_as_utc_iso(created: object, expected: str) -> None:
+def test_memo_create_time_is_written_as_hancom_writes_it(created: object, expected: str) -> None:
     # Hancom cannot read "2024-12-02 09:00:00" -- it turns it into a 1601
-    # FILETIME -- while "…T…Z" survives a save.
+    # FILETIME -- while "…T…Z" survives a save. Hangul writes CreateDateTime as the local wall
+    # time (with a "Z" all the same) and the UTC moment as FILETIME in Command: in every memo it
+    # saved the two differ by its UTC offset (tests/fixtures/hancom_saved).
     document, section, _ = _build_document()
-    memo = document.notes.add_memo("Dated", memo_shape_id_ref="5", memo_id="t-1", char_pr_id_ref="10")
+    memo = document.notes.add_memo("Dated", memo_id="t-1", char_pr_id_ref="10")
 
     document.notes.attach(section.paragraphs[0], memo, field_id="field-t1", created=created)
 
@@ -337,19 +365,34 @@ def test_memo_create_time_is_written_as_utc_iso(created: object, expected: str) 
     assert _create_time(field_begin) == expected
 
 
-def test_memo_create_time_defaults_to_now_in_utc() -> None:
+def test_memo_create_time_defaults_to_now_in_local_time() -> None:
     document, section, _ = _build_document()
-    memo = document.notes.add_memo("Now", memo_shape_id_ref="5", memo_id="n-1", char_pr_id_ref="10")
+    memo = document.notes.add_memo("Now", memo_id="n-1", char_pr_id_ref="10")
 
-    before = datetime.now(timezone.utc).replace(microsecond=0)
+    before = datetime.now().replace(microsecond=0)
     document.notes.attach(section.paragraphs[0], memo, field_id="field-n1")
-    after = datetime.now(timezone.utc)
+    after = datetime.now()
 
     (field_begin,) = _memo_field_begins(section)
     text = _create_time(field_begin)
     assert text is not None and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", text)
-    stamp = datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    stamp = datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ")
     assert before <= stamp <= after
+
+
+def test_memo_command_filetime_is_the_same_moment_in_utc() -> None:
+    document, section, _ = _build_document()
+    memo = document.notes.add_memo("Dated", memo_id="f-1", char_pr_id_ref="10")
+    document.notes.attach(section.paragraphs[0], memo, field_id="field-f1", created=_NINE_UTC, number=4)
+
+    (field_begin,) = _memo_field_begins(section)
+    command = field_begin.find(f"{HP}parameters/{HP}stringParam[@name='Command']")
+    assert command is not None and command.text is not None
+    _, shape, number, low, high, author, _rest = command.text.split("/", 6)
+    assert (shape, number, author) == ("65535", "4", "")
+    ticks = (int(high) << 32) | int(low)
+    assert ticks % 10_000_000 == 0  # whole seconds, as Hangul's
+    assert datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=ticks // 10) == _NINE_UTC
 
 
 def test_add_memo_anchored_to_a_new_paragraph() -> None:
@@ -363,7 +406,6 @@ def test_add_memo_anchored_to_a_new_paragraph() -> None:
         "Anchored memo",
         paragraph=anchor,
         section=section,
-        memo_shape_id_ref="5",
         memo_id="release-2",
         char_pr_id_ref="10",
         paragraph_text="Anchor target",
@@ -395,7 +437,6 @@ def test_add_memo_with_anchor_roundtrips_on_real_document() -> None:
     memo = document.notes.add_memo(
         "Quick start memo",
         paragraph=paragraph,
-        memo_shape_id_ref="0",
     )
 
     # Paragraph wrappers are rebuilt on every access, so identity comparison

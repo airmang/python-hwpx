@@ -179,12 +179,13 @@
   "notes": {
    "add_endnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
    "add_footnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
-   "add_memo": {"kind": "method", "params": [["text", "P", true], ["paragraph", "K", true], ["section", "K", true], ["memo_shape_id_ref", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true], ["paragraph_text", "K", true], ["field_id", "K", true], ["author", "K", true], ["created", "K", true], ["number", "K", true], ["paragraph_char_pr_id_ref", "K", true], ["match", "K", true]], "returns": "Memo"},
+   "add_memo": {"kind": "method", "params": [["text", "P", true], ["paragraph", "K", true], ["section", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true], ["paragraph_text", "K", true], ["field_id", "K", true], ["author", "K", true], ["created", "K", true], ["number", "K", true], ["paragraph_char_pr_id_ref", "K", true], ["match", "K", true]], "returns": "Memo"},
    "attach": {"kind": "method", "params": [["paragraph", "P", false], ["memo", "P", false], ["field_id", "K", true], ["author", "K", true], ["created", "K", true], ["number", "K", true], ["char_pr_id_ref", "K", true], ["match", "K", true]], "returns": "Memo"},
    "endnotes": {"kind": "property", "settable": false, "returns": "tuple[Note, ...]"},
    "footnotes": {"kind": "property", "settable": false, "returns": "tuple[Note, ...]"},
    "memos": {"kind": "property", "settable": false, "returns": "tuple[Memo, ...]"},
-   "remove_memo": {"kind": "method", "params": [["memo", "P", false]], "returns": "None"}
+   "remove_memo": {"kind": "method", "params": [["memo", "P", false]], "returns": "None"},
+   "set_memo_shape": {"kind": "method", "params": [["memo_shape_id_ref", "P", false], ["section", "K", true]], "returns": "None"}
   },
   "refs": {
    "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["paragraph", "K", true], ["section", "K", true]], "returns": "Bookmark"},
@@ -514,7 +515,6 @@
     "attributes": {"kind": "property", "settable": false, "returns": "dict[str, str]"},
     "copy_to": {"kind": "method", "params": [["section", "P", false], ["index", "K", true]], "returns": "Memo"},
     "id": {"kind": "property", "settable": true, "returns": "str | None"},
-    "memo_shape_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "move_to": {"kind": "method", "params": [["section", "P", false], ["index", "K", true]], "returns": "None"},
     "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"},
     "remove": {"kind": "method", "params": [], "returns": "None"},
@@ -529,7 +529,7 @@
   },
   "MemoGroup": {
    "members": {
-    "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_shape_id_ref", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
+    "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
     "memos": {"kind": "property", "settable": false, "returns": "tuple[Memo, ...]"}
    },
    "internal": []
@@ -702,7 +702,7 @@
   },
   "Section": {
    "members": {
-    "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_shape_id_ref", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
+    "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
     "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["include_run", "K", true], ["inherit_style", "K", true]], "returns": "Paragraph"},
     "clear_body": {"kind": "method", "params": [["on_control_content", "K", true]], "returns": "ClearBodyReport"},
     "clear_layout_cache": {"kind": "method", "params": [["stale_only", "K", true]], "returns": "int"},
@@ -732,6 +732,7 @@
     "footers": {"kind": "property", "settable": false, "returns": "tuple[HeaderFooter, ...]"},
     "header": {"kind": "method", "params": [["page_type", "P", true]], "returns": "HeaderFooter | None"},
     "headers": {"kind": "property", "settable": false, "returns": "tuple[HeaderFooter, ...]"},
+    "memo_shape_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "outline_shape_id_ref": {"kind": "property", "settable": false, "returns": "str | None"},
     "page_margins": {"kind": "property", "settable": false, "returns": "PageMargins"},
     "page_size": {"kind": "property", "settable": false, "returns": "PageSize"},

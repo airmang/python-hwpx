@@ -639,7 +639,8 @@ ERROR_CODES: dict[str, str] = {
     "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
     "note-memo-anchor-elsewhere": "메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모).",
     "note-memo-index-value": "메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다.",
-    "note-memo-unanchored": "이번에 만든 메모를 어느 문단에도 걸지 않고 저장하려 했다(한/글은 메모를 MEMO 누름틀 안에만 둔다).",
+    "note-memo-shape-not-found": "구역에 줄 메모 모양(hh:memoPr) id 가 머리에 없다.",
+    "note-memo-unanchored":"이번에 만든 메모를 어느 문단에도 걸지 않고 저장하려 했다(한/글은 메모를 MEMO 누름틀 안에만 둔다).",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",

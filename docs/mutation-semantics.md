@@ -88,10 +88,10 @@ print(report.actual_mode)
 
 ## 알아둘 캐비앗 (정직 고지)
 
-- `document.notes.add_memo(memo_shape_id_ref=...)`는 참조가 실재하는 메모
-  모양인지 **검증하지 않고 조용히 수용한다**. 존재하지 않는 ID를 넣으면
-  저장은 되지만 편집기 표시가 어긋날 수 있다. `document.styles.memo_shapes`로
-  실재 ID를 확인하고 쓰는 것을 권장한다.
+- 메모 모양은 구역마다다(`document.notes.set_memo_shape(id, section=i)`,
+  한/글처럼 `hp:secPr@memoShapeIDRef`). 헤더에 없는 ID는
+  `note-memo-shape-not-found`로 거절한다. 6.x 문서가 MEMO 필드에 적어 둔
+  모양 ID는 검증하지 않고 읽은 그대로 둔다.
 - `document.text.replace`는 기본으로 본문 문단의 개별 런 안에서 치환한다. 여러
   런에 걸친 검색어와 표 칸·머리말 같은 다른 곳의 문단은 대상이 아니다.
   `everywhere=True`면 한/글 "모두 바꾸기"처럼 표 칸(칸 안 표 포함)·글상자·캡션·

@@ -35,7 +35,8 @@ Use the API paths below rather than inferring names from python-docx.
   `document.add_table(rows, cols)`
   then `table.set_cell_text(row, col, text)`,
   `document.notes.add_footnote(text, paragraph=p)`,
-  `document.notes.add_memo(text, paragraph=p, memo_shape_id_ref="0")` (returns a
+  `document.notes.add_memo(text, paragraph=p)` (memo shape is per section:
+  `document.notes.set_memo_shape(shape_id, section=0)`) (returns a
   Memo with `paragraph` and `field_id` attributes, not a tuple),
   `document.text.replace(search, replacement)` (returns count; empty search
   raises `ValueError`). Replacement is within individual body runs, not across

@@ -90,8 +90,10 @@
   - 헤더의 메모 모양 정의(id 색인)와 그 하나. `doc.styles.ensure_memo_shape(...)`가 정의를 보장하고 id를 돌려준다.
 - `doc.notes.memos`
   - 모든 구역의 메모(`Memo`)를 문서 순서의 tuple로 돌려주는 프로퍼티입니다.
-- `doc.notes.add_memo(text, *, paragraph=None, section=None, memo_shape_id_ref=None, ...) -> Memo`
-  - 메모를 만들고, `paragraph=`(번호나 문단 객체)를 주면 그 문단에 한/글이 보이는 MEMO 필드를 붙입니다. 구역은 `section=`(번호나 구역 객체), 주지 않으면 마지막 구역입니다.
+- `doc.notes.add_memo(text, *, paragraph=None, section=None, ...) -> Memo`
+  - 메모를 만들고, `paragraph=`(번호나 문단 객체)를 주면 그 문단에 한/글이 보이는 MEMO 필드를 붙입니다. 구역은 `section=`(번호나 구역 객체), 주지 않으면 마지막 구역입니다. 6.x의 `memo_shape_id_ref=`는 7.0에서 없어졌습니다(메모 모양은 구역마다).
+- `doc.notes.set_memo_shape(memo_shape_id_ref, *, section=None)`
+  - 구역의 메모 모양(`hp:secPr@memoShapeIDRef`)을 정합니다. 그 구역의 메모가 모두 이 모양으로 그려집니다. `section="all"`이면 모든 구역, `None` 모양이면 기본 모양(`"0"`). 없는 id는 `note-memo-shape-not-found`. 읽기는 `doc.sections[i].properties.memo_shape_id_ref`.
 - `doc.notes.attach(paragraph, memo) -> Memo`, `doc.notes.remove_memo(memo)`
   - 이미 있는 메모를 문단에 붙이고, 메모를 지웁니다.
 
@@ -438,7 +440,7 @@
 
 ### 클래스 `HwpxOxmlMemo`
 
-- `id`, `memo_shape_id_ref`: XML 속성을 업데이트하는 setter가 있는 메모 메타데이터를 노출하는 프로퍼티입니다.
+- `id`: XML 속성을 업데이트하는 setter가 있는 메모 id 프로퍼티입니다. (6.x의 `memo_shape_id_ref`는 7.0에서 없어졌습니다. 6.x 문서에 적힌 값은 `attributes`로 읽습니다.)
 - `attributes`: 메모의 속성 집합 복사본을 딕셔너리로 반환합니다.
 - `set_attribute(name, value)`: 임의의 속성을 추가하거나 제거합니다.
 - `paragraphs`: 메모 텍스트에 포함된 단락 래퍼를 반환하는 프로퍼티입니다.

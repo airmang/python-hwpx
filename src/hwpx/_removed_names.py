@@ -507,6 +507,17 @@ NAMES: dict[str, dict[str, Removed]] = {
     "Table": {
         "get_cell_map": _gone("Table.cell_map", "table.get_cell_map()은 7.0에서 속성 table.cell_map(tuple의 tuple)이다"),
     },
+    # 메모 모양은 구역 단위다: 한/글은 구역의 memoShapeIDRef 에 두고 MEMO 누름틀에는 늘 65535를 쓴다.
+    "Memo": {
+        "memo_shape_id_ref": _gone(
+            "doc.sections[i].properties.memo_shape_id_ref",
+            "memo.memo_shape_id_ref는 7.0에서 없어졌다: 메모 모양은 메모마다가 아니라 구역마다다(한/글은 구역의 "
+            "memoShapeIDRef에 두고 누름틀에는 늘 65535를 쓴다). 읽기는 doc.sections[i].properties.memo_shape_id_ref, "
+            "쓰기는 doc.notes.set_memo_shape(shape_id, section=i). 6.x 문서에 적힌 값은 그대로 읽힌다: "
+            "누름틀 메모는 memo.attributes['MemoShapeIDRef'], hp:memogroup 메모는 memo.attributes['memoShapeIDRef']",
+            kind="property",
+        ),
+    },
     # == 값 형식 (WP5b) ====================================================
     "CheckBox": {
         "section_index": _gone(
@@ -657,9 +668,11 @@ ARGUMENTS: dict[str, Arguments] = {
         keyword_only=("paragraph",),
     ),
     "doc.notes.add_memo": _args(
-        "doc.notes.add_memo(anchor=p)는 7.0에서 paragraph=p 이다(anchor_char_pr_id_ref= → paragraph_char_pr_id_ref=)",
+        "doc.notes.add_memo(anchor=p)는 7.0에서 paragraph=p 이다(anchor_char_pr_id_ref= → paragraph_char_pr_id_ref=). "
+        "memo_shape_id_ref=는 없어졌다: 메모 모양은 구역마다다 — doc.notes.set_memo_shape(shape_id, section=i)",
         anchor="paragraph",
         anchor_char_pr_id_ref="paragraph_char_pr_id_ref",
+        memo_shape_id_ref=None,
     ),
     "doc.tracking.add_change": _args(
         "doc.tracking.add_change(author_name=)는 7.0에서 author= 이다", author_name="author"
@@ -750,6 +763,16 @@ ARGUMENTS: dict[str, Arguments] = {
         run_attributes=None,
         inherit_outline=None,
         xml_attributes=True,
+    ),
+    "Section.add_memo": _args(
+        "Section.add_memo(memo_shape_id_ref=)는 7.0에서 없어졌다: 메모 모양은 구역마다다 — "
+        "section.properties.memo_shape_id_ref = shape_id (doc.notes.set_memo_shape)",
+        memo_shape_id_ref=None,
+    ),
+    "MemoGroup.add_memo": _args(
+        "MemoGroup.add_memo(memo_shape_id_ref=)는 7.0에서 없어졌다: 메모 모양은 구역마다다 — "
+        "section.properties.memo_shape_id_ref = shape_id (doc.notes.set_memo_shape)",
+        memo_shape_id_ref=None,
     ),
     "SectionProperties.add_master_page_reference": _args(
         "SectionProperties.add_master_page_reference(id_ref=)는 7.0에서 master_page_id= 이다(MasterPage 도 받는다)",
