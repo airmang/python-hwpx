@@ -848,8 +848,8 @@ def ungroup_elements(group: Any, top_z_order: int) -> list[Any]:
     group's ``textWrap``, ``textFlow``, ``numberingType`` and outer margins, ``groupLevel`` 0, a new ``id``
     and a ``zOrder`` above the others (*top_z_order* on), and keeps its ``instid`` (a connector attached to it
     stays). Hancom 2024 wrote this for a group of a rectangle and an ellipse ungrouped plain, stretched
-    1.6 x 1.8 and 0.6 x 2.4, turned 30 and 90 degrees, and stretched then turned 45 (objlim evidence ungroup2,
-    ungroup3, ungroupstretch, ungroupstretch2, ungroupturned2, ungroupturned90, ungroupturned45: its boxes a unit
+    1.6 x 1.8 and 0.6 x 2.4, turned 30, 45 and 90 degrees, and stretched then turned 45 (objlim evidence ungroup2,
+    ungroup3, ungroupstretch, ungroupstretch2, ungroupturned2, ungroupturned45b, ungroupturned90, ungroupturned45: its boxes a unit
     apart here and there). Hancom also hangs each member on the paragraph at whose height it
     starts, which needs the line layout; here every member stays in the group's paragraph, measured from it,
     which draws it in the same spot.

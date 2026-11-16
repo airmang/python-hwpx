@@ -360,28 +360,22 @@ def test_a_page_measured_floating_object_goes_into_a_cell_as_hancom_pastes_it() 
     _reopen(doc)
 
 
-def test_a_paragraph_measured_object_moved_to_its_top_does_not_go_into_a_cell() -> None:
-    # Measured from its paragraph both ways and not kept in the page area: Hancom pastes it into a cell
-    # measured from its paragraph at offset 0 (PARA/PARA), a document Hancom 2024 could not open again
-    # (objlim evidence cl1, cl1b, cl1c, cl1s). Refused there; a text box takes it (evidence tb1).
+def test_a_paragraph_measured_object_moved_to_its_top_goes_into_a_cell_and_a_text_box() -> None:
+    # Measured from its paragraph both ways and not kept in the page area: Hancom 2024 pastes it measured from
+    # its paragraph at offset 0, kept in the area (objlim evidence cl1d in a cell, tb1 in a text box).
     doc = HwpxDocument.new()
     picture = _floating_picture(doc, doc.add_paragraph("떠 있는 그림"), "PARA")
     picture.element.find(f"{HP}pos").set("flowWithText", "0")
     cell_paragraph = doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0]
     target = _boxes(doc)["text_box"]
-    before = doc.to_bytes()
 
-    for call in (picture.move_to, picture.copy_to):
-        with pytest.raises(HwpxValueError) as excinfo:
-            call(cell_paragraph)
-        assert excinfo.value.code == "shape-move-place-unsupported"
-        assert excinfo.value.context["box"] == "cell"
-    assert doc.to_bytes() == before
-
+    copy = picture.copy_to(cell_paragraph)
     picture.move_to(target)
-    position = picture.element.find(f"{HP}pos")
-    assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
-            position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==         ("PARA", "PARA", "0", "1000", "1", "0")
+
+    for placed in (copy, picture):
+        position = placed.element.find(f"{HP}pos")
+        assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("vertOffset"),
+                position.get("horzOffset"), position.get("flowWithText"), position.get("allowOverlap")) ==             ("PARA", "PARA", "0", "1000", "1", "0")
     _reopen(doc)
 
 

@@ -83,8 +83,8 @@ def test_an_object_pasted_into_a_box_takes_the_placement_hancom_gives_it(box, be
     _reopen(doc)
 
 
-def test_cells_take_the_placements_hancom_could_open_again_only() -> None:
-    # cl0, cl2, cl5 and recellpage2 / recellcol0 opened again; cl1 (PARA/PARA moved to its top) did not.
+def test_cells_take_the_placements_hancom_gives_there() -> None:
+    # cl0, cl2, cl5, cl1d and recellpage2 / recellcol0 / cl1s opened again in Hancom 2024.
     doc = HwpxDocument.new()
     kept = _picture(doc, doc.add_paragraph("a"), "PARA", "COLUMN", "1", "1")
     paper = _picture(doc, doc.add_paragraph("b"), "PAPER", "PAPER", "1", "1")
@@ -93,10 +93,9 @@ def test_cells_take_the_placements_hancom_could_open_again_only() -> None:
 
     assert _pos(kept.copy_to(cell).element) == _pos(kept.element)
     assert _pos(paper.copy_to(cell).element)["horzRelTo"] == "COLUMN"
-    with pytest.raises(HwpxValueError) as excinfo:
-        low.copy_to(cell)
-    assert excinfo.value.code == "shape-move-place-unsupported"
-    assert "cl1" in excinfo.value.context["reason"]
+    assert _pos(low.copy_to(cell).element) == {  # cl1d
+        "vertRelTo": "PARA", "horzRelTo": "PARA", "vertOffset": "0", "horzOffset": "5000", "flowWithText": "1",
+        "allowOverlap": "0"}
     _reopen(doc)
 
 
@@ -146,6 +145,11 @@ def test_a_group_resized_is_stretched_with_its_members_as_hancom_does() -> None:
     assert _scale(rect) == pytest.approx([1.6, 0, 0, 0, 1.8, 0])
     assert _scale(ellipse) == pytest.approx([1.6, 0, 5400, 0, 1.8, 0])
     assert (_box(rect, "curSz"), _box(ellipse, "curSz")) == ((12800, 9000), (9600, 9000))
+    # Hancom keeps the rotation centres where they were (the group's own size over two, 7500x2500), its
+    # resave of the engine's resized group too (objlim psizegrp, kresize).
+    centres = [(node.find(f"{HP}rotationInfo").get("centerX"), node.find(f"{HP}rotationInfo").get("centerY"))
+               for node in (group.element, rect, ellipse)]
+    assert centres == [("7500", "2500"), ("4000", "2500"), ("3000", "2500")]
     _reopen(doc)
 
 
@@ -249,6 +253,12 @@ UNGROUPED = {
         {"tag": "ellipse", "pos": (2000 + 7794, 1000 + 4500), "sz": (7696, 7330), "curSz": (0, 0),
          "trans": (1451, -1085), "turn": ("30", "3848", "3665")},
     ],
+    "turned45": [  # ungroupturned45b: rect 2429/-3571 = group's place, ellipse 8793/1193 on the paragraph at 1600
+        {"tag": "rect", "pos": (2000, 1000), "sz": (9192, 9192), "curSz": (0, 0), "trans": (-429, 4571),
+         "turn": ("45", "4596", "4596")},
+        {"tag": "ellipse", "pos": (2000 + 8793 - 2429, 1000 + 1193 + 1600 + 3571), "sz": (7778, 7778),
+         "curSz": (0, 0), "trans": (2207, -1793), "turn": ("45", "3889", "3889")},
+    ],
     "turned90": [  # ungroupturned90: ellipse 7000/200 on the paragraph at 4800, group at (7000, -4000)
         {"tag": "rect", "pos": (2000, 1000), "sz": (5000, 8000), "curSz": (0, 0), "trans": (-5000, 5000),
          "turn": ("90", "2500", "4000")},
@@ -271,6 +281,8 @@ def test_a_group_is_ungrouped_as_hancom_ungroups_it(case) -> None:
         group.rotation = 30
     elif case == "turned90":
         group.rotation = 90
+    elif case == "turned45":
+        group.rotation = 45
 
     freed = group.ungroup()
 
@@ -359,18 +371,22 @@ def test_an_object_moved_into_another_document_leaves_the_first() -> None:
     _reopen(source), _reopen(target)
 
 
-def test_a_connector_copied_into_another_document_lets_go() -> None:
+def test_a_connector_is_not_copied_into_another_document() -> None:
+    # Pasted alone into another document a connector lets go of its shapes, and Hancom 2024 draws it nowhere
+    # (xconn's page image, and the engine's copy opened in Hancom: objlim-xdoc).
     source, target = HwpxDocument.new(), HwpxDocument.new()
     p = source.add_paragraph("")
     a = p.add_rectangle(5000, 4000, treat_as_char=False)
     b = p.add_rectangle(5000, 4000, treat_as_char=False)
     b.set_position(horizontal_offset=14000)
     connector = p.add_connector(a, b)
+    place = target.add_paragraph("")
+    before = target.to_bytes()
 
-    copied = connector.copy_to(target.add_paragraph(""))
-
-    assert [n.get("subjectIDRef") for n in copied.element.iter(f"{HP}startPt", f"{HP}endPt")] == ["0", "0"]
-    _reopen(target)
+    with pytest.raises(HwpxValueError) as excinfo:
+        connector.copy_to(place)
+    assert excinfo.value.code == "shape-copy-document-unsupported"
+    assert target.to_bytes() == before
 
 
 def test_a_text_box_is_not_copied_into_another_document() -> None:

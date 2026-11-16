@@ -493,8 +493,9 @@ def test_merge_accepts_a_real_corpus_document_containing_a_table() -> None:
 # ============================================================================
 
 
-def test_merge_carries_a_connector_letting_go_of_its_shapes() -> None:
-    # Hancom 2024's 문서 끼워 넣기 keeps the connector and lets go of the shapes it joined (objlim merge).
+def test_merge_carries_a_connector_attached_to_the_shapes_that_come_with_it() -> None:
+    # Hancom 2024's own 문서 끼워 넣기 let the ends go and then drew no connector (objlim merge); the copy stays
+    # attached to the copied shapes, the form Hancom keeps when it saves (keepsrc).
     source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("이어진 사각형 둘")
     a = p.add_rectangle(5000, 4000, treat_as_char=False)
@@ -506,7 +507,9 @@ def test_merge_carries_a_connector_letting_go_of_its_shapes() -> None:
     append_document(target, source)
 
     ends = [node.get("subjectIDRef") for node in target.sections[0].element.iter(f"{_HP}startPt", f"{_HP}endPt")]
-    assert ends == ["0", "0"]
+    shapes = [node.get("instid") for node in target.sections[0].element.iter(f"{_HP}rect")]
+    assert ends == shapes and "0" not in ends
+    assert set(shapes).isdisjoint({a.element.get("instid"), b.element.get("instid")})
     reopened = HwpxDocument.open(target.to_bytes())
     reopened.validate()
 

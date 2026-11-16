@@ -760,9 +760,10 @@ class ObjectPlacement:
         *paragraph* is a paragraph -- in the body, a table cell, a text box, a note, a caption, a
         header or a footer -- or its index in ``doc.paragraphs``. A paragraph of another document
         takes the object as Hancom 2024 pastes one cut from another document: a copy with fresh ids
-        and the images and charts it shows goes there, a connector in it lets go, and the original
-        is removed; an object holding text (a text box, a caption, a table) is refused there
-        (``shape-copy-document-unsupported``: Hancom could not open such a document again). *offset* counts as
+        and the images and charts it shows goes there, and the original is removed. Refused there
+        (``shape-copy-document-unsupported``): an object holding text (a text box, a caption, a
+        table: Hancom could not open such a document again) and a connector (it would let go of its
+        shapes, and Hancom draws such a connector nowhere). *offset* counts as
         ``paragraph.text`` does (a tab or a line break is one, an object none); the object goes in
         front of the character there, after the controls and objects already at that place. The
         object keeps its ids, its caption and what it holds; this wrapper then belongs to
@@ -781,9 +782,8 @@ class ObjectPlacement:
         (:func:`pasted_placement`; read it back from ``position``): one not measured down from its
         paragraph, or not kept in the page area, is measured from its paragraph at offset 0, kept
         in the area and not let overlap; one measured across from the page or paper is measured
-        from the column at offset 0. Refused with ``shape-move-place-unsupported``: into a table
-        cell, such a floating object measured across from its paragraph (Hancom 2024 could not open
-        that document again), a floating table into a cell, text box, note or caption unless it is
+        from the column at offset 0. Refused with ``shape-move-place-unsupported``: a floating table
+        into a cell, text box, note or caption unless it is
         measured down from its paragraph and kept in the page area, and any object into a memo or a
         master page (no Hancom-saved document shows how Hancom puts one there). Moving an object
         into itself (a paragraph of its own text box or caption) is ``shape-move-into-itself``, a
@@ -1254,7 +1254,39 @@ def _matrix_values(matrix: Any) -> list[float]:
             for key in ("e1", "e2", "e3", "e4", "e5", "e6")]
 
 
-def resize_turned_group(shape: Any, width: int, height: int) -> None:
+def stretch_along_page(node: Any, factors: tuple[float, float],
+                       linear: tuple[float, float, float, float] | None = None) -> None:
+    """Stretch the drawn shape *node* by *factors* along the page's axes, keeping its turn and move, as Hancom
+    2024 resizes a turned group: with ``L`` the 2x2 part of what turns it (``linear``; by default its
+    ``hc:rotMatrix``'s, which may also mirror it), ``D`` the factors and ``t`` the move of its ``transMatrix`` and
+    ``rotMatrix`` (e3/e6), its ``hc:scaMatrix`` becomes ``L^-1 D L`` moved by ``L^-1 (D - I) t``, and its
+    ``hp:curSz`` its ``orgSz`` times the diagonal of that (rounded down)."""
+
+    trans = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}transMatrix"))
+    rot = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}rotMatrix"))
+    l11, l12, l21, l22 = linear if linear is not None else (rot[0], rot[1], rot[3], rot[4])
+    det = l11 * l22 - l12 * l21
+    i11, i12, i21, i22 = l22 / det, -l12 / det, -l21 / det, l11 / det  # L^-1
+    dx, dy = factors
+    # L^-1 D L
+    a11 = i11 * dx * l11 + i12 * dy * l21
+    a12 = i11 * dx * l12 + i12 * dy * l22
+    a21 = i21 * dx * l11 + i22 * dy * l21
+    a22 = i21 * dx * l12 + i22 * dy * l22
+    move = (trans[2] + rot[2], trans[5] + rot[5])
+    stretched = ((dx - 1) * move[0], (dy - 1) * move[1])  # (D - I) t
+    offset = (i11 * stretched[0] + i12 * stretched[1], i21 * stretched[0] + i22 * stretched[1])
+    scale = node.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+    for key, value in zip(("e1", "e2", "e3", "e4", "e5", "e6"), (a11, a12, offset[0], a21, a22, offset[1])):
+        scale.set(key, _matrix_number(value))
+    original = node.find(f"{_HP}orgSz")
+    if original is not None:
+        _set_size(node, "curSz", int((_number(original.get("width")) or 0) * a11 + 1e-6),
+                  int((_number(original.get("height")) or 0) * a22 + 1e-6))
+
+
+def resize_turned_group(shape: Any, width: int, height: int, *,
+                        linear: "Callable[[Any], tuple[float, float, float, float]] | None" = None) -> None:
     """Resize the turned group *shape* so the box around it (``hp:sz``) is *width* x *height*, as Hancom 2024
     resizes one: the turn and the move stay (``rotMatrix``, ``transMatrix``, ``hp:offset``, ``rotationInfo``)
     and it is stretched along the page's axes. With ``R`` the turn, ``D`` the box's new size over its old one
@@ -1262,7 +1294,8 @@ def resize_turned_group(shape: Any, width: int, height: int) -> None:
     the group and every member take ``scaMatrix`` = ``R^-1 D R`` moved by ``R^-1 (D - I) t``, and ``curSz`` its
     ``orgSz`` times the diagonal of that (rounded down). Hancom wrote exactly this for a group turned 30 and 45
     degrees and resized (objlim evidence psizegrpturn, psizegrpturn45; the form rotate5 worked out, within
-    0.02). Refused (``shape-rotation-unsupported``) for a group already stretched or holding a group: no
+    0.02). *linear* gives each shape's ``L`` (:func:`stretch_along_page`); by default its ``rotMatrix``'s 2x2 part,
+    so a branch for flipped shapes can pass the mirror along. Refused (``shape-rotation-unsupported``) for a group already stretched or holding a group: no
     Hancom-saved document shows those resized."""
 
     element = shape.element
@@ -1282,22 +1315,7 @@ def resize_turned_group(shape: Any, width: int, height: int) -> None:
         raise _rotation_refused(element, "it has no size")
     factors = (width / old[0], height / old[1])
     for node in shapes:
-        trans = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}transMatrix"))
-        rot = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}rotMatrix"))
-        cos, sin = rot[0], rot[3]
-        move = (trans[2] + rot[2], trans[5] + rot[5])
-        # A = R^-1 D R with R = [[c, -s], [s, c]]
-        a = (cos * cos * factors[0] + sin * sin * factors[1], cos * sin * (factors[1] - factors[0]),
-             cos * sin * (factors[1] - factors[0]), sin * sin * factors[0] + cos * cos * factors[1])
-        stretched = ((factors[0] - 1) * move[0], (factors[1] - 1) * move[1])  # (D - I) t
-        offset = (cos * stretched[0] + sin * stretched[1], -sin * stretched[0] + cos * stretched[1])  # R^-1 (D - I) t
-        scale = node.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
-        for key, value in zip(("e1", "e2", "e3", "e4", "e5", "e6"), (a[0], a[1], offset[0], a[2], a[3], offset[1])):
-            scale.set(key, _matrix_number(value))
-        original = node.find(f"{_HP}orgSz")
-        if original is not None:
-            _set_size(node, "curSz", int((_number(original.get("width")) or 0) * a[0] + 1e-6),
-                      int((_number(original.get("height")) or 0) * a[3] + 1e-6))
+        stretch_along_page(node, factors, linear(node) if linear is not None else None)
     _set_size(element, "sz", width, height)
     from ._document_primitives import _clear_paragraph_layout_cache
 
@@ -2270,7 +2288,8 @@ def pasted_placement(element: Any) -> dict[str, str]:
     An object measured from its paragraph and kept in the area keeps everything (its offsets too). Hancom
     2024 pasted nine placements into text boxes, cells, notes and captions and wrote exactly this (objlim
     evidence o01/o10: PAGE/PAGE, PAPER/PAPER, PAGE/COLUMN, PARA/PAGE, PARA/COLUMN with flowWithText 0 and
-    allowOverlap 1 or 0, PARA/PARA with flowWithText 0; PARA/COLUMN and PARA/PARA kept in the area stayed).
+    allowOverlap 1 or 0, PARA/PARA with flowWithText 0; PARA/COLUMN and PARA/PARA kept in the area stayed). The
+    cell ones opened again in Hancom 2024 (cl0, cl1d, cl2, cl5; cl1s, cl1b, cl1c opened by hand).
     """
 
     position = element.find(f"{_HP}pos")
@@ -2300,14 +2319,6 @@ def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
     kind = placement_kind(element)
     if _local(element) != "tbl" and box not in ("memo", "other"):
         changes = pasted_placement(element) if kind != "char" and box in _PASTE_FITTED else {}
-        position = element.find(f"{_HP}pos")
-        across = changes.get("horzRelTo", position.get("horzRelTo") if position is not None else None)
-        moved_down = position is not None and (position.get("vertRelTo") != "PARA"
-                                               or position.get("flowWithText") in _FALSE_FLAGS)
-        if box == "cell" and kind != "char" and moved_down and across == "PARA":
-            raise _place_refused(element, box, "Hancom 2024 could not open again a document with an object pasted "
-                                               "into a table cell so (measured from its paragraph both ways, moved "
-                                               "to its top: objlim evidence cl1)")
         return changes
     if box not in OBJECT_PLACES.get(kind, frozenset()):
         if box in ("memo", "other"):
@@ -2330,9 +2341,10 @@ def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, of
                              copy: bool) -> Any:
     """``copy_to``/``move_to`` of *obj* into the paragraph *target* of another document, as Hancom 2024 pastes
     an object copied (or cut) from another document: a copy with fresh ids, the images and charts it shows
-    carried into that document (``media.carry_object_parts``), a connector in it letting go of what it was
-    attached to (objlim evidence xpic, xeq, xchart, xconn, xpic2, xchart2), placed there as in the same
-    document (:func:`_check_place`). A move removes the original after that, as cutting does.
+    carried into that document (``media.carry_object_parts``; objlim evidence xpic, xeq, xchart, xpic2, xchart2),
+    placed there as in the same document (:func:`_check_place`). A move removes the original after that, as
+    cutting does. A connector (or an object holding one) is refused: pasted into another document it lets go of
+    its shapes, and Hancom 2024 draws it nowhere (xconn, and the engine's copy opened in Hancom, objlim-xdoc).
 
     An object holding text -- a text box, a caption, a table -- is refused (``shape-copy-document-unsupported``):
     Hancom 2024 stopped on the document it pasted a text box into from another document (xbox2, xbox2b), and
@@ -2343,6 +2355,14 @@ def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, of
     from .formatting import _check_offset
 
     element = obj.element
+    if _local(element) == "connectLine" or element.find(f".//{_HP}connectLine") is not None:
+        raise HwpxValueError(
+            "a connector is not copied into another document: it lets go of its shapes there, and Hancom 2024 "
+            "draws such a connector nowhere (objlim evidence xconn, objlim-xdoc)",
+            code="shape-copy-document-unsupported",
+            context={"caller": "copy_to" if copy else "move_to", "object": _local(element)},
+            suggestion="연결선은 이은 도형과 함께 문서 끼워 넣기(insert_document)로 가져오세요(연결이 이어진 채 옵니다).",
+        )
     if element.find(f".//{_HP}subList") is not None or _local(element) == "tbl":
         raise HwpxValueError(
             "an object holding text (a text box, a caption, a table) is not copied into another document",
@@ -2355,7 +2375,6 @@ def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, of
     if offset is not None:
         _check_offset("offset", offset, 0, len(target.text))
     placed = fresh_copy(element)
-    _let_go_of_outside(placed, {})
     carry_object_parts(placed, source.section.document, target.section.document)
     position = placed.find(f"{_HP}pos")
     if position is not None:

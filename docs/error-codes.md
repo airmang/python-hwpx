@@ -390,7 +390,7 @@ except HwpxError as exc:
 | `shape-connector-target-inline` | 연결선을 이으려는 도형이 글자처럼 놓였거나 instid 가 없다. |
 | `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
 | `shape-container-picture-image` | 그룹의 그림 부재(ContainerMember.picture)에 그림 이진 항목을 안 줬다. |
-| `shape-copy-document-unsupported` | 다른 문서로 그 개체를 옮기거나 복사할 수 없다: 글이 든 개체(글상자·캡션·표)는 한/글이 다른 문서에 붙인 뒤 다시 열지 못했다(문서 끼워 넣기 insert_document 를 쓴다). |
+| `shape-copy-document-unsupported` | 다른 문서로 그 개체를 옮기거나 복사할 수 없다: 글이 든 개체(글상자·캡션·표)는 한/글이 다른 문서에 붙인 뒤 다시 열지 못했고, 연결선은 도형을 놓아 한/글이 그리지 않는다(문서 끼워 넣기 insert_document 를 쓴다). |
 | `shape-curve-too-few-points` | add_curve 에 앵커를 2개(닫으면 3개) 미만으로 줬다. |
 | `shape-description-value` | 개체 설명(hp:shapeComment)이 str 이 아니다. |
 | `shape-draw-text-vert-align` | 도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다. |
