@@ -112,11 +112,18 @@ class FieldsNamespace(_Namespace):
         fit: "_fit_policy.FitPolicy | None" = None,
         box_width: int | None = None,
         font_pt: float | None = None,
+        char_pr_id_ref: str | int | None = None,
     ) -> "FieldFillResult":
         """누름틀 하나를 채우고 채움 결과를 돌려준다.
 
         채울 누름틀은 *index*(:attr:`all` 의 몇 번째, 0부터)·*field_id*·*name* 가운데 하나로
         고른다. *fit* (``FitPolicy``)을 주면 칸에 맞게 글자를 줄이거나 줄을 나눈다.
+
+        값의 글자 모양은 한/글처럼 누름틀 시작이 든 런의 모양이다. *char_pr_id_ref* 를 주면 값만
+        그 글자 모양(``doc.styles.char_properties`` 의 id)이 된다. 값이 다른 것(누름틀 시작·끝,
+        누름틀 밖의 글)과 한 런에 있으면 그 런을 자식 사이에서 나눠 값 조각만 바꾸고, 나머지는
+        제 모양을 지킨다. 문서에 없는 id 는 ``field-char-pr-not-found``, *fit* 과 함께 주면
+        ``field-fill-char-shape-conflict`` 로 거절한다(채우기 전에).
 
         내용이 여러 문단에 걸친 누름틀은 한/글처럼 채운다. 걸친 문단(그 안의 표 포함)을 지우고,
         값과 누름틀 끝을 시작 문단에 둔다. 끝 문단에서 누름틀 끝 뒤에 있던 글은 시작 문단으로 합친다.
@@ -138,6 +145,7 @@ class FieldsNamespace(_Namespace):
             fit=fit,
             box_width=box_width,
             font_pt=font_pt,
+            char_pr_id_ref=char_pr_id_ref,
         )
 
     # -- 셀 필드 -----------------------------------------------------------
