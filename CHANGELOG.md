@@ -354,6 +354,9 @@ python-hwpx 7.0을 함께 설치한다.
   고정하므로 초 경계에서 바이트가 달라지던 일(#683)도 없다. 기본은 전처럼 무작위 id다.
 - `doc.save()`의 영수증(`MutationReport`)에 품질 보고(`quality`)와, 저장한 바이트에 대해 이미 낸 열기 안전 보고
   (`editor_open_safety`)가 있다. 다시 검사하지 않는다.
+- `doc.save(path, quality=policy, pipeline=SavePipeline(oracle_factory=...))`로 품질 관문에 렌더러(예: python-hwpx-automation의
+  한/글 백엔드)를 준다. 렌더러는 정책이 렌더링할 때만 만들어지고, 그 밖의 저장(바이트, 열기 안전 검사 한 번, `.hwp`, 거부 때
+  아무것도 쓰지 않음)은 같다. 문서의 비공개 속성 `_save_pipeline`에 넣던 방법은 없어졌다.
 - 저장에 실패하면 `hwpx.errors.SaveTargetError`가 대상 경로와 할 일을 말한다. Python의 `PermissionError`·`FileNotFoundError`
   등이기도 해서 기존 `except`가 그대로 잡는다.
 - `docs/stable-api.md`에 엔진이 지키는 약속 아홉 가지(같은 바이트면 같은 결과, 고치지 않은 저장은 바이트 그대로, 공개 편집은 그

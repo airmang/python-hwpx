@@ -139,6 +139,31 @@ document = HwpxDocument.new()
 document.save("output/copy.hwpx")
 ```
 
+품질 관문에 렌더러를 주려면 `pipeline=`에 `SavePipeline(oracle_factory=...)`를 넘깁니다. 렌더러는 정책이 렌더링할
+때만 만들어집니다(python-hwpx-automation은 여기에 한/글 백엔드를 줍니다). 아래 공장은 렌더러가 없다고 답합니다.
+
+<!-- standalone-python-example -->
+
+```python
+from pathlib import Path
+
+from hwpx import HwpxDocument, QualityPolicy, SavePipeline
+
+Path("output").mkdir(parents=True, exist_ok=True)
+
+
+def no_renderer(**options):
+    print("renderer asked:", options)
+    return None
+
+
+policy = QualityPolicy(render_check="auto", require_visual_complete=False)
+document = HwpxDocument.new()
+document.add_paragraph("렌더러를 준 저장")
+report = document.save("output/checked.hwpx", quality=policy, pipeline=SavePipeline(oracle_factory=no_renderer))
+print(report.quality.visual_complete_status, report.quality.render_checked)  # unverified False
+```
+
 ### 예제 8: 바이트 스트림에서 열기
 
 ```python

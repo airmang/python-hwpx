@@ -118,10 +118,6 @@ class HwpxDocument(metaclass=_DocumentType):
         self._hwp5_report: Hwp5ConversionReport | None = None
         # The ``.hwp`` path the document was opened from, so a save cannot replace it.
         self._hwp5_source_path: str | None = None
-        # The one gate every write funnels through (plan §2 Phase B). The oracle
-        # is resolved lazily and only when a policy actually renders, so normal
-        # (transparent) saves never probe Hancom.
-        self._save_pipeline = SavePipeline()
         # What add_paragraph(inherit_style=None) means for this document (new(inherit_style=...)).
         self._inherit_style_default = True
         # True while a document from new() still has only its empty first paragraph: the first
@@ -957,6 +953,7 @@ class HwpxDocument(metaclass=_DocumentType):
         mode: Mode = "auto",
         fallback: Fallback = "error",
         quality: QualityPolicy | None = None,
+        pipeline: SavePipeline | None = None,
     ) -> MutationReport:
         """Save pending changes to *target* — a file path or a writable binary stream —
         and return the :class:`~hwpx.mutation_report.MutationReport` receipt.
@@ -978,6 +975,15 @@ class HwpxDocument(metaclass=_DocumentType):
         the gate's report. For a gate run without writing, or with ``before=``/
         ``edit_mask=``/``ledger=``, use ``SavePipeline().run(doc.to_bytes(), ...)``.
 
+        *pipeline* (a :class:`~hwpx.quality.SavePipeline`) is the gate the save runs
+        through instead of a plain ``SavePipeline()`` — the way to give the gate a
+        renderer, e.g. ``pipeline=SavePipeline(oracle_factory=make_backend)``. The
+        factory is called only when *quality* renders (``render_check`` not ``"off"``);
+        without *quality* the gate is transparent and the pipeline renders nothing.
+        Everything else is the same save: one open-safety check, the same bytes,
+        ``.hwp`` targets, the receipt, and on refusal nothing written and the
+        document left unsaved.
+
         7.0 folded ``save_to_path``, ``save_to_stream`` and ``save_report`` into this
         one verb; :meth:`to_bytes` returns the bytes.
         """
@@ -989,6 +995,7 @@ class HwpxDocument(metaclass=_DocumentType):
             mode=mode,
             fallback=fallback,
             quality=quality,
+            pipeline=pipeline,
         )
 
     def to_bytes(
