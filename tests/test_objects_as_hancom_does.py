@@ -389,3 +389,32 @@ def test_an_equation_or_a_chart_is_not_turned_because_hancom_does_not_turn_one()
         equation.rotation = 30
     assert excinfo.value.code == "shape-rotation-unsupported"
     assert "Hancom does not turn" in excinfo.value.context["reason"]
+
+
+def test_a_stretched_and_turned_group_is_ungrouped_as_hancom_does() -> None:
+    # ungroupturned45: Hancom's dialog stretched the group to 7200x7200 and turned it 45 degrees, then
+    # ungrouped it. Its boxes came out a unit apart (7128x7127, 7807x7806): within 1 here.
+    doc = HwpxDocument.new()
+    group = _o03_group(doc)
+    group.resize(7200, 7200)
+    group.rotation = 45
+
+    ellipse, rect = group.ungroup()
+
+    for shape, size, cur, trans, centre in ((ellipse, (7128, 7127), (2880, 7200), (7072, 1516), (3564, 3563)),
+                                            (rect, (7807, 7806), (3840, 7200), (1127, 4571), (3903, 3903))):
+        got = _freed(shape)
+        assert all(abs(a - b) <= 1 for a, b in zip(got["sz"], size))
+        assert got["curSz"] == cur and got["trans"] == trans
+        assert all(abs(int(a) - b) <= 1 for a, b in zip(got["turn"][1:], centre)) and got["turn"][0] == "45"
+    assert _freed(ellipse)["pos"][0] - _freed(rect)["pos"][0] == 3928 - 873
+
+
+def test_a_group_turned_and_then_stretched_is_not_ungrouped() -> None:
+    doc = HwpxDocument.new()
+    group = _o03_group(doc)
+    group.rotation = 30
+    group.resize(24000, 9000)
+    with pytest.raises(HwpxValueError) as excinfo:
+        group.ungroup()
+    assert excinfo.value.code == "shape-ungroup-unsupported" and "skewed" in excinfo.value.context["reason"]

@@ -1556,7 +1556,8 @@ class HwpxOxmlShape(ObjectPlacement):
 
         Refused with ``shape-ungroup-unsupported`` (``context["reason"]``) before anything changes: a shape
         that is not a group, a group set as a character or placed from another side than the left and top, a
-        flipped group, one holding a group, and one with a member turned or flipped on its own. The paragraph
+        flipped group, one holding a group, one turned and then stretched (skewed), and one with a member turned
+        or flipped on its own. The paragraph
         loses its line layout cache; this group object should not be used after it.
         """
 

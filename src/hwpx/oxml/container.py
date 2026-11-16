@@ -828,6 +828,9 @@ def ungroup_refusal(group: Any) -> str | None:
         if (own_flip is not None and "1" in (own_flip.get("horizontal"), own_flip.get("vertical"))) or (
                 own_turn is not None and (own_turn.get("angle") or "0") != "0"):
             return "a member is turned or flipped on its own"
+        scale = rendering.find(f"{_HC}scaMatrix")
+        if scale is not None and any(abs(float(scale.get(key, "0"))) > 1e-6 for key in ("e2", "e4")):
+            return "it is turned and then stretched (skewed): no Hancom-saved document shows one ungrouped"
     return None
 
 
@@ -845,8 +848,9 @@ def ungroup_elements(group: Any, top_z_order: int) -> list[Any]:
     group's ``textWrap``, ``textFlow``, ``numberingType`` and outer margins, ``groupLevel`` 0, a new ``id``
     and a ``zOrder`` above the others (*top_z_order* on), and keeps its ``instid`` (a connector attached to it
     stays). Hancom 2024 wrote this for a group of a rectangle and an ellipse ungrouped plain, stretched
-    1.6 x 1.8, turned 30 and 90 degrees (objlim evidence ungroup2, ungroup3, ungroupstretch, ungroupstretch2,
-    ungroupturned2, ungroupturned90). Hancom also hangs each member on the paragraph at whose height it
+    1.6 x 1.8 and 0.6 x 2.4, turned 30 and 90 degrees, and stretched then turned 45 (objlim evidence ungroup2,
+    ungroup3, ungroupstretch, ungroupstretch2, ungroupturned2, ungroupturned90, ungroupturned45: its boxes a unit
+    apart here and there). Hancom also hangs each member on the paragraph at whose height it
     starts, which needs the line layout; here every member stays in the group's paragraph, measured from it,
     which draws it in the same spot.
 
