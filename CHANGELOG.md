@@ -435,6 +435,8 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- `paragraph.column_break = True`도 `page_break`처럼 그 문단의 줄 배치 캐시를 지운다. 전에는 단이 바뀌어 줄의 세로 자리가
+  달라지는데도 옛 줄 배치를 남겼다.
 - 메모를 한/글 2024 저장본처럼 MEMO 누름틀의 `hp:subList`에만 쓴다. 6.x는 `hp:memogroup`에도 사본을 써서, 한/글이 다시 저장할
   때 그 사본을 버렸고(누름틀의 글은 남는다) 메모를 고치면 두 사본이 어긋났다. `doc.notes.add_memo(..., paragraph=)`·
   `doc.notes.attach`가 메모를 누름틀로 옮기고, 같은 객체가 그 누름틀의 메모가 된다. 문단·표·글상자를 복사하거나 다른 구역으로

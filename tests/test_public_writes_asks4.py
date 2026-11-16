@@ -94,6 +94,21 @@ def test_paragraph_id_reads_the_written_id() -> None:
         doc.paragraphs[0].id = "1"  # type: ignore[misc]
 
 
+@pytest.mark.parametrize("name", ["page_break", "column_break"])
+def test_a_break_before_a_paragraph_drops_its_line_cache(name: str) -> None:
+    doc = HwpxDocument.open(HANCOM / "pages_anchor_lines_past_a_moved_table.hwpx")
+    cached = [p for p in doc.paragraphs if p.text.strip() and not p.tables
+              and p.element.find(f"{_HP}linesegarray") is not None]
+    target, other = cached[3], cached[4]
+    before = doc.to_bytes()
+    setattr(target, name, False)  # unchanged: nothing is written
+    assert doc.to_bytes() == before
+    setattr(target, name, True)
+    assert getattr(target, name) is True
+    assert target.element.find(f"{_HP}linesegarray") is None
+    assert other.element.find(f"{_HP}linesegarray") is not None
+
+
 # -- TableCell.border_fill_id_ref ----------------------------------------------------------------
 
 

@@ -1793,6 +1793,8 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         new_value = "1" if value else "0"
         if self.element.get("columnBreak") != new_value:
             self.element.set("columnBreak", new_value)
+            # As page_break: the paragraph's lines move to another column, so its old line layout goes.
+            _clear_paragraph_layout_cache(self.element)
             self.section.mark_dirty()
 
     @property
