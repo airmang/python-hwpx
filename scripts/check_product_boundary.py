@@ -53,19 +53,21 @@ ALLOWED_ABSOLUTE_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
 FORBIDDEN_EXECUTION_IMPORT_ROOTS = ("ctypes", "subprocess")
 
 LAZY_IMPORT_FILE = "src/hwpx/__init__.py"
-LAZY_IMPORT_CALL_SITES = ((360, 23),)
+LAZY_IMPORT_CALL_SITES = ((387, 23),)
 LAZY_IMPORT_CALL_SHA256 = (
-    "293840c5a9d6a73308315f39c44dd0279a4579873f8d581ef32d49b9306cebc9"
+    "4e06925addf1eb7ba04785430b5a4a98904ab77cbdbd7a74dc8df521551369b8"
 )
 # 7.0: __getattr__ gained the per-release wording of _MOVED_TO_COMPANION (moved_in),
 # and the experimental map lost the 12 names that moved to python-hwpx-automation.
+# 7.0 naming: the three equation names left the experimental map for _EQUATION_EXPORTS
+# (stable in hwpx.equation, D26); __getattr__ answers them with MovedToSubmodule.
 LAZY_GETATTR_SHA256 = (
-    "a872c092e272953acd6b4b52b96c2440c3c7499db6f36611ffd0db42c5fb47d4"
+    "e29608fbf59388cfc61ca9a579231aea775a80e5ed04583c375e82a58b169548"
 )
 IGNORED_EMPTY_AST_FIELDS = frozenset({"type_params"})
-LAZY_EXPORT_MAP_COUNT = 14
+LAZY_EXPORT_MAP_COUNT = 11
 LAZY_EXPORT_MAP_SHA256 = (
-    "510582d48c3f6fac2805a8fb98725ca6e2b399a7c74791b96e6ccb32706ebef1"
+    "f5a31121e7953742c4c2a6ad806b48c6242da7487e0f841420a2559ad8731d28"
 )
 
 NON_CORE_DISPOSITIONS = ("mcp-migrate", "split", "dev-only", "undecided")

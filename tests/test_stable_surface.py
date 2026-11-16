@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 import hwpx
-from hwpx import _DEPRECATED_EXPORTS, _EXPERIMENTAL_EXPORTS
+from hwpx import _DEPRECATED_EXPORTS, _EQUATION_EXPORTS, _EXPERIMENTAL_EXPORTS
 
 
 # The 5.0 top-level surface. A name leaving this set is a removal and a contract
@@ -29,6 +29,10 @@ from hwpx import _DEPRECATED_EXPORTS, _EXPERIMENTAL_EXPORTS
 STABLE_NAMES = frozenset(hwpx.__all__)
 
 EXPERIMENTAL_NAMES = frozenset(_EXPERIMENTAL_EXPORTS)
+
+# 4.0~6.x exported these three top-level as experimental; 7.0 made them stable names of
+# hwpx.equation (D26) and keeps them out of the top level.
+EQUATION_NAMES = frozenset(_EQUATION_EXPORTS)
 
 DEPRECATED_NAMES = frozenset(_DEPRECATED_EXPORTS)
 
@@ -120,7 +124,10 @@ def test_layer_counts() -> None:
     # 5.6: +8 — 편집 계획 실행기 5명(hwpx.plan) + 자기서술 3명(hwpx.capabilities).
     # +3 — 쪽 수 추정(hwpx.layout.pages): estimate_pages, PageEstimate, EstimatedLine.
     # 7.0: -12 to python-hwpx-automation (ingest 7, preview 5).
-    assert len(EXPERIMENTAL_NAMES) == 14
+    # 7.0: -3 to the stable hwpx.equation (latex_to_eqedit, estimate_equation_size,
+    # UnsupportedLatexError; D26).
+    assert len(EXPERIMENTAL_NAMES) == 11
+    assert len(EQUATION_NAMES) == 3
     # Emptied in 5.0: the 4.x notice promised these names would go in the next major.
     assert len(DEPRECATED_NAMES) == 0
     # 7.0: the 26 experimental names left the top level (hwpx.experimental only).
@@ -172,7 +179,26 @@ def test_experimental_top_level_access_names_hwpx_experimental(name: str) -> Non
 
 
 def test_from_import_of_an_experimental_name_shows_the_new_path() -> None:
-    with pytest.raises(ImportError, match="from hwpx.experimental import latex_to_eqedit"):
+    with pytest.raises(ImportError, match="from hwpx.experimental import estimate_pages"):
+        exec("from hwpx import estimate_pages", {})
+
+
+@pytest.mark.parametrize("name", sorted(EQUATION_NAMES))
+def test_equation_top_level_access_names_hwpx_equation(name: str) -> None:
+    """7.0: the equation converters are stable in hwpx.equation; the top level points there (D26)."""
+
+    with pytest.raises(hwpx.MovedToSubmodule) as excinfo:
+        getattr(hwpx, name)
+    assert not isinstance(excinfo.value, hwpx.MovedToExperimental)
+    message = str(excinfo.value)
+    assert f"from hwpx.equation import {name}" in message
+    assert "hwpx.experimental" not in message
+    assert "7.0" in message
+    assert getattr(importlib.import_module("hwpx.equation"), name) is not None
+
+
+def test_from_import_of_an_equation_name_shows_hwpx_equation() -> None:
+    with pytest.raises(ImportError, match="from hwpx.equation import latex_to_eqedit"):
         exec("from hwpx import latex_to_eqedit", {})
 
 
@@ -202,7 +228,9 @@ def test_removed_formfit_names_are_gone_not_merely_warned() -> None:
 
 def test_experimental_module_reexports_all_experimental_names() -> None:
     experimental = importlib.import_module("hwpx.experimental")
-    assert frozenset(experimental.__all__) == EXPERIMENTAL_NAMES
+    # hwpx.experimental still re-exports the equation converters (the 6.x path), the same
+    # objects hwpx.equation exports as stable names.
+    assert frozenset(experimental.__all__) == EXPERIMENTAL_NAMES | EQUATION_NAMES
     for name in EXPERIMENTAL_NAMES:
         assert hasattr(experimental, name)
 
