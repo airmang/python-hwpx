@@ -732,9 +732,10 @@ class HwpxOxmlParagraph(ParagraphFormats):
             margins = properties.page_margins
         except Exception:
             return None
-        if page.width <= 0:
-            return None
-        usable = page.drawn_width - margins.left - margins.right - margins.gutter
+        sizes = (page.drawn_width, margins.left, margins.right, margins.gutter)
+        if page.width is None or page.width <= 0 or any(size is None for size in sizes):
+            return None  # a page size or margin the file does not give
+        usable = cast(int, page.drawn_width) - cast(int, margins.left) - cast(int, margins.right) - cast(int, margins.gutter)
         if usable <= 0:
             return None
         column = self._column_width(usable)
