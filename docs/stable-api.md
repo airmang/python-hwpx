@@ -132,7 +132,8 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_engine_contract.py::test_a_public_edit_changes_only_its_part_and_says_so`,
    `tests/test_mutation_report.py::test_one_cell_edit_patch_lists_dirty_section`
 4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
-   아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다).
+   아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다). `doc.save(..., pipeline=SavePipeline(oracle_factory=...))`로
+   관문에 렌더러를 주어도 같다 — 렌더러는 `quality=` 정책이 렌더링할 때만 만들어지고, 열기 안전 검사는 한 번이다.
    `tests/test_document_save_api.py::test_to_bytes_rejects_generated_package_that_fails_open_safety`,
    `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`
 5. **"한/글에서 열린다"는 한/글 기록이 있는 것에만 말한다.** 한/글에서 열어 확인했다

@@ -42,7 +42,7 @@ legacy.add_paragraph("2026 운영계획")                # legacy.paragraphs[1]
 
 ## 저장
 
-저장 동사 넷을 `doc.save(target, *, format=None, mode="auto", fallback="error", quality=None)` 하나로 모았다.
+저장 동사 넷을 `doc.save(target, *, format=None, mode="auto", fallback="error", quality=None, pipeline=None)` 하나로 모았다.
 `target` 은 경로(str·PathLike)나 쓰기 가능한 이진 스트림이다. `save()` 는 늘 `MutationReport` 를 돌려준다.
 바이트가 필요하면 `doc.to_bytes()` 다(그대로).
 
@@ -53,6 +53,7 @@ legacy.add_paragraph("2026 운영계획")                # legacy.paragraphs[1]
 | `doc.save_report(target, quality=q)` | `doc.save(target, quality=q)` 의 `report.quality`. 게이트 실패는 `SaveError`(`quality-gate-failed`)의 `.report`. `before=`·`edit_mask=`·`ledger=` 는 `SavePipeline().run(...)` |
 | `HwpxDocument.from_package(pkg)` | `HwpxDocument.open(pkg)` |
 | 저장 뒤 열기 안전 검사를 다시 돌리던 코드 | `report.editor_open_safety` — 저장이 쓴 바이트에 대해 이미 낸 보고 |
+| 렌더러를 쓰려고 `doc._save_pipeline = SavePipeline(oracle_factory=f)` 를 넣던 코드(비공개 속성) | `doc.save(target, quality=q, pipeline=SavePipeline(oracle_factory=f))`. 7.0 에는 그 속성이 없어 넣어도 쓰이지 않는다. 렌더러는 `q` 가 렌더링할 때만 만들어진다 |
 
 옛 이름을 부르면 `HwpxAttributeError`(`document-name-removed`)가 위 표의 새 호출을 알려 준다.
 `doc.save(path, mode="fast")` 처럼 없는 `mode`·`fallback` 은 거부하고, `.hwpx`·`.hwp` 가 아닌 이름은 경고한다.

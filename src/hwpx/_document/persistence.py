@@ -21,7 +21,7 @@ from ..mutation_report import (
 )
 from ..opc.security import sharing_archive_reads
 from ..opc.package import _UNCHECKED_SAVE_TOKEN
-from ..quality import QualityPolicy
+from ..quality import QualityPolicy, SavePipeline
 from ..quality.report import OpenSafetyReport
 
 #: The file formats a document saves to: HWPX, or HWP 5.0.
@@ -246,6 +246,7 @@ def _gate_and_write(
     output_stream: BinaryIO | None = None,
     quality: QualityPolicy | None = None,
     source_label: str,
+    pipeline: SavePipeline | None = None,
 ) -> VisualCompleteReport:
     """Funnel a serialized archive through the SavePipeline gate and its single write.
 
@@ -255,10 +256,15 @@ def _gate_and_write(
     policy (reference integrity, layout, the visual oracle when it renders) and
     writes only when it passes. A refused archive is not written and raises
     :class:`SaveError` (``quality-gate-failed``) carrying the report as ``.report``.
+
+    *pipeline* is the gate to run (``doc.save(pipeline=...)``); ``None`` is a plain
+    :class:`SavePipeline`, which renders nothing. Its oracle factory is called only
+    when *quality* renders.
     """
 
+    gate = pipeline if pipeline is not None else SavePipeline()
     if quality is None:
-        report = doc._save_pipeline.run(
+        report = gate.run(
             archive_bytes,
             output_path=output_path,
             output_stream=output_stream,
@@ -268,7 +274,7 @@ def _gate_and_write(
             source_label=source_label,
         )
     else:
-        report = doc._save_pipeline.run(
+        report = gate.run(
             archive_bytes,
             output_path=output_path,
             output_stream=output_stream,
@@ -446,6 +452,7 @@ def save(
     mode: Mode = "auto",
     fallback: Fallback = "error",
     quality: QualityPolicy | None = None,
+    pipeline: SavePipeline | None = None,
 ) -> MutationReport:
     """Persist pending changes to *target* (a path or a writable binary stream).
 
@@ -467,8 +474,19 @@ def save(
     Without it the gate is transparent and ``report.quality`` is ``None``. A refused
     archive is not written: :class:`SaveError` (``quality-gate-failed``) carries the
     gate's report as ``.report``.
+
+    *pipeline* (a :class:`~hwpx.quality.SavePipeline`) runs the gate in place of a
+    plain one, e.g. one built with an ``oracle_factory`` that renders; anything else
+    is refused before the document is serialized (``save-pipeline-invalid-type``).
     """
 
+    if pipeline is not None and not isinstance(pipeline, SavePipeline):
+        raise HwpxTypeError(
+            f"pipeline must be a hwpx.SavePipeline or None, got {type(pipeline).__name__}",
+            code="save-pipeline-invalid-type",
+            context={"type": type(pipeline).__name__},
+            suggestion="Pass pipeline=SavePipeline(oracle_factory=...), or leave it out for the plain gate.",
+        )
     path, stream = _save_target(target)
     resolved = _target_format(path, format)
     _check_grade_arguments(mode, fallback)
@@ -492,6 +510,7 @@ def save(
             output_stream=stream if hwp5 is None else None,
             quality=quality,
             source_label="document.save",
+            pipeline=pipeline,
         )
         if hwp5 is not None:  # the gate passed: publish the HWP 5.0 file in its place
             if path is not None:

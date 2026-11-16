@@ -56,7 +56,7 @@
   "parts": {"kind": "property", "settable": false, "returns": "PartsNamespace"},
   "refs": {"kind": "property", "settable": false, "returns": "RefsNamespace"},
   "remove_section": {"kind": "method", "params": [["section", "P", false]], "returns": "None"},
-  "save": {"kind": "method", "params": [["target", "P", false], ["format", "K", true], ["mode", "K", true], ["fallback", "K", true], ["quality", "K", true]], "returns": "MutationReport"},
+  "save": {"kind": "method", "params": [["target", "P", false], ["format", "K", true], ["mode", "K", true], ["fallback", "K", true], ["quality", "K", true], ["pipeline", "K", true]], "returns": "MutationReport"},
   "sections": {"kind": "property", "settable": false, "returns": "tuple[Section, ...]"},
   "shapes": {"kind": "property", "settable": false, "returns": "ShapesNamespace"},
   "styles": {"kind": "property", "settable": false, "returns": "StylesNamespace"},
