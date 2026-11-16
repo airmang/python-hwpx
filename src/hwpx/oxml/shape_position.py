@@ -353,11 +353,11 @@ def _parent_of(element: Any, scope: Any) -> Any:
     return None
 
 
-def _group_member_refused(action: str) -> HwpxValueError:
+def _group_member_refused(action: str, why: str | None = None) -> HwpxValueError:
     return HwpxValueError(
-        f"an object inside a group (hp:container) cannot be {action} on its own",
+        f"an object inside a group (hp:container) cannot be {action} on its own" + (f": {why}" if why else ""),
         code="shape-group-member-unsupported",
-        context={"action": action},
+        context={"action": action, **({"reason": why} if why else {})},
         suggestion="묶음(hp:container) 전체를 다루세요: 묶음의 Shape 에서 remove()·set_position() 등을 부릅니다.",
     )
 
@@ -522,16 +522,17 @@ class ObjectPlacement:
     def set_rotation(self, angle: int) -> None:
         """Turn the object *angle* degrees clockwise (0..359) about its middle, as Hancom saves a turned object.
 
-        The object keeps its own size (``hp:orgSz``); its box (``hp:sz``) becomes the box around the turned
-        object, the object is moved into the middle of that box (``hp:offset``, ``hc:transMatrix``), turned
-        about its own middle (``hc:rotMatrix``), and ``hp:rotationInfo`` holds the angle and the middle of the
-        box -- the relation every unscaled turned object in Hancom-saved documents shows. Only that case is
-        written: an object Hancom has stretched (a ``hc:scaMatrix`` other than identity, as a picture after
-        ``resize``), a flipped one, a group, a shape holding text (Hancom keeps the text level in the outer
-        box, so it would stick out of the turned shape) or an object without ``hp:rotationInfo`` (an
-        equation or chart) is refused with ``shape-rotation-unsupported``, a member of a group with
-        ``shape-group-member-unsupported``, an angle outside 0..359 with ``shape-rotation-value``. 0 turns
-        it back. The paragraph loses its line layout cache.
+        The object keeps its own size (``hp:orgSz``) and the size it is drawn at (``hc:scaMatrix``,
+        ``hp:curSz``: a picture after ``resize`` is drawn smaller or larger); its box (``hp:sz``) becomes the
+        box around the turned object, the object as drawn is turned about its own middle (``hc:rotMatrix``)
+        and moved into that box (``hp:offset``, ``hc:transMatrix``), and ``hp:rotationInfo`` holds the angle
+        and the middle of the box -- the relation the turned objects of Hancom-saved documents show,
+        stretched or not (see :func:`rotation_base_size`). A flipped object, a group, a shape holding text
+        (Hancom keeps the text level in the outer box, so it would stick out of the turned shape) or an
+        object without ``hp:rotationInfo`` (an equation or chart) is refused with
+        ``shape-rotation-unsupported``, a member of a group with ``shape-group-member-unsupported``, an
+        angle outside 0..359 with ``shape-rotation-value``. 0 turns it back. The paragraph loses its line
+        layout cache.
         """
 
         if isinstance(angle, bool) or not isinstance(angle, int) or not 0 <= angle <= 359:
@@ -596,9 +597,16 @@ class ObjectPlacement:
         a picture's in a group, an image fill) leave the package with it when nothing else in the document
         points at them, as Hancom drops unused images when it saves (*remove_orphaned*, as
         ``doc.media.replace_picture`` takes it); ``remove_orphaned=False`` keeps them, and
-        ``doc.media.remove_unused_images()`` removes every such image later. A member of a group cannot
-        leave it on its own (``shape-group-member-unsupported``). A second call does nothing; the object
-        should not be used after it.
+        ``doc.media.remove_unused_images()`` removes every such image later.
+
+        A member of a group leaves it and the groups fit what is left, as Hancom-saved groups hold their
+        members: a group is the box around its members, so a group inside takes the box around the members
+        left in it, and the outermost group moves every shape in it so that box starts at its origin, takes
+        its size (drawn at the size Hancom or ``resize`` gave it) and, floating from the left and top of its
+        frame, moves on the page by as much, so the members left stay where they were drawn. That is
+        refused (``shape-group-member-unsupported``, with ``context["reason"]``) for a group's only member
+        and where a group or a member of one is turned, flipped or stretched otherwise than so. A second
+        call does nothing; the object should not be used after it.
         """
 
         from ._document_primitives import _clear_paragraph_layout_cache
@@ -608,11 +616,24 @@ class ObjectPlacement:
         parent = _parent_of(element, paragraph)
         if parent is None or not any(child is element for child in parent):
             return
-        if str(parent.tag).rsplit("}", 1)[-1] == "container":
-            raise _group_member_refused("removed")
+        groups = []
+        node = parent
+        while node is not None and str(node.tag).rsplit("}", 1)[-1] == "container":
+            groups.append(node)
+            node = _parent_of(node, paragraph)
+        if groups:
+            from .container import member_removal_refusal
+
+            why = member_removal_refusal(element, groups)
+            if why is not None:
+                raise _group_member_refused("removed", why)
         ids = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
         images = binary_references(element) if remove_orphaned else set()
         parent.remove(element)
+        if groups:
+            from .container import fit_groups_after_removal
+
+            fit_groups_after_removal(groups)
         if (str(parent.tag).rsplit("}", 1)[-1] == "run" and len(parent) == 0
                 and len(paragraph.findall(f"{_HP}run")) > 1 and any(c is parent for c in paragraph)):
             paragraph.remove(parent)
@@ -641,12 +662,19 @@ def _rotation_refused(element: Any, why: str) -> HwpxValueError:
 
 
 def rotation_base_size(element: Any) -> tuple[int, int]:
-    """The object's own (unturned) size, when it is one this package knows how Hancom turns; else refuse.
+    """The object's own (unturned) size as drawn, when it is one this package knows how Hancom turns; else refuse.
 
-    Known: an object outside a group whose ``hc:scaMatrix`` is identity (its ``hp:curSz`` 0 or its
-    ``hp:orgSz`` on each side), not flipped and not a group itself -- the case Hancom-saved documents show
-    with one fixed relation between angle, sizes and matrices. Hancom's stretched or grouped turned objects
-    hold more matrices whose relation is not known, so they are not written.
+    Known: an object outside a group, not flipped and not a group itself, with one trans/sca/rot set of
+    rendering matrices whose ``hc:scaMatrix`` only scales (and moves): its size as drawn is its original
+    size (``hp:orgSz``) through that matrix, as its ``hp:curSz`` holds it. Hancom-saved turned objects
+    hold one relation then -- the object as drawn (``scaMatrix``) is turned about its middle
+    (``rotMatrix``) and moved so the box around it starts at its origin (``transMatrix``), and that box
+    is ``hp:sz`` with ``hp:rotationInfo``'s centre in its middle -- unstretched (the public
+    ``SimplePolygon``) and stretched alike (``ta-pic-001-r.hwp``, a picture drawn at 0.2768 of its size
+    and turned 34 degrees: its ``sz`` 18425 x 18160 and centre (9212, 9080) follow from it; nine polygons
+    of a public handbook drawn at 0.36 x 0.16 and turned 35, 90, 180 and 325 degrees, their ``sz`` too).
+    A turned group, a member of a group (their matrices carry the groups' too) and a flipped object are
+    not known, so they are not written.
     """
 
     info = element.find(f"{_HP}rotationInfo")
@@ -658,33 +686,43 @@ def rotation_base_size(element: Any) -> tuple[int, int]:
     matrices = [str(child.tag).rsplit("}", 1)[-1] for child in rendering]
     if matrices != ["transMatrix", "scaMatrix", "rotMatrix"]:
         raise _rotation_refused(element, "its rendering matrices are not one trans/sca/rot set")
-    scale = rendering[1]
-    # Hancom writes an unstretched one with float noise (1.000037, -0.000023): up to 1/1000 is identity.
-    if any(abs(_fraction(scale.get(key), float(value)) - float(value)) > 1e-3
-           for key, value in zip(("e1", "e2", "e3", "e4", "e5", "e6"), _IDENTITY)):
-        raise _rotation_refused(element, "it is stretched (hc:scaMatrix is not identity)")
+    scale_x, scale_y = _drawn_scale(rendering[1])
+    if scale_x <= 0 or scale_y <= 0:
+        raise _rotation_refused(element, "its hc:scaMatrix does more than scale it")
     flip = element.find(f"{_HP}flip")
     if flip is not None and (flip.get("horizontal", "0") not in _FALSE_FLAGS
                              or flip.get("vertical", "0") not in _FALSE_FLAGS):
         raise _rotation_refused(element, "it is flipped")
     original = element.find(f"{_HP}orgSz")
-    width, height = (_number(original.get("width")) or 0, _number(original.get("height")) or 0) \
+    own_width, own_height = (_number(original.get("width")) or 0, _number(original.get("height")) or 0) \
         if original is not None else (0, 0)
+    width, height = round(own_width * scale_x), round(own_height * scale_y)
     current = element.find(f"{_HP}curSz")
     if current is not None:
-        for side, own in (("width", width), ("height", height)):
+        for side, drawn in (("width", width), ("height", height)):
             value = _number(current.get(side)) or 0
-            if value != 0 and abs(value - own) > 2:  # Hancom rounds it a unit off (13424 for 13425)
-                raise _rotation_refused(element, "its current size differs from its original size")
+            if value != 0 and abs(value - drawn) > 2:  # Hancom rounds it a unit off (13424 for 13425)
+                raise _rotation_refused(element, "its current size is not its original size through its scaMatrix")
     if width <= 0 or height <= 0:
         raise _rotation_refused(element, "it has no original size")
     return width, height
 
 
+def _drawn_scale(scale: Any) -> tuple[float, float]:
+    """The factors a ``hc:scaMatrix`` draws an object at on each axis; ``(0, 0)`` when it does more than scale
+    and move (a skew). Hancom writes an unstretched one with float noise (1.000037, -0.000023)."""
+
+    e2, e4 = _fraction(scale.get("e2"), 0.0), _fraction(scale.get("e4"), 0.0)
+    if abs(e2) > 1e-3 or abs(e4) > 1e-3:
+        return 0.0, 0.0
+    sx, sy = _fraction(scale.get("e1"), 1.0), _fraction(scale.get("e5"), 1.0)
+    return (1.0 if abs(sx - 1) <= 1e-3 else sx), (1.0 if abs(sy - 1) <= 1e-3 else sy)
+
+
 def apply_rotation(element: Any, angle: int, width: int, height: int) -> None:
-    """Write *element* (own size *width* x *height*, unscaled) turned *angle* degrees clockwise:
-    ``hp:sz`` the box around it, ``hp:offset``/``hc:transMatrix`` half the growth, ``hc:rotMatrix`` about
-    its own middle and ``hp:rotationInfo`` the angle and the middle of the box."""
+    """Write *element* (drawn *width* x *height* through its ``hc:scaMatrix``) turned *angle* degrees clockwise:
+    ``hc:rotMatrix`` turns it about its middle as drawn, ``hp:offset``/``hc:transMatrix`` move the box around
+    it to its origin, ``hp:sz`` is that box and ``hp:rotationInfo`` the angle and the middle of the box."""
 
     radians = math.radians(angle)
     cos, sin = math.cos(radians), math.sin(radians)
@@ -692,10 +730,11 @@ def apply_rotation(element: Any, angle: int, width: int, height: int) -> None:
     box_height = abs(width * sin) + abs(height * cos)
     if angle % 90 == 0:  # no float noise on the right angles
         box_width, box_height = (width, height) if angle % 180 == 0 else (height, width)
-    shift_x, shift_y = (box_width - width) / 2, (box_height - height) / 2
-    cx, cy = width / 2, height / 2
     rendering = element.find(f"{_HP}renderingInfo")
-    trans, _scale, rot = rendering[0], rendering[1], rendering[2]
+    trans, scale, rot = rendering[0], rendering[1], rendering[2]
+    # The object as drawn starts where its scaMatrix moves it (0, 0 unless Hancom moved it there).
+    cx, cy = _fraction(scale.get("e3"), 0.0) + width / 2, _fraction(scale.get("e6"), 0.0) + height / 2
+    shift_x, shift_y = box_width / 2 - cx, box_height / 2 - cy
     for key, value in (("e1", 1.0), ("e2", 0.0), ("e3", shift_x), ("e4", 0.0), ("e5", 1.0), ("e6", shift_y)):
         trans.set(key, _matrix_number(value))
     for key, value in (("e1", cos), ("e2", -sin), ("e3", cx * (1 - cos) + cy * sin),
@@ -756,15 +795,16 @@ def keep_ratio(current: tuple[int, int], width: int | None, height: int | None) 
 def resize_object(obj: Any, width: int | None, height: int | None) -> None:
     """Resize a placed object (picture, OLE, chart, equation) to *width* x *height* (one alone keeps the
     aspect ratio), as Hancom stores a resized one: ``hp:sz`` and ``hp:curSz`` take the new size, the
-    original size (``hp:orgSz``) and the geometry in it stay, and ``hc:scaMatrix`` scales between them."""
+    original size (``hp:orgSz``) and the geometry in it stay, and ``hc:scaMatrix`` scales between them.
+    A turned object is resized as drawn before turning and turned again (see :func:`rotation_base_size`):
+    its ``hp:sz`` is the box around it turned at the new size."""
 
     element = obj.element
     info = element.find(f"{_HP}rotationInfo")
-    if info is not None and (_number(info.get("angle")) or 0) % 360:
-        raise _rotation_refused(element, "resizing a turned picture would stretch it in a way not verified; "
-                                         "turn it back to 0, resize, then turn it again")
-    width, height = keep_ratio(object_size(element), width, height)
-    _set_size(element, "sz", width, height)
+    angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    width, height = keep_ratio(rotation_base_size(element) if angle else object_size(element), width, height)
+    if not angle:
+        _set_size(element, "sz", width, height)
     original = element.find(f"{_HP}orgSz")
     if original is not None:
         org_width, org_height = _number(original.get("width")) or 0, _number(original.get("height")) or 0
@@ -777,6 +817,8 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
         if rotation is not None:
             rotation.set("centerX", str(width // 2))
             rotation.set("centerY", str(height // 2))
+    if angle:
+        apply_rotation(element, angle, width, height)
     from ._document_primitives import _clear_paragraph_layout_cache
 
     _clear_paragraph_layout_cache(obj.paragraph.element)
@@ -821,11 +863,15 @@ def set_picture_crop(obj: Any, crop: tuple[int, int, int, int] | None) -> None:
             suggestion="Only a picture that records its whole image size (hp:imgDim) can be cropped.",
         )
     left, top, right, bottom = validate_picture_crop(crop, *whole)
+    info = element.find(f"{_HP}rotationInfo")
+    angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    if angle:
+        rotation_base_size(element)  # a turned picture is cut as drawn and turned again: refuses what it cannot
     old = picture_crop(element)
     old_kept = (whole[0] - old[0] - old[2], whole[1] - old[1] - old[3])
     new_kept = (whole[0] - left - right, whole[1] - top - bottom)
     factors = (new_kept[0] / old_kept[0], new_kept[1] / old_kept[1])
-    for name in ("orgSz", "curSz", "sz"):
+    for name in ("orgSz", "curSz") + (() if angle else ("sz",)):
         size = element.find(f"{_HP}{name}")
         if size is not None:
             for side, factor in (("width", factors[0]), ("height", factors[1])):
@@ -850,6 +896,8 @@ def set_picture_crop(obj: Any, crop: tuple[int, int, int, int] | None) -> None:
         _reposition_child_after_any(element, clip, ("imgRect",))
     for name, value in (("left", left), ("right", whole[0] - right), ("top", top), ("bottom", whole[1] - bottom)):
         clip.set(name, str(value))
+    if angle:
+        apply_rotation(element, angle, *rotation_base_size(element))
     from ._document_primitives import _clear_paragraph_layout_cache
 
     _clear_paragraph_layout_cache(obj.paragraph.element)

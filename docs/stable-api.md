@@ -296,13 +296,19 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 지운 개체(그림, 묶음 안 그림, 그림 채우기, 표 칸의
 그림)가 보이던 이진 항목은 문서의 다른 곳이 가리키지 않으면 함께 지웁니다 — 한/글이 저장할 때 쓰지 않는
 이진 항목을 지우는 것과 같습니다(`remove(remove_orphaned=True)`, `doc.media.replace_picture`의 같은 인자;
-`False`면 남기고 `doc.media.remove_unused_images()`가 나중에 한꺼번에 지웁니다). 묶음 안의 개체는 혼자 지우거나 돌리거나
-설명을 달 수 없습니다(`shape-group-member-unsupported`). `set_rotation`은 한/글 저장본이 보여 주는
-관계(상자 `hp:sz`는 돈 개체를 감싸는 상자, 개체는 그 가운데로 옮겨 자기 가운데를 축으로 돈다)를
-그대로 쓰며, 그 관계가 확인되지 않은 경우 — 늘이거나 줄인 개체(`hc:scaMatrix`가 항등이 아님,
-`resize`한 그림 포함), 뒤집은 개체, 묶음, 글자가 든 도형(한/글은 글을 돈 도형이 아니라 감싸는
-상자에 가로로 놓아 글이 도형 밖으로 나온다) — 는 `shape-rotation-unsupported`로 거부합니다. 각도 0으로
-되돌리는 것은 언제나 됩니다.
+`False`면 남기고 `doc.media.remove_unused_images()`가 나중에 한꺼번에 지웁니다). 묶음 안의 개체를
+`remove()`하면 묶음들이 남은 구성원에 맞춰집니다(7.0) — 한/글 저장본의 묶음은 구성원을 감싸는 상자이므로
+안쪽 묶음은 남은 구성원을 감싸는 상자를 제 자리·크기로 갖고, 가장 바깥 묶음은 그 상자가 원점에서
+시작하도록 구성원을 옮기고 그 크기(한/글이나 `resize`로 키운 묶음은 그 배율로 그린 크기)를 가지며, 왼쪽·위
+기준으로 떠 있으면 쪽 위에서 그만큼 옮겨 남은 구성원이 그려지던 자리에 그대로 있습니다. 묶음의 하나뿐인
+구성원, 돌았거나 뒤집혔거나 그 밖의 방식으로 늘인 묶음·구성원은 거부합니다(`shape-group-member-unsupported`,
+`context["reason"]`). 묶음 안의 개체를 혼자 돌리거나 설명·바깥 여백을 다는 것은 여전히 거부합니다.
+`set_rotation`은 한/글 저장본이 보여 주는 관계(그려진 크기의 개체를 자기 가운데를 축으로 돌리고, 상자 `hp:sz`는
+돈 개체를 감싸는 상자, 개체는 그 상자의 원점으로 옮긴다)를 그대로 씁니다. 7.0부터 `resize`로 늘이거나
+줄인 그림·도형도 그린 크기대로 돕니다(공개 `ta-pic-001-r.hwp`의 0.2768배로 그려 34° 돈 그림과 상자·가운데·
+그리는 변환이 같다). 돈 그림은 `resize`·`set_crop`하면 그린 크기로 고치고 다시 돌립니다. 뒤집은 개체, 묶음,
+글자가 든 도형(한/글은 글을 돈 도형이 아니라 감싸는 상자에 가로로 놓아 글이 도형 밖으로 나온다)은
+`shape-rotation-unsupported`로 거부합니다. 각도 0으로 되돌리는 것은 언제나 됩니다.
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
