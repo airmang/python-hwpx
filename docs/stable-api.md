@@ -503,12 +503,13 @@ top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여
 `hasMargin`을 켭니다. 값은 `0 <= v < 2**31`인 `int`여야 하며, 아니면 바꾸기 전에
 `cell-margin-value`로 거부합니다. 인자가 없으면 아무것도 바꾸지 않습니다.
 
-`Table.insert_rows(ref_row, count=1, side="below", blank=False)`,
-`insert_columns(ref_col, count=1, side="right", blank=False)`, `delete_rows(rows)`,
+`Table.insert_rows(ref_row, count=1, side="below", copy_content=False)`,
+`insert_columns(ref_col, count=1, side="right", copy_content=False)`, `delete_rows(rows)`,
 `delete_columns(cols)`, `split_cell(row, col, rows=1, cols=1)`은 행·열을 넣고 지우고 칸을
 나눕니다. `hwpx.table_patch.apply_table_ops`의 같은 편집과 같은 규칙(한/글의 줄/칸
-추가하기·지우기, 셀 나누기)을 따르고, 새 칸은 기준 칸의 글을 복제하며 `blank=True`면
-빈 문단 하나만 둡니다. 거부하면 `TableStructureError`를 내고 표를 바꾸지 않습니다.
+추가하기·지우기, 셀 나누기)을 따릅니다. 새 칸은 한/글처럼 기준 칸의 서식만 받고 빈 문단
+하나를 두며, `copy_content=True`면 기준 칸의 글·개체까지 복사합니다(7.0 전에는 복사가
+기본이었고 `blank=True`가 빈 칸이었습니다). 거부하면 `TableStructureError`를 내고 표를 바꾸지 않습니다.
 편집 전에 얻은 셀·행 객체는 표에 속하지 않으니 다시 얻으세요.
 
 표의 모양과 크기는 7.0 에서 한 줄로 읽고 쓴다. 값 하나는 속성으로 읽고 쓴다(N2):

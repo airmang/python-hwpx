@@ -230,6 +230,8 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 |---|---|
 | `table.cell(row_index=, col_index=)`, `set_cell_text`·`set_cell_shading`·`set_cell_borders`·`set_cell_border_fill`·`set_cell_fill_gradient`·`set_cell_fill_image`·`split_merged_cell` 의 같은 인자 | `row=`, `col=`(위치 인자로 부르면 그대로) |
 | `table.get_cell_map()` | 속성 `table.cell_map`(tuple 의 tuple) |
+| `table.insert_rows(..., blank=True)`·`insert_columns(..., blank=True)`(`doc.tables.` 도) | `blank=` 를 지운다 — 빈 칸이 기본이다([아래](#표에-넣는-행과-열은-빈-칸이다)) |
+| `table.insert_rows(..., blank=False)`·`insert_columns(..., blank=False)` | `copy_content=True` |
 
 ### 구역·머리말·바탕쪽·각주
 
@@ -388,6 +390,31 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | 테두리·단 구분선·각주/미주 구분선·메모 선 굵기(`border_width_mm=`·`sides`/`border` 의 `width_mm`·`table.set_borders(border_width_mm=)`·`separator_width_mm=`·`ensure_memo_shape(line_width_mm=)`)는 한/글 굵기 목록(0.1·0.12·0.15·0.2·0.25·0.3·0.4·0.5·0.6·0.7·1·1.5·2·3·4·5 mm)의 값만 받는다. 목록에 없는 값(0.45 등)은 문서를 바꾸기 전에 `HwpxValueError`(`style-line-width-invalid`, `suggestion` 에 쓸 수 있는 값)로 거부한다. 6.x 와 7.0 개발 중에는 가장 가까운 값으로 바꿔 썼다. 도형·그림 선(`line_width_mm=`)은 그대로 mm × 283 HWPUNIT 이다 | 목록의 값을 직접 고른다(0.45 → 0.4 또는 0.5). 목록은 `hwpx.oxml.utils.LINE_WIDTHS_MM` 에 있다. 6.x 의 HWPUNIT 선 굵기 `n` 은 `hwpx.oxml.shape_position.line_width_mm_for_units(n)` 이 같은 HWPUNIT 으로 돌아가는 mm 다 |
 | `obj.rotation = 각도` 가 글이 든 도형(글상자)과 묶음 전체도 돌린다(6.x·7.0 개발 중에는 `shape-rotation-unsupported`). 글은 돌지 않고 돈 도형을 감싸는 상자 폭에 가로로 다시 놓인다(한/글과 같다). 돌린 개체의 숫자는 한/글처럼 cos·sin 소수 여섯 자리로 계산하고 옮기는 양을 정수로 써서, 같은 각도라도 상자 크기·행렬 끝자리가 6.x 와 한 단위쯤 다를 수 있다. 묶음 구성원 하나, 이미 돈 묶음을 다른 각도로, 늘이거나 뒤집은 묶음, 묶음이 든 묶음은 여전히 거부한다 | 거부에 기대던 코드는 돌리기 전에 `shape.shape_type == "container"` 등을 직접 본다 |
 | `editable` 속성이 없는 누름틀의 `field.editable` 이 OWPML 스키마 기본값 `True` 다(6.x 는 `False`). 번호 수준(`NumberingLevel`)의 `autoIndent`·`textOffset` 이 없으면 `auto_indent`·`text_offset` 이 스키마 기본값 `True`·`50` 이다(6.x 는 `False`·`0`). 한/글은 이 속성들을 늘 적으므로 한/글 저장본은 전과 같다 | 없음. "적히지 않음"을 따로 보려면 `field.element.get("editable")` |
+| **`table.insert_rows()`·`insert_columns()`(`doc.tables.` 도)가 한/글처럼 빈 행·열을 넣는다.** 6.x 는 기준 칸의 글·개체까지 복사했다. `blank=` 없이 부르던 코드는 오류 없이 결과가 바뀐다([아래](#표에-넣는-행과-열은-빈-칸이다)) | `copy_content=True` |
+
+### 표에 넣는 행과 열은 빈 칸이다
+
+6.x 의 `insert_rows` 는 기준 행을 통째로 복제했다. 제목 행 아래에 줄을 넣으면 제목 글이 새 줄에 그대로 생겼다.
+7.0 은 한/글의 "줄 추가하기"와 같다: 새 칸은 기준 칸의 서식(칸 속성·테두리/배경·여백·크기·문단 모양·글자 모양)만 받고
+빈 문단 하나를 둔다. 합친 칸이 새 줄을 가로지르면 늘어나는 규칙은 전과 같다. 이 변경은 이름이 그대로라 **오류가 나지
+않는다** — `blank=` 없이 `insert_rows`·`insert_columns` 를 부르는 곳을 찾아 확인한다(`blank=` 를 주던 곳은 안내 오류가 난다).
+
+```python
+from hwpx import HwpxDocument
+
+doc = HwpxDocument.new()
+table = doc.add_table(rows=2, cols=2)
+table.cell(0, 0).text = "제목"
+
+table.insert_rows(0)                      # 7.0: 새 줄은 빈 칸 (6.x: "제목"이 복사됐다)
+assert table.cell(1, 0).text == ""
+
+table.insert_rows(0, copy_content=True)   # 6.x 의 insert_rows(0) 과 같다 (6.x: blank=False)
+assert table.cell(1, 0).text == "제목"
+```
+
+바이트 편집 `apply_table_ops` 의 `insert_row_by_clone`·`insert_column_by_clone` 은 이름대로 전처럼 복사가 기본이다
+(빈 칸은 `"blank": True`).
 
 ## 쪽마다 새로 매기는 각주
 

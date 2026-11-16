@@ -162,6 +162,12 @@
 - 머리말·꼬리말을 한/글처럼 본문 컨트롤(`hp:ctrl`) 한 곳에만 쓴다. 6.x는 `hp:secPr` 아래에 사본과 `headerApply`를 하나 더 썼다
   (OWPML 스키마에 없는 모양). 공개 한/글 저장본 68개가 모두 한 곳에만 둔다. 6.x로 만든 문서는 그 머리말을 다시 설정할 때 사본을
   걷어 낸다.
+- **`table.insert_rows()`·`insert_columns()`(`doc.tables.insert_rows`·`insert_columns`도)가 한/글처럼 빈 행·열을 넣는다.**
+  6.x는 기준 행의 글·개체까지 복사해서, 제목 행 아래에 넣으면 제목 글이 새 행에 그대로 생겼다. 이제 새 칸은 기준 칸의 서식(칸
+  속성·테두리/배경·여백·크기·문단 모양·글자 모양)만 받고 빈 문단 하나를 둔다(한/글 저장본 `table_insert_row_*`·`table_insert_column_*`와
+  같은 모양). `blank=`를 주지 않던 코드는 오류 없이 결과가 바뀐다. 복사하려면 `copy_content=True`. `blank=`는 없어졌다(부르면
+  `hwpx-argument-removed`가 알려 준다: `blank=True`는 지우고, `blank=False`는 `copy_content=True`). 바이트 편집
+  `apply_table_ops`의 `insert_row_by_clone`·`insert_column_by_clone`은 전처럼 복사가 기본이다(`"blank": True`로 빈 칸).
 - `doc.add_table(style=)`·`doc.add_picture(style=)`가 스타일의 문단·글자 모양도 적용한다. 6.x는 스타일 이름표만 붙였다.
 - `obj.remove()`·`table.remove()`가 다른 곳에서 쓰지 않게 된 그림 데이터도 함께 지운다. 남기려면 `remove_orphaned=False`.
 - 표 칸·글상자·각주·머리말 안에 떠 있게 만든 개체는 문단 기준으로 그 안에 머무르게 놓인다(한/글 저장본의 그 자리 개체들이 쓰는
