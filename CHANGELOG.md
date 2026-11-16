@@ -27,6 +27,8 @@
 #### 이름 규칙
 
 - 7.0이 마지막 이름 변경이다. 공개 이름(최상위·루트·묶음·`hwpx.model`·`hwpx.objects`·안정 모듈)은 다음 major까지 바뀌지 않는다.
+  모델 객체의 `.element`(감싼 XML 요소)는 이 약속에 들어 있지 않다. 쓸 수는 있지만 모양을 약속하지 않고, 이것으로 고친 것은 엔진의
+  거부와 검사를 거치지 않는다(`docs/stable-api.md`의 「`.element` — 약속하지 않는 탈출구」).
   6.x 이름을 부르면 `HwpxAttributeError`(`document-name-removed`)나 `HwpxTypeError`(`hwpx-argument-removed`)가 새 이름과 한 줄
   예를 알려 준다. `hasattr`는 `False`다.
 - 6.0이 묶음(`doc.styles`·`doc.page` …)으로 옮기고 경고와 함께 남겨 둔 루트 이름 79개를 지웠다(예: `doc.set_header_text(...)` →

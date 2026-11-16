@@ -620,3 +620,10 @@ def test_rebuild_carries_an_old_branch_model_surface_contract(repo) -> None:
     assert merged["major"] == tool.package_major() + 1
     changes = {json.loads(line)["change"] for line in git.ledger.read_text(encoding="utf-8").splitlines()}
     assert {"model.Table.alignment: 계약에서 내림(계약 밖으로)", "model.Table.page_split: 계약에 생김"} <= changes
+
+
+def test_the_xml_element_is_never_a_stable_member(lock: dict[str, Any]) -> None:
+    """``.element`` is an escape hatch outside the contract (owner decision, 2026-11-16): no model class
+    promises it, so the wrapped XML can change shape without a major version."""
+    promised = [name for name, entry in lock["model"].items() if "element" in entry.get("members", {})]
+    assert promised == []
