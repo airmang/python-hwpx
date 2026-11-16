@@ -1,4 +1,4 @@
-"""Moving and copying objects, tables, paragraphs and memos inside one document.
+"""Moving and copying objects, tables, paragraphs and memos inside one document; tables in map order.
 
 Every edit keeps the document valid after a save and reopen, leaves the parts it did not touch byte for
 byte, drops the line layout cache of the paragraphs it changed (and of the paragraphs holding their cells
@@ -18,6 +18,7 @@ from hwpx.errors import HwpxError, HwpxLookupError, HwpxTypeError, HwpxValueErro
 from hwpx.model import Equation, Memo, Paragraph, Picture, Shape, Table
 from hwpx.oxml.formatting import _unit_length
 from hwpx.oxml.namespaces import HP
+from hwpx.tools.table_navigation import _collect_document_tables
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HANCOM = FIXTURES / "hancom_saved"
@@ -312,7 +313,7 @@ def test_table_copy_to_may_go_into_its_own_cell_and_move_to_may_not() -> None:
     copy = table.copy_to(own_cell)
     assert isinstance(copy, Table) and copy.cell(0, 0).text == "원본"
     assert copy.element.get("id") != table.element.get("id")
-    assert len(table.cell(1, 1).tables) == 1
+    assert len(doc.tables.with_nested) == 2
     again = _reopen(doc)
     assert again.tables[0].cell(1, 1).tables[0].cell(0, 0).text == "원본"
 
@@ -688,3 +689,39 @@ def test_memo_index_and_section_refusals() -> None:
     other = HwpxDocument.new()
     with pytest.raises(HwpxValueError):
         memo.move_to(other.sections[0])
+
+
+# -- tables in map order ------------------------------------------------------------------------
+
+
+def _map_order(doc: HwpxDocument) -> list:
+    return [entry.table.element for entry in _collect_document_tables(doc)]
+
+
+def test_with_nested_lists_the_tables_as_the_map_numbers_them() -> None:
+    doc = HwpxDocument.new()
+    outer = doc.add_paragraph("").add_table(2, 2)
+    inner = outer.cell(0, 1).add_table(1, 1)
+    inner.cell(0, 0).add_table(1, 1)
+    outer.cell(1, 0).add_table(1, 1)
+    doc.add_paragraph("").add_table(1, 1)
+
+    tables = doc.tables.with_nested
+
+    assert isinstance(tables, tuple) and all(isinstance(t, Table) for t in tables)
+    assert [t.element for t in tables] == _map_order(doc)
+    assert len(tables) == len(doc.tables.map()["tables"]) == 5
+    assert len(doc.tables.all) == 2
+    assert tables[1].element is inner.element
+    assert any(tables[1].paragraph.element is p.element for p in outer.cell(0, 1).paragraphs)
+
+
+@pytest.mark.parametrize("name", [
+    "auto_grow_cell_filled.hwpx",
+    "cell_border_vmerge_base.hwpx",
+    "pages_cell_table_as_character_and_a_picture_behind_the_text.hwpx",
+    "pages_cell_picture_in_a_table_as_character.hwpx",
+])
+def test_with_nested_matches_the_map_on_hancom_documents(name: str) -> None:
+    doc = HwpxDocument.open(HANCOM / name)
+    assert [t.element for t in doc.tables.with_nested] == _map_order(doc)

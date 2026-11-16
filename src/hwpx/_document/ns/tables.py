@@ -50,6 +50,30 @@ class TablesNamespace(_Namespace):
             tables.extend(paragraph.tables)
         return tables
 
+    @property
+    def with_nested(self) -> tuple["Table", ...]:
+        """본문의 표와 그 칸 안의 표(중첩 포함)를 표 지도(:meth:`map`)와 같은 순서·번호로.
+
+        표 하나 뒤에 그 칸들의 표가(행 순서, 칸 순서, 칸 문단 순서로, 다시 그 안의 표까지)
+        오고, 다음 표로 넘어간다. ``doc.tables.with_nested[i]`` 가 지도의
+        ``table_index == i`` 인 표다. 머리말·꼬리말·각주·미주·글상자·캡션 안의 표는
+        지도처럼 들어 있지 않다(그것까지는 ``doc.text.objects(kinds="table")``).
+        """
+
+        found: list["Table"] = []
+
+        def visit(table: "Table") -> None:
+            found.append(table)
+            for row in table.rows:
+                for cell in row.cells:
+                    for nested in cell.tables:
+                        visit(nested)
+
+        for paragraph in self._doc.paragraphs:
+            for table in paragraph.tables:
+                visit(table)
+        return tuple(found)
+
     def __len__(self) -> int:
         return len(self.all)
 

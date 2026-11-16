@@ -355,6 +355,10 @@ run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문
 돌려줍니다(`doc.notes.attach`로 겁니다). 메모는 고리(MEMO 누름틀)가 있는 구역에 두므로, 고리가 다른
 구역에 있는 메모와 한/글이 누름틀에 담아 둔 메모의 이동은 `note-memo-anchor-elsewhere`입니다.
 
+`doc.tables.with_nested`는 본문의 표와 그 칸 안의 표(중첩 포함)를 표 지도(`doc.tables.map()`)와
+같은 순서의 tuple로 돌려줍니다 — `doc.tables.with_nested[i]`가 지도의 `table_index == i`인 표입니다
+(공개 문서 786개·표 6,418개에서 지도 순서와 같음). `doc.tables.all`은 본문에 바로 놓인 표만입니다.
+
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
 `model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는
 도형 안 문단의 `paraPrIDRef`와 `hp:subList/@vertAlign`(`TOP`/`CENTER`/`BOTTOM`)을
