@@ -13,7 +13,7 @@ writes resizing first and turning after. Hangul's object properties take a turne
 the object along the page into a parallelogram (``one_p_30_s1``, ``one_r_30_s1``, ``one_g_f_30_s1``): python-hwpx
 reads that form and keeps it, but does not resize, turn or flip it again.
 
-Left out of the comparison as in test_flip_shapes_and_groups.py: ids, ``hp:pos`` offsets, ``curSz`` (Hangul writes 0
+Left out of the comparison: ids, ``curSz`` (Hangul writes 0
 on an axis left alone), line layout caches, an empty ``hp:shapeComment``, the image's measured size and its item
 name; numbers within 0.01.
 """
@@ -32,6 +32,7 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.container import ContainerMember
+from tests.hancom_place import carry_down_offset, paragraph_heights, paragraph_index
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 
@@ -107,14 +108,21 @@ def _only_object(doc: HwpxDocument):
     return objects[0]
 
 
+def _signed(value: str) -> int:
+    number = int(value) & 0xFFFFFFFF
+    return number - (1 << 32) if number >= 1 << 31 else number
+
+
 def _normalized(element, path: str = "") -> list[str]:
     name = str(element.tag).rsplit("}", 1)[-1]
     if name in {"curSz", "linesegarray", "imgDim", "imgClip"} or (
             name == "shapeComment" and not (element.text or "").strip()):
         return []
     attributes = {key: ("0" if value == "-0" else value) for key, value in element.attrib.items()
-                  if key not in {"id", "instid", "binaryItemIDRef"}
-                  and not (name == "pos" and key in {"horzOffset", "vertOffset"})}
+                  if key not in {"id", "instid", "binaryItemIDRef"}}
+    if name == "pos":  # offsets as signed numbers: Hangul writes a negative one unsigned too
+        attributes = {key: (str(_signed(value)) if key in {"horzOffset", "vertOffset"} else value)
+                      for key, value in attributes.items()}
     here = f"{path}/{name}"
     lines = [f"{here} {sorted(attributes.items())} {(element.text or '').strip()!r}"]
     for child in element:
@@ -158,7 +166,11 @@ def _made(source: str, steps: list[str]):
 @pytest.mark.parametrize(("fixture", "source", "steps"), CASES, ids=[f"{c[0]}-{'-'.join(c[2])}" for c in CASES])
 def test_python_hwpx_from_scratch_writes_what_hancom_saved(fixture: str, source: str, steps: list) -> None:
     doc, obj = _made(source, steps)
-    hancom = _only_object(HwpxDocument.open(HANCOM / f"{fixture}.hwpx"))
+    saved = HwpxDocument.open(HANCOM / f"{fixture}.hwpx")
+    hancom = _only_object(saved)
+    # Hangul hangs an object moved above its paragraph on the paragraph there: its offset carried to python-hwpx's
+    carry_down_offset(hancom.element, paragraph_index(saved, hancom), paragraph_index(doc, obj),
+                      paragraph_heights(saved, first_line_only=True))
     assert (obj.rotation, obj.flip_horizontal, obj.flip_vertical) == \
         (hancom.rotation, hancom.flip_horizontal, hancom.flip_vertical)
     assert _same(_normalized(obj.element), _normalized(hancom.element))

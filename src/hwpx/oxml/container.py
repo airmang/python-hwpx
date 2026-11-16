@@ -1047,8 +1047,9 @@ def ungroup_refusal(group: Any) -> str | None:
     position = group.find(f"{_HP}pos")
     if position is None or position.get("treatAsChar") not in ("0", "false", "False"):
         return "it is set as a character"
-    if position.get("horzAlign", "LEFT") != "LEFT" or position.get("vertAlign", "TOP") != "TOP":
-        return "it is placed from another side of its frame than the left and top"
+    if position.get("horzAlign", "LEFT") not in ("LEFT", "CENTER") \
+            or position.get("vertAlign", "TOP") not in ("TOP", "CENTER"):
+        return "it is placed from another side of its frame than the left, top or centre"
     flip = group.find(f"{_HP}flip")
     flipped = flip is not None and "1" in (flip.get("horizontal"), flip.get("vertical"))
     if flip is not None and flipped:
@@ -1076,7 +1077,7 @@ def ungroup_refusal(group: Any) -> str | None:
     return None
 
 
-def ungroup_elements(group: Any, top_z_order: int) -> list[Any]:
+def ungroup_elements(group: Any) -> list[Any]:
     """Take the floating group *group* (``hp:container`` in a run) apart as Hancom 2024 ungroups one and return
     its members, now shapes of their own, in the order they stand in the run (the group's last member first,
     as Hancom puts them).
@@ -1088,7 +1089,9 @@ def ungroup_elements(group: Any, top_z_order: int) -> list[Any]:
     (``hp:sz``) is the box of the shape drawn, ``hp:curSz`` its own size drawn at its scale (0 on an axis it is
     not stretched on), the rotation centre the middle of its box and the angle the group's. It takes the
     group's ``textWrap``, ``textFlow``, ``numberingType`` and outer margins, ``groupLevel`` 0, a new ``id``
-    and a ``zOrder`` above the others (*top_z_order* on), and keeps its ``instid`` (a connector attached to it
+    and the group's place in the drawing order -- the first member the group's ``zOrder``, each next one above it,
+    every other object above the group moved up to make room (Hancom 2024 ungrouping a group at 1 between objects at
+    0 and 2: members at 1 and 2, the object above at 3; rotate9 z-u) -- and keeps its ``instid`` (a connector attached to it
     stays). Hancom 2024 wrote this for a group of a rectangle and an ellipse ungrouped plain, stretched
     1.6 x 1.8 and 0.6 x 2.4, turned 30, 45 and 90 degrees, and stretched then turned 45 (objlim evidence ungroup2,
     ungroup3, ungroupstretch, ungroupstretch2, ungroupturned2, ungroupturned45b, ungroupturned90, ungroupturned45: its boxes a unit
@@ -1108,8 +1111,18 @@ def ungroup_elements(group: Any, top_z_order: int) -> list[Any]:
     left, top = _signed(position.get("horzOffset")), _signed(position.get("vertOffset"))
     margin = group.find(f"{_HP}outMargin")
     group_flip = group.find(f"{_HP}flip")
+    group_size = group.find(f"{_HP}sz")
+    group_box = (int(group_size.get("width", "0")), int(group_size.get("height", "0"))) if group_size is not None \
+        else (0, 0)
     freed: list[Any] = []
-    for index, member in enumerate(_shapes_inside(group)):
+    members = _shapes_inside(group)
+    count, base = len(members), int(group.get("zOrder") or 0)
+    inside = set(group.iter())
+    for node in group.getroottree().getroot().iter():  # make room above the group for its members
+        order = node.get("zOrder")
+        if node not in inside and order is not None and order.lstrip("-").isdigit() and int(order) > base:
+            node.set("zOrder", str(int(order) + count - 1))
+    for index, member in enumerate(members):
         rendering = member.find(f"{_HP}renderingInfo")
         trans, scale, rot = ([float(node.get(key, "1" if key in ("e1", "e5") else "0"))
                               for key in ("e1", "e2", "e3", "e4", "e5", "e6")] for node in rendering)
@@ -1156,14 +1169,17 @@ def ungroup_elements(group: Any, top_z_order: int) -> list[Any]:
                 member.set(name, str(group.get(name)))
         member.set("groupLevel", "0")
         member.set("id", _object_id())
-        member.set("zOrder", str(top_z_order + index))
+        member.set("zOrder", str(base + index))  # the first member the group's place, the last on top
         member.append(member.makeelement(f"{_HP}sz", {
             "width": str(box[0]), "widthRelTo": "ABSOLUTE", "height": str(box[1]), "heightRelTo": "ABSOLUTE",
             "protect": "0"}))
         place = copy.deepcopy(position)
         place.tail = None
-        place.set("horzOffset", _unsigned(left + start[0]))
-        place.set("vertOffset", _unsigned(top + start[1]))
+        # centred in its frame, a member keeps its place by its middle: the group's offset plus where it starts in
+        # the group's box, less half the group's box, plus half its own (rotate9 g-center-30-u: 3281, -4330)
+        centred = (position.get("horzAlign") == "CENTER", position.get("vertAlign") == "CENTER")
+        place.set("horzOffset", _unsigned(left + start[0] + (box[0] // 2 - group_box[0] // 2 if centred[0] else 0)))
+        place.set("vertOffset", _unsigned(top + start[1] + (box[1] // 2 - group_box[1] // 2 if centred[1] else 0)))
         member.append(place)
         if margin is not None:
             out = copy.deepcopy(margin)

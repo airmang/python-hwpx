@@ -9,8 +9,8 @@ box, a group holding a group), changed by Hangul 2024 through its public automat
 /``v`` its flip commands, ``s`` the object properties' width and height, ``30``/``60`` the object dialog's angle,
 ``u`` its ungroup command), then saved.
 
-Left out of the comparison: ids, ``hp:pos`` offsets (Hangul moves a turned floating object's place and hangs ungrouped
-shapes on other paragraphs), ``curSz``, line layout caches, ``hp:shapeComment`` (Hangul's ungroup writes its default
+Left out of the comparison: ids (Hangul hangs ungrouped shapes on other paragraphs: their down offset is carried
+to python-hwpx's paragraph, see tests/hancom_place.py), ``curSz``, line layout caches, ``hp:shapeComment`` (Hangul's ungroup writes its default
 descriptions) and ``zOrder``; numbers within 0.01.
 """
 
@@ -24,6 +24,7 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.container import ContainerMember
+from tests.hancom_place import carry_down_offset, paragraph_heights, paragraph_index
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 GSO = {"rect", "ellipse", "polygon", "line", "container", "pic", "arc", "curve"}
@@ -64,13 +65,20 @@ def _objects(doc: HwpxDocument) -> list:
     return [obj for paragraph in doc.paragraphs for obj in paragraph.objects]
 
 
+def _signed(value: str) -> int:
+    number = int(value) & 0xFFFFFFFF
+    return number - (1 << 32) if number >= 1 << 31 else number
+
+
 def _normalized(element, path: str = "") -> list[str]:
     name = str(element.tag).rsplit("}", 1)[-1]
     if name in {"curSz", "linesegarray", "shapeComment"}:
         return []
     attributes = {key: ("0" if value == "-0" else value) for key, value in element.attrib.items()
-                  if key not in {"id", "instid", "zOrder"}
-                  and not (name == "pos" and key in {"horzOffset", "vertOffset"})}
+                  if key not in {"id", "instid", "zOrder"}}
+    if name == "pos":  # offsets as signed numbers: Hangul writes a negative one unsigned too
+        attributes = {key: (str(_signed(value)) if key in {"horzOffset", "vertOffset"} else value)
+                      for key, value in attributes.items()}
     here = f"{path}/{name}"
     lines = [f"{here} {sorted(attributes.items())} {(element.text or '').strip()!r}"]
     for child in element:
@@ -117,7 +125,17 @@ def _made(source: str, steps: list[str]):
 def test_python_hwpx_from_scratch_writes_what_hancom_saved(fixture: str, source: str, steps: list) -> None:
     doc, _ = _made(source, steps)
     ours = _objects(doc)
-    theirs = _objects(HwpxDocument.open(HANCOM / f"{fixture}.hwpx"))
+    saved = HwpxDocument.open(HANCOM / f"{fixture}.hwpx")
+    left = _objects(saved)
+    theirs = []
+    for mine in ours:  # Hangul hangs freed shapes on other paragraphs: paired by kind and box
+        hancom = next(o for o in left if o.element.tag == mine.element.tag
+                      and (o.box_width, o.box_height) == (mine.box_width, mine.box_height))
+        left.remove(hancom)
+        theirs.append(hancom)
+    heights = paragraph_heights(saved, first_line_only=True)
+    for mine, hancom in zip(ours, theirs):  # its offset carried to python-hwpx's paragraph
+        carry_down_offset(hancom.element, paragraph_index(saved, hancom), paragraph_index(doc, mine), heights)
     assert len(ours) == len(theirs)
     for mine, hancom in zip(ours, theirs):
         assert (mine.rotation, mine.flip_horizontal, mine.flip_vertical) == \
