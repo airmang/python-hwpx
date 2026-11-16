@@ -35,6 +35,7 @@ from .form_field import (
 )
 from .highlight import Highlight
 from .results import (
+    Alignment,
     BorderFillInfo,
     BorderLine,
     CellMargins,
@@ -42,7 +43,11 @@ from .results import (
     ColumnLayout,
     FieldFillResult,
     FontReplaceReport,
+    LineSpacing,
+    LineSpacingType,
     ListFormatResult,
+    NumberingInfo,
+    NumberingLevel,
     ObjectPosition,
     PageMargins,
     PageSetup,
@@ -54,6 +59,7 @@ from .results import (
 from .tracked import TrackedChange, TrackedReplacement
 
 __all__ = [
+    "Alignment",
     "BinaryItem",
     "Bookmark",
     "BorderFillInfo",
@@ -73,10 +79,14 @@ __all__ = [
     "FieldLocation",
     "FieldParameter",
     "FontReplaceReport",
+    "LineSpacing",
+    "LineSpacingType",
     "FormField",
     "FormulaField",
     "Highlight",
     "ListFormatResult",
+    "NumberingInfo",
+    "NumberingLevel",
     "ObjectPosition",
     "PageMargins",
     "PageSetup",

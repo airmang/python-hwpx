@@ -45,6 +45,7 @@ from .note_authoring import (
     _paragraph_footnotes,
 )
 from ._paragraph_text_edit import (
+    ParagraphFormats,
     edit_node_candidates,
     insert_paragraph_beside,
     paragraph_container,
@@ -113,7 +114,7 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
 
 
 @dataclass
-class HwpxOxmlParagraph:
+class HwpxOxmlParagraph(ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element."""
 
     element: ET.Element
