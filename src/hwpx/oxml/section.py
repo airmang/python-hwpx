@@ -151,9 +151,9 @@ class HwpxOxmlSection:
         self._document = document
 
     @property
-    def paragraphs(self) -> list[HwpxOxmlParagraph]:
-        """Return the paragraphs defined in this section."""
-        return [HwpxOxmlParagraph(elm, self) for elm in self._paragraph_elements()]
+    def paragraphs(self) -> tuple[HwpxOxmlParagraph, ...]:
+        """The section's body paragraphs, in order."""
+        return tuple(HwpxOxmlParagraph(elm, self) for elm in self._paragraph_elements())
 
     def _memo_group_element(self, create: bool = False) -> ET.Element | None:
         element = self._element.find(f"{_HP}memogroup")
@@ -170,13 +170,13 @@ class HwpxOxmlSection:
         return HwpxOxmlMemoGroup(element, self)
 
     @property
-    def memos(self) -> list[HwpxOxmlMemo]:
+    def memos(self) -> tuple[HwpxOxmlMemo, ...]:
         """The section's memos: those of its ``hp:memogroup``, then those kept only in a MEMO field
         (Hancom's own form, with the memo's text in the field's ``hp:subList``), in document order.
         A memo in both (python-hwpx anchors its memos with a field carrying the memo's id) counts once."""
 
         group = self.memo_group
-        grouped = group.memos if group is not None else []
+        grouped = group.memos if group is not None else ()
         ids = {memo.id for memo in grouped if memo.id}
         kept_in_fields: list[HwpxOxmlMemo] = [
             HwpxOxmlFieldMemo(field, self)
@@ -184,7 +184,7 @@ class HwpxOxmlSection:
             if field.get("type") == "MEMO" and field.find(f"{_HP}subList") is not None
             and memo_field_id(field) not in ids
         ]
-        return [*grouped, *kept_in_fields]
+        return (*grouped, *kept_in_fields)
 
     def add_memo(
         self,
@@ -490,31 +490,57 @@ class HwpxOxmlSection:
         para_pr_id_ref: str | int | None = None,
         style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
-        run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
         inherit_style: bool = True,
-        inherit_outline: bool = True,
-        **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
-        """Create a new paragraph element appended to this section.
+        """Append a paragraph to this section and return it.
 
         When *inherit_style* is ``True`` (the default) and no explicit
         ``paraPrIDRef``, ``styleIDRef`` or ``charPrIDRef`` is given, the
         values are inherited from the **last** paragraph in the section so
-        that consecutive paragraphs share the same formatting. With
-        *inherit_outline* false the paragraph and style references of an
-        outline paragraph (a heading) are not inherited.
+        that consecutive paragraphs share the same formatting.
 
-        The optional ``para_pr_id_ref`` and ``style`` parameters
-        control the paragraph-level references, while ``char_pr_id_ref`` and
-        ``run_attributes`` customise the initial ``<hp:run>`` element when
-        ``include_run`` is :data:`True`. ``style`` (a name, a numeric id or a
-        ``Style``) also gives the paragraph that style's paragraph and
-        character shapes unless they are passed, as Hancom does when it applies
-        a style. (7.0 removed ``style_id_ref=``, which set the style reference
-        alone; ``paragraph.style_id_ref = 2`` still does that.)
+        ``style`` (a name, a numeric id or a ``Style``) also gives the
+        paragraph that style's paragraph and character shapes unless they are
+        passed, as Hancom does when it applies a style; ``para_pr_id_ref`` and
+        ``char_pr_id_ref`` name the shapes directly. With *include_run* false
+        the paragraph gets no run (a paragraph made to hold an object). Anything
+        else is a property of the returned paragraph (``p.page_break = True``):
+        7.0 took away ``run_attributes=``, ``inherit_outline=`` and the keyword
+        arguments written as raw XML attributes, and a call that still passes one
+        is told so. (7.0 also removed ``style_id_ref=``, which set the style
+        reference alone; ``paragraph.style_id_ref = 2`` still does that.)
         """
 
+        return self._add_paragraph(
+            text,
+            para_pr_id_ref=para_pr_id_ref,
+            style=style,
+            char_pr_id_ref=char_pr_id_ref,
+            include_run=include_run,
+            inherit_style=inherit_style,
+        )
+
+    def _add_paragraph(
+        self,
+        text: str = "",
+        *,
+        para_pr_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
+        char_pr_id_ref: str | int | None = None,
+        include_run: bool = True,
+        inherit_style: bool = True,
+        inherit_outline: bool = True,
+        run_attributes: Mapping[str, str] | None = None,
+        xml_attributes: Mapping[str, str] | None = None,
+    ) -> HwpxOxmlParagraph:
+        """:meth:`add_paragraph`, plus what the document layer still needs: *inherit_outline*
+        false holds back the paragraph and style references of an outline paragraph (a
+        heading) the way a list paragraph's are, *run_attributes* are raw ``hp:run``
+        attributes and *xml_attributes* raw ``hp:p`` attributes (the low-level escape
+        hatches ``doc.shapes.add_raw``/``add_control`` take)."""
+
+        extra_attrs = dict(xml_attributes or {})
         style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
             self.document,
             style,
@@ -565,8 +591,8 @@ class HwpxOxmlSection:
         self,
         index: int,
         paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
-    ) -> list[HwpxOxmlParagraph]:
-        """Insert paragraph copies at *index* and return wrappers for them."""
+    ) -> tuple[HwpxOxmlParagraph, ...]:
+        """Insert copies of *paragraphs* at *index* and return the inserted paragraphs."""
 
         existing = self.paragraphs
         if index < 0 or index > len(existing):
@@ -581,16 +607,16 @@ class HwpxOxmlSection:
 
         if inserted:
             self._dirty = True
-        return inserted
+        return tuple(inserted)
 
-    def copy_paragraph_range(self, start: int, end: int) -> list[ET.Element]:
-        """Return deep-copied paragraph elements for the inclusive range."""
+    def copy_paragraph_range(self, start: int, end: int) -> tuple[ET.Element, ...]:
+        """Deep copies of the paragraph elements *start* to *end* (both included)."""
 
         paragraphs = self.paragraphs
         total = len(paragraphs)
         if start < 0 or end < 0 or start >= total or end >= total or start > end:
             raise IndexError(f"문단 범위 {start}..{end}이(가) 유효하지 않습니다 (총 {total}개)")
-        return [_clone_paragraph_element(paragraphs[index].element) for index in range(start, end + 1)]
+        return tuple(_clone_paragraph_element(paragraphs[index].element) for index in range(start, end + 1))
 
     def mark_dirty(self) -> None:
         self._dirty = True

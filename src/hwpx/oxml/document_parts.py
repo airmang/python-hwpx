@@ -561,16 +561,19 @@ class HwpxOxmlDocument:
         return self._manifest
 
     @property
-    def sections(self) -> list[HwpxOxmlSection]:
-        return list(self._sections)
+    def sections(self) -> tuple[HwpxOxmlSection, ...]:
+        """The document's sections (``Contents/sectionN.xml``), in order."""
+        return tuple(self._sections)
 
     @property
-    def headers(self) -> list[HwpxOxmlHeader]:
-        return list(self._headers)
+    def headers(self) -> tuple[HwpxOxmlHeader, ...]:
+        """The document's header parts (``Contents/header.xml``)."""
+        return tuple(self._headers)
 
     @property
-    def master_pages(self) -> list[HwpxOxmlMasterPage]:
-        return list(self._master_pages)
+    def master_pages(self) -> tuple[HwpxOxmlMasterPage, ...]:
+        """The document's master page parts, in manifest order."""
+        return tuple(self._master_pages)
 
     def clear_layout_cache(self, *, stale_only: bool = False) -> int:
         """Remove the line layout caches of every section and master page; return how many.
@@ -615,8 +618,9 @@ class HwpxOxmlDocument:
         )
 
     @property
-    def histories(self) -> list[HwpxOxmlHistory]:
-        return list(self._histories)
+    def histories(self) -> tuple[HwpxOxmlHistory, ...]:
+        """The document's history parts."""
+        return tuple(self._histories)
 
     @property
     def version(self) -> HwpxOxmlVersion | None:
@@ -1145,11 +1149,12 @@ class HwpxOxmlDocument:
         return max_id + 1
 
     @property
-    def paragraphs(self) -> list[HwpxOxmlParagraph]:
+    def paragraphs(self) -> tuple[HwpxOxmlParagraph, ...]:
+        """The body paragraphs of every section, in document order."""
         paragraphs: list[HwpxOxmlParagraph] = []
         for section in self._sections:
             paragraphs.extend(section.paragraphs)
-        return paragraphs
+        return tuple(paragraphs)
 
     def _target_section(self, section: "int | HwpxOxmlSection | None") -> HwpxOxmlSection:
         """*section* as a section: an index into :attr:`sections`, a section, or ``None``
@@ -1172,25 +1177,35 @@ class HwpxOxmlDocument:
         para_pr_id_ref: str | int | None = None,
         style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
-        run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
         inherit_style: bool = True,
-        inherit_outline: bool = True,
-        **extra_attrs: str,
     ) -> HwpxOxmlParagraph:
         """Append a new paragraph to the requested section (an index or a section;
-        ``None``: the last). ``style`` is a name, a numeric id or a ``Style``, as
-        :meth:`HwpxOxmlSection.add_paragraph` takes it."""
-        return self._target_section(section).add_paragraph(
+        ``None``: the last) and return it, as :meth:`HwpxOxmlSection.add_paragraph`
+        makes it (``style`` is a name, a numeric id or a ``Style``)."""
+        return self._add_paragraph(
             text,
+            section=section,
             para_pr_id_ref=para_pr_id_ref,
             style=style,
             char_pr_id_ref=char_pr_id_ref,
-            run_attributes=run_attributes,
             include_run=include_run,
             inherit_style=inherit_style,
-            inherit_outline=inherit_outline,
-            **extra_attrs,
+        )
+
+    def _add_paragraph(
+        self,
+        text: str = "",
+        *,
+        section: int | HwpxOxmlSection | None = None,
+        inherit_outline: bool = True,
+        xml_attributes: Mapping[str, str] | None = None,
+        **options: Any,
+    ) -> HwpxOxmlParagraph:
+        """:meth:`add_paragraph` with the document layer's own options
+        (:meth:`HwpxOxmlSection._add_paragraph`: *inherit_outline*, raw *xml_attributes*)."""
+        return self._target_section(section)._add_paragraph(
+            text, inherit_outline=inherit_outline, xml_attributes=xml_attributes, **options
         )
 
     @rejects_removed_arguments
@@ -1217,8 +1232,8 @@ class HwpxOxmlDocument:
         end: int,
         *,
         section: int | HwpxOxmlSection | None = None,
-    ) -> list[ET.Element]:
-        """Return deep-copied paragraph elements for an inclusive range."""
+    ) -> tuple[ET.Element, ...]:
+        """Deep copies of the paragraph elements *start* to *end* (both included) of a section."""
 
         return self._target_section(section).copy_paragraph_range(start, end)
 
@@ -1229,8 +1244,8 @@ class HwpxOxmlDocument:
         paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
         *,
         section: int | HwpxOxmlSection | None = None,
-    ) -> list[HwpxOxmlParagraph]:
-        """Insert copied paragraphs into the requested section."""
+    ) -> tuple[HwpxOxmlParagraph, ...]:
+        """Insert copies of *paragraphs* into the requested section; return the inserted paragraphs."""
 
         return self._target_section(section).insert_paragraphs(index, paragraphs)
 

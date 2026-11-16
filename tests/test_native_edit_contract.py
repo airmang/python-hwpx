@@ -77,7 +77,7 @@ def test_native_story_preserves_empty_paragraphs_without_new_mirror(
 ):
     with HwpxDocument.open(CORPUS / "reader_writer__HeaderFooter.hwpx") as doc:
         props = doc.sections[0].properties
-        story = getattr(props, "get_" + kind)()
+        story = getattr(props, kind)()
         assert story.text == old_text
         expected = deepcopy(doc.sections[0].element)
         for text in expected.iter(HP + "t"):
@@ -93,7 +93,7 @@ def test_native_story_preserves_empty_paragraphs_without_new_mirror(
         output = tmp_path / f"{kind}.hwpx"
         doc.save(output, mode="patch", fallback="error")
     with HwpxDocument.open(output) as doc:
-        assert getattr(doc.sections[0].properties, "get_" + kind)().text == "검토 완료"
+        assert getattr(doc.sections[0].properties, kind)().text == "검토 완료"
 
 
 def test_native_story_refuses_duplicates_and_rich_controls():

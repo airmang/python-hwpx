@@ -141,8 +141,8 @@ def test_header_and_footer_text_keep_a_tab() -> None:
     assert "쪽<hp:tab/>끝" in texts
     assert not [text for text in texts if "\t" in text]
     properties = HwpxDocument.open(data).sections[0].properties
-    assert properties.get_header().text == "학교명\t날짜"
-    assert properties.get_footer().text == "쪽\t끝"
+    assert properties.header().text == "학교명\t날짜"
+    assert properties.footer().text == "쪽\t끝"
 
 
 def test_note_text_keeps_a_tab() -> None:

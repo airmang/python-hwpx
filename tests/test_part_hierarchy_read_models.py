@@ -246,5 +246,5 @@ def test_parse_history_rejects_wrong_root() -> None:
 
 def test_document_parts_histories_is_empty_for_real_corpus() -> None:
     doc = HwpxDocument.open(MASTERPAGE_FIXTURE)
-    assert doc.parts.histories == []
+    assert doc.parts.histories == ()
     doc.close()
