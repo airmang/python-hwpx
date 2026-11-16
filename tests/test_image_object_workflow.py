@@ -67,7 +67,7 @@ def test_add_picture_updates_section_manifest_and_bindata_then_validates(tmp_pat
     binary_ref = _first_picture_image(document).get("binaryItemIDRef")
     assert binary_ref == "BIN0001"
     assert document.package.has_part(f"BinData/{binary_ref}.png")
-    assert any(item.href == f"BinData/{binary_ref}.png" for item in document.list_images())
+    assert any(item.href == f"BinData/{binary_ref}.png" for item in document.media.images)
     assert any(
         item.get("id") == binary_ref
         and item.get("href") == f"BinData/{binary_ref}.png"
@@ -140,7 +140,7 @@ def test_replace_picture_preserves_geometry_and_replaces_only_asset_graph(tmp_pa
     old_ref = _first_picture_image(document).get("binaryItemIDRef")
     before_geometry = _geometry_snapshot(old_picture)
 
-    result = document.replace_picture(PNG_1X1_ALT, "png", picture_index=0)
+    result = document.media.replace_picture(PNG_1X1_ALT, "png", picture_index=0)
 
     new_picture = _first_picture(document)
     new_ref = _first_picture_image(document).get("binaryItemIDRef")
@@ -189,7 +189,7 @@ def test_id_integrity_detects_dangling_binary_item_ref() -> None:
 
 def test_id_integrity_detects_orphan_bindata() -> None:
     document = HwpxDocument.new()
-    document.add_image(PNG_1X1, "png")
+    document.media.add_image(PNG_1X1, "png")
 
     report = check_id_integrity(document)
 
@@ -272,13 +272,13 @@ def test_an_aligned_inline_picture_takes_the_paragraph_alignment() -> None:
 def test_a_picture_alignment_outside_the_schema_is_refused_before_anything_is_added(align: object) -> None:
     # Hancom reads a horizontal alignment it does not know as LEFT; the picture was written with it as given.
     document = HwpxDocument.new()
-    paragraphs, images = len(document.paragraphs), len(document.list_images())
+    paragraphs, images = len(document.paragraphs), len(document.media.images)
 
     with pytest.raises(HwpxValueError) as caught:
         document.add_picture(PNG_1X1, "png", width=7200, height=7200, align=align)  # type: ignore[arg-type]
 
     assert caught.value.code == "shape-position-frame"
-    assert (len(document.paragraphs), len(document.list_images())) == (paragraphs, images)
+    assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)
 
 
 def test_a_picture_takes_the_inside_and_outside_alignments_too() -> None:

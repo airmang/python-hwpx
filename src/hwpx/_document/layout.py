@@ -655,7 +655,6 @@ def set_page_setup(
     columns: int | None = None,
     column_gap_mm: float | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> PageSetup:
     """Set page size, margins, orientation, and optional columns in human units.
 
@@ -722,14 +721,12 @@ def set_page_setup(
             height=height,
             orientation=normalized_orientation,
             section=section,
-            section_index=section_index,
         )
 
     if hwp_margins:
         set_page_margins(
             doc,
             section=section,
-            section_index=section_index,
             **hwp_margins,
         )
 
@@ -750,7 +747,6 @@ def set_page_setup(
             col_count=col_count,
             same_gap=gap,
             section=section,
-            section_index=section_index,
         )
         column_layout = ColumnLayout(count=col_count, gap_mm=gap_mm)
 
@@ -780,7 +776,6 @@ def set_columns(
     separator_color: str | None = None,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlInlineObject:
     """Set the columns of a section, or start new columns at a paragraph.
 
@@ -810,7 +805,7 @@ def set_columns(
     elif column_widths:
         column_shares(column_widths)  # checked before a paragraph is added too
     if paragraph is None:
-        target_section = _resolve_section(doc, section=section, section_index=section_index)
+        target_section = _resolve_section(doc, section=section)
         ctrl = target_section.properties.set_columns(
             col_count,
             col_type=col_type,
@@ -825,7 +820,7 @@ def set_columns(
         if ctrl is not None:
             return HwpxOxmlInlineObject(ctrl, target_section.paragraphs[0])
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_column_definition(
@@ -847,7 +842,6 @@ def add_bookmark(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlInlineObject:
     """Insert a bookmark marker in the document.
 
@@ -855,7 +849,7 @@ def add_bookmark(
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_bookmark(name)
@@ -868,7 +862,6 @@ def add_hyperlink(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlInlineObject:
     """Insert a hyperlink (fieldBegin + text + fieldEnd).
@@ -883,7 +876,7 @@ def add_hyperlink(
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
-            "", section=section, section_index=section_index,
+            "", section=section,
             include_run=False,
         )
     return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)
@@ -892,11 +885,8 @@ def add_hyperlink(
 def _resolve_section(
     doc: "HwpxDocument",
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlSection:
     target_section = section
-    if target_section is None and section_index is not None:
-        target_section = doc._root.sections[section_index]
     if target_section is None:
         if not doc._root.sections:
             raise HwpxValueError(
@@ -916,11 +906,10 @@ def set_page_size(
     orientation: str | None = None,
     gutter_type: str | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> None:
     """Set page dimensions on the requested section through the public facade."""
 
-    target_section = _resolve_section(doc, section=section, section_index=section_index)
+    target_section = _resolve_section(doc, section=section)
     target_section.properties.set_page_size(
         width=width,
         height=height,
@@ -940,11 +929,10 @@ def set_page_margins(
     footer: int | None = None,
     gutter: int | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> None:
     """Set page margins on the requested section through the public facade."""
 
-    target_section = _resolve_section(doc, section=section, section_index=section_index)
+    target_section = _resolve_section(doc, section=section)
     target_section.properties.set_page_margins(
         left=left,
         right=right,
@@ -961,12 +949,11 @@ def set_header_text(
     text: str,
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     page_type: str = "BOTH",
 ) -> HwpxOxmlSectionHeaderFooter:
     """Ensure the requested section contains a header for *page_type* and set its text."""
 
-    target_section = _resolve_section(doc, section=section, section_index=section_index)
+    target_section = _resolve_section(doc, section=section)
     return target_section.properties.set_header_text(text, page_type=page_type)
 
 
@@ -975,12 +962,11 @@ def set_footer_text(
     text: str,
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     page_type: str = "BOTH",
 ) -> HwpxOxmlSectionHeaderFooter:
     """Ensure the requested section contains a footer for *page_type* and set its text."""
 
-    target_section = _resolve_section(doc, section=section, section_index=section_index)
+    target_section = _resolve_section(doc, section=section)
     return target_section.properties.set_footer_text(text, page_type=page_type)
 
 
@@ -989,12 +975,11 @@ def set_header_content(
     content: Sequence[Mapping[str, Any]],
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     page_type: str = "BOTH",
 ) -> HwpxOxmlSectionHeaderFooter:
     """Ensure the requested section contains a rich header for *page_type*."""
 
-    target_section = _resolve_section(doc, section=section, section_index=section_index)
+    target_section = _resolve_section(doc, section=section)
     return target_section.properties.set_header_content(content, page_type=page_type)
 
 
@@ -1003,12 +988,11 @@ def set_footer_content(
     content: Sequence[Mapping[str, Any]],
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     page_type: str = "BOTH",
 ) -> HwpxOxmlSectionHeaderFooter:
     """Ensure the requested section contains a rich footer for *page_type*."""
 
-    target_section = _resolve_section(doc, section=section, section_index=section_index)
+    target_section = _resolve_section(doc, section=section)
     return target_section.properties.set_footer_content(content, page_type=page_type)
 
 
@@ -1078,7 +1062,6 @@ def set_header_footer(
     text: str | None = None,
     content: Sequence[Mapping[str, Any]] | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     page_type: str = "BOTH",
 ) -> HwpxOxmlSectionHeaderFooter:
     """Set a header or footer using plain text or rich content specs."""
@@ -1098,7 +1081,7 @@ def set_header_footer(
             suggestion="Use text= for one line, content= for multiple paragraphs.",
         )
     _warn_story_overwrite(
-        _resolve_section(doc, section=section, section_index=section_index),
+        _resolve_section(doc, section=section),
         normalized, page_type, text=text, content=content,
     )
     # Call the local primitives directly rather than `doc.set_header_content`/
@@ -1112,14 +1095,12 @@ def set_header_footer(
                 doc,
                 content,
                 section=section,
-                section_index=section_index,
                 page_type=page_type,
             )
         return set_footer_content(
             doc,
             content,
             section=section,
-            section_index=section_index,
             page_type=page_type,
         )
 
@@ -1129,14 +1110,12 @@ def set_header_footer(
             doc,
             value,
             section=section,
-            section_index=section_index,
             page_type=page_type,
         )
     return set_footer_text(
         doc,
         value,
         section=section,
-        section_index=section_index,
         page_type=page_type,
     )
 
@@ -1153,7 +1132,6 @@ def set_page_number(
     suffix: str = "",
     format_type: str | None = None,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
 ) -> HwpxOxmlSectionHeaderFooter:
     """Replace header/footer content with an automatic page-number field."""
 
@@ -1180,7 +1158,6 @@ def set_page_number(
         kind=target,
         content=[{"align": align, "children": children}],
         section=section,
-        section_index=section_index,
         page_type=page_type,
     )
 
@@ -1248,14 +1225,11 @@ def remove_header(
     doc: "HwpxDocument",
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     page_type: str = "BOTH",
 ) -> None:
     """Remove the header linked to *page_type* from the requested section if present."""
 
     target_section = section
-    if target_section is None and section_index is not None:
-        target_section = doc._root.sections[section_index]
     if target_section is None:
         if not doc._root.sections:
             return
@@ -1267,14 +1241,11 @@ def remove_footer(
     doc: "HwpxDocument",
     *,
     section: HwpxOxmlSection | None = None,
-    section_index: int | None = None,
     page_type: str = "BOTH",
 ) -> None:
     """Remove the footer linked to *page_type* from the requested section if present."""
 
     target_section = section
-    if target_section is None and section_index is not None:
-        target_section = doc._root.sections[section_index]
     if target_section is None:
         if not doc._root.sections:
             return

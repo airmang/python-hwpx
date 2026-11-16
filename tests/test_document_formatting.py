@@ -298,10 +298,10 @@ def test_section_add_paragraph_accepts_formatting_identifiers() -> None:
     paragraph = section.add_paragraph(
         "Body",
         para_pr_id_ref=4,
-        style_id_ref=2,
         char_pr_id_ref=6,
         run_attributes={"id": "run1"},
     )
+    paragraph.style_id_ref = 2  # a detached section has no header to resolve style= in
 
     assert paragraph.element.get("paraPrIDRef") == "4"
     assert paragraph.element.get("styleIDRef") == "2"
@@ -322,9 +322,9 @@ def test_document_add_paragraph_passes_formatting_options() -> None:
         "Formatted",
         section=section,
         para_pr_id_ref=8,
-        style_id_ref=5,
         char_pr_id_ref=3,
     )
+    paragraph.style_id_ref = 5  # a document without a header has no style to resolve style= in
 
     assert paragraph.element.get("paraPrIDRef") == "8"
     assert paragraph.element.get("styleIDRef") == "5"
@@ -354,7 +354,7 @@ def test_document_replace_text_preserves_style_and_markup() -> None:
     )
     original_char = run.char_pr_id_ref
 
-    replaced = document.replace_text_in_runs("memo", "note")
+    replaced = document.text.replace("memo", "note")
 
     assert replaced == 1
     assert run.char_pr_id_ref == original_char

@@ -13,9 +13,9 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 def _build_enriched_template(path: Path) -> str:
     document = HwpxDocument.new()
-    document.set_page_size(width=72000, height=36000, orientation="LANDSCAPE")
-    document.set_page_margins(left=7000, right=5000, top=3000, bottom=3000, gutter=1000)
-    rich_style = document.ensure_run_style(
+    document.page.set_size(width=72000, height=36000, orientation="LANDSCAPE")
+    document.page.set_margins(left=7000, right=5000, top=3000, bottom=3000, gutter=1000)
+    rich_style = document.styles.ensure_run(
         bold=True,
         italic=True,
         underline=True,

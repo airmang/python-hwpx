@@ -26,6 +26,7 @@ from ._document_primitives import (
     _remove_stale_paragraph_layout_cache,
     _serialize_xml,
 )
+from ..errors import rejects_removed_arguments
 from .body import INLINE_OBJECT_NAMES
 from .memo import HwpxOxmlFieldMemo, HwpxOxmlMemo, HwpxOxmlMemoGroup, memo_field_id
 from .paragraph import HwpxOxmlParagraph
@@ -36,6 +37,7 @@ from .section_story import HwpxOxmlSectionHeaderFooter, story_marks
 if TYPE_CHECKING:
     from ..objects.results import ClearBodyReport
     from .document_parts import HwpxOxmlDocument
+    from .header import Style
 
 _CLEAR_BODY_MODES = ("raise", "keep", "strip")
 _CLEAR_BODY_KEPT_TAGS = frozenset({f"{_HP}secPr", f"{_HP}ctrl"})
@@ -480,12 +482,13 @@ class HwpxOxmlSection:
             break_setting={key: False for key in flags.values()},
         )
 
+    @rejects_removed_arguments
     def add_paragraph(
         self,
         text: str = "",
         *,
         para_pr_id_ref: str | int | None = None,
-        style_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
@@ -502,11 +505,24 @@ class HwpxOxmlSection:
         *inherit_outline* false the paragraph and style references of an
         outline paragraph (a heading) are not inherited.
 
-        The optional ``para_pr_id_ref`` and ``style_id_ref`` parameters
+        The optional ``para_pr_id_ref`` and ``style`` parameters
         control the paragraph-level references, while ``char_pr_id_ref`` and
         ``run_attributes`` customise the initial ``<hp:run>`` element when
-        ``include_run`` is :data:`True`.
+        ``include_run`` is :data:`True`. ``style`` (a name, a numeric id or a
+        ``Style``) also gives the paragraph that style's paragraph and
+        character shapes unless they are passed, as Hancom does when it applies
+        a style. (7.0 removed ``style_id_ref=``, which set the style reference
+        alone; ``paragraph.style_id_ref = 2`` still does that.)
         """
+
+        style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
+            self.document,
+            style,
+            para_pr_id_ref,
+            char_pr_id_ref,
+            run_attributes,
+            extra_attrs,
+        )
 
         # Collect style refs from the last paragraph for inheritance.
         prev_para_ref, prev_style_ref, prev_char_ref = (
@@ -922,6 +938,44 @@ def _remove_outlived_caches(root: Any, tracked: _TrackedCaches) -> tuple[int, _T
         else:
             following.append((cache, digest, now))
     return removed, following
+
+
+def style_shape_refs(
+    document: "HwpxOxmlDocument | None",
+    style: "int | str | Style | None",
+    para_pr_id_ref: str | int | None,
+    char_pr_id_ref: str | int | None,
+    run_attributes: Mapping[str, str] | None = None,
+    paragraph_attributes: Mapping[str, str] | None = None,
+) -> tuple[str | int | None, str | int | None, str | int | None]:
+    """``(styleIDRef, paraPrIDRef, charPrIDRef)`` for a paragraph made with *style*: the
+    style's id, and its paragraph and character shapes where none were given (a
+    ``charPrIDRef`` in *run_attributes*, a ``paraPrIDRef`` in *paragraph_attributes*
+    counts as given). No *style*: no reference."""
+
+    if style is None:
+        return None, para_pr_id_ref, char_pr_id_ref
+    if document is not None:
+        from .formatting import resolve_style
+
+        resolved = resolve_style(document, style)
+    elif isinstance(style, (int, str)):
+        from ..errors import HwpxLookupError
+
+        raise HwpxLookupError(
+            f"스타일 {style!r} 을(를) 찾을 수 없습니다: 구역이 문서에 붙어 있지 않아 스타일 목록이 없습니다.",
+            code="style-not-found",
+            context={"requested": style, "available": [], "availableCount": 0},
+            suggestion="문서의 구역에서 부르거나 Style 객체를 주세요.",
+        )
+    else:
+        resolved = style
+    style_id = resolved.id if resolved.id is not None else resolved.raw_id
+    if para_pr_id_ref is None and "paraPrIDRef" not in (paragraph_attributes or {}):
+        para_pr_id_ref = resolved.para_pr_id_ref
+    if char_pr_id_ref is None and "charPrIDRef" not in (run_attributes or {}):
+        char_pr_id_ref = resolved.char_pr_id_ref
+    return style_id, para_pr_id_ref, char_pr_id_ref
 
 
 __all__ = ["HwpxOxmlSection", "HwpxOxmlSectionHeaderFooter", "HwpxOxmlSectionProperties"]

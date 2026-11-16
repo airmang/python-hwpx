@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 274 | 11 |
+| 개수 | 275 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -81,6 +81,7 @@ except HwpxError as exc:
 | `document-merge-index-out-of-range` | after_paragraph_index 가 대상 섹션의 문단 개수 범위를 벗어났다. |
 | `document-merge-unsupported-policy-axis` | 그 정책 축의 값이 아직 지원 기본값 밖이다(신규 값 미구현). |
 | `document-merge-unsupported-reference` | 가져올 문단이 아직 지원 안 하는 참조 요소를 담고 있다(예: 메모 필드). |
+| `document-name-removed` | 7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement). |
 | `document-seed-invalid` | new()/open() 의 seed 가 정수가 아니다. |
 | `document-settings-root-invalid` | settings.xml 루트가 ha:HWPApplicationSetting이 아니다. |
 | `document-validation-failed` | 저장 전 문서 검증이 실패했다. |
@@ -152,6 +153,8 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `hwpx-argument-removed` | 7.0에서 없어진 인자(section_index=, style_id_ref=)를 주었다(대신 쓸 인자는 suggestion). |
+| `hwpx-attribute-error` | 그런 이름의 속성·메서드가 없다(분류되지 않음, AttributeError 계열이기도 하다). |
 | `hwpx-error` | 분류되지 않은 구조화 오류(베이스 기본값). |
 | `hwpx-index-error` | 인덱스가 범위를 벗어났다(분류되지 않음, IndexError 계열이기도 하다). |
 | `hwpx-lookup-error` | 이름·인덱스로 지목한 것이 없다(분류되지 않음). |
@@ -330,7 +333,6 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
-| `section-argument-conflict` | section 과 section_index 를 동시에 지정했다. |
 | `section-clear-control-content` | clear_body 가 남길 hp:secPr/hp:ctrl 안에 글·표·개체가 있다(머리말·꼬리말 등, strip 으로도 못 지우는 경우 포함, 태그는 context 에). |
 | `section-clear-mode-invalid` | clear_body 의 on_control_content 값이 raise/keep/strip 밖이다. |
 | `section-clear-no-section-properties` | 섹션 첫 문단의 첫 run 에 hp:secPr 가 없어 clear_body 가 남길 쪽 설정이 없다. |
@@ -402,7 +404,6 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `style-ambiguous` | 같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉). |
-| `style-argument-conflict` | style 과 style_id_ref 를 동시에 지정했다. |
 | `style-border-base-conflict` | base_border_fill_id 와 함께 sides·fill_color 밖의 테두리 인자를 주었다. |
 | `style-border-fill-conflict` | fill_color/fill_image/fill_gradient 를 둘 이상 동시에 지정했다. |
 | `style-border-fill-gradient-colors-invalid` | fill_gradient 의 colors 가 2개 미만이다. |

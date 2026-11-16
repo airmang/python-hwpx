@@ -1,462 +1,499 @@
 {
  "add_bookmark": {
+  "example": "doc.refs.add_bookmark(\"책갈피\", paragraph=paragraph)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.refs.add_bookmark",
-  "signature": "(self, name: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'HwpxOxmlInlineObject'"
+  "replacement": "doc.refs.add_bookmark(...)"
  },
  "add_chart": {
+  "example": "doc.shapes.add_chart(chart_xml)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.shapes.add_chart",
-  "signature": "(self, chart_xml: 'bytes | str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, size: 'tuple[int, int] | None' = None, treat_as_char: 'bool' = False, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlInlineObject'"
+  "replacement": "doc.shapes.add_chart(...)"
  },
  "add_check_box": {
+  "example": "doc.fields.add_check_box(\"동의\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.fields.add_check_box",
-  "signature": "(self, caption: 'str', *, checked: 'bool' = False, name: 'str | None' = None, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'dict[str, Any]'"
+  "replacement": "doc.fields.add_check_box(...)",
+  "returns": "dict → CheckBox"
  },
  "add_control": {
+  "example": "doc.shapes.add_control()",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.shapes.add_control",
-  "signature": "(self, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, attributes: 'dict[str, str] | None' = None, control_type: 'str | None' = None, para_pr_id_ref: 'str | int | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
+  "replacement": "doc.shapes.add_control(...)"
  },
  "add_ellipse": {
+  "example": "doc.shapes.add_ellipse(14400, 7200)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.shapes.add_ellipse",
-  "signature": "(self, width: 'int' = 14400, height: 'int' = 7200, *, line_color: 'str' = '#000000', line_width: 'str' = '283', fill_color: 'str | None' = None, treat_as_char: 'bool' = True, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'HwpxOxmlShape'"
+  "replacement": "doc.shapes.add_ellipse(...)"
  },
  "add_endnote": {
+  "example": "doc.notes.add_endnote(\"미주\", paragraph)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.notes.add_endnote",
-  "signature": "(self, text: 'str', paragraph: 'HwpxOxmlParagraph | None' = None, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlNote'"
+  "replacement": "doc.notes.add_endnote(...)"
  },
  "add_equation": {
+  "example": "doc.shapes.add_equation(\"{a} over {b}\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.shapes.add_equation",
-  "signature": "(self, script: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, base_unit: 'int' = 1100, size: 'tuple[int, int] | None' = None, char_pr_id_ref: 'str | int | None' = None, font: 'str' = 'HancomEQN') -> 'HwpxOxmlInlineObject'"
+  "replacement": "doc.shapes.add_equation(...)"
  },
  "add_footnote": {
+  "example": "doc.notes.add_footnote(\"각주\", paragraph)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.notes.add_footnote",
-  "signature": "(self, text: 'str', paragraph: 'HwpxOxmlParagraph | None' = None, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlNote'"
+  "replacement": "doc.notes.add_footnote(...)"
  },
  "add_form_field": {
+  "example": "doc.fields.add(\"성명\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.fields.add",
-  "signature": "(self, name: 'str', *, prompt: 'str' = '', memo: 'str' = '', editable: 'bool' = True, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'dict[str, Any]'"
+  "replacement": "doc.fields.add(...)",
+  "returns": "dict → FormField"
  },
  "add_hyperlink": {
+  "example": "doc.refs.add_hyperlink(\"https://example.com\", \"누리집\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.refs.add_hyperlink",
-  "signature": "(self, url: 'str', display_text: 'str', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'HwpxOxmlInlineObject'"
+  "replacement": "doc.refs.add_hyperlink(...)"
  },
  "add_image": {
+  "example": "doc.media.add_image(data, \"png\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.media.add_image",
-  "signature": "(self, image_data: 'bytes', image_format: 'str', *, item_id: 'str | None' = None) -> 'str'"
+  "replacement": "doc.media.add_image(...)",
+  "returns": "str → BinaryItem"
  },
  "add_line": {
+  "example": "doc.shapes.add_line(0, 0, 14400, 0)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.shapes.add_line",
-  "signature": "(self, start_x: 'int' = 0, start_y: 'int' = 0, end_x: 'int' = 14400, end_y: 'int' = 0, *, line_color: 'str' = '#000000', line_width: 'str' = '283', treat_as_char: 'bool' = True, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'HwpxOxmlShape'"
+  "replacement": "doc.shapes.add_line(...)"
  },
  "add_memo": {
+  "example": "doc.notes.add_memo(\"메모\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.notes.add_memo",
-  "signature": "(self, text: 'str' = '', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, memo_shape_id_ref: 'str | int | None' = None, memo_id: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None, attributes: 'dict[str, str] | None' = None) -> 'HwpxOxmlMemo'"
+  "replacement": "doc.notes.add_memo(...)"
  },
  "add_memo_with_anchor": {
+  "example": "doc.notes.add_memo(\"메모\", anchor=paragraph)",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.notes.add_memo(anchor=...)",
-  "signature": "(self, text: 'str' = '', *, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, paragraph_text: 'str | None' = None, memo_shape_id_ref: 'str | int | None' = None, memo_id: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None, attributes: 'dict[str, str] | None' = None, field_id: 'str | None' = None, author: 'str | None' = None, created: 'datetime | str | None' = None, number: 'int | None' = None, anchor_char_pr_id_ref: 'str | int | None' = None) -> 'tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]'"
+  "returns": "3-튜플 → Memo"
  },
  "add_rectangle": {
+  "example": "doc.shapes.add_rectangle(14400, 7200)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.shapes.add_rectangle",
-  "signature": "(self, width: 'int' = 14400, height: 'int' = 7200, *, ratio: 'int' = 0, line_color: 'str' = '#000000', line_width: 'str' = '283', fill_color: 'str | None' = None, treat_as_char: 'bool' = True, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'HwpxOxmlShape'"
+  "replacement": "doc.shapes.add_rectangle(...)"
  },
  "add_shape": {
+  "example": "doc.shapes.add_raw(\"rect\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.shapes.add_raw",
-  "signature": "(self, shape_type: 'str', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, attributes: 'dict[str, str] | None' = None, para_pr_id_ref: 'str | int | None' = None, style_id_ref: 'str | int | None' = None, char_pr_id_ref: 'str | int | None' = None, run_attributes: 'dict[str, str] | None' = None, **extra_attrs: 'str') -> 'HwpxOxmlInlineObject'"
+  "replacement": "doc.shapes.add_raw(...)"
  },
  "add_track_change": {
+  "example": "doc.tracking.add_change(\"Insert\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.add_change",
-  "signature": "(self, change_type: 'str', *, author_name: 'str' = 'AI Agent', date: 'str | None' = None) -> 'int'"
+  "replacement": "doc.tracking.add_change(...)",
+  "returns": "int → TrackedChange"
  },
  "add_tracked_delete": {
+  "example": "doc.tracking.delete(paragraph, match=\"옛 글\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.delete",
-  "signature": "(self, paragraph: 'HwpxOxmlParagraph', *, match: 'str | None' = None, author: 'str' = 'AI Agent', date: 'str | None' = None) -> 'int'"
+  "replacement": "doc.tracking.delete(...)",
+  "returns": "int → TrackedChange"
  },
  "add_tracked_insert": {
+  "example": "doc.tracking.insert(paragraph, \"새 글\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.insert",
-  "signature": "(self, paragraph: 'HwpxOxmlParagraph', text: 'str', *, author: 'str' = 'AI Agent', date: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'int'"
+  "replacement": "doc.tracking.insert(...)",
+  "returns": "int → TrackedChange"
  },
  "add_tracked_replace": {
+  "example": "doc.tracking.replace(paragraph, \"옛 글\", \"새 글\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.replace",
-  "signature": "(self, paragraph: 'HwpxOxmlParagraph', old: 'str', new: 'str', *, author: 'str' = 'AI Agent', date: 'str | None' = None) -> 'tuple[int, int]'"
+  "replacement": "doc.tracking.replace(...)",
+  "returns": "tuple[int, int] → TrackedReplacement"
  },
  "attach_memo_field": {
+  "example": "doc.notes.attach(paragraph, memo)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.notes.attach",
-  "signature": "(self, paragraph: 'HwpxOxmlParagraph', memo: 'HwpxOxmlMemo', *, field_id: 'str | None' = None, author: 'str | None' = None, created: 'datetime | str | None' = None, number: 'int | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'str'"
+  "replacement": "doc.notes.attach(...)",
+  "returns": "str → Memo"
  },
  "border_fill": {
+  "example": "doc.styles.border_fill(\"1\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.border_fill",
-  "signature": "(self, border_fill_id_ref: 'int | str | None') -> 'GenericElement | None'"
+  "replacement": "doc.styles.border_fill(...)"
  },
  "border_fills": {
+  "example": "doc.styles.border_fills",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.styles.border_fills"
  },
  "bullet": {
+  "example": "doc.styles.bullet(\"1\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.bullet",
-  "signature": "(self, bullet_id_ref: 'int | str | None') -> 'Bullet | None'"
+  "replacement": "doc.styles.bullet(...)"
  },
  "bullets": {
+  "example": "doc.styles.bullets",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.styles.bullets"
  },
  "char_properties": {
+  "example": "doc.styles.char_properties",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.styles.char_properties"
  },
  "char_property": {
+  "example": "doc.styles.char_property(\"0\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.char_property",
-  "signature": "(self, char_pr_id_ref: 'int | str | None') -> 'RunStyle | None'"
+  "replacement": "doc.styles.char_property(...)"
  },
  "ensure_border_fill": {
+  "example": "doc.styles.ensure_border_fill(fill_color=\"#FFFF00\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.ensure_border_fill",
-  "signature": "(self, *, border_color: 'str' = '#BFBFBF', border_width: 'str' = '0.12 mm', fill_color: 'str | None' = None, fill_image: \"'str | BinaryItem | Mapping[str, object] | None'\" = None, fill_gradient: 'Mapping[str, object] | None' = None, active_borders: 'Sequence[str] | None' = None, border_type: 'str' = 'SOLID') -> 'str'"
+  "replacement": "doc.styles.ensure_border_fill(...)"
  },
  "ensure_numbering": {
+  "example": "doc.styles.ensure_numbering(kind=\"bullet\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.ensure_numbering",
-  "signature": "(self, *, kind: 'str', levels: 'Sequence[dict[str, str]] | None' = None) -> 'list[str]'"
+  "replacement": "doc.styles.ensure_numbering(...)"
  },
  "ensure_run_style": {
+  "example": "doc.styles.ensure_run(bold=True)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.ensure_run",
-  "signature": "(self, *, bold: 'bool' = False, italic: 'bool' = False, underline: 'bool' = False, color: 'str | None' = None, font: 'str | None' = None, size: 'int | float | None' = None, highlight: 'str | None' = None, strike: 'bool | None' = None, underline_shape: 'str | None' = None, underline_color: 'str | None' = None, strike_shape: 'str | None' = None, ratio: 'int | None' = None, letter_spacing: 'int | None' = None, shadow: 'str | None' = None, script: 'str | None' = None, base_char_pr_id: 'str | int | None' = None) -> 'str'"
+  "replacement": "doc.styles.ensure_run(...)"
  },
  "export_html": {
+  "example": "doc.text.html()",
   "kind": "method",
+  "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.text.html",
-  "signature": "(self, **kwargs: 'object') -> 'str'"
+  "replacement": "doc.text.html(...)"
  },
  "export_markdown": {
+  "example": "doc.text.markdown()",
   "kind": "method",
+  "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.text.markdown",
-  "signature": "(self, **kwargs: 'object') -> 'str'"
+  "replacement": "doc.text.markdown(...)"
  },
  "export_rich_markdown": {
+  "example": "doc.text.markdown(rich=True)",
   "kind": "method",
+  "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.text.markdown(rich=True)",
-  "signature": "(self, **kwargs: 'object') -> 'str'"
+  "replacement": "doc.text.markdown(rich=True)"
  },
  "export_text": {
+  "example": "doc.text.plain()",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.text.plain",
-  "signature": "(self, **kwargs: 'object') -> 'str'"
+  "replacement": "doc.text.plain(...)"
  },
  "fill_by_path": {
+  "example": "doc.tables.fill_by_path({\"성명 > right\": \"홍길동\"})",
   "kind": "method",
+  "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.tables.fill_by_path",
-  "signature": "(self, mappings: 'Mapping[str, str]') -> 'TableFillResult'"
+  "replacement": "doc.tables.fill_by_path(...)"
  },
  "fill_form_field": {
+  "example": "doc.fields.fill(\"홍길동\", name=\"성명\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.fields.fill",
-  "signature": "(self, value: 'str', *, field_index: 'int | None' = None, field_id: 'str | None' = None, name: 'str | None' = None, fit_policy: \"'FitPolicy | None'\" = None, box_width: 'int | None' = None, font_pt: 'float | None' = None) -> 'dict[str, Any]'"
+  "replacement": "doc.fields.fill(...)",
+  "returns": "dict → FieldFillResult"
  },
  "find_cell_by_label": {
+  "example": "doc.tables.find_cell_by_label(\"성명\")",
   "kind": "method",
+  "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.tables.find_cell_by_label",
-  "signature": "(self, label_text: 'str', direction: 'str' = 'right') -> 'TableLabelSearchResult'"
+  "replacement": "doc.tables.find_cell_by_label(...)"
  },
  "find_runs_by_style": {
+  "example": "doc.text.find_runs(text_color=\"#FF0000\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.text.find_runs",
-  "signature": "(self, *, text_color: 'str | None' = None, underline_type: 'str | None' = None, underline_color: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None) -> 'list[HwpxOxmlRun]'"
+  "replacement": "doc.text.find_runs(...)"
  },
  "get_table_map": {
+  "example": "doc.tables.map()",
   "kind": "method",
+  "movingToAutomation": true,
   "removedIn": "7.0",
-  "replacement": "doc.tables.map",
-  "signature": "(self) -> 'TableMapResult'"
+  "replacement": "doc.tables.map()"
  },
  "headers": {
+  "example": "doc.parts.headers",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.parts.headers"
  },
  "histories": {
+  "example": "doc.parts.histories",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.parts.histories"
  },
  "iter_runs": {
+  "example": "for run in doc.text.runs(): ...",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.text.runs",
-  "signature": "(self) -> 'Iterator[HwpxOxmlRun]'"
+  "replacement": "doc.text.runs()"
  },
  "list_check_boxes": {
+  "example": "doc.fields.check_boxes",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.fields.check_boxes",
-  "signature": "(self) -> 'list[dict[str, Any]]'"
+  "returns": "list[dict] → tuple[CheckBox, ...] (속성)"
  },
  "list_form_fields": {
+  "example": "doc.fields.all",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.fields.all",
-  "signature": "(self) -> 'list[dict[str, Any]]'"
+  "returns": "list[dict] → tuple[FormField, ...] (속성)"
  },
  "list_images": {
+  "example": "doc.media.images",
   "kind": "method",
   "removedIn": "7.0",
   "replacement": "doc.media.images",
-  "signature": "(self) -> 'list[dict[str, str]]'"
+  "returns": "list[dict] → tuple[BinaryItem, ...] (속성)"
  },
  "master_pages": {
+  "example": "doc.parts.master_pages",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.parts.master_pages"
  },
  "memo_shape": {
+  "example": "doc.styles.memo_shape(\"0\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.memo_shape",
-  "signature": "(self, memo_shape_id_ref: 'int | str | None') -> 'MemoShape | None'"
+  "replacement": "doc.styles.memo_shape(...)"
  },
  "memo_shapes": {
+  "example": "doc.styles.memo_shapes",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.styles.memo_shapes"
  },
  "memos": {
+  "example": "doc.notes.memos",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.notes.memos"
  },
  "merge_table_cells": {
+  "example": "doc.tables.merge_cells(table, \"A1:B1\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tables.merge_cells",
-  "signature": "(self, table: 'HwpxOxmlTable', cell_range: 'str') -> 'Any'"
+  "replacement": "doc.tables.merge_cells(...)"
  },
  "paragraph_properties": {
+  "example": "doc.styles.paragraph_properties",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.styles.paragraph_properties"
  },
  "paragraph_property": {
+  "example": "doc.styles.paragraph_property(\"0\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.paragraph_property",
-  "signature": "(self, para_pr_id_ref: 'int | str | None') -> 'ParagraphProperty | None'"
+  "replacement": "doc.styles.paragraph_property(...)"
  },
  "picture_references": {
+  "example": "doc.media.picture_references()",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.media.picture_references",
-  "signature": "(self) -> 'list[dict[str, Any]]'"
+  "replacement": "doc.media.picture_references()",
+  "returns": "list[dict] → tuple[PictureRef, ...]"
  },
  "remove_footer": {
+  "example": "doc.page.remove_footer(section=0)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.remove_footer",
-  "signature": "(self, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, page_type: 'str' = 'BOTH') -> 'None'"
+  "replacement": "doc.page.remove_footer(...)"
  },
  "remove_header": {
+  "example": "doc.page.remove_header(section=0)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.remove_header",
-  "signature": "(self, *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, page_type: 'str' = 'BOTH') -> 'None'"
+  "replacement": "doc.page.remove_header(...)"
  },
  "remove_image": {
+  "example": "doc.media.remove_image(\"BIN0001\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.media.remove_image",
-  "signature": "(self, item_id: 'str') -> 'bool'"
+  "replacement": "doc.media.remove_image(...)"
  },
  "remove_memo": {
+  "example": "doc.notes.remove_memo(memo)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.notes.remove_memo",
-  "signature": "(self, memo: 'HwpxOxmlMemo') -> 'None'"
+  "replacement": "doc.notes.remove_memo(...)"
  },
  "remove_paragraph": {
+  "example": "doc.paragraphs[3].remove()",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "paragraph.remove()",
-  "signature": "(self, paragraph: 'HwpxOxmlParagraph | int', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'None'"
+  "replacement": "paragraph.remove()"
  },
  "replace_picture": {
+  "example": "doc.media.replace_picture(data, \"png\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.media.replace_picture",
-  "signature": "(self, image_data: 'bytes', image_format: 'str', *, picture_index: 'int' = 0, binary_item_id_ref: 'str | None' = None, remove_orphaned: 'bool' = True, item_id: 'str | None' = None) -> 'dict[str, Any]'"
+  "replacement": "doc.media.replace_picture(...)",
+  "returns": "dict → PictureReplacement"
  },
  "replace_text_in_runs": {
+  "example": "doc.text.replace(\"옛 글\", \"새 글\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.text.replace",
-  "signature": "(self, search: 'str', replacement: 'str', *, text_color: 'str | None' = None, underline_type: 'str | None' = None, underline_color: 'str | None' = None, char_pr_id_ref: 'str | int | None' = None, limit: 'int | None' = None) -> 'int'"
+  "replacement": "doc.text.replace(...)"
  },
  "set_check_box": {
+  "example": "doc.fields.set_check_box(True, name=\"동의\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.fields.set_check_box",
-  "signature": "(self, checked: 'bool', *, index: 'int | None' = None, name: 'str | None' = None) -> 'dict[str, Any]'"
+  "replacement": "doc.fields.set_check_box(...)",
+  "returns": "dict → CheckBox"
  },
  "set_columns": {
+  "example": "doc.page.set_columns(2)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_columns",
-  "signature": "(self, col_count: 'int' = 2, *, col_type: 'str' = 'NEWSPAPER', layout: 'str' = 'LEFT', same_size: 'bool' = True, same_gap: 'int' = 1200, column_widths: \"'Sequence[tuple[int, int]] | None'\" = None, separator_type: 'str | None' = None, separator_width: 'str | None' = None, separator_color: 'str | None' = None, paragraph: 'HwpxOxmlParagraph | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'HwpxOxmlInlineObject'"
+  "replacement": "doc.page.set_columns(...)"
  },
  "set_footer_content": {
+  "example": "doc.page.set_footer(content=[{\"text\": \"꼬리말\"}])",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_footer(content=...)",
-  "signature": "(self, content: 'Sequence[Mapping[str, Any]]', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, page_type: 'str' = 'BOTH') -> 'HwpxOxmlSectionHeaderFooter'"
+  "replacement": "doc.page.set_footer(content=...)"
  },
  "set_footer_text": {
+  "example": "doc.page.set_footer(text=\"꼬리말\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_footer(text=...)",
-  "signature": "(self, text: 'str', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, page_type: 'str' = 'BOTH') -> 'HwpxOxmlSectionHeaderFooter'"
+  "replacement": "doc.page.set_footer(text=...)"
  },
  "set_header_content": {
+  "example": "doc.page.set_header(content=[{\"text\": \"머리말\"}])",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_header(content=...)",
-  "signature": "(self, content: 'Sequence[Mapping[str, Any]]', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, page_type: 'str' = 'BOTH') -> 'HwpxOxmlSectionHeaderFooter'"
+  "replacement": "doc.page.set_header(content=...)"
  },
  "set_header_footer": {
+  "example": "doc.page.set_header(text=\"머리말\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_header / doc.page.set_footer",
-  "signature": "(self, *, kind: 'str', text: 'str | None' = None, content: 'Sequence[Mapping[str, Any]] | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, page_type: 'str' = 'BOTH') -> 'HwpxOxmlSectionHeaderFooter'"
+  "replacement": "doc.page.set_header(...) / doc.page.set_footer(...)"
  },
  "set_header_text": {
+  "example": "doc.page.set_header(text=\"머리말\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_header(text=...)",
-  "signature": "(self, text: 'str', *, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None, page_type: 'str' = 'BOTH') -> 'HwpxOxmlSectionHeaderFooter'"
+  "replacement": "doc.page.set_header(text=...)"
  },
  "set_list_format": {
+  "example": "doc.styles.apply_list_format(paragraph_index=0, kind=\"number\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.apply_list_format",
-  "signature": "(self, *, paragraph_index: 'int | None' = None, paragraph_indexes: 'Sequence[int] | None' = None, kind: 'str' = 'bullet', level: 'int' = 1, bullet_char: 'str | None' = None, number_format: 'str | None' = None, start: 'int | None' = None) -> 'dict[str, Any]'"
+  "replacement": "doc.styles.apply_list_format(...)",
+  "returns": "dict → ListFormatResult"
  },
  "set_page_margins": {
+  "example": "doc.page.set_margins(left=5669, right=5669)",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_margins",
-  "signature": "(self, *, left: 'int | None' = None, right: 'int | None' = None, top: 'int | None' = None, bottom: 'int | None' = None, header: 'int | None' = None, footer: 'int | None' = None, gutter: 'int | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'None'"
+  "replacement": "doc.page.set_margins(...)"
  },
  "set_page_number": {
+  "example": "doc.page.set_page_number(position=\"BOTTOM_CENTER\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_page_number",
-  "signature": "(self, *, target: 'str' = 'footer', page_type: 'str' = 'BOTH', format: 'str' = 'page', align: 'str' = 'CENTER', position: 'str' = 'BOTTOM_CENTER', prefix: 'str' = '', suffix: 'str' = '', format_type: 'str | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'HwpxOxmlSectionHeaderFooter'"
+  "replacement": "doc.page.set_page_number(...)"
  },
  "set_page_setup": {
+  "example": "doc.page.setup(paper_size=\"A4\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.setup",
-  "signature": "(self, *, paper_size: 'str | None' = None, width_mm: 'float | None' = None, height_mm: 'float | None' = None, orientation: 'str | None' = None, margins_mm: 'Mapping[str, float] | None' = None, margin_left_mm: 'float | None' = None, margin_right_mm: 'float | None' = None, margin_top_mm: 'float | None' = None, margin_bottom_mm: 'float | None' = None, header_margin_mm: 'float | None' = None, footer_margin_mm: 'float | None' = None, gutter_mm: 'float | None' = None, columns: 'int | None' = None, column_gap_mm: 'float | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'dict[str, Any]'"
+  "replacement": "doc.page.setup(...)",
+  "returns": "dict → PageSetup"
  },
  "set_page_size": {
+  "example": "doc.page.set_size(orientation=\"LANDSCAPE\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.page.set_size",
-  "signature": "(self, *, width: 'int | None' = None, height: 'int | None' = None, orientation: 'str | None' = None, gutter_type: 'str | None' = None, section: 'HwpxOxmlSection | None' = None, section_index: 'int | None' = None) -> 'None'"
+  "replacement": "doc.page.set_size(...)"
  },
  "set_paragraph_format": {
+  "example": "doc.styles.apply_paragraph_format(paragraph_index=0, alignment=\"CENTER\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.apply_paragraph_format",
-  "signature": "(self, *, paragraph_index: 'int | None' = None, paragraph_indexes: 'Sequence[int] | None' = None, alignment: 'str | None' = None, line_spacing_percent: 'int | float | None' = None, indent_left_mm: 'float | None' = None, indent_right_mm: 'float | None' = None, first_line_indent_mm: 'float | None' = None, spacing_before_pt: 'float | None' = None, spacing_after_pt: 'float | None' = None, outline_level: 'int | None' = None, keep_with_next: 'bool | None' = None, keep_lines: 'bool | None' = None, page_break_before: 'bool | None' = None, bottom_border: 'bool' = False, border_color: 'str' = '#BFBFBF', border_width: 'str' = '0.12 mm') -> 'dict[str, Any]'"
+  "replacement": "doc.styles.apply_paragraph_format(...)",
+  "returns": "dict → ParagraphFormatResult"
  },
  "style": {
+  "example": "doc.styles.get(\"바탕글\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.styles.get",
-  "signature": "(self, style_id_ref: 'int | str | None') -> 'Style | None'"
+  "replacement": "doc.styles.get(...)"
  },
  "track_change": {
+  "example": "doc.tracking.change(\"1\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.change",
-  "signature": "(self, change_id_ref: 'int | str | None') -> 'TrackChange | None'"
+  "replacement": "doc.tracking.change(...)"
  },
  "track_change_author": {
+  "example": "doc.tracking.author(\"1\")",
   "kind": "method",
   "removedIn": "7.0",
-  "replacement": "doc.tracking.author",
-  "signature": "(self, author_id_ref: 'int | str | None') -> 'TrackChangeAuthor | None'"
+  "replacement": "doc.tracking.author(...)"
  },
  "track_change_authors": {
+  "example": "doc.tracking.authors",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.tracking.authors"
  },
  "track_changes": {
+  "example": "doc.tracking.changes",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.tracking.changes"
  },
  "version": {
+  "example": "doc.parts.version",
   "kind": "property",
   "removedIn": "7.0",
   "replacement": "doc.parts.version"

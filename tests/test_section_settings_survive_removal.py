@@ -64,10 +64,9 @@ def test_every_removal_path_moves_the_settings_to_the_next_paragraph(remove) -> 
     assert doc.paragraphs[0].text == "둘째"
 
 
-def test_the_old_document_level_remove_paragraph_moves_them_too() -> None:
+def test_the_model_level_remove_paragraph_moves_them_too() -> None:
     doc = _two_lines()
-    with pytest.warns(DeprecationWarning):
-        doc.remove_paragraph(0, section_index=0)
+    doc.oxml.remove_paragraph(0, section=0)
     assert doc.sections[0].element.find(f"{HP}p/{HP}run/{HP}secPr") is not None
     assert _reopened(doc).page.size().width > 0
 

@@ -38,9 +38,9 @@ def test_add_hyperlink_keeps_its_display_text(document: HwpxDocument) -> None:
     [
         ({"section": 999}, "section-not-found"),
         ({"section": "0"}, "section-invalid-type"),
-        ({"section": 0, "section_index": 0}, "section-argument-conflict"),
+        ({"section_index": 0}, "hwpx-argument-removed"),
     ],
-    ids=["out-of-range", "wrong-type", "conflict"],
+    ids=["out-of-range", "wrong-type", "removed-section-index"],
 )
 def test_bad_sections_are_typed_errors(name, args, kwargs, code, document) -> None:
     with pytest.raises(HwpxError) as excinfo:
@@ -66,12 +66,20 @@ def test_toc_and_cross_reference_live_in_their_module_not_in_doc_refs() -> None:
     assert not hasattr(HwpxDocument.new().refs, "add_native_toc")
 
     link_area = next(row for row in _CAPABILITY_AREAS if row["area"] == "hyperlink-bookmark")
-    assert set(link_area["authoring_methods"]) == {"add_bookmark", "add_hyperlink"}
+    # 7.0: the root add_bookmark/add_hyperlink are gone; the area lives in doc.refs only.
+    assert link_area["authoring_methods"] == ()
     assert link_area["namespace"] == "doc.refs"
 
 
-def test_the_moved_root_names_still_answer(document: HwpxDocument) -> None:
-    with pytest.warns(DeprecationWarning):
-        document.add_bookmark("앵커", section_index=0)
-    with pytest.warns(DeprecationWarning):
-        document.add_hyperlink("https://example.invalid", "링크", section_index=0)
+def test_the_removed_root_names_point_at_doc_refs(document: HwpxDocument) -> None:
+    """7.0: 6.x 가 경고와 함께 남겨 둔 루트 이름은 없어졌고, 부르면 새 자리를 말한다."""
+
+    from hwpx.errors import HwpxAttributeError
+
+    for name, target in [
+        ("add_bookmark", "doc.refs.add_bookmark"),
+        ("add_hyperlink", "doc.refs.add_hyperlink"),
+    ]:
+        with pytest.raises(HwpxAttributeError) as excinfo:
+            getattr(document, name)
+        assert target in str(excinfo.value)

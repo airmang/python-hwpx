@@ -1571,7 +1571,7 @@ class _Writer:
         height = max(1, round(width * height_px / width_px))
         self.stop_reusing()
         picture = self.doc.add_picture(
-            data, image_format, width=width, height=height, align="CENTER", para_pr_id_ref="0", style_id_ref="0"
+            data, image_format, width=width, height=height, align="CENTER", para_pr_id_ref="0", style=0
         )
         description = description.strip()
         if description:

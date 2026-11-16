@@ -174,27 +174,29 @@ def _apply_operation(document: HwpxDocument | None, op: Mapping[str, Any]) -> Hw
         if not tables:
             raise ValueError("merge_table_cells requires at least one table")
         table = tables[int(op.get("table_index", 0)) % len(tables)]
-        document.merge_table_cells(table, str(op.get("range", "A1:B1")))
+        document.tables.merge_cells(table, str(op.get("range", "A1:B1")))
     elif name == "replace_text":
-        document.replace_text_in_runs(
+        document.text.replace(
             str(op.get("search", "")),
             str(op.get("replacement", "")),
             limit=op.get("limit"),
         )
     elif name == "set_header_text":
-        document.set_header_text(str(op.get("text", "")), page_type=str(op.get("page_type", "BOTH")))
+        document.page.set_header(text=str(op.get("text", "")), page_type=str(op.get("page_type", "BOTH")))
     elif name == "set_footer_text":
-        document.set_footer_text(str(op.get("text", "")), page_type=str(op.get("page_type", "BOTH")))
+        document.page.set_footer(text=str(op.get("text", "")), page_type=str(op.get("page_type", "BOTH")))
     elif name == "set_page_margins":
-        document.set_page_margins(
+        document.page.set_margins(
             left=int(op.get("left", 0)),
             right=int(op.get("right", 0)),
             top=int(op.get("top", 0)),
             bottom=int(op.get("bottom", 0)),
         )
     elif name == "add_memo":
-        document.add_memo_with_anchor(
+        # 7.0: add_memo_with_anchor is gone; make the anchor paragraph, then anchor the memo.
+        document.notes.add_memo(
             str(op.get("text", "")),
+            anchor=document.add_paragraph(""),
             paragraph_text=str(op.get("anchor_text", "")),
             memo_id=str(op.get("memo_id", "")),
             field_id=str(op.get("field_id", "")),
@@ -226,7 +228,7 @@ def _run_o1_o2(path: Path, scenario: Mapping[str, Any]) -> tuple[bool, str | Non
     reopened_document = HwpxDocument.open(path)
     try:
         id_integrity = _id_integrity_dict(reopened_document)
-        exported_text = reopened_document.export_text()
+        exported_text = reopened_document.text.plain()
         roundtrip = roundtrip_report(path)
     finally:
         reopened_document.close()

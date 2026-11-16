@@ -49,7 +49,7 @@ from ._document import _resolve
 from ._document import headings as _headings
 from ._document import layout as _layout
 from .model import Paragraph
-from ._document._legacy import _LegacyFacade
+from ._document._legacy import removed_name_error
 from ._document.ns import (
     FieldsNamespace,
     MediaNamespace,
@@ -63,7 +63,7 @@ from ._document.ns import (
     TextNamespace,
     TrackingNamespace,
 )
-from .errors import HwpxTypeError, HwpxValueError
+from .errors import HwpxTypeError, HwpxValueError, rejects_removed_arguments
 from ._document.memos import _append_element  # noqa: F401  # test_coverage_targets imports this name
 
 register_owpml_namespaces(ET.register_namespace)
@@ -75,13 +75,13 @@ if TYPE_CHECKING:
     from .tools.validator import ValidationReport
 
 
-class HwpxDocument(_LegacyFacade):
+class HwpxDocument:
     """Provides a user-friendly API for editing HWPX documents.
 
     6.0의 루트 표면은 34개다(5.x는 102개). 나머지는 도메인 네임스페이스로
-    옮겨갔고, 옛 이름은 :class:`~hwpx._document._legacy._LegacyFacade`가
-    위임 shim으로 유지한다 — 호출하면 행선지를 담은 ``DeprecationWarning``이
-    나며 7.0에서 제거된다. 대응표는 ``docs/migration-6.0.md``.
+    옮겨갔다. 6.x가 경고와 함께 남겨 둔 옛 이름 79개는 7.0에서 없어졌다 — 부르면
+    새 자리를 알려 주는 :class:`~hwpx.errors.HwpxAttributeError` 가 난다
+    (표: :data:`hwpx._document._legacy.REMOVED_NAMES`, 대응표는 ``docs/migration-6.0.md``).
     """
 
     def __init__(
@@ -114,6 +114,18 @@ class HwpxDocument(_LegacyFacade):
         self._id_source: IdSource | None = None
         self._replaced_id_source: IdSource | None = None
 
+    if not TYPE_CHECKING:  # 타입 검사기에는 숨긴다: 없는 이름을 정적으로 계속 잡게.
+
+        def __getattr__(self, name: str) -> Any:
+            """7.0에서 지운 옛 루트 이름이면 새 자리를 알려 주는 오류를 낸다."""
+
+            error = removed_name_error(name)
+            if error is None:
+                error = AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+            error.name = name
+            error.obj = self
+            raise error
+
     def __repr__(self) -> str:
         """Return a compact and safe summary of the document state."""
 
@@ -121,9 +133,7 @@ class HwpxDocument(_LegacyFacade):
             f"{self.__class__.__name__}("
             f"sections={len(self.sections)}, "
             f"paragraphs={len(self.paragraphs)}, "
-            # 6.0에서 이 셋은 doc.parts.* 로 이동했다. repr 이 자기 요약을
-            # 만들려고 자기 deprecation 경고를 내면 안 되므로 소유 트리를
-            # 직접 읽는다.
+            # 6.0에서 이 셋은 doc.parts.* 로 이동했다. 소유 트리를 직접 읽는다.
             f"headers={len(self._root.headers)}, "
             f"master_pages={len(self._root.master_pages)}, "
             f"histories={len(self._root.histories)}, "
@@ -527,15 +537,14 @@ class HwpxDocument(_LegacyFacade):
 
     # ------------------------------------------------------------------
     # editing helpers
+    @rejects_removed_arguments
     def add_paragraph(
         self,
         text: str = "",
         *,
-        section: HwpxOxmlSection | None = None,
-        section_index: int | None = None,
+        section: int | HwpxOxmlSection | None = None,
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
-        style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         include_run: bool = True,
@@ -555,20 +564,25 @@ class HwpxDocument(_LegacyFacade):
         (``add_heading``) is body text and does not take the heading's
         paragraph shape and style; pass ``inherit_style=True`` to take them.
 
-        Formatting references may be overridden via ``para_pr_id_ref``,
-        ``style_id_ref`` and ``char_pr_id_ref``. Any additional keyword
+        *section* is a section index or a section object (``None``: the last
+        section). Formatting references may be overridden via ``para_pr_id_ref``,
+        ``style`` and ``char_pr_id_ref``. Any additional keyword
         arguments are added as raw paragraph attributes.
 
         ``style`` 은 스타일을 **이름으로** 지정한다(``style="개요 1"``). 이름은
         **호출 시점에** 해석되고, 못 찾으면 가용 목록과 가장 가까운 이름을 담은
         ``HwpxLookupError`` 가 그 자리에서 난다. 5.x 는 이름을 serialize 시점에만
         해석했고 오타는 저장까지 조용히 통과했다 — 한컴에서 스타일이 안 먹은
-        문서가 나오는 경로였다. 숫자 id 를 쓰던 ``style_id_ref`` 는 그대로 동작한다.
+        문서가 나오는 경로였다. 숫자 id(``style=2``)와 ``Style`` 객체도 받는다.
 
         ``style`` 을 주면 문단은 그 스타일의 문단 모양과 글자 모양을 쓴다. 한/글이
         스타일을 적용할 때와 같다. 문단 모양·글자 모양 id 를 함께 주면
         (``para_pr_id_ref``·``char_pr_id_ref``, ``run_attributes`` 의 ``charPrIDRef``)
-        그 값이 먼저다. ``style_id_ref`` 로 준 숫자 id 는 전처럼 스타일 이름만 붙인다.
+        그 값이 먼저다.
+
+        7.0에서 ``style_id_ref=``(스타일 이름표만 붙이던 인자)와 ``section_index=`` 가
+        없어졌다. 모양은 그대로 두고 이름표만 붙이려면 만든 문단에
+        ``paragraph.style_id_ref = 2`` 처럼 쓴다.
         """
         if not isinstance(text, str):
             raise HwpxTypeError(
@@ -577,22 +591,19 @@ class HwpxDocument(_LegacyFacade):
                 context={"type": type(text).__name__},
                 suggestion=f"str() 로 바꿔 넘기세요: doc.add_paragraph(str({text!r})).",
             )
-        style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_paragraph")
-        if style is not None:
+        resolved_style = self.styles.resolve(style) if style is not None else None
+        if resolved_style is not None:
             para_pr_id_ref, char_pr_id_ref = self._style_shapes(
-                style,
+                resolved_style,
                 para_pr_id_ref if para_pr_id_ref is not None else extra_attrs.get("paraPrIDRef"),
                 char_pr_id_ref if char_pr_id_ref is not None else (run_attributes or {}).get("charPrIDRef"),
             )
-        section = _resolve.resolve_section(
-            self, section, section_index, caller="add_paragraph"
-        )
+        section = _resolve.resolve_section(self, section, caller="add_paragraph")
         paragraph = self._root.add_paragraph(
             text,
             section=section,
-            section_index=None,
             para_pr_id_ref=para_pr_id_ref,
-            style_id_ref=style_id_ref,
+            style=resolved_style,
             char_pr_id_ref=char_pr_id_ref,
             run_attributes=run_attributes,
             include_run=include_run,
@@ -649,31 +660,7 @@ class HwpxDocument(_LegacyFacade):
             char_pr_id_ref = resolved.char_pr_id_ref
         return para_pr_id_ref, char_pr_id_ref
 
-    def _resolve_style_ref(
-        self,
-        style: int | str | Style | None,
-        style_id_ref: str | int | None,
-        *,
-        caller: str,
-    ) -> str | int | None:
-        """``style=`` 을 호출 시점에 해석해 ``styleIDRef`` 로 쓸 값을 돌려준다.
-
-        둘 다 주면 실패한다 — 하나는 이름, 하나는 id 인데 서로 다른 스타일을
-        가리킬 수 있고, 어느 쪽을 이겼는지 조용히 정하는 것이 5.x 가 저지른
-        종류의 실수다.
-        """
-
-        if style is None:
-            return style_id_ref
-        if style_id_ref is not None:
-            raise HwpxValueError(
-                "style 과 style_id_ref 를 동시에 지정할 수 없습니다.",
-                code="style-argument-conflict",
-                context={"caller": caller, "style": repr(style), "styleIdRef": style_id_ref},
-                suggestion="style= 하나만 쓰세요. 이름과 숫자 id 를 모두 받습니다.",
-            )
-        return self.styles.resolve(style).id
-
+    @rejects_removed_arguments
     def add_heading(
         self,
         text: str = "",
@@ -681,7 +668,6 @@ class HwpxDocument(_LegacyFacade):
         *,
         style: int | str | Style | None = None,
         section: int | HwpxOxmlSection | None = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
         **extra_attrs: str,
     ) -> Paragraph:
@@ -700,7 +686,6 @@ class HwpxDocument(_LegacyFacade):
             style: 주면 *level* 로 유도한 스타일 대신 이것을 쓴다.
                 이름(``"개요 1"``)·영문명(``"Outline 1"``)·숫자 id 모두 받는다.
             section: 섹션 객체 **또는 인덱스**. ``None``이면 마지막 섹션.
-            section_index: 6.x deprecated 별칭 — ``section`` 을 쓰세요.
 
         Raises:
             HwpxValueError: *level* 이 1~10 밖이다.
@@ -713,16 +698,14 @@ class HwpxDocument(_LegacyFacade):
             제목에는 ``style=`` 로 그 문서에 실재하는 스타일을 지정한다.
         """
 
-        target = _resolve.resolve_section(
-            self, section, section_index, caller="add_heading"
-        )
+        target = _resolve.resolve_section(self, section, caller="add_heading")
         resolved = _headings.resolve_heading_style(self, level=level, style=style)
         # Hancom draws a paragraph by its own shapes, not its style's: start from the style's.
         paragraph = self._root.add_paragraph(
             text,
             section=target,
             para_pr_id_ref=resolved.para_pr_id_ref,
-            style_id_ref=resolved.id,
+            style=resolved,
             char_pr_id_ref=char_pr_id_ref if char_pr_id_ref is not None else resolved.char_pr_id_ref,
             inherit_style=False,
             **cast(Any, extra_attrs),
@@ -731,19 +714,18 @@ class HwpxDocument(_LegacyFacade):
         self._take_first_line(paragraph)
         return paragraph
 
+    @rejects_removed_arguments
     def add_table(
         self,
         rows: int,
         cols: int,
         *,
-        section: HwpxOxmlSection | None = None,
-        section_index: int | None = None,
+        section: int | HwpxOxmlSection | None = None,
         width: int | None = None,
         height: int | None = None,
         border_fill_id_ref: str | int | None = None,
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
-        style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         inherit_style: bool = False,
@@ -773,11 +755,7 @@ class HwpxDocument(_LegacyFacade):
                     context={"name": name, "value": value},
                     suggestion="표는 적어도 1행 1열입니다.",
                 )
-        style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_table")
-        section = _resolve.resolve_section(
-            self, section, section_index, caller="add_table"
-        )
-        section_index = None
+        section = _resolve.resolve_section(self, section, caller="add_table")
         new_table_width(width, cols)  # checked before a paragraph or a border fill is added
         resolved_border_fill: str | int | None = border_fill_id_ref
         if resolved_border_fill is None:
@@ -786,9 +764,8 @@ class HwpxDocument(_LegacyFacade):
         paragraph = self.add_paragraph(
             "",
             section=section,
-            section_index=section_index,
             para_pr_id_ref=para_pr_id_ref,
-            style_id_ref=style_id_ref,
+            style=style,
             char_pr_id_ref=char_pr_id_ref,
             include_run=False,
             inherit_style=inherit_style,
@@ -806,13 +783,13 @@ class HwpxDocument(_LegacyFacade):
         _layout.flow_table_taller_than_page(self, table)
         return table
 
+    @rejects_removed_arguments
     def add_picture(
         self,
         image_data: bytes,
         image_format: str,
         *,
-        section: HwpxOxmlSection | None = None,
-        section_index: int | None = None,
+        section: int | HwpxOxmlSection | None = None,
         width: int | None = None,
         height: int | None = None,
         width_mm: float | None = None,
@@ -831,7 +808,6 @@ class HwpxDocument(_LegacyFacade):
         reflection: PictureReflection | None = None,
         para_pr_id_ref: str | int | None = None,
         style: int | str | Style | None = None,
-        style_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
@@ -845,17 +821,12 @@ class HwpxDocument(_LegacyFacade):
         (``hwpx.oxml.PictureGlow``) draw a shadow and a glow; *soft_edge* (HWPUNIT) fades its edge and *reflection*
         (``hwpx.oxml.PictureReflection``) reflects it below."""
 
-        style_id_ref = self._resolve_style_ref(style, style_id_ref, caller="add_picture")
-        section = _resolve.resolve_section(
-            self, section, section_index, caller="add_picture"
-        )
-        section_index = None
+        section = _resolve.resolve_section(self, section, caller="add_picture")
         return _media.add_picture(
             self,
             image_data=image_data,
             image_format=image_format,
             section=section,
-            section_index=section_index,
             width=width,
             height=height,
             width_mm=width_mm,
@@ -873,7 +844,7 @@ class HwpxDocument(_LegacyFacade):
             soft_edge=soft_edge,
             reflection=reflection,
             para_pr_id_ref=para_pr_id_ref,
-            style_id_ref=style_id_ref,
+            style=style,
             char_pr_id_ref=char_pr_id_ref,
             run_attributes=run_attributes,
             **extra_attrs,

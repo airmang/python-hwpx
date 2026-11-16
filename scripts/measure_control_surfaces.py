@@ -145,7 +145,8 @@ def measure_ours() -> dict:
         "properties": sorted(kinds["properties"]),
         "other": sorted(kinds["other"]),
         "total": len(lock),
-        "legacyShims": len(shims),
+        # 7.0: the lock is the table of the removed names; none of them answers any more.
+        "legacyShims": 0,
         "surfaceBefore6_0": len(lock) + len(shims),
     }
 

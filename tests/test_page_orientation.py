@@ -137,7 +137,7 @@ def test_the_drawn_size_follows_the_landscape_value(landscape: str | None, drawn
 def test_a_landscape_page_gives_tables_headers_and_tools_the_landscape_width(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     document.page.setup(paper_size="A4", orientation="LANDSCAPE", margin_left_mm=20, margin_right_mm=20)
-    document.set_header_text("머리말")
+    document.page.set_header(text="머리말")
     table = document.add_table(1, 2)
     properties = document.sections[0].properties
     margins = properties.page_margins

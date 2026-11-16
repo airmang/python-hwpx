@@ -49,7 +49,7 @@ class TestGoldContractShape:
 
     def test_equation_attributes(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_equation("{a} over {b}")
+        doc.shapes.add_equation("{a} over {b}")
         (eq,) = _equations(doc)
         assert eq.get("version") == "Equation Version 60"
         assert eq.get("font") == "HancomEQN"
@@ -76,7 +76,7 @@ class TestGoldContractShape:
 
     def test_children_order_and_inline_pos(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_equation("x ^{2}")
+        doc.shapes.add_equation("x ^{2}")
         (eq,) = _equations(doc)
         local_names = [child.tag.rsplit("}", 1)[-1] for child in eq]
         assert local_names == ["sz", "pos", "outMargin", "shapeComment", "script"]
@@ -88,14 +88,14 @@ class TestGoldContractShape:
     def test_script_stored_verbatim(self) -> None:
         script = "x = {-b +- sqrt{b^2 -4ac}} over {2a}"
         doc = HwpxDocument.new()
-        doc.add_equation(script)
+        doc.shapes.add_equation(script)
         assert _scripts(doc) == [script]
 
     def test_no_layout_cache_written(self) -> None:
         # Hancom re-lays-out on open; authored paragraphs must not carry a
         # stale linesegarray (P0 contract).
         doc = HwpxDocument.new()
-        doc.add_equation("{1} over {2}")
+        doc.shapes.add_equation("{1} over {2}")
         buffer = io.BytesIO()
         doc.save_to_stream(buffer)
         with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
@@ -105,15 +105,15 @@ class TestGoldContractShape:
 
     def test_multiple_equations_get_unique_ids(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_equation("{a} over {b}")
-        doc.add_equation("{c} over {d}")
-        doc.add_equation("sqrt {e}")
+        doc.shapes.add_equation("{a} over {b}")
+        doc.shapes.add_equation("{c} over {d}")
+        doc.shapes.add_equation("sqrt {e}")
         ids = [eq.get("id") for eq in _equations(doc)]
         assert len(set(ids)) == 3
 
     def test_explicit_size_and_base_unit(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_equation("{a} over {b}", base_unit=1200, size=(18100, 3010))
+        doc.shapes.add_equation("{a} over {b}", base_unit=1200, size=(18100, 3010))
         (eq,) = _equations(doc)
         assert eq.get("baseUnit") == "1200"
         sz = eq.find(f"{HP}sz")
@@ -124,7 +124,7 @@ class TestSelfRoundtrip:
     def test_create_save_reopen_reader_converts(self) -> None:
         script = "int _{0} ^{1} x^2 dx = {1} over {3}"
         doc = HwpxDocument.new()
-        doc.add_equation(script)
+        doc.shapes.add_equation(script)
         reopened = _roundtrip(doc)
         assert _scripts(reopened) == [script]
         assert eqedit_to_latex(_scripts(reopened)[0]) == (
@@ -135,7 +135,7 @@ class TestSelfRoundtrip:
         doc = HwpxDocument.new()
         table = doc.add_table(2, 2)
         cell_paragraph = table.cell(0, 0).paragraphs[0]
-        doc.add_equation("{a} over {b}", paragraph=cell_paragraph)
+        doc.shapes.add_equation("{a} over {b}", paragraph=cell_paragraph)
         reopened = _roundtrip(doc)
         assert _scripts(reopened) == ["{a} over {b}"]
         # The equation must live inside the table cell, not a body paragraph.
@@ -151,7 +151,7 @@ class TestSelfRoundtrip:
         doc = HwpxDocument.open(GOLD_HANCOM)
         with zipfile.ZipFile(GOLD_HANCOM) as package:
             before = {name: package.read(name) for name in package.namelist()}
-        doc.add_equation("{new} over {eq}")
+        doc.shapes.add_equation("{new} over {eq}")
         buffer = io.BytesIO()
         doc.save_to_stream(buffer)
         with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
@@ -166,7 +166,7 @@ class TestSelfRoundtrip:
 
     def test_open_safety(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_equation("x = {-b +- sqrt{b^2 -4ac}} over {2a}")
+        doc.shapes.add_equation("x = {-b +- sqrt{b^2 -4ac}} over {2a}")
         buffer = io.BytesIO()
         doc.save_to_stream(buffer)
         report = validate_editor_open_safety(buffer.getvalue())
@@ -186,12 +186,12 @@ class TestValidation:
     def test_blank_script_rejected(self) -> None:
         doc = HwpxDocument.new()
         with pytest.raises(ValueError):
-            doc.add_equation("   ")
+            doc.shapes.add_equation("   ")
 
     def test_oversize_script_rejected(self) -> None:
         doc = HwpxDocument.new()
         with pytest.raises(ValueError):
-            doc.add_equation("x " * (MAX_SOURCE_LENGTH // 2 + 1))
+            doc.shapes.add_equation("x " * (MAX_SOURCE_LENGTH // 2 + 1))
 
     def test_size_estimate_is_positive_and_scales(self) -> None:
         small = estimate_equation_size("x")
@@ -348,7 +348,7 @@ class TestRoundtripStability:
     def test_authored_script_survives_document_roundtrip(self, latex: str) -> None:
         script = latex_to_eqedit(latex)
         doc = HwpxDocument.new()
-        doc.add_equation(script)
+        doc.shapes.add_equation(script)
         reopened = _roundtrip(doc)
         assert _scripts(reopened) == [script]
 

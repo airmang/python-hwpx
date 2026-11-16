@@ -54,7 +54,6 @@ class FieldsNamespace(_Namespace):
         editable: bool = True,
         paragraph: "HwpxOxmlParagraph | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "FormField":
         """누름틀(form field)을 만들고 그 라이브 뷰를 돌려준다."""
 
@@ -68,7 +67,7 @@ class FieldsNamespace(_Namespace):
             editable=editable,
             paragraph=paragraph,
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.fields.add"
+                self._doc, section, caller="doc.fields.add"
             ),
         )
 
@@ -197,7 +196,6 @@ class FieldsNamespace(_Namespace):
         name: str | None = None,
         paragraph: "HwpxOxmlParagraph | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "CheckBox":
         """체크박스 양식개체를 만들고 그 라이브 뷰를 돌려준다."""
 
@@ -210,7 +208,7 @@ class FieldsNamespace(_Namespace):
             name=name,
             paragraph=paragraph,
             section=resolve_section(
-                self._doc, section, section_index, caller="doc.fields.add_check_box"
+                self._doc, section, caller="doc.fields.add_check_box"
             ),
         )
 

@@ -74,7 +74,7 @@
  },
  "method": "vars(cls) 의 공개 멤버를 센다(상속 제외). 우리 락과 같은 규칙이라야 비교가 성립한다. 지원 dunder 4종(__init__/__repr__/__enter__/__exit__)은 양쪽 모두 포함한다.",
  "ours": {
-  "legacyShims": 79,
+  "legacyShims": 0,
   "methods": [
    "__enter__",
    "__exit__",

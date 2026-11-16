@@ -5,20 +5,15 @@ Two locks, on purpose (062-engine-surface §8.2):
 
 - ``document_facade_surface.json`` — the **root** surface. 6.0 shrank it from
   102 to 34 by moving 79 names into domain namespaces.
-- ``document_legacy_shims.json`` — the 79 moved/demoted names that 6.0 still
-  answers from :class:`hwpx._document._legacy._LegacyFacade`, each with its
-  replacement and removal version.
-
-The root lock alone would let the move look like a deletion, because its
-generator reads ``vars(HwpxDocument)`` and inherited shims never appear there.
-The second lock is what keeps the shims counted instead of hidden — it is a
-ratchet that may only shrink, and it reaches zero in 7.0.
+- ``document_legacy_shims.json`` — the 79 moved/demoted names. 6.x answered
+  them with a warning; 7.0 removed them, and the lock is now the **guide table**
+  (:data:`hwpx._document._legacy.REMOVED_NAMES`): each removed name with where it
+  went and a one-line example — what the error a caller gets says.
 """
 
 from __future__ import annotations
 
 import importlib.util
-import inspect
 import json
 import sys
 from pathlib import Path
@@ -37,26 +32,23 @@ SNAPSHOT = TESTS / "data" / "document_facade_surface.json"
 SHIM_SNAPSHOT = TESTS / "data" / "document_legacy_shims.json"
 
 
-def legacy_shim_surface() -> dict[str, dict[str, str]]:
-    """Every ``_LegacyFacade`` member with the destination it forwards to."""
+def legacy_shim_surface() -> dict[str, dict[str, object]]:
+    """Every removed root name with where it went (the 7.0 guide table)."""
 
-    from hwpx._document._legacy import _LegacyFacade
+    from hwpx._document._legacy import LEGACY_REMOVED_IN, REMOVED_NAMES
 
-    entries: dict[str, dict[str, str]] = {}
-    for name, member in vars(_LegacyFacade).items():
-        if name.startswith("__"):
-            continue
-        func = member.fget if isinstance(member, property) else member
-        replacement = getattr(func, "__hwpx_moved_to__", None)
-        if replacement is None:
-            continue
-        entry = {
-            "kind": "property" if isinstance(member, property) else "method",
-            "replacement": replacement,
-            "removedIn": getattr(func, "__hwpx_removed_in__", "7.0"),
+    entries: dict[str, dict[str, object]] = {}
+    for name, removed in REMOVED_NAMES.items():
+        entry: dict[str, object] = {
+            "kind": removed.kind,
+            "replacement": removed.replacement,
+            "example": removed.example,
+            "removedIn": LEGACY_REMOVED_IN,
         }
-        if entry["kind"] == "method":
-            entry["signature"] = str(inspect.signature(func))
+        if removed.returns:
+            entry["returns"] = removed.returns
+        if removed.moving:
+            entry["movingToAutomation"] = True
         entries[name] = entry
     return entries
 
@@ -78,7 +70,7 @@ def main() -> int:
         json.dumps(shims, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    print(f"wrote {SHIM_SNAPSHOT} ({len(shims)} shims, all removed in 7.0)")
+    print(f"wrote {SHIM_SNAPSHOT} ({len(shims)} removed names, guide table)")
     return 0
 
 

@@ -31,7 +31,9 @@ the structured fields with no raise-site churn (§11 — no bulk raise rewrites)
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+import functools
+import inspect
+from typing import Any, Callable, Mapping, TypeVar, cast
 
 
 class HwpxError(Exception):
@@ -124,6 +126,86 @@ class HwpxStateError(HwpxError, RuntimeError):
     """The document is not in a state where the operation is meaningful."""
 
     default_code = "hwpx-state-error"
+
+
+class HwpxAttributeError(HwpxError, AttributeError):
+    """A name the object no longer has: 7.0 removed the ``HwpxDocument`` root names
+    6.0 had moved into the namespaces (``doc.set_header_text`` →
+    ``doc.page.set_header(text=...)``). The message names where it went.
+
+    It is an :class:`AttributeError`, so ``hasattr(doc, "set_header_text")`` is
+    ``False`` and ``getattr(doc, name, None)`` gives ``None``.
+    """
+
+    default_code = "hwpx-attribute-error"
+
+
+#: Keyword arguments 7.0 removed, with what to pass instead. A call that still
+#: gives one gets :class:`HwpxTypeError` (``hwpx-argument-removed``) naming the
+#: replacement, not Python's bare "unexpected keyword argument" — and, on the
+#: methods that take ``**extra_attrs``, not a stray XML attribute written into
+#: the document.
+REMOVED_ARGUMENTS: dict[str, str] = {
+    "section_index": (
+        "section= 에 번호를 주세요(section= 은 번호와 구역 객체를 모두 받습니다). "
+        "예: section=0"
+    ),
+    "style_id_ref": (
+        "style= 을 쓰세요(이름·번호·Style 객체를 받고, 그 스타일의 문단·글자 모양도 적용합니다). "
+        "모양은 그대로 두고 스타일 이름표만 붙이려면 만든 문단에 paragraph.style_id_ref = 번호."
+    ),
+}
+
+
+def removed_argument_error(name: str, caller: str) -> HwpxTypeError:
+    """The error a call gets for passing the 7.0-removed keyword *name*."""
+
+    return HwpxTypeError(
+        f"{caller}() 의 {name}= 인자는 python-hwpx 7.0에서 없어졌습니다. {REMOVED_ARGUMENTS[name]}",
+        code="hwpx-argument-removed",
+        context={"caller": caller, "argument": name, "removedIn": "7.0"},
+        suggestion=REMOVED_ARGUMENTS[name],
+    )
+
+
+_Func = TypeVar("_Func", bound=Callable[..., Any])
+
+
+def rejects_removed_arguments(func: _Func, *, caller: str | None = None) -> _Func:
+    """Make *func* answer a 7.0-removed keyword (:data:`REMOVED_ARGUMENTS`) with
+    :func:`removed_argument_error` instead of a bare ``TypeError``.
+
+    The one shared guard for every method that took ``section_index=`` or
+    ``style_id_ref=`` before 7.0 — the namespaces apply it to their methods by
+    themselves (``_Namespace.__init_subclass__``). A name *func* still takes as
+    a parameter of its own (``add_dutmal(style_id_ref=)``, the 덧말's own style)
+    is left alone. ``inspect.signature`` still reports *func*'s signature.
+    *caller* names the method in the message (default: ``doc.<name>`` for an
+    ``HwpxDocument`` method, else the qualified name).
+    """
+
+    try:
+        parameters = inspect.signature(func).parameters
+    except (TypeError, ValueError):  # pragma: no cover - builtins
+        return func
+    removed = tuple(name for name in REMOVED_ARGUMENTS if name not in parameters)
+    if not removed:
+        return func
+    if caller is None:
+        caller = func.__qualname__
+        if caller.startswith("HwpxDocument."):
+            caller = "doc." + caller[len("HwpxDocument."):]
+    name_in_message = caller
+
+    @functools.wraps(func)
+    def guarded(*args: Any, **kwargs: Any) -> Any:
+        if kwargs:
+            for name in removed:
+                if name in kwargs:
+                    raise removed_argument_error(name, name_in_message)
+        return func(*args, **kwargs)
+
+    return cast(_Func, guarded)
 
 
 # Hwp5Error and Hwp5ConversionWarning live here rather than in hwpx.hwp5.errors
@@ -241,6 +323,8 @@ ERROR_CODES: dict[str, str] = {
     "hwpx-index-error": "인덱스가 범위를 벗어났다(분류되지 않음, IndexError 계열이기도 하다).",
     "hwpx-lookup-error": "이름·인덱스로 지목한 것이 없다(분류되지 않음).",
     "hwpx-state-error": "문서 상태가 이 연산을 할 수 있는 상태가 아니다(분류되지 않음).",
+    "hwpx-attribute-error": "그런 이름의 속성·메서드가 없다(분류되지 않음, AttributeError 계열이기도 하다).",
+    "hwpx-argument-removed": "7.0에서 없어진 인자(section_index=, style_id_ref=)를 주었다(대신 쓸 인자는 suggestion).",
     # -- 계약 문서·스키마 ------------------------------------------------
     "contract-document-missing": "동봉돼야 할 계약 문서가 휠에 없다.",
     "unknown-contract-document": "그런 이름의 계약 문서가 없다.",
@@ -252,13 +336,13 @@ ERROR_CODES: dict[str, str] = {
     "document-history-root-invalid": "history.xml 루트가 history 가 아니다.",
     "document-master-page-root-invalid": "바탕쪽 파트 루트가 masterPage 가 아니다.",
     "document-version-root-invalid": "version.xml 루트가 HCFVersion 이 아니다.",
+    "document-name-removed": "7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement).",
     "document-seed-invalid": "new()/open() 의 seed 가 정수가 아니다.",
     "document-clock-invalid": "new()/open() 의 now 가 datetime 이 아니다.",
-    "section-missing":"문서에 섹션이 하나도 없다.",
+    "section-missing": "문서에 섹션이 하나도 없다.",
     "section-not-found": "섹션 인덱스가 범위를 벗어났다.",
     "section-remove-last": "문서의 마지막 섹션은 지울 수 없다.",
     "section-invalid-type": "section 인자가 정수도 섹션 객체도 아니다.",
-    "section-argument-conflict": "section 과 section_index 를 동시에 지정했다.",
     "section-clear-mode-invalid": "clear_body 의 on_control_content 값이 raise/keep/strip 밖이다.",
     "section-clear-no-section-properties": "섹션 첫 문단의 첫 run 에 hp:secPr 가 없어 clear_body 가 남길 쪽 설정이 없다.",
     "section-clear-control-content": "clear_body 가 남길 hp:secPr/hp:ctrl 안에 글·표·개체가 있다(머리말·꼬리말 등, strip 으로도 못 지우는 경우 포함, 태그는 context 에).",
@@ -327,7 +411,6 @@ ERROR_CODES: dict[str, str] = {
     # -- 스타일·제목 -----------------------------------------------------
     "style-not-found": "그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉).",
     "style-ambiguous": "같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉).",
-    "style-argument-conflict": "style 과 style_id_ref 를 동시에 지정했다.",
     "style-list-continue-conflict": "continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다).",
     "style-list-kind-invalid": "목록 종류(kind)가 bullet/number/outline 밖이다.",
     "style-list-level-invalid": "글머리표/번호 수준이 1 이상 10 이하의 int 가 아니다(bool 도 거부, 한/글 목록은 10수준까지다).",
@@ -539,6 +622,7 @@ __all__ = [
     "Hwp5ConversionWarning",
     "ReplaceScopeWarning",
     "Hwp5Error",
+    "HwpxAttributeError",
     "HwpxError",
     "HwpxLookupError",
     "HwpxStateError",

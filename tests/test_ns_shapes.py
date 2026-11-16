@@ -53,9 +53,9 @@ def test_every_shape_verb_delegates_and_returns_a_model_type(
     [
         ({"section": 999}, "section-not-found"),
         ({"section": "0"}, "section-invalid-type"),
-        ({"section": 0, "section_index": 0}, "section-argument-conflict"),
+        ({"section_index": 0}, "hwpx-argument-removed"),
     ],
-    ids=["out-of-range", "wrong-type", "conflict"],
+    ids=["out-of-range", "wrong-type", "removed-section-index"],
 )
 def test_bad_sections_are_typed_errors(name, kwargs, code, document) -> None:
     args, _ = MEMBERS[name]
@@ -75,12 +75,15 @@ def test_add_raw_is_named_for_what_it_is(document: HwpxDocument) -> None:
     assert "Hancom refuses to open" in str(record[0].message)
 
 
-def test_the_moved_root_names_still_answer(document: HwpxDocument) -> None:
-    for name, args in [("add_line", ()), ("add_rectangle", ()), ("add_chart", (CHART,))]:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            with pytest.warns(DeprecationWarning):
-                getattr(document, name)(*args, section_index=0)
+def test_the_removed_root_names_point_at_doc_shapes(document: HwpxDocument) -> None:
+    """7.0: 6.x 가 경고와 함께 남겨 둔 루트 이름은 없어졌고, 부르면 새 자리를 말한다."""
+
+    from hwpx.errors import HwpxAttributeError
+
+    for name, target in [("add_line", "doc.shapes.add_line"), ("add_rectangle", "doc.shapes.add_rectangle"),
+                         ("add_chart", "doc.shapes.add_chart"), ("add_shape", "doc.shapes.add_raw")]:
+        with pytest.raises(HwpxAttributeError, match=target.replace(".", r"\.")):
+            getattr(document, name)
 
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"

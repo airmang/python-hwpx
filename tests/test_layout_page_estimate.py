@@ -2276,7 +2276,7 @@ def test_columns_of_the_same_size_written_as_true_are_of_the_same_size() -> None
 
 def test_a_footnote_in_a_paragraph_without_a_cache_in_columns_of_unequal_width_is_not_followed() -> None:
     document = HwpxDocument.new(empty_first_line=True)
-    document.set_columns(2, same_size=False, column_widths=[(10632, 873), (21263, 0)])
+    document.page.set_columns(2, same_size=False, column_widths=[(10632, 873), (21263, 0)])
     document.notes.add_footnote("각주", document.add_paragraph("각주가 달린 문단"))
 
     assert estimate_pages(document).unsupported == (

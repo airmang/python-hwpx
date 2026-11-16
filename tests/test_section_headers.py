@@ -241,19 +241,19 @@ def test_document_helpers_manage_header_apply_nodes() -> None:
     root = HwpxOxmlDocument(manifest, [section], [])
     document = HwpxDocument(cast(HwpxPackage, object()), root)
 
-    document.set_header_text("Doc Header", section=section)
+    document.page.set_header(text="Doc Header", section=section)
     header_apply = sec_pr.find(f"{HP}headerApply")
     assert header_apply is not None
 
-    document.remove_header(section=section)
+    document.page.remove_header(section=section)
     assert sec_pr.find(f"{HP}headerApply") is None
 
 
 def test_header_footer_helpers_work_on_real_hwpx_document() -> None:
     document = HwpxDocument.new()
 
-    document.set_header_text("Header {{HDR1}}")
-    document.set_footer_text("Footer {{FTR1}}")
+    document.page.set_header(text="Header {{HDR1}}")
+    document.page.set_footer(text="Footer {{FTR1}}")
 
     reopened = HwpxDocument.open(document.to_bytes())
 

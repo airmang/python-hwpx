@@ -34,7 +34,7 @@ class TestGoldContractShape:
 
     def test_field_begin_attributes(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_form_field("성명", prompt="이름 입력", memo="도움말")
+        doc.fields.add("성명", prompt="이름 입력", memo="도움말")
         fb = _field_begin(doc, "성명")
         assert fb.get("type") == "CLICK_HERE"
         assert fb.get("editable") == "1"
@@ -46,7 +46,7 @@ class TestGoldContractShape:
     def test_command_serialization_counts_characters(self) -> None:
         # Korean + spaces inside values: lengths are UTF-16 character counts.
         doc = HwpxDocument.new()
-        doc.add_form_field("f", prompt="안내 문", memo="m 1")
+        doc.fields.add("f", prompt="안내 문", memo="m 1")
         fb = _field_begin(doc, "f")
         params = {
             p.get("name"): (p.text or "")
@@ -64,7 +64,7 @@ class TestGoldContractShape:
 
     def test_param_count_omits_empty_entries(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_form_field("only_name")
+        doc.fields.add("only_name")
         fb = _field_begin(doc, "only_name")
         parameters = fb.find(f"{HP}parameters")
         assert parameters.get("cnt") == "2"
@@ -73,7 +73,7 @@ class TestGoldContractShape:
 
     def test_prompt_run_is_red_italic_and_field_end_pairs(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_form_field("f", prompt="누르세요")
+        doc.fields.add("f", prompt="누르세요")
         fb = _field_begin(doc, "f")
         paragraph = fb.getparent().getparent().getparent()
         runs = [child for child in paragraph if child.tag == f"{HP}run"]
@@ -83,7 +83,7 @@ class TestGoldContractShape:
         )
         prompt_run = runs[begin_index + 1]
         assert prompt_run.find(f"{HP}t").text == "누르세요"
-        char_pr = doc.headers[0].element.find(
+        char_pr = doc.parts.headers[0].element.find(
             f".//{HH}charPr[@id='{prompt_run.get('charPrIDRef')}']"
         )
         assert char_pr.get("textColor", "").upper() == "#FF0000"
@@ -96,7 +96,7 @@ class TestGoldContractShape:
 
     def test_no_prompt_run_when_prompt_empty(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_form_field("bare")
+        doc.fields.add("bare")
         fb = _field_begin(doc, "bare")
         paragraph = fb.getparent().getparent().getparent()
         runs = [child for child in paragraph if child.tag == f"{HP}run"]
@@ -113,7 +113,7 @@ class TestRoundTrip:
 
     def test_create_save_reopen_list(self) -> None:
         doc = HwpxDocument.new()
-        created = doc.add_form_field("부서", prompt="부서 입력", memo="조직명")
+        created = doc.fields.add("부서", prompt="부서 입력", memo="조직명")
         assert created.name == "부서"
         assert created.prompt == "부서 입력"
         assert created.memo == "조직명"
@@ -121,7 +121,7 @@ class TestRoundTrip:
         assert created.has_end is True
 
         reopened = _roundtrip(doc)
-        fields = reopened.list_form_fields()
+        fields = reopened.fields.all
         assert [f.name for f in fields] == ["부서"]
         field = fields[0]
         assert field.element.get("dirty") == "0"
@@ -130,9 +130,9 @@ class TestRoundTrip:
 
     def test_fill_swaps_placeholder_style_and_sets_dirty(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_form_field("성명", prompt="이름 입력")
+        doc.fields.add("성명", prompt="이름 입력")
         reopened = _roundtrip(doc)
-        response = reopened.fill_form_field("홍길동", name="성명")
+        response = reopened.fields.fill("홍길동", name="성명")
         field = response.field
         assert field.value == "홍길동"
         assert field.element.get("dirty") == "1"
@@ -152,26 +152,26 @@ class TestRoundTrip:
         )
 
         final = _roundtrip(reopened)
-        assert final.list_form_fields()[0].value == "홍길동"
+        assert final.fields.all[0].value == "홍길동"
 
     def test_field_in_table_cell(self) -> None:
         doc = HwpxDocument.new()
         table = doc.add_table(2, 2)
         cell_paragraph = table.cell(0, 0).paragraphs[0]
-        doc.add_form_field("셀필드", prompt="셀 입력", paragraph=cell_paragraph)
+        doc.fields.add("셀필드", prompt="셀 입력", paragraph=cell_paragraph)
         reopened = _roundtrip(doc)
-        fields = reopened.list_form_fields()
+        fields = reopened.fields.all
         assert [f.name for f in fields] == ["셀필드"]
-        reopened.fill_form_field("값123", name="셀필드")
-        assert reopened.list_form_fields()[0].value == "값123"
+        reopened.fields.fill("값123", name="셀필드")
+        assert reopened.fields.all[0].value == "값123"
 
     def test_multiple_fields_pair_independently(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_form_field("a", prompt="가")
-        doc.add_form_field("b")
-        doc.add_form_field("c", prompt="다", memo="m")
+        doc.fields.add("a", prompt="가")
+        doc.fields.add("b")
+        doc.fields.add("c", prompt="다", memo="m")
         reopened = _roundtrip(doc)
-        fields = reopened.list_form_fields()
+        fields = reopened.fields.all
         assert [f.name for f in fields] == ["a", "b", "c"]
         assert all(f.has_end for f in fields)
         begin_ids = {f.field_id for f in fields}
@@ -179,7 +179,7 @@ class TestRoundTrip:
 
     def test_open_safety(self) -> None:
         doc = HwpxDocument.new()
-        doc.add_form_field("f", prompt="입력")
+        doc.fields.add("f", prompt="입력")
         buffer = io.BytesIO()
         doc.save_to_stream(buffer)
         report = validate_editor_open_safety(buffer.getvalue())
@@ -190,11 +190,11 @@ class TestValidation:
     def test_blank_name_rejected(self) -> None:
         doc = HwpxDocument.new()
         with pytest.raises(ValueError):
-            doc.add_form_field("   ")
+            doc.fields.add("   ")
 
     def test_illegal_control_chars_sanitized(self) -> None:
         doc = HwpxDocument.new()
-        created = doc.add_form_field("ok", prompt="안내\x00문")
+        created = doc.fields.add("ok", prompt="안내\x00문")
         assert created.prompt == "안내문"
 
 
@@ -204,7 +204,7 @@ class TestHancomGoldFixtures:
 
     def test_gold_empty_reads_prompt_memo_placeholder(self) -> None:
         doc = HwpxDocument.open(DATA / "clickhere_gold_empty.hwpx")
-        (field,) = doc.list_form_fields()
+        (field,) = doc.fields.all
         assert field.name == "NAMETEXT_THREE"
         assert field.field_type == "CLICK_HERE"
         assert field.prompt == "DIRTEXT_ONE"
@@ -215,7 +215,7 @@ class TestHancomGoldFixtures:
 
     def test_gold_filled_reads_value_not_placeholder(self) -> None:
         doc = HwpxDocument.open(DATA / "clickhere_gold_filled.hwpx")
-        (field,) = doc.list_form_fields()
+        (field,) = doc.fields.all
         assert field.value == "FILLED_VALUE_X"
         assert field.element.get("dirty") == "1"
         assert field.is_placeholder is False

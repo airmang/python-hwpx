@@ -80,7 +80,6 @@ class PageNamespace(_Namespace):
     def _section(
         self,
         section: "int | HwpxOxmlSection | None",
-        section_index: int | None,
         caller: str,
     ) -> "HwpxOxmlSection":
         """The section a ``doc.page`` call works on: *section*, else the **last** section.
@@ -92,7 +91,6 @@ class PageNamespace(_Namespace):
 
         if (
             section is None
-            and section_index is None
             and caller.startswith(("set", "remove_"))
             and len(self._doc.sections) > 1
             and not getattr(self._doc, "_page_last_section_warned", False)
@@ -108,13 +106,12 @@ class PageNamespace(_Namespace):
                 stacklevel=3,
             )
         return resolve_section(
-            self._doc, section, section_index, caller=f"doc.page.{caller}"
+            self._doc, section, caller=f"doc.page.{caller}"
         )
 
     def _apply(
         self,
         section: "int | HwpxOxmlSection | Literal['all'] | None",
-        section_index: int | None,
         caller: str,
         change: "Callable[[HwpxOxmlSection], _T]",
     ) -> "_T":
@@ -125,21 +122,14 @@ class PageNamespace(_Namespace):
         """
 
         if section == ALL_SECTIONS:
-            if section_index is not None:
-                raise HwpxValueError(
-                    "section='all' 과 section_index 를 함께 줄 수 없습니다.",
-                    code="section-argument-conflict",
-                    context={"caller": f"doc.page.{caller}"},
-                    suggestion="section='all' 만 주세요.",
-                )
             sections = list(self._doc.sections)
             if not sections:
-                return change(self._section(None, None, caller))
+                return change(self._section(None, caller))
             result = change(sections[0])
             for target in sections[1:]:
                 result = change(target)
             return result
-        return change(self._section(cast(Any, section), section_index, caller))
+        return change(self._section(cast(Any, section), caller))
 
     # -- 용지·여백·단 ------------------------------------------------------
 
@@ -161,7 +151,6 @@ class PageNamespace(_Namespace):
         columns: int | None = None,
         column_gap_mm: float | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> "PageSetup":
         """용지·여백·단을 **mm 단위**로 한 번에 설정하고 결과를 돌려준다.
 
@@ -170,7 +159,7 @@ class PageNamespace(_Namespace):
 
         from .. import layout as _layout
 
-        return self._apply(section, section_index, "setup", lambda target: _layout.set_page_setup(
+        return self._apply(section, "setup", lambda target: _layout.set_page_setup(
             self._doc,
             paper_size=paper_size,
             width_mm=width_mm,
@@ -197,13 +186,12 @@ class PageNamespace(_Namespace):
         orientation: str | None = None,
         gutter_type: str | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """용지 크기를 **HWPUNIT** 으로 설정한다(정밀 변형)."""
 
         from .. import layout as _layout
 
-        self._apply(section, section_index, "set_size", lambda target: _layout.set_page_size(
+        self._apply(section, "set_size", lambda target: _layout.set_page_size(
             self._doc,
             width=width,
             height=height,
@@ -223,13 +211,12 @@ class PageNamespace(_Namespace):
         footer: int | None = None,
         gutter: int | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """여백을 **HWPUNIT** 으로 설정한다(정밀 변형)."""
 
         from .. import layout as _layout
 
-        self._apply(section, section_index, "set_margins", lambda target: _layout.set_page_margins(
+        self._apply(section, "set_margins", lambda target: _layout.set_page_margins(
             self._doc,
             left=left,
             right=right,
@@ -255,7 +242,6 @@ class PageNamespace(_Namespace):
         separator_color: str | None = None,
         paragraph: "HwpxOxmlParagraph | int | None" = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> "HwpxOxmlInlineObject":
         """단(段) 정의를 삽입한다. *paragraph* 는 문단 객체나 인덱스다.
 
@@ -274,10 +260,10 @@ class PageNamespace(_Namespace):
         target_paragraph = None
         if section != ALL_SECTIONS:
             target_paragraph = optional_paragraph(
-                self._doc, paragraph, section=cast(Any, section), section_index=section_index,
+                self._doc, paragraph, section=cast(Any, section),
                 caller="doc.page.set_columns",
             )
-        return self._apply(section, section_index, "set_columns", lambda target: _layout.set_columns(
+        return self._apply(section, "set_columns", lambda target: _layout.set_columns(
             self._doc,
             col_count=col_count,
             col_type=col_type,
@@ -301,7 +287,6 @@ class PageNamespace(_Namespace):
         content: "Sequence[Mapping[str, Any]] | None" = None,
         page_type: str = "BOTH",
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         """쪽 머리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나.
 
@@ -328,7 +313,6 @@ class PageNamespace(_Namespace):
             content=content,
             page_type=page_type,
             section=section,
-            section_index=section_index,
         )
 
     def set_footer(
@@ -338,7 +322,6 @@ class PageNamespace(_Namespace):
         content: "Sequence[Mapping[str, Any]] | None" = None,
         page_type: str = "BOTH",
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         """쪽 꼬리말을 설정한다. ``text=`` 또는 ``content=`` 중 하나.
 
@@ -364,7 +347,6 @@ class PageNamespace(_Namespace):
             content=content,
             page_type=page_type,
             section=section,
-            section_index=section_index,
         )
 
     def _set_header_footer(
@@ -375,7 +357,6 @@ class PageNamespace(_Namespace):
         content: "Sequence[Mapping[str, Any]] | None",
         page_type: str,
         section: "int | HwpxOxmlSection | Literal['all'] | None",
-        section_index: int | None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         from .. import layout as _layout
 
@@ -397,7 +378,7 @@ class PageNamespace(_Namespace):
                 suggestion=f"내용을 지우려면 doc.page.remove_{kind}() 를 쓰세요.",
             )
 
-        return self._apply(section, section_index, caller, lambda target: _layout.set_header_footer(
+        return self._apply(section, caller, lambda target: _layout.set_header_footer(
             self._doc,
             kind=kind,
             text=text,
@@ -411,13 +392,12 @@ class PageNamespace(_Namespace):
         *,
         page_type: str = "BOTH",
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """쪽 머리말을 제거한다."""
 
         from .. import layout as _layout
 
-        self._apply(section, section_index, "remove_header", lambda target: _layout.remove_header(
+        self._apply(section, "remove_header", lambda target: _layout.remove_header(
             self._doc,
             section=target,
             page_type=page_type,
@@ -428,13 +408,12 @@ class PageNamespace(_Namespace):
         *,
         page_type: str = "BOTH",
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """쪽 꼬리말을 제거한다."""
 
         from .. import layout as _layout
 
-        self._apply(section, section_index, "remove_footer", lambda target: _layout.remove_footer(
+        self._apply(section, "remove_footer", lambda target: _layout.remove_footer(
             self._doc,
             section=target,
             page_type=page_type,
@@ -451,28 +430,28 @@ class PageNamespace(_Namespace):
         감추는 것은 쪽 종류가 아니라 ``visibility().hide_first_header`` 다.
         """
 
-        return tuple(self._section(section, None, "headers").properties.headers)
+        return tuple(self._section(section, "headers").properties.headers)
 
     def footers(
         self, *, section: "int | HwpxOxmlSection | None" = None
     ) -> "tuple[HwpxOxmlSectionHeaderFooter, ...]":
         """구역의 꼬리말을 모두 모델 객체로(:meth:`headers` 와 같다)."""
 
-        return tuple(self._section(section, None, "footers").properties.footers)
+        return tuple(self._section(section, "footers").properties.footers)
 
     def header(
         self, *, page_type: str = "BOTH", section: "int | HwpxOxmlSection | None" = None
     ) -> "HwpxOxmlSectionHeaderFooter | None":
         """*page_type* 쪽의 머리말, 없으면 None. ``set_header(page_type=...)`` 의 읽기 짝."""
 
-        return self._section(section, None, "header").properties.header(page_type)
+        return self._section(section, "header").properties.header(page_type)
 
     def footer(
         self, *, page_type: str = "BOTH", section: "int | HwpxOxmlSection | None" = None
     ) -> "HwpxOxmlSectionHeaderFooter | None":
         """*page_type* 쪽의 꼬리말, 없으면 None. ``set_footer(page_type=...)`` 의 읽기 짝."""
 
-        return self._section(section, None, "footer").properties.footer(page_type)
+        return self._section(section, "footer").properties.footer(page_type)
 
     def set_page_number(
         self,
@@ -486,7 +465,6 @@ class PageNamespace(_Namespace):
         suffix: str = "",
         format_type: str | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         """쪽 번호를 머리말/꼬리말에 넣는다.
 
@@ -499,7 +477,7 @@ class PageNamespace(_Namespace):
 
         from .. import layout as _layout
 
-        return self._apply(section, section_index, "set_page_number", lambda each: _layout.set_page_number(
+        return self._apply(section, "set_page_number", lambda each: _layout.set_page_number(
             self._doc,
             target=target,
             page_type=page_type,
@@ -571,21 +549,19 @@ class PageNamespace(_Namespace):
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "PageSize":
         """현재 용지 크기."""
 
-        return self._section(section, section_index, "size").properties.page_size
+        return self._section(section, "size").properties.page_size
 
     def margins(
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "PageMargins":
         """현재 여백."""
 
-        return self._section(section, section_index, "margins").properties.page_margins
+        return self._section(section, "margins").properties.page_margins
 
     # -- 격자·표시·줄번호 --------------------------------------------------
     #
@@ -598,12 +574,11 @@ class PageNamespace(_Namespace):
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> tuple[str, ...]:
         """이 절이 참조하는 바탕쪽 id(``hp:masterPage/@idRef``) 목록."""
 
         return self._section(
-            section, section_index, "master_page_refs"
+            section, "master_page_refs"
         ).properties.master_page_refs
 
     def set_master_page(
@@ -611,13 +586,12 @@ class PageNamespace(_Namespace):
         master_page_id: str,
         *,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """이 절이 바탕쪽(``doc.parts.add_master_page``가 만든 id)을
         참조하도록 등록한다(6.13 트레인㊻). 이미 참조 중이면 아무 일도
         안 한다(멱등). 연결을 끊는 쪽은 :meth:`remove_master_page`."""
 
-        self._apply(section, section_index, "set_master_page", lambda target: (
+        self._apply(section, "set_master_page", lambda target: (
             target.properties.add_master_page_reference(master_page_id)
         ))
 
@@ -625,11 +599,10 @@ class PageNamespace(_Namespace):
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "SectionGrid":
         """줄/글자 격자 설정."""
 
-        return self._section(section, section_index, "grid").properties.grid
+        return self._section(section, "grid").properties.grid
 
     def set_grid(
         self,
@@ -638,11 +611,10 @@ class PageNamespace(_Namespace):
         char_grid: int | None = None,
         wonggoji_format: bool | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """줄/글자 격자(원고지 형식 포함)를 설정한다."""
 
-        self._apply(section, section_index, "set_grid", lambda target: target.properties.set_grid(
+        self._apply(section, "set_grid", lambda target: target.properties.set_grid(
             line_grid=line_grid,
             char_grid=char_grid,
             wonggoji_format=wonggoji_format,
@@ -652,12 +624,11 @@ class PageNamespace(_Namespace):
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "SectionTextDirection":
         """글자 방향(가로쓰기/세로쓰기)과 머리말/꼬리말 세로쓰기 여부."""
 
         return self._section(
-            section, section_index, "text_direction"
+            section, "text_direction"
         ).properties.text_direction
 
     def set_text_direction(
@@ -666,7 +637,6 @@ class PageNamespace(_Namespace):
         *,
         vertical_header_footer: bool | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """글자 방향(세로쓰기 포함)을 설정한다.
 
@@ -686,7 +656,7 @@ class PageNamespace(_Namespace):
                 },
                 suggestion=f"Supported: {', '.join(sorted(_TEXT_DIRECTIONS))}",
             )
-        self._apply(section, section_index, "set_text_direction", lambda target: (
+        self._apply(section, "set_text_direction", lambda target: (
             target.properties.set_text_direction(direction, vertical_header_footer=vertical_header_footer)
         ))
 
@@ -694,11 +664,10 @@ class PageNamespace(_Namespace):
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "SectionVisibility":
         """첫 쪽 숨김 플래그와 줄번호 표시 여부."""
 
-        return self._section(section, section_index, "visibility").properties.visibility
+        return self._section(section, "visibility").properties.visibility
 
     def set_visibility(
         self,
@@ -712,7 +681,6 @@ class PageNamespace(_Namespace):
         border: str | None = None,
         fill: str | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """첫 쪽 숨김 플래그와 줄번호 표시 여부를 설정한다.
 
@@ -722,7 +690,7 @@ class PageNamespace(_Namespace):
         때만 그려진다(모양은 ``set_line_numbers()``).
         """
 
-        self._apply(section, section_index, "set_visibility", lambda target: target.properties.set_visibility(
+        self._apply(section, "set_visibility", lambda target: target.properties.set_visibility(
             hide_first_header=hide_first_header,
             hide_first_footer=hide_first_footer,
             hide_first_master_page=hide_first_master_page,
@@ -737,12 +705,11 @@ class PageNamespace(_Namespace):
         self,
         *,
         section: "int | HwpxOxmlSection | None" = None,
-        section_index: int | None = None,
     ) -> "LineNumberShape":
         """줄번호 표시 규칙."""
 
         return self._section(
-            section, section_index, "line_numbers"
+            section, "line_numbers"
         ).properties.line_number_shape
 
     def set_line_numbers(
@@ -753,7 +720,6 @@ class PageNamespace(_Namespace):
         distance: int | None = None,
         start_number: int | None = None,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
-        section_index: int | None = None,
     ) -> None:
         """줄번호 재시작·간격·시작값을 설정한다.
 
@@ -762,7 +728,7 @@ class PageNamespace(_Namespace):
         센다.
         """
 
-        self._apply(section, section_index, "set_line_numbers", lambda target: (
+        self._apply(section, "set_line_numbers", lambda target: (
             target.properties.set_line_number_shape(
                 restart_type=restart_type,
                 count_by=count_by,
@@ -783,7 +749,7 @@ class PageNamespace(_Namespace):
         그 뒤에 온다. 각 값의 ``paragraph`` 가 그 단 정의를 품은 본문 문단이다.
         """
 
-        target = self._section(section, None, "columns")
+        target = self._section(section, "columns")
         return tuple(_column_definition(node, paragraph, target) for node, paragraph in _body_column_nodes(target))
 
     def page_number_controls(
@@ -795,7 +761,7 @@ class PageNamespace(_Namespace):
         여기 없고 :meth:`auto_numbers` 에 나온다.
         """
 
-        target = self._section(section, None, "page_number_controls")
+        target = self._section(section, "page_number_controls")
         return tuple(
             PageNumberControl(
                 position=node.get("pos", "BOTTOM_CENTER"),
@@ -811,7 +777,7 @@ class PageNamespace(_Namespace):
     ) -> "tuple[NumberRestart, ...]":
         """구역의 새 번호 컨트롤(``hp:newNum``, :meth:`restart_page_number` 가 넣는 것)을 문서 순서로."""
 
-        target = self._section(section, None, "number_restarts")
+        target = self._section(section, "number_restarts")
         return tuple(
             NumberRestart(kind=node.get("numType", "PAGE"), number=_int(node.get("num"), 1), paragraph=paragraph)
             for node, paragraph in _controls(target, "newNum")
@@ -822,7 +788,7 @@ class PageNamespace(_Namespace):
     ) -> "tuple[PageHiding, ...]":
         """구역의 감추기 컨트롤(``hp:pageHiding``, :meth:`hide_page_elements` 가 넣는 것)을 문서 순서로."""
 
-        target = self._section(section, None, "page_hidings")
+        target = self._section(section, "page_hidings")
         return tuple(
             PageHiding(
                 header=_flag(node, "hideHeader"),
@@ -844,7 +810,7 @@ class PageNamespace(_Namespace):
         쪽 번호(``PAGE``)·전체 쪽 수(``TOTAL_PAGE``)·각주/미주 번호·그림·표·수식 번호가 여기 온다.
         """
 
-        target = self._section(section, None, "auto_numbers")
+        target = self._section(section, "auto_numbers")
         numbers = []
         for node, paragraph in _controls(target, "autoNum"):
             fmt = node.find(f"{HP}autoNumFormat")
@@ -864,7 +830,7 @@ class PageNamespace(_Namespace):
     def start_numbers(self, *, section: "int | HwpxOxmlSection | None" = None) -> "StartNumbers":
         """구역의 시작 번호(``hp:startNum``): 쪽·그림·표·수식. 0이면 앞 구역에서 이어 센다."""
 
-        value = self._section(section, None, "start_numbers").properties.start_numbering
+        value = self._section(section, "start_numbers").properties.start_numbering
         return StartNumbers(
             page_starts_on=value.page_starts_on,
             page=value.page,
@@ -891,7 +857,7 @@ class PageNamespace(_Namespace):
 
         if page_starts_on is not None:
             _one_of("page_starts_on", page_starts_on, ("BOTH", "EVEN", "ODD"), "page-start-numbers-invalid")
-        self._apply(section, None, "set_start_numbers", lambda target: target.properties.set_start_numbering(
+        self._apply(section, "set_start_numbers", lambda target: target.properties.set_start_numbering(
             page_starts_on=page_starts_on, page=page, picture=picture, table=table, equation=equation
         ))
 
@@ -900,13 +866,13 @@ class PageNamespace(_Namespace):
     def footnote_shape(self, *, section: "int | HwpxOxmlSection | None" = None) -> "NoteShapeInfo":
         """구역의 각주 모양(``hp:footNotePr``): 번호 형식, 구분선, 간격, 번호 매기기, 놓는 곳."""
 
-        properties = self._section(section, None, "footnote_shape").properties
+        properties = self._section(section, "footnote_shape").properties
         return _note_shape_info(properties.footnote_shape, "footNotePr")
 
     def endnote_shape(self, *, section: "int | HwpxOxmlSection | None" = None) -> "NoteShapeInfo":
         """구역의 미주 모양(``hp:endNotePr``). :meth:`footnote_shape` 와 같은 값."""
 
-        properties = self._section(section, None, "endnote_shape").properties
+        properties = self._section(section, "endnote_shape").properties
         return _note_shape_info(properties.endnote_shape, "endNotePr")
 
     def set_footnote_shape(
@@ -1047,7 +1013,7 @@ class PageNamespace(_Namespace):
             if placement is not None or beneath_text is not None:
                 properties._set_note_placement(tag, place=placement, beneath_text=beneath_text)
 
-        self._apply(section, None, caller, change)
+        self._apply(section, caller, change)
 
     # -- 쪽 테두리·배경 ------------------------------------------------------
 
@@ -1057,7 +1023,7 @@ class PageNamespace(_Namespace):
         """구역의 쪽 테두리·배경(``hp:pageBorderFill``) 하나. 그 쪽 종류(``BOTH``·``EVEN``·``ODD``)의 것이 없으면 None."""
 
         _one_of("page_type", page_type, ("BOTH", "EVEN", "ODD"), "page-border-fill-invalid")
-        value = self._section(section, None, "page_border").properties.page_border_fill(page_type)
+        value = self._section(section, "page_border").properties.page_border_fill(page_type)
         if value is None:
             return None
         return PageBorder(
@@ -1097,7 +1063,7 @@ class PageNamespace(_Namespace):
 
         if text_border is not None:
             _one_of("text_border", text_border, ("PAPER", "CONTENT"), "page-border-fill-invalid")
-        self._apply(section, None, "set_page_border", lambda target: target.properties.set_page_border_fill(
+        self._apply(section, "set_page_border", lambda target: target.properties.set_page_border_fill(
             page_type=page_type,
             border_fill_id_ref=border_fill_id_ref,
             text_border=text_border,
@@ -1130,7 +1096,7 @@ class PageNamespace(_Namespace):
             removed.append(target.properties.remove_master_page_reference(master_page_id))
             return removed[-1]
 
-        self._apply(section, None, "remove_master_page", change)
+        self._apply(section, "remove_master_page", change)
         return any(removed)
 
 

@@ -1909,8 +1909,8 @@ def test_a_label_without_a_shape_of_its_own_takes_the_paragraph_ends() -> None:
     # An outline paragraph (the template's level 2, "가." with 자동 내어 쓰기) whose text starts at 10 pt and ends
     # at 20 pt: Hancom measures the label in the paragraph end's shape, about twice as wide as in the text's.
     doc = HwpxDocument.new()
-    small = doc.ensure_run_style(font="함초롬바탕", size=10)
-    large = doc.ensure_run_style(font="함초롬바탕", size=20)
+    small = doc.styles.ensure_run(font="함초롬바탕", size=10)
+    large = doc.styles.ensure_run(font="함초롬바탕", size=20)
 
     text = text_style_from_refs(doc.oxml, "3", [small])
     end = text_style_from_refs(doc.oxml, "3", [small], None, large)

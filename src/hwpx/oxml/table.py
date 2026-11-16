@@ -34,6 +34,7 @@ from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
 from .table_structure import TableStructureEdits
 from .utils import HwpxIndexError
+from ..errors import rejects_removed_arguments
 
 from .body import Label, parse_label_element
 from .objects import Caption, _read_caption, _remove_caption, _write_caption
@@ -45,6 +46,7 @@ if TYPE_CHECKING:
     from ..objects.binary_item import BinaryItem
     from hwpx.form_fit.report import FitResult
     from .paragraph import HwpxOxmlParagraph
+    from .header import Style
     from .section import HwpxOxmlSection
 
 
@@ -501,15 +503,28 @@ class HwpxOxmlTableCell:
         section = self.table.paragraph.section
         return [_wrap_paragraph(p, section) for p in sublist.findall(f"{_HP}p")]
 
+    @rejects_removed_arguments
     def add_paragraph(
         self,
         text: str = "",
         *,
         para_pr_id_ref: str | int | None = None,
-        style_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "HwpxOxmlParagraph":
-        """Append a paragraph to this cell and return it."""
+        """Append a paragraph to this cell and return it.
+
+        ``style`` (a name, a numeric id or a ``Style``) also gives the paragraph that
+        style's paragraph and character shapes unless they are passed. To set the style
+        reference alone (7.0 removed ``style_id_ref=``), set ``paragraph.style_id_ref``.
+        """
+        style_id_ref: str | int | None = None
+        if style is not None:
+            from .section import style_shape_refs
+
+            style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
+                self.table.paragraph.section.document, style, para_pr_id_ref, char_pr_id_ref
+            )
         sublist = self._ensure_sublist()
 
         attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}

@@ -31,7 +31,7 @@ def _section_xml(path) -> str:
 
 def test_add_check_box_emits_the_measured_hancom_shape(tmp_path) -> None:
     doc = HwpxDocument.new()
-    doc.add_check_box("동의합니다", checked=True, name="Agree")
+    doc.fields.add_check_box("동의합니다", checked=True, name="Agree")
     path = tmp_path / "checkbox.hwpx"
     doc.save_to_path(path)
     doc.close()
@@ -50,7 +50,7 @@ def test_add_check_box_emits_the_measured_hancom_shape(tmp_path) -> None:
 
 def test_check_box_children_are_inside_the_element(tmp_path) -> None:
     doc = HwpxDocument.new()
-    doc.add_check_box("자식 위치", checked=False)
+    doc.fields.add_check_box("자식 위치", checked=False)
     path = tmp_path / "children.hwpx"
     doc.save_to_path(path)
     doc.close()
@@ -69,14 +69,14 @@ def test_check_box_children_are_inside_the_element(tmp_path) -> None:
 
 def test_unchecked_is_the_default_and_round_trips(tmp_path) -> None:
     doc = HwpxDocument.new()
-    doc.add_check_box("기본 상태")
+    doc.fields.add_check_box("기본 상태")
     path = tmp_path / "default.hwpx"
     doc.save_to_path(path)
     doc.close()
 
     assert 'value="UNCHECKED"' in _section_xml(path)
     reopened = HwpxDocument.open(path)
-    boxes = reopened.list_check_boxes()
+    boxes = reopened.fields.check_boxes
     assert [b.caption for b in boxes] == ["기본 상태"]
     assert boxes[0].checked is False
     reopened.close()
@@ -84,44 +84,44 @@ def test_unchecked_is_the_default_and_round_trips(tmp_path) -> None:
 
 def test_list_and_set_by_index_and_name(tmp_path) -> None:
     doc = HwpxDocument.new()
-    doc.add_check_box("첫째", name="First")
-    doc.add_check_box("둘째", checked=True, name="Second")
+    doc.fields.add_check_box("첫째", name="First")
+    doc.fields.add_check_box("둘째", checked=True, name="Second")
 
-    listed = doc.list_check_boxes()
+    listed = doc.fields.check_boxes
     assert [(b.index, b.name, b.checked) for b in listed] == [
         (0, "First", False),
         (1, "Second", True),
     ]
 
-    assert doc.set_check_box(True, index=0).checked is True
-    assert doc.set_check_box(False, name="Second").value == "UNCHECKED"
-    assert [b.checked for b in doc.list_check_boxes()] == [True, False]
+    assert doc.fields.set_check_box(True, index=0).checked is True
+    assert doc.fields.set_check_box(False, name="Second").value == "UNCHECKED"
+    assert [b.checked for b in doc.fields.check_boxes] == [True, False]
 
     path = tmp_path / "toggled.hwpx"
     doc.save_to_path(path)
     doc.close()
     reopened = HwpxDocument.open(path)
-    assert [b.checked for b in reopened.list_check_boxes()] == [True, False]
+    assert [b.checked for b in reopened.fields.check_boxes] == [True, False]
     reopened.close()
 
 
 def test_selector_and_caption_refusals_are_typed() -> None:
     doc = HwpxDocument.new()
-    doc.add_check_box("하나", name="Dup")
-    doc.add_check_box("둘", name="Dup")
+    doc.fields.add_check_box("하나", name="Dup")
+    doc.fields.add_check_box("둘", name="Dup")
 
     with pytest.raises(ValueError, match="exactly one of index or name"):
-        doc.set_check_box(True)
+        doc.fields.set_check_box(True)
     with pytest.raises(ValueError, match="exactly one of index or name"):
-        doc.set_check_box(True, index=0, name="Dup")
+        doc.fields.set_check_box(True, index=0, name="Dup")
     with pytest.raises(ValueError, match="ambiguous"):
-        doc.set_check_box(True, name="Dup")
+        doc.fields.set_check_box(True, name="Dup")
     with pytest.raises(ValueError, match="not found"):
-        doc.set_check_box(True, name="없는이름")
+        doc.fields.set_check_box(True, name="없는이름")
     with pytest.raises(ValueError, match="index not found"):
-        doc.set_check_box(True, index=99)
+        doc.fields.set_check_box(True, index=99)
     with pytest.raises(ValueError, match="non-empty"):
-        doc.add_check_box("   ")
+        doc.fields.add_check_box("   ")
     doc.close()
 
 
@@ -136,7 +136,7 @@ def test_check_box_inside_a_table_cell(tmp_path) -> None:
     doc.close()
 
     reopened = HwpxDocument.open(path)
-    boxes = reopened.list_check_boxes()
+    boxes = reopened.fields.check_boxes
     assert [(b.caption, b.checked) for b in boxes] == [("셀 안", True)]
     reopened.close()
 
@@ -145,7 +145,7 @@ def test_authored_document_passes_open_safety(tmp_path) -> None:
     from hwpx.tools.package_validator import validate_editor_open_safety
 
     doc = HwpxDocument.new()
-    doc.add_check_box("열림 안전", checked=True)
+    doc.fields.add_check_box("열림 안전", checked=True)
     path = tmp_path / "safe.hwpx"
     doc.save_to_path(path)
     doc.close()

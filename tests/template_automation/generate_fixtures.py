@@ -119,8 +119,8 @@ def _build_table_placeholder() -> bytes:
 def _build_header_footer_placeholder() -> bytes:
     document = HwpxDocument.new()
     document.paragraphs[0].text = "Body stays stable"
-    document.set_header_text("Header {{HDR1}}")
-    document.set_footer_text("Footer {{FTR1}}")
+    document.page.set_header(text="Header {{HDR1}}")
+    document.page.set_footer(text="Footer {{FTR1}}")
     return document.to_bytes()
 
 

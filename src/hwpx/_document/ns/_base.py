@@ -13,7 +13,10 @@ WP-A 소유다. 각 네임스페이스의 **메서드 본문**은 WP-B1/B2/B3이
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import inspect
+from typing import TYPE_CHECKING, Any
+
+from ...errors import rejects_removed_arguments
 
 if TYPE_CHECKING:
     from ...document import HwpxDocument
@@ -29,6 +32,21 @@ class _Namespace:
 
     def __init__(self, document: "HwpxDocument") -> None:
         self._doc = document
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """구역을 받는 메서드(``section=``)에 7.0에서 없어진 인자 안내를 붙인다.
+
+        ``section_index=``·``style_id_ref=`` 를 주면 평범한 ``TypeError`` 대신
+        :func:`hwpx.errors.rejects_removed_arguments` 가 ``section=``·``style=`` 을
+        알려 준다. 묶음마다 손으로 붙이지 않고 여기 한 곳에서 붙인다 — 새 메서드도 따라온다.
+        """
+
+        super().__init_subclass__(**kwargs)
+        for name, member in list(vars(cls).items()):
+            if name.startswith("_") or not inspect.isfunction(member):
+                continue
+            if "section" in inspect.signature(member).parameters:
+                setattr(cls, name, rejects_removed_arguments(member, caller=f"{cls._path}.{name}"))
 
     @property
     def document(self) -> "HwpxDocument":

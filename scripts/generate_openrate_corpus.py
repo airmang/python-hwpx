@@ -599,7 +599,7 @@ def gen_redline(out_dir: Path, authored_paths: list[Path]) -> tuple[list[dict[st
             applied = 0
             # tracked insert on the 1st text para
             if paras:
-                doc.add_tracked_insert(paras[0], " [검토필]", author="검토자",
+                doc.tracking.insert(paras[0], " [검토필]", author="검토자",
                                        date="2026-07-01T00:00:00")
                 applied += 1
             # tracked replace on a para containing a known token, else delete-clip
@@ -607,7 +607,7 @@ def gen_redline(out_dir: Path, authored_paths: list[Path]) -> tuple[list[dict[st
                 txt = getattr(p, "text", "") or ""
                 if "가." in txt:
                     try:
-                        doc.add_tracked_replace(p, "가.", "가.(수정)",
+                        doc.tracking.replace(p, "가.", "가.(수정)",
                                                 author="검토자",
                                                 date="2026-07-01T00:00:00")
                         applied += 1
@@ -956,17 +956,17 @@ def _apply_tracked_op(doc: HwpxDocument, op: str) -> str | None:
     if not paras:
         return "no text paragraph in source"
     if op == "insert":
-        doc.add_tracked_insert(paras[0], " [검토필]",
+        doc.tracking.insert(paras[0], " [검토필]",
                                author=V2_TRACK_AUTHOR, date=V2_TRACK_DATE)
         return None
     if op == "delete":
         target = paras[1] if len(paras) > 1 else paras[0]
-        doc.add_tracked_delete(target, author=V2_TRACK_AUTHOR, date=V2_TRACK_DATE)
+        doc.tracking.delete(target, author=V2_TRACK_AUTHOR, date=V2_TRACK_DATE)
         return None
     if op == "replace":
         for p in paras:
             if "가." in (getattr(p, "text", "") or ""):
-                doc.add_tracked_replace(p, "가.", "가.(수정)",
+                doc.tracking.replace(p, "가.", "가.(수정)",
                                         author=V2_TRACK_AUTHOR, date=V2_TRACK_DATE)
                 return None
         return "no eligible paragraph for tracked replace"
@@ -1166,8 +1166,8 @@ def gen_authored_toc(out_dir: Path, n: int = AUTHORED_TOC_N) -> tuple[list[dict[
                         # give it 본문 (style 1) like the M7 demo.
                         doc.add_paragraph(
                             f"{title}에 대한 상세 설명 문장입니다. 본문 내용이 이어집니다. " * body_reps,
-                            style_id_ref="1", para_pr_id_ref=1,
-                        )
+                            para_pr_id_ref=1,
+                        ).style_id_ref = "1"
                 # The headings are outline paragraphs, so Hancom's regeneration keeps them.
                 summary = toc_author.add_native_toc(doc, headings=headings, hyperlink=False, dirty=True)
                 doc.save_to_path(out_path)

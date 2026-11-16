@@ -19,7 +19,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...model import Equation, InlineObject, Paragraph, Section, Shape
-    from ...oxml import ContainerMember
+    from ...oxml import ContainerMember, Style
 
 __all__ = ["ShapesNamespace"]
 
@@ -30,17 +30,17 @@ class ShapesNamespace(_Namespace):
     __slots__ = ()
     _path = "doc.shapes"
 
-    def _section(self, section, section_index, caller: str) -> "Section":
+    def _section(self, section, caller: str) -> "Section":
         return resolve_section(
-            self._doc, section, section_index, caller=f"doc.shapes.{caller}"
+            self._doc, section, caller=f"doc.shapes.{caller}"
         )
 
-    def _paragraph(self, paragraph, section, section_index) -> "Paragraph | None":
+    def _paragraph(self, paragraph, section) -> "Paragraph | None":
         """``paragraph=``: an index (in *section* when given, else in the whole document) or a
         paragraph of this document; ``None`` adds a new one."""
 
         return optional_paragraph(
-            self._doc, paragraph, section=section, section_index=section_index, caller="doc.shapes"
+            self._doc, paragraph, section=section, caller="doc.shapes"
         )
 
     # -- 기본 도형 ---------------------------------------------------------
@@ -57,7 +57,6 @@ class ShapesNamespace(_Namespace):
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
     ) -> "Shape":
         """직선을 넣는다."""
 
@@ -72,8 +71,8 @@ class ShapesNamespace(_Namespace):
             line_color=line_color,
             line_width=line_width,
             treat_as_char=treat_as_char,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_line"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_line"),
         )
 
     # -- 덧말·글자 겹치기 ---------------------------------------------------
@@ -88,7 +87,6 @@ class ShapesNamespace(_Namespace):
         compose_type: str | None = None,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "InlineObject":
         """글자 겹치기(원문자·합자)를 넣는다."""
@@ -102,8 +100,8 @@ class ShapesNamespace(_Namespace):
             circle_type=circle_type,
             char_sz=char_sz,
             compose_type=compose_type,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_composed_character"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_composed_character"),
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -119,7 +117,6 @@ class ShapesNamespace(_Namespace):
         style_id_ref: str | int | None = None,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> "InlineObject":
         """덧말(루비형 주석 텍스트)을 넣는다.
@@ -140,8 +137,8 @@ class ShapesNamespace(_Namespace):
             sz_ratio=sz_ratio,
             option=option,
             style_id_ref=style_id_ref,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_dutmal"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_dutmal"),
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -157,7 +154,6 @@ class ShapesNamespace(_Namespace):
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         original_size: "tuple[int, int] | None" = None,
     ) -> "Shape":
         """사각형을 넣는다(`ratio` 로 모서리 둥글기).
@@ -178,8 +174,8 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_rectangle"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_rectangle"),
             original_size=original_size,
         )
 
@@ -194,7 +190,6 @@ class ShapesNamespace(_Namespace):
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         original_size: "tuple[int, int] | None" = None,
     ) -> "Shape":
         """타원을 넣는다. *original_size*는 `add_rectangle`과 같다."""
@@ -209,8 +204,8 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_ellipse"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_ellipse"),
             original_size=original_size,
         )
 
@@ -227,7 +222,6 @@ class ShapesNamespace(_Namespace):
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
     ) -> "Shape":
         """사분원(호)을 넣는다(`corner`로 꼭짓점 위치, `arc_type`으로 NORMAL/PIE/CHORD)."""
 
@@ -243,8 +237,8 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_arc"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_arc"),
         )
 
     def add_polygon(
@@ -257,7 +251,6 @@ class ShapesNamespace(_Namespace):
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         closed: bool = True,
     ) -> "Shape":
         """다각형을 넣는다(꼭짓점은 mm, 자기 bbox 좌상단 원점 로컬 좌표계로 배치).
@@ -274,8 +267,8 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_polygon"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_polygon"),
             closed=closed,
         )
 
@@ -290,7 +283,6 @@ class ShapesNamespace(_Namespace):
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
     ) -> "Shape":
         """곡선을 넣는다(앵커는 mm, 2개 이상, 닫으면 3개 이상).
 
@@ -308,8 +300,8 @@ class ShapesNamespace(_Namespace):
             line_width=line_width,
             fill_color=fill_color,
             treat_as_char=treat_as_char,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_curve"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_curve"),
         )
 
     def add_connector(
@@ -341,7 +333,7 @@ class ShapesNamespace(_Namespace):
             kind=kind,
             line_color=line_color,
             line_width=line_width,
-            paragraph=self._paragraph(paragraph, None, None),
+            paragraph=self._paragraph(paragraph, None),
         )
 
     def add_container(
@@ -351,7 +343,6 @@ class ShapesNamespace(_Namespace):
         treat_as_char: bool = True,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
     ) -> "Shape":
         """도형을 그룹으로 묶는다(`ContainerMember.rect`/`.ellipse`/`.polygon`/`.line`/
         `.text_box`/`.picture`/`.group`으로 각 부재를 그룹 로컬 좌표로 만들어 넘긴다)."""
@@ -362,8 +353,8 @@ class ShapesNamespace(_Namespace):
             self._doc,
             members,
             treat_as_char=treat_as_char,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_container"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_container"),
         )
 
     # -- 차트·수식 ---------------------------------------------------------
@@ -374,7 +365,6 @@ class ShapesNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         size: tuple[int, int] | None = None,
         treat_as_char: bool = False,
         char_pr_id_ref: str | int | None = None,
@@ -386,8 +376,8 @@ class ShapesNamespace(_Namespace):
         return _shapes.add_chart(
             self._doc,
             chart_xml=chart_xml,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_chart"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_chart"),
             size=size,
             treat_as_char=treat_as_char,
             char_pr_id_ref=char_pr_id_ref,
@@ -415,7 +405,6 @@ class ShapesNamespace(_Namespace):
         style: str = "TripleLine",
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         char_pr_id_ref: str | int | None = None,
         para_pr_id_ref: str | int | None = None,
     ) -> "InlineObject":
@@ -429,8 +418,8 @@ class ShapesNamespace(_Namespace):
             self._doc,
             character,
             width=width, height=height, style=style,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_drop_cap"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_drop_cap"),
             char_pr_id_ref=char_pr_id_ref,
             para_pr_id_ref=para_pr_id_ref,
         )
@@ -441,7 +430,6 @@ class ShapesNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         base_unit: int = 1100,
         size: tuple[int, int] | None = None,
         char_pr_id_ref: str | int | None = None,
@@ -458,8 +446,8 @@ class ShapesNamespace(_Namespace):
         return _shapes.add_equation(
             self._doc,
             script=script,
-            paragraph=self._paragraph(paragraph, section, section_index),
-            section=self._section(section, section_index, "add_equation"),
+            paragraph=self._paragraph(paragraph, section),
+            section=self._section(section, "add_equation"),
             base_unit=base_unit,
             size=size,
             char_pr_id_ref=char_pr_id_ref,
@@ -486,10 +474,9 @@ class ShapesNamespace(_Namespace):
         shape_type: str,
         *,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         attributes: dict[str, str] | None = None,
         para_pr_id_ref: str | int | None = None,
-        style_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
@@ -507,12 +494,11 @@ class ShapesNamespace(_Namespace):
         return _shapes.add_shape(
             self._doc,
             shape_type=shape_type,
-            section=self._section(section, section_index, "add_raw"),
+            section=self._section(section, "add_raw"),
             # 명시하지 않으면 **extra_attrs 가 이 자리에 흘러들 수 있다.
-            section_index=None,
             attributes=attributes,
             para_pr_id_ref=para_pr_id_ref,
-            style_id_ref=style_id_ref,
+            style=style,
             char_pr_id_ref=char_pr_id_ref,
             run_attributes=run_attributes,
             **extra_attrs,
@@ -522,11 +508,10 @@ class ShapesNamespace(_Namespace):
         self,
         *,
         section: "int | Section | None" = None,
-        section_index: int | None = None,
         attributes: dict[str, str] | None = None,
         control_type: str | None = None,
         para_pr_id_ref: str | int | None = None,
-        style_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         **extra_attrs: str,
@@ -537,13 +522,12 @@ class ShapesNamespace(_Namespace):
 
         return _shapes.add_control(
             self._doc,
-            section=self._section(section, section_index, "add_control"),
+            section=self._section(section, "add_control"),
             # 명시하지 않으면 **extra_attrs 가 이 자리에 흘러들 수 있다.
-            section_index=None,
             attributes=attributes,
             control_type=control_type,
             para_pr_id_ref=para_pr_id_ref,
-            style_id_ref=style_id_ref,
+            style=style,
             char_pr_id_ref=char_pr_id_ref,
             run_attributes=run_attributes,
             **extra_attrs,

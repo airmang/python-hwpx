@@ -230,8 +230,8 @@ def _corrupt_first_entry_crc(archive_bytes: bytes) -> bytes:
 def _document_with_structure() -> HwpxDocument:
     document = HwpxDocument.new(empty_first_line=True)
     document.add_paragraph("Title")
-    document.add_bookmark("bookmark-one")
-    document.add_rectangle(7200, 3600)
+    document.refs.add_bookmark("bookmark-one")
+    document.shapes.add_rectangle(7200, 3600)
     table = document.add_table(1, 1)
     table.cell(0, 0).text = "Cell"
     return document

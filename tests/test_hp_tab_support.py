@@ -61,4 +61,4 @@ def test_document_paragraph_roundtrip_preserves_tab_semantics() -> None:
     saved = doc.to_bytes()
     reopened = HwpxDocument.open(io.BytesIO(saved))
     assert reopened.sections[0].paragraphs[-1].text == "left\tright"
-    assert reopened.export_text().endswith("left\tright")
+    assert reopened.text.plain().endswith("left\tright")

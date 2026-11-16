@@ -65,7 +65,7 @@ def test_list_form_fields_reports_name_prompt_and_current_value() -> None:
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
 
-    fields = doc.list_form_fields()
+    fields = doc.fields.all
 
     assert len(fields) == 1
     assert fields[0].field_id == "field-date"
@@ -83,7 +83,7 @@ def test_fill_form_field_preserves_run_formatting_and_open_safety(tmp_path: Path
     doc = HwpxDocument.new()
     _add_click_here_field(doc)
 
-    result = doc.fill_form_field("2026-06-11 10:00", name="일시")
+    result = doc.fields.fill("2026-06-11 10:00", name="일시")
     doc.save_to_path(path)
 
     # No `ok` key: reaching a FieldFillResult at all means the fill succeeded
@@ -94,7 +94,7 @@ def test_fill_form_field_preserves_run_formatting_and_open_safety(tmp_path: Path
     assert validate_editor_open_safety(path.read_bytes()).ok is True
 
     reopened = HwpxDocument.open(path)
-    fields = reopened.list_form_fields()
+    fields = reopened.fields.all
     assert fields[0].value == "2026-06-11 10:00"
     paragraph = reopened.paragraphs[fields[0].location.paragraph_index]
     assert paragraph.element.find(f"{HP}lineSegArray") is None
@@ -110,7 +110,7 @@ def test_fill_form_field_rejects_memo_and_hyperlink_fields() -> None:
         _append(ctrl, f"{HP}fieldBegin", {"id": field_type.lower(), "type": field_type})
     paragraph.section.mark_dirty()
 
-    assert doc.list_form_fields() == ()  # list_form_fields now returns a tuple (design §2.5)
+    assert doc.fields.all == ()  # list_form_fields now returns a tuple (design §2.5)
 
 
 def _paragraph_marks(doc: HwpxDocument) -> list[str]:
@@ -339,7 +339,7 @@ def test_an_unnamed_field_is_listed_with_an_empty_name() -> None:
     unnamed = next(b for b in doc.sections[0].element.iter(f"{HP}fieldBegin") if b.get("name") == "")
 
     assert [field.name for field in doc.fields.all] == ["이름", ""]
-    assert [field.name for field in doc.list_form_fields()] == ["이름", ""]
+    assert [field.name for field in doc.fields.all] == ["이름", ""]
     assert doc.fields.all[1].field_id == unnamed.get("id")
 
 
