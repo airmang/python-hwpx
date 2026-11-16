@@ -370,6 +370,80 @@ def test_a_paragraph_measured_floating_object_keeps_its_frames_in_a_cell() -> No
     _reopen(doc)
 
 
+def _boxes(doc: HwpxDocument) -> dict[str, Paragraph]:
+    """A paragraph of a table cell, of a text box and of a footnote."""
+
+    box = doc.add_paragraph("").add_rectangle(9000, 3000)
+    box.set_draw_text("글상자")
+    return {
+        "cell": doc.add_paragraph("").add_table(1, 1).cell(0, 0).paragraphs[0],
+        "text_box": box.draw_text.paragraphs[0],
+        "note": doc.add_paragraph("각주").add_footnote("각주 글").paragraphs[0],
+    }
+
+
+@pytest.mark.parametrize("box", ["cell", "text_box", "note"])
+def test_a_floating_object_not_kept_in_the_page_area_does_not_go_into_a_box(box: str) -> None:
+    # add_picture(treat_as_char=False) writes vertRelTo=PARA, horzRelTo=COLUMN, flowWithText=0: in a
+    # cell Hancom draws such a picture over the cells above it, and no Hancom document holds one in a
+    # text box or a note.
+    doc = HwpxDocument.new()
+    item = doc.media.add_image(PNG, "png")
+    picture = doc.add_paragraph("").add_picture(str(item), width=3000, height=3000, treat_as_char=False)
+    target = _boxes(doc)[box]
+    before = doc.to_bytes()
+    position = picture.element.find(f"{HP}pos")
+    assert (position.get("vertRelTo"), position.get("horzRelTo"), position.get("flowWithText")) == \
+        ("PARA", "COLUMN", "0")
+
+    for call in (picture.move_to, picture.copy_to):
+        with pytest.raises(HwpxValueError) as excinfo:
+            call(target)
+        assert excinfo.value.code == "shape-move-place-unsupported"
+        assert excinfo.value.context["flowWithText"] == "0" and excinfo.value.context["box"] == box
+        assert "set_position" in excinfo.value.suggestion
+    assert doc.to_bytes() == before  # nothing changed, the placement included
+
+    picture.set_position(horz_rel_to="PARA")  # measured across from its paragraph: it may go in
+    picture.move_to(target)
+    assert picture.paragraph.element is target.element
+    _reopen(doc)
+
+
+@pytest.mark.parametrize("box", ["cell", "text_box", "note"])
+def test_a_floating_object_kept_in_the_page_area_goes_into_a_box(box: str) -> None:
+    doc = HwpxDocument.new()
+    item = doc.media.add_image(PNG, "png")
+    picture = doc.add_paragraph("").add_picture(
+        str(item), width=3000, height=3000, treat_as_char=False,
+        pos_overrides={"vertRelTo": "PARA", "horzRelTo": "COLUMN", "flowWithText": "1"},
+    )
+    target = _boxes(doc)[box]
+
+    copy = picture.copy_to(target)
+
+    assert copy.position == picture.position
+    _reopen(doc)
+
+
+def test_a_page_measured_copy_keeps_the_place_of_the_original() -> None:
+    # Measured from the paper, the copy has the original's place on the page: on the same page it is
+    # drawn exactly over it until set_position moves it.
+    doc = HwpxDocument.new()
+    picture = _floating_picture(doc, doc.add_paragraph("도장"), "PAPER")
+    target = doc.add_paragraph("사본은 이 문단에 붙지만 쪽 위 자리는 원본과 같다")
+
+    copy = picture.copy_to(target, offset=2)
+
+    original = picture.element.find(f"{HP}pos")
+    copied = copy.element.find(f"{HP}pos")
+    assert dict(copied.attrib) == dict(original.attrib)
+    assert copy.position == picture.position
+    copy.set_position(horizontal_offset=9000)
+    assert copy.position.horizontal_offset == 9000 and picture.position.horizontal_offset == 1000
+    _reopen(doc)
+
+
 def test_a_page_measured_object_moves_to_a_section_of_the_same_paper_only() -> None:
     doc = HwpxDocument.new()
     picture = _floating_picture(doc, doc.add_paragraph("도장"), "PAGE")

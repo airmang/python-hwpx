@@ -487,14 +487,20 @@ class ObjectPlacement:
         empty goes, a connector attached to it lets go of it), and the paragraphs on both sides
         lose their line layout caches, with the paragraphs holding their cells and captions.
 
-        A floating object keeps its frames and offsets, which mean the same at its new place:
-        measured from its new paragraph (``PARA``, ``COLUMN``), or from the page that paragraph is
-        on (``PAGE``, ``PAPER``). Where Hancom documents never hold such an object the move is
-        refused with ``shape-move-place-unsupported``: a page- or paper-measured object into a
-        table cell, a text box or a note (Hancom measures objects there from the paragraph), or
-        into a section whose paper or margins differ; any floating object into a caption, and any
-        object into a memo or a master page. Moving an object into itself (a paragraph of its own
-        text box or caption) is ``shape-move-into-itself``, a member of a group alone
+        A floating object keeps its frames and offsets as they are written; nothing is changed
+        for it. Measured from its paragraph (``PARA``, ``COLUMN``) it goes with its new paragraph.
+        Measured from the page or paper (``PAGE``, ``PAPER``) it stays where it is on the page:
+        only the page it is drawn on follows its new paragraph, so moved within one page it does
+        not move at all -- ``set_position`` puts it elsewhere. Where Hancom documents never hold
+        such an object the move is refused with ``shape-move-place-unsupported``: into a table
+        cell, a text box or a note, a floating object that is not measured down from its
+        paragraph and kept in the page area (``vertRelTo="PARA"`` and either ``flowWithText="1"``
+        or ``horzRelTo="PARA"``; Hancom draws another one over the cells above it), so a page-
+        or paper-measured one never; a page-measured object into a section whose paper or margins
+        differ; any floating object into a caption, and any object into a memo or a master page.
+        Change the placement first with ``set_position(vert_rel_to="PARA", horz_rel_to="PARA")``
+        or ``treat_as_char=True``. Moving an object into itself (a paragraph of its own text box
+        or caption) is ``shape-move-into-itself``, a member of a group alone
         ``shape-group-member-unsupported``, a removed object ``shape-not-in-document``. Everything
         is checked before anything changes.
         """
@@ -509,7 +515,9 @@ class ObjectPlacement:
         objects, tables, paragraphs and fields; a connector in it follows the copied objects it
         was attached to and lets go of the others), no line layout caches, and the same images
         (a picture's copy shows the same ``BinData`` item). A memo anchored in it becomes a memo
-        of its own with the next memo number. The original stays as it was.
+        of its own with the next memo number. The original stays as it was. A copy of an object
+        floating at a place on the page or paper (``PAGE``, ``PAPER``) has the same place: on the
+        same page it is drawn exactly over the original until ``set_position`` moves it.
         """
 
         return place_object(self, paragraph, offset, copy=True)  # type: ignore[no-any-return]
@@ -1282,7 +1290,9 @@ _SUBLIST_BOXES = {
 #: measured from the page or paper on either axis). Counted over the 1,304 public documents (rhwp
 #: samples, kordoc fixtures, the repository's fixtures): floating objects sit in table cells 634 times,
 #: in notes 40, in text boxes 2 -- every one of them measured from its paragraph -- and in headers and
-#: footers 7 (from the paragraph or the paper); none sits in a caption.
+#: footers 7 (from the paragraph or the paper); none sits in a caption. In a cell, a text box or a note
+#: the object must also be kept in the page area or measured across from its paragraph
+#: (:func:`_stays_in_box`).
 OBJECT_PLACES: dict[str, frozenset[str]] = {
     "char": frozenset({"body", "cell", "text_box", "note", "header_footer", "caption"}),
     "paragraph": frozenset({"body", "cell", "text_box", "note", "header_footer"}),
@@ -1330,14 +1340,36 @@ def _page_settings(section: Any) -> tuple[dict[str, str], dict[str, str]]:
 
 
 def _place_refused(element: Any, box: str, why: str) -> HwpxValueError:
+    position = element.find(f"{_HP}pos")
+    frames = {name: position.get(name) for name in ("vertRelTo", "horzRelTo", "flowWithText")}         if position is not None else {}
     return HwpxValueError(
         f"hp:{_local(element)} cannot go there: {why}",
         code="shape-move-place-unsupported",
-        context={"box": box, "placement": placement_kind(element), "reason": why},
+        context={"box": box, "placement": placement_kind(element), "reason": why, **frames},
         suggestion="글자처럼 취급하는 개체는 본문·표 칸·글상자·각주·머리말·꼬리말 어디로든 옮길 수 있습니다. "
-                   "떠 있는 개체를 칸·글상자·각주로 옮기려면 먼저 문단 기준으로 놓으세요"
-                   "(set_position(vert_rel_to='PARA', horz_rel_to='COLUMN')) 또는 treat_as_char=True.",
+                   "떠 있는 개체를 칸·글상자·각주로 옮기려면 먼저 set_position(vert_rel_to='PARA', "
+                   "horz_rel_to='PARA')으로 문단 기준·쪽 영역 안으로 바꾼 뒤(또는 treat_as_char=True) 옮기세요. "
+                   "값을 몰래 바꾸지 않으므로 바꾸기 전에는 거부합니다.",
     )
+
+
+#: The boxes whose floating objects Hancom keeps inside the page area of their paragraph.
+_BOXED = frozenset({"cell", "text_box", "note"})
+
+
+def _stays_in_box(element: Any) -> bool:
+    """Whether a floating object Hancom documents hold in a table cell, text box or note is placed so:
+    measured down from its paragraph (``vertRelTo="PARA"``) and either kept in the page area
+    (``flowWithText="1"``) or measured across from its paragraph too (``horzRelTo="PARA"``). In the public
+    documents (1,304): of 634 floating objects in cells, 343 are PARA/PARA/1, 257 PARA/COLUMN/1, 33
+    PARA/PARA/0 and 1 PARA/COLUMN/0; all 40 in notes and both in text boxes are kept in the page area.
+    A PARA/COLUMN/0 picture moved into a cell, Hancom draws over the cells above it."""
+
+    position = element.find(f"{_HP}pos")
+    if position is None:
+        return True
+    return position.get("vertRelTo") == "PARA" and (
+        position.get("flowWithText") in ("1", "true") or position.get("horzRelTo") == "PARA")
 
 
 def _nearest_paragraph(node: Any) -> Any:
@@ -1464,6 +1496,10 @@ def _check_place(element: Any, source: Any, target: Any) -> None:
         else:
             why = f"Hancom measures an object in a {box.replace('_', ' ')} from its paragraph, not from the page"
         raise _place_refused(element, box, why)
+    if kind == "paragraph" and box in _BOXED and not _stays_in_box(element):
+        raise _place_refused(element, box, f"Hancom draws a floating object in a {box.replace('_', ' ')} where it "
+                                           "belongs only when it is measured from its paragraph and kept in the "
+                                           "page area (vertRelTo PARA, and flowWithText 1 or horzRelTo PARA)")
     if kind == "page" and target.section.element is not source.section.element             and _page_settings(target.section) != _page_settings(source.section):
         raise _place_refused(element, box, "it is measured from the page, and that section's paper or margins differ")
 

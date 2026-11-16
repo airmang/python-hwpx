@@ -551,7 +551,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
     "shape-not-in-document": "옮기거나 복사할 개체가 문단에 없다(지운 개체).",
     "shape-move-into-itself": "개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다).",
-    "shape-move-place-unsupported": "한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(쪽·용지 기준 떠 있는 개체를 표 칸·글상자·각주로, 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement).",
+    "shape-move-place-unsupported": "한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(표 칸·글상자·각주로는 문단 기준(vertRelTo=PARA)이고 쪽 영역 안(flowWithText=1)이거나 가로도 문단 기준(horzRelTo=PARA)인 떠 있는 개체만, 쪽 기준 개체를 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement·vertRelTo·horzRelTo·flowWithText).",
     # -- 미디어 ----------------------------------------------------------
     "media-picture-not-found": "picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서).",
     "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",
