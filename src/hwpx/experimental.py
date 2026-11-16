@@ -11,7 +11,7 @@
 
 문서 ingest(``DocumentIngestor`` 등 7개)와 미리보기(``render_layout_preview`` 등 5개)는
 7.0에서 python-hwpx-automation(``hwpx_automation.ingest`` / ``hwpx_automation.preview``)으로
-옮겼습니다.
+옮겼습니다. 그 이름을 가져오면 새 자리를 알려 주는 ``ImportError``가 납니다.
 """
 
 from __future__ import annotations
@@ -55,3 +55,14 @@ __all__ = [
     "contract_document",
     "contract_json_schema",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """7.0에서 python-hwpx-automation으로 옮긴 실험 이름이면 새 자리를 알려 준다."""
+
+    from ._moved_modules import moved_name_error
+
+    moved = moved_name_error(__name__, name)
+    if moved is not None:
+        raise moved
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -816,3 +816,14 @@ def export_text(
                 write_block(block)
         section_texts.append(paragraph_separator.join(para_texts))
     return section_separator.join(section_texts)
+
+
+def __getattr__(name: str) -> object:
+    """``export_markdown``·``export_html`` (7.0에서 옮김)이면 새 자리를 알려 준다."""
+
+    from .._moved_modules import moved_name_error
+
+    moved = moved_name_error(__name__, name)
+    if moved is not None:
+        raise moved
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

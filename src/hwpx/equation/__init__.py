@@ -4,7 +4,8 @@
 Clean-room re-derivation of the HULK-style EqEdit vocabulary; see NOTICE for the
 referenced projects. Drawing an equation for a preview (LaTeX → MathML,
 ``render_equation``) moved to python-hwpx-automation in 7.0
-(``hwpx_automation.preview``). :data:`EQEDIT_MATHML_OPERATOR_COMMANDS` stays here for
+(``hwpx_automation.preview``); asking this package for one of those names raises an
+``ImportError`` that says so. :data:`EQEDIT_MATHML_OPERATOR_COMMANDS` stays here for
 that renderer: it is part of the EqEdit vocabulary.
 """
 
@@ -33,3 +34,14 @@ __all__ = [
     "estimate_equation_size",
     "latex_to_eqedit",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """7.0에서 python-hwpx-automation으로 옮긴 미리보기 이름이면 새 자리를 알려 준다."""
+
+    from .._moved_modules import moved_name_error
+
+    moved = moved_name_error(__name__, name)
+    if moved is not None:
+        raise moved
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -289,3 +289,14 @@ def get_table_map(document: HwpxDocument) -> TableMapResult:
             }
         )
     return {"tables": tables}
+
+
+def __getattr__(name: str) -> object:
+    """이름표로 칸 찾기(7.0에서 ``hwpx_automation.forms``로 옮김)의 이름이면 새 자리를 알려 준다."""
+
+    from .._moved_modules import moved_name_error
+
+    moved = moved_name_error(__name__, name)
+    if moved is not None:
+        raise moved
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

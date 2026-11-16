@@ -205,3 +205,14 @@ __all__ = [
     "paragraph_texts",
     "doc_diff",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """참조 일관성 검사(7.0에서 ``hwpx_automation.office.compliance``로 옮김)면 새 자리를 알려 준다."""
+
+    from .._moved_modules import moved_name_error
+
+    moved = moved_name_error(__name__, name)
+    if moved is not None:
+        raise moved
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

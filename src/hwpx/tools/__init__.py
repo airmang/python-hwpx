@@ -4,6 +4,8 @@
 7.0 moved the converting and guessing helpers this package used to re-export
 (Markdown/HTML export, the layout preview and document viewer, mail merge, the
 reference consistency lint, label-guided table filling) to python-hwpx-automation.
+Asking for one of those names raises an ``ImportError`` that names its new place
+(:data:`hwpx._moved_modules.MOVED_IN_7_0_NAMES`).
 """
 
 from __future__ import annotations
@@ -166,6 +168,11 @@ def __getattr__(name: str) -> object:
     elif owner == "validator":
         import hwpx.tools.validator as module
     else:
+        from .._moved_modules import moved_name_error
+
+        moved = moved_name_error(__name__, name)
+        if moved is not None:
+            raise moved
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     value = getattr(module, name) if name in _EXPORT_OWNER else module
