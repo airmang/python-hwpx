@@ -284,6 +284,46 @@ class CellZone:
 
 
 @dataclass(frozen=True)
+class LineSegment:
+    """One line of a paragraph as it was last laid out and saved (``hp:lineseg``), as
+    ``paragraph.line_segments`` reads it. Read only: values as the file stores them.
+
+    *text_position* is where the line starts in the paragraph's text, counted as Hancom counts it
+    (a tab or another inline control takes 8 places, a character outside the basic plane 2).
+    *vertical_position* is the line's top from the top of its paragraph list (the page body, a
+    cell or a text box), *height* the line's height, *text_height* the height of its tallest
+    characters, *baseline* the distance from the line's top to its base line and *spacing* the
+    room below it before the next line. *horizontal_position* is where the line starts from the
+    left of its column (a hanging indent or an object beside it moves it right) and *width* how
+    much room the line has. Lengths are HWPUNIT. *flags* is Hancom's bit set for the line as
+    written (first line of a page or column and the like).
+    """
+
+    text_position: int
+    vertical_position: int
+    height: int
+    text_height: int
+    baseline: int
+    spacing: int
+    horizontal_position: int
+    width: int
+    flags: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "textPosition": self.text_position,
+            "verticalPosition": self.vertical_position,
+            "height": self.height,
+            "textHeight": self.text_height,
+            "baseline": self.baseline,
+            "spacing": self.spacing,
+            "horizontalPosition": self.horizontal_position,
+            "width": self.width,
+            "flags": self.flags,
+        }
+
+
+@dataclass(frozen=True)
 class ColumnLayout:
     """Column count/gap applied by ``doc.page.setup(columns=...)``."""
 

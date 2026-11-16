@@ -28,9 +28,10 @@ from .shape_position import (
     DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, fill_color_of, keep_ratio, line_width_of, object_size,
     apply_rotation, picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
     resize_object, rotation_base_size,
-    set_equation_script, set_picture_crop,
+    set_equation_base_unit, set_equation_font, set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
-    _object_set_position, build_at_original_size, resize_group, validate_draw_text_vert_align, validate_picture_align,
+    _object_set_position, build_at_original_size, fit_new_floating_object, resize_group,
+    validate_draw_text_vert_align, validate_picture_align,
     validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_crop, validate_picture_image,
     validate_rect_ratio,
     validate_shape_size,
@@ -215,16 +216,27 @@ class HwpxOxmlEquation(HwpxOxmlInlineObject):
 
     @property
     def font(self) -> str | None:
-        """The equation font (``font``), e.g. ``HancomEQN``."""
+        """The equation font (``font``), e.g. ``HancomEQN``. Setting it takes a non-empty font name
+        (``shape-equation-font-empty``); the box stays and the paragraph loses its line layout cache."""
 
         return self.element.get("font")
 
+    @font.setter
+    def font(self, font: str) -> None:
+        set_equation_font(self, font)
+
     @property
     def base_unit(self) -> int:
-        """The base font size (``baseUnit``) in 1/100 pt; 1000 (the schema's) when not given."""
+        """The base font size (``baseUnit``) in 1/100 pt; 1000 (the schema's) when not given. Setting it
+        (an int from 1, ``shape-equation-base-unit-value``) measures the box again as ``add_equation`` does
+        at that size; the paragraph and the paragraphs holding it lose their line layout cache."""
 
         value = self.element.get("baseUnit")
         return int(value) if value is not None and value.isdigit() else 1000
+
+    @base_unit.setter
+    def base_unit(self, base_unit: int) -> None:
+        set_equation_base_unit(self, base_unit)
 
     @property
     def base_line(self) -> int | None:
@@ -846,6 +858,7 @@ def _paragraph_insert_shape_element(
     if type(element) is not type(run):
         element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
     run.append(element)
+    fit_new_floating_object(element, self)  # in a cell, text box, note or header: placed as Hancom does there
     self.section.mark_dirty()
     return HwpxOxmlShape(element, self)
 
@@ -929,6 +942,8 @@ def _paragraph_add_picture(
     if type(element) is not type(run):
         element = LET.fromstring(ET.tostring(element, encoding="utf-8"))
     run.append(element)
+    if not pos_overrides:  # placed by its caller otherwise
+        fit_new_floating_object(element, self)
     self.section.mark_dirty()
     return HwpxOxmlPicture(element, self)
 
