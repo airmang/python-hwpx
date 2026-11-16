@@ -72,7 +72,7 @@ def test_an_hwp_file_gets_a_conversion_hint(name: str, tmp_path: Path, capsys: p
 
     text = _one_line(capsys)
     assert code != 0 and len(text.splitlines()) == 1
-    assert "HWP 5.0" in text and "save_to_path" in text
+    assert "HWP 5.0" in text and ".save(" in text
     assert "zip" not in text.lower()
 
 
@@ -102,6 +102,6 @@ def test_validate_help_names_the_schemas_it_uses(capsys: pytest.CaptureFixture[s
 
 def test_validate_still_passes_a_good_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = tmp_path / "ok.hwpx"
-    HwpxDocument.new().save_to_path(path)
+    HwpxDocument.new().save(path)
     assert validator.main([str(path)]) == 0
     assert "passed" in capsys.readouterr().out

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
 
@@ -15,6 +16,8 @@ from ._document_primitives import (
     _HP,
     _clear_paragraph_layout_cache,
     _element_local_name,
+    _is_tab_control_element,
+    _require_text,
     _text_element_content,
 )
 from ._paragraph_text_edit import (
@@ -26,6 +29,7 @@ from ._paragraph_text_edit import (
 )
 
 if TYPE_CHECKING:
+    from ..objects.results import LanguageFonts
     from .paragraph import HwpxOxmlParagraph
 
 
@@ -379,30 +383,80 @@ _TEXT_CHARACTER_ELEMENTS = frozenset({"tab", "lineBreak", "hyphen", "nbSpace", "
 def _text_stretches(runs: Sequence[ET.Element]) -> list[list[_ReplaceSegment]]:
     """Split the text of consecutive runs into the stretches one match may cover."""
 
-    stretches: list[list[_ReplaceSegment]] = [[]]
+    return [segments for _start, segments in text_stretch_spans(runs)]
 
-    def cut() -> None:
-        if stretches[-1]:
-            stretches.append([])
 
-    def visit(element: ET.Element) -> None:
-        stretches[-1].append(_ReplaceSegment(element, "text", element.text or ""))
-        for child in list(element):
-            if not isinstance(child.tag, str):
-                pass  # a comment or processing instruction: not text, the text around it still joins
-            elif _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
-                cut()
-            else:
-                visit(child)
-            stretches[-1].append(_ReplaceSegment(child, "tail", child.tail or ""))
+def text_stretch_spans(runs: Sequence[ET.Element]) -> list[tuple[int, list[_ReplaceSegment]]]:
+    """The stretches of :func:`_text_stretches`, each with where it starts in the runs' text.
 
+    The position counts as ``paragraph.text`` does when *runs* are all of a paragraph's runs: a
+    character element inside ``hp:t`` (tab, line break, special space) and a run-level tab are
+    one character each, other run children (controls, objects) none. A stretch never holds those
+    characters, so a match inside it is text a search can cover as one word.
+    """
+
+    walk = _StretchWalk()
     for run in runs:
         for child in run:
-            if _element_local_name(child) == "t":
-                visit(child)
-            else:
-                cut()
-    return [stretch for stretch in stretches if stretch]
+            walk.run_child(child)
+    walk.cut()
+    return walk.stretches
+
+
+class _StretchWalk:
+    """The walk behind :func:`text_stretch_spans`: segments, stretches and the position in the text."""
+
+    def __init__(self) -> None:
+        self.stretches: list[tuple[int, list[_ReplaceSegment]]] = []
+        self.current: list[_ReplaceSegment] = []
+        self.start = 0
+        self.position = 0
+
+    def cut(self) -> None:
+        if self.current:
+            self.stretches.append((self.start, self.current))
+            self.current = []
+
+    def add(self, element: ET.Element, attr: str, text: str) -> None:
+        if not self.current:
+            self.start = self.position
+        self.current.append(_ReplaceSegment(element, attr, text))
+        self.position += len(text)
+
+    def run_child(self, child: ET.Element) -> None:
+        name = _element_local_name(child)
+        if name == "t":
+            self.visit(child, top=True)
+            return
+        self.cut()
+        if name == "tab" or _is_tab_control_element(child):
+            self.position += 1  # paragraph.text reads a run-level tab as one character
+
+    def visit(self, element: ET.Element, *, top: bool) -> None:
+        self.add(element, "text", element.text or "")
+        for child in list(element):
+            # a comment or processing instruction is no text: the text around it still joins
+            if isinstance(child.tag, str):
+                self.text_child(child, top=top)
+            self.add(child, "tail", child.tail or "")
+
+    def text_child(self, child: ET.Element, *, top: bool) -> None:
+        if _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
+            self.cut()
+            if top:
+                self.position += 1  # paragraph.text reads it as one character
+        else:
+            self.visit(child, top=False)
+
+
+def regex_matches(pattern: "re.Pattern[str]", text: str) -> list["re.Match[str]"]:
+    """The non-empty, non-overlapping matches of *pattern* in *text*, left to right.
+
+    An empty match (``^``, ``\\b``, ``x*`` where there is no ``x``) is no match: a search reports
+    and a replacement changes characters, never the space between two.
+    """
+
+    return [match for match in pattern.finditer(text) if match.end() > match.start()]
 
 
 def _overlay_replacement(segments: Sequence[_ReplaceSegment], start: int, end: int, replacement: str) -> None:
@@ -431,7 +485,7 @@ def _overlay_replacement(segments: Sequence[_ReplaceSegment], start: int, end: i
 def replace_across_runs(
     paragraph: "HwpxOxmlParagraph",
     runs: Sequence[ET.Element],
-    search: str,
+    search: "str | re.Pattern[str]",
     replacement: str,
     *,
     count: int | None = None,
@@ -444,10 +498,24 @@ def replace_across_runs(
     run may be left empty). Text is joined across run boundaries and markup such as
     highlights, but not across a tab, a line break or another character element, nor across a
     control or an object. Returns the number of replacements.
+
+    A compiled regular expression *search* replaces each of its non-empty matches with
+    *replacement* expanded as :meth:`re.Match.expand` does (``\\1``, ``\\g<name>``); its ``^`` and
+    ``$`` are the ends of the stretch of text a match may cover.
     """
 
     total = 0
     for segments in _text_stretches(runs):
+        if count is not None and total >= count:
+            break
+        if isinstance(search, re.Pattern):
+            matches = regex_matches(search, "".join(segment.text for segment in segments))
+            if count is not None:
+                matches = matches[: count - total]
+            for match in reversed(matches):  # from the right, so the earlier positions stay put
+                _overlay_replacement(segments, match.start(), match.end(), match.expand(replacement))
+            total += len(matches)
+            continue
         combined = "".join(segment.text for segment in segments)
         position = combined.find(search)
         while position != -1 and (count is None or total < count):
@@ -594,6 +662,7 @@ class HwpxOxmlRun:
         # (which may sit between field controls) takes it, tabs as hp:tab
         # elements, and every hp:t loses its old text together with the line
         # breaks, tabs and spaces inside it and the text after them.
+        _require_text(value)  # before the old text goes
         changed = self.text != value
         nodes = self.element.findall(f"{_HP}t")
         primary = nodes[0] if nodes else self._ensure_plain_text_node()
@@ -793,6 +862,19 @@ class HwpxOxmlRun:
     @font.setter
     def font(self, value: str) -> None:
         self.set_format(font=value)
+
+    @property
+    def fonts(self) -> "LanguageFonts":
+        """The face of the run's text in each language block, as a value: ``run.fonts.latin``.
+
+        Hancom keeps one face per language (Hangul, Latin, Hanja, Japanese, other, symbol and
+        user) in the run's character shape; :attr:`font` is the Hangul one. A language with no
+        face (or a run with no character shape) reads ``None``. :meth:`set_font` changes them.
+        """
+
+        from .formatting import run_fonts
+
+        return run_fonts(self)
 
     def set_font(self, face: str, *, lang: "str | Sequence[str] | None" = None) -> None:
         """Use *face* for the languages *lang* (``"HANGUL"``, ``"LATIN"``, ... or several;

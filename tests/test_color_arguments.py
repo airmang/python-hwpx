@@ -31,7 +31,8 @@ def test_a_refused_colour_leaves_the_header_as_it_was() -> None:
     assert doc.oxml.sections[0].properties.get_header().text == "기존 머리말"
     with zipfile.ZipFile(io.BytesIO(doc.to_bytes())) as archive:
         section = archive.read("Contents/section0.xml").decode("utf-8")
-    assert section.count("기존 머리말") == 2 and "새 머리말" not in section
+    # the one copy Hancom reads (python-hwpx 7.0 no longer keeps a second under hp:secPr)
+    assert section.count("기존 머리말") == 1 and "새 머리말" not in section
 
 
 def test_a_header_refused_later_in_its_content_is_put_back() -> None:

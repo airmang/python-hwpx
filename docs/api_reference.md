@@ -68,10 +68,10 @@
 
 - `open(source)`
   - HWPX 파일을 열고, `HwpxOxmlDocument`로 저수준 XML 트리를 빌드한 후 문서 래퍼(wrapper)를 반환합니다.
+    *source*는 경로·바이트·이진 스트림, 또는 이미 연 `HwpxPackage`입니다(6.x의 `from_package(package)`는
+    7.0에서 `open(package)`로 합쳤습니다).
 - `new()`
   - 스켈레톤 템플릿 번들을 로드하여 새 문서를 생성합니다.
-- `from_package(package)`
-  - 기존 `HwpxPackage` 인스턴스를 감싸는 문서 래퍼를 빌드합니다.
 
 #### 패키지 및 XML 접근
 
@@ -191,19 +191,19 @@
 
 #### 영속성(Persistence)
 
-- `save_to_path(path) -> str | PathLike[str]`
-  - 변경된 XML 파트를 지정한 경로에 저장하고 입력 경로를 그대로 반환합니다. 경로가
-    `.hwp`로 끝나면 HWP 5.0으로 씁니다.
-- `save_to_stream(stream, *, format="hwpx") -> BinaryIO`
-  - 변경된 XML 파트를 파일과 유사한 바이너리 스트림에 저장하고 입력 스트림을 그대로 반환합니다.
-    `format="hwp"`이면 HWP 5.0으로 씁니다.
+- `save(target, *, format=None, mode="auto", fallback="error", quality=None) -> MutationReport`
+  - 변경된 XML 파트를 *target*(경로 또는 파일과 유사한 바이너리 스트림)에 저장하고 영수증
+    `MutationReport`를 반환합니다(저장한 경로는 `report.path`, 스트림이면 `None`). *format*이
+    `None`이면 `.hwp`로 끝나는 경로는 HWP 5.0으로, 그 밖(스트림 포함)은 HWPX로 씁니다.
+    `quality=`에 `QualityPolicy`를 주면 쓰기 전에 그 품질 게이트를 돌리고 보고를 `report.quality`에
+    담습니다. 게이트가 막으면 쓰지 않고 `SaveError`(`quality-gate-failed`, 보고는 `.report`)가 납니다.
 - `to_bytes(*, format="hwpx") -> bytes`
   - 변경된 XML 파트를 직렬화한 HWPX ZIP 바이트를 반환합니다. `format="hwp"`이면 HWP 5.0
     파일 바이트를 반환합니다.
 - `conversion_report -> Hwp5ConversionReport | None`
   - `.hwp`를 열 때 문서 모델로 옮기지 못한 내용의 개수(`unconverted`·`dropped`, 읽기 전용).
     `.hwp`로 열지 않은 문서에서는 `None`입니다.
-- `save()`는 없습니다. 4.0에서 없앴고, 부르면 `AttributeError`가 납니다. 경로에는 `save_to_path()`, 스트림에는 `save_to_stream()`, 바이트에는 `to_bytes()`를 씁니다.
+- 6.x의 `save_to_path()`·`save_to_stream()`·`save_report()`는 7.0에서 `save()` 하나로 합쳤습니다. 부르면 새 자리를 알려 주는 `HwpxAttributeError`가 납니다. 바이트에는 `to_bytes()`를 씁니다.
 
 ***
 
@@ -424,7 +424,7 @@
 - `set_start_numbering(...)`: 번호 매기기 카운터와 페이지 시작 동작을 수정하며, `<hp:startNum>` 엘리먼트가 없으면 생성합니다.
 - `headers`, `footers`: 기존 머리글/바닥글 정의에 대한 래퍼를 반환하는 프로퍼티입니다.
 - `get_header(page_type="BOTH")` / `get_footer(...)`: 지정된 페이지 유형의 기존 머리글/바닥글 래퍼를 가져옵니다.
-- `set_header_text(text, ...)` / `set_footer_text(...)`: 요청된 페이지 유형에 대한 머리글/바닥글이 있는지 확인하고 텍스트 내용을 교체합니다. 동시에 `<hp:headerApply>`/`<hp:footerApply>` 노드와 마스터 페이지 참조를 동일한 ID·페이지 유형으로 동기화합니다.
+- `set_header_text(text, ...)` / `set_footer_text(...)`: 요청된 페이지 유형에 대한 머리글/바닥글이 있는지 확인하고 텍스트 내용을 교체합니다. 한/글처럼 첫 문단의 `<hp:ctrl>` 안에 한 번만 쓰고 `<hp:headerApply>`/`<hp:footerApply>`는 쓰지 않습니다(6.x가 `<hp:secPr>` 안에 따로 쓴 사본은 그 머리글을 다시 설정할 때 걷어 냅니다).
 - `remove_header(page_type="BOTH")` / `remove_footer(...)`: 지정된 페이지 유형의 머리글/바닥글 노드가 있으면 제거하고, 연결된 apply 노드와 마스터 페이지 링크를 정리합니다.
 
 ### 클래스 `HwpxOxmlRun`

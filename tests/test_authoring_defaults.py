@@ -12,7 +12,7 @@ HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 def _roundtrip(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     buffer.seek(0)
     return HwpxDocument.open(buffer)
 

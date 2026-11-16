@@ -24,9 +24,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, Sequence, TypeVar, cast
+from typing import Any, Callable, Literal, Mapping, Sequence, TypeVar, cast
 
 from ...errors import HwpxValueError
+from ...objects import PageSetup
+from ...oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph, HwpxOxmlSection
+from ...oxml.section_format import (
+    LineNumberShape,
+    PageMargins,
+    PageSize,
+    SectionGrid,
+    SectionTextDirection,
+    SectionVisibility,
+)
+from ...oxml.section_story import HwpxOxmlSectionHeaderFooter
 from ...objects.results import (
     AutoNumber,
     BorderLine,
@@ -43,19 +54,6 @@ from .._resolve import optional_paragraph, resolve_paragraph, resolve_section
 from ._base import _Namespace
 
 _T = TypeVar("_T")
-
-if TYPE_CHECKING:
-    from ...oxml import HwpxOxmlInlineObject, HwpxOxmlParagraph, HwpxOxmlSection
-    from ...oxml.section_format import (
-        LineNumberShape,
-        PageMargins,
-        PageSize,
-        SectionGrid,
-        SectionTextDirection,
-        SectionVisibility,
-    )
-    from ...objects import PageSetup
-    from ...oxml.section_story import HwpxOxmlSectionHeaderFooter
 
 __all__ = ["PageNamespace"]
 

@@ -100,8 +100,17 @@ def test_the_default_is_quiet_when_it_changed_something_or_nothing_is_there() ->
 
 
 def test_a_header_written_twice_counts_once_and_both_copies_change() -> None:
+    import copy
+
     document = HwpxDocument.new()
     document.page.set_header(text="머리말사과 사과")
+    # as python-hwpx up to 6.x wrote it: the story under hp:secPr too, with its hp:headerApply
+    first = document.oxml.sections[0].element.find(f"{HP}p")
+    sec_pr = first.find(f"{HP}run/{HP}secPr")
+    story = first.find(f"{HP}run/{HP}ctrl/{HP}header")
+    sec_pr.append(copy.deepcopy(story))
+    sec_pr.append(sec_pr.makeelement(f"{HP}headerApply", {"idRef": story.get("id"), "applyPageType": "BOTH"}))
+    document = HwpxDocument.open(io.BytesIO(document.to_bytes()))
 
     count = document.text.replace("사과", "배", everywhere=True)
 

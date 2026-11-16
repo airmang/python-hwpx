@@ -46,6 +46,7 @@ from .results import (
     ColumnLayout,
     FieldFillResult,
     FontReplaceReport,
+    LineSegment,
     LineSpacing,
     LineSpacingType,
     ListFormatResult,
@@ -73,6 +74,7 @@ from .results import (  # 쪽·구역 설정의 읽기 값 (doc.page / doc.parts
     ParagraphPlace,
     StartNumbers,
 )
+from .results import LanguageFonts, TextMatch  # run.fonts, doc.text.find()
 from .tracked import TrackedChange, TrackedReplacement
 
 __all__ = [
@@ -111,6 +113,8 @@ __all__ = [
     "FieldLocation",
     "FieldParameter",
     "FontReplaceReport",
+    "LineSegment",
+    "LanguageFonts",
     "LineSpacing",
     "LineSpacingType",
     "FormField",
@@ -127,6 +131,7 @@ __all__ = [
     "PictureRef",
     "PictureReplacement",
     "TableOfContents",
+    "TextMatch",
     "TocEntry",
     "TrackedChange",
     "TrackedReplacement",

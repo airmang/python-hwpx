@@ -257,7 +257,7 @@ def gen_baseline_regen(bucket_dir: Path) -> list[dict[str, Any]]:
                     document.shapes.add_line(0, 0, 14400, 0)
                 else:
                     document.shapes.add_ellipse(10000, 6000, fill_color="#FFD9CC")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="baseline-regen", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -286,7 +286,7 @@ def gen_footnote(bucket_dir: Path) -> list[dict[str, Any]]:
                 )
             if idx % 3 == 0:
                 document.notes.add_endnote(f"미주: {cycle(DEPT_BANK, idx)} 참고", paragraph=paragraph)
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-footnote", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -316,7 +316,7 @@ def gen_formfield(bucket_dir: Path) -> list[dict[str, Any]]:
             # fill half the documents so both authored and filled shapes are judged
             if idx % 2 == 0:
                 document.fields.fill(cycle(ORG_BANK, idx), name=f"field_{idx}_0")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-formfield", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -343,7 +343,7 @@ def gen_equation(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "수식 표본")
             document.add_paragraph(f"수식 {idx}:")
             document.shapes.add_equation(script)
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-equation", seed=latex,
                 output_path=out_path, produced=True,
@@ -384,7 +384,7 @@ def gen_chart(bucket_dir: Path) -> list[dict[str, Any]]:
             )
             document = _base_document(idx, "차트 표본")
             document.shapes.add_chart(chart_xml, size=(60000, 40000))
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-chart", seed=f"{chart_type}:{idx}",
                 output_path=out_path, produced=True,
@@ -415,7 +415,7 @@ def gen_checkbox(bucket_dir: Path) -> list[dict[str, Any]]:
             if idx % 3 == 0:
                 # exercise the SET path on an authored box, not only CREATE
                 document.fields.set_check_box(True, name=f"chk_{idx}_0")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-checkbox", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -446,7 +446,7 @@ def gen_edit_plan(bucket_dir: Path) -> list[dict[str, Any]]:
             document.add_paragraph("치환 대상 문단입니다.")
             table = document.add_table(2, 2, width=42000)
             table.cell(0, 0).text = "라벨"
-            document.save_to_path(str(base_path))
+            document.save(str(base_path))
 
             plan = {
                 "schemaVersion": "hwpx.edit-plan/v1",
@@ -520,7 +520,7 @@ def gen_authored_heading(bucket_dir: Path) -> list[dict[str, Any]]:
                     "style-name round trip broken"
                 )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-heading", seed=f"level:{level}",
                 output_path=out_path, produced=True,
@@ -564,7 +564,7 @@ def gen_authored_named_style(bucket_dir: Path) -> list[dict[str, Any]]:
                 f"{cycle(DEPT_BANK, idx)} 사용자 스타일 문단입니다.", style=style_name,
             )
             document.add_paragraph("이어지는 평문 문단입니다 — 스타일이 새어나가면 안 됩니다.")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-named-style", seed=style_name,
                 output_path=out_path, produced=True,
@@ -628,7 +628,7 @@ def gen_authored_page_structure(bucket_dir: Path) -> list[dict[str, Any]]:
             )
             for i in range(1, 4):
                 document.add_paragraph(f"{i}쪽에 해당하는 본문 문단 {idx}-{i}입니다.")
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-page-structure",
                 seed=f"{page_type}:{idx}", output_path=out_path, produced=True,
@@ -708,7 +708,7 @@ def gen_authored_note_shape(bucket_dir: Path) -> list[dict[str, Any]]:
                 f"미주 {idx}: {cycle(DEPT_BANK, idx)} 참고", paragraph=paragraph,
             )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-note-shape", seed=str(idx),
                 output_path=out_path, produced=True,

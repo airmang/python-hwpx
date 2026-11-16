@@ -355,7 +355,7 @@ def test_element_readers_are_in_the_contract() -> None:
     paragraph = document.add_paragraph("")
     paragraph.add_hyperlink("https://example.com", "링크")
     field = next(paragraph.element.iter(f"{HP}fieldBegin"))
-    assert hyperlink_target(field) == paragraph.hyperlinks[0]["url"] == "https://example.com"
+    assert hyperlink_target(field) == paragraph.hyperlinks[0].url == "https://example.com"
     assert tag_local_name(f"{HP}fieldBegin") == "fieldBegin"
     table = document.add_table(1, 1)
     cell = table.cell(0, 0)

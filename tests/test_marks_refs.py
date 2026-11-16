@@ -85,13 +85,16 @@ def test_link_remove_with_its_text() -> None:
     _reopen(doc)
 
 
-def test_old_dict_reading_still_works_with_a_warning() -> None:
+def test_the_pre_7_0_dict_reading_is_gone() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("")
     paragraph.add_hyperlink("https://x.example", "링크")
-    with pytest.warns(DeprecationWarning):
-        assert paragraph.hyperlinks[0]["url"] == "https://x.example"
-    assert paragraph.hyperlinks[0].to_dict()["url"] == "https://x.example"
+    link = paragraph.hyperlinks[0]
+    with pytest.raises(TypeError):
+        link["url"]  # type: ignore[index]
+    assert link.url == "https://x.example"
+    assert link.to_dict()["url"] == "https://x.example"
+    assert doc.refs.hyperlinks[0].url == "https://x.example"
 
 
 def test_edit_a_link_in_a_hancom_saved_document() -> None:

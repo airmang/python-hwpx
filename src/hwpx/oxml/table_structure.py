@@ -17,6 +17,7 @@ from ._document_primitives import _HP, _clear_paragraph_layout_cache
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
+    from .table import HwpxOxmlTable
 
 __all__ = ["TableStructureEdits"]
 
@@ -109,23 +110,48 @@ class TableStructureEdits:
             "rows": _whole(rows, "rows"), "cols": _whole(cols, "cols"),
         })
 
-    def remove(self) -> None:
+    def remove(self, *, remove_orphaned: bool = True) -> None:
         """Take this table out of its paragraph, as Hancom deletes a table.
 
         The paragraph that held it stays (an empty line when it held nothing else) and loses its
-        line layout cache. A run left empty goes. A second call does nothing; the table object
-        should not be used after it.
+        line layout cache. A run left empty goes. The images the pictures in its cells showed leave
+        the package with it when nothing else points at them (*remove_orphaned*, as ``obj.remove()``
+        takes it). A second call does nothing; the table object should not be used after it.
         """
+
+        from .shape_position import binary_references, remove_orphaned_images
 
         paragraph = self.paragraph.element
         for run in paragraph.findall(f"{_HP}run"):
             if any(child is self.element for child in run):
+                images = binary_references(self.element) if remove_orphaned else set()
                 run.remove(self.element)
                 if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
                     paragraph.remove(run)
                 _clear_paragraph_layout_cache(paragraph)
                 self.paragraph.section.mark_dirty()
+                remove_orphaned_images(self.paragraph.section, images)
                 return
+
+    def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> None:
+        """Move this table into *paragraph* at character *offset* (``None``: the end), with the same
+        rules as a picture's or shape's ``move_to``: *paragraph* is a paragraph of the same document or
+        its index in ``doc.paragraphs``, the table keeps its ids, a floating table keeps its frames
+        where Hancom documents hold such a table, and both paragraphs lose their line layout caches.
+        :meth:`copy_after` puts a copy into a new paragraph of its own instead."""
+
+        from .shape_position import place_object
+
+        place_object(self, paragraph, offset, copy=False)
+
+    def copy_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> "HwpxOxmlTable":
+        """Put a copy of this table into *paragraph* at *offset* (``None``: the end) and return it, as
+        ``copy_after`` copies (fresh ids, fields renumbered, no line layout caches); a copy may go into
+        one of the table's own cells."""
+
+        from .shape_position import place_object
+
+        return place_object(self, paragraph, offset, copy=True)  # type: ignore[no-any-return]
 
     def _restructure(self, op: dict[str, Any]) -> None:
         from lxml import etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing

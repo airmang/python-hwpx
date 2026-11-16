@@ -15,7 +15,7 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 def _reopened(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     return HwpxDocument.open(buffer.getvalue())
 
 

@@ -35,21 +35,21 @@ def test_to_bytes_returns_hwpx_bytes() -> None:
     assert output.startswith(b"PK")
 
 
-def test_save_to_path_returns_same_path(tmp_path: Path) -> None:
+def test_save_to_a_path_reports_the_path(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     output_path = tmp_path / "saved.hwpx"
 
-    result = document.save_to_path(output_path)
+    result = document.save(output_path)
 
-    assert result == output_path
+    assert result.path == str(output_path)
+    assert result.ok
     assert output_path.exists()
 
 
 def test_public_document_save_apis_do_not_expose_open_safety_bypass() -> None:
     for api in (
         HwpxDocument.to_bytes,
-        HwpxDocument.save_to_path,
-        HwpxDocument.save_to_stream,
+        HwpxDocument.save,
     ):
         parameters = inspect.signature(api).parameters
 
@@ -77,7 +77,7 @@ def test_to_bytes_rejects_document_validation_failure(monkeypatch) -> None:
         document.to_bytes()
 
 
-def test_save_to_path_preserves_existing_file_when_document_validation_fails(
+def test_save_to_a_path_preserves_existing_file_when_document_validation_fails(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -92,7 +92,7 @@ def test_save_to_path_preserves_existing_file_when_document_validation_fails(
     monkeypatch.setattr(validator_module, "validate_document", fail_validation)
 
     with pytest.raises((ValueError, HwpxPackageError), match="document validation could not run"):
-        document.save_to_path(target)
+        document.save(target)
 
     assert target.read_bytes() == original
 
@@ -114,7 +114,7 @@ def test_private_document_raw_bytes_api_does_not_accept_open_safety_bypass() -> 
         document._to_bytes_raw(reset_dirty=False, verify_open_safety=False)
 
 
-def test_save_to_path_preserves_existing_file_when_open_safety_fails(tmp_path: Path) -> None:
+def test_save_to_a_path_preserves_existing_file_when_open_safety_fails(tmp_path: Path) -> None:
     target = tmp_path / "existing.hwpx"
     original = HwpxDocument.new().to_bytes()
     target.write_bytes(original)
@@ -123,12 +123,12 @@ def test_save_to_path_preserves_existing_file_when_open_safety_fails(tmp_path: P
     document._package._mimetype = "application/octet-stream"
 
     with pytest.raises((ValueError, HwpxPackageError), match="open-safety validation"):
-        document.save_to_path(target)
+        document.save(target)
 
     assert target.read_bytes() == original
 
 
-def test_save_to_path_normalizes_low_level_package_part_mutation_before_replace(
+def test_save_to_a_path_normalizes_low_level_package_part_mutation_before_replace(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "existing-low-level.hwpx"
@@ -140,9 +140,9 @@ def test_save_to_path_normalizes_low_level_package_part_mutation_before_replace(
         _section_xml_with_stale_lineseg(document),
     )
 
-    result = document.save_to_path(target)
+    result = document.save(target)
 
-    assert result == target
+    assert result.path == str(target)
     assert target.read_bytes() != original
     assert validate_editor_open_safety(target).ok
     with ZipFile(target, "r") as archive:
@@ -153,24 +153,24 @@ def test_save_to_path_normalizes_low_level_package_part_mutation_before_replace(
     assert b"linesegarray" in section_xml.lower()
 
 
-def test_save_to_stream_returns_same_stream() -> None:
+def test_save_to_a_stream_writes_the_stream() -> None:
     document = HwpxDocument.new()
     stream = BytesIO()
 
-    result = document.save_to_stream(stream)
+    result = document.save(stream)
 
-    assert result is stream
+    assert result.path is None and result.ok
     stream.seek(0)
     assert stream.read(2) == b"PK"
 
 
-def test_save_to_stream_does_not_write_when_open_safety_fails() -> None:
+def test_save_to_a_stream_does_not_write_when_open_safety_fails() -> None:
     document = HwpxDocument.new()
     document._package._mimetype = "application/octet-stream"
     stream = BytesIO(b"sentinel")
 
     with pytest.raises((ValueError, HwpxPackageError), match="open-safety validation"):
-        document.save_to_stream(stream)
+        document.save(stream)
 
     assert stream.getvalue() == b"sentinel"
 
@@ -200,7 +200,7 @@ def test_to_bytes_keeps_low_level_version_dirty_when_open_safety_fails(monkeypat
     assert document._package.version_info.dirty
 
 
-def test_save_to_path_keeps_low_level_version_dirty_when_write_fails(tmp_path: Path, monkeypatch) -> None:
+def test_save_to_a_path_keeps_low_level_version_dirty_when_write_fails(tmp_path: Path, monkeypatch) -> None:
     document = HwpxDocument.new()
     document._package.version_info.set("buildNumber", "42")
 
@@ -212,12 +212,12 @@ def test_save_to_path_keeps_low_level_version_dirty_when_write_fails(tmp_path: P
     monkeypatch.setattr("hwpx.quality.save_pipeline.write_bytes_atomically", fail_write)
 
     with pytest.raises(OSError, match="disk full"):
-        document.save_to_path(tmp_path / "failed.hwpx")
+        document.save(tmp_path / "failed.hwpx")
 
     assert document._package.version_info.dirty
 
 
-def test_save_to_stream_rejects_short_write_and_keeps_version_dirty() -> None:
+def test_save_to_a_stream_rejects_short_write_and_keeps_version_dirty() -> None:
     class ShortWriteStream(BytesIO):
         def write(self, payload: bytes) -> int:  # type: ignore[override]
             super().write(payload[:7])
@@ -229,13 +229,13 @@ def test_save_to_stream_rejects_short_write_and_keeps_version_dirty() -> None:
     stream.seek(0, 2)
 
     with pytest.raises(OSError, match="short write"):
-        document.save_to_stream(stream)
+        document.save(stream)
 
     assert document._package.version_info.dirty
     assert stream.getvalue() == b"existing output"
 
 
-def test_save_to_stream_rolls_back_write_exception_and_keeps_version_dirty() -> None:
+def test_save_to_a_stream_rolls_back_write_exception_and_keeps_version_dirty() -> None:
     class FailingStream(BytesIO):
         def write(self, payload: bytes) -> int:  # type: ignore[override]
             super().write(payload[:7])
@@ -247,13 +247,13 @@ def test_save_to_stream_rolls_back_write_exception_and_keeps_version_dirty() -> 
     stream.seek(0, 2)
 
     with pytest.raises(OSError, match="stream write failed"):
-        document.save_to_stream(stream)
+        document.save(stream)
 
     assert document._package.version_info.dirty
     assert stream.getvalue() == b"existing output"
 
 
-def test_save_to_stream_rolls_back_unreadable_stream_at_eof() -> None:
+def test_save_to_a_stream_rolls_back_unreadable_stream_at_eof() -> None:
     class UnreadableShortWriteStream(BytesIO):
         def read(self, *args: object) -> bytes:  # type: ignore[override]
             raise OSError("not readable")
@@ -268,13 +268,13 @@ def test_save_to_stream_rolls_back_unreadable_stream_at_eof() -> None:
     stream.seek(0, 2)
 
     with pytest.raises(OSError, match="short write"):
-        document.save_to_stream(stream)
+        document.save(stream)
 
     assert document._package.version_info.dirty
     assert stream.getvalue() == b"existing output"
 
 
-def test_save_to_stream_does_not_truncate_unreadable_middle_stream() -> None:
+def test_save_to_a_stream_does_not_truncate_unreadable_middle_stream() -> None:
     class UnreadableShortWriteStream(BytesIO):
         def read(self, *args: object) -> bytes:  # type: ignore[override]
             raise OSError("not readable")
@@ -290,13 +290,13 @@ def test_save_to_stream_does_not_truncate_unreadable_middle_stream() -> None:
     stream.seek(7)
 
     with pytest.raises(OSError, match="checkpointable stream"):
-        document.save_to_stream(stream)
+        document.save(stream)
 
     assert document._package.version_info.dirty
     assert stream.getvalue() == original
 
 
-def test_save_to_stream_rejects_non_seekable_stream_before_writing() -> None:
+def test_save_to_a_stream_rejects_non_seekable_stream_before_writing() -> None:
     class NonSeekableStream:
         def __init__(self) -> None:
             self.writes: list[bytes] = []
@@ -313,7 +313,7 @@ def test_save_to_stream_rejects_non_seekable_stream_before_writing() -> None:
     stream = NonSeekableStream()
 
     with pytest.raises(OSError, match="checkpointable stream"):
-        document.save_to_stream(stream)  # type: ignore[arg-type]
+        document.save(stream)  # type: ignore[arg-type]
 
     assert document._package.version_info.dirty
     assert stream.writes == []

@@ -228,7 +228,7 @@ def test_the_template_analyzer_reports_the_effective_margins(
 
     doc, _, _ = _cell_with_two_margins(has_margin)
     path = tmp_path / "margins.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
 
     (table,) = analyze_template(path).table_summaries
     assert table.cells[0].margin == dict(zip(("left", "right", "top", "bottom"), expected))
@@ -240,7 +240,7 @@ def test_the_byte_patch_font_fit_uses_the_effective_margins(has_margin, expected
 
     doc, _, cell = _cell_with_two_margins(has_margin)
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     import zipfile
 
     section = zipfile.ZipFile(buffer).read("Contents/section0.xml")

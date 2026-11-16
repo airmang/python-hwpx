@@ -1,6 +1,6 @@
 # 5분 안에 HWPX 문서 다루기
 
-이 가이드는 `python-hwpx`를 처음 접하는 분을 위한 초간단 튜토리얼입니다. 처음에는 `new/open -> add/edit -> save_to_path` 흐름만 익히면 충분합니다. 바이트 스트림, 패키지 조작, XML 심화는 뒤로 미뤄도 된다.
+이 가이드는 `python-hwpx`를 처음 접하는 분을 위한 초간단 튜토리얼입니다. 처음에는 `new/open -> add/edit -> save` 흐름만 익히면 충분합니다. 바이트 스트림, 패키지 조작, XML 심화는 뒤로 미뤄도 된다.
 
 > **Python 블록 판정:** [실행 분류 ledger](python-example-ledger.json)가 이
 > current manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가
@@ -35,12 +35,12 @@ Path("output").mkdir(parents=True, exist_ok=True)
 
 document = HwpxDocument.new()
 document.add_paragraph("python-hwpx로 만든 첫 문서")
-document.save_to_path("output/hello.hwpx")
+document.save("output/hello.hwpx")
 
 print("저장 완료: output/hello.hwpx")
 ```
 
-`HwpxDocument.new()`는 기본 템플릿이 포함된 새 HWPX 문서를 만든다. `save_to_path()`는 원자적 쓰기(임시 파일 → rename)와 ZIP 무결성 검증을 수행한다.
+`HwpxDocument.new()`는 기본 템플릿이 포함된 새 HWPX 문서를 만든다. `save()`는 원자적 쓰기(임시 파일 → rename)와 ZIP 무결성 검증을 수행한다.
 
 ## 2. 기존 문서 열어 수정하기
 
@@ -57,7 +57,7 @@ Path("output").mkdir(parents=True, exist_ok=True)
 
 with HwpxDocument.open("output/hello.hwpx") as document:
     document.add_paragraph("자동화로 추가한 검토 문단")
-    document.save_to_path("output/hello-updated.hwpx")
+    document.save("output/hello-updated.hwpx")
 
 print("저장 완료: output/hello-updated.hwpx")
 ```
@@ -112,7 +112,7 @@ memo = document.notes.add_memo(
 print("메모 ID:", memo.id)
 print("필드 ID:", memo.field_id)
 
-document.save_to_path("output/hello-final.hwpx")
+document.save("output/hello-final.hwpx")
 print("저장 완료: output/hello-final.hwpx")
 ```
 
@@ -124,7 +124,7 @@ print("저장 완료: output/hello-final.hwpx")
 
 ## 5. 저장에는 영수증이 따라온다
 
-`save_to_path(..., return_report=True)`는 이번 저장이 실제로 무엇을 했는지
+`save(...)`는 이번 저장이 실제로 무엇을 했는지
 기계 판독 가능한 `MutationReport`로 돌려준다 — 어떤 모드로 저장됐는지, 손대지
 않은 영역이 바이트 그대로인지까지.
 
@@ -134,7 +134,7 @@ from hwpx import HwpxDocument
 document = HwpxDocument.open("output/hello-final.hwpx")
 document.add_paragraph("영수증 확인용 문단")
 
-report = document.save_to_path("output/hello-receipt.hwpx", return_report=True)
+report = document.save("output/hello-receipt.hwpx")
 print("저장 모드:", report.actual_mode)
 print("미수정 파트 검증:", report.preservation.untouched_part_payloads.to_dict())
 ```
@@ -145,13 +145,13 @@ print("미수정 파트 검증:", report.preservation.untouched_part_payloads.to
 
 ## 6. 저장 방식 더 보기
 
-기본은 `save_to_path()`다. 메모리 안에서 계속 다뤄야 하면 스트림이나 바이트 직렬화도 쓸 수 있다.
+기본은 경로를 주는 `save()`다. 메모리 안에서 계속 다뤄야 하면 스트림(`save(stream)`)이나 바이트 직렬화(`to_bytes()`)도 쓸 수 있다.
 
 ```python
 from io import BytesIO
 
 buf = BytesIO()
-document.save_to_stream(buf)
+document.save(buf)
 
 raw = document.to_bytes()
 print("바이트 길이:", len(raw))
@@ -180,8 +180,8 @@ print("총 섹션 수:", len(document.sections))
 - {doc}`usage`에서 문단, 표, 메모, 섹션, 추출, 검증, 패키지 조작까지 이어서 보기
 - {doc}`examples`에 있는 실행 가능한 예제 스크립트로 전체 흐름 익히기
 - 양식을 만들거나 채우려면 `document.fields.add`/`document.fields.fill`, 수식을 넣으려면
-  `document.shapes.add_equation`+`from hwpx.equation import latex_to_eqedit` (둘 다 experimental 티어,
-  `hwpx.experimental`에서 가져와도 같은 함수다. [지원 매트릭스](support-matrix.md)에 등급·근거)
+  `document.shapes.add_equation`+`from hwpx.equation import latex_to_eqedit` (수식 변환은 7.0에서
+  `hwpx.equation`의 stable 이름이다. [지원 매트릭스](support-matrix.md)에 등급·근거)
 - 기능별 지원 등급이 궁금하면 [지원 매트릭스](support-matrix.md) 참고
 - 이전 API 경로를 쓰고 있다면 [6.0 마이그레이션 가이드](migration-6.0.md), 6.x에서 올린다면
   [7.0 이주 가이드](migration-7.0.md) 참고

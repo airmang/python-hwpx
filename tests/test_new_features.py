@@ -230,8 +230,8 @@ class TestBookmarkHyperlink:
         p.add_hyperlink("https://example.com", "Click")
         links = p.hyperlinks
         assert len(links) == 1
-        assert links[0]["url"] == "https://example.com"
-        assert links[0]["type"] == "HYPERLINK"
+        assert links[0].url == "https://example.com"
+        assert links[0].to_dict()["type"] == "HYPERLINK"
 
     def test_hyperlink_roundtrip(self):
         doc = _new_doc()

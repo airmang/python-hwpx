@@ -16,8 +16,39 @@ if TYPE_CHECKING:
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _TRACKED_TEXT_ILLEGAL = re.compile(r"[\x00-\x08\x09\x0b\x0c\x0d\x0e-\x1f\ufffe\uffff]")
 
+#: Tracked character and paragraph shape changes (OWPML ``hc:TrackChangeType``). The schema
+#: ties one to text through ``hp:run@charTcId``/``hp:p@paraTcId`` and keeps a shape id in
+#: ``hh:trackChange@charShapeID``/``paraShapeID``, but no Hangul-saved HWPX of the public corpus
+#: (1,304 files) tracks a format change, and Hancom does not take that form: Hangul 2024 saving a
+#: document written so kept its insertion but dropped the CharShape/ParaShape entries and the
+#: ``charTcId``/``paraTcId`` links (and saving the public HWP sample with 62 format changes as
+#: HWPX kept no tracked change at all). So python-hwpx writes none, rejects none, and accepts one
+#: only when no text points at it (accepting keeps the text as it looks: only the header entry goes).
+FORMAT_CHANGE_TYPES = frozenset({"charshape", "parashape"})
+
+
+def _is_format_change(change_type: object) -> bool:
+    return str(change_type or "").strip().lower().replace("_", "").replace("-", "") in FORMAT_CHANGE_TYPES
+
+
+def _format_change_links(doc: "HwpxDocument") -> dict[str, int]:
+    """How many runs (``charTcId``) and paragraphs (``paraTcId``) point at each change id."""
+
+    links: dict[str, int] = {}
+    for section in doc.oxml.sections:
+        for tag, attribute in ((f"{_HP}run", "charTcId"), (f"{_HP}p", "paraTcId")):
+            for element in section.element.iter(tag):
+                value = element.get(attribute)
+                if value is not None:
+                    links[value.strip()] = links.get(value.strip(), 0) + 1
+    return links
+
 
 def _sanitize_tracked_text(value: str) -> str:
+    if not isinstance(value, str):
+        from ..errors import argument_type_error
+
+        raise argument_type_error("text", value, "str", suggestion="Pass the tracked text as a str.")
     return _TRACKED_TEXT_ILLEGAL.sub("", value)
 
 
@@ -34,8 +65,19 @@ def add_track_change(
     the returned :class:`TrackedChange` has no ``paragraph`` yet \u2014 nothing
     anchors it to body text until :func:`add_tracked_insert`/
     :func:`add_tracked_delete` do that.
+
+    A character or paragraph shape change (``CharShape``/``ParaShape``) is refused: Hancom
+    drops the schema's form of one when it saves (see :data:`FORMAT_CHANGE_TYPES`).
     """
 
+    if _is_format_change(change_type):
+        raise HwpxValueError(
+            f"tracking a {change_type!r} change is not written",
+            code="track-format-change-unconfirmed",
+            context={"change_type": change_type},
+            suggestion="Track insertions and deletions (doc.tracking.insert/delete/replace). Hangul 2024 "
+            "drops a CharShape/ParaShape change and its charTcId/paraTcId links when it saves the document.",
+        )
     change_id = doc._root.add_track_change(
         change_type,
         author_name=author_name,
@@ -390,6 +432,23 @@ def resolve_tracked_changes(
         }
     else:
         wanted = known
+
+    # Character and paragraph shape changes: see FORMAT_CHANGE_TYPES. Refused before anything changes.
+    formats = sorted(
+        change_id for change_id in wanted
+        if change_id in header_changes and _is_format_change(header_changes[change_id].change_type)
+    )
+    linked = _format_change_links(doc) if formats else {}
+    blocked = formats if not accept else [change_id for change_id in formats if linked.get(change_id)]
+    if blocked:
+        raise HwpxValueError(
+            f"tracked format changes {blocked} cannot be {'accepted' if accept else 'rejected'} yet",
+            code="track-format-change-unconfirmed",
+            context={"changes": blocked, "accept": accept},
+            suggestion="Resolve the insertions and deletions one by one (change=<id>). The old shape of a "
+            "character or paragraph shape change is not known: Hangul 2024 drops such changes and their "
+            "charTcId/paraTcId links when it saves.",
+        )
 
     resolved: list[TrackedChange] = []
     for section in sections:

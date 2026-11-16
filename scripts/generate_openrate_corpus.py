@@ -324,7 +324,7 @@ def build_merge_template(path: Path, kind: str) -> None:
         table.cell(0, 0).set_text("수신")
         table.cell(0, 1).set_size(width=5000)
         table.cell(0, 1).set_text("{{name}}")
-    doc.save_to_path(path)
+    doc.save(path)
 
 
 def synthetic_roster() -> list[dict[str, str]]:
@@ -470,7 +470,7 @@ def gen_form_fit(out_dir: Path, target_n: int = 20) -> tuple[list[dict[str, Any]
                     doc.close()
                 else:
                     fit_cell_text(cell, value, FitPolicy.keep(), document=doc)
-                    doc.save_to_path(out_path)
+                    doc.save(out_path)
                     doc.close()
                     if out_path.exists() and static_open_safety_ok(out_path):
                         produced = True
@@ -618,7 +618,7 @@ def gen_redline(out_dir: Path, authored_paths: list[Path]) -> tuple[list[dict[st
                 withheld_reason = "no eligible paragraph for a tracked change"
                 doc.close()
             else:
-                doc.save_to_path(out_path)
+                doc.save(out_path)
                 doc.close()
                 if out_path.exists():
                     produced = True
@@ -924,7 +924,7 @@ def gen_form_fit_wide(
                 doc.close()
             else:
                 fit_cell_text(cell, value, FitPolicy.keep(), document=doc)
-                doc.save_to_path(out_path)
+                doc.save(out_path)
                 doc.close()
                 if out_path.exists():
                     # static pre-filter recorded either way (Hancom is the judge)
@@ -1001,7 +1001,7 @@ def gen_redline_wide(
                 doc = HwpxDocument.open(src)
                 withheld_reason = _apply_tracked_op(doc, op)
                 if withheld_reason is None:
-                    doc.save_to_path(out_path)
+                    doc.save(out_path)
                     doc.close()
                     if out_path.exists():
                         produced = True
@@ -1042,7 +1042,7 @@ def build_pii_merge_template(path: Path) -> None:
         table.cell(r, 0).set_text(label)
         table.cell(r, 1).set_size(width=20000)
         table.cell(r, 1).set_text("{{" + key + "}}")
-    doc.save_to_path(path)
+    doc.save(path)
 
 
 def gen_pii_merge(out_dir: Path, n: int = PII_MERGE_N) -> tuple[list[dict[str, Any]], list[Path]]:
@@ -1170,7 +1170,7 @@ def gen_authored_toc(out_dir: Path, n: int = AUTHORED_TOC_N) -> tuple[list[dict[
                         ).style_id_ref = "1"
                 # The headings are outline paragraphs, so Hancom's regeneration keeps them.
                 summary = toc_author.add_native_toc(doc, headings=headings, hyperlink=False, dirty=True)
-                doc.save_to_path(out_path)
+                doc.save(out_path)
                 if out_path.exists():
                     produced = True
         except Exception as exc:
@@ -1233,7 +1233,7 @@ def gen_reading_runformat(
                 note.add_run("강조", bold=True)
                 note.add_run(" 서식 포함.")
             doc.add_paragraph("서식 축 전체(굵게·기울임·밑줄·취소선·색·크기·글꼴)를 시험하는 문서입니다.")
-            doc.save_to_path(out_path)
+            doc.save(out_path)
             if out_path.exists():
                 produced = True
         except Exception as exc:

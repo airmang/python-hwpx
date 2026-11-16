@@ -48,6 +48,41 @@
 오타 수정부터 새 파서 추가까지 모든 기여를 환영합니다. HWPX 생태계를 위한
 더 나은 도구를 함께 만들어 주셔서 감사합니다!
 
+## 공개 표면 잠금
+
+공개 이름(최상위 `hwpx.__all__`, `HwpxDocument`, 묶음 `doc.styles`·`doc.tables` …, `hwpx.model`의
+계약 멤버, `hwpx.objects` 값 형식, 모듈 경로로 가져오는 stable 이름)은 `tests/data/public_surface.json`
+한 파일이 잠급니다. `tests/test_public_surface.py`는 설치본이 잠금과 하나라도 다르면(늘어도 줄어도)
+실패하고, 무엇이 어떻게 다른지와 고치는 명령을 알려 줍니다.
+
+- 이름·인자·반환을 바꿨으면 잠금을 손으로 고치지 말고 다시 만드세요. 바뀐 것마다
+  `tests/data/public_surface_changes.jsonl`에 까닭과 함께 한 줄이 남고, `docs/stable-api.md`의 잠금 표도
+  함께 다시 씁니다. 세 파일을 함께 커밋하세요.
+  ```bash
+  python scripts/public_surface_lock.py check --update --reason "<무엇을 왜>"
+  ```
+- 지우기·이름 바꾸기·서명 바꾸기(깨지는 변경)는 패키지 메이저가 잠금의 `major`보다 클 때만 받습니다.
+  다음 메이저를 만드는 동안(예: 7.0을 만드는 6.x)에는 `--allow-major-break`를 붙입니다. 잠금의 `major`가
+  패키지 메이저 + 1이 되고, 그 메이저가 나올 때까지 깨지는 변경마다 이 표시를 다시 요구합니다.
+- `hwpx.model` 계약 멤버의 이름을 바꾸면 새 이름은 계약 밖(`internal`)으로 잡힙니다.
+  `--contract 클래스.새이름`으로 계약에 올리세요(`클래스.*`는 그 클래스의 공개 이름 전부). 계약에서
+  내리려면 `--internal 클래스.이름`입니다(깨지는 변경).
+- 모듈 경로로 가져오는 stable 이름을 더하거나 빼려면 `scripts/public_surface_lock.py`의 `MODULE_NAMES`와
+  `docs/stable-api.md`를 함께 고친 뒤 다시 만듭니다.
+- **병합 충돌이 나면 손으로 합치지 않습니다.** 병합 직후에(충돌 상태 그대로든, 저절로 커밋된 뒤든)
+  다시 만드세요.
+  ```bash
+  python scripts/public_surface_lock.py rebuild
+  git add tests/data/public_surface.json docs/stable-api.md tests/data/public_surface_changes.jsonl
+  ```
+  `rebuild`는 두 쪽의 계약 분류를 세 갈래로 합쳐(두 쪽이 다 남긴 것 + 어느 쪽이든 새로 올린 것)
+  병합된 코드에서 잠금을 다시 만들고, `docs/stable-api.md` 잠금 표 안의 충돌도 다시 씁니다. 장부는
+  `.gitattributes`의 `merge=union`으로 두 쪽 줄이 모두 남습니다. 두 쪽이 각자 장부에 적은 변경은 그대로
+  받고, 어느 쪽 잠금에도 적히지 않은 변경(잠금을 다시 만들지 않은 가지)이 있으면 종료 코드 1로 멈춥니다.
+  그 변경을 받으려면 `--reason "<가지>: <무엇을 왜>"`(깨지는 변경이면 `--allow-major-break`도)를 붙입니다.
+  이 잠금보다 먼저 갈라진 가지는 옛 `tests/data/model_surface.json`에서 계약에 올리고 내린 것을 옮겨
+  옵니다(그 파일의 고침/지움 충돌은 `git rm`으로 풉니다). 잠금 표 밖의 문서 충돌은 풀지 않고 1로 알립니다.
+
 ## 유지보수자를 위한 릴리스 절차
 
 태그를 찍고 발행하는 절차, 태그 전 로컬 게이트 전수 목록, 그리고 **작업

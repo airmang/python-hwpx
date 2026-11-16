@@ -12,7 +12,7 @@
 ## 무엇을 세는가
 
 각 라이브러리의 "문서 객체" 하나를 정해 `vars(cls)` 의 공개 멤버를 센다.
-`vars` 인 이유는 우리 쪽 락(`document_facade_surface.json`)이 같은 방식이기
+`vars` 인 이유는 우리 쪽 락(`public_surface.json` 의 `root` 층)이 같은 방식이기
 때문이다 — 상속 멤버를 세면 `object` 의 것까지 들어와 비교가 무의미해진다.
 
 - `python-docx` → `docx.document.Document`
@@ -124,8 +124,8 @@ def measure_ours() -> dict:
     """우리 파사드는 커밋된 락에서 읽는다 — 락이 코드에서 유도되기 때문이다."""
 
     lock = json.loads(
-        (ROOT / "tests" / "data" / "document_facade_surface.json").read_text(encoding="utf-8")
-    )
+        (ROOT / "tests" / "data" / "public_surface.json").read_text(encoding="utf-8")
+    )["root"]
     shims = json.loads(
         (ROOT / "tests" / "data" / "document_legacy_shims.json").read_text(encoding="utf-8")
     )

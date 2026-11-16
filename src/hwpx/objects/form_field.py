@@ -478,8 +478,8 @@ class Hyperlink:
     paragraph holding the link's start (a table cell's, a text box's or a note's
     own paragraph when it sits there).
 
-    ``link["url"]`` / ``["id"]`` / ``["type"]`` still read as the dict
-    ``paragraph.hyperlinks`` gave before 7.0, with a ``DeprecationWarning``.
+    Before 7.0 ``paragraph.hyperlinks`` gave dicts; read ``link.url`` /
+    ``link.field_id`` (or ``link.to_dict()``) instead of ``link["url"]`` / ``link["id"]``.
     """
 
     __slots__ = ("_element", "_paragraph")
@@ -593,17 +593,6 @@ class Hyperlink:
         """``id``, ``url`` and ``type``, the dict ``paragraph.hyperlinks`` gave before 7.0, and ``text``."""
 
         return {"id": self.field_id, "url": self.url, "type": self._element.get("type", ""), "text": self.text}
-
-    def __getitem__(self, key: str) -> str:
-        import warnings
-
-        warnings.warn(
-            "paragraph.hyperlinks returns Hyperlink objects since 7.0: read link.url / link.field_id "
-            "instead of link['url'] / link['id'].",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return {"id": self.field_id, "url": self.url, "type": self._element.get("type", "")}[key]
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Hyperlink) and other._element is self._element

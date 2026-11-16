@@ -153,7 +153,7 @@ def gen_title_mark(bucket_dir: Path) -> list[dict[str, Any]]:
                 )
                 heading.add_title_mark(in_toc=True)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-title-mark", seed=str(idx),
                 output_path=out_path, produced=True,

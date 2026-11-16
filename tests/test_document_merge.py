@@ -91,7 +91,7 @@ def test_append_document_accepts_a_path_and_closes_it_itself(tmp_path) -> None:
     source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("from disk")
     path = tmp_path / "source.hwpx"
-    source.save_to_path(path)
+    source.save(path)
 
     target = HwpxDocument.new(empty_first_line=True)
     append_document(target, path)

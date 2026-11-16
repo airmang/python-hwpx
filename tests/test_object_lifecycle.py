@@ -87,11 +87,11 @@ def test_remove_drops_an_empty_run_but_not_the_last_one() -> None:
     assert len(lone.element.findall(f"{HP}run")) == 1
 
 
-def test_remove_leaves_the_image_until_unused_images_are_removed() -> None:
+def test_remove_keeps_the_image_when_asked_until_unused_images_are_removed() -> None:
     doc = HwpxDocument.new()
     picture = doc.add_picture(PNG, "png")
     item = picture.item_id
-    picture.remove()
+    picture.remove(remove_orphaned=False)
     assert [str(i) for i in doc.media.images] == [item]
     assert [str(i) for i in doc.media.remove_unused_images()] == [item]
     _reopen(doc)
@@ -136,7 +136,7 @@ def test_a_group_member_is_refused_and_the_group_removes_whole() -> None:
     group = doc.sections[0].paragraphs[0].objects[0]
     assert isinstance(group, Shape) and group.shape_type == "container"
     member = group.members[0]
-    for call in (member.remove, lambda: member.set_rotation(10), lambda: member.set_description("x")):
+    for call in (lambda: member.set_rotation(10), lambda: member.set_description("x")):
         with pytest.raises(HwpxValueError) as caught:
             call()
         assert caught.value.code == "shape-group-member-unsupported"
@@ -367,16 +367,16 @@ def test_resize_and_turn_in_either_order_give_the_same_shape() -> None:
     second.set_rotation(30)
     second.resize(width=4000)
     assert _turn_record(first.element) == _turn_record(second.element)
-    picture = doc.add_picture(PNG, "png", width=6000, height=3000)
-    picture.set_rotation(30)
-    with pytest.raises(HwpxValueError) as caught:
-        picture.resize(width=3000)
-    assert caught.value.code == "shape-rotation-unsupported"
-    picture.set_rotation(0)
-    picture.resize(width=3000)
-    with pytest.raises(HwpxValueError) as caught:
-        picture.set_rotation(30)  # stretched now
-    assert caught.value.code == "shape-rotation-unsupported"
+    turned_first = doc.add_picture(PNG, "png", width=6000, height=3000)
+    stretched_first = doc.add_picture(PNG, "png", width=6000, height=3000)
+    turned_first.set_rotation(30)
+    turned_first.resize(width=3000)  # a turned picture resizes as drawn and turns again
+    stretched_first.resize(width=3000)
+    stretched_first.set_rotation(30)  # a stretched picture turns as drawn
+    assert _turn_record(turned_first.element) == _turn_record(stretched_first.element)
+    assert turned_first.rotation == 30
+    turned_first.set_rotation(0)
+    assert (turned_first.width, turned_first.height) == (3000, 1500)
 
 
 def test_z_order_and_rotation_read_and_write() -> None:
@@ -449,7 +449,7 @@ def test_picture_and_shape_read_what_their_creation_wrote() -> None:
     shadow = PictureShadow(color="#336699", alpha=0.25, blur=300, direction=90, distance=400, inside=True)
     glow = PictureGlow(color="#FF0000", alpha=0.5, radius=200)
     picture = doc.add_picture(PNG, "png", brightness=10, contrast=-20, effect="GRAY_SCALE", alpha=30,
-                              line_color="#112233", line_width=50, shadow=shadow, glow=glow)
+                              line_color="#112233", line_width_mm=0.18, shadow=shadow, glow=glow)
     assert (picture.brightness, picture.contrast, picture.effect, picture.alpha) == (10, -20, "GRAY_SCALE", 30)
     assert (picture.line_color, picture.line_width) == ("#112233", 50)
     assert picture.shadow == shadow and picture.glow == glow

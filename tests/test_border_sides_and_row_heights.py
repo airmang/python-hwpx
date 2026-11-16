@@ -94,7 +94,7 @@ def test_a_border_fill_with_its_own_sides_saves_and_reopens(tmp_path) -> None:
     table.set_cell_border_fill(0, 0, fill_id)
     path = tmp_path / "sides.hwpx"
 
-    document.save_to_path(path)
+    document.save(path)
 
     reopened = HwpxDocument.open(path)
     cell = next(table for paragraph in reopened.paragraphs for table in paragraph.tables).cell(0, 0)

@@ -29,10 +29,31 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator, Mapping, Sequence
+from typing import Iterator, Mapping, Sequence
 
 from ...errors import HwpxLookupError, HwpxValueError
+from ...objects import (
+    BorderFillInfo,
+    FontReplaceReport,
+    LineSpacing,
+    ListFormatResult,
+    NumberingInfo,
+    ParagraphFormatResult,
+)
+from ...objects.binary_item import BinaryItem
+from ...oxml import (
+    Bullet,
+    Font,
+    GenericElement,
+    HwpxOxmlParagraph,
+    MemoShape,
+    ParagraphProperty,
+    RunStyle,
+    Style,
+    TabDefinition,
+)
 from ...oxml.color import rgb_color
+from ...oxml.header_part import HwpxOxmlHeader
 from ...oxml._document_primitives import (
     FILL_GRADIENT_TYPES,
     FILL_IMAGE_EFFECTS,
@@ -41,29 +62,6 @@ from ...oxml._document_primitives import (
     MEMO_TYPE_VALUES,
 )
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...objects import (
-        BorderFillInfo,
-        FontReplaceReport,
-        LineSpacing,
-        ListFormatResult,
-        NumberingInfo,
-        ParagraphFormatResult,
-    )
-    from ...objects.binary_item import BinaryItem
-    from ...oxml import (
-        Bullet,
-        Font,
-        GenericElement,
-        HwpxOxmlParagraph,
-        MemoShape,
-        ParagraphProperty,
-        RunStyle,
-        Style,
-        TabDefinition,
-    )
-    from ...oxml.header_part import HwpxOxmlHeader
 
 __all__ = ["StylesNamespace"]
 
@@ -308,13 +306,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             match = _OUTLINE_ENG_NAME.match((resolved.eng_name or "").strip())
             level = int(match.group(1)) if match else None
         if level is None:
-            para_pr = self._doc.oxml.paragraph_property(resolved.para_pr_id_ref)
-            heading = getattr(para_pr, "heading", None)
-            if heading is not None and (getattr(heading, "type", "") or "").upper() == "OUTLINE":
-                try:
-                    level = int(str(getattr(heading, "level", "")).strip()) + 1
-                except (TypeError, ValueError):
-                    level = None
+            from ...oxml.formatting import para_pr_outline_level
+
+            level = para_pr_outline_level(self._doc.oxml, resolved.para_pr_id_ref)
         return level if level is not None and MIN_HEADING_LEVEL <= level <= MAX_HEADING_LEVEL else None
 
     # -- 서식 정의 테이블 --------------------------------------------------
@@ -714,12 +708,13 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         self,
         *,
         width: int = 15591,
-        line_width: int | str = 1,
+        line_width: int | str | None = None,
         line_type: str = "SOLID",
         line_color: str = "#000000",
         fill_color: str = "#CCFF99",
         active_color: str = "#FFFF99",
         memo_type: str = "NOMAL",
+        line_width_mm: float | None = None,
     ) -> str:
         """요청한 메모 모양의 `memoPr` id 를 보장하고 돌려준다.
 
@@ -728,11 +723,36 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         철자, 오타 아님)은 6파일 전량, 색 3종은 그 중 lineWidth=1인 절반이
         공유하는 조합. 만든 id 는 `doc.notes.add_memo(memo_shape_id_ref=...)`
         에 바로 넘길 수 있다.
+
+        선 굵기는 *line_width_mm* (mm)로 준다. 한/글의 선 굵기(0.1·0.12·0.15·0.2·0.25·0.3·0.4·
+        0.5·0.6·0.7·1.0·1.5·2.0·3.0·4.0·5.0 mm) 가운데 가장 가까운 것이 되고(테두리와 같다),
+        ``lineWidth`` 에는 그 순번(0.12 mm → ``1``)이 적힌다(순번으로 읽는 것은 한/글 화면으로
+        아직 확인하지 못한 가설이다 — 한/글은 저장 때 값을 그대로 둔다). 읽을 때는
+        ``doc.styles.memo_shape(id).line_width_mm``. *line_width* 는 그 순번을 그대로 적는
+        옛 인자로, 주지 않으면 ``1``(0.12 mm)이다. 둘을 함께 주면 거부한다.
         """
 
+        if line_width_mm is not None:
+            if line_width is not None:
+                raise HwpxValueError(
+                    "pass line_width_mm or line_width, not both",
+                    code="style-memo-shape-line-width-conflict",
+                    context={"line_width": str(line_width), "line_width_mm": repr(line_width_mm)},
+                    suggestion="Pass the width in millimetres alone: line_width_mm=0.12.",
+                )
+            from ...oxml.utils import LINE_WIDTHS, normalize_line_width
+
+            if isinstance(line_width_mm, bool) or not isinstance(line_width_mm, (int, float)):
+                raise HwpxValueError(
+                    f"line_width_mm must be a number of millimetres; got {line_width_mm!r}",
+                    code="style-line-width-invalid",
+                    context={"width": repr(line_width_mm), "allowed": list(LINE_WIDTHS)},
+                    suggestion="Pass a width in millimetres such as 0.12.",
+                )
+            line_width = LINE_WIDTHS.index(normalize_line_width(f"{float(line_width_mm)} mm"))
         return self._doc.oxml.ensure_memo_shape(
             width=width,
-            line_width=line_width,
+            line_width=1 if line_width is None else line_width,
             line_type=_validate_memo_enum(
                 line_type, LINE_TYPE2_VALUES, arg="line_type",
                 code="style-memo-shape-line-type-invalid",

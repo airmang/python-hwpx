@@ -6,10 +6,10 @@ Every write/save funnels through :class:`SavePipeline`, which runs validation an
 :class:`VisualCompleteReport` and performs the atomic save or rolls back. See the
 implementation plan §2 Phase B and §0.0 (the assurance-tier contract).
 
-The legacy write entry points (``HwpxDocument.save_to_path`` etc.) keep their
-return types and route through the pipeline with :meth:`QualityPolicy.transparent`
-so they stay behaviour-identical; use :meth:`HwpxDocument.save_report` (or pass a
-stricter ``QualityPolicy``) to receive the full report.
+``HwpxDocument.save`` routes through the pipeline with
+:meth:`QualityPolicy.transparent` by default; pass ``doc.save(target,
+quality=QualityPolicy.strict())`` (or another policy) to run that gate and receive
+its full report as ``MutationReport.quality``.
 """
 from __future__ import annotations
 

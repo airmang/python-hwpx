@@ -38,7 +38,7 @@ def test_roundtrip_report_shape(tmp_path):
     doc = HwpxDocument.new()
     doc.add_paragraph("본문")
     p = tmp_path / "d.hwpx"
-    doc.save_to_path(p)
+    doc.save(p)
 
     rep = roundtrip_report(p)
 

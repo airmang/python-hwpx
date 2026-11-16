@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
 import xml.etree.ElementTree as ET
@@ -28,7 +27,6 @@ from .utils import normalize_line_width
 from .section_story import (
     HwpxOxmlSectionHeaderFooter,
     _section_story_elements,
-    remember_story_pair,
     story_control_index,
 )
 
@@ -1342,66 +1340,6 @@ class HwpxOxmlSectionProperties:
                 return apply
         return None
 
-    def _set_apply_reference(
-        self,
-        apply: ET.Element,
-        tag: str,
-        new_id: str | None,
-    ) -> bool:
-        candidate_keys = {name.lower(): name for name in self._apply_id_attributes(tag)}
-        existing_attrs = [
-            attr for attr in list(apply.attrib.keys()) if attr.lower() in candidate_keys
-        ]
-
-        changed = False
-        if new_id is None:
-            for attr in existing_attrs:
-                if attr in apply.attrib:
-                    del apply.attrib[attr]
-                    changed = True
-            return changed
-
-        if existing_attrs:
-            target_attr = existing_attrs[0]
-        else:
-            target_attr = self._apply_id_attributes(tag)[0]
-
-        if apply.get(target_attr) != new_id:
-            apply.set(target_attr, new_id)
-            changed = True
-
-        for attr in existing_attrs:
-            if attr != target_attr and attr in apply.attrib:
-                del apply.attrib[attr]
-                changed = True
-
-        return changed
-
-    def _ensure_header_footer_apply(
-        self,
-        tag: str,
-        page_type: str,
-        element: ET.Element,
-    ) -> ET.Element:
-        apply = self._match_apply_for_element(tag, element)
-        header_id = element.get("id")
-        changed = False
-        if apply is None:
-            attrs = {"applyPageType": page_type}
-            if header_id is not None:
-                attrs[self._apply_id_attributes(tag)[0]] = header_id
-            apply = _append_child(self.element, f"{_HP}{tag}Apply", attrs)
-            changed = True
-        else:
-            if apply.get("applyPageType") != page_type:
-                apply.set("applyPageType", page_type)
-                changed = True
-            if self._set_apply_reference(apply, tag, header_id):
-                changed = True
-        if changed:
-            self.section.mark_dirty()
-        return apply
-
     def _remove_header_footer_apply(
         self,
         tag: str,
@@ -1432,26 +1370,89 @@ class HwpxOxmlSectionProperties:
                 return element
         return None
 
-    def _ensure_header_footer(self, tag: str, page_type: str) -> ET.Element:
-        element = self._find_header_footer(tag, page_type)
+    def _first_paragraph_stories(self, tag: str, page_type: str) -> list[tuple[ET.Element, ET.Element, ET.Element]]:
+        """``(run, hp:ctrl, story)`` for each *tag* story of *page_type* in the section's first paragraph.
+
+        Hancom keeps a section's headers and footers there, in a run of their own after the
+        settings. A control later in the body changes the header from its page on; it is not one
+        of these.
+        """
+
+        found = []
+        for run in self._first_paragraph_runs():
+            for ctrl in run.findall(f"{_HP}ctrl"):
+                story = ctrl.find(f"{_HP}{tag}")
+                if story is not None and story.get("applyPageType", "BOTH") == page_type:
+                    found.append((run, ctrl, story))
+        return found
+
+    def _story_to_write(
+        self, tag: str, page_type: str
+    ) -> tuple[ET.Element, tuple[ET.Element, ET.Element] | None]:
+        """The one ``hp:ctrl`` story that *tag* on *page_type* pages is written to, and
+        ``(run, hp:ctrl)`` for the control made for it when there was none (else ``None``).
+
+        Hancom reads a header or footer only from an ``hp:ctrl`` in the body and saves it nowhere
+        else: no story under ``hp:secPr`` and no ``hp:headerApply`` (all 68 Hangul-saved documents
+        with one in the public corpus). python-hwpx up to 6.x also kept a copy under ``hp:secPr``
+        with an ``hp:headerApply`` pointing at it; that copy of this page type goes, and its control
+        copy is the one written. A second control of the same page type in the first paragraph
+        goes too (Hancom draws only the last one on a page). A new control goes in the first run of
+        the first paragraph, ahead of a field that starts there (Hancom drops a header or footer
+        control inside a field's span) and, for ``BOTH``, ahead of the ``ODD``/``EVEN`` ones: Hancom
+        draws the last applicable control on a page, so ``BOTH`` after ``ODD`` would hide it.
+        """
+
         changed = False
-        if element is None:
-            element = _append_child(
-                self.element,
-                f"{_HP}{tag}",
-                {"id": _object_id(), "applyPageType": page_type},
-            )
+        legacy = self._find_header_footer(tag, page_type)
+        if legacy is not None:
+            self._remove_header_footer_apply(tag, page_type, legacy)
+            self.element.remove(legacy)
             changed = True
-        else:
-            if element.get("applyPageType") != page_type:
-                element.set("applyPageType", page_type)
+        stories = self._first_paragraph_stories(tag, page_type)
+        for run, ctrl, _story in stories[1:]:
+            if len(ctrl) == 1:
+                run.remove(ctrl)
                 changed = True
-        if element.get("id") is None:
-            element.set("id", _object_id())
+        created: tuple[ET.Element, ET.Element] | None = None
+        if stories:
+            story = stories[0][2]
+            if not story.get("id"):
+                story.set("id", _object_id())
+                changed = True
+        else:
+            run = self._header_footer_control_run()
+            story_id = (legacy.get("id") if legacy is not None else None) or _object_id()
+            ctrl = run.makeelement(f"{_HP}ctrl", {})
+            story = ctrl.makeelement(f"{_HP}{tag}", {"id": story_id, "applyPageType": page_type})
+            ctrl.append(story)
+            specific = [
+                existing
+                for existing in run.findall(f"{_HP}ctrl")
+                if (other := existing.find(f"{_HP}{tag}")) is not None
+                and other.get("applyPageType", "BOTH") != "BOTH"
+            ]
+            before = specific[0] if page_type == "BOTH" and specific else None
+            run.insert(story_control_index(run, before), ctrl)
+            created = (run, ctrl)
             changed = True
         if changed:
             self.section.mark_dirty()
-        return element
+        return story, created
+
+    def _write_story(self, tag: str, page_type: str, fill: Any) -> HwpxOxmlSectionHeaderFooter:
+        """Write *tag* for *page_type* pages with *fill* (given the story object) in its one place."""
+
+        element, created = self._story_to_write(tag, page_type)
+        wrapper = HwpxOxmlSectionHeaderFooter(element, self)
+        try:
+            fill(wrapper)
+        except Exception:
+            if created is not None and any(child is created[1] for child in created[0]):
+                # a header or footer with no hp:subList keeps Hancom from opening the document
+                created[0].remove(created[1])
+            raise
+        return wrapper
 
     def _header_footer_control_run(self) -> ET.Element:
         paragraph = self.section.element.find(f"{_HP}p")
@@ -1469,62 +1470,6 @@ class HwpxOxmlSectionProperties:
     def _first_paragraph_runs(self) -> list[ET.Element]:
         paragraph = self.section.element.find(f"{_HP}p")
         return [] if paragraph is None else paragraph.findall(f"{_HP}run")
-
-    def _sync_header_footer_control(self, tag: str, source: ET.Element) -> None:
-        """Mirror *source* into the ``hp:ctrl`` Hancom reads, replacing only the
-        control of the same page type, with ``BOTH`` ahead of ``ODD``/``EVEN``.
-
-        Hancom takes header/footer stories from ``hp:ctrl`` alone and drops the
-        ``hp:secPr`` copies when it saves, and on each page it draws the *last*
-        applicable control in document order. So clearing
-        every control of the tag erased the other page types (an ODD footer
-        followed by a BOTH page-number footer lost the ODD text in Hancom), and
-        a BOTH control placed after an ODD one hid it on every odd page. The
-        ``BOTH`` control therefore goes before the page-specific ones: ODD and
-        EVEN override it on their pages whatever order they were set in. Every
-        control also goes ahead of a field that starts in that run: Hancom drops
-        a header or footer control inside a field's span.
-
-        A control of the same page type in another run of the section's first
-        paragraph (Hancom writes its header and footer controls in a run of
-        their own after the settings) is replaced where it is: adding another
-        beside it left the document with two. A control later in the body (a
-        header changed from that page on) stays.
-        """
-        run = self._header_footer_control_run()
-        page_type = source.get("applyPageType", "BOTH")
-        holder = next((
-            (other, ctrl)
-            for other in self._first_paragraph_runs()
-            if other is not run
-            for ctrl in other.findall(f"{_HP}ctrl")
-            if (story := ctrl.find(f"{_HP}{tag}")) is not None and story.get("applyPageType", "BOTH") == page_type
-        ), None)
-        if holder is not None:
-            other, existing = holder
-            replacement = existing.makeelement(f"{_HP}ctrl", dict(existing.attrib))
-            replacement.append(deepcopy(source))
-            other.insert(list(other).index(existing), replacement)
-            other.remove(existing)
-            remember_story_pair(self.section, source)
-            self.section.mark_dirty()
-            return
-        for ctrl in list(run.findall(f"{_HP}ctrl")):
-            story = ctrl.find(f"{_HP}{tag}")
-            if story is not None and story.get("applyPageType", "BOTH") == page_type:
-                run.remove(ctrl)
-        ctrl = run.makeelement(f"{_HP}ctrl", {})
-        ctrl.append(deepcopy(source))
-        specific = [
-            existing
-            for existing in run.findall(f"{_HP}ctrl")
-            if (story := existing.find(f"{_HP}{tag}")) is not None
-            and story.get("applyPageType", "BOTH") != "BOTH"
-        ]
-        before = specific[0] if page_type == "BOTH" and specific else None
-        run.insert(story_control_index(run, before), ctrl)
-        remember_story_pair(self.section, source)
-        self.section.mark_dirty()
 
     def _remove_header_footer_controls(self, tag: str, page_type: str | None = None) -> bool:
         """Remove the ``hp:ctrl`` stories of *tag*; only *page_type*'s when given."""
@@ -1587,45 +1532,28 @@ class HwpxOxmlSectionProperties:
         element = matches[0]
         return HwpxOxmlSectionHeaderFooter(element, self, self._match_apply_for_element(kind, element))
 
+    # The header and footer setters write the one ``hp:ctrl`` story Hancom reads and saves
+    # (see :meth:`_story_to_write`); up to 6.x python-hwpx wrote a second copy under ``hp:secPr``.
+
     def set_header_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
-        element = self._ensure_header_footer("header", page_type)
-        apply = self._ensure_header_footer_apply("header", page_type, element)
-        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
-        wrapper.text = text
-        self._sync_header_footer_control("header", element)
-        return wrapper
+        return self._write_story("header", page_type, lambda story: setattr(story, "text", text))
 
     def set_footer_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
-        element = self._ensure_header_footer("footer", page_type)
-        apply = self._ensure_header_footer_apply("footer", page_type, element)
-        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
-        wrapper.text = text
-        self._sync_header_footer_control("footer", element)
-        return wrapper
+        return self._write_story("footer", page_type, lambda story: setattr(story, "text", text))
 
     def set_header_content(
         self,
         content: Sequence[Mapping[str, Any]],
         page_type: str = "BOTH",
     ) -> HwpxOxmlSectionHeaderFooter:
-        element = self._ensure_header_footer("header", page_type)
-        apply = self._ensure_header_footer_apply("header", page_type, element)
-        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
-        wrapper.set_content(content)
-        self._sync_header_footer_control("header", element)
-        return wrapper
+        return self._write_story("header", page_type, lambda story: story.set_content(content))
 
     def set_footer_content(
         self,
         content: Sequence[Mapping[str, Any]],
         page_type: str = "BOTH",
     ) -> HwpxOxmlSectionHeaderFooter:
-        element = self._ensure_header_footer("footer", page_type)
-        apply = self._ensure_header_footer_apply("footer", page_type, element)
-        wrapper = HwpxOxmlSectionHeaderFooter(element, self, apply)
-        wrapper.set_content(content)
-        self._sync_header_footer_control("footer", element)
-        return wrapper
+        return self._write_story("footer", page_type, lambda story: story.set_content(content))
 
     def remove_header(self, page_type: str = "BOTH") -> None:
         element = self._find_header_footer("header", page_type)

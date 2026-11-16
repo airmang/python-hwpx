@@ -80,17 +80,9 @@ def _style_declares_outline_level(
     은 이미 파싱되는 필드라 추가 비용이 없다.
     """
 
-    para_pr = document.oxml.paragraph_property(style.para_pr_id_ref)
-    heading = getattr(para_pr, "heading", None)
-    if heading is None:
-        return False
-    if (getattr(heading, "type", "") or "").upper() != "OUTLINE":
-        return False
-    try:
-        declared = int(str(getattr(heading, "level", "")).strip())
-    except (TypeError, ValueError):
-        return False
-    return declared == level - 1
+    from ..oxml.formatting import para_pr_outline_level
+
+    return para_pr_outline_level(document.oxml, style.para_pr_id_ref) == level
 
 
 def resolve_heading_style(

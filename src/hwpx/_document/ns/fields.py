@@ -24,17 +24,27 @@ id 별칭은 `field_id` 하나로, 위치 5키는 `location` 하나로 접혔다
 
 from __future__ import annotations
 
+from types import ModuleType
 from typing import TYPE_CHECKING
 
+from ...model import Paragraph, Section
+from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
+from ...objects.checkbox import ComboBox, EditBox, RadioButton
+from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
 from .._resolve import optional_paragraph, resolve_section
-from ._base import _Namespace
+from ._base import _LazyModule, _Namespace
+
+# Named in an annotation only; loaded when the hint is resolved (``import hwpx`` stays light).
+def _load_fit_policy() -> ModuleType:
+    from ...form_fit import policy
+
+    return policy
+
 
 if TYPE_CHECKING:
-    from ...form_fit.policy import FitPolicy
-    from ...model import Paragraph, Section
-    from ...objects import CellField, CheckBox, FieldFillResult, FormField, FormulaField, TextBoxField
-    from ...objects.checkbox import ComboBox, EditBox, RadioButton
-    from ...oxml import HwpxOxmlParagraph, HwpxOxmlSection
+    from ...form_fit import policy as _fit_policy
+else:
+    _fit_policy = _LazyModule(_load_fit_policy)
 
 __all__ = ["FieldsNamespace"]
 
@@ -54,10 +64,14 @@ class FieldsNamespace(_Namespace):
         prompt: str = "",
         memo: str = "",
         editable: bool = True,
-        paragraph: "HwpxOxmlParagraph | None" = None,
+        paragraph: "HwpxOxmlParagraph | int | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
     ) -> "FormField":
-        """누름틀(form field)을 만들고 그 라이브 뷰를 돌려준다."""
+        """누름틀(form field)을 만들고 그 라이브 뷰를 돌려준다.
+
+        ``paragraph=``는 문단 객체나 번호(*section*을 주면 그 구역 안, 아니면 문서 전체에서
+        몇 번째)다. 주지 않으면 새 문단을 더한다.
+        """
 
         from .. import fields as _fields
 
@@ -67,7 +81,9 @@ class FieldsNamespace(_Namespace):
             prompt=prompt,
             memo=memo,
             editable=editable,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, caller="doc.fields.add"
+            ),
             section=resolve_section(
                 self._doc, section, caller="doc.fields.add"
             ),
@@ -93,7 +109,7 @@ class FieldsNamespace(_Namespace):
         field_index: int | None = None,
         field_id: str | None = None,
         name: str | None = None,
-        fit_policy: "FitPolicy | None" = None,
+        fit_policy: "_fit_policy.FitPolicy | None" = None,
         box_width: int | None = None,
         font_pt: float | None = None,
     ) -> "FieldFillResult":
@@ -196,10 +212,13 @@ class FieldsNamespace(_Namespace):
         *,
         checked: bool = False,
         name: str | None = None,
-        paragraph: "HwpxOxmlParagraph | None" = None,
+        paragraph: "HwpxOxmlParagraph | int | None" = None,
         section: "int | HwpxOxmlSection | None" = None,
     ) -> "CheckBox":
-        """체크박스 양식개체를 만들고 그 라이브 뷰를 돌려준다."""
+        """체크박스 양식개체를 만들고 그 라이브 뷰를 돌려준다.
+
+        ``paragraph=``는 :meth:`add`와 같이 문단 객체나 번호를 받는다.
+        """
 
         from .. import fields as _fields
 
@@ -208,7 +227,9 @@ class FieldsNamespace(_Namespace):
             caption=caption,
             checked=checked,
             name=name,
-            paragraph=paragraph,
+            paragraph=optional_paragraph(
+                self._doc, paragraph, section=section, caller="doc.fields.add_check_box"
+            ),
             section=resolve_section(
                 self._doc, section, caller="doc.fields.add_check_box"
             ),

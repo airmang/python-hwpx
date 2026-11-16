@@ -99,7 +99,42 @@ def _sanitize_text(value: str) -> str:
     Carriage return (``\\r`` / U+000D) is stripped; newline (``\\n`` / U+000A)
     is preserved for multiline cells.
     """
+    _require_text(value)
     return _ILLEGAL_XML_CHARS.sub("", value)
+
+
+def _require_nonempty_str(argument: str, value: object, *, code: str, suggestion: str) -> str:
+    """*value* of a name-like *argument* (a bookmark name, a link target, a field name), checked to be
+    a ``str`` (a typed ``TypeError`` otherwise) that is not blank (``HwpxValueError`` with *code*)."""
+
+    from ..errors import HwpxValueError, argument_type_error
+
+    if not isinstance(value, str):
+        raise argument_type_error(argument, value, "str", suggestion=suggestion)
+    if not value.strip():
+        raise HwpxValueError(
+            f"{argument} must not be empty",
+            code=code,
+            context={"argument": argument},
+            suggestion=suggestion,
+        )
+    return value
+
+
+def _require_text(value: object) -> None:
+    """Refuse text that is not a ``str`` before it is written into ``hp:t``: the typed
+    ``paragraph-text-invalid-type`` error, not a bare ``TypeError`` from a regular expression."""
+
+    if not isinstance(value, str):
+        from ..errors import argument_type_error
+
+        raise argument_type_error(
+            "text",
+            value,
+            "str",
+            code="paragraph-text-invalid-type",
+            suggestion=f"Convert it first: str({value!r}).",
+        )
 
 
 def _child_tag_like(parent: ET.Element, local_name: str, fallback_namespace: str) -> str:
@@ -549,9 +584,10 @@ def _fill_text_element(text_element: ET.Element, value: str, *, special_spaces: 
     ``hp:fwSpace`` (:data:`_RUN_CHOICE_ATOM_MARKERS`); without it they stay characters of the text.
     """
 
+    _require_text(value)
     tab_tag = _child_tag_like(text_element, "tab", _HP_NS)
     break_tag = _child_tag_like(text_element, "lineBreak", _HP_NS)
-    parts = (_TEXT_MARK_AND_SPACE_SPLIT_RE if special_spaces else _TEXT_MARK_SPLIT_RE).split(value)
+    parts =(_TEXT_MARK_AND_SPACE_SPLIT_RE if special_spaces else _TEXT_MARK_SPLIT_RE).split(value)
     text_element.text = _sanitize_text(parts[0])
     for mark, segment in zip(parts[1::2], parts[2::2]):
         marker_name = _RUN_CHOICE_ATOM_MARKERS.get(mark)
@@ -907,9 +943,10 @@ def _append_fill_brush(
 ) -> None:
     """Append ``hc:fillBrush`` (winBrush/imgBrush/gradation) to *parent* if any
     fill was requested — the schema's fillBrush choice (Core XML
-    schema.xml:650), so at most one branch fires. Shared by
-    :func:`_create_border_fill_element` and
-    ``HwpxOxmlHeader.ensure_shading_border_fill``.
+    schema.xml:650), so at most one branch fires. Used by
+    :func:`_create_border_fill_element`, and for the picture and gradation of a
+    border fill derived from another (``hwpx.oxml.formatting.set_border_fill_image``
+    and ``set_border_fill_gradient``).
     """
 
     if fill_image is not None:
@@ -955,33 +992,6 @@ def _append_fill_brush(
                 f"{_HC}winBrush",
                 {"faceColor": normalized_fill, "hatchColor": "#FF000000", "alpha": "0"},
             )
-
-
-def _find_shading_border_fill_id(
-    element: ET.Element,
-    *,
-    face_color: str | None,
-    fill_image: "Mapping[str, str] | None" = None,
-    fill_gradient: "Mapping[str, object] | None" = None,
-) -> str | None:
-    """Return the id of an existing ``hh:borderFill`` whose fill already
-    matches — the dedupe half of ``HwpxOxmlHeader.ensure_shading_border_fill``,
-    extracted so that caller stays inside header_part.py's line-count ratchet.
-    """
-
-    for border_fill in element.findall(f"{_HH}borderFill"):
-        if fill_image is not None or fill_gradient is not None:
-            image, gradient = _border_fill_image_gradient(border_fill)
-            if image != (dict(fill_image) if fill_image is not None else None):
-                continue
-            if gradient != (dict(fill_gradient) if fill_gradient is not None else None):
-                continue
-        elif _border_fill_fill_color(border_fill) != face_color:
-            continue
-        border_id = border_fill.get("id")
-        if border_id:
-            return border_id
-    return None
 
 
 def _create_border_fill_element(
@@ -1101,8 +1111,7 @@ def _ensure_memo_shape(
     (``hh:memoProperties``). Returns ``(id, None)`` if an existing shape
     already matches, else ``(new_id, new_unattached_element)`` — the caller
     (``HwpxOxmlHeader.ensure_memo_shape``) owns attaching it via
-    :func:`_attach_new_child` plus ``itemCnt``/``mark_dirty`` bookkeeping,
-    the same split :func:`_find_shading_border_fill_id` uses.
+    :func:`_attach_new_child` plus ``itemCnt``/``mark_dirty`` bookkeeping.
     """
 
     for memo_pr in element.findall(f"{_HH}memoPr"):

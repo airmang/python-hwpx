@@ -284,6 +284,46 @@ class CellZone:
 
 
 @dataclass(frozen=True)
+class LineSegment:
+    """One line of a paragraph as it was last laid out and saved (``hp:lineseg``), as
+    ``paragraph.line_segments`` reads it. Read only: values as the file stores them.
+
+    *text_position* is where the line starts in the paragraph's text, counted as Hancom counts it
+    (a tab or another inline control takes 8 places, a character outside the basic plane 2).
+    *vertical_position* is the line's top from the top of its paragraph list (the page body, a
+    cell or a text box), *height* the line's height, *text_height* the height of its tallest
+    characters, *baseline* the distance from the line's top to its base line and *spacing* the
+    room below it before the next line. *horizontal_position* is where the line starts from the
+    left of its column (a hanging indent or an object beside it moves it right) and *width* how
+    much room the line has. Lengths are HWPUNIT. *flags* is Hancom's bit set for the line as
+    written (first line of a page or column and the like).
+    """
+
+    text_position: int
+    vertical_position: int
+    height: int
+    text_height: int
+    baseline: int
+    spacing: int
+    horizontal_position: int
+    width: int
+    flags: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "textPosition": self.text_position,
+            "verticalPosition": self.vertical_position,
+            "height": self.height,
+            "textHeight": self.text_height,
+            "baseline": self.baseline,
+            "spacing": self.spacing,
+            "horizontalPosition": self.horizontal_position,
+            "width": self.width,
+            "flags": self.flags,
+        }
+
+
+@dataclass(frozen=True)
 class ColumnLayout:
     """Column count/gap applied by ``doc.page.setup(columns=...)``."""
 
@@ -883,10 +923,81 @@ class ObjectPlace:
         }
 
 
+@dataclass(frozen=True)
+class TextMatch:
+    """One match of ``doc.text.find()``: where it is and what it matched.
+
+    ``start``/``end`` are positions in ``paragraph.text`` (a tab or a line break is one
+    character, a control or an object none), the ones ``paragraph.format_range(start, end, ...)``
+    takes. ``text`` is the matched text, ``groups`` a regular expression's groups (``None`` for a
+    group that took no part; ``()`` for a plain search). The other fields say where the paragraph
+    sits, as in :class:`ParagraphPlace`.
+    """
+
+    paragraph: "Paragraph"
+    start: int
+    end: int
+    text: str
+    groups: tuple[str | None, ...]
+    where: str
+    section: int | None
+    page_type: str | None = None
+    table: "Table | None" = None
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "start": self.start,
+            "end": self.end,
+            "text": self.text,
+            "groups": list(self.groups),
+            "where": self.where,
+            "section": self.section,
+            "pageType": self.page_type,
+            "row": self.row,
+            "col": self.col,
+            "depth": self.depth,
+        }
+
+
+@dataclass(frozen=True)
+class LanguageFonts:
+    """The face a run's text uses in each language block (``run.fonts``).
+
+    Hancom gives a character shape one face per language (``hh:fontRef``): Hangul, Latin,
+    Hanja, Japanese, other scripts, symbols and the user block. A field is ``None`` when the
+    shape names no face there (or the run has no character shape). ``run.font`` is ``hangul``.
+    """
+
+    hangul: str | None = None
+    latin: str | None = None
+    hanja: str | None = None
+    japanese: str | None = None
+    other: str | None = None
+    symbol: str | None = None
+    user: str | None = None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "hangul": self.hangul,
+            "latin": self.latin,
+            "hanja": self.hanja,
+            "japanese": self.japanese,
+            "other": self.other,
+            "symbol": self.symbol,
+            "user": self.user,
+        }
+
+
 __all__ = [
     "Alignment",
+    "LanguageFonts",
     "ObjectPlace",
     "ParagraphPlace",
+    "TextMatch",
     "AutoNumber",
     "BeginNumbers",
     "ColumnDefinition",

@@ -270,6 +270,29 @@ class MemoShape:
     memo_type: Optional[str]
     attributes: Dict[str, str] = field(default_factory=dict)
 
+    @property
+    def line_width_mm(self) -> float | None:
+        """The memo's line width in millimetres (``0.12`` for ``lineWidth="1"``), or ``None``.
+
+        ``hh:memoPr@lineWidth`` is not a length: Hancom keeps there the one-byte line width of
+        the HWP 5.0 memo shape record and writes it out unchanged (``"1"`` in 36 of the public
+        corpus's 41 memo shapes, ``"3"`` in the rest). It is read as the index into Hancom's line
+        widths (0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0,
+        5.0 mm) that borders use. That is a hypothesis not yet seen on Hangul's screen: Hangul 2024
+        keeps the value when it saves, but its printout draws no memo to measure. A value that is
+        no index on that list reads ``None``.
+        """
+
+        from .utils import LINE_WIDTHS
+
+        try:
+            index = int(str(self.line_width).strip())
+        except (TypeError, ValueError):
+            return None
+        if not 0 <= index < len(LINE_WIDTHS):
+            return None
+        return float(LINE_WIDTHS[index].split()[0])
+
     def matches_id(self, memo_shape_id_ref: int | str | None) -> bool:
         if memo_shape_id_ref is None:
             return False
@@ -1666,14 +1689,17 @@ def parse_track_change(node: etree._Element) -> TrackChange:
         key: value for key, value in node.attrib.items() if key not in known_attrs
     }
 
+    # The schema spells charShapeID/paraShapeID; a paragraph shape change converted from
+    # HWP 5.0 is written parashapeID (hwp5.header_xml, as Hancom converts it). That spelling
+    # is read too and stays in ``attributes``, so it is written back as it was.
     return TrackChange(
         id=parse_int(node.get("id")),
         raw_id=node.get("id"),
         change_type=node.get("type"),
         date=node.get("date"),
         author_id=parse_int(node.get("authorID")),
-        char_shape_id=parse_int(node.get("charShapeID")),
-        para_shape_id=parse_int(node.get("paraShapeID")),
+        char_shape_id=parse_int(node.get("charShapeID") or node.get("charshapeID")),
+        para_shape_id=parse_int(node.get("paraShapeID") or node.get("parashapeID")),
         hide=parse_bool(node.get("hide")),
         attributes=attributes,
     )
@@ -1816,8 +1842,10 @@ def track_change_to_xml(change: TrackChange) -> etree._Element:
     _set_optional_str_attr(attributes, "type", change.change_type)
     _set_optional_str_attr(attributes, "date", change.date)
     _set_optional_int_attr(attributes, "authorID", change.author_id)
-    _set_optional_int_attr(attributes, "charShapeID", change.char_shape_id)
-    _set_optional_int_attr(attributes, "paraShapeID", change.para_shape_id)
+    if "charshapeID" not in attributes:  # read from that spelling: written back in it
+        _set_optional_int_attr(attributes, "charShapeID", change.char_shape_id)
+    if "parashapeID" not in attributes:
+        _set_optional_int_attr(attributes, "paraShapeID", change.para_shape_id)
     _set_optional_flag_attr(attributes, "hide", change.hide)
     _set_optional_int_attr(attributes, "id", change.id)
     if change.raw_id is not None and change.id is None:

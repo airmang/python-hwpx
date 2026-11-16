@@ -351,7 +351,7 @@ def replace_picture(
     """
 
     check_image(image_data, image_format)
-    from ..oxml.utils import HwpxIndexError
+    from ..errors import HwpxIndexError
 
     if picture_index < 0:
         raise HwpxIndexError(
@@ -621,6 +621,34 @@ def remove_unused_images(doc: "HwpxDocument") -> tuple[BinaryItem, ...]:
         if target is None or _binary_item_references(doc, target):
             continue
         if _remove_binary_item(doc, target):
+            removed.append(item)
+    return tuple(removed)
+
+
+def remove_orphaned_items(root: Any, references: "set[str]") -> tuple[BinaryItem, ...]:
+    """Remove the binary items *references* name (``binaryItemIDRef`` values and the like of an object just
+    taken out of the document *root*, a ``HwpxOxmlDocument``) that nothing in the document points at any
+    more, and return them: :func:`remove_unused_images` limited to those items, for ``obj.remove()``.
+
+    The package is the one *root* was read from (its manifest source); a document read from none removes
+    nothing. An item still pointed at anywhere :func:`remove_image` checks stays.
+    """
+
+    package = getattr(getattr(root, "_manifest_source", None), "__self__", None)
+    wanted: set[str] = set()
+    for reference in references:
+        wanted |= bin_ref_aliases(reference)
+    if package is None or not wanted:
+        return ()
+    from types import SimpleNamespace
+
+    view = cast("HwpxDocument", SimpleNamespace(_root=root, _package=package))
+    removed: list[BinaryItem] = []
+    for item in list_images(view):
+        target = _find_binary_item(view, str(item))
+        if target is None or target.aliases.isdisjoint(wanted) or _binary_item_references(view, target):
+            continue
+        if _remove_binary_item(view, target):
             removed.append(item)
     return tuple(removed)
 

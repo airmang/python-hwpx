@@ -1035,8 +1035,10 @@ def test_section_properties_header_footer_helpers() -> None:
 
     section.reset_dirty()
     header = properties.set_header_text("Confidential")
-    header_element = sec_pr.find(f"{HP}header")
-    assert header_element is not None
+    # written once, in the hp:ctrl Hancom reads, never under hp:secPr
+    assert sec_pr.find(f"{HP}header") is None and sec_pr.find(f"{HP}headerApply") is None
+    header_element = section.element.find(f".//{HP}ctrl/{HP}header")
+    assert header_element is not None and header_element is header.element
     assert header_element.get("applyPageType") == "BOTH"
     assert header.text == "Confidential"
     text_element = header_element.find(f".//{HP}t")
@@ -1051,7 +1053,8 @@ def test_section_properties_header_footer_helpers() -> None:
 
     section.reset_dirty()
     footer = properties.set_footer_text("Page", page_type="ODD")
-    footer_element = sec_pr.find(f"{HP}footer")
+    assert sec_pr.find(f"{HP}footer") is None
+    footer_element = section.element.find(f".//{HP}ctrl/{HP}footer")
     assert footer_element is not None
     assert footer.apply_page_type == "ODD"
     assert footer_element.find(f".//{HP}t").text == "Page"

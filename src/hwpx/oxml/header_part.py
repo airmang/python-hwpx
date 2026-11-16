@@ -18,7 +18,6 @@ from ._document_primitives import (
     _HP,
     _allocate_font_id,
     _append_child,
-    _append_fill_brush,
     _attach_new_child,
     _apply_optional_attrs,
     _bool_str,
@@ -32,7 +31,6 @@ from ._document_primitives import (
     _ensure_tab_definition_element,
     _find_matching_para_pr,
     _find_font_id,
-    _find_shading_border_fill_id,
     _fontface_insert_index,
     _get_bool_attr,
     _get_int_attr,
@@ -1218,42 +1216,30 @@ class HwpxOxmlHeader:
         fill_gradient: Mapping[str, object] | None = None,
         base_border_fill_id: str | int | None = None,
     ) -> str:
-        element = self._border_fills_element(create=True)
-        if element is None:  # pragma: no cover - defensive branch
-            raise RuntimeError("failed to create <borderFills> element")
-        has_alt_fill = fill_image is not None or fill_gradient is not None
-        face_color = "none" if has_alt_fill else (_normalize_color(color) or "none")
+        """The id of a border fill that is *base_border_fill_id* (the basic solid one when it is
+        not given or not in the header) with the fill changed: the solid *color* (``None`` takes
+        the face away), else the picture *fill_image*, else the gradation *fill_gradient*. Its
+        lines and diagonals stay; an identical border fill is reused. The fill follows the one
+        rule every border-fill derivation uses (:func:`hwpx.oxml.formatting.set_border_fill_color`)."""
 
-        matched = _find_shading_border_fill_id(
-            element, face_color=face_color, fill_image=fill_image, fill_gradient=fill_gradient,
+        from .formatting import (
+            derive_definition, find_definition, set_border_fill_color, set_border_fill_gradient,
+            set_border_fill_image,
         )
-        if matched:
-            return matched
 
-        base_element: ET.Element | None = None
-        if base_border_fill_id is not None:
-            base_element = element.find(f"{_HH}borderFill[@id='{base_border_fill_id}']")
-        if base_element is None:
-            existing_basic = self.find_basic_border_fill_id()
-            if existing_basic is not None:
-                base_element = element.find(f"{_HH}borderFill[@id='{existing_basic}']")
-        new_id = self._allocate_border_fill_id(element)
-        if base_element is None:
-            new_border_fill = _create_basic_border_fill_element(new_id)
-        else:
-            new_border_fill = deepcopy(base_element)
-            new_border_fill.set("id", new_id)
-            for child in list(new_border_fill):
-                if _element_local_name(child) == "fillBrush":
-                    new_border_fill.remove(child)
+        base = base_border_fill_id
+        if base is None or find_definition(self, "borderFill", base) is None:
+            base = self.ensure_basic_border_fill()
 
-        _append_fill_brush(
-            new_border_fill, fill_color=face_color, fill_image=fill_image, fill_gradient=fill_gradient,
-        )
-        _attach_new_child(element, new_border_fill)
-        _update_item_count(element, "borderFill")
-        self.mark_dirty()
-        return new_id
+        def modify(border_fill: ET.Element) -> None:
+            if fill_image is not None:
+                set_border_fill_image(border_fill, fill_image)
+            elif fill_gradient is not None:
+                set_border_fill_gradient(border_fill, fill_gradient)
+            else:
+                set_border_fill_color(border_fill, _normalize_color(color))
+
+        return derive_definition(self, "borderFill", base, modify)
 
     @property
     def border_fills(self) -> dict[str, GenericElement]:

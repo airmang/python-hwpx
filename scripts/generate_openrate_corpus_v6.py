@@ -248,7 +248,7 @@ def gen_highlight(bucket_dir: Path) -> list[dict[str, Any]]:
                 inner = word[1:-1]
                 inner_color = HIGHLIGHT_NESTED_COLOR_BANK[idx % len(HIGHLIGHT_NESTED_COLOR_BANK)]
                 document.text.highlight(target_paragraph, inner, color=inner_color)
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-highlight", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -278,7 +278,7 @@ def gen_fill(bucket_dir: Path) -> list[dict[str, Any]]:
             table.set_cell_fill_gradient(
                 1, 1, colors, gradient_type=gradient_type, angle=(idx * 15) % 360,
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-fill", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -319,7 +319,7 @@ def gen_memoshape(bucket_dir: Path) -> list[dict[str, Any]]:
                 # fix that turned out NOT to be sufficient alone).
                 created="2026-08-01 00:00:00",
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-memoshape", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -345,7 +345,7 @@ def gen_pagecontrol(bucket_dir: Path) -> list[dict[str, Any]]:
             document.page.restart_page_number(paragraph, number=1 + idx, kind=kind)
             hide_kwargs = HIDE_COMBO_BANK[idx % len(HIDE_COMBO_BANK)]
             document.page.hide_page_elements(paragraph, **hide_kwargs)
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-pagecontrol", seed=str(idx),
                 output_path=out_path, produced=True,

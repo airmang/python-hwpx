@@ -653,7 +653,7 @@ def test_first_run_on_builtin_template_emits_no_warnings(caplog, tmp_path) -> No
     document = HwpxDocument.new()
     document.add_paragraph("첫 문단")
     target = tmp_path / "first.hwpx"
-    document.save_to_path(target)
+    document.save(target)
 
     reopened = HwpxDocument.open(target)
     package = reopened.package
@@ -733,7 +733,7 @@ def _bomb(stored: int, declared: int | None = None) -> bytes:
     """
 
     buffer = io.BytesIO()
-    HwpxDocument.new().save_to_stream(buffer)
+    HwpxDocument.new().save(buffer)
     with ZipFile(buffer, "a", ZIP_DEFLATED, compresslevel=9) as archive:
         archive.writestr("BinData/x.bin", b"\0" * stored)
     raw = bytearray(buffer.getvalue())

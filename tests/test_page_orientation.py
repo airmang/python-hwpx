@@ -148,7 +148,7 @@ def test_a_landscape_page_gives_tables_headers_and_tools_the_landscape_width(tmp
     assert int(header_sublist.get("textWidth")) == A4[1] - margins.left - margins.right
 
     path = tmp_path / "landscape.hwpx"
-    document.save_to_path(path)
+    document.save(path)
     layout = analyze_template(path).section_layouts[0]
     assert (layout.page_width, layout.page_height) == (A4[1], A4[0])
     assert layout.computed_body_width == body_width

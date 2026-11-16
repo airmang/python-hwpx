@@ -209,7 +209,7 @@ def _run(case, source: Path, output: Path) -> dict:
             count = document.text.replace(case["search"], case["value"])
             if count != case["count"]:
                 raise ValueError(f"expected {case['count']} replacements, got {count}")
-            report = document.save_to_path(output, mode="patch", fallback="error", return_report=True)
+            report = document.save(output, mode="patch", fallback="error")
         with HwpxDocument.open(output) as document:
             assert document.text.plain().count(case["value"]) == case["count"]
         return report.to_dict()

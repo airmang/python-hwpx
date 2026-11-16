@@ -294,6 +294,8 @@ def _group_element(
         _build_shape_base_children(el, width, height)
         # The outermost group (not its members) closes with an empty shapeComment, as hp:pic does.
         _append_child(el, f"{_HP}shapeComment", {})
+    else:  # a group inside has no sz/pos tail: drop the builder's marker the tail would have taken
+        el.attrib.pop("_treatAsChar", None)
     return el
 
 
@@ -374,4 +376,214 @@ def _write_member_texts(
             _write_member_texts(member.members, element, section)
 
 
-__all__ = ["ContainerMember"]
+# --------------------------------------------------------------------------------------------------
+# Taking one member out of a group
+
+
+def _local(node: Any) -> str:
+    return str(node.tag).rsplit("}", 1)[-1]
+
+
+def _matrix(node: Any) -> list[float]:
+    values = []
+    for key in ("e1", "e2", "e3", "e4", "e5", "e6"):
+        try:
+            values.append(float(node.get(key, "0")))
+        except ValueError:
+            values.append(0.0)
+    return values
+
+
+def _plain(matrix: list[float], *, scale: bool = False) -> bool:
+    """*matrix* is identity -- or, with *scale*, only scales and moves (no turn, no skew)."""
+
+    if abs(matrix[1]) > 1e-3 or abs(matrix[3]) > 1e-3:
+        return False
+    return scale and matrix[0] > 0 and matrix[4] > 0 or (
+        abs(matrix[0] - 1) <= 1e-3 and abs(matrix[4] - 1) <= 1e-3 and abs(matrix[2]) <= 0.5 and abs(matrix[5]) <= 0.5)
+
+
+def _outer_scale_fits(scale: list[float], trans: list[float], factors: tuple[float, float]) -> bool:
+    """*scale* is the outermost group's: its *factors*, moving a shape at *trans* by that times the factor less 1
+    (what ``shape_position.resize_group`` writes and Hancom's resized groups hold)."""
+
+    return (abs(scale[1]) <= 1e-3 and abs(scale[3]) <= 1e-3
+            and abs(scale[0] - factors[0]) <= 1e-3 and abs(scale[4] - factors[1]) <= 1e-3
+            and abs(scale[2] - trans[2] * (factors[0] - 1)) <= 1.5 and abs(scale[5] - trans[5] * (factors[1] - 1)) <= 1.5)
+
+
+def _unturned_box(shape: Any, factors: tuple[float, float] = (1.0, 1.0)) -> tuple[float, float, float, float] | None:
+    """The box an unturned, unflipped shape of a group takes in the outermost group's own (unscaled) space: its
+    original size through its own scaMatrix, moved by its transMatrix. *factors* is how the outermost group is
+    drawn (its own scaMatrix), which a member's first scaMatrix repeats. ``None`` for a shape this cannot say
+    for: turned, flipped, skewed, or holding a matrix of a group that is turned or stretched otherwise."""
+
+    info, flip, original = shape.find(f"{_HP}rotationInfo"), shape.find(f"{_HP}flip"), shape.find(f"{_HP}orgSz")
+    rendering = shape.find(f"{_HP}renderingInfo")
+    if rendering is None or original is None or (info is not None and info.get("angle", "0") not in ("0", "")):
+        return None
+    if flip is not None and "1" in (flip.get("horizontal"), flip.get("vertical")):
+        return None
+    matrices = [_matrix(node) for node in rendering]
+    if len(matrices) < 3 or len(matrices) % 2 == 0 or not _plain(matrices[-1]):
+        return None
+    middle = matrices[1:-2]
+    if middle and not (_outer_scale_fits(middle[0], matrices[0], factors) and all(_plain(m) for m in middle[1:])):
+        return None  # a group around it turned it, or stretched it otherwise than the outermost one
+    if not _plain(matrices[-2], scale=True):
+        return None  # its own matrix does more than scale it
+    sca, trans = matrices[-2], matrices[0]
+    try:
+        width, height = float(original.get("width", "0")), float(original.get("height", "0"))
+    except ValueError:
+        return None
+    left, top = trans[2] + sca[2], trans[5] + sca[5]
+    return left, top, left + width * sca[0], top + height * sca[4]
+
+
+def _union(boxes: Sequence[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
+    return (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+
+
+def _outermost_factors(group: Any) -> tuple[float, float] | None:
+    """How the outermost group is drawn: the factors of its own scaMatrix (1 when Hancom has not resized it),
+    when its ``curSz`` and ``hp:sz`` say the same (0 on an axis left alone). ``None`` when it is turned, flipped,
+    moved by its matrices or skewed, or its sizes disagree."""
+
+    box = _unturned_box(group)
+    rendering, original = group.find(f"{_HP}renderingInfo"), group.find(f"{_HP}orgSz")
+    if box is None or rendering is None or original is None or abs(box[0]) > 0.5 or abs(box[1]) > 0.5:
+        return None
+    scale = _matrix(list(rendering)[-2])
+    factors = (1.0 if abs(scale[0] - 1) <= 1e-3 else scale[0], 1.0 if abs(scale[4] - 1) <= 1e-3 else scale[4])
+    current, size = group.find(f"{_HP}curSz"), group.find(f"{_HP}sz")
+    for index, side in enumerate(("width", "height")):
+        drawn = float(original.get(side, "0")) * factors[index]
+        for node, unscaled in ((current, "0"), (size, None)):
+            value = node.get(side) if node is not None else None
+            if value is None or factors[index] == 1 and value in (unscaled, original.get(side)):
+                continue
+            if abs(float(value) - drawn) > 2:
+                return None
+    return factors
+
+
+def member_removal_refusal(element: Any, chain: Sequence[Any]) -> str | None:
+    """Why *element* cannot be taken out of the groups *chain* (its group first, the outermost last) with the
+    groups fitted to what is left, or ``None`` when it can.
+
+    It can when no group on the chain is turned, flipped or stretched (the outermost one may be resized, as
+    ``Shape.resize`` and Hancom resize a group) and each holds, besides *element*, only unturned members whose
+    boxes make up exactly the group's box -- the relation the groups of Hancom-saved documents keep (the
+    outermost group's ``orgSz`` is the box around its members: 138 of 171 public groups by this measure, the
+    rest differing only by turned members, which this does not measure).
+    """
+
+    factors = _outermost_factors(chain[-1])
+    if factors is None:
+        return "its group is turned, flipped or its sizes disagree"
+    for index, group in enumerate(chain):
+        members = _shapes_inside(group)
+        if index == 0 and len(members) < 2:
+            return "it is the group's only member: remove the group"
+        outermost = index == len(chain) - 1
+        if outermost:
+            original = group.find(f"{_HP}orgSz")
+            own: tuple[float, float, float, float] | None = (
+                0.0, 0.0, float(original.get("width", "0")), float(original.get("height", "0")))
+        else:
+            rendering = group.find(f"{_HP}renderingInfo")
+            own = _unturned_box(group, factors)
+            if rendering is None or not _plain(_matrix(list(rendering)[-2])):
+                own = None  # a group inside drawn at another size than its own
+        if own is None:
+            return "a group it is in is turned, flipped or stretched"
+        boxes = [_unturned_box(member, factors) for member in members]
+        if any(box is None for box in boxes):
+            return "a member of its group is turned, flipped or stretched by a matrix this does not measure"
+        if any(abs(a - b) > 2 for a, b in zip(_union(boxes), own)):  # type: ignore[arg-type]
+            return "its group's box is not the box around its members"
+    return None
+
+
+def fit_groups_after_removal(chain: Sequence[Any]) -> None:
+    """Fit each group of *chain* (innermost first) to the members left in it: a group inside takes the box around
+    its members as its place and size; the outermost group moves every shape in it so that box starts at its
+    origin, takes its size (drawn at its factors when it is resized), and moves on the page by as much when it
+    floats from the left and top of its frame, so what is left stays where it was drawn. Call it only for a chain
+    :func:`member_removal_refusal` accepted (before the member went)."""
+
+    from .shape_position import _matrix_number, _signed_offset
+
+    factors = _outermost_factors(chain[-1]) or (1.0, 1.0)
+    for index, group in enumerate(chain):
+        boxes = [_unturned_box(member, factors) for member in _shapes_inside(group)]
+        left, top, right, bottom = _union(boxes)  # type: ignore[arg-type]
+        width, height = max(1, round(right - left)), max(1, round(bottom - top))
+        if index < len(chain) - 1:
+            _place(group, round(left), round(top))
+            _set_outer_scale(group, factors, _matrix_number)
+            _set_group_size(group, width, height, (1.0, 1.0))
+            continue
+        dx, dy = round(left), round(top)
+        if dx or dy:
+            _shift_shapes_inside(group, -dx, -dy)
+            for shape in _all_shapes_inside(group):
+                _set_outer_scale(shape, factors, _matrix_number)
+        position = group.find(f"{_HP}pos")
+        if position is not None and position.get("treatAsChar") in ("0", "false"):
+            for axis, shift, align, start in (("horzOffset", round(dx * factors[0]), "horzAlign", "LEFT"),
+                                              ("vertOffset", round(dy * factors[1]), "vertAlign", "TOP")):
+                if shift and position.get(align, start) == start:
+                    moved = (_signed_offset(position.get(axis)) or 0) + shift
+                    position.set(axis, str(moved & 0xFFFFFFFF))
+        _set_group_size(group, width, height, factors)
+
+
+def _all_shapes_inside(group: Any) -> list[Any]:
+    found = []
+    for shape in _shapes_inside(group):
+        found.append(shape)
+        if shape.tag == f"{_HP}container" or str(shape.tag).endswith("}container"):
+            found.extend(_all_shapes_inside(shape))
+    return found
+
+
+def _set_outer_scale(shape: Any, factors: tuple[float, float], number: Any) -> None:
+    """A shape's first scaMatrix (the outermost group's, in a resized group) moving it from its new place."""
+
+    rendering = shape.find(f"{_HP}renderingInfo")
+    matrices = list(rendering) if rendering is not None else []
+    if factors == (1.0, 1.0) or len(matrices) < 5:
+        return
+    trans = _matrix(matrices[0])
+    matrices[1].set("e3", number(trans[2] * (factors[0] - 1)))
+    matrices[1].set("e6", number(trans[5] * (factors[1] - 1)))
+
+
+def _set_group_size(group: Any, width: int, height: int, factors: tuple[float, float]) -> None:
+    """A group's own size *width* x *height*, drawn at *factors* (``curSz`` 0 on an axis it leaves alone, ``hp:sz``
+    as drawn) with its rotation centre in the middle of its own size, as Hancom keeps a resized group's."""
+
+    original = group.find(f"{_HP}orgSz")
+    if original is not None:
+        original.set("width", str(width))
+        original.set("height", str(height))
+    current = group.find(f"{_HP}curSz")
+    if current is not None:
+        for side, own, factor in (("width", width, factors[0]), ("height", height, factors[1])):
+            if factor != 1:
+                current.set(side, str(int(own * factor + 1e-6)))
+            elif current.get(side, "0") != "0":  # Hancom writes 0; a group python-hwpx made, its own size
+                current.set(side, str(own))
+    size = group.find(f"{_HP}sz")
+    if size is not None:
+        size.set("width", str(round(width * factors[0])))
+        size.set("height", str(round(height * factors[1])))
+    info = group.find(f"{_HP}rotationInfo")
+    if info is not None:
+        info.set("centerX", str(width // 2))
+        info.set("centerY", str(height // 2))
+
+
+__all__ = ["ContainerMember", "fit_groups_after_removal", "member_removal_refusal"]

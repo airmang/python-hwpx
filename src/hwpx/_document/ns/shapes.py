@@ -12,15 +12,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import Sequence
 
+from ...model import Equation, InlineObject, Paragraph, Section, Shape
+from ...objects import ComposedCharacter, Ruby
+from ...oxml import ContainerMember, Style
 from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...model import Equation, InlineObject, Paragraph, Section, Shape
-    from ...objects import ComposedCharacter, Ruby
-    from ...oxml import ContainerMember, Style
 
 __all__ = ["ShapesNamespace"]
 

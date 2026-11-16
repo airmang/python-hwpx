@@ -27,7 +27,7 @@ def _form(path: Path, labels=("성명", "소속")) -> bytes:
         for row, label in enumerate(labels):
             table.cell(row, 0).text = label
             table.cell(row, 1).text = "원래 값"
-        document.save_to_path(path)
+        document.save(path)
     return path.read_bytes()
 
 
@@ -100,7 +100,7 @@ def test_patch_downgrade_never_publishes(tmp_path, monkeypatch):
             suggestion="Use a supported patch operation.",
         )
 
-    monkeypatch.setattr(HwpxDocument, "save_to_path", refuse)
+    monkeypatch.setattr(HwpxDocument, "save", refuse)
     with pytest.raises(PreservationDowngradeError):
         example.fill_existing_form(source, output, {"성명": "새 값"})
     assert source.read_bytes() == original
@@ -112,7 +112,7 @@ def test_split_run_replacement_is_not_silently_counted_as_a_completed_edit(tmp_p
     with HwpxDocument.new() as document:
         paragraph = document.add_paragraph("앞")
         paragraph.add_run("뒤")
-        document.save_to_path(source)
+        document.save(source)
     with HwpxDocument.open(source) as document:
         assert document.text.replace("앞뒤", "교체") == 0
         assert "앞뒤" in document.text.plain()

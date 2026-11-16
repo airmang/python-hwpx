@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
-from ..errors import HwpxStateError, HwpxValueError
+from ..errors import HwpxStateError, HwpxValueError, argument_type_error
 from ..objects.checkbox import CheckBox, ComboBox, EditBox, RadioButton
 from ..objects.form_field import (
     Bookmark,
@@ -256,12 +256,11 @@ def _command_direction(parameters: Sequence[dict[str, str]]) -> str:
 
 
 def _clear_form_field_layout_cache(paragraph: Any) -> int:
-    removed = 0
-    for child in list(paragraph):
-        if _local_name(child).lower() == "linesegarray":
-            paragraph.remove(child)
-            removed += 1
-    return removed
+    """Drop the line layout cache of *paragraph*, whose field or check box changed, and of the
+    paragraphs holding its table cell (or caption): a value that wraps makes the cell, and so
+    the line holding the table, taller; with the old cache Hancom draws what follows over it."""
+
+    return _clear_paragraph_layout_cache(paragraph)
 
 
 def _find_field_end_position(
@@ -1089,12 +1088,17 @@ def add_form_field(
     standard consumer would not recognize it (no special-casing by design).
     """
 
-    if not str(name).strip():
+    if not isinstance(name, str):
+        raise argument_type_error("name", name, "str", suggestion="양식에서 이 칸을 가리킬 이름을 글로 주세요.")
+    if not name.strip():
         raise HwpxValueError(
             "누름틀 이름은 비어 있을 수 없습니다.",
             code="field-name-empty",
             suggestion="양식에서 이 칸을 가리킬 이름을 지정하세요.",
         )
+    for argument, value in (("prompt", prompt), ("memo", memo)):
+        if not isinstance(value, str):
+            raise argument_type_error(argument, value, "str")
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section, include_run=False,
@@ -1192,7 +1196,11 @@ def add_check_box(
     fails loudly if the ordinary consumer would not see it.
     """
 
-    if not str(caption).strip():
+    if not isinstance(caption, str):
+        raise argument_type_error("caption", caption, "str", suggestion="Pass the caption printed next to the box.")
+    if name is not None and not isinstance(name, str):
+        raise argument_type_error("name", name, "str or None")
+    if not caption.strip():
         raise HwpxValueError(
             "check box caption must be a non-empty string",
             code="field-checkbox-caption-empty",

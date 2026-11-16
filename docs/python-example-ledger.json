@@ -14,19 +14,19 @@
     "docs/golden-api.md"
   ],
   "fenceCount": 122,
-  "sourceSha256": "b9c21bb743b195968c05da434805567e6ac66f9d72eb695cfc35b4ff78deaa13",
+  "sourceSha256": "52272246306b5a2e20236973ecde960673c4e03500d66306f28018380ad8ba8f",
   "manualSha256": {
     "README.md": "e30eeb70aa61e005b79715a239aa4770ed826b34fae11ad0d5669c558fc2bbb7",
     "README_EN.md": "de664b9e35f1047cd4f7bcc5ef9b2939af5f7f7c7aed8fe804ac2f635663c8cd",
-    "docs/quickstart.md": "e622737fc60ca596429f96146fac34b18915db2ca7892077679917c3c755e20a",
+    "docs/quickstart.md": "c5db5074ab0f274f84d9cc2f1ee9e47ce4fb50ee5091ef6f94c97749f6cab135",
     "docs/recipes-traversal.md": "c04bbb8bd0a6ff0b4bd42d0b96a99c1851cf6a2678b0f7b9bdde0aea9387110b",
-    "docs/mutation-semantics.md": "6de1471f64c1cd8db2e661c413d92bfd27221f5d930708942ac47c6aff2d608b",
-    "docs/usage.md": "d2f0b754100584356bc7acea647be2f73d97e54d19b953114730a7fa4e508f97",
-    "docs/examples.md": "81ff4fb4bfc64ac1d318ea6c1ee185439879318ddd2fcfca72aabc57dd18c5c2",
-    "docs/faq.md": "f9cd51075c06755b0040e7d338c32b765cd5fb4bac228d98541728acdc8c21f2",
-    "docs/index.md": "111754d7637414e0078ba0c7bbcf19d1a4550a68202acf3dd2c89c0748ea0050",
-    "docs/safe-write-contract.md": "c8e96e9dfec20299845d0517d65254df885099ddf4ec28cdefb3d39bf897367d",
-    "docs/golden-api.md": "c0d9bf3d9bfb99c91cce90ed958a11a2a10f831b5830d5898563738e658e3cb8"
+    "docs/mutation-semantics.md": "115ecedfc5d8b4f72ac4bfd65dd4c677930c03c747ae6f50ef8f39869bcc8857",
+    "docs/usage.md": "fa36e8941a4ab3965416111ed376e656983ae62a102605442696f891803f8bac",
+    "docs/examples.md": "c96a05803556d2542561cc01e352813e5393cda4691598d16b7285cbd6740c60",
+    "docs/faq.md": "f0e4d539d2b9f97e977a1a5a01274a2c6b1668103e89c8ba2f92dba5ef4df040",
+    "docs/index.md": "44cedc83e77ce49abb62b6a3db0f6ad3bd71d16b1dd3fd5f7054c197a980c70b",
+    "docs/safe-write-contract.md": "f330cb728c2bdb18ce227f55245b0e3d68365ed66ef541ff3abeaef4b7b3224c",
+    "docs/golden-api.md": "ce02659e4db0b968365bc6ccdb2d927c29a249b2a65973f239e4e526ddf25e49"
   },
   "classifications": {
     "standalone": {
@@ -164,7 +164,8 @@
         "docs/usage.md#86",
         "docs/faq.md#2",
         "docs/faq.md#4",
-        "docs/faq.md#5"
+        "docs/faq.md#5",
+        "docs/safe-write-contract.md#1"
       ],
       "requiredContext": [
         "The listed symbols must already exist with the type and document state described by the surrounding section.",
@@ -233,13 +234,14 @@
         ],
         "docs/faq.md#5": [
           "document"
+        ],
+        "docs/safe-write-contract.md#1": [
+          "MutationReport"
         ]
       }
     },
     "context-fragment/illustrative-signature": {
-      "ids": [
-        "docs/safe-write-contract.md#1"
-      ],
+      "ids": [],
       "requiredContext": [
         "Read the declarations as HwpxDocument method signatures, not as an implementation or standalone program."
       ]

@@ -231,7 +231,7 @@ def test_saved_and_reopened_the_references_hold(tmp_path: Path) -> None:
     doc.add_paragraph("").add_run("한글 English 漢字", char_pr_id_ref=style)
     faces = _faces(doc, style)
     path = tmp_path / "font-by-lang.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
 
     reopened = HwpxDocument.open(path)
     run = reopened.paragraphs[-1].runs[-1]

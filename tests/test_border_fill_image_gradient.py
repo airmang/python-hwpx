@@ -148,7 +148,7 @@ def test_border_fill_image_round_trips_through_save_and_reopen(tmp_path) -> None
     doc, image = _document_with_image()
     border_id = doc.styles.ensure_border_fill(fill_image=image)
     path = tmp_path / "image_fill.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     xml = _section_xml(path)
@@ -168,7 +168,7 @@ def test_border_fill_gradient_round_trips_through_save_and_reopen(tmp_path) -> N
         fill_gradient={"colors": ["#FFFFFF", "#4B87CB"], "angle": 90},
     )
     path = tmp_path / "gradient_fill.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     xml = _section_xml(path)
@@ -198,7 +198,7 @@ def test_set_cell_fill_image_applies_to_a_table_cell(tmp_path) -> None:
     assert table.cell(1, 1).element.get("borderFillIDRef") != border_fill_id
 
     path = tmp_path / "cell_image.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
     report = _open_safety(path)
     assert report["ok"] is True
@@ -215,7 +215,7 @@ def test_set_cell_fill_gradient_applies_to_a_table_cell(tmp_path) -> None:
     assert fill_brush.children[0].name == "gradation"
 
     path = tmp_path / "cell_gradient.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
     report = _open_safety(path)
     assert report["ok"] is True

@@ -626,7 +626,7 @@ def contract_document(name: str) -> str:
     if filename is None:
         raise HwpxError(
             f"미지 계약 문서 '{name}'입니다.",
-            code="unknown-contract-document",
+            code="contract-document-unknown",
             suggestion=f"가능한 이름: {', '.join(sorted(_CONTRACT_DOCS))}",
         )
     path = _CONTRACT_DOCS_DIR / filename
@@ -733,6 +733,9 @@ def _mutation_report_json_schema() -> dict[str, Any]:
                     "visual": verification_value,
                 },
             },
+            # 7.0: doc.save(..., quality=policy) 가 돌린 품질 게이트의 VisualCompleteReport.
+            # 선택 키라서 필수 키 9개(동결 계약)는 그대로다.
+            "quality": {"type": "object"},
         },
     }
 
@@ -856,7 +859,7 @@ def contract_json_schema(name: str) -> dict[str, Any]:
     if builder is None:
         raise HwpxError(
             f"미지 계약 스키마 '{name}'입니다.",
-            code="unknown-contract-schema",
+            code="contract-schema-unknown",
             suggestion=f"가능한 이름: {', '.join(sorted(_SCHEMA_BUILDERS))}",
         )
     return builder()

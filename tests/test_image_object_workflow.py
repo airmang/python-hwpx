@@ -78,7 +78,7 @@ def test_add_picture_updates_section_manifest_and_bindata_then_validates(tmp_pat
 
     source = tmp_path / "insert-picture.hwpx"
     repaired = tmp_path / "insert-picture.repaired.hwpx"
-    document.save_to_path(source)
+    document.save(source)
     _assert_repair_repack_validates(source, repaired)
 
 
@@ -155,7 +155,7 @@ def test_replace_picture_preserves_geometry_and_replaces_only_asset_graph(tmp_pa
 
     source = tmp_path / "replace-picture.hwpx"
     repaired = tmp_path / "replace-picture.repaired.hwpx"
-    document.save_to_path(source)
+    document.save(source)
     _assert_repair_repack_validates(source, repaired)
 
 
@@ -264,7 +264,7 @@ def test_an_aligned_inline_picture_takes_the_paragraph_alignment() -> None:
     # leaves it at the left edge.
     for align in ("CENTER", "RIGHT", "left"):
         document = HwpxDocument.new()
-        document.add_picture(PNG_1X1, "png", width=7200, height=7200, align=align)
+        document.add_picture(PNG_1X1, "png", width=7200, height=7200, alignment=align)
         assert _picture_paragraph_alignment(document) == align.upper()
 
 
@@ -275,7 +275,7 @@ def test_a_picture_alignment_outside_the_schema_is_refused_before_anything_is_ad
     paragraphs, images = len(document.paragraphs), len(document.media.images)
 
     with pytest.raises(HwpxValueError) as caught:
-        document.add_picture(PNG_1X1, "png", width=7200, height=7200, align=align)  # type: ignore[arg-type]
+        document.add_picture(PNG_1X1, "png", width=7200, height=7200, alignment=align)  # type: ignore[arg-type]
 
     assert caught.value.code == "shape-position-frame"
     assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)
@@ -284,7 +284,7 @@ def test_a_picture_alignment_outside_the_schema_is_refused_before_anything_is_ad
 def test_a_picture_takes_the_inside_and_outside_alignments_too() -> None:
     for align in ("INSIDE", "outside"):
         document = HwpxDocument.new()
-        document.add_picture(PNG_1X1, "png", width=7200, height=7200, align=align)
+        document.add_picture(PNG_1X1, "png", width=7200, height=7200, alignment=align)
         assert _first_picture(document).find(f"{HP}pos").get("horzAlign") == align.upper()
 
 
