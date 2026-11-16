@@ -1067,6 +1067,41 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         }
         return set_char_property_in_place(self._doc.oxml, char_pr_id_ref, changes)
 
+    def remove_unused_definitions(
+        self,
+        kinds: "Sequence[str] | None" = None,
+    ) -> dict[str, tuple[str, ...]]:
+        """목록 **끝에** 붙은, 아무도 가리키지 않는 서식 정의를 지우고 지운 id 를 돌려준다.
+
+        *kinds* 는 ``"char_properties"``·``"paragraph_properties"``·``"border_fills"``·``"tab_properties"``
+        (``doc.styles`` 의 목록 이름) 가운데 고른 것, ``None`` 이면 넷 다. 돌려주는 값은 그 이름마다 지운 id
+        (앞에서부터 차례로)다.
+
+        머리(스타일·문단 번호·다른 정의)·구역(머리말·꼬리말·각주·메모·표 칸 포함)·바탕쪽의 어느 요소도
+        그 id 를 가리키지 않으면 쓰지 않는 정의다. 목록 끝에서부터 처음으로 쓰이는 정의를 만날 때까지만
+        지우고 목록의 첫 정의는 남기므로, 다른 정의의 id 는 바뀌지 않는다(한/글처럼 id 가 빈틈없이 이어진다).
+        가운데에 있는 쓰지 않는 정의는 그대로 둔다(한/글은 저장할 때 그것까지 지우고 id 를 다시 매긴다).
+
+        ``run.set_format`` 으로 시험값 사본을 만들었다가 런을 원래 id 로 되돌린 뒤 사본을 걷어 내는
+        쓰임에 맞다. 모르는 이름은 ``style-definition-kind-invalid``.
+        """
+
+        from ...oxml.formatting import UNUSED_DEFINITION_KINDS, remove_unused_definitions
+
+        if kinds is None:
+            chosen = tuple(UNUSED_DEFINITION_KINDS)
+        else:
+            chosen = (kinds,) if isinstance(kinds, str) else tuple(kinds)
+            unknown = [kind for kind in chosen if kind not in UNUSED_DEFINITION_KINDS]
+            if unknown or not chosen:
+                raise HwpxValueError(
+                    f"unknown definition list {unknown!r}" if unknown else "no definition list given",
+                    code="style-definition-kind-invalid",
+                    context={"kinds": list(chosen)},
+                    suggestion="Pass some of " + ", ".join(UNUSED_DEFINITION_KINDS) + ", or leave kinds out.",
+                )
+        return remove_unused_definitions(self._doc.oxml, chosen)
+
     def remove_style(
         self, style: "int | str | Style", *, replacement: "int | str | Style | None" = None
     ) -> None:

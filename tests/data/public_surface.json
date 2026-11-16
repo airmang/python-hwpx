@@ -106,6 +106,7 @@
    "paragraph_properties": {"kind": "property", "settable": false, "returns": "dict[str, ParagraphProperty]"},
    "paragraph_property": {"kind": "method", "params": [["para_pr_id_ref", "P", false]], "returns": "ParagraphProperty | None"},
    "remove_style": {"kind": "method", "params": [["style", "P", false], ["replacement", "K", true]], "returns": "None"},
+   "remove_unused_definitions": {"kind": "method", "params": [["kinds", "P", true]], "returns": "dict[str, tuple[str, ...]]"},
    "replace_font": {"kind": "method", "params": [["src_face", "P", false], ["dst_face", "P", false], ["langs", "K", true], ["font_type", "K", true]], "returns": "FontReplaceReport"},
    "resolve": {"kind": "method", "params": [["spec", "P", false]], "returns": "Style"},
    "set_char_property": {"kind": "method", "params": [["char_pr_id_ref", "P", false], ["size", "K", true], ["font", "K", true], ["font_by_lang", "K", true], ["color", "K", true], ["highlight", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["strike", "K", true], ["superscript", "K", true], ["subscript", "K", true], ["letter_spacing", "K", true], ["ratio", "K", true]], "returns": "int"},

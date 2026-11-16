@@ -1327,6 +1327,8 @@ document.text.replace(
 `doc.styles.set_style_format(style, ...)`은 한/글의 스타일 고치기처럼 그 스타일을 쓰는 문단만 바꿉니다.
 `doc.styles.set_char_property(id, ...)`는 정의 자체를 제자리에서 고치므로 그 id를 가리키는 **모든** 런·스타일·문단 번호가
 함께 바뀝니다(그 문단들의 줄 배치 캐시를 지우고 지운 문단 수를 돌려줍니다).
+`run.set_format`으로 시험값 사본을 여럿 만들었다가 런을 원래 id로 되돌렸다면 `doc.styles.remove_unused_definitions()`로
+목록 끝의 쓰지 않는 사본을 걷어 냅니다(남은 정의의 id는 바뀌지 않습니다).
 
 ```python
 run = paragraph.runs[0]

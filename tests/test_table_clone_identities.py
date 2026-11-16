@@ -98,7 +98,8 @@ def test_a_clone_numbers_its_objects_and_fields_as_hancom_pastes_them(op: str, r
         assert cell.find(f".//{HP}bookmark").get("name") == "target"
     assert len(set(fresh)) == len(fresh) and not set(fresh) & numbers_before
     # Above the document's own stacking order, as Hancom stacks a paste.
-    assert sorted(int(cell.find(f".//{HP}rect").get("zOrder")) for cell in copies) == [1, 2]
+    top = max(int(node.get("zOrder")) for node in _section(source).iter() if node.get("zOrder") is not None)
+    assert sorted(int(cell.find(f".//{HP}rect").get("zOrder")) for cell in copies) == [top + 1, top + 2]
 
 
 def test_a_copied_connector_loses_its_ends_and_shapes_get_two_fresh_numbers() -> None:

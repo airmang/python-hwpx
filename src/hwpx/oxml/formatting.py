@@ -1236,6 +1236,65 @@ def set_char_property_in_place(document: "HwpxOxmlDocument", char_pr_id_ref: obj
     return cleared
 
 
+#: ``doc.styles`` name of each definition list, its ``hh:`` kind and the attribute that points at one.
+UNUSED_DEFINITION_KINDS = {
+    "char_properties": ("charPr", "charPrIDRef"),
+    "paragraph_properties": ("paraPr", "paraPrIDRef"),
+    "border_fills": ("borderFill", "borderFillIDRef"),
+    "tab_properties": ("tabPr", "tabPrIDRef"),
+}
+
+
+def remove_unused_definitions(document: "HwpxOxmlDocument", kinds: "Sequence[str]") -> dict[str, tuple[str, ...]]:
+    """``doc.styles.remove_unused_definitions``: drop the definitions at the end of each list that nothing
+    points at, so that no other id moves.
+
+    A definition is used when any element of the header, a section (its headers, footers, notes, memos and
+    cells included) or a master page names its id in the list's reference attribute (``charPrIDRef`` …, a
+    style, a numbering head, a character shape's border fill as much as a run). Only the unused ones that
+    end the list go, back to the first used one, and never the list's first definition: the ids stay
+    ``0..N-1`` (border fills ``1..N``) as Hancom writes them, with no reference to renumber.
+    """
+
+    _name = _element_local_name
+    headers = list(document.headers)
+    if not headers:
+        raise HwpxStateError("the document has no header", code="document-header-missing",
+                             suggestion="Open or make the document with HwpxDocument.")
+    trees = [header.element for header in headers] + [part.element for part in _story_parts(document)]
+    removed: dict[str, tuple[str, ...]] = {}
+    for name in kinds:
+        kind, attribute = UNUSED_DEFINITION_KINDS[name]
+        used: set[str] = set()
+        for tree in trees:
+            for node in tree.iter():
+                value = node.get(attribute) if isinstance(node.tag, str) else None
+                if value is not None:
+                    used.add(value.strip())
+        used_numbers = {int(value) for value in used if value.lstrip("-").isdigit()}
+        gone: list[str] = []
+        for header in headers:
+            container = _container(header, kind)
+            if container is None:
+                continue
+            members = [child for child in container if _name(child) == kind]
+            while len(members) > 1:
+                last = members[-1]
+                raw = (last.get("id") or "").strip()
+                if raw in used or (raw.lstrip("-").isdigit() and int(raw) in used_numbers):
+                    break
+                container.remove(last)
+                members.pop()
+                gone.append(raw)
+            if gone:
+                container.set("itemCnt", str(len(members)))
+                header.mark_dirty()
+        removed[name] = tuple(reversed(gone))
+    if removed.get("char_properties"):
+        document.invalidate_char_property_cache()
+    return removed
+
+
 def find_style_element(header: "HwpxOxmlHeader", style_id: str) -> ET.Element | None:
     styles = header._styles_element()
     if styles is None:
