@@ -28,7 +28,8 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
-from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..errors import HwpxError
+from ..oxml.namespaces import serialize_compat_root
 from ..oxml.utils import hancom_text_length
 
 if TYPE_CHECKING:
@@ -162,19 +163,40 @@ def _declared_encrypted_parts(data: bytes | None) -> frozenset[str]:
     return frozenset(declared)
 
 
-class HwpxPackageError(Exception):
+class HwpxPackageError(HwpxError):
     """Base error raised for issues related to :class:`HwpxPackage`.
 
-    When the opening code knows the reason it sets ``code`` (a kebab-case
-    ``open-*`` value from ``docs/error-codes.md``), ``suggestion`` and ``context``,
-    as :class:`hwpx.errors.HwpxError` does. They are ``None``/empty otherwise.
-    (:class:`HwpxXmlSyntaxError` keeps lxml's integer ``code`` unless the reason
-    is known, such as an encrypted document.)
+    It is a :class:`hwpx.errors.HwpxError`: ``code`` is always a kebab-case value
+    from ``docs/error-codes.md`` — the reason when the raising code knows it
+    (``open-encrypted``, ``open-safety-failed`` …), else the class's
+    :attr:`default_code` — with ``suggestion`` and ``context`` as on any
+    ``HwpxError``. It is still constructed like a plain exception (positional
+    arguments), so the subclasses that are also the exception Python or lxml
+    raised (:class:`zipfile.BadZipFile`, ``zlib.error``,
+    ``lxml.etree.XMLSyntaxError``) keep their own constructor and attributes.
+    lxml's integer error number is kept in ``lxml_code``.
     """
 
-    code: Any = None
-    suggestion: str | None = None
-    context: dict[str, Any] | None = None
+    default_code = "package-invalid"
+
+    def __init__(
+        self,
+        *args: Any,
+        code: str | None = None,
+        context: Mapping[str, Any] | None = None,
+        suggestion: str | None = None,
+    ) -> None:
+        # Skip HwpxError.__init__ (one keyword-only message) and run the next
+        # constructor in the MRO: Exception, BadZipFile, zlib.error or lxml's
+        # XMLSyntaxError(message, code, line, column, filename).
+        super(HwpxError, self).__init__(*args)
+        lxml_code = getattr(self, "code", None)
+        if isinstance(lxml_code, int):
+            self.lxml_code = lxml_code
+        self.message = str(args[0]) if args else ""
+        self.code = code if code is not None else self.default_code
+        self.context = dict(context) if context else {}
+        self.suggestion = suggestion
 
 
 class _OpenFolderError(HwpxPackageError, IsADirectoryError):
@@ -217,6 +239,8 @@ def _with_reason(
 class HwpxStructureError(HwpxPackageError):
     """Raised when the underlying HWPX package violates the required structure."""
 
+    default_code = "package-structure-invalid"
+
 
 class HwpxArchiveError(HwpxStructureError, BadZipFile):
     """The input is not a readable ZIP archive (empty, truncated, or not a ZIP).
@@ -225,6 +249,8 @@ class HwpxArchiveError(HwpxStructureError, BadZipFile):
     working; the ``zipfile`` error is the ``__cause__``.
     """
 
+    default_code = "open-archive-damaged"
+
 
 class HwpxCompressedDataError(HwpxStructureError, zlib.error):
     """A ZIP member's compressed data is damaged.
@@ -232,15 +258,19 @@ class HwpxCompressedDataError(HwpxStructureError, zlib.error):
     It is still a :class:`zlib.error`; the original is the ``__cause__``.
     """
 
+    default_code = "open-archive-damaged"
+
 
 class HwpxXmlSyntaxError(HwpxStructureError, etree.XMLSyntaxError):
     """An XML part of the package is not well-formed.
 
-    It is still an :class:`lxml.etree.XMLSyntaxError` (``position``, ``lineno``
-    and ``code`` are kept); the original is the ``__cause__``. ``part_name`` is
-    the part that failed when the caller knew it, else ``None``.
+    It is still an :class:`lxml.etree.XMLSyntaxError` (``position`` and
+    ``lineno`` are kept; lxml's integer error number is ``lxml_code``, since
+    ``code`` is the python-hwpx code); the original is the ``__cause__``.
+    ``part_name`` is the part that failed when the caller knew it, else ``None``.
     """
 
+    default_code = "package-xml-invalid"
     part_name: str | None = None
 
     @classmethod
@@ -454,19 +484,7 @@ def _serialize_hwpml_root(root: etree._Element) -> bytes:
     local_name = _local_name(root)
     if local_name not in {"sec", "head"}:
         return serialize_xml(root, xml_declaration=True)
-
-    wrapped = etree.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
-    wrapped.attrib.update(root.attrib)
-    wrapped.text = root.text
-    wrapped.tail = root.tail
-    for child in root:
-        wrapped.append(child)
-    return etree.tostring(
-        wrapped,
-        encoding="UTF-8",
-        xml_declaration=True,
-        standalone=True,
-    )
+    return serialize_compat_root(root)
 
 
 def _normalize_hwpml_root_payload(path: str, payload: bytes) -> bytes:
@@ -1572,7 +1590,13 @@ class HwpxPackage:
         if not report.ok:
             raise HwpxPackageError(
                 "Generated HWPX package failed open-safety validation: "
-                + report.summary
+                + report.summary,
+                code="open-safety-failed",
+                context={"summary": report.summary},
+                suggestion=(
+                    "The serialized package would not reopen in an HWPX editor; "
+                    "inspect validate_editor_open_safety(...) for the failing checks."
+                ),
             )
         return report
 

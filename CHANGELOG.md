@@ -411,6 +411,17 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- 열기 안전 검사가 저장을 거부할 때 `to_bytes()`·`save()`가 code 없는 `HwpxPackageError`를 내던 문제를 고쳤다. 이제 엔진 계약대로
+  `code="open-safety-failed"`·`suggestion`을 싣는다. `HwpxPackageError`·`HwpxStructureError` 계열(`HwpxArchiveError` 등)과
+  `HwpxSecurityError`도 `HwpxError`를 상속해 늘 code를 낸다(`package-invalid`·`open-input-unsafe` 등). 앞에서 잡던 형식으로도 그대로
+  잡힌다. `HwpxXmlSyntaxError.code`는 이제 이 code이고 lxml의 숫자는 `lxml_code`에 있다.
+- 한 번도 글을 넣지 않은 칸(한/글이 런 없는 `<hp:p/>`로 저장한 칸) 옆에 `insert_rows`·`insert_columns`로 빈 행·열을 넣거나 그 칸을
+  `split_cell`로 나누면 `XMLSyntaxError`가 나던 문제를 고쳤다.
+- 아주 큰 표가 든 문서에서 행 넣기와 저장이 표 크기의 제곱으로 느려지던 문제를 고쳤다. 글자 모양 캐시가 매번 머리 전체를 다시
+  읽었고(표의 쪽 높이 어림이 칸마다 글자 모양을 찾는다), 구역을 쓸 때 모든 자식을 새 뿌리로 옮겼다. 결과 바이트는 같다.
+- 글머리표를 처음 만드는 문서(`doc.styles.apply_list_format(kind="bullet")`, `doc.styles.ensure_bullet()`)가 `hh:bullets`를 머리의 맨 뒤에
+  두어 `doc.validate()`의 스키마 검사에 걸리던 문제를 고쳤다. 이제 한/글 저장본과 스키마처럼 `hh:numberings` 바로 뒤에 둔다(새로 만드는
+  `hh:styles`·`hh:trackChanges`·`hh:trackChangeAuthors`도 같은 차례를 따른다).
 - 한/글 2024가 저장한 날짜 코드(`SUMMERY`)나 교정 부호(덧붙임 줄·덧붙임·잘라냄)가 든 문서를 고치지 않고 저장해도 "한/글이
   열기를 거부한다"며 막던 것을 고쳤다. 문서를 이어 붙일 때도 이 필드의 `fieldid`를 한/글이 쓰는 제어 id로 둔다.
 - `doc.styles.char_property(id)`·`char_properties`·`run.size` 등이 XML(`.element`)로 더하거나 고친 글자 모양을 저장 전까지 못 보던

@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 331 | 11 |
+| 개수 | 335 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -219,6 +219,7 @@ except HwpxError as exc:
 | `open-encrypted` | 암호가 걸린 HWPX 다(HwpxXmlSyntaxError, lxml 의 숫자 코드는 lxml_code 에). |
 | `open-hwp3-unsupported` | HWP 3.x 이하 .hwp 문서다(열지 못한다). |
 | `open-hwp5-not-package` | HwpxPackage.open 에 HWP 5.0(.hwp) 파일을 주었다(HwpxDocument.open 으로 연다). |
+| `open-input-unsafe` | 입력이 안전한 읽기 한도(ZIP 항목 수·크기·압축률·경로, XML 크기·깊이)를 넘었다(HwpxSecurityError, ValueError 이기도 하다). |
 | `open-invalid-type` | HwpxDocument.open 에 경로·bytes·이진 스트림이 아닌 값을 주었다. |
 | `open-is-folder` | 문서 파일 대신 폴더 경로를 주었다(IsADirectoryError 이기도 하다). |
 | `open-not-hwp` | 확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다. |
@@ -229,7 +230,10 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `package-invalid` | 패키지(HwpxPackage)가 계약을 어겼다(까닭을 따로 가리지 않은 HwpxPackageError 기본값). |
+| `package-structure-invalid` | HWPX 패키지 구조가 요구를 어겼다(HwpxStructureError 기본값). |
 | `package-text-replacement-key-empty` | 치환할 텍스트(키)가 비어 있다. |
+| `package-xml-invalid` | 패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에). |
 
 ### `page-*`
 

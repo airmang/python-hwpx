@@ -285,16 +285,24 @@ class CharPropertyCache:
 
     def __init__(self) -> None:
         self._stamp: tuple[Any, ...] | None = None
+        # The ``hh:charProperties`` elements the stamp was taken from. Holding them keeps lxml's
+        # proxies alive, so the next lookup finds the very same objects and ``id()`` in the stamp
+        # stays meaningful; without it a proxy freed between reads could come back with another
+        # id and every read parsed every shape again (a big table's page estimate looks a shape
+        # up per cell: quadratic).
+        self._boxes: list[Any] = []
         self._entries: dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]] = {}
 
     def clear(self) -> None:
         self._stamp = None
+        self._boxes = []
         self._entries = {}
 
     def _fresh(self, headers: Sequence[Any]) -> dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]]:
         boxes = [_char_property_box(header.element) for header in headers]
         stamp = tuple((id(box), -1 if box is None else len(box)) for box in boxes)
         if stamp != self._stamp:
+            self._boxes = boxes
             entries: dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]] = {}
             for header in headers:  # a later header's shape wins, as it always did
                 for key, (style, definition) in _char_property_entries(header.element).items():

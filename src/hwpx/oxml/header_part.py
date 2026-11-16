@@ -79,6 +79,28 @@ if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
 
 
+#: ``hh:refList`` children in the order the OWPML schema (``owpml-header.xsd``) and
+#: Hancom's saves have them.
+_REF_LIST_ORDER = (
+    "fontfaces", "borderFills", "charProperties", "tabProperties", "numberings", "bullets",
+    "paraProperties", "styles", "memoProperties", "trackChanges", "trackChangeAuthors",
+)
+
+
+def _insert_in_ref_list_order(ref_list: Any, element: Any, tag: str) -> None:
+    """Put a new ``refList`` child *element* (local name *tag*) where the schema orders it:
+    before the first child that comes after it. A name outside the order goes last."""
+
+    if tag in _REF_LIST_ORDER:
+        rank = _REF_LIST_ORDER.index(tag)
+        for index, child in enumerate(ref_list):
+            name = tag_local_name(child.tag) if isinstance(child.tag, str) else ""
+            if name in _REF_LIST_ORDER and _REF_LIST_ORDER.index(name) > rank:
+                ref_list.insert(index, element)
+                return
+    ref_list.append(element)
+
+
 class HwpxOxmlHeader:
     """Represents a header XML part."""
 
@@ -140,7 +162,7 @@ class HwpxOxmlHeader:
         element = ref_list.find(f"{_HH}{tag}")
         if element is None and create:
             element = ref_list.makeelement(f"{_HH}{tag}", {"itemCnt": "0"})
-            ref_list.append(element)
+            _insert_in_ref_list_order(ref_list, element, tag)
             self.mark_dirty()
         return element
 
@@ -821,7 +843,7 @@ class HwpxOxmlHeader:
         element = ref_list.find(f"{_HH}styles")
         if element is None and create:
             element = ref_list.makeelement(f"{_HH}styles", {"itemCnt": "0"})
-            ref_list.append(element)
+            _insert_in_ref_list_order(ref_list, element, "styles")
             self.mark_dirty()
         return element
 
@@ -838,7 +860,7 @@ class HwpxOxmlHeader:
         element = ref_list.find(f"{_HH}trackChanges")
         if element is None:
             element = ref_list.makeelement(f"{_HH}trackChanges", {"itemCnt": "0"})
-            ref_list.append(element)
+            _insert_in_ref_list_order(ref_list, element, "trackChanges")
             self.mark_dirty()
         return element
 
@@ -855,7 +877,7 @@ class HwpxOxmlHeader:
         element = ref_list.find(f"{_HH}trackChangeAuthors")
         if element is None:
             element = ref_list.makeelement(f"{_HH}trackChangeAuthors", {"itemCnt": "0"})
-            ref_list.append(element)
+            _insert_in_ref_list_order(ref_list, element, "trackChangeAuthors")
             self.mark_dirty()
         return element
 

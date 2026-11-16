@@ -1562,11 +1562,11 @@ def _empty_cell_like(tc: str) -> str:
     paragraph's paragraph shape and the first run's character shape kept."""
     p_open = re.search(r"<hp:p\b[^>]*>", tc)
     char = re.search(r'<hp:run\b[^>]*\bcharPrIDRef="(\d+)"', tc)
-    paragraph = (
-        (p_open.group(0) if p_open else '<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" '
-         'columnBreak="0" merged="0">')
-        + f'<hp:run charPrIDRef="{char.group(1) if char else 0}"><hp:t/></hp:run></hp:p>'
-    )
+    opening = p_open.group(0) if p_open else (
+        '<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">')
+    if opening.endswith("/>"):  # a paragraph with no run, as Hancom saves an empty cell: open it
+        opening = opening[:-2].rstrip() + ">"
+    paragraph = opening + f'<hp:run charPrIDRef="{char.group(1) if char else 0}"><hp:t/></hp:run></hp:p>'
     return re.sub(r"(<hp:subList\b[^>]*>).*(</hp:subList>)", lambda m: m.group(1) + paragraph + m.group(2),
                   tc, count=1, flags=re.S)
 
