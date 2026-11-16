@@ -355,7 +355,7 @@
       "path": "src/hwpx/model.py",
       "disposition": "core",
       "approvedBy": "062-engine-surface/WP-A",
-      "rationale": "stable 메서드가 반환하는 oxml 클래스의 계약 이름(별칭 재수출). 래퍼가 아니라 같은 객체이며, 계약은 tests/data/model_surface.json 의 멤버 allowlist다 — 'oxml은 비공개인데 stable이 반환한다'는 5.x 자기모순의 해소"
+      "rationale": "stable 메서드가 반환하는 oxml 클래스의 계약 이름(별칭 재수출). 래퍼가 아니라 같은 객체이며, 계약은 tests/data/public_surface.json 의 model 층(멤버 allowlist)이다 — 'oxml은 비공개인데 stable이 반환한다'는 5.x 자기모순의 해소"
     },
     {
       "path": "src/hwpx/objects/__init__.py",
