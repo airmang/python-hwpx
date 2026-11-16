@@ -77,8 +77,11 @@ _FONT_REF_TO_FACE_LANG = {attr: lang for lang, attr in _FONT_FACE_LANG_TO_REF.it
 #: risk a silent wrong remap -- see the contract doc's "보류" section for the
 #: evidence behind each. Checked on the *source* content being copied, before
 #: any mutation happens (fail before touching anything, not partway through).
-_REJECTED_LOCAL_TAGS = (f"{_HP}connectLine",)
-_REJECTED_ATTRS = ("linkListIDRef", "linkListNextIDRef", "chartIDRef")
+#: Connectors and charts are carried since objlim: a chart part takes the first ``Chart/chartN.xml`` the target
+#: does not use (Hancom 2024's 문서 끼워 넣기, evidence merge2), a connector stays attached to the shapes it joined,
+#: which come along with their new instance ids (see :func:`_carry_connectors_and_charts`).
+_REJECTED_LOCAL_TAGS: tuple[str, ...] = ()
+_REJECTED_ATTRS = ("linkListIDRef", "linkListNextIDRef")
 #: Sentinel values for a rejected attribute that mean "not actually used,"
 #: safe to pass through rather than reject. Found by team-lead's
 #: independent verification (not assumed in advance): a census of the
@@ -631,6 +634,52 @@ def _remap_binary_items(
     return remap
 
 
+def _follow_clones(copies: list[Any], clones: list[Any]) -> None:
+    """Re-point the connectors in *clones* (the section's own copies of *copies*, made by
+    ``insert_paragraphs`` with fresh instance ids) at the shapes' new ids there."""
+
+    renewed: dict[str, str] = {}
+    for copy, clone in zip(copies, clones):
+        for before, after in zip(copy.iter(), clone.iter()):
+            old = before.get("instid")
+            if old not in (None, "", "0"):
+                renewed[str(old)] = str(after.get("instid"))
+    _reattach_connectors(clones, renewed)
+
+
+def _reattach_connectors(paragraphs: list[Any], renewed: dict[str, str]) -> None:
+    """Point every connector end in the copied *paragraphs* at the new instance id of the shape it joined
+    (*renewed*: old id to new). Hancom 2024's own 문서 끼워 넣기 let the ends go (``subjectIDRef="0"``, objlim
+    merge) and then drew no connector at all (its page image shows the two shapes without it); a connector
+    attached to shapes is the form Hancom keeps when it saves a document (keepsrc), so the copy stays attached.
+    An end whose shape did not come along lets go."""
+
+    for paragraph in paragraphs:
+        for node in paragraph.iter(f"{_HP}startPt", f"{_HP}endPt"):
+            subject = node.get("subjectIDRef")
+            if subject not in (None, "", "0"):
+                node.set("subjectIDRef", renewed.get(subject, "0"))
+
+
+def _carry_connectors_and_charts(source: HwpxDocument, target: HwpxDocument, paragraphs: list[Any]) -> None:
+    """Carry the charts in the copied *paragraphs* as Hancom 2024's 문서 끼워 넣기 does (objlim evidence merge2):
+    each chart's part is written to the first ``Chart/chartN.xml`` the target does not use, the chart pointing
+    at it. (Connectors follow their shapes: :func:`_reattach_connectors`.)"""
+
+    for paragraph in paragraphs:
+        for node in paragraph.iter():
+            chart = node.get("chartIDRef")
+            if not chart or not source._package.has_part(chart):
+                continue
+            used = {name for name in target._package.part_names() if name.startswith("Chart/")}
+            number = 1
+            while f"Chart/chart{number}.xml" in used:
+                number += 1
+            name = f"Chart/chart{number}.xml"
+            target._package.write(name, source._package.read(chart))
+            node.set("chartIDRef", name)
+
+
 def _deep_copy_element(element: Any) -> Any:
     return _copy.deepcopy(element)
 
@@ -1157,6 +1206,9 @@ def _merge_paragraphs(
     )
     memo_shape = _remap_memo_properties(source_header, target_header, remap_scope)
     binary_item = _remap_binary_items(source, target, source_header, target_header, remap_scope)
+    _carry_connectors_and_charts(source, target, remap_scope)
+    instance_ids = [(node, node.get("instid")) for copy in copies for node in copy.iter()
+                    if node.get("instid") not in (None, "", "0")]
     # hh:heading (numbering/bullet's own polymorphic idRef) lives inside the
     # just-copied paraPr items, not the body paragraphs -- scan those.
     headings = _remap_headings(source_header, target_header, para_pr_clones)
@@ -1206,6 +1258,7 @@ def _merge_paragraphs(
 
     for copy in copies:
         _refresh_copied_paragraph_subtree_ids(copy)
+    _reattach_connectors(copies, {old: str(node.get("instid")) for node, old in instance_ids})
     # memo_clones already had _refresh_copied_paragraph_subtree_ids applied
     # to each individually inside _copy_referenced_memos (needed there, to
     # give each clone a fresh memo id + fresh nested paraList paragraph ids
@@ -1328,7 +1381,8 @@ def append_document(
         target_section = target.sections[target_section_index]
         if copies:
             index = len(target_section.paragraphs)
-            target_section.insert_paragraphs(index, copies)
+            inserted = target_section.insert_paragraphs(index, copies)
+            _follow_clones(copies, [paragraph.element for paragraph in inserted])
         _insert_memos_into_target_section(target_section, memo_clones)
         report["position"] = "end"
         report["targetSectionIndex"] = target_section_index
@@ -1386,7 +1440,8 @@ def insert_document(
                 suggestion="Use -1 to insert before the first paragraph, or 0..N-1.",
             )
         if copies:
-            target_section.insert_paragraphs(after_paragraph_index + 1, copies)
+            inserted = target_section.insert_paragraphs(after_paragraph_index + 1, copies)
+            _follow_clones(copies, [paragraph.element for paragraph in inserted])
         relocated = after_paragraph_index == -1 and bool(copies) and _move_section_setup_to_first_paragraph(
             target_section
         )

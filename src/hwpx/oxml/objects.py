@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Sequence, cast
-import warnings
 import xml.etree.ElementTree as ET
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
@@ -27,8 +26,8 @@ from ._document_primitives import (
 from .shape_position import (
     DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, equation_font_size, fill_color_of, keep_ratio,
     line_width_mm_of, line_width_units, object_size,
-    apply_rotation, picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
-    resize_object, rotation_base_size,
+    picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
+    resize_object, resize_shape, resize_turned_group, _group_member_refused, _in_group,
     set_equation_font, set_equation_font_size, set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
     _object_set_position, build_at_original_size, fit_new_floating_object, refuse_resizing_flipped, resize_group,
@@ -107,7 +106,9 @@ class HwpxOxmlInlineObject(ObjectPlacement):
         ``hp:sz`` and ``hp:curSz`` take the new size and ``hc:scaMatrix`` scales the original size
         (``hp:orgSz``) to it, as Hancom saves a resized picture. A size that is not an int in
         ``0 <= value < 2**31`` is refused with ``shape-size-value``. The paragraph loses its line
-        layout cache. An equation's box follows its script: change that with ``equation.script = ...``.
+        layout cache. An equation is refused (``shape-equation-resize-unsupported``): its box follows its
+        script and font size, and Hancom 2024 measures it again whatever size it is given -- change
+        ``equation.script`` or ``equation.font_size`` instead.
         """
 
         resize_object(self, width, height)
@@ -943,9 +944,14 @@ def _paragraph_add_picture(
     """
 
     if pos_overrides and treat_as_char:
-        raise ValueError(
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
             "pos_overrides is for floating placement; pass treat_as_char=False "
-            "(a PAPER-relative <hp:pos> on an inline pic is contradictory)"
+            "(a PAPER-relative <hp:pos> on an inline pic is contradictory)",
+            code="shape-position-unsupported",
+            context={"pos_overrides": sorted(pos_overrides)},
+            suggestion="Pass treat_as_char=False with pos_overrides, or drop pos_overrides.",
         )
 
     element = _create_picture_element(  # checked before its run is added
@@ -1537,6 +1543,40 @@ class HwpxOxmlShape(ObjectPlacement):
             for child in self.element if _element_local_name(child) in names
         )
 
+    def ungroup(self) -> "tuple[HwpxOxmlShape | HwpxOxmlInlineObject, ...]":
+        """Take this group (``hp:container``) apart as Hancom does and return its members, now objects of their
+        own in this paragraph, in the order they stand there (the last member first, as Hancom puts them).
+
+        Each is drawn where it was in the group: its own matrices are kept (the group's turn and stretch with
+        them), its box (``hp:sz``) is the box it is drawn in, and it is placed from the group's frames at the
+        group's offsets plus where it starts in the group, with the group's text wrapping and outer margins, a
+        new ``id`` and a ``zOrder`` above the others. Turned members keep the group's angle. This is what Hancom
+        2024 wrote for groups ungrouped plain, stretched and turned 30 and 90 degrees; Hancom also hangs a
+        member on the paragraph at whose height it starts, here it stays in this paragraph at the same spot.
+
+        Refused with ``shape-ungroup-unsupported`` (``context["reason"]``) before anything changes: a shape
+        that is not a group, a group set as a character or placed from another side than the left and top, a
+        flipped group, one holding a group, one turned and then stretched (skewed), and one with a member turned
+        or flipped on its own. The paragraph
+        loses its line layout cache; this group object should not be used after it.
+        """
+
+        from .container import _ungroup_refused, ungroup_elements, ungroup_refusal
+        from .shape_position import _top_z_order
+
+        if self.shape_type != "container":
+            raise _ungroup_refused("it is not a group")
+        if _in_group(self.element, self.paragraph.element):
+            raise _ungroup_refused("it is a group inside a group: ungroup the outer group first")
+        why = ungroup_refusal(self.element)
+        if why is not None:
+            raise _ungroup_refused(why)
+        freed = ungroup_elements(self.element, int(_top_z_order(self.paragraph.section)))
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
+        return tuple(cast("HwpxOxmlShape | HwpxOxmlInlineObject", wrap_object(element, self.paragraph))
+                     for element in freed)
+
     @property
     def width(self) -> int:
         sz = self.element.find(f"{_HP}sz")
@@ -1552,117 +1592,36 @@ class HwpxOxmlShape(ObjectPlacement):
         return 0
 
     def resize(self, width: int | None = None, height: int | None = None) -> None:
-        """Resize the shape, including the geometry Hancom actually draws. Give *width* or *height*
-        alone to keep the aspect ratio.
+        """Draw the shape *width* x *height* (HWPUNIT); give one alone to keep the aspect ratio.
 
-        Hancom renders a drawing object from its type-specific geometry
-        (``pt0``–``pt3`` for a rectangle, ``center``/``ax1``/``ax2`` for an
-        ellipse, ``startPt``/``endPt`` for a line) scaled by ``scaMatrix`` —
-        not from ``sz``.  Updating the size elements alone reports a new size
-        while the document keeps drawing the old one, so the geometry is
-        scaled by the same per-axis ratio and ``scaMatrix`` is reset to
-        identity.
-
-        An axis with no current extent — the height of a perfectly horizontal
-        line — has no geometry to scale.  Its coordinates are left alone and a
-        :class:`UserWarning` is raised, because the drawn shape cannot follow
-        the requested size.
+        As Hancom 2024 resizes a drawing object: its geometry (``pt0``-``pt3``, ``center``/``ax1``/``ax2``,
+        ``startPt``/``endPt`` ...) and original size (``hp:orgSz``) stay, and ``hc:scaMatrix`` draws it at
+        the new size (``hp:sz``; ``hp:curSz`` the new size on an axis that differs from ``orgSz``, 0 on one
+        that does not). A horizontal or vertical line takes a height or width that way too (its ``orgSz``
+        keeps 1 there). A turned shape is resized as drawn before turning and turned again. A group's
+        members are stretched with it (see ``shape_position.resize_group``); a turned group is stretched
+        along the page so the box around it becomes *width* x *height*, its turn kept
+        (``shape_position.resize_turned_group``). Refused: a flipped shape (``shape-flip-unsupported``), a
+        stretched turned group or one holding a group (``shape-rotation-unsupported``), and a member of a
+        group alone (``shape-group-member-unsupported``: a member is resized with its group). A size that is
+        not an int in ``0 <= value < 2**31`` is ``shape-size-value``. The paragraph loses its line layout
+        cache.
         """
         refuse_resizing_flipped(self.element)
+        if _in_group(self.element, self.paragraph.element):
+            raise _group_member_refused("resized", "a member is resized with its whole group: no Hancom-saved "
+                                                   "document shows one resized alone")
         angle = self.rotation % 360
-        own = rotation_base_size(self.element) if angle else (self.width, self.height)  # a turned one: its own size
-        width, height = keep_ratio(own, width, height)
-        _clear_paragraph_layout_cache(self.paragraph.element)  # its line is as tall as the shape set as a character
-        if self.shape_type == "container" and resize_group(self, width, height):
-            return  # a group is drawn at its sz: see shape_position.resize_group
-        old_width, old_height = self._geometry_size()
-        for tag in ("sz", "orgSz", "curSz"):
-            child = self.element.find(f"{_HP}{tag}")
-            if child is not None:
-                # orgSz/curSz keep at least 1 on each side (see _create_line_element).
-                floor = 0 if tag == "sz" else 1
-                child.set("width", str(max(width, floor)))
-                child.set("height", str(max(height, floor)))
-        rot = self.element.find(f"{_HP}rotationInfo")
-        if rot is not None:
-            rot.set("centerX", str(width // 2))
-            rot.set("centerY", str(height // 2))
-        self._scale_geometry(old_width, old_height, width, height)
-        if angle:  # its box is the box around it turned: write the turn again at the new size
-            apply_rotation(self.element, angle, max(width, 1), max(height, 1))
-        self.paragraph.section.mark_dirty()
-
-    def _geometry_size(self) -> tuple[int, int]:
-        """Return the size the type-specific geometry is expressed in.
-
-        That is ``orgSz``: in the corpus fixtures a shape's geometry always
-        matches ``orgSz`` even when ``sz`` differs because ``scaMatrix``
-        scales it. A line's comes from its endpoints, since its ``orgSz``
-        keeps at least 1 on a side the line does not extend along.
-        """
-        start = self.element.find(f"{_HC}startPt")
-        end = self.element.find(f"{_HC}endPt")
-        if self.shape_type == "line" and start is not None and end is not None:
-            try:
-                return (
-                    abs(int(end.get("x", "0")) - int(start.get("x", "0"))),
-                    abs(int(end.get("y", "0")) - int(start.get("y", "0"))),
-                )
-            except ValueError:
-                return 0, 0
-        for tag in ("orgSz", "sz"):
-            child = self.element.find(f"{_HP}{tag}")
-            if child is None:
-                continue
-            try:
-                return int(child.get("width", "0")), int(child.get("height", "0"))
-            except ValueError:
-                return 0, 0
-        return 0, 0
-
-    def _scale_geometry(
-        self,
-        old_width: int,
-        old_height: int,
-        width: int,
-        height: int,
-    ) -> None:
-        flat_axes = [
-            name
-            for name, old, new in (
-                ("width", old_width, width), ("height", old_height, height),
-            )
-            if old <= 0 < new
-        ]
-        if flat_axes:
-            warnings.warn(
-                f"{self.shape_type} has no {' or '.join(flat_axes)} to scale; "
-                "its geometry keeps the old coordinates and the shape will "
-                "not be drawn at the requested size",
-                UserWarning,
-                stacklevel=3,
-            )
-
-        x_ratio = width / old_width if old_width > 0 else 1.0
-        y_ratio = height / old_height if old_height > 0 else 1.0
-        for child in self.element:
-            local = _element_local_name(child)
-            if local in _SHAPE_POINT_LOCAL_NAMES:
-                pairs = _SHAPE_POINT_ATTR_PAIRS
-            elif local == "seg":
-                pairs = _SHAPE_SEGMENT_ATTR_PAIRS
-            else:
-                continue
-            _scale_coordinates(child, pairs, x_ratio, y_ratio)
-
-        rendering = self.element.find(f"{_HP}renderingInfo")
-        if rendering is not None:
-            sca = rendering.find(f"{_HC}scaMatrix")
-            if sca is not None:
-                for key, value in _IDENTITY_MATRIX.items():
-                    sca.set(key, value)
-
-    # --- line shape access -------------------------------------------------
+        if self.shape_type == "container":
+            if angle:
+                width, height = keep_ratio((self.width, self.height), width, height)
+                resize_turned_group(self, width, height)
+                return
+            width, height = keep_ratio((self.width, self.height), width, height)
+            _clear_paragraph_layout_cache(self.paragraph.element)  # its line is as tall as the shape set as a character
+            if resize_group(self, width, height):
+                return  # a group is drawn at its sz: see shape_position.resize_group
+        resize_shape(self, width, height)
 
     @property
     def line_color(self) -> str | None:

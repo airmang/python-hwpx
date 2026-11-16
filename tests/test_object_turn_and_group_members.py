@@ -197,15 +197,14 @@ def test_a_group_made_with_a_group_inside_is_valid_and_its_inner_member_leaves()
     _reopen(doc)
 
 
-def test_the_last_member_and_a_turned_group_refuse() -> None:
+def test_the_last_member_takes_its_group_and_a_turned_group_refuses() -> None:
     doc = HwpxDocument.new()
-    group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
-                                                  ContainerMember.rect(5000, 0, 2000, 2000)])
+    paragraph = doc.add_paragraph("")
+    group = paragraph.add_container([ContainerMember.rect(0, 0, 4000, 2000),
+                                     ContainerMember.rect(5000, 0, 2000, 2000)])
     group.members[0].remove()
-    with pytest.raises(HwpxValueError) as caught:
-        group.members[0].remove()
-    assert caught.value.code == "shape-group-member-unsupported"
-    assert "only member" in caught.value.context["reason"]
+    group.members[0].remove()  # no Hancom document holds an empty group: the group goes with it
+    assert paragraph.objects == ()
     turned = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
                                                    ContainerMember.rect(5000, 0, 2000, 2000)])
     turned.element.find(f"{HP}rotationInfo").set("angle", "30")

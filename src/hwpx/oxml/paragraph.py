@@ -820,7 +820,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlInlineObject:
-        """Insert a generic shape element.
+        """Insert a generic shape element -- an escape hatch outside the contract, like ``.element``
+        (not in the public surface lock; it may change between releases).
 
         This is a low-level escape hatch: it writes the element and the
         attributes it is handed and nothing else, so the result is **not a
@@ -834,7 +835,10 @@ class HwpxOxmlParagraph(ParagraphFormats):
         child structure.
         """
         if not shape_type:
-            raise ValueError("shape_type must be a non-empty string")
+            from ..errors import HwpxValueError
+
+            raise HwpxValueError("shape_type must be a non-empty string", code="shape-raw-tag-empty",
+                                 suggestion="Pass the local name of the hp: element to write, e.g. 'rect'.")
         run = self._create_run_for_object(
             run_attributes,
             char_pr_id_ref=char_pr_id_ref,
@@ -901,7 +905,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
     ) -> HwpxOxmlInlineObject:
-        """Insert a generic ``<hp:ctrl>`` control element.
+        """Insert a generic ``<hp:ctrl>`` control element -- an escape hatch outside the contract, like
+        ``.element`` (not in the public surface lock; it may change between releases).
 
         This is a low-level escape hatch: an ``<hp:ctrl>`` carries no meaning
         of its own — the control it represents is its child element (
