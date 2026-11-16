@@ -153,10 +153,11 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    「오류 계약」대로).
    `tests/test_error_contract.py::test_the_public_path_raises_no_bare_builtins`,
    `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`
-9. **공개 이름은 다음 major까지 얼린다.** 7.0의 공개 이름(루트 표면과 `hwpx.model` 의 계약
-   멤버)은 8.0 전에는 지우거나 바꾸지 않는다. 락 파일과 다르면 테스트가 실패한다.
-   `tests/test_document_facade_surface.py::test_document_facade_public_surface_is_frozen`,
-   `tests/test_engine_surface_6_0.py::test_model_surface_lock_matches_the_live_classes`
+9. **공개 이름은 다음 major까지 얼린다.** 7.0의 공개 이름(최상위·루트·묶음·`hwpx.model` 의 계약
+   멤버·`hwpx.objects` 값 형식·안정 모듈 이름)은 8.0 전에는 지우거나 바꾸지 않는다. 공개 표면
+   잠금(`tests/data/public_surface.json`)과 다르면 테스트가 실패한다.
+   `tests/test_public_surface.py::test_public_surface_matches_the_lock`,
+   `tests/test_public_surface.py::test_lock_major_is_not_behind_the_package`
 
 ## stable (29)
 
