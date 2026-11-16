@@ -352,7 +352,7 @@ def test_an_unnamed_field_is_not_found_by_name_but_by_index() -> None:
             doc.fields.fill("2026-09-28", name=name)
         assert raised.value.code == "field-not-found"
 
-    result = doc.fields.fill("2026-09-28", field_index=1)
+    result = doc.fields.fill("2026-09-28", index=1)
     assert result.field.name == ""
     assert result.field.value == "2026-09-28"
 

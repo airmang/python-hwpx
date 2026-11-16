@@ -33,7 +33,7 @@ def _header_xml(document: HwpxDocument) -> str:
 def test_set_compatible_document_target_program_round_trips() -> None:
     document = HwpxDocument.new()
 
-    document.parts.set_compatible_document_target_program("HWP201X")
+    document.parts.set_document_options(target_program="HWP201X")
     data = document.to_bytes()
 
     reopened = HwpxDocument.open(data)
@@ -46,13 +46,13 @@ def test_set_compatible_document_target_program_rejects_empty_string() -> None:
     document = HwpxDocument.new()
 
     with pytest.raises(HwpxValueError, match="non-empty"):
-        document.parts.set_compatible_document_target_program("")
+        document.parts.set_document_options(target_program="")
 
 
 def test_set_layout_compatibility_flags_round_trips() -> None:
     document = HwpxDocument.new()
 
-    document.parts.set_layout_compatibility_flags(["applyFontWeightToBold"])
+    document.parts.set_document_options(layout_compatibility=["applyFontWeightToBold"])
     data = document.to_bytes()
 
     reopened = HwpxDocument.open(data)
@@ -64,9 +64,9 @@ def test_set_layout_compatibility_flags_round_trips() -> None:
 
 def test_set_layout_compatibility_flags_empty_clears_existing() -> None:
     document = HwpxDocument.new()
-    document.parts.set_layout_compatibility_flags(["applyFontWeightToBold"])
+    document.parts.set_document_options(layout_compatibility=["applyFontWeightToBold"])
 
-    document.parts.set_layout_compatibility_flags([])
+    document.parts.set_document_options(layout_compatibility=[])
     data = document.to_bytes()
 
     reopened = HwpxDocument.open(data)
@@ -78,14 +78,14 @@ def test_set_layout_compatibility_flags_rejects_empty_flag_name() -> None:
     document = HwpxDocument.new()
 
     with pytest.raises(HwpxValueError, match="non-empty"):
-        document.parts.set_layout_compatibility_flags([""])
+        document.parts.set_document_options(layout_compatibility=[""])
 
 
 def test_set_doc_option_link_info_round_trips() -> None:
     document = HwpxDocument.new()
 
-    document.parts.set_doc_option_link_info(
-        path="C:\\master.hwpx", page_inherit=True, footnote_inherit=True
+    document.parts.set_document_options(
+        link_path="C:\\master.hwpx", page_inherit=True, footnote_inherit=True
     )
     data = document.to_bytes()
 
@@ -99,9 +99,9 @@ def test_set_doc_option_link_info_round_trips() -> None:
 
 def test_set_doc_option_link_info_partial_update_leaves_others_unchanged() -> None:
     document = HwpxDocument.new()
-    document.parts.set_doc_option_link_info(path="", page_inherit=True, footnote_inherit=False)
+    document.parts.set_document_options(link_path="", page_inherit=True, footnote_inherit=False)
 
-    document.parts.set_doc_option_link_info(page_inherit=False)
+    document.parts.set_document_options(page_inherit=False)
     data = document.to_bytes()
 
     reopened = HwpxDocument.open(data)
@@ -118,7 +118,7 @@ def test_set_license_mark_matches_the_real_gold_contract() -> None:
 
     document = HwpxDocument.new()
 
-    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    document.parts.set_document_options(license_type="CCL", license_flag=0, license_lang=6)
 
     header_xml = _header_xml(document)
     assert (
@@ -146,7 +146,7 @@ def test_set_license_mark_type_is_a_string_because_real_hancom_writes_one() -> N
 def test_set_license_mark_round_trips_through_save_and_reopen() -> None:
     document = HwpxDocument.new()
 
-    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    document.parts.set_document_options(license_type="CCL", license_flag=0, license_lang=6)
     reopened = HwpxDocument.open(document.to_bytes())
 
     license_mark = reopened.oxml.headers[0].to_model().doc_option.license_mark
@@ -159,16 +159,16 @@ def test_set_license_mark_omits_lang_when_not_given() -> None:
 
     document = HwpxDocument.new()
 
-    document.parts.set_license_mark(mark_type="CCL", flag=0)
+    document.parts.set_document_options(license_type="CCL", license_flag=0)
 
     assert '<hh:licensemark type="CCL" flag="0"/>' in _header_xml(document)
 
 
 def test_set_license_mark_twice_updates_in_place() -> None:
     document = HwpxDocument.new()
-    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    document.parts.set_document_options(license_type="CCL", license_flag=0, license_lang=6)
 
-    document.parts.set_license_mark(mark_type="CCL", flag=1, lang=1)
+    document.parts.set_document_options(license_type="CCL", license_flag=1, license_lang=1)
 
     header_xml = _header_xml(document)
     assert header_xml.count("<hh:licensemark") == 1
@@ -179,7 +179,7 @@ def test_set_license_mark_rejects_an_empty_type() -> None:
     document = HwpxDocument.new()
 
     with pytest.raises(HwpxValueError) as excinfo:
-        document.parts.set_license_mark(mark_type="", flag=0)
+        document.parts.set_document_options(license_type="", license_flag=0)
     assert excinfo.value.code == "header-compat-empty-license-mark-type"
 
 
@@ -187,7 +187,7 @@ def test_remove_license_mark_reports_whether_it_removed_one() -> None:
     document = HwpxDocument.new()
     assert document.parts.remove_license_mark() is False
 
-    document.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    document.parts.set_document_options(license_type="CCL", license_flag=0, license_lang=6)
     assert document.parts.remove_license_mark() is True
 
     header_xml = _header_xml(document)

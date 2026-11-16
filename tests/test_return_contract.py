@@ -152,6 +152,9 @@ def test_every_wp_c_add_star_was_actually_found() -> None:
         "add_tracked_replace",
         "add_bookmark",
         "add_hyperlink",
+        # 7.0 (WP2, D20): doc.page.restart_page_number/hide_page_elements -> add_number_restart/add_page_hiding
+        "add_number_restart",
+        "add_page_hiding",
     }
 
 
@@ -316,17 +319,19 @@ def test_binary_item_stringifies_to_its_manifest_id() -> None:
     assert str(legacy_item) == "BIN0002"
 
 
-def test_picture_references_returns_picture_ref_tuples() -> None:
+def test_pictures_return_picture_tuples() -> None:
+    # 7.0: picture_references() (PictureRef) is gone; doc.media.pictures reads the same pictures.
+    from hwpx.model import Picture
+
     document = HwpxDocument.new()
     with _no_warnings():
         document.add_picture(_PNG, "png", width=1000, height=2000)
-    refs = _media.picture_references(document)
-    assert isinstance(refs, tuple)
-    (ref,) = refs
-    assert isinstance(ref, PictureRef)
-    assert ref.binary_item_id_ref == "BIN0001"
-    assert ref.width == 1000
-    assert ref.height == 2000
+    pictures = _media.pictures(document)
+    assert isinstance(pictures, tuple)
+    (picture,) = pictures
+    assert isinstance(picture, Picture)
+    assert picture.item_id == "BIN0001"
+    assert (picture.width, picture.height) == (1000, 2000)
 
 
 def test_add_picture_still_works_with_the_binary_item_migration_buffer() -> None:
@@ -391,7 +396,7 @@ def test_add_memo_with_anchor_returns_one_memo_not_a_3_tuple() -> None:
     paragraph = document.add_paragraph("anchor host")
     with _no_warnings():
         memo = document.notes.add_memo(
-            "anchored text", anchor=paragraph, memo_shape_id_ref="0"
+            "anchored text", paragraph=paragraph, memo_shape_id_ref="0"
         )
     assert memo.text == "anchored text"
     assert memo.field_id
@@ -463,7 +468,7 @@ def test_fill_form_field_fails_closed_on_hard_overflow_instead_of_ok_false() -> 
             document.fields.fill(
                 "가" * 50,
                 name="주소",
-                fit_policy=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
+                fit=FitPolicy(mode="fail_on_overflow", overflow="fail", max_lines=1),
                 box_width=4000,
             )
     assert excinfo.value.code == "field-fit-failed"
@@ -485,7 +490,7 @@ def test_fill_form_field_without_box_width_never_hard_fails() -> None:
     _click_here_field(document, name="주소")
     with _no_warnings():
         result = document.fields.fill(
-            "가" * 50, name="주소", fit_policy=FitPolicy(overflow="fail")
+            "가" * 50, name="주소", fit=FitPolicy(overflow="fail")
         )
     assert isinstance(result, FieldFillResult)
     assert result.fit is not None

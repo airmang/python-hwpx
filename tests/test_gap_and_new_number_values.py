@@ -127,7 +127,7 @@ def test_a_new_number_hancom_does_not_keep_is_refused_before_anything_is_added(n
     before = etree.tostring(paragraph.element)
 
     with pytest.raises(HwpxValueError) as caught:
-        document.page.restart_page_number(paragraph, number=number, kind=kind)
+        document.page.add_number_restart(paragraph, number=number, kind=kind)
 
     assert caught.value.code == "page-new-num-value"
     assert etree.tostring(paragraph.element) == before
@@ -138,6 +138,6 @@ def test_the_new_numbers_hancom_keeps_are_written_as_given(number: int) -> None:
     document = HwpxDocument.new()
     paragraph = document.add_paragraph("2쪽 첫 글")
 
-    document.page.restart_page_number(paragraph, number=number)
+    document.page.add_number_restart(paragraph, number=number)
 
     assert next(paragraph.element.iter(f"{HP}newNum")).get("num") == str(number)

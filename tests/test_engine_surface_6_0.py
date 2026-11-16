@@ -145,10 +145,6 @@ def test_a_removed_name_says_where_it_went(name: str) -> None:
 #: 7.0이 지운 루트 이름(6.0이 옮긴 79개 밖).
 _REMOVED_IN_7_0 = {"save_to_path", "save_to_stream", "save_report", "from_package"}
 
-#: 안내가 가리키는 새 자리 가운데 7.0 이름 정리의 다른 묶음이 아직 만들지 않은 것.
-#: 그 묶음이 이름을 바꾸면 여기서 지운다(``doc.text.runs()`` → ``iter_runs()``, WP2).
-_PENDING_DESTINATIONS = {"doc.text.iter_runs"}
-
 
 def test_an_unknown_name_is_a_plain_attribute_error() -> None:
     document = HwpxDocument.new(empty_first_line=True)
@@ -178,8 +174,6 @@ def test_moved_destination_exists(name: str) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         roots = {"doc": document, "paragraph": document.add_paragraph("x"), "HwpxDocument": HwpxDocument}
         for target in _moved_targets(REMOVED_NAMES[name].replacement):
-            if target in _PENDING_DESTINATIONS:
-                continue
             head, *rest = target.split(".")
             assert head in roots, f"{name}: 모르는 뿌리 {target!r}"
             assert rest, f"{name}: 속성 없는 대상 {target!r}"

@@ -22,9 +22,9 @@ def _doc(*texts: str) -> HwpxDocument:
 
 
 CALLS = {
-    "notes.add_footnote": lambda d, p: d.notes.add_footnote("각주", p),
-    "notes.add_endnote": lambda d, p: d.notes.add_endnote("미주", p),
-    "notes.add_memo": lambda d, p: d.notes.add_memo("메모", anchor=p),
+    "notes.add_footnote": lambda d, p: d.notes.add_footnote("각주", paragraph=p),
+    "notes.add_endnote": lambda d, p: d.notes.add_endnote("미주", paragraph=p),
+    "notes.add_memo": lambda d, p: d.notes.add_memo("메모", paragraph=p),
     "tracking.insert": lambda d, p: d.tracking.insert(p, "넣은 글"),
     "text.highlight": lambda d, p: d.text.highlight(p, "본문"),
     "shapes.add_rectangle": lambda d, p: d.shapes.add_rectangle(paragraph=p),
@@ -53,7 +53,7 @@ def test_a_removed_paragraph_is_refused_too() -> None:
     gone = doc.paragraphs[1]
     gone.remove()
     with pytest.raises(HwpxValueError) as excinfo:
-        doc.notes.add_footnote("각주", gone)
+        doc.notes.add_footnote("각주", paragraph=gone)
     assert excinfo.value.code == "paragraph-not-in-document"
 
 
@@ -63,7 +63,7 @@ INDEXED = {
     "shapes.add_ellipse": lambda d: d.shapes.add_ellipse(paragraph=0),
     "refs.add_bookmark": lambda d: d.refs.add_bookmark("책갈피", paragraph=0),
     "refs.add_hyperlink": lambda d: d.refs.add_hyperlink("https://example.com", "링크", paragraph=0),
-    "notes.add_footnote": lambda d: d.notes.add_footnote("각주", 0),
+    "notes.add_footnote": lambda d: d.notes.add_footnote("각주", paragraph=0),
     "notes.add_endnote": lambda d: d.notes.add_endnote("미주", paragraph=0),
     "page.set_columns": lambda d: d.page.set_columns(2, paragraph=1),
 }

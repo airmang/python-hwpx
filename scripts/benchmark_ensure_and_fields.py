@@ -145,10 +145,10 @@ def style_preservation():
         switch = etree.SubElement(element, f'{HP}switch')
         etree.SubElement(switch, f'{HP}default').text = 'unknown-preserved'
     before = [etree.tostring(p), etree.tostring(c)]
-    p_id = doc.styles.ensure_paragraph_format(base_para_pr_id=p.get('id'), alignment='center')
-    assert doc.styles.ensure_paragraph_format(base_para_pr_id=p.get('id'), alignment='CENTER') == p_id
-    c_id = doc.styles.ensure_run(base_char_pr_id=c.get('id'), bold=True)
-    assert doc.styles.ensure_run(base_char_pr_id=c.get('id'), bold=True) == c_id
+    p_id = doc.styles.ensure_paragraph_format(base_para_pr_id_ref=p.get('id'), alignment='center')
+    assert doc.styles.ensure_paragraph_format(base_para_pr_id_ref=p.get('id'), alignment='CENTER') == p_id
+    c_id = doc.styles.ensure_run(base_char_pr_id_ref=c.get('id'), bold=True)
+    assert doc.styles.ensure_run(base_char_pr_id_ref=c.get('id'), bold=True) == c_id
     assert before == [etree.tostring(p), etree.tostring(c)]
     expected = {}
     for tag, id_ in (('paraPr', p_id), ('charPr', c_id)):

@@ -843,7 +843,7 @@ def test_a_paragraph_holding_a_picture_gets_one_line_carried_into_an_hwp_save() 
 
 def _spaced(document: HwpxDocument, paragraph, kind: str, value: int) -> None:
     hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
-    document.styles.apply_paragraph_format(paragraphs=[paragraph], line_spacing_percent=161)
+    document.styles.apply_paragraph_format(paragraphs=[paragraph], line_spacing=161)
     shape_id = paragraph.element.get("paraPrIDRef")
     for shape in document.oxml.headers[0].element.iter(f"{hh}paraPr"):
         if shape.get("id") == shape_id:

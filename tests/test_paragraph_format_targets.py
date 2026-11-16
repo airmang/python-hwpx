@@ -10,7 +10,7 @@ from hwpx.document import HwpxDocument
 from hwpx.errors import HwpxTypeError, HwpxValueError
 from hwpx.oxml.namespaces import HH, HP
 
-FORMAT = {"spacing_before_pt": 4, "spacing_after_pt": 4, "line_spacing_percent": 130, "alignment": "CENTER"}
+FORMAT = {"spacing_before_pt": 4, "spacing_after_pt": 4, "line_spacing": 130, "alignment": "CENTER"}
 
 
 def _para_pr(doc: HwpxDocument, paragraph) -> dict[str, object]:
@@ -53,6 +53,23 @@ def test_cell_header_and_footer_paragraphs_take_the_format() -> None:
 
     assert result.formatted == 3
     assert all(_formatted(doc, paragraph) for paragraph in targets)
+
+
+def test_paragraph_takes_a_number_or_an_object_and_paragraphs_mix_them() -> None:
+    # 7.0: paragraph= (one) and paragraphs= (several) take a body paragraph's number or a paragraph
+    # object (6.x had paragraph_index=/paragraph_indexes= for numbers and paragraphs= for objects).
+    doc, table, header, _ = _doc_with_stories()
+    body_index = len(doc.paragraphs) - 1
+    cell = table.cell(0, 0).paragraphs[0]
+
+    one = doc.styles.apply_paragraph_format(paragraph=cell, **FORMAT)
+    assert (one.formatted, one.paragraphs) == (1, ())
+    mixed = doc.styles.apply_paragraph_format(paragraphs=[body_index, header.paragraphs[0]], **FORMAT)
+    assert (mixed.formatted, mixed.paragraphs) == (2, (body_index,))
+    assert all(_formatted(doc, p) for p in (cell, doc.paragraphs[body_index], header.paragraphs[0]))
+
+    listed = doc.styles.apply_list_format(paragraphs=[body_index, cell], kind="number")
+    assert (listed.formatted, listed.paragraphs) == (2, (body_index,))
 
 
 def test_other_paragraphs_sharing_the_shape_keep_it() -> None:
@@ -127,9 +144,10 @@ def test_a_removed_paragraph_is_refused() -> None:
     [
         ({"paragraphs": [], "alignment": "CENTER"}, "paragraph-indexes-empty", HwpxValueError),
         ({"paragraphs": ["본문"], "alignment": "CENTER"}, "paragraph-invalid-type", HwpxTypeError),
-        ({"paragraphs": "PARAGRAPHS", "paragraph_index": 0, "alignment": "CENTER"},
+        ({"paragraphs": [1.5], "alignment": "CENTER"}, "paragraph-invalid-type", HwpxTypeError),
+        ({"paragraphs": "PARAGRAPHS", "paragraph": 0, "alignment": "CENTER"},
          "paragraph-argument-conflict", HwpxValueError),
-        ({"paragraphs": "PARAGRAPHS", "paragraph_indexes": [0], "alignment": "CENTER"},
+        ({"paragraphs": [0], "paragraph": 0, "alignment": "CENTER"},
          "paragraph-argument-conflict", HwpxValueError),
     ],
 )
@@ -178,7 +196,7 @@ def test_the_formatted_paragraphs_lose_their_line_caches() -> None:
     paragraph = table.cell(0, 0).paragraphs[0]
     paragraph.element.append(paragraph.element.makeelement(f"{HP}linesegarray", {}))
 
-    doc.styles.apply_paragraph_format(paragraphs=[paragraph], line_spacing_percent=130)
+    doc.styles.apply_paragraph_format(paragraphs=[paragraph], line_spacing=130)
 
     assert paragraph.element.find(f"{HP}linesegarray") is None
 
@@ -202,7 +220,7 @@ def test_a_small_guide_formats_every_story_and_stays_valid() -> None:
     stories = [*header.paragraphs, *footer.paragraphs]
 
     doc.styles.apply_paragraph_format(paragraphs=[body], spacing_before_pt=4, spacing_after_pt=7)
-    doc.styles.apply_paragraph_format(paragraphs=cells, spacing_before_pt=4, spacing_after_pt=4, line_spacing_percent=130)
+    doc.styles.apply_paragraph_format(paragraphs=cells, spacing_before_pt=4, spacing_after_pt=4, line_spacing=130)
     doc.styles.apply_paragraph_format(paragraphs=stories, alignment="CENTER")
     data = doc.to_bytes()
     reopened = HwpxDocument.open(io.BytesIO(data))

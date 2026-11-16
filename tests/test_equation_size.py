@@ -23,7 +23,8 @@ def _em(script: str, base: int = BASE) -> tuple[float, float]:
 
 def _written(script: str, base: int = BASE, size: tuple[int, int] | None = None) -> tuple[int, int, int]:
     doc = HwpxDocument.new()
-    doc.shapes.add_equation(script, base_unit=base, size=size)
+    width, height = size if size is not None else (None, None)
+    doc.shapes.add_equation(script, font_size=base / 100, width=width, height=height)
     (equation,) = [el for section in doc.sections for el in section.element.iter(f"{HP}equation")]
     sz = equation.find(f"{HP}sz")
     return int(sz.get("width")), int(sz.get("height")), int(equation.get("baseLine"))

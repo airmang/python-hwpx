@@ -76,7 +76,7 @@ def test_notes_and_memos_made_with_the_api_stay_out_of_cell_text() -> None:
     table.cell(0, 0).text = "cell text"
     paragraph = table.cell(0, 0).paragraphs[0]
     doc.notes.add_footnote("note body", paragraph=paragraph)
-    doc.notes.add_memo("memo body", anchor=paragraph)
+    doc.notes.add_memo("memo body", paragraph=paragraph)
 
     text = doc.text.plain()
     assert "cell text" in text

@@ -67,7 +67,7 @@ def test_a_shape_caption_is_exported(export) -> None:
 def test_a_dutmal_is_its_main_text_and_its_sub_text(export) -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("덧말 앞 글")
-    doc.shapes.add_dutmal("본말", "위 글")
+    doc.shapes.add_ruby("본말", "위 글")
     assert "본말(덧말:위 글)" in export(doc)
 
 

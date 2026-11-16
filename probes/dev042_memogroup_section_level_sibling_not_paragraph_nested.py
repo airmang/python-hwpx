@@ -15,7 +15,7 @@ from the section, not the paragraph* -- a real trap distinct from mere
 name-invisibility.
 
 Real-document measurement: live authoring (``doc.notes.add_memo(text,
-anchor=paragraph)``) confirmed directly on the section element's own
+paragraph=paragraph)``) confirmed directly on the section element's own
 children -- ``hp:memogroup`` is a direct child of ``hs:sec``, sibling to
 the ``hp:p`` elements, never nested inside the anchoring paragraph. The
 anchoring paragraph only carries a ``hp:fieldBegin type="MEMO"`` control
@@ -53,7 +53,7 @@ _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 def main() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("annotated text")
-    doc.notes.add_memo("a comment", anchor=paragraph)
+    doc.notes.add_memo("a comment", paragraph=paragraph)
 
     section = doc.sections[0].element
     child_names = [child.tag.rsplit("}", 1)[-1] for child in section]

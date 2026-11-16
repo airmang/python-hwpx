@@ -45,7 +45,7 @@ def test_the_box_text_comes_where_the_box_sits_in_its_paragraph() -> None:
 
 def test_a_numbered_paragraph_keeps_its_label_on_the_text_before_the_box() -> None:
     document = _box_between_text()
-    document.styles.apply_list_format(paragraph_index=1, kind="number")
+    document.styles.apply_list_format(paragraph=1, kind="number")
 
     assert export_text(document, list_labels=True).split("\n") == ["1. 상자 앞 글", "상자 글", "상자 뒤 글"]
 

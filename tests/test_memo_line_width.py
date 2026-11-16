@@ -49,7 +49,7 @@ def test_a_memo_with_a_thick_line_saves_and_reopens() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("메모를 단 문단")
     shape_id = doc.styles.ensure_memo_shape(line_width_mm=0.5, line_color="#C00000")
-    doc.notes.add_memo("굵은 선", anchor=paragraph, memo_shape_id_ref=shape_id)
+    doc.notes.add_memo("굵은 선", paragraph=paragraph, memo_shape_id_ref=shape_id)
     data = doc.to_bytes()
 
     reopened = HwpxDocument.open(data)

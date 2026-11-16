@@ -32,14 +32,14 @@ def _reopen(doc: HwpxDocument) -> HwpxDocument:
 
 
 def _by_text(doc: HwpxDocument, text: str):
-    return next(block for block in doc.text.blocks() if block.text == text)
+    return next(block for block in doc.text.iter_blocks() if block.text == text)
 
 
 # --------------------------------------------------------------------------- blocks
 
 
 def test_blocks_walk_body_cells_and_nested_tables_in_document_order() -> None:
-    blocks = list(_sample().text.blocks())
+    blocks = list(_sample().text.iter_blocks())
     texts = [block.text for block in blocks if block.text]
     assert texts == ["제목 문단", "칸00", "칸01", "안쪽", "칸02", "칸10", "칸20", "칸11", "칸12", "칸21", "칸22", "끝\t문단"]
 
@@ -55,7 +55,7 @@ def test_blocks_walk_body_cells_and_nested_tables_in_document_order() -> None:
 
 
 def test_a_merged_cell_appears_once_at_its_anchor() -> None:
-    blocks = list(_sample().text.blocks())
+    blocks = list(_sample().text.iter_blocks())
     merged = [block for block in blocks if block.id.startswith("s0p3t0r1c0") or block.id.startswith("s0p3t0r2c0")]
     # The merge moved the covered cell's paragraph into the anchor; no r2c0 block exists.
     assert [block.id for block in merged] == ["s0p3t0r1c0q0", "s0p3t0r1c0q1"]
@@ -64,9 +64,9 @@ def test_a_merged_cell_appears_once_at_its_anchor() -> None:
 
 def test_ids_are_unique_and_survive_save_and_reopen() -> None:
     doc = _sample()
-    before = {block.id: block.text for block in doc.text.blocks()}
-    assert len(before) == len(list(doc.text.blocks()))
-    after = {block.id: block.text for block in _reopen(doc).text.blocks()}
+    before = {block.id: block.text for block in doc.text.iter_blocks()}
+    assert len(before) == len(list(doc.text.iter_blocks()))
+    after = {block.id: block.text for block in _reopen(doc).text.iter_blocks()}
     assert after == before
 
 
@@ -79,7 +79,7 @@ def test_a_table_without_cell_addresses_gets_physical_ids() -> None:
     for tc in table.element.iter(f"{HP}tc"):
         for addr in tc.findall(f"{HP}cellAddr"):
             tc.remove(addr)
-    blocks = [block for block in doc.text.blocks() if block.in_table]
+    blocks = [block for block in doc.text.iter_blocks() if block.in_table]
     prefix = blocks[0].id.split("t0")[0]
     assert [block.id for block in blocks] == [f"{prefix}t0r{row}c{col}q0" for row in range(2) for col in range(2)]
     assert [block.text for block in blocks] == ["00", "01", "10", "11"]
@@ -155,7 +155,7 @@ def test_apply_changes_reports_each_id() -> None:
     assert report.ok is False
     assert report.to_dict()["unknownIds"] == ["s9p9"]
     reopened = _reopen(doc)
-    assert next(reopened.text.blocks()).text == "" and _by_text(reopened, "새 제목").id == "s0p1"
+    assert next(reopened.text.iter_blocks()).text == "" and _by_text(reopened, "새 제목").id == "s0p1"
 
 
 def test_apply_changes_keeps_runs_when_the_edit_stays_in_one_run() -> None:

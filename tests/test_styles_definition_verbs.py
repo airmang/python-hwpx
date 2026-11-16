@@ -24,7 +24,7 @@ def test_ensure_style_creates_counts_and_survives_reopen() -> None:
     doc = HwpxDocument.new()
     before = len(doc.styles)
     para_pr = doc.styles.ensure_paragraph_format(
-        base_para_pr_id="0",
+        base_para_pr_id_ref="0",
         alignment="CENTER",
         break_setting={"keep_with_next": True},
     )
@@ -65,11 +65,11 @@ def test_ensure_style_reuses_an_existing_name_without_duplicating() -> None:
 
 def test_ensure_paragraph_format_dedupes_identical_requests() -> None:
     doc = HwpxDocument.new()
-    first = doc.styles.ensure_paragraph_format(base_para_pr_id="0", alignment="RIGHT")
-    second = doc.styles.ensure_paragraph_format(base_para_pr_id="0", alignment="RIGHT")
+    first = doc.styles.ensure_paragraph_format(base_para_pr_id_ref="0", alignment="RIGHT")
+    second = doc.styles.ensure_paragraph_format(base_para_pr_id_ref="0", alignment="RIGHT")
     assert first == second
     heading = doc.styles.ensure_paragraph_format(
-        base_para_pr_id="0", heading={"type": "NUMBER", "idRef": 1, "level": 0}
+        base_para_pr_id_ref="0", heading={"type": "NUMBER", "idRef": 1, "level": 0}
     )
     assert doc.styles.paragraph_property(heading).heading.type == "NUMBER"
 
@@ -77,8 +77,9 @@ def test_ensure_paragraph_format_dedupes_identical_requests() -> None:
 def test_numberings_read_the_definitions_a_heading_points_to() -> None:
     doc = HwpxDocument.new()
     assert set(doc.styles.numberings) == {"1"}
-    definition = doc.styles.numbering(1)
-    assert definition is not None and definition.name == "numbering"
+    definition = doc.styles.numbering(1)  # 7.0: the NumberingInfo value (6.x numbering_info)
+    assert definition is not None and definition.id == "1" and definition.levels
+    assert doc.styles.numberings["1"] == definition
     assert doc.styles.numbering("1") is not None
     assert doc.styles.numbering(" 1 ") is not None
     assert doc.styles.numbering(999) is None

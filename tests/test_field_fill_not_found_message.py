@@ -31,7 +31,7 @@ def test_an_unknown_name_names_itself_and_the_candidates() -> None:
 def test_an_index_out_of_range_says_the_range() -> None:
     doc = _doc()
     with pytest.raises(HwpxValueError) as excinfo:
-        doc.fields.fill(field_index=99, value="x")
+        doc.fields.fill(index=99, value="x")
 
     message = str(excinfo.value)
     indexes = excinfo.value.context["indexes"]

@@ -39,27 +39,29 @@ def test_remove_image_reports_whether_it_removed_anything(document: HwpxDocument
     assert document.media.remove_image(item.item_id) is False
 
 
-def test_picture_references_are_empty_until_a_picture_is_placed(
+def test_pictures_are_empty_until_a_picture_is_placed(
     document: HwpxDocument,
 ) -> None:
+    # 7.0: picture_references() 는 없어졌다 — 같은 순서의 같은 그림을 doc.media.pictures 가 돌려준다.
     document.media.add_image(PNG, "png")
-    assert document.media.picture_references() == ()
+    assert document.media.pictures == ()
 
     document.add_picture(PNG, "png", section=0)
-    references = document.media.picture_references()
-    assert len(references) == 1
+    pictures = document.media.pictures
+    assert len(pictures) == 1
 
 
 def test_replace_picture_swaps_the_underlying_item(document: HwpxDocument) -> None:
     document.add_picture(PNG, "png", section=0)
-    before = document.media.picture_references()[0]
-    result = document.media.replace_picture(PNG + b"x", "png")
-    after = document.media.picture_references()[0]
-    assert result.previous_item_id == before.binary_item_id_ref
+    before = document.media.pictures[0]
+    before_item, before_size = before.item_id, (before.width, before.height)
+    result = document.media.replace_picture(PNG + b"x", "png", index=0)
+    after = document.media.pictures[0]
+    assert result.previous_item_id == before_item
     assert result.item_id != result.previous_item_id
-    assert after.binary_item_id_ref == result.item_id
+    assert after.item_id == result.item_id
     # 기하는 보존된다 — 같은 자리에 다른 이미지가 들어갈 뿐이다.
-    assert (after.width, after.height) == (before.width, before.height)
+    assert (after.width, after.height) == before_size
     assert result.previous_item_id in result.removed_orphans
 
 
@@ -69,14 +71,15 @@ def test_the_binary_axis_is_separate_from_the_object_axis(document: HwpxDocument
     document.add_picture(PNG, "png", section=0)
     assert len(document.media.images) == 1
     document.paragraphs[-1].remove()
-    assert document.media.picture_references() == ()
+    assert document.media.pictures == ()
     assert len(document.media.images) == 1
 
 
 def test_the_return_contract_is_domain_objects(document: HwpxDocument) -> None:
     """WP-C 조인 완료 — 5.x 의 str/list[dict] 가 도메인 객체가 됐다."""
 
-    from hwpx.objects import BinaryItem, PictureRef
+    from hwpx.model import Picture
+    from hwpx.objects import BinaryItem
 
     item = document.media.add_image(PNG, "png")
     assert isinstance(item, BinaryItem)
@@ -89,6 +92,6 @@ def test_the_return_contract_is_domain_objects(document: HwpxDocument) -> None:
     assert all(isinstance(entry, BinaryItem) for entry in document.media.images)
 
     document.add_picture(PNG, "png", section=0)
-    references = document.media.picture_references()
-    assert isinstance(references, tuple)
-    assert all(isinstance(entry, PictureRef) for entry in references)
+    pictures = document.media.pictures
+    assert isinstance(pictures, tuple)
+    assert all(isinstance(entry, Picture) for entry in pictures)

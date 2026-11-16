@@ -58,7 +58,7 @@ def _add_paragraph(_: Path) -> None:
 def _iterate_runs(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("run text")
-        assert any(run.text == "run text" for run in document.text.runs())
+        assert any(run.text == "run text" for run in document.text.iter_runs())
 
 
 def _replace_text(_: Path) -> None:
@@ -80,9 +80,9 @@ def _format_paragraph(_: Path) -> None:
         index = len(document.paragraphs)
         document.add_paragraph("formatted")
         result = document.styles.apply_paragraph_format(
-            paragraph_index=index,
+            paragraph=index,
             alignment="center",
-            line_spacing_percent=160,
+            line_spacing=160,
             spacing_after_pt=6,
         )
         assert result.formatted == 1
@@ -93,7 +93,7 @@ def _format_list(_: Path) -> None:
         index = len(document.paragraphs)
         document.add_paragraph("list item")
         result = document.styles.apply_list_format(
-            paragraph_index=index,
+            paragraph=index,
             kind="bullet",
             bullet_char="•",
         )

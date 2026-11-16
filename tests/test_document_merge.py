@@ -563,7 +563,7 @@ def test_merge_copies_referenced_memo_content() -> None:
     source = HwpxDocument.new(empty_first_line=True)
     shape_id = source.styles.ensure_memo_shape(fill_color="#F0FFE9")
     p = source.add_paragraph("annotated text")
-    source.notes.add_memo("a comment", anchor=p, memo_shape_id_ref=shape_id)
+    source.notes.add_memo("a comment", paragraph=p, memo_shape_id_ref=shape_id)
 
     # target already owns a memo shape at the SAME id (both allocators
     # start at "1" on a fresh document) -- an adversarial, not
@@ -611,7 +611,7 @@ def test_merge_memo_default_shape_ref_stays_the_65535_sentinel() -> None:
 
     source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("plain comment")
-    source.notes.add_memo("no shape override", anchor=p)
+    source.notes.add_memo("no shape override", paragraph=p)
 
     target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
@@ -637,7 +637,7 @@ def test_merge_with_narrowed_source_section_still_copies_referenced_memo() -> No
 
     source = HwpxDocument.new(empty_first_line=True)
     p0 = source.sections[0].paragraphs[0]
-    source.notes.add_memo("in section 0", anchor=p0)
+    source.notes.add_memo("in section 0", paragraph=p0)
     source.add_paragraph("plain text, still section 0")
 
     target = HwpxDocument.new(empty_first_line=True)
@@ -666,7 +666,7 @@ def test_merge_excludes_memo_anchored_in_a_source_section_not_being_copied() -> 
     source = HwpxDocument.new(empty_first_line=True)
     source.add_section()
     p0 = source.sections[0].paragraphs[0]
-    source.notes.add_memo("only in section 0", anchor=p0)
+    source.notes.add_memo("only in section 0", paragraph=p0)
     source.sections[1].add_paragraph("section 1, no memo reference")
 
     target = HwpxDocument.new(empty_first_line=True)
@@ -685,12 +685,12 @@ def test_merge_appends_into_an_existing_target_memogroup_not_a_duplicate() -> No
 
     target = HwpxDocument.new(empty_first_line=True)
     target_p = target.add_paragraph("target's own annotated text")
-    target.notes.add_memo("target's own comment", anchor=target_p)
+    target.notes.add_memo("target's own comment", paragraph=target_p)
     assert len(target.sections[0].element.findall(f"{_HP}memogroup")) == 1
 
     source = HwpxDocument.new(empty_first_line=True)
     source_p = source.add_paragraph("source's annotated text")
-    source.notes.add_memo("source's comment", anchor=source_p)
+    source.notes.add_memo("source's comment", paragraph=source_p)
 
     report = append_document(target, source)
     assert report["memosCopied"] == 1
@@ -714,7 +714,7 @@ def test_merge_memo_survives_real_save_and_reopen() -> None:
     source = HwpxDocument.new(empty_first_line=True)
     shape_id = source.styles.ensure_memo_shape(fill_color="#FFE9CC")
     p = source.add_paragraph("annotated text")
-    source.notes.add_memo("survives a real save", anchor=p, memo_shape_id_ref=shape_id)
+    source.notes.add_memo("survives a real save", paragraph=p, memo_shape_id_ref=shape_id)
 
     target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
@@ -758,7 +758,7 @@ def test_merge_refreshes_field_end_fieldid_to_match_its_paired_field_begin() -> 
 
     source = HwpxDocument.new(empty_first_line=True)
     p = source.add_paragraph("annotated text")
-    source.notes.add_memo("field pairing test", anchor=p)
+    source.notes.add_memo("field pairing test", paragraph=p)
 
     target = HwpxDocument.new(empty_first_line=True)
     append_document(target, source)
@@ -1186,7 +1186,7 @@ def test_merge_imports_parapr_tab_definition_instead_of_aliasing() -> None:
     source = HwpxDocument.new(empty_first_line=True)
     source.add_paragraph("tabbed line")
     # HwpxDocument.new(empty_first_line=True)는 기본 빈 문단 1개를 갖고 시작 — "tabbed line"은 index 1.
-    source.styles.apply_paragraph_format(paragraph_index=1, tab_stops=[{"pos_mm": 30.0}])
+    source.styles.apply_paragraph_format(paragraph=1, tab_stops=[{"pos_mm": 30.0}])
 
     target = HwpxDocument.new(empty_first_line=True)
     # 소스의 raw tabPr id가 타깃에서 "다른 정의"를 가리키도록 선점.

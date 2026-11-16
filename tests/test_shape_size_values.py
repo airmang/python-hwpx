@@ -70,7 +70,7 @@ _SHAPES: dict[str, Callable[[HwpxDocument, object, object], object]] = {
     "rectangle": lambda document, width, height: document.shapes.add_rectangle(width=width, height=height),
     "ellipse": lambda document, width, height: document.shapes.add_ellipse(width=width, height=height),
     "arc": lambda document, width, height: document.shapes.add_arc(width=width, height=height),
-    "equation": lambda document, width, height: document.shapes.add_equation("x + 1 over 2", size=(width, height)),
+    "equation": lambda document, width, height: document.shapes.add_equation("x + 1 over 2", width=width, height=height),
 }
 
 
@@ -139,20 +139,21 @@ def test_the_smallest_and_largest_sizes_are_written_as_given() -> None:
 
     rectangle = document.shapes.add_rectangle(width=0, height=2**31 - 1, ratio=50)
     # An equation box 0 wide or high shows nothing: its smallest size is 1 (shape-size-value below 1).
-    equation = document.shapes.add_equation("x + 1 over 2", size=(1, 2**31 - 1))
+    equation = document.shapes.add_equation("x + 1 over 2", width=1, height=2**31 - 1)
 
     assert _size(rectangle.element) == ("0", str(2**31 - 1))
     assert rectangle.element.get("ratio") == "50"
     assert _size(equation.element) == ("1", str(2**31 - 1))
 
 
-@pytest.mark.parametrize("base_unit", [0, -1100, 2**31, 1100.0, True])
-def test_an_equation_base_unit_outside_1_to_2_31_is_refused_before_anything_is_added(base_unit: object) -> None:
+@pytest.mark.parametrize("font_size", [0, -11.0, 2**31 / 100, 0.001, "11", True, float("nan"), float("inf")])
+def test_an_equation_base_unit_outside_1_to_2_31_is_refused_before_anything_is_added(font_size: object) -> None:
+    # font_size (pt) is kept as baseUnit (1/100 pt), which must come to 1 <= baseUnit < 2**31.
     document = HwpxDocument.new()
     before = _state(document)
 
     with pytest.raises(HwpxValueError) as caught:
-        document.shapes.add_equation("x + 1 over 2", base_unit=base_unit)  # type: ignore[arg-type]
+        document.shapes.add_equation("x + 1 over 2", font_size=font_size)  # type: ignore[arg-type]
 
     assert caught.value.code == "shape-equation-base-unit-value"
     assert isinstance(caught.value, ValueError)  # what it raised before
@@ -172,11 +173,11 @@ def test_an_equation_box_measured_past_31_bits_is_refused_and_a_given_box_keeps_
     document = HwpxDocument.new()
     before = _state(document)
     with pytest.raises(HwpxValueError) as caught:
-        document.shapes.add_equation("x + 1 over 2", base_unit=2**31 - 1)
+        document.shapes.add_equation("x + 1 over 2", font_size=(2**31 - 1) / 100)
     assert caught.value.code == "shape-size-value"
     assert _state(document) == before
 
-    equation = document.shapes.add_equation("(x)", base_unit=2**31 - 1, size=(1342, 1089))
+    equation = document.shapes.add_equation("(x)", font_size=(2**31 - 1) / 100, width=1342, height=1089)
     assert equation.element.get("baseUnit") == "2147483647"
     assert _size(equation.element) == ("1342", "1089")
 

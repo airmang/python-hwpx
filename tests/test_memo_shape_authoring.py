@@ -124,7 +124,7 @@ def test_add_memo_consumes_a_newly_created_shape() -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape(fill_color="#F0FFE9", line_color="#B6D7AE")
     paragraph = doc.add_paragraph("본문")
-    memo = doc.notes.add_memo("코멘트", anchor=paragraph, memo_shape_id_ref=shape_id)
+    memo = doc.notes.add_memo("코멘트", paragraph=paragraph, memo_shape_id_ref=shape_id)
     assert memo.memo_shape_id_ref == shape_id
 
 
@@ -132,7 +132,7 @@ def test_add_memo_with_new_shape_round_trips(tmp_path) -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape(fill_color="#F0FFE9", line_color="#B6D7AE")
     paragraph = doc.add_paragraph("본문")
-    doc.notes.add_memo("코멘트", anchor=paragraph, memo_shape_id_ref=shape_id)
+    doc.notes.add_memo("코멘트", paragraph=paragraph, memo_shape_id_ref=shape_id)
     path = tmp_path / "memo.hwpx"
     doc.save(path)
     doc.close()
@@ -151,7 +151,7 @@ def test_authored_memo_shape_passes_open_safety(tmp_path) -> None:
     doc = HwpxDocument.new()
     shape_id = doc.styles.ensure_memo_shape()
     paragraph = doc.add_paragraph("본문")
-    doc.notes.add_memo("코멘트", anchor=paragraph, memo_shape_id_ref=shape_id)
+    doc.notes.add_memo("코멘트", paragraph=paragraph, memo_shape_id_ref=shape_id)
     path = tmp_path / "safe.hwpx"
     doc.save(path)
     doc.close()

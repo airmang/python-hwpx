@@ -147,7 +147,7 @@ def test_header_and_footer_text_keep_a_tab() -> None:
 
 def test_note_text_keeps_a_tab() -> None:
     doc = HwpxDocument.new()
-    note = doc.notes.add_footnote("각주\t탭", doc.add_paragraph("본문"))
+    note = doc.notes.add_footnote("각주\t탭", paragraph=doc.add_paragraph("본문"))
     assert note.text == "각주\t탭"
     note.text = "바뀐\t각주"
     data = doc.to_bytes()

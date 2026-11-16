@@ -39,7 +39,7 @@ def _parts(data: bytes) -> dict[str, bytes]:
 
 
 def _texts(document: HwpxDocument) -> list[tuple[str, str]]:
-    return [(place.where, place.paragraph.text) for place in document.text.paragraphs()]
+    return [(place.where, place.paragraph.text) for place in document.text.iter_paragraphs()]
 
 
 # 1. same bytes -> same model, text and bytes ------------------------------------------------
@@ -63,7 +63,7 @@ def test_same_bytes_give_the_same_answer_in_another_process() -> None:
         import hashlib, sys
         from hwpx import HwpxDocument
         document = HwpxDocument.open(sys.argv[1])
-        text = "\\n".join(place.where + ":" + place.paragraph.text for place in document.text.paragraphs())
+        text = "\\n".join(place.where + ":" + place.paragraph.text for place in document.text.iter_paragraphs())
         print(hashlib.sha256(text.encode()).hexdigest(), hashlib.sha256(document.to_bytes()).hexdigest())
         """
     )
@@ -76,7 +76,7 @@ def test_same_bytes_give_the_same_answer_in_another_process() -> None:
         for seed in ("1", "2")
     }
     document = HwpxDocument.open(path)
-    text = "\n".join(place.where + ":" + place.paragraph.text for place in document.text.paragraphs())
+    text = "\n".join(place.where + ":" + place.paragraph.text for place in document.text.iter_paragraphs())
     here = f"{hashlib.sha256(text.encode()).hexdigest()} {hashlib.sha256(document.to_bytes()).hexdigest()}"
     assert answers == {here}
 

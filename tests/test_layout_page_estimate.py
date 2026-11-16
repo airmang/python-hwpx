@@ -2277,7 +2277,7 @@ def test_columns_of_the_same_size_written_as_true_are_of_the_same_size() -> None
 def test_a_footnote_in_a_paragraph_without_a_cache_in_columns_of_unequal_width_is_not_followed() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     document.page.set_columns(2, same_size=False, column_widths=[(10632, 873), (21263, 0)])
-    document.notes.add_footnote("각주", document.add_paragraph("각주가 달린 문단"))
+    document.notes.add_footnote("각주", paragraph=document.add_paragraph("각주가 달린 문단"))
 
     assert estimate_pages(document).unsupported == (
         "section 0: objects, composed characters, ruby text or footnotes in a paragraph without a layout cache "
@@ -2614,7 +2614,7 @@ def test_ruby_text_spaced_otherwise_than_in_percent_is_not_followed_without_a_ca
     # another line spacing there.
     document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("앞 글 ")
-    document.shapes.add_dutmal("본문", "덧말", paragraph=paragraph)
+    document.shapes.add_ruby("본문", "덧말", paragraph=paragraph)
     shape = next(element for element in document.parts.headers[0].element.iter(f"{HH}paraPr")
                  if element.get("id") == paragraph.element.get("paraPrIDRef"))
     for spacing in shape.iter(f"{HH}lineSpacing"):
@@ -2745,7 +2745,7 @@ def test_a_notes_last_line_takes_no_line_spacing(name: str) -> None:
 def test_endnotes_placed_otherwise_are_unsupported() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     paragraph = document.add_paragraph("본문")
-    document.notes.add_endnote("미주", paragraph)
+    document.notes.add_endnote("미주", paragraph=paragraph)
     settings = next(document.sections[0].element.iter(f"{HP}endNotePr"))
     settings.find(f"{HP}placement").set("place", "SOMEWHERE_ELSE")
 

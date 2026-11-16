@@ -104,7 +104,7 @@ def _manifest(data: bytes) -> str:
 def test_add_master_page_with_a_section_links_it() -> None:
     document = HwpxDocument.new()
 
-    page_id = document.parts.add_master_page(text="모든 쪽", page_type="BOTH", section=0)
+    page_id = document.parts.add_master_page(text="모든 쪽", page_type="BOTH", section=0).id
 
     assert document.oxml.sections[0].properties.master_page_refs == (page_id,)
 

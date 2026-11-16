@@ -173,7 +173,7 @@ def test_find_runs_by_style_can_filter_by_char_pr() -> None:
     matches = document.text.find_runs(char_pr_id_ref="10")
     assert len(matches) == 1
     assert matches[0].element is run.element
-    assert document.text.find_runs(char_pr_id_ref="99") == []
+    assert document.text.find_runs(char_pr_id_ref="99") == ()
 
 
 def test_attach_memo_field_inserts_control_runs() -> None:
@@ -263,7 +263,7 @@ def _two_anchored_memos(**kwargs: object) -> HwpxDocument:
     document = HwpxDocument.new()
     for index in (1, 2):
         document.add_paragraph(f"메모가 붙는 문단 {index}")
-        document.notes.add_memo(f"메모 {index}", anchor=document.paragraphs[-1], **kwargs)
+        document.notes.add_memo(f"메모 {index}", paragraph=document.paragraphs[-1], **kwargs)
     return document
 
 
@@ -280,7 +280,7 @@ def test_a_memo_number_given_is_kept() -> None:
     document = HwpxDocument.new()
     document.add_paragraph("문단")
 
-    document.notes.add_memo("메모", anchor=document.paragraphs[-1], number=5)
+    document.notes.add_memo("메모", paragraph=document.paragraphs[-1], number=5)
 
     assert [_memo_number(node) for node in _memo_field_begins(document.sections[0])] == ["5"]
 
@@ -361,14 +361,14 @@ def test_add_memo_anchored_to_a_new_paragraph() -> None:
     anchor = document.add_paragraph("", section=section, char_pr_id_ref="10")
     memo = document.notes.add_memo(
         "Anchored memo",
-        anchor=anchor,
+        paragraph=anchor,
         section=section,
         memo_shape_id_ref="5",
         memo_id="release-2",
         char_pr_id_ref="10",
         paragraph_text="Anchor target",
         field_id="field-02",
-        anchor_char_pr_id_ref="10",
+        paragraph_char_pr_id_ref="10",
     )
 
     assert memo.text == "Anchored memo"
@@ -394,7 +394,7 @@ def test_add_memo_with_anchor_roundtrips_on_real_document() -> None:
 
     memo = document.notes.add_memo(
         "Quick start memo",
-        anchor=paragraph,
+        paragraph=paragraph,
         memo_shape_id_ref="0",
     )
 

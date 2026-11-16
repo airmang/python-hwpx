@@ -9,12 +9,14 @@ from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
 from ..oxml.objects import HwpxOxmlEquation, _closed_points
 from ..oxml.shape_position import (
-    line_width_mm_for_units, validate_box_size, validate_equation_base_unit, validate_equation_font,
-    validate_equation_script, validate_original_size, validate_rect_ratio, validate_shape_size,
+    equation_base_unit, validate_box_size, validate_equation_font, validate_equation_script,
+    validate_original_size, validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
+    from ..objects.highlight import ComposedCharacter, Ruby
+    from ..objects.results import Alignment
     from ..oxml import (
         ContainerMember,
         HwpxOxmlInlineObject,
@@ -149,7 +151,7 @@ def add_line(
     end_y: int = 0,
     *,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
@@ -165,77 +167,87 @@ def add_line(
         )
     return paragraph.add_line(
         start_x, start_y, end_x, end_y,
-        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
+        line_color=line_color, line_width_mm=line_width_mm,
         treat_as_char=treat_as_char,
     )
 
 
 def add_composed_character(
     doc: "HwpxDocument",
-    compose_text: str,
+    text: str,
     char_pr_id_refs: Sequence[str | int] | None = None,
     *,
-    circle_type: str | None = None,
-    char_sz: int | None = None,
-    compose_type: str | None = None,
+    frame: str | None = None,
+    inner_size: int | None = None,
+    arrangement: str | None = None,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
-) -> HwpxOxmlInlineObject:
+) -> "ComposedCharacter":
     """Insert ``hp:compose`` (글자 겹치기/원문자) inline, in *paragraph* if
     given, else a freshly-appended one -- matching :func:`add_line`'s own
     "attach here, or make a home" contract (compose/dutmal are typically
     inline within a sentence, not their own standalone paragraph like a
-    drawing shape usually is).
+    drawing shape usually is). Returns the live view ``doc.shapes.composed_characters``
+    reads: *frame*, *inner_size* and *arrangement* are its ``circleType``, ``charSz`` and
+    ``composeType``.
     """
+    from ..objects.highlight import ComposedCharacter
+
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section,
             include_run=False,
         )
-    return paragraph.add_composed_character(
-        compose_text,
+    inline = paragraph.add_composed_character(
+        text,
         char_pr_id_refs,
-        circle_type=circle_type,
-        char_sz=char_sz,
-        compose_type=compose_type,
+        circle_type=frame,
+        char_sz=inner_size,
+        compose_type=arrangement,
         char_pr_id_ref=char_pr_id_ref,
     )
+    return ComposedCharacter(inline.element, paragraph)
 
 
-def add_dutmal(
+def add_ruby(
     doc: "HwpxDocument",
-    main_text: str,
-    sub_text: str,
+    text: str,
+    ruby_text: str,
     *,
-    pos_type: str = "TOP",
-    align: str = "CENTER",
-    sz_ratio: int | None = 0,
+    position: str = "TOP",
+    alignment: "Alignment | str" = "CENTER",
+    size_ratio: int | None = 0,
     option: int | None = 0,
     style_id_ref: str | int | None = None,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
-) -> HwpxOxmlInlineObject:
+) -> "Ruby":
     """Insert ``hp:dutmal`` (덧말) inline, in *paragraph* if given, else a
-    freshly-appended one. See ``HwpxOxmlParagraph.add_dutmal``'s docstring
+    freshly-appended one, and return the live view ``doc.shapes.rubies`` reads: *text*,
+    *ruby_text*, *position*, *alignment* and *size_ratio* are its ``mainText``, ``subText``,
+    ``posType``, ``align`` and ``szRatio``. See ``HwpxOxmlParagraph.add_dutmal``'s docstring
     for the low-confidence-axis disclosure (single real-corpus sample).
     """
+    from ..objects.highlight import Ruby
+
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section,
             include_run=False,
         )
-    return paragraph.add_dutmal(
-        main_text,
-        sub_text,
-        pos_type=pos_type,
-        align=align,
-        sz_ratio=sz_ratio,
+    inline = paragraph.add_dutmal(
+        text,
+        ruby_text,
+        pos_type=position,
+        align=str(alignment),
+        sz_ratio=size_ratio,
         option=option,
         style_id_ref=style_id_ref,
         char_pr_id_ref=char_pr_id_ref,
     )
+    return Ruby(inline.element, paragraph)
 
 
 def add_rectangle(
@@ -245,7 +257,7 @@ def add_rectangle(
     *,
     ratio: int = 0,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
@@ -267,7 +279,7 @@ def add_rectangle(
         )
     return paragraph.add_rectangle(
         width, height, ratio=ratio,
-        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
+        line_color=line_color, line_width_mm=line_width_mm,
         fill_color=fill_color, treat_as_char=treat_as_char,
         original_size=original_size,
     )
@@ -279,7 +291,7 @@ def add_ellipse(
     height: int = 7200,
     *,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
@@ -299,7 +311,7 @@ def add_ellipse(
         )
     return paragraph.add_ellipse(
         width, height,
-        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
+        line_color=line_color, line_width_mm=line_width_mm,
         fill_color=fill_color, treat_as_char=treat_as_char,
         original_size=original_size,
     )
@@ -313,7 +325,7 @@ def add_arc(
     corner: str = "TOP_LEFT",
     arc_type: str = "NORMAL",
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
@@ -336,7 +348,7 @@ def add_arc(
     return paragraph.add_arc(
         width, height,
         corner=corner, arc_type=arc_type,
-        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
+        line_color=line_color, line_width_mm=line_width_mm,
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
 
@@ -346,7 +358,7 @@ def add_polygon(
     points_mm: Sequence[tuple[float, float]],
     *,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
@@ -384,7 +396,7 @@ def add_polygon(
         hwp_points = _closed_points(hwp_points)
     return paragraph.add_polygon(
         hwp_points,
-        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
+        line_color=line_color, line_width_mm=line_width_mm,
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
 
@@ -395,7 +407,7 @@ def add_curve(
     *,
     closed: bool = False,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     paragraph: HwpxOxmlParagraph | None = None,
@@ -414,7 +426,7 @@ def add_curve(
         )
     return paragraph.add_curve(
         [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points_mm],
-        closed=closed, line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
+        closed=closed, line_color=line_color, line_width_mm=line_width_mm,
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
 
@@ -428,7 +440,7 @@ def add_connector(
     end_side: str = "left",
     kind: str = "STRAIGHT",
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     paragraph: HwpxOxmlParagraph | None = None,
 ) -> HwpxOxmlShape:
     """Insert a connector attached to *start* and *end* at the middle of a side of each (``top``,
@@ -437,7 +449,7 @@ def add_connector(
     when they move or grow (see :mod:`hwpx.oxml.curves`)."""
     return (paragraph or start.paragraph).add_connector(
         start, end, start_side=start_side, end_side=end_side, kind=kind,
-        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
+        line_color=line_color, line_width_mm=line_width_mm,
     )
 
 
@@ -483,10 +495,11 @@ def add_equation(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    base_unit: int = 1100,
-    size: tuple[int, int] | None = None,
+    font_size: float = 11.0,
     char_pr_id_ref: str | int | None = None,
     font: str = "HancomEQN",
+    width: int | None = None,
+    height: int | None = None,
 ) -> HwpxOxmlEquation:
     """Insert an inline equation and prove the standard reader recognizes it.
 
@@ -494,7 +507,8 @@ def add_equation(
     (specs/054-equation-authoring/evidence/p0/equation-contract.md). After
     insertion the equation is re-read through the standard section scan —
     creation fails loudly if the script did not land verbatim (no
-    special-casing by design).
+    special-casing by design). *font_size* is in pt (``baseUnit`` keeps 1/100 pt); a box side
+    (*width*, *height*, HWPUNIT) left out is estimated from the script at that size.
     """
     from ..equation.authoring import estimate_equation_size
     from ..equation.eqedit import MAX_SOURCE_LENGTH
@@ -517,13 +531,19 @@ def add_equation(
             suggestion="Split the equation.",
         )
     validate_equation_script(text)  # before a paragraph is added for it
-    validate_equation_base_unit(base_unit)
+    base_unit = equation_base_unit(font_size)
     font = validate_equation_font(font)
-    if size is not None:
-        width, height = validate_box_size(size, kind="equation")
+    if width is not None and height is not None:
+        width, height = validate_box_size((width, height), kind="equation")
     else:
-        width, height = estimate_equation_size(text, font_size=base_unit / 100)
-        validate_shape_size(width, height)  # one measured at a huge base_unit too
+        estimated_width, estimated_height = estimate_equation_size(text, font_size=base_unit / 100)
+        if width is None and height is None:
+            width, height = validate_shape_size(estimated_width, estimated_height)  # one measured at a huge size too
+        else:
+            width, height = validate_box_size(
+                (estimated_width if width is None else width, estimated_height if height is None else height),
+                kind="equation",
+            )
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section,
@@ -642,9 +662,10 @@ def add_chart(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-    size: tuple[int, int] | None = None,
     treat_as_char: bool = False,
     char_pr_id_ref: str | int | None = None,
+    width: int | None = None,
+    height: int | None = None,
 ) -> HwpxOxmlInlineObject:
     """Add a chartML part and its ``<hp:chart>`` anchor, then prove recognition.
 
@@ -657,9 +678,10 @@ def add_chart(
     section scan — creation fails loudly if it did not land (no
     special-casing by design).
 
-    Without ``size`` the chart takes the gold document's 32250x18750, scaled
+    Without *width* and *height* the chart takes the gold document's 32250x18750, scaled
     down (keeping its shape) to the usable width of the table cell or text
-    body it goes into; Hancom clips an object at its cell's edge.
+    body it goes into; Hancom clips an object at its cell's edge. One of the two given,
+    the other is the gold document's.
     """
     from lxml import etree as _etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
@@ -672,8 +694,12 @@ def add_chart(
             "chart_xml", chart_xml, "bytes or str",
             suggestion="Pass the ECMA-376 c:chartSpace document as bytes or a str.",
         )
-    if size is not None:
-        validate_box_size(size, kind="chart")  # before the chart part is written
+    size: tuple[int, int] | None = None
+    if width is not None or height is not None:
+        size = validate_box_size(  # before the chart part is written
+            (_DEFAULT_CHART_SIZE[0] if width is None else width, _DEFAULT_CHART_SIZE[1] if height is None else height),
+            kind="chart",
+        )
     data = chart_xml.encode("utf-8") if isinstance(chart_xml, str) else bytes(chart_xml)
     if not data.strip():
         raise HwpxValueError(
@@ -773,7 +799,7 @@ def add_drop_cap(
     *,
     width: int,
     height: int,
-    style: str = "TripleLine",
+    kind: str = "TripleLine",
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
@@ -783,7 +809,7 @@ def add_drop_cap(
     real-corpus example that carries a non-default ``dropcapstyle``
     (``error__20230809__test.hwpx`` -- see ``oxml.drop_cap``'s own
     docstring for the full structural format inference and why it
-    supports ``style="TripleLine"`` and ``"DoubleLine"`` only).
+    supports ``kind="TripleLine"`` and ``"DoubleLine"`` only).
 
     Element construction (element-building validation included) happens in
     :func:`hwpx.oxml.drop_cap.create_drop_cap_element`; after insertion the
@@ -800,7 +826,7 @@ def add_drop_cap(
         )
     inline_object = paragraph.add_drop_cap(
         character,
-        width=width, height=height, style=style,
+        width=width, height=height, style=kind,
         char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
     )
 
@@ -809,7 +835,7 @@ def add_drop_cap(
         for candidate in owning_section.element.iter(f"{HP}rect"):
             if candidate.get("id") != created_id:
                 continue
-            if candidate.get("dropcapstyle") != style:
+            if candidate.get("dropcapstyle") != kind:
                 raise HwpxStateError(
                     "created drop cap does not carry the requested dropcapstyle",
                     code="shape-drop-cap-anchor-detached",

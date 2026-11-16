@@ -48,7 +48,7 @@ def _document_with_item() -> tuple[HwpxDocument, int]:
 def test_a_list_format_hancom_does_not_know_is_refused(value: str) -> None:
     document, index = _document_with_item()
     with pytest.raises(HwpxValueError) as caught:
-        document.styles.apply_list_format(kind="number", number_format=value, paragraph_indexes=[index])
+        document.styles.apply_list_format(kind="number", number_format=value, paragraphs=[index])
     assert caught.value.code == "style-number-format-invalid"
 
 
@@ -60,7 +60,7 @@ def test_a_list_format_hancom_does_not_know_is_refused(value: str) -> None:
 )
 def test_a_list_format_is_written_as_hancom_spells_it(value: str, written: str) -> None:
     document, index = _document_with_item()
-    document.styles.apply_list_format(kind="number", number_format=value, paragraph_indexes=[index])
+    document.styles.apply_list_format(kind="number", number_format=value, paragraphs=[index])
     assert _list_format(document, index) == written
 
 
@@ -68,7 +68,7 @@ def test_a_list_format_is_written_as_hancom_spells_it(value: str, written: str) 
 def test_a_note_only_format_is_refused_for_a_list(value: str) -> None:
     document, index = _document_with_item()
     with pytest.raises(HwpxValueError, match="for footnote and endnote numbers only") as caught:
-        document.styles.apply_list_format(kind="number", number_format=value, paragraph_indexes=[index])
+        document.styles.apply_list_format(kind="number", number_format=value, paragraphs=[index])
     assert caught.value.code == "style-number-format-invalid"
 
 

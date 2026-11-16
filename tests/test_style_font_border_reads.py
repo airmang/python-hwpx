@@ -278,7 +278,7 @@ def test_border_fill_info_reads_sides_raw_and_fill() -> None:
         "</hc:fillBrush></hh:borderFill>",
     )
 
-    info = doc.styles.border_fill_info(7)
+    info = doc.styles.border_fill(7)
 
     assert info == BorderFillInfo(
         id="7",
@@ -289,7 +289,7 @@ def test_border_fill_info_reads_sides_raw_and_fill() -> None:
         diagonal=BorderLine("SOLID", 0.1, "#000000"),
         fill="#DDEBF7",
     )
-    assert doc.styles.border_fill_info("7") == info
+    assert doc.styles.border_fill("7") == info
     assert info.to_dict() == {
         "id": "7",
         "left": {"type": "SOLID", "widthMm": 0.12, "color": "#ff0000"},
@@ -310,11 +310,11 @@ def test_border_fill_info_defaults_and_fill_none() -> None:
     )
     _add_border_fill(doc, '<hh:borderFill id="9"/>')
 
-    eight = doc.styles.border_fill_info(8)
+    eight = doc.styles.border_fill(8)
     assert eight is not None
     assert eight.left == BorderLine("NONE", 0.0, "#000000")
     assert eight.fill is None
-    nine = doc.styles.border_fill_info(9)
+    nine = doc.styles.border_fill(9)
     assert nine is not None
     assert nine.fill is None
     assert nine.diagonal == BorderLine("NONE", 0.0, "#000000")
@@ -330,7 +330,7 @@ def test_border_fill_info_ignores_nested_side_elements() -> None:
         "</hh:slash></hh:borderFill>",
     )
 
-    info = doc.styles.border_fill_info(10)
+    info = doc.styles.border_fill(10)
     assert info is not None
     assert info.left == BorderLine("NONE", 0.0, "#000000")
 
@@ -344,7 +344,7 @@ def test_border_fill_info_gradient_fill_is_not_described() -> None:
         "</hc:fillBrush></hh:borderFill>",
     )
 
-    info = doc.styles.border_fill_info(11)
+    info = doc.styles.border_fill(11)
     assert info is not None
     assert info.fill is None
 
@@ -356,7 +356,7 @@ def test_border_fill_info_rejects_an_unparseable_width() -> None:
     )
 
     with pytest.raises(HwpxValueError) as excinfo:
-        doc.styles.border_fill_info(12)
+        doc.styles.border_fill(12)
     assert excinfo.value.code == "style-border-fill-width-invalid"
     assert excinfo.value.context["id"] == "12"
     assert excinfo.value.context["width"] == "thick"
@@ -365,24 +365,24 @@ def test_border_fill_info_rejects_an_unparseable_width() -> None:
 def test_border_fill_info_unknown_id_is_none() -> None:
     doc = HwpxDocument.new()
 
-    assert doc.styles.border_fill_info(999) is None
-    assert doc.styles.border_fill_info(None) is None
+    assert doc.styles.border_fill(999) is None
+    assert doc.styles.border_fill(None) is None
 
 
 def test_border_fill_info_follows_ensure_border_fill() -> None:
     doc = HwpxDocument.new()
 
     new_id = doc.styles.ensure_border_fill(
-        border_color="#123456", border_width="0.5 mm", fill_color="#ABCDEF"
+        border_color="#123456", border_width_mm=0.5, fill_color="#ABCDEF"
     )
 
-    info = doc.styles.border_fill_info(new_id)
+    info = doc.styles.border_fill(new_id)
     assert info is not None
     assert info.id == new_id
     assert info.left == BorderLine("SOLID", 0.5, "#123456")
     assert info.fill == "#ABCDEF"
-    # border_fill() keeps returning the raw element view
-    assert type(doc.styles.border_fill(new_id)).__name__ == "GenericElement"
+    # 7.0: border_fill() is this value (6.x border_fill_info); the XML stays in doc.oxml
+    assert type(doc.oxml.border_fill(new_id)).__name__ == "GenericElement"
 
 
 # ---------------------------------------------------------------------------

@@ -76,7 +76,7 @@ def main() -> int:
     from hwpx.document import HwpxDocument
 
     doc = HwpxDocument.open(str(ORIGINAL))
-    found = doc.text.highlights()
+    found = doc.text.highlights
     assert found == (), f"expected zero fabricated highlights from the malformed pair, got {found!r}"
     doc.close()
     print("our reader reports zero highlights for the malformed pair (honest, not fabricated)")

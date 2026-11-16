@@ -28,3 +28,24 @@ def _line_width_mm_to_hwp_units(value: object) -> int:
     from ..oxml.shape_position import line_width_units
 
     return line_width_units(value)
+
+
+def _border_width_mm_text(value: object, *, argument: str) -> str:
+    """A border or column line width in mm (``border_width_mm=``, ``separator_width_mm=``, 7.0) as the
+    ``hc:LineWidth`` text the XML holds: the nearest of Hancom's widths (0.12 → ``"0.12 mm"``, 1 →
+    ``"1.0 mm"``), as ``table.set_borders(border_width_mm=)`` writes it. A value that is not a positive
+    number of millimetres -- a string such as ``"0.12 mm"`` included -- is refused
+    (``style-line-width-invalid``)."""
+
+    from ..oxml.utils import LINE_WIDTHS, normalize_line_width
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            f"{argument} must be a number of millimetres; got {value!r}",
+            code="style-line-width-invalid",
+            context={"argument": argument, "width": repr(value), "allowed": list(LINE_WIDTHS)},
+            suggestion=f"Pass the width in millimetres as a number, e.g. {argument}=0.12.",
+        )
+    return normalize_line_width(f"{value} mm")

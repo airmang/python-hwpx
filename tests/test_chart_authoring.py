@@ -122,7 +122,7 @@ class TestDefaultSizeFitsItsContainer:
         assert _chart_size(doc) == (32250, 18750)
 
     def test_explicit_size_is_kept_in_a_cell(self) -> None:
-        doc = self._cell_doc(2, size=(30000, 10000))
+        doc = self._cell_doc(2, width=30000, height=10000)
         assert _chart_size(doc) == (30000, 10000)
 
 
@@ -161,7 +161,7 @@ class TestGoldContractShape:
 
     def test_inline_placement(self) -> None:
         doc = HwpxDocument.new()
-        doc.shapes.add_chart(PIE_CHARTML, treat_as_char=True, size=(20000, 12000))
+        doc.shapes.add_chart(PIE_CHARTML, treat_as_char=True, width=20000, height=12000)
         (anchor,) = _anchors(doc)
         assert anchor.get("textWrap") == "TOP_AND_BOTTOM"
         pos = anchor.find(f"{HP}pos")

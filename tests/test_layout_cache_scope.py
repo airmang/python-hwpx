@@ -111,7 +111,7 @@ def test_paragraph_format_clears_only_the_formatted_paragraph_cache() -> None:
         cached = [i for i, p in enumerate(doc.paragraphs) if _has_cache(p)]
         assert len(cached) >= 2
         target, untouched = cached[0], cached[1]
-        doc.styles.apply_paragraph_format(paragraph_index=target, line_spacing_percent=130)
+        doc.styles.apply_paragraph_format(paragraph=target, line_spacing=130)
         assert not _has_cache(doc.paragraphs[target])
         assert _has_cache(doc.paragraphs[untouched])
         saved = doc.to_bytes()
@@ -275,7 +275,7 @@ def test_removing_a_memo_drops_the_cache_of_the_paragraph_its_field_was_in() -> 
 @pytest.mark.parametrize(
     "add",
     [
-        lambda doc, paragraph: doc.notes.add_memo("메모", anchor=paragraph),
+        lambda doc, paragraph: doc.notes.add_memo("메모", paragraph=paragraph),
         lambda doc, paragraph: doc.notes.add_footnote("각주", paragraph=paragraph),
         lambda doc, paragraph: doc.notes.add_endnote("미주", paragraph=paragraph),
     ],

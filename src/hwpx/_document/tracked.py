@@ -56,7 +56,7 @@ def add_track_change(
     doc: "HwpxDocument",
     change_type: str,
     *,
-    author_name: str = "AI Agent",
+    author: str = "AI Agent",
     date: str | None = None,
 ) -> TrackedChange:
     """Add tracked-change header metadata and return it as a live result.
@@ -80,15 +80,71 @@ def add_track_change(
         )
     change_id = doc._root.add_track_change(
         change_type,
-        author_name=author_name,
+        author_name=author,
         date=date,
     )
     return TrackedChange(
         change_id=change_id,
         kind=change_type.upper(),
-        author=author_name,
+        author=author,
         date=date,
     )
+
+
+def _enclosing_paragraph_element(element: Any) -> Any:
+    node = element.getparent()
+    while node is not None and node.tag != f"{_HP}p":
+        node = node.getparent()
+    return node
+
+
+def list_tracked_changes(doc: "HwpxDocument") -> tuple[TrackedChange, ...]:
+    """Every tracked change, in document order: those the text marks in the order their first mark
+    comes, each with the paragraph holding that mark; then those only the header lists (registered
+    with ``doc.tracking.add_change``), in the header's order, with no paragraph."""
+
+    from ..oxml import HwpxOxmlParagraph
+
+    header_changes = doc.oxml.track_changes
+    first: dict[str, tuple[str, Any, Any]] = {}  # change id -> (kind of mark, paragraph element, section)
+    begins = (f"{_HP}insertBegin", f"{_HP}deleteBegin")
+    for section in doc.oxml.sections:
+        for element in section.element.iter():
+            if element.tag not in begins:
+                continue
+            change_id = (element.get("TcId") or "").strip()
+            if change_id and change_id not in first:
+                first[change_id] = (_MARKS[element.tag][0], _enclosing_paragraph_element(element), section)
+    order = list(first) + [change_id for change_id in header_changes if change_id not in first]
+    found: list[TrackedChange] = []
+    for change_id in order:
+        entry = header_changes.get(change_id)
+        mark_kind, paragraph_element, section = first.get(change_id, ("", None, None))
+        kind = (getattr(entry, "change_type", None) or mark_kind).upper()
+        found.append(
+            TrackedChange(
+                change_id=int(change_id) if change_id.isdigit() else -1,
+                kind=kind,
+                author=_resolved_author_name(doc, entry.author_id) if entry is not None else "",
+                date=entry.date if entry is not None else None,
+                paragraph=(
+                    HwpxOxmlParagraph(paragraph_element, section) if paragraph_element is not None else None
+                ),
+            )
+        )
+    return tuple(found)
+
+
+def find_tracked_change(doc: "HwpxDocument", change_id_ref: "int | str | None") -> TrackedChange | None:
+    """The tracked change :func:`list_tracked_changes` lists under *change_id_ref* (``7`` or ``"7"``)."""
+
+    if change_id_ref is None or isinstance(change_id_ref, bool):
+        return None
+    wanted = str(change_id_ref).strip()
+    for change in list_tracked_changes(doc):
+        if str(change.change_id) == wanted:
+            return change
+    return None
 
 
 def _paragraph_has_deletable_text(
@@ -162,7 +218,7 @@ def add_tracked_insert(
     # that facade name moved in 6.0 (design table row 39), and going through
     # it would fire its DeprecationWarning on every insert even when this
     # function is reached via the new `doc.tracking.insert` namespace path.
-    change = add_track_change(doc, "Insert", author_name=author, date=date)
+    change = add_track_change(doc, "Insert", author=author, date=date)
     mark_id = doc._root.next_track_change_mark_id()
     paragraph._add_tracked_insert(
         sanitized,
@@ -209,7 +265,7 @@ def add_tracked_delete(
             suggestion="Inspect paragraph.text for the actual string.",
         )
 
-    change = add_track_change(doc, "Delete", author_name=author, date=date)
+    change = add_track_change(doc, "Delete", author=author, date=date)
     mark_id = doc._root.next_track_change_mark_id()
     paragraph._add_tracked_delete(
         change_id=change.change_id,
@@ -569,8 +625,8 @@ def add_tracked_replace(
             suggestion="Pass the text to insert.",
         )
 
-    delete_change = add_track_change(doc, "Delete", author_name=author, date=date)
-    insert_change = add_track_change(doc, "Insert", author_name=author, date=date)
+    delete_change = add_track_change(doc, "Delete", author=author, date=date)
+    insert_change = add_track_change(doc, "Insert", author=author, date=date)
     first_mark_id = doc._root.next_track_change_mark_id()
     paragraph._add_tracked_replace(
         old,

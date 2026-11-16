@@ -381,6 +381,15 @@ NAMES: dict[str, dict[str, Removed]] = {
         "choices": _moved(Moved(_FORMS, "form_choices", "form_choices(doc)")),
         "choose": _moved(Moved(_FORMS, "choose", 'choose(doc, {"참석 여부": "예"})')),
     },
+    # spec 밖(WP2): 7.0의 읽기(doc.shapes.rubies → Ruby)와 같은 이름·같은 값으로(N8, N3).
+    "doc.shapes": {
+        "add_dutmal": _gone(
+            "doc.shapes.add_ruby(...)",
+            "doc.shapes.add_dutmal(main_text, sub_text, pos_type=, align=, sz_ratio=)는 7.0에서 "
+            "doc.shapes.add_ruby(text, ruby_text, position=, alignment=, size_ratio=)이고 Ruby를 돌려준다",
+            example='doc.shapes.add_ruby("본말", "덧말", position="TOP")',
+        ),
+    },
     "doc.media": {
         "picture_references": _gone(
             "doc.media.pictures",
@@ -590,7 +599,15 @@ ARGUMENTS: dict[str, Arguments] = {
         "doc.shapes.add_drop_cap(style='TripleLine')는 7.0에서 kind='TripleLine' 이다(style=은 어디서나 문단 스타일)",
         style="kind",
     ),
-    "doc.shapes.add_dutmal": _args("doc.shapes.add_dutmal(align=)는 7.0에서 alignment= 이다", align="alignment"),
+    # spec 밖(WP2): 읽기 ComposedCharacter 의 이름(text·frame·inner_size·arrangement)으로(N9, N3).
+    "doc.shapes.add_composed_character": _args(
+        "doc.shapes.add_composed_character(compose_text, circle_type=, char_sz=, compose_type=)는 7.0에서 "
+        "add_composed_character(text, frame=, inner_size=, arrangement=)이고 ComposedCharacter를 돌려준다",
+        compose_text="text",
+        circle_type="frame",
+        char_sz="inner_size",
+        compose_type="arrangement",
+    ),
     "doc.shapes.add_ellipse": _args(
         "doc.shapes.add_ellipse(line_width='33')는 7.0에서 line_width_mm=0.12 (mm, float)이다", line_width="line_width_mm"
     ),

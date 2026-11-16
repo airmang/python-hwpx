@@ -51,7 +51,7 @@ def _section_xml(path) -> str:
 def test_restart_page_number_emits_the_measured_hancom_shape() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.restart_page_number(paragraph)
+    doc.page.add_number_restart(paragraph)
 
     controls = _controls(paragraph)
     assert ("newNum", {"num": "1", "numType": "PAGE"}) in controls
@@ -60,7 +60,7 @@ def test_restart_page_number_emits_the_measured_hancom_shape() -> None:
 def test_restart_page_number_with_explicit_number_and_kind() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.restart_page_number(paragraph, number=23, kind="page")
+    doc.page.add_number_restart(paragraph, number=23, kind="page")
 
     controls = _controls(paragraph)
     assert ("newNum", {"num": "23", "numType": "PAGE"}) in controls
@@ -69,8 +69,8 @@ def test_restart_page_number_with_explicit_number_and_kind() -> None:
 def test_restart_page_number_accepts_paragraph_index_or_object() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("본문")
-    doc.page.restart_page_number(1, number=5)
-    doc.page.restart_page_number(doc.paragraphs[1], number=6)
+    doc.page.add_number_restart(1, number=5)
+    doc.page.add_number_restart(doc.paragraphs[1], number=6)
     controls = _controls(doc.paragraphs[1])
     assert ("newNum", {"num": "5", "numType": "PAGE"}) in controls
     assert ("newNum", {"num": "6", "numType": "PAGE"}) in controls
@@ -83,7 +83,7 @@ def test_restart_page_number_accepts_paragraph_index_or_object() -> None:
 def test_hide_page_elements_emits_the_measured_hancom_shape() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.hide_page_elements(paragraph, header=True, master_page=True)
+    doc.page.add_page_hiding(paragraph, header=True, master_page=True)
 
     controls = _controls(paragraph)
     assert (
@@ -102,7 +102,7 @@ def test_hide_page_elements_emits_the_measured_hancom_shape() -> None:
 def test_hide_page_elements_default_is_unhidden() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.hide_page_elements(paragraph)
+    doc.page.add_page_hiding(paragraph)
 
     controls = _controls(paragraph)
     assert (
@@ -121,7 +121,7 @@ def test_hide_page_elements_default_is_unhidden() -> None:
 def test_hide_page_elements_all_six_flags() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.hide_page_elements(
+    doc.page.add_page_hiding(
         paragraph, header=True, footer=True, master_page=True,
         border=True, fill=True, page_num=True,
     )
@@ -142,7 +142,7 @@ def test_hide_page_elements_all_six_flags() -> None:
 def test_restart_page_number_round_trips_through_save_and_reopen(tmp_path) -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.restart_page_number(paragraph, number=7)
+    doc.page.add_number_restart(paragraph, number=7)
     path = tmp_path / "restart.hwpx"
     doc.save(path)
     doc.close()
@@ -159,7 +159,7 @@ def test_restart_page_number_round_trips_through_save_and_reopen(tmp_path) -> No
 def test_hide_page_elements_round_trips_through_save_and_reopen(tmp_path) -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.hide_page_elements(paragraph, footer=True, page_num=True)
+    doc.page.add_page_hiding(paragraph, footer=True, page_num=True)
     path = tmp_path / "hide.hwpx"
     doc.save(path)
     doc.close()
@@ -180,8 +180,8 @@ def test_authored_page_controls_pass_open_safety(tmp_path) -> None:
 
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
-    doc.page.restart_page_number(paragraph, number=3)
-    doc.page.hide_page_elements(paragraph, header=True)
+    doc.page.add_number_restart(paragraph, number=3)
+    doc.page.add_page_hiding(paragraph, header=True)
     path = tmp_path / "safe.hwpx"
     doc.save(path)
     doc.close()
@@ -198,7 +198,7 @@ def test_restart_page_number_invalid_kind_is_a_typed_error() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     with pytest.raises(HwpxValueError) as excinfo:
-        doc.page.restart_page_number(paragraph, kind="CHAPTER")
+        doc.page.add_number_restart(paragraph, kind="CHAPTER")
     assert excinfo.value.code == "page-new-num-kind-invalid"
     assert "PAGE" in excinfo.value.context["allowed"]
 
@@ -207,7 +207,7 @@ def test_restart_page_number_error_is_still_catchable_as_plain_value_error() -> 
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     with pytest.raises(ValueError):
-        doc.page.restart_page_number(paragraph, kind="CHAPTER")
+        doc.page.add_number_restart(paragraph, kind="CHAPTER")
 
 
 def test_page_control_error_code_is_registered() -> None:
@@ -252,8 +252,8 @@ def test_real_corpus_new_controls_coexist_with_existing_ones_after_roundtrip(
 ) -> None:
     document = HwpxDocument.open(REAL_CORPUS_FILE)
     new_paragraph = document.add_paragraph("추가된 재시작 지점")
-    document.page.restart_page_number(new_paragraph, number=100)
-    document.page.hide_page_elements(new_paragraph, footer=True, border=True)
+    document.page.add_number_restart(new_paragraph, number=100)
+    document.page.add_page_hiding(new_paragraph, footer=True, border=True)
 
     out = tmp_path / "roundtrip.hwpx"
     document.save(out)

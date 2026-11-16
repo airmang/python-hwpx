@@ -169,7 +169,7 @@ def test_add_drop_cap_rejects_unmeasured_styles() -> None:
 
     for style in ("Margin", "None"):
         with pytest.raises(HwpxValueError) as excinfo:
-            document.shapes.add_drop_cap("붐", width=4200, height=4200, style=style)
+            document.shapes.add_drop_cap("붐", width=4200, height=4200, kind=style)
         assert excinfo.value.code == "shape-drop-cap-style-unsupported"
         assert excinfo.value.context.get("style") == style
 
@@ -193,7 +193,7 @@ def test_a_double_line_drop_cap_is_the_shape_hancom_saves() -> None:
     assert saved is not None
     document = HwpxDocument.new()
 
-    result = document.shapes.add_drop_cap("가", width=2600, height=2600, style="DoubleLine",
+    result = document.shapes.add_drop_cap("가", width=2600, height=2600, kind="DoubleLine",
                                           paragraph=document.add_paragraph("가나다"))
 
     assert _drop_cap_shape(result.element) == _drop_cap_shape(saved)

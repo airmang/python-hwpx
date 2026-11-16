@@ -80,7 +80,7 @@ def main() -> int:
 
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("본문")
-    doc.page.restart_page_number(paragraph, number=23)
+    doc.page.add_number_restart(paragraph, number=23)
     ctrl = paragraph.element.find(f".//{{{HP_NS}}}ctrl/{{{HP_NS}}}newNum").getparent()
     new_num = ctrl.find(f"{{{HP_NS}}}newNum")
     assert len(new_num) == 0, "our authoring must not add an autoNumFormat child either"

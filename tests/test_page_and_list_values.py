@@ -83,10 +83,10 @@ _REFUSED: dict[str, tuple[Callable[[HwpxDocument], object], str]] = {
     "negative section start": (
         lambda d: d.oxml.sections[0].properties.set_start_numbers(equation=-1), "page-number-value"),
     "list start past 16 bits": (
-        lambda d: d.styles.apply_list_format(paragraph_indexes=[1, 2], kind="number", start=65536),
+        lambda d: d.styles.apply_list_format(paragraphs=[1, 2], kind="number", start=65536),
         "style-list-start-value"),
     "negative list start": (
-        lambda d: d.styles.apply_list_format(paragraph_indexes=[1, 2], kind="number", start=-1),
+        lambda d: d.styles.apply_list_format(paragraphs=[1, 2], kind="number", start=-1),
         "style-list-start-value"),
     "page border type": (
         lambda d: d.oxml.sections[0].properties.set_page_border_fill(page_type="SOMETIMES"),
@@ -128,7 +128,7 @@ def test_the_bounds_hancom_keeps_are_written_as_given() -> None:
     document.page.set_line_numbers(start_number=65535, count_by=0, distance=2**31 - 1)
     properties.set_start_numbers(page=0, table=65535)
     properties.set_page_border_fill(offset_top=32767, offset_left=0)
-    document.styles.apply_list_format(paragraph_indexes=[1, 2], kind="number", start=0)
+    document.styles.apply_list_format(paragraphs=[1, 2], kind="number", start=0)
 
     section = document.sections[0].element
     line_numbers = next(section.iter(f"{HP}lineNumberShape"))

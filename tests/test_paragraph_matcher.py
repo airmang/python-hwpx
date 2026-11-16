@@ -111,14 +111,14 @@ def test_each_ensure_observes_direct_xml_mutations_and_preserves_unknown_switch_
     switch.append(base.makeelement(HP + "default", {"opaque": "2"}))
     base.extend((extension, switch))
     before = etree.tostring(base)
-    first = document.styles.ensure_paragraph_format(base_para_pr_id="0", margins={"left": 1234})
+    first = document.styles.ensure_paragraph_format(base_para_pr_id_ref="0", margins={"left": 1234})
     chosen = next(element for element in properties if element.get("id") == first)
     assert chosen.find(EXT + "unknown") is not None
     chosen.find(EXT + "unknown").set("opaque", "mutated")
-    second = document.styles.ensure_paragraph_format(base_para_pr_id="0", margins={"left": 1234})
+    second = document.styles.ensure_paragraph_format(base_para_pr_id_ref="0", margins={"left": 1234})
     assert second != first
     chosen.find(EXT + "unknown").set("opaque", "1")
-    assert document.styles.ensure_paragraph_format(base_para_pr_id="0", margins={"left": 1234}) == first
+    assert document.styles.ensure_paragraph_format(base_para_pr_id_ref="0", margins={"left": 1234}) == first
     assert etree.tostring(base) == before
     reopened = HwpxDocument.open(document.to_bytes())
     saved = next(element for element in reopened.oxml.headers[0].element.iter(HH + "paraPr") if element.get("id") == first)

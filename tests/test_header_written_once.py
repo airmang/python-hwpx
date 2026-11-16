@@ -65,7 +65,7 @@ def test_set_header_and_footer_write_one_control_story(page_type: str) -> None:
     assert reopened.validate().ok
     assert [story.text for story in reopened.page.headers()] == ["머리말"]
     # the text of a header no longer comes twice out of the whole-document walk or a search
-    assert [p.paragraph.text for p in reopened.text.paragraphs(where="header")] == ["머리말"]
+    assert [p.paragraph.text for p in reopened.text.iter_paragraphs(where="header")] == ["머리말"]
 
 
 def test_setting_a_header_again_changes_the_one_story_in_place() -> None:

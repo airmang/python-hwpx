@@ -39,7 +39,7 @@ def test_filling_a_field_in_a_cell_drops_the_cache_of_the_paragraph_holding_the_
     others = [p.element for p in document.paragraphs if p.element is not holder and _cached(p.element)]
     assert _cached(holder)
 
-    document.fields.fill("한 줄에 다 들어가지 않는 긴 값 " * 6, field_index=index)
+    document.fields.fill("한 줄에 다 들어가지 않는 긴 값 " * 6, index=index)
 
     assert not _cached(holder)
     assert all(_cached(element) for element in others)  # the rest keep theirs

@@ -308,7 +308,7 @@ def gen_memoshape(bucket_dir: Path) -> list[dict[str, Any]]:
             )
             document.notes.add_memo(
                 f"검토 의견 {idx}: {cycle(SUBJECT_BANK, idx)}",
-                anchor=paragraph,
+                paragraph=paragraph,
                 memo_shape_id_ref=shape_id,
                 # add_memo's own default is datetime.now() — wall-clock, and
                 # therefore the one remaining determinism gap after the
@@ -342,9 +342,9 @@ def gen_pagecontrol(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "쪽번호 제어 표본")
             paragraph = document.add_paragraph(f"재시작·숨김 지점 {idx} — {cycle(DEPT_BANK, idx)}")
             kind = NEWNUM_KIND_BANK[idx % len(NEWNUM_KIND_BANK)]
-            document.page.restart_page_number(paragraph, number=1 + idx, kind=kind)
+            document.page.add_number_restart(paragraph, number=1 + idx, kind=kind)
             hide_kwargs = HIDE_COMBO_BANK[idx % len(HIDE_COMBO_BANK)]
-            document.page.hide_page_elements(paragraph, **hide_kwargs)
+            document.page.add_page_hiding(paragraph, **hide_kwargs)
             document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-pagecontrol", seed=str(idx),

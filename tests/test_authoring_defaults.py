@@ -122,7 +122,7 @@ class TestPageFlowSettingsDoNotLeak:
         doc.add_paragraph("첫 문단")
         set_on = doc.add_paragraph("둘째 문단")
         last = len(doc.paragraphs) - 1
-        doc.styles.apply_paragraph_format(paragraph_index=last, alignment="CENTER", **{option: True})
+        doc.styles.apply_paragraph_format(paragraph=last, alignment="CENTER", **{option: True})
         after = doc.add_paragraph("셋째 문단")
         later = doc.add_paragraph("넷째 문단")
 
@@ -138,9 +138,9 @@ class TestPageFlowSettingsDoNotLeak:
         doc.add_paragraph("본문")
         target = doc.add_paragraph("가운데")
         last = len(doc.paragraphs) - 1
-        doc.styles.apply_paragraph_format(paragraph_index=last, alignment="CENTER")
+        doc.styles.apply_paragraph_format(paragraph=last, alignment="CENTER")
         centered = target.element.get("paraPrIDRef")
-        doc.styles.apply_paragraph_format(paragraph_index=last, page_break_before=True)
+        doc.styles.apply_paragraph_format(paragraph=last, page_break_before=True)
         assert target.element.get("paraPrIDRef") != centered
         after = doc.add_paragraph("다음")
         assert after.element.get("paraPrIDRef") == centered
@@ -148,7 +148,7 @@ class TestPageFlowSettingsDoNotLeak:
     def test_explicit_para_pr_with_a_page_flow_setting_is_kept(self) -> None:
         doc = HwpxDocument.new()
         first = doc.add_paragraph("본문")
-        doc.styles.apply_paragraph_format(paragraph_index=len(doc.paragraphs) - 1, page_break_before=True)
+        doc.styles.apply_paragraph_format(paragraph=len(doc.paragraphs) - 1, page_break_before=True)
         breaking = first.element.get("paraPrIDRef")
         again = doc.add_paragraph("새 쪽", para_pr_id_ref=breaking)
         assert again.element.get("paraPrIDRef") == breaking
@@ -158,12 +158,12 @@ class TestBorderSurface:
     def test_border_type_emits_and_dedupes(self) -> None:
         doc = HwpxDocument.new()
         dashed = doc.styles.ensure_border_fill(
-            border_type="DASH", border_color="#0000FF", border_width="0.4 mm"
+            border_type="DASH", border_color="#0000FF", border_width_mm=0.4
         )
         assert doc.styles.ensure_border_fill(
-            border_type="DASH", border_color="#0000FF", border_width="0.4 mm"
+            border_type="DASH", border_color="#0000FF", border_width_mm=0.4
         ) == dashed
-        solid = doc.styles.ensure_border_fill(border_color="#0000FF", border_width="0.4 mm")
+        solid = doc.styles.ensure_border_fill(border_color="#0000FF", border_width_mm=0.4)
         assert solid != dashed
 
     def test_border_type_outside_owpml_vocabulary_rejected(self) -> None:
@@ -370,7 +370,7 @@ class TestCharacterFormatResidual:
             node = legacy_cp.find(f"{self.HH}{tag}")
             for lang in list(node.attrib):
                 node.set(lang, value)
-        fresh = doc.styles.ensure_run(script="sup", base_char_pr_id=legacy)
+        fresh = doc.styles.ensure_run(script="sup", base_char_pr_id_ref=legacy)
         assert fresh != legacy
         fresh_cp = char_props_el.find(f"{self.HH}charPr[@id='{fresh}']")
         assert fresh_cp.find(f"{self.HH}relSz").get("hangul") == "100"

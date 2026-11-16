@@ -107,7 +107,7 @@ def test_resolving_hints_resolves_to_the_real_classes() -> None:
     from hwpx.tools.table_navigation import TableMapResult
 
     hints = typing.get_type_hints(NAMESPACES["fields"].fill)
-    assert FitPolicy in typing.get_args(hints["fit_policy"])
+    assert FitPolicy in typing.get_args(hints["fit"])
     assert typing.get_type_hints(NAMESPACES["tables"].map)["return"] is TableMapResult
     assert typing.get_type_hints(NAMESPACES["styles"].document.fget)["return"] is HwpxDocument
 
@@ -131,22 +131,22 @@ def test_namespaces_still_load_no_tools_or_form_fit_module() -> None:
 # -- equation and chart size -----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("size", [(0, 0), (0, 500), (500, 0), 5, (1, 2, 3), "10,10", (1.5, 2)])
-def test_equation_size_must_be_two_positive_ints(size: object) -> None:
+@pytest.mark.parametrize("size", [(0, 0), (0, 500), (500, 0), (-1, 500), ("10", 10), (1.5, 2), (0, None), (None, 0)])
+def test_equation_size_must_be_two_positive_ints(size: tuple[object, object]) -> None:
     document = _doc()
     count = len(document.paragraphs)
+    width, height = size
     with pytest.raises(HwpxValueError) as caught:
-        document.shapes.add_equation("a over b", size=size)  # type: ignore[arg-type]
+        document.shapes.add_equation("a over b", width=width, height=height)  # type: ignore[arg-type]
     assert caught.value.code == "shape-size-value"
     assert len(document.paragraphs) == count  # refused before a paragraph is added
-    if isinstance(size, tuple) and len(size) == 2:
-        with pytest.raises(HwpxValueError):
-            document.paragraphs[0].add_equation("a over b", width=size[0], height=size[1])  # type: ignore[arg-type]
+    with pytest.raises(HwpxValueError):
+        document.paragraphs[0].add_equation("a over b", width=width, height=height)  # type: ignore[arg-type]
 
 
 def test_explicit_equation_size_is_still_written() -> None:
     document = _doc()
-    equation = document.shapes.add_equation("a over b", size=(2000, 1000))
+    equation = document.shapes.add_equation("a over b", width=2000, height=1000)
     assert (equation.width, equation.height) == (2000, 1000)
 
 
@@ -155,7 +155,7 @@ def test_chart_refuses_a_zero_size_before_writing_its_part() -> None:
     parts = set(document.package.part_names())
     count = len(document.paragraphs)
     with pytest.raises(HwpxValueError) as caught:
-        document.shapes.add_chart(_CHART, size=(0, 0))
+        document.shapes.add_chart(_CHART, width=0, height=0)
     assert caught.value.code == "shape-size-value"
     assert set(document.package.part_names()) == parts
     assert len(document.paragraphs) == count

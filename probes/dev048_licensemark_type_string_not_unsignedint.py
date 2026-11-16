@@ -159,16 +159,16 @@ def _check_our_handling(mark: ET._Element) -> None:
 
     # Authoring passes the string through rather than 'correcting' it.
     authored = HwpxDocument.new()
-    authored.parts.set_license_mark(mark_type="CCL", flag=0, lang=6)
+    authored.parts.set_document_options(license_type="CCL", license_flag=0, license_lang=6)
     written = authored.parts.headers[0].element.find(
         f"{_HH}docOption/{_HH}licensemark"
     )
     assert written is not None and written.get("type") == "CCL", (
-        "set_license_mark no longer writes the measured string -- authoring "
+        "set_document_options(license_type=) no longer writes the measured string -- authoring "
         "a schema-shaped integer would produce a mark real Hancom cannot read"
     )
     try:
-        authored.parts.set_license_mark(mark_type="", flag=0)
+        authored.parts.set_document_options(license_type="", license_flag=0)
     except HwpxValueError:
         pass
     else:  # pragma: no cover - defensive

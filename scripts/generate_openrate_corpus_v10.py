@@ -191,10 +191,10 @@ def gen_compat(bucket_dir: Path) -> list[dict[str, Any]]:
             auto_eng, auto_num = _AUTO_SPACING_BANK[(idx + 3) % len(_AUTO_SPACING_BANK)]
 
             document = _base_document(idx, "문서 옵션·호환성 저작 표본")
-            document.parts.set_compatible_document_target_program(target_program)
-            document.parts.set_layout_compatibility_flags(flags)
-            document.parts.set_doc_option_link_info(
-                path=link_info["path"],
+            document.parts.set_document_options(target_program=target_program)
+            document.parts.set_document_options(layout_compatibility=flags)
+            document.parts.set_document_options(
+                link_path=link_info["path"],
                 page_inherit=link_info["page_inherit"],
                 footnote_inherit=link_info["footnote_inherit"],
             )

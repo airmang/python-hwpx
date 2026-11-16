@@ -251,9 +251,9 @@ def gen_pagelayout(bucket_dir: Path) -> list[dict[str, Any]]:
             # since idx is already a multiple of 3 on every selected record.
             extra_op = _EXTRA_OPS[(idx // 3) % len(_EXTRA_OPS)] if idx % 3 == 0 else None
             if extra_op == "restart_page_number":
-                document.page.restart_page_number(summary, number=(idx % 5) + 1)
+                document.page.add_number_restart(summary, number=(idx % 5) + 1)
             elif extra_op == "hide_page_elements":
-                document.page.hide_page_elements(
+                document.page.add_page_hiding(
                     summary, header=(idx % 2 == 0), page_num=(idx % 4 == 0),
                 )
             elif extra_op == "remove_header":

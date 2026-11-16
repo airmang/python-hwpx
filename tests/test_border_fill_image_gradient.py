@@ -51,7 +51,7 @@ def test_ensure_border_fill_with_fill_image_emits_the_measured_hancom_shape() ->
     doc, image = _document_with_image()
     border_id = doc.styles.ensure_border_fill(fill_image=image)
 
-    border_fill = doc.styles.border_fill(border_id)
+    border_fill = doc.oxml.border_fill(border_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert [c.name for c in fill_brush.children] == ["imgBrush"]
     img_brush = fill_brush.children[0]
@@ -84,7 +84,7 @@ def test_ensure_border_fill_fill_image_dedupes_on_repeat() -> None:
 def test_ensure_border_fill_fill_image_mode_override() -> None:
     doc, image = _document_with_image()
     border_id = doc.styles.ensure_border_fill(fill_image={"item": image, "mode": "TILE"})
-    border_fill = doc.styles.border_fill(border_id)
+    border_fill = doc.oxml.border_fill(border_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert fill_brush.children[0].attributes["mode"] == "TILE"
     # a different mode is a different fill — no dedupe collision with TOTAL.
@@ -102,7 +102,7 @@ def test_ensure_border_fill_with_fill_gradient_emits_the_measured_hancom_shape()
         fill_gradient={"colors": ["#FFFFFF", "#4B87CB"], "angle": 90},
     )
 
-    border_fill = doc.styles.border_fill(border_id)
+    border_fill = doc.oxml.border_fill(border_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert [c.name for c in fill_brush.children] == ["gradation"]
     gradation = fill_brush.children[0]
@@ -132,7 +132,7 @@ def test_ensure_border_fill_fill_gradient_three_colors() -> None:
     border_id = doc.styles.ensure_border_fill(
         fill_gradient={"colors": ["#FFFFFF", "#CCCCCC", "#000000"], "type": "radial"},
     )
-    border_fill = doc.styles.border_fill(border_id)
+    border_fill = doc.oxml.border_fill(border_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     gradation = fill_brush.children[0]
     assert gradation.attributes["type"] == "RADIAL"
@@ -156,7 +156,7 @@ def test_border_fill_image_round_trips_through_save_and_reopen(tmp_path) -> None
     assert f'binaryItemIDRef="{image.item_id}"' in xml
 
     reopened = HwpxDocument.open(path)
-    border_fill = reopened.styles.border_fill(border_id)
+    border_fill = reopened.oxml.border_fill(border_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert fill_brush.children[0].name == "imgBrush"
     reopened.close()
@@ -175,7 +175,7 @@ def test_border_fill_gradient_round_trips_through_save_and_reopen(tmp_path) -> N
     assert '<hc:gradation type="LINEAR" angle="90"' in xml
 
     reopened = HwpxDocument.open(path)
-    border_fill = reopened.styles.border_fill(border_id)
+    border_fill = reopened.oxml.border_fill(border_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert fill_brush.children[0].name == "gradation"
     reopened.close()
@@ -191,7 +191,7 @@ def test_set_cell_fill_image_applies_to_a_table_cell(tmp_path) -> None:
     table.set_cell_fill_image(0, 0, image)
 
     border_fill_id = table.cell(0, 0).element.get("borderFillIDRef")
-    border_fill = doc.styles.border_fill(border_fill_id)
+    border_fill = doc.oxml.border_fill(border_fill_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert fill_brush.children[0].name == "imgBrush"
     # the untouched cell keeps its own (unfilled) border-fill.
@@ -210,7 +210,7 @@ def test_set_cell_fill_gradient_applies_to_a_table_cell(tmp_path) -> None:
     table.set_cell_fill_gradient(1, 0, ["#FFFFFF", "#4B87CB"])
 
     border_fill_id = table.cell(1, 0).element.get("borderFillIDRef")
-    border_fill = doc.styles.border_fill(border_fill_id)
+    border_fill = doc.oxml.border_fill(border_fill_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert fill_brush.children[0].name == "gradation"
 
@@ -317,7 +317,7 @@ def test_border_fill_error_codes_are_registered() -> None:
 def test_plain_fill_color_still_works_unaffected() -> None:
     doc = HwpxDocument.new()
     border_id = doc.styles.ensure_border_fill(fill_color="#FF0000")
-    border_fill = doc.styles.border_fill(border_id)
+    border_fill = doc.oxml.border_fill(border_id)
     fill_brush = next(c for c in border_fill.children if c.name == "fillBrush")
     assert fill_brush.children[0].name == "winBrush"
     assert fill_brush.children[0].attributes["faceColor"] == "#FF0000"
@@ -326,12 +326,12 @@ def test_plain_fill_color_still_works_unaffected() -> None:
 def test_ensure_border_fill_with_no_fill_still_works_unaffected() -> None:
     doc = HwpxDocument.new()
     border_id = doc.styles.ensure_border_fill()
-    border_fill = doc.styles.border_fill(border_id)
+    border_fill = doc.oxml.border_fill(border_id)
     assert not any(c.name == "fillBrush" for c in border_fill.children)
 
 
 # --------------------------------------------------------------------------
-# 실코퍼스 — 읽기는 기존 doc.styles.border_fills()(GenericElement 보존형)로
+# 실코퍼스 — 읽기는 기존 doc.oxml.border_fills(GenericElement 보존형)로
 # 이미 됐다(신규 read 모델 불필요) 를 실파일로 증명한다.
 
 
@@ -341,7 +341,7 @@ def test_real_corpus_image_and_gradient_border_fills_read_through_the_existing_a
     try:
         image_kinds = 0
         gradient_kinds = 0
-        for border_fill in document.styles.border_fills.values():
+        for border_fill in document.oxml.border_fills.values():
             fill_brush = next(
                 (c for c in border_fill.children if c.name == "fillBrush"), None
             )

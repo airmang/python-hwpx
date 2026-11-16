@@ -35,7 +35,7 @@ def _document() -> HwpxDocument:
     doc.add_table(1, 1).cell(0, 0).text = "칸 안 2025년"
     doc.page.set_header(text="머리말 2024년")
     doc.notes.add_footnote("각주 2023년", paragraph=1)
-    doc.notes.add_memo("메모 2022년", anchor=1)
+    doc.notes.add_memo("메모 2022년", paragraph=1)
     return doc
 
 
@@ -138,7 +138,7 @@ def test_regex_replace_fills_groups_everywhere() -> None:
     count = doc.text.replace(r"(\d{4})년", r"\1 년도", regex=True, everywhere=True)
 
     assert count == 4  # memo bodies are left alone, as Hancom's replace-all does
-    texts = {place.paragraph.text for place in doc.text.paragraphs() if place.paragraph.text}
+    texts = {place.paragraph.text for place in doc.text.iter_paragraphs() if place.paragraph.text}
     assert {"머리말 2024 년도", "탭\t뒤 2026 년도 11월", "각주 2023 년도", "칸 안 2025 년도", "메모 2022년"} <= texts
     reopened = HwpxDocument.open(doc.to_bytes())
     assert reopened.validate().ok
@@ -217,7 +217,7 @@ def test_hangul_saved_captions_and_cells_lose_their_line_cache_and_nothing_else_
         holders = [node for node in paragraph.iterancestors(f"{HP}p")]
         assert len(holders) == 2  # the paragraph holding the captioned table and the one holding its table
         assert all(holder.find(f"{HP}linesegarray") is None for holder in holders)
-    untouched = [place.paragraph.element for place in doc.text.paragraphs(where="body") if place.paragraph.text == "끝"]
+    untouched = [place.paragraph.element for place in doc.text.iter_paragraphs(where="body") if place.paragraph.text == "끝"]
     assert untouched and all(p.find(f"{HP}linesegarray") is not None for p in untouched)
     data = doc.to_bytes()
     reopened = HwpxDocument.open(data)

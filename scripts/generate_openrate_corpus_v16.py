@@ -251,7 +251,7 @@ def gen_column_break(bucket_dir: Path) -> list[dict[str, Any]]:
                 document.add_paragraph(f"{cycle(DEPT_BANK, idx + p)} 단 나누기 본문 {p}")
             # the break sits on paragraph idx (0..4) -- a different physical
             # position per record, proving it's per-paragraph, not global.
-            document.styles.apply_paragraph_format(paragraph_index=idx, column_break=True)
+            document.styles.apply_paragraph_format(paragraph=idx, column_break=True)
 
             document.save(str(out_path))
             records.append(record(

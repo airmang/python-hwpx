@@ -59,7 +59,7 @@ def test_hancom_numbers_a_new_list_with_the_documents_default_definition(fixture
 def _apply(kind: str, level: int) -> tuple[HwpxDocument, tuple[str | None, str | None, str | None]]:
     doc = HwpxDocument.new()
     doc.add_paragraph("항목")
-    doc.styles.apply_list_format(paragraph_index=len(doc.paragraphs) - 1, kind=kind, level=level)
+    doc.styles.apply_list_format(paragraph=len(doc.paragraphs) - 1, kind=kind, level=level)
     return doc, _heading(doc, doc.paragraphs[-1])
 
 

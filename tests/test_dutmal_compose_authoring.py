@@ -83,28 +83,31 @@ def test_real_corpus_dutmal_round_trips_byte_identical_through_save_reopen() -> 
 
 
 # ============================================================================
-# authoring -- add_dutmal
+# authoring -- add_ruby (6.x add_dutmal)
 # ============================================================================
 
 
 def test_add_dutmal_defaults_match_the_only_real_sample() -> None:
     doc = HwpxDocument.new()
     p = doc.add_paragraph("본문")
-    obj = doc.shapes.add_dutmal("본말", "덧말", paragraph=p)
+    obj = doc.shapes.add_ruby("본말", "덧말", paragraph=p)
 
     assert obj.element.tag == f"{_HP}dutmal"
     # DEV-041: defaults are the real sample's own observed values (0/0),
     # not the schema's stated fixed=4 / positiveInteger.
-    assert obj.attributes.get("option") == "0"
-    assert obj.attributes.get("szRatio") == "0"
-    assert obj.attributes.get("posType") == "TOP"
-    assert obj.attributes.get("align") == "CENTER"
+    assert obj.element.get("option") == "0"
+    assert obj.element.get("szRatio") == "0"
+    assert obj.element.get("posType") == "TOP"
+    assert obj.element.get("align") == "CENTER"
+    # the same values read through the Ruby the read side gives (doc.shapes.rubies)
+    assert (obj.position, obj.alignment, obj.size_ratio) == ("TOP", "CENTER", 0)
+    assert doc.shapes.rubies == (obj,)
 
 
 def test_add_dutmal_round_trips_through_the_read_model() -> None:
     doc = HwpxDocument.new()
     p = doc.add_paragraph("본문")
-    doc.shapes.add_dutmal("메인", "서브", paragraph=p, pos_type="BOTTOM", align="LEFT")
+    doc.shapes.add_ruby("메인", "서브", paragraph=p, position="BOTTOM", alignment="LEFT")
 
     data = doc.to_bytes()
     reopened = HwpxDocument.open(data)
@@ -121,14 +124,14 @@ def test_add_dutmal_round_trips_through_the_read_model() -> None:
 def test_add_dutmal_without_a_paragraph_creates_its_own() -> None:
     doc = HwpxDocument.new()
     before = len(doc.sections[0].paragraphs)
-    doc.shapes.add_dutmal("본말", "덧말")
+    doc.shapes.add_ruby("본말", "덧말")
     assert len(doc.sections[0].paragraphs) == before + 1
 
 
 def test_add_dutmal_is_a_run_direct_child_sibling_of_text_like_real_output() -> None:
     doc = HwpxDocument.new()
     p = doc.add_paragraph("옆에 텍스트")
-    doc.shapes.add_dutmal("본말", "덧말", paragraph=p)
+    doc.shapes.add_ruby("본말", "덧말", paragraph=p)
 
     run_tags = []
     for run in p.element.findall(f"{_HP}run"):
@@ -147,7 +150,7 @@ def test_add_composed_character_round_trips_through_the_read_model() -> None:
     p = doc.add_paragraph("본문")
     cid = doc.styles.ensure_run(bold=True)
     doc.shapes.add_composed_character(
-        "합", [cid], paragraph=p, circle_type="SHAPE_CIRCLE", compose_type="OVERLAP",
+        "합", [cid], paragraph=p, frame="SHAPE_CIRCLE", arrangement="OVERLAP",
     )
 
     data = doc.to_bytes()
@@ -179,7 +182,7 @@ def test_a_composed_character_is_written_as_hancom_writes_one() -> None:
     doc = HwpxDocument.new()
     obj = doc.shapes.add_composed_character("합", paragraph=doc.add_paragraph("본문"))
 
-    attributes = {name: obj.attributes.get(name) for name in ("circleType", "charSz", "composeType", "charPrCnt")}
+    attributes = {name: obj.element.get(name) for name in ("circleType", "charSz", "composeType", "charPrCnt")}
     assert attributes == {"circleType": "SHAPE_CIRCLE", "charSz": "-4", "composeType": "SPREAD", "charPrCnt": "10"}
     slots = [child.get("prIDRef") for child in obj.element if child.tag.endswith("}charPr")]
     assert slots == ["4294967295"] * 10
@@ -189,9 +192,9 @@ def test_a_dutmal_takes_style_0_as_hancom_writes_it() -> None:
     assert 'styleIDRef="0"' in re.search(r"<hp:dutmal\b[^>]*>", _hancom_sample("Dutmal")).group(0)
 
     doc = HwpxDocument.new()
-    obj = doc.shapes.add_dutmal("본말", "덧말", paragraph=doc.add_paragraph("본문"))
+    obj = doc.shapes.add_ruby("본말", "덧말", paragraph=doc.add_paragraph("본문"))
 
-    assert obj.attributes.get("styleIDRef") == "0"
+    assert obj.element.get("styleIDRef") == "0"
 
 
 def test_add_composed_character_without_a_paragraph_creates_its_own() -> None:
@@ -209,7 +212,7 @@ def test_add_composed_character_without_a_paragraph_creates_its_own() -> None:
 def test_authoring_both_together_keeps_the_document_referentially_sound() -> None:
     doc = HwpxDocument.new()
     p = doc.add_paragraph("본문")
-    doc.shapes.add_dutmal("본말", "덧말", paragraph=p, style_id_ref=0)
+    doc.shapes.add_ruby("본말", "덧말", paragraph=p, style_id_ref=0)
     doc.shapes.add_composed_character("합", ["0"], paragraph=p)
 
     report = check_id_integrity(doc)
@@ -232,7 +235,9 @@ def test_capability_area_is_doc_shapes_only_with_no_root_shim() -> None:
     add_container -- doc.shapes-only, deliberately no root _legacy shim."""
 
     doc = HwpxDocument.new()
-    assert hasattr(doc.shapes, "add_dutmal")
+    assert hasattr(doc.shapes, "add_ruby")
     assert hasattr(doc.shapes, "add_composed_character")
+    assert not hasattr(doc.shapes, "add_dutmal")  # 7.0: add_ruby, the name its reads use
+    assert not hasattr(doc, "add_ruby")
     assert not hasattr(doc, "add_dutmal")
     assert not hasattr(doc, "add_composed_character")

@@ -150,7 +150,7 @@ def test_a_group_member_is_refused_and_the_group_removes_whole() -> None:
 
 def test_equation_reads_its_script_font_and_box() -> None:
     doc = HwpxDocument.new()
-    equation = doc.shapes.add_equation("{a} over {b}", base_unit=1200, font="HYhwpEQ")
+    equation = doc.shapes.add_equation("{a} over {b}", font_size=12.0, font="HYhwpEQ")
     assert isinstance(equation, Equation)
     assert equation.script == "{a} over {b}"
     assert equation.font == "HYhwpEQ"
@@ -462,14 +462,17 @@ def test_picture_and_shape_read_what_their_creation_wrote() -> None:
     assert doc.add_paragraph("").add_ellipse(3000, 2000).fill_color is None
 
 
-def test_media_pictures_follow_picture_references() -> None:
+def test_media_pictures_read_each_picture_element_in_order() -> None:
+    # 7.0: doc.media.pictures replaces picture_references(): the same pictures, in document order.
     doc = HwpxDocument.open(HANCOM / "pages_wrapped_pictures_in_cached_cells.hwpx")
-    refs = doc.media.picture_references()
+    elements = [element for section in doc.sections for element in section.element.iter(f"{HP}pic")
+                if element.find(f"{HC}img") is not None]
     pictures = doc.media.pictures
-    assert len(refs) == len(pictures)
-    for ref, picture in zip(refs, pictures):
-        assert picture.item_id == ref.binary_item_id_ref
-        assert (picture.width, picture.height) == (ref.width, ref.height)
+    assert len(pictures) == len(elements) > 0
+    for element, picture in zip(elements, pictures):
+        assert picture.item_id == element.find(f"{HC}img").get("binaryItemIDRef")
+        size = element.find(f"{HP}sz")
+        assert (picture.width, picture.height) == (int(size.get("width")), int(size.get("height")))
 
 
 def test_picture_caption_is_read() -> None:

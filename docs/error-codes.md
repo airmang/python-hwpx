@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 322 | 11 |
+| 개수 | 323 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -294,6 +294,7 @@ except HwpxError as exc:
 |---|---|
 | `parts-auto-spacing-unknown-para-pr` | 그 id 의 hh:paraPr 를 문서에서 찾지 못했다. |
 | `parts-begin-numbers-invalid` | 문서 시작 번호(hh:beginNum)가 1 이상 65535 이하의 정수가 아니다. |
+| `parts-license-mark-incomplete` | 라이선스 표시가 없는 문서에 license_type·license_flag 를 함께 주지 않고 표시를 쓰려 했다. |
 | `parts-no-header-part` | 문서에 header.xml 파트가 없다(doc.parts 경로). |
 
 ### `plan-*`
@@ -439,7 +440,7 @@ except HwpxError as exc:
 | `style-border-fill-image-effect-invalid` | fill_image 의 effect 값이 OWPML 어휘(REAL_PIC/GRAY_SCALE/BLACK_WHITE) 밖이다. |
 | `style-border-fill-image-missing` | fill_image 가 doc.media 이진 항목을 가리키지 않는다. |
 | `style-border-fill-image-mode-invalid` | fill_image 의 mode 값이 OWPML 어휘(hc:imgBrush/@mode) 밖이다. |
-| `style-border-fill-width-invalid` | hh:borderFill 선의 width 가 '<숫자> mm' 꼴이 아니다(border_fill_info). |
+| `style-border-fill-width-invalid` | hh:borderFill 선의 width 가 '<숫자> mm' 꼴이 아니다(doc.styles.border_fill). |
 | `style-border-side-invalid` | ensure_border_fill 의 sides 에 모르는 면이나 type·width·color 밖의 키를 주었다. |
 | `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
@@ -512,7 +513,7 @@ except HwpxError as exc:
 | `text-highlight-match-not-found` | 문단에서 형광펜으로 감쌀 문자열을 찾지 못했다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
 | `text-pattern-invalid` | doc.text.find/replace 에 regex=True 로 준 찾을 글이 정규식으로 컴파일되지 않는다. |
-| `text-place-invalid` | doc.text.paragraphs()/objects() 의 where·kinds 에 모르는 자리·개체 종류를 줬다. |
+| `text-place-invalid` | doc.text.iter_paragraphs()/iter_objects() 의 where·kinds 에 모르는 자리·개체 종류를 줬다. |
 | `text-replacement-invalid` | 정규식 바꾸기의 바꿀 글이 패턴에 없는 묶음(\3, \g<이름>)을 부른다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |
 

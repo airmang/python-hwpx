@@ -63,7 +63,7 @@ def test_a_connected_box_writes_hancom_border_attributes() -> None:
     document = _document()
 
     document.styles.apply_paragraph_format(
-        paragraph_indexes=[1, 2, 3], border={"connect": True, "offset_mm": (2, 2, 1, 1)}
+        paragraphs=[1, 2, 3], border={"connect": True, "offset_mm": (2, 2, 1, 1)}
     )
 
     header, section = _parts(document)
@@ -87,7 +87,7 @@ def test_chosen_sides_line_and_margin_flag() -> None:
     document = _document()
 
     document.styles.apply_paragraph_format(
-        paragraph_index=1,
+        paragraph=1,
         border={"sides": ("top", "bottom"), "color": "#FF0000", "width": "0.4 mm", "type": "DASH", "ignore_margin": True},
     )
 
@@ -104,8 +104,8 @@ def test_an_empty_paragraph_with_the_same_border_shares_the_shape() -> None:
     document.add_paragraph("")
     box = {"connect": True, "offset_mm": (2, 2, 1, 1)}
 
-    document.styles.apply_paragraph_format(paragraph_indexes=[1, 2], border=box)
-    document.styles.apply_paragraph_format(paragraph_index=4, border=box)
+    document.styles.apply_paragraph_format(paragraphs=[1, 2], border=box)
+    document.styles.apply_paragraph_format(paragraph=4, border=box)
 
     ids = _para_pr_ids(_parts(document)[1])
     assert ids[1] == ids[2] == ids[4]
@@ -114,7 +114,7 @@ def test_an_empty_paragraph_with_the_same_border_shares_the_shape() -> None:
 def test_one_offset_and_one_side_may_be_given_alone() -> None:
     document = _document()
 
-    document.styles.apply_paragraph_format(paragraph_index=1, border={"sides": "left", "offset_mm": 2})
+    document.styles.apply_paragraph_format(paragraph=1, border={"sides": "left", "offset_mm": 2})
 
     header, section = _parts(document)
     border = _border(header, _para_pr_ids(section)[1])
@@ -126,7 +126,7 @@ def test_one_offset_and_one_side_may_be_given_alone() -> None:
 def test_bottom_border_keeps_its_bottom_only_line() -> None:
     document = _document()
 
-    document.styles.apply_paragraph_format(paragraph_index=1, bottom_border=True)
+    document.styles.apply_paragraph_format(paragraph=1, bottom_border=True)
 
     header, section = _parts(document)
     border = _border(header, _para_pr_ids(section)[1])
@@ -138,7 +138,7 @@ def test_bottom_border_keeps_its_bottom_only_line() -> None:
 
 def test_a_bordered_box_survives_a_save_and_stays_open_safe(tmp_path: Path) -> None:
     document = _document()
-    document.styles.apply_paragraph_format(paragraph_indexes=[1, 2, 3], border={"connect": True})
+    document.styles.apply_paragraph_format(paragraphs=[1, 2, 3], border={"connect": True})
     path = tmp_path / "box.hwpx"
     document.save(path)
 
@@ -163,6 +163,6 @@ def test_an_invalid_border_is_rejected(kwargs: dict[str, Any]) -> None:
     document = _document()
 
     with pytest.raises(HwpxValueError) as caught:
-        document.styles.apply_paragraph_format(paragraph_index=1, **kwargs)
+        document.styles.apply_paragraph_format(paragraph=1, **kwargs)
 
     assert caught.value.code == "paragraph-border-invalid"

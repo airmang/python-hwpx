@@ -60,7 +60,7 @@ def test_apply_paragraph_format_sets_column_break_without_touching_para_pr() -> 
     target = document.sections[0].paragraphs[1]
     before_para_pr = target.para_pr_id_ref
 
-    result = document.styles.apply_paragraph_format(paragraph_index=1, column_break=True)
+    result = document.styles.apply_paragraph_format(paragraph=1, column_break=True)
 
     assert result.formatted == 1
     assert target.column_break is True
@@ -72,7 +72,7 @@ def test_apply_paragraph_format_combines_column_break_with_paragraph_style() -> 
     document.add_paragraph("문단")
 
     document.styles.apply_paragraph_format(
-        paragraph_index=0, column_break=True, page_break_before=True,
+        paragraph=0, column_break=True, page_break_before=True,
     )
 
     paragraph = document.sections[0].paragraphs[0]
@@ -93,7 +93,7 @@ def test_apply_paragraph_format_column_break_alone_satisfies_the_empty_options_g
     document.add_paragraph("문단")
     # Would raise paragraph-format-empty if column_break weren't recognized
     # as a real option by the guard.
-    document.styles.apply_paragraph_format(paragraph_index=0, column_break=True)
+    document.styles.apply_paragraph_format(paragraph=0, column_break=True)
     assert document.sections[0].paragraphs[0].column_break is True
 
 

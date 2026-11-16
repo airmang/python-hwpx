@@ -383,7 +383,7 @@ def gen_chart(bucket_dir: Path) -> list[dict[str, Any]]:
                 chart_type, categories, series, title=f"{chart_type} 표본 {idx}",
             )
             document = _base_document(idx, "차트 표본")
-            document.shapes.add_chart(chart_xml, size=(60000, 40000))
+            document.shapes.add_chart(chart_xml, width=60000, height=40000)
             document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-chart", seed=f"{chart_type}:{idx}",
@@ -599,7 +599,7 @@ def gen_authored_page_structure(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "쪽 구조 표본")
             border_id = document.styles.ensure_border_fill(
                 border_color=NOTE_LINE_COLOR_BANK[idx % len(NOTE_LINE_COLOR_BANK)],
-                border_width="0.4 mm",
+                border_width_mm=0.4,
             )
             document.sections[0].properties.set_page_border_fill(
                 page_type=page_type,

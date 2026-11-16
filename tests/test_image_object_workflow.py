@@ -140,7 +140,7 @@ def test_replace_picture_preserves_geometry_and_replaces_only_asset_graph(tmp_pa
     old_ref = _first_picture_image(document).get("binaryItemIDRef")
     before_geometry = _geometry_snapshot(old_picture)
 
-    result = document.media.replace_picture(PNG_1X1_ALT, "png", picture_index=0)
+    result = document.media.replace_picture(PNG_1X1_ALT, "png", index=0)
 
     new_picture = _first_picture(document)
     new_ref = _first_picture_image(document).get("binaryItemIDRef")
@@ -163,7 +163,7 @@ def test_replace_picture_keeps_an_old_image_the_header_still_uses() -> None:
     document = HwpxDocument.open(BORDER_FILL_IMAGES)
     document.add_paragraph("").add_picture("image1", width=1000, height=1000)
 
-    result = document.media.replace_picture(PNG_1X1, "png", binary_item_id_ref="image1")
+    result = document.media.replace_picture(PNG_1X1, "png", old_item_id="image1")
 
     assert result.previous_item_id == "image1"
     assert result.removed_orphans == ()

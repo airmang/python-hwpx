@@ -189,14 +189,14 @@ def gen_outline_numbering(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "개요 번호 모양 저작 표본")
             document.add_paragraph(f"{cycle(DEPT_BANK, idx)} 개요 대상 문단 {idx}")
             document.styles.apply_list_format(
-                paragraph_index=len(document.paragraphs) - 1,
+                paragraph=len(document.paragraphs) - 1,
                 kind="outline", level=level, number_format=number_format, start=start,
             )
             if idx == 4:
                 # proves the two mechanisms (custom outline number +
                 # existing level-increase) compose without conflict.
                 document.styles.apply_paragraph_format(
-                    paragraph_index=len(document.paragraphs) - 1, outline_level=level + 1,
+                    paragraph=len(document.paragraphs) - 1, outline_level=level + 1,
                 )
 
             document.save(str(out_path))

@@ -129,7 +129,7 @@ def resolve_heading_style(
         if _style_declares_outline_level(document, entry, level):
             return entry
 
-    available = document.styles.names()
+    available = list(document.styles.names)
     raise HwpxLookupError(
         f"level {level} 개요 스타일을 찾을 수 없습니다.",
         code="heading-style-missing",
@@ -142,7 +142,7 @@ def resolve_heading_style(
         suggestion=(
             "이 문서에는 개요 스타일이 없습니다. "
             'style="<이 문서의 스타일 이름>" 으로 직접 지정하거나, '
-            "doc.styles.names() 로 목록을 확인하세요."
+            "doc.styles.names 로 목록을 확인하세요."
         ),
     )
 

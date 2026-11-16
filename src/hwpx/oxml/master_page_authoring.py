@@ -259,7 +259,7 @@ def remove_master_page(document: "HwpxOxmlDocument", id_ref: str) -> str:
             f"no master page with id {id_ref!r}",
             code="master-page-not-found",
             context={"requested": id_ref, "available": [page.part_name for page in document._master_pages]},
-            suggestion="Pass an id returned by doc.parts.add_master_page.",
+            suggestion="Pass a master page or its id (doc.parts.master_pages; doc.parts.add_master_page returns one).",
         )
     users = [
         index

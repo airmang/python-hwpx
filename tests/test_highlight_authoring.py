@@ -82,7 +82,7 @@ def test_highlights_enumerates_in_document_order() -> None:
     document.text.highlight(1, "beta", color="#FFFF00")
     document.text.highlight(2, "gamma", color="#00FF00")
 
-    found = document.text.highlights()
+    found = document.text.highlights
     assert [(h.text, h.color) for h in found] == [
         ("beta", "#FFFF00"),
         ("gamma", "#00FF00"),
@@ -114,7 +114,7 @@ def test_nested_highlights_pair_positionally_like_the_reader() -> None:
     document.text.highlight(1, "World", color="#FFFF00")
     document.text.highlight(1, "orl", color="#00FF00")
 
-    found = document.text.highlights()
+    found = document.text.highlights
     assert [(h.text, h.color) for h in found] == [
         ("orl", "#00FF00"),
         ("Wd", "#FFFF00"),
@@ -133,7 +133,7 @@ def test_highlight_round_trips_through_save_and_reopen(tmp_path) -> None:
     assert "<hp:markpenEnd" in xml
 
     reopened = HwpxDocument.open(path)
-    found = reopened.text.highlights()
+    found = reopened.text.highlights
     assert [(h.text, h.color) for h in found] == [("World", "#123ABC")]
     reopened.close()
 
@@ -237,7 +237,7 @@ def test_real_corpus_malformed_pair_reads_as_empty_not_fabricated() -> None:
 
     document = HwpxDocument.open(REAL_CORPUS_FILE)
     try:
-        assert document.text.highlights() == ()
+        assert document.text.highlights == ()
     finally:
         document.close()
 
@@ -282,7 +282,7 @@ def test_real_corpus_new_highlight_coexists_with_the_original_malformed_pair(
 
     reopened = HwpxDocument.open(out)
     try:
-        found = [h for h in reopened.text.highlights() if h.text == word]
+        found = [h for h in reopened.text.highlights if h.text == word]
         assert len(found) == 1
         assert found[0].color == "#00CCFF"
     finally:
