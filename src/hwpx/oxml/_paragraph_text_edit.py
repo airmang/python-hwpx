@@ -612,6 +612,71 @@ def paragraph_line_segments(self: Any) -> "tuple[LineSegment, ...]":
     )
 
 
+#: What a mark inside ``hp:t`` reads as in ``paragraph.text`` and how many of Hancom's text positions it
+#: takes (``hp:lineseg@textpos``): a tab 8, a line break and the special spaces 1, a highlight's start and
+#: end none.
+_LINE_TEXT_MARKS = {"tab": ("\t", 8), "lineBreak": ("\n", 1), "nbSpace": (" ", 1),
+                    "fwSpace": ("　", 1), "hyphen": ("­", 1), "markpenBegin": ("", 0), "markpenEnd": ("", 0)}
+
+
+def _hancom_positions(paragraph: ET.Element) -> list[tuple[int, str]] | None:
+    """(Hancom text position, piece of ``paragraph.text``) for each character and object of *paragraph*,
+    or ``None`` when it holds something whose count is not known."""
+
+    pieces: list[tuple[int, str]] = []
+    position = 0
+    for run in paragraph:
+        name = tag_local_name(run.tag)
+        if name == "linesegarray":
+            continue
+        if name != "run":
+            return None
+        for child in run:
+            kind = tag_local_name(child.tag)
+            if kind == "t":
+                for character in child.text or "":
+                    pieces.append((position, character))
+                    position += 2 if ord(character) > 0xFFFF else 1  # Hancom counts UTF-16 units
+                for mark in child:
+                    known = _LINE_TEXT_MARKS.get(tag_local_name(mark.tag))
+                    if known is None:
+                        return None  # a tracked change or table-of-contents mark: count not established
+                    pieces.append((position, known[0]))
+                    position += known[1]
+                    for character in mark.tail or "":
+                        pieces.append((position, character))
+                        position += 2 if ord(character) > 0xFFFF else 1
+            elif kind == "tab" or _is_tab_control_element(child):
+                return None  # a tab outside hp:t: Hancom drops it
+            else:  # a control holds one per child; secPr, a table, picture, equation or shape one each
+                position += 8 * max(1, len(child)) if kind == "ctrl" else 8
+    return pieces
+
+
+def paragraph_line_texts(self: Any) -> "tuple[str, ...] | None":
+    """The text of each line of :attr:`line_segments`, top to bottom: the part of ``paragraph.text``
+    whose characters Hancom laid out on that line when it last saved.
+
+    Lines are cut where each line's ``text_position`` says, counting as Hancom counts (a tab or a
+    control, a table, a picture, an equation or a shape 8 places, a line break or a special space 1,
+    a character outside the basic plane 2, a highlight's marks none). An object is no text, so a line
+    holding only an object reads ``""``. ``()`` when the paragraph has no saved lines; ``None`` when it
+    holds a mark whose count is not established (a tracked change's start or end, a table-of-contents
+    mark) or a tab outside ``hp:t``: then the lines are not cut at a guess.
+    """
+
+    segments = paragraph_line_segments(self)
+    if not segments:
+        return ()
+    pieces = _hancom_positions(self.element)
+    if pieces is None or "".join(text for _position, text in pieces) != self.text:
+        return None
+    starts = [segment.text_position for segment in segments]
+    ends = starts[1:] + [2**63]
+    return tuple("".join(text for position, text in pieces if start <= position < end)
+                 for start, end in zip(starts, ends))
+
+
 class ParagraphFormats:
     """The paragraph-format members of :class:`~hwpx.oxml.paragraph.HwpxOxmlParagraph`,
     kept here so the owner file stays small; the bodies live in ``formatting.py``."""
@@ -854,6 +919,8 @@ class ParagraphFormats:
         (``size``, ``font``, ``color``, ``bold``, ...). The runs are split at *start*
         and *end* (:meth:`split_run`); each run inside gets its own shape changed
         (bold added to an italic run stays italic). ``start == end`` changes nothing.
+        ``highlight=`` is the character shape's shade colour (``shadeColor``); the marker pen
+        Hancom writes inside ``hp:t`` is ``doc.text.highlight(paragraph, match)``.
         """
         from .formatting import format_range
 

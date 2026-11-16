@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 326 | 11 |
+| 개수 | 329 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -112,6 +112,7 @@ except HwpxError as exc:
 |---|---|
 | `field-ambiguous` | 선택자가 누름틀 여럿에 걸린다. |
 | `field-cell-not-found` | 그 이름(과 순번)의 셀 필드(이름 붙은 표 칸)가 없다. |
+| `field-char-pr-not-found` | fields.fill 의 char_pr_id_ref 가 문서 머리의 글자 모양(hh:charPr) id 가 아니다. |
 | `field-checkbox-ambiguous` | 선택자가 체크박스 여럿에 걸린다. |
 | `field-checkbox-caption-empty` | 체크박스 캡션이 비어 있다. |
 | `field-checkbox-not-created` | 만든 체크박스를 표준 리더가 다시 찾지 못했다. |
@@ -119,6 +120,7 @@ except HwpxError as exc:
 | `field-choice-unknown` | 직접 입력할 수 없는 콤보 상자에 그 항목이 없다(combo_box.items 로 항목을 본다). |
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-end-missing` | 누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다). |
+| `field-fill-char-shape-conflict` | fields.fill 에 char_pr_id_ref 와 fit 을 함께 줬다(fit 이 값의 글자 모양을 스스로 정한다). |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
 | `field-form-not-created` | 만든 양식 개체(라디오 단추·콤보 상자·입력 상자)를 표준 리더가 다시 찾지 못했다. |
 | `field-form-text-value` | 콤보 상자·입력 상자에 넣을 글(text)이 str 가 아니다. |
@@ -402,6 +404,7 @@ except HwpxError as exc:
 | `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |
 | `shape-move-place-unsupported` | 한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(표 칸·글상자·각주로는 문단 기준(vertRelTo=PARA)이고 쪽 영역 안(flowWithText=1)이거나 가로도 문단 기준(horzRelTo=PARA)인 떠 있는 개체만, 쪽 기준 개체를 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement·vertRelTo·horzRelTo·flowWithText). |
 | `shape-not-in-document` | 옮기거나 복사할 개체가 문단에 없다(지운 개체). |
+| `shape-numbering-type-value` | 개체·표의 numbering_type 이 NONE·PICTURE·TABLE·EQUATION 가운데 하나(대문자, 정확히)가 아니다. |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-out-margin-value` | 개체 바깥 여백(out_margins)이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-picture-border-value` | 그림 테두리·도형 선 굵기(line_width_mm)가 0 이상의 유한한 mm 수가 아니다(bool 도 거부, 0 은 선 없음; 저장 값은 mm × 283 의 정수 HWPUNIT). |
@@ -413,8 +416,8 @@ except HwpxError as exc:
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
-| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 뒤집은 개체, 또는 한/글 저장본으로 확인하지 못한 묶음(이미 돌린 묶음을 다른 각도로·늘인·뒤집은 묶음, 묶음이 든 묶음, 돌리거나 늘인 구성원이 든 묶음)이다. 글이 든 도형과 묶음 전체는 돈다. |
-| `shape-rotation-value` | 회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부). |
+| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 뒤집은 개체·묶음, 또는 한/글 저장본으로 확인하지 못한 묶음(혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘인 묶음 안의 묶음)이다. 돈 묶음의 크기 바꾸기도 먼저 0으로 되돌려야 한다. 글이 든 도형과 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다. |
+| `shape-rotation-value` | 회전 각도가 int(도)가 아니다(bool 도 거부). 음수·360 이상은 한/글처럼 0~359로 바꿔 쓴다(-30 → 330). |
 | `shape-ruby-alignment-value` | 덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다. |
 | `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
 | `shape-ruby-text-value` | 덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()). |

@@ -962,7 +962,9 @@ class HwpxDocument(metaclass=_DocumentType):
         ``report.editor_open_safety`` the editor-open safety report the save reached for
         what it wrote (``validate_editor_open_safety`` of those bytes, not run again). *format* ``None``
         writes HWP 5.0 to a path ending in ``.hwp`` and HWPX otherwise, a stream
-        included; ``format="hwp"`` or ``"hwpx"`` says it outright. ``mode="patch"``
+        included; ``format="hwp"`` or ``"hwpx"`` says it outright. HWPX to a name not
+        ending in ``.hwpx`` warns unless ``format="hwpx"`` is given (a ``.hwp`` name
+        warns even then). ``mode="patch"``
         with ``fallback="error"`` raises
         :class:`~hwpx.mutation_report.PreservationDowngradeError` and writes nothing
         when an untouched part would not stay byte-identical.

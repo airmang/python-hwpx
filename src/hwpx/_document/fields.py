@@ -1416,6 +1416,69 @@ def _insert_form_field_text_run(
     begin_run.insert(int(match["_begin_child_index"]) + 1, text_node)
 
 
+def _value_char_shape(
+    doc: "HwpxDocument", match: Mapping[str, Any], char_pr_id_ref: object, fit: object
+) -> str:
+    """The checked ``fields.fill(char_pr_id_ref=)``: a character shape of the document's header, not
+    together with *fit* (which sets the value's shape itself)."""
+
+    selector = {"name": match.get("name"), "index": match.get("index")}
+    if fit is not None:
+        raise HwpxValueError(
+            "fields.fill takes char_pr_id_ref= or fit=, not both: fit gives the value its own character shape",
+            code="field-fill-char-shape-conflict",
+            context=selector,
+            suggestion="Fill with char_pr_id_ref= and leave fit out, or let fit shrink the begin run's shape.",
+        )
+    key = "" if isinstance(char_pr_id_ref, bool) or not isinstance(char_pr_id_ref, (str, int)) else str(char_pr_id_ref).strip()
+    if not key or doc.oxml.char_property(key) is None:
+        raise HwpxValueError(
+            f"char_pr_id_ref {char_pr_id_ref!r} is not a character shape of this document",
+            code="field-char-pr-not-found",
+            context={**selector, "charPrIDRef": repr(char_pr_id_ref)},
+            suggestion="Pass an id from doc.styles.char_properties, or make one with doc.styles.ensure_run(...).",
+        )
+    return key
+
+
+def _give_value_char_shape(text_nodes: Sequence[Any], char_pr_id_ref: str) -> None:
+    """Give the field's value (its ``hp:t`` *text_nodes*) the character shape *char_pr_id_ref*.
+
+    A run holding nothing but the value takes it. A run holding the value beside other children (the
+    field's begin or end, text before or after the field) is cut between children into runs of the
+    same attributes, and only the value's pieces take the shape: the rest keep theirs.
+    """
+
+    value = {id(node) for node in text_nodes}
+    runs: list[Any] = []
+    for node in text_nodes:
+        run = node.getparent()
+        if run is not None and all(run is not seen for seen in runs):
+            runs.append(run)
+    for run in runs:
+        children = list(run)
+        if all(id(child) in value for child in children):
+            run.set("charPrIDRef", char_pr_id_ref)
+            continue
+        groups: list[tuple[bool, list[Any]]] = []
+        for child in children:
+            inside = id(child) in value
+            if groups and groups[-1][0] == inside:
+                groups[-1][1].append(child)
+            else:
+                groups.append((inside, [child]))
+        parent, attributes = run.getparent(), dict(run.attrib)
+        at = parent.index(run)
+        for offset, (inside, members) in enumerate(groups):
+            piece = run if offset == 0 else run.makeelement(run.tag, dict(attributes))
+            for member in members:
+                piece.append(member)  # moves it out of the run it was in, in order
+            if inside:
+                piece.set("charPrIDRef", char_pr_id_ref)
+            if offset:
+                parent.insert(at + offset, piece)
+
+
 def _drop_nested_fields(match: Mapping[str, Any]) -> None:
     """Hancom's way with a field that holds other fields: the value replaces
     them with the rest of the content, so the begin and end of every field
@@ -1478,6 +1541,7 @@ def fill_form_field(
     fit: "FitPolicy | None" = None,
     box_width: int | None = None,
     font_pt: float | None = None,
+    char_pr_id_ref: str | int | None = None,
 ) -> FieldFillResult:
     """Fill a native form/click-here field while preserving surrounding runs.
 
@@ -1485,6 +1549,9 @@ def fill_form_field(
     ``HwpxValueError(code="field-fit-failed")`` *before* touching the XML —
     fail-closed (constitution VI) rather than 5.x's ``ok: bool`` key, which
     reported the failure and still wrote the overflowing value.
+
+    *char_pr_id_ref* gives the value that character shape instead of the one of the run holding
+    the field's begin (see :meth:`hwpx._document.ns.fields.FieldsNamespace.fill`).
     """
 
     matches = _iter_form_field_matches(doc)
@@ -1502,6 +1569,7 @@ def fill_form_field(
             context={"name": match.get("name"), "index": match.get("index")},
             suggestion="Hancom leaves such a field unchanged too; give it an end or remove it.",
         )
+    value_char = None if char_pr_id_ref is None else _value_char_shape(doc, match, char_pr_id_ref, fit)
     paragraph = match["_paragraph"]
     runs = match["_runs"]
     before_value = str(match.get("current_value", ""))
@@ -1566,6 +1634,8 @@ def fill_form_field(
 
     if fit_result is not None:
         _apply_form_field_fit_style(doc, match, fit_result)
+    if value_char is not None:
+        _give_value_char_shape(_refresh_form_field_match(doc, match).get("_text_nodes", []), value_char)
 
     _clear_form_field_layout_cache(paragraph.element)
     paragraph.section.mark_dirty()
