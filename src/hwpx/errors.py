@@ -396,6 +396,8 @@ ERROR_CODES: dict[str, str] = {
     "table-position-missing": "표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다.",
     "table-width-value": "표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "table-row-heights-value": "행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다.",
+    "table-cell-zone-border-fill-unknown": "칸 영역에 줄 테두리/배경(border_fill_id_ref)이 문서 머리에 없는 id 이거나 id 형식이 아니다.",
+    "table-cell-zone-not-found": "그 번호의 칸 영역이 표에 없다(table.cell_zones 로 본다).",
     "table-cell-zone-grid-mismatch": "셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다.",
     # -- 머리말·꼬리말 story ------------------------------------------------
     "story-ambiguous": "그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다.",

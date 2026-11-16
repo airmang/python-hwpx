@@ -328,6 +328,7 @@
    "implementation": "hwpx.oxml.table.HwpxOxmlTable",
    "internalCount": 14,
    "stable": [
+    "add_cell_zone",
     "alignment",
     "cell",
     "cell_zones",
@@ -349,6 +350,7 @@
     "merge_cells",
     "no_adjust",
     "page_break",
+    "remove_cell_zone",
     "repeat_header",
     "row_count",
     "row_heights",
@@ -361,6 +363,7 @@
     "set_cell_fill_image",
     "set_cell_shading",
     "set_cell_text",
+    "set_cell_zone",
     "set_column_width",
     "set_column_widths",
     "set_header_rows",

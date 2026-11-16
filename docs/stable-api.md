@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 364개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 367개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -310,7 +310,9 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `model.Equation`(`add_equation`·`paragraph.equations`·`doc.shapes.equations`)은 `script`, `font`,
 `base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
-`Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
+`Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다. `Paragraph.rubies`/`composed_characters`는
+그 문단의 덧말(`hwpx.objects.Ruby`)·글자 겹치기(`hwpx.objects.ComposedCharacter`)를 순서대로
+돌려줍니다(문서 전체는 `doc.shapes.rubies`/`composed_characters`).
 
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
 `model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는
@@ -357,6 +359,8 @@ line_type=, width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸�
 배경은 그대로 두고 그 칸의 테두리 정의에서 파생), `TableCell.border_fill`(`BorderFillInfo`),
 `header_rows`/`set_header_rows(n, repeat=True)`·`repeat_header`·`TableCell.is_header`/`set_header`,
 `page_break`/`set_page_break("CELL")`, `no_adjust`/`set_no_adjust`, `in_margins`/`set_in_margins`,
-`text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`),
+`text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`)·
+`add_cell_zone(cell_range, border_fill_id_ref=)`·`set_cell_zone(index, cell_range=, border_fill_id_ref=)`·
+`remove_cell_zone(index)`(칸 영역: 격자 위 사각형에 테두리/배경 하나, 행·열 편집을 따라간다),
 `TableCell.clear()`, `copy_after(paragraph=None)`(새 id 로 복사). 길이는 모두 HWPUNIT,
 선 굵기만 `_mm` 이다.
