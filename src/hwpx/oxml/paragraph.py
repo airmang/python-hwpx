@@ -653,14 +653,15 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
         Also of the paragraphs holding it (the cell's or caption's table's paragraph,
         up to the body): their line is as tall as what they hold. Call it after changing
-        the paragraph's text, size or placement through the XML; the editing methods do
-        it themselves. A cache left over from before makes Hancom draw lines over each
-        other. Returns how many caches went (0 when there were none).
+        the paragraph — its text, size or placement — through the XML (``.element``); the
+        editing methods do it themselves. A cache left over from before makes Hancom draw
+        lines over each other. It also marks the paragraph's part changed, so the edit is
+        saved even when there was no cache to drop (a part nothing marked is written as
+        it was read). Returns how many caches went (0 when there were none).
         """
 
         removed = _clear_paragraph_layout_cache(self.element)
-        if removed:
-            self.section.mark_dirty()
+        self.section.mark_dirty()
         return removed
 
     @property
