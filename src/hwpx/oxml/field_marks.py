@@ -321,7 +321,8 @@ def create_mail_merge_field(
     *name*은 데이터 열 이름("도구 > 메일 머지 > 메일 머지 표시 달기"
     대화상자의 필드 이름)이고, ``Command``/``FieldValue`` 두 파라미터에
     그대로 실린다. *cached_text*를 생략하면 ``"{{name}}"`` --
-    ``hwpx.tools.mail_merge.merge_template_rows``가 치환 대상으로 인식하는
+    메일 머지 배치 생성기(7.0부터 python-hwpx-automation의
+    ``hwpx_automation.mail_merge.merge_template_rows``)가 치환 대상으로 인식하는
     플레이스홀더 문법이라, 이 필드로 저작한 템플릿이 그 배치 생성기에
     그대로 물린다.
 

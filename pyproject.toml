@@ -36,24 +36,15 @@ dependencies = [
 # 주입받는 계약이고, 그 스택은 companion 계층이 소유한다. 이름은 기존 설치가
 # `python-hwpx[visual]`로 깨지지 않도록 남기되 아무것도 끌어오지 않는다.
 visual = []
-# Excel(.xlsx/.xlsm) 명부 ingestion for mail_merge. Lazy-imported; absent => clear error.
-xlsx = [
-    "openpyxl>=3.1",
-]
-# Document preview viewer equation rendering: LaTeX -> MathML. Optional; without
-# it the preview fails closed to a LaTeX code block instead of dropping equations.
-preview = [
-    "latex2mathml>=3.77",
-]
-# LangChain document loader (hwpx.integrations.langchain). Only that module imports
-# it, so nothing else in the library needs or loads LangChain.
-langchain = [
-    "langchain-core>=0.3",
-]
-# LlamaIndex reader (hwpx.integrations.llama_index). Only that module imports it.
-llamaindex = [
-    "llama-index-core>=0.12",
-]
+# 7.0에서 메일 머지(xlsx 명부), 미리보기(수식 MathML), LangChain·LlamaIndex 로더가
+# python-hwpx-automation으로 옮겨 갔다. 같은 이름의 extra가 그 패키지에 있다
+# (`pip install "python-hwpx-automation[xlsx]"` 등). 이 네 이름은 `visual = []`처럼
+# 남겨 두어 이미 쓰던 `pip install "python-hwpx[xlsx]"`가 깨지지 않게 하고, 아무것도
+# 끌어오지 않는다.
+xlsx = []
+preview = []
+langchain = []
+llamaindex = []
 # Everything a contributor needs to run the gates in CONTRIBUTING.md: the CI
 # extras (`test` + `typecheck`, what .github/workflows/tests.yml installs) plus
 # twine for checking a built distribution. tests/test_dev_extra_matches_ci.py
@@ -62,29 +53,26 @@ dev = [
     "build>=1.0",
     "twine>=4.0",
     "numpy>=1.26",
-    "openpyxl>=3.1",
     "pillow>=10.0",
     "pytest>=7.4",
     "pytest-cov>=5.0",
     "pyyaml>=6.0,<7",
     "ruff>=0.12",
     "latex2mathml>=3.77",
-    "langchain-core>=0.3",
     "mypy>=1.10",
     "pyright>=1.1.390",
 ]
 test = [
     "build>=1.0",
     "numpy>=1.26",
-    "openpyxl>=3.1",
     "pillow>=10.0",
     "pytest>=7.4",
     "pytest-cov>=5.0",
     "pyyaml>=6.0,<7",
     "ruff>=0.12",
+    # tests/test_equation_converter.py checks that eqedit_to_latex output parses as
+    # MathML. The library itself no longer imports latex2mathml (7.0).
     "latex2mathml>=3.77",
-    # so that tests/test_langchain_loader.py runs in CI instead of skipping
-    "langchain-core>=0.3",
 ]
 typecheck = [
     "mypy>=1.10",
@@ -110,7 +98,8 @@ hwpx-page-guard = "hwpx.tools.page_guard:main"
 hwpx-analyze-template = "hwpx.tools.template_analyzer:main"
 hwpx-text-extract = "hwpx.tools.text_extract_cli:main"
 hwpx-repair = "hwpx.tools.repair:main"
-hwpx-check-format = "hwpx.tools.format_rules:main"
+# `hwpx-check-format` moved with hwpx.tools.format_rules to python-hwpx-automation in
+# 7.0, which declares the name in the same release train (one declarer per install).
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -137,11 +126,9 @@ packages = [
     # HWP 5.0(.hwp) 읽기·쓰기. `hwpx/__init__.py`가 이 패키지를 가져오므로 빠지면
     # 휠에서 `import hwpx`가 깨진다.
     "hwpx.hwp5",
-    "hwpx.ingest",
-    # LangChain 로더·LlamaIndex 리더. 7.0 전까지 목록에서 빠져 있어 휠에 실리지
-    # 않았다(편집 설치로만 돌던 CI가 못 봤다). tests/test_packaging_package_list.py가
-    # src/hwpx 아래 __init__.py가 있는 폴더를 이 목록과 견준다.
-    "hwpx.integrations",
+    # hwpx.ingest·hwpx.integrations는 7.0에서 python-hwpx-automation으로 옮겼다.
+    # tests/test_packaging_package_list.py가 src/hwpx 아래 __init__.py가 있는 폴더를
+    # 이 목록과 견준다.
     "hwpx.layout",
     # 6.0: add_* 가 반환하는 도메인 객체·결과 dataclass (WP-C가 채운다).
     "hwpx.objects",
@@ -206,10 +193,6 @@ files = [
     "src/hwpx/equation/tokens.py",
     "src/hwpx/equation/eqedit.py",
     "src/hwpx/equation/authoring.py",
-    "src/hwpx/equation/mathml.py",
-    "src/hwpx/equation/render.py",
-    "src/hwpx/tools/document_viewer.py",
-    "src/hwpx/tools/mail_merge.py",
     "src/hwpx/tools/redline.py",
     "src/hwpx/_document/_units.py",
     # 6.0 (062-engine-surface WP-A): 새 모듈은 게이트 안에서 태어난다. 이
@@ -418,10 +401,6 @@ include = [
     "src/hwpx/equation/tokens.py",
     "src/hwpx/equation/eqedit.py",
     "src/hwpx/equation/authoring.py",
-    "src/hwpx/equation/mathml.py",
-    "src/hwpx/equation/render.py",
-    "src/hwpx/tools/document_viewer.py",
-    "src/hwpx/tools/mail_merge.py",
     "src/hwpx/tools/redline.py",
     "src/hwpx/_document/_units.py",
     # 6.0 (062-engine-surface WP-A): 새 모듈은 게이트 안에서 태어난다. 이

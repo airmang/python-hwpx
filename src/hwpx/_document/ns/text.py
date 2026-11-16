@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-"""`doc.text` — 텍스트 순회·검색·치환·내보내기.
+"""`doc.text` — 텍스트 순회·검색·치환·평문 내보내기.
 
 5.x는 이 축을 루트에 7칸으로 흩어 놓았다(`export_text`·`export_html`·
 `export_markdown`·`export_rich_markdown`·`iter_runs`·`find_runs_by_style`·
 `replace_text_in_runs`). 전부 "문서의 글자를 읽어 내거나 바꾼다"는 한 가지
 일이라 한 네임스페이스로 모았다.
 
-`export_rich_markdown` 은 동사가 아니라 `markdown` 의 변형이었으므로
-`markdown(rich=True)` 파라미터로 접었다 — 6.0에서 강등된 3개 중 하나.
+다른 형식으로 바꾸는 `markdown`·`html`·`append_markdown` 은 7.0에서
+python-hwpx-automation(`hwpx_automation.markdown`)으로 옮겼다. 부르면 새 자리를
+알려 주는 오류가 난다(``_base._Namespace.__getattr__``). 평문(`plain`)은 파일에
+적힌 글을 그대로 내놓으므로 엔진에 남는다.
 """
 
 from __future__ import annotations
@@ -15,14 +17,13 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, cast
 
-from ...errors import HwpxTypeError, HwpxValueError, ReplaceScopeWarning
+from ...errors import HwpxValueError, ReplaceScopeWarning
 from ...oxml.namespaces import HP, tag_local_name
 from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...objects.highlight import Highlight
     from ...objects.results import ObjectPlace, ParagraphPlace
-    from ...tools.markdown_import import MarkdownStyle
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
     from ..text_blocks import TextBlock, TextChangeReport, TextOutline
 
@@ -68,42 +69,6 @@ def _paragraphs_everywhere(section_element: Any) -> Iterator[tuple[Any, str, tup
     yield from walk(section_element, "", "plain", None)
 
 
-def _option_names(function: Any) -> set[str]:
-    import inspect
-
-    return {
-        name
-        for name, parameter in inspect.signature(function).parameters.items()
-        if parameter.kind is inspect.Parameter.KEYWORD_ONLY
-    }
-
-
-def _check_markdown_options(rich: bool, options: dict[str, object]) -> None:
-    """``markdown()`` 의 옵션이 고른 쪽(rich 여부)에 있는지 본다. 없으면 어느 쪽 옵션인지 알린다."""
-
-    from ...tools.exporter import export_markdown as plain_markdown
-    from ...tools.markdown_export import export_markdown as rich_markdown
-
-    plain_names, rich_names = _option_names(plain_markdown), _option_names(rich_markdown)
-    accepted = rich_names if rich else plain_names
-    for name in options:
-        if name in accepted:
-            continue
-        other = plain_names if rich else rich_names
-        if name in other:
-            where = "rich=False" if rich else "rich=True"
-            message = f"markdown(rich={rich})은 {name!r} 옵션을 받지 않습니다. 이 옵션은 markdown({where})의 것입니다."
-            suggestion = f"markdown({where}, {name}=...)로 부르세요."
-        else:
-            message = f"markdown()에 없는 옵션입니다: {name!r}"
-            suggestion = "받는 옵션: " + ", ".join(sorted(accepted))
-        raise HwpxTypeError(
-            message,
-            context={"argument": name, "rich": rich},
-            suggestion=suggestion,
-        )
-
-
 def _run_matches(
     run: "HwpxOxmlRun",
     *,
@@ -127,7 +92,7 @@ def _run_matches(
 
 
 class TextNamespace(_Namespace):
-    """텍스트 순회·검색·치환·내보내기."""
+    """텍스트 순회·검색·치환·평문 내보내기."""
 
     __slots__ = ()
     _path = "doc.text"
@@ -140,49 +105,6 @@ class TextNamespace(_Namespace):
         from .. import persistence as _persistence
 
         return _persistence.export_text(self._doc, **kwargs)
-
-    def markdown(self, *, rich: bool = False, **kwargs: object) -> str:
-        """본문을 Markdown 으로 내보낸다.
-
-        Args:
-            rich: 참이면 런 서식(굵게·기울임·밑줄 등)을 보존하는 확장 변환을
-                쓴다. 5.x `export_rich_markdown` 이 이 파라미터로 접혔다.
-        """
-
-        from .. import persistence as _persistence
-
-        _check_markdown_options(rich, kwargs)
-        if rich:
-            return _persistence.export_rich_markdown(self._doc, **kwargs)
-        return _persistence.export_markdown(self._doc, **kwargs)
-
-    def html(self, **kwargs: object) -> str:
-        """본문을 HTML 로 내보낸다."""
-
-        from .. import persistence as _persistence
-
-        return _persistence.export_html(self._doc, **kwargs)
-
-    # -- 가져오기 ----------------------------------------------------------
-
-    def append_markdown(
-        self, markdown: str, *, style: "MarkdownStyle | str | None" = None, byline: str | None = None
-    ) -> None:
-        """*markdown* 을 마지막 구역 끝에 문단·목록·표로 덧붙인다.
-
-        ``hwpx.tools.markdown_import.from_markdown`` 과 같은 부분 집합(제목 ``#``~``####``,
-        문단, ``-``/``1.`` 목록, ``|`` 표, ``**굵게**``/``*기울임*``)을 쓴다.
-        새 문단은 앞 문단의 서식을 물려받지 않는다. 모르는 Markdown 은 평문으로
-        쓰고 오류를 내지 않는다. *style* 은
-        :class:`hwpx.tools.markdown_import.MarkdownStyle` 이나 모양 이름
-        (``"report"``·``"plain"``)이다. 주지 않으면 꾸미지 않은 모양(``"plain"``)으로 써서
-        받은 문서의 모양을 그대로 둔다(새 문서를 만드는 ``from_markdown`` 은 주지 않으면
-        보고서 모양이다). *byline* 은 제목 아래 오른쪽에 쓰는 부서·날짜 줄이다.
-        """
-
-        from ...tools.markdown_import import append_markdown
-
-        append_markdown(self._doc, markdown, style=style, byline=byline)
 
     # -- 순회·검색 ---------------------------------------------------------
 

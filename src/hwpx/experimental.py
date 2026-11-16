@@ -6,9 +6,12 @@
 (:mod:`hwpx` 최상위 ``__all__`` / ``docs/stable-api.md``)만 사용하세요.
 
 이 모듈은 실제 구현 모듈에서 이름을 **재내보내기(re-export)** 만 합니다(모듈을
-옮기지 않음). 최상위 ``from hwpx import ...`` 경로도 하위 호환을 위해 당분간
-동작하지만 ``DeprecationWarning``을 내며 다음 major에서 제거될 예정입니다 —
-새 코드는 ``from hwpx.experimental import ...``를 쓰세요.
+옮기지 않음). 4.0~6.x의 최상위 ``from hwpx import ...`` 재내보내기는 7.0에서
+없어졌습니다 — ``from hwpx.experimental import ...``를 쓰세요.
+
+문서 ingest(``DocumentIngestor`` 등 7개)와 미리보기(``render_layout_preview`` 등 5개)는
+7.0에서 python-hwpx-automation(``hwpx_automation.ingest`` / ``hwpx_automation.preview``)으로
+옮겼습니다.
 """
 
 from __future__ import annotations
@@ -35,41 +38,11 @@ from .layout.pages import (
     PageEstimate,
     estimate_pages,
 )
-from .ingest import (
-    ConversionAttempt,
-    DocumentConverter,
-    DocumentIngestError,
-    DocumentIngestResult,
-    DocumentIngestor,
-    DocumentSourceInfo,
-    UnsupportedDocumentFormat,
-)
-from .tools.document_viewer import (
-    DocumentViewer,
-    render_document_viewer,
-)
-from .tools.layout_preview import (
-    LayoutPreview,
-    PreviewPage,
-    render_layout_preview,
-)
 
 __all__ = [
-    "ConversionAttempt",
-    "DocumentConverter",
-    "DocumentIngestError",
-    "DocumentIngestResult",
-    "DocumentIngestor",
-    "DocumentSourceInfo",
-    "UnsupportedDocumentFormat",
-    "LayoutPreview",
-    "PreviewPage",
-    "render_layout_preview",
     "estimate_pages",
     "PageEstimate",
     "EstimatedLine",
-    "DocumentViewer",
-    "render_document_viewer",
     "UnsupportedLatexError",
     "estimate_equation_size",
     "latex_to_eqedit",

@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from ..form_fit.policy import FitPolicy
     from ..form_fit.report import FitResult
     from ..oxml import HwpxOxmlSection
-    from ..tools.table_navigation import TableFillResult
 
 _HP = HP
 
@@ -1656,14 +1655,3 @@ def _apply_form_field_fit_style(
         fit_result.warnings.append("font shrink could not be materialised")
         return
     run.set("charPrIDRef", str(new_ref))
-
-
-def fill_by_path(
-    doc: "HwpxDocument",
-    mappings: Mapping[str, str],
-) -> TableFillResult:
-    """Fill table cells using ``label > direction > ...`` navigation paths."""
-
-    from ..tools.table_navigation import fill_by_path
-
-    return fill_by_path(doc, mappings)

@@ -32,30 +32,16 @@ def _resolve_version() -> str:
 # 이름은 ``_TOOLS_STABLE_EXPORTS``가 지연 해석합니다.
 #
 # ``_EXPERIMENTAL_EXPORTS``는 4.0~6.x가 최상위에서 경고와 함께 재내보내던 실험 기능
-# 26개다. 7.0은 예고대로 그 재내보내기를 지웠다. 표는 남아 오류 메시지 하나를 만든다 —
-# ``from hwpx import latex_to_eqedit``가 ``hwpx.experimental``을 알려 준다
-# (``MovedToExperimental``). 구현 모듈 경로는 그대로다.
+# 가운데 엔진에 남은 14개다. 7.0은 예고대로 그 재내보내기를 지웠다. 표는 남아 오류
+# 메시지 하나를 만든다 — ``from hwpx import latex_to_eqedit``가 ``hwpx.experimental``을
+# 알려 준다(``MovedToExperimental``). 구현 모듈 경로는 그대로다. 나머지 12개(ingest 7개,
+# 미리보기 5개)는 7.0에서 python-hwpx-automation으로 옮겼다.
 
 _EXPERIMENTAL_EXPORTS = {
-    # 문서 ingestion 프레임워크(임의 포맷 -> HWPX). 계약 유동.
-    "ConversionAttempt": "hwpx.ingest",
-    "DocumentConverter": "hwpx.ingest",
-    "DocumentIngestError": "hwpx.ingest",
-    "DocumentIngestResult": "hwpx.ingest",
-    "DocumentIngestor": "hwpx.ingest",
-    "DocumentSourceInfo": "hwpx.ingest",
-    "UnsupportedDocumentFormat": "hwpx.ingest",
-    # 레이아웃 프리뷰(한컴 없는 정직 근사). 계약 유동.
-    "LayoutPreview": "hwpx.tools.layout_preview",
-    "PreviewPage": "hwpx.tools.layout_preview",
-    "render_layout_preview": "hwpx.tools.layout_preview",
     # 쪽 수 추정(한/글 없이, 줄마다 쪽·단·세로 위치). 계약 유동.
     "EstimatedLine": "hwpx.layout.pages",
     "PageEstimate": "hwpx.layout.pages",
     "estimate_pages": "hwpx.layout.pages",
-    # 문서 프리뷰 뷰어(3.8.0 신규). 계약 유동.
-    "DocumentViewer": "hwpx.tools.document_viewer",
-    "render_document_viewer": "hwpx.tools.document_viewer",
     # 수식 저작(5.2.0 신규, LaTeX -> EqEdit). 계약 유동.
     "UnsupportedLatexError": "hwpx.equation.authoring",
     "estimate_equation_size": "hwpx.equation.authoring",
@@ -382,8 +368,8 @@ def __dir__() -> list[str]:
 # ``from hwpx import *``에는 그대로 있습니다.
 
 #: ``hwpx.tools``의 하위 모듈이 정의하고 ``hwpx.tools``가 다시 내보내는 stable 이름(텍스트 추출·개체
-#: 찾기·문서 비교·메일 머지·패키지 검증). 정적 import로 해석하므로 동적 import 지점은
-#: 늘지 않는다.
+#: 찾기·문서 비교·패키지 검증). 정적 import로 해석하므로 동적 import 지점은 늘지 않는다.
+#: 메일 머지와 참조 일관성 검사는 7.0에서 python-hwpx-automation으로 옮겼다.
 _TOOLS_STABLE_EXPORTS = frozenset(
     {
         "DEFAULT_NAMESPACES",
@@ -393,14 +379,8 @@ _TOOLS_STABLE_EXPORTS = frozenset(
         "FoundElement",
         "ObjectFinder",
         "DOC_DIFF_REPORT_VERSION",
-        "REFERENCE_CONSISTENCY_REPORT_VERSION",
         "diff_paragraphs",
         "doc_diff",
-        "inspect_reference_consistency",
-        "MAIL_MERGE_REPORT_VERSION",
-        "inspect_mail_merge_placeholders",
-        "load_mail_merge_rows",
-        "merge_template_rows",
         "EditorOpenSafetyReport",
         "PackageValidationReport",
         "validate_editor_open_safety",
@@ -412,16 +392,8 @@ _TOOLS_STABLE_EXPORTS = frozenset(
 if TYPE_CHECKING:  # type checkers see the real objects; at runtime they load lazily
     from .tools.doc_diff import (
         DOC_DIFF_REPORT_VERSION,
-        REFERENCE_CONSISTENCY_REPORT_VERSION,
         diff_paragraphs,
         doc_diff,
-        inspect_reference_consistency,
-    )
-    from .tools.mail_merge import (
-        MAIL_MERGE_REPORT_VERSION,
-        inspect_mail_merge_placeholders,
-        load_mail_merge_rows,
-        merge_template_rows,
     )
     from .tools.object_finder import FoundElement, ObjectFinder
     from .tools.package_validator import (
@@ -447,7 +419,6 @@ _moved_modules.install(_MOVED_TO_COMPANION)
 
 # --- stable 최상위 표면 (eager import) ------------------------------------------
 # ``hwpx.tools``의 stable 이름은 위 ``_TOOLS_STABLE_EXPORTS``가 지연 해석한다.
-from .ingest import HwpxMarkdownConverter
 from .errors import Hwp5ConversionWarning, Hwp5Error, HwpxError
 from .mutation_report import (
     MutationReport,
@@ -469,15 +440,9 @@ from .quality import (
 )
 
 __all__ = [
-    "inspect_reference_consistency",
     "doc_diff",
     "diff_paragraphs",
-    "REFERENCE_CONSISTENCY_REPORT_VERSION",
     "DOC_DIFF_REPORT_VERSION",
-    "merge_template_rows",
-    "load_mail_merge_rows",
-    "inspect_mail_merge_placeholders",
-    "MAIL_MERGE_REPORT_VERSION",
     "QualityPolicy",
     "SavePipeline",
     "VisualCompleteReport",
@@ -498,7 +463,6 @@ __all__ = [
     "SectionInfo",
     "TextExtractor",
     "FoundElement",
-    "HwpxMarkdownConverter",
     "ObjectFinder",
     "HwpxDocument",
     "HwpxPackage",
