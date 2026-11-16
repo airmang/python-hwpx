@@ -1025,8 +1025,8 @@ class SectionWriter(ShapeReader):
                     if chunk.kind in ("text", "char") or (chunk.kind == "inline" and chunk.code == bt.TAB):
                         text = self._text(run, text, "", style(chunk.position))
                     while pending < len(marks) and marks[pending][0] <= chunk.position:
-                        name = marks[pending][2]
-                        if not (text is not None and _is_open(run, text)) and name in TRACK_MARK_NAMES:
+                        mark_name = marks[pending][2]
+                        if not (text is not None and _is_open(run, text)) and mark_name in TRACK_MARK_NAMES:
                             text = self._text(run, text, "", style(chunk.position))
                         target = text if text is not None and _is_open(run, text) else run
                         pending = _place_marks(target, marks, pending, marks[pending][0], one=True)
@@ -1123,10 +1123,10 @@ class SectionWriter(ShapeReader):
             if parent is not None:
                 sub(parent, "hp:t")
         elif last is None and run is not None and len(run) == 0:
-            controls = any(
+            has_control = any(
                 etree.QName(child).localname != "t" for other in element.iterchildren(q("hp:run")) for child in other
             )
-            if controls or tracked:
+            if has_control or tracked:
                 sub(run, "hp:t")
 
     @staticmethod
