@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 293 | 11 |
+| 개수 | 299 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -489,6 +489,12 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `toc-command-unknown` | 차례가 몇 수준을 모으는지(ContentsLevel) 적혀 있지 않아 항목을 다시 만들 수 없다. |
+| `toc-leader-value` | 차례 쪽 번호 앞 채움(leader)이 탭 채움 이름(NONE·SOLID·DOT·DASH …) 밖이다. |
+| `toc-levels-value` | 차례 수준(levels)이 1~10의 int 가 아니거나 title·hyperlink 형식이 틀렸다. |
+| `toc-no-headings` | 차례에 넣을 개요 문단(수준 1~levels)이 문서에 없다. |
+| `toc-refresh-value` | 차례 refresh_on_open 이 True·False 가 아니다. |
+| `toc-region-unsupported` | 차례의 시작과 끝이 한 문단에 있어 항목 문단을 둘 자리가 없다. |
 | `toc-word-box-extractor-required` | PDF에서 글자 상자를 읽을 방법 없이 차례 쪽 대조를 불렀다. |
 
 ### `track-*`

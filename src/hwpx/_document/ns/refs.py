@@ -15,7 +15,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...model import InlineObject, Paragraph, Section, Table
-    from ...objects import Bookmark, CrossReference, Hyperlink
+    from ...objects import Bookmark, CrossReference, Hyperlink, TableOfContents
 
 __all__ = ["RefsNamespace"]
 
@@ -63,6 +63,48 @@ class RefsNamespace(_Namespace):
         from .. import fields as _fields
 
         return _fields.list_cross_references(self._doc)
+
+    @property
+    def tables_of_contents(self) -> "tuple[TableOfContents, ...]":
+        """문서의 모든 차례(``fieldBegin type="TABLEOFCONTENTS"``)를 문서 순서로.
+
+        ``toc.title``·``toc.entries``(항목 글·수준·쪽 번호 글·링크 대상)·``levels`` 를 적힌 그대로
+        읽는다. ``toc.rebuild()`` 는 개요가 바뀐 뒤 제목 항목을 다시 만든다 — 쪽 번호는 비워 두고
+        ``refresh_on_open`` 을 켜서 한/글이 다음에 열 때 채우게 한다(한/글은 dirty 차례를 열면서
+        항목·스타일·쪽 번호를 다시 만든다). ``toc.remove()`` 는 차례를 통째로 걷어 낸다.
+        """
+
+        from ...tools import toc_author
+
+        return toc_author.list_tables_of_contents(self._doc)
+
+    def add_table_of_contents(
+        self,
+        *,
+        index: int = 0,
+        section: "int | Section | None" = None,
+        title: str = "<제목 차례>",
+        levels: int = 2,
+        leader: str = "DASH",
+        hyperlink: bool = True,
+    ) -> "TableOfContents":
+        """개요 1~*levels* 수준 문단의 차례를 *section* 의 *index* 번째 문단 자리에 한/글이 쓰는
+        모양으로 넣고 돌려준다(*section* 을 주지 않으면 첫 구역).
+
+        항목은 개요 번호와 글, 수준의 '차례 N' 스타일로 쓰고 제목으로 링크한다(*hyperlink*). 쪽 번호는
+        비워 두고 ``refresh_on_open`` 을 켠다: 한/글이 문서를 열 때 차례를 다시 만들며 쪽 번호를
+        채운다. 개요 문단이 없으면 ``toc-no-headings``. *leader* 는 쪽 번호 앞 채움(``"DASH"`` 가
+        한/글 차례의 점선, ``"NONE"`` 은 없음).
+        """
+
+        from ...tools import toc_author
+
+        target = resolve_section(self._doc, 0 if section is None else section,
+                                 caller="doc.refs.add_table_of_contents")
+        return toc_author.add_table_of_contents(
+            self._doc, index=index, section=self._doc.oxml.sections.index(target), title=title,
+            levels=levels, leader=leader, hyperlink=hyperlink,
+        )
 
     def add_cross_reference(
         self,

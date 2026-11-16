@@ -31,7 +31,9 @@ from .form_field import (
     FormField,
     FormulaField,
     Hyperlink,
+    TableOfContents,
     TextBoxField,
+    TocEntry,
 )
 from .highlight import ComposedCharacter, Highlight, Ruby
 from .results import (
@@ -124,6 +126,8 @@ __all__ = [
     "ParagraphFormatResult",
     "PictureRef",
     "PictureReplacement",
+    "TableOfContents",
+    "TocEntry",
     "TrackedChange",
     "TrackedReplacement",
     "Units",

@@ -743,6 +743,157 @@ class CrossReference:
         return f"CrossReference(ref_type={self.ref_type!r}, target={self.target!r}, text={self.text!r})"
 
 
+@dataclass(frozen=True)
+class TocEntry:
+    """One entry of a table of contents (차례), read as written.
+
+    ``text`` is what the entry shows before its tab (the heading's number and text, ``1. 개요``),
+    ``page`` what it shows after it (the page number Hancom last wrote; empty while python-hwpx
+    leaves it for Hancom to fill in), ``level`` the level of its 차례 N style (``None`` when its
+    style is no 차례 N) and ``target`` where it links (``#<paragraph id>``; empty for an entry that
+    does not link). ``paragraph`` is the entry's paragraph.
+    """
+
+    text: str
+    level: int | None
+    page: str
+    target: str
+    paragraph: Any = field(repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"text": self.text, "level": self.level, "page": self.page, "target": self.target}
+
+
+class TableOfContents:
+    """A live view over one table of contents (``<hp:fieldBegin type="TABLEOFCONTENTS">``, 차례).
+
+    ``title`` is the text after the field's start (``<제목 차례>``), ``entries`` its entries
+    (:class:`TocEntry`), ``levels`` how many outline levels it collects (``ContentsLevel``),
+    ``hyperlink`` whether its entries link to their headings and ``leader`` the tab leader before
+    the page numbers. ``refresh_on_open`` is the field's ``dirty`` mark: while it is on, Hancom
+    builds the table again -- entries, styles and page numbers -- the next time it opens the
+    document; it is settable. :meth:`rebuild` rewrites the heading entries from the outline as it is
+    now, page numbers left for Hancom; :meth:`remove` takes the table out. ``element`` is the
+    ``<hp:fieldBegin>``.
+    """
+
+    __slots__ = ("_doc", "_element")
+
+    def __init__(self, doc: "HwpxDocument", element: Any) -> None:
+        self._doc = doc
+        self._element = element
+
+    @property
+    def element(self) -> Any:
+        return self._element
+
+    def _values(self) -> dict[str, str]:
+        from ..tools.toc_author import _param_text, toc_command_values
+
+        return toc_command_values(_param_text(self._element, "Command"))
+
+    @property
+    def paragraph(self) -> Any:
+        """The paragraph holding the table's start (and its title)."""
+
+        from ..tools.toc_author import _region
+
+        return _region(self._doc, self._element)[0]
+
+    @property
+    def title(self) -> str:
+        from ..tools.toc_author import toc_title
+
+        return toc_title(self._doc, self._element)
+
+    @property
+    def entries(self) -> tuple[TocEntry, ...]:
+        from ..tools.toc_author import toc_entries
+
+        return toc_entries(self._doc, self._element)
+
+    @property
+    def levels(self) -> int | None:
+        """How many outline levels it collects (``ContentsLevel``); ``None`` when it does not say."""
+
+        value = self._values().get("ContentsLevel", "")
+        return int(value) if value.isdigit() else None
+
+    @property
+    def hyperlink(self) -> bool:
+        return self._values().get("ContentsHyperlink", "1") not in ("0", "false")
+
+    @property
+    def leader(self) -> str:
+        """The tab leader before the page numbers (``"DASH"``, Hancom's dotted one, ``"NONE"`` …)."""
+
+        from ..tools.toc_author import _TAB_LEADER_NAMES
+
+        value = self._values().get("ContentsLeader", "3")
+        return _TAB_LEADER_NAMES[int(value)] if value.isdigit() and int(value) < len(_TAB_LEADER_NAMES) else value
+
+    @property
+    def refresh_on_open(self) -> bool:
+        """Whether Hancom builds the table again when it next opens the document (``dirty``)."""
+
+        return (self._element.get("dirty") or "0").strip().lower() in ("1", "true")
+
+    @refresh_on_open.setter
+    def refresh_on_open(self, value: bool) -> None:
+        from ..errors import HwpxValueError
+
+        if not isinstance(value, bool):
+            raise HwpxValueError(
+                f"refresh_on_open must be True or False; got {value!r}",
+                code="toc-refresh-value",
+                suggestion="Pass True for Hancom to build the table again when it opens the document.",
+            )
+        wanted = "1" if value else "0"
+        if self._element.get("dirty") != wanted:
+            self._element.set("dirty", wanted)
+            self.paragraph.section.mark_dirty()
+
+    def rebuild(self) -> None:
+        """Rewrite the heading entries from the outline paragraphs as they are now.
+
+        One entry per outline paragraph of level 1 to :attr:`levels` (not marked 차례 숨기기), in
+        document order: its number and text, its level's 차례 N style and the look of the entries
+        the table had, linked to the heading when :attr:`hyperlink`. Page numbers are left empty
+        and :attr:`refresh_on_open` is turned on, so Hancom fills them in (python-hwpx lays out no
+        pages). Blocks after the heading entries ("<표 차례>" …) stay as they are."""
+
+        from ..tools.toc_author import rebuild_toc
+
+        rebuild_toc(self._doc, self._element)
+
+    def remove(self) -> None:
+        """Take the table out: its title, entries and blocks go; what follows its end in that
+        paragraph joins the paragraph it began in. That paragraph is laid out again."""
+
+        from ..tools.toc_author import remove_toc
+
+        remove_toc(self._doc, self._element)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "levels": self.levels,
+            "hyperlink": self.hyperlink,
+            "leader": self.leader,
+            "refreshOnOpen": self.refresh_on_open,
+            "entries": [entry.to_dict() for entry in self.entries],
+        }
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, TableOfContents) and other._element is self._element
+
+    def __hash__(self) -> int:
+        return id(self._element)
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"TableOfContents(title={self.title!r}, entries={len(self.entries)})"
+
+
 
 __all__ = [
     "Bookmark",
@@ -753,5 +904,7 @@ __all__ = [
     "FormField",
     "FormulaField",
     "Hyperlink",
+    "TableOfContents",
     "TextBoxField",
+    "TocEntry",
 ]
