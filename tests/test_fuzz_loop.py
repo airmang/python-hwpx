@@ -66,6 +66,29 @@ def test_same_seed_replay_writes_identical_open_safe_hwpx(tmp_path) -> None:
     assert first.oracle_report["o2"]["roundtrip"]["ok"] is True
 
 
+def test_same_seed_replays_a_clock_apart_write_identical_bytes(tmp_path, monkeypatch) -> None:
+    """#683: two replays a second apart wrote different creation dates; a replay runs on REPLAY_CLOCK."""
+
+    from datetime import datetime, timedelta, timezone
+
+    from hwpx import templates
+
+    ticks = iter(range(10_000))
+    monkeypatch.setattr(
+        templates,
+        "_creation_time",
+        lambda: datetime(2030, 5, 5, tzinfo=timezone.utc) + timedelta(seconds=next(ticks)),
+    )
+    first_path = tmp_path / "first.hwpx"
+    second_path = tmp_path / "second.hwpx"
+
+    first = run_scenario(generate_scenario(7), first_path)
+    second = run_scenario(generate_scenario(7), second_path)
+
+    assert first.ok and second.ok, (first.to_dict(), second.to_dict())
+    assert first_path.read_bytes() == second_path.read_bytes()
+
+
 def test_seed_range_runner_reports_every_failure_explicitly(tmp_path) -> None:
     report_path = tmp_path / "report.json"
     sample_dir = tmp_path / "samples"

@@ -176,6 +176,10 @@ def test_form_field_has_exactly_the_designed_twelve_attributes() -> None:
         "has_end",
         # 7.0: 속성 12개에 동사 하나 — 누름틀 지우기
         "remove",
+        # 7.0: 시작을 담은 문단, 끝 위치, 글을 담은 hp:t (자동화 blueprint가 비공개 matcher에서 읽던 것)
+        "paragraph",
+        "end_location",
+        "text_elements",
     }, members
 
 
