@@ -27,14 +27,14 @@ def _master_page_root(document: HwpxDocument) -> str:
 
 def test_a_master_page_for_all_pages_has_no_page_number() -> None:
     document = HwpxDocument.new()
-    document.parts.add_master_page(text="모든 쪽", page_type="BOTH")
+    document.parts.add_master_page(text="모든 쪽", page_type="BOTH", section=0)
 
     assert 'pageNumber="0"' in _master_page_root(document)
 
 
 def test_a_single_page_master_page_still_defaults_to_the_first_page() -> None:
     document = HwpxDocument.new()
-    document.parts.add_master_page(text="첫 쪽")
+    document.parts.add_master_page(text="첫 쪽", section=0)
 
     root = _master_page_root(document)
     assert 'type="OPTIONAL_PAGE"' in root and 'pageNumber="1"' in root
@@ -51,6 +51,10 @@ def test_a_second_master_page_for_the_same_pages_is_refused() -> None:
 
     assert caught.value.code == "master-page-pages-taken"
     assert props.master_page_refs == ("masterpage0",)
+    with pytest.raises(HwpxValueError) as unlinked:  # the refused one is linked nowhere: saving says so
+        document.to_bytes(format="hwp")
+    assert unlinked.value.code == "master-page-unlinked"
+    document.parts.remove_master_page(second)
     assert document.to_bytes(format="hwp")
 
 
@@ -145,11 +149,13 @@ def test_remove_master_page_drops_an_unlinked_part() -> None:
 def test_remove_master_page_deletes_a_saved_part_file() -> None:
     document = HwpxDocument.new()
     document.parts.add_master_page(text="a", page_type="BOTH", section=0)
-    unused = document.parts.add_master_page(text="b", page_type="ODD")
+    unused = document.parts.add_master_page(text="b", page_type="ODD", section=0)
     reopened = HwpxDocument.open(document.to_bytes())
     assert "Contents/masterpage1.xml" in _part_names(reopened.to_bytes())
+    # a master page made and saved unlinked is refused (master-page-unlinked): unlink it after reading
+    reopened.page.remove_master_page_reference(unused.id, section=0)
 
-    reopened.parts.remove_master_page(unused)
+    reopened.parts.remove_master_page(unused.id)
 
     data = reopened.to_bytes()
     assert "Contents/masterpage1.xml" not in _part_names(data)

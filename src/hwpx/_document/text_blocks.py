@@ -445,14 +445,19 @@ def _local(element: Any) -> str:
 
 
 def _story_counts(section_element: Any) -> dict[tuple[str, str | None, str], int]:
+    """How often each header/footer story stands under ``hp:secPr``, and (``("memo", id, "")``) the ids of
+    the memos the section's ``hp:memogroup`` holds."""
+
     counts: dict[tuple[str, str | None, str], int] = {}
-    for sec_pr in section_element.iter():
-        if _local(sec_pr) != "secPr":
-            continue
-        for story in sec_pr:
-            if _local(story) in ("header", "footer"):
-                key = (_local(story), story.get("id"), story.get("applyPageType", "BOTH"))
-                counts[key] = counts.get(key, 0) + 1
+    for node in section_element.iter():
+        name = _local(node)
+        if name == "secPr":
+            for story in node:
+                if _local(story) in ("header", "footer"):
+                    key = (_local(story), story.get("id"), story.get("applyPageType", "BOTH"))
+                    counts[key] = counts.get(key, 0) + 1
+        elif name == "memo" and node.get("id"):
+            counts[("memo", node.get("id"), "")] = 1
     return counts
 
 
@@ -467,7 +472,17 @@ def _walk(
             yield "p", child, context, None
             yield from _walk(child, context, child, name, counts)
         elif name == "fieldBegin":
-            continue  # a memo field's own copy of the memo text; the memo itself comes from hp:memogroup
+            # A MEMO field holds the memo's text in its hp:subList. python-hwpx also keeps the memo in
+            # hp:memogroup (read there, below); a memo kept only in its field -- the form Hancom 2024
+            # saves, and what it makes of python-hwpx's memo on saving -- is read here, as doc.notes.memos
+            # reads it. Other fields' parameters hold no paragraphs.
+            from ..oxml.memo import memo_field_id
+
+            if child.get("type") == "MEMO" and counts.get(("memo", memo_field_id(child), "")) is None:
+                for part in child:
+                    if _local(part) == "subList":
+                        yield from _walk(part, replace(context, where="memo"), None, name, counts)
+            continue
         elif name in OBJECT_KINDS:
             yield "object", child, context, holder
             inner = replace(context, owner=child, owner_paragraph=holder, depth=context.depth + 1)
