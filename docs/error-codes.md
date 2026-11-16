@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 335 | 11 |
+| 개수 | 339 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -389,6 +389,7 @@ except HwpxError as exc:
 | `shape-connector-target-inline` | 연결선을 이으려는 도형이 글자처럼 놓였거나 instid 가 없다. |
 | `shape-container-no-members` | add_container 에 부재를 하나도 안 줬다. |
 | `shape-container-picture-image` | 그룹의 그림 부재(ContainerMember.picture)에 그림 이진 항목을 안 줬다. |
+| `shape-copy-document-unsupported` | 다른 문서로 그 개체를 옮기거나 복사할 수 없다: 글이 든 개체(글상자·캡션·표)는 한/글이 다른 문서에 붙인 뒤 다시 열지 못했다(문서 끼워 넣기 insert_document 를 쓴다). |
 | `shape-curve-too-few-points` | add_curve 에 앵커를 2개(닫으면 3개) 미만으로 줬다. |
 | `shape-description-value` | 개체 설명(hp:shapeComment)이 str 이 아니다. |
 | `shape-draw-text-vert-align` | 도형 글상자 vert_align 값이 OWPML 어휘(hp:subList/@vertAlign, TOP/CENTER/BOTTOM) 밖이다. |
@@ -400,15 +401,16 @@ except HwpxError as exc:
 | `shape-equation-font-empty` | 수식 글꼴(font)이 비어 있거나 문자열이 아니다. |
 | `shape-equation-not-created` | 만든 수식을 표준 스캔이 다시 찾지 못했다. |
 | `shape-equation-not-verbatim` | 만든 수식이 스크립트를 그대로 담지 않았다. |
+| `shape-equation-resize-unsupported` | 수식은 크기를 바꾸지 않는다: 상자는 스크립트와 글자 크기로 정해지고 한/글도 준 크기를 버리고 다시 잰다(한/글에 없는 기능). |
 | `shape-equation-script-empty` | 수식 스크립트가 비어 있다. |
 | `shape-equation-script-latex` | 수식 스크립트에 LaTeX 명령(\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다). |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
 | `shape-flip-unsupported` | 한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·그림·묶음 밖의 개체(곡선·호 등), 늘인 개체, 묶음을 양쪽으로·돈 묶음을 상하로 뒤집기, 돌지 않은 그림 밖의 뒤집은 개체 크기 바꾸기, 뒤집은 그림 자르기. |
 | `shape-flip-value` | 뒤집기(flip_horizontal·flip_vertical)에 bool 이 아닌 값을 주었다. |
-| `shape-group-member-unsupported` | 묶음(hp:container) 안의 개체는 혼자 돌리거나 설명·바깥 여백을 달 수 없고, 묶음의 하나뿐인 구성원이거나 돌았거나 늘인 묶음에서는 혼자 지울 수 없다(묶음째 다룬다). |
+| `shape-group-member-unsupported` | 묶음(hp:container) 구성원 하나만은 돌리거나 크기를 바꾸거나 옮길 수 없고(한/글 근거 대기), 설명·바깥 여백은 구성원에 자리가 없다(묶음 단위 속성, 한/글에 없는 기능). 돌았거나 늘인 묶음에서는 혼자 지울 수 없다(묶음째 다루거나 ungroup() 으로 푼다). |
 | `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |
-| `shape-move-place-unsupported` | 한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(표 칸·글상자·각주로는 문단 기준(vertRelTo=PARA)이고 쪽 영역 안(flowWithText=1)이거나 가로도 문단 기준(horzRelTo=PARA)인 떠 있는 개체만, 쪽 기준 개체를 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement·vertRelTo·horzRelTo·flowWithText). |
+| `shape-move-place-unsupported` | 한/글이 그렇게 두는 근거가 없거나 다시 열지 못한 자리로 옮기거나 복사하려 했다: 표 칸에 문단 기준으로 위로 올라가는 떠 있는 개체(한/글이 다시 열지 못함), 개체를 메모·바탕쪽으로, 떠 있는 표를 칸·글상자·각주·캡션으로(문단 기준·쪽 영역 안이 아니면); context.box·placement·reason. |
 | `shape-not-in-document` | 옮기거나 복사할 개체가 문단에 없다(지운 개체). |
 | `shape-numbering-type-value` | 개체·표의 numbering_type 이 NONE·PICTURE·TABLE·EQUATION 가운데 하나(대문자, 정확히)가 아니다. |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
@@ -421,13 +423,15 @@ except HwpxError as exc:
 | `shape-position-frame` | 도형 기준 프레임·정렬 값이 OWPML 어휘(hp:pos 의 vertRelTo/horzRelTo/vertAlign/horzAlign) 밖이다. |
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
+| `shape-raw-tag-empty` | 탈출구 add_shape/add_raw 에 줄 태그 이름이 비어 있다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
-| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 한/글 저장본으로 확인하지 못한 모양이다: 늘인 채 뒤집힌 개체, 사각형·타원·다각형·선·그림·묶음이 아닌 뒤집힌 개체, 행렬이 hp:flip 을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘이거나 묶음을 품거나 양쪽으로 뒤집힌 묶음. 돈 묶음의 크기 바꾸기도 먼저 0으로 되돌려야 한다. 글이 든 도형, 뒤집힌 사각형·타원·다각형·선·그림과 한쪽으로 뒤집힌 묶음, 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다. |
+| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 한/글 저장본으로 확인하지 못한 모양이다: 늘인 채 뒤집힌 개체, 사각형·타원·다각형·선·그림·묶음이 아닌 뒤집힌 개체, 행렬이 hp:flip 을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘이거나 묶음을 품거나 양쪽으로 뒤집힌 묶음. 수식·차트는 한/글도 돌리지 않는다(한/글에 없는 기능). 늘였거나 묶음을 품은 돈 묶음은 크기를 바꾸지 않는다. 글이 든 도형, 뒤집힌 사각형·타원·다각형·선·그림과 한쪽으로 뒤집힌 묶음, 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다. |
 | `shape-rotation-value` | 회전 각도가 int(도)가 아니다(bool 도 거부). 음수·360 이상은 한/글처럼 0~359로 바꿔 쓴다(-30 → 330). |
 | `shape-ruby-alignment-value` | 덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다. |
 | `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
 | `shape-ruby-text-value` | 덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()). |
 | `shape-size-value` | 도형·그림·수식·차트 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). 수식·차트의 size 는 (너비, 높이) 쌍이어야 하고 0일 수 없다. |
+| `shape-ungroup-unsupported` | 풀 수 없는 묶음이다: 묶음이 아니거나, 한/글 저장본으로 확인하지 못한 꼴(뒤집힌 묶음, 묶음이 든 묶음, 혼자 돌았거나 뒤집힌 구성원, 늘인 채 돈 묶음)이다; context.reason. |
 | `shape-z-order-value` | 개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부). |
 
 ### `story-*`

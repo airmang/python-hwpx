@@ -1152,6 +1152,15 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
     resizes one; any other flipped object is refused (``shape-flip-unsupported``)."""
 
     element = obj.element
+    if _local(element) == "equation":
+        raise HwpxValueError(
+            "an equation's box follows its script: Hancom 2024 measures it again whatever size it is given "
+            "(objlim evidence psizeeq, eqsize)",
+            code="shape-equation-resize-unsupported",
+            context={"width": repr(width), "height": repr(height)},
+            suggestion="수식 상자 크기는 스크립트와 글자 크기로 정해집니다. equation.font_size 나 equation.script 를 "
+                       "바꾸세요.",
+        )
     info = element.find(f"{_HP}rotationInfo")
     angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
     flips = flip_signs(element)
@@ -1184,6 +1193,100 @@ def resize_object(obj: Any, width: int | None, height: int | None) -> None:
 
     _clear_paragraph_layout_cache(obj.paragraph.element)
     obj.paragraph.section.mark_dirty()
+
+
+def resize_shape(obj: Any, width: int | None, height: int | None) -> None:
+    """Resize a drawing shape (not a group) to *width* x *height* (one alone keeps the aspect ratio) as Hancom
+    2024 resizes one: its geometry and original size (``hp:orgSz``) stay and ``hc:scaMatrix`` draws it at the
+    new size -- ``hp:sz`` the new size, ``hp:curSz`` the new size on an axis that differs from ``orgSz`` and 0
+    on one that does not, the scale the new size over ``orgSz``, the rotation centre the middle of the new
+    size (objlim evidence psizerect 8000x5000 -> 12000x5000: curSz 12000x0, e1 1.5; psizerect2 -> 4000x10000;
+    psizerect3 twice, the scale over ``orgSz``; psizeline a horizontal line 14400x0 -> 14400x2000: orgSz
+    14400x1 kept, e5 2000, and 7200x3000). A turned shape is resized as drawn before turning and turned again
+    (:func:`apply_rotation`), as :func:`resize_object` does a picture."""
+
+    element = obj.element
+    info = element.find(f"{_HP}rotationInfo")
+    angle = (_number(info.get("angle")) or 0) % 360 if info is not None else 0
+    width, height = keep_ratio(rotation_base_size(element) if angle else object_size(element), width, height)
+    if not angle:
+        _set_size(element, "sz", width, height)
+    original = element.find(f"{_HP}orgSz")
+    org = (_number(original.get("width")) or 0, _number(original.get("height")) or 0) \
+        if original is not None else (0, 0)
+    if min(org) > 0:
+        _set_size(element, "curSz", width if width != org[0] else 0, height if height != org[1] else 0)
+        scale = element.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+        if scale is not None:
+            scale.set("e1", _matrix_number(width / org[0]))
+            scale.set("e5", _matrix_number(height / org[1]))
+    else:  # no original size to draw from: the box alone
+        _set_size(element, "curSz", width, height)
+    if info is not None:
+        info.set("centerX", str(width // 2))
+        info.set("centerY", str(height // 2))
+    if angle:
+        apply_rotation(element, angle, width, height)
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(obj.paragraph.element)
+    obj.paragraph.section.mark_dirty()
+
+
+def _matrix_values(matrix: Any) -> list[float]:
+    return [_fraction(matrix.get(key), 1.0 if key in ("e1", "e5") else 0.0)
+            for key in ("e1", "e2", "e3", "e4", "e5", "e6")]
+
+
+def resize_turned_group(shape: Any, width: int, height: int) -> None:
+    """Resize the turned group *shape* so the box around it (``hp:sz``) is *width* x *height*, as Hancom 2024
+    resizes one: the turn and the move stay (``rotMatrix``, ``transMatrix``, ``hp:offset``, ``rotationInfo``)
+    and it is stretched along the page's axes. With ``R`` the turn, ``D`` the box's new size over its old one
+    on each axis and ``t`` the move of the shape's own turn and move (``transMatrix`` and ``rotMatrix`` e3/e6),
+    the group and every member take ``scaMatrix`` = ``R^-1 D R`` moved by ``R^-1 (D - I) t``, and ``curSz`` its
+    ``orgSz`` times the diagonal of that (rounded down). Hancom wrote exactly this for a group turned 30 and 45
+    degrees and resized (objlim evidence psizegrpturn, psizegrpturn45; the form rotate5 worked out, within
+    0.02). Refused (``shape-rotation-unsupported``) for a group already stretched or holding a group: no
+    Hancom-saved document shows those resized."""
+
+    element = shape.element
+    size = element.find(f"{_HP}sz")
+    old = (_number(size.get("width")) or 0, _number(size.get("height")) or 0) if size is not None else (0, 0)
+    shapes = [element] + [child for child in element if child.find(f"{_HP}renderingInfo") is not None]
+    for node in shapes:
+        sets = [_local(child) for child in node.find(f"{_HP}renderingInfo")]
+        scale = node.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+        if node is not element and _local(node) == "container":
+            raise _rotation_refused(element, "it holds a group: no Hancom-saved document shows one resized turned")
+        if sets != ["transMatrix", "scaMatrix", "rotMatrix"] or scale is None or any(
+                abs(value - plain) > 1e-3 for value, plain in zip(_matrix_values(scale), (1, 0, 0, 0, 1, 0))):
+            raise _rotation_refused(element, "it is stretched: no Hancom-saved document shows a stretched turned "
+                                             "group resized")
+    if min(old) <= 0:
+        raise _rotation_refused(element, "it has no size")
+    factors = (width / old[0], height / old[1])
+    for node in shapes:
+        trans = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}transMatrix"))
+        rot = _matrix_values(node.find(f"{_HP}renderingInfo/{_HC}rotMatrix"))
+        cos, sin = rot[0], rot[3]
+        move = (trans[2] + rot[2], trans[5] + rot[5])
+        # A = R^-1 D R with R = [[c, -s], [s, c]]
+        a = (cos * cos * factors[0] + sin * sin * factors[1], cos * sin * (factors[1] - factors[0]),
+             cos * sin * (factors[1] - factors[0]), sin * sin * factors[0] + cos * cos * factors[1])
+        stretched = ((factors[0] - 1) * move[0], (factors[1] - 1) * move[1])  # (D - I) t
+        offset = (cos * stretched[0] + sin * stretched[1], -sin * stretched[0] + cos * stretched[1])  # R^-1 (D - I) t
+        scale = node.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+        for key, value in zip(("e1", "e2", "e3", "e4", "e5", "e6"), (a[0], a[1], offset[0], a[2], a[3], offset[1])):
+            scale.set(key, _matrix_number(value))
+        original = node.find(f"{_HP}orgSz")
+        if original is not None:
+            _set_size(node, "curSz", int((_number(original.get("width")) or 0) * a[0] + 1e-6),
+                      int((_number(original.get("height")) or 0) * a[3] + 1e-6))
+    _set_size(element, "sz", width, height)
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(shape.paragraph.element)
+    shape.paragraph.section.mark_dirty()
 
 
 def picture_crop(element: Any) -> tuple[int, int, int, int]:

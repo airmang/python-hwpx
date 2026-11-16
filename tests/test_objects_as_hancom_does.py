@@ -107,3 +107,93 @@ def test_an_object_still_does_not_go_into_a_memo_or_a_master_page() -> None:
     with pytest.raises(HwpxValueError) as excinfo:
         picture.copy_to(memo.paragraphs[0])
     assert excinfo.value.code == "shape-move-place-unsupported"
+
+
+# -- resizing groups and equations (o03 psizegrp, psizegrpturn, psizeeq) ------------------------------
+
+HC = "{http://www.hancom.co.kr/hwpml/2011/core}"
+
+
+def _o03_group(doc):
+    from hwpx.oxml.container import ContainerMember
+
+    group = doc.shapes.add_container([ContainerMember.rect(0, 0, 8000, 5000), ContainerMember.ellipse(9000, 0, 6000, 5000)],
+                                     treat_as_char=False, paragraph=doc.add_paragraph("묶음"))
+    group.set_position(vertical_relative_to="PARA", horizontal_relative_to="COLUMN", horizontal_offset=2000,
+                       vertical_offset=1000)
+    return group
+
+
+def _scale(node):
+    matrix = node.find(f"{HP}renderingInfo/{HC}scaMatrix")
+    return [float(matrix.get(key)) for key in ("e1", "e2", "e3", "e4", "e5", "e6")]
+
+
+def _box(node, tag):
+    child = node.find(f"{HP}{tag}")
+    return int(child.get("width")), int(child.get("height"))
+
+
+def test_a_group_resized_is_stretched_with_its_members_as_hancom_does() -> None:
+    doc = HwpxDocument.new()
+    group = _o03_group(doc)
+
+    group.resize(24000, 9000)
+
+    rect, ellipse = (child for child in group.element if child.find(f"{HP}renderingInfo") is not None)
+    assert _box(group.element, "sz") == _box(group.element, "curSz") == (24000, 9000)
+    assert _scale(group.element) == pytest.approx([1.6, 0, 0, 0, 1.8, 0])
+    assert _scale(rect) == pytest.approx([1.6, 0, 0, 0, 1.8, 0])
+    assert _scale(ellipse) == pytest.approx([1.6, 0, 5400, 0, 1.8, 0])
+    assert (_box(rect, "curSz"), _box(ellipse, "curSz")) == ((12800, 9000), (9600, 9000))
+    _reopen(doc)
+
+
+def test_a_turned_group_resized_is_stretched_along_the_page_as_hancom_does() -> None:
+    doc = HwpxDocument.new()
+    group = _o03_group(doc)
+    group.rotation = 30
+    assert _box(group.element, "sz") == (15490, 11830)
+
+    group.resize(24000, 9000)
+
+    rect, ellipse = (child for child in group.element if child.find(f"{HP}renderingInfo") is not None)
+    linear = [1.352234, -0.341478, None, -0.341478, 0.95793, None]
+    for node, move in ((group.element, (1189.375643, -686.669403)), (rect, (1189.375643, -686.669403)),
+                       (ellipse, (4359.484423, -3759.969611))):
+        expected = [move[0] if value is None and index == 2 else move[1] if value is None else value
+                    for index, value in enumerate(linear)]
+        assert _scale(node) == pytest.approx(expected, abs=0.02)
+    assert _box(group.element, "sz") == (24000, 9000)
+    assert _box(group.element, "curSz") == (20283, 4789)
+    assert (_box(rect, "curSz"), _box(ellipse, "curSz")) == ((10817, 4789), (8113, 4789))
+    assert group.rotation == 30
+    _reopen(doc)
+
+
+def test_a_stretched_turned_group_is_not_resized() -> None:
+    doc = HwpxDocument.new()
+    group = _o03_group(doc)
+    group.rotation = 30
+    group.resize(24000, 9000)
+    with pytest.raises(HwpxValueError) as excinfo:
+        group.resize(20000, 9000)
+    assert excinfo.value.code == "shape-rotation-unsupported"
+
+
+def test_an_equation_is_not_resized_because_hancom_measures_it_again() -> None:
+    doc = HwpxDocument.new()
+    equation = doc.add_paragraph("").add_equation("x+y")
+    before = doc.to_bytes()
+    with pytest.raises(HwpxValueError) as excinfo:
+        equation.resize(20000, 8000)
+    assert excinfo.value.code == "shape-equation-resize-unsupported"
+    assert doc.to_bytes() == before
+
+
+def test_a_member_is_not_resized_alone() -> None:
+    doc = HwpxDocument.new()
+    group = _o03_group(doc)
+    with pytest.raises(HwpxValueError) as excinfo:
+        group.members[0].resize(100, 100)
+    assert excinfo.value.code == "shape-group-member-unsupported"

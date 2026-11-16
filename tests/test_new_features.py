@@ -73,9 +73,9 @@ class TestShapeInsertion:
         shape.resize(200, 100)
         assert shape.width == 200
         assert shape.height == 100
-        # Hancom draws the corner points, not sz.
-        assert shape.element.find(f"{HC}pt2").attrib["x"] == "200"
-        assert shape.element.find(f"{HC}pt2").attrib["y"] == "100"
+        # As Hancom 2024: the corner points stay and scaMatrix draws them at the new size.
+        assert shape.element.find(f"{HC}pt2").attrib["x"] == "100"
+        assert shape.element.find(f"{HC}renderingInfo/{HC}scaMatrix".replace(f"{HC}renderingInfo", "{http://www.hancom.co.kr/hwpml/2011/paragraph}renderingInfo")).attrib["e1"] == "2"
 
     def test_shapes_property_returns_list(self):
         doc = _new_doc()

@@ -834,7 +834,10 @@ class HwpxOxmlParagraph(ParagraphFormats):
         child structure.
         """
         if not shape_type:
-            raise ValueError("shape_type must be a non-empty string")
+            from ..errors import HwpxValueError
+
+            raise HwpxValueError("shape_type must be a non-empty string", code="shape-raw-tag-empty",
+                                 suggestion="Pass the local name of the hp: element to write, e.g. 'rect'.")
         run = self._create_run_for_object(
             run_attributes,
             char_pr_id_ref=char_pr_id_ref,

@@ -173,9 +173,8 @@ def test_polygon_points_are_translated_to_their_own_bounding_box_origin() -> Non
 # ============================================================================
 
 
-def test_resize_moves_polygon_vertices() -> None:
-    """HwpxOxmlShape.resize()는 ``pt`` 로컬명을 이미 범용으로 스캔한다 —
-    다각형을 위한 코드 변경 없이도 적용돼야 한다."""
+def test_resize_draws_polygon_vertices_through_the_scale_matrix() -> None:
+    """한/글 2024처럼 꼭짓점과 orgSz는 그대로 두고 scaMatrix로 늘인다(objlim psizerect)."""
 
     paragraph = HwpxDocument.new().add_paragraph("")
     shape = paragraph.add_polygon([(0, 0), (14400, 0), (7200, 7200)])
@@ -187,7 +186,9 @@ def test_resize_moves_polygon_vertices() -> None:
         for pt in shape.element
         if pt.tag == f"{HC}pt"
     ]
-    assert points == [("0", "0"), ("28800", "0"), ("14400", "14400")]
+    assert points == [("0", "0"), ("14400", "0"), ("7200", "7200")]
+    scale = shape.element.find(f"{{http://www.hancom.co.kr/hwpml/2011/paragraph}}renderingInfo/{HC}scaMatrix")
+    assert (scale.get("e1"), scale.get("e5")) == ("2", "2")
 
 
 # ============================================================================
