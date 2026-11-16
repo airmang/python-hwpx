@@ -440,6 +440,7 @@ ERROR_CODES: dict[str, str] = {
     "style-border-fill-gradient-type-invalid": "fill_gradient 의 type 값이 OWPML 어휘(LINEAR/RADIAL/CONICAL/SQUARE) 밖이다.",
     "style-border-fill-gradient-colors-invalid": "fill_gradient 의 colors 가 2개 미만이다.",
     "style-border-fill-width-invalid": "hh:borderFill 선의 width 가 '<숫자> mm' 꼴이 아니다(border_fill_info).",
+    "style-memo-shape-line-width-conflict": "메모 모양에 line_width(순번)와 line_width_mm(mm)를 함께 주었다(line_width_mm 하나로 준다).",
     "style-memo-shape-line-type-invalid": "메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다.",
     "style-memo-shape-memo-type-invalid": "메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다.",
     "style-color-invalid": "색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다.",

@@ -270,6 +270,27 @@ class MemoShape:
     memo_type: Optional[str]
     attributes: Dict[str, str] = field(default_factory=dict)
 
+    @property
+    def line_width_mm(self) -> float | None:
+        """The memo's line width in millimetres (``0.12`` for ``lineWidth="1"``), or ``None``.
+
+        ``hh:memoPr@lineWidth`` is not a length: Hancom keeps there the one-byte line width of
+        the HWP 5.0 memo shape record, the index into Hancom's line widths (0.1, 0.12, 0.15,
+        0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0 mm) that borders also
+        use, and writes it out unchanged (``"1"`` in 36 of the public corpus's 41 memo shapes,
+        ``"3"`` in the rest). A value that is no index on that list reads ``None``.
+        """
+
+        from .utils import LINE_WIDTHS
+
+        try:
+            index = int(str(self.line_width).strip())
+        except (TypeError, ValueError):
+            return None
+        if not 0 <= index < len(LINE_WIDTHS):
+            return None
+        return float(LINE_WIDTHS[index].split()[0])
+
     def matches_id(self, memo_shape_id_ref: int | str | None) -> bool:
         if memo_shape_id_ref is None:
             return False
