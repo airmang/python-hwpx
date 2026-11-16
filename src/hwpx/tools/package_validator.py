@@ -67,6 +67,12 @@ __all__ = [
     "main",
 ]
 
+#: The error for a section whose ``hp:secPr`` sits in a later paragraph than its first one.
+SECTION_PROPERTIES_NOT_FIRST_MESSAGE = (
+    "hp:secPr is not in the section's first paragraph (section-properties-not-first): Hancom reads "
+    "a section's settings only from its first paragraph and gives the section default paper and margins"
+)
+
 EDITOR_OPEN_ADVISORY_ERROR_MARKERS = (
     'missing XML declaration with standalone="yes"',
     "missing Hancom-compatible HWPML root namespace declarations",
@@ -690,6 +696,18 @@ def _check_section_properties_location(
         if first_paragraph is not None
         else None
     )
+    in_later_paragraph = any(
+        _first_child_by_local(run, "secPr") is section_properties
+        for paragraph in _children_by_local(root, "p")[1:]
+        for run in _children_by_local(paragraph, "run")
+    )
+    if in_later_paragraph:
+        # Hancom reads a section's settings only from its first paragraph: Hangul 2024 opens such a
+        # part with default paper and margins and saves a default hp:secPr in the first paragraph
+        # (out/move8/sync/check/secpr_second_paragraph*.hwpx). None of 1,717 sections with a hp:secPr
+        # in tests/fixtures, the rhwp/kordoc samples and 250 Hangul 2024 conversions has it there.
+        _error(issues, part_name, SECTION_PROPERTIES_NOT_FIRST_MESSAGE)
+        return
     if (
         first_run is None
         or _first_child_by_local(first_run, "secPr") is not section_properties

@@ -1538,12 +1538,16 @@ def insert_document(
                 context={"afterParagraphIndex": after_paragraph_index, "paragraphCount": total},
                 suggestion="Use -1 to insert before the first paragraph, or 0..N-1.",
             )
+        moved_by_insert = False
         if copies:
+            had_settings = after_paragraph_index == -1 and (
+                target_section.paragraphs[0].element.find(f"{_HP}run/{_HP}secPr") is not None)
             inserted = target_section.insert_paragraphs(after_paragraph_index + 1, copies)
             _follow_clones(copies, [paragraph.element for paragraph in inserted])
-        relocated = after_paragraph_index == -1 and bool(copies) and _move_section_setup_to_first_paragraph(
-            target_section
-        )
+            # insert_paragraphs at index 0 moves the section settings to the first copy itself.
+            moved_by_insert = had_settings and inserted[0].element.find(f"{_HP}run/{_HP}secPr") is not None
+        relocated = after_paragraph_index == -1 and bool(copies) and (
+            _move_section_setup_to_first_paragraph(target_section) or moved_by_insert)
         if relocated:
             target_section.mark_dirty()
         _insert_memos_into_target_section(target_section, memo_clones)

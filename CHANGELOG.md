@@ -456,6 +456,15 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서를 막는다. 한/글 2024는 첫 문단에서만 구역 설정을 읽어, 그런
+  구역을 기본 용지·여백으로 열고 다시 저장할 때 첫 문단에 기본 `hp:secPr`를 새로 쓴다(여백·단이 사라지고 쪽 수가 바뀐다).
+  - 열기 안전 검사와 `validate_package`가 이 꼴을 오류(`section-properties-not-first`)로 잡고, 저장은
+    `HwpxValueError`(`section-properties-not-first`)로 거부한다. tests/fixtures·rhwp·kordoc 표본·한/글 2024 변환본 250개 등 1,635개 파일에서 이 꼴은 0개였다.
+  - `hwpx-repair`(`repair_repack`)가 구역 설정과 그 문단의 쪽 단위 컨트롤(단·머리말·꼬리말·쪽 번호)을 첫 문단 앞으로 옮겨 고친다.
+  - `section.insert_paragraphs(0, ...)`(`doc.oxml.insert_paragraphs`도)가 구역 맨 앞에 넣을 때 구역 설정을 옛 첫 문단에 남겨
+    이 꼴을 만들던 것을 고쳤다. 이제 첫 사본이 구역 설정을 넘겨받고, 넣는 사본은 구역 설정 없이 들어간다
+    (`paragraph.insert_after()` 사본과 같다). 앞에 넣기·옮기기·지우기·표와 개체 옮기기·구역 넣고 지우기·문서 끼워 넣기의 다른
+    공개 길은 이미 첫 문단에 두고 있었다(시험으로 고정).
 - `paragraph.column_break = True`도 `page_break`처럼 그 문단의 줄 배치 캐시를 지운다. 전에는 단이 바뀌어 줄의 세로 자리가
   달라지는데도 옛 줄 배치를 남겼다.
 - 메모를 한/글 2024 저장본처럼 MEMO 누름틀의 `hp:subList`에만 쓴다. 6.x는 `hp:memogroup`에도 사본을 써서, 한/글이 다시 저장할

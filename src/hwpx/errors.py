@@ -388,6 +388,7 @@ ERROR_CODES: dict[str, str] = {
     "section-missing": "문서에 섹션이 하나도 없다.",
     "section-not-found": "섹션 인덱스가 범위를 벗어났다.",
     "section-remove-last": "문서의 마지막 섹션은 지울 수 없다.",
+    "section-properties-not-first": "구역 설정(hp:secPr)이 구역 첫 문단이 아닌 뒤 문단에 있다(한/글은 첫 문단에서만 읽고 구역을 기본 용지·여백으로 바꾼다).",
     "section-invalid-type": "section 인자가 정수도 섹션 객체도 아니다.",
     "section-clear-mode-invalid": "clear_body 의 on_control_content 값이 raise/keep/strip 밖이다.",
     "section-clear-no-section-properties": "섹션 첫 문단의 첫 run 에 hp:secPr 가 없어 clear_body 가 남길 쪽 설정이 없다.",

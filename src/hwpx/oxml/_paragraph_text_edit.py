@@ -186,9 +186,21 @@ def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
     Returns whether anything moved.
     """
 
-    found = section_setting_runs(source)
-    if not found:
+    if not section_setting_runs(source):
         return False
+    # A column layout (hp:colPr) sharing its hp:ctrl with other controls (a page-number restart, a
+    # field begin -- some Hancom files do) goes along in a ctrl of its own; the others stay.
+    for run in [child for child in source if _local(child) == "run"]:
+        for ctrl in [child for child in run if _local(child) == "ctrl" and not is_section_setting(child)]:
+            columns = [child for child in ctrl if _local(child) == "colPr"]
+            if not columns:
+                continue
+            own = ctrl.makeelement(ctrl.tag, dict(ctrl.attrib))
+            for column in columns:
+                ctrl.remove(column)
+                own.append(column)
+            run.insert(list(run).index(ctrl), own)
+    found = section_setting_runs(source)
     position = 0
     for run, settings in found:
         if len(settings) == len(run):
