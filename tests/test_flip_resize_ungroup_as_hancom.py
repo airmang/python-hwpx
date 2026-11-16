@@ -29,12 +29,27 @@ from tests.hancom_place import carry_down_offset, paragraph_heights, paragraph_i
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 GSO = {"rect", "ellipse", "polygon", "line", "container", "pic", "arc", "curve"}
 
+def _arrow(line):
+    shape = line.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}lineShape")
+    shape.set("tailStyle", "ARROW")  # an arrowhead at its end: flipping a flat line does not move it (ha-f)
+    shape.set("tailSz", "MEDIUM_MEDIUM")
+    return line
+
+
+def _text_box(box):
+    box.set_draw_text("가나다 ABC 글상자")
+    return box
+
+
 SOURCES = {
     "q": lambda doc, p: doc.shapes.add_rectangle(12000, 6000, paragraph=p),
     "e": lambda doc, p: doc.shapes.add_ellipse(12000, 6000, paragraph=p),
     "y": lambda doc, p: doc.shapes.add_polygon([(0, 0), (40, 0), (10, 20)], paragraph=p),
     "l": lambda doc, p: doc.shapes.add_line(0, 0, 12000, 6000, paragraph=p),
     "h": lambda doc, p: doc.shapes.add_line(0, 0, 12000, 0, paragraph=p),
+    "w": lambda doc, p: doc.shapes.add_line(0, 0, 0, 6000, paragraph=p),
+    "ha": lambda doc, p: _arrow(doc.shapes.add_line(0, 0, 12000, 0, paragraph=p)),
+    "r": lambda doc, p: _text_box(p.add_rectangle(12000, 6000)),
     "g": lambda doc, p: p.add_container([ContainerMember.rect(0, 0, 6000, 6000),
                                          ContainerMember.text_box(7000, 0, 9000, 5000, "묶음 안 글상자")],
                                         treat_as_char=False),
@@ -58,6 +73,24 @@ CASES = [
     ("one_g_v_u", "g", ["v", "u"]),
     ("one_g_30_f_u", "g", ["r30", "f", "u"]),
     ("one_n_u", "n", ["u"]),
+    # rotate11 (want-flip7): groups flipped both ways, flipped and resized (each order), flipped and turned, and a
+    # group holding a group flipped, ungrouped; flat lines (a horizontal, a vertical and one with an arrow) flipped
+    # and turned; a lone text box resized (its text across its new width, hancom14)
+    ("one_g_fv_u", "g", ["f", "v", "u"]),
+    ("one_g_f_s1_u", "g", ["f", "s24000x6000", "u"]),
+    ("one_g_s1_f_u", "g", ["s24000x6000", "f", "u"]),
+    ("one_g_v_s1_u", "g", ["v", "s24000x6000", "u"]),
+    ("one_g_f_30_u", "g", ["f", "r30", "u"]),
+    ("one_n_f_u", "n", ["f", "u"]),
+    ("one_h_f", "h", ["f"]),
+    ("one_h_fv", "h", ["f", "v"]),
+    ("one_w_f", "w", ["f"]),
+    ("one_w_f_30", "w", ["f", "r30"]),
+    ("one_ha_f", "ha", ["f"]),
+    ("one_ha_v", "ha", ["v"]),
+    ("one_ha_f_30", "ha", ["f", "r30"]),
+    ("one_r_s1", "r", ["s18000x6000"]),
+    ("one_r_s2", "r", ["s8000x12000"]),
 ]
 
 
@@ -162,7 +195,8 @@ def test_resizing_to_the_own_width_and_height_changes_nothing(source: str, steps
     before = doc.to_bytes()
     for obj in _objects(doc):
         obj.resize(obj.width, obj.height)
-        obj.resize(obj.width)
+        if obj.width and obj.height:  # one size alone needs both to keep the ratio (a flat line has none)
+            obj.resize(obj.width)
     assert doc.to_bytes() == before
 
 
@@ -182,12 +216,20 @@ def test_what_hancom_does_not_keep_is_still_refused() -> None:
     with pytest.raises(HwpxValueError) as caught:  # Hangul resizing a flipped line drops its mirror
         line.resize(18000, 6000)
     assert caught.value.code == "shape-flip-unsupported" and "unflipped" in str(caught.value)
-    _, flat = _made("h", ["s18000x0"])
-    with pytest.raises(HwpxValueError) as caught:  # drawn 0 high: Hangul writes its flip as a half turn
-        flat.flip_horizontal = True
+    _, flat = _made("h", ["f", "r30"])
+    with pytest.raises(HwpxValueError) as caught:  # a flat line flipped, turned and flipped again: no evidence
+        flat.flip_vertical = True
     assert caught.value.code == "shape-flip-unsupported"
-    for steps in (["f", "v"], ["f", "s24000x6000"]):  # no Hancom-saved document shows these ungrouped
-        _, group = _made("g", steps)
-        with pytest.raises(HwpxValueError) as caught:
-            group.ungroup()
-        assert caught.value.code == "shape-ungroup-unsupported"
+
+
+@pytest.mark.parametrize("source", ["h", "w", "ha"])
+def test_a_flat_line_flipped_back_is_written_unflipped_and_unturned(source: str) -> None:
+    # Hangul writes a flat line flipped as its flags and an angle 180 more, drawing nothing different (ha-f: the arrow
+    # stays at the end); flipped back, the flags are off and the angle 0, its matrices plain all along
+    doc, line = _made(source, ["f"])
+    assert (line.flip_horizontal, line.flip_vertical, line.rotation) == (True, False, 180)
+    line.flip_horizontal = False
+    assert (line.flip_horizontal, line.flip_vertical, line.rotation) == (False, False, 0)
+    rot = line.element.find("{http://www.hancom.co.kr/hwpml/2011/paragraph}renderingInfo")[2]
+    assert [float(rot.get(key)) for key in ("e1", "e2", "e3", "e4", "e5", "e6")] == [1, 0, 0, 0, 1, 0]
+    assert not HwpxDocument.open(doc.to_bytes()).validate().issues
