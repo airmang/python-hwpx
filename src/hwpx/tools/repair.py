@@ -182,6 +182,34 @@ def _repair_section_ids(part_name: str, payload: bytes) -> bytes:
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 
+def _move_section_properties_to_first_paragraph(root: etree._Element) -> bool:
+    """Move a section's settings into its first paragraph when a later paragraph holds them.
+
+    Hancom reads a section's ``hp:secPr`` only from the first paragraph; in a later one it gives the
+    section default paper and margins (``section-properties-not-first``). The ``hp:secPr`` and the
+    page-level controls of its paragraph (columns, header, footer, page numbering) move to the front
+    of the first paragraph, as ``paragraph.insert_before`` puts them, and both paragraphs lose their
+    line layout cache. Returns whether anything moved.
+    """
+
+    from ..oxml._paragraph_text_edit import move_section_settings
+
+    paragraphs = [child for child in root if _local_name(child) == "p"]
+    if not paragraphs:
+        return False
+
+    def holds(paragraph: etree._Element) -> bool:
+        return any(_local_name(grand) == "secPr"
+                   for run in paragraph if _local_name(run) == "run" for grand in run)
+
+    if holds(paragraphs[0]):
+        return False
+    holder = next((paragraph for paragraph in paragraphs[1:] if holds(paragraph)), None)
+    if holder is None:
+        return False
+    return move_section_settings(holder, paragraphs[0])
+
+
 def _repair_section_layout_cache(part_name: str, payload: bytes) -> bytes:
     if not is_section_part_name(part_name):
         return _normalize_hwpml_compat_root(part_name, payload)
@@ -190,7 +218,7 @@ def _repair_section_layout_cache(part_name: str, payload: bytes) -> bytes:
     except (etree.XMLSyntaxError, HwpxSecurityError):
         return payload
 
-    changed = False
+    changed = _move_section_properties_to_first_paragraph(root)
     for paragraph in root.iter():
         if _local_name(paragraph) != "p":
             continue
