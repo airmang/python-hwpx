@@ -1250,6 +1250,18 @@ for existing in document.notes.memos:
 document.notes.remove_memo(memo)
 ```
 
+메모를 문단 일부 글자에만 걸려면 `match=`를 줍니다. 그 글이 문단에 여러 번 나오면 `index=`로 몇 번째(0부터) 것에
+걸지 고릅니다(한 런 안에 온전히 든 곳만 셉니다). 메모 본문을 문단 여러 개로 쓰려면 첫 문단 뒤에 문단을 잇습니다.
+`text`의 `"\n"`은 문단이 아니라 줄 바꿈이 됩니다.
+
+```python
+line = document.add_paragraph("답: 3, 답: 5", section=section)
+memo = document.notes.add_memo("첫째 설명", paragraph=line, match="답", index=1)  # 둘째 "답"에
+last = memo.paragraphs[0]
+for text in ("둘째 설명", "셋째 설명"):
+    last = last.insert_after(text)
+```
+
 메모 필드의 매개변수는 한/글과 같은 일곱 개를 같은 순서로 씁니다: `Prop`, `Command`(`MEMO/65535/번호/작성 시각/작성자/…`),
 `ID`(`memo<번호>`), `Number`, `Author`, `MemoShapeIDRef`(늘 `65535`), `CreateDateTime`.
 `CreateDateTime`은 한/글처럼 그 컴퓨터의 시각으로 적고(끝에 `Z`가 붙지만 UTC가 아닙니다), `Command`의 작성 시각은 같은 순간을 UTC로 적습니다.
@@ -1310,6 +1322,16 @@ document.text.replace(
 ```
 
 반환된 `RunStyle` 객체(`run.style`)를 사용하면 문자 색상, 밑줄 색상 등 서식 속성을 직접 확인할 수 있습니다. 치환기는 하이라이트 마커(`<hp:markpenBegin>`/`<hp:markpenEnd>`)나 태그로 나뉜 토큰도 순회하며 기존 서식 구조를 유지한 채 교체합니다.
+
+서식을 고치는 길은 셋입니다. `run.set_format(...)`은 그 런만 바뀌도록 글자 모양 정의의 사본을 만들고,
+`doc.styles.set_style_format(style, ...)`은 한/글의 스타일 고치기처럼 그 스타일을 쓰는 문단만 바꿉니다.
+`doc.styles.set_char_property(id, ...)`는 정의 자체를 제자리에서 고치므로 그 id를 가리키는 **모든** 런·스타일·문단 번호가
+함께 바뀝니다(그 문단들의 줄 배치 캐시를 지우고 지운 문단 수를 돌려줍니다).
+
+```python
+run = paragraph.runs[0]
+document.styles.set_char_property(run.char_pr_id_ref, letter_spacing=-5, ratio=95)
+```
 
 ## 본문 데이터 모델 살펴보기
 

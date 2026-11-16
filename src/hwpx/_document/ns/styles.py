@@ -1020,6 +1020,53 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             )
         set_style_format(self._doc.oxml, style, char_changes, modifier)
 
+    def set_char_property(
+        self,
+        char_pr_id_ref: "int | str",
+        *,
+        size: float | None = None,
+        font: str | None = None,
+        font_by_lang: "Mapping[str, str] | None" = None,
+        color: str | None = None,
+        highlight: str | None = None,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
+        strike: bool | None = None,
+        superscript: bool | None = None,
+        subscript: bool | None = None,
+        letter_spacing: int | None = None,
+        ratio: int | None = None,
+    ) -> int:
+        """글자 모양 정의(``hh:charPr``) 하나를 **제자리에서** 고친다. 사본을 만들지 않는다.
+
+        인자는 ``run.set_format`` 과 같다. ``run.set_format`` 은 그 run 만 바뀌도록 정의의 사본을
+        만들지만, 이것은 정의 자체를 바꾸므로 그 id 를 가리키는 **모든** run·스타일·문단 번호·글머리표가
+        함께 바뀐다(예: id 0 은 대개 바탕글과 많은 글이 같이 쓴다). 스타일에 딸린 모양만 고치려면
+        :meth:`set_style_format` (한/글의 스타일 고치기)을 쓴다.
+
+        글자 폭이 바뀌므로 그 id 를 쓰는 run 이 있는 문단(본문·표 칸·글상자·머리말·꼬리말·메모·
+        바탕쪽)의 줄 배치 캐시를 지운다. 표 칸·캡션의 문단이면 그 표를 품은 문단 것도 지운다.
+        문단 번호·글머리표가 이 모양으로 번호를 그리면 번호·글머리표가 있는 문단의 캐시도 지운다.
+        캐시를 지운 문단 수를 돌려준다(값이 이미 같으면 0, 아무것도 바꾸지 않음).
+
+        아무 인자도 없으면 ``style-run-format-empty``, 없는 id 는 ``style-definition-not-found``.
+        """
+
+        from ...oxml.formatting import set_char_property_in_place
+
+        changes = {
+            name: value
+            for name, value in (
+                ("size", size), ("font", font), ("font_by_lang", font_by_lang), ("color", color),
+                ("highlight", highlight), ("bold", bold), ("italic", italic), ("underline", underline),
+                ("strike", strike), ("superscript", superscript), ("subscript", subscript),
+                ("letter_spacing", letter_spacing), ("ratio", ratio),
+            )
+            if value is not None
+        }
+        return set_char_property_in_place(self._doc.oxml, char_pr_id_ref, changes)
+
     def remove_style(
         self, style: "int | str | Style", *, replacement: "int | str | Style | None" = None
     ) -> None:

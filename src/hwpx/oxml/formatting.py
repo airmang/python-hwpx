@@ -1177,6 +1177,65 @@ def set_style_format(
             part.mark_dirty()
 
 
+def set_char_property_in_place(document: "HwpxOxmlDocument", char_pr_id_ref: object,
+                               changes: Mapping[str, Any]) -> int:
+    """``doc.styles.set_char_property``: change the ``hh:charPr`` *char_pr_id_ref* itself.
+
+    Every run, style, numbering or bullet pointing at that id follows; no copy is made. The paragraphs
+    whose runs point at it lose their line layout caches (with the paragraphs holding their cells and
+    captions), and so does every numbered or bulleted paragraph when a numbering or bullet draws its
+    number with it. Returns how many paragraphs lost a cache.
+    """
+
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    header = _header_of(document)
+    spec = _char_changes(changes)
+    if not spec:
+        raise HwpxValueError(
+            "no character format to change",
+            code="style-run-format-empty",
+            suggestion="Pass at least one of " + ", ".join(CHAR_FORMAT_NAMES) + ".",
+        )
+    element = None if char_pr_id_ref is None or isinstance(char_pr_id_ref, bool) else find_definition(
+        header, "charPr", char_pr_id_ref)  # type: ignore[arg-type]
+    if element is None:
+        raise HwpxLookupError(
+            f"the header has no charPr with id {char_pr_id_ref!r}",
+            code="style-definition-not-found",
+            context={"kind": "charPr", "id": str(char_pr_id_ref)},
+            suggestion="Read the id from a run (run.char_pr_id_ref) or from doc.styles.char_properties.",
+        )
+    own_id = str(element.get("id"))
+    before = (_attributes_without_id(element), _signature(element))
+    _apply_char_changes(element, spec, _font_ids(header, spec))
+    if (_attributes_without_id(element), _signature(element)) == before:
+        return 0
+    header.mark_dirty()
+    document.invalidate_char_property_cache()
+    headed = any(
+        _same_id(node.get("charPrIDRef"), own_id)
+        for node in header.element.iter()
+        if _element_local_name(node) in ("paraHead", "bullet")
+    )
+    cleared = 0
+    for part in _story_parts(document):
+        touched = False
+        for paragraph in part.element.iter(f"{_HP}p"):
+            uses = any(_same_id(run.get("charPrIDRef"), own_id) for run in paragraph.findall(f"{_HP}run"))
+            if not uses and headed:
+                para_pr = find_definition(header, "paraPr", paragraph.get("paraPrIDRef"))
+                heading = None if para_pr is None else next(
+                    (node for node in para_pr.iter() if _element_local_name(node) == "heading"), None)
+                uses = heading is not None and (heading.get("type") or "NONE").upper() != "NONE"
+            if uses and _clear_paragraph_layout_cache(paragraph):
+                cleared += 1
+                touched = True
+        if touched:
+            part.mark_dirty()
+    return cleared
+
+
 def find_style_element(header: "HwpxOxmlHeader", style_id: str) -> ET.Element | None:
     styles = header._styles_element()
     if styles is None:
