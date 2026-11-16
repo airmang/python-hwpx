@@ -75,6 +75,11 @@ ungrouped by Hangul as their names say; `float_z_u.hwpx` from a group between tw
 paragraph of its own, ungrouped. `tests/test_floating_turn_place_as_hancom.py` builds them and compares where each
 object is placed.
 
+`grpsize_*.hwpx` (rotate10) were made the same way from one group -- a rectangle and an ellipse (`p`) or a rectangle
+and a text box (`t`), set as a character (`c`), floating (`f`) or centred (`m`) -- resized by Hangul's object
+properties to 24000 x 6000 (`s1`) or 16000 x 16000 (`s2`); `_r`: then saved, opened again and saved again.
+`tests/test_group_resize_text_as_hancom.py` builds them.
+
 ## Adding a file
 
 `formfit_hft_ascii_myeongjo_grid.hwpx` and `formfit_hft_ascii_gothic_grid.hwpx`
