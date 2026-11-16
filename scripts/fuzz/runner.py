@@ -11,7 +11,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from random import Random
 from typing import Any, Iterable, Iterator, Mapping, Sequence
+from uuid import UUID
 
 # The document builder is the MCP owner's. This fuzz harness is a repository QA
 # asset excluded from the distributed wheel, so depending on the companion
@@ -65,26 +67,40 @@ class FuzzRunResult:
         }
 
 
-#: The moment every replay runs at: a new document's dates and every memo's come from it,
-#: so one seed writes the same bytes whenever it is replayed (#683: two replays a second
-#: apart differed in ``CreatedDate``/``ModifiedDate``).
+#: The moment every replay runs at, so one seed writes the same bytes whenever it is replayed
+#: (#683: two replays a second apart differed in ``CreatedDate``/``ModifiedDate``). The runner
+#: makes its own documents with ``HwpxDocument.new(now=REPLAY_CLOCK)`` and writes it as the
+#: dates of the document it saves (the builder makes its document with the real clock); the
+#: memos it adds carry the scenario's own ``created``.
 REPLAY_CLOCK = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_REPLAY_STAMP = REPLAY_CLOCK.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @contextmanager
-def _replay_clock(seed: int | None) -> Iterator[None]:
-    """Run a replay on :data:`REPLAY_CLOCK` and, with a *seed*, on ids drawn from it.
+def _deterministic_oxml_ids(seed: int | None) -> Iterator[None]:
+    import hwpx.oxml.document as oxml_document
 
-    ``HwpxDocument.new(seed=..., now=...)`` keeps both in force for this thread until the
-    document is closed, for the documents made meanwhile too -- the builder's
-    (``build_document``) as well as the runner's own. The document opened here only holds them.
-    """
+    if seed is None:
+        yield
+        return
 
-    holder = HwpxDocument.new(seed=seed, now=REPLAY_CLOCK)
+    rng = Random(seed)
+    original_uuid4 = oxml_document.uuid4
+
+    def deterministic_uuid4() -> UUID:
+        return UUID(int=rng.getrandbits(128))
+
+    oxml_document.uuid4 = deterministic_uuid4
     try:
         yield
     finally:
-        holder.close()
+        oxml_document.uuid4 = original_uuid4
+
+
+def _stamp_replay_clock(document: HwpxDocument) -> None:
+    """Give *document* the replay's creation and modification dates (:data:`REPLAY_CLOCK`)."""
+
+    document.parts.set_document_metadata(created_date=_REPLAY_STAMP, modified_date=_REPLAY_STAMP)
 
 
 @contextmanager
@@ -132,10 +148,12 @@ def _builder_document(op: Mapping[str, Any]) -> HwpxDocument:
 def _apply_operation(document: HwpxDocument | None, op: Mapping[str, Any]) -> HwpxDocument:
     name = str(op.get("op", ""))
     if name == "build_document":
+        if document is not None:  # replaced: let go of what it holds (its clock)
+            document.close()
         return _builder_document(op)
 
     if document is None:
-        document = HwpxDocument.new()
+        document = HwpxDocument.new(now=REPLAY_CLOCK)
 
     if name == "add_paragraph":
         document.add_paragraph(str(op.get("text", "")))
@@ -294,13 +312,14 @@ def run_scenario(
 
     digest = scenario_digest(normalized)
     try:
-        with _quiet_package_fallback_warnings(), _replay_clock(seed_value):
+        with _quiet_package_fallback_warnings(), _deterministic_oxml_ids(seed_value):
             document: HwpxDocument | None = None
             for op in normalized.get("operations") or ():
                 document = _apply_operation(document, op)
             if document is None:
-                document = HwpxDocument.new()
+                document = HwpxDocument.new(now=REPLAY_CLOCK)
             try:
+                _stamp_replay_clock(document)
                 document.save(output)
             finally:
                 document.close()
