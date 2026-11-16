@@ -1727,7 +1727,7 @@ def test_shape_draw_text_and_caption_match_real_hancom_document() -> None:
     caption = shape.caption
     assert caption is not None
     assert caption.side == "BOTTOM"
-    assert caption.full_sz is False
+    assert caption.full_size is False
     assert caption.width == 8504
     assert caption.gap == 850
     assert "그림" in caption.text
@@ -1751,7 +1751,7 @@ def test_table_caption_matches_real_hancom_document() -> None:
 
     assert len(captions) == 10
     assert all(c.side == "TOP" for c in captions)
-    assert all(c.full_sz is False for c in captions)
+    assert all(c.full_size is False for c in captions)
     assert any("기상특보" in c.text for c in captions)
 
 
@@ -1908,21 +1908,21 @@ def test_paragraph_add_shape_and_control_updates_attributes() -> None:
     # 생성 시점에 경고한다.
     with pytest.warns(UserWarning, match="orgSz"):
         shape = paragraph.add_shape("rect", {"width": "8000"})
-    assert shape.get_attribute("width") == "8000"
+    assert shape.attributes.get("width") == "8000"
     section.reset_dirty()
     shape.set_attribute("width", "9000")
-    assert shape.get_attribute("width") == "9000"
+    assert shape.attributes.get("width") == "9000"
     assert section.dirty is True
 
     section.reset_dirty()
     with pytest.warns(UserWarning, match="no control child"):
         control = paragraph.add_control({"id": "ctrl1"}, control_type="LINE")
-    assert control.get_attribute("type") == "LINE"
+    assert control.attributes.get("type") == "LINE"
     section.reset_dirty()
     control.set_attribute("id", "ctrl2")
-    assert control.get_attribute("id") == "ctrl2"
+    assert control.attributes.get("id") == "ctrl2"
     control.set_attribute("id", None)
-    assert control.get_attribute("id") is None
+    assert control.attributes.get("id") is None
     assert section.dirty is True
 
 

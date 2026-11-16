@@ -494,7 +494,7 @@ class PageNamespace(_Namespace):
         *,
         number: int = 1,
         kind: str = "PAGE",
-    ) -> "HwpxOxmlInlineObject":
+    ) -> "NumberRestart":
         """*paragraph* 부터 *kind* 의 진행 번호를 *number* 로 재시작한다.
 
         `set_page_number` 가 머리말/꼬리말의 *표시* 필드를 다루는 것과 달리,
@@ -520,7 +520,7 @@ class PageNamespace(_Namespace):
         border: bool = False,
         fill: bool = False,
         page_num: bool = False,
-    ) -> "HwpxOxmlInlineObject":
+    ) -> "PageHiding":
         """*paragraph* 가 있는 쪽에서만 지정한 요소를 숨긴다(`hp:pageHiding`).
 
         한컴의 "현재 쪽만 감추기"와 같아서 다음 쪽부터는 다시 보인다. *page_num* 은

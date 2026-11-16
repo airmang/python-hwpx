@@ -222,7 +222,7 @@ def test_add_new_num_oxml_layer_rejects_invalid_kind_too() -> None:
     doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("본문")
     with pytest.raises(ValueError, match="unsupported kind"):
-        paragraph.add_new_num(kind="CHAPTER")
+        paragraph.add_number_restart(kind="CHAPTER")
 
 
 # --------------------------------------------------------------------------

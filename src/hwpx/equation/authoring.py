@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import unicodedata
 
+from ..errors import rejects_removed_arguments
 from .eqedit import (
     MAX_GROUP_DEPTH,
     MAX_SOURCE_LENGTH,
@@ -778,19 +779,24 @@ def latex_to_eqedit(latex: str) -> str:
     return _LatexParser(lexer.tokens, lexer.spaced).parse()
 
 
-def estimate_equation_size(script: str, *, base_unit: int = 1100) -> tuple[int, int]:
-    """``(width, height)`` in HWPUNIT for ``<hp:sz>``, measured from the script's structure.
+@rejects_removed_arguments(caller="hwpx.equation.estimate_equation_size")
+def estimate_equation_size(script: str, *, font_size: float = 11.0) -> tuple[int, int]:
+    """``(width, height)`` in HWPUNIT for ``<hp:sz>``, measured from the script's structure at
+    *font_size* (pt, as ``paragraph.add_equation(font_size=)`` takes it; Hancom keeps it to a
+    hundredth of a point).
 
     A reader that lays the page out from the file uses the stored box, so the
     box has to fit the script; Hancom itself was observed (on macOS) to lay the
     equation out again and rewrite the box when it saves the document, while on
     Windows it keeps the stored box and lays the page out with it (see
-    :func:`hwpx.equation.measure.measure_equation`).
+    :func:`hwpx.equation.measure.measure_equation`). A *font_size* that is not a
+    positive number of points is refused (``shape-equation-base-unit-value``).
     """
 
+    from ..oxml.shape_position import equation_base_unit
     from .measure import measure_equation
 
-    size = measure_equation(script, base_unit=base_unit)
+    size = measure_equation(script, base_unit=equation_base_unit(font_size))
     return size.width, size.height
 
 

@@ -146,7 +146,7 @@ class TestBookmarkHyperlinkRoundtrip:
         # Re-find paragraph with bookmarks
         found = False
         for p2 in doc2.paragraphs:
-            if "my_mark" in p2.bookmarks:
+            if "my_mark" in [mark.name for mark in p2.bookmarks]:
                 found = True
                 break
         assert found

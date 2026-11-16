@@ -46,7 +46,7 @@ def test_an_equation_floats_with_text_above_and_below() -> None:
     equation = _equation(doc)
     equation.set_position(
         treat_as_char=False, text_wrap="TOP_AND_BOTTOM", horizontal_offset=5669, vertical_offset=-100,
-        horz_rel_to="PARA", vert_rel_to="PARA",
+        horizontal_relative_to="PARA", vertical_relative_to="PARA",
     )
     pos = equation.element.find(f"{HP}pos")
     assert pos.get("treatAsChar") == "0"
@@ -85,7 +85,7 @@ def test_an_unknown_wrap_is_refused_before_anything_changes() -> None:
 def test_a_picture_takes_the_same_call() -> None:
     doc = HwpxDocument.new()
     picture = doc.add_picture(b"\x89PNG\r\n\x1a\n" + b"0" * 40, "png", width=7200, height=7200)
-    picture.set_position(treat_as_char=False, text_wrap="IN_FRONT_OF_TEXT", horz_rel_to="PAGE",
-                         horz_align="RIGHT", horizontal_offset=0)
+    picture.set_position(treat_as_char=False, text_wrap="IN_FRONT_OF_TEXT", horizontal_relative_to="PAGE",
+                         horizontal_alignment="RIGHT", horizontal_offset=0)
     assert picture.element.get("textWrap") == "IN_FRONT_OF_TEXT"
     assert picture.element.find(f"{HP}pos").get("horzAlign") == "RIGHT"

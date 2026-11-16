@@ -166,7 +166,7 @@
     - `reflection=PictureReflection(size, distance, alpha_start, alpha_end, blur)`: 그림 아래 반사. `size`는 그림 높이의 몫(0 초과 1 이하)입니다.
     - 투명도(`alpha`)는 0~1이고 길이는 HWPUNIT입니다. 한/글은 그림을 바깥 효과(빛남·바깥 그림자·반사)까지 합친 크기로 배치하므로, 그만큼 줄이 높아집니다.
   - 한/글이 그대로 그리지 않는 값은 이진 항목·단락을 더하기 전에 거부합니다: `shape-picture-image-value`(조정), `shape-picture-border-value`(테두리 굵기), `shape-picture-crop-value`(자르기), `shape-picture-effect-value`(효과), `style-color-invalid`(색).
-  - 같은 인자를 `HwpxOxmlParagraph.add_picture(binary_item_id_ref, ...)`도 받습니다(이미 넣은 이진 항목을 쓸 때).
+  - 같은 조정·효과를 `paragraph.add_picture(item_id, *, alignment=, line_width_mm=, ...)`도 받습니다(이미 넣은 이진 항목을 쓸 때: `item_id`는 `doc.media.add_image`가 돌려준 `BinaryItem`이나 그 id, 테두리 굵기는 mm).
   - 뒤집기·회전은 아직 지원하지 않습니다.
 - `get_table_map() -> dict`
   - 문서 순서대로 표를 스캔하고 `table_index`, `paragraph_index`, 행·열 수, 추정 헤더 텍스트, 첫 행 미리보기, 빈 표 여부를 반환합니다.
@@ -458,7 +458,7 @@
 
 - `tag`: 엘리먼트의 정규화된 태그를 반환하는 프로퍼티입니다.
 - `attributes`: 인라인 객체 속성의 복사본을 반환하는 프로퍼티입니다.
-- `get_attribute(name)` / `set_attribute(name, value)`: 변경이 발생하면 단락을 dirty로 표시하는 개별 속성 접근자입니다.
+- `attributes.get(name)` / `set_attribute(name, value)`: 속성 하나를 읽고, 바꾸면 단락을 dirty로 표시합니다(6.x의 `get_attribute(name)`은 7.0에서 `attributes.get(name)`).
 
 ### 클래스 `HwpxOxmlTableCell`
 

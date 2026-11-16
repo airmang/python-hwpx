@@ -94,15 +94,18 @@ mail_merge``가 치환 대상으로 인식하는 세 문법 중 하나) -- DATE/
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from ._document_primitives import _HP, _append_child, _object_id, _sanitize_text
 
 if TYPE_CHECKING:
+    from ..objects.checkbox import CheckBox
+    from ..objects.form_field import Bookmark, FormField
     from .objects import HwpxOxmlInlineObject
     from .paragraph import HwpxOxmlParagraph
+    from .section import HwpxOxmlSection
 
 __all__ = [
     "DATE_FORMATS",
@@ -113,7 +116,11 @@ __all__ = [
     "create_proofreading_mark_field",
     "create_path_field",
     "FIELD_TYPE_CONTROL_IDS",
+    "bookmark_for",
+    "check_box_for",
     "field_type_id",
+    "form_field_for",
+    "paragraph_bookmarks",
 ]
 
 #: The control id of each field type (``hp:fieldBegin/@type``): four ASCII characters
@@ -439,3 +446,130 @@ def _paragraph_add_mail_merge_field(
     """메일머지 표시 필드를 이 문단에 삽입한다."""
     elements = create_mail_merge_field(name, cached_text=cached_text)
     return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
+
+# --------------------------------------------------------------------------
+# The value types ``paragraph.add_*`` hands back (7.0): the form a mark is read in.
+#
+# ``paragraph.add_bookmark()`` returns the :class:`~hwpx.objects.Bookmark` ``doc.refs.bookmarks`` lists,
+# ``add_form_field()`` the :class:`~hwpx.objects.FormField` ``doc.fields.all`` lists, ``add_check_box()``
+# the :class:`~hwpx.objects.CheckBox` ``doc.fields.check_boxes`` lists, and ``paragraph.bookmarks`` the
+# bookmarks themselves. Those readers number a mark among the whole document's (``FieldLocation``, a check
+# box's ``index``), so building one walks the document the paragraph is in, through the same readers
+# (:mod:`hwpx._document.fields`); a paragraph in no document is numbered within its section.
+
+
+class _DocumentScope:
+    """What :mod:`hwpx._document.fields` reads of a document -- ``sections`` and the ``_root`` model
+    document -- for a model paragraph: its section's document, or the section alone when in none."""
+
+    __slots__ = ("_section",)
+
+    def __init__(self, section: "HwpxOxmlSection") -> None:
+        self._section = section
+
+    @property
+    def _root(self) -> Any:
+        return self._section.document
+
+    @property
+    def sections(self) -> list[Any]:
+        document = self._section.document
+        return list(document.sections) if document is not None else [self._section]
+
+
+def _source(paragraph: "HwpxOxmlParagraph") -> tuple[_DocumentScope, tuple[Any, ...]]:
+    """The document scope and the reader's row for *paragraph*: its section's number, its number among
+    the document's paragraphs (cells and objects included), its number among its section's own (-1 for
+    a nested one), its element, itself and its runs. -1 throughout where the readers do not reach it."""
+
+    from .._document.fields import _iter_content_paragraphs, _local_name
+
+    scope = _DocumentScope(paragraph.section)
+    runs = [child for child in paragraph.element if _local_name(child) == "run"]
+    for section_index, index, in_section, element, _view, _runs in _iter_content_paragraphs(scope):  # type: ignore[arg-type]
+        if element is paragraph.element:
+            return scope, (section_index, index, in_section, element, paragraph, runs)
+    return scope, (-1, -1, -1, paragraph.element, paragraph, runs)
+
+
+def _field_text(scope: _DocumentScope, source: tuple[Any, ...], begin: Any) -> str:
+    from .._document.fields import _field_matches_in
+
+    found = _field_matches_in(scope, lambda _ctrl, field_begin: field_begin is begin, iter((source,)))  # type: ignore[arg-type]
+    return str(found[0]["current_value"]) if found else ""
+
+
+def _bookmarks_in(paragraph: "HwpxOxmlParagraph", wanted: Any = None) -> tuple["Bookmark", ...]:
+    from ..objects.form_field import Bookmark, FieldLocation
+
+    marks: list[tuple[int, int, Any, str]] = []
+    for run_index, run in enumerate(paragraph._run_elements()):
+        for child_index, child in enumerate(run):
+            if child.tag != f"{_HP}ctrl":
+                continue
+            for mark in child:
+                if wanted is not None and mark is not wanted:
+                    continue
+                if mark.tag == f"{_HP}bookmark" and mark.get("name", ""):
+                    marks.append((run_index, child_index, mark, "point"))
+                elif (mark.tag == f"{_HP}fieldBegin" and (mark.get("type") or "").strip().upper() == "BOOKMARK"
+                      and (mark.get("name") or "").strip()):
+                    marks.append((run_index, child_index, mark, "field"))
+    if not marks:
+        return ()
+    scope, source = _source(paragraph)
+    section_index, index, in_section = source[:3]
+    bookmarks = []
+    for run_index, child_index, mark, kind in marks:
+        location = FieldLocation(
+            section_index=section_index,
+            paragraph_index=index,
+            paragraph_index_in_section=in_section,
+            run_index=run_index,
+            child_index=child_index,
+        )
+        if kind == "point":
+            bookmarks.append(Bookmark(mark.get("name", ""), "point", "", location, mark, paragraph.section))
+        else:
+            name = (mark.get("name") or "").strip()
+            text = _field_text(scope, source, mark)
+            bookmarks.append(Bookmark(name, "field", text, location, mark, paragraph.section))
+    return tuple(bookmarks)
+
+
+def paragraph_bookmarks(paragraph: "HwpxOxmlParagraph") -> tuple["Bookmark", ...]:
+    """The bookmarks that start in *paragraph*'s own runs, in order, in either form Hancom saves one
+    (``<hp:bookmark>`` and ``<hp:fieldBegin type="BOOKMARK">``), as ``doc.refs.bookmarks`` gives them."""
+
+    return _bookmarks_in(paragraph)
+
+
+def bookmark_for(paragraph: "HwpxOxmlParagraph", mark: Any) -> "Bookmark":
+    """The :class:`~hwpx.objects.Bookmark` for the ``<hp:bookmark>`` *mark* just added to *paragraph*."""
+
+    return _bookmarks_in(paragraph, mark)[0]
+
+
+def form_field_for(paragraph: "HwpxOxmlParagraph", field_begin: Any) -> "FormField":
+    """The :class:`~hwpx.objects.FormField` for the ``<hp:fieldBegin>`` *field_begin* just added to
+    *paragraph*, read as ``doc.fields.all`` reads it (its value, prompt and place)."""
+
+    from .._document.fields import _field_matches_in, _form_field_from_match
+
+    scope, source = _source(paragraph)
+    match = _field_matches_in(scope, lambda _ctrl, begin: begin is field_begin, iter((source,)))[0]  # type: ignore[arg-type]
+    return _form_field_from_match(scope, match)  # type: ignore[arg-type]
+
+
+def check_box_for(paragraph: "HwpxOxmlParagraph", element: Any) -> "CheckBox":
+    """The :class:`~hwpx.objects.CheckBox` for the ``<hp:checkBtn>`` *element* just added to *paragraph*,
+    numbered among the document's check boxes as ``doc.fields.check_boxes`` numbers it."""
+
+    from .._document.fields import _iter_check_boxes
+    from ..objects.checkbox import CheckBox
+
+    for match in _iter_check_boxes(_DocumentScope(paragraph.section)):  # type: ignore[arg-type]
+        if match["_element"] is element:
+            return CheckBox(element, match["_section"], paragraph, index=match["index"],
+                            section_index=match["sectionIndex"])
+    return CheckBox(element, paragraph.section, paragraph, index=-1, section_index=-1)

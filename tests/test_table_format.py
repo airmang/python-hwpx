@@ -123,7 +123,7 @@ def test_table_set_position_takes_the_object_placement_vocabulary() -> None:
     table = document.add_table(2, 2)
     assert table.text_wrap == "TOP_AND_BOTTOM"
     table.set_position(treat_as_char=False, text_wrap="SQUARE", horizontal_offset=1000, vertical_offset=0,
-                       horz_rel_to="PARA", horz_align="RIGHT")
+                       horizontal_relative_to="PARA", horizontal_alignment="RIGHT")
     assert (table.treat_as_char, table.text_wrap, table.alignment) == (False, "SQUARE", "RIGHT")
     _reopen(document)
 

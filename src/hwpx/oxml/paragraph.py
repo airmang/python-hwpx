@@ -78,14 +78,17 @@ from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
 from .shape_position import (
-    validate_box_size, validate_equation_base_unit, validate_equation_font, validate_equation_script,
+    equation_base_unit, validate_box_size, validate_equation_font, validate_equation_script,
     validate_shape_size,
 )
 from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width, validate_table_size
 
 if TYPE_CHECKING:
-    from ..objects.form_field import Hyperlink
+    from ..objects.checkbox import CheckBox
+    from ..objects.form_field import Bookmark, FormField, Hyperlink
+    from ..objects.highlight import Highlight
+    from ..objects.results import NumberRestart, PageHiding
     from .section import HwpxOxmlSection
 
 
@@ -196,9 +199,9 @@ class HwpxOxmlParagraph(ParagraphFormats):
         return run
 
     @property
-    def runs(self) -> list[HwpxOxmlRun]:
-        """Return the runs contained in this paragraph."""
-        return [HwpxOxmlRun(run, self) for run in self._run_elements()]
+    def runs(self) -> tuple[HwpxOxmlRun, ...]:
+        """The runs contained in this paragraph, in order."""
+        return tuple(HwpxOxmlRun(run, self) for run in self._run_elements())
 
     def _last_text_run_for_tracked_insert(
         self,
@@ -221,7 +224,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
                 return run
         return self.add_run("", char_pr_id_ref=self.char_pr_id_ref or "0")
 
-    def add_tracked_insert(
+    def _add_tracked_insert(
         self,
         text: str,
         *,
@@ -243,7 +246,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
         )
         run.apply_model(model)
 
-    def add_tracked_delete(
+    def _add_tracked_delete(
         self,
         *,
         change_id: int,
@@ -344,13 +347,16 @@ class HwpxOxmlParagraph(ParagraphFormats):
         *,
         color: str,
         match: str,
-    ) -> None:
-        """Wrap the first occurrence of *match* in ``hp:markpenBegin``/``markpenEnd``.
+    ) -> "Highlight":
+        """Wrap the first occurrence of *match* in ``hp:markpenBegin``/``markpenEnd`` and return it as the
+        :class:`~hwpx.objects.Highlight` ``doc.text.highlights`` reads.
 
-        Mirrors :meth:`add_tracked_delete`'s substring branch: the first run
+        Mirrors :meth:`_add_tracked_delete`'s substring branch: the first run
         whose spans concatenate to contain *match* is targeted, then the
         specific span holding it (contiguously) is wrapped.
         """
+
+        from ..objects.highlight import Highlight
 
         if not match:
             raise ValueError("match must be a non-empty string")
@@ -362,7 +368,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
             for span in model.text_spans:
                 if body.wrap_highlight_in_span(span, color=color, match=match):
                     run.apply_model(model)
-                    return
+                    return Highlight(text=match, color=color, paragraph=self)
             raise ValueError("match crosses inline markup and cannot be wrapped safely")
 
         raise ValueError("match text was not found in the paragraph")
@@ -638,15 +644,12 @@ class HwpxOxmlParagraph(ParagraphFormats):
         return HwpxOxmlRun(run_element, self)
 
     @property
-    def tables(self) -> list["HwpxOxmlTable"]:
-        """Return the tables embedded within this paragraph."""
+    def tables(self) -> tuple["HwpxOxmlTable", ...]:
+        """The tables embedded within this paragraph, in order."""
 
-        tables: list[HwpxOxmlTable] = []
-        for run in self._run_elements():
-            for child in run:
-                if child.tag == f"{_HP}tbl":
-                    tables.append(HwpxOxmlTable(child, self))
-        return tables
+        return tuple(
+            HwpxOxmlTable(child, self) for run in self._run_elements() for child in run if child.tag == f"{_HP}tbl"
+        )
 
     def clear_layout_cache(self) -> int:
         """Drop this paragraph's line layout cache (``hp:linesegarray``) so Hancom lays it out again.
@@ -1020,11 +1023,14 @@ class HwpxOxmlParagraph(ParagraphFormats):
         *,
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        """Insert a bookmark marker ``<hp:ctrl><hp:bookmark name="..."/></hp:ctrl>``.
+    ) -> "Bookmark":
+        """Insert a bookmark marker ``<hp:ctrl><hp:bookmark name="..."/></hp:ctrl>`` and return it as the
+        :class:`~hwpx.objects.Bookmark` ``doc.refs.bookmarks`` reads (``kind="point"``).
 
         The bookmark name can be referenced by hyperlinks or cross-references.
         """
+        from .field_marks import bookmark_for
+
         _require_nonempty_str(
             "name", name, code="ref-bookmark-name-empty", suggestion="Pass the bookmark's name."
         )
@@ -1032,9 +1038,9 @@ class HwpxOxmlParagraph(ParagraphFormats):
             run_attributes, char_pr_id_ref=char_pr_id_ref,
         )
         ctrl = _append_child(run, f"{_HP}ctrl", {})
-        _append_child(ctrl, f"{_HP}bookmark", {"name": name})
+        mark = _append_child(ctrl, f"{_HP}bookmark", {"name": name})
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(ctrl, self)
+        return bookmark_for(self, mark)
 
     def add_hyperlink(
         self,
@@ -1042,7 +1048,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
         display_text: str,
         *,
         char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
+    ) -> "Hyperlink":
         """Insert a hyperlink spanning three runs: fieldBegin, text, fieldEnd.
 
         Args:
@@ -1053,8 +1059,11 @@ class HwpxOxmlParagraph(ParagraphFormats):
             display_text: The visible text in the paragraph's look, blue and underlined as Hancom writes links, unless char_pr_id_ref is given.
 
         Returns:
-            The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
+            The link as the :class:`~hwpx.objects.Hyperlink` ``paragraph.hyperlinks`` reads
+            (``link.element`` is the ``<hp:fieldBegin>``).
         """
+        from ..objects.form_field import Hyperlink
+
         _require_nonempty_str(
             "url", url, code="ref-link-target-empty",
             suggestion="Pass a web address, a mailto: address or #bookmark.",
@@ -1094,7 +1103,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
         _append_child(ctrl3, f"{_HP}fieldEnd", {"beginIDRef": field_id, "fieldid": HYPERLINK_FIELD_ID})
 
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(ctrl1, self)
+        return Hyperlink(begin, self)
 
     add_date_field = _paragraph_add_date_field
     add_proofreading_mark = _paragraph_add_proofreading_mark
@@ -1199,15 +1208,16 @@ class HwpxOxmlParagraph(ParagraphFormats):
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl, self)
 
-    def add_new_num(
+    def add_number_restart(
         self,
         *,
         number: int = 1,
         kind: str = "PAGE",
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        """Insert ``<hp:ctrl><hp:newNum num="..." numType="..."/></hp:ctrl>``.
+    ) -> "NumberRestart":
+        """Insert ``<hp:ctrl><hp:newNum num="..." numType="..."/></hp:ctrl>`` and return it as the
+        :class:`~hwpx.objects.NumberRestart` ``doc.page.number_restarts`` reads.
 
         Restarts the running count *kind* (``PAGE`` by default) at *number*
         from this paragraph onward — real corpus (hwpxlib_corpus, 7+ files)
@@ -1217,6 +1227,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
         priority over the schema here.
         """
 
+        from ..objects.results import NumberRestart
+
         normalized_kind = _normalize_enum_attr(kind or "PAGE", NEW_NUM_KINDS, label="kind")
         number = validate_new_number(number)  # before its run is added
         run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
@@ -1225,7 +1237,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
             ctrl, f"{_HP}newNum", {"num": str(number), "numType": normalized_kind},
         )
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(ctrl, self)
+        return NumberRestart(kind=normalized_kind, number=number, paragraph=self)
 
     def add_page_hiding(
         self,
@@ -1238,8 +1250,9 @@ class HwpxOxmlParagraph(ParagraphFormats):
         page_num: bool = False,
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        """Insert ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>``.
+    ) -> "PageHiding":
+        """Insert ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>`` and return it as the
+        :class:`~hwpx.objects.PageHiding` ``doc.page.page_hidings`` reads.
 
         Hides the named page elements on this paragraph's page only
         (``ParaList XML schema.xml:148-163`` — six independent booleans, all
@@ -1248,6 +1261,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
         alongside a ``newNum``/``pageNum`` control in the section-opening
         paragraph's first run.
         """
+
+        from ..objects.results import PageHiding
 
         run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
         ctrl = _append_child(run, f"{_HP}ctrl", {})
@@ -1264,16 +1279,18 @@ class HwpxOxmlParagraph(ParagraphFormats):
             },
         )
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(ctrl, self)
+        return PageHiding(header=bool(header), footer=bool(footer), master_page=bool(master_page),
+                          border=bool(border), fill=bool(fill), page_num=bool(page_num), paragraph=self)
 
     def add_chart(
         self,
         chart_id_ref: str,
         *,
-        size: tuple[int, int] | None = None,
         treat_as_char: bool = False,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
+        width: int | None = None,
+        height: int | None = None,
     ) -> HwpxOxmlInlineObject:
         """Insert a native ``<hp:chart>`` anchor referencing a chartML part.
 
@@ -1287,8 +1304,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
         Args:
             chart_id_ref: Package path of the chartML part
                 (e.g. ``Chart/chart1.xml``).
-            size: Optional ``(width, height)`` HWPUNIT pair for ``<hp:sz>``;
-                defaults to the gold document's 32250x18750.
+            width, height: The chart's box (``<hp:sz>``, HWPUNIT, both from 1);
+                one left out is the gold document's 32250 x 18750.
             treat_as_char: ``True`` places the chart inline in the text flow;
                 the default mirrors the gold float placement.
         """
@@ -1303,7 +1320,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
                 code="shape-chart-reference-empty",
                 suggestion="Pass the chart part's path, e.g. 'Chart/chart1.xml' (doc.shapes.add_chart writes one).",
             )
-        width, height = validate_box_size(size, kind="chart") if size is not None else (32250, 18750)
+        width, height = validate_box_size((32250 if width is None else width, 18750 if height is None else height),
+                                          kind="chart")
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref
         )
@@ -1352,11 +1370,12 @@ class HwpxOxmlParagraph(ParagraphFormats):
         self,
         script: str,
         *,
-        base_unit: int = 1100,
-        size: tuple[int, int] | None = None,
+        font_size: float = 11.0,
         char_pr_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         font: str = "HancomEQN",
+        width: int | None = None,
+        height: int | None = None,
     ) -> HwpxOxmlEquation:
         """Insert an inline ``<hp:equation>`` carrying an EqEdit *script*.
 
@@ -1368,10 +1387,11 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
         Args:
             script: EqEdit script stored verbatim (e.g. ``{a} over {b}``).
-            base_unit: Equation base font size in 1/100 pt (gold: 1100/1200).
-            size: Optional explicit ``(width, height)`` HWPUNIT pair for
-                ``<hp:sz>``; when omitted the box is measured from the script.
-                Hancom lays the page out with the stored box on open.
+            font_size: Equation font size in pt (gold: 11/12), kept as ``baseUnit``
+                (1/100 pt).
+            width, height: The box (``<hp:sz>``, HWPUNIT, from 1); one left out is
+                measured from the script at *font_size*. Hancom lays the page out
+                with the stored box on open.
             font: Equation font name. ``HancomEQN`` is what Hangul's own
                 equation editor writes; ``HYhwpEQ`` is the older, lighter
                 face python-hwpx wrote before 7.0. The measured box is
@@ -1389,13 +1409,16 @@ class HwpxOxmlParagraph(ParagraphFormats):
                 suggestion="Pass an EqEdit script (convert LaTeX with hwpx.equation).",
             )
         validate_equation_script(text)  # LaTeX or unpaired braces: Hancom would not draw it as an equation
-        validate_equation_base_unit(base_unit)
+        base_unit = equation_base_unit(font_size)
         font = validate_equation_font(font)
-        explicit = validate_box_size(size, kind="equation") if size is not None else None
         from ..equation.measure import measure_equation
 
         measured = measure_equation(text, base_unit=base_unit)
-        width, height = explicit if explicit is not None else (measured.width, measured.height)
+        if width is not None or height is not None:
+            width, height = validate_box_size((measured.width if width is None else width,
+                                               measured.height if height is None else height), kind="equation")
+        else:
+            width, height = measured.width, measured.height
         validate_shape_size(width, height)
         run = self._create_run_for_object(
             run_attributes, char_pr_id_ref=char_pr_id_ref
@@ -1457,8 +1480,9 @@ class HwpxOxmlParagraph(ParagraphFormats):
         editable: bool = True,
         prompt_char_pr_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        """Insert a click-here (누름틀) form field at the end of this paragraph.
+    ) -> "FormField":
+        """Insert a click-here (누름틀) form field at the end of this paragraph and return it as the
+        :class:`~hwpx.objects.FormField` ``doc.fields.all`` reads.
 
         Emits the real-Hancom CLICKHERE shape (inferred from Hancom
         Office 12.0.0.3288 gold documents):
@@ -1477,8 +1501,10 @@ class HwpxOxmlParagraph(ParagraphFormats):
                 pass a red-italic style; Hancom uses one).
 
         Returns:
-            The ``<hp:ctrl>`` element wrapping the ``<hp:fieldBegin>``.
+            The field (``field.element`` is the ``<hp:fieldBegin>``).
         """
+        from .field_marks import form_field_for
+
         field_id = _object_id()
         field_instance_id = field_type_id("CLICK_HERE")
         direction = _sanitize_text(prompt)
@@ -1545,7 +1571,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
         _append_child(run3, f"{_HP}t", {})
 
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(ctrl1, self)
+        return form_field_for(self, field_begin)
 
     def add_check_box(
         self,
@@ -1556,8 +1582,9 @@ class HwpxOxmlParagraph(ParagraphFormats):
         width: int = 9921,
         height: int = 1984,
         char_pr_id_ref: str | int | None = None,
-    ) -> HwpxOxmlInlineObject:
-        """Insert a check-box form object (체크박스) at the end of this paragraph.
+    ) -> "CheckBox":
+        """Insert a check-box form object (체크박스) at the end of this paragraph and return it as the
+        :class:`~hwpx.objects.CheckBox` ``doc.fields.check_boxes`` reads.
 
         Emits the real-Hancom ``<hp:checkBtn>`` shape. Unlike the click-here
         field this is **not** wrapped in ``<hp:ctrl>`` — it is a direct child of
@@ -1630,32 +1657,22 @@ class HwpxOxmlParagraph(ParagraphFormats):
         _append_child(run, f"{_HP}t", {})
 
         self.section.mark_dirty()
-        return HwpxOxmlInlineObject(check, self)
+        from .field_marks import check_box_for
+
+        return check_box_for(self, check)
 
     @property
-    def bookmarks(self) -> list[str]:
-        """Return the names of all bookmarks that start in this paragraph.
+    def bookmarks(self) -> "tuple[Bookmark, ...]":
+        """The bookmarks that start in this paragraph, in order, as :class:`~hwpx.objects.Bookmark`
+        (``bookmark.name``), the values ``doc.refs.bookmarks`` gives.
 
-        Both forms Hancom saves a bookmark in count, in document order:
-        ``<hp:ctrl><hp:bookmark name=".."/></hp:ctrl>`` and
-        ``<hp:fieldBegin type="BOOKMARK" name="..">`` (paired with a fieldEnd).
+        Both forms Hancom saves a bookmark in count:
+        ``<hp:ctrl><hp:bookmark name=".."/></hp:ctrl>`` (``kind="point"``) and
+        ``<hp:fieldBegin type="BOOKMARK" name="..">`` paired with a fieldEnd (``kind="field"``).
         """
-        names: list[str] = []
-        for run in self._run_elements():
-            for ctrl in run.findall(f"{_HP}ctrl"):
-                for mark in ctrl:
-                    if mark.tag == f"{_HP}bookmark":
-                        name = mark.get("name", "")
-                    elif (
-                        mark.tag == f"{_HP}fieldBegin"
-                        and (mark.get("type") or "").strip().upper() == "BOOKMARK"
-                    ):
-                        name = (mark.get("name") or "").strip()
-                    else:
-                        continue
-                    if name:
-                        names.append(name)
-        return names
+        from .field_marks import paragraph_bookmarks
+
+        return paragraph_bookmarks(self)
 
     @property
     def hyperlinks(self) -> "tuple[Hyperlink, ...]":
@@ -1726,7 +1743,8 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
     @property
     def column_break(self) -> bool:
-        """Whether this paragraph forces a column break before it starts.
+        """Whether this paragraph forces a column break before it starts (Hancom's Ctrl+Shift+Enter, as
+        ``page_break`` is its Ctrl+Enter); settable.
 
         This is ``hp:p``'s own ``columnBreak`` attribute -- a per-paragraph
         instance flag (default ``"0"``, always present on every parsed

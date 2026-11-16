@@ -20,7 +20,7 @@ from ._document_primitives import (
 from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
-    from .objects import HwpxOxmlInlineObject
+    from ..objects.form_field import Hyperlink
     from .paragraph import HwpxOxmlParagraph
     from .run import HwpxOxmlRun
     from .section import HwpxOxmlSection
@@ -892,8 +892,8 @@ class HwpxOxmlNote:
         display_text: str,
         *,
         char_pr_id_ref: str | int | None = None,
-    ) -> "HwpxOxmlInlineObject":
-        """Append a hyperlink to the note body paragraph.
+    ) -> "Hyperlink":
+        """Append a hyperlink to the note body paragraph and return it (:class:`~hwpx.objects.Hyperlink`).
 
         Convenience wrapper around ``body_paragraph.add_hyperlink``.
         """

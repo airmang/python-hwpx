@@ -9,8 +9,8 @@ from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
 from ..oxml.objects import HwpxOxmlEquation, _closed_points
 from ..oxml.shape_position import (
-    validate_box_size, validate_equation_base_unit, validate_equation_font, validate_equation_script,
-    validate_original_size, validate_rect_ratio, validate_shape_size,
+    line_width_mm_for_units, validate_box_size, validate_equation_base_unit, validate_equation_font,
+    validate_equation_script, validate_original_size, validate_rect_ratio, validate_shape_size,
 )
 
 if TYPE_CHECKING:
@@ -165,7 +165,7 @@ def add_line(
         )
     return paragraph.add_line(
         start_x, start_y, end_x, end_y,
-        line_color=line_color, line_width=line_width,
+        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
         treat_as_char=treat_as_char,
     )
 
@@ -267,7 +267,7 @@ def add_rectangle(
         )
     return paragraph.add_rectangle(
         width, height, ratio=ratio,
-        line_color=line_color, line_width=line_width,
+        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
         fill_color=fill_color, treat_as_char=treat_as_char,
         original_size=original_size,
     )
@@ -299,7 +299,7 @@ def add_ellipse(
         )
     return paragraph.add_ellipse(
         width, height,
-        line_color=line_color, line_width=line_width,
+        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
         fill_color=fill_color, treat_as_char=treat_as_char,
         original_size=original_size,
     )
@@ -336,7 +336,7 @@ def add_arc(
     return paragraph.add_arc(
         width, height,
         corner=corner, arc_type=arc_type,
-        line_color=line_color, line_width=line_width,
+        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
 
@@ -384,7 +384,7 @@ def add_polygon(
         hwp_points = _closed_points(hwp_points)
     return paragraph.add_polygon(
         hwp_points,
-        line_color=line_color, line_width=line_width,
+        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
 
@@ -414,7 +414,7 @@ def add_curve(
         )
     return paragraph.add_curve(
         [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points_mm],
-        closed=closed, line_color=line_color, line_width=line_width,
+        closed=closed, line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
         fill_color=fill_color, treat_as_char=treat_as_char,
     )
 
@@ -437,7 +437,7 @@ def add_connector(
     when they move or grow (see :mod:`hwpx.oxml.curves`)."""
     return (paragraph or start.paragraph).add_connector(
         start, end, start_side=start_side, end_side=end_side, kind=kind,
-        line_color=line_color, line_width=line_width,
+        line_color=line_color, line_width_mm=line_width_mm_for_units(line_width),
     )
 
 
@@ -522,7 +522,7 @@ def add_equation(
     if size is not None:
         width, height = validate_box_size(size, kind="equation")
     else:
-        width, height = estimate_equation_size(text, base_unit=base_unit)
+        width, height = estimate_equation_size(text, font_size=base_unit / 100)
         validate_shape_size(width, height)  # one measured at a huge base_unit too
     if paragraph is None:
         paragraph = doc.add_paragraph(
@@ -530,7 +530,7 @@ def add_equation(
             include_run=False,
         )
     inline_object = paragraph.add_equation(
-        text, base_unit=base_unit, size=(width, height), char_pr_id_ref=char_pr_id_ref, font=font,
+        text, font_size=base_unit / 100, width=width, height=height, char_pr_id_ref=char_pr_id_ref, font=font,
     )
 
     created_id = inline_object.element.get("id", "")
@@ -710,9 +710,11 @@ def add_chart(
             include_run=False,
         )
     doc._package.write(part_path, data)
+    width, height = size if size is not None else _default_chart_size(paragraph)
     inline_object = paragraph.add_chart(
         part_path,
-        size=size if size is not None else _default_chart_size(paragraph),
+        width=width,
+        height=height,
         treat_as_char=treat_as_char,
         char_pr_id_ref=char_pr_id_ref,
     )

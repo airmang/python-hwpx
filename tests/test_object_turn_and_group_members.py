@@ -61,7 +61,7 @@ def test_a_stretched_picture_turns_as_hancom_turned_one() -> None:
     doc = HwpxDocument.new()
     picture = doc.add_picture(PNG, "png", width=case["size"][0], height=case["size"][1])
     picture.resize(*case["drawn"])
-    picture.set_rotation(case["angle"])
+    picture.rotation = case["angle"]
     element = picture.element
     size, info = element.find(f"{HP}sz"), element.find(f"{HP}rotationInfo")
     assert abs(int(size.get("width")) - case["sz"][0]) <= 1 and abs(int(size.get("height")) - case["sz"][1]) <= 1
@@ -81,7 +81,7 @@ def test_a_resized_shape_turns_and_fills_its_box(angle: int) -> None:
     doc = HwpxDocument.new()
     picture = doc.add_picture(PNG, "png", width=8000, height=3000)
     picture.resize(width=4000, height=3000)  # drawn narrower than its own size: scaMatrix 0.5 x 1
-    picture.set_rotation(angle)
+    picture.rotation = angle
     matrices = _matrices(picture.element)
     size = picture.element.find(f"{HP}sz")
     corners = [_drawn(matrices, c) for c in ((0, 0), (8000, 0), (8000, 3000), (0, 3000))]
@@ -95,16 +95,16 @@ def test_a_resized_shape_turns_and_fills_its_box(angle: int) -> None:
 def test_a_turned_picture_resizes_and_crops_as_drawn() -> None:
     doc = HwpxDocument.new()
     turned = doc.add_picture(PNG, "png", width=6000, height=3000)
-    turned.set_rotation(45)
+    turned.rotation = 45
     turned.resize(width=3000)
     assert turned.rotation == 45
-    turned.set_rotation(0)
+    turned.rotation = 0
     assert (turned.width, turned.height) == (3000, 1500)
     cropped = doc.add_picture(PNG, "png", width=6000, height=3000)
-    cropped.set_rotation(90)
-    cropped.set_crop((0, 0, 3000, 0))
+    cropped.rotation = 90
+    cropped.crop = (0, 0, 3000, 0)
     assert (cropped.width, cropped.height) == (3000, 3000)  # turned 90 degrees: its box is its size turned
-    cropped.set_rotation(0)
+    cropped.rotation = 0
     assert (cropped.width, cropped.height) == (3000, 3000)
     _reopen(doc)
 
@@ -112,7 +112,7 @@ def test_a_turned_picture_resizes_and_crops_as_drawn() -> None:
 def test_a_flipped_object_and_a_group_still_refuse_to_turn() -> None:
     doc = HwpxDocument.open(HANCOM / "group_in_a_group.hwpx")
     group = doc.sections[0].paragraphs[0].objects[0]
-    for call in (lambda: group.set_rotation(30), lambda: group.members[1].set_rotation(30)):
+    for call in (lambda: setattr(group, "rotation", 30), lambda: setattr(group.members[1], "rotation", 30)):
         with pytest.raises(HwpxValueError) as caught:
             call()
         assert caught.value.code in {"shape-rotation-unsupported", "shape-group-member-unsupported"}

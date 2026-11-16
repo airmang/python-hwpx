@@ -202,6 +202,17 @@ def test_from_import_of_an_equation_name_shows_hwpx_equation() -> None:
         exec("from hwpx import latex_to_eqedit", {})
 
 
+@pytest.mark.parametrize("name", sorted(EQUATION_NAMES))
+def test_hwpx_experimental_points_an_equation_name_to_hwpx_equation(name: str) -> None:
+    """7.0: hwpx.experimental no longer re-exports the stable equation converters; it names hwpx.equation."""
+
+    import hwpx.experimental
+
+    assert name not in hwpx.experimental.__all__
+    with pytest.raises(hwpx.MovedToSubmodule, match=f"from hwpx.equation import {name}"):
+        exec(f"from hwpx.experimental import {name}", {})
+
+
 # The deprecated-access test is gone rather than left parametrized over an empty
 # set. pytest reports that as a skip, which reads as "environment-gated" when it
 # actually means "this asserts nothing" — the same silent-pass shape this work has
@@ -228,9 +239,9 @@ def test_removed_formfit_names_are_gone_not_merely_warned() -> None:
 
 def test_experimental_module_reexports_all_experimental_names() -> None:
     experimental = importlib.import_module("hwpx.experimental")
-    # hwpx.experimental still re-exports the equation converters (the 6.x path), the same
-    # objects hwpx.equation exports as stable names.
-    assert frozenset(experimental.__all__) == EXPERIMENTAL_NAMES | EQUATION_NAMES
+    # 7.0: the equation converters are stable in hwpx.equation and left hwpx.experimental, which
+    # names that place (MovedToSubmodule) when they are asked of it.
+    assert frozenset(experimental.__all__) == EXPERIMENTAL_NAMES
     for name in EXPERIMENTAL_NAMES:
         assert hasattr(experimental, name)
 

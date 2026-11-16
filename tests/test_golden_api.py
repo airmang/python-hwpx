@@ -163,7 +163,7 @@ def _set_page_number(_: Path) -> None:
 def _add_bookmark(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.refs.add_bookmark("golden-bookmark")
-        assert "golden-bookmark" in document.paragraphs[-1].bookmarks
+        assert "golden-bookmark" in [mark.name for mark in document.paragraphs[-1].bookmarks]
 
 
 def _add_hyperlink(_: Path) -> None:

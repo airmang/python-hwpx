@@ -76,7 +76,7 @@ def test_add_curve_refuses_too_few_anchors() -> None:
 
 
 def _placed(shape, x: int, y: int):
-    shape.set_position(horizontal_offset=x, vertical_offset=y, horz_rel_to="PAPER", vert_rel_to="PAPER")
+    shape.set_position(horizontal_offset=x, vertical_offset=y, horizontal_relative_to="PAPER", vertical_relative_to="PAPER")
     return shape
 
 

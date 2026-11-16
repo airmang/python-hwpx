@@ -95,10 +95,10 @@ def test_add_dutmal_defaults_match_the_only_real_sample() -> None:
     assert obj.element.tag == f"{_HP}dutmal"
     # DEV-041: defaults are the real sample's own observed values (0/0),
     # not the schema's stated fixed=4 / positiveInteger.
-    assert obj.get_attribute("option") == "0"
-    assert obj.get_attribute("szRatio") == "0"
-    assert obj.get_attribute("posType") == "TOP"
-    assert obj.get_attribute("align") == "CENTER"
+    assert obj.attributes.get("option") == "0"
+    assert obj.attributes.get("szRatio") == "0"
+    assert obj.attributes.get("posType") == "TOP"
+    assert obj.attributes.get("align") == "CENTER"
 
 
 def test_add_dutmal_round_trips_through_the_read_model() -> None:
@@ -179,7 +179,7 @@ def test_a_composed_character_is_written_as_hancom_writes_one() -> None:
     doc = HwpxDocument.new()
     obj = doc.shapes.add_composed_character("합", paragraph=doc.add_paragraph("본문"))
 
-    attributes = {name: obj.get_attribute(name) for name in ("circleType", "charSz", "composeType", "charPrCnt")}
+    attributes = {name: obj.attributes.get(name) for name in ("circleType", "charSz", "composeType", "charPrCnt")}
     assert attributes == {"circleType": "SHAPE_CIRCLE", "charSz": "-4", "composeType": "SPREAD", "charPrCnt": "10"}
     slots = [child.get("prIDRef") for child in obj.element if child.tag.endswith("}charPr")]
     assert slots == ["4294967295"] * 10
@@ -191,7 +191,7 @@ def test_a_dutmal_takes_style_0_as_hancom_writes_it() -> None:
     doc = HwpxDocument.new()
     obj = doc.shapes.add_dutmal("본말", "덧말", paragraph=doc.add_paragraph("본문"))
 
-    assert obj.get_attribute("styleIDRef") == "0"
+    assert obj.attributes.get("styleIDRef") == "0"
 
 
 def test_add_composed_character_without_a_paragraph_creates_its_own() -> None:
