@@ -392,11 +392,11 @@ class TestCharacterFormatResidual:
         outlined = doc.styles.ensure_run(outline="THICK")
         embossed = doc.styles.ensure_run(emboss=True)
         engraved = doc.styles.ensure_run(engrave=True)
-        assert doc.styles.char_property(sup).is_superscript() is True
-        assert doc.styles.char_property(sup).is_subscript() is False
-        assert doc.styles.char_property(outlined).outline_type() == "THICK"
-        assert doc.styles.char_property(embossed).is_emboss() is True
-        assert doc.styles.char_property(engraved).is_engrave() is True
+        assert doc.styles.char_property(sup).superscript is True
+        assert doc.styles.char_property(sup).subscript is False
+        assert doc.styles.char_property(outlined).outline_type == "THICK"
+        assert doc.styles.char_property(embossed).emboss is True
+        assert doc.styles.char_property(engraved).engrave is True
 
     def test_residual_flags_survive_roundtrip(self) -> None:
         doc = HwpxDocument.new()
@@ -407,6 +407,6 @@ class TestCharacterFormatResidual:
         doc.add_paragraph("외곽선", char_pr_id_ref=outlined)
         doc.add_paragraph("양각", char_pr_id_ref=embossed)
         reopened = _roundtrip(doc)
-        assert reopened.styles.char_property(sub).is_subscript() is True
-        assert reopened.styles.char_property(outlined).outline_type() == "DOT"
-        assert reopened.styles.char_property(embossed).is_emboss() is True
+        assert reopened.styles.char_property(sub).subscript is True
+        assert reopened.styles.char_property(outlined).outline_type == "DOT"
+        assert reopened.styles.char_property(embossed).emboss is True

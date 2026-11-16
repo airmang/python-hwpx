@@ -1122,7 +1122,7 @@ def add_form_field(
     )
     _clear_form_field_layout_cache(paragraph.element)
 
-    field_begin = control.element.find(f"{_HP}fieldBegin")
+    field_begin = control.element  # paragraph.add_form_field gives the FormField: its element is the fieldBegin
     created_id = field_begin.get("id", "") if field_begin is not None else ""
     for match in _iter_form_field_matches(doc):
         if match.get("id") == created_id:

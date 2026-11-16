@@ -157,8 +157,8 @@ def test_from_import_shows_the_message_as_it_is() -> None:
 
 
 def test_what_stays_still_imports() -> None:
-    from hwpx.equation import EQEDIT_MATHML_OPERATOR_COMMANDS, eqedit_to_latex, latex_to_eqedit
-    from hwpx.experimental import estimate_equation_size, estimate_pages
+    from hwpx.equation import EQEDIT_MATHML_OPERATOR_COMMANDS, eqedit_to_latex, estimate_equation_size, latex_to_eqedit
+    from hwpx.experimental import estimate_pages
     from hwpx.tools import doc_diff, export_text, get_table_map
     from hwpx.tools.exporter import ListLabels, NoteLabels, table_grid_text
 

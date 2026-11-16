@@ -190,7 +190,7 @@ class ContainerMember:
         is inserted, so its paragraphs take ids unused in the section; a bad
         *vert_align* is refused here, before any document is touched."""
 
-        validate_draw_text_vert_align(vert_align)
+        validate_draw_text_vert_align(vert_align, argument="vert_align")
         member = cls.rect(x, y, width, height, ratio=ratio, line_color=line_color,
                           line_width=line_width, fill_color=fill_color)
         spec = _MemberText(text, name, editable, dict(margin) if margin else None,

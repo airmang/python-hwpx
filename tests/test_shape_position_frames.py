@@ -38,7 +38,7 @@ def _stamp_document() -> tuple[bytes, str]:
         8503,
         5446,
         line_color="#000000",
-        line_width="283",
+        line_width_mm=1.0,
         fill_color="#FFFFFF",
         treat_as_char=False,
         char_pr_id_ref=0,
@@ -85,8 +85,8 @@ def test_paper_frame_matches_the_direct_pos_edit_byte_for_byte() -> None:
     _find_shape(api, inst_id).set_position(
         horizontal_offset=46774,
         vertical_offset=5961,
-        horz_rel_to="PAPER",
-        vert_rel_to="PAPER",
+        horizontal_relative_to="PAPER",
+        vertical_relative_to="PAPER",
     )
     actual = api.to_bytes()
     api.close()
@@ -118,8 +118,8 @@ def test_a_negative_offset_is_written_as_hancom_keeps_it(
     # as their unsigned 32-bit form, it kept them (and drew the rectangle there). set_position writes the latter.
     doc = HwpxDocument.new()
     shape = _floating_shape(doc)
-    shape.set_position(horizontal_offset=offsets[0], vertical_offset=offsets[1], horz_rel_to=frame,
-                       vert_rel_to=frame)
+    shape.set_position(horizontal_offset=offsets[0], vertical_offset=offsets[1], horizontal_relative_to=frame,
+                       vertical_relative_to=frame)
     pos = shape.element.find(f"{HP}pos")
     doc.close()
 
@@ -134,10 +134,10 @@ def test_frames_and_alignment_survive_save_and_reopen() -> None:
     shape.set_position(
         horizontal_offset=1000,
         vertical_offset=-2000,
-        horz_rel_to="PAGE",
-        vert_rel_to="PAPER",
-        horz_align="RIGHT",
-        vert_align="BOTTOM",
+        horizontal_relative_to="PAGE",
+        vertical_relative_to="PAPER",
+        horizontal_alignment="RIGHT",
+        vertical_alignment="BOTTOM",
     )
     data = doc.to_bytes()
     doc.close()
@@ -159,10 +159,10 @@ def test_frames_and_alignment_survive_save_and_reopen() -> None:
 
 @pytest.mark.parametrize(
     "argument,attribute,value",
-    [("vert_rel_to", "vertRelTo", v) for v in VERT_REL_TO]
-    + [("horz_rel_to", "horzRelTo", v) for v in HORZ_REL_TO]
-    + [("vert_align", "vertAlign", v) for v in VERT_ALIGN]
-    + [("horz_align", "horzAlign", v) for v in HORZ_ALIGN],
+    [("vertical_relative_to", "vertRelTo", v) for v in VERT_REL_TO]
+    + [("horizontal_relative_to", "horzRelTo", v) for v in HORZ_REL_TO]
+    + [("vertical_alignment", "vertAlign", v) for v in VERT_ALIGN]
+    + [("horizontal_alignment", "horzAlign", v) for v in HORZ_ALIGN],
 )
 def test_every_schema_value_is_written_to_its_pos_attribute(
     argument: str, attribute: str, value: str
@@ -179,7 +179,7 @@ def test_every_schema_value_is_written_to_its_pos_attribute(
 def test_omitted_frames_leave_the_existing_frames_untouched() -> None:
     with HwpxDocument.new() as doc:
         shape = _floating_shape(doc)
-        shape.set_position(horizontal_offset=0, vertical_offset=0, horz_rel_to="PAPER")
+        shape.set_position(horizontal_offset=0, vertical_offset=0, horizontal_relative_to="PAPER")
         shape.set_position(horizontal_offset=5, vertical_offset=6)
         pos = shape.element.find(f"{HP}pos")
         assert (pos.get("horzRelTo"), pos.get("vertRelTo")) == ("PAPER", "PARA")
@@ -189,13 +189,13 @@ def test_omitted_frames_leave_the_existing_frames_untouched() -> None:
 @pytest.mark.parametrize(
     "argument,bad",
     [
-        ("vert_rel_to", "COLUMN"),  # the schema allows COLUMN only horizontally
-        ("horz_rel_to", "paper"),  # exact match, no case folding
-        ("horz_rel_to", ""),
-        ("vert_rel_to", 1),
-        ("horz_align", "TOP"),
-        ("vert_align", "LEFT"),
-        ("vert_align", " CENTER"),
+        ("vertical_relative_to", "COLUMN"),  # the schema allows COLUMN only horizontally
+        ("horizontal_relative_to", "paper"),  # exact match, no case folding
+        ("horizontal_relative_to", ""),
+        ("vertical_relative_to", 1),
+        ("horizontal_alignment", "TOP"),
+        ("vertical_alignment", "LEFT"),
+        ("vertical_alignment", " CENTER"),
     ],
 )
 def test_bad_frame_refuses_before_any_mutation(argument: str, bad: object) -> None:
@@ -217,7 +217,7 @@ def test_inline_shape_still_refuses_frames() -> None:
         shape = doc.add_paragraph("").add_rectangle(1000, 1000, treat_as_char=True)
         before = etree.tostring(shape.element)
         with pytest.raises(HwpxValueError) as excinfo:
-            shape.set_position(horizontal_offset=0, vertical_offset=0, horz_rel_to="PAPER")
+            shape.set_position(horizontal_offset=0, vertical_offset=0, horizontal_relative_to="PAPER")
         assert excinfo.value.code == "shape-position-unsupported"
         assert etree.tostring(shape.element) == before
 
@@ -276,7 +276,7 @@ def test_para_pr_id_ref_and_vert_align_reach_the_draw_text(replace: bool) -> Non
         if replace:
             shape.set_draw_text("이전", char_pr_id_ref=1)
         draw_text = shape.set_draw_text(
-            "7", char_pr_id_ref=2, para_pr_id_ref=21, vert_align="BOTTOM"
+            "7", char_pr_id_ref=2, para_pr_id_ref=21, vertical_alignment="BOTTOM"
         )
         sublist, paragraphs = _sublist_and_paragraph(shape)
         assert sublist.get("vertAlign") == "BOTTOM"
@@ -288,7 +288,7 @@ def test_para_pr_id_ref_and_vert_align_reach_the_draw_text(replace: bool) -> Non
 def test_replace_without_vert_align_keeps_the_existing_alignment() -> None:
     with HwpxDocument.new() as doc:
         shape = _floating_shape(doc)
-        shape.set_draw_text("위", vert_align="TOP")
+        shape.set_draw_text("위", vertical_alignment="TOP")
         shape.set_draw_text("다시")
         sublist, paragraphs = _sublist_and_paragraph(shape)
         assert sublist.get("vertAlign") == "TOP"
@@ -299,7 +299,7 @@ def test_replace_without_vert_align_keeps_the_existing_alignment() -> None:
 def test_every_sublist_vert_align_value_is_accepted(value: str) -> None:
     with HwpxDocument.new() as doc:
         shape = _floating_shape(doc)
-        shape.set_draw_text("x", vert_align=value)
+        shape.set_draw_text("x", vertical_alignment=value)
         assert _sublist_and_paragraph(shape)[0].get("vertAlign") == value
 
 
@@ -312,7 +312,7 @@ def test_bad_draw_text_vert_align_refuses_before_mutation(replace: bool, bad: ob
             shape.set_draw_text("그대로")
         before = etree.tostring(shape.element)
         with pytest.raises(HwpxValueError) as excinfo:
-            shape.set_draw_text("새 글", vert_align=bad)
+            shape.set_draw_text("새 글", vertical_alignment=bad)
         assert excinfo.value.code == "shape-draw-text-vert-align"
         assert excinfo.value.context["allowed"] == list(SUBLIST_VERT_ALIGN)
         assert etree.tostring(shape.element) == before
@@ -322,7 +322,7 @@ def test_draw_text_options_survive_save_and_reopen() -> None:
     doc = HwpxDocument.new()
     shape = _floating_shape(doc)
     inst_id = shape.inst_id
-    shape.set_draw_text("3", para_pr_id_ref=5, vert_align="TOP")
+    shape.set_draw_text("3", para_pr_id_ref=5, vertical_alignment="TOP")
     data = doc.to_bytes()
     doc.close()
 

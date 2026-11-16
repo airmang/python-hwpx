@@ -24,7 +24,7 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | `document.notes.add_memo(..., anchor=p)` | `Memo` (`paragraph`, `field_id` 속성) | 아래 캐비앗 참고 | 메모가 하나 더 붙는다(비멱등) |
 | `document.notes.add_footnote(text, paragraph)` | `HwpxOxmlNote` | 사실상 없음 | 각주가 하나 더 붙는다(비멱등) |
 | `section.clear_body(on_control_content="raise")` | `ClearBodyReport` | 첫 문단 첫 run에 `hp:secPr`가 없으면 `section-clear-no-section-properties`, 남길 `hp:secPr`/`hp:ctrl` 안에 글·표·개체·양식 개체·덧말·글자 겹침이 있으면 `section-clear-control-content`(`context["tags"]`), 모르는 모드면 `section-clear-mode-invalid` — 모두 바꾸기 전에 거부 | 이미 비운 섹션이면 아무것도 바꾸지 않고 dirty로 표시하지도 않는다(멱등, 보고 수치 0) |
-| `run.content_kinds()` | `frozenset[str]` (`RUN_CONTENT_KINDS` 어휘) | 사실상 없음 | 읽기 전용 |
+| `run.content_kinds` | `frozenset[str]` (`RUN_CONTENT_KINDS` 어휘) | 사실상 없음 | 읽기 전용 |
 
 "사실상 없음"은 정상 인자에서 실패 경로가 없다는 뜻이다 — 타입이 어긋난
 인자는 여느 파이썬 API처럼 `TypeError` 계열로 즉시 드러난다.

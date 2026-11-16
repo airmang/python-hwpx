@@ -136,7 +136,7 @@ def test_a_group_member_is_refused_and_the_group_removes_whole() -> None:
     group = doc.sections[0].paragraphs[0].objects[0]
     assert isinstance(group, Shape) and group.shape_type == "container"
     member = group.members[0]
-    for call in (lambda: member.set_rotation(10), lambda: member.set_description("x")):
+    for call in (lambda: setattr(member, "rotation", 10), lambda: setattr(member, "description", "x")):
         with pytest.raises(HwpxValueError) as caught:
             call()
         assert caught.value.code == "shape-group-member-unsupported"
@@ -154,7 +154,7 @@ def test_equation_reads_its_script_font_and_box() -> None:
     assert isinstance(equation, Equation)
     assert equation.script == "{a} over {b}"
     assert equation.font == "HYhwpEQ"
-    assert equation.base_unit == 1200
+    assert equation.font_size == 12.0
     measured = measure_equation("{a} over {b}", base_unit=1200)
     assert (equation.width, equation.height, equation.base_line) == (
         measured.width, measured.height, measured.base_line)
@@ -165,8 +165,8 @@ def test_set_script_measures_the_box_again_and_drops_the_line_cache() -> None:
     equation = doc.shapes.equations[0]
     paragraph = equation.paragraph.element
     assert _has_cache(paragraph)
-    equation.set_script("sum from {k=1} to {n} k^2")
-    measured = measure_equation("sum from {k=1} to {n} k^2", base_unit=equation.base_unit)
+    equation.script = "sum from {k=1} to {n} k^2"
+    measured = measure_equation("sum from {k=1} to {n} k^2", base_unit=round(equation.font_size * 100))
     assert equation.script == "sum from {k=1} to {n} k^2"
     assert (equation.width, equation.height, equation.base_line) == (
         measured.width, measured.height, measured.base_line)
@@ -184,7 +184,7 @@ def test_set_script_refuses_before_any_change(script: str, code: str) -> None:
     doc = HwpxDocument.new()
     equation = doc.shapes.add_equation("x")
     with pytest.raises(HwpxValueError) as caught:
-        equation.set_script(script)
+        equation.script = script
     assert caught.value.code == code
     assert equation.script == "x"
 
@@ -213,7 +213,7 @@ def test_equations_in_cells_text_boxes_and_notes_are_reached() -> None:
     assert [e.script for e in found] == ["x^2", "y^2"]
     assert table.cell(0, 0).paragraphs[0].equations[0].element is cell_equation.element
     assert box.draw_text is not None and box.draw_text.paragraphs[0].equations[0].element is box_equation.element
-    cell_equation.set_script("x^3")
+    cell_equation.script = "x^3"
     _reopen(doc)
 
 
@@ -239,7 +239,7 @@ def test_set_position_and_position_use_the_same_names_on_shapes_and_objects() ->
     picture = doc.add_picture(PNG, "png")
     for obj in (shape, picture):
         obj.set_position(treat_as_char=False, text_wrap="BEHIND_TEXT", horizontal_offset=-500,
-                         vertical_offset=1200, horz_rel_to="PAPER", vert_rel_to="PAPER")
+                         vertical_offset=1200, horizontal_relative_to="PAPER", vertical_relative_to="PAPER")
         position = obj.position
         assert position.treat_as_char is False
         assert position.text_wrap == "BEHIND_TEXT"
@@ -303,13 +303,13 @@ def test_set_rotation_writes_back_every_hancom_turn_it_accepts_and_refuses_the_r
             angle = obj.rotation
             hancom = _turn_record(element)
             try:
-                obj.set_rotation(0)
+                obj.rotation = 0
             except HwpxValueError as caught:
                 assert caught.code in {"shape-rotation-unsupported", "shape-group-member-unsupported"}
                 assert _turn_record(element) == hancom  # refused before any change
                 counts["refused"] += 1
                 continue
-            obj.set_rotation(angle)
+            obj.rotation = angle
             written = _turn_record(element)
             for key, value in hancom.items():
                 assert math.isclose(written[key], value, abs_tol=1.5), (key, written[key], value)
@@ -323,7 +323,7 @@ def test_a_turned_shape_fills_its_box_exactly(angle: int, size: tuple[int, int])
     doc = HwpxDocument.new()
     shape = doc.add_paragraph("").add_rectangle(*size)
     shape.set_position(treat_as_char=False, horizontal_offset=0, vertical_offset=0)
-    shape.set_rotation(angle)
+    shape.rotation = angle
     record = _turn_record(shape.element)
     width, height = size
     rot = [record[f"rotMatrix.e{i}"] for i in range(1, 7)]
@@ -337,7 +337,7 @@ def test_a_turned_shape_fills_its_box_exactly(angle: int, size: tuple[int, int])
     assert math.isclose(min(ys), 0, abs_tol=1.5) and math.isclose(max(ys), record["sz.height"], abs_tol=1.5)
     assert abs(record["centerX"] - record["sz.width"] / 2) <= 1
     assert abs(record["centerY"] - record["sz.height"] / 2) <= 1
-    shape.set_rotation(0)
+    shape.rotation = 0
     assert (shape.width, shape.height) == size
     _reopen(doc)
 
@@ -348,13 +348,13 @@ def test_a_shape_holding_text_is_not_turned() -> None:
     box.set_draw_text("글상자")
     before = _turn_record(box.element)
     with pytest.raises(HwpxValueError) as caught:
-        box.set_rotation(30)
+        box.rotation = 30
     assert caught.value.code == "shape-rotation-unsupported"
     assert _turn_record(box.element) == before
-    box.set_rotation(0)  # turning back is allowed
+    box.rotation = 0  # turning back is allowed
     empty = doc.add_paragraph("").add_rectangle(8000, 3000)
     empty.set_draw_text("")
-    empty.set_rotation(30)  # a text box with no text turns
+    empty.rotation = 30  # a text box with no text turns
     assert empty.rotation == 30
 
 
@@ -363,19 +363,19 @@ def test_resize_and_turn_in_either_order_give_the_same_shape() -> None:
     first = doc.add_paragraph("").add_rectangle(8000, 3000)
     second = doc.add_paragraph("").add_rectangle(8000, 3000)
     first.resize(width=4000)
-    first.set_rotation(30)
-    second.set_rotation(30)
+    first.rotation = 30
+    second.rotation = 30
     second.resize(width=4000)
     assert _turn_record(first.element) == _turn_record(second.element)
     turned_first = doc.add_picture(PNG, "png", width=6000, height=3000)
     stretched_first = doc.add_picture(PNG, "png", width=6000, height=3000)
-    turned_first.set_rotation(30)
+    turned_first.rotation = 30
     turned_first.resize(width=3000)  # a turned picture resizes as drawn and turns again
     stretched_first.resize(width=3000)
-    stretched_first.set_rotation(30)  # a stretched picture turns as drawn
+    stretched_first.rotation = 30  # a stretched picture turns as drawn
     assert _turn_record(turned_first.element) == _turn_record(stretched_first.element)
     assert turned_first.rotation == 30
-    turned_first.set_rotation(0)
+    turned_first.rotation = 0
     assert (turned_first.width, turned_first.height) == (3000, 1500)
 
 
@@ -384,16 +384,16 @@ def test_z_order_and_rotation_read_and_write() -> None:
     polygon = doc.sections[0].paragraphs[0].objects[0]
     assert isinstance(polygon, Shape)
     assert polygon.rotation == 40
-    polygon.set_z_order(7)
+    polygon.z_order = 7
     assert polygon.z_order == 7
-    for call, code in ((lambda: polygon.set_rotation(360), "shape-rotation-value"),
-                       (lambda: polygon.set_z_order(True), "shape-z-order-value")):
+    for call, code in ((lambda: setattr(polygon, "rotation", 360), "shape-rotation-value"),
+                       (lambda: setattr(polygon, "z_order", True), "shape-z-order-value")):
         with pytest.raises(HwpxValueError) as caught:
             call()
         assert caught.value.code == code
     equation = doc.shapes.add_equation("x")
     with pytest.raises(HwpxValueError) as caught:
-        equation.set_rotation(90)
+        equation.rotation = 90
     assert caught.value.code == "shape-rotation-unsupported"
     _reopen(doc)
 
@@ -425,7 +425,7 @@ def test_picture_crop_reads_a_hancom_crop_and_set_crop_keeps_the_scale() -> None
     assert picture.crop == (0, 326, 0, 753)
     assert picture.original_size == (24180, 22260)
     width, height = picture.width, picture.height
-    picture.set_crop(None)
+    picture.crop = None
     assert picture.crop == (0, 0, 0, 0)
     assert picture.width == width
     assert picture.height == round(height * 22260 / (22260 - 326 - 753))
@@ -435,11 +435,11 @@ def test_picture_crop_reads_a_hancom_crop_and_set_crop_keeps_the_scale() -> None
 def test_set_crop_on_a_new_picture() -> None:
     doc = HwpxDocument.new()
     picture = doc.add_picture(PNG, "png", width=10000, height=5000)
-    picture.set_crop((1000, 500, 1000, 500))
+    picture.crop = (1000, 500, 1000, 500)
     assert picture.crop == (1000, 500, 1000, 500)
     assert (picture.width, picture.height) == (8000, 4000)
     with pytest.raises(HwpxValueError) as caught:
-        picture.set_crop((6000, 0, 6000, 0))
+        picture.crop = (6000, 0, 6000, 0)
     assert caught.value.code == "shape-picture-crop-value"
     _reopen(doc)
 
@@ -451,12 +451,14 @@ def test_picture_and_shape_read_what_their_creation_wrote() -> None:
     picture = doc.add_picture(PNG, "png", brightness=10, contrast=-20, effect="GRAY_SCALE", alpha=30,
                               line_color="#112233", line_width_mm=0.18, shadow=shadow, glow=glow)
     assert (picture.brightness, picture.contrast, picture.effect, picture.alpha) == (10, -20, "GRAY_SCALE", 30)
-    assert (picture.line_color, picture.line_width) == ("#112233", 50)
+    assert (picture.line_color, picture.line_width_mm) == ("#112233", 0.18)
+    assert picture.element.find(f"{HP}lineShape").get("width") == "50"
     assert picture.shadow == shadow and picture.glow == glow
     plain = doc.add_picture(PNG, "png")
-    assert (plain.line_color, plain.line_width, plain.shadow, plain.glow) == (None, None, None, None)
-    rectangle = doc.add_paragraph("").add_rectangle(3000, 2000, line_width="70", fill_color="#00FF00")
-    assert (rectangle.line_width, rectangle.fill_color) == (70, "#00FF00")
+    assert (plain.line_color, plain.line_width_mm, plain.shadow, plain.glow) == (None, None, None, None)
+    rectangle = doc.add_paragraph("").add_rectangle(3000, 2000, line_width_mm=0.25, fill_color="#00FF00")
+    assert (rectangle.line_width_mm, rectangle.fill_color) == (0.25, "#00FF00")
+    assert rectangle.element.find(f"{HP}lineShape").get("width") == "70"
     assert doc.add_paragraph("").add_ellipse(3000, 2000).fill_color is None
 
 
@@ -486,12 +488,12 @@ def test_description_reads_hancom_and_writes_alternative_text() -> None:
     doc = HwpxDocument.open(FIXTURES / "hwpxlib_corpus" / "reader_writer__SimplePolygon.hwpx")
     polygon = doc.sections[0].paragraphs[0].objects[0]
     assert polygon.description == "다각형입니다."
-    polygon.set_description("오각 별")
+    polygon.description = "오각 별"
     assert polygon.description == "오각 별"
     new = HwpxDocument.new()
     shape = new.add_paragraph("").add_ellipse(3000, 3000)
     assert shape.description == ""
-    shape.set_description("동그라미")
+    shape.description = "동그라미"
     names = [str(child.tag).rsplit("}", 1)[-1] for child in shape.element]
     assert names.index("shapeComment") > names.index("outMargin")
     assert _reopen(new).sections[0].paragraphs[-1].objects[0].description == "동그라미"

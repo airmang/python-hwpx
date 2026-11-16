@@ -88,8 +88,8 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 198 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 387 |
-| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 176 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 370 |
+| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 173 |
 | `hwpx.objects` 58개 값 형식 | 필드 264 · 멤버 148 · enum 값 10 | 422 |
 | 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
 <!-- public-surface-lock:end -->
@@ -203,8 +203,9 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   있으면 `pages`는 `None`이고 `unsupported`가 까닭을 구역마다 적는다
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
   `estimate_equation_size`, `UnsupportedLatexError`. 7.0에서 `hwpx.equation`의 stable
-  이름이 되었다 — `from hwpx.equation import latex_to_eqedit`로 쓴다. `hwpx.experimental`도
-  6.x 경로로 같은 객체를 다시 내보내고, 최상위 `hwpx`에는 없다
+  이름이 되었다 — `from hwpx.equation import latex_to_eqedit`로 쓴다. 최상위 `hwpx`와
+  `hwpx.experimental`에는 없고, 그 자리에서 가져오면 `hwpx.equation`을 알려 주는
+  `MovedToSubmodule`(ImportError)이 난다
 - **편집 계획 실행기**(5.6.0 신규, `hwpx.plan`): `apply_edit_plan`,
   `validate_edit_plan`, `EditPlan`, `PlanReport`, `PlanValidationError`
 - **기계가독 자기서술**(5.6.0 신규, `hwpx.capabilities`):
@@ -343,11 +344,12 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 
 `Shape.set_position(horizontal_offset=..., vertical_offset=...)`는 기존 떠 있는
 도형의 `hp:pos` 오프셋을 바꿉니다(단위 HWPUNIT, signed 32-bit 정수).
-`horz_rel_to`·`vert_rel_to`·`horz_align`·`vert_align`을 주면 `hp:pos`의
+`horizontal_relative_to`·`vertical_relative_to`·`horizontal_alignment`·`vertical_alignment`(7.0, 6.x의
+`horz_rel_to`·`vert_rel_to`·`horz_align`·`vert_align`)을 주면 `hp:pos`의
 `horzRelTo`·`vertRelTo`·`horzAlign`·`vertAlign`도 씁니다. 값은 OWPML 스키마
-철자 그대로(대문자, 정확히 일치)입니다 — `horz_rel_to`는 `PAPER`/`PAGE`/`COLUMN`/
-`PARA`, `vert_rel_to`는 `PAPER`/`PAGE`/`PARA`(스키마에 세로 `COLUMN`은 없습니다),
-`horz_align`은 `LEFT`/`CENTER`/`RIGHT`/`INSIDE`/`OUTSIDE`, `vert_align`은 `TOP`/
+철자 그대로(대문자, 정확히 일치)입니다 — `horizontal_relative_to`는 `PAPER`/`PAGE`/`COLUMN`/
+`PARA`, `vertical_relative_to`는 `PAPER`/`PAGE`/`PARA`(스키마에 세로 `COLUMN`은 없습니다),
+`horizontal_alignment`는 `LEFT`/`CENTER`/`RIGHT`/`INSIDE`/`OUTSIDE`, `vertical_alignment`는 `TOP`/
 `CENTER`/`BOTTOM`/`INSIDE`/`OUTSIDE`. 예를 들어 `PAPER`는 용지 가장자리를 기준으로
 삼으므로 확인 도장을 쪽 여백에 고정할 수 있습니다. 주지 않은 값(`None`)은 그대로
 두므로, 오프셋만 주는 호출은 이전과 같은 결과를 냅니다. 앵커·기하 정보는
@@ -363,8 +365,9 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 
 `model.InlineObject`(그림·수식·차트·OLE)와 `model.Shape`(선·사각형·타원·호·다각형·곡선·
 연결선·글상자·묶음)는 같은 배치 어휘를 갖습니다 — 읽기 `position`(`hwpx.objects.ObjectPosition`:
-`set_position`이 받는 이름 그대로), `z_order`/`set_z_order`, `rotation`/`set_rotation`,
-`description`/`set_description`(`hp:shapeComment`, 대체 글), `caption`, 그리고 `remove()`.
+`set_position`이 받는 값), 읽고 쓰는 속성 `z_order`, `rotation`, `description`(`hp:shapeComment`, 대체 글),
+`caption`, 그리고 `remove()`. 값 하나는 속성에 대입하고(`obj.rotation = 30`), 여러 값을 한꺼번에 바꾸는 것만
+`set_position(...)`·`set_out_margins(...)` 메서드입니다.
 `remove()`는 `table.remove()`와 같은 규칙입니다 — 문단은 남고(다른 것이 없으면 빈 줄),
 빈 run은 빠지며, 문단과 그 문단을 품은 문단의 줄 배치 캐시를 지웁니다. 붙어 있던 연결선은
 끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 지운 개체(그림, 묶음 안 그림, 그림 채우기, 표 칸의
@@ -377,11 +380,11 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 기준으로 떠 있으면 쪽 위에서 그만큼 옮겨 남은 구성원이 그려지던 자리에 그대로 있습니다. 묶음의 하나뿐인
 구성원, 돌았거나 뒤집혔거나 그 밖의 방식으로 늘인 묶음·구성원은 거부합니다(`shape-group-member-unsupported`,
 `context["reason"]`). 묶음 안의 개체를 혼자 돌리거나 설명·바깥 여백을 다는 것은 여전히 거부합니다.
-`set_rotation`은 한/글 저장본이 보여 주는 관계(그려진 크기의 개체를 자기 가운데를 축으로 돌리고, 상자 `hp:sz`는
+`rotation`을 쓰면 한/글 저장본이 보여 주는 관계(그려진 크기의 개체를 자기 가운데를 축으로 돌리고, 상자 `hp:sz`는
 돈 개체를 감싸는 상자, 개체는 그 상자의 원점으로 옮긴다)를 그대로 씁니다. 7.0부터 `resize`로 늘이거나
 줄인 그림·도형도 그린 크기대로 돕니다(공개 `ta-pic-001-r.hwp`의 0.2768배로 그려 34° 돈 그림과 상자·가운데·
 그리는 변환이 같다. 공개 `el-school-001.hwp`의 늘인 다각형 90°와 편람의 늘인 다각형 35°도 같은 관계이고,
-한/글에서 열어 다시 저장해도 값이 그대로다). 돈 그림은 `resize`·`set_crop`하면 그린 크기로 고치고 다시 돌립니다.
+한/글에서 열어 다시 저장해도 값이 그대로다). 돈 그림은 `resize`하거나 `crop`을 쓰면 그린 크기로 고치고 다시 돌립니다.
 다음은 `shape-rotation-unsupported`로 바꾸기 전에 거부합니다 — 글자가 든 도형(한/글은 글을 돈 도형이 아니라
 그 도형을 감싸는 상자 폭에 가로로 놓아 그린다: 30~270° 돌린 글상자를 한/글이 다시 저장하면 `drawText/@lastWidth`가
 그 상자 폭이 되고 글이 도형 밖으로 나온다; 공개 문서에 글이 든 돈 도형은 없다), 묶음(한/글은 구성원을 저마다의
@@ -391,12 +394,14 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 
 `InlineObject.width`/`height`/`resize(width=None, height=None)`와 `Shape.resize`는 하나만 주면
 가로세로 비율을 지킵니다. `model.Picture`(`add_picture`·`doc.media.pictures`가 돌려줌)는
-`item_id`, `original_size`(`hp:imgDim`), `crop`/`set_crop((left, top, right, bottom))`와
-`add_picture`가 쓰는 값의 읽기(`brightness`·`contrast`·`effect`·`alpha`·`line_color`·`line_width`·
-`shadow`·`glow`)를 더합니다. `Shape`에는 `line_width`·`fill_color` 읽기가 더해졌습니다.
-`model.Equation`(`add_equation`·`paragraph.equations`·`doc.shapes.equations`)은 `script`, `font`,
-`base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
-`Equation.base_unit`(기준 글자 크기, 1/100 pt)은 쓰면 상자를 그 크기로 `add_equation`처럼 다시 재고,
+`item_id`, `original_size`(`hp:imgDim`), 읽고 쓰는 `crop`(`(left, top, right, bottom)`)과
+`add_picture`가 쓰는 값의 읽기(`brightness`·`contrast`·`effect`·`alpha`·`line_color`·`line_width_mm`·
+`shadow`·`glow`)를 더합니다. `Shape`에는 `line_width_mm`(읽고 쓰기)·`fill_color` 읽기가 더해졌습니다.
+선 굵기는 어디서나 mm(`line_width_mm`, float)입니다 — 한/글이 고르게 하는 굵기는 283 HWPUNIT/mm로 세어
+자른 값으로 쓰고(0.12 mm = 33, 0.5 mm = 141) 읽을 때는 0.01 mm까지 돌려줍니다.
+`model.Equation`(`add_equation`·`paragraph.equations`·`doc.shapes.equations`)은 읽고 쓰는 `script`(쓰면 상자를
+`add_equation`처럼 다시 잽니다), `font`, `font_size`, `base_line`을 더합니다.
+`Equation.font_size`(글자 크기, pt — 파일의 `baseUnit`은 1/100 pt)는 쓰면 상자를 그 크기로 `add_equation`처럼 다시 재고,
 `Equation.font`는 쓰면 상자는 그대로 두고(측정은 글꼴에 매이지 않는다) 줄 배치 캐시를 지웁니다(7.0).
 모든 개체는 `out_margins`(`hp:outMargin`, `CellMargins`, 표의 `out_margins`와 같은 형식)와
 `set_out_margins(left=, right=, top=, bottom=)`(주지 않은 면은 그대로, 잘못된 값은 `shape-out-margin-value`)을 갖습니다.
@@ -433,7 +438,7 @@ run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문
 거부합니다: 표 칸·글상자·각주로는 문단에서 세로로 재고(`vertRelTo="PARA"`) 쪽 영역 안에 두거나
 (`flowWithText="1"`) 가로도 문단에서 재는(`horzRelTo="PARA"`) 떠 있는 개체만 갑니다(공개 문서 1,304개의
 칸 634개 중 633개, 각주 40개·글상자 2개 전부가 이 모양이고, 아닌 그림을 칸에 넣으면 한/글은 위 칸에
-겹쳐 그립니다 — 먼저 `set_position(vert_rel_to="PARA", horz_rel_to="PARA")`나 `treat_as_char=True`로
+겹쳐 그립니다 — 먼저 `set_position(vertical_relative_to="PARA", horizontal_relative_to="PARA")`나 `treat_as_char=True`로
 바꿉니다). 쪽 기준 개체를 용지나 여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 어떤 개체든
 메모·바탕쪽으로도 거부합니다. 자기 글상자·칸·
 캡션으로 옮기기는 `shape-move-into-itself`(복사는 됨), 묶음 구성원은 `shape-group-member-unsupported`,
@@ -457,7 +462,7 @@ run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문
 (공개 문서 786개·표 6,418개에서 지도 순서와 같음). `doc.tables.all`은 본문에 바로 놓인 표만입니다.
 
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
-`model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는
+`model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vertical_alignment=...)`는
 도형 안 문단의 `paraPrIDRef`와 `hp:subList/@vertAlign`(`TOP`/`CENTER`/`BOTTOM`)을
 정합니다. 둘 다 생략하면 이전과 같은 XML이 나옵니다 — 새 글상자는 `paraPrIDRef="0"`·
 `CENTER`, 기존 글상자는 제 정렬을 유지합니다. 잘못된 정렬 값은

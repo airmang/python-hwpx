@@ -683,12 +683,12 @@ class HwpxOxmlTable(TableStructureEdits, TableFormat):
         text: str,
         *,
         side: str = "TOP",
-        full_sz: bool = False,
+        full_size: bool = False,
         width: int | None = None,
         gap: int = 850,
         char_pr_id_ref: str | int | None = None,
     ) -> "Caption":
-        """Create (or replace the text of) this table's ``hp:caption``.
+        """Create (or replace the text of) this table's ``hp:caption`` (*full_size*: ``fullSz``).
 
         실코퍼스 15건 전수 관행(93%가 표 캡션): ``side="TOP"``·``fullSz=False``
         가 사실상 유일한 조합, ``gap`` 은 850(다수) 또는 566. See
@@ -697,7 +697,7 @@ class HwpxOxmlTable(TableStructureEdits, TableFormat):
 
         return _write_caption(
             self.element, text, section=self.paragraph.section,
-            side=side, full_sz=full_sz, width=width, gap=gap,
+            side=side, full_sz=full_size, width=width, gap=gap,
             char_pr_id_ref=char_pr_id_ref,
         )
 

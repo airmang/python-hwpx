@@ -14,7 +14,7 @@ def _display_run(paragraph):
 def _style(document: HwpxDocument, run) -> tuple[str | None, str | None]:
     style = document.styles.char_property(run.get("charPrIDRef")) if hasattr(document.styles, "char_property") else None
     if style is not None:
-        return style.text_color(), style.underline_type()
+        return style.color, style.underline_type
     header = document._root.headers[0]
     char_pr = next(el for el in header.element.iter() if el.tag.endswith("}charPr") and el.get("id") == run.get("charPrIDRef"))
     underline = next((el for el in char_pr if el.tag.endswith("}underline")), None)

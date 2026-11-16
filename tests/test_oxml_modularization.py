@@ -189,7 +189,7 @@ C901_LIMITS = {
         "ensure_paragraph_format": 11,
         "ensure_shading_border_fill": 13,
     },
-    "oxml/paragraph.py": {"add_tracked_delete": 12},
+    "oxml/paragraph.py": {"_add_tracked_delete": 12},
     "oxml/run.py": {"replace_text": 34},
     "oxml/section.py": {"add_paragraph": 11},
     "oxml/section_story.py": {"_update_apply_reference": 14},

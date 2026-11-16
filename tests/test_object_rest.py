@@ -88,31 +88,31 @@ def test_a_group_member_has_no_outer_margins_of_its_own() -> None:
 # -- equation font and size -----------------------------------------------------------------------------------
 
 
-def test_base_unit_measures_the_box_again_as_add_equation_does() -> None:
+def test_font_size_measures_the_box_again_as_add_equation_does() -> None:
     doc = HwpxDocument.open(HANCOM / "pages_objects_among_text_equation.hwpx")
     equation = doc.shapes.equations[0]
     script = equation.script
     paragraph = equation.paragraph.element
-    equation.base_unit = 2000
+    equation.font_size = 20.0
     measured = measure_equation(script, base_unit=2000)
-    assert equation.base_unit == 2000
+    assert equation.font_size == 20.0 and equation.element.get("baseUnit") == "2000"
     assert (equation.width, equation.height, equation.base_line) == (measured.width, measured.height,
                                                                      measured.base_line)
     assert equation.script == script and not _has_cache(paragraph)
-    made = doc.add_paragraph("").add_equation(script, base_unit=2000)
+    made = doc.add_paragraph("").add_equation(script, font_size=20.0)
     assert (made.width, made.height, made.base_line) == (equation.width, equation.height, equation.base_line)
     again = _reopen(doc)
-    assert again.shapes.equations[0].base_unit == 2000
+    assert again.shapes.equations[0].font_size == 20.0
 
 
-@pytest.mark.parametrize("value", [0, -5, 1.5, True, "1200"])
-def test_base_unit_refuses_other_values(value) -> None:
+@pytest.mark.parametrize("value", [0, -5, 0.001, True, "12", float("nan"), float("inf")])
+def test_font_size_refuses_other_values(value) -> None:
     doc = HwpxDocument.new()
-    equation = doc.add_paragraph("").add_equation("x", base_unit=1200)
+    equation = doc.add_paragraph("").add_equation("x", font_size=12.0)
     with pytest.raises(HwpxValueError) as caught:
-        equation.base_unit = value
+        equation.font_size = value
     assert caught.value.code == "shape-equation-base-unit-value"
-    assert equation.base_unit == 1200
+    assert equation.font_size == 12.0
 
 
 def test_font_writes_and_keeps_the_box() -> None:

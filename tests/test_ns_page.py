@@ -297,7 +297,7 @@ def test_page_number_does_not_take_another_paragraphs_border_or_spacing() -> Non
 
     title_shape = document.styles.paragraph_property(title.para_pr_id_ref)
     shape = document.styles.paragraph_property(footer.paragraphs[0].para_pr_id_ref)
-    assert shape.align.horizontal == "CENTER"
+    assert shape.alignment.horizontal == "CENTER"
     assert shape.border.border_fill_id_ref != title_shape.border.border_fill_id_ref
     assert (shape.margin.prev, shape.margin.next) == ("0", "0")
     # the plain centred shape is made once and used again

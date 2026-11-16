@@ -326,7 +326,7 @@ def test_format_range_counts_controls_as_no_character() -> None:
     assert paragraph.text == "앞뒤쪽"
     runs = paragraph.format_range(1, 2, color="#0000FF")
     assert [run.text for run in runs] == ["뒤"]
-    assert paragraph.bookmarks == ["표시"]
+    assert [mark.name for mark in paragraph.bookmarks] == ["표시"]
     assert paragraph.text == "앞뒤쪽"
     with pytest.raises(HwpxValueError) as past:
         paragraph.format_range(0, 9, bold=True)

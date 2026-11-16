@@ -219,7 +219,7 @@ def test_parse_header_full_reference_lists() -> None:
     assert first_prop.snap_to_grid is False
     assert first_prop.suppress_line_numbers is True
     assert first_prop.checked is True
-    assert first_prop.align is not None and first_prop.align.horizontal == "JUSTIFY"
+    assert first_prop.alignment is not None and first_prop.alignment.horizontal == "JUSTIFY"
     assert first_prop.heading is not None and first_prop.heading.id_ref == 0
     assert first_prop.break_setting is not None
     assert first_prop.break_setting.break_latin_word == "KEEP_WORD"
@@ -233,7 +233,7 @@ def test_parse_header_full_reference_lists() -> None:
     assert isinstance(second_prop, ParagraphProperty)
     assert second_prop.id == 7
     assert second_prop.raw_id == "07"
-    assert second_prop.align is not None and second_prop.align.horizontal == "LEFT"
+    assert second_prop.alignment is not None and second_prop.alignment.horizontal == "LEFT"
     assert second_prop.margin is not None and second_prop.margin.intent == "-10mm"
     assert header.paragraph_property(7) is second_prop
     assert header.paragraph_property("07") is second_prop
@@ -321,7 +321,7 @@ def test_hwpx_oxml_header_reference_lookup_full_fixture() -> None:
     assert header.bullet(2).para_head.level == 2
 
     para_props = header.paragraph_properties
-    assert para_props["1"].align.horizontal == "JUSTIFY"
+    assert para_props["1"].alignment.horizontal == "JUSTIFY"
     assert para_props["7"].margin.intent == "-10mm"
     assert header.paragraph_property("07").margin.intent == "-10mm"
 
@@ -369,7 +369,7 @@ def test_hwpx_oxml_document_reference_helpers_merge_headers() -> None:
     assert document.bullet(2).use_image is True
 
     para_props = document.paragraph_properties
-    assert para_props["1"].align.horizontal == "JUSTIFY"
+    assert para_props["1"].alignment.horizontal == "JUSTIFY"
     assert para_props["7"].margin.intent == "-10mm"
 
     styles = document.styles

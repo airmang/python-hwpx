@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 
 from ..errors import HwpxValueError
 from ._document_primitives import _HP, _append_child
+from .shape_position import line_width_units
 from .objects import (
     HwpxOxmlShape,
     _build_drawing_object_children,
@@ -101,13 +102,14 @@ def _paragraph_add_curve(
     *,
     closed: bool = False,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlShape:
-    """Insert an ``<hp:curve>`` through *points* (HWPUNIT anchors, 2 or more; 3 or more when *closed*).
+    """Insert an ``<hp:curve>`` through *points* (HWPUNIT anchors, 2 or more; 3 or more when *closed*),
+    its line *line_width_mm* wide (mm, as for ``add_line``).
 
     The curve's box is the one Hancom gives its own curves (see :func:`curve_box`); the anchors are
     stored in that box's own space, so they do not place the curve on the page -- its paragraph and
@@ -121,7 +123,8 @@ def _paragraph_add_curve(
             context={"count": len(anchors), "closed": closed},
             suggestion="Pass 2 or more (x, y) anchors, or 3 or more for a closed curve.",
         )
-    element = _create_curve_element(anchors, closed=closed, line_color=line_color, line_width=line_width,
+    element = _create_curve_element(anchors, closed=closed, line_color=line_color,
+                                    line_width=str(line_width_units(line_width_mm)),
                                     fill_color=fill_color, treat_as_char=treat_as_char)
     return self._insert_shape_element(element, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
 
@@ -142,7 +145,7 @@ def _placed_box(shape: HwpxOxmlShape) -> tuple[tuple[str, str], int, int, int, i
             "a connector joins shapes placed from the left and top of their frame",
             code="shape-connector-frame",
             context={"horzAlign": position.get("horzAlign"), "vertAlign": position.get("vertAlign")},
-            suggestion="Place the shapes with horz_align='LEFT' and vert_align='TOP'.",
+            suggestion="Place the shapes with horizontal_alignment='LEFT' and vertical_alignment='TOP'.",
         )
     frame = (position.get("horzRelTo", "COLUMN"), position.get("vertRelTo", "PARA"))
     return (frame, _signed(position.get("horzOffset", 0)), _signed(position.get("vertOffset", 0)),
@@ -171,7 +174,7 @@ def _paragraph_add_connector(
     end_side: str = "left",
     kind: str = "STRAIGHT",
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlShape:
@@ -224,7 +227,7 @@ def _paragraph_add_connector(
     element.set("textWrap", "IN_FRONT_OF_TEXT")
     _build_shape_common_children(element, width, height, treat_as_char=False)
     element.set("type", CONNECTOR_KINDS[kind])
-    _build_drawing_object_children(element, line_color=line_color, line_width=line_width)
+    _build_drawing_object_children(element, line_color=line_color, line_width=str(line_width_units(line_width_mm)))
     for tag, (x, y), shape, side in zip(("startPt", "endPt"), points, (start, end), sides):
         _append_child(element, f"{_HP}{tag}", {"x": str(x - left), "y": str(y - top),
                                                "subjectIDRef": str(shape.inst_id), "subjectIdx": str(side)})
