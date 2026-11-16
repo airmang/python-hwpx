@@ -63,9 +63,7 @@ from hwpx import HwpxDocument
 from hwpx.mutation_report import PreservationDowngradeError
 
 doc = HwpxDocument.open("신청서.hwpx")
-result = doc.tables.fill_by_path({"성명 > right": "홍길동"})
-if result["failed_count"] or result["applied_count"] != 1:
-    raise ValueError(result["failed"])
+doc.tables[0].cell(0, 1).text = "홍길동"   # 표 지도(doc.tables.map())로 확인한 칸
 
 # 1) 영수증과 함께 저장 (달성 가능한 최강 등급 자동 선택)
 report = doc.save_to_path("신청서-완료.hwpx", return_report=True)
@@ -87,8 +85,11 @@ except PreservationDowngradeError as exc:
 
 저장 성공만으로 과업 완료를 판단하지 않는다. 실행 가능한
 [편집 예제](https://github.com/airmang/python-hwpx/blob/main/examples/edit_existing_form.py)의
-`fill_existing_form(source, output, values)`는 **유일한 라벨의 오른쪽 셀**을
-채우는 경로다. `values`는 `{"성명": "홍길동"}`처럼 라벨과 문자열 값을 받는다.
+`fill_existing_form(source, output, values)`는 **본문 표에서 글이 정확히 그 라벨인
+유일한 칸의 오른쪽 셀**을 채우는 경로다. `values`는 `{"성명": "홍길동"}`처럼 라벨과
+문자열 값을 받는다. 공백을 무시한 라벨 비교나 `라벨 > right > down` 같은 경로는
+7.0에서 python-hwpx-automation(`hwpx_automation.forms`)으로 옮겼고, 이 예제는 엔진의
+칸 읽기·쓰기만 쓴다.
 
 1. 원본과 출력이 다른 파일인지 확인한다(심볼릭 링크·하드 링크 포함).
 2. 요청한 모든 라벨이 유일한 대상 셀로 해석되는지 먼저 확인한다.
@@ -105,8 +106,8 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 
 실제 기관 양식에는 라벨과 입력칸 사이에 좁은 빈 셀이 있을 수 있다.
 `right`는 바로 다음 셀을 뜻하며 "사람이 의도한 입력칸"을 추측하지 않는다.
-예상 기존 값이 어긋나면 지도를 다시 확인하고 `doc.tables.fill_by_path`의
-명시적 경로(예: `작성일자 > right > right`)를 선택한다. 이 예제는 그런 경우
+예상 기존 값이 어긋나면 표 지도(`doc.tables.map()`)를 다시 확인하고 채울 칸을
+행·열로 직접 고른다(`doc.tables[0].cell(행, 열).text = 값`). 이 예제는 그런 경우
 다른 셀을 자동으로 선택하지 않는다.
 
 `report.to_dict()`는 `hwpx.mutation-report/v1` JSON을 그대로 반환한다.

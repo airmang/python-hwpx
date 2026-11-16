@@ -488,8 +488,10 @@ class HwpxOxmlParagraph(ParagraphFormats):
 
         With *text* the new paragraph holds it, in this paragraph's paragraph shape, style and
         first run's character shape. Without, it is a copy of this paragraph: its runs, tables
-        and objects, with fresh ids (a form field's begin and end get a new pair) and no line
-        layout cache, but not the section settings the first paragraph of a section holds.
+        and objects, with fresh ids (a form field's begin and end get a new pair; a memo anchored
+        in it becomes a memo of its own with the next memo number) and no line layout cache, but
+        not the section settings the first paragraph of a section holds. :meth:`move_after`
+        moves the paragraph itself instead.
         """
 
         return HwpxOxmlParagraph(self._insert_beside(text, after=True), self.section)
@@ -516,8 +518,44 @@ class HwpxOxmlParagraph(ParagraphFormats):
         # In a table cell (or caption) the new line makes the cell taller, and so the line of the
         # paragraph holding the table: it loses its cache as when a cell's text changes.
         _clear_paragraph_layout_cache(element)
+        if text is None:  # a copied memo anchor gets a memo of its own, as obj.copy_to gives one
+            from .memo import renew_copied_memos
+
+            document = self.section.document
+            renew_copied_memos(element, list(document.sections) if document is not None else [self.section],
+                               self.section)
         self.section.mark_dirty()
         return element
+
+    def move_after(self, paragraph: "int | HwpxOxmlParagraph") -> None:
+        """Move this paragraph right after *paragraph* (a paragraph of the same document -- in the
+        body, a cell, a text box, a note, a header or a footer -- or its index in ``doc.paragraphs``).
+
+        The paragraph itself moves: it keeps its id, its runs, tables and objects, and this object
+        stays valid. It loses its line layout cache, as do the paragraphs holding the cells and
+        captions it left and joined. The first paragraph of a section hands the section's settings
+        to the paragraph after it, as :meth:`remove` does; memos anchored in it go to its new
+        section's memo group. Refused: the last paragraph of a section, cell, header or footer
+        (``paragraph-remove-last``), a move into its own cells or text boxes
+        (``paragraph-move-into-itself``), a memo's paragraph (``paragraph-move-place-unsupported``).
+        :meth:`insert_after` makes a copy instead.
+        """
+
+        self._move_beside(paragraph, after=True)
+
+    def move_before(self, paragraph: "int | HwpxOxmlParagraph") -> None:
+        """Move this paragraph right before *paragraph*, as :meth:`move_after` does. In front of the
+        first paragraph of a section it starts the section: the section's settings move to it."""
+
+        self._move_beside(paragraph, after=False)
+
+    def _move_beside(self, paragraph: "int | HwpxOxmlParagraph", *, after: bool) -> None:
+        from ._paragraph_text_edit import move_paragraph_beside, resolve_paragraph_in
+
+        caller = "move_after" if after else "move_before"
+        own = resolve_paragraph_in(self, self, caller=caller)
+        anchor = resolve_paragraph_in(own, paragraph, caller=caller)
+        self.section = move_paragraph_beside(own, anchor, after=after)
 
     def _create_run_for_object(
         self,

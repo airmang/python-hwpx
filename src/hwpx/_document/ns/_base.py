@@ -88,5 +88,22 @@ class _Namespace:
 
         return self._doc
 
+    if not TYPE_CHECKING:  # 타입 검사기에는 숨긴다: 없는 이름을 정적으로 계속 잡게.
+
+        def __getattr__(self, name: str) -> Any:
+            """7.0에서 python-hwpx-automation으로 옮긴 메서드(``doc.text.markdown`` 등)면 새 자리를 알려 준다.
+
+            ``HwpxAttributeError`` 는 ``AttributeError`` 이기도 해서 ``hasattr`` 은 ``False`` 다.
+            """
+
+            from .._legacy import moved_method_error
+
+            error = moved_method_error(type(self)._path, name)
+            if error is None:
+                error = AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+            error.name = name
+            error.obj = self
+            raise error
+
     def __repr__(self) -> str:
         return f"<{type(self).__name__} {self._path}>"

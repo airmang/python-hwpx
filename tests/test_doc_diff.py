@@ -3,7 +3,6 @@ from __future__ import annotations
 from hwpx import (
     diff_paragraphs,
     doc_diff,
-    inspect_reference_consistency,
 )
 
 
@@ -36,36 +35,3 @@ def test_doc_diff_accepts_text_sources() -> None:
         "removed": 0,
         "changed": 1,
     }
-
-
-def test_reference_consistency_passes_matching_references() -> None:
-    report = inspect_reference_consistency(
-        [
-            "붙임 1 참조",
-            "표 1. 예산 현황",
-            "그림 1. 조직도",
-            "붙임 1. 세부계획서 1부.",
-        ]
-    )
-
-    assert report["pass"] is True
-    assert report["violations"] == []
-
-
-def test_reference_consistency_detects_attachment_and_numbering_gaps() -> None:
-    report = inspect_reference_consistency(
-        [
-            "붙임 2 참조",
-            "표 1. 예산 현황",
-            "표 3. 세부 현황",
-            "그림 2. 조직도",
-            "붙임 1. 세부계획서 1부.",
-        ]
-    )
-
-    assert report["pass"] is False
-    rules = {violation["rule"] for violation in report["violations"]}
-    assert "attachment-reference" in rules
-    assert "table-numbering" in rules
-    assert "figure-numbering" in rules
-    assert all(violation["suggestion"] for violation in report["violations"])

@@ -54,7 +54,7 @@ def test_a_header_set_first_does_not_keep_the_line_empty() -> None:
     doc.add_paragraph("본문")
     again = _reopened(doc)
     assert _texts(again) == ["본문"]
-    assert "머리말" in again.text.markdown(rich=True, headers_and_footers=True)
+    assert [place.paragraph.text for place in again.text.paragraphs(where="header")] == ["머리말"]
 
 
 def test_an_object_added_first_comes_after_the_empty_line() -> None:

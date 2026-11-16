@@ -17,7 +17,7 @@ from hwpx.oxml.document import (
     _create_line_element,
     _create_rectangle_element,
 )
-from hwpx.tools.exporter import export_html, export_markdown, export_text
+from hwpx.tools.exporter import export_text
 
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -519,7 +519,7 @@ def _hp_ns() -> str:
 
 
 class TestExporters:
-    """Tests for the text/HTML/Markdown export functions."""
+    """Tests for the plain-text export function (HTML/Markdown moved to python-hwpx-automation in 7.0)."""
 
     def _doc_with_content(self) -> HwpxDocument:
         doc = _new_doc()
@@ -551,26 +551,6 @@ class TestExporters:
         lines = [l for l in text.split("\n") if "A" in l]
         assert len(lines) == 1
 
-    def test_export_html_full_document(self):
-        doc = self._doc_with_content()
-        html = export_html(doc)
-        assert "<!DOCTYPE html>" in html
-        assert "<p>Hello</p>" in html
-        assert "<table" in html
-
-    def test_export_html_body_only(self):
-        doc = self._doc_with_content()
-        html = export_html(doc, full_document=False)
-        assert "<!DOCTYPE" not in html
-        assert "<p>Hello</p>" in html
-
-    def test_export_markdown_basic(self):
-        doc = self._doc_with_content()
-        md = export_markdown(doc)
-        assert "Hello" in md
-        assert "| A | B |" in md
-        assert "| --- | --- |" in md
-
     def test_export_text_bytes_input(self):
         doc = self._doc_with_content()
         b = doc.to_bytes()
@@ -581,13 +561,3 @@ class TestExporters:
         doc = self._doc_with_content()
         text = doc.text.plain()
         assert "Hello" in text
-
-    def test_document_export_html_method(self):
-        doc = self._doc_with_content()
-        html = doc.text.html(full_document=False)
-        assert "<p>Hello</p>" in html
-
-    def test_document_export_markdown_method(self):
-        doc = self._doc_with_content()
-        md = doc.text.markdown()
-        assert "Hello" in md

@@ -11,7 +11,6 @@ import io
 from zipfile import ZipFile
 
 from hwpx import HwpxDocument
-from hwpx.tools.markdown_export import export_markdown
 from hwpx.tools.text_extractor import AnnotationOptions, TextExtractor
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -65,8 +64,6 @@ def test_every_reader_gives_back_the_url_it_was_given() -> None:
     doc = HwpxDocument.new()
     doc.refs.add_hyperlink("https://example.com/a?b=c", "링크")
     assert doc.paragraphs[-1].hyperlinks[0].url == "https://example.com/a?b=c"
-    # the link text may carry the link's own character styling
-    assert "](https://example.com/a?b=c)" in export_markdown(doc)
     options = AnnotationOptions(hyperlink="target", hyperlink_target_format="<{target}>")
     with ZipFile(io.BytesIO(doc.to_bytes())) as archive, TextExtractor(archive) as extractor:
         texts = [p.text(annotations=options) for p in extractor.iter_document_paragraphs(include_nested=False)]
@@ -94,7 +91,6 @@ def test_readers_resolve_a_hancom_authored_web_link() -> None:
     _hancom_link(doc, {"Prop": "0", "Command": "https\\://www.example.go.kr;1;0;0;",
                        "Path": "https://www.example.go.kr", "Category": "HWPHYPERLINK_TYPE_URL"})
     assert doc.paragraphs[-1].hyperlinks[0].url == "https://www.example.go.kr"
-    assert "](https://www.example.go.kr)" in export_markdown(doc)
 
 
 def test_command_only_link_is_unescaped_and_loses_its_tail() -> None:

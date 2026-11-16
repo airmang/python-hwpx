@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import fnmatch
 import hashlib
 import importlib.util
 import json
@@ -62,13 +63,9 @@ EXPECTED_FORBIDDEN_RUNTIME_IMPORTS = (
     "ScriptingBridge",
     "PyObjCTools",
 )
-EXPECTED_ALLOWED_THIRD_PARTY_IMPORTS = (
-    "langchain_core",
-    "latex2mathml",
-    "llama_index",
-    "lxml",
-    "openpyxl",
-)
+# 7.0: the optional imports (openpyxl, latex2mathml, langchain_core, llama_index) left
+# with mail merge, the preview and the framework loaders (python-hwpx-automation).
+EXPECTED_ALLOWED_THIRD_PARTY_IMPORTS = ("lxml",)
 
 
 def _ledger() -> dict:
@@ -167,8 +164,21 @@ def test_removed_inventory_is_the_exact_baseline_minus_current_tree() -> None:
         for path in (ROOT / "src" / "hwpx").rglob("*.py")
     }
 
-    assert removed == baseline - current
+    # 7.0 moved the conversion and guessing modules to python-hwpx-automation; the
+    # ledger's ``removed`` rows with removedIn 7.0.0 name them. The 5.0 inventory stays
+    # exactly what 5.0 removed.
+    moved_in_7_0_globs = [
+        entry["glob"] for entry in _ledger()["removed"] if entry["removedIn"] == "7.0.0"
+    ]
+    moved_in_7_0 = {
+        path
+        for path in baseline
+        if any(fnmatch.fnmatchcase(path, glob) for glob in moved_in_7_0_globs)
+    }
+    assert moved_in_7_0
+    assert removed == baseline - current - moved_in_7_0
     assert not removed & current
+    assert not moved_in_7_0 & current
 
 
 def test_real_tree_satisfies_ownership_ratchet() -> None:
@@ -347,7 +357,13 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: how a table and its cells look and flow (oxml/table_format.py), outside table.py because
     # that owner file sits near its code-line review line.
     # +1: run and paragraph formats, run splitting and range formatting (oxml/formatting.py).
-    assert report["classifiedFiles"] == 194
+    # 7.0: -17 — the conversion and guessing modules moved to python-hwpx-automation:
+    # ingest/ (3), integrations/ (3), tools/markdown_import.py, tools/markdown_export.py,
+    # tools/form_choices.py, tools/mail_merge.py, tools/layout_preview.py,
+    # tools/document_viewer.py, tools/format_rules.py, tools/table_cleanup.py,
+    # tools/report_utils.py, equation/render.py, equation/mathml.py.
+    # +1 after the cut: oxml/table_format.py (tables lane).
+    assert report["classifiedFiles"] == 177
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(
@@ -716,8 +732,6 @@ def test_closed_gate_allows_only_declared_imports_and_local_loader_methods(
     path.write_text(
         '''"""Strings may mention importlib.import_module("mcp") and eval()."""
 import json
-import latex2mathml
-import openpyxl
 from importlib import resources
 from importlib.metadata import version
 from lxml import etree
@@ -801,11 +815,11 @@ def test_ast_fingerprint_normalizes_only_empty_parser_version_fields() -> None:
             "return getattr(importlib.import_module('hwpx.package'), name)",
         ),
         (
-            '"ConversionAttempt": "hwpx.ingest",\n',
-            '"ConversionAttempt": "os",\n',
+            '"EstimatedLine": "hwpx.layout.pages",\n',
+            '"EstimatedLine": "os",\n',
         ),
         (
-            '"ConversionAttempt": "hwpx.ingest",\n',
+            '"EstimatedLine": "hwpx.layout.pages",\n',
             "",
         ),
         (

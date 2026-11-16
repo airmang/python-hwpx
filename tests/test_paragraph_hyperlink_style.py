@@ -112,16 +112,3 @@ def test_links_in_paragraphs_of_the_same_look_share_one_style() -> None:
     document.refs.add_hyperlink("https://example.com", "링크", paragraph=second)
 
     assert _display_run(first).get("charPrIDRef") == _display_run(second).get("charPrIDRef")
-
-
-def test_markdown_writes_link_text_without_the_link_style() -> None:
-    from hwpx.tools.markdown_export import export_markdown
-
-    document = HwpxDocument.new(empty_first_line=True)
-    paragraph = document.add_paragraph("")
-    document.refs.add_hyperlink("https://example.com", "링크", paragraph=paragraph)
-
-    markdown = export_markdown(document)
-
-    assert "[링크](https://example.com)" in markdown
-    assert "<u>" not in markdown and "#0000FF" not in markdown

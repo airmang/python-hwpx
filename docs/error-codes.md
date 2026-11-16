@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 288 | 11 |
+| 개수 | 291 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -45,7 +45,7 @@ except HwpxError as exc:
 `<도메인>-<조건>`, 전부 소문자 kebab-case. 도메인은 6.0 네임스페이스와
 패키지 수준 관심사에서 온다:
 
-`body`, `capability`, `cell`, `contract`, `document`, `equation`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `ingest`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `recover`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `toc`, `track`
+`body`, `capability`, `cell`, `contract`, `document`, `equation`, `field`, `header`, `heading`, `hwp5`, `hwpx`, `master`, `media`, `note`, `open`, `package`, `page`, `paragraph`, `parts`, `plan`, `preservation`, `quality`, `recover`, `ref`, `save`, `section`, `shape`, `story`, `style`, `table`, `text`, `toc`, `track`
 
 문법에 맞지 않는 코드는 없다. 7.0 에서 바뀐 코드(`hwpx.errors.RENAMED_CODES`):
 
@@ -92,6 +92,7 @@ except HwpxError as exc:
 | `document-merge-index-out-of-range` | after_paragraph_index 가 대상 섹션의 문단 개수 범위를 벗어났다. |
 | `document-merge-unsupported-policy-axis` | 그 정책 축의 값이 아직 지원 기본값 밖이다(신규 값 미구현). |
 | `document-merge-unsupported-reference` | 가져올 문단이 아직 지원 안 하는 참조 요소를 담고 있다(예: 메모 필드). |
+| `document-name-moved` | 7.0에서 python-hwpx-automation으로 옮긴 문서 메서드(doc.text.markdown 등 묶음 메서드 8개, export_markdown 등 루트 옛 이름 5개)를 불렀다(새 자리는 context.replacement, 설치는 context.install). |
 | `document-name-removed` | 7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement). |
 | `document-seed-invalid` | new()/open() 의 seed 가 정수가 아니다. |
 | `document-settings-root-invalid` | settings.xml 루트가 ha:HWPApplicationSetting이 아니다. |
@@ -104,7 +105,6 @@ except HwpxError as exc:
 |---|---|
 | `equation-conversion` | 한글 수식 스크립트와 LaTeX 사이의 변환에 실패했다. |
 | `equation-latex-unsupported` | LaTeX 조각이 검증된 명령 집합 밖의 명령을 쓴다. |
-| `equation-mathml-unavailable` | MathML 변환에 필요한 latex2mathml이 설치돼 있지 않다. |
 
 ### `field-*`
 
@@ -173,13 +173,6 @@ except HwpxError as exc:
 | `hwpx-type-error` | 인자 타입이 이 연산이 받는 것이 아니다(분류되지 않음). |
 | `hwpx-value-error` | 인자 값이 이 연산에 쓸 수 없다(분류되지 않음). |
 
-### `ingest-*`
-
-| 코드 | 뜻 |
-|---|---|
-| `ingest-failed` | 문서를 Markdown으로 들여오지 못했다(시도한 변환기는 attempts). |
-| `ingest-format-unsupported` | 이 입력을 받는 변환기가 등록돼 있지 않다. |
-
 ### `master-*`
 
 | 코드 | 뜻 |
@@ -207,7 +200,9 @@ except HwpxError as exc:
 | `note-anchor-detached` | 앵커를 걸 문단이 섹션에 속해 있지 않다. |
 | `note-argument-conflict` | 앵커 없는 메모에 앵커 전용 인자를 줬다. |
 | `note-match-not-found` | 메모를 걸 글(match)이 그 문단의 한 런 안에 없다. |
+| `note-memo-anchor-elsewhere` | 메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모). |
 | `note-memo-detached` | 메모가 섹션에 속해 있지 않다. |
+| `note-memo-index-value` | 메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다. |
 
 ### `open-*`
 
@@ -269,6 +264,8 @@ except HwpxError as exc:
 | `paragraph-line-spacing-invalid` | 줄 간격은 양수여야 한다. |
 | `paragraph-missing` | 문서(또는 지정 범위)에 문단이 하나도 없다. |
 | `paragraph-mixed-text-unsupported` | hp:t 안에 인라인 마크업이 섞여 있어 안전하게 고칠 수 없다. |
+| `paragraph-move-into-itself` | 문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다. |
+| `paragraph-move-place-unsupported` | 메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다). |
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
 | `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
@@ -389,6 +386,9 @@ except HwpxError as exc:
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
 | `shape-group-member-unsupported` | 묶음(hp:container) 안의 개체는 혼자 지우거나 돌리거나 설명을 달 수 없다(묶음째 다룬다). |
+| `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |
+| `shape-move-place-unsupported` | 한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(표 칸·글상자·각주로는 문단 기준(vertRelTo=PARA)이고 쪽 영역 안(flowWithText=1)이거나 가로도 문단 기준(horzRelTo=PARA)인 떠 있는 개체만, 쪽 기준 개체를 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement·vertRelTo·horzRelTo·flowWithText). |
+| `shape-not-in-document` | 옮기거나 복사할 개체가 문단에 없다(지운 개체). |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
@@ -472,7 +472,6 @@ except HwpxError as exc:
 | `table-no-adjust-value` | noAdjust 값이 bool 이 아니다. |
 | `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
 | `table-page-break-value` | 표의 쪽 나눔(page_break)이 TABLE·CELL·NONE 중 하나가 아니다. |
-| `table-path-invalid-type` | fill_by_path 에 매핑이 아닌 것이나 str 이 아닌 경로(키)를 주었다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 | `table-row-height-value` | 행 높이가 양의 int(HWPUNIT)가 아니다. |
 | `table-row-heights-value` | 행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다. |
@@ -489,7 +488,6 @@ except HwpxError as exc:
 | `text-highlight-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `text-highlight-match-empty` | 형광펜으로 감쌀 문자열이 비어 있다. |
 | `text-highlight-match-not-found` | 문단에서 형광펜으로 감쌀 문자열을 찾지 못했다. |
-| `text-markdown-style-invalid` | MarkdownStyle 의 값(글자 크기·글꼴·정렬·번호 형식·글머리표·들여쓰기·상자와 표 모양·색·여백)이 올바르지 않거나 모르는 모양 이름을 주었다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
 | `text-place-invalid` | doc.text.paragraphs()/objects() 의 where·kinds 에 모르는 자리·개체 종류를 줬다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |

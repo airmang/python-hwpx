@@ -47,6 +47,6 @@ HWPUNIT은 XML 저장 형식으로는 정확하지만, 사람이 직접 다루�
 - 이미지: `width_mm`, `height_mm` (`src/hwpx/_document/media.py`)
 - 페이지·표 응용 명령: `pageWidthMm`, `heightMm` 등 (`hwpx_automation.office.agent.commands`)
 
-변환은 항상 `round()`로 정수화됩니다(HWPUNIT은 정수). 반대로 문서를 분석해 사람에게 보여줄 때는 HWPUNIT → mm로 되돌립니다 — companion의 `hwpx_automation.office.authoring.style_profile`과 core의 `src/hwpx/tools/layout_preview.py`가 `value / _HWP_UNITS_PER_MM`으로 역변환해 리포트합니다.
+변환은 항상 `round()`로 정수화됩니다(HWPUNIT은 정수). 반대로 문서를 분석해 사람에게 보여줄 때는 HWPUNIT → mm로 되돌립니다 — companion의 `hwpx_automation.office.authoring.style_profile`과 미리보기(7.0부터 companion의 `hwpx_automation.preview.layout_preview`)가 `value / _HWP_UNITS_PER_MM`으로 역변환해 리포트합니다.
 
 정리하면: **저장 형식은 HWPUNIT, 사용자 표면은 pt/mm/%.** 저수준 `hwpx.oxml` 데이터클래스를 직접 조작할 때는 HWPUNIT 정수를 직접 다루게 되므로, 위 환산표를 곁에 두고 작업하면 됩니다.

@@ -44,13 +44,10 @@ Use the API paths below rather than inferring names from python-docx.
 - Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
   `document.text.runs()`, `document.text.plain`, `document.notes.memos`,
   `document.fields.all` (a property, not a call).
-- Tables: `document.tables.find_cell_by_label(label)` returns all matches;
-  a merged cell counts once, and a direction crosses its full span. Separate
-  physical cells with the same label remain ambiguous.
-  `document.tables.fill_by_path({"성명 > right": "홍길동"})` returns `applied`
-  and `failed` lists and their counts. Check every requested entry before
-  saving: ambiguous labels are failures, and other entries may have changed
-  in memory. Reopen the output and check the intended values.
+- Tables: `document.tables.map()` reports every table in document order with
+  each cell's row, column and text as the file stores them;
+  `document.tables[0].cell(row, col).text = value` writes a cell. Reopen the
+  output and check the intended values.
 - Forms: `document.fields.add(name, prompt=...)` creates a native
   click-here field (real-Hancom CLICKHERE contract; experimental tier);
   `document.fields.fill(value, name=...)` returns a FieldFillResult with
@@ -78,6 +75,11 @@ Use the API paths below rather than inferring names from python-docx.
 ## Unavailable document APIs
 
 - `document.save()` does not exist. Use `save_to_path` or `save_to_stream`.
+- `document.text.markdown()` and `document.text.html()` moved to
+  `python-hwpx-automation` in 7.0: `from hwpx_automation.markdown import to_markdown`.
+- `document.tables.find_cell_by_label()` and `document.tables.fill_by_path()`
+  moved to `python-hwpx-automation` in 7.0 (`hwpx_automation.forms`); calling
+  them raises an error that names the new function.
 
 ## Common mistakes to avoid
 - Wrong: `Document()` / `doc.paragraphs[0].runs` — those are python-docx

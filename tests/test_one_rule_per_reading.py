@@ -2,7 +2,8 @@
 """One implementation for each thing the engine reads or derives (7.0 coverage check B3).
 
 - Outline level: ``heading_outline_level`` is the one rule; ``Paragraph.outline_level``,
-  ``doc.styles.outline_level`` and the export's heading levels call it. Before 7.0
+  ``doc.styles.outline_level`` and the heading levels of python-hwpx-automation's Markdown
+  export call it. Before 7.0
   ``Paragraph.outline_level`` upper-cased ``type`` and read a bad ``level`` as no outline.
 - Note numbers: the exporter's ``NoteLabels`` writes ``note_authoring.note_numbers`` in each
   section's number format (it counted on its own before).
@@ -61,15 +62,9 @@ def test_every_outline_reader_follows_the_one_rule(attributes: dict[str, str], e
     heading.attrib.update({"idRef": "0", **attributes})
     style_id = document.styles.ensure_style("시험 개요", para_pr_id_ref=paragraph.para_pr_id_ref)
 
-    assert heading_outline_level(para_pr) == expected
+    assert heading_outline_level(para_pr) == expected  # python-hwpx-automation's export reads this too
     assert paragraph.outline_level == (expected or 0)
     assert document.styles.outline_level(int(style_id)) == expected
-
-    from hwpx.tools.exporter import _Headings
-
-    header = document.oxml.headers[0].element
-    shown = expected if expected is not None and expected <= 6 else None
-    assert _Headings(header).level(paragraph.element) == shown
 
 
 def test_a_hancom_saved_outline_document_reads_the_same_everywhere() -> None:

@@ -17,7 +17,6 @@ from pathlib import Path
 from hwpx import HwpxDocument
 from hwpx.oxml._document_primitives import _clone_paragraph_element
 from hwpx.oxml.memo import HwpxOxmlNote
-from hwpx.tools.markdown_export import export_markdown
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -112,15 +111,3 @@ def test_note_reader_prefers_inst_id_with_the_old_lowercase_fallback() -> None:
 
     both = paragraph.element.makeelement(f"{HP}footNote", {"instId": "11", "instid": "22"})
     assert HwpxOxmlNote(both, paragraph).inst_id == "11"
-
-
-def test_markdown_note_marker_carries_the_authored_inst_id() -> None:
-    """저작(쓰기)과 export(읽기)가 같은 속성명으로 만나야 마커에 ID가 실린다."""
-
-    document = HwpxDocument.new()
-    paragraph = document.add_paragraph("본문")
-    paragraph.add_footnote("각주 본문")
-
-    markdown = export_markdown(HwpxDocument.open(document.to_bytes()))
-    match = re.search(r"\[\^fn(\d+)\]", markdown)
-    assert match, f"각주 마커에 instId가 비었다: {markdown!r}"

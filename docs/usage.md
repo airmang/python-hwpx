@@ -30,16 +30,15 @@ hwpx-pack ./template-parts ./template-roundtrip.hwpx
 hwpx-validate-package ./template-roundtrip.hwpx
 
 # 텍스트 추출
-hwpx-text-extract sample.hwpx --format markdown --output sample.md
+hwpx-text-extract sample.hwpx --output sample.txt
 
 # 문서 구조 변화 징후 점검
 hwpx-page-guard --reference sample.hwpx --output edited.hwpx
-
-# 서식 규칙 파일에 맞는지 점검
-hwpx-check-format rules.json sample.hwpx
 ```
 
-`hwpx-check-format`은 글자 모양·문단 모양·표·문자 범위·하이퍼링크·매크로가 규칙 파일(JSON)에 맞는지 봅니다. 규칙의 항목 이름과 단위는 한컴이 공개한 검사기([hancom-io/dvc](https://github.com/hancom-io/dvc))와 같습니다(`fontsize`는 1/100pt, 길이는 HWPUNIT). 지원하는 항목은 `hwpx.tools.format_rules.SUPPORTED_RULES`에 있고, 그 밖의 항목은 건너뛰지 않고 "점검하지 않음"으로 알립니다. 어긋난 곳은 구역·문단 번호와 그 자리의 글로 알려 주며, 쪽·줄 번호는 주지 않습니다. 규칙에 맞으면 종료 코드 0, 어긋나면 1입니다.
+7.0에서 Markdown 추출(`hwpx-text-extract --format markdown`)과 서식 규칙 점검(`hwpx-check-format`)은
+[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)으로 옮겼습니다
+(`pip install python-hwpx-automation`). 이 패키지의 CLI는 파일에 적힌 내용을 읽고 쓰는 일만 합니다.
 
 `hwpx-page-guard`는 실제 렌더러의 쪽수를 계산하지 않고, 구조 및 텍스트 통계를 비교해 편집 전후 변화 징후를 점검하는 도구입니다.
 
@@ -983,33 +982,26 @@ doc = HwpxDocument.open(BytesIO(form.to_bytes()))   # 실제로는 HwpxDocument.
 # 1. 글 바꾸기. everywhere=True면 표 칸·머리말·꼬리말·글상자의 글까지 바꾼다.
 doc.text.replace("2025학년도", "2026학년도", everywhere=True)
 
-# 2. 이름표 옆 빈 칸 채우기. form_slots()가 채울 칸과 경로를 알려 준다.
-for slot in doc.tables.form_slots()["slots"]:
-    print(slot["path"])                    # "성 명 > right", "학 년 > right"
-result = doc.tables.fill_by_path({"성명 > right": "홍길동", "학년 > right": "3학년"})
-if result["failed_count"]:
-    raise ValueError(result["failed"])
-
-# 3. 표 칸을 번호로 직접 고치기
+# 2. 표 지도로 칸의 글과 위치를 읽고, 칸을 번호로 고치기
+for cell in doc.tables.map()["tables"][0]["cells"]:
+    print(cell["row"], cell["col"], cell["text"])   # 0 0 성  명 / 1 0 학  년 ...
+doc.tables[0].cell(0, 1).text = "홍길동"
 doc.tables[0].cell(1, 1).text = "2학년"
 
-# 4. 누름틀(양식 필드) 채우기
+# 3. 누름틀(양식 필드) 채우기
 doc.fields.fill("010-1234-5678", name="연락처")
-
-# 5. 글자로 적힌 선택 칸(□ 예 □ 아니오) 고르기
-for group in doc.fields.choices()["choices"]:
-    print(group["label"], [option["text"] for option in group["options"]])
-doc.fields.choose({"참석 여부": "예"})
 
 doc.save_to_path("신청서-작성.hwpx")
 ```
 
 - `doc.text.replace()`는 기본으로 본문 문단의 런 하나 안에서만 바꿉니다. 그 범위에서 0건인데 찾는 글이 표 칸이나
   머리말에 있으면 `ReplaceScopeWarning`으로 `everywhere=True`를 알려 줍니다.
-- `fill_by_path`는 이름표의 공백을 무시하고 찾습니다(`"성명"`으로 `"성  명"` 칸을 찾는다). 같은 이름표가 여러
-  칸이면 실패로 돌려주고 `candidates`에 `"성명[2] > right"` 같은 고르는 표기를 싣습니다.
-- `fields.choose()`는 고른 항목을 채우고 같은 묶음의 나머지를 비웁니다. 가릴 수 없는 묶음은 바꾸지 않고
-  `failed`에 후보와 함께 돌려줍니다.
+- `doc.tables.map()`은 파일에 적힌 표와 칸의 글을 문서 순서로 그대로 보고합니다(칸 안의 표 포함). 어느 칸을 채울지는
+  호출하는 쪽이 정합니다.
+- 이름표 옆 칸을 찾아 채우기(`find_cell_by_label`·`form_slots`·`fill_by_path`, 공백을 무시한 이름표 비교)와 글자로
+  적힌 선택 칸(`□ 예 □ 아니오`) 고르기는 양식의 뜻을 짐작하는 일이라 7.0에서
+  [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 `hwpx_automation.forms`로
+  옮겼습니다(`fill_by_path(doc, {"성명 > right": "홍길동"})`, `choose(doc, {"참석 여부": "예"})`).
 
 ## 시험지·학습지
 
@@ -1136,114 +1128,30 @@ options.set_page_margins(left=2000, right=2000, header=1500, footer=1500)
 document.parts.headers[0].set_begin_numbering(page=1)
 ```
 
-## Markdown으로 문서 만들기
+## Markdown·HTML — python-hwpx-automation으로 이동(7.0)
 
-언어 모델이 가장 안정적으로 쓰는 형식이 Markdown이다. `from_markdown`은 흔히 쓰는 부분 집합
-(`#`~`####` 제목, 문단, `-`/`1.` 목록, `|` 표, `**굵게**`·`*기울임*`)으로 새 문서를 만들고,
-모르는 Markdown은 평문으로 쓴다. 이미 있는 문서에는 `doc.text.append_markdown`으로 덧붙인다.
-새 문서는 모양을 주지 않으면 아래의 보고서 모양으로 만들고, 덧붙일 때는 받은 문서의 모양을 해치지 않게
-꾸미지 않은 모양(`style="plain"`)으로 쓴다.
-표는 열 너비를 내용에 맞추고(짧은 이름 열은 좁게, 글이 긴 열은 넓게) 머리 행을 가운데로 놓는다.
-구분선의 `:---`·`:---:`·`---:`로 열 정렬을 정할 수 있다. 목록 안의 목록은 깊이마다 오른쪽으로 들여 쓴다.
+Markdown으로 문서를 만들거나(`from_markdown`, `append_markdown`, 보고서 모양 `MarkdownStyle`) 문서를
+Markdown·HTML로 내보내는 변환은 7.0에서
+[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 `hwpx_automation.markdown`으로
+옮겼습니다. 인자와 결과는 6.x와 같고, 문서를 첫 인자로 받습니다.
 
-<!-- standalone-python-example -->
-```python
-from hwpx.tools.markdown_import import MarkdownStyle, from_markdown
+```text
+pip install python-hwpx-automation
 
-doc = from_markdown(
-    "# 운영 보고\n\n이번 학기 **핵심 성과**를 정리한다.\n\n"
-    "- 참여 학생 120명\n- 만족도 4.6점\n\n"
-    "| 구분 | 목표 | 실적 |\n|---|---|---|\n| 1학기 | 10 | 12 |\n",
-    style=MarkdownStyle(heading_sizes=(18, 13, 11, 10)),
-)
-doc.text.append_markdown("## 맺음\n\n다음 학기에도 이어 간다.")
-doc.save_to_path("report.hwpx")
+from hwpx_automation.markdown import from_markdown, append_markdown, to_markdown, to_html
+doc = from_markdown("# 운영 보고\n\n- 참여 학생 120명\n")   # 6.x hwpx.tools.markdown_import.from_markdown
+append_markdown(doc, "## 맺음\n\n다음 학기에도 이어 간다.")  # 6.x doc.text.append_markdown(...)
+md = to_markdown(doc)              # 6.x doc.text.markdown(); rich=True도 같다
+html = to_html(doc)                # 6.x doc.text.html()
 ```
 
-새 문단은 앞 문단의 모양을 물려받지 않아 제목·목록 번호가 뒤 문단에 따라붙지 않는다. 직접
-`add_paragraph`로 문서를 쌓을 때도 제목(`add_heading`)과 목록 문단의 모양은 뒤 문단이 물려받지 않고,
-본문 문단의 모양만 다음 문단이 따른다. 그것도 물려받지 않게 하려면 `HwpxDocument.new(inherit_style=False)`로
-문서를 만든다.
+옛 이름(`doc.text.markdown` 등)을 부르면 새 자리와 설치 명령을 알려 주는 오류가 납니다. 전체 대응표는
+[7.0 이주 가이드](migration-7.0.md#옮겨-간-기능)에 있습니다. 이 패키지에 남은 글 읽기는 파일에 적힌 글을 그대로
+내놓는 `doc.text.plain()`·`outline()`·`paragraphs()`입니다.
 
-### 보고서 모양
-
-`from_markdown`은 모양을 주지 않으면 보고서 모양(`style="report"`, `"보고서"`)으로 만든다. 꾸미지 않은
-모양은 `style="plain"`이다. `byline`에는 제목 아래 오른쪽에 쓸 부서·날짜 줄을 준다.
-
-<!-- standalone-python-example -->
-```python
-from hwpx.tools.markdown_import import from_markdown
-
-doc = from_markdown(
-    "# 방과후학교 운영 계획\n\n## 목적\n\n학생의 소질과 적성을 살린다.\n\n"
-    "## 운영 방침\n\n### 프로그램 편성\n\n- 수요 조사 결과를 반영한다.\n  - 조사는 2월에 한다.\n",
-    byline="교무기획부",
-)
-doc.save_to_path("plan.hwpx")
-```
-
-학교와 기관에서 쓰는 운영 계획·안내 문서의 모양이다.
-
-- `#`은 제목이다. 본문 너비의 회색 상자 안에 21pt로 가운데 놓고, 상자 위아래에 색 띠를 두른다.
-- `##`은 큰 항목이다. 남색 칸에 번호(`Ⅰ`, `Ⅱ` …)를 넣고 그 옆에 남색 제목과 밑줄을 그린다. 상자 너비는 제목
-  길이에 맞추고, 본문 너비보다 긴 제목은 칸 안에서 줄을 바꾼다.
-- `###`·`####`에는 `1.`·`가.` 번호를 붙인다. 윗수준 제목이 나오면 아랫수준 번호는 다시 시작한다.
-- 번호를 직접 쓴 제목은 쓴 번호를 그대로 쓴다. `## Ⅱ. 현황`은 칸에 `Ⅱ`를 넣고, `### 1. 목적`에는 번호를 더 붙이지
-  않는다. `## 제2장 현황`처럼 칸에 넣기 어려운 번호는 제목에 두고 번호 칸 없이 그린다.
-- 본문은 12pt 휴먼명조, 제목은 HY헤드라인M이다. 글머리표는 깊이에 따라 `□`·`-`·`·`이고 깊이마다 들여 쓴다.
-  `####` 아래의 목록은 `◦`로 시작하고, `####` 아래의 본문은 그 제목만큼 들여 쓴다.
-- `※`로 시작하는 문단은 주석으로 보고 10pt 한컴산뜻돋움으로 쓴다. 목록 항목 안의 `※`는 그대로 둔다.
-- 줄 끝을 조금 넘는 목록 항목은 자간을 좁혀 한 줄에 넣는다. 좁히는 폭은 1%씩 8%까지이고, 그보다 더 좁혀야 하는
-  항목은 손대지 않고 줄을 바꾼다. 폭을 잘못 재도 줄이 바뀔 뿐 글자가 겹치지 않는다. 정해 둔 자간만 쓰고 한/글의
-  "한 줄로 입력"은 쓰지 않기 때문이다. 글꼴이 다른 것으로 바뀌는 환경에서는 한 줄에 들어가지 않을 수 있다.
-- 표는 12pt 한컴산뜻돋움이다. 좌우를 트고 위아래에 굵은 줄을, 연한 파랑 머리 행 아래에 이중선을 긋는다.
-- 표의 본문 칸은 내용에 따라 놓는다. 한 줄에 들어가는 열은 가운데에, 줄이 바뀌는 열은 왼쪽에 놓는다. 두 열짜리
-  표는 첫 열을 이름표로 보고 열 너비에 고르게 펴며(균등 분할) 둘째 열은 왼쪽에 놓는다. 이름표가 한 글자뿐이면
-  펴지 않고 가운데에 놓는다. 구분선의 `:---`·`:---:`·`---:`로 정렬을 준 열은 그대로 둔다.
-- `byline`은 제목 상자 아래 오른쪽에 13pt 한컴산뜻돋움 굵게로 쓴다. 제목(`#`)이 없으면 첫 줄에 쓰고, `\n`은 줄
-  바꿈이다.
-- 새 문서는 여백을 20mm(아래 15mm)로 잡고 꼬리말 가운데에 `- 1 -`을 넣는다.
-  `doc.text.append_markdown(..., style="report")`는 받은 문서의 여백과 꼬리말을 건드리지 않는다.
-
-글꼴 세 가지는 한컴오피스에 들어 있다. 글꼴이 없는 환경에서는 보는 프로그램이 다른 글꼴로 바꾸어 그린다.
-
-이 모양은 모두 `MarkdownStyle`의 값이다. `MarkdownStyle.report()`를 받아 `dataclasses.replace`로 일부만 바꿀 수
-있다. 아래는 색 띠와 큰 항목 상자의 색을 바꾸고 본문 글꼴을 함초롬바탕으로 바꾼 것이다.
-
-<!-- standalone-python-example -->
-```python
-from dataclasses import replace
-
-from hwpx.tools.markdown_import import MarkdownStyle, from_markdown
-
-style = replace(
-    MarkdownStyle.report(),
-    banner_colors=("#1F4E79", "#1F4E79", "#BF9000", "#BF9000"),
-    section_colors=("#1F4E79", "#9DC3E6", "#1F4E79"),
-    body_font="함초롬바탕",
-)
-doc = from_markdown("# 학교 교육 계획\n\n## 교육 목표\n\n- 배움이 즐거운 학교\n", style=style)
-doc.save_to_path("plan-blue.hwpx")
-```
-
-| 값 | 하는 일 |
-|---|---|
-| `heading_numbers`, `bullet_chars`, `sub_bullet_chars` | 수준별 번호 형식, 깊이별 글머리표, `####` 아래 목록의 글머리표 |
-| `heading_sizes`, `heading_bold`, `heading_fonts` | 수준별 제목 크기·굵기·글꼴 |
-| `body_size`, `body_font`, `table_size`, `table_font` | 본문과 표의 글자 크기·글꼴 |
-| `title_look`, `banner_colors`, `banner_fill` | `"banner"`면 제목을 색 띠 상자로 그린다. 띠 색 넷(위 왼쪽·위 오른쪽·아래 왼쪽·아래 오른쪽)과 상자 색 |
-| `title_align`, `title_rule`, `title_space_after_pt` | 상자 없는 제목의 정렬과 밑줄, 제목 아래 간격 |
-| `section_look`, `section_colors` | `"box"`면 `##`을 번호 상자로 그린다. 색 셋(번호 칸·선·제목 글자) |
-| `table_look`, `table_header_shading`, `table_row_height_mm` | `"ruled"`면 좌우가 트인 줄 표. 머리 행 색, 행의 최소 높이 |
-| `table_align` | `"auto"`면 본문 칸을 내용에 따라 가운데·왼쪽·균등 분할로 놓는다 |
-| `note_size`, `note_font` | `※`로 시작하는 문단의 크기·글꼴 |
-| `list_fit_spacing` | 목록 항목을 한 줄에 넣으려고 좁힐 수 있는 자간(%, 0~10). `0`이면 좁히지 않는다 |
-| `heading_indents_mm`, `list_first_indent_mm`, `list_indent_mm` | 수준별 제목 들여쓰기, 목록 첫 수준과 그다음 수준의 들여쓰기 |
-| `byline_size`, `byline_font`, `byline_bold` | 부서·날짜 줄의 크기·글꼴·굵기 |
-| `page_margins_mm`, `page_number`, `page_number_side` | 새 문서의 여백(왼쪽·오른쪽·위·아래, 이어서 머리말·꼬리말), 쪽 번호와 양옆 글자 |
-
-라이브러리가 이름 붙여 싣는 모양은 이것 하나다. 공문·가정통신문처럼 넣어야 할 내용이 정해진 장르는 응용 계층이
-`MarkdownStyle`로 정한다.
+직접 `add_paragraph`로 문서를 쌓을 때 제목(`add_heading`)과 목록 문단의 모양은 뒤 문단이 물려받지 않고, 본문
+문단의 모양만 다음 문단이 따릅니다. 그것도 물려받지 않게 하려면 `HwpxDocument.new(inherit_style=False)`로 문서를
+만듭니다.
 
 ## 단락 삭제
 
@@ -1515,62 +1423,28 @@ with open("result.hwpx", "wb") as fp:
 
 ## AI 파이프라인에서 읽기
 
-검색·요약 파이프라인에 넣을 글은 `hwpx.ingest`로 뽑습니다. `.hwpx`와 `.hwp`를 같은 방식으로 받고, 제목·목록·표를
-살린 Markdown과 함께 무엇이 빠졌는지를 알려 줍니다.
+검색·요약 파이프라인에 넣을 글은 이 패키지에서 파일에 적힌 그대로 읽습니다. `doc.text.outline()`은 글이 있는
+덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.paragraphs()`는 표 칸·글상자·머리말·각주까지 모든 문단을
+자리와 함께 내놓습니다.
 
+<!-- standalone-python-example -->
 ```python
-from hwpx.ingest import DocumentIngestor
+from hwpx import HwpxDocument
 
-path = "report.hwpx"   # 읽을 .hwpx나 .hwp 파일
-with open(path, "rb") as stream:   # 경로·바이트·스트림 모두 받는다
-    result = DocumentIngestor.default().convert(stream)
-print(result.markdown)
-print(result.lossiness)        # "low": 빠진 것이 없다. "medium"·"high": warnings에 종류와 개수
-print(result.flat_metadata())  # 출처·형식·개수·경고를 글자와 숫자 값만으로
+doc = HwpxDocument.new()
+doc.add_paragraph("운영 보고")
+doc.add_table(1, 2).cell(0, 0).text = "참여 학생"
+outline = doc.text.outline(max_chars=2000)
+print(outline.to_text())                      # [s0p0] 본문 1문단: 운영 보고 ...
+for place in doc.text.paragraphs(where={"cell"}):
+    print(place.row, place.col, place.paragraph.text)   # 0 0 참여 학생 ...
 ```
 
-암호 문서나 HWP 3.x처럼 읽을 수 없는 파일은 `UnsupportedDocumentFormat`으로 거부하고, 사유가 오류 문구에
-들어갑니다.
-
-### LangChain 로더
-
-`pip install "python-hwpx[langchain]"`로 `langchain-core`를 함께 설치하면 로더를 쓸 수 있습니다. 파일 하나가
-Markdown 문서 하나가 되고, 메타데이터는 위의 `flat_metadata()`입니다.
-
-```python
-from hwpx.integrations.langchain import HwpxLoader
-
-docs = HwpxLoader(path).load()   # path: 위 예제의 .hwpx나 .hwp 파일 경로
-print(docs[0].page_content[:200])
-print(docs[0].metadata["lossiness"])
-```
-
-나누기는 LangChain의 분할기에 맡깁니다. Markdown에 `#` 제목이 남아 있어 `MarkdownHeaderTextSplitter`로 문서의
-절을 따라 자를 수 있습니다. 폴더를 통째로 읽으려면 `DirectoryLoader(폴더, glob="**/*.hwp*", loader_cls=HwpxLoader)`
-처럼 넘깁니다.
-
-### LlamaIndex 리더
-
-`pip install "python-hwpx[llamaindex]"`로 `llama-index-core`를 함께 설치합니다. 내용과 메타데이터는 LangChain
-로더와 같습니다.
-
-```python
-from hwpx.integrations.llama_index import HwpxReader
-
-docs = HwpxReader().load_data(path)   # path: 위 예제의 .hwpx나 .hwp 파일 경로
-print(docs[0].text[:200])
-```
-
-폴더는 `SimpleDirectoryReader(폴더, file_extractor={".hwpx": HwpxReader(), ".hwp": HwpxReader()})`로 읽습니다.
-이때 LlamaIndex가 붙이는 파일 이름·날짜가 메타데이터에 함께 들어갑니다. `MarkdownNodeParser`로 문서의 절을 따라
-자를 수 있습니다.
-
-`hwpx.ingest`는 머리말·꼬리말·메모·수식을 기본으로 Markdown에 싣습니다(6.x는 싣지 않았습니다). 6.x처럼 본문만
-원하면 `convert(path, markdown_options={"headers_and_footers": False, "memos": False, "equations": False})`로
-끕니다. 문서 객체에서 직접 뽑을 때는 `doc.text.markdown(rich=True, headers_and_footers=True, memos=True,
-equations=True)`가 같은 내용을 냅니다.
-
-두 어댑터와 `hwpx.ingest`는 실험 기능이라 7.x 안에서 이름과 메타데이터 키가 바뀔 수 있습니다.
+다른 형식을 Markdown으로 바꿔 들이는 `hwpx.ingest`(`DocumentIngestor`, `HwpxMarkdownConverter`)와 LangChain
+로더·LlamaIndex 리더(`hwpx.integrations`)는 7.0에서
+[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 `hwpx_automation.ingest`·
+`hwpx_automation.integrations`로 옮겼습니다(`pip install python-hwpx-automation`). 옛 이름을 가져오면 새 자리를
+알려 주는 `ImportError`가 납니다.
 
 ## 제안서 프리셋 — 5.0에서 이동
 

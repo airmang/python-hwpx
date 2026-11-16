@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """Fill unique labels' right-hand cells; verify a staged copy before publishing.
 
-This core-only example is deliberately limited to labels followed by one right
-move. It is not a replacement for automation's revision/session workflows.
-No visual or within-modified-part preservation guarantee is inferred from a
-successful save. Call ``fill_existing_form(source, output, {label: value})``.
+This core-only example is deliberately limited to body tables, labels written
+exactly as given, and one move to the right. It reads cells as the file has
+them and guesses nothing; label matching that ignores spacing or follows
+``label > right > down`` paths lives in python-hwpx-automation
+(``hwpx_automation.forms``). It is not a replacement for automation's
+revision/session workflows. No visual or within-modified-part preservation
+guarantee is inferred from a successful save. Call
+``fill_existing_form(source, output, {label: value})``.
 """
 
 from __future__ import annotations
@@ -27,15 +31,29 @@ def _distinct_output(source: Path, output: Path) -> None:
 
 
 def _targets(document: HwpxDocument, values: Mapping[str, str]) -> dict[str, dict]:
+    """``{label: {"table_index", "row", "col", "text"}}``: the cell right of each label."""
+
+    found: dict[str, list[dict]] = {label: [] for label in values}
+    for table_index, table in enumerate(document.tables):
+        grid = table.get_cell_map()
+        for position in table.iter_grid():
+            label = position.cell.text.strip()
+            if not position.is_anchor or label not in found:
+                continue
+            col = position.column + position.col_span
+            if col >= table.column_count:
+                continue
+            row, col = grid[position.row][col].anchor
+            found[label].append(
+                {"table_index": table_index, "row": row, "col": col, "text": table.cell(row, col).text}
+            )
     targets = {}
     occupied = set()
-    for label in values:
-        found = document.tables.find_cell_by_label(label, direction="right")
-        if found["count"] != 1:
-            raise ValueError(f"expected one target for {label!r}; got {found['count']}")
-        match = found["matches"][0]
-        cell = match["target_cell"]
-        coordinate = (match["table_index"], cell["row"], cell["col"])
+    for label, matches in found.items():
+        if len(matches) != 1:
+            raise ValueError(f"expected one target for {label!r}; got {len(matches)}")
+        match = matches[0]
+        coordinate = (match["table_index"], match["row"], match["col"])
         if coordinate in occupied:
             raise ValueError("multiple labels resolve to the same target")
         occupied.add(coordinate)
@@ -78,12 +96,12 @@ def fill_existing_form(
             expected = _targets(document, values)
             if expected_values is not None:
                 for label, value in expected_values.items():
-                    if expected[label]["target_cell"]["text"] != value:
+                    if expected[label]["text"] != value:
                         raise ValueError(f"unexpected current value for {label!r}; inspect the target")
-            mappings = {f"{label} > right": value for label, value in values.items()}
-            result = document.tables.fill_by_path(mappings)
-            if result["failed_count"] or result["applied_count"] != len(values):
-                raise ValueError(f"incomplete fill: {result['failed']}")
+            tables = document.tables.all
+            for label, value in values.items():
+                target = expected[label]
+                tables[target["table_index"]].set_cell_text(target["row"], target["col"], value, logical=True)
             report = document.save_to_path(
                 candidate, mode="patch", fallback="error", return_report=True
             )
@@ -94,9 +112,9 @@ def fill_existing_form(
             for label, value in values.items():
                 before, after = expected[label], actual[label]
                 if (before["table_index"] != after["table_index"]
-                        or before["target_cell"]["row"] != after["target_cell"]["row"]
-                        or before["target_cell"]["col"] != after["target_cell"]["col"]
-                        or after["target_cell"]["text"] != value):
+                        or before["row"] != after["row"]
+                        or before["col"] != after["col"]
+                        or after["text"] != value):
                     raise ValueError(f"output content verification failed: {label!r}")
         payload = candidate.read_bytes()
         if source.read_bytes() != original:

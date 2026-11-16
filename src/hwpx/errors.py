@@ -298,7 +298,6 @@ ERROR_CODE_DOMAINS = frozenset(
         "heading",
         "hwp5",
         "hwpx",
-        "ingest",
         "master",
         "media",
         "note",
@@ -369,6 +368,7 @@ ERROR_CODES: dict[str, str] = {
     "document-master-page-root-invalid": "바탕쪽 파트 루트가 masterPage 가 아니다.",
     "document-version-root-invalid": "version.xml 루트가 HCFVersion 이 아니다.",
     "document-name-removed": "7.0에서 없어진 HwpxDocument 루트 이름(6.0이 묶음으로 옮긴 79개)을 불렀다(새 자리는 context.replacement).",
+    "document-name-moved": "7.0에서 python-hwpx-automation으로 옮긴 문서 메서드(doc.text.markdown 등 묶음 메서드 8개, export_markdown 등 루트 옛 이름 5개)를 불렀다(새 자리는 context.replacement, 설치는 context.install).",
     "document-seed-invalid": "new()/open() 의 seed 가 정수가 아니다.",
     "document-clock-invalid": "new()/open() 의 now 가 datetime 이 아니다.",
     "section-missing": "문서에 섹션이 하나도 없다.",
@@ -407,6 +407,8 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-range-invalid": "글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다.",
     "paragraph-split-inside-element": "나눌 위치가 hp:t 안의 나눌 수 없는 요소(글자를 가진 요소) 한가운데다.",
     "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
+    "paragraph-move-into-itself": "문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다.",
+    "paragraph-move-place-unsupported": "메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다).",
     # -- 표 셀 -----------------------------------------------------------
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
@@ -429,7 +431,6 @@ ERROR_CODES: dict[str, str] = {
     "table-width-value": "표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "table-row-heights-value": "행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다.",
     "table-cell-zone-grid-mismatch": "셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다.",
-    "table-path-invalid-type": "fill_by_path 에 매핑이 아닌 것이나 str 이 아닌 경로(키)를 주었다.",
     # -- 머리말·꼬리말 story ------------------------------------------------
     "story-ambiguous": "그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다.",
     "story-linkage": "기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다.",
@@ -581,6 +582,9 @@ ERROR_CODES: dict[str, str] = {
     "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
     "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다).",
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
+    "shape-not-in-document": "옮기거나 복사할 개체가 문단에 없다(지운 개체).",
+    "shape-move-into-itself": "개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다).",
+    "shape-move-place-unsupported": "한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(표 칸·글상자·각주로는 문단 기준(vertRelTo=PARA)이고 쪽 영역 안(flowWithText=1)이거나 가로도 문단 기준(horzRelTo=PARA)인 떠 있는 개체만, 쪽 기준 개체를 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement·vertRelTo·horzRelTo·flowWithText).",
     # -- 미디어 ----------------------------------------------------------
     "media-picture-not-found": "picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서).",
     "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",
@@ -592,6 +596,8 @@ ERROR_CODES: dict[str, str] = {
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",
     "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
+    "note-memo-anchor-elsewhere": "메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모).",
+    "note-memo-index-value": "메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다.",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",
@@ -610,7 +616,6 @@ ERROR_CODES: dict[str, str] = {
     "text-highlight-match-not-found": "문단에서 형광펜으로 감쌀 문자열을 찾지 못했다.",
     "text-highlight-match-crosses-markup": "찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다.",
     "text-highlight-color-invalid": "형광펜 색이 #RRGGBB 6자리 16진 형식이 아니다.",
-    "text-markdown-style-invalid": "MarkdownStyle 의 값(글자 크기·글꼴·정렬·번호 형식·글머리표·들여쓰기·상자와 표 모양·색·여백)이 올바르지 않거나 모르는 모양 이름을 주었다.",
     "text-outline-budget": "outline 의 글자·항목 예산이 1보다 작다.",
     "text-block-unknown": "outline 의 after 에 준 글 덩어리 id 가 문서에 없다.",
     # -- 저장·패키지 -----------------------------------------------------
@@ -645,12 +650,12 @@ ERROR_CODES: dict[str, str] = {
     "hwp5-write-unsupported": "HWP 5.0 작성기가 표현할 수 없는 내용이다.",
     "hwp5-overwrite-source": "문서를 연 원본 .hwp 경로에 .hwp로 덮어쓰려 했다.",
     "hwp5-write-lossy-source": "열 때 옮기지 못한 내용이 있는 문서를 .hwp로 쓰려 했다.",
-    # -- 수식·ingest·복구·차례 (기존 builtin 부모를 유지한 채 편입) ------
+    # -- 수식·복구·차례 (기존 builtin 부모를 유지한 채 편입) ---------------
+    # 7.0: equation-mathml-unavailable·ingest-failed·ingest-format-unsupported·
+    # text-markdown-style-invalid·table-path-invalid-type 는 그 기능과 함께
+    # python-hwpx-automation 으로 옮겼다(그 패키지가 hwpx.errors 클래스로 같은 code 를 낸다).
     "equation-conversion": "한글 수식 스크립트와 LaTeX 사이의 변환에 실패했다.",
     "equation-latex-unsupported": "LaTeX 조각이 검증된 명령 집합 밖의 명령을 쓴다.",
-    "equation-mathml-unavailable": "MathML 변환에 필요한 latex2mathml이 설치돼 있지 않다.",
-    "ingest-failed": "문서를 Markdown으로 들여오지 못했다(시도한 변환기는 attempts).",
-    "ingest-format-unsupported": "이 입력을 받는 변환기가 등록돼 있지 않다.",
     "recover-unsafe": "로컬 헤더 항목이 있지만 안전하게 복구할 수 없다.",
     "toc-word-box-extractor-required": "PDF에서 글자 상자를 읽을 방법 없이 차례 쪽 대조를 불렀다.",
     # -- 계획 실행기 -----------------------------------------------------

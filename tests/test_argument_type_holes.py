@@ -106,8 +106,8 @@ def test_resolving_hints_resolves_to_the_real_classes() -> None:
     from hwpx.form_fit import FitPolicy
     from hwpx.tools.table_navigation import TableMapResult
 
-    hints = typing.get_type_hints(NAMESPACES["tables"].fill_by_path)
-    assert FitPolicy in typing.get_args(hints["fit"])
+    hints = typing.get_type_hints(NAMESPACES["fields"].fill)
+    assert FitPolicy in typing.get_args(hints["fit_policy"])
     assert typing.get_type_hints(NAMESPACES["tables"].map)["return"] is TableMapResult
     assert typing.get_type_hints(NAMESPACES["styles"].document.fget)["return"] is HwpxDocument
 

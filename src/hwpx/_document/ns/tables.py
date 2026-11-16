@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""`doc.tables` — 표 탐색·매핑·병합·구조 편집·경로 채움.
+"""`doc.tables` — 표 탐색·매핑·병합·구조 편집.
 
 표를 **만드는** 것은 루트에 남았다(`doc.add_table` — python-docx 대응이자
 automation 최다 사용 저작 동사 중 하나). 만든 다음에 하는 일들이 여기 모인다.
@@ -7,23 +7,22 @@ automation 최다 사용 저작 동사 중 하나). 만든 다음에 하는 일�
 `merge_table_cells` 는 이름의 `table_` 접두사를 네임스페이스가 흡수해
 `merge_cells` 가 됐고, 반환 주석 `Any` 도 함께 고쳤다 — 5.x 는 런타임에
 `HwpxOxmlTableCell` 을 돌려주면서 타입만 `Any` 라고 말하고 있었다.
+
+이름표 옆 칸을 찾아 채우는 `find_cell_by_label`·`form_slots`·`fill_by_path` 는 양식의
+뜻을 짐작하는 일이라 7.0에서 python-hwpx-automation(`hwpx_automation.forms`)으로
+옮겼다. 표 지도(`map`)는 파일에 적힌 표를 그대로 보고하므로 남는다.
 """
 
 from __future__ import annotations
 
 from types import ModuleType
-from typing import TYPE_CHECKING, Iterable, Mapping, overload
+from typing import TYPE_CHECKING, Iterable, overload
 
 from ...model import Table, TableCell
 from ._base import _LazyModule, _Namespace
 
+
 # Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
-def _load_fit_policy() -> ModuleType:
-    from ...form_fit import policy
-
-    return policy
-
-
 def _load_table_navigation() -> ModuleType:
     from ...tools import table_navigation
 
@@ -31,17 +30,15 @@ def _load_table_navigation() -> ModuleType:
 
 
 if TYPE_CHECKING:
-    from ...form_fit import policy as _fit_policy
     from ...tools import table_navigation as _table_navigation
 else:
-    _fit_policy = _LazyModule(_load_fit_policy)
     _table_navigation = _LazyModule(_load_table_navigation)
 
 __all__ = ["TablesNamespace"]
 
 
 class TablesNamespace(_Namespace):
-    """표 탐색·매핑·병합·구조 편집·경로 채움."""
+    """표 탐색·매핑·병합·구조 편집."""
 
     __slots__ = ()
     _path = "doc.tables"
@@ -60,6 +57,30 @@ class TablesNamespace(_Namespace):
         for paragraph in self._doc.paragraphs:
             tables.extend(paragraph.tables)
         return tables
+
+    @property
+    def with_nested(self) -> tuple["Table", ...]:
+        """본문의 표와 그 칸 안의 표(중첩 포함)를 표 지도(:meth:`map`)와 같은 순서·번호로.
+
+        표 하나 뒤에 그 칸들의 표가(행 순서, 칸 순서, 칸 문단 순서로, 다시 그 안의 표까지)
+        오고, 다음 표로 넘어간다. ``doc.tables.with_nested[i]`` 가 지도의
+        ``table_index == i`` 인 표다. 머리말·꼬리말·각주·미주·글상자·캡션 안의 표는
+        지도처럼 들어 있지 않다(그것까지는 ``doc.text.objects(kinds="table")``).
+        """
+
+        found: list["Table"] = []
+
+        def visit(table: "Table") -> None:
+            found.append(table)
+            for row in table.rows:
+                for cell in row.cells:
+                    for nested in cell.tables:
+                        visit(nested)
+
+        for paragraph in self._doc.paragraphs:
+            for table in paragraph.tables:
+                visit(table)
+        return tuple(found)
 
     def __len__(self) -> int:
         return len(self.all)
@@ -108,46 +129,6 @@ class TablesNamespace(_Namespace):
         from ...tools.table_navigation import get_table_map
 
         return get_table_map(self._doc)
-
-    def find_cell_by_label(
-        self, label_text: str, direction: "_table_navigation.SearchDirection" = "right"
-    ) -> "_table_navigation.TableLabelSearchResult":
-        """라벨 셀과 그 옆(기본 오른쪽) 대상 셀 쌍을 전부 찾는다."""
-
-        from ...tools.table_navigation import find_cell_by_label
-
-        return find_cell_by_label(self._doc, label_text, direction)
-
-    def form_slots(
-        self, *, min_width_mm: float = 5.0
-    ) -> "_table_navigation.TableFormSlotsResult":
-        """양식의 빈 칸(글이 있는 칸의 오른쪽이나 아래에 있는 빈 칸)과 그 칸을 채우는 경로를 나열한다.
-
-        각 항목의 ``path``를 그대로 :meth:`fill_by_path`의 키로 쓴다. 이름표와 상자 사이를 띄우는
-        좁은 칸(``min_width_mm``보다 좁은 칸)은 뺀다. 거기 쓴 값은 한 글자씩 세로로 놓인다.
-        """
-
-        from ...tools.table_navigation import form_slots
-
-        return form_slots(self._doc, min_width_mm=min_width_mm)
-
-    def fill_by_path(
-        self, mappings: Mapping[str, str], *, fit: "_fit_policy.FitPolicy | None" = None
-    ) -> "_table_navigation.TableFillResult":
-        """``이름표 > 방향`` 경로 → 값 매핑으로 칸을 채운다.
-
-        이름표는 공백을 무시하고 견준다(``"성명"``이 ``"성  명"`` 칸을 찾는다). 같은 이름표가
-        여러 칸이면 실패로 돌려주며 후보를 ``candidates``에 싣는다. ``"성명[2] > right"``처럼
-        몇 번째인지 적어 고른다.
-
-        ``fit``(:class:`hwpx.form_fit.FitPolicy`)을 주면 값을 칸에 맞춰 잰다. 정책이 허용하는 대로
-        줄을 바꾸거나 글자를 줄이고 결과를 항목의 ``fit``에 싣는다. 정책이 거부한 값은
-        ``"value does not fit"``으로 실패하고 그 칸은 그대로 둔다.
-        """
-
-        from ...tools.table_navigation import fill_by_path
-
-        return fill_by_path(self._doc, mappings, fit=fit)
 
     def merge_cells(self, table: "Table", cell_range: str) -> "TableCell":
         """``"A1:B2"`` 범위를 병합하고 살아남은 셀을 돌려준다.

@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 362개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 376개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -76,7 +76,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---:|---|
 | 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
 | 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 362 | `tests/data/model_surface.json` |
+| 반환 객체 계약 | 376 | `tests/data/model_surface.json` |
 
 설치본에 직접 물어볼 수도 있다:
 
@@ -133,9 +133,12 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_document_facade_surface.py::test_document_facade_public_surface_is_frozen`,
    `tests/test_engine_surface_6_0.py::test_model_surface_lock_matches_the_live_classes`
 
-## stable (36)
+## stable (29)
 
-major 경계에서만 깨지는 이름들입니다.
+major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdownConverter`, 메일 머지 4개,
+`inspect_reference_consistency`, `REFERENCE_CONSISTENCY_REPORT_VERSION`)가
+`python-hwpx-automation`으로 옮겨 갔습니다. 부르면 새 자리를 알려 주는 `ImportError`가
+납니다([7.0 이주 가이드](migration-7.0.md#옮겨-간-기능)).
 
 ### 문서 열기·저장·패키지
 - `HwpxDocument`, `HwpxPackage`
@@ -153,31 +156,24 @@ major 경계에서만 깨지는 이름들입니다.
 ### 읽기·추출
 - `TextExtractor`, `ParagraphInfo`, `SectionInfo`, `DEFAULT_NAMESPACES`
 - `ObjectFinder`, `FoundElement`
-- `HwpxMarkdownConverter`
 
-### 비교·메일머지
-- `doc_diff`, `diff_paragraphs`, `inspect_reference_consistency`
-- `merge_template_rows`, `load_mail_merge_rows`, `inspect_mail_merge_placeholders`
-- `DOC_DIFF_REPORT_VERSION`, `REFERENCE_CONSISTENCY_REPORT_VERSION`,
-  `MAIL_MERGE_REPORT_VERSION`
+### 비교
+- `doc_diff`, `diff_paragraphs`, `DOC_DIFF_REPORT_VERSION`
 
 ### 메타
 - `__version__`
 
-## experimental (26)
+## experimental (14)
 
 `from hwpx.experimental import ...`로 사용하세요. 계약이 유동적입니다. 7.0부터 최상위
-`hwpx`에서는 가져올 수 없습니다.
+`hwpx`에서는 가져올 수 없습니다. 문서 ingest 7개(`DocumentIngestor` …)와 미리보기 5개
+(`render_layout_preview`, `LayoutPreview`, `PreviewPage`, `render_document_viewer`,
+`DocumentViewer`)는 7.0에서 `python-hwpx-automation`(`hwpx_automation.ingest`·
+`hwpx_automation.preview`)으로 옮겼습니다.
 
-- **문서 ingestion 프레임워크**(임의 포맷 → HWPX): `DocumentIngestor`,
-  `DocumentConverter`, `DocumentIngestResult`, `DocumentSourceInfo`,
-  `ConversionAttempt`, `DocumentIngestError`, `UnsupportedDocumentFormat`
-- **레이아웃 프리뷰**(한컴 없는 정직 근사): `render_layout_preview`,
-  `LayoutPreview`, `PreviewPage`
 - **쪽 수 추정**(한/글 없이, `hwpx.layout.pages`): `estimate_pages`, `PageEstimate`,
   `EstimatedLine` — 본문 문단의 줄마다 쪽·단·세로 위치를 추정한다. 따르지 않는 요소가
   있으면 `pages`는 `None`이고 `unsupported`가 까닭을 구역마다 적는다
-- **문서 프리뷰 뷰어**(3.8.0 신규): `render_document_viewer`, `DocumentViewer`
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
   `estimate_equation_size`, `UnsupportedLatexError`. 구현 모듈 `hwpx.equation`에서
   가져와도 같은 객체이고, 사용 가이드와 퀵스타트는 `from hwpx.equation import latex_to_eqedit`를 쓴다
@@ -189,17 +185,14 @@ major 경계에서만 깨지는 이름들입니다.
 - **기계가독 자기서술**(5.6.0 신규, `hwpx.capabilities`):
   `describe_capabilities`, `contract_document`, `contract_json_schema`
 
-> `HwpxMarkdownConverter`(HWPX → Markdown 읽기)는 성숙한 경로라 **stable**입니다.
-> 위 ingestion 프레임워크(임의 포맷 → HWPX)만 experimental입니다.
-
 ## 7.0: 엔진의 공개 읽기 (모듈 경로로 import)
 
 7.0은 변환·짐작 기능(Markdown·HTML 내보내기, ingest, 메일머지, 미리보기 …)을
-`python-hwpx-automation`으로 옮긴다. 옮겨 간 코드는 이 문서의 계약만 쓴다. 그 코드가
+`python-hwpx-automation`으로 옮겼다. 옮겨 간 코드는 이 문서의 계약만 쓴다. 그 코드가
 쓰던 엔진 기능 가운데 엔진으로서 뜻이 있는 것을 아래 이름으로 계약에 올렸다. 최상위
 `from hwpx import ...`에는 넣지 않고, 적힌 모듈 경로에서 가져온다. `hwpx.oxml.*`의 다른
-이름은 이 목록에 없으면 계약이 아니다(경로는 열려 있다).
-`scripts/check_moved_private_names.py`가 옮겨 갈 코드에서 계약 밖의 이름을 찾는다.
+이름은 이 목록에 없으면 계약이 아니다(경로는 열려 있다). 미리보기의 MathML 변환이 쓰는
+`EQEDIT_MATHML_OPERATOR_COMMANDS`는 `hwpx.equation`에서 가져온다.
 
 **stable** — major 경계에서만 바뀐다.
 
@@ -297,9 +290,6 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
 | `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
 | `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
-| `hwpx.equation.mathml.MathMLUnavailableError` | `equation-mathml-unavailable` | `HwpxError`, `RuntimeError` | `latex2mathml` 없이 MathML 변환 요청 |
-| `hwpx.ingest.DocumentIngestError` | `ingest-failed` | `HwpxError`, `RuntimeError` | ingest 변환 실패(`attempts`에 시도 기록) |
-| `hwpx.ingest.UnsupportedDocumentFormat` | `ingest-format-unsupported` | `DocumentIngestError` | 입력을 받는 변환기가 없음 |
 | `hwpx.tools.recover.RecoverError` | `recover-unsafe` | `HwpxError`, `ValueError` | 로컬 헤더 항목을 안전하게 복구할 수 없음 |
 | `hwpx.tools.toc_fidelity.WordBoxExtractorRequired` | `toc-word-box-extractor-required` | `HwpxError`, `RuntimeError` | PDF 글자 상자 추출기 없이 차례 쪽 대조 호출 |
 
@@ -370,6 +360,49 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
 `Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
+
+### 개체·표·문단·메모 옮기기와 복사 (7.0)
+
+`InlineObject`·`Picture`·`Equation`·`Shape`·`Table`의 `move_to(paragraph, *, offset=None)`는 개체를
+같은 문서의 다른 문단(본문·표 칸·글상자·각주·미주·머리말·꼬리말)으로 옮기고,
+`copy_to(paragraph, *, offset=None)`는 복사본을 넣어 그 모델 객체를 돌려줍니다. `paragraph`는 문단
+객체나 `doc.paragraphs`의 번호, `offset`은 `paragraph.text`와 같은 규칙으로 센 글자 위치(`None`은
+끝)이고, 개체는 그 글자 앞, 그 자리에 이미 있는 컨트롤·개체 뒤에 놓입니다(글 노드 한가운데면 노드를
+나누어 같은 run 안에). 옮긴 개체는 id·캡션·내용을 지키고 원래 자리는 `remove()`처럼 정리됩니다(빈
+run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문단·누름틀 id를 새로 받고(묶음 구성원의
+`id="0"`은 그대로), 그림은 같은 이진 항목을 함께 쓰며, 그 안에 걸린 메모는 다음 번호를 받은 메모가
+따로 생깁니다. 두 문단과 그 문단의 칸·캡션을 품은 문단은 줄 배치 캐시를 잃습니다.
+
+떠 있는 개체는 기준과 오프셋을 파일에 적힌 그대로 가져가고, 엔진이 몰래 바꾸지 않습니다 — 문단
+기준(`PARA`·`COLUMN`)이면 새 문단을 따라가고, 쪽·용지 기준(`PAGE`·`PAPER`)이면 쪽 위의 자리가 그대로라
+새 문단이 놓인 쪽만 따라갑니다. 그래서 같은 쪽 안에서 쪽·용지 기준 개체를 `copy_to`하면 사본이 원본과
+정확히 같은 자리에 겹쳐 그려지고, `move_to`해도 제자리입니다. 다른 자리에 두려면 `set_position`으로
+옮깁니다. 한/글 문서가 그런 개체를 두지 않는 곳은 바꾸기 전에 `shape-move-place-unsupported`로
+거부합니다: 표 칸·글상자·각주로는 문단에서 세로로 재고(`vertRelTo="PARA"`) 쪽 영역 안에 두거나
+(`flowWithText="1"`) 가로도 문단에서 재는(`horzRelTo="PARA"`) 떠 있는 개체만 갑니다(공개 문서 1,304개의
+칸 634개 중 633개, 각주 40개·글상자 2개 전부가 이 모양이고, 아닌 그림을 칸에 넣으면 한/글은 위 칸에
+겹쳐 그립니다 — 먼저 `set_position(vert_rel_to="PARA", horz_rel_to="PARA")`나 `treat_as_char=True`로
+바꿉니다). 쪽 기준 개체를 용지나 여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 어떤 개체든
+메모·바탕쪽으로도 거부합니다. 자기 글상자·칸·
+캡션으로 옮기기는 `shape-move-into-itself`(복사는 됨), 묶음 구성원은 `shape-group-member-unsupported`,
+지운 개체는 `shape-not-in-document`, 다른 문서의 문단은 `paragraph-not-in-document`입니다. 다른
+문서로 가져오기는 머리 정의·이진 항목을 함께 옮겨야 하므로 `hwpx.tools.document_merge.insert_document`
+(문단 단위)를 씁니다.
+
+`Paragraph.move_after(paragraph)`/`move_before(paragraph)`는 문단 자체를 옮깁니다(복사는
+`insert_after`/`insert_before`). id·내용을 지키고, 구역의 첫 문단이면 구역 설정이 다음 문단으로 가고,
+구역 첫 문단 앞에 놓이면 구역 설정을 넘겨받습니다. 다른 구역으로 가면 그 문단에 걸린 메모가 새 구역의
+메모 묶음으로 따라갑니다. 칸·머리말의 마지막 문단은 `paragraph-remove-last`, 자기 칸 안으로는
+`paragraph-move-into-itself`, 메모의 문단은 `paragraph-move-place-unsupported`로 거부합니다.
+
+`Memo.move_to(section, *, index=None)`는 메모를 그 구역의 메모 묶음 `index` 번째로 옮기고(묶음이
+없으면 만들고, 비게 된 묶음은 지움), `copy_to(section, *, index=None)`는 새 id의 고리 없는 복사본을
+돌려줍니다(`doc.notes.attach`로 겁니다). 메모는 고리(MEMO 누름틀)가 있는 구역에 두므로, 고리가 다른
+구역에 있는 메모와 한/글이 누름틀에 담아 둔 메모의 이동은 `note-memo-anchor-elsewhere`입니다.
+
+`doc.tables.with_nested`는 본문의 표와 그 칸 안의 표(중첩 포함)를 표 지도(`doc.tables.map()`)와
+같은 순서의 tuple로 돌려줍니다 — `doc.tables.with_nested[i]`가 지도의 `table_index == i`인 표입니다
+(공개 문서 786개·표 6,418개에서 지도 순서와 같음). `doc.tables.all`은 본문에 바로 놓인 표만입니다.
 
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
 `model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는

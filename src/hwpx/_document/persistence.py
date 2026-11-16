@@ -175,27 +175,6 @@ def export_text(doc: "HwpxDocument", **kwargs: object) -> str:
     return export_text(doc, **kwargs)  # type: ignore[arg-type]
 
 
-def export_html(doc: "HwpxDocument", **kwargs: object) -> str:
-    """Export content as HTML.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_html`."""
-    from ..tools.exporter import export_html
-    return export_html(doc, **kwargs)  # type: ignore[arg-type]
-
-
-def export_markdown(doc: "HwpxDocument", **kwargs: object) -> str:
-    """Export content as Markdown.  Keyword args forwarded to :func:`~hwpx.tools.exporter.export_markdown`."""
-    from ..tools.exporter import export_markdown
-    return export_markdown(doc, **kwargs)  # type: ignore[arg-type]
-
-
-def export_rich_markdown(doc: "HwpxDocument", **kwargs: object) -> str:
-    """Export rich Markdown preserving inline styles, tables, footnotes, hyperlinks, images, and shape text.
-
-    Keyword args forwarded to :func:`~hwpx.tools.markdown_export.export_markdown`.
-    """
-    from ..tools.markdown_export import export_markdown as _rich
-    return _rich(doc, **kwargs)  # type: ignore[arg-type]
-
-
 def validate(doc: "HwpxDocument") -> "ValidationReport":
     """Validate the current document state, as ``hwpx-validate`` does.
 

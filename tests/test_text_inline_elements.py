@@ -15,7 +15,6 @@ import pytest
 from lxml import etree
 
 from hwpx import HwpxDocument
-from hwpx.tools.markdown_export import export_markdown
 from hwpx.tools.text_extractor import TextExtractor
 
 HANCOM_T = (
@@ -72,25 +71,12 @@ def test_plain_text_export_reads_table_cells_the_same_way() -> None:
     assert "둘째 줄강조끝" in doc.text.plain()
 
 
-def test_markdown_export_keeps_text_after_inline_elements() -> None:
-    markdown = export_markdown(_document_with(HANCOM_T))
-    for piece in ("명", "홍길동", "둘째 줄", "강조끝"):
-        assert piece in markdown
-
-
 @pytest.mark.parametrize("preserve_breaks, tab", [(True, "\t"), (False, " ")])
 def test_text_extractor_reads_a_tab_inside_hp_t(preserve_breaks: bool, tab: str) -> None:
     doc = _document_with(HANCOM_T)
     with zipfile.ZipFile(io.BytesIO(doc.to_bytes())) as archive, TextExtractor(archive) as extractor:
         texts = [p.text(preserve_breaks=preserve_breaks) for p in extractor.iter_document_paragraphs()]
     assert any(f"명{tab}홍길동" in text for text in texts)
-
-
-def test_a_spaced_form_label_is_found_by_its_letters() -> None:
-    # Korean forms spread short labels with full-width spaces: "성<hp:fwSpace/>명".
-    doc = _document_with('<hp:t>성<hp:fwSpace/>명</hp:t>', in_table=True)
-    result = doc.tables.find_cell_by_label("성 명")
-    assert result["count"] >= 1
 
 
 # Setting text replaces all of it: the line breaks, tabs, spaces and marks

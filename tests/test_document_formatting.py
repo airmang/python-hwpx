@@ -1866,34 +1866,6 @@ def test_inline_object_set_caption_on_picture() -> None:
     reopened.close()
 
 
-def test_markdown_export_includes_table_caption() -> None:
-    from hwpx.document import HwpxDocument
-    from hwpx.tools.markdown_export import export_markdown
-
-    doc = HwpxDocument.new(empty_first_line=True)
-    p = doc.sections[0].add_paragraph()
-    tbl = p.add_table(1, 1)
-    tbl.set_caption("표 1 매출 현황")
-    md = export_markdown(doc)
-    doc.close()
-    assert "표 1 매출 현황" in md
-
-
-def test_markdown_export_includes_picture_caption(tmp_path) -> None:
-    from hwpx.document import HwpxDocument
-    from hwpx.tools.markdown_export import export_markdown
-
-    doc = HwpxDocument.new(empty_first_line=True)
-    p = doc.sections[0].add_paragraph()
-    media = doc.media.add_image(b"\x89PNG\r\n\x1a\n" + b"0" * 40, "png")
-    pic = p.add_picture(media.item_id, width=10000, height=8000)
-    pic.set_caption("그림 1. 매출 그래프")
-    md = export_markdown(doc, image_dir=str(tmp_path))
-    doc.close()
-    assert "![image]" in md
-    assert "*그림 1. 매출 그래프*" in md
-
-
 def test_shape_text_and_caption_stay_undistorted_after_real_document_round_trip() -> None:
     """게이트 ②: 왕복 무손상 — drawText/caption 서브트리가 수정 없이
     open→save 를 거쳐도 바이트 수준으로 그대로다."""

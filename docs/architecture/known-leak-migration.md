@@ -9,10 +9,15 @@ holds the same decisions in machine-readable form, and
 `tests/test_known_leak_migration_contract.py` keeps it in step with
 `tests/data/layer_leak_allowlist.json`.
 
-Nothing has moved yet. The owner chose how the core names are retired (option
-A under *Compatibility* below): they keep working through 6.x, warn in the next
-major and go in the major after it. Releases are named only relative to each
-other; nothing here promises a version number or a date.
+Two of the four groups have moved: `official-reference-policy` and
+`report-heading-guess` went with the whole conversion and guessing move to
+`python-hwpx-automation` (7.0: the reference consistency lint and the Markdown
+exporter left core together, so their names were removed without the warning
+step; see [migration-7.0.md](../migration-7.0.md#옮겨-간-기능)). For the two
+groups left, the owner chose how the core names are retired (option A under
+*Compatibility* below): they keep working through 6.x, warn in the next major
+and go in the major after it. Releases are named only relative to each other in
+the JSON contract; nothing there promises a version number or a date.
 
 The placement test is the one in product-boundary.md: generic HWPX capability
 stays in core; a deterministic workflow or policy built from core primitives
@@ -20,33 +25,36 @@ goes to automation. Core never imports automation, so every move below hands
 core a neutral primitive and puts the policy on the automation side, where it is
 passed in or applied before calling core.
 
-The additive neutral core seams are implemented in this source tree:
-`hwpx.tools.doc_diff.paragraph_texts`, the rich exporter's `heading_detector`
-callback, and `hwpx.table_patch.strip_trailing_table_text(predicate=...)`.
-Application consumer routing is still pending. Existing core names and defaults
-continue without new warnings; all eight compatibility leak entries remain.
-See [neutral primitives](../neutral-migration-primitives.md).
+The additive neutral core seams that stay are implemented in this source tree:
+`hwpx.tools.doc_diff.paragraph_texts` and
+`hwpx.table_patch.strip_trailing_table_text(predicate=...)` (the rich exporter's
+`heading_detector` callback moved with the exporter). Existing core names and
+defaults of the two remaining groups continue without new warnings; their two
+compatibility leak entries remain. See
+[neutral primitives](../neutral-migration-primitives.md).
 
-## The four groups
+## The moved groups
 
-The eight allowlist names (six `known-leak` entries, two `undetected`) fall
-into four groups. `_SAFE_FILENAME_RE`, `_OUTLINE_NAME_RE` and the Markdown
-writer's `_OWN_NUMBER` (the numbering markers a heading may already carry, so
-that it is not numbered twice) are `format-vocabulary` and stay.
+### official-reference-policy — moved
 
-### official-reference-policy — official-document reference rules
+`inspect_reference_consistency`, `REFERENCE_CONSISTENCY_REPORT_VERSION` and the
+attachment/table/figure numbering rules left `tools/doc_diff.py` for
+`hwpx_automation.office.compliance` (same `reference-consistency-v1` report).
+Core keeps `diff_paragraphs`, `doc_diff` and `paragraph_texts`. The old names
+raise an `ImportError` that names the new place.
 
-- **Core names:** `tools/doc_diff.py` `_ATTACHMENT_LINE_RE`,
-  `_ATTACHMENT_REFERENCE_RE`, `_TABLE_NUMBER_RE`, `_FIGURE_NUMBER_RE`, and the
-  checks and repair hints built on them in `inspect_reference_consistency`.
-- **Canonical owner:** `hwpx_automation.office.compliance`.
-- **Core keeps:** `diff_paragraphs` and `doc_diff` over documents, paths, text
-  and paragraph sequences; reading a document's paragraph texts.
-- **Replacement:** `hwpx_automation.office.compliance.inspect_reference_consistency(source)`
-  with the same `reference-consistency-v1` report; the MCP tool of the same
-  name routes there.
-- **Core surface affected:** `hwpx.inspect_reference_consistency` and
-  `REFERENCE_CONSISTENCY_REPORT_VERSION` are **stable** names.
+### report-heading-guess — moved
+
+`ARABIC_HEAD`, `ROMAN_HEAD` and `_detect_heading` left with the whole rich
+Markdown exporter (`tools/markdown_export.py`) for `hwpx_automation.markdown`;
+document ingest went to `hwpx_automation.ingest`. Core no longer exports
+Markdown, so no heading is guessed in core.
+
+## The two remaining groups
+
+The two allowlist names left (one `known-leak` entry, one `undetected`) fall
+into two groups. `_OUTLINE_STYLE_NAME` (Hancom's built-in outline style names)
+is `format-vocabulary` and stays.
 
 ### document-plan-input — automation plan interpretation
 
@@ -61,26 +69,6 @@ that it is not numbered twice) are `format-vocabulary` and stay.
   reference-check entry points call it first.
 - **Core surface affected:** an input shape of two stable functions — behaviour
   rather than a name.
-
-### report-heading-guess — report headings guessed in Markdown export
-
-- **Core names:** `tools/markdown_export.py` `ARABIC_HEAD`, `ROMAN_HEAD`
-  (undetected) and `_detect_heading`, which promote plain text and 1×1 tables to
-  `#`/`##`.
-- **Canonical owner:** `hwpx_automation.office.authoring.report_parser`, which
-  already owns the report heading policy. Whether its rule matches the
-  exporter's exactly has not been checked; the move must pin the exporter's
-  current output with regression tests first.
-- **Core keeps:** `export_markdown` and `HwpxMarkdownConverter` for text,
-  tables, images and notes, headings read from recorded structure, and a
-  genre-neutral hook through which a caller passes its own heading detector
-  (paragraph text → Markdown heading or `None`).
-- **Replacement:** the report rule as an automation detector passed to that
-  hook by automation's entry points. Today the rule reaches automation through
-  document ingest (`DocumentIngestor.default()` → `HwpxMarkdownConverter`);
-  `doc.text.markdown()` uses the plain exporter and does not guess headings.
-- **Core surface affected:** the `detect_headings=True` default of
-  `export_markdown` and of `HwpxMarkdownConverter`.
 
 ### evalplan-caption-cleanup — evaluation-plan caption cleanup
 
@@ -109,17 +97,18 @@ that it is not numbered twice) are `format-vocabulary` and stay.
    leak guard fails if the pattern comes back.
 
 Every step keeps a core-only installation working for the generic features:
-`diff_paragraphs`, document diff, Markdown export, and table and package
-preservation. Regression tests for the current report, plan input, heading
-promotion and caption removal — including body text that only looks numbered
-and text after an ordinary table — come with the step that moves each group.
+`diff_paragraphs`, document diff, and table and package preservation.
+Regression tests for the plan input and caption removal — including text after
+an ordinary table — come with the step that moves each group.
 
 ## Compatibility — owner decision: option A
 
 [stable-api.md](../stable-api.md) lets a stable name break only at a major
-boundary, after a `DeprecationWarning` in an earlier major. Two of the affected
-names are stable; the others are module-level public names. The owner chose
-option A for all of them, which is the stable-name policy as written:
+boundary, after a `DeprecationWarning` in an earlier major. The owner chose
+option A for the names of the two remaining groups, which is the stable-name
+policy as written (the two stable names of the moved reference group,
+`inspect_reference_consistency` and `REFERENCE_CONSISTENCY_REPORT_VERSION`, went
+with the 7.0 move and now raise an error that names their new place):
 
 | Release | What the affected core names and behaviours do |
 |---|---|
@@ -128,10 +117,7 @@ option A for all of them, which is the stable-name policy as written:
 | the major after it | Removed, with their allowlist and undetected entries. Only the neutral primitives stay in core. |
 
 "Affected" means everything listed under *Core surface affected* above: the
-stable `inspect_reference_consistency` and `REFERENCE_CONSISTENCY_REPORT_VERSION`,
-the document-plan input of `doc_diff` and the reference check, the
-`detect_headings=True` default of `export_markdown` and `HwpxMarkdownConverter`,
-and `strip_trailing_table_captions`.
+document-plan input of `doc_diff` and `strip_trailing_table_captions`.
 
 The options that were weighed, for the record:
 

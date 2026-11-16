@@ -56,9 +56,8 @@ def test_first_save_loads_only_validators_and_still_reopens() -> None:
 def test_plain_import_defers_metadata_but_version_lookup_still_works() -> None:
     _run("""
         import hwpx
-        from hwpx.ingest.hwpx_converter import _python_hwpx_version
         assert 'importlib.metadata' not in sys.modules
-        actual = _python_hwpx_version()
+        actual = hwpx._resolve_version()
         from importlib.metadata import PackageNotFoundError, version
         try:
             expected = version('python-hwpx')
@@ -85,9 +84,10 @@ def test_missing_distribution_keeps_unknown_version_fallback() -> None:
     _run("""
         from unittest.mock import patch
         from importlib.metadata import PackageNotFoundError
-        from hwpx.ingest.hwpx_converter import _python_hwpx_version
+        import hwpx
         with patch('importlib.metadata.version', side_effect=PackageNotFoundError):
-            assert _python_hwpx_version() == '0+unknown'
+            assert hwpx._resolve_version() == '0+unknown'
+            assert hwpx.__version__ == '0+unknown'
     """)
 
 
