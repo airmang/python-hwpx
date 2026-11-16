@@ -69,7 +69,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 document.add_paragraph("첫 문단입니다.")
-document.save_to_path("new-document.hwpx")
+document.save("new-document.hwpx")
 ```
 
 ### 예제 3: 특정 단어 일괄 교체
@@ -81,7 +81,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 document.text.replace("TODO", "DONE", text_color="#FF0000")
-document.save_to_path("my-document-updated.hwpx")
+document.save("my-document-updated.hwpx")
 ```
 
 ### 예제 4: 문서 전체 메모 확인
@@ -119,7 +119,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 buffer = BytesIO()
-document.save_to_stream(buffer)
+document.save(buffer)
 raw_bytes = buffer.getvalue()
 print("bytes:", len(raw_bytes))
 ```
@@ -136,7 +136,7 @@ from hwpx import HwpxDocument
 Path("output").mkdir(parents=True, exist_ok=True)
 
 document = HwpxDocument.new()
-document.save_to_path("output/copy.hwpx")
+document.save("output/copy.hwpx")
 ```
 
 ### 예제 8: 바이트 스트림에서 열기
@@ -574,7 +574,7 @@ document = HwpxDocument.new()
 paragraph = document.add_paragraph("요약")
 document.refs.add_bookmark("summary", paragraph=paragraph)
 document.refs.add_hyperlink("https://example.com", "예시 사이트", paragraph=paragraph)
-document.save_to_path("controls.hwpx")
+document.save("controls.hwpx")
 ```
 
 `doc.shapes.add_control()`은 저수준 탈출구입니다. 건네준 요소와 속성만 쓰고 한컴이 요구하는 나머지 하위
@@ -594,7 +594,7 @@ document = HwpxDocument.new()
 document.add_paragraph("한 단으로 쓰는 머리글")
 start = document.add_paragraph("여기부터 두 단")
 document.page.set_columns(2, same_gap=1200, paragraph=start)
-document.save_to_path("columns.hwpx")
+document.save("columns.hwpx")
 ```
 
 ### 예제 40: 섹션 파트 이름 확인
@@ -849,7 +849,7 @@ if document.parts.master_pages:
     if item is not None:
         item.set("name", "보고서 바탕쪽")
         master.mark_dirty()
-document.save_to_path("my-document.hwpx")
+document.save("my-document.hwpx")
 ```
 
 ### 예제 60: 문서 이력 주석 갱신
@@ -867,7 +867,7 @@ for history in document.parts.histories:
     if comment is not None:
         comment.text = "QA 점검 완료"
         history.mark_dirty()
-document.save_to_path("my-document.hwpx")
+document.save("my-document.hwpx")
 ```
 
 ### 예제 61: 버전 메타데이터 업데이트
@@ -881,7 +881,7 @@ document = HwpxDocument.new()
 if document.parts.version:
     document.parts.version.element.set("appVersion", "15.0.0.100 WIN32")
     document.parts.version.mark_dirty()
-    document.save_to_path("my-document.hwpx")
+    document.save("my-document.hwpx")
 ```
 
 ### 예제 62: 단락 삭제하기
@@ -896,7 +896,7 @@ document.add_paragraph("남길 문단")
 document.add_paragraph("지울 문단")
 # 마지막 단락 삭제
 document.paragraphs[-1].remove()
-document.save_to_path("my-document.hwpx")
+document.save("my-document.hwpx")
 ```
 
 ### 예제 63: 섹션 내 인덱스로 단락 삭제
@@ -927,7 +927,7 @@ from hwpx import HwpxDocument
 document = HwpxDocument.new()
 new_section = document.add_section()
 new_section.add_paragraph("새 섹션의 내용")
-document.save_to_path("my-document.hwpx")
+document.save("my-document.hwpx")
 ```
 
 ### 예제 65: 특정 위치에 섹션 삽입
@@ -991,7 +991,7 @@ doc.tables[0].cell(1, 1).text = "2학년"
 # 3. 누름틀(양식 필드) 채우기
 doc.fields.fill("010-1234-5678", name="연락처")
 
-doc.save_to_path("신청서-작성.hwpx")
+doc.save("신청서-작성.hwpx")
 ```
 
 - `doc.text.replace()`는 기본으로 본문 문단의 런 하나 안에서만 바꿉니다. 그 범위에서 0건인데 찾는 글이 표 칸이나
@@ -1040,7 +1040,7 @@ doc.styles.apply_paragraph_format(
     border={"color": "#000000", "offset_mm": 1.5, "connect": True},
 )
 
-doc.save_to_path("문항지.hwpx")
+doc.save("문항지.hwpx")
 ```
 
 그림에는 캡션을 붙일 수 있습니다. `add_picture()`는 그림을 담은 새 문단을 문서 끝에 더하고 그림 개체를
@@ -1051,7 +1051,7 @@ from pathlib import Path
 
 picture = doc.add_picture(Path("figure.png").read_bytes(), "png", width_mm=40, height_mm=30)
 picture.set_caption("[그림 1] 실험 장치", side="BOTTOM")
-doc.save_to_path("문항지.hwpx")
+doc.save("문항지.hwpx")
 ```
 
 - `latex_to_eqedit`는 한/글에서 그려 보고 확인한 표기만 바꾸고, 그 밖의 명령은 `UnsupportedLatexError`로
@@ -1317,10 +1317,10 @@ assert run.bold is True and run.underline is True
 
 런의 `bold`, `italic`, `underline` 속성은 문서와 연결된 상태에서만 동작하며, 속성을 변경하면 헤더의 `charProperties` 목록과 관련 캐시가 자동으로 업데이트됩니다.
 
-편집이 끝나면 `save_to_path()` 또는 `save_to_stream()`을 호출해 변경 사항을 파일이나 스트림에 기록합니다.
+편집이 끝나면 `save()`에 경로나 스트림을 주어 변경 사항을 파일이나 스트림에 기록합니다.
 
 ```python
-document.save_to_path("edited.hwpx")
+document.save("edited.hwpx")
 ```
 
 ## 텍스트 추출과 주석 표현
@@ -1391,8 +1391,8 @@ for element in paragraphs_with_bookmark:
 
 | 메서드 | 설명 |
 |--------|------|
-| `save_to_path(path)` | 원자적 쓰기 + ZIP 무결성 + editor-open safety 검증 후 파일 저장 |
-| `save_to_stream(stream)` | 검증된 HWPX만 `BinaryIO` 스트림에 기록 |
+| `save(path)` | 원자적 쓰기 + ZIP 무결성 + editor-open safety 검증 후 파일 저장, `MutationReport` 반환 |
+| `save(stream)` | 검증된 HWPX만 `BinaryIO` 스트림에 기록 |
 | `to_bytes()` | 검증된 HWPX를 `bytes`로 직렬화 |
 
 세 방법의 기본 검사가 보는 범위는 다음과 같습니다.
@@ -1400,16 +1400,16 @@ for element in paragraphs_with_bookmark:
 - 보는 것: ZIP과 각 XML 파트가 읽히는지, 한/글이 열지 못하는 구조(필수 자식이 없는 표·도형·글맵시·OLE·동영상, 빈 컨트롤, 필수 파트·속성 누락), 글보다 뒤를 가리키거나 줄 수가 크게 모자란 줄 배치 캐시.
 - 보지 않는 것: **참조 무결성**. 본문이 가리키는 글자 모양(`charPrIDRef`)·문단 모양(`paraPrIDRef`)·스타일·테두리·그림 자료가 `header.xml`과 패키지에 실제로 있는지는 기본 저장에서 확인하지 않습니다. 없는 id를 가리키는 문서도 기본 검사를 통과해 저장됩니다.
 
-참조까지 확인하려면 `save_report(path, quality=QualityPolicy.strict())`를 쓰거나(`REFERENCE_INTEGRITY_FAILED`로 보고), `hwpx.tools.id_integrity.check_id_integrity(document)`를 직접 부릅니다. 이 검사는 문서를 여는 시간의 0.7배쯤 더 걸리고, 한/글이 저장한 문서 가운데에도 걸리는 것이 있어(정의되지 않은 글머리표 `idRef="0"`) 기본 저장에는 넣지 않았습니다.
+참조까지 확인하려면 `save(path, quality=QualityPolicy.strict())`를 쓰거나(게이트가 막으면 `SaveError`의 `.report`에 `REFERENCE_INTEGRITY_FAILED`), `hwpx.tools.id_integrity.check_id_integrity(document)`를 직접 부릅니다. 이 검사는 문서를 여는 시간의 0.7배쯤 더 걸리고, 한/글이 저장한 문서 가운데에도 걸리는 것이 있어(정의되지 않은 글머리표 `idRef="0"`) 기본 저장에는 넣지 않았습니다.
 
 ```python
 # 파일로 저장
-document.save_to_path("result.hwpx")
+document.save("result.hwpx")
 
 # 스트림으로 저장
 from io import BytesIO
 buf = BytesIO()
-document.save_to_stream(buf)
+document.save(buf)
 
 # 바이트로 직렬화
 raw = document.to_bytes()

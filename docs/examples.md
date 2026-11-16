@@ -19,7 +19,7 @@ from hwpx.templates import blank_document_bytes
 
 document = HwpxDocument.open(BytesIO(blank_document_bytes()))
 document.add_paragraph("첫 문단입니다.")
-document.save_to_path("playground.hwpx")
+document.save("playground.hwpx")
 ```
 
 ## 1. 보고서 템플릿에 표와 개체 추가하기
@@ -78,7 +78,7 @@ shape.resize(9600, 3500)
 # 만들지 않아, 호출자가 채우지 않으면 저장이 거부되거나 한컴이 열지 못하는 문서가 됩니다.
 document.refs.add_bookmark("quarterly-summary", paragraph=headline)
 
-document.save_to_path("examples/FormattingShowcase-updated.hwpx")
+document.save("examples/FormattingShowcase-updated.hwpx")
 ```
 
 ## 2. 단락 삭제와 섹션 관리
@@ -107,7 +107,7 @@ print("섹션 수:", len(document.sections))
 if len(document.sections) > 1:
     document.remove_section(len(document.sections) - 1)
 
-document.save_to_path("examples/cleaned.hwpx")
+document.save("examples/cleaned.hwpx")
 ```
 
 ## 3. 하이라이트와 주석을 포함한 텍스트 보고서 생성하기
@@ -200,7 +200,7 @@ again = document.styles.ensure_run(size=11, font_by_lang={"HANGUL": "함초롬�
 assert again == mixed
 print(document.styles.font_face(mixed, "HANGUL"), document.styles.font_face(mixed, "LATIN"))
 
-document.save_to_path("mixed-fonts.hwpx")
+document.save("mixed-fonts.hwpx")
 ```
 
 `font`와 함께 주면 `font`를 모든 언어에 먼저 적용하고 `font_by_lang`이 댄 언어만 바꿉니다. 언어 이름은 HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER(대소문자 무시)이고, 그 밖의 이름이나 빈 글꼴 이름은 아무 글꼴도 등록하기 전에 `HwpxValueError`로 거부합니다.

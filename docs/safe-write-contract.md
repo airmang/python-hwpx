@@ -1,6 +1,6 @@
 # 안전한 쓰기 계약 (Safe Write Contract)
 
-`python-hwpx`의 모든 대표 저장 경로(`save_to_path` · `save_to_stream` · `to_bytes`)는
+`python-hwpx`의 모든 대표 저장 경로(`save` · `to_bytes`)는
 **요청한 보존 등급을 쓰기 전에 판정하고, 실제로 무엇을 바꿨는지 측정한 영수증을
 돌려주는** 계약을 따른다. 이 계약의 이름은 `hwpx.mutation-report/v1`이며,
 영수증 객체는 `hwpx.mutation_report.MutationReport`다.
@@ -18,18 +18,18 @@
   저장 직전 part 페이로드와 비교해 **측정**한 결과다. "byte-preserving"이라는 한
   단어로 뭉개지 않고 세 층으로 분리해 보고한다.
 
-> **이름 확정(4.0.0).** `save_to_path` · `save_to_stream` · `to_bytes`는 목적지별
-> 명시 메서드로 **장기 확정**됐다 — 개명 재론은 없다. (구 `HwpxDocument.save()`
-> 호환 래퍼는 4.0.0에서 제거됐다. [4.0.0 마이그레이션](migration-4.0.md) 참조.)
+> **이름 확정(7.0).** 저장은 `doc.save(target)` 하나다 — *target*은 경로나 쓰기 가능한
+> 이진 스트림이고, 늘 영수증을 돌려준다. 바이트는 `to_bytes()`. 6.x의 `save_to_path` ·
+> `save_to_stream` · `save_report`는 7.0에서 `save`로 합쳤다(부르면 새 자리를 알려 주는 오류가
+> 난다). [7.0 마이그레이션](migration-7.0.md) 참조.
 
 ## 파라미터
 
-세 저장 메서드 모두 같은 시그니처를 공유한다.
+두 저장 메서드가 같은 등급 인자를 받는다.
 
 ```python
-def save_to_path(path, *, mode="auto", fallback="error", return_report=False): ...
-def save_to_stream(stream, *, mode="auto", fallback="error", return_report=False): ...
-def to_bytes(*, mode="auto", fallback="error"): ...   # bytes 반환, return_report 없음
+def save(target, *, format=None, mode="auto", fallback="error", quality=None) -> MutationReport: ...
+def to_bytes(*, mode="auto", fallback="error", format="hwpx"): ...   # bytes 반환
 ```
 
 ### `mode` — 요청 보존 등급
@@ -51,10 +51,13 @@ def to_bytes(*, mode="auto", fallback="error"): ...   # bytes 반환, return_rep
 > `PreservationDowngradeError`를 발생시키지 않는다. I/O 오류나 패키지·안전 검증
 > 실패는 여전히 발생할 수 있다. patch 등급을 강제하려면 `mode="patch"`를 명시하라.
 
-### `return_report` — 영수증 반환
+### 영수증과 `quality` — 품질 게이트
 
-`True`이면 저장 경로(또는 스트림)를 반환하는 대신 `MutationReport`를 돌려준다.
-`to_bytes`는 항상 bytes를 반환하므로 이 파라미터가 없다.
+`save`는 늘 `MutationReport`를 돌려준다(저장한 경로는 `report.path`, 스트림이면 `None`).
+`to_bytes`는 bytes를 돌려준다. `quality=`에 `QualityPolicy`(예: `QualityPolicy.strict()`)를
+주면 쓰기 전에 그 품질 게이트를 돌리고, 게이트의 `VisualCompleteReport`를 `report.quality`에
+담는다. 게이트가 막으면 아무것도 쓰지 않고 `SaveError`(`quality-gate-failed`)를 던지며, 그
+보고는 `exc.report`에 있다.
 
 ## 사용 예
 
@@ -66,14 +69,14 @@ doc = HwpxDocument.open("신청서.hwpx")
 doc.tables[0].cell(0, 1).text = "홍길동"   # 표 지도(doc.tables.map())로 확인한 칸
 
 # 1) 영수증과 함께 저장 (달성 가능한 최강 등급 자동 선택)
-report = doc.save_to_path("신청서-완료.hwpx", return_report=True)
+report = doc.save("신청서-완료.hwpx")
 print(report.actual_mode)          # "patch" 또는 "rebuild"
 print(report.preservation.untouched_part_payloads.to_dict())
 #   → {"verified": 17, "changed": 0}
 
 # 2) patch 등급을 강제 — 미달이면 아무것도 쓰지 않고 예외
 try:
-    doc.save_to_path("신청서-완료.hwpx", mode="patch", fallback="error")
+    doc.save("신청서-완료.hwpx", mode="patch", fallback="error")
 except PreservationDowngradeError as exc:
     print(exc.offending_parts)     # 바이트 동일성을 깨는 part 목록
     print(exc.suggestion)          # 어떻게 patch 경로로 우회할지 제안

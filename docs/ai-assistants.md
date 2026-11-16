@@ -78,8 +78,7 @@ environment where PyPI is unavailable:
    (add the lxml wheel path to the same command when needed).
 4. Use the real API from https://airmang.github.io/python-hwpx/llms.txt —
    `from hwpx import HwpxDocument`; open with `HwpxDocument.open(path)`,
-   create with `HwpxDocument.new()`, save with `document.save_to_path(path)`.
-   There is no `document.save()`.
+   create with `HwpxDocument.new()`, save with `document.save(path)` (a path or a binary stream).
 5. Never overwrite the user's uploaded document. Write results to a new file
    in the runtime's output location (ChatGPT: /mnt/data) and hand that file
    back to the user.
@@ -105,7 +104,7 @@ changes = {"s0p3t0r1c1q0": "바뀐 문항 내용"}  # 모델이 JSON 으로 돌�
 report = doc.text.apply_changes(changes)
 report.unknown_ids   # 문서에 없는 id
 report.overflow      # 칸이 넘칠 것으로 추정되는 곳 — 글을 줄이게 다시 물어보기
-doc.save_to_path("학습지-변형.hwpx")
+doc.save("학습지-변형.hwpx")
 ```
 
 id는 위치로 정해져 저장·재열기 뒤에도 같습니다. 문단·표·칸을 넣거나 지우면 그 뒤의
@@ -121,7 +120,7 @@ from hwpx import HwpxDocument
 document = HwpxDocument.new()
 document.add_heading("보고서", level=1)
 document.add_paragraph("본문입니다.")
-document.save_to_path("/mnt/data/report.hwpx")
+document.save("/mnt/data/report.hwpx")
 ```
 
 기존 문서를 고칠 때는 열고, 바꾸고, **다른 이름으로** 저장합니다.
@@ -131,7 +130,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.open("/mnt/data/form.hwpx")
 count = document.text.replace("○○", "새 값", everywhere=True)
-document.save_to_path("/mnt/data/form-filled.hwpx")
+document.save("/mnt/data/form-filled.hwpx")
 print("바꾼 곳 수:", count)
 ```
 

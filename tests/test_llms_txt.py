@@ -27,7 +27,7 @@ REQUIRED_FRAGMENTS = (
     "pip install python-hwpx",
     "HwpxDocument.open",
     "HwpxDocument.new()",
-    "save_to_path",
+    "document.save(",
     "MutationReport",
     "PreservationDowngradeError",
     "TextExtractor",
@@ -54,7 +54,7 @@ def test_llms_txt_contract() -> None:
     for fragment in REQUIRED_FRAGMENTS:
         assert fragment in text, f"llms.txt is missing: {fragment}"
     # 잘못된 습관을 교정하는 문장이 있어야 한다.
-    assert "does not exist" in text and "document.save()" in text
+    assert "does not exist" in text and "document.save_to_path()" in text
     # 릴리스 버전을 박지 않는다(낡은 안내 방지). x.y.z 꼴만 금지한다 —
     # "Python 3.10" 같은 두 자리 표기는 허용.
     assert re.search(r"\b\d+\.\d+\.\d+\b", text) is None
