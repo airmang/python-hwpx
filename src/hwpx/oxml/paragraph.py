@@ -57,6 +57,7 @@ from ._paragraph_text_edit import (
     insert_paragraph_beside,
     paragraph_container,
     paragraph_line_segments,
+    paragraph_line_texts,
     plain_text_nodes_for_edit,
     remove_paragraph_element,
     set_text_with_tabs,
@@ -877,6 +878,7 @@ class HwpxOxmlParagraph(ParagraphFormats):
     pictures = property(_paragraph_pictures)
     equations = property(_paragraph_equations)
     line_segments = property(paragraph_line_segments)  # read only; body in _paragraph_text_edit.py
+    line_texts = property(paragraph_line_texts)  # each saved line's text; body in _paragraph_text_edit.py
 
     # Implementations live in ``oxml/dutmal_compose.py`` -- ``objects.py``
     # (the shape-helpers' own overflow destination above) itself has no
