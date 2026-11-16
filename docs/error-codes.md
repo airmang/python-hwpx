@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 303 | 11 |
+| 개수 | 322 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -120,12 +120,16 @@ except HwpxError as exc:
 | `field-date-format-unsupported` | 날짜/시간 필드 date_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-end-missing` | 누름틀에 끝(fieldEnd)이 없어 바꿀 내용이 없다(한/글도 이런 누름틀은 채우지 않는다). |
 | `field-fit-failed` | 값이 FitPolicy 하에서 필드 상자에 들어가지 않는다(측정치·재시도 제안 동봉). |
+| `field-form-not-created` | 만든 양식 개체(라디오 단추·콤보 상자·입력 상자)를 표준 리더가 다시 찾지 못했다. |
+| `field-form-text-value` | 콤보 상자·입력 상자에 넣을 글(text)이 str 가 아니다. |
 | `field-mail-merge-empty-name` | 메일 머지 필드 이름이 비어 있다. |
 | `field-name-empty` | 누름틀 이름이 비어 있다. |
 | `field-not-created` | 만든 누름틀을 표준 매처가 다시 찾지 못했다. |
 | `field-not-found` | 그 선택자로 누름틀을 찾지 못했다. |
 | `field-path-format-unsupported` | 파일 이름 필드 path_format 값이 실증된 어휘(단일 관측값) 밖이다. |
 | `field-proofreading-mark-unsupported` | 교정 부호 mark 값이 $RevisionSign 인덱스가 확인된 어휘 밖이다. |
+| `field-radio-caption-empty` | 라디오 단추 캡션(옆에 그리는 글)이 비어 있다. |
+| `field-radio-group-value` | 라디오 단추 묶음 이름(group)이 str 가 아니다. |
 | `field-selector-conflict` | 선택자를 둘 이상 동시에 지정했다. |
 | `field-text-box-not-found` | 그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다). |
 
@@ -321,6 +325,9 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `ref-bookmark-name-empty` | 책갈피 이름이 비어 있다. |
+| `ref-cross-reference-content-value` | 상호 참조에 보일 것(content_type)이 OBJECT_TYPE_PAGE·NUMBER·CONTENTS·UPDOWNPOS 밖이다. |
+| `ref-cross-reference-hyperlink-value` | 상호 참조 hyperlink 가 True·False 가 아니다. |
+| `ref-cross-reference-target-unsupported` | 상호 참조 대상이 이 문서의 개요 문단·책갈피·표가 아니다(한/글 파일에서 본 대상만 쓴다). |
 | `ref-link-end-missing` | 하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다. |
 | `ref-link-target-empty` | 하이퍼링크 대상이 비어 있다. |
 
@@ -365,6 +372,9 @@ except HwpxError as exc:
 | `shape-chart-root-invalid` | 차트 XML 루트가 c:chartSpace 가 아니다. |
 | `shape-chart-xml-empty` | 차트 XML 이 비어 있다. |
 | `shape-chart-xml-malformed` | 차트 XML 이 올바른 XML 이 아니다. |
+| `shape-compose-arrangement-value` | 글자 겹치기 방식(arrangement)이 SPREAD·OVERLAP 밖이다. |
+| `shape-compose-frame-value` | 글자 겹치기 테두리(frame)가 스키마 어휘(CHAR, SHAPE_CIRCLE …) 밖이다. |
+| `shape-compose-text-value` | 글자 겹치기 글자가 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다. |
 | `shape-connector-frame` | 연결선을 이으려는 두 도형이 같은 기준에서 왼쪽·위로 놓여 있지 않다. |
 | `shape-connector-kind-unsupported` | 연결선 모양이 실증된 어휘(STRAIGHT, STROKE) 밖이다(ARC 는 제어점이 필요). |
 | `shape-connector-side-invalid` | 연결선 끝의 변이 top/right/bottom/left 밖이다. |
@@ -403,6 +413,9 @@ except HwpxError as exc:
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
 | `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 묶음·뒤집은 개체·글자가 든 도형이다. |
 | `shape-rotation-value` | 회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부). |
+| `shape-ruby-alignment-value` | 덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다. |
+| `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
+| `shape-ruby-text-value` | 덧말의 본말·덧말 글이 빈 문자열이거나 줄 바꿈·탭·제어 문자를 담았다(덧말을 걷으려면 ruby.remove()). |
 | `shape-size-value` | 도형·그림·수식·차트 크기가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). 수식·차트의 size 는 (너비, 높이) 쌍이어야 하고 0일 수 없다. |
 | `shape-z-order-value` | 개체의 z_order 가 signed 32-bit int 가 아니다(bool 도 거부). |
 
@@ -470,16 +483,16 @@ except HwpxError as exc:
 | `table-cell-remove-unsupported` | 표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다). |
 | `table-cell-spacing-value` | 표의 칸 간격(cell_spacing)이 0 이상 32767 이하의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `table-cell-text-direction-value` | 칸 글자 방향(text_direction)이 HORIZONTAL·VERTICAL 중 하나가 아니다. |
-| `table-cell-vert-align-value` | 칸 세로 정렬(vert_align)이 TOP·CENTER·BOTTOM 중 하나가 아니다. |
 | `table-cell-vertical-alignment-value` | 칸 세로 정렬(vertical_alignment)이 TOP·CENTER·BOTTOM 중 하나가 아니다. |
+| `table-cell-zone-border-fill-unknown` | 칸 영역에 줄 테두리/배경(border_fill_id_ref)이 문서 머리에 없는 id 이거나 id 형식이 아니다. |
 | `table-cell-zone-grid-mismatch` | 셀 영역(hp:cellzone)이 새 열 격자에서 같은 셀들을 덮을 수 없어 열 너비를 바꾸지 않았다. |
+| `table-cell-zone-not-found` | 그 번호의 칸 영역이 표에 없다(table.cell_zones 로 본다). |
 | `table-column-width-value` | 열 폭이 양의 int(HWPUNIT)가 아니거나 한/글이 그리는 최소 폭(칸 좌우 여백+283)보다 좁다. |
 | `table-header-rows-value` | 제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다. |
 | `table-margin-value` | 표 바깥·안 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `table-merge-range-invalid` | 병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다. |
 | `table-no-adjust-value` | noAdjust 값이 bool 이 아니다. |
 | `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
-| `table-page-break-value` | 표의 쪽 나눔(page_break)이 TABLE·CELL·NONE 중 하나가 아니다. |
 | `table-page-split-value` | 표가 쪽 경계에서 나뉘는 방식(page_split)이 TABLE·CELL·NONE 중 하나가 아니다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 | `table-row-height-value` | 행 높이가 양의 int(HWPUNIT)가 아니다. |
@@ -507,6 +520,12 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `toc-command-unknown` | 차례가 몇 수준을 모으는지(ContentsLevel) 적혀 있지 않아 항목을 다시 만들 수 없다. |
+| `toc-leader-value` | 차례 쪽 번호 앞 채움(leader)이 탭 채움 이름(NONE·SOLID·DOT·DASH …) 밖이다. |
+| `toc-levels-value` | 차례 수준(levels)이 1~10의 int 가 아니거나 title·hyperlink 형식이 틀렸다. |
+| `toc-no-headings` | 차례에 넣을 개요 문단(수준 1~levels)이 문서에 없다. |
+| `toc-refresh-value` | 차례 refresh_on_open 이 True·False 가 아니다. |
+| `toc-region-unsupported` | 차례의 시작과 끝이 한 문단에 있어 항목 문단을 둘 자리가 없다. |
 | `toc-word-box-extractor-required` | PDF에서 글자 상자를 읽을 방법 없이 차례 쪽 대조를 불렀다. |
 
 ### `track-*`

@@ -223,9 +223,11 @@ _CAPABILITY_AREAS: tuple[dict[str, Any], ...] = (
     },
     {
         "area": "toc-crossref",
-        "namespace": None,
-        # 자리: doc.refs에는 차례·상호참조 메서드가 없다(add_bookmark·add_hyperlink
-        # 뿐). 진입점은 아래 모듈 함수라 namespace는 None이다(ENG-33).
+        "namespace": "doc.refs",
+        # 7.0: doc.refs가 차례(tables_of_contents·add_table_of_contents)와 상호
+        # 참조(cross_references·add_cross_reference)를 읽고 만든다. 지원 매트릭스의
+        # 실한컴 근거(구조 15/15·페이지 정합 5/5)는 아래 모듈 함수가 쓴 차례라
+        # 진입점은 그대로 둔다.
         "matrix_row": "네이티브 목차(TOC)/상호참조",
         "entry_points": ("hwpx.tools.toc_author:add_native_toc",),
         # 6.8 트레인㉚: add_bookmark/add_hyperlink는 여기 있었으나(오귀속),

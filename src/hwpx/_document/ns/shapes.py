@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from ...model import Equation, InlineObject, Paragraph, Section, Shape
+from ...objects import ComposedCharacter, Ruby
 from ...oxml import ContainerMember, Style
 from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
@@ -138,6 +139,42 @@ class ShapesNamespace(_Namespace):
             paragraph=self._paragraph(paragraph, section),
             section=self._section(section, "add_dutmal"),
             char_pr_id_ref=char_pr_id_ref,
+        )
+
+    @property
+    def rubies(self) -> "tuple[Ruby, ...]":
+        """문서의 모든 덧말(``hp:dutmal``)을 문서 순서로. 본문뿐 아니라 표 칸·글상자·머리말·
+        꼬리말·각주·미주·바탕쪽의 것도 본다(메모 본문은 뺀다).
+
+        ``ruby.text``(본말)·``ruby.ruby_text``(덧말)·``position``·``alignment`` 는 읽고 쓸 수
+        있고, ``ruby.remove()`` 는 덧말만 걷고 본말을 글로 남긴다. 문단 하나의 것은
+        ``paragraph.rubies``.
+        """
+
+        from ..text_blocks import iter_paragraph_places
+
+        return tuple(
+            ruby
+            for place in iter_paragraph_places(self._doc)
+            if place.where != "memo"
+            for ruby in place.paragraph.rubies
+        )
+
+    @property
+    def composed_characters(self) -> "tuple[ComposedCharacter, ...]":
+        """문서의 모든 글자 겹치기(``hp:compose``)를 문서 순서로, :attr:`rubies` 와 같은 자리에서.
+
+        ``text``·``frame``·``arrangement`` 는 읽고 쓸 수 있고, ``remove()`` 는 겹친 글자를
+        보통 글로 남기고 걷어 낸다. 문단 하나의 것은 ``paragraph.composed_characters``.
+        """
+
+        from ..text_blocks import iter_paragraph_places
+
+        return tuple(
+            mark
+            for place in iter_paragraph_places(self._doc)
+            if place.where != "memo"
+            for mark in place.paragraph.composed_characters
         )
 
     def add_rectangle(

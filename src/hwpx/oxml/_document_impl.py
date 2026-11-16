@@ -107,7 +107,7 @@ from .namespaces import (  # noqa: F401 - frozen compatibility re-exports
     tag_local_name,
     tag_namespace,
 )
-from .numbering import DocumentNumbering, SectionStartNumbering  # noqa: F401 - frozen compatibility re-exports
+from .numbering import DocumentNumbering  # noqa: F401 - frozen compatibility re-exports
 from .objects import (  # noqa: F401 - frozen/private compatibility re-exports
     _DEFAULT_LINE_SHAPE_ATTRS, _IDENTITY_MATRIX,
     HwpxOxmlInlineObject,

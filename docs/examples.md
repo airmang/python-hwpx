@@ -53,8 +53,8 @@ table.set_cell_text(0, 0, "Quarter", logical=True)
 table.set_cell_text(0, 1, "Actual", logical=True)
 table.set_cell_text(0, 2, "Forecast", logical=True)
 
-# iter_grid()/get_cell_map()으로 병합 구조를 확인하거나, 필요 시 병합을 해제할 수 있습니다.
-header_map = table.get_cell_map()[0]
+# iter_grid()/cell_map으로 병합 구조를 확인하거나, 필요 시 병합을 해제할 수 있습니다.
+header_map = table.cell_map[0]
 for entry in header_map:
     print(f"({entry.row}, {entry.column}) -> anchor={entry.anchor}, span={entry.span}")
 # table.split_merged_cell(0, 1)  # 병합 해제가 필요하다면 사용

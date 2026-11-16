@@ -16,6 +16,14 @@
    "count": 1,
    "classification": "format-vocabulary",
    "reason": "Hancom's built-in outline style names ('개요 1' / 'Outline 1') behind outline_style_level: the table of contents, doc.styles.outline_level and the exporters read outline styles by them — format vocabulary."
+  },
+  {
+   "file": "tools/toc_author.py",
+   "qualname": "_TOC_ENTRY_STYLE",
+   "kind": "hangul-regex",
+   "count": 1,
+   "classification": "format-vocabulary",
+   "reason": "Hancom's built-in table-of-contents entry style names ('차례 1' / 'TOC 1'): a TOC entry's level is its style's, and a rebuilt entry takes its level's style — format vocabulary."
   }
  ],
  "undetected": [

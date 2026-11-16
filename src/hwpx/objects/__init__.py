@@ -31,9 +31,11 @@ from .form_field import (
     FormField,
     FormulaField,
     Hyperlink,
+    TableOfContents,
     TextBoxField,
+    TocEntry,
 )
-from .highlight import Highlight
+from .highlight import ComposedCharacter, Highlight, Ruby
 from .results import (
     Alignment,
     BorderFillInfo,
@@ -100,10 +102,12 @@ __all__ = [
     "CheckBox",
     "ClearBodyReport",
     "ComboBox",
+    "ComposedCharacter",
     "CrossReference",
     "EditBox",
     "Hyperlink",
     "RadioButton",
+    "Ruby",
     "ColumnLayout",
     "FieldFillResult",
     "FieldLocation",
@@ -126,7 +130,9 @@ __all__ = [
     "ParagraphFormatResult",
     "PictureRef",
     "PictureReplacement",
+    "TableOfContents",
     "TextMatch",
+    "TocEntry",
     "TrackedChange",
     "TrackedReplacement",
     "Units",
