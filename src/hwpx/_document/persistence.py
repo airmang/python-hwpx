@@ -224,6 +224,41 @@ def _refuse_unlinked_master_pages(doc: "HwpxDocument") -> None:
     )
 
 
+def _refuse_unanchored_memos(doc: "HwpxDocument") -> None:
+    """Raise before writing anything when a memo made in this session is anchored by no MEMO field.
+
+    Hancom keeps a memo only in its MEMO field (Hangul 2024 saves no ``hp:memogroup``; the public
+    and test documents it saved with memos all hold them so), so a memo no field holds has nowhere
+    Hancom reads it from. A memo is anchored by ``doc.notes.add_memo(..., paragraph=)`` or
+    ``doc.notes.attach(paragraph, memo)``, which move it into the field. Memos the document was read
+    with stay as they were read.
+    """
+
+    made = getattr(doc.oxml, "_session_memo_ids", None)
+    if not made:
+        return
+    from ..oxml.namespaces import HP as _HP_NS
+
+    pending = [
+        memo.get("id") for section in doc.oxml.sections
+        for memo in section.element.iter(f"{_HP_NS}memo") if memo.get("id") in made
+    ]
+    if not pending:
+        return
+    from ..errors import HwpxValueError
+
+    raise HwpxValueError(
+        f"memo {', '.join(map(repr, pending))} is not anchored to a paragraph; Hancom keeps a memo only in its "
+        "MEMO field",
+        code="note-memo-unanchored",
+        context={"memos": pending},
+        suggestion=(
+            "Anchor it: doc.notes.attach(paragraph, memo) (or make it with doc.notes.add_memo(text, paragraph=...)), "
+            "or remove it: doc.notes.remove_memo(memo)."
+        ),
+    )
+
+
 def _run_pre_save_validation(doc: "HwpxDocument") -> None:
     """Raise if validate_on_save is enabled and the document is invalid."""
     if not doc.validate_on_save:
@@ -531,6 +566,7 @@ def save(
     if resolved == "hwp":
         _refuse_lossy_hwp5_save(doc, path)
     _refuse_unlinked_master_pages(doc)
+    _refuse_unanchored_memos(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement, open_safety = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
@@ -660,6 +696,7 @@ def to_bytes(
     if format == "hwp":
         _refuse_lossy_hwp5_save(doc)
     _refuse_unlinked_master_pages(doc)
+    _refuse_unanchored_memos(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement, _open_safety = _build_measured(doc, reset_dirty=False)
     _resolve_grade(mode, fallback, measurement)

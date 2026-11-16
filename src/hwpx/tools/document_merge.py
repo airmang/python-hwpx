@@ -424,7 +424,13 @@ def _remap_tab_properties(
 
 
 def _remap_memo_properties(source_header: Any, target_header: Any, paragraphs: list[Any]) -> dict[str, str]:
-    used = _used_ids(paragraphs, "memoShapeIDRef")
+    used = set(_used_ids(paragraphs, "memoShapeIDRef"))
+    # A memo kept in its MEMO field names its shape in the field's MemoShapeIDRef parameter
+    # (element text, not an attribute); 65535 is "no shape" and names none.
+    for paragraph in paragraphs:
+        for param in paragraph.iter(f"{_HP}stringParam"):
+            if param.get("name") == "MemoShapeIDRef" and param.text and param.text != "65535":
+                used.add(param.text)
     if not used:
         return {}
     source_container = source_header._memo_properties_element()
@@ -1026,6 +1032,9 @@ def _copy_referenced_memos(
     for old_id in sorted(needed_ids):
         memo = source_memos.get(old_id)
         if memo is None:
+            # A memo kept only in its MEMO field (Hancom's form, and python-hwpx's since 7.0) travels
+            # with the copied field; it takes a new id like a memo-group memo does.
+            memo_id_map[old_id] = _memo_id()
             continue
         clone = _deep_copy_element(memo)
         new_id = _memo_id()
@@ -1084,11 +1093,18 @@ def _insert_memos_into_target_section(target_section: Any, memo_clones: list[Any
     _merge_paragraphs's own docstring comment on that).
     """
 
+    # 7.0: Hancom keeps a memo only in its MEMO field (the field's hp:subList) and writes no
+    # hp:memogroup, so each memo clone goes into the copied field that names it (already in
+    # *target_section*), not into a memo group. A clone no copied field names is not written.
     if not memo_clones:
         return
-    memogroup = target_section._memo_group_element(create=True)
+    from ..oxml.memo import _fill_field_from_entry, memo_field_id, memo_fields_in
+
+    fields = {memo_field_id(field): field for field in memo_fields_in(target_section.element)}
     for clone in memo_clones:
-        memogroup.append(clone)
+        field = fields.get(clone.get("id"))
+        if field is not None:
+            _fill_field_from_entry(field, clone)
     target_section.mark_dirty()
 
 
@@ -1258,7 +1274,8 @@ def _merge_paragraphs(
     report = {
         "paragraphsInserted": len(copies),
         "sectionPropertiesStripped": stripped_section_properties,
-        "memosCopied": len(memo_clones),
+        # every memo the copied paragraphs anchor: in a memo group (6.x documents) or in its field
+        "memosCopied": len(memo_id_map),
         "remapped": {
             "charPr": len(char_pr),
             "paraPr": len(para_pr),
