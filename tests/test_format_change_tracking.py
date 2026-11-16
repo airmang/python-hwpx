@@ -3,10 +3,11 @@
 
 OWPML names them (``hh:trackChange type="CharShape"|"ParaShape"`` with ``charShapeID``/
 ``paraShapeID``; ``hp:run@charTcId``, ``hp:p@paraTcId``), but none of the 1,304 public HWPX
-documents tracks a format change (one tracks insertions and deletions). The only public trace is
-an HWP 5.0 sample whose 62 format changes (34 character, 28 paragraph) python-hwpx cannot turn into
-HWPX as Hancom would. Until a Hangul-saved document shows Hancom's form, python-hwpx refuses to
-write them, refuses to reject them, and accepts one only when no text points at it.
+documents tracks a format change (one tracks insertions and deletions). Hangul 2024 does not take
+that form: saving a document written so kept its insertion but dropped the CharShape/ParaShape
+entries and the ``charTcId``/``paraTcId`` links, and saving the public HWP sample with 62 format
+changes as HWPX kept no tracked change at all. So python-hwpx refuses to write them, refuses to
+reject them, and accepts one only when no text points at it.
 """
 
 from __future__ import annotations

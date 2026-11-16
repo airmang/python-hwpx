@@ -19,10 +19,11 @@ _TRACKED_TEXT_ILLEGAL = re.compile(r"[\x00-\x08\x09\x0b\x0c\x0d\x0e-\x1f\ufffe\u
 #: Tracked character and paragraph shape changes (OWPML ``hc:TrackChangeType``). The schema
 #: ties one to text through ``hp:run@charTcId``/``hp:p@paraTcId`` and keeps a shape id in
 #: ``hh:trackChange@charShapeID``/``paraShapeID``, but no Hangul-saved HWPX of the public corpus
-#: (1,304 files) tracks a format change, so whether that id is the shape before or after the
-#: change, and whether Hancom writes those links at all, is not known. Until a Hangul-saved
-#: document shows it, python-hwpx writes none, rejects none, and accepts one only when no text
-#: points at it (accepting keeps the text as it looks: only the header entry goes).
+#: (1,304 files) tracks a format change, and Hancom does not take that form: Hangul 2024 saving a
+#: document written so kept its insertion but dropped the CharShape/ParaShape entries and the
+#: ``charTcId``/``paraTcId`` links (and saving the public HWP sample with 62 format changes as
+#: HWPX kept no tracked change at all). So python-hwpx writes none, rejects none, and accepts one
+#: only when no text points at it (accepting keeps the text as it looks: only the header entry goes).
 FORMAT_CHANGE_TYPES = frozenset({"charshape", "parashape"})
 
 
@@ -61,17 +62,17 @@ def add_track_change(
     anchors it to body text until :func:`add_tracked_insert`/
     :func:`add_tracked_delete` do that.
 
-    A character or paragraph shape change (``CharShape``/``ParaShape``) is refused: how
-    Hancom ties one to the text it changed is not confirmed (see :data:`FORMAT_CHANGE_TYPES`).
+    A character or paragraph shape change (``CharShape``/``ParaShape``) is refused: Hancom
+    drops the schema's form of one when it saves (see :data:`FORMAT_CHANGE_TYPES`).
     """
 
     if _is_format_change(change_type):
         raise HwpxValueError(
-            f"tracking a {change_type!r} change is not written yet",
+            f"tracking a {change_type!r} change is not written",
             code="track-format-change-unconfirmed",
             context={"change_type": change_type},
-            suggestion="Track insertions and deletions (doc.tracking.insert/delete/replace); "
-            "format changes are written once a Hangul-saved document confirms their form.",
+            suggestion="Track insertions and deletions (doc.tracking.insert/delete/replace). Hangul 2024 "
+            "drops a CharShape/ParaShape change and its charTcId/paraTcId links when it saves the document.",
         )
     change_id = doc._root.add_track_change(
         change_type,
@@ -440,8 +441,9 @@ def resolve_tracked_changes(
             f"tracked format changes {blocked} cannot be {'accepted' if accept else 'rejected'} yet",
             code="track-format-change-unconfirmed",
             context={"changes": blocked, "accept": accept},
-            suggestion="Resolve the insertions and deletions one by one (change=<id>); how Hancom ties a "
-            "character or paragraph shape change to its text is not confirmed yet.",
+            suggestion="Resolve the insertions and deletions one by one (change=<id>). The old shape of a "
+            "character or paragraph shape change is not known: Hangul 2024 drops such changes and their "
+            "charTcId/paraTcId links when it saves.",
         )
 
     resolved: list[TrackedChange] = []

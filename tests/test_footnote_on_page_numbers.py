@@ -3,9 +3,11 @@
 
 Their numbers depend on where the pages break, which python-hwpx does not lay out. No public
 document numbers notes ``ON_PAGE`` (1,339 HWPX and 319 converted HWP sections, all
-``CONTINUOUS``), so what Hancom writes into ``number`` there is not known; the rule is to leave the
-written numbers as they are and give a new note its count in the document. ``note.number`` reads the
-number the file holds. Other numberings keep being renumbered (``test_*notes*`` elsewhere).
+``CONTINUOUS``). Hangul 2024 numbers them again per page when it opens the document and writes the
+per-page numbers when it saves (stored 1..6, or all 7, came back as 1, 2, 1, 2, 1, 2 on three
+pages). So the rule is to leave the written numbers as they are and give a new note its count in
+the document; ``note.number`` reads the number the file holds. Other numberings keep being
+renumbered (``test_*notes*`` elsewhere).
 """
 
 from __future__ import annotations

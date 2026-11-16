@@ -515,7 +515,7 @@ class HwpxOxmlNote:
 
         In a section that numbers notes ``ON_PAGE`` (again on every page) the number
         depends on a page layout this engine does not make: it is the ``number`` the
-        file holds."""
+        file holds, which Hancom sets to the per-page number when it saves (Hangul 2024)."""
 
         from .note_authoring import note_numbers
 

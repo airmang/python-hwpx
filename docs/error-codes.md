@@ -486,7 +486,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `track-change-not-found` | 그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다). |
-| `track-format-change-unconfirmed` | 글자·문단 모양 변경 추적(CharShape/ParaShape)은 한/글 저장본으로 구조를 확인하기 전이라 쓰지도 거절하지도 않는다(본문이 가리키는 것은 수락도). |
+| `track-format-change-unconfirmed` | 글자·문단 모양 변경 추적(CharShape/ParaShape)은 쓰지도 거절하지도 않는다(본문이 가리키는 것은 수락도) — 한/글 2024는 스키마대로 쓴 서식 변경을 저장 때 버린다. |
 | `track-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `track-match-empty` | 찾을 문자열이 비어 있다. |
 | `track-match-not-found` | 문단에서 찾을 문자열을 찾지 못했다. |

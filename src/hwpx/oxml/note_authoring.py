@@ -224,8 +224,11 @@ def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
     A section that numbers the kind ``ON_PAGE`` starts again on every page, so its
     numbers depend on a page layout this engine does not make: such a note's number
     is the ``number`` the file holds (the count when it holds none), and the count
-    runs on past it. No public document numbers notes ``ON_PAGE`` (1,339 HWPX and
-    319 converted HWP sections), so what Hancom saves there is not known.
+    runs on past it. Hancom numbers such notes again when it opens the document and
+    writes the per-page numbers into ``number`` and ``hp:autoNum`` when it saves
+    (Hangul 2024: notes stored as 1..6, or all as 7, were drawn and saved as
+    1, 2, 1, 2, 1, 2 on three pages), so the number held is the one of the last
+    Hancom save.
     """
 
     counters = {"FOOTNOTE": 1, "ENDNOTE": 1}
@@ -291,7 +294,9 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
     Left alone, in every section, when a section numbers the kind ``ON_PAGE``: those
     numbers start again on each page, which this engine does not lay out, and a later
     section's count would run on from them. The numbers already written stay as they
-    are; a note added there carries its count in the document."""
+    are; a note added there carries its count in the document. Hancom numbers them
+    again per page when it opens the document and writes those numbers when it saves
+    (Hangul 2024), so what is written there does not change what Hancom draws."""
 
     sections = _sections_of(section)
     if any(tag in _kinds_numbered_per_page(owner.element) for owner in sections):

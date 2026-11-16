@@ -275,10 +275,12 @@ class MemoShape:
         """The memo's line width in millimetres (``0.12`` for ``lineWidth="1"``), or ``None``.
 
         ``hh:memoPr@lineWidth`` is not a length: Hancom keeps there the one-byte line width of
-        the HWP 5.0 memo shape record, the index into Hancom's line widths (0.1, 0.12, 0.15,
-        0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0 mm) that borders also
-        use, and writes it out unchanged (``"1"`` in 36 of the public corpus's 41 memo shapes,
-        ``"3"`` in the rest). A value that is no index on that list reads ``None``.
+        the HWP 5.0 memo shape record and writes it out unchanged (``"1"`` in 36 of the public
+        corpus's 41 memo shapes, ``"3"`` in the rest). It is read as the index into Hancom's line
+        widths (0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0,
+        5.0 mm) that borders use. That is a hypothesis not yet seen on Hangul's screen: Hangul 2024
+        keeps the value when it saves, but its printout draws no memo to measure. A value that is
+        no index on that list reads ``None``.
         """
 
         from .utils import LINE_WIDTHS
