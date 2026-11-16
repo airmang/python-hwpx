@@ -400,7 +400,7 @@ except HwpxError as exc:
 | `shape-equation-script-latex` | 수식 스크립트에 LaTeX 명령(\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다). |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
-| `shape-flip-unsupported` | 한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·묶음 밖의 개체(그림·곡선·호 등), 늘인 개체, 묶음을 양쪽으로·돈 묶음을 상하로 뒤집기, 뒤집은 개체의 크기 바꾸기. |
+| `shape-flip-unsupported` | 한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·그림·묶음 밖의 개체(곡선·호 등), 늘인 개체, 묶음을 양쪽으로·돈 묶음을 상하로 뒤집기, 돌지 않은 그림 밖의 뒤집은 개체 크기 바꾸기, 뒤집은 그림 자르기. |
 | `shape-flip-value` | 뒤집기(flip_horizontal·flip_vertical)에 bool 이 아닌 값을 주었다. |
 | `shape-group-member-unsupported` | 묶음(hp:container) 안의 개체는 혼자 돌리거나 설명·바깥 여백을 달 수 없고, 묶음의 하나뿐인 구성원이거나 돌았거나 늘인 묶음에서는 혼자 지울 수 없다(묶음째 다룬다). |
 | `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |
@@ -418,7 +418,7 @@ except HwpxError as exc:
 | `shape-position-unsupported` | 위치를 바꿀 도형이 떠 있는 개체가 아니거나 hp:pos 가 없다. |
 | `shape-position-value` | 도형 오프셋이 signed 32-bit 정수(HWPUNIT)가 아니다. |
 | `shape-rect-ratio-value` | 사각형 모서리 곡률(ratio)이 0 이상 2**31 미만의 int(%)가 아니다(bool 도 거부). |
-| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 한/글 저장본으로 확인하지 못한 모양이다: 늘인 채 뒤집힌 개체, 사각형·타원·다각형·선·묶음이 아닌 뒤집힌 개체, 행렬이 hp:flip 을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘이거나 묶음을 품거나 양쪽으로 뒤집힌 묶음. 돈 묶음의 크기 바꾸기도 먼저 0으로 되돌려야 한다. 글이 든 도형, 뒤집힌 사각형·타원·다각형·선과 한쪽으로 뒤집힌 묶음, 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다. |
+| `shape-rotation-unsupported` | 돌리려는 개체에 hp:rotationInfo 가 없거나(수식·차트 등은 돌지 않는다) 한/글 저장본으로 확인하지 못한 모양이다: 늘인 채 뒤집힌 개체, 사각형·타원·다각형·선·그림·묶음이 아닌 뒤집힌 개체, 행렬이 hp:flip 을 따르지 않는 개체, 혼자 돌았거나 뒤집힌 구성원이 든 묶음, 늘이거나 묶음을 품거나 양쪽으로 뒤집힌 묶음. 돈 묶음의 크기 바꾸기도 먼저 0으로 되돌려야 한다. 글이 든 도형, 뒤집힌 사각형·타원·다각형·선·그림과 한쪽으로 뒤집힌 묶음, 묶음 전체(늘인 묶음, 묶음 안 묶음, 이미 돈 묶음 포함)는 돈다. |
 | `shape-rotation-value` | 회전 각도가 int(도)가 아니다(bool 도 거부). 음수·360 이상은 한/글처럼 0~359로 바꿔 쓴다(-30 → 330). |
 | `shape-ruby-alignment-value` | 덧말 정렬이 Alignment 값(LEFT·CENTER·RIGHT·JUSTIFY·DISTRIBUTE·DISTRIBUTE_SPACE) 밖이다. |
 | `shape-ruby-position-value` | 덧말 위치가 TOP(위)·BOTTOM(아래) 밖이다. |
