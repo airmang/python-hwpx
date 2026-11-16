@@ -943,7 +943,8 @@ def set_flip(obj: Any, axis: int, flipped: object) -> None:
     flip = element.find(f"{_HP}flip")
     if kind not in FLIPPED_KINDS or flip is None:
         raise _flip_refused(element, f"no Hancom-saved document shows how Hancom flips a {kind}")
-    wanted = tuple(-1 if (i == axis and flipped) or (i != axis and flips[i] == -1) else 1 for i in (0, 1))
+    sides = [-1 if (i == axis and flipped) or (i != axis and flips[i] == -1) else 1 for i in (0, 1)]
+    wanted = (sides[0], sides[1])
     if wanted == (-1, -1):
         raise _flip_refused(element, "it is flipped the other way already: no Hancom-saved document shows an object "
                                      "flipped both ways")
