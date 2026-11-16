@@ -408,7 +408,7 @@ except HwpxError as exc:
 | `shape-equation-script-latex` | 수식 스크립트에 LaTeX 명령(\frac 등)이 있다(latex_to_eqedit 로 바꿔 넘긴다). |
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
-| `shape-flip-unsupported` | 한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·그림·묶음 밖의 개체(곡선·호 등), 늘인 도형 뒤집기, 돈 뒤집은 개체·상하로 뒤집은 묶음 등 돌지 않은 그림과 좌우로 뒤집은 묶음 밖의 뒤집은 개체 크기 바꾸기, 뒤집은 그림 자르기. |
+| `shape-flip-unsupported` | 한/글 저장본으로 확인하지 못한 뒤집기다: 사각형·글상자·타원·다각형·선·호·곡선·그림·묶음 밖의 개체(OLE·수식 등), 늘인 도형 뒤집기, 돈 뒤집은 개체·양쪽으로 뒤집은 묶음 등 돌지 않은 그림과 한쪽으로 뒤집은 돌지 않은 묶음 밖의 뒤집은 개체 크기 바꾸기, 뒤집은 그림 자르기. |
 | `shape-flip-value` | 뒤집기(flip_horizontal·flip_vertical)에 bool 이 아닌 값을 주었다. |
 | `shape-group-member-unsupported` | 묶음(hp:container) 구성원 하나만은 돌리거나 크기를 바꾸거나 옮길 수 없고(한/글 근거 대기), 설명·바깥 여백은 구성원에 자리가 없다(묶음 단위 속성, 한/글에 없는 기능). 돌았거나 늘인 묶음에서는 혼자 지울 수 없다(묶음째 다루거나 ungroup() 으로 푼다). |
 | `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |

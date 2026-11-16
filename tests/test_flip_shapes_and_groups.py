@@ -30,6 +30,7 @@ TEXT_BOX, GROUP, NESTED = "1720249014", "768560093", "2104287188"
 TURNED_BOX, TURNED_GROUP, ELLIPSE, POLYGON, LINE = "1570112883", "1425950003", "741191633", "1881274590", "1207765247"
 PICTURE, TURNED_PICTURE = "1799081593", "1011038855"
 G_TURNED, G_PLAIN, P_PLAIN = "1976520070", "1339080812", "967822942"
+ARC, CURVE, G4, NESTED4 = "1772920078", "1177849096", "1887347079", "1260677313"
 
 #: (file Hangul wrote, instid, what was done in order, a file holding the object untouched)
 CASES = [
@@ -74,12 +75,13 @@ CASES = [
      "flip_turned_picture_left_right"),
     # rotate6 (``want-flip3``): a group turned 30 degrees and one not, a picture and one turned 30 degrees, flipped,
     # resized and turned by Hangul in the orders the names say. Hangul flips a group in place (a turned one keeps
-    # its move and box), turns a flipped picture resized after its flip about where it holds its middle, and
-    # resizes a group as ``hancom_size`` writes (Hangul's own resize moves the centres to the middles as drawn).
+    # its move and box) and turns a flipped picture resized after its flip about where it holds its middle.
     ("flip_turned_group_up_down", G_TURNED, [("flip_vertical", True)], "flip_group_both_ways"),
     ("flip_group_both_ways", G_PLAIN, [("flip_horizontal", True), ("flip_vertical", True)],
      "flip_turned_group_up_down"),
-    ("flip_resized_group_left_right", G_PLAIN, [("hancom_size", (18000, 9000)), ("flip_horizontal", True)],
+    # resized by python-hwpx, then flipped: the flip mirrors about the middle of the size the group is drawn at,
+    # whatever centre the resize left (python-hwpx's and Hangul's resize both leave the old one)
+    ("flip_resized_group_left_right", G_PLAIN, [("size", (18000, 9000)), ("flip_horizontal", True)],
      "flip_turned_group_up_down"),
     ("flip_group_left_right_resized", G_PLAIN, [("flip_horizontal", True), ("size", (18000, 9000))],
      "flip_turned_group_up_down"),
@@ -89,27 +91,27 @@ CASES = [
      [("flip_horizontal", True), ("size", (6000, 6000)), ("rotation", 30)], "flip_group_both_ways"),
     ("flip_picture_up_down_resized", P_PLAIN, [("flip_vertical", True), ("size", (6000, 9000))],
      "flip_group_both_ways"),
+    # rotate6 (``want-flip4``): an arc, a curve, a group, a group holding a group. An arc and a curve flip as the
+    # other shapes (an odd-sized one turns about the whole-unit centre it holds); a group flipped up-down and
+    # resized moves every scaMatrix by what it gained (e6) and puts its members' centres at their drawn middles; a
+    # group holding a group flips with the group inside marked as its members are.
+    ("flip_arc_up_down", ARC, [("flip_vertical", True)], "flip_curve_left_right_by_30"),
+    ("flip_arc_left_right_by_30", ARC, [("flip_horizontal", True), ("rotation", 30)], "flip_curve_left_right_by_30"),
+    ("flip_curve_left_right_by_30", CURVE, [("flip_horizontal", True), ("rotation", 30)], "flip_arc_up_down"),
+    ("flip_group_up_down_resized", G4, [("flip_vertical", True), ("size", (18000, 9000))], "flip_arc_up_down"),
+    ("flip_group_in_group_left_right", NESTED4, [("flip_horizontal", True)], "flip_arc_up_down"),
 ]
 
 
 def _set(obj, name: str, value) -> None:
     if name == "size":
         obj.resize(*value)
-    elif name == "hancom_size":  # resize, then the centres where Hangul's own resize of a group puts them
-        obj.resize(*value)
-        for node in [obj.element, *(member.element for member in obj.members)]:
-            scale = node.find(f"{HP}renderingInfo/{HC}scaMatrix")
-            factors = (1.0, 1.0) if node is obj.element else (float(scale.get("e1")), float(scale.get("e5")))
-            size = node.find(f"{HP}sz") if node is obj.element else node.find(f"{HP}orgSz")
-            info = node.find(f"{HP}rotationInfo")
-            info.set("centerX", str(int(int(size.get("width")) * factors[0]) // 2))
-            info.set("centerY", str(int(int(size.get("height")) * factors[1]) // 2))
     else:
         setattr(obj, name, value)
 
 
 def _get(obj, name: str):
-    return (obj.width, obj.height) if name in ("size", "hancom_size") else getattr(obj, name)
+    return (obj.width, obj.height) if name == "size" else getattr(obj, name)
 
 
 def _objects(doc: HwpxDocument) -> list:
@@ -182,7 +184,14 @@ def test_hancoms_flip_and_turn_go_back(hancom: str, instid: str, steps: list, un
     target = _by_instid(doc, instid)
     for (name, _), value in reversed(list(zip(steps, before))):  # undone in the other order
         _set(target, name, value)
-    assert _same(_normalized(target.element), _normalized(original.element))
+    ours, theirs = _normalized(target.element), _normalized(original.element)
+    if target.element.tag.endswith("}container") and [n for n, _ in steps] == ["size", "flip_horizontal"]:
+        # the flip moved the centres to the middles drawn at 18000 x 9000; resizing back leaves centres, as
+        # Hangul's resize does, so only they differ from the group before
+        ours, theirs = (re.sub(r"\('center[XY]', '\d+'\), ", "", line) for line in ours), \
+            (re.sub(r"\('center[XY]', '\d+'\), ", "", line) for line in theirs)
+        ours, theirs = list(ours), list(theirs)
+    assert _same(ours, theirs)
 
 
 def test_a_flipped_group_keeps_its_members_unflipped_marked_as_hancom_marks_them() -> None:
@@ -222,7 +231,11 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
     group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
                                                  ContainerMember.rect(5000, 0, 4000, 2000)])
     group.flip_vertical = True
-    turned_group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
+    both_ways_group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
+                                                           ContainerMember.rect(5000, 0, 4000, 2000)])
+    both_ways_group.flip_horizontal = True
+    both_ways_group.flip_vertical = True
+    turned_group =doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
                                                         ContainerMember.rect(5000, 0, 4000, 2000)])
     turned_group.rotation = 30
     resized_group = doc.add_paragraph("").add_container([ContainerMember.rect(0, 0, 4000, 2000),
@@ -244,11 +257,11 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
     for call, code, says in (
         (lambda: turned_picture.resize(3000, 1500), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(picture, "crop", (0, 0, 1000, 0)), "shape-flip-unsupported", "flip it back first"),
-        (lambda: group.resize(18000, 4000), "shape-flip-unsupported", "flip it back first"),  # up-down: unseen
+        (lambda: both_ways_group.resize(18000, 4000), "shape-flip-unsupported", "flip it back first"),  # unseen
         (lambda: flipped.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(resized_rect, "flip_horizontal", True), "shape-flip-unsupported", "resized"),
         (lambda: setattr(resized_group, "flip_horizontal", True), "shape-rotation-unsupported", "resized, turned"),
-        (lambda: setattr(nested, "flip_horizontal", True), "shape-rotation-unsupported", "holds a group"),
+        (lambda: setattr(nested, "flip_vertical", True), "shape-rotation-unsupported", "holds a group"),
         (lambda: setattr(nested.members[0], "flip_horizontal", True), "shape-group-member-unsupported", "group"),
         (lambda: setattr(flipped, "flip_horizontal", 1), "shape-flip-value", "True or False"),
     ):
