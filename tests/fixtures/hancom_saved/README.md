@@ -40,6 +40,15 @@ all equation scripts, geometry and section bytes are untouched. Input, raw-save,
 sanitized-fixture and section hashes are in
 `tests/data/equation_font_boundary_provenance.json`.
 
+## Objects turned by Hangul 2024
+
+`turn_*.hwpx` are synthetic documents made by python-hwpx (rectangles, a text box, an ellipse holding text and
+two groups) in which Hangul 2024 for Windows (`os="1"` in `version.xml`) turned one object through its public
+automation -- the object selected, then its turn-by-90-degrees command (`*_by_90`) or its object dialog with an
+angle of 30 (`*_by_30`) -- and saved the document. `tests/test_turn_text_shapes_and_groups.py` says what each
+shows. The preview image was left out and the metadata listed above emptied; every other part keeps Hangul's
+bytes.
+
 ## Adding a file
 
 `formfit_hft_ascii_myeongjo_grid.hwpx` and `formfit_hft_ascii_gothic_grid.hwpx`
