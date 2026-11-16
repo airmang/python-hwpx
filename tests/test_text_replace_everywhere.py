@@ -118,7 +118,7 @@ def test_a_header_written_twice_counts_once_and_both_copies_change() -> None:
     assert count == 2
     assert xml.count("머리말배 배") == 2
     assert "사과" not in xml
-    assert document.oxml.sections[0].properties.get_header().text == "머리말배 배"
+    assert document.oxml.sections[0].properties.header().text == "머리말배 배"
 
 
 def test_a_word_over_two_runs_takes_the_format_of_its_first_run() -> None:

@@ -10,6 +10,7 @@ from ._document_primitives import _serialize_xml
 
 if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
+    from .header import Style
     from .history_part import History
     from .master_page import MasterPage
     from .paragraph import HwpxOxmlParagraph
@@ -86,7 +87,7 @@ class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
         return self._element.get("type")
 
     @property
-    def paragraphs(self) -> "list[HwpxOxmlParagraph]":
+    def paragraphs(self) -> "tuple[HwpxOxmlParagraph, ...]":
         """The master page's paragraphs as paragraph objects (tables, pictures and
         shapes on it are reached through them, as in the body). Edits are saved."""
 
@@ -100,12 +101,26 @@ class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
 
         return "\n".join(paragraph.text for paragraph in self.paragraphs)
 
-    def add_paragraph(self, text: str = "") -> "HwpxOxmlParagraph":
-        """Append a paragraph (with *text*) to the master page and return it."""
+    def add_paragraph(
+        self,
+        text: str = "",
+        *,
+        style: "int | str | Style | None" = None,
+        para_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "HwpxOxmlParagraph":
+        """Append a paragraph (with *text*) to the master page and return it.
+
+        ``style`` (a name, a numeric id or a ``Style``) gives the paragraph that style and its
+        paragraph and character shapes unless they are passed; ``para_pr_id_ref`` and
+        ``char_pr_id_ref`` name the shapes directly, as every ``add_paragraph`` takes them.
+        """
 
         from .master_page_authoring import add_master_page_paragraph
 
-        return add_master_page_paragraph(self, text)
+        return add_master_page_paragraph(
+            self, text, style=style, para_pr_id_ref=para_pr_id_ref, char_pr_id_ref=char_pr_id_ref
+        )
 
 
 class HwpxOxmlHistory(_HwpxOxmlSimplePart):

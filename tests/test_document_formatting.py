@@ -299,7 +299,6 @@ def test_section_add_paragraph_accepts_formatting_identifiers() -> None:
         "Body",
         para_pr_id_ref=4,
         char_pr_id_ref=6,
-        run_attributes={"id": "run1"},
     )
     paragraph.style_id_ref = 2  # a detached section has no header to resolve style= in
 
@@ -308,7 +307,6 @@ def test_section_add_paragraph_accepts_formatting_identifiers() -> None:
     run_element = paragraph.element.find(f"{HP}run")
     assert run_element is not None
     assert run_element.get("charPrIDRef") == "6"
-    assert run_element.get("id") == "run1"
 
 
 def test_document_add_paragraph_passes_formatting_options() -> None:
@@ -718,7 +716,7 @@ def test_table_iter_grid_reports_merged_cells() -> None:
     assert right.row_span == top_left.row_span
     assert right.col_span == top_left.col_span
 
-    cell_map = table.get_cell_map()
+    cell_map = table.cell_map
     assert cell_map[0][1].cell.element is top_left.cell.element
 
 
@@ -786,7 +784,7 @@ def test_section_properties_reports_page_options() -> None:
     assert margins.right == 8504
     assert margins.header == 4252
 
-    numbering = properties.start_numbering
+    numbering = properties.start_numbers
     assert numbering.page_starts_on == "ODD"
     assert numbering.page == 3
     assert numbering.picture == 2
@@ -830,7 +828,7 @@ def test_section_properties_updates_page_settings() -> None:
     assert section.dirty is True
 
     section.reset_dirty()
-    properties.set_start_numbering(page_starts_on="EVEN", page=7, picture=4, table=5, equation=6)
+    properties.set_start_numbers(page_starts_on="EVEN", page=7, picture=4, table=5, equation=6)
     start_num = sec_pr.find(f"{HP}startNum")
     assert start_num is not None
     assert start_num.get("pageStartsOn") == "EVEN"
@@ -1056,13 +1054,13 @@ def test_section_properties_header_footer_helpers() -> None:
     assert sec_pr.find(f"{HP}footer") is None
     footer_element = section.element.find(f".//{HP}ctrl/{HP}footer")
     assert footer_element is not None
-    assert footer.apply_page_type == "ODD"
+    assert footer.page_type == "ODD"
     assert footer_element.find(f".//{HP}t").text == "Page"
     assert section.dirty is True
 
     section.reset_dirty()
     properties.remove_header()
-    assert properties.get_header() is None
+    assert properties.header() is None
     assert section.dirty is True
 
 

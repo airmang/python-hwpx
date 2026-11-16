@@ -257,8 +257,8 @@ class TestSectionManagement:
         first_footer = doc.page.set_footer(text="first footer", section=first)
 
         second = doc.add_section()
-        assert second.properties.get_header("BOTH") is None
-        assert second.properties.get_footer("BOTH") is None
+        assert second.properties.header("BOTH") is None
+        assert second.properties.footer("BOTH") is None
         assert not any(
             tag_local_name(element.tag) in {"header", "footer"}
             for element in second.element.iter()
@@ -268,10 +268,10 @@ class TestSectionManagement:
         second_footer = doc.page.set_footer(text="second footer", section=second)
         assert first_header.element.get("id") != second_header.element.get("id")
         assert first_footer.element.get("id") != second_footer.element.get("id")
-        assert first.properties.get_header("BOTH").text == "first header"
-        assert first.properties.get_footer("BOTH").text == "first footer"
-        assert second.properties.get_header("BOTH").text == "second header"
-        assert second.properties.get_footer("BOTH").text == "second footer"
+        assert first.properties.header("BOTH").text == "first header"
+        assert first.properties.footer("BOTH").text == "first footer"
+        assert second.properties.header("BOTH").text == "second header"
+        assert second.properties.footer("BOTH").text == "second footer"
 
     def test_add_section_succeeds_when_first_paragraph_has_an_anchored_memo(self):
         """결함-부활 (cycle 6.11 train 44, found in train 38/㊱'s document-merge

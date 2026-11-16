@@ -426,12 +426,8 @@ ERROR_CODES: dict[str, str] = {
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
     "table-margin-value": "표 바깥·안 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
-    # 7.0 이름 정리: 7.0에서 처음 생긴 두 code 를 새 이름(vertical_alignment·page_split)을 따라
-    # 바꾼다. 옛 code 둘은 그 이름(vert_align·page_break)을 바꾸는 단계가 쓰는 곳과 함께 지운다.
-    "table-cell-vert-align-value": "칸 세로 정렬(vert_align)이 TOP·CENTER·BOTTOM 중 하나가 아니다.",
     "table-cell-vertical-alignment-value": "칸 세로 정렬(vertical_alignment)이 TOP·CENTER·BOTTOM 중 하나가 아니다.",
     "table-alignment-value": "표 가로 정렬(alignment)이 LEFT·CENTER·RIGHT 중 하나가 아니거나 문서 머리 정보가 없다.",
-    "table-page-break-value": "표의 쪽 나눔(page_break)이 TABLE·CELL·NONE 중 하나가 아니다.",
     "table-page-split-value": "표가 쪽 경계에서 나뉘는 방식(page_split)이 TABLE·CELL·NONE 중 하나가 아니다.",
     "table-header-rows-value": "제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다.",
     "table-no-adjust-value": "noAdjust 값이 bool 이 아니다.",

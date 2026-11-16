@@ -21,6 +21,7 @@ from ._paragraph_text_edit import set_text_with_tabs
 from .numbering_kinds import number_format
 
 if TYPE_CHECKING:
+    from .header import Style
     from .objects import HwpxOxmlInlineObject
     from .paragraph import HwpxOxmlParagraph
     from .run import HwpxOxmlRun
@@ -471,8 +472,13 @@ class HwpxOxmlSectionHeaderFooter:
             self._properties.section.mark_dirty()
 
     @property
-    def apply_page_type(self) -> str:
-        """Return the page type the header/footer applies to."""
+    def page_type(self) -> str:
+        """The pages this header/footer is drawn on (``applyPageType``): ``BOTH``, ``EVEN``, ``ODD``,
+        ``FIRST`` or ``LAST``, the name ``doc.page.set_header(page_type=...)`` uses.
+
+        Setting it moves the header/footer to other pages: the story, its apply element and its
+        control copy all take the value.
+        """
 
         value = self.element.get("applyPageType")
         if value is not None:
@@ -481,8 +487,8 @@ class HwpxOxmlSectionHeaderFooter:
             return self._apply_element.get("applyPageType", "BOTH")
         return "BOTH"
 
-    @apply_page_type.setter
-    def apply_page_type(self, value: str) -> None:
+    @page_type.setter
+    def page_type(self, value: str) -> None:
         copy = self._control_copy()
         changed = False
         if self.element.get("applyPageType") != value:
@@ -681,16 +687,16 @@ class HwpxOxmlSectionHeaderFooter:
         self._properties.section.mark_dirty()
 
     @property
-    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
-        """Return the paragraphs of this header/footer, like ``cell.paragraphs``."""
+    def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
+        """The paragraphs of this header/footer, like ``cell.paragraphs``."""
 
         from .paragraph import HwpxOxmlParagraph
 
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
-            return []
+            return ()
         section = self._properties.section
-        return [HwpxOxmlParagraph(element, section) for element in sublist.findall(f"{_HP}p")]
+        return tuple(HwpxOxmlParagraph(element, section) for element in sublist.findall(f"{_HP}p"))
 
     @property
     def kind(self) -> str:
@@ -698,27 +704,40 @@ class HwpxOxmlSectionHeaderFooter:
 
         return _story_kind(self.element)
 
-    @property
-    def page_type(self) -> str:
-        """The pages this header/footer is drawn on: ``BOTH``, ``EVEN``, ``ODD``, ``FIRST`` or ``LAST``.
-
-        The same value as :attr:`apply_page_type`, under the name ``doc.page.set_header(page_type=...)`` uses.
-        """
-
-        return self.apply_page_type
-
-    def add_paragraph(self, text: str = "", *, align: str | None = None) -> "HwpxOxmlParagraph":
+    def add_paragraph(
+        self,
+        text: str = "",
+        *,
+        style: "int | str | Style | None" = None,
+        para_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+    ) -> "HwpxOxmlParagraph":
         """Append a paragraph (with *text*, if given) and return it as a paragraph object.
 
-        Up to 6.x this returned the bare ``hp:p`` element and took no text.
+        ``style`` (a name, a numeric id or a ``Style``) gives the paragraph that style and its
+        paragraph and character shapes unless they are passed; ``para_pr_id_ref`` and
+        ``char_pr_id_ref`` name the shapes directly, as every ``add_paragraph`` takes them. The
+        rest is a property of the returned paragraph (``p.alignment = "CENTER"``; 7.0 took away
+        ``align=``). Up to 6.x this returned the bare ``hp:p`` element and took no text.
         """
 
         from .paragraph import HwpxOxmlParagraph
+        from .section import style_shape_refs
 
-        element = self._append_paragraph_element(align=align)
-        if text:
-            self.add_run(text, paragraph=element)
-        return HwpxOxmlParagraph(element, self._properties.section)
+        section = self._properties.section
+        style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
+            section.document, style, para_pr_id_ref, char_pr_id_ref
+        )
+        element = self._append_paragraph_element()
+        if para_pr_id_ref is not None:
+            element.set("paraPrIDRef", str(para_pr_id_ref))
+        if style_id_ref is not None:
+            element.set("styleIDRef", str(style_id_ref))
+        if text or char_pr_id_ref is not None:
+            run = _append_child(element, f"{_HP}run", {"charPrIDRef": str(char_pr_id_ref or "0")})
+            set_text_with_tabs(_append_child(run, f"{_HP}t"), text)
+            _clear_paragraph_layout_cache(element)
+        return HwpxOxmlParagraph(element, section)
 
     def _append_paragraph_element(self, *, align: str | None = None) -> ET.Element:
         """Append an empty paragraph to the header/footer subList."""

@@ -331,7 +331,7 @@ def _iter_headers(document: HwpxDocument, indexes: tuple[int, ...]) -> list[tupl
     for section_index, section in _selected_section_items(document, indexes):
         for wrapper in section.properties.headers:
             targets.append(
-                (f"header[s={section_index},page={wrapper.apply_page_type}]", wrapper)
+                (f"header[s={section_index},page={wrapper.page_type}]", wrapper)
             )
     return targets
 
@@ -341,7 +341,7 @@ def _iter_footers(document: HwpxDocument, indexes: tuple[int, ...]) -> list[tupl
     for section_index, section in _selected_section_items(document, indexes):
         for wrapper in section.properties.footers:
             targets.append(
-                (f"footer[s={section_index},page={wrapper.apply_page_type}]", wrapper)
+                (f"footer[s={section_index},page={wrapper.page_type}]", wrapper)
             )
     return targets
 

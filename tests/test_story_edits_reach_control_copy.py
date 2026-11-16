@@ -71,8 +71,8 @@ def test_setting_the_text_of_a_6x_story_updates_its_control_copy() -> None:
     doc.page.set_header(text="옛 머리말")
     doc.page.set_footer(text="옛 꼬리말")
     doc = _as_written_by_6x(doc)
-    header = doc.sections[0].properties.get_header()
-    footer = doc.sections[0].properties.get_footer()
+    header = doc.sections[0].properties.header()
+    footer = doc.sections[0].properties.footer()
 
     header.text = "새 머리말"
     footer.text = "새 꼬리말"
@@ -117,7 +117,7 @@ def test_runs_added_later_to_a_6x_story_reach_the_control_copy() -> None:
     doc = _doc()
     doc.page.set_header(text="머리말")
     doc = _as_written_by_6x(doc)
-    header = doc.sections[0].properties.get_header()
+    header = doc.sections[0].properties.header()
     header.add_run(" 덧붙임")
 
     xml = _section_xml(doc)
@@ -197,7 +197,7 @@ def test_two_control_copies_of_one_6x_story_are_left_alone() -> None:
     doc = _doc()
     doc.page.set_header(text="하나")
     doc = _as_written_by_6x(doc)
-    header = doc.sections[0].properties.get_header()
+    header = doc.sections[0].properties.header()
     run = doc.sections[0].element.find(f"{HP}p/{HP}run")
     control = next(c for c in run.findall(f"{HP}ctrl") if c.find(f"{HP}header") is not None)
     run.append(copy.deepcopy(control))
@@ -233,7 +233,7 @@ def test_changing_the_page_type_changes_the_control_copy_too() -> None:
     doc = _doc()
     header = doc.page.set_header(text="홀수 쪽만")
 
-    header.apply_page_type = "ODD"
+    header.page_type = "ODD"
 
     assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["ODD"]
 
@@ -243,7 +243,7 @@ def test_a_story_turned_both_goes_ahead_of_the_page_specific_controls() -> None:
     doc.page.set_header(text="짝수", page_type="EVEN")
     odd = doc.page.set_header(text="홀수", page_type="ODD")
 
-    odd.apply_page_type = "BOTH"
+    odd.page_type = "BOTH"
 
     assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["BOTH", "EVEN"]
 
@@ -254,7 +254,7 @@ def test_a_6x_story_turned_both_goes_ahead_of_the_page_specific_controls() -> No
     doc.page.set_header(text="홀수", page_type="ODD")
     doc = _as_written_by_6x(doc)
 
-    doc.sections[0].properties.get_header("ODD").apply_page_type = "BOTH"
+    doc.sections[0].properties.header("ODD").page_type = "BOTH"
 
     assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["BOTH", "EVEN"]
 
@@ -322,7 +322,7 @@ def test_a_6x_story_object_keeps_working_after_a_save_that_updated_it() -> None:
     doc = _doc()
     doc.page.set_header(text="머리말")
     doc = _as_written_by_6x(doc)
-    header = doc.sections[0].properties.get_header()
+    header = doc.sections[0].properties.header()
     next(_control_header(doc).iter(f"{HP}t")).text = "한/글 쪽에서 고침"
     doc.oxml.sections[0].mark_dirty()
     doc.to_bytes()
@@ -337,7 +337,7 @@ def test_a_control_only_story_turned_both_goes_ahead_too() -> None:
     doc.page.set_header(text="짝수", page_type="EVEN")
     doc.page.set_header(text="홀수", page_type="ODD")
 
-    doc.oxml.sections[0].properties.get_header("ODD").apply_page_type = "BOTH"
+    doc.oxml.sections[0].properties.header("ODD").page_type = "BOTH"
 
     assert _control_attrs(_section_xml(doc), "header", "applyPageType") == ["BOTH", "EVEN"]
 
