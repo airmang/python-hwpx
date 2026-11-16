@@ -8,8 +8,9 @@ every call. Operating-system and container-level failures keep the exception
 Python already raises — ``FileNotFoundError`` for a missing path. A damaged
 package raises a :class:`hwpx.opc.package.HwpxStructureError` subclass that is
 also the exception Python or lxml raised (:class:`zipfile.BadZipFile`,
-``zlib.error``, ``lxml.etree.XMLSyntaxError``); that family does not derive
-from :class:`HwpxError`.
+``zlib.error``, ``lxml.etree.XMLSyntaxError``); that family
+(:class:`hwpx.opc.package.HwpxPackageError`) derives from :class:`HwpxError`
+since 7.0 and always carries a ``code``.
 
 The base carries three machine-readable fields on top of the human-readable
 message, so a caller can branch on a stable ``code``, read the measured
@@ -679,6 +680,10 @@ ERROR_CODES: dict[str, str] = {
     "save-target-is-folder": "저장할 경로가 폴더다.",
     "save-target-unwritable": "저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error).",
     "open-safety-failed": "산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다.",
+    "open-input-unsafe": "입력이 안전한 읽기 한도(ZIP 항목 수·크기·압축률·경로, XML 크기·깊이)를 넘었다(HwpxSecurityError, ValueError 이기도 하다).",
+    "package-invalid":"패키지(HwpxPackage)가 계약을 어겼다(까닭을 따로 가리지 않은 HwpxPackageError 기본값).",
+    "package-structure-invalid": "HWPX 패키지 구조가 요구를 어겼다(HwpxStructureError 기본값).",
+    "package-xml-invalid": "패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에).",
     "open-empty-file": "연 파일이 비어 있다(0바이트). HwpxArchiveError 에 실린다.",
     "open-not-hwpx": "연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서).",
     "open-not-hwp": "확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다.",

@@ -123,7 +123,7 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_engine_contract.py::test_same_bytes_give_the_same_answer_in_another_process`
 2. **고치지 않은 저장은 바이트 그대로다.** 열고 고치지 않고 저장하면 모든 파트가 바이트 그대로다.
    대개 파일 전체가 같고, 몇몇은 ZIP 항목의 순서·플래그·폴더 항목만 다르다(공개·시험 HWPX 중
-   열리는 1,299개: 1,112개는 파일째 같고 187개는 파트가 같다).
+   열리는 1,309개: 1,122개는 파일째 같고 187개는 파트가 같다).
    `tests/test_engine_contract.py::test_an_unedited_hancom_document_saves_its_parts_unchanged`,
    `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`
 3. **공개 편집은 그 파트만 바꾸고, 바꾼 파트를 알린다.** 공개 API로 고치면 그 내용을 담은 파트만
@@ -135,7 +135,8 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다). `doc.save(..., pipeline=SavePipeline(oracle_factory=...))`로
    관문에 렌더러를 주어도 같다 — 렌더러는 `quality=` 정책이 렌더링할 때만 만들어지고, 열기 안전 검사는 한 번이다.
    `tests/test_document_save_api.py::test_to_bytes_rejects_generated_package_that_fails_open_safety`,
-   `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`
+   `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`,
+   `tests/test_package_errors_are_hwpx_errors.py::test_a_refused_save_of_a_damaged_input_says_open_safety_failed`
 5. **"한/글에서 열린다"는 한/글 기록이 있는 것에만 말한다.** 한/글에서 열어 확인했다
    (Render-verified)는 말은 실제 한/글로 열어 본 기록(`docs/openrate/` 보고, 한컴 오라클
    측정)이 있는 만들기·편집 영역에만 붙는다([지원 매트릭스](support-matrix.md)).
@@ -154,7 +155,8 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `TypeError`·`AttributeError` 가 그대로 새지 않는다(운영체제·손상 패키지 실패는 아래
    「오류 계약」대로).
    `tests/test_error_contract.py::test_the_public_path_raises_no_bare_builtins`,
-   `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`
+   `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`,
+   `tests/test_package_errors_are_hwpx_errors.py::test_every_package_error_is_an_hwpx_error_with_a_registered_code`
 9. **공개 이름은 다음 major까지 얼린다.** 7.0의 공개 이름(최상위·루트·묶음·`hwpx.model` 의 계약
    멤버·`hwpx.objects` 값 형식·안정 모듈 이름)은 8.0 전에는 지우거나 바꾸지 않는다. 공개 표면
    잠금(`tests/data/public_surface.json`)과 다르면 테스트가 실패한다. stable 이름이 돌려주는 형식도
@@ -297,9 +299,14 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | 깨진 XML 파트, 암호가 걸린 HWPX | `HwpxXmlSyntaxError`(`part_name`) | `lxml.etree.XMLSyntaxError` |
 | `mimetype`·`container.xml`·rootfile 없음 | `HwpxStructureError` | — |
 
-`HwpxPackageError`·`HwpxStructureError` 계열은 `HwpxError`를 상속하지 않습니다
-(`code`·`context`·`suggestion` 필드가 없습니다). 크기·압축률 상한을 넘는 입력은
-`HwpxSecurityError`(`ValueError`)로 거부합니다.
+7.0부터 `HwpxPackageError`(그 아래 `HwpxStructureError` 계열 모두)도 `HwpxError`를 상속해
+늘 `code`·`context`·`suggestion`을 싣습니다. 까닭을 아는 곳은 그 코드(`open-empty-file`,
+`open-encrypted`, 저장 거부의 `open-safety-failed` …)를, 모르는 곳은 클래스 기본값
+(`package-invalid`, `package-structure-invalid`, `open-archive-damaged`, `package-xml-invalid`)을
+냅니다. `HwpxXmlSyntaxError`의 `code`는 이제 이 코드이고 lxml의 숫자 코드는 `lxml_code`에 있습니다.
+크기·압축률 상한을 넘는 입력은 `HwpxSecurityError`(`ValueError`이자 `HwpxError`,
+`open-input-unsafe`)로 거부합니다. 앞에서 잡던 형식(`HwpxPackageError`, `BadZipFile`, `ValueError` …)으로도
+그대로 잡힙니다.
 구조화된 예외는 사람용 문장(`str(exc)`)을 그대로 두고, 세 가지 **기계가 읽는**
 필드를 얹습니다:
 
