@@ -88,10 +88,10 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 196 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 374 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 379 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 175 |
-| `hwpx.objects` 83개 값 형식 | 필드 407 · 멤버 194 · enum 값 10 | 611 |
-| 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
+| `hwpx.objects` 83개 값 형식 | 필드 408 · 멤버 194 · enum 값 10 | 612 |
+| 모듈 수준 stable 이름(13개 모듈) | 서명(클래스는 멤버까지) | 70 |
 <!-- public-surface-lock:end -->
 
 공개 이름을 바꾸면 잠금을 손으로 고치지 않고 다시 만든다. 바뀐 것마다
@@ -242,6 +242,9 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
 | `hyperlink_target(field_begin) -> str` | `hwpx.oxml.hyperlink_form` | 하이퍼링크 필드가 가리키는 곳(`Paragraph.hyperlinks`의 `url`과 같다) |
 | `cell_margins_of(cell_element, table_element)` | `hwpx.oxml.table_sizes` | `hp:tc` 요소의 실제 안 여백(`TableCell.margins`와 같다) |
 | `PAGE_PORTRAIT`, `PAGE_LANDSCAPE` | `hwpx.oxml.section_format` | `hp:pagePr@landscape`의 세로(`WIDELY`)·가로(`NARROWLY`) 값 |
+| `LINE_WIDTHS_MM: tuple[float, ...]` | `hwpx.oxml.utils` | 한/글 선 굵기 목록(mm, 0.1 … 5.0의 16개) — 테두리·단 구분선 굵기(`border_width_mm=` 등)가 받는 값의 전부. 목록 밖 값을 가까운 값으로 맞추는 일은 부르는 쪽 몫이다 |
+| `LINE_WIDTH_UNITS_PER_MM`, `line_width_units(line_width_mm) -> int`, `line_width_mm_for_units(units) -> float` | `hwpx.oxml.shape_position` | 그림·도형 선 굵기의 mm ↔ `hp:lineShape/@width`(HWPUNIT): 283/mm로 세어 자른다. `line_width_mm_for_units(n)`는 `line_width_units`가 정확히 `n`으로 되돌리는 mm |
+| `InlineObject.section`·`Shape.section`·`Table.section -> Section \| None` | `hwpx.model` | 개체(표 칸·글상자·머리말·각주 안의 개체 포함)가 든 구역. 번호는 `doc.sections.index(obj.section)`. 바탕쪽의 개체는 `None` |
 | `HP`·`HH`·`HC`·`HS`·`qn`·`tag_local_name` 등 | `hwpx.oxml.namespaces` | OWPML 이름공간과 태그 도우미 |
 | `__all__`의 이름(`guard_zip_file`, `read_member`, `read_zip_members`, `parse_xml_stdlib`, `guard_xml_bytes`, `guard_xml_depth`, `ZipGuardLimits`, `HwpxSecurityError`, `MAX_*`) | `hwpx.opc.security` | HWPX 바이트를 엔진과 같은 상한으로 여는 입력 방어. 상한 값(`MAX_*`)은 보안을 위해 minor에서 좁아질 수 있다 |
 

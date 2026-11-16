@@ -1266,11 +1266,13 @@ def numbering_info(header: "HwpxOxmlHeader | None", numbering_id_ref: "int | str
             text="".join(head.itertext()),
             alignment=_level_alignment(head),
             char_pr_id_ref=None if char_ref in (None, "", "4294967295") else char_ref,
-            auto_indent=(head.get("autoIndent") or "0") in ("1", "true"),
+            # an attribute left out reads as the OWPML schema's default (useInstWidth/autoIndent true, textOffset 50)
+            auto_indent=(head.get("autoIndent") or "1") in ("1", "true"),
             width_adjust=_int(head.get("widthAdjust")),
-            text_offset=_int(head.get("textOffset")),
+            text_offset=_int(head.get("textOffset"), 50),
             text_offset_type=(head.get("textOffsetType") or "PERCENT"),
             checkable=(head.get("checkable") or "0") in ("1", "true"),
+            use_instance_width=(head.get("useInstWidth") or "1") in ("1", "true"),
         ))
     return NumberingInfo(id=element.get("id") or wanted, start=_int(element.get("start"), 1), levels=tuple(levels))
 

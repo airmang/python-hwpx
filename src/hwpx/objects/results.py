@@ -524,7 +524,16 @@ class NumberingLevel:
     (``DIGIT``, ``HANGUL_SYLLABLE``, ``CIRCLED_DIGIT``, ...); ``alignment`` where
     the number sits in its width (``hh:paraHead/@align``, ``LEFT`` when unsaid);
     ``char_pr_id_ref`` the character shape of the number, ``None`` when it
-    follows the text (Hancom writes 4294967295 for that).
+    follows the text (Hancom writes 4294967295 for that). ``use_instance_width``
+    (``useInstWidth``, 7.0) is whether the number takes the width of the text
+    it shows rather than a fixed one; ``auto_indent`` whether the paragraph
+    hangs from the number; ``width_adjust`` the number width's correction and
+    ``text_offset`` the room before the text (``text_offset_type`` ``PERCENT``
+    or ``HWPUNIT``). Every field is the paraHead's attribute as written; an
+    attribute the file leaves out reads as the OWPML schema's default for it
+    (``start`` 1, ``DIGIT``, ``LEFT``, ``use_instance_width`` and
+    ``auto_indent`` true, ``width_adjust`` 0, ``text_offset`` 50 ``PERCENT``;
+    ``checkable``, which has none, false).
     """
 
     level: int
@@ -538,6 +547,7 @@ class NumberingLevel:
     text_offset: int
     text_offset_type: str
     checkable: bool
+    use_instance_width: bool
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -552,6 +562,7 @@ class NumberingLevel:
             "textOffset": self.text_offset,
             "textOffsetType": self.text_offset_type,
             "checkable": self.checkable,
+            "useInstanceWidth": self.use_instance_width,
         }
 
 

@@ -87,6 +87,8 @@ MODULE_NAMES: dict[str, tuple[str, ...] | None] = {
     "hwpx.oxml.hyperlink_form": ("hyperlink_target",),
     "hwpx.oxml.table_sizes": ("cell_margins_of",),
     "hwpx.oxml.section_format": ("PAGE_PORTRAIT", "PAGE_LANDSCAPE"),
+    "hwpx.oxml.utils": ("LINE_WIDTHS_MM",),
+    "hwpx.oxml.shape_position": ("LINE_WIDTH_UNITS_PER_MM", "line_width_units", "line_width_mm_for_units"),
     "hwpx.oxml.namespaces": ("HP", "HH", "HC", "HS", "qn", "tag_local_name"),
     "hwpx.opc.security": None,
     "hwpx.form_fit": (

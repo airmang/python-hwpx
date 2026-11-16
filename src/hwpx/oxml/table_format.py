@@ -448,6 +448,8 @@ class TableFormat:
     z_order = ObjectPlacement.z_order
     locked = ObjectPlacement.locked
     numbering_type = ObjectPlacement.numbering_type
+    # The section whose part holds the table (a nested table's too); None on a master page.
+    section = ObjectPlacement.section
 
     @property
     def cell_spacing(self) -> int:
