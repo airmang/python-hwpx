@@ -251,7 +251,8 @@ def _freed(shape):
 UNGROUPED = {
     # The group (rectangle 8000x5000 + ellipse 6000x5000 at 9000) floats at (2000, 1000). Hancom hangs a
     # member on the paragraph where it starts; the positions below are measured from the group's paragraph
-    # (Hancom's offset plus that paragraph's line position, and its turned group's place).
+    # (Hancom's offset plus that paragraph's line position). A turned group was moved by its turn so its centre
+    # stays on the page (rotate9), Hancom's and python-hwpx's alike: its members start from its moved place.
     "plain": [  # ungroup2
         {"tag": "ellipse", "pos": (11000, 1000), "sz": (6000, 5000), "curSz": (0, 0), "trans": (0, 0),
          "turn": ("0", "3000", "2500")},
@@ -271,21 +272,21 @@ UNGROUPED = {
          "turn": ("0", "2400", "6000")},
     ],
     "turned30": [  # ungroupturned2: ellipse 9549/485 on the paragraph at 1600, group at (1755, -2415)
-        {"tag": "rect", "pos": (2000, 1000), "sz": (9428, 8330), "curSz": (0, 0), "trans": (245, 3415),
+        {"tag": "rect", "pos": (1755, -2415), "sz": (9428, 8330), "curSz": (0, 0), "trans": (245, 3415),
          "turn": ("30", "4714", "4165")},
-        {"tag": "ellipse", "pos": (2000 + 7794, 1000 + 4500), "sz": (7696, 7330), "curSz": (0, 0),
+        {"tag": "ellipse", "pos": (9549, 1600 + 485), "sz": (7696, 7330), "curSz": (0, 0),
          "trans": (1451, -1085), "turn": ("30", "3848", "3665")},
     ],
     "turned45": [  # ungroupturned45b: rect 2429/-3571 = group's place, ellipse 8793/1193 on the paragraph at 1600
-        {"tag": "rect", "pos": (2000, 1000), "sz": (9192, 9192), "curSz": (0, 0), "trans": (-429, 4571),
+        {"tag": "rect", "pos": (2429, -3571), "sz": (9192, 9192), "curSz": (0, 0), "trans": (-429, 4571),
          "turn": ("45", "4596", "4596")},
-        {"tag": "ellipse", "pos": (2000 + 8793 - 2429, 1000 + 1193 + 1600 + 3571), "sz": (7778, 7778),
+        {"tag": "ellipse", "pos": (8793, 1600 + 1193), "sz": (7778, 7778),
          "curSz": (0, 0), "trans": (2207, -1793), "turn": ("45", "3889", "3889")},
     ],
     "turned90": [  # ungroupturned90: ellipse 7000/200 on the paragraph at 4800, group at (7000, -4000)
-        {"tag": "rect", "pos": (2000, 1000), "sz": (5000, 8000), "curSz": (0, 0), "trans": (-5000, 5000),
+        {"tag": "rect", "pos": (7000, -4000), "sz": (5000, 8000), "curSz": (0, 0), "trans": (-5000, 5000),
          "turn": ("90", "2500", "4000")},
-        {"tag": "ellipse", "pos": (2000, 1000 + 9000), "sz": (5000, 6000), "curSz": (0, 0), "trans": (4000, -4000),
+        {"tag": "ellipse", "pos": (7000, 4800 + 200), "sz": (5000, 6000), "curSz": (0, 0), "trans": (4000, -4000),
          "turn": ("90", "2500", "3000")},
     ],
 }

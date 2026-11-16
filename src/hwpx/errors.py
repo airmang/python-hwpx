@@ -627,7 +627,7 @@ ERROR_CODES: dict[str, str] = {
     "shape-move-into-itself": "개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다).",
     "shape-move-place-unsupported": "한/글이 그렇게 두는 근거가 없거나 다시 열지 못한 자리로 옮기거나 복사하려 했다: 표 칸에 문단 기준으로 위로 올라가는 떠 있는 개체(한/글이 다시 열지 못함), 개체를 메모·바탕쪽으로, 떠 있는 표를 칸·글상자·각주·캡션으로(문단 기준·쪽 영역 안이 아니면); context.box·placement·reason.",
     "shape-equation-resize-unsupported": "수식은 크기를 바꾸지 않는다: 상자는 스크립트와 글자 크기로 정해지고 한/글도 준 크기를 버리고 다시 잰다(한/글에 없는 기능).",
-    "shape-ungroup-unsupported": "풀 수 없는 묶음이다: 묶음이 아니거나, 한/글 저장본으로 확인하지 못한 꼴(양쪽으로 뒤집힌 묶음, 뒤집고 늘인 묶음, 혼자 돌았거나 뒤집힌 구성원, 돈 뒤 늘여 기울어진 묶음)이다; context.reason.",
+    "shape-ungroup-unsupported": "풀 수 없는 묶음이다: 묶음이 아니거나, 글자처럼 놓였거나 오른쪽·아래·안쪽·바깥쪽 정렬이거나, 한/글 저장본으로 확인하지 못한 꼴(양쪽으로 뒤집힌 묶음, 뒤집고 늘인 묶음, 혼자 돌았거나 뒤집힌 구성원, 돈 뒤 늘여 기울어진 묶음)이다; context.reason.",
     "shape-copy-document-unsupported": "다른 문서로 그 개체를 옮기거나 복사할 수 없다: 글이 든 개체(글상자·캡션·표)는 한/글이 다른 문서에 붙인 뒤 다시 열지 못했고, 연결선은 도형을 놓아 한/글이 그리지 않는다(문서 끼워 넣기 insert_document 를 쓴다).",
     "shape-raw-tag-empty": "탈출구 add_shape/add_raw 에 줄 태그 이름이 비어 있다.",
     "shape-out-margin-value": "개체 바깥 여백(out_margins)이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",

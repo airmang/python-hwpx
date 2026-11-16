@@ -8,8 +8,10 @@ a group of a rectangle and an ellipse (0), a group of a rectangle and a text box
 in one file is found unturned in another. Hangul's dialog also drew the ellipse turned by 30 degrees at
 7200 x 7200 (its scaMatrix 0.6 x 1.028571, ``curSz`` 7200 x 7199).
 
-What Hangul's turn changes that python-hwpx does not, and is left out of the comparison: ``hp:pos`` offsets (its
-commands move the object so its middle stays on the page; ``rotation`` keeps the box's top left corner),
+A turn moves a floating object in its frame so the centre it turns about stays on the page, Hangul's and
+``rotation`` alike; Hangul also hangs it on the paragraph at the height it then starts, whose down offset is carried
+to python-hwpx's paragraph for the comparison (tests/hancom_place.py). What Hangul's turn changes that python-hwpx
+does not, and is left out of the comparison:
 ``curSz`` (Hangul saves 0 x 0 for an unstretched object), the text's line layout caches (Hangul lays the text out
 again; python-hwpx drops them for Hangul to do so), ids and an empty ``hp:shapeComment``.
 """
@@ -25,6 +27,7 @@ from hwpx import HwpxDocument
 from hwpx.errors import HwpxValueError
 from hwpx.oxml.container import ContainerMember
 from hwpx.oxml.namespaces import HC, HP
+from tests.hancom_place import carry_down_offset, paragraph_heights, paragraph_index
 
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 
@@ -50,6 +53,29 @@ def _local(node) -> str:
     return str(node.tag).rsplit("}", 1)[-1]
 
 
+def _signed(value: str) -> int:
+    number = int(value) & 0xFFFFFFFF
+    return number - (1 << 32) if number >= 1 << 31 else number
+
+
+#: Hangul hung the turned object on the title, a paragraph of two lines, and measured its down offset from the line
+#: holding it (1600 lower than the paragraph's top) -- which needs the line layout; python-hwpx keeps it on its
+#: paragraph where the turn leaves it, so only the down offset is not compared.
+ON_A_LINE_BELOW = {"turn_shapes_text_box_by_330", "turn_shapes_group_with_text_box_by_45",
+                   "turn_shapes_group_resized_by_90", "turn_resized_group_by_30", "turn_group_in_group_by_30"}
+
+
+def _carried(saved: HwpxDocument, theirs, doc: HwpxDocument, ours, source: str, case: str = "") -> None:
+    """Hangul hangs an object it moved on the paragraph at that height: its down offset carried to python-hwpx's
+    paragraph, the heights read from Hangul's layout of *source* (the document before the change)."""
+
+    if case in ON_A_LINE_BELOW:
+        theirs.element.find(f"{HP}pos").set("vertOffset", ours.element.find(f"{HP}pos").get("vertOffset"))
+        return
+    carry_down_offset(theirs.element, paragraph_index(saved, theirs), paragraph_index(doc, ours),
+                      paragraph_heights(HwpxDocument.open(HANCOM / f"{source}.hwpx")))
+
+
 def _normalized(element, path: str = "", *, members_centres: bool = True) -> list[str]:
     """*element* as lines to compare. ``members_centres=False`` leaves out the ``rotationInfo`` centres of a
     group's members: Hangul's turn-by-90-degrees command leaves them, its object dialog (which ``rotation``
@@ -59,7 +85,10 @@ def _normalized(element, path: str = "", *, members_centres: bool = True) -> lis
     if name in {"curSz", "linesegarray"} or (name == "shapeComment" and not (element.text or "").strip()):
         return []
     attributes = {key: ("0" if value == "-0" else value) for key, value in element.attrib.items()
-                  if key not in {"id", "instid"} and not (name == "pos" and key in {"horzOffset", "vertOffset"})}
+                  if key not in {"id", "instid"}}
+    if name == "pos":  # offsets as signed numbers: Hangul writes a negative one unsigned too
+        attributes = {key: (str(_signed(value)) if key in {"horzOffset", "vertOffset"} else value)
+                      for key, value in attributes.items()}
     if not members_centres and name in {"rotationInfo", "drawText"} and path.count("/") > 1:
         attributes = {key: value for key, value in attributes.items()
                       if key not in {"centerX", "centerY", "lastWidth"}}
@@ -116,7 +145,9 @@ def test_turning_writes_what_hancoms_dialog_wrote(turned: str, instid: str, angl
     if drawn is not None:  # Hangul's dialog also drew the group at this size: resize writes Hangul's resized group
         target.resize(*drawn)
     target.rotation = angle
-    hancom = _by_instid(HwpxDocument.open(HANCOM / f"{turned}.hwpx"), instid)
+    saved = HwpxDocument.open(HANCOM / f"{turned}.hwpx")
+    hancom = _by_instid(saved, instid)
+    _carried(saved, hancom, doc, target, source, turned)
     assert hancom.rotation == angle % 360 == target.rotation
     ours, theirs = _normalized(target.element), _normalized(hancom.element)
     assert ours == theirs if "again" not in turned else _numbers_close(ours, theirs, 0.01)
@@ -130,8 +161,10 @@ def test_hancoms_dialog_turn_turns_back(turned: str, instid: str, angle: int, so
     doc = HwpxDocument.open(HANCOM / f"{turned}.hwpx")
     target = _by_instid(doc, instid)
     target.rotation = 0
-    original = _by_instid(HwpxDocument.open(HANCOM / f"{source}.hwpx"), instid)
+    source_doc = HwpxDocument.open(HANCOM / f"{source}.hwpx")
+    original = _by_instid(source_doc, instid)
     original.rotation = 0  # a turned-again source is the object turned 30 degrees: back to 0 too
+    _carried(source_doc, original, doc, target, source, turned)
     if drawn is not None:
         # resize keeps the members' centres and text widths; a turn back writes them as drawn, as Hangul saves a
         # resized group's members (turn_group_in_group_by_30 holds one: drawn 9000 wide, centre 4500)
@@ -152,7 +185,9 @@ def test_turning_writes_what_hancom_wrote(turned: str, index: int, angle: int, u
     target = _objects(doc)[index]
     assert target.rotation == 0
     target.rotation = angle
-    hancom = _objects(HwpxDocument.open(HANCOM / f"{turned}.hwpx"))[index]
+    saved = HwpxDocument.open(HANCOM / f"{turned}.hwpx")
+    hancom = _objects(saved)[index]
+    _carried(saved, hancom, doc, target, unturned)
     command = turned.startswith("turn_group") and turned.endswith("_by_90")  # Hangul's turn-by-90 command
     assert _normalized(target.element, members_centres=not command) == \
         _normalized(hancom.element, members_centres=not command)
@@ -169,7 +204,9 @@ def test_hancoms_turn_reads_and_turns_back(turned: str, index: int, angle: int, 
     for member in getattr(target, "members", ()):  # a turned group's members keep angle 0
         assert member.rotation == 0
     target.rotation = 0
-    original = _objects(HwpxDocument.open(HANCOM / f"{unturned}.hwpx"))[index]
+    source_doc = HwpxDocument.open(HANCOM / f"{unturned}.hwpx")
+    original = _objects(source_doc)[index]
+    _carried(source_doc, original, doc, target, unturned)
     assert _normalized(target.element) == _normalized(original.element)
 
 
@@ -186,6 +223,9 @@ def test_a_stretched_text_ellipse_turns_as_hancom_turned_it() -> None:
     for name, (width, height) in (("curSz", ("7200", "7199")), ("sz", ("7200", "7200"))):
         ellipse.element.find(f"{HP}{name}").attrib.update({"width": width, "height": height})
     ellipse.rotation = 30
+    hancom.element.find(f"{HP}pos").set("vertOffset", ellipse.element.find(f"{HP}pos").get("vertOffset"))
+    hancom.element.find(f"{HP}pos").set("horzOffset", ellipse.element.find(f"{HP}pos").get("horzOffset"))
+    # (its place: python-hwpx's ellipse is turned back from 90 and redrawn by hand, not as Hangul's dialog did)
     assert _normalized(ellipse.element) == _normalized(hancom.element)
     draw_text = ellipse.element.find(f"{HP}drawText")
     assert draw_text.get("lastWidth") == "9836" == ellipse.element.find(f"{HP}sz").get("width")

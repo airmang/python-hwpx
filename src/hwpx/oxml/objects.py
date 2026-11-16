@@ -1567,23 +1567,24 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
 
         Each is drawn where it was in the group: its own matrices are kept (the group's turn and stretch with
         them), its box (``hp:sz``) is the box it is drawn in, and it is placed from the group's frames at the
-        group's offsets plus where it starts in the group, with the group's text wrapping and outer margins, a
-        new ``id`` and a ``zOrder`` above the others. Turned members keep the group's angle; members of a
-        flipped group take its flags (their matrices already mirror them). A group inside comes out whole, its
+        group's offsets plus where it starts in the group (centred, by its middle), with the group's text
+        wrapping and outer margins, a new ``id`` and the group's place in the drawing order (the first member
+        the group's ``zOrder``, the last on top, the objects above moved up). Turned members keep the group's
+        angle; members of a flipped group take its flags (their matrices already mirror them). A group inside
+        comes out whole, its
         shapes measured from it a level up. This is what Hancom 2024 wrote for groups ungrouped plain,
         stretched, turned 30 and 90 degrees, flipped left-right or up-down (turned 30 too) and holding a group;
         Hancom also hangs a member on the paragraph at whose height it starts, here it stays in this paragraph
         at the same spot.
 
         Refused with ``shape-ungroup-unsupported`` (``context["reason"]``) before anything changes: a shape
-        that is not a group, a group set as a character or placed from another side than the left and top, a
+        that is not a group, a group set as a character or placed from the right, bottom, inside or outside, a
         group flipped both ways or flipped and resized, one turned and then stretched (skewed), and one with a
         member turned or flipped on its own. The paragraph
         loses its line layout cache; this group object should not be used after it.
         """
 
         from .container import _ungroup_refused, ungroup_elements, ungroup_refusal
-        from .shape_position import _top_z_order
 
         if self.shape_type != "container":
             raise _ungroup_refused("it is not a group")
@@ -1592,7 +1593,7 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
         why = ungroup_refusal(self.element)
         if why is not None:
             raise _ungroup_refused(why)
-        freed = ungroup_elements(self.element, int(_top_z_order(self.paragraph.section)))
+        freed = ungroup_elements(self.element)
         _clear_paragraph_layout_cache(self.paragraph.element)
         self.paragraph.section.mark_dirty()
         return tuple(cast("HwpxOxmlShape | HwpxOxmlInlineObject", wrap_object(element, self.paragraph))
