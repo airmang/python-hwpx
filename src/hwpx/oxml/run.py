@@ -16,6 +16,7 @@ from ._document_primitives import (
     _HP,
     _clear_paragraph_layout_cache,
     _element_local_name,
+    _is_tab_control_element,
     _text_element_content,
 )
 from ._paragraph_text_edit import (
@@ -393,51 +394,58 @@ def text_stretch_spans(runs: Sequence[ET.Element]) -> list[tuple[int, list[_Repl
     characters, so a match inside it is text a search can cover as one word.
     """
 
-    from ._document_primitives import _is_tab_control_element
-
-    stretches: list[tuple[int, list[_ReplaceSegment]]] = []
-    current: list[_ReplaceSegment] = []
-    start = 0
-    position = 0
-
-    def cut() -> None:
-        nonlocal current
-        if current:
-            stretches.append((start, current))
-            current = []
-
-    def add(element: ET.Element, attr: str, text: str) -> None:
-        nonlocal start, position
-        if not current:
-            start = position
-        current.append(_ReplaceSegment(element, attr, text))
-        position += len(text)
-
-    def visit(element: ET.Element, top: bool) -> None:
-        nonlocal position
-        add(element, "text", element.text or "")
-        for child in list(element):
-            if not isinstance(child.tag, str):
-                pass  # a comment or processing instruction: not text, the text around it still joins
-            elif _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
-                cut()
-                if top:
-                    position += 1  # paragraph.text reads it as one character
-            else:
-                visit(child, False)
-            add(child, "tail", child.tail or "")
-
+    walk = _StretchWalk()
     for run in runs:
         for child in run:
-            name = _element_local_name(child)
-            if name == "t":
-                visit(child, True)
-            else:
-                cut()
-                if name == "tab" or _is_tab_control_element(child):
-                    position += 1
-    cut()
-    return stretches
+            walk.run_child(child)
+    walk.cut()
+    return walk.stretches
+
+
+class _StretchWalk:
+    """The walk behind :func:`text_stretch_spans`: segments, stretches and the position in the text."""
+
+    def __init__(self) -> None:
+        self.stretches: list[tuple[int, list[_ReplaceSegment]]] = []
+        self.current: list[_ReplaceSegment] = []
+        self.start = 0
+        self.position = 0
+
+    def cut(self) -> None:
+        if self.current:
+            self.stretches.append((self.start, self.current))
+            self.current = []
+
+    def add(self, element: ET.Element, attr: str, text: str) -> None:
+        if not self.current:
+            self.start = self.position
+        self.current.append(_ReplaceSegment(element, attr, text))
+        self.position += len(text)
+
+    def run_child(self, child: ET.Element) -> None:
+        name = _element_local_name(child)
+        if name == "t":
+            self.visit(child, top=True)
+            return
+        self.cut()
+        if name == "tab" or _is_tab_control_element(child):
+            self.position += 1  # paragraph.text reads a run-level tab as one character
+
+    def visit(self, element: ET.Element, *, top: bool) -> None:
+        self.add(element, "text", element.text or "")
+        for child in list(element):
+            # a comment or processing instruction is no text: the text around it still joins
+            if isinstance(child.tag, str):
+                self.text_child(child, top=top)
+            self.add(child, "tail", child.tail or "")
+
+    def text_child(self, child: ET.Element, *, top: bool) -> None:
+        if _element_local_name(child) in _TEXT_CHARACTER_ELEMENTS:
+            self.cut()
+            if top:
+                self.position += 1  # paragraph.text reads it as one character
+        else:
+            self.visit(child, top=False)
 
 
 def regex_matches(pattern: "re.Pattern[str]", text: str) -> list["re.Match[str]"]:

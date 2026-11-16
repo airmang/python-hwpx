@@ -104,7 +104,7 @@ print(report.actual_mode)
   run의 `hp:ctrl`(단·머리말·꼬리말·쪽 번호)만 남긴다. 한/글은 쪽 번호·머리말
   컨트롤을 흔히 둘째 run에 쓴다. 컨트롤이 없는 뒤쪽 run은 지우고, 첫 문단 안 표
   속의 컨트롤은 표와 함께 지운다. `on_control_content="strip"`은 내용이 든
-  `hp:ctrl`과, python-hwpx 6.x까지 `set_header()`·`set_footer()`가 `hp:secPr` 안에 따로 쓰던
+  `hp:ctrl`과, `set_header()`·`set_footer()`가 `hp:secPr` 안에 따로 쓰는
   머리말·꼬리말 사본(한컴은 `hp:ctrl` 쪽만 읽는다)과 그것을 가리키는
   `headerApply`·`footerApply`를 지운다. 그래도 내용이 남을 자리(`hp:secPr`의
   다른 자식 등)에 내용이 있으면 지우지 않고 `section-clear-control-content`로
