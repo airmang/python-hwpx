@@ -29,7 +29,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _big_table_document(rows: int) -> HwpxDocument:
-    doc = HwpxDocument.new(seed=3)
+    doc = HwpxDocument.new()  # no seed: a seeded document installs an id source until closed
     table = doc.add_table(rows, 4)
     bold = doc.styles.ensure_run(bold=True)
     for row in range(rows):
