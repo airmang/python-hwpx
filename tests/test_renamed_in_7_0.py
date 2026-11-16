@@ -639,3 +639,12 @@ def test_a_bullet_head_reads_its_alignment() -> None:
     with pytest.raises(HwpxAttributeError) as raised:
         head.align  # noqa: B018
     assert raised.value.context["replacement"] == "BulletParaHead.alignment"
+
+
+def test_add_master_page_reference_tells_the_new_keyword() -> None:
+    """6.12 took ``id_ref=``; 7.0 names it ``master_page_id=`` and the old keyword says so."""
+    document = HwpxDocument.new()
+    properties = document.oxml.sections[0].properties
+    with pytest.raises(TypeError) as caught:
+        properties.add_master_page_reference(id_ref="masterpage0")
+    assert "master_page_id" in str(caught.value)

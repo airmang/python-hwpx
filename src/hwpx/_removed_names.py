@@ -746,6 +746,10 @@ ARGUMENTS: dict[str, Arguments] = {
         inherit_outline=None,
         xml_attributes=True,
     ),
+    "SectionProperties.add_master_page_reference": _args(
+        "SectionProperties.add_master_page_reference(id_ref=)는 7.0에서 master_page_id= 이다(MasterPage 도 받는다)",
+        id_ref="master_page_id",
+    ),
     "HeaderFooter.add_paragraph": _args(
         "HeaderFooter.add_paragraph(align=)는 7.0에서 없어졌다: p = hf.add_paragraph('글'); p.alignment = 'CENTER'",
         align=None,
