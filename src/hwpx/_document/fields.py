@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError
-from ..objects.checkbox import CheckBox
+from ..objects.checkbox import CheckBox, ComboBox, EditBox, RadioButton
 from ..objects.form_field import (
     Bookmark,
     CellField,
@@ -1913,7 +1913,7 @@ def add_radio_button(
     name: str | None = None,
     paragraph: Any | None = None,
     section: Any | None = None,
-) -> Any:
+) -> RadioButton:
     """Create a radio button (라디오 단추) as Hancom writes one and return it as a
     :class:`~hwpx.objects.RadioButton`. Checking it unchecks the other buttons of its *group*."""
 
@@ -1931,7 +1931,7 @@ def add_radio_button(
     )
     if checked:
         view.checked = True
-    return view
+    return cast(RadioButton, view)
 
 
 def add_combo_box(
@@ -1942,7 +1942,7 @@ def add_combo_box(
     name: str | None = None,
     paragraph: Any | None = None,
     section: Any | None = None,
-) -> Any:
+) -> ComboBox:
     """Create a combo box (콤보 상자) as Hancom writes one and return it as a
     :class:`~hwpx.objects.ComboBox`: one list item holding the text the box shows."""
 
@@ -1953,11 +1953,11 @@ def add_combo_box(
             context={"requested": repr(text)},
             suggestion="Pass the text the box shows, or leave it out for an empty box.",
         )
-    return _add_form_object(
+    return cast(ComboBox, _add_form_object(
         doc, "comboBox", {"editEnable": "1" if editable_text else "0"},
         name=_form_name(doc, "comboBox", name), paragraph=paragraph, section=section,
         content=(("listItem", {"displayText": "", "value": _sanitize_field_text(text)}, None),),
-    )
+    ))
 
 
 def add_edit_box(
@@ -1969,7 +1969,7 @@ def add_edit_box(
     name: str | None = None,
     paragraph: Any | None = None,
     section: Any | None = None,
-) -> Any:
+) -> EditBox:
     """Create an edit box (입력 상자) as Hancom writes one and return it as an
     :class:`~hwpx.objects.EditBox`. A box of one line takes line breaks as spaces."""
 
@@ -1983,11 +1983,11 @@ def add_edit_box(
     value = _sanitize_field_text(text)
     if not multi_line:
         value = value.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
-    return _add_form_object(
+    return cast(EditBox, _add_form_object(
         doc, "edit", {"multiLine": "1" if multi_line else "0", "readOnly": "1" if read_only else "0"},
         name=_form_name(doc, "edit", name), paragraph=paragraph, section=section,
         content=(("text", {}, value),),
-    )
+    ))
 
 
 def _measure_form_field_fit(
