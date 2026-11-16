@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 362개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 376개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -321,6 +321,39 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
 `Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
+
+### 개체·표·문단·메모 옮기기와 복사 (7.0)
+
+`InlineObject`·`Picture`·`Equation`·`Shape`·`Table`의 `move_to(paragraph, *, offset=None)`는 개체를
+같은 문서의 다른 문단(본문·표 칸·글상자·각주·미주·머리말·꼬리말)으로 옮기고,
+`copy_to(paragraph, *, offset=None)`는 복사본을 넣어 그 모델 객체를 돌려줍니다. `paragraph`는 문단
+객체나 `doc.paragraphs`의 번호, `offset`은 `paragraph.text`와 같은 규칙으로 센 글자 위치(`None`은
+끝)이고, 개체는 그 글자 앞, 그 자리에 이미 있는 컨트롤·개체 뒤에 놓입니다(글 노드 한가운데면 노드를
+나누어 같은 run 안에). 옮긴 개체는 id·캡션·내용을 지키고 원래 자리는 `remove()`처럼 정리됩니다(빈
+run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문단·누름틀 id를 새로 받고(묶음 구성원의
+`id="0"`은 그대로), 그림은 같은 이진 항목을 함께 쓰며, 그 안에 걸린 메모는 다음 번호를 받은 메모가
+따로 생깁니다. 두 문단과 그 문단의 칸·캡션을 품은 문단은 줄 배치 캐시를 잃습니다.
+
+떠 있는 개체는 기준과 오프셋을 그대로 가져갑니다 — 문단 기준(`PARA`·`COLUMN`)이면 새 문단에서,
+쪽·용지 기준(`PAGE`·`PAPER`)이면 새 문단이 놓인 쪽에서 같은 자리입니다. 한/글 문서가 그런 개체를
+두지 않는 곳은 바꾸기 전에 `shape-move-place-unsupported`로 거부합니다: 쪽·용지 기준 개체를 표 칸·
+글상자·각주로(공개 문서 1,304개에서 칸 634·각주 40·글상자 2개의 떠 있는 개체가 모두 문단 기준),
+용지나 여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 어떤 개체든 메모·바탕쪽으로. 자기 글상자·칸·
+캡션으로 옮기기는 `shape-move-into-itself`(복사는 됨), 묶음 구성원은 `shape-group-member-unsupported`,
+지운 개체는 `shape-not-in-document`, 다른 문서의 문단은 `paragraph-not-in-document`입니다. 다른
+문서로 가져오기는 머리 정의·이진 항목을 함께 옮겨야 하므로 `hwpx.tools.document_merge.insert_document`
+(문단 단위)를 씁니다.
+
+`Paragraph.move_after(paragraph)`/`move_before(paragraph)`는 문단 자체를 옮깁니다(복사는
+`insert_after`/`insert_before`). id·내용을 지키고, 구역의 첫 문단이면 구역 설정이 다음 문단으로 가고,
+구역 첫 문단 앞에 놓이면 구역 설정을 넘겨받습니다. 다른 구역으로 가면 그 문단에 걸린 메모가 새 구역의
+메모 묶음으로 따라갑니다. 칸·머리말의 마지막 문단은 `paragraph-remove-last`, 자기 칸 안으로는
+`paragraph-move-into-itself`, 메모의 문단은 `paragraph-move-place-unsupported`로 거부합니다.
+
+`Memo.move_to(section, *, index=None)`는 메모를 그 구역의 메모 묶음 `index` 번째로 옮기고(묶음이
+없으면 만들고, 비게 된 묶음은 지움), `copy_to(section, *, index=None)`는 새 id의 고리 없는 복사본을
+돌려줍니다(`doc.notes.attach`로 겁니다). 메모는 고리(MEMO 누름틀)가 있는 구역에 두므로, 고리가 다른
+구역에 있는 메모와 한/글이 누름틀에 담아 둔 메모의 이동은 `note-memo-anchor-elsewhere`입니다.
 
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
 `model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는

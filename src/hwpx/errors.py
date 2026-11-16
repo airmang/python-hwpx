@@ -375,6 +375,8 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-range-invalid": "글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다.",
     "paragraph-split-inside-element": "나눌 위치가 hp:t 안의 나눌 수 없는 요소(글자를 가진 요소) 한가운데다.",
     "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
+    "paragraph-move-into-itself": "문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다.",
+    "paragraph-move-place-unsupported": "메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다).",
     # -- 표 셀 -----------------------------------------------------------
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
@@ -547,6 +549,9 @@ ERROR_CODES: dict[str, str] = {
     "shape-rotation-value": "회전 각도가 0 이상 359 이하의 int(도)가 아니다(bool 도 거부).",
     "shape-rotation-unsupported": "돌리려는 개체에 hp:rotationInfo 가 없다(수식·차트 등은 돌지 않는다).",
     "shape-description-value": "개체 설명(hp:shapeComment)이 str 이 아니다.",
+    "shape-not-in-document": "옮기거나 복사할 개체가 문단에 없다(지운 개체).",
+    "shape-move-into-itself": "개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다).",
+    "shape-move-place-unsupported": "한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(쪽·용지 기준 떠 있는 개체를 표 칸·글상자·각주로, 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement).",
     # -- 미디어 ----------------------------------------------------------
     "media-picture-not-found": "picture_index 번째 그림이 없다(binaryItemIDRef 로 고른 경우 그 안에서).",
     "media-image-invalid": "그림 형식 이름을 모르거나, 데이터의 첫 바이트가 그 형식의 그림이 아니다(context.detected).",
@@ -558,6 +563,8 @@ ERROR_CODES: dict[str, str] = {
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",
     "note-match-not-found": "메모를 걸 글(match)이 그 문단의 한 런 안에 없다.",
+    "note-memo-anchor-elsewhere": "메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모).",
+    "note-memo-index-value": "메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다.",
     # -- 변경추적 --------------------------------------------------------
     "track-text-empty": "변경추적 삽입 텍스트가 비어 있다.",
     "track-match-empty": "찾을 문자열이 비어 있다.",

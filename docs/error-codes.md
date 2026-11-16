@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 284 | 11 |
+| 개수 | 291 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -196,7 +196,9 @@ except HwpxError as exc:
 | `note-anchor-detached` | 앵커를 걸 문단이 섹션에 속해 있지 않다. |
 | `note-argument-conflict` | 앵커 없는 메모에 앵커 전용 인자를 줬다. |
 | `note-match-not-found` | 메모를 걸 글(match)이 그 문단의 한 런 안에 없다. |
+| `note-memo-anchor-elsewhere` | 메모를 고리(MEMO 누름틀)가 없는 구역으로 옮기려 했다(고리가 다른 구역에 있거나 한/글이 누름틀에 담아 둔 메모). |
 | `note-memo-detached` | 메모가 섹션에 속해 있지 않다. |
+| `note-memo-index-value` | 메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다. |
 
 ### `open-*`
 
@@ -258,6 +260,8 @@ except HwpxError as exc:
 | `paragraph-line-spacing-invalid` | 줄 간격은 양수여야 한다. |
 | `paragraph-missing` | 문서(또는 지정 범위)에 문단이 하나도 없다. |
 | `paragraph-mixed-text-unsupported` | hp:t 안에 인라인 마크업이 섞여 있어 안전하게 고칠 수 없다. |
+| `paragraph-move-into-itself` | 문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다. |
+| `paragraph-move-place-unsupported` | 메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다). |
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
 | `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
@@ -376,6 +380,9 @@ except HwpxError as exc:
 | `shape-equation-script-too-large` | 수식 스크립트가 크기 한도를 넘었다. |
 | `shape-equation-script-unbalanced` | 수식 스크립트의 중괄호 짝이 맞지 않는다. |
 | `shape-group-member-unsupported` | 묶음(hp:container) 안의 개체는 혼자 지우거나 돌리거나 설명을 달 수 없다(묶음째 다룬다). |
+| `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |
+| `shape-move-place-unsupported` | 한/글 문서가 그런 개체를 두지 않는 자리로 옮기거나 복사하려 했다(쪽·용지 기준 떠 있는 개체를 표 칸·글상자·각주로, 용지·여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 개체를 메모·바탕쪽으로; context.box·placement). |
+| `shape-not-in-document` | 옮기거나 복사할 개체가 문단에 없다(지운 개체). |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-picture-border-value` | 그림 테두리 굵기(line_width)가 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
 | `shape-picture-crop-value` | 그림 자르기(crop)가 0 이상의 int 네 개(왼쪽·위·오른쪽·아래, HWPUNIT)가 아니거나 그림을 다 잘라 낸다. |
