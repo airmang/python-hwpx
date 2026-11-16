@@ -45,7 +45,10 @@ sanitized-fixture and section hashes are in
 `turn_*.hwpx` are synthetic documents made by python-hwpx (rectangles, a text box, an ellipse holding text and
 two groups) in which Hangul 2024 for Windows (`os="1"` in `version.xml`) turned one object through its public
 automation -- the object selected, then its turn-by-90-degrees command (`*_by_90`) or its object dialog with an
-angle of 30 (`*_by_30`) -- and saved the document. `tests/test_turn_text_shapes_and_groups.py` says what each
+angle of 30 (`*_by_30`) -- and saved the document. `turn_shapes_*`, `turn_again_*`, `turn_resized_group_*`,
+`turn_group_in_group_*` and `turn_flipped_rect_*` were turned through the object dialog only, at the angle in
+the name (`turn_flipped_rect_by_30` after the flip-left-right command); the dialog also drew the group in
+`turn_shapes_group_resized_by_90` at 7200 x 7200. `tests/test_turn_text_shapes_and_groups.py` says what each
 shows. The preview image was left out and the metadata listed above emptied; every other part keeps Hangul's
 bytes.
 
