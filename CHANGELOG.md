@@ -410,6 +410,8 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- 한/글 2024가 저장한 날짜 코드(`SUMMERY`)나 교정 부호(덧붙임 줄·덧붙임·잘라냄)가 든 문서를 고치지 않고 저장해도 "한/글이
+  열기를 거부한다"며 막던 것을 고쳤다. 문서를 이어 붙일 때도 이 필드의 `fieldid`를 한/글이 쓰는 제어 id로 둔다.
 - `doc.styles.char_property(id)`·`char_properties`·`run.size` 등이 XML(`.element`)로 더하거나 고친 글자 모양을 저장 전까지 못 보던
   문제를 고쳤다. 이제 읽을 때마다 머리의 현재 상태를 본다(`invalidate_char_property_cache()`를 부를 필요가 없다).
 - `table.set_treat_as_char()`가 표를 품은 문단의 줄 배치 캐시를 지우지 않아, 한/글이 옛 줄 높이로 글을 겹쳐 그릴 수 있던 문제를 고쳤다.
