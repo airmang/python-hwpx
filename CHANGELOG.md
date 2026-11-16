@@ -409,6 +409,9 @@ python-hwpx 7.0을 함께 설치한다.
   잡힌다. `HwpxXmlSyntaxError.code`는 이제 이 code이고 lxml의 숫자는 `lxml_code`에 있다.
 - 한 번도 글을 넣지 않은 칸(한/글이 런 없는 `<hp:p/>`로 저장한 칸) 옆에 `insert_rows`·`insert_columns`로 빈 행·열을 넣거나 그 칸을
   `split_cell`로 나누면 `XMLSyntaxError`가 나던 문제를 고쳤다.
+- 글머리표를 처음 만드는 문서(`doc.styles.apply_list_format(kind="bullet")`, `doc.styles.ensure_bullet()`)가 `hh:bullets`를 머리의 맨 뒤에
+  두어 `doc.validate()`의 스키마 검사에 걸리던 문제를 고쳤다. 이제 한/글 저장본과 스키마처럼 `hh:numberings` 바로 뒤에 둔다(새로 만드는
+  `hh:styles`·`hh:trackChanges`·`hh:trackChangeAuthors`도 같은 차례를 따른다).
 - `doc.styles.char_property(id)`·`char_properties`·`run.size` 등이 XML(`.element`)로 더하거나 고친 글자 모양을 저장 전까지 못 보던
   문제를 고쳤다. 이제 읽을 때마다 머리의 현재 상태를 본다(`invalidate_char_property_cache()`를 부를 필요가 없다).
 - `table.set_treat_as_char()`가 표를 품은 문단의 줄 배치 캐시를 지우지 않아, 한/글이 옛 줄 높이로 글을 겹쳐 그릴 수 있던 문제를 고쳤다.
