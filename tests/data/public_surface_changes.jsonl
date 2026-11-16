@@ -14,3 +14,18 @@
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.tables.with_nested: 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_after: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_before: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
