@@ -68,9 +68,9 @@ def xml_text(value: object) -> str:
 
 def shape_comment(value: str) -> str:
     """An object's description as ``hp:shapeComment`` text: Hancom's HWPX
-    leaves its carriage returns out, keeping the line feeds."""
+    ends its lines with line feeds only, a CR LF and a lone CR each one."""
 
-    return xml_text(value.replace("\r", ""))
+    return xml_text(value.replace("\r\n", "\n").replace("\r", "\n"))
 
 
 def sub(parent: etree._Element, name: str, attrs: Sequence[tuple[str, object]] = ()) -> etree._Element:

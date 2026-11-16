@@ -324,6 +324,9 @@ def test_a_table_keeps_its_description_without_carriage_returns() -> None:
     assert table.find(f"{HP}shapeComment").text == "표 설명\n둘째 줄"
     back = HwpxDocument.open(document.to_bytes(format="hwp"))
     assert back.sections[0].element.find(f".//{HP}tbl/{HP}shapeComment").text == "표 설명\n둘째 줄"
+    # A lone carriage return (as in CR CR LF) becomes a line feed of its own.
+    [table] = list(HwpxDocument.open(_compound(_described_table("가\r\r\n나"))).sections[0].element.iter(f"{HP}tbl"))
+    assert table.find(f"{HP}shapeComment").text == "가\n\n나"
 
 
 def test_an_equation_script_keeps_its_outer_spaces() -> None:
