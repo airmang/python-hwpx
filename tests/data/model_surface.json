@@ -202,6 +202,7 @@
     "indent_right_mm",
     "keep_lines",
     "keep_with_next",
+    "line_segments",
     "line_spacing",
     "objects",
     "outline_level",

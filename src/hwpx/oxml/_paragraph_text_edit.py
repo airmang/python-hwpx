@@ -18,7 +18,7 @@ from ._document_primitives import (
 from .namespaces import tag_local_name
 
 if TYPE_CHECKING:
-    from ..objects.results import Alignment, LineSpacing
+    from ..objects.results import Alignment, LineSegment, LineSpacing
     from .header import Style
     from .run import HwpxOxmlRun
 
@@ -401,6 +401,45 @@ def new_own_text_node(sublist: ET.Element, char_pr_id_ref: str) -> ET.Element:
     node = run.makeelement(hp_t, {})
     run.append(node)
     return node
+
+
+_LINE_SEGMENT_FIELDS = (
+    ("textpos", "text_position"), ("vertpos", "vertical_position"), ("vertsize", "height"),
+    ("textheight", "text_height"), ("baseline", "baseline"), ("spacing", "spacing"),
+    ("horzpos", "horizontal_position"), ("horzsize", "width"), ("flags", "flags"),
+)
+
+
+def _stored_int(value: str | None) -> int:
+    """An ``hp:lineseg`` number: 0 when missing or unreadable, a negative one Hancom wrote in its unsigned
+    32-bit form back to signed."""
+
+    try:
+        number = int(value or 0)
+    except ValueError:
+        return 0
+    return number - 2**32 if 2**31 <= number < 2**32 else number
+
+
+def paragraph_line_segments(self: Any) -> "tuple[LineSegment, ...]":
+    """The paragraph's lines as they were last laid out and saved (``hp:linesegarray``), one
+    :class:`~hwpx.objects.LineSegment` per line, top to bottom. Read only.
+
+    Hancom writes them when it saves; python-hwpx writes them only through the experimental
+    ``hwpx.layout.line_cache.write_line_caches``. Every edit that changes a paragraph's text, size or placement
+    drops them, so a paragraph that is new or edited since its last Hancom save reads ``()``: the
+    values describe the saved document, not the edits made after it.
+    """
+
+    from ..objects.results import LineSegment
+
+    array = next((child for child in self.element if tag_local_name(child.tag) == "linesegarray"), None)
+    if array is None:
+        return ()
+    return tuple(
+        LineSegment(**{name: _stored_int(segment.get(attribute)) for attribute, name in _LINE_SEGMENT_FIELDS})
+        for segment in array if tag_local_name(segment.tag) == "lineseg"
+    )
 
 
 class ParagraphFormats:

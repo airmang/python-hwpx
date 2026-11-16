@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 362개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 363개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -311,6 +311,14 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
 `Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
+
+`Paragraph.line_segments`(7.0, 읽기 전용)는 그 문단이 마지막으로 배치되어 저장된 줄 배치
+(`hp:linesegarray`)를 줄마다 `hwpx.objects.LineSegment` 하나씩, 위에서 아래로 tuple로 돌려줍니다 —
+`text_position`(줄이 시작하는 글자 위치, 한/글이 세는 대로: 탭·조판 부호는 8자리, BMP 밖 글자는 2자리),
+`vertical_position`·`height`·`text_height`·`baseline`·`spacing`·`horizontal_position`·`width`(HWPUNIT),
+`flags`(한/글의 줄 비트 값 그대로). 새 문단, 그리고 저장 뒤 글·크기·배치를 고쳐 캐시가 지워진 문단은
+`()`입니다. 값은 저장된 문서를 말하며 그 뒤의 편집을 따라가지 않습니다. 줄 배치를 쓰는 것은 실험 기능
+`hwpx.layout.line_cache.write_line_caches`의 몫입니다.
 
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
 `model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는
