@@ -217,14 +217,24 @@ def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
 
     Each kind counts on its own, from 1, in document order. A section whose note
     numbering is ``ON_SECTION`` starts again at its ``newNum``; any other runs on
-    from the section before (``ON_PAGE`` too: pages are not laid out here). An
-    ``hp:newNum`` control of the kind sets the next number. The numbers Hancom
-    writes in ``number`` are these (1241 of 1241 notes in the public corpus).
+    from the section before. An ``hp:newNum`` control of the kind sets the next
+    number. The numbers Hancom writes in ``number`` are these (1241 of 1241 notes
+    in the public corpus, all numbered ``CONTINUOUS``).
+
+    A section that numbers the kind ``ON_PAGE`` starts again on every page, so its
+    numbers depend on a page layout this engine does not make: such a note's number
+    is the ``number`` the file holds (the count when it holds none), and the count
+    runs on past it. Hancom numbers such notes again when it opens the document and
+    writes the per-page numbers into ``number`` and ``hp:autoNum`` when it saves
+    (Hangul 2024: notes stored as 1..6, or all as 7, were drawn and saved as
+    1, 2, 1, 2, 1, 2 on three pages), so the number held is the one of the last
+    Hancom save.
     """
 
     counters = {"FOOTNOTE": 1, "ENDNOTE": 1}
     numbers: dict[ET.Element, int] = {}
     for section in sections:
+        per_page = set(_kinds_numbered_per_page(section))
         sec_pr = next(section.iter(f"{_HP}secPr"), None)
         for tag, kind in _NOTE_NUM_TYPES.items():
             properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
@@ -239,10 +249,24 @@ def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
                 if element.get("numType") in counters:
                     counters[element.get("numType") or ""] = _int_or(element.get("num"), 1)
                 continue
-            kind = _NOTE_NUM_TYPES[_element_local(element)]
-            numbers[element] = counters[kind]
+            tag = _element_local(element)
+            kind = _NOTE_NUM_TYPES[tag]
+            numbers[element] = _int_or(element.get("number"), counters[kind]) if tag in per_page else counters[kind]
             counters[kind] += 1
     return numbers
+
+
+def _kinds_numbered_per_page(section: ET.Element) -> list[str]:
+    """The note kinds (``footNote``/``endNote``) *section* numbers ``ON_PAGE``."""
+
+    sec_pr = next(section.iter(f"{_HP}secPr"), None)
+    kinds = []
+    for tag in _NOTE_NUM_TYPES:
+        properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
+        numbering = properties.find(f"{_HP}numbering") if properties is not None else None
+        if numbering is not None and numbering.get("type") == "ON_PAGE":
+            kinds.append(tag)
+    return kinds
 
 
 def _int_or(value: str | None, default: int) -> int:
@@ -264,17 +288,19 @@ def _sections_of(section: "HwpxOxmlSection") -> list["HwpxOxmlSection"]:
 def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
     """Write Hancom's numbers (:func:`note_numbers`) into the notes of kind *tag* of the
     document *section* belongs to: the note's ``number`` and the ``hp:autoNum`` its body
-    starts with, where they differ. Left alone when a section numbers the kind per page,
-    as the numbers then depend on the page layout. A note whose number changes its count
-    of digits drops its paragraph's line cache, as its mark changes width."""
+    starts with, where they differ. A note whose number changes its count of digits
+    drops its paragraph's line cache, as its mark changes width.
+
+    Left alone, in every section, when a section numbers the kind ``ON_PAGE``: those
+    numbers start again on each page, which this engine does not lay out, and a later
+    section's count would run on from them. The numbers already written stay as they
+    are; a note added there carries its count in the document. Hancom numbers them
+    again per page when it opens the document and writes those numbers when it saves
+    (Hangul 2024), so what is written there does not change what Hancom draws."""
 
     sections = _sections_of(section)
-    for owner in sections:
-        sec_pr = next(owner.element.iter(f"{_HP}secPr"), None)
-        properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
-        numbering = properties.find(f"{_HP}numbering") if properties is not None else None
-        if numbering is not None and numbering.get("type") == "ON_PAGE":
-            return
+    if any(tag in _kinds_numbered_per_page(owner.element) for owner in sections):
+        return
     numbers = note_numbers([owner.element for owner in sections])
     for owner in sections:
         changed = False

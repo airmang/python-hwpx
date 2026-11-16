@@ -923,10 +923,81 @@ class ObjectPlace:
         }
 
 
+@dataclass(frozen=True)
+class TextMatch:
+    """One match of ``doc.text.find()``: where it is and what it matched.
+
+    ``start``/``end`` are positions in ``paragraph.text`` (a tab or a line break is one
+    character, a control or an object none), the ones ``paragraph.format_range(start, end, ...)``
+    takes. ``text`` is the matched text, ``groups`` a regular expression's groups (``None`` for a
+    group that took no part; ``()`` for a plain search). The other fields say where the paragraph
+    sits, as in :class:`ParagraphPlace`.
+    """
+
+    paragraph: "Paragraph"
+    start: int
+    end: int
+    text: str
+    groups: tuple[str | None, ...]
+    where: str
+    section: int | None
+    page_type: str | None = None
+    table: "Table | None" = None
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "start": self.start,
+            "end": self.end,
+            "text": self.text,
+            "groups": list(self.groups),
+            "where": self.where,
+            "section": self.section,
+            "pageType": self.page_type,
+            "row": self.row,
+            "col": self.col,
+            "depth": self.depth,
+        }
+
+
+@dataclass(frozen=True)
+class LanguageFonts:
+    """The face a run's text uses in each language block (``run.fonts``).
+
+    Hancom gives a character shape one face per language (``hh:fontRef``): Hangul, Latin,
+    Hanja, Japanese, other scripts, symbols and the user block. A field is ``None`` when the
+    shape names no face there (or the run has no character shape). ``run.font`` is ``hangul``.
+    """
+
+    hangul: str | None = None
+    latin: str | None = None
+    hanja: str | None = None
+    japanese: str | None = None
+    other: str | None = None
+    symbol: str | None = None
+    user: str | None = None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "hangul": self.hangul,
+            "latin": self.latin,
+            "hanja": self.hanja,
+            "japanese": self.japanese,
+            "other": self.other,
+            "symbol": self.symbol,
+            "user": self.user,
+        }
+
+
 __all__ = [
     "Alignment",
+    "LanguageFonts",
     "ObjectPlace",
     "ParagraphPlace",
+    "TextMatch",
     "AutoNumber",
     "BeginNumbers",
     "ColumnDefinition",

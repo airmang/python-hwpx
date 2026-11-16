@@ -72,6 +72,7 @@ from .results import (  # 쪽·구역 설정의 읽기 값 (doc.page / doc.parts
     ParagraphPlace,
     StartNumbers,
 )
+from .results import LanguageFonts, TextMatch  # run.fonts, doc.text.find()
 from .tracked import TrackedChange, TrackedReplacement
 
 __all__ = [
@@ -109,6 +110,7 @@ __all__ = [
     "FieldParameter",
     "FontReplaceReport",
     "LineSegment",
+    "LanguageFonts",
     "LineSpacing",
     "LineSpacingType",
     "FormField",
@@ -124,6 +126,7 @@ __all__ = [
     "ParagraphFormatResult",
     "PictureRef",
     "PictureReplacement",
+    "TextMatch",
     "TrackedChange",
     "TrackedReplacement",
     "Units",

@@ -23,20 +23,20 @@
    "capabilities.py:625"
   ],
   "contract-schema-unknown": [
-   "capabilities.py:855"
+   "capabilities.py:858"
   ],
   "document-clock-invalid": [
-   "document.py:254"
+   "document.py:278"
   ],
   "document-header-missing": [
    "_document/layout.py:347",
    "_document/layout.py:572",
-   "_document/ns/styles.py:950",
+   "_document/ns/styles.py:976",
    "oxml/document_parts.py:863",
    "oxml/document_parts.py:990",
-   "oxml/formatting.py:1044",
-   "oxml/formatting.py:172",
-   "oxml/formatting.py:222"
+   "oxml/formatting.py:1053",
+   "oxml/formatting.py:173",
+   "oxml/formatting.py:223"
   ],
   "document-history-root-invalid": [
    "oxml/history_part.py:151"
@@ -55,7 +55,7 @@
    "tools/document_merge.py:202"
   ],
   "document-seed-invalid": [
-   "document.py:247"
+   "document.py:271"
   ],
   "document-settings-root-invalid": [
    "oxml/settings.py:135"
@@ -143,7 +143,7 @@
    "_document/headings.py:133"
   ],
   "hwpx-argument-removed": [
-   "errors.py:237"
+   "_removed_names.py:974"
   ],
   "hwpx-type-error": [
    "_document/fields.py:874",
@@ -152,15 +152,16 @@
    "_document/fields.py:984",
    "_document/highlight.py:95",
    "_document/ns/tables.py:110",
-   "_document/ns/text.py:274",
+   "_document/ns/text.py:397",
+   "_document/ns/text.py:97",
    "_document/persistence.py:100",
    "_document/shapes.py:504",
    "_document/shapes.py:671",
    "_document/text_blocks.py:334",
-   "_document/tracked.py:24",
+   "_document/tracked.py:51",
    "oxml/_document_primitives.py:113",
    "oxml/document_parts.py:1278",
-   "oxml/formatting.py:996",
+   "oxml/formatting.py:1005",
    "oxml/paragraph.py:1296",
    "oxml/paragraph.py:1381",
    "oxml/table.py:307",
@@ -234,10 +235,10 @@
    "_document/ns/page.py:372"
   ],
   "page-column-gap-value": [
-   "oxml/section_format.py:295"
+   "oxml/section_format.py:293"
   ],
   "page-column-widths-value": [
-   "oxml/section_format.py:324"
+   "oxml/section_format.py:322"
   ],
   "page-columns-invalid": [
    "_document/layout.py:737",
@@ -250,7 +251,7 @@
    "_document/layout.py:1184"
   ],
   "page-new-num-value": [
-   "oxml/section_format.py:278"
+   "oxml/section_format.py:276"
   ],
   "page-orientation-unsupported": [
    "_document/layout.py:57"
@@ -265,7 +266,7 @@
    "_document/ns/page.py:648"
   ],
   "paragraph-alignment-invalid": [
-   "oxml/formatting.py:797"
+   "oxml/formatting.py:806"
   ],
   "paragraph-argument-conflict": [
    "_document/layout.py:155",
@@ -278,11 +279,11 @@
    "_document/layout.py:411"
   ],
   "paragraph-format-invalid": [
-   "oxml/formatting.py:819",
-   "oxml/formatting.py:827",
-   "oxml/formatting.py:873",
-   "oxml/formatting.py:898",
-   "oxml/formatting.py:951"
+   "oxml/formatting.py:828",
+   "oxml/formatting.py:836",
+   "oxml/formatting.py:882",
+   "oxml/formatting.py:907",
+   "oxml/formatting.py:960"
   ],
   "paragraph-index-mark-empty-key": [
    "oxml/paragraph.py:1178"
@@ -301,8 +302,8 @@
   ],
   "paragraph-line-spacing-invalid": [
    "_document/layout.py:355",
-   "oxml/formatting.py:839",
-   "oxml/formatting.py:845"
+   "oxml/formatting.py:848",
+   "oxml/formatting.py:854"
   ],
   "paragraph-missing": [
    "_document/_resolve.py:178",
@@ -333,11 +334,11 @@
   ],
   "paragraph-outline-level-out-of-range": [
    "_document/layout.py:381",
-   "oxml/formatting.py:935"
+   "oxml/formatting.py:944"
   ],
   "paragraph-range-invalid": [
-   "oxml/formatting.py:585",
-   "oxml/formatting.py:589"
+   "oxml/formatting.py:594",
+   "oxml/formatting.py:598"
   ],
   "paragraph-remove-last": [
    "oxml/_paragraph_text_edit.py:374"
@@ -347,14 +348,14 @@
    "oxml/_paragraph_text_edit.py:490"
   ],
   "paragraph-run-section-settings": [
-   "oxml/run.py:703"
+   "oxml/run.py:770"
   ],
   "paragraph-split-inside-element": [
-   "oxml/formatting.py:521"
+   "oxml/formatting.py:530"
   ],
   "paragraph-style-char-type": [
-   "oxml/formatting.py:1047",
-   "oxml/formatting.py:1162"
+   "oxml/formatting.py:1056",
+   "oxml/formatting.py:1171"
   ],
   "paragraph-tab-leader-invalid": [
    "oxml/_document_primitives.py:1508",
@@ -373,7 +374,7 @@
    "oxml/_document_primitives.py:1496"
   ],
   "paragraph-text-invalid-type": [
-   "document.py:588",
+   "document.py:626",
    "oxml/_document_primitives.py:131",
    "oxml/paragraph.py:512"
   ],
@@ -395,9 +396,6 @@
   "parts-no-header-part": [
    "_document/ns/parts.py:283"
   ],
-  "quality-gate-failed": [
-   "_document/persistence.py:263"
-  ],
   "ref-bookmark-name-empty": [
    "objects/form_field.py:405"
   ],
@@ -408,15 +406,18 @@
    "objects/form_field.py:518"
   ],
   "save-format-unsupported": [
-   "_document/persistence.py:501"
+   "_document/persistence.py:568"
   ],
   "save-mode-invalid": [
    "_document/persistence.py:118",
    "_document/persistence.py:125"
   ],
   "save-package-contract-violated": [
-   "_document/persistence.py:304",
-   "_document/persistence.py:700"
+   "_document/persistence.py:322",
+   "_document/persistence.py:648"
+  ],
+  "save-target-invalid-type": [
+   "_document/persistence.py:411"
   ],
   "section-clear-control-content": [
    "oxml/section.py:352"
@@ -556,6 +557,7 @@
    "oxml/shape_position.py:1004"
   ],
   "shape-picture-border-value": [
+   "_document/_units.py:33",
    "oxml/shape_position.py:120"
   ],
   "shape-picture-crop-value": [
@@ -592,17 +594,17 @@
    "oxml/shape_position.py:372"
   ],
   "story-ambiguous": [
-   "oxml/section_format.py:1581",
-   "oxml/section_story.py:339"
+   "oxml/section_format.py:1526",
+   "oxml/section_story.py:332"
   ],
   "story-linkage": [
-   "oxml/section_story.py:345"
+   "oxml/section_story.py:338"
   ],
   "story-paragraph-not-here": [
-   "oxml/section_story.py:805"
+   "oxml/section_story.py:798"
   ],
   "style-ambiguous": [
-   "oxml/formatting.py:1016"
+   "oxml/formatting.py:1025"
   ],
   "style-border-base-conflict": [
    "_document/ns/styles.py:675"
@@ -633,23 +635,23 @@
   ],
   "style-color-invalid": [
    "oxml/color.py:49",
-   "oxml/formatting.py:332",
-   "oxml/formatting.py:336"
+   "oxml/formatting.py:333",
+   "oxml/formatting.py:337"
   ],
   "style-container-create-failed": [
    "oxml/header_part.py:1063"
   ],
   "style-definition-not-found": [
-   "oxml/formatting.py:1279",
-   "oxml/formatting.py:178",
-   "oxml/formatting.py:419"
+   "oxml/formatting.py:1288",
+   "oxml/formatting.py:179",
+   "oxml/formatting.py:420"
   ],
   "style-font-container-create-failed": [
    "oxml/header_part.py:1172",
    "oxml/header_part.py:1181"
   ],
   "style-font-face-empty": [
-   "oxml/formatting.py:350",
+   "oxml/formatting.py:351",
    "oxml/header_fonts.py:242",
    "oxml/header_fonts.py:429",
    "oxml/header_part.py:1162"
@@ -669,13 +671,14 @@
    "oxml/_document_primitives.py:1311"
   ],
   "style-format-empty": [
-   "_document/ns/styles.py:920"
+   "_document/ns/styles.py:946"
   ],
   "style-in-use": [
-   "oxml/formatting.py:1151",
-   "oxml/formatting.py:1154"
+   "oxml/formatting.py:1160",
+   "oxml/formatting.py:1163"
   ],
   "style-line-width-invalid": [
+   "_document/ns/styles.py:746",
    "oxml/utils.py:47"
   ],
   "style-list-continue-conflict": [
@@ -693,6 +696,9 @@
   "style-list-start-value": [
    "_document/layout.py:578"
   ],
+  "style-memo-shape-line-width-conflict": [
+   "_document/ns/styles.py:737"
+  ],
   "style-not-found": [
    "oxml/section.py:965"
   ],
@@ -700,7 +706,7 @@
    "oxml/numbering_kinds.py:79"
   ],
   "style-remove-default": [
-   "oxml/formatting.py:1140"
+   "oxml/formatting.py:1149"
   ],
   "style-run-font-by-lang-invalid": [
    "oxml/header_fonts.py:402",
@@ -709,13 +715,13 @@
    "oxml/header_fonts.py:423"
   ],
   "style-run-format-empty": [
-   "oxml/formatting.py:413",
-   "oxml/formatting.py:628"
+   "oxml/formatting.py:414",
+   "oxml/formatting.py:637"
   ],
   "style-run-format-invalid": [
-   "oxml/formatting.py:281",
-   "oxml/formatting.py:305",
-   "oxml/formatting.py:317"
+   "oxml/formatting.py:282",
+   "oxml/formatting.py:306",
+   "oxml/formatting.py:318"
   ],
   "style-run-outline-type-invalid": [
    "oxml/document_parts.py:758"
@@ -754,8 +760,8 @@
    "oxml/table_sizes.py:399"
   ],
   "table-size-invalid": [
-   "document.py:744",
-   "document.py:751",
+   "document.py:778",
+   "document.py:785",
    "oxml/table_sizes.py:63",
    "oxml/table_sizes.py:70"
   ],
@@ -781,41 +787,52 @@
    "_document/text_blocks.py:181",
    "_document/text_blocks.py:183"
   ],
+  "text-pattern-invalid": [
+   "_document/ns/text.py:112"
+  ],
   "text-place-invalid": [
-   "_document/text_blocks.py:572"
+   "_document/text_blocks.py:576"
+  ],
+  "text-replacement-invalid": [
+   "_document/ns/text.py:132"
   ],
   "text-search-empty": [
-   "_document/ns/text.py:276"
+   "_document/ns/text.py:101",
+   "_document/ns/text.py:90"
   ],
   "track-change-not-found": [
-   "_document/tracked.py:382"
+   "_document/tracked.py:420"
+  ],
+  "track-format-change-unconfirmed": [
+   "_document/tracked.py:444",
+   "_document/tracked.py:74"
   ],
   "track-match-crosses-markup": [
-   "_document/tracked.py:97"
+   "_document/tracked.py:135"
   ],
   "track-match-empty": [
-   "_document/tracked.py:155",
-   "_document/tracked.py:497"
+   "_document/tracked.py:193",
+   "_document/tracked.py:552"
   ],
   "track-match-not-found": [
-   "_document/tracked.py:167",
-   "_document/tracked.py:503"
+   "_document/tracked.py:205",
+   "_document/tracked.py:558"
   ],
   "track-paragraph-empty": [
-   "_document/tracked.py:162"
+   "_document/tracked.py:200"
   ],
   "track-selector-conflict": [
-   "_document/tracked.py:365"
+   "_document/tracked.py:403"
   ],
   "track-text-empty": [
-   "_document/tracked.py:118",
-   "_document/tracked.py:511"
+   "_document/tracked.py:156",
+   "_document/tracked.py:566"
   ]
  },
  "malformedCodes": [],
  "observed": {
-  "other": 429,
-  "typed": 397,
+  "other": 441,
+  "typed": 406,
   "untyped": 173,
   "untypedByFile": {
    "body_patch.py": 20,
@@ -848,8 +865,8 @@
   }
  },
  "public": {
-  "total": 148,
-  "typed": 148,
+  "total": 157,
+  "typed": 157,
   "typedRatio": 1.0,
   "untyped": 0,
   "untypedSites": []

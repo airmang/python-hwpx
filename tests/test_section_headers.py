@@ -145,53 +145,46 @@ def test_page_number_footer_keeps_an_existing_footer_of_another_page_type() -> N
     assert _control_text(section, "footer", "ODD") == "담당부서 배포"
 
 
-def test_set_header_text_creates_header_apply() -> None:
+def test_set_header_text_writes_one_control_story_and_no_apply() -> None:
+    # Hancom saves a header only as an hp:ctrl story: nothing under hp:secPr, no hp:headerApply.
     section, sec_pr = _build_section_with_sec_pr()
     properties = section.properties
 
     header = properties.set_header_text("Confidential", page_type="BOTH")
 
-    header_element = sec_pr.find(f"{HP}header")
-    header_apply = sec_pr.find(f"{HP}headerApply")
-
-    assert header_element is not None
-    assert header_apply is not None
-    assert header_apply.get("applyPageType") == "BOTH"
-    assert _apply_reference(header_apply, "idRef", "headerIDRef", "headerRef") == header.id
+    assert sec_pr.find(f"{HP}header") is None
+    assert sec_pr.find(f"{HP}headerApply") is None
+    assert header.apply_element is None
+    assert _mirrored_stories(section, "header", header.id) == [header.element]
+    assert header.element.get("applyPageType") == "BOTH"
 
 
-def test_set_footer_text_creates_footer_apply() -> None:
+def test_set_footer_text_writes_one_control_story_and_no_apply() -> None:
     section, sec_pr = _build_section_with_sec_pr()
     properties = section.properties
 
     footer = properties.set_footer_text("Page", page_type="ODD")
 
-    footer_element = sec_pr.find(f"{HP}footer")
-    footer_apply = sec_pr.find(f"{HP}footerApply")
-
-    assert footer_element is not None
+    assert sec_pr.find(f"{HP}footer") is None
+    assert sec_pr.find(f"{HP}footerApply") is None
     assert footer.apply_page_type == "ODD"
-    assert footer_apply is not None
-    assert footer_apply.get("applyPageType") == "ODD"
-    assert _apply_reference(footer_apply, "idRef", "footerIDRef", "footerRef") == footer.id
+    assert _mirrored_stories(section, "footer", footer.id) == [footer.element]
+    assert _control_text(section, "footer", "ODD") == "Page"
 
 
-def test_header_wrapper_updates_apply_attributes() -> None:
-    section, sec_pr = _build_section_with_sec_pr()
+def test_header_wrapper_updates_its_control_story() -> None:
+    section, _sec_pr = _build_section_with_sec_pr()
     properties = section.properties
     wrapper = properties.set_header_text("Initial", page_type="BOTH")
 
-    header_apply = sec_pr.find(f"{HP}headerApply")
-    assert header_apply is not None
-
     section.reset_dirty()
     wrapper.apply_page_type = "EVEN"
-    assert header_apply.get("applyPageType") == "EVEN"
+    assert _control_page_types(section, "header") == ["EVEN"]
     assert section.dirty is True
 
     section.reset_dirty()
     wrapper.id = "777"
-    assert header_apply.get("idRef") == "777"
+    assert _mirrored_stories(section, "header", "777") == [wrapper.element]
     assert wrapper.id == "777"
     assert section.dirty is True
 
@@ -235,18 +228,18 @@ def test_existing_header_apply_attribute_is_preserved() -> None:
     assert section.dirty is True
 
 
-def test_document_helpers_manage_header_apply_nodes() -> None:
+def test_document_helpers_set_and_remove_the_control_story() -> None:
     section, sec_pr = _build_section_with_sec_pr()
     manifest = ET.Element("manifest")
     root = HwpxOxmlDocument(manifest, [section], [])
     document = HwpxDocument(cast(HwpxPackage, object()), root)
 
     document.page.set_header(text="Doc Header", section=section)
-    header_apply = sec_pr.find(f"{HP}headerApply")
-    assert header_apply is not None
+    assert sec_pr.find(f"{HP}headerApply") is None
+    assert _control_text(section, "header", "BOTH") == "Doc Header"
 
     document.page.remove_header(section=section)
-    assert sec_pr.find(f"{HP}headerApply") is None
+    assert _control_page_types(section, "header") == []
 
 
 def test_header_footer_helpers_work_on_real_hwpx_document() -> None:

@@ -51,6 +51,12 @@
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.add_picture: 인자 생김 line_width_mm", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.save: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.SaveError.report: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.styles.ensure_memo_shape: 인자 생김 line_width_mm", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.text.replace: 인자 생김 regex", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.text.find: 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Run.fonts: 계약에 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "objects.LanguageFonts: hwpx.objects에 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "objects.TextMatch: hwpx.objects에 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.base_unit: 쓰기 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.font: 쓰기 생김", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.remove: 인자 생김 remove_orphaned", "reason": "objrest: 칸 안 떠 있는 개체 배치, 줄 배치 읽기, 칸·표·수식 속성"}

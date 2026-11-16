@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 299 | 11 |
+| 개수 | 303 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -446,6 +446,7 @@ except HwpxError as exc:
 | `style-list-property-failed` | 번호 문단모양을 만들지 못했다. |
 | `style-list-start-value` | 목록 시작 번호(start)가 0 이상 65535 이하의 int 가 아니다(bool 도 거부, 한/글은 16비트로 둔다). |
 | `style-memo-shape-line-type-invalid` | 메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다. |
+| `style-memo-shape-line-width-conflict` | 메모 모양에 line_width(순번)와 line_width_mm(mm)를 함께 주었다(line_width_mm 하나로 준다). |
 | `style-memo-shape-memo-type-invalid` | 메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다. |
 | `style-not-found` | 그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉). |
 | `style-number-format-invalid` | 번호 형식이 한컴 번호 모양 밖이다(목록·개요 머리와 쪽 번호는 hc:NumberType1 15개, 각주·미주 번호는 hc:NumberType2 19개). |
@@ -497,7 +498,9 @@ except HwpxError as exc:
 | `text-highlight-match-empty` | 형광펜으로 감쌀 문자열이 비어 있다. |
 | `text-highlight-match-not-found` | 문단에서 형광펜으로 감쌀 문자열을 찾지 못했다. |
 | `text-outline-budget` | outline 의 글자·항목 예산이 1보다 작다. |
+| `text-pattern-invalid` | doc.text.find/replace 에 regex=True 로 준 찾을 글이 정규식으로 컴파일되지 않는다. |
 | `text-place-invalid` | doc.text.paragraphs()/objects() 의 where·kinds 에 모르는 자리·개체 종류를 줬다. |
+| `text-replacement-invalid` | 정규식 바꾸기의 바꿀 글이 패턴에 없는 묶음(\3, \g<이름>)을 부른다. |
 | `text-search-empty` | 바꿀 대상 문자열이 비어 있다. |
 
 ### `toc-*`
@@ -511,6 +514,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `track-change-not-found` | 그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다). |
+| `track-format-change-unconfirmed` | 글자·문단 모양 변경 추적(CharShape/ParaShape)은 쓰지도 거절하지도 않는다(본문이 가리키는 것은 수락도) — 한/글 2024는 스키마대로 쓴 서식 변경을 저장 때 버린다. |
 | `track-match-crosses-markup` | 찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다. |
 | `track-match-empty` | 찾을 문자열이 비어 있다. |
 | `track-match-not-found` | 문단에서 찾을 문자열을 찾지 못했다. |

@@ -249,7 +249,8 @@ class _NoteLabels:
     """Hancom's numbers of foot and end notes, counted in document order, and their text.
 
     Each kind counts on its own, from 1. A section numbered ``ON_SECTION`` starts again
-    at its ``newNum``; any other section runs on from the one before (``ON_PAGE`` too:
+    at its ``newNum``; any other section runs on from the one before. A note in a section
+    numbered ``ON_PAGE`` takes the number the file holds (Hancom saves the per-page one;
     pages are not laid out here). An ``hp:newNum`` control of the kind sets the next
     number. The label is the number in the section's ``autoNumFormat`` between its
     prefix and suffix characters (``USER_CHAR`` repeats its character number times),

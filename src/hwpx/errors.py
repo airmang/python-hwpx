@@ -495,6 +495,7 @@ ERROR_CODES: dict[str, str] = {
     "style-border-fill-gradient-type-invalid": "fill_gradient 의 type 값이 OWPML 어휘(LINEAR/RADIAL/CONICAL/SQUARE) 밖이다.",
     "style-border-fill-gradient-colors-invalid": "fill_gradient 의 colors 가 2개 미만이다.",
     "style-border-fill-width-invalid": "hh:borderFill 선의 width 가 '<숫자> mm' 꼴이 아니다(border_fill_info).",
+    "style-memo-shape-line-width-conflict": "메모 모양에 line_width(순번)와 line_width_mm(mm)를 함께 주었다(line_width_mm 하나로 준다).",
     "style-memo-shape-line-type-invalid": "메모 모양의 line_type 값이 OWPML 어휘(hc:LineType2) 밖이다.",
     "style-memo-shape-memo-type-invalid": "메모 모양의 memo_type 값이 OWPML 어휘(NOMAL/USER_INSERT/USER_DELETE/USER_UPDATE) 밖이다.",
     "style-color-invalid": "색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다.",
@@ -627,6 +628,7 @@ ERROR_CODES: dict[str, str] = {
     "track-match-crosses-markup": "찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다.",
     "track-paragraph-empty": "지울 텍스트가 문단에 없다.",
     "track-change-not-found": "그 id 의 변경 추적 항목이 문서에 없다(doc.tracking.changes 로 본다).",
+    "track-format-change-unconfirmed": "글자·문단 모양 변경 추적(CharShape/ParaShape)은 쓰지도 거절하지도 않는다(본문이 가리키는 것은 수락도) — 한/글 2024는 스키마대로 쓴 서식 변경을 저장 때 버린다.",
     "track-selector-conflict": "수락·거절할 변경을 change 와 author 로 함께 골랐다(하나만 준다).",
     # -- 책갈피·하이퍼링크·상호 참조 ---------------------------------------
     "ref-bookmark-name-empty": "책갈피 이름이 비어 있다.",
@@ -634,6 +636,8 @@ ERROR_CODES: dict[str, str] = {
     "ref-link-end-missing": "하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다.",
     # -- 텍스트 ----------------------------------------------------------
     "text-search-empty": "바꿀 대상 문자열이 비어 있다.",
+    "text-pattern-invalid": "doc.text.find/replace 에 regex=True 로 준 찾을 글이 정규식으로 컴파일되지 않는다.",
+    "text-replacement-invalid": "정규식 바꾸기의 바꿀 글이 패턴에 없는 묶음(\\3, \\g<이름>)을 부른다.",
     "text-highlight-match-empty": "형광펜으로 감쌀 문자열이 비어 있다.",
     "text-highlight-match-not-found": "문단에서 형광펜으로 감쌀 문자열을 찾지 못했다.",
     "text-highlight-match-crosses-markup": "찾은 구간이 인라인 마크업을 가로질러 안전하게 감쌀 수 없다.",

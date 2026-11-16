@@ -424,7 +424,7 @@
 - `set_start_numbering(...)`: 번호 매기기 카운터와 페이지 시작 동작을 수정하며, `<hp:startNum>` 엘리먼트가 없으면 생성합니다.
 - `headers`, `footers`: 기존 머리글/바닥글 정의에 대한 래퍼를 반환하는 프로퍼티입니다.
 - `get_header(page_type="BOTH")` / `get_footer(...)`: 지정된 페이지 유형의 기존 머리글/바닥글 래퍼를 가져옵니다.
-- `set_header_text(text, ...)` / `set_footer_text(...)`: 요청된 페이지 유형에 대한 머리글/바닥글이 있는지 확인하고 텍스트 내용을 교체합니다. 동시에 `<hp:headerApply>`/`<hp:footerApply>` 노드와 마스터 페이지 참조를 동일한 ID·페이지 유형으로 동기화합니다.
+- `set_header_text(text, ...)` / `set_footer_text(...)`: 요청된 페이지 유형에 대한 머리글/바닥글이 있는지 확인하고 텍스트 내용을 교체합니다. 한/글처럼 첫 문단의 `<hp:ctrl>` 안에 한 번만 쓰고 `<hp:headerApply>`/`<hp:footerApply>`는 쓰지 않습니다(6.x가 `<hp:secPr>` 안에 따로 쓴 사본은 그 머리글을 다시 설정할 때 걷어 냅니다).
 - `remove_header(page_type="BOTH")` / `remove_footer(...)`: 지정된 페이지 유형의 머리글/바닥글 노드가 있으면 제거하고, 연결된 apply 노드와 마스터 페이지 링크를 정리합니다.
 
 ### 클래스 `HwpxOxmlRun`

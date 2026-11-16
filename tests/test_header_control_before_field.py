@@ -68,9 +68,14 @@ def test_a_restored_control_copy_goes_ahead_of_the_field() -> None:
     doc = _document_opening_with_a_field()
     doc.page.set_header(text="머리말 글")
     run = doc.paragraphs[0].element.find(f"{HP}run")
+    sec_pr = run.find(f"{HP}secPr")
     for ctrl in list(run.findall(f"{HP}ctrl")):
-        if ctrl.find(f"{HP}header") is not None:
-            run.remove(ctrl)  # only the hp:secPr copy is left
+        story = ctrl.find(f"{HP}header")
+        if story is not None:
+            # an early python-hwpx document: the story only under hp:secPr, with its apply element
+            run.remove(ctrl)
+            sec_pr.append(story)
+            sec_pr.append(sec_pr.makeelement(f"{HP}headerApply", {"idRef": story.get("id"), "applyPageType": "BOTH"}))
 
     doc.sections[0].properties.headers[0].set_simple_text_preserving("새 머리말")
 

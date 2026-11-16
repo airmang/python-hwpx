@@ -87,10 +87,10 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 |---|---|---:|
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
-| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 189 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 403 |
+| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 190 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 404 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 164 |
-| `hwpx.objects` 52개 값 형식 | 필드 247 · 멤버 105 · enum 값 10 | 362 |
+| `hwpx.objects` 54개 값 형식 | 필드 267 · 멤버 107 · enum 값 10 | 384 |
 | 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
 <!-- public-surface-lock:end -->
 

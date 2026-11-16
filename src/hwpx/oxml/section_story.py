@@ -235,7 +235,7 @@ def _control_story_index(section_element: ET.Element) -> dict[_PairKey, list[ET.
 
 
 def _story_pairs(section_element: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
-    """(``hp:secPr`` story, its one ``hp:ctrl`` copy) for each story python-hwpx keeps twice."""
+    """(``hp:secPr`` story, its one ``hp:ctrl`` copy) for each story python-hwpx 6.x kept twice."""
 
     stories = [story for sec_pr in section_element.findall(f"{_HP}p/{_HP}run/{_HP}secPr")
                for story in sec_pr if story.tag in _STORY_TAGS]
@@ -252,17 +252,8 @@ def story_marks(section_element: ET.Element) -> dict[_PairKey, tuple]:
             if (content := _tree_key(story)) == _tree_key(mirror)}
 
 
-def remember_story_pair(section: Any, story: ET.Element) -> None:
-    """Note that *story* and its control copy agree now: they were just written alike."""
-
-    marks = getattr(section, "_story_marks", None)
-    if marks is None:
-        marks = section._story_marks = {}
-    marks[_pair_key(story)] = _tree_key(story)
-
-
 def control_twins(section_element: ET.Element) -> set[ET.Element]:
-    """The ``hp:ctrl`` copies of the stories python-hwpx keeps twice.
+    """The ``hp:ctrl`` copies of the stories python-hwpx 6.x kept twice.
 
     A reader that walks the whole section skips them, so that each header or
     footer counts once (its form fields, for one).
@@ -286,9 +277,11 @@ def _copy_into(target: ET.Element, source: ET.Element) -> None:
 def sync_story_mirrors(section: Any) -> int:
     """Bring the two copies of each header/footer back in step before a save.
 
-    The stories python-hwpx writes live twice: under ``hp:secPr``, where its
-    story objects read and edit them, and in a body ``hp:ctrl``, the only copy
-    Hancom reads. When the copies differ, the one that changed since they last
+    The stories python-hwpx up to 6.x wrote live twice: under ``hp:secPr``,
+    where its story objects read and edit them, and in a body ``hp:ctrl``, the
+    only copy Hancom reads (python-hwpx 7.0 writes the control copy alone, and
+    drops a 6.x ``hp:secPr`` copy when that story is set again). When the
+    copies differ, the one that changed since they last
     agreed (when the document was opened, when the story was set, or at the
     last save) is copied over the other; when that is not known, or both
     changed, the ``hp:secPr`` story wins. Both elements stay in place, so story

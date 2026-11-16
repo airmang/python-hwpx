@@ -57,6 +57,7 @@ from .color import normalize_color
 from .paragraph_heading import heading_outline_level, set_paragraph_heading
 
 if TYPE_CHECKING:
+    from ..objects.results import LanguageFonts
     from .document_parts import HwpxOxmlDocument
     from .header import Style
     from .header_part import HwpxOxmlHeader
@@ -480,6 +481,14 @@ def run_font(run: "HwpxOxmlRun", lang: str = "HANGUL") -> str | None:
     if document is None or not document.headers:
         return None
     return font_face(document.headers[0], run.char_pr_id_ref, lang)
+
+
+def run_fonts(run: "HwpxOxmlRun") -> "LanguageFonts":
+    """The face of *run*'s text in each of the seven language blocks (``run.fonts``)."""
+
+    from ..objects.results import LanguageFonts
+
+    return LanguageFonts(**{lang.lower(): run_font(run, lang) for lang in _FONT_FACE_LANG_TO_REF})
 
 
 # --------------------------------------------------------------------------
