@@ -591,7 +591,8 @@ COMPOSE_FRAME_GLYPH = {
 COMPOSE_DIGIT_GLYPHS: dict[int, dict[int, str]] = {
     1: {n: chr(0x2460 + n - 1) for n in range(1, 10)},
     3: {n: chr(0xF02B1 + n - 1) for n in range(1, 8)},
-    4: {n: chr(0xF02CE + n - 1) for n in range(1, 3)},
+    # 3 (U+F02D0) seen in a public document Hancom converts to "3".
+    4: {n: chr(0xF02CE + n - 1) for n in range(1, 4)},
 }
 COMPOSE_TENS_GLYPHS = {n: chr(0xF0289 + n - 1) for n in range(1, 5)}
 COMPOSE_UNITS_GLYPHS = {n: chr(0xF0292 + n) for n in range(10)}
@@ -815,16 +816,16 @@ def last_page_number_place(paragraph: etree._Element) -> None:
 
 
 def _place_marks(
-    parent: etree._Element, marks: list[Mark], pending: int, position: int, ends_only: bool = False, one: bool = False
+    parent: etree._Element, marks: list[Mark], pending: int, position: int, run_end: bool = False, one: bool = False
 ) -> int:
     """Append the marks due at *position* to *parent* (with *one*, only the
-    next); return the next pending mark. With *ends_only*, a mark at
-    *position* itself is placed only when it ends a range that has characters
-    (a run's last mark: the next run begins with what begins there)."""
+    next); return the next pending mark. With *run_end*, *position* is where
+    the run ends: a change that begins there begins in the next run, as
+    Hancom writes it (a highlighter's marks stay in this one)."""
 
     while pending < len(marks) and marks[pending][0] <= position:
         _position, order, name, attrs = marks[pending]
-        if ends_only and _position == position and order != 0:
+        if run_end and _position == position and not _stays_at_run_end(marks[pending]):
             break
         sub(parent, name, attrs)
         pending += 1
@@ -833,10 +834,20 @@ def _place_marks(
     return pending
 
 
-def _ends_due(marks: list[Mark], pending: int, position: int) -> bool:
-    """Whether a mark ending a range is due at or before *position*."""
+def _stays_at_run_end(mark: Mark) -> bool:
+    """Whether a mark at the end of a run goes in that run: anything but a
+    change beginning there (or ending where it begins)."""
 
-    return pending < len(marks) and marks[pending][0] <= position and (marks[pending][0] < position or marks[pending][1] == 0)
+    _position, order, name, _attrs = mark
+    return name not in TRACK_MARK_NAMES or order == 0
+
+
+def _due_at_run_end(marks: list[Mark], pending: int, position: int) -> bool:
+    """Whether a mark goes in the run that ends at *position*."""
+
+    return pending < len(marks) and marks[pending][0] <= position and (
+        marks[pending][0] < position or _stays_at_run_end(marks[pending])
+    )
 
 
 class SectionWriter(ShapeReader):
@@ -1079,10 +1090,10 @@ class SectionWriter(ShapeReader):
                             run = sub(element, "hp:run", run_attrs)
                             last = run
             # A range that ends where the run ends closes in the run while its
-            # text node is open (after a control, in the next run); what
-            # begins there begins in the next run.
-            if end < 1 << 31 and text is not None and _is_open(run, text) and _ends_due(marks, pending, end):
-                pending = _place_marks(text, marks, pending, end, ends_only=True)
+            # text node is open (after a control, in the next run); a change
+            # that begins there begins in the next run.
+            if end < 1 << 31 and text is not None and _is_open(run, text) and _due_at_run_end(marks, pending, end):
+                pending = _place_marks(text, marks, pending, end, run_end=True)
                 last = text
         end_style = style(para.char_count - 1)
         if run is not None and pending < len(marks):
@@ -1104,10 +1115,10 @@ class SectionWriter(ShapeReader):
             parent = last.getparent()
             if parent is not None:
                 sub(parent, "hp:t")
-        elif last is not None and _marks_only(last) and _after_control(last) and last[-1].get("paraend") != "1":
-            # Marks closing a range right after the control, before the
-            # paragraph's end: their text node, then the empty one that
-            # closes the paragraph (a range over the end closes it itself).
+        elif last is not None and _marks_only(last) and _after_control(last) and last[-1].get("paraend") == "0":
+            # A change closing right after the control, before the paragraph's
+            # end: its text node, then the empty one that closes the paragraph
+            # (a change over the end, or a highlighter, closes it itself).
             parent = last.getparent()
             if parent is not None:
                 sub(parent, "hp:t")

@@ -263,6 +263,28 @@ def test_overlapped_characters_of_only_the_frame_glyph_keep_no_text() -> None:
     assert (element.get("composeText"), element.get("composeType"), element.get("circleType")) == ("", "SPREAD", "CHAR")
 
 
+def test_a_framed_three_opens_as_its_digit() -> None:
+    # Hancom keeps a 3 in a reversed rectangle as one glyph (U+F02D0, after those of 1 and 2) and writes "3".
+    compose = ct.Compose("\U000f02d0", 4, -2, 0, [ct.NO_CHAR_SHAPE] * 10)
+    text = _extended(23, "tcps") + _u16(13)
+    paragraph = _paragraph(0, text, [(0, 0)], [rec.Record(rec.CTRL_HEADER, 1, compose.encode())])
+    document = HwpxDocument.open(_compound(_section() + paragraph))
+    [element] = list(document.sections[0].element.iter(f"{HP}compose"))
+    assert (element.get("composeText"), element.get("circleType")) == ("3", "SHAPE_REVERSAL_RECTANGLE")
+    back = HwpxDocument.open(document.to_bytes(format="hwp"))
+    assert [e.get("composeText") for e in back.sections[0].element.iter(f"{HP}compose")] == ["3"]
+
+
+def test_a_highlighter_at_a_run_boundary_stays_in_the_run_before() -> None:
+    # Unlike a change, a highlighter that begins where a character shape begins is written by Hancom at the end of
+    # the run before (and straight into the run before a control).
+    paragraph = _paragraph(0, "가나다".encode("utf-16-le") + _u16(13), [(0, 0), (2, 1)], [])
+    paragraph = _with_ranges(paragraph, [(2, 3, 2, 0xFFFFFF)])
+    [found] = _paragraphs(_open(_compound(_section() + paragraph)), "가나다")
+    runs = [[etree.QName(e).localname for e in run.iter() if e.tag != f"{HP}run"] for run in found.iter(f"{HP}run")]
+    assert runs == [["t", "markpenBegin"], ["t", "markpenEnd"]]
+
+
 def test_an_image_fill_keeps_contrast_before_brightness() -> None:
     # The image of a fill keeps its contrast first, then its brightness, as a picture does; Hancom's conversion
     # of a fill stored as (-50, 70) is contrast -50, brightness 70.
