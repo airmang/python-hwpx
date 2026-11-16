@@ -1543,6 +1543,39 @@ class HwpxOxmlShape(ObjectPlacement):
             for child in self.element if _element_local_name(child) in names
         )
 
+    def ungroup(self) -> "tuple[HwpxOxmlShape | HwpxOxmlInlineObject, ...]":
+        """Take this group (``hp:container``) apart as Hancom does and return its members, now objects of their
+        own in this paragraph, in the order they stand there (the last member first, as Hancom puts them).
+
+        Each is drawn where it was in the group: its own matrices are kept (the group's turn and stretch with
+        them), its box (``hp:sz``) is the box it is drawn in, and it is placed from the group's frames at the
+        group's offsets plus where it starts in the group, with the group's text wrapping and outer margins, a
+        new ``id`` and a ``zOrder`` above the others. Turned members keep the group's angle. This is what Hancom
+        2024 wrote for groups ungrouped plain, stretched and turned 30 and 90 degrees; Hancom also hangs a
+        member on the paragraph at whose height it starts, here it stays in this paragraph at the same spot.
+
+        Refused with ``shape-ungroup-unsupported`` (``context["reason"]``) before anything changes: a shape
+        that is not a group, a group set as a character or placed from another side than the left and top, a
+        flipped group, one holding a group, and one with a member turned or flipped on its own. The paragraph
+        loses its line layout cache; this group object should not be used after it.
+        """
+
+        from .container import _ungroup_refused, ungroup_elements, ungroup_refusal
+        from .shape_position import _top_z_order
+
+        if self.shape_type != "container":
+            raise _ungroup_refused("it is not a group")
+        if _in_group(self.element, self.paragraph.element):
+            raise _ungroup_refused("it is a group inside a group: ungroup the outer group first")
+        why = ungroup_refusal(self.element)
+        if why is not None:
+            raise _ungroup_refused(why)
+        freed = ungroup_elements(self.element, int(_top_z_order(self.paragraph.section)))
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
+        return tuple(cast("HwpxOxmlShape | HwpxOxmlInlineObject", wrap_object(element, self.paragraph))
+                     for element in freed)
+
     @property
     def width(self) -> int:
         sz = self.element.find(f"{_HP}sz")

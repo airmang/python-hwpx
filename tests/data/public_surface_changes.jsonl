@@ -657,3 +657,4 @@
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.flip_vertical: 계약에 생김", "reason": "rotate3: 개체 뒤집기 읽기·쓰기 속성 flip_horizontal·flip_vertical (N2, 한/글 2024 ShapeObjHorzFlip/VertFlip 저장본 근거)"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.flip_horizontal: 계약에 생김", "reason": "rotate3: 개체 뒤집기 읽기·쓰기 속성 flip_horizontal·flip_vertical (N2, 한/글 2024 ShapeObjHorzFlip/VertFlip 저장본 근거)"}
 {"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.flip_vertical: 계약에 생김", "reason": "rotate3: 개체 뒤집기 읽기·쓰기 속성 flip_horizontal·flip_vertical (N2, 한/글 2024 ShapeObjHorzFlip/VertFlip 저장본 근거)"}
+{"date": "2026-11-17", "version": "6.12.0", "kind": "additive", "change": "model.Shape.ungroup: 계약에 생김", "reason": "objlim: Shape.ungroup — 묶음을 한/글처럼 푼다"}

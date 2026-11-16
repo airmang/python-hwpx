@@ -807,6 +807,7 @@
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
     "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
     "shape_type": {"kind": "property", "settable": false, "returns": "str"},
+    "ungroup": {"kind": "method", "params": [], "returns": "tuple[Shape | InlineObject, ...]"},
     "width": {"kind": "property", "settable": false, "returns": "int"},
     "z_order": {"kind": "property", "settable": true, "returns": "int"}
    },

@@ -713,8 +713,9 @@ class ObjectPlacement:
         left in it, and the outermost group moves every shape in it so that box starts at its origin, takes
         its size (drawn at the size Hancom or ``resize`` gave it) and, floating from the left and top of its
         frame, moves on the page by as much, so the members left stay where they were drawn. That is
-        refused (``shape-group-member-unsupported``, with ``context["reason"]``) for a group's only member
-        and where a group or a member of one is turned, flipped or stretched otherwise than so. A second
+        refused (``shape-group-member-unsupported``, with ``context["reason"]``) where a group or a member
+        of one is turned, flipped or stretched otherwise than so. A group's only member takes the group with
+        it (a group inside a group so, the group that held it fitting what is left). A second
         call does nothing; the object should not be used after it.
         """
 
@@ -723,6 +724,12 @@ class ObjectPlacement:
         parent = _parent_of(element, paragraph)
         if parent is None or not any(child is element for child in parent):
             return
+        from .container import _shapes_inside
+
+        # A group's only member taken out takes the group with it: no Hancom-saved document holds an empty
+        # group, nor a group of one (773 public groups have two or more members).
+        while _local(parent) == "container" and len(_shapes_inside(parent)) < 2:
+            element, parent = parent, _parent_of(parent, paragraph)
         groups = []
         node = parent
         while node is not None and str(node.tag).rsplit("}", 1)[-1] == "container":
