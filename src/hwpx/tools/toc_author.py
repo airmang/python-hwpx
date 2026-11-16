@@ -37,11 +37,13 @@ from hwpx.oxml.paragraph_heading import _OUTLINE_STYLE_NAME as _OUTLINE_NAME_RE
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _NON_UNIQUE_PARA_ID = "2147483648"
-#: Measured TOC Command (gold contract). ContentsMake:uint:31 = the bitmask the
-#: Hancom dialog emitted (title+table+figure+equation blocks); other values are
-#: unmeasured, so v1 replicates the captured value verbatim.
+#: Measured TOC Command (gold contract). ``ContentsMake`` says which lists Hangul
+#: builds when it regenerates the TOC: Hangul 2024 rebuilt a dirty TOC with 31 as
+#: 제목·표·그림·수식 차례, with 17 as 제목 차례 only (entries, links and page
+#: numbers filled), and dropped the 표/그림/수식 list for 29/27/23 (bits 2/4/8);
+#: without 16 it made no title entries. We write a title TOC, so 17.
 _TOC_COMMAND = (
-    "TableOfContents:set:140:ContentsMake:uint:31 ContentsStyles:wstring:0: "
+    "TableOfContents:set:140:ContentsMake:uint:17 ContentsStyles:wstring:0: "
     "ContentsLevel:int:{level} ContentsAutoTabRight:int:0 "
     "ContentsLeader:int:{leader} ContentsHyperlink:bool:{hyperlink}  "
 )

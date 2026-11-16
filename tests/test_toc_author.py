@@ -77,12 +77,15 @@ def test_emit_crossref_roundtrips_through_harness():
     assert tf.structural_report(reopened)["targetsResolve"] is True
 
 
-def test_emitted_command_dsl_matches_gold_contract():
+def test_emitted_command_dsl_matches_gold_contract_but_asks_for_the_title_list_only():
     doc, headings = _doc_with_headings(2)
     ta.add_native_toc(doc, headings=headings, level=2, leader=3, hyperlink=True)
     model = tf.parse_toc_model(HwpxDocument.open(doc.to_bytes()))
     gold = tf.parse_toc_model(GOLD_A)
-    assert model.toc_command == gold.toc_command  # verbatim contract replication
+    # The gold TOC asked for 제목·표·그림·수식 차례 (ContentsMake 31); Hangul 2024, rebuilding a
+    # dirty TOC, made all four lists from it. We write a title TOC, which Hangul rebuilds from 17.
+    assert "ContentsMake:uint:31 " in gold.toc_command
+    assert model.toc_command == gold.toc_command.replace("ContentsMake:uint:31 ", "ContentsMake:uint:17 ")
 
 
 def test_toc_plus_crossref_shared_target_consistency_check_works():
