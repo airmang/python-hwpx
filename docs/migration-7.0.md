@@ -239,6 +239,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | `header.apply_page_type` | `header.page_type`(읽고 쓰기) |
 | `properties.get_header()`·`get_footer()` | `properties.header()`·`footer()` |
 | `properties.start_numbering`·`set_start_numbering(...)` | `properties.start_numbers`·`set_start_numbers(...)` → `hwpx.objects.StartNumbers`(`hwpx.oxml.SectionStartNumbering` 은 없어졌다) |
+| `properties.add_master_page_reference(id_ref=)` | `add_master_page_reference(master_page_id=)`. `MasterPage` 도 받는다 |
 | `properties.remove_master_page_reference(id_ref)` | `remove_master_page_reference(master_page_id)`. `MasterPage` 도 받는다 |
 
 ### 반환 형식만 바뀐 것
