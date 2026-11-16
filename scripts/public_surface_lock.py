@@ -241,12 +241,27 @@ def _owner(cls: type, name: str) -> type | None:
     return None
 
 
+def _field_names(cls: type) -> set[str]:
+    """dataclass 필드 이름(밑줄 없는 것). 기본값 없는 필드는 클래스 속성이 아니라 ``dir`` 에 안 보인다."""
+
+    if not dataclasses.is_dataclass(cls):
+        return set()
+    return {f.name for f in dataclasses.fields(cls) if not f.name.startswith("_")}
+
+
 def _member(cls: type, name: str) -> dict[str, Any] | None:
+    entry: dict[str, Any]
+    if name in _field_names(cls) and not isinstance(inspect.getattr_static(cls, name, None), property):
+        # ``Paragraph.section`` 처럼 기본값 없는 dataclass 필드(인스턴스 속성)
+        entry = {"kind": "attribute"}
+        text = normalize_annotation(next(f.type for f in dataclasses.fields(cls) if f.name == name))
+        if text:
+            entry["returns"] = text
+        return entry
     owner = _owner(cls, name)
     if owner is None or owner.__module__ in FOREIGN_MODULES:
         return None
     static = vars(owner)[name]
-    entry: dict[str, Any]
     if isinstance(static, property):
         entry = {"kind": "property", "settable": static.fset is not None}
         if static.fget is not None:
@@ -296,7 +311,7 @@ def _members(cls: type, *, dunders: Iterable[str] = (), skip: Iterable[str] = ()
 
 
 def _public_names(cls: type) -> set[str]:
-    return {name for name in dir(cls) if not name.startswith("_")}
+    return {name for name in dir(cls) if not name.startswith("_")} | _field_names(cls)
 
 
 def _enum_values(cls: type[enum.Enum]) -> dict[str, Any]:
