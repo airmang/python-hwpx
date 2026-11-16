@@ -609,26 +609,34 @@ def _close(values: Sequence[float], expected: Sequence[float], tolerance: float)
     return all(abs(a - b) <= tolerance for a, b in zip(values, expected))
 
 
-def _turn_entries(cos: float, sin: float, about: tuple[float, float]) -> list[float]:
-    ax, ay = about
-    return [cos, -sin, ax * (1 - cos) + ay * sin, sin, cos, ay * (1 - cos) - ax * sin]
+def _member_angle(flips: tuple[int, int]) -> int:
+    """The ``rotationInfo/@angle`` Hancom gives a flipped group's members: 180 flipped left-right, else 0."""
+
+    return 180 if flips[0] == -1 else 0
 
 
-def _group_turn_refusal(group: Any, shapes: Sequence[Any], turned: int) -> str | None:
-    """Why the group cannot be turned by :func:`turn_group` (``None`` when it can). *turned* is the angle it
-    is turned by now; a turned group must hold the form :func:`turn_group` writes (Hancom's) to turn back."""
+def _group_turn_refusal(group: Any, shapes: Sequence[Any], turned: int, flips: tuple[int, int],
+                        wanted: tuple[int, int]) -> str | None:
+    """Why the group cannot be turned by :func:`turn_group` (``None`` when it can). *turned* and *flips* are how it
+    is turned and flipped now (a turned or flipped group must hold the form :func:`turn_group` writes, Hancom's,
+    to be turned or flipped again), *wanted* how it is to be flipped."""
 
     rendering, original = group.find(f"{_HP}renderingInfo"), group.find(f"{_HP}orgSz")
     if rendering is None or original is None or group.find(f"{_HP}rotationInfo") is None or len(rendering) != 3:
         return "its rendering matrices are not one trans/sca/rot set"
     if turned < 0:
         return "its angle is not a whole number"
-    if _flipped(group):
-        return "it is flipped: no Hancom-saved document shows how a flipped group turns"
     scale = _matrix(rendering[1])
     if not _scales_only(scale) or abs(scale[2]) > 0.5 or abs(scale[5]) > 0.5:
         return "its scaMatrix does more than scale it"
-    if not turned:
+    for state in {flips, wanted} - {(1, 1)}:
+        if state == (-1, -1):
+            return "it is flipped both ways: no Hancom-saved document shows how Hancom holds one"
+        if not _close([scale[0], scale[4]], [1, 1], 1e-3):
+            return "it is flipped and resized: no Hancom-saved document shows a resized group flipped"
+        if any(_local(shape) == "container" for shape in shapes):
+            return "it is flipped and holds a group: no Hancom-saved document shows how one is flipped"
+    if not turned and flips == (1, 1):
         width, height = float(original.get("width", "0")), float(original.get("height", "0"))
         size = group.find(f"{_HP}sz")
         drawn = (float(size.get("width", "0")), float(size.get("height", "0"))) if size is not None else (0, 0)
@@ -637,8 +645,6 @@ def _group_turn_refusal(group: Any, shapes: Sequence[Any], turned: int) -> str |
             return "its size is not its own size through its scaMatrix, or its matrices move or turn it"
     if not any(_local(shape) != "container" for shape in shapes):
         return "it holds no member"
-    if not _close([scale[0], scale[4]], [1, 1], 1e-3) and any(_local(shape) == "container" for shape in shapes):
-        return "it holds a group inside a resized group: no Hancom-saved document shows how one turns"
     for holder in [group, *(shape for shape in shapes if _local(shape) == "container")]:
         for child in holder:
             if child.find(f"{_HP}renderingInfo") is not None and _local(child) not in _MEMBER_TAGS:
@@ -646,17 +652,16 @@ def _group_turn_refusal(group: Any, shapes: Sequence[Any], turned: int) -> str |
     for shape in shapes:
         own = shape.find(f"{_HP}renderingInfo")
         if own is None or len(own) != 3 or shape.find(f"{_HP}orgSz") is None:
-            # a group inside a resized group: its members carry the groups' matrices too
-            return ("a member's rendering matrices are not one trans/sca/rot set (a group inside a resized group): "
-                    "no Hancom-saved document shows how one turns")
-        if _flipped(shape) or _angle(shape):
+            return ("a member's rendering matrices are not one trans/sca/rot set: no Hancom-saved document shows "
+                    "how one turns")
+        if _flipped(shape) or _angle(shape) not in (0, _member_angle(flips)):
             return "a member is turned or flipped on its own: no Hancom-saved document shows how one turns"
         if not _scales_only(_matrix(own[1])):
             return "a member's scaMatrix does more than scale it"
         trans = _matrix(own[0])
         if not _close([trans[0], trans[1], trans[3], trans[4]], [1, 0, 0, 1], 1e-3):
             return "a member's transMatrix does more than move it"
-        if not turned and not _plain(_matrix(own[2])):
+        if not turned and flips == (1, 1) and not _plain(_matrix(own[2])):
             return "a member is turned on its own"
     return None
 
@@ -665,7 +670,7 @@ def _scales_only(matrix: list[float]) -> bool:
     return abs(matrix[1]) <= 1e-3 and abs(matrix[3]) <= 1e-3 and matrix[0] > 0 and matrix[4] > 0
 
 
-def turn_group(group: Any, angle: int) -> None:
+def turn_group(group: Any, angle: int, *, flips: tuple[int, int] | None = None) -> None:
     """Turn the group *group* (``hp:container``) *angle* degrees clockwise about its middle, as Hancom 2024 turns
     one (its object dialog, saved): the group's ``hc:rotMatrix`` turns it about the middle of its own size
     (``hp:orgSz``, also when it is resized) and its ``hc:transMatrix``/``hp:offset`` move the box around its turned
@@ -676,29 +681,34 @@ def turn_group(group: Any, angle: int) -> None:
     own turned box as drawn (a group inside keeps its own) and its text is laid out across that box's width.
 
     A group turned so turns again to another angle (from its unturned form, as Hancom's dialog does) or back
-    to 0. Refused (``shape-rotation-unsupported``) for what no Hancom-saved document shows: a flipped group, a
-    member turned or flipped on its own, a group inside a resized group. Everything is checked before anything
-    changes."""
+    to 0. *flips* (-1 on an axis to mirror) flips it as Hancom does (``ShapeObjHorzFlip``/``VertFlip``): the
+    group's and every member's ``hc:rotMatrix`` mirror before they turn, the group's ``hp:flip`` takes the flags,
+    the members' stay 0 with ``rotationInfo/@angle`` 180 when flipped left-right. ``None`` keeps the group's own.
+    Refused (``shape-rotation-unsupported``) for what no Hancom-saved document shows: a member turned or flipped
+    on its own; a flipped group resized, holding a group or flipped both ways. Everything is checked before
+    anything changes."""
 
     from .shape_position import (
-        _half_up, _rotation_refused, set_text_width, set_turn, turn_cos_sin, turned_frame,
+        _half_up, _rotation_refused, flip_signs, set_text_width, set_turn, turn_cos_sin, turned_frame,
     )
 
     shapes = _all_shapes_inside(group)
     turned = _angle(group)
-    why = _group_turn_refusal(group, shapes, turned)
+    now = flip_signs(group)
+    wanted = now if flips is None else flips
+    why = _group_turn_refusal(group, shapes, turned, now, wanted)
     original = group.find(f"{_HP}orgSz")
     width, height = (float(original.get("width", "0")), float(original.get("height", "0"))) \
         if original is not None else (0.0, 0.0)
     middle = (width / 2, height / 2)
-    if why is None and turned:
-        why = _turned_group_mismatch(group, shapes, turned, middle)
+    if why is None and (turned or now != (1, 1)):
+        why = _turned_group_mismatch(group, shapes, turned, middle, now)
     if why is not None:
         raise _rotation_refused(group, why)
-    if not angle and not turned:
+    if not angle and not turned and now == wanted == (1, 1):
         return
     rendering = group.find(f"{_HP}renderingInfo")
-    move = _matrix(rendering[0]) if turned else [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+    move = _matrix(rendering[0]) if turned or now != (1, 1) else [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
     factors = (_matrix(rendering[1])[0], _matrix(rendering[1])[4])
     # Each shape's place before any turn: its transMatrix less the group's move (in the outermost group's space).
     places = [(_matrix(s.find(f"{_HP}renderingInfo")[0])[2] - move[2],
@@ -709,15 +719,19 @@ def turn_group(group: Any, angle: int) -> None:
         drawn.append((x + scale[2], y + scale[5], float(own.get("width", "0")) * scale[0],
                       float(own.get("height", "0")) * scale[4]))
     cos, sin = turn_cos_sin(angle)
-    if angle:
+    if angle or wanted != (1, 1):
         # Hancom turns the group about the middle of its own size (unscaled, in the space the members are drawn in)
         # and fits its box around the turned shapes -- the shapes, not the groups inside.
         corners = [corner for shape, (left, top, w, h) in zip(shapes, drawn) if _local(shape) != "container"
                    for corner in ((left, top), (left + w, top), (left + w, top + h), (left, top + h))]
-        shift, box = turned_frame(cos, sin, middle, corners)
+        shift, box = turned_frame(cos, sin, middle, corners, wanted)
     else:  # back to 0: every shape back at its place, the group at its size
         shift, box = (0, 0), (round(width * factors[0]), round(height * factors[1]))
-    set_turn(group, cos, sin, middle, shift)
+    set_turn(group, cos, sin, middle, shift, wanted)
+    flip = group.find(f"{_HP}flip")
+    if flip is not None:
+        flip.set("horizontal", "1" if wanted[0] == -1 else "0")
+        flip.set("vertical", "1" if wanted[1] == -1 else "0")
     info = group.find(f"{_HP}rotationInfo")
     info.set("angle", str(angle))
     info.set("centerX", str(_half_up(middle[0] + shift[0]) if angle else int(width) // 2))
@@ -727,11 +741,20 @@ def turn_group(group: Any, angle: int) -> None:
         size.set("width", str(box[0]))
         size.set("height", str(box[1]))
     for shape, (x, y), (_, _, w, h) in zip(shapes, places, drawn):
-        set_turn(shape, cos, sin, (middle[0] - x, middle[1] - y), (round(x + shift[0]), round(y + shift[1])))
+        set_turn(shape, cos, sin, (middle[0] - x, middle[1] - y), (round(x + shift[0]), round(y + shift[1])),
+                 wanted)
         if _local(shape) == "container":
             continue  # a group inside keeps its centre (Hancom leaves it)
+        member_info = shape.find(f"{_HP}rotationInfo")
+        if member_info is not None:  # Hancom marks a member of a group flipped left-right as turned 180
+            member_info.set("angle", str(_member_angle(wanted)))
         # The middle of its own turned box as drawn, its size rounded first (6363.96 wide: 3182; 8485.28: 4242), and
         # its text across that width -- at 0 too, as Hangul saves a resized group's members (drawn 9000: 4500).
+        if not angle and any(_local(other) == "container" for other in shapes):
+            # unturned in a group holding a group, Hancom keeps a resized member's own centre (1500 for 3000 drawn
+            # at 4500), where it writes the drawn one in a group holding none
+            own = shape.find(f"{_HP}orgSz")
+            w, h = float(own.get("width", "0")), float(own.get("height", "0"))
         turned_width, turned_height = w * abs(cos) + h * abs(sin), w * abs(sin) + h * abs(cos)
         shape_info = shape.find(f"{_HP}rotationInfo")
         if shape_info is not None:
@@ -740,23 +763,24 @@ def turn_group(group: Any, angle: int) -> None:
         set_text_width(shape, _half_up(turned_width))
 
 
-def _turned_group_mismatch(group: Any, shapes: Sequence[Any], angle: int, middle: tuple[float, float]) -> str | None:
-    """``None`` when the group turned *angle* degrees holds the form :func:`turn_group` (and Hancom) writes, so it
-    can be turned again or back; else why not."""
+def _turned_group_mismatch(group: Any, shapes: Sequence[Any], angle: int, middle: tuple[float, float],
+                           flips: tuple[int, int] = (1, 1)) -> str | None:
+    """``None`` when the group turned *angle* degrees and flipped (*flips*) holds the form :func:`turn_group` (and
+    Hancom) writes, so it can be turned or flipped again or back; else why not."""
 
-    from .shape_position import turn_cos_sin
+    from .shape_position import turn_cos_sin, turn_entries
 
     cos, sin = turn_cos_sin(angle)
     rendering = group.find(f"{_HP}renderingInfo")
     move = _matrix(rendering[0])
     if not _close(move, [1, 0, move[2], 0, 1, move[5]], 1e-3) \
-            or not _close(_matrix(rendering[2]), _turn_entries(cos, sin, middle), 0.05):
+            or not _close(_matrix(rendering[2]), turn_entries(cos, sin, middle, flips), 0.05):
         return "its matrices are not a turn about its middle"
     for shape in shapes:
         own = shape.find(f"{_HP}renderingInfo")
         trans = _matrix(own[0])
         about = (middle[0] - (trans[2] - move[2]), middle[1] - (trans[5] - move[5]))
-        if not _close(_matrix(own[2]), _turn_entries(cos, sin, about), 0.05):
+        if not _close(_matrix(own[2]), turn_entries(cos, sin, about, flips), 0.05):
             return "a member is turned otherwise than with its group"
     return None
 

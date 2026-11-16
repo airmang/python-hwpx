@@ -31,7 +31,7 @@ from .shape_position import (
     resize_object, rotation_base_size,
     set_equation_font, set_equation_font_size, set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
-    _object_set_position, build_at_original_size, fit_new_floating_object, resize_group,
+    _object_set_position, build_at_original_size, fit_new_floating_object, refuse_resizing_flipped, resize_group,
     validate_draw_text_vert_align, validate_picture_align,
     validate_caption_gap, validate_caption_side, validate_picture_border, validate_picture_crop, validate_picture_image,
     validate_rect_ratio,
@@ -1568,6 +1568,7 @@ class HwpxOxmlShape(ObjectPlacement):
         :class:`UserWarning` is raised, because the drawn shape cannot follow
         the requested size.
         """
+        refuse_resizing_flipped(self.element)
         angle = self.rotation % 360
         own = rotation_base_size(self.element) if angle else (self.width, self.height)  # a turned one: its own size
         width, height = keep_ratio(own, width, height)

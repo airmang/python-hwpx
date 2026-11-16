@@ -48,7 +48,10 @@ automation -- the object selected, then its turn-by-90-degrees command (`*_by_90
 angle of 30 (`*_by_30`) -- and saved the document. `turn_shapes_*`, `turn_again_*`, `turn_resized_group_*`,
 `turn_group_in_group_*` and `turn_flipped_rect_*` were turned through the object dialog only, at the angle in
 the name (`turn_flipped_rect_by_30` after the flip-left-right command); the dialog also drew the group in
-`turn_shapes_group_resized_by_90` at 7200 x 7200. `tests/test_turn_text_shapes_and_groups.py` says what each
+`turn_shapes_group_resized_by_90` at 7200 x 7200. `flip_*.hwpx` and `turn_group_in_resized_group_by_30.hwpx`
+were changed the same way with Hangul's flip-left-right / flip-up-down commands (`ShapeObjHorzFlip`,
+`ShapeObjVertFlip`) and then the dialog's angle, as their names say (`_back`: turned back to 0 after 45);
+`tests/test_flip_shapes_and_groups.py` says what each shows. `tests/test_turn_text_shapes_and_groups.py` says what each
 shows. The preview image was left out and the metadata listed above emptied; every other part keeps Hangul's
 bytes.
 

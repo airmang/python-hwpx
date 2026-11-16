@@ -243,20 +243,15 @@ def test_what_is_not_shown_by_hancom_is_still_refused() -> None:
         with pytest.raises(HwpxValueError) as caught:
             call()
         assert caught.value.code == code and says in str(caught.value)
-    # Hangul flipped this rectangle and turned it 30 degrees; how it holds one flipped and unturned is not shown
-    flipped_rect = _by_instid(HwpxDocument.open(HANCOM / "turn_flipped_rect_by_30.hwpx"), "67647593")
     fresh = HwpxDocument.new()
-    flipped = _group(fresh)
-    flipped.element.find(f"{HP}flip").set("horizontal", "1")
+    both_ways = fresh.add_paragraph("").add_rectangle(8000, 4000)
+    both_ways.element.find(f"{HP}flip").attrib.update({"horizontal": "1", "vertical": "1"})
+    flipped_by_flag_only = _group(fresh)  # hp:flip set but no mirror in its matrices: not Hancom's form
+    flipped_by_flag_only.element.find(f"{HP}flip").set("horizontal", "1")
     member_turned = _group(fresh)
     member_turned.element.find(f"{HP}rect/{HP}rotationInfo").set("angle", "30")
-    in_resized = fresh.add_paragraph("").add_container([
-        ContainerMember.rect(0, 0, 3000, 3000),
-        ContainerMember.group(4000, 0, [ContainerMember.rect(0, 0, 2000, 2000), ContainerMember.rect(3000, 0, 2000, 2000)]),
-    ])
-    in_resized.resize(18000, 6000)
-    for shape, reason in ((flipped_rect, "flipped"), (flipped, "flipped"), (member_turned, "on its own"),
-                          (in_resized, "resized group")):
+    for shape, reason in ((both_ways, "both ways"), (flipped_by_flag_only, "not a turn"),
+                          (member_turned, "on its own")):
         before = [dict(node.attrib) for node in shape.element.iter()]
         with pytest.raises(HwpxValueError) as caught:
             shape.rotation = 45
