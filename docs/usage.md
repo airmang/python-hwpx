@@ -197,7 +197,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 section = document.sections[0]
-start = section.properties.start_numbering
+start = section.properties.start_numbers
 print(start.page_starts_on, start.page)
 ```
 
@@ -210,7 +210,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 section = document.sections[0]
-section.properties.set_start_numbering(page=3, table=1)
+section.properties.set_start_numbers(page=3, table=1)
 ```
 
 ### 예제 14: 머리말 텍스트 설정
@@ -223,10 +223,10 @@ from hwpx import HwpxDocument
 document = HwpxDocument.new()
 section = document.sections[0]
 header = section.properties.set_header_text("Confidential", page_type="BOTH")
-print(header.apply_page_type)
+print(header.page_type)
 ```
 
-`set_header_text()`과 `set_footer_text()`는 새 헤더/꼬리말 파트를 만들거나 기존 텍스트를 교체할 뿐 아니라, 같은 구역의 `<hp:headerApply>`/`<hp:footerApply>` 노드와 연결된 마스터 페이지 참조까지 일관되게 유지합니다. 위 예제의 `apply_page_type` 속성은 방금 요청한 페이지 유형(`BOTH`)으로 자동 설정됩니다.
+`set_header_text()`과 `set_footer_text()`는 새 헤더/꼬리말 파트를 만들거나 기존 텍스트를 교체할 뿐 아니라, 같은 구역의 `<hp:headerApply>`/`<hp:footerApply>` 노드와 연결된 마스터 페이지 참조까지 일관되게 유지합니다. 위 예제의 `page_type` 속성은 방금 요청한 페이지 유형(`BOTH`)으로 자동 설정됩니다.
 
 ### 예제 15: 머리말 제거
 
@@ -493,10 +493,10 @@ table = document.add_table(rows=2, cols=3, section=section)
 table.merge_cells(0, 0, 0, 2)
 ```
 
-병합된 표의 상태를 점검하려면 `iter_grid()` 또는 `get_cell_map()`으로 논리 좌표와 실제 셀을 매핑할 수 있습니다. `logical=True` 옵션을 사용하면 논리 좌표 기준으로 텍스트를 갱신하고, `split_merged=True`를 추가하면 병합을 해제한 뒤 값을 기록합니다.
+병합된 표의 상태를 점검하려면 `iter_grid()` 또는 `cell_map`으로 논리 좌표와 실제 셀을 매핑할 수 있습니다. `logical=True` 옵션을 사용하면 논리 좌표 기준으로 텍스트를 갱신하고, `split_merged=True`를 추가하면 병합을 해제한 뒤 값을 기록합니다.
 
 ```python
-header_map = table.get_cell_map()[0]
+header_map = table.cell_map[0]
 for entry in header_map:
     print(entry.column, "=>", entry.anchor, "span", entry.span)
 
@@ -764,7 +764,7 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 section = document.sections[0]
-section.properties.set_start_numbering(page=1, table=1)
+section.properties.set_start_numbers(page=1, table=1)
 ```
 
 ### 예제 54: 헤더 번호 초기값 읽기

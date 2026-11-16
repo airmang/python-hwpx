@@ -47,7 +47,7 @@ def test_unlink_then_remove_a_master_page() -> None:
     assert doc.page.remove_master_page(master_id, section=0) is False
     doc.parts.remove_master_page(master_id)
     reopened = HwpxDocument.open(doc.to_bytes())
-    assert reopened.validate().ok and reopened.parts.master_pages == []
+    assert reopened.validate().ok and reopened.parts.master_pages == ()
 
 
 def test_unlink_from_every_section() -> None:

@@ -510,7 +510,7 @@ def _bookmarks_in(paragraph: "HwpxOxmlParagraph", wanted: Any = None) -> tuple["
             for mark in child:
                 if wanted is not None and mark is not wanted:
                     continue
-                if mark.tag == f"{_HP}bookmark" and mark.get("name", ""):
+                if mark.tag == f"{_HP}bookmark" and mark.get("name"):
                     marks.append((run_index, child_index, mark, "point"))
                 elif (mark.tag == f"{_HP}fieldBegin" and (mark.get("type") or "").strip().upper() == "BOOKMARK"
                       and (mark.get("name") or "").strip()):

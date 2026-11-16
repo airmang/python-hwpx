@@ -52,38 +52,38 @@ def _grid_is_whole(table) -> None:
 # -- vertical alignment of a cell ---------------------------------------------------------------
 
 
-def test_cell_vert_align_reads_hangul_saved_value_and_writes_each_value() -> None:
+def test_cell_vertical_alignment_reads_hangul_saved_value_and_writes_each_value() -> None:
     document = HwpxDocument.open(ZONES)
     table = document.tables[0]
-    assert table.cell(0, 0).vert_align == "TOP"
-    assert {table.cell(r, 0).vert_align for r in range(table.row_count)} <= {"TOP", "CENTER", "BOTTOM"}
+    assert table.cell(0, 0).vertical_alignment == "TOP"
+    assert {table.cell(r, 0).vertical_alignment for r in range(table.row_count)} <= {"TOP", "CENTER", "BOTTOM"}
 
     before = document.to_bytes()
     for value in ("CENTER", "BOTTOM", "TOP"):
-        table.cell(1, 1).set_vert_align(value)
-        assert table.cell(1, 1).vert_align == value
-    table.cell(1, 1).set_vert_align("BOTTOM")
+        table.cell(1, 1).vertical_alignment = value
+        assert table.cell(1, 1).vertical_alignment == value
+    table.cell(1, 1).vertical_alignment = "BOTTOM"
     reopened = _reopen(document)
-    assert reopened.tables[0].cell(1, 1).vert_align == "BOTTOM"
+    assert reopened.tables[0].cell(1, 1).vertical_alignment == "BOTTOM"
     assert _changed(before, document.to_bytes()) == {table.paragraph.section.part_name}
 
 
-def test_cell_vert_align_refuses_other_spellings_before_changing_anything() -> None:
+def test_cell_vertical_alignment_refuses_other_spellings_before_changing_anything() -> None:
     document = HwpxDocument.new()
     cell = document.add_table(1, 1).cell(0, 0)
     for bad in ("center", "MIDDLE", None, 1):
         with pytest.raises(HwpxError) as caught:
-            cell.set_vert_align(bad)  # type: ignore[arg-type]
-        assert caught.value.code == "table-cell-vert-align-value"
-    assert cell.vert_align == "CENTER"
+            cell.vertical_alignment = bad
+        assert caught.value.code == "table-cell-vertical-alignment-value"
+    assert cell.vertical_alignment == "CENTER"
 
 
-def test_cell_vert_align_drops_the_cells_line_caches() -> None:
+def test_cell_vertical_alignment_drops_the_cells_line_caches() -> None:
     document = HwpxDocument.open(FIXTURES / "hancom_saved" / "line_cache_table_cells.hwpx")
     table = document.tables[0]
     cell = table.cell(0, 0)
     assert cell.paragraphs[0].element.find(HP + "linesegarray") is not None
-    cell.set_vert_align("BOTTOM" if cell.vert_align != "BOTTOM" else "TOP")
+    cell.vertical_alignment = "BOTTOM" if cell.vertical_alignment != "BOTTOM" else "TOP"
     assert cell.paragraphs[0].element.find(HP + "linesegarray") is None
     assert table.paragraph.element.find(HP + "linesegarray") is None
 
@@ -95,12 +95,12 @@ def test_inline_table_alignment_is_its_paragraphs_alignment() -> None:
     document = HwpxDocument.new()
     table = document.add_table(2, 2, width=20000)
     assert table.treat_as_char and table.alignment == "LEFT"
-    table.set_alignment("CENTER")
+    table.alignment = "CENTER"
     assert table.alignment == "CENTER"
     shape = document.oxml.paragraph_property(table.paragraph.element.get("paraPrIDRef"))
     assert shape.alignment.horizontal == "CENTER"
     assert table.element.find(HP + "pos").get("horzAlign") == "LEFT"  # inline: position stays
-    table.set_alignment("RIGHT")
+    table.alignment = "RIGHT"
     assert _reopen(document).tables[0].alignment == "RIGHT"
 
 
@@ -109,12 +109,12 @@ def test_floating_table_alignment_is_its_position_alignment() -> None:
     table = document.tables[0]
     assert not table.treat_as_char
     para_pr = table.paragraph.element.get("paraPrIDRef")
-    table.set_alignment("CENTER")
+    table.alignment = "CENTER"
     assert table.element.find(HP + "pos").get("horzAlign") == "CENTER"
     assert table.paragraph.element.get("paraPrIDRef") == para_pr
     assert _reopen(document).tables[0].alignment == "CENTER"
     with pytest.raises(HwpxError) as caught:
-        table.set_alignment("JUSTIFY")
+        table.alignment = "JUSTIFY"
     assert caught.value.code == "table-alignment-value"
 
 
@@ -157,7 +157,7 @@ def test_set_column_width_resizes_a_merged_cell_across_the_column() -> None:
     document = HwpxDocument.new()
     table = document.add_table(3, 3, width=30000)
     merged = table.merge_cells("A1:B1")
-    table.columns[1].set_width(12000)
+    table.columns[1].width = 12000
     assert merged.width == table.column_widths[0] + 12000
     assert table.column_widths[1] == 12000
     _grid_is_whole(_reopen(document).tables[0])
@@ -182,7 +182,7 @@ def test_set_row_height_grows_cells_spanning_the_row() -> None:
     document = HwpxDocument.new()
     table = document.add_table(3, 2)
     merged = table.merge_cells("A1:A2")
-    table.rows[1].set_height(2000)
+    table.rows[1].height = 2000
     assert table.row_heights[1] == 2000
     assert merged.height == table.row_heights[0] + 2000
     assert table.element.find(HP + "sz").get("height") == str(sum(table.row_heights))
@@ -239,7 +239,7 @@ def test_in_margins_read_and_write_and_cells_without_own_margins_follow() -> Non
 def test_set_borders_outline_only_leaves_inner_lines_and_sets_outside_neighbours() -> None:
     document = HwpxDocument.new()
     table = document.add_table(4, 4)
-    table.set_borders("B2:C3", width_mm=0.4, color="#FF0000", inner=False)
+    table.set_borders("B2:C3", border_width_mm=0.4, color="#FF0000", inner=False)
     inner = table.cell(1, 1).border_fill
     assert isinstance(inner, BorderFillInfo)
     assert (inner.left.width_mm, inner.top.width_mm, inner.right.width_mm, inner.bottom.width_mm) == (0.4, 0.4, 0.12, 0.12)
@@ -255,12 +255,12 @@ def test_set_borders_keeps_fill_and_other_sides_and_reuses_identical_definitions
     document = HwpxDocument.new()
     table = document.add_table(2, 2)
     table.set_shading("A1", color="#D9D9D9")
-    table.set_borders("A1:B1", sides=("bottom",), line_type="DOUBLE_SLIM", width_mm=0.5)
+    table.set_borders("A1:B1", sides=("bottom",), line_type="DOUBLE_SLIM", border_width_mm=0.5)
     first = table.cell(0, 0).border_fill
     assert first.fill == "#D9D9D9" and first.bottom.type == "DOUBLE_SLIM" and first.top.type == "SOLID"
     assert table.cell(0, 1).border_fill.fill is None
     count = len(document.oxml.border_fills)
-    table.set_borders("A1:B1", sides=("bottom",), line_type="DOUBLE_SLIM", width_mm=0.5)
+    table.set_borders("A1:B1", sides=("bottom",), line_type="DOUBLE_SLIM", border_width_mm=0.5)
     assert len(document.oxml.border_fills) == count
 
 
@@ -271,7 +271,7 @@ def test_set_borders_none_line_and_bad_values() -> None:
     assert table.cell(1, 1).border_fill.left.type == "NONE"
     before = document.to_bytes()
     for kwargs in ({"sides": ("middle",)}, {"sides": "left"}, {"color": "red"}, {"line_type": "solid"},
-                   {"width_mm": "1"}, {"inner": 1}):
+                   {"border_width_mm": "1"}, {"inner": 1}):
         with pytest.raises(HwpxError) as caught:
             table.set_borders(**kwargs)  # type: ignore[arg-type]
         assert caught.value.code == "table-border-value"
@@ -282,7 +282,7 @@ def test_set_borders_on_a_hangul_saved_merged_table_touches_only_header_and_sect
     document = HwpxDocument.open(VMERGE)
     before = document.to_bytes()
     table = document.tables[0]
-    table.set_borders(width_mm=0.5, inner=False)
+    table.set_borders(border_width_mm=0.5, inner=False)
     for cell in table.cells_in():
         (r0, c0), (_rs, cs) = cell.address, cell.span
         info = cell.border_fill
@@ -297,7 +297,7 @@ def test_set_borders_on_a_hangul_saved_merged_table_touches_only_header_and_sect
 def test_set_shading_and_set_cell_shading_keep_the_cells_lines() -> None:
     document = HwpxDocument.new()
     table = document.add_table(2, 2)
-    table.set_borders("A1", line_type="DASH", width_mm=0.3)
+    table.set_borders("A1", line_type="DASH", border_width_mm=0.3)
     table.set_cell_shading(0, 0, "#FFFF00")
     info = table.cell(0, 0).border_fill
     assert info.fill == "#FFFF00" and info.left.type == "DASH" and info.left.width_mm == 0.3
@@ -309,7 +309,7 @@ def test_set_shading_and_set_cell_shading_keep_the_cells_lines() -> None:
     assert caught.value.code == "table-shading-value"
 
 
-# -- title rows, page breaking --------------------------------------------------------------------
+# -- title rows, page splitting --------------------------------------------------------------------
 
 
 def test_title_rows_read_from_a_hangul_saved_table_and_rewritten() -> None:
@@ -341,17 +341,17 @@ def test_set_header_rows_refuses_a_cell_merged_across_its_last_line() -> None:
     assert table.header_rows == 2
 
 
-def test_page_break_and_no_adjust() -> None:
+def test_page_split_and_no_adjust() -> None:
     document = HwpxDocument.new()
     table = document.add_table(2, 2)
-    assert (table.page_break, table.no_adjust) == ("CELL", False)
-    table.set_page_break("NONE")
-    table.set_no_adjust(True)
+    assert (table.page_split, table.no_adjust) == ("CELL", False)
+    table.page_split = "NONE"
+    table.no_adjust = True
     reopened = _reopen(document).tables[0]
-    assert (reopened.page_break, reopened.no_adjust) == ("NONE", True)
+    assert (reopened.page_split, reopened.no_adjust) == ("NONE", True)
     with pytest.raises(HwpxError) as caught:
-        table.set_page_break("cell")
-    assert caught.value.code == "table-page-break-value"
+        table.page_split = "cell"
+    assert caught.value.code == "table-page-split-value"
 
 
 # -- rows, columns, ranges, zones ---------------------------------------------------------------
@@ -399,7 +399,7 @@ def test_cell_clear_leaves_one_empty_paragraph_in_the_first_ones_shapes() -> Non
     cell.paragraphs[0].element.set("paraPrIDRef", "3")
     cell.add_table(1, 1)
     cell.clear()
-    assert len(cell.paragraphs) == 1 and cell.text == "" and cell.tables == []
+    assert len(cell.paragraphs) == 1 and cell.text == "" and cell.tables == ()
     assert cell.paragraphs[0].element.get("paraPrIDRef") == "3"
     _reopen(document)
 

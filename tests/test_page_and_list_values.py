@@ -77,11 +77,11 @@ _REFUSED: dict[str, tuple[Callable[[HwpxDocument], object], str]] = {
     "negative line number start": (lambda d: d.page.set_line_numbers(start_number=-1), "page-number-value"),
     "negative line number distance": (lambda d: d.page.set_line_numbers(distance=-1), "page-number-value"),
     "section page start past 16 bits": (
-        lambda d: d.oxml.sections[0].properties.set_start_numbering(page=65536), "page-number-value"),
+        lambda d: d.oxml.sections[0].properties.set_start_numbers(page=65536), "page-number-value"),
     "section table start past 16 bits": (
-        lambda d: d.oxml.sections[0].properties.set_start_numbering(table=65536), "page-number-value"),
+        lambda d: d.oxml.sections[0].properties.set_start_numbers(table=65536), "page-number-value"),
     "negative section start": (
-        lambda d: d.oxml.sections[0].properties.set_start_numbering(equation=-1), "page-number-value"),
+        lambda d: d.oxml.sections[0].properties.set_start_numbers(equation=-1), "page-number-value"),
     "list start past 16 bits": (
         lambda d: d.styles.apply_list_format(paragraph_indexes=[1, 2], kind="number", start=65536),
         "style-list-start-value"),
@@ -126,7 +126,7 @@ def test_the_bounds_hancom_keeps_are_written_as_given() -> None:
     properties = document.oxml.sections[0].properties
 
     document.page.set_line_numbers(start_number=65535, count_by=0, distance=2**31 - 1)
-    properties.set_start_numbering(page=0, table=65535)
+    properties.set_start_numbers(page=0, table=65535)
     properties.set_page_border_fill(offset_top=32767, offset_left=0)
     document.styles.apply_list_format(paragraph_indexes=[1, 2], kind="number", start=0)
 
@@ -142,7 +142,7 @@ def test_the_bounds_hancom_keeps_are_written_as_given() -> None:
 
 
 @pytest.mark.parametrize(("tag", "call"), [
-    ("startNum", lambda p: p.set_start_numbering(page=2)),
+    ("startNum", lambda p: p.set_start_numbers(page=2)),
     ("lineNumberShape", lambda p: p.set_line_number_shape(count_by=5)),
     ("pageBorderFill", lambda p: p.set_page_border_fill(page_type="BOTH", offset_top=500)),
     ("grid", lambda p: p.set_grid(line_grid=0)),

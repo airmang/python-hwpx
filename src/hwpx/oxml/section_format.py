@@ -21,7 +21,7 @@ from ._document_primitives import (
     _optional_int_attr,
     _paragraph_id,
 )
-from .numbering import SectionStartNumbering
+from ..objects.results import StartNumbers
 from .numbering_kinds import number_format
 from .utils import normalize_line_width
 from .section_story import (
@@ -32,6 +32,7 @@ from .section_story import (
 
 if TYPE_CHECKING:
     from .section import HwpxOxmlSection
+    from .simple_parts import HwpxOxmlMasterPage
 
 
 #: ``hp:pagePr@landscape`` as Hancom writes it. Both values keep the paper's
@@ -370,6 +371,17 @@ def _choice(argument: str, value: object, allowed: Sequence[str], code: str) -> 
     return str(value)
 
 
+def _master_page_id(master_page: object) -> str:
+    """The id of *master_page*: a master page id as it is, or a ``MasterPage``'s ``id``."""
+
+    found = master_page if isinstance(master_page, str) else getattr(master_page, "id", None)
+    if not isinstance(found, str):
+        from ..errors import argument_type_error
+
+        raise argument_type_error("master_page_id", master_page, "a master page id (str) or a MasterPage")
+    return found
+
+
 def _check_page_size(width: object, height: object, gutter_type: object) -> None:
     """A page's size (0 to 2**31 - 1) and gutter type, checked before anything changes."""
 
@@ -598,17 +610,20 @@ class HwpxOxmlSectionProperties:
 
     # -- numbering ----------------------------------------------------------
     @property
-    def start_numbering(self) -> SectionStartNumbering:
+    def start_numbers(self) -> StartNumbers:
+        """Where the section's counts start (``hp:startNum``): pages, pictures, tables and
+        equations, and the kind of page the section starts on; 0 goes on from the section
+        before. The value ``doc.page.start_numbers()`` gives."""
         start_num = self.element.find(f"{_HP}startNum")
         if start_num is None:
-            return SectionStartNumbering(
+            return StartNumbers(
                 page_starts_on="BOTH",
                 page=0,
                 picture=0,
                 table=0,
                 equation=0,
             )
-        return SectionStartNumbering(
+        return StartNumbers(
             page_starts_on=start_num.get("pageStartsOn", "BOTH"),
             page=_get_int_attr(start_num, "page", 0),
             picture=_get_int_attr(start_num, "pic", 0),
@@ -616,7 +631,7 @@ class HwpxOxmlSectionProperties:
             equation=_get_int_attr(start_num, "equation", 0),
         )
 
-    def set_start_numbering(
+    def set_start_numbers(
         self,
         *,
         page_starts_on: str | None = None,
@@ -625,6 +640,8 @@ class HwpxOxmlSectionProperties:
         table: int | None = None,
         equation: int | None = None,
     ) -> None:
+        """Change where the section's counts start (:attr:`start_numbers`); a value left out stays.
+        Numbers are 0..65535 (0: go on from the section before)."""
         numbers = (("page", page), ("pic", picture), ("tbl", table), ("equation", equation))
         for name, value in numbers:  # Hancom keeps each as 16 bits unsigned (0: go on from the section before)
             if value is not None:
@@ -754,8 +771,8 @@ class HwpxOxmlSectionProperties:
             for child in self.element.findall(f"{_HP}masterPage")
         )
 
-    def add_master_page_reference(self, id_ref: str) -> None:
-        """바탕쪽 파트(``masterPageN``)를 이 절에서 참조하도록 등록한다.
+    def add_master_page_reference(self, master_page_id: "str | HwpxOxmlMasterPage") -> None:
+        """바탕쪽 파트(``masterPageN``, id 나 ``MasterPage``)를 이 절에서 참조하도록 등록한다.
 
         중복 idRef는 다시 추가하지 않는다(멱등). ``masterPageCnt``를
         실제 자식 개수로 동기화한다 -- 실 예시 1건에서 `masterPageCnt="1"`
@@ -765,6 +782,7 @@ class HwpxOxmlSectionProperties:
         이미 바탕쪽을 두고 있으면 ``HwpxValueError``
         (``master-page-pages-taken``)를 낸다.
         """
+        id_ref = _master_page_id(master_page_id)
         if id_ref in self.master_page_refs:
             return
         document = self.section.document
@@ -776,14 +794,16 @@ class HwpxOxmlSectionProperties:
         self.element.set("masterPageCnt", str(len(self.master_page_refs)))
         self.section.mark_dirty()
 
-    def remove_master_page_reference(self, id_ref: str) -> bool:
-        """이 절의 ``hp:masterPage/@idRef == id_ref`` 연결을 끊는다. 끊었으면 True.
+    def remove_master_page_reference(self, master_page_id: "str | HwpxOxmlMasterPage") -> bool:
+        """이 절이 바탕쪽 *master_page_id* (id 나 ``MasterPage``)를 쓰는 연결(``hp:masterPage/@idRef``)을
+        끊는다. 끊었으면 True.
 
         바탕쪽 파트는 그대로 둔다. ``masterPageCnt`` 를 남은 개수로 맞춘다.
         """
+        wanted = _master_page_id(master_page_id)
         removed = False
         for child in list(self.element.findall(f"{_HP}masterPage")):
-            if child.get("idRef", "") == id_ref:
+            if child.get("idRef", "") == wanted:
                 self.element.remove(child)
                 removed = True
         if removed:
@@ -1486,26 +1506,20 @@ class HwpxOxmlSectionProperties:
         return removed
 
     @property
-    def headers(self) -> list[HwpxOxmlSectionHeaderFooter]:
-        wrappers: list[HwpxOxmlSectionHeaderFooter] = []
-        for element in _section_story_elements(self, "header"):
-            apply = self._match_apply_for_element("header", element)
-            wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
-        return wrappers
+    def headers(self) -> tuple[HwpxOxmlSectionHeaderFooter, ...]:
+        """The section's headers, one per page type it has (``doc.page.headers()``'s value)."""
+        return tuple(
+            HwpxOxmlSectionHeaderFooter(element, self, self._match_apply_for_element("header", element))
+            for element in _section_story_elements(self, "header")
+        )
 
     @property
-    def footers(self) -> list[HwpxOxmlSectionHeaderFooter]:
-        wrappers: list[HwpxOxmlSectionHeaderFooter] = []
-        for element in _section_story_elements(self, "footer"):
-            apply = self._match_apply_for_element("footer", element)
-            wrappers.append(HwpxOxmlSectionHeaderFooter(element, self, apply))
-        return wrappers
-
-    def get_header(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
-        return self._get_story("header", page_type)
-
-    def get_footer(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
-        return self._get_story("footer", page_type)
+    def footers(self) -> tuple[HwpxOxmlSectionHeaderFooter, ...]:
+        """The section's footers, one per page type it has (``doc.page.footers()``'s value)."""
+        return tuple(
+            HwpxOxmlSectionHeaderFooter(element, self, self._match_apply_for_element("footer", element))
+            for element in _section_story_elements(self, "footer")
+        )
 
     def header(self, page_type: str = "BOTH") -> Optional[HwpxOxmlSectionHeaderFooter]:
         """The header drawn on *page_type* pages (``BOTH``, ``EVEN``, ``ODD``, ...), or ``None``."""

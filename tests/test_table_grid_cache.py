@@ -39,7 +39,7 @@ def test_coordinate_reads_build_the_grid_once(builds: list[int]) -> None:
         for col in range(4):
             table.set_cell_text(row, col, f"new {row},{col}")
     list(table.iter_grid())
-    table.get_cell_map()
+    table.cell_map
 
     assert texts[5] == "r1c1"
     assert table.cell(3, 3).text == "new 3,3"

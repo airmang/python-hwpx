@@ -159,7 +159,7 @@ def test_set_page_setup_header_footer_and_page_number_are_open_safe(tmp_path) ->
     assert (size.width, size.height, size.orientation) == (_mm(210), _mm(297), "NARROWLY")
     assert (size.drawn_width, size.drawn_height) == (_mm(297), _mm(210))
     assert margins.left == _mm(20)
-    assert reopened.sections[0].properties.get_header().text == "Confidential"
+    assert reopened.sections[0].properties.header().text == "Confidential"
 
 
 def test_set_list_format_applies_bullet_and_numbered_properties() -> None:

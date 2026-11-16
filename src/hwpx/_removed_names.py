@@ -685,6 +685,9 @@ ARGUMENTS: dict[str, Arguments] = {
     "Shape.set_caption": _args(
         "shape.set_caption(full_sz=)는 7.0에서 full_size= 이다(caption.full_size와 같은 이름)", full_sz="full_size"
     ),
+    "Table.set_caption": _args(
+        "table.set_caption(full_sz=)는 7.0에서 full_size= 이다(caption.full_size와 같은 이름)", full_sz="full_size"
+    ),
     "Shape.set_draw_text": _args(
         "Shape.set_draw_text(vert_align=)는 7.0에서 vertical_alignment= 이다(표 칸과 같은 이름)",
         vert_align="vertical_alignment",

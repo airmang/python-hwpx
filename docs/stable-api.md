@@ -88,8 +88,8 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 198 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 392 |
-| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 161 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 370 |
+| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 173 |
 | `hwpx.objects` 58개 값 형식 | 필드 264 · 멤버 148 · enum 값 10 | 422 |
 | 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
 <!-- public-surface-lock:end -->
@@ -468,7 +468,7 @@ run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문
 `CENTER`, 기존 글상자는 제 정렬을 유지합니다. 잘못된 정렬 값은
 `shape-draw-text-vert-align`으로 변경 전에 거부합니다.
 
-`SectionProperties.headers`/`footers`와 `get_header`/`get_footer`는 본문 컨트롤에
+`SectionProperties.headers`/`footers`(tuple)와 `header(page_type)`/`footer(page_type)`는 본문 컨트롤에
 있는 기존 머리말·꼬리말도 찾습니다. `set_simple_text_preserving`은 빈 문단·빈 run을
 유지하면서 단일 표시 텍스트를 수정합니다. 복수 표시 텍스트, 중첩 제어, 중복
 identity/적용 범위 충돌은 거부합니다. 새로 만드는 `set_header_text` 등의 경로와
@@ -496,21 +496,24 @@ top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여
 빈 문단 하나만 둡니다. 거부하면 `TableStructureError`를 내고 표를 바꾸지 않습니다.
 편집 전에 얻은 셀·행 객체는 표에 속하지 않으니 다시 얻으세요.
 
-표의 모양과 크기는 7.0 에서 한 줄로 읽고 쓴다. `TableCell.vert_align`/`set_vert_align("CENTER")`
-(칸 세로 정렬), `Table.alignment`/`set_alignment("CENTER")`(글자처럼 취급한 표는 그 문단의
-정렬, 떠 있는 표는 `hp:pos/@horzAlign`), `Table.width`/`set_width(w, proportional=True)`,
+표의 모양과 크기는 7.0 에서 한 줄로 읽고 쓴다. 값 하나는 속성으로 읽고 쓴다(N2):
+`TableCell.vertical_alignment = "CENTER"`(칸 세로 정렬), `Table.alignment = "CENTER"`(`Alignment`;
+글자처럼 취급한 표는 그 문단의 정렬, 떠 있는 표는 `hp:pos/@horzAlign`), `TableColumn.width`·`TableRow.height`,
+`TableCell.is_header`(제목 셀), `Table.page_split = "CELL"`(쪽 경계에서 나누는 방식 — 문단의 `page_break`와 다르다),
+`Table.no_adjust`. 여러 값을 함께 바꾸는 것만 메서드다: `Table.width`/`set_width(w, proportional=True)`,
 `column_widths`·`row_heights`(격자 열 폭·행 높이 tuple), `set_column_width(col, w)`·
-`set_row_height(row, h)`, `Table.columns`(`TableColumn`: `index`·`cells`·`width`·`set_width`),
-`TableRow.index`·`height`·`set_height`, `cells_in("A1:C2")`, `set_borders(cell_range, sides=,
-line_type=, width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸의 다른 변·대각선·
+`set_row_height(row, h)`, `Table.columns`(`TableColumn`: `index`·`cells`·`width`),
+`TableRow.index`·`height`, `cells_in("A1:C2")`, `set_borders(cell_range, sides=,
+line_type=, border_width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸의 다른 변·대각선·
 배경은 그대로 두고 그 칸의 테두리 정의에서 파생), `TableCell.border_fill`(`BorderFillInfo`),
-`header_rows`/`set_header_rows(n, repeat=True)`·`repeat_header`·`TableCell.is_header`/`set_header`,
-`page_break`/`set_page_break("CELL")`, `no_adjust`/`set_no_adjust`, `in_margins`/`set_in_margins`,
+`header_rows`/`set_header_rows(n, repeat=True)`·`repeat_header`,
+`in_margins`/`set_in_margins`, `out_margins`/`set_out_margins`, `height`, `remove()`,
 `text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`)·
 `add_cell_zone(cell_range, border_fill_id_ref=)`·`set_cell_zone(index, cell_range=, border_fill_id_ref=)`·
 `remove_cell_zone(index)`(칸 영역: 격자 위 사각형에 테두리/배경 하나, 행·열 편집을 따라간다),
-`TableCell.clear()`, `copy_after(paragraph=None)`(새 id 로 복사). 길이는 모두 HWPUNIT,
-선 굵기만 `_mm` 이다.
+`TableCell.clear()`, `copy_after(paragraph=None)`(새 id 로 복사). 칸 좌표 인자는 `row`·`col`
+(`table.cell(row, col)`, `set_cell_text(row, col, text)`), 격자 지도는 속성 `cell_map`(tuple의 tuple)이다.
+길이는 모두 HWPUNIT, 선 굵기만 `_mm` 이다.
 
 칸과 표의 나머지 속성은 값 하나씩 읽고 쓰는 속성이다(7.0). `TableCell.text_direction`
 (`"HORIZONTAL"`/`"VERTICAL"`, 세로쓰기 — 바꾸면 칸 문단과 표를 품은 문단의 줄 배치 캐시를 지운다),

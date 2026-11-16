@@ -398,7 +398,6 @@
 
 - `PageSize`: 페이지 너비, 높이, 방향, 제본 여백 유형을 저장합니다.
 - `PageMargins`: 왼쪽, 오른쪽, 위, 아래, 머리글, 바닥글, 제본 여백 간격을 저장합니다.
-- `SectionStartNumbering`: 섹션 수준의 카운터와 페이지 시작 동작을 추적합니다.
 - `DocumentNumbering`: 전체 문서의 기본 번호 매기기 값입니다.
 - `RunStyle`: 확인된 런 서식을 캡슐화하며 다음을 제공합니다:
   - `color`: 런의 색상(설정된 경우)인 속성입니다(6.x의 `text_color()`).
@@ -409,7 +408,7 @@
 ### 클래스 `HwpxOxmlSectionHeaderFooter`
 
 - `id`: 머리글/바닥글 식별자를 관리하며 변경 시 섹션을 dirty로 표시하는 getter/setter가 있는 프로퍼티입니다.
-- `apply_page_type`: 머리글/바닥글이 적용될 페이지 유형(양쪽/홀수/짝수)을 제어하는 프로퍼티입니다.
+- `page_type`: 머리글/바닥글이 적용될 페이지 유형(양쪽/홀수/짝수)을 읽고 쓰는 프로퍼티입니다(6.x `apply_page_type`).
 - `text`: 머리글/바닥글의 텍스트 내용을 읽거나 교체하는 프로퍼티입니다.
 - `_initial_sublist_attributes()` / `_ensure_text_element()`: 텍스트가 처음 할당될 때 중첩된 단락 구조를 지연 생성하는 내부 헬퍼입니다.
 
@@ -420,10 +419,10 @@
 - `set_page_size(...)`: 페이지 설정 값을 업데이트하고 변경 시 섹션을 dirty로 표시합니다.
 - `page_margins`: 섹션의 `PageMargins` 객체를 반환하는 프로퍼티입니다.
 - `set_page_margins(...)`: 음수가 아닌 값으로 여백 속성을 업데이트합니다.
-- `start_numbering`: `<hp:startNum>`의 `SectionStartNumbering` 스냅샷을 반환하는 프로퍼티입니다.
-- `set_start_numbering(...)`: 번호 매기기 카운터와 페이지 시작 동작을 수정하며, `<hp:startNum>` 엘리먼트가 없으면 생성합니다.
-- `headers`, `footers`: 기존 머리글/바닥글 정의에 대한 래퍼를 반환하는 프로퍼티입니다.
-- `get_header(page_type="BOTH")` / `get_footer(...)`: 지정된 페이지 유형의 기존 머리글/바닥글 래퍼를 가져옵니다.
+- `start_numbers`: `<hp:startNum>`의 `hwpx.objects.StartNumbers`(`doc.page.start_numbers()`와 같은 값)를 반환하는 프로퍼티입니다.
+- `set_start_numbers(...)`: 번호 매기기 카운터와 페이지 시작 동작을 수정하며, `<hp:startNum>` 엘리먼트가 없으면 생성합니다.
+- `headers`, `footers`: 기존 머리글/바닥글 정의에 대한 래퍼를 tuple로 반환하는 프로퍼티입니다.
+- `header(page_type="BOTH")` / `footer(...)`: 지정된 페이지 유형의 기존 머리글/바닥글 래퍼를 가져옵니다.
 - `set_header_text(text, ...)` / `set_footer_text(...)`: 요청된 페이지 유형에 대한 머리글/바닥글이 있는지 확인하고 텍스트 내용을 교체합니다. 한/글처럼 첫 문단의 `<hp:ctrl>` 안에 한 번만 쓰고 `<hp:headerApply>`/`<hp:footerApply>`는 쓰지 않습니다(6.x가 `<hp:secPr>` 안에 따로 쓴 사본은 그 머리글을 다시 설정할 때 걷어 냅니다).
 - `remove_header(page_type="BOTH")` / `remove_footer(...)`: 지정된 페이지 유형의 머리글/바닥글 노드가 있으면 제거하고, 연결된 apply 노드와 마스터 페이지 링크를 정리합니다.
 
@@ -491,12 +490,12 @@
 - `create(rows, cols, ...)`: 분배된 셀 크기, 여백, 초기 텍스트 노드를 포함하는 완전한 표 엘리먼트를 생성하는 클래스 메서드입니다.
 - `mark_dirty()`: 표가 변경되었음을 소유한 섹션에 알립니다.
 - `row_count`, `column_count`: 저장된 행/열 수를 확인하거나 XML 구조에서 파생하는 프로퍼티입니다.
-- `rows`: `HwpxOxmlTableRow` 래퍼를 반환하는 프로퍼티입니다.
-- `cell(row_index, col_index)`: 병합 정보를 고려하여 요청된 그리드 좌표를 포함하는 셀을 찾습니다.
+- `rows`: `HwpxOxmlTableRow` 래퍼의 tuple을 반환하는 프로퍼티입니다.
+- `cell(row, col)`: 병합 정보를 고려하여 요청된 그리드 좌표를 포함하는 셀을 찾습니다.
 - `iter_grid()`: 각 논리 좌표에 대한 `HwpxTableGridPosition`을 순회하여 병합 상태와 실제 셀을 동시에 확인할 수 있게 합니다.
-- `get_cell_map()`: `row_count x column_count` 크기의 2차원 리스트로 격자 맵을 반환합니다. 각 항목은 `HwpxTableGridPosition`입니다.
-- `set_cell_text(row_index, col_index, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
-- `split_merged_cell(row_index, col_index)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
+- `cell_map`: `row_count x column_count` 크기의 tuple의 tuple로 격자 맵을 반환합니다. 각 항목은 `HwpxTableGridPosition`입니다.
+- `set_cell_text(row, col, text, logical=False, split_merged=False)`: 셀의 텍스트 내용을 업데이트하는 단축 메서드입니다. `logical=True`를 지정하면 논리적 격자 좌표로 셀을 찾고, `split_merged=True`일 때는 병합을 자동으로 해제한 뒤 값을 씁니다. 내부적으로 줄 배치 캐시를 비워 한/글에서 셀 텍스트 변경 후 줄바꿈이 재계산되도록 합니다.
+- `split_merged_cell(row, col)`: 지정한 논리 좌표를 포함하는 병합 셀을 해제하고, 해당 위치에 독립적인 셀을 생성한 뒤 래퍼를 반환합니다.
 - `merge_cells(start_row, ...)`: 직사각형 영역의 유효성을 검사하고, 종속 셀을 제거하며, 병합 및 크기 값을 업데이트한 후, 살아남은 대상 셀을 반환합니다. 종속 셀 중 글이나 개체가 있는 셀의 문단은 읽기 순서로 대상 셀에 옮기고, 빈 셀은 아무것도 보태지 않습니다.
 - `insert_rows(ref_row, count=1, side="below", blank=False)`: 물리 행 `ref_row`를 복제해 그 아래(`side="above"`면 위)에 행을 넣습니다. 새 칸은 같은 열 기준 칸의 서식과 글을 받고, `blank=True`면 한/글처럼 빈 문단 하나만 둡니다. 새 행을 가로지르는 합친 칸은 늘어납니다.
 - `insert_columns(ref_col, count=1, side="right", blank=False)`: 격자 열 `ref_col`을 복제해 그 오른쪽(`side="left"`면 왼쪽)에 열을 넣고, 표는 새 열만큼 넓어집니다.
@@ -521,11 +520,11 @@
 - `properties`: `<hp:secPr>` 계층이 필요할 때 이를 생성하며 `HwpxOxmlSectionProperties` 래퍼를 반환하는 프로퍼티입니다.
 - `element`: 원시 섹션 `Element`를 반환하는 프로퍼티입니다.
 - `document`: 소유 `HwpxOxmlDocument`를 참조하는 프로퍼티입니다. `attach_document()`는 섹션을 문서 인스턴스와 연결합니다.
-- `paragraphs`: 문서 순서대로 단락 래퍼를 반환하는 프로퍼티입니다.
+- `paragraphs`: 문서 순서대로 단락 래퍼의 tuple을 반환하는 프로퍼티입니다.
 - `memo_group`: 메모 그룹이 존재할 때 `HwpxOxmlMemoGroup` 래퍼를 반환하는 프로퍼티입니다.
-- `memos`: 섹션의 메모 래퍼를 반환하는 프로퍼티입니다.
+- `memos`: 섹션의 메모 래퍼의 tuple을 반환하는 프로퍼티입니다.
 - `add_memo(...)`: 메모 그룹이 있는지 확인한 후 `HwpxOxmlMemoGroup.add_memo()`에 위임하는 편의 메서드입니다.
-- `add_paragraph(text="", ...)`: 선택적 서식 재정의와 함께 단락 엘리먼트를 추가하고 그 래퍼를 반환합니다.
+- `add_paragraph(text="", *, style=, para_pr_id_ref=, char_pr_id_ref=, include_run=, inherit_style=)`: 단락을 추가하고 그 래퍼를 반환합니다. 그 밖의 값(쪽 나눔 등)은 돌려받은 단락의 속성으로 씁니다(7.0에서 `run_attributes=`·`inherit_outline=`·XML 속성 인자는 없어졌습니다).
 - `remove_paragraph(paragraph_or_index)`: 단락 인스턴스 또는 인덱스로 단락을 삭제합니다. 마지막 단락 삭제 시 `ValueError`가 발생합니다.
 - `mark_dirty()`, `dirty`, `reset_dirty()`: 섹션을 저장해야 하는지 여부를 추적합니다.
 - `to_bytes() -> bytes`: `_serialize_xml()`을 사용하여 섹션 엘리먼트를 직렬화합니다.
@@ -547,14 +546,14 @@
 
 - `from_package(package)`: `HwpxPackage`에서 매니페스트, 섹션 XML 파트, 헤더 XML 파트를 읽고 래핑하는 클래스 메서드입니다.
 - `manifest`: 원시 매니페스트 엘리먼트를 노출하는 프로퍼티입니다.
-- `sections`, `headers`: 섹션 및 헤더 래퍼 목록의 복사본을 반환하는 프로퍼티입니다.
+- `sections`, `headers`: 섹션 및 헤더 래퍼의 tuple을 반환하는 프로퍼티입니다.
 - `char_properties`: 글자 스타일 ID를 `RunStyle` 객체에 매핑한 딕셔너리를 반환하며, 모든 헤더의 결과를 캐시합니다.
 - `char_property(char_pr_id_ref)`: 문자열 또는 숫자 값을 받아 ID로 `RunStyle`을 조회합니다.
 - `ensure_run_style(...)`: 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일을 첫 번째 헤더에서 찾고, 없으면 기준을 복제해 만듭니다.
 - `memo_shapes`: 모든 헤더의 메모 모양을 하나의 딕셔너리로 병합하는 프로퍼티입니다.
 - `memo_shape(memo_shape_id_ref)`: ID로 메모 모양을 가져옵니다.
-- `paragraphs`: 모든 섹션의 단락 래퍼를 연결하여 반환하는 프로퍼티입니다.
-- `add_paragraph(...)`: `section` 또는 `section_index`를 사용하여 대상 섹션을 선택하여 단락을 추가하도록 섹션에 위임합니다. 기본값은 마지막 섹션입니다.
+- `paragraphs`: 모든 섹션의 단락 래퍼를 연결한 tuple을 반환하는 프로퍼티입니다.
+- `add_paragraph(...)`: `section`(번호나 섹션)으로 대상 섹션을 골라 단락을 추가하도록 섹션에 위임합니다. 기본값은 마지막 섹션입니다.
 - `remove_paragraph(paragraph_or_index, section=None, section_index=None)`: 단락을 삭제합니다. 인스턴스 또는 인덱스를 받습니다.
 - `add_section(after=None) -> HwpxOxmlSection`: 새 섹션을 추가합니다. manifest에 `<opf:item>`과 `<opf:itemref>`를 자동 등록합니다.
 - `remove_section(section_or_index)`: 섹션을 삭제합니다. 인스턴스 또는 인덱스를 받으며, 마지막 섹션 삭제 시 `ValueError`가 발생합니다.

@@ -28,7 +28,7 @@ def test_a_refused_colour_leaves_the_header_as_it_was() -> None:
     with pytest.raises(HwpxValueError):
         doc.page.set_header(content=[{"children": [{"type": "run", "text": "새 머리말", "color": "#abc"}]}])
 
-    assert doc.oxml.sections[0].properties.get_header().text == "기존 머리말"
+    assert doc.oxml.sections[0].properties.header().text == "기존 머리말"
     with zipfile.ZipFile(io.BytesIO(doc.to_bytes())) as archive:
         section = archive.read("Contents/section0.xml").decode("utf-8")
     # the one copy Hancom reads (python-hwpx 7.0 no longer keeps a second under hp:secPr)
