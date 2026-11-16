@@ -96,13 +96,13 @@ class _BorderFills:
     """Derives new ``hh:borderFill`` definitions from existing ones, reusing an identical one."""
 
     def __init__(self, table: "HwpxOxmlTable") -> None:
-        document = table.paragraph.section.document
-        if document is None or not document.headers:
+        model = table.paragraph.section.document
+        if model is None or not model.headers:
             raise _refuse("a cell's borders and fill need the document's header", "table-border-value",
                           "Edit a table that belongs to an opened or created document.")
         self.table = table
-        self.document = document
-        self.header = document.headers[0]
+        self.document = model
+        self.header = model.headers[0]
         container = self.header._border_fills_element(create=True)
         if container is None:  # pragma: no cover - defensive
             raise _refuse("the header has no border fill list", "table-border-value",
@@ -251,8 +251,8 @@ class TableCellFormat:
 
         from .header_fonts import border_fill_info
 
-        document = self.table.paragraph.section.document
-        header = document.headers[0] if document is not None and document.headers else None
+        model = self.table.paragraph.section.document
+        header = model.headers[0] if model is not None and model.headers else None
         reference = self.element.get("borderFillIDRef") or self.table.element.get("borderFillIDRef")
         return border_fill_info(header, reference)
 
@@ -417,8 +417,8 @@ class TableFormat:
         position = self.element.find(f"{_HP}pos")
         if self._floating():
             return (position.get("horzAlign") if position is not None else None) or "LEFT"
-        document = self.paragraph.section.document
-        shape = document.paragraph_property(self.paragraph.element.get("paraPrIDRef")) if document else None
+        model = self.paragraph.section.document
+        shape = model.paragraph_property(self.paragraph.element.get("paraPrIDRef")) if model else None
         horizontal = shape.align.horizontal if shape is not None and shape.align is not None else None
         return horizontal if horizontal in ("CENTER", "RIGHT") else "LEFT"
 
@@ -438,11 +438,11 @@ class TableFormat:
         if self._floating():
             self.element.find(f"{_HP}pos").set("horzAlign", value)
         else:
-            document = self.paragraph.section.document
-            if document is None or not document.headers:
+            model = self.paragraph.section.document
+            if model is None or not model.headers:
                 raise _refuse("aligning a table set as a character needs the document's header",
                               "table-alignment-value", "Align a table that belongs to an opened or created document.")
-            shape_id = document.headers[0].ensure_paragraph_format(
+            shape_id = model.headers[0].ensure_paragraph_format(
                 base_para_pr_id=self.paragraph.element.get("paraPrIDRef"), alignment=value,
             )
             self.paragraph.element.set("paraPrIDRef", str(shape_id))
@@ -682,13 +682,13 @@ class TableFormat:
         from ._paragraph_text_edit import paragraph_container, renumber_copied_fields
 
         section = self.paragraph.section
-        document = section.document
+        model = section.document
         if paragraph is None:
             target = self.paragraph
         elif isinstance(paragraph, HwpxOxmlParagraph):
             target = paragraph
-        elif isinstance(paragraph, int) and not isinstance(paragraph, bool) and document is not None:
-            paragraphs = document.paragraphs
+        elif isinstance(paragraph, int) and not isinstance(paragraph, bool) and model is not None:
+            paragraphs = model.paragraphs
             if not -len(paragraphs) <= paragraph < len(paragraphs):
                 from .utils import HwpxIndexError
 
@@ -700,7 +700,7 @@ class TableFormat:
             raise _refuse(f"paragraph must be a paragraph or its index; got {paragraph!r}",
                           "paragraph-not-in-document", "Pass a paragraph of this document, or its index.")
         parent = paragraph_container(target.element, target.section.element)
-        if parent is None or target.section.document is not document:
+        if parent is None or target.section.document is not model:
             raise _refuse("the paragraph does not belong to this table's document", "paragraph-not-in-document",
                           "Pass a paragraph of the document that holds the table.")
         host = self.paragraph.element
