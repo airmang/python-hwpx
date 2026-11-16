@@ -301,7 +301,7 @@ def run_scenario(
             if document is None:
                 document = HwpxDocument.new()
             try:
-                document.save_to_path(output)
+                document.save(output)
             finally:
                 document.close()
             ok, classification, oracle_report = _run_o1_o2(output, normalized)

@@ -210,7 +210,7 @@ def test_add_arc_all_corners_and_types_produce_open_safe_documents(tmp_path) -> 
                 fill_color="#F1CB7E", section=0,
             )
     path = tmp_path / "arc-matrix.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     report = validate_editor_open_safety(path).to_dict()
@@ -231,7 +231,7 @@ def test_arc_round_trips_through_save_and_reopen(tmp_path) -> None:
     )
     original_points = _points(original.element, "center", "ax1", "ax2")
     path = tmp_path / "arc.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)

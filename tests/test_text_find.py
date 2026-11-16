@@ -121,7 +121,7 @@ def test_a_match_feeds_format_range() -> None:
         ("", False, "text-search-empty", HwpxValueError),
         ("", True, "text-search-empty", HwpxValueError),
         ("(", True, "text-pattern-invalid", HwpxValueError),
-        (3, False, "text-pattern-invalid", HwpxTypeError),
+        (3, False, "hwpx-type-error", HwpxTypeError),
     ],
 )
 def test_a_bad_pattern_is_refused(pattern: object, regex: bool, code: str, error: type) -> None:

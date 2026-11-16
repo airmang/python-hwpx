@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
@@ -269,6 +269,269 @@ class HwpxOxmlMemo:
             _remove_field(self.group.section.element, field)
         self.group.section.mark_dirty()
         self.group._cleanup()
+
+    def move_to(self, section: "int | HwpxOxmlSection", *, index: int | None = None) -> None:
+        """Move this memo into the memo group of *section* (a section of the same document or its
+        index), to be its memo number *index* there (``0 <= index <=`` the memos it already has;
+        ``None``: the last). The group is made when the section has none, and a group left empty goes.
+
+        A memo belongs in the section of its anchor (the MEMO field Hancom shows it at), and moves
+        with it: moving the paragraph that holds the anchor (``paragraph.move_after``, ``obj.move_to``)
+        carries the memo along. So this moves a memo that is not anchored, or puts one in its anchor's
+        section or in another place in it; a memo anchored in another section is refused
+        (``note-memo-anchor-elsewhere``), as is a memo Hancom keeps in its field (it is where its text
+        is). This wrapper then belongs to the new group.
+        """
+
+        target = _resolve_memo_section(self, section, caller="move_to")
+        anchor = _anchor_section(self)
+        if isinstance(self, HwpxOxmlFieldMemo) or (anchor is not None and anchor.element is not target.element):
+            raise _anchored_elsewhere(self, target)
+        others = [memo for memo in _group_memos(target) if memo is not self.element]
+        position = _memo_index(index, len(others), caller="move_to")
+        source_group = self.group
+        self.group.element.remove(self.element)
+        group = _ensure_memo_group(target)
+        _insert_memo_element(group, self.element, others, position)
+        source_group.section.mark_dirty()
+        target.mark_dirty()
+        if source_group.element is not group:
+            source_group._cleanup()
+        self.group = HwpxOxmlMemoGroup(group, target)
+
+    def copy_to(self, section: "int | HwpxOxmlSection", *, index: int | None = None) -> "HwpxOxmlMemo":
+        """Put a copy of this memo into the memo group of *section* (a section of the same document or
+        its index) as its memo number *index* (``None``: the last) and return it.
+
+        The copy has a new id and fresh paragraph ids, the same text, shape and attributes, and no
+        anchor yet: Hancom shows it once ``doc.notes.attach(paragraph, memo)`` anchors it. A memo
+        Hancom keeps in its MEMO field is copied as a memo-group memo holding its text and shape.
+        """
+
+        from copy import deepcopy
+
+        from ._document_primitives import _refresh_copied_paragraph_subtree_ids
+
+        target = _resolve_memo_section(self, section, caller="copy_to")
+        others = _group_memos(target)
+        position = _memo_index(index, len(others), caller="copy_to")
+        if isinstance(self, HwpxOxmlFieldMemo):
+            clone = self.element.makeelement(f"{_HP}memo", {})
+            shape = self.memo_shape_id_ref
+            if shape:
+                clone.set("memoShapeIDRef", shape)
+            para_list = clone.makeelement(f"{_HP}paraList", {})
+            clone.append(para_list)
+            sub_list = self._sub_list()
+            for node in (sub_list.findall(f"{_HP}p") if sub_list is not None else []):
+                para_list.append(deepcopy(node))
+        else:
+            clone = deepcopy(self.element)
+            clone.tail = None
+        clone.set("id", _memo_id())
+        _refresh_copied_paragraph_subtree_ids(clone)
+        for node in clone.iter(f"{_HP}p"):
+            _clear_paragraph_layout_cache(node)
+        group = _ensure_memo_group(target)
+        _insert_memo_element(group, clone, others, position)
+        target.mark_dirty()
+        return HwpxOxmlMemo(clone, HwpxOxmlMemoGroup(group, target))
+
+
+def _resolve_memo_section(memo: "HwpxOxmlMemo", section: Any, *, caller: str) -> "HwpxOxmlSection":
+    """*section* (a section or its index) as a section of the memo's document."""
+
+    from ..errors import HwpxLookupError, HwpxTypeError, HwpxValueError
+    from .section import HwpxOxmlSection
+
+    own = memo.group.section
+    document = own.document
+    sections = list(document.sections) if document is not None else [own]
+    if isinstance(section, int) and not isinstance(section, bool):
+        if not -len(sections) <= section < len(sections):
+            raise HwpxLookupError(
+                f"section index {section} is out of range ({len(sections)} sections)",
+                code="section-not-found",
+                context={"caller": caller, "requested": section, "count": len(sections)},
+                suggestion=f"Pass an index in 0..{len(sections) - 1}, or the section itself.",
+            )
+        return sections[section]
+    if not isinstance(section, HwpxOxmlSection):
+        raise HwpxTypeError(
+            f"section must be a section or its index; got {type(section).__name__}",
+            code="section-invalid-type",
+            context={"caller": caller, "type": type(section).__name__},
+            suggestion="Pass doc.sections[i] or an index.",
+        )
+    found = next((candidate for candidate in sections if candidate.element is section.element), None)
+    if found is None:
+        raise HwpxValueError(
+            "the section is not in this memo's document",
+            code="section-not-found",
+            context={"caller": caller},
+            suggestion="Pass a section of the document that holds the memo.",
+        )
+    return found
+
+
+def _anchor_section(memo: "HwpxOxmlMemo") -> "HwpxOxmlSection | None":
+    """The section of the memo's document holding a MEMO field that names the memo, or ``None``."""
+
+    if isinstance(memo, HwpxOxmlFieldMemo):
+        return memo.group.section
+    memo_id = memo.id
+    own = memo.group.section
+    sections = list(own.document.sections) if own.document is not None else [own]
+    if not memo_id:
+        return None
+    for section in sections:
+        for field in section.element.iter(f"{_HP}fieldBegin"):
+            if field.get("type") == "MEMO" and memo_field_id(field) == memo_id:
+                return section
+    return None
+
+
+def _anchored_elsewhere(memo: "HwpxOxmlMemo", target: "HwpxOxmlSection") -> Exception:
+    from ..errors import HwpxValueError
+
+    kept_in_field = isinstance(memo, HwpxOxmlFieldMemo)
+    return HwpxValueError(
+        "a memo Hancom keeps in its MEMO field is where that field is" if kept_in_field
+        else "the memo is anchored in another section: it stays in the section of its anchor",
+        code="note-memo-anchor-elsewhere",
+        context={"memoId": memo.id, "keptInField": kept_in_field},
+        suggestion="메모는 고리(MEMO 누름틀)가 있는 구역에 둡니다. 고리를 담은 문단을 옮기면(paragraph.move_after) "
+                   "메모도 따라갑니다. 다른 구역에 같은 메모가 필요하면 memo.copy_to(section)로 복사합니다.",
+    )
+
+
+def _group_memos(section: "HwpxOxmlSection") -> list[ET.Element]:
+    group = section.element.find(f"{_HP}memogroup")
+    return [] if group is None else group.findall(f"{_HP}memo")
+
+
+def _memo_index(index: object, count: int, *, caller: str) -> int:
+    from ..errors import HwpxLookupError, HwpxTypeError
+
+    if index is None:
+        return count
+    if isinstance(index, bool) or not isinstance(index, int):
+        raise HwpxTypeError(
+            f"index must be an int or None; got {type(index).__name__}",
+            code="note-memo-index-value",
+            context={"caller": caller, "requested": repr(index)},
+            suggestion="Pass the memo's place in the group from 0, or None for the last.",
+        )
+    if not 0 <= index <= count:
+        raise HwpxLookupError(
+            f"index {index} is outside 0..{count} (the memos the group holds)",
+            code="note-memo-index-value",
+            context={"caller": caller, "requested": index, "count": count},
+            suggestion=f"Pass an index from 0 to {count}, or None for the last.",
+        )
+    return index
+
+
+def _ensure_memo_group(section: "HwpxOxmlSection") -> ET.Element:
+    group = section.element.find(f"{_HP}memogroup")
+    if group is None:
+        group = _append_child(section.element, f"{_HP}memogroup", {})
+    return group
+
+
+def _insert_memo_element(group: ET.Element, memo: ET.Element, others: list[ET.Element], position: int) -> None:
+    """Put *memo* in *group* so that it comes at *position* among the memos *others* (the group's)."""
+
+    if position < len(others):
+        group.insert(list(group).index(others[position]), memo)
+    else:
+        group.append(memo)
+
+
+def memo_fields_in(root: ET.Element) -> list[ET.Element]:
+    """The MEMO fields (``hp:fieldBegin type="MEMO"``) at or under *root*."""
+
+    return [node for node in root.iter(f"{_HP}fieldBegin") if node.get("type") == "MEMO"]
+
+
+def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "HwpxOxmlSection") -> int:
+    """Move the memo-group memos the MEMO fields under *root* anchor into *target*'s memo group: content
+    that moved to *target* takes its memos along, so each memo stays in the section of its anchor.
+    Returns how many moved; a group left empty goes."""
+
+    wanted = {memo_field_id(field) for field in memo_fields_in(root)} - {None, ""}
+    if not wanted:
+        return 0
+    moved = 0
+    for section in sections:
+        if section.element is target.element:
+            continue
+        group = section.element.find(f"{_HP}memogroup")
+        if group is None:
+            continue
+        for memo in [memo for memo in group.findall(f"{_HP}memo") if memo.get("id") in wanted]:
+            group.remove(memo)
+            _ensure_memo_group(target).append(memo)
+            moved += 1
+            section.mark_dirty()
+            target.mark_dirty()
+        HwpxOxmlMemoGroup(group, section)._cleanup()
+    return moved
+
+
+def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "HwpxOxmlSection") -> int:
+    """Give each MEMO field in the copied content *root* (not in the document yet) a memo of its own:
+    the next memo number (its ``Number`` and ``zorder``, as ``doc.notes.attach`` numbers a memo -- Hancom
+    takes memos of one number for one memo), and, when it names a memo of a memo group, a copy of that
+    memo under a new id in *target*'s memo group. Returns how many fields were renewed."""
+
+    fields = memo_fields_in(root)
+    if not fields:
+        return 0
+    highest = max((_memo_order(field) for section in sections for field in memo_fields_in(section.element)),
+                  default=0)
+    entries: dict[str, ET.Element] = {}
+    for section in sections:
+        for memo in section.element.findall(f"{_HP}memogroup/{_HP}memo"):
+            if memo.get("id"):
+                entries.setdefault(str(memo.get("id")), memo)
+    for field in fields:
+        highest += 1
+        _set_memo_param(field, "integerParam", "Number", str(highest))
+        field.set("zorder", str(highest))
+        source = entries.get(memo_field_id(field) or "")
+        if source is not None:
+            _set_memo_param(field, "stringParam", "ID", _copy_memo_entry(source, target))
+    return len(fields)
+
+
+def _memo_order(field: ET.Element) -> int:
+    try:
+        return int(field.get("zorder", "0"))
+    except ValueError:
+        return 0
+
+
+def _set_memo_param(field: ET.Element, kind: str, name: str, value: str) -> None:
+    for param in field.iter(f"{_HP}{kind}"):
+        if param.get("name") == name:
+            param.text = value
+
+
+def _copy_memo_entry(source: ET.Element, target: "HwpxOxmlSection") -> str:
+    """Append a copy of the memo-group memo *source* to *target*'s group under a new id; return the id."""
+
+    from copy import deepcopy
+
+    from ._document_primitives import _refresh_copied_paragraph_subtree_ids
+
+    clone = deepcopy(source)
+    clone.tail = None
+    clone.set("id", _memo_id())
+    _refresh_copied_paragraph_subtree_ids(clone)
+    _ensure_memo_group(target).append(clone)
+    target.mark_dirty()
+    return str(clone.get("id"))
 
 
 def _remove_field(root: ET.Element, field_begin: ET.Element) -> None:

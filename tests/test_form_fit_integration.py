@@ -79,7 +79,7 @@ def test_fit_shrink_is_a_real_font_change_and_open_safe(tmp_path: Path):
     run_after = cell.paragraphs[0].runs[0].char_pr_id_ref
     assert run_after != run_before
     out = tmp_path / "shrunk.hwpx"
-    doc.save_to_path(out)
+    doc.save(out)
     assert validate_editor_open_safety(out.read_bytes()).ok is True
 
 

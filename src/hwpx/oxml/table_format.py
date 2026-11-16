@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Sequence
 from ..objects.results import BorderFillInfo, CellZone
 from ._document_primitives import (
     _HP,
-    _append_fill_brush,
     _clear_paragraph_layout_cache,
     _element_local_name,
     _paragraph_id,
@@ -87,13 +86,12 @@ def _flag(value: object, argument: str, code: str) -> bool:
 # ----------------------------------------------------------------------------------------------
 
 
-def _signature(node: Any, *, root: bool = False) -> tuple[Any, ...]:
-    attributes = tuple(sorted((k, v) for k, v in node.attrib.items() if not (root and k == "id")))
-    return node.tag, attributes, (node.text or "").strip(), tuple(_signature(c) for c in node)
-
-
 class _BorderFills:
-    """Derives new ``hh:borderFill`` definitions from existing ones, reusing an identical one."""
+    """Derives new ``hh:borderFill`` definitions from the ones cells use, reusing an identical one.
+
+    The derivation itself is :func:`hwpx.oxml.formatting.derive_definition`, the one path
+    ``doc.styles.ensure_border_fill(base_border_fill_id=)`` and the fill setters use too; this
+    remembers what each (base, change) gave so a table's cells sharing a border fill derive it once."""
 
     def __init__(self, table: "HwpxOxmlTable") -> None:
         model = table.paragraph.section.document
@@ -108,37 +106,24 @@ class _BorderFills:
             raise _refuse("the header has no border fill list", "table-border-value",
                           "Open the document again; its header is incomplete.")
         self.container = container
-        self.by_id = {n.get("id"): n for n in container if n.tag == HH + "borderFill"}
-        self.by_signature = {_signature(n, root=True): n.get("id") for n in self.by_id.values()}
         self.memo: dict[tuple[Any, ...], str] = {}
 
     def base_id(self, cell: "HwpxOxmlTableCell") -> str | None:
         return cell.element.get("borderFillIDRef") or self.table.element.get("borderFillIDRef")
 
-    def base(self, reference: str | None) -> Any:
-        found = self.by_id.get(reference)
-        if found is None:
-            found = self.by_id.get(self.document.ensure_basic_border_fill())
-            if found is None:  # pragma: no cover - defensive: ensure_basic_border_fill adds one
-                found = self.container.makeelement(HH + "borderFill", {})
-        return found
-
     def derive(self, reference: str | None, key: tuple[Any, ...], change: Callable[[Any], None]) -> str:
+        """The id of the border fill that is *reference* (the basic solid one when the header lacks
+        it) changed by *change*; *key* names the change for the memo."""
+
+        from .formatting import derive_definition, find_definition
+
         memo_key = (reference, key)
         if memo_key in self.memo:
             return self.memo[memo_key]
-        candidate = deepcopy(self.base(reference))
-        change(candidate)
-        signature = _signature(candidate, root=True)
-        found = self.by_signature.get(signature)
-        if found is None:
-            found = self.header._allocate_border_fill_id(self.container)
-            candidate.set("id", found)
-            self.container.append(candidate)
-            self.container.set("itemCnt", str(len(self.container.findall(HH + "borderFill"))))
-            self.by_id[found] = candidate
-            self.by_signature[signature] = found
-            self.header.mark_dirty()
+        base = reference if find_definition(self.header, "borderFill", reference) is not None else None
+        if base is None:
+            base = self.document.ensure_basic_border_fill()
+        found = derive_definition(self.header, "borderFill", base, change)
         self.memo[memo_key] = found
         return found
 
@@ -157,11 +142,9 @@ def _set_sides(candidate: Any, sides: Iterable[str], line: dict[str, str]) -> No
 
 
 def _set_fill(candidate: Any, color: str | None) -> None:
-    for child in list(candidate):
-        if _element_local_name(child) == "fillBrush":
-            candidate.remove(child)
-    if color is not None:
-        _append_fill_brush(candidate, fill_color=color)
+    from .formatting import set_border_fill_color
+
+    set_border_fill_color(candidate, color)
 
 
 def _border_line(line_type: object, width_mm: object, color: object) -> dict[str, str]:
@@ -673,8 +656,9 @@ class TableFormat:
         *paragraph* is a paragraph of the same document (also one in a cell), or its index in the
         document's paragraphs; ``None`` is the paragraph holding this table. The copy has fresh
         ids (its tables, objects and paragraphs; a field's begin and end get a new pair, so a
-        copied form field fills apart from the original) and no line layout caches. The new
-        paragraph takes the paragraph shape and style of the one holding this table.
+        copied form field fills apart from the original; a memo anchored in a cell becomes a memo
+        of its own) and no line layout caches. The new paragraph takes the paragraph shape and
+        style of the one holding this table. ``copy_to`` puts a copy into an existing paragraph.
         """
 
         from .paragraph import HwpxOxmlParagraph
@@ -717,6 +701,9 @@ class TableFormat:
         renumber_copied_fields(copy)
         for node in copy.iter(f"{_HP}p"):
             _clear_paragraph_layout_cache(node)
+        from .memo import renew_copied_memos  # a copied memo anchor gets a memo of its own
+
+        renew_copied_memos(copy, list(model.sections) if model is not None else [section], target.section)
         run.append(copy)
         parent.insert(list(parent).index(target.element) + 1, new)
         _clear_paragraph_layout_cache(new)

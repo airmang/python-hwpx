@@ -61,5 +61,5 @@ def test_redline_helpers_use_no_moved_names(tmp_path: Path) -> None:
     target = tmp_path / "redline.hwpx"
     with _NoMoveWarnings():
         author_demo_redline(doc)
-        doc.save_to_path(target)
+        doc.save(target)
         inspect_redline_structure(target)

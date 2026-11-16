@@ -365,7 +365,7 @@ def input_file_problem(path: str | os.PathLike[str], *, tool: str, accepts_hwp: 
         converted = target.with_suffix(".hwpx").name
         return (
             f"{target.name} is an HWP 5.0 (.hwp) file and {tool} reads .hwpx files only; convert it first: "
-            f"python -c \"from hwpx import HwpxDocument; HwpxDocument.open(r'{target}').save_to_path('{converted}')\""
+            f"python -c \"from hwpx import HwpxDocument; HwpxDocument.open(r'{target}').save('{converted}')\""
         )
     return None
 

@@ -209,7 +209,7 @@ def gen_docmerge(bucket_dir: Path) -> list[dict[str, Any]]:
                 after_index = max(-1, min(requested, total - 1))
                 insert_document(target, source, after_paragraph_index=after_index)
 
-            target.save_to_path(str(out_path))
+            target.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-docmerge", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -271,7 +271,7 @@ def gen_dutmal_compose(bucket_dir: Path) -> list[dict[str, Any]]:
                 circle_type=circle_type, compose_type=compose_type,
             )
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-dutmal-compose", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -318,7 +318,7 @@ def gen_mailmerge(bucket_dir: Path) -> list[dict[str, Any]]:
     for syntax_name, token_fmt in _MAILMERGE_SYNTAXES:
         template = _build_mailmerge_template(token_fmt)
         template_path = template_dir / f"template-{syntax_name}.hwpx"
-        template.save_to_path(str(template_path))
+        template.save(str(template_path))
         template_paths[syntax_name] = template_path
 
     for idx in range(10):

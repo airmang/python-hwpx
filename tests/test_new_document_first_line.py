@@ -11,7 +11,7 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 def _reopened(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     return HwpxDocument.open(buffer.getvalue())
 
 
@@ -80,7 +80,7 @@ def test_empty_first_line_keeps_the_6x_behaviour() -> None:
 
 def test_an_opened_document_is_never_changed_this_way() -> None:
     buffer = io.BytesIO()
-    HwpxDocument.new().save_to_stream(buffer)
+    HwpxDocument.new().save(buffer)
     doc = HwpxDocument.open(buffer.getvalue())
     doc.add_paragraph("더한 줄")
     assert _texts(doc) == ["", "더한 줄"]

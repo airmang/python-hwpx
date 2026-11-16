@@ -162,7 +162,7 @@ def test_a_mixed_group_round_trips_and_passes_open_safety(tmp_path) -> None:
         ContainerMember.group(8500, 4000, [ContainerMember.ellipse(0, 0, 2000, 2000)]),
     ], treat_as_char=False)
     path = tmp_path / "mixed.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
 
     reopened = HwpxDocument.open(path)
 

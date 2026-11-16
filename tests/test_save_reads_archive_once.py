@@ -54,7 +54,7 @@ def test_a_document_save_inflates_each_member_once(monkeypatch: pytest.MonkeyPat
     opened = _count_inflations(monkeypatch)
     buffer = io.BytesIO()
 
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
 
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as archive:
         members = sorted(info.filename for info in archive.infolist() if not info.is_dir())

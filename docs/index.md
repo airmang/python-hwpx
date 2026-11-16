@@ -1,6 +1,6 @@
 # python-hwpx 문서
 
-`python-hwpx`는 HWPX 문서를 읽고 편집하고 생성하는 파이썬 도구 모음입니다. 가장 빠른 진입로는 `new/open -> add/edit -> save_to_path`입니다. 먼저 {doc}`quickstart`로 첫 성공 경로를 잡고, 그다음 필요에 따라 사용 가이드와 심화 문서를 보면 된다.
+`python-hwpx`는 HWPX 문서를 읽고 편집하고 생성하는 파이썬 도구 모음입니다. 가장 빠른 진입로는 `new/open -> add/edit -> save`입니다. 먼저 {doc}`quickstart`로 첫 성공 경로를 잡고, 그다음 필요에 따라 사용 가이드와 심화 문서를 보면 된다.
 
 > **Python 블록 판정:** [실행 분류 ledger](python-example-ledger.json)가 이 current
 > manual의 모든 Python 블록을 동결합니다. **독립 실행 예제** 표시가 없는
@@ -51,7 +51,7 @@ api_reference
 
 1. 문서를 연다, 또는 새로 만든다.
 2. 문단 하나를 추가하거나 수정한다.
-3. `save_to_path()`로 저장한다.
+3. `save()`로 저장한다.
 4. 더 복잡한 편집과 추출/검증은 다음 문서로 내려간다.
 
 ```python
@@ -60,12 +60,12 @@ from hwpx import HwpxDocument
 # 기존 문서 수정
 document = HwpxDocument.open("sample.hwpx")
 document.add_paragraph("자동화로 추가한 문단")
-document.save_to_path("sample-updated.hwpx")
+document.save("sample-updated.hwpx")
 
 # 새 문서 생성
 new_document = HwpxDocument.new()
 new_document.add_paragraph("새 HWPX 문서")
-new_document.save_to_path("new-document.hwpx")
+new_document.save("new-document.hwpx")
 ```
 
 ## 작업별 바로가기

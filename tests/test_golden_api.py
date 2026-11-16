@@ -170,7 +170,7 @@ def _add_hyperlink(_: Path) -> None:
     with HwpxDocument.new(empty_first_line=True) as document:
         document.refs.add_hyperlink("https://example.com", "Example")
         links = document.paragraphs[-1].hyperlinks
-        assert links and links[0]["url"] == "https://example.com"
+        assert links and links[0].url == "https://example.com"
 
 
 def _export_text(_: Path) -> None:
@@ -191,7 +191,7 @@ def _save_path_reopen(tmp_path: Path) -> None:
     target = tmp_path / "golden-path.hwpx"
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("saved path")
-        assert document.save_to_path(target) == target
+        assert document.save(target).path == str(target)
     with HwpxDocument.open(target) as reopened:
         assert any("saved path" in paragraph.text for paragraph in reopened.paragraphs)
 
@@ -200,7 +200,7 @@ def _save_stream_reopen(_: Path) -> None:
     stream = BytesIO()
     with HwpxDocument.new(empty_first_line=True) as document:
         document.add_paragraph("saved stream")
-        assert document.save_to_stream(stream) is stream
+        assert document.save(stream).path is None
     with HwpxDocument.open(stream.getvalue()) as reopened:
         assert any("saved stream" in paragraph.text for paragraph in reopened.paragraphs)
 

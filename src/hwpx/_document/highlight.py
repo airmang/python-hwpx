@@ -89,6 +89,10 @@ def add_highlight(
 ) -> Highlight:
     """Wrap the first occurrence of *match* in *paragraph* in markpen marks."""
 
+    if not isinstance(match, str):
+        from ..errors import argument_type_error
+
+        raise argument_type_error("match", match, "str", suggestion="Pass the substring to highlight as a str.")
     if not match:
         raise HwpxValueError(
             "match text must be a non-empty string",

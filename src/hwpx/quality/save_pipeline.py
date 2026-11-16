@@ -124,7 +124,7 @@ def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
     if checkpoint is None:
         raise OSError(
             "HWPX stream save requires a checkpointable stream; "
-            "use save_to_path() for non-seekable outputs"
+            "save to a path (doc.save(path)) for non-seekable outputs"
         )
     try:
         written = stream.write(data)

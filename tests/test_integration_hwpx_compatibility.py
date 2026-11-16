@@ -177,7 +177,7 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     comment.text = "초기 내역"
     package.set_xml("Contents/history.xml", history_root)
 
-    document = HwpxDocument.from_package(package)
+    document = HwpxDocument.open(package)
 
     assert len(document.parts.master_pages) == 1
     assert len(document.parts.histories) == 1
@@ -202,7 +202,7 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     version_part.mark_dirty()
 
     output_path = tmp_path / "master_history_roundtrip.hwpx"
-    document.save_to_path(output_path)
+    document.save(output_path)
 
     reopened = HwpxDocument.open(output_path)
     assert reopened.parts.master_pages

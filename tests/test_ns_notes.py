@@ -119,7 +119,7 @@ def test_the_removed_root_names_point_at_doc_notes(document: HwpxDocument) -> No
     for name, target in [
         ("add_footnote", "doc.notes.add_footnote"),
         ("add_memo", "doc.notes.add_memo"),
-        ("add_memo_with_anchor", "doc.notes.add_memo(anchor=...)"),
+        ("add_memo_with_anchor", "doc.notes.add_memo(paragraph=...)"),
         ("memos", "doc.notes.memos"),
     ]:
         with pytest.raises(HwpxAttributeError) as excinfo:

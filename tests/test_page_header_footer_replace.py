@@ -25,7 +25,7 @@ def _controls(doc: HwpxDocument, tag: str) -> list:
 
 def _reopened(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     return HwpxDocument.open(buffer.getvalue())
 
 

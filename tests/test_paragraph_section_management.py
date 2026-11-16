@@ -107,7 +107,7 @@ class TestParagraphRemove:
         target[0].remove()
 
         path = tmp_path / "remove_para.hwpx"
-        doc.save_to_path(path)
+        doc.save(path)
 
         reopened = HwpxDocument.open(str(path))
         texts = [p.text for p in reopened.paragraphs]
@@ -216,7 +216,7 @@ class TestSectionManagement:
         mid.paragraphs[0].text = "middle"
 
         path = tmp_path / "inserted-section.hwpx"
-        doc.save_to_path(path)
+        doc.save(path)
         reopened = HwpxDocument.open(path)
         assert [section.paragraphs[0].text for section in reopened.sections] == [
             "first",
@@ -413,7 +413,7 @@ class TestSectionManagement:
         new_sec.paragraphs[0].text = "in new section"
 
         path = tmp_path / "multi_sec.hwpx"
-        doc.save_to_path(path)
+        doc.save(path)
 
         reopened = HwpxDocument.open(str(path))
         all_texts = [p.text for p in reopened.paragraphs]

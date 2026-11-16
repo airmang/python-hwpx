@@ -128,7 +128,7 @@ def test_redline_structure_is_renderer_neutral(tmp_path: Path) -> None:
     try:
         document.add_paragraph("baseline")
         author_demo_redline(document)
-        document.save_to_path(after)
+        document.save(after)
     finally:
         document.close()
 

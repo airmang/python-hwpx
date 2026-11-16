@@ -2,12 +2,22 @@
 import sys, pathlib, collections
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'src'))
-from hwpx.errors import ERROR_CODES, ERROR_CODE_DOMAINS, GRANDFATHERED_CODES
+from hwpx.errors import ERROR_CODES, ERROR_CODE_DOMAINS, GRANDFATHERED_CODES, RENAMED_CODES
 from hwpx.quality.report import ERROR_CODES as QUALITY_CODES
 
 by_domain = collections.defaultdict(list)
 for code, meaning in ERROR_CODES.items():
     by_domain[code.split("-", 1)[0]].append((code, meaning))
+
+if GRANDFATHERED_CODES:
+    GRANDFATHERED_TEXT = (
+        f"유예 {len(GRANDFATHERED_CODES)}건 — {', '.join(f'`{c}`' for c in sorted(GRANDFATHERED_CODES))} —\n"
+        "은 이미 나간 이름이라 문법에 맞지 않아도 다음 major 까지 바꾸지 않는다."
+    )
+else:
+    GRANDFATHERED_TEXT = "문법에 맞지 않는 코드는 없다. 7.0 에서 바뀐 코드(`hwpx.errors.RENAMED_CODES`):\n\n" + "\n".join(
+        f"- `{old}` → `{new}`" for old, new in sorted(RENAMED_CODES.items())
+    )
 
 head = f'''# 오류 코드 (`HwpxError.code`)
 
@@ -58,8 +68,7 @@ except HwpxError as exc:
 
 `{"`, `".join(sorted(ERROR_CODE_DOMAINS))}`
 
-유예 {len(GRANDFATHERED_CODES)}건 — {", ".join(f"`{c}`" for c in sorted(GRANDFATHERED_CODES))} —
-은 5.6.0 에 이미 나간 이름이라 문법에 맞지 않아도 바꾸지 않는다(7.0 정리).
+{GRANDFATHERED_TEXT}
 
 ## 전체 목록
 

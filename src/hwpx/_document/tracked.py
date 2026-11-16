@@ -45,6 +45,10 @@ def _format_change_links(doc: "HwpxDocument") -> dict[str, int]:
 
 
 def _sanitize_tracked_text(value: str) -> str:
+    if not isinstance(value, str):
+        from ..errors import argument_type_error
+
+        raise argument_type_error("text", value, "str", suggestion="Pass the tracked text as a str.")
     return _TRACKED_TEXT_ILLEGAL.sub("", value)
 
 

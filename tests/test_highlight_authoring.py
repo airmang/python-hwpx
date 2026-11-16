@@ -125,7 +125,7 @@ def test_highlight_round_trips_through_save_and_reopen(tmp_path) -> None:
     document = _document()
     document.text.highlight(1, "World", color="#123ABC")
     path = tmp_path / "highlight.hwpx"
-    document.save_to_path(path)
+    document.save(path)
     document.close()
 
     xml = _section_xml(path)
@@ -144,7 +144,7 @@ def test_authored_highlight_passes_open_safety(tmp_path) -> None:
     document = _document()
     document.text.highlight(1, "World")
     path = tmp_path / "safe.hwpx"
-    document.save_to_path(path)
+    document.save(path)
     document.close()
 
     report = validate_editor_open_safety(path).to_dict()
@@ -265,7 +265,7 @@ def test_real_corpus_new_highlight_coexists_with_the_original_malformed_pair(
     assert created.text == word
 
     out = tmp_path / "roundtrip.hwpx"
-    document.save_to_path(out)
+    document.save(out)
     document.close()
 
     # The original malformed markpenBegin (color #CBFF99, sibling of hp:ctrl

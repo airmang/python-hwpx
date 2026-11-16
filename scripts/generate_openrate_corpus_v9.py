@@ -207,7 +207,7 @@ def gen_container(bucket_dir: Path) -> list[dict[str, Any]]:
                 f"그룹 표본 {idx} ({count}부재: {'/'.join(kinds_used)}): {cycle(SUBJECT_BANK, idx)}"
             )
             document.shapes.add_container(members, section=0)
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-container", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -234,7 +234,7 @@ def gen_inlineatoms(bucket_dir: Path) -> list[dict[str, Any]]:
             atom_paragraph.add_run(
                 _atom_combo_text(idx, combo), expand_special_characters=True,
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-inlineatoms", seed=str(idx),
                 output_path=out_path, produced=True,

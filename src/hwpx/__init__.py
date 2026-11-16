@@ -8,6 +8,8 @@
 - **experimental** — 계약이 유동적. ``from hwpx.experimental import ...``로 쓰세요.
   4.0~6.x의 최상위 재내보내기(경고와 함께)는 7.0에서 없어졌습니다 — ``from hwpx import
   <실험 기능>``은 ``hwpx.experimental``을 알려 주는 ``MovedToExperimental``(ImportError)을 냅니다.
+  수식 변환(``latex_to_eqedit`` 등)은 7.0에서 ``hwpx.equation``의 stable 이름이 되었고, 최상위
+  접근은 ``hwpx.equation``을 알려 주는 ``MovedToSubmodule``(ImportError)을 냅니다.
 - **deprecated** — 대체 경로로 이전하세요. 접근 시 ``DeprecationWarning``이 납니다.
 """
 
@@ -32,20 +34,18 @@ def _resolve_version() -> str:
 # 이름은 ``_TOOLS_STABLE_EXPORTS``가 지연 해석합니다.
 #
 # ``_EXPERIMENTAL_EXPORTS``는 4.0~6.x가 최상위에서 경고와 함께 재내보내던 실험 기능
-# 가운데 엔진에 남은 14개다. 7.0은 예고대로 그 재내보내기를 지웠다. 표는 남아 오류
-# 메시지 하나를 만든다 — ``from hwpx import latex_to_eqedit``가 ``hwpx.experimental``을
-# 알려 준다(``MovedToExperimental``). 구현 모듈 경로는 그대로다. 나머지 12개(ingest 7개,
-# 미리보기 5개)는 7.0에서 python-hwpx-automation으로 옮겨 ``_MOVED_TO_COMPANION``에 있다.
+# 가운데 엔진에 남아 지금도 실험 기능인 11개다. 7.0은 예고대로 그 재내보내기를 지웠다.
+# 표는 남아 오류 메시지 하나를 만든다 — ``from hwpx import estimate_pages``가
+# ``hwpx.experimental``을 알려 준다(``MovedToExperimental``). 구현 모듈 경로는 그대로다.
+# 수식 변환 3개는 7.0에서 ``hwpx.equation``의 stable 이름이 되어 ``_EQUATION_EXPORTS``로
+# 갔고(D26), 나머지 12개(ingest 7개, 미리보기 5개)는 7.0에서 python-hwpx-automation으로 옮겨
+# ``_MOVED_TO_COMPANION``에 있다.
 
 _EXPERIMENTAL_EXPORTS = {
     # 쪽 수 추정(한/글 없이, 줄마다 쪽·단·세로 위치). 계약 유동.
     "EstimatedLine": "hwpx.layout.pages",
     "PageEstimate": "hwpx.layout.pages",
     "estimate_pages": "hwpx.layout.pages",
-    # 수식 저작(5.2.0 신규, LaTeX -> EqEdit). 계약 유동.
-    "UnsupportedLatexError": "hwpx.equation.authoring",
-    "estimate_equation_size": "hwpx.equation.authoring",
-    "latex_to_eqedit": "hwpx.equation.authoring",
     # 편집 계획 실행기(5.6.0 신규, 선언적 다단 편집 -> 원자 실행). 계약 유동.
     "EditPlan": "hwpx.plan",
     "PlanReport": "hwpx.plan",
@@ -58,6 +58,15 @@ _EXPERIMENTAL_EXPORTS = {
     "describe_capabilities": "hwpx.capabilities",
     "contract_document": "hwpx.capabilities",
     "contract_json_schema": "hwpx.capabilities",
+}
+
+# 4.0~6.x가 최상위에서 실험 기능으로 재내보내던 수식 변환(5.2.0 신규, LaTeX -> EqEdit).
+# 7.0에서 ``hwpx.equation``의 stable 이름이 되었고 최상위에는 넣지 않는다(D26). 최상위
+# 접근은 ``hwpx.equation``을 알려 준다(``MovedToSubmodule``).
+_EQUATION_EXPORTS: dict[str, str] = {
+    "UnsupportedLatexError": "hwpx.equation",
+    "estimate_equation_size": "hwpx.equation",
+    "latex_to_eqedit": "hwpx.equation",
 }
 
 # Emptied in 5.0. The 4.x notice on these names said they would go in the next
@@ -79,6 +88,14 @@ def _experimental_message(name: str) -> str:
         f"'hwpx.{name}'는 실험적(experimental) 표면이라 python-hwpx 7.0에서 최상위 "
         f"재내보내기가 없어졌습니다(4.0부터 예고). 이렇게 가져오세요:\n"
         f"    from hwpx.experimental import {name}"
+    )
+
+
+def _submodule_message(name: str, module: str) -> str:
+    return (
+        f"'hwpx.{name}'는 python-hwpx 7.0에서 {module}의 stable 이름이 되었고 최상위 "
+        f"재내보내기는 없습니다(4.0~6.x는 실험 기능으로 내보냈습니다). 이렇게 가져오세요:\n"
+        f"    from {module} import {name}"
     )
 
 
@@ -319,12 +336,17 @@ class MovedToCompanion(ImportError):
     """
 
 
-class MovedToExperimental(ImportError):
-    """최상위에서 빠진 실험 기능에 접근했다(7.0). ``hwpx.experimental``에 있다.
+class MovedToSubmodule(ImportError):
+    """최상위에서 빠진 이름에 접근했다(7.0). 메시지가 가리키는 하위 모듈에 있다
+    (수식 변환은 ``hwpx.equation``).
 
     :class:`MovedToCompanion`과 같은 까닭으로 ImportError다 — ``from hwpx import X``가
     메시지를 그대로 사용자에게 보여 준다.
     """
+
+
+class MovedToExperimental(MovedToSubmodule):
+    """최상위에서 빠진 실험 기능에 접근했다(7.0). ``hwpx.experimental``에 있다."""
 
 
 class RetiredSurface(ImportError):
@@ -336,7 +358,8 @@ def __getattr__(name: str) -> object:
 
     ``__version__``과 ``hwpx.tools``의 stable 이름은 경고 없이 지연 해석하고,
     deprecated 이름은 해석 시 ``DeprecationWarning``을 냅니다. 7.0에서 최상위에서 빠진
-    실험 기능은 ``hwpx.experimental``을 알려 주는 ``MovedToExperimental``을 냅니다.
+    실험 기능은 ``hwpx.experimental``을 알려 주는 ``MovedToExperimental``을, 수식 변환은
+    ``hwpx.equation``을 알려 주는 ``MovedToSubmodule``을 냅니다.
     """
 
     if name == "__version__":
@@ -349,6 +372,10 @@ def __getattr__(name: str) -> object:
                 "hwpx lazy-export targets must remain inside the 'hwpx' package"
             )
         raise MovedToExperimental(_experimental_message(name))
+
+    module_name = _EQUATION_EXPORTS.get(name)
+    if module_name is not None:
+        raise MovedToSubmodule(_submodule_message(name, module_name))
 
     module_name = _DEPRECATED_EXPORTS.get(name)
     if module_name is not None:

@@ -222,7 +222,7 @@ def test_a_new_paragraph_gets_hancoms_line_metrics() -> None:
     }
     assert [int(s["vertpos"]) for s in segments] == [1600 * (n + 1) for n in range(len(segments))]
     buffer = io.BytesIO()
-    document.save_to_stream(buffer)
+    document.save(buffer)
     reopened = HwpxDocument.open(buffer.getvalue())
     assert _segments(_body(reopened)[-1]) == segments  # the save keeps them
 

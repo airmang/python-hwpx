@@ -18,7 +18,7 @@ def _hwp_bytes(text: str = "AQZ") -> bytes:
     document = HwpxDocument.new()
     document.add_paragraph(text)
     buffer = io.BytesIO()
-    document.save_to_stream(buffer, format="hwp")
+    document.save(buffer, format="hwp")
     return buffer.getvalue()
 
 

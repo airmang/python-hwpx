@@ -45,6 +45,13 @@ UNTYPED = frozenset({"ValueError", "TypeError", "KeyError", "RuntimeError", "Loo
 #: 코드 형식: ``<도메인>-<조건>`` kebab-case.
 CODE_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)+$")
 
+#: ``hwpx.errors`` 의 typed error 를 만들어 돌려주는 함수 → ``code=`` 를 주지 않을 때의 코드.
+#: ``raise argument_type_error(...)`` 도 typed 로 센다.
+TYPED_FACTORIES = {
+    "argument_type_error": "hwpx-type-error",
+    "removed_argument_error": "hwpx-argument-removed",
+}
+
 
 def _exception_name(node: ast.expr | None) -> str | None:
     if node is None:
@@ -91,7 +98,12 @@ def survey() -> dict:
             if name is None:  # bare ``raise`` — 재-raise 는 전환 대상이 아니다
                 continue
             entry = {"file": relative, "line": node.lineno, "exception": name}
-            if name.startswith("Hwpx") or name in {"SaveError", "PreservationDowngradeError"}:
+            if name in TYPED_FACTORIES:
+                code = _explicit_code(node.exc) or TYPED_FACTORIES[name]
+                entry["code"] = code
+                codes.setdefault(code, []).append(f"{relative}:{node.lineno}")
+                typed.append(entry)
+            elif name.startswith("Hwpx") or name in {"SaveError", "PreservationDowngradeError"}:
                 code = _explicit_code(node.exc)
                 if code is not None:
                     entry["code"] = code

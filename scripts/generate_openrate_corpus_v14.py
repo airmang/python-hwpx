@@ -231,7 +231,7 @@ def gen_charformat2(bucket_dir: Path) -> list[dict[str, Any]]:
             cid = document.styles.ensure_run(**kwargs)
             document.add_paragraph(f"{cycle(DEPT_BANK, idx)} 확장 서식 표본 {idx}", char_pr_id_ref=cid)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-charformat2", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -272,7 +272,7 @@ def gen_listformat(bucket_dir: Path) -> list[dict[str, Any]]:
             if result.formatted != 1:
                 raise RuntimeError(f"apply_list_format formatted {result.formatted}, expected 1")
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-listformat", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -365,7 +365,7 @@ def gen_tablenavfill(bucket_dir: Path) -> list[dict[str, Any]]:
             if result["failed_count"] or result["applied_count"] != 1:
                 raise RuntimeError(f"fill_by_path did not apply cleanly: {result}")
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-tablenavfill", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -405,7 +405,7 @@ def gen_findreplace(bucket_dir: Path) -> list[dict[str, Any]]:
             if count < 1:
                 raise RuntimeError(f"replace matched 0 occurrences (count={count})")
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-findreplace", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -445,7 +445,7 @@ def gen_redline(bucket_dir: Path) -> list[dict[str, Any]]:
             else:
                 document.tracking.replace(target_index, term, f"수정된 부서 {idx}", date=date)
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-redline", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -532,7 +532,7 @@ def gen_chart(bucket_dir: Path) -> list[dict[str, Any]]:
             document = _base_document(idx, "차트 표본")
             document.shapes.add_chart(chart_xml, size=(60000, 40000))
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-chart", seed=f"{chart_type}:{idx}",
                 output_path=out_path, produced=True,
@@ -575,7 +575,7 @@ def gen_picture(bucket_dir: Path) -> list[dict[str, Any]]:
                 if replacement.item_id == replacement.previous_item_id:
                     raise RuntimeError("replace_picture did not mint a new binary item id")
 
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-picture", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -623,7 +623,7 @@ def gen_editplan(bucket_dir: Path) -> list[dict[str, Any]]:
                 document.add_paragraph(f"{cycle(DEPT_BANK, idx)} 색상 표시 문단", char_pr_id_ref=red_cid)
             table = document.add_table(2, 2, width=42000)
             table.cell(0, 0).text = "라벨"
-            document.save_to_path(str(base_path))
+            document.save(str(base_path))
 
             if op_name == "paragraph_patch":
                 step = {"op": "paragraph_patch", "args": {"patches": [
@@ -733,7 +733,7 @@ def gen_docmerge2(bucket_dir: Path) -> list[dict[str, Any]]:
                 total = len(target.sections[0].paragraphs)
                 insert_document(target, source, after_paragraph_index=total - 1, **axis_kwargs)
 
-            target.save_to_path(str(out_path))
+            target.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-docmerge2", seed=str(idx),
                 output_path=out_path, produced=True,

@@ -191,7 +191,7 @@ def gen_charformat(bucket_dir: Path) -> list[dict[str, Any]]:
                 f"문자서식 표본 {idx} ({script}/{outline}): {cycle(SUBJECT_BANK, idx)}",
                 char_pr_id_ref=style_id,
             )
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-charformat", seed=str(idx),
                 output_path=out_path, produced=True,
@@ -258,7 +258,7 @@ def gen_fieldparams(bucket_dir: Path) -> list[dict[str, Any]]:
             )
             baseline.params.append(_fieldparams_extra_listparam(idx))
             field_begin.append(parameter_list_to_xml(baseline))
-            document.save_to_path(str(out_path))
+            document.save(str(out_path))
             records.append(record(
                 rec_id=rec_id, bucket="authored-fieldparams", seed=str(idx),
                 output_path=out_path, produced=True,

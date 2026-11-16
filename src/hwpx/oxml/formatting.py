@@ -54,7 +54,7 @@ from ._document_primitives import (
     _text_element_content,
 )
 from .color import normalize_color
-from .paragraph_heading import paragraph_heading, set_paragraph_heading
+from .paragraph_heading import heading_outline_level, set_paragraph_heading
 
 if TYPE_CHECKING:
     from ..objects.results import LanguageFonts
@@ -123,13 +123,15 @@ def find_definition(header: "HwpxOxmlHeader | None", kind: str, id_ref: "int | s
     )
 
 
-def _signature(element: ET.Element) -> bytes:
-    clone = deepcopy(element)
-    clone.attrib.pop("id", None)
-    clone.tail = None
-    if not isinstance(clone, LET._Element):
-        clone = LET.fromstring(ET.tostring(clone))
-    return LET.tostring(clone, method="c14n", with_tail=False)
+def _signature(element: ET.Element, *, root: bool = True) -> tuple[object, ...]:
+    """What a definition says: each element by namespace and name (not by prefix: a child made
+    on a detached copy prints as ``ns0:`` until it joins the header), its attributes (the
+    definition's own ``id`` left out), its text without surrounding white space, and its
+    children in order. Two definitions with one signature are the same definition."""
+
+    attributes = tuple(sorted((key, value) for key, value in element.attrib.items() if not (root and key == "id")))
+    children = tuple(_signature(child, root=False) for child in element)
+    return str(element.tag), attributes, (element.text or "").strip(), children
 
 
 def _attributes_without_id(element: ET.Element) -> dict[str, str]:
@@ -185,7 +187,7 @@ def derive_definition(
     modify(want)
 
     attributes, size = _attributes_without_id(want), len(want)
-    signature: bytes | None = None
+    signature: tuple[object, ...] | None = None
     candidates = ([base] if base is not None else []) + [
         child for child in container if _element_local_name(child) == kind and child is not base
     ]
@@ -768,14 +770,22 @@ def paragraph_break_flag(paragraph: "HwpxOxmlParagraph", name: str) -> bool | No
 
 
 def paragraph_outline_level(paragraph: "HwpxOxmlParagraph") -> int:
+    """``Paragraph.outline_level``: :func:`~hwpx.oxml.paragraph_heading.heading_outline_level`
+    of the paragraph's shape, 0 for a paragraph that is not an outline paragraph."""
+
     para_pr = paragraph_para_pr(paragraph)
-    heading = None if para_pr is None else paragraph_heading(para_pr)
-    if heading is None or (heading.get("type") or "").upper() != "OUTLINE":
-        return 0
-    try:
-        return int(heading.get("level") or "0") + 1
-    except ValueError:
-        return 0
+    return (heading_outline_level(para_pr) or 0) if para_pr is not None else 0
+
+
+def para_pr_outline_level(document: "HwpxOxmlDocument", para_pr_id_ref: "int | str | None") -> int | None:
+    """The outline level (1 to 10) the paragraph shape *para_pr_id_ref* gives its paragraphs, or
+    ``None`` (:func:`~hwpx.oxml.paragraph_heading.heading_outline_level`, the one rule)."""
+
+    for header in reversed(document.headers):
+        found = find_definition(header, "paraPr", para_pr_id_ref)
+        if found is not None:
+            return heading_outline_level(found)
+    return None
 
 
 def _derive_paragraph(paragraph: "HwpxOxmlParagraph", modify: Callable[["HwpxOxmlHeader", ET.Element], None]) -> None:
@@ -985,8 +995,17 @@ def resolve_style(document: "HwpxOxmlDocument", spec: "int | str | Style | None"
 
     if spec is None:
         raise style_not_found(document, spec)
-    if not isinstance(spec, (int, str)):
-        return spec
+    if not isinstance(spec, (int, str)) or isinstance(spec, bool):
+        from .header import Style
+
+        if isinstance(spec, Style):
+            return spec
+        from ..errors import argument_type_error
+
+        raise argument_type_error(
+            "style", spec, "a style name, id or Style",
+            suggestion="Pass the style's name ('본문'), its id (2) or a Style from doc.styles.",
+        )
     styles = document.styles
     if isinstance(spec, int) or spec.strip().lstrip("-").isdigit():
         wanted = str(int(str(spec).strip()))
@@ -1297,17 +1316,87 @@ def derive_border_fill(
             node.set("width", width)
             node.set("color", line_color)
         if color is not None:
-            brush = _child(element, "fillBrush")
-            if brush is None:
-                brush = element.makeelement(f"{_HC}fillBrush", {})
-                element.append(brush)
-            win = _child(brush, "winBrush")
-            if win is None:
-                win = brush.makeelement(f"{_HC}winBrush", {"faceColor": color, "hatchColor": "#999999", "alpha": "0"})
-                brush.insert(0, win)
-            win.set("faceColor", color)
+            set_border_fill_color(element, color)
 
     return derive_definition(header, "borderFill", base_id, modify)
+
+
+# The fill of a border fill derived from another: one rule for every derivation (doc.styles.
+# ensure_border_fill(base_border_fill_id=), table.set_shading / set_borders / set_cell_shading,
+# set_cell_fill_image / set_cell_fill_gradient). Hancom's cell fill has a face (a solid colour,
+# hc:winBrush, or a gradation, hc:gradation: one or the other) and, apart from it, a picture
+# (hc:imgBrush). In the 1,299 HWPX files of the public and test corpora a fillBrush holds a winBrush, an imgBrush, a
+# winBrush then an imgBrush (29), or a gradation, never a winBrush and a gradation. So a new
+# face replaces the old face and keeps the picture, a new picture keeps the face, and lines,
+# diagonals (slash, backSlash, diagonal) and the borderFill's attributes are never touched.
+
+_FACE_BRUSHES = ("winBrush", "gradation")
+
+
+def _fill_brush(element: ET.Element) -> ET.Element:
+    brush = _child(element, "fillBrush")
+    if brush is None:
+        brush = element.makeelement(f"{_HC}fillBrush", {})
+        element.append(brush)
+    return brush
+
+
+def _remove_fill_children(brush: ET.Element, names: Iterable[str]) -> None:
+    for child in list(brush):
+        if _element_local_name(child) in names:
+            brush.remove(child)
+
+
+def set_border_fill_color(element: ET.Element, color: str | None) -> None:
+    """Give the ``hh:borderFill`` *element* the solid face *color* (``#RRGGBB``), or no face (``None``).
+
+    A colour goes into its ``hc:winBrush`` (made with Hancom's usual pattern colour and no
+    transparency when there is none; the pattern and transparency of one there are kept) and a
+    gradation goes. ``None`` takes the face away. The picture (``hc:imgBrush``) stays either way;
+    a ``hc:fillBrush`` left with nothing in it goes."""
+
+    if color is None:
+        brush = _child(element, "fillBrush")
+        if brush is not None:
+            _remove_fill_children(brush, _FACE_BRUSHES)
+            if len(brush) == 0:
+                element.remove(brush)
+        return
+    brush = _fill_brush(element)
+    _remove_fill_children(brush, ("gradation",))
+    win = _child(brush, "winBrush")
+    if win is None:
+        win = brush.makeelement(f"{_HC}winBrush", {"faceColor": color, "hatchColor": "#999999", "alpha": "0"})
+        brush.insert(0, win)
+    win.set("faceColor", color)
+
+
+def _new_fill_child(element: ET.Element, **fill: "Mapping[str, object] | None") -> ET.Element:
+    """The ``hc:imgBrush`` or ``hc:gradation`` ``_append_fill_brush`` writes for *fill*."""
+
+    from ._document_primitives import _append_fill_brush
+
+    holder = element.makeelement(f"{_HH}borderFill", {})
+    _append_fill_brush(holder, fill_color=None, **fill)  # type: ignore[arg-type]
+    return holder[0][0]
+
+
+def set_border_fill_gradient(element: ET.Element, gradient: "Mapping[str, object]") -> None:
+    """Give the ``hh:borderFill`` *element* the gradation *gradient* (the mapping
+    ``set_cell_fill_gradient`` builds) as its face, in place of its face; its picture stays."""
+
+    brush = _fill_brush(element)
+    _remove_fill_children(brush, _FACE_BRUSHES)
+    brush.insert(0, _new_fill_child(element, fill_gradient=gradient))
+
+
+def set_border_fill_image(element: ET.Element, image: "Mapping[str, str]") -> None:
+    """Give the ``hh:borderFill`` *element* the picture *image* (the mapping
+    ``set_cell_fill_image`` builds), in place of its picture; its face stays."""
+
+    brush = _fill_brush(element)
+    _remove_fill_children(brush, ("imgBrush",))
+    brush.append(_new_fill_child(element, fill_image=image))
 
 
 def tab_stops_in_hwpunit(tab_stops: "Iterable[Mapping[str, object]] | None") -> list[dict[str, object]] | None:

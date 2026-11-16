@@ -20,14 +20,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
-
 from ...errors import HwpxValueError
+from ...model import Memo, Note, Paragraph, Section
 from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
-
-if TYPE_CHECKING:
-    from ...model import Memo, Note, Paragraph, Section
 
 __all__ = ["NotesNamespace"]
 

@@ -20,6 +20,7 @@ from zipfile import ZipFile
 
 from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml._document_primitives import _text_element_content
+from ..oxml.note_authoring import note_numbers
 from ..oxml.paragraph_heading import paragraph_heading
 #: A caller-supplied redaction step (``export_text(masking_policy=...)``).
 TextSanitizer = Callable[[str], str]
@@ -248,7 +249,8 @@ class _NoteLabels:
     """Hancom's numbers of foot and end notes, counted in document order, and their text.
 
     Each kind counts on its own, from 1. A section numbered ``ON_SECTION`` starts again
-    at its ``newNum``; any other section runs on from the one before (``ON_PAGE`` too:
+    at its ``newNum``; any other section runs on from the one before. A note in a section
+    numbered ``ON_PAGE`` takes the number the file holds (Hancom saves the per-page one;
     pages are not laid out here). An ``hp:newNum`` control of the kind sets the next
     number. The label is the number in the section's ``autoNumFormat`` between its
     prefix and suffix characters (``USER_CHAR`` repeats its character number times),
@@ -257,26 +259,22 @@ class _NoteLabels:
 
     def __init__(self, sections: list[ET.Element]) -> None:
         self._labels: dict[ET.Element, str] = {}
-        counters = {"FOOTNOTE": 1, "ENDNOTE": 1}
+        # The numbers are note_authoring.note_numbers' (the count the engine writes into a
+        # note's ``number``); this class only writes each in its section's number format.
+        numbers = note_numbers(sections)
         for section in sections:
-            formats = self._start_section(section, counters)
+            formats = self._formats(section)
             for element in section.iter():
-                if element.tag == f"{_HP}newNum" and element.get("numType") in counters:
-                    counters[element.get("numType") or ""] = _int_attribute(element, "num") or 1
-                elif element.tag in _NOTE_KINDS:
-                    kind = _NOTE_KINDS[element.tag][1]
-                    self._labels[element] = _note_label(counters[kind], formats[kind])
-                    counters[kind] += 1
+                if element.tag in _NOTE_KINDS:
+                    self._labels[element] = _note_label(numbers[element], formats[_NOTE_KINDS[element.tag][1]])
 
     @staticmethod
-    def _start_section(section: ET.Element, counters: dict[str, int]) -> dict[str, ET.Element | None]:
+    def _formats(section: ET.Element) -> dict[str, ET.Element | None]:
+        """The ``hp:autoNumFormat`` of each note kind of *section*'s settings."""
         sec_pr = next(section.iter(f"{_HP}secPr"), None)
         formats: dict[str, ET.Element | None] = {}
         for tag, kind in _NOTE_KINDS.values():
             properties = sec_pr.find(f"{_HP}{tag}") if sec_pr is not None else None
-            numbering = properties.find(f"{_HP}numbering") if properties is not None else None
-            if numbering is not None and numbering.get("type") == "ON_SECTION":
-                counters[kind] = _int_attribute(numbering, "newNum") or 1
             formats[kind] = properties.find(f"{_HP}autoNumFormat") if properties is not None else None
         return formats
 

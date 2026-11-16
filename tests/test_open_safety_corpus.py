@@ -50,7 +50,7 @@ def test_corpus_sample_save_and_edit_preserve_editor_open_safety(
     document = HwpxDocument.open(sample_path)
     try:
         roundtrip_path = tmp_path / "roundtrip.hwpx"
-        document.save_to_path(roundtrip_path)
+        document.save(roundtrip_path)
     finally:
         document.close()
 
@@ -61,7 +61,7 @@ def test_corpus_sample_save_and_edit_preserve_editor_open_safety(
     try:
         edited_document.add_paragraph("corpus open-safety smoke")
         edited_path = tmp_path / "edited.hwpx"
-        edited_document.save_to_path(edited_path)
+        edited_document.save(edited_path)
     finally:
         edited_document.close()
 

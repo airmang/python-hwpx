@@ -142,7 +142,7 @@ def test_a_saved_document_passes_the_gate_and_reopens() -> None:
     doc.add_paragraph("저장 뒤 다시 여는 문단")
     buffer = io.BytesIO()
 
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
 
     with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as archive:
         assert archive.testzip() is None

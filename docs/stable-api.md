@@ -11,7 +11,9 @@
   `from hwpx.experimental import ...`로 import하세요. 4.0~6.x가 경고와 함께 유지하던
   최상위 `from hwpx import ...` 재내보내기는 **7.0에서 제거됐습니다** — 접근하면
   `hwpx.experimental`을 알려 주는 `MovedToExperimental`(ImportError)이 납니다(실제 구현
-  모듈·`hwpx.experimental` 경로는 유지).
+  모듈·`hwpx.experimental` 경로는 유지). 수식 변환 셋(`latex_to_eqedit`·`estimate_equation_size`·
+  `UnsupportedLatexError`)은 7.0에서 `hwpx.equation`의 stable 이름이 되어, 최상위 접근은
+  `hwpx.equation`을 알려 주는 `MovedToSubmodule`(ImportError)을 냅니다.
 - **deprecated** — 대체 경로로 이전하세요. 접근 시 `DeprecationWarning`이 나고 경고
   메시지에 대체 경로가 포함됩니다. **다음 major에서 제거**될 예정입니다.
 
@@ -47,12 +49,12 @@ assert model.Paragraph is HwpxOxmlParagraph   # 래퍼가 아니라 별칭이다
 stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 있게 되어, 바로 그
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
-**계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 363개
-멤버**.
+**계약은 클래스가 아니라 멤버 목록이다.** 공개 표면 잠금 `tests/data/public_surface.json` 의
+`model` 층이 클래스별로 stable 멤버(`members`, 서명까지)와 목록 밖 공개 이름(`internal`)을
+정확히 나열한다. 수는 아래 「공개 표면 잠금」 표에 있다.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
-- 목록 **밖**의 멤버(164개 — `apply_model`·`mark_dirty`·`remove_stale_layout_caches`
+- 목록 **밖**의 멤버(`apply_model`·`mark_dirty`·`remove_stale_layout_caches`
   등) → 구현 세부. minor 에서 바뀔 수 있다.
 
 `hwpx.oxml.*` import 경로는 그대로 살아 있다. 옮기지도, deprecate 하지도 않는다.
@@ -72,17 +74,91 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 (`document-name-removed`)가 난다. 같은 때 `section_index=`·`style_id_ref=` 인자도 없어졌다
 (`hwpx-argument-removed`). 대응표는 [6.0 이주 가이드](migration-6.0.md).
 
-| | 수 | 락 |
-|---|---:|---|
-| 루트 공개 멤버 | 35 | `tests/data/document_facade_surface.json` |
-| 위임 shim (7.0 제거) | 79 | `tests/data/document_legacy_shims.json` |
-| 반환 객체 계약 | 362 | `tests/data/model_surface.json` |
+지운 79개 이름의 안내 표는 `tests/data/document_legacy_shims.json` 이 잠근다.
+
+### 공개 표면 잠금
+
+공개 표면 전체를 파일 하나, `tests/data/public_surface.json` 이 잠근다. 멤버마다 종류,
+인자(이름·위치/키워드·기본값 있음), 속성의 쓰기 가능 여부, 반환 표기를 적고,
+`tests/test_public_surface.py` 가 설치본과 하나라도 다르면(늘어도 줄어도) 실패한다.
+
+<!-- public-surface-lock:begin (scripts/public_surface_lock.py가 다시 쓴다. 손으로 고치지 않는다) -->
+| 층 | 잠근 것 | 수 |
+|---|---|---:|
+| 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
+| 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
+| 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 190 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 377 |
+| `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 164 |
+| `hwpx.objects` 53개 값 형식 | 필드 258 · 멤버 106 · enum 값 10 | 374 |
+| 모듈 수준 stable 이름(11개 모듈) | 서명(클래스는 멤버까지) | 66 |
+<!-- public-surface-lock:end -->
+
+공개 이름을 바꾸면 잠금을 손으로 고치지 않고 다시 만든다. 바뀐 것마다
+`tests/data/public_surface_changes.jsonl` 에 까닭과 함께 한 줄이 남는다. 지우기·이름
+바꾸기·서명 바꾸기는 패키지 메이저가 잠금의 `major` 보다 클 때만 받는다(다음 메이저를
+만드는 동안에는 `--allow-major-break`). 자세한 절차는 [기여 안내](../CONTRIBUTING.md#공개-표면-잠금).
+
+```bash
+python scripts/public_surface_lock.py check                                  # 같은지 본다
+python scripts/public_surface_lock.py check --update --reason "무엇을 왜"    # 다시 만든다
+python scripts/public_surface_lock.py rebuild                                # git 병합 뒤
+```
 
 설치본에 직접 물어볼 수도 있다:
 
 ```bash
 python -m hwpx.capabilities --verify
 ```
+
+## 엔진 계약 (7.0)
+
+python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉 가지를 약속하고, 약속마다
+그것을 지키는 테스트를 적는다(`tests/test_engine_contract.py` 가 여기 적힌 테스트가 모두
+있는지 확인한다). 약속은 major 경계에서만 바뀐다.
+
+1. **같은 바이트는 같은 결과다.** 같은 바이트를 열면 몇 번을, 어느 프로세스에서 열어도 같은
+   모델·같은 글을 읽고, 고치지 않고 저장하면 같은 바이트가 나온다.
+   `tests/test_engine_contract.py::test_same_bytes_open_to_the_same_model_text_and_bytes`,
+   `tests/test_engine_contract.py::test_same_bytes_give_the_same_answer_in_another_process`
+2. **고치지 않은 저장은 바이트 그대로다.** 열고 고치지 않고 저장하면 모든 파트가 바이트 그대로다.
+   대개 파일 전체가 같고, 몇몇은 ZIP 항목의 순서·플래그·폴더 항목만 다르다(공개·시험 HWPX 중
+   열리는 1,299개: 1,112개는 파일째 같고 187개는 파트가 같다).
+   `tests/test_engine_contract.py::test_an_unedited_hancom_document_saves_its_parts_unchanged`,
+   `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`
+3. **공개 편집은 그 파트만 바꾸고, 바꾼 파트를 알린다.** 공개 API로 고치면 그 내용을 담은 파트만
+   바뀌고 나머지 파트는 바이트 그대로다. 바뀐 파트는 `MutationReport.changed_parts` 에 적힌다
+   (`doc.save(...)`가 돌려주는 보고).
+   `tests/test_engine_contract.py::test_a_public_edit_changes_only_its_part_and_says_so`,
+   `tests/test_mutation_report.py::test_one_cell_edit_patch_lists_dirty_section`
+4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
+   아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다).
+   `tests/test_document_save_api.py::test_to_bytes_rejects_generated_package_that_fails_open_safety`,
+   `tests/test_document_save_api.py::test_save_to_a_path_preserves_existing_file_when_open_safety_fails`
+5. **"한/글에서 열린다"는 한/글 기록이 있는 것에만 말한다.** 한/글에서 열어 확인했다
+   (Render-verified)는 말은 실제 한/글로 열어 본 기록(`docs/openrate/` 보고, 한컴 오라클
+   측정)이 있는 만들기·편집 영역에만 붙는다([지원 매트릭스](support-matrix.md)).
+   `tests/test_engine_contract.py::test_render_verified_claims_cite_real_hancom_evidence`
+6. **모르는 요소는 읽은 대로 쓴다.** 엔진이 모르는 요소·속성(다른 이름공간의 요소, 새 버전의
+   목록)은 그 파트를 다시 쓸 때도 이름공간·이름·속성·글·자식이 읽은 그대로 남는다(접두사
+   이름은 바뀔 수 있다).
+   `tests/test_engine_contract.py::test_unknown_elements_are_written_as_read`
+7. **결정 모드에서는 만들기도 결정적이다.** `HwpxDocument.new(seed=, now=)`·
+   `HwpxDocument.open(..., seed=, now=)` 는 새 id와 날짜를 정해진 값으로 만들어, 같은 코드가 어느
+   프로세스에서나 같은 바이트를 쓴다. 주지 않으면 id는 무작위다.
+   `tests/test_deterministic_creation.py::test_two_processes_with_seed_and_now_write_identical_parts`,
+   `tests/test_deterministic_creation.py::test_open_with_seed_makes_edits_deterministic`
+8. **실패는 `HwpxError` 다.** 공개 경로의 실패는 `hwpx.errors.HwpxError` 계열(대체한 내장 예외도
+   함께 상속)로 나가고 `code`·`suggestion` 을 싣는다. 잘못된 타입의 인자도 내장
+   `TypeError`·`AttributeError` 가 그대로 새지 않는다(운영체제·손상 패키지 실패는 아래
+   「오류 계약」대로).
+   `tests/test_error_contract.py::test_the_public_path_raises_no_bare_builtins`,
+   `tests/test_argument_type_holes.py::test_a_wrong_argument_fails_typed_and_catchable`
+9. **공개 이름은 다음 major까지 얼린다.** 7.0의 공개 이름(최상위·루트·묶음·`hwpx.model` 의 계약
+   멤버·`hwpx.objects` 값 형식·안정 모듈 이름)은 8.0 전에는 지우거나 바꾸지 않는다. 공개 표면
+   잠금(`tests/data/public_surface.json`)과 다르면 테스트가 실패한다.
+   `tests/test_public_surface.py::test_public_surface_matches_the_lock`,
+   `tests/test_public_surface.py::test_lock_major_is_not_behind_the_package`
 
 ## stable (29)
 
@@ -126,11 +202,9 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   `EstimatedLine` — 본문 문단의 줄마다 쪽·단·세로 위치를 추정한다. 따르지 않는 요소가
   있으면 `pages`는 `None`이고 `unsupported`가 까닭을 구역마다 적는다
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
-  `estimate_equation_size`, `UnsupportedLatexError`. 구현 모듈 `hwpx.equation`에서
-  가져와도 같은 객체이고, 사용 가이드와 퀵스타트는 `from hwpx.equation import latex_to_eqedit`를 쓴다
-  — 이 세 이름은 5.2.0부터 experimental이었으나 이 문서가 누락하고 있었다
-  (자기서술 드리프트 — `describe_capabilities()`의 라이브 census가 이제 이런
-  누락을 구조적으로 막는다)
+  `estimate_equation_size`, `UnsupportedLatexError`. 7.0에서 `hwpx.equation`의 stable
+  이름이 되었다 — `from hwpx.equation import latex_to_eqedit`로 쓴다. `hwpx.experimental`도
+  6.x 경로로 같은 객체를 다시 내보내고, 최상위 `hwpx`에는 없다
 - **편집 계획 실행기**(5.6.0 신규, `hwpx.plan`): `apply_edit_plan`,
   `validate_edit_plan`, `EditPlan`, `PlanReport`, `PlanValidationError`
 - **기계가독 자기서술**(5.6.0 신규, `hwpx.capabilities`):
@@ -234,11 +308,11 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 
 | 예외 | `code` | 상속 | 발생 경로 |
 |---|---|---|---|
-| `PreservationDowngradeError` | `preservation-downgrade` | `HwpxError` | `save_to_path`/`save_to_stream`/`to_bytes`의 `mode="patch"` + `fallback="error"` 미달 |
+| `PreservationDowngradeError` | `preservation-downgrade` | `HwpxError` | `save`/`to_bytes`의 `mode="patch"` + `fallback="error"` 미달 |
 | `hwpx.errors.SaveError` | `save-failed`(기본), `document-validation-failed`·`open-safety-failed`·`quality-gate-failed` | `HwpxError`, `ValueError` | 대표 저장 경로의 사전검증·open-safety·품질 게이트 실패 |
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
-| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save_to_path("x.hwp")`, `format="hwp"`) |
+| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save("x.hwp")`, `format="hwp"`) |
 | `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
 | `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
 | `hwpx.tools.recover.RecoverError` | `recover-unsafe` | `HwpxError`, `ValueError` | 로컬 헤더 항목을 안전하게 복구할 수 없음 |
@@ -249,7 +323,7 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 `HwpxDocument.open`은 `.hwp`(HWP 5.0)도 열어 같은 문서 모델로 바꿉니다. 옮기지 못한
 내용은 읽기 전용 `document.conversion_report`(`unconverted`·`dropped` 개수)에 남고,
 `unconverted`가 있으면 `Hwp5ConversionWarning`을 한 번 냅니다. `.hwpx`로 연 문서에서는
-`conversion_report`가 `None`입니다. `save_to_path("x.hwp")`, `save_to_stream(..., format="hwp")`,
+`conversion_report`가 `None`입니다. `save("x.hwp")`, `save(stream, format="hwp")`,
 `to_bytes(format="hwp")`는 HWP 5.0으로 씁니다(실험). 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
 `Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 쓰지 않고
 (`hwp5-overwrite-source`), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지 않습니다
@@ -311,6 +385,49 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
 `Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
+
+### 개체·표·문단·메모 옮기기와 복사 (7.0)
+
+`InlineObject`·`Picture`·`Equation`·`Shape`·`Table`의 `move_to(paragraph, *, offset=None)`는 개체를
+같은 문서의 다른 문단(본문·표 칸·글상자·각주·미주·머리말·꼬리말)으로 옮기고,
+`copy_to(paragraph, *, offset=None)`는 복사본을 넣어 그 모델 객체를 돌려줍니다. `paragraph`는 문단
+객체나 `doc.paragraphs`의 번호, `offset`은 `paragraph.text`와 같은 규칙으로 센 글자 위치(`None`은
+끝)이고, 개체는 그 글자 앞, 그 자리에 이미 있는 컨트롤·개체 뒤에 놓입니다(글 노드 한가운데면 노드를
+나누어 같은 run 안에). 옮긴 개체는 id·캡션·내용을 지키고 원래 자리는 `remove()`처럼 정리됩니다(빈
+run, 붙어 있던 연결선은 연결을 놓음). 복사본은 개체·표·문단·누름틀 id를 새로 받고(묶음 구성원의
+`id="0"`은 그대로), 그림은 같은 이진 항목을 함께 쓰며, 그 안에 걸린 메모는 다음 번호를 받은 메모가
+따로 생깁니다. 두 문단과 그 문단의 칸·캡션을 품은 문단은 줄 배치 캐시를 잃습니다.
+
+떠 있는 개체는 기준과 오프셋을 파일에 적힌 그대로 가져가고, 엔진이 몰래 바꾸지 않습니다 — 문단
+기준(`PARA`·`COLUMN`)이면 새 문단을 따라가고, 쪽·용지 기준(`PAGE`·`PAPER`)이면 쪽 위의 자리가 그대로라
+새 문단이 놓인 쪽만 따라갑니다. 그래서 같은 쪽 안에서 쪽·용지 기준 개체를 `copy_to`하면 사본이 원본과
+정확히 같은 자리에 겹쳐 그려지고, `move_to`해도 제자리입니다. 다른 자리에 두려면 `set_position`으로
+옮깁니다. 한/글 문서가 그런 개체를 두지 않는 곳은 바꾸기 전에 `shape-move-place-unsupported`로
+거부합니다: 표 칸·글상자·각주로는 문단에서 세로로 재고(`vertRelTo="PARA"`) 쪽 영역 안에 두거나
+(`flowWithText="1"`) 가로도 문단에서 재는(`horzRelTo="PARA"`) 떠 있는 개체만 갑니다(공개 문서 1,304개의
+칸 634개 중 633개, 각주 40개·글상자 2개 전부가 이 모양이고, 아닌 그림을 칸에 넣으면 한/글은 위 칸에
+겹쳐 그립니다 — 먼저 `set_position(vert_rel_to="PARA", horz_rel_to="PARA")`나 `treat_as_char=True`로
+바꿉니다). 쪽 기준 개체를 용지나 여백이 다른 구역으로, 떠 있는 개체를 캡션으로, 어떤 개체든
+메모·바탕쪽으로도 거부합니다. 자기 글상자·칸·
+캡션으로 옮기기는 `shape-move-into-itself`(복사는 됨), 묶음 구성원은 `shape-group-member-unsupported`,
+지운 개체는 `shape-not-in-document`, 다른 문서의 문단은 `paragraph-not-in-document`입니다. 다른
+문서로 가져오기는 머리 정의·이진 항목을 함께 옮겨야 하므로 `hwpx.tools.document_merge.insert_document`
+(문단 단위)를 씁니다.
+
+`Paragraph.move_after(paragraph)`/`move_before(paragraph)`는 문단 자체를 옮깁니다(복사는
+`insert_after`/`insert_before`). id·내용을 지키고, 구역의 첫 문단이면 구역 설정이 다음 문단으로 가고,
+구역 첫 문단 앞에 놓이면 구역 설정을 넘겨받습니다. 다른 구역으로 가면 그 문단에 걸린 메모가 새 구역의
+메모 묶음으로 따라갑니다. 칸·머리말의 마지막 문단은 `paragraph-remove-last`, 자기 칸 안으로는
+`paragraph-move-into-itself`, 메모의 문단은 `paragraph-move-place-unsupported`로 거부합니다.
+
+`Memo.move_to(section, *, index=None)`는 메모를 그 구역의 메모 묶음 `index` 번째로 옮기고(묶음이
+없으면 만들고, 비게 된 묶음은 지움), `copy_to(section, *, index=None)`는 새 id의 고리 없는 복사본을
+돌려줍니다(`doc.notes.attach`로 겁니다). 메모는 고리(MEMO 누름틀)가 있는 구역에 두므로, 고리가 다른
+구역에 있는 메모와 한/글이 누름틀에 담아 둔 메모의 이동은 `note-memo-anchor-elsewhere`입니다.
+
+`doc.tables.with_nested`는 본문의 표와 그 칸 안의 표(중첩 포함)를 표 지도(`doc.tables.map()`)와
+같은 순서의 tuple로 돌려줍니다 — `doc.tables.with_nested[i]`가 지도의 `table_index == i`인 표입니다
+(공개 문서 786개·표 6,418개에서 지도 순서와 같음). `doc.tables.all`은 본문에 바로 놓인 표만입니다.
 
 `Shape.draw_text`·`set_draw_text`·`remove_draw_text`와 이들이 돌려주는
 `model.DrawText`는 stable입니다. `set_draw_text(..., para_pr_id_ref=..., vert_align=...)`는

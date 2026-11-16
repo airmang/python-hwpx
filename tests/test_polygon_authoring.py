@@ -262,7 +262,7 @@ def test_polygon_round_trips_through_save_and_reopen(tmp_path) -> None:
         (pt.get("x"), pt.get("y")) for pt in original.element if pt.tag == f"{HC}pt"
     ]
     path = tmp_path / "polygon.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)
@@ -285,7 +285,7 @@ def test_authored_polygon_passes_open_safety(tmp_path) -> None:
         [(0.0, 0.0), (50.0, 0.0), (25.0, 50.0)], fill_color="#CCE5FF", section=0,
     )
     path = tmp_path / "safe.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     report = validate_editor_open_safety(path).to_dict()
@@ -347,7 +347,7 @@ def test_new_authoring_shape_is_structurally_valid_and_rereadable(
     assert vertex_count == len(points_mm) + 1  # closed
 
     path = tmp_path / f"{name}.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
     reopened = HwpxDocument.open(path)

@@ -1,0 +1,59 @@
+{"date": "2026-11-16", "version": "6.12.0", "kind": "created", "change": "잠금을 만듦: top 29 · root 35 · 묶음 11개 188 · model 22개 클래스 계약 362/계약 밖 164 · objects 51개 형식(필드 238 · 멤버 104 · enum 값 10) · 모듈 11개 64", "reason": "WP5a: 옛 잠금 model_surface.json(계약 362, 계약 밖 164)과 document_facade_surface.json(루트 35)을 한 파일로 합치고, 묶음 멤버·값 형식·모듈 수준 이름을 함께 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.tables.with_nested: 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_after: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_before: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.copy_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.move_to: 계약에 생김", "reason": "wp5a: merge main (move #727)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.tables.with_nested: 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Equation.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.InlineObject.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Memo.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_after: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Paragraph.move_before: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Picture.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Shape.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.copy_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Table.move_to: 계약에 생김", "reason": "wp5a: refactor(surface): 공개 표면을 파일 하나로 잠근다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.HwpxIndexError: 생김", "reason": "fixes: fix: 작은 구멍과 같은 일을 두 곳에서 하던 구현을 정리하고 엔진 약속을 적는다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.RENAMED_CODES: 생김", "reason": "fixes: fix: 작은 구멍과 같은 일을 두 곳에서 하던 구현을 정리하고 엔진 약속을 적는다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_heading: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_paragraph: 인자 없어짐 run_attributes", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_paragraph: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 align", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 line_width", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 run_attributes", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_picture: 반환 InlineObject -> Picture", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_table: 인자 없어짐 run_attributes", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.add_table: 인자 없어짐 extra_attrs", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.from_package: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.paragraphs: 반환 list[Paragraph] -> tuple[Paragraph, ...]", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.save_report: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.save_to_path: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.save_to_stream: 없어짐", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "breaking", "change": "doc.sections: 반환 list[Section] -> tuple[Section, ...]", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.add_picture: 인자 생김 alignment", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.add_picture: 인자 생김 line_width_mm", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.save: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "hwpx.errors.SaveError.report: 생김", "reason": "wp1: refactor(document)!: 저장을 doc.save() 하나로 모으고 옛 이름 안내를 표 하나로 정리한다"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.styles.ensure_memo_shape: 인자 생김 line_width_mm", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.text.replace: 인자 생김 regex", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "doc.text.find: 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "model.Run.fonts: 계약에 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "objects.LanguageFonts: hwpx.objects에 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}
+{"date": "2026-11-16", "version": "6.12.0", "kind": "additive", "change": "objects.TextMatch: hwpx.objects에 생김", "reason": "textrest: doc.text.find와 정규식 바꾸기, run.fonts, TextMatch·LanguageFonts 값 형식, ensure_memo_shape(line_width_mm)"}

@@ -15,13 +15,24 @@ automation 최다 사용 저작 동사 중 하나). 만든 다음에 하는 일�
 
 from __future__ import annotations
 
+from types import ModuleType
 from typing import TYPE_CHECKING, Iterable, overload
 
-from ._base import _Namespace
+from ...model import Table, TableCell
+from ._base import _LazyModule, _Namespace
+
+
+# Named in annotations only; loaded when a hint is resolved (``import hwpx`` stays light).
+def _load_table_navigation() -> ModuleType:
+    from ...tools import table_navigation
+
+    return table_navigation
+
 
 if TYPE_CHECKING:
-    from ...model import Table, TableCell
-    from ...tools.table_navigation import TableMapResult
+    from ...tools import table_navigation as _table_navigation
+else:
+    _table_navigation = _LazyModule(_load_table_navigation)
 
 __all__ = ["TablesNamespace"]
 
@@ -47,6 +58,30 @@ class TablesNamespace(_Namespace):
             tables.extend(paragraph.tables)
         return tables
 
+    @property
+    def with_nested(self) -> tuple["Table", ...]:
+        """본문의 표와 그 칸 안의 표(중첩 포함)를 표 지도(:meth:`map`)와 같은 순서·번호로.
+
+        표 하나 뒤에 그 칸들의 표가(행 순서, 칸 순서, 칸 문단 순서로, 다시 그 안의 표까지)
+        오고, 다음 표로 넘어간다. ``doc.tables.with_nested[i]`` 가 지도의
+        ``table_index == i`` 인 표다. 머리말·꼬리말·각주·미주·글상자·캡션 안의 표는
+        지도처럼 들어 있지 않다(그것까지는 ``doc.text.objects(kinds="table")``).
+        """
+
+        found: list["Table"] = []
+
+        def visit(table: "Table") -> None:
+            found.append(table)
+            for row in table.rows:
+                for cell in row.cells:
+                    for nested in cell.tables:
+                        visit(nested)
+
+        for paragraph in self._doc.paragraphs:
+            for table in paragraph.tables:
+                visit(table)
+        return tuple(found)
+
     def __len__(self) -> int:
         return len(self.all)
 
@@ -69,10 +104,14 @@ class TablesNamespace(_Namespace):
         tables = self.all
         if isinstance(index, slice):
             return tables[index]
+        if isinstance(index, bool) or not isinstance(index, int):
+            from ...errors import argument_type_error
+
+            raise argument_type_error("index", index, "int or slice", suggestion="doc.tables[0] 처럼 번호로 고르세요.")
         try:
             return tables[index]
         except IndexError:
-            from ...oxml.utils import HwpxIndexError
+            from ...errors import HwpxIndexError
 
             raise HwpxIndexError(
                 f"표 인덱스 {index} 가 범위를 벗어났습니다(표 {len(tables)}개).",
@@ -84,7 +123,7 @@ class TablesNamespace(_Namespace):
                 ),
             ) from None
 
-    def map(self) -> "TableMapResult":
+    def map(self) -> "_table_navigation.TableMapResult":
         """모든 표의 위치·모양·헤더 미리보기를 담은 간결 지도."""
 
         from ...tools.table_navigation import get_table_map

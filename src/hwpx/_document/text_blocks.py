@@ -174,9 +174,11 @@ def outline(
     *max_chars*.
     """
 
-    from ..errors import HwpxLookupError, HwpxValueError
+    from ..errors import HwpxLookupError, HwpxValueError, argument_type_error
 
     for name, value in (("max_chars", max_chars), ("max_block_chars", max_block_chars), ("max_items", max_items)):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+            raise argument_type_error(name, value, "an int", code="text-outline-budget")
         if value is not None and value < 1:
             raise HwpxValueError(
                 f"{name} must be >= 1",
@@ -326,6 +328,13 @@ def apply_text_changes(
     ``overflow``.
     """
 
+    if not isinstance(changes, Mapping):
+        from ..errors import argument_type_error
+
+        raise argument_type_error(
+            "changes", changes, "a mapping of block id to new text",
+            suggestion="Pass {block_id: new_text}, e.g. {'s0p0': '새 글'}.",
+        )
     report = TextChangeReport()
     wanted = {str(key): "" if value is None else str(value) for key, value in changes.items()}
     blocks: dict[str, TextBlock] = {}

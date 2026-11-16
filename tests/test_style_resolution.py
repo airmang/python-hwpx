@@ -70,7 +70,7 @@ def test_the_5_x_typo_only_surfaced_at_save_and_named_nothing(tmp_path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("본문").style_id_ref = "개요1"  # 호출 시점: 무반응
     with pytest.raises(HwpxPackageError) as excinfo:
-        document.save_to_path(tmp_path / "late.hwpx")
+        document.save(tmp_path / "late.hwpx")
     message = str(excinfo.value)
     assert "개요1" in message
     # 무엇이 문제인지 말하지 않는다: 스타일이라는 말도, 대안도 없다.
@@ -92,7 +92,7 @@ def test_a_dangling_numeric_id_used_to_save_silently(tmp_path) -> None:
     document = HwpxDocument.new()
     document.add_paragraph("본문").style_id_ref = 9999
     target = tmp_path / "dangling.hwpx"
-    document.save_to_path(target)  # 5.x 경로: 무음 성공
+    document.save(target)  # 5.x 경로: 무음 성공
     xml = zipfile.ZipFile(target).read("Contents/section0.xml").decode("utf-8")
     assert "9999" in re.findall(r'styleIDRef="([^"]*)"', xml)
 
@@ -189,7 +189,7 @@ def test_shape_ids_given_with_a_style_win(document: HwpxDocument) -> None:
     given = document.add_paragraph("t", style="차례 제목", para_pr_id_ref=0, char_pr_id_ref=0)
     assert (str(given.para_pr_id_ref), _run_char_pr(given)) == ("0", "0")
 
-    in_run = document.add_paragraph("t", style="차례 제목", run_attributes={"charPrIDRef": "0"})
+    in_run = document.add_paragraph("t", style="차례 제목", char_pr_id_ref="0")
     assert _run_char_pr(in_run) == "0"
     assert str(in_run.para_pr_id_ref) == str(document.styles.resolve("차례 제목").para_pr_id_ref)
 

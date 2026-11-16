@@ -159,7 +159,7 @@ class TestBookmarkHyperlinkRoundtrip:
         has_link = False
         for p2 in doc2.paragraphs:
             for hl in p2.hyperlinks:
-                if hl["url"] == "https://example.com":
+                if hl.url == "https://example.com":
                     has_link = True
                     break
         assert has_link
@@ -248,7 +248,7 @@ class TestFileIO:
         doc = _new()
         doc.add_paragraph("file test")
         path = tmp_path / "test.hwpx"
-        doc.save_to_path(str(path))
+        doc.save(str(path))
         doc2 = HwpxDocument.open(str(path))
         texts = [p.text for p in doc2.paragraphs]
         assert "file test" in texts
@@ -257,7 +257,7 @@ class TestFileIO:
         doc = _new()
         doc.add_paragraph("bytesio")
         buf = io.BytesIO()
-        doc.save_to_stream(buf)
+        doc.save(buf)
         buf.seek(0)
         doc2 = HwpxDocument.open(buf)
         texts = [p.text for p in doc2.paragraphs]

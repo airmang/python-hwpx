@@ -138,11 +138,12 @@ def test_the_smallest_and_largest_sizes_are_written_as_given() -> None:
     document = HwpxDocument.new()
 
     rectangle = document.shapes.add_rectangle(width=0, height=2**31 - 1, ratio=50)
-    equation = document.shapes.add_equation("x + 1 over 2", size=(0, 2**31 - 1))
+    # An equation box 0 wide or high shows nothing: its smallest size is 1 (shape-size-value below 1).
+    equation = document.shapes.add_equation("x + 1 over 2", size=(1, 2**31 - 1))
 
     assert _size(rectangle.element) == ("0", str(2**31 - 1))
     assert rectangle.element.get("ratio") == "50"
-    assert _size(equation.element) == ("0", str(2**31 - 1))
+    assert _size(equation.element) == ("1", str(2**31 - 1))
 
 
 @pytest.mark.parametrize("base_unit", [0, -1100, 2**31, 1100.0, True])
