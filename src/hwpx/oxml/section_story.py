@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    SameElement,
     _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _append_child,
@@ -410,7 +411,7 @@ def _validated_mirror_parts(
     return mirror_parts
 
 
-class HwpxOxmlSectionHeaderFooter:
+class HwpxOxmlSectionHeaderFooter(SameElement):
     """Wraps a ``<hp:header>`` or ``<hp:footer>`` element."""
 
     def __init__(

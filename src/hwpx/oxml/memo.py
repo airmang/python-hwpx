@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    SameElement,
     _DEFAULT_PARAGRAPH_ATTRS,
     _HP,
     _append_child,
@@ -105,7 +106,7 @@ class HwpxOxmlMemoGroup:
         self.section.mark_dirty()
 
 
-class HwpxOxmlMemo:
+class HwpxOxmlMemo(SameElement):
     """Represents a memo entry contained within a memo group.
 
     Hancom 2024 keeps a memo only in its MEMO field (the field's ``hp:subList``) and writes no
@@ -772,7 +773,7 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         self.group.section.mark_dirty()
 
 
-class HwpxOxmlNote:
+class HwpxOxmlNote(SameElement):
     """Wraps a ``<hp:footNote>`` or ``<hp:endNote>`` element."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):

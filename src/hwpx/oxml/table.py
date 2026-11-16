@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Iterator, NoReturn, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    SameElement,
     _DEFAULT_CELL_HEIGHT,
     _DEFAULT_CELL_WIDTH,
     _default_cell_inner_margin_attributes,
@@ -203,7 +204,7 @@ def _is_blank_cell(element: ET.Element) -> bool:
 
 
 
-class HwpxOxmlTableCell(TableCellFormat):
+class HwpxOxmlTableCell(SameElement, TableCellFormat):
     """Represents an individual table cell."""
 
     def __init__(
@@ -608,7 +609,7 @@ class HwpxTableGridPosition:
 
 
 
-class HwpxOxmlTableRow(TableRowFormat):
+class HwpxOxmlTableRow(SameElement, TableRowFormat):
     """Represents a table row."""
 
     def __init__(self, element: ET.Element, table: "HwpxOxmlTable"):
@@ -624,7 +625,7 @@ class HwpxOxmlTableRow(TableRowFormat):
         )
 
 
-class HwpxOxmlTable(TableStructureEdits, TableFormat):
+class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
     """Representation of an ``<hp:tbl>`` inline object."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):

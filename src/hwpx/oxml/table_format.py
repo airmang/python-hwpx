@@ -153,6 +153,21 @@ def _set_fill(candidate: Any, color: str | None) -> None:
     set_border_fill_color(candidate, color)
 
 
+def _check_border_fill_id(table: Any, value: object) -> None:
+    """Refuse *value* unless it is the id of an ``hh:borderFill`` the document's header defines."""
+
+    model = table.paragraph.section.document
+    header = model.headers[0] if model is not None and model.headers else None
+    fills = header._border_fills_element() if header is not None else None
+    known = fills is not None and not isinstance(value, bool) and isinstance(value, (str, int)) and any(
+        node.get("id") == str(value) for node in fills)
+    if not known:
+        raise _refuse(f"border fill {value!r} is not defined in the document's header",
+                      "table-border-fill-not-found",
+                      "Pass the id of an existing border fill, e.g. one doc.styles.ensure_border_fill(...) returns.",
+                      value=repr(value))
+
+
 def _border_line(line_type: object, width_mm: object, color: object) -> dict[str, str]:
     from .utils import line_width_text
 
@@ -230,9 +245,25 @@ class TableCellFormat:
 
     @property
     def border_fill_id_ref(self) -> str | None:
-        """The id of the ``hh:borderFill`` the cell names (``hp:tc/@borderFillIDRef``), as written."""
+        """The id of the ``hh:borderFill`` the cell names (``hp:tc/@borderFillIDRef``), as written:
+        its four lines, diagonals and fill.
+
+        Setting it takes the id of a border fill the document defines (a ``str`` or ``int``, e.g. one
+        ``doc.styles.ensure_border_fill(...)`` returns); an unknown id is refused with
+        ``table-border-fill-not-found``, before anything changes. Only this cell's reference changes
+        (:meth:`HwpxOxmlTable.set_cell_borders` also gives the neighbours the edge they share, as
+        Hancom's border dialog does). The cell's size and margins stay, so no line layout cache is
+        dropped, as for the table's own :attr:`HwpxOxmlTable.border_fill_id_ref`.
+        """
 
         return self.element.get("borderFillIDRef")
+
+    @border_fill_id_ref.setter
+    def border_fill_id_ref(self, value: "str | int") -> None:
+        _check_border_fill_id(self.table, value)
+        if self.element.get("borderFillIDRef") != str(value):
+            self.element.set("borderFillIDRef", str(value))
+            self.table.mark_dirty()
 
     @property
     def border_fill(self) -> BorderFillInfo | None:
@@ -513,16 +544,7 @@ class TableFormat:
 
     @border_fill_id_ref.setter
     def border_fill_id_ref(self, value: "str | int") -> None:
-        model = self.paragraph.section.document
-        header = model.headers[0] if model is not None and model.headers else None
-        fills = header._border_fills_element() if header is not None else None
-        known = fills is not None and not isinstance(value, bool) and isinstance(value, (str, int)) and any(
-            node.get("id") == str(value) for node in fills)
-        if not known:
-            raise _refuse(f"border fill {value!r} is not defined in the document's header",
-                          "table-border-fill-not-found",
-                          "Pass the id of an existing border fill, e.g. one doc.styles.ensure_border_fill(...) returns.",
-                          value=repr(value))
+        _check_border_fill_id(self, value)
         if self.element.get("borderFillIDRef") != str(value):
             self.element.set("borderFillIDRef", str(value))
             self.mark_dirty()
@@ -622,9 +644,27 @@ class TableFormat:
 
     @property
     def repeat_header(self) -> bool:
-        """Whether the title rows repeat at the top of each page the table runs onto (``hp:tbl/@repeatHeader``)."""
+        """Whether the title rows repeat at the top of each page the table runs onto (``hp:tbl/@repeatHeader``,
+        Hancom's 표 속성 → 제목 줄 자동 반복).
+
+        Setting it takes ``True`` or ``False`` (``table-header-rows-value``) and writes only this flag:
+        the title cells (:attr:`HwpxOxmlTableCell.is_header`) stay as they are. The two are separate in
+        Hancom's files too: the tables Hancom made and saved in ``tests/fixtures/hancom_saved``
+        (``cell_border_2x3_base.hwpx`` and the others) say ``repeatHeader="1"`` with no title cell.
+        :meth:`set_header_rows` sets the title rows and the flag together. The paragraph
+        holding the table loses its line layout cache, as for :attr:`page_split`: the table's pages
+        are laid out anew.
+        """
 
         return (self.element.get("repeatHeader") or "").strip().lower() in _TRUE
+
+    @repeat_header.setter
+    def repeat_header(self, value: bool) -> None:
+        wanted = "1" if _flag(value, "repeat_header", "table-header-rows-value") else "0"
+        if self.element.get("repeatHeader") != wanted:
+            self.element.set("repeatHeader", wanted)
+            _clear_paragraph_layout_cache(self.paragraph.element)
+            self.mark_dirty()
 
     @property
     def no_adjust(self) -> bool:

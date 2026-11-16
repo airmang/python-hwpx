@@ -71,6 +71,8 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
   검사도, 줄 배치 캐시 지우기도 일어나지 않는다. 글이나 크기를 바꿨다면 그 문단에
   `paragraph.clear_layout_cache()`를 불러야 한다(낡은 줄 배치가 남으면 한/글이 글자를 겹쳐 그린다).
   저장 전 열기 안전 검사는 그대로 돈다.
+- 두 객체가 같은 문단·표·칸·런·개체인지는 `.element`를 견주지 않고 객체끼리 `==`로 견준다(같은 요소를
+  감싸면 같고 해시도 같아 dict 키로 쓸 수 있다). 이 같음은 계약이다.
 - 같은 일을 하는 공개 API가 있으면 그것을 쓴다. `.element`가 필요했던 까닭을
   [이슈](https://github.com/airmang/python-hwpx/issues)로 알려 주면 엔진에 넣을 수 있는지 본다.
 
@@ -111,9 +113,9 @@ python-docx 의 `paragraph._p`·`run._r`와 같은 자리다. 이름에 밑줄�
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 195 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 395 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 396 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 177 |
-| `hwpx.objects` 83개 값 형식 | 필드 408 · 멤버 194 · enum 값 10 | 612 |
+| `hwpx.objects` 83개 값 형식 | 필드 408 · 멤버 195 · enum 값 10 | 613 |
 | 모듈 수준 stable 이름(13개 모듈) | 서명(클래스는 멤버까지) | 70 |
 <!-- public-surface-lock:end -->
 

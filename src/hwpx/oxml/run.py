@@ -12,6 +12,7 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from . import body
 from ._document_primitives import (
+    SameElement,
     _HH,
     _HP,
     _clear_paragraph_layout_cache,
@@ -621,7 +622,7 @@ def replace_across_runs(
     return total
 
 
-class HwpxOxmlRun:
+class HwpxOxmlRun(SameElement):
     """Lightweight wrapper around an ``<hp:run>`` element."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
