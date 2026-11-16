@@ -8,7 +8,7 @@ Q3/Q4 의 네이티브 목차·상호참조(`hwpx.tools.toc_author`)가 들어�
 
 from __future__ import annotations
 
-from ...model import InlineObject, Paragraph, Section, Table
+from ...model import Paragraph, Section, Table
 from ...objects import Bookmark, CrossReference, Hyperlink, TableOfContents
 from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
@@ -141,8 +141,8 @@ class RefsNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
-    ) -> "InlineObject":
-        """책갈피를 넣는다. 상호참조·목차의 앵커가 된다."""
+    ) -> "Bookmark":
+        """책갈피를 넣는다. 상호참조·목차의 앵커가 된다. :attr:`bookmarks` 가 읽는 :class:`Bookmark` 를 돌려준다."""
 
         from .. import layout as _layout
 
@@ -166,8 +166,8 @@ class RefsNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         char_pr_id_ref: str | int | None = None,
-    ) -> "InlineObject":
-        """표시 문자열을 가진 하이퍼링크를 넣는다."""
+    ) -> "Hyperlink":
+        """표시 문자열을 가진 하이퍼링크를 넣는다. :attr:`hyperlinks` 가 읽는 :class:`Hyperlink` 를 돌려준다."""
 
         from .. import layout as _layout
 

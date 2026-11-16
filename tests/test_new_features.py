@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 
 
 from hwpx import HwpxDocument
+from hwpx.objects import Bookmark, Hyperlink
 from hwpx.oxml.document import (
     HwpxOxmlShape,
     HwpxOxmlTable,
@@ -214,21 +215,25 @@ class TestBookmarkHyperlink:
     def test_add_bookmark(self):
         doc = _new_doc()
         p = doc.add_paragraph("bm")
-        p.add_bookmark("test_mark")
-        assert "test_mark" in p.bookmarks
+        mark = p.add_bookmark("test_mark")
+        assert isinstance(mark, Bookmark) and mark.name == "test_mark" and mark.kind == "point"
+        assert p.bookmarks == (mark,)
+        assert "test_mark" in [b.name for b in p.bookmarks]
 
     def test_add_multiple_bookmarks(self):
         doc = _new_doc()
         p = doc.add_paragraph("bm")
         p.add_bookmark("mark1")
         p.add_bookmark("mark2")
-        assert len(p.bookmarks) == 2
+        assert [b.name for b in p.bookmarks] == ["mark1", "mark2"]
 
     def test_add_hyperlink(self):
         doc = _new_doc()
         p = doc.add_paragraph("link")
-        p.add_hyperlink("https://example.com", "Click")
+        link = p.add_hyperlink("https://example.com", "Click")
+        assert isinstance(link, Hyperlink) and link.text == "Click"
         links = p.hyperlinks
+        assert links == (link,)
         assert len(links) == 1
         assert links[0].url == "https://example.com"
         assert links[0].to_dict()["type"] == "HYPERLINK"
@@ -245,7 +250,7 @@ class TestBookmarkHyperlink:
         doc = _new_doc()
         doc.refs.add_bookmark("doc_bm")
         p = doc.paragraphs[-1]
-        assert "doc_bm" in p.bookmarks
+        assert "doc_bm" in [b.name for b in p.bookmarks]
 
     def test_document_add_hyperlink(self):
         doc = _new_doc()

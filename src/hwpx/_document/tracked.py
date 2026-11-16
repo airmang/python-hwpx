@@ -164,7 +164,7 @@ def add_tracked_insert(
     # function is reached via the new `doc.tracking.insert` namespace path.
     change = add_track_change(doc, "Insert", author_name=author, date=date)
     mark_id = doc._root.next_track_change_mark_id()
-    paragraph.add_tracked_insert(
+    paragraph._add_tracked_insert(
         sanitized,
         change_id=change.change_id,
         mark_id=mark_id,
@@ -211,7 +211,7 @@ def add_tracked_delete(
 
     change = add_track_change(doc, "Delete", author_name=author, date=date)
     mark_id = doc._root.next_track_change_mark_id()
-    paragraph.add_tracked_delete(
+    paragraph._add_tracked_delete(
         change_id=change.change_id,
         first_mark_id=mark_id,
         match=match,

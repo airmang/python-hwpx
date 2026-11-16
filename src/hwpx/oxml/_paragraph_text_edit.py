@@ -20,8 +20,8 @@ from ._document_primitives import (
 from .namespaces import tag_local_name
 
 if TYPE_CHECKING:
-    from ..objects.results import Alignment, LineSegment, LineSpacing
-    from .header import Style
+    from ..objects.results import Alignment, LineSegment, LineSpacing, NumberingInfo
+    from .header import Bullet, Style
     from .run import HwpxOxmlRun
 
 
@@ -788,6 +788,33 @@ class ParagraphFormats:
         from .formatting import set_paragraph_outline_level
 
         set_paragraph_outline_level(self, value)
+
+    def set_numbering(self, numbering: "NumberingInfo | int | str | None", *, level: int = 1) -> None:
+        """Number this paragraph with numbering *numbering* at *level* (1 to 10).
+
+        *numbering* is a definition of this document — the ``NumberingInfo``
+        ``doc.styles.add_numbering()`` returns, one from ``doc.styles.numbering_info(id)``, or
+        its id. Hancom counts on through every paragraph of one definition, so the paragraphs
+        given the same one make one list. The rest of the paragraph's shape (margins,
+        spacing, alignment) stays; the paragraph is laid out again. ``None`` takes its head
+        away (no number, bullet or outline level). An id the document lacks is
+        ``style-definition-not-found``, a level outside 1 to 10 ``style-list-level-invalid``.
+        """
+        from .numbering_kinds import set_paragraph_list
+
+        set_paragraph_list(self, "NUMBER", numbering, level)  # type: ignore[arg-type]
+
+    def set_bullet(self, bullet: "Bullet | int | str | None", *, level: int = 1) -> None:
+        """Give this paragraph bullet *bullet* at list *level* (1 to 10).
+
+        *bullet* is the id ``doc.styles.ensure_bullet("●")`` returns, a ``Bullet`` from
+        ``doc.styles.bullets``, or another bullet id of this document. The rest of the
+        paragraph's shape stays; the paragraph is laid out again. ``None`` takes its head
+        away, as :meth:`set_numbering` does.
+        """
+        from .numbering_kinds import set_paragraph_list
+
+        set_paragraph_list(self, "BULLET", bullet, level)  # type: ignore[arg-type]
 
     @property
     def style(self) -> "Style | None":

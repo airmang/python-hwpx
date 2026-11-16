@@ -155,8 +155,8 @@ def test_char_property_lookup_returns_style() -> None:
 
     style = document.styles.char_property("10")
     assert isinstance(style, RunStyle)
-    assert style.text_color() == "#FF0000"
-    assert style.underline_type() == "SOLID"
+    assert style.color == "#FF0000"
+    assert style.underline_type == "SOLID"
 
 
 def test_replace_text_requires_non_empty_search() -> None:

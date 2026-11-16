@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import pytest
 
-from hwpx import model
 from hwpx.document import HwpxDocument
+from hwpx.objects import Bookmark, Hyperlink
 from hwpx.errors import HwpxError
 
 
@@ -19,13 +19,13 @@ def document() -> HwpxDocument:
 
 def test_add_bookmark_lands_on_the_paragraph(document: HwpxDocument) -> None:
     created = document.refs.add_bookmark("앵커", section=0)
-    assert isinstance(created, model.InlineObject)
-    assert "앵커" in document.paragraphs[-1].bookmarks
+    assert isinstance(created, Bookmark) and created == document.refs.bookmarks[0]
+    assert "앵커" in [mark.name for mark in document.paragraphs[-1].bookmarks]
 
 
 def test_add_hyperlink_keeps_its_display_text(document: HwpxDocument) -> None:
     created = document.refs.add_hyperlink("https://example.invalid", "링크", section=0)
-    assert isinstance(created, model.InlineObject)
+    assert isinstance(created, Hyperlink) and created.text == "링크"
     assert "링크" in document.text.plain()
 
 

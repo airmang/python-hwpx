@@ -437,3 +437,127 @@ def test_save_has_the_signature_the_spec_froze() -> None:
     assert [parameters[name].default for name in ("format", "mode", "fallback", "quality")] == [
         None, "auto", "error", None]
     assert hasattr(hwpx, "MutationReport") and not hasattr(HwpxDocument, "save_to_path")
+
+
+# --------------------------------------------------------------------------
+# 문단·런·서식·개체 모델 (WP3): add_* 반환, 쓰기 속성, 선 굵기 mm, 수식 글자 크기
+
+
+_HP_NS = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+
+def test_paragraph_add_returns_the_value_its_reader_gives() -> None:
+    from hwpx.objects import Bookmark, CheckBox, FormField, Highlight, Hyperlink, NumberRestart, PageHiding
+
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("표시할 글")
+    mark = paragraph.add_bookmark("갈피")
+    assert isinstance(mark, Bookmark) and mark == document.refs.bookmarks[0]
+    assert paragraph.bookmarks == (mark,)
+    link = paragraph.add_hyperlink("https://example.com", "누리집")
+    assert isinstance(link, Hyperlink) and link == paragraph.hyperlinks[0] and link.text == "누리집"
+    field = paragraph.add_form_field("성명", prompt="이름")
+    assert isinstance(field, FormField) and field.name == "성명" and field.prompt == "이름"
+    assert (field.field_id, field.location) == (document.fields.all[0].field_id, document.fields.all[0].location)
+    box = paragraph.add_check_box("동의")
+    assert isinstance(box, CheckBox) and box.element is document.fields.check_boxes[0].element
+    assert (box.index, box.section_index) == (0, 0)
+    assert isinstance(paragraph.add_highlight(color="#FFFF00", match="표시"), Highlight)
+    restart = paragraph.add_number_restart(number=3)
+    assert restart == NumberRestart(kind="PAGE", number=3, paragraph=paragraph)
+    hiding = paragraph.add_page_hiding(header=True)
+    assert isinstance(hiding, PageHiding) and hiding.header and not hiding.footer
+    field.value = "홍길동"  # the value is the live form field's
+    assert document.fields.all[0].value == "홍길동"
+
+
+def test_a_paragraph_reads_its_many_as_tuples() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("글")
+    paragraph.add_rectangle(1000, 1000)
+    for name in ("runs", "tables", "shapes", "footnotes", "endnotes", "bookmarks"):
+        assert isinstance(getattr(paragraph, name), tuple), name
+    box = paragraph.shapes[0]
+    text = box.set_draw_text("글상자", vertical_alignment="TOP")
+    assert isinstance(text.paragraphs, tuple)
+    added = text.add_paragraph("둘째", para_pr_id_ref=0)
+    assert added.para_pr_id_ref == "0" and text.paragraphs[-1].text == "둘째"
+    caption = box.set_caption("그림 1", full_size=True)
+    assert caption.full_size is True and isinstance(caption.paragraphs, tuple)
+
+
+def test_object_values_are_written_through_their_properties() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("")
+    shape = paragraph.add_rectangle(2000, 1000, line_width_mm=0.5)
+    shape.z_order, shape.rotation, shape.description = 3, 30, "사각형"
+    assert (shape.z_order, shape.rotation, shape.description) == (3, 30, "사각형")
+    assert shape.attributes.get("zOrder") == "3"
+    for setter in ("set_z_order", "set_rotation", "set_description", "get_attribute"):
+        assert not hasattr(shape, setter)
+    equation = paragraph.add_equation("{a} over {b}", font_size=12.0, width=3000)
+    assert (equation.font_size, equation.width) == (12.0, 3000)
+    assert equation.element.get("baseUnit") == "1200"
+    equation.script = "x+y"
+    assert equation.script == "x+y" and not hasattr(equation, "set_script")
+    picture = paragraph.add_picture(document.media.add_image(PNG, "png"), width=6000, height=6000)
+    picture.crop = (1000, 0, 0, 0)
+    assert picture.crop == (1000, 0, 0, 0) and not hasattr(picture, "set_crop")
+
+
+@pytest.mark.parametrize(("millimetres", "units"), [(0.12, "33"), (0.5, "141"), (0.25, "70"), (1.0, "283"), (0, "0")])
+def test_a_line_width_in_mm_writes_and_reads_back(millimetres: float, units: str) -> None:
+    document = HwpxDocument.new()
+    shape = document.add_paragraph("").add_line(line_width_mm=millimetres)
+    assert shape.element.find(f"{_HP_NS}lineShape").get("width") == units
+    assert shape.line_width_mm == millimetres
+    shape.line_width_mm = shape.line_width_mm  # what it reads, written back, is what it was
+    assert shape.element.find(f"{_HP_NS}lineShape").get("width") == units
+
+
+def test_set_position_spells_its_frames_out() -> None:
+    document = HwpxDocument.new()
+    shape = document.add_paragraph("").add_rectangle(1000, 1000, treat_as_char=False)
+    shape.set_position(horizontal_relative_to="PAPER", vertical_relative_to="PAGE",
+                       horizontal_alignment="CENTER", vertical_alignment="TOP")
+    position = shape.element.find(f"{_HP_NS}pos")
+    assert [position.get(name) for name in ("horzRelTo", "vertRelTo", "horzAlign", "vertAlign")] == [
+        "PAPER", "PAGE", "CENTER", "TOP"]
+    with pytest.raises(HwpxValueError) as raised:
+        shape.set_position(vertical_alignment="MIDDLE")
+    assert raised.value.code == "shape-position-frame"
+    assert raised.value.context["argument"] == "vertical_alignment"
+
+
+def test_run_style_reads_are_properties() -> None:
+    document = HwpxDocument.new()
+    style = document.styles.char_property(document.styles.ensure_run(color="#FF0000", underline=True))
+    assert style is not None
+    assert style.color == "#FF0000" and style.underline_type == "BOTTOM"
+    assert (style.superscript, style.subscript, style.emboss, style.engrave) == (False, False, False, False)
+    assert style.matches(text_color="#FF0000", underline_type="BOTTOM")
+    run = document.add_paragraph("글").runs[-1]
+    assert "text" in run.content_kinds and isinstance(run.content_kinds, frozenset)
+
+
+def test_header_border_fills_read_as_values() -> None:
+    from hwpx.objects import BorderFillInfo
+
+    document = HwpxDocument.new()
+    header = document.oxml.headers[0]
+    infos = header.border_fills
+    assert infos and all(isinstance(info, BorderFillInfo) for info in infos.values())
+    first = next(iter(infos))
+    assert header.border_fill(first) == infos[first] == document.styles.border_fill_info(first)
+
+
+def test_the_equation_converters_are_not_in_hwpx_experimental() -> None:
+    import hwpx.experimental
+
+    for name in ("latex_to_eqedit", "estimate_equation_size", "UnsupportedLatexError"):
+        assert name not in hwpx.experimental.__all__
+        with pytest.raises(hwpx.MovedToSubmodule, match=f"from hwpx.equation import {name}"):
+            getattr(hwpx.experimental, name)
+    from hwpx.equation import estimate_equation_size
+
+    assert estimate_equation_size("{a} over {b}", font_size=11.0) == estimate_equation_size("{a} over {b}")

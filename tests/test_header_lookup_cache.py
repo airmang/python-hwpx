@@ -36,8 +36,9 @@ def test_repeated_lookups_parse_once(parses: list[str]) -> None:
         assert header.border_fill(1) is not None
         assert header.paragraph_properties
 
+    # border_fill reads the hh:borderFill itself as a BorderFillInfo (7.0): no parsed list behind it.
     assert sorted(parses) == sorted(
-        ["parse_paragraph_property", "parse_styles", "parse_tab_definitions", "parse_border_fills", "parse_paragraph_properties"]
+        ["parse_paragraph_property", "parse_styles", "parse_tab_definitions", "parse_paragraph_properties"]
     )
 
 

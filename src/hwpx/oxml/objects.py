@@ -25,10 +25,11 @@ from ._document_primitives import (
     _paragraph_id,
 )
 from .shape_position import (
-    DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, fill_color_of, keep_ratio, line_width_of, object_size,
+    DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, equation_font_size, fill_color_of, keep_ratio,
+    line_width_mm_of, line_width_units, object_size,
     apply_rotation, picture_crop, picture_glow, picture_image_value, picture_original_size, picture_shadow,
     resize_object, rotation_base_size,
-    set_equation_base_unit, set_equation_font, set_equation_script, set_picture_crop,
+    set_equation_font, set_equation_font_size, set_equation_script, set_picture_crop,
     PictureGlow, PictureReflection, PictureShadow, append_picture_effects, validate_picture_effects,
     _object_set_position, build_at_original_size, fit_new_floating_object, resize_group,
     validate_draw_text_vert_align, validate_picture_align,
@@ -40,6 +41,9 @@ from .shape_position import (
 if TYPE_CHECKING:
     from typing import Union
 
+    from ..objects.binary_item import BinaryItem
+    from ..objects.results import Alignment
+    from .header import Style
     from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
     from .table import HwpxOxmlTable
@@ -64,14 +68,9 @@ class HwpxOxmlInlineObject(ObjectPlacement):
 
     @property
     def attributes(self) -> dict[str, str]:
-        """Return a copy of the element attributes."""
+        """Return a copy of the element attributes (one of them: ``obj.attributes.get(name)``)."""
 
         return dict(self.element.attrib)
-
-    def get_attribute(self, name: str) -> str | None:
-        """Return the value of attribute *name* if present."""
-
-        return self.element.get(name)
 
     def set_attribute(self, name: str, value: str | int | None) -> None:
         """Update or remove attribute *name* and mark the paragraph dirty."""
@@ -108,7 +107,7 @@ class HwpxOxmlInlineObject(ObjectPlacement):
         ``hp:sz`` and ``hp:curSz`` take the new size and ``hc:scaMatrix`` scales the original size
         (``hp:orgSz``) to it, as Hancom saves a resized picture. A size that is not an int in
         ``0 <= value < 2**31`` is refused with ``shape-size-value``. The paragraph loses its line
-        layout cache. An equation's box follows its script: change that with ``set_script``.
+        layout cache. An equation's box follows its script: change that with ``equation.script = ...``.
         """
 
         resize_object(self, width, height)
@@ -126,14 +125,14 @@ class HwpxOxmlInlineObject(ObjectPlacement):
         text: str,
         *,
         side: str = "TOP",
-        full_sz: bool = False,
+        full_size: bool = False,
         width: int | None = None,
         gap: int = 850,
         char_pr_id_ref: str | int | None = None,
     ) -> "Caption":
         """Create (or replace the text of) this object's ``hp:caption``.
 
-        *side*/*full_sz*/*gap* default to the real-corpus majority
+        *side*/*full_size* (``fullSz``)/*gap* default to the real-corpus majority
         convention (15-sample: side=TOP 14/15, fullSz=false 15/15,
         gap=850 11/15) — the schema's own default (``side="LEFT"``) is
         essentially unobserved in practice.
@@ -141,7 +140,7 @@ class HwpxOxmlInlineObject(ObjectPlacement):
 
         return _write_caption(
             self.element, text, section=self.paragraph.section,
-            side=side, full_sz=full_sz, width=width, gap=gap,
+            side=side, full_sz=full_size, width=width, gap=gap,
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -170,31 +169,61 @@ class HwpxOxmlPicture(HwpxOxmlInlineObject):
     @property
     def crop(self) -> tuple[int, int, int, int]:
         """How much is cut from the image's left, top, right and bottom (``hp:imgClip``), in
-        ``original_size`` units; ``(0, 0, 0, 0)`` when nothing is."""
+        ``original_size`` units; ``(0, 0, 0, 0)`` when nothing is.
 
-        return picture_crop(self.element)
-
-    def set_crop(self, crop: tuple[int, int, int, int] | None) -> None:
-        """Cut *crop* ``(left, top, right, bottom)`` (``original_size`` units) from the image; ``None`` shows
+        Setting it cuts that ``(left, top, right, bottom)`` from the image; ``None`` (or all 0) shows
         all of it. The picture keeps the scale it is drawn at, so it grows or shrinks by what it shows
         more or less. Ints from 0 leaving some of the image, else ``shape-picture-crop-value``."""
 
+        return picture_crop(self.element)
+
+    @crop.setter
+    def crop(self, crop: tuple[int, int, int, int] | None) -> None:
         set_picture_crop(self, crop)
 
     # The reads of what ``add_picture`` writes (``hc:img``, ``hp:lineShape``, ``hp:effects``).
-    brightness = property(lambda self: picture_image_value(self.element, "bright"),
-                          doc="Brightness the image is drawn with, -100..100 (``hc:img/@bright``).")
-    contrast = property(lambda self: picture_image_value(self.element, "contrast"),
-                        doc="Contrast the image is drawn with, -100..100 (``hc:img/@contrast``).")
-    effect = property(lambda self: picture_image_value(self.element, "effect"),
-                      doc="``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE`` (``hc:img/@effect``).")
-    alpha = property(lambda self: picture_image_value(self.element, "alpha"),
-                     doc="Transparency, 0 opaque to 255 not drawn (``hc:img/@alpha``).")
-    line_width = property(lambda self: line_width_of(self.element),
-                          doc="Border width (``hp:lineShape/@width``, HWPUNIT); ``None`` without a border.")
-    shadow = property(lambda self: picture_shadow(self.element),
-                      doc="The shadow as a :class:`PictureShadow`, or ``None``.")
-    glow = property(lambda self: picture_glow(self.element), doc="The glow as a :class:`PictureGlow`, or ``None``.")
+    @property
+    def brightness(self) -> int:
+        """Brightness the image is drawn with, -100..100 (``hc:img/@bright``)."""
+
+        return int(picture_image_value(self.element, "bright"))
+
+    @property
+    def contrast(self) -> int:
+        """Contrast the image is drawn with, -100..100 (``hc:img/@contrast``)."""
+
+        return int(picture_image_value(self.element, "contrast"))
+
+    @property
+    def effect(self) -> str:
+        """``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE`` (``hc:img/@effect``)."""
+
+        return str(picture_image_value(self.element, "effect"))
+
+    @property
+    def alpha(self) -> int:
+        """Transparency, 0 opaque to 255 not drawn (``hc:img/@alpha``)."""
+
+        return int(picture_image_value(self.element, "alpha"))
+
+    @property
+    def line_width_mm(self) -> float | None:
+        """Border width in mm (``hp:lineShape/@width``, read to a hundredth: 33 HWPUNIT is 0.12);
+        ``None`` without a border."""
+
+        return line_width_mm_of(self.element)
+
+    @property
+    def shadow(self) -> PictureShadow | None:
+        """The shadow as a :class:`PictureShadow`, or ``None``."""
+
+        return picture_shadow(self.element)
+
+    @property
+    def glow(self) -> PictureGlow | None:
+        """The glow as a :class:`PictureGlow`, or ``None``."""
+
+        return picture_glow(self.element)
 
     @property
     def line_color(self) -> str | None:
@@ -209,10 +238,19 @@ class HwpxOxmlEquation(HwpxOxmlInlineObject):
 
     @property
     def script(self) -> str:
-        """The equation's script (``hp:script``), e.g. ``{a} over {b}``."""
+        """The equation's script (``hp:script``), e.g. ``{a} over {b}``.
+
+        Setting it replaces the script and measures the box again as ``add_equation`` does, at this
+        equation's ``font_size``: ``hp:sz`` and ``baseLine`` follow the new script and the paragraph (and
+        the paragraphs holding it) lose their line layout cache. An empty script, a LaTeX command or braces
+        that do not pair are refused before anything changes."""
 
         node = self.element.find(f"{_HP}script")
         return (node.text or "") if node is not None else ""
+
+    @script.setter
+    def script(self, script: str) -> None:
+        set_equation_script(self, script)
 
     @property
     def font(self) -> str | None:
@@ -226,17 +264,17 @@ class HwpxOxmlEquation(HwpxOxmlInlineObject):
         set_equation_font(self, font)
 
     @property
-    def base_unit(self) -> int:
-        """The base font size (``baseUnit``) in 1/100 pt; 1000 (the schema's) when not given. Setting it
-        (an int from 1, ``shape-equation-base-unit-value``) measures the box again as ``add_equation`` does
-        at that size; the paragraph and the paragraphs holding it lose their line layout cache."""
+    def font_size(self) -> float:
+        """The equation's font size in points (``baseUnit`` / 100); 10.0 (the schema's) when not given.
+        Setting it (a number of points from 0.01, ``shape-equation-base-unit-value``) measures the box again
+        as ``add_equation`` does at that size; the paragraph and the paragraphs holding it lose their line
+        layout cache."""
 
-        value = self.element.get("baseUnit")
-        return int(value) if value is not None and value.isdigit() else 1000
+        return equation_font_size(self.element)
 
-    @base_unit.setter
-    def base_unit(self, base_unit: int) -> None:
-        set_equation_base_unit(self, base_unit)
+    @font_size.setter
+    def font_size(self, font_size: float) -> None:
+        set_equation_font_size(self, font_size)
 
     @property
     def base_line(self) -> int | None:
@@ -244,14 +282,6 @@ class HwpxOxmlEquation(HwpxOxmlInlineObject):
 
         value = self.element.get("baseLine")
         return int(value) if value is not None and value.lstrip("-").isdigit() else None
-
-    def set_script(self, script: str) -> None:
-        """Replace the script and measure the box again as ``add_equation`` does, at this equation's
-        ``base_unit``: ``hp:sz`` and ``baseLine`` follow the new script and the paragraph (and the
-        paragraphs holding it) lose their line layout cache. An empty script, a LaTeX command or braces
-        that do not pair are refused before anything changes."""
-
-        set_equation_script(self, script)
 
 
 def wrap_object(element: ET.Element, paragraph: "HwpxOxmlParagraph") -> "ParagraphObject":
@@ -702,7 +732,7 @@ def _create_picture_element(
     width: int,
     height: int,
     *,
-    align: str | None = None,
+    alignment: str | None = None,
     treat_as_char: bool = True,
     pos_overrides: dict[str, str | int] | None = None,
     text_wrap: str | None = None,
@@ -779,10 +809,10 @@ def _create_picture_element(
     append_picture_effects(_append_child(el, f"{_HP}effects", {}), shadow, glow, soft_edge, reflection)
     _build_shape_base_children(el, width, height)
 
-    if align:
+    if alignment:
         pos = el.find(f"{_HP}pos")
         if pos is not None:
-            pos.set("horzAlign", validate_picture_align(align) or "LEFT")
+            pos.set("horzAlign", validate_picture_align(alignment) or "LEFT")
     if pos_overrides:
         pos = el.find(f"{_HP}pos")
         if pos is not None:
@@ -865,11 +895,11 @@ def _paragraph_insert_shape_element(
 
 def _paragraph_add_picture(
     self: "HwpxOxmlParagraph",
-    binary_item_id_ref: str,
+    item_id: "str | BinaryItem",
     *,
     width: int = 14400,
     height: int = 14400,
-    align: str | None = None,
+    alignment: "Alignment | str | None" = None,
     treat_as_char: bool = True,
     pos_overrides: dict[str, str | int] | None = None,
     text_wrap: str | None = None,
@@ -878,7 +908,7 @@ def _paragraph_add_picture(
     effect: str = "REAL_PIC",
     alpha: int = 0,
     line_color: str | None = None,
-    line_width: int = 33,
+    line_width_mm: float = 0.12,
     crop: tuple[int, int, int, int] | None = None,
     shadow: PictureShadow | None = None,
     glow: PictureGlow | None = None,
@@ -887,9 +917,11 @@ def _paragraph_add_picture(
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> HwpxOxmlPicture:
-    """Insert a corpus-shaped ``<hp:pic>`` referencing embedded BinData.
+    """Insert a corpus-shaped ``<hp:pic>`` showing the embedded image *item_id* (the
+    :class:`~hwpx.objects.BinaryItem` ``doc.media.add_image`` returns, or its id).
 
-    With ``treat_as_char=False`` and ``pos_overrides`` the picture is placed as a
+    *alignment* (``LEFT``, ``CENTER``, ``RIGHT``, ``INSIDE``, ``OUTSIDE``, any case) is the picture's
+    ``hp:pos/@horzAlign``. With ``treat_as_char=False`` and ``pos_overrides`` the picture is placed as a
     **floating** object: ``pos_overrides`` sets ``horz/vertRelTo`` (e.g. ``PAPER``),
     ``horz/vertAlign`` and ``horz/vertOffset`` (HWPUNIT, non-negative) on the
     ``<hp:pos>`` so the image lands at a fixed page position (used by 직인 placement).
@@ -898,7 +930,8 @@ def _paragraph_add_picture(
 
     *brightness* and *contrast* (-100 to 100), *effect* (``REAL_PIC``, ``GRAY_SCALE`` or ``BLACK_WHITE``) and
     *alpha* (transparency, 0 opaque to 255 not drawn) adjust the image as Hancom draws it; *line_color* (with
-    *line_width*, HWPUNIT) gives the picture a solid border. *crop* ``(left, top, right, bottom)`` cuts that much
+    *line_width_mm*, mm: 0.12 is the 33 HWPUNIT Hancom writes) gives the picture a solid border.
+    *crop* ``(left, top, right, bottom)`` cuts that much
     (HWPUNIT) from the sides of the *width* x *height* picture at the same scale: the picture is drawn
     ``width - left - right`` by ``height - top - bottom``. A value Hancom does not draw is refused
     *shadow* (:class:`~hwpx.oxml.PictureShadow`) and *glow*
@@ -916,10 +949,10 @@ def _paragraph_add_picture(
         )
 
     element = _create_picture_element(  # checked before its run is added
-        str(binary_item_id_ref),
+        str(item_id),
         width,
         height,
-        align=align,
+        alignment=alignment,
         treat_as_char=treat_as_char,
         pos_overrides=pos_overrides,
         text_wrap=text_wrap,
@@ -928,7 +961,7 @@ def _paragraph_add_picture(
         effect=effect,
         alpha=alpha,
         line_color=line_color,
-        line_width=line_width,
+        line_width=line_width_units(line_width_mm),
         crop=crop,
         shadow=shadow,
         glow=glow,
@@ -956,19 +989,20 @@ def _paragraph_add_line(
     end_y: int = 0,
     *,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:line>`` drawing shape.
 
-    Coordinates are in HWPUNIT (7200 per inch).
+    Coordinates are in HWPUNIT (7200 per inch); *line_width_mm* is the line's width in mm (0.12 is the
+    33 HWPUNIT Hancom writes, 0 draws none; ``shape-picture-border-value`` for a negative one).
     """
     el = _create_line_element(
         start_x, start_y, end_x, end_y,
         line_color=line_color,
-        line_width=line_width,
+        line_width=str(line_width_units(line_width_mm)),
         treat_as_char=treat_as_char,
     )
     return self._insert_shape_element(
@@ -983,7 +1017,7 @@ def _paragraph_add_rectangle(
     *,
     ratio: int = 0,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
@@ -992,15 +1026,15 @@ def _paragraph_add_rectangle(
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:rect>`` drawing shape.
 
-    Dimensions are in HWPUNIT.  *ratio* controls corner roundness
-    (0 = sharp, 50 = semicircle).  *original_size* ``(w, h)`` sets ``orgSz``
+    Dimensions are in HWPUNIT, *line_width_mm* in mm (as for ``add_line``).  *ratio* controls corner
+    roundness (0 = sharp, 50 = semicircle).  *original_size* ``(w, h)`` sets ``orgSz``
     apart from the drawn size (see ``shape_position.build_at_original_size``).
     """
     el = build_at_original_size(
         _create_rectangle_element, width, height, original_size,
         ratio=ratio,
         line_color=line_color,
-        line_width=line_width,
+        line_width=str(line_width_units(line_width_mm)),
         fill_color=fill_color,
         treat_as_char=treat_as_char,
     )
@@ -1015,7 +1049,7 @@ def _paragraph_add_ellipse(
     height: int = 7200,
     *,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
@@ -1024,12 +1058,12 @@ def _paragraph_add_ellipse(
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:ellipse>`` drawing shape.
 
-    Dimensions are in HWPUNIT.  *original_size* is as for ``add_rectangle``.
+    Dimensions are in HWPUNIT, *line_width_mm* in mm.  *original_size* is as for ``add_rectangle``.
     """
     el = build_at_original_size(
         _create_ellipse_element, width, height, original_size,
         line_color=line_color,
-        line_width=line_width,
+        line_width=str(line_width_units(line_width_mm)),
         fill_color=fill_color,
         treat_as_char=treat_as_char,
     )
@@ -1043,7 +1077,7 @@ def _paragraph_add_polygon(
     points: Sequence[tuple[int, int]],
     *,
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
@@ -1051,14 +1085,14 @@ def _paragraph_add_polygon(
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:polygon>`` drawing shape.
 
-    *points* are HWPUNIT vertex coordinates (3 or more) — see
+    *points* are HWPUNIT vertex coordinates (3 or more), *line_width_mm* the line's width in mm — see
     :func:`_create_polygon_element` for the local-coordinate-space
     convention Hancom's own output uses.
     """
     el = _create_polygon_element(
         points,
         line_color=line_color,
-        line_width=line_width,
+        line_width=str(line_width_units(line_width_mm)),
         fill_color=fill_color,
         treat_as_char=treat_as_char,
     )
@@ -1075,7 +1109,7 @@ def _paragraph_add_arc(
     corner: str = "TOP_LEFT",
     arc_type: str = "NORMAL",
     line_color: str = "#000000",
-    line_width: str = "33",
+    line_width_mm: float = 0.12,
     fill_color: str | None = None,
     treat_as_char: bool = True,
     run_attributes: dict[str, str] | None = None,
@@ -1083,7 +1117,7 @@ def _paragraph_add_arc(
 ) -> "HwpxOxmlShape":
     """Insert a spec-compliant ``<hp:arc>`` drawing shape (quarter-ellipse).
 
-    Dimensions are in HWPUNIT. See :func:`_create_arc_element` for the
+    Dimensions are in HWPUNIT, *line_width_mm* in mm. See :func:`_create_arc_element` for the
     *corner*/*arc_type* contract.
     """
     el = _create_arc_element(
@@ -1091,7 +1125,7 @@ def _paragraph_add_arc(
         corner=corner,
         arc_type=arc_type,
         line_color=line_color,
-        line_width=line_width,
+        line_width=str(line_width_units(line_width_mm)),
         fill_color=fill_color,
         treat_as_char=treat_as_char,
     )
@@ -1123,17 +1157,14 @@ def _paragraph_add_container(
     return shape
 
 
-def _paragraph_shapes(self: "HwpxOxmlParagraph") -> list["HwpxOxmlShape"]:
-    """Return all drawing shapes embedded in this paragraph."""
+def _paragraph_shapes(self: "HwpxOxmlParagraph") -> tuple["HwpxOxmlShape", ...]:
+    """The drawing shapes embedded in this paragraph, in order."""
     shape_tags = {f"{_HP}line", f"{_HP}rect", f"{_HP}ellipse",
                   f"{_HP}arc", f"{_HP}polygon", f"{_HP}curve",
                   f"{_HP}connectLine", f"{_HP}container"}
-    result: list[HwpxOxmlShape] = []
-    for run in self._run_elements():
-        for child in run:
-            if child.tag in shape_tags:
-                result.append(HwpxOxmlShape(child, self))
-    return result
+    return tuple(
+        HwpxOxmlShape(child, self) for run in self._run_elements() for child in run if child.tag in shape_tags
+    )
 
 
 # ------------------------------------------------------------------
@@ -1178,11 +1209,11 @@ def _wrap_paragraph(element: ET.Element, section: "HwpxOxmlSection") -> "HwpxOxm
 
 def _sublist_paragraphs(
     container: ET.Element, section: "HwpxOxmlSection"
-) -> list["HwpxOxmlParagraph"]:
+) -> tuple["HwpxOxmlParagraph", ...]:
     sublist = container.find(f"{_HP}subList")
     if sublist is None:
-        return []
-    return [_wrap_paragraph(p, section) for p in sublist.findall(f"{_HP}p")]
+        return ()
+    return tuple(_wrap_paragraph(p, section) for p in sublist.findall(f"{_HP}p"))
 
 
 def _ensure_sublist(
@@ -1204,11 +1235,21 @@ def _add_sublist_paragraph(
     vert_align: str,
     char_pr_id_ref: str | int | None,
     para_pr_id_ref: str | int | None = None,
+    style: "int | str | Style | None" = None,
 ) -> "HwpxOxmlParagraph":
+    style_id_ref: str | int | None = None
+    if style is not None:  # the style's paragraph and character shapes, unless given
+        from .section import style_shape_refs
+
+        style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
+            section.document, style, para_pr_id_ref, char_pr_id_ref
+        )
     sublist = _ensure_sublist(container, vert_align=vert_align)
     attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
     if para_pr_id_ref is not None:
         attrs["paraPrIDRef"] = str(para_pr_id_ref)
+    if style_id_ref is not None:
+        attrs["styleIDRef"] = str(style_id_ref)
     paragraph = _append_child(sublist, f"{_HP}p", attrs)
     run_attrs = {"charPrIDRef": str(char_pr_id_ref) if char_pr_id_ref is not None else "0"}
     run = _append_child(paragraph, f"{_HP}run", run_attrs)
@@ -1249,7 +1290,9 @@ class Caption:
         return self.element.get("side", "LEFT")
 
     @property
-    def full_sz(self) -> bool:
+    def full_size(self) -> bool:
+        """Whether the caption spans the object and its margins (``fullSz``)."""
+
         return self.element.get("fullSz", "0") not in ("0", "false", "False")
 
     @property
@@ -1262,7 +1305,7 @@ class Caption:
         return int(self.element.get("gap", _CAPTION_DEFAULT_GAP))
 
     @property
-    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+    def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
         return _sublist_paragraphs(self.element, self.section)
 
     @property
@@ -1270,11 +1313,19 @@ class Caption:
         return "\n".join(paragraph.text or "" for paragraph in self.paragraphs)
 
     def add_paragraph(
-        self, text: str = "", *, char_pr_id_ref: str | int | None = None
+        self,
+        text: str = "",
+        *,
+        style: "int | str | Style | None" = None,
+        para_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
     ) -> "HwpxOxmlParagraph":
+        """Append a paragraph holding *text* to the caption and return it. *style* (a name, an id or a
+        ``Style``) also gives it that style's paragraph and character shapes unless they are passed."""
+
         paragraph = _add_sublist_paragraph(
             self.element, text, section=self.section, vert_align="TOP",
-            char_pr_id_ref=char_pr_id_ref,
+            char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref, style=style,
         )
         self.section.mark_dirty()
         return paragraph
@@ -1308,7 +1359,7 @@ class DrawText:
         return {side: int(margin.get(side, "0")) for side in ("left", "right", "top", "bottom")}
 
     @property
-    def paragraphs(self) -> list["HwpxOxmlParagraph"]:
+    def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
         return _sublist_paragraphs(self.element, self.section)
 
     @property
@@ -1316,11 +1367,19 @@ class DrawText:
         return "\n".join(paragraph.text or "" for paragraph in self.paragraphs)
 
     def add_paragraph(
-        self, text: str = "", *, char_pr_id_ref: str | int | None = None
+        self,
+        text: str = "",
+        *,
+        style: "int | str | Style | None" = None,
+        para_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
     ) -> "HwpxOxmlParagraph":
+        """Append a paragraph holding *text* to the text box and return it. *style* (a name, an id or a
+        ``Style``) also gives it that style's paragraph and character shapes unless they are passed."""
+
         paragraph = _add_sublist_paragraph(
             self.element, text, section=self.section, vert_align="CENTER",
-            char_pr_id_ref=char_pr_id_ref,
+            char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref, style=style,
         )
         self.section.mark_dirty()
         return paragraph
@@ -1606,6 +1665,9 @@ class HwpxOxmlShape(ObjectPlacement):
 
     @property
     def line_color(self) -> str | None:
+        """The line colour (``hp:lineShape/@color``); ``None`` without one. Setting it changes a line the
+        shape has."""
+
         ls = self.element.find(f"{_HP}lineShape")
         return ls.get("color") if ls is not None else None
 
@@ -1629,10 +1691,20 @@ class HwpxOxmlShape(ObjectPlacement):
             self.paragraph.section.mark_dirty()
 
     @property
-    def line_width(self) -> int | None:
-        """Line width (``hp:lineShape/@width``, HWPUNIT) the shape was drawn with; ``None`` without one."""
+    def line_width_mm(self) -> float | None:
+        """The width the shape's line is drawn with, in mm (``hp:lineShape/@width``, read to a hundredth: 33
+        HWPUNIT is 0.12); ``None`` without a line. Setting it takes mm as ``add_line(line_width_mm=)`` does
+        (0 draws none, ``shape-picture-border-value`` for a negative one) and changes a line the shape has."""
 
-        return line_width_of(self.element)
+        return line_width_mm_of(self.element)
+
+    @line_width_mm.setter
+    def line_width_mm(self, value: float) -> None:
+        units = str(line_width_units(value))
+        ls = self.element.find(f"{_HP}lineShape")
+        if ls is not None and ls.get("width") != units:
+            ls.set("width", units)
+            self.paragraph.section.mark_dirty()
 
     @property
     def fill_color(self) -> str | None:
@@ -1642,10 +1714,9 @@ class HwpxOxmlShape(ObjectPlacement):
 
     # --- generic attribute access ------------------------------------------
 
-    def get_attribute(self, name: str) -> str | None:
-        return self.element.get(name)
-
     def set_attribute(self, name: str, value: str | int | None) -> None:
+        """Update or remove attribute *name* (read one: ``shape.attributes.get(name)``)."""
+
         if value is None:
             if name in self.element.attrib:
                 del self.element.attrib[name]
@@ -1669,7 +1740,7 @@ class HwpxOxmlShape(ObjectPlacement):
         text: str,
         *,
         side: str = "TOP",
-        full_sz: bool = False,
+        full_size: bool = False,
         width: int | None = None,
         gap: int = 850,
         char_pr_id_ref: str | int | None = None,
@@ -1677,12 +1748,12 @@ class HwpxOxmlShape(ObjectPlacement):
         """Create (or replace the text of) this shape's ``hp:caption``.
 
         See :meth:`HwpxOxmlInlineObject.set_caption` for the real-corpus
-        default rationale (*side*/*full_sz*/*gap*).
+        default rationale (*side*/*full_size*/*gap*).
         """
 
         return _write_caption(
             self.element, text, section=self.paragraph.section,
-            side=side, full_sz=full_sz, width=width, gap=gap,
+            side=side, full_sz=full_size, width=width, gap=gap,
             char_pr_id_ref=char_pr_id_ref,
         )
 
@@ -1708,7 +1779,7 @@ class HwpxOxmlShape(ObjectPlacement):
         margin: dict[str, int] | None = None,
         char_pr_id_ref: str | int | None = None,
         para_pr_id_ref: str | int | None = None,
-        vert_align: str | None = None,
+        vertical_alignment: str | None = None,
     ) -> "DrawText":
         """Create (or replace the text of) this shape's ``hp:drawText``.
 
@@ -1719,9 +1790,9 @@ class HwpxOxmlShape(ObjectPlacement):
         by name (``doc.fields.text_boxes``, ``doc.fields.fill_text_box()``);
         leave it empty for a plain text box. *para_pr_id_ref* sets
         the text paragraph's ``paraPrIDRef`` (e.g. a centred paraPr), default
-        ``0``. *vert_align* sets ``hp:subList/@vertAlign`` (``TOP``/``CENTER``/
-        ``BOTTOM``); ``None`` gives a new text ``CENTER`` and leaves existing
-        text's alignment alone. A bad value refuses before any change with
+        ``0``. *vertical_alignment* sets ``hp:subList/@vertAlign`` (``TOP``/``CENTER``/
+        ``BOTTOM``, as a table cell's ``vertical_alignment``); ``None`` gives a new text ``CENTER`` and
+        leaves existing text's alignment alone. A bad value refuses before any change with
         ``shape-draw-text-vert-align``.
         """
 
@@ -1729,7 +1800,7 @@ class HwpxOxmlShape(ObjectPlacement):
             self.element, text, section=self.paragraph.section,
             name=name, editable=editable, margin=margin,
             char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
-            vert_align=vert_align,
+            vert_align=vertical_alignment,
         )
 
     def remove_draw_text(self) -> bool:

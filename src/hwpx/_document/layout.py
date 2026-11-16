@@ -27,6 +27,8 @@ from ._units import _mm_to_hwp_units, _pt_to_hwp_units
 
 if TYPE_CHECKING:
     from hwpx.document import HwpxDocument
+    from ..objects.form_field import Bookmark, Hyperlink
+    from ..objects.results import NumberRestart, PageHiding
     from ..oxml import (
         HwpxOxmlParagraph,
         HwpxOxmlSection,
@@ -842,10 +844,10 @@ def add_bookmark(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
-) -> HwpxOxmlInlineObject:
+) -> "Bookmark":
     """Insert a bookmark marker in the document.
 
-    Returns the ``<hp:ctrl>`` wrapper element.
+    Returns it as :class:`~hwpx.objects.Bookmark` (``paragraph.add_bookmark``'s, 7.0).
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
@@ -863,7 +865,7 @@ def add_hyperlink(
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
-) -> HwpxOxmlInlineObject:
+) -> "Hyperlink":
     """Insert a hyperlink (fieldBegin + text + fieldEnd).
 
     The display text follows the Hancom convention (blue ``#0000FF`` text
@@ -872,7 +874,7 @@ def add_hyperlink(
     ``char_pr_id_ref`` overrides it. ``paragraph.add_hyperlink`` picks that
     style, so a link looks the same whichever way it was added.
 
-    Returns the ``<hp:ctrl>`` wrapper containing the ``<hp:fieldBegin>``.
+    Returns it as :class:`~hwpx.objects.Hyperlink` (``paragraph.add_hyperlink``'s, 7.0).
     """
     if paragraph is None:
         paragraph = doc.add_paragraph(
@@ -1168,7 +1170,7 @@ def restart_page_number(
     *,
     number: int = 1,
     kind: str = "PAGE",
-) -> "HwpxOxmlInlineObject":
+) -> "NumberRestart":
     """Restart *kind*'s running count at *number* from *paragraph* onward.
 
     Inserts ``<hp:ctrl><hp:newNum num="{number}" numType="{kind}"/></hp:ctrl>``
@@ -1187,7 +1189,7 @@ def restart_page_number(
             context={"kind": normalized_kind, "allowed": sorted(NEW_NUM_KINDS)},
             suggestion="Use one of: " + ", ".join(sorted(NEW_NUM_KINDS)),
         )
-    return paragraph.add_new_num(number=number, kind=normalized_kind)
+    return paragraph.add_number_restart(number=number, kind=normalized_kind)
 
 
 def hide_page_elements(
@@ -1200,7 +1202,7 @@ def hide_page_elements(
     border: bool = False,
     fill: bool = False,
     page_num: bool = False,
-) -> "HwpxOxmlInlineObject":
+) -> "PageHiding":
     """Hide the named page elements on *paragraph*'s page only.
 
     Inserts ``<hp:ctrl><hp:pageHiding .../></hp:ctrl>`` (``ParaList XML

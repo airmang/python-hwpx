@@ -23,7 +23,8 @@ from ..oxml.objects import HwpxOxmlPicture
 from ..oxml.color import normalize_color
 from ..oxml.shape_position import PictureGlow, PictureReflection, PictureShadow, validate_picture_effects
 from ..oxml.shape_position import (
-    validate_picture_align, validate_picture_border, validate_picture_crop, validate_picture_image, validate_shape_size,
+    line_width_mm_for_units, validate_picture_align, validate_picture_border, validate_picture_crop,
+    validate_picture_image, validate_shape_size,
 )
 from ._units import _mm_to_hwp_units
 
@@ -255,13 +256,13 @@ def add_picture(
         binary_item_id_ref,
         width=resolved_width,
         height=resolved_height,
-        align=align,
+        alignment=align,
         brightness=brightness,
         contrast=contrast,
         effect=effect,
         alpha=alpha,
         line_color=line_color,
-        line_width=line_width,
+        line_width_mm=line_width_mm_for_units(line_width),
         crop=crop,
         shadow=shadow,
         glow=glow,

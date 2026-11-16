@@ -115,9 +115,12 @@ def test_formulas_and_bookmark_fields_are_not_form_fields(document: HwpxDocument
 
 
 def test_paragraph_bookmarks_include_the_field_form(document: HwpxDocument) -> None:
-    names = [name for paragraph in document.paragraphs for name in paragraph.bookmarks]
-    assert names == ["saved-by-hancom", "point-mark"]
-    assert document.tables[0].cell(0, 0).paragraphs[0].bookmarks == ["in-a-cell"]
+    marks = [mark for paragraph in document.paragraphs for mark in paragraph.bookmarks]
+    assert [mark.name for mark in marks] == ["saved-by-hancom", "point-mark"]
+    assert [mark.kind for mark in marks] == ["field", "point"]
+    assert marks == [mark for mark in document.refs.bookmarks if mark.name != "in-a-cell"]
+    cell_marks = document.tables[0].cell(0, 0).paragraphs[0].bookmarks
+    assert isinstance(cell_marks, tuple) and [mark.name for mark in cell_marks] == ["in-a-cell"]
 
 
 def test_refs_bookmarks_lists_both_forms_in_document_order(document: HwpxDocument) -> None:

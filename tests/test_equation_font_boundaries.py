@@ -29,7 +29,7 @@ def test_attached_commands_match_hancoms_spaced_reference(base: int, offset: int
     (attached, actual), (spaced, reference) = rows[offset + 2 * pair:offset + 2 * pair + 2]
     assert actual == reference  # independent saved geometry, not our estimator
     assert eqedit_to_latex(attached) == eqedit_to_latex(spaced)
-    assert estimate_equation_size(attached, base_unit=base) == estimate_equation_size(spaced, base_unit=base)
+    assert estimate_equation_size(attached, font_size=base / 100) == estimate_equation_size(spaced, font_size=base / 100)
 
 
 def test_command_case_is_bounded_by_the_saved_hancom_matrix() -> None:
@@ -90,4 +90,5 @@ def test_a_switch_in_an_operand_measures_the_letter_it_switches(attached: str, b
     # The switch is not the operand: measuring it alone left the letter on the outer
     # row and the script, radicand or denominator too short (issue #591 review).
     for base in (1000, 1100):
-        assert estimate_equation_size(attached, base_unit=base) == estimate_equation_size(braced, base_unit=base)
+        assert estimate_equation_size(attached, font_size=base / 100) == estimate_equation_size(
+            braced, font_size=base / 100)

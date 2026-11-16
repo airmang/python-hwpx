@@ -256,7 +256,7 @@ def test_remove_image_and_id_integrity_agree_on_an_unused_image() -> None:
 def _picture_paragraph_alignment(document: HwpxDocument) -> str | None:
     paragraph = next(p for p in document.paragraphs if p.element.find(f".//{HP}pic") is not None)
     shape = document._root.paragraph_property(paragraph.para_pr_id_ref)
-    return shape.align.horizontal if shape is not None and shape.align is not None else None
+    return shape.alignment.horizontal if shape is not None and shape.alignment is not None else None
 
 
 def test_an_aligned_inline_picture_takes_the_paragraph_alignment() -> None:

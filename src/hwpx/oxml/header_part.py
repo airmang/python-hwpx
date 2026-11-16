@@ -75,6 +75,7 @@ from .numbering import DocumentNumbering
 from .utils import normalize_line_width, parse_int
 
 if TYPE_CHECKING:
+    from ..objects.results import BorderFillInfo
     from .document_parts import HwpxOxmlDocument
 
 
@@ -1242,7 +1243,28 @@ class HwpxOxmlHeader:
         return derive_definition(self, "borderFill", base, modify)
 
     @property
-    def border_fills(self) -> dict[str, GenericElement]:
+    def border_fills(self) -> "dict[str, BorderFillInfo]":
+        """Every ``hh:borderFill``, by id (as written and as a plain number), as the
+        :class:`~hwpx.objects.BorderFillInfo` :meth:`border_fill` reads."""
+
+        from .header_fonts import border_fill_info
+
+        return {key: info for key in self._border_fill_elements()
+                if (info := border_fill_info(self, key)) is not None}
+
+    def border_fill(self, border_fill_id_ref: int | str | None) -> "BorderFillInfo | None":
+        """One ``hh:borderFill`` read as a value (:class:`~hwpx.objects.BorderFillInfo`: its four sides,
+        diagonal and solid fill), ``doc.styles.border_fill``'s; ``None`` for an unknown id. The XML itself:
+        ``header.element``."""
+
+        from .header_fonts import border_fill_info
+
+        return border_fill_info(self, border_fill_id_ref)
+
+    def _border_fill_elements(self) -> dict[str, GenericElement]:
+        """Every ``hh:borderFill`` parsed as a :class:`GenericElement`, by id (as written and as a plain
+        number)."""
+
         element = self._border_fills_element()
         if element is None:
             return {}
@@ -1264,9 +1286,6 @@ class HwpxOxmlHeader:
                 if key not in mapping:
                     mapping[key] = border_fill
         return mapping
-
-    def border_fill(self, border_fill_id_ref: int | str | None) -> GenericElement | None:
-        return self._lookup_by_id(self.border_fills, border_fill_id_ref)
 
     @staticmethod
     def _convert_to_lxml(element: ET.Element) -> LET._Element:

@@ -42,7 +42,7 @@ PYTHON_FENCE = re.compile(
 )
 EXPECTED_FENCE_COUNT = 122
 EXPECTED_FENCE_SHA256 = (
-    "aa98c1a0240180308df304d1e8427cfef7fc99096e03b01ee5d3daab52ef9f3e"
+    "8b2ef06ea5b23f200c550a7c70ab19213bc74a6e5e2b58c50c5672c2f4746cab"
 )
 ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {"hwpx"}
 LEDGER = Path("docs/python-example-ledger.json")
@@ -360,7 +360,7 @@ README_REWRITE_PENDING = {"README.md", "README_EN.md"}
 
 
 def test_recommended_manuals_do_not_teach_legacy_document_paths() -> None:
-    from hwpx._document._legacy import _LegacyFacade
+    from hwpx._document._legacy import REMOVED_NAMES
 
     offenders = []
     for document, ordinal, tree in _parsed_fences():
@@ -370,7 +370,7 @@ def test_recommended_manuals_do_not_teach_legacy_document_paths() -> None:
             if (isinstance(node, ast.Attribute)
                     and isinstance(node.value, ast.Name)
                     and node.value.id in {"doc", "document"}
-                    and node.attr in vars(_LegacyFacade)):
+                    and node.attr in REMOVED_NAMES):
                 offenders.append(f"{document}#{ordinal}: {node.attr}")
     assert not offenders, "deprecated recommendations: " + ", ".join(offenders)
 

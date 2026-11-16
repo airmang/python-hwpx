@@ -110,7 +110,8 @@ class FontSubstitution:
     face: str
     type: str
     is_embedded: bool
-    binary_item_id_ref: Optional[str]
+    #: The embedded font file's binary item (``binaryItemIDRef``), as ``doc.media.images`` names items.
+    item_id: Optional[str]
 
 
 @dataclass(slots=True)
@@ -124,7 +125,8 @@ class Font:
     face: str
     type: Optional[str]
     is_embedded: bool
-    binary_item_id_ref: Optional[str]
+    #: The embedded font file's binary item (``binaryItemIDRef``), as ``doc.media.images`` names items.
+    item_id: Optional[str]
     substitution: Optional[FontSubstitution] = None
     type_info: Optional[FontTypeInfo] = None
     other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
@@ -546,7 +548,8 @@ class ParagraphProperty:
     snap_to_grid: Optional[bool]
     suppress_line_numbers: Optional[bool]
     checked: Optional[bool]
-    align: Optional[ParagraphAlignment] = None
+    #: The paragraph shape's alignment (``hh:align``: ``.horizontal``, ``.vertical``).
+    alignment: Optional[ParagraphAlignment] = None
     heading: Optional[ParagraphHeading] = None
     break_setting: Optional[ParagraphBreakSetting] = None
     margin: Optional[ParagraphMargin] = None
@@ -1132,7 +1135,7 @@ def parse_font_substitution(node: etree._Element) -> FontSubstitution:
         face=node.get("face", ""),
         type=node.get("type", ""),
         is_embedded=_embed_flag(node),
-        binary_item_id_ref=node.get("binaryItemIDRef"),
+        item_id=node.get("binaryItemIDRef"),
     )
 
 
@@ -1159,7 +1162,7 @@ def parse_font(node: etree._Element) -> Font:
         face=node.get("face", ""),
         type=node.get("type"),
         is_embedded=_embed_flag(node),
-        binary_item_id_ref=node.get("binaryItemIDRef"),
+        item_id=node.get("binaryItemIDRef"),
         substitution=substitution,
         type_info=type_info,
         other_children=other_children,
@@ -1617,7 +1620,7 @@ def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
         snap_to_grid=parse_bool(node.get("snapToGrid")),
         suppress_line_numbers=parse_bool(node.get("suppressLineNumbers")),
         checked=parse_bool(node.get("checked")),
-        align=align,
+        alignment=align,
         heading=heading,
         break_setting=break_setting,
         margin=margin,

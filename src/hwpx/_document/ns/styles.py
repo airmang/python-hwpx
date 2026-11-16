@@ -528,6 +528,82 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         return numbering_info(self._primary_header(), numbering_id_ref)
 
+    def add_numbering(self, levels: "Sequence[Mapping[str, object]] | None" = None) -> "NumberingInfo":
+        """새 번호 정의(``hh:numbering``)를 만들고 그것을 읽은 값으로 돌려준다.
+
+        한/글은 번호를 정의마다 센다. 같은 정의를 쓰는 문단은 사이에 다른 문단이 있어도 번호가
+        이어지고, 정의가 다르면 따로 1부터 센다. 그래서 이것은 같은 모양의 정의가 있어도 늘 새로
+        만든다(새 목록). 이어 갈 문단에는 돌려받은 정의를 다시 준다:
+        ``p.set_numbering(numbering, level=1)``.
+
+        정의는 열 수준이고 기본은 한/글 자신의 번호 모양이다(새 문서가 id 1로 갖고 새 번호 목록에
+        쓰는 것: ``1.``·``가.``·``1)``·``가)``·``(1)``·``(가)``·``①``·``㉮``, 9·10수준은 번호를
+        그리지 않는다). *levels* 의 i번째 매핑이 i+1수준을 바꾼다: ``text``(번호 틀, ``^n`` 이
+        n수준의 번호, ``""`` 는 번호 없음), ``number_format``(DIGIT·HANGUL_SYLLABLE·
+        CIRCLED_DIGIT·LATIN_SMALL·ROMAN_CAPITAL …), ``start``(그 수준의 시작 번호, 0~65535).
+        예: ``doc.styles.add_numbering([{"text": "^1)"}, {"text": "(^2)", "number_format":
+        "LATIN_SMALL"}])``. 고칠 것은 바꾸기 전에 모두 검사한다(모르는 키·틀 아닌 글은
+        ``style-numbering-level-invalid``, 열 수준 넘음은 ``style-list-level-invalid``, 번호 형식은
+        ``style-number-format-invalid``, 시작 번호는 ``style-list-start-value``).
+        """
+
+        from ...oxml.formatting import numbering_info
+        from ...oxml.numbering_kinds import add_numbering_definition
+
+        header = self._require_header()
+        numbering_id = add_numbering_definition(header, levels)
+        info = numbering_info(header, numbering_id)
+        if info is None:  # pragma: no cover - the definition was just added to this header
+            from ...errors import HwpxStateError
+
+            raise HwpxStateError("failed to read back the new numbering", code="style-list-property-failed")
+        return info
+
+    def ensure_bullet(self, char: str = "●", *, char_pr_id_ref: "str | int | None" = None) -> str:
+        """글머리표 *char* 의 정의(``hh:bullet``) id 를 보장하고 돌려준다(같은 정의가 있으면 그 id).
+
+        글머리표는 번호를 세지 않으므로 같은 정의를 여러 목록이 함께 써도 된다. 새 정의는
+        한/글이 저장하는 글머리표 모양 그대로다(문단 글의 글자 모양, 글머리표와 글 사이 50%).
+        *char_pr_id_ref* 는 글머리표만의 글자 모양(``doc.styles.ensure_run(...)`` 의 id, 기호 글꼴
+        같은 것)이고, 주지 않으면 문단 글의 모양을 따른다. 문단에 거는 것은
+        ``p.set_bullet(bullet_id, level=1)``. 글자 하나가 아니면 ``style-bullet-char-invalid``,
+        없는 글자 모양이면 ``style-definition-not-found``.
+        """
+
+        from ...oxml.numbering_kinds import ensure_bullet_definition
+
+        return ensure_bullet_definition(self._require_header(), char, char_pr_id_ref)
+
+    def set_numbering_level(
+        self,
+        numbering: "NumberingInfo | int | str",
+        level: int,
+        *,
+        text: str | None = None,
+        number_format: str | None = None,
+        start: int | None = None,
+    ) -> None:
+        """번호 정의 *numbering* (``NumberingInfo`` 나 id)의 *level* 수준(1~10)을 고친다.
+
+        ``text`` 는 번호 틀(``"^1."``, ``""`` 는 번호를 그리지 않는다), ``number_format`` 은 번호
+        형식, ``start`` 는 시작 번호(0~65535; 1수준이면 정의의 시작 번호도)다. 준 것만 바뀐다. 그
+        정의로 번호를 그리는 문단 — 그 정의의 번호 문단과, 구역이 그것으로 개요 번호를 그리면
+        (``section.properties.outline_shape_id_ref``) 개요 문단 — 의 줄 배치 캐시를 지운다. 예:
+        개요 번호를 그리지 않게 하려면 그 구역의 개요 번호 정의의 열 수준에 ``text=""`` 를 준다.
+        한 정의를 여러 곳이 쓰면(한/글 새 문서는 개요와 새 번호 목록이 id 1을 함께 쓴다) 모두
+        바뀐다. 없는 정의는 ``style-definition-not-found``, 그 수준이 없는 정의는
+        ``style-numbering-level-missing``, 바꿀 것이 없으면 ``style-numbering-level-invalid``.
+        """
+
+        from ...oxml.numbering_kinds import set_numbering_level
+
+        changes = {
+            name: value
+            for name, value in (("text", text), ("number_format", number_format), ("start", start))
+            if value is not None
+        }
+        set_numbering_level(self._doc.oxml, numbering, level, changes)
+
     def ensure_tab_definition(
         self,
         *,

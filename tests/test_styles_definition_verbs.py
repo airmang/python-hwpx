@@ -52,7 +52,7 @@ def test_ensure_style_creates_counts_and_survives_reopen() -> None:
     assert style.id == int(style_id)
     paragraph_property = reopened.styles.paragraph_property(para_pr)
     assert paragraph_property is not None
-    assert paragraph_property.align.horizontal == "CENTER"
+    assert paragraph_property.alignment.horizontal == "CENTER"
 
 
 def test_ensure_style_reuses_an_existing_name_without_duplicating() -> None:

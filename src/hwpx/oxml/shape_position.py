@@ -80,14 +80,15 @@ def _require_member(
     )
 
 
-def validate_picture_align(align: object) -> str | None:
-    """A new picture's *align* as its ``hp:pos@horzAlign``, any case (``"left"`` is ``LEFT``); ``None`` when it is
-    not given. Hancom reads a value outside :data:`POS_HORZ_ALIGN` as ``LEFT``, so one is refused."""
+def validate_picture_align(alignment: object) -> str | None:
+    """A new picture's *alignment* (a str or an :class:`~hwpx.objects.Alignment`) as its ``hp:pos@horzAlign``, any
+    case (``"left"`` is ``LEFT``); ``None`` when it is not given. Hancom reads a value outside
+    :data:`POS_HORZ_ALIGN` as ``LEFT``, so one is refused."""
 
-    if align is None or align == "":
+    if alignment is None or alignment == "":
         return None
-    return _require_member(align.upper() if isinstance(align, str) else align, POS_HORZ_ALIGN, argument="align",
-                           code="shape-position-frame")
+    return _require_member(str(alignment).upper() if isinstance(alignment, str) else alignment, POS_HORZ_ALIGN,
+                           argument="alignment", code="shape-position-frame")
 
 
 def validate_picture_image(brightness: object, contrast: object, effect: object,
@@ -147,13 +148,13 @@ def validate_picture_crop(crop: object, width: int, height: int) -> tuple[int, i
     return sides  # type: ignore[return-value]
 
 
-def validate_draw_text_vert_align(vert_align: str | None) -> str | None:
-    """Check ``set_draw_text``'s *vert_align* (``hp:subList/@vertAlign``)."""
+def validate_draw_text_vert_align(vertical_alignment: str | None, *, argument: str = "vertical_alignment") -> str | None:
+    """Check ``set_draw_text``'s *vertical_alignment* (``hp:subList/@vertAlign``)."""
 
-    if vert_align is None:
+    if vertical_alignment is None:
         return None
     return _require_member(
-        vert_align, SUBLIST_VERT_ALIGN, argument="vert_align", code="shape-draw-text-vert-align"
+        vertical_alignment, SUBLIST_VERT_ALIGN, argument=argument, code="shape-draw-text-vert-align"
     )
 
 
@@ -196,10 +197,10 @@ def _object_set_position(
     text_wrap: str | None = None,
     horizontal_offset: int | None = None,
     vertical_offset: int | None = None,
-    horz_rel_to: str | None = None,
-    vert_rel_to: str | None = None,
-    horz_align: str | None = None,
-    vert_align: str | None = None,
+    horizontal_relative_to: str | None = None,
+    vertical_relative_to: str | None = None,
+    horizontal_alignment: str | None = None,
+    vertical_alignment: str | None = None,
 ) -> None:
     """Place an object (equation, picture, OLE, text art...): as a character in the line or
     floating, how the text goes around it, and where it floats.
@@ -208,11 +209,14 @@ def _object_set_position(
     ``False``: floating). *text_wrap* writes the object's ``textWrap``, one of
     :data:`TEXT_WRAPS` (``TOP_AND_BOTTOM``: text above and below only; ``SQUARE``: around its
     box; ``BEHIND_TEXT``/``IN_FRONT_OF_TEXT``: under or over the text). The offsets (HWP units,
-    signed 32-bit) and the reference frames and alignment take the values
-    :meth:`HwpxOxmlShape.set_position` takes. ``None`` leaves a setting as it is. Offsets are
-    only for a floating object: given while it stays a character they are refused
-    (``shape-position-unsupported``). Everything is checked before anything changes; the
-    paragraph loses its line layout cache.
+    signed 32-bit) count from the frames: *horizontal_relative_to* (``hp:pos/@horzRelTo``) is one
+    of :data:`POS_HORZ_REL_TO` and *vertical_relative_to* (``vertRelTo``) one of
+    :data:`POS_VERT_REL_TO`; *horizontal_alignment* (``horzAlign``) is one of
+    :data:`POS_HORZ_ALIGN` and *vertical_alignment* (``vertAlign``) one of :data:`POS_VERT_ALIGN`,
+    the alignment in the frame. ``None`` leaves a setting as it is. Offsets are only for a floating
+    object: given while it stays a character they are refused (``shape-position-unsupported``); a
+    value outside its vocabulary is ``shape-position-frame``. Everything is checked before anything
+    changes; the paragraph loses its line layout cache.
     """
 
     position = self.element.find(f"{_HP}pos")
@@ -243,10 +247,10 @@ def _object_set_position(
                                                  code="shape-position-frame")
     frames: dict[str, str] = {}
     for argument, attribute, requested, allowed in (
-        ("vert_rel_to", "vertRelTo", vert_rel_to, POS_VERT_REL_TO),
-        ("horz_rel_to", "horzRelTo", horz_rel_to, POS_HORZ_REL_TO),
-        ("vert_align", "vertAlign", vert_align, POS_VERT_ALIGN),
-        ("horz_align", "horzAlign", horz_align, POS_HORZ_ALIGN),
+        ("vertical_relative_to", "vertRelTo", vertical_relative_to, POS_VERT_REL_TO),
+        ("horizontal_relative_to", "horzRelTo", horizontal_relative_to, POS_HORZ_REL_TO),
+        ("vertical_alignment", "vertAlign", vertical_alignment, POS_VERT_ALIGN),
+        ("horizontal_alignment", "horzAlign", horizontal_alignment, POS_HORZ_ALIGN),
     ):
         if requested is not None:
             frames[attribute] = _require_member(requested, allowed, argument=argument, code="shape-position-frame")
@@ -382,9 +386,10 @@ _Placed = TypeVar("_Placed", bound="ObjectPlacement")
 class ObjectPlacement:
     """Reads and edits every placed object shares: pictures, equations, charts, OLE and drawing shapes.
 
-    Mixed into ``model.InlineObject`` and ``model.Shape``. The reads take the names the writes take:
-    ``position`` answers ``set_position``, ``z_order`` ``set_z_order``, ``rotation`` ``set_rotation``
-    and ``description`` ``set_description``.
+    Mixed into ``model.InlineObject`` and ``model.Shape``. One value is a property that reads and
+    writes (``z_order``, ``rotation``, ``description``); several at once take a ``set_`` method, and
+    the read takes the names the method takes (``position`` answers ``set_position``,
+    ``out_margins`` ``set_out_margins``).
     """
 
     element: Any
@@ -416,9 +421,24 @@ class ObjectPlacement:
 
     @property
     def z_order(self) -> int:
-        """The object's ``zOrder``: objects with a higher one are drawn over those with a lower one."""
+        """The object's ``zOrder``: objects with a higher one are drawn over those with a lower one.
+
+        Setting it takes a signed 32-bit int (``shape-z-order-value``)."""
 
         return _number(self.element.get("zOrder")) or 0
+
+    @z_order.setter
+    def z_order(self, z_order: int) -> None:
+        if isinstance(z_order, bool) or not isinstance(z_order, int) or not -(2**31) <= z_order < 2**31:
+            raise HwpxValueError(
+                f"z_order must be a signed 32-bit int; got {z_order!r}",
+                code="shape-z-order-value",
+                context={"value": repr(z_order)},
+                suggestion="Pass an int: a higher z_order is drawn over a lower one.",
+            )
+        if self.element.get("zOrder") != str(z_order):
+            self.element.set("zOrder", str(z_order))
+            self.paragraph.section.mark_dirty()
 
     @property
     def locked(self) -> bool:
@@ -433,20 +453,6 @@ class ObjectPlacement:
         ``"TABLE"``, ``"EQUATION"`` or ``"NONE"`` (the schema default, also when not given). Read only."""
 
         return self.element.get("numberingType") or "NONE"
-
-    def set_z_order(self, z_order: int) -> None:
-        """Set ``zOrder`` (a signed 32-bit int; a higher one is drawn over a lower one)."""
-
-        if isinstance(z_order, bool) or not isinstance(z_order, int) or not -(2**31) <= z_order < 2**31:
-            raise HwpxValueError(
-                f"z_order must be a signed 32-bit int; got {z_order!r}",
-                code="shape-z-order-value",
-                context={"value": repr(z_order)},
-                suggestion="Pass an int: a higher z_order is drawn over a lower one.",
-            )
-        if self.element.get("zOrder") != str(z_order):
-            self.element.set("zOrder", str(z_order))
-            self.paragraph.section.mark_dirty()
 
     @property
     def out_margins(self) -> "CellMargins":
@@ -507,15 +513,10 @@ class ObjectPlacement:
 
     @property
     def rotation(self) -> int:
-        """The angle the object is turned by, in degrees clockwise (``hp:rotationInfo/@angle``); 0 when it has none."""
+        """The angle the object is turned by, in degrees clockwise (``hp:rotationInfo/@angle``); 0 when it has none.
 
-        info = self.element.find(f"{_HP}rotationInfo")
-        return (_number(info.get("angle")) or 0) if info is not None else 0
-
-    def set_rotation(self, angle: int) -> None:
-        """Turn the object *angle* degrees clockwise (0..359) about its middle, as Hancom saves a turned object.
-
-        The object keeps its own size (``hp:orgSz``) and the size it is drawn at (``hc:scaMatrix``,
+        Setting it turns the object that many degrees clockwise (0..359) about its middle, as Hancom
+        saves a turned object. The object keeps its own size (``hp:orgSz``) and the size it is drawn at (``hc:scaMatrix``,
         ``hp:curSz``: a picture after ``resize`` is drawn smaller or larger); its box (``hp:sz``) becomes the
         box around the turned object, the object as drawn is turned about its own middle (``hc:rotMatrix``)
         and moved into that box (``hp:offset``, ``hc:transMatrix``), and ``hp:rotationInfo`` holds the angle
@@ -532,6 +533,11 @@ class ObjectPlacement:
         layout cache.
         """
 
+        info = self.element.find(f"{_HP}rotationInfo")
+        return (_number(info.get("angle")) or 0) if info is not None else 0
+
+    @rotation.setter
+    def rotation(self, angle: int) -> None:
         if isinstance(angle, bool) or not isinstance(angle, int) or not 0 <= angle <= 359:
             raise HwpxValueError(
                 f"angle must be an int from 0 to 359 (degrees); got {angle!r}",
@@ -558,15 +564,16 @@ class ObjectPlacement:
     @property
     def description(self) -> str:
         """The object's description (``hp:shapeComment``), the text Hancom gives as its alternative text;
-        ``""`` when it has none."""
+        ``""`` when it has none.
+
+        Setting it takes a str (``shape-description-value``); ``""`` empties it. A member of a group
+        carries none and is refused (``shape-group-member-unsupported``)."""
 
         comment = self.element.find(f"{_HP}shapeComment")
         return (comment.text or "") if comment is not None else ""
 
-    def set_description(self, text: str) -> None:
-        """Set the object's description (``hp:shapeComment``), its alternative text. ``""`` empties it.
-        A member of a group carries none and is refused (``shape-group-member-unsupported``)."""
-
+    @description.setter
+    def description(self, text: str) -> None:
         if not isinstance(text, str):
             raise HwpxValueError(
                 f"description must be a str; got {type(text).__name__}",
@@ -656,8 +663,8 @@ class ObjectPlacement:
         or ``horzRelTo="PARA"``; Hancom draws another one over the cells above it), so a page-
         or paper-measured one never; a page-measured object into a section whose paper or margins
         differ; any floating object into a caption, and any object into a memo or a master page.
-        Change the placement first with ``set_position(vert_rel_to="PARA", horz_rel_to="PARA")``
-        or ``treat_as_char=True``. Moving an object into itself (a paragraph of its own text box
+        Change the placement first with ``set_position(vertical_relative_to="PARA",
+        horizontal_relative_to="PARA")`` or ``treat_as_char=True``. Moving an object into itself (a paragraph of its own text box
         or caption) is ``shape-move-into-itself``, a member of a group alone
         ``shape-group-member-unsupported``, a removed object ``shape-not-in-document``. Everything
         is checked before anything changes.
@@ -955,6 +962,54 @@ def line_width_of(element: Any) -> int | None:
     return _number(line.get("width")) if line is not None else None
 
 
+#: HWPUNIT a millimetre of line width counts as: Hancom writes the widths it offers so (0.12 mm 33, 0.5 mm 141).
+LINE_WIDTH_UNITS_PER_MM = 283
+
+
+def line_width_units(line_width_mm: object) -> int:
+    """A picture's or drawing shape's line width in mm (``line_width_mm``) as the HWPUNIT ``hp:lineShape/@width``
+    holds: counted at :data:`LINE_WIDTH_UNITS_PER_MM` per mm and cut to a whole unit, as Hancom writes the widths
+    it offers, so the default 0.12 mm is the 33 6.x wrote and a Hancom-saved picture's 0.5 mm border is 141.
+    0 draws no line. A width that is not a finite number of mm from 0 is refused (``shape-picture-border-value``)."""
+
+    if (isinstance(line_width_mm, bool) or not isinstance(line_width_mm, (int, float))
+            or not math.isfinite(line_width_mm) or not 0 <= line_width_mm * LINE_WIDTH_UNITS_PER_MM < 2**31):
+        raise HwpxValueError(
+            f"line_width_mm must be a width in mm of 0 or more, got {line_width_mm!r}",
+            code="shape-picture-border-value",
+            context={"argument": "line_width_mm", "value": repr(line_width_mm)},
+            suggestion="Pass the line width in mm, e.g. line_width_mm=0.12 (0 draws no line).",
+        )
+    return int(line_width_mm * LINE_WIDTH_UNITS_PER_MM)
+
+
+def line_width_mm_of(element: Any) -> float | None:
+    """The border or line width (``hp:lineShape/@width``) in mm, to a hundredth -- the widths Hancom offers read
+    as offered (33 is 0.12, 141 is 0.5) and give the same HWPUNIT back through :func:`line_width_units`;
+    ``None`` when the object has no line."""
+
+    units = line_width_of(element)
+    return None if units is None else round(units / LINE_WIDTH_UNITS_PER_MM, 2)
+
+
+def line_width_mm_for_units(units: object) -> float:
+    """The mm that :func:`line_width_units` turns back into exactly *units* (HWPUNIT, an int or a string of
+    one), for a caller that still holds a 6.x HWPUNIT width; ``shape-picture-border-value`` when it is not one."""
+
+    try:
+        whole = int(str(units).strip()) if not isinstance(units, bool) else -1
+    except ValueError:
+        whole = -1
+    if not 0 <= whole < 2**31:
+        raise HwpxValueError(
+            f"a line width in HWPUNIT must be an int from 0, got {units!r}",
+            code="shape-picture-border-value",
+            context={"argument": "line_width", "value": repr(units)},
+            suggestion="Pass the line width in mm as line_width_mm=0.12 (0 draws no line).",
+        )
+    return (whole + 0.5) / LINE_WIDTH_UNITS_PER_MM
+
+
 def fill_color_of(element: Any) -> str | None:
     """The solid fill colour (``hc:fillBrush/hc:winBrush/@faceColor``), ``None`` when not filled."""
 
@@ -1026,11 +1081,34 @@ def set_equation_script(obj: Any, script: str) -> None:
     _measure_equation_again(obj, text)
 
 
-def set_equation_base_unit(obj: Any, base_unit: int) -> None:
-    """Give an equation the base font size *base_unit* (1/100 pt) and the box ``add_equation`` measures for its
-    script at that size: ``hp:sz`` and ``baseLine`` follow, and the line it sits on is laid out again."""
+def equation_font_size(element: Any) -> float:
+    """An equation's font size in points: its ``baseUnit`` (1/100 pt) / 100; 10.0 (the schema's 1000) when not
+    given."""
 
-    validate_equation_base_unit(base_unit)
+    value = element.get("baseUnit")
+    return (int(value) if value is not None and value.isdigit() else 1000) / 100
+
+
+def equation_base_unit(font_size: object) -> int:
+    """An equation's *font_size* (pt) as the ``baseUnit`` Hancom keeps (1/100 pt, a whole number): a finite
+    number of points that comes to at least 0.01 pt, else ``shape-equation-base-unit-value``."""
+
+    if (isinstance(font_size, bool) or not isinstance(font_size, (int, float)) or not math.isfinite(font_size)
+            or not 0 < round(font_size * 100) < 2**31):
+        raise HwpxValueError(
+            f"font_size must be a positive number of points; got {font_size!r}",
+            code="shape-equation-base-unit-value",
+            context={"argument": "font_size", "value": repr(font_size)},
+            suggestion="Pass the equation's font size in points, e.g. font_size=10.0.",
+        )
+    return round(font_size * 100)
+
+
+def set_equation_font_size(obj: Any, font_size: float) -> None:
+    """Give an equation the font size *font_size* (pt) and the box ``add_equation`` measures for its script at
+    that size: ``hp:sz`` and ``baseLine`` follow, and the line it sits on is laid out again."""
+
+    base_unit = equation_base_unit(font_size)
     if obj.element.get("baseUnit") == str(base_unit):
         return
     obj.element.set("baseUnit", str(base_unit))
@@ -1145,7 +1223,8 @@ def validate_rect_ratio(ratio: object) -> int:
 
 
 def validate_equation_base_unit(base_unit: object) -> int:
-    """An equation's *base_unit* (1/100 pt), checked to be an int in ``1 <= base_unit < 2**31``."""
+    """An equation's *base_unit* (1/100 pt), checked to be an int in ``1 <= base_unit < 2**31`` (the 6.x
+    ``doc.shapes.add_equation(base_unit=)``; the model takes ``font_size`` in pt, :func:`equation_base_unit`)."""
 
     if isinstance(base_unit, bool) or not isinstance(base_unit, int) or not 0 < base_unit < 2**31:
         raise HwpxValueError(
