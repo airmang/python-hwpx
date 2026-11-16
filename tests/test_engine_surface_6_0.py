@@ -78,11 +78,8 @@ def test_root_surface_is_within_budget() -> None:
     )
 
 
-def test_root_lock_matches_the_live_class() -> None:
-    """락은 코드에서 유도된다 — 문서 둘이 서로 맞는 것으로는 부족하다."""
-
-    locked = json.loads((DATA / "document_facade_surface.json").read_text(encoding="utf-8"))
-    assert set(locked) == set(_root_members())
+# 루트 멤버의 이름·서명은 공개 표면 잠금(tests/data/public_surface.json 의 root 층,
+# tests/test_public_surface.py)이 잠근다. 여기서는 예산만 본다.
 
 
 def test_every_namespace_is_exposed_on_the_root() -> None:
@@ -363,30 +360,8 @@ def test_model_aliases_are_the_same_objects_as_oxml() -> None:
     assert model.Section is oxml.HwpxOxmlSection
 
 
-def test_model_surface_lock_matches_the_live_classes() -> None:
-    import hwpx.model as model
-
-    locked = json.loads((DATA / "model_surface.json").read_text(encoding="utf-8"))
-    assert set(locked["classes"]) == set(model.__all__)
-    for name, entry in locked["classes"].items():
-        cls = getattr(model, name)
-        live = {member for member in dir(cls) if not member.startswith("_")}
-        missing = sorted(set(entry["stable"]) - live)
-        assert not missing, f"{name} 의 stable 멤버가 사라졌습니다: {missing}"
-        internal = len(live - set(entry["stable"]))
-        assert entry["internalCount"] == internal, (
-            f"{name} 의 목록 밖 공개 멤버는 {internal}개인데 락은 {entry['internalCount']}개입니다"
-        )
-
-
-def test_stable_api_doc_counts_match_the_model_surface_lock() -> None:
-    locked = json.loads((DATA / "model_surface.json").read_text(encoding="utf-8"))["classes"]
-    doc = (Path(__file__).parents[1] / "docs" / "stable-api.md").read_text(encoding="utf-8")
-    stable = sum(len(entry["stable"]) for entry in locked.values())
-    internal = sum(entry["internalCount"] for entry in locked.values())
-
-    assert f"**{len(locked)}개 클래스 / {stable}개\n멤버**" in doc
-    assert f"목록 **밖**의 멤버({internal}개" in doc
+# hwpx.model 의 계약 멤버 목록과 docs/stable-api.md 의 수는 공개 표면 잠금
+# (tests/data/public_surface.json 의 model 층, tests/test_public_surface.py)이 잠근다.
 
 
 # --------------------------------------------------------------------------
