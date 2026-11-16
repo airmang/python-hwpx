@@ -417,6 +417,17 @@ NAMES: dict[str, dict[str, Removed]] = {
             "Paragraph.add_number_restart(...)",
             "paragraph.add_new_num(...)은 7.0에서 add_number_restart(...)이고 NumberRestart를 돌려준다",
         ),
+        # spec 은 지움(N10, 안내 문구 없음): 변경 추적은 doc.tracking 한 곳에서.
+        "add_tracked_insert": _gone(
+            "doc.tracking.insert(paragraph, text)",
+            "paragraph.add_tracked_insert(...)는 7.0에서 없어졌다: doc.tracking.insert(paragraph, text)"
+            "(변경 기록을 만들고 TrackedChange를 돌려준다)",
+        ),
+        "add_tracked_delete": _gone(
+            "doc.tracking.delete(paragraph, match=...)",
+            "paragraph.add_tracked_delete(...)는 7.0에서 없어졌다: doc.tracking.delete(paragraph, match=...)"
+            "(변경 기록을 만들고 TrackedChange를 돌려준다)",
+        ),
     },
     "InlineObject": {
         "get_attribute": _gone(
@@ -445,6 +456,13 @@ NAMES: dict[str, dict[str, Removed]] = {
     },
     "Font": {
         "binary_item_id_ref": _gone("Font.item_id", "Font.binary_item_id_ref는 7.0에서 item_id이다", kind="property"),
+    },
+    # spec 밖(WP3): Font.substitution 의 형식도 같은 이름으로(N7).
+    "FontSubstitution": {
+        "binary_item_id_ref": _gone(
+            "FontSubstitution.item_id", "FontSubstitution.binary_item_id_ref는 7.0에서 item_id이다(Font.item_id와 같게)",
+            kind="property",
+        ),
     },
     "ParagraphProperty": {
         "align": _gone("ParagraphProperty.alignment", "ParagraphProperty.align은 7.0에서 alignment이다", kind="property"),
@@ -647,6 +665,29 @@ ARGUMENTS: dict[str, Arguments] = {
     "Paragraph.add_rectangle": _args(
         "paragraph.add_rectangle(line_width='33')는 7.0에서 line_width_mm=0.12 이다", line_width="line_width_mm"
     ),
+    # spec 밖(WP3): 같은 선 굵기를 받는 나머지 문단 메서드(D2 — 한 이름·한 단위).
+    "Paragraph.add_arc": _args(
+        "paragraph.add_arc(line_width='33')는 7.0에서 line_width_mm=0.12 이다", line_width="line_width_mm"
+    ),
+    "Paragraph.add_polygon": _args(
+        "paragraph.add_polygon(line_width='33')는 7.0에서 line_width_mm=0.12 이다", line_width="line_width_mm"
+    ),
+    "Paragraph.add_curve": _args(
+        "paragraph.add_curve(line_width='33')는 7.0에서 line_width_mm=0.12 이다", line_width="line_width_mm"
+    ),
+    "Paragraph.add_connector": _args(
+        "paragraph.add_connector(line_width='33')는 7.0에서 line_width_mm=0.12 이다", line_width="line_width_mm"
+    ),
+    # spec 밖(WP3): Caption.full_size 와 같은 이름(N3).
+    "InlineObject.set_caption": _args(
+        "obj.set_caption(full_sz=)는 7.0에서 full_size= 이다(caption.full_size와 같은 이름)", full_sz="full_size"
+    ),
+    "Shape.set_caption": _args(
+        "shape.set_caption(full_sz=)는 7.0에서 full_size= 이다(caption.full_size와 같은 이름)", full_sz="full_size"
+    ),
+    "Table.set_caption": _args(
+        "table.set_caption(full_sz=)는 7.0에서 full_size= 이다(caption.full_size와 같은 이름)", full_sz="full_size"
+    ),
     "Shape.set_draw_text": _args(
         "Shape.set_draw_text(vert_align=)는 7.0에서 vertical_alignment= 이다(표 칸과 같은 이름)",
         vert_align="vertical_alignment",
@@ -756,6 +797,7 @@ _PUBLIC_NAMES: dict[str, str] = {
 _OWNER_PATHS: dict[str, str] = {
     "RunStyle": "hwpx.oxml.run:RunStyle",
     "Font": "hwpx.oxml.header:Font",
+    "FontSubstitution": "hwpx.oxml.header:FontSubstitution",
     "ParagraphProperty": "hwpx.oxml.header:ParagraphProperty",
     "Caption": "hwpx.oxml.objects:Caption",
 }

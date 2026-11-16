@@ -139,8 +139,9 @@ def test_equation_size_must_be_two_positive_ints(size: object) -> None:
         document.shapes.add_equation("a over b", size=size)  # type: ignore[arg-type]
     assert caught.value.code == "shape-size-value"
     assert len(document.paragraphs) == count  # refused before a paragraph is added
-    with pytest.raises(HwpxValueError):
-        document.paragraphs[0].add_equation("a over b", size=size)  # type: ignore[arg-type]
+    if isinstance(size, tuple) and len(size) == 2:
+        with pytest.raises(HwpxValueError):
+            document.paragraphs[0].add_equation("a over b", width=size[0], height=size[1])  # type: ignore[arg-type]
 
 
 def test_explicit_equation_size_is_still_written() -> None:

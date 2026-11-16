@@ -38,9 +38,9 @@ def test_glued_keywords_are_measured_as_symbols() -> None:
     assert measure_equation("tantheta").width == measure_equation("tan theta").width
 
 
-@pytest.mark.parametrize("base_unit", [0, -100, True, 1.5])
-def test_a_base_size_that_is_not_a_positive_int_is_refused(base_unit: object) -> None:
+@pytest.mark.parametrize("font_size", [0, -1.0, True, 0.001, "11", float("nan")])
+def test_a_font_size_that_is_not_a_positive_number_of_points_is_refused(font_size: object) -> None:
     with pytest.raises(HwpxValueError) as caught:
-        estimate_equation_size("x", base_unit=base_unit)  # type: ignore[arg-type]
+        estimate_equation_size("x", font_size=font_size)  # type: ignore[arg-type]
     assert caught.value.code == "shape-equation-base-unit-value"
     assert isinstance(caught.value, ValueError)

@@ -404,7 +404,7 @@ def test_a_floating_object_not_kept_in_the_page_area_does_not_go_into_a_box(box:
         assert "set_position" in excinfo.value.suggestion
     assert doc.to_bytes() == before  # nothing changed, the placement included
 
-    picture.set_position(horz_rel_to="PARA")  # measured across from its paragraph: it may go in
+    picture.set_position(horizontal_relative_to="PARA")  # measured across from its paragraph: it may go in
     picture.move_to(target)
     assert picture.paragraph.element is target.element
     _reopen(doc)

@@ -199,14 +199,14 @@ def _direct_notes(paragraph: ET.Element, tag: str) -> list[ET.Element]:
     return found
 
 
-def _paragraph_footnotes(self: "HwpxOxmlParagraph") -> list[HwpxOxmlNote]:
-    """Return the footnotes this paragraph holds (not those in its tables or boxes)."""
-    return [HwpxOxmlNote(el, self) for el in _direct_notes(self.element, "footNote")]
+def _paragraph_footnotes(self: "HwpxOxmlParagraph") -> tuple[HwpxOxmlNote, ...]:
+    """The footnotes this paragraph holds (not those in its tables or boxes), in order."""
+    return tuple(HwpxOxmlNote(el, self) for el in _direct_notes(self.element, "footNote"))
 
 
-def _paragraph_endnotes(self: "HwpxOxmlParagraph") -> list[HwpxOxmlNote]:
-    """Return the endnotes this paragraph holds (not those in its tables or boxes)."""
-    return [HwpxOxmlNote(el, self) for el in _direct_notes(self.element, "endNote")]
+def _paragraph_endnotes(self: "HwpxOxmlParagraph") -> tuple[HwpxOxmlNote, ...]:
+    """The endnotes this paragraph holds (not those in its tables or boxes), in order."""
+    return tuple(HwpxOxmlNote(el, self) for el in _direct_notes(self.element, "endNote"))
 
 
 _NOTE_NUM_TYPES = {"footNote": "FOOTNOTE", "endNote": "ENDNOTE"}

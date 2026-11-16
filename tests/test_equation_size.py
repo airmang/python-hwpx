@@ -17,7 +17,7 @@ BASE = 1000
 
 
 def _em(script: str, base: int = BASE) -> tuple[float, float]:
-    width, height = estimate_equation_size(script, base_unit=base)
+    width, height = estimate_equation_size(script, font_size=base / 100)
     return width / base, height / base
 
 
@@ -104,7 +104,7 @@ def test_a_script_that_does_not_parse_still_gets_a_box(script: str) -> None:
 @pytest.mark.parametrize("script", ["{{{a", "matrix{", "}}}"])
 def test_a_script_with_unpaired_braces_still_measures(script: str) -> None:
     # add_equation refuses these since 7.0 (shape-equation-script-unbalanced); the estimate still answers.
-    width, height = estimate_equation_size(script, base_unit=BASE)
+    width, height = estimate_equation_size(script, font_size=BASE / 100)
     assert width > 0 and height > 0
 
 
@@ -113,4 +113,4 @@ def test_an_explicit_size_is_kept_and_the_baseline_still_follows_the_script() ->
     width, height, base_line = _written("{a} over {b}", base=1200, size=(18100, 3010))
     assert (width, height) == (18100, 3010)
     assert base_line == measured[2]
-    assert estimate_equation_size("{a} over {b}", base_unit=1200) == measured[:2]
+    assert estimate_equation_size("{a} over {b}", font_size=12.0) == measured[:2]

@@ -191,8 +191,8 @@ def test_the_paragraph_writers_check_before_adding_a_run() -> None:
         (lambda: paragraph.add_rectangle(width=-1, height=7200, original_size=(100, 100)), "shape-size-value"),
         (lambda: paragraph.add_rectangle(width=14400, height=7200, ratio=-1), "shape-rect-ratio-value"),
         (lambda: paragraph.add_picture("image1", width=-1, height=7200), "shape-size-value"),
-        (lambda: paragraph.add_equation("x", size=(-1, 7200)), "shape-size-value"),
-        (lambda: paragraph.add_equation("x", base_unit=0), "shape-equation-base-unit-value"),
+        (lambda: paragraph.add_equation("x", width=-1, height=7200), "shape-size-value"),
+        (lambda: paragraph.add_equation("x", font_size=0.0), "shape-equation-base-unit-value"),
     ):
         with pytest.raises(HwpxValueError) as caught:
             add()

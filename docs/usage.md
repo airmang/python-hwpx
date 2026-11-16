@@ -714,7 +714,7 @@ document = HwpxDocument.new()
 style_id = document.styles.ensure_run(bold=True)
 style = document.styles.char_property(style_id)
 if style:
-    print(style.text_color(), style.underline_type())
+    print(style.color, style.underline_type)
 ```
 
 ### 예제 50: TODO 문단 찾아 출력
@@ -815,7 +815,7 @@ document = HwpxDocument.new()
 para_pr = document.styles.paragraph_property("1")
 style = document.styles.get("0")
 if para_pr and style:
-    print(para_pr.align.horizontal, para_pr.tab_pr_id_ref, style.name)
+    print(para_pr.alignment.horizontal, para_pr.tab_pr_id_ref, style.name)
 ```
 
 ### 예제 58: 변경 추적과 작성자 정보 확인

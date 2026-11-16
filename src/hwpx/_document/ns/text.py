@@ -153,9 +153,9 @@ def _run_matches(
     if style is None:
         return False
     return (
-        (text_color is None or style.text_color() == text_color)
-        and (underline_type is None or style.underline_type() == underline_type)
-        and (underline_color is None or style.underline_color() == underline_color)
+        (text_color is None or style.color == text_color)
+        and (underline_type is None or style.underline_type == underline_type)
+        and (underline_color is None or style.underline_color == underline_color)
     )
 
 
