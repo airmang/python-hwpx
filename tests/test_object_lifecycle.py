@@ -386,7 +386,7 @@ def test_z_order_and_rotation_read_and_write() -> None:
     assert polygon.rotation == 40
     polygon.z_order = 7
     assert polygon.z_order == 7
-    for call, code in ((lambda: setattr(polygon, "rotation", 360), "shape-rotation-value"),
+    for call, code in ((lambda: setattr(polygon, "rotation", 36.5), "shape-rotation-value"),
                        (lambda: setattr(polygon, "z_order", True), "shape-z-order-value")):
         with pytest.raises(HwpxValueError) as caught:
             call()
