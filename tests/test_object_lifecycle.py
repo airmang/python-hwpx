@@ -87,11 +87,11 @@ def test_remove_drops_an_empty_run_but_not_the_last_one() -> None:
     assert len(lone.element.findall(f"{HP}run")) == 1
 
 
-def test_remove_leaves_the_image_until_unused_images_are_removed() -> None:
+def test_remove_keeps_the_image_when_asked_until_unused_images_are_removed() -> None:
     doc = HwpxDocument.new()
     picture = doc.add_picture(PNG, "png")
     item = picture.item_id
-    picture.remove()
+    picture.remove(remove_orphaned=False)
     assert [str(i) for i in doc.media.images] == [item]
     assert [str(i) for i in doc.media.remove_unused_images()] == [item]
     _reopen(doc)

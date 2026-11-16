@@ -48,7 +48,7 @@ from .color import normalize_color
 if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
 
-    from ..objects.results import ObjectPosition
+    from ..objects.results import CellMargins, ObjectPosition
     from .objects import HwpxOxmlShape
 
 POS_VERT_REL_TO = ("PAPER", "PAGE", "PARA")
@@ -367,6 +367,25 @@ def _in_group(element: Any, scope: Any) -> bool:
     return parent is not None and str(parent.tag).rsplit("}", 1)[-1] == "container"
 
 
+def binary_references(element: Any) -> set[str]:
+    """Every binary item reference (``binaryItemIDRef`` and the like) in *element* and below."""
+
+    from ..opc.relationships import BINARY_ITEM_REF_ATTRS
+
+    return {value for node in element.iter() for attribute in BINARY_ITEM_REF_ATTRS
+            if (value := node.get(attribute))}
+
+
+def remove_orphaned_images(section: Any, references: set[str]) -> None:
+    """Remove from the package the binary items *references* name that nothing in *section*'s document points
+    at any more (see ``hwpx._document.media.remove_orphaned_items``)."""
+
+    if references and section.document is not None:
+        from .._document.media import remove_orphaned_items
+
+        remove_orphaned_items(section.document, references)
+
+
 class ObjectPlacement:
     """Reads and edits every placed object shares: pictures, equations, charts, OLE and drawing shapes.
 
@@ -435,6 +454,63 @@ class ObjectPlacement:
         if self.element.get("zOrder") != str(z_order):
             self.element.set("zOrder", str(z_order))
             self.paragraph.section.mark_dirty()
+
+    @property
+    def out_margins(self) -> "CellMargins":
+        """The room kept between the object and the text around it (``hp:outMargin``), in HWPUNIT, as
+        :class:`~hwpx.objects.CellMargins` (``table.out_margins``'s type); zeros when it has none."""
+
+        from ..objects.results import CellMargins
+
+        own = self.element.find(f"{_HP}outMargin")
+        return CellMargins(*((_number(own.get(side)) or 0) if own is not None else 0
+                             for side in ("left", "right", "top", "bottom")))
+
+    def set_out_margins(self, *, left: int | None = None, right: int | None = None, top: int | None = None,
+                        bottom: int | None = None) -> "CellMargins":
+        """Set the object's outer margins (``hp:outMargin``) and return them, as ``table.set_out_margins``
+        sets a table's.
+
+        Sides left as ``None`` keep their value. Values are ints in ``0 <= value < 2**31`` (HWPUNIT),
+        checked before anything changes (``shape-out-margin-value``). An object set as a character takes
+        that much more room in its line, a floating one keeps the text that much further away, so the
+        paragraph (and the paragraphs holding it) lose their line layout cache when they change. A member
+        of a group has none (``shape-group-member-unsupported``). With no arguments nothing changes.
+        """
+
+        from dataclasses import replace
+
+        given = {side: value for side, value in (("left", left), ("right", right), ("top", top),
+                                                 ("bottom", bottom)) if value is not None}
+        for side, value in given.items():
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**31:
+                raise HwpxValueError(
+                    f"outer margin {side} must be an int in 0 <= value < 2**31 (HWPUNIT); got {value!r}",
+                    code="shape-out-margin-value",
+                    context={"side": side, "value": repr(value)},
+                    suggestion="Pass a non-negative int in HWPUNIT (1 mm = 283.465 HWPUNIT).",
+                )
+        before = self.out_margins
+        if not given:
+            return before
+        if self.element.find(f"{_HP}pos") is None:
+            raise _group_member_refused("given outer margins")
+        margins = replace(before, **given)
+        own = self.element.find(f"{_HP}outMargin")
+        if own is None:
+            from ._document_primitives import _append_child, _reposition_child_after_any
+
+            own = _append_child(self.element, f"{_HP}outMargin", {})
+            _reposition_child_after_any(self.element, own, ("pos",))
+        elif margins == before:
+            return before
+        for side in ("left", "right", "top", "bottom"):
+            own.set(side, str(getattr(margins, side)))
+        from ._document_primitives import _clear_paragraph_layout_cache
+
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
+        return margins
 
     @property
     def rotation(self) -> int:
@@ -510,16 +586,19 @@ class ObjectPlacement:
             comment.text = text
             self.paragraph.section.mark_dirty()
 
-    def remove(self) -> None:
+    def remove(self, *, remove_orphaned: bool = True) -> None:
         """Take this object out of its paragraph, as Hancom deletes it, the way ``table.remove()`` does.
 
         Its caption and anything inside it go with it. The paragraph stays (an empty line when it held
         nothing else) and loses its line layout cache, as do the paragraphs holding it when it sits in a
         table cell or a text box; a run left empty goes. A connector attached to it (or to a member of it)
-        keeps its drawn ends and lets go of it (``subjectIDRef="0"``). The image a picture shows stays in
-        the package: ``doc.media.remove_unused_images()`` removes the ones nothing points at any more.
-        A member of a group cannot leave it on its own (``shape-group-member-unsupported``). A second
-        call does nothing; the object should not be used after it.
+        keeps its drawn ends and lets go of it (``subjectIDRef="0"``). The images it showed (a picture's,
+        a picture's in a group, an image fill) leave the package with it when nothing else in the document
+        points at them, as Hancom drops unused images when it saves (*remove_orphaned*, as
+        ``doc.media.replace_picture`` takes it); ``remove_orphaned=False`` keeps them, and
+        ``doc.media.remove_unused_images()`` removes every such image later. A member of a group cannot
+        leave it on its own (``shape-group-member-unsupported``). A second call does nothing; the object
+        should not be used after it.
         """
 
         from ._document_primitives import _clear_paragraph_layout_cache
@@ -532,6 +611,7 @@ class ObjectPlacement:
         if str(parent.tag).rsplit("}", 1)[-1] == "container":
             raise _group_member_refused("removed")
         ids = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
+        images = binary_references(element) if remove_orphaned else set()
         parent.remove(element)
         if (str(parent.tag).rsplit("}", 1)[-1] == "run" and len(parent) == 0
                 and len(paragraph.findall(f"{_HP}run")) > 1 and any(c is parent for c in paragraph)):
@@ -544,6 +624,7 @@ class ObjectPlacement:
                         end.set("subjectIDRef", "0")
         _clear_paragraph_layout_cache(paragraph)
         section.mark_dirty()
+        remove_orphaned_images(section, images)
 
 
 _IDENTITY = ("1", "0", "0", "0", "1", "0")
@@ -845,7 +926,6 @@ def set_equation_script(obj: Any, script: str) -> None:
     ``baseUnit``: ``hp:sz`` and ``baseLine`` follow the script, so the line it sits on is laid out again."""
 
     from ..equation.eqedit import MAX_SOURCE_LENGTH
-    from ..equation.measure import measure_equation
 
     text = script.strip() if isinstance(script, str) else ""
     if not text:
@@ -862,6 +942,42 @@ def set_equation_script(obj: Any, script: str) -> None:
             suggestion="Split the equation.",
         )
     validate_equation_script(text)
+    _measure_equation_again(obj, text)
+
+
+def set_equation_base_unit(obj: Any, base_unit: int) -> None:
+    """Give an equation the base font size *base_unit* (1/100 pt) and the box ``add_equation`` measures for its
+    script at that size: ``hp:sz`` and ``baseLine`` follow, and the line it sits on is laid out again."""
+
+    validate_equation_base_unit(base_unit)
+    if obj.element.get("baseUnit") == str(base_unit):
+        return
+    obj.element.set("baseUnit", str(base_unit))
+    node = obj.element.find(f"{_HP}script")
+    _measure_equation_again(obj, (node.text or "") if node is not None else "", script=False)
+
+
+def set_equation_font(obj: Any, font: str) -> None:
+    """Give an equation the font *font* (a non-empty font name, e.g. ``HancomEQN`` or ``HYhwpEQ``). Its box stays:
+    ``add_equation`` measures one box for either font. The paragraph loses its line layout cache, as Hancom draws
+    the script in the new font."""
+
+    name = validate_equation_font(font)
+    if obj.element.get("font") == name:
+        return
+    obj.element.set("font", name)
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(obj.paragraph.element)
+    obj.paragraph.section.mark_dirty()
+
+
+def _measure_equation_again(obj: Any, text: str, *, script: bool = True) -> None:
+    """Measure the box and base line of *text* at the equation's ``baseUnit`` and write them, and *text* as its
+    script unless *script* is false."""
+
+    from ..equation.measure import measure_equation
+
     element = obj.element
     base_unit = _number(element.get("baseUnit"))
     measured = measure_equation(text, base_unit=base_unit if base_unit and base_unit > 0 else 1000)
@@ -876,11 +992,12 @@ def set_equation_script(obj: Any, script: str) -> None:
     size.set("height", str(measured.height))
     element.set("baseLine", str(measured.base_line))
     node = element.find(f"{_HP}script")
-    if node is None:
+    if node is None and script:
         from ._document_primitives import _append_child
 
         node = _append_child(element, f"{_HP}script", {})
-    node.text = text
+    if script:
+        node.text = text
     from ._document_primitives import _clear_paragraph_layout_cache
 
     _clear_paragraph_layout_cache(obj.paragraph.element)

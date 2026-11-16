@@ -48,7 +48,7 @@ stable 로 올리면 24개 모듈 수백 멤버가 major 에서만 바뀔 수 �
 클래스들에 요소를 더해야 하는 포맷 깊이 작업이 멈춘다.
 
 **계약은 클래스가 아니라 멤버 목록이다.** `tests/data/model_surface.json` 이
-클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 381개
+클래스별로 stable 멤버를 정확히 나열한다 — 현재 **22개 클래스 / 389개
 멤버**.
 
 - 목록 **안**의 멤버 → stable. major 경계에서만 바뀐다.
@@ -293,8 +293,10 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `description`/`set_description`(`hp:shapeComment`, 대체 글), `caption`, 그리고 `remove()`.
 `remove()`는 `table.remove()`와 같은 규칙입니다 — 문단은 남고(다른 것이 없으면 빈 줄),
 빈 run은 빠지며, 문단과 그 문단을 품은 문단의 줄 배치 캐시를 지웁니다. 붙어 있던 연결선은
-끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 그림의 이진 항목은 패키지에 남으니
-`doc.media.remove_unused_images()`로 정리합니다. 묶음 안의 개체는 혼자 지우거나 돌리거나
+끝점을 그대로 두고 연결을 놓습니다(`subjectIDRef="0"`). 지운 개체(그림, 묶음 안 그림, 그림 채우기, 표 칸의
+그림)가 보이던 이진 항목은 문서의 다른 곳이 가리키지 않으면 함께 지웁니다 — 한/글이 저장할 때 쓰지 않는
+이진 항목을 지우는 것과 같습니다(`remove(remove_orphaned=True)`, `doc.media.replace_picture`의 같은 인자;
+`False`면 남기고 `doc.media.remove_unused_images()`가 나중에 한꺼번에 지웁니다). 묶음 안의 개체는 혼자 지우거나 돌리거나
 설명을 달 수 없습니다(`shape-group-member-unsupported`). `set_rotation`은 한/글 저장본이 보여 주는
 관계(상자 `hp:sz`는 돈 개체를 감싸는 상자, 개체는 그 가운데로 옮겨 자기 가운데를 축으로 돈다)를
 그대로 쓰며, 그 관계가 확인되지 않은 경우 — 늘이거나 줄인 개체(`hc:scaMatrix`가 항등이 아님,
@@ -309,6 +311,10 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 `shadow`·`glow`)를 더합니다. `Shape`에는 `line_width`·`fill_color` 읽기가 더해졌습니다.
 `model.Equation`(`add_equation`·`paragraph.equations`·`doc.shapes.equations`)은 `script`, `font`,
 `base_unit`, `base_line`, `set_script(script)`(상자를 `add_equation`처럼 다시 잽니다)를 더합니다.
+`Equation.base_unit`(기준 글자 크기, 1/100 pt)은 쓰면 상자를 그 크기로 `add_equation`처럼 다시 재고,
+`Equation.font`는 쓰면 상자는 그대로 두고(측정은 글꼴에 매이지 않는다) 줄 배치 캐시를 지웁니다(7.0).
+모든 개체는 `out_margins`(`hp:outMargin`, `CellMargins`, 표의 `out_margins`와 같은 형식)와
+`set_out_margins(left=, right=, top=, bottom=)`(주지 않은 면은 그대로, 잘못된 값은 `shape-out-margin-value`)을 갖습니다.
 `Paragraph.objects`/`pictures`/`equations`는 그 문단의 run이 품은 개체를 순서대로,
 `Shape.members`는 묶음의 구성원을 모델 객체로 돌려줍니다.
 
