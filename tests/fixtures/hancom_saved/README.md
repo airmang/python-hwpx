@@ -53,7 +53,9 @@ were changed the same way with Hangul's flip-left-right / flip-up-down commands 
 `ShapeObjVertFlip`) and then the dialog's angle, as their names say (`_back`: turned back to 0 after 45);
 `tests/test_flip_shapes_and_groups.py` says what each shows. `flip_turned_*`, `flip_ellipse_*`, `flip_polygon_*`
 and `flip_line_*` were made the same way from a text box and a group already turned 30 degrees, an ellipse, a
-polygon and a line (the dialog's size boxes given back the object's own size). `tests/test_turn_text_shapes_and_groups.py` says what each
+polygon and a line (the dialog's size boxes given back the object's own size). `flip_*picture*.hwpx` likewise from
+a picture and one turned 30 degrees (`_resized`: resized to 6000 x 6000 through the object's properties after the
+flip). `tests/test_turn_text_shapes_and_groups.py` says what each
 shows. The preview image was left out and the metadata listed above emptied; every other part keeps Hangul's
 bytes.
 

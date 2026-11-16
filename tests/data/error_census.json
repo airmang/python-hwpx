@@ -94,7 +94,7 @@
    "objects/checkbox.py:253"
   ],
   "field-date-format-unsupported": [
-   "oxml/field_marks.py:229"
+   "oxml/field_marks.py:234"
   ],
   "field-end-missing": [
    "_document/fields.py:1566"
@@ -113,7 +113,7 @@
    "_document/fields.py:2085"
   ],
   "field-mail-merge-empty-name": [
-   "oxml/field_marks.py:343"
+   "oxml/field_marks.py:348"
   ],
   "field-name-empty": [
    "_document/fields.py:1125"
@@ -127,10 +127,10 @@
    "_document/fields.py:1666"
   ],
   "field-path-format-unsupported": [
-   "oxml/field_marks.py:297"
+   "oxml/field_marks.py:302"
   ],
   "field-proofreading-mark-unsupported": [
-   "oxml/field_marks.py:261"
+   "oxml/field_marks.py:266"
   ],
   "field-radio-group-value": [
    "_document/fields.py:2030"
@@ -538,7 +538,7 @@
    "oxml/curves.py:120"
   ],
   "shape-description-value": [
-   "oxml/shape_position.py:677"
+   "oxml/shape_position.py:680"
   ],
   "shape-drop-cap-anchor-detached": [
    "_document/shapes.py:839"
@@ -554,11 +554,11 @@
   ],
   "shape-equation-base-unit-value": [
    "equation/measure.py:667",
-   "oxml/shape_position.py:1406",
-   "oxml/shape_position.py:1538"
+   "oxml/shape_position.py:1420",
+   "oxml/shape_position.py:1552"
   ],
   "shape-equation-font-empty": [
-   "oxml/shape_position.py:1590"
+   "oxml/shape_position.py:1604"
   ],
   "shape-equation-not-created": [
    "_document/shapes.py:569"
@@ -569,40 +569,40 @@
   "shape-equation-script-empty": [
    "_document/shapes.py:521",
    "oxml/paragraph.py:1420",
-   "oxml/shape_position.py:1376"
+   "oxml/shape_position.py:1390"
   ],
   "shape-equation-script-latex": [
-   "oxml/shape_position.py:1562"
+   "oxml/shape_position.py:1576"
   ],
   "shape-equation-script-too-large": [
    "_document/shapes.py:527",
-   "oxml/shape_position.py:1382"
+   "oxml/shape_position.py:1396"
   ],
   "shape-equation-script-unbalanced": [
-   "oxml/shape_position.py:1576"
+   "oxml/shape_position.py:1590"
   ],
   "shape-flip-value": [
-   "oxml/shape_position.py:955"
+   "oxml/shape_position.py:959"
   ],
   "shape-move-into-itself": [
-   "oxml/shape_position.py:2174"
+   "oxml/shape_position.py:2188"
   ],
   "shape-not-in-document": [
-   "oxml/shape_position.py:2163"
+   "oxml/shape_position.py:2177"
   ],
   "shape-original-size-invalid": [
-   "oxml/shape_position.py:1612"
+   "oxml/shape_position.py:1626"
   ],
   "shape-out-margin-value": [
    "oxml/shape_position.py:518"
   ],
   "shape-picture-border-value": [
    "oxml/shape_position.py:124",
-   "oxml/shape_position.py:1283",
-   "oxml/shape_position.py:1312"
+   "oxml/shape_position.py:1297",
+   "oxml/shape_position.py:1326"
   ],
   "shape-picture-crop-value": [
-   "oxml/shape_position.py:1203",
+   "oxml/shape_position.py:1217",
    "oxml/shape_position.py:143"
   ],
   "shape-picture-image-value": [
@@ -619,17 +619,17 @@
    "oxml/shape_position.py:235"
   ],
   "shape-rect-ratio-value": [
-   "oxml/shape_position.py:1524"
+   "oxml/shape_position.py:1538"
   ],
   "shape-rotation-value": [
    "oxml/shape_position.py:601"
   ],
   "shape-size-value": [
-   "oxml/shape_position.py:1114",
-   "oxml/shape_position.py:1125",
-   "oxml/shape_position.py:1487",
-   "oxml/shape_position.py:1502",
-   "oxml/shape_position.py:1510"
+   "oxml/shape_position.py:1118",
+   "oxml/shape_position.py:1129",
+   "oxml/shape_position.py:1501",
+   "oxml/shape_position.py:1516",
+   "oxml/shape_position.py:1524"
   ],
   "shape-z-order-value": [
    "oxml/shape_position.py:450"

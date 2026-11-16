@@ -27,6 +27,7 @@ from hwpx.oxml.container import ContainerMember
 HANCOM = Path(__file__).parent / "fixtures" / "hancom_saved"
 TEXT_BOX, GROUP, NESTED = "1720249014", "768560093", "2104287188"
 TURNED_BOX, TURNED_GROUP, ELLIPSE, POLYGON, LINE = "1570112883", "1425950003", "741191633", "1881274590", "1207765247"
+PICTURE, TURNED_PICTURE = "1799081593", "1011038855"
 
 #: (file Hangul wrote, instid, what was done in order, a file holding the object untouched)
 CASES = [
@@ -58,7 +59,29 @@ CASES = [
     ("flip_line_left_right_by_30", LINE, [("flip_horizontal", True), ("rotation", 30)],
      "flip_turned_text_box_left_right"),
     ("flip_line_up_down", LINE, [("flip_vertical", True)], "flip_turned_text_box_left_right"),
+    # ``flip_*picture*``: a 12000 x 6000 picture and one turned 30 degrees (by python-hwpx), flipped (turned, resized
+    # through the object's properties to 6000 x 6000) by Hangul. A flipped picture resized keeps its mirror about the
+    # middle of its own size and moves by what it lost (scaMatrix 0.5, e3 6000).
+    ("flip_picture_left_right", PICTURE, [("flip_horizontal", True)], "flip_turned_picture_left_right"),
+    ("flip_picture_left_right_by_30", PICTURE, [("flip_horizontal", True), ("rotation", 30)],
+     "flip_turned_picture_left_right"),
+    ("flip_picture_both_ways", PICTURE, [("flip_horizontal", True), ("flip_vertical", True)],
+     "flip_turned_picture_left_right"),
+    ("flip_turned_picture_left_right", TURNED_PICTURE, [("flip_horizontal", True)], "flip_picture_left_right"),
+    ("flip_picture_left_right_resized", PICTURE, [("flip_horizontal", True), ("size", (6000, 6000))],
+     "flip_turned_picture_left_right"),
 ]
+
+
+def _set(obj, name: str, value) -> None:
+    if name == "size":
+        obj.resize(*value)
+    else:
+        setattr(obj, name, value)
+
+
+def _get(obj, name: str):
+    return (obj.width, obj.height) if name == "size" else getattr(obj, name)
 
 
 def _objects(doc: HwpxDocument) -> list:
@@ -106,7 +129,7 @@ def test_flipping_and_turning_write_what_hancom_wrote(hancom: str, instid: str, 
     target = _by_instid(doc, instid)
     assert (target.flip_horizontal, target.flip_vertical) == (False, False)
     for name, value in steps:
-        setattr(target, name, value)
+        _set(target, name, value)
     theirs = _by_instid(HwpxDocument.open(HANCOM / f"{hancom}.hwpx"), instid)
     assert (theirs.flip_horizontal, theirs.flip_vertical, theirs.rotation) == \
         (target.flip_horizontal, target.flip_vertical, target.rotation)
@@ -122,12 +145,12 @@ def test_hancoms_flip_and_turn_go_back(hancom: str, instid: str, steps: list, un
     before = []  # each step's value before it, replayed on the untouched object
     replay = _by_instid(HwpxDocument.open(HANCOM / f"{untouched}.hwpx"), instid)
     for name, value in steps:
-        before.append(getattr(replay, name))
-        setattr(replay, name, value)
+        before.append(_get(replay, name))
+        _set(replay, name, value)
     doc = HwpxDocument.open(HANCOM / f"{hancom}.hwpx")
     target = _by_instid(doc, instid)
     for (name, _), value in reversed(list(zip(steps, before))):  # undone in the other order
-        setattr(target, name, value)
+        _set(target, name, value)
     assert _same(_normalized(target.element), _normalized(original.element))
 
 
@@ -179,14 +202,24 @@ def test_what_hancom_was_not_seen_doing_is_refused() -> None:
         ContainerMember.group(4000, 0, [ContainerMember.rect(0, 0, 2000, 2000), ContainerMember.rect(3000, 0, 2000, 2000)]),
     ])
     picture = doc.add_picture(PNG, "png", width=6000, height=3000)
+    picture.flip_horizontal = True
+    turned_picture = doc.add_picture(PNG, "png", width=6000, height=3000)
+    turned_picture.flip_horizontal = True
+    turned_picture.rotation = 30
+    resized_picture = doc.add_picture(PNG, "png", width=6000, height=3000)
+    resized_picture.flip_horizontal = True
+    resized_picture.resize(3000, 3000)
     for call, code, says in (
+        (lambda: setattr(resized_picture, "rotation", 30), "shape-rotation-unsupported", "resized"),
+        (lambda: setattr(resized_picture, "flip_vertical", True), "shape-flip-unsupported", "resized"),
+        (lambda: turned_picture.resize(3000, 1500), "shape-flip-unsupported", "flip it back first"),
+        (lambda: setattr(picture, "crop", (0, 0, 1000, 0)), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(group, "flip_vertical", True), "shape-flip-unsupported", "both ways"),
         (lambda: setattr(turned_group, "flip_vertical", True), "shape-flip-unsupported", "up-down"),
         (lambda: flipped.resize(4000, 2000), "shape-flip-unsupported", "flip it back first"),
         (lambda: setattr(resized_group, "flip_horizontal", True), "shape-rotation-unsupported", "resized"),
         (lambda: setattr(nested, "flip_horizontal", True), "shape-rotation-unsupported", "holds a group"),
         (lambda: setattr(nested.members[0], "flip_horizontal", True), "shape-group-member-unsupported", "group"),
-        (lambda: setattr(picture, "flip_horizontal", True), "shape-flip-unsupported", "pic"),
         (lambda: setattr(flipped, "flip_horizontal", 1), "shape-flip-value", "True or False"),
     ):
         with pytest.raises(HwpxValueError) as caught:
