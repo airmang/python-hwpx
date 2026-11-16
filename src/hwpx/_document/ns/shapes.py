@@ -18,7 +18,7 @@ from .._resolve import optional_paragraph, resolve_section
 from ._base import _Namespace
 
 if TYPE_CHECKING:
-    from ...model import InlineObject, Paragraph, Section, Shape
+    from ...model import Equation, InlineObject, Paragraph, Section, Shape
     from ...oxml import ContainerMember, Style
 
 __all__ = ["ShapesNamespace"]
@@ -434,7 +434,7 @@ class ShapesNamespace(_Namespace):
         size: tuple[int, int] | None = None,
         char_pr_id_ref: str | int | None = None,
         font: str = "HancomEQN",
-    ) -> "InlineObject":
+    ) -> "Equation":
         """EqEdit 스크립트를 수식 개체로 넣는다.
 
         ``font``는 수식 글꼴이다. 기본값 ``HancomEQN``은 한/글 수식 편집기가 쓰는 글꼴이고,
@@ -453,6 +453,19 @@ class ShapesNamespace(_Namespace):
             char_pr_id_ref=char_pr_id_ref,
             font=font,
         )
+
+    @property
+    def equations(self) -> "tuple[Equation, ...]":
+        """문서 본문의 수식 전부를 문서 순서로 돌려준다.
+
+        표 칸·글상자·각주·미주·머리말·꼬리말 안의 수식도 든다. 하나하나가
+        ``model.Equation``이라 ``script``를 읽고 ``set_script()``로 바꾸고 ``remove()``로 지운다.
+        한 문단의 수식만 보려면 ``paragraph.equations``.
+        """
+
+        from .. import shapes as _shapes
+
+        return _shapes.equations(self._doc)
 
     # -- 탈출구 ------------------------------------------------------------
 

@@ -48,6 +48,7 @@ from .color import normalize_color
 if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
 
+    from ..objects.results import ObjectPosition
     from .objects import HwpxOxmlShape
 
 POS_VERT_REL_TO = ("PAPER", "PAGE", "PARA")
@@ -183,69 +184,6 @@ def validate_caption_gap(gap: object) -> int:
     return gap
 
 
-def _shape_set_position(
-    self: "HwpxOxmlShape",
-    *,
-    horizontal_offset: int,
-    vertical_offset: int,
-    horz_rel_to: str | None = None,
-    vert_rel_to: str | None = None,
-    horz_align: str | None = None,
-    vert_align: str | None = None,
-) -> None:
-    """Set an existing floating shape's offsets, in HWP units, and optionally
-    its reference frames and alignment.
-
-    *horz_rel_to*/*vert_rel_to*/*horz_align*/*vert_align* write ``hp:pos``'s
-    ``horzRelTo``/``vertRelTo``/``horzAlign``/``vertAlign``. Each takes an
-    OWPML value exactly as the schema spells it (uppercase): ``horz_rel_to``
-    one of ``PAPER``/``PAGE``/``COLUMN``/``PARA``, ``vert_rel_to`` one of
-    ``PAPER``/``PAGE``/``PARA``, ``horz_align`` one of ``LEFT``/``CENTER``/
-    ``RIGHT``/``INSIDE``/``OUTSIDE``, ``vert_align`` one of ``TOP``/
-    ``CENTER``/``BOTTOM``/``INSIDE``/``OUTSIDE``. ``PAPER`` anchors to the
-    sheet edge, so a stamp can sit in the page margin. ``None`` leaves that
-    attribute as it is, so the default call only moves the offsets.
-
-    Anchor, geometry and size are preserved. Every argument is checked before
-    anything changes: inline shapes and missing positioning metadata refuse
-    with ``shape-position-unsupported`` (changing their offsets would not move
-    the drawing), bad offsets with ``shape-position-value``, and a frame or
-    alignment outside the schema with ``shape-position-frame``. Check the real
-    placement in Hancom.
-    """
-
-    for value in (horizontal_offset, vertical_offset):
-        if isinstance(value, bool) or not isinstance(value, int) or not -(2**31) <= value < 2**31:
-            raise HwpxValueError(
-                "shape offsets must be signed 32-bit integer HWP units",
-                code="shape-position-value",
-                suggestion="Pass integer offsets in the shape's existing reference frame.",
-            )
-    frames: dict[str, str] = {}
-    for argument, attribute, requested, allowed in (
-        ("vert_rel_to", "vertRelTo", vert_rel_to, POS_VERT_REL_TO),
-        ("horz_rel_to", "horzRelTo", horz_rel_to, POS_HORZ_REL_TO),
-        ("vert_align", "vertAlign", vert_align, POS_VERT_ALIGN),
-        ("horz_align", "horzAlign", horz_align, POS_HORZ_ALIGN),
-    ):
-        if requested is not None:
-            frames[attribute] = _require_member(
-                requested, allowed, argument=argument, code="shape-position-frame"
-            )
-    position = self.element.find(f"{_HP}pos")
-    if position is None or position.get("treatAsChar") not in {"0", "false", "False"}:
-        raise HwpxValueError(
-            "position editing requires an existing floating shape",
-            code="shape-position-unsupported",
-            suggestion="Inspect the anchor; inline placement is controlled by paragraph flow.",
-        )
-    for attribute, frame in frames.items():
-        position.set(attribute, frame)
-    position.set("horzOffset", str(horizontal_offset & 0xFFFFFFFF))  # a negative one as Hancom writes it:
-    position.set("vertOffset", str(vertical_offset & 0xFFFFFFFF))  # its unsigned 32-bit form
-    self.paragraph.section.mark_dirty()
-
-
 #: ``textWrap`` of an object (``AbstractShapeObjectType``): how the body text goes around it.
 TEXT_WRAPS = ("SQUARE", "TIGHT", "THROUGH", "TOP_AND_BOTTOM", "BEHIND_TEXT", "IN_FRONT_OF_TEXT")
 
@@ -279,7 +217,7 @@ def _object_set_position(
     position = self.element.find(f"{_HP}pos")
     if position is None:
         raise HwpxValueError(
-            "the object has no hp:pos to place it by",
+            "the object has no hp:pos to place it by (position editing needs a floating or inline object with one)",
             code="shape-position-unsupported",
             suggestion="Only objects that carry hp:pos (equations, pictures, shapes, OLE) can be placed.",
         )
@@ -294,7 +232,7 @@ def _object_set_position(
     floating = position.get("treatAsChar") in {"0", "false", "False"} if treat_as_char is None else not treat_as_char
     if not floating and (horizontal_offset is not None or vertical_offset is not None):
         raise HwpxValueError(
-            "an object set as a character has no offsets",
+            "an object set as a character has no offsets: only a floating object takes them",
             code="shape-position-unsupported",
             suggestion="Pass treat_as_char=False to float it, then its offsets apply.",
         )
@@ -325,6 +263,567 @@ def _object_set_position(
 
         _clear_paragraph_layout_cache(self.paragraph.element)
         self.paragraph.section.mark_dirty()
+
+
+_FALSE_FLAGS = frozenset({"0", "false", "False"})
+
+#: Object kinds a paragraph's runs hold, by local name. Drawing shapes (``model.Shape``) carry line and
+#: fill; the rest are placed objects (``model.InlineObject``). Form controls carry ``hp:pos`` too.
+DRAWING_SHAPE_NAMES = frozenset({
+    "line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "container", "textart",
+})
+PLACED_OBJECT_NAMES = frozenset({
+    "pic", "equation", "chart", "ole", "video", "btn", "radioBtn", "checkBtn", "comboBox", "edit",
+    "listBox", "scrollBar",
+})
+
+
+def _number(value: str | None) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except ValueError:
+        return None
+
+
+def _signed_offset(value: str | None) -> int | None:
+    """An offset as Hancom stores it (a negative one in its unsigned 32-bit form) back to signed."""
+
+    number = _number(value)
+    if number is None:
+        return None
+    return number - 2**32 if 2**31 <= number < 2**32 else number
+
+
+def _parent_of(element: Any, scope: Any) -> Any:
+    """*element*'s parent: lxml knows it; a plain ElementTree element is looked for under *scope*."""
+
+    getparent = getattr(element, "getparent", None)
+    if getparent is not None:
+        return getparent()
+    for node in scope.iter():
+        if any(child is element for child in node):
+            return node
+    return None
+
+
+def _group_member_refused(action: str) -> HwpxValueError:
+    return HwpxValueError(
+        f"an object inside a group (hp:container) cannot be {action} on its own",
+        code="shape-group-member-unsupported",
+        context={"action": action},
+        suggestion="묶음(hp:container) 전체를 다루세요: 묶음의 Shape 에서 remove()·set_position() 등을 부릅니다.",
+    )
+
+
+def _in_group(element: Any, scope: Any) -> bool:
+    parent = _parent_of(element, scope)
+    return parent is not None and str(parent.tag).rsplit("}", 1)[-1] == "container"
+
+
+class ObjectPlacement:
+    """Reads and edits every placed object shares: pictures, equations, charts, OLE and drawing shapes.
+
+    Mixed into ``model.InlineObject`` and ``model.Shape``. The reads take the names the writes take:
+    ``position`` answers ``set_position``, ``z_order`` ``set_z_order``, ``rotation`` ``set_rotation``
+    and ``description`` ``set_description``.
+    """
+
+    element: Any
+    paragraph: Any
+
+    @property
+    def position(self) -> "ObjectPosition":
+        """Where the object sits (:class:`~hwpx.objects.ObjectPosition`): as a character or floating,
+        how text goes around it, its frames, alignment and offsets."""
+
+        from ..objects.results import ObjectPosition
+
+        pos = self.element.find(f"{_HP}pos")
+        attrs: dict[str, str] = dict(pos.attrib) if pos is not None else {}
+        flag = (lambda name: None if name not in attrs else attrs[name] not in _FALSE_FLAGS)
+        return ObjectPosition(
+            treat_as_char=bool(flag("treatAsChar")),
+            text_wrap=self.element.get("textWrap"),
+            text_flow=self.element.get("textFlow"),
+            horz_rel_to=attrs.get("horzRelTo"),
+            vert_rel_to=attrs.get("vertRelTo"),
+            horz_align=attrs.get("horzAlign"),
+            vert_align=attrs.get("vertAlign"),
+            horizontal_offset=_signed_offset(attrs.get("horzOffset")),
+            vertical_offset=_signed_offset(attrs.get("vertOffset")),
+            flow_with_text=flag("flowWithText"),
+            allow_overlap=flag("allowOverlap"),
+        )
+
+    @property
+    def z_order(self) -> int:
+        """The object's ``zOrder``: objects with a higher one are drawn over those with a lower one."""
+
+        return _number(self.element.get("zOrder")) or 0
+
+    def set_z_order(self, z_order: int) -> None:
+        """Set ``zOrder`` (a signed 32-bit int; a higher one is drawn over a lower one)."""
+
+        if isinstance(z_order, bool) or not isinstance(z_order, int) or not -(2**31) <= z_order < 2**31:
+            raise HwpxValueError(
+                f"z_order must be a signed 32-bit int; got {z_order!r}",
+                code="shape-z-order-value",
+                context={"value": repr(z_order)},
+                suggestion="Pass an int: a higher z_order is drawn over a lower one.",
+            )
+        if self.element.get("zOrder") != str(z_order):
+            self.element.set("zOrder", str(z_order))
+            self.paragraph.section.mark_dirty()
+
+    @property
+    def rotation(self) -> int:
+        """The angle the object is turned by, in degrees clockwise (``hp:rotationInfo/@angle``); 0 when it has none."""
+
+        info = self.element.find(f"{_HP}rotationInfo")
+        return (_number(info.get("angle")) or 0) if info is not None else 0
+
+    def set_rotation(self, angle: int) -> None:
+        """Turn the object *angle* degrees clockwise (0..359) about its middle, as Hancom saves a turned object.
+
+        The object keeps its own size (``hp:orgSz``); its box (``hp:sz``) becomes the box around the turned
+        object, the object is moved into the middle of that box (``hp:offset``, ``hc:transMatrix``), turned
+        about its own middle (``hc:rotMatrix``), and ``hp:rotationInfo`` holds the angle and the middle of the
+        box -- the relation every unscaled turned object in Hancom-saved documents shows. Only that case is
+        written: an object Hancom has stretched (a ``hc:scaMatrix`` other than identity, as a picture after
+        ``resize``), a flipped one, a group, a shape holding text (Hancom keeps the text level in the outer
+        box, so it would stick out of the turned shape) or an object without ``hp:rotationInfo`` (an
+        equation or chart) is refused with ``shape-rotation-unsupported``, a member of a group with
+        ``shape-group-member-unsupported``, an angle outside 0..359 with ``shape-rotation-value``. 0 turns
+        it back. The paragraph loses its line layout cache.
+        """
+
+        if isinstance(angle, bool) or not isinstance(angle, int) or not 0 <= angle <= 359:
+            raise HwpxValueError(
+                f"angle must be an int from 0 to 359 (degrees); got {angle!r}",
+                code="shape-rotation-value",
+                context={"value": repr(angle)},
+                suggestion="Pass the angle in whole degrees clockwise, 0 to 359.",
+            )
+        if _in_group(self.element, self.paragraph.element):
+            raise _group_member_refused("turned")
+        width, height = rotation_base_size(self.element)  # refuses what is not known to turn this way
+        draw_text = self.element.find(f"{_HP}drawText")
+        if angle and draw_text is not None and any((t.text or "").strip() for t in draw_text.iter(f"{_HP}t")):
+            # Hancom lays the text out level in the box around the turned shape, not turned with it, and no
+            # Hancom-saved turned shape holding text is known to write it otherwise.
+            raise _rotation_refused(self.element, "it holds text, which Hancom does not turn with it")
+        apply_rotation(self.element, angle, width, height)
+        from ._document_primitives import _clear_paragraph_layout_cache
+
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
+
+    @property
+    def description(self) -> str:
+        """The object's description (``hp:shapeComment``), the text Hancom gives as its alternative text;
+        ``""`` when it has none."""
+
+        comment = self.element.find(f"{_HP}shapeComment")
+        return (comment.text or "") if comment is not None else ""
+
+    def set_description(self, text: str) -> None:
+        """Set the object's description (``hp:shapeComment``), its alternative text. ``""`` empties it.
+        A member of a group carries none and is refused (``shape-group-member-unsupported``)."""
+
+        if not isinstance(text, str):
+            raise HwpxValueError(
+                f"description must be a str; got {type(text).__name__}",
+                code="shape-description-value",
+                context={"type": type(text).__name__},
+                suggestion="Pass the description as text; '' empties it.",
+            )
+        if _in_group(self.element, self.paragraph.element):
+            raise _group_member_refused("described")
+        from ._document_primitives import _append_child, _reposition_child_after_any
+
+        comment = self.element.find(f"{_HP}shapeComment")
+        if comment is None:
+            comment = _append_child(self.element, f"{_HP}shapeComment", {})
+            _reposition_child_after_any(self.element, comment, ("outMargin", "caption"))
+        if (comment.text or "") != text:
+            comment.text = text
+            self.paragraph.section.mark_dirty()
+
+    def remove(self) -> None:
+        """Take this object out of its paragraph, as Hancom deletes it, the way ``table.remove()`` does.
+
+        Its caption and anything inside it go with it. The paragraph stays (an empty line when it held
+        nothing else) and loses its line layout cache, as do the paragraphs holding it when it sits in a
+        table cell or a text box; a run left empty goes. A connector attached to it (or to a member of it)
+        keeps its drawn ends and lets go of it (``subjectIDRef="0"``). The image a picture shows stays in
+        the package: ``doc.media.remove_unused_images()`` removes the ones nothing points at any more.
+        A member of a group cannot leave it on its own (``shape-group-member-unsupported``). A second
+        call does nothing; the object should not be used after it.
+        """
+
+        from ._document_primitives import _clear_paragraph_layout_cache
+
+        element = self.element
+        paragraph = self.paragraph.element
+        parent = _parent_of(element, paragraph)
+        if parent is None or not any(child is element for child in parent):
+            return
+        if str(parent.tag).rsplit("}", 1)[-1] == "container":
+            raise _group_member_refused("removed")
+        ids = {node.get("instid") for node in element.iter() if node.get("instid") not in (None, "", "0")}
+        parent.remove(element)
+        if (str(parent.tag).rsplit("}", 1)[-1] == "run" and len(parent) == 0
+                and len(paragraph.findall(f"{_HP}run")) > 1 and any(c is parent for c in paragraph)):
+            paragraph.remove(parent)
+        section = self.paragraph.section
+        if ids:
+            for connector in section.element.iter(f"{_HP}connectLine"):
+                for end in connector:
+                    if str(end.tag).rsplit("}", 1)[-1] in ("startPt", "endPt") and end.get("subjectIDRef") in ids:
+                        end.set("subjectIDRef", "0")
+        _clear_paragraph_layout_cache(paragraph)
+        section.mark_dirty()
+
+
+_IDENTITY = ("1", "0", "0", "0", "1", "0")
+
+
+def _rotation_refused(element: Any, why: str) -> HwpxValueError:
+    return HwpxValueError(
+        f"hp:{str(element.tag).rsplit('}', 1)[-1]} cannot be turned: {why}",
+        code="shape-rotation-unsupported",
+        context={"reason": why},
+        suggestion="Unscaled, unflipped pictures, drawing shapes and OLE objects outside a group turn; "
+                   "turn a stretched picture back to its own size first, or turn it in Hancom.",
+    )
+
+
+def rotation_base_size(element: Any) -> tuple[int, int]:
+    """The object's own (unturned) size, when it is one this package knows how Hancom turns; else refuse.
+
+    Known: an object outside a group whose ``hc:scaMatrix`` is identity (its ``hp:curSz`` 0 or its
+    ``hp:orgSz`` on each side), not flipped and not a group itself -- the case Hancom-saved documents show
+    with one fixed relation between angle, sizes and matrices. Hancom's stretched or grouped turned objects
+    hold more matrices whose relation is not known, so they are not written.
+    """
+
+    info = element.find(f"{_HP}rotationInfo")
+    rendering = element.find(f"{_HP}renderingInfo")
+    if info is None or rendering is None:
+        raise _rotation_refused(element, "it has no hp:rotationInfo")
+    if str(element.tag).rsplit("}", 1)[-1] == "container":
+        raise _rotation_refused(element, "turning a group is not verified against a Hancom-saved group")
+    matrices = [str(child.tag).rsplit("}", 1)[-1] for child in rendering]
+    if matrices != ["transMatrix", "scaMatrix", "rotMatrix"]:
+        raise _rotation_refused(element, "its rendering matrices are not one trans/sca/rot set")
+    scale = rendering[1]
+    # Hancom writes an unstretched one with float noise (1.000037, -0.000023): up to 1/1000 is identity.
+    if any(abs(_fraction(scale.get(key), float(value)) - float(value)) > 1e-3
+           for key, value in zip(("e1", "e2", "e3", "e4", "e5", "e6"), _IDENTITY)):
+        raise _rotation_refused(element, "it is stretched (hc:scaMatrix is not identity)")
+    flip = element.find(f"{_HP}flip")
+    if flip is not None and (flip.get("horizontal", "0") not in _FALSE_FLAGS
+                             or flip.get("vertical", "0") not in _FALSE_FLAGS):
+        raise _rotation_refused(element, "it is flipped")
+    original = element.find(f"{_HP}orgSz")
+    width, height = (_number(original.get("width")) or 0, _number(original.get("height")) or 0) \
+        if original is not None else (0, 0)
+    current = element.find(f"{_HP}curSz")
+    if current is not None:
+        for side, own in (("width", width), ("height", height)):
+            value = _number(current.get(side)) or 0
+            if value != 0 and abs(value - own) > 2:  # Hancom rounds it a unit off (13424 for 13425)
+                raise _rotation_refused(element, "its current size differs from its original size")
+    if width <= 0 or height <= 0:
+        raise _rotation_refused(element, "it has no original size")
+    return width, height
+
+
+def apply_rotation(element: Any, angle: int, width: int, height: int) -> None:
+    """Write *element* (own size *width* x *height*, unscaled) turned *angle* degrees clockwise:
+    ``hp:sz`` the box around it, ``hp:offset``/``hc:transMatrix`` half the growth, ``hc:rotMatrix`` about
+    its own middle and ``hp:rotationInfo`` the angle and the middle of the box."""
+
+    radians = math.radians(angle)
+    cos, sin = math.cos(radians), math.sin(radians)
+    box_width = abs(width * cos) + abs(height * sin)
+    box_height = abs(width * sin) + abs(height * cos)
+    if angle % 90 == 0:  # no float noise on the right angles
+        box_width, box_height = (width, height) if angle % 180 == 0 else (height, width)
+    shift_x, shift_y = (box_width - width) / 2, (box_height - height) / 2
+    cx, cy = width / 2, height / 2
+    rendering = element.find(f"{_HP}renderingInfo")
+    trans, _scale, rot = rendering[0], rendering[1], rendering[2]
+    for key, value in (("e1", 1.0), ("e2", 0.0), ("e3", shift_x), ("e4", 0.0), ("e5", 1.0), ("e6", shift_y)):
+        trans.set(key, _matrix_number(value))
+    for key, value in (("e1", cos), ("e2", -sin), ("e3", cx * (1 - cos) + cy * sin),
+                       ("e4", sin), ("e5", cos), ("e6", cy * (1 - cos) - cx * sin)):
+        rot.set(key, _matrix_number(round(value, 6)))
+    offset = element.find(f"{_HP}offset")
+    if offset is not None:
+        offset.set("x", str(round(shift_x) & 0xFFFFFFFF))  # a negative one as Hancom writes it: unsigned 32-bit
+        offset.set("y", str(round(shift_y) & 0xFFFFFFFF))
+    info = element.find(f"{_HP}rotationInfo")
+    info.set("angle", str(angle))
+    info.set("centerX", str(round(box_width / 2)))
+    info.set("centerY", str(round(box_height / 2)))
+    size = element.find(f"{_HP}sz")
+    if size is not None:
+        if size.get("widthRelTo", "ABSOLUTE") == "ABSOLUTE":
+            size.set("width", str(round(box_width)))
+        if size.get("heightRelTo", "ABSOLUTE") == "ABSOLUTE":
+            size.set("height", str(round(box_height)))
+
+
+def object_size(element: Any) -> tuple[int, int]:
+    """An object's ``hp:sz`` width and height (0 when missing)."""
+
+    size = element.find(f"{_HP}sz")
+    if size is None:
+        return 0, 0
+    return _number(size.get("width")) or 0, _number(size.get("height")) or 0
+
+
+def keep_ratio(current: tuple[int, int], width: int | None, height: int | None) -> tuple[int, int]:
+    """*width* x *height*, the one left ``None`` taken at *current*'s aspect ratio."""
+
+    if width is None and height is None:
+        raise HwpxValueError(
+            "resize needs a width, a height or both",
+            code="shape-size-value",
+            suggestion="Pass width= and/or height= in HWP units; one alone keeps the aspect ratio.",
+        )
+    if width is not None and height is not None:
+        return validate_shape_size(width, height)
+    given = width if width is not None else height
+    validate_shape_size(given, given)
+    old_width, old_height = current
+    if old_width <= 0 or old_height <= 0:
+        raise HwpxValueError(
+            "the object has no size to keep the aspect ratio of",
+            code="shape-size-value",
+            context={"current": list(current)},
+            suggestion="Pass both width and height.",
+        )
+    if width is not None:
+        return width, max(1, round(old_height * width / old_width))
+    assert height is not None
+    return max(1, round(old_width * height / old_height)), height
+
+
+def resize_object(obj: Any, width: int | None, height: int | None) -> None:
+    """Resize a placed object (picture, OLE, chart, equation) to *width* x *height* (one alone keeps the
+    aspect ratio), as Hancom stores a resized one: ``hp:sz`` and ``hp:curSz`` take the new size, the
+    original size (``hp:orgSz``) and the geometry in it stay, and ``hc:scaMatrix`` scales between them."""
+
+    element = obj.element
+    info = element.find(f"{_HP}rotationInfo")
+    if info is not None and (_number(info.get("angle")) or 0) % 360:
+        raise _rotation_refused(element, "resizing a turned picture would stretch it in a way not verified; "
+                                         "turn it back to 0, resize, then turn it again")
+    width, height = keep_ratio(object_size(element), width, height)
+    _set_size(element, "sz", width, height)
+    original = element.find(f"{_HP}orgSz")
+    if original is not None:
+        org_width, org_height = _number(original.get("width")) or 0, _number(original.get("height")) or 0
+        _set_size(element, "curSz", width, height)
+        scale = element.find(f"{_HP}renderingInfo/{_HC}scaMatrix")
+        if scale is not None and org_width > 0 and org_height > 0:
+            scale.set("e1", _matrix_number(width / org_width))
+            scale.set("e5", _matrix_number(height / org_height))
+        rotation = element.find(f"{_HP}rotationInfo")
+        if rotation is not None:
+            rotation.set("centerX", str(width // 2))
+            rotation.set("centerY", str(height // 2))
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(obj.paragraph.element)
+    obj.paragraph.section.mark_dirty()
+
+
+def picture_crop(element: Any) -> tuple[int, int, int, int]:
+    """How much of the image a picture cuts from its left, top, right and bottom, in the units of its
+    ``hp:imgDim`` (the whole image); all 0 when it cuts nothing."""
+
+    clip = element.find(f"{_HP}imgClip")
+    dim = picture_original_size(element)
+    if clip is None or dim is None:
+        return 0, 0, 0, 0
+    left, right = _number(clip.get("left")) or 0, _number(clip.get("right")) or 0
+    top, bottom = _number(clip.get("top")) or 0, _number(clip.get("bottom")) or 0
+    if right <= left or bottom <= top:
+        return 0, 0, 0, 0
+    return left, top, max(0, dim[0] - right), max(0, dim[1] - bottom)
+
+
+def picture_original_size(element: Any) -> tuple[int, int] | None:
+    """The whole image's size a picture's crop counts in (``hp:imgDim``), or ``None``."""
+
+    dim = element.find(f"{_HP}imgDim")
+    if dim is None:
+        return None
+    width, height = _number(dim.get("dimwidth")) or 0, _number(dim.get("dimheight")) or 0
+    return (width, height) if width > 0 and height > 0 else None
+
+
+def set_picture_crop(obj: Any, crop: tuple[int, int, int, int] | None) -> None:
+    """Cut *crop* (left, top, right, bottom, in ``original_size`` units) from a picture's image, ``None`` for
+    none, keeping the scale it is drawn at: the picture grows or shrinks by what it shows more or less."""
+
+    element = obj.element
+    whole = picture_original_size(element)
+    if whole is None:
+        raise HwpxValueError(
+            "the picture has no hp:imgDim to measure a crop on",
+            code="shape-picture-crop-value",
+            suggestion="Only a picture that records its whole image size (hp:imgDim) can be cropped.",
+        )
+    left, top, right, bottom = validate_picture_crop(crop, *whole)
+    old = picture_crop(element)
+    old_kept = (whole[0] - old[0] - old[2], whole[1] - old[1] - old[3])
+    new_kept = (whole[0] - left - right, whole[1] - top - bottom)
+    factors = (new_kept[0] / old_kept[0], new_kept[1] / old_kept[1])
+    for name in ("orgSz", "curSz", "sz"):
+        size = element.find(f"{_HP}{name}")
+        if size is not None:
+            for side, factor in (("width", factors[0]), ("height", factors[1])):
+                value = _number(size.get(side)) or 0
+                if value:
+                    size.set(side, str(max(1, round(value * factor))))
+    rect = element.find(f"{_HP}imgRect")
+    for point in rect if rect is not None else ():
+        for axis, factor in (("x", factors[0]), ("y", factors[1])):
+            if point.get(axis) is not None:
+                point.set(axis, str(round((_number(point.get(axis)) or 0) * factor)))
+    width, height = object_size(element)
+    rotation = element.find(f"{_HP}rotationInfo")
+    if rotation is not None:
+        rotation.set("centerX", str(width // 2))
+        rotation.set("centerY", str(height // 2))
+    clip = element.find(f"{_HP}imgClip")
+    if clip is None:
+        from ._document_primitives import _append_child, _reposition_child_after_any
+
+        clip = _append_child(element, f"{_HP}imgClip", {})
+        _reposition_child_after_any(element, clip, ("imgRect",))
+    for name, value in (("left", left), ("right", whole[0] - right), ("top", top), ("bottom", whole[1] - bottom)):
+        clip.set(name, str(value))
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(obj.paragraph.element)
+    obj.paragraph.section.mark_dirty()
+
+
+def picture_image_value(element: Any, name: str) -> Any:
+    """A picture's image adjustment (``hc:img``): ``bright``/``contrast``/``alpha`` as ints (0 when not
+    given), ``effect`` as its name (``REAL_PIC`` when not given)."""
+
+    image = element.find(f"{_HC}img")
+    value = image.get(name) if image is not None else None
+    if name == "effect":
+        return value or "REAL_PIC"
+    return _number(value) or 0
+
+
+def line_width_of(element: Any) -> int | None:
+    """The border or line width (``hp:lineShape/@width``, HWPUNIT), ``None`` when the object has no line."""
+
+    line = element.find(f"{_HP}lineShape")
+    return _number(line.get("width")) if line is not None else None
+
+
+def fill_color_of(element: Any) -> str | None:
+    """The solid fill colour (``hc:fillBrush/hc:winBrush/@faceColor``), ``None`` when not filled."""
+
+    brush = element.find(f"{_HC}fillBrush/{_HC}winBrush")
+    if brush is None:
+        brush = element.find(f"{_HP}fillBrush/{_HC}winBrush")
+    color = brush.get("faceColor") if brush is not None else None
+    return None if color in (None, "", "none") else color
+
+
+def _effect_rgb(effect: Any) -> str:
+    rgb = effect.find(f"{_HP}effectsColor/{_HP}rgb")
+    if rgb is None:
+        return "#000000"
+    return "#" + "".join(f"{(_number(rgb.get(c)) or 0) & 0xFF:02X}" for c in ("r", "g", "b"))
+
+
+def _fraction(value: str | None, default: float) -> float:
+    try:
+        return float(value) if value is not None else default
+    except ValueError:
+        return default
+
+
+def picture_shadow(element: Any) -> PictureShadow | None:
+    """A picture's shadow (``hp:effects/hp:shadow``) as the :class:`PictureShadow` ``add_picture`` takes."""
+
+    shadow = element.find(f"{_HP}effects/{_HP}shadow")
+    if shadow is None:
+        return None
+    return PictureShadow(
+        color=_effect_rgb(shadow), alpha=_fraction(shadow.get("alpha"), 0.0), blur=_number(shadow.get("radius")) or 0,
+        direction=_number(shadow.get("direction")) or 0, distance=_number(shadow.get("distance")) or 0,
+        inside=shadow.get("style") == "INSIDE",
+    )
+
+
+def picture_glow(element: Any) -> PictureGlow | None:
+    """A picture's glow (``hp:effects/hp:glow``) as the :class:`PictureGlow` ``add_picture`` takes."""
+
+    glow = element.find(f"{_HP}effects/{_HP}glow")
+    if glow is None:
+        return None
+    return PictureGlow(color=_effect_rgb(glow), alpha=_fraction(glow.get("alpha"), 0.0),
+                       radius=_number(glow.get("radius")) or 0)
+
+
+def set_equation_script(obj: Any, script: str) -> None:
+    """Give an equation the new *script* and the box ``add_equation`` measures for it at the equation's own
+    ``baseUnit``: ``hp:sz`` and ``baseLine`` follow the script, so the line it sits on is laid out again."""
+
+    from ..equation.eqedit import MAX_SOURCE_LENGTH
+    from ..equation.measure import measure_equation
+
+    text = script.strip() if isinstance(script, str) else ""
+    if not text:
+        raise HwpxValueError(
+            "equation script must be a non-empty string",
+            code="shape-equation-script-empty",
+            suggestion="Pass an equation script in Hancom's language, e.g. '{a} over {b}'.",
+        )
+    if len(text) > MAX_SOURCE_LENGTH:
+        raise HwpxValueError(
+            "equation script exceeds size limit",
+            code="shape-equation-script-too-large",
+            context={"length": len(text), "limit": MAX_SOURCE_LENGTH},
+            suggestion="Split the equation.",
+        )
+    validate_equation_script(text)
+    element = obj.element
+    base_unit = _number(element.get("baseUnit"))
+    measured = measure_equation(text, base_unit=base_unit if base_unit and base_unit > 0 else 1000)
+    size = element.find(f"{_HP}sz")
+    if size is None:
+        from ._document_primitives import _append_child, _reposition_child_before_any
+
+        size = _append_child(element, f"{_HP}sz", {"widthRelTo": "ABSOLUTE", "heightRelTo": "ABSOLUTE",
+                                                   "protect": "0"})
+        _reposition_child_before_any(element, size, ("pos", "outMargin", "shapeComment", "script"))
+    size.set("width", str(measured.width))
+    size.set("height", str(measured.height))
+    element.set("baseLine", str(measured.base_line))
+    node = element.find(f"{_HP}script")
+    if node is None:
+        from ._document_primitives import _append_child
+
+        node = _append_child(element, f"{_HP}script", {})
+    node.text = text
+    from ._document_primitives import _clear_paragraph_layout_cache
+
+    _clear_paragraph_layout_cache(obj.paragraph.element)
+    obj.paragraph.section.mark_dirty()
 
 
 def _matrix_number(value: float) -> str:

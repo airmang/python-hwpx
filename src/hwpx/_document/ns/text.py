@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any, Iterator, cast
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, cast
 
 from ...errors import HwpxTypeError, HwpxValueError, ReplaceScopeWarning
 from ...oxml.namespaces import HP, tag_local_name
@@ -21,6 +21,7 @@ from ._base import _Namespace
 
 if TYPE_CHECKING:
     from ...objects.highlight import Highlight
+    from ...objects.results import ObjectPlace, ParagraphPlace
     from ...tools.markdown_import import MarkdownStyle
     from ...oxml import HwpxOxmlParagraph, HwpxOxmlRun
     from ..text_blocks import TextBlock, TextChangeReport, TextOutline
@@ -214,6 +215,41 @@ class TextNamespace(_Namespace):
                 target_char=target_char,
             )
         ]
+
+    # -- 문서 전체 훑기 ----------------------------------------------------
+
+    def paragraphs(self, *, where: "Iterable[str] | str | None" = None) -> Iterator["ParagraphPlace"]:
+        """문서의 **모든** 문단을 문서 순서로, 어디에 있는지와 함께 내놓는다.
+
+        ``doc.paragraphs`` 는 본문 문단만 보지만, 이것은 표 칸(칸 안 표 포함)·글상자·묶음 개체 안
+        글상자·캡션·머리말·꼬리말·각주·미주·메모·바탕쪽의 문단까지 한 번씩 내놓는다. 각 값의
+        ``where`` 가 가장 안쪽 자리(``"body"``·``"cell"``·``"text_box"``·``"caption"``·``"header"``·
+        ``"footer"``·``"footnote"``·``"endnote"``·``"memo"``·``"master_page"``)이고, 표 칸이면
+        ``table``·``row``·``col`` 이 그 칸이다. *where* 로 자리를 고른다
+        (``where={"cell", "text_box"}``). python-hwpx 가 머리말·꼬리말을 두 벌 쓰는 문서에서도 한 번만 나온다.
+        """
+
+        from ..text_blocks import iter_paragraph_places
+
+        return iter_paragraph_places(self._doc, where)
+
+    def objects(
+        self,
+        *,
+        kinds: "Iterable[str] | str | None" = None,
+        where: "Iterable[str] | str | None" = None,
+    ) -> Iterator["ObjectPlace"]:
+        """문서의 **모든** 개체(표·그림·수식·도형·OLE·차트·동영상·글맵시)를 문서 순서로, 자리와 함께.
+
+        본문뿐 아니라 표 칸·글상자·머리말·꼬리말·각주·바탕쪽 안의 개체, 묶음 개체의 구성원도
+        나온다. ``kind`` 는 ``"table"``·``"picture"``·``"equation"``·``"shape"``·``"ole"``·
+        ``"chart"``·``"video"``·``"textart"``, 자리 값은 :meth:`paragraphs` 와 같다(그 개체를 품은
+        문단의 자리). *kinds*·*where* 로 고른다.
+        """
+
+        from ..text_blocks import iter_object_places
+
+        return iter_object_places(self._doc, kinds, where)
 
     # -- id 붙은 글 덩어리 ---------------------------------------------------
 

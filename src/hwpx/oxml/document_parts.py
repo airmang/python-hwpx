@@ -572,6 +572,16 @@ class HwpxOxmlDocument:
     def master_pages(self) -> list[HwpxOxmlMasterPage]:
         return list(self._master_pages)
 
+    def clear_layout_cache(self, *, stale_only: bool = False) -> int:
+        """Remove the line layout caches of every section and master page; return how many.
+
+        See :meth:`HwpxOxmlSection.clear_layout_cache`; ``stale_only`` leaves master pages alone.
+        """
+        from .master_page_authoring import clear_master_page_layout_cache
+
+        removed = sum(section.clear_layout_cache(stale_only=stale_only) for section in self._sections)
+        return removed + (0 if stale_only else sum(map(clear_master_page_layout_cache, self._master_pages)))
+
     def add_master_page(
         self,
         *,

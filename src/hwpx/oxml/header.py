@@ -5,7 +5,6 @@ import logging
 import base64
 import binascii
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
 from typing import Dict, List, Mapping, Optional
 
 from lxml import etree
@@ -889,7 +888,7 @@ class Header:
                 id=author_id,
                 raw_id=None,
                 name=resolved_author,
-                mark=author_id,
+                mark=True,  # xs:boolean (Hancom writes mark="1"); the id is no mark
                 color=None,
             )
             author_list.authors.append(author)
@@ -926,7 +925,9 @@ class Header:
 def format_track_change_date(value: str | None = None) -> str:
     if value is not None:
         return value
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    from ._document_primitives import current_time
+
+    return current_time().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def normalize_track_change_type(change_type: str) -> str:

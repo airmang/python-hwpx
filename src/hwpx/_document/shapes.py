@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError
-from ..oxml.objects import _closed_points
+from ..oxml.objects import HwpxOxmlEquation, _closed_points
 from ..oxml.shape_position import (
     validate_equation_base_unit, validate_equation_font, validate_equation_script, validate_original_size,
     validate_rect_ratio, validate_shape_size,
@@ -487,7 +487,7 @@ def add_equation(
     size: tuple[int, int] | None = None,
     char_pr_id_ref: str | int | None = None,
     font: str = "HancomEQN",
-) -> HwpxOxmlInlineObject:
+) -> HwpxOxmlEquation:
     """Insert an inline equation and prove the standard reader recognizes it.
 
     The emitted XML follows the real-Hancom ``<hp:equation>`` contract
@@ -546,6 +546,22 @@ def add_equation(
         code="shape-equation-not-created",
         suggestion="Check that this document has a standard section structure.",
     )
+
+
+def equations(doc: "HwpxDocument") -> tuple[HwpxOxmlEquation, ...]:
+    """Every equation in the body, in document order: in table cells, text boxes, notes, headers and
+    footers too."""
+
+    from ..oxml.namespaces import HP
+    from .media import _enclosing_paragraph
+
+    found: list[HwpxOxmlEquation] = []
+    for section in doc._root.sections:
+        for element in section.element.iter(f"{HP}equation"):
+            paragraph = _enclosing_paragraph(element, section)
+            if paragraph is not None:
+                found.append(HwpxOxmlEquation(element, paragraph))
+    return tuple(found)
 
 
 _CHART_NS = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"

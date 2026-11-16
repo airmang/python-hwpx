@@ -22,10 +22,11 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, Iterator, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
+    from ..objects.results import ObjectPlace, ParagraphPlace
     from ..oxml import HwpxOxmlParagraph, HwpxOxmlTableCell
 
 __all__ = [
@@ -383,3 +384,229 @@ def apply_text_changes(
                 }
             )
     return report
+
+
+# ---------------------------------------------------------------------------
+# Whole-document walk: every paragraph and every object, with where it sits.
+
+#: Where a paragraph can sit (``ParagraphPlace.where``), innermost container first.
+PLACES = (
+    "body", "cell", "text_box", "caption", "header", "footer", "footnote", "endnote", "memo", "master_page",
+)
+#: Object kinds ``doc.text.objects()`` reports, by element name.
+OBJECT_KINDS = {
+    "tbl": "table",
+    "pic": "picture",
+    "equation": "equation",
+    "ole": "ole",
+    "chart": "chart",
+    "video": "video",
+    "textart": "textart",
+    "line": "shape",
+    "rect": "shape",
+    "ellipse": "shape",
+    "arc": "shape",
+    "polygon": "shape",
+    "curve": "shape",
+    "connectLine": "shape",
+    "container": "shape",
+}
+_SHAPE_TAGS = frozenset(name for name, kind in OBJECT_KINDS.items() if kind == "shape")
+_NOTE_PLACES = {"footNote": "footnote", "endNote": "endnote"}
+
+
+@dataclass(frozen=True)
+class _Context:
+    where: str
+    section: int | None
+    part: Any
+    page_type: str | None = None
+    table: Any = None  # the innermost table element holding the paragraph
+    table_paragraph: Any = None  # the paragraph element holding that table
+    row: int | None = None
+    col: int | None = None
+    owner: Any = None  # the innermost object element holding the paragraph
+    owner_paragraph: Any = None
+    depth: int = 0
+
+
+def _local(element: Any) -> str:
+    tag = element.tag if isinstance(element.tag, str) else ""
+    return tag.rsplit("}", 1)[-1]
+
+
+def _story_counts(section_element: Any) -> dict[tuple[str, str | None, str], int]:
+    counts: dict[tuple[str, str | None, str], int] = {}
+    for sec_pr in section_element.iter():
+        if _local(sec_pr) != "secPr":
+            continue
+        for story in sec_pr:
+            if _local(story) in ("header", "footer"):
+                key = (_local(story), story.get("id"), story.get("applyPageType", "BOTH"))
+                counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _walk(
+    node: Any, context: _Context, holder: Any, parent: str, counts: Mapping[Any, int]
+) -> Iterator[tuple[str, Any, _Context, Any]]:
+    """Yield ``("p", p, context, None)`` and ``("object", element, context, holding p)`` in document order."""
+
+    for child in node:
+        name = _local(child)
+        if name == "p":
+            yield "p", child, context, None
+            yield from _walk(child, context, child, name, counts)
+        elif name == "fieldBegin":
+            continue  # a memo field's own copy of the memo text; the memo itself comes from hp:memogroup
+        elif name in OBJECT_KINDS:
+            yield "object", child, context, holder
+            inner = replace(context, owner=child, owner_paragraph=holder, depth=context.depth + 1)
+            if name == "tbl":
+                for part in child:
+                    part_name = _local(part)
+                    if part_name == "tr":
+                        for cell in part:
+                            if _local(cell) != "tc":
+                                continue
+                            address = next((n for n in cell if _local(n) == "cellAddr"), None)
+                            cell_context = replace(
+                                inner,
+                                where="cell",
+                                table=child,
+                                table_paragraph=holder,
+                                row=_int_attr(address, "rowAddr"),
+                                col=_int_attr(address, "colAddr"),
+                            )
+                            yield from _walk(cell, cell_context, holder, "tc", counts)
+                    else:
+                        yield from _walk(part, inner, holder, part_name, counts)
+            else:
+                yield from _walk(child, inner, holder, name, counts)
+        elif name == "caption":
+            yield from _walk(child, replace(context, where="caption"), holder, name, counts)
+        elif name == "drawText":
+            yield from _walk(child, replace(context, where="text_box"), holder, name, counts)
+        elif name in ("header", "footer"):
+            key = (name, child.get("id"), child.get("applyPageType", "BOTH"))
+            if parent == "ctrl" and counts.get(key) == 1:
+                continue  # the copy python-hwpx keeps for Hangul of a story it also keeps under hp:secPr
+            story = replace(context, where=name, page_type=child.get("applyPageType", "BOTH"))
+            yield from _walk(child, story, holder, name, counts)
+        elif name in _NOTE_PLACES:
+            yield from _walk(child, replace(context, where=_NOTE_PLACES[name]), holder, name, counts)
+        elif name == "memogroup":
+            yield from _walk(child, replace(context, where="memo"), None, name, counts)
+        else:
+            yield from _walk(child, context, holder, name, counts)
+
+
+def _int_attr(element: Any, name: str) -> int | None:
+    if element is None:
+        return None
+    try:
+        return int(element.get(name))
+    except (TypeError, ValueError):
+        return None
+
+
+def _parts(doc: "HwpxDocument") -> Iterator[tuple[Any, _Context]]:
+    for index, section in enumerate(doc.sections):
+        yield section, _Context(where="body", section=index, part=section)
+    for master_page in doc.oxml.master_pages:
+        yield master_page, _Context(where="master_page", section=None, part=master_page)
+
+
+def _object_model(element: Any, paragraph: Any) -> Any:
+    from ..oxml import HwpxOxmlInlineObject, HwpxOxmlTable
+    from ..oxml.objects import HwpxOxmlShape
+
+    name = _local(element)
+    if name == "tbl":
+        return HwpxOxmlTable(element, paragraph)
+    if name in _SHAPE_TAGS:
+        return HwpxOxmlShape(element, paragraph)
+    return HwpxOxmlInlineObject(element, paragraph)
+
+
+def _place_fields(context: _Context) -> dict[str, Any]:
+    from ..oxml import HwpxOxmlParagraph
+
+    part = context.part
+    table = None
+    if context.table is not None:
+        table = _object_model(context.table, HwpxOxmlParagraph(context.table_paragraph, part))
+    owner = None
+    if context.owner is not None:
+        owner = _object_model(context.owner, HwpxOxmlParagraph(context.owner_paragraph, part))
+    return {
+        "where": context.where,
+        "section": context.section,
+        "page_type": context.page_type,
+        "table": table,
+        "row": context.row,
+        "col": context.col,
+        "owner": owner,
+        "depth": context.depth,
+    }
+
+
+def _check_choices(argument: str, values: "Iterable[str] | None", allowed: "Iterable[str]") -> "frozenset[str] | None":
+    from ..errors import HwpxValueError
+
+    if values is None:
+        return None
+    chosen = frozenset([values] if isinstance(values, str) else values)
+    allowed_set = frozenset(allowed)
+    unknown = sorted(chosen - allowed_set)
+    if unknown:
+        raise HwpxValueError(
+            f"{argument} 에 모르는 값이 있습니다: {unknown}",
+            code="text-place-invalid",
+            context={"argument": argument, "unknown": unknown, "allowed": sorted(allowed_set)},
+            suggestion=f"{argument}= 에는 {', '.join(sorted(allowed_set))} 를 줍니다.",
+        )
+    return chosen
+
+
+def iter_paragraph_places(doc: "HwpxDocument", where: "Iterable[str] | str | None" = None) -> Iterator["ParagraphPlace"]:
+    """Every paragraph of *doc* (body, cells, text boxes, captions, headers, footers, notes, memos,
+    master pages), in document order, with where it sits."""
+
+    from ..objects.results import ParagraphPlace
+    from ..oxml import HwpxOxmlParagraph
+
+    wanted = _check_choices("where", where, PLACES)
+    for part, root in _parts(doc):
+        counts = _story_counts(part.element)
+        for kind, element, context, _holder in _walk(part.element, root, None, "", counts):
+            if kind != "p" or (wanted is not None and context.where not in wanted):
+                continue
+            yield ParagraphPlace(paragraph=HwpxOxmlParagraph(element, part), **_place_fields(context))
+
+
+def iter_object_places(
+    doc: "HwpxDocument",
+    kinds: "Iterable[str] | str | None" = None,
+    where: "Iterable[str] | str | None" = None,
+) -> Iterator["ObjectPlace"]:
+    """Every table, picture, equation, shape (container members included), OLE object, chart,
+    video and text art of *doc*, in document order, with the place of the paragraph holding it."""
+
+    from ..objects.results import ObjectPlace
+    from ..oxml import HwpxOxmlParagraph
+
+    wanted_kinds = _check_choices("kinds", kinds, set(OBJECT_KINDS.values()))
+    wanted_places = _check_choices("where", where, PLACES)
+    for part, root in _parts(doc):
+        counts = _story_counts(part.element)
+        for kind, element, context, holder in _walk(part.element, root, None, "", counts):
+            if kind != "object":
+                continue
+            object_kind = OBJECT_KINDS[_local(element)]
+            if wanted_kinds is not None and object_kind not in wanted_kinds:
+                continue
+            if wanted_places is not None and context.where not in wanted_places:
+                continue
+            paragraph = HwpxOxmlParagraph(holder, part) if holder is not None else None
+            yield ObjectPlace(object=_object_model(element, paragraph), kind=object_kind, **_place_fields(context))

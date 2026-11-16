@@ -602,6 +602,35 @@ class HwpxOxmlSection:
     def reset_dirty(self) -> None:
         self._dirty = False
 
+    def clear_layout_cache(self, *, stale_only: bool = False) -> int:
+        """Remove the line layout caches (``hp:linesegarray``) of this section and return how many.
+
+        Every paragraph of the section counts: body, table cells, text boxes,
+        captions, headers, footers and notes. Hancom lays a paragraph without a
+        cache out again when it opens the file, so removing a cache never draws
+        text over itself; a cache left on text that changed does. The public
+        editing calls already remove the caches of what they change; call this
+        after changing the XML yourself.
+
+        ``stale_only=True`` removes only the caches that cannot match their
+        paragraph (what every save does anyway): a cached line starting past the
+        text, a cache too short for the text, or, in an edited section, a cache
+        the part was read with on a paragraph whose content changed since.
+        """
+
+        if stale_only:
+            return self.remove_stale_layout_caches()
+        removed = 0
+        for paragraph in self._element.iter():
+            if _element_local_name(paragraph) != "p":
+                continue
+            for child in [c for c in paragraph if _element_local_name(c).lower() == "linesegarray"]:
+                paragraph.remove(child)
+                removed += 1
+        if removed:
+            self.mark_dirty()
+        return removed
+
     def remove_stale_layout_caches(
         self, *, _header_shapes: tuple[frozenset[str], dict[str, float]] | None = None
     ) -> int:
@@ -926,65 +955,27 @@ def style_shape_refs(
 
     if style is None:
         return None, para_pr_id_ref, char_pr_id_ref
-    resolved = resolve_style_spec(document, style)
+    if document is not None:
+        from .formatting import resolve_style
+
+        resolved = resolve_style(document, style)
+    elif isinstance(style, (int, str)):
+        from ..errors import HwpxLookupError
+
+        raise HwpxLookupError(
+            f"스타일 {style!r} 을(를) 찾을 수 없습니다: 구역이 문서에 붙어 있지 않아 스타일 목록이 없습니다.",
+            code="style-not-found",
+            context={"requested": style, "available": [], "availableCount": 0},
+            suggestion="문서의 구역에서 부르거나 Style 객체를 주세요.",
+        )
+    else:
+        resolved = style
     style_id = resolved.id if resolved.id is not None else resolved.raw_id
     if para_pr_id_ref is None and "paraPrIDRef" not in (paragraph_attributes or {}):
         para_pr_id_ref = resolved.para_pr_id_ref
     if char_pr_id_ref is None and "charPrIDRef" not in (run_attributes or {}):
         char_pr_id_ref = resolved.char_pr_id_ref
     return style_id, para_pr_id_ref, char_pr_id_ref
-
-
-def resolve_style_spec(document: "HwpxOxmlDocument | None", spec: "int | str | Style") -> "Style":
-    """The style *spec* names in *document*: a ``Style`` as it is, a numeric id, or a
-    ``name``/``engName`` (exact, then ignoring case) — the order ``doc.styles.resolve``
-    uses, for the model-level ``add_paragraph(style=...)``.
-
-    Raises ``HwpxLookupError`` (``style-not-found`` / ``style-ambiguous``).
-    """
-
-    from ..errors import HwpxLookupError
-
-    if not isinstance(spec, (int, str)):
-        return spec
-    styles = document.styles if document is not None else {}
-    if isinstance(spec, int) or spec.strip().lstrip("-").isdigit():
-        wanted = str(int(str(spec).strip()))
-        found = next((s for key, s in styles.items() if wanted in (str(key), str(s.id))), None)
-    else:
-        ids = _style_ids_named(document, spec.strip())
-        if len(ids) > 1:
-            raise HwpxLookupError(
-                f"스타일 이름 {spec.strip()!r} 이(가) 모호합니다 — {len(ids)}개가 같은 이름을 씁니다.",
-                code="style-ambiguous",
-                context={"requested": spec.strip(), "candidates": list(ids)},
-                suggestion=f"숫자 id 로 지정하세요 — 후보: {', '.join(ids)}.",
-            )
-        found = styles.get(ids[0]) if ids else None
-    if found is None:
-        available = sorted({(s.name or "").strip() for s in styles.values() if (s.name or "").strip()})
-        raise HwpxLookupError(
-            f"스타일 {spec!r} 을(를) 찾을 수 없습니다.",
-            code="style-not-found",
-            context={"requested": spec, "available": available, "availableCount": len(available)},
-            suggestion="이 문서의 스타일 이름이나 번호를 주세요(doc.styles.names()).",
-        )
-    return found
-
-
-def _style_ids_named(document: "HwpxOxmlDocument | None", name: str) -> "tuple[str, ...]":
-    """The ids of the styles called *name* (``name`` or ``engName``; exact, then ignoring case)."""
-
-    if document is None:
-        return ()
-    aliases = document.style_name_aliases()
-    if name in aliases:
-        return tuple(aliases[name])
-    lowered = name.lower()
-    for alias, found in aliases.items():
-        if alias.lower() == lowered:
-            return tuple(found)
-    return ()
 
 
 __all__ = ["HwpxOxmlSection", "HwpxOxmlSectionHeaderFooter", "HwpxOxmlSectionProperties"]

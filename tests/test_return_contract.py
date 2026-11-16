@@ -170,6 +170,8 @@ def test_form_field_has_exactly_the_designed_twelve_attributes() -> None:
         "location",
         "parameters",
         "has_end",
+        # 7.0: 속성 12개에 동사 하나 — 누름틀 지우기
+        "remove",
     }, members
 
 
