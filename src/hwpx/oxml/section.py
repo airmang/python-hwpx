@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from ..objects.results import ClearBodyReport
     from .document_parts import HwpxOxmlDocument
     from .header import Style
+    from .table import HwpxOxmlTable
 
 _CLEAR_BODY_MODES = ("raise", "keep", "strip")
 _CLEAR_BODY_KEPT_TAGS = frozenset({f"{_HP}secPr", f"{_HP}ctrl"})
@@ -154,6 +155,22 @@ class HwpxOxmlSection:
     def paragraphs(self) -> tuple[HwpxOxmlParagraph, ...]:
         """The section's body paragraphs, in order."""
         return tuple(HwpxOxmlParagraph(elm, self) for elm in self._paragraph_elements())
+
+    @property
+    def blocks(self) -> "tuple[HwpxOxmlParagraph | HwpxOxmlTable, ...]":
+        """The section's paragraphs and the tables placed right in the section, in file order.
+
+        Hancom puts every table in a paragraph, so for its files this is :attr:`paragraphs`. Some
+        other programs write a table (``hp:tbl``) as a child of the section itself; such a table
+        comes here, where the file has it, as a table object whose ``paragraph`` is ``None``
+        (read its text with ``hwpx.tools.exporter.table_grid_text(table)``, its caption with
+        ``table.caption``). Other children of the section (``hp:memogroup``: :attr:`memo_group`) are
+        not blocks.
+        """
+
+        from .._document.text_blocks import section_blocks
+
+        return section_blocks(self)
 
     def _memo_group_element(self, create: bool = False) -> ET.Element | None:
         element = self._element.find(f"{_HP}memogroup")

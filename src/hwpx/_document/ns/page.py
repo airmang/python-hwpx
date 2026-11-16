@@ -782,15 +782,7 @@ class PageNamespace(_Namespace):
         """
 
         target = self._section(section, "page_number_controls")
-        return tuple(
-            PageNumberControl(
-                position=node.get("pos", "BOTTOM_CENTER"),
-                format_type=node.get("formatType", "DIGIT"),
-                side_char=node.get("sideChar", ""),
-                paragraph=paragraph,
-            )
-            for node, paragraph in _controls(target, "pageNum")
-        )
+        return tuple(page_number_control(node, paragraph) for node, paragraph in _controls(target, "pageNum"))
 
     def number_restarts(
         self, *, section: "int | HwpxOxmlSection | None" = None
@@ -798,10 +790,7 @@ class PageNamespace(_Namespace):
         """구역의 새 번호 컨트롤(``hp:newNum``, :meth:`add_number_restart` 가 넣는 것)을 문서 순서로."""
 
         target = self._section(section, "number_restarts")
-        return tuple(
-            NumberRestart(kind=node.get("numType", "PAGE"), number=_int(node.get("num"), 1), paragraph=paragraph)
-            for node, paragraph in _controls(target, "newNum")
-        )
+        return tuple(number_restart(node, paragraph) for node, paragraph in _controls(target, "newNum"))
 
     def page_hidings(
         self, *, section: "int | HwpxOxmlSection | None" = None
@@ -809,18 +798,7 @@ class PageNamespace(_Namespace):
         """구역의 감추기 컨트롤(``hp:pageHiding``, :meth:`add_page_hiding` 이 넣는 것)을 문서 순서로."""
 
         target = self._section(section, "page_hidings")
-        return tuple(
-            PageHiding(
-                header=_flag(node, "hideHeader"),
-                footer=_flag(node, "hideFooter"),
-                master_page=_flag(node, "hideMasterPage"),
-                border=_flag(node, "hideBorder"),
-                fill=_flag(node, "hideFill"),
-                page_num=_flag(node, "hidePageNum"),
-                paragraph=paragraph,
-            )
-            for node, paragraph in _controls(target, "pageHiding")
-        )
+        return tuple(page_hiding(node, paragraph) for node, paragraph in _controls(target, "pageHiding"))
 
     def auto_numbers(
         self, *, section: "int | HwpxOxmlSection | None" = None
@@ -831,21 +809,7 @@ class PageNamespace(_Namespace):
         """
 
         target = self._section(section, "auto_numbers")
-        numbers = []
-        for node, paragraph in _controls(target, "autoNum"):
-            fmt = node.find(f"{HP}autoNumFormat")
-            numbers.append(
-                AutoNumber(
-                    kind=node.get("numType", "PAGE"),
-                    number=_int(node.get("num"), 0),
-                    format_type=fmt.get("type", "DIGIT") if fmt is not None else "DIGIT",
-                    prefix=fmt.get("prefixChar") if fmt is not None else None,
-                    suffix=fmt.get("suffixChar") if fmt is not None else None,
-                    superscript=_flag(fmt, "supscript") if fmt is not None else False,
-                    paragraph=paragraph,
-                )
-            )
-        return tuple(numbers)
+        return tuple(auto_number(node, paragraph) for node, paragraph in _controls(target, "autoNum"))
 
     def start_numbers(self, *, section: "int | HwpxOxmlSection | None" = None) -> "StartNumbers":
         """구역의 시작 번호(``hp:startNum``): 쪽·그림·표·수식. 0이면 앞 구역에서 이어 센다."""
@@ -1144,6 +1108,52 @@ def _int_in(argument: str, value: object, low: int, high: int, code: str) -> Non
             context={"argument": argument, "value": repr(value), "low": low, "high": high},
             suggestion=f"{argument}= 에 {low}..{high} 의 정수를 주세요.",
         )
+
+
+def page_number_control(node: Any, paragraph: "HwpxOxmlParagraph | None") -> "PageNumberControl":
+    """The :class:`PageNumberControl` an ``hp:pageNum`` element writes (``doc.page.page_number_controls()``)."""
+
+    return PageNumberControl(
+        position=node.get("pos", "BOTTOM_CENTER"),
+        format_type=node.get("formatType", "DIGIT"),
+        side_char=node.get("sideChar", ""),
+        paragraph=paragraph,
+    )
+
+
+def number_restart(node: Any, paragraph: "HwpxOxmlParagraph | None") -> "NumberRestart":
+    """The :class:`NumberRestart` an ``hp:newNum`` element writes (``doc.page.number_restarts()``)."""
+
+    return NumberRestart(kind=node.get("numType", "PAGE"), number=_int(node.get("num"), 1), paragraph=paragraph)
+
+
+def page_hiding(node: Any, paragraph: "HwpxOxmlParagraph | None") -> "PageHiding":
+    """The :class:`PageHiding` an ``hp:pageHiding`` element writes (``doc.page.page_hidings()``)."""
+
+    return PageHiding(
+        header=_flag(node, "hideHeader"),
+        footer=_flag(node, "hideFooter"),
+        master_page=_flag(node, "hideMasterPage"),
+        border=_flag(node, "hideBorder"),
+        fill=_flag(node, "hideFill"),
+        page_num=_flag(node, "hidePageNum"),
+        paragraph=paragraph,
+    )
+
+
+def auto_number(node: Any, paragraph: "HwpxOxmlParagraph | None") -> "AutoNumber":
+    """The :class:`AutoNumber` an ``hp:autoNum`` element writes (``doc.page.auto_numbers()``)."""
+
+    fmt = node.find(f"{HP}autoNumFormat")
+    return AutoNumber(
+        kind=node.get("numType", "PAGE"),
+        number=_int(node.get("num"), 0),
+        format_type=fmt.get("type", "DIGIT") if fmt is not None else "DIGIT",
+        prefix=fmt.get("prefixChar") if fmt is not None else None,
+        suffix=fmt.get("suffixChar") if fmt is not None else None,
+        superscript=_flag(fmt, "supscript") if fmt is not None else False,
+        paragraph=paragraph,
+    )
 
 
 def _int(value: "str | None", default: int) -> int:

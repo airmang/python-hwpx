@@ -430,6 +430,7 @@
 - `replace_text(search, replacement, count=None)`: 일반 텍스트 노드에서 문자열을 교체하고 교체 횟수를 반환합니다.
 - `remove()`: 부모 단락에서 런 엘리먼트를 삭제합니다.
 - `bold`, `italic`, `underline`: 일치하는 런 스타일을 보장하여 서식 플래그를 토글하는 프로퍼티입니다.
+- `content -> tuple[InlineItem, ...]`: 런이 담은 것을 파일에 적힌 차례대로 하나씩 돌려줍니다(아래 「적힌 차례대로 읽기」). `run.to_model()`과 달리 고정폭 빈칸·묶음 빈칸·하이픈 같은 글자 원자를 버리지 않고, 요소를 직렬화해 다시 파싱하지 않습니다.
 - `_current_format_flags()`, `_apply_format_change(...)`, `_plain_text_nodes()`, `_ensure_plain_text_node()`: 서식 로직을 관리하는 내부 헬퍼입니다.
 
 ### 클래스 `HwpxOxmlMemoGroup`
@@ -517,6 +518,7 @@
 - `id`: 파일에 적힌 문단 id(`hp:p/@id`, 읽기 전용). 한/글도 `"0"`이나 같은 id를 적을 수 있어 고유 키가 아닙니다. 문단을 다시 찾을 때는 객체끼리 견줍니다(아래 「같은 요소의 객체」).
 - `replace_range(start, end, text)`: `paragraph.text`로 센 글자 `[start, end)`를 *text*로 바꿉니다. 런은 그대로이고, 새 글자는 같은 자리의 옛 글자의 런(글자 모양)에 들어갑니다(`doc.text.replace`·한/글 찾아 바꾸기와 같은 규칙). 남는 새 글자는 범위 끝 글자를 따르고, `start == end`면 앞 글자의 런에 끼웁니다. 범위가 탭·줄 바꿈·컨트롤·개체를 건너면 `paragraph-range-crosses-element`로 거절합니다. 줄 배치 캐시를 지웁니다.
 - `copy_to(paragraph, *, before=False) -> Paragraph`: 이 문단의 사본을 *paragraph* 뒤(`before=True`면 앞)에 넣고 돌려줍니다. *paragraph*는 다른 문서의 문단(본문·칸·글상자·각주·머리말)이어도 됩니다. 이때 글자·문단 모양, 스타일, 테두리, 탭, 번호·글머리표, 글꼴 정의를 받는 문서에 새로 만들고, 그림·차트의 파트를 함께 옮기며, 누름틀·책갈피·개체·문단 id를 새로 매깁니다(`insert_document`와 같은 규칙, 같은 거부). 구역 설정은 따라가지 않고, 구역 첫 문단 앞에 넣으면 그 구역의 설정을 넘겨받습니다. 같은 문서 안에서는 `insert_after()` 사본과 같습니다.
+- `iter_objects(*, kinds=None, where=None) -> Iterator[ObjectPlace]`: 이 문단 안의 모든 개체를 깊이와 상관없이 문서 차례로 내놓습니다. 문단 자신의 개체와 그 표 칸·글상자·캡션·묶음·각주·메모 안의 개체까지입니다. `doc.text.iter_objects()`를 이 문단으로 좁힌 것과 같고(값과 `kinds`·`where`도 같습니다), `paragraph.objects`·`paragraph.pictures`는 바로 아래 것만입니다. 문단 자신의 XML과 조상만 읽습니다.
 - `_run_elements()`, `_ensure_run()`, `_create_run_for_object()`: 위 작업들을 위해 런 생성 및 접근을 관리하는 내부 헬퍼입니다.
 
 ### 같은 요소의 객체
@@ -536,12 +538,36 @@
 - 글맵시의 글: `doc.text.iter_objects(kinds="textart")`의 `place.object.attributes["text"]`(한/글이 `hp:textart/@text`에 적은 그대로).
 - 숨은 설명(`hp:hiddenComment`)의 문단은 `doc.text.iter_paragraphs()`에서 자리 `where="hidden_comment"`로 나옵니다.
 
+### 적힌 차례대로 읽기 — `run.content`, `InlineItem`
+
+`run.content`의 값 `InlineItem`(`hwpx.objects`, 고정된 값)은 `kind`·`name`(XML 요소의 지역 이름, 글자는 `""`)·`container`(`"t"`·`"ctrl"`·`"run"`: 파일에서 적힌 곳)·`text`·`attributes`(요소의 속성을 적힌 차례대로 `(이름, 값)`의 tuple, `item.attribute("type")`)·`object`·`element`를 가집니다.
+
+- `hp:t` 안: `"text"`(글자), `"tab"`, `"line_break"`, `"nb_space"`(묶음 빈칸), `"fw_space"`(고정폭 빈칸), `"hyphen"`, `"markpen_begin"`·`"markpen_end"`, `"title_mark"`, `"insert_begin"`·`"insert_end"`·`"delete_begin"`·`"delete_end"`. 글자 원자의 `text`는 그 글자(`"	"`, `"
+"`, `" "`, `"　"`, `"­"`)이고 표시는 `""`라서, `container == "t"`인 조각의 `text`를 이으면 `run.text`입니다.
+- `hp:ctrl` 안: `"field_begin"`, `"field_end"`, `"footnote"`, `"endnote"`, `"bookmark"`, `"auto_number"`, `"page_number"`, `"page_number_ctrl"`, `"number_restart"`, `"page_hiding"`, `"column_definition"`, `"header"`, `"footer"`, `"index_mark"`, `"hidden_comment"`.
+- 런의 자식: 개체는 `doc.text.iter_objects()`의 종류 이름(`"table"`·`"picture"`·`"equation"`·`"shape"`·`"textart"`·`"ole"`·`"chart"`·`"video"`)과 `"form"`, 그리고 `"ruby"`(덧말), `"composed_character"`(글자 겹치기), `"section_properties"`(`hp:secPr`), `"switch"`.
+- 모르는 요소는 버리지 않고 `"unknown"`과 그 `name`으로 내놓습니다. 빈 `hp:t`·`hp:ctrl`은 담은 것이 없어 조각이 없습니다.
+- `object`는 조각에 맞는 모델 객체입니다: 개체(`paragraph.objects`와 같은 객체), 각주·미주(`paragraph.footnotes`와 같은 객체), `HYPERLINK` 누름틀의 `Hyperlink`, 글을 품은 `MEMO` 누름틀의 메모, `Ruby`·`ComposedCharacter`, 그리고 `AutoNumber`·`PageNumberControl`·`NumberRestart`·`PageHiding`·`ColumnDefinition`. 없으면 `None`입니다. `element`는 탈출구입니다. 둘은 `==`에 들지 않습니다.
+
+```python
+for paragraph in doc.paragraphs:
+    for run in paragraph.runs:
+        for item in run.content:
+            if item.kind == "field_begin" and item.attribute("type") == "HYPERLINK":
+                print("link", item.object.url)
+            elif item.container == "t":
+                print(repr(item.text))
+```
+
+도형 안의 문단은 `shape.iter_paragraphs(*, where=None) -> Iterator[ParagraphPlace]`로 읽습니다: 글상자(`"text_box"`)·캡션(`"caption"`)·묶음 구성원·안쪽 표 칸(`"cell"`)의 문단을 깊이와 상관없이 문서 차례로, `doc.text.iter_paragraphs()`와 같은 값으로 내놓습니다.
+
 ### 클래스 `HwpxOxmlSection`
 
 - `properties`: `<hp:secPr>` 계층이 필요할 때 이를 생성하며 `HwpxOxmlSectionProperties` 래퍼를 반환하는 프로퍼티입니다.
 - `element`: 원시 섹션 `Element`를 반환하는 프로퍼티입니다.
 - `document`: 소유 `HwpxOxmlDocument`를 참조하는 프로퍼티입니다. `attach_document()`는 섹션을 문서 인스턴스와 연결합니다.
 - `paragraphs`: 문서 순서대로 단락 래퍼의 tuple을 반환하는 프로퍼티입니다.
+- `blocks -> tuple[Paragraph | Table, ...]`: 구역의 문단과 구역 바로 아래 놓인 표를 파일에 적힌 차례로 돌려줍니다. 한/글은 표를 늘 문단 안에 두므로 한/글 파일에서는 `paragraphs`와 같습니다. 다른 프로그램이 구역 바로 아래 쓴 표(`hp:tbl`)는 그 자리에 `paragraph`가 `None`인 표 객체로 나옵니다. 글은 `hwpx.tools.exporter.table_grid_text(table)`, 캡션은 `table.caption`으로 읽습니다. `hp:memogroup`(→ `memo_group`) 같은 다른 자식은 들어가지 않습니다.
 - `memo_group`: 메모 그룹이 존재할 때 `HwpxOxmlMemoGroup` 래퍼를 반환하는 프로퍼티입니다.
 - `memos`: 섹션의 메모 래퍼의 tuple을 반환하는 프로퍼티입니다.
 - `add_memo(...)`: 메모 그룹이 있는지 확인한 후 `HwpxOxmlMemoGroup.add_memo()`에 위임하는 편의 메서드입니다.

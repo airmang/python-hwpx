@@ -95,7 +95,9 @@ if TYPE_CHECKING:
     from ..objects.checkbox import CheckBox
     from ..objects.form_field import Bookmark, FormField, Hyperlink
     from ..objects.highlight import Highlight
-    from ..objects.results import NumberRestart, PageHiding
+    from typing import Iterable, Iterator
+
+    from ..objects.results import NumberRestart, ObjectPlace, PageHiding
     from .section import HwpxOxmlSection
 
 
@@ -901,6 +903,24 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     shapes = property(_paragraph_shapes)
     objects = property(_paragraph_objects)
     pictures = property(_paragraph_pictures)
+
+    def iter_objects(
+        self,
+        *,
+        kinds: "Iterable[str] | str | None" = None,
+        where: "Iterable[str] | str | None" = None,
+    ) -> "Iterator[ObjectPlace]":
+        """Every object inside this paragraph, at any depth, in document order, with where it sits.
+
+        :meth:`hwpx.document.HwpxDocument` ``.text.iter_objects()`` narrowed to this paragraph: its own
+        objects and those in its tables' cells, text boxes, captions, groups, notes and memos.
+        ``kinds``/``where`` and the :class:`~hwpx.objects.ObjectPlace` values are those of
+        ``doc.text.iter_objects()``. Only the paragraph's own XML and its ancestors are read.
+        """
+
+        from .._document.text_blocks import paragraph_object_places
+
+        return paragraph_object_places(self, kinds, where)
     equations = property(_paragraph_equations)
     line_segments = property(paragraph_line_segments)  # read only; body in _paragraph_text_edit.py
     line_texts = property(paragraph_line_texts)  # each saved line's text; body in _paragraph_text_edit.py
