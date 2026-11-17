@@ -21,7 +21,7 @@ from ._document_primitives import (
 from ._paragraph_text_edit import set_text_with_tabs
 
 if TYPE_CHECKING:
-    from ..objects.form_field import Hyperlink
+    from ..objects.form_field import FieldParameter, Hyperlink
     from .header import Style
     from .paragraph import HwpxOxmlParagraph
     from .run import HwpxOxmlRun
@@ -694,6 +694,15 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
     @id.setter
     def id(self, value: str | None) -> None:
         self.set_attribute("ID", value)
+
+    @property
+    def parameters(self) -> "tuple[FieldParameter, ...]":
+        """The field's parameters as written, in order (:class:`hwpx.objects.FieldParameter`), as
+        :class:`hwpx.objects.FieldControl` reads every other field's; :attr:`attributes` gives them by name."""
+
+        from ..objects.form_field import field_parameters
+
+        return field_parameters(self.element)
 
     @property
     def attributes(self) -> dict[str, str]:

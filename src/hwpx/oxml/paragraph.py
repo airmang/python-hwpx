@@ -97,7 +97,7 @@ if TYPE_CHECKING:
     from ..objects.highlight import Highlight
     from typing import Iterable, Iterator
 
-    from ..objects.results import NumberRestart, ObjectPlace, PageHiding
+    from ..objects.results import NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
     from .section import HwpxOxmlSection
 
 
@@ -127,6 +127,27 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
     if gap >= 1 << 31:  # a signed 32-bit number written unsigned
         gap -= 1 << 32
     return (text_width - (count - 1) * gap) // count
+
+
+def _checked_tab_widths(text: str, tab_widths: "Sequence[int] | None") -> "tuple[int, ...]":
+    """*tab_widths* checked against the tabs of *text* (``add_run(tab_widths=)``)."""
+
+    if tab_widths is None:
+        return ()
+    from ..errors import HwpxValueError
+
+    widths = tuple(tab_widths)
+    count = text.count("	")
+    if len(widths) != count or any(isinstance(w, bool) or not isinstance(w, int) or not 0 <= w < 2**31
+                                   for w in widths):
+        raise HwpxValueError(
+            f"tab_widths needs one whole HWPUNIT width (0 to 2**31-1) for each of the {count} tab(s) of the text;"
+            f" got {widths!r}",
+            code="paragraph-tab-widths",
+            context={"tabs": count, "widths": [repr(w) for w in widths]},
+            suggestion="Pass one width for each tab, in order, or leave tab_widths out to let Hancom work them out.",
+        )
+    return widths
 
 
 @dataclass(eq=False)
@@ -625,6 +646,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         strike: bool | None = None,
         attributes: dict[str, str] | None = None,
         expand_special_characters: bool = False,
+        tab_widths: "Sequence[int] | None" = None,
     ) -> HwpxOxmlRun:
         """Append a new run to the paragraph and return its wrapper.
 
@@ -636,8 +658,15 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         ``hp:fwSpace``; real corpus (``error__20230818__test.hwpx``,
         ``error__20251107__test.hwpx``, ``error__20250808__...hwpx``) has
         Hancom emit all of these as elements nested inside a single ``hp:t``.
+
+        *tab_widths* (HWPUNIT, one for each tab of *text*, in order) writes each tab as Hancom saves
+        it, ``<hp:tab width="N" leader="0" type="1"/>`` -- the width it takes up to the next tab stop,
+        as a caller that laid the line out measured it. Without it a tab is written ``<hp:tab/>`` and
+        Hancom works the width out. A count other than the number of tabs, or a width that is not a
+        whole number from 0 to 2**31-1, is refused (``paragraph-tab-widths``) before anything changes.
         """
 
+        widths = _checked_tab_widths(text, tab_widths)
         run_attrs = dict(attributes or {})
 
         if "charPrIDRef" not in run_attrs:
@@ -668,6 +697,12 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             _append_text_with_run_choice_atoms(run_element, text)
         else:
             _append_text_with_tabs(run_element, text)
+        if widths:
+            tabs = [node for node in run_element.iter() if tag_local_name(node.tag) == "tab"]
+            for tab, width in zip(tabs, widths):
+                tab.set("width", str(width))
+                tab.set("leader", "0")
+                tab.set("type", "1")
         self.section.mark_dirty()
         return HwpxOxmlRun(run_element, self)
 
@@ -922,6 +957,21 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         from .._document.text_blocks import paragraph_object_places
 
         return paragraph_object_places(self, kinds, where)
+
+    def iter_paragraphs(self, *, where: "Iterable[str] | str | None" = None) -> "Iterator[ParagraphPlace]":
+        """Every paragraph inside this paragraph, at any depth, in document order, with where it sits.
+
+        :meth:`hwpx.document.HwpxDocument` ``.text.iter_paragraphs()`` narrowed to this paragraph: the
+        paragraphs of its tables' cells (nested tables too), captions, text boxes, groups, notes and
+        memos, each as a :class:`~hwpx.objects.ParagraphPlace` with the same fields that walk gives. The
+        paragraph itself is not among them; one holding nothing gives nothing. *where* chooses places as
+        that walk does (``where={"cell", "text_box"}``). Only the paragraph's own XML and its ancestors
+        are read.
+        """
+
+        from .._document.text_blocks import paragraph_paragraph_places
+
+        return paragraph_paragraph_places(self, where)
 
     def nested_text(self, *, where: "Iterable[str] | str | None" = None) -> str:
         """This paragraph's text with the text of every paragraph inside it, in document order.

@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 346 | 11 |
+| 개수 | 347 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -293,6 +293,7 @@ except HwpxError as exc:
 | `paragraph-tab-pos-invalid` | 탭 정지 위치(pos_mm/pos)가 없거나 음수다. |
 | `paragraph-tab-target-required` | 탭 컨트롤이 있는 문단은 고칠 run을 명시해야 한다. |
 | `paragraph-tab-type-invalid` | 탭 정지 type 값이 OWPML 어휘(LEFT/RIGHT/CENTER/DECIMAL) 밖이다. |
+| `paragraph-tab-widths` | add_run(tab_widths=) 의 폭 개수가 글의 탭 수와 다르거나 폭이 0~2**31-1 정수가 아니다. |
 | `paragraph-text-invalid-type` | 문단 글(text)이 문자열이 아니다. |
 | `paragraph-text-missing` | 문단에 고칠 일반 텍스트(hp:t) 노드가 없다. |
 | `paragraph-text-style-ambiguous` | 텍스트 수정이 run 경계를 넘거나 삽입할 글자 모양이 모호하다. |

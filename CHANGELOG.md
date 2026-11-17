@@ -301,6 +301,11 @@ python-hwpx 7.0을 함께 설치한다.
 
 #### 개체
 
+- `set_position(flow_with_text=, allow_overlap=)`: 떠 있는 개체를 쪽 영역 안으로 제한하거나 겹침을 허용한다(`hp:pos/@flowWithText`·
+  `@allowOverlap`). `obj.position.has_position`·`treat_as_char_written`은 `hp:pos`와 `treatAsChar`가 적혔는지 읽는다.
+- python-hwpx 6.x가 구역 설정 안과 본문 컨트롤에 두 벌 적은 머리말·꼬리말은 어느 공개 길(`doc.text.iter_paragraphs(where="footer")`,
+  `doc.page.footers()`, `run.content`의 꼬리말 조각)로 고쳐도 저장할 때 두 벌이 같아진다(바뀐 쪽을 다른 쪽에 옮긴다). 한/글
+  저장본은 본문 컨트롤에만 적는다(`hancom_saved`의 머리말·꼬리말 16개 모두).
 - 그림·수식·차트·도형·글상자·묶음·표를 지우고(`obj.remove()`, 문단은 남고 연결선은 연결만 놓는다), 같은 문서의 다른 문단(표 칸·
   글상자·각주·머리말 포함)의 원하는 글자 자리로 옮기거나 복사한다(`obj.move_to(paragraph, offset=...)`, 사본을 돌려주는
   `obj.copy_to(...)`). 사본은 새 id를 받고 그림은 같은 이미지를 쓴다. 한/글 문서가 두지 않는 자리(쪽 기준으로 떠 있는 개체를 표
@@ -485,6 +490,15 @@ python-hwpx 7.0을 함께 설치한다.
   남은 id가 바뀌지 않는다. 한/글 저장본은 정의 id가 늘 빈틈없이 이어진다(`tests/fixtures/hancom_saved` 1,257개 모두).
   엔진 문서를 한/글이 다시 저장하면 쓰지 않는 정의를 지우고 id를 다시 매긴다(재저장 짝에서 쓰지 않는 문단 모양이 있던 29쌍 중 20쌍).
   `run.set_format`으로 시험값 사본을 만들었다가 되돌린 뒤 걷어 내는 쓰임에 맞다.
+- `paragraph.iter_paragraphs(where=)`: 문단 안의 모든 문단(표 칸·칸 안 표·캡션·글상자·묶음·각주·메모)을 `doc.text.iter_paragraphs()`와
+  같은 걷기로 문서 차례로 내놓는다(문단 자신은 빼고).
+- `doc.text.iter_objects()`·`paragraph.iter_objects()`의 `place.object`가 `paragraph.objects`와 같은 모델이다: 그림은 `item_id`가 있는
+  `Picture`, 수식은 `script`가 있는 `Equation`(둘 다 `InlineObject`를 잇는다). 전에는 둘 다 `InlineObject`였다.
+- `run.content`의 조각: `child_index`(런의 몇째 `hp:t`·`hp:ctrl`에 적혔는지), 머리말·꼬리말 컨트롤 조각의 `object`(머리말·꼬리말
+  모델), 모든 누름틀 시작의 `object` — 하이퍼링크·메모 밖의 것은 새 값 형식 `hwpx.objects.FieldControl`(`field_type`·`field_id`·
+  `name`·`parameters`)이고 `Hyperlink`·메모도 `parameters`를 읽는다.
+- `paragraph.add_run(text, tab_widths=[...])`: 잰 탭 폭을 한/글 저장 꼴(`<hp:tab width="N" leader="0" type="1"/>`)로 쓴다.
+  `tests/fixtures/hancom_saved` 1,257개의 `hp:tab` 11,177개가 모두 이 세 속성을 적는다. 인자가 없으면 전처럼 `<hp:tab/>`이다.
 
 ### 고침
 

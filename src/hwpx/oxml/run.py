@@ -185,7 +185,18 @@ def _piece_object(kind: str, element: Any, run: "HwpxOxmlRun") -> Any:
             from .memo import HwpxOxmlFieldMemo
 
             return HwpxOxmlFieldMemo(element, paragraph.section)
-        return None
+        from ..objects.form_field import FieldControl, field_parameters
+
+        return FieldControl(field_type=element.get("type", ""), field_id=element.get("id", ""),
+                            name=element.get("name", ""), parameters=field_parameters(element), element=element)
+    if kind in ("header", "footer"):
+        from .section import HwpxOxmlSection
+        from .section_story import HwpxOxmlSectionHeaderFooter
+
+        section = paragraph.section
+        if not isinstance(section, HwpxOxmlSection):
+            return None
+        return HwpxOxmlSectionHeaderFooter(element, section.properties)
     if kind in ("ruby", "composed_character"):
         from ..objects.highlight import ComposedCharacter, Ruby
 
@@ -223,7 +234,9 @@ def _local_name(node: Any) -> str:
     return name
 
 
-def _piece(kind: str, element: Any, container: str, run: "HwpxOxmlRun", text: str = "") -> "InlineItem":
+def _piece(
+    kind: str, element: Any, container: str, run: "HwpxOxmlRun", text: str = "", child_index: int = 0
+) -> "InlineItem":
     from ..objects.results import InlineItem
 
     return InlineItem(
@@ -234,10 +247,13 @@ def _piece(kind: str, element: Any, container: str, run: "HwpxOxmlRun", text: st
         attributes=tuple((str(key), str(value)) for key, value in element.attrib.items()),
         object=_piece_object(kind, element, run),
         element=element,
+        child_index=child_index,
     )
 
 
-def _text_pieces(node: Any, run: "HwpxOxmlRun", pieces: "list[InlineItem]", item: Any) -> None:
+def _text_pieces(
+    node: Any, run: "HwpxOxmlRun", pieces: "list[InlineItem]", item: Any, child_index: int = 0
+) -> None:
     """The pieces of the ``hp:t`` *node*: its characters, and the glyphs and marks between them.
 
     A comment or processing instruction inside ``hp:t`` holds no text of its own: the characters on
@@ -249,7 +265,8 @@ def _text_pieces(node: Any, run: "HwpxOxmlRun", pieces: "list[InlineItem]", item
         name = _local_name(child)
         if name:
             if stretch:
-                pieces.append(item(kind="text", name="", container="t", text="".join(stretch)))
+                pieces.append(item(kind="text", name="", container="t", text="".join(stretch),
+                                   child_index=child_index))
                 stretch = []
             kind = _TEXT_PIECE_KINDS.get(name, "unknown")
             if name in _TEXT_INLINE_ATOMS:
@@ -258,11 +275,11 @@ def _text_pieces(node: Any, run: "HwpxOxmlRun", pieces: "list[InlineItem]", item
                 text = "".join(child.itertext())
             else:
                 text = ""
-            pieces.append(_piece(kind, child, "t", run, text))
+            pieces.append(_piece(kind, child, "t", run, text, child_index))
         if child.tail:
             stretch.append(child.tail)
     if stretch:
-        pieces.append(item(kind="text", name="", container="t", text="".join(stretch)))
+        pieces.append(item(kind="text", name="", container="t", text="".join(stretch), child_index=child_index))
 
 
 def run_content(run: "HwpxOxmlRun") -> "tuple[InlineItem, ...]":
@@ -271,19 +288,23 @@ def run_content(run: "HwpxOxmlRun") -> "tuple[InlineItem, ...]":
     from ..objects.results import InlineItem
 
     pieces: list[InlineItem] = []
+    index = -1
     for child in run.element:
         name = _local_name(child)
         if not name:
             continue  # a comment or processing instruction
+        index += 1
         if name == "t":
-            _text_pieces(child, run, pieces, InlineItem)
+            _text_pieces(child, run, pieces, InlineItem, index)
         elif name == "ctrl":
             for control in child:
                 control_name = _local_name(control)
                 if control_name:
-                    pieces.append(_piece(_CONTROL_PIECE_KINDS.get(control_name, "unknown"), control, "ctrl", run))
+                    pieces.append(_piece(_CONTROL_PIECE_KINDS.get(control_name, "unknown"), control, "ctrl", run,
+                                         child_index=index))
         else:
-            pieces.append(_piece(_RUN_PIECE_KINDS.get(name, "unknown"), child, "run", run, _TEXT_INLINE_ATOMS.get(name, "")))
+            pieces.append(_piece(_RUN_PIECE_KINDS.get(name, "unknown"), child, "run", run,
+                                 _TEXT_INLINE_ATOMS.get(name, ""), index))
     return tuple(pieces)
 
 
