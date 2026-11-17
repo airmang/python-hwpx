@@ -663,3 +663,62 @@ def test_by_default_the_column_changes_go_as_before() -> None:
         with pytest.raises(HwpxValueError) as caught:
             doc.sections[0].clear_body(keep_column_changes=1)  # type: ignore[arg-type]
         assert caught.value.code == "section-clear-mode-invalid"
+
+
+def test_a_kept_column_change_holding_content_follows_on_control_content() -> None:
+    # nothing in a kept column change goes silently: content beside the column definition (here a footnote put in
+    # the same hp:ctrl) is refused by default, kept with "keep", removed and reported with "strip"
+    def opened() -> HwpxDocument:
+        doc = HwpxDocument.open(_COLUMNS)
+        donor = HwpxDocument.new()
+        donor.notes.add_footnote("주", paragraph=donor.add_paragraph("가"))
+        note = copy.deepcopy(donor.paragraphs[0].element.find(f".//{HP}footNote"))
+        doc.sections[0].paragraphs[4].element.find(f".//{HP}colPr").getparent().append(note)
+        return doc
+
+    with opened() as doc:
+        before = etree.tostring(doc.sections[0].element)
+        with pytest.raises(HwpxValueError) as caught:
+            doc.sections[0].clear_body(keep_column_changes=True)
+        assert caught.value.code == "section-clear-control-content"
+        assert etree.tostring(doc.sections[0].element) == before  # refused before anything changed
+    with opened() as doc:
+        report = doc.sections[0].clear_body(keep_column_changes=True, on_control_content="strip")
+        assert report.kept_column_paragraphs == 2 and report.stripped_controls == 1 and "hp:t" in report.control_content
+        assert doc.sections[0].element.find(f".//{HP}footNote") is None
+    with opened() as doc:
+        doc.sections[0].clear_body(keep_column_changes=True, on_control_content="keep")
+        assert doc.sections[0].paragraphs[1].element.find(f".//{HP}footNote") is not None
+
+
+def test_clear_content_empties_a_paragraph_and_keeps_its_section_settings() -> None:
+    with HwpxDocument.new() as doc:
+        first = doc.add_paragraph("첫 문단")
+        doc.page.set_header(text="머리말")
+        first.add_table(1, 1)
+        doc.notes.add_footnote("각주", paragraph=first)
+        first.add_bookmark("책갈피")
+        with pytest.raises(HwpxValueError) as caught:
+            first.clear_content()  # the header's text stays only with "keep" or goes with "strip"
+        assert caught.value.code == "section-clear-control-content"
+        report = first.clear_content(on_control_content="keep")
+        assert first.text == ""
+        names = [[tag_local_name(child.tag) for child in run] for run in first.element.findall(f"{HP}run")]
+        assert names[0][0] == "secPr" and names[-1] == ["t"]
+        controls = [tag_local_name(inner.tag) for ctrl in first.element.iter(f"{HP}ctrl") for inner in ctrl]
+        assert "colPr" in controls and "header" in controls
+        assert not {"tbl", "footNote", "bookmark"} & {tag_local_name(n.tag) for n in first.element.iter()}
+        assert report.stripped_run_children >= 3
+        first.clear_content(keep_headers=False)
+        controls = [tag_local_name(inner.tag) for ctrl in first.element.iter(f"{HP}ctrl") for inner in ctrl]
+        assert controls == ["colPr"]
+        HwpxDocument.open(doc.to_bytes()).close()
+
+
+def test_clear_content_of_a_later_paragraph_leaves_an_empty_line() -> None:
+    with HwpxDocument.new() as doc:
+        doc.add_paragraph("첫")
+        later = doc.add_paragraph("둘째 문단")
+        later.add_run("굵게", bold=True)
+        later.clear_content()
+        assert later.text == "" and [len(run) for run in later.element.findall(f"{HP}run")] == [1]

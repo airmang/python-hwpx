@@ -47,8 +47,12 @@ class NotesNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         char_pr_id_ref: str | int | None = None,
+        offset: int | None = None,
     ) -> "Note":
-        """쪽 아래 각주를 *paragraph* (문단 객체나 번호) 끝에 단다. 주지 않으면 *section* 끝에 새 문단을 만든다."""
+        """쪽 아래 각주를 *paragraph* (문단 객체나 번호) 끝에 단다. 주지 않으면 *section* 끝에 새 문단을 만든다.
+
+        *offset* 를 주면 그 문단의 그 글자 자리(``paragraph.text`` 의 자리)에 단다: 그 자리 컨트롤 뒤, 그 자리 글자 앞.
+        글 가운데면 한/글처럼 그 런의 ``hp:t`` 를 둘로 나누고 사이에 둔다. 뒤 번호는 다시 매긴다."""
 
         from .. import shapes as _shapes
 
@@ -61,6 +65,7 @@ class NotesNamespace(_Namespace):
             ),
             section=self._section(section, "add_footnote"),
             char_pr_id_ref=char_pr_id_ref,
+            offset=offset,
         )
 
     def add_endnote(
@@ -70,8 +75,12 @@ class NotesNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         char_pr_id_ref: str | int | None = None,
+        offset: int | None = None,
     ) -> "Note":
-        """문서 끝 미주를 *paragraph* (문단 객체나 번호) 끝에 단다. 주지 않으면 *section* 끝에 새 문단을 만든다."""
+        """문서 끝 미주를 *paragraph* (문단 객체나 번호) 끝에 단다. 주지 않으면 *section* 끝에 새 문단을 만든다.
+
+        *offset* 를 주면 그 문단의 그 글자 자리(``paragraph.text`` 의 자리)에 단다: 그 자리 컨트롤 뒤, 그 자리 글자 앞.
+        글 가운데면 한/글처럼 그 런의 ``hp:t`` 를 둘로 나누고 사이에 둔다. 뒤 번호는 다시 매긴다."""
 
         from .. import shapes as _shapes
 
@@ -84,6 +93,7 @@ class NotesNamespace(_Namespace):
             ),
             section=self._section(section, "add_endnote"),
             char_pr_id_ref=char_pr_id_ref,
+            offset=offset,
         )
 
     @property

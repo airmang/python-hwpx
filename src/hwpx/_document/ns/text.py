@@ -536,9 +536,11 @@ class TextNamespace(_Namespace):
     def highlight(
         self,
         paragraph: "HwpxOxmlParagraph | int",
-        match: str,
+        match: str | None = None,
         *,
         color: str = "#FFFF00",
+        start: int | None = None,
+        end: int | None = None,
     ) -> "Highlight":
         """*match* 의 첫 등장을 형광펜(``markpenBegin``/``markpenEnd``)으로 감싼다.
 
@@ -548,6 +550,10 @@ class TextNamespace(_Namespace):
         문단도)이다. 서식이 다른 런에 걸친 *match* 는 거절한다(``text-highlight-match-crosses-markup``).
         ``format_range(highlight=)``·``ensure_run(highlight=)`` 는 이것이 아니라 글자 모양의 음영 색
         (``hh:charPr/@shadeColor``)이다.
+
+        *match* 대신 *start*·*end* 를 주면 그 문단의 글자 ``[start, end)``(``paragraph.text`` 의 자리)를 칠한다. 런을
+        넘어도 된다: 한/글처럼 시작은 첫 글자의 ``hp:t``, 끝은 마지막 글자의 ``hp:t`` 에 한 번씩 둔다
+        (``highlight_across_runs``). 이미 있는 형광펜과 겹치면 ``paragraph-range-splits-mark`` 로 거절한다.
         """
 
         from .. import highlight as _highlight
@@ -558,7 +564,58 @@ class TextNamespace(_Namespace):
             resolve_paragraph(self._doc, paragraph, caller="doc.text.highlight"),
             match,
             color=color,
+            start=start,
+            end=end,
         )
+
+    def highlight_span(
+        self,
+        start_paragraph: "HwpxOxmlParagraph | int",
+        start: int,
+        end_paragraph: "HwpxOxmlParagraph | int",
+        end: int,
+        *,
+        color: str = "#FFFF00",
+    ) -> tuple["Highlight", ...]:
+        """*start_paragraph* 의 글자 *start* 부터 *end_paragraph* 의 글자 *end* 앞까지 칠하고, 문단마다 하나씩 돌려준다.
+
+        한/글은 문단을 넘는 형광펜을 문단마다 시작·끝 한 쌍으로 쓴다(``highlight_two_paragraphs``). 두 문단은 같은 목록
+        (본문, 같은 표 칸 …)에 이 차례로 있어야 한다(``paragraph-range-invalid``). 글자가 없는 문단은 건너뛴다.
+        """
+
+        from .. import highlight as _highlight
+        from .._resolve import resolve_paragraph
+        from ...errors import HwpxValueError
+
+        first = resolve_paragraph(self._doc, start_paragraph, caller="doc.text.highlight_span")
+        last = resolve_paragraph(self._doc, end_paragraph, caller="doc.text.highlight_span")
+        first_element: Any = first.element
+        last_element: Any = last.element
+        parent = first_element.getparent()
+        siblings = [node for node in parent if node.tag == first_element.tag] if parent is not None else []
+        if (parent is None or last_element.getparent() is not parent
+                or siblings.index(first_element) > siblings.index(last_element)):
+            raise HwpxValueError(
+                "the two paragraphs are not in one paragraph list in this order",
+                code="paragraph-range-invalid",
+                suggestion="Pass two paragraphs of the body (or of one cell), the first one first.",
+            )
+        chosen = siblings[siblings.index(first.element):siblings.index(last.element) + 1]
+        paragraphs = [first if node is first.element else last if node is last.element
+                      else type(first)(node, first.section) for node in chosen]
+        from ...oxml.text_ranges import _check_offset, check_highlight_range
+
+        _check_offset("start", start, 0, len(first.text))
+        _check_offset("end", end, start + 1 if len(paragraphs) == 1 else 0, len(last.text))
+        spans = []
+        for index, paragraph in enumerate(paragraphs):
+            low = start if index == 0 else 0
+            high = end if index == len(paragraphs) - 1 else len(paragraph.text)
+            if high > low:
+                check_highlight_range(paragraph, low, high)  # every part checked before any is written
+                spans.append((paragraph, low, high))
+        return tuple(_highlight.add_highlight(self._doc, paragraph, color=color, start=low, end=high)
+                     for paragraph, low, high in spans)
 
     @property
     def highlights(self) -> tuple["Highlight", ...]:

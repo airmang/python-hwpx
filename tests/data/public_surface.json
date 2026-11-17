@@ -181,8 +181,8 @@
    "replace_picture": {"kind": "method", "params": [["image_data", "P", false], ["image_format", "P", false], ["index", "K", true], ["old_item_id", "K", true], ["remove_orphaned", "K", true], ["item_id", "K", true]], "returns": "PictureReplacement"}
   },
   "notes": {
-   "add_endnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
-   "add_footnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
+   "add_endnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true], ["offset", "K", true]], "returns": "Note"},
+   "add_footnote": {"kind": "method", "params": [["text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true], ["offset", "K", true]], "returns": "Note"},
    "add_memo": {"kind": "method", "params": [["text", "P", true], ["paragraph", "K", true], ["section", "K", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true], ["paragraph_text", "K", true], ["field_id", "K", true], ["author", "K", true], ["created", "K", true], ["number", "K", true], ["paragraph_char_pr_id_ref", "K", true], ["match", "K", true], ["index", "K", true]], "returns": "Memo"},
    "attach": {"kind": "method", "params": [["paragraph", "P", false], ["memo", "P", false], ["field_id", "K", true], ["author", "K", true], ["created", "K", true], ["number", "K", true], ["char_pr_id_ref", "K", true], ["match", "K", true], ["index", "K", true]], "returns": "Memo"},
    "endnotes": {"kind": "property", "settable": false, "returns": "tuple[Note, ...]"},
@@ -192,7 +192,7 @@
    "set_memo_shape": {"kind": "method", "params": [["memo_shape_id_ref", "P", false], ["section", "K", true]], "returns": "None"}
   },
   "refs": {
-   "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["paragraph", "K", true], ["section", "K", true]], "returns": "Bookmark"},
+   "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["paragraph", "K", true], ["section", "K", true], ["offset", "K", true]], "returns": "Bookmark"},
    "add_cross_reference": {"kind": "method", "params": [["target", "P", false], ["content_type", "K", true], ["hyperlink", "K", true], ["paragraph", "K", true], ["section", "K", true]], "returns": "CrossReference"},
    "add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["paragraph", "K", true], ["section", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"},
    "add_table_of_contents": {"kind": "method", "params": [["index", "K", true], ["section", "K", true], ["title", "K", true], ["levels", "K", true], ["leader", "K", true], ["hyperlink", "K", true]], "returns": "TableOfContents"},
@@ -261,7 +261,8 @@
    "apply_changes": {"kind": "method", "params": [["changes", "P", false], ["check_overflow", "K", true]], "returns": "TextChangeReport"},
    "find": {"kind": "method", "params": [["pattern", "P", false], ["regex", "K", true], ["where", "K", true]], "returns": "tuple[TextMatch, ...]"},
    "find_runs": {"kind": "method", "params": [["text_color", "K", true], ["underline_type", "K", true], ["underline_color", "K", true], ["char_pr_id_ref", "K", true]], "returns": "tuple[Run, ...]"},
-   "highlight": {"kind": "method", "params": [["paragraph", "P", false], ["match", "P", false], ["color", "K", true]], "returns": "Highlight"},
+   "highlight": {"kind": "method", "params": [["paragraph", "P", false], ["match", "P", true], ["color", "K", true], ["start", "K", true], ["end", "K", true]], "returns": "Highlight"},
+   "highlight_span": {"kind": "method", "params": [["start_paragraph", "P", false], ["start", "P", false], ["end_paragraph", "P", false], ["end", "P", false], ["color", "K", true]], "returns": "tuple[Highlight, ...]"},
    "highlights": {"kind": "property", "settable": false, "returns": "tuple[Highlight, ...]"},
    "iter_blocks": {"kind": "method", "params": [], "returns": "Iterator[TextBlock]"},
    "iter_objects": {"kind": "method", "params": [["kinds", "K", true], ["where", "K", true]], "returns": "Iterator[ObjectPlace]"},
@@ -545,20 +546,20 @@
    "internal": []
   },
   "Note": {
-   "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["style", "K", true], ["para_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "offset": {"kind": "property", "settable": false, "returns": "int | None"}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
+   "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["style", "K", true], ["para_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "copy_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "Note"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "None"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "offset": {"kind": "property", "settable": false, "returns": "int | None"}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
    "internal": []
   },
   "Paragraph": {
    "members": {
-    "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Bookmark"},
+    "add_bookmark": {"kind": "method", "params": [["name", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true], ["offset", "K", true]], "returns": "Bookmark"},
     "add_chart": {"kind": "method", "params": [["chart_id_ref", "P", false], ["treat_as_char", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["width", "K", true], ["height", "K", true]], "returns": "InlineObject"},
     "add_check_box": {"kind": "method", "params": [["caption", "P", false], ["checked", "K", true], ["name", "K", true], ["width", "K", true], ["height", "K", true], ["char_pr_id_ref", "K", true]], "returns": "CheckBox"},
     "add_ellipse": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["line_color", "K", true], ["line_width_mm", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true], ["original_size", "K", true]], "returns": "Shape"},
-    "add_endnote": {"kind": "method", "params": [["text", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
+    "add_endnote": {"kind": "method", "params": [["text", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true], ["offset", "K", true]], "returns": "Note"},
     "add_equation": {"kind": "method", "params": [["script", "P", false], ["font_size", "K", true], ["char_pr_id_ref", "K", true], ["run_attributes", "K", true], ["font", "K", true], ["width", "K", true], ["height", "K", true]], "returns": "Equation"},
-    "add_footnote": {"kind": "method", "params": [["text", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Note"},
-    "add_form_field": {"kind": "method", "params": [["name", "P", false], ["prompt", "K", true], ["memo", "K", true], ["editable", "K", true], ["prompt_char_pr_id_ref", "K", true], ["char_pr_id_ref", "K", true]], "returns": "FormField"},
-    "add_highlight": {"kind": "method", "params": [["color", "K", false], ["match", "K", false]], "returns": "Highlight"},
+    "add_footnote": {"kind": "method", "params": [["text", "P", false], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true], ["offset", "K", true]], "returns": "Note"},
+    "add_form_field": {"kind": "method", "params": [["name", "P", false], ["prompt", "K", true], ["memo", "K", true], ["editable", "K", true], ["prompt_char_pr_id_ref", "K", true], ["char_pr_id_ref", "K", true], ["start", "K", true], ["end", "K", true]], "returns": "FormField"},
+    "add_highlight": {"kind": "method", "params": [["color", "K", false], ["match", "K", true], ["start", "K", true], ["end", "K", true]], "returns": "Highlight"},
     "add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"},
     "add_line": {"kind": "method", "params": [["start_x", "P", true], ["start_y", "P", true], ["end_x", "P", true], ["end_y", "P", true], ["line_color", "K", true], ["line_width_mm", "K", true], ["treat_as_char", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Shape"},
     "add_number_restart": {"kind": "method", "params": [["number", "K", true], ["kind", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "NumberRestart"},
@@ -571,6 +572,7 @@
     "available_width": {"kind": "property", "settable": false, "returns": "int | None"},
     "bookmarks": {"kind": "property", "settable": false, "returns": "tuple[Bookmark, ...]"},
     "char_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
+    "clear_content": {"kind": "method", "params": [["keep_headers", "K", true], ["on_control_content", "K", true]], "returns": "ClearBodyReport"},
     "clear_layout_cache": {"kind": "method", "params": [], "returns": "int"},
     "clear_text": {"kind": "method", "params": [], "returns": "None"},
     "column_break": {"kind": "property", "settable": true, "returns": "bool"},

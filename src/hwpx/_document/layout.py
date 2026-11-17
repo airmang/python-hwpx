@@ -850,6 +850,7 @@ def add_bookmark(
     *,
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
+    offset: int | None = None,
 ) -> "Bookmark":
     """Insert a bookmark marker in the document.
 
@@ -860,7 +861,7 @@ def add_bookmark(
             "", section=section,
             include_run=False,
         )
-    return paragraph.add_bookmark(name)
+    return paragraph.add_bookmark(name, offset=offset)
 
 
 def add_hyperlink(

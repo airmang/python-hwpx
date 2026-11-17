@@ -19,7 +19,7 @@ are concatenated crosses a boundary this module refuses to split.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
 from ..objects.highlight import Highlight
@@ -83,12 +83,31 @@ def _paragraph_has_highlightable_text(paragraph: "HwpxOxmlParagraph", match: str
 def add_highlight(
     doc: "HwpxDocument",
     paragraph: "HwpxOxmlParagraph",
-    match: str,
+    match: str | None = None,
     *,
     color: str = DEFAULT_COLOR,
+    start: int | None = None,
+    end: int | None = None,
 ) -> Highlight:
-    """Wrap the first occurrence of *match* in *paragraph* in markpen marks."""
+    """Wrap the first occurrence of *match* in *paragraph* in markpen marks, or characters ``[start, end)``."""
 
+    if start is not None or end is not None:
+        if match is not None:
+            from ..errors import HwpxValueError as _ValueError
+
+            raise _ValueError("pass match or start and end, not both", code="paragraph-range-invalid",
+                              context={"match": match, "start": repr(start), "end": repr(end)},
+                              suggestion="Highlight a substring with match=, or a range of characters with start=, end=.")
+        from ..oxml.text_ranges import highlight_range
+
+        validated = _validate_color(color)
+        if start is None or end is None:
+            from ..errors import HwpxValueError as _ValueError
+
+            raise _ValueError("a highlight's range needs both start and end", code="paragraph-range-invalid",
+                              suggestion="Pass start and end (positions count as paragraph.text does).")
+        highlight_range(paragraph, start, end, validated)
+        return Highlight(text=paragraph.text[start:end], color=validated, paragraph=paragraph)
     if not isinstance(match, str):
         from ..errors import argument_type_error
 
@@ -161,12 +180,40 @@ def list_highlights(doc: "HwpxDocument") -> tuple[Highlight, ...]:
 
     results: list[Highlight] = []
     for paragraph in (place.paragraph for place in iter_paragraph_places(doc, None)):
+        crossing = _crossing_highlights(paragraph)
+        if crossing is not None:
+            results.extend(crossing)
+            continue
         for run in paragraph.runs:
             model = run.to_model()
             for span in model.text_spans:
                 for text, color in _span_highlights(span):
                     results.append(Highlight(text=text, color=color, paragraph=paragraph))
     return tuple(results)
+
+
+def _crossing_highlights(paragraph: "HwpxOxmlParagraph") -> "list[Highlight] | None":
+    """The highlights of *paragraph* when one of them crosses from one ``hp:t`` into another -- Hancom's form
+    for a highlight over two runs (``highlight_across_runs``) -- read as the characters between its two marks;
+    ``None`` when every highlight opens and closes in one ``hp:t`` (read span by span, as before)."""
+
+    from ..oxml.text_ranges import _units
+
+    pairs: "list[tuple[Any, Any]]" = []
+    open_: "list[Any]" = []
+    for unit in _units(paragraph.element):  # the reader's rule: the innermost open begin closes first
+        name = unit.element.tag.rsplit("}", 1)[-1] if unit.kind == "mark" else ""
+        if name == "markpenBegin":
+            open_.append(unit)
+        elif name == "markpenEnd" and open_:
+            pairs.append((open_.pop(), unit))
+    pairs += [(begin, None) for begin in open_]
+    if all(finish is not None and finish.text is begin.text for begin, finish in pairs):
+        return None
+    text = paragraph.text
+    return [Highlight(text=text[begin.start:finish.start if finish is not None else len(text)],
+                      color=begin.element.get("color"), paragraph=paragraph)
+            for begin, finish in sorted(pairs, key=lambda pair: pair[0].start)]
 
 
 __all__ = ["DEFAULT_COLOR", "add_highlight", "list_highlights"]

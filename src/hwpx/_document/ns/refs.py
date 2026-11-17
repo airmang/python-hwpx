@@ -141,8 +141,11 @@ class RefsNamespace(_Namespace):
         *,
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
+        offset: int | None = None,
     ) -> "Bookmark":
-        """책갈피를 넣는다. 상호참조·목차의 앵커가 된다. :attr:`bookmarks` 가 읽는 :class:`Bookmark` 를 돌려준다."""
+        """책갈피를 넣는다. 상호참조·목차의 앵커가 된다. :attr:`bookmarks` 가 읽는 :class:`Bookmark` 를 돌려준다.
+
+        *offset* 을 주면 그 문단의 그 글자 자리(``paragraph.text`` 의 자리)에 둔다: 그 자리 컨트롤 뒤, 그 자리 글자 앞."""
 
         from .. import layout as _layout
 
@@ -156,6 +159,7 @@ class RefsNamespace(_Namespace):
             section=resolve_section(
                 self._doc, section, caller="doc.refs.add_bookmark"
             ),
+            offset=offset,
         )
 
     def add_hyperlink(
