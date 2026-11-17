@@ -384,7 +384,11 @@ def test_save_to_a_stream_writes_hwpx_and_reports_no_path() -> None:
     assert zipfile.is_zipfile(io.BytesIO(stream.getvalue()))
 
 
-def test_save_picks_the_format_from_the_name_or_the_argument(tmp_path: Path) -> None:
+def test_save_picks_the_format_from_the_name_or_the_argument(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from hwpx._document import persistence
+
+    # the writer says it is experimental once per process: another test of this worker may have saved a .hwp first
+    monkeypatch.setattr(persistence, "_hwp5_write_warned", False)
     document = HwpxDocument.new()
     document.add_paragraph("한글 5.0")
     signature = b"\xd0\xcf\x11\xe0"

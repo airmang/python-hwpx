@@ -1158,7 +1158,7 @@ def _definition_key(element: Any) -> bytes:
     """*element* as canonical XML without its ``id`` (a style's ``nextStyleIDRef`` to itself read as such):
     two definitions with the same key mean the same."""
 
-    from lxml import etree
+    from lxml import etree  # type: ignore[reportMissingImports]  # lxml has no complete bundled typing, as everywhere in hwpx
 
     clone = etree.fromstring(etree.tostring(element))
     own = clone.attrib.pop("id", None)

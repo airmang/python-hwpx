@@ -324,11 +324,13 @@ def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element, *, ids: "IdSour
 
         # 개체(그림·도형 등)의 속성명은 "instid", 각주·미주는 "instId"다
         # (스키마·한/글). 어느 철자든 값만 재발급하고 속성명은 그대로 둔다.
+        renewed = node.get("id")  # the id just given (or kept), for an instid that was equal to it
         for inst_attr in ("instid", "instId"):
             if inst_attr in node.attrib:
                 # Hancom writes an object's id and instid alike (1,114 of the 1,433 objects with both in
                 # the Hancom-saved fixtures; the others are group members, id 0): a copy keeps them so
-                node.set(inst_attr, node.get("id") if same and inst_attr == "instid" else _object_id(ids))
+                keep = same and inst_attr == "instid"
+                node.set(inst_attr, renewed if keep and renewed is not None else _object_id(ids))
 
 
 def _clone_paragraph_element(paragraph: ET.Element, *, ids: "IdSource | None") -> ET.Element:
