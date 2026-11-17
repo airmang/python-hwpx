@@ -175,17 +175,9 @@ def test_no_hancom_execution_asset_ships_in_the_wheel(tmp_path: Path) -> None:
     if existing:
         wheel = existing[-1]
     else:
-        import shutil
-        import subprocess
-        import sys
+        from tests.distribution_build import build
 
-        shutil.rmtree(ROOT / "build", ignore_errors=True)
-        subprocess.run(
-            [sys.executable, "-m", "build", "--wheel", "--outdir", str(tmp_path)],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-        )
+        build(tmp_path, "--wheel", clear_build_dir=True, capture_output=True)
         wheel = sorted(tmp_path.glob("*.whl"))[-1]
     shipped = [
         name
