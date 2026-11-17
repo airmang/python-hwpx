@@ -97,7 +97,7 @@ if TYPE_CHECKING:
     from ..objects.highlight import Highlight
     from typing import Iterable, Iterator
 
-    from ..objects.results import CellMargins, NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
+    from ..objects.results import CellMargins, ClearBodyReport, NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
     from .section import HwpxOxmlSection
 
 
@@ -450,6 +450,17 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         from .text_ranges import set_text_preserving_runs
 
         set_text_preserving_runs(self, value)
+
+    def clear_content(self, *, keep_headers: bool = True, on_control_content: str = "raise") -> "ClearBodyReport":
+        """Empty this paragraph of its body content -- text, tables, pictures, notes, bookmarks, fields -- and keep
+        its section settings: ``hp:secPr`` with the page-level controls beside it (the column definition always,
+        headers and footers as *keep_headers* says), as ``section.clear_body`` keeps the first paragraph's.
+        Content inside what stays follows *on_control_content* (``"raise"``, ``"keep"``, ``"strip"``) as there.
+        Returns the :class:`~hwpx.objects.ClearBodyReport` of what went."""
+
+        from .section import clear_paragraph_content
+
+        return clear_paragraph_content(self, keep_headers=keep_headers, on_control_content=on_control_content)
 
     def clear_text(self) -> None:
         """Remove all text content while preserving styles and non-text elements.

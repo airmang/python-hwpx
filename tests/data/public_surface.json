@@ -569,6 +569,7 @@
     "available_width": {"kind": "property", "settable": false, "returns": "int | None"},
     "bookmarks": {"kind": "property", "settable": false, "returns": "tuple[Bookmark, ...]"},
     "char_pr_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
+    "clear_content": {"kind": "method", "params": [["keep_headers", "K", true], ["on_control_content", "K", true]], "returns": "ClearBodyReport"},
     "clear_layout_cache": {"kind": "method", "params": [], "returns": "int"},
     "clear_text": {"kind": "method", "params": [], "returns": "None"},
     "column_break": {"kind": "property", "settable": true, "returns": "bool"},
