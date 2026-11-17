@@ -8,12 +8,12 @@
 
 from __future__ import annotations
 
-import subprocess
-import sys
 import tarfile
 from pathlib import Path
 
 import pytest
+
+from tests.distribution_build import build
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -30,13 +30,7 @@ def test_manifest_prunes_tests() -> None:
 @pytest.fixture(scope="module")
 def sdist_members(tmp_path_factory: pytest.TempPathFactory) -> list[str]:
     output = tmp_path_factory.mktemp("sdist-contents")
-    subprocess.run(
-        [sys.executable, "-m", "build", "--sdist", "--outdir", str(output)],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    build(output, "--sdist", capture_output=True, text=True)
     sdist = next(output.glob("*.tar.gz"))
     with tarfile.open(sdist, "r:gz") as archive:
         return [member.name for member in archive.getmembers() if member.isfile()]

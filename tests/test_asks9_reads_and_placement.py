@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+from datetime import datetime, timezone
 
 import pytest
 
@@ -53,8 +54,9 @@ def test_set_position_writes_flow_with_text_and_allow_overlap_as_hancom_does() -
 
 def test_set_position_without_the_new_arguments_writes_what_it_wrote() -> None:
     def build(**extra) -> bytes:
-        # closed at the end: a seeded document left open keeps its seed for every later document
-        with HwpxDocument.new(seed=7) as doc:
+        # closed at the end: a seeded document left open keeps its seed for every later document.
+        # ``now`` too: the two builds can straddle a clock second, and the package carries the time.
+        with HwpxDocument.new(seed=7, now=datetime(2026, 1, 1, tzinfo=timezone.utc)) as doc:
             shape = doc.shapes.add_rectangle(3000, 2000, paragraph=doc.add_paragraph("가"))
             shape.set_position(treat_as_char=False, vertical_offset=100, **extra)
             return doc.to_bytes()

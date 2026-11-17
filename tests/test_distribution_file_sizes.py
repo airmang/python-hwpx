@@ -12,13 +12,13 @@ most 512 files, so a split costs a file there: prefer one new module to several.
 
 from __future__ import annotations
 
-import subprocess
-import sys
 import warnings
 from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+
+from tests.distribution_build import build
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "src" / "hwpx"
@@ -69,7 +69,7 @@ def test_no_source_file_of_the_package_reaches_the_limit() -> None:
 
 def test_no_file_of_the_built_wheel_reaches_the_limit(tmp_path: Path) -> None:
     pytest.importorskip("build")
-    subprocess.run([sys.executable, "-m", "build", "--wheel", "--outdir", str(tmp_path)], cwd=ROOT, check=True)
+    build(tmp_path, "--wheel")
     with ZipFile(next(tmp_path.glob("*.whl"))) as wheel:
         sizes = {info.filename: info.file_size for info in wheel.infolist() if not info.is_dir()}
     assert "hwpx/form_fit/_glyph_table.json.gz" in sizes  # the glyph tables ship as data

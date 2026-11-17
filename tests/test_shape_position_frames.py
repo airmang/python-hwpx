@@ -243,7 +243,7 @@ def _render(element) -> str:
 #: ``set_draw_text("확인", char_pr_id_ref=3)`` on an 8503-wide rectangle,
 #: captured from the implementation before para_pr_id_ref/vert_align existed.
 DEFAULT_DRAW_TEXT = (
-    "<drawText name='' editable='0' lastWidth='8503'>"
+    "<drawText lastWidth='8503' name='' editable='0'>"  # Hancom's order (asks10f)
     "<subList id='' textDirection='HORIZONTAL' lineWrap='BREAK' vertAlign='CENTER'"
     " linkListIDRef='0' linkListNextIDRef='0' textWidth='0' textHeight='0'"
     " hasTextRef='0' hasNumRef='0'>"

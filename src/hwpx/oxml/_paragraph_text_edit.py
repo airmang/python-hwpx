@@ -346,7 +346,7 @@ def insert_paragraph_beside(
     """
 
     from ._document_primitives import (
-        _DEFAULT_PARAGRAPH_ATTRS, _append_text_with_tabs, _clone_paragraph_element, _paragraph_id,
+        paragraph_attributes, _append_text_with_tabs, _clone_paragraph_element, _paragraph_id,
     )
 
     parent = paragraph_container(element, section_element)
@@ -367,7 +367,7 @@ def insert_paragraph_beside(
     else:
         text_run = next((child for child in element if _local(child) == "run" and (
             not len(child) or not all(is_section_setting(grand) for grand in child))), None)
-        new = element.makeelement(element.tag, {"id": _paragraph_id(ids), **_DEFAULT_PARAGRAPH_ATTRS})
+        new = element.makeelement(element.tag, paragraph_attributes(_paragraph_id(ids)))
         for name in ("paraPrIDRef", "styleIDRef"):
             if element.get(name) is not None:
                 new.set(name, element.get(name) or "")

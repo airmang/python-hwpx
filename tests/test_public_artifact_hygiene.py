@@ -5,12 +5,13 @@ import importlib.util
 import io
 import os
 import subprocess
-import sys
 import tarfile
 import zipfile
 from pathlib import Path
 
 import pytest
+
+from tests.distribution_build import build
 
 try:
     import tomllib
@@ -96,13 +97,7 @@ def hygiene_git_repo(tmp_path: Path) -> Path:
 @pytest.fixture(scope="module")
 def built_distributions(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
     output = tmp_path_factory.mktemp("public-artifacts")
-    subprocess.run(
-        [sys.executable, "-m", "build", "--outdir", str(output)],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    build(output, capture_output=True, text=True)
     return next(output.glob("*.whl")), next(output.glob("*.tar.gz"))
 
 

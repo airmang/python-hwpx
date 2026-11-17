@@ -14,7 +14,7 @@ from ._document_primitives import (
     _DEFAULT_CELL_HEIGHT,
     _DEFAULT_CELL_WIDTH,
     _default_cell_inner_margin_attributes,
-    _DEFAULT_PARAGRAPH_ATTRS,
+    paragraph_attributes,
     _HP,
     _append_child,
     _append_text_with_tabs,
@@ -524,7 +524,7 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
             )
         sublist = self._ensure_sublist()
 
-        attrs = {"id": _paragraph_id(self.table.paragraph.section._ids), **_DEFAULT_PARAGRAPH_ATTRS}
+        attrs = paragraph_attributes(_paragraph_id(self.table.paragraph.section._ids))
         if para_pr_id_ref is not None:
             attrs["paraPrIDRef"] = str(para_pr_id_ref)
         if style_id_ref is not None:

@@ -5,8 +5,12 @@ existing call writes (so it waits for the owner's approval before merging)."""
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from hwpx import HwpxDocument
 from hwpx.objects import CellMargins
+
+_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -99,7 +103,7 @@ def test_an_object_new_to_a_document_never_takes_an_id_it_already_has() -> None:
 
 def test_seeded_documents_stay_repeatable() -> None:
     def build() -> bytes:
-        doc = HwpxDocument.new(seed=11)
+        doc = HwpxDocument.new(seed=11, now=_NOW)  # now: two runs may straddle a clock second
         paragraph = doc.add_paragraph("가")
         doc.shapes.add_rectangle(1000, 1000, paragraph=paragraph)
         paragraph.insert_after()

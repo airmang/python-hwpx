@@ -210,8 +210,8 @@ def create_drop_cap_element(
     _append_child(el, f"{_HC}pt3", {"x": "0", "y": h})
 
     _append_child(el, f"{_HP}sz", {
-        "width": w, "height": h,
-        "widthRelTo": "ABSOLUTE", "heightRelTo": "ABSOLUTE", "protect": "1",
+        "width": w, "widthRelTo": "ABSOLUTE",
+        "height": h, "heightRelTo": "ABSOLUTE", "protect": "1",
     })
     _append_child(el, f"{_HP}pos", {
         "treatAsChar": "0", "affectLSpacing": "0", "flowWithText": "1",
