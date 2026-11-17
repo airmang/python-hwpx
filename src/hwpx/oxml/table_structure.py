@@ -113,6 +113,29 @@ class TableStructureEdits:
 
         self._restructure({"op": "delete_column", "cols": _lines(cols, "cols")})
 
+    def move_rows(self, rows: int | Iterable[int], *, to: int) -> None:
+        """Move the physical rows *rows* (one row number or a run of them, as :meth:`delete_rows` takes) in
+        front of row *to* -- counted before the move; the row count puts them at the end. Every cell's
+        ``rowAddr`` and the row count are numbered again; the cells keep their ids and content. A merged cell
+        reaching across the rows' top or bottom or the place they go to is refused
+        (``table-rows-merge-crossed``) before anything changes; rows not next to each other or out of range,
+        ``table-rows-invalid``."""
+
+        from .table_rows import move_rows
+
+        move_rows(self, rows, to)
+
+    def copy_rows(self, rows: int | Iterable[int], *, to: int, source: "HwpxOxmlTable | None" = None) -> None:
+        """Put a copy of the rows *rows* of *source* (``None``: this table; another table of the same document,
+        of the same columns) in front of row *to* of this table. The copies' paragraphs, objects and fields
+        get fresh ids, as ``copy_after`` gives a table's copy; the table grows by their height, as
+        :meth:`insert_rows` grows it. Refused as :meth:`move_rows` refuses, and a source of other columns
+        (``table-columns-differ``) or of another document (``table-rows-other-document``)."""
+
+        from .table_rows import copy_rows
+
+        copy_rows(self, rows, to, source)
+
     def split_cell(self, row: int, col: int, *, rows: int = 1, cols: int = 1) -> None:
         """Split the cell at (*row*, *col*) into *rows* x *cols* cells (2..63 each), as Hancom does.
 

@@ -498,6 +498,11 @@ python-hwpx 7.0을 함께 설치한다.
     - 글 가운데 각주·책갈피는 한 런 안 두 `hp:t` 사이에 둔다.
     - 범위 밖으로 이어지는 형광펜은 남은 쪽 가장자리에서 시작하거나 끝나게 한다.
     - 형광펜을 복사하면 사본 가장자리에서 열고 닫는다.
+- 표 행 옮기기·복사: `table.move_rows(rows, *, to)`, `table.copy_rows(rows, *, to, source=None)`.
+  - 이어진 행 묶음을 그 행 앞(행 수면 끝)으로 옮기거나 복사한다. `rowAddr`·`rowCnt`를 다시 매긴다.
+  - 사본은 새 id를 받는다. 같은 문서·같은 열의 다른 표에서도 복사한다.
+  - 병합 칸이 묶음 경계나 넣을 자리를 가로지르면 `table-rows-merge-crossed`로 바꾸기 전에 거부한다.
+  - 행 번호·자리가 잘못되면 `table-rows-invalid`, 열이 다르면 `table-columns-differ`, 다른 문서 표는 `table-rows-other-document`로 거부한다.
 - `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
   `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
   기본값(`False`)이면 전처럼 지운다.
