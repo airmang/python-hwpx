@@ -32,6 +32,7 @@ class _HwpxOxmlSimplePart:
         self._element = element
         self._document = document
         self._dirty = False
+        self._source: bytes | None = None  # the part's bytes as read, when it was read from a package
 
     @property
     def element(self) -> ET.Element:
@@ -192,6 +193,26 @@ class HwpxOxmlSettings(_HwpxOxmlSimplePart):
         from .settings import parse_application_settings
 
         return parse_application_settings(self._element)
+
+    def to_bytes(self) -> bytes:
+        """The part as read with only its ``ha:CaretPosition`` rewritten -- the one thing the engine changes in
+        it (``doc.set_caret``/``reset_caret``) -- so the rest keeps the bytes Hangul or the template wrote."""
+
+        import re
+
+        caret = next((child for child in self._element if str(child.tag).endswith("}CaretPosition")), None)
+        if self._source is None or caret is None:
+            return super().to_bytes()
+        values = " ".join(f'{key}="{value}"' for key, value in caret.attrib.items())
+        found = re.search(rb"<([\w.-]+:)?CaretPosition\b[^>]*/>", self._source)
+        if found is not None:
+            prefix = (found.group(1) or b"").decode()
+            return self._source[:found.start()] + f"<{prefix}CaretPosition {values}/>".encode() + self._source[found.end():]
+        root = re.search(rb"<([\w.-]+:)?HWPApplicationSetting\b[^>]*?(/?)>", self._source)
+        if root is None or root.group(2):
+            return super().to_bytes()
+        prefix = (root.group(1) or b"").decode()
+        return self._source[:root.end()] + f"<{prefix}CaretPosition {values}/>".encode() + self._source[root.end():]
 
 
 __all__ = [

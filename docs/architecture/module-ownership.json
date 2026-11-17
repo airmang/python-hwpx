@@ -568,6 +568,12 @@
       "rationale": "Where a thing stands in its paragraph's text, counted one way for every place the engine reads or takes: paragraph.text's (a character, a tab, a line break, a special space one; a control or an object none). The offset reads of objects, tables, notes, fields, bookmarks and run content pieces delegate here. A new module rather than more paragraph.py or table.py lines: both owner files sit at their code-line review line. Format-level only."
     },
     {
+      "path": "src/hwpx/oxml/caret.py",
+      "disposition": "core",
+      "approvedBy": "asks10h-caret",
+      "rationale": "Where Hangul opens a document: settings.xml's ha:CaretPosition read, set in a body paragraph (Hangul's position count: a control or an object eight) and reset to the body's first paragraph's text start; on saving, a caret pointing at a body paragraph that is gone goes there, as Hangul 2024 opens it (out/exec7/asks10h/caret). Only the caret element of settings.xml is rewritten, the rest keeps its bytes. A new module rather than more document.py or document_parts.py lines. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/text_ranges.py",
       "disposition": "core",
       "approvedBy": "asks10-text-ranges",
