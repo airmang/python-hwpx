@@ -628,3 +628,38 @@ def test_text_after_a_child_in_a_kept_header_counts_as_content() -> None:
         for header in section.element.iter(f"{HP}header")
         for node in header.iter()
     )
+
+
+# -- keep_column_changes (asks10b) -----------------------------------------------------------------
+
+_COLUMNS = Path(__file__).parent / "fixtures" / "hancom_saved" / "pages_columns_change_text_after_definition.hwpx"
+
+
+def test_keep_column_changes_keeps_the_paragraphs_that_change_the_columns() -> None:
+    # Hangul writes a change of columns in the middle of a section as an hp:ctrl holding hp:colPr in a later
+    # paragraph's run (here paragraphs 4 and 11: two columns, then one again).
+    with HwpxDocument.open(_COLUMNS) as doc:
+        section = doc.sections[0]
+        ids = [section.paragraphs[i].element.get("id") for i in (4, 11)]
+        counts = [section.paragraphs[i].element.find(f".//{HP}colPr").get("colCount") for i in (4, 11)]
+        report = section.clear_body(keep_column_changes=True)
+        assert report.kept_column_paragraphs == 2
+        assert report.removed_paragraphs == 15 - 1 - 2
+        assert report.to_dict()["keptColumnParagraphs"] == 2
+        kept = section.paragraphs[1:]
+        assert [p.element.get("id") for p in kept] == ids
+        assert [p.element.find(f".//{HP}colPr").get("colCount") for p in kept] == counts
+        for paragraph in kept:
+            assert paragraph.text == "" and paragraph.element.find(f"{HP}linesegarray") is None
+            assert [child.tag for run in paragraph.element.findall(f"{HP}run") for child in run] == [f"{HP}ctrl"]
+        assert section.clear_body(keep_column_changes=True).kept_column_paragraphs == 2  # again: nothing left to do
+
+
+def test_by_default_the_column_changes_go_as_before() -> None:
+    with HwpxDocument.open(_COLUMNS) as doc:
+        report = doc.sections[0].clear_body()
+        assert report.removed_paragraphs == 14 and len(doc.sections[0].paragraphs) == 1
+        assert "keptColumnParagraphs" not in report.to_dict()
+        with pytest.raises(HwpxValueError) as caught:
+            doc.sections[0].clear_body(keep_column_changes=1)  # type: ignore[arg-type]
+        assert caught.value.code == "section-clear-mode-invalid"

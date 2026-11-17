@@ -495,6 +495,9 @@ python-hwpx 7.0을 함께 설치한다.
     - 글 가운데 각주·책갈피는 한 런 안 두 `hp:t` 사이에 둔다.
     - 범위 밖으로 이어지는 형광펜은 남은 쪽 가장자리에서 시작하거나 끝나게 한다.
     - 형광펜을 복사하면 사본 가장자리에서 열고 닫는다.
+- `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
+  `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
+  기본값(`False`)이면 전처럼 지운다.
 - `paragraph.set_text_preserving_runs(value)`가 `hp:t` 안에 탭·줄 바꿈·특수 공백이 이미 있는 문단(한/글이 쓰는 꼴)도 고친다. 고친 곳
   밖의 탭은 그 요소(너비 등) 그대로 남는다. 전에는 `paragraph-mixed-text-unsupported`로 거부했다.
 - 누름틀을 채울 때 값의 글자 모양을 고른다: `doc.fields.fill(value, name=..., char_pr_id_ref=...)`. 주지 않으면 전처럼 누름틀 시작이

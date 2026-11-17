@@ -383,6 +383,8 @@ class ClearBodyReport:
     such content and ``stripped_section_stories`` the ``hp:header``/``hp:footer``
     story copies removed from inside ``hp:secPr`` (the ``hp:headerApply``/
     ``hp:footerApply`` elements pointing at them go too and are not counted).
+    With ``keep_column_changes=True``, ``kept_column_paragraphs`` counts the later
+    paragraphs kept for the column change they hold (not in ``removed_paragraphs``).
     """
 
     removed_paragraphs: int
@@ -391,9 +393,10 @@ class ClearBodyReport:
     control_content: tuple[str, ...]
     stripped_controls: int
     stripped_section_stories: int
+    kept_column_paragraphs: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "removedParagraphs": self.removed_paragraphs,
             "removedRuns": self.removed_runs,
             "strippedRunChildren": self.stripped_run_children,
@@ -401,6 +404,9 @@ class ClearBodyReport:
             "strippedControls": self.stripped_controls,
             "strippedSectionStories": self.stripped_section_stories,
         }
+        if self.kept_column_paragraphs:  # only with keep_column_changes: the report stays as it was without
+            data["keptColumnParagraphs"] = self.kept_column_paragraphs
+        return data
 
 
 @dataclass(frozen=True)

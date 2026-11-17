@@ -262,7 +262,9 @@ class HwpxOxmlSection:
             paragraph = paras[paragraph]
         paragraph.remove()
 
-    def clear_body(self, *, on_control_content: str = "raise", keep_headers: bool = True) -> ClearBodyReport:
+    def clear_body(
+        self, *, on_control_content: str = "raise", keep_headers: bool = True, keep_column_changes: bool = False
+    ) -> ClearBodyReport:
         """Blank this section down to a template: keep its page setup, drop the body.
 
         What stays: the first paragraph (its attributes untouched), its first
@@ -313,6 +315,14 @@ class HwpxOxmlSection:
         section as it was. Calling it again on a blank section changes nothing
         and does not mark the section dirty.
 
+        ``keep_column_changes=True`` also keeps each later paragraph of the
+        section that changes the columns (an ``hp:ctrl`` holding ``hp:colPr``,
+        where Hancom writes a change of columns in the middle of a section): the
+        paragraph itself, its id and attributes untouched, with only that control
+        in its runs, as the first paragraph keeps its own. A template whose body
+        changes from one column to two keeps that change. The default keeps none,
+        as before.
+
         The images of removed pictures and the parts of removed charts stay in
         the package, pointed at by nothing (Hancom drops them when it saves);
         ``doc.media.remove_unused_images()`` and
@@ -330,12 +340,13 @@ class HwpxOxmlSection:
                 context={"value": on_control_content, "allowed": list(_CLEAR_BODY_MODES)},
             )
 
-        if not isinstance(keep_headers, bool):
-            raise HwpxValueError(
-                f"keep_headers must be True or False: {keep_headers!r}",
-                code="section-clear-mode-invalid",
-                context={"value": repr(keep_headers), "argument": "keep_headers"},
-            )
+        for argument, value in (("keep_headers", keep_headers), ("keep_column_changes", keep_column_changes)):
+            if not isinstance(value, bool):
+                raise HwpxValueError(
+                    f"{argument} must be True or False: {value!r}",
+                    code="section-clear-mode-invalid",
+                    context={"value": repr(value), "argument": argument},
+                )
 
         paragraphs = self.paragraphs
         runs = paragraphs[0].runs if paragraphs else []
@@ -368,11 +379,16 @@ class HwpxOxmlSection:
         for cache in caches:
             first.element.remove(cache)
         later_paragraphs = paragraphs[1:]
+        kept = [paragraph.element for paragraph in later_paragraphs
+                if keep_column_changes and _keep_column_change(paragraph.element)]
+        later_paragraphs = tuple(paragraph for paragraph in later_paragraphs
+                                 if not any(paragraph.element is element for element in kept))
         for paragraph in later_paragraphs:
             self._element.remove(paragraph.element)
-        if later_runs or stripped_children or removals or caches or later_paragraphs:
+        if later_runs or stripped_children or removals or caches or later_paragraphs or kept:
             self.mark_dirty()
         return ClearBodyReport(
+            kept_column_paragraphs=len(kept),
             removed_paragraphs=len(later_paragraphs),
             removed_runs=len(later_runs),
             stripped_run_children=stripped_children,
@@ -835,6 +851,28 @@ class HwpxOxmlSection:
     def to_bytes(self) -> bytes:
         self._attach_written_properties()
         return _serialize_xml(self._element)
+
+
+def _keep_column_change(paragraph: ET.Element) -> bool:
+    """Whether *paragraph* changes the columns (an ``hp:ctrl`` holding ``hp:colPr`` in its runs); if so, strip
+    it to that control -- its runs keep only it, runs left empty and the line layout cache go."""
+
+    runs = [child for child in paragraph if child.tag == f"{_HP}run"]
+    if not any(child.tag == f"{_HP}ctrl" and child.find(f"{_HP}colPr") is not None for run in runs for child in run):
+        return False
+    for run in runs:
+        for child in list(run):
+            if child.tag != f"{_HP}ctrl" or child.find(f"{_HP}colPr") is None:
+                run.remove(child)
+                continue
+            for inner in list(child):
+                if inner.tag != f"{_HP}colPr":
+                    child.remove(inner)
+        if len(run) == 0:
+            paragraph.remove(run)
+    for cache in paragraph.findall(f"{_HP}linesegarray"):
+        paragraph.remove(cache)
+    return True
 
 
 def _strip_to_kept_children(run: ET.Element) -> int:

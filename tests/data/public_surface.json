@@ -728,7 +728,7 @@
     "add_memo": {"kind": "method", "params": [["text", "P", true], ["memo_id", "K", true], ["char_pr_id_ref", "K", true], ["attributes", "K", true]], "returns": "Memo"},
     "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true], ["include_run", "K", true], ["inherit_style", "K", true]], "returns": "Paragraph"},
     "blocks": {"kind": "property", "settable": false, "returns": "tuple[Paragraph | Table, ...]"},
-    "clear_body": {"kind": "method", "params": [["on_control_content", "K", true], ["keep_headers", "K", true]], "returns": "ClearBodyReport"},
+    "clear_body": {"kind": "method", "params": [["on_control_content", "K", true], ["keep_headers", "K", true], ["keep_column_changes", "K", true]], "returns": "ClearBodyReport"},
     "clear_layout_cache": {"kind": "method", "params": [["stale_only", "K", true]], "returns": "int"},
     "copy_paragraph_range": {"kind": "method", "params": [["start", "P", false], ["end", "P", false]], "returns": "tuple[Element, ...]"},
     "insert_paragraphs": {"kind": "method", "params": [["index", "P", false], ["paragraphs", "P", false]], "returns": "tuple[Paragraph, ...]"},
@@ -1167,7 +1167,8 @@
     ["stripped_run_children", "int"],
     ["control_content", "tuple[str, ...]"],
     ["stripped_controls", "int"],
-    ["stripped_section_stories", "int"]
+    ["stripped_section_stories", "int"],
+    ["kept_column_paragraphs", "int"]
    ],
    "members": {
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
