@@ -311,6 +311,9 @@ files = [
     # Row and column insertion and deletion and cell splits on the table object, moved
     # out of table.py -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_structure.py",
+    # Where a thing stands in its paragraph's text (the offset reads, asks10a) -- born in the gate,
+    # per the WP-A rule.
+    "src/hwpx/oxml/text_offsets.py",
     # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),
     # written and read in one place -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/paragraph_heading.py",
@@ -517,6 +520,9 @@ include = [
     # Row and column insertion and deletion and cell splits on the table object, moved
     # out of table.py -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_structure.py",
+    # Where a thing stands in its paragraph's text (the offset reads, asks10a) -- born in the gate,
+    # per the WP-A rule.
+    "src/hwpx/oxml/text_offsets.py",
     # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),
     # written and read in one place -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/paragraph_heading.py",

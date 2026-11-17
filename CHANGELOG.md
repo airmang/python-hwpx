@@ -151,6 +151,10 @@
 
 #### 행동 변화
 
+- `run.text`가 런 바로 아래 적힌 탭(`hp:tab`·탭 컨트롤, 한/글이 아닌 도구가 쓰는 꼴)도 센다. 한 문단의 `run.text`를 이으면 늘
+  `paragraph.text`다. `run.text = …`는 그 탭도 값으로 바꾼다. 한/글 저장본은 탭을 `hp:t` 안에 쓰므로 그대로다.
+- 읽기만 해서는 문서가 바뀌지 않는다: `hp:secPr`가 없는 구역(한/글 저장본에는 없다)의 `section.properties`·`doc.page.size()` 등이
+  빈 `hp:secPr`를 넣고 구역을 바뀐 것으로 표시하던 것을 고쳤다. 값은 "적히지 않음"(`None`)이고, 그 설정에 쓸 때 넣는다.
 - 선 없는 면(`ensure_border_fill(sides={...: None})`)을 한/글처럼 `type="NONE" width="0.1 mm"`로 쓴다(전: 기준 굵기).
 - `table.set_in_margins`가 표 안여백으로 배치되는 칸(`hasMargin` 꺼짐)의 `hp:cellMargin`도 같은 값으로 쓴다.
   `add_table(in_margins=CellMargins(...))`로 만들 때 준다.
@@ -463,6 +467,15 @@ python-hwpx 7.0을 함께 설치한다.
 
 #### 하류 도구가 XML로 하던 일
 
+- 글자 자리 읽기(글자 자리는 `paragraph.text`의 자리 하나다: 글자·탭·줄 바꿈·특수 공백 1, 컨트롤·개체 0):
+  - 개체·표·각주/미주·누름틀·하이퍼링크·책갈피·상호 참조·선택 상자의 `offset`: 그 앞 글자 수. `obj.move_to(paragraph, offset=obj.offset)`이 제자리다.
+    `ObjectPlace.offset`(`doc.text.iter_objects()`)과 `InlineItem.offset`(`run.content`의 조각마다, 글이면 첫 글자의 자리)도 같은 값이다.
+  - `run.has_text_element`(빈 `hp:t`도), `run.is_plain_text`(글·탭·줄 바꿈·특수 공백만 든 런).
+  - `cell.address_written`(`hp:cellAddr`가 적혔는지), `cell.has_sub_list`. `hp:subList` 없이 문단을 바로 품은 칸(한/글이 쓰지도 열지도
+    않는 꼴, 다른 도구가 쓴 `irb_form_*`)의 문단도 `cell.paragraphs`가 읽는다. 그 칸에 쓰기는 `table-cell-no-sublist`로 거부한다.
+  - 런 안 `hp:switch`: `run.content`의 `"switch"` 조각 `object`가 `SwitchChoice`(`required_namespace`, `case`·`default`의 개체)다.
+  - `LineSegment.text_position`·`paragraph.line_texts`의 자리는 한/글의 셈(탭·컨트롤 8, BMP 밖 2)이라 `paragraph.text`의 자리와 다르다고
+    설명에 적었다.
 - 누름틀을 채울 때 값의 글자 모양을 고른다: `doc.fields.fill(value, name=..., char_pr_id_ref=...)`. 주지 않으면 전처럼 누름틀 시작이
   든 런의 모양이다(한/글이 채우는 방식). 값이 누름틀 시작·끝이나 앞뒤 글과 한 런에 있으면 런을 나눠 값만 바꾼다(한/글도 다른 모양의
   값을 제 런에 둔다).

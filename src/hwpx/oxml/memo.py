@@ -784,12 +784,25 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         self.group.section.mark_dirty()
 
 
+def _offset(self: Any) -> "int | None":
+    """Where it stands in its paragraph's text: the number of characters before it, counted as
+    ``paragraph.text`` counts (``None`` when it is in no run of a paragraph). It takes no character, so it
+    stands after character ``offset - 1`` and before character ``offset``; ``move_to(paragraph,
+    offset=obj.offset)`` puts it back where it is."""
+
+    from .text_offsets import placed_offset
+
+    return placed_offset(self)
+
+
 class HwpxOxmlNote(SameElement):
     """Wraps a ``<hp:footNote>`` or ``<hp:endNote>`` element."""
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element
         self.paragraph = paragraph
+
+    offset = property(_offset)
 
     @property
     def kind(self) -> str:

@@ -192,11 +192,46 @@ def _border_line(line_type: object, width_mm: object, color: object) -> dict[str
 # ----------------------------------------------------------------------------------------------
 
 
+def refuse_cell_without_sublist(cell: Any) -> None:
+    """Refuse to write into the cell element *cell* when it holds its paragraphs as its own children, with no
+    ``hp:subList``: no writer of Hancom's makes such a cell, and Hancom 2024 does not open the documents
+    that have them (``tests/fixtures/reader_robustness/irb_form_*``), so there is no form to write by."""
+
+    if cell.find(f"{_HP}p") is not None:
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            "the cell holds its paragraphs without an hp:subList, a form Hancom does not write or open; "
+            "it is read, not written",
+            code="table-cell-no-sublist",
+            suggestion="Read the cell (cell.paragraphs, cell.text); write into a document Hancom wrote.",
+        )
+
+
 class TableCellFormat:
     """A cell's vertical alignment, header mark, border fill read and emptying."""
 
     element: Any
     table: "HwpxOxmlTable"
+
+    @property
+    def has_sub_list(self) -> bool:
+        """Whether the cell holds its paragraphs in an ``hp:subList``, as Hancom writes every cell. ``False``
+        for a cell some other writer gave its paragraphs as its own children: :attr:`paragraphs` reads them,
+        and a write into the cell is refused (``table-cell-no-sublist``)."""
+
+        return self.element.find(f"{_HP}subList") is not None or self.element.find(f"{_HP}p") is None
+
+    @property
+    def address_written(self) -> bool:
+        """Whether the cell's ``hp:cellAddr`` is written with both of its numbers (Hancom writes it in every
+        cell). ``False`` when it is not: :attr:`address` then reads ``(0, 0)``, which is not the cell's
+        place; ``table.cell_map`` gives the place from the grid."""
+
+        addr = self.element.find(f"{_HP}cellAddr")
+        if addr is None:
+            return False
+        return all(str(addr.get(name, "")).strip().isdigit() for name in ("rowAddr", "colAddr"))
 
     if TYPE_CHECKING:
         def _ensure_sublist(self) -> Any: ...

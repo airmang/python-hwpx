@@ -27,6 +27,16 @@ if TYPE_CHECKING:
     from ..model import Paragraph
 
 
+def _offset(self: Any) -> "int | None":
+    """Where it stands in its paragraph's text: the number of characters before it, counted as
+    ``paragraph.text`` counts (``None`` when it is in no run of a paragraph). It takes no character, so it
+    stands after character ``offset - 1`` and before character ``offset``."""
+
+    from ..oxml.text_offsets import placed_offset
+
+    return placed_offset(self)
+
+
 @dataclass(frozen=True)
 class FieldLocation:
     """Where a :class:`FormField` sits in the document — 5 index keys, one type."""
@@ -69,6 +79,8 @@ class FormField:
     nothing gets *less* fresh than before; re-read via ``doc.fields.all`` /
     ``doc.fields.fill`` for the current state.
     """
+
+    offset = property(_offset)
 
     __slots__ = (
         "_doc",
@@ -470,6 +482,8 @@ class Bookmark:
     ``<hp:bookmark>`` or ``<hp:fieldBegin>``.
     """
 
+    offset = property(_offset)
+
     name: str
     kind: Literal["point", "field"]
     text: str
@@ -576,6 +590,8 @@ class Hyperlink:
     Before 7.0 ``paragraph.hyperlinks`` gave dicts; read ``link.url`` /
     ``link.field_id`` (or ``link.to_dict()``) instead of ``link["url"]`` / ``link["id"]``.
     """
+
+    offset = property(_offset)
 
     __slots__ = ("_element", "_paragraph")
 
@@ -723,6 +739,8 @@ class CrossReference:
     its text is emptied: Hancom fills it in when it lays the page out, and python-hwpx
     writes no number it cannot know.
     """
+
+    offset = property(_offset)
 
     __slots__ = ("_doc", "_element", "_location")
 

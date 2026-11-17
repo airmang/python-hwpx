@@ -417,6 +417,7 @@ equation = title.add_equation(latex_to_eqedit(r"\frac{a}{b}"), font_size=11.0)  
 | `table.set_in_margins(...)` 가 `hasMargin` 이 꺼진 칸(표 안여백으로 배치되는 칸)의 `hp:cellMargin` 도 같은 값으로 쓴다. 전에는 만들 때 값(510/510/141/141)이 남았다. 한/글 저장본은 그런 칸 18,628개 가운데 18,345개가 표 `inMargin` 과 같다. `add_table(in_margins=CellMargins(...))` 로 만들 때 줄 수도 있다 | 칸의 `cellMargin` 을 따로 두려면 그 칸의 `hasMargin` 을 켠다 |
 | 문단·개체를 복사하면(`insert_after()`, `copy_to`, `insert_paragraphs`, `insert_document`, 개체의 `copy_to`) 선·사각형·타원·호·다각형·곡선·연결선·차트의 `id` 도 새로 매긴다(전에는 그대로라 같은 문서에 같은 `id` 가 둘 생겼다). 사본의 `instid` 는 원본처럼 `id` 와 같다. 새로 만들거나 복사해 넣은 개체의 `id` 는 문서의 다른 개체와 겹치지 않는다(같은 `seed` 로 만든 두 문서 사이에 옮길 때 겹쳤다). 한/글 저장본은 묶음 밖 개체의 `id` 가 늘 서로 다르다(개체가 있는 1,017개 모두). `id` 값이 6.x·7.0 개발 중과 다르다 | 없음(`id` 는 문서 안에서 개체를 가리킬 뿐이다) |
 | 다른 문서의 문단을 옮길 때(`paragraph.copy_to`, `insert_document`·`append_document`) 받는 문서에 같은 내용의 글꼴·테두리/배경·탭·글자 모양·문단 모양·스타일 정의가 이미 있으면 그것을 쓴다. 전에는 늘 끝에 새로 만들었다(같은 정의가 둘). 새로 만드는 정의는 받는 문서의 마지막 id 다음부터 빈틈없이 매긴다 | 없음(가리키는 정의의 내용은 같다) |
+| `run.text` 가 런 바로 아래에 적힌 탭(`hp:tab`·탭 `hp:ctrl`, 한/글이 아닌 도구가 쓰는 꼴)도 한 글자로 센다. 그래서 한 문단의 `run.text` 를 이으면 늘 `paragraph.text` 다. 전에는 `hp:t` 안 글만 셌다. `run.text = …` 는 그 탭도 지우고 값의 탭을 `hp:t` 안에 쓴다. 한/글 저장본은 탭을 늘 `hp:t` 안에 쓰므로 그대로다 | `hp:t` 안 글만: `"".join(p.text for p in run.content if p.container == "t")` |
 | **`table.insert_rows()`·`insert_columns()`(`doc.tables.` 도)가 한/글처럼 빈 행·열을 넣는다.** 6.x 는 기준 칸의 글·개체까지 복사했다. `blank=` 없이 부르던 코드는 오류 없이 결과가 바뀐다([아래](#표에-넣는-행과-열은-빈-칸이다)) | `copy_content=True` |
 
 ### 표에 넣는 행과 열은 빈 칸이다

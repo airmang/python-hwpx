@@ -562,6 +562,12 @@
       "rationale": "How a table and its cells look and flow, read and written as the file stores them: a cell's vertical alignment (hp:subList/@vertAlign), title-cell mark and border fill read, emptying a cell; a table's alignment (the host paragraph's for a table set as a character, hp:pos/@horzAlign for a floating one), page breaking, title rows and their repetition, noAdjust, grid columns (HwpxOxmlTableColumn) and ranges of cells, per-side borders and shading derived from each cell's own border fill (other sides, diagonals and fill kept; an identical definition reused; the neighbour across an outline side takes the same line, as Hancom's cell border command does), cell zone reads and copying a table with fresh ids. HwpxOxmlTable, HwpxOxmlTableCell and HwpxOxmlTableRow take these from mixins here; the size members delegate to table_sizes.py and placement reuses shape_position.py's set_position. A new module rather than more table.py lines: that owner file sits near its code-line review line. Format-level only."
     },
     {
+      "path": "src/hwpx/oxml/text_offsets.py",
+      "disposition": "core",
+      "approvedBy": "asks10-text-offsets",
+      "rationale": "Where a thing stands in its paragraph's text, counted one way for every place the engine reads or takes: paragraph.text's (a character, a tab, a line break, a special space one; a control or an object none). The offset reads of objects, tables, notes, fields, bookmarks and run content pieces delegate here. A new module rather than more paragraph.py or table.py lines: both owner files sit at their code-line review line. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/table_sizes.py",
       "disposition": "core",
       "approvedBy": "hancom-distribute-cell-width",

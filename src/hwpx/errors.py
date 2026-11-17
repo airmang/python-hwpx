@@ -444,6 +444,7 @@ ERROR_CODES: dict[str, str] = {
     "table-merge-range-invalid": "병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다.",
     "table-size-invalid": "새 표의 행·열 수가 1 이상의 int 가 아니다(bool 도 거부).",
     "table-cell-remove-unsupported": "표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다).",
+    "table-cell-no-sublist": "hp:subList 없이 문단을 바로 품은 칸(한/글이 쓰지도 열지도 않는 꼴)에 쓰려 해서 거부했다(읽기만 한다).",
     "table-position-missing": "표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다.",
     "table-width-value": "표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "table-row-heights-value": "행 높이(heights)가 행마다 하나씩인 양의 int(HWPUNIT)가 아니다.",
