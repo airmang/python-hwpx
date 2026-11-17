@@ -1414,12 +1414,12 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
         _append_child(
             new_cell_element,
             f"{_HP}cellAddr",
-            {"rowAddr": str(logical_row), "colAddr": str(logical_col)},
+            {"colAddr": str(logical_col), "rowAddr": str(logical_row)},  # Hancom's order
         )
         _append_child(
             new_cell_element,
             f"{_HP}cellSpan",
-            {"rowSpan": "1", "colSpan": "1"},
+            {"colSpan": "1", "rowSpan": "1"},
         )
         _append_child(
             new_cell_element,

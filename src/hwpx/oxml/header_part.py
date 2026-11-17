@@ -12,6 +12,8 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 from .paragraph_heading import paragraph_heading, set_paragraph_heading
 from ._document_primitives import (
     T,
+    attributes_in_order,
+    place_new_attributes,
     set_id_first,
     _FONT_FACE_LANG_TO_REF,
     _HC_NS,
@@ -101,6 +103,21 @@ def _insert_in_ref_list_order(ref_list: Any, element: Any, tag: str) -> None:
                 return
     ref_list.append(element)
 
+
+
+def _put_style_attributes_in_order(element: Any, before: "list[str] | None") -> None:
+    """A new ``hh:style`` (*before* ``None``) in Hancom's attribute order; for a style already there, only the
+    attributes added since *before* go to their place, the others staying as they are."""
+
+    if before is None:
+        attributes_in_order(element, _STYLE_ATTRIBUTE_ORDER)
+    else:
+        place_new_attributes(element, before, _STYLE_ATTRIBUTE_ORDER)
+
+
+#: Hancom's attribute order of hh:style (all of tests/fixtures/hancom_saved).
+_STYLE_ATTRIBUTE_ORDER = ("id", "type", "name", "engName", "paraPrIDRef", "charPrIDRef", "nextStyleIDRef", "langID",
+                          "lockForm")
 
 class HwpxOxmlHeader:
     """Represents a header XML part."""
@@ -1098,6 +1115,7 @@ class HwpxOxmlHeader:
                 break
 
         changed = False
+        created = False
         if element is None:
             new_id = self._allocate_style_id(styles)
             new_style = ET.Element(
@@ -1108,11 +1126,12 @@ class HwpxOxmlHeader:
                 new_style = LET.fromstring(ET.tostring(new_style, encoding="utf-8"))
             styles.append(new_style)
             element = new_style
-            changed = True
+            changed = created = True
         elif style_type is not None and element.get("type") != style_type:
             element.set("type", style_type)
             changed = True
 
+        before_keys = list(element.attrib.keys())
         if _apply_optional_attrs(
             element,
             (
@@ -1127,6 +1146,7 @@ class HwpxOxmlHeader:
         if lock_form is not None and _get_bool_attr(element, "lockForm", False) != lock_form:
             element.set("lockForm", _bool_str(lock_form))
             changed = True
+        _put_style_attributes_in_order(element, None if created else before_keys)
 
         if changed:
             _update_item_count(styles, "style")
