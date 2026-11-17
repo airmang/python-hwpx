@@ -1682,8 +1682,12 @@ class HwpxPackage:
                 copied.add(entry.filename)
             else:
                 records.append((built_records.local_record(entry), entry.raw))
+        try:
+            written = assemble(records, source_records.eocd)
+        except ZipRecordsUnsupported as exc:
+            self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(), rewritten_reason=exc.reason)
+            return built
         self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(copied), rewritten_reason=None)
-        written = assemble(records, source_records.eocd)
         self._last_built_archive = _SourceArchive(
             written,
             dict(self._files),

@@ -128,7 +128,10 @@ def read_records(data: bytes) -> ZipRecords:
             raise ZipRecordsUnsupported("encrypted-entry")
         if _has_zip64_extra(extra) or 0xFFFFFFFF in (fixed[8], fixed[9], header_offset):
             raise ZipRecordsUnsupported("zip64")
-        filename = name.decode("utf-8" if flag_bits & _UTF8_NAME_FLAG else "cp437")
+        try:
+            filename = name.decode("utf-8" if flag_bits & _UTF8_NAME_FLAG else "cp437")
+        except UnicodeDecodeError as exc:
+            raise ZipRecordsUnsupported("entry-name-undecodable") from exc
         entries.append(
             CentralEntry(
                 raw=data[cursor:entry_end],
