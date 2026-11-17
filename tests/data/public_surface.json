@@ -372,7 +372,7 @@
     "locked": {"kind": "property", "settable": false, "returns": "bool"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
-    "offset": {"kind": "property", "settable": false},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
@@ -478,7 +478,7 @@
     "locked": {"kind": "property", "settable": false, "returns": "bool"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
-    "offset": {"kind": "property", "settable": false},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
@@ -542,7 +542,7 @@
    "internal": []
   },
   "Note": {
-   "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["style", "K", true], ["para_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "offset": {"kind": "property", "settable": false}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
+   "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["style", "K", true], ["para_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "offset": {"kind": "property", "settable": false, "returns": "int | None"}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
    "internal": []
   },
   "Paragraph": {
@@ -665,7 +665,7 @@
     "locked": {"kind": "property", "settable": false, "returns": "bool"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
-    "offset": {"kind": "property", "settable": false},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "original_size": {"kind": "property", "settable": false, "returns": "tuple[int, int] | None"},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
@@ -819,7 +819,7 @@
     "members": {"kind": "property", "settable": false, "returns": "tuple[Shape | InlineObject, ...]"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
-    "offset": {"kind": "property", "settable": false},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
@@ -872,7 +872,7 @@
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "None"},
     "no_adjust": {"kind": "property", "settable": true, "returns": "bool"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
-    "offset": {"kind": "property", "settable": false},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "page_split": {"kind": "property", "settable": true, "returns": "str"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},

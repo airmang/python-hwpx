@@ -86,14 +86,6 @@ def placed_offset(obj: Any) -> int | None:
     return offset_of(obj.element, holder if holder is not None and _local(holder) == "p" else None)
 
 
-OFFSET_DOC = (
-    "Where it stands in its paragraph's text: the number of characters before it, counted as "
-    "``paragraph.text`` counts (``None`` when it is in no run of a paragraph). An object or a control takes "
-    "no character, so it stands after character ``offset - 1`` and before character ``offset``; "
-    "``obj.move_to(paragraph, offset=obj.offset)`` puts it back where it is."
-)
-
-
 def _inside_text(text: Any, element: Any) -> int:
     """The characters of the ``hp:t`` *text* before *element* (a mark or glyph written in it)."""
 
@@ -109,4 +101,4 @@ def _inside_text(text: Any, element: Any) -> int:
     return count
 
 
-__all__ = ["OFFSET_DOC", "offset_of", "paragraph_runs", "placed_offset", "run_start"]
+__all__ = ["offset_of", "paragraph_runs", "placed_offset", "run_start"]

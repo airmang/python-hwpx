@@ -184,6 +184,8 @@ def test_form_field_has_exactly_the_designed_twelve_attributes() -> None:
         "text_elements",
         # 7.0 asks4: 한/글이 채워진 누름틀에 적는 dirty (자동화가 .element로 읽던 것)
         "filled",
+        # 7.0 asks10a: 누름틀 시작이 놓인 문단 글자 자리 (개체·각주의 offset과 같은 셈)
+        "offset",
     }, members
 
 

@@ -44,7 +44,6 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from ..errors import HwpxValueError
 from ._document_primitives import _HC, _HP
-from . import text_offsets as _offsets
 from .color import normalize_color
 
 if TYPE_CHECKING:
@@ -420,6 +419,17 @@ def object_section(obj: Any) -> "HwpxOxmlSection | None":
 _Placed = TypeVar("_Placed", bound="ObjectPlacement")
 
 
+def _offset(self: Any) -> "int | None":
+    """Where it stands in its paragraph's text: the number of characters before it, counted as
+    ``paragraph.text`` counts (``None`` when it is in no run of a paragraph). It takes no character, so it
+    stands after character ``offset - 1`` and before character ``offset``; ``move_to(paragraph,
+    offset=obj.offset)`` puts it back where it is."""
+
+    from .text_offsets import placed_offset
+
+    return placed_offset(self)
+
+
 class ObjectPlacement:
     """Reads and edits every placed object shares: pictures, equations, charts, OLE and drawing shapes.
 
@@ -433,7 +443,7 @@ class ObjectPlacement:
     paragraph: Any
 
     section = property(object_section)
-    offset = property(lambda self: _offsets.placed_offset(self), doc=_offsets.OFFSET_DOC)
+    offset = property(_offset)
 
     @property
     def position(self) -> "ObjectPosition":

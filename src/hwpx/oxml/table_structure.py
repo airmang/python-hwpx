@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 from ._document_primitives import _HP, _clear_paragraph_layout_cache
-from .text_offsets import OFFSET_DOC, placed_offset
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -40,13 +39,24 @@ def _lines(value: int | Iterable[int], name: str) -> list[int]:
     return [_whole(line, name) for line in lines]
 
 
+def _offset(self: Any) -> "int | None":
+    """Where it stands in its paragraph's text: the number of characters before it, counted as
+    ``paragraph.text`` counts (``None`` when it is in no run of a paragraph). It takes no character, so it
+    stands after character ``offset - 1`` and before character ``offset``; ``move_to(paragraph,
+    offset=obj.offset)`` puts it back where it is."""
+
+    from .text_offsets import placed_offset
+
+    return placed_offset(self)
+
+
 class TableStructureEdits:
     """Row and column insertion and deletion and cell splits of a table, as Hancom makes them."""
 
     element: Any
     paragraph: "HwpxOxmlParagraph"
 
-    offset = property(lambda self: placed_offset(self), doc=OFFSET_DOC)
+    offset = property(_offset)
 
     def insert_rows(self, ref_row: int, count: int = 1, *, side: str = "below", copy_content: bool = False) -> None:
         """Insert *count* empty rows below (*side* ``"above"``: above) physical row *ref_row*, as Hancom

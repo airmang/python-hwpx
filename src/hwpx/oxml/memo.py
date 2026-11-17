@@ -19,7 +19,6 @@ from ._document_primitives import (
     _text_element_content,
 )
 from ._paragraph_text_edit import set_text_with_tabs
-from .text_offsets import OFFSET_DOC, placed_offset
 
 if TYPE_CHECKING:
     from ..objects.form_field import FieldParameter, Hyperlink
@@ -785,6 +784,17 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         self.group.section.mark_dirty()
 
 
+def _offset(self: Any) -> "int | None":
+    """Where it stands in its paragraph's text: the number of characters before it, counted as
+    ``paragraph.text`` counts (``None`` when it is in no run of a paragraph). It takes no character, so it
+    stands after character ``offset - 1`` and before character ``offset``; ``move_to(paragraph,
+    offset=obj.offset)`` puts it back where it is."""
+
+    from .text_offsets import placed_offset
+
+    return placed_offset(self)
+
+
 class HwpxOxmlNote(SameElement):
     """Wraps a ``<hp:footNote>`` or ``<hp:endNote>`` element."""
 
@@ -792,7 +802,7 @@ class HwpxOxmlNote(SameElement):
         self.element = element
         self.paragraph = paragraph
 
-    offset = property(lambda self: placed_offset(self), doc=OFFSET_DOC)
+    offset = property(_offset)
 
     @property
     def kind(self) -> str:
