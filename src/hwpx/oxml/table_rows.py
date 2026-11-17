@@ -10,7 +10,7 @@ anything changes (``table-rows-merge-crossed``)."""
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 
 from ..errors import HwpxValueError
 from ._document_primitives import _HP, _clear_paragraph_layout_cache
@@ -48,7 +48,8 @@ def _block(table: Any, rows: "int | Iterable[int]") -> tuple[int, int]:
     count = len(_rows(table))
     try:
         given: Any = rows
-        wanted = sorted({given} if isinstance(given, int) and not isinstance(given, bool) else set(given))
+        single = isinstance(given, int) and not isinstance(given, bool)
+        wanted = sorted({given} if single else set(cast("Iterable[int]", given)))
     except TypeError:
         wanted = []
     if not wanted or any(isinstance(row, bool) or not isinstance(row, int) or not 0 <= row < count for row in wanted) \
