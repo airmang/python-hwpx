@@ -929,6 +929,23 @@ class HwpxOxmlNote(SameElement):
         self.paragraph.section.mark_dirty()
         return _wrap_paragraph(paragraph, self.paragraph.section)
 
+    def move_to(self, paragraph: "HwpxOxmlParagraph", *, offset: int | None = None) -> None:
+        """Move the note's mark to character *offset* of *paragraph* (``None``: its end), a paragraph of the same
+        document: after the controls already there, before the character, as :meth:`add_footnote` puts one.
+        Notes of its kind are numbered again. Refused into a note, a header, a footer or a memo
+        (``paragraph-move-place-unsupported``) or another document (``note-other-document-unsupported``)."""
+
+        from .text_ranges import move_note
+
+        move_note(self, paragraph, offset)
+
+    def copy_to(self, paragraph: "HwpxOxmlParagraph", *, offset: int | None = None) -> "HwpxOxmlNote":
+        """Put a copy of the note (a new ``instId``) at character *offset* of *paragraph*, as :meth:`move_to`
+        moves one, and return it."""
+
+        from .text_ranges import copy_note
+
+        return copy_note(self, paragraph, offset)
     def remove(self) -> None:
         """Remove the note: its mark in the text and its content go together.
 

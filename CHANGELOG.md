@@ -498,6 +498,22 @@ python-hwpx 7.0을 함께 설치한다.
     - 글 가운데 각주·책갈피는 한 런 안 두 `hp:t` 사이에 둔다.
     - 범위 밖으로 이어지는 형광펜은 남은 쪽 가장자리에서 시작하거나 끝나게 한다.
     - 형광펜을 복사하면 사본 가장자리에서 열고 닫는다.
+- 각주·미주·책갈피·누름틀·형광펜을 글자 자리에 둔다. 근거는 한/글 2024 저장본 `mid_text_*`·`highlight_*`(`tests/fixtures/hancom_saved`)다.
+  - 각주·미주·책갈피:
+    - `doc.notes.add_footnote(..., offset=)`·`add_endnote(..., offset=)`·`paragraph.add_bookmark(name, offset=)`·`doc.refs.add_bookmark(..., offset=)`로 둔다.
+    - 그 자리 컨트롤 뒤, 그 자리 글자 앞에 둔다. 글 가운데면 한/글처럼 그 런의 `hp:t`를 둘로 나누고 사이에 둔다.
+    - 뒤 각주·미주 번호는 다시 매긴다.
+  - `note.move_to(paragraph, offset=)`·`note.copy_to(paragraph, offset=)`:
+    - 사본은 새 `instId`를 받는다.
+    - 각주·머리말·꼬리말·메모 안으로는 `paragraph-move-place-unsupported`, 다른 문서로는 `note-other-document-unsupported`로 거부한다.
+  - `paragraph.add_form_field(name, start=, end=)`:
+    - 있는 글을 누름틀 값으로 감싼다. 런을 넘어도 된다. 안내문 런은 쓰지 않는다.
+    - 다른 필드 한쪽만 품는 범위는 `paragraph-range-splits-field`로 거부한다.
+  - 형광펜 범위:
+    - `paragraph.add_highlight(color=, start=, end=)`·`doc.text.highlight(paragraph, start=, end=)`로 칠한다. 런을 넘으면 시작·끝을 각 글자의 `hp:t`에 한 번씩 둔다.
+    - `doc.text.highlight_span(start_paragraph, start, end_paragraph, end)`는 문단을 넘는 범위를 문단마다 한 쌍으로 칠한다.
+    - 이미 있는 형광펜과 겹치면 `paragraph-range-splits-mark`로 거부한다.
+- `doc.text.highlights`가 런을 넘는 형광펜(한/글의 `highlight_across_runs` 꼴)을 통째로 읽는다. 전에는 첫 `hp:t` 안 부분만 읽었다.
 - `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
   `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
   기본값(`False`)이면 전처럼 지운다.

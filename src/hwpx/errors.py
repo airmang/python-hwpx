@@ -648,6 +648,7 @@ ERROR_CODES: dict[str, str] = {
     "media-item-in-use": "지우려는 이진 항목을 문서가 아직 가리킨다(그림·채우기·동영상·OLE 등). force=True 로만 지운다.",
     "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",
     # -- 주석 ------------------------------------------------------------
+    "note-other-document-unsupported": "각주·미주를 다른 문서로 옮기거나 복사하려 했다(그 글 구간을 paragraph.copy_range 로 복사한다).",
     "note-anchor-detached": "앵커를 걸 문단이 섹션에 속해 있지 않다.",
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",

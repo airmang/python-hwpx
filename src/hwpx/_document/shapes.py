@@ -108,6 +108,7 @@ def add_footnote(
     *,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
+    offset: int | None = None,
 ) -> HwpxOxmlNote:
     """Add a footnote to an existing paragraph, or create a new one.
 
@@ -121,7 +122,7 @@ def add_footnote(
             section=section,
             include_run=False,
         )
-    return paragraph.add_footnote(text, char_pr_id_ref=char_pr_id_ref)
+    return paragraph.add_footnote(text, char_pr_id_ref=char_pr_id_ref, offset=offset)
 
 
 def add_endnote(
@@ -131,6 +132,7 @@ def add_endnote(
     *,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
+    offset: int | None = None,
 ) -> HwpxOxmlNote:
     """Add an endnote to an existing paragraph, or create a new one."""
 
@@ -140,7 +142,7 @@ def add_endnote(
             section=section,
             include_run=False,
         )
-    return paragraph.add_endnote(text, char_pr_id_ref=char_pr_id_ref)
+    return paragraph.add_endnote(text, char_pr_id_ref=char_pr_id_ref, offset=offset)
 
 
 def add_line(
