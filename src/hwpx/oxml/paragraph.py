@@ -837,18 +837,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         else:
             resolved_border_fill = border_fill_id_ref
 
-        run = self._create_run_for_object(
-            run_attributes,
-            char_pr_id_ref=char_pr_id_ref,
-        )
-        table_element = HwpxOxmlTable.create(
-            rows,
-            cols,
-            width=width,
-            height=height,
-            border_fill_id_ref=resolved_border_fill,
-            ids=self.section._ids,
-        )
+        run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
+        table_element = HwpxOxmlTable.create(rows, cols, width=width, height=height,
+                                             border_fill_id_ref=resolved_border_fill, ids=self.section._ids)
         if type(table_element) is not type(run):
             table_element = LET.fromstring(ET.tostring(table_element, encoding="utf-8"))
 
