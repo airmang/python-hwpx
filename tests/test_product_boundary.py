@@ -365,7 +365,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1 after the cut: oxml/table_format.py (tables lane).
     # +1: the guide table for the 6.x names 7.0 renamed or removed (_removed_names.py).
     # +1: where a thing stands in its paragraph's text, the offset reads (oxml/text_offsets.py, asks10a).
-    assert report["classifiedFiles"] == 179
+    # +1: text put in, ranges taken out, moved and copied (oxml/text_ranges.py, asks10b).
+    assert report["classifiedFiles"] == 180
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

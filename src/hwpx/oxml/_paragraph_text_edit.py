@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ..errors import HwpxValueError
 from ._document_primitives import (
@@ -25,38 +25,6 @@ if TYPE_CHECKING:
     from ..objects.results import Alignment, LineSegment, LineSpacing, NumberingInfo
     from .header import Bullet, Style
     from .run import HwpxOxmlRun
-
-
-def plain_text_nodes_for_edit(runs: list[ET.Element]) -> list[ET.Element]:
-    nodes: list[ET.Element] = []
-    for run in runs:
-        for child in run:
-            if tag_local_name(child.tag) == "t":
-                if len(child):
-                    raise HwpxValueError(
-                        "mixed text markup cannot be edited safely",
-                        code="paragraph-mixed-text-unsupported",
-                    )
-                nodes.append(child)
-            elif tag_local_name(child.tag) == "tab" or _is_tab_control_element(child):
-                raise HwpxValueError(
-                    "tab controls require an explicit run target",
-                    code="paragraph-tab-target-required",
-                )
-    return nodes
-
-
-def edit_node_candidates(
-    nodes: list[ET.Element], prefix: int, end: int
-) -> list[tuple[ET.Element, int]]:
-    offset = 0
-    candidates: list[tuple[ET.Element, int]] = []
-    for node in nodes:
-        length = len(node.text or "")
-        if offset <= prefix and end <= offset + length:
-            candidates.append((node, offset))
-        offset += length
-    return candidates
 
 
 def sanitize_keeping_tabs(value: str) -> str:
@@ -1028,3 +996,71 @@ class ParagraphFormats:
         from .formatting import replace_range
 
         replace_range(self, start, end, text)
+
+    # Ranges of the text (asks10b); the bodies live in ``text_ranges.py``.
+
+    def insert_text(
+        self, offset: int, text: str, *, char_pr_id_ref: "str | int | None" = None, **format: Any
+    ) -> "tuple[HwpxOxmlRun, ...]":
+        """Put *text* at character *offset* (``0 <= offset <= len(paragraph.text)``) and return the runs holding it.
+
+        Positions count as ``paragraph.text`` does: a tab or a line break is one character, a control or an
+        object none. The text goes after the controls and objects already at *offset* (an object's
+        ``move_to(offset=)`` puts one there) and before the character there, in the run it lands in: the
+        run of the last control there, else of the character before. With *char_pr_id_ref* (an ``hh:charPr``
+        of the document, ``style-char-pr-missing`` otherwise) or *format* -- the keyword arguments of
+        :meth:`format_range` -- it is a run of its own in that shape. A tab or a line break is written as
+        Hancom writes it, inside ``hp:t``. The paragraph, and the ones holding its cell or caption, lose
+        their line layout cache.
+        """
+        from .text_ranges import insert_text
+
+        return insert_text(cast(Any, self), offset, text, char_pr_id_ref, format)
+
+    def delete_range(self, start: int, end: int, *, objects: str = "refuse") -> None:
+        """Take the characters ``[start, end)`` out: text, tabs, line breaks, special spaces, and the
+        highlight and other marks inside. Runs left empty go; runs of one character shape left side by
+        side become one; a section's settings stay.
+
+        A control or an object strictly inside the range (``start < obj.offset < end``; those at either end
+        stay) is refused with ``paragraph-range-holds-objects`` unless ``objects="remove"``: then each goes
+        as its own ``remove()`` takes it out (notes renumbered, images nobody uses dropped, a memo with its
+        field). Refused whatever *objects* says: a field one end of which is in the range
+        (``paragraph-range-splits-field``), a tracked change's mark (``paragraph-range-splits-mark``). A
+        highlight reaching out of the range keeps the part outside it.
+        """
+        from .text_ranges import delete_range
+
+        delete_range(cast(Any, self), start, end, objects)
+
+    def copy_range(self, start: int, end: int, *, to: Any, offset: "int | None" = None) -> tuple[int, int]:
+        """Put a copy of the characters ``[start, end)`` -- with the controls and objects strictly inside --
+        into the paragraph *to* at its character *offset* (``None``: its end), and return where the copy
+        stands there, ``(offset, offset + n)``.
+
+        *to* may be a paragraph of another document; the copy comes as :meth:`copy_to` brings a paragraph
+        over (character shapes and the rest made definitions of that document, images and charts brought,
+        fresh ids), apart from a table, a text box or a caption, which do not go to another document
+        (``shape-copy-document-unsupported``). In the same document objects, fields and memos get fresh ids
+        as :meth:`insert_after` gives a copy. A highlight reaching out of the range is closed at the copy's
+        edge. Refused as :meth:`delete_range` refuses a split field or tracked change, and a note into a
+        note, header or footer (``paragraph-move-place-unsupported``).
+        """
+        from .text_ranges import copy_range
+
+        return copy_range(cast(Any, self), start, end, to, offset)
+
+    def move_range(self, start: int, end: int, *, to: Any, offset: "int | None" = None) -> tuple[int, int]:
+        """Move the characters ``[start, end)`` -- with the controls and objects strictly inside -- into the
+        paragraph *to* at its character *offset* (``None``: its end, counted before the move takes them out),
+        and return where they stand there.
+
+        In the same document the controls and objects themselves move (their ids stay; memos go along to
+        the memo group of their new section). To another document it is :meth:`copy_range` and then
+        :meth:`delete_range` with ``objects="remove"``. Refused: an *offset* inside the range itself, or a
+        paragraph inside a cell or text box the range holds (``paragraph-range-into-itself``), and what
+        :meth:`copy_range` refuses.
+        """
+        from .text_ranges import move_range
+
+        return move_range(cast(Any, self), start, end, to, offset)

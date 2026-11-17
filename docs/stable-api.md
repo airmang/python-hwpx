@@ -113,7 +113,7 @@ python-docx 의 `paragraph._p`·`run._r`와 같은 자리다. 이름에 밑줄�
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 198 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 414 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 418 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 177 |
 | `hwpx.objects` 87개 값 형식 | 필드 429 · 멤버 213 · enum 값 10 | 652 |
 | 모듈 수준 stable 이름(13개 모듈) | 서명(클래스는 멤버까지) | 70 |

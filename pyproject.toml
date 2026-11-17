@@ -314,6 +314,9 @@ files = [
     # Where a thing stands in its paragraph's text (the offset reads, asks10a) -- born in the gate,
     # per the WP-A rule.
     "src/hwpx/oxml/text_offsets.py",
+    # Putting text in, taking a range out, moving and copying a range (asks10b) -- born in the gate,
+    # per the WP-A rule.
+    "src/hwpx/oxml/text_ranges.py",
     # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),
     # written and read in one place -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/paragraph_heading.py",
@@ -523,6 +526,9 @@ include = [
     # Where a thing stands in its paragraph's text (the offset reads, asks10a) -- born in the gate,
     # per the WP-A rule.
     "src/hwpx/oxml/text_offsets.py",
+    # Putting text in, taking a range out, moving and copying a range (asks10b) -- born in the gate,
+    # per the WP-A rule.
+    "src/hwpx/oxml/text_ranges.py",
     # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),
     # written and read in one place -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/paragraph_heading.py",

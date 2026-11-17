@@ -476,6 +476,27 @@ python-hwpx 7.0을 함께 설치한다.
   - 런 안 `hp:switch`: `run.content`의 `"switch"` 조각 `object`가 `SwitchChoice`(`required_namespace`, `case`·`default`의 개체)다.
   - `LineSegment.text_position`·`paragraph.line_texts`의 자리는 한/글의 셈(탭·컨트롤 8, BMP 밖 2)이라 `paragraph.text`의 자리와 다르다고
     설명에 적었다.
+- 글 구간 쓰기(자리 셈은 위와 같다. 범위 `[start, end)`는 양 끝에 선 컨트롤·개체를 품지 않는다):
+  - `paragraph.insert_text(offset, text, *, char_pr_id_ref=None, **format)`: 그 자리에 이미 있는 컨트롤·개체 뒤, 그 자리 글자 앞에
+    넣는다. 모양을 주지 않으면 들어간 런(그 자리 마지막 컨트롤의 런, 없으면 앞 글자의 런)의 모양이다. 모양을 주면 런을 따로 둔다.
+  - `paragraph.delete_range(start, end, *, objects="refuse")`: 글·탭·줄 바꿈·특수 공백과 그 안의 표시를 지운다. 비는 런은 지우고,
+    나란해진 같은 모양 런은 하나로 합친다. 범위 안 컨트롤·개체는 `paragraph-range-holds-objects`로 거부한다. `objects="remove"`면
+    각자의 `remove()`대로 함께 지운다(각주 번호 다시 매김, 쓰지 않는 그림 정리).
+  - `paragraph.copy_range(start, end, *, to, offset=None)`·`move_range(...)`: 같은 문서나 다른 문서의 문단으로 복사하거나 옮기고 새 자리를
+    돌려준다. 다른 문서로는 `copy_to`처럼 정의·그림을 가져가고 새 id를 준다. 표·글상자·캡션은 다른 문서로 가지 않는다
+    (`shape-copy-document-unsupported`). 같은 문서 안 옮기기는 개체 자신이 옮겨 가 id가 그대로다.
+  - 거부(새 오류 코드):
+    - 누름틀·하이퍼링크의 시작이나 끝 한쪽만 품은 범위: `paragraph-range-splits-field`.
+    - 변경 추적 표시를 품은 범위: `paragraph-range-splits-mark`.
+    - 자기 안으로 옮기기: `paragraph-range-into-itself`.
+    - 각주를 각주·머리말·꼬리말로 옮기기: `paragraph-move-place-unsupported`.
+    - 없는 글자 모양: `style-char-pr-missing`.
+  - 한/글이 쓰는 꼴로 쓴다. 근거는 한/글 2024가 저장한 `mid_text_*`·`highlight_*`(`tests/fixtures/hancom_saved`)다.
+    - 글 가운데 각주·책갈피는 한 런 안 두 `hp:t` 사이에 둔다.
+    - 범위 밖으로 이어지는 형광펜은 남은 쪽 가장자리에서 시작하거나 끝나게 한다.
+    - 형광펜을 복사하면 사본 가장자리에서 열고 닫는다.
+- `paragraph.set_text_preserving_runs(value)`가 `hp:t` 안에 탭·줄 바꿈·특수 공백이 이미 있는 문단(한/글이 쓰는 꼴)도 고친다. 고친 곳
+  밖의 탭은 그 요소(너비 등) 그대로 남는다. 전에는 `paragraph-mixed-text-unsupported`로 거부했다.
 - 누름틀을 채울 때 값의 글자 모양을 고른다: `doc.fields.fill(value, name=..., char_pr_id_ref=...)`. 주지 않으면 전처럼 누름틀 시작이
   든 런의 모양이다(한/글이 채우는 방식). 값이 누름틀 시작·끝이나 앞뒤 글과 한 런에 있으면 런을 나눠 값만 바꾼다(한/글도 다른 모양의
   값을 제 런에 둔다).

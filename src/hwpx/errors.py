@@ -426,6 +426,10 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
     "paragraph-move-into-itself": "문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다.",
     "paragraph-move-place-unsupported": "메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다).",
+    "paragraph-range-holds-objects": "지울 글자 범위 안에 컨트롤·개체(각주·책갈피·누름틀·표·그림 …)가 있다(objects='remove' 로 함께 지운다. 범위 양 끝의 것은 남는다).",
+    "paragraph-range-splits-field": "글자 범위가 누름틀·하이퍼링크 같은 필드의 시작이나 끝 한쪽만 품는다.",
+    "paragraph-range-splits-mark": "글자 범위가 변경 추적 표시를 품거나, 형광펜 끝을 런 바로 아래 탭에 두어야 한다.",
+    "paragraph-range-into-itself": "글자 범위를 그 범위 안 자리나, 범위가 품은 표 칸·글상자·각주 안으로 옮기려 했다.",
     # -- 표 셀 -----------------------------------------------------------
     "cell-margin-value": "셀 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부).",
     "cell-border-edit-unsupported": "셀 테두리 편집 대상 스타일이 없거나 모호하거나 네 변이 온전하지 않다(또는 색·선 종류가 잘못됐다).",
@@ -477,6 +481,7 @@ ERROR_CODES: dict[str, str] = {
     "document-merge-unsupported-policy-axis": "그 정책 축의 값이 아직 지원 기본값 밖이다(신규 값 미구현).",
     "document-merge-unsupported-reference": "가져올 문단이 아직 지원 안 하는 참조 요소를 담고 있다(예: 메모 필드).",
     # -- 스타일·제목 -----------------------------------------------------
+    "style-char-pr-missing": "char_pr_id_ref 가 문서 머리의 글자 모양(hh:charPr) id 가 아니다.",
     "style-not-found": "그 id·이름의 스타일이 없다(가용 목록·가장 가까운 이름 동봉).",
     "style-ambiguous": "같은 이름을 쓰는 스타일이 둘 이상이다(후보 동봉).",
     "style-list-continue-conflict": "continue_list 와 number_format·start 를 함께 주었다(이어 붙이는 목록은 앞 목록의 번호 모양을 쓴다).",

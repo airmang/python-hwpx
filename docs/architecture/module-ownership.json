@@ -568,6 +568,12 @@
       "rationale": "Where a thing stands in its paragraph's text, counted one way for every place the engine reads or takes: paragraph.text's (a character, a tab, a line break, a special space one; a control or an object none). The offset reads of objects, tables, notes, fields, bookmarks and run content pieces delegate here. A new module rather than more paragraph.py or table.py lines: both owner files sit at their code-line review line. Format-level only."
     },
     {
+      "path": "src/hwpx/oxml/text_ranges.py",
+      "disposition": "core",
+      "approvedBy": "asks10-text-ranges",
+      "rationale": "Text put in at a position, a range taken out, and a range moved or copied within a document or into another one (paragraph.insert_text, delete_range, move_range, copy_range), and set_text_preserving_runs beside tabs Hancom wrote inside hp:t; positions counted as paragraph.text counts them (text_offsets.py). Written in the forms Hancom saved (a note or bookmark between two hp:t of one run, a highlight's marks inside the hp:t they fall in). A copy into another document goes through document_merge's paragraph copy. A new module rather than more paragraph.py lines: that owner file sits at its code-line review line; ParagraphFormats in _paragraph_text_edit.py keeps the documented members and delegates. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/table_sizes.py",
       "disposition": "core",
       "approvedBy": "hancom-distribute-cell-width",
