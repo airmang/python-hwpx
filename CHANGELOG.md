@@ -560,6 +560,7 @@ python-hwpx 7.0을 함께 설치한다.
     - 개체(`hp:rect`·`hp:ellipse`·`hp:line`·`hp:arc`·`hp:pic`)는 공통 속성(`id`·`zOrder`…`instid`)을 앞에, 종류별 속성을 뒤에 둔다.
     - `hp:sz`는 `width`·`widthRelTo`·`height`·`heightRelTo`·`protect` 차례다.
     - `hp:drawText`는 `lastWidth`·`name`·`editable` 차례다.
+    - 떠 있는 개체(`treat_as_char=False`)의 `hp:pos`는 `vertRelTo`·`horzRelTo`·`vertAlign`·`horzAlign` 차례다(전에는 `vertAlign`이 `horzRelTo` 앞).
   - 파일에서 읽은 요소의 차례는 건드리지 않는다.
   - 한/글 저장본에 없는 요소(선택 상자·변경 추적 정의·바탕쪽)는 전 차례 그대로다.
 
