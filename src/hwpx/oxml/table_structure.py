@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 from ._document_primitives import _HP, _clear_paragraph_layout_cache
+from .text_offsets import OFFSET_DOC, placed_offset
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
@@ -44,6 +45,8 @@ class TableStructureEdits:
 
     element: Any
     paragraph: "HwpxOxmlParagraph"
+
+    offset = property(lambda self: placed_offset(self), doc=OFFSET_DOC)
 
     def insert_rows(self, ref_row: int, count: int = 1, *, side: str = "below", copy_content: bool = False) -> None:
         """Insert *count* empty rows below (*side* ``"above"``: above) physical row *ref_row*, as Hancom

@@ -188,6 +188,29 @@ def _field_or_story_object(kind: str, element: Any, paragraph: Any) -> Any:
                         name=element.get("name", ""), parameters=field_parameters(element), element=element)
 
 
+def switch_choice(element: Any, paragraph: Any) -> Any:
+    """The :class:`~hwpx.objects.SwitchChoice` of the ``hp:switch`` *element* in a run of *paragraph*."""
+
+    from ..objects.results import SwitchChoice
+    from .objects import wrap_object
+
+    def branch(name: str) -> Any:
+        return next((child for child in element if _local_name(child) == name), None)
+
+    def objects(holder: Any) -> tuple[Any, ...]:
+        if holder is None:
+            return ()
+        return tuple(wrap_object(child, paragraph) for child in holder
+                     if _RUN_PIECE_KINDS.get(_local_name(child)) in _OBJECT_PIECE_KINDS)
+
+    case = branch("case")
+    required = None
+    if case is not None:
+        required = next((value for key, value in case.attrib.items() if str(key).endswith("required-namespace")), None)
+    return SwitchChoice(required_namespace=required, case=objects(case), default=objects(branch("default")),
+                        element=element)
+
+
 def _piece_object(kind: str, element: Any, run: "HwpxOxmlRun") -> Any:
     """The model object a piece of *run* stands for, ``None`` when it has none."""
 
@@ -216,6 +239,8 @@ def _piece_object(kind: str, element: Any, run: "HwpxOxmlRun") -> Any:
             "page_hiding": _page.page_hiding,
         }[kind]
         return build(element, paragraph)
+    if kind == "switch":
+        return switch_choice(element, paragraph)
     if kind == "column_definition":
         from .._document.ns.page import _column_definition
         from .section import HwpxOxmlSection
@@ -292,13 +317,20 @@ def run_content(run: "HwpxOxmlRun") -> "tuple[InlineItem, ...]":
 
     from ..objects.results import InlineItem
 
+    from dataclasses import replace
+
+    from .formatting import _unit_length
+    from .text_offsets import run_start
+
     pieces: list[InlineItem] = []
     index = -1
+    position = run_start(run.paragraph.element, run.element)  # the paragraph's characters before the run
     for child in run.element:
         name = _local_name(child)
         if not name:
             continue  # a comment or processing instruction
         index += 1
+        first = len(pieces)
         if name == "t":
             _text_pieces(child, run, pieces, InlineItem, index)
         elif name == "ctrl":
@@ -310,6 +342,12 @@ def run_content(run: "HwpxOxmlRun") -> "tuple[InlineItem, ...]":
         else:
             pieces.append(_piece(_RUN_PIECE_KINDS.get(name, "unknown"), child, "run", run,
                                  _TEXT_INLINE_ATOMS.get(name, ""), index))
+        inside = position
+        for at in range(first, len(pieces)):  # where each piece of this child stands
+            pieces[at] = replace(pieces[at], offset=inside)
+            if name == "t":
+                inside += len(pieces[at].text)
+        position += _unit_length(child)
     return tuple(pieces)
 
 
@@ -1059,6 +1097,27 @@ class HwpxOxmlRun(SameElement):
                 continue
             kinds.add(_RUN_CHILD_KINDS.get(name, "other"))
         return frozenset(kinds)
+
+    @property
+    def has_text_element(self) -> bool:
+        """Whether the run has an ``hp:t``, an empty one too (``run.content`` gives no piece for an empty
+        ``hp:t``: it holds nothing). Hancom writes an empty ``<hp:t/>`` in a run that holds no text but a
+        paragraph's end or an object (6,548 of them in ``tests/fixtures/hancom_saved``)."""
+
+        return any(_local_name(child) == "t" for child in self.element)
+
+    @property
+    def is_plain_text(self) -> bool:
+        """Whether the run holds text and nothing else: one or more ``hp:t`` and no control, object, mark,
+        덧말 or 글자 겹치기 -- in its ``hp:t`` only characters, tabs, line breaks, no-break and fixed-width
+        spaces and hyphens (an empty ``hp:t`` counts as text)."""
+
+        children = [child for child in self.element if _local_name(child)]
+        return bool(children) and all(
+            _local_name(child) == "t" and all(_local_name(inner) in _TEXT_INLINE_ATOMS for inner in child
+                                              if _local_name(inner))
+            for child in children
+        )
 
     @property
     def content(self) -> "tuple[InlineItem, ...]":

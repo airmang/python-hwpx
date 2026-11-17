@@ -19,6 +19,7 @@ from ._document_primitives import (
     _text_element_content,
 )
 from ._paragraph_text_edit import set_text_with_tabs
+from .text_offsets import OFFSET_DOC, placed_offset
 
 if TYPE_CHECKING:
     from ..objects.form_field import FieldParameter, Hyperlink
@@ -790,6 +791,8 @@ class HwpxOxmlNote(SameElement):
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element
         self.paragraph = paragraph
+
+    offset = property(lambda self: placed_offset(self), doc=OFFSET_DOC)
 
     @property
     def kind(self) -> str:

@@ -79,6 +79,7 @@ from .results import (  # 쪽·구역 설정의 읽기 값 (doc.page / doc.parts
     PageNumberControl,
     ParagraphPlace,
     StartNumbers,
+    SwitchChoice,
 )
 from .results import LanguageFonts, TextMatch  # run.fonts, doc.text.find()
 from .tracked import TrackedChange, TrackedReplacement
@@ -197,6 +198,7 @@ __all__ = [
     "PageNumberControl",
     "ParagraphPlace",
     "StartNumbers",
+    "SwitchChoice",
     "BinaryItem",
     "Bookmark",
     "BorderFillInfo",

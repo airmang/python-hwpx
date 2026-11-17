@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from ..errors import HwpxValueError
 from ._document_primitives import _HC, _HP
+from . import text_offsets as _offsets
 from .color import normalize_color
 
 if TYPE_CHECKING:
@@ -432,6 +433,7 @@ class ObjectPlacement:
     paragraph: Any
 
     section = property(object_section)
+    offset = property(lambda self: _offsets.placed_offset(self), doc=_offsets.OFFSET_DOC)
 
     @property
     def position(self) -> "ObjectPosition":

@@ -372,6 +372,7 @@
     "locked": {"kind": "property", "settable": false, "returns": "bool"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
+    "offset": {"kind": "property", "settable": false},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
@@ -477,6 +478,7 @@
     "locked": {"kind": "property", "settable": false, "returns": "bool"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
+    "offset": {"kind": "property", "settable": false},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
@@ -540,7 +542,7 @@
    "internal": []
   },
   "Note": {
-   "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["style", "K", true], ["para_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
+   "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["style", "K", true], ["para_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "offset": {"kind": "property", "settable": false}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
    "internal": []
   },
   "Paragraph": {
@@ -663,6 +665,7 @@
     "locked": {"kind": "property", "settable": false, "returns": "bool"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
+    "offset": {"kind": "property", "settable": false},
     "original_size": {"kind": "property", "settable": false, "returns": "tuple[int, int] | None"},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
@@ -692,7 +695,9 @@
     "content_kinds": {"kind": "property", "settable": false, "returns": "frozenset[str]"},
     "font": {"kind": "property", "settable": true, "returns": "str | None"},
     "fonts": {"kind": "property", "settable": false, "returns": "LanguageFonts"},
+    "has_text_element": {"kind": "property", "settable": false, "returns": "bool"},
     "highlight": {"kind": "property", "settable": true, "returns": "str | None"},
+    "is_plain_text": {"kind": "property", "settable": false, "returns": "bool"},
     "italic": {"kind": "property", "settable": true, "returns": "bool | None"},
     "letter_spacing": {"kind": "property", "settable": true, "returns": "int | None"},
     "ratio": {"kind": "property", "settable": true, "returns": "int | None"},
@@ -814,6 +819,7 @@
     "members": {"kind": "property", "settable": false, "returns": "tuple[Shape | InlineObject, ...]"},
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true], ["keep_order", "K", true]], "returns": "None"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
+    "offset": {"kind": "property", "settable": false},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
     "remove": {"kind": "method", "params": [["remove_orphaned", "K", true]], "returns": "None"},
@@ -866,6 +872,7 @@
     "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "None"},
     "no_adjust": {"kind": "property", "settable": true, "returns": "bool"},
     "numbering_type": {"kind": "property", "settable": true, "returns": "str"},
+    "offset": {"kind": "property", "settable": false},
     "out_margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
     "page_split": {"kind": "property", "settable": true, "returns": "str"},
     "position": {"kind": "property", "settable": false, "returns": "ObjectPosition"},
@@ -918,10 +925,12 @@
     "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["para_pr_id_ref", "K", true], ["style", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Paragraph"},
     "add_table": {"kind": "method", "params": [["rows", "P", false], ["cols", "P", false], ["width", "K", true], ["height", "K", true], ["border_fill_id_ref", "K", true]], "returns": "Table"},
     "address": {"kind": "property", "settable": false, "returns": "tuple[int, int]"},
+    "address_written": {"kind": "property", "settable": false, "returns": "bool"},
     "border_fill": {"kind": "property", "settable": false, "returns": "BorderFillInfo | None"},
     "border_fill_id_ref": {"kind": "property", "settable": true, "returns": "str | None"},
     "clear": {"kind": "method", "params": [], "returns": "None"},
     "editable": {"kind": "property", "settable": true, "returns": "bool"},
+    "has_sub_list": {"kind": "property", "settable": false, "returns": "bool"},
     "height": {"kind": "property", "settable": false, "returns": "int"},
     "is_header": {"kind": "property", "settable": true, "returns": "bool"},
     "margins": {"kind": "property", "settable": false, "returns": "CellMargins"},
@@ -1025,6 +1034,7 @@
     ["element", "Any"]
    ],
    "members": {
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "remove": {"kind": "method", "params": [], "returns": "None"},
     "rename": {"kind": "method", "params": [["name", "P", false]], "returns": "Bookmark"},
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
@@ -1139,6 +1149,7 @@
     "element": {"kind": "property", "settable": false, "returns": "Element"},
     "index": {"kind": "property", "settable": false, "returns": "int"},
     "name": {"kind": "property", "settable": false, "returns": "str"},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
     "section": {"kind": "property", "settable": false, "returns": "Section"},
     "value": {"kind": "property", "settable": false, "returns": "str"}
@@ -1238,6 +1249,7 @@
     "element": {"kind": "property", "settable": false, "returns": "Any"},
     "hyperlink": {"kind": "property", "settable": true, "returns": "bool"},
     "location": {"kind": "property", "settable": false, "returns": "FieldLocation"},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "parameters": {"kind": "property", "settable": false, "returns": "tuple[FieldParameter, ...]"},
     "ref_type": {"kind": "property", "settable": false, "returns": "str"},
     "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
@@ -1384,6 +1396,7 @@
     "location": {"kind": "property", "settable": false, "returns": "FieldLocation"},
     "memo": {"kind": "property", "settable": true, "returns": "str"},
     "name": {"kind": "property", "settable": true, "returns": "str"},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
     "parameters": {"kind": "property", "settable": false, "returns": "tuple[FieldParameter, ...]"},
     "prompt": {"kind": "property", "settable": true, "returns": "str"},
@@ -1462,6 +1475,7 @@
    "members": {
     "element": {"kind": "property", "settable": false, "returns": "Any"},
     "field_id": {"kind": "property", "settable": false, "returns": "str"},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "paragraph": {"kind": "property", "settable": false, "returns": "Any"},
     "parameters": {"kind": "property", "settable": false, "returns": "tuple[FieldParameter, ...]"},
     "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
@@ -1480,7 +1494,8 @@
     ["attributes", "tuple[tuple[str, str], ...]"],
     ["object", "Any"],
     ["element", "Any"],
-    ["child_index", "int"]
+    ["child_index", "int"],
+    ["offset", "int"]
    ],
    "members": {
     "attribute": {"kind": "method", "params": [["name", "P", false], ["default", "P", true]], "returns": "str | None"},
@@ -1651,6 +1666,7 @@
     ["depth", "int"]
    ],
    "members": {
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
    }
   },
@@ -1865,6 +1881,7 @@
     "group": {"kind": "property", "settable": false, "returns": "str"},
     "index": {"kind": "property", "settable": false, "returns": "int"},
     "name": {"kind": "property", "settable": false, "returns": "str"},
+    "offset": {"kind": "property", "settable": false, "returns": "int | None"},
     "paragraph": {"kind": "property", "settable": false, "returns": "Paragraph | None"},
     "section": {"kind": "property", "settable": false, "returns": "Section"},
     "value": {"kind": "property", "settable": false, "returns": "str"}
@@ -1959,6 +1976,18 @@
    ],
    "members": {
     "matches_id": {"kind": "method", "params": [["style_id_ref", "P", false]], "returns": "bool"}
+   }
+  },
+  "SwitchChoice": {
+   "kind": "dataclass",
+   "fields": [
+    ["required_namespace", "str | None"],
+    ["case", "tuple[Any, ...]"],
+    ["default", "tuple[Any, ...]"],
+    ["element", "Any"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
    }
   },
   "TabDefinition": {

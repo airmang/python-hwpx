@@ -303,7 +303,10 @@ class LineSegment:
     ``paragraph.line_segments`` reads it. Read only: values as the file stores them.
 
     *text_position* is where the line starts in the paragraph's text, counted as Hancom counts it
-    (a tab or another inline control takes 8 places, a character outside the basic plane 2).
+    (a tab or another inline control takes 8 places, a character outside the basic plane 2). **That is
+    Hancom's count, not a place in** ``paragraph.text``: every other place python-hwpx reads or takes
+    (``replace_range``, ``obj.offset``, ``move_to(offset=)``, ``TextMatch``) counts a tab as one and a
+    control or an object as none. ``paragraph.line_texts`` gives each line's text cut at these places.
     *vertical_position* is the line's top from the top of its paragraph list (the page body, a
     cell or a text box), *height* the line's height, *text_height* the height of its tallest
     characters, *baseline* the distance from the line's top to its base line and *spacing* the
@@ -947,6 +950,13 @@ class ObjectPlace:
     owner: Any = None
     depth: int = 0
 
+    @property
+    def offset(self) -> int | None:
+        """Where the object stands in the text of the paragraph holding it: ``object.offset`` (the
+        characters before it, counted as ``paragraph.text`` counts)."""
+
+        return getattr(self.object, "offset", None)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
@@ -956,6 +966,28 @@ class ObjectPlace:
             "row": self.row,
             "col": self.col,
             "depth": self.depth,
+        }
+
+
+@dataclass(frozen=True)
+class SwitchChoice:
+    """What an ``hp:switch`` written in a run holds (``run.content``'s ``"switch"`` piece ``object``): the
+    objects of its ``hp:case`` -- the form Hancom reads when it knows the namespace the case requires
+    (*required_namespace*), as Hancom 2024 knows ``ooxmlchart`` and draws the chart -- and those of its
+    ``hp:default``, the form for a reader that does not. Each object is the model ``paragraph.objects``
+    would give it. Read only: no writer of python-hwpx writes a switch.
+    (``tests/fixtures/hancom_saved/pages_chart_case_*``, ``unused_chart_saved``.)"""
+
+    required_namespace: str | None
+    case: tuple[Any, ...]
+    default: tuple[Any, ...]
+    element: Any = _field(default=None, compare=False, repr=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "requiredNamespace": self.required_namespace,
+            "case": [type(item).__name__ for item in self.case],
+            "default": [type(item).__name__ for item in self.default],
         }
 
 
@@ -1002,7 +1034,10 @@ class InlineItem:
     child elements the piece is written in: the place (from 0, comments not counted) of its
     ``hp:t`` or ``hp:ctrl``, or of the piece itself when it is a child of the run. Pieces of one
     ``hp:t`` (or one ``hp:ctrl``) share it, so two controls written in one ``hp:ctrl`` and in two
-    can be told apart. None of these three takes part in ``==`` or ``to_dict()``.
+    can be told apart. ``offset`` is where the piece stands in its paragraph's text, counted as
+    ``paragraph.text`` counts (a tab or a line break one, a control or an object none; for characters,
+    where the first of them is): the place ``paragraph.replace_range`` or ``obj.move_to(offset=)`` takes.
+    None of these four takes part in ``==`` or ``to_dict()``.
     """
 
     kind: str
@@ -1013,6 +1048,7 @@ class InlineItem:
     object: Any = _field(default=None, compare=False, repr=False)
     element: Any = _field(default=None, compare=False, repr=False)
     child_index: int = _field(default=0, compare=False)
+    offset: int = _field(default=0, compare=False)
 
     def attribute(self, name: str, default: str | None = None) -> str | None:
         """The value of the attribute *name* as written, *default* when the element has none."""

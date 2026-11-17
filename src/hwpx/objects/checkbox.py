@@ -10,13 +10,23 @@ mutates the underlying element and marks the owning section dirty, which is why
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
 
     from ..model import Paragraph, Section
     from ..oxml import HwpxOxmlSection
+
+
+def _offset(self: Any) -> "int | None":
+    """Where it stands in its paragraph's text: the number of characters before it, counted as
+    ``paragraph.text`` counts (``None`` when it is in no run of a paragraph). It takes no character, so it
+    stands after character ``offset - 1`` and before character ``offset``."""
+
+    from ..oxml.text_offsets import placed_offset
+
+    return placed_offset(self)
 
 
 class CheckBox:
@@ -26,6 +36,8 @@ class CheckBox:
     (or ``.name``/``.caption``/``.value``) always reflects the document as it
     is *right now*; writing ``.checked`` writes straight back to the XML.
     """
+
+    offset = property(_offset)
 
     __slots__ = ("_element", "_section", "_paragraph", "_index")
 

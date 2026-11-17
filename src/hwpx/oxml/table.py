@@ -34,7 +34,9 @@ from ._document_primitives import (
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
 from ._paragraph_text_edit import new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
-from .table_format import TableCellFormat, TableFormat, TableRowFormat, _BorderFills, _set_fill
+from .table_format import (
+    TableCellFormat, TableFormat, TableRowFormat, _BorderFills, _set_fill, refuse_cell_without_sublist,
+)
 from .table_structure import TableStructureEdits
 from .utils import HwpxIndexError
 from ..errors import rejects_removed_arguments
@@ -234,11 +236,7 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         return size
 
     def _ensure_text_element(self) -> ET.Element:
-        sublist = self.element.find(f"{_HP}subList")
-        if sublist is None:
-            sublist = _append_child(
-                self.element, f"{_HP}subList", _default_sublist_attributes()
-            )
+        sublist = self._ensure_sublist()
         paragraph = sublist.find(f"{_HP}p")
         if paragraph is None:
             paragraph = _append_child(
@@ -488,17 +486,19 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         """Return (or lazily create) the ``<hp:subList>`` container."""
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
+            refuse_cell_without_sublist(self.element)  # its paragraphs are the cell's own children
             sublist = _append_child(self.element, f"{_HP}subList", _default_sublist_attributes())
         return sublist
 
     @property
     def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
-        """The paragraphs inside this cell's ``<hp:subList>``, in order."""
+        """The paragraphs inside this cell's ``<hp:subList>``, in order -- or, in a cell some writer gave its
+        paragraphs as its own children (no ``hp:subList``, :attr:`has_sub_list` ``False``), those."""
         sublist = self.element.find(f"{_HP}subList")
-        if sublist is None:
-            return ()
-        section = self.table.paragraph.section
-        return tuple(_wrap_paragraph(p, section) for p in sublist.findall(f"{_HP}p"))
+        holder = sublist if sublist is not None else self.element
+        # a table some writer left outside any paragraph has no section: its paragraphs are read only
+        section = cast("HwpxOxmlSection", getattr(self.table.paragraph, "section", None))
+        return tuple(_wrap_paragraph(p, section) for p in holder.findall(f"{_HP}p"))
 
     @rejects_removed_arguments
     def add_paragraph(

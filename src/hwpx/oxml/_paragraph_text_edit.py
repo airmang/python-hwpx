@@ -744,7 +744,9 @@ def paragraph_line_texts(self: Any) -> "tuple[str, ...] | None":
 
     Lines are cut where each line's ``text_position`` says, counting as Hancom counts (a tab or a
     control, a table, a picture, an equation or a shape 8 places, a line break or a special space 1,
-    a character outside the basic plane 2, a highlight's marks none). An object is no text, so a line
+    a character outside the basic plane 2, a highlight's marks none). Those places are
+    Hancom's, not places in ``paragraph.text`` (where a tab is one and a control none); the line texts
+    themselves are parts of ``paragraph.text``. An object is no text, so a line
     holding only an object reads ``""``. ``()`` when the paragraph has no saved lines; ``None`` when it
     holds a mark whose count is not established (a tracked change's start or end, a table-of-contents
     mark) or a tab outside ``hp:t``: then the lines are not cut at a guess.
