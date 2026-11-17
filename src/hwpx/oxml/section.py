@@ -367,6 +367,9 @@ class HwpxOxmlSection:
         )
         removals = header_removals + [pair for pair in removals if not any(
             pair[1] is child for _, child in header_removals)]
+        kept, column_removals = _plan_column_changes(
+            paragraphs[1:], keep_column_changes, on_control_content, keep_headers, self.part_name, found
+        )
 
         stripped_children = sum(_strip_to_kept_children(run) for run in run_elements)
         for parent, child in removals:
@@ -379,8 +382,7 @@ class HwpxOxmlSection:
         for cache in caches:
             first.element.remove(cache)
         later_paragraphs = paragraphs[1:]
-        kept = [paragraph.element for paragraph in later_paragraphs
-                if keep_column_changes and _keep_column_change(paragraph.element)]
+        _apply_column_changes(kept, column_removals)
         later_paragraphs = tuple(paragraph for paragraph in later_paragraphs
                                  if not any(paragraph.element is element for element in kept))
         for paragraph in later_paragraphs:
@@ -393,7 +395,8 @@ class HwpxOxmlSection:
             removed_runs=len(later_runs),
             stripped_run_children=stripped_children,
             control_content=tuple(found),
-            stripped_controls=sum(1 for _, child in removals if child.tag == f"{_HP}ctrl"),
+            stripped_controls=sum(1 for _, child in removals if child.tag == f"{_HP}ctrl")
+            + sum(1 for _, child in column_removals if child.tag not in _SECTION_STORY_TAGS),
             stripped_section_stories=sum(
                 1 for _, child in removals if child.tag in _SECTION_STORY_TAGS
             ),
@@ -853,26 +856,149 @@ class HwpxOxmlSection:
         return _serialize_xml(self._element)
 
 
-def _keep_column_change(paragraph: ET.Element) -> bool:
-    """Whether *paragraph* changes the columns (an ``hp:ctrl`` holding ``hp:colPr`` in its runs); if so, strip
-    it to that control -- its runs keep only it, runs left empty and the line layout cache go."""
+def _column_controls(paragraph: ET.Element) -> list[ET.Element]:
+    """The ``hp:ctrl`` children of *paragraph*'s runs that hold a column definition (``hp:colPr``)."""
 
-    runs = [child for child in paragraph if child.tag == f"{_HP}run"]
-    if not any(child.tag == f"{_HP}ctrl" and child.find(f"{_HP}colPr") is not None for run in runs for child in run):
-        return False
-    for run in runs:
+    return [child for run in paragraph if run.tag == f"{_HP}run" for child in run
+            if child.tag == f"{_HP}ctrl" and child.find(f"{_HP}colPr") is not None]
+
+
+def _plan_column_changes(
+    later: Sequence[Any], wanted: bool, mode: str, keep_headers: bool, part_name: str, found_before: list[str]
+) -> tuple[list[ET.Element], list[tuple[ET.Element, ET.Element]]]:
+    """:func:`_find_column_changes` for ``clear_body``: the later paragraph objects *later* when *wanted*, the
+    content found added to *found_before*."""
+
+    kept, found, removals = _find_column_changes(
+        [paragraph.element for paragraph in later] if wanted else [], mode, keep_headers, part_name
+    )
+    found_before += [tag for tag in found if tag not in found_before]
+    return kept, removals
+
+
+def _apply_column_changes(kept: list[ET.Element], removals: list[tuple[ET.Element, ET.Element]]) -> None:
+    for parent, child in removals:
+        parent.remove(child)
+    for element in kept:
+        _strip_to_column_controls(element)
+
+
+def _find_column_changes(
+    paragraphs: Sequence[ET.Element], mode: str, keep_headers: bool, part_name: str
+) -> tuple[list[ET.Element], list[str], list[tuple[ET.Element, ET.Element]]]:
+    """``clear_body(keep_column_changes=True)``'s plan, made before anything changes: the later paragraphs that
+    change the columns (kept), the content tags found beside the column definition in their controls, and the
+    ``(control, child)`` pairs to remove -- a header or footer when not *keep_headers*, and under ``"strip"`` each
+    child holding content. ``"raise"`` refuses such content (``section-clear-control-content``) as it does in the
+    first paragraph; nothing in those controls goes silently."""
+
+    from ..errors import HwpxValueError
+
+    kept: list[ET.Element] = []
+    found: list[str] = []
+    removals: list[tuple[ET.Element, ET.Element]] = []
+    for paragraph in paragraphs:
+        controls = _column_controls(paragraph)
+        if not controls:
+            continue
+        kept.append(paragraph)
+        for control in controls:
+            for child in control:
+                if child.tag == f"{_HP}colPr":
+                    continue
+                if not keep_headers and child.tag in _SECTION_STORY_TAGS:
+                    removals.append((control, child))
+                    continue
+                tags: list[str] = []
+                _collect_content_tags(child, tags, ())
+                found += [tag for tag in tags if tag not in found]
+                if tags and mode == "strip":
+                    removals.append((control, child))
+    if found and mode == "raise":
+        raise HwpxValueError(
+            "a column change kept in the section holds content beside its column definition: " + ", ".join(found),
+            code="section-clear-control-content",
+            context={"part": part_name, "tags": found, "mode": mode},
+            suggestion='pass on_control_content="strip" to remove it, or "keep" to keep it.',
+        )
+    return kept, found, removals
+
+
+def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_content: str) -> Any:
+    """``paragraph.clear_content``: empty *paragraph* of its body content, keeping its section settings.
+
+    What stays: ``hp:secPr`` and the controls holding only page-level settings beside it -- the column
+    definition always (Hancom opens a section without it with default paper and margins), headers and footers
+    as *keep_headers* says, page numbering, hiding and new numbers -- by the rule ``clear_body`` keeps the first
+    paragraph's. Content inside what stays (a header's text, say) follows *on_control_content* as there:
+    ``"raise"`` refuses (``section-clear-control-content``), ``"keep"`` keeps it, ``"strip"`` removes it and
+    reports it. Everything else goes: text, tables, pictures, notes, bookmarks, fields. A paragraph left with
+    no ``hp:t`` gets one run holding ``<hp:t/>`` after its settings, Hancom's empty line."""
+
+    from ..errors import HwpxValueError
+    from ..objects.results import ClearBodyReport
+    from ._paragraph_text_edit import is_section_setting
+
+    if on_control_content not in _CLEAR_BODY_MODES:
+        raise HwpxValueError(
+            f"on_control_content must be one of {', '.join(_CLEAR_BODY_MODES)}: {on_control_content!r}",
+            code="section-clear-mode-invalid",
+            context={"value": on_control_content, "allowed": list(_CLEAR_BODY_MODES)},
+        )
+    if not isinstance(keep_headers, bool):
+        raise HwpxValueError(f"keep_headers must be True or False: {keep_headers!r}", code="section-clear-mode-invalid",
+                             context={"value": repr(keep_headers), "argument": "keep_headers"})
+    element = paragraph.element
+    runs = [child for child in element if child.tag == f"{_HP}run"]
+    kept = [child for run in runs for child in run if is_section_setting(child)]
+    dropped = [child for run in runs for child in run if not any(child is node for node in kept)]
+    header_removals = [] if keep_headers else _plan_header_removal(runs)
+    excluded = [child for _, child in header_removals] + [child for child in dropped if child.tag == f"{_HP}ctrl"]
+    found, removals = paragraph.section._plan_control_content(runs, on_control_content, excluded=excluded)
+    removals = header_removals + [pair for pair in removals if any(pair[1] is node for node in kept)
+                                  and not any(pair[1] is child for _, child in header_removals)]
+    first_attributes = dict(runs[0].attrib) if runs else {"charPrIDRef": "0"}
+    text_attributes = next((dict(run.attrib) for run in runs for child in run if child.tag == f"{_HP}t"),
+                           first_attributes)
+    for child in dropped:
+        child.getparent().remove(child)
+    for parent, child in removals:
+        parent.remove(child)
+    emptied = [run for run in runs if len(run) == 0]
+    for run in emptied:
+        element.remove(run)
+    if element.find(f"{_HP}run/{_HP}t") is None:
+        run = element.makeelement(f"{_HP}run", text_attributes)
+        run.append(run.makeelement(f"{_HP}t", {}))
+        others = [child for child in element if child.tag == f"{_HP}run"]
+        element.insert(list(element).index(others[-1]) + 1 if others else 0, run)
+    for cache in element.findall(f"{_HP}linesegarray"):
+        element.remove(cache)
+    if dropped or removals or emptied:
+        paragraph.section.mark_dirty()
+    return ClearBodyReport(
+        removed_paragraphs=0,
+        removed_runs=len(emptied),
+        stripped_run_children=len(dropped),
+        control_content=tuple(found),
+        stripped_controls=sum(1 for _, child in removals if child.tag == f"{_HP}ctrl"),
+        stripped_section_stories=sum(1 for _, child in removals if child.tag in _SECTION_STORY_TAGS),
+    )
+
+
+def _strip_to_column_controls(paragraph: ET.Element) -> None:
+    """Leave in *paragraph* only its controls holding a column definition, whole; runs left empty and the
+    line layout cache go."""
+
+    controls = _column_controls(paragraph)
+    for run in [child for child in paragraph if child.tag == f"{_HP}run"]:
         for child in list(run):
-            if child.tag != f"{_HP}ctrl" or child.find(f"{_HP}colPr") is None:
+            if not any(child is control for control in controls):
                 run.remove(child)
-                continue
-            for inner in list(child):
-                if inner.tag != f"{_HP}colPr":
-                    child.remove(inner)
         if len(run) == 0:
             paragraph.remove(run)
     for cache in paragraph.findall(f"{_HP}linesegarray"):
         paragraph.remove(cache)
-    return True
 
 
 def _strip_to_kept_children(run: ET.Element) -> int:

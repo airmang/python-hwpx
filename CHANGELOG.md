@@ -498,6 +498,38 @@ python-hwpx 7.0을 함께 설치한다.
     - 글 가운데 각주·책갈피는 한 런 안 두 `hp:t` 사이에 둔다.
     - 범위 밖으로 이어지는 형광펜은 남은 쪽 가장자리에서 시작하거나 끝나게 한다.
     - 형광펜을 복사하면 사본 가장자리에서 열고 닫는다.
+- 한/글이 문서를 여는 캐럿 자리(`settings.xml`의 `ha:CaretPosition`):
+  - `doc.caret`으로 읽는다.
+  - `doc.set_caret(paragraph, offset=0)`으로 본문 문단에 둔다. 자리는 한/글의 셈이다(컨트롤·개체·탭 8).
+  - `doc.reset_caret()`은 본문 첫 문단의 글 처음(새 문서는 `pos="16"`)으로 둔다.
+  - 저장할 때 캐럿이 없는 본문 문단을 가리키면 그 자리로 되돌린다. 한/글 2024도 그렇게 연다.
+  - 틀에서 지은 문서는 `reset_caret()`을 부를 때까지 틀의 캐럿을 그대로 가진다.
+  - 표 칸·글상자·각주에 두기는 `document-caret-place-unsupported`로 거부한다. 그 목록 번호는 한/글 저장본으로 정해지지 않았다.
+  - `settings.xml`은 캐럿 요소만 고쳐 쓰고, 나머지 바이트는 그대로다.
+- 구역 첫 문단에 `hp:secPr`는 있는데 단 정의(`hp:ctrl/hp:colPr`)가 없으면 패키지 검사와 열기 안전 검사가 `section-columns-missing`으로 알린다.
+  - 한/글은 그 구역을 기본 용지·여백으로 연다.
+  - 저장은 막지 않는다.
+  - `hwpx-repair`는 `hp:secPr` 바로 뒤에 한/글이 쓰는 1단 정의를 넣는다.
+- 각주·미주·책갈피·누름틀·형광펜을 글자 자리에 둔다. 근거는 한/글 2024 저장본 `mid_text_*`·`highlight_*`(`tests/fixtures/hancom_saved`)다.
+  - 각주·미주·책갈피:
+    - `doc.notes.add_footnote(..., offset=)`·`add_endnote(..., offset=)`·`paragraph.add_bookmark(name, offset=)`·`doc.refs.add_bookmark(..., offset=)`로 둔다.
+    - 그 자리 컨트롤 뒤, 그 자리 글자 앞에 둔다. 글 가운데면 한/글처럼 그 런의 `hp:t`를 둘로 나누고 사이에 둔다.
+    - 뒤 각주·미주 번호는 다시 매긴다.
+  - `note.move_to(paragraph, offset=)`·`note.copy_to(paragraph, offset=)`:
+    - 사본은 새 `instId`를 받는다.
+    - 각주·머리말·꼬리말·메모 안으로는 `paragraph-move-place-unsupported`, 다른 문서로는 `note-other-document-unsupported`로 거부한다.
+  - `paragraph.add_form_field(name, start=, end=)`:
+    - 있는 글을 누름틀 값으로 감싼다. 런을 넘어도 된다. 안내문 런은 쓰지 않는다.
+    - 다른 필드 한쪽만 품는 범위는 `paragraph-range-splits-field`로 거부한다.
+  - 형광펜 범위:
+    - `paragraph.add_highlight(color=, start=, end=)`·`doc.text.highlight(paragraph, start=, end=)`로 칠한다. 런을 넘으면 시작·끝을 각 글자의 `hp:t`에 한 번씩 둔다.
+    - `doc.text.highlight_span(start_paragraph, start, end_paragraph, end)`는 문단을 넘는 범위를 문단마다 한 쌍으로 칠한다.
+    - 이미 있는 형광펜과 겹치면 `paragraph-range-splits-mark`로 거부한다.
+- `doc.text.highlights`가 런을 넘는 형광펜(한/글의 `highlight_across_runs` 꼴)을 통째로 읽는다. 전에는 첫 `hp:t` 안 부분만 읽었다.
+- `paragraph.clear_content(*, keep_headers=True, on_control_content="raise")`: 문단의 본문 내용(글·표·그림·각주·책갈피·필드)을 비우고 구역 설정은 남긴다.
+  - 남는 것은 `hp:secPr`와 그 옆 쪽 단위 컨트롤이다. 단 정의는 늘, 머리말·꼬리말은 `keep_headers`대로 남는다.
+  - 남는 컨트롤 안의 글·개체는 `clear_body`처럼 `on_control_content`를 따른다.
+  - 글이 하나도 남지 않으면 `<hp:t/>` 런 하나를 둔다.
 - 표 행 옮기기·복사: `table.move_rows(rows, *, to)`, `table.copy_rows(rows, *, to, source=None)`.
   - 이어진 행 묶음을 그 행 앞(행 수면 끝)으로 옮기거나 복사한다. `rowAddr`·`rowCnt`를 다시 매긴다.
   - 사본은 새 id를 받는다. 같은 문서·같은 열의 다른 표에서도 복사한다.
@@ -505,7 +537,8 @@ python-hwpx 7.0을 함께 설치한다.
   - 놓인 행을 돌려준다. 행 번호·자리가 잘못되면 `table-rows-invalid`, 열이 다르면 `table-columns-differ`, 다른 문서 표는 `table-rows-other-document`, 다른 표로 옮기기는 `table-rows-move-other-table`로 거부한다.
 - `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
   `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
-  기본값(`False`)이면 전처럼 지운다.
+  기본값(`False`)이면 전처럼 지운다. 남기는 문단의 단 정의 컨트롤 안에 글·개체가 함께 있으면, 첫 문단처럼 `on_control_content`를 따른다
+  (기본 `"raise"`는 거부, `"strip"`은 지우고 `stripped_controls`·`control_content`에 적는다).
 - `paragraph.set_text_preserving_runs(value)`가 `hp:t` 안에 탭·줄 바꿈·특수 공백이 이미 있는 문단(한/글이 쓰는 꼴)도 고친다. 고친 곳
   밖의 탭은 그 요소(너비 등) 그대로 남는다. 전에는 `paragraph-mixed-text-unsupported`로 거부했다.
 - 누름틀을 채울 때 값의 글자 모양을 고른다: `doc.fields.fill(value, name=..., char_pr_id_ref=...)`. 주지 않으면 전처럼 누름틀 시작이

@@ -102,8 +102,13 @@ def _paragraph_add_note(
     *,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
+    offset: int | None = None,
 ) -> HwpxOxmlNote:
     """Insert a ``<hp:footNote>`` or ``<hp:endNote>`` element.
+
+    *offset* (``None``: the end) puts it at that character of ``paragraph.text``: after the controls already
+    there, before the character -- in the middle of a run's text between two ``hp:t`` of that run, as Hancom
+    writes one (``mid_text_footnote``, ``mid_text_endnote``).
 
     Emits the real-Hancom shape (gold-reversed): the note element is
     wrapped in ``<hp:ctrl>`` inside a body run, carries ``number`` and
@@ -112,6 +117,10 @@ def _paragraph_add_note(
     render the note at all.
     """
 
+    if offset is not None:
+        from .text_ranges import _check_offset
+
+        offset = _check_offset("offset", offset, 0, len(self.text))
     number = _paragraph_next_note_number(self, tag)
     suffix = _paragraph_note_suffix_char(self, tag)
     style_ref, para_pr_ref, note_char_ref = _paragraph_note_style_refs(self, tag)
@@ -151,6 +160,11 @@ def _paragraph_add_note(
         {"type": "DIGIT", "userChar": "", "prefixChar": "", "suffixChar": suffix, "supscript": "0"},
     )
     set_text_with_tabs(_append_child(note_run, f"{_HP}t", {}), text)
+    if offset is not None:
+        from .text_ranges import drop_if_empty, put_at
+
+        put_at(self.element, offset, ctrl)
+        drop_if_empty(self.element, run)
     _clear_paragraph_layout_cache(self.element)  # the note's control takes room in the text: laid out again
     self.section.mark_dirty()
     # A note added before others takes their place in the count: those after it move up one.
@@ -164,9 +178,11 @@ def _paragraph_add_footnote(
     *,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
+    offset: int | None = None,
 ) -> HwpxOxmlNote:
-    """Insert a footnote at the end of this paragraph."""
-    return _paragraph_add_note(self, "footNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
+    """Insert a footnote at the end of this paragraph (*offset*: at that character)."""
+    return _paragraph_add_note(self, "footNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+                               offset=offset)
 
 
 def _paragraph_add_endnote(
@@ -175,9 +191,11 @@ def _paragraph_add_endnote(
     *,
     run_attributes: dict[str, str] | None = None,
     char_pr_id_ref: str | int | None = None,
+    offset: int | None = None,
 ) -> HwpxOxmlNote:
-    """Insert an endnote at the end of this paragraph."""
-    return _paragraph_add_note(self, "endNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
+    """Insert an endnote at the end of this paragraph (*offset*: at that character)."""
+    return _paragraph_add_note(self, "endNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
+                               offset=offset)
 
 
 def _direct_notes(paragraph: ET.Element, tag: str) -> list[ET.Element]:

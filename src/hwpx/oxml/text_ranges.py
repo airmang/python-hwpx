@@ -1119,3 +1119,240 @@ def _text_units(node: Any) -> Iterator[_Unit]:
 
 
 __all__ = ["copy_range", "delete_range", "insert_text", "move_range", "set_text_preserving_runs"]
+
+
+# --------------------------------------------------------------------------
+# Putting a control or a mark at a place (asks10c)
+
+
+def put_at(paragraph: Any, offset: int, element: Any) -> None:
+    """Put the run child *element* -- a control or an object, taken out of where it was -- at character
+    *offset* of the paragraph element *paragraph*: after the zero-width things already there, before the
+    character there. In the middle of a run's text the ``hp:t`` is divided around it, in that one run, as
+    Hancom writes a note or a bookmark there (``mid_text_footnote``, ``mid_text_bookmark``)."""
+
+    parent = element.getparent()
+    if parent is not None:
+        parent.remove(element)
+    element.tail = None
+    kind, where, holder, at = _landing(paragraph, offset)
+    if kind == "none":
+        from ._document_primitives import _HP
+
+        run = paragraph.makeelement(f"{_HP}run", {"charPrIDRef": "0"})
+        paragraph.insert(0, run)
+        run.append(element)
+        return
+    if kind == "new":
+        where.insert(holder, element)
+        return
+    text, run = where, where.getparent()
+    value = _string(text, holder)
+    children = list(text)
+    after = children[children.index(holder) + 1:] if holder is not None else children
+    before = holder is not None or bool(value[:at])
+    rest = bool(value[at:]) or bool(after)
+    index = list(run).index(text)
+    if not before:
+        run.insert(index, element)  # at the start of the hp:t (or before an empty one)
+        return
+    if not rest:
+        run.insert(index + 1, element)
+        return
+    right = text.makeelement(text.tag, dict(text.attrib))
+    right.text = value[at:] or None
+    _set_string(text, holder, value[:at])
+    for child in after:
+        right.append(child)
+    run.insert(index + 1, element)
+    run.insert(index + 2, right)
+
+
+def place_created(paragraph: "HwpxOxmlParagraph", offset: int, element: Any, made_in: Any) -> None:
+    """Move *element*, just written at the paragraph's end into the run *made_in*, to character *offset*
+    (checked first); *made_in* goes when nothing else is left in it."""
+
+    try:
+        offset = _check_offset("offset", offset, 0, len(paragraph.text))
+    except Exception:
+        element.getparent().remove(element)  # nothing written stays behind a refused offset
+        drop_if_empty(paragraph.element, made_in)
+        raise
+    put_at(paragraph.element, offset, element)
+    drop_if_empty(paragraph.element, made_in)
+    _clear_paragraph_layout_cache(paragraph.element)
+
+
+def drop_if_empty(paragraph: Any, run: Any) -> None:
+    """Take *run* out of *paragraph* when it holds nothing but an empty ``hp:t`` (or nothing), and the
+    paragraph keeps text elsewhere: a run made for a control that has since moved."""
+
+    if run.getparent() is not paragraph:
+        return
+    children = [child for child in run if _local(child)]
+    if any(_local(child) != "t" or child.text or len(child) for child in children):
+        return
+    others = [child for other in _runs(paragraph) if other is not run for child in other if _local(child) == "t"]
+    if others or not children:
+        paragraph.remove(run)
+
+
+def _pen_overlaps(units: list[_Unit], start: int, end: int) -> bool:
+    total = sum(unit.length for unit in units)
+    for begin, finish in _pen_pairs(units).values():
+        if begin is None:
+            continue
+        low, high = begin.start, finish.start if finish is not None else total
+        if low < end and start < high:
+            return True
+    return False
+
+
+def highlight_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, color: str) -> None:
+    """Mark characters ``[start, end)`` with a highlight: ``hp:markpenBegin`` right before character *start*
+    and ``hp:markpenEnd`` right after character ``end - 1``, each inside the ``hp:t`` holding that character
+    -- in two runs when the range crosses one (``highlight_across_runs``)."""
+
+    from ._document_primitives import _HP
+
+    first, start, end = check_highlight_range(paragraph, start, end)
+    begin = paragraph.element.makeelement(f"{_HP}markpenBegin", {"color": color})
+    _put_mark_before(first, start - first.start if first.kind == "text" else 0, begin)
+    last = next(u for u in _units(paragraph.element) if u.length and u.start <= end - 1 < u.end)
+    finish = paragraph.element.makeelement(f"{_HP}markpenEnd", {})
+    if last.kind == "text":
+        _put_mark_before(last, end - last.start, finish)
+    else:
+        element = last.element
+        finish.tail, element.tail = element.tail, None
+        holder = element.getparent()
+        holder.insert(list(holder).index(element) + 1, finish)
+    paragraph.section.mark_dirty()
+
+
+def check_highlight_range(paragraph: "HwpxOxmlParagraph", start: Any, end: Any) -> "tuple[_Unit, int, int]":
+    """A highlight's range checked before anything is written: (the unit of its first character, start, end)."""
+
+    length = len(paragraph.text)
+    start = _check_offset("start", start, 0, length)
+    end = _check_offset("end", end, start, length)
+    if start == end:
+        raise HwpxValueError("a highlight needs at least one character", code="paragraph-range-invalid",
+                             context={"start": start, "end": end},
+                             suggestion="Pass end > start (positions count as paragraph.text does).")
+    units = list(_units(paragraph.element))
+    if _pen_overlaps(units, start, end):
+        raise HwpxValueError(
+            f"characters {start}..{end} overlap a highlight already there",
+            code="paragraph-range-splits-mark",
+            context={"start": start, "end": end},
+            suggestion="Remove that highlight first, or highlight a range beside it.",
+        )
+    first = next(u for u in units if u.length and u.start <= start < u.end)
+    last = next(u for u in units if u.length and u.start <= end - 1 < u.end)
+    for unit in (first, last):
+        if unit.kind not in ("text", "atom"):
+            raise HwpxValueError(
+                "a highlight starts and ends inside the text: the range starts or ends at a tab written beside "
+                "the text or inside an element holding text of its own",
+                code="paragraph-range-splits-mark",
+                context={"start": start, "end": end, "at": unit.kind},
+                suggestion="Start or end the range one character further in.",
+            )
+    return first, start, end
+
+
+def check_field_range(paragraph: "HwpxOxmlParagraph", start: Any, end: Any) -> "tuple[int, int] | None":
+    """``add_form_field(start=, end=)``'s range checked before anything is written (``None`` without one)."""
+
+    if start is None and end is None:
+        return None
+    if start is None or end is None:
+        raise HwpxValueError("a field's range needs both start and end", code="paragraph-range-invalid",
+                             context={"start": repr(start), "end": repr(end)},
+                             suggestion="Pass start and end (positions count as paragraph.text does).")
+    length = len(paragraph.text)
+    start = _check_offset("start", start, 0, length)
+    end = _check_offset("end", end, start, length)
+    _held(list(_units(paragraph.element)), start, end)  # one end of another field inside: refused
+    return (start, end)
+
+
+def wrap_in_field(paragraph: "HwpxOxmlParagraph", span: "tuple[int, int]", begin: Any, finish: Any) -> None:
+    """Move a new field's begin and end controls (each with the run made for it) to the ends of *span*."""
+
+    start, end = span
+    put_at(paragraph.element, start, begin[0])
+    put_at(paragraph.element, end, finish[0])
+    for _control, run in (begin, finish):
+        drop_if_empty(paragraph.element, run)
+    _clear_paragraph_layout_cache(paragraph.element)
+
+
+def _note_target(note: Any, paragraph: Any, offset: Any) -> int:
+    from .paragraph import HwpxOxmlParagraph
+    from .shape_position import paragraph_box
+
+    if not isinstance(paragraph, HwpxOxmlParagraph):
+        raise HwpxTypeError(f"paragraph must be a paragraph object; got {type(paragraph).__name__}",
+                            code="paragraph-invalid-type", context={"type": type(paragraph).__name__},
+                            suggestion="Pass the paragraph to put the note in, e.g. doc.paragraphs[i].")
+    if paragraph.section.document is not note.paragraph.section.document:
+        raise HwpxValueError(
+            "a note moves and copies within its document",
+            code="note-other-document-unsupported",
+            suggestion="Copy the range holding it into the other document: paragraph.copy_range(...).",
+        )
+    box = paragraph_box(paragraph.element, paragraph.section.element)
+    if box in ("note", "header_footer", "memo", "other"):
+        raise HwpxValueError(
+            "a footnote or an endnote goes into the body, a cell, a text box or a caption",
+            code="paragraph-move-place-unsupported",
+            context={"box": box},
+            suggestion="Pick a paragraph of the body, a cell or a text box.",
+        )
+    length = len(paragraph.text)
+    return length if offset is None else _check_offset("offset", offset, 0, length)
+
+
+def _renumber_after(note_element: Any, *sections: Any) -> None:
+    from .note_authoring import renumber_notes
+
+    tag = _local(note_element)
+    for section in {id(section): section for section in sections}.values():
+        renumber_notes(section, tag)
+
+
+def move_note(note: Any, paragraph: Any, offset: Any) -> None:
+    """``note.move_to``."""
+
+    offset = _note_target(note, paragraph, offset)
+    control = note.element.getparent()
+    old_run, old_paragraph = control.getparent(), note.paragraph
+    put_at(paragraph.element, offset, control)
+    if old_run.getparent() is not None:
+        _merge_text_siblings(old_run)  # the two hp:t the note stood between are one again
+    drop_if_empty(old_paragraph.element, old_run)
+    _changed(old_paragraph)
+    _changed(paragraph)
+    note.paragraph = paragraph
+    _renumber_after(note.element, old_paragraph.section, paragraph.section)
+
+
+def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
+    """``note.copy_to``."""
+
+    from ._document_primitives import _object_id
+    from .memo import HwpxOxmlNote
+
+    offset = _note_target(note, paragraph, offset)
+    control = deepcopy(note.element.getparent())
+    copy = next(child for child in control if _local(child) == _local(note.element))
+    copy.set("instId", _object_id(paragraph.section._ids))
+    for node in copy.iter():
+        if _local(node) == "p":
+            _clear_paragraph_layout_cache(node)
+    put_at(paragraph.element, offset, control)
+    _changed(paragraph)
+    _renumber_after(copy, paragraph.section)
+    return HwpxOxmlNote(copy, paragraph)

@@ -317,6 +317,8 @@ files = [
     # Putting text in, taking a range out, moving and copying a range (asks10b) -- born in the gate,
     # per the WP-A rule.
     "src/hwpx/oxml/text_ranges.py",
+    # Where Hangul opens a document: settings.xml's caret (asks10h) -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/caret.py",
     # Moving and copying a table's rows (asks10d) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_rows.py",
     # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),
@@ -531,6 +533,8 @@ include = [
     # Putting text in, taking a range out, moving and copying a range (asks10b) -- born in the gate,
     # per the WP-A rule.
     "src/hwpx/oxml/text_ranges.py",
+    # Where Hangul opens a document: settings.xml's caret (asks10h) -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/caret.py",
     # Moving and copying a table's rows (asks10d) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_rows.py",
     # A paragraph shape's heading (outline levels 8 to 10 in Hancom's hp:switch form),

@@ -97,7 +97,7 @@ if TYPE_CHECKING:
     from ..objects.highlight import Highlight
     from typing import Iterable, Iterator
 
-    from ..objects.results import CellMargins, NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
+    from ..objects.results import CellMargins, ClearBodyReport, NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
     from .section import HwpxOxmlSection
 
 
@@ -355,10 +355,14 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         self,
         *,
         color: str,
-        match: str,
+        match: str | None = None,
+        start: int | None = None,
+        end: int | None = None,
     ) -> "Highlight":
-        """Wrap the first occurrence of *match* in ``hp:markpenBegin``/``markpenEnd`` and return it as the
-        :class:`~hwpx.objects.Highlight` ``doc.text.highlights`` reads.
+        """Wrap the first occurrence of *match* -- or characters ``[start, end)`` of ``paragraph.text`` -- in
+        ``hp:markpenBegin``/``markpenEnd`` and return it as the :class:`~hwpx.objects.Highlight`
+        ``doc.text.highlights`` reads. A range may cross runs: the begin goes in the ``hp:t`` holding character
+        *start*, the end in the one holding character ``end - 1``, as Hancom writes it (``highlight_across_runs``).
 
         Mirrors :meth:`_add_tracked_delete`'s substring branch: the first run
         whose spans concatenate to contain *match* is targeted, then the
@@ -367,6 +371,10 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
 
         from ..objects.highlight import Highlight
 
+        if start is not None or end is not None or match is None:
+            from .._document.highlight import add_highlight
+
+            return add_highlight(None, self, match, color=color, start=start, end=end)  # type: ignore[arg-type]
         if not match:
             raise ValueError("match must be a non-empty string")
 
@@ -442,6 +450,17 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         from .text_ranges import set_text_preserving_runs
 
         set_text_preserving_runs(self, value)
+
+    def clear_content(self, *, keep_headers: bool = True, on_control_content: str = "raise") -> "ClearBodyReport":
+        """Empty this paragraph of its body content -- text, tables, pictures, notes, bookmarks, fields -- and keep
+        its section settings: ``hp:secPr`` with the page-level controls beside it (the column definition always,
+        headers and footers as *keep_headers* says), as ``section.clear_body`` keeps the first paragraph's.
+        Content inside what stays follows *on_control_content* (``"raise"``, ``"keep"``, ``"strip"``) as there.
+        Returns the :class:`~hwpx.objects.ClearBodyReport` of what went."""
+
+        from .section import clear_paragraph_content
+
+        return clear_paragraph_content(self, keep_headers=keep_headers, on_control_content=on_control_content)
 
     def clear_text(self) -> None:
         """Remove all text content while preserving styles and non-text elements.
@@ -1101,11 +1120,15 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         *,
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
+        offset: int | None = None,
     ) -> "Bookmark":
         """Insert a bookmark marker ``<hp:ctrl><hp:bookmark name="..."/></hp:ctrl>`` and return it as the
         :class:`~hwpx.objects.Bookmark` ``doc.refs.bookmarks`` reads (``kind="point"``).
 
-        The bookmark name can be referenced by hyperlinks or cross-references.
+        At the end of the paragraph, or with *offset* at that character of ``paragraph.text``: after the
+        controls already there, before the character -- in the middle of a run's text between two ``hp:t`` of
+        that run, as Hancom writes one (``mid_text_bookmark``). The bookmark name can be referenced by
+        hyperlinks or cross-references.
         """
         from .field_marks import bookmark_for
 
@@ -1117,6 +1140,10 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         )
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         mark = _append_child(ctrl, f"{_HP}bookmark", {"name": name})
+        if offset is not None:
+            from .text_ranges import place_created
+
+            place_created(self, offset, ctrl, run)
         self.section.mark_dirty()
         return bookmark_for(self, mark)
 
@@ -1560,9 +1587,18 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         editable: bool = True,
         prompt_char_pr_id_ref: str | int | None = None,
         char_pr_id_ref: str | int | None = None,
+        start: int | None = None,
+        end: int | None = None,
     ) -> "FormField":
         """Insert a click-here (누름틀) form field at the end of this paragraph and return it as the
         :class:`~hwpx.objects.FormField` ``doc.fields.all`` reads.
+
+        With *start* and *end* the field wraps the characters ``[start, end)`` of ``paragraph.text``, its
+        value: the begin after the controls at *start*, the end before the character at *end*, each in the run
+        it falls in. No prompt run is written -- the field holds a value -- and *prompt* stays the field's
+        안내문 (its ``Direction`` parameter), as Hancom keeps one in a filled click-here field
+        (``field_value_shape_filled``); *memo* and *editable* are written as without a range. A range holding
+        one end of another field is refused (``paragraph-range-splits-field``).
 
         Emits the real-Hancom CLICKHERE shape (inferred from Hancom
         Office 12.0.0.3288 gold documents):
@@ -1584,7 +1620,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             The field (``field.element`` is the ``<hp:fieldBegin>``).
         """
         from .field_marks import form_field_for
+        from .text_ranges import check_field_range, wrap_in_field
 
+        span = check_field_range(self, start, end)
         field_id = _object_id(self.section._ids)
         field_instance_id = field_type_id("CLICK_HERE", ids=self.section._ids)
         direction = _sanitize_text(prompt)
@@ -1629,8 +1667,8 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             )
             help_param.text = help_state
 
-        # Run 2: the prompt placeholder (only while a prompt exists)
-        if direction:
+        # Run 2: the prompt placeholder (only while a prompt exists and no text is wrapped)
+        if direction and span is None:
             run2 = self._create_run_for_object(
                 char_pr_id_ref=(
                     prompt_char_pr_id_ref
@@ -1649,7 +1687,8 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "fieldid": field_instance_id,
         })
         _append_child(run3, f"{_HP}t", {})
-
+        if span is not None:
+            wrap_in_field(self, span, (ctrl1, run1), (ctrl3, run3))
         self.section.mark_dirty()
         return form_field_for(self, field_begin)
 

@@ -339,3 +339,24 @@ def test_set_text_preserving_runs_edits_text_beside_hancom_s_tabs() -> None:
         assert [dict(tab.attrib) for tab in paragraph.element.iter(f"{HP}tab")] == tabs_before
         paragraph.set_text_preserving_runs(value.replace("새", "\t둘"))
         assert paragraph.text == value.replace("새", "\t둘")
+
+
+def test_a_shape_the_other_document_lacks_is_added_after_its_last_one() -> None:
+    # copy_range into another document: a character shape the document has no equal of becomes its next id,
+    # written after its last hh:charPr, and the count is put right (school's exam patch takes this way)
+    HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+    with HwpxDocument.new() as source, HwpxDocument.new() as target:
+        paragraph = source.add_paragraph("보통")
+        paragraph.add_run("새 모양", bold=True, italic=True, color="#123456", size=13)
+        into = target.add_paragraph("받는 문단")
+        holder = target.oxml.headers[0].element.find(f".//{HH}charProperties")
+        before = [node.get("id") for node in holder.findall(f"{HH}charPr")]
+        paragraph.copy_range(2, 6, to=into)
+        after = [node.get("id") for node in holder.findall(f"{HH}charPr")]
+        assert after[:len(before)] == before  # the shapes there stay where and as they are
+        assert after[len(before):] == [str(max(int(i) for i in before) + 1)]
+        assert holder.get("itemCnt") == str(len(after))
+        copied = [run for run in into.runs if run.text == "새 모양"][0]
+        assert copied.char_pr_id_ref == after[-1] and copied.bold and copied.italic
+        again = HwpxDocument.open(target.to_bytes())
+        assert [run.text for run in again.paragraphs[-1].runs if run.bold] == ["새 모양"]
