@@ -353,3 +353,16 @@ def test_draw_text_is_a_contract_named_stable_type() -> None:
     assert sorted(lock["DrawText"]["members"]) == sorted(
         ["add_paragraph", "editable", "name", "paragraphs", "text", "text_margin"]
     )
+
+
+def test_a_floating_object_writes_hp_pos_in_hancom_s_order() -> None:
+    # Every hp:pos of tests/fixtures/hancom_saved (6,055) puts horzRelTo before vertAlign; a floating object made by
+    # the engine wrote vertAlign first until asks10b (an inline one never did).
+    hancom = ["treatAsChar", "affectLSpacing", "flowWithText", "allowOverlap", "holdAnchorAndSO", "vertRelTo",
+              "horzRelTo", "vertAlign", "horzAlign", "vertOffset", "horzOffset"]
+    with HwpxDocument.new() as doc:
+        paragraph = doc.add_paragraph("떠 있는 개체")
+        for treat_as_char in (False, True):
+            for add in (doc.shapes.add_rectangle, doc.shapes.add_ellipse):
+                shape = add(2000, 1000, treat_as_char=treat_as_char, paragraph=paragraph)
+                assert list(shape.element.find(f"{HP}pos").attrib) == hancom

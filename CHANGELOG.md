@@ -161,7 +161,10 @@
 - 복사한 문단·개체의 모든 개체 `id`를 새로 매기고(선·사각형 등도), 새로 넣은 개체의 `id`가 문서의 다른 개체와 겹치지 않는다.
   사본의 `instid`는 `id`와 같다.
 - 다른 문서의 문단을 옮기면(`copy_to`, `insert_document`) 받는 문서의 같은 내용 정의(글꼴·테두리·탭·글자·문단 모양·스타일)를
-  다시 쓰고, 없는 것만 마지막 id 다음부터 만든다.
+  다시 쓰고, 없는 것만 마지막 id 다음부터 만든다. 정의가 다른 정의를 가리키는 값(글꼴·테두리·탭·글자·문단 모양·스타일 id)도 받는
+  문서에서 내용이 같은 정의 가운데 첫 것으로 읽어 견준다. 그래서 한/글 문서처럼 같은 글꼴을 두 번 둔 머리(한자 블록의 함초롬바탕
+  0·6 등)에서도 같은 글자 모양을 새로 만들지 않는다. 번호 정의는 내용이 같아도 따로 둔다. 번호 정의 id가 목록이 이어지는지를 가르고,
+  한/글도 같은 번호 정의를 따로 둔다(`pages_empty_numbered_paragraphs`).
 
 - **`HwpxDocument.new()`로 만든 문서가 처음 더한 문단으로 시작한다.** 전에는 처음 더한 문단이 빈 첫 문단 뒤에 붙어 모든 새 문서가
   빈 줄로 시작했다. 이제 처음 더하는 문단(`add_paragraph`, `add_heading`)이 그 빈 줄을 차지하고, 구역 설정과 먼저 넣어 둔
@@ -476,6 +479,30 @@ python-hwpx 7.0을 함께 설치한다.
   - 런 안 `hp:switch`: `run.content`의 `"switch"` 조각 `object`가 `SwitchChoice`(`required_namespace`, `case`·`default`의 개체)다.
   - `LineSegment.text_position`·`paragraph.line_texts`의 자리는 한/글의 셈(탭·컨트롤 8, BMP 밖 2)이라 `paragraph.text`의 자리와 다르다고
     설명에 적었다.
+- 글 구간 쓰기(자리 셈은 위와 같다. 범위 `[start, end)`는 양 끝에 선 컨트롤·개체를 품지 않는다):
+  - `paragraph.insert_text(offset, text, *, char_pr_id_ref=None, **format)`: 그 자리에 이미 있는 컨트롤·개체 뒤, 그 자리 글자 앞에
+    넣는다. 모양을 주지 않으면 들어간 런(그 자리 마지막 컨트롤의 런, 없으면 앞 글자의 런)의 모양이다. 모양을 주면 런을 따로 둔다.
+  - `paragraph.delete_range(start, end, *, objects="refuse")`: 글·탭·줄 바꿈·특수 공백과 그 안의 표시를 지운다. 비는 런은 지우고,
+    나란해진 같은 모양 런은 하나로 합친다. 범위 안 컨트롤·개체는 `paragraph-range-holds-objects`로 거부한다. `objects="remove"`면
+    각자의 `remove()`대로 함께 지운다(각주 번호 다시 매김, 쓰지 않는 그림 정리).
+  - `paragraph.copy_range(start, end, *, to, offset=None)`·`move_range(...)`: 같은 문서나 다른 문서의 문단으로 복사하거나 옮기고 새 자리를
+    돌려준다. 다른 문서로는 `copy_to`처럼 정의·그림을 가져가고 새 id를 준다. 표·글상자·캡션은 다른 문서로 가지 않는다
+    (`shape-copy-document-unsupported`). 같은 문서 안 옮기기는 개체 자신이 옮겨 가 id가 그대로다.
+  - 거부(새 오류 코드):
+    - 누름틀·하이퍼링크의 시작이나 끝 한쪽만 품은 범위: `paragraph-range-splits-field`.
+    - 변경 추적 표시를 품은 범위: `paragraph-range-splits-mark`.
+    - 자기 안으로 옮기기: `paragraph-range-into-itself`.
+    - 각주를 각주·머리말·꼬리말로 옮기기: `paragraph-move-place-unsupported`.
+    - 없는 글자 모양: `style-char-pr-missing`.
+  - 한/글이 쓰는 꼴로 쓴다. 근거는 한/글 2024가 저장한 `mid_text_*`·`highlight_*`(`tests/fixtures/hancom_saved`)다.
+    - 글 가운데 각주·책갈피는 한 런 안 두 `hp:t` 사이에 둔다.
+    - 범위 밖으로 이어지는 형광펜은 남은 쪽 가장자리에서 시작하거나 끝나게 한다.
+    - 형광펜을 복사하면 사본 가장자리에서 열고 닫는다.
+- `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
+  `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
+  기본값(`False`)이면 전처럼 지운다.
+- `paragraph.set_text_preserving_runs(value)`가 `hp:t` 안에 탭·줄 바꿈·특수 공백이 이미 있는 문단(한/글이 쓰는 꼴)도 고친다. 고친 곳
+  밖의 탭은 그 요소(너비 등) 그대로 남는다. 전에는 `paragraph-mixed-text-unsupported`로 거부했다.
 - 누름틀을 채울 때 값의 글자 모양을 고른다: `doc.fields.fill(value, name=..., char_pr_id_ref=...)`. 주지 않으면 전처럼 누름틀 시작이
   든 런의 모양이다(한/글이 채우는 방식). 값이 누름틀 시작·끝이나 앞뒤 글과 한 런에 있으면 런을 나눠 값만 바꾼다(한/글도 다른 모양의
   값을 제 런에 둔다).
@@ -536,6 +563,8 @@ python-hwpx 7.0을 함께 설치한다.
     - 개체(`hp:rect`·`hp:ellipse`·`hp:line`·`hp:arc`·`hp:pic`)는 공통 속성(`id`·`zOrder`…`instid`)을 앞에, 종류별 속성을 뒤에 둔다.
     - `hp:sz`는 `width`·`widthRelTo`·`height`·`heightRelTo`·`protect` 차례다.
     - `hp:drawText`는 `lastWidth`·`name`·`editable` 차례다.
+    - 떠 있는 개체(`treat_as_char=False`)의 `hp:pos`는 `vertRelTo`·`horzRelTo`·`vertAlign`·`horzAlign` 차례다(전에는 `vertAlign`이 `horzRelTo` 앞).
+    - 병합을 나눠 새로 만든 칸의 `hp:cellAddr`·`hp:cellSpan`은 `colAddr`·`rowAddr`, `colSpan`·`rowSpan` 차례다. 새 스타일(`ensure_style`)과 있던 스타일에 더한 속성도 한/글의 `hh:style` 차례(`nextStyleIDRef` 뒤 `langID`)에 둔다.
   - 파일에서 읽은 요소의 차례는 건드리지 않는다.
   - 한/글 저장본에 없는 요소(선택 상자·변경 추적 정의·바탕쪽)는 전 차례 그대로다.
 

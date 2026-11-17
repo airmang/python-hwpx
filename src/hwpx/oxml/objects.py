@@ -498,8 +498,8 @@ def _build_shape_base_children(
         pos_attrs.update({
             "flowWithText": "0", "allowOverlap": "1",
             "holdAnchorAndSO": "0",
-            "vertRelTo": "PARA", "vertAlign": "TOP",
-            "horzRelTo": "COLUMN", "horzAlign": "LEFT",
+            "vertRelTo": "PARA", "horzRelTo": "COLUMN",  # Hancom's order, as below (6,055 hp:pos in hancom_saved)
+            "vertAlign": "TOP", "horzAlign": "LEFT",
             "vertOffset": "0", "horzOffset": "0",
         })
     else:

@@ -6,6 +6,7 @@ existing call writes (so it waits for the owner's approval before merging)."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from hwpx import HwpxDocument
 from hwpx.objects import CellMargins
@@ -146,3 +147,23 @@ def test_a_copy_from_another_document_reuses_the_definitions_already_there() -> 
 
     assert check_id_integrity(again).dangling == []
     assert again.paragraphs[-1].runs[0].italic and again.paragraphs[-2].runs[0].bold
+
+
+def test_a_copy_reads_a_header_s_equal_fonts_as_one() -> None:
+    # memos_in_fields (Hancom-saved) has 함초롬바탕 twice in its HANJA face (ids 0 and 6), as many Hancom
+    # documents do. A copied character shape naming the first is the same as one there naming the other.
+    path = Path(__file__).parent / "fixtures" / "hancom_saved" / "memos_in_fields.hwpx"
+    with HwpxDocument.open(path) as source, HwpxDocument.open(path) as target:
+        header = target.oxml.headers[0].element
+        faces = [face for face in header.iter(f"{HH}fontface") if face.get("lang") == "HANJA"]
+        names = [font.get("face") for font in faces[0].findall(f"{HH}font")]
+        assert len(names) != len(set(names))  # the same font twice
+
+        def counts() -> dict[str, int]:
+            return {name: len(header.findall(f".//{HH}{name}")) for name in ("charPr", "paraPr", "style", "font")}
+
+        before = counts()
+        for paragraph in source.paragraphs:
+            if paragraph.text:
+                paragraph.copy_to(target.paragraphs[-1])
+        assert counts() == before

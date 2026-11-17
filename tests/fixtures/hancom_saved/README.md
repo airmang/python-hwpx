@@ -97,3 +97,15 @@ names and metadata-only redaction are linked to the original section hashes in
 
 For any new Hancom-saved file, remove the information listed above before
 committing it, and say in the test what behaviour of Hangul the file shows.
+
+## Text written in the middle of a paragraph by Hangul 2024
+
+`mid_text_*.hwpx` and `highlight_*.hwpx` are one synthetic document made by python-hwpx (five short paragraphs, the
+fourth of three runs, the middle one bold) in which Hangul 2024 for Windows (`os="1"` in `version.xml`) put one
+thing through its public automation, the caret placed with `SetPos`, and saved the document (2026-11-17): a footnote
+(`mid_text_footnote`), an endnote (`mid_text_endnote`) or a bookmark (`mid_text_bookmark`) in the middle of a run's
+text, a bookmark and then a footnote in one run (`mid_text_bookmark_and_footnote`), and a marker-pen highlight
+inside one run (`highlight_in_one_run`), across two runs (`highlight_across_runs`), over a whole paragraph
+(`highlight_whole_paragraph`) and across two paragraphs (`highlight_two_paragraphs`). `tests/test_text_ranges.py`
+says what each shows. The preview image was left out and the metadata listed above emptied; every other part keeps
+Hangul's bytes.

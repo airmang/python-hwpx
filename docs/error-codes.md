@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 348 | 11 |
+| 개수 | 353 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -283,7 +283,11 @@ except HwpxError as exc:
 | `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
 | `paragraph-range-crosses-element` | 바꿀 글자 범위가 한 덩이 글이 아니다(탭·줄 바꿈·컨트롤·개체가 끼어 있다). |
+| `paragraph-range-holds-objects` | 지울 글자 범위 안에 컨트롤·개체(각주·책갈피·누름틀·표·그림 …)가 있다(objects='remove' 로 함께 지운다. 범위 양 끝의 것은 남는다). |
+| `paragraph-range-into-itself` | 글자 범위를 그 범위 안 자리나, 범위가 품은 표 칸·글상자·각주 안으로 옮기려 했다. |
 | `paragraph-range-invalid` | 글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다. |
+| `paragraph-range-splits-field` | 글자 범위가 누름틀·하이퍼링크 같은 필드의 시작이나 끝 한쪽만 품는다. |
+| `paragraph-range-splits-mark` | 글자 범위가 변경 추적 표시를 품거나, 형광펜 끝을 런 바로 아래 탭에 두어야 한다. |
 | `paragraph-remove-last` | 구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container). |
 | `paragraph-remove-section-settings` | 구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)을 담은 문단 뒤에 옮겨 받을 문단이 없어 지울 수 없다. |
 | `paragraph-run-section-settings` | 구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)만 담은 run은 지울 수 없다. |
@@ -464,6 +468,7 @@ except HwpxError as exc:
 | `style-border-fill-width-invalid` | hh:borderFill 선의 width 가 '<숫자> mm' 꼴이 아니다(doc.styles.border_fill). |
 | `style-border-side-invalid` | ensure_border_fill 의 sides 에 모르는 면이나 type·width·color 밖의 키를 주었다. |
 | `style-bullet-char-invalid` | 글머리표 글자(char)가 글자 하나짜리 문자열이 아니다. |
+| `style-char-pr-missing` | char_pr_id_ref 가 문서 머리의 글자 모양(hh:charPr) id 가 아니다. |
 | `style-color-invalid` | 색 인자가 #RRGGBB·#AARRGGBB(16진 6·8자리)나 none이 아니다. |
 | `style-container-create-failed` | styles 컨테이너를 만들지 못했다(방어적 분기). |
 | `style-definition-kind-invalid` | remove_unused_definitions 의 kinds 가 비었거나 char_properties·paragraph_properties·border_fills·tab_properties 밖의 이름이다. |

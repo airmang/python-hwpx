@@ -1154,9 +1154,18 @@ def _definition_ids(header: Any) -> dict[str, set[str]]:
     return ids
 
 
-def _definition_key(element: Any) -> bytes:
+#: How definitions name each other: the attribute -> the ids it may hold, each read as the first id of the
+#: header's definitions that are the same but for their ids (``"font:<LANG>"`` for an ``hh:fontRef``'s fonts).
+_Aliases = dict[str, dict[str, str]]
+
+
+def _definition_key(element: Any, aliases: "_Aliases | None" = None) -> bytes:
     """*element* as canonical XML without its ``id`` (a style's ``nextStyleIDRef`` to itself read as such):
-    two definitions with the same key mean the same."""
+    two definitions with the same key mean the same.
+
+    With *aliases*, each reference to another definition is read as the first of the definitions equal to
+    it: a header holding two equal fonts (Hancom writes 함초롬바탕 twice in the HANJA face of many documents,
+    ids 0 and 6) has one character shape naming font 0 and another naming font 6 that mean the same."""
 
     from lxml import etree  # type: ignore[reportMissingImports]  # lxml has no complete bundled typing, as everywhere in hwpx
 
@@ -1165,17 +1174,37 @@ def _definition_key(element: Any) -> bytes:
     if own is not None and clone.get("nextStyleIDRef") == own:
         clone.set("nextStyleIDRef", "itself")
     clone.tail = None
+    if aliases:
+        for node in clone.iter():
+            if not isinstance(node.tag, str):
+                continue
+            fonts = _local_name(node.tag) == "fontRef"
+            for name, value in list(node.attrib.items()):
+                table = aliases.get("font:" + _FONT_REF_TO_FACE_LANG.get(name, "")) if fonts else aliases.get(name)
+                if table and value in table:
+                    node.set(name, table[value])
     return etree.tostring(clone, method="c14n")
 
 
-def _fold(holder: Any, items: list[Any], before: set[str]) -> dict[str, str]:
+def _equal_classes(items: list[Any], aliases: "_Aliases | None") -> dict[str, str]:
+    """Each item's id -> the id of the first item the same as it (but for ids)."""
+
+    first: dict[bytes, str] = {}
+    classes: dict[str, str] = {}
+    for node in items:
+        own = str(node.get("id"))
+        classes[own] = first.setdefault(_definition_key(node, aliases), own)
+    return classes
+
+
+def _fold(holder: Any, items: list[Any], before: set[str], aliases: "_Aliases | None" = None) -> dict[str, str]:
     """Fold the items of *holder* not in *before* into earlier equal ones, number the rest on from *before*;
-    the id changes (old -> new)."""
+    the id changes (old -> new). *aliases*: as :func:`_definition_key` reads references."""
 
     known: dict[bytes, str] = {}
     for node in items:
         if str(node.get("id")) in before:
-            known.setdefault(_definition_key(node), str(node.get("id")))
+            known.setdefault(_definition_key(node, aliases), str(node.get("id")))
     numbers = [int(i) for i in before if i.lstrip("-").isdigit()]
     next_id = max(numbers) + 1 if numbers else 0
     mapping: dict[str, str] = {}
@@ -1183,7 +1212,7 @@ def _fold(holder: Any, items: list[Any], before: set[str]) -> dict[str, str]:
         old = str(node.get("id"))
         if old in before:
             continue
-        key = _definition_key(node)
+        key = _definition_key(node, aliases)
         same = known.get(key)
         if same is not None:
             mapping[old] = same
@@ -1203,10 +1232,12 @@ def _reuse_equal_definitions(header: Any, before: dict[str, set[str]], scope: li
     and the definitions copied with them) at it; the definitions left are numbered on from the ones before,
     so the ids stay without gaps."""
 
+    aliases: _Aliases = {}
     faces = _definition_list(header, "fontfaces")
     for face in _children_named(faces, "fontface") if faces is not None else ():
         lang = str(face.get("lang"))
         mapping = _fold(face, _children_named(face, "font"), before.get("font:" + lang, set()))
+        aliases["font:" + lang] = _equal_classes(_children_named(face, "font"), None)
         if not mapping:
             continue
         attributes = [attr for attr, face_lang in _FONT_REF_TO_FACE_LANG.items() if face_lang == lang]
@@ -1221,10 +1252,13 @@ def _reuse_equal_definitions(header: Any, before: dict[str, set[str]], scope: li
         holder = _definition_list(header, list_name)
         if holder is None:
             continue
-        mapping = _fold(holder, _children_named(holder, item_name), before[item_name])
+        mapping = _fold(holder, _children_named(holder, item_name), before[item_name], aliases)
+        refs = (ref, "nextStyleIDRef", "charStyleIDRef") if item_name == "style" else (ref,)
+        classes = _equal_classes(_children_named(holder, item_name), aliases)
+        for name in refs:
+            aliases[name] = classes
         if not mapping:
             continue
-        refs = (ref, "nextStyleIDRef", "charStyleIDRef") if item_name == "style" else (ref,)
         for root in scope:
             for node in root.iter():
                 if not isinstance(node.tag, str):

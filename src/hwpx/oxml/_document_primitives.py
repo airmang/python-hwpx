@@ -87,6 +87,31 @@ def attributes_in_order(element: Any, leading: "Iterable[str]") -> None:
         element.set(key, items[key])
 
 
+def place_new_attributes(element: Any, before: "Iterable[str]", order: "Iterable[str]") -> None:
+    """Move the attributes of *element* not in *before* (the ones just added) to their place in Hancom's *order*:
+    each right before the first attribute it precedes there. The attributes that were there keep their order, so
+    an element read from a file is not reordered."""
+
+    old = set(before)
+    rank = {key: index for index, key in enumerate(order)}
+    items = list(element.attrib.items())
+    kept = [(key, value) for key, value in items if key in old]
+    added = [(key, value) for key, value in items if key not in old]
+    if not added:
+        return
+    for key, value in added:
+        at = len(kept)
+        if key in rank:
+            at = next((index for index, (other, _v) in enumerate(kept)
+                       if rank.get(other, len(rank)) > rank[key]), len(kept))
+        kept.insert(at, (key, value))
+    if kept == items:
+        return
+    element.attrib.clear()
+    for key, value in kept:
+        element.set(key, value)
+
+
 _DEFAULT_CELL_WIDTH = 7200
 _DEFAULT_CELL_HEIGHT = 282  # as a new Hancom table: each row grows to its text
 
