@@ -661,6 +661,14 @@ def checked_in_margins(in_margins: "CellMargins | None") -> "CellMargins | None"
     return in_margins
 
 
+def with_in_margins(table: "HwpxOxmlTable", margins: "CellMargins | None") -> "HwpxOxmlTable":
+    """*table* with the inner margins *margins* set (``add_table(in_margins=)``), when given."""
+
+    if margins is not None:
+        table.set_in_margins(left=margins.left, right=margins.right, top=margins.top, bottom=margins.bottom)
+    return table
+
+
 def set_table_in_margins(
     table: "HwpxOxmlTable",
     *,

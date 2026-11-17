@@ -87,11 +87,12 @@ from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
 from .section_format import column_shares, validate_column_gap, validate_new_number
 from .shape_position import (
-    equation_base_unit, stack_new_object, validate_box_size, validate_equation_font, validate_equation_script,
-    validate_shape_size,
+    equation_base_unit, stack_new_object, unique_object_ids, validate_box_size, validate_equation_font,
+    validate_equation_script, validate_shape_size,
 )
 from .table import HwpxOxmlTable
 from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width, validate_table_size
+from .table_sizes import checked_in_margins, with_in_margins
 
 if TYPE_CHECKING:
     from ..objects.checkbox import CheckBox
@@ -542,8 +543,6 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             document = self.section.document
             renew_copied_memos(element, list(document.sections) if document is not None else [self.section],
                                self.section)
-            from .shape_position import unique_object_ids
-
             unique_object_ids(self.section, (element,))
         self.section.mark_dirty()
         return element
@@ -814,8 +813,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         height: int | None = None,
         border_fill_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-        in_margins: "CellMargins | None" = None,
+        char_pr_id_ref: str | int | None = None, in_margins: "CellMargins | None" = None,
     ) -> HwpxOxmlTable:
         """Add a *rows* x *cols* table at the end of this paragraph and return it.
 
@@ -823,8 +821,6 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         margins and every cell's ``hp:cellMargin`` at once, as ``table.set_in_margins`` does
         afterwards; checked before anything is added (``table-margin-value``).
         """
-
-        from .table_sizes import checked_in_margins
 
         validate_table_size(rows, cols)
         margins = checked_in_margins(in_margins)
@@ -859,10 +855,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         run.append(table_element)
         stack_new_object(table_element, self.section)  # tables take their numbers too, as Hancom numbers them
         self.section.mark_dirty()
-        table = HwpxOxmlTable(table_element, self)
-        if margins is not None:
-            table.set_in_margins(left=margins.left, right=margins.right, top=margins.top, bottom=margins.bottom)
-        return table
+        return with_in_margins(HwpxOxmlTable(table_element, self), margins)
 
     def add_shape(
         self,

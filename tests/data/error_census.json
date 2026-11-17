@@ -185,8 +185,8 @@
    "oxml/_document_primitives.py:114",
    "oxml/document_parts.py:1278",
    "oxml/formatting.py:1055",
-   "oxml/paragraph.py:1436",
-   "oxml/paragraph.py:1525",
+   "oxml/paragraph.py:1429",
+   "oxml/paragraph.py:1518",
    "oxml/section_format.py:388",
    "oxml/section_format.py:649",
    "oxml/table.py:1008",
@@ -323,10 +323,10 @@
    "oxml/formatting.py:957"
   ],
   "paragraph-index-mark-empty-key": [
-   "oxml/paragraph.py:1310"
+   "oxml/paragraph.py:1303"
   ],
   "paragraph-index-mark-no-text-run": [
-   "oxml/paragraph.py:1302"
+   "oxml/paragraph.py:1295"
   ],
   "paragraph-indexes-empty": [
    "_document/layout.py:196"
@@ -425,16 +425,16 @@
    "document.py:622",
    "oxml/_document_primitives.py:132",
    "oxml/formatting.py:674",
-   "oxml/paragraph.py:530"
+   "oxml/paragraph.py:531"
   ],
   "paragraph-text-missing": [
-   "oxml/paragraph.py:450"
+   "oxml/paragraph.py:451"
   ],
   "paragraph-text-style-ambiguous": [
-   "oxml/paragraph.py:462"
+   "oxml/paragraph.py:463"
   ],
   "paragraph-title-mark-no-text-run": [
-   "oxml/paragraph.py:1258"
+   "oxml/paragraph.py:1251"
   ],
   "parts-auto-spacing-unknown-para-pr": [
    "_document/ns/parts.py:502"
@@ -535,7 +535,7 @@
    "_document/shapes.py:760"
   ],
   "shape-chart-reference-empty": [
-   "oxml/paragraph.py:1439"
+   "oxml/paragraph.py:1432"
   ],
   "shape-chart-root-invalid": [
    "_document/shapes.py:719"
@@ -610,7 +610,7 @@
   ],
   "shape-equation-script-empty": [
    "_document/shapes.py:521",
-   "oxml/paragraph.py:1528",
+   "oxml/paragraph.py:1521",
    "oxml/shape_position.py:2062"
   ],
   "shape-equation-script-latex": [
@@ -666,7 +666,7 @@
    "oxml/shape_position.py:274"
   ],
   "shape-raw-tag-empty": [
-   "oxml/paragraph.py:891"
+   "oxml/paragraph.py:884"
   ],
   "shape-rect-ratio-value": [
    "oxml/shape_position.py:2210"
@@ -845,18 +845,18 @@
   ],
   "table-cell-not-found": [
    "oxml/table.py:1025",
-   "oxml/table_sizes.py:796"
+   "oxml/table_sizes.py:804"
   ],
   "table-cell-zone-grid-mismatch": [
    "oxml/table_sizes.py:324"
   ],
   "table-column-width-value": [
-   "oxml/table_sizes.py:841"
+   "oxml/table_sizes.py:849"
   ],
   "table-margin-value": [
    "oxml/table_sizes.py:611",
    "oxml/table_sizes.py:655",
-   "oxml/table_sizes.py:688"
+   "oxml/table_sizes.py:696"
   ],
   "table-merge-range-invalid": [
    "oxml/table_merge.py:44",
