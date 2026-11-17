@@ -104,7 +104,7 @@ def test_the_caret_is_set_in_the_body_only() -> None:
         table = doc.add_paragraph("표").add_table(1, 1)
         with pytest.raises(HwpxError) as caught:
             doc.set_caret(table.rows[0].cells[0].paragraphs[0])
-        assert caught.value.code == "caret-place-unsupported"
+        assert caught.value.code == "document-caret-place-unsupported"
         with pytest.raises(HwpxError) as caught:
             doc.set_caret(doc.paragraphs[0], 99)
         assert caught.value.code == "paragraph-range-invalid"

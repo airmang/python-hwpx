@@ -66,12 +66,6 @@ except HwpxError as exc:
 | `body-op-nested-paragraph` | 본문 op 가 다른 문단(글상자·각주 등)을 품은 문단의 글을 바꾸려 했다(안쪽 글이 지워진다). |
 | `body-op-section-settings` | 본문 op 가 구역 설정(hp:secPr)을 담은 문단을 지우거나 복제하거나 자리를 옮기려 했다(구역마다 하나, 첫 문단에 있어야 한다). |
 
-### `caret-*`
-
-| 코드 | 뜻 |
-|---|---|
-| `caret-place-unsupported` | 캐럿을 본문 밖 문단(표 칸·글상자·각주)에 두려 했거나, 한/글의 자리 셈을 모르는 것이 든 문단에 두려 했다. |
-
 ### `cell-*`
 
 | 코드 | 뜻 |
@@ -91,6 +85,7 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `document-caret-place-unsupported` | 캐럿을 본문 밖 문단(표 칸·글상자·각주)에 두려 했거나, 한/글의 자리 셈을 모르는 것이 든 문단에 두려 했다. |
 | `document-clock-invalid` | new()/open() 의 now 가 datetime 이 아니다. |
 | `document-header-missing` | 문서에 header.xml 파트가 없다. |
 | `document-history-root-invalid` | history.xml 루트가 history 가 아니다. |

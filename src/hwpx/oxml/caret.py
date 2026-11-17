@@ -90,7 +90,7 @@ def _write(document: Any, list_id: int, paragraph: int, position: int) -> "Caret
         if settings is None:
             raise HwpxValueError(
                 "the document has no settings.xml to hold the caret",
-                code="caret-place-unsupported",
+                code="document-caret-place-unsupported",
                 suggestion="Hangul opens such a document at the body's start; nothing needs setting.",
             )
         element = settings.element.makeelement(f"{_HA}CaretPosition", {})
@@ -127,7 +127,7 @@ def set_caret(document: Any, paragraph: Any, offset: int) -> "CaretPosition":
         raise HwpxValueError(
             "the caret is set in a paragraph of the body; a cell's, a text box's or a note's list number is not "
             "settled by the documents Hangul saved",
-            code="caret-place-unsupported",
+            code="document-caret-place-unsupported",
             suggestion="Pass a paragraph of doc.paragraphs (a section's own paragraphs).",
         )
     offset = _check_offset("offset", offset, 0, len(paragraph.text))
@@ -136,7 +136,7 @@ def set_caret(document: Any, paragraph: Any, offset: int) -> "CaretPosition":
         raise HwpxValueError(
             "the paragraph holds something whose count in Hangul's positions is not known (a tab written beside "
             "the text, a tracked change)",
-            code="caret-place-unsupported",
+            code="document-caret-place-unsupported",
             context={"paragraph": index},
             suggestion="Put the caret in another paragraph, or call reset_caret().",
         )

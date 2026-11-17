@@ -9,11 +9,6 @@
    "body_patch.py:401",
    "body_patch.py:447"
   ],
-  "caret-place-unsupported": [
-   "oxml/caret.py:127",
-   "oxml/caret.py:136",
-   "oxml/caret.py:91"
-  ],
   "cell-border-edit-unsupported": [
    "oxml/table.py:170",
    "oxml/table.py:65"
@@ -29,6 +24,11 @@
   ],
   "contract-schema-unknown": [
    "capabilities.py:860"
+  ],
+  "document-caret-place-unsupported": [
+   "oxml/caret.py:127",
+   "oxml/caret.py:136",
+   "oxml/caret.py:91"
   ],
   "document-clock-invalid": [
    "document.py:276"

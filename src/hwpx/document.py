@@ -948,7 +948,7 @@ class HwpxDocument(metaclass=_DocumentType):
 
     def set_caret(self, paragraph: "HwpxOxmlParagraph", offset: int = 0) -> "CaretPosition":
         """Put the caret at character *offset* of *paragraph* -- a paragraph of the body (``doc.paragraphs``);
-        a cell's, a text box's or a note's list is refused (``caret-place-unsupported``): the documents Hangul
+        a cell's, a text box's or a note's list is refused (``document-caret-place-unsupported``): the documents Hangul
         saved do not settle their list numbers. The caret goes after the controls and objects at *offset*, where
         text put there goes."""
 
