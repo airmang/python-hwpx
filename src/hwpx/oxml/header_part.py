@@ -12,6 +12,7 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 from .paragraph_heading import paragraph_heading, set_paragraph_heading
 from ._document_primitives import (
     T,
+    set_id_first,
     _FONT_FACE_LANG_TO_REF,
     _HC_NS,
     _HH,
@@ -318,7 +319,7 @@ class HwpxOxmlHeader:
             modifier(new_char_pr)
 
         char_id = self._allocate_char_property_id(char_props, preferred_id=preferred_id)
-        new_char_pr.set("id", char_id)
+        set_id_first(new_char_pr, char_id)  # Hancom writes a definition's id first
         char_props.append(new_char_pr)
         _update_item_count(char_props, "charPr")
         self.mark_dirty()
@@ -474,7 +475,7 @@ class HwpxOxmlHeader:
         para_pr.attrib.pop("id", None)
         set_paragraph_heading(para_pr, {"type": heading_type, "idRef": str(id_ref), "level": str(level)})
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
-        para_pr.set("id", para_pr_id)
+        set_id_first(para_pr, para_pr_id)  # Hancom writes a definition's id first
         para_properties.append(para_pr)
         self._update_item_count(para_properties, f"{_HH}paraPr")
         self.mark_dirty()
@@ -515,7 +516,7 @@ class HwpxOxmlHeader:
                 return existing_id
 
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
-        para_pr.set("id", para_pr_id)
+        set_id_first(para_pr, para_pr_id)  # Hancom writes a definition's id first
         para_properties.append(para_pr)
         self._update_item_count(para_properties, f"{_HH}paraPr")
         self.mark_dirty()
@@ -785,7 +786,7 @@ class HwpxOxmlHeader:
             return reusable_id
 
         para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
-        para_pr.set("id", para_pr_id)
+        set_id_first(para_pr, para_pr_id)  # Hancom writes a definition's id first
         para_properties.append(para_pr)
         self._update_item_count(para_properties, f"{_HH}paraPr")
         self.mark_dirty()

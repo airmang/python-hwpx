@@ -2151,8 +2151,8 @@ def _measure_equation_again(obj: Any, text: str, *, script: bool = True) -> None
     if size is None:
         from ._document_primitives import _append_child, _reposition_child_before_any
 
-        size = _append_child(element, f"{_HP}sz", {"widthRelTo": "ABSOLUTE", "heightRelTo": "ABSOLUTE",
-                                                   "protect": "0"})
+        size = _append_child(element, f"{_HP}sz", {"width": "0", "widthRelTo": "ABSOLUTE", "height": "0",
+                                                   "heightRelTo": "ABSOLUTE", "protect": "0"})  # Hancom's order
         _reposition_child_before_any(element, size, ("pos", "outMargin", "shapeComment", "script"))
     size.set("width", str(measured.width))
     size.set("height", str(measured.height))

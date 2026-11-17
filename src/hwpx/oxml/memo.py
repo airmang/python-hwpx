@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
     SameElement,
-    _DEFAULT_PARAGRAPH_ATTRS,
+    paragraph_attributes,
     _HP,
     _append_child,
     _clear_paragraph_layout_cache,
@@ -844,7 +844,7 @@ class HwpxOxmlNote(SameElement):
         p_attrs = (
             dict(template.attrib)
             if template is not None
-            else {"id": "0", **_DEFAULT_PARAGRAPH_ATTRS}
+            else paragraph_attributes("0")
         )
         first_run = template.find(f"{_HP}run") if template is not None else None
         run_attrs = dict(first_run.attrib) if first_run is not None else {"charPrIDRef": "0"}
@@ -914,7 +914,7 @@ class HwpxOxmlNote(SameElement):
             sublist = _append_child(self.element, f"{_HP}subList", attrs)
         paragraphs = sublist.findall(f"{_HP}p")
         template = paragraphs[0] if paragraphs else None
-        p_attrs = dict(template.attrib) if template is not None else {"id": "0", **_DEFAULT_PARAGRAPH_ATTRS}
+        p_attrs = dict(template.attrib) if template is not None else paragraph_attributes("0")
         first_run = template.find(f"{_HP}run") if template is not None else None
         run_attrs = dict(first_run.attrib) if first_run is not None else {"charPrIDRef": "0"}
         if char_pr_id_ref is not None:

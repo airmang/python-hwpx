@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
 
-from ._document_primitives import _HC, _HP, PENDING_IDS, IdSource, _append_child, _object_id
+from ._document_primitives import _HC, _HP, PENDING_IDS, IdSource, _append_child, _object_id, attributes_in_order
 from .shape_position import line_width_units, validate_draw_text_vert_align, validate_shape_size
 
 if TYPE_CHECKING:
@@ -400,6 +400,7 @@ def _write_member_texts(
             draw_text = element.find(f"{_HP}drawText")
             if draw_text is not None:  # a member has no sz: its text width is its own width
                 draw_text.set("lastWidth", str(_member_size(member)[0]))
+                attributes_in_order(draw_text, ("lastWidth", "name", "editable"))  # as Hancom writes it
         if member.members:
             _write_member_texts(member.members, element, section)
 

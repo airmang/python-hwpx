@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from ._document_primitives import (
-    _DEFAULT_PARAGRAPH_ATTRS,
+    paragraph_attributes,
     _HP,
     _HP_NS,
     _append_child,
@@ -110,8 +110,7 @@ class HwpxOxmlSection:
 
         paragraph = _first_child_by_local(self._element, "p")
         if paragraph is None:
-            paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
-            paragraph_attrs["id"] = _paragraph_id(self._ids)
+            paragraph_attrs = paragraph_attributes(_paragraph_id(self._ids))
             paragraph = _append_child(
                 self._element,
                 _child_tag_like(self._element, "p", _HP_NS),
@@ -617,7 +616,7 @@ class HwpxOxmlSection:
             self._inherited_paragraph_refs(inherit_outline=inherit_outline) if inherit_style else (None, None, None)
         )
 
-        attrs = {"id": _paragraph_id(self._ids), **_DEFAULT_PARAGRAPH_ATTRS}
+        attrs = paragraph_attributes(_paragraph_id(self._ids))
         attrs.update(extra_attrs)
 
         if para_pr_id_ref is not None:

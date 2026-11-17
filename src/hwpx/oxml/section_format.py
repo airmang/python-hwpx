@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
-    _DEFAULT_PARAGRAPH_ATTRS,
+    paragraph_attributes,
     _HP,
     _append_child,
     _apply_optional_attrs,
@@ -1536,7 +1536,7 @@ class HwpxOxmlSectionProperties:
             paragraph = _append_child(
                 self.section.element,
                 f"{_HP}p",
-                {"id": _paragraph_id(self.section._ids), **_DEFAULT_PARAGRAPH_ATTRS},
+                paragraph_attributes(_paragraph_id(self.section._ids)),
             )
         run = paragraph.find(f"{_HP}run")
         if run is None:

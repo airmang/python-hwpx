@@ -529,6 +529,16 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- 엔진이 새로 쓰는 요소의 속성 차례를 한/글 저장본(`tests/fixtures/hancom_saved`)에서 가장 흔한 차례에 맞췄다. 뜻은 같고 바이트만 바뀐다.
+  - 대상:
+    - 새 `hp:p`(표 칸·각주·미주·머리말·꼬리말·쪽 번호·표 행/열 더하기·`copy_after`·변경 추적 끼움)는 `id`를 맨 앞에 둔다.
+    - 새 `hh:charPr`·`hh:paraPr`도 `id`를 맨 앞에 둔다.
+    - 개체(`hp:rect`·`hp:ellipse`·`hp:line`·`hp:arc`·`hp:pic`)는 공통 속성(`id`·`zOrder`…`instid`)을 앞에, 종류별 속성을 뒤에 둔다.
+    - `hp:sz`는 `width`·`widthRelTo`·`height`·`heightRelTo`·`protect` 차례다.
+    - `hp:drawText`는 `lastWidth`·`name`·`editable` 차례다.
+  - 파일에서 읽은 요소의 차례는 건드리지 않는다.
+  - 한/글 저장본에 없는 요소(선택 상자·변경 추적 정의·바탕쪽)는 전 차례 그대로다.
+
 - 새로 만든 개체의 `zOrder`가 모두 0이던 것을 고쳤다. `add_rectangle`·`add_picture`·`add_equation`·`add_chart`·`add_table`(칸 안 표 포함)·
   `add_container`·`add_line`·`add_connector` 등으로 만든 개체는 한/글처럼 문서의 지금 최댓값 + 1을 받아, 나중에 만든 것이 위에 그려진다.
   - 근거:

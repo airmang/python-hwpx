@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from hwpx.opc.relationships import resolve_part_name
 
 from ._document_primitives import (
-    _DEFAULT_PARAGRAPH_ATTRS,
+    paragraph_attributes,
     _FONT_REF_ATTRIBUTES,
     _HH,
     _HP,
@@ -1337,7 +1337,7 @@ class HwpxOxmlDocument:
 
         section_element = cast(Any, section_properties).makeelement(
             f"{_HS}sec", {}, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
-        para_attrs = {"id": _paragraph_id(self._id_source), **_DEFAULT_PARAGRAPH_ATTRS}
+        para_attrs = paragraph_attributes(_paragraph_id(self._id_source))
         para = _append_child(section_element, f"{_HP}p", para_attrs)
         run = _append_child(para, f"{_HP}run", {"charPrIDRef": "0"})
         run.append(section_properties)

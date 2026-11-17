@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
-    _DEFAULT_PARAGRAPH_ATTRS,
+    paragraph_attributes,
     _HP,
     _append_child,
     _clear_paragraph_layout_cache,
@@ -136,8 +136,7 @@ def _paragraph_add_note(
     sublist_attrs = _default_sublist_attributes()
     sublist_attrs["vertAlign"] = "TOP"
     sublist = _append_child(note_element, f"{_HP}subList", sublist_attrs)
-    p_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
-    p_attrs.update({"id": "0", "paraPrIDRef": para_pr_ref, "styleIDRef": style_ref})
+    p_attrs = paragraph_attributes("0", paraPrIDRef=para_pr_ref, styleIDRef=style_ref)
     paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
     note_run = _append_child(paragraph, f"{_HP}run", {"charPrIDRef": note_char_ref})
     num_ctrl = _append_child(note_run, f"{_HP}ctrl", {})

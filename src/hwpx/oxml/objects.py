@@ -10,7 +10,8 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from ._document_primitives import (
     SameElement,
-    _DEFAULT_PARAGRAPH_ATTRS,
+    attributes_in_order,
+    paragraph_attributes,
     _HC,
     _HP,
     _normalize_color,
@@ -393,6 +394,12 @@ _DEFAULT_LINE_SHAPE_ATTRS: dict[str, str] = {
 }
 
 
+#: The attributes every drawing object starts with, in the order Hancom writes them.
+_SHAPE_ATTRIBUTE_ORDER = (
+    "id", "zOrder", "numberingType", "textWrap", "textFlow", "lock", "dropcapstyle", "href", "groupLevel", "instid",
+)
+
+
 def _build_shape_common_children(
     parent: ET.Element,
     width: int,
@@ -435,6 +442,9 @@ def _build_shape_common_children(
     parent.set("href", "")
     parent.set("groupLevel", "0")
     parent.set("instid", the_id)
+    # Hancom writes these first and the kind's own attributes (ratio, arcType, isReverseHV ...) after them
+    # (every rect, ellipse, line, arc and picture of tests/fixtures/hancom_saved); a builder sets those first
+    attributes_in_order(parent, _SHAPE_ATTRIBUTE_ORDER)
 
     # --- AbstractShapeComponentType children (come first in real files) ---
     _append_child(parent, f"{_HP}offset", {"x": "0", "y": "0"})
@@ -475,9 +485,9 @@ def _build_shape_base_children(
     if "_treatAsChar" in parent.attrib:
         del parent.attrib["_treatAsChar"]
 
-    _append_child(parent, f"{_HP}sz", {
-        "width": w, "height": h,
-        "widthRelTo": "ABSOLUTE", "heightRelTo": "ABSOLUTE",
+    _append_child(parent, f"{_HP}sz", {  # Hancom's order (6,055 of the hp:sz in tests/fixtures/hancom_saved)
+        "width": w, "widthRelTo": "ABSOLUTE",
+        "height": h, "heightRelTo": "ABSOLUTE",
         "protect": "0",
     })
     pos_attrs: dict[str, str] = {
@@ -1287,7 +1297,7 @@ def _add_sublist_paragraph(
             section.document, style, para_pr_id_ref, char_pr_id_ref
         )
     sublist = _ensure_sublist(container, vert_align=vert_align)
-    attrs = {"id": _paragraph_id(section._ids), **_DEFAULT_PARAGRAPH_ATTRS}
+    attrs = paragraph_attributes(_paragraph_id(section._ids))
     if para_pr_id_ref is not None:
         attrs["paraPrIDRef"] = str(para_pr_id_ref)
     if style_id_ref is not None:
@@ -1510,6 +1520,7 @@ def _write_draw_text(
     sz = host.find(f"{_HP}sz")
     if sz is not None and sz.get("width"):
         element.set("lastWidth", sz.get("width", ""))
+    attributes_in_order(element, ("lastWidth", "name", "editable"))  # as Hancom writes hp:drawText
 
     _replace_sublist_text(
         element, text, section=section, vert_align=vert_align or "CENTER",
