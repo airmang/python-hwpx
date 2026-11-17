@@ -11,7 +11,7 @@ import io
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterator
 
 import pytest
 
@@ -33,10 +33,24 @@ class _Factory:
         return None
 
 
-def _edited() -> HwpxDocument:
-    doc = HwpxDocument.open(HANCOM / "form_field_line_break.hwpx", seed=7, now=datetime(2026, 11, 16, tzinfo=timezone.utc))
-    doc.add_paragraph("파이프라인으로 저장")
-    return doc
+@pytest.fixture
+def edited() -> Iterator[Callable[[], HwpxDocument]]:
+    """Makes the edited document; every one made is closed after the test, so its seed does not stay in
+    force for the documents of later tests."""
+
+    made: list[HwpxDocument] = []
+
+    def make() -> HwpxDocument:
+        doc = HwpxDocument.open(
+            HANCOM / "form_field_line_break.hwpx", seed=7, now=datetime(2026, 11, 16, tzinfo=timezone.utc)
+        )
+        made.append(doc)
+        doc.add_paragraph("파이프라인으로 저장")
+        return doc
+
+    yield make
+    for doc in reversed(made):  # newest first: each close puts back the source the document replaced
+        doc.close()
 
 
 def _policy(render_check: str) -> QualityPolicy:
@@ -59,33 +73,37 @@ def _count_validations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 @pytest.mark.parametrize("quality", [None, QualityPolicy.transparent(), _policy("off")])
 def test_a_pipeline_writes_the_same_bytes_and_renders_nothing_when_the_policy_does_not(
-    tmp_path: Path, quality: QualityPolicy | None
+    edited: Callable[[], HwpxDocument], tmp_path: Path, quality: QualityPolicy | None
 ) -> None:
     plain, piped = tmp_path / "plain.hwpx", tmp_path / "piped.hwpx"
-    _edited().save(plain, quality=quality)
+    edited().save(plain, quality=quality)
     factory = _Factory()
-    report = _edited().save(piped, quality=quality, pipeline=SavePipeline(oracle_factory=factory))
+    report = edited().save(piped, quality=quality, pipeline=SavePipeline(oracle_factory=factory))
     assert piped.read_bytes() == plain.read_bytes()
     assert factory.calls == []
     assert report.path == str(piped)
     assert (report.quality is None) == (quality is None)
 
 
-def test_the_factory_is_called_when_the_policy_renders(tmp_path: Path) -> None:
+def test_the_factory_is_called_when_the_policy_renders(
+    edited: Callable[[], HwpxDocument], tmp_path: Path
+) -> None:
     factory = _Factory()
     policy = QualityPolicy(render_check="auto", dpi=96, require_visual_complete=False, layout_lint="off", xsd_mode="off")
-    report = _edited().save(tmp_path / "out.hwpx", quality=policy, pipeline=SavePipeline(oracle_factory=factory))
+    report = edited().save(tmp_path / "out.hwpx", quality=policy, pipeline=SavePipeline(oracle_factory=factory))
     assert factory.calls == [{"dpi": 96}]
     assert report.quality is not None and report.quality.ok
     # without the argument the plain gate is used: the factory is never asked
-    _edited().save(tmp_path / "plain.hwpx", quality=policy)
+    edited().save(tmp_path / "plain.hwpx", quality=policy)
     assert factory.calls == [{"dpi": 96}]
 
 
-def test_a_refused_save_writes_nothing_and_leaves_the_document_unsaved(tmp_path: Path) -> None:
+def test_a_refused_save_writes_nothing_and_leaves_the_document_unsaved(
+    edited: Callable[[], HwpxDocument], tmp_path: Path
+) -> None:
     target = tmp_path / "out.hwpx"
     target.write_bytes(b"what was there")
-    doc = _edited()
+    doc = edited()
     factory = _Factory()
     policy = QualityPolicy(render_check="required", layout_lint="off", xsd_mode="off")
     with pytest.raises(SaveError) as caught:
@@ -103,9 +121,13 @@ def test_a_refused_save_writes_nothing_and_leaves_the_document_unsaved(tmp_path:
 @pytest.mark.parametrize("quality", [None, _policy("auto")])
 @pytest.mark.parametrize("how", ["path", "stream"])
 def test_a_save_through_a_pipeline_checks_open_safety_once(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, how: str, quality: QualityPolicy | None
+    edited: Callable[[], HwpxDocument],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    how: str,
+    quality: QualityPolicy | None,
 ) -> None:
-    doc = _edited()
+    doc = edited()
     calls = _count_validations(monkeypatch)
     pipeline = SavePipeline(oracle_factory=_Factory())
     target: Any = tmp_path / "out.hwpx" if how == "path" else io.BytesIO()
@@ -127,8 +149,10 @@ def test_a_hwp_target_is_written_as_hwp_through_a_pipeline(tmp_path: Path) -> No
 
 
 @pytest.mark.parametrize("wrong", [object(), "pipeline", QualityPolicy.transparent()])
-def test_something_else_than_a_pipeline_is_refused_before_anything_is_written(tmp_path: Path, wrong: Any) -> None:
-    doc = _edited()
+def test_something_else_than_a_pipeline_is_refused_before_anything_is_written(
+    edited: Callable[[], HwpxDocument], tmp_path: Path, wrong: Any
+) -> None:
+    doc = edited()
     with pytest.raises(HwpxTypeError) as caught:
         doc.save(tmp_path / "out.hwpx", pipeline=wrong)
     assert caught.value.code == "save-pipeline-invalid-type"

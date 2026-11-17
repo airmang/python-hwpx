@@ -98,13 +98,14 @@ def test_moving_a_table_keeps_its_number() -> None:
 
 def test_numbers_are_the_same_on_every_run() -> None:
     def make() -> bytes:
-        doc = HwpxDocument.new(seed=7)
-        for _ in range(3):
-            doc.add_paragraph("").add_rectangle(width=2000, height=1000)
-        doc.add_table(1, 1)
-        buffer = io.BytesIO()
-        doc.save(buffer)
-        return buffer.getvalue()
+        # closed at the end: a seeded document left open keeps its seed for every later document
+        with HwpxDocument.new(seed=7) as doc:
+            for _ in range(3):
+                doc.add_paragraph("").add_rectangle(width=2000, height=1000)
+            doc.add_table(1, 1)
+            buffer = io.BytesIO()
+            doc.save(buffer)
+            return buffer.getvalue()
 
     assert make() == make()
 
