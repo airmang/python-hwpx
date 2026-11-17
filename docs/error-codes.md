@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 354 | 11 |
+| 개수 | 355 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -85,6 +85,7 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `document-caret-place-unsupported` | 캐럿을 본문 밖 문단(표 칸·글상자·각주)에 두려 했거나, 한/글의 자리 셈을 모르는 것이 든 문단에 두려 했다. |
 | `document-clock-invalid` | new()/open() 의 now 가 datetime 이 아니다. |
 | `document-header-missing` | 문서에 header.xml 파트가 없다. |
 | `document-history-root-invalid` | history.xml 루트가 history 가 아니다. |

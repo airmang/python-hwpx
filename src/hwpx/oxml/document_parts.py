@@ -469,7 +469,9 @@ class HwpxOxmlDocument:
             )
             return None
         try:
-            return part_cls(path, package.get_xml(path))
+            part = part_cls(path, package.get_xml(path))
+            part._source = package.get_part(path)  # the bytes read, for a change written in place
+            return part
         except Exception:
             logger.debug("%s 파싱 실패: part_path=%s", label, path, exc_info=True)
             raise
@@ -1577,9 +1579,20 @@ class HwpxOxmlDocument:
         for history in self._histories:
             if history.dirty:
                 updates[history.part_name] = history.to_bytes()
-        if self._version is not None and self._version.dirty:
-            updates[self._version.part_name] = self._version.to_bytes()
+        self._serialize_simple_parts(updates)
         return updates
+
+    def _serialize_simple_parts(self, updates: dict[str, bytes]) -> None:
+        """``version.xml`` and ``settings.xml`` when changed; a caret pointing at a body paragraph that is
+        gone first goes to the body's start, as Hangul opens it (:mod:`hwpx.oxml.caret`)."""
+
+        if self._settings is not None:
+            from .caret import fix_caret_before_saving
+
+            fix_caret_before_saving(self)
+        for part in (self._version, self._settings):
+            if part is not None and part.dirty:
+                updates[part.part_name] = part.to_bytes()
 
     def reset_dirty(self) -> None:
         """Mark all parts as clean after a successful save."""
@@ -1592,8 +1605,9 @@ class HwpxOxmlDocument:
             master_page.reset_dirty()
         for history in self._histories:
             history.reset_dirty()
-        if self._version is not None:
-            self._version.reset_dirty()
+        for part in (self._version, self._settings):
+            if part is not None:
+                part.reset_dirty()
 
 
 __all__ = ["HwpxOxmlDocument"]
