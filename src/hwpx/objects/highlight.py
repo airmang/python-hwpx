@@ -86,7 +86,7 @@ class Ruby(_RunMark):
     text (:class:`~hwpx.objects.Alignment`); both are settable. ``size_ratio``
     is the small text's size in per cent of the text's, as Hancom wrote it
     (``0``: Hancom's default size). ``remove()`` takes the 덧말 away and leaves
-    the text. Add one with ``doc.shapes.add_dutmal``.
+    the text. Add one with ``doc.shapes.add_ruby``.
     """
 
     __slots__ = ()

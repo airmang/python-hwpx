@@ -42,7 +42,7 @@ PYTHON_FENCE = re.compile(
 )
 EXPECTED_FENCE_COUNT = 125
 EXPECTED_FENCE_SHA256 = (
-    "83a07d589b8b530a2b5c7eef0bb24e5865b617cb358cde951c214f17c7e9ecd1"
+    "7535abf323d7008c59bb916580bce613eac2db050369ad9b71119df62a1910f7"
 )
 ALLOWED_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {"hwpx"}
 LEDGER = Path("docs/python-example-ledger.json")
@@ -354,17 +354,12 @@ def test_current_core_manual_imports_are_core_only() -> None:
     )
 
 
-#: README 둘은 7.0 이름 정리가 끝난 뒤 새로 쓴다(그때까지 6.x 저장 이름 ``save_to_path`` 를 쓴다).
-#: 다시 쓰면 이 줄을 지워 검사에 되돌린다.
-README_REWRITE_PENDING = {"README.md", "README_EN.md"}
-
-
 def test_recommended_manuals_do_not_teach_legacy_document_paths() -> None:
     from hwpx._document._legacy import REMOVED_NAMES
 
     offenders = []
     for document, ordinal, tree in _parsed_fences():
-        if document not in RECOMMENDED_MANUALS or document in README_REWRITE_PENDING:
+        if document not in RECOMMENDED_MANUALS:
             continue
         for node in ast.walk(tree):
             if (isinstance(node, ast.Attribute)
@@ -373,6 +368,117 @@ def test_recommended_manuals_do_not_teach_legacy_document_paths() -> None:
                     and node.attr in REMOVED_NAMES):
                 offenders.append(f"{document}#{ordinal}: {node.attr}")
     assert not offenders, "deprecated recommendations: " + ", ".join(offenders)
+
+
+def _dotted(node: ast.expr) -> str | None:
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        return ".".join([node.id, *reversed(parts)])
+    return None
+
+
+def test_current_manual_code_does_not_use_names_or_arguments_7_0_removed() -> None:
+    """No Python block in a current manual -- run by a gate or not -- reaches a document name 7.0 removed
+    (``doc.x`` / ``doc.<namespace>.x`` from ``hwpx._removed_names.NAMES``) or passes an argument it removed
+    (``hwpx.errors.REMOVED_ARGUMENTS``, or a ``doc...`` method's entry in ``ARGUMENTS``). Fragments that need
+    an input file or earlier state are not executed, so this is what keeps their names current."""
+
+    from hwpx import _removed_names as removed
+    from hwpx.errors import REMOVED_ARGUMENTS
+
+    offenders = []
+    for document, ordinal, tree in _parsed_fences():
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute):
+                path = _dotted(node)
+                if path is None:
+                    continue
+                head, _, rest = path.partition(".")
+                if head not in {"doc", "document"} or not rest:
+                    continue
+                owner, _, name = f"doc.{rest}".rpartition(".")
+                if name in removed.NAMES.get(owner, {}):
+                    offenders.append(f"{document}#{ordinal}: {owner}.{name}")
+            elif isinstance(node, ast.Call):
+                keywords = {keyword.arg for keyword in node.keywords if keyword.arg}
+                for name in sorted(keywords & set(REMOVED_ARGUMENTS)):
+                    offenders.append(f"{document}#{ordinal}: {name}=")
+                path = _dotted(node.func)
+                if path is None or path.partition(".")[0] not in {"doc", "document"}:
+                    continue
+                spec = removed.ARGUMENTS.get("doc." + path.partition(".")[2])
+                for name in sorted(keywords & set(getattr(spec, "renamed", None) or ())):
+                    offenders.append(f"{document}#{ordinal}: {path}({name}=)")
+    assert not offenders, "names or arguments 7.0 removed: " + ", ".join(sorted(set(offenders)))
+
+
+def _run_example(example_id: str, document: str, code: str, case_root: Path, environment: dict[str, str],
+                 package_root: Path) -> None:
+    """Run one standalone manual example in *case_root* with ``hwpx`` from *package_root*; every ``.hwpx`` it
+    writes must reopen."""
+
+    probe = "\n".join(
+        (
+            "from pathlib import Path",
+            "import hwpx as _hwpx",
+            f"_root = Path({str(package_root)!r}).resolve()",
+            "_origin = Path(_hwpx.__file__).resolve()",
+            "assert _origin.is_relative_to(_root), (_origin, _root)",
+            f"_code = {code!r}",
+            f"_example_id = {example_id!r}",
+            "exec(compile(_code, _example_id, 'exec'), {'__name__': '__main__'})",
+            "for _output in Path.cwd().rglob('*.hwpx'):",
+            "    with _hwpx.HwpxDocument.open(_output) as _document:",
+            "        assert _document.sections, (_example_id, _output)",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, *(["-W", "error::DeprecationWarning"]
+            if document in RECOMMENDED_MANUALS else []), "-c", probe],
+        cwd=case_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, f"{example_id} fails:\n{completed.stderr[-2000:]}"
+
+
+def test_every_standalone_current_manual_example_runs_from_the_source_tree(tmp_path: Path) -> None:
+    """Every block the ledger calls standalone runs as written, against this checkout's ``src``.
+
+    The installed-wheel gate below does the same from a built wheel, but needs ``build`` and ``uv`` and skips or
+    stops before running any example without them -- which let README examples that call names 7.0 removed
+    (``save_to_path``, ``doc.text.paragraphs``) pass unnoticed. This one needs nothing but the checkout."""
+
+    environment = os.environ.copy()
+    for name in ("PYTHONHOME", "PYTHONSTARTUP", "PYTHONUSERBASE", "VIRTUAL_ENV"):
+        environment.pop(name, None)
+    environment["PYTHONPATH"] = str(ROOT / "src")
+    environment["PYTHONNOUSERSITE"] = "1"
+    environment["PYTHONUTF8"] = "1"
+    standalone = {
+        example_id
+        for example_id, classification in _ledger_classifications().items()
+        if classification == "standalone"
+    }
+    executed: set[str] = set()
+    failures: list[str] = []
+    for document, ordinal, code in _python_fences():
+        example_id = f"{document}#{ordinal}"
+        if example_id not in standalone:
+            continue
+        case_root = tmp_path / hashlib.sha256(example_id.encode("utf-8")).hexdigest()[:12]
+        case_root.mkdir(parents=True)
+        try:
+            _run_example(example_id, document, code, case_root, environment, ROOT / "src")
+        except AssertionError as error:
+            failures.append(str(error))
+        executed.add(example_id)
+    assert not failures, "\n\n".join(failures)
+    assert executed == standalone
 
 
 def test_every_standalone_current_manual_example_executes_from_installed_wheel(
@@ -399,7 +505,8 @@ def test_every_standalone_current_manual_example_executes_from_installed_wheel(
         metadata_name = next(
             name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
         )
-        metadata = archive.read(metadata_name).decode("utf-8")
+        # A Windows checkout (core.autocrlf) builds METADATA with CRLF line ends: read the headers as lines.
+        metadata = archive.read(metadata_name).decode("utf-8").replace("\r\n", "\n")
         assert "Provides-Extra: visual\n" in metadata
         assert not [
             line

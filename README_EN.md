@@ -36,12 +36,12 @@ from hwpx import HwpxDocument
 doc = HwpxDocument.new()
 doc.add_heading("2026 Operating Plan", level=1)
 doc.add_paragraph("Background", style="개요 2")  # Hangul numbers it "가."
-doc.save_to_path("plan.hwpx")
+doc.save("plan.hwpx")
 ```
 
 Styles are picked by name. A name that does not exist fails at that line.
 To edit an existing file, start from `HwpxDocument.open("report.hwpx")`. An `.hwp` file opens the
-same way; save the result as HWPX with `save_to_path("report.hwpx")`.
+same way; save the result as HWPX with `save("report.hwpx")`.
 
 Font size, alignment and table cells are read and changed in place. Every paragraph of the document,
 in table cells, headers and notes too, can be walked with where it sits.
@@ -58,9 +58,9 @@ title.runs[-1].size = 16
 table = doc.add_table(2, 2)
 table.cell(0, 0).text = "Period"
 table.cell(0, 1).text = "March to July"
-for place in doc.text.paragraphs(where={"cell"}):
+for place in doc.text.iter_paragraphs(where={"cell"}):
     print(place.row, place.col, place.paragraph.text)
-doc.save_to_path("plan.hwpx")
+doc.save("plan.hwpx")
 ```
 
 Markdown and HTML conversion, finding form cells by their labels, mail merge, previews, and
@@ -76,7 +76,7 @@ higher-level workflows such as document authoring and exam typesetting live in
 
 - Read and extract: plain text the way Hangul's text save writes it (`doc.text.plain()`, with list labels
   and notes on request). `doc.text.outline()` returns the text blocks with ids within a character budget, and
-  `doc.text.paragraphs()` walks the paragraphs of table cells, text boxes, headers and notes too, with where
+  `doc.text.iter_paragraphs()` walks the paragraphs of table cells, text boxes, headers and notes too, with where
   each sits. It reads `.hwp` through the same calls.
 - Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
 - Fill forms: put values in cells and click-here fields; parts you did not touch keep their bytes.
@@ -92,8 +92,8 @@ higher-level workflows such as document authoring and exam typesetting live in
   paragraphs where it is sure to match Hangul. Viewers such as rhwp, which place pictures from that data, then
   show them too. By default nothing is written.
 - Verify and stay safe: a package-structure validation CLI, an open-safety check before saving, and a save
-  report (`return_report=True`). A default save does not check that the character and paragraph shapes the
-  text points at exist; `save_report(quality=QualityPolicy.strict())` does.
+  report (the `MutationReport` `save()` returns). A default save does not check that the character and paragraph shapes the
+  text points at exist; `save(..., quality=QualityPolicy.strict())` does.
 
 More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md) · [support matrix](docs/support-matrix.md)
 
@@ -105,7 +105,7 @@ for cell in doc.tables.map()["tables"][0]["cells"]:   # each cell's row, column 
     print(cell["row"], cell["col"], cell["text"])
 doc.tables[0].cell(0, 1).text = "홍길동"
 doc.tables[0].cell(1, 1).text = "플랫폼팀"
-report = doc.save_to_path("application-filled.hwpx", mode="patch", fallback="error", return_report=True)
+report = doc.save("application-filled.hwpx", mode="patch", fallback="error")
 ```
 
 `mode="patch"` asks for untouched ZIP parts to keep their bytes. What happens inside an edited part, and how
