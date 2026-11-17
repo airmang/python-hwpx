@@ -164,6 +164,30 @@ _RUN_PIECE_KINDS: dict[str, str] = {
 _OBJECT_PIECE_KINDS = frozenset({"table", "picture", "equation", "ole", "chart", "video", "textart", "shape", "form"})
 
 
+def _field_or_story_object(kind: str, element: Any, paragraph: Any) -> Any:
+    """A field start's model (:class:`Hyperlink`, a memo held in its field, else :class:`FieldControl`) or a
+    header's or footer's (``kind`` ``"header"``/``"footer"``), for :func:`_piece_object`."""
+
+    if kind != "field_begin":
+        from .section import HwpxOxmlSection
+        from .section_story import HwpxOxmlSectionHeaderFooter
+
+        section = paragraph.section
+        return HwpxOxmlSectionHeaderFooter(element, section.properties) if isinstance(section, HwpxOxmlSection)             else None
+    if element.get("type") == "HYPERLINK":
+        from ..objects.form_field import Hyperlink
+
+        return Hyperlink(element, paragraph)
+    if element.get("type") == "MEMO" and element.find(f"{_HP}subList") is not None:
+        from .memo import HwpxOxmlFieldMemo
+
+        return HwpxOxmlFieldMemo(element, paragraph.section)
+    from ..objects.form_field import FieldControl, field_parameters
+
+    return FieldControl(field_type=element.get("type", ""), field_id=element.get("id", ""),
+                        name=element.get("name", ""), parameters=field_parameters(element), element=element)
+
+
 def _piece_object(kind: str, element: Any, run: "HwpxOxmlRun") -> Any:
     """The model object a piece of *run* stands for, ``None`` when it has none."""
 
@@ -176,27 +200,8 @@ def _piece_object(kind: str, element: Any, run: "HwpxOxmlRun") -> Any:
         from .memo import HwpxOxmlNote
 
         return HwpxOxmlNote(element, paragraph)
-    if kind == "field_begin":
-        if element.get("type") == "HYPERLINK":
-            from ..objects.form_field import Hyperlink
-
-            return Hyperlink(element, paragraph)
-        if element.get("type") == "MEMO" and element.find(f"{_HP}subList") is not None:
-            from .memo import HwpxOxmlFieldMemo
-
-            return HwpxOxmlFieldMemo(element, paragraph.section)
-        from ..objects.form_field import FieldControl, field_parameters
-
-        return FieldControl(field_type=element.get("type", ""), field_id=element.get("id", ""),
-                            name=element.get("name", ""), parameters=field_parameters(element), element=element)
-    if kind in ("header", "footer"):
-        from .section import HwpxOxmlSection
-        from .section_story import HwpxOxmlSectionHeaderFooter
-
-        section = paragraph.section
-        if not isinstance(section, HwpxOxmlSection):
-            return None
-        return HwpxOxmlSectionHeaderFooter(element, section.properties)
+    if kind in ("field_begin", "header", "footer"):
+        return _field_or_story_object(kind, element, paragraph)
     if kind in ("ruby", "composed_character"):
         from ..objects.highlight import ComposedCharacter, Ruby
 

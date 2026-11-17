@@ -5,6 +5,7 @@ moving it to another place in the same document."""
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
@@ -62,6 +63,36 @@ def sanitize_keeping_tabs(value: str) -> str:
 
     _require_text(value)
     return "\t".join(_sanitize_text(part) for part in value.split("\t"))
+
+
+def checked_tab_widths(text: str, tab_widths: "Sequence[int] | None") -> "tuple[int, ...]":
+    """*tab_widths* checked against the tabs of *text* (``add_run(tab_widths=)``)."""
+
+    if tab_widths is None:
+        return ()
+    widths = tuple(tab_widths)
+    count = text.count("\t")
+    if len(widths) != count or any(isinstance(w, bool) or not isinstance(w, int) or not 0 <= w < 2**31
+                                   for w in widths):
+        raise HwpxValueError(
+            f"tab_widths needs one whole HWPUNIT width (0 to 2**31-1) for each of the {count} tab(s) of the text;"
+            f" got {widths!r}",
+            code="paragraph-tab-widths",
+            context={"tabs": count, "widths": [repr(w) for w in widths]},
+            suggestion="Pass one width for each tab, in order, or leave tab_widths out to let Hancom work them out.",
+        )
+    return widths
+
+
+def write_tab_widths(run_element: Any, widths: "Sequence[int]") -> None:
+    """Write *widths* on the tabs of *run_element*, in order, in Hancom's saved form
+    (``width``, ``leader="0"``, ``type="1"``; ``add_run(tab_widths=)``)."""
+
+    tabs = [node for node in run_element.iter() if _local(node) == "tab"]
+    for tab, width in zip(tabs, widths):
+        tab.set("width", str(width))
+        tab.set("leader", "0")
+        tab.set("type", "1")
 
 
 def set_text_with_tabs(text_element: ET.Element, value: str) -> None:

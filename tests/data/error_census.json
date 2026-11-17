@@ -185,8 +185,8 @@
    "oxml/_document_primitives.py:114",
    "oxml/document_parts.py:1278",
    "oxml/formatting.py:1055",
-   "oxml/paragraph.py:1443",
-   "oxml/paragraph.py:1532",
+   "oxml/paragraph.py:1419",
+   "oxml/paragraph.py:1508",
    "oxml/section_format.py:388",
    "oxml/section_format.py:649",
    "oxml/table.py:1008",
@@ -323,10 +323,10 @@
    "oxml/formatting.py:957"
   ],
   "paragraph-index-mark-empty-key": [
-   "oxml/paragraph.py:1317"
+   "oxml/paragraph.py:1293"
   ],
   "paragraph-index-mark-no-text-run": [
-   "oxml/paragraph.py:1309"
+   "oxml/paragraph.py:1285"
   ],
   "paragraph-indexes-empty": [
    "_document/layout.py:196"
@@ -334,7 +334,7 @@
   "paragraph-invalid-type": [
    "_document/_resolve.py:197",
    "_document/layout.py:227",
-   "oxml/_paragraph_text_edit.py:436",
+   "oxml/_paragraph_text_edit.py:467",
    "tools/document_merge.py:1442",
    "tools/document_merge.py:1448"
   ],
@@ -348,29 +348,29 @@
    "_document/layout.py:236"
   ],
   "paragraph-mixed-text-unsupported": [
-   "oxml/_paragraph_text_edit.py:34"
+   "oxml/_paragraph_text_edit.py:35"
   ],
   "paragraph-move-into-itself": [
-   "oxml/_paragraph_text_edit.py:462"
+   "oxml/_paragraph_text_edit.py:493"
   ],
   "paragraph-move-place-unsupported": [
-   "oxml/_paragraph_text_edit.py:477",
-   "oxml/_paragraph_text_edit.py:583"
+   "oxml/_paragraph_text_edit.py:508",
+   "oxml/_paragraph_text_edit.py:614"
   ],
   "paragraph-not-found": [
    "_document/_resolve.py:190",
    "_document/headings.py:172",
    "_document/layout.py:244",
-   "oxml/_paragraph_text_edit.py:428"
+   "oxml/_paragraph_text_edit.py:459"
   ],
   "paragraph-not-in-document": [
    "_document/_resolve.py:161",
    "_document/layout.py:216",
    "_document/text_blocks.py:684",
-   "oxml/_paragraph_text_edit.py:322",
-   "oxml/_paragraph_text_edit.py:444",
-   "oxml/_paragraph_text_edit.py:470",
-   "oxml/_paragraph_text_edit.py:577",
+   "oxml/_paragraph_text_edit.py:353",
+   "oxml/_paragraph_text_edit.py:475",
+   "oxml/_paragraph_text_edit.py:501",
+   "oxml/_paragraph_text_edit.py:608",
    "oxml/table_format.py:975",
    "tools/document_merge.py:1470"
   ],
@@ -386,14 +386,14 @@
    "oxml/formatting.py:598"
   ],
   "paragraph-remove-last": [
-   "oxml/_paragraph_text_edit.py:386"
+   "oxml/_paragraph_text_edit.py:417"
   ],
   "paragraph-remove-section-settings": [
-   "oxml/_paragraph_text_edit.py:372",
-   "oxml/_paragraph_text_edit.py:502"
+   "oxml/_paragraph_text_edit.py:403",
+   "oxml/_paragraph_text_edit.py:533"
   ],
   "paragraph-run-section-settings": [
-   "oxml/run.py:1075"
+   "oxml/run.py:1080"
   ],
   "paragraph-split-inside-element": [
    "oxml/formatting.py:530"
@@ -413,28 +413,28 @@
    "oxml/_document_primitives.py:1507"
   ],
   "paragraph-tab-target-required": [
-   "oxml/_paragraph_text_edit.py:40"
+   "oxml/_paragraph_text_edit.py:41"
   ],
   "paragraph-tab-type-invalid": [
    "oxml/_document_primitives.py:1514"
   ],
   "paragraph-tab-widths": [
-   "oxml/paragraph.py:143"
+   "oxml/_paragraph_text_edit.py:77"
   ],
   "paragraph-text-invalid-type": [
    "document.py:622",
    "oxml/_document_primitives.py:132",
    "oxml/formatting.py:674",
-   "oxml/paragraph.py:549"
+   "oxml/paragraph.py:530"
   ],
   "paragraph-text-missing": [
-   "oxml/paragraph.py:469"
+   "oxml/paragraph.py:450"
   ],
   "paragraph-text-style-ambiguous": [
-   "oxml/paragraph.py:481"
+   "oxml/paragraph.py:462"
   ],
   "paragraph-title-mark-no-text-run": [
-   "oxml/paragraph.py:1265"
+   "oxml/paragraph.py:1241"
   ],
   "parts-auto-spacing-unknown-para-pr": [
    "_document/ns/parts.py:502"
@@ -535,7 +535,7 @@
    "_document/shapes.py:760"
   ],
   "shape-chart-reference-empty": [
-   "oxml/paragraph.py:1446"
+   "oxml/paragraph.py:1422"
   ],
   "shape-chart-root-invalid": [
    "_document/shapes.py:719"
@@ -610,7 +610,7 @@
   ],
   "shape-equation-script-empty": [
    "_document/shapes.py:521",
-   "oxml/paragraph.py:1535",
+   "oxml/paragraph.py:1511",
    "oxml/shape_position.py:2062"
   ],
   "shape-equation-script-latex": [
@@ -666,7 +666,7 @@
    "oxml/shape_position.py:274"
   ],
   "shape-raw-tag-empty": [
-   "oxml/paragraph.py:898"
+   "oxml/paragraph.py:874"
   ],
   "shape-rect-ratio-value": [
    "oxml/shape_position.py:2210"

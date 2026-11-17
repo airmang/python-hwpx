@@ -54,6 +54,7 @@ from .note_authoring import (
 )
 from ._paragraph_text_edit import (
     ParagraphFormats,
+    checked_tab_widths,
     edit_node_candidates,
     insert_paragraph_beside,
     paragraph_container,
@@ -63,6 +64,7 @@ from ._paragraph_text_edit import (
     remove_paragraph_element,
     set_text_with_tabs,
     text_marks_as_elements_in,
+    write_tab_widths,
 )
 from .objects import (
     HwpxOxmlEquation,
@@ -127,27 +129,6 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
     if gap >= 1 << 31:  # a signed 32-bit number written unsigned
         gap -= 1 << 32
     return (text_width - (count - 1) * gap) // count
-
-
-def _checked_tab_widths(text: str, tab_widths: "Sequence[int] | None") -> "tuple[int, ...]":
-    """*tab_widths* checked against the tabs of *text* (``add_run(tab_widths=)``)."""
-
-    if tab_widths is None:
-        return ()
-    from ..errors import HwpxValueError
-
-    widths = tuple(tab_widths)
-    count = text.count("	")
-    if len(widths) != count or any(isinstance(w, bool) or not isinstance(w, int) or not 0 <= w < 2**31
-                                   for w in widths):
-        raise HwpxValueError(
-            f"tab_widths needs one whole HWPUNIT width (0 to 2**31-1) for each of the {count} tab(s) of the text;"
-            f" got {widths!r}",
-            code="paragraph-tab-widths",
-            context={"tabs": count, "widths": [repr(w) for w in widths]},
-            suggestion="Pass one width for each tab, in order, or leave tab_widths out to let Hancom work them out.",
-        )
-    return widths
 
 
 @dataclass(eq=False)
@@ -666,7 +647,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         whole number from 0 to 2**31-1, is refused (``paragraph-tab-widths``) before anything changes.
         """
 
-        widths = _checked_tab_widths(text, tab_widths)
+        widths = checked_tab_widths(text, tab_widths)
         run_attrs = dict(attributes or {})
 
         if "charPrIDRef" not in run_attrs:
@@ -697,12 +678,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             _append_text_with_run_choice_atoms(run_element, text)
         else:
             _append_text_with_tabs(run_element, text)
-        if widths:
-            tabs = [node for node in run_element.iter() if tag_local_name(node.tag) == "tab"]
-            for tab, width in zip(tabs, widths):
-                tab.set("width", str(width))
-                tab.set("leader", "0")
-                tab.set("type", "1")
+        write_tab_widths(run_element, widths)
         self.section.mark_dirty()
         return HwpxOxmlRun(run_element, self)
 
