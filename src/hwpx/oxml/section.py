@@ -668,6 +668,9 @@ class HwpxOxmlSection:
         if inserted:
             if index == 0 and existing:
                 move_section_settings(existing[0].element, inserted[0].element)
+            from .shape_position import unique_object_ids
+
+            unique_object_ids(self, [paragraph.element for paragraph in inserted])
             self._dirty = True
         return tuple(inserted)
 

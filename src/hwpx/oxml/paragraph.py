@@ -99,7 +99,7 @@ if TYPE_CHECKING:
     from ..objects.highlight import Highlight
     from typing import Iterable, Iterator
 
-    from ..objects.results import NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
+    from ..objects.results import CellMargins, NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
     from .section import HwpxOxmlSection
 
 
@@ -542,6 +542,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             document = self.section.document
             renew_copied_memos(element, list(document.sections) if document is not None else [self.section],
                                self.section)
+            from .shape_position import unique_object_ids
+
+            unique_object_ids(self.section, (element,))
         self.section.mark_dirty()
         return element
 
@@ -812,8 +815,19 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         border_fill_id_ref: str | int | None = None,
         run_attributes: dict[str, str] | None = None,
         char_pr_id_ref: str | int | None = None,
+        in_margins: "CellMargins | None" = None,
     ) -> HwpxOxmlTable:
+        """Add a *rows* x *cols* table at the end of this paragraph and return it.
+
+        *in_margins* (a :class:`~hwpx.objects.CellMargins`, HWPUNIT) gives the table's inner cell
+        margins and every cell's ``hp:cellMargin`` at once, as ``table.set_in_margins`` does
+        afterwards; checked before anything is added (``table-margin-value``).
+        """
+
+        from .table_sizes import checked_in_margins
+
         validate_table_size(rows, cols)
+        margins = checked_in_margins(in_margins)
         if width is not None:
             width = new_table_width(width, cols)  # checked, and floored as Hancom draws it, before its run is added
         elif (context := self._context_table_width()) is not None:  # a narrow cell's may be below the floor
@@ -845,7 +859,10 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         run.append(table_element)
         stack_new_object(table_element, self.section)  # tables take their numbers too, as Hancom numbers them
         self.section.mark_dirty()
-        return HwpxOxmlTable(table_element, self)
+        table = HwpxOxmlTable(table_element, self)
+        if margins is not None:
+            table.set_in_margins(left=margins.left, right=margins.right, top=margins.top, bottom=margins.bottom)
+        return table
 
     def add_shape(
         self,

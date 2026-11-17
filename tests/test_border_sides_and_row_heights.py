@@ -35,7 +35,7 @@ def test_each_side_takes_its_own_line() -> None:
     )
 
     assert _lines(document, fill_id) == {
-        "left": ("NONE", 0.15, "#000000"),
+        "left": ("NONE", 0.1, "#000000"),  # no line: 0.1 mm, as Hancom writes it (asks9x)
         "right": ("SOLID", 0.15, "#000000"),  # not named: the uniform border
         "top": ("SOLID", 0.4, "#000000"),  # what a side leaves out is the uniform border's
         "bottom": ("DOUBLE_SLIM", 0.5, "#112233"),

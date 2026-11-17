@@ -1118,6 +1118,125 @@ def _insert_memos_into_target_section(target_section: Any, memo_clones: list[Any
     target_section.mark_dirty()
 
 
+#: The header lists a copy reuses equal definitions from, in the order they are folded: fonts, border fills
+#: and tab definitions first, since the character and paragraph shapes refer to them, and those before the
+#: styles, which refer to them.
+_REUSED_DEFINITIONS = (
+    ("borderFills", "borderFill", "borderFillIDRef"),
+    ("tabProperties", "tabPr", "tabPrIDRef"),
+    ("charProperties", "charPr", "charPrIDRef"),
+    ("paraProperties", "paraPr", "paraPrIDRef"),
+    ("styles", "style", "styleIDRef"),
+)
+
+
+def _definition_list(header: Any, list_name: str) -> Any:
+    root = header.element
+    return next((node for node in root.iter() if isinstance(node.tag, str)
+                 and _local_name(node.tag) == list_name), None)
+
+
+def _children_named(holder: Any, name: str) -> list[Any]:
+    return [node for node in holder if isinstance(node.tag, str) and _local_name(node.tag) == name]
+
+
+def _definition_ids(header: Any) -> dict[str, set[str]]:
+    """The ids each reused list of *header* holds now (fonts per language), before a copy adds to it."""
+
+    ids: dict[str, set[str]] = {}
+    for list_name, item_name, _ref in _REUSED_DEFINITIONS:
+        holder = _definition_list(header, list_name)
+        ids[item_name] = {str(node.get("id")) for node in _children_named(holder, item_name)} \
+            if holder is not None else set()
+    faces = _definition_list(header, "fontfaces")
+    for face in _children_named(faces, "fontface") if faces is not None else ():
+        ids["font:" + str(face.get("lang"))] = {str(node.get("id")) for node in _children_named(face, "font")}
+    return ids
+
+
+def _definition_key(element: Any) -> bytes:
+    """*element* as canonical XML without its ``id`` (a style's ``nextStyleIDRef`` to itself read as such):
+    two definitions with the same key mean the same."""
+
+    from lxml import etree
+
+    clone = etree.fromstring(etree.tostring(element))
+    own = clone.attrib.pop("id", None)
+    if own is not None and clone.get("nextStyleIDRef") == own:
+        clone.set("nextStyleIDRef", "itself")
+    clone.tail = None
+    return etree.tostring(clone, method="c14n")
+
+
+def _fold(holder: Any, items: list[Any], before: set[str]) -> dict[str, str]:
+    """Fold the items of *holder* not in *before* into earlier equal ones, number the rest on from *before*;
+    the id changes (old -> new)."""
+
+    known: dict[bytes, str] = {}
+    for node in items:
+        if str(node.get("id")) in before:
+            known.setdefault(_definition_key(node), str(node.get("id")))
+    numbers = [int(i) for i in before if i.lstrip("-").isdigit()]
+    next_id = max(numbers) + 1 if numbers else 0
+    mapping: dict[str, str] = {}
+    for node in items:
+        old = str(node.get("id"))
+        if old in before:
+            continue
+        key = _definition_key(node)
+        same = known.get(key)
+        if same is not None:
+            mapping[old] = same
+            holder.remove(node)
+            continue
+        known[key] = str(next_id)
+        if old != str(next_id):
+            mapping[old] = str(next_id)
+            node.set("id", str(next_id))
+        next_id += 1
+    return mapping
+
+
+def _reuse_equal_definitions(header: Any, before: dict[str, set[str]], scope: list[Any]) -> None:
+    """Fold each definition this copy added to *header* (an id not in *before*) into one the header already
+    had that is the same but for its id, pointing the references in *scope* (the copied paragraphs, memos
+    and the definitions copied with them) at it; the definitions left are numbered on from the ones before,
+    so the ids stay without gaps."""
+
+    faces = _definition_list(header, "fontfaces")
+    for face in _children_named(faces, "fontface") if faces is not None else ():
+        lang = str(face.get("lang"))
+        mapping = _fold(face, _children_named(face, "font"), before.get("font:" + lang, set()))
+        if not mapping:
+            continue
+        attributes = [attr for attr, face_lang in _FONT_REF_TO_FACE_LANG.items() if face_lang == lang]
+        for root in scope:
+            for node in root.iter(f"{_HH}fontRef"):
+                for attr in attributes:
+                    if node.get(attr) in mapping:
+                        node.set(attr, mapping[str(node.get(attr))])
+        if face.get("fontCnt") is not None:
+            face.set("fontCnt", str(len(_children_named(face, "font"))))
+    for list_name, item_name, ref in _REUSED_DEFINITIONS:
+        holder = _definition_list(header, list_name)
+        if holder is None:
+            continue
+        mapping = _fold(holder, _children_named(holder, item_name), before[item_name])
+        if not mapping:
+            continue
+        refs = (ref, "nextStyleIDRef", "charStyleIDRef") if item_name == "style" else (ref,)
+        for root in scope:
+            for node in root.iter():
+                if not isinstance(node.tag, str):
+                    continue
+                for name in refs:
+                    value = node.get(name)
+                    if value is not None and value in mapping:
+                        node.set(name, mapping[value])
+        if holder.get("itemCnt") is not None:
+            holder.set("itemCnt", str(len(_children_named(holder, item_name))))
+
+
 def _merge_paragraphs(
     target: HwpxDocument,
     source: HwpxDocument,
@@ -1174,10 +1293,11 @@ def _merge_paragraphs(
     # effect, masking the bug) but silently corrupted the saved document
     # (dangling *IDRef, invisible until reopened and checked) whenever it
     # did not. This single call is the fix -- do it unconditionally, up
-    # front, since v1's own no-dedup policy means essentially every
+    # front, since a merge may add definitions (those not already there) and essentially every
     # non-empty merge touches the header (even a bare styleIDRef="0"
     # reference copies that default style under a fresh id).
     target_header.mark_dirty()
+    before_merge = _definition_ids(target_header)
 
     # memo_clones fold into the SAME axis-1 scanning/application passes as
     # the body paragraph copies -- a memo's own paraList/hp:p carries
@@ -1259,6 +1379,11 @@ def _merge_paragraphs(
     # and only ever touches a charPr's own fontRef child -- applied
     # separately, only to the charPr clones.
     _apply_font_remap(char_pr_clones, fonts)
+    # A definition copied over that the target already has, the same in every respect but its id, is not
+    # kept twice: the copy uses the target's (what hwpx-school's run transplant did; a later copy of
+    # another paragraph does the same).
+    _reuse_equal_definitions(target_header, before_merge,
+                             copies + memo_clones + para_pr_clones + char_pr_clones + style_clones)
 
     # HwpxOxmlDocument.char_properties is a lazily-built, explicitly-cached
     # dict (unlike every other header table this module touches, which is
@@ -1468,6 +1593,9 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
         insert_paragraph_copy(copy, anchor, before=before)
         sections = list(target_root.sections) if target_root is not None else [anchor.section]
         renew_copied_memos(copy, sections, anchor.section)
+        from ..oxml.shape_position import unique_object_ids
+
+        unique_object_ids(anchor.section, (copy,))
         return HwpxOxmlParagraph(copy, anchor.section)
     source_doc, target_doc = _facade_of(source_root), _facade_of(target_root)
     if source_doc is None or target_doc is None:
@@ -1492,6 +1620,9 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     copy = copies[0]
     insert_paragraph_copy(copy, anchor, before=before)
     _insert_memos_into_target_section(anchor.section, memo_clones)
+    from ..oxml.shape_position import unique_object_ids
+
+    unique_object_ids(anchor.section, (copy,))
     return HwpxOxmlParagraph(copy, anchor.section)
 
 

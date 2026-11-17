@@ -39,7 +39,7 @@ import copy
 import math
 import re
 from dataclasses import dataclass
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from ..errors import HwpxValueError
@@ -2630,11 +2630,6 @@ OBJECT_PLACES: dict[str, frozenset[str]] = {
     "page": frozenset({"body", "header_footer"}),
 }
 
-#: Drawing objects whose ``id`` a copy renews besides those ``_refresh_copied_paragraph_subtree_ids``
-#: renews. An ``id="0"`` stays: Hancom writes group members so (pictures, lines, rectangles, groups).
-_COPY_RENEWED_IDS = frozenset({"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "chart"})
-
-
 def paragraph_box(paragraph: Any, root: Any) -> str:
     """The box the paragraph element *paragraph* sits in under *root* (its section element): ``body``,
     ``cell``, ``text_box``, ``note``, ``header_footer``, ``caption``, ``memo`` or ``other``."""
@@ -2751,17 +2746,14 @@ def fresh_copy(element: Any, *, ids: "IdSource | None") -> Any:
 
     from copy import deepcopy
 
-    from ._document_primitives import _clear_paragraph_layout_cache, _object_id, _refresh_copied_paragraph_subtree_ids
+    from ._document_primitives import _clear_paragraph_layout_cache, _refresh_copied_paragraph_subtree_ids
     from ._paragraph_text_edit import renumber_copied_fields
 
     copy = deepcopy(element)
     copy.tail = None
     before = [(node, node.get("instid")) for node in copy.iter() if node.get("instid") not in (None, "", "0")]
     members = [node for node in copy.iter() if _local(node) != "p" and node.get("id") == "0"]
-    _refresh_copied_paragraph_subtree_ids(copy, ids=ids)
-    for node in copy.iter():
-        if _local(node) in _COPY_RENEWED_IDS and node.get("id") not in (None, "", "0"):
-            node.set("id", _object_id(ids))
+    _refresh_copied_paragraph_subtree_ids(copy, ids=ids)  # every object's id, as for a paragraph's copy
     for node in members:  # a group member's id="0", as Hancom writes members, stays
         node.set("id", "0")
     _let_go_of_outside(copy, {old: str(node.get("instid")) for node, old in before})
@@ -2893,12 +2885,68 @@ def stack_new_object(element: Any, section: Any) -> None:
     """Give the new object *element* (already in *section*) the next ``zOrder`` of the document, as Hancom
     numbers the objects it makes: each one over those made before it (hancom_saved: in the documents whose
     objects Hancom made, tables and objects placed like characters take their numbers too, and a group the
-    number after its members'). A member of a group is not given one (Hancom saves members with 0)."""
+    number after its members'). A member of a group is not given one (Hancom saves members with 0). Its id
+    (and those of the objects inside it) is one no other object of the document has
+    (:func:`unique_object_ids`)."""
 
+    unique_object_ids(section, (element,))
     parent = element.getparent() if hasattr(element, "getparent") else None
     if parent is not None and _local(parent) == "container":
         return
     element.set("zOrder", _top_z_order(section, skip=element))
+
+
+def unique_object_ids(section: Any, roots: "Iterable[Any]") -> int:
+    """Give each object in *roots* (elements just made or copied into the document of *section*) whose
+    ``id`` another object of the document already has -- outside *roots*, or earlier in them -- a fresh one,
+    and return how many changed. Hancom keeps object ids unique: in the 1,017 Hancom-saved fixtures with
+    objects no two outside a group share one (members are written ``id="0"``, left alone here). An
+    ``instid`` equal to the old id follows it. The fresh ids come from the source of *section*'s document
+    (``HwpxDocument.new(seed=)`` stays repeatable; another document's seed is never used)."""
+
+    from ._document_primitives import _object_id
+
+    roots = tuple(roots)
+    inside = {node for root in roots for node in root.iter()}
+    document = getattr(section, "document", None)
+    parts = list(document.sections) if document is not None else [section]
+    if not any(part is section or part.element is section.element for part in parts):
+        parts.append(section)
+    taken: set[str] = set()
+    for part in parts:
+        for node in _object_nodes(part.element):
+            if node not in inside and node.get("id") not in (None, "", "0"):
+                taken.add(str(node.get("id")))
+    changed = 0
+    for root in roots:
+        for node in _object_nodes(root, include_root=True):
+            old = node.get("id")
+            if old in (None, "", "0"):
+                continue
+            if old in taken:
+                ids = section._ids  # the source of the document the objects are in
+                fresh = _object_id(ids)
+                while fresh in taken:
+                    fresh = _object_id(ids)
+                node.set("id", fresh)
+                if node.get("instid") == old:
+                    node.set("instid", fresh)
+                changed += 1
+            taken.add(str(node.get("id")))
+    return changed
+
+
+def _object_nodes(root: Any, *, include_root: bool = False) -> "Iterator[Any]":
+    """The objects (:data:`_Z_ORDERED`) under *root*, in document order (*root* too with *include_root*)."""
+
+    if hasattr(root, "getparent"):
+        for node in root.iter(*_Z_ORDERED):
+            if include_root or node is not root:
+                yield node
+        return
+    for node in root.iter():
+        if node.tag in _Z_ORDERED_SET and (include_root or node is not root):
+            yield node
 
 
 def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
@@ -2974,6 +3022,7 @@ def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, of
     if placed.get("zOrder") is not None and not keep_order:
         placed.set("zOrder", _top_z_order(target.section))
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
+    unique_object_ids(target.section, (placed,))
     _clear_paragraph_layout_cache(target.element)
     target.section.mark_dirty()
     from .objects import wrap_object
@@ -3052,6 +3101,8 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool, ke
     if (copy or _local(placed) != "tbl") and placed.get("zOrder") is not None and not keep_order:
         placed.set("zOrder", _top_z_order(target.section))  # Hancom puts a pasted object (a copied table too) on top
     insert_at_offset(target.element, placed, offset, target.char_pr_id_ref)
+    if copy:
+        unique_object_ids(target.section, (placed,))
     _clear_paragraph_layout_cache(target.element)
     if not copy and target.section.element is not source.section.element:
         carry_memos(placed, _sections_of(source, target), target.section)

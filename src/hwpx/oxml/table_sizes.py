@@ -641,6 +641,26 @@ def table_in_margins(table: "HwpxOxmlTable") -> CellMargins:
     return CellMargins(*(_margin_value(own.get(side)) for side in _MARGIN_SIDES))
 
 
+def checked_in_margins(in_margins: "CellMargins | None") -> "CellMargins | None":
+    """``add_table(in_margins=)`` checked before the table is made: a :class:`CellMargins` of ints in
+    ``0 <= value < 2**31`` (``table-margin-value``)."""
+
+    from ..errors import HwpxValueError
+
+    if in_margins is None:
+        return None
+    if not isinstance(in_margins, CellMargins) or any(
+            isinstance(v, bool) or not isinstance(v, int) or not 0 <= v < 2**31
+            for v in (in_margins.left, in_margins.right, in_margins.top, in_margins.bottom)):
+        raise HwpxValueError(
+            f"in_margins must be a CellMargins of ints in 0 <= value < 2**31 (HWPUNIT), got {in_margins!r}",
+            code="table-margin-value",
+            context={"value": repr(in_margins)},
+            suggestion="Pass hwpx.objects.CellMargins(left, right, top, bottom) in HWPUNIT.",
+        )
+    return in_margins
+
+
 def set_table_in_margins(
     table: "HwpxOxmlTable",
     *,
@@ -654,7 +674,9 @@ def set_table_in_margins(
 
     Sides left as ``None`` keep their value; values are ints in ``0 <= value < 2**31`` (HWPUNIT),
     checked first (``table-margin-value``). Cells with margins of their own (``hasMargin``) keep
-    them. When they change, the paragraphs of the cells laid out with them and the paragraph
+    them. A cell laid out with the table's (``hasMargin`` off) gets the same values in its
+    ``hp:cellMargin``, as Hancom writes such cells (18,345 of the 18,628 in the 1,257 Hancom-saved
+    fixtures). When they change, the paragraphs of the cells laid out with them and the paragraph
     holding the table lose their line layout cache.
     """
     from ..errors import HwpxValueError
@@ -684,6 +706,10 @@ def set_table_in_margins(
     for row in table.element.findall(f"{_HP}tr"):
         for cell in row.findall(f"{_HP}tc"):
             if (cell.get("hasMargin") or "").strip().lower() not in {"1", "true"}:
+                cell_margin = cell.find(f"{_HP}cellMargin")
+                if cell_margin is not None:
+                    for side in _MARGIN_SIDES:
+                        cell_margin.set(side, str(getattr(margins, side)))
                 for paragraph in cell.findall(f"{_HP}subList/{_HP}p"):
                     _clear_paragraph_layout_cache(paragraph)
     _clear_paragraph_layout_cache(table.paragraph.element)

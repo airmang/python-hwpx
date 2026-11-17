@@ -637,7 +637,7 @@ top=..., bottom=...)`는 주지 않은 면을 지금 여백으로 채워 셀 여
 line_type=, border_width_mm=, color=, inner=)`·`set_shading(cell_range, color=)`(칸의 다른 변·대각선·
 배경은 그대로 두고 그 칸의 테두리 정의에서 파생), `TableCell.border_fill`(`BorderFillInfo`),
 `header_rows`/`set_header_rows(n, repeat=True)`·`repeat_header`,
-`in_margins`/`set_in_margins`, `out_margins`/`set_out_margins`, `height`, `remove()`,
+`in_margins`/`set_in_margins`(표 안여백으로 배치되는 칸의 `hp:cellMargin` 도 같은 값으로; `add_table(in_margins=)`), `out_margins`/`set_out_margins`, `height`, `remove()`,
 `text_wrap`·`set_position(...)`(개체와 같은 배치 어휘), `cell_zones`(`hwpx.objects.CellZone`)·
 `add_cell_zone(cell_range, border_fill_id_ref=)`·`set_cell_zone(index, cell_range=, border_fill_id_ref=)`·
 `remove_cell_zone(index)`(칸 영역: 격자 위 사각형에 테두리/배경 하나, 행·열 편집을 따라간다),
