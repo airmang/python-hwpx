@@ -403,7 +403,8 @@ class HwpxOxmlSection:
         )
 
     def _plan_control_content(
-        self, runs: Sequence[ET.Element], on_control_content: str, *, excluded: Sequence[ET.Element] = ()
+        self, runs: Sequence[ET.Element], on_control_content: str, *, excluded: Sequence[ET.Element] = (),
+        paragraph: int | None = 0,
     ) -> tuple[list[str], list[tuple[ET.Element, ET.Element]]]:
         """Scan the kept children (but *excluded*, which go anyway) and plan the ``"strip"``
         removals, or refuse.
@@ -432,7 +433,8 @@ class HwpxOxmlSection:
         raise HwpxValueError(
             message + ", ".join(remaining),
             code="section-clear-control-content",
-            context={"part": self.part_name, "tags": remaining, "mode": on_control_content},
+            context={"part": self.part_name, "tags": remaining, "mode": on_control_content,
+                     "paragraph": paragraph, "paragraphs": [{"paragraph": paragraph, "tags": remaining}]},
             suggestion=suggestion,
         )
 
@@ -897,7 +899,8 @@ def _find_column_changes(
     kept: list[ET.Element] = []
     found: list[str] = []
     removals: list[tuple[ET.Element, ET.Element]] = []
-    for paragraph in paragraphs:
+    held: list[dict[str, Any]] = []
+    for index, paragraph in enumerate(paragraphs, start=1):  # the section's paragraphs after its first
         controls = _column_controls(paragraph)
         if not controls:
             continue
@@ -912,13 +915,16 @@ def _find_column_changes(
                 tags: list[str] = []
                 _collect_content_tags(child, tags, ())
                 found += [tag for tag in tags if tag not in found]
+                if tags:
+                    held.append({"paragraph": index, "tags": tags})
                 if tags and mode == "strip":
                     removals.append((control, child))
     if found and mode == "raise":
         raise HwpxValueError(
             "a column change kept in the section holds content beside its column definition: " + ", ".join(found),
             code="section-clear-control-content",
-            context={"part": part_name, "tags": found, "mode": mode},
+            context={"part": part_name, "tags": found, "mode": mode, "paragraph": held[0]["paragraph"],
+                     "paragraphs": held},
             suggestion='pass on_control_content="strip" to remove it, or "keep" to keep it.',
         )
     return kept, found, removals
@@ -954,7 +960,11 @@ def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_co
     dropped = [child for run in runs for child in run if not any(child is node for node in kept)]
     header_removals = [] if keep_headers else _plan_header_removal(runs)
     excluded = [child for _, child in header_removals] + [child for child in dropped if child.tag == f"{_HP}ctrl"]
-    found, removals = paragraph.section._plan_control_content(runs, on_control_content, excluded=excluded)
+    siblings = [child for child in element.getparent()] if element.getparent() is not None else []
+    place = next((index for index, node in enumerate(n for n in siblings if n.tag == element.tag)
+                  if node is element), None)
+    found, removals = paragraph.section._plan_control_content(runs, on_control_content, excluded=excluded,
+                                                             paragraph=place)
     removals = header_removals + [pair for pair in removals if any(pair[1] is node for node in kept)
                                   and not any(pair[1] is child for _, child in header_removals)]
     first_attributes = dict(runs[0].attrib) if runs else {"charPrIDRef": "0"}

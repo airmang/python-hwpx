@@ -82,6 +82,30 @@ class FormField:
 
     offset = property(_offset)
 
+    @property
+    def start(self) -> "int | None":
+        """Where the field begins in its paragraph's text (``paragraph.text``'s count) -- :attr:`offset`, the
+        characters before its begin; ``None`` when it is in no run of a paragraph."""
+
+        return _offset(self)
+
+    @property
+    def end(self) -> "int | None":
+        """Where the field ends: the characters before its ``fieldEnd`` in the paragraph holding it -- the
+        begin's unless the field runs over paragraphs (:attr:`end_location` says which). ``None`` without an
+        end. For a field within one paragraph, ``paragraph.text[start:end]`` is its text."""
+
+        from ..oxml.text_offsets import offset_of
+
+        paragraph = getattr(self._paragraph, "element", None)
+        found = None
+        if paragraph is not None:
+            found = next((node for node in paragraph.iter() if node.tag.rsplit("}", 1)[-1] == "fieldEnd"
+                          and node.get("beginIDRef") == self._element.get("id")), None)
+        if found is None:
+            found = _end_elsewhere(getattr(self._paragraph, "section", None), self._element)
+        return None if found is None else offset_of(found)
+
     __slots__ = (
         "_doc",
         "_element",

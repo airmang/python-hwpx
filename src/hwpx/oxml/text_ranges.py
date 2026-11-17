@@ -1348,7 +1348,13 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
     offset = _note_target(note, paragraph, offset)
     control = deepcopy(note.element.getparent())
     copy = next(child for child in control if _local(child) == _local(note.element))
-    copy.set("instId", _object_id(paragraph.section._ids))
+    fresh = _object_id(paragraph.section._ids)
+    # Hancom writes a note's instance id as instId (all 138 notes of tests/fixtures/hancom_saved); other writers
+    # and python-hwpx 6.6 and before wrote instid. The copy gets a new one in whichever spelling it carries --
+    # leaving one behind gave two notes of one document the same instance id.
+    spellings = [name for name in ("instId", "instid") if name in copy.attrib] or ["instId"]
+    for name in spellings:
+        copy.set(name, fresh)
     for node in copy.iter():
         if _local(node) == "p":
             _clear_paragraph_layout_cache(node)

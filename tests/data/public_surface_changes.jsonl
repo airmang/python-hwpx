@@ -776,3 +776,5 @@
 {"date": "2026-11-17", "version": "6.12.0", "kind": "additive", "change": "doc.caret: 생김", "reason": "asks10h: 한/글이 문서를 여는 캐럿 자리 — doc.caret 읽기, set_caret(본문 문단), reset_caret(본문 첫 문단 글 처음). 틀에서 지은 문서가 틀의 캐럿을 물려받던 것(automation)"}
 {"date": "2026-11-17", "version": "6.12.0", "kind": "additive", "change": "doc.reset_caret: 생김", "reason": "asks10h: 한/글이 문서를 여는 캐럿 자리 — doc.caret 읽기, set_caret(본문 문단), reset_caret(본문 첫 문단 글 처음). 틀에서 지은 문서가 틀의 캐럿을 물려받던 것(automation)"}
 {"date": "2026-11-17", "version": "6.12.0", "kind": "additive", "change": "doc.set_caret: 생김", "reason": "asks10h: 한/글이 문서를 여는 캐럿 자리 — doc.caret 읽기, set_caret(본문 문단), reset_caret(본문 첫 문단 글 처음). 틀에서 지은 문서가 틀의 캐럿을 물려받던 것(automation)"}
+{"date": "2026-11-18", "version": "6.12.0", "kind": "additive", "change": "objects.FormField.end: 생김", "reason": "asks10i: FormField.start·end — 누름틀의 시작·끝 글자 자리 읽기(automation 블루프린트 덤프가 fieldEnd를 찾아 세던 것)"}
+{"date": "2026-11-18", "version": "6.12.0", "kind": "additive", "change": "objects.FormField.start: 생김", "reason": "asks10i: FormField.start·end — 누름틀의 시작·끝 글자 자리 읽기(automation 블루프린트 덤프가 fieldEnd를 찾아 세던 것)"}

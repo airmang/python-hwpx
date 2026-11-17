@@ -186,6 +186,9 @@ def test_form_field_has_exactly_the_designed_twelve_attributes() -> None:
         "filled",
         # 7.0 asks10a: 누름틀 시작이 놓인 문단 글자 자리 (개체·각주의 offset과 같은 셈)
         "offset",
+        # 7.0 asks10i: 누름틀이 시작하고 끝나는 글자 자리 (자동화 blueprint가 fieldEnd를 찾아 세던 것)
+        "start",
+        "end",
     }, members
 
 
