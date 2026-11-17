@@ -136,25 +136,40 @@ def _changed(table_object: Any, before: int | None) -> None:
     section._remove_outlived_layout_caches()
 
 
-def move_rows(table_object: Any, rows: "int | Iterable[int]", to: object) -> None:
+def _placed(table_object: Any, moved: list[Any]) -> tuple[Any, ...]:
+    """The row objects of the table's rows *moved* (``hp:tr`` elements), in their order."""
+
+    from .table import HwpxOxmlTableRow
+
+    return tuple(HwpxOxmlTableRow(row, table_object) for row in moved)
+
+
+def move_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source: Any = None) -> tuple[Any, ...]:
     """``table.move_rows``."""
 
+    if source is not None and source.element is not table_object.element:
+        raise HwpxValueError(
+            "rows move within their table: no Hancom-saved document shows rows moved into another table",
+            code="table-rows-move-other-table",
+            suggestion="Copy them there (table.copy_rows(rows, to=, source=)) and delete them here (delete_rows).",
+        )
     table = table_object.element
     block = _block(table, rows)
     to = _check_to(table, to)
     _check_block(table, block, to)
-    if block[0] <= to <= block[1]:
-        return  # in place
     moving = _rows(table)[block[0]:block[1]]
+    if block[0] <= to <= block[1]:
+        return _placed(table_object, moving)  # in place
     after = _rows(table)[to] if to < len(_rows(table)) else None
     for row in moving:
         table.remove(row)
     remaining = _rows(table)
     _place(table, moving, remaining.index(after) if after is not None else len(remaining))
     _changed(table_object, None)
+    return _placed(table_object, moving)
 
 
-def copy_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source: Any = None) -> None:
+def copy_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source: Any = None) -> tuple[Any, ...]:
     """``table.copy_rows``."""
 
     from ._document_primitives import _refresh_copied_paragraph_subtree_ids
@@ -200,6 +215,7 @@ def copy_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source
     _place(target, copies, to)
     unique_object_ids(table_object.paragraph.section, copies)
     _changed(table_object, before)
+    return _placed(table_object, copies)
 
 
 __all__ = ["copy_rows", "move_rows"]

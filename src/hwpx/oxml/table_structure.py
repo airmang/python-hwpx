@@ -17,7 +17,7 @@ from ._document_primitives import _HP, _clear_paragraph_layout_cache
 
 if TYPE_CHECKING:
     from .paragraph import HwpxOxmlParagraph
-    from .table import HwpxOxmlTable
+    from .table import HwpxOxmlTable, HwpxOxmlTableRow
 
 __all__ = ["TableStructureEdits"]
 
@@ -113,28 +113,35 @@ class TableStructureEdits:
 
         self._restructure({"op": "delete_column", "cols": _lines(cols, "cols")})
 
-    def move_rows(self, rows: int | Iterable[int], *, to: int) -> None:
+    def move_rows(
+        self, rows: int | Iterable[int], *, to: int, source: "HwpxOxmlTable | None" = None
+    ) -> "tuple[HwpxOxmlTableRow, ...]":
         """Move the physical rows *rows* (one row number or a run of them, as :meth:`delete_rows` takes) in
-        front of row *to* -- counted before the move; the row count puts them at the end. Every cell's
-        ``rowAddr`` and the row count are numbered again; the cells keep their ids and content. A merged cell
-        reaching across the rows' top or bottom or the place they go to is refused
-        (``table-rows-merge-crossed``) before anything changes; rows not next to each other or out of range,
-        ``table-rows-invalid``."""
+        front of row *to* -- counted before the move; the row count puts them at the end -- and return them,
+        where they stand now. Every cell's ``rowAddr`` and the row count are numbered again; the cells keep
+        their ids and content. A merged cell reaching across the rows' top or bottom or the place they go to
+        is refused (``table-rows-merge-crossed``) before anything changes; rows not next to each other or out
+        of range, ``table-rows-invalid``. Rows move within their table: *source* other than this table is
+        refused (``table-rows-move-other-table``) -- no Hancom-saved document shows rows moved into another
+        table; :meth:`copy_rows` with *source* and :meth:`delete_rows` do it in two steps."""
 
         from .table_rows import move_rows
 
-        move_rows(self, rows, to)
+        return move_rows(self, rows, to, source)
 
-    def copy_rows(self, rows: int | Iterable[int], *, to: int, source: "HwpxOxmlTable | None" = None) -> None:
+    def copy_rows(
+        self, rows: int | Iterable[int], *, to: int, source: "HwpxOxmlTable | None" = None
+    ) -> "tuple[HwpxOxmlTableRow, ...]":
         """Put a copy of the rows *rows* of *source* (``None``: this table; another table of the same document,
         of the same columns) in front of row *to* of this table. The copies' paragraphs, objects and fields
         get fresh ids, as ``copy_after`` gives a table's copy; the table grows by their height, as
         :meth:`insert_rows` grows it. Refused as :meth:`move_rows` refuses, and a source of other columns
-        (``table-columns-differ``) or of another document (``table-rows-other-document``)."""
+        (``table-columns-differ``) or of another document (``table-rows-other-document``). Returns the new
+        rows, where they stand."""
 
         from .table_rows import copy_rows
 
-        copy_rows(self, rows, to, source)
+        return copy_rows(self, rows, to, source)
 
     def split_cell(self, row: int, col: int, *, rows: int = 1, cols: int = 1) -> None:
         """Split the cell at (*row*, *col*) into *rows* x *cols* cells (2..63 each), as Hancom does.

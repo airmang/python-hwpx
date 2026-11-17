@@ -114,3 +114,18 @@ def test_hancom_merged_table_rows_move_whole() -> None:
         assert len(table.rows) == 2 * count
         assert _addresses(table) == [[str(i)] * len(row.cells) for i, row in enumerate(table.rows)]
         HwpxDocument.open(doc.to_bytes()).close()
+
+
+def test_the_rows_placed_are_returned_and_moving_into_another_table_is_refused() -> None:
+    doc, table = _table(4, 2)
+    with doc:
+        moved = table.move_rows([2, 3], to=0)
+        assert [[cell.text for cell in row.cells] for row in moved] == [["20", "21"], ["30", "31"]]
+        assert [row.element for row in moved] == [row.element for row in table.rows[:2]]
+        copied = table.copy_rows(0, to=4)
+        assert [row.element for row in copied] == [table.rows[-1].element]
+        assert table.move_rows(1, to=1)[0].element is table.rows[1].element  # in place: still returned
+        other = doc.add_paragraph("둘째 표").add_table(1, 2)
+        with pytest.raises(HwpxError) as caught:
+            other.move_rows(0, to=0, source=table)
+        assert caught.value.code == "table-rows-move-other-table"
