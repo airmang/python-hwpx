@@ -86,3 +86,36 @@ jobs:
         with:
           name: pytest-summary-${{ matrix.python-version }}
           path: pytest-summary.log
+
+  # Windows' Python 3.14 deflates with zlib-ng, not zlib: the bytes a save keeps must not depend on that
+  # (tests/test_zip_records.py, tests/test_engine_contract.py). The checkout also turns line ends into
+  # CRLF (core.autocrlf), which the Linux jobs never see. The lint and type gates above are not repeated.
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: pip install -e .[test]
+      - name: Install uv for the installed-wheel docs gate
+        run: python -m pip install "uv>=0.7"
+
+      - name: Run tests and keep summary log
+        shell: bash
+        run: |
+          set -o pipefail
+          python -c "import zlib; print('zlib', zlib.ZLIB_VERSION)"
+          pytest -ra 2>&1 | tee pytest-summary.log
+
+      - name: Upload pytest summary log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pytest-summary-windows-3.14
+          path: pytest-summary.log

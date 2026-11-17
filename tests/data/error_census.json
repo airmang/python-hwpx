@@ -23,7 +23,7 @@
    "capabilities.py:627"
   ],
   "contract-schema-unknown": [
-   "capabilities.py:860"
+   "capabilities.py:861"
   ],
   "document-caret-place-unsupported": [
    "oxml/caret.py:130",
@@ -31,7 +31,7 @@
    "oxml/caret.py:94"
   ],
   "document-clock-invalid": [
-   "document.py:276"
+   "document.py:277"
   ],
   "document-header-missing": [
    "_document/layout.py:361",
@@ -63,7 +63,7 @@
    "tools/document_merge.py:206"
   ],
   "document-seed-invalid": [
-   "document.py:269"
+   "document.py:270"
   ],
   "document-settings-root-invalid": [
    "oxml/settings.py:135"
@@ -264,14 +264,14 @@
    "oxml/text_ranges.py:1301"
   ],
   "open-invalid-type": [
-   "opc/package.py:685"
+   "opc/package.py:765"
   ],
   "open-safety-failed": [
    "_document/persistence.py:333",
-   "opc/package.py:1591"
+   "opc/package.py:1760"
   ],
   "package-text-replacement-key-empty": [
-   "patch.py:786"
+   "patch.py:771"
   ],
   "page-argument-conflict": [
    "_document/layout.py:1087",
@@ -451,7 +451,7 @@
    "oxml/_paragraph_text_edit.py:46"
   ],
   "paragraph-text-invalid-type": [
-   "document.py:629",
+   "document.py:632",
    "oxml/_document_primitives.py:189",
    "oxml/formatting.py:674",
    "oxml/paragraph.py:522"
@@ -492,22 +492,25 @@
   "ref-link-target-empty": [
    "objects/form_field.py:660"
   ],
+  "save-archive-content-mismatch": [
+   "opc/package.py:1741"
+  ],
   "save-format-unsupported": [
-   "_document/persistence.py:705"
+   "_document/persistence.py:716"
   ],
   "save-mode-invalid": [
    "_document/persistence.py:119",
    "_document/persistence.py:126"
   ],
   "save-package-contract-violated": [
-   "_document/persistence.py:438",
-   "_document/persistence.py:788"
+   "_document/persistence.py:440",
+   "_document/persistence.py:799"
   ],
   "save-pipeline-invalid-type": [
-   "_document/persistence.py:591"
+   "_document/persistence.py:602"
   ],
   "save-target-invalid-type": [
-   "_document/persistence.py:529"
+   "_document/persistence.py:540"
   ],
   "section-clear-control-content": [
    "oxml/section.py:433",
@@ -925,8 +928,8 @@
    "oxml/table_rows.py:182"
   ],
   "table-size-invalid": [
-   "document.py:785",
-   "document.py:792",
+   "document.py:788",
+   "document.py:795",
    "oxml/table_sizes.py:63",
    "oxml/table_sizes.py:70"
   ],
@@ -999,14 +1002,15 @@
  },
  "malformedCodes": [],
  "observed": {
-  "other": 491,
+  "other": 510,
   "typed": 502,
-  "untyped": 171,
+  "untyped": 163,
   "untypedByFile": {
    "body_patch.py": 20,
    "form_fit/policy.py": 3,
    "opc/package.py": 1,
    "opc/security.py": 1,
+   "opc/zip_records.py": 1,
    "oxml/_document_primitives.py": 2,
    "oxml/body.py": 5,
    "oxml/document_parts.py": 19,
@@ -1020,7 +1024,7 @@
    "oxml/section_story.py": 18,
    "oxml/table.py": 15,
    "oxml/utils.py": 3,
-   "patch.py": 14,
+   "patch.py": 5,
    "table_patch.py": 11,
    "tools/archive_cli.py": 4,
    "tools/doc_diff.py": 2,

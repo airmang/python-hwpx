@@ -721,6 +721,7 @@ def _mutation_report_json_schema() -> dict[str, Any]:
                     "untouchedPartPayloads": counts,
                     "untouchedLocalZipRecords": counts,
                     "wholePackageIdentical": {"type": "boolean"},
+                    "zipRecordsRewritten": {"type": "string"},
                 },
             },
             "verification": {

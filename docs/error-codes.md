@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 360 | 11 |
+| 개수 | 361 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -353,6 +353,7 @@ except HwpxError as exc:
 
 | 코드 | 뜻 |
 |---|---|
+| `save-archive-content-mismatch` | 써 놓은 ZIP 의 항목 목록이나 내용이 저장하려던 것과 다르다(옮긴 원본 기록이 그 내용이 아니다). 아무것도 쓰지 않았다. |
 | `save-failed` | 저장 경로가 아무것도 쓰기 전에 fail-closed 했다. |
 | `save-format-unsupported` | 저장 형식(format)이 'hwpx'도 'hwp'도 아니다. |
 | `save-mode-invalid` | 저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다. |

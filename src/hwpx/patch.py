@@ -13,6 +13,7 @@ from typing import Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from .opc.security import guard_zip_file, read_member, read_zip_members
+from .opc.zip_records import CentralEntry, assemble, read_records
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .oxml.namespaces import NAMESPACE_URIS
 from .quality import QualityPolicy, SavePipeline
@@ -167,22 +168,6 @@ class _ParagraphSpan:
     start: int
     end: int
     payload: bytes
-
-
-@dataclass(frozen=True)
-class _ZipCentralEntry:
-    raw: bytes
-    filename: str
-    header_offset: int
-    compress_type: int
-    flag_bits: int
-    crc: int
-    compressed_size: int
-    file_size: int
-    name: bytes
-    extra: bytes
-    comment: bytes
-    fields: tuple[int, ...]
 
 
 def paragraph_patch(
@@ -847,149 +832,38 @@ def replace_package_text(
     )
 
 
-def _find_eocd(source: bytes) -> tuple[int, bytes]:
-    start = max(0, len(source) - (65535 + 22))
-    offset = source.rfind(b"PK\x05\x06", start)
-    if offset < 0 or offset + 22 > len(source):
-        raise ValueError("ZIP EOCD not found")
-    comment_length = struct.unpack_from("<H", source, offset + 20)[0]
-    end = offset + 22 + comment_length
-    if end > len(source):
-        raise ValueError("ZIP EOCD comment is truncated")
-    return offset, source[offset:end]
-
-
-def _parse_central_directory(source: bytes) -> tuple[list[_ZipCentralEntry], int, int, bytes]:
-    eocd_offset, eocd = _find_eocd(source)
-    (
-        _signature,
-        disk_no,
-        cd_disk,
-        disk_entries,
-        total_entries,
-        cd_size,
-        cd_offset,
-        _comment_len,
-    ) = struct.unpack_from("<IHHHHIIH", eocd, 0)
-    if disk_no != 0 or cd_disk != 0 or disk_entries != total_entries:
-        raise ValueError("multi-disk ZIP archives are unsupported")
-    if total_entries == 0xFFFF or cd_size == 0xFFFFFFFF or cd_offset == 0xFFFFFFFF:
-        raise ValueError("ZIP64 central directories are unsupported")
-    if cd_offset + cd_size > eocd_offset:
-        raise ValueError("central directory offsets are invalid")
-
-    entries: list[_ZipCentralEntry] = []
-    cursor = cd_offset
-    end = cd_offset + cd_size
-    while cursor < end:
-        if source[cursor:cursor + 4] != b"PK\x01\x02":
-            raise ValueError("central directory entry signature mismatch")
-        fixed = struct.unpack_from("<IHHHHHHIIIHHHHHII", source, cursor)
-        (
-            _sig,
-            _ver_made,
-            _ver_needed,
-            flag_bits,
-            compress_type,
-            _mtime,
-            _mdate,
-            crc,
-            compressed_size,
-            file_size,
-            name_len,
-            extra_len,
-            comment_len,
-            _disk_start,
-            _internal_attr,
-            _external_attr,
-            header_offset,
-        ) = fixed
-        entry_end = cursor + 46 + name_len + extra_len + comment_len
-        name = source[cursor + 46:cursor + 46 + name_len]
-        extra = source[cursor + 46 + name_len:cursor + 46 + name_len + extra_len]
-        comment = source[cursor + 46 + name_len + extra_len:entry_end]
-        entries.append(
-            _ZipCentralEntry(
-                raw=source[cursor:entry_end],
-                filename=name.decode("utf-8"),
-                header_offset=header_offset,
-                compress_type=compress_type,
-                flag_bits=flag_bits,
-                crc=crc,
-                compressed_size=compressed_size,
-                file_size=file_size,
-                name=name,
-                extra=extra,
-                comment=comment,
-                fields=fixed,
-            )
-        )
-        cursor = entry_end
-    if len(entries) != total_entries:
-        raise ValueError("central directory entry count mismatch")
-    return entries, cd_offset, cd_size, eocd
-
-
 def _patch_zip_entries(source: bytes, replacements: Mapping[str, bytes]) -> bytes:
-    entries, cd_start, _cd_size, eocd = _parse_central_directory(source)
-    missing = set(replacements) - {entry.filename for entry in entries}
+    """Replace the content of *replacements*' entries; every other entry keeps its local record byte for byte.
+
+    Written through :func:`hwpx.opc.zip_records.assemble`, the engine's one record-keeping ZIP writer. Raises
+    ``ValueError`` (:class:`~hwpx.opc.zip_records.ZipRecordsUnsupported`) for an archive it cannot keep
+    record by record; the callers then rewrite the whole package."""
+
+    archive = read_records(source)
+    missing = set(replacements) - set(archive.by_name)
     if missing:
         raise ValueError(f"replacement entry not found: {sorted(missing)!r}")
 
-    local_order = sorted(entries, key=lambda entry: entry.header_offset)
-    local_ends: dict[str, int] = {}
-    for index, entry in enumerate(local_order):
-        next_offset = local_order[index + 1].header_offset if index + 1 < len(local_order) else cd_start
-        if entry.header_offset >= next_offset:
-            raise ValueError("local file header offsets are invalid")
-        local_ends[entry.filename] = next_offset
-
-    output = bytearray()
-    new_offsets: dict[str, int] = {}
-    new_stats: dict[str, tuple[int, int, int, int]] = {}
+    local_order = sorted(archive.entries, key=lambda entry: entry.header_offset)
+    position = {entry.filename: index for index, entry in enumerate(local_order)}
+    records: list[tuple[bytes, bytes]] = []
     for entry in local_order:
-        new_offsets[entry.filename] = len(output)
         replacement = replacements.get(entry.filename)
         if replacement is None:
-            output.extend(source[entry.header_offset:local_ends[entry.filename]])
-            new_stats[entry.filename] = (
-                entry.flag_bits,
-                entry.crc,
-                entry.compressed_size,
-                entry.file_size,
-            )
+            records.append((archive.local_record(entry), entry.raw))
             continue
         compressed = _compress_for_entry(replacement, entry.compress_type)
         crc = binascii.crc32(replacement) & 0xFFFFFFFF
         flags = entry.flag_bits & ~0x08
-        output.extend(
-            _local_header(
-                entry,
-                flags=flags,
-                crc=crc,
-                compressed_size=len(compressed),
-                file_size=len(replacement),
+        stats = {"flags": flags, "crc": crc, "compressed_size": len(compressed), "file_size": len(replacement)}
+        records.append(
+            (
+                _local_header(entry, **stats) + compressed,
+                _central_header(entry, **stats, header_offset=0),
             )
         )
-        output.extend(compressed)
-        new_stats[entry.filename] = (flags, crc, len(compressed), len(replacement))
-
-    cd_offset = len(output)
-    for entry in entries:
-        flags, crc, compressed_size, file_size = new_stats[entry.filename]
-        output.extend(
-            _central_header(
-                entry,
-                flags=flags,
-                crc=crc,
-                compressed_size=compressed_size,
-                file_size=file_size,
-                header_offset=new_offsets[entry.filename],
-            )
-        )
-    cd_size = len(output) - cd_offset
-    output.extend(_eocd_with_offsets(eocd, cd_size=cd_size, cd_offset=cd_offset))
-    return bytes(output)
+    central_order = [position[entry.filename] for entry in archive.entries]
+    return assemble(records, archive.eocd, central_order=central_order)
 
 
 def _compress_for_entry(payload: bytes, compress_type: int) -> bytes:
@@ -1002,7 +876,7 @@ def _compress_for_entry(payload: bytes, compress_type: int) -> bytes:
 
 
 def _local_header(
-    entry: _ZipCentralEntry,
+    entry: CentralEntry,
     *,
     flags: int,
     crc: int,
@@ -1049,7 +923,7 @@ def _local_header(
 
 
 def _central_header(
-    entry: _ZipCentralEntry,
+    entry: CentralEntry,
     *,
     flags: int,
     crc: int,
@@ -1101,14 +975,6 @@ def _central_header(
         + entry.extra
         + entry.comment
     )
-
-
-def _eocd_with_offsets(eocd: bytes, *, cd_size: int, cd_offset: int) -> bytes:
-    if cd_size > 0xFFFFFFFF or cd_offset > 0xFFFFFFFF:
-        raise ValueError("ZIP64 output would be required")
-    updated = bytearray(eocd)
-    struct.pack_into("<II", updated, 12, cd_size, cd_offset)
-    return bytes(updated)
 
 
 __all__ = [

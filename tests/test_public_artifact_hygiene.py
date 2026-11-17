@@ -82,12 +82,14 @@ def hygiene_git_repo(tmp_path: Path) -> Path:
     _git(repo, "init", "--quiet")
     _git(repo, "config", "user.name", "Hygiene Test")
     _git(repo, "config", "user.email", "hygiene@example.invalid")
+    # Git hands back what was written, whatever the machine's global line-ending setting (Windows).
+    _git(repo, "config", "core.autocrlf", "false")
     tracked = repo / "tracked.md"
-    tracked.write_text("safe\n", encoding="utf-8")
+    tracked.write_text("safe\n", encoding="utf-8", newline="\n")
     deleted = repo / "deleted.md"
     deleted.write_text(
         "/" + "Users" + "/private/deleted-before-commit\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     _git(repo, "add", "tracked.md", "deleted.md")
     _git(repo, "commit", "--quiet", "-m", "baseline")
@@ -316,7 +318,7 @@ def test_hygiene_reads_staged_add_from_index_when_worktree_file_is_gone(
     staged = hygiene_git_repo / "staged-only.md"
     staged.write_text(
         "/" + "Users" + "/private/index-only\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     _git(hygiene_git_repo, "add", "staged-only.md")
     staged.unlink()
@@ -339,10 +341,10 @@ def test_hygiene_distinguishes_staged_and_worktree_modifications(
     tracked = hygiene_git_repo / "tracked.md"
     tracked.write_text(
         "/" + "Users" + "/private/staged-version\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     _git(hygiene_git_repo, "add", "tracked.md")
-    tracked.write_text("safe worktree version\n", encoding="utf-8")
+    tracked.write_text("safe worktree version\n", encoding="utf-8", newline="\n")
 
     files = hygiene._publication_files(hygiene_git_repo)
     views = {
@@ -404,7 +406,7 @@ def test_distribution_hygiene_reads_gitignored_release_artifacts(
     hygiene_git_repo: Path,
 ) -> None:
     gitignore = hygiene_git_repo / ".gitignore"
-    gitignore.write_text("dist/\n", encoding="utf-8")
+    gitignore.write_text("dist/\n", encoding="utf-8", newline="\n")
     _git(hygiene_git_repo, "add", ".gitignore")
     _git(hygiene_git_repo, "commit", "--quiet", "-m", "ignore build output")
     dist = hygiene_git_repo / "dist"
@@ -554,7 +556,7 @@ def test_hygiene_reads_symlink_target_without_following_it(
     hygiene_git_repo: Path,
 ) -> None:
     target = hygiene_git_repo / "outside.txt"
-    target.write_text("outside contents\n", encoding="utf-8")
+    target.write_text("outside contents\n", encoding="utf-8", newline="\n")
     link = hygiene_git_repo / "link.txt"
     os.symlink("outside.txt", link)
 

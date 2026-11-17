@@ -8,6 +8,7 @@ import io
 import struct
 import warnings
 import zipfile
+import zlib
 from pathlib import Path
 
 import pytest
@@ -498,9 +499,10 @@ def test_a_new_documents_scripts_are_kept_as_none() -> None:
         "",
     ]
     assert not [name for name in convert(hwp).files if name.startswith("Scripts/")]
-    # With no script parts at all the stream is the empty one Hancom writes.
+    # With no script parts at all the stream holds what Hancom's empty one holds. Compared inflated: the
+    # deflated bytes depend on the deflate this Python has (zlib, zlib-ng).
     empty = cfb.CompoundFile(write_hwp5(_with_print_info(_PRINT_ITEMS))).read("Scripts/DefaultJScript")
-    assert empty == bytes.fromhex("63604005ff8100006ebb6ed114000000")
+    assert zlib.decompress(empty, -15) == zlib.decompress(bytes.fromhex("63604005ff8100006ebb6ed114000000"), -15)
 
 
 @pytest.mark.parametrize(("password", "words"), [(False, (56, 0)), (True, (56, 4))])

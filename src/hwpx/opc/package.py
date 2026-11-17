@@ -47,10 +47,12 @@ from .relationships import (
 from .security import (
     guard_zip_file,
     open_archive,
+    read_member,
     read_zip_members,
     register_written_archive,
     sharing_archive_reads,
 )
+from .zip_records import ZipRecords, ZipRecordsUnsupported, assemble, read_records
 from .xml_utils import (
     extract_xml_declaration,
     iter_declared_namespaces,
@@ -377,6 +379,77 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
         return
 
 
+#: The ZipInfo fields a save carries from the source entry (see ``HwpxPackage._zip_info_for_write``); an
+#: entry is copied from the source only when every one of them is what the source had.
+_RECORD_FIELDS = (
+    "date_time",
+    "compress_type",
+    "comment",
+    "extra",
+    "create_system",
+    "create_version",
+    "extract_version",
+    "flag_bits",
+    "volume",
+    "internal_attr",
+    "external_attr",
+)
+
+
+def _archive_bytes(stream: str | Path | BinaryIO) -> bytes:
+    """All of *stream*'s bytes: the file at a path, or a seekable stream read from its start."""
+
+    if isinstance(stream, (str, os.PathLike)):
+        return Path(stream).read_bytes()
+    if isinstance(stream, io.BytesIO):
+        return stream.getvalue()
+    stream.seek(0)
+    data = stream.read()
+    if not isinstance(data, (bytes, bytearray)):
+        raise BadZipFile("the stream did not give bytes")
+    return bytes(data)
+
+
+@dataclass(frozen=True)
+class ZipRecordsOutcome:
+    """What one archive build did with the source archive's records.
+
+    ``copied`` are the entries written with the source's local record, byte for byte. ``rewritten_reason``
+    is set when the source's records could not be used at all (``"zip64"``, ``"duplicate-entry-names"``,
+    ...; see :mod:`hwpx.opc.zip_records`) and every entry was compressed again; ``"no-source"`` for a
+    package that was not opened from an archive (``new()``, a converted ``.hwp``)."""
+
+    copied: frozenset[str]
+    rewritten_reason: str | None
+
+    @classmethod
+    def no_source(cls) -> "ZipRecordsOutcome":
+        return cls(copied=frozenset(), rewritten_reason="no-source")
+
+
+class _SourceArchive:
+    """The archive a package was opened from: its bytes, the content and ZipInfo of each entry as read,
+    and (on first use) where each record lies."""
+
+    def __init__(self, data: bytes, contents: dict[str, bytes], infos: dict[str, ZipInfo]) -> None:
+        self.data = data
+        self.contents = contents
+        self.infos = infos
+        self._records: ZipRecords | None = None
+        self._unsupported: ZipRecordsUnsupported | None = None
+
+    def records(self) -> ZipRecords:
+        if self._unsupported is not None:
+            raise self._unsupported
+        if self._records is None:
+            try:
+                self._records = read_records(self.data)
+            except ZipRecordsUnsupported as exc:
+                self._unsupported = exc
+                raise
+        return self._records
+
+
 def _write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
     checkpoint = _capture_stream_checkpoint(stream)
     if checkpoint is None:
@@ -638,6 +711,13 @@ class HwpxPackage:
         self._settings_path_cache: str | None = None
         self._settings_path_cache_resolved = False
         self._archive_write_depth = 0
+        # The archive this package was opened from, to copy the local record of every entry a save leaves
+        # unchanged (see _assemble_archive). None for a package built from parts (new(), a converted .hwp).
+        self._source_archive: _SourceArchive | None = None
+        # What the last archive build did with the source's records (MutationReport.preservation).
+        self._zip_records_outcome: ZipRecordsOutcome = ZipRecordsOutcome.no_source()
+        # The last archive this package built, kept until a clean save makes it the new source.
+        self._last_built_archive: _SourceArchive | None = None
         # SHA-256 of the last archive bytes this package's save verified as
         # editor-open safe (see _save_to_zip); None until such a save.
         self._verified_archive_digest: bytes | None = None
@@ -764,13 +844,13 @@ class HwpxPackage:
             stream: str | Path | BinaryIO = io.BytesIO(pkg_file)
         else:
             stream = pkg_file
+        # The archive's own bytes, read once: a save copies the records of unchanged entries from them.
+        source_bytes = _archive_bytes(stream)
 
         try:
             # In-memory input goes through ``open_archive`` so the reopen a save
             # does of its own output shares that save's member reads.
-            with (
-                open_archive(stream) if isinstance(stream, io.BytesIO) else ZipFile(stream, "r")
-            ) as zf:
+            with open_archive(source_bytes) as zf:
                 guard_zip_file(zf)
                 infos = [info for info in zf.infolist() if not info.is_dir()]
                 files = read_zip_members(zf)
@@ -815,6 +895,7 @@ class HwpxPackage:
                 zip_infos=zip_infos,
                 zip_order=zip_order,
             )
+        package._source_archive = _SourceArchive(source_bytes, dict(files), dict(zip_infos))
         return package
 
     @staticmethod
@@ -1524,28 +1605,36 @@ class HwpxPackage:
         self._normalize_named_style_references_for_safety()
         self._validate_structure()
 
+        payload = self._assemble_archive()
+        # The integrity test inflates every member; the checks that follow
+        # read those same members instead of inflating them again.
+        with sharing_archive_reads():
+            register_written_archive(payload)
+            with open_archive(payload) as zf_check:
+                bad = zf_check.testzip()
+                if bad is not None:
+                    raise HwpxPackageError(
+                        f"ZIP integrity check failed for entry '{bad}'"
+                    )
+                self._check_written_entries(zf_check)
+            if verify_open_safety:
+                report = self._verify_editor_open_safe_archive(payload)
+                # Remember which exact bytes passed, so the document-level
+                # check of the same save need not run the validation again.
+                verified = report is not None and report.ok
+                self._verified_archive_digest = hashlib.sha256(payload).digest() if verified else None
+                self._verified_archive_report = report if verified else None
+
         if isinstance(pkg_file, (str, Path)):
-            # Atomic write: write to a temp file first, verify, then rename.
+            # Atomic write: write to a temp file first, then rename.
             target = Path(pkg_file)
             fd, tmp_path = tempfile.mkstemp(
                 dir=str(target.parent), suffix=".hwpx.tmp"
             )
             try:
                 with os.fdopen(fd, "wb") as tmp_fh:
-                    with ZipFile(tmp_fh, "w") as zf:
-                        self._write_archive_from_save(zf)
-                # Verify archive integrity before replacing the original.
-                with ZipFile(tmp_path, "r") as zf_check:
-                    bad = zf_check.testzip()
-                    if bad is not None:
-                        raise HwpxPackageError(
-                            f"ZIP integrity check failed for entry '{bad}'"
-                        )
-                if verify_open_safety:
-                    self._verify_editor_open_safe_archive(Path(tmp_path))
+                    tmp_fh.write(payload)
                 os.replace(tmp_path, str(target))
-                if mark_clean and version_was_dirty:
-                    self._version.mark_clean()
             except BaseException:
                 # Clean up the temp file on any error.
                 try:
@@ -1554,31 +1643,111 @@ class HwpxPackage:
                     pass
                 raise
         else:
-            # Stream target: write to a BytesIO first, verify, then copy.
-            buffer = io.BytesIO()
-            with ZipFile(buffer, "w") as zf:
-                self._write_archive_from_save(zf)
-            payload = buffer.getvalue()
-            # The integrity test inflates every member; the checks that follow
-            # read those same members instead of inflating them again.
-            with sharing_archive_reads():
-                register_written_archive(payload)
-                with open_archive(payload) as zf_check:
-                    bad = zf_check.testzip()
-                    if bad is not None:
-                        raise HwpxPackageError(
-                            f"ZIP integrity check failed for entry '{bad}'"
-                        )
-                if verify_open_safety:
-                    report = self._verify_editor_open_safe_archive(payload)
-                    # Remember which exact bytes passed, so the document-level
-                    # check of the same save need not run the validation again.
-                    verified = report is not None and report.ok
-                    self._verified_archive_digest = hashlib.sha256(payload).digest() if verified else None
-                    self._verified_archive_report = report if verified else None
             _write_stream_or_rollback(pkg_file, payload)
-            if mark_clean and version_was_dirty:
-                self._version.mark_clean()
+        if mark_clean and version_was_dirty:
+            self._version.mark_clean()
+
+    def _assemble_archive(self) -> bytes:
+        """The archive this save writes.
+
+        Every entry is first written with ``zipfile`` from its content. Then, for a package opened from an
+        archive, each entry whose content and ZIP metadata are what the source had takes the source's local
+        record instead -- the compressed bytes, flags, extra field and data descriptor as they were -- so an
+        untouched part keeps its bytes whatever deflate this Python has, and a save that changed nothing
+        writes the source file again. A changed or new entry keeps the freshly compressed record. An
+        archive whose records cannot be moved one by one (:class:`ZipRecordsUnsupported`) is written as
+        ``zipfile`` wrote it, and :attr:`_zip_records_outcome` says why."""
+
+        buffer = io.BytesIO()
+        with ZipFile(buffer, "w") as zf:
+            self._write_archive_from_save(zf)
+        built = buffer.getvalue()
+        source = self._source_archive
+        self._last_built_archive = None
+        if source is None:
+            self._zip_records_outcome = ZipRecordsOutcome.no_source()
+            return built
+        try:
+            source_records = source.records()
+            built_records = read_records(built)
+        except ZipRecordsUnsupported as exc:
+            self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(), rewritten_reason=exc.reason)
+            return built
+        records: list[tuple[bytes, bytes]] = []
+        copied: set[str] = set()
+        for entry in built_records.entries:
+            original = source_records.by_name.get(entry.filename)
+            if original is not None and self._entry_unchanged(entry.filename, source):
+                records.append((source_records.local_record(original), original.raw))
+                copied.add(entry.filename)
+            else:
+                records.append((built_records.local_record(entry), entry.raw))
+        self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(copied), rewritten_reason=None)
+        written = assemble(records, source_records.eocd)
+        self._last_built_archive = _SourceArchive(
+            written,
+            dict(self._files),
+            {
+                name: self._zip_info_for_write(
+                    name, ZIP_STORED if name == self.MIMETYPE_PATH else ZIP_DEFLATED
+                )
+                for name in self._files
+            },
+        )
+        return written
+
+    def _adopt_last_archive(self) -> None:
+        """After a clean save, the archive it wrote is what the next save keeps records from (the document
+        now stands for that file). A package with no source stays without one."""
+
+        if self._source_archive is not None and self._last_built_archive is not None:
+            self._source_archive = self._last_built_archive
+        self._last_built_archive = None
+
+    def _entry_unchanged(self, name: str, source: "_SourceArchive") -> bool:
+        """True only when *name*'s content is byte for byte what the source held and the ZIP metadata this
+        save asks for is the source's own -- then the source's record is that entry. Anything else, or
+        anything uncertain, is written anew."""
+
+        if name not in source.contents or name not in source.infos:
+            return False
+        if self._files.get(name) != source.contents[name]:
+            return False
+        compress_type = ZIP_STORED if name == self.MIMETYPE_PATH else ZIP_DEFLATED
+        wanted = self._zip_info_for_write(name, compress_type)
+        original = source.infos[name]
+        return all(
+            getattr(wanted, field_name) == getattr(original, field_name)
+            for field_name in _RECORD_FIELDS
+        )
+
+    def _check_written_entries(self, archive: ZipFile) -> None:
+        """Refuse the save unless the written archive holds exactly the entries meant, in order, each with
+        the content meant -- a copied source record must never stand for content it does not hold."""
+
+        names = [info.filename for info in archive.infolist()]
+        expected = [self.MIMETYPE_PATH, *[
+            name for name in self._zip_order if name != self.MIMETYPE_PATH and name in self._files
+        ]]
+        expected += sorted(name for name in self._files if name not in expected)
+        mismatched = [] if names == expected else ["(entry list)"]
+        if not mismatched:
+            mismatched = [
+                info.filename
+                for info in archive.infolist()
+                if read_member(archive, info) != self._files[info.filename]
+            ]
+        if mismatched:
+            raise HwpxPackageError(
+                "the written archive does not hold the content this save meant to write: "
+                + ", ".join(mismatched[:5]),
+                code="save-archive-content-mismatch",
+                context={"entries": mismatched[:20]},
+                suggestion=(
+                    "nothing was written; report this with the source file -- the save copied a ZIP record "
+                    "that does not match the part's content."
+                ),
+            )
 
     @classmethod
     def _verify_editor_open_safe_archive(
