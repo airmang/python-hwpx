@@ -67,17 +67,17 @@ def _paragraph():
         (
             "reader_writer__SimpleLine.hwpx",
             f"{HP}line",
-            lambda: _create_line_element(0, 0, 22478, 8447),
+            lambda: _create_line_element(0, 0, 22478, 8447, ids=None),
         ),
         (
             "reader_writer__SimpleRectangle.hwpx",
             f"{HP}rect",
-            lambda: _create_rectangle_element(20925, 14175, fill_color="#86AFDC"),
+            lambda: _create_rectangle_element(20925, 14175, fill_color="#86AFDC", ids=None),
         ),
         (
             "reader_writer__SimpleEllipse.hwpx",
             f"{HP}ellipse",
-            lambda: _create_ellipse_element(27950, 15150, fill_color="#4B87CB"),
+            lambda: _create_ellipse_element(27950, 15150, fill_color="#4B87CB", ids=None),
         ),
     ],
 )
@@ -89,15 +89,15 @@ def test_generated_shape_matches_gold_child_sequence(fixture, tag, build) -> Non
     "build, expected",
     [
         (
-            lambda: _create_line_element(0, 0, 14400, 7200),
+            lambda: _create_line_element(0, 0, 14400, 7200, ids=None),
             [f"{HC}startPt", f"{HC}endPt"],
         ),
         (
-            lambda: _create_rectangle_element(14400, 7200),
+            lambda: _create_rectangle_element(14400, 7200, ids=None),
             [f"{HC}pt0", f"{HC}pt1", f"{HC}pt2", f"{HC}pt3"],
         ),
         (
-            lambda: _create_ellipse_element(14400, 7200),
+            lambda: _create_ellipse_element(14400, 7200, ids=None),
             [f"{HC}center", f"{HC}ax1", f"{HC}ax2"],
         ),
     ],
@@ -112,8 +112,8 @@ def test_geometry_children_use_the_core_namespace(build, expected) -> None:
 
 @pytest.mark.parametrize(
     "build", [
-        lambda: _create_rectangle_element(14400, 7200, fill_color="#CCE5FF"),
-        lambda: _create_ellipse_element(10000, 6000, fill_color="#FFD9CC"),
+        lambda: _create_rectangle_element(14400, 7200, fill_color="#CCE5FF", ids=None),
+        lambda: _create_ellipse_element(10000, 6000, fill_color="#FFD9CC", ids=None),
     ],
 )
 def test_fill_brush_uses_the_core_namespace(build) -> None:
@@ -148,7 +148,7 @@ def test_line_size_is_the_bounding_box_of_its_endpoints(start, end, expected) ->
     line; sz keeps the span itself.
     """
 
-    element = _create_line_element(start[0], start[1], end[0], end[1])
+    element = _create_line_element(start[0], start[1], end[0], end[1], ids=None)
 
     for tag in ("orgSz", "curSz", "sz"):
         box = element.find(f"{HP}{tag}")
@@ -169,7 +169,7 @@ def test_line_size_is_the_bounding_box_of_its_endpoints(start, end, expected) ->
 def test_a_straight_line_keeps_a_box_of_at_least_one(end) -> None:
     """A horizontal or vertical line with a 0 side in orgSz is not drawn."""
 
-    element = _create_line_element(0, 0, *end)
+    element = _create_line_element(0, 0, *end, ids=None)
 
     for tag in ("orgSz", "curSz"):
         box = element.find(f"{HP}{tag}")
@@ -195,7 +195,7 @@ def test_resizing_a_flat_line_keeps_its_original_box() -> None:
 def test_diagonal_line_is_not_sized_by_its_hypotenuse() -> None:
     """The old sizing wrote 16099x0 for a line whose own endPt said 14400x7200."""
 
-    box = _create_line_element(0, 0, 14400, 7200).find(f"{HP}orgSz")
+    box = _create_line_element(0, 0, 14400, 7200, ids=None).find(f"{HP}orgSz")
     assert box is not None
     assert box.get("width") != "16099"
     assert box.get("height") != "0"

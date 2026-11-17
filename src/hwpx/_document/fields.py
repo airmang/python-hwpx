@@ -969,13 +969,14 @@ def add_cross_reference(
     from ..oxml._document_primitives import _object_id
     from ..oxml.field_marks import field_type_id
 
-    field_id = _object_id()
+    ids = paragraph.section._ids  # the source of the document the reference goes into
+    field_id = _object_id(ids)
     begin_run = paragraph._create_run_for_object()
     ctrl = begin_run.makeelement(f"{_HP}ctrl", {})
     begin_run.append(ctrl)
     begin = ctrl.makeelement(f"{_HP}fieldBegin", {
         "id": field_id, "type": "CROSSREF", "name": "", "editable": "0", "dirty": "0", "zorder": "-1",
-        "fieldid": field_type_id("CROSSREF"), "metaTag": "",
+        "fieldid": field_type_id("CROSSREF", ids=ids), "metaTag": "",
     })
     ctrl.append(begin)
     _write_cross_reference(begin, path=path, ref_type=ref_type, content_type=content_type, hyperlink=hyperlink)

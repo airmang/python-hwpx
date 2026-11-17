@@ -68,6 +68,7 @@ from ._document_primitives import (
 from .objects import HwpxOxmlInlineObject
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     from .paragraph import HwpxOxmlParagraph
 
 __all__ = ["DROP_CAP_STYLES", "create_drop_cap_element"]
@@ -93,6 +94,7 @@ def create_drop_cap_element(
     height: int,
     character: str,
     *,
+    ids: "IdSource | None",
     style: str = "TripleLine",
     char_pr_id_ref: str | int | None = None,
     para_pr_id_ref: str | int | None = None,
@@ -128,7 +130,7 @@ def create_drop_cap_element(
 
     w = str(width)
     h = str(height)
-    object_id = _object_id()
+    object_id = _object_id(ids)
 
     el = ET.Element(f"{_HP}rect", {
         "id": object_id,
@@ -188,7 +190,7 @@ def create_drop_cap_element(
         "textWidth": "0", "textHeight": "0", "hasTextRef": "0", "hasNumRef": "0",
     })
     inner_paragraph = _append_child(sub_list, f"{_HP}p", {
-        "id": _paragraph_id(),
+        "id": _paragraph_id(ids),
         "paraPrIDRef": str(para_pr_id_ref) if para_pr_id_ref is not None else "0",
         "styleIDRef": "0", "pageBreak": "0", "columnBreak": "0", "merged": "0",
     })
@@ -260,7 +262,7 @@ def _paragraph_add_drop_cap(
     """
 
     drop_cap = create_drop_cap_element(
-        width, height, character, style=style, char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref
+        width, height, character, ids=self.section._ids, style=style, char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref
     )
     text_run = next((run for run in self._run_elements() if run.find(f"{_HP}t") is not None), None)
     run = text_run if text_run is not None else self._create_run_for_object(run_attributes)

@@ -208,7 +208,7 @@ def add_master_page(
     sub_list = _append_child(root, f"{_HP}subList", sub_list_attrs)
     for line in body_lines:
         para = _append_child(
-            sub_list, f"{_HP}p", {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+            sub_list, f"{_HP}p", {"id": _paragraph_id(document._id_source), **_DEFAULT_PARAGRAPH_ATTRS}
         )
         run = _append_child(para, f"{_HP}run", {"charPrIDRef": "0"})
         text_el = _append_child(run, f"{_HP}t", {})
@@ -336,7 +336,8 @@ def add_master_page_paragraph(
     )
     sub_list = _master_page_sublist(master_page, create=True)
     assert sub_list is not None
-    attributes = {**_DEFAULT_PARAGRAPH_ATTRS, "id": _paragraph_id()}
+    owner = master_page.document
+    attributes = {**_DEFAULT_PARAGRAPH_ATTRS, "id": _paragraph_id(owner._id_source if owner is not None else None)}
     if para_pr_id_ref is not None:
         attributes["paraPrIDRef"] = str(para_pr_id_ref)
     if style_id_ref is not None:

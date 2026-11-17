@@ -47,6 +47,7 @@ from ._document_primitives import _HC, _HP
 from .color import normalize_color
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     import xml.etree.ElementTree as ET
 
     from ..objects.results import CellMargins, ObjectPosition
@@ -2744,7 +2745,7 @@ def _let_go_of_outside(element: Any, kept: dict[str, str]) -> None:
                 end.set("subjectIDRef", kept.get(subject, "0"))
 
 
-def fresh_copy(element: Any) -> Any:
+def fresh_copy(element: Any, *, ids: "IdSource | None") -> Any:
     """A copy of the object *element* with fresh ids (objects, tables, paragraphs, fields), no line
     layout caches and its connectors following the copied objects."""
 
@@ -2757,14 +2758,14 @@ def fresh_copy(element: Any) -> Any:
     copy.tail = None
     before = [(node, node.get("instid")) for node in copy.iter() if node.get("instid") not in (None, "", "0")]
     members = [node for node in copy.iter() if _local(node) != "p" and node.get("id") == "0"]
-    _refresh_copied_paragraph_subtree_ids(copy)
+    _refresh_copied_paragraph_subtree_ids(copy, ids=ids)
     for node in copy.iter():
         if _local(node) in _COPY_RENEWED_IDS and node.get("id") not in (None, "", "0"):
-            node.set("id", _object_id())
+            node.set("id", _object_id(ids))
     for node in members:  # a group member's id="0", as Hancom writes members, stays
         node.set("id", "0")
     _let_go_of_outside(copy, {old: str(node.get("instid")) for node, old in before})
-    renumber_copied_fields(copy)
+    renumber_copied_fields(copy, ids=ids)
     for node in copy.iter():
         if _local(node) == "p":
             _clear_paragraph_layout_cache(node)
@@ -2964,7 +2965,7 @@ def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, of
     changes = _check_place(element, source, target)
     if offset is not None:
         _check_offset("offset", offset, 0, len(target.text))
-    placed = fresh_copy(element)
+    placed = fresh_copy(element, ids=target.section._ids)
     carry_object_parts(placed, source.section.document, target.section.document)
     position = placed.find(f"{_HP}pos")
     if position is not None:
@@ -3037,7 +3038,7 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool, ke
     if offset is not None:
         _check_offset("offset", offset, 0, len(target.text))
     if copy:
-        placed = fresh_copy(element)
+        placed = fresh_copy(element, ids=target.section._ids)
         renew_copied_memos(placed, _sections_of(source), target.section)
     else:
         _detach_object(element, parent, source.element, source.section)

@@ -172,9 +172,14 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_engine_contract.py::test_unknown_elements_are_written_as_read`
 7. **결정 모드에서는 만들기도 결정적이다.** `HwpxDocument.new(seed=, now=)`·
    `HwpxDocument.open(..., seed=, now=)` 는 새 id와 날짜를 정해진 값으로 만들어, 같은 코드가 어느
-   프로세스에서나 같은 바이트를 쓴다. 주지 않으면 id는 무작위다.
+   프로세스에서나 같은 바이트를 쓴다. 주지 않으면 id는 무작위다. 이 값은 그 문서에만 쓰인다: 같은
+   스레드에서 다른 문서를 함께 열거나 만들거나 고치거나 닫아도(닫지 않고 버려도) 그 문서의 바이트는
+   그 문서만 따로 만들었을 때와 같고, seed 없는 문서는 무작위 id 를 받는다. 다른 문서에서 복사해 온
+   내용의 새 id 는 받는 문서의 것이다. 그룹 부재(`ContainerMember`)는 id 없이 만들어지고, 문서가 그것을 받을 때
+   (`doc.shapes.add_container`) 그 문서의 id 를 받는다.
    `tests/test_deterministic_creation.py::test_two_processes_with_seed_and_now_write_identical_parts`,
-   `tests/test_deterministic_creation.py::test_open_with_seed_makes_edits_deterministic`
+   `tests/test_deterministic_creation.py::test_open_with_seed_makes_edits_deterministic`,
+   `tests/test_id_source_per_document.py::test_two_seeded_documents_edited_in_turn_each_write_what_they_write_alone`
 8. **실패는 `HwpxError` 다.** 공개 경로의 실패는 `hwpx.errors.HwpxError` 계열(대체한 내장 예외도
    함께 상속)로 나가고 `code`·`suggestion` 을 싣는다. 잘못된 타입의 인자도 내장
    `TypeError`·`AttributeError` 가 그대로 새지 않는다(운영체제·손상 패키지 실패는 아래

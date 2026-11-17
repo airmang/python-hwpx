@@ -33,7 +33,7 @@ from .opc.package import (
     structure_errors,
 )
 from .oxml.namespaces import register_owpml_namespaces
-from .oxml._document_primitives import IdSource, active_id_source, install_id_source
+from .oxml._document_primitives import IdSource
 from .oxml.table_sizes import new_table_width
 from .mutation_report import Fallback, Mode, MutationReport
 from .quality import QualityPolicy, SavePipeline
@@ -123,9 +123,8 @@ class HwpxDocument(metaclass=_DocumentType):
         # True while a document from new() still has only its empty first paragraph: the first
         # paragraph added then takes that line (see _take_first_line).
         self._first_line_free = False
-        # The id/clock source from new(seed=..., now=...) / open(...), and the one it replaced.
+        # The id/clock source from new(seed=..., now=...) / open(...): this document's only.
         self._id_source: IdSource | None = None
-        self._replaced_id_source: IdSource | None = None
 
     if not TYPE_CHECKING:  # 타입 검사기에는 숨긴다: 없는 이름을 정적으로 계속 잡게.
 
@@ -173,6 +172,8 @@ class HwpxDocument(metaclass=_DocumentType):
         ``seed=``·``now=`` 는 :meth:`new` 와 같다: 이 문서를 고치며 새로 생기는
         문단·개체·메모 id 와 메모·변경 추적의 날짜를 고정해서, 같은 파일에 같은
         편집을 하면 같은 바이트가 나온다. 파일에 이미 있는 값은 바꾸지 않는다.
+        이 값은 이 문서에만 쓰인다: 함께 열린 다른 문서는 이 seed 를 쓰지 않고,
+        이 문서의 결과를 바꾸지도 않는다.
 
         Raises:
             FileNotFoundError: 경로에 파일이 없다. 그 밖의 ``OSError``(권한 등)도
@@ -286,7 +287,7 @@ class HwpxDocument(metaclass=_DocumentType):
         if source is None:
             return
         self._id_source = source
-        self._replaced_id_source = install_id_source(source)
+        self._root._id_source = source
 
     @classmethod
     def new(
@@ -332,12 +333,17 @@ class HwpxDocument(metaclass=_DocumentType):
         the random ones (1 .. 2**31 - 1) and do not repeat. *now* (a
         ``datetime``; a naive one is local time) is written as the creation and
         modification date and used for every memo or tracked change made without
-        its own date. Both stay in force until :meth:`close` (or the end of a
-        ``with`` block); ids minted meanwhile for another document in the same
-        thread come from the same seed. Without them a document gets random ids
-        and the current time, as before: documents made separately must not share
-        ids when their content is later combined. ``SOURCE_DATE_EPOCH`` still
-        fixes the dates when *now* is not given.
+        its own date. Both belong to this document until :meth:`close` (or the
+        end of a ``with`` block): another document made, edited, closed or left
+        unclosed meanwhile neither uses them nor changes what this one writes, so
+        a document writes the same bytes whatever else is open. Content copied in
+        from another document (``paragraph.copy_to``, ``obj.copy_to``,
+        ``insert_document``) gets this document's ids. A group member
+        (``ContainerMember``) is made without an id and gets one when a
+        document takes it (``doc.shapes.add_container``). Without them a document
+        gets random ids and the current time, as before: documents made
+        separately must not share ids when their content is later combined.
+        ``SOURCE_DATE_EPOCH`` still fixes the dates when *now* is not given.
         """
 
         source = cls._id_source_for(seed, now, "new")
@@ -382,8 +388,7 @@ class HwpxDocument(metaclass=_DocumentType):
             self._close_resource(resource)
 
         self._managed_resources.clear()
-        if self._id_source is not None and active_id_source() is self._id_source:
-            install_id_source(self._replaced_id_source)
+        self._root._id_source = None  # ids made after close are random, as before new(seed=)
         self._closed = True
 
     @staticmethod

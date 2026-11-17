@@ -80,7 +80,7 @@ def test_clone_reissues_the_note_inst_id() -> None:
     original = next(iter(_note_elements(document))).get("instId")
     assert original
 
-    cloned = _clone_paragraph_element(paragraph.element)
+    cloned = _clone_paragraph_element(paragraph.element, ids=None)
     cloned_note = next(el for el in cloned.iter() if el.tag == f"{HP}footNote")
     assert cloned_note.get("instId"), "복제본에서 instId가 사라졌다"
     assert cloned_note.get("instId") != original, "복제본 instId가 재발급되지 않았다 (중복 인스턴스 ID)"
@@ -94,7 +94,7 @@ def test_clone_reissues_an_old_lowercase_note_value_but_keeps_its_name() -> None
     old = run.makeelement(f"{HP}footNote", {"instid": "9999"})
     run.append(old)
 
-    cloned = _clone_paragraph_element(paragraph.element)
+    cloned = _clone_paragraph_element(paragraph.element, ids=None)
     cloned_note = next(el for el in cloned.iter() if el.tag == f"{HP}footNote")
     assert cloned_note.get("instid") not in (None, "9999"), "옛 산출물의 instid도 값 재발급 대상"
     assert cloned_note.get("instId") is None, "속성명은 그대로 둔다"

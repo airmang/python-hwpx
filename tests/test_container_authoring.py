@@ -121,7 +121,7 @@ def test_create_container_element_computes_union_bounding_box() -> None:
     element = _create_container_element([
         ContainerMember.rect(0, 0, 5000, 3000),
         ContainerMember.ellipse(6000, 500, 4000, 4000),
-    ])
+    ], ids=None)
     org_sz = element.find(f"{HP}orgSz")
     assert org_sz is not None
     # max_x = 6000+4000=10000, max_y = 500+4000=4500; min both 0.
@@ -135,7 +135,7 @@ def test_create_container_element_translates_members_when_min_is_not_zero() -> N
     element = _create_container_element([
         ContainerMember.rect(1000, 2000, 3000, 1000),
         ContainerMember.rect(4000, 2000, 1000, 1000),
-    ])
+    ], ids=None)
     members = [c for c in element if _local(c.tag) in _MEMBER_TAGS]
     offsets = [
         (m.find(f"{HP}offset").get("x"), m.find(f"{HP}offset").get("y"))
@@ -147,7 +147,7 @@ def test_create_container_element_translates_members_when_min_is_not_zero() -> N
 
 
 def test_create_container_element_sets_group_level_and_shared_member_id() -> None:
-    element = _create_container_element([ContainerMember.rect(0, 0, 1000, 1000)])
+    element = _create_container_element([ContainerMember.rect(0, 0, 1000, 1000)], ids=None)
     assert element.get("groupLevel") == "0"
     assert element.get("numberingType") == "PICTURE"
     member = next(c for c in element if _local(c.tag) in _MEMBER_TAGS)
@@ -161,7 +161,7 @@ def test_create_container_element_strips_member_shape_object_tail() -> None:
     sz/pos/outMargin을 이미 갖고 있다 — 컨테이너로 들어갈 때 그 꼬리를
     제거해야 골드와 일치한다."""
 
-    element = _create_container_element([ContainerMember.rect(0, 0, 1000, 1000)])
+    element = _create_container_element([ContainerMember.rect(0, 0, 1000, 1000)], ids=None)
     member = next(c for c in element if _local(c.tag) in _MEMBER_TAGS)
     assert member.find(f"{HP}sz") is None
     assert member.find(f"{HP}pos") is None
@@ -175,7 +175,7 @@ def test_create_container_element_strips_member_shape_object_tail() -> None:
 
 def test_create_container_element_rejects_empty_members() -> None:
     with pytest.raises(HwpxValueError) as excinfo:
-        _create_container_element([])
+        _create_container_element([], ids=None)
     assert excinfo.value.code == "shape-container-no-members"
 
 
@@ -184,7 +184,7 @@ def test_create_container_element_preserves_member_fill_and_geometry() -> None:
 
     element = _create_container_element([
         ContainerMember.rect(0, 0, 5000, 3000, fill_color="#CCE5FF"),
-    ])
+    ], ids=None)
     member = next(c for c in element if _local(c.tag) == "rect")
     brush = member.find(f"{HC}fillBrush/{HC}winBrush")
     assert brush is not None

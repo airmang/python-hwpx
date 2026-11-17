@@ -31,7 +31,7 @@ import xml.etree.ElementTree as ET
 
 from hwpx.opc.relationships import resolve_part_name
 
-from ._document_primitives import _HP, _element_local_name, _object_id
+from ._document_primitives import _HP, IdSource, _element_local_name, _object_id
 from .section import HwpxOxmlSection
 
 if TYPE_CHECKING:
@@ -101,6 +101,8 @@ def renderable_section_carriers(
 
 def copy_renderable_section_layout(
     section: HwpxOxmlSection,
+    *,
+    ids: "IdSource | None",
 ) -> tuple[ET.Element, ET.Element] | None:
     """Return story-free ``secPr`` and ``colPr`` carriers from *section*.
 
@@ -137,7 +139,7 @@ def copy_renderable_section_layout(
     copied_column_properties = deepcopy(column_properties)
     column_id = copied_column_properties.get("id")
     if column_id:
-        copied_column_properties.set("id", _object_id())
+        copied_column_properties.set("id", _object_id(ids))
     elif column_id is None:
         copied_column_properties.set("id", "")
     copied_column_control.append(copied_column_properties)

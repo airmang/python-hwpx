@@ -582,7 +582,7 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         paragraph = sublist.find(f"{_HP}p")
         if paragraph is None:
             paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
-            paragraph_attrs["id"] = _paragraph_id()
+            paragraph_attrs["id"] = _paragraph_id(self._properties.section._ids)
             paragraph = _append_child(sublist, f"{_HP}p", paragraph_attrs)
         run = paragraph.find(f"{_HP}run")
         if run is None:
@@ -746,7 +746,7 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
 
         sublist = self._ensure_sublist()
         paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
-        paragraph_attrs["id"] = _paragraph_id()
+        paragraph_attrs["id"] = _paragraph_id(self._properties.section._ids)
         if align:
             document = self._properties.section.document
             if document is not None and document.headers:

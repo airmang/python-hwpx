@@ -39,6 +39,7 @@ from .shape_position import (
 )
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     from typing import Union
 
     from ..objects.binary_item import BinaryItem
@@ -397,6 +398,7 @@ def _build_shape_common_children(
     width: int,
     height: int,
     *,
+    ids: "IdSource | None",
     treat_as_char: bool = True,
     inst_id: str | None = None,
     flip_horizontal: bool = False,
@@ -417,7 +419,7 @@ def _build_shape_common_children(
         sz, pos, outMargin
     """
     w, h = map(str, validate_shape_size(width, height))  # Hancom reads a negative size as 0
-    the_id = inst_id or _object_id()
+    the_id = inst_id or _object_id(ids)
 
     parent.set("id", the_id)
     parent.set("zOrder", "0")
@@ -540,6 +542,7 @@ def _create_line_element(
     end_x: int,
     end_y: int,
     *,
+    ids: "IdSource | None",
     line_color: str = "#000000",
     line_width: str = "33",
     treat_as_char: bool = True,
@@ -557,7 +560,7 @@ def _create_line_element(
     # 1) AbstractShapeComponentType children (offset, orgSz, … renderingInfo).
     # orgSz/curSz keep at least 1 on each side, as Hancom writes a horizontal
     # line (w x 1): with a 0 side Hancom does not draw the line at all.
-    _build_shape_common_children(el, max(w, 1), max(h, 1), treat_as_char=treat_as_char)
+    _build_shape_common_children(el, max(w, 1), max(h, 1), ids=ids, treat_as_char=treat_as_char)
     # 2) AbstractDrawingObjectType children (lineShape, shadow)
     _build_drawing_object_children(
         el, line_color=line_color, line_width=line_width,
@@ -574,6 +577,7 @@ def _create_rectangle_element(
     width: int,
     height: int,
     *,
+    ids: "IdSource | None",
     ratio: int = 0,
     line_color: str = "#000000",
     line_width: str = "33",
@@ -582,7 +586,7 @@ def _create_rectangle_element(
 ) -> ET.Element:
     """Build a complete ``<hp:rect>`` element matching real HWPX output."""
     el = ET.Element(f"{_HP}rect", {"ratio": str(validate_rect_ratio(ratio))})
-    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_shape_common_children(el, width, height, ids=ids, treat_as_char=treat_as_char)
     _build_drawing_object_children(
         el, line_color=line_color, line_width=line_width,
         fill_color=fill_color,
@@ -599,6 +603,7 @@ def _create_ellipse_element(
     width: int,
     height: int,
     *,
+    ids: "IdSource | None",
     line_color: str = "#000000",
     line_width: str = "33",
     fill_color: str | None = None,
@@ -610,7 +615,7 @@ def _create_ellipse_element(
         "hasArcPr": "0",
         "arcType": "NORMAL",
     })
-    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_shape_common_children(el, width, height, ids=ids, treat_as_char=treat_as_char)
     _build_drawing_object_children(
         el, line_color=line_color, line_width=line_width,
         fill_color=fill_color,
@@ -653,6 +658,7 @@ def _create_arc_element(
     width: int,
     height: int,
     *,
+    ids: "IdSource | None",
     corner: str = "TOP_LEFT",
     arc_type: str = "NORMAL",
     line_color: str = "#000000",
@@ -685,7 +691,7 @@ def _create_arc_element(
 
     el = ET.Element(f"{_HP}arc", {"type": arc_type})
     _build_shape_common_children(
-        el, width, height, treat_as_char=treat_as_char,
+        el, width, height, ids=ids, treat_as_char=treat_as_char,
         flip_horizontal=flip_horizontal, flip_vertical=flip_vertical,
     )
     _build_drawing_object_children(
@@ -701,6 +707,7 @@ def _create_arc_element(
 def _create_polygon_element(
     points: Sequence[tuple[int, int]],
     *,
+    ids: "IdSource | None",
     line_color: str = "#000000",
     line_width: str = "33",
     fill_color: str | None = None,
@@ -725,7 +732,7 @@ def _create_polygon_element(
     height = max(ys) - min_y
 
     el = ET.Element(f"{_HP}polygon")
-    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_shape_common_children(el, width, height, ids=ids, treat_as_char=treat_as_char)
     _build_drawing_object_children(
         el, line_color=line_color, line_width=line_width, fill_color=fill_color,
     )
@@ -753,6 +760,7 @@ def _create_picture_element(
     width: int,
     height: int,
     *,
+    ids: "IdSource | None",
     alignment: str | None = None,
     treat_as_char: bool = True,
     pos_overrides: dict[str, str | int] | None = None,
@@ -794,7 +802,7 @@ def _create_picture_element(
         "textFlow": "BOTH_SIDES",
         "reverse": "0",
     })
-    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_shape_common_children(el, width, height, ids=ids, treat_as_char=treat_as_char)
     el.set("numberingType", "PICTURE")
 
     if border is not None:
@@ -979,6 +987,7 @@ def _paragraph_add_picture(
         str(item_id),
         width,
         height,
+        ids=self.section._ids,
         alignment=alignment,
         treat_as_char=treat_as_char,
         pos_overrides=pos_overrides,
@@ -1029,6 +1038,7 @@ def _paragraph_add_line(
     """
     el = _create_line_element(
         start_x, start_y, end_x, end_y,
+        ids=self.section._ids,
         line_color=line_color,
         line_width=str(line_width_units(line_width_mm)),
         treat_as_char=treat_as_char,
@@ -1060,6 +1070,7 @@ def _paragraph_add_rectangle(
     """
     el = build_at_original_size(
         _create_rectangle_element, width, height, original_size,
+        ids=self.section._ids,
         ratio=ratio,
         line_color=line_color,
         line_width=str(line_width_units(line_width_mm)),
@@ -1090,6 +1101,7 @@ def _paragraph_add_ellipse(
     """
     el = build_at_original_size(
         _create_ellipse_element, width, height, original_size,
+        ids=self.section._ids,
         line_color=line_color,
         line_width=str(line_width_units(line_width_mm)),
         fill_color=fill_color,
@@ -1119,6 +1131,7 @@ def _paragraph_add_polygon(
     """
     el = _create_polygon_element(
         points,
+        ids=self.section._ids,
         line_color=line_color,
         line_width=str(line_width_units(line_width_mm)),
         fill_color=fill_color,
@@ -1150,6 +1163,7 @@ def _paragraph_add_arc(
     """
     el = _create_arc_element(
         width, height,
+        ids=self.section._ids,
         corner=corner,
         arc_type=arc_type,
         line_color=line_color,
@@ -1177,7 +1191,7 @@ def _paragraph_add_container(
     :func:`_create_container_element` for the real-corpus contract
     (member envelope, ``groupLevel``, shared ``id`` convention).
     """
-    el = _create_container_element(members, treat_as_char=treat_as_char)
+    el = _create_container_element(members, ids=self.section._ids, treat_as_char=treat_as_char)
     shape = self._insert_shape_element(
         el, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
     )
@@ -1273,7 +1287,7 @@ def _add_sublist_paragraph(
             section.document, style, para_pr_id_ref, char_pr_id_ref
         )
     sublist = _ensure_sublist(container, vert_align=vert_align)
-    attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+    attrs = {"id": _paragraph_id(section._ids), **_DEFAULT_PARAGRAPH_ATTRS}
     if para_pr_id_ref is not None:
         attrs["paraPrIDRef"] = str(para_pr_id_ref)
     if style_id_ref is not None:
@@ -1597,7 +1611,7 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
         why = ungroup_refusal(self.element)
         if why is not None:
             raise _ungroup_refused(why)
-        freed = ungroup_elements(self.element)
+        freed = ungroup_elements(self.element, ids=self.paragraph.section._ids)
         _clear_paragraph_layout_cache(self.paragraph.element)
         self.paragraph.section.mark_dirty()
         return tuple(cast("HwpxOxmlShape | HwpxOxmlInlineObject", wrap_object(element, self.paragraph))

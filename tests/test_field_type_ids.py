@@ -28,15 +28,15 @@ def _hancom_documents() -> list[Path]:
 
 
 def test_the_control_ids_are_the_numbers_hancom_writes() -> None:
-    assert field_type_id("CLICK_HERE") == "627272811"
-    assert field_type_id("MEMO") == "623209829"
-    assert field_type_id("HYPERLINK") == "627600491"
-    assert field_type_id("MAILMERGE") == "627928423"
-    assert field_type_id("SUMMERY") == "628321650"
-    assert field_type_id("PROOFREADING_MARKS_DELETE") == "623192676"
-    assert field_type_id("PROOFREADING_MARKS_LINEATTACH") == "623192641"
-    assert field_type_id("PROOFREADING_MARKS_ATTACH") == "623192673"
-    assert field_type_id("PROOFREADING_MARKS_CLIPPING") == "623192643"
+    assert field_type_id("CLICK_HERE", ids=None) == "627272811"
+    assert field_type_id("MEMO", ids=None) == "623209829"
+    assert field_type_id("HYPERLINK", ids=None) == "627600491"
+    assert field_type_id("MAILMERGE", ids=None) == "627928423"
+    assert field_type_id("SUMMERY", ids=None) == "628321650"
+    assert field_type_id("PROOFREADING_MARKS_DELETE", ids=None) == "623192676"
+    assert field_type_id("PROOFREADING_MARKS_LINEATTACH", ids=None) == "623192641"
+    assert field_type_id("PROOFREADING_MARKS_ATTACH", ids=None) == "623192673"
+    assert field_type_id("PROOFREADING_MARKS_CLIPPING", ids=None) == "623192643"
 
 
 def test_every_field_hancom_saved_carries_its_type_control_id() -> None:
@@ -55,7 +55,7 @@ def test_every_field_hancom_saved_carries_its_type_control_id() -> None:
                     field_type = re.search(r'\btype="([^"]*)"', begin)
                     if field_type is None or field_type.group(1) not in FIELD_TYPE_CONTROL_IDS:
                         continue
-                    assert f'fieldid="{field_type_id(field_type.group(1))}"' in begin, (path.name, begin)
+                    assert f'fieldid="{field_type_id(field_type.group(1), ids=None)}"' in begin, (path.name, begin)
                     checked += 1
     assert checked > 300
 
@@ -88,7 +88,7 @@ def test_new_fields_carry_their_type_control_id() -> None:
         "CLICK_HERE", "DATE", "PATH", "PROOFREADING_MARKS_SIGN", "MAILMERGE", "CROSSREF", "TABLEOFCONTENTS",
         "HYPERLINK",
     }
-    assert all(fieldid == field_type_id(kind) for kind, fieldid in begins)
+    assert all(fieldid == field_type_id(kind, ids=None) for kind, fieldid in begins)
     assert ends and all(begin_fieldid == end_fieldid for begin_fieldid, end_fieldid in ends)
 
 

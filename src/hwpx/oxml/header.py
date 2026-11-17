@@ -15,6 +15,7 @@ from .paragraph_heading import paragraph_heading
 from .utils import local_name, parse_bool, parse_int, text_or_none
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     from ..objects.results import Alignment
 
 
@@ -908,8 +909,10 @@ class Header:
         *,
         author_name: str = "AI Agent",
         date: str | None = None,
+        ids: "IdSource | None",
     ) -> int:
-        """Append tracked-change metadata and return the new change id."""
+        """Append tracked-change metadata and return the new change id. A change without *date* is
+        dated now, or with the ``now=`` of the document (its source *ids*)."""
 
         normalized_type = normalize_track_change_type(change_type)
         resolved_author = author_name.strip() or "AI Agent"
@@ -950,7 +953,7 @@ class Header:
                 id=change_id,
                 raw_id=None,
                 change_type=normalized_type,
-                date=format_track_change_date(date),
+                date=format_track_change_date(date, ids),
                 author_id=author_id,
                 char_shape_id=None,
                 para_shape_id=None,
@@ -966,12 +969,12 @@ class Header:
         return change_id
 
 
-def format_track_change_date(value: str | None = None) -> str:
+def format_track_change_date(value: str | None, ids: "IdSource | None") -> str:
     if value is not None:
         return value
     from ._document_primitives import current_time
 
-    return current_time().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return current_time(ids).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def normalize_track_change_type(change_type: str) -> str:

@@ -532,7 +532,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                 code="paragraph-text-invalid-type",
                 suggestion="Pass the new paragraph's text as a str, or nothing to copy this paragraph.",
             )
-        element = insert_paragraph_beside(self.element, self.section.element, text, after=after)
+        element = insert_paragraph_beside(self.element, self.section.element, text, after=after, ids=self.section._ids)
         # In a table cell (or caption) the new line makes the cell taller, and so the line of the
         # paragraph holding the table: it loses its cache as when a cell's text changes.
         _clear_paragraph_layout_cache(element)
@@ -837,6 +837,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             width=width,
             height=height,
             border_fill_id_ref=resolved_border_fill,
+            ids=self.section._ids,
         )
         if type(table_element) is not type(run):
             table_element = LET.fromstring(ET.tostring(table_element, encoding="utf-8"))
@@ -1173,7 +1174,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             suggestion="Pass a web address, a mailto: address or #bookmark.",
         )
         _require_text(display_text)
-        field_id = _object_id()
+        field_id = _object_id(self.section._ids)
 
         # 실한컴 gold 관례: 링크 서식(charPr)은 표시 텍스트 런에만 싣고
         # fieldBegin/fieldEnd 런은 주변 서식을 유지한다 — 뒤에 추가되는
@@ -1430,7 +1431,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             run_attributes, char_pr_id_ref=char_pr_id_ref
         )
         chart = _append_child(run, f"{_HP}chart", {
-            "id": _object_id(),
+            "id": _object_id(self.section._ids),
             "zOrder": "0",
             "numberingType": "PICTURE",
             "textWrap": "TOP_AND_BOTTOM" if treat_as_char else "SQUARE",
@@ -1529,7 +1530,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             run_attributes, char_pr_id_ref=char_pr_id_ref
         )
         equation = _append_child(run, f"{_HP}equation", {
-            "id": _object_id(),
+            "id": _object_id(self.section._ids),
             "zOrder": "0",
             "numberingType": "EQUATION",
             "textWrap": "TOP_AND_BOTTOM",
@@ -1611,8 +1612,8 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         """
         from .field_marks import form_field_for
 
-        field_id = _object_id()
-        field_instance_id = field_type_id("CLICK_HERE")
+        field_id = _object_id(self.section._ids)
+        field_instance_id = field_type_id("CLICK_HERE", ids=self.section._ids)
         direction = _sanitize_text(prompt)
         help_state = _sanitize_text(memo)
 
@@ -1718,7 +1719,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "radioGroupName": "",
             "triState": "0",
             "backStyle": "OPAQUE",
-            "name": _sanitize_text(name) if name else f"CheckBox{_object_id()}",
+            "name": _sanitize_text(name) if name else f"CheckBox{_object_id(self.section._ids)}",
             "foreColor": "#000000",
             "backColor": "#FFFFFF",
             "groupName": "",

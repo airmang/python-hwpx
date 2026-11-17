@@ -314,15 +314,18 @@ def run_scenario(
     try:
         with _quiet_package_fallback_warnings(), _deterministic_oxml_ids(seed_value):
             document: HwpxDocument | None = None
-            for op in normalized.get("operations") or ():
-                document = _apply_operation(document, op)
-            if document is None:
-                document = HwpxDocument.new(now=REPLAY_CLOCK)
-            try:
+            try:  # closed on a failing operation too
+                for op in normalized.get("operations") or ():
+                    if document is None and op.get("op") != "build_document":
+                        document = HwpxDocument.new(now=REPLAY_CLOCK)
+                    document = _apply_operation(document, op)
+                if document is None:
+                    document = HwpxDocument.new(now=REPLAY_CLOCK)
                 _stamp_replay_clock(document)
                 document.save(output)
             finally:
-                document.close()
+                if document is not None:
+                    document.close()
             ok, classification, oracle_report = _run_o1_o2(output, normalized)
         return FuzzRunResult(
             seed=seed_value,

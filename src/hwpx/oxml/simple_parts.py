@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from ._document_primitives import _serialize_xml
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     from .document_parts import HwpxOxmlDocument
     from .header import Style
     from .history_part import History
@@ -42,6 +43,12 @@ class _HwpxOxmlSimplePart:
 
     def attach_document(self, document: "HwpxOxmlDocument") -> None:
         self._document = document
+
+    @property
+    def _ids(self) -> "IdSource | None":
+        """The id/clock source of this part's document (a master page holds paragraphs, as a section does)."""
+
+        return self._document._id_source if self._document is not None else None
 
     @property
     def dirty(self) -> bool:

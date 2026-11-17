@@ -101,6 +101,7 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 from ._document_primitives import _HP, _append_child, _object_id, _sanitize_text
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     from ..objects.checkbox import CheckBox
     from ..objects.form_field import Bookmark, FormField
     from .objects import HwpxOxmlInlineObject
@@ -149,12 +150,12 @@ FIELD_TYPE_CONTROL_IDS: dict[str, str] = {
 }
 
 
-def field_type_id(field_type: str | None) -> str:
-    """The ``fieldid`` Hancom writes for a field of *field_type*, or a new id for a
-    type without a known control id."""
+def field_type_id(field_type: str | None, *, ids: "IdSource | None") -> str:
+    """The ``fieldid`` Hancom writes for a field of *field_type*, or a new id (from *ids*, the
+    source of the document the field is for) for a type without a known control id."""
 
     control = FIELD_TYPE_CONTROL_IDS.get((field_type or "").upper())
-    return str(int.from_bytes(control.encode("ascii"), "big")) if control else _object_id()
+    return str(int.from_bytes(control.encode("ascii"), "big")) if control else _object_id(ids)
 
 
 #: 실측된 유일한 (date_format -> command 미리보기 문자열) 매핑. 다른
@@ -178,7 +179,7 @@ PATH_FORMATS: dict[str, str] = {
 
 
 def _field_begin(
-    field_type: str, *, meta_tag: bool = True
+    field_type: str, *, ids: "IdSource | None", meta_tag: bool = True
 ) -> tuple[ET.Element, ET.Element, str, str]:
     """``hp:ctrl > hp:fieldBegin`` -- 관측된 고정 속성 그대로.
 
@@ -192,8 +193,8 @@ def _field_begin(
     달고 있고 MAILMERGE gold는 없다 -- 필드 종류마다 실측이 갈리는
     유일한 속성이라 여기서만 분기한다(모듈 독스트링 참조).
     """
-    field_id = _object_id()
-    field_ref_id = field_type_id(field_type)
+    field_id = _object_id(ids)
+    field_ref_id = field_type_id(field_type, ids=ids)
     ctrl = ET.Element(f"{_HP}ctrl")
     attributes = {
         "id": field_id,
@@ -219,6 +220,7 @@ def _field_end(field_id: str, field_ref_id: str) -> ET.Element:
 def create_date_field(
     cached_text: str,
     *,
+    ids: "IdSource | None",
     date_format: str = "YYYY년 M월 D일",
     date_nation: str = "KOR",
 ) -> list[ET.Element]:
@@ -238,7 +240,7 @@ def create_date_field(
             suggestion=f"Supported: {', '.join(sorted(DATE_FORMATS))}",
         )
 
-    ctrl_begin, begin, field_id, field_ref_id = _field_begin("DATE")
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("DATE", ids=ids)
     params = _append_child(begin, f"{_HP}parameters", {"cnt": "4", "name": ""})
     prop = _append_child(params, f"{_HP}integerParam", {"name": "Prop"})
     prop.text = "8"
@@ -256,7 +258,7 @@ def create_date_field(
     return [ctrl_begin, text_el, ctrl_end]
 
 
-def create_proofreading_mark_field(mark: str = "space") -> list[ET.Element]:
+def create_proofreading_mark_field(mark: str = "space", *, ids: "IdSource | None") -> list[ET.Element]:
     """교정 부호 표시 필드(``type="PROOFREADING_MARKS_SIGN"``) 요소열을
     만든다. 캐시 텍스트 없음(순수 마크) -- 반환값은
     ``[ctrl(begin), ctrl(end)]``."""
@@ -274,7 +276,7 @@ def create_proofreading_mark_field(mark: str = "space") -> list[ET.Element]:
             ),
         )
 
-    ctrl_begin, begin, field_id, field_ref_id = _field_begin("PROOFREADING_MARKS_SIGN")
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("PROOFREADING_MARKS_SIGN", ids=ids)
     params = _append_child(begin, f"{_HP}parameters", {"cnt": "2", "name": ""})
     prop = _append_child(params, f"{_HP}integerParam", {"name": "Prop"})
     prop.text = "0"
@@ -288,6 +290,7 @@ def create_proofreading_mark_field(mark: str = "space") -> list[ET.Element]:
 def create_path_field(
     cached_text: str,
     *,
+    ids: "IdSource | None",
     path_format: str = "filename",
 ) -> list[ET.Element]:
     """파일 이름 필드(``type="PATH"``) 요소열을 만든다.
@@ -307,7 +310,7 @@ def create_path_field(
         )
 
     literal = PATH_FORMATS[path_format]
-    ctrl_begin, begin, field_id, field_ref_id = _field_begin("PATH")
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("PATH", ids=ids)
     params = _append_child(begin, f"{_HP}parameters", {"cnt": "3", "name": ""})
     prop = _append_child(params, f"{_HP}integerParam", {"name": "Prop"})
     prop.text = "8"
@@ -326,6 +329,7 @@ def create_path_field(
 def create_mail_merge_field(
     name: str,
     *,
+    ids: "IdSource | None",
     cached_text: str | None = None,
 ) -> list[ET.Element]:
     """메일머지 표시 필드(``type="MAILMERGE"``) 요소열을 만든다.
@@ -352,7 +356,7 @@ def create_mail_merge_field(
             suggestion='데이터 열 이름을 주세요 -- 예: add_mail_merge_field("name").',
         )
 
-    ctrl_begin, begin, field_id, field_ref_id = _field_begin("MAILMERGE", meta_tag=False)
+    ctrl_begin, begin, field_id, field_ref_id = _field_begin("MAILMERGE", ids=ids, meta_tag=False)
     params = _append_child(begin, f"{_HP}parameters", {"cnt": "5", "name": ""})
     # "Fiexde"는 실물·한컴 공식 문서 공통의 오타 철자다 -- 고치지 않는다.
     fixed = _append_child(params, f"{_HP}booleanParam", {"name": "Fiexde"})
@@ -414,7 +418,7 @@ def _paragraph_add_date_field(
     붙는다(``paragraph.py``의 ``add_date_field = _paragraph_add_date_field``
     참조) -- ``paragraph``가 아니라 ``self``인 것도 그 관행 그대로.
     """
-    elements = create_date_field(cached_text, date_format=date_format, date_nation=date_nation)
+    elements = create_date_field(cached_text, ids=self.section._ids, date_format=date_format, date_nation=date_nation)
     return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
 
 
@@ -425,7 +429,7 @@ def _paragraph_add_proofreading_mark(
     char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlInlineObject":
     """교정 부호 표시 필드를 이 문단에 삽입한다."""
-    elements = create_proofreading_mark_field(mark)
+    elements = create_proofreading_mark_field(mark, ids=self.section._ids)
     return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
 
 
@@ -437,7 +441,7 @@ def _paragraph_add_path_field(
     char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlInlineObject":
     """파일 이름 필드를 이 문단에 삽입한다."""
-    elements = create_path_field(cached_text, path_format=path_format)
+    elements = create_path_field(cached_text, ids=self.section._ids, path_format=path_format)
     return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
 
 
@@ -449,7 +453,7 @@ def _paragraph_add_mail_merge_field(
     char_pr_id_ref: str | int | None = None,
 ) -> "HwpxOxmlInlineObject":
     """메일머지 표시 필드를 이 문단에 삽입한다."""
-    elements = create_mail_merge_field(name, cached_text=cached_text)
+    elements = create_mail_merge_field(name, ids=self.section._ids, cached_text=cached_text)
     return _append_field_elements(self, elements, char_pr_id_ref=char_pr_id_ref)
 
 # --------------------------------------------------------------------------
