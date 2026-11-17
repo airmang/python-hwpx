@@ -122,8 +122,31 @@ def _import_roots(node: ast.Import | ast.ImportFrom) -> set[str]:
     return {node.module.partition(".")[0]}
 
 
+class _DropAnnotations(ast.NodeTransformer):
+    """Replace every annotation with ``None``. Python 3.14 (PEP 649) gives annotations their own scope, so the
+    module's symbol table stops seeing names used only there (3.10-3.13 see them): without this the ledger
+    would depend on the Python that built it. Names used only in annotations are not prior state."""
+
+    def visit_arg(self, node: ast.arg) -> ast.arg:
+        node.annotation = None
+        return node
+
+    def _function(self, node: ast.AST) -> ast.AST:
+        self.generic_visit(node)
+        node.returns = None  # type: ignore[attr-defined]
+        return node
+
+    visit_FunctionDef = visit_AsyncFunctionDef = _function
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> ast.AnnAssign:
+        self.generic_visit(node)
+        node.annotation = ast.Constant(None)
+        return node
+
+
 def _external_names(code: str, example_id: str) -> list[str]:
-    table = symtable.symtable(code, example_id, "exec")
+    tree = _DropAnnotations().visit(ast.parse(code, filename=example_id))
+    table = symtable.symtable(ast.unparse(ast.fix_missing_locations(tree)), example_id, "exec")
     return sorted(
         symbol.get_name()
         for symbol in table.get_symbols()
