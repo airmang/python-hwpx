@@ -34,7 +34,7 @@ section = document.sections[-1]
 headline = document.add_paragraph(
     "분기별 요약",
     section=section,
-    style_id_ref=1,
+    style=1,
     char_pr_id_ref=6,
 )
 headline.text = "분기별 실적 요약"

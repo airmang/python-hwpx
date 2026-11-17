@@ -36,12 +36,12 @@ from hwpx import HwpxDocument
 doc = HwpxDocument.new()
 doc.add_heading("2026 운영계획", level=1)
 doc.add_paragraph("추진 배경", style="개요 2")  # 한/글이 "가." 번호를 붙인다
-doc.save_to_path("계획.hwpx")
+doc.save("계획.hwpx")
 ```
 
 스타일은 이름으로 고릅니다. 없는 이름을 쓰면 그 줄에서 바로 오류가 납니다.
 있는 문서를 고칠 때는 `HwpxDocument.open("보고서.hwpx")`로 시작합니다. `.hwp`도 똑같이 열고,
-고친 결과는 `save_to_path("보고서.hwpx")`로 HWPX로 저장합니다.
+고친 결과는 `save("보고서.hwpx")`로 HWPX로 저장합니다.
 
 글자 크기·정렬과 표 칸은 그 자리에서 읽고 고칩니다. 표 칸·머리말·각주까지 문서의 모든 문단을 자리와 함께
 훑을 수 있습니다.
@@ -58,9 +58,9 @@ title.runs[-1].size = 16
 table = doc.add_table(2, 2)
 table.cell(0, 0).text = "기간"
 table.cell(0, 1).text = "3월 ~ 7월"
-for place in doc.text.paragraphs(where={"cell"}):
+for place in doc.text.iter_paragraphs(where={"cell"}):
     print(place.row, place.col, place.paragraph.text)
-doc.save_to_path("계획.hwpx")
+doc.save("계획.hwpx")
 ```
 
 Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보기, 문서 저작·시험지 조판 같은 상위 워크플로는
@@ -73,7 +73,7 @@ Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보�
 ## 할 수 있는 것
 
 - 읽기·추출: 한/글의 텍스트 저장처럼 평문으로 내보냅니다(`doc.text.plain()`, 목록 번호·각주 포함 선택).
-  `doc.text.outline()`은 글 덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.paragraphs()`는 표 칸·글상자·
+  `doc.text.outline()`은 글 덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.iter_paragraphs()`는 표 칸·글상자·
   머리말·각주의 문단까지 자리와 함께 내놓습니다. `.hwp`도 같은 호출로 읽습니다
   ([사용법](docs/usage.md#ai-파이프라인에서-읽기)).
 - 편집: 문단·표·그림·머리말/꼬리말·메모·각주, 줄 간격·여백·쪽 번호 같은 서식을 고칩니다.
@@ -87,8 +87,8 @@ Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보�
 - 배치 추정(실험): `estimate_pages`는 한/글 없이 쪽 수와 줄마다의 쪽·세로 위치를 추정합니다.
   `write_line_caches`는 한/글이 저장할 때 쓰는 줄 배치 정보를, 한/글과 같은 값을 확실히 아는 문단에만 씁니다.
   rhwp처럼 이 정보로 그림 자리를 찾는 뷰어에서도 그림이 보이게 됩니다. 기본으로는 쓰지 않습니다.
-- 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`return_report=True`). 기본 저장은 없는 글자 모양·
-  문단 모양을 가리키는 참조까지는 확인하지 않습니다. 그 검사는 `save_report(quality=QualityPolicy.strict())`가 합니다
+- 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`save()`가 돌려주는 `MutationReport`). 기본 저장은 없는 글자 모양·
+  문단 모양을 가리키는 참조까지는 확인하지 않습니다. 그 검사는 `save(..., quality=QualityPolicy.strict())`가 합니다
   ([검사 범위](docs/usage.md#변경-사항-저장과-결과물-확인)).
 
 자세한 내용: [5분 퀵스타트](docs/quickstart.md) · [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md) · [지원 매트릭스](docs/support-matrix.md)
@@ -101,7 +101,7 @@ for cell in doc.tables.map()["tables"][0]["cells"]:   # 표의 칸마다 행·�
     print(cell["row"], cell["col"], cell["text"])       # 0 0 성  명 / 0 1 (빈 칸) ...
 doc.tables[0].cell(0, 1).text = "홍길동"
 doc.tables[0].cell(1, 1).text = "플랫폼팀"
-report = doc.save_to_path("신청서-작성완료.hwpx", mode="patch", fallback="error", return_report=True)
+report = doc.save("신청서-작성완료.hwpx", mode="patch", fallback="error")
 ```
 
 `mode="patch"`는 고치지 않은 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고친 파트 안쪽과 화면 배치는 따로
