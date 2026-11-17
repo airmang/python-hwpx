@@ -167,8 +167,7 @@
         "docs/usage.md#89",
         "docs/faq.md#2",
         "docs/faq.md#4",
-        "docs/faq.md#5",
-        "docs/safe-write-contract.md#1"
+        "docs/faq.md#5"
       ],
       "requiredContext": [
         "The listed symbols must already exist with the type and document state described by the surrounding section.",
@@ -244,14 +243,13 @@
         ],
         "docs/faq.md#5": [
           "document"
-        ],
-        "docs/safe-write-contract.md#1": [
-          "MutationReport"
         ]
       }
     },
     "context-fragment/illustrative-signature": {
-      "ids": [],
+      "ids": [
+        "docs/safe-write-contract.md#1"
+      ],
       "requiredContext": [
         "Read the declarations as HwpxDocument method signatures, not as an implementation or standalone program."
       ]
