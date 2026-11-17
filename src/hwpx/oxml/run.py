@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
+from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Sequence, cast
 import xml.etree.ElementTree as ET
 
@@ -16,6 +17,7 @@ from ._document_primitives import (
     _HH,
     _HP,
     _clear_paragraph_layout_cache,
+    _definition_id_keys,
     _element_local_name,
     _is_tab_control_element,
     _require_text,
@@ -448,19 +450,19 @@ class RunStyle:
         return True
 
 
-def _font_faces_by_lang(ref_list: ET.Element) -> dict[str, dict[str, str]]:
-    """Each ``hh:fontface`` block's fonts: lang (``HANGUL`` ..) -> font id -> face."""
+def _font_faces_by_lang(ref_list: ET.Element) -> dict[str, dict[str, ET.Element]]:
+    """Each ``hh:fontface`` block's fonts: lang (``HANGUL`` ..) -> font id -> ``hh:font``."""
 
-    faces: dict[str, dict[str, str]] = {}
+    faces: dict[str, dict[str, ET.Element]] = {}
     for fontface in ref_list.iter(f"{_HH}fontface"):
         faces.setdefault((fontface.get("lang") or "").upper(), {
-            font.get("id") or "": font.get("face") or "" for font in fontface.findall(f"{_HH}font")
+            font.get("id") or "": font for font in fontface.findall(f"{_HH}font")
         })
     return faces
 
 
-def _named_fonts(faces: dict[str, dict[str, str]], refs: dict[str, str]) -> dict[str, str]:
-    """The face a ``hh:fontRef`` (*refs*, ``hangul`` -> id ..) names in each language."""
+def _named_font_elements(faces: dict[str, dict[str, ET.Element]], refs: dict[str, str]) -> dict[str, ET.Element]:
+    """The ``hh:font`` a ``hh:fontRef`` (*refs*, ``hangul`` -> id ..) names in each language."""
 
     return {
         lang: faces[lang][refs[lang.lower()]]
@@ -469,8 +471,20 @@ def _named_fonts(faces: dict[str, dict[str, str]], refs: dict[str, str]) -> dict
     }
 
 
+def _font_signature(fonts: dict[str, ET.Element]) -> tuple[Any, ...]:
+    """What the faces a shape names were read from: each ``hh:font``, its block and their values."""
+
+    signature = []
+    for lang, font in fonts.items():
+        block = cast(Any, font).getparent() if isinstance(font, LET._Element) else None
+        holder = None if block is None else block.getparent()
+        signature.append((lang, font.get("id"), font.get("face"), block, None if block is None else block.get("lang"),
+                          holder is not None))
+    return tuple(signature)
+
+
 def _char_properties_from_header(element: ET.Element) -> dict[str, RunStyle]:
-    return {key: style for key, (style, _definition) in _char_property_entries(element).items()}
+    return {key: style for key, (style, _definition, _fonts) in _char_property_entries(element).items()}
 
 
 def _char_property_box(element: ET.Element) -> ET.Element | None:
@@ -478,10 +492,13 @@ def _char_property_box(element: ET.Element) -> ET.Element | None:
     return None if ref_list is None else ref_list.find(f"{_HH}charProperties")
 
 
-def _char_property_entries(element: ET.Element) -> dict[str, tuple[RunStyle, ET.Element]]:
-    """Each ``hh:charPr`` of the header *element*, by id (and by its number), with the element read."""
+def _char_property_entries(
+    element: ET.Element,
+) -> dict[str, tuple[RunStyle, ET.Element, dict[str, ET.Element]]]:
+    """Each ``hh:charPr`` of the header *element*, by id (and by its number), with the element read
+    and the ``hh:font`` each language's face was read from."""
 
-    mapping: dict[str, tuple[RunStyle, ET.Element]] = {}
+    mapping: dict[str, tuple[RunStyle, ET.Element, dict[str, ET.Element]]] = {}
     char_props_element = _char_property_box(element)
     if char_props_element is None:
         return mapping
@@ -498,84 +515,182 @@ def _char_property_entries(element: ET.Element) -> dict[str, tuple[RunStyle, ET.
                 child_attributes[_element_local_name(grandchild)] = {
                     key: value for key, value in grandchild.attrib.items()
                 }
-        fonts = _named_fonts(faces, child_attributes.get("fontRef", {}))
+        font_elements = _named_font_elements(faces, child_attributes.get("fontRef", {}))
+        fonts = {lang: font.get("face") or "" for lang, font in font_elements.items()}
         style = RunStyle(id=char_id, attributes=attributes, child_attributes=child_attributes, fonts=fonts)
         if char_id not in mapping:
-            mapping[char_id] = (style, child)
+            mapping[char_id] = (style, child, font_elements)
         try:
             normalized = str(int(char_id))
         except (TypeError, ValueError):
             normalized = None
         if normalized and normalized not in mapping:
-            mapping[normalized] = (style, child)
+            mapping[normalized] = (style, child, font_elements)
     return mapping
 
 
 def _char_property_signature(definition: ET.Element) -> tuple[Any, ...]:
+    """What a shape was read from: its attributes and each child's name, attributes and whether
+    it is empty (only an empty child's attributes are read)."""
+
     return (tuple(definition.attrib.items()),
-            tuple((child.tag, tuple(child.attrib.items())) for child in definition))
+            tuple((child.tag, tuple(child.attrib.items()), len(child), (child.text or "").strip())
+                  for child in definition))
+
+
+#: One kept shape: the style read, the ``hh:charPr`` it was read from, that element's
+#: ``hh:charProperties`` box and its signature when read, and the ``hh:font`` elements its faces
+#: were read from with their signature.
+_CharEntry = tuple[RunStyle, ET.Element, "ET.Element | None", tuple[Any, ...], dict[str, ET.Element], tuple[Any, ...]]
 
 
 class CharPropertyCache:
     """The character shapes (``hh:charPr``) of a document's headers as :class:`RunStyle`, read
     from the XML as it is now.
 
-    The parsed shapes are kept between reads, but a read checks them against the header first: a
-    shape added, removed or replaced, or a kept one whose attributes or children changed (through
-    ``.element`` too), is read again. So ``doc.styles.char_property(id)`` always answers what the
-    header holds at that moment, with no cache to invalidate by hand.
+    The parsed shapes are kept between reads, but every read checks what it answers against the
+    header first, so an edit through ``.element`` is seen with no cache to invalidate by hand:
+
+    * the ``hh:charProperties`` boxes are the same elements (else every shape is read again);
+    * the shape answered is still in its box and has the attributes and children (with their
+      attributes) it was read with, and each ``hh:font`` its faces were read from is still in its
+      ``hh:fontface`` block with the same id and face (else every shape is read again);
+    * an id with no kept shape is looked for among the box's children, so a shape added, or
+      given that id in place, is found;
+    * with more than one header holding shapes, every kept shape is checked (a later header's
+      shape wins, and an in-place edit there may hide an earlier one);
+    * going over all of them (``len``, iteration, ``items()``) also counts each box's children
+      and checks every kept shape, as the answer covers them all.
+
+    So one lookup (``char_property(id)``, ``char_properties[id]``) costs one shape's check however
+    many shapes the header has, and a lookup that finds nothing reads every id once. The one thing
+    a lookup does not see is a second shape (or font) given an id that another already has (a
+    header with two shapes or two fonts of one language under one id, which Hangul does not write):
+    it keeps answering from the one it found until that one changes.
     """
 
     def __init__(self) -> None:
-        self._stamp: tuple[Any, ...] | None = None
-        # The ``hh:charProperties`` elements the stamp was taken from. Holding them keeps lxml's
-        # proxies alive, so the next lookup finds the very same objects and ``id()`` in the stamp
-        # stays meaningful; without it a proxy freed between reads could come back with another
-        # id and every read parsed every shape again (a big table's page estimate looks a shape
+        self._valid = False
+        # The ``hh:charProperties`` elements the shapes were read from. Holding them keeps lxml's
+        # proxies alive, so the next lookup finds the very same objects and an ``is`` check is
+        # meaningful; without it a proxy freed between reads could come back as another object
+        # and every read parsed every shape again (a big table's page estimate looks a shape
         # up per cell: quadratic).
         self._boxes: list[Any] = []
-        self._entries: dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]] = {}
+        self._counts: list[int] = []
+        self._entries: dict[str, _CharEntry] = {}
 
     def clear(self) -> None:
-        self._stamp = None
+        self._valid = False
         self._boxes = []
+        self._counts = []
         self._entries = {}
 
-    def _fresh(self, headers: Sequence[Any]) -> dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]]:
+    def _fresh(self, headers: Sequence[Any], *, counted: bool = False) -> dict[str, _CharEntry]:
         boxes = [_char_property_box(header.element) for header in headers]
-        stamp = tuple((id(box), -1 if box is None else len(box)) for box in boxes)
-        if stamp != self._stamp:
-            self._boxes = boxes
-            entries: dict[str, tuple[RunStyle, ET.Element, tuple[Any, ...]]] = {}
-            for header in headers:  # a later header's shape wins, as it always did
-                for key, (style, definition) in _char_property_entries(header.element).items():
-                    entries[key] = (style, definition, _char_property_signature(definition))
-            self._stamp, self._entries = stamp, entries
+        same = self._valid and len(boxes) == len(self._boxes) and all(
+            box is kept for box, kept in zip(boxes, self._boxes))
+        if same and counted:
+            same = self._counts == [-1 if box is None else len(box) for box in boxes]
+        if not same:
+            entries: dict[str, _CharEntry] = {}
+            for header, box in zip(headers, boxes):  # a later header's shape wins, as it always did
+                for key, (style, definition, fonts) in _char_property_entries(header.element).items():
+                    entries[key] = (style, definition, box, _char_property_signature(definition), fonts,
+                                    _font_signature(fonts))
+            self._boxes, self._entries, self._valid = boxes, entries, True
+            self._counts = [-1 if box is None else len(box) for box in boxes]
         return self._entries
 
-    def _current(self, headers: Sequence[Any], key: str) -> RunStyle | None:
-        entry = self._fresh(headers).get(key)
-        if entry is not None and _char_property_signature(entry[1]) != entry[2]:
-            self._stamp = None  # a shape changed in place: read them all again
-            entry = self._fresh(headers).get(key)
-        return None if entry is None else entry[0]
+    @staticmethod
+    def _unchanged(entry: _CharEntry) -> bool:
+        _style, definition, box, signature, fonts, font_signature = entry
+        if isinstance(definition, LET._Element):
+            in_box = cast(Any, definition).getparent() is box
+        else:  # a plain ElementTree header has no parent links
+            in_box = box is not None and any(child is definition for child in box)
+        return in_box and _char_property_signature(definition) == signature and _font_signature(fonts) == font_signature
 
-    def styles(self, headers: Sequence[Any]) -> dict[str, RunStyle]:
+    def verified(self, headers: Sequence[Any]) -> dict[str, _CharEntry]:
+        """Every kept shape, each checked against the header (read again when one changed)."""
+
+        entries = self._fresh(headers, counted=True)
+        if not all(self._unchanged(entry) for entry in entries.values()):
+            self._valid = False
+            entries = self._fresh(headers, counted=True)
+        return entries
+
+    def _defined(self, keys: Sequence[str]) -> bool:
+        """Whether a box holds an ``hh:charPr`` found under one of *keys* (looked for by id)."""
+
+        wanted = set(keys)
+        return any(
+            not wanted.isdisjoint(_definition_id_keys(child.get("id")))
+            for box in self._boxes if box is not None
+            for child in box.iterchildren(f"{_HH}charPr")
+        )
+
+    def lookup(self, headers: Sequence[Any], keys: Sequence[str]) -> RunStyle | None:
+        """The shape the first of *keys* that has one names, read from the headers as they are now."""
+
         entries = self._fresh(headers)
-        if any(_char_property_signature(definition) != signature for _style, definition, signature in entries.values()):
-            self._stamp = None
+        if sum(box is not None for box in self._boxes) > 1:
+            entries = self.verified(headers)
+        for key in keys:
+            entry = entries.get(key)
+            if entry is None:
+                continue
+            if not self._unchanged(entry):
+                self._valid = False  # a shape changed in place: read them all again
+                return self.lookup(headers, keys)
+            return entry[0]
+        if keys and self._defined(keys):  # an id given in place to a shape: read them all again
+            self._valid = False
             entries = self._fresh(headers)
-        return {key: style for key, (style, _definition, _signature) in entries.items()}
+            return next((entries[key][0] for key in keys if key in entries), None)
+        return None
+
+    def styles(self, headers: Sequence[Any]) -> "CharPropertyView":
+        return CharPropertyView(self, headers)
 
     def get(self, headers: Sequence[Any], key: str) -> RunStyle | None:
-        style = self._current(headers, key)
-        if style is not None:
-            return style
         try:
             normalized = str(int(key))
         except (TypeError, ValueError):
-            return None
-        return self._current(headers, normalized)
+            return self.lookup(headers, (key,))
+        return self.lookup(headers, (key,) if normalized == key else (key, normalized))
+
+
+class CharPropertyView(Mapping[str, RunStyle]):
+    """A document's character shapes by id (as written and as a plain number), read from its
+    headers as they are at each access: ``doc.styles.char_properties``.
+
+    A read-only view, not a copy: what it answers follows the header, an edit through
+    ``.element`` included (see :class:`CharPropertyCache` for how each read checks it). Looking
+    one id up costs the same however many shapes the header has; ``len``, iteration and
+    ``items()`` check every shape. ``dict(view)`` takes a copy that stays as it was.
+    """
+
+    __slots__ = ("_cache", "_headers")
+
+    def __init__(self, cache: CharPropertyCache, headers: Sequence[Any]) -> None:
+        self._cache = cache
+        self._headers = headers
+
+    def __getitem__(self, key: str) -> RunStyle:
+        style = self._cache.lookup(self._headers, (key,)) if isinstance(key, str) and key else None
+        if style is None:
+            raise KeyError(key)
+        return style
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(list(self._cache.verified(self._headers)))
+
+    def __len__(self) -> int:
+        return len(self._cache.verified(self._headers))
+
+    def __repr__(self) -> str:
+        return f"CharPropertyView({dict(self)!r})"
 
 
 class _ReplaceSegment:

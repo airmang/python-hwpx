@@ -22,12 +22,13 @@ from ._document_primitives import (
     _char_height_from_points,
     _element_local_name,
     _is_integer_literal,
+    _lookup_keys,
     _normalize_color,
     _paragraph_id,
     _serialize_xml,
 )
 from ..errors import rejects_removed_arguments
-from .common import GenericElement
+from .common import GenericElement, parse_generic_element
 from .header import (
     Bullet,
     MemoShape,
@@ -36,6 +37,11 @@ from .header import (
     TabDefinition,
     TrackChange,
     TrackChangeAuthor,
+    parse_bullet,
+    parse_style,
+    parse_tab_definition,
+    parse_track_change,
+    parse_track_change_author,
 )
 from .header_part import HwpxOxmlHeader
 from .namespaces import tag_local_name
@@ -400,6 +406,7 @@ def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
 
 
 _SimplePartT = TypeVar("_SimplePartT", bound=_HwpxOxmlSimplePart)
+_T = TypeVar("_T")
 
 
 class HwpxOxmlDocument:
@@ -637,14 +644,34 @@ class HwpxOxmlDocument:
     def settings(self) -> HwpxOxmlSettings | None:
         return self._settings
 
+    def _header_definition(
+        self,
+        identifier: int | str | None,
+        container: Callable[[HwpxOxmlHeader], ET.Element | None],
+        kind: str,
+        parse: Callable[[Any], _T],
+    ) -> _T | None:
+        """``_lookup_by_id`` over the headers' merged definition dicts (a later header's wins under a
+        key), reading only the definition asked for (``HwpxOxmlHeader._definition_value``): one
+        lookup costs the same however many definitions the headers have."""
+
+        for key in _lookup_keys(identifier):
+            for header in reversed(self._headers):
+                found = header._definition_value(container(header), kind, key, parse)
+                if found is not None:
+                    return found
+        return None
+
     def invalidate_char_property_cache(self) -> None:
         """Forget the parsed character shapes. Not needed after an XML edit any more: every read
         checks the header first (:class:`~hwpx.oxml.run.CharPropertyCache`)."""
         self._char_property_cache.clear()
 
     @property
-    def char_properties(self) -> dict[str, RunStyle]:
-        """Every character shape of the headers, read from them as they are now."""
+    def char_properties(self) -> Mapping[str, RunStyle]:
+        """Every character shape of the headers by id, as a read-only view that reads them as they
+        are at each access (:class:`~hwpx.oxml.run.CharPropertyView`): one id costs one shape's
+        check, however many the header has. ``dict(...)`` for a copy that stays as it was."""
         return self._char_property_cache.styles(self._headers)
 
     def char_property(self, char_pr_id_ref: int | str | None) -> RunStyle | None:
@@ -802,7 +829,9 @@ class HwpxOxmlDocument:
     def border_fill(
         self, border_fill_id_ref: int | str | None
     ) -> GenericElement | None:
-        return HwpxOxmlHeader._lookup_by_id(self.border_fills, border_fill_id_ref)
+        return self._header_definition(
+            border_fill_id_ref, lambda header: header._border_fills_element(), "borderFill", parse_generic_element
+        )
 
     def ensure_basic_border_fill(self) -> str:
         if not self._headers:
@@ -943,7 +972,7 @@ class HwpxOxmlDocument:
         return mapping
 
     def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
-        return HwpxOxmlHeader._lookup_by_id(self.bullets, bullet_id_ref)
+        return self._header_definition(bullet_id_ref, lambda header: header._bullets_element(), "bullet", parse_bullet)
 
     @property
     def paragraph_properties(self) -> dict[str, ParagraphProperty]:
@@ -971,7 +1000,9 @@ class HwpxOxmlDocument:
         return mapping
 
     def tab_property(self, tab_pr_id_ref: int | str | None) -> TabDefinition | None:
-        return HwpxOxmlHeader._lookup_by_id(self.tab_properties, tab_pr_id_ref)
+        return self._header_definition(
+            tab_pr_id_ref, lambda header: header._tab_properties_element(), "tabPr", parse_tab_definition
+        )
 
     def ensure_tab_definition(
         self,
@@ -1011,7 +1042,7 @@ class HwpxOxmlDocument:
         return mapping
 
     def style(self, style_id_ref: int | str | None) -> Style | None:
-        return HwpxOxmlHeader._lookup_by_id(self.styles, style_id_ref)
+        return self._header_definition(style_id_ref, lambda header: header._styles_element(), "style", parse_style)
 
     def style_name_aliases(self) -> dict[str, tuple[str, ...]]:
         """Map every style ``name``/``engName`` to the numeric ids that carry it.
@@ -1091,7 +1122,9 @@ class HwpxOxmlDocument:
         return mapping
 
     def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
-        return HwpxOxmlHeader._lookup_by_id(self.track_changes, change_id_ref)
+        return self._header_definition(
+            change_id_ref, lambda header: header._track_changes_element(), "trackChange", parse_track_change
+        )
 
     @property
     def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
@@ -1103,7 +1136,10 @@ class HwpxOxmlDocument:
     def track_change_author(
         self, author_id_ref: int | str | None
     ) -> TrackChangeAuthor | None:
-        return HwpxOxmlHeader._lookup_by_id(self.track_change_authors, author_id_ref)
+        return self._header_definition(
+            author_id_ref, lambda header: header._track_change_authors_element(), "trackChangeAuthor",
+            parse_track_change_author,
+        )
 
     def add_track_change(
         self,

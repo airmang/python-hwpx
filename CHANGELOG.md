@@ -134,6 +134,10 @@
 - `HeaderPart.border_fill(id)`·`border_fills`는 `BorderFillInfo`를, `properties.start_numbers`는 `hwpx.objects.StartNumbers`를
   돌려준다(`hwpx.oxml.SectionStartNumbering`은 없어졌다).
 - `doc.oxml`의 서식 읽기 16개(`char_property` 등)는 공개 계약에서 내렸다. 메서드는 남아 있으니 `doc.styles`의 같은 이름을 쓴다.
+- `doc.styles.char_properties`는 `dict`가 아니라 읽기 전용 `Mapping`(id → `RunStyle`)이다. 사본이 아니라 머리를 읽을 때마다 그때
+  모습으로 읽는 보기라, 받아 둔 뒤 `.element`로 고친 글자 모양도 다음 읽기에 보인다. 고치기(`chars[id] = ...`)·`.copy()`는 없고,
+  그대로 남는 사본은 `dict(doc.styles.char_properties)`로 뜬다. id 하나 찾기(`chars[id]`·`chars.get(id)`·`id in chars`)는 글자 모양
+  수와 상관없이 그 하나만 견주고, `len`·차례로 훑기·`items()`는 모두를 견준다.
 
 #### 오류 code
 
@@ -670,6 +674,17 @@ python-hwpx 7.0을 함께 설치한다.
   열기를 거부한다"며 막던 것을 고쳤다. 문서를 이어 붙일 때도 이 필드의 `fieldid`를 한/글이 쓰는 제어 id로 둔다.
 - `doc.styles.char_property(id)`·`char_properties`·`run.size` 등이 XML(`.element`)로 더하거나 고친 글자 모양을 저장 전까지 못 보던
   문제를 고쳤다. 이제 읽을 때마다 머리의 현재 상태를 본다(`invalidate_char_property_cache()`를 부를 필요가 없다).
+- 위 고침 뒤로 `doc.styles.char_properties`가 읽을 때마다 모든 글자 모양을 다시 견주어, 문단마다 부르는 쓰임(자동화의 rich
+  Markdown·ingest)이 글자 모양 수 × 문단 수로 느려지던 것을 고쳤다(글자 모양 405개 문서에서 2,000번 읽고 하나 찾기 17.4초 → 0.09초).
+  이제 읽기는 답하는 정의 하나만 견준다: 그 요소가 아직 머리의 목록에 있는지, 속성과 자식(자식의 속성·비었는지)이 읽었을 때와 같은지,
+  글꼴 이름을 읽은 `hh:font`가 같은 블록에 같은 id·이름으로 있는지. 목록에 없는 id는 목록의 id를 한 번 훑어 찾으므로 더하거나 제자리에서
+  id를 바꾼 정의도 보인다. 보지 못하는 것은 하나뿐이다: 이미 있는 id를 다른 정의에 하나 더 준 경우(한 id에 정의 둘 — 한/글은 이렇게
+  쓰지 않는다)는 처음 찾은 정의가 바뀌기 전까지 그것으로 답한다.
+- 문단 모양·스타일·탭 정의·테두리/배경·글머리표·변경 추적(과 작성자) 하나를 id로 찾을 때마다 그 목록 전체를 훑거나 다시 읽던 것을
+  고쳤다(`doc.styles.paragraph_property(id)`·`tab_property(id)`·`border_fill(id)`·`bullet(id)`, `doc.oxml.style(id)` 등과 문단의 개요
+  수준 읽기). 머리는 id → 요소 색인을 두고, 찾은 요소가 아직 그 목록에 그 id로 있는지 견준 뒤 그 정의 하나만 읽는다(정의마다 XML이
+  같으면 읽은 값을 다시 쓴다). 위와 같이 XML로 고친 것도 보인다. 13 MB 견본의 rich Markdown 변환(자동화)이 900초를 넘던 것이 약 5초다.
+  목록 전체를 돌려주는 읽기(`paragraph_properties` 등)는 전처럼 목록 크기만큼 든다.
 - `table.set_treat_as_char()`가 표를 품은 문단의 줄 배치 캐시를 지우지 않아, 한/글이 옛 줄 높이로 글을 겹쳐 그릴 수 있던 문제를 고쳤다.
 
 - 표 칸의 크기·병합 값을 읽기만 해도 문서가 바뀌던 문제를 고쳤다. `TableCell.span`·`width`·`height`가 없는 요소를 새로 만들어

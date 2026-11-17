@@ -29,7 +29,9 @@ from ._document_primitives import (
     _build_font_element,
     _create_basic_border_fill_element,
     _create_border_fill_element,
+    _definition_id_keys,
     _element_local_name,
+    _lookup_keys,
     _ensure_memo_shape,
     _ensure_tab_definition_element,
     _find_matching_para_pr,
@@ -60,13 +62,18 @@ from .header import (
     TrackChange,
     TrackChangeAuthor,
     memo_shape_from_attributes,
+    parse_bullet,
     parse_bullets,
     parse_border_fills,
     parse_header_element,
     parse_paragraph_properties,
     parse_paragraph_property,
+    parse_style,
     parse_styles,
+    parse_tab_definition,
     parse_tab_definitions,
+    parse_track_change,
+    parse_track_change_author,
     parse_track_change_authors,
     parse_track_change_config,
     parse_track_changes,
@@ -129,7 +136,9 @@ class HwpxOxmlHeader:
         self._document = document
         # parsed lookups (paragraph shapes, styles, tab definitions, border fills ...), see _parsed()
         self._lookup_cache: dict[tuple[object, ET.Element], tuple[bytes, object]] = {}
-        self._para_pr_index: tuple[object, dict[str, ET.Element]] | None = None
+        # kind -> (the refList list, id -> definition by every key, id -> definition as written),
+        # see _definition_element()
+        self._definition_index: dict[str, tuple[ET.Element, dict[str, ET.Element], dict[str, ET.Element]]] = {}
 
     @property
     def element(self) -> ET.Element:
@@ -1359,6 +1368,71 @@ class HwpxOxmlHeader:
         self._lookup_cache[key] = (stamp, value)
         return value
 
+    def _definition_element(
+        self, container: ET.Element, kind: str, key: str, *, exact: bool = False
+    ) -> ET.Element | None:
+        """The first ``<kind>`` child of the ``hh:refList`` list *container* found under *key*: by
+        its ``id`` as written when *exact*, else as written or as a plain number (the keys the
+        definition dicts give it, :func:`_definition_id_keys`). ``None`` when none is.
+
+        The id -> element index is kept between lookups and checked, not trusted: the answer must
+        still be a ``<kind>`` child of *container* under *key*, and a key the index lacks (or an
+        answer that fails the check) reads the ids again. So a lookup costs the same however many
+        definitions the list has, and an edit made through ``.element`` (a definition added,
+        removed, moved out or given another id) is seen. Not seen: a second definition given an
+        id another already has (two under one id, which Hangul does not write) while the first
+        stays as it was.
+        """
+
+        if not isinstance(container, LET._Element):  # a plain ElementTree header: no parent links
+            return next((child for child in container if _element_local_name(child) == kind and (
+                child.get("id") == key if exact else key in _definition_id_keys(child.get("id")))), None)
+        kept = self._definition_index.get(kind)
+        if kept is not None and kept[0] is container:
+            found: Any = (kept[2] if exact else kept[1]).get(key)
+            if (
+                found is not None
+                and found.getparent() is container
+                and _element_local_name(found) == kind
+                and (found.get("id") == key if exact else key in _definition_id_keys(found.get("id")))
+            ):
+                return found
+        by_key: dict[str, ET.Element] = {}
+        by_id: dict[str, ET.Element] = {}
+        for child in container:
+            if _element_local_name(child) != kind:
+                continue
+            raw = child.get("id")
+            if raw is not None:
+                by_id.setdefault(raw, child)
+            for name in _definition_id_keys(raw):
+                by_key.setdefault(name, child)
+        # Holding *container* keeps its lxml proxy alive, so the ``is`` check above stays meaningful.
+        self._definition_index[kind] = (container, by_key, by_id)
+        return (by_id if exact else by_key).get(key)
+
+    def _definition_value(
+        self, container: ET.Element | None, kind: str, key: str, parse: Callable[[LET._Element], T]
+    ) -> T | None:
+        """The definition *key* names in *container* (:meth:`_definition_element`), parsed alone and
+        kept while its XML is the same (:meth:`_parsed`) -- the value the list's ``as_dict()``
+        gives under *key*, without reading the others."""
+
+        found = None if container is None else self._definition_element(container, kind, key)
+        return None if found is None else self._parsed(found, parse)
+
+    def _definition_by_id(
+        self, container: ET.Element | None, kind: str, identifier: int | str | None,
+        parse: Callable[[LET._Element], T],
+    ) -> T | None:
+        """:meth:`_lookup_by_id` over this list's ``as_dict()``, looking up only the one asked for."""
+
+        for key in _lookup_keys(identifier):
+            found = self._definition_value(container, kind, key, parse)
+            if found is not None:
+                return found
+        return None
+
     @staticmethod
     def _lookup_by_id(mapping: dict[str, T], identifier: int | str | None) -> T | None:
         if identifier is None:
@@ -1516,7 +1590,7 @@ class HwpxOxmlHeader:
         return bullet_list.as_dict()
 
     def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
-        return self._lookup_by_id(self.bullets, bullet_id_ref)
+        return self._definition_by_id(self._bullets_element(), "bullet", bullet_id_ref, parse_bullet)
 
     @property
     def paragraph_properties(self) -> dict[str, ParagraphProperty]:
@@ -1532,23 +1606,9 @@ class HwpxOxmlHeader:
     ) -> ParagraphProperty | None:
         # Parse only the hh:paraPr asked for, under the keys paragraph_properties gives it; parsing
         # them all on each lookup cost most of a second in a header of many paragraph shapes.
-        parent = self._para_properties_element()
-        children = [] if parent is None else list(parent)
-        # The id -> element index is kept while the list has the same children with the same ids.
-        stamp = (children, [(child.tag, child.get("id")) for child in children])
-        kept = self._para_pr_index
-        if kept is not None and kept[0] == stamp:
-            elements = kept[1]
-        else:
-            elements = {}
-            for child in children:
-                raw = child.get("id") if _element_local_name(child) == "paraPr" else None
-                for key in (raw, str(int(raw)) if raw and raw.strip().lstrip("+-").isdigit() else None):
-                    if key and key not in elements:
-                        elements[key] = child
-            self._para_pr_index = (stamp, elements)
-        found = self._lookup_by_id(elements, para_pr_id_ref)
-        return None if found is None else self._parsed(found, parse_paragraph_property)
+        return self._definition_by_id(
+            self._para_properties_element(), "paraPr", para_pr_id_ref, parse_paragraph_property
+        )
 
     @property
     def tab_properties(self) -> dict[str, TabDefinition]:
@@ -1558,7 +1618,7 @@ class HwpxOxmlHeader:
         return self._parsed(element, parse_tab_definitions).as_dict()
 
     def tab_property(self, tab_pr_id_ref: int | str | None) -> TabDefinition | None:
-        return self._lookup_by_id(self.tab_properties, tab_pr_id_ref)
+        return self._definition_by_id(self._tab_properties_element(), "tabPr", tab_pr_id_ref, parse_tab_definition)
 
     @property
     def styles(self) -> dict[str, Style]:
@@ -1570,7 +1630,7 @@ class HwpxOxmlHeader:
         return style_list.as_dict()
 
     def style(self, style_id_ref: int | str | None) -> Style | None:
-        return self._lookup_by_id(self.styles, style_id_ref)
+        return self._definition_by_id(self._styles_element(), "style", style_id_ref, parse_style)
 
     @property
     def track_changes(self) -> dict[str, TrackChange]:
@@ -1582,7 +1642,7 @@ class HwpxOxmlHeader:
         return change_list.as_dict()
 
     def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
-        return self._lookup_by_id(self.track_changes, change_id_ref)
+        return self._definition_by_id(self._track_changes_element(), "trackChange", change_id_ref, parse_track_change)
 
     @property
     def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
@@ -1596,7 +1656,9 @@ class HwpxOxmlHeader:
     def track_change_author(
         self, author_id_ref: int | str | None
     ) -> TrackChangeAuthor | None:
-        return self._lookup_by_id(self.track_change_authors, author_id_ref)
+        return self._definition_by_id(
+            self._track_change_authors_element(), "trackChangeAuthor", author_id_ref, parse_track_change_author
+        )
 
     @property
     def dirty(self) -> bool:
@@ -1605,7 +1667,6 @@ class HwpxOxmlHeader:
     def mark_dirty(self) -> None:
         self._dirty = True
         self._lookup_cache.clear()
-        self._para_pr_index = None
 
     def reset_dirty(self) -> None:
         self._dirty = False

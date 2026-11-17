@@ -83,7 +83,7 @@
    "border_fills": {"kind": "property", "settable": false, "returns": "dict[str, BorderFillInfo]"},
    "bullet": {"kind": "method", "params": [["bullet_id_ref", "P", false]], "returns": "Bullet | None"},
    "bullets": {"kind": "property", "settable": false, "returns": "dict[str, Bullet]"},
-   "char_properties": {"kind": "property", "settable": false, "returns": "dict[str, RunStyle]"},
+   "char_properties": {"kind": "property", "settable": false, "returns": "Mapping[str, RunStyle]"},
    "char_property": {"kind": "method", "params": [["char_pr_id_ref", "P", false]], "returns": "RunStyle | None"},
    "ensure_border_fill": {"kind": "method", "params": [["border_color", "K", true], ["border_width_mm", "K", true], ["fill_color", "K", true], ["fill_image", "K", true], ["fill_gradient", "K", true], ["active_borders", "K", true], ["border_type", "K", true], ["sides", "K", true], ["base_border_fill_id_ref", "K", true]], "returns": "str"},
    "ensure_bullet": {"kind": "method", "params": [["char", "P", true], ["char_pr_id_ref", "K", true]], "returns": "str"},
