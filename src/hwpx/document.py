@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .hwp5.errors import Hwp5ConversionReport
-    from .objects import Alignment
+    from .objects import Alignment, CellMargins
     from .tools.package_validator import EditorOpenSafetyReport
     from .tools.validator import ValidationReport
 
@@ -764,8 +764,12 @@ class HwpxDocument(metaclass=_DocumentType):
         style: int | str | Style | None = None,
         char_pr_id_ref: str | int | None = None,
         inherit_style: bool = False,
+        in_margins: "CellMargins | None" = None,
     ) -> HwpxOxmlTable:
         """Create a table in a neutral new paragraph and return it.
+
+        *in_margins* (:class:`~hwpx.objects.CellMargins`, HWPUNIT) sets the table's inner cell margins
+        and every cell's ``hp:cellMargin`` (``table.set_in_margins``), checked first.
 
         A table anchor must not inherit the preceding paragraph's heading or
         list style.  Hancom renders that inherited numbering beside the table
@@ -791,6 +795,9 @@ class HwpxDocument(metaclass=_DocumentType):
                 )
         section = _resolve.resolve_section(self, section, caller="add_table")
         new_table_width(width, cols)  # checked before a paragraph or a border fill is added
+        from .oxml.table_sizes import checked_in_margins
+
+        checked_in_margins(in_margins)
         resolved_border_fill: str | int | None = border_fill_id_ref
         if resolved_border_fill is None:
             resolved_border_fill = self._root.ensure_basic_border_fill()
@@ -811,6 +818,7 @@ class HwpxDocument(metaclass=_DocumentType):
             height=height,
             border_fill_id_ref=resolved_border_fill,
             char_pr_id_ref=char_pr_id_ref,
+            in_margins=in_margins,
         )
         _layout.flow_table_taller_than_page(self, table)
         return table

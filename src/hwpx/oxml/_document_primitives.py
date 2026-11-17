@@ -293,6 +293,15 @@ def _memo_id(ids: "IdSource | None") -> str:
     return _new_id(ids)
 
 
+#: Headers and footers, whose ``id`` a copy renews.
+_COPY_RENEWED_STORY_TAGS = frozenset(f"{_HP}{name}" for name in ("header", "footer"))
+#: Objects whose ``id`` a copy renews unless it is ``0`` (a group member, as Hancom writes them). Before
+#: asks9x a copy kept the ids of lines, rectangles, ellipses, arcs, polygons, curves, connectors and charts.
+_COPY_RENEWED_OBJECT_TAGS = frozenset(f"{_HP}{name}" for name in (
+    "tbl", "pic", "container", "ole", "equation", "textart", "video",
+    "line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "chart"))
+
+
 def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element, *, ids: "IdSource | None") -> None:
     """Assign fresh local identifiers inside a copied paragraph subtree.
 
@@ -307,24 +316,21 @@ def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element, *, ids: "IdSour
             node.set("id", _paragraph_id(ids))
             continue
 
-        if "id" in node.attrib and node.tag in {
-            f"{_HP}tbl",
-            f"{_HP}pic",
-            f"{_HP}container",
-            f"{_HP}ole",
-            f"{_HP}equation",
-            f"{_HP}textart",
-            f"{_HP}video",
-            f"{_HP}header",
-            f"{_HP}footer",
-        }:
+        same = "id" in node.attrib and node.get("id") == node.get("instid")
+        if "id" in node.attrib and (node.tag in _COPY_RENEWED_STORY_TAGS or (
+                node.tag in _COPY_RENEWED_OBJECT_TAGS and node.get("id") != "0")):
+            # an object's id="0" -- a group member, as Hancom writes members -- stays
             node.set("id", _object_id(ids))
 
         # 개체(그림·도형 등)의 속성명은 "instid", 각주·미주는 "instId"다
         # (스키마·한/글). 어느 철자든 값만 재발급하고 속성명은 그대로 둔다.
+        renewed = node.get("id")  # the id just given (or kept), for an instid that was equal to it
         for inst_attr in ("instid", "instId"):
             if inst_attr in node.attrib:
-                node.set(inst_attr, _object_id(ids))
+                # Hancom writes an object's id and instid alike (1,114 of the 1,433 objects with both in
+                # the Hancom-saved fixtures; the others are group members, id 0): a copy keeps them so
+                keep = same and inst_attr == "instid"
+                node.set(inst_attr, renewed if keep and renewed is not None else _object_id(ids))
 
 
 def _clone_paragraph_element(paragraph: ET.Element, *, ids: "IdSource | None") -> ET.Element:
@@ -802,6 +808,10 @@ def _normalize_border_side_names(active_borders: Iterable[str] | None) -> set[st
     return normalized
 
 
+#: The width Hancom writes on a side drawn with no line (``type="NONE"``).
+NONE_SIDE_WIDTH = "0.1 mm"
+
+
 def _normalize_border_sides(
     sides: "Mapping[str, Mapping[str, Any] | None] | None",
     *,
@@ -816,7 +826,8 @@ def _normalize_border_sides(
     A side maps to ``{"type", "width_mm", "color"}``, each optional (the uniform
     border's value stands in), or to ``None`` for no line on that side. ``width_mm``
     is a number of mm on Hancom's width list (:func:`~hwpx.oxml.utils.line_width_text`;
-    6.x's ``"width": "0.4 mm"`` string is refused with the new key named).
+    6.x's ``"width": "0.4 mm"`` string is refused with the new key named). A side with no line is
+    ``("NONE", "0.1 mm", color)``, the width Hancom writes there.
     """
 
     from ..errors import HwpxValueError
@@ -837,7 +848,9 @@ def _normalize_border_sides(
                 "with any of 'type', 'width_mm' (a number of mm on Hancom's width list) and 'color'.",
             )
         if spec is None:
-            lines[key] = ("NONE", border_width, border_color)
+            # no line, written as Hancom writes one: 0.1 mm (9,768 of the 9,772 NONE sides in the 1,257
+            # Hancom-saved fixtures; the other 4 0.4 mm, none the width of a line beside it)
+            lines[key] = ("NONE", NONE_SIDE_WIDTH, border_color)
             continue
         line_type = str(spec.get("type") or border_type).upper()
         width_mm = spec.get("width_mm")

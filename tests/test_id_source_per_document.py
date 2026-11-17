@@ -173,3 +173,25 @@ def test_group_members_made_beside_a_seeded_document_do_not_touch_it() -> None:
         assert set(_member_ids(group)).isdisjoint(_drawn(7))
         _edit(seeded, "A")
         assert _section(seeded) == _alone(7, "A")
+
+
+def test_ids_made_unique_on_copy_come_from_the_receiving_documents_seed() -> None:
+    """A copy whose object ids are taken already gets fresh ones (asks9x A4) -- from the source of the
+    document it goes into, so the same seed still writes the same bytes and no other document's seed is used."""
+
+    def build() -> tuple[bytes, set[str]]:
+        # two documents with the same seed make the same object ids: copying from one into the other
+        # meets every id taken and has to draw fresh ones
+        with HwpxDocument.new(seed=31, now=FIXED) as target, HwpxDocument.new(seed=31, now=FIXED) as source:
+            target.add_paragraph("받는").add_rectangle(width=2000, height=1000)
+            rectangle = source.add_paragraph("주는").add_rectangle(width=2000, height=1000)
+            before = {str(node.get("id")) for node in target.sections[0].element.iter() if node.get("instid")}
+            for _ in range(3):
+                rectangle.copy_to(target.paragraphs[-1])
+                target.paragraphs[-1].insert_after()
+            ids = {str(node.get("id")) for node in target.sections[0].element.iter() if node.get("instid")}
+            return _section(target), ids - before
+
+    first, fresh = build()
+    assert build() == (first, fresh)
+    assert len(fresh) >= 3 and fresh <= _drawn(31)

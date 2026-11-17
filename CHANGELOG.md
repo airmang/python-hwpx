@@ -151,6 +151,14 @@
 
 #### 행동 변화
 
+- 선 없는 면(`ensure_border_fill(sides={...: None})`)을 한/글처럼 `type="NONE" width="0.1 mm"`로 쓴다(전: 기준 굵기).
+- `table.set_in_margins`가 표 안여백으로 배치되는 칸(`hasMargin` 꺼짐)의 `hp:cellMargin`도 같은 값으로 쓴다.
+  `add_table(in_margins=CellMargins(...))`로 만들 때 준다.
+- 복사한 문단·개체의 모든 개체 `id`를 새로 매기고(선·사각형 등도), 새로 넣은 개체의 `id`가 문서의 다른 개체와 겹치지 않는다.
+  사본의 `instid`는 `id`와 같다.
+- 다른 문서의 문단을 옮기면(`copy_to`, `insert_document`) 받는 문서의 같은 내용 정의(글꼴·테두리·탭·글자·문단 모양·스타일)를
+  다시 쓰고, 없는 것만 마지막 id 다음부터 만든다.
+
 - **`HwpxDocument.new()`로 만든 문서가 처음 더한 문단으로 시작한다.** 전에는 처음 더한 문단이 빈 첫 문단 뒤에 붙어 모든 새 문서가
   빈 줄로 시작했다. 이제 처음 더하는 문단(`add_paragraph`, `add_heading`)이 그 빈 줄을 차지하고, 구역 설정과 먼저 넣어 둔
   머리말·꼬리말·쪽 번호는 그 문단으로 옮겨 간다. **문단 번호가 하나씩 당겨진다**: 6.x의 `doc.paragraphs[1]`이 7.0의
