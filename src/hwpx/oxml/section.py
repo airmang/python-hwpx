@@ -367,11 +367,9 @@ class HwpxOxmlSection:
         )
         removals = header_removals + [pair for pair in removals if not any(
             pair[1] is child for _, child in header_removals)]
-        kept, column_found, column_removals = _plan_column_changes(
-            [paragraph.element for paragraph in paragraphs[1:]] if keep_column_changes else [],
-            on_control_content, keep_headers, self.part_name,
+        kept, column_removals = _plan_column_changes(
+            paragraphs[1:], keep_column_changes, on_control_content, keep_headers, self.part_name, found
         )
-        found += [tag for tag in column_found if tag not in found]
 
         stripped_children = sum(_strip_to_kept_children(run) for run in run_elements)
         for parent, child in removals:
@@ -384,10 +382,7 @@ class HwpxOxmlSection:
         for cache in caches:
             first.element.remove(cache)
         later_paragraphs = paragraphs[1:]
-        for parent, child in column_removals:
-            parent.remove(child)
-        for element in kept:
-            _strip_to_column_controls(element)
+        _apply_column_changes(kept, column_removals)
         later_paragraphs = tuple(paragraph for paragraph in later_paragraphs
                                  if not any(paragraph.element is element for element in kept))
         for paragraph in later_paragraphs:
@@ -869,6 +864,26 @@ def _column_controls(paragraph: ET.Element) -> list[ET.Element]:
 
 
 def _plan_column_changes(
+    later: Sequence[Any], wanted: bool, mode: str, keep_headers: bool, part_name: str, found_before: list[str]
+) -> tuple[list[ET.Element], list[tuple[ET.Element, ET.Element]]]:
+    """:func:`_find_column_changes` for ``clear_body``: the later paragraph objects *later* when *wanted*, the
+    content found added to *found_before*."""
+
+    kept, found, removals = _find_column_changes(
+        [paragraph.element for paragraph in later] if wanted else [], mode, keep_headers, part_name
+    )
+    found_before += [tag for tag in found if tag not in found_before]
+    return kept, removals
+
+
+def _apply_column_changes(kept: list[ET.Element], removals: list[tuple[ET.Element, ET.Element]]) -> None:
+    for parent, child in removals:
+        parent.remove(child)
+    for element in kept:
+        _strip_to_column_controls(element)
+
+
+def _find_column_changes(
     paragraphs: Sequence[ET.Element], mode: str, keep_headers: bool, part_name: str
 ) -> tuple[list[ET.Element], list[str], list[tuple[ET.Element, ET.Element]]]:
     """``clear_body(keep_column_changes=True)``'s plan, made before anything changes: the later paragraphs that
