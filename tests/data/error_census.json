@@ -893,6 +893,9 @@
   "table-column-width-value": [
    "oxml/table_sizes.py:849"
   ],
+  "table-columns-differ": [
+   "oxml/table_rows.py:196"
+  ],
   "table-margin-value": [
    "oxml/table_sizes.py:611",
    "oxml/table_sizes.py:655",
@@ -910,6 +913,16 @@
   ],
   "table-row-heights-value": [
    "oxml/table_sizes.py:399"
+  ],
+  "table-rows-invalid": [
+   "oxml/table_rows.py:57",
+   "oxml/table_rows.py:69"
+  ],
+  "table-rows-move-other-table": [
+   "oxml/table_rows.py:151"
+  ],
+  "table-rows-other-document": [
+   "oxml/table_rows.py:182"
   ],
   "table-size-invalid": [
    "document.py:785",
@@ -986,8 +999,8 @@
  },
  "malformedCodes": [],
  "observed": {
-  "other": 488,
-  "typed": 497,
+  "other": 491,
+  "typed": 502,
   "untyped": 171,
   "untypedByFile": {
    "body_patch.py": 20,
