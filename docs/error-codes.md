@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 353 | 11 |
+| 개수 | 354 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -65,6 +65,12 @@ except HwpxError as exc:
 |---|---|
 | `body-op-nested-paragraph` | 본문 op 가 다른 문단(글상자·각주 등)을 품은 문단의 글을 바꾸려 했다(안쪽 글이 지워진다). |
 | `body-op-section-settings` | 본문 op 가 구역 설정(hp:secPr)을 담은 문단을 지우거나 복제하거나 자리를 옮기려 했다(구역마다 하나, 첫 문단에 있어야 한다). |
+
+### `caret-*`
+
+| 코드 | 뜻 |
+|---|---|
+| `caret-place-unsupported` | 캐럿을 본문 밖 문단(표 칸·글상자·각주)에 두려 했거나, 한/글의 자리 셈을 모르는 것이 든 문단에 두려 했다. |
 
 ### `cell-*`
 

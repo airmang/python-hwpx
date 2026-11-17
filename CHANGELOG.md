@@ -498,6 +498,18 @@ python-hwpx 7.0을 함께 설치한다.
     - 글 가운데 각주·책갈피는 한 런 안 두 `hp:t` 사이에 둔다.
     - 범위 밖으로 이어지는 형광펜은 남은 쪽 가장자리에서 시작하거나 끝나게 한다.
     - 형광펜을 복사하면 사본 가장자리에서 열고 닫는다.
+- 한/글이 문서를 여는 캐럿 자리(`settings.xml`의 `ha:CaretPosition`):
+  - `doc.caret`으로 읽는다.
+  - `doc.set_caret(paragraph, offset=0)`으로 본문 문단에 둔다. 자리는 한/글의 셈이다(컨트롤·개체·탭 8).
+  - `doc.reset_caret()`은 본문 첫 문단의 글 처음(새 문서는 `pos="16"`)으로 둔다.
+  - 저장할 때 캐럿이 없는 본문 문단을 가리키면 그 자리로 되돌린다. 한/글 2024도 그렇게 연다.
+  - 틀에서 지은 문서는 `reset_caret()`을 부를 때까지 틀의 캐럿을 그대로 가진다.
+  - 표 칸·글상자·각주에 두기는 `caret-place-unsupported`로 거부한다. 그 목록 번호는 한/글 저장본으로 정해지지 않았다.
+  - `settings.xml`은 캐럿 요소만 고쳐 쓰고, 나머지 바이트는 그대로다.
+- 구역 첫 문단에 `hp:secPr`는 있는데 단 정의(`hp:ctrl/hp:colPr`)가 없으면 패키지 검사와 열기 안전 검사가 `section-columns-missing`으로 알린다.
+  - 한/글은 그 구역을 기본 용지·여백으로 연다.
+  - 저장은 막지 않는다.
+  - `hwpx-repair`는 `hp:secPr` 바로 뒤에 한/글이 쓰는 1단 정의를 넣는다.
 - `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
   `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
   기본값(`False`)이면 전처럼 지운다.

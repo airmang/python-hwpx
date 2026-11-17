@@ -73,7 +73,15 @@ SECTION_PROPERTIES_NOT_FIRST_MESSAGE = (
     "a section's settings only from its first paragraph and gives the section default paper and margins"
 )
 
+#: The error for a section whose first paragraph holds its ``hp:secPr`` but no column definition.
+SECTION_COLUMNS_MISSING_MESSAGE = (
+    "the section's first paragraph holds hp:secPr but no column definition (hp:ctrl/hp:colPr) "
+    "(section-columns-missing): Hancom opens the section with default paper and margins; "
+    "`hwpx-repair` writes the one-column definition Hancom writes"
+)
+
 EDITOR_OPEN_ADVISORY_ERROR_MARKERS = (
+    "(section-columns-missing)",  # reported, not refused on saving: a document read that way still saves
     'missing XML declaration with standalone="yes"',
     "missing Hancom-compatible HWPML root namespace declarations",
     "manifest href missing from archive",
@@ -717,6 +725,21 @@ def _check_section_properties_location(
             part_name,
             "hp:secPr must be carried by the first paragraph's first hp:run",
         )
+    if first_paragraph is not None and not _holds_column_definition(first_paragraph):
+        # Hangul 2024 opened a section with hp:secPr and no hp:colPr beside it with default margins and saved
+        # a one-column definition (out/preview9/colpr); every one of the 1,271 sections of
+        # tests/fixtures/hancom_saved has its hp:colPr in the first paragraph.
+        _error(issues, part_name, SECTION_COLUMNS_MISSING_MESSAGE)
+
+
+def _holds_column_definition(paragraph: ET.Element) -> bool:
+    return any(
+        _local_name(control) == "colPr"
+        for run in _children_by_local(paragraph, "run")
+        for child in run
+        if _local_name(child) == "ctrl"
+        for control in child
+    )
 
 
 def _check_header_editor_acceptance(

@@ -426,6 +426,7 @@ ERROR_CODES: dict[str, str] = {
     "paragraph-style-char-type": "문단에 글자 스타일(type CHAR)을 적용하려 했다.",
     "paragraph-move-into-itself": "문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다.",
     "paragraph-move-place-unsupported": "메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다).",
+    "caret-place-unsupported": "캐럿을 본문 밖 문단(표 칸·글상자·각주)에 두려 했거나, 한/글의 자리 셈을 모르는 것이 든 문단에 두려 했다.",
     "paragraph-range-holds-objects": "지울 글자 범위 안에 컨트롤·개체(각주·책갈피·누름틀·표·그림 …)가 있다(objects='remove' 로 함께 지운다. 범위 양 끝의 것은 남는다).",
     "paragraph-range-splits-field": "글자 범위가 누름틀·하이퍼링크 같은 필드의 시작이나 끝 한쪽만 품는다.",
     "paragraph-range-splits-mark": "글자 범위가 변경 추적 표시를 품거나, 형광펜 끝을 런 바로 아래 탭에 두어야 한다.",

@@ -74,6 +74,7 @@ if TYPE_CHECKING:
     from .objects import Alignment, CellMargins
     from .tools.package_validator import EditorOpenSafetyReport
     from .tools.validator import ValidationReport
+    from .oxml.settings import CaretPosition
 
 
 class _DocumentType(type):
@@ -353,6 +354,7 @@ class HwpxDocument(metaclass=_DocumentType):
         document._install_id_source(source)
         document._inherit_style_default = bool(inherit_style)
         document._first_line_free = not empty_first_line
+        document.reset_caret()  # the body's start, by the rule a reset follows (the template's own value)
         return document
 
     def __enter__(self) -> "HwpxDocument":
@@ -928,6 +930,41 @@ class HwpxDocument(metaclass=_DocumentType):
         "tif": "image/tiff",
         "svg": "image/svg+xml",
     }
+
+    # ------------------------------------------------------------------
+    # Where Hangul opens the document (settings.xml's caret)
+    # ------------------------------------------------------------------
+
+    @property
+    def caret(self) -> "CaretPosition | None":
+        """Where Hangul puts the caret when it opens the document (``settings.xml``'s ``ha:CaretPosition``):
+        ``list_id_ref`` (``0`` is the body, every section's paragraphs in one row), ``para_id_ref`` and ``pos``
+        counted as Hangul counts a paragraph (a control or an object eight). ``None`` without one; Hangul then
+        opens at the body's start."""
+
+        from .oxml.caret import read_caret
+
+        return read_caret(self._root)
+
+    def set_caret(self, paragraph: "HwpxOxmlParagraph", offset: int = 0) -> "CaretPosition":
+        """Put the caret at character *offset* of *paragraph* -- a paragraph of the body (``doc.paragraphs``);
+        a cell's, a text box's or a note's list is refused (``caret-place-unsupported``): the documents Hangul
+        saved do not settle their list numbers. The caret goes after the controls and objects at *offset*, where
+        text put there goes."""
+
+        from .oxml.caret import set_caret
+
+        return set_caret(self._root, paragraph, offset)
+
+    def reset_caret(self) -> "CaretPosition":
+        """Put the caret at the start of the body's first paragraph's text, where Hangul opens a document whose
+        caret points at nothing (``listIDRef 0, paraIDRef 0``, ``pos`` after the section's settings and columns:
+        16 in a new document). A document built from a template keeps the template's caret until this is
+        called. On saving, a caret pointing at a body paragraph that is gone is put there by itself."""
+
+        from .oxml.caret import reset_caret
+
+        return reset_caret(self._root)
 
     # ------------------------------------------------------------------
     # Export helpers
