@@ -1399,6 +1399,7 @@
    "members": {
     "editable": {"kind": "property", "settable": true, "returns": "bool"},
     "element": {"kind": "property", "settable": false, "returns": "Element"},
+    "end": {"kind": "property", "settable": false, "returns": "int | None"},
     "end_location": {"kind": "property", "settable": false, "returns": "FieldLocation | None"},
     "field_id": {"kind": "property", "settable": false, "returns": "str"},
     "field_type": {"kind": "property", "settable": false, "returns": "str"},
@@ -1413,6 +1414,7 @@
     "parameters": {"kind": "property", "settable": false, "returns": "tuple[FieldParameter, ...]"},
     "prompt": {"kind": "property", "settable": true, "returns": "str"},
     "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
+    "start": {"kind": "property", "settable": false, "returns": "int | None"},
     "text_elements": {"kind": "property", "settable": false, "returns": "tuple[Element, ...]"},
     "value": {"kind": "property", "settable": true, "returns": "str"}
    }

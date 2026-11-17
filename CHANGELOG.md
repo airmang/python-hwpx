@@ -510,6 +510,8 @@ python-hwpx 7.0을 함께 설치한다.
   - 한/글은 그 구역을 기본 용지·여백으로 연다.
   - 저장은 막지 않는다.
   - `hwpx-repair`는 `hp:secPr` 바로 뒤에 한/글이 쓰는 1단 정의를 넣는다.
+- `FormField.start`·`end`로 누름틀이 그 문단 글에서 시작하고 끝나는 자리를 읽는다. 한 문단 안 누름틀이면 `paragraph.text[start:end]`가 그 글이다.
+- `clear_body`·`clear_content`가 컨트롤 안 내용 때문에 거부할 때, 오류 `context`에 문단 자리(`paragraph`, 구역 안 차례)와 문단마다 든 것(`paragraphs`)을 싣는다.
 - 각주·미주·책갈피·누름틀·형광펜을 글자 자리에 둔다. 근거는 한/글 2024 저장본 `mid_text_*`·`highlight_*`(`tests/fixtures/hancom_saved`)다.
   - 각주·미주·책갈피:
     - `doc.notes.add_footnote(..., offset=)`·`add_endnote(..., offset=)`·`paragraph.add_bookmark(name, offset=)`·`doc.refs.add_bookmark(..., offset=)`로 둔다.
@@ -525,6 +527,10 @@ python-hwpx 7.0을 함께 설치한다.
     - `paragraph.add_highlight(color=, start=, end=)`·`doc.text.highlight(paragraph, start=, end=)`로 칠한다. 런을 넘으면 시작·끝을 각 글자의 `hp:t`에 한 번씩 둔다.
     - `doc.text.highlight_span(start_paragraph, start, end_paragraph, end)`는 문단을 넘는 범위를 문단마다 한 쌍으로 칠한다.
     - 이미 있는 형광펜과 겹치면 `paragraph-range-splits-mark`로 거부한다.
+- `note.copy_to`가 원본 각주의 소문자 `instid`를 사본에 그대로 두던 것을 고쳤다. 그래서 한 문서 안에 같은 인스턴스 id가 둘 생겼다.
+  - 다른 도구나 python-hwpx 6.6 이하가 쓴 꼴이다.
+  - 이제 사본은 가진 표기(`instId`·`instid`) 그대로 새 id를 받는다.
+  - 새로 쓰는 각주는 한/글처럼 `instId`다(`hancom_saved` 138개 모두).
 - `doc.text.highlights`가 런을 넘는 형광펜(한/글의 `highlight_across_runs` 꼴)을 통째로 읽는다. 전에는 첫 `hp:t` 안 부분만 읽었다.
 - `paragraph.clear_content(*, keep_headers=True, on_control_content="raise")`: 문단의 본문 내용(글·표·그림·각주·책갈피·필드)을 비우고 구역 설정은 남긴다.
   - 남는 것은 `hp:secPr`와 그 옆 쪽 단위 컨트롤이다. 단 정의는 늘, 머리말·꼬리말은 `keep_headers`대로 남는다.

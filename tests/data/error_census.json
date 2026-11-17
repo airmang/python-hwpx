@@ -478,7 +478,7 @@
    "_document/ns/parts.py:304"
   ],
   "ref-bookmark-name-empty": [
-   "objects/form_field.py:514"
+   "objects/form_field.py:538"
   ],
   "ref-cross-reference-content-value": [
    "_document/fields.py:904"
@@ -487,10 +487,10 @@
    "_document/fields.py:912"
   ],
   "ref-link-end-missing": [
-   "objects/form_field.py:650"
+   "objects/form_field.py:674"
   ],
   "ref-link-target-empty": [
-   "objects/form_field.py:636"
+   "objects/form_field.py:660"
   ],
   "save-format-unsupported": [
    "_document/persistence.py:705"
@@ -510,14 +510,14 @@
    "_document/persistence.py:529"
   ],
   "section-clear-control-content": [
-   "oxml/section.py:432",
-   "oxml/section.py:918"
+   "oxml/section.py:433",
+   "oxml/section.py:923"
   ],
   "section-clear-mode-invalid": [
    "oxml/section.py:336",
    "oxml/section.py:345",
-   "oxml/section.py:943",
-   "oxml/section.py:949"
+   "oxml/section.py:949",
+   "oxml/section.py:955"
   ],
   "section-clear-no-section-properties": [
    "oxml/section.py:354"
@@ -837,7 +837,7 @@
    "oxml/numbering_kinds.py:263"
   ],
   "style-not-found": [
-   "oxml/section.py:1260"
+   "oxml/section.py:1270"
   ],
   "style-number-format-invalid": [
    "oxml/numbering_kinds.py:92"
@@ -966,7 +966,7 @@
    "_document/ns/text.py:90"
   ],
   "toc-refresh-value": [
-   "objects/form_field.py:955"
+   "objects/form_field.py:979"
   ],
   "track-change-not-found": [
    "_document/tracked.py:476"
