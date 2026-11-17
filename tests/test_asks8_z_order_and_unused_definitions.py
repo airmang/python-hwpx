@@ -13,11 +13,14 @@
 from __future__ import annotations
 
 import io
+from datetime import datetime, timezone
 
 import pytest
 
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxError
+
+_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 _HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -99,7 +102,7 @@ def test_moving_a_table_keeps_its_number() -> None:
 def test_numbers_are_the_same_on_every_run() -> None:
     def make() -> bytes:
         # closed at the end: a seeded document left open keeps its seed for every later document
-        with HwpxDocument.new(seed=7) as doc:
+        with HwpxDocument.new(seed=7, now=_NOW) as doc:  # now: two runs may straddle a clock second
             for _ in range(3):
                 doc.add_paragraph("").add_rectangle(width=2000, height=1000)
             doc.add_table(1, 1)
