@@ -972,7 +972,7 @@ class InlineItem:
     (형광펜), ``"title_mark"`` (차례 표시), ``"insert_begin"``/``"insert_end"``/``"delete_begin"``/
     ``"delete_end"`` (변경 추적 표시). ``text`` is the character a glyph stands for (``"\\t"``,
     ``"\\n"``, ``"\\xa0"``, ``"\\u3000"``, ``"\\xad"``) and ``""`` for a mark, so the ``text`` of the
-    ``"t"`` pieces joined is ``run.text``.
+    ``"t"`` pieces and of a ``"tab"`` written in the run, joined, is ``run.text``.
 
     Inside ``hp:ctrl``: ``"field_begin"``, ``"field_end"``, ``"footnote"``, ``"endnote"``,
     ``"bookmark"``, ``"auto_number"``, ``"page_number"`` (쪽 번호 매기기), ``"page_number_ctrl"``,

@@ -826,6 +826,12 @@ def replace_across_runs(
     return total
 
 
+def _is_run_tab(node: ET.Element) -> bool:
+    """A tab written as a child of the run (``hp:tab`` or a tab ``hp:ctrl``), which ``paragraph.text`` counts."""
+
+    return node.tag == f"{_HP}tab" or _is_tab_control_element(node)
+
+
 class HwpxOxmlRun(SameElement):
     """Lightweight wrapper around an ``<hp:run>`` element."""
 
@@ -946,9 +952,17 @@ class HwpxOxmlRun(SameElement):
 
     @property
     def text(self) -> str:
+        """The run's characters, counted as ``paragraph.text`` counts them: its ``hp:t`` texts (the tabs,
+        line breaks and special spaces in them included) and a tab written as a child of the run
+        (``hp:tab``, or a tab ``hp:ctrl``, as some writers other than Hancom put one), in the order the
+        file has them. So the runs' texts of a paragraph, joined, are its text."""
+
         parts: list[str] = []
-        for node in self.element.findall(f"{_HP}t"):
-            parts.append(_text_element_content(node))
+        for node in self.element:
+            if node.tag == f"{_HP}t":
+                parts.append(_text_element_content(node))
+            elif _is_run_tab(node):
+                parts.append("	")
         return "".join(parts)
 
     @text.setter
@@ -964,6 +978,8 @@ class HwpxOxmlRun(SameElement):
         set_text_with_tabs(primary, value)
         for node in nodes[1:]:
             clear_text_element(node)
+        for node in [child for child in self.element if _is_run_tab(child)]:  # its tabs are in the value now
+            self.element.remove(node)
         if changed:
             _clear_paragraph_layout_cache(self.paragraph.element)
             self.paragraph.section.mark_dirty()
@@ -1054,7 +1070,7 @@ class HwpxOxmlRun(SameElement):
         begin and end, note, bookmark, auto number, ...) and each object, 덧말 or 글자 겹치기
         of the run. Nothing is interpreted or dropped: an element this reading does not know
         comes as ``kind="unknown"`` with its ``name``. The ``text`` of the pieces written in
-        ``hp:t``, joined, is :attr:`text`. The document's tree is read where it is; nothing is
+        ``hp:t`` and of a tab written in the run, joined, is :attr:`text`. The document's tree is read where it is; nothing is
         copied or parsed again, and the document is not changed.
         """
 
