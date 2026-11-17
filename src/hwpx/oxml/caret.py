@@ -35,9 +35,12 @@ def _caret_element(document: Any) -> Any:
 
 
 def body_paragraphs(document: Any) -> list[Any]:
-    """The paragraph elements of list 0: every section's own paragraphs, in order."""
+    """The paragraph elements of list 0: every section's own paragraphs, in order. Read from the section
+    elements directly (any namespace prefix), not through ``section.paragraphs``: appending a paragraph reads
+    only the last one, and a save checks the caret without wrapping the body."""
 
-    return [paragraph.element for section in document.sections for paragraph in section.paragraphs]
+    return [child for section in document.sections for child in section.element
+            if isinstance(child.tag, str) and child.tag.rsplit("}", 1)[-1] == "p"]
 
 
 def hancom_position(paragraph: Any, offset: int) -> int | None:
@@ -156,7 +159,7 @@ def fix_caret_before_saving(document: Any) -> bool:
         paragraph = -1
     paragraphs = body_paragraphs(document)
     if not paragraphs or 0 <= paragraph < len(paragraphs):
-        return False  # in place, or a body the engine does not read as paragraphs: left as written
+        return False  # in place, or a body without paragraphs: left as written
     before = dict(element.attrib)
     reset_caret(document)
     return dict(element.attrib) != before
