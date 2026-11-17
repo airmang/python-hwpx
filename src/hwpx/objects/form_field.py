@@ -380,6 +380,46 @@ class TextBoxField:
         return f"TextBoxField(name={self.name!r}, text={self.text!r})"
 
 
+def field_parameters(field_begin: Any) -> tuple[FieldParameter, ...]:
+    """The parameters a ``<hp:fieldBegin>`` carries (its ``hp:parameters``), in file order: each
+    ``hp:*Param`` with its ``name`` and text. A field without them gives ``()``."""
+
+    return tuple(
+        FieldParameter(name=param.get("name", ""), value="".join(param.itertext()))
+        for holder in field_begin
+        if isinstance(holder.tag, str) and holder.tag.rsplit("}", 1)[-1] == "parameters"
+        for param in holder.iter()
+        if param is not holder and isinstance(param.tag, str) and param.tag.rsplit("}", 1)[-1].endswith("Param")
+    )
+
+
+@dataclass(frozen=True)
+class FieldControl:
+    """A field's start (``<hp:fieldBegin>``) read as written, whatever its kind (``run.content``).
+
+    ``field_type`` is its ``type`` (``CLICK_HERE``, ``FORMULA``, ``DATE``, ``CROSSREF``, ``MAILMERGE``,
+    ``MEMO``, ...), ``field_id`` its ``id``, ``name`` its ``name`` and ``parameters``
+    the :class:`FieldParameter` entries of its ``hp:parameters``. ``element`` is the
+    ``<hp:fieldBegin>``, the escape hatch. A snapshot: it does not follow later edits. A hyperlink
+    comes as :class:`Hyperlink` and a memo held in its field as the memo instead; both read
+    ``parameters`` too.
+    """
+
+    field_type: str
+    field_id: str
+    name: str
+    parameters: tuple[FieldParameter, ...]
+    element: Any = field(repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "fieldType": self.field_type,
+            "fieldId": self.field_id,
+            "name": self.name,
+            "parameters": [parameter.to_dict() for parameter in self.parameters],
+        }
+
+
 @dataclass(frozen=True)
 class FormulaField:
     """One table formula Hancom saved (``<hp:fieldBegin type="FORMULA">``), read as written.
@@ -556,6 +596,13 @@ class Hyperlink:
     @property
     def field_id(self) -> str:
         return self._element.get("id", "")
+
+    @property
+    def parameters(self) -> tuple[FieldParameter, ...]:
+        """The link's field parameters as written (``Command``, ``Path`` ...), as
+        :class:`FieldControl` reads every other field's."""
+
+        return field_parameters(self._element)
 
     @property
     def url(self) -> str:

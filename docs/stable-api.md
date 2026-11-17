@@ -113,9 +113,9 @@ python-docx 의 `paragraph._p`·`run._r`와 같은 자리다. 이름에 밑줄�
 | 최상위 `hwpx.__all__` | 이름(함수는 서명까지) | 29 |
 | 루트 `HwpxDocument` | 공개 멤버와 지원 dunder 4개의 서명 | 32 |
 | 묶음 11개(`doc.styles` …) | 멤버의 서명(꺼내기·세기 dunder 포함) | 198 |
-| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 403 |
+| `hwpx.model` 22개 클래스 — 계약 | 멤버의 서명 | 404 |
 | `hwpx.model` — 계약 밖 | 이름만(구현 세부, minor에서 바뀔 수 있다) | 177 |
-| `hwpx.objects` 85개 값 형식 | 필드 416 · 멤버 203 · enum 값 10 | 629 |
+| `hwpx.objects` 86개 값 형식 | 필드 424 · 멤버 205 · enum 값 10 | 639 |
 | 모듈 수준 stable 이름(13개 모듈) | 서명(클래스는 멤버까지) | 70 |
 <!-- public-surface-lock:end -->
 
@@ -440,6 +440,7 @@ core가 발행하는 versioned contract(`hwpx.mutation-report/v1`)는 required �
 줄인 그림·도형도 그린 크기대로 돕니다(공개 `ta-pic-001-r.hwp`의 0.2768배로 그려 34° 돈 그림과 상자·가운데·
 그리는 변환이 같다. 공개 `el-school-001.hwp`의 늘인 다각형 90°와 편람의 늘인 다각형 35°도 같은 관계이고,
 한/글에서 열어 다시 저장해도 값이 그대로다). 돈 그림은 `resize`하거나 `crop`을 쓰면 그린 크기로 고치고 다시 돌립니다.
+`set_position(flow_with_text=, allow_overlap=)`은 `hp:pos/@flowWithText`(쪽 영역 안으로 제한)·`@allowOverlap`(서로 겹침 허용)을 한/글처럼 `"1"`·`"0"`으로 씁니다(`None`이면 그대로). `obj.position`의 `has_position`(개체에 `hp:pos`가 있는지)·`treat_as_char_written`(`treatAsChar`가 적혔는지)은 `treat_as_char == False`의 두 경우("0"과 적히지 않음)를 가릅니다.
 한/글처럼 회전 각도의 cos·sin은 소수 여섯 자리로 계산하고, 상자를 옮기는 양은 정수로 씁니다. 떠 있는 개체는 한/글처럼 돌리는
 가운데가 쪽 위에서 제자리에 있게 `hp:pos` 오프셋을 옮깁니다(왼쪽·위 기준이면 옛 가운데 − 새 가운데, 가운데 정렬이면 상자 가운데에서
 돌리는 가운데까지의 거리 차이; 문단·단·쪽·용지 기준 모두 같다. 0으로 되돌리면 언제나 처음 자리; 오프셋은 음수가 될 수 있다). 개체가

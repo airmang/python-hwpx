@@ -205,6 +205,8 @@ def _object_set_position(
     vertical_relative_to: str | None = None,
     horizontal_alignment: str | None = None,
     vertical_alignment: str | None = None,
+    flow_with_text: bool | None = None,
+    allow_overlap: bool | None = None,
 ) -> None:
     """Place an object (equation, picture, OLE, text art...): as a character in the line or
     floating, how the text goes around it, and where it floats.
@@ -217,7 +219,12 @@ def _object_set_position(
     of :data:`POS_HORZ_REL_TO` and *vertical_relative_to* (``vertRelTo``) one of
     :data:`POS_VERT_REL_TO`; *horizontal_alignment* (``horzAlign``) is one of
     :data:`POS_HORZ_ALIGN` and *vertical_alignment* (``vertAlign``) one of :data:`POS_VERT_ALIGN`,
-    the alignment in the frame. ``None`` leaves a setting as it is. Offsets are only for a floating
+    the alignment in the frame. *flow_with_text* writes ``hp:pos/@flowWithText`` (``True``: kept inside
+    the page body, Hancom's 쪽 영역 안으로 제한) and *allow_overlap* ``hp:pos/@allowOverlap`` (``True``: it
+    may overlap other objects, 서로 겹침 허용), each ``"1"`` or ``"0"`` as Hancom writes them; Hancom's
+    saved documents hold both settings in every combination (of the floating objects placed from a
+    paragraph and column in its body, 21 kept in the page and overlapping, 173 kept in it and not).
+    ``None`` leaves a setting as it is. Offsets are only for a floating
     object: given while it stays a character they are refused (``shape-position-unsupported``); a
     value outside its vocabulary is ``shape-position-frame``. Everything is checked before anything
     changes; the paragraph loses its line layout cache.
@@ -260,6 +267,17 @@ def _object_set_position(
             frames[attribute] = _require_member(requested, allowed, argument=argument, code="shape-position-frame")
     if treat_as_char is not None:
         frames["treatAsChar"] = "1" if treat_as_char else "0"
+    for argument, attribute, flag in (("flow_with_text", "flowWithText", flow_with_text),
+                                      ("allow_overlap", "allowOverlap", allow_overlap)):
+        if flag is not None:
+            if not isinstance(flag, bool):
+                raise HwpxValueError(
+                    f"{argument} must be True or False (None leaves it as it is); got {flag!r}",
+                    code="shape-position-value",
+                    context={"argument": argument, "value": repr(flag)},
+                    suggestion=f"Pass {argument}=True or {argument}=False.",
+                )
+            frames[attribute] = "1" if flag else "0"
     for name, offset in (("horzOffset", horizontal_offset), ("vertOffset", vertical_offset)):
         if offset is not None:
             frames[name] = str(offset & 0xFFFFFFFF)  # a negative one in its unsigned 32-bit form, as Hancom writes it
@@ -436,6 +454,8 @@ class ObjectPlacement:
             vertical_offset=_signed_offset(attrs.get("vertOffset")),
             flow_with_text=flag("flowWithText"),
             allow_overlap=flag("allowOverlap"),
+            has_position=pos is not None,
+            treat_as_char_written="treatAsChar" in attrs,
         )
 
     @property

@@ -550,14 +550,23 @@ def _parts(doc: "HwpxDocument") -> Iterator[tuple[Any, _Context]]:
 
 
 def _object_model(element: Any, paragraph: Any) -> Any:
+    """The model object for an object element, as ``paragraph.objects`` gives it: a table, a shape,
+    a picture (:class:`hwpx.model.Picture`, with ``item_id``), an equation (:class:`hwpx.model.Equation`,
+    with ``script``), or an inline object for the rest (OLE, chart, video, text art). Pictures and
+    equations are inline objects too, so code that took them as such keeps working."""
+
     from ..oxml import HwpxOxmlInlineObject, HwpxOxmlTable
-    from ..oxml.objects import HwpxOxmlShape
+    from ..oxml.objects import HwpxOxmlEquation, HwpxOxmlPicture, HwpxOxmlShape
 
     name = _local(element)
     if name == "tbl":
         return HwpxOxmlTable(element, paragraph)
     if name in _SHAPE_TAGS:
         return HwpxOxmlShape(element, paragraph)
+    if name == "pic":
+        return HwpxOxmlPicture(element, paragraph)
+    if name == "equation":
+        return HwpxOxmlEquation(element, paragraph)
     return HwpxOxmlInlineObject(element, paragraph)
 
 
@@ -760,6 +769,29 @@ def _paragraph_object_places(
             continue
         holding = paragraph if holder is paragraph.element else HwpxOxmlParagraph(holder, part)
         yield ObjectPlace(object=_object_model(element, holding), kind=object_kind, **_place_fields(inner))
+
+
+def paragraph_paragraph_places(paragraph: Any, where: "Iterable[str] | str | None" = None) -> Iterator["ParagraphPlace"]:
+    """Every paragraph inside *paragraph* (``paragraph.iter_paragraphs()``), at any depth, in document order:
+    the walk of ``doc.text.iter_paragraphs()`` narrowed to what the paragraph holds, itself left out."""
+
+    from ..objects.results import ParagraphPlace
+    from ..oxml import HwpxOxmlParagraph
+
+    wanted = _check_choices("where", where, PLACES)
+    if next(paragraph.element.iter("{*}p"), None) is None:
+        return iter(())
+    return _paragraph_paragraph_places(paragraph, wanted, ParagraphPlace, HwpxOxmlParagraph)
+
+
+def _paragraph_paragraph_places(
+    paragraph: Any, wanted: "frozenset[str] | None", place: Any, model: Any
+) -> Iterator["ParagraphPlace"]:
+    part = paragraph.section
+    context, _holder, counts = _scope(paragraph.element, part)
+    for kind, element, inner, _ in _walk(paragraph.element, context, paragraph.element, "p", counts):
+        if kind == "p" and (wanted is None or inner.where in wanted):
+            yield place(paragraph=model(element, part), **_place_fields(inner))
 
 
 def object_paragraph_places(obj: Any, where: "Iterable[str] | str | None" = None) -> Iterator["ParagraphPlace"]:

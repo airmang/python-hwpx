@@ -395,6 +395,7 @@ ERROR_CODES: dict[str, str] = {
     "section-clear-control-content": "clear_body 가 남길 hp:secPr/hp:ctrl 안에 글·표·개체가 있다(머리말·꼬리말 등, strip 으로도 못 지우는 경우 포함, 태그는 context 에).",
     "paragraph-missing": "문서(또는 지정 범위)에 문단이 하나도 없다.",
     "paragraph-text-invalid-type": "문단 글(text)이 문자열이 아니다.",
+    "paragraph-tab-widths": "add_run(tab_widths=) 의 폭 개수가 글의 탭 수와 다르거나 폭이 0~2**31-1 정수가 아니다.",
     "paragraph-not-found": "문단 인덱스가 범위를 벗어났다.",
     "paragraph-invalid-type": "paragraph 인자가 정수도 문단 객체도 아니다.",
     "paragraph-not-in-document": "넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단).",

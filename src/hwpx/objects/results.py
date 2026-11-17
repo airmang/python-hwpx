@@ -104,7 +104,10 @@ class ObjectPosition:
     negative one in its unsigned 32-bit form). *flow_with_text* keeps it inside the page body and
     *allow_overlap* lets it overlap other objects. A value the object does not carry is ``None``
     (an object without ``hp:pos`` -- a member of a group -- reads ``None`` throughout but
-    *treat_as_char*, which is then ``False``). A snapshot: it does not follow later edits.
+    *treat_as_char*, which is then ``False``). *treat_as_char* is ``False`` both when ``treatAsChar``
+    says ``0`` and when nothing says it; *has_position* (the object carries ``hp:pos``) and
+    *treat_as_char_written* (its ``hp:pos`` writes ``treatAsChar``) tell those apart. Hancom's saved
+    documents write ``treatAsChar`` on every ``hp:pos``. A snapshot: it does not follow later edits.
     """
 
     treat_as_char: bool
@@ -118,6 +121,8 @@ class ObjectPosition:
     vertical_offset: int | None
     flow_with_text: bool | None
     allow_overlap: bool | None
+    has_position: bool = True
+    treat_as_char_written: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -924,8 +929,10 @@ class ObjectPlace:
     """One object of the whole document and where it sits (``doc.text.iter_objects()``).
 
     ``kind`` is ``table``, ``picture``, ``equation``, ``shape``, ``ole``,
-    ``chart``, ``video`` or ``textart``; ``object`` is its model object (a table,
-    a shape, or an inline object for the rest). The other fields describe the
+    ``chart``, ``video`` or ``textart``; ``object`` is its model object, as
+    ``paragraph.objects`` gives it: a table, a shape, a picture (``item_id``), an equation
+    (``script``), or an inline object for the rest. Pictures and equations are inline objects
+    too (earlier 7.0 development builds gave them as plain inline objects). The other fields describe the
     paragraph holding it, as in :class:`ParagraphPlace`.
     """
 
@@ -987,8 +994,15 @@ class InlineItem:
     :class:`Hyperlink` of a ``HYPERLINK`` field, the memo of a ``MEMO`` field that holds its
     text, the :class:`Ruby` or :class:`ComposedCharacter`, and :class:`AutoNumber`,
     :class:`PageNumberControl`, :class:`NumberRestart`, :class:`PageHiding` or
-    :class:`ColumnDefinition` for those controls; else ``None``. ``element`` is the XML
-    element, the escape hatch (``None`` for characters). Neither takes part in ``==``.
+    :class:`ColumnDefinition` for those controls, the header or footer (the model
+    ``doc.page.headers()`` gives) for a ``"header"``/``"footer"`` control, and a
+    :class:`FieldControl` (type, id, name, parameters) for any other field start (a hyperlink's
+    and a memo field's object read ``parameters`` too); else ``None``. ``element`` is the XML
+    element, the escape hatch (``None`` for characters). ``child_index`` tells which of the run's
+    child elements the piece is written in: the place (from 0, comments not counted) of its
+    ``hp:t`` or ``hp:ctrl``, or of the piece itself when it is a child of the run. Pieces of one
+    ``hp:t`` (or one ``hp:ctrl``) share it, so two controls written in one ``hp:ctrl`` and in two
+    can be told apart. None of these three takes part in ``==`` or ``to_dict()``.
     """
 
     kind: str
@@ -998,6 +1012,7 @@ class InlineItem:
     attributes: tuple[tuple[str, str], ...] = ()
     object: Any = _field(default=None, compare=False, repr=False)
     element: Any = _field(default=None, compare=False, repr=False)
+    child_index: int = _field(default=0, compare=False)
 
     def attribute(self, name: str, default: str | None = None) -> str | None:
         """The value of the attribute *name* as written, *default* when the element has none."""

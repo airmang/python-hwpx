@@ -381,7 +381,7 @@
     "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
-    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true], ["flow_with_text", "K", true], ["allow_overlap", "K", true]], "returns": "None"},
     "tag": {"kind": "property", "settable": false, "returns": "str"},
     "width": {"kind": "property", "settable": false, "returns": "int"},
     "z_order": {"kind": "property", "settable": true, "returns": "int"}
@@ -485,7 +485,7 @@
     "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
-    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true], ["flow_with_text", "K", true], ["allow_overlap", "K", true]], "returns": "None"},
     "tag": {"kind": "property", "settable": false, "returns": "str"},
     "width": {"kind": "property", "settable": false, "returns": "int"},
     "z_order": {"kind": "property", "settable": true, "returns": "int"}
@@ -560,7 +560,7 @@
     "add_page_hiding": {"kind": "method", "params": [["header", "K", true], ["footer", "K", true], ["master_page", "K", true], ["border", "K", true], ["fill", "K", true], ["page_num", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "PageHiding"},
     "add_picture": {"kind": "method", "params": [["item_id", "P", false], ["width", "K", true], ["height", "K", true], ["alignment", "K", true], ["treat_as_char", "K", true], ["pos_overrides", "K", true], ["text_wrap", "K", true], ["brightness", "K", true], ["contrast", "K", true], ["effect", "K", true], ["alpha", "K", true], ["line_color", "K", true], ["line_width_mm", "K", true], ["crop", "K", true], ["shadow", "K", true], ["glow", "K", true], ["soft_edge", "K", true], ["reflection", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Picture"},
     "add_rectangle": {"kind": "method", "params": [["width", "P", true], ["height", "P", true], ["ratio", "K", true], ["line_color", "K", true], ["line_width_mm", "K", true], ["fill_color", "K", true], ["treat_as_char", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true], ["original_size", "K", true]], "returns": "Shape"},
-    "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true], ["expand_special_characters", "K", true]], "returns": "Run"},
+    "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true], ["expand_special_characters", "K", true], ["tab_widths", "K", true]], "returns": "Run"},
     "add_table": {"kind": "method", "params": [["rows", "P", false], ["cols", "P", false], ["width", "K", true], ["height", "K", true], ["border_fill_id_ref", "K", true], ["run_attributes", "K", true], ["char_pr_id_ref", "K", true]], "returns": "Table"},
     "alignment": {"kind": "property", "settable": true, "returns": "Alignment | None"},
     "available_width": {"kind": "property", "settable": false, "returns": "int | None"},
@@ -583,6 +583,7 @@
     "insert_after": {"kind": "method", "params": [["text", "P", true]], "returns": "Paragraph"},
     "insert_before": {"kind": "method", "params": [["text", "P", true]], "returns": "Paragraph"},
     "iter_objects": {"kind": "method", "params": [["kinds", "K", true], ["where", "K", true]], "returns": "Iterator[ObjectPlace]"},
+    "iter_paragraphs": {"kind": "method", "params": [["where", "K", true]], "returns": "Iterator[ParagraphPlace]"},
     "keep_lines": {"kind": "property", "settable": true, "returns": "bool | None"},
     "keep_with_next": {"kind": "property", "settable": true, "returns": "bool | None"},
     "line_segments": {"kind": "property", "settable": false, "returns": "tuple[LineSegment, ...]"},
@@ -671,7 +672,7 @@
     "section": {"kind": "property", "settable": false, "returns": "Section | None"},
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
-    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true], ["flow_with_text", "K", true], ["allow_overlap", "K", true]], "returns": "None"},
     "shadow": {"kind": "property", "settable": false, "returns": "PictureShadow | None"},
     "tag": {"kind": "property", "settable": false, "returns": "str"},
     "width": {"kind": "property", "settable": false, "returns": "int"},
@@ -823,7 +824,7 @@
     "set_attribute": {"kind": "method", "params": [["name", "P", false], ["value", "P", false]], "returns": "None"},
     "set_draw_text": {"kind": "method", "params": [["text", "P", false], ["name", "K", true], ["editable", "K", true], ["margin", "K", true], ["char_pr_id_ref", "K", true], ["para_pr_id_ref", "K", true], ["vertical_alignment", "K", true]], "returns": "DrawText"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
-    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true], ["flow_with_text", "K", true], ["allow_overlap", "K", true]], "returns": "None"},
     "shape_type": {"kind": "property", "settable": false, "returns": "str"},
     "ungroup": {"kind": "method", "params": [], "returns": "tuple[Shape | InlineObject, ...]"},
     "width": {"kind": "property", "settable": false, "returns": "int"},
@@ -888,7 +889,7 @@
     "set_header_rows": {"kind": "method", "params": [["count", "P", false], ["repeat", "K", true]], "returns": "None"},
     "set_in_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
     "set_out_margins": {"kind": "method", "params": [["left", "K", true], ["right", "K", true], ["top", "K", true], ["bottom", "K", true]], "returns": "CellMargins"},
-    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true]], "returns": "None"},
+    "set_position": {"kind": "method", "params": [["treat_as_char", "K", true], ["text_wrap", "K", true], ["horizontal_offset", "K", true], ["vertical_offset", "K", true], ["horizontal_relative_to", "K", true], ["vertical_relative_to", "K", true], ["horizontal_alignment", "K", true], ["vertical_alignment", "K", true], ["flow_with_text", "K", true], ["allow_overlap", "K", true]], "returns": "None"},
     "set_row_height": {"kind": "method", "params": [["row", "P", false], ["height", "P", false]], "returns": "None"},
     "set_row_heights": {"kind": "method", "params": [["heights", "P", false]], "returns": "None"},
     "set_shading": {"kind": "method", "params": [["cell_range", "P", true], ["color", "K", false]], "returns": "None"},
@@ -1291,6 +1292,19 @@
     "text": {"kind": "property", "settable": true, "returns": "str"}
    }
   },
+  "FieldControl": {
+   "kind": "dataclass",
+   "fields": [
+    ["field_type", "str"],
+    ["field_id", "str"],
+    ["name", "str"],
+    ["parameters", "tuple[FieldParameter, ...]"],
+    ["element", "Any"]
+   ],
+   "members": {
+    "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
+   }
+  },
   "FieldFillResult": {
    "kind": "dataclass",
    "fields": [
@@ -1449,6 +1463,7 @@
     "element": {"kind": "property", "settable": false, "returns": "Any"},
     "field_id": {"kind": "property", "settable": false, "returns": "str"},
     "paragraph": {"kind": "property", "settable": false, "returns": "Any"},
+    "parameters": {"kind": "property", "settable": false, "returns": "tuple[FieldParameter, ...]"},
     "remove": {"kind": "method", "params": [["keep_text", "K", true]], "returns": "None"},
     "text": {"kind": "property", "settable": true, "returns": "str"},
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"},
@@ -1464,7 +1479,8 @@
     ["text", "str"],
     ["attributes", "tuple[tuple[str, str], ...]"],
     ["object", "Any"],
-    ["element", "Any"]
+    ["element", "Any"],
+    ["child_index", "int"]
    ],
    "members": {
     "attribute": {"kind": "method", "params": [["name", "P", false], ["default", "P", true]], "returns": "str | None"},
@@ -1651,7 +1667,9 @@
     ["horizontal_offset", "int | None"],
     ["vertical_offset", "int | None"],
     ["flow_with_text", "bool | None"],
-    ["allow_overlap", "bool | None"]
+    ["allow_overlap", "bool | None"],
+    ["has_position", "bool"],
+    ["treat_as_char_written", "bool"]
    ],
    "members": {
     "to_dict": {"kind": "method", "params": [], "returns": "dict[str, Any]"}
