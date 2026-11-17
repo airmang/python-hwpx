@@ -12,6 +12,7 @@ from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_i
 from ..oxml.namespaces import HP
 
 if TYPE_CHECKING:
+    from ..oxml._document_primitives import IdSource
     from hwpx.document import HwpxDocument
     from ..oxml import HwpxOxmlMemo, HwpxOxmlParagraph, HwpxOxmlSection
 
@@ -22,12 +23,13 @@ _HANCOM_MEMO_TIME = "%Y-%m-%dT%H:%M:%SZ"
 _FILETIME_EPOCH = datetime(1601, 1, 1, tzinfo=timezone.utc)
 
 
-def _memo_moment(value: "datetime | str | None") -> "datetime | str":
+def _memo_moment(value: "datetime | str | None", ids: "IdSource | None") -> "datetime | str":
     """The memo's creation moment (aware), or the string given when it is not a timestamp. Naive
-    values are local time, as ``datetime.now()`` gives; ``…Z`` strings are UTC."""
+    values are local time, as ``datetime.now()`` gives; ``…Z`` strings are UTC. ``None`` is now, or
+    the ``now=`` of the memo's document (its source *ids*)."""
 
     if value is None:
-        moment = current_time()
+        moment = current_time(ids)
     elif isinstance(value, datetime):
         moment = value
     else:
@@ -39,7 +41,7 @@ def _memo_moment(value: "datetime | str | None") -> "datetime | str":
     return moment.astimezone()  # naive -> local; aware -> the same moment in local time
 
 
-def _memo_create_time(value: "datetime | str | None") -> str:
+def _memo_create_time(value: "datetime | str | None", ids: "IdSource | None") -> str:
     """A memo's ``CreateDateTime`` as Hancom writes it: the local wall time, written ``…T…Z``.
 
     Hangul writes the moment twice: ``CreateDateTime`` as local time (with a ``Z`` all the same)
@@ -49,19 +51,19 @@ def _memo_create_time(value: "datetime | str | None") -> str:
     a timestamp is kept as given.
     """
 
-    moment = _memo_moment(value)
+    moment = _memo_moment(value, ids)
     if isinstance(moment, str):
         return moment
     return moment.strftime(_HANCOM_MEMO_TIME)
 
 
-def _memo_filetime(value: "datetime | str | None") -> tuple[int, int]:
+def _memo_filetime(value: "datetime | str | None", ids: "IdSource | None") -> tuple[int, int]:
     """The memo's moment as Windows FILETIME (100 ns since 1601, UTC), low and high 32 bits, as the
     ``Command`` parameter holds it. A string that is not a timestamp counts as now."""
 
-    moment = _memo_moment(value)
+    moment = _memo_moment(value, ids)
     if isinstance(moment, str):
-        moment = _memo_moment(None)
+        moment = _memo_moment(None, ids)
     assert isinstance(moment, datetime)
     delta = moment.astimezone(timezone.utc) - _FILETIME_EPOCH
     ticks = (delta.days * 86_400 + delta.seconds) * 10_000_000  # whole seconds, as CreateDateTime holds
@@ -211,12 +213,13 @@ def attach_memo_field(
                        + (", and an index below the number of its places (from 0)." if index else "."),
         )
 
-    field_value = field_id or _object_id()
+    ids = paragraph.section._ids  # the source of the document the memo goes into
+    field_value = field_id or _object_id(ids)
     order = _next_memo_zorder(doc)
     author_value = author or memo.attributes.get("author") or ""
 
     created_value = _memo_create_time(
-        created if created is not None else memo.attributes.get("createDateTime")
+        created if created is not None else memo.attributes.get("createDateTime"), ids
     )
 
     char_ref = char_pr_id_ref
@@ -255,7 +258,7 @@ def attach_memo_field(
     named: set[str] = getattr(memo.group.section.document, "_named_memo_ids", None) or set()
     id_value = memo.id if memo.id and memo.id in named else f"memo{number_value}"
     created_source = created if created is not None else memo.attributes.get("createDateTime")
-    low, high = _memo_filetime(created_source)
+    low, high = _memo_filetime(created_source, ids)
     parameters = _append_element(field_begin, f"{_HP}parameters", {"cnt": "7", "name": ""})
     _append_element(parameters, f"{_HP}integerParam", {"name": "Prop"}).text = "0"
     _append_element(parameters, f"{_HP}stringParam", {"name": "Command"}).text = (

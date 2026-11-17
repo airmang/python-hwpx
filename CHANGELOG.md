@@ -426,7 +426,9 @@ python-hwpx 7.0을 함께 설치한다.
   7.0 개발 중에는 닫지 않은 seed 문서가 같은 스레드의 다른 문서(seed 없는 문서도)에 id와 메모·변경 추적 날짜를 주었고, 함께 연
   seed 문서들은 따로 만들 때와 다른 바이트를 썼으며, 만든 순서대로 닫거나 닫지 않고 버리면 seed가 남았다. 이제는 무엇을 함께
   열든 한 문서의 바이트는 그 문서만 따로 만들 때와 같다. 다른 문서에서 복사해 온 내용(`copy_to`, `insert_document`)의 새 id는
-  받는 문서의 것이다.
+  받는 문서의 것이다. 그룹 부재(`ContainerMember`)는 id 없이 만들어져(`member.element`의 `instid`가 빈 값) 문서가 받을 때
+  그 문서의 id를 받는다. 부재를 만든 뒤 다른 것을 더하고 나서 묶으면 seed 문서의 id 차례가 7.0 개발 중과 다르고, 한 부재를
+  두 묶음에 넣으면 묶음마다 다른 id를 받는다(전에는 같은 id가 두 번 쓰였다).
 - `doc.save()`의 영수증(`MutationReport`)에 품질 보고(`quality`)와, 저장한 바이트에 대해 이미 낸 열기 안전 보고
   (`editor_open_safety`)가 있다. 다시 검사하지 않는다.
 - `doc.save(path, quality=policy, pipeline=SavePipeline(oracle_factory=...))`로 품질 관문에 렌더러(예: python-hwpx-automation의

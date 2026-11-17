@@ -109,7 +109,7 @@ def main() -> int:
     # _create_line_element returns a stdlib ET.Element (not lxml) — its own
     # .tag string is the right way to inspect it, matching how the rest of
     # this codebase reads stdlib element tags (see e.g. paragraph.py).
-    line_el = _create_line_element(0, 0, 14400, 7200)
+    line_el = _create_line_element(0, 0, 14400, 7200, ids=None)
     start_pt_tag = next(c.tag for c in line_el if c.tag.rsplit("}", 1)[-1] == "startPt")
     assert start_pt_tag == f"{{{HC_NS}}}startPt", start_pt_tag
     assert "startPt" in _SHAPE_POINT_LOCAL_NAMES and "endPt" in _SHAPE_POINT_LOCAL_NAMES

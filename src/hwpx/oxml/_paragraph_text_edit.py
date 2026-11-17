@@ -21,6 +21,7 @@ from ._document_primitives import (
 from .namespaces import tag_local_name
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     from ..objects.results import Alignment, LineSegment, LineSpacing, NumberingInfo
     from .header import Bullet, Style
     from .run import HwpxOxmlRun
@@ -303,7 +304,7 @@ def _next_paragraph(parent: ET.Element, element: ET.Element) -> ET.Element | Non
     return None
 
 
-def renumber_copied_fields(copy: ET.Element) -> int:
+def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
     """Give each field whose begin and end are both inside *copy* a new id pair.
 
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
@@ -323,7 +324,7 @@ def renumber_copied_fields(copy: ET.Element) -> int:
         old = begin.get("id")
         if not old or old not in ends:
             continue
-        new_id = _object_id()
+        new_id = _object_id(ids)
         for node in (begin, *ends.pop(old)):
             node.set("id" if node is begin else "beginIDRef", new_id)
             if node.get("fieldid") == old:
@@ -333,7 +334,7 @@ def renumber_copied_fields(copy: ET.Element) -> int:
 
 
 def insert_paragraph_beside(
-    element: ET.Element, section_element: ET.Element, text: str | None, *, after: bool
+    element: ET.Element, section_element: ET.Element, text: str | None, *, after: bool, ids: "IdSource | None"
 ) -> ET.Element:
     """Put a new paragraph next to the paragraph *element* (in its section, cell, header...) and
     return it.
@@ -356,8 +357,8 @@ def insert_paragraph_beside(
             suggestion="문서의 doc.paragraphs 에서 단락을 다시 가져오세요.",
         )
     if text is None:
-        new = _clone_paragraph_element(element)
-        renumber_copied_fields(new)
+        new = _clone_paragraph_element(element, ids=ids)
+        renumber_copied_fields(new, ids=ids)
         for run, settings in section_setting_runs(new):
             for child in settings:
                 run.remove(child)
@@ -366,7 +367,7 @@ def insert_paragraph_beside(
     else:
         text_run = next((child for child in element if _local(child) == "run" and (
             not len(child) or not all(is_section_setting(grand) for grand in child))), None)
-        new = element.makeelement(element.tag, {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS})
+        new = element.makeelement(element.tag, {"id": _paragraph_id(ids), **_DEFAULT_PARAGRAPH_ATTRS})
         for name in ("paraPrIDRef", "styleIDRef"):
             if element.get(name) is not None:
                 new.set(name, element.get(name) or "")

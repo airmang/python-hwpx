@@ -12,7 +12,7 @@ def test_id_generators_stay_within_signed_int32() -> None:
 
     for gen in _GENERATORS:
         for _ in range(200):
-            value = int(gen())
+            value = int(gen(None))
             assert 0 <= value < 2**31, (
                 f"{gen.__name__} produced {value} (0x{value:x}); "
                 "must be in [0, 2^31)"
@@ -25,7 +25,7 @@ def test_id_generators_use_full_31_bit_range() -> None:
     2^30 to guard against accidental over-restriction."""
 
     for gen in _GENERATORS:
-        samples = [int(gen()) for _ in range(4000)]
+        samples = [int(gen(None)) for _ in range(4000)]
         assert max(samples) >= 2**30, (
             f"{gen.__name__} samples capped at {max(samples):#x}; "
             "expected the full [0, 2^31) range"

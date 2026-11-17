@@ -175,8 +175,8 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    프로세스에서나 같은 바이트를 쓴다. 주지 않으면 id는 무작위다. 이 값은 그 문서에만 쓰인다: 같은
    스레드에서 다른 문서를 함께 열거나 만들거나 고치거나 닫아도(닫지 않고 버려도) 그 문서의 바이트는
    그 문서만 따로 만들었을 때와 같고, seed 없는 문서는 무작위 id 를 받는다. 다른 문서에서 복사해 온
-   내용의 새 id 는 받는 문서의 것이다. 아직 어느 문서에도 들지 않은 그룹 부재(`ContainerMember`)를 만들 때만은
-   같은 스레드에서 가장 나중에 연, 아직 열린 seed 문서의 것을 쓴다(seed 문서 하나로 만드는 코드의 바이트가 그대로이게).
+   내용의 새 id 는 받는 문서의 것이다. 그룹 부재(`ContainerMember`)는 id 없이 만들어지고, 문서가 그것을 받을 때
+   (`doc.shapes.add_container`) 그 문서의 id 를 받는다.
    `tests/test_deterministic_creation.py::test_two_processes_with_seed_and_now_write_identical_parts`,
    `tests/test_deterministic_creation.py::test_open_with_seed_makes_edits_deterministic`,
    `tests/test_id_source_per_document.py::test_two_seeded_documents_edited_in_turn_each_write_what_they_write_alone`

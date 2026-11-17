@@ -481,6 +481,10 @@ def add_container(
     group from scratch) is not supported by this entry point — build the
     members through ``ContainerMember`` instead.
     """
+    from ..oxml.container import bind_member_ids
+
+    # The members get their ids from this document as it takes them, before the paragraph that holds them.
+    members = bind_member_ids(members, doc._root._id_source)
     if paragraph is None:
         paragraph = doc.add_paragraph(
             "", section=section,

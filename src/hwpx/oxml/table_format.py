@@ -341,7 +341,7 @@ class TableCellFormat:
         sublist = self._ensure_sublist()
         paragraphs = sublist.findall(f"{_HP}p")
         first = paragraphs[0] if paragraphs else None
-        attributes = {"id": _paragraph_id(), "paraPrIDRef": "0", "styleIDRef": "0", "pageBreak": "0",
+        attributes = {"id": _paragraph_id(self.table.paragraph.section._ids), "paraPrIDRef": "0", "styleIDRef": "0", "pageBreak": "0",
                       "columnBreak": "0", "merged": "0"}
         char_pr = "0"
         if first is not None:
@@ -984,7 +984,7 @@ class TableFormat:
             raise _refuse("the paragraph does not belong to this table's document", "paragraph-not-in-document",
                           "Pass a paragraph of the document that holds the table.")
         host = self.paragraph.element
-        new = host.makeelement(host.tag, {"id": _paragraph_id(), "paraPrIDRef": host.get("paraPrIDRef") or "0",
+        new = host.makeelement(host.tag, {"id": _paragraph_id(target.section._ids), "paraPrIDRef": host.get("paraPrIDRef") or "0",
                                           "styleIDRef": host.get("styleIDRef") or "0", "pageBreak": "0",
                                           "columnBreak": "0", "merged": "0"})
         source_run = next((run for run in host.findall(f"{_HP}run") if any(c is self.element for c in run)), None)
@@ -993,8 +993,8 @@ class TableFormat:
         new.append(run)
         copy = deepcopy(self.element)
         copy.tail = None
-        _refresh_copied_paragraph_subtree_ids(copy)
-        renumber_copied_fields(copy)
+        _refresh_copied_paragraph_subtree_ids(copy, ids=target.section._ids)
+        renumber_copied_fields(copy, ids=target.section._ids)
         for node in copy.iter(f"{_HP}p"):
             _clear_paragraph_layout_cache(node)
         from .memo import renew_copied_memos  # a copied memo anchor gets a memo of its own

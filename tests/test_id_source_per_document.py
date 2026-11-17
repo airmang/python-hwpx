@@ -144,14 +144,32 @@ def test_a_copy_into_an_unseeded_document_gets_random_ids() -> None:
         assert copied.element.get("id") not in _drawn(202)
 
 
-def test_group_members_made_before_the_document_takes_them_draw_from_its_seed() -> None:
+def _member_ids(group: object) -> list[str]:
+    element = group.element  # type: ignore[attr-defined]
+    return [str(node.get("instid")) for node in element.iter() if node is not element and node.get("instid")]
+
+
+def test_group_members_get_their_ids_from_the_document_that_takes_them() -> None:
     from hwpx.objects import ContainerMember
 
-    def build() -> bytes:
+    def build() -> tuple[bytes, list[str]]:
         with HwpxDocument.new(seed=5, now=FIXED) as doc:
             members = [ContainerMember.rect(0, 0, 2000, 1000), ContainerMember.ellipse(2500, 0, 1000, 1000)]
-            doc.shapes.add_container(members)
-            assert {m.element.get("instid") for m in members} <= _drawn(5)
-            return _section(doc)
+            assert [m.element.get("instid") for m in members] == ["", ""]  # none before a document takes them
+            group = doc.shapes.add_container(members)
+            ids = _member_ids(group)
+            assert len(ids) == 2 and set(ids) <= _drawn(5)
+            return _section(doc), ids
 
     assert build() == build()
+
+
+def test_group_members_made_beside_a_seeded_document_do_not_touch_it() -> None:
+    from hwpx.objects import ContainerMember
+
+    with HwpxDocument.new(seed=7, now=FIXED) as seeded, HwpxDocument.new() as plain:
+        members = [ContainerMember.rect(0, 0, 2000, 1000), ContainerMember.ellipse(2500, 0, 1000, 1000)]
+        group = plain.shapes.add_container(members)
+        assert set(_member_ids(group)).isdisjoint(_drawn(7))
+        _edit(seeded, "A")
+        assert _section(seeded) == _alone(7, "A")

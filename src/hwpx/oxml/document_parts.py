@@ -405,9 +405,8 @@ _SimplePartT = TypeVar("_SimplePartT", bound=_HwpxOxmlSimplePart)
 class HwpxOxmlDocument:
     """Aggregates the XML parts that make up an HWPX document."""
 
-    # Where this document's new ids and dates come from (HwpxDocument.new/open(seed=, now=)); it is
-    # used for this document only (see _document_primitives.active_id_source).
-    _owns_id_source = True
+    # Where this document's new ids and dates come from (HwpxDocument.new/open(seed=, now=)). Every
+    # place that makes an id or a date for this document is handed it; no other document uses it.
     _id_source: "IdSource | None" = None
 
     def __init__(
@@ -1265,7 +1264,7 @@ class HwpxOxmlDocument:
             key=lambda index: (abs(index - anchor), index),
         )
         for index in candidate_indices:
-            layout = _section_layout.copy_renderable_section_layout(self._sections[index])
+            layout = _section_layout.copy_renderable_section_layout(self._sections[index], ids=self._id_source)
             if layout is not None:
                 return layout
 
@@ -1338,7 +1337,7 @@ class HwpxOxmlDocument:
 
         section_element = cast(Any, section_properties).makeelement(
             f"{_HS}sec", {}, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
-        para_attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        para_attrs = {"id": _paragraph_id(self._id_source), **_DEFAULT_PARAGRAPH_ATTRS}
         para = _append_child(section_element, f"{_HP}p", para_attrs)
         run = _append_child(para, f"{_HP}run", {"charPrIDRef": "0"})
         run.append(section_properties)

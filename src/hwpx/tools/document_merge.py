@@ -55,6 +55,7 @@ from ..document import HwpxDocument
 from ..errors import HwpxValueError
 from ..oxml.field_marks import field_type_id
 from ..oxml._document_primitives import (
+    IdSource,
     _FONT_FACE_LANG_TO_REF,
     _FONT_REF_ATTRIBUTES,
     _HH,
@@ -65,7 +66,6 @@ from ..oxml._document_primitives import (
     _memo_id,
     _object_id,
     _refresh_copied_paragraph_subtree_ids,
-    mints_into,
 )
 
 #: hh:fontRef's 7 lang attribute names ("hangul"/"latin"/...) -> the
@@ -700,7 +700,9 @@ def _deep_copy_element(element: Any) -> Any:
 # ================================================================================
 
 
-def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_names: set[str]) -> None:
+def _refresh_field_and_bookmark_ids(
+    paragraphs: list[Any], existing_bookmark_names: set[str], *, ids: "IdSource | None"
+) -> None:
     """Refresh document-local ids that ``_refresh_copied_paragraph_subtree_ids``
     deliberately leaves alone (see its own docstring): field begin/end
     pairing and bookmark names. Applies uniformly to every fieldBegin type,
@@ -746,14 +748,14 @@ def _refresh_field_and_bookmark_ids(paragraphs: list[Any], existing_bookmark_nam
         for node in paragraph.iter():
             if _local_name(node.tag) == "fieldBegin":
                 old_id = node.get("id")
-                new_id = _object_id()
+                new_id = _object_id(ids)
                 node.set("id", new_id)
                 new_fieldid = None
                 old_fieldid = node.get("fieldid")
                 if old_fieldid:
                     # Hancom's fieldid is the field type's control id, the same for
                     # every field of the type; a type without one gets a new id.
-                    new_fieldid = field_type_id(node.get("type"))
+                    new_fieldid = field_type_id(node.get("type"), ids=ids)
                     begin_fieldid_map.setdefault(old_fieldid, new_fieldid)
                     node.set("fieldid", new_fieldid)
                 if old_id:
@@ -1003,7 +1005,7 @@ def _find_memo_field_ids(paragraphs: list[Any]) -> set[str]:
 
 
 def _copy_referenced_memos(
-    source: HwpxDocument, source_paragraphs: list[Any]
+    source: HwpxDocument, source_paragraphs: list[Any], *, ids: "IdSource | None"
 ) -> tuple[dict[str, str], list[Any]]:
     """Find every hp:memo the MEMO fields in *source_paragraphs* reference,
     clone them, and give each clone a fresh memo id plus fresh ids for its
@@ -1042,13 +1044,13 @@ def _copy_referenced_memos(
         if memo is None:
             # A memo kept only in its MEMO field (Hancom's form, and python-hwpx's since 7.0) travels
             # with the copied field; it takes a new id like a memo-group memo does.
-            memo_id_map[old_id] = _memo_id()
+            memo_id_map[old_id] = _memo_id(ids)
             continue
         clone = _deep_copy_element(memo)
-        new_id = _memo_id()
+        new_id = _memo_id(ids)
         clone.set("id", new_id)
         memo_id_map[old_id] = new_id
-        _refresh_copied_paragraph_subtree_ids(clone)
+        _refresh_copied_paragraph_subtree_ids(clone, ids=ids)
         clones.append(clone)
     return memo_id_map, clones
 
@@ -1145,7 +1147,8 @@ def _merge_paragraphs(
     # identical either way (deep-copying hasn't happened yet at this
     # point), and _copy_referenced_memos needs *source* itself (not just
     # source_paragraphs) to search its sections' hp:memogroup elements.
-    memo_id_map, memo_clones = _copy_referenced_memos(source, source_paragraphs)
+    ids = target._root._id_source  # new ids are the receiving document's
+    memo_id_map, memo_clones = _copy_referenced_memos(source, source_paragraphs, ids=ids)
 
     copies = [_deep_copy_element(p) for p in source_paragraphs]
     # A copied paragraph is never the destination section's first paragraph
@@ -1273,14 +1276,14 @@ def _merge_paragraphs(
             owning_document.invalidate_char_property_cache()
 
     for copy in copies:
-        _refresh_copied_paragraph_subtree_ids(copy)
+        _refresh_copied_paragraph_subtree_ids(copy, ids=ids)
     _reattach_connectors(copies, {old: str(node.get("instid")) for node, old in instance_ids})
     # memo_clones already had _refresh_copied_paragraph_subtree_ids applied
     # to each individually inside _copy_referenced_memos (needed there, to
     # give each clone a fresh memo id + fresh nested paraList paragraph ids
     # before axis-1 scanning reads them) -- not repeated here.
     bookmark_names = _existing_bookmark_names(target)
-    _refresh_field_and_bookmark_ids(copies, bookmark_names)
+    _refresh_field_and_bookmark_ids(copies, bookmark_names, ids=ids)
     # The field's OWN "ID"/"MemoShapeIDRef" hp:stringParam text values --
     # not attributes, so _apply_remaps never touches them -- get their own
     # pass, using the id map _copy_referenced_memos already built plus the
@@ -1350,7 +1353,6 @@ def _remap_styles(
 # ================================================================================
 
 
-@mints_into("target")
 def append_document(
     target: HwpxDocument,
     source: HwpxDocument | str | Path,
@@ -1416,7 +1418,6 @@ def _facade_of(root: Any) -> HwpxDocument | None:
     return None if package is None else HwpxDocument(package, root)
 
 
-@mints_into("anchor")
 def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     """``paragraph.copy_to(anchor, before=)``: put a copy of the paragraph object *source* right after
     (*before*: before) the paragraph object *anchor* and return it.
@@ -1457,8 +1458,8 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     anchor = resolve_paragraph_in(anchor, anchor, caller="copy_to")
     source_root, target_root = source.section.document, anchor.section.document
     if source_root is target_root:
-        copy = _clone_paragraph_element(source.element)
-        renumber_copied_fields(copy)
+        copy = _clone_paragraph_element(source.element, ids=anchor.section._ids)
+        renumber_copied_fields(copy, ids=anchor.section._ids)
         for run, settings in section_setting_runs(copy):
             for child in settings:
                 run.remove(child)
@@ -1494,7 +1495,6 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     return HwpxOxmlParagraph(copy, anchor.section)
 
 
-@mints_into("target")
 def insert_document(
     target: HwpxDocument,
     source: HwpxDocument | str | Path,

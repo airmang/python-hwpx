@@ -88,7 +88,7 @@ class HwpxOxmlMemoGroup:
         A memo's shape is its section's: ``section.properties.memo_shape_id_ref``."""
 
         memo_attrs = dict(attributes or {})
-        memo_attrs.setdefault("id", memo_id or _memo_id())
+        memo_attrs.setdefault("id", memo_id or _memo_id(self.section._ids))
         memo_element = _append_child(self.element, f"{_HP}memo", memo_attrs)
         _note_session_memo(self.section, memo_element)
         memo = HwpxOxmlMemo(memo_element, self)
@@ -264,6 +264,7 @@ class HwpxOxmlMemo(SameElement):
         para_list = _append_child(self.element, f"{_HP}paraList", {})
         paragraph = _create_paragraph_element(
             desired,
+            ids=self.group.section._ids,
             char_pr_id_ref=existing_char if existing_char is not None else "0",
             parent=para_list,
         )
@@ -343,8 +344,8 @@ class HwpxOxmlMemo(SameElement):
         else:
             clone = deepcopy(self.element)
             clone.tail = None
-        clone.set("id", _memo_id())
-        _refresh_copied_paragraph_subtree_ids(clone)
+        clone.set("id", _memo_id(target._ids))
+        _refresh_copied_paragraph_subtree_ids(clone, ids=target._ids)
         for node in clone.iter(f"{_HP}p"):
             _clear_paragraph_layout_cache(node)
         group = _ensure_memo_group(target)
@@ -589,7 +590,7 @@ def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", targ
         if source is not None:
             _fill_field_from_entry(field, source)
         if memo_field_id(field) is not None:  # the copy is a memo of its own: its own id
-            _set_memo_param(field, "stringParam", "ID", _memo_id())
+            _set_memo_param(field, "stringParam", "ID", _memo_id(target._ids))
         target.mark_dirty()
     return len(fields)
 
@@ -761,6 +762,7 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
             sub_list.remove(paragraph)
         paragraph = _create_paragraph_element(
             value or "",
+            ids=self.group.section._ids,
             char_pr_id_ref=existing_char if existing_char is not None else "0",
             parent=sub_list,
         )

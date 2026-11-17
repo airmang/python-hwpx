@@ -108,7 +108,7 @@ def main() -> int:
 
     from hwpx.oxml.objects import _ARC_CORNER_FLIPS, _create_arc_element
 
-    generated = _create_arc_element(width, height, corner="TOP_LEFT", arc_type="PIE")
+    generated = _create_arc_element(width, height, corner="TOP_LEFT", arc_type="PIE", ids=None)
     gen_points = {
         c.tag.split("}")[-1]: (int(c.get("x", "0")), int(c.get("y", "0")))
         for c in generated if c.tag.split("}")[-1] in ("center", "ax1", "ax2")

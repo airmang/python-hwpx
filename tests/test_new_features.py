@@ -98,7 +98,7 @@ class TestShapeInsertion:
         assert shape.line_color == "#00FF00"
 
     def test_line_element_boolean_uses_zero(self):
-        el = _create_line_element(0, 0, 100, 0)
+        el = _create_line_element(0, 0, 100, 0, ids=None)
         assert el.get("isReverseHV") == "0"
         assert el.get("lock") == "0"
 
@@ -114,7 +114,7 @@ class TestShapeInsertion:
         assert brush.get("faceColor") == "#FF0000"
 
     def test_ellipse_boolean_uses_zero(self):
-        el = _create_ellipse_element(100, 100)
+        el = _create_ellipse_element(100, 100, ids=None)
         assert el.get("intervalDirty") == "0"
         assert el.get("hasArcPr") == "0"
 
@@ -130,7 +130,7 @@ class TestShapeInsertion:
         Compared on **fully qualified** tags: comparing local names let an
         ``hp:pt0`` pass as ``pt0`` while Hancom refused to open the file.
         """
-        el = _create_rectangle_element(100, 50)
+        el = _create_rectangle_element(100, 50, ids=None)
         children = [c.tag for c in el]
         # ASC first
         assert children.index(f"{HP}offset") < children.index(f"{HP}orgSz")
@@ -143,7 +143,7 @@ class TestShapeInsertion:
 
     def test_core_namespace_for_matrix(self):
         """transMatrix, scaMatrix, rotMatrix should use hc: namespace."""
-        el = _create_rectangle_element(100, 50)
+        el = _create_rectangle_element(100, 50, ids=None)
         hc_ns = "http://www.hancom.co.kr/hwpml/2011/core"
         ri = el.find(f"{{{ns}}}renderingInfo" if (ns := "http://www.hancom.co.kr/hwpml/2011/paragraph") else "")
         assert ri is not None
@@ -489,14 +489,14 @@ class TestOwpmlAlignment:
         assert sublist.get("linkListIDRef") == "0"
 
     def test_shape_boolean_attrs_use_zero(self):
-        el = _create_rectangle_element(100, 50)
+        el = _create_rectangle_element(100, 50, ids=None)
         assert el.get("lock") == "0"
         flip = el.find(f"{{{_hp_ns()}}}flip")
         assert flip is not None
         assert flip.get("horizontal") == "0"
 
     def test_identity_matrix_integer_values(self):
-        el = _create_rectangle_element(100, 50)
+        el = _create_rectangle_element(100, 50, ids=None)
         hc_ns = "http://www.hancom.co.kr/hwpml/2011/core"
         hp_ns = _hp_ns()
         ri = el.find(f"{{{hp_ns}}}renderingInfo")
@@ -505,7 +505,7 @@ class TestOwpmlAlignment:
         assert trans.get("e2") == "0"
 
     def test_line_shape_has_headfill_tailfill(self):
-        el = _create_rectangle_element(100, 50)
+        el = _create_rectangle_element(100, 50, ids=None)
         hp_ns = _hp_ns()
         ls = el.find(f"{{{hp_ns}}}lineShape")
         assert ls is not None

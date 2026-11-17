@@ -174,7 +174,7 @@ def _field_begin(run: ET.Element, *, ftype: str, field_id: str, editable: str, d
             "editable": editable,
             "dirty": dirty,
             "zorder": "-1",
-            "fieldid": field_type_id(ftype),
+            "fieldid": field_type_id(ftype, ids=None),  # HYPERLINK/CROSSREF: their control ids, no new id
             "metaTag": "",
         },
     )

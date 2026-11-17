@@ -33,7 +33,7 @@ from .opc.package import (
     structure_errors,
 )
 from .oxml.namespaces import register_owpml_namespaces
-from .oxml._document_primitives import IdSource, hold_id_source
+from .oxml._document_primitives import IdSource
 from .oxml.table_sizes import new_table_width
 from .mutation_report import Fallback, Mode, MutationReport
 from .quality import QualityPolicy, SavePipeline
@@ -288,7 +288,6 @@ class HwpxDocument(metaclass=_DocumentType):
             return
         self._id_source = source
         self._root._id_source = source
-        hold_id_source(self._root, True)
 
     @classmethod
     def new(
@@ -339,10 +338,9 @@ class HwpxDocument(metaclass=_DocumentType):
         unclosed meanwhile neither uses them nor changes what this one writes, so
         a document writes the same bytes whatever else is open. Content copied in
         from another document (``paragraph.copy_to``, ``obj.copy_to``,
-        ``insert_document``) gets this document's ids. The one exception is a
-        group member (``ContainerMember``) made before a document takes it: it
-        belongs to no document yet and draws from the newest open seeded
-        document of the thread. Without them a document
+        ``insert_document``) gets this document's ids. A group member
+        (``ContainerMember``) is made without an id and gets one when a
+        document takes it (``doc.shapes.add_container``). Without them a document
         gets random ids and the current time, as before: documents made
         separately must not share ids when their content is later combined.
         ``SOURCE_DATE_EPOCH`` still fixes the dates when *now* is not given.
@@ -390,9 +388,7 @@ class HwpxDocument(metaclass=_DocumentType):
             self._close_resource(resource)
 
         self._managed_resources.clear()
-        if self._root._id_source is not None:
-            self._root._id_source = None
-            hold_id_source(self._root, False)
+        self._root._id_source = None  # ids made after close are random, as before new(seed=)
         self._closed = True
 
     @staticmethod

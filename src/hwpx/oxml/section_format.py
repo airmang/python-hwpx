@@ -1494,11 +1494,11 @@ class HwpxOxmlSectionProperties:
         if stories:
             story = stories[0][2]
             if not story.get("id"):
-                story.set("id", _object_id())
+                story.set("id", _object_id(self.section._ids))
                 changed = True
         else:
             run = self._header_footer_control_run()
-            story_id = (legacy.get("id") if legacy is not None else None) or _object_id()
+            story_id = (legacy.get("id") if legacy is not None else None) or _object_id(self.section._ids)
             ctrl = run.makeelement(f"{_HP}ctrl", {})
             story = ctrl.makeelement(f"{_HP}{tag}", {"id": story_id, "applyPageType": page_type})
             ctrl.append(story)
@@ -1536,7 +1536,7 @@ class HwpxOxmlSectionProperties:
             paragraph = _append_child(
                 self.section.element,
                 f"{_HP}p",
-                {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS},
+                {"id": _paragraph_id(self.section._ids), **_DEFAULT_PARAGRAPH_ATTRS},
             )
         run = paragraph.find(f"{_HP}run")
         if run is None:

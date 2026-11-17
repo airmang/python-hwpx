@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Sequence
 import xml.etree.ElementTree as ET
 
 from ..errors import HwpxValueError
-from ._document_primitives import _HC, _HP, _append_child
+from ._document_primitives import _HC, _HP, IdSource, _append_child
 from .shape_position import _matrix_number, line_width_units
 from .objects import (
     HwpxOxmlShape,
@@ -80,6 +80,7 @@ def _create_curve_element(
     line_width: str,
     fill_color: str | None,
     treat_as_char: bool,
+    ids: "IdSource | None",
 ) -> ET.Element:
     """An ``hp:curve`` through *points* (HWPUNIT), closed back to the first one when *closed*."""
 
@@ -88,7 +89,7 @@ def _create_curve_element(
     width, height = round(right - shift_x), round(bottom - shift_y)
     local = [(x - shift_x, y - shift_y) for x, y in points]
     element = ET.Element(f"{_HP}curve")
-    _build_shape_common_children(element, width, height, treat_as_char=treat_as_char)
+    _build_shape_common_children(element, width, height, ids=ids, treat_as_char=treat_as_char)
     _build_drawing_object_children(element, line_color=line_color, line_width=line_width, fill_color=fill_color)
     pairs = list(zip(local, local[1:] + local[:1])) if closed else list(zip(local, local[1:]))
     for (x1, y1), (x2, y2) in pairs:
@@ -127,7 +128,7 @@ def _paragraph_add_curve(
         )
     element = _create_curve_element(anchors, closed=closed, line_color=line_color,
                                     line_width=str(line_width_units(line_width_mm)),
-                                    fill_color=fill_color, treat_as_char=treat_as_char)
+                                    fill_color=fill_color, treat_as_char=treat_as_char, ids=self.section._ids)
     return self._insert_shape_element(element, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref)
 
 
@@ -273,7 +274,7 @@ def _paragraph_add_connector(
         )
     element = ET.Element(f"{_HP}connectLine")
     element.set("textWrap", "IN_FRONT_OF_TEXT")
-    _build_shape_common_children(element, width, height, treat_as_char=False)
+    _build_shape_common_children(element, width, height, ids=self.section._ids, treat_as_char=False)
     element.set("type", CONNECTOR_KINDS[kind])
     _build_drawing_object_children(element, line_color=line_color, line_width=str(line_width_units(line_width_mm)))
     local = [(x - left, y - top) for x, y in points]

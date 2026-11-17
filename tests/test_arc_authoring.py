@@ -72,7 +72,7 @@ def _points(element, *names) -> dict[str, tuple[str, str]]:
 
 def test_generated_arc_matches_gold_child_sequence() -> None:
     gold = _gold_arc()
-    generated = _create_arc_element(12450, 11225, arc_type="PIE", fill_color="#F1CB7E")
+    generated = _create_arc_element(12450, 11225, arc_type="PIE", fill_color="#F1CB7E", ids=None)
     assert _contract_children(generated) == _contract_children(gold)
 
 
@@ -87,7 +87,7 @@ def test_generated_arc_geometry_matches_gold_point_for_point() -> None:
         "ax2": ("12450", "0"),
     }
 
-    generated = _create_arc_element(12450, 11225, arc_type="PIE")
+    generated = _create_arc_element(12450, 11225, arc_type="PIE", ids=None)
     assert _points(generated, "center", "ax1", "ax2") == {
         "center": ("0", "0"),
         "ax1": ("0", "11225"),
@@ -96,7 +96,7 @@ def test_generated_arc_geometry_matches_gold_point_for_point() -> None:
 
 
 def test_arc_geometry_uses_the_core_namespace() -> None:
-    element = _create_arc_element(14400, 7200)
+    element = _create_arc_element(14400, 7200, ids=None)
     for local in ("center", "ax1", "ax2"):
         child = next(c for c in element if c.tag.split("}")[-1] == local)
         assert child.tag == f"{HC}{local}"
@@ -108,14 +108,14 @@ def test_arc_bounding_box_matches_gold_orgsz_relationship() -> None:
     assert org_sz is not None
     assert (org_sz.get("width"), org_sz.get("height")) == ("12450", "11225")
 
-    generated = _create_arc_element(12450, 11225)
+    generated = _create_arc_element(12450, 11225, ids=None)
     gen_org_sz = generated.find(f"{HP}orgSz")
     assert gen_org_sz is not None
     assert (gen_org_sz.get("width"), gen_org_sz.get("height")) == ("12450", "11225")
 
 
 def test_arc_fill_brush_uses_the_core_namespace() -> None:
-    element = _create_arc_element(14400, 7200, fill_color="#CCE5FF")
+    element = _create_arc_element(14400, 7200, fill_color="#CCE5FF", ids=None)
     assert element.find(f"{HP}fillBrush") is None
     brush = element.find(f"{HC}fillBrush/{HC}winBrush")
     assert brush is not None
@@ -139,7 +139,7 @@ def test_arc_fill_brush_uses_the_core_namespace() -> None:
 def test_arc_corner_selects_flip_not_new_points(corner, expected_flip) -> None:
     """네 모서리 전부 같은 점 3개를 쓰고, flip만 바뀐다 — 새 기하 계산 없음."""
 
-    element = _create_arc_element(14400, 7200, corner=corner)
+    element = _create_arc_element(14400, 7200, corner=corner, ids=None)
     flip = element.find(f"{HP}flip")
     assert flip is not None
     assert (flip.get("horizontal"), flip.get("vertical")) == expected_flip
@@ -156,13 +156,13 @@ def test_arc_corner_flip_table_covers_exactly_four_corners() -> None:
 
 def test_arc_invalid_corner_is_a_typed_error() -> None:
     with pytest.raises(HwpxValueError) as excinfo:
-        _create_arc_element(14400, 7200, corner="MIDDLE")
+        _create_arc_element(14400, 7200, corner="MIDDLE", ids=None)
     assert excinfo.value.code == "shape-arc-corner-invalid"
 
 
 def test_arc_invalid_type_is_a_typed_error() -> None:
     with pytest.raises(HwpxValueError) as excinfo:
-        _create_arc_element(14400, 7200, arc_type="WEDGE")
+        _create_arc_element(14400, 7200, arc_type="WEDGE", ids=None)
     assert excinfo.value.code == "shape-arc-type-invalid"
 
 

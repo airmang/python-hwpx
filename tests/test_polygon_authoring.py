@@ -85,7 +85,7 @@ def test_generated_polygon_matches_gold_child_sequence() -> None:
         for pt in gold
         if pt.tag == f"{HC}pt"
     ]
-    generated = _create_polygon_element(gold_points, fill_color="#A0BEE0")
+    generated = _create_polygon_element(gold_points, fill_color="#A0BEE0", ids=None)
     assert _contract_children(generated) == _contract_children(gold)
 
 
@@ -98,7 +98,7 @@ def test_generated_polygon_vertex_count_matches_gold() -> None:
 def test_polygon_vertices_use_the_core_namespace() -> None:
     """Hancom 은 기하가 ``hp:`` 에 있으면 문서 전체를 거부한다(5.0.0 결함)."""
 
-    element = _create_polygon_element([(0, 0), (14400, 0), (7200, 7200)])
+    element = _create_polygon_element([(0, 0), (14400, 0), (7200, 7200)], ids=None)
     pts = [child for child in element if child.tag.split("}")[-1] == "pt"]
     assert len(pts) == 3
     assert all(pt.tag == f"{HC}pt" for pt in pts)
@@ -109,7 +109,7 @@ def test_polygon_fill_brush_uses_the_core_namespace() -> None:
     렌더된다 — 색은 반드시 ``hc:fillBrush`` 에 있어야 한다."""
 
     element = _create_polygon_element(
-        [(0, 0), (14400, 0), (7200, 7200)], fill_color="#CCE5FF",
+        [(0, 0), (14400, 0), (7200, 7200)], fill_color="#CCE5FF", ids=None,
     )
     assert element.find(f"{HP}fillBrush") is None
     brush = element.find(f"{HC}fillBrush/{HC}winBrush")
@@ -135,7 +135,7 @@ def test_polygon_bounding_box_matches_the_gold_orgsz_relationship() -> None:
         int(org_sz.get("width", "0")), int(org_sz.get("height", "0")),
     )
 
-    generated = _create_polygon_element([(1000, 2000), (5000, 2000), (3000, 6000)])
+    generated = _create_polygon_element([(1000, 2000), (5000, 2000), (3000, 6000)], ids=None)
     gen_org_sz = generated.find(f"{HP}orgSz")
     assert gen_org_sz is not None
     gen_points = [
@@ -154,7 +154,7 @@ def test_polygon_points_are_translated_to_their_own_bounding_box_origin() -> Non
     """호출자가 준 점이 자기 자신의 원점에 있지 않아도(예: 전부 큰 양수),
     도형 로컬 좌표는 좌상단이 (0, 0)이어야 한다(rect의 pt0=(0,0) 관례와 동형)."""
 
-    element = _create_polygon_element([(1000, 2000), (5000, 2000), (3000, 6000)])
+    element = _create_polygon_element([(1000, 2000), (5000, 2000), (3000, 6000)], ids=None)
     points = [
         (int(pt.get("x", "0")), int(pt.get("y", "0")))
         for pt in element

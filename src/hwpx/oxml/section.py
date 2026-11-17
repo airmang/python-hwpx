@@ -36,6 +36,7 @@ from .section_story import HwpxOxmlSectionHeaderFooter, story_marks
 
 if TYPE_CHECKING:
     from ..objects.results import ClearBodyReport
+    from ._document_primitives import IdSource
     from .document_parts import HwpxOxmlDocument
     from .header import Style
     from .table import HwpxOxmlTable
@@ -107,7 +108,7 @@ class HwpxOxmlSection:
         paragraph = _first_child_by_local(self._element, "p")
         if paragraph is None:
             paragraph_attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
-            paragraph_attrs["id"] = _paragraph_id()
+            paragraph_attrs["id"] = _paragraph_id(self._ids)
             paragraph = _append_child(
                 self._element,
                 _child_tag_like(self._element, "p", _HP_NS),
@@ -150,6 +151,12 @@ class HwpxOxmlSection:
 
     def attach_document(self, document: "HwpxOxmlDocument") -> None:
         self._document = document
+
+    @property
+    def _ids(self) -> "IdSource | None":
+        """The id/clock source of this section's document (``None``: no ``seed=``/``now=``, or no document)."""
+
+        return self._document._id_source if self._document is not None else None
 
     @property
     def paragraphs(self) -> tuple[HwpxOxmlParagraph, ...]:
@@ -593,7 +600,7 @@ class HwpxOxmlSection:
             self._inherited_paragraph_refs(inherit_outline=inherit_outline) if inherit_style else (None, None, None)
         )
 
-        attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        attrs = {"id": _paragraph_id(self._ids), **_DEFAULT_PARAGRAPH_ATTRS}
         attrs.update(extra_attrs)
 
         if para_pr_id_ref is not None:
@@ -649,7 +656,7 @@ class HwpxOxmlSection:
         inserted: list[HwpxOxmlParagraph] = []
         for offset, paragraph in enumerate(paragraphs):
             source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
-            cloned = _clone_paragraph_element(source_element)
+            cloned = _clone_paragraph_element(source_element, ids=self._ids)
             for run, settings in section_setting_runs(cloned):
                 for child in settings:
                     run.remove(child)
@@ -671,7 +678,7 @@ class HwpxOxmlSection:
         total = len(paragraphs)
         if start < 0 or end < 0 or start >= total or end >= total or start > end:
             raise IndexError(f"문단 범위 {start}..{end}이(가) 유효하지 않습니다 (총 {total}개)")
-        return tuple(_clone_paragraph_element(paragraphs[index].element) for index in range(start, end + 1))
+        return tuple(_clone_paragraph_element(paragraphs[index].element, ids=self._ids) for index in range(start, end + 1))
 
     def mark_dirty(self) -> None:
         self._dirty = True

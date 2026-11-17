@@ -330,7 +330,7 @@ def test_document_uuid4_monkeypatch_reaches_identity_owner(monkeypatch) -> None:
     monkeypatch.setattr(document_facade, "uuid4", lambda: _FixedUuid())
 
     assert _document_primitives.uuid4().int == _FixedUuid.int
-    assert _document_primitives._paragraph_id() == str(_FixedUuid.int & 0x7FFFFFFF)
+    assert _document_primitives._paragraph_id(None) == str(_FixedUuid.int & 0x7FFFFFFF)
 
 
 def test_document_uuid4_delete_reaches_identity_owner() -> None:

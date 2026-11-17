@@ -911,6 +911,7 @@ class HwpxOxmlHeader:
             change_type,
             author_name=author_name,
             date=date,
+            ids=self._document._id_source if self._document is not None else None,
         )
         if model.ref_list is None or model.ref_list.track_changes is None:
             raise RuntimeError("failed to create tracked-change metadata")

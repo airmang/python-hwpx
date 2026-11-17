@@ -17,12 +17,13 @@ at its own transMatrix there). Only the outermost group carries the tail and ``n
 from __future__ import annotations
 
 import copy
+import dataclasses
 import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 import xml.etree.ElementTree as ET
 
-from ._document_primitives import _HC, _HP, _append_child
+from ._document_primitives import _HC, _HP, PENDING_IDS, IdSource, _append_child, _object_id
 from .shape_position import line_width_units, validate_draw_text_vert_align, validate_shape_size
 
 if TYPE_CHECKING:
@@ -92,7 +93,7 @@ class ContainerMember:
         from .objects import _create_rectangle_element
 
         element = _create_rectangle_element(
-            width, height, ratio=ratio, line_color=line_color,
+            width, height, ids=PENDING_IDS, ratio=ratio, line_color=line_color,
             line_width=str(line_width_units(line_width_mm)), fill_color=fill_color,
         )
         return cls(element, x, y)
@@ -114,7 +115,7 @@ class ContainerMember:
         from .objects import _create_ellipse_element
 
         element = _create_ellipse_element(
-            width, height, line_color=line_color, line_width=str(line_width_units(line_width_mm)),
+            width, height, ids=PENDING_IDS, line_color=line_color, line_width=str(line_width_units(line_width_mm)),
             fill_color=fill_color,
         )
         return cls(element, x, y)
@@ -139,7 +140,7 @@ class ContainerMember:
 
         element = _create_polygon_element(
             _closed_points(points) if closed else points,
-            line_color=line_color, line_width=str(line_width_units(line_width_mm)), fill_color=fill_color,
+            ids=PENDING_IDS, line_color=line_color, line_width=str(line_width_units(line_width_mm)), fill_color=fill_color,
         )
         return cls(element, x, y)
 
@@ -163,7 +164,7 @@ class ContainerMember:
         x, y = min(start_x, end_x), min(start_y, end_y)
         element = _create_line_element(
             start_x - x, start_y - y, end_x - x, end_y - y,
-            line_color=line_color, line_width=str(line_width_units(line_width_mm)),
+            ids=PENDING_IDS, line_color=line_color, line_width=str(line_width_units(line_width_mm)),
         )
         return cls(element, x, y)
 
@@ -226,7 +227,7 @@ class ContainerMember:
                 context={"image": repr(image)},
                 suggestion="Pass what doc.media.add_image(data, format) returned.",
             )
-        return cls(_create_picture_element(image_id, width, height), x, y)
+        return cls(_create_picture_element(image_id, width, height, ids=PENDING_IDS), x, y)
 
     @classmethod
     def group(cls, x: int, y: int, members: Sequence["ContainerMember"]) -> "ContainerMember":
@@ -234,7 +235,7 @@ class ContainerMember:
         in its own local space, as Hancom keeps a group that was grouped again."""
 
         children = tuple(members)
-        return cls(_group_element(children, top=False), x, y, members=children)
+        return cls(_group_element(children, top=False, ids=PENDING_IDS), x, y, members=children)
 
 
 def _member_size(member: "ContainerMember") -> tuple[int, int]:
@@ -248,6 +249,7 @@ def _group_element(
     members: Sequence["ContainerMember"],
     *,
     top: bool,
+    ids: "IdSource | None",
     treat_as_char: bool = True,
 ) -> ET.Element:
     from .objects import _build_shape_base_children, _build_shape_common_children
@@ -269,12 +271,12 @@ def _group_element(
     height = max(m.y + _member_size(m)[1] for m in members) - min_y
 
     el = ET.Element(f"{_HP}container")
-    _build_shape_common_children(el, width, height, treat_as_char=treat_as_char)
+    _build_shape_common_children(el, width, height, ids=ids, treat_as_char=treat_as_char)
     el.set("numberingType", "PICTURE")
     for member in members:
         # A fresh copy (a group inside is assembled again from its members): the ContainerMember passed in is
         # never changed, so the same one can go into several groups, or twice into one.
-        member_el = _group_element(member.members, top=False) if member.members else copy.deepcopy(member.element)
+        member_el = _group_element(member.members, top=False, ids=ids) if member.members else copy.deepcopy(member.element)
         local_x, local_y = member.x - min_x, member.y - min_y
         _place(member_el, local_x, local_y)
         # Hancom draws every shape of a group at its own transMatrix in the outermost group's space, so the
@@ -338,9 +340,10 @@ def _set_group_levels(group: ET.Element, level: int) -> None:
 def _create_container_element(
     members: Sequence["ContainerMember"],
     *,
+    ids: "IdSource | None",
     treat_as_char: bool = True,
 ) -> ET.Element:
-    """Build a complete ``<hp:container>`` grouping *members*.
+    """Build a complete ``<hp:container>`` grouping *members*, for the document whose id source is *ids*.
 
     The group is structured like any other drawing object —
     ``numberingType="PICTURE"``, its own ``offset``/``orgSz``/``curSz``/
@@ -352,7 +355,29 @@ def _create_container_element(
     it does the same in its own space.
     """
 
-    return _group_element(members, top=True, treat_as_char=treat_as_char)
+    group = _group_element(bind_member_ids(members, ids), top=True, ids=ids, treat_as_char=treat_as_char)
+    assert not any(node.get("instid") == "" for node in group.iter()), "a group member was given no id"
+    return group
+
+
+def bind_member_ids(members: Sequence["ContainerMember"], ids: "IdSource | None") -> tuple["ContainerMember", ...]:
+    """Copies of *members* holding the ids they were made without, from *ids* -- the source of the document
+    that takes them. A member is made for no document (its ``instid`` empty); the document gives it one
+    when it takes it: the members of a group inside before that group, each in the order given (the order
+    members written out in one expression are made in). A member that has its id keeps it; the members
+    passed in are not changed, so one can go into several groups."""
+
+    bound = []
+    for member in members:
+        inner = bind_member_ids(member.members, ids) if member.members else ()
+        element = copy.deepcopy(member.element)
+        if element.get("instid") == "":
+            value = _object_id(ids)
+            element.set("instid", value)
+            if element.get("id") == "":
+                element.set("id", value)
+        bound.append(dataclasses.replace(member, element=element, members=inner))
+    return tuple(bound)
 
 
 def _write_member_texts(
@@ -1068,7 +1093,7 @@ def ungroup_refusal(group: Any) -> str | None:
     return None
 
 
-def ungroup_elements(group: Any) -> list[Any]:
+def ungroup_elements(group: Any, *, ids: "IdSource | None") -> list[Any]:
     """Take the floating group *group* (``hp:container`` in a run) apart as Hancom 2024 ungroups one and return
     its members, now shapes of their own, in the order they stand in the run (the group's last member first,
     as Hancom puts them).
@@ -1159,7 +1184,7 @@ def ungroup_elements(group: Any) -> list[Any]:
             if group.get(name) is not None:
                 member.set(name, str(group.get(name)))
         member.set("groupLevel", "0")
-        member.set("id", _object_id())
+        member.set("id", _object_id(ids))
         member.set("zOrder", str(base + index))  # the first member the group's place, the last on top
         member.append(member.makeelement(f"{_HP}sz", {
             "width": str(box[0]), "widthRelTo": "ABSOLUTE", "height": str(box[1]), "heightRelTo": "ABSOLUTE",

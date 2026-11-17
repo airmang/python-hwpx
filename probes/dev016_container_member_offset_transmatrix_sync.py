@@ -145,7 +145,7 @@ def main() -> int:
     element = _create_container_element([
         ContainerMember.rect(1000, 2000, 3000, 1000),
         ContainerMember.rect(4000, 2000, 1000, 1000),
-    ])
+    ], ids=None)
     # _create_container_element returns a stdlib ET.Element (not lxml) -- its
     # own .tag string is the right way to inspect it (same reasoning dev012's
     # probe uses for _create_line_element).

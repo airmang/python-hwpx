@@ -3,16 +3,11 @@
 
 from __future__ import annotations
 
-import functools as _functools
 import re as _re
-import sys
-import threading
-import weakref
-from contextvars import ContextVar
 from copy import deepcopy
 from datetime import datetime, timezone
 from random import Random
-from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar, cast
+from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -87,7 +82,6 @@ _BORDER_SIDE_ELEMENTS = {
 }
 
 T = TypeVar("T")
-_F = TypeVar("_F", bound=Callable[..., Any])
 
 # Characters forbidden inside XML 1.0 text nodes (XML spec §2.2).
 # Tab (U+0009) is legal XML but illegal inside <hp:t>; it must be
@@ -216,8 +210,10 @@ class SameElement:
 class IdSource:
     """Where the ids and timestamps a document mints come from.
 
-    ``HwpxDocument.new(seed=..., now=...)`` gives the document one, used for that
-    document only (see :func:`active_id_source`). With a *seed*, every
+    ``HwpxDocument.new(seed=..., now=...)`` gives the document one
+    (``HwpxOxmlDocument._id_source``), used for that document only: every place
+    that makes an id or a date is handed the source of the document it is for.
+    With a *seed*, every
     paragraph/object/memo id is drawn from ``random.Random(seed)`` instead of
     ``uuid4``: the same calls in the same order give the same ids, in another
     process too. The values keep the range of the random ids (1 .. 2**31 - 1)
@@ -246,145 +242,58 @@ class IdSource:
                 return str(value)
 
 
-# The document an operation across documents writes into (``ids_for``); None: find it on the stack.
-_ID_SCOPE: "ContextVar[Any]" = ContextVar("hwpx_id_scope", default=None)
+class PendingIds(IdSource):
+    """The source of a shape made for no document yet (a ``ContainerMember``): its ids are written
+    empty, and the document that takes it gives them (``container.bind_member_ids``)."""
 
-# The attributes a model object reaches its document through (a run its paragraph, a paragraph its
-# section, a section its HwpxOxmlDocument, HwpxDocument its root, a namespace its HwpxDocument).
-_OWNER_LINKS = (
-    "_root", "_document", "_doc", "section", "_section", "paragraph", "_paragraph", "table", "_table",
-    "group", "_cell", "_memo", "_properties", "master_page",
-)
+    __slots__ = ()
 
-
-# The open documents of this thread that have a source, oldest first (weak: a dropped one goes).
-_SEEDED = threading.local()
+    def next_id(self) -> "str | None":
+        return ""
 
 
-def hold_id_source(document: Any, held: bool) -> None:
-    """Note (*held*) or forget the ``HwpxOxmlDocument`` *document* as an open document with a source."""
-
-    alive = [ref for ref in getattr(_SEEDED, "documents", ()) if ref() is not None and ref() is not document]
-    _SEEDED.documents = [*alive, weakref.ref(document)] if held else alive
+#: Where a group member made before any document takes it gets its ids from (none yet).
+PENDING_IDS = PendingIds()
 
 
-def _newest_seeded() -> Any:
-    for ref in reversed(getattr(_SEEDED, "documents", ())):
-        document = ref()
-        if document is not None and document._id_source is not None:
-            return document
-    return None
+def current_time(ids: "IdSource | None") -> datetime:
+    """Now in UTC, unless *ids* (the source of the document the date is for) fixes the clock."""
 
-
-def owning_document(obj: Any) -> Any:
-    """The ``HwpxOxmlDocument`` the model object *obj* belongs to, or None."""
-
-    for _ in range(10):
-        if obj is None or isinstance(obj, type):
-            return None
-        if getattr(type(obj), "_owns_id_source", False):
-            return obj
-        attributes = getattr(obj, "__dict__", None)
-        if not attributes:
-            return None
-        obj = next((attributes[name] for name in _OWNER_LINKS if attributes.get(name) is not None), None)
-    return None
-
-
-class ids_for:
-    """``with ids_for(target):`` new ids and dates come from *target*'s document while copying into it
-    from another document (the copy belongs to the document that receives it)."""
-
-    def __init__(self, target: Any) -> None:
-        self._document = owning_document(target)
-        self._token: Any = None
-
-    def __enter__(self) -> None:
-        if self._document is not None:
-            self._token = _ID_SCOPE.set(self._document)
-
-    def __exit__(self, *_: Any) -> None:
-        if self._token is not None:
-            _ID_SCOPE.reset(self._token)
-
-
-def mints_into(parameter: str) -> Callable[[_F], _F]:
-    """Decorate an operation that copies into the document of its argument *parameter* (a document,
-    paragraph or other model object of it): the ids and dates it makes come from that document."""
-
-    def decorate(function: _F) -> _F:
-        position = function.__code__.co_varnames.index(parameter)
-
-        @_functools.wraps(function)
-        def copying(*args: Any, **kwargs: Any) -> Any:
-            with ids_for(kwargs[parameter] if parameter in kwargs else args[position]):
-                return function(*args, **kwargs)
-
-        return cast(_F, copying)
-
-    return decorate
-
-
-def active_id_source() -> "IdSource | None":
-    """The id/clock source of the document the calling code works on, if it has one.
-
-    A source belongs to one document (``HwpxDocument.new(seed=..., now=...)``, ``open(..., seed=,
-    now=)``): it is used for that document's ids and dates only. The document is the one
-    :class:`ids_for` names, else the one the nearest model object on the call stack (a method's
-    ``self`` or a function's first argument: the document, a section, paragraph, run, table, cell,
-    memo, object ...) belongs to. Something made for no document yet -- a ``ContainerMember`` built
-    before ``doc.shapes.add_container`` takes it -- draws from the newest open document of this
-    thread that has a source, as every id did before sources belonged to documents, so a script
-    with one seeded document writes the bytes it wrote then. Otherwise: random ids and the clock.
-    """
-
-    document = _ID_SCOPE.get()
-    if document is None:
-        frame = sys._getframe(1)
-        while frame is not None and document is None:
-            code = frame.f_code
-            if code.co_argcount:
-                document = owning_document(frame.f_locals.get(code.co_varnames[0]))
-            frame = frame.f_back
-    if document is None:  # made for no document yet (a ContainerMember): the newest open seeded one
-        document = _newest_seeded()
-    return getattr(document, "_id_source", None)
-
-
-def current_time() -> datetime:
-    """Now in UTC, unless the document being worked on fixes the clock."""
-
-    source = active_id_source()
-    if source is not None and source.now is not None:
-        return source.now
+    if ids is not None and ids.now is not None:
+        return ids.now
     return datetime.now(timezone.utc)
 
 
-def _new_id() -> str:
-    source = active_id_source()
-    if source is not None:
-        value = source.next_id()
+def _new_id(ids: "IdSource | None") -> str:
+    """A new paragraph/object/memo id for the document whose source is *ids*.
+
+    Every caller passes the source of the document the id goes into (``None``: a document
+    without ``seed=``, or a part in no document), so one document's seed never reaches another.
+    """
+
+    if ids is not None:
+        value = ids.next_id()
         if value is not None:
             return value
     return str(uuid4().int & 0x7FFFFFFF)
 
 
-def _paragraph_id() -> str:
+def _paragraph_id(ids: "IdSource | None") -> str:
     """Generate an identifier for a new paragraph element."""
-    return _new_id()
+    return _new_id(ids)
 
 
-def _object_id() -> str:
+def _object_id(ids: "IdSource | None") -> str:
     """Generate an identifier suitable for table and shape objects."""
-    return _new_id()
+    return _new_id(ids)
 
 
-def _memo_id() -> str:
+def _memo_id(ids: "IdSource | None") -> str:
     """Generate a lightweight identifier for memo elements."""
-    return _new_id()
+    return _new_id(ids)
 
 
-def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
+def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element, *, ids: "IdSource | None") -> None:
     """Assign fresh local identifiers inside a copied paragraph subtree.
 
     This is intentionally narrow: it refreshes paragraph ids for the copied
@@ -395,7 +304,7 @@ def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
 
     for node in paragraph.iter():
         if node.tag == f"{_HP}p":
-            node.set("id", _paragraph_id())
+            node.set("id", _paragraph_id(ids))
             continue
 
         if "id" in node.attrib and node.tag in {
@@ -409,16 +318,16 @@ def _refresh_copied_paragraph_subtree_ids(paragraph: ET.Element) -> None:
             f"{_HP}header",
             f"{_HP}footer",
         }:
-            node.set("id", _object_id())
+            node.set("id", _object_id(ids))
 
         # 개체(그림·도형 등)의 속성명은 "instid", 각주·미주는 "instId"다
         # (스키마·한/글). 어느 철자든 값만 재발급하고 속성명은 그대로 둔다.
         for inst_attr in ("instid", "instId"):
             if inst_attr in node.attrib:
-                node.set(inst_attr, _object_id())
+                node.set(inst_attr, _object_id(ids))
 
 
-def _clone_paragraph_element(paragraph: ET.Element) -> ET.Element:
+def _clone_paragraph_element(paragraph: ET.Element, *, ids: "IdSource | None") -> ET.Element:
     """Return a deep-copied paragraph element with refreshed local ids.
 
     Cached line layout (``hp:linesegarray``) is dropped from the clone and
@@ -431,7 +340,7 @@ def _clone_paragraph_element(paragraph: ET.Element) -> ET.Element:
     """
 
     cloned = deepcopy(paragraph)
-    _refresh_copied_paragraph_subtree_ids(cloned)
+    _refresh_copied_paragraph_subtree_ids(cloned, ids=ids)
     for node in cloned.iter():
         if _element_local_name(node) == "p":
             _clear_paragraph_layout_cache(node)
@@ -441,6 +350,7 @@ def _clone_paragraph_element(paragraph: ET.Element) -> ET.Element:
 def _create_paragraph_element(
     text: str,
     *,
+    ids: "IdSource | None",
     char_pr_id_ref: str | int | None = None,
     para_pr_id_ref: str | int | None = None,
     style_id_ref: str | int | None = None,
@@ -450,7 +360,7 @@ def _create_paragraph_element(
 ) -> ET.Element:
     """Return a paragraph element populated with a single run and text node."""
 
-    attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+    attrs = {"id": _paragraph_id(ids), **_DEFAULT_PARAGRAPH_ATTRS}
     attrs.update(paragraph_attributes or {})
 
     if para_pr_id_ref is not None:
@@ -1265,9 +1175,9 @@ def _default_cell_attributes(border_fill_id_ref: str) -> dict[str, str]:
     }
 
 
-def _default_cell_paragraph_attributes() -> dict[str, str]:
+def _default_cell_paragraph_attributes(ids: "IdSource | None") -> dict[str, str]:
     attrs = dict(_DEFAULT_PARAGRAPH_ATTRS)
-    attrs["id"] = _paragraph_id()
+    attrs["id"] = _paragraph_id(ids)
     return attrs
 
 

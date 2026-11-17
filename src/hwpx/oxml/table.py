@@ -45,6 +45,7 @@ from .table_merge import TableGridCache as _TableGridCache, collapse_merged_grid
 from .table_merge import bad_spreadsheet_range, cell_out_of_range, cell_remove_refused, check_merge_range
 
 if TYPE_CHECKING:
+    from ._document_primitives import IdSource
     from hwpx.form_fit.policy import FitPolicy
     from ..objects.binary_item import BinaryItem
     from hwpx.form_fit.report import FitResult
@@ -241,7 +242,7 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         paragraph = sublist.find(f"{_HP}p")
         if paragraph is None:
             paragraph = _append_child(
-                sublist, f"{_HP}p", _default_cell_paragraph_attributes()
+                sublist, f"{_HP}p", _default_cell_paragraph_attributes(self.table.paragraph.section._ids)
             )
         _clear_paragraph_layout_cache(paragraph)
         run = paragraph.find(f"{_HP}run")
@@ -341,13 +342,14 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
 
     def _paragraph_format_attrs(self, paragraph: "HwpxOxmlParagraph" | None = None) -> dict[str, str]:  # type: ignore[reportGeneralTypeIssues]  # frozen public annotation
         source = paragraph.element if paragraph is not None else None
-        attrs = dict(_default_cell_paragraph_attributes())
+        ids = self.table.paragraph.section._ids
+        attrs = dict(_default_cell_paragraph_attributes(ids))
         if source is not None:
             for key in ("paraPrIDRef", "styleIDRef", "pageBreak", "columnBreak", "merged"):
                 value = source.get(key)
                 if value is not None:
                     attrs[key] = value
-        attrs["id"] = _paragraph_id()
+        attrs["id"] = _paragraph_id(ids)
         return attrs
 
     def _run_char_pr_for_line(self, paragraphs: Sequence["HwpxOxmlParagraph"], index: int) -> str:
@@ -522,7 +524,7 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
             )
         sublist = self._ensure_sublist()
 
-        attrs = {"id": _paragraph_id(), **_DEFAULT_PARAGRAPH_ATTRS}
+        attrs = {"id": _paragraph_id(self.table.paragraph.section._ids), **_DEFAULT_PARAGRAPH_ATTRS}
         if para_pr_id_ref is not None:
             attrs["paraPrIDRef"] = str(para_pr_id_ref)
         if style_id_ref is not None:
@@ -804,7 +806,9 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
         width: int | None = None,
         height: int | None = None,
         border_fill_id_ref: str | int | None = None,
+        ids: "IdSource | None",
     ) -> ET.Element:
+        """A new ``hp:tbl`` element; *ids* is the id source of the document it is made for."""
         if rows <= 0 or cols <= 0:
             raise ValueError("rows and cols must be positive integers")
 
@@ -815,7 +819,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
         border_fill = str(border_fill_id_ref)
 
         table_attrs = {
-            "id": _object_id(),
+            "id": _object_id(ids),
             "zOrder": "0",
             "numberingType": "TABLE",
             "textWrap": "TOP_AND_BOTTOM",
@@ -871,7 +875,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
             for col_index in range(cols):
                 cell = ET.SubElement(row, f"{_HP}tc", _default_cell_attributes(border_fill))
                 sublist = ET.SubElement(cell, f"{_HP}subList", _default_sublist_attributes())
-                paragraph = ET.SubElement(sublist, f"{_HP}p", _default_cell_paragraph_attributes())
+                paragraph = ET.SubElement(sublist, f"{_HP}p", _default_cell_paragraph_attributes(ids))
                 run = ET.SubElement(paragraph, f"{_HP}run", {"charPrIDRef": "0"})
                 ET.SubElement(run, f"{_HP}t")
                 ET.SubElement(
@@ -1376,6 +1380,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
         logical_col: int,
         col_width: int,
         row_height: int,
+        ids: "IdSource | None",
     ) -> Any:
         # Use makeelement() so the new cell matches the XML engine
         # of the existing tree (stdlib ET or lxml).  ET.Element()
@@ -1393,7 +1398,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
             template_para = template_sublist.find(f"{_HP}p")
 
         sublist = _append_child(new_cell_element, f"{_HP}subList", sublist_attrs)
-        paragraph_attrs = _default_cell_paragraph_attributes()
+        paragraph_attrs = _default_cell_paragraph_attributes(ids)
         run_attrs = {"charPrIDRef": "0"}
         if template_para is not None:
             HwpxOxmlTable._copy_attrs_excluding_id(template_para.attrib, paragraph_attrs)
@@ -1474,7 +1479,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
 
         new_cell_element = self._build_split_cell_element(
             row_element, template_attrs, preserved_children, template_sublist, template_margin,
-            logical_row, logical_col, col_width, row_height,
+            logical_row, logical_col, col_width, row_height, self.paragraph.section._ids,
         )
         self._insert_split_cell_at_position(row_element, new_cell_element, logical_col)
 
