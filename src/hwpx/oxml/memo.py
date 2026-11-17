@@ -932,7 +932,8 @@ class HwpxOxmlNote(SameElement):
     def move_to(self, paragraph: "HwpxOxmlParagraph", *, offset: int | None = None) -> None:
         """Move the note's mark to character *offset* of *paragraph* (``None``: its end), a paragraph of the same
         document: after the controls already there, before the character, as :meth:`add_footnote` puts one.
-        Notes of its kind are numbered again. Refused into a note, a header, a footer or a memo
+        The note takes no character, so *offset* counts the same before and after the move, also within its
+        own paragraph -- as an object's ``move_to(offset=)``. Notes of its kind are numbered again. Refused into a note, a header, a footer or a memo
         (``paragraph-move-place-unsupported``) or another document (``note-other-document-unsupported``)."""
 
         from .text_ranges import move_note

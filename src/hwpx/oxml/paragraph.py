@@ -1595,8 +1595,10 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
 
         With *start* and *end* the field wraps the characters ``[start, end)`` of ``paragraph.text``, its
         value: the begin after the controls at *start*, the end before the character at *end*, each in the run
-        it falls in; no prompt run is written (*prompt* stays the field's 안내문). A range holding one end of
-        another field is refused (``paragraph-range-splits-field``).
+        it falls in. No prompt run is written -- the field holds a value -- and *prompt* stays the field's
+        안내문 (its ``Direction`` parameter), as Hancom keeps one in a filled click-here field
+        (``field_value_shape_filled``); *memo* and *editable* are written as without a range. A range holding
+        one end of another field is refused (``paragraph-range-splits-field``).
 
         Emits the real-Hancom CLICKHERE shape (inferred from Hancom
         Office 12.0.0.3288 gold documents):

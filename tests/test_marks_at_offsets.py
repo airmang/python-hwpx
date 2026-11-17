@@ -186,3 +186,32 @@ def test_a_highlight_across_runs_reads_whole() -> None:
     for name, texts in expected.items():
         with _open(name) as doc:
             assert [found.text for found in doc.text.highlights] == texts
+
+
+def test_a_note_moved_within_its_paragraph_counts_offset_the_same_before_and_after() -> None:
+    # a note takes no character: the offset it is moved to is the same counted before or after the move,
+    # as for an object's move_to(offset=)
+    with _open("mid_text_footnote") as doc:
+        paragraph = doc.paragraphs[1]  # 가나다라 + note(4) + 마바사…
+        note = paragraph.footnotes[0]
+        note.move_to(paragraph, offset=10)
+        assert note.offset == 10 and paragraph.text == "가나다라마바사아자차카타파하"
+        note.move_to(paragraph, offset=2)
+        assert note.offset == 2
+        assert [run_children for _, run_children in _shape(paragraph)] == [
+            [("t", "가나"), ("ctrl", "footNote"), ("t", "다라마바사아자차카타파하")]]
+
+
+def test_a_field_wrapping_text_keeps_its_prompt_memo_and_editable() -> None:
+    # Hancom keeps a filled click-here field's 안내문 in its Direction parameter (field_value_shape_filled)
+    with HwpxDocument.new() as doc:
+        paragraph = doc.add_paragraph("성명: 홍길동")
+        field = paragraph.add_form_field("이름", start=4, end=7, prompt="이름을 쓰세요", memo="도움말", editable=False)
+        begin = field.element
+        params = {node.get("name"): node.text for node in begin.iter(f"{HP}stringParam")}
+        assert params["Direction"] == "이름을 쓰세요" and params["HelpState"] == "도움말"
+        assert begin.get("editable") == "0" and begin.get("type") == "CLICK_HERE"
+        assert paragraph.text == "성명: 홍길동"  # no prompt run: the field holds its value
+        reopened = HwpxDocument.open(doc.to_bytes())
+        found = reopened.fields.all[0]
+        assert found.name == "이름"

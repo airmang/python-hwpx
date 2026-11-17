@@ -1330,6 +1330,8 @@ def move_note(note: Any, paragraph: Any, offset: Any) -> None:
     control = note.element.getparent()
     old_run, old_paragraph = control.getparent(), note.paragraph
     put_at(paragraph.element, offset, control)
+    if old_run.getparent() is not None:
+        _merge_text_siblings(old_run)  # the two hp:t the note stood between are one again
     drop_if_empty(old_paragraph.element, old_run)
     _changed(old_paragraph)
     _changed(paragraph)
