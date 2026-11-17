@@ -78,6 +78,8 @@ class HwpxOxmlSection:
         self._element = element
         self._dirty = False
         self._properties_cache: HwpxOxmlSectionProperties | None = None
+        # an empty hp:secPr that properties gave a section without one, put in when written
+        self._unattached_properties: ET.Element | None = None
         self._document = document
         # the header/footer copies that agree when opened, for the save to tell which copy an edit changed
         self._story_marks = story_marks(element)
@@ -100,10 +102,11 @@ class HwpxOxmlSection:
     def _section_properties_element(self) -> ET.Element | None:
         return self._element.find(f".//{_HP}secPr")
 
-    def _ensure_section_properties_element(self) -> ET.Element:
-        element = self._section_properties_element()
-        if element is not None:
-            return element
+    def _ensure_section_properties_element(self, element: ET.Element | None = None) -> ET.Element:
+        """The section's ``hp:secPr``, put in its first run when it has none (*element*: the one to put)."""
+        existing = self._section_properties_element()
+        if existing is not None:
+            return existing
 
         paragraph = _first_child_by_local(self._element, "p")
         if paragraph is None:
@@ -121,8 +124,12 @@ class HwpxOxmlSection:
                 _child_tag_like(paragraph, "run", _HP_NS),
                 {"charPrIDRef": "0"},
             )
-        element = _append_child(run, _child_tag_like(run, "secPr", _HP_NS))
-        self._properties_cache = None
+        if element is None:
+            element = _append_child(run, _child_tag_like(run, "secPr", _HP_NS))
+            self._properties_cache = None
+        else:
+            run.append(element)
+        self._unattached_properties = None
         self.mark_dirty()
         return element
 
@@ -133,9 +140,19 @@ class HwpxOxmlSection:
         if self._properties_cache is None:
             element = self._section_properties_element()
             if element is None:
-                element = self._ensure_section_properties_element()
+                # Reading changes nothing: a section with no hp:secPr reads as one with an empty
+                # hp:secPr (every value None, as not written), and a write puts it in the section.
+                element = self._element.makeelement(f"{_HP}secPr", {})
+                self._unattached_properties = element
             self._properties_cache = HwpxOxmlSectionProperties(element, self)
         return self._properties_cache
+
+    def _attach_written_properties(self) -> None:
+        """Put the ``hp:secPr`` :attr:`properties` read as empty into the section once something is written to it."""
+
+        element = self._unattached_properties
+        if element is not None and (len(element) or element.attrib):
+            self._ensure_section_properties_element(element)
 
     def _paragraph_elements(self) -> Iterable[ET.Element]:
         return _children_by_local(self._element, "p")
@@ -685,6 +702,8 @@ class HwpxOxmlSection:
 
     def mark_dirty(self) -> None:
         self._dirty = True
+        if self._unattached_properties is not None:
+            self._attach_written_properties()
 
     @property
     def dirty(self) -> bool:
@@ -815,6 +834,7 @@ class HwpxOxmlSection:
         return removed
 
     def to_bytes(self) -> bytes:
+        self._attach_written_properties()
         return _serialize_xml(self._element)
 
 
