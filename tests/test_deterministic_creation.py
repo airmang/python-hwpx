@@ -22,7 +22,6 @@ import pytest
 
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxTypeError
-from hwpx.oxml._document_primitives import active_id_source
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXED = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
@@ -146,17 +145,15 @@ def test_same_seed_in_one_process_gives_the_same_bytes() -> None:
     assert build() == build()
 
 
-def test_close_restores_random_ids() -> None:
-    assert active_id_source() is None
+def test_the_source_belongs_to_its_document_until_close() -> None:
     doc = HwpxDocument.new(seed=3)
-    assert active_id_source() is not None
+    assert doc._root._id_source is doc._id_source is not None
     doc.close()
-    assert active_id_source() is None
-    with HwpxDocument.new(seed=3):
+    assert doc._root._id_source is None
+    with HwpxDocument.new(seed=3) as outer:
         with HwpxDocument.new(seed=4) as inner:
-            assert active_id_source() is inner._id_source
-        assert active_id_source() is not None
-    assert active_id_source() is None
+            assert inner._root._id_source.seed == 4
+            assert outer._root._id_source.seed == 3
 
 
 def test_open_with_seed_makes_edits_deterministic(tmp_path: Path) -> None:
@@ -188,4 +185,3 @@ def test_wrong_types_are_refused(kwargs: dict[str, object], code: str) -> None:
     with pytest.raises(HwpxTypeError) as caught:
         HwpxDocument.new(**kwargs)  # type: ignore[arg-type]
     assert caught.value.code == code
-    assert active_id_source() is None

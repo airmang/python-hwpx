@@ -2,7 +2,7 @@
 """A new document's dates come from its own call, not from another document (#683 follow-up).
 
 ``HwpxDocument.new(now=...)`` dates the document it makes. A document made with ``new()`` and no
-``now`` while another document's ``now=`` is in force still takes the clock: what a call writes
+``now`` while another document with ``now=`` is open still takes the clock: what a call writes
 does not depend on the state of a document it was not given. A replay that needs fixed dates
 passes ``now=`` itself or writes the dates (the fuzz runner does both).
 """

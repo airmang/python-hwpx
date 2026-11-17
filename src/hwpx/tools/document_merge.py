@@ -65,6 +65,7 @@ from ..oxml._document_primitives import (
     _memo_id,
     _object_id,
     _refresh_copied_paragraph_subtree_ids,
+    mints_into,
 )
 
 #: hh:fontRef's 7 lang attribute names ("hangul"/"latin"/...) -> the
@@ -1349,6 +1350,7 @@ def _remap_styles(
 # ================================================================================
 
 
+@mints_into("target")
 def append_document(
     target: HwpxDocument,
     source: HwpxDocument | str | Path,
@@ -1414,6 +1416,7 @@ def _facade_of(root: Any) -> HwpxDocument | None:
     return None if package is None else HwpxDocument(package, root)
 
 
+@mints_into("anchor")
 def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     """``paragraph.copy_to(anchor, before=)``: put a copy of the paragraph object *source* right after
     (*before*: before) the paragraph object *anchor* and return it.
@@ -1491,6 +1494,7 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     return HwpxOxmlParagraph(copy, anchor.section)
 
 
+@mints_into("target")
 def insert_document(
     target: HwpxDocument,
     source: HwpxDocument | str | Path,

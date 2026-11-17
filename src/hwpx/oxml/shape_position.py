@@ -43,7 +43,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from ..errors import HwpxValueError
-from ._document_primitives import _HC, _HP
+from ._document_primitives import _HC, _HP, mints_into
 from .color import normalize_color
 
 if TYPE_CHECKING:
@@ -2927,6 +2927,7 @@ def _check_place(element: Any, source: Any, target: Any) -> dict[str, str]:
     return {}
 
 
+@mints_into("target")
 def _place_in_other_document(obj: Any, parent: Any, source: Any, target: Any, offset: int | None, *,
                              copy: bool, keep_order: bool = False) -> Any:
     """``copy_to``/``move_to`` of *obj* into the paragraph *target* of another document, as Hancom 2024 pastes

@@ -422,7 +422,11 @@ python-hwpx 7.0을 함께 설치한다.
 #### 저장과 검사
 
 - `HwpxDocument.new(seed=..., now=...)`(그리고 `open`)로 같은 스크립트가 다른 프로세스에서도 바이트까지 같은 파일을 만든다. 시각까지
-  고정하므로 초 경계에서 바이트가 달라지던 일(#683)도 없다. 기본은 전처럼 무작위 id다.
+  고정하므로 초 경계에서 바이트가 달라지던 일(#683)도 없다. 기본은 전처럼 무작위 id다. `seed=`·`now=`는 그 문서에만 쓰인다:
+  7.0 개발 중에는 닫지 않은 seed 문서가 같은 스레드의 다른 문서(seed 없는 문서도)에 id와 메모·변경 추적 날짜를 주었고, 함께 연
+  seed 문서들은 따로 만들 때와 다른 바이트를 썼으며, 만든 순서대로 닫거나 닫지 않고 버리면 seed가 남았다. 이제는 무엇을 함께
+  열든 한 문서의 바이트는 그 문서만 따로 만들 때와 같다. 다른 문서에서 복사해 온 내용(`copy_to`, `insert_document`)의 새 id는
+  받는 문서의 것이다.
 - `doc.save()`의 영수증(`MutationReport`)에 품질 보고(`quality`)와, 저장한 바이트에 대해 이미 낸 열기 안전 보고
   (`editor_open_safety`)가 있다. 다시 검사하지 않는다.
 - `doc.save(path, quality=policy, pipeline=SavePipeline(oracle_factory=...))`로 품질 관문에 렌더러(예: python-hwpx-automation의

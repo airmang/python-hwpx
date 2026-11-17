@@ -3,12 +3,16 @@
 
 from __future__ import annotations
 
+import functools as _functools
 import re as _re
+import sys
+import threading
+import weakref
 from contextvars import ContextVar
 from copy import deepcopy
 from datetime import datetime, timezone
 from random import Random
-from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar
+from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar, cast
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -83,6 +87,7 @@ _BORDER_SIDE_ELEMENTS = {
 }
 
 T = TypeVar("T")
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 # Characters forbidden inside XML 1.0 text nodes (XML spec §2.2).
 # Tab (U+0009) is legal XML but illegal inside <hp:t>; it must be
@@ -211,7 +216,8 @@ class SameElement:
 class IdSource:
     """Where the ids and timestamps a document mints come from.
 
-    ``HwpxDocument.new(seed=..., now=...)`` installs one. With a *seed*, every
+    ``HwpxDocument.new(seed=..., now=...)`` gives the document one, used for that
+    document only (see :func:`active_id_source`). With a *seed*, every
     paragraph/object/memo id is drawn from ``random.Random(seed)`` instead of
     ``uuid4``: the same calls in the same order give the same ids, in another
     process too. The values keep the range of the random ids (1 .. 2**31 - 1)
@@ -240,34 +246,122 @@ class IdSource:
                 return str(value)
 
 
-_ID_SOURCE: "ContextVar[IdSource | None]" = ContextVar("hwpx_id_source", default=None)
+# The document an operation across documents writes into (``ids_for``); None: find it on the stack.
+_ID_SCOPE: "ContextVar[Any]" = ContextVar("hwpx_id_scope", default=None)
+
+# The attributes a model object reaches its document through (a run its paragraph, a paragraph its
+# section, a section its HwpxOxmlDocument, HwpxDocument its root, a namespace its HwpxDocument).
+_OWNER_LINKS = (
+    "_root", "_document", "_doc", "section", "_section", "paragraph", "_paragraph", "table", "_table",
+    "group", "_cell", "_memo", "_properties", "master_page",
+)
+
+
+# The open documents of this thread that have a source, oldest first (weak: a dropped one goes).
+_SEEDED = threading.local()
+
+
+def hold_id_source(document: Any, held: bool) -> None:
+    """Note (*held*) or forget the ``HwpxOxmlDocument`` *document* as an open document with a source."""
+
+    alive = [ref for ref in getattr(_SEEDED, "documents", ()) if ref() is not None and ref() is not document]
+    _SEEDED.documents = [*alive, weakref.ref(document)] if held else alive
+
+
+def _newest_seeded() -> Any:
+    for ref in reversed(getattr(_SEEDED, "documents", ())):
+        document = ref()
+        if document is not None and document._id_source is not None:
+            return document
+    return None
+
+
+def owning_document(obj: Any) -> Any:
+    """The ``HwpxOxmlDocument`` the model object *obj* belongs to, or None."""
+
+    for _ in range(10):
+        if obj is None or isinstance(obj, type):
+            return None
+        if getattr(type(obj), "_owns_id_source", False):
+            return obj
+        attributes = getattr(obj, "__dict__", None)
+        if not attributes:
+            return None
+        obj = next((attributes[name] for name in _OWNER_LINKS if attributes.get(name) is not None), None)
+    return None
+
+
+class ids_for:
+    """``with ids_for(target):`` new ids and dates come from *target*'s document while copying into it
+    from another document (the copy belongs to the document that receives it)."""
+
+    def __init__(self, target: Any) -> None:
+        self._document = owning_document(target)
+        self._token: Any = None
+
+    def __enter__(self) -> None:
+        if self._document is not None:
+            self._token = _ID_SCOPE.set(self._document)
+
+    def __exit__(self, *_: Any) -> None:
+        if self._token is not None:
+            _ID_SCOPE.reset(self._token)
+
+
+def mints_into(parameter: str) -> Callable[[_F], _F]:
+    """Decorate an operation that copies into the document of its argument *parameter* (a document,
+    paragraph or other model object of it): the ids and dates it makes come from that document."""
+
+    def decorate(function: _F) -> _F:
+        position = function.__code__.co_varnames.index(parameter)
+
+        @_functools.wraps(function)
+        def copying(*args: Any, **kwargs: Any) -> Any:
+            with ids_for(kwargs[parameter] if parameter in kwargs else args[position]):
+                return function(*args, **kwargs)
+
+        return cast(_F, copying)
+
+    return decorate
 
 
 def active_id_source() -> "IdSource | None":
-    """The source installed by ``HwpxDocument.new(seed=..., now=...)``, if any."""
+    """The id/clock source of the document the calling code works on, if it has one.
 
-    return _ID_SOURCE.get()
+    A source belongs to one document (``HwpxDocument.new(seed=..., now=...)``, ``open(..., seed=,
+    now=)``): it is used for that document's ids and dates only. The document is the one
+    :class:`ids_for` names, else the one the nearest model object on the call stack (a method's
+    ``self`` or a function's first argument: the document, a section, paragraph, run, table, cell,
+    memo, object ...) belongs to. Something made for no document yet -- a ``ContainerMember`` built
+    before ``doc.shapes.add_container`` takes it -- draws from the newest open document of this
+    thread that has a source, as every id did before sources belonged to documents, so a script
+    with one seeded document writes the bytes it wrote then. Otherwise: random ids and the clock.
+    """
 
-
-def install_id_source(source: "IdSource | None") -> "IdSource | None":
-    """Make *source* the active one and return the one it replaced."""
-
-    previous = _ID_SOURCE.get()
-    _ID_SOURCE.set(source)
-    return previous
+    document = _ID_SCOPE.get()
+    if document is None:
+        frame = sys._getframe(1)
+        while frame is not None and document is None:
+            code = frame.f_code
+            if code.co_argcount:
+                document = owning_document(frame.f_locals.get(code.co_varnames[0]))
+            frame = frame.f_back
+    if document is None:  # made for no document yet (a ContainerMember): the newest open seeded one
+        document = _newest_seeded()
+    return getattr(document, "_id_source", None)
 
 
 def current_time() -> datetime:
-    """Now in UTC, unless the active id source fixes the clock."""
+    """Now in UTC, unless the document being worked on fixes the clock."""
 
-    source = _ID_SOURCE.get()
+    source = active_id_source()
     if source is not None and source.now is not None:
         return source.now
     return datetime.now(timezone.utc)
 
 
 def _new_id() -> str:
-    source = _ID_SOURCE.get()
+    source = active_id_source()
     if source is not None:
         value = source.next_id()
         if value is not None:

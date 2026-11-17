@@ -17,6 +17,7 @@ from ._document_primitives import (
     _HH,
     _HP,
     _HS,
+    IdSource,
     _append_child,
     _char_height_from_points,
     _element_local_name,
@@ -403,6 +404,11 @@ _SimplePartT = TypeVar("_SimplePartT", bound=_HwpxOxmlSimplePart)
 
 class HwpxOxmlDocument:
     """Aggregates the XML parts that make up an HWPX document."""
+
+    # Where this document's new ids and dates come from (HwpxDocument.new/open(seed=, now=)); it is
+    # used for this document only (see _document_primitives.active_id_source).
+    _owns_id_source = True
+    _id_source: "IdSource | None" = None
 
     def __init__(
         self,
