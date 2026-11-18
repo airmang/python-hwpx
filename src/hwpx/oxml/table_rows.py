@@ -144,8 +144,22 @@ def _placed(table_object: Any, moved: list[Any]) -> tuple[Any, ...]:
     return tuple(HwpxOxmlTableRow(row, table_object) for row in moved)
 
 
+def _require_table_in_document(table_object: Any, role: str) -> None:
+    from ._paragraph_text_edit import in_document
+
+    if not in_document(table_object.element, table_object.paragraph.section):
+        raise HwpxValueError(
+            f"the {role} is not in the document any more (removed, or in something taken out)",
+            code="table-not-in-document",
+            context={"role": role},
+            suggestion="Take the table again from the document (doc.tables ...).",
+        )
+
+
 def move_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source: Any = None) -> tuple[Any, ...]:
     """``table.move_rows``."""
+
+    _require_table_in_document(table_object, "table")
 
     if source is not None and source.element is not table_object.element:
         raise HwpxValueError(
@@ -177,6 +191,8 @@ def copy_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source
     from .shape_position import unique_object_ids
 
     source = table_object if source is None else source
+    _require_table_in_document(table_object, "table the rows go to")
+    _require_table_in_document(source, "table the rows come from")
     target = table_object.element
     if source.paragraph.section.document is not table_object.paragraph.section.document:
         raise HwpxValueError(

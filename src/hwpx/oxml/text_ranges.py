@@ -326,7 +326,10 @@ def insert_text(
     from .formatting import _char_changes, _cut_at, _header_of, _run_elements, _run_length, find_definition
     from .run import HwpxOxmlRun
 
+    from ._paragraph_text_edit import require_in_document
+
     _require_text(text)
+    require_in_document(paragraph, caller="insert_text")
     length = len(paragraph.text)
     offset = _check_offset("offset", offset, 0, length)
     if changes:
@@ -684,6 +687,9 @@ def delete_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, objects: 
         raise HwpxValueError(f"objects must be 'refuse' or 'remove'; got {objects!r}", code="paragraph-range-invalid",
                              context={"name": "objects", "requested": repr(objects)},
                              suggestion="Pass objects='remove' to take controls and objects out with the text.")
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(paragraph, caller="delete_range")
     length = len(paragraph.text)
     start = _check_offset("start", start, 0, length)
     end = _check_offset("end", end, start, length)
@@ -850,6 +856,10 @@ def _range_args(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, o
                             code="paragraph-invalid-type",
                             context={"type": type(to).__name__},
                             suggestion="Pass the paragraph to put the range in, e.g. doc.paragraphs[i] or cell.paragraphs[0].")
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(paragraph, caller="range", role="paragraph the range is taken from")
+    require_in_document(to, caller="range", role="paragraph to put the range in")
     target_length = len(to.text)
     offset = target_length if offset is None else _check_offset("offset", offset, 0, target_length)
     return start, end, offset
@@ -1021,8 +1031,10 @@ def set_text_preserving_runs(paragraph: "HwpxOxmlParagraph", value: str) -> None
     """``paragraph.set_text_preserving_runs``: the one stretch that changes, in one ``hp:t``."""
 
     from ._paragraph_text_edit import _local as local
+    from ._paragraph_text_edit import require_in_document
 
     _require_text(value)
+    require_in_document(paragraph, caller="set_text_preserving_runs")
     texts: list[tuple[Any, int, int]] = []
     position = 0
     for run in _runs(paragraph.element):
@@ -1172,7 +1184,10 @@ def place_created(paragraph: "HwpxOxmlParagraph", offset: int, element: Any, mad
     """Move *element*, just written at the paragraph's end into the run *made_in*, to character *offset*
     (checked first); *made_in* goes when nothing else is left in it."""
 
+    from ._paragraph_text_edit import require_in_document
+
     try:
+        require_in_document(paragraph, caller="offset")
         offset = _check_offset("offset", offset, 0, len(paragraph.text))
     except Exception:
         element.getparent().remove(element)  # nothing written stays behind a refused offset
@@ -1265,6 +1280,9 @@ def check_highlight_range(paragraph: "HwpxOxmlParagraph", start: Any, end: Any) 
 def check_field_range(paragraph: "HwpxOxmlParagraph", start: Any, end: Any) -> "tuple[int, int] | None":
     """``add_form_field(start=, end=)``'s range checked before anything is written (``None`` without one)."""
 
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(paragraph, caller="add_form_field")
     if start is None and end is None:
         return None
     if start is None or end is None:
@@ -1297,6 +1315,16 @@ def _note_target(note: Any, paragraph: Any, offset: Any) -> int:
         raise HwpxTypeError(f"paragraph must be a paragraph object; got {type(paragraph).__name__}",
                             code="paragraph-invalid-type", context={"type": type(paragraph).__name__},
                             suggestion="Pass the paragraph to put the note in, e.g. doc.paragraphs[i].")
+    from ._paragraph_text_edit import in_document, require_in_document
+
+    require_in_document(paragraph, caller="note", role="paragraph to put the note in")
+    if not in_document(note.element, note.paragraph.section):
+        raise HwpxValueError(
+            "the note is not in the document any more (it was removed, or sits in something taken out)",
+            code="paragraph-not-in-document",
+            context={"caller": "note", "role": "note"},
+            suggestion="Take the note again from the document (doc.notes.footnotes ...).",
+        )
     if paragraph.section.document is not note.paragraph.section.document:
         raise HwpxValueError(
             "a note moves and copies within its document",

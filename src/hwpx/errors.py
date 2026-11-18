@@ -447,6 +447,7 @@ ERROR_CODES: dict[str, str] = {
     "table-rows-invalid": "옮기거나 복사할 행 번호(rows)가 표 밖이거나 이어지지 않았거나, 넣을 자리(to)가 0..행 수 밖이다.",
     "table-rows-merge-crossed": "병합 칸이 옮기거나 복사할 행 묶음의 위·아래 경계나 넣을 자리를 가로지른다.",
     "table-columns-differ": "행을 복사해 올 표와 받는 표의 열(열 수, 칸의 colAddr·colSpan)이 다르다.",
+    "table-not-in-document": "행을 옮기거나 복사할 표(또는 행을 가져올 표)가 문서에 없다(지운 표, 떼어 낸 것 안의 표).",
     "table-rows-move-other-table": "행을 다른 표로 옮기려 했다(한/글 저장본 근거가 없다. copy_rows(source=) 뒤 delete_rows 로 한다).",
     "table-rows-other-document": "다른 문서의 표에서 행을 복사하려 했다(표를 먼저 문서로 복사한다).",
     "table-not-found": "표 인덱스가 범위를 벗어났다(doc.tables[i]).",
