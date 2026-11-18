@@ -6,6 +6,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import io
+from collections import Counter
+import warnings
 import os
 import re
 import tempfile
@@ -46,6 +48,7 @@ from .relationships import (
     parse_manifest_relationships,
 )
 from .security import (
+    _duplicate_entry_notice,
     guard_zip_file,
     open_archive,
     read_member,
@@ -439,6 +442,15 @@ class _SourceArchive:
         self._records: "ZipRecords | None" = None
         self._unsupported: "ZipRecordsUnsupported | None" = None
 
+    def comment(self) -> bytes:
+        """The archive comment of the source (``b""`` when it has none or cannot be read so)."""
+
+        try:
+            with ZipFile(io.BytesIO(self.data)) as archive:
+                return archive.comment
+        except (BadZipFile, OSError, ValueError):
+            return b""
+
     def records(self) -> "ZipRecords":
         from .zip_records import ZipRecordsUnsupported, read_records
 
@@ -532,7 +544,11 @@ def _splice_metadata(data: bytes, metadata_el: etree._Element) -> bytes | None:
         name = prefix + b":" + local
         if not text:
             return b"<" + name + attributes + b"/>"
-        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").encode("utf-8")
+        # A carriage return written as itself would read back as a line feed (XML end-of-line handling),
+        # so it is written as a character reference, as lxml writes it.
+        escaped = (
+            text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\r", "&#13;")
+        ).encode("utf-8")
         return b"<" + name + attributes + b">" + escaped + b"</" + name + b">"
 
     edits: list[tuple[int, int, bytes]] = []
@@ -585,6 +601,9 @@ def _write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
                 "short write while saving HWPX package stream: "
                 f"wrote {written} of {len(data)} bytes"
             )
+        from ..quality.save_pipeline import settle_written_stream
+
+        settle_written_stream(stream, checkpoint[0], data, checkpoint[1])
     except BaseException:
         _rollback_stream(stream, checkpoint)
         raise
@@ -835,6 +854,10 @@ class HwpxPackage:
         # The archive this package was opened from, to copy the local record of every entry a save leaves
         # unchanged (see _assemble_archive). None for a package built from parts (new(), a converted .hwp).
         self._source_archive: _SourceArchive | None = None
+        #: Names the archive it was opened from holds more than once (a save would keep only one payload).
+        self._duplicate_entry_names: tuple[str, ...] = ()
+        #: The archive's directory entries (``BinData/``), written back by a save as they were.
+        self._zip_directories: dict[str, ZipInfo] = {}
         # What the last archive build did with the source's records (MutationReport.preservation).
         self._zip_records_outcome: ZipRecordsOutcome = ZipRecordsOutcome.no_source()
         # The last archive this package built, kept until a clean save makes it the new source.
@@ -974,9 +997,14 @@ class HwpxPackage:
             with open_archive(source_bytes) as zf:
                 guard_zip_file(zf)
                 infos = [info for info in zf.infolist() if not info.is_dir()]
+                counts = Counter(info.filename for info in infos)
+                duplicates = sorted(name for name, count in counts.items() if count > 1)
                 files = read_zip_members(zf)
                 zip_infos = {info.filename: info for info in infos}
-                zip_order = [info.filename for info in infos]
+                # Directory entries hold no part; they are kept (in the central directory's order, with
+                # the files) so a save writes them back where they were.
+                directories = {info.filename: info for info in zf.infolist() if info.is_dir()}
+                zip_order = [info.filename for info in zf.infolist()]
         except BadZipFile as exc:
             # Still a BadZipFile (HwpxArchiveError derives from it); the message says what the
             # input is instead of zipfile's "File is not a zip file".
@@ -1017,6 +1045,13 @@ class HwpxPackage:
                 zip_order=zip_order,
             )
         package._source_archive = _SourceArchive(source_bytes, dict(files), dict(zip_infos))
+        package._duplicate_entry_names = tuple(duplicates)
+        if duplicates:
+            notice = _duplicate_entry_notice(info.filename for info in infos)
+            warnings.warn(f"HWPX package: {notice}", UserWarning, stacklevel=3)
+        package._zip_directories = {
+            name: info for name, info in directories.items() if name not in files
+        }
         return package
 
     @staticmethod
@@ -1447,12 +1482,15 @@ class HwpxPackage:
         # only walks ast.Raise, not ast.Assert).
         assert metadata_el is not None
 
+        # A key written twice in the block (not Hangul's form, but readable) gets the value in every copy:
+        # a copy left with the old value would still say it.
         if title is not None:
-            title_el = metadata_el.find(f"{{{OPF_NS['opf']}}}title")
-            if title_el is None:
-                title_el = metadata_el.makeelement(f"{{{OPF_NS['opf']}}}title", {})
-                metadata_el.insert(0, title_el)
-            title_el.text = title or None
+            titles = metadata_el.findall(f"{{{OPF_NS['opf']}}}title")
+            if not titles:
+                titles = [metadata_el.makeelement(f"{{{OPF_NS['opf']}}}title", {})]
+                metadata_el.insert(0, titles[0])
+            for title_el in titles:
+                title_el.text = title or None
 
         for field_name, value in (
             ("creator", creator),
@@ -1466,19 +1504,42 @@ class HwpxPackage:
         ):
             if value is None:
                 continue
-            meta_el = None
-            for candidate in metadata_el.findall(f"{{{OPF_NS['opf']}}}meta"):
-                if candidate.get("name") == field_name:
-                    meta_el = candidate
-                    break
-            if meta_el is None:
-                meta_el = metadata_el.makeelement(
+            metas = [
+                candidate
+                for candidate in metadata_el.findall(f"{{{OPF_NS['opf']}}}meta")
+                if candidate.get("name") == field_name
+            ]
+            if not metas:
+                metas = [metadata_el.makeelement(
                     f"{{{OPF_NS['opf']}}}meta", {"name": field_name, "content": "text"}
-                )
-                _insert_in_hangul_order(metadata_el, meta_el, field_name)
-            meta_el.text = value or None
+                )]
+                _insert_in_hangul_order(metadata_el, metas[0], field_name)
+            for meta_el in metas:
+                meta_el.text = value or None
 
         self._persist_metadata(metadata_el)
+
+    def _clear_named_meta(self, names: Iterable[str]) -> list[str]:
+        """Empty every ``opf:meta`` whose ``name`` is one of *names* -- each copy of a key -- and return the
+        name of each one that held a value, in document order. Missing fields are not created."""
+
+        metadata_el = self._metadata_element(create=False)
+        if metadata_el is None:
+            return []
+        wanted = set(names)
+        meta_tag = f"{{{OPF_NS['opf']}}}meta"
+        cleared: list[str] = []
+        for child in metadata_el:
+            if child.tag != meta_tag or child.get("name") not in wanted:
+                continue
+            if (child.text or "").strip() or len(child):
+                cleared.append(str(child.get("name")))
+            for grandchild in list(child):
+                child.remove(grandchild)
+            child.text = None
+        if cleared:
+            self._persist_metadata(metadata_el)
+        return cleared
 
     def clear_document_metadata(
         self,
@@ -1760,6 +1821,7 @@ class HwpxPackage:
         if not verify_open_safety:
             _require_unchecked_save_token(_unchecked_token)
             _require_unchecked_save_buffer(pkg_file)
+        self._refuse_duplicate_entry_names()
         self._files[self.MIMETYPE_PATH] = self._mimetype.encode("utf-8")
         version_was_dirty = self._version.dirty
         if self._version.dirty:
@@ -1809,6 +1871,26 @@ class HwpxPackage:
         if mark_clean and version_was_dirty:
             self._version.mark_clean()
 
+    def _refuse_duplicate_entry_names(self) -> None:
+        """A package opened from an archive holding one name twice is refused at save, before anything is
+        written: the package keeps one payload per name (the last, as ``zipfile`` reads it), so a save would
+        drop the other one without a word. Opening it stays allowed -- reading, extracting and converting
+        such a file lose nothing -- and Hangul never writes one."""
+
+        if self._duplicate_entry_names:
+            names = list(self._duplicate_entry_names)
+            raise HwpxPackageError(
+                "the archive this document was opened from holds more than one entry named "
+                + ", ".join(names[:5])
+                + "; saving would keep only one of their contents",
+                code="save-duplicate-entry-names",
+                context={"names": names[:20]},
+                suggestion=(
+                    "nothing was written; read what you need from the document, or rebuild the archive with "
+                    "one entry per name (Hangul's own save does) before editing it"
+                ),
+            )
+
     def _assemble_archive(self) -> bytes:
         """The archive this save writes.
 
@@ -1820,11 +1902,14 @@ class HwpxPackage:
         archive whose records cannot be moved one by one (:class:`ZipRecordsUnsupported`) is written as
         ``zipfile`` wrote it, and :attr:`_zip_records_outcome` says why."""
 
+        source = self._source_archive
         buffer = io.BytesIO()
         with ZipFile(buffer, "w") as zf:
             self._write_archive_from_save(zf)
+            if source is not None:
+                # The archive comment is the source's, also when its records cannot be kept one by one.
+                zf.comment = source.comment()
         built = buffer.getvalue()
-        source = self._source_archive
         self._last_built_archive = None
         from .zip_records import ZipRecordsUnsupported, assemble, read_records
 
@@ -1841,13 +1926,31 @@ class HwpxPackage:
         copied: set[str] = set()
         for entry in built_records.entries:
             original = source_records.by_name.get(entry.filename)
-            if original is not None and self._entry_unchanged(entry.filename, source):
+            directory = entry.filename in self._zip_directories and entry.filename not in self._files
+            if original is not None and (directory or self._entry_unchanged(entry.filename, source)):
                 records.append((source_records.local_record(original), original.raw))
                 copied.add(entry.filename)
             else:
                 records.append((built_records.local_record(entry), entry.raw))
+        # The records lie where the source had them (its physical order, which may differ from the order
+        # its central directory lists them in); a new entry goes after them, mimetype stays first. The
+        # central directory keeps its own order.
+        names = [entry.filename for entry in built_records.entries]
+
+        def place(index: int) -> tuple[int, int]:
+            original = source_records.by_name.get(names[index])
+            if names[index] == self.MIMETYPE_PATH:
+                return (0, 0)
+            return (1, original.header_offset) if original is not None else (2, index)
+
+        local_order = sorted(range(len(records)), key=place)
+        position = {index: slot for slot, index in enumerate(local_order)}
         try:
-            written = assemble(records, source_records.eocd)
+            written = assemble(
+                [records[index] for index in local_order],
+                source_records.eocd,
+                central_order=[position[index] for index in range(len(records))],
+            )
         except ZipRecordsUnsupported as exc:
             self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(), rewritten_reason=exc.reason)
             return built
@@ -1894,16 +1997,14 @@ class HwpxPackage:
         the content meant -- a copied source record must never stand for content it does not hold."""
 
         names = [info.filename for info in archive.infolist()]
-        expected = [self.MIMETYPE_PATH, *[
-            name for name in self._zip_order if name != self.MIMETYPE_PATH and name in self._files
-        ]]
+        expected = [self.MIMETYPE_PATH, *self._ordered_entry_names()]
         expected += sorted(name for name in self._files if name not in expected)
         mismatched = [] if names == expected else ["(entry list)"]
         if not mismatched:
             mismatched = [
                 info.filename
                 for info in archive.infolist()
-                if read_member(archive, info) != self._files[info.filename]
+                if read_member(archive, info) != self._files.get(info.filename, b"")
             ]
         if mismatched:
             raise HwpxPackageError(
@@ -1952,17 +2053,37 @@ class HwpxPackage:
             )
         self._write_mimetype(zf)
         written = {self.MIMETYPE_PATH}
-        ordered_names = [
-            name
-            for name in self._zip_order
-            if name != self.MIMETYPE_PATH and name in self._files
-        ]
+        ordered_names = self._ordered_entry_names()
         new_names = sorted(
             name for name in self._files if name not in written and name not in ordered_names
         )
         for name in [*ordered_names, *new_names]:
-            self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
+            if name not in self._files:
+                zf.writestr(self._directory_info(name), b"")
+            else:
+                self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
             written.add(name)
+
+    def _ordered_entry_names(self) -> list[str]:
+        """The entries after ``mimetype`` in the order they were read: parts the package still holds and the
+        archive's directory entries."""
+
+        return [
+            name
+            for name in self._zip_order
+            if name != self.MIMETYPE_PATH and (name in self._files or name in self._zip_directories)
+        ]
+
+    def _directory_info(self, name: str) -> ZipInfo:
+        """A fresh ZipInfo for directory entry *name* with what the source's entry said (``writestr``
+        changes the info it is given, so the source's own is not passed)."""
+
+        original = self._zip_directories[name]
+        info = ZipInfo(name, original.date_time)
+        for field_name in ("compress_type", "comment", "extra", "create_system", "create_version",
+                           "extract_version", "flag_bits", "volume", "internal_attr", "external_attr"):
+            setattr(info, field_name, getattr(original, field_name))
+        return info
 
     def _zip_info_for_write(self, path: str, compress_type: int) -> ZipInfo:
         original = self._zip_infos.get(path)

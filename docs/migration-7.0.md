@@ -43,7 +43,10 @@ legacy.add_paragraph("2026 운영계획")                # legacy.paragraphs[1]
 ## 저장
 
 저장 동사 넷을 `doc.save(target, *, format=None, mode="auto", fallback="error", quality=None, pipeline=None)` 하나로 모았다.
-`target` 은 경로(str·PathLike)나 쓰기 가능한 이진 스트림이다. `save()` 는 늘 `MutationReport` 를 돌려준다.
+`target` 은 경로(str·PathLike)나 이진 스트림이다. 스트림은 쓰기에 더해 `tell()`·`seek()` 가 되고 지금 자리부터 끝까지를
+읽거나(`read()`) 지금 자리가 끝이어야 한다 — 실패하면 쓰기 전 모습으로 되돌리고, 저장 뒤 스트림이 쓴 문서를 그대로 담는지 다시
+읽어 본다. 스트림에 저장할 문서보다 긴 내용이 있으면 문서 끝에서 자른다(`truncate()`, 못 자르면 거부). `write()` 만 되는 스트림
+(파이프·소켓 등)은 `OSError` 로 거부하니 경로에 저장한다. `save()` 는 늘 `MutationReport` 를 돌려준다.
 바이트가 필요하면 `doc.to_bytes()` 다(그대로).
 
 | python-hwpx 6.x | python-hwpx 7.0 |

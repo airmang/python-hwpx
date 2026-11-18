@@ -290,18 +290,12 @@ class PartsNamespace(_Namespace):
         을 비우고, 비운 칸을 문서 순서대로 돌려준다(값이 있던 칸만).
 
         양식에서 따라온 이름을 걷는 한 번의 호출이다. 요소와 ``content="text"``는 두고 내용만
-        비운다(한/글이 이름 없는 문서를 쓰는 꼴). 없는 요소는 만들지 않고, metadata 블록이
-        없으면 ``()``다. 제목·주제·설명·키워드와 날짜는 그대로다."""
+        비운다(한/글이 이름 없는 문서를 쓰는 꼴). 같은 이름의 칸이 둘 이상이면(한/글은 이렇게 쓰지
+        않는다) 모두 비우고, 값이 있던 칸마다 이름을 하나씩 돌려준다(``("creator", "creator",
+        "lastsaveby")``). 없는 요소는 만들지 않고, metadata 블록이 없으면 ``()``다. 제목·주제·설명·
+        키워드와 날짜는 그대로다."""
 
-        metadata = self.metadata
-        if metadata is None:
-            return ()
-        cleared = tuple(
-            name for name in ("creator", "lastsaveby") if getattr(metadata, name)
-        )
-        if cleared:
-            self._doc.package.set_document_metadata(**{name: "" for name in cleared})
-        return cleared
+        return tuple(self._doc.package._clear_named_meta(("creator", "lastsaveby")))
 
     def clear_document_metadata(
         self,

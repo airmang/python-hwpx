@@ -384,6 +384,17 @@ def measure_save(
             for name in untouched
             if not _local_record_kept(source_records, built_records, name)
         )
+    elif source_bytes is not None:
+        # An archive the record reader refuses (ZIP64, bytes before the first record, ...): the records
+        # are still compared byte for byte, sliced where zipfile places them, so "verified" never stands
+        # for a comparison of ZipInfo fields while the bytes moved.
+        before_spans, after_spans = _zipfile_records(source_bytes), _zipfile_records(built_bytes)
+        record_changed = sum(
+            1
+            for name in untouched
+            if before_spans is None or after_spans is None
+            or name not in before_spans or before_spans[name] != after_spans.get(name)
+        )
     else:
         record_changed = sum(
             1
@@ -422,6 +433,23 @@ def _records_or_none(data: bytes | None) -> "ZipRecords | None":
         return read_records(data)
     except ZipRecordsUnsupported:
         return None
+
+
+def _zipfile_records(data: bytes) -> dict[str, bytes] | None:
+    """Each entry's whole local record (its header up to the next header, or the central directory), as
+    ``zipfile`` places them -- which reads ZIP64 and archives with bytes before the first record too.
+    ``None`` when the archive cannot be read so, or holds a name twice (no record stands for the name)."""
+
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            entries = sorted(archive.infolist(), key=lambda info: info.header_offset)
+            ends = [info.header_offset for info in entries[1:]] + [archive.start_dir]
+    except (zipfile.BadZipFile, OSError, ValueError):
+        return None
+    names = [info.filename for info in entries]
+    if len(set(names)) != len(names):
+        return None
+    return {info.filename: data[info.header_offset:end] for info, end in zip(entries, ends)}
 
 
 def _local_record_kept(before: "ZipRecords", after: "ZipRecords", name: str) -> bool:
