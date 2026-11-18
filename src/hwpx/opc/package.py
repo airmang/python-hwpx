@@ -7,6 +7,7 @@ import hashlib
 import logging
 import io
 from collections import Counter
+import warnings
 import os
 import re
 import tempfile
@@ -47,6 +48,7 @@ from .relationships import (
     parse_manifest_relationships,
 )
 from .security import (
+    _duplicate_entry_notice,
     guard_zip_file,
     open_archive,
     read_member,
@@ -854,6 +856,8 @@ class HwpxPackage:
         self._source_archive: _SourceArchive | None = None
         #: Names the archive it was opened from holds more than once (a save would keep only one payload).
         self._duplicate_entry_names: tuple[str, ...] = ()
+        #: The archive's directory entries (``BinData/``), written back by a save as they were.
+        self._zip_directories: dict[str, ZipInfo] = {}
         # What the last archive build did with the source's records (MutationReport.preservation).
         self._zip_records_outcome: ZipRecordsOutcome = ZipRecordsOutcome.no_source()
         # The last archive this package built, kept until a clean save makes it the new source.
@@ -997,7 +1001,10 @@ class HwpxPackage:
                 duplicates = sorted(name for name, count in counts.items() if count > 1)
                 files = read_zip_members(zf)
                 zip_infos = {info.filename: info for info in infos}
-                zip_order = [info.filename for info in infos]
+                # Directory entries hold no part; they are kept (in the central directory's order, with
+                # the files) so a save writes them back where they were.
+                directories = {info.filename: info for info in zf.infolist() if info.is_dir()}
+                zip_order = [info.filename for info in zf.infolist()]
         except BadZipFile as exc:
             # Still a BadZipFile (HwpxArchiveError derives from it); the message says what the
             # input is instead of zipfile's "File is not a zip file".
@@ -1039,6 +1046,12 @@ class HwpxPackage:
             )
         package._source_archive = _SourceArchive(source_bytes, dict(files), dict(zip_infos))
         package._duplicate_entry_names = tuple(duplicates)
+        if duplicates:
+            notice = _duplicate_entry_notice(info.filename for info in infos)
+            warnings.warn(f"HWPX package: {notice}", UserWarning, stacklevel=3)
+        package._zip_directories = {
+            name: info for name, info in directories.items() if name not in files
+        }
         return package
 
     @staticmethod
@@ -1913,13 +1926,31 @@ class HwpxPackage:
         copied: set[str] = set()
         for entry in built_records.entries:
             original = source_records.by_name.get(entry.filename)
-            if original is not None and self._entry_unchanged(entry.filename, source):
+            directory = entry.filename in self._zip_directories and entry.filename not in self._files
+            if original is not None and (directory or self._entry_unchanged(entry.filename, source)):
                 records.append((source_records.local_record(original), original.raw))
                 copied.add(entry.filename)
             else:
                 records.append((built_records.local_record(entry), entry.raw))
+        # The records lie where the source had them (its physical order, which may differ from the order
+        # its central directory lists them in); a new entry goes after them, mimetype stays first. The
+        # central directory keeps its own order.
+        names = [entry.filename for entry in built_records.entries]
+
+        def place(index: int) -> tuple[int, int]:
+            original = source_records.by_name.get(names[index])
+            if names[index] == self.MIMETYPE_PATH:
+                return (0, 0)
+            return (1, original.header_offset) if original is not None else (2, index)
+
+        local_order = sorted(range(len(records)), key=place)
+        position = {index: slot for slot, index in enumerate(local_order)}
         try:
-            written = assemble(records, source_records.eocd)
+            written = assemble(
+                [records[index] for index in local_order],
+                source_records.eocd,
+                central_order=[position[index] for index in range(len(records))],
+            )
         except ZipRecordsUnsupported as exc:
             self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(), rewritten_reason=exc.reason)
             return built
@@ -1966,16 +1997,14 @@ class HwpxPackage:
         the content meant -- a copied source record must never stand for content it does not hold."""
 
         names = [info.filename for info in archive.infolist()]
-        expected = [self.MIMETYPE_PATH, *[
-            name for name in self._zip_order if name != self.MIMETYPE_PATH and name in self._files
-        ]]
+        expected = [self.MIMETYPE_PATH, *self._ordered_entry_names()]
         expected += sorted(name for name in self._files if name not in expected)
         mismatched = [] if names == expected else ["(entry list)"]
         if not mismatched:
             mismatched = [
                 info.filename
                 for info in archive.infolist()
-                if read_member(archive, info) != self._files[info.filename]
+                if read_member(archive, info) != self._files.get(info.filename, b"")
             ]
         if mismatched:
             raise HwpxPackageError(
@@ -2024,17 +2053,37 @@ class HwpxPackage:
             )
         self._write_mimetype(zf)
         written = {self.MIMETYPE_PATH}
-        ordered_names = [
-            name
-            for name in self._zip_order
-            if name != self.MIMETYPE_PATH and name in self._files
-        ]
+        ordered_names = self._ordered_entry_names()
         new_names = sorted(
             name for name in self._files if name not in written and name not in ordered_names
         )
         for name in [*ordered_names, *new_names]:
-            self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
+            if name not in self._files:
+                zf.writestr(self._directory_info(name), b"")
+            else:
+                self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
             written.add(name)
+
+    def _ordered_entry_names(self) -> list[str]:
+        """The entries after ``mimetype`` in the order they were read: parts the package still holds and the
+        archive's directory entries."""
+
+        return [
+            name
+            for name in self._zip_order
+            if name != self.MIMETYPE_PATH and (name in self._files or name in self._zip_directories)
+        ]
+
+    def _directory_info(self, name: str) -> ZipInfo:
+        """A fresh ZipInfo for directory entry *name* with what the source's entry said (``writestr``
+        changes the info it is given, so the source's own is not passed)."""
+
+        original = self._zip_directories[name]
+        info = ZipInfo(name, original.date_time)
+        for field_name in ("compress_type", "comment", "extra", "create_system", "create_version",
+                           "extract_version", "flag_bits", "volume", "internal_attr", "external_attr"):
+            setattr(info, field_name, getattr(original, field_name))
+        return info
 
     def _zip_info_for_write(self, path: str, compress_type: int) -> ZipInfo:
         original = self._zip_infos.get(path)

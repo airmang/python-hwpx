@@ -15,7 +15,7 @@ from lxml import etree as LET  # type: ignore[reportMissingImports]
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
 from ..oxml.utils import hancom_text_length, line_seg_past_text
-from ..opc.security import note_well_formed, open_archive
+from ..opc.security import _duplicate_entry_notice, note_well_formed, open_archive
 from ..opc.security import HwpxSecurityError, MAX_ZIP_MEMBER_BYTES, MAX_ZIP_MIMETYPE_BYTES, MAX_ZIP_SMALL_PART_BYTES, read_member
 from ..opc.relationships import (
     MAIN_ROOTFILE_MEDIA_TYPE,
@@ -1510,6 +1510,9 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
         names = [info.filename for info in infos]
         name_set = set(names)
         checked_parts.extend(names)
+        duplicates = _duplicate_entry_notice(names)
+        if duplicates is not None:
+            _warning(issues, "archive", duplicates)
         try:
             guard_zip_file(zf)
         except HwpxSecurityError as exc:

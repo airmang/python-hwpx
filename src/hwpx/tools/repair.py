@@ -554,6 +554,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     print(f"Repaired {args.input} -> {result.output_path}")
+    from .archive_cli import _warn_duplicate_entries
+
+    _warn_duplicate_entries(
+        result.output_path,
+        "not repaired: every entry was kept as it was, since which content is meant cannot be told",
+    )
     print(
         " ".join(
             [

@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 from typing import Sequence, Union
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 from .text_extractor import TextExtractor
 
@@ -58,6 +58,20 @@ def _hwpx_source(input_path: Path) -> "str | ZipFile":
     return ZipFile(io.BytesIO(data))
 
 
+def _warn_duplicate_entries(input_path: Path) -> None:
+    """Say on stderr when the archive holds a name twice: the text comes from the last entry of each."""
+
+    from ..opc.security import _duplicate_entry_notice
+
+    try:
+        with ZipFile(input_path) as archive:
+            notice = _duplicate_entry_notice(info.filename for info in archive.infolist())
+    except (OSError, BadZipFile):
+        return  # not a ZIP (an .hwp) or unreadable: the extraction says so itself
+    if notice is not None:
+        print(f"Warning: {notice}", file=sys.stderr)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Extract text from an HWPX (or HWP 5.0 .hwp) document")
     parser.add_argument("input", help="Path to the .hwpx or .hwp file")
@@ -77,6 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: {problem}", file=sys.stderr)
         return 1
 
+    _warn_duplicate_entries(input_path)
     try:
         source = _hwpx_source(input_path)
         result = extract_plain(source, include_tables=args.include_tables)

@@ -38,6 +38,27 @@ __all__ = [
     "MAX_ZIP_SMALL_PART_BYTES",
 ]
 
+def _duplicate_entry_notice(names: Iterable[str]) -> str | None:
+    """A sentence saying which names an archive holds more than once and what is read, or ``None``.
+
+    ``zipfile`` (and so the engine, ``hwpx-text-extract`` and the validators) reads the last entry of a
+    name; the earlier contents are not read, and an engine save of such a document is refused
+    (``save-duplicate-entry-names``). Hangul does not write such archives."""
+
+    counts: dict[str, int] = {}
+    for name in names:
+        counts[name] = counts.get(name, 0) + 1
+    repeated = sorted((name, count) for name, count in counts.items() if count > 1)
+    if not repeated:
+        return None
+    listed = ", ".join(f"{name!r} x{count}" for name, count in repeated[:5])
+    more = f" and {len(repeated) - 5} more" if len(repeated) > 5 else ""
+    return (
+        f"the archive holds more than one entry under one name ({listed}{more}); the last of each is read "
+        "and the earlier contents are not, and the engine refuses to save such a document"
+    )
+
+
 MAX_XML_BYTES = 64 * 1024 * 1024
 MAX_XML_DEPTH = 256
 MAX_ZIP_ENTRIES = 4096

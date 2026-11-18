@@ -22,6 +22,7 @@ from typing import Sequence
 _LOCAL_SIGNATURE = b"PK\x03\x04"
 _CENTRAL_SIGNATURE = b"PK\x01\x02"
 _EOCD_SIGNATURE = b"PK\x05\x06"
+_ZIP64_LOCATOR_SIGNATURE = b"PK\x06\x07"
 _CENTRAL_FIXED = struct.Struct("<IHHHHHHIIIHHHHHII")
 _EOCD_FIXED = struct.Struct("<IHHHHIIH")
 #: Byte offset of the local header offset inside a central directory record.
@@ -108,7 +109,13 @@ def read_records(data: bytes) -> ZipRecords:
     if total_entries == 0xFFFF or cd_size == 0xFFFFFFFF or cd_offset == 0xFFFFFFFF:
         raise ZipRecordsUnsupported("zip64")
     if cd_offset + cd_size != eocd_offset:
-        # A ZIP64 end record and locator, or other bytes, sit between the directory and its end record.
+        # The directory is not where the end record says. Name why, as the save report shows it.
+        if eocd_offset >= 20 and data[eocd_offset - 20:eocd_offset - 16] == _ZIP64_LOCATOR_SIGNATURE:
+            raise ZipRecordsUnsupported("zip64")  # a ZIP64 end record and locator come before it
+        found_at = eocd_offset - cd_size
+        if found_at > cd_offset and data[found_at:found_at + 4] == _CENTRAL_SIGNATURE:
+            # The whole archive is shifted: bytes (a stub, a prefix) come before the first record.
+            raise ZipRecordsUnsupported("bytes-before-first-entry")
         raise ZipRecordsUnsupported("bytes-before-end-record")
 
     entries: list[CentralEntry] = []
