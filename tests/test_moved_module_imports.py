@@ -84,12 +84,14 @@ def test_the_issue_import_forms_reach_the_guidance() -> None:
 
 
 def test_guidance_does_not_load_the_companion_or_touch_unrelated_names() -> None:
+    # What these calls import, not what the process holds: another test may have imported automation.
+    before = set(sys.modules)
     with pytest.raises(ModuleNotFoundError) as raised:
         importlib.import_module("hwpx.no_such_module")
     assert str(raised.value) == "No module named 'hwpx.no_such_module'"
     assert importlib.util.find_spec("hwpx.house_style") is None
     assert importlib.util.find_spec("hwpx.tools.redline") is not None
-    assert not any(name.startswith("hwpx_automation") for name in sys.modules)
+    assert not any(name.startswith("hwpx_automation") for name in set(sys.modules) - before)
 
 
 def test_the_guide_is_installed_once_behind_the_real_finders() -> None:
