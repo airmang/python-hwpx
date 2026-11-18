@@ -368,7 +368,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: text put in, ranges taken out, moved and copied (oxml/text_ranges.py, asks10b).
     # +1: where Hangul opens a document, settings.xml's caret (oxml/caret.py, asks10h).
     # +1: a table's rows moved and copied (oxml/table_rows.py, asks10d).
-    assert report["classifiedFiles"] == 182
+    # +1: a save's ZIP records, so untouched parts keep their compressed bytes (opc/zip_records.py).
+    assert report["classifiedFiles"] == 183
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

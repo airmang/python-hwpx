@@ -33,6 +33,7 @@ from ..oxml.namespaces import serialize_compat_root
 from ..oxml.utils import hancom_text_length
 
 if TYPE_CHECKING:
+    from .zip_records import ZipRecords, ZipRecordsUnsupported
     from ..oxml.document_metadata import DocumentMetadata
     from ..tools.package_validator import EditorOpenSafetyReport
 from .relationships import (
@@ -52,7 +53,6 @@ from .security import (
     register_written_archive,
     sharing_archive_reads,
 )
-from .zip_records import ZipRecords, ZipRecordsUnsupported, assemble, read_records
 from .xml_utils import (
     extract_xml_declaration,
     iter_declared_namespaces,
@@ -435,10 +435,12 @@ class _SourceArchive:
         self.data = data
         self.contents = contents
         self.infos = infos
-        self._records: ZipRecords | None = None
-        self._unsupported: ZipRecordsUnsupported | None = None
+        self._records: "ZipRecords | None" = None
+        self._unsupported: "ZipRecordsUnsupported | None" = None
 
-    def records(self) -> ZipRecords:
+    def records(self) -> "ZipRecords":
+        from .zip_records import ZipRecordsUnsupported, read_records
+
         if self._unsupported is not None:
             raise self._unsupported
         if self._records is None:
@@ -1664,6 +1666,8 @@ class HwpxPackage:
         built = buffer.getvalue()
         source = self._source_archive
         self._last_built_archive = None
+        from .zip_records import ZipRecordsUnsupported, assemble, read_records
+
         if source is None:
             self._zip_records_outcome = ZipRecordsOutcome.no_source()
             return built

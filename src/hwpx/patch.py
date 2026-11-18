@@ -9,15 +9,17 @@ import struct
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from .opc.security import guard_zip_file, read_member, read_zip_members
-from .opc.zip_records import CentralEntry, assemble, read_records
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .oxml.namespaces import NAMESPACE_URIS
 from .quality import QualityPolicy, SavePipeline
 from .quality.report import VisualCompleteReport
+
+if TYPE_CHECKING:
+    from .opc.zip_records import CentralEntry
 
 _PARAGRAPH_RE = re.compile(
     rb"<(?:[A-Za-z_][\w.-]*:)?p\b[^>]*>.*?</(?:[A-Za-z_][\w.-]*:)?p>",
@@ -838,6 +840,8 @@ def _patch_zip_entries(source: bytes, replacements: Mapping[str, bytes]) -> byte
     Written through :func:`hwpx.opc.zip_records.assemble`, the engine's one record-keeping ZIP writer. Raises
     ``ValueError`` (:class:`~hwpx.opc.zip_records.ZipRecordsUnsupported`) for an archive it cannot keep
     record by record; the callers then rewrite the whole package."""
+
+    from .opc.zip_records import assemble, read_records
 
     archive = read_records(source)
     missing = set(replacements) - set(archive.by_name)

@@ -264,14 +264,14 @@
    "oxml/text_ranges.py:1301"
   ],
   "open-invalid-type": [
-   "opc/package.py:765"
+   "opc/package.py:767"
   ],
   "open-safety-failed": [
    "_document/persistence.py:333",
-   "opc/package.py:1764"
+   "opc/package.py:1768"
   ],
   "package-text-replacement-key-empty": [
-   "patch.py:771"
+   "patch.py:773"
   ],
   "page-argument-conflict": [
    "_document/layout.py:1087",
@@ -493,7 +493,7 @@
    "objects/form_field.py:660"
   ],
   "save-archive-content-mismatch": [
-   "opc/package.py:1745"
+   "opc/package.py:1749"
   ],
   "save-format-unsupported": [
    "_document/persistence.py:716"

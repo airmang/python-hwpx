@@ -20,13 +20,13 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from io import BytesIO
 from .opc.security import guard_zip_file, open_archive, read_member
-from .opc.zip_records import ZipRecords, ZipRecordsUnsupported, read_records
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 from zipfile import ZipInfo
 
 from .errors import HwpxError
 
 if TYPE_CHECKING:
+    from .opc.zip_records import ZipRecords
     from .quality.report import VisualCompleteReport
     from .tools.package_validator import EditorOpenSafetyReport
 
@@ -413,16 +413,18 @@ def measure_save(
     )
 
 
-def _records_or_none(data: bytes | None) -> ZipRecords | None:
+def _records_or_none(data: bytes | None) -> "ZipRecords | None":
     if data is None:
         return None
+    from .opc.zip_records import ZipRecordsUnsupported, read_records
+
     try:
         return read_records(data)
     except ZipRecordsUnsupported:
         return None
 
 
-def _local_record_kept(before: ZipRecords, after: ZipRecords, name: str) -> bool:
+def _local_record_kept(before: "ZipRecords", after: "ZipRecords", name: str) -> bool:
     """True when *name*'s whole local record (header, compressed bytes, data descriptor) is the same bytes."""
 
     old, new = before.by_name.get(name), after.by_name.get(name)
