@@ -1411,6 +1411,12 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
         if _local(node) == "p":
             _clear_paragraph_layout_cache(node)
     put_at(paragraph.element, offset, control)
+    # The objects in the note's text are copies too: each gets an id no other object has and goes over the
+    # others, as a copied object does (shape.copy_to); they kept the original's id and zOrder before.
+    from .shape_position import _object_nodes, stack_new_object
+
+    for node in list(_object_nodes(copy)):
+        stack_new_object(node, paragraph.section)
     _changed(paragraph)
     _renumber_after(copy, paragraph.section)
     return HwpxOxmlNote(copy, paragraph)
