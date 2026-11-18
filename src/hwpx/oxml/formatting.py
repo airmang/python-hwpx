@@ -114,9 +114,11 @@ def find_definition(header: "HwpxOxmlHeader | None", kind: str, id_ref: "int | s
     if container is None:
         return None
     wanted = str(id_ref).strip()
-    exact = [child for child in container if _element_local_name(child) == kind and child.get("id") == wanted]
-    if exact:
-        return exact[0]
+    # the first with the id as written, through the header's checked index (one lookup does not
+    # walk the whole list: a paragraph's shape is looked up per paragraph)
+    exact = header._definition_element(container, kind, wanted, exact=True)
+    if exact is not None:
+        return exact
     return next(
         (child for child in container if _element_local_name(child) == kind and _same_id(child.get("id"), wanted)),
         None,

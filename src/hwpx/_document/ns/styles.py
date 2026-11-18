@@ -314,7 +314,12 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
     # -- 서식 정의 테이블 --------------------------------------------------
 
     @property
-    def char_properties(self) -> dict[str, "RunStyle"]:
+    def char_properties(self) -> Mapping[str, "RunStyle"]:
+        """글자 모양(``hh:charPr``) 전체, id(적힌 대로와 숫자로) → `RunStyle`. 읽을 때마다 머리를
+        그때 모습으로 읽는 읽기 전용 보기다(``.element``로 고친 것도 보인다). id 하나 찾기는
+        글자 모양 수와 상관없이 그 하나만 견주고, ``len``·차례로 훑기는 모두를 견준다. 그대로
+        남는 사본은 ``dict(doc.styles.char_properties)``."""
+
         return self._doc.oxml.char_properties
 
     def char_property(self, char_pr_id_ref: "int | str | None") -> "RunStyle | None":

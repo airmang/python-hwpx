@@ -13,7 +13,8 @@ _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 @pytest.fixture
 def parses(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     calls: list[str] = []
-    for name in ("parse_paragraph_property", "parse_paragraph_properties", "parse_styles", "parse_tab_definitions", "parse_border_fills"):
+    for name in ("parse_paragraph_property", "parse_paragraph_properties", "parse_style", "parse_styles", "parse_tab_definition",
+                 "parse_tab_definitions", "parse_border_fills"):
         original = getattr(header_part, name)
 
         def counting(node, _original=original, _name=name):
@@ -37,8 +38,9 @@ def test_repeated_lookups_parse_once(parses: list[str]) -> None:
         assert header.paragraph_properties
 
     # border_fill reads the hh:borderFill itself as a BorderFillInfo (7.0): no parsed list behind it.
+    # A lookup by id parses only the definition asked for, once (charperf): not the whole list.
     assert sorted(parses) == sorted(
-        ["parse_paragraph_property", "parse_styles", "parse_tab_definitions", "parse_paragraph_properties"]
+        ["parse_paragraph_property", "parse_style", "parse_tab_definition", "parse_paragraph_properties"]
     )
 
 

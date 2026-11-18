@@ -269,6 +269,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | `note.text` → 문단 글을 붙여서 | 문단 글을 줄 바꿈(`"\n"`)으로 잇는다 | |
 | `doc.oxml` 의 서식 읽기 16개(`char_property`·`styles` 등)가 공개 계약 | 계약에서 내렸다(메서드는 남는다) | `doc.styles` 의 같은 이름을 쓴다 |
 | `doc.styles.names()`, `doc.text.highlights()` | 속성 `doc.styles.names`(tuple)·`doc.text.highlights` | 괄호를 뗀다 |
+| `doc.styles.char_properties` → `dict` 사본 | 읽기 전용 `Mapping`(머리를 그때 모습으로 읽는 보기, id 하나 찾기는 글자 모양 수와 상관없다) | 고치거나(`chars[id] = …`)·`.copy()` 하던 코드, 받아 둔 값이 그대로 남아야 하는 코드는 `dict(doc.styles.char_properties)` |
 | `doc.styles.border_fill(id)`·`border_fills`, `numbering(id)`·`numberings` → XML 요소 | `BorderFillInfo`·`NumberingInfo` | XML 요소는 `doc.oxml.border_fill(id)` |
 | `doc.tracking.changes` → id 를 키로 한 `TrackChange` dict, `change(id)` → `TrackChange` | 문서 순서의 `TrackedChange` tuple, `TrackedChange`(`change_id`·`kind`·`author`·`date`·`paragraph`) | `changes[id]` 는 `doc.tracking.change(id)` 로 |
 | `doc.tables.all`·`doc.tables[a:b]`, `doc.text.find_runs()`, `doc.notes.memos`, `doc.styles.ensure_numbering()`, `doc.parts.clear_document_metadata()`·`clear_preview()` → `list` | `tuple` | 목록을 고치던 코드는 `list(...)` 로 |

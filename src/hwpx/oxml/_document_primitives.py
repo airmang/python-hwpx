@@ -524,6 +524,35 @@ def _element_local_name(node: ET.Element) -> str:
     return tag_local_name(node.tag)
 
 
+def _definition_id_keys(raw: str | None) -> tuple[str, ...]:
+    """The keys a header definition's ``id`` is found under: as written and as a plain number
+    (``"01"`` also under ``"1"``), as the definition dicts (``as_dict()``) key them."""
+
+    if not raw:
+        return ()
+    try:
+        normalized = str(int(raw))
+    except (TypeError, ValueError):
+        return (raw,)
+    return (raw,) if normalized == raw else (raw, normalized)
+
+
+def _lookup_keys(identifier: int | str | None) -> tuple[str, ...]:
+    """The keys an id lookup tries, in order: as given (stripped) and then as a plain number --
+    ``HwpxOxmlHeader._lookup_by_id``'s rule."""
+
+    if identifier is None:
+        return ()
+    key = identifier.strip() if isinstance(identifier, str) else str(identifier)
+    if not key:
+        return ()
+    try:
+        normalized = str(int(key))
+    except (TypeError, ValueError):
+        return (key,)
+    return (key,) if normalized == key else (key, normalized)
+
+
 #: Characters the inline atoms of ``hp:t`` mixed content stand for -- the
 #: reading ``hwpx.tools.text_extractor`` gives with ``preserve_breaks``.
 _TEXT_INLINE_ATOMS: dict[str, str] = {

@@ -69,6 +69,21 @@ def _listed(header: "HwpxOxmlHeader", container: ET.Element | None, tag: str) ->
     return list(header.element.iter(f"{_HH}{tag}"))
 
 
+def _listed_by_id(
+    header: "HwpxOxmlHeader", container: ET.Element | None, tag: str, id_ref: int | str | None
+) -> ET.Element | None:
+    """``_find_by_id(_listed(...))``: the *tag* entry whose id is *id_ref*. An id found as written
+    comes from the header's checked index (``HwpxOxmlHeader._definition_element``), so a lookup
+    does not walk the whole list; any other answer is looked for as before."""
+
+    key = None if id_ref is None else str(id_ref).strip()
+    if container is not None and key:
+        found = header._definition_element(container, tag, key, exact=True)
+        if found is not None and found.tag == f"{_HH}{tag}":
+            return found
+    return _find_by_id(_listed(header, container, tag), id_ref)
+
+
 def _fontfaces(header: "HwpxOxmlHeader | None") -> list[ET.Element]:
     if header is None:
         return []
@@ -134,7 +149,7 @@ def font_face(
     normalized = _single_lang(lang)
     if header is None:
         return None
-    char_pr = _find_by_id(_listed(header, header._char_properties_element(), "charPr"), char_pr_id_ref)
+    char_pr = _listed_by_id(header, header._char_properties_element(), "charPr", char_pr_id_ref)
     if char_pr is None:
         return None
     font_ref = char_pr.find(f"{_HH}fontRef")
@@ -178,7 +193,7 @@ def border_fill_info(
 
     if header is None:
         return None
-    border_fill = _find_by_id(_listed(header, header._border_fills_element(), "borderFill"), border_fill_id_ref)
+    border_fill = _listed_by_id(header, header._border_fills_element(), "borderFill", border_fill_id_ref)
     if border_fill is None:
         return None
     fill_id = border_fill.get("id", "")
