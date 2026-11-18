@@ -132,6 +132,11 @@ _BASIC_BORDER_CHILDREN: tuple[tuple[str, dict[str, str]], ...] = (
     ("diagonal", {"type": "SOLID", "width": "0.1 mm", "color": "#000000"}),
 )
 
+#: The ``hh:diagonal`` of every border fill Hancom saves: all 3,511 in the 1,265 Hancom-saved
+#: fixtures are this one line, whatever the four sides are (no fixture draws a slash or backslash).
+#: The diagonal draws nothing while ``hh:slash``/``hh:backSlash`` are ``NONE``.
+_HANCOM_DIAGONAL = {"type": "SOLID", "width": "0.1 mm", "color": "#000000"}
+
 _BORDER_SIDE_ELEMENTS = {
     "left": "leftBorder",
     "right": "rightBorder",
@@ -1021,26 +1026,27 @@ def _border_fill_matches(
         return False
 
     for side, child_name in _BORDER_SIDE_ELEMENTS.items():
-        child = element.find(f"{_HH}{child_name}")
-        if child is None:
-            return False
-        expected_type, expected_width, expected_color = (side_lines or {}).get(side) or (
+        expected = (side_lines or {}).get(side) or (
             border_type if side in active_borders else "NONE", border_width, border_color)
-        if (child.get("type") or "").upper() != expected_type:
+        if not _border_line_matches(element.find(f"{_HH}{child_name}"), *expected):
             return False
-        if _normalize_length(child.get("width")) != _normalize_length(expected_width):
-            return False
-        if (child.get("color") or "").upper() != expected_color.upper():
-            return False
+    if any(
+        (child := element.find(f"{_HH}{name}")) is None or (child.get("type") or "").upper() != "NONE"
+        for name in ("slash", "backSlash")
+    ):
+        return False
+    return _border_line_matches(element.find(f"{_HH}diagonal"), *_HANCOM_DIAGONAL.values())
 
-    for child_name in ("slash", "backSlash", "diagonal"):
-        child = element.find(f"{_HH}{child_name}")
-        if child is None:
-            return False
-        if (child.get("type") or "").upper() != "NONE":
-            return False
 
-    return True
+def _border_line_matches(child: ET.Element | None, line_type: str, width: str, color: str) -> bool:
+    """Whether the border line *child* (a side or the diagonal) is *line_type*, *width* and *color*."""
+
+    return (
+        child is not None
+        and (child.get("type") or "").upper() == line_type
+        and _normalize_length(child.get("width")) == _normalize_length(width)
+        and (child.get("color") or "").upper() == color.upper()
+    )
 
 
 def _attach_new_child(parent: ET.Element, new_child: ET.Element) -> None:
@@ -1148,11 +1154,7 @@ def _create_border_fill_element(
                 border_type=border_type,
             ),
         )
-    ET.SubElement(
-        element,
-        f"{_HH}diagonal",
-        _border_fill_child_attrs(active=False, color=border_color, width=border_width),
-    )
+    ET.SubElement(element, f"{_HH}diagonal", dict(_HANCOM_DIAGONAL))
     _append_fill_brush(element, fill_color=fill_color, fill_image=fill_image, fill_gradient=fill_gradient)
     return element
 

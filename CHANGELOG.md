@@ -168,6 +168,10 @@
 - 읽기만 해서는 문서가 바뀌지 않는다: `hp:secPr`가 없는 구역(한/글 저장본에는 없다)의 `section.properties`·`doc.page.size()` 등이
   빈 `hp:secPr`를 넣고 구역을 바뀐 것으로 표시하던 것을 고쳤다. 값은 "적히지 않음"(`None`)이고, 그 설정에 쓸 때 넣는다.
 - 선 없는 면(`ensure_border_fill(sides={...: None})`)을 한/글처럼 `type="NONE" width="0.1 mm"`로 쓴다(전: 기준 굵기).
+- `ensure_border_fill`이 새로 짓는 테두리 정의의 대각선(`hh:diagonal`)을 한/글 저장본의 테두리 정의 3,511개가 모두 쓰는
+  `type="SOLID" width="0.1 mm" color="#000000"`로 쓴다(전: `NONE`에 면의 굵기·색). `hh:slash`·`hh:backSlash`가 `NONE`이라 그려지는
+  것은 없다. 같은 내용의 정의를 찾을 때도 이 꼴의 대각선을 보므로, 한/글이 저장한 정의 가운데 같은 것이 있으면 새로 만들지 않고 그
+  id를 돌려준다. 기준 정의에서 짓는 길(`base_border_fill_id_ref=`)은 전처럼 기준의 대각선을 그대로 둔다.
 - `table.set_in_margins`가 표 안여백으로 배치되는 칸(`hasMargin` 꺼짐)의 `hp:cellMargin`도 같은 값으로 쓴다.
   `add_table(in_margins=CellMargins(...))`로 만들 때 준다.
 - 복사한 문단·개체의 모든 개체 `id`를 새로 매기고(선·사각형 등도), 새로 넣은 개체의 `id`가 문서의 다른 개체와 겹치지 않는다.
