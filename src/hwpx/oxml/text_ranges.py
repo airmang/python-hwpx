@@ -761,7 +761,9 @@ def _fragment(paragraph: Any, start: int, end: int, *, take: bool) -> list[Any]:
                 element.tail = tail
             copy.append(element)
         result.append(copy)
-    if not any(unit.length and start <= unit.start < end for unit in units):
+    # Any character in the range -- also one inside a text unit that starts before it (a range in the middle
+    # of a highlighted run): the highlights around it are put on the fragment.
+    if not any(unit.length and unit.start < end and start < unit.end for unit in units):
         return result
     seen: set[int] = set()
     for begin, finish in _pen_pairs(units).values():
