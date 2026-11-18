@@ -224,6 +224,9 @@ def _paragraph_add_connector(
 
     Both shapes float (not set as characters) from the left and top of one frame -- the paper, the page,
     or the column and paragraph of one paragraph. See the module's description for what Hancom redraws."""
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(self, caller="add_connector")
 
     sides = []
     for side in (start_side, end_side):

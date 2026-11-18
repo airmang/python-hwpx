@@ -52,7 +52,20 @@ _CASES: dict[str, Callable[[HwpxDocument, Any, Any], object]] = {
     "table.copy_to": lambda d, live, gone: d.add_table(1, 1).copy_to(gone),
     "paragraph.copy_to": lambda d, live, gone: live.copy_to(gone),
     "add_picture": lambda d, live, gone: gone.add_picture(_PNG, width=100, height=100),
+    "add_bookmark": lambda d, live, gone: gone.add_bookmark("b"),
+    "add_hyperlink": lambda d, live, gone: gone.add_hyperlink("https://example.invalid/", "x"),
+    "add_check_box": lambda d, live, gone: gone.add_check_box("c"),
+    "add_connector": lambda d, live, gone: gone.add_connector(
+        live.add_rectangle(1000, 1000), live.add_rectangle(1000, 1000)
+    ),
 }
+
+
+def test_edits_that_stay_in_the_paragraph_still_work() -> None:
+    document, _live, gone, _holder = _taken_out("cell")
+    gone.add_run("y")
+    gone.text = "z"
+    assert gone.text == "z"
 
 
 @pytest.mark.parametrize("kind", ["cell", "note", "box"])

@@ -131,7 +131,13 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
 
 @dataclass(eq=False)
 class HwpxOxmlParagraph(SameElement, ParagraphFormats):
-    """Lightweight wrapper around an ``<hp:p>`` element."""
+    """Lightweight wrapper around an ``<hp:p>`` element.
+
+    A paragraph taken out of its document (one of a removed table, note, text box or section) no longer
+    belongs to it: an edit that writes anything on the document's side -- moving or copying text, notes,
+    bookmarks, fields, links, check boxes, highlights, pictures, charts, connectors -- is refused
+    (``paragraph-not-in-document``). Edits that stay in the paragraph (``add_run``, ``text =``, formatting)
+    still work; a new character shape they need is registered in the document's header."""
 
     element: ET.Element
     section: HwpxOxmlSection
@@ -1130,6 +1136,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         that run, as Hancom writes one (``mid_text_bookmark``). The bookmark name can be referenced by
         hyperlinks or cross-references.
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_bookmark")
         from .field_marks import bookmark_for
 
         _require_nonempty_str(
@@ -1167,6 +1176,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             The link as the :class:`~hwpx.objects.Hyperlink` ``paragraph.hyperlinks`` reads
             (``link.element`` is the ``<hp:fieldBegin>``).
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_hyperlink")
         from ..objects.form_field import Hyperlink
 
         _require_nonempty_str(
@@ -1414,6 +1426,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             treat_as_char: ``True`` places the chart inline in the text flow;
                 the default mirrors the gold float placement.
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_chart")
         from ..errors import HwpxValueError, argument_type_error
 
         if not isinstance(chart_id_ref, str):
@@ -1728,6 +1743,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             width: Box + caption width in HWPUNIT.
             height: Box height in HWPUNIT.
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_check_box")
 
         run = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
         check = _append_child(run, f"{_HP}checkBtn", {
