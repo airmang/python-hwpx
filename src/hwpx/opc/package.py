@@ -55,6 +55,7 @@ from .security import (
 )
 from .xml_utils import (
     extract_xml_declaration,
+    keep_declared_namespaces,
     iter_declared_namespaces,
     parse_xml,
     serialize_xml,
@@ -450,6 +451,102 @@ class _SourceArchive:
                 self._unsupported = exc
                 raise
         return self._records
+
+
+#: Hangul's order of the ``opf:metadata`` children (every Hancom-saved file writes all ten).
+_METADATA_ORDER = (
+    "title", "language", "creator", "subject", "description", "lastsaveby",
+    "CreatedDate", "ModifiedDate", "date", "keyword",
+)
+_OPF_URI = b"http://www.idpf.org/2007/opf/"
+
+
+def _metadata_key(element: etree._Element) -> str:
+    local = _local_name(element)
+    return (element.get("name") or local) if local == "meta" else local
+
+
+def _splice_metadata(data: bytes, metadata_el: etree._Element) -> bytes | None:
+    """*data* (a ``content.hpf``) with the text of each ``opf:metadata`` child that *metadata_el* holds
+    differently put in place, and nothing else changed -- the XML declaration, namespace declarations,
+    attribute order and spacing stay the bytes that were read. A child *data* lacks is added where Hangul
+    writes it, in Hangul's form. ``None`` when the block cannot be edited this way (no ``opf`` prefix, a
+    child it cannot find or holding markup, a child gone); the caller then writes the part from the tree."""
+
+    declared = re.search(rb'xmlns:([A-Za-z_][\w.-]*)="' + re.escape(_OPF_URI) + rb'"', data)
+    if declared is None:
+        return None
+    prefix = declared.group(1)
+    block = re.search(rb"<" + prefix + rb":metadata\b[^>]*>(.*?)</" + prefix + rb":metadata>", data, re.S)
+    if block is None:
+        return None
+    child = re.compile(
+        rb"<" + prefix + rb":(\w+)((?:\s+[\w:.-]+\s*=\s*(?:\"[^\"]*\"|'[^']*'))*)\s*(?:/>|>([^<]*)</"
+        + prefix + rb":\1>)"
+    )
+    found: dict[str, tuple[int, int, bytes, bytes]] = {}
+    position = block.start(1)
+    end = block.end(1)
+    while position < end:
+        match = child.match(data, position)
+        if match is None:
+            if data[position:position + 1].isspace():
+                position += 1
+                continue
+            return None
+        local, attributes, text = match.group(1).decode(), match.group(2), match.group(3)
+        key = local
+        if local == "meta":
+            name = re.search(rb'\bname\s*=\s*["\']([^"\']*)["\']', attributes)
+            if name is None:
+                return None
+            key = name.group(1).decode("utf-8")
+        if key in found:
+            return None
+        found[key] = (match.start(), match.end(), attributes, text if text is not None else b"")
+        position = match.end()
+
+    wanted: dict[str, str] = {}
+    for element in metadata_el:
+        if not isinstance(element.tag, str):
+            continue
+        if len(element):
+            return None
+        wanted[_metadata_key(element)] = element.text or ""
+    if set(found) - set(wanted):
+        return None
+
+    def render(local: bytes, attributes: bytes, text: str) -> bytes:
+        name = prefix + b":" + local
+        if not text:
+            return b"<" + name + attributes + b"/>"
+        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").encode("utf-8")
+        return b"<" + name + attributes + b">" + escaped + b"</" + name + b">"
+
+    edits: list[tuple[int, int, bytes]] = []
+    for key, text in wanted.items():
+        if key in found:
+            start, stop, attributes, raw = found[key]
+            old = etree.fromstring(b"<x>" + raw + b"</x>").text or "" if raw else ""
+            if old != text:
+                local = b"meta" if key not in ("title", "language") else key.encode()
+                edits.append((start, stop, render(local, attributes, text)))
+            continue
+        if not text:
+            continue
+        local = key.encode() if key in ("title", "language") else b"meta"
+        attributes = b"" if local != b"meta" else b' name="' + key.encode("utf-8") + b'" content="text"'
+        order = _METADATA_ORDER.index(key) if key in _METADATA_ORDER else len(_METADATA_ORDER)
+        later = [found[k][0] for k in found if k in _METADATA_ORDER and _METADATA_ORDER.index(k) > order]
+        at = min(later) if later else end
+        edits.append((at, at, render(local, attributes, text)))
+    if not edits:
+        return data
+    out = data
+    for start, stop, replacement in sorted(edits, key=lambda edit: edit[0], reverse=True):
+        out = out[:start] + replacement + out[stop:]
+    return out
+
 
 
 def _write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
@@ -1033,7 +1130,10 @@ class HwpxPackage:
 
     def set_part(self, part_name: str, payload: bytes | str | etree._Element) -> None:
         if isinstance(payload, etree._Element):
-            data = serialize_xml(payload, xml_declaration=True)
+            # A tree is one this package parsed (2016 HWPML URIs read as 2011): keep the part's own
+            # namespace declarations.
+            self._set_serialized_part(part_name, serialize_xml(payload, xml_declaration=True))
+            return
         elif isinstance(payload, str):
             data = payload.encode("utf-8")
         elif isinstance(payload, bytes):
@@ -1041,6 +1141,13 @@ class HwpxPackage:
         else:
             raise TypeError(f"unsupported part payload type: {type(payload)!r}")
         self.write(part_name, data)
+
+    def _set_serialized_part(self, part_name: str, data: bytes) -> None:
+        """Write *data*, a part the engine serialized from the tree it parsed from this part, putting back
+        the root namespace declarations reading normalized (:func:`keep_declared_namespaces`)."""
+
+        previous = self._files.get(self._normalize_path(part_name))
+        self.write(part_name, keep_declared_namespaces(previous, data))
 
     def get_xml(self, part_name: str) -> etree._Element:
         data = self.read(part_name)
@@ -1283,9 +1390,15 @@ class HwpxPackage:
         keyword: str | None = None,
         created_date: str | None = None,
         modified_date: str | None = None,
+        description: str | None = None,
+        lastsaveby: str | None = None,
+        date: str | None = None,
     ) -> None:
         """Set the given ``opf:metadata`` fields; omitted (``None``) fields
-        are left untouched. Scoped to exactly the 6 fields with real
+        are left untouched and ``""`` empties one. ``description``,
+        ``lastsaveby`` and the free-form ``date`` are written as given (raw
+        strings, as ``created_date`` is); ``doc.parts.set_document_metadata``
+        writes ``date`` in Hangul's form from a ``datetime``. Scoped to exactly the 6 fields with real
         corpus evidence worth authoring (title/creator/subject/keyword/
         CreatedDate/ModifiedDate) -- ``date``/``description``/
         ``lastsaveby``/``language`` stay read-only (``date`` especially:
@@ -1320,6 +1433,9 @@ class HwpxPackage:
             ("keyword", keyword),
             ("CreatedDate", created_date),
             ("ModifiedDate", modified_date),
+            ("description", description),
+            ("lastsaveby", lastsaveby),
+            ("date", date),
         ):
             if value is None:
                 continue
@@ -1335,7 +1451,7 @@ class HwpxPackage:
                 metadata_el.append(meta_el)
             meta_el.text = value or None
 
-        self._persist_manifest()
+        self._persist_metadata(metadata_el)
 
     def clear_document_metadata(
         self,
@@ -1379,7 +1495,7 @@ class HwpxPackage:
             cleared.append(key)
 
         if cleared:
-            self._persist_manifest()
+            self._persist_metadata(metadata_el)
         return cleared
 
     def add_manifest_item(
@@ -1437,6 +1553,18 @@ class HwpxPackage:
         manifest_el.remove(match)
         self._persist_manifest()
         return True
+
+    def _persist_metadata(self, metadata_el: etree._Element) -> None:
+        """Write a change of ``opf:metadata`` alone: only the text of the fields that changed moves
+        (:func:`_splice_metadata`); a part that cannot be edited so is written from the tree."""
+
+        path = self.main_content.full_path
+        current = self._files.get(self._normalize_path(path))
+        spliced = None if current is None else _splice_metadata(current, metadata_el)
+        if spliced is None:
+            self._persist_manifest()
+        elif spliced != current:
+            self.write(path, spliced)
 
     def _persist_manifest(self) -> None:
         """Write the in-memory manifest tree back to the package."""

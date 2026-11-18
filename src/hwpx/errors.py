@@ -549,6 +549,8 @@ ERROR_CODES: dict[str, str] = {
     "page-start-numbers-invalid": "구역 시작 번호의 page_starts_on 이 BOTH·EVEN·ODD 가 아니다.",
     "page-note-shape-invalid": "각주·미주 모양의 번호 매기기·놓는 곳·시작 번호·간격·구분선 길이가 한/글이 받는 값이 아니다.",
     "parts-begin-numbers-invalid": "문서 시작 번호(hh:beginNum)가 1 이상 65535 이하의 정수가 아니다.",
+    "parts-date-invalid-type": "문서 정보의 날짜(date=)에 datetime 도 \"\"(지우기)도 아닌 값을 주었다(근거로 정한 꼴 밖의 글은 쓰지 않는다).",
+    "parts-date-naive": "문서 정보의 날짜(date=)로 준 datetime 에 시간대가 없어 어느 순간인지 정할 수 없다.",
     "page-new-num-value":"새 번호(hp:newNum/@num)가 0 이상 65535 이하가 아니다.",
     "page-text-direction-unsupported": "글자 방향 값이 OWPML 어휘(hp:secPr/@textDirection: HORIZONTAL/VERTICAL/VERTICALALL) 밖이다.",
     "page-size-value": "쪽 크기·여백이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부, 음수는 0으로 쓰였다).",

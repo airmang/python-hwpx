@@ -22,9 +22,11 @@ from __future__ import annotations
 import struct
 import zlib
 from types import ModuleType
+from datetime import datetime
 from typing import TYPE_CHECKING, Iterable
 
-from ...errors import HwpxValueError
+from ...errors import HwpxTypeError, HwpxValueError
+from ...oxml.document_metadata import hangul_date_text
 from ...oxml._document_primitives import _HH
 from ...oxml.header_compat import (
     apply_paragraph_auto_spacing as _apply_paragraph_auto_spacing,
@@ -234,18 +236,42 @@ class PartsNamespace(_Namespace):
         keyword: str | None = None,
         created_date: str | None = None,
         modified_date: str | None = None,
+        description: str | None = None,
+        lastsaveby: str | None = None,
+        date: "datetime | str | None" = None,
     ) -> None:
-        """``opf:metadata``의 제목/작성자/주제/키워드/작성일/수정일을
-        설정한다(6.12 트레인㊸) — 생략(`None`)한 필드는 그대로 둔다.
-        `date`(사람이 읽는 자유형식 날짜)·`description`·`lastsaveby`·
-        `language`는 저작 대상 밖이다(`date`는 특히 실코퍼스가 최소
-        5가지 서로 다른 포맷을 씀 — 단일 정본이 없어 저작하면 무근거
-        포맷 추정이 된다, `hwpx.oxml.document_metadata` 참조).
-        `created_date`/`modified_date`는 이미 포맷된 ISO 8601 문자열을
-        받는다(`"%Y-%m-%dT%H:%M:%SZ"`, 실코퍼스 100% 일관 관측) — 이
-        함수가 포맷을 강제하지 않는다. 저작 대상 밖의 필드까지 비우려면
-        `clear_document_metadata`를 쓴다."""
+        """``opf:metadata``의 제목/만든 사람/주제/키워드/만든 날짜/고친 날짜/설명/마지막 저장한
+        사람/사람이 읽는 날짜를 쓴다 — 생략(`None`)한 칸은 그대로 두고, `""`를 주면 그 칸을 비운다
+        (요소와 ``content="text"``는 남는다). `language`는 쓰지 않는다.
 
+        `created_date`/`modified_date`는 이미 포맷된 ISO 8601 문자열을 받는다
+        (`"%Y-%m-%dT%H:%M:%SZ"`, 실코퍼스 100% 일관 관측) — 이 함수가 포맷을 강제하지 않는다.
+
+        `date`(사람이 읽는 만든 날짜)는 시간대가 있는 `datetime`을 받아 한/글의 꼴(한국 시각
+        ``2025년 9월 17일 수요일 오후 1:32:50``, :func:`hwpx.oxml.document_metadata.hangul_date_text`)로
+        쓴다. `CreatedDate`와 같은 순간을 주면 한/글이 쓰는 것처럼 둘이 같은 때를 가리킨다. `""`는
+        비운다. 그 밖의 문자열은 거부한다(``parts-date-invalid-type``) — 근거로 정한 꼴 밖의 날짜
+        글은 쓰지 않는다. 시간대 없는 `datetime`은 ``parts-date-naive``다.
+
+        양식에서 온 사람 이름(`creator`·`lastsaveby`)을 한 번에 지우려면 `clear_document_authors`,
+        모든 칸을 비우려면 `clear_document_metadata`를 쓴다."""
+
+        date_text: str | None
+        if date is None:
+            date_text = None
+        elif isinstance(date, str) and date == "":
+            date_text = ""
+        elif isinstance(date, str):
+            raise HwpxTypeError(
+                "set_document_metadata(date=) takes a datetime (written in Hangul's form) or \"\" to clear "
+                f"it, not the text {date!r}",
+                code="parts-date-invalid-type",
+                context={"type": "str"},
+                suggestion="pass datetime.now(timezone.utc), or doc.package.set_document_metadata(date=...) "
+                "to write a text as it is",
+            )
+        else:
+            date_text = hangul_date_text(date)
         self._doc.package.set_document_metadata(
             title=title,
             creator=creator,
@@ -253,7 +279,28 @@ class PartsNamespace(_Namespace):
             keyword=keyword,
             created_date=created_date,
             modified_date=modified_date,
+            description=description,
+            lastsaveby=lastsaveby,
+            date=date_text,
         )
+
+    def clear_document_authors(self) -> tuple[str, ...]:
+        """문서 정보의 사람 이름 — 만든 사람(``creator``)과 마지막 저장한 사람(``lastsaveby``) —
+        을 비우고, 비운 칸을 문서 순서대로 돌려준다(값이 있던 칸만).
+
+        양식에서 따라온 이름을 걷는 한 번의 호출이다. 요소와 ``content="text"``는 두고 내용만
+        비운다(한/글이 이름 없는 문서를 쓰는 꼴). 없는 요소는 만들지 않고, metadata 블록이
+        없으면 ``()``다. 제목·주제·설명·키워드와 날짜는 그대로다."""
+
+        metadata = self.metadata
+        if metadata is None:
+            return ()
+        cleared = tuple(
+            name for name in ("creator", "lastsaveby") if getattr(metadata, name)
+        )
+        if cleared:
+            self._doc.package.set_document_metadata(**{name: "" for name in cleared})
+        return cleared
 
     def clear_document_metadata(
         self,

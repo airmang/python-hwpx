@@ -434,7 +434,7 @@ def _build_measured(
     predeclared = set(updates)
     if updates:
         for part_name, payload in updates.items():
-            package.set_part(part_name, payload)
+            _set_serialized_part(package, part_name, payload)
     result = package._save_to_bytes(verify_open_safety=True, mark_clean=False)
     if not isinstance(result, bytes):
         raise HwpxTypeError(
@@ -786,7 +786,7 @@ def _to_bytes_raw(
     updates = doc._root.serialize()
     if updates:
         for part_name, payload in updates.items():
-            doc._package.set_part(part_name, payload)
+            _set_serialized_part(doc._package, part_name, payload)
     result = doc._package._save_to_bytes(
         verify_open_safety=True,
         mark_clean=False,
@@ -811,6 +811,17 @@ def _to_bytes_for_validation(doc: "HwpxDocument") -> bytes:
         updates,
         _unchecked_token=_UNCHECKED_SAVE_TOKEN,
     )
+
+
+def _set_serialized_part(package: Any, part_name: str, payload: bytes) -> None:
+    """Write a part the document model serialized, keeping the part's own namespace declarations
+    (``HwpxPackage._set_serialized_part``); a package without that writes it as given."""
+
+    setter = getattr(package, "_set_serialized_part", None)
+    if setter is None:
+        package.set_part(part_name, payload)
+    else:
+        setter(part_name, payload)
 
 
 def _mark_save_clean(doc: "HwpxDocument") -> None:
