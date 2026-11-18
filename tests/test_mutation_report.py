@@ -284,7 +284,8 @@ def test_sneaky_low_level_part_swap_is_refused_under_patch_mode(tmp_path) -> Non
     doc = HwpxDocument.open(fixture)
     try:
         payload = doc._package.read("Contents/header.xml")
-        doc._package.set_part("Contents/header.xml", payload + b"<!-- sneaky -->")
+        # A change inside the root: one after it is not part of the element the package writes back.
+        doc._package.set_part("Contents/header.xml", payload.replace(b"</hh:head>", b"<!-- sneaky --></hh:head>"))
         with pytest.raises(PreservationDowngradeError):
             doc.save(target, mode="patch")
         assert not target.exists()

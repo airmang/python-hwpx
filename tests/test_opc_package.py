@@ -194,7 +194,8 @@ def test_section_set_part_strips_layout_cache_before_save() -> None:
 
     stored_section = package.read("Contents/section0.xml")
     assert b"linesegarray" not in stored_section.lower()
-    assert b"standalone='yes'" in stored_section or b'standalone="yes"' in stored_section
+    # A section declared without standalone="yes" gets Hangul's declaration (the part's own otherwise).
+    assert stored_section.startswith(b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ')
     assert b"xmlns:ha=" in stored_section
     assert b"xmlns:hp10=" in stored_section
     output = package.save()
