@@ -1612,7 +1612,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         value: the begin after the controls at *start*, the end before the character at *end*, each in the run
         it falls in. No prompt run is written -- the field holds a value -- and *prompt* stays the field's
         안내문 (its ``Direction`` parameter), as Hancom keeps one in a filled click-here field
-        (``field_value_shape_filled``); *memo* and *editable* are written as without a range. A range holding
+        (``field_value_shape_filled``); *memo* and *editable* are written as without a range. A field around
+        at least one character is written as filled (``dirty="1"``, :attr:`FormField.filled`), the mark Hancom
+        saves on a click-here field holding text. A range holding
         one end of another field is refused (``paragraph-range-splits-field``).
 
         Emits the real-Hancom CLICKHERE shape (inferred from Hancom
@@ -1651,7 +1653,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "type": "CLICK_HERE",
             "name": _sanitize_text(name),
             "editable": "1" if editable else "0",
-            "dirty": "0",
+            # A field wrapped around text holds a value: Hancom saves such a field with dirty="1"
+            # (a document written with "0" comes back "1" when Hancom saves it again).
+            "dirty": "1" if span is not None and span[1] > span[0] else "0",
             "zorder": "-1",
             "fieldid": field_instance_id,
             "metaTag": "",
