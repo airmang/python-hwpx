@@ -176,6 +176,23 @@ def section_setting_runs(paragraph: ET.Element) -> list[tuple[ET.Element, list[E
     return found
 
 
+def split_column_controls(paragraph: ET.Element) -> None:
+    """Give a column layout (``hp:colPr``) that shares its ``hp:ctrl`` with other controls (a page-number
+    restart, a field begin -- some Hancom files do) a ctrl of its own, right before, so it reads as a section
+    setting; the others stay where they were."""
+
+    for run in [child for child in paragraph if _local(child) == "run"]:
+        for ctrl in [child for child in run if _local(child) == "ctrl" and not is_section_setting(child)]:
+            columns = [child for child in ctrl if _local(child) == "colPr"]
+            if not columns:
+                continue
+            own = ctrl.makeelement(ctrl.tag, dict(ctrl.attrib))
+            for column in columns:
+                ctrl.remove(column)
+                own.append(column)
+            run.insert(list(run).index(ctrl), own)
+
+
 def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
     """Move the section settings of the paragraph *source* to the front of the paragraph *target*.
 
@@ -188,18 +205,7 @@ def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
 
     if not section_setting_runs(source):
         return False
-    # A column layout (hp:colPr) sharing its hp:ctrl with other controls (a page-number restart, a
-    # field begin -- some Hancom files do) goes along in a ctrl of its own; the others stay.
-    for run in [child for child in source if _local(child) == "run"]:
-        for ctrl in [child for child in run if _local(child) == "ctrl" and not is_section_setting(child)]:
-            columns = [child for child in ctrl if _local(child) == "colPr"]
-            if not columns:
-                continue
-            own = ctrl.makeelement(ctrl.tag, dict(ctrl.attrib))
-            for column in columns:
-                ctrl.remove(column)
-                own.append(column)
-            run.insert(list(run).index(ctrl), own)
+    split_column_controls(source)
     found = section_setting_runs(source)
     position = 0
     for run, settings in found:
