@@ -978,6 +978,7 @@ def copy_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
     runs = _copy_runs(paragraph, start, end, to)
     size = _fragment_length(runs)
     notes = _note_kinds(runs)
+    _fit_pasted_objects(runs, to)
     _splice_runs(to, offset, runs)
     _changed(to)
     _renumber_kinds(notes, to.section)
@@ -1023,6 +1024,7 @@ def move_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
         for run in runs:
             stage.remove(run)
     notes = _note_kinds(runs)
+    _fit_pasted_objects(runs, to)
     _splice_runs(to, offset, runs)
     _changed(paragraph)
     _changed(to)
@@ -1348,6 +1350,26 @@ def _note_target(note: Any, paragraph: Any, offset: Any) -> int:
         )
     length = len(paragraph.text)
     return length if offset is None else _check_offset("offset", offset, 0, length)
+
+
+def _fit_pasted_objects(runs: list[Any], to: "HwpxOxmlParagraph") -> None:
+    """Place each floating object the runs carry into a cell, text box, note or caption as Hancom pastes one
+    there (:func:`~hwpx.oxml.shape_position.pasted_placement`), the rule ``shape.copy_to`` and ``move_to``
+    follow: a range carried a page-measured object there as it was."""
+
+    from .shape_position import _PASTE_FITTED, _Z_ORDERED_SET, paragraph_box, pasted_placement
+
+    if paragraph_box(to.element, to.section.element) not in _PASTE_FITTED:
+        return
+    for run in runs:
+        for child in run:
+            if child.tag not in _Z_ORDERED_SET or _local(child) == "tbl":
+                continue
+            changes = pasted_placement(child)
+            position = child.find(f"{child.tag.rsplit('}', 1)[0]}}}pos")
+            if changes and position is not None:
+                for name, value in changes.items():
+                    position.set(name, value)
 
 
 def _note_kinds(runs: list[Any]) -> set[str]:
