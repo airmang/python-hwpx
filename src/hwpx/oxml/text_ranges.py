@@ -183,14 +183,11 @@ def _put_mark_before(unit: _Unit, at: int, mark: Any) -> None:
         index = 0 if unit.holder is None else list(unit.text).index(unit.holder) + 1
         unit.text.insert(index, mark)
         return
+    # Right before the element: the text before it (the parent's text, or the previous child's tail) stays
+    # before the mark. Moving it into the mark's tail put the mark in front of that text.
     element = unit.element
     parent = element.getparent()
-    previous = element.getprevious()
     mark.tail = None
-    if previous is None:
-        mark.tail, parent.text = parent.text, None
-    else:
-        mark.tail, previous.tail = previous.tail, None
     parent.insert(list(parent).index(element), mark)
 
 

@@ -195,20 +195,24 @@ def list_highlights(doc: "HwpxDocument") -> tuple[Highlight, ...]:
 def _crossing_highlights(paragraph: "HwpxOxmlParagraph") -> "list[Highlight] | None":
     """The highlights of *paragraph* when one of them crosses from one ``hp:t`` into another -- Hancom's form
     for a highlight over two runs (``highlight_across_runs``) -- read as the characters between its two marks;
-    ``None`` when every highlight opens and closes in one ``hp:t`` (read span by span, as before)."""
+    ``None`` when every highlight opens and closes in one ``hp:t`` and holds no tab or line break (read span by
+    span, as before); a tab or line break under a highlight is read as ``paragraph.text`` reads it."""
 
     from ..oxml.text_ranges import _units
 
     pairs: "list[tuple[Any, Any]]" = []
     open_: "list[Any]" = []
+    holds_characters = False  # a tab or line break under a highlight: the span reader sees no text there
     for unit in _units(paragraph.element):  # the reader's rule: the innermost open begin closes first
         name = unit.element.tag.rsplit("}", 1)[-1] if unit.kind == "mark" else ""
         if name == "markpenBegin":
             open_.append(unit)
         elif name == "markpenEnd" and open_:
             pairs.append((open_.pop(), unit))
+        elif open_ and unit.kind in ("atom", "tab"):
+            holds_characters = True
     pairs += [(begin, None) for begin in open_]
-    if all(finish is not None and finish.text is begin.text for begin, finish in pairs):
+    if not holds_characters and all(finish is not None and finish.text is begin.text for begin, finish in pairs):
         return None
     text = paragraph.text
     return [Highlight(text=text[begin.start:finish.start if finish is not None else len(text)],
