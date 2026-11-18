@@ -26,7 +26,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Iterable
 
 from ...errors import HwpxTypeError, HwpxValueError
-from ...oxml.document_metadata import hangul_date_text
 from ...oxml._document_primitives import _HH
 from ...oxml.header_compat import (
     apply_paragraph_auto_spacing as _apply_paragraph_auto_spacing,
@@ -271,6 +270,8 @@ class PartsNamespace(_Namespace):
                 "to write a text as it is",
             )
         else:
+            from ...oxml.document_metadata import hangul_date_text
+
             date_text = hangul_date_text(date)
         self._doc.package.set_document_metadata(
             title=title,

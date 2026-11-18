@@ -149,15 +149,15 @@
    "_document/fields.py:1049"
   ],
   "header-compat-empty-flag-name": [
-   "_document/ns/parts.py:482",
+   "_document/ns/parts.py:485",
    "oxml/header_compat.py:142"
   ],
   "header-compat-empty-license-mark-type": [
-   "_document/ns/parts.py:500",
+   "_document/ns/parts.py:503",
    "oxml/header_compat.py:237"
   ],
   "header-compat-empty-target-program": [
-   "_document/ns/parts.py:474",
+   "_document/ns/parts.py:477",
    "oxml/header_compat.py:100"
   ],
   "heading-level-invalid": [
@@ -204,7 +204,7 @@
    "oxml/master_page_authoring.py:70"
   ],
   "master-page-not-found": [
-   "_document/ns/parts.py:85",
+   "_document/ns/parts.py:84",
    "oxml/master_page_authoring.py:260"
   ],
   "master-page-pages-taken": [
@@ -466,23 +466,23 @@
    "oxml/paragraph.py:1242"
   ],
   "parts-auto-spacing-unknown-para-pr": [
-   "_document/ns/parts.py:547"
+   "_document/ns/parts.py:550"
   ],
   "parts-begin-numbers-invalid": [
-   "_document/ns/parts.py:426"
+   "_document/ns/parts.py:429"
   ],
   "parts-date-invalid-type": [
-   "_document/ns/parts.py:263",
+   "_document/ns/parts.py:264",
    "oxml/document_metadata.py:97"
   ],
   "parts-date-naive": [
    "oxml/document_metadata.py:104"
   ],
   "parts-license-mark-incomplete": [
-   "_document/ns/parts.py:493"
+   "_document/ns/parts.py:496"
   ],
   "parts-no-header-part": [
-   "_document/ns/parts.py:349"
+   "_document/ns/parts.py:352"
   ],
   "ref-bookmark-name-empty": [
    "objects/form_field.py:538"
