@@ -1203,6 +1203,7 @@ def test_github_release_state_rejects_nonfinal_truth(
             "check": True,
             "capture_output": True,
             "text": True,
+            "encoding": "utf-8",
         }
         return subprocess.CompletedProcess(command, 0, stdout=stdout)
 
