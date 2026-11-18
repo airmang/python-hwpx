@@ -35,7 +35,7 @@ def test_check_is_green() -> None:
         [sys.executable, str(SCRIPT), "--check"],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "in sync" in proc.stdout

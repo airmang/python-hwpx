@@ -429,7 +429,7 @@ def test_touched_runtime_c901_debt_only_ratchets_down() -> None:
         "json",
         *[str(SOURCE_ROOT / relative) for relative in RATCHET_SOURCE_FILES],
     ]
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    result = subprocess.run(command, capture_output=True, text=True, check=False, encoding="utf-8")
     assert result.returncode in {0, 1}, result.stderr or result.stdout
 
     observed: dict[str, dict[str, int]] = {}

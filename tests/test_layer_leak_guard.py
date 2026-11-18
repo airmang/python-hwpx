@@ -38,7 +38,7 @@ def test_cli_passes_on_the_committed_tree() -> None:
         [sys.executable, str(ROOT / "scripts" / "layer_leak_guard.py")],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr

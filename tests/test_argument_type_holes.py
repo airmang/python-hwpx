@@ -124,7 +124,7 @@ def test_namespaces_still_load_no_tools_or_form_fit_module() -> None:
         print(sorted(m for m in sys.modules if m.startswith(("hwpx.tools", "hwpx.form_fit"))))
         """
     )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, encoding="utf-8")
     assert result.stdout.strip() == "[]"
 
 

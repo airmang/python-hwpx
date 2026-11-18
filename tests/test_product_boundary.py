@@ -263,7 +263,7 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
         cwd=tmp_path,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
@@ -396,7 +396,7 @@ def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_
         cwd=tmp_path,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert result.returncode == 1, result.stderr or result.stdout
@@ -516,7 +516,7 @@ def test_gitless_cli_rejects_a_removed_module_resurrection(tmp_path: Path) -> No
         cwd=tmp_path,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert result.returncode == 1, result.stderr or result.stdout

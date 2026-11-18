@@ -144,7 +144,7 @@ def main(argv=None) -> int:
     parser.add_argument("--dpi", type=int, default=150)
     args = parser.parse_args(argv)
 
-    manifest = json.loads(Path(args.manifest).read_text())
+    manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
     pdf_dir = Path(args.pdf_dir)
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -158,7 +158,7 @@ def main(argv=None) -> int:
         results.append(_score_pair(pair, pdf_dir, args.diff_eps))
 
     report = {"diff_eps": args.diff_eps, "dpi": args.dpi, "results": results}
-    (outdir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    (outdir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_markdown(report, outdir / "report.md")
 
     tally: dict[str, int] = {}

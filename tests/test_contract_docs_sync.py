@@ -21,7 +21,7 @@ def test_contract_docs_are_in_sync() -> None:
     proc = subprocess.run(
         [sys.executable, str(REPO / "scripts" / "sync_contract_docs.py"), "--check"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 

@@ -40,4 +40,4 @@ for file, name in (
         members = {name: hashlib.sha256(archive.read(name)).hexdigest() for name in sorted(archive.namelist())}
     records.append({'fixture': file, 'requested': requested, 'result': result.to_dict(),
                     'field': field_snapshot, 'output_members': members})
-Path(args.output).write_text(json.dumps(records, ensure_ascii=False, sort_keys=True, indent=2))
+Path(args.output).write_text(json.dumps(records, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")

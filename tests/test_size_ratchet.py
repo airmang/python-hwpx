@@ -93,7 +93,7 @@ def test_cli_prints_the_delta_against_the_last_release() -> None:
         [sys.executable, str(ROOT / "scripts" / "size_ratchet.py")],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr

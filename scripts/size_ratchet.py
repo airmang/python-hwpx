@@ -88,7 +88,7 @@ def import_probe(src: pathlib.Path = SRC, runs: int = 1) -> tuple[int, float]:
             [sys.executable, "-I", "-c", _IMPORT_PROBE.format(src=str(src))],
             capture_output=True,
             text=True,
-            check=True,
+            check=True, encoding="utf-8",
         )
         count, elapsed = result.stdout.split()
         counts.add(int(count))
@@ -114,7 +114,7 @@ def measure_ref(ref: str, runs: int = 3) -> tuple[dict[str, Any], str]:
 
     commit = subprocess.run(
         ["git", "rev-parse", "--short", f"{ref}^{{commit}}"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
+        cwd=ROOT, capture_output=True, text=True, check=True, encoding="utf-8",
     ).stdout.strip()
     with tempfile.TemporaryDirectory() as scratch:
         archive = pathlib.Path(scratch) / "src.tar"
@@ -132,7 +132,7 @@ def measure_ref(ref: str, runs: int = 3) -> tuple[dict[str, Any], str]:
 
 def head_commit() -> str:
     return subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+        ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True, encoding="utf-8"
     ).stdout.strip()
 
 

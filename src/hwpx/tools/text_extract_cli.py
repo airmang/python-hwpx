@@ -87,8 +87,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.output:
         Path(args.output).write_text(result, encoding="utf-8")
     else:
-        print(result)
+        _print_text(result)
     return 0
+
+
+def _print_text(text: str) -> None:
+    """Print *text*; where standard output cannot hold it (a pipe in cp1252 on an English Windows cannot
+    hold Korean), write it as UTF-8 -- the encoding ``--output`` writes -- instead of failing."""
+
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        stream = sys.stdout
+        stream.flush()
+        stream.buffer.write((text + "\n").encode("utf-8"))
+        stream.buffer.flush()
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI convenience

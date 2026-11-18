@@ -18,7 +18,7 @@ def _run(code: str) -> str:
         [sys.executable, "-c", textwrap.dedent(code)],
         capture_output=True,
         text=True,
-        check=False,
+        check=False, encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
     return result.stdout.strip()

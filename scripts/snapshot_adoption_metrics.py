@@ -40,7 +40,7 @@ def _gh_json(path: str) -> object:
         ["gh", "api", path],
         capture_output=True,
         text=True,
-        check=True,
+        check=True, encoding="utf-8",
     )
     return json.loads(result.stdout)
 
