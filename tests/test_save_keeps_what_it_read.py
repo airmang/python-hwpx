@@ -32,7 +32,10 @@ def _repacked(*, duplicate: bool = False, directory: bool = False, reverse: bool
                 target.writestr("opaque.bin", b"1")
                 target.writestr("opaque.bin", b"2")
             if directory:
-                target.mkdir("BinData/")
+                # ZipFile.mkdir (3.11+) writes this entry: a directory name, no data, the directory flags.
+                directory_entry = zipfile.ZipInfo("BinData/", (2026, 1, 1, 0, 0, 0))
+                directory_entry.external_attr = (0o40775 << 16) | 0x10
+                target.writestr(directory_entry, b"")
             if reverse:
                 target.filelist[1:] = list(reversed(target.filelist[1:]))
             target.comment = comment
