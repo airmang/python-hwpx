@@ -428,6 +428,8 @@ def _build_measured(
     source_infos = dict(
         getattr(package, "_opened_zip_infos", None) or package._zip_infos
     )
+    source_archive = getattr(package, "_source_archive", None)
+    source_bytes = None if source_archive is None else source_archive.data
     updates = doc._root.serialize()
     predeclared = set(updates)
     if updates:
@@ -443,7 +445,16 @@ def _build_measured(
     open_safety = doc._run_open_safety_validation(result)
     if reset_dirty:
         _mark_save_clean(doc)
-    measurement = measure_save(source_members, source_infos, result, predeclared)
+    outcome = getattr(package, "_zip_records_outcome", None)
+    rewritten = None if outcome is None or outcome.rewritten_reason == "no-source" else outcome.rewritten_reason
+    measurement = measure_save(
+        source_members,
+        source_infos,
+        result,
+        predeclared,
+        source_bytes=source_bytes,
+        zip_records_rewritten=rewritten,
+    )
     return result, measurement, open_safety
 
 
@@ -810,3 +821,6 @@ def _mark_save_clean(doc: "HwpxDocument") -> None:
     package = doc._package
     package._opened_members = dict(package._files)
     package._opened_zip_infos = dict(package._zip_infos)
+    adopt = getattr(package, "_adopt_last_archive", None)
+    if adopt is not None:
+        adopt()

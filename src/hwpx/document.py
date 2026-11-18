@@ -238,6 +238,7 @@ class HwpxDocument(metaclass=_DocumentType):
             data = source.read(MAX_FILE_BYTES + 1)
         converted = convert(data)
         package = HwpxPackage.open(to_hwpx_bytes(converted.files))
+        package._source_archive = None  # converted, not opened from an HWPX file: no records to keep
         root = HwpxOxmlDocument.from_package(package)
         document = cls(package, root)
         document._hwp5_report = Hwp5ConversionReport.of(converted.report.unconverted, converted.report.dropped)
@@ -351,6 +352,8 @@ class HwpxDocument(metaclass=_DocumentType):
         document = cls.open(
             new_document_bytes(source.now if source is not None else None)
         )
+        # Built from parts, not opened from a file: no source records to keep (written as before).
+        document._package._source_archive = None
         document._install_id_source(source)
         document._inherit_style_default = bool(inherit_style)
         document._first_line_free = not empty_first_line

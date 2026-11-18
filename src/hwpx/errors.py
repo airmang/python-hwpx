@@ -698,6 +698,7 @@ ERROR_CODES: dict[str, str] = {
     # -- 저장·패키지 -----------------------------------------------------
     "save-failed": "저장 경로가 아무것도 쓰기 전에 fail-closed 했다.",
     "save-package-contract-violated": "package.save(None) 이 bytes 를 돌려주지 않았다.",
+    "save-archive-content-mismatch": "써 놓은 ZIP 의 항목 목록이나 내용이 저장하려던 것과 다르다(옮긴 원본 기록이 그 내용이 아니다). 아무것도 쓰지 않았다.",
     "save-format-unsupported": "저장 형식(format)이 'hwpx'도 'hwp'도 아니다.",
     "save-mode-invalid": "저장 mode 가 auto/patch/rebuild 밖이거나 fallback 이 error/rebuild 밖이다.",
     "save-target-invalid-type": "doc.save 에 경로도 쓰기 가능한 이진 스트림도 아닌 것을 주었다.",

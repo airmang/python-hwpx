@@ -104,7 +104,9 @@ doc.tables[0].cell(1, 1).text = "플랫폼팀"
 report = doc.save("신청서-작성완료.hwpx", mode="patch", fallback="error")
 ```
 
-`mode="patch"`는 고치지 않은 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고친 파트 안쪽과 화면 배치는 따로
+`mode="patch"`는 고치지 않은 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고치지 않은 파트는 압축된 바이트까지
+원본 그대로 옮기고, 아무것도 고치지 않은 저장은 파일째 같습니다. 고친 파트는 내용이 결정적이지만 압축된 바이트는
+Python이 쓰는 zlib 구현에 따라 다를 수 있습니다. 고친 파트 안쪽과 화면 배치는 따로
 확인해야 합니다. 저장한 파일을 다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](docs/safe-write-contract.md)에
 있습니다. 이름표 글자로 칸을 찾아 채우는 `fill_by_path`는 python-hwpx-automation(`hwpx_automation.forms`)에 있습니다.
 

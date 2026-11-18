@@ -84,15 +84,21 @@ def test_same_bytes_give_the_same_answer_in_another_process() -> None:
 # 2. an unedited save keeps every part's bytes -------------------------------------------------
 
 
+def _mimetype_compressed(data: bytes) -> bool:
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        return archive.getinfo("mimetype").compress_type != zipfile.ZIP_STORED
+
+
 def test_an_unedited_hancom_document_saves_its_parts_unchanged() -> None:
     files = sorted(HANCOM.glob("*.hwpx"))[::25]  # a spread of the Hancom-saved set
-    whole = 0
     for path in files:
         data = path.read_bytes()
         saved = HwpxDocument.open(data).to_bytes()
-        whole += saved == data
         assert _parts(saved) == _parts(data), path.name  # same parts, same bytes in each
-    assert whole >= len(files) * 0.9  # most come back byte for byte, ZIP container and all
+        # The file itself, ZIP container and all: the save copies every unchanged entry's record, so this
+        # holds whatever deflate this Python has. The one exception it makes on purpose: a `mimetype`
+        # stored compressed is written STORED, as the package format asks.
+        assert saved == data or _mimetype_compressed(data), path.name
 
 
 # 3. a public edit changes only its part, and the report says which ----------------------------

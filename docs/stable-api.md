@@ -143,19 +143,26 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
 있는지 확인한다). 약속은 major 경계에서만 바뀐다.
 
 1. **같은 바이트는 같은 결과다.** 같은 바이트를 열면 몇 번을, 어느 프로세스에서 열어도 같은
-   모델·같은 글을 읽고, 고치지 않고 저장하면 같은 바이트가 나온다.
+   모델·같은 글을 읽고, 고치지 않고 저장하면 같은 바이트가 나온다. 고친 문서를 저장한 바이트는
+   같은 Python에서 늘 같다. 고친 파트의 압축된 바이트는 Python의 zlib 구현(zlib·zlib-ng)에 달려
+   있어 다른 Python에서는 다를 수 있고, 그 내용(풀린 바이트)은 어디서나 같다.
    `tests/test_engine_contract.py::test_same_bytes_open_to_the_same_model_text_and_bytes`,
    `tests/test_engine_contract.py::test_same_bytes_give_the_same_answer_in_another_process`
-2. **고치지 않은 저장은 바이트 그대로다.** 열고 고치지 않고 저장하면 모든 파트가 바이트 그대로다.
-   대개 파일 전체가 같고, 몇몇은 ZIP 항목의 순서·플래그·폴더 항목만 다르다(공개·시험 HWPX 중
-   열리는 1,309개: 1,122개는 파일째 같고 187개는 파트가 같다).
+2. **고치지 않은 저장은 바이트 그대로다.** 저장은 고치지 않은 ZIP 항목의 기록(압축된 바이트·플래그·
+   extra·데이터 디스크립터)을 원본에서 그대로 옮긴다. 그래서 열고 고치지 않고 저장하면 파일째 같고,
+   Python의 zlib 구현에 달리지 않는다. 다른 것은 엔진이 일부러 고치는 셋뿐이다: 압축해 둔 `mimetype`
+   은 STORED로 쓰고, 폴더 항목은 두지 않고, 항목별로 옮길 수 없는 ZIP(ZIP64·중복 이름·첫 항목 앞이나
+   목록 뒤에 다른 바이트가 있는 것 등)은 다시 쓰고 `MutationReport.preservation.zip_records_rewritten`
+   에 까닭을 적는다(한/글 저장본 시험 1,265개: 1,259개 파일째 같음, 6개는 압축된 `mimetype`).
    `tests/test_engine_contract.py::test_an_unedited_hancom_document_saves_its_parts_unchanged`,
-   `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`
+   `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`,
+   `tests/test_zip_records.py::test_an_unedited_save_writes_the_source_file_again`
 3. **공개 편집은 그 파트만 바꾸고, 바꾼 파트를 알린다.** 공개 API로 고치면 그 내용을 담은 파트만
-   바뀌고 나머지 파트는 바이트 그대로다. 바뀐 파트는 `MutationReport.changed_parts` 에 적힌다
+   바뀌고 나머지 파트는 압축된 기록까지 바이트 그대로다. 바뀐 파트는 `MutationReport.changed_parts` 에 적힌다
    (`doc.save(...)`가 돌려주는 보고).
    `tests/test_engine_contract.py::test_a_public_edit_changes_only_its_part_and_says_so`,
-   `tests/test_mutation_report.py::test_one_cell_edit_patch_lists_dirty_section`
+   `tests/test_mutation_report.py::test_one_cell_edit_patch_lists_dirty_section`,
+   `tests/test_zip_records.py::test_an_edit_recompresses_only_its_part`
 4. **성공한 저장은 열기 안전 검사를 통과한 것이다.** 저장(`to_bytes`·`save`)은 산출물이 편집기 열기 안전 검사를 통과할 때만 끝나고, 통과하지 못하면
    아무것도 쓰지 않고 `open-safety-failed` 로 실패한다(있던 파일은 그대로 둔다). `doc.save(..., pipeline=SavePipeline(oracle_factory=...))`로
    관문에 렌더러를 주어도 같다 — 렌더러는 `quality=` 정책이 렌더링할 때만 만들어지고, 열기 안전 검사는 한 번이다.

@@ -16,16 +16,16 @@
   "fenceCount": 125,
   "sourceSha256": "7535abf323d7008c59bb916580bce613eac2db050369ad9b71119df62a1910f7",
   "manualSha256": {
-    "README.md": "c7d9503e13feecbab51f0396f0ab73edf028a50bf6fc2e8e2caad31610f68c86",
-    "README_EN.md": "f0df89eedaad6473c92e9aa5babcdf2d0ff3f8ef16698a5cad4f7fa07a9a922a",
+    "README.md": "1a5fdb2f8910ee427d043e6439ea348489d858c106edfc2424a1143b7ad9df92",
+    "README_EN.md": "6e2bf10db86f29aef24bf833a7d03dc25f277458cc56d37795c05707139882d9",
     "docs/quickstart.md": "ac10c58577cf9e479237aa5d7e448ebdbe8ca70c3ae3c2be8f3acf5774a67af5",
     "docs/recipes-traversal.md": "6a15a67e070085e292b6d8fc9638e00cfdf1c8b4137dee91939c1f7052233796",
-    "docs/mutation-semantics.md": "90b9d0bc18e7816425b653919f45b0084a5eafb1a5120304554b9ab3efd332f6",
+    "docs/mutation-semantics.md": "4479b938a51f7319bff3baa2c45c0b1f6d1e8f2098cbed9665ed5c29c79ef618",
     "docs/usage.md": "e35fe377a0c3a6b34d4ee3c6604df0abdd6114ded152cb10cf6b4060eed02612",
     "docs/examples.md": "3b7840e6819853890d1a69d3178d9062e9a939a3cbad8413e1a8ad628a501bc6",
     "docs/faq.md": "f0e4d539d2b9f97e977a1a5a01274a2c6b1668103e89c8ba2f92dba5ef4df040",
     "docs/index.md": "44cedc83e77ce49abb62b6a3db0f6ad3bd71d16b1dd3fd5f7054c197a980c70b",
-    "docs/safe-write-contract.md": "f330cb728c2bdb18ce227f55245b0e3d68365ed66ef541ff3abeaef4b7b3224c",
+    "docs/safe-write-contract.md": "603a1c9b82079565362ae31682033e38dc58d37e924891c44d3e4301981cca13",
     "docs/golden-api.md": "ce02659e4db0b968365bc6ccdb2d927c29a249b2a65973f239e4e526ddf25e49"
   },
   "classifications": {
