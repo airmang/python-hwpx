@@ -532,7 +532,11 @@ def _splice_metadata(data: bytes, metadata_el: etree._Element) -> bytes | None:
         name = prefix + b":" + local
         if not text:
             return b"<" + name + attributes + b"/>"
-        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").encode("utf-8")
+        # A carriage return written as itself would read back as a line feed (XML end-of-line handling),
+        # so it is written as a character reference, as lxml writes it.
+        escaped = (
+            text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\r", "&#13;")
+        ).encode("utf-8")
         return b"<" + name + attributes + b">" + escaped + b"</" + name + b">"
 
     edits: list[tuple[int, int, bytes]] = []
@@ -1447,12 +1451,15 @@ class HwpxPackage:
         # only walks ast.Raise, not ast.Assert).
         assert metadata_el is not None
 
+        # A key written twice in the block (not Hangul's form, but readable) gets the value in every copy:
+        # a copy left with the old value would still say it.
         if title is not None:
-            title_el = metadata_el.find(f"{{{OPF_NS['opf']}}}title")
-            if title_el is None:
-                title_el = metadata_el.makeelement(f"{{{OPF_NS['opf']}}}title", {})
-                metadata_el.insert(0, title_el)
-            title_el.text = title or None
+            titles = metadata_el.findall(f"{{{OPF_NS['opf']}}}title")
+            if not titles:
+                titles = [metadata_el.makeelement(f"{{{OPF_NS['opf']}}}title", {})]
+                metadata_el.insert(0, titles[0])
+            for title_el in titles:
+                title_el.text = title or None
 
         for field_name, value in (
             ("creator", creator),
@@ -1466,19 +1473,42 @@ class HwpxPackage:
         ):
             if value is None:
                 continue
-            meta_el = None
-            for candidate in metadata_el.findall(f"{{{OPF_NS['opf']}}}meta"):
-                if candidate.get("name") == field_name:
-                    meta_el = candidate
-                    break
-            if meta_el is None:
-                meta_el = metadata_el.makeelement(
+            metas = [
+                candidate
+                for candidate in metadata_el.findall(f"{{{OPF_NS['opf']}}}meta")
+                if candidate.get("name") == field_name
+            ]
+            if not metas:
+                metas = [metadata_el.makeelement(
                     f"{{{OPF_NS['opf']}}}meta", {"name": field_name, "content": "text"}
-                )
-                _insert_in_hangul_order(metadata_el, meta_el, field_name)
-            meta_el.text = value or None
+                )]
+                _insert_in_hangul_order(metadata_el, metas[0], field_name)
+            for meta_el in metas:
+                meta_el.text = value or None
 
         self._persist_metadata(metadata_el)
+
+    def _clear_named_meta(self, names: Iterable[str]) -> list[str]:
+        """Empty every ``opf:meta`` whose ``name`` is one of *names* -- each copy of a key -- and return the
+        name of each one that held a value, in document order. Missing fields are not created."""
+
+        metadata_el = self._metadata_element(create=False)
+        if metadata_el is None:
+            return []
+        wanted = set(names)
+        meta_tag = f"{{{OPF_NS['opf']}}}meta"
+        cleared: list[str] = []
+        for child in metadata_el:
+            if child.tag != meta_tag or child.get("name") not in wanted:
+                continue
+            if (child.text or "").strip() or len(child):
+                cleared.append(str(child.get("name")))
+            for grandchild in list(child):
+                child.remove(grandchild)
+            child.text = None
+        if cleared:
+            self._persist_metadata(metadata_el)
+        return cleared
 
     def clear_document_metadata(
         self,
