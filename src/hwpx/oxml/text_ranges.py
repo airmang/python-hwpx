@@ -993,8 +993,10 @@ def move_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
     held = _held(units, start, end)
     _refuse_place(paragraph, start, end, to, offset, held)
     _move_pens(units, held.pens, start, end, dry=True)
-    if start == end or (to.element is paragraph.element and offset in (start, end)):
-        return (start, end) if to.element is paragraph.element else (offset, offset)
+    if start == end:
+        return (offset, offset)  # nothing moves: the place it would land, as copy_range answers
+    if to.element is paragraph.element and offset in (start, end):
+        return (start, end)  # it lands where it is
     if paragraph.section.document is not to.section.document:
         position = copy_range(paragraph, start, end, to, offset)
         delete_range(paragraph, start, end, "remove")
