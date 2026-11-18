@@ -1903,6 +1903,7 @@ class HwpxPackage:
         ``zipfile`` wrote it, and :attr:`_zip_records_outcome` says why."""
 
         source = self._source_archive
+        self._expected_entry_order: list[str] | None = None
         buffer = io.BytesIO()
         with ZipFile(buffer, "w") as zf:
             self._write_archive_from_save(zf)
@@ -1927,29 +1928,40 @@ class HwpxPackage:
         for entry in built_records.entries:
             original = source_records.by_name.get(entry.filename)
             directory = entry.filename in self._zip_directories and entry.filename not in self._files
-            if original is not None and (directory or self._entry_unchanged(entry.filename, source)):
+            # mimetype's record is kept whenever its content is: the source's place and compression for it
+            # (not first, or deflated) are what the file says, and making it standard is hwpx-repair's job.
+            mimetype_kept = (
+                entry.filename == self.MIMETYPE_PATH
+                and source.contents.get(self.MIMETYPE_PATH) == self._files.get(self.MIMETYPE_PATH)
+            )
+            if original is not None and (directory or mimetype_kept or self._entry_unchanged(entry.filename, source)):
                 records.append((source_records.local_record(original), original.raw))
                 copied.add(entry.filename)
             else:
                 records.append((built_records.local_record(entry), entry.raw))
         # The records lie where the source had them (its physical order, which may differ from the order
-        # its central directory lists them in); a new entry goes after them, mimetype stays first. The
-        # central directory keeps its own order.
+        # its central directory lists them in), mimetype included; a new entry goes after them. The central
+        # directory lists the source's entries in the source's order, then the new ones.
         names = [entry.filename for entry in built_records.entries]
+        central_rank = {entry.filename: rank for rank, entry in enumerate(source_records.entries)}
 
         def place(index: int) -> tuple[int, int]:
             original = source_records.by_name.get(names[index])
-            if names[index] == self.MIMETYPE_PATH:
-                return (0, 0)
-            return (1, original.header_offset) if original is not None else (2, index)
+            return (0, original.header_offset) if original is not None else (1, index)
+
+        def listed(index: int) -> tuple[int, int]:
+            rank = central_rank.get(names[index])
+            return (0, rank) if rank is not None else (1, index)
 
         local_order = sorted(range(len(records)), key=place)
         position = {index: slot for slot, index in enumerate(local_order)}
+        central = sorted(range(len(records)), key=listed)
+        self._expected_entry_order = [names[index] for index in central]
         try:
             written = assemble(
                 [records[index] for index in local_order],
                 source_records.eocd,
-                central_order=[position[index] for index in range(len(records))],
+                central_order=[position[index] for index in central],
             )
         except ZipRecordsUnsupported as exc:
             self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(), rewritten_reason=exc.reason)
@@ -1999,6 +2011,9 @@ class HwpxPackage:
         names = [info.filename for info in archive.infolist()]
         expected = [self.MIMETYPE_PATH, *self._ordered_entry_names()]
         expected += sorted(name for name in self._files if name not in expected)
+        kept_order = getattr(self, "_expected_entry_order", None)
+        if kept_order is not None:  # records kept from the source, in its order
+            expected = kept_order
         mismatched = [] if names == expected else ["(entry list)"]
         if not mismatched:
             mismatched = [

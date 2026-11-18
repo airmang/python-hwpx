@@ -582,19 +582,22 @@ def test_missing_required_files_raise_structure_error() -> None:
 
 
 def test_save_preserves_expected_compress_type_per_entry() -> None:
-    package = HwpxPackage.open(_build_package())
+    # The source lists mimetype after the content parts, stored: an unedited save writes it as it is
+    # (where and how the file has it -- making it first is hwpx-repair's job).
+    source = _build_package()
+    package = HwpxPackage.open(source)
 
     output = package.save()
+    assert output == source
     with ZipFile(io.BytesIO(output), "r") as archive:
         infos = archive.infolist()
 
-    assert infos[0].filename == "mimetype"
-    assert infos[0].compress_type == ZIP_STORED
-    for info in infos[1:]:
-        assert info.compress_type == ZIP_DEFLATED
+    assert [info.filename for info in infos].index("mimetype") == 3
+    for info in infos:
+        assert info.compress_type == (ZIP_STORED if info.filename == "mimetype" else ZIP_DEFLATED)
 
 
-def test_save_rewrites_mimetype_as_stored_even_when_source_was_compressed() -> None:
+def test_save_keeps_mimetype_compressed_when_the_source_has_it_so() -> None:
     buffer = io.BytesIO()
     with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr("mimetype", _MIMETYPE)
@@ -607,8 +610,9 @@ def test_save_rewrites_mimetype_as_stored_even_when_source_was_compressed() -> N
     package = HwpxPackage.open(buffer.getvalue())
     output = package.save()
 
+    assert output == buffer.getvalue()
     with ZipFile(io.BytesIO(output), "r") as archive:
-        assert archive.getinfo("mimetype").compress_type == ZIP_STORED
+        assert archive.getinfo("mimetype").compress_type == ZIP_DEFLATED
 
 
 def test_save_preserves_existing_archive_order_and_entry_metadata() -> None:
