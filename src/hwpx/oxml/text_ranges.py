@@ -753,8 +753,12 @@ def _fragment(paragraph: Any, start: int, end: int, *, take: bool) -> list[Any]:
                     text.append(element)
                 continue
             text = None
-            element = unit.element if take else deepcopy(unit.element)
-            if take:
+            # A zero-width control or object is moved out here; a character written as an element straight
+            # under the run (an hp:tab there) is copied, like the text: the range's characters are cut from
+            # the paragraph afterwards, and taking it here as well cut the character after it too.
+            moved = take and not unit.length
+            element = unit.element if moved else deepcopy(unit.element)
+            if moved:
                 tail = element.tail
                 unit.run.remove(element)
                 element.tail = tail
