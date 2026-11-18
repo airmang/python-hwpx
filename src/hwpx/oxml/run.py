@@ -680,7 +680,14 @@ class CharPropertyView(Mapping[str, RunStyle]):
     def __getitem__(self, key: str) -> RunStyle:
         style = self._cache.lookup(self._headers, (key,)) if isinstance(key, str) and key else None
         if style is None:
-            raise KeyError(key)
+            from ..errors import HwpxLookupError  # a KeyError, so get() and ``in`` answer as for a dict
+
+            raise HwpxLookupError(
+                f"no character shape (hh:charPr) has the id {key!r}",
+                code="style-char-pr-missing",
+                context={"requested": repr(key)},
+                suggestion="Read the id from a run (run.char_pr_id_ref) or use doc.styles.char_property(id), which answers None.",
+            )
         return style
 
     def __iter__(self) -> Iterator[str]:
