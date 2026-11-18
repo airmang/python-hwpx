@@ -598,7 +598,7 @@ for paragraph in doc.paragraphs:
 - `from_package(package)`: `HwpxPackage`에서 매니페스트, 섹션 XML 파트, 헤더 XML 파트를 읽고 래핑하는 클래스 메서드입니다.
 - `manifest`: 원시 매니페스트 엘리먼트를 노출하는 프로퍼티입니다.
 - `sections`, `headers`: 섹션 및 헤더 래퍼의 tuple을 반환하는 프로퍼티입니다.
-- `char_properties`: 글자 스타일 ID를 `RunStyle` 객체에 매핑한 딕셔너리를 반환하며, 모든 헤더의 결과를 캐시합니다.
+- `char_properties`: 글자 스타일 ID를 `RunStyle` 객체에 매핑한 읽기 전용 `Mapping`(`CharPropertyView`)을 반환합니다. 사본이 아니라 읽을 때마다 머리를 그때 모습으로 읽는 보기이며, ID 하나 찾기는 글자 모양 수와 상관없이 그 하나만 견줍니다. 그대로 남는 사본은 `dict(...)`로 뜹니다.
 - `char_property(char_pr_id_ref)`: 문자열 또는 숫자 값을 받아 ID로 `RunStyle`을 조회합니다.
 - `ensure_run_style(...)`: 기준 글자 모양(`base_char_pr_id`, 없으면 첫 글자 모양)에서 요청한 값만 바꾼 런 스타일을 첫 번째 헤더에서 찾고, 없으면 기준을 복제해 만듭니다.
 - `memo_shapes`: 모든 헤더의 메모 모양을 하나의 딕셔너리로 병합하는 프로퍼티입니다.
