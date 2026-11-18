@@ -55,7 +55,7 @@ from .security import (
 )
 from .xml_utils import (
     extract_xml_declaration,
-    keep_declared_namespaces,
+    keep_source_form,
     iter_declared_namespaces,
     parse_xml,
     serialize_xml,
@@ -1075,7 +1075,12 @@ class HwpxPackage:
         norm_path = self._normalize_path(path)
         if isinstance(data, str):
             data = data.encode("utf-8")
-        data = _sanitize_part_for_write(norm_path, data)
+        sanitized = _sanitize_part_for_write(norm_path, data)
+        if sanitized is not data:
+            # A section or header written anew (stale line caches dropped, the root re-serialized): it keeps
+            # the declaration and root namespace declarations the part had (Hangul's for a new part).
+            sanitized = keep_source_form(self._files.get(norm_path), sanitized)
+        data = sanitized
         pending_rootfiles: list[RootFile] | None = None
         pending_version: VersionInfo | None = None
         if norm_path == self.MIMETYPE_PATH:
@@ -1144,10 +1149,10 @@ class HwpxPackage:
 
     def _set_serialized_part(self, part_name: str, data: bytes) -> None:
         """Write *data*, a part the engine serialized from the tree it parsed from this part, putting back
-        the root namespace declarations reading normalized (:func:`keep_declared_namespaces`)."""
+        its XML declaration and root namespace declarations as read (:func:`keep_source_form`)."""
 
         previous = self._files.get(self._normalize_path(part_name))
-        self.write(part_name, keep_declared_namespaces(previous, data))
+        self.write(part_name, keep_source_form(previous, data))
 
     def get_xml(self, part_name: str) -> etree._Element:
         data = self.read(part_name)
@@ -1661,7 +1666,7 @@ class HwpxPackage:
                 paragraph.set("styleIDRef", replacement)
                 changed = True
             if changed:
-                self._files[path] = _serialize_hwpml_root(root)
+                self._files[path] = keep_source_form(self._files[path], _serialize_hwpml_root(root))
 
     def save(
         self,

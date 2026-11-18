@@ -55,41 +55,94 @@ def _root_start(data: bytes) -> re.Match[bytes] | None:
     return None
 
 
-def keep_declared_namespaces(source: bytes | None, written: bytes) -> bytes:
-    """*written* -- a part the engine serialized from a tree it parsed from *source* -- with each root
-    namespace declaration that reading moved from a 2016 HWPML URI to its 2011 one put back as *source*
-    declared it (Hancom's ``content.hpf`` declares ``hp10`` as the 2016 paragraph URI; written as read, it
-    came out as the 2011 one).
+#: The XML declaration Hangul writes on every XML part it saves (counted on 1,265 Hancom-saved files: all
+#: nine part kinds, no line break after it).
+HANCOM_XML_DECLARATION = b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+_DECLARATION = re.compile(rb"<\?xml\b[^>]*\?>[ \t\r\n]*")
+_ENCODING = re.compile(rb"""\bencoding\s*=\s*["']([^"']+)["']""")
+_ATTRIBUTE = re.compile(rb"""\s+([\w:.-]+)\s*=\s*("[^"]*"|'[^']*')""", re.S)
+_ANY_XMLNS = re.compile(rb"""\s+xmlns(?::([\w.-]+))?\s*=\s*("[^"]*"|'[^']*')""", re.S)
 
-    Only a declaration whose prefix *source* bound to the 2016 form of the URI *written* binds is put back,
-    and only when nothing after the root's start tag uses that prefix -- an element the engine made in the
-    2011 namespace may have been written with it. Anything else is left as written."""
 
-    if not source or _HWPML_2016_MARKER not in source:
-        return written
-    old_start, new_start = _root_start(source), _root_start(written)
-    if old_start is None or new_start is None:
-        return written
-    old = {m.group(1): m.group(3) for m in _XMLNS_DECLARATION.finditer(old_start.group())}
-    body = written[new_start.end():]
-    tag = new_start.group()
+def _declaration_for(source: bytes | None) -> bytes:
+    """The declaration (with what follows it up to the root) a part written in place of *source* carries:
+    *source*'s own, as it was read; Hangul's for a part the engine makes (no *source*). A *source* without a
+    declaration gets none; one that declares another encoding than UTF-8 (the bytes are written in UTF-8)
+    gets Hangul's."""
 
-    def put_back(match: re.Match[bytes]) -> bytes:
-        prefix, quote, uri = match.group(1), match.group(2), match.group(3)
-        original = old.get(prefix)
-        if (
-            original is not None
-            and original != uri
-            and original in _HWPML_2011_TO_2016.get(uri, ())
-            and prefix + b":" not in body
-        ):
-            return match.group().replace(quote + uri + quote, quote + original + quote)
-        return match.group()
+    if source is None:
+        return HANCOM_XML_DECLARATION
+    match = _DECLARATION.match(source)
+    if match is None:
+        return b""
+    encoding = _ENCODING.search(match.group())
+    if encoding is not None and encoding.group(1).lower().replace(b"_", b"-") not in (b"utf-8", b"utf8"):
+        return HANCOM_XML_DECLARATION
+    return match.group()
 
-    restored = _XMLNS_DECLARATION.sub(put_back, tag)
-    if restored == tag:
-        return written
-    return written[: new_start.start()] + restored + body
+
+def _namespaces(tag: bytes) -> list[tuple[bytes | None, bytes]]:
+    return [(m.group(1), m.group(2)[1:-1]) for m in _ANY_XMLNS.finditer(tag)]
+
+
+def _plain_attributes(tag: bytes) -> list[tuple[bytes, bytes]]:
+    return [
+        (m.group(1), m.group(2)) for m in _ATTRIBUTE.finditer(tag)
+        if m.group(1) != b"xmlns" and not m.group(1).startswith(b"xmlns:")
+    ]
+
+
+def _tag_name(tag: bytes) -> bytes:
+    return re.match(rb"<([^\s/>]+)", tag).group(1)  # type: ignore[union-attr]
+
+
+def keep_source_form(source: bytes | None, written: bytes) -> bytes:
+    """*written* -- a part the engine serialized, from the tree it parsed from *source* or anew -- in the
+    form *source* had: its XML declaration as read (Hangul's for a part the engine makes) and its root's
+    namespace declarations as read, in their order.
+
+    Reading moves a 2016 HWPML namespace URI to its 2011 one and a writer may keep only the declarations it
+    uses (Hangul's ``content.hpf`` declares 15, ElementTree wrote 1), so the root's declarations come back
+    from *source*: every one *source* made, then any the written root makes that *source* did not. A
+    declaration is kept as written only where *source* bound its prefix otherwise and the body uses that
+    prefix. When the written root's other attributes are *source*'s, its start tag is *source*'s, byte for
+    byte. Nothing after the root's start tag changes."""
+
+    declaration = _declaration_for(source)
+    head = _DECLARATION.match(written)
+    rest = written[head.end():] if head else written.lstrip()
+    start = _root_start(rest)
+    if start is None or source is None:
+        return declaration + rest
+    old_start = _root_start(source)
+    if old_start is None or _tag_name(old_start.group()) != _tag_name(start.group()):
+        return declaration + rest
+    tag, body = start.group(), rest[start.end():]
+    old_tag = old_start.group()
+    written_ns, old_ns = _namespaces(tag), dict(_namespaces(old_tag))
+    merged: list[tuple[bytes | None, bytes]] = []
+    for prefix, uri in _namespaces(old_tag):
+        mine = dict(written_ns).get(prefix)
+        used = prefix is not None and (prefix + b":" in body or prefix + b":" in tag[1:].split(b" ")[0])
+        if mine is not None and mine != uri and used and uri not in _HWPML_2011_TO_2016.get(mine, ()):
+            merged.append((prefix, mine))  # the body means another namespace by this prefix: keep it
+        elif mine is not None and mine != uri and used:
+            merged.append((prefix, mine))  # 2016 read as 2011, and the body uses it: as written
+        else:
+            merged.append((prefix, uri))
+    for prefix, uri in written_ns:
+        if prefix not in old_ns:
+            merged.append((prefix, uri))
+    if merged == _namespaces(old_tag) and _plain_attributes(tag) == _plain_attributes(old_tag) and (
+        tag.endswith(b"/>") == old_tag.endswith(b"/>")
+    ):
+        return declaration + rest[: start.start()] + old_tag + body
+    declarations = b"".join(
+        (b" xmlns" if prefix is None else b" xmlns:" + prefix) + b'="' + uri + b'"' for prefix, uri in merged
+    )
+    attributes = b"".join(b" " + name + b"=" + value for name, value in _plain_attributes(tag))
+    close = b"/>" if tag.endswith(b"/>") else b">"
+    return declaration + rest[: start.start()] + b"<" + _tag_name(tag) + declarations + attributes + close + body
 
 
 def _normalize_attribute(match: re.Match[bytes]) -> bytes:
