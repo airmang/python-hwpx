@@ -977,8 +977,10 @@ def copy_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
         return (offset, offset)
     runs = _copy_runs(paragraph, start, end, to)
     size = _fragment_length(runs)
+    notes = _note_kinds(runs)
     _splice_runs(to, offset, runs)
     _changed(to)
+    _renumber_kinds(notes, to.section)
     return (offset, offset + size)
 
 
@@ -1020,9 +1022,11 @@ def move_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
         runs = [child for child in stage if _local(child) == "run"]
         for run in runs:
             stage.remove(run)
+    notes = _note_kinds(runs)
     _splice_runs(to, offset, runs)
     _changed(paragraph)
     _changed(to)
+    _renumber_kinds(notes, paragraph.section, to.section)
     return (offset, offset + size)
 
 
@@ -1344,6 +1348,23 @@ def _note_target(note: Any, paragraph: Any, offset: Any) -> int:
         )
     length = len(paragraph.text)
     return length if offset is None else _check_offset("offset", offset, 0, length)
+
+
+def _note_kinds(runs: list[Any]) -> set[str]:
+    """The kinds of note (``footNote``, ``endNote``) the runs *runs* hold."""
+
+    return {_local(node) for run in runs for node in run.iter() if _local(node) in ("footNote", "endNote")}
+
+
+def _renumber_kinds(kinds: set[str], *sections: Any) -> None:
+    """Write the numbers of the notes of *kinds* again, in document order, as a single note moved or copied
+    gets them: a range holding notes left the stored numbers repeated or out of order."""
+
+    from .note_authoring import renumber_notes
+
+    for tag in sorted(kinds):
+        for section in {id(section): section for section in sections}.values():
+            renumber_notes(section, tag)
 
 
 def _renumber_after(note_element: Any, *sections: Any) -> None:
