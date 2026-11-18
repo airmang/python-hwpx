@@ -275,6 +275,7 @@
   "parts": {
    "add_master_page": {"kind": "method", "params": [["text", "K", true], ["page_type", "K", true], ["page_number", "K", true], ["page_duplicate", "K", true], ["page_front", "K", true], ["section", "K", true]], "returns": "MasterPage"},
    "begin_numbers": {"kind": "property", "settable": false, "returns": "BeginNumbers"},
+   "clear_document_authors": {"kind": "method", "params": [], "returns": "tuple[str, ...]"},
    "clear_document_metadata": {"kind": "method", "params": [["keep", "K", true], ["timestamp", "K", true]], "returns": "tuple[str, ...]"},
    "clear_preview": {"kind": "method", "params": [], "returns": "tuple[str, ...]"},
    "document_options": {"kind": "property", "settable": false, "returns": "DocumentOptions"},
@@ -285,7 +286,7 @@
    "remove_license_mark": {"kind": "method", "params": [], "returns": "bool"},
    "remove_master_page": {"kind": "method", "params": [["master_page_id", "P", false]], "returns": "None"},
    "set_begin_numbers": {"kind": "method", "params": [["page", "K", true], ["footnote", "K", true], ["endnote", "K", true], ["picture", "K", true], ["table", "K", true], ["equation", "K", true]], "returns": "None"},
-   "set_document_metadata": {"kind": "method", "params": [["title", "K", true], ["creator", "K", true], ["subject", "K", true], ["keyword", "K", true], ["created_date", "K", true], ["modified_date", "K", true]], "returns": "None"},
+   "set_document_metadata": {"kind": "method", "params": [["title", "K", true], ["creator", "K", true], ["subject", "K", true], ["keyword", "K", true], ["created_date", "K", true], ["modified_date", "K", true], ["description", "K", true], ["lastsaveby", "K", true], ["date", "K", true]], "returns": "None"},
    "set_document_options": {"kind": "method", "params": [["target_program", "K", true], ["layout_compatibility", "K", true], ["link_path", "K", true], ["page_inherit", "K", true], ["footnote_inherit", "K", true], ["license_type", "K", true], ["license_flag", "K", true], ["license_lang", "K", true]], "returns": "DocumentOptions"},
    "set_paragraph_auto_spacing": {"kind": "method", "params": [["para_pr_id_ref", "P", false], ["e_asian_eng", "K", true], ["e_asian_num", "K", true]], "returns": "None"},
    "settings": {"kind": "property", "settable": false, "returns": "HwpxOxmlSettings | None"},

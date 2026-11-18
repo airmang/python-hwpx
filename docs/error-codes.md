@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 361 | 11 |
+| 개수 | 363 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -311,6 +311,8 @@ except HwpxError as exc:
 |---|---|
 | `parts-auto-spacing-unknown-para-pr` | 그 id 의 hh:paraPr 를 문서에서 찾지 못했다. |
 | `parts-begin-numbers-invalid` | 문서 시작 번호(hh:beginNum)가 1 이상 65535 이하의 정수가 아니다. |
+| `parts-date-invalid-type` | 문서 정보의 날짜(date=)에 datetime 도 ""(지우기)도 아닌 값을 주었다(근거로 정한 꼴 밖의 글은 쓰지 않는다). |
+| `parts-date-naive` | 문서 정보의 날짜(date=)로 준 datetime 에 시간대가 없어 어느 순간인지 정할 수 없다. |
 | `parts-license-mark-incomplete` | 라이선스 표시가 없는 문서에 license_type·license_flag 를 함께 주지 않고 표시를 쓰려 했다. |
 | `parts-no-header-part` | 문서에 header.xml 파트가 없다(doc.parts 경로). |
 

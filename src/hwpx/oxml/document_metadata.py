@@ -19,9 +19,17 @@ content="text"`` 8종(``creator``/``subject``/``description``/
   ``"2002년 12월 4일 수요일, 9시 49분"``·
   ``"Tuesday, May 20, 2025 1:04:56 AM"``(영어 로캘)·
   ``"2025년 1월 24일 9시 25분"``(요일 생략)) -- 한컴 앱 버전/OS 로캘에
-  따라 갈리는 것으로 보이며 **단일 정본 포맷이 없다**. 이 필드는
-  파싱·생성을 시도하지 않고 **불투명 문자열로만** 보존한다(무근거
-  포맷 추정 금지 원칙 -- curve/connectLine·DEV-021과 같은 이유).
+  따라 갈리는 것으로 보이며 **단일 정본 포맷이 없다**. 읽을 때는
+  파싱하지 않고 **불투명 문자열로만** 보존한다(무근거 포맷 추정 금지
+  원칙 -- curve/connectLine·DEV-021과 같은 이유).
+
+**``date``를 쓰는 꼴 하나(:func:`hangul_date_text`)** -- 지금 한/글의 꼴만 쓴다. 근거는 원본 1,438개를
+센 결과다(2026-11 exec7/docinfo). 값이 찬 293개 중 248개가 ``YYYY년 M월 D일 X요일 오전|오후
+h:MM:SS``다. 월·일·시는 앞자리 0이 없고, 분·초는 두 자리다. 그중 ``CreatedDate``가 있는 259개 가운데
+241개가 정확히 ``CreatedDate`` + 9시간(한국 시각)이고, 요일은 258/259가 맞다. 12시간제이며 0시는
+``오전 12:MM:SS``로 쓴다(19개 관측). 정오(12시대)는 관측이 없다. 0시를 12로 쓰는 12시간제와 맞는 꼴은
+``오후 12:MM:SS``뿐이라 그렇게 쓴다(한/글 확인 대상). 다른 꼴(구버전 ``, H시 MM분``, 영어 로캘 등)은
+쓰지 않는다.
 
 ``subject``/``description``/``keyword``는 요소 자체는 항상 있지만
 65개 중 각각 1건만 비어있지 않다 -- 존재는 관용이고 값 채움은 드물다.
@@ -35,12 +43,13 @@ content="text"`` 8종(``creator``/``subject``/``description``/
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from .utils import text_or_none
 
-__all__ = ["DocumentMetadata", "parse_document_metadata"]
+__all__ = ["DocumentMetadata", "hangul_date_text", "parse_document_metadata"]
 
 OPF_NS = "http://www.idpf.org/2007/opf/"
 
@@ -66,6 +75,45 @@ class DocumentMetadata:
     created_date: str | None
     modified_date: str | None
     date: str | None
+
+
+#: Hangul writes the free-form ``date`` in Korea Standard Time (no daylight saving since 1988).
+_KOREA = timezone(timedelta(hours=9))
+_WEEKDAYS = ("월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일")
+
+
+def hangul_date_text(moment: datetime) -> str:
+    """*moment* as Hangul writes ``opf:meta name="date"``: Korea time, ``YYYY년 M월 D일 X요일 오전|오후
+    h:MM:SS`` (12-hour clock; 0 o'clock is ``오전 12``). *moment* must carry its time zone, so the text
+    points at the same instant as ``CreatedDate`` (UTC) does.
+
+    Raises :class:`~hwpx.errors.HwpxTypeError` (``parts-date-invalid-type``) for anything but a
+    ``datetime`` and :class:`~hwpx.errors.HwpxValueError` (``parts-date-naive``) for one without a time
+    zone."""
+
+    from ..errors import HwpxTypeError, HwpxValueError
+
+    if not isinstance(moment, datetime):
+        raise HwpxTypeError(
+            f"the document date must be a datetime, not {type(moment).__name__}",
+            code="parts-date-invalid-type",
+            context={"type": type(moment).__name__},
+            suggestion='pass datetime.now(timezone.utc), or "" to clear the date',
+        )
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise HwpxValueError(
+            "the document date has no time zone, so the instant it names is unknown",
+            code="parts-date-naive",
+            context={"value": moment.isoformat()},
+            suggestion="give it one: datetime.now(timezone.utc) or moment.replace(tzinfo=timezone.utc)",
+        )
+    local = moment.astimezone(_KOREA)
+    half = "오전" if local.hour < 12 else "오후"
+    hour = local.hour % 12 or 12
+    return (
+        f"{local.year}년 {local.month}월 {local.day}일 {_WEEKDAYS[local.weekday()]} "
+        f"{half} {hour}:{local.minute:02d}:{local.second:02d}"
+    )
 
 
 def _meta_text(metadata: "etree._Element", name: str) -> str | None:

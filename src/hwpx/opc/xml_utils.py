@@ -36,6 +36,62 @@ _HWPML_2016_MAPPING: dict[bytes, bytes] = dict(_HWPML_2016_TO_2011)
 _HWPML_2016_MARKER = b"hwpml/2016/"
 
 
+_ROOT_START = re.compile(rb"<[A-Za-z_][\w.:-]*(?:[^>\"']|\"[^\"]*\"|'[^']*')*>")
+_XMLNS_DECLARATION = re.compile(rb"""\sxmlns:([\w.-]+)\s*=\s*(["'])(.*?)\2""", re.S)
+_HWPML_2011_TO_2016: dict[bytes, tuple[bytes, ...]] = {}
+for _new, _old in _HWPML_2016_TO_2011:
+    _HWPML_2011_TO_2016.setdefault(_old, ())
+    _HWPML_2011_TO_2016[_old] += (_new,)
+
+
+def _root_start(data: bytes) -> re.Match[bytes] | None:
+    """The root element's start tag: the first tag after the XML declaration, comments and PIs."""
+
+    for match in _XML_MARKUP.finditer(data):
+        tag = match.group()
+        if tag.startswith((b"<?", b"<!")):
+            continue
+        return _ROOT_START.match(data, match.start())
+    return None
+
+
+def keep_declared_namespaces(source: bytes | None, written: bytes) -> bytes:
+    """*written* -- a part the engine serialized from a tree it parsed from *source* -- with each root
+    namespace declaration that reading moved from a 2016 HWPML URI to its 2011 one put back as *source*
+    declared it (Hancom's ``content.hpf`` declares ``hp10`` as the 2016 paragraph URI; written as read, it
+    came out as the 2011 one).
+
+    Only a declaration whose prefix *source* bound to the 2016 form of the URI *written* binds is put back,
+    and only when nothing after the root's start tag uses that prefix -- an element the engine made in the
+    2011 namespace may have been written with it. Anything else is left as written."""
+
+    if not source or _HWPML_2016_MARKER not in source:
+        return written
+    old_start, new_start = _root_start(source), _root_start(written)
+    if old_start is None or new_start is None:
+        return written
+    old = {m.group(1): m.group(3) for m in _XMLNS_DECLARATION.finditer(old_start.group())}
+    body = written[new_start.end():]
+    tag = new_start.group()
+
+    def put_back(match: re.Match[bytes]) -> bytes:
+        prefix, quote, uri = match.group(1), match.group(2), match.group(3)
+        original = old.get(prefix)
+        if (
+            original is not None
+            and original != uri
+            and original in _HWPML_2011_TO_2016.get(uri, ())
+            and prefix + b":" not in body
+        ):
+            return match.group().replace(quote + uri + quote, quote + original + quote)
+        return match.group()
+
+    restored = _XMLNS_DECLARATION.sub(put_back, tag)
+    if restored == tag:
+        return written
+    return written[: new_start.start()] + restored + body
+
+
 def _normalize_attribute(match: re.Match[bytes]) -> bytes:
     name, equals, quote, value = match.groups()
     if name == b"xmlns" or name.startswith(b"xmlns:"):
