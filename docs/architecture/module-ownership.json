@@ -586,6 +586,12 @@
       "rationale": "Text put in at a position, a range taken out, and a range moved or copied within a document or into another one (paragraph.insert_text, delete_range, move_range, copy_range), and set_text_preserving_runs beside tabs Hancom wrote inside hp:t; positions counted as paragraph.text counts them (text_offsets.py). Written in the forms Hancom saved (a note or bookmark between two hp:t of one run, a highlight's marks inside the hp:t they fall in). A copy into another document goes through document_merge's paragraph copy. A new module rather than more paragraph.py lines: that owner file sits at its code-line review line; ParagraphFormats in _paragraph_text_edit.py keeps the documented members and delegates. Format-level only."
     },
     {
+      "path": "src/hwpx/opc/zip_records.py",
+      "disposition": "core",
+      "approvedBy": "exec7-zlib-bytes",
+      "rationale": "The engine's one record-keeping ZIP writer: read where each entry's local record lies in an archive and write an archive from whole local records, so a save keeps the compressed bytes, flags, extra field and data descriptor of every entry it did not change and an unedited save writes the source file again, whatever deflate the running Python has (zlib, zlib-ng). Used by the package save (opc/package.py) and the byte-splice primitives (patch.py). A new module rather than more package.py lines; format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/table_sizes.py",
       "disposition": "core",
       "approvedBy": "hancom-distribute-cell-width",

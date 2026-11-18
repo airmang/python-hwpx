@@ -165,10 +165,15 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 
 - `untouchedPartPayloads` — 손대지 않은 part의 **압축 해제 페이로드 동일성**.
   이것이 바이트 보존 해자의 핵심 지표다.
-- `untouchedLocalZipRecords` — 손대지 않은 part의 **ZIP local-record 메타데이터**
-  (타임스탬프·압축 방식·플래그 등) 동일성. 내용 파생 필드(CRC·크기)는 제외한다.
-- `wholePackageIdentical` — 전체 패키지 바이트 동일성. **no-op(변경 없음)일 때만**
-  참이 될 수 있다. deflate·producer 차이 때문에 편집이 있으면 절대 보장하지 않는다.
+- `untouchedLocalZipRecords` — 손대지 않은 part의 **ZIP local record 전체**(로컬 머리·
+  압축된 바이트·데이터 디스크립터)가 원본과 바이트째 같은지. 저장은 고치지 않은 항목의
+  기록을 원본에서 그대로 옮기므로 Python의 zlib 구현에 달리지 않는다. 원본 바이트가 없는
+  문서(`new()`, 변환한 `.hwp`)는 기록 메타데이터(타임스탬프·압축 방식·플래그 등)를 견준다.
+- `wholePackageIdentical` — 쓴 파일이 원본 파일과 바이트째 같은지. **no-op(변경 없음)일
+  때** 참이다(원본이 `mimetype`을 압축해 두었거나 폴더 항목이 있으면 거짓). 편집이 있으면
+  거짓이다. 손댄 파트의 압축된 바이트는 zlib 구현(zlib·zlib-ng)에 달린다.
+- `zipRecordsRewritten` — 원본 ZIP을 항목별로 옮길 수 없어(ZIP64·중복 이름·첫 항목 앞이나
+  목록 뒤의 다른 바이트 등) 모든 항목을 다시 압축했을 때만 있는 키. 값은 그 까닭이다.
 
 ### 검증 4항목 (`verification`)
 

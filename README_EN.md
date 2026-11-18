@@ -108,7 +108,9 @@ doc.tables[0].cell(1, 1).text = "플랫폼팀"
 report = doc.save("application-filled.hwpx", mode="patch", fallback="error")
 ```
 
-`mode="patch"` asks for untouched ZIP parts to keep their bytes. What happens inside an edited part, and how
+`mode="patch"` asks for untouched ZIP parts to keep their bytes. An untouched part keeps its compressed bytes as
+they were, and a save that changed nothing writes the same file. An edited part's content is deterministic; its
+compressed bytes depend on the zlib build Python uses. What happens inside an edited part, and how
 the page looks, need separate checks. To reopen the output and verify its content, follow the
 [safe write contract](docs/safe-write-contract.md). Filling cells found by their label text (`fill_by_path`)
 lives in python-hwpx-automation (`hwpx_automation.forms`).
