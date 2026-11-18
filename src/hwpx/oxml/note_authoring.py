@@ -117,6 +117,9 @@ def _paragraph_add_note(
     render the note at all.
     """
 
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(self, caller="add_note")
     if offset is not None:
         from .text_ranges import _check_offset
 

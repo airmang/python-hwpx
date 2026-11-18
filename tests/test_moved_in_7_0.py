@@ -217,13 +217,15 @@ def test_no_moved_file_is_left_in_the_source_tree() -> None:
 
 
 def test_the_guidance_does_not_import_the_automation_package() -> None:
+    # What these calls import, not what the process holds: another test may have imported automation.
+    before = set(sys.modules)
     for name in ROOT_7_0:
         with pytest.raises(ImportError):
             getattr(hwpx, name)
     for module, name in MODULE_NAMES:
         with pytest.raises(ImportError):
             getattr(importlib.import_module(module), name)
-    assert not any(module.startswith("hwpx_automation") for module in sys.modules)
+    assert not any(module.startswith("hwpx_automation") for module in set(sys.modules) - before)
 
 
 # --------------------------------------------------------------------------

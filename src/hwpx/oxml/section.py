@@ -943,7 +943,7 @@ def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_co
 
     from ..errors import HwpxValueError
     from ..objects.results import ClearBodyReport
-    from ._paragraph_text_edit import is_section_setting
+    from ._paragraph_text_edit import is_section_setting, section_setting_runs, split_column_controls
 
     if on_control_content not in _CLEAR_BODY_MODES:
         raise HwpxValueError(
@@ -956,6 +956,9 @@ def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_co
                              context={"value": repr(keep_headers), "argument": "keep_headers"})
     element = paragraph.element
     runs = [child for child in element if child.tag == f"{_HP}run"]
+    if section_setting_runs(element):
+        # A column layout sharing its ctrl with a field begin or another control stays, as a setting.
+        split_column_controls(element)
     kept = [child for run in runs for child in run if is_section_setting(child)]
     dropped = [child for run in runs for child in run if not any(child is node for node in kept)]
     header_removals = [] if keep_headers else _plan_header_removal(runs)

@@ -2,9 +2,9 @@
 """DEV-037 -- a CLICKHERE placeholder field's ``Command`` parameter carries
 a schema-opaque nested length-prefixed micro-format
 (``Clickhere:set:{len}:{payload}``, with nested ``Direction:wstring:{len}:``
-sub-payloads), and our own writer's length prefix counts Python codepoints
-rather than true UTF-16 code units -- a boundary case that only shows up
-with non-BMP characters (surrogate pairs) in the field's prompt/memo text.
+sub-payloads). Its length prefixes count UTF-16 code units, which differs
+from the codepoint count only for non-BMP characters (surrogate pairs) in
+the field's prompt/memo text; our writer counts the same way.
 
 Schema claim: ``hp:parameters``' type ``hp:ParameterList``
 (``ParaList XML schema.xml``, ``stringParam``/``integerParam``/
@@ -20,15 +20,15 @@ UTF-16 boundary case, by round-tripping a genuinely non-BMP character
 ``doc.fields.add()``.
 
 Our handling: ``paragraph.py``'s form-field authoring builds
-``f"Clickhere:set:{len(payload)}:{payload} "`` with a nested
-``f"Direction:wstring:{len(prompt)}:{prompt}"`` segment. Its own docstring
-claims "Command lengths count UTF-16 characters," but the implementation
-actually uses Python's ``len()`` (codepoint count). For any text within
-the Basic Multilingual Plane the two counts coincide, so this has never
-been observed to matter in the corpus this registry has seen -- but it is
-a real, demonstrable divergence, flagged here as a boundary case (not a
-fix -- no real-Hancom receipt exists for what it does with a mismatched
-length prefix, so "correcting" it without evidence would be a guess).
+``Clickhere:set:{n}:{payload} `` with a nested
+``Direction:wstring:{n}:{prompt}`` segment, each ``n`` in UTF-16 code
+units. Until 7.0 the writer used Python's ``len()`` (codepoint count); for
+text within the Basic Multilingual Plane the two counts coincide, so the
+corpus never showed the difference. Hancom Office 2024 settled it (two
+made-up documents, a field prompt of one emoji and one letter, opened and
+saved again): with the UTF-16 count the saved ``Direction`` parameter keeps
+both characters, with the codepoint count it keeps only the first -- Hancom
+reads the prefix as UTF-16 code units.
 
 Run: ``python probes/dev037_clickhere_command_length_prefix_format.py``
 """
@@ -107,20 +107,14 @@ def main() -> int:
     assert direction_match is not None, command2
     declared_len = int(direction_match.group(1))
 
-    assert declared_len == codepoint_len, (
-        f"expected our writer's length prefix to equal the Python codepoint count "
-        f"({codepoint_len}), got {declared_len}"
-    )
-    assert declared_len != utf16_unit_len, (
-        f"expected the declared length to diverge from the true UTF-16 code-unit count "
-        f"({utf16_unit_len}) for this non-BMP fixture -- if this now matches, the writer "
-        f"may have already been fixed to count UTF-16 units and this boundary-case note is stale"
+    assert declared_len == utf16_unit_len, (
+        f"expected our writer's length prefix to equal the UTF-16 code-unit count "
+        f"({utf16_unit_len}), the unit Hancom reads; got {declared_len} "
+        f"(the codepoint count is {codepoint_len})"
     )
     print(f"confirmed the boundary case with a non-BMP character: prompt={emoji_prompt!r}, "
-          f"declared length={declared_len} (Python codepoint count), true UTF-16 code-unit "
-          f"count={utf16_unit_len} -- these diverge, matching the docstring/implementation "
-          f"mismatch this entry flags (informational only, no real-Hancom receipt for "
-          f"correct behavior exists)")
+          f"declared length={declared_len} = UTF-16 code-unit count (codepoint count "
+          f"{codepoint_len}), the unit Hancom Office 2024 reads the prefix in")
 
     print("PASS: DEV-037 reproduced (schema opacity + live BMP and non-BMP boundary evidence)")
     return 0

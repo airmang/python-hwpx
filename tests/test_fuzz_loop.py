@@ -89,6 +89,23 @@ def test_same_seed_replays_a_clock_apart_write_identical_bytes(tmp_path, monkeyp
     assert first_path.read_bytes() == second_path.read_bytes()
 
 
+def test_a_replay_writes_the_replay_clock_as_every_date(tmp_path) -> None:
+    """The free-form ``date`` is the replay clock too (it came from the real clock: replays a second apart
+    differed there)."""
+
+    from fuzz.runner import REPLAY_CLOCK
+
+    from hwpx import HwpxDocument
+    from hwpx.oxml.document_metadata import hangul_date_text
+
+    path = tmp_path / "replay.hwpx"
+    assert run_scenario(generate_scenario(7), path).ok
+    metadata = HwpxDocument.open(path).parts.metadata
+    assert metadata is not None
+    assert metadata.date == hangul_date_text(REPLAY_CLOCK)
+    assert metadata.created_date == metadata.modified_date == "2026-01-01T00:00:00Z"
+
+
 def test_seed_range_runner_reports_every_failure_explicitly(tmp_path) -> None:
     report_path = tmp_path / "report.json"
     sample_dir = tmp_path / "samples"

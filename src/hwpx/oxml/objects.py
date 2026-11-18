@@ -982,6 +982,9 @@ def _paragraph_add_picture(
     is added.
     """
 
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(self, caller="add_picture")  # before the image goes into the package
     if pos_overrides and treat_as_char:
         from ..errors import HwpxValueError
 

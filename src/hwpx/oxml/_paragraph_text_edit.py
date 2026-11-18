@@ -176,6 +176,23 @@ def section_setting_runs(paragraph: ET.Element) -> list[tuple[ET.Element, list[E
     return found
 
 
+def split_column_controls(paragraph: ET.Element) -> None:
+    """Give a column layout (``hp:colPr``) that shares its ``hp:ctrl`` with other controls (a page-number
+    restart, a field begin -- some Hancom files do) a ctrl of its own, right before, so it reads as a section
+    setting; the others stay where they were."""
+
+    for run in [child for child in paragraph if _local(child) == "run"]:
+        for ctrl in [child for child in run if _local(child) == "ctrl" and not is_section_setting(child)]:
+            columns = [child for child in ctrl if _local(child) == "colPr"]
+            if not columns:
+                continue
+            own = ctrl.makeelement(ctrl.tag, dict(ctrl.attrib))
+            for column in columns:
+                ctrl.remove(column)
+                own.append(column)
+            run.insert(list(run).index(ctrl), own)
+
+
 def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
     """Move the section settings of the paragraph *source* to the front of the paragraph *target*.
 
@@ -188,18 +205,7 @@ def move_section_settings(source: ET.Element, target: ET.Element) -> bool:
 
     if not section_setting_runs(source):
         return False
-    # A column layout (hp:colPr) sharing its hp:ctrl with other controls (a page-number restart, a
-    # field begin -- some Hancom files do) goes along in a ctrl of its own; the others stay.
-    for run in [child for child in source if _local(child) == "run"]:
-        for ctrl in [child for child in run if _local(child) == "ctrl" and not is_section_setting(child)]:
-            columns = [child for child in ctrl if _local(child) == "colPr"]
-            if not columns:
-                continue
-            own = ctrl.makeelement(ctrl.tag, dict(ctrl.attrib))
-            for column in columns:
-                ctrl.remove(column)
-                own.append(column)
-            run.insert(list(run).index(ctrl), own)
+    split_column_controls(source)
     found = section_setting_runs(source)
     position = 0
     for run, settings in found:
@@ -403,6 +409,38 @@ def _section_holding(element: Any, sections: list[Any]) -> Any:
             root = parent
         return next((section for section in sections if section.element is root), None)
     return next((section for section in sections if any(node is element for node in section.element.iter())), None)
+
+
+def in_document(element: Any, holder: Any) -> bool:
+    """True when the element *element* hangs in the live tree of the document *holder* (a section or a
+    master page object) belongs to: under one of its sections or master pages, not under a table, note,
+    text box or paragraph taken out of it, nor under a section removed from it."""
+
+    document = getattr(holder, "document", None)
+    if document is not None:
+        roots = [section.element for section in document.sections]
+        roots += [page.element for page in getattr(document, "master_pages", ())]
+    else:
+        roots = [holder.element]
+    top = element
+    while (parent := top.getparent()) is not None:
+        top = parent
+    return any(top is root for root in roots)
+
+
+def require_in_document(paragraph: Any, *, caller: str, role: str = "paragraph") -> None:
+    """Refuse (``paragraph-not-in-document``) to edit a paragraph that is no longer in its document --
+    one of a table, note or text box taken out, or of a removed section. Without this an edit reported
+    success while what it moved went with the piece taken out: nothing of it was saved."""
+
+    if not in_document(paragraph.element, paragraph.section):
+        raise HwpxValueError(
+            f"the {role} is not in the document any more (it sits in a table, note or text box taken out, or "
+            "in a removed section)",
+            code="paragraph-not-in-document",
+            context={"caller": caller, "role": role},
+            suggestion="Take the paragraph again from the document (doc.paragraphs, cell.paragraphs ...).",
+        )
 
 
 def resolve_paragraph_in(source: Any, paragraph: Any, *, caller: str) -> Any:

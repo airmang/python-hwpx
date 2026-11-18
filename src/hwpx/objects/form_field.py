@@ -276,7 +276,8 @@ class FormField:
 
         Read from the file as it is now. In the repository's Hancom-saved fixtures the 33 누름틀 holding
         entered text are ``"1"`` and the 16 showing their 안내문 or nothing are ``"0"``; a fill
-        (``value = ...``, ``doc.fields.fill``) turns it on. A field that does not say reads ``False``,
+        (``value = ...``, ``doc.fields.fill``) turns it on, and a field made around existing text
+        (``add_form_field(start=, end=)``) is written with it on. A field that does not say reads ``False``,
         the OWPML schema's default."""
 
         return (self._element.get("dirty") or "").strip().lower() in ("1", "true")

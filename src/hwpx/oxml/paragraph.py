@@ -131,7 +131,13 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
 
 @dataclass(eq=False)
 class HwpxOxmlParagraph(SameElement, ParagraphFormats):
-    """Lightweight wrapper around an ``<hp:p>`` element."""
+    """Lightweight wrapper around an ``<hp:p>`` element.
+
+    A paragraph taken out of its document (one of a removed table, note, text box or section) no longer
+    belongs to it: an edit that writes anything on the document's side -- moving or copying text, notes,
+    bookmarks, fields, links, check boxes, highlights, pictures, charts, connectors -- is refused
+    (``paragraph-not-in-document``). Edits that stay in the paragraph (``add_run``, ``text =``, formatting)
+    still work; a new character shape they need is registered in the document's header."""
 
     element: ET.Element
     section: HwpxOxmlSection
@@ -1130,6 +1136,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         that run, as Hancom writes one (``mid_text_bookmark``). The bookmark name can be referenced by
         hyperlinks or cross-references.
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_bookmark")
         from .field_marks import bookmark_for
 
         _require_nonempty_str(
@@ -1167,6 +1176,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             The link as the :class:`~hwpx.objects.Hyperlink` ``paragraph.hyperlinks`` reads
             (``link.element`` is the ``<hp:fieldBegin>``).
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_hyperlink")
         from ..objects.form_field import Hyperlink
 
         _require_nonempty_str(
@@ -1414,6 +1426,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             treat_as_char: ``True`` places the chart inline in the text flow;
                 the default mirrors the gold float placement.
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_chart")
         from ..errors import HwpxValueError, argument_type_error
 
         if not isinstance(chart_id_ref, str):
@@ -1597,7 +1612,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         value: the begin after the controls at *start*, the end before the character at *end*, each in the run
         it falls in. No prompt run is written -- the field holds a value -- and *prompt* stays the field's
         안내문 (its ``Direction`` parameter), as Hancom keeps one in a filled click-here field
-        (``field_value_shape_filled``); *memo* and *editable* are written as without a range. A range holding
+        (``field_value_shape_filled``); *memo* and *editable* are written as without a range. A field around
+        at least one character is written as filled (``dirty="1"``, :attr:`FormField.filled`), the mark Hancom
+        saves on a click-here field holding text. A range holding
         one end of another field is refused (``paragraph-range-splits-field``).
 
         Emits the real-Hancom CLICKHERE shape (inferred from Hancom
@@ -1636,14 +1653,21 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "type": "CLICK_HERE",
             "name": _sanitize_text(name),
             "editable": "1" if editable else "0",
-            "dirty": "0",
+            # A field wrapped around text holds a value: Hancom saves such a field with dirty="1"
+            # (a document written with "0" comes back "1" when Hancom saves it again).
+            "dirty": "1" if span is not None and span[1] > span[0] else "0",
             "zorder": "-1",
             "fieldid": field_instance_id,
             "metaTag": "",
         })
+        # Lengths count UTF-16 units, as Hancom writes them and as the field's prompt and memo setters
+        # read and write them (a character outside the BMP is two).
+        def units(value: str) -> int:
+            return len(value.encode("utf-16-le")) // 2
+
         payload = (
-            f"Direction:wstring:{len(direction)}:{direction} "
-            f"HelpState:wstring:{len(help_state)}:{help_state} "
+            f"Direction:wstring:{units(direction)}:{direction} "
+            f"HelpState:wstring:{units(help_state)}:{help_state} "
         )
         param_count = 2 + (1 if direction else 0) + (1 if help_state else 0)
         parameters = _append_child(
@@ -1655,7 +1679,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "name": "Command",
             f"{{{XML_NS}}}space": "preserve",
         })
-        command.text = f"Clickhere:set:{len(payload)}:{payload} "
+        command.text = f"Clickhere:set:{units(payload)}:{payload} "
         if direction:
             direction_param = _append_child(
                 parameters, f"{_HP}stringParam", {"name": "Direction"}
@@ -1723,6 +1747,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             width: Box + caption width in HWPUNIT.
             height: Box height in HWPUNIT.
         """
+        from ._paragraph_text_edit import require_in_document
+
+        require_in_document(self, caller="add_check_box")
 
         run = self._create_run_for_object(char_pr_id_ref=char_pr_id_ref)
         check = _append_child(run, f"{_HP}checkBtn", {

@@ -323,7 +323,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         return self._doc.oxml.char_properties
 
     def char_property(self, char_pr_id_ref: "int | str | None") -> "RunStyle | None":
-        return self._doc.oxml.char_property(char_pr_id_ref)
+        from ...oxml.run import detached_style
+
+        style = self._doc.oxml.char_property(char_pr_id_ref)
+        return None if style is None else detached_style(style)
 
     @property
     def paragraph_properties(self) -> dict[str, "ParagraphProperty"]:

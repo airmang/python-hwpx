@@ -98,9 +98,13 @@ def _deterministic_oxml_ids(seed: int | None) -> Iterator[None]:
 
 
 def _stamp_replay_clock(document: HwpxDocument) -> None:
-    """Give *document* the replay's creation and modification dates (:data:`REPLAY_CLOCK`)."""
+    """Give *document* the replay's creation and modification dates (:data:`REPLAY_CLOCK`), the free-form
+    ``date`` (Hangul's written form of the creation date) among them: the builder writes the real clock there
+    too, so two replays a second apart wrote different bytes."""
 
-    document.parts.set_document_metadata(created_date=_REPLAY_STAMP, modified_date=_REPLAY_STAMP)
+    document.parts.set_document_metadata(
+        created_date=_REPLAY_STAMP, modified_date=_REPLAY_STAMP, date=REPLAY_CLOCK
+    )
 
 
 @contextmanager

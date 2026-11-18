@@ -183,14 +183,11 @@ def _put_mark_before(unit: _Unit, at: int, mark: Any) -> None:
         index = 0 if unit.holder is None else list(unit.text).index(unit.holder) + 1
         unit.text.insert(index, mark)
         return
+    # Right before the element: the text before it (the parent's text, or the previous child's tail) stays
+    # before the mark. Moving it into the mark's tail put the mark in front of that text.
     element = unit.element
     parent = element.getparent()
-    previous = element.getprevious()
     mark.tail = None
-    if previous is None:
-        mark.tail, parent.text = parent.text, None
-    else:
-        mark.tail, previous.tail = previous.tail, None
     parent.insert(list(parent).index(element), mark)
 
 
@@ -326,7 +323,10 @@ def insert_text(
     from .formatting import _char_changes, _cut_at, _header_of, _run_elements, _run_length, find_definition
     from .run import HwpxOxmlRun
 
+    from ._paragraph_text_edit import require_in_document
+
     _require_text(text)
+    require_in_document(paragraph, caller="insert_text")
     length = len(paragraph.text)
     offset = _check_offset("offset", offset, 0, length)
     if changes:
@@ -684,6 +684,9 @@ def delete_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, objects: 
         raise HwpxValueError(f"objects must be 'refuse' or 'remove'; got {objects!r}", code="paragraph-range-invalid",
                              context={"name": "objects", "requested": repr(objects)},
                              suggestion="Pass objects='remove' to take controls and objects out with the text.")
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(paragraph, caller="delete_range")
     length = len(paragraph.text)
     start = _check_offset("start", start, 0, length)
     end = _check_offset("end", end, start, length)
@@ -747,14 +750,20 @@ def _fragment(paragraph: Any, start: int, end: int, *, take: bool) -> list[Any]:
                     text.append(element)
                 continue
             text = None
-            element = unit.element if take else deepcopy(unit.element)
-            if take:
+            # A zero-width control or object is moved out here; a character written as an element straight
+            # under the run (an hp:tab there) is copied, like the text: the range's characters are cut from
+            # the paragraph afterwards, and taking it here as well cut the character after it too.
+            moved = take and not unit.length
+            element = unit.element if moved else deepcopy(unit.element)
+            if moved:
                 tail = element.tail
                 unit.run.remove(element)
                 element.tail = tail
             copy.append(element)
         result.append(copy)
-    if not any(unit.length and start <= unit.start < end for unit in units):
+    # Any character in the range -- also one inside a text unit that starts before it (a range in the middle
+    # of a highlighted run): the highlights around it are put on the fragment.
+    if not any(unit.length and unit.start < end and start < unit.end for unit in units):
         return result
     seen: set[int] = set()
     for begin, finish in _pen_pairs(units).values():
@@ -850,6 +859,10 @@ def _range_args(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, o
                             code="paragraph-invalid-type",
                             context={"type": type(to).__name__},
                             suggestion="Pass the paragraph to put the range in, e.g. doc.paragraphs[i] or cell.paragraphs[0].")
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(paragraph, caller="range", role="paragraph the range is taken from")
+    require_in_document(to, caller="range", role="paragraph to put the range in")
     target_length = len(to.text)
     offset = target_length if offset is None else _check_offset("offset", offset, 0, target_length)
     return start, end, offset
@@ -964,8 +977,11 @@ def copy_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
         return (offset, offset)
     runs = _copy_runs(paragraph, start, end, to)
     size = _fragment_length(runs)
+    notes = _note_kinds(runs)
+    _fit_pasted_objects(runs, to)
     _splice_runs(to, offset, runs)
     _changed(to)
+    _renumber_kinds(notes, to.section)
     return (offset, offset + size)
 
 
@@ -977,8 +993,10 @@ def move_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
     held = _held(units, start, end)
     _refuse_place(paragraph, start, end, to, offset, held)
     _move_pens(units, held.pens, start, end, dry=True)
-    if start == end or (to.element is paragraph.element and offset in (start, end)):
-        return (start, end) if to.element is paragraph.element else (offset, offset)
+    if start == end:
+        return (offset, offset)  # nothing moves: the place it would land, as copy_range answers
+    if to.element is paragraph.element and offset in (start, end):
+        return (start, end)  # it lands where it is
     if paragraph.section.document is not to.section.document:
         position = copy_range(paragraph, start, end, to, offset)
         delete_range(paragraph, start, end, "remove")
@@ -1007,9 +1025,12 @@ def move_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
         runs = [child for child in stage if _local(child) == "run"]
         for run in runs:
             stage.remove(run)
+    notes = _note_kinds(runs)
+    _fit_pasted_objects(runs, to)
     _splice_runs(to, offset, runs)
     _changed(paragraph)
     _changed(to)
+    _renumber_kinds(notes, paragraph.section, to.section)
     return (offset, offset + size)
 
 
@@ -1021,8 +1042,10 @@ def set_text_preserving_runs(paragraph: "HwpxOxmlParagraph", value: str) -> None
     """``paragraph.set_text_preserving_runs``: the one stretch that changes, in one ``hp:t``."""
 
     from ._paragraph_text_edit import _local as local
+    from ._paragraph_text_edit import require_in_document
 
     _require_text(value)
+    require_in_document(paragraph, caller="set_text_preserving_runs")
     texts: list[tuple[Any, int, int]] = []
     position = 0
     for run in _runs(paragraph.element):
@@ -1172,7 +1195,10 @@ def place_created(paragraph: "HwpxOxmlParagraph", offset: int, element: Any, mad
     """Move *element*, just written at the paragraph's end into the run *made_in*, to character *offset*
     (checked first); *made_in* goes when nothing else is left in it."""
 
+    from ._paragraph_text_edit import require_in_document
+
     try:
+        require_in_document(paragraph, caller="offset")
         offset = _check_offset("offset", offset, 0, len(paragraph.text))
     except Exception:
         element.getparent().remove(element)  # nothing written stays behind a refused offset
@@ -1265,6 +1291,9 @@ def check_highlight_range(paragraph: "HwpxOxmlParagraph", start: Any, end: Any) 
 def check_field_range(paragraph: "HwpxOxmlParagraph", start: Any, end: Any) -> "tuple[int, int] | None":
     """``add_form_field(start=, end=)``'s range checked before anything is written (``None`` without one)."""
 
+    from ._paragraph_text_edit import require_in_document
+
+    require_in_document(paragraph, caller="add_form_field")
     if start is None and end is None:
         return None
     if start is None or end is None:
@@ -1297,6 +1326,16 @@ def _note_target(note: Any, paragraph: Any, offset: Any) -> int:
         raise HwpxTypeError(f"paragraph must be a paragraph object; got {type(paragraph).__name__}",
                             code="paragraph-invalid-type", context={"type": type(paragraph).__name__},
                             suggestion="Pass the paragraph to put the note in, e.g. doc.paragraphs[i].")
+    from ._paragraph_text_edit import in_document, require_in_document
+
+    require_in_document(paragraph, caller="note", role="paragraph to put the note in")
+    if not in_document(note.element, note.paragraph.section):
+        raise HwpxValueError(
+            "the note is not in the document any more (it was removed, or sits in something taken out)",
+            code="paragraph-not-in-document",
+            context={"caller": "note", "role": "note"},
+            suggestion="Take the note again from the document (doc.notes.footnotes ...).",
+        )
     if paragraph.section.document is not note.paragraph.section.document:
         raise HwpxValueError(
             "a note moves and copies within its document",
@@ -1313,6 +1352,43 @@ def _note_target(note: Any, paragraph: Any, offset: Any) -> int:
         )
     length = len(paragraph.text)
     return length if offset is None else _check_offset("offset", offset, 0, length)
+
+
+def _fit_pasted_objects(runs: list[Any], to: "HwpxOxmlParagraph") -> None:
+    """Place each floating object the runs carry into a cell, text box, note or caption as Hancom pastes one
+    there (:func:`~hwpx.oxml.shape_position.pasted_placement`), the rule ``shape.copy_to`` and ``move_to``
+    follow: a range carried a page-measured object there as it was."""
+
+    from .shape_position import _PASTE_FITTED, _Z_ORDERED_SET, paragraph_box, pasted_placement
+
+    if paragraph_box(to.element, to.section.element) not in _PASTE_FITTED:
+        return
+    for run in runs:
+        for child in run:
+            if child.tag not in _Z_ORDERED_SET or _local(child) == "tbl":
+                continue
+            changes = pasted_placement(child)
+            position = child.find(f"{child.tag.rsplit('}', 1)[0]}}}pos")
+            if changes and position is not None:
+                for name, value in changes.items():
+                    position.set(name, value)
+
+
+def _note_kinds(runs: list[Any]) -> set[str]:
+    """The kinds of note (``footNote``, ``endNote``) the runs *runs* hold."""
+
+    return {_local(node) for run in runs for node in run.iter() if _local(node) in ("footNote", "endNote")}
+
+
+def _renumber_kinds(kinds: set[str], *sections: Any) -> None:
+    """Write the numbers of the notes of *kinds* again, in document order, as a single note moved or copied
+    gets them: a range holding notes left the stored numbers repeated or out of order."""
+
+    from .note_authoring import renumber_notes
+
+    for tag in sorted(kinds):
+        for section in {id(section): section for section in sections}.values():
+            renumber_notes(section, tag)
 
 
 def _renumber_after(note_element: Any, *sections: Any) -> None:
@@ -1359,6 +1435,12 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
         if _local(node) == "p":
             _clear_paragraph_layout_cache(node)
     put_at(paragraph.element, offset, control)
+    # The objects in the note's text are copies too: each gets an id no other object has and goes over the
+    # others, as a copied object does (shape.copy_to); they kept the original's id and zOrder before.
+    from .shape_position import _object_nodes, stack_new_object
+
+    for node in list(_object_nodes(copy)):
+        stack_new_object(node, paragraph.section)
     _changed(paragraph)
     _renumber_after(copy, paragraph.section)
     return HwpxOxmlNote(copy, paragraph)
