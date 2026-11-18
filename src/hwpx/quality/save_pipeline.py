@@ -117,8 +117,50 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
         return
 
 
+def settle_written_stream(stream: BinaryIO, position: int, data: bytes, tail: bytes) -> None:
+    """After *data* was written at *position* over *tail* (what the stream held from there), make the
+    stream hold exactly *data* from *position* to its end and check that it does.
+
+    Bytes of the old content past the new end are cut off (``truncate``): a shorter document saved into a
+    stream that held a longer one must not keep the old archive's end after it -- the stream would not
+    open. A stream that cannot be cut short is refused (``OSError``; the caller puts the old content
+    back). The check reads back what the stream now holds from *position*; a stream that cannot be read
+    back must at least end where the document does."""
+
+    end = position + len(data)
+    if len(tail) > len(data):
+        try:
+            stream.truncate(end)
+        except (AttributeError, OSError) as exc:
+            raise OSError(
+                "the stream held more bytes than the saved document and cannot be cut short "
+                f"(truncate failed: {exc}); save to a path, or to an empty stream"
+            ) from exc
+    try:
+        stream.seek(position)
+        held: bytes | None = stream.read()
+    except (AttributeError, OSError):
+        held = None
+    if held is None:
+        try:
+            stream_end = stream.seek(0, os.SEEK_END)
+        except (AttributeError, OSError):
+            stream_end = end
+        if stream_end != end:
+            raise OSError(
+                f"after the save the stream ends at {stream_end}, not at the document's end {end}"
+            )
+    elif held != data:
+        raise OSError(
+            "after the save the stream does not hold the document that was written "
+            f"({len(held)} bytes from position {position}, the document is {len(data)})"
+        )
+    stream.seek(end)
+
+
 def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
-    """Write *data* to *stream*, restoring the prior tail on failure."""
+    """Write *data* to *stream* and make the stream end with it (:func:`settle_written_stream`),
+    restoring the prior tail on failure."""
 
     checkpoint = _capture_stream_checkpoint(stream)
     if checkpoint is None:
@@ -133,6 +175,7 @@ def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
                 "short write while saving HWPX stream: "
                 f"wrote {written} of {len(data)} bytes"
             )
+        settle_written_stream(stream, checkpoint[0], data, checkpoint[1])
     except BaseException:
         _rollback_stream(stream, checkpoint)
         raise
@@ -577,5 +620,6 @@ __all__ = [
     "SavePipeline",
     "PublishMode",
     "write_bytes_atomically",
+    "settle_written_stream",
     "write_stream_or_rollback",
 ]

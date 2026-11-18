@@ -590,6 +590,9 @@ def _write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
                 "short write while saving HWPX package stream: "
                 f"wrote {written} of {len(data)} bytes"
             )
+        from ..quality.save_pipeline import settle_written_stream
+
+        settle_written_stream(stream, checkpoint[0], data, checkpoint[1])
     except BaseException:
         _rollback_stream(stream, checkpoint)
         raise
