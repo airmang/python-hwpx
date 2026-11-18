@@ -440,6 +440,15 @@ class _SourceArchive:
         self._records: "ZipRecords | None" = None
         self._unsupported: "ZipRecordsUnsupported | None" = None
 
+    def comment(self) -> bytes:
+        """The archive comment of the source (``b""`` when it has none or cannot be read so)."""
+
+        try:
+            with ZipFile(io.BytesIO(self.data)) as archive:
+                return archive.comment
+        except (BadZipFile, OSError, ValueError):
+            return b""
+
     def records(self) -> "ZipRecords":
         from .zip_records import ZipRecordsUnsupported, read_records
 
@@ -1880,11 +1889,14 @@ class HwpxPackage:
         archive whose records cannot be moved one by one (:class:`ZipRecordsUnsupported`) is written as
         ``zipfile`` wrote it, and :attr:`_zip_records_outcome` says why."""
 
+        source = self._source_archive
         buffer = io.BytesIO()
         with ZipFile(buffer, "w") as zf:
             self._write_archive_from_save(zf)
+            if source is not None:
+                # The archive comment is the source's, also when its records cannot be kept one by one.
+                zf.comment = source.comment()
         built = buffer.getvalue()
-        source = self._source_archive
         self._last_built_archive = None
         from .zip_records import ZipRecordsUnsupported, assemble, read_records
 
