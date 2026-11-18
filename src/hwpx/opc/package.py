@@ -466,6 +466,18 @@ def _metadata_key(element: etree._Element) -> str:
     return (element.get("name") or local) if local == "meta" else local
 
 
+def _insert_in_hangul_order(metadata_el: etree._Element, element: etree._Element, key: str) -> None:
+    """Put *element* (field *key*) before the first child Hangul writes after that field, else last."""
+
+    if key in _METADATA_ORDER:
+        later = set(_METADATA_ORDER[_METADATA_ORDER.index(key) + 1:])
+        for index, child in enumerate(metadata_el):
+            if isinstance(child.tag, str) and _metadata_key(child) in later:
+                metadata_el.insert(index, element)
+                return
+    metadata_el.append(element)
+
+
 def _splice_metadata(data: bytes, metadata_el: etree._Element) -> bytes | None:
     """*data* (a ``content.hpf``) with the text of each ``opf:metadata`` child that *metadata_el* holds
     differently put in place, and nothing else changed -- the XML declaration, namespace declarations,
@@ -524,7 +536,11 @@ def _splice_metadata(data: bytes, metadata_el: etree._Element) -> bytes | None:
         return b"<" + name + attributes + b">" + escaped + b"</" + name + b">"
 
     edits: list[tuple[int, int, bytes]] = []
-    for key, text in wanted.items():
+
+    def hangul_place(key: str) -> int:
+        return _METADATA_ORDER.index(key) if key in _METADATA_ORDER else len(_METADATA_ORDER)
+
+    for key, text in sorted(wanted.items(), key=lambda item: hangul_place(item[0])):
         if key in found:
             start, stop, attributes, raw = found[key]
             old = etree.fromstring(b"<x>" + raw + b"</x>").text or "" if raw else ""
@@ -542,8 +558,14 @@ def _splice_metadata(data: bytes, metadata_el: etree._Element) -> bytes | None:
         edits.append((at, at, render(local, attributes, text)))
     if not edits:
         return data
+    # Fields added at the same place (several missing ones before the same field, or at the end) go in
+    # Hangul's order: edits were made in that order, so join them in it.
+    merged: dict[tuple[int, int], bytes] = {}
+    for start, stop, replacement in edits:
+        merged[(start, stop)] = merged.get((start, stop), b"") + replacement
     out = data
-    for start, stop, replacement in sorted(edits, key=lambda edit: edit[0], reverse=True):
+    # From the end; at one offset a replaced field (start, stop) goes before an insertion (start, start).
+    for (start, stop), replacement in sorted(merged.items(), key=lambda item: item[0], reverse=True):
         out = out[:start] + replacement + out[stop:]
     return out
 
@@ -1453,7 +1475,7 @@ class HwpxPackage:
                 meta_el = metadata_el.makeelement(
                     f"{{{OPF_NS['opf']}}}meta", {"name": field_name, "content": "text"}
                 )
-                metadata_el.append(meta_el)
+                _insert_in_hangul_order(metadata_el, meta_el, field_name)
             meta_el.text = value or None
 
         self._persist_metadata(metadata_el)
@@ -1569,7 +1591,12 @@ class HwpxPackage:
         if spliced is None:
             self._persist_manifest()
         elif spliced != current:
+            # The tree holds this change and any manifest change not written yet (a section the document
+            # added, written when it saves): writing the part must not drop the tree for one re-read from
+            # bytes that lack them.
+            tree = self._manifest_tree
             self.write(path, spliced)
+            self._manifest_tree = tree
 
     def _persist_manifest(self) -> None:
         """Write the in-memory manifest tree back to the package."""
