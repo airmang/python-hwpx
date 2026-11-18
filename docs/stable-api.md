@@ -150,10 +150,14 @@ python-hwpx는 파일에 적힌 대로 읽고 쓰는 엔진이다. 아래 아홉
    `tests/test_engine_contract.py::test_same_bytes_give_the_same_answer_in_another_process`
 2. **고치지 않은 저장은 바이트 그대로다.** 저장은 고치지 않은 ZIP 항목의 기록(압축된 바이트·플래그·
    extra·데이터 디스크립터)을 원본에서 그대로 옮긴다. 그래서 열고 고치지 않고 저장하면 파일째 같고,
-   Python의 zlib 구현에 달리지 않는다. 다른 것은 엔진이 일부러 고치는 셋뿐이다: 압축해 둔 `mimetype`
-   은 STORED로 쓰고, 폴더 항목은 두지 않고, 항목별로 옮길 수 없는 ZIP(ZIP64·중복 이름·첫 항목 앞이나
-   목록 뒤에 다른 바이트가 있는 것 등)은 다시 쓰고 `MutationReport.preservation.zip_records_rewritten`
-   에 까닭을 적는다(한/글 저장본 시험 1,265개: 1,259개 파일째 같음, 6개는 압축된 `mimetype`).
+   Python의 zlib 구현에 달리지 않는다. `mimetype`(맨 앞이 아니거나 압축된 것도)·폴더 항목·아카이브 주석도
+   적힌 자리와 꼴 그대로이고, 기록의 물리 차례와 중앙 디렉터리 차례도 원본 그대로다(표준 꼴로 고치는 것은
+   `hwpx-repair`의 일). 다른 것은 둘뿐이다: 항목별로 옮길 수 없는 ZIP(ZIP64·첫 항목 앞이나 목록 뒤에 다른
+   바이트가 있는 것 등)은 다시 쓰고 `MutationReport.preservation.zip_records_rewritten`에 까닭을 적으며, 이름이
+   같은 항목이 둘 이상인 ZIP은 열 수는 있지만 저장을 거부한다(`save-duplicate-entry-names`). 잰 것
+   (2026-11-18, 열고 고치지 않고 저장): 한/글 저장본 시험 1,265개 모두 파일째 같음. 시험 픽스처·rhwp·kordoc 표본
+   1,442개 중 열고 저장되는 1,436개 모두 파일째 같음(나머지 6개는 암호 2·HWPX 아님 1·열기 안전 검사 거부 2·
+   이 측정 PC의 메모리 부족 1).
    `tests/test_engine_contract.py::test_an_unedited_hancom_document_saves_its_parts_unchanged`,
    `tests/test_mutation_report.py::test_noop_patch_save_reports_whole_package_identical`,
    `tests/test_zip_records.py::test_an_unedited_save_writes_the_source_file_again`
