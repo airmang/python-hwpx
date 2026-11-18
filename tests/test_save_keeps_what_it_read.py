@@ -1,0 +1,182 @@
+"""A save never loses or misstates what the archive it was opened from held.
+
+Each case is a small archive made here from a new document: two entries under one name, an explicit
+directory entry, a central directory listed in another order than the records lie, bytes before the first
+record, a ZIP64 end record, an archive comment; a reused stream longer than the document saved into it.
+"""
+from __future__ import annotations
+
+import io
+import warnings
+import zipfile
+from unittest.mock import patch
+
+import pytest
+
+from hwpx import HwpxDocument
+from hwpx.opc.package import HwpxPackageError
+
+
+def _repacked(*, duplicate: bool = False, directory: bool = False, reverse: bool = False,
+              comment: bytes = b"", zip64: bool = False, level: int | None = None) -> bytes:
+    out = io.BytesIO()
+    limit = 100 if zip64 else zipfile.ZIP64_LIMIT
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # zipfile warns about the duplicate name
+        with patch.object(zipfile, "ZIP64_LIMIT", limit), \
+                zipfile.ZipFile(io.BytesIO(HwpxDocument.new().to_bytes())) as source, \
+                zipfile.ZipFile(out, "w") as target:
+            for info in source.infolist():
+                target.writestr(info, source.read(info), compresslevel=level)
+            if duplicate:
+                target.writestr("opaque.bin", b"1")
+                target.writestr("opaque.bin", b"2")
+            if directory:
+                # ZipFile.mkdir (3.11+) writes this entry: a directory name, no data, the directory flags.
+                directory_entry = zipfile.ZipInfo("BinData/", (2026, 1, 1, 0, 0, 0))
+                directory_entry.external_attr = (0o40775 << 16) | 0x10
+                target.writestr(directory_entry, b"")
+            if reverse:
+                target.filelist[1:] = list(reversed(target.filelist[1:]))
+            target.comment = comment
+    return out.getvalue()
+
+
+def _records(data: bytes) -> list[tuple[str, bytes]]:
+    """Every local record (header to the next header or the central directory), in physical order."""
+
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        entries = sorted(archive.infolist(), key=lambda info: info.header_offset)
+        ends = [info.header_offset for info in entries[1:]] + [archive.start_dir]
+        return [(info.filename, data[info.header_offset:end]) for info, end in zip(entries, ends)]
+
+
+# -- two entries under one name --------------------------------------------------------------
+
+
+def test_two_entries_under_one_name_open_for_reading_but_a_save_is_refused() -> None:
+    source = _repacked(duplicate=True)
+    with pytest.warns(UserWarning, match=r"'opaque.bin' x2.*the last of each is read"):
+        document = HwpxDocument.open(source)
+    assert document.paragraphs is not None  # reading works
+
+    target = io.BytesIO(b"kept")
+    with pytest.raises(HwpxPackageError) as caught:
+        document.save(target)
+    assert caught.value.code == "save-duplicate-entry-names"
+    assert caught.value.context["names"] == ["opaque.bin"]
+    assert target.getvalue() == b"kept"
+    with pytest.raises(HwpxPackageError):
+        document.to_bytes()
+
+
+def test_the_package_check_and_the_text_tool_say_which_names_repeat(tmp_path, capsys) -> None:
+    from hwpx.tools.package_validator import validate_package
+    from hwpx.tools.text_extract_cli import main as extract_main
+
+    source = _repacked(duplicate=True)
+    report = validate_package(source)
+    assert report.ok  # an advisory, not an error
+    assert any("'opaque.bin' x2" in issue.message for issue in report.warnings)
+
+    path = tmp_path / "repeated.hwpx"
+    path.write_bytes(source)
+    assert extract_main([str(path)]) == 0
+    assert "'opaque.bin' x2" in capsys.readouterr().err
+
+
+# -- a reused stream ------------------------------------------------------------------------
+
+
+def test_a_shorter_document_saved_into_a_longer_stream_leaves_nothing_after_it() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("가" * 20000)
+    stream = io.BytesIO()
+    document.save(stream)
+    long_size = len(stream.getvalue())
+
+    paragraph.text = "Z"
+    stream.seek(0)
+    document.save(stream)
+    data = stream.getvalue()
+    assert len(data) < long_size and stream.tell() == len(data)
+    assert HwpxDocument.open(data).paragraphs[-1].text == "Z"
+
+
+def test_the_package_stream_save_also_truncates() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("Z")
+    stream = io.BytesIO(b"\0" * 200000)  # held something longer before
+    document.package.save(stream)
+    assert stream.tell() == len(stream.getvalue())
+    HwpxDocument.open(stream.getvalue())
+
+
+class _NoTruncate(io.BytesIO):
+    def truncate(self, size=None):  # type: ignore[override]
+        raise io.UnsupportedOperation("truncate")
+
+
+def test_a_stream_that_cannot_be_cut_short_is_refused_and_left_as_it_was() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("가" * 20000)
+    first = io.BytesIO()
+    document.save(first)
+    stream = _NoTruncate(first.getvalue())
+    paragraph.text = "Z"
+    with pytest.raises(OSError):
+        document.save(stream)
+    assert stream.getvalue() == first.getvalue()
+
+
+# -- what the report says the save kept -------------------------------------------------------
+
+
+@pytest.mark.parametrize("kind", ["zip64", "prefix"])
+def test_the_report_counts_only_records_it_compared_byte_for_byte(kind: str) -> None:
+    source = _repacked(zip64=kind == "zip64", level=1, comment=b"marker")
+    if kind == "prefix":
+        source = b"prefix" + source
+    out = io.BytesIO()
+    report = HwpxDocument.open(source).save(out)
+    written = out.getvalue()
+
+    before, after = dict(_records(source)), dict(_records(written))
+    same = sum(before[name] == after.get(name) for name in before)
+    records = report.preservation.untouched_local_zip_records
+    assert records.verified == same
+    assert records.verified + records.changed == len(before)
+    assert report.preservation.zip_records_rewritten == {"zip64": "zip64", "prefix": "bytes-before-first-entry"}[kind]
+    assert zipfile.ZipFile(io.BytesIO(written)).comment == b"marker"
+
+
+# -- directory entries and record order -------------------------------------------------------
+
+
+def test_an_unedited_save_keeps_a_directory_entry() -> None:
+    source = _repacked(directory=True)
+    out = io.BytesIO()
+    report = HwpxDocument.open(source).save(out)
+    assert out.getvalue() == source
+    assert report.preservation.whole_package_identical
+
+
+def test_an_unedited_save_keeps_records_where_they_lay() -> None:
+    source = _repacked(reverse=True)
+    with zipfile.ZipFile(io.BytesIO(source)) as archive:
+        assert [info.filename for info in archive.infolist()] != [name for name, _ in _records(source)]
+    out = io.BytesIO()
+    HwpxDocument.open(source).save(out)
+    assert out.getvalue() == source
+
+
+def test_an_edit_keeps_both_orders_of_the_other_records() -> None:
+    source = _repacked(reverse=True)
+    document = HwpxDocument.open(source)
+    document.add_paragraph("더한 글")
+    out = io.BytesIO()
+    document.save(out)
+    written = out.getvalue()
+    with zipfile.ZipFile(io.BytesIO(source)) as a, zipfile.ZipFile(io.BytesIO(written)) as b:
+        assert [i.filename for i in a.infolist()] == [i.filename for i in b.infolist()]
+    assert [name for name, _ in _records(source)] == [name for name, _ in _records(written)]

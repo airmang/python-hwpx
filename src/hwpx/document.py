@@ -1011,6 +1011,12 @@ class HwpxDocument(metaclass=_DocumentType):
         """Save pending changes to *target* — a file path or a writable binary stream —
         and return the :class:`~hwpx.mutation_report.MutationReport` receipt.
 
+        A stream must be seekable (``tell``/``seek``) and readable from its position, or already at its
+        end; the document is written at that position and the stream is cut (``truncate``) where the
+        document ends, so a stream that held something longer opens as the new document (a stream that
+        cannot be cut short is refused and left as it was). A write-only stream raises ``OSError``: save
+        to a path instead.
+
         ``report.path`` is the path written (``None`` for a stream), and
         ``report.editor_open_safety`` the editor-open safety report the save reached for
         what it wrote (``validate_editor_open_safety`` of those bytes, not run again). *format* ``None``

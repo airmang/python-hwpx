@@ -419,7 +419,22 @@ def unpack_main(argv: Sequence[str] | None = None) -> int:
 
     print(f"Unpacked {args.input} -> {result.output_dir}")
     print(f"Recorded archive metadata at {result.metadata_path}")
+    _warn_duplicate_entries(args.input, "only the last of each was unpacked")
     return 0
+
+
+def _warn_duplicate_entries(path: str | Path, consequence: str) -> None:
+    from zipfile import BadZipFile, ZipFile
+
+    from ..opc.security import _duplicate_entry_notice
+
+    try:
+        with ZipFile(path) as archive:
+            notice = _duplicate_entry_notice(info.filename for info in archive.infolist())
+    except (OSError, BadZipFile):
+        return
+    if notice is not None:
+        print(f"WARN: {notice}; {consequence}")
 
 
 def pack_main(argv: Sequence[str] | None = None) -> int:
