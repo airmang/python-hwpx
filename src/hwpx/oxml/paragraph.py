@@ -1656,14 +1656,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "fieldid": field_instance_id,
             "metaTag": "",
         })
-        # Lengths count UTF-16 units, as Hancom writes them and as the field's prompt and memo setters
-        # read and write them (a character outside the BMP is two).
-        def units(value: str) -> int:
-            return len(value.encode("utf-16-le")) // 2
-
         payload = (
-            f"Direction:wstring:{units(direction)}:{direction} "
-            f"HelpState:wstring:{units(help_state)}:{help_state} "
+            f"Direction:wstring:{len(direction)}:{direction} "
+            f"HelpState:wstring:{len(help_state)}:{help_state} "
         )
         param_count = 2 + (1 if direction else 0) + (1 if help_state else 0)
         parameters = _append_child(
@@ -1675,7 +1670,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             "name": "Command",
             f"{{{XML_NS}}}space": "preserve",
         })
-        command.text = f"Clickhere:set:{units(payload)}:{payload} "
+        command.text = f"Clickhere:set:{len(payload)}:{payload} "
         if direction:
             direction_param = _append_child(
                 parameters, f"{_HP}stringParam", {"name": "Direction"}
