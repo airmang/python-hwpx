@@ -81,7 +81,6 @@ from hwpx.document import HwpxDocument  # noqa: E402
 from hwpx.form_fit import FitPolicy  # noqa: E402
 from hwpx.form_fit.apply import fit_cell_text  # noqa: E402
 from hwpx.tools import toc_author  # noqa: E402
-from hwpx.tools.mail_merge import merge_template_rows  # noqa: E402
 from hwpx.tools.package_validator import validate_editor_open_safety  # noqa: E402
 
 
@@ -340,6 +339,10 @@ def synthetic_roster() -> list[dict[str, str]]:
 
 
 def gen_merge_template_rows(out_dir: Path) -> tuple[list[dict[str, Any]], list[Path]]:
+    # Mail merge moved to python-hwpx-automation in 7.0 (hwpx.tools.mail_merge is gone): imported where it
+    # is used, so loading this module for authored_plans() needs no automation.
+    from hwpx_automation.mail_merge import merge_template_rows
+
     records: list[dict[str, Any]] = []
     produced_paths: list[Path] = []
     bucket_dir = out_dir / "mail-merge"
@@ -1056,6 +1059,8 @@ def gen_pii_merge(out_dir: Path, n: int = PII_MERGE_N) -> tuple[list[dict[str, A
     tmpl_path = tmpl_dir / "template_pii.hwpx"
     build_pii_merge_template(tmpl_path)
     tmpl_sha = sha256_file(tmpl_path)
+
+    from hwpx_automation.mail_merge import merge_template_rows
 
     roster = synthetic_pii_roster(n)
     # masking_policy defaults to DEFAULT_POLICY — the SHIPPED default (M5). The
