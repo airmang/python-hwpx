@@ -456,6 +456,8 @@ def validate_document(
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for ``python -m hwpx.tools.validator``."""
+    from .archive_cli import _printable_stdout
+    _printable_stdout()
 
     parser = argparse.ArgumentParser(
         description=(

@@ -73,3 +73,19 @@ def test_text_extract_prints_korean_through_a_stdout_that_cannot_hold_it() -> No
     )
     assert completed.returncode == 0, completed.stderr.decode("utf-8", "replace")
     assert "줄 0" in completed.stdout.decode("utf-8")
+
+
+def test_the_console_tools_print_a_korean_file_name_through_a_stdout_that_cannot_hold_it(tmp_path: Path) -> None:
+    source = tmp_path / "계획.hwpx"
+    source.write_bytes(_FIXTURE.read_bytes())
+    environment = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"}
+    for module, arguments in (
+        ("hwpx.tools.template_analyzer", [str(source)]),
+        ("hwpx.tools.package_validator", [str(tmp_path / "없는파일.hwpx")]),
+    ):
+        completed = subprocess.run(
+            [sys.executable, "-m", module, *arguments], capture_output=True, env=environment
+        )
+        stderr = completed.stderr.decode("utf-8", "replace")
+        assert "UnicodeEncodeError" not in stderr, (module, stderr)
+        assert completed.stdout, module

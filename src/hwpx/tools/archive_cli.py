@@ -373,7 +373,22 @@ def input_file_problem(path: str | os.PathLike[str], *, tool: str, accepts_hwp: 
 _input_file_problem = input_file_problem
 
 
+def _printable_stdout() -> None:
+    """Let standard output print any character: one it cannot encode (a Korean file name into a cp1252 pipe
+    on an English Windows) comes out as an escape instead of failing the command with UnicodeEncodeError.
+    Output that fits the stream's encoding is unchanged."""
+
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(errors="backslashreplace")
+    except (ValueError, OSError):  # a closed or detached stream: nothing to set
+        return
+
+
 def unpack_main(argv: Sequence[str] | None = None) -> int:
+    _printable_stdout()
     parser = argparse.ArgumentParser(
         description="Unpack an HWPX file into a directory (raw XML bytes are preserved by default)"
     )
@@ -408,6 +423,7 @@ def unpack_main(argv: Sequence[str] | None = None) -> int:
 
 
 def pack_main(argv: Sequence[str] | None = None) -> int:
+    _printable_stdout()
     parser = argparse.ArgumentParser(description="Pack a directory into an HWPX archive")
     parser.add_argument("input", help="Input directory")
     parser.add_argument("output", help="Output .hwpx path")
@@ -433,6 +449,7 @@ def pack_main(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    _printable_stdout()
     parser = argparse.ArgumentParser(description="HWPX archive utility helpers")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
