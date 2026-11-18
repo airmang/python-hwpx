@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 364 | 11 |
+| 개수 | 365 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -539,6 +539,7 @@ except HwpxError as exc:
 | `table-rows-merge-crossed` | 병합 칸이 옮기거나 복사할 행 묶음의 위·아래 경계나 넣을 자리를 가로지른다. |
 | `table-rows-move-other-table` | 행을 다른 표로 옮기려 했다(한/글 저장본 근거가 없다. copy_rows(source=) 뒤 delete_rows 로 한다). |
 | `table-rows-other-document` | 다른 문서의 표에서 행을 복사하려 했다(표를 먼저 문서로 복사한다). |
+| `table-rows-split-cell-zone` | 옮기는 행과 남는 행을 함께 덮는 칸 영역(hp:cellzone)이 있어 행을 옮기면 영역이 갈라진다. |
 | `table-shading-value` | 칸 배경색이 #RRGGBB 나 None 이 아니다. |
 | `table-size-invalid` | 새 표의 행·열 수가 1 이상의 int 가 아니다(bool 도 거부). |
 | `table-width-value` | 표 폭(width)이 0 초과 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |

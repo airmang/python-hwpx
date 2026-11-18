@@ -156,6 +156,31 @@ def _require_table_in_document(table_object: Any, role: str) -> None:
         )
 
 
+def _moved_zones(table: Any, block: tuple[int, int], to: int) -> list[tuple[Any, int, int]]:
+    """Where each cell zone (``hp:cellzone``) of *table* goes when its rows ``block`` move before row *to*: a
+    zone follows its rows, as one does when rows are deleted. A zone holding moved rows and others too would
+    come apart; that is refused."""
+
+    count = len(_rows(table))
+    order = [index for index in range(count) if not block[0] <= index < block[1]]
+    at = to if to < block[0] else to - (block[1] - block[0])
+    order[at:at] = list(range(block[0], block[1]))
+    new = {old: position for position, old in enumerate(order)}
+    moves: list[tuple[Any, int, int]] = []
+    for zone in table.findall(f"{_HP}cellzoneList/{_HP}cellzone"):
+        start, end = int(zone.get("startRowAddr") or 0), int(zone.get("endRowAddr") or 0)
+        rows = [new.get(index, index) for index in range(start, end + 1)]
+        if rows != list(range(min(rows), max(rows) + 1)):
+            raise HwpxValueError(
+                f"the cell zone over rows {start}..{end} holds rows that move and rows that stay",
+                code="table-rows-split-cell-zone",
+                context={"startRow": start, "endRow": end, "rows": list(range(block[0], block[1]))},
+                suggestion="Move every row of the zone, or none of them.",
+            )
+        moves.append((zone, min(rows), max(rows)))
+    return moves
+
+
 def move_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source: Any = None) -> tuple[Any, ...]:
     """``table.move_rows``."""
 
@@ -174,11 +199,15 @@ def move_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source
     moving = _rows(table)[block[0]:block[1]]
     if block[0] <= to <= block[1]:
         return _placed(table_object, moving)  # in place
+    zones = _moved_zones(table, block, to)  # checked before anything moves
     after = _rows(table)[to] if to < len(_rows(table)) else None
     for row in moving:
         table.remove(row)
     remaining = _rows(table)
     _place(table, moving, remaining.index(after) if after is not None else len(remaining))
+    for zone, start, end in zones:
+        zone.set("startRowAddr", str(start))
+        zone.set("endRowAddr", str(end))
     _changed(table_object, None)
     return _placed(table_object, moving)
 
