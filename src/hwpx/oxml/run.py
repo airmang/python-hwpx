@@ -661,6 +661,18 @@ class CharPropertyCache:
         return self.lookup(headers, (key,) if normalized == key else (key, normalized))
 
 
+def detached_style(style: RunStyle) -> RunStyle:
+    """A copy of the cached *style* to hand out: changing its dictionaries changes nothing the cache or the
+    document answers afterwards (it is a reading of the header, not the header)."""
+
+    return RunStyle(
+        id=style.id,
+        attributes=dict(style.attributes),
+        child_attributes={name: dict(values) for name, values in style.child_attributes.items()},
+        fonts=dict(style.fonts),
+    )
+
+
 class CharPropertyView(Mapping[str, RunStyle]):
     """A document's character shapes by id (as written and as a plain number), read from its
     headers as they are at each access: ``doc.styles.char_properties``.
@@ -688,7 +700,7 @@ class CharPropertyView(Mapping[str, RunStyle]):
                 context={"requested": repr(key)},
                 suggestion="Read the id from a run (run.char_pr_id_ref) or use doc.styles.char_property(id), which answers None.",
             )
-        return style
+        return detached_style(style)
 
     def __iter__(self) -> Iterator[str]:
         return iter(list(self._cache.verified(self._headers)))
