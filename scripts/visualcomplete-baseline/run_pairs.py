@@ -106,7 +106,7 @@ def main(argv=None) -> int:
 
     manifest = {"pairs": pairs}
     manifest_path = outdir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     ok_pairs = [p for p in pairs if "error" not in p]
     valid = sum(1 for p in ok_pairs if p.get("control_valid"))

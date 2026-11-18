@@ -136,6 +136,8 @@ def write_inventory(corpus_dir: str | Path, output: str | Path, *, limit: int = 
 
 
 def main(argv: list[str] | None = None) -> int:
+    from .archive_cli import _printable_stdout
+    _printable_stdout()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("corpus_dir", type=Path)
     parser.add_argument(

@@ -226,7 +226,7 @@ def _run(case, source: Path, output: Path) -> dict:
 
 
 def test_external_edit_cases(tmp_path):
-    manifest = json.loads((CORPUS / "manifest.json").read_text())
+    manifest = json.loads((CORPUS / "manifest.json").read_text(encoding="utf-8"))
     sources = {sample["file"]: sample for sample in manifest["samples"]}
     results = []
     for case in CASES:
@@ -277,7 +277,7 @@ def test_external_edit_cases(tmp_path):
     report = {"sourceRepo": manifest["source_repo"], "pinnedRef": manifest["pinned_ref"],
               "selection": "bounded mixed-run, label/merged-cell and row-clone regression; not full corpus coverage",
               "results": results, "outcomes": dict(Counter(r["outcome"] for r in results))}
-    (tmp_path / "edit-results.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+    (tmp_path / "edit-results.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     failures = [f"{r['id']}: {r.get('error', r['outcome'])}" for r in results if r["outcome"] != r["expected"]]
     assert not failures, "\n".join(failures)
 

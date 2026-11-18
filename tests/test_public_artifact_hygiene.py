@@ -55,7 +55,7 @@ def _git(repo: Path, *args: str) -> None:
         cwd=repo,
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
 

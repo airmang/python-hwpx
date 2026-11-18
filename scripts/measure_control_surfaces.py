@@ -110,7 +110,7 @@ def _measure_control(name: str, spec: dict[str, str], workdir: pathlib.Path) -> 
         "print(json.dumps({'methods': sorted(m), 'properties': sorted(p), 'other': sorted(o)}))\n"
     )
     result = subprocess.run(
-        [sys.executable, "-c", probe], check=True, capture_output=True, text=True
+        [sys.executable, "-c", probe], check=True, capture_output=True, text=True, encoding="utf-8"
     )
     surface = json.loads(result.stdout)
     surface["total"] = sum(len(surface[k]) for k in ("methods", "properties", "other"))

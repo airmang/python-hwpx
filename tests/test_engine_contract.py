@@ -71,7 +71,7 @@ def test_same_bytes_give_the_same_answer_in_another_process() -> None:
     answers = {
         subprocess.run(
             [sys.executable, "-c", code, path], capture_output=True, text=True, check=True,
-            env={**__import__("os").environ, "PYTHONHASHSEED": seed},
+            env={**__import__("os").environ, "PYTHONHASHSEED": seed}, encoding="utf-8",
         ).stdout.strip()
         for seed in ("1", "2")
     }

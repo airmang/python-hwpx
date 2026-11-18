@@ -197,7 +197,7 @@ def test_cycle_6_1_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -224,7 +224,7 @@ def test_cycle_6_2_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -251,7 +251,7 @@ def test_cycle_6_3_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -278,7 +278,7 @@ def test_cycle_6_4_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -305,7 +305,7 @@ def test_cycle_6_5_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -332,7 +332,7 @@ def test_cycle_6_6_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -359,7 +359,7 @@ def test_cycle_6_7_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -386,7 +386,7 @@ def test_cycle_6_7_train_27_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -413,7 +413,7 @@ def test_cycle_6_7_cleanup_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -443,7 +443,7 @@ def test_every_probe_runs_clean(probe_name: str) -> None:
         [sys.executable, str(PROBES_DIR / probe_name)],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr
 

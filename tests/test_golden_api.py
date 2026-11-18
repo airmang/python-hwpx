@@ -283,6 +283,6 @@ assert not any(
         [sys.executable, "-c", code, str(Path(__file__).resolve()), scenario_id, str(tmp_path)],
         capture_output=True,
         text=True,
-        check=False,
+        check=False, encoding="utf-8",
     )
     assert result.returncode == 0, result.stdout + result.stderr

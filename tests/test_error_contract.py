@@ -86,7 +86,7 @@ def test_the_census_ratchet_is_green() -> None:
         [sys.executable, str(ROOT / "scripts" / "error_code_census.py"), "--check"],
         capture_output=True,
         text=True,
-        cwd=ROOT,
+        cwd=ROOT, encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr or result.stdout
 
@@ -113,7 +113,7 @@ def test_the_ratchet_can_actually_fail(tmp_path: pathlib.Path) -> None:
         encoding="utf-8",
     )
     result = subprocess.run(
-        [sys.executable, str(patched), "--check"], capture_output=True, text=True, cwd=ROOT
+        [sys.executable, str(patched), "--check"], capture_output=True, text=True, cwd=ROOT, encoding="utf-8"
     )
     assert result.returncode != 0
     assert "untyped 증가" in result.stderr

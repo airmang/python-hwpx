@@ -152,7 +152,7 @@ def verify_github_release_state(tag: str) -> None:
         ],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     observed = json.loads(result.stdout)
     expected = {

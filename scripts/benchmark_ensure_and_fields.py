@@ -247,7 +247,7 @@ def main():
         result['style_invariants'] = style_preservation()
     if args.mode in ('all', 'fields'):
         result['fields'] = fields()
-    with open(args.output, 'w') as output:
+    with open(args.output, 'w', encoding="utf-8") as output:
         json.dump(result, output, ensure_ascii=False, indent=2)
 
 if __name__ == '__main__':

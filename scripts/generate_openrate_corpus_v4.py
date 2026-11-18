@@ -183,7 +183,7 @@ def _git_commit(repo_dir: Path) -> str | None:
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=str(repo_dir), capture_output=True, text=True, timeout=10, check=True,
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=10, check=True, encoding="utf-8",
         )
     except Exception:  # noqa: BLE001 - provenance-only, never fatal
         return None

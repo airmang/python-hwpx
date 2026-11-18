@@ -558,6 +558,8 @@ def _print_summary(analysis: TemplateAnalysis) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    from .archive_cli import _printable_stdout
+    _printable_stdout()
     parser = argparse.ArgumentParser(
         description="Analyze a reference HWPX template for pack-ready, template-preserving workflows"
     )

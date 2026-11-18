@@ -195,7 +195,7 @@ def test_happy_path_executes_and_reports_measured_aggregate(
     assert "계획 실행".encode() in section
     assert "채움값".encode() in section
     # 저널: plan-start / step×2 / plan-end 이벤트가 JSONL로 남는다.
-    events = [json.loads(line)["event"] for line in journal.read_text().splitlines()]
+    events = [json.loads(line)["event"] for line in journal.read_text(encoding="utf-8").splitlines()]
     assert events == ["plan-start", "step", "step", "plan-end"]
 
 
@@ -311,9 +311,9 @@ def test_failed_run_journal_still_written(base_doc: Path, tmp_path: Path) -> Non
     )
     report = apply_edit_plan(plan)
     assert not report.ok
-    events = [json.loads(line)["event"] for line in journal.read_text().splitlines()]
+    events = [json.loads(line)["event"] for line in journal.read_text(encoding="utf-8").splitlines()]
     assert events == ["plan-start", "step", "plan-end"]
-    assert json.loads(journal.read_text().splitlines()[1])["status"] == "failed"
+    assert json.loads(journal.read_text(encoding="utf-8").splitlines()[1])["status"] == "failed"
 
 
 def test_report_projection_and_roundtrip(base_doc: Path, tmp_path: Path) -> None:

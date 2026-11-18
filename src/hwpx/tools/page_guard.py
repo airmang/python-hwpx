@@ -231,6 +231,8 @@ def compare_metrics(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    from .archive_cli import _printable_stdout
+    _printable_stdout()
     parser = argparse.ArgumentParser(
         description="Reference-vs-output HWPX layout-drift proxy checker"
     )

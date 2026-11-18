@@ -521,6 +521,8 @@ def repair_from_recovered(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    from .archive_cli import _printable_stdout
+    _printable_stdout()
     parser = argparse.ArgumentParser(description="Repair or recover an HWPX archive")
     parser.add_argument("input", help="Input .hwpx path")
     parser.add_argument("output", help="Output repaired .hwpx path")

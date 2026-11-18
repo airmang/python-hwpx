@@ -1589,6 +1589,8 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    from .archive_cli import _printable_stdout
+    _printable_stdout()
     parser = argparse.ArgumentParser(
         description="Validate HWPX package structure using engine-aligned ZIP/container/manifest checks"
     )

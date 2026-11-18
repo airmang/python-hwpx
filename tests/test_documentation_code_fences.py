@@ -464,7 +464,7 @@ def _run_example(example_id: str, document: str, code: str, case_root: Path, env
         cwd=case_root,
         env=environment,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     assert completed.returncode == 0, f"{example_id} fails:\n{completed.stderr[-2000:]}"
 
@@ -521,7 +521,7 @@ def test_every_standalone_current_manual_example_executes_from_installed_wheel(
         cwd=ROOT,
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     wheel = next(dist.glob("*.whl"))
     with zipfile.ZipFile(wheel) as archive:
@@ -556,7 +556,7 @@ def test_every_standalone_current_manual_example_executes_from_installed_wheel(
         cwd=tmp_path,
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     environment = os.environ.copy()
@@ -608,7 +608,7 @@ def test_every_standalone_current_manual_example_executes_from_installed_wheel(
             env=environment,
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         executed.add(example_id)
     assert executed == standalone
@@ -634,7 +634,7 @@ def test_every_standalone_current_manual_example_executes_from_installed_wheel(
     ))
     subprocess.run(
         [sys.executable, "-W", "error::DeprecationWarning", "-c", probe],
-        cwd=case_root, env=environment, check=True, capture_output=True, text=True,
+        cwd=case_root, env=environment, check=True, capture_output=True, text=True, encoding="utf-8",
     )
 
 

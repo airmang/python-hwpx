@@ -341,7 +341,7 @@ def test_hwpx_repair_help_is_registered() -> None:
         cwd=_REPO_ROOT,
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
 
     assert "Repair or recover an HWPX archive" in completed.stdout

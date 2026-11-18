@@ -102,4 +102,4 @@ with zipfile.ZipFile(io.BytesIO(payload)) as archive:
 external = {'source_sha256': hashlib.sha256(source).hexdigest(), 'output_members': members,
             'paragraph_style_ids': [paragraph.para_pr_id_ref for paragraph in document.paragraphs]}
 Path(args.output).write_text(json.dumps({'label': args.label, 'python': sys.version, 'platform': platform.platform(),
-    'matrix': records, 'external': external}, ensure_ascii=False, indent=2))
+    'matrix': records, 'external': external}, ensure_ascii=False, indent=2), encoding="utf-8")

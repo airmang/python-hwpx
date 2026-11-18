@@ -59,7 +59,7 @@ def _run_module(*args: str) -> subprocess.CompletedProcess[str]:
         check=True,
         capture_output=True,
         text=True,
-        cwd=_REPO_ROOT,
+        cwd=_REPO_ROOT, encoding="utf-8",
     )
 
 
