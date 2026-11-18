@@ -241,7 +241,10 @@ def _serialize_xml(element: ET.Element) -> bytes:
         root = LET.fromstring(xml_bytes)
         tabs_as_elements(root)
         return serialize_compat_root(root)
-    return tab_elements_in(ET.tostring(element, encoding="utf-8", xml_declaration=True))
+    # Written by lxml, as Hangul writes XML: an empty element is ``<a/>``, not ElementTree's ``<a />``. The
+    # declaration and the root's namespace declarations are put back as the part had them when the package
+    # writes it (``hwpx.opc.xml_utils.keep_source_form``).
+    return tab_elements_in(LET.tostring(LET.fromstring(xml_bytes), encoding="utf-8", xml_declaration=True))
 
 
 class SameElement:
