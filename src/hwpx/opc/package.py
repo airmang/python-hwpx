@@ -1079,7 +1079,7 @@ class HwpxPackage:
         if sanitized is not data:
             # A section or header written anew (stale line caches dropped, the root re-serialized): it keeps
             # the declaration and root namespace declarations the part had (Hangul's for a new part).
-            sanitized = keep_source_form(self._files.get(norm_path), sanitized)
+            sanitized = keep_source_form(self._files.get(norm_path), sanitized, standalone=True)
         data = sanitized
         pending_rootfiles: list[RootFile] | None = None
         pending_version: VersionInfo | None = None
@@ -1666,7 +1666,7 @@ class HwpxPackage:
                 paragraph.set("styleIDRef", replacement)
                 changed = True
             if changed:
-                self._files[path] = keep_source_form(self._files[path], _serialize_hwpml_root(root))
+                self._files[path] = keep_source_form(self._files[path], _serialize_hwpml_root(root), standalone=True)
 
     def save(
         self,

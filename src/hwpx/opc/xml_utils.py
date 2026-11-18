@@ -64,11 +64,15 @@ _ATTRIBUTE = re.compile(rb"""\s+([\w:.-]+)\s*=\s*("[^"]*"|'[^']*')""", re.S)
 _ANY_XMLNS = re.compile(rb"""\s+xmlns(?::([\w.-]+))?\s*=\s*("[^"]*"|'[^']*')""", re.S)
 
 
-def _declaration_for(source: bytes | None) -> bytes:
+_STANDALONE_YES = re.compile(rb"""\bstandalone\s*=\s*["']yes["']""")
+
+
+def _declaration_for(source: bytes | None, *, standalone: bool = False) -> bytes:
     """The declaration (with what follows it up to the root) a part written in place of *source* carries:
     *source*'s own, as it was read; Hangul's for a part the engine makes (no *source*). A *source* without a
     declaration gets none; one that declares another encoding than UTF-8 (the bytes are written in UTF-8)
-    gets Hangul's."""
+    gets Hangul's. With *standalone* (a section or header, which Hangul and the package checks want declared
+    ``standalone="yes"``), a declaration without it is replaced by Hangul's."""
 
     if source is None:
         return HANCOM_XML_DECLARATION
@@ -77,6 +81,8 @@ def _declaration_for(source: bytes | None) -> bytes:
         return b""
     encoding = _ENCODING.search(match.group())
     if encoding is not None and encoding.group(1).lower().replace(b"_", b"-") not in (b"utf-8", b"utf8"):
+        return HANCOM_XML_DECLARATION
+    if standalone and not _STANDALONE_YES.search(match.group()):
         return HANCOM_XML_DECLARATION
     return match.group()
 
@@ -96,7 +102,7 @@ def _tag_name(tag: bytes) -> bytes:
     return re.match(rb"<([^\s/>]+)", tag).group(1)  # type: ignore[union-attr]
 
 
-def keep_source_form(source: bytes | None, written: bytes) -> bytes:
+def keep_source_form(source: bytes | None, written: bytes, *, standalone: bool = False) -> bytes:
     """*written* -- a part the engine serialized, from the tree it parsed from *source* or anew -- in the
     form *source* had: its XML declaration as read (Hangul's for a part the engine makes) and its root's
     namespace declarations as read, in their order.
@@ -106,9 +112,9 @@ def keep_source_form(source: bytes | None, written: bytes) -> bytes:
     from *source*: every one *source* made, then any the written root makes that *source* did not. A
     declaration is kept as written only where *source* bound its prefix otherwise and the body uses that
     prefix. When the written root's other attributes are *source*'s, its start tag is *source*'s, byte for
-    byte. Nothing after the root's start tag changes."""
+    byte. Nothing after the root's start tag changes. *standalone*: see :func:`_declaration_for`."""
 
-    declaration = _declaration_for(source)
+    declaration = _declaration_for(source, standalone=standalone)
     head = _DECLARATION.match(written)
     rest = written[head.end():] if head else written.lstrip()
     start = _root_start(rest)
