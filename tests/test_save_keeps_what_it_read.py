@@ -226,3 +226,57 @@ def test_a_new_document_writes_mimetype_first_and_stored() -> None:
     with zipfile.ZipFile(io.BytesIO(HwpxDocument.new().to_bytes())) as archive:
         first = archive.infolist()[0]
         assert (first.filename, first.compress_type) == ("mimetype", zipfile.ZIP_STORED)
+
+
+# -- the archive comment ------------------------------------------------------------------------
+
+
+def _commented_template() -> bytes:
+    base = HwpxDocument.new()
+    base.add_paragraph("본문")
+    base.add_table(2, 2)
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(base.to_bytes())) as source, zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            target.writestr(info, source.read(info))
+        target.comment = b"template marker"
+    return out.getvalue()
+
+
+_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000a49444154789c6360000000020001e221bc330000000049454e44ae426082"
+)
+
+
+def _saved(document: HwpxDocument, **kwargs) -> bytes:
+    out = io.BytesIO()
+    document.save(out, **kwargs)
+    return out.getvalue()
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda d: _saved(d),
+        lambda d: d.to_bytes(),
+        lambda d: (d.add_paragraph("더함"), _saved(d))[1],
+        lambda d: (setattr(d.tables[0].cell(0, 0), "text", "칸"), _saved(d))[1],
+        lambda d: (d.add_section(), _saved(d))[1],
+        lambda d: (d.media.add_image(_PNG, "png"), _saved(d))[1],
+        lambda d: (setattr(d.tables[0].cell(0, 0), "text", "칸"), _saved(d, mode="patch", fallback="rebuild"))[1],
+        lambda d: (d.parts.set_document_metadata(title="제목"), _saved(d))[1],
+        lambda d: (_saved(d), d.add_paragraph("둘째"), _saved(d))[2],
+    ],
+    ids=["unedited", "to_bytes", "paragraph", "cell", "section", "image", "patch", "metadata", "twice"],
+)
+def test_every_save_path_keeps_the_archive_comment(edit) -> None:
+    written = edit(HwpxDocument.open(_commented_template()))
+    assert zipfile.ZipFile(io.BytesIO(written)).comment == b"template marker"
+
+
+def test_the_byte_splice_keeps_the_archive_comment() -> None:
+    from hwpx.patch import replace_package_text
+
+    result = replace_package_text(_commented_template(), {"본문": "바뀐"})
+    assert zipfile.ZipFile(io.BytesIO(result.data)).comment == b"template marker"
