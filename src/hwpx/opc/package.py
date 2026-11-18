@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import io
+from collections import Counter
 import os
 import re
 import tempfile
@@ -839,6 +840,8 @@ class HwpxPackage:
         # The archive this package was opened from, to copy the local record of every entry a save leaves
         # unchanged (see _assemble_archive). None for a package built from parts (new(), a converted .hwp).
         self._source_archive: _SourceArchive | None = None
+        #: Names the archive it was opened from holds more than once (a save would keep only one payload).
+        self._duplicate_entry_names: tuple[str, ...] = ()
         # What the last archive build did with the source's records (MutationReport.preservation).
         self._zip_records_outcome: ZipRecordsOutcome = ZipRecordsOutcome.no_source()
         # The last archive this package built, kept until a clean save makes it the new source.
@@ -978,6 +981,8 @@ class HwpxPackage:
             with open_archive(source_bytes) as zf:
                 guard_zip_file(zf)
                 infos = [info for info in zf.infolist() if not info.is_dir()]
+                counts = Counter(info.filename for info in infos)
+                duplicates = sorted(name for name, count in counts.items() if count > 1)
                 files = read_zip_members(zf)
                 zip_infos = {info.filename: info for info in infos}
                 zip_order = [info.filename for info in infos]
@@ -1021,6 +1026,7 @@ class HwpxPackage:
                 zip_order=zip_order,
             )
         package._source_archive = _SourceArchive(source_bytes, dict(files), dict(zip_infos))
+        package._duplicate_entry_names = tuple(duplicates)
         return package
 
     @staticmethod
@@ -1790,6 +1796,7 @@ class HwpxPackage:
         if not verify_open_safety:
             _require_unchecked_save_token(_unchecked_token)
             _require_unchecked_save_buffer(pkg_file)
+        self._refuse_duplicate_entry_names()
         self._files[self.MIMETYPE_PATH] = self._mimetype.encode("utf-8")
         version_was_dirty = self._version.dirty
         if self._version.dirty:
@@ -1838,6 +1845,26 @@ class HwpxPackage:
             _write_stream_or_rollback(pkg_file, payload)
         if mark_clean and version_was_dirty:
             self._version.mark_clean()
+
+    def _refuse_duplicate_entry_names(self) -> None:
+        """A package opened from an archive holding one name twice is refused at save, before anything is
+        written: the package keeps one payload per name (the last, as ``zipfile`` reads it), so a save would
+        drop the other one without a word. Opening it stays allowed -- reading, extracting and converting
+        such a file lose nothing -- and Hangul never writes one."""
+
+        if self._duplicate_entry_names:
+            names = list(self._duplicate_entry_names)
+            raise HwpxPackageError(
+                "the archive this document was opened from holds more than one entry named "
+                + ", ".join(names[:5])
+                + "; saving would keep only one of their contents",
+                code="save-duplicate-entry-names",
+                context={"names": names[:20]},
+                suggestion=(
+                    "nothing was written; read what you need from the document, or rebuild the archive with "
+                    "one entry per name (Hangul's own save does) before editing it"
+                ),
+            )
 
     def _assemble_archive(self) -> bytes:
         """The archive this save writes.
