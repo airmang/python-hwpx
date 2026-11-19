@@ -16,7 +16,12 @@ from ..objects.results import (
     ParagraphFormatResult,
     Units,
 )
-from ..oxml._document_primitives import NEW_NUM_KINDS
+from ..oxml._document_primitives import (
+    NEW_NUM_KINDS,
+    _normalize_border_side_names,
+    _normalize_border_type,
+    _normalize_color,
+)
 from ..oxml.namespaces import HH, HP
 from ..oxml.numbering_kinds import ensure_numbering_levels
 from ..oxml.objects import HwpxOxmlInlineObject
@@ -89,15 +94,17 @@ def _paragraph_border_problem(
     return None
 
 
-def _paragraph_border_attrs(
+def _checked_paragraph_border(
     header: Any,
     border: Mapping[str, Any] | None,
     *,
     bottom_border: bool,
     border_color: str,
     border_width: str,
-) -> dict[str, str] | None:
-    """``hh:paraPr/hh:border`` attributes for ``border`` (or ``bottom_border``)."""
+) -> dict[str, Any] | None:
+    """What :func:`_paragraph_border_attrs` writes for ``border`` (or ``bottom_border``), checked and
+    not yet written: every refusal of a paragraph border is raised here, before the header gains a
+    definition, so a refused call leaves the document as it was."""
 
     if border is None and not bottom_border:
         return None
@@ -129,22 +136,38 @@ def _paragraph_border_attrs(
         if spec.get("width_mm") is not None
         else (border_width if border is None else "0.12 mm")
     )
-    border_fill_id = header.ensure_border_fill(
-        border_color=str(spec.get("color", "#000000")),
-        border_width=width,
-        active_borders=sides,
-        border_type=str(spec.get("type", "SOLID")),
-    )
+    color, line_type = str(spec.get("color", "#000000")), str(spec.get("type", "SOLID"))
+    fill: dict[str, Any] = {
+        "border_color": color,
+        "border_width": width,
+        "active_borders": sides,
+        "border_type": line_type,
+    }
+    # What header.ensure_border_fill refuses (line type, colour, side names), with its own checks.
+    _normalize_border_type(header._BORDER_LINE_TYPE_ALIASES.get(line_type.upper(), line_type), header._BORDER_LINE_TYPES)
+    _normalize_color(color)
+    _normalize_border_side_names(sides)
     left, right, top, bottom = (str(_mm_to_hwp_units(float(value))) for value in offsets)
     return {
-        "borderFillIDRef": border_fill_id,
-        "offsetLeft": left,
-        "offsetRight": right,
-        "offsetTop": top,
-        "offsetBottom": bottom,
-        "connect": "1" if spec.get("connect") else "0",
-        "ignoreMargin": "1" if spec.get("ignore_margin") else "0",
+        "fill": fill,
+        "attrs": {
+            "offsetLeft": left,
+            "offsetRight": right,
+            "offsetTop": top,
+            "offsetBottom": bottom,
+            "connect": "1" if spec.get("connect") else "0",
+            "ignoreMargin": "1" if spec.get("ignore_margin") else "0",
+        },
     }
+
+
+def _paragraph_border_attrs(header: Any, checked: dict[str, Any] | None) -> dict[str, str] | None:
+    """``hh:paraPr/hh:border`` attributes for a border :func:`_checked_paragraph_border` passed: the
+    border definition is made (or found) here."""
+
+    if checked is None:
+        return None
+    return {"borderFillIDRef": header.ensure_border_fill(**checked["fill"]), **checked["attrs"]}
 
 
 def _tree_root(element: Any) -> Any:
@@ -432,6 +455,18 @@ def set_paragraph_format(
     if isinstance(border, Mapping) and border.get("width_mm") is not None:
         _border_width_mm_text(border["width_mm"], argument="border['width_mm']")
     targets = _resolve_targets(doc, paragraph=paragraph, paragraphs=paragraphs)
+    # The alignment and the border are refused before the header gains a tab or a border definition:
+    # they used to be checked after the tab definition (and the border's own definition) was written,
+    # so a refused call left one behind.
+    if alignment is not None:
+        header._normalize_paragraph_alignment(alignment)
+    checked_border = _checked_paragraph_border(
+        header,
+        border,
+        bottom_border=bottom_border,
+        border_color=border_color,
+        border_width=border_width,
+    )
 
     tab_pr_id: str | None = None
     if wants_tab_definition:
@@ -455,13 +490,7 @@ def set_paragraph_format(
             auto_tab_right=bool(auto_tab_right),
         )
 
-    border_attrs = _paragraph_border_attrs(
-        header,
-        border,
-        bottom_border=bottom_border,
-        border_color=border_color,
-        border_width=border_width,
-    )
+    border_attrs = _paragraph_border_attrs(header, checked_border)
 
     # column_break bypasses paraPr entirely (it's hp:p's own attribute, not
     # a shared style) -- only mint a new paraPr when one of the *other*
