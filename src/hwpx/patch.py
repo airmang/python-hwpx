@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
+from .opc.package import duplicate_entry_names, refuse_duplicate_entry_names
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .oxml.namespaces import NAMESPACE_URIS
@@ -52,6 +53,9 @@ _LINESEG_ARRAY_RE = re.compile(
     rb"(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
     re.DOTALL | re.IGNORECASE,
 )
+#: Markup between XML character data: comments, CDATA, processing instructions,
+#: declarations and tags. A quoted attribute value may hold ``>``.
+_MARKUP_PATTERN = r"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<![^>]*>|<(?:[^>\"']|\"[^\"]*\"|'[^']*')*>"
 
 
 @dataclass(frozen=True)
@@ -183,6 +187,11 @@ def paragraph_patch(
     The supported surface is intentionally narrow: replace the text of existing
     section paragraphs by zero-based paragraph index. Unsupported edits are
     reported in ``skipped`` and never mutate the source bytes.
+
+    Only the paragraph's own text and its own ``hp:linesegarray`` layout cache
+    change: a table or text box inside it keeps its paragraphs, their text and
+    their caches byte for byte. An archive holding one entry name twice is
+    refused before anything is written (``save-duplicate-entry-names``).
     """
 
     source_bytes = _read_source_bytes(source)
@@ -192,6 +201,7 @@ def paragraph_patch(
         # to clear the same limits as the patching path below.
         with ZipFile(io.BytesIO(source_bytes), "r") as archive:
             guard_zip_file(archive)
+            refuse_duplicate_entry_names(duplicate_entry_names(archive.infolist()))
         open_safety, visual_complete = _finalize(source_bytes, output_path, source=source)
         return BytePreservingPatchResult(
             data=source_bytes,
@@ -206,6 +216,7 @@ def paragraph_patch(
 
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:
         guard_zip_file(archive)
+        refuse_duplicate_entry_names(duplicate_entry_names(archive.infolist()))
         parts = read_zip_members(archive)
 
     changed_parts: dict[str, bytes] = {}
@@ -305,6 +316,11 @@ def _finalize(
     exactly as the prior ``validate_editor_open_safety(...).to_dict()`` did.
     """
 
+    # Every byte patch built on this module (body_patch, table_patch) ends here before it writes: an
+    # archive holding one name twice is refused, as the document save refuses it. The payload holds the
+    # source's names (a patch changes contents, never the entry list), so it answers for the source.
+    with ZipFile(io.BytesIO(payload), "r") as archive:
+        refuse_duplicate_entry_names(duplicate_entry_names(archive.infolist()))
     before = source if isinstance(source, (str, Path)) else None
     report = SavePipeline().run(
         payload,
@@ -356,6 +372,119 @@ def _strip_paragraph_layout_cache(paragraph: bytes) -> bytes:
     return _LINESEG_ARRAY_RE.sub(b"", paragraph)
 
 
+_MARKUP_BYTES_RE = re.compile(_MARKUP_PATTERN.encode("ascii"), re.DOTALL)
+_TAG_NAME_BYTES_RE = re.compile(rb"<(/?)([^\s/>]+)")
+
+
+def _paragraph_extent(section_xml: bytes, start: int) -> tuple[int, list[tuple[int, int]]] | None:
+    """Where the paragraph that opens at *start* ends, and the spans of the paragraphs nested in it
+    (table cells, text boxes) -- ``None`` when it never closes.
+
+    ``_PARAGRAPH_RE`` finds a paragraph's start, but its match stops at the first ``</p>``, which for a
+    paragraph holding a table is a cell's. The element is followed to its own end here.
+    """
+
+    depth = 0
+    nested: list[tuple[int, int]] = []
+    nested_start: int | None = None
+    for markup in _MARKUP_BYTES_RE.finditer(section_xml, start):
+        token = markup.group(0)
+        if token.startswith((b"<!", b"<?")):
+            continue
+        name = _TAG_NAME_BYTES_RE.match(token)
+        if name is None or name.group(2).rpartition(b":")[2] != b"p":
+            continue
+        if name.group(1):
+            depth -= 1
+            if depth == 1 and nested_start is not None:
+                nested.append((nested_start, markup.end()))
+                nested_start = None
+            if depth == 0:
+                return markup.end(), nested
+        elif token.endswith(b"/>"):
+            if depth == 0:
+                return markup.end(), nested
+            if depth == 1:
+                nested.append((markup.start(), markup.end()))
+        else:
+            depth += 1
+            if depth == 2:
+                nested_start = markup.start()
+    return None
+
+
+def _own_paragraph_edits(
+    paragraph: bytes, nested: Sequence[tuple[int, int]], replacement_text: str
+) -> tuple[list[tuple[int, int, bytes]], str] | None:
+    """The splices that make *replacement_text* a paragraph's own text and drop its own layout cache.
+
+    *nested* are the spans (relative to *paragraph*) of the paragraphs inside it; their text, runs and
+    caches are not the paragraph's and are left as they are. ``None`` when the paragraph has no run of
+    its own to hold text. The second value is the paragraph's own text before the edit.
+    """
+
+    def own(match: re.Match[bytes]) -> bool:
+        return not any(start <= match.start() < end for start, end in nested)
+
+    edits: list[tuple[int, int, bytes]] = []
+    text_matches = [match for match in _TEXT_RE.finditer(paragraph) if own(match)]
+    if text_matches:
+        original_text = "".join(
+            html.unescape(match.group("text").decode("utf-8", "replace"))
+            for match in text_matches
+        )
+        first = text_matches[0]
+        edits.append(
+            (first.start("text"), first.end("text"), _escaped_text(replacement_text, first.group("prefix")))
+        )
+        edits.extend((match.start("text"), match.end("text"), b"") for match in text_matches[1:])
+    else:
+        original_text = ""
+        self_closing_text = next((m for m in _SELF_CLOSING_TEXT_RE.finditer(paragraph) if own(m)), None)
+        self_closing_run = next((m for m in _SELF_CLOSING_RUN_RE.finditer(paragraph) if own(m)), None)
+        run_open = next((m for m in _RUN_OPEN_RE.finditer(paragraph) if own(m)), None)
+        if self_closing_text is not None:
+            prefix = self_closing_text.group("prefix")
+            tag = prefix + b"t"
+            edits.append(
+                (
+                    self_closing_text.start(),
+                    self_closing_text.end(),
+                    b"<" + tag + self_closing_text.group("attrs").rstrip() + b">"
+                    + _escaped_text(replacement_text, prefix) + b"</" + tag + b">",
+                )
+            )
+        elif self_closing_run is not None:
+            prefix = self_closing_run.group("prefix")
+            run_tag, text_tag = prefix + b"run", prefix + b"t"
+            edits.append(
+                (
+                    self_closing_run.start(),
+                    self_closing_run.end(),
+                    b"<" + run_tag + self_closing_run.group("attrs").rstrip() + b"><" + text_tag + b">"
+                    + _escaped_text(replacement_text, prefix) + b"</" + text_tag + b"></" + run_tag + b">",
+                )
+            )
+        elif run_open is not None:
+            prefix = run_open.group("prefix")
+            text_tag = prefix + b"t"
+            edits.append(
+                (
+                    run_open.end(),
+                    run_open.end(),
+                    b"<" + text_tag + b">" + _escaped_text(replacement_text, prefix) + b"</" + text_tag + b">",
+                )
+            )
+        else:
+            return None
+    # The paragraph's own cache describes its old text (글자 겹침 if kept); a nested paragraph's
+    # cache describes text this edit does not touch.
+    edits.extend(
+        (match.start(), match.end(), b"") for match in _LINESEG_ARRAY_RE.finditer(paragraph) if own(match)
+    )
+    return edits, original_text
+
+
 def _patch_section_xml(
     section_path: str,
     section_xml: bytes,
@@ -371,22 +500,26 @@ def _patch_section_xml(
         if span is None:
             skipped.append(PatchSkipped(section_path, patch.paragraph_index, "paragraph index not found"))
             continue
-        edit = _text_edit_for_paragraph(span.payload, patch.text)
-        if edit is None:
+        extent = _paragraph_extent(section_xml, span.start)
+        if extent is None:
+            skipped.append(PatchSkipped(section_path, patch.paragraph_index, "paragraph does not close"))
+            continue
+        end, nested = extent
+        paragraph = section_xml[span.start:end]
+        own = _own_paragraph_edits(
+            paragraph, [(start - span.start, stop - span.start) for start, stop in nested], patch.text
+        )
+        if own is None:
             skipped.append(
                 PatchSkipped(section_path, patch.paragraph_index, "paragraph has no patchable hp:run")
             )
             continue
-        start, end, replacement, original_text = edit
+        paragraph_edits, original_text = own
         if original_text == patch.text:
             continue
-        # Apply the text splice within the paragraph, then strip its now-stale
-        # layout cache and replace the whole paragraph span. This guarantees the
-        # patched paragraph carries no <hp:linesegarray>, so Hangul recomputes the
-        # line layout for the new text instead of reusing the old geometry.
-        patched_paragraph = _apply_edits(span.payload, [(start, end, replacement)])
-        patched_paragraph = _strip_paragraph_layout_cache(patched_paragraph)
-        edits.append((span.start, span.end, patched_paragraph))
+        # Only the paragraph's own text and its own <hp:linesegarray> change, so Hangul recomputes the
+        # line layout for the new text; paragraphs nested in it (table cells) keep their bytes.
+        edits.extend((span.start + start, span.start + stop, data) for start, stop, data in paragraph_edits)
         applied.append(
             PatchApplied(
                 section_path=section_path,
@@ -489,16 +622,35 @@ def _apply_edits(payload: bytes, edits: Sequence[tuple[int, int, bytes]]) -> byt
 
 
 def _rewrite_zip_entries(source: bytes, replacements: Mapping[str, bytes]) -> bytes:
+    """Write every entry of *source* again with ``zipfile``, *replacements* in place of their contents.
+
+    The way out for an archive whose records cannot be moved one by one (ZIP64, bytes before the first
+    record, ...). What the file says is kept all the same: each entry's ZipInfo (compression ``mimetype``
+    included), the central directory's order, the order the records lie in, and the archive comment. An
+    archive holding one name twice is refused (``save-duplicate-entry-names``): a replacement by name
+    would land on every entry of that name."""
+
+    from .opc.zip_records import ZipRecordsUnsupported, lay_out_records
+
     buffer = io.BytesIO()
     with ZipFile(io.BytesIO(source), "r") as src:
         # Also reached directly by the public rewrite_package_parts(), so the
         # entry-count, total-size and ratio limits have to be applied here too.
         guard_zip_file(src)
+        infos = src.infolist()
+        refuse_duplicate_entry_names(duplicate_entry_names(infos))
+        # Read before writing: writestr() changes the ZipInfo it is given.
+        physical = [info.filename for info in sorted(infos, key=lambda info: info.header_offset)]
         with ZipFile(buffer, "w") as dst:
-            for info in src.infolist():
+            for info in infos:
                 payload = replacements.get(info.filename, read_member(src, info))
                 dst.writestr(info, payload)
-    return buffer.getvalue()
+            dst.comment = src.comment
+    written = buffer.getvalue()
+    try:
+        return lay_out_records(written, physical)
+    except ZipRecordsUnsupported:
+        return written
 
 
 def paragraph_chunks(section: bytes) -> list[bytes]:
@@ -515,18 +667,15 @@ def rewrite_package_parts(
 
     This is the explicit whole-package fallback for callers that already own
     complete replacement member bytes. Prefer higher-level patch APIs when a
-    byte-splice contract is available.
+    byte-splice contract is available. Every entry is compressed again; the
+    entries' ZipInfo, both entry orders and the archive comment stay. An archive
+    holding one name twice is refused (``save-duplicate-entry-names``).
     """
 
     return _rewrite_zip_entries(source, replacements)
 
 
-#: Markup between XML character data: comments, CDATA, processing instructions,
-#: declarations and tags. A quoted attribute value may hold ``>``.
-_MARKUP_RE = re.compile(
-    r"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<![^>]*>|<(?:[^>\"']|\"[^\"]*\"|'[^']*')*>",
-    re.DOTALL,
-)
+_MARKUP_RE = re.compile(_MARKUP_PATTERN, re.DOTALL)
 _XML_REFERENCE_RE = re.compile(r"&(#x[0-9A-Fa-f]+|#[0-9]+|lt|gt|amp|quot|apos);")
 _XML_ENTITIES = {"lt": "<", "gt": ">", "amp": "&", "quot": '"', "apos": "'"}
 _TAG_NAME_RE = re.compile(r"<(/?)([^\s/>]+)")
@@ -617,10 +766,16 @@ def _escape_xml_text(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _replace_in_text_nodes(xml: str, replacements: Mapping[str, str]) -> tuple[str, int]:
-    """Replace inside character data only; tags, attributes, comments and CDATA stay as they are."""
+def _replace_in_text_nodes(xml: str, replacements: Mapping[str, str]) -> tuple[str, int, list[int]]:
+    """Replace inside character data only; tags, attributes, comments and CDATA stay as they are.
+
+    Returns the new text, the number of replacements, and where in the new text each changed run of
+    character data starts (so the caller can tell which paragraph's text changed).
+    """
 
     pieces: list[str] = []
+    changed_at: list[int] = []
+    written = 0
     count = 0
     cursor = 0
     for markup in (*_MARKUP_RE.finditer(xml), None):
@@ -634,12 +789,17 @@ def _replace_in_text_nodes(xml: str, replacements: Mapping[str, str]) -> tuple[s
                 if hits:
                     replaced = replaced.replace(old, new)
                     count += hits
-            pieces.append(segment if replaced == text else _escape_xml_text(replaced))
+            piece = segment if replaced == text else _escape_xml_text(replaced)
+            if piece != segment:
+                changed_at.append(written)
+            pieces.append(piece)
+            written += len(piece)
         if markup is None:
             break
         pieces.append(markup.group(0))
+        written += len(markup.group(0))
         cursor = markup.end()
-    return "".join(pieces), count
+    return "".join(pieces), count, changed_at
 
 
 def _namespace_declarations(tag: str, start: int) -> dict[str, str]:
@@ -655,48 +815,72 @@ def _namespace_declarations(tag: str, start: int) -> dict[str, str]:
     return declared
 
 
-def _strip_layout_caches(xml: str) -> tuple[str, int]:
-    """Cut every paragraph-namespace ``linesegarray`` element out of *xml*.
+def _strip_layout_caches(xml: str, changed_at: Sequence[int]) -> tuple[str, int]:
+    """Cut the ``linesegarray`` layout cache of each paragraph whose own text changed.
 
-    Walks the same markup tokens as :func:`_replace_in_text_nodes`, so text
-    that only looks like the element — inside CDATA, a comment, a processing
-    instruction or an attribute value — is never matched. Prefixes resolve
-    through the ``xmlns`` declarations in scope. Bytes outside the removed
-    elements stay as they are; an element that never closes is left alone.
+    *changed_at* are the offsets in *xml* where changed character data starts. Text belongs to the
+    innermost paragraph (``p`` in the paragraph namespace) around it, so a paragraph whose words changed
+    loses its cache and a table-cell paragraph inside it, whose words did not, keeps its own -- and the
+    other way round. Walks the same markup tokens as :func:`_replace_in_text_nodes`, so text that only
+    looks like the element -- inside CDATA, a comment, a processing instruction or an attribute value --
+    is never matched. Prefixes resolve through the ``xmlns`` declarations in scope. Bytes outside the
+    removed elements stay as they are; an element that never closes is left alone.
     """
 
-    spans: list[tuple[int, int]] = []
-    # One entry per open element: the namespace declarations it adds.
-    scopes: list[dict[str, str]] = []
+    # (cache start, cache end, start of the paragraph that holds it)
+    caches: list[tuple[int, int, int | None]] = []
+    changed_paragraphs: set[int] = set()
+    pending = sorted(changed_at)
+    next_change = 0
+    # One entry per open element: the namespace declarations it adds, and its start when it is a paragraph.
+    scopes: list[tuple[dict[str, str], int | None]] = []
+    paragraphs: list[int] = []  # starts of the open paragraphs, innermost last
     cut_start: int | None = None
     cut_depth = 0
+    cut_owner: int | None = None
+
+    def resolve(prefix: str, declared: dict[str, str]) -> str | None:
+        uri = declared.get(prefix)
+        if uri is None:
+            uri = next((scope[prefix] for scope, _ in reversed(scopes) if prefix in scope), None)
+        return uri
+
     for markup in _MARKUP_RE.finditer(xml):
+        # Changed text before this token belongs to the innermost open paragraph.
+        while next_change < len(pending) and pending[next_change] < markup.start():
+            if paragraphs:
+                changed_paragraphs.add(paragraphs[-1])
+            next_change += 1
         token = markup.group(0)
         name = _TAG_NAME_RE.match(token)
         if name is None or token.startswith(("<!", "<?")):
             continue
         if name.group(1):
             if scopes:
-                scopes.pop()
+                _, paragraph_start = scopes.pop()
+                if paragraph_start is not None and paragraphs:
+                    paragraphs.pop()
             if cut_start is not None and len(scopes) == cut_depth:
-                spans.append((cut_start, markup.end()))
+                caches.append((cut_start, markup.end(), cut_owner))
                 cut_start = None
             continue
         declared = _namespace_declarations(token, name.end())
         self_closing = token.endswith("/>")
-        if cut_start is None:
-            prefix, _, local = name.group(2).rpartition(":")
-            uri = declared.get(prefix)
-            if uri is None:
-                uri = next((scope[prefix] for scope in reversed(scopes) if prefix in scope), None)
-            if local.lower() == "linesegarray" and uri in _PARAGRAPH_NAMESPACES:
-                if self_closing:
-                    spans.append((markup.start(), markup.end()))
-                    continue
-                cut_start, cut_depth = markup.start(), len(scopes)
+        prefix, _, local = name.group(2).rpartition(":")
+        in_paragraph_namespace = resolve(prefix, declared) in _PARAGRAPH_NAMESPACES
+        if cut_start is None and local.lower() == "linesegarray" and in_paragraph_namespace:
+            owner = paragraphs[-1] if paragraphs else None
+            if self_closing:
+                caches.append((markup.start(), markup.end(), owner))
+                continue
+            cut_start, cut_depth, cut_owner = markup.start(), len(scopes), owner
         if not self_closing:
-            scopes.append(declared)
+            is_paragraph = local == "p" and in_paragraph_namespace
+            scopes.append((declared, markup.start() if is_paragraph else None))
+            if is_paragraph:
+                paragraphs.append(markup.start())
 
+    spans = [(start, end) for start, end, owner in caches if owner is not None and owner in changed_paragraphs]
     if not spans:
         return xml, 0
     pieces: list[str] = []
@@ -759,10 +943,16 @@ def replace_package_text(
     across elements (two runs, say) is not found. *replacements* apply in
     order, each to the text the previous one left.
 
-    A part that changes loses every ``hp:linesegarray`` layout cache it holds
-    (elements in the paragraph namespace; look-alike text in CDATA, comments,
-    processing instructions or attribute values stays), so Hangul lays out the
-    new text again instead of drawing it into stale line slots. Other parts and ZIP entries keep their bytes. The output goes
+    Each paragraph whose own text changed loses its ``hp:linesegarray`` layout
+    cache, so Hangul lays out the new text again instead of drawing it into
+    stale line slots. Text belongs to the innermost paragraph around it: a
+    table-cell paragraph inside a changed paragraph keeps its cache when its
+    own text did not change, and the other way round. Look-alike text in
+    CDATA, comments, processing instructions or attribute values is never
+    taken for the element. Everything else -- other paragraphs, other parts,
+    ZIP entries -- keeps its bytes. An archive holding one entry name twice
+    is refused before anything is written (``save-duplicate-entry-names``):
+    a replacement by name would land on every entry of that name. The output goes
     through the open-safety gate; *output_path* is written atomically only
     when the gate passes (``ok``), and otherwise left as it was.
     """
@@ -779,6 +969,7 @@ def replace_package_text(
     suffixes = tuple(suffix.lower() for suffix in part_suffixes)
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:
         guard_zip_file(archive)
+        refuse_duplicate_entry_names(duplicate_entry_names(archive.infolist()))
         entries = tuple(info.filename for info in archive.infolist())
         names = [
             info.filename
@@ -797,10 +988,10 @@ def replace_package_text(
         except UnicodeDecodeError:
             undecodable.append(name)
             continue
-        replaced, count = _replace_in_text_nodes(xml, replacements)
+        replaced, count, changed_at = _replace_in_text_nodes(xml, replacements)
         if not count or replaced == xml:
             continue
-        replaced, removed = _strip_layout_caches(replaced)
+        replaced, removed = _strip_layout_caches(replaced, changed_at)
         changed[name] = replaced.encode("utf-8")
         total += count
         caches_removed += removed

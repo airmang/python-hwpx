@@ -95,7 +95,7 @@ def test_attributes_comments_and_cdata_are_not_searched() -> None:
     assert result.replacements == 0 and result.byte_identical
 
 
-def test_a_changed_part_loses_its_layout_caches_and_others_keep_theirs() -> None:
+def test_a_changed_paragraph_loses_its_layout_cache_and_others_keep_theirs() -> None:
     source = _document_bytes("{A}")
     section = _members(source)[_SECTION].decode("utf-8")
     cached = section.replace(
@@ -111,8 +111,11 @@ def test_a_changed_part_loses_its_layout_caches_and_others_keep_theirs() -> None
     assert unchanged.layout_caches_removed == 0 and unchanged.byte_identical
 
     result = replace_package_text(source, {"{A}": "새 글"})
-    assert result.layout_caches_removed >= 1
-    assert "linesegarray" not in _members(result.data)[_SECTION].decode("utf-8").lower()
+    assert result.layout_caches_removed == 1
+    after = _members(result.data)[_SECTION].decode("utf-8")
+    # The paragraph whose text changed has no cache; the untouched first paragraph keeps its own.
+    assert "<hp:t>새 글</hp:t></hp:run></hp:p>" in after
+    assert after.count("<hp:linesegarray>") == cached.count("<hp:linesegarray>") - 1
 
 
 def test_layout_cache_lookalike_text_in_cdata_survives() -> None:
@@ -153,11 +156,11 @@ def test_only_real_paragraph_namespace_caches_are_cut() -> None:
     marked = section.replace(
         "<hp:t>{A}</hp:t></hp:run></hp:p>",
         "<hp:t>{A}<![CDATA[<hp:linesegarray/>cdata]]></hp:t></hp:run>"
-        f"{lookalikes}{real_container}</hp:p>",
+        f"{lookalikes}{real_container}{real_self_closing}{real_rebound}</hp:p>",
         1,
     ).replace(
         "<hp:t>그대로</hp:t></hp:run></hp:p>",
-        f"<hp:t>그대로</hp:t></hp:run>{real_self_closing}{real_rebound}</hp:p>",
+        f"<hp:t>그대로</hp:t></hp:run>{real_self_closing}</hp:p>",
         1,
     )
     source = _with_member(source, _SECTION, marked.encode("utf-8"))
@@ -165,14 +168,13 @@ def test_only_real_paragraph_namespace_caches_are_cut() -> None:
     result = replace_package_text(source, {"{A}": "새 글"})
 
     assert result.ok, result.open_safety
-    assert result.layout_caches_removed == 4
-    expected = (
-        marked.replace("{A}", "새 글", 1)
-        .replace(generated_cache, "", 1)
-        .replace(f"{lookalikes}{real_container}", lookalikes, 1)
-        .replace(f"</hp:run>{real_self_closing}{real_rebound}", "</hp:run>", 1)
+    assert result.layout_caches_removed == 3
+    expected = marked.replace("{A}", "새 글", 1).replace(
+        f"{lookalikes}{real_container}{real_self_closing}{real_rebound}", lookalikes, 1
     )
-    # Everything but the four real caches keeps its bytes: CDATA, comment, PI, foreign element.
+    assert generated_cache in expected and f"그대로</hp:t></hp:run>{real_self_closing}" in expected
+    # Everything but the changed paragraph's three real caches keeps its bytes: CDATA, comment, PI,
+    # foreign element, and the caches of the paragraphs whose text did not change.
     assert _members(result.data)[_SECTION].decode("utf-8") == expected
 
 
@@ -191,21 +193,16 @@ def test_an_xmlns_inside_another_attribute_value_declares_nothing() -> None:
         '<hp:lineseg textpos="0"/></hp:linesegarray>'
     )
     marked = section.replace(
-        "<hp:t>{A}</hp:t></hp:run></hp:p>", f"<hp:t>{{A}}</hp:t></hp:run>{foreign}</hp:p>", 1
-    ).replace(
-        "<hp:t>그대로</hp:t></hp:run></hp:p>", f"<hp:t>그대로</hp:t></hp:run>{real}</hp:p>", 1
+        "<hp:t>{A}</hp:t></hp:run></hp:p>", f"<hp:t>{{A}}</hp:t></hp:run>{foreign}{real}</hp:p>", 1
     )
     source = _with_member(source, _SECTION, marked.encode("utf-8"))
 
     result = replace_package_text(source, {"{A}": "새 글"})
 
     assert result.ok, result.open_safety
-    assert result.layout_caches_removed == 2
-    expected = (
-        marked.replace("{A}", "새 글", 1)
-        .replace(generated_cache, "", 1)
-        .replace(real, "", 1)
-    )
+    assert result.layout_caches_removed == 1
+    expected = marked.replace("{A}", "새 글", 1).replace(real, "", 1)
+    assert generated_cache in expected
     assert _members(result.data)[_SECTION].decode("utf-8") == expected
     assert foreign in expected
 
