@@ -550,7 +550,9 @@ class Bookmark:
         held = _live_section(self.element, self._section)
         # The name the bookmark has now: another object of the same bookmark may have renamed it since
         # this one was taken, and the links point at that name.
-        old_name = (self.element.get("name") or self.name).strip()  # as the bookmark is read
+        old_name = self.element.get("name") or self.name
+        if self.kind == "field":
+            old_name = old_name.strip()  # as a field bookmark's name is read; a point's is read as written
         self.element.set("name", new_name)
         if held is None or not _in_document(self.element, held):
             # Removed from the document: the name is its own, and no hyperlink of the document points

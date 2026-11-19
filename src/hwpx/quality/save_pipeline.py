@@ -115,14 +115,15 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
     try:
         stream.seek(position)
         if tail:
-            rest = tail
-            while rest:  # a stream that takes a part of what it is given is given the rest
-                taken = stream.write(rest)
-                if taken is None or taken >= len(rest):
-                    break
+            offset = 0
+            while offset < len(tail):  # a stream that takes a part of what it is given is given the rest
+                chunk = tail if offset == 0 else tail[offset:offset + 65536]
+                taken = stream.write(chunk)
+                if taken is None:
+                    taken = len(chunk)
                 if taken <= 0:
                     return
-                rest = rest[taken:]
+                offset += taken
             stream.truncate(position + len(tail))
         else:
             stream.truncate(position)

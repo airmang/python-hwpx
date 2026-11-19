@@ -113,3 +113,21 @@ def test_the_rollback_gives_the_stream_bytes_as_the_save_does() -> None:
         with pytest.raises((OSError, HwpxPackageError), match="short write"):  # the package's own error
             write(stream, b"XXXXX")
         assert stream.getvalue() == b"abcdef"
+
+
+def test_the_rollback_restores_a_stream_that_takes_one_byte_at_a_time() -> None:
+    from hwpx.quality.save_pipeline import write_stream_or_rollback
+
+    class OneByte(io.BytesIO):
+        calls = 0
+
+        def write(self, data) -> int:  # type: ignore[no-untyped-def, override]
+            self.calls += 1
+            return super().write(bytes(data)[: 3 if self.calls == 1 else 1])
+
+    held = b"prefix-" + bytes(range(256)) * 4
+    stream = OneByte(held)
+    stream.seek(7)
+    with pytest.raises(OSError, match="short write"):
+        write_stream_or_rollback(stream, b"X" * 50)
+    assert (stream.getvalue(), stream.tell()) == (held, 7)

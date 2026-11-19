@@ -830,7 +830,8 @@ class HwpxOxmlHeader:
         선례). Order is part of the dedupe key — see :func:`_normalize_tab_stops`.
         """
 
-        tab_stops = None if tab_stops is None else list(tab_stops)  # an iterator is read once
+        if tab_stops is not None:  # read once, each stop as it is given (an iterator; one mapping reused)
+            tab_stops = [dict(stop) if isinstance(stop, Mapping) else stop for stop in tab_stops]
         _normalize_tab_stops(tab_stops)  # refused before a header without the list gains an empty one
         element = self._tab_properties_element(create=True)
         if element is None:  # pragma: no cover - defensive branch

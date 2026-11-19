@@ -219,3 +219,23 @@ def test_the_notes_own_mark_is_numbered_past_another_number_in_its_text() -> Non
 
     assert (second.number, own.get("num")) == (2, "2")
     assert "num" not in other[0].attrib
+
+
+def test_removing_something_without_notes_does_not_look_through_the_document(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Whether the piece is in the document is asked only for a piece holding a note or a restart: on a
+    tree that cannot be walked upwards that question reads every section."""
+
+    from hwpx.oxml import _paragraph_text_edit, note_authoring
+
+    document = HwpxDocument.new()
+    plain = document.add_paragraph("plain")
+    noted = document.add_paragraph("noted")
+    noted.add_footnote("x")
+
+    def refuse(*_args: Any) -> bool:
+        raise AssertionError("the document was looked through for a piece without notes")
+
+    monkeypatch.setattr(_paragraph_text_edit, "in_document", refuse)
+    assert note_authoring.note_kinds_in_document(plain.section, plain.element) == set()
+    with pytest.raises(AssertionError):
+        note_authoring.note_kinds_in_document(noted.section, noted.element)

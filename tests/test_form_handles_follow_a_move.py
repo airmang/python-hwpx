@@ -226,3 +226,20 @@ def test_a_field_bookmark_written_with_spaces_around_its_name_renames_with_its_l
 
     saved = _saved(document)
     assert (saved.refs.bookmarks[0].name, saved.refs.hyperlinks[0].url) == ("new", "#new")
+
+
+def test_a_point_bookmark_is_renamed_by_its_name_as_written() -> None:
+    """A point bookmark's name is read as written, spaces included: ``" old "`` and ``"old"`` are two
+    bookmarks, and renaming the first moves the links to it and not the links to the other."""
+
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("p")
+    paragraph.add_bookmark(" old ")
+    paragraph.add_bookmark("old")
+    paragraph.add_hyperlink("# old ", "first")
+    paragraph.add_hyperlink("#old", "second")
+    spaced = next(bookmark for bookmark in paragraph.bookmarks if bookmark.name == " old ")
+
+    spaced.rename("new")
+
+    assert [link.url for link in _saved(document).refs.hyperlinks] == ["#new", "#old"]

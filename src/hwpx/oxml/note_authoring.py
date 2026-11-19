@@ -379,7 +379,8 @@ def note_kinds_in_document(section: "HwpxOxmlSection", element: ET.Element) -> s
 
     from ._paragraph_text_edit import in_document
 
-    return note_kinds_in((element,)) if in_document(element, section) else set()
+    kinds = note_kinds_in((element,))  # first: most removals hold no note, and need no look at the document
+    return kinds if kinds and in_document(element, section) else set()
 
 
 def renumber_note_kinds(section: "HwpxOxmlSection", kinds: "set[str]") -> None:

@@ -127,3 +127,19 @@ def test_tab_stops_given_as_an_iterator_are_all_written() -> None:
     definition = header.element.find(f".//{{*}}tabPr[@id='{from_iterator}']")
     assert len(definition.findall(".//{*}tabItem")) > 0
     assert header.ensure_tab_definition(tab_stops=None, auto_tab_right=True)  # auto tabs only, as before
+
+
+def test_tab_stops_are_read_as_each_is_given() -> None:
+    """An iterable that hands out one mapping, changed between stops, gives two stops."""
+
+    class Reused:
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            stop = {"pos": 100}
+            yield stop
+            stop["pos"] = 300
+            yield stop
+
+    header = HwpxDocument.new().oxml.headers[0]
+    key = header.ensure_tab_definition(tab_stops=Reused())
+    positions = {item.get("pos") for item in header.element.find(f".//{{*}}tabPr[@id='{key}']").iter("{*}tabItem")}
+    assert {"100", "300"} <= positions
