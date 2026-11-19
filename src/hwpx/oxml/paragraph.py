@@ -47,6 +47,7 @@ from .field_marks import (
     _paragraph_add_proofreading_mark,
 )
 from .note_authoring import (
+    renumber_notes_holding,
     _paragraph_add_endnote,
     _paragraph_add_footnote,
     _paragraph_endnotes,
@@ -55,8 +56,9 @@ from .note_authoring import (
 from ._paragraph_text_edit import (
     ParagraphFormats,
     checked_tab_widths,
+    LiveSection,
     insert_paragraph_beside,
-    live_holder,
+    refuse_taken_out,
     paragraph_container,
     paragraph_line_segments,
     paragraph_line_texts,
@@ -130,24 +132,6 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
     return (text_width - (count - 1) * gap) // count
 
 
-class _LiveSection:
-    """``paragraph.section``: the section holding the paragraph now (see :func:`live_holder`), not the one
-    it was taken from. A table, text box or note moved to another section takes its paragraphs along; an
-    edit through a paragraph object taken before the move then marks the section that is saved."""
-
-    def __get__(self, obj: Any, owner: Any = None) -> "HwpxOxmlSection":
-        if obj is None:
-            raise AttributeError("section")  # a field without a default
-        held = obj.__dict__["_held_section"]
-        current = live_holder(obj.element, held)
-        if current is not held:
-            obj.__dict__["_held_section"] = current
-        return cast("HwpxOxmlSection", current)
-
-    def __set__(self, obj: Any, value: "HwpxOxmlSection") -> None:
-        obj.__dict__["_held_section"] = value
-
-
 @dataclass(eq=False)
 class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element.
@@ -163,10 +147,10 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     document counts (highlights, bookmarks, fields, links, check boxes, pictures, charts, shapes, equations,
     tables), one that adds a paragraph beside it (``insert_before``/``insert_after``) and one that moves or
     copies text into or out of it. The same rule holds for its runs, and for a table, cell, note, text box
-    or object taken out (see :mod:`hwpx.oxml._detached_guard`)."""
+    or object taken out (see ``install_detached_guard`` in ``_paragraph_text_edit``)."""
 
     element: ET.Element
-    section: HwpxOxmlSection = _LiveSection()  # type: ignore[assignment]
+    section: HwpxOxmlSection = LiveSection()  # type: ignore[assignment]  # the section holding it now
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of paragraph contents."""
@@ -567,8 +551,6 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             renew_copied_memos(element, list(document.sections) if document is not None else [self.section],
                                self.section)
             unique_object_ids(self.section, (element,))
-            from .note_authoring import renumber_notes_holding
-
             renumber_notes_holding(self.section, (element,))
         self.section.mark_dirty()
         return element
@@ -621,9 +603,6 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         own = resolve_paragraph_in(self, self, caller=caller)
         anchor = resolve_paragraph_in(own, paragraph, caller=caller)
         self.section = move_paragraph_beside(own, anchor, after=after)
-        from .note_authoring import renumber_notes_holding
-
-        renumber_notes_holding(self.section, (own.element,))  # its notes now stand elsewhere in the order
 
     def _create_run_for_object(
         self,
@@ -899,8 +878,6 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         ``add_rectangle``, and ``add_ellipse`` methods, which build the full
         child structure.
         """
-        from ._detached_guard import refuse_taken_out
-
         refuse_taken_out(self, "add_shape")  # here, not wrapped: its warning names the caller's line
         if not shape_type:
             from ..errors import HwpxValueError
@@ -1037,8 +1014,6 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         ``add_column_definition``, ``add_bookmark``, and ``add_hyperlink``
         methods, which write the full child structure.
         """
-        from ._detached_guard import refuse_taken_out
-
         refuse_taken_out(self, "add_control")  # here, not wrapped: its warning names the caller's line
         attrs = dict(attributes or {})
         if control_type is not None:
@@ -1681,8 +1656,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         from .field_marks import check_click_here_text, form_field_for
         from .text_ranges import check_field_range, wrap_in_field
 
-        check_click_here_text(prompt, "prompt")
-        check_click_here_text(memo, "memo")
+        check_click_here_text(prompt=prompt, memo=memo)
         span = check_field_range(self, start, end)
         field_id = _object_id(self.section._ids)
         field_instance_id = field_type_id("CLICK_HERE", ids=self.section._ids)

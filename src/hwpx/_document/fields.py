@@ -1763,9 +1763,9 @@ def update_form_field(
     from ..oxml.field_marks import check_click_here_text
 
     if prompt is not _UNSET:
-        check_click_here_text(str(prompt), "prompt")
+        check_click_here_text(prompt=str(prompt))
     if memo is not _UNSET:
-        check_click_here_text(str(memo), "memo")
+        check_click_here_text(memo=str(memo))
     match = _match_for_begin(doc, field_begin)
     paragraph = match["_paragraph"]
     if name is not _UNSET:

@@ -559,14 +559,16 @@ def bookmark_for(paragraph: "HwpxOxmlParagraph", mark: Any) -> "Bookmark":
     return _bookmarks_in(paragraph, mark)[0]
 
 
-def check_click_here_text(value: object, argument: str) -> None:
+def check_click_here_text(**texts: object) -> None:
     """Refuse (``field-text-control-unsupported``) a click-here field's 안내문 (*argument* ``prompt``, its
     ``Direction``) or memo (``memo``, its ``HelpState``) holding a tab or a line break. None of the 35
     ``Direction`` parameters of the click-here fields in tests/fixtures/hancom_saved holds one (and no file
     there has a ``HelpState``), so how Hancom keeps one is not known; making a field and changing its prompt
     afterwards used to differ (the first dropped a tab, the second kept it)."""
 
-    if isinstance(value, str) and any(mark in value for mark in ("\t", "\n", "\r")):
+    for argument, value in texts.items():
+        if not isinstance(value, str) or not any(mark in value for mark in ("\t", "\n", "\r")):
+            continue
         from ..errors import HwpxValueError
 
         raise HwpxValueError(
