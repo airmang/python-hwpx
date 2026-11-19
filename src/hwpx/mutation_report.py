@@ -173,12 +173,17 @@ class PreservationSummary:
     the source's byte for byte, and ``whole_package_identical`` is whether the written file is the source file.
     ``zip_records_rewritten`` is set when the save could not keep the source's records at all and compressed
     every entry again; it says why (``"zip64"``, ``"duplicate-entry-names"``, ...). ``to_dict()`` adds a
-    ``zipRecordsRewritten`` key only then."""
+    ``zipRecordsRewritten`` key only then.
+
+    ``output_read_back`` is ``False`` when the save wrote to a stream that refused to be read back: what
+    the stream holds was not checked, so ``whole_package_identical`` is ``False`` too (it is never claimed
+    unchecked). ``to_dict()`` adds ``"outputReadBack": false`` only then."""
 
     untouched_part_payloads: PreservationCounts
     untouched_local_zip_records: PreservationCounts
     whole_package_identical: bool
     zip_records_rewritten: str | None = None
+    output_read_back: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -188,6 +193,8 @@ class PreservationSummary:
         }
         if self.zip_records_rewritten is not None:
             data["zipRecordsRewritten"] = self.zip_records_rewritten
+        if not self.output_read_back:
+            data["outputReadBack"] = False
         return data
 
 

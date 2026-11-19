@@ -238,7 +238,7 @@
 
 - `replace_package_text(source, replacements, *, output_path=None, part_suffixes=(".xml", ".hpf")) -> PackageTextReplaceResult`
   - 이름이 *part_suffixes*로 끝나는 part(대소문자 무시)의 **문자 데이터(텍스트 노드)만** 바꿉니다. 본문·표 칸·머리말·꼬리말과 `content.hpf` 메타데이터의 자리표시자를 한 번에 채울 때 씁니다. 요소·속성 이름, 속성 값, 주석, CDATA는 찾지 않습니다. 키와 값은 일반 텍스트이고 `&`·`<`는 알아서 이스케이프합니다. 두 런에 걸쳐 나뉜 키는 찾지 못합니다. 치환은 순서대로 앞 치환이 남긴 텍스트에 적용합니다.
-  - 바뀐 part는 그 안의 `linesegarray` 줄 캐시를 모두 잃습니다(한/글이 새 글을 다시 배치하게). 다른 part와 ZIP 엔트리는 바이트를 유지합니다. UTF-8이 아닌 part는 건드리지 않고 `undecodable_parts`에 적습니다. 결과는 open-safety 게이트를 거치고, `output_path`는 게이트를 통과할 때만(`ok`) 원자적으로 씁니다. 두 결과 모두 패키지의 ZIP 엔트리 이름 전체를 순서대로 `entries`에 담습니다.
+  - 글이 바뀐 문단은 자기 `linesegarray` 줄 캐시를 잃습니다(한/글이 새 글을 다시 배치하게). 글은 그것을 둘러싼 가장 안쪽 문단의 것이라, 바깥 문단만 바뀌면 그 안 표 칸 문단의 캐시는 그대로이고 그 반대도 같습니다. 다른 문단·part·ZIP 엔트리는 바이트를 유지합니다(ZIP64 등 엔트리를 다시 압축해야 하는 파일도 엔트리 차례·`mimetype`의 자리와 압축·아카이브 주석은 그대로). 이름이 같은 엔트리가 둘 이상인 파일은 아무것도 쓰기 전에 `save-duplicate-entry-names`로 거부합니다. UTF-8이 아닌 part는 건드리지 않고 `undecodable_parts`에 적습니다. 결과는 open-safety 게이트를 거치고, `output_path`는 게이트를 통과할 때만(`ok`) 원자적으로 씁니다. 두 결과 모두 패키지의 ZIP 엔트리 이름 전체를 순서대로 `entries`에 담습니다.
 
 ***
 

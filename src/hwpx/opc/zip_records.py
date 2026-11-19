@@ -99,8 +99,11 @@ def _has_zip64_extra(extra: bytes) -> bool:
     return False
 
 
-def read_records(data: bytes) -> ZipRecords:
-    """Read *data*'s central directory and the span of every local record, or refuse."""
+def read_records(data: bytes, *, zip64_extra_allowed: bool = False) -> ZipRecords:
+    """Read *data*'s central directory and the span of every local record, or refuse.
+
+    *zip64_extra_allowed* reads an entry that carries a ZIP64 extra field but whose sizes and offset are in
+    its record (none is 0xFFFFFFFF): what zipfile writes again from a ZIP64 source's ZipInfo."""
 
     eocd_offset, eocd = _find_eocd(data)
     _sig, disk_no, cd_disk, disk_entries, total_entries, cd_size, cd_offset, _clen = _EOCD_FIXED.unpack_from(eocd)
@@ -133,7 +136,7 @@ def read_records(data: bytes) -> ZipRecords:
         extra = data[cursor + 46 + name_len:cursor + 46 + name_len + extra_len]
         if flag_bits & _ENCRYPTED_FLAG:
             raise ZipRecordsUnsupported("encrypted-entry")
-        if _has_zip64_extra(extra) or 0xFFFFFFFF in (fixed[8], fixed[9], header_offset):
+        if (_has_zip64_extra(extra) and not zip64_extra_allowed) or 0xFFFFFFFF in (fixed[8], fixed[9], header_offset):
             raise ZipRecordsUnsupported("zip64")
         try:
             filename = name.decode("utf-8" if flag_bits & _UTF8_NAME_FLAG else "cp437")
@@ -227,4 +230,33 @@ def assemble(
     return bytes(output)
 
 
-__all__ = ["CentralEntry", "ZipRecords", "ZipRecordsUnsupported", "assemble", "read_records"]
+def lay_out_records(data: bytes, physical: Sequence[str]) -> bytes:
+    """*data* with its local records lying in the order *physical* names them (names it does not list go
+    after, in the order they lay); the central directory keeps its order and the end record its comment.
+
+    For an archive ``zipfile`` has just written, whose records lie in central order, when the archive it
+    was made from had them in another (a ZIP64 or prefixed source cannot keep its records, but it keeps
+    where they lay). Raises :class:`ZipRecordsUnsupported` for an archive whose records cannot be moved."""
+
+    archive = read_records(data, zip64_extra_allowed=True)
+    rank = {name: index for index, name in enumerate(physical)}
+    local = sorted(
+        archive.entries,
+        key=lambda entry: (0, rank[entry.filename]) if entry.filename in rank else (1, entry.header_offset),
+    )
+    slot = {entry.filename: index for index, entry in enumerate(local)}
+    return assemble(
+        [(archive.local_record(entry), entry.raw) for entry in local],
+        archive.eocd,
+        central_order=[slot[entry.filename] for entry in archive.entries],
+    )
+
+
+__all__ = [
+    "CentralEntry",
+    "ZipRecords",
+    "ZipRecordsUnsupported",
+    "assemble",
+    "lay_out_records",
+    "read_records",
+]

@@ -644,6 +644,23 @@ python-hwpx 7.0을 함께 설치한다.
     같지 않았고 보존 보고는 그것을 말하지 않았다. 이제 `mimetype`도 적힌 자리·꼴 그대로 옮긴다(표준 꼴로 고치는 것은
     `hwpx-repair`). 새 문서는 전처럼 맨 앞에 압축 없이 쓴다. 한/글 저장본 시험 1,265개가 모두 파일째 같다(전에는 1,259). 공개 표본 1,442개로는 열고
     저장되는 문서 가운데 파일째 같은 것이 1,420에서 1,436(모두)이 됐다.
+  - 바이트 패치(`replace_package_text`·`paragraph_patch`·`rewrite_package_parts`, 이것들 위의 `fill_cells`·`apply_table_ops`·
+    `apply_body_ops`·`strip_runs_by_color` 등)는 이름이 같은 ZIP 항목이 둘 이상인 파일에서 한쪽 항목의 글을 바꾸면서 다른 항목의
+    내용을 덮어쓰고도 성공을 보고했다. 이제 문서 저장과 같은 `HwpxPackageError`(`save-duplicate-entry-names`)로, 출력 파일을 만들기
+    전에 거부한다(있던 출력 파일은 그대로).
+  - ZIP64나 첫 기록 앞에 바이트가 붙은 ZIP처럼 기록째 옮길 수 없어 모든 항목을 다시 압축하는 저장과 패치에서, `mimetype`을 맨 앞에
+    압축 없이 옮기고 기록을 중앙 디렉터리 차례로 늘어놓았다. 이제 이 길에서도 중앙 디렉터리 차례·기록의 물리 차례·`mimetype`의
+    자리와 압축을 읽은 그대로 쓴다(바이트는 다시 압축한 것이고 보존 보고의 `zipRecordsRewritten`이 그렇다고 말한다).
+  - 이 길을 타는 패치(`paragraph_patch`·`replace_package_text`)와 공개 `rewrite_package_parts`(일반 ZIP 포함)가 아카이브 주석을
+    지웠다. 이제 주석을 그대로 쓴다.
+  - `replace_package_text`는 글이 바뀐 파트의 줄 배치 캐시(`hp:linesegarray`)를 모두 지워, 바깥 문단만 고쳐도 건드리지 않은 표 칸
+    문단의 캐시까지 사라졌다. 이제 글이 바뀐 문단 자신의 캐시만 지운다(글은 그것을 둘러싼 가장 안쪽 문단의 것이다).
+  - `paragraph_patch`로 표를 품은 문단의 글을 바꾸면 표 칸 문단의 글까지 지우고(`original_text`에도 칸 글이 섞였다) 칸 문단의 캐시를
+    지우면서, 정작 글이 바뀐 바깥 문단의 캐시는 남겼다(한/글이 옛 줄 배치에 새 글을 겹쳐 그릴 수 있다). 이제 그 문단 자신의 글과
+    캐시만 바꾸고, 안에 든 칸 문단은 바이트 그대로 둔다.
+  - 다시 읽을 수 없는 스트림(쓰기만 되는 스트림)에 저장하면 쓴 내용을 확인하지 못했는데도 보존 보고가
+    `whole_package_identical=True`였다. 이제 `whole_package_identical=False`, `output_read_back=False`(`to_dict()`에는
+    `"outputReadBack": false`)로 확인하지 못했다고 말한다. 다시 읽을 수 있는 스트림과 경로 저장은 전과 같다.
 - `doc.parts.clear_document_authors()`가 같은 이름의 칸(`creator`·`lastsaveby`)이 둘이면 첫 칸만 비워 저장에 이름이 남았고, 칸
   차례가 바뀌어도 늘 `("creator", "lastsaveby")`를 돌려주었다. 이제 모두 비우고 값이 있던 칸마다 이름을 문서 차례로 돌려준다.
   `set_document_metadata`도 같은 키의 칸 모두에 쓴다.
