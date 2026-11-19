@@ -54,6 +54,26 @@ class CheckBox:
         self._paragraph = paragraph
         self._index = index
 
+    def _live_section(self) -> "HwpxOxmlSection":
+        """The section holding the control now: once its paragraph (or the table, text box or note
+        around it) moved to another section, that one. An edit through an object taken before the
+        move used to mark the section it was taken from, so the change was reported and not saved."""
+
+        from ..oxml._paragraph_text_edit import live_holder
+
+        self._section = live_holder(self._element, self._section)
+        return self._section
+
+    def _mark_changed(self) -> None:
+        """Mark the control's section as changed -- when the control is in the document. One taken out
+        (its paragraph removed) keeps its own new value and leaves every section as it was."""
+
+        from ..oxml._paragraph_text_edit import in_document
+
+        held = self._live_section()
+        if in_document(self._element, held):
+            held.mark_dirty()
+
     @property
     def element(self) -> "ET.Element":
         """The wrapped ``<hp:checkBtn>`` element — the escape hatch."""
@@ -70,7 +90,7 @@ class CheckBox:
     def section(self) -> "Section":
         """The section this check box lives in (its number: ``doc.sections.index(cb.section)``)."""
 
-        return self._section
+        return self._live_section()
 
     @property
     def paragraph(self) -> "Paragraph | None":
@@ -101,7 +121,7 @@ class CheckBox:
         new_value = "CHECKED" if value else "UNCHECKED"
         if self._element.get("value") != new_value:
             self._element.set("value", new_value)
-            self._section.mark_dirty()
+            self._mark_changed()
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return (
@@ -135,8 +155,15 @@ class RadioButton(CheckBox):
     def checked(self, value: bool) -> None:
         CheckBox.checked.fset(self, value)  # type: ignore[attr-defined]
         if value and self.group:
-            document = self._section.document
-            sections = document.sections if document is not None else [self._section]
+            from ..oxml._paragraph_text_edit import in_document
+
+            held = self._live_section()
+            if not in_document(self._element, held):
+                # Taken out of the document (its paragraph removed): it is not one of the group's
+                # buttons any more, so checking it changes its own value and no button of the document.
+                return
+            document = held.document
+            sections = document.sections if document is not None else [held]
             for section in sections:
                 for other in section.element.iter(self._element.tag):
                     if other is not self._element and other.get("radioGroupName") == self.group \
@@ -166,6 +193,26 @@ class _FormControl:
         self._paragraph = paragraph
         self._index = index
 
+    def _live_section(self) -> "HwpxOxmlSection":
+        """The section holding the control now: once its paragraph (or the table, text box or note
+        around it) moved to another section, that one. An edit through an object taken before the
+        move used to mark the section it was taken from, so the change was reported and not saved."""
+
+        from ..oxml._paragraph_text_edit import live_holder
+
+        self._section = live_holder(self._element, self._section)
+        return self._section
+
+    def _mark_changed(self) -> None:
+        """Mark the control's section as changed -- when the control is in the document. One taken out
+        (its paragraph removed) keeps its own new value and leaves every section as it was."""
+
+        from ..oxml._paragraph_text_edit import in_document
+
+        held = self._live_section()
+        if in_document(self._element, held):
+            held.mark_dirty()
+
     @property
     def element(self) -> "ET.Element":
         """The wrapped form object element — the escape hatch."""
@@ -182,7 +229,7 @@ class _FormControl:
     def section(self) -> "Section":
         """The section this object lives in (its number: ``doc.sections.index(obj.section)``)."""
 
-        return self._section
+        return self._live_section()
 
     @property
     def paragraph(self) -> "Paragraph | None":
@@ -242,7 +289,7 @@ class ComboBox(_FormControl):
             self._element.insert(after[-1] + 1 if after else 0, item)
         if item.get("value") != new_value:
             item.set("value", new_value)  # the box keeps its size: the line does not change
-            self._section.mark_dirty()
+            self._mark_changed()
 
     def _first_item(self) -> "ET.Element | None":
         return next(
@@ -270,7 +317,7 @@ class ComboBox(_FormControl):
             )
         if self._element.get("selectedValue") != new_value:
             self._element.set("selectedValue", new_value)
-            self._section.mark_dirty()
+            self._mark_changed()
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"ComboBox(name={self.name!r}, value={self.value!r}, items={len(self.items)})"
@@ -309,7 +356,7 @@ class EditBox(_FormControl):
             new_value = new_value.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
         if element.text != new_value:
             element.text = new_value
-            self._section.mark_dirty()
+            self._mark_changed()
 
     @property
     def multi_line(self) -> bool:

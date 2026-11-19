@@ -406,6 +406,10 @@ class TextBoxField:
     def text(self, value: str) -> None:
         from .._document.fields import set_text_box_text
 
+        from ..oxml._paragraph_text_edit import live_holder
+
+        # the section the box is in now (moved with its paragraph: that one), so the change is saved
+        self._section = live_holder(self._draw_text, self._section)
         set_text_box_text(self._draw_text, self._section, value)
 
     @property
@@ -543,16 +547,27 @@ class Bookmark:
                 code="ref-bookmark-name-empty",
                 suggestion="Pass the new name.",
             )
+        held = _live_section(self.element, self._section)
+        # The name the bookmark has now: another object of the same bookmark may have renamed it since
+        # this one was taken, and the links point at that name.
+        old_name = self.element.get("name") or self.name
+        if self.kind == "field":
+            old_name = old_name.strip()  # as a field bookmark's name is read; a point's is read as written
         self.element.set("name", new_name)
-        for section in _document_sections(self._section):
+        if held is None or not _in_document(self.element, held):
+            # Removed from the document: the name is its own, and no hyperlink of the document points
+            # at a bookmark that is not there (re-pointing them changed a document the bookmark left).
+            return Bookmark(new_name, self.kind, self.text, self.location, self.element, held)
+        held.mark_dirty()  # a section, or the master page holding the bookmark
+        for holder in _document_holders(held):
             changed = False
-            for begin in section.element.iter(self.element.tag.rsplit("}", 1)[0] + "}fieldBegin"):
-                if begin.get("type") == "HYPERLINK" and hyperlink_target(begin) == f"#{self.name}":
+            for begin in holder.element.iter(self.element.tag.rsplit("}", 1)[0] + "}fieldBegin"):
+                if begin.get("type") == "HYPERLINK" and hyperlink_target(begin) == f"#{old_name}":
                     set_hyperlink_target(begin, f"#{new_name}")
                     changed = True
-            if changed or section is self._section:
-                section.mark_dirty()
-        return Bookmark(new_name, self.kind, self.text, self.location, self.element, self._section)
+            if changed:
+                holder.mark_dirty()
+        return Bookmark(new_name, self.kind, self.text, self.location, self.element, held)
 
     def remove(self) -> None:
         """Remove the bookmark. A bookmark spanning text (``kind="field"``) loses its two
@@ -561,20 +576,57 @@ class Bookmark:
         from ..oxml._document_primitives import _clear_paragraph_layout_cache
         from ..oxml.hyperlink_form import field_end_in_paragraph, remove_mark
 
+        held = _live_section(self.element, self._section)  # before the marks leave the tree
+        attached = held is not None and _in_document(self.element, held)
         paragraphs = []
         if self.kind == "field":
             host = _host_paragraph(self.element)
             end = field_end_in_paragraph(host, self.element) if host is not None else None
-            if end is None:
-                end = _end_elsewhere(self._section, self.element)
+            if end is None and attached:
+                # In the begin's section, or where a move left the end (another section).
+                for holder in [held, *(other for other in _document_holders(held) if other is not held)]:
+                    end = _end_elsewhere(holder, self.element)
+                    if end is not None:
+                        holder.mark_dirty()
+                        break
+            elif end is None:
+                # Taken out of the document: its end is in the piece taken out with it, if anywhere. An
+                # end of the same id in the document belongs to a bookmark that is there (the one this
+                # was copied from), and is not this one's to remove.
+                end = _end_in_own_tree(self.element)
             if end is not None:
                 paragraphs.append(remove_mark(end))
         paragraphs.append(remove_mark(self.element))
         for paragraph in paragraphs:
             if paragraph is not None:
                 _clear_paragraph_layout_cache(paragraph)
-        if self._section is not None:
-            self._section.mark_dirty()
+        if attached and held is not None:  # one taken out leaves every section as it was
+            held.mark_dirty()
+
+
+def _live_section(element: Any, held: Any) -> Any:
+    """The section holding *element* now (see ``hwpx.oxml._paragraph_text_edit.live_holder``): a
+    bookmark taken before its paragraph, table, text box or note moved to another section is saved
+    with the section it is in, not the one it was taken from."""
+
+    from ..oxml._paragraph_text_edit import live_holder
+
+    return live_holder(element, held)
+
+
+def _in_document(element: Any, held: Any) -> bool:
+    from ..oxml._paragraph_text_edit import in_document
+
+    return in_document(element, held)
+
+
+def _document_holders(held: Any) -> list[Any]:
+    """The sections and master pages of the document *held* (one of them) belongs to."""
+
+    document = getattr(held, "document", None)
+    if document is None:
+        return [held]
+    return [*document.sections, *getattr(document, "master_pages", ())]
 
 
 def _host_paragraph(element: Any) -> Any:
@@ -582,6 +634,18 @@ def _host_paragraph(element: Any) -> Any:
     while node is not None and node.tag.rsplit("}", 1)[-1] != "p":
         node = node.getparent()
     return node
+
+
+def _end_in_own_tree(begin: Any) -> Any:
+    """The ``fieldEnd`` naming *begin* in the tree *begin* hangs in (a piece taken out of a document)."""
+
+    if not hasattr(begin, "getparent") or not begin.get("id"):
+        return None
+    top = begin
+    while (parent := top.getparent()) is not None:
+        top = parent
+    namespace = begin.tag.rsplit("}", 1)[0] + "}"
+    return next((end for end in top.iter(f"{namespace}fieldEnd") if end.get("beginIDRef") == begin.get("id")), None)
 
 
 def _end_elsewhere(section: Any, begin: Any) -> Any:
@@ -634,6 +698,13 @@ class Hyperlink:
 
     @property
     def paragraph(self) -> Any:
+        """The paragraph holding the link's start now: after a range holding the link moved to another
+        paragraph (``move_range``), that one -- a change through a link taken before the move marked the
+        paragraph it was taken from, and was not saved."""
+
+        host = _host_paragraph(self._element) if hasattr(self._element, "getparent") else None
+        if host is not None and host is not self._paragraph.element:
+            self._paragraph = type(self._paragraph)(host, _live_section(host, self._paragraph.section))
         return self._paragraph
 
     @property
@@ -666,13 +737,13 @@ class Hyperlink:
                 suggestion="Pass a web address, a mailto: address or #bookmark.",
             )
         set_hyperlink_target(self._element, target)
-        self._paragraph.section.mark_dirty()
+        self.paragraph.section.mark_dirty()
 
     def _end(self) -> Any:
         from ..errors import HwpxValueError
         from ..oxml.hyperlink_form import field_end_in_paragraph
 
-        end = field_end_in_paragraph(self._paragraph.element, self._element)
+        end = field_end_in_paragraph(self.paragraph.element, self._element)
         if end is None:
             raise HwpxValueError(
                 "the hyperlink does not end in its paragraph",
@@ -684,7 +755,7 @@ class Hyperlink:
     def _text_nodes(self) -> list[Any]:
         from ..oxml.hyperlink_form import between_marks
 
-        return [child for _run, child in between_marks(self._paragraph.element, self._element, self._end())
+        return [child for _run, child in between_marks(self.paragraph.element, self._element, self._end())
                 if child.tag.rsplit("}", 1)[-1] == "t"]
 
     @property
@@ -692,7 +763,7 @@ class Hyperlink:
         from ..oxml._document_primitives import _text_element_content
         from ..oxml.hyperlink_form import field_end_in_paragraph
 
-        if field_end_in_paragraph(self._paragraph.element, self._element) is None:
+        if field_end_in_paragraph(self.paragraph.element, self._element) is None:
             return ""
         return "".join(_text_element_content(node) for node in self._text_nodes())
 
@@ -713,8 +784,8 @@ class Hyperlink:
                 node.remove(child)
             node.text = ""
         set_text_with_tabs(nodes[0], _sanitize_text(str(value)))
-        _clear_paragraph_layout_cache(self._paragraph.element)
-        self._paragraph.section.mark_dirty()
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
 
     def remove(self, *, keep_text: bool = True) -> None:
         """Take the link out: its two controls go and its text stays as plain text in the
@@ -724,15 +795,15 @@ class Hyperlink:
         from ..oxml._document_primitives import _clear_paragraph_layout_cache
         from ..oxml.hyperlink_form import between_marks, field_end_in_paragraph, remove_mark
 
-        end = field_end_in_paragraph(self._paragraph.element, self._element)
+        end = field_end_in_paragraph(self.paragraph.element, self._element)
         if end is not None and not keep_text:
-            for run, child in between_marks(self._paragraph.element, self._element, end):
+            for run, child in between_marks(self.paragraph.element, self._element, end):
                 run.remove(child)
         if end is not None:
             remove_mark(end)
         remove_mark(self._element)
-        _clear_paragraph_layout_cache(self._paragraph.element)
-        self._paragraph.section.mark_dirty()
+        _clear_paragraph_layout_cache(self.paragraph.element)
+        self.paragraph.section.mark_dirty()
 
     def to_dict(self) -> dict[str, Any]:
         """``id``, ``url`` and ``type``, the dict ``paragraph.hyperlinks`` gave before 7.0, and ``text``."""

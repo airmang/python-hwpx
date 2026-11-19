@@ -115,7 +115,15 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
     try:
         stream.seek(position)
         if tail:
-            stream.write(tail)
+            offset = 0
+            while offset < len(tail):  # a stream that takes a part of what it is given is given the rest
+                chunk = tail if offset == 0 else tail[offset:offset + 65536]
+                taken = stream.write(chunk)
+                if taken is None:
+                    taken = len(chunk)
+                if taken <= 0:
+                    return
+                offset += min(taken, len(chunk))  # a count past what it was given is the chunk
             stream.truncate(position + len(tail))
         else:
             stream.truncate(position)
@@ -175,14 +183,14 @@ def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> bool:
     checkpoint = _capture_stream_checkpoint(stream)
     if checkpoint is None:
         raise OSError(
-            "HWPX stream save requires a checkpointable stream; "
+            "stream save requires a checkpointable stream; "
             "save to a path (doc.save(path)) for non-seekable outputs"
         )
     try:
         written = stream.write(data)
         if written is not None and written != len(data):
             raise OSError(
-                "short write while saving HWPX stream: "
+                "short write while saving to a stream: "
                 f"wrote {written} of {len(data)} bytes"
             )
         read_back = settle_written_stream(stream, checkpoint[0], data, checkpoint[1])

@@ -1788,13 +1788,18 @@ def _ensure_tab_definition_element(
     tab_stops: "Iterable[Mapping[str, object]] | None",
     auto_tab_left: bool,
     auto_tab_right: bool,
+    normalized_stops: "tuple[tuple[int, str, str], ...] | None" = None,
 ) -> tuple[str, bool]:
     """Find-or-create the ``hh:tabPr`` matching this spec inside *container*
     (the ``hh:tabProperties`` element). Returns ``(tab_id, created)`` so the
     caller only marks the header dirty when something actually changed.
+
+    *normalized_stops* is what :func:`_normalize_tab_stops` already made of *tab_stops* (a caller that
+    checks the stops before it makes *container*): the stops are then not read a second time.
     """
 
-    normalized_stops = _normalize_tab_stops(tab_stops)
+    if normalized_stops is None:
+        normalized_stops = _normalize_tab_stops(tab_stops)
     for tab_pr in container.findall(f"{_HH}tabPr"):
         if _tab_definition_matches(
             tab_pr,

@@ -403,6 +403,20 @@ def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -
     return True
 
 
+def remove_paragraph(paragraph: Any) -> None:
+    """``paragraph.remove()``: take the paragraph out (:func:`remove_paragraph_element`), mark its section
+    and number the notes again whose count it changed -- the notes after the ones it held, or after a
+    restart (``hp:newNum``) it held, kept the numbers they were saved with."""
+
+    from .note_authoring import note_kinds_in_document, renumber_note_kinds
+
+    section = paragraph.section
+    note_kinds = note_kinds_in_document(section, paragraph.element)
+    if remove_paragraph_element(paragraph.element, section.element):
+        section.mark_dirty()
+        renumber_note_kinds(section, note_kinds)
+
+
 def _section_holding(element: Any, sections: list[Any]) -> Any:
     """The section of *sections* whose tree holds *element*, or ``None``."""
 
@@ -502,6 +516,8 @@ def in_document(element: Any, holder: Any) -> bool:
         roots += [page.element for page in getattr(document, "master_pages", ())]
     else:
         roots = [holder.element]
+    if not hasattr(element, "getparent"):  # xml.etree: no way up, so down from the roots
+        return any(node is element for root in roots for node in root.iter())
     top = element
     while (parent := top.getparent()) is not None:
         top = parent
