@@ -5,6 +5,9 @@
    from another keeps the diagonal it read.
 2. ``ensure_run(letter_spacing_by_lang=)`` takes a 자간 per language under ``font_by_lang``'s rules; a language
    it does not name keeps the base's value.
+3. ``ensure_run(font=)`` gives the face to all seven languages, as the docstring says and as Hancom's own run
+   shapes do (12,187 of the 12,188 ``hh:fontRef`` in the fixtures name one face in all seven languages); a
+   language whose block lacks the face gets it declared, copied from the face's existing declaration.
 """
 
 from __future__ import annotations
@@ -171,3 +174,45 @@ def test_letter_spacing_by_lang_is_checked_before_anything_changes(value: object
         doc.styles.ensure_run(font="새글꼴", letter_spacing_by_lang=value)  # type: ignore[arg-type]
     assert caught.value.code == code
     assert etree.tostring(_header(doc)) == before
+
+
+# -- 3. font= reaches all seven languages -----------------------------------------------------------------
+
+FACE_LANGS = ("HANGUL", "LATIN", "HANJA", "JAPANESE", "OTHER", "SYMBOL", "USER")
+
+
+def _declarations(doc: HwpxDocument, face: str) -> dict[str, list[dict[str, str]]]:
+    found: dict[str, list[dict[str, str]]] = {}
+    for fontface in _header(doc).iter(f"{HH}fontface"):
+        for font in fontface.findall(f"{HH}font"):
+            if font.get("face") == face:
+                found.setdefault(fontface.get("lang"), []).append(
+                    {k: v for k, v in font.attrib.items() if k != "id"} | {"children": str(len(font))})
+    return found
+
+
+def test_font_reaches_every_language_even_one_whose_list_lacks_it() -> None:
+    doc = HwpxDocument.new()
+    doc.styles.ensure_font("바탕", lang="LATIN")  # latin: 함초롬바탕 0 and others, then 바탕
+    doc.styles.ensure_font("맑은 고딕", lang=["LATIN", "HANJA"])
+    made = doc.styles.ensure_run(font="맑은 고딕")
+    assert {lang: doc.styles.font_face(made, lang) for lang in FACE_LANGS} == dict.fromkeys(FACE_LANGS, "맑은 고딕")
+    declared = _declarations(doc, "맑은 고딕")
+    assert set(declared) == set(FACE_LANGS)
+    assert all(len(forms) == 1 for forms in declared.values())  # declared once per block, nothing doubled
+
+
+def test_a_face_declared_in_some_languages_is_copied_into_the_others() -> None:
+    doc = HwpxDocument.new()
+    doc.styles.ensure_font("한양신명조", lang="LATIN", font_type="HFT", subst_face="함초롬바탕", subst_type="TTF")
+    made = doc.styles.ensure_run(font="한양신명조", bold=True)
+    assert doc.styles.font_face(made, "HANGUL") == "한양신명조"
+    forms = _declarations(doc, "한양신명조")
+    assert set(forms) == set(FACE_LANGS)
+    assert len({str(sorted(form.items())) for lang_forms in forms.values() for form in lang_forms}) == 1
+    for lang in FACE_LANGS:  # each block's count follows its fonts
+        block = next(ff for ff in _header(doc).iter(f"{HH}fontface") if ff.get("lang") == lang)
+        assert block.get("fontCnt") == str(len(block.findall(f"{HH}font")))
+    assert doc.styles.ensure_run(font="한양신명조", bold=True) == made  # the same request again
+    reopened = HwpxDocument.open(doc.to_bytes())
+    assert reopened.styles.font_face(made, "USER") == "한양신명조"

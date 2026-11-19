@@ -682,6 +682,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         요소만 쓴다(요소가 글자를 줄이고 올리거나 내린다. `relSz`/`offset`은 그대로).
 
         `font`는 모든 언어의 글꼴을, `font_by_lang`은 언어별 글꼴을 정한다.
+        `font`는 일곱 언어 모두에 준다(한/글 저장본의 글자 모양 12,188개 가운데 12,187개가 일곱
+        언어에 같은 글꼴을 쓴다). 그 글꼴이 없는 언어 블록에는 먼저 선언한다: 다른 블록에 선언이
+        있으면 그 `hh:font`를 id만 바꿔 복사하고(`replace_font`와 같다), 어디에도 없으면
+        `ensure_font`의 기본 선언이다.
         `font_by_lang`은 언어(HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER,
         대소문자 무시) → 글꼴 이름 매핑이다. 예:
         `ensure_run(font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"})`.
