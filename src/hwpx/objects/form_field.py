@@ -550,7 +550,7 @@ class Bookmark:
         held = _live_section(self.element, self._section)
         # The name the bookmark has now: another object of the same bookmark may have renamed it since
         # this one was taken, and the links point at that name.
-        old_name = self.element.get("name") or self.name
+        old_name = (self.element.get("name") or self.name).strip()  # as the bookmark is read
         self.element.set("name", new_name)
         if held is None or not _in_document(self.element, held):
             # Removed from the document: the name is its own, and no hyperlink of the document points
@@ -575,23 +575,30 @@ class Bookmark:
         from ..oxml.hyperlink_form import field_end_in_paragraph, remove_mark
 
         held = _live_section(self.element, self._section)  # before the marks leave the tree
+        attached = held is not None and _in_document(self.element, held)
         paragraphs = []
         if self.kind == "field":
             host = _host_paragraph(self.element)
             end = field_end_in_paragraph(host, self.element) if host is not None else None
-            if end is None:
+            if end is None and attached:
+                # In the begin's section, or where a move left the end (another section).
                 for holder in [held, *(other for other in _document_holders(held) if other is not held)]:
                     end = _end_elsewhere(holder, self.element)
-                    if end is not None:  # in the begin's section, or where a move left it
+                    if end is not None:
                         holder.mark_dirty()
                         break
+            elif end is None:
+                # Taken out of the document: its end is in the piece taken out with it, if anywhere. An
+                # end of the same id in the document belongs to a bookmark that is there (the one this
+                # was copied from), and is not this one's to remove.
+                end = _end_in_own_tree(self.element)
             if end is not None:
                 paragraphs.append(remove_mark(end))
         paragraphs.append(remove_mark(self.element))
         for paragraph in paragraphs:
             if paragraph is not None:
                 _clear_paragraph_layout_cache(paragraph)
-        if held is not None:
+        if attached and held is not None:  # one taken out leaves every section as it was
             held.mark_dirty()
 
 
@@ -608,8 +615,6 @@ def _live_section(element: Any, held: Any) -> Any:
 def _in_document(element: Any, held: Any) -> bool:
     from ..oxml._paragraph_text_edit import in_document
 
-    if not hasattr(element, "getparent"):  # a tree that cannot be walked upwards: as before, in it
-        return True
     return in_document(element, held)
 
 
@@ -627,6 +632,18 @@ def _host_paragraph(element: Any) -> Any:
     while node is not None and node.tag.rsplit("}", 1)[-1] != "p":
         node = node.getparent()
     return node
+
+
+def _end_in_own_tree(begin: Any) -> Any:
+    """The ``fieldEnd`` naming *begin* in the tree *begin* hangs in (a piece taken out of a document)."""
+
+    if not hasattr(begin, "getparent") or not begin.get("id"):
+        return None
+    top = begin
+    while (parent := top.getparent()) is not None:
+        top = parent
+    namespace = begin.tag.rsplit("}", 1)[0] + "}"
+    return next((end for end in top.iter(f"{namespace}fieldEnd") if end.get("beginIDRef") == begin.get("id")), None)
 
 
 def _end_elsewhere(section: Any, begin: Any) -> Any:

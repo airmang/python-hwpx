@@ -197,3 +197,25 @@ def test_a_note_mark_without_a_number_reads_as_one_and_is_numbered() -> None:
     assert [(note.number, note.element.get("number")) for note in notes] == [(1, "1"), (2, "2")]
     assert [mark.get("num", "1") for mark in marks] == ["1", "2"]
     assert "num" not in marks[0].attrib  # the first is 1 as it was: nothing written
+
+
+def test_the_notes_own_mark_is_numbered_past_another_number_in_its_text() -> None:
+    """The first ``hp:autoNum`` in a note need not be its mark (a page number in the note's text)."""
+
+    from copy import deepcopy
+
+    from hwpx.oxml.note_authoring import renumber_notes
+
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("p")
+    _first, second = (paragraph.add_endnote(text) for text in ("one", "two"))
+    own = second.element.find(".//{*}autoNum")
+    del own.attrib["num"]
+    other = deepcopy(own.getparent())
+    other[0].set("numType", "PAGE")
+    own.getparent().addprevious(other)
+
+    renumber_notes(paragraph.section, "endNote")
+
+    assert (second.number, own.get("num")) == (2, "2")
+    assert "num" not in other[0].attrib

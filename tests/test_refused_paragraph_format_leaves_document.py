@@ -114,3 +114,16 @@ def test_a_refused_tab_stop_leaves_a_header_without_a_tab_list_as_it_is() -> Non
     with pytest.raises(ValueError):
         document.styles.ensure_tab_definition(tab_stops=[{"pos": 2000, "type": "BAD"}])
     assert document.to_bytes() == before
+
+
+def test_tab_stops_given_as_an_iterator_are_all_written() -> None:
+    """The check before the write must not use up an iterator the definition is then made from."""
+
+    header = HwpxDocument.new().oxml.headers[0]
+    from_iterator = header.ensure_tab_definition(tab_stops=iter([{"pos": 1200}, {"pos": 2400}]))
+    from_list = header.ensure_tab_definition(tab_stops=[{"pos": 1200}, {"pos": 2400}])
+
+    assert from_iterator == from_list
+    definition = header.element.find(f".//{{*}}tabPr[@id='{from_iterator}']")
+    assert len(definition.findall(".//{*}tabItem")) > 0
+    assert header.ensure_tab_definition(tab_stops=None, auto_tab_right=True)  # auto tabs only, as before

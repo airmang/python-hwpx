@@ -65,3 +65,53 @@ def test_changing_a_removed_check_box_or_edit_box_leaves_the_bytes() -> None:
 
     assert (check.checked, edit.text) == (True, "new")
     assert document.to_bytes() == before
+
+
+def test_removing_a_taken_out_copy_of_a_field_bookmark_leaves_the_one_in_the_document() -> None:
+    """A copy keeps the id of the field it was copied from. Removing the copy's bookmark after the copy
+    left the document looked for the end by that id in the document's sections and took the end of the
+    bookmark that is there."""
+
+    from lxml.etree import SubElement
+
+    from hwpx.oxml.namespaces import HP
+
+    document = HwpxDocument.new()
+    begin, end = (document.add_paragraph(text) for text in ("begin", "end"))
+    for paragraph, tag, attributes in ((begin, "fieldBegin", {"id": "13", "type": "BOOKMARK", "name": "span"}),
+                                       (end, "fieldEnd", {"beginIDRef": "13"})):
+        SubElement(SubElement(paragraph.runs[0].element, HP + "ctrl"), HP + tag, attributes)
+    copy = begin.copy_to(document.add_section().paragraphs[0])
+    stale = copy.bookmarks[0]
+    copy.remove()
+    before = document.to_bytes()
+
+    stale.remove()
+
+    assert document.to_bytes() == before
+    saved = _opened(document)
+    assert [bookmark.name for bookmark in saved.refs.bookmarks] == ["span"]
+    assert len(saved.sections[0].element.findall(".//{*}fieldEnd[@beginIDRef='13']")) == 1
+
+
+def test_a_bookmark_taken_out_of_a_plain_elementtree_section_renames_itself_only() -> None:
+    import xml.etree.ElementTree as ET
+
+    from hwpx.model import Section
+    from hwpx.oxml.namespaces import HP, HS
+
+    root = ET.Element(HS + "sec")
+    paragraph = ET.fromstring(
+        f'<p xmlns="{HP[1:-1]}"><run><ctrl><bookmark name="a"/></ctrl>'
+        '<ctrl><fieldBegin type="HYPERLINK" name="#a"/></ctrl></run></p>'
+    )
+    root.append(paragraph)
+    section = Section("section0.xml", root)
+    view = section.paragraphs[0]
+    mark = view.bookmarks[0]
+    paragraph.find(".//{*}ctrl").remove(mark.element)
+    section.reset_dirty()
+
+    mark.rename("gone")
+
+    assert (view.hyperlinks[0].url, section.dirty) == ("#a", False)

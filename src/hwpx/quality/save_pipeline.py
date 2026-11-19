@@ -115,7 +115,7 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
     try:
         stream.seek(position)
         if tail:
-            rest = memoryview(tail)
+            rest = tail
             while rest:  # a stream that takes a part of what it is given is given the rest
                 taken = stream.write(rest)
                 if taken is None or taken >= len(rest):

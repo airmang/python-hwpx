@@ -14,6 +14,7 @@ import warnings
 import pytest
 
 from hwpx import HwpxDocument
+from hwpx.opc.package import HwpxPackageError
 
 
 class _Short(io.BytesIO):
@@ -85,3 +86,30 @@ def test_a_hwp_file_is_never_reported_as_the_source_byte_for_byte() -> None:
         report = HwpxDocument.open(source).save(stream, format="hwp")
     assert report.preservation.whole_package_identical is False
     assert HwpxDocument.open(source).save(io.BytesIO()).preservation.whole_package_identical is True
+
+
+class _BytesOnly(io.BytesIO):
+    """Takes three bytes of the first write, then whole writes of ``bytes`` and nothing else."""
+
+    def __init__(self, held: bytes) -> None:
+        super().__init__(held)
+        self._calls = 0
+
+    def write(self, data) -> int:  # type: ignore[no-untyped-def, override]
+        self._calls += 1
+        if self._calls == 1:
+            return super().write(data[:3])
+        if not isinstance(data, bytes):
+            raise TypeError("bytes required")
+        return super().write(data)
+
+
+def test_the_rollback_gives_the_stream_bytes_as_the_save_does() -> None:
+    from hwpx.opc.package import _write_stream_or_rollback as package_write
+    from hwpx.quality.save_pipeline import write_stream_or_rollback as pipeline_write
+
+    for write in (pipeline_write, package_write):
+        stream = _BytesOnly(b"abcdef")
+        with pytest.raises((OSError, HwpxPackageError), match="short write"):  # the package's own error
+            write(stream, b"XXXXX")
+        assert stream.getvalue() == b"abcdef"

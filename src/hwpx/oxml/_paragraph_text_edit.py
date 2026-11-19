@@ -516,6 +516,8 @@ def in_document(element: Any, holder: Any) -> bool:
         roots += [page.element for page in getattr(document, "master_pages", ())]
     else:
         roots = [holder.element]
+    if not hasattr(element, "getparent"):  # xml.etree: no way up, so down from the roots
+        return any(node is element for root in roots for node in root.iter())
     top = element
     while (parent := top.getparent()) is not None:
         top = parent

@@ -206,3 +206,23 @@ def test_a_hyperlink_taken_before_its_range_moved_saves_its_new_target() -> None
 
     assert link.paragraph.section is document.sections[1]
     assert _saved(document).refs.hyperlinks[0].url == "https://new.example"
+
+
+def test_a_field_bookmark_written_with_spaces_around_its_name_renames_with_its_links() -> None:
+    """``name=" old "`` reads as ``old`` and links point at ``#old``."""
+
+    from lxml.etree import SubElement
+
+    from hwpx.oxml.namespaces import HP
+
+    document = HwpxDocument.new()
+    begin, end = (document.add_paragraph(text) for text in ("begin", "end"))
+    for paragraph, tag, attributes in ((begin, "fieldBegin", {"id": "13", "type": "BOOKMARK", "name": " old "}),
+                                       (end, "fieldEnd", {"beginIDRef": "13"})):
+        SubElement(SubElement(paragraph.runs[0].element, HP + "ctrl"), HP + tag, attributes)
+    begin.add_hyperlink("#old", "go")
+
+    begin.bookmarks[0].rename("new")
+
+    saved = _saved(document)
+    assert (saved.refs.bookmarks[0].name, saved.refs.hyperlinks[0].url) == ("new", "#new")
