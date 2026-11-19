@@ -406,6 +406,10 @@ class TextBoxField:
     def text(self, value: str) -> None:
         from .._document.fields import set_text_box_text
 
+        from ..oxml._paragraph_text_edit import live_holder
+
+        # the section the box is in now (moved with its paragraph: that one), so the change is saved
+        self._section = live_holder(self._draw_text, self._section)
         set_text_box_text(self._draw_text, self._section, value)
 
     @property
@@ -543,16 +547,21 @@ class Bookmark:
                 code="ref-bookmark-name-empty",
                 suggestion="Pass the new name.",
             )
+        held = _live_section(self.element, self._section)
         self.element.set("name", new_name)
-        for section in _document_sections(self._section):
+        if held is None or not _in_document(self.element, held):
+            # Removed from the document: the name is its own, and no hyperlink of the document points
+            # at a bookmark that is not there (re-pointing them changed a document the bookmark left).
+            return Bookmark(new_name, self.kind, self.text, self.location, self.element, held)
+        for section in _document_sections(held):
             changed = False
             for begin in section.element.iter(self.element.tag.rsplit("}", 1)[0] + "}fieldBegin"):
                 if begin.get("type") == "HYPERLINK" and hyperlink_target(begin) == f"#{self.name}":
                     set_hyperlink_target(begin, f"#{new_name}")
                     changed = True
-            if changed or section is self._section:
+            if changed or section is held:
                 section.mark_dirty()
-        return Bookmark(new_name, self.kind, self.text, self.location, self.element, self._section)
+        return Bookmark(new_name, self.kind, self.text, self.location, self.element, held)
 
     def remove(self) -> None:
         """Remove the bookmark. A bookmark spanning text (``kind="field"``) loses its two
@@ -561,20 +570,37 @@ class Bookmark:
         from ..oxml._document_primitives import _clear_paragraph_layout_cache
         from ..oxml.hyperlink_form import field_end_in_paragraph, remove_mark
 
+        held = _live_section(self.element, self._section)  # before the marks leave the tree
         paragraphs = []
         if self.kind == "field":
             host = _host_paragraph(self.element)
             end = field_end_in_paragraph(host, self.element) if host is not None else None
             if end is None:
-                end = _end_elsewhere(self._section, self.element)
+                end = _end_elsewhere(held, self.element)
             if end is not None:
                 paragraphs.append(remove_mark(end))
         paragraphs.append(remove_mark(self.element))
         for paragraph in paragraphs:
             if paragraph is not None:
                 _clear_paragraph_layout_cache(paragraph)
-        if self._section is not None:
-            self._section.mark_dirty()
+        if held is not None:
+            held.mark_dirty()
+
+
+def _live_section(element: Any, held: Any) -> Any:
+    """The section holding *element* now (see ``hwpx.oxml._paragraph_text_edit.live_holder``): a
+    bookmark taken before its paragraph, table, text box or note moved to another section is saved
+    with the section it is in, not the one it was taken from."""
+
+    from ..oxml._paragraph_text_edit import live_holder
+
+    return live_holder(element, held)
+
+
+def _in_document(element: Any, held: Any) -> bool:
+    from ..oxml._paragraph_text_edit import in_document
+
+    return in_document(element, held)
 
 
 def _host_paragraph(element: Any) -> Any:
