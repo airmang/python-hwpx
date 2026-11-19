@@ -408,10 +408,10 @@ def remove_paragraph(paragraph: Any) -> None:
     and number the notes again whose count it changed -- the notes after the ones it held, or after a
     restart (``hp:newNum``) it held, kept the numbers they were saved with."""
 
-    from .note_authoring import note_kinds_in, renumber_note_kinds
+    from .note_authoring import note_kinds_in_document, renumber_note_kinds
 
     section = paragraph.section
-    note_kinds = note_kinds_in((paragraph.element,))
+    note_kinds = note_kinds_in_document(section, paragraph.element)
     if remove_paragraph_element(paragraph.element, section.element):
         section.mark_dirty()
         renumber_note_kinds(section, note_kinds)

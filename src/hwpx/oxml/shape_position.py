@@ -815,11 +815,11 @@ class ObjectPlacement:
             why = member_removal_refusal(element, groups)
             if why is not None:
                 raise _group_member_refused("removed", why)
-        from .note_authoring import note_kinds_in, renumber_note_kinds
+        from .note_authoring import note_kinds_in_document, renumber_note_kinds
 
         images = binary_references(element) if remove_orphaned else set()
         section = self.paragraph.section
-        note_kinds = note_kinds_in((element,))
+        note_kinds = note_kinds_in_document(section, element)
         _detach_object(element, parent, paragraph, section)
         if groups:  # the groups fit the members left, so only after it went
             from .container import fit_groups_after_removal

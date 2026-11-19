@@ -134,3 +134,66 @@ def test_the_notes_left_are_numbered_from_one(kind: str, edit: Callable[[HwpxDoc
     edit(document, kind)
 
     assert _numbers(document, kind) == [(1, 1), (2, 2), (3, 3)]
+
+
+def _detached_paragraph(old: Any) -> Any:
+    return old
+
+
+def _detached_run(old: Any) -> Any:
+    return next(run for run in old.runs if run.element.find(".//{*}footNote") is not None)
+
+
+def _detached_table(old: Any) -> Any:
+    return old.tables[0]
+
+
+def _detached_shape(old: Any) -> Any:
+    return old.shapes[0]
+
+
+@pytest.mark.parametrize("take", [_detached_paragraph, _detached_run, _detached_table, _detached_shape],
+                         ids=lambda take: take.__name__.replace("_detached_", ""))
+def test_removing_something_of_a_removed_section_leaves_the_documents_notes(take: Callable[[Any], Any]) -> None:
+    """A paragraph of a removed section still hangs in that section's tree, so ``remove()`` on it (or on a
+    run, table or text box in it) succeeds there. Its notes are not the document's: the notes of the
+    sections left keep the numbers they are saved with, and the document its bytes."""
+
+    document = HwpxDocument.new()
+    document.add_paragraph("keep")
+    old = document.add_paragraph("old")
+    if take in (_detached_paragraph, _detached_run):
+        old.add_footnote("old")
+    elif take is _detached_table:
+        old.add_table(1, 1).cell(0, 0).paragraphs[0].add_footnote("old")
+    else:
+        box = old.add_rectangle(4000, 2000)
+        box.set_draw_text("상자 글")
+        box.draw_text.paragraphs[0].add_footnote("old")
+    document.add_section().add_paragraph("live").add_footnote("live")
+    document = HwpxDocument.open(document.to_bytes())
+    target = take(next(paragraph for paragraph in document.paragraphs if paragraph.text.startswith("old")))
+    document.remove_section(0)
+    before = document.to_bytes()
+
+    target.remove()
+
+    assert document.to_bytes() == before
+
+
+def test_a_note_mark_without_a_number_reads_as_one_and_is_numbered() -> None:
+    """``hp:autoNum`` without ``num`` reads as 1 (the schema's default). The note copied behind it is 2:
+    its mark was left without the attribute, so it showed 1 under a note stored as 2."""
+
+    document = HwpxDocument.new()
+    note = document.add_table(1, 1).cell(0, 0).paragraphs[0].add_footnote("x")
+    del note.element.find(".//{*}autoNum").attrib["num"]
+    document = HwpxDocument.open(document.to_bytes())
+
+    document.tables[0].insert_rows(0, copy_content=True)
+
+    notes = HwpxDocument.open(document.to_bytes()).notes.footnotes
+    marks = [note.element.find(".//{*}autoNum") for note in notes]
+    assert [(note.number, note.element.get("number")) for note in notes] == [(1, "1"), (2, "2")]
+    assert [mark.get("num", "1") for mark in marks] == ["1", "2"]
+    assert "num" not in marks[0].attrib  # the first is 1 as it was: nothing written

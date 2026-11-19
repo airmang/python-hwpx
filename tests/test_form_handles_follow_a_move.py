@@ -118,3 +118,91 @@ def test_a_radio_button_taken_before_the_move_still_unchecks_its_group() -> None
     saved = {button.caption: button.checked for button in _saved(document).fields.radio_buttons}
     assert saved == {"남는 것": False, "옮긴 것": True}
     assert stays.checked is False
+
+
+def test_a_bookmark_in_a_master_page_renames_with_the_links_to_it() -> None:
+    """The rename marked the body sections only: the body link was saved pointing at the new name and the
+    bookmark, in the master page, kept the old one."""
+
+    document = HwpxDocument.new()
+    document.parts.add_master_page(text="M", section=0).paragraphs[0].add_bookmark("old")
+    document.paragraphs[0].add_hyperlink("#old", "jump")
+    document = HwpxDocument.open(document.to_bytes())
+
+    document.parts.master_pages[0].paragraphs[0].bookmarks[0].rename("new")
+
+    saved = _saved(document)
+    assert saved.parts.master_pages[0].paragraphs[0].bookmarks[0].name == "new"
+    assert saved.refs.hyperlinks[0].url == "#new"
+
+
+def test_two_objects_of_one_bookmark_rename_from_the_name_it_has() -> None:
+    document, moving, destination = _two_sections()
+    moving.add_bookmark("old")
+    moving.add_hyperlink("#old", "jump")
+    first, second = moving.bookmarks[0], moving.bookmarks[0]
+    moving.move_after(destination)
+    document.to_bytes()
+
+    first.rename("middle")
+    document.to_bytes()
+    second.rename("new")  # taken when the name was "old"
+
+    saved = _saved(document)
+    assert (saved.refs.bookmarks[0].name, saved.refs.hyperlinks[0].url) == ("new", "#new")
+
+
+def test_a_field_bookmark_whose_start_moved_away_from_its_end_is_removed_whole() -> None:
+    from lxml.etree import SubElement
+
+    from hwpx.oxml.namespaces import HP
+
+    document = HwpxDocument.new()
+    for tag, attributes in (("fieldBegin", {"type": "BOOKMARK", "name": "span", "id": "42"}),
+                            ("fieldEnd", {"beginIDRef": "42"})):
+        run = document.add_paragraph(tag).runs[0].element
+        SubElement(SubElement(run, HP + "ctrl"), HP + tag, attributes)
+    document.add_section()
+    document = HwpxDocument.open(document.to_bytes())
+    mark = document.refs.bookmarks[0]
+    document.sections[0].paragraphs[-2].move_after(document.sections[1].paragraphs[0])
+    document.to_bytes()
+
+    mark.remove()
+
+    saved = _saved(document)
+    for tag in ("fieldBegin", "fieldEnd"):
+        assert [len(list(section.element.iter(HP + tag))) for section in saved.sections] == [0, 0]
+
+
+def test_a_bookmark_of_a_plain_elementtree_section_still_renames() -> None:
+    """A model section over ``xml.etree`` elements has no way up the tree; the rename works as before."""
+
+    import xml.etree.ElementTree as ET
+
+    from hwpx.model import Section
+    from hwpx.oxml.namespaces import HP, HS
+
+    root = ET.Element(HS + "sec")
+    run = ET.SubElement(ET.SubElement(root, HP + "p"), HP + "run")
+    mark = ET.SubElement(ET.SubElement(run, HP + "ctrl"), HP + "bookmark", name="old")
+    section = Section("section0.xml", root)
+
+    section.paragraphs[0].bookmarks[0].rename("new")
+
+    assert (mark.get("name"), section.dirty) == ("new", True)
+
+
+def test_a_hyperlink_taken_before_its_range_moved_saves_its_new_target() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("a")
+    link = paragraph.add_hyperlink("https://old.example", "label")
+    paragraph.add_run("z")
+    destination = document.add_section().paragraphs[0]
+
+    paragraph.move_range(0, len(paragraph.text), to=destination)
+    document.to_bytes()
+    link.url = "https://new.example"
+
+    assert link.paragraph.section is document.sections[1]
+    assert _saved(document).refs.hyperlinks[0].url == "https://new.example"

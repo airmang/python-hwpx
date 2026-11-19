@@ -47,3 +47,41 @@ def test_a_whole_write_still_saves_the_hwp_file() -> None:
         report = _document().save(stream, format="hwp")
     assert report.path is None
     assert "스트림에 쓰는 문단" in [paragraph.text for paragraph in HwpxDocument.open(stream.getvalue()).paragraphs]
+
+
+class _ShortEachTime(io.BytesIO):
+    """Takes as many bytes of each write as the next of *limits* says."""
+
+    def __init__(self, held: bytes, limits: list[int]) -> None:
+        super().__init__(held)
+        self._limits = iter(limits)
+
+    def write(self, data) -> int:  # type: ignore[no-untyped-def, override]
+        return super().write(bytes(data)[: next(self._limits)])
+
+
+@pytest.mark.parametrize("format", ["hwp", "hwpx"])
+def test_the_stream_is_put_back_also_when_it_takes_the_old_content_in_parts(format: str) -> None:
+    """The rollback wrote the old content with one ``write`` and did not look at what was taken: a stream
+    that took one byte of it kept seven bytes of the new file's header."""
+
+    stream = _ShortEachTime(b"original contents", [8, 1, 20])
+    stream.seek(0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        with pytest.raises(OSError, match="short write"):
+            _document().save(stream, format=format)
+    assert (stream.getvalue(), stream.tell()) == (b"original contents", 0)
+
+
+def test_a_hwp_file_is_never_reported_as_the_source_byte_for_byte() -> None:
+    """The receipt measures the HWPX parts; the file written is HWP 5.0. An unedited document saved as
+    ``.hwp`` used to say ``whole_package_identical`` though the two files share no byte."""
+
+    source = _document().to_bytes()
+    stream = io.BytesIO()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        report = HwpxDocument.open(source).save(stream, format="hwp")
+    assert report.preservation.whole_package_identical is False
+    assert HwpxDocument.open(source).save(io.BytesIO()).preservation.whole_package_identical is True

@@ -90,3 +90,27 @@ def test_the_reported_case_a_new_tab_stop_with_a_bad_border_side() -> None:
     assert getattr(refused.value, "code", None) == "paragraph-border-invalid"
     assert len(document.styles.tab_properties) == tab_definitions
     assert document.to_bytes() == before
+
+
+def test_a_refused_tab_stop_leaves_a_header_without_a_tab_list_as_it_is() -> None:
+    """``hh:tabProperties`` is optional. A header without it gained an empty one before the tab stop was
+    checked, on ``apply_paragraph_format`` and on ``ensure_tab_definition``."""
+
+    document = HwpxDocument.new()
+    header = document.oxml.headers[0]
+    tabs = header.element.find(".//{*}tabProperties")
+    tabs.getparent().remove(tabs)
+    for para_pr in header.element.iterfind(".//{*}paraPr"):
+        para_pr.attrib.pop("tabPrIDRef", None)
+    header.mark_dirty()
+    document = HwpxDocument.open(document.to_bytes())
+    before = document.to_bytes()
+
+    with pytest.raises(ValueError) as refused:
+        document.styles.apply_paragraph_format(paragraph=0, tab_stops=[{"pos_mm": 2, "type": "BAD"}])
+    assert getattr(refused.value, "code", None) == "paragraph-tab-type-invalid"
+    assert document.to_bytes() == before
+
+    with pytest.raises(ValueError):
+        document.styles.ensure_tab_definition(tab_stops=[{"pos": 2000, "type": "BAD"}])
+    assert document.to_bytes() == before

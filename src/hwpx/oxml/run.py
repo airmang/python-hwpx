@@ -1285,13 +1285,13 @@ class HwpxOxmlRun(SameElement):
         """
 
         from ..errors import HwpxValueError
-        from .note_authoring import note_kinds_in, renumber_note_kinds
+        from .note_authoring import note_kinds_in_document, renumber_note_kinds
 
         parent = self.paragraph.element
         if not any(child is self.element for child in parent):
             return
         section = self.paragraph.section
-        note_kinds = note_kinds_in((self.element,))
+        note_kinds = note_kinds_in_document(section, self.element)
         settings = dict(section_setting_runs(parent)).get(self.element, [])
         if settings:
             if len(settings) == len(self.element):

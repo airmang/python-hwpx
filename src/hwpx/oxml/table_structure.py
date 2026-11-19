@@ -176,7 +176,7 @@ class TableStructureEdits:
         takes it). A second call does nothing; the table object should not be used after it.
         """
 
-        from .note_authoring import note_kinds_in, renumber_note_kinds
+        from .note_authoring import note_kinds_in_document, renumber_note_kinds
         from .shape_position import binary_references, remove_orphaned_images
 
         paragraph = self.paragraph.element
@@ -184,7 +184,7 @@ class TableStructureEdits:
             if any(child is self.element for child in run):
                 images = binary_references(self.element) if remove_orphaned else set()
                 section = self.paragraph.section
-                note_kinds = note_kinds_in((self.element,))
+                note_kinds = note_kinds_in_document(section, self.element)
                 run.remove(self.element)
                 if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
                     paragraph.remove(run)

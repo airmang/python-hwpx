@@ -335,7 +335,8 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
                     if host is not None:
                         _clear_paragraph_layout_cache(host)
             for auto_num in note.iter(f"{_HP}autoNum"):
-                if auto_num.get("numType") == _NOTE_NUM_TYPES[tag] and auto_num.get("num") not in (None, number):
+                # an hp:autoNum without ``num`` reads as 1 (the schema's default)
+                if auto_num.get("numType") == _NOTE_NUM_TYPES[tag] and auto_num.get("num", "1") != number:
                     auto_num.set("num", number)
                     changed = True
                 break
@@ -367,6 +368,18 @@ def note_kinds_in(elements: "Sequence[ET.Element]") -> set[str]:
             elif name == "newNum" and node.get("numType") in restarted:
                 kinds.add(restarted[str(node.get("numType"))])
     return kinds
+
+
+def note_kinds_in_document(section: "HwpxOxmlSection", element: ET.Element) -> set[str]:
+    """:func:`note_kinds_in` *element* while it is in the document of *section*; nothing for an element
+    already taken out (in a removed section, or in a table, note or text box taken out): its notes are not
+    among the document's, so taking it apart further must not number the document's notes again."""
+
+    from ._paragraph_text_edit import in_document
+
+    if not hasattr(element, "getparent") or in_document(element, section):
+        return note_kinds_in((element,))
+    return set()
 
 
 def renumber_note_kinds(section: "HwpxOxmlSection", kinds: "set[str]") -> None:
