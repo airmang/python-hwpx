@@ -123,7 +123,7 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
                     taken = len(chunk)
                 if taken <= 0:
                     return
-                offset += taken
+                offset += min(taken, len(chunk))  # a count past what it was given is the chunk
             stream.truncate(position + len(tail))
         else:
             stream.truncate(position)

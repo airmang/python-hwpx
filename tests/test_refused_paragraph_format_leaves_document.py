@@ -143,3 +143,30 @@ def test_tab_stops_are_read_as_each_is_given() -> None:
     key = header.ensure_tab_definition(tab_stops=Reused())
     positions = {item.get("pos") for item in header.element.find(f".//{{*}}tabPr[@id='{key}']").iter("{*}tabItem")}
     assert {"100", "300"} <= positions
+
+
+def test_tab_stops_are_looked_up_the_way_the_mapping_answers() -> None:
+    """The stops are read through the mapping's own lookup, once: a dict subclass whose ``[]`` answers
+    differently from its stored value, and a mapping whose other keys cannot be read."""
+
+    from configparser import ConfigParser
+
+    class Scaled(dict):  # type: ignore[type-arg]
+        def __getitem__(self, key):  # type: ignore[no-untyped-def]
+            value = super().__getitem__(key)
+            return value * 10 if key == "pos" else value
+
+    def positions(stops: object) -> set[str]:
+        header = HwpxDocument.new().oxml.headers[0]
+        key = header.ensure_tab_definition(tab_stops=stops)  # type: ignore[arg-type]
+        return {item.get("pos") for item in header.element.find(f".//{{*}}tabPr[@id='{key}']").iter("{*}tabItem")}
+
+    assert "1230" in positions([Scaled(pos=123)])
+    config = ConfigParser()
+    config.read_string("[tab]\npos=123\ncomment=%(unknown)s")
+    assert "123" in positions([config["tab"]])
+    header = HwpxDocument.new().oxml.headers[0]
+    with pytest.raises(ValueError) as refused:
+        header.ensure_tab_definition(tab_stops=[{}, config["tab"]])  # type: ignore[list-item]
+    assert getattr(refused.value, "code", None) == "paragraph-tab-pos-invalid"
+
