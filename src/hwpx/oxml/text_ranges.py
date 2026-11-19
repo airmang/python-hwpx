@@ -1307,12 +1307,28 @@ def check_field_range(paragraph: "HwpxOxmlParagraph", start: Any, end: Any) -> "
     return (start, end)
 
 
-def wrap_in_field(paragraph: "HwpxOxmlParagraph", span: "tuple[int, int]", begin: Any, finish: Any) -> None:
-    """Move a new field's begin and end controls (each with the run made for it) to the ends of *span*."""
+def wrap_in_field(
+    paragraph: "HwpxOxmlParagraph", span: "tuple[int, int]", begin: Any, finish: Any, prompt: Any = None
+) -> None:
+    """Move a new field's begin and end controls (each with the run made for it) to the ends of *span*.
+
+    *prompt*, the 안내문 run of a field around no character, goes right after the begin control: the run
+    holding the begin is divided there, the end control and what follows it going to a run of its own
+    after the prompt, as Hancom saves an empty click-here field (``count_click_here_between``)."""
 
     start, end = span
     put_at(paragraph.element, start, begin[0])
     put_at(paragraph.element, end, finish[0])
+    if prompt is not None:
+        paragraph.element.remove(prompt)
+        holder = begin[0].getparent()
+        after = list(holder)[list(holder).index(begin[0]) + 1:]
+        index = list(paragraph.element).index(holder)
+        if after:
+            rest = holder.makeelement(holder.tag, dict(holder.attrib))
+            rest.extend(after)
+            paragraph.element.insert(index + 1, rest)
+        paragraph.element.insert(index + 1, prompt)
     for _control, run in (begin, finish):
         drop_if_empty(paragraph.element, run)
     _clear_paragraph_layout_cache(paragraph.element)

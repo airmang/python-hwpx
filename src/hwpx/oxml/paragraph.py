@@ -1610,9 +1610,12 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
 
         With *start* and *end* the field wraps the characters ``[start, end)`` of ``paragraph.text``, its
         value: the begin after the controls at *start*, the end before the character at *end*, each in the run
-        it falls in. No prompt run is written -- the field holds a value -- and *prompt* stays the field's
-        안내문 (its ``Direction`` parameter), as Hancom keeps one in a filled click-here field
-        (``field_value_shape_filled``); *memo* and *editable* are written as without a range. A field around
+        it falls in. Around at least one character no prompt run is written -- the field holds a value -- and
+        *prompt* stays the field's 안내문 (its ``Direction`` parameter), as Hancom keeps one in a filled
+        click-here field (``field_value_shape_filled``). An empty range (*start* == *end*) holds no value, so
+        a non-empty *prompt* is written as without a range: a prompt run between begin and end, as every
+        empty Hancom-saved click-here field with an 안내문 has one (12 of 12 in the fixtures; Hancom adds it
+        on saving one without). *memo* and *editable* are written as without a range. A field around
         at least one character is written as filled (``dirty="1"``, :attr:`FormField.filled`), the mark Hancom
         saves on a click-here field holding text. A range holding
         one end of another field is refused (``paragraph-range-splits-field``).
@@ -1692,7 +1695,8 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             help_param.text = help_state
 
         # Run 2: the prompt placeholder (only while a prompt exists and no text is wrapped)
-        if direction and span is None:
+        run2: ET.Element | None = None
+        if direction and (span is None or span[0] == span[1]):
             run2 = self._create_run_for_object(
                 char_pr_id_ref=(
                     prompt_char_pr_id_ref
@@ -1712,7 +1716,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         })
         _append_child(run3, f"{_HP}t", {})
         if span is not None:
-            wrap_in_field(self, span, (ctrl1, run1), (ctrl3, run3))
+            wrap_in_field(self, span, (ctrl1, run1), (ctrl3, run3), run2)
         self.section.mark_dirty()
         return form_field_for(self, field_begin)
 

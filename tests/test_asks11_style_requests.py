@@ -8,6 +8,8 @@
 3. ``ensure_run(font=)`` gives the face to all seven languages, as the docstring says and as Hancom's own run
    shapes do (12,187 of the 12,188 ``hh:fontRef`` in the fixtures name one face in all seven languages); a
    language whose block lacks the face gets it declared, copied from the face's existing declaration.
+4. add_form_field(start=k, end=k, prompt=...) writes the prompt run between begin and end, as without a range
+   (the 12 empty Hancom-saved click-here fields with an 안내문 all hold one).
 """
 
 from __future__ import annotations
@@ -216,3 +218,59 @@ def test_a_face_declared_in_some_languages_is_copied_into_the_others() -> None:
     assert doc.styles.ensure_run(font="한양신명조", bold=True) == made  # the same request again
     reopened = HwpxDocument.open(doc.to_bytes())
     assert reopened.styles.font_face(made, "USER") == "한양신명조"
+
+
+# -- 4. an empty-range click-here field writes its prompt run -----------------------------------------------
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+
+def _shape(paragraph) -> list[tuple[str | None, list[str]]]:
+    """Runs as (charPrIDRef, [t:<text> | fieldBegin | fieldEnd ...])."""
+
+    out = []
+    for run in paragraph.element.findall(f"{HP}run"):
+        parts = []
+        for child in run:
+            name = etree.QName(child).localname
+            if name == "t":
+                parts.append("t:" + "".join(child.itertext()))
+            elif name == "ctrl":
+                parts.extend(etree.QName(c).localname for c in child)
+        if not set(parts) <= {"secPr", "colPr"}:  # the section settings run of a document's first paragraph
+            out.append((run.get("charPrIDRef"), parts))
+    return out
+
+
+def test_an_empty_range_field_writes_its_prompt_run_between_begin_and_end() -> None:
+    doc = HwpxDocument.new()
+    prompt_style = doc.styles.ensure_run(italic=True, color="#FF0000")
+    paragraph = doc.add_paragraph("abc")
+    field = paragraph.add_form_field("G", start=1, end=1, prompt="pp", prompt_char_pr_id_ref=prompt_style)
+    assert field.element.get("dirty") == "0"
+    assert _shape(paragraph) == [
+        ("0", ["t:a", "fieldBegin"]),
+        (prompt_style, ["t:pp"]),
+        ("0", ["fieldEnd", "t:bc"]),
+    ]
+    assert paragraph.text == "appbc"
+    # the same run an appended field writes
+    appended = doc.add_paragraph("abc")
+    appended.add_form_field("H", prompt="pp", prompt_char_pr_id_ref=prompt_style)
+    assert (prompt_style, ["t:pp"]) in _shape(appended)
+    reopened = {f.name: f for f in HwpxDocument.open(doc.to_bytes()).fields.all}
+    assert reopened["G"].filled is False and reopened["G"].prompt == "pp"
+
+
+def test_an_empty_range_at_either_end_and_one_without_a_prompt() -> None:
+    doc = HwpxDocument.new()
+    first = doc.add_paragraph("abc")
+    first.add_form_field("A", start=0, end=0, prompt="p")
+    assert [parts for _, parts in _shape(first)] == [["fieldBegin"], ["t:p"], ["fieldEnd", "t:abc"]]
+    last = doc.add_paragraph("abc")
+    last.add_form_field("B", start=3, end=3, prompt="p")
+    assert [parts for _, parts in _shape(last)][-2:] == [["t:p"], ["fieldEnd"]]
+    assert last.text == "abcp"
+    bare = doc.add_paragraph("abc")
+    bare.add_form_field("C", start=1, end=1)  # no prompt: begin and end stay side by side
+    assert [parts for _, parts in _shape(bare)] == [["t:a", "fieldBegin", "fieldEnd", "t:bc"]]

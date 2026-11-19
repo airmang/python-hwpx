@@ -546,7 +546,9 @@ python-hwpx 7.0을 함께 설치한다.
     - 사본은 새 `instId`를 받는다.
     - 각주·머리말·꼬리말·메모 안으로는 `paragraph-move-place-unsupported`, 다른 문서로는 `note-other-document-unsupported`로 거부한다.
   - `paragraph.add_form_field(name, start=, end=)`:
-    - 있는 글을 누름틀 값으로 감싼다. 런을 넘어도 된다. 안내문 런은 쓰지 않는다.
+    - 있는 글을 누름틀 값으로 감싼다. 런을 넘어도 된다. 글을 감싸면 안내문 런은 쓰지 않는다.
+    - 빈 범위(`start == end`)에 안내문을 주면 범위 없이 넣을 때처럼 begin과 end 사이에 안내문 런을 쓴다. 한/글 저장본의 값 없는
+      누름틀 가운데 안내문이 있는 12개가 모두 이 런을 두고, 한/글은 이 런 없이 쓴 문서를 다시 저장할 때 런을 넣는다.
     - 다른 필드 한쪽만 품는 범위는 `paragraph-range-splits-field`로 거부한다.
   - 형광펜 범위:
     - `paragraph.add_highlight(color=, start=, end=)`·`doc.text.highlight(paragraph, start=, end=)`로 칠한다. 런을 넘으면 시작·끝을 각 글자의 `hp:t`에 한 번씩 둔다.
