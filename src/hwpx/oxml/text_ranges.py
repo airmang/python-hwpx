@@ -982,7 +982,14 @@ def copy_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
     size = _fragment_length(runs)
     notes = _note_kinds(runs)
     _fit_pasted_objects(runs, to)
+    from .shape_position import _object_nodes, stack_new_object
+
+    copied = [node for run in runs for node in _object_nodes(run)]
     _splice_runs(to, offset, runs)
+    # Each copied object -- in a note or text box of the range too -- goes over the others in the order it
+    # stands, as note.copy_to and shape.copy_to stack a copy; the copies kept the originals' zOrder before.
+    for node in copied:
+        stack_new_object(node, to.section)
     _changed(to)
     _renumber_kinds(notes, to.section)
     return (offset, offset + size)

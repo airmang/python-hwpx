@@ -632,6 +632,8 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- 글 범위를 복사(`copy_range`)하면 범위와 그 안의 각주·글상자에 든 개체의 사본이 원본의 겹침 순서(`zOrder`)를 그대로 가져가 한
+  층에 개체 둘이 놓였다. 이제 `note.copy_to`·`shape.copy_to`처럼 사본마다 놓인 차례대로 다른 개체들 위의 새 순서를 받는다.
 - 각주·미주가 든 것을 통째로 복제하거나 옮기면 저장된 번호가 겹치거나(1·2·1) 거꾸로(2·1) 남았다: 문단 `copy_to`·
   `insert_after()`·`insert_before()`·`move_after`·`move_before`, `section.insert_paragraphs`·`doc.insert_paragraphs`, 문서 끼워
   넣기(`insert_document`·`append_document`), 다른 문서로 문단 복사, 표 `copy_to`·`copy_after`·`move_to`, `copy_rows`·`move_rows`,
