@@ -1026,9 +1026,9 @@ def _border_fill_matches(
         return False
 
     for side, child_name in _BORDER_SIDE_ELEMENTS.items():
-        expected = (side_lines or {}).get(side) or (
+        line = (side_lines or {}).get(side) or (
             border_type if side in active_borders else "NONE", border_width, border_color)
-        if not _border_line_matches(element.find(f"{_HH}{child_name}"), *expected):
+        if not _border_line_matches(element.find(f"{_HH}{child_name}"), *line):
             return False
     if any(
         (child := element.find(f"{_HH}{name}")) is None or (child.get("type") or "").upper() != "NONE"
