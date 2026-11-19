@@ -55,6 +55,7 @@ class TableStructureEdits:
 
     element: Any
     paragraph: "HwpxOxmlParagraph"
+    _section: Any  # the section a table taken out of its paragraph was built with
 
     offset = property(_offset)
 
