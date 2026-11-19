@@ -1041,5 +1041,8 @@ class TableFormat:
 
         stack_new_object(copy, target.section)  # over the others, as Hancom pastes a copy
         _clear_paragraph_layout_cache(new)
+        from .note_authoring import renumber_notes_holding
+
+        renumber_notes_holding(target.section, (copy,))
         target.section.mark_dirty()
         return HwpxOxmlTable(copy, HwpxOxmlParagraph(new, target.section))

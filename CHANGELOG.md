@@ -632,6 +632,11 @@ python-hwpx 7.0을 함께 설치한다.
 
 ### 고침
 
+- 각주·미주가 든 것을 통째로 복제하거나 옮기면 저장된 번호가 겹치거나(1·2·1) 거꾸로(2·1) 남았다: 문단 `copy_to`·
+  `insert_after()`·`insert_before()`·`move_after`·`move_before`, `section.insert_paragraphs`·`doc.insert_paragraphs`, 문서 끼워
+  넣기(`insert_document`·`append_document`), 다른 문서로 문단 복사, 표 `copy_to`·`copy_after`·`move_to`, `copy_rows`·`move_rows`,
+  도형 `copy_to`·`move_to`. 이제 이 길들도 `note.copy_to`·`copy_range`처럼 문서 차례로 번호를 다시 쓴다(쪽마다 새로 매기는
+  구역이 있으면 전처럼 두는 것까지 같은 규칙).
 - 떠 있는 표가 든 글 범위를 표 칸·글상자·각주로 복사·이동(`copy_range`·`move_range`)하면 성공하고 칸 안 표가 쪽 기준(PAGE·
   PAPER) 그대로 저장되었다. 같은 표를 같은 칸으로 보내는 `table.copy_to`·`move_to`는 `shape-move-place-unsupported`로 거부한다.
   이제 범위의 표도 같은 판단을 거쳐, 한/글 문서가 칸·글상자·각주에 두지 않는 배치(문단 기준이 아니거나 쪽 영역 안에 두지 않은

@@ -567,6 +567,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             renew_copied_memos(element, list(document.sections) if document is not None else [self.section],
                                self.section)
             unique_object_ids(self.section, (element,))
+            from .note_authoring import renumber_notes_holding
+
+            renumber_notes_holding(self.section, (element,))
         self.section.mark_dirty()
         return element
 
@@ -618,6 +621,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         own = resolve_paragraph_in(self, self, caller=caller)
         anchor = resolve_paragraph_in(own, paragraph, caller=caller)
         self.section = move_paragraph_beside(own, anchor, after=after)
+        from .note_authoring import renumber_notes_holding
+
+        renumber_notes_holding(self.section, (own.element,))  # its notes now stand elsewhere in the order
 
     def _create_run_for_object(
         self,

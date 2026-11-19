@@ -1588,7 +1588,8 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     and paragraphs get fresh ids, a memo anchored in it comes along in its field, and section settings
     stay behind. What :func:`insert_document` refuses is refused the same way
     (``document-merge-unsupported-reference``). In the same document the copy is the one
-    ``paragraph.insert_after()`` makes. No line layout cache comes along.
+    ``paragraph.insert_after()`` makes. No line layout cache comes along. The document's footnotes and
+    endnotes are numbered again in document order, as ``note.copy_to`` numbers them.
     """
 
     from ..oxml._document_primitives import _clone_paragraph_element
@@ -1599,6 +1600,7 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
         section_setting_runs,
     )
     from ..oxml.memo import renew_copied_memos
+    from ..oxml.note_authoring import renumber_notes_holding
     from ..oxml.paragraph import HwpxOxmlParagraph
 
     if not isinstance(before, bool):
@@ -1630,6 +1632,7 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
         from ..oxml.shape_position import unique_object_ids
 
         unique_object_ids(anchor.section, (copy,))
+        renumber_notes_holding(anchor.section, (copy,))
         return HwpxOxmlParagraph(copy, anchor.section)
     source_doc, target_doc = _facade_of(source_root), _facade_of(target_root)
     if source_doc is None or target_doc is None:
@@ -1657,6 +1660,7 @@ def copy_paragraph(source: Any, anchor: Any, *, before: bool = False) -> Any:
     from ..oxml.shape_position import unique_object_ids
 
     unique_object_ids(anchor.section, (copy,))
+    renumber_notes_holding(anchor.section, (copy,))
     return HwpxOxmlParagraph(copy, anchor.section)
 
 

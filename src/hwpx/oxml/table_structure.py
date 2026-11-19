@@ -125,9 +125,13 @@ class TableStructureEdits:
         refused (``table-rows-move-other-table``) -- no Hancom-saved document shows rows moved into another
         table; :meth:`copy_rows` with *source* and :meth:`delete_rows` do it in two steps."""
 
+        from .note_authoring import renumber_notes_holding
         from .table_rows import move_rows
 
-        return move_rows(self, rows, to, source)
+        moved = move_rows(self, rows, to, source)
+        renumber_notes_holding(self.paragraph.section if self.paragraph is not None else self._section,
+                               (self.element,))  # the rows' notes stand elsewhere in the order now
+        return moved
 
     def copy_rows(
         self, rows: int | Iterable[int], *, to: int, source: "HwpxOxmlTable | None" = None
@@ -139,9 +143,13 @@ class TableStructureEdits:
         (``table-columns-differ``) or of another document (``table-rows-other-document``). Returns the new
         rows, where they stand."""
 
+        from .note_authoring import renumber_notes_holding
         from .table_rows import copy_rows
 
-        return copy_rows(self, rows, to, source)
+        copies = copy_rows(self, rows, to, source)
+        renumber_notes_holding(self.paragraph.section if self.paragraph is not None else self._section,
+                               (self.element,))  # copied rows repeated their notes' numbers
+        return copies
 
     def split_cell(self, row: int, col: int, *, rows: int = 1, cols: int = 1) -> None:
         """Split the cell at (*row*, *col*) into *rows* x *cols* cells (2..63 each), as Hancom does.

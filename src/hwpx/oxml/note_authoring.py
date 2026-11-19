@@ -343,6 +343,18 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
             owner.mark_dirty()
 
 
+def renumber_notes_holding(section: "HwpxOxmlSection", elements: "Sequence[ET.Element]") -> None:
+    """After *elements* (paragraphs, tables, objects or rows copied or moved) went into the document of
+    *section*: write the numbers of the kinds of note they hold again, in document order, as a note copied
+    with ``note.copy_to`` or a range with ``copy_range`` gets them (:func:`renumber_notes`). A copy kept the
+    numbers of what it copied, so the saved numbers repeated (1, 2, 1)."""
+
+    tags = {name for element in elements for node in element.iter()
+            if (name := _element_local(node)) in ("footNote", "endNote")}
+    for tag in sorted(tags):
+        renumber_notes(section, tag)
+
+
 def _host_paragraph(root: ET.Element, element: ET.Element) -> ET.Element | None:
     """The innermost ``hp:p`` holding *element* (lxml: up the parents; else down from *root*)."""
 
