@@ -1760,6 +1760,12 @@ def update_form_field(
     is shown anew; a value someone entered stays.
     """
 
+    from ..oxml.field_marks import check_click_here_text
+
+    if prompt is not _UNSET:
+        check_click_here_text(str(prompt), "prompt")
+    if memo is not _UNSET:
+        check_click_here_text(str(memo), "memo")
     match = _match_for_begin(doc, field_begin)
     paragraph = match["_paragraph"]
     if name is not _UNSET:

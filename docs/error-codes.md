@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 367 | 11 |
+| 개수 | 368 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -135,6 +135,7 @@ except HwpxError as exc:
 | `field-radio-group-value` | 라디오 단추 묶음 이름(group)이 str 가 아니다. |
 | `field-selector-conflict` | 선택자를 둘 이상 동시에 지정했다. |
 | `field-text-box-not-found` | 그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다). |
+| `field-text-control-unsupported` | 누름틀 안내문(Direction)이나 메모(HelpState)에 탭·줄바꿈이 들었다(한/글 저장본의 안내문 35개에 없는 꼴). |
 
 ### `header-*`
 

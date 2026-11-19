@@ -562,6 +562,7 @@ ERROR_CODES: dict[str, str] = {
     "page-border-fill-invalid": "쪽 테두리 page_type·fill_area 가 OWPML 어휘 밖이거나, 오프셋이 0 이상 32767 이하의 int 가 아니다.",
     # -- 양식개체 --------------------------------------------------------
     "field-name-empty": "누름틀 이름이 비어 있다.",
+    "field-text-control-unsupported": "누름틀 안내문(Direction)이나 메모(HelpState)에 탭·줄바꿈이 들었다(한/글 저장본의 안내문 35개에 없는 꼴).",
     "field-not-found": "그 선택자로 누름틀을 찾지 못했다.",
     "field-ambiguous": "선택자가 누름틀 여럿에 걸린다.",
     "field-not-created": "만든 누름틀을 표준 매처가 다시 찾지 못했다.",

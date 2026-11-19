@@ -1670,16 +1670,19 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         Args:
             name: Field name used by ``list_form_fields``/``fill_form_field``.
             prompt: 안내문 text shown while the field is empty (``Direction``).
-            memo: Help text (``HelpState``).
+            memo: Help text (``HelpState``). A tab or a line break in either is refused before anything
+                is written (``field-text-control-unsupported``): no Hancom-saved click-here field holds one.
             prompt_char_pr_id_ref: charPr for the prompt run (callers normally
                 pass a red-italic style; Hancom uses one).
 
         Returns:
             The field (``field.element`` is the ``<hp:fieldBegin>``).
         """
-        from .field_marks import form_field_for
+        from .field_marks import check_click_here_text, form_field_for
         from .text_ranges import check_field_range, wrap_in_field
 
+        check_click_here_text(prompt, "prompt")
+        check_click_here_text(memo, "memo")
         span = check_field_range(self, start, end)
         field_id = _object_id(self.section._ids)
         field_instance_id = field_type_id("CLICK_HERE", ids=self.section._ids)
