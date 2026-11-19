@@ -341,9 +341,9 @@ def _char_changes(changes: Mapping[str, Any]) -> dict[str, Any]:
                                  suggestion='Pass "#RRGGBB"' + (' or "none".' if name == "highlight" else "."))
         spec[attribute] = color
     if changes.get("letter_spacing") is not None:
-        spec["spacing"] = int(_check_number("letter_spacing", changes["letter_spacing"], -50, 50,
+        spec["spacing"] = int(_check_number("letter_spacing", changes["letter_spacing"], -50, 100,
                                             code="style-run-format-invalid",
-                                            suggestion="자간은 -50 ~ 50 (%) 입니다."))
+                                            suggestion="자간은 -50 ~ 100 (%) 입니다."))
     if changes.get("ratio") is not None:
         spec["ratio"] = int(_check_number("ratio", changes["ratio"], 50, 200, code="style-run-format-invalid",
                                           suggestion="장평은 50 ~ 200 (%) 입니다."))
@@ -403,8 +403,15 @@ def _apply_char_changes(element: ET.Element, spec: Mapping[str, Any], font_ids: 
 
 
 def _font_ids(header: "HwpxOxmlHeader", spec: Mapping[str, Any]) -> dict[str, str]:
-    by_lang = spec.get("font_by_lang") or {}
-    return {_FONT_FACE_LANG_TO_REF[lang]: header.ensure_font(face, lang=lang) for lang, face in by_lang.items()}
+    """The font ids *spec*'s faces have in their languages' blocks, declared where missing as
+    ``ensure_run(font=)`` declares them (:func:`~.header_fonts.declare_face`)."""
+
+    from .header_fonts import declare_face
+
+    ids: dict[str, str] = {}
+    for lang, face in (spec.get("font_by_lang") or {}).items():
+        ids.update(declare_face(header, face, [lang]))
+    return ids
 
 
 def derive_char_pr(header: "HwpxOxmlHeader", base_id: "int | str | None", changes: Mapping[str, Any]) -> str:

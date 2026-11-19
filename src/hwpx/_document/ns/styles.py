@@ -683,9 +683,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         `font`는 모든 언어의 글꼴을, `font_by_lang`은 언어별 글꼴을 정한다.
         `font`는 일곱 언어 모두에 준다(한/글 저장본의 글자 모양 12,188개 가운데 12,187개가 일곱
-        언어에 같은 글꼴을 쓴다). 그 글꼴이 없는 언어 블록에는 먼저 선언한다: 다른 블록에 선언이
-        있으면 그 `hh:font`를 id만 바꿔 복사하고(`replace_font`와 같다), 어디에도 없으면
-        `ensure_font`의 기본 선언이다.
+        언어에 같은 글꼴을 쓴다). 그 글꼴이 없는 언어 블록에는 먼저 선언한다(그 언어의
+        `hh:fontface` 블록이 아예 없으면 블록부터 만든다): 다른 블록에 선언이 있으면 그 `hh:font`를
+        id만 바꿔 복사하고(`replace_font`와 같다. 글꼴 형식·대체 글꼴이 그대로다), 어디에도 없으면
+        `ensure_font`의 기본 선언이다. `font_by_lang`이 댄 글꼴도 같다.
         `font_by_lang`은 언어(HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER,
         대소문자 무시) → 글꼴 이름 매핑이다. 예:
         `ensure_run(font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"})`.
@@ -697,14 +698,15 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
           댄 언어만 그 글꼴로 바꾼다(`font_by_lang`이 이긴다).
         - 기준 글자 모양은 바꾸지 않는다. 기준을 복사해 바꾼 결과와 내용이 같은
           글자 모양이 이미 있으면 그 id를, 없으면 새 id를 돌려준다.
-        - 아무 글꼴도 등록하기 전에 인자를 검사한다: 모르는 언어는
+        - 아무 글꼴도 등록하기 전에 모든 인자(색·크기 등 포함)를 검사한다. 거부한 호출은 문서를
+          바꾸지 않는다. 모르는 언어는
           `style-font-lang-invalid`, 빈 글꼴 이름은 `style-font-face-empty`,
           매핑이 아니거나 문자열이 아닌 키·값, 대소문자만 다른 같은 언어 두 번은
           `style-run-font-by-lang-invalid`(`HwpxValueError`).
 
         `letter_spacing`은 모든 언어의 자간(%)을, `letter_spacing_by_lang`은 언어별 자간을
-        정한다. 언어 키는 `font_by_lang`과 같고 값은 -50 ~ 50의 `int`다(OWPML `hh:spacing`의
-        범위). 예: `ensure_run(base_char_pr_id_ref=7, letter_spacing_by_lang={"HANGUL": 0})`.
+        정한다. 언어 키는 `font_by_lang`과 같고 값은 -50 ~ 100의 `int`다(`letter_spacing`과 같다.
+        한/글 2024는 51 ~ 100을 다시 저장해도 그대로 둔다). 예: `ensure_run(base_char_pr_id_ref=7, letter_spacing_by_lang={"HANGUL": 0})`.
 
         - 이름을 대지 않은 언어는 기준 글자 모양의 `hh:spacing` 값을 그대로 둔다(기준에
           `hh:spacing`이 없으면 일곱 언어를 모두 적고, 대지 않은 언어는 스키마 기본값 0).

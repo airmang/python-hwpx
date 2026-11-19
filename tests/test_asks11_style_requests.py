@@ -165,7 +165,7 @@ def test_a_base_without_spacing_gets_all_seven_with_the_schema_default() -> None
         ({"HANGUL": True}, "style-run-letter-spacing-by-lang-invalid"),
         ({"HANGUL": 1.5}, "style-run-letter-spacing-by-lang-invalid"),
         ({"HANGUL": -51}, "style-run-letter-spacing-by-lang-invalid"),
-        ({"HANGUL": 51}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"HANGUL": 101}, "style-run-letter-spacing-by-lang-invalid"),
         ({"KOREAN": 0}, "style-font-lang-invalid"),
     ],
 )

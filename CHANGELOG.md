@@ -182,6 +182,18 @@
   다른 블록의 X 선언을 id만 바꿔 복사하고(`replace_font`와 같다), 어디에도 없으면 전처럼 일곱 블록에 기본 선언을 더한다. 한/글
   저장본의 글자 모양 12,188개 가운데 12,187개가 일곱 언어에 같은 글꼴을 쓴다. `run.set_format(font=)`는 이미 일곱 언어에 줬다.
   몇 언어만 바꾸려면 `font_by_lang=`.
+  - 그 언어의 `hh:fontface` 블록 자체가 없는 문서에서도 블록을 한/글의 자리에 만들고 같은 규칙으로 복사한다(글꼴 형식·대체
+    글꼴이 그대로다. 전에는 새 블록에 TTF 기본 선언을 썼다). 한/글 저장본 1,265개는 모두 일곱 블록을 갖는다.
+  - `font_by_lang=`, `run.set_format(font=, font_by_lang=)`·`run.set_font`, `set_style_format(font=)`,
+    `set_char_property(font=)`도 같은 규칙으로 선언한다(전에는 다른 블록에 HFT·대체 글꼴로 선언된 글꼴도 TTF 기본 선언을 더했다).
+    `ensure_font`는 전처럼 준 인자(`font_type=` 기본 TTF)대로 선언한다.
+- 거부한 서식 호출은 문서를 조금도 바꾸지 않는다. `ensure_run`은 색(`color`·`highlight`·`underline_color`·`shadow`)을 글꼴을
+  선언한 뒤에 검사해서, 잘못된 색으로 거부해도 글꼴 선언이 남았다(새 글꼴이면 일곱 개). 이제 모든 인자를 문서를 건드리기 전에
+  검사한다. `font=`에 글이 아닌 값은 `AttributeError` 대신 `style-font-face-empty`다. `ensure_memo_shape`도 잘못된 색으로 거부할
+  때 빈 `hh:memoProperties`를 남기던 것을 고쳤다.
+- 자간은 어느 길이나 -50 ~ 100 %다. `ensure_run(letter_spacing=)`만 100까지 받고 `letter_spacing_by_lang=`·`run.set_format`·
+  `set_char_property`·`set_style_format`은 51 ~ 100을 거부해서, 문서에 이미 있는 +75 같은 자간을 일부 언어나 한 런에 다시 줄
+  수 없었다. 한/글 2024는 51·80·100으로 쓴 자간을 다시 저장해도 그대로 둔다.
 - `table.set_in_margins`가 표 안여백으로 배치되는 칸(`hasMargin` 꺼짐)의 `hp:cellMargin`도 같은 값으로 쓴다.
   `add_table(in_margins=CellMargins(...))`로 만들 때 준다.
 - 복사한 문단·개체의 모든 개체 `id`를 새로 매기고(선·사각형 등도), 새로 넣은 개체의 `id`가 문서의 다른 개체와 겹치지 않는다.
@@ -319,7 +331,7 @@ python-hwpx 7.0을 함께 설치한다.
   `NoteLabels(doc).label(note)`가 각주 번호를 돌려준다. `number_text`, `table_grid_text`, `hwpx.oxml.run.text_element_content`도
   공개다.
 - `doc.shapes.*`·`doc.refs.*`·`doc.notes.add_footnote`·`doc.page.set_columns`의 `paragraph=`에 문단 번호(정수)를 줄 수 있다.
-- `doc.styles.ensure_run(letter_spacing_by_lang={"HANGUL": 0, "LATIN": -5})`: 언어마다 다른 자간(-50 ~ 50 %)을 쓰는 글자 모양을
+- `doc.styles.ensure_run(letter_spacing_by_lang={"HANGUL": 0, "LATIN": -5})`: 언어마다 다른 자간(-50 ~ 100 %)을 쓰는 글자 모양을
   만든다. 언어 이름과 검사는 `font_by_lang`과 같고, 대지 않은 언어는 기준 글자 모양의 값을 그대로 둔다. `letter_spacing`과 함께
   주면 `letter_spacing_by_lang`이 이긴다. 잘못된 값은 아무것도 바꾸기 전에 `style-run-letter-spacing-by-lang-invalid`로 거부한다.
   전에는 몇 언어의 자간만 바꾸려면 `ensure_char_property(predicate=, modifier=)` 안에서 XML을 고쳐야 했다.
@@ -573,6 +585,10 @@ python-hwpx 7.0을 함께 설치한다.
   - 사본은 새 id를 받는다. 같은 문서·같은 열의 다른 표에서도 복사한다.
   - 병합 칸이 묶음 경계나 넣을 자리를 가로지르면 `table-rows-merge-crossed`로 바꾸기 전에 거부한다.
   - 놓인 행을 돌려준다. 행 번호·자리가 잘못되면 `table-rows-invalid`, 열이 다르면 `table-columns-differ`, 다른 문서 표는 `table-rows-other-document`, 다른 표로 옮기기는 `table-rows-move-other-table`로 거부한다.
+  - 칸 영역(`hp:cellzone`)은 제 행을 따라간다. 한 영역 안에서 행 순서만 바꾸면 영역은 그대로 한 덩어리로 남고 주소를 다시
+    적는다. 옮긴 뒤 영역의 행이 이어지지 않게 되면 바꾸기 전에 `table-rows-split-cell-zone`으로 거부한다. 복사한 행이 들어간
+    자리 뒤의 영역은 그만큼 내려가고, 영역 가운데에 들어가면 `insert_rows`처럼 영역이 그 행들까지 넓어진다(전에는 영역 주소를
+    그대로 두어 다른 행을 덮었다).
 - `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
   `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
   기본값(`False`)이면 전처럼 지운다. 남기는 문단의 단 정의 컨트롤 안에 글·개체가 함께 있으면, 첫 문단처럼 `on_control_content`를 따른다

@@ -130,7 +130,7 @@ def test_run_format_refuses_bad_values_before_changing_anything() -> None:
         run.set_format(weight=700)
     assert unknown.value.code == "style-run-format-invalid"
     with pytest.raises(HwpxValueError) as spacing:
-        run.set_format(letter_spacing=80, size=12)
+        run.set_format(letter_spacing=101, size=12)
     assert spacing.value.code == "style-run-format-invalid"
     with pytest.raises(HwpxValueError) as color:
         run.color = "빨강"

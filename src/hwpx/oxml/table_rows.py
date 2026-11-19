@@ -158,8 +158,8 @@ def _require_table_in_document(table_object: Any, role: str) -> None:
 
 def _moved_zones(table: Any, block: tuple[int, int], to: int) -> list[tuple[Any, int, int]]:
     """Where each cell zone (``hp:cellzone``) of *table* goes when its rows ``block`` move before row *to*: a
-    zone follows its rows, as one does when rows are deleted. A zone holding moved rows and others too would
-    come apart; that is refused."""
+    zone follows its rows, as one does when rows are deleted. Rows reordered inside one zone keep it whole (its
+    rows stay one run); a zone whose rows would no longer be one run would come apart: that is refused."""
 
     count = len(_rows(table))
     order = [index for index in range(count) if not block[0] <= index < block[1]]
@@ -169,16 +169,29 @@ def _moved_zones(table: Any, block: tuple[int, int], to: int) -> list[tuple[Any,
     moves: list[tuple[Any, int, int]] = []
     for zone in table.findall(f"{_HP}cellzoneList/{_HP}cellzone"):
         start, end = int(zone.get("startRowAddr") or 0), int(zone.get("endRowAddr") or 0)
-        rows = [new.get(index, index) for index in range(start, end + 1)]
-        if rows != list(range(min(rows), max(rows) + 1)):
+        rows = sorted(new.get(index, index) for index in range(start, end + 1))
+        if rows != list(range(rows[0], rows[-1] + 1)):
             raise HwpxValueError(
                 f"the cell zone over rows {start}..{end} holds rows that move and rows that stay",
                 code="table-rows-split-cell-zone",
                 context={"startRow": start, "endRow": end, "rows": list(range(block[0], block[1]))},
                 suggestion="Move every row of the zone, or none of them.",
             )
-        moves.append((zone, min(rows), max(rows)))
+        moves.append((zone, rows[0], rows[-1]))
     return moves
+
+
+def _make_room_in_zones(table: Any, to: int, count: int) -> None:
+    """The cell zones of *table* after *count* rows go in front of row *to*, as ``insert_rows`` does: a zone
+    from row *to* on moves down, one running on across the place grows over the new rows."""
+
+    for zone in table.findall(f"{_HP}cellzoneList/{_HP}cellzone"):
+        start, end = int(zone.get("startRowAddr") or 0), int(zone.get("endRowAddr") or 0)
+        if end < to:
+            continue
+        if start >= to:
+            zone.set("startRowAddr", str(start + count))
+        zone.set("endRowAddr", str(end + count))
 
 
 def move_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source: Any = None) -> tuple[Any, ...]:
@@ -258,6 +271,7 @@ def copy_rows(table_object: Any, rows: "int | Iterable[int]", to: object, source
             _clear_paragraph_layout_cache(node)
     before = table_object._rows_height()
     _place(target, copies, to)
+    _make_room_in_zones(target, to, len(copies))
     unique_object_ids(table_object.paragraph.section, copies)
     _changed(table_object, before)
     return _placed(table_object, copies)
