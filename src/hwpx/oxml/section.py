@@ -708,6 +708,9 @@ class HwpxOxmlSection:
             from .shape_position import unique_object_ids
 
             unique_object_ids(self, [paragraph.element for paragraph in inserted])
+            from .note_authoring import renumber_notes_holding
+
+            renumber_notes_holding(self, [paragraph.element for paragraph in inserted])
             self._dirty = True
         return tuple(inserted)
 

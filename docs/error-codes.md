@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 367 | 11 |
+| 개수 | 368 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -135,6 +135,7 @@ except HwpxError as exc:
 | `field-radio-group-value` | 라디오 단추 묶음 이름(group)이 str 가 아니다. |
 | `field-selector-conflict` | 선택자를 둘 이상 동시에 지정했다. |
 | `field-text-box-not-found` | 그 이름의 글상자 필드가 없다(doc.fields.text_boxes 로 이름을 본다). |
+| `field-text-control-unsupported` | 누름틀 안내문(Direction)이나 메모(HelpState)에 탭·줄바꿈이 들었다(한/글 저장본의 안내문 35개에 없는 꼴). |
 
 ### `header-*`
 
@@ -282,7 +283,7 @@ except HwpxError as exc:
 | `paragraph-move-into-itself` | 문단을 자기 안(그 문단의 표 칸·글상자·각주)으로 옮기려 했다. |
 | `paragraph-move-place-unsupported` | 메모의 문단을 옮기거나 문단을 메모 안으로 옮기려 했다(메모 글은 memo.text 로 고친다). |
 | `paragraph-not-found` | 문단 인덱스가 범위를 벗어났다. |
-| `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단). |
+| `paragraph-not-in-document` | 넘긴 문단 객체가 이 문서에 속해 있지 않다(다른 문서의 문단이거나 지운 문단), 또는 떼어 낸 문단·런·각주에서 문서 쪽에 쓰는 편집(모양 등록, 번호, 표시·개체 넣기, 옆 문단). |
 | `paragraph-outline-level-out-of-range` | 문단 개요 수준이 0~10 밖이다. |
 | `paragraph-range-crosses-element` | 바꿀 글자 범위가 한 덩이 글이 아니다(탭·줄 바꿈·컨트롤·개체가 끼어 있다). |
 | `paragraph-range-holds-objects` | 지울 글자 범위 안에 컨트롤·개체(각주·책갈피·누름틀·표·그림 …)가 있다(objects='remove' 로 함께 지운다. 범위 양 끝의 것은 남는다). |
@@ -428,7 +429,7 @@ except HwpxError as exc:
 | `shape-group-member-unsupported` | 묶음(hp:container) 구성원 하나만은 돌리거나 크기를 바꾸거나 옮길 수 없고(한/글 근거 대기), 설명·바깥 여백은 구성원에 자리가 없다(묶음 단위 속성, 한/글에 없는 기능). 돌았거나 늘인 묶음에서는 혼자 지울 수 없다(묶음째 다루거나 ungroup() 으로 푼다). |
 | `shape-move-into-itself` | 개체를 자기 안(글상자·표 칸·캡션)의 문단으로 옮기려 했다(복사는 된다). |
 | `shape-move-place-unsupported` | 한/글이 그렇게 두는 근거가 없거나 다시 열지 못한 자리로 옮기거나 복사하려 했다: 표 칸에 문단 기준으로 위로 올라가는 떠 있는 개체(한/글이 다시 열지 못함), 개체를 메모·바탕쪽으로, 떠 있는 표를 칸·글상자·각주·캡션으로(문단 기준·쪽 영역 안이 아니면); context.box·placement·reason. |
-| `shape-not-in-document` | 옮기거나 복사할 개체가 문단에 없다(지운 개체). |
+| `shape-not-in-document` | 옮기거나 복사할 개체가 문단에 없다(지운 개체), 또는 떼어 낸 글상자·캡션에 문단 넣기. |
 | `shape-numbering-type-value` | 개체·표의 numbering_type 이 NONE·PICTURE·TABLE·EQUATION 가운데 하나(대문자, 정확히)가 아니다. |
 | `shape-original-size-invalid` | add_rectangle/add_ellipse 의 original_size 가 양의 정수 두 개(HWPUNIT)가 아니다. |
 | `shape-out-margin-value` | 개체 바깥 여백(out_margins)이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
@@ -532,7 +533,7 @@ except HwpxError as exc:
 | `table-merge-range-invalid` | 병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다. |
 | `table-no-adjust-value` | noAdjust 값이 bool 이 아니다. |
 | `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
-| `table-not-in-document` | 행을 옮기거나 복사할 표(또는 행을 가져올 표)가 문서에 없다(지운 표, 떼어 낸 것 안의 표). |
+| `table-not-in-document` | 표가 문서에 없다(지운 표, 떼어 낸 것 안의 표): 행·열·칸 구조 편집, 테두리·채우기·정렬처럼 머리에 쓰는 편집, 칸에 문단·표 넣기, 표 복사. |
 | `table-page-split-value` | 표가 쪽 경계에서 나뉘는 방식(page_split)이 TABLE·CELL·NONE 중 하나가 아니다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 | `table-row-height-value` | 행 높이가 양의 int(HWPUNIT)가 아니다. |

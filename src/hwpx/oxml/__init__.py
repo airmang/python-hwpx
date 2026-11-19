@@ -271,3 +271,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+from ._paragraph_text_edit import install_detached_guard as _install_detached_guard  # noqa: E402
+
+_install_detached_guard()  # writes on the document side refuse an object taken out of it
