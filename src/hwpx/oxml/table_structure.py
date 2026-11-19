@@ -176,18 +176,22 @@ class TableStructureEdits:
         takes it). A second call does nothing; the table object should not be used after it.
         """
 
+        from .note_authoring import note_kinds_in, renumber_note_kinds
         from .shape_position import binary_references, remove_orphaned_images
 
         paragraph = self.paragraph.element
         for run in paragraph.findall(f"{_HP}run"):
             if any(child is self.element for child in run):
                 images = binary_references(self.element) if remove_orphaned else set()
+                section = self.paragraph.section
+                note_kinds = note_kinds_in((self.element,))
                 run.remove(self.element)
                 if len(run) == 0 and len(paragraph.findall(f"{_HP}run")) > 1:
                     paragraph.remove(run)
                 _clear_paragraph_layout_cache(paragraph)
-                self.paragraph.section.mark_dirty()
-                remove_orphaned_images(self.paragraph.section, images)
+                section.mark_dirty()
+                remove_orphaned_images(section, images)
+                renumber_note_kinds(section, note_kinds)  # the notes after the ones its cells held
                 return
 
     def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None) -> None:
@@ -231,6 +235,9 @@ class TableStructureEdits:
             for paragraph in part.element.iter(f"{_HP}p")
             if (found := paragraph.get("id") or "").isdigit()
         }
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
+        note_kinds = note_kinds_in((element,))  # before: rows deleted take their notes with them
         xml = etree.tostring(element, encoding="unicode", with_tail=False)
         context = "".join(etree.tostring(part.element, encoding="unicode") for part in sections) \
             if op.get("op") in _CLONE_OPS else ""
@@ -247,6 +254,9 @@ class TableStructureEdits:
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()
         section._remove_outlived_layout_caches()  # track the rebuilt caches with the content they have now
+        # Rows or columns copied with their content repeated their notes' numbers (1, 1), and rows
+        # deleted left the numbers after them as they were: number the kinds the table held or holds.
+        renumber_note_kinds(section, note_kinds | note_kinds_in((element,)))
 
     def _rows_height(self) -> int | None:
         """The table's rows' height as the page estimate measures them (:mod:`hwpx.layout.pages`), or None

@@ -815,13 +815,18 @@ class ObjectPlacement:
             why = member_removal_refusal(element, groups)
             if why is not None:
                 raise _group_member_refused("removed", why)
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
         images = binary_references(element) if remove_orphaned else set()
-        _detach_object(element, parent, paragraph, self.paragraph.section)
+        section = self.paragraph.section
+        note_kinds = note_kinds_in((element,))
+        _detach_object(element, parent, paragraph, section)
         if groups:  # the groups fit the members left, so only after it went
             from .container import fit_groups_after_removal
 
             fit_groups_after_removal(groups)
-        remove_orphaned_images(self.paragraph.section, images)
+        remove_orphaned_images(section, images)
+        renumber_note_kinds(section, note_kinds)  # the notes after the ones in its text or caption
 
     def move_to(self, paragraph: "int | HwpxOxmlParagraph", *, offset: int | None = None,
                 keep_order: bool = False) -> None:

@@ -349,9 +349,28 @@ def renumber_notes_holding(section: "HwpxOxmlSection", elements: "Sequence[ET.El
     with ``note.copy_to`` or a range with ``copy_range`` gets them (:func:`renumber_notes`). A copy kept the
     numbers of what it copied, so the saved numbers repeated (1, 2, 1)."""
 
-    tags = {name for element in elements for node in element.iter()
-            if (name := _element_local(node)) in ("footNote", "endNote")}
-    for tag in sorted(tags):
+    renumber_note_kinds(section, note_kinds_in(elements))
+
+
+def note_kinds_in(elements: "Sequence[ET.Element]") -> set[str]:
+    """The kinds of note (``footNote``, ``endNote``) whose numbers depend on *elements*: the notes they
+    hold, and the kinds a ``hp:newNum`` in them starts counting again. A paragraph holding only such a
+    restart holds no note, yet moving or copying it changes the number of every note after it."""
+
+    kinds: set[str] = set()
+    restarted = {num_type: tag for tag, num_type in _NOTE_NUM_TYPES.items()}
+    for element in elements:
+        for node in element.iter():
+            name = _element_local(node)
+            if name in _NOTE_NUM_TYPES:
+                kinds.add(name)
+            elif name == "newNum" and node.get("numType") in restarted:
+                kinds.add(restarted[str(node.get("numType"))])
+    return kinds
+
+
+def renumber_note_kinds(section: "HwpxOxmlSection", kinds: "set[str]") -> None:
+    for tag in sorted(kinds):
         renumber_notes(section, tag)
 
 

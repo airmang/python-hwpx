@@ -62,7 +62,7 @@ from ._paragraph_text_edit import (
     paragraph_container,
     paragraph_line_segments,
     paragraph_line_texts,
-    remove_paragraph_element,
+    remove_paragraph,
     text_marks_as_elements_in,
     write_tab_widths,
 )
@@ -506,8 +506,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         per section, and Hancom cannot open a cell, header or footer whose
         paragraph list is empty.
         """
-        if remove_paragraph_element(self.element, self.section.element):
-            self.section.mark_dirty()
+        remove_paragraph(self)
 
     def insert_after(self, text: str | None = None) -> "HwpxOxmlParagraph":
         """Put a new paragraph right after this one (in its section, cell, header or footer) and return it.

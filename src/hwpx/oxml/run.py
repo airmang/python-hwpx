@@ -1285,10 +1285,13 @@ class HwpxOxmlRun(SameElement):
         """
 
         from ..errors import HwpxValueError
+        from .note_authoring import note_kinds_in, renumber_note_kinds
 
         parent = self.paragraph.element
         if not any(child is self.element for child in parent):
             return
+        section = self.paragraph.section
+        note_kinds = note_kinds_in((self.element,))
         settings = dict(section_setting_runs(parent)).get(self.element, [])
         if settings:
             if len(settings) == len(self.element):
@@ -1303,7 +1306,8 @@ class HwpxOxmlRun(SameElement):
         else:
             parent.remove(self.element)
         _clear_paragraph_layout_cache(parent)  # the cache's line starts would point past what is left
-        self.paragraph.section.mark_dirty()
+        section.mark_dirty()
+        renumber_note_kinds(section, note_kinds)  # the notes after the ones (or the restart) it held
 
     @property
     def bold(self) -> bool | None:
