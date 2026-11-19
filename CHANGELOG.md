@@ -168,6 +168,15 @@
 - 읽기만 해서는 문서가 바뀌지 않는다: `hp:secPr`가 없는 구역(한/글 저장본에는 없다)의 `section.properties`·`doc.page.size()` 등이
   빈 `hp:secPr`를 넣고 구역을 바뀐 것으로 표시하던 것을 고쳤다. 값은 "적히지 않음"(`None`)이고, 그 설정에 쓸 때 넣는다.
 - 선 없는 면(`ensure_border_fill(sides={...: None})`)을 한/글처럼 `type="NONE" width="0.1 mm"`로 쓴다(전: 기준 굵기).
+- `ensure_border_fill`이 새로 짓는 테두리 정의의 대각선(`hh:diagonal`)을 한/글 저장본의 테두리 정의 3,511개가 모두 쓰는
+  `type="SOLID" width="0.1 mm" color="#000000"`로 쓴다(전: `NONE`에 면의 굵기·색). `hh:slash`·`hh:backSlash`가 `NONE`이라 그려지는
+  것은 없다. 같은 내용의 정의를 찾을 때도 이 꼴의 대각선을 보므로, 한/글이 저장한 정의 가운데 같은 것이 있으면 새로 만들지 않고 그
+  id를 돌려준다. 기준 정의에서 짓는 길(`base_border_fill_id_ref=`)은 전처럼 기준의 대각선을 그대로 둔다.
+- `ensure_run(font="X")`가 X를 일곱 언어 모두에 준다. 전에는 X를 글꼴 목록에 이미 선언한 언어만 바꿔서, 한글 목록에 X가 없는
+  문서에서는 한글 글꼴이 오류 없이 그대로 남았다(docstring은 "모든 언어"라고 했다). 이제 X가 없는 언어 블록에 먼저 선언한다:
+  다른 블록의 X 선언을 id만 바꿔 복사하고(`replace_font`와 같다), 어디에도 없으면 전처럼 일곱 블록에 기본 선언을 더한다. 한/글
+  저장본의 글자 모양 12,188개 가운데 12,187개가 일곱 언어에 같은 글꼴을 쓴다. `run.set_format(font=)`는 이미 일곱 언어에 줬다.
+  몇 언어만 바꾸려면 `font_by_lang=`.
 - `table.set_in_margins`가 표 안여백으로 배치되는 칸(`hasMargin` 꺼짐)의 `hp:cellMargin`도 같은 값으로 쓴다.
   `add_table(in_margins=CellMargins(...))`로 만들 때 준다.
 - 복사한 문단·개체의 모든 개체 `id`를 새로 매기고(선·사각형 등도), 새로 넣은 개체의 `id`가 문서의 다른 개체와 겹치지 않는다.
@@ -305,6 +314,10 @@ python-hwpx 7.0을 함께 설치한다.
   `NoteLabels(doc).label(note)`가 각주 번호를 돌려준다. `number_text`, `table_grid_text`, `hwpx.oxml.run.text_element_content`도
   공개다.
 - `doc.shapes.*`·`doc.refs.*`·`doc.notes.add_footnote`·`doc.page.set_columns`의 `paragraph=`에 문단 번호(정수)를 줄 수 있다.
+- `doc.styles.ensure_run(letter_spacing_by_lang={"HANGUL": 0, "LATIN": -5})`: 언어마다 다른 자간(-50 ~ 50 %)을 쓰는 글자 모양을
+  만든다. 언어 이름과 검사는 `font_by_lang`과 같고, 대지 않은 언어는 기준 글자 모양의 값을 그대로 둔다. `letter_spacing`과 함께
+  주면 `letter_spacing_by_lang`이 이긴다. 잘못된 값은 아무것도 바꾸기 전에 `style-run-letter-spacing-by-lang-invalid`로 거부한다.
+  전에는 몇 언어의 자간만 바꾸려면 `ensure_char_property(predicate=, modifier=)` 안에서 XML을 고쳐야 했다.
 
 #### 표
 
@@ -533,7 +546,9 @@ python-hwpx 7.0을 함께 설치한다.
     - 사본은 새 `instId`를 받는다.
     - 각주·머리말·꼬리말·메모 안으로는 `paragraph-move-place-unsupported`, 다른 문서로는 `note-other-document-unsupported`로 거부한다.
   - `paragraph.add_form_field(name, start=, end=)`:
-    - 있는 글을 누름틀 값으로 감싼다. 런을 넘어도 된다. 안내문 런은 쓰지 않는다.
+    - 있는 글을 누름틀 값으로 감싼다. 런을 넘어도 된다. 글을 감싸면 안내문 런은 쓰지 않는다.
+    - 빈 범위(`start == end`)에 안내문을 주면 범위 없이 넣을 때처럼 begin과 end 사이에 안내문 런을 쓴다. 한/글 저장본의 값 없는
+      누름틀 가운데 안내문이 있는 12개가 모두 이 런을 두고, 한/글은 이 런 없이 쓴 문서를 다시 저장할 때 런을 넣는다.
     - 다른 필드 한쪽만 품는 범위는 `paragraph-range-splits-field`로 거부한다.
   - 형광펜 범위:
     - `paragraph.add_highlight(color=, start=, end=)`·`doc.text.highlight(paragraph, start=, end=)`로 칠한다. 런을 넘으면 시작·끝을 각 글자의 `hp:t`에 한 번씩 둔다.

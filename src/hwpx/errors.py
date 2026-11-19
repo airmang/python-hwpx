@@ -498,6 +498,7 @@ ERROR_CODES: dict[str, str] = {
     "style-list-property-failed": "번호 문단모양을 만들지 못했다.",
     "style-font-face-empty": "face 값이 비어 있다.",
     "style-run-font-by-lang-invalid": "font_by_lang 이 언어 이름 → 글꼴 이름 매핑이 아니다(문자열 아닌 키·값, 같은 언어 두 번).",
+    "style-run-letter-spacing-by-lang-invalid": "letter_spacing_by_lang 이 언어 이름 → 자간(-50~50 int) 매핑이 아니다(문자열 아닌 키, 같은 언어 두 번, int 아닌 값·범위 밖).",
     "style-font-lang-invalid": "lang 값이 OWPML 어휘(HANGUL/LATIN/HANJA/JAPANESE/OTHER/SYMBOL/USER) 밖이다.",
     "style-font-type-invalid": "font_type/subst_type 값이 OWPML 어휘(REP/TTF/HFT) 밖이다.",
     "style-font-substitute-incomplete": "대체 글꼴 인자가 일부만 주어졌다(subst_face 가 필요하다).",

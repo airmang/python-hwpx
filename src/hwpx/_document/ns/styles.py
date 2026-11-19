@@ -667,6 +667,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         engrave: bool | None = None,
         base_char_pr_id_ref: str | int | None = None,
         font_by_lang: "Mapping[str, str] | None" = None,
+        letter_spacing_by_lang: "Mapping[str, int] | None" = None,
     ) -> str:
         """요청한 글자 서식의 `charPr` id 를 보장하고 그 id 를 돌려준다.
 
@@ -681,6 +682,10 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         요소만 쓴다(요소가 글자를 줄이고 올리거나 내린다. `relSz`/`offset`은 그대로).
 
         `font`는 모든 언어의 글꼴을, `font_by_lang`은 언어별 글꼴을 정한다.
+        `font`는 일곱 언어 모두에 준다(한/글 저장본의 글자 모양 12,188개 가운데 12,187개가 일곱
+        언어에 같은 글꼴을 쓴다). 그 글꼴이 없는 언어 블록에는 먼저 선언한다: 다른 블록에 선언이
+        있으면 그 `hh:font`를 id만 바꿔 복사하고(`replace_font`와 같다), 어디에도 없으면
+        `ensure_font`의 기본 선언이다.
         `font_by_lang`은 언어(HANGUL·LATIN·HANJA·JAPANESE·OTHER·SYMBOL·USER,
         대소문자 무시) → 글꼴 이름 매핑이다. 예:
         `ensure_run(font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"})`.
@@ -696,6 +701,18 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
           `style-font-lang-invalid`, 빈 글꼴 이름은 `style-font-face-empty`,
           매핑이 아니거나 문자열이 아닌 키·값, 대소문자만 다른 같은 언어 두 번은
           `style-run-font-by-lang-invalid`(`HwpxValueError`).
+
+        `letter_spacing`은 모든 언어의 자간(%)을, `letter_spacing_by_lang`은 언어별 자간을
+        정한다. 언어 키는 `font_by_lang`과 같고 값은 -50 ~ 50의 `int`다(OWPML `hh:spacing`의
+        범위). 예: `ensure_run(base_char_pr_id_ref=7, letter_spacing_by_lang={"HANGUL": 0})`.
+
+        - 이름을 대지 않은 언어는 기준 글자 모양의 `hh:spacing` 값을 그대로 둔다(기준에
+          `hh:spacing`이 없으면 일곱 언어를 모두 적고, 대지 않은 언어는 스키마 기본값 0).
+        - `letter_spacing`과 함께 주면 `letter_spacing`을 먼저 모든 언어에 적용하고,
+          `letter_spacing_by_lang`이 댄 언어만 그 값으로 바꾼다.
+        - 아무것도 바꾸기 전에 검사한다: 모르는 언어는 `style-font-lang-invalid`, 매핑이
+          아니거나 문자열이 아닌 키, 같은 언어 두 번, `int`가 아니거나 범위 밖인 값은
+          `style-run-letter-spacing-by-lang-invalid`(`HwpxValueError`).
         """
 
         return self._doc.oxml.ensure_run_style(
@@ -719,6 +736,7 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             engrave=engrave,
             base_char_pr_id=base_char_pr_id_ref,
             font_by_lang=font_by_lang,
+            letter_spacing_by_lang=letter_spacing_by_lang,
         )
 
     def ensure_border_fill(

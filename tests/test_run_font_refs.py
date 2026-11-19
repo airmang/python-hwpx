@@ -2,8 +2,9 @@
 """``styles.ensure_run(font=...)`` points every language at the right font.
 
 ``hh:fontRef`` numbers fonts per language, so a font declared in some
-languages only must not lend its id to the others; and a font the header
-does not declare yet is declared (as Hancom does) instead of being dropped.
+languages only must not lend its id to the others: it is declared in the
+languages that lack it; and a font the header does not declare yet is
+declared (as Hancom does) instead of being dropped.
 """
 from __future__ import annotations
 
@@ -34,15 +35,14 @@ def test_a_font_the_header_lacks_is_declared_and_applied() -> None:
     assert set(_faces(doc, char_pr_id).values()) == {"맑은 고딕"}
 
 
-def test_a_font_declared_in_one_language_leaves_the_others_alone() -> None:
+def test_a_font_declared_in_one_language_is_declared_in_the_others_with_their_own_ids() -> None:
+    # asks11: font= is every language's face (Hancom's run shapes name one face in all seven), so the
+    # languages that lack it get it declared -- never the HANGUL block's id borrowed.
     doc = HwpxDocument.new()
-    base = _faces(doc, "0")
     doc.styles.ensure_font("바탕", lang="LATIN")  # latin: 함초롬바탕 0, 바탕 1
     doc.styles.ensure_font("맑은 고딕", lang="HANGUL")  # hangul: 1
     char_pr_id = doc.styles.ensure_run(font="맑은 고딕")
-    faces = _faces(doc, char_pr_id)
-    assert faces["hangul"] == "맑은 고딕"
-    assert {k: v for k, v in faces.items() if k != "hangul"} == {k: v for k, v in base.items() if k != "hangul"}
+    assert set(_faces(doc, char_pr_id).values()) == {"맑은 고딕"}
 
 
 def test_a_font_declared_everywhere_is_used_everywhere() -> None:
