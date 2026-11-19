@@ -175,14 +175,14 @@ def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> bool:
     checkpoint = _capture_stream_checkpoint(stream)
     if checkpoint is None:
         raise OSError(
-            "HWPX stream save requires a checkpointable stream; "
+            "stream save requires a checkpointable stream; "
             "save to a path (doc.save(path)) for non-seekable outputs"
         )
     try:
         written = stream.write(data)
         if written is not None and written != len(data):
             raise OSError(
-                "short write while saving HWPX stream: "
+                "short write while saving to a stream: "
                 f"wrote {written} of {len(data)} bytes"
             )
         read_back = settle_written_stream(stream, checkpoint[0], data, checkpoint[1])

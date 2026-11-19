@@ -643,7 +643,12 @@ def save(
                 report.output_path = str(path)
             else:
                 assert stream is not None
-                stream.write(hwp5)
+                from ..quality.save_pipeline import write_stream_or_rollback
+
+                # As the .hwpx stream save: a short write is an error and the stream is put back as it
+                # was (stream.write(hwp5) alone returned a receipt for a file cut short).
+                if not write_stream_or_rollback(stream, hwp5):
+                    report.warnings.append(STREAM_NOT_READ_BACK)
     except SaveTargetError:
         raise
     except OSError as error:
