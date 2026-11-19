@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import functools
 import hashlib
+from dataclasses import replace as dataclass_replace
 from os import PathLike
 from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Sequence, TypeVar, cast
 
@@ -23,6 +24,7 @@ from ..opc.security import sharing_archive_reads
 from ..opc.package import _UNCHECKED_SAVE_TOKEN
 from ..quality import QualityPolicy, SavePipeline
 from ..quality.report import OpenSafetyReport
+from ..quality.save_pipeline import STREAM_NOT_READ_BACK
 
 #: The file formats a document saves to: HWPX, or HWP 5.0.
 SaveFormat = Literal["hwpx", "hwp"]
@@ -649,6 +651,14 @@ def save(
             raise
         raise _save_target_error(path, error) from error
     _mark_save_clean(doc)
+    if STREAM_NOT_READ_BACK in report.warnings:
+        # What the stream holds was not read back: the receipt does not say it is the source file.
+        measurement = dataclass_replace(
+            measurement,
+            preservation=dataclass_replace(
+                measurement.preservation, whole_package_identical=False, output_read_back=False
+            ),
+        )
     return _compose_mutation_report(
         path=None if path is None else str(path),
         requested_mode=mode,

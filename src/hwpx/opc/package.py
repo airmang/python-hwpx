@@ -383,6 +383,39 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
         return
 
 
+def refuse_duplicate_entry_names(names: Iterable[str]) -> None:
+    """Refuse to write back an archive that holds one name more than once (*names* are the repeated
+    names; nothing happens when there are none).
+
+    A writer that reads parts by name keeps one payload per name (the last, as ``zipfile`` reads it), so
+    writing such an archive back would drop or overwrite the other contents without a word. The document
+    save and every byte patch (:mod:`hwpx.patch` and the patches built on it) refuse it with this one
+    error, before anything is written. Opening and reading such a file stay allowed, and Hangul never
+    writes one."""
+
+    repeated = sorted(set(names))
+    if not repeated:
+        return
+    raise HwpxPackageError(
+        "the archive holds more than one entry named "
+        + ", ".join(repeated[:5])
+        + "; writing it back would keep only one of their contents",
+        code="save-duplicate-entry-names",
+        context={"names": repeated[:20]},
+        suggestion=(
+            "nothing was written; read what you need from the document, or rebuild the archive with "
+            "one entry per name (Hangul's own save does) before editing it"
+        ),
+    )
+
+
+def duplicate_entry_names(infos: Iterable[ZipInfo]) -> list[str]:
+    """The file names (directory entries aside) that *infos* list more than once, sorted."""
+
+    counts = Counter(info.filename for info in infos if not info.is_dir())
+    return sorted(name for name, count in counts.items() if count > 1)
+
+
 #: The ZipInfo fields a save carries from the source entry (see ``HwpxPackage._zip_info_for_write``); an
 #: entry is copied from the source only when every one of them is what the source had.
 _RECORD_FIELDS = (
@@ -997,8 +1030,7 @@ class HwpxPackage:
             with open_archive(source_bytes) as zf:
                 guard_zip_file(zf)
                 infos = [info for info in zf.infolist() if not info.is_dir()]
-                counts = Counter(info.filename for info in infos)
-                duplicates = sorted(name for name, count in counts.items() if count > 1)
+                duplicates = duplicate_entry_names(infos)
                 files = read_zip_members(zf)
                 zip_infos = {info.filename: info for info in infos}
                 # Directory entries hold no part; they are kept (in the central directory's order, with
@@ -1873,23 +1905,11 @@ class HwpxPackage:
 
     def _refuse_duplicate_entry_names(self) -> None:
         """A package opened from an archive holding one name twice is refused at save, before anything is
-        written: the package keeps one payload per name (the last, as ``zipfile`` reads it), so a save would
-        drop the other one without a word. Opening it stays allowed -- reading, extracting and converting
-        such a file lose nothing -- and Hangul never writes one."""
+        written (:func:`refuse_duplicate_entry_names`): the package keeps one payload per name, so a save
+        would drop the other one without a word. Opening it stays allowed -- reading, extracting and
+        converting such a file lose nothing."""
 
-        if self._duplicate_entry_names:
-            names = list(self._duplicate_entry_names)
-            raise HwpxPackageError(
-                "the archive this document was opened from holds more than one entry named "
-                + ", ".join(names[:5])
-                + "; saving would keep only one of their contents",
-                code="save-duplicate-entry-names",
-                context={"names": names[:20]},
-                suggestion=(
-                    "nothing was written; read what you need from the document, or rebuild the archive with "
-                    "one entry per name (Hangul's own save does) before editing it"
-                ),
-            )
+        refuse_duplicate_entry_names(self._duplicate_entry_names)
 
     def _assemble_archive(self) -> bytes:
         """The archive this save writes.
@@ -1922,7 +1942,7 @@ class HwpxPackage:
             built_records = read_records(built)
         except ZipRecordsUnsupported as exc:
             self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(), rewritten_reason=exc.reason)
-            return built
+            return self._keep_source_layout(built, source)
         records: list[tuple[bytes, bytes]] = []
         copied: set[str] = set()
         for entry in built_records.entries:
@@ -1965,7 +1985,7 @@ class HwpxPackage:
             )
         except ZipRecordsUnsupported as exc:
             self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(), rewritten_reason=exc.reason)
-            return built
+            return self._keep_source_layout(built, source)
         self._zip_records_outcome = ZipRecordsOutcome(copied=frozenset(copied), rewritten_reason=None)
         self._last_built_archive = _SourceArchive(
             written,
@@ -1978,6 +1998,25 @@ class HwpxPackage:
             },
         )
         return written
+
+    @staticmethod
+    def _keep_source_layout(built: bytes, source: "_SourceArchive") -> bytes:
+        """*built* (every entry written again, in the source's central order) with its records lying where
+        the source had them, for a source whose records could not be kept (ZIP64, a prefix, ...): a save
+        that cannot keep the bytes still keeps what the file says -- both entry orders, ``mimetype``'s place
+        and compression, the archive comment. *built* as it is when its records cannot be moved."""
+
+        from .zip_records import ZipRecordsUnsupported, lay_out_records
+
+        try:
+            with ZipFile(io.BytesIO(source.data)) as archive:
+                infos = sorted(archive.infolist(), key=lambda info: info.header_offset)
+        except (BadZipFile, OSError, ValueError):
+            return built
+        try:
+            return lay_out_records(built, [info.filename for info in infos])
+        except ZipRecordsUnsupported:
+            return built
 
     def _adopt_last_archive(self) -> None:
         """After a clean save, the archive it wrote is what the next save keeps records from (the document
@@ -2009,8 +2048,7 @@ class HwpxPackage:
         the content meant -- a copied source record must never stand for content it does not hold."""
 
         names = [info.filename for info in archive.infolist()]
-        expected = [self.MIMETYPE_PATH, *self._ordered_entry_names()]
-        expected += sorted(name for name in self._files if name not in expected)
+        expected = self._write_order()
         kept_order = getattr(self, "_expected_entry_order", None)
         if kept_order is not None:  # records kept from the source, in its order
             expected = kept_order
@@ -2066,18 +2104,30 @@ class HwpxPackage:
                 "raw HWPX archive writing is an internal save path; use "
                 "HwpxPackage.save() so editor-open safety validation runs"
             )
-        self._write_mimetype(zf)
-        written = {self.MIMETYPE_PATH}
-        ordered_names = self._ordered_entry_names()
-        new_names = sorted(
-            name for name in self._files if name not in written and name not in ordered_names
-        )
-        for name in [*ordered_names, *new_names]:
-            if name not in self._files:
+        for name in self._write_order():
+            if name == self.MIMETYPE_PATH:
+                self._write_mimetype(zf)
+            elif name not in self._files:
                 zf.writestr(self._directory_info(name), b"")
             else:
                 self._write_zip_entry(zf, name, self._files[name], ZIP_DEFLATED)
-            written.add(name)
+
+    def _write_order(self) -> list[str]:
+        """The entries a save writes, in order: ``mimetype`` where the source archive listed it (first for a
+        package not read from one), the other entries it read in its order, then new parts by name."""
+
+        ordered_names = self._ordered_entry_names()
+        new_names = sorted(
+            name for name in self._files if name != self.MIMETYPE_PATH and name not in ordered_names
+        )
+        if self._source_archive is None:
+            listed = [self.MIMETYPE_PATH, *ordered_names]
+        else:
+            listed = [name for name in self._zip_order if name == self.MIMETYPE_PATH or name in ordered_names]
+            if self.MIMETYPE_PATH not in listed:
+                listed.insert(0, self.MIMETYPE_PATH)
+        # One name listed twice (refused before a save gets here) must not be written twice.
+        return [*dict.fromkeys(listed), *new_names]
 
     def _ordered_entry_names(self) -> list[str]:
         """The entries after ``mimetype`` in the order they were read: parts the package still holds and the
@@ -2108,9 +2158,11 @@ class HwpxPackage:
             return info
 
         info = ZipInfo(path, original.date_time)
+        # mimetype keeps the compression it was read with while its content is what was read (a source
+        # that deflated it says so, and making it standard is hwpx-repair's job); a new one is stored.
         info.compress_type = (
             compress_type
-            if path == self.MIMETYPE_PATH
+            if path == self.MIMETYPE_PATH and not self._mimetype_as_read()
             else original.compress_type
         )
         info.comment = original.comment
@@ -2123,6 +2175,12 @@ class HwpxPackage:
         info.internal_attr = original.internal_attr
         info.external_attr = original.external_attr
         return info
+
+    def _mimetype_as_read(self) -> bool:
+        source = self._source_archive
+        return source is not None and source.contents.get(self.MIMETYPE_PATH) == self._files.get(
+            self.MIMETYPE_PATH
+        )
 
     def _write_zip_entry(
         self,
