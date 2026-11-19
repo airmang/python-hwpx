@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence, TypeVar, cast
 import xml.etree.ElementTree as ET
@@ -789,11 +789,12 @@ class HwpxOxmlDocument:
                 )
             normalized_outline = candidate
 
-        from .header_fonts import _letter_spacing_by_lang, run_style_font_ref  # off the `import hwpx` path
+        from .header_fonts import _letter_spacing_by_lang, check_run_fonts, run_style_font_ref  # off `import hwpx`
 
-        spacing_by_lang = _letter_spacing_by_lang(letter_spacing_by_lang)  # checked before a font is declared
+        # Every argument is checked before a font is declared: a refused call leaves the header as it was.
+        spacing_by_lang = _letter_spacing_by_lang(letter_spacing_by_lang)
+        check_run_fonts(font, font_by_lang)
         header = self._headers[0]
-        font_ref = run_style_font_ref(header, font, font_by_lang)
         base = _run_style_base(header, base_char_pr_id)
         spec = _RunStyleSpec(
             flags=_run_style_flags((bold, italic, underline), base, base_char_pr_id is not None),
@@ -801,7 +802,7 @@ class HwpxOxmlDocument:
             highlight=_normalize_color(highlight),
             height=_char_height_from_points(size),
             strike=strike,
-            font_ref=font_ref,
+            font_ref=None,
             underline_shape=normalized_underline_shape,
             underline_color=_normalize_color(underline_color),
             strike_shape=normalized_strike_shape,
@@ -814,6 +815,7 @@ class HwpxOxmlDocument:
             emboss=None if emboss is None else bool(emboss),
             engrave=None if engrave is None else bool(engrave),
         )
+        spec = replace(spec, font_ref=run_style_font_ref(header, font, font_by_lang))  # declares fonts: last
         element = header.ensure_char_property(
             predicate=_run_style_wanted(base, spec),
             modifier=lambda el: _run_style_modifier(el, spec),

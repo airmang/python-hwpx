@@ -50,8 +50,8 @@ if TYPE_CHECKING:
     from .header_part import HwpxOxmlHeader
 
 __all__ = [
-    "border_fill_info", "clear_line_caches", "font_face", "fonts", "replace_font", "run_style_font_ref",
-    "set_letter_spacing",
+    "border_fill_info", "check_run_fonts", "clear_line_caches", "declare_face", "font_face", "fonts", "replace_font",
+    "run_style_font_ref", "set_letter_spacing",
 ]
 
 #: ``hh:borderFill`` side children, in ``BorderFillInfo`` field order.
@@ -478,22 +478,33 @@ def _font_by_lang(font_by_lang: "Mapping[str, str] | None") -> dict[str, str]:
     return resolved
 
 
+def check_run_fonts(font: object, font_by_lang: "Mapping[str, str] | None") -> None:
+    """``ensure_run``'s *font* and *font_by_lang* checked before anything is declared: *font* a font
+    name (``style-font-face-empty`` otherwise), *font_by_lang* as :func:`_font_by_lang` checks it."""
+
+    _font_by_lang(font_by_lang)
+    if font is not None and not isinstance(font, str):
+        raise HwpxValueError(f"font must be a font name; got {font!r}", code="style-font-face-empty",
+                             suggestion='Pass a face such as "맑은 고딕".')
+
+
 def _letter_spacing_by_lang(letter_spacing_by_lang: "Mapping[str, int] | None") -> dict[str, int]:
     """*letter_spacing_by_lang* checked: lang (``HANGUL``.. ``USER``, any case) -> 자간 % (an ``int``
-    from -50 to 50, the range of ``hh:spacing`` in the OWPML schema), keyed by the ``hh:spacing``
-    attribute (``hangul``..). Anything else is ``style-run-letter-spacing-by-lang-invalid``."""
+    from -50 to 100, as ``ensure_run(letter_spacing=)`` takes: Hancom 2024 keeps 51..100 when it saves
+    the file again), keyed by the ``hh:spacing`` attribute (``hangul``..). Anything else is
+    ``style-run-letter-spacing-by-lang-invalid``."""
 
     code = "style-run-letter-spacing-by-lang-invalid"
     resolved: dict[str, int] = {}
     for lang, value in _lang_mapping(
         letter_spacing_by_lang, name="letter_spacing_by_lang", code=code, example='{"HANGUL": -5, "LATIN": 0}',
     ):
-        if isinstance(value, bool) or not isinstance(value, int) or not -50 <= value <= 50:
+        if isinstance(value, bool) or not isinstance(value, int) or not -50 <= value <= 100:
             raise HwpxValueError(
-                f"letter_spacing_by_lang value for {lang} must be an int from -50 to 50; got {value!r}",
+                f"letter_spacing_by_lang value for {lang} must be an int from -50 to 100; got {value!r}",
                 code=code,
                 context={"lang": lang, "requested": repr(value)},
-                suggestion="자간은 -50 ~ 50 (%) 입니다.",
+                suggestion="자간은 -50 ~ 100 (%) 입니다.",
             )
         resolved[_FONT_FACE_LANG_TO_REF[lang]] = value
     return resolved
@@ -517,24 +528,37 @@ def set_letter_spacing(element: ET.Element, every: int | None, by_lang: "Mapping
         node.set(lang, str(value))
 
 
-def _declare_in_every_language(header: "HwpxOxmlHeader", face: str) -> None:
-    """Declare *face* in each of the seven ``hh:fontface`` blocks that lacks it: a copy of its first
-    declaration with the block's next id (``replace_font``'s rule), or, when no block declares it,
-    ``ensure_font``'s plain declaration in all seven."""
+def declare_face(header: "HwpxOxmlHeader", face: str, langs: Iterable[str]) -> dict[str, str]:
+    """Declare *face* in the ``hh:fontface`` block of each of *langs* (``HANGUL``.. ``USER``) that lacks
+    it and return its id there, by ``hh:fontRef`` attribute (``hangul``..). A face some block already
+    declares is copied with the block's next id (``replace_font``'s rule: its ``type``, embedding and
+    substitute font kept), also into a block the header does not have yet, made where Hancom puts it;
+    a face no block declares gets ``ensure_font``'s plain declaration."""
 
     template = next((font for block in _fontfaces(header) for font in block.findall(f"{_HH}font")
                      if font.get("face") == face), None)
-    for lang in _FONT_FACE_LANG_TO_REF:
+    ids: dict[str, str] = {}
+    for lang in langs:
+        if template is None:
+            ids[_FONT_FACE_LANG_TO_REF[lang]] = header.ensure_font(face, lang=lang)
+            continue
         block = _fontface_block(header, lang)
-        if template is None or block is None:
-            header.ensure_font(face, lang=lang)
-        elif _find_font_id(block, face) is None:
+        if block is None:
+            fontfaces = header._fontfaces_element(create=True)
+            assert fontfaces is not None  # template was found under it
+            block = header._fontface_element(fontfaces, lang, create=True)
+            assert block is not None
+        font_id = _find_font_id(block, face)
+        if font_id is None:
             font = copy.deepcopy(template)
             font.tail = None
-            font.set("id", _allocate_font_id(block))
+            font_id = _allocate_font_id(block)
+            font.set("id", font_id)
             block.append(font)
             block.set("fontCnt", str(len(block.findall(f"{_HH}font"))))
             header.mark_dirty()
+        ids[_FONT_FACE_LANG_TO_REF[lang]] = font_id
+    return ids
 
 
 def run_style_font_ref(
@@ -544,23 +568,22 @@ def run_style_font_ref(
 
     *font* goes to all seven languages, as Hancom's own run shapes do (12,187 of the 12,188
     ``hh:fontRef`` in the Hancom-saved fixtures name one face in all seven). A language whose block
-    lacks the face gets it declared first: a copy of the face's first declaration (another id), as
-    ``replace_font`` declares a face, or a plain declaration when no block has it, as Hancom declares
-    a font it is asked to apply. Then each *font_by_lang* face goes to
-    its own language: declared in that language's block if missing, referenced by that block's id
-    (each language numbers its fonts on its own). So *font_by_lang* wins over *font* for the languages
-    it names, and a language neither names keeps the base style's reference. *font_by_lang* is checked
-    before any font is declared.
+    lacks the face -- or that has no block -- gets it declared first (:func:`declare_face`): a copy of
+    the face's first declaration (another id), as ``replace_font`` declares a face, or a plain
+    declaration when no block has it, as Hancom declares a font it is asked to apply. Then each
+    *font_by_lang* face goes to its own language, declared the same way if missing, referenced by
+    that block's id (each language numbers its fonts on its own). So *font_by_lang* wins over *font*
+    for the languages it names, and a language neither names keeps the base style's reference.
+    *font_by_lang* is checked before any font is declared.
     """
 
     by_lang = _font_by_lang(font_by_lang)
     refs = header.font_ref_for_face(font) if font is not None else None
     if font is not None and font.strip() and len(refs or {}) < len(_FONT_FACE_LANG_TO_REF):
-        _declare_in_every_language(header, font.strip())
-        refs = header.font_ref_for_face(font)
+        refs = declare_face(header, font.strip(), _FONT_FACE_LANG_TO_REF)
     if not by_lang:
         return refs
     merged = dict(refs or {})
     for lang, face in by_lang.items():
-        merged[_FONT_FACE_LANG_TO_REF[lang]] = header.ensure_font(face, lang=lang)
+        merged.update(declare_face(header, face, [lang]))
     return merged

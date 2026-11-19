@@ -1350,7 +1350,7 @@ class HwpxOxmlRun(SameElement):
         Takes ``size`` (pt), ``font`` (a face for every language), ``font_by_lang``
         (language -> face, as ``doc.styles.ensure_run``), ``color``, ``highlight``
         (``"none"`` takes it off), ``bold``, ``italic``, ``underline``, ``strike``,
-        ``superscript``, ``subscript``, ``letter_spacing`` (자간 %, -50..50) and
+        ``superscript``, ``subscript``, ``letter_spacing`` (자간 %, -50..100) and
         ``ratio`` (장평 %, 50..200). Left out or ``None`` means unchanged. An unknown
         name or a value out of range is refused before anything changes.
         """

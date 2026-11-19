@@ -502,8 +502,8 @@ except HwpxError as exc:
 | `style-remove-default` | 첫 스타일(id 0, 바탕글)은 지울 수 없다. |
 | `style-run-font-by-lang-invalid` | font_by_lang 이 언어 이름 → 글꼴 이름 매핑이 아니다(문자열 아닌 키·값, 같은 언어 두 번). |
 | `style-run-format-empty` | 바꿀 글자 서식이 하나도 없다. |
-| `style-run-format-invalid` | 글자 서식 이름이 모르는 것이거나 값의 형·범위가 틀렸다(자간 -50~50, 장평 50~200, 위·아래 첨자 동시). |
-| `style-run-letter-spacing-by-lang-invalid` | letter_spacing_by_lang 이 언어 이름 → 자간(-50~50 int) 매핑이 아니다(문자열 아닌 키, 같은 언어 두 번, int 아닌 값·범위 밖). |
+| `style-run-format-invalid` | 글자 서식 이름이 모르는 것이거나 값의 형·범위가 틀렸다(자간 -50~100, 장평 50~200, 위·아래 첨자 동시). |
+| `style-run-letter-spacing-by-lang-invalid` | letter_spacing_by_lang 이 언어 이름 → 자간(-50~100 int) 매핑이 아니다(문자열 아닌 키, 같은 언어 두 번, int 아닌 값·범위 밖). |
 | `style-run-outline-type-invalid` | ensure_run 의 outline 값이 OWPML 어휘(hc:LineType1: NONE/SOLID/DOT/THICK/DASH/DASH_DOT/DASH_DOT_DOT) 밖이다. |
 | `style-run-size-value` | 글자 크기(size, pt)가 0 이상의 수가 아니거나 너무 크다(음수는 0으로 쓰였다). |
 | `style-tab-container-create-failed` | tabProperties 컨테이너를 만들지 못했다. |

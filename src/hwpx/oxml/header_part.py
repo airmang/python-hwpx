@@ -1565,13 +1565,13 @@ class HwpxOxmlHeader:
         from .header import memo_line_width_index
 
         line_width = memo_line_width_index(line_width_mm)  # checked before the header changes
-        element = self._memo_properties_element(create=True)
-        if element is None:  # pragma: no cover - defensive branch
-            raise RuntimeError("failed to create <memoProperties> element")
-        spec = _normalize_memo_shape_spec(
+        spec = _normalize_memo_shape_spec(  # so are the colours: a refused call leaves no memoProperties
             width=width, line_width=line_width, line_type=line_type, line_color=line_color,
             fill_color=fill_color, active_color=active_color, memo_type=memo_type,
         )
+        element = self._memo_properties_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <memoProperties> element")
         shape_id, new_memo_pr = _ensure_memo_shape(element, spec)
         if new_memo_pr is None:
             return shape_id
