@@ -309,6 +309,10 @@ python-hwpx 7.0을 함께 설치한다.
   `NoteLabels(doc).label(note)`가 각주 번호를 돌려준다. `number_text`, `table_grid_text`, `hwpx.oxml.run.text_element_content`도
   공개다.
 - `doc.shapes.*`·`doc.refs.*`·`doc.notes.add_footnote`·`doc.page.set_columns`의 `paragraph=`에 문단 번호(정수)를 줄 수 있다.
+- `doc.styles.ensure_run(letter_spacing_by_lang={"HANGUL": 0, "LATIN": -5})`: 언어마다 다른 자간(-50 ~ 50 %)을 쓰는 글자 모양을
+  만든다. 언어 이름과 검사는 `font_by_lang`과 같고, 대지 않은 언어는 기준 글자 모양의 값을 그대로 둔다. `letter_spacing`과 함께
+  주면 `letter_spacing_by_lang`이 이긴다. 잘못된 값은 아무것도 바꾸기 전에 `style-run-letter-spacing-by-lang-invalid`로 거부한다.
+  전에는 몇 언어의 자간만 바꾸려면 `ensure_char_property(predicate=, modifier=)` 안에서 XML을 고쳐야 했다.
 
 #### 표
 

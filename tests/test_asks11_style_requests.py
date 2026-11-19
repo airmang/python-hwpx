@@ -3,13 +3,17 @@
 1. A border fill ``ensure_border_fill`` builds writes the ``hh:diagonal`` every Hancom-saved border fill has
    (all 3,511 in the 1,265 fixtures: ``SOLID 0.1 mm #000000``), not ``NONE`` at the side's width; one derived
    from another keeps the diagonal it read.
+2. ``ensure_run(letter_spacing_by_lang=)`` takes a 자간 per language under ``font_by_lang``'s rules; a language
+   it does not name keeps the base's value.
 """
 
 from __future__ import annotations
 
+import pytest
 from lxml import etree
 
 from hwpx import HwpxDocument
+from hwpx.errors import HwpxValueError
 
 HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 HC_NS = "http://www.hancom.co.kr/hwpml/2011/core"
@@ -85,3 +89,85 @@ def test_a_border_fill_derived_from_another_keeps_the_diagonal_it_read() -> None
     derived = doc.styles.ensure_border_fill(base_border_fill_id_ref="77", sides={"bottom": {"width_mm": 0.4}})
     assert derived != "77"
     assert _diagonal(doc, derived) == {"type": "DASH", "width": "0.5 mm", "color": "#00FF00"}
+
+
+# -- 2. letter_spacing_by_lang ---------------------------------------------------------------------------
+
+LANG_ATTRS = ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user")
+
+
+def _char_pr(doc: HwpxDocument, char_pr_id: str):
+    element = _header(doc).find(f".//{HH}charPr[@id='{char_pr_id}']")
+    assert element is not None
+    return element
+
+
+def _spacing(doc: HwpxDocument, char_pr_id: str) -> dict[str, str]:
+    node = _char_pr(doc, char_pr_id).find(f"{HH}spacing")
+    assert node is not None
+    return {attr: node.get(attr) for attr in LANG_ATTRS}
+
+
+def _base_with_spacing(doc: HwpxDocument, values: dict[str, int]) -> str:
+    """A shape like the template's tight placeholder runs: -50 in some languages."""
+
+    base = doc.styles.ensure_run(letter_spacing=0, color="#123456")
+    node = _char_pr(doc, base).find(f"{HH}spacing")
+    for attr, value in values.items():
+        node.set(attr, str(value))
+    return base
+
+
+def test_letter_spacing_by_lang_changes_only_the_languages_it_names() -> None:
+    doc = HwpxDocument.new()
+    base = _base_with_spacing(doc, {"hangul": -50, "latin": -45, "hanja": -10})
+    before = etree.tostring(_char_pr(doc, base))
+    fixed = doc.styles.ensure_run(base_char_pr_id_ref=base, letter_spacing_by_lang={"hangul": 0, "LATIN": -5})
+    assert fixed != base
+    assert _spacing(doc, fixed) == {"hangul": "0", "latin": "-5", "hanja": "-10", "japanese": "0", "other": "0",
+                                    "symbol": "0", "user": "0"}
+    assert etree.tostring(_char_pr(doc, base)) == before  # the base stays as it was
+    assert _char_pr(doc, fixed).get("textColor") == "#123456"  # the rest follows the base
+    again = doc.styles.ensure_run(base_char_pr_id_ref=base, letter_spacing_by_lang={"LATIN": -5, "Hangul": 0})
+    assert again == fixed  # the same request reuses it
+
+
+def test_letter_spacing_by_lang_wins_over_letter_spacing() -> None:
+    doc = HwpxDocument.new()
+    both = doc.styles.ensure_run(letter_spacing=-10, letter_spacing_by_lang={"HANGUL": 5})
+    assert _spacing(doc, both) == {attr: ("5" if attr == "hangul" else "-10") for attr in LANG_ATTRS}
+
+
+def test_a_base_without_spacing_gets_all_seven_with_the_schema_default() -> None:
+    doc = HwpxDocument.new()
+    base = _char_pr(doc, "0")
+    spacing = base.find(f"{HH}spacing")
+    if spacing is not None:
+        base.remove(spacing)
+    made = doc.styles.ensure_run(base_char_pr_id_ref="0", letter_spacing_by_lang={"USER": 3})
+    assert _spacing(doc, made) == {attr: ("3" if attr == "user" else "0") for attr in LANG_ATTRS}
+    children = [etree.QName(child).localname for child in _char_pr(doc, made)]
+    assert children.index("spacing") == children.index("fontRef") + 2  # schema order: fontRef, ratio, spacing
+
+
+@pytest.mark.parametrize(
+    ("value", "code"),
+    [
+        ([("HANGUL", 0)], "style-run-letter-spacing-by-lang-invalid"),
+        ({1: 0}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"HANGUL": 0, "hangul": 1}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"HANGUL": "0"}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"HANGUL": True}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"HANGUL": 1.5}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"HANGUL": -51}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"HANGUL": 51}, "style-run-letter-spacing-by-lang-invalid"),
+        ({"KOREAN": 0}, "style-font-lang-invalid"),
+    ],
+)
+def test_letter_spacing_by_lang_is_checked_before_anything_changes(value: object, code: str) -> None:
+    doc = HwpxDocument.new()
+    before = etree.tostring(_header(doc))
+    with pytest.raises(HwpxValueError) as caught:
+        doc.styles.ensure_run(font="새글꼴", letter_spacing_by_lang=value)  # type: ignore[arg-type]
+    assert caught.value.code == code
+    assert etree.tostring(_header(doc)) == before

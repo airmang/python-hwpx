@@ -80,6 +80,7 @@ class _RunStyleSpec:
     strike_shape: str | None = None
     ratio: int | None = None
     letter_spacing: int | None = None
+    letter_spacing_by_lang: dict[str, int] | None = None
     shadow_color: str | None = None
     script: str | None = None
     outline: str | None = None
@@ -275,8 +276,9 @@ def _run_style_apply_extensions(element: ET.Element, spec: _RunStyleSpec) -> Non
             strike_el.set("color", "#000000")
     if spec.ratio is not None:
         _run_style_set_lang_values(element, "ratio", spec.ratio)
-    if spec.letter_spacing is not None:
-        _run_style_set_lang_values(element, "spacing", spec.letter_spacing)
+    from .header_fonts import set_letter_spacing
+
+    set_letter_spacing(element, spec.letter_spacing, spec.letter_spacing_by_lang)
     if spec.shadow_color is not None:
         shadow_el = element.find(f"{_HH}shadow")
         if shadow_el is None:
@@ -715,6 +717,7 @@ class HwpxOxmlDocument:
         engrave: bool | None = None,
         base_char_pr_id: str | int | None = None,
         font_by_lang: Mapping[str, str] | None = None,
+        letter_spacing_by_lang: Mapping[str, int] | None = None,
     ) -> str:
         """Return the id of a ``hh:charPr`` that is the base with the requested changes.
 
@@ -739,7 +742,8 @@ class HwpxOxmlDocument:
         *font_by_lang* maps a language (``HANGUL``/``LATIN``/``HANJA``/
         ``JAPANESE``/``OTHER``/``SYMBOL``/``USER``) to the face its glyphs use;
         it wins over *font* for the languages it names (see
-        :func:`~.header_fonts.run_style_font_ref`).
+        :func:`~.header_fonts.run_style_font_ref`); *letter_spacing_by_lang*
+        likewise maps a language to its 자간 % and wins over *letter_spacing*.
         """
 
         if not self._headers:
@@ -785,8 +789,9 @@ class HwpxOxmlDocument:
                 )
             normalized_outline = candidate
 
-        from .header_fonts import run_style_font_ref  # off the `import hwpx` path
+        from .header_fonts import _letter_spacing_by_lang, run_style_font_ref  # off the `import hwpx` path
 
+        spacing_by_lang = _letter_spacing_by_lang(letter_spacing_by_lang)  # checked before a font is declared
         header = self._headers[0]
         font_ref = run_style_font_ref(header, font, font_by_lang)
         base = _run_style_base(header, base_char_pr_id)
@@ -802,6 +807,7 @@ class HwpxOxmlDocument:
             strike_shape=normalized_strike_shape,
             ratio=int(ratio) if ratio is not None else None,
             letter_spacing=int(letter_spacing) if letter_spacing is not None else None,
+            letter_spacing_by_lang=spacing_by_lang,
             shadow_color=_normalize_color(shadow),
             script=script,
             outline=normalized_outline,

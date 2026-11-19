@@ -47,7 +47,10 @@ if TYPE_CHECKING:
     from .document_parts import HwpxOxmlDocument
     from .header_part import HwpxOxmlHeader
 
-__all__ = ["border_fill_info", "clear_line_caches", "font_face", "fonts", "replace_font", "run_style_font_ref"]
+__all__ = [
+    "border_fill_info", "clear_line_caches", "font_face", "fonts", "replace_font", "run_style_font_ref",
+    "set_letter_spacing",
+]
 
 #: ``hh:borderFill`` side children, in ``BorderFillInfo`` field order.
 _BORDER_SIDES = ("leftBorder", "rightBorder", "topBorder", "bottomBorder", "diagonal")
@@ -422,32 +425,45 @@ def clear_line_caches(
             section.mark_dirty()
 
 
-def _font_by_lang(font_by_lang: "Mapping[str, str] | None") -> dict[str, str]:
-    """*font_by_lang* checked before anything is declared: lang (``HANGUL``.. ``USER``, any case) -> face."""
+def _lang_mapping(
+    mapping: "Mapping[str, Any] | None", *, name: str, code: str, example: str
+) -> list[tuple[str, Any]]:
+    """*mapping* (``font_by_lang``, ``letter_spacing_by_lang``) checked as a lang -> value mapping:
+    lang (``HANGUL``.. ``USER``, any case, ``style-font-lang-invalid`` otherwise) named once each, as
+    ``(LANG, value)`` pairs. A mapping that is not one, a key that is not a string or a lang named
+    twice is *code*."""
 
-    if font_by_lang is None:
-        return {}
-    if not isinstance(font_by_lang, Mapping):
+    if mapping is None:
+        return []
+    if not isinstance(mapping, Mapping):
         raise HwpxValueError(
-            f"font_by_lang must map a lang to a face; got {font_by_lang!r}",
-            code="style-run-font-by-lang-invalid",
-            suggestion='예: font_by_lang={"HANGUL": "함초롬바탕", "LATIN": "Arial"}',
+            f"{name} must map a lang to a {name.split('_by_lang')[0].replace('font', 'face')}; got {mapping!r}",
+            code=code,
+            suggestion=f"예: {name}={example}",
         )
-    resolved: dict[str, str] = {}
-    for key, face in font_by_lang.items():
+    pairs: list[tuple[str, Any]] = []
+    for key, value in mapping.items():
         if not isinstance(key, str):
             raise HwpxValueError(
-                f"font_by_lang key must be one lang name; got {key!r}",
-                code="style-run-font-by-lang-invalid",
+                f"{name} key must be one lang name; got {key!r}",
+                code=code,
                 context={"requested": repr(key)},
             )
         lang = _single_lang(key)
-        if lang in resolved:
-            raise HwpxValueError(
-                f"font_by_lang names {lang} twice",
-                code="style-run-font-by-lang-invalid",
-                context={"lang": lang},
-            )
+        if any(lang == seen for seen, _ in pairs):
+            raise HwpxValueError(f"{name} names {lang} twice", code=code, context={"lang": lang})
+        pairs.append((lang, value))
+    return pairs
+
+
+def _font_by_lang(font_by_lang: "Mapping[str, str] | None") -> dict[str, str]:
+    """*font_by_lang* checked before anything is declared: lang (``HANGUL``.. ``USER``, any case) -> face."""
+
+    resolved: dict[str, str] = {}
+    for lang, face in _lang_mapping(
+        font_by_lang, name="font_by_lang", code="style-run-font-by-lang-invalid",
+        example='{"HANGUL": "함초롬바탕", "LATIN": "Arial"}',
+    ):
         if not isinstance(face, str):
             raise HwpxValueError(
                 f"font_by_lang face for {lang} must be a font name; got {face!r}",
@@ -458,6 +474,45 @@ def _font_by_lang(font_by_lang: "Mapping[str, str] | None") -> dict[str, str]:
             raise HwpxValueError(f"font_by_lang face for {lang} must not be empty", code="style-font-face-empty")
         resolved[lang] = face.strip()
     return resolved
+
+
+def _letter_spacing_by_lang(letter_spacing_by_lang: "Mapping[str, int] | None") -> dict[str, int]:
+    """*letter_spacing_by_lang* checked: lang (``HANGUL``.. ``USER``, any case) -> 자간 % (an ``int``
+    from -50 to 50, the range of ``hh:spacing`` in the OWPML schema), keyed by the ``hh:spacing``
+    attribute (``hangul``..). Anything else is ``style-run-letter-spacing-by-lang-invalid``."""
+
+    code = "style-run-letter-spacing-by-lang-invalid"
+    resolved: dict[str, int] = {}
+    for lang, value in _lang_mapping(
+        letter_spacing_by_lang, name="letter_spacing_by_lang", code=code, example='{"HANGUL": -5, "LATIN": 0}',
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or not -50 <= value <= 50:
+            raise HwpxValueError(
+                f"letter_spacing_by_lang value for {lang} must be an int from -50 to 50; got {value!r}",
+                code=code,
+                context={"lang": lang, "requested": repr(value)},
+                suggestion="자간은 -50 ~ 50 (%) 입니다.",
+            )
+        resolved[_FONT_FACE_LANG_TO_REF[lang]] = value
+    return resolved
+
+
+def set_letter_spacing(element: ET.Element, every: int | None, by_lang: "Mapping[str, int] | None") -> None:
+    """Write 자간 into ``hh:charPr`` *element*: *every* to all seven languages, then *by_lang*
+    (``hangul``.. -> %, from :func:`_letter_spacing_by_lang`) to the languages it names, so it wins.
+    A language neither names keeps its value; a new ``hh:spacing`` writes all seven, as Hancom does,
+    the ones not named at the schema default 0 (``ensure_run_style``)."""
+
+    values: dict[str, int] = {} if every is None else dict.fromkeys(_FONT_FACE_LANG_TO_REF.values(), every)
+    values.update(by_lang or {})
+    if not values:
+        return
+    node = element.find(f"{_HH}spacing")
+    if node is None:
+        node = element.makeelement(f"{_HH}spacing", dict.fromkeys(_FONT_FACE_LANG_TO_REF.values(), "0"))
+        element.append(node)
+    for lang, value in values.items():
+        node.set(lang, str(value))
 
 
 def run_style_font_ref(
