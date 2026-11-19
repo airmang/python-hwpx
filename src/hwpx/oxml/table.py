@@ -32,7 +32,7 @@ from ._document_primitives import (
     FILL_IMAGE_MODES,
 )
 from ._paragraph_text_edit import clear_text_element, sanitize_keeping_tabs, set_text_with_tabs
-from ._paragraph_text_edit import new_own_text_node, own_text_nodes
+from ._paragraph_text_edit import live_paragraph, new_own_text_node, own_text_nodes
 from . import table_sizes as _table_sizes
 from .table_format import (
     TableCellFormat, TableFormat, TableRowFormat, _BorderFills, _set_fill, refuse_cell_without_sublist,
@@ -632,6 +632,11 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
 
     #: The section of a table placed right in it (``section.blocks``), which has no paragraph.
     _section: "HwpxOxmlSection | None" = None
+
+    if TYPE_CHECKING:
+        paragraph: "HwpxOxmlParagraph"
+    else:
+        paragraph = live_paragraph  # the paragraph holding it now, also after a move
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element

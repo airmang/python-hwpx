@@ -187,7 +187,8 @@ class FormField:
         """안내문 shown while the field is empty (absorbs the old ``instruction`` alias).
 
         Assigning it changes the 안내문; a field still showing its old one (nothing
-        entered yet) shows the new one."""
+        entered yet) shows the new one. One holding a tab or a line break is refused
+        (``field-text-control-unsupported``), as ``add_form_field(prompt=)`` refuses it."""
 
         return self._prompt
 
@@ -197,7 +198,8 @@ class FormField:
 
     @property
     def memo(self) -> str:
-        """The field's memo (도움말, ``HelpState``). Assigning it changes the memo."""
+        """The field's memo (도움말, ``HelpState``). Assigning it changes the memo; a tab or a line
+        break in it is refused (``field-text-control-unsupported``)."""
 
         return self._memo
 

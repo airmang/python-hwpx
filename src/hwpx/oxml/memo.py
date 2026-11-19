@@ -18,7 +18,7 @@ from ._document_primitives import (
     _memo_id,
     _text_element_content,
 )
-from ._paragraph_text_edit import set_text_with_tabs
+from ._paragraph_text_edit import live_holder, live_paragraph, set_text_with_tabs
 
 if TYPE_CHECKING:
     from ..objects.form_field import FieldParameter, Hyperlink
@@ -535,7 +535,7 @@ def fold_into_field(
     group._cleanup()
     memo.__class__ = HwpxOxmlFieldMemo
     memo.element = field
-    memo.group = _FieldMemoHost(section)  # type: ignore[assignment]
+    memo.group = _FieldMemoHost(section, field)  # type: ignore[assignment]
     section.mark_dirty()
     return True
 
@@ -666,8 +666,21 @@ class _FieldMemoHost:
 
     element = None
 
-    def __init__(self, section: "HwpxOxmlSection") -> None:
-        self.section = section
+    def __init__(self, section: "HwpxOxmlSection", field_begin: ET.Element | None = None) -> None:
+        self._section = section
+        self._field_begin = field_begin
+
+    @property
+    def section(self) -> "HwpxOxmlSection":
+        """The section holding the field now: the paragraph holding it may have moved to another one."""
+
+        if self._field_begin is not None:
+            self._section = live_holder(self._field_begin, self._section)
+        return self._section
+
+    @section.setter
+    def section(self, value: "HwpxOxmlSection") -> None:
+        self._section = value
 
     def _cleanup(self) -> None:
         return None
@@ -680,7 +693,7 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
     ``hp:fieldBegin``."""
 
     def __init__(self, field_begin: ET.Element, section: "HwpxOxmlSection") -> None:
-        super().__init__(field_begin, _FieldMemoHost(section))  # type: ignore[arg-type]
+        super().__init__(field_begin, _FieldMemoHost(section, field_begin))  # type: ignore[arg-type]
 
     def _param(self, name: str) -> ET.Element | None:
         for param in self.element.iter():
@@ -797,6 +810,11 @@ def _offset(self: Any) -> "int | None":
 
 class HwpxOxmlNote(SameElement):
     """Wraps a ``<hp:footNote>`` or ``<hp:endNote>`` element."""
+
+    if TYPE_CHECKING:
+        paragraph: "HwpxOxmlParagraph"
+    else:
+        paragraph = live_paragraph  # the paragraph holding it now, also after a move
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element

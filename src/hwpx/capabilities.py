@@ -722,6 +722,7 @@ def _mutation_report_json_schema() -> dict[str, Any]:
                     "untouchedLocalZipRecords": counts,
                     "wholePackageIdentical": {"type": "boolean"},
                     "zipRecordsRewritten": {"type": "string"},
+                    "outputReadBack": {"const": False},
                 },
             },
             "verification": {

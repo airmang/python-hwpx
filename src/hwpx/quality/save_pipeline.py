@@ -54,6 +54,13 @@ PublishMode = Literal["on_pass", "always", "never"]
 _XML_SUFFIXES = (".xml", ".rels")
 _XML_NAMES = ("[Content_Types].xml",)
 
+#: The warning a save adds to its report when the stream it wrote to could not be read back, so the
+#: bytes it holds were not checked (only that it ends where the document does).
+STREAM_NOT_READ_BACK = (
+    "output-stream-not-read-back: the stream refused to be read, so what it holds was not checked "
+    "against the document written (only its length was); save to a path or a readable stream to have it checked"
+)
+
 
 # --------------------------------------------------------------------------- #
 # The single atomic writer (moved here so the pipeline is the sole writer).
@@ -117,7 +124,7 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
         return
 
 
-def settle_written_stream(stream: BinaryIO, position: int, data: bytes, tail: bytes) -> None:
+def settle_written_stream(stream: BinaryIO, position: int, data: bytes, tail: bytes) -> bool:
     """After *data* was written at *position* over *tail* (what the stream held from there), make the
     stream hold exactly *data* from *position* to its end and check that it does.
 
@@ -125,7 +132,8 @@ def settle_written_stream(stream: BinaryIO, position: int, data: bytes, tail: by
     stream that held a longer one must not keep the old archive's end after it -- the stream would not
     open. A stream that cannot be cut short is refused (``OSError``; the caller puts the old content
     back). The check reads back what the stream now holds from *position*; a stream that cannot be read
-    back must at least end where the document does."""
+    back must at least end where the document does. Returns whether the stream was read back (``False``:
+    only where it ends was checked)."""
 
     end = position + len(data)
     if len(tail) > len(data):
@@ -156,11 +164,13 @@ def settle_written_stream(stream: BinaryIO, position: int, data: bytes, tail: by
             f"({len(held)} bytes from position {position}, the document is {len(data)})"
         )
     stream.seek(end)
+    return held is not None
 
 
-def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
+def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> bool:
     """Write *data* to *stream* and make the stream end with it (:func:`settle_written_stream`),
-    restoring the prior tail on failure."""
+    restoring the prior tail on failure. Returns whether what the stream holds was read back and
+    checked."""
 
     checkpoint = _capture_stream_checkpoint(stream)
     if checkpoint is None:
@@ -175,10 +185,11 @@ def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
                 "short write while saving HWPX stream: "
                 f"wrote {written} of {len(data)} bytes"
             )
-        settle_written_stream(stream, checkpoint[0], data, checkpoint[1])
+        read_back = settle_written_stream(stream, checkpoint[0], data, checkpoint[1])
     except BaseException:
         _rollback_stream(stream, checkpoint)
         raise
+    return read_back
 
 
 class SavePipeline:
@@ -287,7 +298,9 @@ class SavePipeline:
         debug_path: str | None = None
         should_publish = publish == "always" or (publish == "on_pass" and ok)
         if should_publish and (output_path is not None or output_stream is not None):
-            written_path = self._publish(data, output_path, output_stream)
+            written_path, read_back = self._publish(data, output_path, output_stream)
+            if not read_back:
+                warnings.append(STREAM_NOT_READ_BACK)
         elif not ok and debug_dir is not None:
             debug_path = self._write_debug(data, debug_dir, source_label)
             warnings.append(
@@ -583,15 +596,19 @@ class SavePipeline:
         data: bytes,
         output_path: str | PathLike[str] | None,
         output_stream: BinaryIO | None,
-    ) -> str | None:
+    ) -> tuple[str | None, bool]:
+        """Write *data*; returns the path written (``None`` for a stream) and whether a stream written
+        was read back (a path is written through the file system and counts as checked)."""
+
+        read_back = True
         if output_stream is not None:
-            write_stream_or_rollback(output_stream, data)
+            read_back = write_stream_or_rollback(output_stream, data)
             if output_path is None:
-                return None
+                return None, read_back
         if output_path is not None:
             write_bytes_atomically(output_path, data)
-            return str(output_path)
-        return None
+            return str(output_path), read_back
+        return None, read_back
 
     def _write_debug(
         self, data: bytes, debug_dir: str | PathLike[str], source_label: str
@@ -619,6 +636,7 @@ class SavePipeline:
 __all__ = [
     "SavePipeline",
     "PublishMode",
+    "STREAM_NOT_READ_BACK",
     "write_bytes_atomically",
     "settle_written_stream",
     "write_stream_or_rollback",

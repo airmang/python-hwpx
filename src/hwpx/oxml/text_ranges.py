@@ -326,7 +326,8 @@ def insert_text(
     from ._paragraph_text_edit import require_in_document
 
     _require_text(text)
-    require_in_document(paragraph, caller="insert_text")
+    if changes:  # a character shape to find or make in the header: the document's side
+        require_in_document(paragraph, caller="insert_text")
     length = len(paragraph.text)
     offset = _check_offset("offset", offset, 0, length)
     if changes:
@@ -684,9 +685,6 @@ def delete_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, objects: 
         raise HwpxValueError(f"objects must be 'refuse' or 'remove'; got {objects!r}", code="paragraph-range-invalid",
                              context={"name": "objects", "requested": repr(objects)},
                              suggestion="Pass objects='remove' to take controls and objects out with the text.")
-    from ._paragraph_text_edit import require_in_document
-
-    require_in_document(paragraph, caller="delete_range")
     length = len(paragraph.text)
     start = _check_offset("start", start, 0, length)
     end = _check_offset("end", end, start, length)
@@ -896,6 +894,11 @@ def _refuse_place(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: "Hwp
             context={"box": box},
             suggestion="Pick a paragraph outside the memo.",
         )
+    from .shape_position import _check_place
+
+    for unit in held.items:  # a table goes where table.move_to/copy_to puts one, or is refused as there
+        if _local(unit.element) == "tbl":
+            _check_place(unit.element, paragraph, to)
     notes = [kind for kind in _item_kinds(held.items) if kind in _NOTES]
     if notes and box in ("note", "header_footer"):
         raise HwpxValueError(
@@ -979,7 +982,14 @@ def copy_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: Any, of
     size = _fragment_length(runs)
     notes = _note_kinds(runs)
     _fit_pasted_objects(runs, to)
+    from .shape_position import _object_nodes, stack_new_object
+
+    copied = [node for run in runs for node in _object_nodes(run)]
     _splice_runs(to, offset, runs)
+    # Each copied object -- in a note or text box of the range too -- goes over the others in the order it
+    # stands, as note.copy_to and shape.copy_to stack a copy; the copies kept the originals' zOrder before.
+    for node in copied:
+        stack_new_object(node, to.section)
     _changed(to)
     _renumber_kinds(notes, to.section)
     return (offset, offset + size)
@@ -1042,10 +1052,8 @@ def set_text_preserving_runs(paragraph: "HwpxOxmlParagraph", value: str) -> None
     """``paragraph.set_text_preserving_runs``: the one stretch that changes, in one ``hp:t``."""
 
     from ._paragraph_text_edit import _local as local
-    from ._paragraph_text_edit import require_in_document
 
     _require_text(value)
-    require_in_document(paragraph, caller="set_text_preserving_runs")
     texts: list[tuple[Any, int, int]] = []
     position = 0
     for run in _runs(paragraph.element):

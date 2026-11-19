@@ -47,6 +47,7 @@ from .field_marks import (
     _paragraph_add_proofreading_mark,
 )
 from .note_authoring import (
+    renumber_notes_holding,
     _paragraph_add_endnote,
     _paragraph_add_footnote,
     _paragraph_endnotes,
@@ -55,7 +56,9 @@ from .note_authoring import (
 from ._paragraph_text_edit import (
     ParagraphFormats,
     checked_tab_widths,
+    LiveSection,
     insert_paragraph_beside,
+    refuse_taken_out,
     paragraph_container,
     paragraph_line_segments,
     paragraph_line_texts,
@@ -134,13 +137,20 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element.
 
     A paragraph taken out of its document (one of a removed table, note, text box or section) no longer
-    belongs to it: an edit that writes anything on the document's side -- moving or copying text, notes,
-    bookmarks, fields, links, check boxes, highlights, pictures, charts, connectors -- is refused
-    (``paragraph-not-in-document``). Edits that stay in the paragraph (``add_run``, ``text =``, formatting)
-    still work; a new character shape they need is registered in the document's header."""
+    belongs to it. An edit that changes only its text and runs and writes nothing on the document's side
+    still works: ``text =``, ``insert_text``, ``delete_range``, ``replace_range``,
+    ``set_text_preserving_runs``, ``clear_text``, ``add_run`` and ``split_run`` without a new shape, a shape
+    id the document has (``char_pr_id_ref =``). An edit that writes on the document's side is refused before
+    anything changes (``paragraph-not-in-document``): one that may register a shape in the header (a format
+    given to ``add_run``/``insert_text``, ``format_range``, paragraph formats such as ``alignment =``), one
+    that numbers (notes, number restarts, page hiding, bullets), one that makes a mark or an object the
+    document counts (highlights, bookmarks, fields, links, check boxes, pictures, charts, shapes, equations,
+    tables), one that adds a paragraph beside it (``insert_before``/``insert_after``) and one that moves or
+    copies text into or out of it. The same rule holds for its runs, and for a table, cell, note, text box
+    or object taken out (see ``install_detached_guard`` in ``_paragraph_text_edit``)."""
 
     element: ET.Element
-    section: HwpxOxmlSection
+    section: HwpxOxmlSection = LiveSection()  # type: ignore[assignment]  # the section holding it now
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of paragraph contents."""
@@ -541,6 +551,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             renew_copied_memos(element, list(document.sections) if document is not None else [self.section],
                                self.section)
             unique_object_ids(self.section, (element,))
+            renumber_notes_holding(self.section, (element,))
         self.section.mark_dirty()
         return element
 
@@ -867,6 +878,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         ``add_rectangle``, and ``add_ellipse`` methods, which build the full
         child structure.
         """
+        refuse_taken_out(self, "add_shape")  # here, not wrapped: its warning names the caller's line
         if not shape_type:
             from ..errors import HwpxValueError
 
@@ -1002,6 +1014,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         ``add_column_definition``, ``add_bookmark``, and ``add_hyperlink``
         methods, which write the full child structure.
         """
+        refuse_taken_out(self, "add_control")  # here, not wrapped: its warning names the caller's line
         attrs = dict(attributes or {})
         if control_type is not None:
             attrs.setdefault("type", control_type)
@@ -1632,16 +1645,18 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         Args:
             name: Field name used by ``list_form_fields``/``fill_form_field``.
             prompt: 안내문 text shown while the field is empty (``Direction``).
-            memo: Help text (``HelpState``).
+            memo: Help text (``HelpState``). A tab or a line break in either is refused before anything
+                is written (``field-text-control-unsupported``): no Hancom-saved click-here field holds one.
             prompt_char_pr_id_ref: charPr for the prompt run (callers normally
                 pass a red-italic style; Hancom uses one).
 
         Returns:
             The field (``field.element`` is the ``<hp:fieldBegin>``).
         """
-        from .field_marks import form_field_for
+        from .field_marks import check_click_here_text, form_field_for
         from .text_ranges import check_field_range, wrap_in_field
 
+        check_click_here_text(prompt=prompt, memo=memo)
         span = check_field_range(self, start, end)
         field_id = _object_id(self.section._ids)
         field_instance_id = field_type_id("CLICK_HERE", ids=self.section._ids)

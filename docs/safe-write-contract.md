@@ -170,10 +170,15 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
   기록을 원본에서 그대로 옮기므로 Python의 zlib 구현에 달리지 않는다. 원본 바이트가 없는
   문서(`new()`, 변환한 `.hwp`)는 기록 메타데이터(타임스탬프·압축 방식·플래그 등)를 견준다.
 - `wholePackageIdentical` — 쓴 파일이 원본 파일과 바이트째 같은지. **no-op(변경 없음)일
-  때** 참이다(원본이 `mimetype`을 압축해 두었거나 폴더 항목이 있으면 거짓). 편집이 있으면
-  거짓이다. 손댄 파트의 압축된 바이트는 zlib 구현(zlib·zlib-ng)에 달린다.
-- `zipRecordsRewritten` — 원본 ZIP을 항목별로 옮길 수 없어(ZIP64·중복 이름·첫 항목 앞이나
-  목록 뒤의 다른 바이트 등) 모든 항목을 다시 압축했을 때만 있는 키. 값은 그 까닭이다.
+  때** 참이다(`mimetype`의 자리·압축과 폴더 항목도 원본 그대로 옮긴다). 편집이 있으면
+  거짓이다. 손댄 파트의 압축된 바이트는 zlib 구현(zlib·zlib-ng)에 달린다. 다시 읽을 수 없는
+  스트림에 저장하면 쓴 바이트를 확인하지 못했으므로 거짓이다(`outputReadBack`).
+- `zipRecordsRewritten` — 원본 ZIP을 항목별로 옮길 수 없어(ZIP64·첫 항목 앞이나
+  목록 뒤의 다른 바이트 등) 모든 항목을 다시 압축했을 때만 있는 키. 값은 그 까닭이다. 이때도
+  중앙 디렉터리 차례·기록의 물리 차례·`mimetype`의 자리와 압축·아카이브 주석은 원본 그대로다.
+  이름이 같은 항목이 둘 이상인 원본은 저장도 바이트 패치도 거부한다(`save-duplicate-entry-names`).
+- `outputReadBack` — 저장한 스트림이 읽기를 거부해 쓴 내용을 다시 읽어 확인하지 못했을 때만
+  있는 키(값 `false`, 이때 `wholePackageIdentical`도 거짓). 끝 위치만 확인했다는 뜻이다.
 
 ### 검증 4항목 (`verification`)
 

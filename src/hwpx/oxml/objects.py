@@ -25,6 +25,7 @@ from ._document_primitives import (
     _reposition_child_before_any,
     _paragraph_id,
 )
+from ._paragraph_text_edit import live_holder, live_paragraph
 from .shape_position import (
     DRAWING_SHAPE_NAMES, PLACED_OBJECT_NAMES, ObjectPlacement, equation_font_size, fill_color_of, keep_ratio,
     line_width_mm_of, line_width_units, object_size, own_size,
@@ -59,6 +60,11 @@ if TYPE_CHECKING:
 class HwpxOxmlInlineObject(SameElement, ObjectPlacement):
     """A placed object in a paragraph (picture, equation, chart, OLE, form control...): its attributes,
     placement (:class:`~hwpx.oxml.shape_position.ObjectPlacement`), size and caption."""
+
+    if TYPE_CHECKING:
+        paragraph: "HwpxOxmlParagraph"
+    else:
+        paragraph = live_paragraph  # the paragraph holding it now, also after a move
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element
@@ -1378,6 +1384,7 @@ class Caption:
         """Append a paragraph holding *text* to the caption and return it. *style* (a name, an id or a
         ``Style``) also gives it that style's paragraph and character shapes unless they are passed."""
 
+        self.section = live_holder(self.element, self.section)  # moved to another section: that one
         paragraph = _add_sublist_paragraph(
             self.element, text, section=self.section, vert_align="TOP",
             char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref, style=style,
@@ -1432,6 +1439,7 @@ class DrawText:
         """Append a paragraph holding *text* to the text box and return it. *style* (a name, an id or a
         ``Style``) also gives it that style's paragraph and character shapes unless they are passed."""
 
+        self.section = live_holder(self.element, self.section)  # moved to another section: that one
         paragraph = _add_sublist_paragraph(
             self.element, text, section=self.section, vert_align="CENTER",
             char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref, style=style,
@@ -1555,6 +1563,11 @@ def _remove_draw_text(host: ET.Element, section: "HwpxOxmlSection") -> bool:
 
 class HwpxOxmlShape(SameElement, ObjectPlacement):
     """Wrapper for a drawing shape element (``<hp:line>``, ``<hp:rect>``, ``<hp:ellipse>``, etc.)."""
+
+    if TYPE_CHECKING:
+        paragraph: "HwpxOxmlParagraph"
+    else:
+        paragraph = live_paragraph  # the paragraph holding it now, also after a move
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element

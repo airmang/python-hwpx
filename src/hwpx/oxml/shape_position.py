@@ -3118,6 +3118,9 @@ def place_object(obj: Any, paragraph: Any, offset: int | None, *, copy: bool, ke
     _clear_paragraph_layout_cache(target.element)
     if not copy and target.section.element is not source.section.element:
         carry_memos(placed, _sections_of(source, target), target.section)
+    from .note_authoring import renumber_notes_holding
+
+    renumber_notes_holding(target.section, (placed,))  # a copy repeats its notes' numbers; a move reorders
     target.section.mark_dirty()
     if copy:
         from .objects import wrap_object
