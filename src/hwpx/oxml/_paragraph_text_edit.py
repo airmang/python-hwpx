@@ -1141,8 +1141,11 @@ class ParagraphFormats:
         fresh ids), apart from a table, a text box or a caption, which do not go to another document
         (``shape-copy-document-unsupported``). In the same document objects, fields and memos get fresh ids
         as :meth:`insert_after` gives a copy. A highlight reaching out of the range is closed at the copy's
-        edge. Refused as :meth:`delete_range` refuses a split field or tracked change, and a note into a
-        note, header or footer (``paragraph-move-place-unsupported``).
+        edge. A floating object going into a cell, text box, note or caption takes the placement Hancom gives
+        one pasted there, as ``obj.copy_to`` places it; a table goes only where ``table.copy_to`` puts one
+        (``shape-move-place-unsupported`` otherwise: a floating table not measured down from its paragraph and
+        kept in the page area, into a cell, text box or note). Refused as :meth:`delete_range` refuses a split
+        field or tracked change, and a note into a note, header or footer (``paragraph-move-place-unsupported``).
         """
         from .text_ranges import copy_range
 

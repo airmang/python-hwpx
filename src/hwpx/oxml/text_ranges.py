@@ -894,6 +894,11 @@ def _refuse_place(paragraph: "HwpxOxmlParagraph", start: int, end: int, to: "Hwp
             context={"box": box},
             suggestion="Pick a paragraph outside the memo.",
         )
+    from .shape_position import _check_place
+
+    for unit in held.items:  # a table goes where table.move_to/copy_to puts one, or is refused as there
+        if _local(unit.element) == "tbl":
+            _check_place(unit.element, paragraph, to)
     notes = [kind for kind in _item_kinds(held.items) if kind in _NOTES]
     if notes and box in ("note", "header_footer"):
         raise HwpxValueError(
