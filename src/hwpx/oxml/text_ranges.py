@@ -326,7 +326,8 @@ def insert_text(
     from ._paragraph_text_edit import require_in_document
 
     _require_text(text)
-    require_in_document(paragraph, caller="insert_text")
+    if changes:  # a character shape to find or make in the header: the document's side
+        require_in_document(paragraph, caller="insert_text")
     length = len(paragraph.text)
     offset = _check_offset("offset", offset, 0, length)
     if changes:
@@ -684,9 +685,6 @@ def delete_range(paragraph: "HwpxOxmlParagraph", start: int, end: int, objects: 
         raise HwpxValueError(f"objects must be 'refuse' or 'remove'; got {objects!r}", code="paragraph-range-invalid",
                              context={"name": "objects", "requested": repr(objects)},
                              suggestion="Pass objects='remove' to take controls and objects out with the text.")
-    from ._paragraph_text_edit import require_in_document
-
-    require_in_document(paragraph, caller="delete_range")
     length = len(paragraph.text)
     start = _check_offset("start", start, 0, length)
     end = _check_offset("end", end, start, length)
@@ -1042,10 +1040,8 @@ def set_text_preserving_runs(paragraph: "HwpxOxmlParagraph", value: str) -> None
     """``paragraph.set_text_preserving_runs``: the one stretch that changes, in one ``hp:t``."""
 
     from ._paragraph_text_edit import _local as local
-    from ._paragraph_text_edit import require_in_document
 
     _require_text(value)
-    require_in_document(paragraph, caller="set_text_preserving_runs")
     texts: list[tuple[Any, int, int]] = []
     position = 0
     for run in _runs(paragraph.element):

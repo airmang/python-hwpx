@@ -153,10 +153,17 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element.
 
     A paragraph taken out of its document (one of a removed table, note, text box or section) no longer
-    belongs to it: an edit that writes anything on the document's side -- moving or copying text, notes,
-    bookmarks, fields, links, check boxes, highlights, pictures, charts, connectors -- is refused
-    (``paragraph-not-in-document``). Edits that stay in the paragraph (``add_run``, ``text =``, formatting)
-    still work; a new character shape they need is registered in the document's header."""
+    belongs to it. An edit that changes only its text and runs and writes nothing on the document's side
+    still works: ``text =``, ``insert_text``, ``delete_range``, ``replace_range``,
+    ``set_text_preserving_runs``, ``clear_text``, ``add_run`` and ``split_run`` without a new shape, a shape
+    id the document has (``char_pr_id_ref =``). An edit that writes on the document's side is refused before
+    anything changes (``paragraph-not-in-document``): one that may register a shape in the header (a format
+    given to ``add_run``/``insert_text``, ``format_range``, paragraph formats such as ``alignment =``), one
+    that numbers (notes, number restarts, page hiding, bullets), one that makes a mark or an object the
+    document counts (highlights, bookmarks, fields, links, check boxes, pictures, charts, shapes, equations,
+    tables), one that adds a paragraph beside it (``insert_before``/``insert_after``) and one that moves or
+    copies text into or out of it. The same rule holds for its runs, and for a table, cell, note, text box
+    or object taken out (see :mod:`hwpx.oxml._detached_guard`)."""
 
     element: ET.Element
     section: HwpxOxmlSection = _LiveSection()  # type: ignore[assignment]
