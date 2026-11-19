@@ -79,6 +79,14 @@ def _refusal(code: str, role: str, caller: str) -> HwpxValueError:
     )
 
 
+def refuse_taken_out(obj: Any, caller: str, code: str = "paragraph-not-in-document", role: str = "paragraph") -> None:
+    """Refuse (*code*) the call *caller* on *obj* when it is taken out of its document. For a method that warns
+    (its warning names its caller's line, which a wrapper would take): it calls this itself."""
+
+    if taken_out(obj):
+        raise _refusal(code, role, caller)
+
+
 def _formatting(arguments: dict[str, Any]) -> bool:
     for name in _FORMAT_ARGUMENTS:
         value = arguments.get(name)
@@ -94,9 +102,8 @@ def _guard_method(cls: type, name: str, code: str, role: str,
 
     @functools.wraps(original)
     def guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
-        if when is None or when(signature.bind_partial(self, *args, **kwargs).arguments):
-            if taken_out(self):
-                raise _refusal(code, role, name)
+        if taken_out(self) and (when is None or when(signature.bind_partial(self, *args, **kwargs).arguments)):
+            raise _refusal(code, role, name)
         return original(self, *args, **kwargs)
 
     setattr(cls, name, guarded)
@@ -144,7 +151,7 @@ def install() -> None:
             "insert_before", "insert_after",
             # marks and objects the document counts (ids, z-order, doc.text.highlights ...)
             "add_highlight", "add_table", "add_rectangle", "add_ellipse", "add_line", "add_equation", "add_arc",
-            "add_polygon", "add_curve", "add_shape", "add_container", "add_control", "add_date_field",
+            "add_polygon", "add_curve", "add_container", "add_date_field",  # add_shape, add_control: in them
             "add_path_field", "add_mail_merge_field", "add_index_mark", "add_title_mark", "add_proofreading_mark",
             "add_drop_cap", "add_dutmal", "add_composed_character", "add_column_definition",
             # numbering

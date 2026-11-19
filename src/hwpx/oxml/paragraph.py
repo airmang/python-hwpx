@@ -899,6 +899,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         ``add_rectangle``, and ``add_ellipse`` methods, which build the full
         child structure.
         """
+        from ._detached_guard import refuse_taken_out
+
+        refuse_taken_out(self, "add_shape")  # here, not wrapped: its warning names the caller's line
         if not shape_type:
             from ..errors import HwpxValueError
 
@@ -1034,6 +1037,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         ``add_column_definition``, ``add_bookmark``, and ``add_hyperlink``
         methods, which write the full child structure.
         """
+        from ._detached_guard import refuse_taken_out
+
+        refuse_taken_out(self, "add_control")  # here, not wrapped: its warning names the caller's line
         attrs = dict(attributes or {})
         if control_type is not None:
             attrs.setdefault("type", control_type)
