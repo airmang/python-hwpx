@@ -197,24 +197,24 @@
   },
   {
    "version": "7.0.0",
-   "commit": "b219f701",
-   "totalLines": 111603,
+   "commit": "438e181a",
+   "totalLines": 111853,
    "packages": {
     ".": 11130,
-    "_document": 14733,
+    "_document": 14772,
     "equation": 2546,
     "form_fit": 4238,
     "hwp5": 11633,
     "layout": 7221,
-    "objects": 3217,
-    "opc": 3495,
-    "oxml": 39373,
+    "objects": 3335,
+    "opc": 3503,
+    "oxml": 39450,
     "plan": 900,
-    "quality": 1290,
+    "quality": 1298,
     "tools": 11827
    },
    "importedModules": 95,
-   "importMs": 72
+   "importMs": 67
   }
  ]
 }
