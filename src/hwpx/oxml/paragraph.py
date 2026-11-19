@@ -56,6 +56,7 @@ from ._paragraph_text_edit import (
     ParagraphFormats,
     checked_tab_widths,
     insert_paragraph_beside,
+    live_holder,
     paragraph_container,
     paragraph_line_segments,
     paragraph_line_texts,
@@ -129,6 +130,24 @@ def _column_width_of(settings: ET.Element, text_width: int) -> int | None:
     return (text_width - (count - 1) * gap) // count
 
 
+class _LiveSection:
+    """``paragraph.section``: the section holding the paragraph now (see :func:`live_holder`), not the one
+    it was taken from. A table, text box or note moved to another section takes its paragraphs along; an
+    edit through a paragraph object taken before the move then marks the section that is saved."""
+
+    def __get__(self, obj: Any, owner: Any = None) -> "HwpxOxmlSection":
+        if obj is None:
+            raise AttributeError("section")  # a field without a default
+        held = obj.__dict__["_held_section"]
+        current = live_holder(obj.element, held)
+        if current is not held:
+            obj.__dict__["_held_section"] = current
+        return cast("HwpxOxmlSection", current)
+
+    def __set__(self, obj: Any, value: "HwpxOxmlSection") -> None:
+        obj.__dict__["_held_section"] = value
+
+
 @dataclass(eq=False)
 class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     """Lightweight wrapper around an ``<hp:p>`` element.
@@ -140,7 +159,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     still work; a new character shape they need is registered in the document's header."""
 
     element: ET.Element
-    section: HwpxOxmlSection
+    section: HwpxOxmlSection = _LiveSection()  # type: ignore[assignment]
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of paragraph contents."""

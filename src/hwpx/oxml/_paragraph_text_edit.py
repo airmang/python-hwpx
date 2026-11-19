@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from ._document_primitives import IdSource
     from ..objects.results import Alignment, LineSegment, LineSpacing, NumberingInfo
     from .header import Bullet, Style
+    from .paragraph import HwpxOxmlParagraph
     from .run import HwpxOxmlRun
 
 
@@ -409,6 +410,65 @@ def _section_holding(element: Any, sections: list[Any]) -> Any:
             root = parent
         return next((section for section in sections if section.element is root), None)
     return next((section for section in sections if any(node is element for node in section.element.iter())), None)
+
+
+def live_holder(element: Any, held: Any) -> Any:
+    """The section (or master page) of the document *held* belongs to whose tree holds *element* now.
+
+    *held* is the section a wrapper object was made with. While *element* stays in it, that is *held*;
+    once a move took it into another section of the same document (a table, text box or note moved, a
+    paragraph moved with ``move_after``), it is that section, so an edit through an object taken before
+    the move marks the section that is saved. *held* again when *element* is in none of the document's
+    sections and master pages (taken out, or in a removed section): the edits that write on the
+    document's side refuse such an object (``paragraph-not-in-document``)."""
+
+    if held is None or not hasattr(element, "getparent"):
+        return held
+    top = element
+    while (parent := top.getparent()) is not None:
+        top = parent
+    if getattr(held, "element", None) is top:
+        return held
+    document = getattr(held, "document", None)
+    if document is None:
+        return held
+    for holder in (*document.sections, *getattr(document, "master_pages", ())):
+        if holder.element is top:
+            return holder
+    return held
+
+
+def _live_paragraph(self: Any) -> "HwpxOxmlParagraph":
+    held = self.__dict__.get("_held_paragraph")
+    element = self.element
+    if held is None or not hasattr(element, "getparent"):
+        return cast("HwpxOxmlParagraph", held)
+    node = element.getparent()
+    nearest = None
+    while node is not None:
+        if node is held.element:
+            return cast("HwpxOxmlParagraph", held)
+        if nearest is None and _local(node) == "p":
+            nearest = node
+        node = node.getparent()
+    if nearest is None:  # taken out with no paragraph around it: keep the one it was taken from
+        return cast("HwpxOxmlParagraph", held)
+    moved = type(held)(nearest, held.section)
+    self.__dict__["_held_paragraph"] = moved
+    return cast("HwpxOxmlParagraph", moved)
+
+
+def _set_live_paragraph(self: Any, value: "HwpxOxmlParagraph") -> None:
+    self.__dict__["_held_paragraph"] = value
+
+
+live_paragraph = property(
+    _live_paragraph,
+    _set_live_paragraph,
+    doc="The paragraph holding it now. Moved out of the paragraph it was taken from (a range moved to "
+        "another paragraph or section), it is the paragraph it went to, so an edit through it marks the "
+        "section that is saved.",
+)
 
 
 def in_document(element: Any, holder: Any) -> bool:

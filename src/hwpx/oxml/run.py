@@ -25,6 +25,7 @@ from ._document_primitives import (
     _text_element_content,
 )
 from ._paragraph_text_edit import (
+    live_paragraph,
     clear_text_element,
     section_setting_runs,
     set_text_with_tabs,
@@ -1006,6 +1007,11 @@ def _is_run_tab(node: ET.Element) -> bool:
 
 class HwpxOxmlRun(SameElement):
     """Lightweight wrapper around an ``<hp:run>`` element."""
+
+    if TYPE_CHECKING:
+        paragraph: "HwpxOxmlParagraph"
+    else:
+        paragraph = live_paragraph  # the paragraph holding it now, also after a move
 
     def __init__(self, element: ET.Element, paragraph: "HwpxOxmlParagraph"):
         self.element = element

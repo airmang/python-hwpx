@@ -393,6 +393,7 @@
     "z_order": {"kind": "property", "settable": true, "returns": "int"}
    },
    "internal": [
+    "paragraph",
     "remove_caption",
     "set_caption"
    ]
@@ -498,6 +499,7 @@
     "z_order": {"kind": "property", "settable": true, "returns": "int"}
    },
    "internal": [
+    "paragraph",
     "remove_caption",
     "set_caption"
    ]
@@ -548,7 +550,9 @@
   },
   "Note": {
    "members": {"add_hyperlink": {"kind": "method", "params": [["url", "P", false], ["display_text", "P", false], ["char_pr_id_ref", "K", true]], "returns": "Hyperlink"}, "add_paragraph": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["style", "K", true], ["para_pr_id_ref", "K", true]], "returns": "Paragraph"}, "add_run": {"kind": "method", "params": [["text", "P", true], ["char_pr_id_ref", "K", true], ["bold", "K", true], ["italic", "K", true], ["underline", "K", true], ["color", "K", true], ["font", "K", true], ["size", "K", true], ["highlight", "K", true], ["strike", "K", true], ["attributes", "K", true]], "returns": "Run"}, "body_paragraph": {"kind": "property", "settable": false, "returns": "Paragraph"}, "copy_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "Note"}, "inst_id": {"kind": "property", "settable": false, "returns": "str | None"}, "kind": {"kind": "property", "settable": false, "returns": "str"}, "move_to": {"kind": "method", "params": [["paragraph", "P", false], ["offset", "K", true]], "returns": "None"}, "number": {"kind": "property", "settable": false, "returns": "int"}, "offset": {"kind": "property", "settable": false, "returns": "int | None"}, "paragraphs": {"kind": "property", "settable": false, "returns": "tuple[Paragraph, ...]"}, "remove": {"kind": "method", "params": [], "returns": "None"}, "text": {"kind": "property", "settable": true, "returns": "str"}},
-   "internal": []
+   "internal": [
+    "paragraph"
+   ]
   },
   "Paragraph": {
    "members": {
@@ -692,6 +696,7 @@
     "z_order": {"kind": "property", "settable": true, "returns": "int"}
    },
    "internal": [
+    "paragraph",
     "remove_caption",
     "set_caption"
    ]
@@ -726,6 +731,7 @@
    "internal": [
     "apply_model",
     "model",
+    "paragraph",
     "to_model"
    ]
   },
@@ -847,6 +853,7 @@
     "z_order": {"kind": "property", "settable": true, "returns": "int"}
    },
    "internal": [
+    "paragraph",
     "remove_caption",
     "set_caption"
    ]
@@ -924,6 +931,7 @@
     "create",
     "label",
     "mark_dirty",
+    "paragraph",
     "remove_caption",
     "remove_label",
     "set_caption",
