@@ -568,6 +568,10 @@ python-hwpx 7.0을 함께 설치한다.
   - 사본은 새 id를 받는다. 같은 문서·같은 열의 다른 표에서도 복사한다.
   - 병합 칸이 묶음 경계나 넣을 자리를 가로지르면 `table-rows-merge-crossed`로 바꾸기 전에 거부한다.
   - 놓인 행을 돌려준다. 행 번호·자리가 잘못되면 `table-rows-invalid`, 열이 다르면 `table-columns-differ`, 다른 문서 표는 `table-rows-other-document`, 다른 표로 옮기기는 `table-rows-move-other-table`로 거부한다.
+  - 칸 영역(`hp:cellzone`)은 제 행을 따라간다. 한 영역 안에서 행 순서만 바꾸면 영역은 그대로 한 덩어리로 남고 주소를 다시
+    적는다. 옮긴 뒤 영역의 행이 이어지지 않게 되면 바꾸기 전에 `table-rows-split-cell-zone`으로 거부한다. 복사한 행이 들어간
+    자리 뒤의 영역은 그만큼 내려가고, 영역 가운데에 들어가면 `insert_rows`처럼 영역이 그 행들까지 넓어진다(전에는 영역 주소를
+    그대로 두어 다른 행을 덮었다).
 - `section.clear_body(keep_column_changes=True)`: 구역 가운데에서 단을 바꾸는 문단을 남긴다. 한/글은 단 바꿈을 뒤 문단의 런에 둔
   `hp:colPr` 컨트롤로 쓴다. 남는 문단은 id·속성이 그대로이고, 런에는 그 컨트롤만 남는다. 남긴 수는 `ClearBodyReport.kept_column_paragraphs`다.
   기본값(`False`)이면 전처럼 지운다. 남기는 문단의 단 정의 컨트롤 안에 글·개체가 함께 있으면, 첫 문단처럼 `on_control_content`를 따른다
