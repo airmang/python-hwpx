@@ -194,6 +194,27 @@
    },
    "importedModules": 99,
    "importMs": 330
+  },
+  {
+   "version": "7.0.0",
+   "commit": "b219f701",
+   "totalLines": 111603,
+   "packages": {
+    ".": 11130,
+    "_document": 14733,
+    "equation": 2546,
+    "form_fit": 4238,
+    "hwp5": 11633,
+    "layout": 7221,
+    "objects": 3217,
+    "opc": 3495,
+    "oxml": 39373,
+    "plan": 900,
+    "quality": 1290,
+    "tools": 11827
+   },
+   "importedModules": 95,
+   "importMs": 72
   }
  ]
 }
