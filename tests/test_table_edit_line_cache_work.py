@@ -1,27 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
-"""A table's structure edit judges the line caches of that table, not of the whole section.
+"""What a table's structure edit spends on judging the section's line caches, counted (not timed).
 
-Counted, not timed (as ``test_big_table_work_bounds.py``). 7.0.0 ran the section-wide sweep of
-``hp:linesegarray`` caches twice for each ``insert_rows``/``insert_columns``/``delete_rows``/
-``delete_columns``/``split_cell`` and parsed the whole part again for the first of them, so one row
-put into a three-cell table cost as much as the section was long: 82 -> 374 ms on a 4 MB section
-against 6.12.0. The edit now reads the part only as far as the table reaches and digests the
-paragraphs of the table and of the paragraphs it sits in; the save still judges every cache.
+As ``test_big_table_work_bounds.py``. 7.0.0 judged every ``hp:linesegarray`` of the section twice for
+each ``insert_rows``/``insert_columns``/``delete_rows``/``delete_columns``/``split_cell``, with a digest
+of each cached paragraph each time (a paragraph holding a table serialised once for itself and once more
+for every cell paragraph in it), and digested every paragraph of the part as read at the first of them.
+The judgement still looks at every cache of the section each time -- what it leaves is held to 7.0.0's
+in ``test_table_edit_judges_every_line_cache.py`` -- but a body paragraph whose bytes did not change is
+serialised once and not digested paragraph by paragraph, and the judgement after the rebuild looks at
+the rebuilt table's block alone.
 """
 
 from __future__ import annotations
 
-import zipfile
 from pathlib import Path
 
 import pytest
-from lxml import etree
 
 import hwpx.opc.xml_utils as xml_utils
 from hwpx import HwpxDocument
-from hwpx.opc.xml_utils import parse_xml
 from hwpx.oxml import _line_caches as line_caches
-from hwpx.table_patch import TableStructureError
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 FIXTURES = Path(__file__).parent / "fixtures" / "hancom_saved"
@@ -30,204 +28,154 @@ LARGE = "formfit_hft_faces_cells.hwpx"  # 224 of the same
 
 
 class _Work:
-    """What one edit asked of the line-cache net."""
+    """What the line-cache judgements asked for since the last ``taken()``."""
 
-    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self.digests = 0
-        self.short_reads = 0
-        self.whole_parses = 0
-        digest, short_read, whole = line_caches._content_digest, line_caches._content_as_read, xml_utils.parse_xml
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, section_bytes: int) -> None:
+        self.digests = self.blocks = self.parses = 0
+        digest, whole, parse = line_caches._content_digest, line_caches._whole_bytes, xml_utils.parse_xml
 
         def counted_digest(paragraph):
             self.digests += 1
             return digest(paragraph)
 
-        def counted_short_read(source_xml, places):
-            self.short_reads += 1
-            return short_read(source_xml, places)
+        def counted_whole(block):
+            self.blocks += 1
+            return whole(block)
 
-        def counted_whole(data):
-            self.whole_parses += 1
-            return whole(data)
+        def counted_parse(data):
+            self.parses += len(data) == section_bytes  # the section's part, not another
+            return parse(data)
 
         monkeypatch.setattr(line_caches, "_content_digest", counted_digest)
-        monkeypatch.setattr(line_caches, "_content_as_read", counted_short_read)
-        monkeypatch.setattr(xml_utils, "parse_xml", counted_whole)
+        monkeypatch.setattr(line_caches, "_whole_bytes", counted_whole)
+        monkeypatch.setattr(xml_utils, "parse_xml", counted_parse)
 
     def taken(self) -> tuple[int, int, int]:
-        seen = (self.digests, self.short_reads, self.whole_parses)
-        self.digests = self.short_reads = self.whole_parses = 0
+        seen = (self.digests, self.blocks, self.parses)
+        self.digests = self.blocks = self.parses = 0
         return seen
 
 
-def _section_caches(doc: HwpxDocument) -> int:
-    return sum(len(line_caches.cache_elements(section.element)) for section in doc.sections)
+def _opened(name: str, monkeypatch: pytest.MonkeyPatch) -> tuple[HwpxDocument, _Work, int, int]:
+    """The document, the counter, and how many caches and cached body paragraphs its section has."""
+
+    doc = HwpxDocument.open(FIXTURES / name)
+    tracker = doc.sections[0]._tracked_caches
+    assert tracker is not None and tracker._source_xml is not None
+    work = _Work(monkeypatch, len(tracker._source_xml))
+    root = doc.sections[0].element
+    caches = len(line_caches.cache_elements(root))
+    blocks = sum(1 for block in root if line_caches.cache_elements(block))
+    return doc, work, caches, blocks
 
 
-def _same_length_edit(paragraph) -> str:
-    """Change *paragraph*'s first text in the tree, cache left on: same length, other characters, so
-    that only the comparison with the part as read can tell."""
-
-    node = next(t for t in paragraph.iter(f"{HP}t") if t.text and len(t) == 0)
-    node.text = ("X" if node.text[0] != "X" else "Y") + node.text[1:]
-    return node.text
-
-
-def _body_paragraphs_with_a_cache(doc: HwpxDocument) -> list:
-    return [
-        paragraph
-        for paragraph in doc.sections[0].element.findall(f"{HP}p")
-        if paragraph.find(f"{HP}linesegarray") is not None
-        and paragraph.find(f"{HP}run/{HP}t") is not None
-        and (paragraph.find(f"{HP}run/{HP}t").text or "")
-        and next(paragraph.iter(f"{HP}tbl"), None) is None
-    ]
-
-
-def test_a_row_insert_digests_the_table_however_long_the_section_is(monkeypatch: pytest.MonkeyPatch) -> None:
-    work = _Work(monkeypatch)
+def test_a_first_edit_digests_its_tables_block_however_long_the_section_is(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = {}
     for name in (SMALL, LARGE):
-        doc = HwpxDocument.open(FIXTURES / name)
-        caches = _section_caches(doc)
-        work.taken()
-        doc.tables[0].insert_rows(0)
-        seen[name] = (*work.taken(), caches)
+        with monkeypatch.context() as patch:
+            doc, work, caches, blocks = _opened(name, patch)
+            doc.tables[0].insert_rows(0)
+            seen[name] = (*work.taken(), caches, blocks)
 
-    small, large = seen[SMALL], seen[LARGE]
-    assert large[3] > 5 * small[3] > 100  # the long section holds several times the caches
-    assert small[:3] == large[:3]  # and the edit asked the same of both
-    digests, short_reads, whole_parses = large[:3]
-    assert 0 < digests <= 6  # the table's one cell paragraph and the paragraph holding the table
-    assert (short_reads, whole_parses) == (1, 0)  # the part read as far as the table, never parsed whole
+    (small_digests, _, small_parses, small_caches, _), (digests, serialised, parses, caches, blocks) = seen[SMALL], seen[LARGE]
+    assert caches > 5 * small_caches > 100  # the long section holds several times the caches
+    assert digests == small_digests <= 6  # the cell paragraph and the paragraph holding the table
+    assert parses == small_parses == 1  # the part as read, once (7.0.0 parsed it once too)
+    # each block once as it is and once as it was read, and the rebuilt one once more
+    assert serialised <= 2 * blocks + 1
+    assert digests < caches / 50  # 7.0.0: three digests of every cached paragraph here
 
 
-def test_a_second_edit_of_the_table_reads_nothing_of_the_part(monkeypatch: pytest.MonkeyPatch) -> None:
-    doc = HwpxDocument.open(FIXTURES / LARGE)
+def test_a_later_edit_serialises_each_block_once_and_parses_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    doc, work, caches, blocks = _opened(LARGE, monkeypatch)
     table = doc.tables[0]
     table.insert_rows(0)
-    work = _Work(monkeypatch)
+    work.taken()
 
     table.insert_rows(0)
-    table.insert_columns(0)
+    again = work.taken()
+    doc.tables[7].insert_columns(0)  # another table, in a block nothing changed since it was read
+    other = work.taken()
 
-    digests, short_reads, whole_parses = work.taken()
-    assert (short_reads, whole_parses) == (0, 0)
-    assert digests <= 12
+    for digests, serialised, parses in (again, other):
+        assert parses == 0
+        assert serialised <= blocks + 1  # one look at the section, and the rebuilt block once more
+        assert digests <= 6  # 7.0.0: two digests of every cached paragraph
+    assert caches > 400
 
 
-def test_another_table_parses_the_part_once_and_no_edit_or_save_after_it_does(monkeypatch: pytest.MonkeyPatch) -> None:
-    doc = HwpxDocument.open(FIXTURES / LARGE)
-    section_bytes = len(doc.sections[0]._tracked_caches._source_xml)
-    whole = xml_utils.parse_xml
-    parsed: list[int] = []
-    monkeypatch.setattr(xml_utils, "parse_xml", lambda data: parsed.append(len(data)) or whole(data))
-
+def test_the_save_after_an_edit_judges_without_digests_or_a_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+    doc, work, _caches, blocks = _opened(LARGE, monkeypatch)
     doc.tables[0].insert_rows(0)
-    assert section_bytes not in parsed  # the first table: a short read
-    doc.tables[5].insert_rows(0)
-    assert parsed.count(section_bytes) == 1  # the second: everything that is left, once
-    doc.tables[9].insert_rows(0)
-    doc.tables[9].split_cell(0, 0, cols=2)
-    doc.to_bytes()
-    assert parsed.count(section_bytes) == 1
-    assert doc.sections[0]._tracked_caches._source_xml is None  # the bytes are let go
+    work.taken()
+
+    doc.sections[0]._remove_outlived_layout_caches()  # the judgement a save starts with
+
+    assert work.taken() == (0, blocks, 0)
 
 
-@pytest.mark.parametrize("mark_dirty", [True, False])
-def test_a_paragraph_outside_the_table_edited_directly_loses_its_cache_at_the_save(mark_dirty: bool) -> None:
-    # The structure edit no longer looks at the rest of the section; the save does, as it did.
-    doc = HwpxDocument.open(FIXTURES / SMALL)
-    edited_paragraph, kept_paragraph = _body_paragraphs_with_a_cache(doc)[1:3]
-    edited = _same_length_edit(edited_paragraph)
-    kept = kept_paragraph.find(f"{HP}run/{HP}t").text
-    if mark_dirty:
-        doc.sections[0].mark_dirty()
+def test_a_block_changed_since_it_was_read_costs_one_more_parse_and_no_later_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    doc, work, caches, _blocks = _opened(LARGE, monkeypatch)
+    doc.tables[0].insert_rows(0)  # the first judgement: every other block stays as read
+    work.taken()
+    tracker = doc.sections[0]._tracked_caches
+    assert tracker is not None and tracker._source_xml is not None
 
-    doc.tables[0].insert_rows(0)
-    doc.tables[3].insert_columns(0)
-
-    again = HwpxDocument.open(doc.to_bytes())
-    by_text = {
-        (paragraph.find(f"{HP}run/{HP}t").text or ""): paragraph
-        for paragraph in again.sections[0].element.findall(f"{HP}p")
-        if paragraph.find(f"{HP}run/{HP}t") is not None
-    }
-    assert by_text[edited].find(f"{HP}linesegarray") is None
-    assert by_text[kept].find(f"{HP}linesegarray") is not None
-
-
-def test_a_refused_edit_still_judges_the_whole_section() -> None:
-    # 7.0.0 judged the section before it knew the edit would be refused; a refusal still does (it is
-    # rare, so it may cost what the section holds): the stale cache goes and the section is saved.
-    doc = HwpxDocument.open(FIXTURES / SMALL)
-    edited = _same_length_edit(_body_paragraphs_with_a_cache(doc)[1])
-    assert not doc.sections[0].dirty
-
-    with pytest.raises(TableStructureError):
-        doc.tables[0].insert_rows(10_000)
-
-    again = HwpxDocument.open(doc.to_bytes())
-    holders = [
+    edited = next(  # a body paragraph changed in the tree, its cache left on
         paragraph
-        for paragraph in again.sections[0].element.findall(f"{HP}p")
-        if (found := paragraph.find(f"{HP}run/{HP}t")) is not None and found.text == edited
-    ]
-    assert holders and all(paragraph.find(f"{HP}linesegarray") is None for paragraph in holders)
+        for paragraph in doc.sections[0].element.findall(f"{HP}p")[3:]
+        if paragraph.find(f"{HP}linesegarray") is not None and (paragraph.findtext(f"{HP}run/{HP}t") or "")
+    )
+    node = edited.find(f"{HP}run/{HP}t")
+    node.text = ("X" if node.text[0] != "X" else "Y") + node.text[1:]
+    doc.tables[9].insert_rows(0)
+
+    digests, _serialised, parses = work.taken()
+    assert edited.find(f"{HP}linesegarray") is None
+    assert parses == 1  # what the part held for the changed block; with it, for all that were left
+    assert digests <= caches + 12  # each of those once, as 7.0.0 digested them at its first judgement
+    assert tracker._source_xml is None  # the part's bytes are let go
+    node.text = "changed again"
+    doc.tables[13].split_cell(0, 0, cols=2)
+    doc.to_bytes()
+    assert work.taken()[2] == 0
+
+
+def test_filling_the_rows_between_edits_of_a_table_in_a_cell_never_asks_for_the_part_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A table in a cell shares its block with the outer table's other cells. The block is watched with
+    # digests from the first edit on, so when an API fills cells there (which changes the block) the
+    # other cells' caches are judged against those digests, not against the part as read.
+    doc = HwpxDocument.open(FIXTURES / "pages_nested_table_rows_holding_tables_split.hwpx")
+    tracker = doc.sections[0]._tracked_caches
+    assert tracker is not None and tracker._source_xml is not None
+    work = _Work(monkeypatch, len(tracker._source_xml))
+    table = next(
+        table for table in doc.tables.with_nested if next(table.element.iterancestors(f"{HP}tbl"), None) is not None
+    )
+    outer = list(table.element.iterancestors(f"{HP}tbl"))[-1]
+    assert len(line_caches.cache_elements(outer)) > len(line_caches.cache_elements(table.element)) + 2
+
+    for row in range(3):
+        table.insert_rows(row)
+        table.set_cell_text(row + 1, 0, f"row {row}")
+    doc.to_bytes()
+
+    assert work.taken()[2] == 1  # the first judgement's, and no other
 
 
 def test_the_caches_of_a_table_nobody_touched_stay_through_another_tables_edit() -> None:
     doc = HwpxDocument.open(FIXTURES / SMALL)
-    before = _section_caches(doc)
+    before = len(line_caches.cache_elements(doc.sections[0].element))
     in_table = len(line_caches.cache_elements(doc.tables[0].element))
 
-    doc.tables[0].delete_rows(0) if doc.tables[0].row_count > 1 else doc.tables[0].insert_rows(0)
+    doc.tables[0].insert_rows(0)
 
+    # the table's holding paragraph loses its line (it held the table as it was); nothing else does
+    assert len(line_caches.cache_elements(doc.sections[0].element)) == before - 1
+    assert len(line_caches.cache_elements(doc.tables[0].element)) == in_table
     again = HwpxDocument.open(doc.to_bytes())
-    # the table's host paragraph loses its line (it held the table as it was); nothing else does
-    assert _section_caches(again) >= before - in_table - 1
-    assert len(line_caches.cache_elements(again.tables[1].element)) == len(line_caches.cache_elements(doc.tables[1].element))
-
-
-@pytest.mark.parametrize("name", [SMALL, "line_cache_table_cells.hwpx", "merge_3x3_a1c2.hwpx"])
-def test_the_short_read_answers_what_the_whole_parse_answers(name: str) -> None:
-    with zipfile.ZipFile(FIXTURES / name) as archive:
-        source = archive.read("Contents/section0.xml")
-    originals = line_caches.cache_elements(parse_xml(source))
-    expected = {
-        place: (line_caches._content_digest(cache.getparent()), etree.tostring(cache, with_tail=False))
-        for place, cache in enumerate(originals)
-    }
-    assert expected
-    last = len(expected) - 1
-
-    assert line_caches._content_as_read(source, set(expected)) == expected
-    for places in ({0}, {last}, {0, last}, {last // 2}):
-        assert line_caches._content_as_read(source, places) == {place: expected[place] for place in places}
-    assert line_caches._content_as_read(source, {last + 1}) is None  # the part has no such cache
-
-
-def test_bytes_that_do_not_line_up_with_the_caches_judge_nothing() -> None:
-    # As before the change: without the part as read, no cache is dropped.
-    doc = HwpxDocument.open(FIXTURES / SMALL)
-    section = doc.sections[0]
-    with zipfile.ZipFile(FIXTURES / "merge_3x3_a1c2.hwpx") as archive:
-        other = archive.read("Contents/section0.xml")
-    caches = line_caches.cache_elements(section.element)
-    section._tracked_caches = line_caches.TrackedCaches(caches, other)
-    _same_length_edit(_body_paragraphs_with_a_cache(doc)[1])
-    section.mark_dirty()
-
-    assert section._remove_outlived_layout_caches() == 0
-    assert section._remove_outlived_layout_caches(force=True, within=doc.tables[0].element) == 0
-    assert line_caches.cache_elements(section.element) == caches
-
-
-def test_a_new_documents_table_reads_no_part(monkeypatch: pytest.MonkeyPatch) -> None:
-    doc = HwpxDocument.new()
-    table = doc.add_table(2, 2)
-    work = _Work(monkeypatch)
-
-    table.insert_rows(0)
-
-    assert work.taken()[1:] == (0, 0)
+    assert len(line_caches.cache_elements(again.sections[0].element)) == before - 1

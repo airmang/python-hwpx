@@ -583,7 +583,7 @@
       "path": "src/hwpx/oxml/_line_caches.py",
       "disposition": "core",
       "approvedBy": "perf/table-edits",
-      "rationale": "The net under the editing APIs for a line cache (hp:linesegarray) left on a paragraph whose content changed: which caches a section watches and how they are judged against the part as read. Moved out of section.py as it was (same digest, same comparison), with the two narrower judgements a table's structure edit asks for -- the caches in the table and of the paragraphs it sits in, before and after the rebuild -- so that such an edit no longer costs what the whole section holds. A new module rather than more section.py lines. Format-level only."
+      "rationale": "The net under the editing APIs for a line cache (hp:linesegarray) left on a paragraph whose content changed: which caches a section watches and how they are judged against the part as read. Moved out of section.py with its rule as it was (same digest, same comparison, every cache of the section judged at every judgement, so a save and a table's structure edit leave what they left). What it adds is how a judgement gets there for less: a body paragraph whose bytes did not change since the last judgement is not digested paragraph by paragraph again, the part as read is digested only where the tree differs from it, and the judgement straight after a table's rebuild looks at the rebuilt table's block alone. A new module rather than more section.py lines. Format-level only."
     },
     {
       "path": "src/hwpx/oxml/text_ranges.py",

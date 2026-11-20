@@ -78,7 +78,7 @@ class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
     """
 
     def _remove_outlived_layout_caches(
-        self, *, force: bool = False, within: object = None, rebuilt: bool = False
+        self, *, force: bool = False, rebuilding: object = None, rebuilt: object = None
     ) -> int:
         """Nothing to track: what a table's structure edit asks of the section holding it
         (``HwpxOxmlSection._remove_outlived_layout_caches``). A master page read from a file keeps no

@@ -817,24 +817,25 @@ class HwpxOxmlSection:
         return removed
 
     def _remove_outlived_layout_caches(
-        self, *, force: bool = False, within: Any = None, rebuilt: bool = False
+        self, *, force: bool = False, rebuilding: Any = None, rebuilt: tuple[Any, Any] | None = None
     ) -> int:
         """Drop the caches an edit left on a paragraph whose content it changed.
 
         *force* judges them even when the section is not marked edited: an edit about to
         rebuild elements (a table's structure edit) runs it first, because a rebuilt
         paragraph no longer matches the cache it was read with by identity, and then once
-        more after (*rebuilt*), so the rebuilt caches are tracked from there. Such an edit
-        names the table (*within*): the caches in it and those of the paragraphs it sits in
-        are judged, the rest of the section at the save.
+        more after, so the rebuilt caches are tracked from there. Both judge every cache of
+        the section. Such an edit names its table before (*rebuilding*) and the table and
+        the paragraph holding it after (*rebuilt*): that changes no answer, only how the
+        second judgement arrives at it (:meth:`._line_caches.TrackedCaches.judge_rebuilt`).
         """
 
         tracked = self._tracked_caches
         if tracked is None or (not self._dirty and not force):
             return 0
-        if within is None:
-            return tracked.judge_all(self._element)
-        return tracked.judge_rebuilt(within) if rebuilt else tracked.judge_before_rebuild(within)
+        if rebuilt is not None:
+            return tracked.judge_rebuilt(self._element, *rebuilt)
+        return tracked.judge_all(self._element, about_to_rebuild=rebuilding)
 
     def _remember_source(self, source_xml: bytes) -> None:
         """Note the part's bytes and its line caches as read, before anything edits the tree.
