@@ -370,7 +370,8 @@ def keep_ids_clear_of(ids: "IdSource | None", values: "Iterable[str | None]") ->
 
     if ids is None or ids._rng is None:
         return
-    ids._issued.update(int(value) for value in values if value is not None and value.isdigit())
+    ids._issued.update(  # what the source can hand out: a decimal number below 2**31
+        int(value) for value in values if value and len(value) <= 10 and value.isascii() and value.isdigit())
 
 
 class PendingIds(IdSource):

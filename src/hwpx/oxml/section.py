@@ -698,7 +698,16 @@ class HwpxOxmlSection:
         clones = self._element.makeelement(f"{_HP}subList", {})  # holds the copies until they are numbered
         for paragraph in paragraphs:
             source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
-            clones.append(_clone_paragraph_element(source_element, ids=self._ids))
+            cloned = _clone_paragraph_element(source_element, ids=self._ids)
+            # the section's settings (its headers among them) stay with the paragraph they came from.
+            # They go before the fields are numbered: a field in a header that is not taken in is no
+            # field of the copies, and neither renews another's id nor is kept clear of
+            for run, settings in section_setting_runs(cloned):
+                for child in settings:
+                    run.remove(child)
+                if len(run) == 0:
+                    cloned.remove(run)
+            clones.append(cloned)
         # as paragraph.copy_to and insert_after(): a copied field gets its own id pair (the copy kept the
         # original's, and neither field could be filled by name or id: ``field-ambiguous``). The copies
         # are numbered together: a field may begin in one paragraph and end in a later one. A field whose
@@ -712,11 +721,6 @@ class HwpxOxmlSection:
             renumber_copied_fields(clones, ids=self._ids, taken=taken)
             keep_ids_clear_of(self._ids, (node.get("id") for node in clones.iter(f"{_HP}fieldBegin")))
         for offset, cloned in enumerate(list(clones)):
-            for run, settings in section_setting_runs(cloned):
-                for child in settings:
-                    run.remove(child)
-                if len(run) == 0:
-                    cloned.remove(run)
             self._element.insert(index + offset, cloned)
             inserted.append(HwpxOxmlParagraph(cloned, self))
 

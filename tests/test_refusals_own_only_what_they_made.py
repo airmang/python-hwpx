@@ -1249,3 +1249,69 @@ def test_ids_taken_in_with_another_documents_fields_are_not_handed_out_again(que
     assert taken_in <= set(ids)
     for field in saved.fields.all:
         saved.fields.fill("v", field_id=field.field_id)
+
+
+# -- the tenth look -------------------------------------------------------------------------------
+
+
+def _title_under_a_header_with_a_field(seed: int = 17) -> Any:
+    cover = HwpxDocument.new(seed=seed)
+    cover.add_paragraph("Cover")
+    for _ in range(4):
+        cover.add_paragraph("Body")
+    cover.page.set_header(text="running").paragraphs[0].add_form_field("header field")
+    return _saved(cover).paragraphs[0]  # the first paragraph holds the section's settings, the header among them
+
+
+def test_a_field_in_a_header_that_is_not_taken_in_changes_no_id_given_afterwards() -> None:
+    def build(title: Any) -> bytes:
+        document = HwpxDocument.new(seed=17)
+        document.add_paragraph("Target")
+        document.sections[0].insert_paragraphs(1, [title])
+        assert not _saved(document).fields.all  # the header stayed behind, its field with it
+        for index in range(3):
+            document.add_paragraph("Question").add_form_field(str(index))
+        return [field.field_id for field in _saved(document).fields.all]  # type: ignore[return-value]
+
+    plain = HwpxDocument.new(seed=17)
+    plain.add_paragraph("Cover")
+    for _ in range(4):
+        plain.add_paragraph("Body")
+    plain.page.set_header(text="running")
+
+    assert build(_title_under_a_header_with_a_field()) == build(_saved(plain).paragraphs[0])
+
+
+def test_a_field_in_a_header_that_is_not_taken_in_renews_no_field_that_is() -> None:
+    title = _title_under_a_header_with_a_field()
+    header_id = next(node.get("id") for node in title.element.iter() if node.tag.endswith("}fieldBegin"))
+    bank = HwpxDocument.new(seed=17)
+    bank.add_paragraph("Questions")
+    questions = [bank.add_paragraph("Q") for _ in range(4)]  # as many paragraphs as the cover's body
+    # one seed: one of the bank's fields is given the id the header's field was given
+    question = next((paragraph for index, paragraph in enumerate(questions)
+                     if paragraph.add_form_field(str(index)).field_id == header_id), None)
+    assert question is not None
+    out = HwpxDocument.new(seed=29)
+    out.add_paragraph("Target")
+
+    out.sections[0].insert_paragraphs(1, [title, question])
+
+    saved = _saved(out)
+    assert [field.field_id for field in saved.fields.all] == [header_id]  # the id it came with
+    saved.fields.fill("A", field_id=header_id)
+
+
+def test_an_id_that_is_no_number_the_source_gives_is_taken_in_as_it_is() -> None:
+    source, document = HwpxDocument.new(seed=17), HwpxDocument.new(seed=17)
+    paragraph = source.add_paragraph("field")
+    paragraph.add_form_field("answer")
+    for node in paragraph.element.iter():
+        if node.tag.endswith("}fieldBegin"):
+            node.set("id", "²")
+        elif node.tag.endswith("}fieldEnd"):
+            node.set("beginIDRef", "²")
+
+    document.sections[0].insert_paragraphs(1, [paragraph])
+
+    assert len(document.fields.all) == 1
