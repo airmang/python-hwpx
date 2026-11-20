@@ -11,6 +11,8 @@ import xml.etree.ElementTree as ET
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from ._document_primitives import (
+    _require_text,
+    keep_ids_clear_of,
     paragraph_attributes,
     _HP,
     _HP_NS,
@@ -234,6 +236,8 @@ class HwpxOxmlSection:
         char_pr_id_ref: str | int | None = None,
         attributes: Optional[dict[str, str]] = None,
     ) -> HwpxOxmlMemo:
+        if text is not None:
+            _require_text(text)  # not text: refused before anything is written
         element = self._memo_group_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create memo group element")
@@ -684,21 +688,39 @@ class HwpxOxmlSection:
         paper and margins (``section-properties-not-first``).
         """
 
-        from ._paragraph_text_edit import move_section_settings, section_setting_runs
+        from ._paragraph_text_edit import move_section_settings, renumber_copied_fields, section_setting_runs
 
         existing = self.paragraphs
         if index < 0 or index > len(existing):
             raise IndexError(f"단락 인덱스 {index}이(가) 범위를 벗어났습니다 (총 {len(existing)}개)")
 
         inserted: list[HwpxOxmlParagraph] = []
-        for offset, paragraph in enumerate(paragraphs):
+        clones = self._element.makeelement(f"{_HP}subList", {})  # holds the copies until they are numbered
+        for paragraph in paragraphs:
             source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
             cloned = _clone_paragraph_element(source_element, ids=self._ids)
+            # the section's settings (its headers among them) stay with the paragraph they came from.
+            # They go before the fields are numbered: a field in a header that is not taken in is no
+            # field of the copies, and neither renews another's id nor is kept clear of
             for run, settings in section_setting_runs(cloned):
                 for child in settings:
                     run.remove(child)
                 if len(run) == 0:
                     cloned.remove(run)
+            clones.append(cloned)
+        # as paragraph.copy_to and insert_after(): a copied field gets its own id pair (the copy kept the
+        # original's, and neither field could be filled by name or id: ``field-ambiguous``). The copies
+        # are numbered together: a field may begin in one paragraph and end in a later one. A field whose
+        # id no field of the document has keeps it: paragraphs brought from another document are filled
+        # by the ids they came with.
+        if next(clones.iter(f"{_HP}fieldBegin"), None) is not None:  # no field in the copies: no search
+            document = self.document
+            owners: list[Any] = ([*document.sections, *getattr(document, "master_pages", ())]
+                                 if document is not None else [self])
+            taken = {str(node.get("id")) for owner in owners for node in owner.element.iter(f"{_HP}fieldBegin")}
+            renumber_copied_fields(clones, ids=self._ids, taken=taken)
+            keep_ids_clear_of(self._ids, (node.get("id") for node in clones.iter(f"{_HP}fieldBegin")))
+        for offset, cloned in enumerate(list(clones)):
             self._element.insert(index + offset, cloned)
             inserted.append(HwpxOxmlParagraph(cloned, self))
 
@@ -976,10 +998,16 @@ def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_co
     first_attributes = dict(runs[0].attrib) if runs else {"charPrIDRef": "0"}
     text_attributes = next((dict(run.attrib) for run in runs for child in run if child.tag == f"{_HP}t"),
                            first_attributes)
+    # The notes (and the number restarts) that go with the content: the notes left are numbered again, as
+    # after paragraph.remove(). They kept the numbers they had, so the file said 2 for the note read as 1.
+    from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+    note_kinds = note_kinds_in_all(paragraph.section, [*dropped, *(child for _, child in removals)])
     for child in dropped:
         child.getparent().remove(child)
     for parent, child in removals:
         parent.remove(child)
+    renumber_note_kinds(paragraph.section, note_kinds)
     emptied = [run for run in runs if len(run) == 0]
     for run in emptied:
         element.remove(run)

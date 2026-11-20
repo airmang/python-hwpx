@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 import functools
+import itertools
 import inspect
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Callable, Iterable, cast
@@ -281,28 +282,77 @@ def _next_paragraph(parent: ET.Element, element: ET.Element) -> ET.Element | Non
     return None
 
 
-def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
+def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
+                           taken: "set[str] | None" = None, avoid: "set[str] | None" = None) -> int:
     """Give each field whose begin and end are both inside *copy* a new id pair.
 
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
     keeping them leaves two fields of one id, which readers and form filling cannot tell apart.
     A ``fieldid`` equal to the old id follows it. A field reaching outside *copy* is left as it is.
+    An end goes to the begin of its id that is open in front of it (the innermost, when fields of one
+    id nest): *copy* may hold the same field more than once (one paragraph copied twice in one call),
+    and the first begin took every end of the id then, leaving the second copy's begin with the first
+    copy's end. An end in front of its begin goes to the first begin of its id, as before.
+    With *taken* (the field ids the place the copy goes to already has) only a field whose id is taken,
+    or met a second time in *copy*, gets a new pair: content brought from another document keeps the
+    ids it is known by where nothing there has them. A new id is never one of *avoid* (ids in use
+    where the copy goes): a document holding fields brought from another one made with the same seed
+    was handed one of their ids.
     Returns how many fields were renumbered.
     """
 
     from ._document_primitives import _object_id
 
     hp_begin, hp_end = f"{{{_HP_NS}}}fieldBegin", f"{{{_HP_NS}}}fieldEnd"
-    ends: dict[str, list[ET.Element]] = {}
-    for end in copy.iter(hp_end):
-        ends.setdefault(end.get("beginIDRef") or "", []).append(end)
+    groups: list[tuple[ET.Element, list[ET.Element]]] = []
+    still_open: dict[str, list[list[ET.Element]]] = {}  # per id: the begins not yet ended, innermost last
+    last_ended: dict[str, list[ET.Element]] = {}  # per id: the begin that took the last end
+    early: dict[str, list[ET.Element]] = {}  # per id: ends met before any begin of the id
+    for node in copy.iter():
+        if node.tag == hp_begin and node.get("id"):
+            ends: list[ET.Element] = []
+            still_open.setdefault(str(node.get("id")), []).append(ends)
+            groups.append((node, ends))
+        elif node.tag == hp_end:
+            named = node.get("beginIDRef") or ""
+            if still_open.get(named):
+                taking = still_open[named].pop()  # the innermost begin of the id that is still open
+                last_ended[named] = taking
+            elif named in last_ended:
+                taking = last_ended[named]  # a further end of a field that has one already
+            else:
+                taking = early.setdefault(named, [])  # in front of its begin
+            taking.append(node)
+    for begin, ends in groups:  # an end in front of its begin goes to the first begin left without one
+        waiting = early.get(str(begin.get("id")))
+        if waiting:
+            ends.extend(waiting)
+            waiting.clear()
     renumbered = 0
-    for begin in copy.iter(hp_begin):
-        old = begin.get("id")
-        if not old or old not in ends:
+    met: set[str] = set()
+    # ids that stay in use: those where the copy goes, and those the copy itself holds (one of them may
+    # be kept, and the id source of a document made with the same seed hands out the same numbers)
+    in_use = set(taken or ()) | set(avoid or ()) | {str(begin.get("id")) for begin, _ in groups}
+    for begin, ends in groups:
+        if not ends:
             continue
+        old = str(begin.get("id"))
+        if taken is not None and old not in taken and old not in met:
+            met.add(old)
+            continue  # no field where it goes has this id: it keeps it
+        met.add(old)
         new_id = _object_id(ids)
-        for node in (begin, *ends.pop(old)):
+        # A source handing out ids of its own can meet each id in use once (a document that took in the
+        # fields of another one made with the same seed meets every one of them). One that still hands
+        # out an id in use after that repeats itself: the id is then the lowest number not in use.
+        for _ in range(len(in_use) + 1):
+            if new_id not in in_use:
+                break
+            new_id = _object_id(ids)
+        else:
+            new_id = next(number for number in map(str, itertools.count(1)) if number not in in_use)
+        in_use.add(new_id)
+        for node in (begin, *ends):
             node.set("id" if node is begin else "beginIDRef", new_id)
             if node.get("fieldid") == old:
                 node.set("fieldid", new_id)

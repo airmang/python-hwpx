@@ -105,9 +105,11 @@ def test_tracked_insert_delete_replace_roundtrip_links_header_and_body() -> None
     assert header_model.ref_list.track_change_authors is not None
     assert len(header_model.ref_list.track_change_authors.authors) == 1
     assert header_model.ref_list.track_change_authors.authors[0].name == "AI Agent"
+    # The flags stay what a new document has, which is what Hancom writes for a document with changes
+    # too (56): bit 0, set here up to 7.0 development, is not what shows the marks, and with it Hancom
+    # crashed opening a document that also had a table of contents to make again.
     assert header_model.track_change_config is not None
-    assert header_model.track_change_config.flags is not None
-    assert header_model.track_change_config.flags & 1
+    assert header_model.track_change_config.flags == 56
 
     marks = _paragraph_track_marks(reopened)
     insert_begins = [

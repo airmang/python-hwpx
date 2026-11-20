@@ -113,17 +113,23 @@ class PageNamespace(_Namespace):
         section: "int | HwpxOxmlSection | Literal['all'] | None",
         caller: str,
         change: "Callable[[HwpxOxmlSection], _T]",
+        check: "Callable[[HwpxOxmlSection], object] | None" = None,
     ) -> "_T":
         """Run *change* on the section a setter names, or on every section for ``section="all"``.
 
         With ``"all"`` the result is what the last section's change returned, so a setter
-        returns the same type whichever sections it changed.
+        returns the same type whichever sections it changed. *check* is what *change* refuses for
+        one section, without writing: with ``"all"`` it is asked of every section before the first
+        one changes, so a section that refuses leaves the others as they were.
         """
 
         if section == ALL_SECTIONS:
             sections = list(self._doc.sections)
             if not sections:
                 return change(self._section(None, caller))
+            if check is not None:
+                for target in sections:
+                    check(target)
             result = change(sections[0])
             for target in sections[1:]:
                 result = change(target)
@@ -594,9 +600,11 @@ class PageNamespace(_Namespace):
         참조하도록 등록한다(6.13 트레인㊻). 이미 참조 중이면 아무 일도
         안 한다(멱등). 연결을 끊는 쪽은 :meth:`remove_master_page_reference`."""
 
-        self._apply(section, "set_master_page", lambda target: (
-            target.properties.add_master_page_reference(master_page_id)
-        ))
+        self._apply(
+            section, "set_master_page",
+            lambda target: target.properties.add_master_page_reference(master_page_id),
+            check=lambda target: target.properties._check_master_page_reference(master_page_id),
+        )
 
     def grid(
         self,

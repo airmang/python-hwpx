@@ -99,6 +99,53 @@ def new_table_width(width: object, cols: int) -> int | None:
     return max(width, cols * NEW_TABLE_COLUMN_FLOOR)
 
 
+def whole_number(value: Any, *, floats: bool = False) -> int | None:
+    """*value* as an ``int`` when it is a whole number: an integer of any kind (``numpy.int64``), or a
+    ``Decimal``, a ``Fraction`` or a zero-dimensional array with a whole value -- and a float with one
+    when *floats*. ``None`` for anything else (a bool of any kind, a str, NaN); it does not raise."""
+
+    import numbers
+
+    if isinstance(value, bool) or type(value).__name__ in ("bool_", "bool"):
+        return None
+    if isinstance(value, (str, bytes)) or (
+            isinstance(value, numbers.Complex) and not isinstance(value, numbers.Real)):
+        return None  # text, and a complex number
+    if not floats and isinstance(value, numbers.Real) and not isinstance(value, numbers.Rational):
+        return None  # a float (1440.0) is not a height
+    # Whatever else counts as a whole number: Decimal("1440"), Fraction(1440), a zero-dimensional
+    # array holding one. What cannot be read as a number, or is not whole, is not one.
+    number: Any = value
+    try:
+        whole = int(number)  # a duration (numpy.timedelta64 of days) refuses this
+        if isinstance(value, numbers.Integral):
+            return whole
+        return whole if bool(number == whole) and not isinstance(whole, bool) else None
+    except Exception:  # noqa: BLE001 - any refusal of the value's own arithmetic means "not a number"
+        return None
+
+
+def check_new_table_height(height: object) -> int | None:
+    """A new table's *height* (``None`` when not given) checked before anything is written, as an
+    ``int``: a whole number in ``0 <= height < 2**31``. Anything else was added to the row heights and
+    failed there, after the table's border definition (and, in a cell, its paragraph) had been made; a
+    ``Decimal("2.00")`` was written as it stood, and the height then could not be read."""
+
+    from ..errors import HwpxValueError
+
+    if height is None:
+        return None
+    whole = whole_number(height)
+    if whole is None or not 0 <= whole < 2**31:
+        raise HwpxValueError(
+            f"height must be an int in 0 <= height < 2**31 (HWPUNIT); got {height!r}",
+            code="table-height-value",
+            context={"value": repr(height)},
+            suggestion="Pass the table's height in HWP units, or leave it out for the default row height.",
+        )
+    return whole
+
+
 def _column_floors(table: "HwpxOxmlTable") -> list[int]:
     """The narrowest Hancom draws each grid column: the widest left and right margins and
     :data:`COLUMN_FLOOR_EXTRA` of its cells one column wide."""

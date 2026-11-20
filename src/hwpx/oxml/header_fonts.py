@@ -478,6 +478,21 @@ def _font_by_lang(font_by_lang: "Mapping[str, str] | None") -> dict[str, str]:
     return resolved
 
 
+def check_run_size(size: object) -> None:
+    """A run's character size checked before anything is declared: points from 0, below 21474836.48
+    (``style-run-size-value`` otherwise). ``ensure_run_style`` and a header's or footer's content
+    (checked whole before its first run is written) share it."""
+
+    if size is not None and (isinstance(size, bool) or not isinstance(size, (int, float))
+                             or not 0 <= round(float(size) * 100) < 2**31):
+        raise HwpxValueError(  # it was written as 0 when negative
+            f"size must be a number of points from 0, below 21474836.48; got {size!r}",
+            code="style-run-size-value",
+            context={"requested": repr(size)},
+            suggestion="Pass the character size in points, e.g. 10.",
+        )
+
+
 def check_run_fonts(font: object, font_by_lang: "Mapping[str, str] | None") -> None:
     """``ensure_run``'s *font* and *font_by_lang* checked before anything is declared: *font* a font
     name (``style-font-face-empty`` otherwise), *font_by_lang* as :func:`_font_by_lang` checks it."""

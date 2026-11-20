@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from ._document_primitives import (
+    _require_text,
     SameElement,
     attributes_in_order,
     paragraph_attributes,
@@ -167,6 +168,7 @@ class HwpxOxmlInlineObject(SameElement, ObjectPlacement):
         essentially unobserved in practice.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         return _write_caption(
             self.element, text, section=self.paragraph.section,
             side=side, full_sz=full_size, width=width, gap=gap,
@@ -1331,8 +1333,13 @@ def _replace_sublist_text(
 
     sublist = container.find(f"{_HP}subList")
     if sublist is not None:
-        for existing in list(sublist.findall(f"{_HP}p")):
+        from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+        gone = list(sublist.findall(f"{_HP}p"))
+        note_kinds = note_kinds_in_all(section, gone)  # notes in the text that goes: the rest count again
+        for existing in gone:
             sublist.remove(existing)
+        renumber_note_kinds(section, note_kinds)
     return _add_sublist_paragraph(
         container, text, section=section, vert_align=vert_align,
         char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
@@ -1384,6 +1391,7 @@ class Caption:
         """Append a paragraph holding *text* to the caption and return it. *style* (a name, an id or a
         ``Style``) also gives it that style's paragraph and character shapes unless they are passed."""
 
+        _require_text(text)  # not text: refused before anything is written
         self.section = live_holder(self.element, self.section)  # moved to another section: that one
         paragraph = _add_sublist_paragraph(
             self.element, text, section=self.section, vert_align="TOP",
@@ -1439,6 +1447,7 @@ class DrawText:
         """Append a paragraph holding *text* to the text box and return it. *style* (a name, an id or a
         ``Style``) also gives it that style's paragraph and character shapes unless they are passed."""
 
+        _require_text(text)  # not text: refused before anything is written
         self.section = live_holder(self.element, self.section)  # moved to another section: that one
         paragraph = _add_sublist_paragraph(
             self.element, text, section=self.section, vert_align="CENTER",
@@ -1496,7 +1505,11 @@ def _remove_caption(host: ET.Element, section: "HwpxOxmlSection") -> bool:
     element = host.find(f"{_HP}caption")
     if element is None:
         return False
+    from .note_authoring import note_kinds_in_document, renumber_note_kinds
+
+    note_kinds = note_kinds_in_document(section, element)  # notes in the caption: the rest count again
     host.remove(element)
+    renumber_note_kinds(section, note_kinds)
     section.mark_dirty()
     return True
 
@@ -1556,7 +1569,11 @@ def _remove_draw_text(host: ET.Element, section: "HwpxOxmlSection") -> bool:
     element = host.find(f"{_HP}drawText")
     if element is None:
         return False
+    from .note_authoring import note_kinds_in_document, renumber_note_kinds
+
+    note_kinds = note_kinds_in_document(section, element)  # notes in the text that goes: the rest count again
     host.remove(element)
+    renumber_note_kinds(section, note_kinds)
     section.mark_dirty()
     return True
 
@@ -1794,6 +1811,7 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
         default rationale (*side*/*full_size*/*gap*).
         """
 
+        _require_text(text)  # not text: refused before anything is written
         return _write_caption(
             self.element, text, section=self.paragraph.section,
             side=side, full_sz=full_size, width=width, gap=gap,
@@ -1849,6 +1867,7 @@ class HwpxOxmlShape(SameElement, ObjectPlacement):
         ``shape-draw-text-vert-align``.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         return _write_draw_text(
             self.element, text, section=self.paragraph.section,
             name=name, editable=editable, margin=margin,

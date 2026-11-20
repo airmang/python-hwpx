@@ -2,7 +2,7 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [7.0.0] - 2026-11-19
+## [7.0.0] - 2026-11-20
 
 7.0은 python-hwpx를 한/글 문서를 위한 파이썬 기본 엔진으로 정리한 판입니다. 엔진은 같은 파일이면 같은 결과를 내고, 파일에 적힌
 대로만 읽고 쓰며, 한/글 근거가 없는 쓰기는 하지 않고 거부합니다. 변환·짐작·취향·미리보기·AI 연동(Markdown·HTML, 양식 칸 찾기,
@@ -39,8 +39,10 @@
 - 6.0이 묶음(`doc.styles`·`doc.page` …)으로 옮기고 경고와 함께 남겨 둔 루트 이름 79개를 지웠다(예: `doc.set_header_text(...)` →
   `doc.page.set_header(text=...)`). 6.0이 예고한 `section_index=`(→ `section=`)와 `style_id_ref=`(→ `style=`, 스타일의 문단·글자
   모양까지 적용)도 지웠다. 스타일 번호만 붙이려면 `paragraph.style_id_ref = 2`라고 쓴다.
-- `from hwpx import`로 가져오던 실험 기능 26개는 `from hwpx.experimental import ...`로 가져온다. 수식 변환(`latex_to_eqedit`·
-  `estimate_equation_size`·`UnsupportedLatexError`)은 안정 계약이 되어 `from hwpx.equation import ...`로 가져온다.
+- `from hwpx import`로 가져오던 실험 기능 26개 가운데 엔진에 남은 11개(편집 계획, 쪽 수 어림, 자기 서술)는
+  `from hwpx.experimental import ...`로 가져온다. 수식 변환(`latex_to_eqedit`·`estimate_equation_size`·`UnsupportedLatexError`)은
+  안정 계약이 되어 `from hwpx.equation import ...`로 가져온다. 나머지 12개(ingest 7개, 미리보기 5개)는
+  python-hwpx-automation으로 옮겼다(`hwpx_automation.ingest`·`hwpx_automation.preview`).
 - 이름에 줄임말과 XML 이름을 쓰지 않는다: `row_index=`·`col_index=` → `row=`·`col=`, `binary_item_id_ref` → `item_id`,
   `align=` → `alignment=`, `full_sz` → `full_size`, `horz_rel_to=` → `horizontal_relative_to=`.
 - 길이 단위는 이름에 붙인다: 선 굵기 `line_width='33'` → `line_width_mm=0.12`, 수식 `base_unit=1100` → `font_size=11.0`(pt),
@@ -871,6 +873,109 @@ python-hwpx 7.0을 함께 설치한다.
 - `META-INF/container.xml`이 가리키는 미리보기(`Preview/PrvText.txt` 등)가 패키지에 없는 문서를 열고 저장한다. 전에는
   `HwpxStructureError`로 거부했지만 한/글 2024는 이런 문서를 그대로 연다. 본문처럼 미리보기가 아닌 대상이 없으면 전처럼 오류다.
 - 사용 가이드와 예제가 새 문서의 첫 문단이나 첫 런을 지우라고 가르쳐, 따라 하면 용지 크기가 0×0인 문서가 저장되던 예제를 고쳤다.
+- 거부한 호출이 문서를 바꾸던 곳을 고쳤다. 태그 전 마지막 검토에서 나온 것과, 공개 메서드 전체에 틀린 값을 넣어 거부될 때마다
+  문서를 견주는 검사(`tests/test_refused_calls_sweep.py`)가 찾은 것이다. 이 검사는 구역·머리·바탕쪽의 XML과 그림 목록을
+  견주며, 오류 code가 있는 거부 가운데 문서를 바꾸는 것을 더는 찾지 못한다(씨앗 일곱, 호출 약 45만 번).
+  - 각주·미주를 자기 글 안의 표 칸이나 글상자로 옮기면(`note.move_to`) 거부하면서 각주와 그 안의 표가 사라졌다. 바꾸기 전에
+    `note-move-into-itself`로 거부한다(`copy_to`로 사본을 넣는 것은 된다).
+  - `doc.add_picture`가 없는 스타일 등으로 거부될 때 그림 파일이 `BinData/`에 남았다(6.x는 스타일을 먼저 찾았다). 문단을 먼저
+    만들어 검사하고, 그 뒤에 무엇이 거부해도 그림과 빈 문단을 남기지 않는다.
+  - `doc.shapes`·`doc.refs`·`doc.notes`·`doc.fields`의 `add_*`와 `doc.page.set_columns`는 문단을 주지 않으면 구역 끝에 새 문단을
+    만든 뒤에 넣을 것을 검사했다. 거부하면(`add_line(line_color="nope")`, `add_footnote(123)`, `add_bookmark(offset=5)`) 빈 문단이
+    남았다. 이제 그 호출이 만든 문단은 남지 않는다(호출 중에 다른 것이 바꾼 것은 건드리지 않는다).
+  - `section=`에 다른 문서의 구역을 주면 `section-not-found`로 거부한다. 전에는 받아서 문단은 그 문서에, 그림 파일·스타일·id는
+    이 문서에 썼다(`add_picture`는 한 파일에 그림 개체, 다른 파일에 그림 파일을 남겼다). `doc.oxml`의 `add_paragraph`도 같다.
+  - 글(`text`)이 `str`이 아닐 때의 거부(`paragraph-text-invalid-type`)가 쓰기 뒤에 났다: `note.text = None`은 각주 글을 비웠고,
+    머리말·꼬리말의 `text` 대입과 `doc.page.set_header(text=)`는 머리말을 비웠으며, `add_footnote`·`add_endnote`·`add_memo`·
+    `add_run`·`add_paragraph`(칸·각주·글상자·캡션·머리말)·`add_form_field`·`add_check_box`·`set_caption`·`set_draw_text`는 반쯤 만든
+    것을 남겼다. 모두 쓰기 전에 거부한다. 메모의 `text = None`은 전처럼 빈 글이다.
+  - 머리말·꼬리말의 내용(`set_content`, `doc.page.set_header(content=)`)을 거부하면 앞의 런이 만든 글자 모양이 머리에 남았고,
+    되돌리면서 문단을 사본으로 바꿔 넣어 전에 얻어 둔 문단 객체로 고친 것이 저장되지 않았다. 내용 전체(항목 종류, 색, 크기,
+    글꼴, 쪽 번호 형식, 정렬)를 쓰기 전에 검사하고, 되돌릴 때는 있던 요소를 그대로 돌려놓는다. 모르는 항목 종류는
+    `story-content-type-unsupported`다(`ValueError`인 것은 같다). 같은 쪽의 머리말이 둘인 구역에서는 거부하면서 둘째
+    머리말이 사라졌다(쓸 자리를 찾으며 정리한 뒤에 검사했다). 글과 내용을 그보다 먼저 검사한다(글꼴 이름에 XML에 쓸 수 없는 문자가 든 경우는
+    아직 쓰는 도중에 실패한다).
+  - `doc.notes.add_memo(..., paragraph_text="새 글", match=..., index=n)`은 새 글에 그 자리(n번째 `match`)가 없을 때 문단 글을
+    바꾼 뒤에 거부했다. 쓰일 글(XML에 쓸 수 없는 제어 문자를 뺀 것, 탭·줄 바꿈·CR에서 끊긴 것)에서 먼저 센다(음수 `index`도 먼저
+    거부한다). `paragraph_text`가 `str`이 아니면 메모를 만든 뒤에
+    거부해, 걸리지 않은 메모가 남아 문서를 저장할 수 없었다. 메모를 만들기 전에 거부한다.
+  - `doc.page.set_master_page(mp, section="all")`이 둘째 구역에서 거부되면(`master-page-pages-taken`) 첫 구역에는 이미 이어져
+    있었다. 모든 구역을 먼저 검사한다.
+  - `doc.page.setup(paper_size="A5", columns=0)`은 단 수를 거부하기 전에 용지 크기와 여백을 썼다. 단 수(1~255)와 단 사이를
+    먼저 검사한다.
+  - 칸 안의 표(`cell.add_table`)는 행·열 수를 거부하기 전에 테두리 정의와 빈 문단을 만들었다. 먼저 검사한다. 새 표의 높이
+    (`height`)는 검사하지 않아 숫자가 아니면 테두리 정의를 만든 뒤 `TypeError`가 났다. `table-height-value`로 먼저 거부한다
+    (0 이상 2**31 미만의 정수 값만 받아 정수로 쓴다: `numpy` 정수, 값이 정수인 `Decimal`·`Fraction`·0차원 배열은 받고, 전에 받던
+    `2.5`·`2.0`·`True`·음수는 거부한다). `doc.add_table(style="없는 스타일")`은 테두리
+    정의를 만든 뒤에 스타일을 찾았다. 스타일을 먼저 찾는다.
+  - `doc.refs.add_table_of_contents(index=9999)`는 넣을 자리가 없다는 것을 제목 문단에 id를 준 뒤에야 알았고 `IndexError`를
+    냈다. 구역과 자리를 먼저 검사해 `toc-place-value`로 거부한다.
+  - `doc.add_heading(..., level=11, style=...)`처럼 스타일을 함께 주면 수준을 문단을 넣은 뒤에 검사해, 거부하면서 문단이
+    남았다. 수준을 먼저 검사한다.
+  - 값이 XML에 쓸 수 없는 형식일 때(이름 자리에 숫자, 글 자리에 bytes) `add_check_box`·`add_shape`·`add_control`·
+    `add_column_definition`·`add_composed_character`·`add_dutmal`·`add_date_field`는 반쯤 만든 런을 문단에 남겼다(컨트롤 없는
+    `hp:ctrl`은 한/글이 문서를 열지 못하게 한다). 그 호출이 만든 런을 다시 떼고, 문단의 자식과 속성이 그대로이면 지운 줄 캐시도
+    돌려놓는다. `add_run`은 속성을 글자 모양을 만들기 전에 검사한다. 같은 경우에 아직 남기는 것이 있는 메서드는 검사의 `KNOWN_UNTYPED`에 있다(형식이 틀린 호출이고, 목록은
+    줄어들기만 한다).
+- 각주·미주에 적힌 번호(`number`와 글 머리의 `hp:autoNum`)가 읽는 번호(`note.number`)와 달랐다: 각주가 든 문단을 비우거나
+  (`paragraph.clear_content`), 각주가 든 글상자의 글을 떼거나 바꾸거나(`remove_draw_text`, `set_draw_text`), 캡션을 지우거나
+  (`remove_caption`), 머리말·꼬리말의 내용이나 각주의 글을 바꾸거나(`set_content`, `story.text =`, `note.text =`), 번호를 새로
+  매기거나(`add_number_restart`의 `FOOTNOTE`·`ENDNOTE`, 구역의 `set_footnote_numbering`·`set_endnote_numbering`), 안에 다른
+  각주가 든 각주를 복사하면(`note.copy_to`) 남은 각주가 옛 번호를 그대로 가졌다(하나 남은 각주가 파일에는 2). 이제 다시
+  매긴다. 쪽마다 새로 매기는(`ON_PAGE`) 구역이 문서에 하나라도 있으면 어느 구역도 다시 매기지 않았는데, 그 구역보다 앞의
+  구역들은 매긴다. 그 뒤에서도 번호를 새로 시작하는(`ON_SECTION`) 구역부터는 다시 매긴다(쪽마다 매기는 구역에서 이어 세는
+  구역 안의 `add_number_restart`는 아직 따르지 않는다). 각주를 지울 때(`note.remove`) 그 안에 든 다른 종류의 각주, 머리말·
+  꼬리말을 지우거나(`remove_header`) 같은 쪽의 머리말이 둘일 때 정리되어 사라지는 머리말 안의 각주, 글을 바꾸거나 지운 메모
+  안의 각주도 센 데서 뺀다.
+- 복사한 각주(`note.copy_to`) 안의 누름틀·하이퍼링크와 `section.insert_paragraphs`로 복사한 문단의 누름틀이 원본과 같은 id를
+  가져, 어느 쪽도 이름이나 id로 채울 수 없었다(`field-ambiguous`). 복사한 문단·표·글 구간처럼 새 id 쌍을 받는다(시작과 끝이 다 있는 누름틀의 일이다. 새 id는 문서에서 쓰는 어느 누름틀 id와도 겹치지 않는다. 같은 `seed`로 만든 다른
+  문서의 문단을 `insert_paragraphs`로 받은 문서 객체는 그 누름틀 id를 뒤에 다른 복사(표 행 복사)에 다시 주지 않는다.
+  저장한 파일을 같은 `seed`로 다시 열면 전처럼 겹칠 수 있다. `insert_paragraphs`는
+  그 문서의 구역과 바탕쪽에 이미 있는 id이거나 한 번에 두 번 넣는
+  id일 때만 새로 주고, 새 id는 함께 넣는 다른 필드의 id와도 겹치지 않는다: 다른 문서에서 가져온 문단은 겹치지 않으면 가지고 온
+  id 그대로다). 한 문단에서
+  시작해 다른 문단에서 끝나는 누름틀도 함께 복사한 문단들 안에서 한 쌍으로 새 id를 받고(같은 문단을 한 번에 여러 번 복사해도
+  사본마다 제 쌍이다), 복사한 각주 안에 걸린 메모는 제 번호(`Number`와 `Command` 안의 번호, 문서의 메모가 쓴 번호보다 큰 것)와 id를 가진
+  메모가 된다.
+- 문서를 합칠 때(`append_document`·`insert_document`) 한 id를 잇달아 두 번 쓴 누름틀(한/글이 저장한 파일에 있다)의 끝 표시가
+  둘 다 둘째 누름틀을 가리켜, 첫 누름틀은 채울 수 없고 둘째를 채우면 둘 다 바뀌었다. 끝 표시를 앞의 시작과 차례로 짝짓는다.
+  넣을 자리가 없어(`document-merge-index-out-of-range`) 거부할 때 원본의 그림과 글자 모양이 대상 문서에 이미 들어가 있었다.
+  자리를 먼저 검사한다.
+- 각주·미주를 바탕쪽의 표 칸이나 글상자로 옮기거나 복사하면 받아들여졌고, 다시 열면 그 각주가 문서의 각주 목록에 없었다.
+  `add_footnote`처럼 `paragraph-move-place-unsupported`로 거부한다.
+- 덧말(`Ruby`)과 글자 겹치기(`ComposedCharacter`)는 글 범위째 다른 구역으로 옮긴(`move_range`) 뒤 옮기기 전에 얻어 둔 객체로
+  고치면(`ruby_text =`, `text =`, `remove()`) 저장되지 않았다. #800·#803이 다른 객체에 한 것처럼 지금 담긴 문단과 구역을 따른다
+  (`ruby.paragraph`도 옮겨 간 문단이다).
+- 변경 추적을 넣을 때(`doc.tracking.insert`·`delete`·`replace`) 머리의 `hh:trackchageConfig@flags`에 비트 0을 켜지 않는다.
+  "표시용"으로 켰지만 표시를 정하는 비트가 아니다: 한/글은 56(한/글이 쓰는 값, 변경 내용이 있는 한/글 저장본도 56이고 새 문서도
+  56), 57, 요소 없음일 때 똑같이 변경 표시를 그리고 0·1·4일 때는 그리지 않는다. 비트 0이 켜진 문서에 새로 만들 차례
+  (`add_table_of_contents`의 `dirty="1"`)가 함께 있으면 한/글이 여는 중에 죽었다(한/글 12.30.0 macOS에서 재현, 6.x도 같았다).
+  이제 비트 0은 건드리지 않고, 변경 표시를 숨기는 값(0·1·4 등, `flags`가 없는 요소 포함)인 문서에서만 표시를 정하는 비트
+  (2~32)를 한/글이 쓰는 56의 모양으로 맞춘다(그 밖의 비트는 그대로라 1은 57, 4는 56이 된다). 표시되는 값이거나 요소가 없으면
+  그대로 둔다. `hwpx.tools.redline`의 `displayEnabled`도 비트 0이 아니라 실제로 표시되는 값인지를 본다
+  (전에는 표시되지 않는 5도 True였다). Windows 한/글에서는 확인하지 않았고, 비트 0이 무엇인지는 찾지 못했다.
+- 머리말·꼬리말 객체는 그 컨트롤이 든 본문 문단을 다른 구역으로 옮긴 뒤 옮기기 전에 얻어 둔 객체로 고치면(`story.text =`,
+  `add_run`, `set_content`) 저장되지 않았다. 6.x 문서의 메모(`hp:memogroup`에 든 것)도 걸린 문단을 다른 구역으로 옮긴 뒤 같았다
+  (옮길 때 메모를 누름틀 안으로 접어 넣고 옛 항목은 떼어 냈는데, 얻어 둔 객체는 떼어 낸 항목을 감싸고 있었다). 둘 다 지금
+  있는 자리를 따른다. 한 메모를 가리키는 객체가 둘일 때(`doc.notes.add_memo`가 돌려준 것과 `doc.notes.memos`에서 얻은 것)
+  한쪽으로 문단에 걸면(`attach`) 다른 쪽은 옛 글을 읽고, 지워도 메모가 남고, 속성을 고치면 옛 글을 되돌려 썼다. 이제 둘 다 접혀
+  들어간 누름틀의 메모다(복사 `copy_to`·옮기기 `move_to`도 그 메모로 한다). 지운 메모의 객체는 같은 메모 id나 같은 누름틀 id를
+  받은 새 메모를 따라가지 않는다. 한 문서 안에서의 일이다: 걸기 전에 얻어 둔 메모의 *문단* 객체, 지운 메모를 다시 건 경우,
+  다른 문서를 거쳐 건 메모의 둘째 객체, 6.x 메모와 새로 건 메모가 함께 든 글 구간을 다른 구역으로 옮긴(`move_range`) 뒤의
+  둘째 객체로 고친 것은 전처럼 저장되지 않는다.
+- `doc.remove_section(n)` 뒤 남은 구역의 각주·미주가 적힌 번호를 그대로 가졌다(둘째 각주가 파일에는 3). 다시 매긴다.
+- 바탕쪽 문단의 `add_footnote`·`add_endnote`가 `AttributeError`를 냈다. 한/글 저장본에 바탕쪽의 각주가 없어 쓰기 전에
+  `paragraph-move-place-unsupported`로 거부한다. 파일에서 읽은 바탕쪽의 표는 행·열을 넣고 지울 수 있다(표를 고친 뒤
+  `AttributeError`가 났다).
+- 같은 묶음의 라디오 단추가 바탕쪽에 있으면 본문의 단추를 켜도 꺼지지 않았다. 묶음을 구역과 바탕쪽에서 함께 찾는다.
+- 스트림 저장이 실패했을 때의 되돌리기: 스트림의 자리가 끝보다 뒤였으면(`b"abc"`에서 `seek(6)`) 되돌린 스트림이 원래보다
+  길었다(`b"abc\x00\x00\x00"`). 원래 끝을 기억해 거기서 자른다. 되돌리기까지 실패하면 올라오는 오류에
+  `stream_restored = False`가 붙고(되돌렸으면 `True`), Python 3.11부터는 오류의 노트에도 적힌다. 전에는 알 수 없었다. 되돌린
+  뒤에는 읽을 수 있는 스트림이면 다시 읽어 원래 내용인지 확인하고서 `True`라고 한다. `False`인 경우: 다시 읽을 수 없고
+  되돌리는 쓰기가 얼마나 받았는지도 알려 주지 않았을 때(`None`), 원래 자리로 돌아가지 못했을 때(확인하려던 읽기가
+  실패했으면 먼저 원래 자리로 돌아간다), 끝으로 `seek` 하지 못하는
+  스트림이 자리(0이 아닌)에서 아무것도 읽히지 않아 원래 끝을 알 수 없을 때. 실패하며 닫힌 스트림에서는 되돌리기의
+  `ValueError`가 아니라 원래 오류가 올라온다.
 
 ### 한/글이 하는 것
 

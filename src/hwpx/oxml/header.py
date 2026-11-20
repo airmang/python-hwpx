@@ -962,10 +962,7 @@ class Header:
         )
         change_list.item_cnt = len(change_list.changes)
 
-        if self.track_change_config is None:
-            self.track_change_config = TrackChangeConfig(flags=1)
-        else:
-            self.track_change_config.flags = (self.track_change_config.flags or 0) | 1
+        # ``hh:trackchageConfig@flags`` is the header part's to write (HwpxOxmlHeader.add_track_change).
         return change_id
 
 

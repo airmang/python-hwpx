@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
+from ._resolve import home_paragraph, note_home_paragraph, refused_leaves_no_paragraph
 from ..oxml.objects import HwpxOxmlEquation, _closed_points
 from ..oxml.shape_position import (
     equation_base_unit, validate_box_size, validate_equation_font, validate_equation_script,
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     )
 
 
+@refused_leaves_no_paragraph
 def add_shape(
     doc: "HwpxDocument",
     shape_type: str,
@@ -48,7 +50,7 @@ def add_shape(
     :func:`add_line`, :func:`add_rectangle`, and :func:`add_ellipse`.
     """
 
-    paragraph = doc._add_paragraph(  # 7.0: doc.add_paragraph no longer takes raw XML attributes
+    paragraph = note_home_paragraph(doc, doc._add_paragraph(  # 7.0: doc.add_paragraph takes no raw XML attributes
         "",
         section=section,
         para_pr_id_ref=para_pr_id_ref,
@@ -56,7 +58,7 @@ def add_shape(
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
         xml_attributes=extra_attrs,
-    )
+    ))
     return paragraph.add_shape(
         shape_type,
         attributes=attributes,
@@ -65,6 +67,7 @@ def add_shape(
     )
 
 
+@refused_leaves_no_paragraph
 def add_control(
     doc: "HwpxDocument",
     *,
@@ -84,7 +87,7 @@ def add_control(
     containing an empty one, so this warns until a child is appended.
     """
 
-    paragraph = doc._add_paragraph(  # 7.0: doc.add_paragraph no longer takes raw XML attributes
+    paragraph = note_home_paragraph(doc, doc._add_paragraph(  # 7.0: doc.add_paragraph takes no raw XML attributes
         "",
         section=section,
         para_pr_id_ref=para_pr_id_ref,
@@ -92,7 +95,7 @@ def add_control(
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
         xml_attributes=extra_attrs,
-    )
+    ))
     return paragraph.add_control(
         attributes=attributes,
         control_type=control_type,
@@ -101,6 +104,7 @@ def add_control(
     )
 
 
+@refused_leaves_no_paragraph
 def add_footnote(
     doc: "HwpxDocument",
     text: str,
@@ -117,14 +121,15 @@ def add_footnote(
     """
 
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "",
+        paragraph = home_paragraph(
+            doc, "",
             section=section,
             include_run=False,
         )
     return paragraph.add_footnote(text, char_pr_id_ref=char_pr_id_ref, offset=offset)
 
 
+@refused_leaves_no_paragraph
 def add_endnote(
     doc: "HwpxDocument",
     text: str,
@@ -137,14 +142,15 @@ def add_endnote(
     """Add an endnote to an existing paragraph, or create a new one."""
 
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "",
+        paragraph = home_paragraph(
+            doc, "",
             section=section,
             include_run=False,
         )
     return paragraph.add_endnote(text, char_pr_id_ref=char_pr_id_ref, offset=offset)
 
 
+@refused_leaves_no_paragraph
 def add_line(
     doc: "HwpxDocument",
     start_x: int = 0,
@@ -163,8 +169,8 @@ def add_line(
     Coordinates are in HWPUNIT (7200 per inch).
     """
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_line(
@@ -174,6 +180,7 @@ def add_line(
     )
 
 
+@refused_leaves_no_paragraph
 def add_composed_character(
     doc: "HwpxDocument",
     text: str,
@@ -197,8 +204,8 @@ def add_composed_character(
     from ..objects.highlight import ComposedCharacter
 
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     inline = paragraph.add_composed_character(
@@ -212,6 +219,7 @@ def add_composed_character(
     return ComposedCharacter(inline.element, paragraph)
 
 
+@refused_leaves_no_paragraph
 def add_ruby(
     doc: "HwpxDocument",
     text: str,
@@ -235,8 +243,8 @@ def add_ruby(
     from ..objects.highlight import Ruby
 
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     inline = paragraph.add_dutmal(
@@ -252,6 +260,7 @@ def add_ruby(
     return Ruby(inline.element, paragraph)
 
 
+@refused_leaves_no_paragraph
 def add_rectangle(
     doc: "HwpxDocument",
     width: int = 14400,
@@ -275,8 +284,8 @@ def add_rectangle(
     validate_rect_ratio(ratio)
     validate_original_size(original_size)
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_rectangle(
@@ -287,6 +296,7 @@ def add_rectangle(
     )
 
 
+@refused_leaves_no_paragraph
 def add_ellipse(
     doc: "HwpxDocument",
     width: int = 14400,
@@ -307,8 +317,8 @@ def add_ellipse(
     validate_shape_size(width, height)
     validate_original_size(original_size)
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_ellipse(
@@ -319,6 +329,7 @@ def add_ellipse(
     )
 
 
+@refused_leaves_no_paragraph
 def add_arc(
     doc: "HwpxDocument",
     width: int = 14400,
@@ -343,8 +354,8 @@ def add_arc(
     """
     validate_shape_size(width, height)
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_arc(
@@ -355,6 +366,7 @@ def add_arc(
     )
 
 
+@refused_leaves_no_paragraph
 def add_polygon(
     doc: "HwpxDocument",
     points_mm: Sequence[tuple[float, float]],
@@ -389,8 +401,8 @@ def add_polygon(
             suggestion="Pass 3 or more (x, y) millimetre vertices.",
         )
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     hwp_points = [(_mm_to_hwp_units(x), _mm_to_hwp_units(y)) for x, y in points]
@@ -403,6 +415,7 @@ def add_polygon(
     )
 
 
+@refused_leaves_no_paragraph
 def add_curve(
     doc: "HwpxDocument",
     points_mm: Sequence[tuple[float, float]],
@@ -422,8 +435,8 @@ def add_curve(
     top-left-anchored space, so they do not place the curve on the page -- its paragraph and position do.
     """
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_curve(
@@ -455,6 +468,7 @@ def add_connector(
     )
 
 
+@refused_leaves_no_paragraph
 def add_container(
     doc: "HwpxDocument",
     members: Sequence["ContainerMember"],
@@ -488,13 +502,14 @@ def add_container(
     # The members get their ids from this document as it takes them, before the paragraph that holds them.
     members = bind_member_ids(members, doc._root._id_source)
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_container(members, treat_as_char=treat_as_char)
 
 
+@refused_leaves_no_paragraph
 def add_equation(
     doc: "HwpxDocument",
     script: str,
@@ -551,8 +566,8 @@ def add_equation(
                 kind="equation",
             )
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     inline_object = paragraph.add_equation(
@@ -662,6 +677,7 @@ def _default_chart_size(paragraph: HwpxOxmlParagraph) -> tuple[int, int]:
     return width, height
 
 
+@refused_leaves_no_paragraph
 def add_chart(
     doc: "HwpxDocument",
     chart_xml: bytes | str,
@@ -737,8 +753,8 @@ def add_chart(
     part_path = f"Chart/chart{n}.xml"
 
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     doc._package.write(part_path, data)
@@ -799,6 +815,7 @@ def remove_unused_charts(doc: "HwpxDocument") -> tuple[str, ...]:
     return tuple(removed)
 
 
+@refused_leaves_no_paragraph
 def add_drop_cap(
     doc: "HwpxDocument",
     character: str,
@@ -827,8 +844,8 @@ def add_drop_cap(
     from ..oxml.namespaces import HP
 
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section, include_run=False,
+        paragraph = home_paragraph(
+            doc, "", section=section, include_run=False,
         )
     inline_object = paragraph.add_drop_cap(
         character,

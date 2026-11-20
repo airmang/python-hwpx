@@ -432,7 +432,13 @@ def add_native_toc(
     close_run = ET.SubElement(close_p, f"{_HP}run", {"charPrIDRef": "0"})
     _field_end(close_run, begin)
 
-    target_section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
+    placed = target_section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
+    # The paragraphs go in as copies with ids of their own: the table's field, which begins in the first
+    # and ends in the last, has the id the copy was given.
+    for node in placed[0].element.iter(f"{_HP}fieldBegin"):
+        if node.get("type") == "TABLEOFCONTENTS":
+            toc_field_id = str(node.get("id"))
+            break
     if at_index == 0:
         _keep_section_setup_first(target_section)
     return {
@@ -883,6 +889,22 @@ def add_table_of_contents(
     if not isinstance(title, str) or not isinstance(hyperlink, bool):
         raise _toc_refuse("title must be a str and hyperlink True or False", "toc-levels-value",
                           "Pass the title shown over the entries, e.g. '<제목 차례>'.")
+    # Where it goes, before anything is written: an index past the section's paragraphs was refused
+    # by the insertion (a bare IndexError), after the headings had been given their anchor ids.
+    sections = doc.oxml.sections
+    if isinstance(section, bool) or not isinstance(section, int) or not -len(sections) <= section < len(sections):
+        raise _toc_refuse(f"section must be the index of a section (0 to {len(sections) - 1}); got {section!r}",
+                          "toc-place-value", "Pass the section the table goes into, e.g. section=0.",
+                          requested=repr(section))
+    count = len(sections[section].paragraphs)
+    from ..oxml.table_sizes import whole_number
+
+    place = whole_number(index, floats=True)  # a whole number of any kind, as before (1, 1.0, Decimal("1"))
+    if place is None or not 0 <= place <= count:
+        raise _toc_refuse(f"index must be a paragraph position from 0 to {count}; got {index!r}",
+                          "toc-place-value", "Pass where the table goes among the section's paragraphs (0: first).",
+                          requested=repr(index), count=count)
+    index = place
     headings = toc_headings(doc, levels)
     if not headings:
         raise _toc_refuse(

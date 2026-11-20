@@ -661,6 +661,8 @@ ERROR_CODES: dict[str, str] = {
     "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",
     # -- 주석 ------------------------------------------------------------
     "note-other-document-unsupported": "각주·미주를 다른 문서로 옮기거나 복사하려 했다(그 글 구간을 paragraph.copy_range 로 복사한다).",
+    "story-content-type-unsupported": "머리말·꼬리말 내용(content)의 항목 종류(type)가 run 도 page_number 도 아니다.",
+    "note-move-into-itself": "각주·미주를 자기 글 안(그 안의 표 칸·글상자)으로 옮기려 했다(복사는 된다).",
     "note-anchor-detached": "앵커를 걸 문단이 섹션에 속해 있지 않다.",
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",
@@ -684,6 +686,8 @@ ERROR_CODES: dict[str, str] = {
     "ref-link-end-missing": "하이퍼링크의 끝이 그 문단에 없어 글을 고칠 수 없다.",
     "toc-no-headings": "차례에 넣을 개요 문단(수준 1~levels)이 문서에 없다.",
     "toc-levels-value": "차례 수준(levels)이 1~10의 int 가 아니거나 title·hyperlink 형식이 틀렸다.",
+    "table-height-value": "새 표의 높이(height)가 int 가 아니거나 0..2**31 밖이다.",
+    "toc-place-value": "차례를 넣을 구역(section)이나 자리(index)가 int 가 아니거나 그 문서·구역의 범위 밖이다.",
     "toc-leader-value": "차례 쪽 번호 앞 채움(leader)이 탭 채움 이름(NONE·SOLID·DOT·DASH …) 밖이다.",
     "toc-command-unknown": "차례가 몇 수준을 모으는지(ContentsLevel) 적혀 있지 않아 항목을 다시 만들 수 없다.",
     "toc-region-unsupported": "차례의 시작과 끝이 한 문단에 있어 항목 문단을 둘 자리가 없다.",

@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxTypeError, HwpxValueError
+from ._resolve import home_paragraph, refused_leaves_no_paragraph
 from ..objects.results import (
     ColumnLayout,
     LineSpacing,
@@ -740,6 +741,19 @@ def set_page_setup(
     for name, value in (("width", width), ("height", height), *hwp_margins.items()):
         if value is not None:  # checked before the page or its margins change
             _checked(name, value, 2**31 - 1, "page-size-value")
+    col_count: int | None = None
+    if columns is not None:
+        # ... and the columns too: a count below 1 was refused after the paper size and the margins
+        # had been written, so the refused call changed the page.
+        col_count = int(columns)
+        if not 1 <= col_count <= 255:  # what set_columns takes: 256 was refused there, after the paper
+            raise HwpxValueError(
+                "columns must be between 1 and 255",
+                code="page-columns-invalid",
+                context={"requested": col_count},
+                suggestion="Use columns=1 to remove columns.",
+            )
+        validate_column_gap(_mm_to_hwp_units(float(column_gap_mm or 0)))
     if width is not None or height is not None or normalized_orientation is not None:
         # Call the local primitives directly rather than `doc.set_page_size`/
         # `doc.set_page_margins`/`doc.set_columns` below — all three names
@@ -763,15 +777,7 @@ def set_page_setup(
         )
 
     column_layout: ColumnLayout | None = None
-    if columns is not None:
-        col_count = int(columns)
-        if col_count < 1:
-            raise HwpxValueError(
-            "columns must be 1 or greater",
-            code="page-columns-invalid",
-            context={"requested": col_count},
-            suggestion="Use columns=1 to remove columns.",
-        )
+    if col_count is not None:
         gap_mm = float(column_gap_mm or 0)
         gap = _mm_to_hwp_units(gap_mm)
         set_columns(
@@ -794,6 +800,7 @@ def set_page_setup(
     )
 
 
+@refused_leaves_no_paragraph
 def set_columns(
     doc: "HwpxDocument",
     col_count: int = 2,
@@ -856,8 +863,8 @@ def set_columns(
         )
         if ctrl is not None:
             return HwpxOxmlInlineObject(ctrl, target_section.paragraphs[0])
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_column_definition(
@@ -873,6 +880,7 @@ def set_columns(
     )
 
 
+@refused_leaves_no_paragraph
 def add_bookmark(
     doc: "HwpxDocument",
     name: str,
@@ -886,13 +894,14 @@ def add_bookmark(
     Returns it as :class:`~hwpx.objects.Bookmark` (``paragraph.add_bookmark``'s, 7.0).
     """
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_bookmark(name, offset=offset)
 
 
+@refused_leaves_no_paragraph
 def add_hyperlink(
     doc: "HwpxDocument",
     url: str,
@@ -913,8 +922,8 @@ def add_hyperlink(
     Returns it as :class:`~hwpx.objects.Hyperlink` (``paragraph.add_hyperlink``'s, 7.0).
     """
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)
