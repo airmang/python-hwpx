@@ -11,8 +11,10 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import IO, Any, Iterable, Iterator
 from xml.etree import ElementTree as ET
 from xml.parsers import expat
+import zlib
 from zipfile import ZIP_DEFLATED as _ZIP_DEFLATED
 from zipfile import ZIP_STORED as _ZIP_STORED
+from zipfile import BadZipFile as _BadZipFile
 from zipfile import ZipFile, ZipInfo
 
 from ..errors import HwpxError
@@ -342,14 +344,12 @@ def parse_xml_stdlib(
     *,
     part_name: str = "XML payload",
 ) -> ET.Element:
-    """Parse XML with stdlib ElementTree after applying HWPX safety guards."""
+    """Parse XML with stdlib ElementTree after applying HWPX safety guards.
 
-    return _parse_xml_stdlib(payload, part_name=part_name, parse_error=False)
-
-
-def _parse_xml_stdlib(payload: bytes, *, part_name: str = "XML payload", parse_error: bool) -> ET.Element:
-    """:func:`parse_xml_stdlib`. Malformed XML is a ``ValueError``; with *parse_error* it is
-    ElementTree's own ``ParseError``, for the readers that raised that before they came through here."""
+    Malformed XML is a :class:`hwpx.opc.package.HwpxXmlSyntaxError` (``package-xml-invalid``) that
+    is also the ``ValueError`` this function raised before and ElementTree's ``ParseError``, which
+    the readers that parsed for themselves raised: an ``except`` for either still catches it.
+    """
 
     guard_xml_bytes(payload, part_name=part_name)
 
@@ -357,14 +357,38 @@ def _parse_xml_stdlib(payload: bytes, *, part_name: str = "XML payload", parse_e
     # declares, so a declaration is refused before the parse that would expand its entities.
     if _prolog_has_doctype(payload):
         raise HwpxSecurityError(f"{part_name} contains a disallowed DTD/entity declaration")
-    try:
-        root = ET.fromstring(payload)
-    except ET.ParseError as exc:
-        if parse_error:
-            raise
-        raise ValueError(f"malformed XML: {exc}") from exc
+    root = _fromstring(payload, part_name)
     guard_xml_depth(root, part_name=part_name)
     return root
+
+
+def _fromstring(payload: bytes | str, part_name: str = "XML payload") -> ET.Element:
+    """``ET.fromstring`` whose ``ParseError`` leaves as the typed error (see :func:`parse_xml_stdlib`)."""
+
+    try:
+        return ET.fromstring(payload)
+    except ET.ParseError as exc:
+        from .package import _stdlib_xml_error
+
+        raise _stdlib_xml_error(exc, part_name) from exc
+
+
+@contextmanager
+def _typed_read_errors(source: Any) -> Iterator[None]:
+    """Reading *source* (a path, bytes, a stream or an open ``ZipFile``) as an archive inside this
+    block raises what ``HwpxDocument.open`` raises for the same input: ``zipfile.BadZipFile`` leaves
+    as ``HwpxArchiveError`` with the words and code open gives, ``zlib.error`` as
+    ``HwpxCompressedDataError``. Both are still the exception they replace."""
+
+    try:
+        yield
+    except (_BadZipFile, zlib.error) as exc:
+        from .package import _archive_read_error
+
+        typed = _archive_read_error(source, exc)
+        if typed is exc:
+            raise
+        raise typed from exc
 
 
 # --------------------------------------------------------------------------- #

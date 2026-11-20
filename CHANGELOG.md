@@ -2,6 +2,40 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 고침
+
+- 잘못된 입력에 표준 라이브러리 예외가 그대로 나오던 공개 진입점이 `HwpxError` 계열을 낸다. 오류에는 `code`와 `suggestion`이 있고,
+  전에 내던 내장 예외도 함께 상속하므로 기존 `except`는 그대로 잡는다.
+  - `TextExtractor`·`ObjectFinder`·`export_text(bytes)`·`project_document`·`unpack_hwpx`(`hwpx-unpack`)에 바이너리 `.hwp`, 잘린
+    파일, ZIP이 아닌 파일을 주면 `BadZipFile: File is not a zip file`이, 압축 데이터가 손상된 파일을 주면 `zlib.error`가 났다.
+    이제 `HwpxDocument.open`이 같은 입력에 내는 문장과 코드의 `HwpxArchiveError`(`open-hwp5-not-package`·`open-archive-damaged`·
+    `open-not-hwpx` …, `BadZipFile`이기도 하다)와 `HwpxCompressedDataError`(`zlib.error`이기도 하다)다. `TextExtractor`에 폴더나
+    빈 경로를 주어도 `open`과 같은 오류다. 안전 한도를 넘어 거부한 파일은 열어 둔 채 두지 않는다.
+  - `HwpxDocument.open("")`이 `IsADirectoryError: '.'`를 냈다. 이제 `open-path-empty`다(`FileNotFoundError`이고, 전에 내던
+    `IsADirectoryError`이기도 하다).
+  - `validate_package`가 압축 데이터가 손상된 항목에서 `zlib.error`를 냈다. 이제 그 항목을 보고서의 오류로 적는다
+    (`ZIP compressed data is damaged`). `unpack_hwpx`가 항목을 풀어 쓰지 못할 때(파일 이름이 너무 긴 항목 등)의 `OSError`는
+    항목 이름을 적은 `SaveTargetError`(`save-target-unwritable`, 파이썬이 낸 `OSError` 종류이기도 하다)다.
+  - 표준 라이브러리 파서로 읽는 도구(`TextExtractor`·`ObjectFinder`·`export_text(bytes)`·`project_document`·
+    `project_section_xml`·`collect_metrics`·`parse_xml_stdlib`)가 깨진 XML에 도구마다 `ValueError('malformed XML: …')`나
+    `xml.etree.ElementTree.ParseError`를 냈다. 이제 모두 `HwpxXmlSyntaxError`(`package-xml-invalid`, 파트는 `part_name`)이고,
+    `ValueError`이자 `ParseError`(`SyntaxError`)다. 문장(`malformed XML: …`)과 `position`은 전과 같다. 저장 품질 게이트
+    (`SavePipeline.run`)는 깨진 XML에 `ValueError`를 내지 않고 `REFERENCE_INTEGRITY_FAILED`로 보고한다.
+  - 파일이 적은 칸 주소·병합(`rowAddr`·`colAddr`·`rowSpan`·`colSpan`)이 수가 아니면(`"x"`, `"-5"`, 수천 자리 수) `table.cell()`·
+    `table.cell_map`·`table.set_cell_text()`가 `ValueError: invalid literal for int()`나 `Exceeds the limit (4300 digits)`를 냈다
+    (`"-5"`는 `cell_map`에서 코드 없는 `IndexError`). 이제 `table-number-invalid`(0 이상의 정수가 아님)나 `table-grid-too-large`(65,535
+    초과)로 거부한다(둘 다 `ValueError`이기도 하다). 칸·표 크기(`width`·`height`)가 수가 아닐 때도 `table-number-invalid`다.
+    `rowCnt="²"`처럼 `int()`가 못 읽는 숫자 글자는 수가 아닌 다른 값처럼 행을 세어 읽는다.
+  - 그런 표가 든 문서를 `.hwp`로 저장하면 값을 기본값으로 바꿔 쓰거나(`"x"`·`"-5"`) `OverflowError`가 났다(수천 자리 수). 이제
+    쓰기 전에 `Hwp5Error`(`hwp5-write-unsupported`, `table/cell-number`)로 거부한다. `.hwp` 쓰기는 본문의 다른 속성에 적힌
+    끝없는 수(`inf`·`1e999`·수천 자리 수)를 수가 아닌 글처럼 기본값으로 읽고(`OverflowError`가 났다), 머리(`header.xml`)의 수가
+    아닌 속성은 `ValueError`·`OverflowError` 대신 `Hwp5Error`(`hwp5-write-unsupported`)로 거부한다.
+  - `python -m hwpx.capabilities`(`describe_capabilities()`)가 빈 extra `visual`·`xlsx`·`preview`를 맨 설치에서도 `true`로
+    보고했다. 아무것도 끌어오지 않는 extra이므로 `false`로 보고하고, 까닭과 그 기능이 있는 곳(python-hwpx-automation)을
+    `extrasNote`에 적는다.
+
 ## [7.0.0] - 2026-11-21
 
 7.0은 python-hwpx를 한/글 문서를 위한 파이썬 기본 엔진으로 정리한 판입니다. 엔진은 같은 파일이면 같은 결과를 내고, 파일에 적힌

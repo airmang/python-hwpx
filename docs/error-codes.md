@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 373 | 11 |
+| 개수 | 375 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -231,6 +231,7 @@ except HwpxError as exc:
 | `open-is-folder` | 문서 파일 대신 폴더 경로를 주었다(IsADirectoryError 이기도 하다). |
 | `open-not-hwp` | 확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다. |
 | `open-not-hwpx` | 연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서). |
+| `open-path-empty` | 문서 경로로 빈 문자열을 주었다(FileNotFoundError 이기도 하고, 7.0.0 이 내던 IsADirectoryError 이기도 하다). |
 | `open-safety-failed` | 산출 패키지가 편집기 열기 안전성 검사를 통과하지 못했다. |
 
 ### `package-*`
@@ -240,7 +241,7 @@ except HwpxError as exc:
 | `package-invalid` | 패키지(HwpxPackage)가 계약을 어겼다(까닭을 따로 가리지 않은 HwpxPackageError 기본값). |
 | `package-structure-invalid` | HWPX 패키지 구조가 요구를 어겼다(HwpxStructureError 기본값). |
 | `package-text-replacement-key-empty` | 치환할 텍스트(키)가 비어 있다. |
-| `package-xml-invalid` | 패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에). |
+| `package-xml-invalid` | 패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에). 표준 라이브러리 파서로 읽는 도구(TextExtractor·export_text·project_document·collect_metrics·parse_xml_stdlib)에서는 ValueError·xml.etree.ElementTree.ParseError 이기도 하다(파트는 context.part). |
 
 ### `page-*`
 
@@ -368,7 +369,7 @@ except HwpxError as exc:
 | `save-target-folder-missing` | 저장할 경로의 상위 폴더가 없다. |
 | `save-target-invalid-type` | doc.save 에 경로도 쓰기 가능한 이진 스트림도 아닌 것을 주었다. |
 | `save-target-is-folder` | 저장할 경로가 폴더다. |
-| `save-target-unwritable` | 저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error). |
+| `save-target-unwritable` | 저장할 파일을 쓰지 못했다(운영체제 오류, 종류는 context.os_error). unpack_hwpx 가 항목 하나를 풀어 쓰지 못한 때도 이 코드다(항목은 context.entry). |
 
 ### `section-*`
 
@@ -530,7 +531,7 @@ except HwpxError as exc:
 | `table-cell-zone-not-found` | 그 번호의 칸 영역이 표에 없다(table.cell_zones 로 본다). |
 | `table-column-width-value` | 열 폭이 양의 int(HWPUNIT)가 아니거나 한/글이 그리는 최소 폭(칸 좌우 여백+283)보다 좁다. |
 | `table-columns-differ` | 행을 복사해 올 표와 받는 표의 열(열 수, 칸의 colAddr·colSpan)이 다르다. |
-| `table-grid-too-large` | 파일이 적은 칸 병합(rowSpan·colSpan)이나 표의 행·열 수가 한 칸에 65,535, 표 하나에 격자 100만 자리를 넘는다(실제 표가 아니다). |
+| `table-grid-too-large` | 파일이 적은 칸 병합(rowSpan·colSpan)·칸 주소(rowAddr·colAddr)나 표의 행·열 수가 한 칸에 65,535, 표 하나에 격자 100만 자리를 넘는다(실제 표가 아니다). |
 | `table-header-rows-value` | 제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다. |
 | `table-height-value` | 새 표의 높이(height)가 int 가 아니거나 0..2**31 밖이다. |
 | `table-margin-value` | 표 바깥·안 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |
@@ -538,6 +539,7 @@ except HwpxError as exc:
 | `table-no-adjust-value` | noAdjust 값이 bool 이 아니다. |
 | `table-not-found` | 표 인덱스가 범위를 벗어났다(doc.tables[i]). |
 | `table-not-in-document` | 표가 문서에 없다(지운 표, 떼어 낸 것 안의 표): 행·열·칸 구조 편집, 테두리·채우기·정렬처럼 머리에 쓰는 편집, 칸에 문단·표 넣기, 표 복사. |
+| `table-number-invalid` | 파일이 적은 칸 주소(rowAddr·colAddr)·병합(rowSpan·colSpan)이 0 이상의 정수가 아니거나 칸·표 크기(width·height)가 정수가 아니다(어느 속성의 어떤 값인지는 context.attribute·context.value, ValueError 이기도 하다). |
 | `table-page-split-value` | 표가 쪽 경계에서 나뉘는 방식(page_split)이 TABLE·CELL·NONE 중 하나가 아니다. |
 | `table-position-missing` | 표에 hp:pos 가 없어 글자처럼 취급을 바꿀 수 없다. |
 | `table-row-height-value` | 행 높이가 양의 int(HWPUNIT)가 아니다. |

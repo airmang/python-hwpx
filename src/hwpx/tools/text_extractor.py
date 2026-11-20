@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -16,7 +17,13 @@ from ..opc.relationships import (
     parse_manifest_relationships,
     select_main_rootfile,
 )
-from ..opc.security import MAX_ZIP_SMALL_PART_BYTES, guard_zip_file, parse_xml_stdlib, read_member
+from ..opc.security import (
+    MAX_ZIP_SMALL_PART_BYTES,
+    _typed_read_errors,
+    guard_zip_file,
+    parse_xml_stdlib,
+    read_member,
+)
 from ..oxml.hyperlink_form import hyperlink_target
 from ..oxml.namespaces import DEFAULT_NAMESPACES as OWPML_DEFAULT_NAMESPACES
 
@@ -181,16 +188,32 @@ class TextExtractor:
     # Context manager helpers
     # ------------------------------------------------------------------
     def open(self) -> ZipFile:
-        """Open the underlying archive if necessary and return it."""
+        """Open the underlying archive if necessary and return it.
+
+        A source that is not a readable HWPX archive (a binary ``.hwp``, a truncated or other
+        file, a folder, an empty path) raises the typed error ``HwpxDocument.open`` raises for
+        it, with the same words and ``code``; it is still the ``zipfile.BadZipFile`` or
+        ``OSError`` an existing ``except`` names.
+        """
 
         if self._zip is None:
             if isinstance(self._source, ZipFile):
                 self._zip = self._source
                 self._owns_zip = False
             else:
-                self._zip = ZipFile(self._source)  # type: ignore[arg-type]
+                if isinstance(self._source, (str, os.PathLike)):
+                    from ..opc.package import HwpxPackage
+
+                    HwpxPackage._check_open_source(self._source)  # a folder, an empty path
+                with _typed_read_errors(self._source):
+                    self._zip = ZipFile(self._source)  # type: ignore[arg-type]
                 self._owns_zip = True
-            guard_zip_file(self._zip)
+            try:
+                with _typed_read_errors(self._source):
+                    guard_zip_file(self._zip)
+            except BaseException:
+                self.close()  # refused: do not keep the file open
+                raise
         return self._zip
 
     def close(self) -> None:
@@ -215,9 +238,11 @@ class TextExtractor:
         """Yield :class:`SectionInfo` objects for each section XML entry."""
 
         archive = self.open()
-        section_files = list(self._iter_section_files(archive))
+        with _typed_read_errors(self._source):
+            section_files = list(self._iter_section_files(archive))
         for index, name in enumerate(section_files):
-            data = read_member(archive, name)
+            with _typed_read_errors(self._source):  # damaged compressed data, a failed CRC
+                data = read_member(archive, name)
             element = parse_xml_stdlib(data, part_name=name)
             yield SectionInfo(index=index, name=name, element=element)
 

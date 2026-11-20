@@ -102,6 +102,56 @@ def declared_count(value: str) -> int:
     return int(digits)
 
 
+def _number_invalid(
+    element: Any, name: str, value: str, expected: str, code: str = "table-number-invalid"
+) -> Exception:
+    from ..errors import HwpxValueError
+
+    tag = _element_local_name(element)
+    shown = value if len(value) <= 40 else value[:40] + "..."
+    return HwpxValueError(
+        f"the table's {tag} gives {name}={shown!r}, which is not {expected}",
+        code=code,
+        context={"element": tag, "attribute": name, "value": shown},
+        suggestion="The file's table does not describe a real table: open the document in Hancom Office "
+        "and save it again, or correct the attribute in the section XML.",
+    )
+
+
+def cell_number(element: Any, name: str, default: int) -> int:
+    """A cell's ``rowAddr``/``colAddr``/``rowSpan``/``colSpan`` as the file gives it: a whole number
+    from 0 to :data:`MAX_CELL_SPAN`. Anything else is refused before ``int()`` meets it, as
+    ``table-number-invalid`` (not a number, or negative) or ``table-grid-too-large`` (past the limit,
+    however many digits long)."""
+
+    value = element.get(name)
+    if value is None:
+        return default
+    text = value.strip()
+    digits = text[1:] if text.startswith("+") else text
+    expected = f"a whole number from 0 to {MAX_CELL_SPAN:,}"
+    if not digits.isdecimal():  # "", "x", "-5", "1.5"
+        raise _number_invalid(element, name, value, expected)
+    digits = digits.lstrip("0") or "0"
+    if len(digits) > 5 or int(digits) > MAX_CELL_SPAN:
+        raise _number_invalid(element, name, value, expected, "table-grid-too-large")
+    return int(digits)
+
+
+def size_number(element: Any, name: str) -> int:
+    """A ``width`` or ``height`` as the file gives it (0 when it gives none): a whole number of at most
+    20 digits, else ``table-number-invalid``."""
+
+    value = element.get(name, "0")
+    text = value.strip()
+    if len(text) > 21 or not text.lstrip("+-").isdecimal():
+        raise _number_invalid(element, name, value, "a whole number")
+    try:
+        return int(text)
+    except ValueError:  # "+-5"
+        raise _number_invalid(element, name, value, "a whole number") from None
+
+
 def check_grid(rows: int, columns: int) -> None:
     """Refuse a grid of *rows* by *columns* past :data:`MAX_TABLE_GRID_POSITIONS` before it is laid out."""
 

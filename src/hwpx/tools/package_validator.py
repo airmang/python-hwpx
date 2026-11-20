@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import re
 import xml.etree.ElementTree as ET
+import zlib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from collections.abc import Iterator
@@ -1062,8 +1063,30 @@ def _safe_read(
 ) -> bytes | None:
     try:
         return read_member(zf, part_name, limit=limit)
-    except (BadZipFile, KeyError, OSError, HwpxSecurityError):
+    except (BadZipFile, KeyError, OSError, EOFError, zlib.error, HwpxSecurityError):
         return None
+
+
+def _first_unreadable_entry(zf: ZipFile) -> tuple[str, str] | None:
+    """The first entry whose data cannot be read back, with why, or ``None``.
+
+    ``ZipFile.testzip`` reports a failed CRC and raises for the rest: damaged deflate data
+    (``zlib.error``) and data that ends early (``EOFError``) left ``validate_package`` as those
+    exceptions instead of as an issue in its report.
+    """
+
+    for info in zf.infolist():
+        try:
+            with zf.open(info) as handle:
+                while handle.read(1 << 20):
+                    pass
+        except BadZipFile:
+            return info.filename, "ZIP CRC/integrity check failed"
+        except zlib.error as exc:
+            return info.filename, f"ZIP compressed data is damaged: {exc}"
+        except EOFError:
+            return info.filename, "ZIP compressed data ends before the entry does"
+    return None
 
 
 def _fallback_named_parts(
@@ -1523,9 +1546,9 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
             _error(issues, "archive", "empty archive")
             return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
-        bad_entry = zf.testzip()
+        bad_entry = _first_unreadable_entry(zf)
         if bad_entry is not None:
-            _error(issues, bad_entry, "ZIP CRC/integrity check failed")
+            _error(issues, *bad_entry)
 
         _check_mimetype(zf, infos, name_set, issues)
         _check_required_presence(name_set, issues)

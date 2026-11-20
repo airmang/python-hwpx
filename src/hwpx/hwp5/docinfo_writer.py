@@ -76,7 +76,19 @@ def _int(element: etree._Element | None, name: str, default: int = 0) -> int:
     try:
         return int(value)
     except ValueError:
-        return int(float(value))
+        try:
+            return int(float(value))
+        except (ValueError, OverflowError):  # "x"; "inf" or a number past int()'s digit limit
+            from .errors import Hwp5Error
+
+            tag = etree.QName(element).localname
+            shown = value if len(value) <= 40 else value[:40] + "..."
+            raise Hwp5Error(
+                f"The header's {tag} gives {name}={shown!r}, which is not a number the HWP 5.0 writer can write.",
+                code="hwp5-write-unsupported",
+                context={"element": tag, "attribute": name, "value": shown},
+                suggestion="Save the document as .hwpx instead, or correct the attribute in header.xml.",
+            ) from None
 
 
 def _flag(element: etree._Element | None, name: str) -> int:

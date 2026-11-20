@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
+from ..opc.security import _typed_read_errors, guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml._document_primitives import _text_element_content
 from ..oxml.note_authoring import note_numbers
 from ..oxml.paragraph_heading import paragraph_heading
@@ -58,7 +58,7 @@ _PARAGRAPH_BLOCKS = frozenset((f"{_HP}drawText", f"{_HP}caption"))
 def _header_xml(source: HwpxDocument | bytes) -> ET.Element | None:
     """The document's ``header.xml`` root (styles, numberings, bullets), if it has one."""
     if isinstance(source, bytes):
-        with ZipFile(io.BytesIO(source)) as zf:
+        with _typed_read_errors(source), ZipFile(io.BytesIO(source)) as zf:
             guard_zip_file(zf)
             name = "Contents/header.xml"
             return parse_xml_stdlib(read_member(zf, name), part_name=name) if name in zf.namelist() else None
@@ -321,7 +321,7 @@ def _labelled(text: str, label: str) -> str:
 def _section_xmls(source: HwpxDocument | bytes) -> list[ET.Element]:
     """Return a list of section root elements from *source*."""
     if isinstance(source, bytes):
-        with ZipFile(io.BytesIO(source)) as zf:
+        with _typed_read_errors(source), ZipFile(io.BytesIO(source)) as zf:
             guard_zip_file(zf)
             names = sorted(n for n in zf.namelist() if _SECTION_RE.match(n))
             return [parse_xml_stdlib(read_member(zf, n), part_name=n) for n in names]

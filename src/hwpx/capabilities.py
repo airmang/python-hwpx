@@ -39,12 +39,20 @@ _DIST_NAME = "python-hwpx"
 
 #: extras 이름 → 그 extra가 끄는 런타임 모듈들. ``visual``은 5.0부터, ``xlsx``·``preview``는
 #: 7.0부터(메일 머지·미리보기가 python-hwpx-automation으로 옮겨 갔다) 의도적으로 빈
-#: extra(설치 호환 유지용)라 백킹 모듈이 없고, 프로브는 공허하게 참이다.
+#: extra(설치 호환 유지용)라 백킹 모듈이 없다. 아무것도 끌어오지 않으니 보고는 거짓이다
+#: (6.x~7.0.0은 "백킹 모듈이 없으니 공허하게 참"으로 보고해, 맨 설치에서도 설치된 것으로 읽혔다).
 _EXTRA_MODULES: dict[str, tuple[str, ...]] = {
     "visual": (),
     "xlsx": (),
     "preview": (),
 }
+
+#: ``extras`` 옆에 싣는 설명. 값이 모두 거짓인 까닭과 그 기능이 있는 곳.
+_EXTRAS_NOTE = (
+    "visual·xlsx·preview 는 예전 설치 명령(pip install \"python-hwpx[visual]\" 등)이 깨지지 "
+    "않도록 이름만 남긴 빈 extra입니다. 설치해도 core에 더해지는 것이 없어 false 로 보고합니다. "
+    "그 기능(렌더·시각 검증, xlsx 메일 머지, 미리보기)은 python-hwpx-automation 에 있습니다."
+)
 
 #: 능력 영역 레지스트리. ``matrix_row``는 ``docs/support-matrix.md`` 표 1열
 #: 제목과 **정확히** 일치해야 한다(가드 테스트가 집합 대조). ``entry_points``는
@@ -508,15 +516,16 @@ _LEGACY_REMOVED_IN = "7.0"
 
 
 def _extra_installed(extra: str) -> bool:
-    """extra 설치 여부.
+    """그 extra가 이 설치에 기능을 더했는지.
 
     7.0의 extras는 전부 의도적으로 빈 extra다(설치 호환 유지 — ``visual``은 5.0부터,
-    ``xlsx``·``preview``는 7.0부터). 백킹 모듈이 없으니 공허하게 참이다. 동적 프로브
-    (find_spec/import_module)는 쓰지 않는다 — core의 importlib 표면은 boundary ratchet상
-    ``from importlib import resources`` 한 형태뿐이다.
+    ``xlsx``·``preview``는 7.0부터). 끌어오는 모듈이 없으니 설치했든 안 했든 core에
+    더해지는 것이 없다: 거짓이다(:data:`_EXTRAS_NOTE`). 백킹 모듈이 있는 extra는 지금
+    없고, 생기더라도 동적 프로브(find_spec/import_module)는 쓰지 않는다 — core의 importlib
+    표면은 boundary ratchet상 ``from importlib import resources`` 한 형태뿐이다.
     """
 
-    return not _EXTRA_MODULES.get(extra, ())
+    return False
 
 
 def _package_version() -> str:
@@ -533,7 +542,8 @@ def _package_version() -> str:
 def describe_capabilities() -> dict[str, Any]:
     """설치된 core의 기계가독 자기서술 — ``hwpx.capabilities/v1``.
 
-    전부 실측이다: 버전은 배포 메타데이터, extras는 import 프로브, 표면 목록은
+    전부 실측이다: 버전은 배포 메타데이터, extras는 그 extra가 끌어오는 것(빈 extra는
+    거짓, 까닭은 ``extrasNote``), 표면 목록은
     라이브 ``__all__``, op 어휘는 실행기 디스패치와 같은 표. 렌더 오라클은
     core에 없다는 사실 자체를 보고한다(측정 없는 가용성 주장 금지).
     """
@@ -547,6 +557,7 @@ def describe_capabilities() -> dict[str, Any]:
         "package": {"name": _DIST_NAME, "version": _package_version()},
         "python": platform.python_version(),
         "extras": {name: _extra_installed(name) for name in _EXTRA_MODULES},
+        "extrasNote": _EXTRAS_NOTE,
         "renderOracle": {
             "bundled": "none",
             "note": (
@@ -777,6 +788,7 @@ def _capabilities_json_schema() -> dict[str, Any]:
                 "type": "object",
                 "additionalProperties": {"type": "boolean"},
             },
+            "extrasNote": {"type": "string"},
             "renderOracle": {
                 "type": "object",
                 "required": ["bundled", "note"],

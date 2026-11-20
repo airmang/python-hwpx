@@ -407,10 +407,12 @@ class SavePipeline:
                         try:
                             parse_xml_stdlib(read_member(archive, name), part_name=name)
                         except ET.ParseError as exc:
+                            # parse_xml_stdlib's typed error is a ParseError (it was a bare
+                            # ValueError that passed this handler); the parser's words are its cause.
                             errors.append(
                                 QualityError(
                                     REFERENCE_INTEGRITY_FAILED,
-                                    f"malformed XML in {name}: {exc}",
+                                    f"malformed XML in {name}: {exc.__cause__ or exc}",
                                 )
                             )
                             return False
