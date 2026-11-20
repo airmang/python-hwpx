@@ -108,7 +108,11 @@ def check_new_table_height(height: object) -> None:
 
     if height is None:
         return
-    if isinstance(height, bool) or not isinstance(height, int) or not 0 <= height < 2**31:
+    try:  # a whole number of any kind (numpy.int64, Decimal("1440")); not a bool, not a float
+        whole = not isinstance(height, (bool, float)) and int(height) == height  # type: ignore[call-overload]
+    except (TypeError, ValueError, ArithmeticError):
+        whole = False
+    if not whole or not 0 <= height < 2**31:  # type: ignore[operator]
         raise HwpxValueError(
             f"height must be an int in 0 <= height < 2**31 (HWPUNIT); got {height!r}",
             code="table-height-value",

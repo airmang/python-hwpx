@@ -541,15 +541,15 @@ def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
             sub_list.append(copied)
 
 
-def _in_a_section(element: ET.Element) -> bool:
-    """True while *element* hangs in a section's tree (its topmost ancestor is an ``hs:sec``)."""
+def _in_one_of(element: ET.Element, roots: "list[ET.Element]") -> bool:
+    """True while *element* hangs in one of *roots* (the document's sections as they are now)."""
 
     if not hasattr(element, "getparent"):
         return True  # a plain ElementTree element cannot say: it is kept
     top: Any = element
     while (parent := top.getparent()) is not None:
         top = parent
-    return _element_local_name(top) == "sec"
+    return any(top is root for root in roots)
 
 
 def _note_folded(entry: ET.Element, field: ET.Element, section: "HwpxOxmlSection") -> None:
@@ -567,7 +567,8 @@ def _note_folded(entry: ET.Element, field: ET.Element, section: "HwpxOxmlSection
     # document anchored through another) must not find, under the same small number, a field of its own
     # document. Fields that have left the document are forgotten here, so the record does not grow with
     # every memo that is added and removed.
-    for token in [token for token, kept in taken.items() if not _in_a_section(kept)]:
+    live = [part.element for part in getattr(owner, "sections", [owner])]
+    for token in [token for token, kept in taken.items() if not _in_one_of(kept, live)]:
         del taken[token]
     token = uuid4().hex
     taken[token] = field
@@ -698,10 +699,18 @@ def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", targ
 
 
 def _memo_order(field: ET.Element) -> int:
-    try:
-        return int(field.get("zorder", "0"))
-    except ValueError:
-        return 0
+    """The highest number the memo field carries: its ``zorder`` or its ``Number`` (a memo given a
+    number of its own may have a lower ``zorder``, and the next memo was given that number again)."""
+
+    values = [field.get("zorder", "0")]
+    values += [param.text or "0" for param in field.iter(f"{_HP}integerParam") if param.get("name") == "Number"]
+    highest = 0
+    for value in values:
+        try:
+            highest = max(highest, int(value))
+        except ValueError:
+            continue
+    return highest
 
 
 def _set_memo_param(field: ET.Element, kind: str, name: str, value: str) -> None:

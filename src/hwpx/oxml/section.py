@@ -700,8 +700,12 @@ class HwpxOxmlSection:
             clones.append(_clone_paragraph_element(source_element, ids=self._ids))
         # as paragraph.copy_to and insert_after(): a copied field gets its own id pair (the copy kept the
         # original's, and neither field could be filled by name or id: ``field-ambiguous``). The copies
-        # are numbered together: a field may begin in one paragraph and end in a later one.
-        renumber_copied_fields(clones, ids=self._ids)
+        # are numbered together: a field may begin in one paragraph and end in a later one. A field whose
+        # id no field of the document has keeps it: paragraphs brought from another document are filled
+        # by the ids they came with.
+        owners = self.document.sections if self.document is not None else [self]
+        taken = {str(node.get("id")) for owner in owners for node in owner.element.iter(f"{_HP}fieldBegin")}
+        renumber_copied_fields(clones, ids=self._ids, taken=taken)
         for offset, cloned in enumerate(list(clones)):
             for run, settings in section_setting_runs(cloned):
                 for child in settings:

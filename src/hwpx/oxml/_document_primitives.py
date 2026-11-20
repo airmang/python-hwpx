@@ -195,8 +195,9 @@ def refused_appends_nothing(method: _M) -> _M:
     name, bytes for a caption) raised with a half-made control already in the paragraph -- a ``hp:ctrl``
     with no control in it keeps Hancom from opening the document. Only the runs the method noted as its
     own (:func:`note_made_run`) are taken out: a run something else added while the call ran is not
-    this method's to undo. The line cache the method dropped for its run goes back when nothing else in
-    the paragraph changed.
+    this method's to undo. The line cache the method dropped for its run goes back when the paragraph
+    has the children and the attributes it had (what is inside an existing run is not compared: writing
+    the paragraph down on every call cost more than the call).
     """
 
     from functools import wraps
@@ -204,14 +205,7 @@ def refused_appends_nothing(method: _M) -> _M:
     @wraps(method)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         before = list(self.element)
-        kept = [child for child in before if child.tag != f"{_HP}linesegarray"]
-        # Only a paragraph that has a line cache (one read from a file) is written down as it is: the
-        # cache may go back only when nothing in the paragraph changed, a run edited in place included.
-        def as_written(child: Any) -> bytes:
-            return LET.tostring(child) if isinstance(child, LET._Element) else ET.tostring(child)
-
-        written = ([dict(self.element.attrib), *(as_written(child) for child in kept)]
-                   if len(kept) != len(before) else None)
+        attributes = dict(self.element.attrib)
         made: list[Any] = []
         records = self.__dict__.setdefault("_made_run_records", [])
         records.append(made)
@@ -222,8 +216,9 @@ def refused_appends_nothing(method: _M) -> _M:
                 if any(child is run for child in self.element):
                     self.element.remove(run)
             now = list(self.element)
-            if (written is not None and len(now) == len(kept) and all(a is b for a, b in zip(now, kept))
-                    and [dict(self.element.attrib), *(as_written(child) for child in now)] == written):
+            kept = [child for child in before if child.tag != f"{_HP}linesegarray"]
+            if (len(kept) != len(before) and len(now) == len(kept) and all(a is b for a, b in zip(now, kept))
+                    and dict(self.element.attrib) == attributes):
                 for child in now:
                     self.element.remove(child)
                 self.element.extend(before)  # as it was, its line cache too

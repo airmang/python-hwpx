@@ -1470,19 +1470,19 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
     for node in copy.iter():
         if _local(node) == "p":
             _clear_paragraph_layout_cache(node)
-    # A field in the note's text (a 누름틀, a hyperlink) gets a new id pair, as a copied paragraph's or
-    # table's does: the copy kept the original's, and the two fields of one id could not be told apart
-    # (``field-ambiguous`` on filling either).
+    # A memo anchored in the note's text is a memo of its own (its number and id), as one in a copied
+    # paragraph: the two were one memo to Hancom. First, since a 6.x memo's text comes into its field
+    # here and may hold fields ...
     from ._paragraph_text_edit import renumber_copied_fields
-
-    renumber_copied_fields(copy, ids=paragraph.section._ids)
-    # ... and a memo anchored in the note's text is a memo of its own (its number and id), as one in a
-    # copied paragraph: the two were one memo to Hancom.
     from .memo import renew_copied_memos
 
     document = paragraph.section.document
     renew_copied_memos(copy, list(document.sections) if document is not None else [paragraph.section],
                        paragraph.section)
+    # ... and a field in the note's text (a 누름틀, a hyperlink) gets a new id pair, as a copied
+    # paragraph's or table's does: the copy kept the original's, and the two fields of one id could not
+    # be told apart (``field-ambiguous`` on filling either).
+    renumber_copied_fields(copy, ids=paragraph.section._ids)
     put_at(paragraph.element, offset, control)
     # The objects in the note's text are copies too: each gets an id no other object has and goes over the
     # others, as a copied object does (shape.copy_to); they kept the original's id and zOrder before.

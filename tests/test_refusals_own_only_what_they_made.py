@@ -854,3 +854,134 @@ def test_notes_that_go_with_a_header_or_a_memo_leave_the_count(kind: str, edit: 
     notes = getattr(_saved(document).notes, f"{kind}s")
     assert [(note.number, note.element.get("number"), note.element.find(".//{*}autoNum").get("num"))
             for note in notes] == [(1, "1", "1")]
+
+
+# -- the fifth look: nothing a caller could do before is refused or slowed by these checks ---------
+
+
+def test_a_memo_place_is_counted_in_the_text_as_it_is_written() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("original")
+
+    # the form feed is dropped when the text is written, so "AB" is there twice
+    document.notes.add_memo("review", paragraph=paragraph, paragraph_text="AB A\fB", match="AB", index=1)
+
+    saved = _saved(document)
+    assert saved.paragraphs[-1].text == "AB AB" and len(saved.notes.memos) == 1
+
+
+def test_a_memo_match_that_is_dropped_from_the_text_is_refused_before_the_text_is_replaced() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("original")
+    before = _state(document)
+
+    code = _code(lambda: document.notes.add_memo("review", paragraph=paragraph, paragraph_text="new\fparagraph", match="\f"))
+
+    assert code == "note-match-not-found" and _state(document) == before
+
+
+def test_whole_numbers_of_other_kinds_are_taken_as_before() -> None:
+    from decimal import Decimal
+    from fractions import Fraction
+
+    class Index:
+        def __index__(self) -> int:
+            return 1
+
+    for height in (Decimal("1440"), Fraction(1440), 1440):
+        document = HwpxDocument.new()
+        document.add_table(1, 1, height=height)  # type: ignore[arg-type]
+        assert _saved(document).tables.all[0].element.find("{*}sz").get("height") == "1440"
+    document = HwpxDocument.new()
+    document.add_heading("Contents", level=1)
+    document.refs.add_table_of_contents(index=Index())  # type: ignore[arg-type]
+    assert len(_saved(document).refs.tables_of_contents) == 1
+
+
+def test_paragraphs_brought_from_another_document_keep_the_field_ids_they_came_with() -> None:
+    source = HwpxDocument.open(FIXTURES / "form_field_unnamed_before.hwpx")
+    ids = {field.field_id for field in source.fields.all}
+    target = HwpxDocument.new()
+
+    target.sections[0].insert_paragraphs(1, source.sections[0].paragraphs)
+
+    saved = _saved(target)
+    assert {field.field_id for field in saved.fields.all} == ids  # nothing in the target had them
+    saved.fields.fill("APPLICANT", field_id=next(field.field_id for field in saved.fields.all if not field.name))
+
+
+def test_a_copy_within_the_document_still_gets_a_field_id_of_its_own() -> None:
+    document = HwpxDocument.open(FIXTURES / "form_field_unnamed_before.hwpx")
+    count = len(document.fields.all)
+    section = document.sections[0]
+
+    section.insert_paragraphs(len(section.paragraphs), section.paragraphs)
+
+    ids = [field.field_id for field in _saved(document).fields.all]
+    assert len(ids) == len(set(ids)) == 2 * count
+
+
+def test_the_record_of_folded_memos_forgets_the_memos_of_removed_sections() -> None:
+    document = HwpxDocument.new()
+    for _ in range(6):
+        document.notes.add_memo("x" * 64, paragraph=document.add_section().paragraphs[0])
+        document.remove_section(1)
+    document.notes.add_memo("final", paragraph=document.paragraphs[0])
+
+    assert len(getattr(document.oxml, "_folded_memo_fields", {})) == 1
+
+
+@pytest.mark.parametrize("number", [None, 2])
+def test_a_memo_in_a_copied_note_does_not_take_a_number_that_is_used(number: int | None) -> None:
+    document = HwpxDocument.new()
+    note = document.add_paragraph("body").add_endnote("outer")
+    document.notes.add_memo("review", paragraph=note.add_paragraph("inner"), number=number)
+
+    note.copy_to(document.add_paragraph("next"))
+
+    numbers = [memo.attributes["Number"] for memo in _saved(document).notes.memos]
+    assert len(set(numbers)) == 2
+
+
+def test_a_restore_whose_check_moved_the_stream_puts_it_back_where_it_stood() -> None:
+    class ReadFault(BytesIO):
+        phase = "ready"
+
+        def read(self, size: Any = -1) -> bytes:
+            if self.phase == "failed":
+                super().read(2)
+                raise OSError("read interrupted")
+            return super().read(size)
+
+        def write(self, data: Any) -> int:
+            if self.phase == "ready":
+                self.phase = "failed"
+                super().write(bytes(data[:2]))
+                raise OSError("write interrupted")
+            return super().write(data)
+
+    stream = ReadFault(b"abcdef")
+    stream.seek(1)
+    with pytest.raises(OSError, match="write interrupted"):
+        HwpxDocument.new().save(stream, format="hwpx")
+
+    assert stream.getvalue() == b"abcdef" and stream.tell() == 1
+
+
+def test_removing_a_header_does_not_walk_the_body_for_notes() -> None:
+    import hwpx.oxml.note_authoring as authoring
+
+    document = HwpxDocument.new()
+    for index in range(50):
+        document.add_paragraph(f"body {index}")
+    document.page.set_header(text="keep")
+    calls: list[int] = []
+    real = authoring.note_numbers
+    authoring.note_numbers = lambda sections: calls.append(1) or real(sections)  # type: ignore[assignment]
+    try:
+        document.page.remove_header()
+        document.sections[0].properties.set_footnote_numbering(type="ON_PAGE")
+    finally:
+        authoring.note_numbers = real
+
+    assert calls == []

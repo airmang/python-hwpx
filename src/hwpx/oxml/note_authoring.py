@@ -18,7 +18,7 @@ constants here, referenced directly instead of through ``self``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence, cast
+from typing import TYPE_CHECKING, Any, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
@@ -361,11 +361,12 @@ def _sections_of(section: "HwpxOxmlSection") -> list["HwpxOxmlSection"]:
     return list(document.sections) if document is not None else [section]
 
 
-def _note_numbering_type(section: ET.Element, tag: str) -> str | None:
+def _note_numbering_type(section: "HwpxOxmlSection", tag: str) -> str | None:
     """How the section numbers notes of kind *tag*: ``CONTINUOUS``, ``ON_SECTION``, ``ON_PAGE`` or
-    ``None`` when it does not say."""
+    ``None`` when it does not say. Read from the section's properties, which it keeps at hand: looking
+    for ``hp:secPr`` in the tree each time walked a long first paragraph."""
 
-    sec_pr = next(section.iter(f"{_HP}secPr"), None)
+    sec_pr = section.properties.element
     properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
     numbering = properties.find(f"{_HP}numbering") if properties is not None else None
     return numbering.get("type") if numbering is not None else None
@@ -386,12 +387,10 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
     is numbered as in any document."""
 
     sections = _sections_of(section)
-    if not any(next(owner.element.iter(f"{_HP}{tag}"), None) is not None for owner in sections):
-        return  # no note of the kind: nothing to write, and no walk through a long body to find that out
     known = True  # the count is known up to here: from the start, or from a section that starts it again
     written: list["HwpxOxmlSection"] = []
     for owner in sections:
-        numbering = _note_numbering_type(owner.element, tag)
+        numbering = _note_numbering_type(owner, tag)
         if numbering == "ON_PAGE":
             known = False
         elif numbering == "ON_SECTION":
@@ -400,6 +399,8 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
             written.append(owner)
     if not written:
         return  # every section numbered per page: nothing to count for
+    if not any(next(owner.element.iter(f"{_HP}{tag}"), None) is not None for owner in written):
+        return  # no note of the kind there: nothing to write, and no walk through a long body to find that out
     numbers = note_numbers([owner.element for owner in sections])
     for owner in written:
         changed = False
@@ -441,12 +442,17 @@ def note_kinds_in(elements: "Sequence[ET.Element]") -> set[str]:
 
     kinds: set[str] = set()
     restarted = {num_type: tag for tag, num_type in _NOTE_NUM_TYPES.items()}
+    wanted = (f"{_HP}footNote", f"{_HP}endNote", f"{_HP}newNum")
     for element in elements:
-        for node in element.iter():
+        # by tag, so that a long text without notes is not walked node by node
+        search: Any = element.iter
+        found = search(*wanted) if hasattr(element, "getparent") else (  # lxml takes several tags
+            node for node in element.iter() if node.tag in wanted)
+        for node in found:
             name = _element_local(node)
             if name in _NOTE_NUM_TYPES:
                 kinds.add(name)
-            elif name == "newNum" and node.get("numType") in restarted:
+            elif node.get("numType") in restarted:
                 kinds.add(restarted[str(node.get("numType"))])
     return kinds
 

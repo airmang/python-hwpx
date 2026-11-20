@@ -443,10 +443,19 @@ def add_memo_with_anchor(
         # With paragraph_text the paragraph is written before the memo is anchored, so the place asked
         # for (the index-th match) is counted in the new text first: a place that is not there was
         # refused after the paragraph's text had been replaced.
+        # It is counted in the text as it will be written: characters XML cannot hold are dropped, and a
+        # tab or a line break ends a stretch of text (a match does not reach across one).
         import re
 
-        places = sum(piece.count(match) for piece in re.split(r"[\t\n\r]", probe)) if match else 0
-        if match == "" or match not in probe or index < 0 or (paragraph_text is not None and places <= index):
+        from ..oxml._document_primitives import _ILLEGAL_XML_CHARS
+
+        if paragraph_text is not None:
+            pieces = [_ILLEGAL_XML_CHARS.sub("", piece) for piece in re.split(r"[\t\n]", probe)]
+            places = sum(piece.count(match) for piece in pieces) if match else 0
+            missing = places <= index
+        else:
+            missing = match not in probe
+        if match == "" or index < 0 or missing:
             raise HwpxValueError(
                 "the text to put the memo on is not in the paragraph"
                 + (f" {index + 1} times" if index else ""),

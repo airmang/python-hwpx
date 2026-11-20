@@ -281,7 +281,8 @@ def _next_paragraph(parent: ET.Element, element: ET.Element) -> ET.Element | Non
     return None
 
 
-def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
+def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
+                           taken: "set[str] | None" = None) -> int:
     """Give each field whose begin and end are both inside *copy* a new id pair.
 
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
@@ -290,7 +291,10 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
     An end goes to the begin of its id that is open in front of it (the innermost, when fields of one
     id nest): *copy* may hold the same field more than once (one paragraph copied twice in one call),
     and the first begin took every end of the id then, leaving the second copy's begin with the first
-    copy's end. An end in front of its begin goes to that begin, as before.
+    copy's end. An end in front of its begin goes to the first begin of its id, as before.
+    With *taken* (the field ids the place the copy goes to already has) only a field whose id is taken,
+    or met a second time in *copy*, gets a new pair: content brought from another document keeps the
+    ids it is known by where nothing there has them.
     Returns how many fields were renumbered.
     """
 
@@ -318,14 +322,20 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
             taking.append(node)
     for begin, ends in groups:  # an end in front of its begin goes to the first begin left without one
         waiting = early.get(str(begin.get("id")))
-        if not ends and waiting:
+        if waiting:
             ends.extend(waiting)
             waiting.clear()
     renumbered = 0
+    met: set[str] = set()
     for begin, ends in groups:
         if not ends:
             continue
-        old, new_id = begin.get("id"), _object_id(ids)
+        old = str(begin.get("id"))
+        if taken is not None and old not in taken and old not in met:
+            met.add(old)
+            continue  # no field where it goes has this id: it keeps it
+        met.add(old)
+        new_id = _object_id(ids)
         for node in (begin, *ends):
             node.set("id" if node is begin else "beginIDRef", new_id)
             if node.get("fieldid") == old:

@@ -156,7 +156,12 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes, int | None]
         held = stream.read()
     except (AttributeError, OSError, ValueError):
         # Not readable: the cut went through, and the writes when each said what it took. A write that
-        # said nothing cannot be taken for done without reading back.
+        # said nothing cannot be taken for done without reading back. The read may have moved the
+        # stream before it failed: it is put back where it stood, or the restore is not called done.
+        try:
+            stream.seek(position)
+        except (AttributeError, OSError, ValueError):
+            return False
         return counted
     try:
         stream.seek(position)

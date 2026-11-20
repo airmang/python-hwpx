@@ -22,6 +22,7 @@ The parameter spelling ``Fiexde`` replicates Hancom's own output verbatim.
 """
 from __future__ import annotations
 
+import operator
 import re
 from typing import Any, Sequence
 from uuid import uuid4
@@ -897,10 +898,15 @@ def add_table_of_contents(
                           "toc-place-value", "Pass the section the table goes into, e.g. section=0.",
                           requested=repr(section))
     count = len(sections[section].paragraphs)
-    if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index <= count:
+    try:  # an integer of any kind (numpy.int64 too); not a bool
+        place = -1 if isinstance(index, bool) else operator.index(index)
+    except TypeError:
+        place = -1
+    if not 0 <= place <= count:
         raise _toc_refuse(f"index must be a paragraph position from 0 to {count}; got {index!r}",
                           "toc-place-value", "Pass where the table goes among the section's paragraphs (0: first).",
                           requested=repr(index), count=count)
+    index = place
     headings = toc_headings(doc, levels)
     if not headings:
         raise _toc_refuse(
