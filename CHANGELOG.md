@@ -2,6 +2,14 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 고침
+
+- `python -m hwpx.capabilities`(`describe_capabilities()`)가 빈 extra `visual`·`xlsx`·`preview`를 맨 설치에서도 `true`로
+  보고했다. 아무것도 끌어오지 않는 extra이므로 `false`로 보고하고, 까닭과 그 기능이 있는 곳(python-hwpx-automation)을
+  `extrasNote`에 적는다. 있던 키는 그대로다.
+
 ## [7.0.0] - 2026-11-21
 
 7.0은 python-hwpx를 한/글 문서를 위한 파이썬 기본 엔진으로 정리한 판입니다. 엔진은 같은 파일이면 같은 결과를 내고, 파일에 적힌
