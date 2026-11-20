@@ -17,10 +17,22 @@ __all__ = [
 #: ``--format markdown`` moved with the Markdown export (python-hwpx-automation, 7.0).
 _MARKDOWN_MOVED = (
     "--format markdown은 python-hwpx 7.0에서 python-hwpx-automation으로 옮겼습니다.\n"
-    "    pip install python-hwpx-automation\n"
+    '    pip install -U "python-hwpx-automation>=8"\n'
     "    from hwpx_automation.markdown import to_markdown\n"
     "글만 뽑으려면 --format plain(기본값)을 쓰세요."
 )
+
+
+def __getattr__(name: str) -> object:
+    if name == "extract_markdown":  # 6.x exported it from here; it went with the Markdown export (7.0)
+        from .. import MovedToCompanion, _moved_modules
+
+        raise MovedToCompanion(
+            _moved_modules.moved_name_message(
+                "hwpx.tools.text_extract_cli.extract_markdown", "from hwpx_automation.markdown import to_markdown"
+            )
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def extract_plain(hwpx_path: Union[str, ZipFile], *, include_tables: bool = False) -> str:

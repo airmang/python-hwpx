@@ -282,13 +282,33 @@ def _next_paragraph(parent: ET.Element, element: ET.Element) -> ET.Element | Non
     return None
 
 
+def _leave_out(root: ET.Element, node: ET.Element) -> None:
+    """Take *node* out of *root*, with the ``hp:ctrl`` that held nothing else (Hancom does not open a
+    document with an empty one). Text after it stays."""
+
+    holders = {child: holder for holder in root.iter() for child in holder}
+    while node in holders:
+        holder = holders[node]
+        position = list(holder).index(node)
+        if node.tail:
+            if position:
+                holder[position - 1].tail = (holder[position - 1].tail or "") + node.tail
+            else:
+                holder.text = (holder.text or "") + node.tail
+        holder.remove(node)
+        if tag_local_name(holder.tag) != "ctrl" or len(holder) or holder is root:
+            return
+        node = holder
+
+
 def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
                            taken: "set[str] | None" = None, avoid: "set[str] | None" = None) -> int:
     """Give each field whose begin and end are both inside *copy* a new id pair.
 
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
     keeping them leaves two fields of one id, which readers and form filling cannot tell apart.
-    A ``fieldid`` equal to the old id follows it. A field reaching outside *copy* is left as it is.
+    A ``fieldid`` equal to the old id follows it. Of a field reaching outside *copy*, a begin is
+    renumbered the same way (alone: its end is not in the copy) and an end is left out of the copy.
     An end goes to the begin of its id that is open in front of it (the innermost, when fields of one
     id nest): *copy* may hold the same field more than once (one paragraph copied twice in one call),
     and the first begin took every end of the id then, leaving the second copy's begin with the first
@@ -333,9 +353,16 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
     # ids that stay in use: those where the copy goes, and those the copy itself holds (one of them may
     # be kept, and the id source of a document made with the same seed hands out the same numbers)
     in_use = set(taken or ()) | set(avoid or ()) | {str(begin.get("id")) for begin, _ in groups}
+    # An end whose begin is outside the copy (the last paragraph of a field that runs over several, copied
+    # alone) would be a second end for that begin where the id is in use: the copy does not keep it.
+    for named, lone in early.items():
+        if lone and (taken is None or named in taken):
+            for node in lone:
+                _leave_out(copy, node)
     for begin, ends in groups:
-        if not ends:
-            continue
+        # A begin whose end is outside the copy (the first paragraph of such a field) is renumbered like
+        # any other: kept under its id it was a second begin for the one end, and the field could no
+        # longer be filled by id. The copy's half is then a field without an end.
         old = str(begin.get("id"))
         if taken is not None and old not in taken and old not in met:
             met.add(old)
@@ -1184,7 +1211,7 @@ class ParagraphFormats:
 
         replace_range(self, start, end, text)
 
-    # Ranges of the text (asks10b); the bodies live in ``text_ranges.py``.
+    # Ranges of the text; the bodies live in ``text_ranges.py``.
 
     def insert_text(
         self, offset: int, text: str, *, char_pr_id_ref: "str | int | None" = None, **format: Any

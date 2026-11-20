@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Moving and copying a table's rows (``table.move_rows``, ``table.copy_rows``; asks10d).
+"""Moving and copying a table's rows (``table.move_rows``, ``table.copy_rows``).
 
 A row of HWPX is an ``hp:tr``; each of its cells says where it stands (``hp:cellAddr`` ``colAddr``/``rowAddr``)
 and how far it reaches (``hp:cellSpan``). A block of rows moves or copies whole: every ``hp:tr`` of the block

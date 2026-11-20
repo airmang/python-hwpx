@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Where something stands in its paragraph's text: the ``offset`` reads (asks10a).
+"""Where something stands in its paragraph's text: the ``offset`` reads.
 
 One rule for every place in a paragraph, the one ``paragraph.text``, ``replace_range``, ``format_range``,
 ``split_run`` and an object's ``move_to(offset=)`` count by: a character of ``hp:t`` (a Python code point),

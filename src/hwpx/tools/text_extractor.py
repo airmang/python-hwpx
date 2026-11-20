@@ -283,12 +283,16 @@ class TextExtractor:
         if self._written is not None:
             self._written.add(paragraph)
         fragments: list[str] = []
+        # A highlight opens in one hp:t and may close in a later run's hp:t, so the open ones are the
+        # paragraph's, not the text element's.
+        open_highlights: list[Optional[str]] = []
         for run in _children_by_local(paragraph, "run"):
             for child in run:
                 tag = strip_namespace(child.tag)
                 if tag == "t":
                     self._render_text_element(
                         child, fragments, annotations, preserve_breaks=preserve_breaks,
+                        highlight_stack=open_highlights,
                     )
                 elif tag == "lineBreak":
                     if preserve_breaks:
@@ -328,6 +332,7 @@ class TextExtractor:
                         preserve_breaks=preserve_breaks,
                         annotations=annotations,
                     )
+        self._close_highlights(open_highlights, fragments, annotations)
         return "".join(fragments)
 
     def _handle_object(
@@ -414,11 +419,14 @@ class TextExtractor:
         annotations: Optional[AnnotationOptions],
         *,
         preserve_breaks: bool = True,
+        highlight_stack: Optional[list[Optional[str]]] = None,
     ) -> None:
+        lone = highlight_stack is None  # called on a text element by itself: its highlights end with it
+        if highlight_stack is None:
+            highlight_stack = []
         if element.text:
             fragments.append(element.text)
 
-        highlight_stack: list[Optional[str]] = []
         highlight_mode = annotations.highlight if annotations else "ignore"
 
         for child in element:
@@ -431,7 +439,11 @@ class TextExtractor:
                         annotations.highlight_start.format(color=color or "")
                     )
             elif tag == "markpenEnd":
-                end_color: str | None = highlight_stack.pop() if highlight_stack else ""
+                if not highlight_stack:  # an end with no begin in this paragraph marks nothing
+                    if child.tail:
+                        fragments.append(child.tail)
+                    continue
+                end_color: str | None = highlight_stack.pop()
                 if annotations and highlight_mode == "markers":
                     fragments.append(
                         annotations.highlight_end.format(color=end_color or "")
@@ -466,17 +478,25 @@ class TextExtractor:
             else:
                 self._render_text_element(
                     child, fragments, annotations, preserve_breaks=preserve_breaks,
+                    highlight_stack=highlight_stack,
                 )
 
             if child.tail:
                 fragments.append(child.tail)
 
+        if lone:
+            self._close_highlights(highlight_stack, fragments, annotations)
+
+    @staticmethod
+    def _close_highlights(
+        highlight_stack: list[Optional[str]], fragments: list[str], annotations: Optional[AnnotationOptions]
+    ) -> None:
+        """End the highlights still open where their paragraph (or lone text element) ends."""
+
         while highlight_stack:
-            remaining_color: str | None = highlight_stack.pop()
-            if annotations and highlight_mode == "markers":
-                fragments.append(
-                    annotations.highlight_end.format(color=remaining_color or "")
-                )
+            remaining_color = highlight_stack.pop()
+            if annotations and annotations.highlight == "markers":
+                fragments.append(annotations.highlight_end.format(color=remaining_color or ""))
 
     def _handle_note(
         self,

@@ -425,6 +425,15 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         self._held_properties = properties
         self._apply_element = apply_element
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "apply_page_type":  # the 6.x name: a write is refused like a read, not kept aside (7.0)
+            from .._removed_names import removed_name_error
+
+            error = removed_name_error("HeaderFooter", name)
+            if error is not None:
+                raise error
+        object.__setattr__(self, name, value)
+
     @property
     def _properties(self) -> "HwpxOxmlSectionProperties":
         """The properties of the section holding the header or footer now. Its control sits in a body

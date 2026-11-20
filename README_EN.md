@@ -13,7 +13,7 @@
   </p>
 </p>
 
-<p align="center"><a href="README.md">한국어</a> | English</p>
+<p align="center"><a href="https://github.com/airmang/python-hwpx/blob/main/README.md">한국어</a> | English</p>
 
 HWPX is XML (OWPML) inside a ZIP file, so Python alone can work with it; Hancom Office is not needed.
 python-hwpx runs on Windows, macOS, Linux, and CI, and its only dependency is `lxml`. HWP 5.0 (`.hwp`)
@@ -66,7 +66,10 @@ doc.save("plan.hwpx")
 Markdown and HTML conversion, finding form cells by their labels, mail merge, previews, and
 higher-level workflows such as document authoring and exam typesetting live in
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) from 7.0
-(`pip install python-hwpx-automation`). This package reads and writes what the file says.
+(`pip install -U python-hwpx-automation`). This package reads and writes what the file says.
+
+Coming from 6.x? The [7.0 migration guide](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md) lists every renamed and moved name, and calling
+a removed name raises an error that names its replacement.
 
 > For older install commands, `pip install "python-hwpx[visual]"` still works, but the `visual`
 > extra is empty and installs no render/PDF dependencies. That runtime belongs to
@@ -93,9 +96,9 @@ higher-level workflows such as document authoring and exam typesetting live in
   show them too. By default nothing is written.
 - Verify and stay safe: a package-structure validation CLI, an open-safety check before saving, and a save
   report (the `MutationReport` `save()` returns). A default save does not check that the character and paragraph shapes the
-  text points at exist; `save(..., quality=QualityPolicy.strict())` does.
+  text points at exist; `save(..., quality=QualityPolicy(require_visual_complete=False))` does.
 
-More: [five-minute quickstart](docs/quickstart.md) · [usage guide](docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](docs/examples.md) · [support matrix](docs/support-matrix.md)
+More: [five-minute quickstart](https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md) · [usage guide](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](https://github.com/airmang/python-hwpx/blob/main/docs/examples.md) · [support matrix](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md)
 
 ### Filling a form
 
@@ -109,14 +112,20 @@ report = doc.save("application-filled.hwpx", mode="patch", fallback="error")
 ```
 
 `mode="patch"` asks for untouched ZIP parts to keep their bytes. An untouched part keeps its compressed bytes as
-they were, and a save that changed nothing writes the same file. An edited part's content is deterministic; its
+they were, and a save that changed nothing writes the same file (a document whose caret points at a paragraph it does
+not have gets that caret position in `settings.xml` rewritten, and nothing else). An edited part's content is deterministic; its
 compressed bytes depend on the zlib build Python uses. What happens inside an edited part, and how
 the page looks, need separate checks. To reopen the output and verify its content, follow the
-[safe write contract](docs/safe-write-contract.md). Filling cells found by their label text (`fill_by_path`)
+[safe write contract](https://github.com/airmang/python-hwpx/blob/main/docs/safe-write-contract.md). Filling cells found by their label text (`fill_by_path`)
 lives in python-hwpx-automation (`hwpx_automation.forms`).
 
+The table numbers `doc.tables.map()` reports (`table_index`) count tables inside cells too, so they are the
+numbers of `doc.tables.with_nested`. `doc.tables` leaves nested tables out: on a form with a table inside a cell,
+pick with `doc.tables.with_nested[table_index]`. A merged cell appears once for every position it covers, with
+the same text.
+
 *Blocks without a **Standalone example** label take your existing document as input. The per-example
-Python-block status is frozen in the [execution ledger](docs/python-example-ledger.json).*
+Python-block status is frozen in the [execution ledger](https://github.com/airmang/python-hwpx/blob/main/docs/python-example-ledger.json).*
 
 ## How close to Hangul
 
@@ -140,10 +149,10 @@ script and its records can ship in this repository alongside them.
 <p align="center"><sub>A document generated inside a ChatGPT runtime, opened in real Hancom Office.</sub></p>
 
 Full figures and caveats are in [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html),
-per-feature grades in the [support matrix](docs/support-matrix.md). These numbers measure how Hangul takes the
+per-feature grades in the [support matrix](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md). These numbers measure how Hangul takes the
 files we produce. How well a parser reads documents is a separate measure.
 
-Development status is Production/Stable. What stays backward compatible is listed in [stable API](docs/stable-api.md);
+Development status is Production/Stable. What stays backward compatible is listed in [stable API](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md);
 `hwpx.experimental` and the features marked experimental above may change.
 
 ## Where you can run it
@@ -151,8 +160,8 @@ Development status is Production/Stable. What stays backward compatible is liste
 | Environment | How |
 |---|---|
 | Local or server Python | `pip install python-hwpx` (scripts, batch jobs, CI) |
-| Python automation (no MCP) | `pip install python-hwpx-automation` (authoring, form filling and verification workflows) |
-| A plain ChatGPT conversation | Upload the `.hwpx` together with the [Release wheel](https://github.com/airmang/python-hwpx/releases/latest) and install it in the chat ([guide](docs/ai-assistants.md)) |
+| Python automation (no MCP) | `pip install -U python-hwpx-automation` (authoring, form filling and verification workflows) |
+| A plain ChatGPT conversation | Upload the `.hwpx` together with the [Release wheel](https://github.com/airmang/python-hwpx/releases/latest) and install it in the chat ([guide](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md)) |
 | ChatGPT MCP app | Register the MCP adapter from [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) as a connector |
 | Codex marketplace plugin | Install [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) |
 | Claude Code · Hermes · OpenClaw | Register the same MCP server in each client ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
@@ -174,7 +183,7 @@ Keep the form and formatting as-is, change only ○○, and return a new file.
 
 Everything from install to the result file happens inside the conversation, so you do not need Python on
 your machine. The wheel's only dependency is `lxml`; if the runtime lacks it, upload an lxml wheel too.
-An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](docs/ai-assistants.md), and an
+An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md), and an
 [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) helps AI tools learn the real API.
 
 | | Repo | Role |
@@ -216,11 +225,11 @@ An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](d
 [help wanted](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) ·
 [roadmap](https://github.com/airmang/python-hwpx/milestones) ·
 [Discussions](https://github.com/airmang/python-hwpx/discussions) ·
-[CONTRIBUTING](CONTRIBUTING.md)
+[CONTRIBUTING](https://github.com/airmang/python-hwpx/blob/main/CONTRIBUTING.md)
 
-New to HWPX internals? Start with the [internals field guide](docs/internals/): layout caches, TOC fields,
+New to HWPX internals? Start with the [internals field guide](https://github.com/airmang/python-hwpx/tree/main/docs/internals): layout caches, TOC fields,
 OPC repacking and other behaviors checked against real Hangul. The stable public surface is listed in
-[stable API](docs/stable-api.md), and layer ownership in the [product-boundary contract](docs/architecture/product-boundary.md).
+[stable API](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md), and layer ownership in the [product-boundary contract](https://github.com/airmang/python-hwpx/blob/main/docs/architecture/product-boundary.md).
 
 ## Acknowledgements
 
@@ -234,4 +243,4 @@ This project is indebted to the following open standards and projects.
 
 ## License · Maintainer
 
-Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) · Kohkyuhyun [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
+Apache-2.0 ([LICENSE](https://github.com/airmang/python-hwpx/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/python-hwpx/blob/main/NOTICE)) · Kohkyuhyun [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)

@@ -12,6 +12,9 @@
 지운 이름·인자를 부르면 대부분 새 자리와 한 줄 예를 알려 주는 오류가 난다. 테스트를 한 번 돌려 오류가 가리키는 대로
 고치고, 오류 없이 결과만 달라지는 것은 아래 표로 확인한다. 가장 먼저 바로 아래 `new()` 의 첫 줄을 본다.
 
+표의 왼쪽 열에는 6.12.0 에 있던 이름과 함께, 6.12.0 뒤 7.0 을 만드는 동안에만 있던 이름도 들어 있다(저장소의 main 을
+따라 쓴 경우를 위한 것이다). 6.12.0 에서 그 이름이 없었다면 그 줄은 건너뛴다.
+
 ## 가장 먼저 볼 것 — `HwpxDocument.new()` 의 첫 줄
 
 | 무엇이 달라지나 | 옛 동작을 유지하는 법 |
@@ -24,8 +27,9 @@
 이 변경으로 함께 고쳐야 하는 습관이 둘 있다.
 
 - **빈 첫 줄을 지우던 코드는 지운다.** 6.x 에서 흔하던 `doc.paragraphs[0].remove()`·
-  `section.remove_paragraph(0)`·`paragraphs[0].runs[0].remove()` 는 7.0 에서 방금 쓴 첫 문단이나
-  구역 설정을 지운다. 구역 설정(`hp:secPr`)이 사라진 문서는 용지 크기가 0×0 이 된다.
+  `section.remove_paragraph(0)` 는 7.0 에서 방금 쓴 첫 문단을 지운다(구역 설정은 다음 문단으로 옮겨 가 남는다).
+  `paragraphs[0].runs[0].remove()` 는 구역 설정을 담은 런을 지우는 호출이라 7.0 이 거부한다
+  (`paragraph-run-section-settings`).
 - **문단 번호와 `runs[0]` 에 기대지 않는다.** `add_paragraph()` 가 돌려준 문단 객체를 그대로 쓴다.
   첫 문단의 첫 런은 구역 설정을 담은 빈 런이라, `paragraph.runs[0]` 이 방금 쓴 글이 아닐 수 있다.
 
@@ -53,6 +57,7 @@ legacy.add_paragraph("2026 운영계획")                # legacy.paragraphs[1]
 |---|---|
 | `doc.save_to_path(path)`, `doc.save_to_path(path, return_report=True)` | `doc.save(path)`. 저장한 경로는 `report.path` |
 | `doc.save_to_stream(stream)`, `doc.save_to_stream(stream, format="hwp")` | `doc.save(stream)`, `doc.save(stream, format="hwp")`. `format=None` 이면 `.hwp` 경로만 HWP 5.0 으로 쓴다 |
+| `doc.save_report(target)`(품질 정책 없이) | `doc.save(target, quality=QualityPolicy.transparent()).quality`. `quality=` 를 주지 않은 `save()` 의 `report.quality` 는 `None` 이다(6.x 의 `save_report` 는 정책 없이도 보고를 돌려줬다) |
 | `doc.save_report(target, quality=q)` | `doc.save(target, quality=q)` 의 `report.quality`. 게이트 실패는 `SaveError`(`quality-gate-failed`)의 `.report`. `before=`·`edit_mask=`·`ledger=` 는 `SavePipeline().run(...)` |
 | `HwpxDocument.from_package(pkg)` | `HwpxDocument.open(pkg)` |
 | 저장 뒤 열기 안전 검사를 다시 돌리던 코드 | `report.editor_open_safety` — 저장이 쓴 바이트에 대해 이미 낸 보고 |
@@ -83,12 +88,17 @@ same = HwpxDocument.open(doc.to_bytes())            # 6.x 의 from_package 도 o
 옮겼다. 인자와 결과는 6.x 와 같고, 문서의 메서드였던 것은 문서를 첫 인자로 받는 함수가 됐다.
 
 ```bash
-pip install python-hwpx-automation        # python-hwpx 7.0 을 함께 설치한다
+pip install -U "python-hwpx-automation>=8"   # python-hwpx 7.0 을 함께 설치한다
 pip install "python-hwpx-automation[xlsx]"      # 메일 머지의 .xlsx 명부
 pip install "python-hwpx-automation[preview]"   # 미리보기의 수식 MathML
 ```
 
 옛 이름을 부르면 새 자리와 설치 명령을 알려 주는 오류가 난다. 본체는 자동화 패키지를 import 하지 않는다.
+
+`-U` 와 `>=8` 을 빼지 않는다. python-hwpx-automation 7.x 는 python-hwpx 6.x 만 받으므로, 7.x 가 깔린 환경에서
+`pip install python-hwpx-automation` 만 치면 그 7.x 를 그대로 두고 python-hwpx 를 6.x 로 되돌린다. 반대로
+python-hwpx 만 7.0 으로 올리면 pip 가 충돌을 알리고 자동화 패키지의 일부 모듈이 import 되지 않는다. 둘을 함께 올린다.
+`hwpx-mcp-server` 를 쓰고 있었다면 그것도 8.0 이상으로 함께 올린다.
 
 | 형태 | 오류 |
 |---|---|
@@ -249,7 +259,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 |---|---|
 | 모델 `Document`·`Section` 의 `add_paragraph(run_attributes=, inherit_outline=, <XML 속성>=)` | 없어졌다. 돌려받은 문단의 속성으로 쓴다 |
 | `header.add_paragraph(text, align="CENTER")` | `p = header.add_paragraph(text)`; `p.alignment = "CENTER"`. 머리말·바탕쪽·각주의 `add_paragraph` 가 `style=`·`para_pr_id_ref=`·`char_pr_id_ref=` 를 받는다 |
-| `header.apply_page_type` | `header.page_type`(읽고 쓰기) |
+| `header.apply_page_type` | `header.page_type`(읽고 쓰기). 옛 이름은 읽을 때도 쓸 때도 오류로 새 이름을 알려 준다 |
 | `properties.get_header()`·`get_footer()` | `properties.header()`·`footer()` |
 | `properties.start_numbering`·`set_start_numbering(...)` | `properties.start_numbers`·`set_start_numbers(...)` → `hwpx.objects.StartNumbers`(`hwpx.oxml.SectionStartNumbering` 은 없어졌다) |
 | `properties.add_master_page_reference(id_ref=)` | `add_master_page_reference(master_page_id=)`. `MasterPage` 도 받는다 |
@@ -263,6 +273,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 |---|---|---|
 | 여러 개를 돌려주는 읽기가 `list` | `tuple`: `doc.paragraphs`·`doc.sections`, `doc.oxml.sections`·`headers`·`master_pages`·`histories`, `doc.parts.headers`·`master_pages`·`histories`, `section.paragraphs`·`memos`, `paragraph.runs`·`tables`·`shapes`·`footnotes`·`endnotes`, `table.rows`, `row.cells`, `cell.paragraphs`·`tables`, `properties.headers`·`footers`, `memo.paragraphs` 등 | 목록을 고치던 코드(`append`, `sort`)는 `list(...)` 로 |
 | `paragraph.bookmarks` → 이름의 `list` | `Bookmark` 의 tuple | 이름은 `[b.name for b in paragraph.bookmarks]` |
+| `paragraph.footnotes`·`endnotes` 가 그 문단에 든 표의 칸 안 각주·미주까지 돌려줌(두 번 세기도 했다) | 그 문단에 바로 달린 것만 | 본문 문단을 돌며 문서의 각주를 모으던 코드는 `doc.notes.footnotes`·`doc.notes.endnotes` 로 |
 | `paragraph.hyperlinks` → dict 처럼 읽히는 값 | `Hyperlink` 의 tuple | `link["url"]` 대신 `link.url`·`link.to_dict()` |
 | `paragraph.add_bookmark`·`add_hyperlink`·`add_form_field`·`add_check_box`·`add_highlight`·`add_page_hiding` → `InlineObject` 또는 `None` | `Bookmark`·`Hyperlink`·`FormField`·`CheckBox`·`Highlight`·`PageHiding` | XML 요소는 `.element`(`Bookmark`·`Hyperlink`·`FormField`·`CheckBox`). `Highlight`·`PageHiding` 은 값만 담고 `.element` 가 없다: 요소가 필요하면 `paragraph.element` 아래에서 찾는다 |
 | 머리말·꼬리말의 `add_paragraph`·`add_run`·`add_page_number_field` → XML 요소 | 문단·런·개체 객체 | 옛 요소는 `.element` |

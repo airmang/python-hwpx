@@ -910,9 +910,11 @@ class Header:
         author_name: str = "AI Agent",
         date: str | None = None,
         ids: "IdSource | None",
+        minimum_id: int = 0,
     ) -> int:
         """Append tracked-change metadata and return the new change id. A change without *date* is
-        dated now, or with the ``now=`` of the document (its source *ids*)."""
+        dated now, or with the ``now=`` of the document (its source *ids*). The id is at least
+        *minimum_id* (the document does not give one twice while it is open)."""
 
         normalized_type = normalize_track_change_type(change_type)
         resolved_author = author_name.strip() or "AI Agent"
@@ -947,7 +949,7 @@ class Header:
             ref_list.track_changes = TrackChangeList(item_cnt=0, changes=[])
         change_list = ref_list.track_changes
 
-        change_id = _next_track_change_id(change_list.changes)
+        change_id = max(_next_track_change_id(change_list.changes), minimum_id)
         change_list.changes.append(
             TrackChange(
                 id=change_id,

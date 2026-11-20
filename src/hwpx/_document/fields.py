@@ -1559,6 +1559,10 @@ def fill_form_field(
     the field's begin (see :meth:`hwpx._document.ns.fields.FieldsNamespace.fill`).
     """
 
+    if value is None:  # str(None) would put the word "None" in the form
+        raise argument_type_error(
+            "value", value, "str", suggestion='To empty the field pass "": doc.fields.fill("", name=...).'
+        )
     matches = _iter_form_field_matches(doc)
     match = _select_form_field(
         doc,

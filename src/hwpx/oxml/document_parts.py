@@ -1151,11 +1151,11 @@ class HwpxOxmlDocument:
     ) -> int:
         if not self._headers:
             raise ValueError("document does not contain any headers")
-        return self._headers[0].add_track_change(
-            change_type,
-            author_name=author_name,
-            date=date,
-        )
+        # A change's id is not given again while the document is open (_document/tracked.py says why).
+        floor = getattr(self, "_track_change_id_floor", 0)
+        change_id = self._headers[0].add_track_change(change_type, author_name=author_name, date=date, minimum_id=floor + 1)
+        self._track_change_id_floor = max(floor, change_id)
+        return change_id
 
     def next_track_change_mark_id(self) -> int:
         max_id = 0
