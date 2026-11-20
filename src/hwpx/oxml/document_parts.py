@@ -1148,12 +1148,14 @@ class HwpxOxmlDocument:
         *,
         author_name: str = "AI Agent",
         date: str | None = None,
+        show: bool = True,
     ) -> int:
         if not self._headers:
             raise ValueError("document does not contain any headers")
         # A change's id is not given again while the document is open (_document/tracked.py says why).
         floor = getattr(self, "_track_change_id_floor", 0)
-        change_id = self._headers[0].add_track_change(change_type, author_name=author_name, date=date, minimum_id=floor + 1)
+        change_id = self._headers[0].add_track_change(
+            change_type, author_name=author_name, date=date, minimum_id=floor + 1, show=show)
         self._track_change_id_floor = max(floor, change_id)
         return change_id
 

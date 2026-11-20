@@ -302,13 +302,18 @@ def _leave_out(root: ET.Element, node: ET.Element) -> None:
 
 
 def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
-                           taken: "set[str] | None" = None, avoid: "set[str] | None" = None) -> int:
+                           taken: "set[str] | None" = None, avoid: "set[str] | None" = None,
+                           halves: bool = False) -> int:
     """Give each field whose begin and end are both inside *copy* a new id pair.
 
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
     keeping them leaves two fields of one id, which readers and form filling cannot tell apart.
-    A ``fieldid`` equal to the old id follows it. Of a field reaching outside *copy*, a begin is
-    renumbered the same way (alone: its end is not in the copy) and an end is left out of the copy.
+    A ``fieldid`` equal to the old id follows it. A field reaching outside *copy* is left as it is,
+    unless *halves*: the copy then stands beside what it was copied from, which keeps the field whole
+    (``paragraph.insert_after()`` with no text), so a begin whose end is outside the copy is renumbered
+    alone -- kept under its id it was a second begin for the one end -- and an end whose begin is
+    outside is left out of the copy. Content brought in piece by piece is not such a copy: the end
+    that arrives in a later piece belongs to the begin that arrived in an earlier one.
     An end goes to the begin of its id that is open in front of it (the innermost, when fields of one
     id nest): *copy* may hold the same field more than once (one paragraph copied twice in one call),
     and the first begin took every end of the id then, leaving the second copy's begin with the first
@@ -353,16 +358,13 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
     # ids that stay in use: those where the copy goes, and those the copy itself holds (one of them may
     # be kept, and the id source of a document made with the same seed hands out the same numbers)
     in_use = set(taken or ()) | set(avoid or ()) | {str(begin.get("id")) for begin, _ in groups}
-    # An end whose begin is outside the copy (the last paragraph of a field that runs over several, copied
-    # alone) would be a second end for that begin where the id is in use: the copy does not keep it.
-    for named, lone in early.items():
-        if lone and (taken is None or named in taken):
+    if halves:
+        for lone in early.values():
             for node in lone:
                 _leave_out(copy, node)
     for begin, ends in groups:
-        # A begin whose end is outside the copy (the first paragraph of such a field) is renumbered like
-        # any other: kept under its id it was a second begin for the one end, and the field could no
-        # longer be filled by id. The copy's half is then a field without an end.
+        if not ends and not halves:
+            continue
         old = str(begin.get("id"))
         if taken is not None and old not in taken and old not in met:
             met.add(old)
@@ -412,7 +414,7 @@ def insert_paragraph_beside(
         )
     if text is None:
         new = _clone_paragraph_element(element, ids=ids)
-        renumber_copied_fields(new, ids=ids)
+        renumber_copied_fields(new, ids=ids, halves=True)  # beside the paragraph it copies, which keeps its fields
         for run, settings in section_setting_runs(new):
             for child in settings:
                 run.remove(child)

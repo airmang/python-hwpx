@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import IO, Any, Iterable, Iterator
 from xml.etree import ElementTree as ET
+from xml.parsers import expat
 from zipfile import ZIP_DEFLATED as _ZIP_DEFLATED
 from zipfile import ZIP_STORED as _ZIP_STORED
 from zipfile import ZipFile, ZipInfo
@@ -153,6 +154,10 @@ def guard_zip_file(
                 "ZIP archive exceeds total uncompressed size limit: "
                 f"{total} > {active_limits.max_total_uncompressed_bytes}"
             )
+        if info.flag_bits & 0x1:
+            # zipfile raises a bare RuntimeError when such a member is read; an HWPX package has none
+            # (a protected document encrypts the parts' content, not the ZIP entries).
+            raise HwpxSecurityError(f"ZIP member is encrypted with a ZIP password: {info.filename}")
         if info.compress_type not in _ALLOWED_METHODS:
             raise HwpxSecurityError(
                 "ZIP member uses an unsupported compression method: "
@@ -252,9 +257,63 @@ def guard_xml_bytes(
         raise HwpxSecurityError(
             f"{part_name} exceeds XML size limit: {len(payload)} > {max_xml_bytes}"
         )
-    lowered = payload[:4096].lower()
-    if b"<!doctype" in lowered or b"<!entity" in lowered:
+    if _declares_dtd(payload):
         raise HwpxSecurityError(f"{part_name} contains a disallowed DTD/entity declaration")
+
+
+def _declares_dtd(payload: bytes) -> bool:
+    """Whether *payload* has a document type declaration.
+
+    Only the prolog can hold one, so the prolog is read to the root element however long it is:
+    the XML declaration, comments and processing instructions may come first, and a declaration
+    pushed past any fixed window is still a declaration. A ``<!`` before the root that is not a
+    comment is refused whatever its spelling. One forward pass.
+    """
+
+    pos = 0
+    while True:
+        at = payload.find(b"<", pos)
+        if at == -1:
+            return False
+        if payload.startswith(b"<?", at):
+            close = payload.find(b"?>", at + 2)
+            pos = close + 2
+        elif payload.startswith(b"<!--", at):
+            close = payload.find(b"-->", at + 4)
+            pos = close + 3
+        else:
+            return payload.startswith(b"<!", at)  # a DOCTYPE, or the root element
+        if close == -1:
+            return False  # a prolog that never ends is not XML; the parser says so
+
+
+class _PrologRead(Exception):
+    """Raised inside expat to stop at the end of the prolog."""
+
+
+def _prolog_has_doctype(payload: bytes) -> bool:
+    """Whether expat meets a document type declaration before the root element. The parse stops at
+    whichever comes first, so its cost is the prolog's size."""
+
+    found: list[bool] = []
+
+    def doctype(*_declaration: object) -> None:
+        found.append(True)
+        raise _PrologRead
+
+    def root(*_element: object) -> None:
+        raise _PrologRead
+
+    parser = expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = doctype
+    parser.StartElementHandler = root
+    try:
+        parser.Parse(payload, True)
+    except _PrologRead:
+        pass
+    except expat.ExpatError:
+        return False  # not XML at all: the parse that follows reports it
+    return bool(found)
 
 
 def guard_xml_depth(
@@ -285,10 +344,24 @@ def parse_xml_stdlib(
 ) -> ET.Element:
     """Parse XML with stdlib ElementTree after applying HWPX safety guards."""
 
+    return _parse_xml_stdlib(payload, part_name=part_name, parse_error=False)
+
+
+def _parse_xml_stdlib(payload: bytes, *, part_name: str = "XML payload", parse_error: bool) -> ET.Element:
+    """:func:`parse_xml_stdlib`. Malformed XML is a ``ValueError``; with *parse_error* it is
+    ElementTree's own ``ParseError``, for the readers that raised that before they came through here."""
+
     guard_xml_bytes(payload, part_name=part_name)
+
+    # The byte check above reads the prolog as UTF-8. expat reads it in whatever encoding the part
+    # declares, so a declaration is refused before the parse that would expand its entities.
+    if _prolog_has_doctype(payload):
+        raise HwpxSecurityError(f"{part_name} contains a disallowed DTD/entity declaration")
     try:
         root = ET.fromstring(payload)
     except ET.ParseError as exc:
+        if parse_error:
+            raise
         raise ValueError(f"malformed XML: {exc}") from exc
     guard_xml_depth(root, part_name=part_name)
     return root

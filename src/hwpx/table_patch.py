@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .errors import HwpxError, HwpxTypeError
-from .oxml.table_sizes import COLUMN_FLOOR_EXTRA, effective_cell_margin_source
+from .oxml.table_sizes import COLUMN_FLOOR_EXTRA, GridPositions, effective_cell_margin_source
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
@@ -133,6 +133,7 @@ def _direct_cells(table: bytes) -> list[_Cell]:
     body = table[body_start:]
     masked = _mask_nested_tables(body)
     cells: list[_Cell] = []
+    positions = GridPositions()
     for m in re.finditer(rb"<(?:[A-Za-z_][\w.-]*:)?tc\b.*?</(?:[A-Za-z_][\w.-]*:)?tc>", masked, re.DOTALL):
         own = m.group(0)  # nested tables stay masked during metadata lookup too
         col = _iattr(own, "cellAddr", "colAddr")
@@ -141,6 +142,7 @@ def _direct_cells(table: bytes) -> list[_Cell]:
         rspan = _iattr(own, "cellSpan", "rowSpan") or 1
         if row is None or col is None:
             continue
+        positions.take(rspan, cspan)  # what the spans in the file may cover in all
         cells.append(_Cell(body_start + m.start(), body_start + m.end(), row, col, rspan, cspan))
     return cells
 

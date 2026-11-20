@@ -185,9 +185,41 @@ def _paragraph_has_replaceable_text(
                 match in markup.trailing_text for markup in span.marks
             ):
                 return True
-        crosses_inline_markup = True
+            if match in span.text:
+                # The replace writer takes the first text element that holds the match and stops
+                # there: one that holds it only across its marks is where the writer failed, after
+                # the header had been given both changes.
+                crosses_inline_markup = True
+                break
+        else:
+            crosses_inline_markup = True  # only across the run's text elements: the writer goes on
+            continue
+        break
 
     if crosses_inline_markup:
+        raise HwpxValueError(
+            "match crosses inline markup and cannot be wrapped safely",
+            code="track-match-crosses-markup",
+            suggestion="Target a substring that lives inside a single run.",
+        )
+    return False
+
+
+def _paragraph_has_deletable_match(paragraph: "HwpxOxmlParagraph", match: str) -> bool:
+    """Whether a tracked delete of *match* can be written: the delete writer takes the first run whose
+    text holds the match and stops there, so a match that crosses markup in that run is refused here
+    (``track-match-crosses-markup``) even when a later run holds it whole. Found by the writer instead,
+    it failed after the header had been given the change."""
+
+    for run in paragraph.runs:
+        model = run.to_model()
+        if match not in "".join(span.text for span in model.text_spans):
+            continue
+        if any(
+            match in span.leading_text or any(match in markup.trailing_text for markup in span.marks)
+            for span in model.text_spans
+        ):
+            return True
         raise HwpxValueError(
             "match crosses inline markup and cannot be wrapped safely",
             code="track-match-crosses-markup",
@@ -256,7 +288,7 @@ def add_tracked_delete(
     found = (
         _paragraph_has_deletable_text(paragraph, None)
         if match is None
-        else _paragraph_has_replaceable_text(paragraph, match)
+        else _paragraph_has_deletable_match(paragraph, match)
     )
     if not found:
         if match is None:

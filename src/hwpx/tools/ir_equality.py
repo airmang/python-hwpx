@@ -20,7 +20,7 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
-from ..opc.security import guard_zip_file, read_member
+from ..opc.security import _parse_xml_stdlib, guard_xml_bytes, guard_xml_depth, guard_zip_file, read_member
 
 __all__ = [
     "IrEqualityReport",
@@ -78,7 +78,14 @@ def _project_table(tbl_elem: ET.Element) -> list:
 
 def project_section_xml(xml: str | bytes) -> list:
     """Project one section XML string into a list of paragraph projections."""
-    root = ET.fromstring(xml)
+    if isinstance(xml, str):
+        # Already decoded: whatever encoding its declaration names, the parser is given the text. The
+        # declaration check reads the same text.
+        guard_xml_bytes(xml.encode("utf-8"))
+        root = ET.fromstring(xml)
+        guard_xml_depth(root)
+    else:
+        root = _parse_xml_stdlib(xml, parse_error=True)
     paras: list = []
     # Top-level paragraphs are direct <hp:p> children of the section root;
     # paragraphs nested in table cells are reached via recursion, not here.

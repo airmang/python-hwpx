@@ -36,6 +36,11 @@ COLOR_BLACK = 1
 
 MAX_DIRECTORY_ENTRIES = 65536
 MAX_STREAM_BYTES = 256 * 1024 * 1024
+#: What all the streams read from one file may come to, and what they may inflate to in all: each the
+#: size the file itself may have, and the total an HWPX archive may inflate to. A directory can name one
+#: chain of sectors under many streams, so the streams of a small file can add up to many times its size.
+MAX_TOTAL_STREAM_BYTES = 512 * 1024 * 1024
+MAX_TOTAL_INFLATED_BYTES = 512 * 1024 * 1024
 
 _HEADER = struct.Struct("<8s16sHHHHH6sIIIIIIIII")
 _DIFAT_IN_HEADER = 109
@@ -74,6 +79,10 @@ class CompoundFile:
 
     def __init__(self, data: bytes) -> None:
         self._data = memoryview(data)
+        self._read_sizes: dict[str, int] = {}
+        self._inflated_sizes: dict[str, int] = {}
+        self._read_total = 0
+        self._inflated_total = 0
         if len(data) < _V3_SECTOR or bytes(data[:8]) != SIGNATURE:
             raise damaged("not a compound file (signature mismatch)")
         (
@@ -328,9 +337,37 @@ class CompoundFile:
             raise damaged(f"the compound file has no {path!r} stream", stream=path)
         if entry.size == 0:
             return b""
+        self._read_total = self._counted(self._read_sizes, self._read_total, path, entry.size, MAX_TOTAL_STREAM_BYTES)
         if entry.size < self.mini_cutoff:
             return self._read_mini(entry.start, entry.size, path)
         return self._read_chain(entry.start, entry.size, path)
+
+    @staticmethod
+    def _counted(sizes: dict[str, int], total: int, path: str, size: int, limit: int) -> int:
+        """*total* with *size* bytes counted for *path* once (a stream read again costs nothing more).
+        The stream that takes the document past *limit* is refused."""
+
+        grown = size - sizes.get(path, 0)
+        if grown <= 0:
+            return total
+        if total + grown > limit:
+            raise limit_exceeded(
+                "the streams of the file come to more than the total size limit", stream=path, total=total + grown
+            )
+        sizes[path] = size
+        return total + grown
+
+    def inflate_allowance(self, path: str) -> int:
+        """How many bytes *path* may inflate to within what is left of the document's total."""
+
+        return MAX_TOTAL_INFLATED_BYTES - self._inflated_total + self._inflated_sizes.get(path, 0)
+
+    def count_inflated(self, path: str, size: int) -> None:
+        """Count what *path* inflated to against the document's total."""
+
+        self._inflated_total = self._counted(
+            self._inflated_sizes, self._inflated_total, path, size, MAX_TOTAL_INFLATED_BYTES
+        )
 
     @property
     def root(self) -> DirectoryEntry:

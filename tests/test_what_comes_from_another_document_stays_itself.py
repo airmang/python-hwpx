@@ -236,3 +236,325 @@ def test_setting_the_angle_an_object_already_has_moves_nothing() -> None:
 def test_the_engine_contract_states_when_seeded_bytes_are_the_same() -> None:
     contract = (Path(__file__).parents[1] / "docs" / "stable-api.md").read_text(encoding="utf-8")
     assert "시간대(`TZ`)가 같을 때" in contract and "파일에 이미 있는 id 를 피해서" in contract
+
+
+# -- what the second look at these fixes found ---------------------------------------------------
+
+
+def test_an_author_who_would_take_a_number_the_receivers_changes_carry_is_not_carried_in() -> None:
+    """The one Hancom-saved file with tracked changes gives its only author id 0 and its changes
+    authorID 1. The next author is given 1 and, with it, those changes: rejecting the new author's
+    changes rejected the file's own. Carrying such an author in is refused, the receiver untouched."""
+
+    target = HwpxDocument.open(str(TRACKED))
+    before = target.to_bytes()
+    source = HwpxDocument.new()
+    source.tracking.insert(source.add_paragraph("draft"), "PENDING", author="Alice")
+    with pytest.raises(HwpxValueError) as refused:
+        append_document(target, source)
+    assert refused.value.code == "document-merge-unsupported-reference"
+    assert refused.value.context["attribute"] == "authorID"
+    assert target.to_bytes() == before
+
+    same = HwpxDocument.new()  # the same author joins nobody: carried in under the receiver's record
+    same.tracking.insert(same.add_paragraph("draft"), "PENDING", author="fff")
+    append_document(target, same)
+    assert sorted(change.author for change in target.tracking.changes) == ["fff", "fff", "fff"]
+
+
+def test_changes_carried_in_do_not_change_how_the_receiver_shows_changes() -> None:
+    def flags(document: HwpxDocument) -> str | None:
+        return next(document.oxml.headers[0].element.iter(f"{HH}trackchageConfig")).get("flags")
+
+    target = HwpxDocument.open(str(SAVED / "formfit_inline_objects.hwpx"))
+    before = flags(target)
+    append_document(target, HwpxDocument.open(str(TRACKED)))
+    assert flags(HwpxDocument.open(target.to_bytes())) == before
+
+
+def test_a_field_brought_in_two_pieces_keeps_its_end() -> None:
+    source = HwpxDocument.open(str(SAVED / "form_fields_spanning_before.hwpx"))
+    target = HwpxDocument.new()
+    target.add_paragraph("받는 문서")
+    section = target.sections[0]
+    section.insert_paragraphs(len(section.paragraphs), [paragraph.element for paragraph in source.paragraphs[2:5]])
+    section.insert_paragraphs(len(section.paragraphs), [paragraph.element for paragraph in source.paragraphs[5:7]])
+    reopened = HwpxDocument.open(target.to_bytes())
+    begins, ends = _field_marks(reopened)
+    assert begins.count(SPANNING) == ends.count(SPANNING) == 1
+    reopened.fields.fill("answer", field_id=SPANNING)
+
+
+def test_an_ole_item_carried_in_keeps_its_kind() -> None:
+    chart = SAVED / "pages_chart_case_narrower_than_its_default.hwpx"
+    target = HwpxDocument.open(str(chart))
+    append_document(target, HwpxDocument.open(str(chart)))
+    target = HwpxDocument.open(target.to_bytes())
+    listed = {item.get("id"): item for item in target.package._manifest_items()}
+    kinds = [
+        (listed[ole.get("binaryItemIDRef")].get("media-type"), listed[ole.get("binaryItemIDRef")].get("isEmbeded"))
+        for ole in target.sections[0].element.iter(f"{HP}ole")
+    ]
+    assert len(kinds) == 2 and len(set(kinds)) == 1 and kinds[0][0] == "application/ole"
+
+
+def test_a_seeded_reopen_does_not_repeat_a_notes_instance_id() -> None:
+    document = HwpxDocument.open(str(SAVED / "table_insert_row_base.hwpx"), seed=7)
+    document.paragraphs[0].add_footnote("a")
+    document = HwpxDocument.open(document.to_bytes(), seed=7)
+    document.paragraphs[0].add_footnote("b")
+    instances = [note.get("instId") for note in _section(document).iter(f"{HP}footNote")]
+    assert len(instances) == len(set(instances)) == 2
+
+
+def test_a_tracked_delete_whose_first_place_crosses_markup_is_refused_though_a_later_one_does_not() -> None:
+    document = HwpxDocument.open(str(TRACKED))
+    document.paragraphs[0].add_run("경 추")
+    before = document.to_bytes()
+    for call in (lambda: document.tracking.delete(0, match="경 추"), lambda: document.tracking.replace(0, "경 추", "x")):
+        with pytest.raises(HwpxValueError) as refused:
+            call()
+        assert refused.value.code == "track-match-crosses-markup"
+        assert document.to_bytes() == before
+
+
+def test_marks_that_name_no_change_are_refused_before_the_target_changes() -> None:
+    source = HwpxDocument.open(str(TRACKED))
+    for mark in source.sections[0].element.iter(f"{HP}insertBegin", f"{HP}insertEnd", f"{HP}deleteBegin", f"{HP}deleteEnd"):
+        mark.attrib.pop("TcId", None)
+    target = HwpxDocument.new()
+    before = target.to_bytes()
+    with pytest.raises(HwpxValueError) as refused:
+        append_document(target, source)
+    assert refused.value.code == "document-merge-unsupported-reference"
+    assert target.to_bytes() == before
+
+
+def test_a_missing_picture_in_a_memo_body_is_refused_before_the_target_changes() -> None:
+    import copy
+
+    source = HwpxDocument.new(empty_first_line=True)
+    paragraph = source.add_paragraph("annotated text")
+    source.notes.add_memo("old text", paragraph=paragraph)
+    field = next(source.sections[0].element.iter(f"{HP}fieldBegin"))
+    memo_id = next(param.text for param in field.iter(f"{HP}stringParam") if param.get("name") == "ID")
+    group = source.sections[0].element.makeelement(f"{HP}memogroup", {})
+    entry = group.makeelement(f"{HP}memo", {"id": memo_id})
+    body = entry.makeelement(f"{HP}paraList", {})
+    body.append(copy.deepcopy(field.find(f"{HP}subList").find(f"{HP}p")))
+    picture = body.find(f".//{HP}run").makeelement(f"{HC}img", {"binaryItemIDRef": "nothing-of-this-name"})
+    body.find(f".//{HP}run").append(picture)
+    entry.append(body)
+    group.append(entry)
+    source.sections[0].element.append(group)
+    source.sections[0].mark_dirty()
+
+    target = HwpxDocument.new(empty_first_line=True, seed=1)
+    before = target.to_bytes()
+    with pytest.raises(HwpxValueError) as refused:
+        append_document(target, source)
+    assert refused.value.code == "document-merge-unsupported-reference"
+    assert target.to_bytes() == before
+    # ... and hands out the ids it would have: the refusal drew none of them
+    untouched = HwpxDocument.new(empty_first_line=True, seed=1)
+    assert target.add_paragraph("다음").element.get("id") == untouched.add_paragraph("다음").element.get("id")
+
+
+# -- what the third look found: the author rule, a stored name, a split match --------------------
+
+
+def _with_part(data: bytes, part: str, change, rename: dict[str, str] | None = None) -> bytes:
+    source = zipfile.ZipFile(io.BytesIO(data))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == part:
+                payload = change(payload)
+            name = (rename or {}).get(info.filename, info.filename)
+            target.writestr(name, payload, zipfile.ZIP_STORED if name == "mimetype" else zipfile.ZIP_DEFLATED)
+    return out.getvalue()
+
+
+def test_a_change_whose_author_is_gone_is_nobodys_not_the_next_authors() -> None:
+    import re
+
+    document = HwpxDocument.new()
+    for name in "ABC":
+        document.tracking.insert(document.add_paragraph("p" + name), "ins" + name, author=name)
+
+    def renumber(header: bytes) -> bytes:
+        wanted = {b"A": b"10", b"B": b"2", b"C": b"30"}
+        authors = re.findall(rb"<hh:trackChangeAuthor[^>]*/>", header)
+        was = {re.search(rb'name="(\w)"', a).group(1): re.search(rb' id="(\d+)"', a).group(1) for a in authors}
+        for author in authors:
+            name = re.search(rb'name="(\w)"', author).group(1)
+            header = header.replace(
+                author, b"" if name == b"B" else author.replace(b' id="' + was[name] + b'"', b' id="' + wanted[name] + b'"')
+            )
+        for name, number in was.items():
+            header = header.replace(b'authorID="' + number + b'"', b'authorID="@' + name + b'"')
+        for name in was:
+            header = header.replace(b'authorID="@' + name + b'"', b'authorID="' + wanted[name] + b'"')
+        return header
+
+    reopened = HwpxDocument.open(_with_part(document.to_bytes(), "Contents/header.xml", renumber))
+    assert [change.author for change in reopened.tracking.changes] == ["A", "", "C"]
+    assert [change.author for change in reopened.tracking.reject(author="C")] == ["C"]
+    assert "insB" in reopened.text.plain()
+
+
+def test_a_new_author_does_not_become_the_author_of_changes_numbered_past_the_only_author() -> None:
+    data = _with_part(TRACKED.read_bytes(), "Contents/header.xml", lambda header: header.replace(b'authorID="1"', b'authorID="2"'))
+    document = HwpxDocument.open(data)
+    assert {change.author for change in document.tracking.changes} == {"fff"}
+    added = document.tracking.insert(0, "X", author="Alice")
+    assert [change.change_id for change in document.tracking.reject(author="Alice")] == [added.change_id]
+
+
+@pytest.mark.parametrize("carried", [b"65535", b"65536"])
+def test_a_new_authors_id_is_the_next_free_one_not_one_past_the_largest_number_carried(carried: bytes) -> None:
+    import re
+
+    document = HwpxDocument.new()
+    document.tracking.insert(document.add_paragraph("pa"), "insA", author="A")
+    data = _with_part(
+        document.to_bytes(), "Contents/header.xml", lambda header: re.sub(rb'authorID="\d+"', b'authorID="' + carried + b'"', header)
+    )
+    reopened = HwpxDocument.open(data)
+    reopened.tracking.insert(0, "insB", author="B")
+    ids = sorted(int(author.get("id")) for author in reopened.oxml.headers[0].element.iter(f"{HH}trackChangeAuthor"))
+    assert ids[-1] < 100  # before: 65537, which an .hwp file cannot hold
+    back = HwpxDocument.open(reopened.to_bytes(format="hwp"))
+    assert "B" in [change.author for change in back.tracking.changes]
+
+
+def test_an_item_carried_in_is_not_stored_over_a_part_the_receiver_has() -> None:
+    wide = SAVED / "pages_chart_case_wider_than_its_default.hwpx"
+    narrow = SAVED / "pages_chart_case_narrower_than_its_default.hwpx"
+    data = _with_part(
+        wide.read_bytes(),
+        "Contents/content.hpf",
+        lambda manifest: manifest.replace(b"BinData/ole1.ole", b"BinData/BIN0001.ole"),
+        rename={"BinData/ole1.ole": "BinData/BIN0001.ole"},
+    )
+    target = HwpxDocument.open(data)
+    theirs = hashlib.sha256(target.package.read("BinData/BIN0001.ole")).hexdigest()
+    append_document(target, HwpxDocument.open(str(narrow)))
+    target = HwpxDocument.open(target.to_bytes())
+    assert hashlib.sha256(target.package.read("BinData/BIN0001.ole")).hexdigest() == theirs
+    stored = {item.get("id"): item.get("href") for item in target.package._manifest_items()}
+    places = [stored[ole.get("binaryItemIDRef")] for ole in target.sections[0].element.iter(f"{HP}ole")]
+    assert len(places) == len(set(places)) == 2
+
+
+def test_a_row_count_written_with_leading_zeros_is_that_number() -> None:
+    from hwpx.oxml.table_sizes import declared_count
+
+    assert declared_count("0000002") == 2 and declared_count("65535") == 65535
+    with pytest.raises(HwpxValueError):
+        declared_count("65536")
+    document = HwpxDocument.new()
+    document.add_table(2, 3)
+    data = _with_part(document.to_bytes(), "Contents/section0.xml", lambda xml: xml.replace(b'rowCnt="2"', b'rowCnt="0000002"'))
+    assert b'rowCnt="0000002"' in zipfile.ZipFile(io.BytesIO(data)).read("Contents/section0.xml")
+    table = HwpxDocument.open(data).tables[0]
+    assert table.row_count == 2 and [len(row) for row in table.cell_map] == [3, 3]
+
+
+def test_a_tracked_replacement_goes_on_to_the_place_that_holds_the_match_whole() -> None:
+    """Split over two text elements of the first run and whole in the second run: the replace writer
+    takes the second (as before), the delete writer stops at the first and is refused untouched."""
+
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("red ")
+    run = paragraph.runs[-1].element
+    second = run.makeelement(f"{HP}t", {})
+    second.text = "fox"
+    run.append(second)
+    paragraph.add_run(" red fox later")
+    before = document.to_bytes()
+    with pytest.raises(HwpxValueError) as refused:
+        document.tracking.delete(paragraph, match="red fox")
+    assert refused.value.code == "track-match-crosses-markup" and document.to_bytes() == before
+    document.tracking.replace(paragraph, "red fox", "X")
+    assert len(document.oxml.track_changes) == 2
+
+
+# -- authors across an .hwp save (the fourth look) -----------------------------------------------
+
+
+def _reviewed(accepted: str) -> HwpxDocument:
+    document = HwpxDocument.new()
+    for author in "ABC":
+        document.tracking.insert(document.add_paragraph("p" + author), "ins" + author, author=author)
+    for author in accepted:
+        document.tracking.accept(author=author)
+    return HwpxDocument.open(document.to_bytes(format="hwp"))
+
+
+def test_rejecting_one_reviewer_after_an_hwp_save_leaves_the_others_text() -> None:
+    """An .hwp save numbers the authors that are left from 1 while the changes keep the numbers they
+    carried. A reading that guessed the author of a number no author has took B's insertion for C's."""
+
+    document = _reviewed("A")
+    document.tracking.reject(author="C")
+    assert "insB" in document.text.plain()
+
+
+def test_a_new_reviewers_change_is_still_theirs_after_an_hwp_save() -> None:
+    document = _reviewed("AB")
+    document.tracking.insert(document.add_paragraph("pD"), "insD", author="D")
+    document = HwpxDocument.open(document.to_bytes(format="hwp"))
+    assert len(document.tracking.reject(author="D")) == 1
+    assert document.text.plain().splitlines()[-1] == "pD"
+
+
+@pytest.mark.parametrize("trips", [1, 2])
+@pytest.mark.parametrize("merged", [False, True])
+def test_a_reviewer_joining_after_an_hwp_save_does_not_cost_another_their_text(trips: int, merged: bool) -> None:
+    """After an .hwp save the only author left has number 1 and an earlier change of theirs carries 2.
+    A reviewer joining directly is numbered as before; one carried in by a merge would be given that
+    2, so the merge is refused."""
+
+    def through_hwp(document: HwpxDocument) -> HwpxDocument:
+        return HwpxDocument.open(document.to_bytes(format="hwp"))
+
+    def insert(document: HwpxDocument, name: str) -> None:
+        document.tracking.insert(document.add_paragraph("p" + name), "ins" + name, author=name)
+
+    document = HwpxDocument.new()
+    insert(document, "A")
+    insert(document, "B")
+    document.tracking.accept(author="A")
+    for _ in range(trips):
+        document = through_hwp(document)
+    insert(document, "B")
+    if merged:
+        source = HwpxDocument.new()
+        insert(source, "C")
+        before = document.to_bytes()
+        with pytest.raises(HwpxValueError) as refused:  # C would be given 2, which B's first change carries
+            append_document(document, source)
+        assert refused.value.code == "document-merge-unsupported-reference" and document.to_bytes() == before
+        return
+    insert(document, "C")
+    document = through_hwp(document)
+
+    document.tracking.reject(author="C")
+    assert document.text.plain().splitlines() == ["pAinsA", "pBinsB", "pBinsB", "pC"]
+
+
+def test_a_refused_change_does_not_renumber_the_author() -> None:
+    document = HwpxDocument.open(str(TRACKED))
+    before = document.to_bytes()
+    with pytest.raises(ValueError):
+        document.tracking.add_change("unknown", author="Alice")
+    assert document.to_bytes() == before
+
+
+def test_the_same_author_named_with_spaces_keeps_their_number() -> None:
+    document = HwpxDocument.open(str(TRACKED))
+    document.tracking.insert(0, "Y", author=" fff ")
+    authors = [(author.get("id"), author.get("name")) for author in document.oxml.headers[0].element.iter(f"{HH}trackChangeAuthor")]
+    assert authors == [("0", "fff")]

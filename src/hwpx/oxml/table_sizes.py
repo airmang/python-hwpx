@@ -52,6 +52,63 @@ NEW_TABLE_COLUMN_FLOOR = sum(
 ) + COLUMN_FLOOR_EXTRA
 
 
+#: The most rows or columns one cell may cover: HWP 5.0 keeps a table's row and column counts in 16 bits.
+MAX_CELL_SPAN = 65_535
+#: The most grid positions the cells of one table may cover together. The largest table among 12,369
+#: in 3,269 documents (the fixtures and the documents they were checked against) covers 812.
+MAX_TABLE_GRID_POSITIONS = 1_000_000
+
+
+class GridPositions:
+    """Counts the grid positions the cells of one table cover as they are laid out.
+
+    A file gives a cell's span and a table's row and column counts as numbers, and laying a table
+    out takes memory for every position those numbers cover: a few bytes of XML can name billions.
+    The cell that takes its table past :data:`MAX_TABLE_GRID_POSITIONS` is refused
+    (``table-grid-too-large``) before anything is allocated for it."""
+
+    __slots__ = ("left",)
+
+    def __init__(self) -> None:
+        self.left = MAX_TABLE_GRID_POSITIONS
+
+    def take(self, rows: int, columns: int) -> None:
+        if rows <= 0 or columns <= 0:
+            return  # covers nothing
+        if rows > MAX_CELL_SPAN or columns > MAX_CELL_SPAN or rows * columns > self.left:
+            raise _grid_too_large(rows, columns)
+        self.left -= rows * columns
+
+
+def _grid_too_large(rows: object, columns: object) -> Exception:
+    from ..errors import HwpxValueError
+
+    return HwpxValueError(
+        f"the table's cells cover more than {MAX_TABLE_GRID_POSITIONS:,} grid positions "
+        f"(a cell or the table is given as {rows} rows by {columns} columns)",
+        code="table-grid-too-large",
+        context={"rows": str(rows)[:40], "columns": str(columns)[:40], "limit": MAX_TABLE_GRID_POSITIONS},
+        suggestion="The table's rowSpan/colSpan or rowCnt/colCnt values do not describe a real table.",
+    )
+
+
+def declared_count(value: str) -> int:
+    """A table's ``rowCnt`` or ``colCnt`` as a number: at most :data:`MAX_CELL_SPAN`, so that nothing
+    sized by it (a list of column widths, a grid) is sized by whatever number the file gives."""
+
+    digits = value.lstrip("0") or "0"  # "0000002" is 2
+    if len(digits) > 5 or int(digits) > MAX_CELL_SPAN:
+        raise _grid_too_large(value[:40], value[:40])
+    return int(digits)
+
+
+def check_grid(rows: int, columns: int) -> None:
+    """Refuse a grid of *rows* by *columns* past :data:`MAX_TABLE_GRID_POSITIONS` before it is laid out."""
+
+    if rows * columns > MAX_TABLE_GRID_POSITIONS:
+        raise _grid_too_large(rows, columns)
+
+
 def validate_table_size(rows: object, cols: object) -> tuple[int, int]:
     """*rows* and *cols* of a new table, checked to be ints of at least 1 (``bool`` refused):
     ``table-size-invalid``, a ``TypeError`` for a wrong type and a ``ValueError`` for less than 1."""

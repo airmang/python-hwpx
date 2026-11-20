@@ -921,14 +921,14 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
     def row_count(self) -> int:
         value = self.element.get("rowCnt")
         if value is not None and value.isdigit():
-            return int(value)
+            return _table_sizes.declared_count(value)
         return len(self.element.findall(f"{_HP}tr"))
 
     @property
     def column_count(self) -> int:
         value = self.element.get("colCnt")
         if value is not None and value.isdigit():
-            return int(value)
+            return _table_sizes.declared_count(value)
         first_row = self.element.find(f"{_HP}tr")
         if first_row is None:
             return 0
@@ -959,6 +959,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
 
     def _build_cell_grid(self) -> dict[tuple[int, int], HwpxTableGridPosition]:
         mapping: dict[tuple[int, int], HwpxTableGridPosition] = {}
+        positions = _table_sizes.GridPositions()  # what the spans in the file may cover in all
 
         def _is_deactivated_cell(
             cell: HwpxOxmlTableCell, span: tuple[int, int]
@@ -979,6 +980,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
                 start_row, start_col = wrapper.address
                 span_row, span_col = wrapper.span
                 wrapper_span = (span_row, span_col)
+                positions.take(span_row, span_col)
                 wrapper_is_deactivated = _is_deactivated_cell(wrapper, wrapper_span)
                 for logical_row in range(start_row, start_row + span_row):
                     for logical_col in range(start_col, start_col + span_col):
@@ -1078,6 +1080,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
 
         row_count = self.row_count
         col_count = self.column_count
+        _table_sizes.check_grid(row_count, col_count)  # rowCnt/colCnt are what the file says
         grid: list[list[HwpxTableGridPosition | None]] = [
             [None for _ in range(col_count)] for _ in range(row_count)
         ]
