@@ -759,16 +759,9 @@ class HwpxOxmlDocument:
         )
         if normalized_strike_shape is not None:
             strike = True
-        if size is not None and (isinstance(size, bool) or not isinstance(size, (int, float))
-                                 or not 0 <= round(float(size) * 100) < 2**31):
-            from ..errors import HwpxValueError
+        from .header_fonts import check_run_size
 
-            raise HwpxValueError(  # it was written as 0 when negative
-                f"size must be a number of points from 0, below 21474836.48; got {size!r}",
-                code="style-run-size-value",
-                context={"requested": repr(size)},
-                suggestion="Pass the character size in points, e.g. 10.",
-            )
+        check_run_size(size)
         # Hancom keeps a width ratio in one byte: 256 and up come out as ratio - 256.
         if ratio is not None and not 10 <= int(ratio) <= 255:
             raise ValueError("ratio must be a percentage between 10 and 255")
@@ -1201,6 +1194,14 @@ class HwpxOxmlDocument:
                 raise ValueError("document does not contain any sections")
             return self._sections[-1]
         if isinstance(section, HwpxOxmlSection):
+            if not any(section is own for own in self._sections):
+                from ..errors import HwpxValueError
+
+                raise HwpxValueError(
+                    "해당 섹션이 이 문서에 속하지 않습니다.",
+                    code="section-not-found",
+                    suggestion="이 문서의 doc.sections[i] 나 정수 인덱스를 넘기세요.",
+                )
             return section
         return self._sections[section]
 
@@ -1467,6 +1468,12 @@ class HwpxOxmlDocument:
         self._remove_section_from_manifest(removed.part_name)
         _section_layout.number_section_ids(self)
         self._sync_header_section_count()
+        # The notes of the sections left count on without the ones that went (and without a restart
+        # that went with them): they kept the numbers they had, so the file said 3 for the second note.
+        from .note_authoring import renumber_note_kinds
+
+        # both kinds, whatever the section held: one without a note may have started the count again
+        renumber_note_kinds(self._sections[0], {"footNote", "endNote"})
 
     # ------------------------------------------------------------------
     # Manifest helpers (private)

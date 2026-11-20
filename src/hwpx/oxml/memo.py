@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    _require_text,
     SameElement,
     paragraph_attributes,
     _HP,
@@ -87,6 +88,8 @@ class HwpxOxmlMemoGroup:
         """Add a memo not anchored yet (``doc.notes.attach`` anchors it, moving it into its MEMO field).
         A memo's shape is its section's: ``section.properties.memo_shape_id_ref``."""
 
+        if text is not None:
+            _require_text(text)  # not text: refused before the memo is made (it stayed, unanchored)
         memo_attrs = dict(attributes or {})
         memo_attrs.setdefault("id", memo_id or _memo_id(self.section._ids))
         memo_element = _append_child(self.element, f"{_HP}memo", memo_attrs)
@@ -125,10 +128,20 @@ class HwpxOxmlMemo(SameElement):
         """Move this memo-group memo into the MEMO field anchoring it, if one does (see the class);
         True when it moved (this object is then a :class:`HwpxOxmlFieldMemo`)."""
 
-        return type(self) is HwpxOxmlMemo and fold_into_field(self)
+        return type(self) is HwpxOxmlMemo and (_follow_folded(self) or fold_into_field(self))
+
+    def _follow(self) -> bool:
+        """True when this object wrapped a memo-group entry that has since been folded into its MEMO
+        field -- by another object of the same memo (``doc.notes.attach``), or when its text moved to
+        another section -- and now is that field's memo (:func:`_follow_folded`). The readers and
+        ``remove`` ask first, so a second object of one memo reads and removes the memo that is saved."""
+
+        return type(self) is HwpxOxmlMemo and _follow_folded(self)
 
     @property
     def id(self) -> str | None:
+        if self._follow():
+            return self.id
         return self.element.get("id")
 
     @id.setter
@@ -157,6 +170,8 @@ class HwpxOxmlMemo(SameElement):
 
     @property
     def attributes(self) -> dict[str, str]:
+        if self._follow():
+            return self.attributes
         return dict(self.element.attrib)
 
     def set_attribute(self, name: str, value: str | int | None) -> None:
@@ -192,6 +207,8 @@ class HwpxOxmlMemo(SameElement):
         attaches it.
         """
 
+        if self._follow():
+            return self._anchor_field()
         memo_id = self.id
         if not memo_id:
             return None
@@ -225,6 +242,8 @@ class HwpxOxmlMemo(SameElement):
         the second element of the ``add_memo_with_anchor`` 3-tuple.
         """
 
+        if self._follow():
+            return self.paragraph
         field = self._anchor_field()
         if field is None:
             return None
@@ -236,6 +255,8 @@ class HwpxOxmlMemo(SameElement):
     @property
     def paragraphs(self) -> tuple["HwpxOxmlParagraph", ...]:
         """The memo's paragraphs (its text), in order."""
+        if self._follow():
+            return self.paragraphs
         return tuple(_wrap_paragraph(node, self.group.section) for node in self.element.findall(f".//{_HP}p"))
 
     @property
@@ -253,6 +274,8 @@ class HwpxOxmlMemo(SameElement):
         *,
         char_pr_id_ref: str | int | None = None,
     ) -> None:
+        if value is not None:
+            _require_text(value)  # not text: refused before anything is written
         if self._folded():
             self.set_text(value, char_pr_id_ref=char_pr_id_ref)
             return
@@ -279,6 +302,9 @@ class HwpxOxmlMemo(SameElement):
         """Remove the memo and the MEMO field anchoring it (the field's two controls; the text it spans
         stays). The field holds what Hancom shows of the memo, so a memo left anchored would stay."""
 
+        if self._follow():
+            self.remove()
+            return
         field = self._anchor_field()
         try:
             self.group.element.remove(self.element)
@@ -302,6 +328,7 @@ class HwpxOxmlMemo(SameElement):
         is). This wrapper then belongs to the new group.
         """
 
+        self._follow()
         target = _resolve_memo_section(self, section, caller="move_to")
         anchor = _anchor_section(self)
         if isinstance(self, HwpxOxmlFieldMemo) or (anchor is not None and anchor.element is not target.element):
@@ -331,6 +358,7 @@ class HwpxOxmlMemo(SameElement):
 
         from ._document_primitives import _refresh_copied_paragraph_subtree_ids
 
+        self._follow()  # folded into its field through another object: that memo is the one copied
         target = _resolve_memo_section(self, section, caller="copy_to")
         others = _group_memos(target)
         position = _memo_index(index, len(others), caller="copy_to")
@@ -344,6 +372,7 @@ class HwpxOxmlMemo(SameElement):
         else:
             clone = deepcopy(self.element)
             clone.tail = None
+            clone.attrib.pop(_FOLDED_INTO, None)
         clone.set("id", _memo_id(target._ids))
         _refresh_copied_paragraph_subtree_ids(clone, ids=target._ids)
         for node in clone.iter(f"{_HP}p"):
@@ -512,6 +541,40 @@ def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
             sub_list.append(copied)
 
 
+def _in_one_of(element: ET.Element, roots: "list[ET.Element]") -> bool:
+    """True while *element* hangs in one of *roots* (the document's sections as they are now)."""
+
+    if not hasattr(element, "getparent"):
+        return True  # a plain ElementTree element cannot say: it is kept
+    top: Any = element
+    while (parent := top.getparent()) is not None:
+        top = parent
+    return any(top is root for root in roots)
+
+
+def _note_folded(entry: ET.Element, field: ET.Element, section: "HwpxOxmlSection") -> None:
+    """Note, as the memo-group entry *entry* leaves its group, which field took it: an object still
+    wrapping the entry finds the memo again. The field is remembered itself (on the document, under a
+    token written on the entry), not by an id: a memo removed later and another one given its memo id or
+    its field id is another field, and the old object must not write into it. The entry is out of the
+    document from here on, so the token is never saved."""
+
+    from uuid import uuid4
+
+    owner = section.document if section.document is not None else section
+    taken = owner.__dict__.setdefault("_folded_memo_fields", {})
+    # A token no other document has: an entry folded into a field of another document (a memo of one
+    # document anchored through another) must not find, under the same small number, a field of its own
+    # document. Fields that have left the document are forgotten here, so the record does not grow with
+    # every memo that is added and removed.
+    live = [part.element for part in getattr(owner, "sections", [owner])]
+    for token in [token for token, kept in taken.items() if not _in_one_of(kept, live)]:
+        del taken[token]
+    token = uuid4().hex
+    taken[token] = field
+    entry.set(_FOLDED_INTO, token)
+
+
 def fold_into_field(
     memo: "HwpxOxmlMemo", field: ET.Element | None = None, section: "HwpxOxmlSection | None" = None
 ) -> bool:
@@ -520,6 +583,10 @@ def fold_into_field(
     *memo* becomes that field's :class:`HwpxOxmlFieldMemo`. False (nothing changes) when no field
     anchors it."""
 
+    if not any(child is memo.element for child in memo.group.element):
+        # Not an entry of its group any more (folded through another object, or removed): what it
+        # holds is not the memo's text now, and writing it into a field put an old text back.
+        return False
     if field is None:
         field = memo._anchor_field()
         section = memo.group.section
@@ -531,6 +598,7 @@ def fold_into_field(
         group.element.remove(memo.element)
     except ValueError:  # pragma: no cover - defensive branch
         return False
+    _note_folded(memo.element, field, section)
     group.section.mark_dirty()
     group._cleanup()
     memo.__class__ = HwpxOxmlFieldMemo
@@ -538,6 +606,35 @@ def fold_into_field(
     memo.group = _FieldMemoHost(section, field)  # type: ignore[assignment]
     section.mark_dirty()
     return True
+
+
+#: On a memo-group entry that was folded into a MEMO field: the token its field is remembered under
+#: (see :func:`_note_folded`). The entry is out of the document by then; the mark is never saved.
+_FOLDED_INTO = "hwpx-folded-into-field"
+
+
+def _follow_folded(memo: "HwpxOxmlMemo") -> bool:
+    """Make the memo-group memo *memo* the memo of the field its entry was folded into: through another
+    object of the same memo (``doc.notes.attach``), or when its text moved to another section and took
+    the memo along (:func:`carry_memos`). An object taken before still wrapped the entry, so reading
+    through it gave the old text and ``memo.text = ...`` changed nothing that is saved. False when the
+    entry was not folded (still in its group, or removed), or its field is gone."""
+
+    token = memo.element.get(_FOLDED_INTO)
+    if not token:
+        return False
+    own = memo.group.section
+    document = own.document
+    field = (document if document is not None else own).__dict__.get("_folded_memo_fields", {}).get(token)
+    if field is None:
+        return False
+    for section in (document.sections if document is not None else [own]):
+        if any(node is field for node in section.element.iter(field.tag)):  # still in the document
+            memo.__class__ = HwpxOxmlFieldMemo
+            memo.element = field
+            memo.group = _FieldMemoHost(section, field)  # type: ignore[assignment]
+            return True
+    return False
 
 
 def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "HwpxOxmlSection") -> int:
@@ -558,6 +655,7 @@ def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "Hw
         for memo in [memo for memo in group.findall(f"{_HP}memo") if memo.get("id") in fields]:
             _fill_field_from_entry(fields[str(memo.get("id"))], memo)
             group.remove(memo)
+            _note_folded(memo, fields[str(memo.get("id"))], target)
             moved += 1
             section.mark_dirty()
             target.mark_dirty()
@@ -586,6 +684,11 @@ def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", targ
         highest += 1
         _set_memo_param(field, "integerParam", "Number", str(highest))
         field.set("zorder", str(highest))
+        for param in field.iter(f"{_HP}stringParam"):  # "MEMO/<shape>/<number>/...": the number there too
+            parts = (param.text or "").split("/")
+            if param.get("name") == "Command" and len(parts) > 2 and parts[0] == "MEMO":
+                parts[2] = str(highest)
+                param.text = "/".join(parts)
         source = entries.get(memo_field_id(field) or "")
         if source is not None:
             _fill_field_from_entry(field, source)
@@ -596,10 +699,18 @@ def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", targ
 
 
 def _memo_order(field: ET.Element) -> int:
-    try:
-        return int(field.get("zorder", "0"))
-    except ValueError:
-        return 0
+    """The highest number the memo field carries: its ``zorder`` or its ``Number`` (a memo given a
+    number of its own may have a lower ``zorder``, and the next memo was given that number again)."""
+
+    values = [field.get("zorder", "0")]
+    values += [param.text or "0" for param in field.iter(f"{_HP}integerParam") if param.get("name") == "Number"]
+    highest = 0
+    for value in values:
+        try:
+            highest = max(highest, int(value))
+        except ValueError:
+            continue
+    return highest
 
 
 def _set_memo_param(field: ET.Element, kind: str, name: str, value: str) -> None:
@@ -765,14 +876,21 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
     def set_text(self, value: str, *, char_pr_id_ref: str | int | None = None) -> None:
         """Replace the memo's text: one paragraph shaped like the field's first one."""
 
+        if value is not None:
+            _require_text(value)  # not text: refused before anything is written
         sub_list = self._sub_list()
         if sub_list is None:
             sub_list = _append_child(self.element, f"{_HP}subList", _default_sublist_attributes())
         existing_char = char_pr_id_ref or self._infer_char_pr_id_ref()
         paragraphs = sub_list.findall(f"{_HP}p")
         attrs = dict(paragraphs[0].attrib) if paragraphs else None
+        from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+        owner = self.group.section
+        note_kinds = note_kinds_in_all(owner, paragraphs)  # notes in the text that goes: the rest count again
         for paragraph in paragraphs:
             sub_list.remove(paragraph)
+        renumber_note_kinds(owner, note_kinds)
         paragraph = _create_paragraph_element(
             value or "",
             ids=self.group.section._ids,
@@ -793,8 +911,13 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         """Remove the memo: its field's two controls and the memo text they hold. The text the
         field spans stays."""
 
-        _remove_field(self.group.section.element, self.element)
-        self.group.section.mark_dirty()
+        from .note_authoring import note_kinds_in_document, renumber_note_kinds
+
+        owner = self.group.section
+        note_kinds = note_kinds_in_document(owner, self.element)  # notes in the memo's text go with it
+        _remove_field(owner.element, self.element)
+        owner.mark_dirty()
+        renumber_note_kinds(owner, note_kinds)
 
 
 def _offset(self: Any) -> "int | None":
@@ -852,6 +975,7 @@ class HwpxOxmlNote(SameElement):
         ``<hp:autoNum>`` control real Hancom requires to render the note) is
         preserved: only text content is replaced.
         """
+        _require_text(value)  # not text: refused before anything is written
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
             attrs = _default_sublist_attributes()
@@ -869,8 +993,13 @@ class HwpxOxmlNote(SameElement):
         auto_num = (
             first_run.find(f"{_HP}ctrl") if first_run is not None else None
         )
+        from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+        holder = self.paragraph.section
+        inner_kinds = note_kinds_in_all(holder, paragraphs)  # notes in the text that goes: the rest count again
         for p in paragraphs:
             sublist.remove(p)
+        renumber_note_kinds(holder, inner_kinds)
         paragraph = _append_child(sublist, f"{_HP}p", p_attrs)
         run = _append_child(paragraph, f"{_HP}run", run_attrs)
         if auto_num is not None:
@@ -920,6 +1049,7 @@ class HwpxOxmlNote(SameElement):
         first paragraph.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         from .section import style_shape_refs
 
         style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
@@ -952,7 +1082,9 @@ class HwpxOxmlNote(SameElement):
         document: after the controls already there, before the character, as :meth:`add_footnote` puts one.
         The note takes no character, so *offset* counts the same before and after the move, also within its
         own paragraph -- as an object's ``move_to(offset=)``. Notes of its kind are numbered again. Refused into a note, a header, a footer or a memo
-        (``paragraph-move-place-unsupported``) or another document (``note-other-document-unsupported``)."""
+        (``paragraph-move-place-unsupported``), into its own text -- a cell or a text box inside the note
+        (``note-move-into-itself``; ``copy_to`` puts a copy there) -- or another document
+        (``note-other-document-unsupported``). Everything is checked before anything changes."""
 
         from .text_ranges import move_note
 
@@ -1010,6 +1142,7 @@ class HwpxOxmlNote(SameElement):
         attributes: dict[str, str] | None = None,
     ) -> "HwpxOxmlRun":
         """Append a run to the note body paragraph (delegates to body_paragraph.add_run)."""
+        _require_text(text)  # not text: refused before anything is written
         return self.body_paragraph.add_run(
             text,
             char_pr_id_ref=char_pr_id_ref,

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
+from ._resolve import home_paragraph, refused_leaves_no_paragraph
 
 from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_id, current_time
 from ..oxml.namespaces import HP
@@ -395,6 +396,7 @@ def _split_out(paragraph: Any, match: str, index: int = 0) -> Any:
     return middle
 
 
+@refused_leaves_no_paragraph
 def add_memo_with_anchor(
     doc: "HwpxDocument",
     text: str = "",
@@ -422,6 +424,12 @@ def add_memo_with_anchor(
     *paragraph_char_pr_id_ref* is the character shape of the MEMO field's runs.
     """
 
+    if paragraph_text is not None:
+        # not text: refused before the memo is made (it was made first, and stayed without its anchor:
+        # the document could not be saved)
+        from ..oxml._document_primitives import _require_text
+
+        _require_text(paragraph_text)
     index = _check_match_index(index)
     if match is None and index:
         raise HwpxValueError(
@@ -432,9 +440,28 @@ def add_memo_with_anchor(
         )
     if match is not None:
         probe = paragraph_text if paragraph_text is not None else (paragraph.text if paragraph is not None else "")
-        if match == "" or match not in probe:
+        # With paragraph_text the paragraph is written before the memo is anchored, so the place asked
+        # for (the index-th match) is counted in the new text first: a place that is not there was
+        # refused after the paragraph's text had been replaced.
+        # It is counted in the text as it will be written: characters XML cannot hold are dropped, and a
+        # tab or a line break (a carriage return too) ends a stretch of text (a match does not reach
+        # across one).
+        import re
+
+        from ..oxml._document_primitives import _ILLEGAL_XML_CHARS
+
+        if paragraph_text is not None and (not match or match not in _ILLEGAL_XML_CHARS.sub("", probe)):
+            missing = True  # nowhere in the text, whatever breaks it
+        elif paragraph_text is not None:
+            pieces = [_ILLEGAL_XML_CHARS.sub("", piece) for piece in re.split(r"\r\n|[\t\n\r]", probe)]
+            places = sum(piece.count(match) for piece in pieces)
+            missing = places <= index
+        else:
+            missing = match not in probe
+        if match == "" or index < 0 or missing:
             raise HwpxValueError(
-                "the text to put the memo on is not in the paragraph",
+                "the text to put the memo on is not in the paragraph"
+                + (f" {index + 1} times" if index else ""),
                 code="note-match-not-found",
                 context={"match": match, "paragraphText": probe},
                 suggestion="Pass text that appears in the paragraph within one run (paragraph.runs).",
@@ -465,8 +492,8 @@ def add_memo_with_anchor(
         )
         paragraph_value = "" if paragraph_text is None else paragraph_text
         anchor_char = paragraph_char_pr_id_ref or char_pr_id_ref
-        target_paragraph = doc.add_paragraph(
-            paragraph_value,
+        target_paragraph = home_paragraph(
+            doc, paragraph_value,
             section=memo_section,
             char_pr_id_ref=anchor_char,
         )

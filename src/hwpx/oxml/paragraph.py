@@ -12,6 +12,8 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from . import body
 from ._document_primitives import (
+    note_made_run,
+    refused_appends_nothing,
     SameElement,
     _HP,
     _HP_NS,
@@ -23,12 +25,10 @@ from ._document_primitives import (
     _clear_paragraph_layout_cache,
     _is_tab_control_element,
     _text_element_content,
-    _normalize_enum_attr,
     _object_id,
     _require_nonempty_str,
     _require_text,
     _sanitize_text,
-    NEW_NUM_KINDS,
 )
 from .namespaces import XML_NS, tag_local_name
 from .drop_cap import _paragraph_add_drop_cap
@@ -50,6 +50,7 @@ from .note_authoring import (
     renumber_notes_holding,
     _paragraph_add_endnote,
     _paragraph_add_footnote,
+    _paragraph_add_number_restart,
     _paragraph_endnotes,
     _paragraph_footnotes,
 )
@@ -85,13 +86,13 @@ from .objects import (
 )
 from .curves import _paragraph_add_connector, _paragraph_add_curve
 from .run import HwpxOxmlRun
-from .section_format import column_shares, validate_column_gap, validate_new_number
+from .section_format import column_shares, validate_column_gap
 from .shape_position import (
     equation_base_unit, stack_new_object, unique_object_ids, validate_box_size, validate_equation_font,
     validate_equation_script, validate_shape_size,
 )
 from .table import HwpxOxmlTable
-from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width, validate_table_size
+from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, check_new_table_height, new_table_width, validate_table_size
 from .table_sizes import checked_in_margins, with_in_margins
 
 if TYPE_CHECKING:
@@ -100,7 +101,7 @@ if TYPE_CHECKING:
     from ..objects.highlight import Highlight
     from typing import Iterable, Iterator
 
-    from ..objects.results import CellMargins, ClearBodyReport, NumberRestart, ObjectPlace, PageHiding, ParagraphPlace
+    from ..objects.results import CellMargins, ClearBodyReport, ObjectPlace, PageHiding, ParagraphPlace
     from .section import HwpxOxmlSection
 
 
@@ -618,6 +619,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                 attrs["charPrIDRef"] = str(default_char)
         run = self.element.makeelement(f"{_HP}run", attrs)
         self.element.append(run)
+        note_made_run(self, run)
         _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         return run
 
@@ -656,8 +658,10 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         whole number from 0 to 2**31-1, is refused (``paragraph-tab-widths``) before anything changes.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         widths = checked_tab_widths(text, tab_widths)
         run_attrs = dict(attributes or {})
+        self.element.makeelement(f"{_HP}run", run_attrs)  # attributes that cannot be written: refused before a shape is declared
 
         if "charPrIDRef" not in run_attrs:
             if char_pr_id_ref is not None:
@@ -830,6 +834,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         """
 
         validate_table_size(rows, cols)
+        height = check_new_table_height(height)
         margins = checked_in_margins(in_margins)
         if width is not None:
             width = new_table_width(width, cols)  # checked, and floored as Hancom draws it, before its run is added
@@ -855,6 +860,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         self.section.mark_dirty()
         return with_in_margins(HwpxOxmlTable(table_element, self), margins)
 
+    @refused_appends_nothing
     def add_shape(
         self,
         shape_type: str,
@@ -896,7 +902,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                 "containing it. Use add_line/add_rectangle/add_ellipse, or "
                 "append the missing OWPML children yourself.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=3,  # the caller's line, past the wrapper that undoes a refused call
             )
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)
@@ -984,14 +990,15 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     # (the shape-helpers' own overflow destination above) itself has no
     # headroom left either (1526/1600 measured before this module existed),
     # so this is a second overflow module, same reasoning.
-    add_composed_character = _paragraph_add_composed_character
-    add_dutmal = _paragraph_add_dutmal
+    add_composed_character = refused_appends_nothing(_paragraph_add_composed_character)
+    add_dutmal = refused_appends_nothing(_paragraph_add_dutmal)
     rubies = property(paragraph_rubies, doc="The 덧말 of this paragraph's runs (hwpx.objects.Ruby), in order.")
     composed_characters = property(
         paragraph_composed_characters,
         doc="The 글자 겹치기 of this paragraph's runs (hwpx.objects.ComposedCharacter), in order.",
     )
 
+    @refused_appends_nothing
     def add_control(
         self,
         attributes: dict[str, str] | None = None,
@@ -1034,7 +1041,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                 "add_column_definition/add_bookmark/add_hyperlink, or append "
                 "the control element yourself.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=3,  # the caller's line, past the wrapper that undoes a refused call
             )
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)
@@ -1043,6 +1050,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
     # Column definition helpers
     # ------------------------------------------------------------------
 
+    @refused_appends_nothing
     def add_column_definition(
         self,
         col_count: int = 2,
@@ -1234,7 +1242,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         self.section.mark_dirty()
         return Hyperlink(begin, self)
 
-    add_date_field = _paragraph_add_date_field
+    add_date_field = refused_appends_nothing(_paragraph_add_date_field)
     add_proofreading_mark = _paragraph_add_proofreading_mark
     add_path_field = _paragraph_add_path_field
     add_mail_merge_field = _paragraph_add_mail_merge_field
@@ -1337,36 +1345,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(ctrl, self)
 
-    def add_number_restart(
-        self,
-        *,
-        number: int = 1,
-        kind: str = "PAGE",
-        run_attributes: dict[str, str] | None = None,
-        char_pr_id_ref: str | int | None = None,
-    ) -> "NumberRestart":
-        """Insert ``<hp:ctrl><hp:newNum num="..." numType="..."/></hp:ctrl>`` and return it as the
-        :class:`~hwpx.objects.NumberRestart` ``doc.page.number_restarts`` reads.
-
-        Restarts the running count *kind* (``PAGE`` by default) at *number*
-        from this paragraph onward — real corpus (hwpxlib_corpus, 7+ files)
-        always self-closes ``hp:newNum`` with only ``num``/``numType``, even
-        though the schema (``ParaList XML schema.xml:2741-2759``) declares a
-        required ``autoNumFormat`` child; matching real Hancom output takes
-        priority over the schema here.
-        """
-
-        from ..objects.results import NumberRestart
-
-        normalized_kind = _normalize_enum_attr(kind or "PAGE", NEW_NUM_KINDS, label="kind")
-        number = validate_new_number(number)  # before its run is added
-        run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
-        ctrl = _append_child(run, f"{_HP}ctrl", {})
-        _append_child(
-            ctrl, f"{_HP}newNum", {"num": str(number), "numType": normalized_kind},
-        )
-        self.section.mark_dirty()
-        return NumberRestart(kind=normalized_kind, number=number, paragraph=self)
+    add_number_restart = _paragraph_add_number_restart
 
     def add_page_hiding(
         self,
@@ -1652,6 +1631,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         Returns:
             The field (``field.element`` is the ``<hp:fieldBegin>``).
         """
+        _require_text(name)  # not text: refused before anything is written
+        _require_text(prompt)
+        _require_text(memo)
         from .field_marks import check_click_here_text, form_field_for
         from .text_ranges import check_field_range, wrap_in_field
 
@@ -1734,6 +1716,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         self.section.mark_dirty()
         return form_field_for(self, field_begin)
 
+    @refused_appends_nothing
     def add_check_box(
         self,
         caption: str,
@@ -1765,6 +1748,9 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             width: Box + caption width in HWPUNIT.
             height: Box height in HWPUNIT.
         """
+        _require_text(caption)  # not text: refused before anything is written
+        if name is not None:
+            _require_text(name)
         from ._paragraph_text_edit import require_in_document
 
         require_in_document(self, caller="add_check_box")

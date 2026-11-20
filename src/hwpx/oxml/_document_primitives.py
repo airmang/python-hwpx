@@ -7,7 +7,7 @@ import re as _re
 from copy import deepcopy
 from datetime import datetime, timezone
 from random import Random
-from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar
+from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar, cast
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -184,6 +184,59 @@ def _require_nonempty_str(argument: str, value: object, *, code: str, suggestion
     return value
 
 
+_M = TypeVar("_M", bound=Callable[..., Any])
+
+
+def refused_appends_nothing(method: _M) -> _M:
+    """For a paragraph method that makes a run for something new: when it raises, the run it made goes
+    again.
+
+    The run is put into the paragraph and then filled, so a value lxml cannot write (an ``int`` for a
+    name, bytes for a caption) raised with a half-made control already in the paragraph -- a ``hp:ctrl``
+    with no control in it keeps Hancom from opening the document. Only the runs the method noted as its
+    own (:func:`note_made_run`) are taken out: a run something else added while the call ran is not
+    this method's to undo. The line cache the method dropped for its run goes back when the paragraph
+    has the children and the attributes it had (what is inside an existing run is not compared: writing
+    the paragraph down on every call cost more than the call).
+    """
+
+    from functools import wraps
+
+    @wraps(method)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        before = list(self.element)
+        attributes = dict(self.element.attrib)
+        made: list[Any] = []
+        records = self.__dict__.setdefault("_made_run_records", [])
+        records.append(made)
+        try:
+            return method(self, *args, **kwargs)
+        except BaseException:
+            for run in made:
+                if any(child is run for child in self.element):
+                    self.element.remove(run)
+            now = list(self.element)
+            kept = [child for child in before if child.tag != f"{_HP}linesegarray"]
+            if (len(kept) != len(before) and len(now) == len(kept) and all(a is b for a, b in zip(now, kept))
+                    and dict(self.element.attrib) == attributes):
+                for child in now:
+                    self.element.remove(child)
+                self.element.extend(before)  # as it was, its line cache too
+            raise
+        finally:
+            records.pop()
+
+    return cast(_M, wrapper)
+
+
+def note_made_run(paragraph: Any, run: Any) -> None:
+    """Note *run* as made by the paragraph method that is running (see :func:`refused_appends_nothing`)."""
+
+    records = paragraph.__dict__.get("_made_run_records")
+    if records:
+        records[-1].append(run)
+
+
 def _require_text(value: object) -> None:
     """Refuse text that is not a ``str`` before it is written into ``hp:t``: the typed
     ``paragraph-text-invalid-type`` error, not a bare ``TypeError`` from a regular expression."""
@@ -306,6 +359,19 @@ class IdSource:
             if value and value not in self._issued:
                 self._issued.add(value)
                 return str(value)
+
+
+def keep_ids_clear_of(ids: "IdSource | None", values: "Iterable[str | None]") -> None:
+    """*values* (ids the document took in with what was brought from elsewhere) are not handed out by
+    *ids* afterwards. Two documents made with the same seed hand out the same ids, so one that took in
+    the other's fields was later given the id of one of them for a copy of its own (a copied table row),
+    and neither field could be filled by id (``field-ambiguous``). A source without a seed draws at
+    random and needs no telling."""
+
+    if ids is None or ids._rng is None:
+        return
+    ids._issued.update(  # what the source can hand out: a decimal number below 2**31
+        int(value) for value in values if value and len(value) <= 10 and value.isascii() and value.isdigit())
 
 
 class PendingIds(IdSource):

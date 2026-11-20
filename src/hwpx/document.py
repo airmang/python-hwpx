@@ -741,6 +741,9 @@ class HwpxDocument(metaclass=_DocumentType):
         """
 
         target = _resolve.resolve_section(self, section, caller="add_heading")
+        # the level first: with a style given it was checked after the paragraph was added, and a level
+        # that is refused left that paragraph in the document
+        _headings._check_level(level)
         resolved = _headings.resolve_heading_style(self, level=level, style=style)
         # Hancom draws a paragraph by its own shapes, not its style's: start from the style's.
         paragraph = self._root.add_paragraph(
@@ -800,13 +803,11 @@ class HwpxDocument(metaclass=_DocumentType):
                 )
         section = _resolve.resolve_section(self, section, caller="add_table")
         new_table_width(width, cols)  # checked before a paragraph or a border fill is added
-        from .oxml.table_sizes import checked_in_margins
+        from .oxml.table_sizes import check_new_table_height, checked_in_margins
+
+        height = check_new_table_height(height)
 
         checked_in_margins(in_margins)
-        resolved_border_fill: str | int | None = border_fill_id_ref
-        if resolved_border_fill is None:
-            resolved_border_fill = self._root.ensure_basic_border_fill()
-
         paragraph = self.add_paragraph(
             "",
             section=section,
@@ -816,6 +817,12 @@ class HwpxDocument(metaclass=_DocumentType):
             include_run=False,
             inherit_style=inherit_style,
         )
+        # after the paragraph, which refuses a style that is not there: the border definition was made
+        # first and stayed in the header of a refused call
+        resolved_border_fill: str | int | None = border_fill_id_ref
+        if resolved_border_fill is None:
+            resolved_border_fill = self._root.ensure_basic_border_fill()
+
         table = paragraph.add_table(
             rows,
             cols,

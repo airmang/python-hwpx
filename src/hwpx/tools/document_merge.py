@@ -700,6 +700,25 @@ def _deep_copy_element(element: Any) -> Any:
 # ================================================================================
 
 
+
+def _pair_field_end(node: Any, begin_map: dict[str, tuple[str, str | None]],
+                    begin_fieldid_map: dict[str, str]) -> bool:
+    """Point the copied ``hp:fieldEnd`` *node* at the new id of the begin it names; False when no begin
+    of that id has been seen (its ``fieldid`` alone follows then, when one is known)."""
+
+    paired = begin_map.get(node.get("beginIDRef") or "")
+    old_end_fieldid = node.get("fieldid")
+    if paired is None:
+        if old_end_fieldid and old_end_fieldid in begin_fieldid_map:
+            node.set("fieldid", begin_fieldid_map[old_end_fieldid])
+        return False
+    new_id, new_fieldid = paired
+    node.set("beginIDRef", new_id)
+    if old_end_fieldid and new_fieldid is not None:
+        node.set("fieldid", new_fieldid)
+    return True
+
+
 def _refresh_field_and_bookmark_ids(
     paragraphs: list[Any], existing_bookmark_names: set[str], *, ids: "IdSource | None"
 ) -> None:
@@ -727,6 +746,7 @@ def _refresh_field_and_bookmark_ids(
     # fieldid would hand one field's value to another field's end.
     begin_map: dict[str, tuple[str, str | None]] = {}
     begin_fieldid_map: dict[str, str] = {}
+    early_ends: list[Any] = []
     for paragraph in paragraphs:
         # hp:fieldBegin/fieldEnd -- id/fieldid must both get fresh values,
         # and fieldEnd's beginIDRef/fieldid must follow its OWN fieldBegin's
@@ -760,18 +780,14 @@ def _refresh_field_and_bookmark_ids(
                     node.set("fieldid", new_fieldid)
                 if old_id:
                     begin_map[old_id] = (new_id, new_fieldid)
-    for paragraph in paragraphs:
-        for node in paragraph.iter():
-            if _local_name(node.tag) == "fieldEnd":
-                paired = begin_map.get(node.get("beginIDRef") or "")
-                old_end_fieldid = node.get("fieldid")
-                if paired is not None:
-                    new_id, new_fieldid = paired
-                    node.set("beginIDRef", new_id)
-                    if old_end_fieldid and new_fieldid is not None:
-                        node.set("fieldid", new_fieldid)
-                elif old_end_fieldid and old_end_fieldid in begin_fieldid_map:
-                    node.set("fieldid", begin_fieldid_map[old_end_fieldid])
+            elif _local_name(node.tag) == "fieldEnd":
+                # In document order, with the begins: an end follows the begin before it. A source that
+                # uses one id for two fields in a row (Hancom saves such files) had both ends pointed at
+                # the second begin, since the ends were mapped after every begin had been.
+                if not _pair_field_end(node, begin_map, begin_fieldid_map):
+                    early_ends.append(node)
+    for node in early_ends:  # an end in front of its begin: the begin is known now
+        _pair_field_end(node, begin_map, begin_fieldid_map)
 
     for paragraph in paragraphs:
         # hp:bookmark name -- not an id, a user-chosen string. Target
@@ -1698,9 +1714,8 @@ def insert_document(
         opened_here = True
         source_doc = HwpxDocument.open(source)
     try:
-        copies, memo_clones, report = _merge_paragraphs(
-            target, source_doc, source_section_index=source_section_index,
-        )
+        # Where it goes, first: a place that is not there was refused after the source's styles and
+        # images had been merged into the target, which then saved another document's image.
         target_section = target.sections[target_section_index]
         total = len(target_section.paragraphs)
         if not -1 <= after_paragraph_index < total:
@@ -1711,6 +1726,9 @@ def insert_document(
                 context={"afterParagraphIndex": after_paragraph_index, "paragraphCount": total},
                 suggestion="Use -1 to insert before the first paragraph, or 0..N-1.",
             )
+        copies, memo_clones, report = _merge_paragraphs(
+            target, source_doc, source_section_index=source_section_index,
+        )
         moved_by_insert = False
         if copies:
             had_settings = after_paragraph_index == -1 and (

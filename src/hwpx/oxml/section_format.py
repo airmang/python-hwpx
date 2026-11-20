@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    _require_text,
     paragraph_attributes,
     _HP,
     _append_child,
@@ -838,17 +839,27 @@ class HwpxOxmlSectionProperties:
         이미 바탕쪽을 두고 있으면 ``HwpxValueError``
         (``master-page-pages-taken``)를 낸다.
         """
+        id_ref = self._check_master_page_reference(master_page_id)
+        if id_ref is None:
+            return
+        _append_child(self.element, f"{_HP}masterPage", {"idRef": id_ref})
+        self.element.set("masterPageCnt", str(len(self.master_page_refs)))
+        self.section.mark_dirty()
+
+    def _check_master_page_reference(self, master_page_id: "str | HwpxOxmlMasterPage") -> str | None:
+        """What :meth:`add_master_page_reference` refuses, without writing: the id to add, or ``None``
+        when this section uses the master page already. ``doc.page.set_master_page(section="all")``
+        asks every section first, so a section that refuses does not leave the ones before it changed."""
+
         id_ref = _master_page_id(master_page_id)
         if id_ref in self.master_page_refs:
-            return
+            return None
         document = self.section.document
         if document is not None:
             from .master_page_authoring import refuse_pages_taken
 
             refuse_pages_taken(document, self.master_page_refs, id_ref)
-        _append_child(self.element, f"{_HP}masterPage", {"idRef": id_ref})
-        self.element.set("masterPageCnt", str(len(self.master_page_refs)))
-        self.section.mark_dirty()
+        return id_ref
 
     def remove_master_page_reference(self, master_page_id: "str | HwpxOxmlMasterPage") -> bool:
         """이 절이 바탕쪽 *master_page_id* (id 나 ``MasterPage``)를 쓰는 연결(``hp:masterPage/@idRef``)을
@@ -1311,6 +1322,10 @@ class HwpxOxmlSectionProperties:
                 changed = True
         if changed:
             self.section.mark_dirty()
+            # the notes of the kind are written with the numbers they have now (they kept the old ones)
+            from .note_authoring import renumber_notes
+
+            renumber_notes(self.section, tag[: -len("Pr")] if tag.endswith("Pr") else tag)
 
     def _set_note_placement(
         self,
@@ -1479,17 +1494,23 @@ class HwpxOxmlSectionProperties:
         draws the last applicable control on a page, so ``BOTH`` after ``ODD`` would hide it.
         """
 
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
         changed = False
+        gone: list[ET.Element] = []  # what is tidied away: the notes in it go, and the rest count again
         legacy = self._find_header_footer(tag, page_type)
         if legacy is not None:
             self._remove_header_footer_apply(tag, page_type, legacy)
             self.element.remove(legacy)
+            gone.append(legacy)
             changed = True
         stories = self._first_paragraph_stories(tag, page_type)
         for run, ctrl, _story in stories[1:]:
             if len(ctrl) == 1:
                 run.remove(ctrl)
+                gone.append(ctrl)
                 changed = True
+        renumber_note_kinds(self.section, note_kinds_in(gone))
         created: tuple[ET.Element, ET.Element] | None = None
         if stories:
             story = stories[0][2]
@@ -1605,10 +1626,15 @@ class HwpxOxmlSectionProperties:
     # The header and footer setters write the one ``hp:ctrl`` story Hancom reads and saves
     # (see :meth:`_story_to_write`); up to 6.x python-hwpx wrote a second copy under ``hp:secPr``.
 
+    # What is to be written is checked before the story is looked for: finding it also tidies the
+    # section (a second header for the same pages goes), and a refused text or content used to leave
+    # the section tidied -- a header gone -- with nothing written.
     def set_header_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
+        _require_text(text)
         return self._write_story("header", page_type, lambda story: setattr(story, "text", text))
 
     def set_footer_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
+        _require_text(text)
         return self._write_story("footer", page_type, lambda story: setattr(story, "text", text))
 
     def set_header_content(
@@ -1616,6 +1642,7 @@ class HwpxOxmlSectionProperties:
         content: Sequence[Mapping[str, Any]],
         page_type: str = "BOTH",
     ) -> HwpxOxmlSectionHeaderFooter:
+        HwpxOxmlSectionHeaderFooter._check_content(content)
         return self._write_story("header", page_type, lambda story: story.set_content(content))
 
     def set_footer_content(
@@ -1623,10 +1650,18 @@ class HwpxOxmlSectionProperties:
         content: Sequence[Mapping[str, Any]],
         page_type: str = "BOTH",
     ) -> HwpxOxmlSectionHeaderFooter:
+        HwpxOxmlSectionHeaderFooter._check_content(content)
         return self._write_story("footer", page_type, lambda story: story.set_content(content))
 
     def remove_header(self, page_type: str = "BOTH") -> None:
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
         element = self._find_header_footer("header", page_type)
+        # the notes in what goes leave the count: looked for before, counted again after
+        note_kinds = note_kinds_in([
+            story for story in self.section.element.iterfind(f".//{_HP}run/{_HP}ctrl/{_HP}header")
+            if page_type is None or story.get("applyPageType", "BOTH") == page_type
+        ] + ([element] if element is not None else []))
         removed = False
         if element is not None:
             self.element.remove(element)
@@ -1637,9 +1672,17 @@ class HwpxOxmlSectionProperties:
             removed = True
         if removed:
             self.section.mark_dirty()
+            renumber_note_kinds(self.section, note_kinds)
 
     def remove_footer(self, page_type: str = "BOTH") -> None:
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
         element = self._find_header_footer("footer", page_type)
+        # the notes in what goes leave the count: looked for before, counted again after
+        note_kinds = note_kinds_in([
+            story for story in self.section.element.iterfind(f".//{_HP}run/{_HP}ctrl/{_HP}footer")
+            if page_type is None or story.get("applyPageType", "BOTH") == page_type
+        ] + ([element] if element is not None else []))
         removed = False
         if element is not None:
             self.element.remove(element)
@@ -1650,3 +1693,4 @@ class HwpxOxmlSectionProperties:
             removed = True
         if removed:
             self.section.mark_dirty()
+            renumber_note_kinds(self.section, note_kinds)
