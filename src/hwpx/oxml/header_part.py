@@ -956,6 +956,7 @@ class HwpxOxmlHeader:
         minimum_id: int = 0,
         show: bool = True,
     ) -> int:
+        self._settle_the_only_track_change_author(author_name)
         model = self.to_model()
         change_id = model.add_track_change(
             change_type,
@@ -1014,6 +1015,33 @@ class HwpxOxmlHeader:
                 config_element.set("flags", str(_TRACK_FLAGS_SHOWING_MARKS | (flags & ~_TRACK_VIEW_BITS)))
         self.mark_dirty()
         return change_id
+
+    def _settle_the_only_track_change_author(self, joining: str) -> None:
+        """Before a second author joins: give the only author the number its changes carry.
+
+        The one Hancom-saved file with tracked changes numbers its only author 0 and writes
+        ``authorID="1"`` on that author's changes. With one author that reads as that author; a
+        second author would be given id 1 and, with it, those changes. So when the only author's id
+        is *n* and every change that does not carry *n* carries *n* + 1, the author becomes *n* + 1:
+        the changes then name their author outright and the next author takes the number after.
+        Any other numbering is left as it is."""
+
+        authors = self._track_change_authors_element()
+        changes = self._track_changes_element()
+        if authors is None or changes is None:
+            return
+        records = authors.findall(f"{_HH}trackChangeAuthor")
+        if len(records) != 1 or records[0].get("name") == joining or not (records[0].get("id") or "").isdigit():
+            return
+        own = int(records[0].get("id") or 0)
+        listed = changes.findall(f"{_HH}trackChange")
+        carried = {change.get("authorID") for change in listed} - {str(own), None}
+        if carried == {str(own + 1)}:
+            records[0].set("id", str(own + 1))
+            for change in listed:  # the ones that named the author by its old id follow it
+                if change.get("authorID") == str(own):
+                    change.set("authorID", str(own + 1))
+            self.mark_dirty()
 
     def find_basic_border_fill_id(self) -> str | None:
         element = self._border_fills_element()

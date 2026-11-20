@@ -471,11 +471,6 @@ def _resolved_author_name(doc: "HwpxDocument", author_id: Any) -> str:
     if author is None and len(authors) == 1:
         # Hancom may number the author differently from the change's authorID; one author is that one.
         author = next(iter(authors.values()))
-    elif author is None and str(author_id).isdigit():
-        # ... and stays that one when another author is added after it: an authorID that is no author's
-        # id is read as one more than the id (id 0, authorID 1, as that file has it). An author added
-        # here is never given the id that would make it the answer (see TrackChanges.add_track_change).
-        author = doc.oxml.track_change_author(int(author_id) - 1)
     return (getattr(author, "name", None) or "") if author is not None else ""
 
 

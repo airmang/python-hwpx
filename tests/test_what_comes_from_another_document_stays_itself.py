@@ -484,3 +484,46 @@ def test_a_tracked_replacement_goes_on_to_the_place_that_holds_the_match_whole()
     assert refused.value.code == "track-match-crosses-markup" and document.to_bytes() == before
     document.tracking.replace(paragraph, "red fox", "X")
     assert len(document.oxml.track_changes) == 2
+
+
+# -- authors across an .hwp save (the fourth look) -----------------------------------------------
+
+
+def _reviewed(accepted: str) -> HwpxDocument:
+    document = HwpxDocument.new()
+    for author in "ABC":
+        document.tracking.insert(document.add_paragraph("p" + author), "ins" + author, author=author)
+    for author in accepted:
+        document.tracking.accept(author=author)
+    return HwpxDocument.open(document.to_bytes(format="hwp"))
+
+
+def test_rejecting_one_reviewer_after_an_hwp_save_leaves_the_others_text() -> None:
+    """An .hwp save numbers the authors that are left from 1 while the changes keep the numbers they
+    carried. A reading that guessed the author of a number no author has took B's insertion for C's."""
+
+    document = _reviewed("A")
+    document.tracking.reject(author="C")
+    assert "insB" in document.text.plain()
+
+
+def test_a_new_reviewers_change_is_still_theirs_after_an_hwp_save() -> None:
+    document = _reviewed("AB")
+    document.tracking.insert(document.add_paragraph("pD"), "insD", author="D")
+    document = HwpxDocument.open(document.to_bytes(format="hwp"))
+    assert len(document.tracking.reject(author="D")) == 1
+    assert document.text.plain().splitlines()[-1] == "pD"
+
+
+def test_the_only_author_takes_the_number_its_changes_carry_when_a_second_author_joins() -> None:
+    document = HwpxDocument.open(str(TRACKED))  # author id 0, changes authorID 1
+    document.tracking.insert(0, "Y", author="fff")  # the same author: nothing is renumbered
+    assert [author.get("id") for author in document.oxml.headers[0].element.iter(f"{HH}trackChangeAuthor")] == ["0"]
+    document.tracking.insert(0, "X", author="Alice")
+    header = etree.fromstring(_archive(document).read("Contents/header.xml"))
+    authors = {author.get("name"): author.get("id") for author in header.iter(f"{HH}trackChangeAuthor")}
+    assert authors["Alice"] not in (None, authors["fff"])
+    by_author = sorted(change.author for change in HwpxDocument.open(document.to_bytes()).tracking.changes)
+    assert by_author == ["Alice", "fff", "fff", "fff"]
+    again = sorted(change.author for change in HwpxDocument.open(document.to_bytes(format="hwp")).tracking.changes)
+    assert again == by_author
