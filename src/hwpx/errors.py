@@ -453,6 +453,7 @@ ERROR_CODES: dict[str, str] = {
     "table-rows-other-document": "다른 문서의 표에서 행을 복사하려 했다(표를 먼저 문서로 복사한다).",
     "table-not-found": "표 인덱스가 범위를 벗어났다(doc.tables[i]).",
     "table-cell-not-found": "칸 좌표가 표 밖이거나 병합에 덮여 가리킬 칸이 없다.",
+    "table-grid-too-large": "파일이 적은 칸 병합(rowSpan·colSpan)이나 표의 행·열 수가 한 칸에 65,535, 표 하나에 격자 100만 자리를 넘는다(실제 표가 아니다).",
     "table-merge-range-invalid": "병합 범위가 표 밖이거나 사각형이 아니거나 'A1:B2' 꼴이 아니다.",
     "table-size-invalid": "새 표의 행·열 수가 1 이상의 int 가 아니다(bool 도 거부).",
     "table-cell-remove-unsupported": "표 칸 하나만 지우면 격자에 구멍이 나서 거부했다(행·열 삭제나 병합을 쓴다).",

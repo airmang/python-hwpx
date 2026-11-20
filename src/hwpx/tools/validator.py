@@ -15,6 +15,7 @@ from lxml import etree
 from ..document import HwpxDocument
 from ..opc.package import HwpxPackage
 from ..opc.relationships import is_linked_file, parse_manifest_relationships
+from ..opc.security import guard_xml_bytes
 from ..oxml import load_schema, parse_header_xml, parse_section_xml
 
 _DEFAULT_SCHEMA_DIR = Path(__file__).resolve().parent / "_schemas"
@@ -284,8 +285,9 @@ def _owpml_violations(payload: bytes, kind: str) -> list[tuple[str, int | None]]
     for old, new in _OWPML_NAMESPACES:
         payload = payload.replace(old, new)
     try:
-        root = etree.fromstring(payload, etree.XMLParser(huge_tree=True))
-    except etree.XMLSyntaxError:
+        guard_xml_bytes(payload)  # a part with a DTD is not read here either
+        root = etree.fromstring(payload, etree.XMLParser(huge_tree=True, resolve_entities=False, no_network=True))
+    except (etree.XMLSyntaxError, ValueError):
         return []  # the part cannot be read at all -- reported by the parse check
     for sec_pr in root.iter(f"{_OWPML_PARAGRAPH}secPr"):
         # elements only: a comment or processing instruction has no name to order by

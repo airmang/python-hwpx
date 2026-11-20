@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 372 | 11 |
+| 개수 | 373 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -530,6 +530,7 @@ except HwpxError as exc:
 | `table-cell-zone-not-found` | 그 번호의 칸 영역이 표에 없다(table.cell_zones 로 본다). |
 | `table-column-width-value` | 열 폭이 양의 int(HWPUNIT)가 아니거나 한/글이 그리는 최소 폭(칸 좌우 여백+283)보다 좁다. |
 | `table-columns-differ` | 행을 복사해 올 표와 받는 표의 열(열 수, 칸의 colAddr·colSpan)이 다르다. |
+| `table-grid-too-large` | 파일이 적은 칸 병합(rowSpan·colSpan)이나 표의 행·열 수가 한 칸에 65,535, 표 하나에 격자 100만 자리를 넘는다(실제 표가 아니다). |
 | `table-header-rows-value` | 제목 행 수가 0..행 수 밖이거나, 병합 칸이 제목 행 경계를 가로지르거나, 참/거짓 값이 bool 이 아니다. |
 | `table-height-value` | 새 표의 높이(height)가 int 가 아니거나 0..2**31 밖이다. |
 | `table-margin-value` | 표 바깥·안 여백 값이 0 이상 2**31 미만의 int(HWPUNIT)가 아니다(bool 도 거부). |

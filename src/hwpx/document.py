@@ -300,7 +300,7 @@ class HwpxDocument(metaclass=_DocumentType):
                     node.get(name)
                     for part in (*self._root.sections, *self._root.master_pages, *self._root.headers)
                     for node in part.element.iter()
-                    for name in ("id", "instid", "fieldid")
+                    for name in ("id", "instid", "instId", "fieldid")
                 ),
             )
 

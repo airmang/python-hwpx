@@ -35,7 +35,7 @@ from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
 from ..oxml.section import _remove_short_paragraph_layout_cache
 from ..oxml.header_part import HwpxOxmlHeader
-from ..oxml.table_sizes import cell_margins_of, grid_widths_of
+from ..oxml.table_sizes import GridPositions, cell_margins_of, grid_widths_of
 
 #: Objects in a run, placed by their ``hp:pos``.
 _OBJECTS = frozenset({
@@ -906,7 +906,9 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     filled: dict[int, int] = {}
     widths = grid_widths_of(table)
     spacing = _cell_spacing(table)
+    positions = GridPositions()  # what the row spans in the file may cover in all
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
+        positions.take(_row_span(tc), 1)
         row, span = _cell_row(measure, table, tc, widths.get(tc)), _row_span(tc)
         if spacing:  # the cell spacing above it, kept with its lines when it goes on over a page end
             row = replace(row, height=row.height + spacing, margins=row.margins + spacing)

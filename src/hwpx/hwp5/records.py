@@ -12,9 +12,12 @@ from __future__ import annotations
 import struct
 import zlib
 from dataclasses import dataclass, field
-from typing import Iterable, Iterator
+from typing import TYPE_CHECKING, Iterable, Iterator
 
 from .errors import damaged, limit_exceeded, write_unsupported
+
+if TYPE_CHECKING:
+    from .cfb import CompoundFile
 
 BEGIN = 0x010
 
@@ -116,20 +119,31 @@ class RecordStream:
     level_jumps: int = 0
 
 
-def inflate(data: bytes, what: str) -> bytes:
-    """Decompress a raw-deflate stream, bounded by :data:`MAX_INFLATED_BYTES`."""
+def inflate(data: bytes, what: str, *, limit: int = MAX_INFLATED_BYTES) -> bytes:
+    """Decompress a raw-deflate stream, bounded by :data:`MAX_INFLATED_BYTES` and by *limit* when
+    the caller has less than that left (:func:`inflate_stream`)."""
 
+    limit = max(0, min(limit, MAX_INFLATED_BYTES))
     inflater = zlib.decompressobj(-15)
     try:
-        out = inflater.decompress(data, MAX_INFLATED_BYTES + 1)
+        out = inflater.decompress(data, limit + 1)
     except zlib.error as exc:
         raise damaged(f"{what} is not a valid compressed stream", stream=what) from exc
-    if len(out) > MAX_INFLATED_BYTES or inflater.unconsumed_tail:
+    if len(out) > limit or inflater.unconsumed_tail:
         raise limit_exceeded(f"{what} inflates beyond the size limit", stream=what)
     try:
         out += inflater.flush()
     except zlib.error as exc:
         raise damaged(f"{what} is not a valid compressed stream", stream=what) from exc
+    return out
+
+
+def inflate_stream(compound: "CompoundFile", path: str, data: bytes | None = None) -> bytes:
+    """The stream at *path* of *compound*, inflated, counted against what the document's streams may
+    inflate to in all. No more than what is left of that total is produced."""
+
+    out = inflate(compound.read(path) if data is None else data, path, limit=compound.inflate_allowance(path))
+    compound.count_inflated(path, len(out))
     return out
 
 

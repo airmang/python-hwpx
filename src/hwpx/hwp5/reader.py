@@ -57,10 +57,9 @@ class Hwp5File:
     def stream(self, path: str, *, compressed: bool | None = None) -> bytes:
         """The bytes of *path*, inflated when the document compresses that stream."""
 
-        data = self.compound.read(path)
         if compressed is None:
             compressed = self.header.compressed
-        return rec.inflate(data, path) if compressed else data
+        return rec.inflate_stream(self.compound, path) if compressed else self.compound.read(path)
 
 
 def refuse_protected(header: FileHeader) -> None:
@@ -109,7 +108,7 @@ def read_hwp5(data: bytes) -> Hwp5File:
         raise damaged("The HWP document has no DocInfo stream.")
     notes: dict[str, int] = {}
     docinfo = rec.parse_records(
-        rec.inflate(compound.read("DocInfo"), "DocInfo") if header.compressed else compound.read("DocInfo"),
+        rec.inflate_stream(compound, "DocInfo") if header.compressed else compound.read("DocInfo"),
         "DocInfo",
     )
     if docinfo.level_jumps:
@@ -140,8 +139,7 @@ def read_hwp5(data: bytes) -> Hwp5File:
             notes["view_text"] = 1
     sections: list[rec.RecordStream] = []
     for _, path in present:
-        raw = compound.read(path)
-        payload = rec.inflate(raw, path) if header.compressed else raw
+        payload = rec.inflate_stream(compound, path) if header.compressed else compound.read(path)
         stream = rec.parse_records(payload, path)
         if stream.level_jumps:
             notes["section_level_jumps"] = notes.get("section_level_jumps", 0) + stream.level_jumps
