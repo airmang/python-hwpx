@@ -218,7 +218,7 @@ def _looks_like_text(head: bytes) -> bool:
         try:
             # final=False: the head may end in the middle of a character.
             text = codecs.getincrementaldecoder(encoding)().decode(head, final=False)
-        except UnicodeDecodeError:
+        except UnicodeError:  # not UnicodeDecodeError alone: UTF-16 without a byte order mark raises the base class
             continue
         controls = sum(1 for char in text if ord(char) < 32 and char not in "\t\r\n\f")
         return controls <= len(text) // 50
@@ -1040,7 +1040,14 @@ class HwpxPackage:
                 "open-not-hwpx",
                 "This ZIP is not an HWPX document; save the document from Hancom Office as .hwpx.",
             )
-        mimetype = files[cls.MIMETYPE_PATH].decode("utf-8")
+        try:
+            mimetype = files[cls.MIMETYPE_PATH].decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise _with_reason(
+                HwpxStructureError("HWPX package's 'mimetype' file is not text."),
+                "open-not-hwpx",
+                "This ZIP is not an HWPX document; save the document from Hancom Office as .hwpx.",
+            ) from exc
         with structure_errors():
             rootfiles = cls._parse_container(files.get(cls.CONTAINER_PATH))
             version_info = cls._parse_version(files.get(cls.VERSION_PATH))

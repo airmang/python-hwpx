@@ -43,7 +43,7 @@ from hwpx.tools.package_validator import (
 )
 
 from .report import LayoutFinding, LayoutLintReport
-from ..opc.security import guard_zip_file, read_member
+from ..opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from ..oxml.header import parse_char_property, parse_paragraph_property
 from ..oxml.section_format import _drawn_page_size, _page_margin
 from ..oxml.table_sizes import cell_margins_of
@@ -192,8 +192,8 @@ def _section_roots(data: bytes) -> list[tuple[str, ET.Element]]:
                 if info.is_dir() or not is_section_part_name(info.filename):
                     continue
                 try:
-                    roots.append((info.filename, ET.fromstring(read_member(archive, info))))
-                except ET.ParseError:
+                    roots.append((info.filename, parse_xml_stdlib(read_member(archive, info), part_name=info.filename)))
+                except ValueError:  # malformed, or a DTD
                     # Malformed XML is the pipeline's well-formedness floor, not ours.
                     continue
     except (zipfile.BadZipFile, OSError):
@@ -211,8 +211,8 @@ def _header_root(data: bytes) -> ET.Element | None:
                 if info.is_dir() or not is_header_part_name(info.filename):
                     continue
                 try:
-                    return ET.fromstring(read_member(archive, info))
-                except ET.ParseError:
+                    return parse_xml_stdlib(read_member(archive, info), part_name=info.filename)
+                except ValueError:  # malformed, or a DTD
                     return None
     except (zipfile.BadZipFile, OSError):
         return None

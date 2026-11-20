@@ -125,9 +125,8 @@ def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, s
         path = f"BinData/{item.stream_name}"
         if not doc.compound.has_stream(path):
             continue
-        raw = doc.compound.read(path)
         compressed = doc.header.compressed if item.compression == 0 else item.compression == 1
-        payload = rec.inflate(raw, path) if compressed else raw
+        payload = rec.inflate_stream(doc.compound, path) if compressed else doc.compound.read(path)
         if item.kind == di.BIN_STORAGE:
             items.append((f"ole{place}", f"BinData/ole{place}.ole", payload, "application/ole", False))
         else:
@@ -228,7 +227,14 @@ def _scripts(doc: Hwp5File, report: ConversionReport) -> list[str] | None:
 
     if not doc.compound.has_stream("Scripts/DefaultJScript"):
         return None
-    scripts = read_scripts(doc.compound.read("Scripts/DefaultJScript"), is_compressed=doc.header.compressed)
+    raw, packed = doc.compound.read("Scripts/DefaultJScript"), doc.header.compressed
+    if packed:
+        try:  # counted against the document's total like every other stream
+            raw, packed = rec.inflate_stream(doc.compound, "Scripts/DefaultJScript", raw), False
+        except Hwp5Error as exc:
+            if exc.code == "hwp5-limit-exceeded":
+                raise
+    scripts = read_scripts(raw, is_compressed=packed)
     if scripts is None:
         report.drop("scripts")
         return None
@@ -278,7 +284,9 @@ def _memo_replies(doc: Hwp5File, report: ConversionReport) -> bytes | None:
         return None
     try:
         records = rec.parse_records(doc.stream("MemoExtended"), "MemoExtended").records
-    except Hwp5Error:  # a damaged optional stream drops only itself
+    except Hwp5Error as exc:  # a damaged optional stream drops only itself
+        if exc.code == "hwp5-limit-exceeded":
+            raise  # the document is past its total: that is not this stream's damage
         records = []
     payload = next((record.payload for record in records if record.tag == rec.MEMO_EXTENDED), b"")
     count = struct.unpack_from("<I", payload)[0] if len(payload) >= 4 else -1
@@ -300,7 +308,9 @@ def _bibliography(doc: Hwp5File, report: ConversionReport) -> bytes | None:
         return None
     try:
         data = doc.stream("Bibliography")
-    except Hwp5Error:
+    except Hwp5Error as exc:
+        if exc.code == "hwp5-limit-exceeded":
+            raise
         data = b""
     if len(data) < 4 or struct.unpack_from("<I", data)[0] != len(data) - 4:
         report.drop("bibliography")

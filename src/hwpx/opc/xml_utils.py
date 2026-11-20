@@ -30,7 +30,9 @@ _XML_MARKUP = re.compile(
     rb"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<[^!?](?:[^>\"']|\"[^\"]*\"|'[^']*')*>",
     re.S,
 )
-_XML_ATTRIBUTE = re.compile(rb"([\w:.-]+)(\s*=\s*)([\"'])(.*?)\3", re.S)
+# The name starts where a name can start (not in the middle of one): without the lookbehind a long run of
+# name characters with no "=" after it is tried again from each of its characters.
+_XML_ATTRIBUTE = re.compile(rb"(?<![\w:.-])([\w:.-]+)(\s*=\s*)([\"'])(.*?)\3", re.S)
 _HWPML_2016_MAPPING: dict[bytes, bytes] = dict(_HWPML_2016_TO_2011)
 # Every 2016 URI above contains this; a tag without it has nothing to rewrite.
 _HWPML_2016_MARKER = b"hwpml/2016/"
@@ -165,6 +167,63 @@ def _normalize_markup(match: re.Match[bytes]) -> bytes:
     return _XML_ATTRIBUTE.sub(_normalize_attribute, tag)
 
 
+_TAG_STOP = re.compile(rb"[>\"']")
+
+
+def _markup_end(data: bytes, start: int) -> int:
+    """Where the markup opening at ``data[start] == b"<"`` ends (the index after it), or ``-1`` when it
+    does not end. A comment, a CDATA section and a processing instruction end at their own closers; a
+    tag ends at the first ``>`` outside a quoted value. One forward pass: no position is read twice."""
+
+    if data.startswith(b"<!--", start):
+        close = data.find(b"-->", start + 4)
+        return -1 if close == -1 else close + 3
+    if data.startswith(b"<![CDATA[", start):
+        close = data.find(b"]]>", start + 9)
+        return -1 if close == -1 else close + 3
+    if data.startswith(b"<?", start):
+        close = data.find(b"?>", start + 2)
+        return -1 if close == -1 else close + 2
+    pos = start + 2  # a tag has a character after its "<"
+    if pos > len(data):
+        return -1
+    while True:
+        stop = _TAG_STOP.search(data, pos)
+        if stop is None:
+            return -1
+        if stop.group() == b">":
+            return stop.end()
+        close = data.find(stop.group(), stop.end())
+        if close == -1:
+            return -1
+        pos = close + 1
+
+
+def _normalize_every_markup(data: bytes) -> bytes:
+    """The rewrite for a part with ``<!`` in it, where a ``<`` may stand inside a comment or CDATA:
+    every piece of markup in order. Markup that does not end stops the rewrite there (the part is
+    not well-formed, and the parser says so); nothing after it is read again, so the time is linear
+    in the part's size whatever it holds."""
+
+    out: list[bytes] = []
+    pos = 0  # copied up to here
+    at = data.find(b"<")
+    while at != -1:
+        if data.startswith(b"<!", at) and not data.startswith((b"<!--", b"<![CDATA["), at):
+            at = data.find(b"<", at + 2)  # a DOCTYPE or a declaration inside one: not rewritten
+            continue
+        end = _markup_end(data, at)
+        if end == -1:
+            break
+        if not data.startswith((b"<!", b"<?"), at) and data.find(_HWPML_2016_MARKER, at, end) != -1:
+            out.append(data[pos:at])
+            out.append(_XML_ATTRIBUTE.sub(_normalize_attribute, data[at:end]))
+            pos = end
+        at = data.find(b"<", end)
+    out.append(data[pos:])
+    return b"".join(out)
+
+
 def normalize_hwpml_namespaces(data: bytes) -> bytes:
     """Normalize namespace declarations, preserving ordinary URI-valued data.
 
@@ -177,26 +236,39 @@ def normalize_hwpml_namespaces(data: bytes) -> bytes:
     directly from the URI occurrences instead of scanning every tag and
     attribute. When the part has comments, CDATA or a DOCTYPE (``<!``), where a
     ``<`` does not always open a tag, every piece of markup is scanned in order.
+
+    The time is linear in the size of the part for any bytes: a part is read from a
+    stranger's file before it is known to be XML at all.
     """
     if _HWPML_2016_MARKER not in data:
         return data
     if b"<!" in data:
-        return _XML_MARKUP.sub(_normalize_markup, data)
+        return _normalize_every_markup(data)
     out: list[bytes] = []
-    pos = 0
+    pos = 0  # copied up to here
+    floor = 0  # no "<" before here opens a tag that holds a later URI
     hit = data.find(_HWPML_2016_MARKER)
     while hit != -1:
         # Attribute values cannot hold "<", so the last "<" before the URI
         # opens the tag that holds it, if any does.
-        start = data.rfind(b"<", pos, hit)
-        match = _XML_MARKUP.match(data, start) if start != -1 else None
-        if match is None or match.end() <= hit or data.startswith(b"<?", start):
+        start = data.rfind(b"<", floor, hit)
+        floor = hit
+        if start == -1 or data.startswith(b"<?", start):
             # the URI sits in text or in a processing instruction: left as is
             hit = data.find(_HWPML_2016_MARKER, hit + len(_HWPML_2016_MARKER))
             continue
+        end = _markup_end(data, start)
+        if end == -1:
+            # The last "<" before the URI opens nothing that ends: it may stand inside a processing
+            # instruction (``<?rule test="a < b" ...?>``), which only reading the markup in order
+            # tells apart. That reading is linear too.
+            return _normalize_every_markup(data)
+        if end <= hit:
+            hit = data.find(_HWPML_2016_MARKER, hit + len(_HWPML_2016_MARKER))
+            continue
         out.append(data[pos:start])
-        out.append(_XML_ATTRIBUTE.sub(_normalize_attribute, match.group()))
-        pos = match.end()
+        out.append(_XML_ATTRIBUTE.sub(_normalize_attribute, data[start:end]))
+        pos = floor = end
         hit = data.find(_HWPML_2016_MARKER, pos)
     out.append(data[pos:])
     return b"".join(out)
@@ -211,6 +283,8 @@ def parse_xml(data: bytes) -> etree._Element:
     guard_xml_bytes(data)
     parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
     root = etree.fromstring(normalize_hwpml_namespaces(data), parser=parser)
+    if root.getroottree().docinfo.doctype:  # one the byte check could not read (UTF-16)
+        raise HwpxSecurityError("XML payload contains a disallowed DTD/entity declaration")
     guard_xml_depth(root)
     return root
 

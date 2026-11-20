@@ -15,6 +15,7 @@ from typing import BinaryIO, Iterable, Sequence
 from xml.etree import ElementTree as ET
 
 from ..opc.package import HwpxPackage
+from ..opc.security import _parse_xml_stdlib
 
 NS = {
     "hp": "http://www.hancom.co.kr/hwpml/2011/paragraph",
@@ -76,7 +77,7 @@ def _local_name(tag: str) -> str:
 def _iter_section_roots(source: str | Path | bytes | BinaryIO) -> Iterable[ET.Element]:
     package = HwpxPackage.open(source)
     for name in package.section_paths():
-        yield ET.fromstring(package.read(name))
+        yield _parse_xml_stdlib(package.read(name), part_name=name, parse_error=True)
 
 
 def collect_metrics(source: str | Path | bytes | BinaryIO) -> DocumentMetrics:
