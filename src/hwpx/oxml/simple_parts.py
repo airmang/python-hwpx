@@ -77,7 +77,9 @@ class HwpxOxmlMasterPage(_HwpxOxmlSimplePart):
     해소가 목표라 쓰기 경로는 열지 않는다.
     """
 
-    def _remove_outlived_layout_caches(self, *, force: bool = False) -> int:
+    def _remove_outlived_layout_caches(
+        self, *, force: bool = False, within: object = None, rebuilt: bool = False
+    ) -> int:
         """Nothing to track: what a table's structure edit asks of the section holding it
         (``HwpxOxmlSection._remove_outlived_layout_caches``). A master page read from a file keeps no
         record of the line caches it was read with; without this the edit raised ``AttributeError``

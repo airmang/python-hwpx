@@ -323,6 +323,9 @@ files = [
     "src/hwpx/oxml/caret.py",
     # Moving and copying a table's rows (asks10d) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_rows.py",
+    # Line caches that outlived their paragraph's content: what a section watches and how a save or a
+    # table's structure edit judges it, moved out of section.py -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/_line_caches.py",
     # A save's ZIP records: read where each entry lies, write an archive from whole records, so an
     # untouched part keeps its compressed bytes (exec7/zlib-bytes) -- born in the gate, per the WP-A rule.
     "src/hwpx/opc/zip_records.py",
@@ -542,6 +545,9 @@ include = [
     "src/hwpx/oxml/caret.py",
     # Moving and copying a table's rows (asks10d) -- born in the gate, per the WP-A rule.
     "src/hwpx/oxml/table_rows.py",
+    # Line caches that outlived their paragraph's content: what a section watches and how a save or a
+    # table's structure edit judges it, moved out of section.py -- born in the gate, per the WP-A rule.
+    "src/hwpx/oxml/_line_caches.py",
     # A save's ZIP records: read where each entry lies, write an archive from whole records, so an
     # untouched part keeps its compressed bytes (exec7/zlib-bytes) -- born in the gate, per the WP-A rule.
     "src/hwpx/opc/zip_records.py",

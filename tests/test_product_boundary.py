@@ -369,7 +369,8 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: where Hangul opens a document, settings.xml's caret (oxml/caret.py, asks10h).
     # +1: a table's rows moved and copied (oxml/table_rows.py, asks10d).
     # +1: a save's ZIP records, so untouched parts keep their compressed bytes (opc/zip_records.py).
-    assert report["classifiedFiles"] == 183
+    # +1: line caches that outlived their paragraph's content, moved out of section.py (oxml/_line_caches.py).
+    assert report["classifiedFiles"] == 184
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

@@ -226,8 +226,9 @@ class TableStructureEdits:
         sections = section.document.sections if section.document is not None else [section]
         # A paragraph edited in the tree directly still holds the cache it was read with. The rebuild
         # below makes new elements, which the save can no longer pair with what was read: drop the
-        # caches that outlived their content now, while it still can.
-        if section._remove_outlived_layout_caches(force=True):
+        # table's caches that outlived their content now, while it still can. (The caches outside the
+        # table keep their elements; the save judges them, as it judges every cache of the section.)
+        if section._remove_outlived_layout_caches(force=True, within=element):
             section.mark_dirty()
         used = {
             int(found)
@@ -241,7 +242,14 @@ class TableStructureEdits:
         xml = etree.tostring(element, encoding="unicode", with_tail=False)
         context = "".join(etree.tostring(part.element, encoding="unicode") for part in sections) \
             if op.get("op") in _CLONE_OPS else ""
-        new = etree.fromstring(_restructure_table(xml, op, used_ids=used, context=context))
+        try:
+            new = etree.fromstring(_restructure_table(xml, op, used_ids=used, context=context))
+        except Exception:
+            # A refused edit leaves the section as it left it when the judgement above looked at the
+            # whole section: every cache judged (a refusal is rare, so its cost is the section's).
+            if section._remove_outlived_layout_caches(force=True):
+                section.mark_dirty()
+            raise
         before = self._rows_height()
         for child in list(element):
             element.remove(child)
@@ -253,7 +261,8 @@ class TableStructureEdits:
         self._grow_height(before)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()
-        section._remove_outlived_layout_caches()  # track the rebuilt caches with the content they have now
+        # track the rebuilt caches with the content they have now
+        section._remove_outlived_layout_caches(within=element, rebuilt=True)
         # Rows or columns copied with their content repeated their notes' numbers (1, 1), and rows
         # deleted left the numbers after them as they were: number the kinds the table held or holds.
         renumber_note_kinds(section, note_kinds | note_kinds_in((element,)))
