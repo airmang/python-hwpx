@@ -197,24 +197,24 @@
   },
   {
    "version": "7.0.0",
-   "commit": "fc989924",
-   "totalLines": 112751,
+   "commit": "fdd13dfb",
+   "totalLines": 112980,
    "packages": {
-    ".": 11141,
-    "_document": 14912,
+    ".": 11162,
+    "_document": 14943,
     "equation": 2546,
     "form_fit": 4238,
     "hwp5": 11633,
     "layout": 7221,
     "objects": 3349,
     "opc": 3471,
-    "oxml": 40109,
+    "oxml": 40176,
     "plan": 900,
     "quality": 1354,
-    "tools": 11877
+    "tools": 11987
    },
    "importedModules": 95,
-   "importMs": 69
+   "importMs": 68
   }
  ]
 }
