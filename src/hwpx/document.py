@@ -741,6 +741,9 @@ class HwpxDocument(metaclass=_DocumentType):
         """
 
         target = _resolve.resolve_section(self, section, caller="add_heading")
+        # the level first: with a style given it was checked after the paragraph was added, and a level
+        # that is refused left that paragraph in the document
+        _headings._check_level(level)
         resolved = _headings.resolve_heading_style(self, level=level, style=style)
         # Hancom draws a paragraph by its own shapes, not its style's: start from the style's.
         paragraph = self._root.add_paragraph(

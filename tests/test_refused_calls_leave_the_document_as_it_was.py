@@ -324,6 +324,33 @@ def test_an_add_that_goes_through_still_makes_its_paragraph() -> None:
     assert len(_saved(document).paragraphs) == count + 2
 
 
+# -- a heading ------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("level", [0, 11, 9999, "two", [1], None])
+@pytest.mark.parametrize("style", [None, 1])
+def test_a_heading_of_a_level_that_is_refused_adds_no_paragraph(level: Any, style: Any) -> None:
+    document = _rich()
+    error = _refused(document, lambda: document.add_heading("제목", level=level, style=style))
+    assert isinstance(error, HwpxError) and error.code in ("heading-level-invalid", "heading-level-out-of-range")
+
+
+# -- a table of contents --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("place", [{"index": 9999}, {"index": -1}, {"index": "first"}, {"section": 9}, {"section": "all"}])
+def test_a_table_of_contents_at_a_place_that_is_not_there_is_refused_first(place: dict[str, Any]) -> None:
+    document = _rich()
+    document.add_heading("1. 개요", level=1)
+    document = _saved(document)
+
+    error = _refused(document, lambda: document.refs.add_table_of_contents(**place))
+
+    # the index is the table's own to check; a section that is not there is refused as everywhere
+    assert isinstance(error, HwpxError)
+    assert error.code == ("toc-place-value" if "index" in place else {9: "section-not-found", "all": "section-invalid-type"}[place["section"]])
+
+
 # -- a table in a cell, a check box ---------------------------------------------------------------
 
 

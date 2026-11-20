@@ -883,6 +883,18 @@ def add_table_of_contents(
     if not isinstance(title, str) or not isinstance(hyperlink, bool):
         raise _toc_refuse("title must be a str and hyperlink True or False", "toc-levels-value",
                           "Pass the title shown over the entries, e.g. '<제목 차례>'.")
+    # Where it goes, before anything is written: an index past the section's paragraphs was refused
+    # by the insertion (a bare IndexError), after the headings had been given their anchor ids.
+    sections = doc.oxml.sections
+    if isinstance(section, bool) or not isinstance(section, int) or not -len(sections) <= section < len(sections):
+        raise _toc_refuse(f"section must be the index of a section (0 to {len(sections) - 1}); got {section!r}",
+                          "toc-place-value", "Pass the section the table goes into, e.g. section=0.",
+                          requested=repr(section))
+    count = len(sections[section].paragraphs)
+    if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index <= count:
+        raise _toc_refuse(f"index must be a paragraph position from 0 to {count}; got {index!r}",
+                          "toc-place-value", "Pass where the table goes among the section's paragraphs (0: first).",
+                          requested=repr(index), count=count)
     headings = toc_headings(doc, levels)
     if not headings:
         raise _toc_refuse(

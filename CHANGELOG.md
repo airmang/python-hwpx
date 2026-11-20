@@ -870,7 +870,7 @@ python-hwpx 7.0을 함께 설치한다.
 - 사용 가이드와 예제가 새 문서의 첫 문단이나 첫 런을 지우라고 가르쳐, 따라 하면 용지 크기가 0×0인 문서가 저장되던 예제를 고쳤다.
 - 거부한 호출이 문서를 바꾸던 곳을 고쳤다. 태그 전 마지막 검토에서 나온 것과, 공개 메서드 전체에 틀린 값을 넣어 거부될 때마다
   문서를 견주는 검사(`tests/test_refused_calls_sweep.py`)가 찾은 것이다. 이 검사는 구역·머리·바탕쪽의 XML과 그림 목록을
-  견주며, 오류 code가 있는 거부 가운데 문서를 바꾸는 것을 더는 찾지 못한다(씨앗 넷, 호출 약 25만 번).
+  견주며, 오류 code가 있는 거부 가운데 문서를 바꾸는 것을 더는 찾지 못한다(씨앗 일곱, 호출 약 45만 번).
   - 각주·미주를 자기 글 안의 표 칸이나 글상자로 옮기면(`note.move_to`) 거부하면서 각주와 그 안의 표가 사라졌다. 바꾸기 전에
     `note-move-into-itself`로 거부한다(`copy_to`로 사본을 넣는 것은 된다).
   - `doc.add_picture`가 없는 스타일 등으로 거부될 때 그림 파일이 `BinData/`에 남았다(6.x는 스타일을 먼저 찾았다). 문단을 먼저
@@ -890,9 +890,13 @@ python-hwpx 7.0을 함께 설치한다.
     있었다. 모든 구역을 먼저 검사한다.
   - `doc.page.setup(paper_size="A5", columns=0)`은 단 수를 거부하기 전에 용지 크기와 여백을 썼다. 단 수를 먼저 검사한다.
   - 칸 안의 표(`cell.add_table`)는 행·열 수를 거부하기 전에 테두리 정의와 빈 문단을 만들었다. 먼저 검사한다.
+  - `doc.refs.add_table_of_contents(index=9999)`는 넣을 자리가 없다는 것을 제목 문단에 id를 준 뒤에야 알았고 `IndexError`를
+    냈다. 구역과 자리를 먼저 검사해 `toc-place-value`로 거부한다.
+  - `doc.add_heading(..., level=11, style=...)`처럼 스타일을 함께 주면 수준을 문단을 넣은 뒤에 검사해, 거부하면서 문단이
+    남았다. 수준을 먼저 검사한다.
   - 값이 XML에 쓸 수 없는 형식일 때(이름 자리에 숫자, 글 자리에 bytes) `add_check_box`·`add_shape`·`add_control`·
     `add_column_definition`·`add_composed_character`·`add_dutmal`·`add_date_field`·`add_run`은 반쯤 만든 런을 문단에 남겼다(컨트롤 없는
-    `hp:ctrl`은 한/글이 문서를 열지 못하게 한다). 붙인 런을 다시 뗀다. 같은 경우 문서 수준 메서드 열세 개는 아직 남기는 것이
+    `hp:ctrl`은 한/글이 문서를 열지 못하게 한다). 붙인 런을 다시 뗀다. 같은 경우 문서 수준 메서드 열네 개는 아직 남기는 것이
     있다(검사의 `KNOWN_UNTYPED`; 형식이 틀린 호출이고, 목록은 줄어들기만 한다).
 - 각주·미주에 적힌 번호(`number`와 글 머리의 `hp:autoNum`)가 읽는 번호(`note.number`)와 달랐다: 각주가 든 문단을 비우거나
   (`paragraph.clear_content`), 각주가 든 글상자의 글을 떼거나(`remove_draw_text`), 번호를 새로 매기면(`add_number_restart`의
