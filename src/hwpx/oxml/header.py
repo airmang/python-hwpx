@@ -932,14 +932,17 @@ class Header:
             None,
         )
         if author is None:
-            # Not a number a change already carries: the one Hancom-saved file with tracked changes gives
-            # its only author id 0 and its changes authorID 1, and an author given id 1 took them over.
-            referenced = [
+            # Not a number a change already carries, nor one less: the one Hancom-saved file with tracked
+            # changes gives its only author id 0 and its changes authorID 1, and an author given id 1
+            # took them over. The first number from the next one up that is neither.
+            carried = {
                 change.author_id
                 for change in (ref_list.track_changes.changes if ref_list.track_changes is not None else [])
                 if isinstance(change.author_id, int)
-            ]
-            author_id = max([_next_track_change_author_id(author_list.authors), *(n + 1 for n in referenced)])
+            }
+            author_id = _next_track_change_author_id(author_list.authors)
+            while author_id in carried or author_id + 1 in carried:
+                author_id += 1
             author = TrackChangeAuthor(
                 id=author_id,
                 raw_id=None,

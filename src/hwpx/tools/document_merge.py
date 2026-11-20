@@ -619,8 +619,13 @@ def _remap_binary_items(
         # Not a picture (an OLE object, as a chart keeps one): written as the source lists it -- its
         # media type and ``isEmbeded`` -- not as an embedded image.
         assert listed is not None
-        taken = {item.get("id") for item in target_doc._package._manifest_items()}
-        new_id = next(name for name in (f"BIN{number:04d}" for number in itertools.count(1)) if name not in taken)
+        listed_there = target_doc._package._manifest_items()
+        taken = {item.get("id") for item in listed_there}
+        stored = {str(item.get("href") or "") for item in listed_there} | set(target_doc._package.part_names())
+        new_id = next(
+            name for name in (f"BIN{number:04d}" for number in itertools.count(1))
+            if name not in taken and f"BinData/{name}.{fmt}" not in stored
+        )
         path = f"BinData/{new_id}.{fmt}"
         target_doc._package.write(path, raw)
         target_doc._package.add_manifest_item(

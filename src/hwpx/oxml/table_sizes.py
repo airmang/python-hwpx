@@ -96,9 +96,10 @@ def declared_count(value: str) -> int:
     """A table's ``rowCnt`` or ``colCnt`` as a number: at most :data:`MAX_CELL_SPAN`, so that nothing
     sized by it (a list of column widths, a grid) is sized by whatever number the file gives."""
 
-    if len(value) > 5 or int(value) > MAX_CELL_SPAN:
-        raise _grid_too_large(value, value)
-    return int(value)
+    digits = value.lstrip("0") or "0"  # "0000002" is 2
+    if len(digits) > 5 or int(digits) > MAX_CELL_SPAN:
+        raise _grid_too_large(value[:40], value[:40])
+    return int(digits)
 
 
 def check_grid(rows: int, columns: int) -> None:

@@ -174,6 +174,7 @@ def _paragraph_has_replaceable_text(
     metadata behind.
     """
 
+    crosses_inline_markup = False
     for run in paragraph.runs:
         model = run.to_model()
         run_text = "".join(span.text for span in model.text_spans)
@@ -184,8 +185,41 @@ def _paragraph_has_replaceable_text(
                 match in markup.trailing_text for markup in span.marks
             ):
                 return True
-        # The writer wraps the match in the first run that holds it and stops there: a later run that
-        # holds it whole does not help (the writer failed on this one after the header had the change).
+            if match in span.text:
+                # The replace writer takes the first text element that holds the match and stops
+                # there: one that holds it only across its marks is where the writer failed, after
+                # the header had been given both changes.
+                crosses_inline_markup = True
+                break
+        else:
+            crosses_inline_markup = True  # only across the run's text elements: the writer goes on
+            continue
+        break
+
+    if crosses_inline_markup:
+        raise HwpxValueError(
+            "match crosses inline markup and cannot be wrapped safely",
+            code="track-match-crosses-markup",
+            suggestion="Target a substring that lives inside a single run.",
+        )
+    return False
+
+
+def _paragraph_has_deletable_match(paragraph: "HwpxOxmlParagraph", match: str) -> bool:
+    """Whether a tracked delete of *match* can be written: the delete writer takes the first run whose
+    text holds the match and stops there, so a match that crosses markup in that run is refused here
+    (``track-match-crosses-markup``) even when a later run holds it whole. Found by the writer instead,
+    it failed after the header had been given the change."""
+
+    for run in paragraph.runs:
+        model = run.to_model()
+        if match not in "".join(span.text for span in model.text_spans):
+            continue
+        if any(
+            match in span.leading_text or any(match in markup.trailing_text for markup in span.marks)
+            for span in model.text_spans
+        ):
+            return True
         raise HwpxValueError(
             "match crosses inline markup and cannot be wrapped safely",
             code="track-match-crosses-markup",
@@ -254,7 +288,7 @@ def add_tracked_delete(
     found = (
         _paragraph_has_deletable_text(paragraph, None)
         if match is None
-        else _paragraph_has_replaceable_text(paragraph, match)
+        else _paragraph_has_deletable_match(paragraph, match)
     )
     if not found:
         if match is None:
@@ -437,10 +471,11 @@ def _resolved_author_name(doc: "HwpxDocument", author_id: Any) -> str:
     if author is None and len(authors) == 1:
         # Hancom may number the author differently from the change's authorID; one author is that one.
         author = next(iter(authors.values()))
-    elif author is None and str(author_id).isdigit() and 1 <= int(author_id) <= len(authors):
-        # ... and stays that one when another author is added after it: the number of an authorID that
-        # is no author's id is read as the place in the list, counted from 1 (id 0, authorID 1).
-        author = list(authors.values())[int(author_id) - 1]
+    elif author is None and str(author_id).isdigit():
+        # ... and stays that one when another author is added after it: an authorID that is no author's
+        # id is read as one more than the id (id 0, authorID 1, as that file has it). An author added
+        # here is never given the id that would make it the answer (see TrackChanges.add_track_change).
+        author = doc.oxml.track_change_author(int(author_id) - 1)
     return (getattr(author, "name", None) or "") if author is not None else ""
 
 
