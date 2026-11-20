@@ -15,7 +15,6 @@ import zlib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from xml.etree import ElementTree as _StdlibET
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -210,15 +209,6 @@ class _OpenFolderError(HwpxPackageError, IsADirectoryError):
     """A folder was given where a document file belongs (``code="open-is-folder"``)."""
 
 
-class _OpenEmptyPathError(HwpxPackageError, FileNotFoundError, IsADirectoryError):
-    """An empty string was given as the document's path (``code="open-path-empty"``).
-
-    It names no file, so it is a :class:`FileNotFoundError` like any other missing path. It is
-    also an :class:`IsADirectoryError`, which 7.0.0 raised for it (``Path("")`` is the current
-    folder), so an ``except`` written against either still catches it.
-    """
-
-
 def _looks_like_text(head: bytes) -> bool:
     """True when *head* decodes as text with almost no control characters."""
 
@@ -326,66 +316,34 @@ def structure_errors() -> Iterator[None]:
         raise HwpxXmlSyntaxError.wrap(exc) from exc
 
 
-class _StdlibXmlSyntaxError(HwpxXmlSyntaxError, _StdlibET.ParseError, ValueError):  # type: ignore[misc]  # code: ours (str), not expat's int
-    """Malformed XML met by a reader that parses with the standard library (the text extractor,
-    the plain-text export, the projections and metrics of :mod:`hwpx.tools`).
-
-    Those readers raised ``ValueError('malformed XML: ...')`` or ElementTree's own ``ParseError``
-    (a ``SyntaxError``), depending on the reader. This is both, and the
-    :class:`HwpxXmlSyntaxError` a damaged part is everywhere else, so every ``except`` written
-    against one of them still catches it. ``position`` is the line and column ElementTree gave,
-    ``part_name`` the part. ``lxml_code`` is 0 (lxml did not parse it); expat's number is
-    ``context["expat_code"]``.
-    """
-
-    def __str__(self) -> str:
-        return self.message  # the sentence, without the "(line N)" SyntaxError appends
-
-
-def _stdlib_xml_error(exc: _StdlibET.ParseError, part_name: str) -> _StdlibXmlSyntaxError:
-    """The typed error for *exc*, ElementTree's refusal of the XML of *part_name*."""
-
-    line, column = getattr(exc, "position", (0, 0))
-    error = _StdlibXmlSyntaxError(f"malformed XML: {exc}", 0, line, column, None)
-    error.part_name = part_name
-    return _with_reason(
-        error,
-        "package-xml-invalid",
-        "The part is not well-formed XML: get the original file again, or open the document in "
-        "Hancom Office and save it again.",
-        {"part": part_name, "line": line, "column": column, "expat_code": getattr(exc, "code", None)},
-    )
-
-
 _DAMAGED_ARCHIVE_SUGGESTION = "내려받기·복사가 끝까지 됐는지 확인하고 원본을 다시 받으세요."
 
 
-def _archive_read_error(source: object, exc: BaseException) -> BaseException:
-    """The typed error for what reading *source* as a ZIP raised: ``zipfile.BadZipFile`` as the
-    :class:`HwpxArchiveError` ``HwpxPackage.open`` raises for the same input (same words, same
-    code), ``zlib.error`` as :class:`HwpxCompressedDataError`. Anything else, and an error that
-    is already typed, comes back as it is.
+def _archive_read_error(exc: BaseException, refused: object = None) -> BaseException:
+    """The typed error a ZIP-only reader raises in place of *exc*, which ``zipfile`` raised.
 
-    *source* is what the reader was given: a path, bytes, a stream, or an open ``ZipFile``.
+    A ``zipfile.BadZipFile`` becomes an :class:`HwpxArchiveError` and a ``zlib.error`` an
+    :class:`HwpxCompressedDataError`, built from the arguments of the error it replaces: ``str()``
+    and ``args`` read as they did (a failed CRC still names its member), and ``code`` and
+    ``suggestion`` are added. Any other error, a subclass of those two included, comes back as it is.
+
+    *refused* is the path, bytes or stream ``ZipFile`` would not open; its leading bytes choose the
+    ``code`` ``HwpxPackage.open`` gives the same input. Without it the archive did open and a member
+    of it could not be read: that is ``open-archive-damaged``, and nothing is looked at again.
     """
 
-    if isinstance(exc, HwpxError):
+    if type(exc) is zlib.error:
+        return _with_reason(HwpxCompressedDataError(*exc.args), "open-archive-damaged", _DAMAGED_ARCHIVE_SUGGESTION)
+    if type(exc) is not BadZipFile:
         return exc
-    if isinstance(exc, BadZipFile):
-        if isinstance(source, (bytes, bytearray)):
-            source = io.BytesIO(source)
-        elif isinstance(source, ZipFile):
-            source = source.filename or source.fp
-        elif isinstance(source, os.PathLike):
-            source = os.fspath(source)
-        return HwpxPackage._not_an_archive(source, exc)  # type: ignore[arg-type]
-    if isinstance(exc, zlib.error):
-        return _with_reason(
-            HwpxCompressedDataError(f"압축 데이터가 손상됐습니다: {exc}"),
-            "open-archive-damaged",
-            _DAMAGED_ARCHIVE_SUGGESTION,
-        )
-    return exc
+    if refused is None:
+        return _with_reason(HwpxArchiveError(*exc.args), "open-archive-damaged", _DAMAGED_ARCHIVE_SUGGESTION)
+    if isinstance(refused, (bytes, bytearray, memoryview)):
+        refused = io.BytesIO(refused)
+    elif isinstance(refused, os.PathLike):
+        refused = os.fspath(refused)
+    reason = HwpxPackage._not_an_archive(refused, exc)  # type: ignore[arg-type]
+    return _with_reason(HwpxArchiveError(*exc.args), reason.code, reason.suggestion or "", reason.context)
 
 
 def _summarize_validation_issues(issues: Sequence[object], *, limit: int = 5) -> str:
@@ -973,14 +931,6 @@ class HwpxPackage:
 
         if isinstance(pkg_file, (str, os.PathLike)):
             path = os.fspath(pkg_file)
-            if path == "":
-                # Path("") is the current folder: reading it raised IsADirectoryError("'.'").
-                raise _with_reason(
-                    _OpenEmptyPathError("문서 경로가 비어 있습니다(빈 문자열)."),
-                    "open-path-empty",
-                    "열 .hwpx나 .hwp 파일의 경로를 주세요.",
-                    {"path": path},
-                )
             if isinstance(path, str) and os.path.isdir(path):
                 raise _with_reason(
                     _OpenFolderError(f"폴더는 문서로 열 수 없습니다: {path}"),
@@ -1098,7 +1048,11 @@ class HwpxPackage:
             # input is instead of zipfile's "File is not a zip file".
             raise cls._not_an_archive(stream, exc) from exc
         except zlib.error as exc:
-            raise _archive_read_error(stream, exc) from exc
+            raise _with_reason(
+                HwpxCompressedDataError(f"압축 데이터가 손상됐습니다: {exc}"),
+                "open-archive-damaged",
+                _DAMAGED_ARCHIVE_SUGGESTION,
+            ) from exc
         logger.debug("HWPX 패키지 파일 목록 %d개를 로드했습니다.", len(files))
         if cls.MIMETYPE_PATH not in files:
             if "[Content_Types].xml" in files:

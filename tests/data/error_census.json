@@ -14,7 +14,7 @@
    "oxml/table.py:66"
   ],
   "cell-margin-value": [
-   "oxml/table_sizes.py:704"
+   "oxml/table_sizes.py:654"
   ],
   "contract-document-missing": [
    "capabilities.py:647"
@@ -53,7 +53,7 @@
    "oxml/master_page.py:84"
   ],
   "document-merge-index-out-of-range": [
-   "tools/document_merge.py:1834"
+   "tools/document_merge.py:1880"
   ],
   "document-merge-unsupported-policy-axis": [
    "tools/document_merge.py:162"
@@ -62,9 +62,10 @@
    "tools/document_merge.py:189",
    "tools/document_merge.py:207",
    "tools/document_merge.py:653",
-   "tools/document_merge.py:685",
-   "tools/document_merge.py:694",
-   "tools/document_merge.py:702"
+   "tools/document_merge.py:686",
+   "tools/document_merge.py:695",
+   "tools/document_merge.py:704",
+   "tools/document_merge.py:747"
   ],
   "document-seed-invalid": [
    "document.py:270"
@@ -275,11 +276,11 @@
    "oxml/text_ranges.py:1364"
   ],
   "open-invalid-type": [
-   "opc/package.py:998"
+   "opc/package.py:948"
   ],
   "open-safety-failed": [
    "_document/persistence.py:335",
-   "opc/package.py:2141"
+   "opc/package.py:2095"
   ],
   "package-text-replacement-key-empty": [
    "patch.py:963"
@@ -356,8 +357,8 @@
    "oxml/_paragraph_text_edit.py:649",
    "oxml/text_ranges.py:1350",
    "oxml/text_ranges.py:856",
-   "tools/document_merge.py:1735",
-   "tools/document_merge.py:1741"
+   "tools/document_merge.py:1781",
+   "tools/document_merge.py:1787"
   ],
   "paragraph-line-spacing-invalid": [
    "oxml/formatting.py:907",
@@ -400,7 +401,7 @@
    "oxml/table_format.py:1010",
    "oxml/text_ranges.py:1357",
    "oxml/text_ranges.py:954",
-   "tools/document_merge.py:1767"
+   "tools/document_merge.py:1813"
   ],
   "paragraph-outline-level-out-of-range": [
    "_document/layout.py:417",
@@ -514,10 +515,10 @@
    "objects/form_field.py:734"
   ],
   "save-archive-content-mismatch": [
-   "opc/package.py:2122"
+   "opc/package.py:2076"
   ],
   "save-duplicate-entry-names": [
-   "opc/package.py:445"
+   "opc/package.py:403"
   ],
   "save-format-unsupported": [
    "_document/persistence.py:749"
@@ -913,24 +914,24 @@
   ],
   "table-cell-not-found": [
    "oxml/table.py:1050",
-   "oxml/table_sizes.py:958"
+   "oxml/table_sizes.py:908"
   ],
   "table-cell-zone-grid-mismatch": [
-   "oxml/table_sizes.py:478"
+   "oxml/table_sizes.py:428"
   ],
   "table-column-width-value": [
-   "oxml/table_sizes.py:1003"
+   "oxml/table_sizes.py:953"
   ],
   "table-columns-differ": [
    "oxml/table_rows.py:254"
   ],
   "table-height-value": [
-   "oxml/table_sizes.py:247"
+   "oxml/table_sizes.py:197"
   ],
   "table-margin-value": [
-   "oxml/table_sizes.py:765",
-   "oxml/table_sizes.py:809",
-   "oxml/table_sizes.py:850"
+   "oxml/table_sizes.py:715",
+   "oxml/table_sizes.py:759",
+   "oxml/table_sizes.py:800"
   ],
   "table-merge-range-invalid": [
    "oxml/table_merge.py:44",
@@ -946,7 +947,7 @@
    "oxml/table.py:691"
   ],
   "table-row-heights-value": [
-   "oxml/table_sizes.py:553"
+   "oxml/table_sizes.py:503"
   ],
   "table-rows-invalid": [
    "oxml/table_rows.py:57",
@@ -964,11 +965,11 @@
   "table-size-invalid": [
    "document.py:806",
    "document.py:813",
-   "oxml/table_sizes.py:170",
-   "oxml/table_sizes.py:177"
+   "oxml/table_sizes.py:120",
+   "oxml/table_sizes.py:127"
   ],
   "table-width-value": [
-   "oxml/table_sizes.py:200"
+   "oxml/table_sizes.py:150"
   ],
   "text-block-unknown": [
    "_document/text_blocks.py:218"
@@ -1006,10 +1007,10 @@
    "objects/form_field.py:1053"
   ],
   "track-change-not-found": [
-   "_document/tracked.py:527"
+   "_document/tracked.py:522"
   ],
   "track-format-change-unconfirmed": [
-   "_document/tracked.py:551",
+   "_document/tracked.py:546",
    "_document/tracked.py:74"
   ],
   "track-match-crosses-markup": [
@@ -1018,32 +1019,33 @@
   ],
   "track-match-empty": [
    "_document/tracked.py:281",
-   "_document/tracked.py:659"
+   "_document/tracked.py:654"
   ],
   "track-match-not-found": [
    "_document/tracked.py:300",
-   "_document/tracked.py:665"
+   "_document/tracked.py:660"
   ],
   "track-paragraph-empty": [
    "_document/tracked.py:295"
   ],
   "track-selector-conflict": [
-   "_document/tracked.py:503"
+   "_document/tracked.py:498"
   ],
   "track-text-empty": [
    "_document/tracked.py:244",
-   "_document/tracked.py:673"
+   "_document/tracked.py:668"
   ]
  },
  "malformedCodes": [],
  "observed": {
-  "other": 543,
-  "typed": 528,
-  "untyped": 160,
+  "other": 535,
+  "typed": 529,
+  "untyped": 161,
   "untypedByFile": {
    "body_patch.py": 20,
    "form_fit/policy.py": 3,
    "opc/package.py": 1,
+   "opc/security.py": 1,
    "opc/zip_records.py": 1,
    "oxml/_document_primitives.py": 2,
    "oxml/body.py": 5,

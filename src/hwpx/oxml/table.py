@@ -257,8 +257,8 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         addr = self._addr_element()
         if addr is None:
             return (0, 0)
-        row = _table_sizes.cell_number(addr, "rowAddr", 0)
-        col = _table_sizes.cell_number(addr, "colAddr", 0)
+        row = int(addr.get("rowAddr", "0"))
+        col = int(addr.get("colAddr", "0"))
         return (row, col)
 
     @property
@@ -267,8 +267,8 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         span = self.element.find(f"{_HP}cellSpan")
         if span is None:
             return (1, 1)
-        row_span = _table_sizes.cell_number(span, "rowSpan", 1)
-        col_span = _table_sizes.cell_number(span, "colSpan", 1)
+        row_span = int(span.get("rowSpan", "1"))
+        col_span = int(span.get("colSpan", "1"))
         return (row_span, col_span)
 
     @property
@@ -293,12 +293,12 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
     def width(self) -> int:
         # Reading never writes: a cell without ``hp:cellSz`` reads as 0, as an empty one does.
         size = self.element.find(f"{_HP}cellSz")
-        return _table_sizes.size_number(size, "width") if size is not None else 0
+        return int(size.get("width", "0")) if size is not None else 0
 
     @property
     def height(self) -> int:
         size = self.element.find(f"{_HP}cellSz")
-        return _table_sizes.size_number(size, "height") if size is not None else 0
+        return int(size.get("height", "0")) if size is not None else 0
 
     def set_size(self, width: int | None = None, height: int | None = None) -> None:
         for argument, value in (("width", width), ("height", height)):
@@ -671,7 +671,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
     def height(self) -> int:
         """Declared table height in HWP units."""
         size = self.element.find(f"{_HP}sz")
-        return _table_sizes.size_number(size, "height") if size is not None else 0
+        return int(size.get("height", "0")) if size is not None else 0
 
     @property
     def treat_as_char(self) -> bool:
@@ -920,14 +920,14 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
     @property
     def row_count(self) -> int:
         value = self.element.get("rowCnt")
-        if value is not None and value.isdecimal():  # isdigit() is true for "²", which int() refuses
+        if value is not None and value.isdigit():
             return _table_sizes.declared_count(value)
         return len(self.element.findall(f"{_HP}tr"))
 
     @property
     def column_count(self) -> int:
         value = self.element.get("colCnt")
-        if value is not None and value.isdecimal():
+        if value is not None and value.isdigit():
             return _table_sizes.declared_count(value)
         first_row = self.element.find(f"{_HP}tr")
         if first_row is None:

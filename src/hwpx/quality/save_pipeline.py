@@ -407,12 +407,10 @@ class SavePipeline:
                         try:
                             parse_xml_stdlib(read_member(archive, name), part_name=name)
                         except ET.ParseError as exc:
-                            # parse_xml_stdlib's typed error is a ParseError (it was a bare
-                            # ValueError that passed this handler); the parser's words are its cause.
                             errors.append(
                                 QualityError(
                                     REFERENCE_INTEGRITY_FAILED,
-                                    f"malformed XML in {name}: {exc.__cause__ or exc}",
+                                    f"malformed XML in {name}: {exc}",
                                 )
                             )
                             return False
@@ -438,9 +436,10 @@ class SavePipeline:
             return True
 
         ok = True
-        from hwpx.tools.package_validator import validate_package
+        from hwpx.tools.package_validator import _validate_package
 
-        package_report = validate_package(data)
+        # Not validate_package: damaged compressed data raises here, before anything is published.
+        package_report = _validate_package(data)
         if not package_report.ok:
             ok = False
             detail = "; ".join(str(issue) for issue in package_report.errors[:5])

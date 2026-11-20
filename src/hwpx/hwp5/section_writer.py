@@ -245,7 +245,7 @@ def _number(value: str | None, default: int = 0) -> int:
     except ValueError:
         try:
             return int(float(value))
-        except (ValueError, OverflowError):  # OverflowError: "inf", "1e999", a number past int()'s digit limit
+        except ValueError:
             return default
 
 
@@ -253,22 +253,6 @@ def _int(element: etree._Element | None, name: str, default: int = 0) -> int:
     if element is None:
         return default
     return _number(element.get(name), default)
-
-
-def _cell_numbers_written(addr: etree._Element | None, span: etree._Element | None) -> bool:
-    """Whether a cell's address and span are numbers a table can have (whole, 0 to 65535), the rule
-    ``hwpx.oxml.table_sizes.cell_number`` reads them by. One that is not ("x", "-5", thousands of
-    digits) has no value to write: read as a default it would put the cell somewhere else."""
-
-    for element, names in ((addr, ("colAddr", "rowAddr")), (span, ("colSpan", "rowSpan"))):
-        for name in names:
-            value = element.get(name) if element is not None else None
-            if value is None:
-                continue
-            digits = value.strip().removeprefix("+")
-            if not digits.isdecimal() or len(digits.lstrip("0")) > 5 or int(digits) > 0xFFFF:
-                return False
-    return True
 
 
 def _i16(value: int) -> int:
@@ -1751,9 +1735,6 @@ class SectionRecords:
         for row in rows:
             for tc in row:
                 addr, span = _find(tc, "cellAddr"), _find(tc, "cellSpan")
-                if not _cell_numbers_written(addr, span):
-                    self.unsupported["table/cell-number"] += 1
-                    continue
                 col, line = _int(addr, "colAddr"), _int(addr, "rowAddr")
                 last_line = min(line + max(_int(span, "rowSpan", 1), 1), max(row_count, line + 1))
                 last_col = min(col + max(_int(span, "colSpan", 1), 1), max(col_count, col + 1))

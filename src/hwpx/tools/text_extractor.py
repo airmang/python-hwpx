@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -190,10 +189,9 @@ class TextExtractor:
     def open(self) -> ZipFile:
         """Open the underlying archive if necessary and return it.
 
-        A source that is not a readable HWPX archive (a binary ``.hwp``, a truncated or other
-        file, a folder, an empty path) raises the typed error ``HwpxDocument.open`` raises for
-        it, with the same words and ``code``; it is still the ``zipfile.BadZipFile`` or
-        ``OSError`` an existing ``except`` names.
+        A source ``zipfile`` refuses (a binary ``.hwp``, a truncated or other file) raises
+        ``HwpxArchiveError``: the ``zipfile.BadZipFile`` it replaces, with the same words, and a
+        ``code`` and ``suggestion`` that say what the source is.
         """
 
         if self._zip is None:
@@ -201,19 +199,10 @@ class TextExtractor:
                 self._zip = self._source
                 self._owns_zip = False
             else:
-                if isinstance(self._source, (str, os.PathLike)):
-                    from ..opc.package import HwpxPackage
-
-                    HwpxPackage._check_open_source(self._source)  # a folder, an empty path
                 with _typed_read_errors(self._source):
                     self._zip = ZipFile(self._source)  # type: ignore[arg-type]
                 self._owns_zip = True
-            try:
-                with _typed_read_errors(self._source):
-                    guard_zip_file(self._zip)
-            except BaseException:
-                self.close()  # refused: do not keep the file open
-                raise
+            guard_zip_file(self._zip)
         return self._zip
 
     def close(self) -> None:
@@ -238,10 +227,10 @@ class TextExtractor:
         """Yield :class:`SectionInfo` objects for each section XML entry."""
 
         archive = self.open()
-        with _typed_read_errors(self._source):
+        with _typed_read_errors():
             section_files = list(self._iter_section_files(archive))
         for index, name in enumerate(section_files):
-            with _typed_read_errors(self._source):  # damaged compressed data, a failed CRC
+            with _typed_read_errors():  # damaged compressed data, a failed CRC
                 data = read_member(archive, name)
             element = parse_xml_stdlib(data, part_name=name)
             yield SectionInfo(index=index, name=name, element=element)

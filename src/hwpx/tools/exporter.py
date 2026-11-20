@@ -58,7 +58,9 @@ _PARAGRAPH_BLOCKS = frozenset((f"{_HP}drawText", f"{_HP}caption"))
 def _header_xml(source: HwpxDocument | bytes) -> ET.Element | None:
     """The document's ``header.xml`` root (styles, numberings, bullets), if it has one."""
     if isinstance(source, bytes):
-        with _typed_read_errors(source), ZipFile(io.BytesIO(source)) as zf:
+        with _typed_read_errors(source):
+            zf = ZipFile(io.BytesIO(source))
+        with zf, _typed_read_errors():
             guard_zip_file(zf)
             name = "Contents/header.xml"
             return parse_xml_stdlib(read_member(zf, name), part_name=name) if name in zf.namelist() else None
@@ -321,7 +323,9 @@ def _labelled(text: str, label: str) -> str:
 def _section_xmls(source: HwpxDocument | bytes) -> list[ET.Element]:
     """Return a list of section root elements from *source*."""
     if isinstance(source, bytes):
-        with _typed_read_errors(source), ZipFile(io.BytesIO(source)) as zf:
+        with _typed_read_errors(source):
+            zf = ZipFile(io.BytesIO(source))
+        with zf, _typed_read_errors():
             guard_zip_file(zf)
             names = sorted(n for n in zf.namelist() if _SECTION_RE.match(n))
             return [parse_xml_stdlib(read_member(zf, n), part_name=n) for n in names]

@@ -360,12 +360,11 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 `open-input-unsafe`)로 거부합니다. 앞에서 잡던 형식(`HwpxPackageError`, `BadZipFile`, `ValueError` …)으로도
 그대로 잡힙니다.
 
-`hwpx.tools`의 읽기 도구(`TextExtractor`·`ObjectFinder`·`export_text(bytes)`·`project_document`·`collect_metrics`·
-`unpack_hwpx`)도 같은 입력에 같은 예외(같은 문장과 `code`)를 냅니다. 이 도구들은 XML을 표준 라이브러리 파서로
-읽으므로, 깨진 XML 파트의 `HwpxXmlSyntaxError`는 `ValueError`이자 `xml.etree.ElementTree.ParseError`(`SyntaxError`)이기도
-합니다(`parse_xml_stdlib`도 같습니다). `validate_package`는 손상을 예외가 아니라 보고서의 issue로 알립니다. 빈 문자열
-경로는 `open-path-empty`(`FileNotFoundError`), 파일이 적은 칸 주소·병합·크기가 수가 아닌 표는 `table-number-invalid`
-(`ValueError`)로 거부합니다.
+`hwpx.tools`의 ZIP 읽기 도구(`TextExtractor`·`ObjectFinder`·`export_text(bytes)`·`project_document`·`unpack_hwpx`)도
+ZIP이 아닌 입력에 `HwpxArchiveError`를, 손상된 압축 데이터에 `HwpxCompressedDataError`를 냅니다. 이 도구들에서는
+문장(`str(exc)`)과 `args`가 `zipfile`·`zlib`이 내던 그대로이고(`File is not a zip file`, `Bad CRC-32 for file '…'`),
+`code`(`open-hwp5-not-package`·`open-not-hwpx`·`open-archive-damaged` …)와 `suggestion`이 더해집니다.
+`validate_package`는 손상된 압축 데이터를 예외가 아니라 보고서의 오류로 알립니다.
 구조화된 예외는 사람용 문장(`str(exc)`)을 그대로 두고, 세 가지 **기계가 읽는**
 필드를 얹습니다:
 

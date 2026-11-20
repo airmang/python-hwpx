@@ -237,15 +237,6 @@ def unpack_hwpx(
     overwrite: bool = False,
     pretty_xml: bool = False,
 ) -> UnpackResult:
-    """Write every entry of the HWPX at *source* into *output_dir*.
-
-    A source that is not a readable archive raises what ``HwpxDocument.open`` raises for it
-    (``HwpxArchiveError``, still a ``zipfile.BadZipFile``; ``HwpxCompressedDataError``, still a
-    ``zlib.error``). An entry the file system refuses to write (a name longer than it allows, no
-    space, no permission) raises ``SaveTargetError``, still the ``OSError`` Python raised, naming
-    the entry.
-    """
-
     source_path = Path(source)
     if not source_path.is_file():
         raise FileNotFoundError(f"input file not found: {source_path}")
@@ -253,7 +244,9 @@ def unpack_hwpx(
     destination = Path(output_dir)
     _prepare_output_dir(destination, overwrite=overwrite)
 
-    with _typed_read_errors(source_path), ZipFile(source_path, "r") as archive:
+    with _typed_read_errors(source_path):
+        archive = ZipFile(source_path, "r")
+    with archive, _typed_read_errors():
         guard_zip_file(archive)
         entries = _iter_file_entries(archive)
         for entry in entries:
@@ -261,28 +254,11 @@ def unpack_hwpx(
             if pretty_xml and entry.path.endswith(_XML_SUFFIXES):
                 data = _format_xml_bytes(data)
             target = destination / entry.path
-            try:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(data)
-            except OSError as exc:
-                raise _unpack_write_error(entry.path, target, exc) from exc
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
 
     metadata_path = _write_pack_metadata(destination, entries)
     return UnpackResult(output_dir=destination, metadata_path=metadata_path, entries=entries)
-
-
-def _unpack_write_error(entry: str, target: Path, error: OSError) -> OSError:
-    """The typed error for an entry the file system refused to write: a ``SaveTargetError`` that
-    is still the ``OSError`` subclass Python raised."""
-
-    from .._document.persistence import _save_target_error_type
-
-    return _save_target_error_type(type(error))(
-        f"Cannot unpack the entry {entry!r} to {target}: {error.strerror or error}.",
-        code="save-target-unwritable",
-        context={"entry": entry, "path": str(target), "os_error": type(error).__name__, "errno": error.errno},
-        suggestion="Unpack into a folder with a shorter path, and check free disk space and permissions.",
-    )
 
 
 def _add_unpack_xml_format_args(parser: argparse.ArgumentParser) -> None:

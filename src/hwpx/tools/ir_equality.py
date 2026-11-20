@@ -20,15 +20,7 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
-from ..opc.security import (
-    _fromstring,
-    _typed_read_errors,
-    guard_xml_bytes,
-    guard_xml_depth,
-    guard_zip_file,
-    parse_xml_stdlib,
-    read_member,
-)
+from ..opc.security import _parse_xml_stdlib, _typed_read_errors, guard_xml_bytes, guard_xml_depth, guard_zip_file, read_member
 
 __all__ = [
     "IrEqualityReport",
@@ -85,22 +77,15 @@ def _project_table(tbl_elem: ET.Element) -> list:
 
 
 def project_section_xml(xml: str | bytes) -> list:
-    """Project one section XML string into a list of paragraph projections.
-
-    Malformed XML raises a typed ``HwpxXmlSyntaxError`` that is still ElementTree's
-    ``ParseError`` (a ``SyntaxError``), which this function raised before."""
-    return _project_section(xml, "XML payload")
-
-
-def _project_section(xml: str | bytes, part_name: str) -> list:
+    """Project one section XML string into a list of paragraph projections."""
     if isinstance(xml, str):
         # Already decoded: whatever encoding its declaration names, the parser is given the text. The
         # declaration check reads the same text.
-        guard_xml_bytes(xml.encode("utf-8"), part_name=part_name)
-        root = _fromstring(xml, part_name)
-        guard_xml_depth(root, part_name=part_name)
+        guard_xml_bytes(xml.encode("utf-8"))
+        root = ET.fromstring(xml)
+        guard_xml_depth(root)
     else:
-        root = parse_xml_stdlib(xml, part_name=part_name)
+        root = _parse_xml_stdlib(xml, parse_error=True)
     paras: list = []
     # Top-level paragraphs are direct <hp:p> children of the section root;
     # paragraphs nested in table cells are reached via recursion, not here.
@@ -113,15 +98,16 @@ def _project_section(xml: str | bytes, part_name: str) -> list:
 def project_document(data: bytes) -> list:
     """Project a whole HWPX byte blob: paragraphs across all sections in order."""
     projection: list = []
-    # Not a ZIP, or damaged compressed data: the typed errors HwpxDocument.open raises for them.
-    with _typed_read_errors(data), zipfile.ZipFile(io.BytesIO(data)) as archive:
+    with _typed_read_errors(data):
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    with archive, _typed_read_errors():
         guard_zip_file(archive)
         names = sorted(
             (n for n in archive.namelist() if _SECTION_RE.match(n)),
             key=lambda n: int(_SECTION_RE.match(n).group(1)),
         )
         for name in names:
-            projection.extend(_project_section(read_member(archive, name), name))
+            projection.extend(project_section_xml(read_member(archive, name)))
     return projection
 
 

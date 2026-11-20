@@ -223,7 +223,7 @@ class EditorOpenSafetyReport:
 def validate_editor_open_safety(source: str | Path | bytes) -> EditorOpenSafetyReport:
     """Return package/document/reopen evidence for editor-open-safe handoff."""
 
-    package_report = validate_package(source)
+    package_report = _validate_package(source)
     blocking_errors = tuple(
         issue for issue in package_report.errors if is_editor_open_blocking_issue(issue)
     )
@@ -1063,29 +1063,27 @@ def _safe_read(
 ) -> bytes | None:
     try:
         return read_member(zf, part_name, limit=limit)
-    except (BadZipFile, KeyError, OSError, EOFError, zlib.error, HwpxSecurityError):
+    except (BadZipFile, KeyError, OSError, zlib.error, HwpxSecurityError):
         return None
 
 
 def _first_unreadable_entry(zf: ZipFile) -> tuple[str, str] | None:
     """The first entry whose data cannot be read back, with why, or ``None``.
 
-    ``ZipFile.testzip`` reports a failed CRC and raises for the rest: damaged deflate data
-    (``zlib.error``) and data that ends early (``EOFError``) left ``validate_package`` as those
-    exceptions instead of as an issue in its report.
+    This is ``ZipFile.testzip`` (the same entries, opened by name, in the same order, and the same
+    answer for a failed CRC) that also answers for damaged deflate data, whose ``zlib.error``
+    ``testzip`` lets out.
     """
 
     for info in zf.infolist():
         try:
-            with zf.open(info) as handle:
+            with zf.open(info.filename) as handle:
                 while handle.read(1 << 20):
                     pass
         except BadZipFile:
             return info.filename, "ZIP CRC/integrity check failed"
         except zlib.error as exc:
             return info.filename, f"ZIP compressed data is damaged: {exc}"
-        except EOFError:
-            return info.filename, "ZIP compressed data ends before the entry does"
     return None
 
 
@@ -1517,6 +1515,22 @@ def _check_version_part(
 
 
 def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidationReport:
+    """Check the package structure of *source* and report what is wrong with it.
+
+    An entry whose compressed data is damaged is an error in the report, which names the entry
+    (through 7.0.0 its ``zlib.error`` was raised instead).
+    """
+
+    return _validate_package(source, report_damaged_data=True)
+
+
+def _validate_package(
+    source: str | Path | bytes | BinaryIO, *, report_damaged_data: bool = False
+) -> PackageValidationReport:
+    """:func:`validate_package`. Without *report_damaged_data* the ``zlib.error`` of damaged
+    compressed data leaves as it always did: the save gate and ``validate_editor_open_safety``
+    check through here, so a save that raised on such an archive still raises before it writes."""
+
     checked_parts: list[str] = []
     issues: list[PackageValidationIssue] = []
 
@@ -1546,7 +1560,11 @@ def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidation
             _error(issues, "archive", "empty archive")
             return PackageValidationReport(tuple(checked_parts), tuple(issues))
 
-        bad_entry = _first_unreadable_entry(zf)
+        if report_damaged_data:
+            bad_entry = _first_unreadable_entry(zf)
+        else:
+            bad_name = zf.testzip()
+            bad_entry = None if bad_name is None else (bad_name, "ZIP CRC/integrity check failed")
         if bad_entry is not None:
             _error(issues, *bad_entry)
 
