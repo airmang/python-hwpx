@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
-from ._resolve import refused_leaves_no_paragraph
+from ._resolve import home_paragraph, refused_leaves_no_paragraph
 
 from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_id, current_time
 from ..oxml.namespaces import HP
@@ -434,9 +434,16 @@ def add_memo_with_anchor(
         )
     if match is not None:
         probe = paragraph_text if paragraph_text is not None else (paragraph.text if paragraph is not None else "")
-        if match == "" or match not in probe:
+        # With paragraph_text the paragraph is written before the memo is anchored, so the place asked
+        # for (the index-th match) is counted in the new text first: a place that is not there was
+        # refused after the paragraph's text had been replaced.
+        import re
+
+        places = sum(piece.count(match) for piece in re.split(r"[\t\n\r]", probe)) if match else 0
+        if match == "" or match not in probe or (paragraph_text is not None and places <= index):
             raise HwpxValueError(
-                "the text to put the memo on is not in the paragraph",
+                "the text to put the memo on is not in the paragraph"
+                + (f" {index + 1} times" if index else ""),
                 code="note-match-not-found",
                 context={"match": match, "paragraphText": probe},
                 suggestion="Pass text that appears in the paragraph within one run (paragraph.runs).",
@@ -467,8 +474,8 @@ def add_memo_with_anchor(
         )
         paragraph_value = "" if paragraph_text is None else paragraph_text
         anchor_char = paragraph_char_pr_id_ref or char_pr_id_ref
-        target_paragraph = doc.add_paragraph(
-            paragraph_value,
+        target_paragraph = home_paragraph(
+            doc, paragraph_value,
             section=memo_section,
             char_pr_id_ref=anchor_char,
         )

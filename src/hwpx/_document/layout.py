@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxTypeError, HwpxValueError
-from ._resolve import refused_leaves_no_paragraph
+from ._resolve import home_paragraph, refused_leaves_no_paragraph
 from ..objects.results import (
     ColumnLayout,
     LineSpacing,
@@ -746,14 +746,14 @@ def set_page_setup(
         # ... and the columns too: a count below 1 was refused after the paper size and the margins
         # had been written, so the refused call changed the page.
         col_count = int(columns)
-        if col_count < 1:
+        if not 1 <= col_count <= 255:  # what set_columns takes: 256 was refused there, after the paper
             raise HwpxValueError(
-                "columns must be 1 or greater",
+                "columns must be between 1 and 255",
                 code="page-columns-invalid",
                 context={"requested": col_count},
                 suggestion="Use columns=1 to remove columns.",
             )
-        float(column_gap_mm or 0)
+        validate_column_gap(_mm_to_hwp_units(float(column_gap_mm or 0)))
     if width is not None or height is not None or normalized_orientation is not None:
         # Call the local primitives directly rather than `doc.set_page_size`/
         # `doc.set_page_margins`/`doc.set_columns` below — all three names
@@ -863,8 +863,8 @@ def set_columns(
         )
         if ctrl is not None:
             return HwpxOxmlInlineObject(ctrl, target_section.paragraphs[0])
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_column_definition(
@@ -894,8 +894,8 @@ def add_bookmark(
     Returns it as :class:`~hwpx.objects.Bookmark` (``paragraph.add_bookmark``'s, 7.0).
     """
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_bookmark(name, offset=offset)
@@ -922,8 +922,8 @@ def add_hyperlink(
     Returns it as :class:`~hwpx.objects.Hyperlink` (``paragraph.add_hyperlink``'s, 7.0).
     """
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section,
+        paragraph = home_paragraph(
+            doc, "", section=section,
             include_run=False,
         )
     return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)

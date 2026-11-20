@@ -1367,7 +1367,9 @@ def _note_target(note: Any, paragraph: Any, offset: Any) -> int:
             suggestion="Copy the range holding it into the other document: paragraph.copy_range(...).",
         )
     box = paragraph_box(paragraph.element, paragraph.section.element)
-    if box in ("note", "header_footer", "memo", "other"):
+    if not hasattr(paragraph.section, "_section_properties_element"):
+        box = "master_page"  # also a cell or a text box on one: add_footnote refuses a master page too
+    if box in ("note", "header_footer", "memo", "other", "master_page"):
         raise HwpxValueError(
             "a footnote or an endnote goes into the body, a cell, a text box or a caption",
             code="paragraph-move-place-unsupported",
@@ -1474,6 +1476,13 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
     from ._paragraph_text_edit import renumber_copied_fields
 
     renumber_copied_fields(copy, ids=paragraph.section._ids)
+    # ... and a memo anchored in the note's text is a memo of its own (its number and id), as one in a
+    # copied paragraph: the two were one memo to Hancom.
+    from .memo import renew_copied_memos
+
+    document = paragraph.section.document
+    renew_copied_memos(copy, list(document.sections) if document is not None else [paragraph.section],
+                       paragraph.section)
     put_at(paragraph.element, offset, control)
     # The objects in the note's text are copies too: each gets an id no other object has and goes over the
     # others, as a copied object does (shape.copy_to); they kept the original's id and zOrder before.
@@ -1482,5 +1491,9 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
     for node in list(_object_nodes(copy)):
         stack_new_object(node, paragraph.section)
     _changed(paragraph)
-    _renumber_after(copy, paragraph.section)
+    # the copy's kind, and the kinds of the notes in its text (a footnote in a copied endnote kept its
+    # number, so two footnotes had one)
+    from .note_authoring import renumber_notes_holding
+
+    renumber_notes_holding(paragraph.section, (control,))
     return HwpxOxmlNote(copy, paragraph)

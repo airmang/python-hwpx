@@ -12,6 +12,7 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from . import body
 from ._document_primitives import (
+    note_made_run,
     refused_appends_nothing,
     SameElement,
     _HP,
@@ -91,7 +92,7 @@ from .shape_position import (
     validate_equation_script, validate_shape_size,
 )
 from .table import HwpxOxmlTable
-from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, new_table_width, validate_table_size
+from .table_sizes import NEW_TABLE_COLUMN_FLOOR, cell_margins_of, check_new_table_height, new_table_width, validate_table_size
 from .table_sizes import checked_in_margins, with_in_margins
 
 if TYPE_CHECKING:
@@ -618,6 +619,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                 attrs["charPrIDRef"] = str(default_char)
         run = self.element.makeelement(f"{_HP}run", attrs)
         self.element.append(run)
+        note_made_run(self, run)
         _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         return run
 
@@ -684,6 +686,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                         run_attrs["charPrIDRef"] = str(default_char)
 
         run_element = _append_child(self.element, f"{_HP}run", run_attrs)
+        note_made_run(self, run_element)
         _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         if expand_special_characters:
             _append_text_with_run_choice_atoms(run_element, text)
@@ -832,6 +835,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         """
 
         validate_table_size(rows, cols)
+        check_new_table_height(height)
         margins = checked_in_margins(in_margins)
         if width is not None:
             width = new_table_width(width, cols)  # checked, and floored as Hancom draws it, before its run is added
@@ -899,7 +903,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                 "containing it. Use add_line/add_rectangle/add_ellipse, or "
                 "append the missing OWPML children yourself.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=3,  # the caller's line, past the wrapper that undoes a refused call
             )
         self.section.mark_dirty()
         return HwpxOxmlInlineObject(element, self)

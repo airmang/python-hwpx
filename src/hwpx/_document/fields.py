@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
-from ._resolve import refused_leaves_no_paragraph
+from ._resolve import home_paragraph, refused_leaves_no_paragraph
 from ..objects.checkbox import CheckBox, ComboBox, EditBox, RadioButton
 from ..objects.form_field import (
     Bookmark,
@@ -967,7 +967,7 @@ def add_cross_reference(
     _check_xref_choices(content_type, hyperlink)
     path, ref_type = _cross_reference_target(doc, target)
     if paragraph is None:
-        paragraph = doc.add_paragraph("", section=section, include_run=False)
+        paragraph = home_paragraph(doc, "", section=section, include_run=False)
     from ..oxml._document_primitives import _object_id
     from ..oxml.field_marks import field_type_id
 
@@ -1135,8 +1135,8 @@ def add_form_field(
         if not isinstance(value, str):
             raise argument_type_error(argument, value, "str")
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section, include_run=False,
+        paragraph = home_paragraph(
+            doc, "", section=section, include_run=False,
         )
 
     prompt_char_pr: str | None = None
@@ -1242,8 +1242,8 @@ def add_check_box(
             suggestion="Pass the caption printed next to the box.",
         )
     if paragraph is None:
-        paragraph = doc.add_paragraph(
-            "", section=section, include_run=False,
+        paragraph = home_paragraph(
+            doc, "", section=section, include_run=False,
         )
 
     control = paragraph.add_check_box(caption, checked=checked, name=name)
@@ -1970,7 +1970,7 @@ def _add_form_object(
     """
 
     if paragraph is None:
-        paragraph = doc.add_paragraph("", section=section, include_run=False)
+        paragraph = home_paragraph(doc, "", section=section, include_run=False)
     fore, back, border, width, height = _FORM_LOOK[local]
     attributes = {key: own.get(key, default) for key, default in _FORM_OWN_ATTRIBUTES[local]}
     attributes.update({

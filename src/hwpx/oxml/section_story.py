@@ -688,12 +688,15 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         return sublist
 
     def _remove_sublists(self) -> bool:
-        removed = False
-        for child in list(self.element):
-            if child.tag == f"{_HP}subList":
-                self.element.remove(child)
-                removed = True
-        return removed
+        from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+        section = self._properties.section
+        gone = [child for child in self.element if child.tag == f"{_HP}subList"]
+        note_kinds = note_kinds_in_all(section, gone)  # notes in the text that goes: the rest count again
+        for child in gone:
+            self.element.remove(child)
+        renumber_note_kinds(section, note_kinds)
+        return bool(gone)
 
     def clear_content(self) -> None:
         """Remove existing rich/plain content while keeping header/footer linkage.
@@ -916,7 +919,8 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
             self.element.extend(children)
             raise
 
-    def _check_content(self, content: Sequence[Mapping[str, Any]]) -> None:
+    @staticmethod
+    def _check_content(content: Sequence[Mapping[str, Any]]) -> None:
         """Everything :meth:`_fill_content` refuses, checked for the whole of *content* before the first
         paragraph is written: the kind of each child, a run's colours, size and font, a page number's
         format, a paragraph's alignment. A later child refused used to leave what the earlier ones had

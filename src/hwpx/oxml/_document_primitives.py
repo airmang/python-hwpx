@@ -188,13 +188,15 @@ _M = TypeVar("_M", bound=Callable[..., Any])
 
 
 def refused_appends_nothing(method: _M) -> _M:
-    """For a paragraph method that appends a run holding something new: when it raises, the runs it had
-    appended go again.
+    """For a paragraph method that makes a run for something new: when it raises, the run it made goes
+    again.
 
-    The run is appended and then filled, so a value lxml cannot write (an ``int`` for a name, bytes
-    for a caption) raised with a half-made control already in the paragraph -- a ``hp:ctrl`` with no
-    control in it keeps Hancom from opening the document. Only what was appended after the children the
-    paragraph had is taken out; when those are not all in place any more, nothing is.
+    The run is put into the paragraph and then filled, so a value lxml cannot write (an ``int`` for a
+    name, bytes for a caption) raised with a half-made control already in the paragraph -- a ``hp:ctrl``
+    with no control in it keeps Hancom from opening the document. Only the runs the method noted as its
+    own (:func:`note_made_run`) are taken out: a run something else added while the call ran is not
+    this method's to undo. The line cache the method dropped for its run goes back when nothing else in
+    the paragraph changed.
     """
 
     from functools import wraps
@@ -202,16 +204,34 @@ def refused_appends_nothing(method: _M) -> _M:
     @wraps(method)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         before = list(self.element)
+        made: list[Any] = []
+        records = self.__dict__.setdefault("_made_run_records", [])
+        records.append(made)
         try:
             return method(self, *args, **kwargs)
         except BaseException:
+            for run in made:
+                if any(child is run for child in self.element):
+                    self.element.remove(run)
             now = list(self.element)
-            if len(now) > len(before) and all(a is b for a, b in zip(now, before)):
-                for child in now[len(before):]:
+            kept = [child for child in before if child.tag != f"{_HP}linesegarray"]
+            if len(kept) != len(before) and len(now) == len(kept) and all(a is b for a, b in zip(now, kept)):
+                for child in now:
                     self.element.remove(child)
+                self.element.extend(before)  # as it was, its line cache too
             raise
+        finally:
+            records.pop()
 
     return cast(_M, wrapper)
+
+
+def note_made_run(paragraph: Any, run: Any) -> None:
+    """Note *run* as made by the paragraph method that is running (see :func:`refused_appends_nothing`)."""
+
+    records = paragraph.__dict__.get("_made_run_records")
+    if records:
+        records[-1].append(run)
 
 
 def _require_text(value: object) -> None:

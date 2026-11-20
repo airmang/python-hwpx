@@ -252,6 +252,11 @@ def _paragraph_add_number_restart(
     return NumberRestart(kind=normalized_kind, number=number, paragraph=self)
 
 
+# The name it had as a method of the paragraph class, before it moved here beside the numbering.
+_paragraph_add_number_restart.__name__ = "add_number_restart"
+_paragraph_add_number_restart.__qualname__ = "HwpxOxmlParagraph.add_number_restart"
+
+
 def _direct_notes(paragraph: ET.Element, tag: str) -> list[ET.Element]:
     """The notes of kind *tag* this paragraph holds itself, in order: Hancom's
     ``hp:run/hp:ctrl/hp:footNote`` and the ``hp:run/hp:footNote`` older python-hwpx
@@ -362,16 +367,21 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
     starts with, where they differ. A note whose number changes its count of digits
     drops its paragraph's line cache, as its mark changes width.
 
-    Left alone, in every section, when a section numbers the kind ``ON_PAGE``: those
-    numbers start again on each page, which this engine does not lay out, and a later
-    section's count would run on from them. The numbers already written stay as they
-    are; a note added there carries its count in the document. Hancom numbers them
-    again per page when it opens the document and writes those numbers when it saves
-    (Hangul 2024), so what is written there does not change what Hancom draws."""
+    Left alone, from the first section that numbers the kind ``ON_PAGE`` on: those numbers start
+    again on each page, which this engine does not lay out, and a later section's count would run on
+    from them. The numbers already written there stay as they are; a note added there carries its
+    count in the document. Hancom numbers them again per page when it opens the document and writes
+    those numbers when it saves (Hangul 2024), so what is written there does not change what Hancom
+    draws. The sections in front of it are numbered as in any document."""
 
     sections = _sections_of(section)
-    if any(tag in _kinds_numbered_per_page(owner.element) for owner in sections):
-        return
+    per_page = [tag in _kinds_numbered_per_page(owner.element) for owner in sections]
+    if any(per_page):
+        # The sections in front of the first one numbered per page are counted as ever: a later,
+        # even empty, section numbered per page used to keep them from being numbered at all.
+        sections = sections[: per_page.index(True)]
+        if not sections:
+            return
     numbers = note_numbers([owner.element for owner in sections])
     for owner in sections:
         changed = False

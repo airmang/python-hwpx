@@ -432,7 +432,13 @@ def add_native_toc(
     close_run = ET.SubElement(close_p, f"{_HP}run", {"charPrIDRef": "0"})
     _field_end(close_run, begin)
 
-    target_section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
+    placed = target_section.insert_paragraphs(at_index, [open_p, *entry_elements, close_p])
+    # The paragraphs go in as copies with ids of their own: the table's field, which begins in the first
+    # and ends in the last, has the id the copy was given.
+    for node in placed[0].element.iter(f"{_HP}fieldBegin"):
+        if node.get("type") == "TABLEOFCONTENTS":
+            toc_field_id = str(node.get("id"))
+            break
     if at_index == 0:
         _keep_section_setup_first(target_section)
     return {

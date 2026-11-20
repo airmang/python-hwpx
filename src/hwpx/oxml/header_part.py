@@ -1006,8 +1006,8 @@ class HwpxOxmlHeader:
             try:
                 flags = int(config_element.get("flags", ""))
             except ValueError:
-                flags = None
-            if flags is not None and not _track_change_marks_shown(flags):
+                flags = 0  # no flags, or not a number: read as 0, which hides the marks
+            if not _track_change_marks_shown(flags):
                 config_element.set("flags", str(_TRACK_FLAGS_SHOWING_MARKS | (flags & ~_TRACK_VIEW_BITS)))
         self.mark_dirty()
         return change_id

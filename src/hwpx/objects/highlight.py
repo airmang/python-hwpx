@@ -74,16 +74,12 @@ class _RunMark:
         held, element = self._paragraph, self._element
         if held is None or not hasattr(element, "getparent"):
             return held
-        nearest = None
-        node = element.getparent()
-        while node is not None:
-            if node is held.element:
-                return held
-            if nearest is None and node.tag.rsplit("}", 1)[-1] == "p":
-                nearest = node
-            node = node.getparent()
-        if nearest is None:  # taken out with no paragraph around it: the one it was taken from
-            return held
+        nearest = element.getparent()
+        while nearest is not None and nearest.tag.rsplit("}", 1)[-1] != "p":
+            nearest = nearest.getparent()
+        if nearest is None or nearest is held.element:
+            return held  # where it was taken from (or taken out with no paragraph around it)
+        # the paragraph it is in now: another one, or a cell's paragraph inside the one it was taken from
         self._paragraph = type(held)(nearest, held.section)
         return self._paragraph
 

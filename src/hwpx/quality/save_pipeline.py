@@ -107,8 +107,13 @@ def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes, int] | Non
         return None
     try:
         end_position = stream.seek(0, os.SEEK_END)
+    except (AttributeError, OSError, ValueError):
+        # A stream that seeks to a position and not to its end: it ends after what was read. (Standing
+        # past its end it would read nothing too; without a seek to the end that cannot be told.)
+        end_position = position + len(tail)
+    try:
         stream.seek(position)
-    except (AttributeError, OSError):
+    except (AttributeError, OSError, ValueError):
         return None
     return position, tail, end_position
 
@@ -134,9 +139,16 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes, int] | None
                 offset += min(taken, len(chunk))  # a count past what it was given is the chunk
         stream.truncate(end)  # where it ended: before the position when the stream stood past its end
         stream.seek(position)
-    except (AttributeError, OSError):
+    except (AttributeError, OSError, ValueError):  # ValueError: the stream closed itself when it failed
         return False
-    return True
+    # What it holds now, read back where it can be: a write that reports nothing (``None``) may have
+    # taken nothing, and "put back" was said over a stream that still held a part of the new document.
+    try:
+        held = stream.read()
+        stream.seek(position)
+    except (AttributeError, OSError, ValueError):
+        return True  # not readable: the writes and the cut went through, which is all that can be known
+    return held == tail
 
 
 def _rollback_or_say_so(stream: BinaryIO, checkpoint: tuple[int, bytes, int] | None, error: BaseException) -> None:

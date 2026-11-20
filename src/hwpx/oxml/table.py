@@ -570,6 +570,7 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         ``<hp:subList>``.
         """
         _table_sizes.validate_table_size(rows, cols)  # before a border fill is declared or a paragraph added
+        _table_sizes.check_new_table_height(height)
         _table_sizes.new_table_width(width, cols)  # checked before a paragraph is added
         # Resolve border fill ID
         if border_fill_id_ref is None:

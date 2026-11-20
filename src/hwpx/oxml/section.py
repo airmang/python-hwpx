@@ -235,7 +235,8 @@ class HwpxOxmlSection:
         char_pr_id_ref: str | int | None = None,
         attributes: Optional[dict[str, str]] = None,
     ) -> HwpxOxmlMemo:
-        _require_text(text)  # not text: refused before anything is written
+        if text is not None:
+            _require_text(text)  # not text: refused before anything is written
         element = self._memo_group_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create memo group element")
@@ -693,12 +694,15 @@ class HwpxOxmlSection:
             raise IndexError(f"단락 인덱스 {index}이(가) 범위를 벗어났습니다 (총 {len(existing)}개)")
 
         inserted: list[HwpxOxmlParagraph] = []
-        for offset, paragraph in enumerate(paragraphs):
+        clones = self._element.makeelement(f"{_HP}subList", {})  # holds the copies until they are numbered
+        for paragraph in paragraphs:
             source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
-            cloned = _clone_paragraph_element(source_element, ids=self._ids)
-            # as paragraph.copy_to and insert_after(): a copied field gets its own id pair (the copy kept
-            # the original's, and neither field could be filled by name or id: ``field-ambiguous``)
-            renumber_copied_fields(cloned, ids=self._ids)
+            clones.append(_clone_paragraph_element(source_element, ids=self._ids))
+        # as paragraph.copy_to and insert_after(): a copied field gets its own id pair (the copy kept the
+        # original's, and neither field could be filled by name or id: ``field-ambiguous``). The copies
+        # are numbered together: a field may begin in one paragraph and end in a later one.
+        renumber_copied_fields(clones, ids=self._ids)
+        for offset, cloned in enumerate(list(clones)):
             for run, settings in section_setting_runs(cloned):
                 for child in settings:
                     run.remove(child)

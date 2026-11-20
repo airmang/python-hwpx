@@ -42,31 +42,51 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 
 def refused_leaves_no_paragraph(func: _F) -> _F:
     """For a function that puts something into *paragraph*, or -- given none -- into a paragraph it
-    appends to a section first: when the call is refused, that new paragraph goes again.
+    appends to a section first (:func:`home_paragraph`): when the call is refused, that new paragraph
+    goes again.
 
     The paragraph is made before the thing itself is checked (its text, its sizes, its colours), so a
     refused ``doc.shapes.add_line(line_color="nope")`` or ``doc.notes.add_footnote(123)`` used to leave
-    an empty paragraph at the end of the section. Whatever was appended to a section's body during a
-    refused call is taken out again, and a section that was not marked changed before is not after.
+    an empty paragraph at the end of the section. Only the paragraph the function made for itself is
+    taken out: whatever else changed while the call ran (an argument that edits the document as it is
+    read) is not this function's to undo, and the section stays marked as changed.
     """
 
     @wraps(func)
     def wrapper(doc: Any, *args: Any, **kwargs: Any) -> Any:
-        before = [(section, len(section.element), section._dirty) for section in doc._root.sections]
+        made: list[Any] = []
+        records = doc.__dict__.setdefault("_home_paragraph_records", [])
+        records.append(made)
         try:
             return func(doc, *args, **kwargs)
         except BaseException:
-            for section, count, dirty in before:
-                body = section.element
-                if len(body) <= count:
-                    continue
-                for child in list(body)[count:]:
-                    body.remove(child)
-                if not dirty:
-                    section._dirty = False
+            for paragraph in made:
+                element = paragraph.element
+                holder = element.getparent() if hasattr(element, "getparent") else None
+                if holder is not None:
+                    holder.remove(element)
             raise
+        finally:
+            records.pop()
 
     return cast(_F, wrapper)
+
+
+def home_paragraph(doc: Any, *args: Any, **kwargs: Any) -> "HwpxOxmlParagraph":
+    """``doc.add_paragraph(...)`` for the paragraph a function makes to put its object into, noted so
+    that :func:`refused_leaves_no_paragraph` takes it out again when the function is refused."""
+
+    return note_home_paragraph(doc, doc.add_paragraph(*args, **kwargs))
+
+
+def note_home_paragraph(doc: Any, paragraph: "HwpxOxmlParagraph") -> "HwpxOxmlParagraph":
+    """Note *paragraph* as the one the running function made for its object (see
+    :func:`refused_leaves_no_paragraph`) and return it."""
+
+    records = doc.__dict__.get("_home_paragraph_records")
+    if records:
+        records[-1].append(paragraph)
+    return paragraph
 
 if TYPE_CHECKING:
     from ..oxml import HwpxOxmlParagraph, HwpxOxmlSection
@@ -116,6 +136,16 @@ def resolve_section(
         return sections[-1]
 
     if isinstance(requested, HwpxOxmlSection):
+        if not any(requested is own for own in sections):
+            # Another document's section (or one removed from this one): the paragraph went into that
+            # document and the image, the styles and the ids into this one -- a picture in one file
+            # and its image in the other.
+            raise HwpxLookupError(
+                "그 섹션은 이 문서의 섹션이 아닙니다.",
+                code="section-not-found",
+                context=ctx,
+                suggestion="이 문서의 doc.sections[i] 나 정수 인덱스를 넘기세요.",
+            )
         return requested
 
     # bool 은 int 의 서브클래스다. `section=True` 를 인덱스 1 로 읽으면

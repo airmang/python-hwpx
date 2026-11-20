@@ -99,6 +99,24 @@ def new_table_width(width: object, cols: int) -> int | None:
     return max(width, cols * NEW_TABLE_COLUMN_FLOOR)
 
 
+def check_new_table_height(height: object) -> None:
+    """A new table's *height* (``None`` when not given) checked before anything is written: an int in
+    ``0 <= height < 2**31``. Anything else was added to the row heights and failed there, after the
+    table's border definition (and, in a cell, its paragraph) had been made."""
+
+    from ..errors import HwpxValueError
+
+    if height is None:
+        return
+    if isinstance(height, bool) or not isinstance(height, int) or not 0 <= height < 2**31:
+        raise HwpxValueError(
+            f"height must be an int in 0 <= height < 2**31 (HWPUNIT); got {height!r}",
+            code="table-height-value",
+            context={"value": repr(height)},
+            suggestion="Pass the table's height in HWP units, or leave it out for the default row height.",
+        )
+
+
 def _column_floors(table: "HwpxOxmlTable") -> list[int]:
     """The narrowest Hancom draws each grid column: the widest left and right margins and
     :data:`COLUMN_FLOOR_EXTRA` of its cells one column wide."""

@@ -1333,8 +1333,13 @@ def _replace_sublist_text(
 
     sublist = container.find(f"{_HP}subList")
     if sublist is not None:
-        for existing in list(sublist.findall(f"{_HP}p")):
+        from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+        gone = list(sublist.findall(f"{_HP}p"))
+        note_kinds = note_kinds_in_all(section, gone)  # notes in the text that goes: the rest count again
+        for existing in gone:
             sublist.remove(existing)
+        renumber_note_kinds(section, note_kinds)
     return _add_sublist_paragraph(
         container, text, section=section, vert_align=vert_align,
         char_pr_id_ref=char_pr_id_ref, para_pr_id_ref=para_pr_id_ref,
@@ -1500,7 +1505,11 @@ def _remove_caption(host: ET.Element, section: "HwpxOxmlSection") -> bool:
     element = host.find(f"{_HP}caption")
     if element is None:
         return False
+    from .note_authoring import note_kinds_in_document, renumber_note_kinds
+
+    note_kinds = note_kinds_in_document(section, element)  # notes in the caption: the rest count again
     host.remove(element)
+    renumber_note_kinds(section, note_kinds)
     section.mark_dirty()
     return True
 

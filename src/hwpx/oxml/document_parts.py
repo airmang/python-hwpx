@@ -1462,9 +1462,10 @@ class HwpxOxmlDocument:
         self._sync_header_section_count()
         # The notes of the sections left count on without the ones that went (and without a restart
         # that went with them): they kept the numbers they had, so the file said 3 for the second note.
-        from .note_authoring import note_kinds_in, renumber_note_kinds
+        from .note_authoring import renumber_note_kinds
 
-        renumber_note_kinds(self._sections[0], note_kinds_in((removed.element,)))
+        # both kinds, whatever the section held: one without a note may have started the count again
+        renumber_note_kinds(self._sections[0], {"footNote", "endNote"})
 
     # ------------------------------------------------------------------
     # Manifest helpers (private)

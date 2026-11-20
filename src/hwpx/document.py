@@ -803,7 +803,9 @@ class HwpxDocument(metaclass=_DocumentType):
                 )
         section = _resolve.resolve_section(self, section, caller="add_table")
         new_table_width(width, cols)  # checked before a paragraph or a border fill is added
-        from .oxml.table_sizes import checked_in_margins
+        from .oxml.table_sizes import check_new_table_height, checked_in_margins
+
+        check_new_table_height(height)
 
         checked_in_margins(in_margins)
         resolved_border_fill: str | int | None = border_fill_id_ref

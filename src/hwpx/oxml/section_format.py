@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    _require_text,
     paragraph_attributes,
     _HP,
     _append_child,
@@ -1321,6 +1322,10 @@ class HwpxOxmlSectionProperties:
                 changed = True
         if changed:
             self.section.mark_dirty()
+            # the notes of the kind are written with the numbers they have now (they kept the old ones)
+            from .note_authoring import renumber_notes
+
+            renumber_notes(self.section, tag[: -len("Pr")] if tag.endswith("Pr") else tag)
 
     def _set_note_placement(
         self,
@@ -1615,10 +1620,15 @@ class HwpxOxmlSectionProperties:
     # The header and footer setters write the one ``hp:ctrl`` story Hancom reads and saves
     # (see :meth:`_story_to_write`); up to 6.x python-hwpx wrote a second copy under ``hp:secPr``.
 
+    # What is to be written is checked before the story is looked for: finding it also tidies the
+    # section (a second header for the same pages goes), and a refused text or content used to leave
+    # the section tidied -- a header gone -- with nothing written.
     def set_header_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
+        _require_text(text)
         return self._write_story("header", page_type, lambda story: setattr(story, "text", text))
 
     def set_footer_text(self, text: str, page_type: str = "BOTH") -> HwpxOxmlSectionHeaderFooter:
+        _require_text(text)
         return self._write_story("footer", page_type, lambda story: setattr(story, "text", text))
 
     def set_header_content(
@@ -1626,6 +1636,7 @@ class HwpxOxmlSectionProperties:
         content: Sequence[Mapping[str, Any]],
         page_type: str = "BOTH",
     ) -> HwpxOxmlSectionHeaderFooter:
+        HwpxOxmlSectionHeaderFooter._check_content(content)
         return self._write_story("header", page_type, lambda story: story.set_content(content))
 
     def set_footer_content(
@@ -1633,6 +1644,7 @@ class HwpxOxmlSectionProperties:
         content: Sequence[Mapping[str, Any]],
         page_type: str = "BOTH",
     ) -> HwpxOxmlSectionHeaderFooter:
+        HwpxOxmlSectionHeaderFooter._check_content(content)
         return self._write_story("footer", page_type, lambda story: story.set_content(content))
 
     def remove_header(self, page_type: str = "BOTH") -> None:
