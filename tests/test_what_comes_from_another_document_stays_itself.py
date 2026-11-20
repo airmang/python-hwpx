@@ -527,3 +527,50 @@ def test_the_only_author_takes_the_number_its_changes_carry_when_a_second_author
     assert by_author == ["Alice", "fff", "fff", "fff"]
     again = sorted(change.author for change in HwpxDocument.open(document.to_bytes(format="hwp")).tracking.changes)
     assert again == by_author
+
+
+@pytest.mark.parametrize("trips", [1, 2])
+@pytest.mark.parametrize("merged", [False, True])
+def test_a_reviewer_joining_after_an_hwp_save_does_not_cost_another_their_text(trips: int, merged: bool) -> None:
+    """After an .hwp save the only author left has number 1 and an earlier change of theirs carries 2:
+    not the shape Hancom saves (0 and 1), and renumbering it made the next .hwp save hand B's changes
+    to C."""
+
+    def through_hwp(document: HwpxDocument) -> HwpxDocument:
+        return HwpxDocument.open(document.to_bytes(format="hwp"))
+
+    def insert(document: HwpxDocument, name: str) -> None:
+        document.tracking.insert(document.add_paragraph("p" + name), "ins" + name, author=name)
+
+    document = HwpxDocument.new()
+    insert(document, "A")
+    insert(document, "B")
+    document.tracking.accept(author="A")
+    for _ in range(trips):
+        document = through_hwp(document)
+    insert(document, "B")
+    if merged:
+        source = HwpxDocument.new()
+        insert(source, "C")
+        append_document(document, source)
+    else:
+        insert(document, "C")
+    document = through_hwp(document)
+
+    document.tracking.reject(author="C")
+    assert document.text.plain().splitlines() == ["pAinsA", "pBinsB", "pBinsB", "pC"]
+
+
+def test_a_refused_change_does_not_renumber_the_author() -> None:
+    document = HwpxDocument.open(str(TRACKED))
+    before = document.to_bytes()
+    with pytest.raises(ValueError):
+        document.tracking.add_change("unknown", author="Alice")
+    assert document.to_bytes() == before
+
+
+def test_the_same_author_named_with_spaces_keeps_their_number() -> None:
+    document = HwpxDocument.open(str(TRACKED))
+    document.tracking.insert(0, "Y", author=" fff ")
+    authors = [(author.get("id"), author.get("name")) for author in document.oxml.headers[0].element.iter(f"{HH}trackChangeAuthor")]
+    assert authors == [("0", "fff")]
