@@ -1151,6 +1151,42 @@ _MANUAL_CODE_USAGE_OVERRIDES: tuple[ManualCodeUsageOverride, ...] = (
             "authored-dutmal-compose 10/10)."
         ),
     ),
+    ManualCodeUsageOverride(
+        "hp",
+        "startPt",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "src/hwpx/oxml/curves.py:286-288 add_connector builds both endpoints of an "
+            "hp:connectLine with _append_child(element, f'{_HP}{tag}', ...) where tag comes "
+            "from zip(('startPt', 'endPt'), ...): a loop variable drawn from a zip, which "
+            "neither resolver follows. src/hwpx/oxml/objects.py:376 lists 'startPt'/'endPt' "
+            "among the endpoint names a connector's geometry is read from. Reported by an "
+            "outside reviewer who authored a connector and found hp:startPt/hp:endPt in the "
+            "saved XML while this ledger said write support 'none'."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "endPt",
+        code_read=True,
+        code_write=True,
+        evidence=(
+            "src/hwpx/oxml/curves.py:286-288, the same loop as hp:startPt above."
+        ),
+    ),
+    ManualCodeUsageOverride(
+        "hp",
+        "btn",
+        code_read=True,
+        code_write=False,
+        evidence=(
+            "src/hwpx/_document/fields.py:1899 list_form_objects maps the local name 'btn' "
+            "to objects.checkbox.Button through a dict key and iterates f'{_HP}{local}' "
+            "(doc.fields.buttons): a dict-key tag neither resolver follows. Read only -- "
+            "nothing authors a command button."
+        ),
+    ),
 )
 
 _validate_manual_overrides(_MANUAL_CODE_USAGE_OVERRIDES)

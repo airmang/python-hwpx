@@ -13,7 +13,7 @@
   </p>
 </p>
 
-<p align="center">한국어 | <a href="README_EN.md">English</a></p>
+<p align="center">한국어 | <a href="https://github.com/airmang/python-hwpx/blob/main/README_EN.md">English</a></p>
 
 HWPX는 ZIP 안에 XML(OWPML)을 담은 형식이라, 한컴오피스가 없어도 파이썬만으로 다룰 수 있습니다.
 python-hwpx는 Windows·macOS·Linux·CI 어디서나 돌고 의존성은 `lxml` 하나입니다. HWP 5.0(`.hwp`)도 같은
@@ -65,7 +65,10 @@ doc.save("계획.hwpx")
 
 Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보기, 문서 저작·시험지 조판 같은 상위 워크플로는
 7.0부터 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)에 있습니다
-(`pip install python-hwpx-automation`). 이 패키지는 파일에 적힌 대로 읽고 씁니다.
+(`pip install -U python-hwpx-automation`). 이 패키지는 파일에 적힌 대로 읽고 씁니다.
+
+6.x에서 올라온다면 [7.0 이주 가이드](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md)에 바뀐 이름과 새 자리가 모두 있습니다. 없어진 이름을 부르면
+오류가 새 이름을 알려 줍니다.
 
 > 예전 설치 명령을 위해 `pip install "python-hwpx[visual]"`도 계속 됩니다. 다만 이 extra는 비어 있어
 > 렌더·PDF 의존성을 설치하지 않습니다. 그 일은 `python-hwpx-automation[oracle]`이 맡습니다.
@@ -75,7 +78,7 @@ Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보�
 - 읽기·추출: 한/글의 텍스트 저장처럼 평문으로 내보냅니다(`doc.text.plain()`, 목록 번호·각주 포함 선택).
   `doc.text.outline()`은 글 덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.iter_paragraphs()`는 표 칸·글상자·
   머리말·각주의 문단까지 자리와 함께 내놓습니다. `.hwp`도 같은 호출로 읽습니다
-  ([사용법](docs/usage.md#ai-파이프라인에서-읽기)).
+  ([사용법](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md#ai-파이프라인에서-읽기)).
 - 편집: 문단·표·그림·머리말/꼬리말·메모·각주, 줄 간격·여백·쪽 번호 같은 서식을 고칩니다.
 - 양식 채우기: 칸·누름틀에 값만 넣고 손대지 않은 부분은 바이트 그대로 둡니다. FormFit은 값이
   칸에 들어가도록 줄을 바꾸거나 글자를 줄일지 한/글의 글자 폭으로 재서 고릅니다.
@@ -88,10 +91,10 @@ Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보�
   `write_line_caches`는 한/글이 저장할 때 쓰는 줄 배치 정보를, 한/글과 같은 값을 확실히 아는 문단에만 씁니다.
   rhwp처럼 이 정보로 그림 자리를 찾는 뷰어에서도 그림이 보이게 됩니다. 기본으로는 쓰지 않습니다.
 - 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`save()`가 돌려주는 `MutationReport`). 기본 저장은 없는 글자 모양·
-  문단 모양을 가리키는 참조까지는 확인하지 않습니다. 그 검사는 `save(..., quality=QualityPolicy.strict())`가 합니다
-  ([검사 범위](docs/usage.md#변경-사항-저장과-결과물-확인)).
+  문단 모양을 가리키는 참조까지는 확인하지 않습니다. 그 검사는 `save(..., quality=QualityPolicy(require_visual_complete=False))`가 합니다
+  ([검사 범위](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md#변경-사항-저장과-결과물-확인)).
 
-자세한 내용: [5분 퀵스타트](docs/quickstart.md) · [사용 가이드](docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](docs/examples.md) · [지원 매트릭스](docs/support-matrix.md)
+자세한 내용: [5분 퀵스타트](https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md) · [사용 가이드](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](https://github.com/airmang/python-hwpx/blob/main/docs/examples.md) · [지원 매트릭스](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md)
 
 ### 양식 채우기 예
 
@@ -105,13 +108,17 @@ report = doc.save("신청서-작성완료.hwpx", mode="patch", fallback="error")
 ```
 
 `mode="patch"`는 고치지 않은 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고치지 않은 파트는 압축된 바이트까지
-원본 그대로 옮기고, 아무것도 고치지 않은 저장은 파일째 같습니다. 고친 파트는 내용이 결정적이지만 압축된 바이트는
+원본 그대로 옮기고, 아무것도 고치지 않은 저장은 파일째 같습니다(커서가 없는 문단을 가리키는 문서는 `settings.xml`의 커서 자리만 고쳐 씁니다). 고친 파트는 내용이 결정적이지만 압축된 바이트는
 Python이 쓰는 zlib 구현에 따라 다를 수 있습니다. 고친 파트 안쪽과 화면 배치는 따로
-확인해야 합니다. 저장한 파일을 다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](docs/safe-write-contract.md)에
+확인해야 합니다. 저장한 파일을 다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](https://github.com/airmang/python-hwpx/blob/main/docs/safe-write-contract.md)에
 있습니다. 이름표 글자로 칸을 찾아 채우는 `fill_by_path`는 python-hwpx-automation(`hwpx_automation.forms`)에 있습니다.
 
+`doc.tables.map()`이 매긴 표 번호(`table_index`)는 칸 안의 표까지 센 번호라 `doc.tables.with_nested`의 번호와 같습니다.
+`doc.tables`는 칸 안의 표를 세지 않으므로, 칸 안에 표가 있는 양식에서는 `doc.tables.with_nested[table_index]`로 고르세요.
+합친 칸은 덮는 자리마다 같은 글로 한 번씩 나옵니다.
+
 *독립 실행 예제로 표시하지 않은 블록은 여러분이 가진 문서를 입력으로 쓰는 조각입니다. 예제별 Python 블록 판정은
-[실행 기록](docs/python-example-ledger.json)에 남겨 둡니다.*
+[실행 기록](https://github.com/airmang/python-hwpx/blob/main/docs/python-example-ledger.json)에 남겨 둡니다.*
 
 ## 한/글과 얼마나 같은가
 
@@ -133,10 +140,10 @@ Python이 쓰는 zlib 구현에 따라 다를 수 있습니다. 고친 파트 �
 <p align="center"><sub>ChatGPT 실행 환경에서 만든 문서를 실제 한컴오피스로 연 모습.</sub></p>
 
 전체 숫자와 주의할 점은 [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html)에,
-기능별 등급은 [지원 매트릭스](docs/support-matrix.md)에 있습니다. 이 숫자들은 "만든 파일을 한/글이 어떻게
+기능별 등급은 [지원 매트릭스](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md)에 있습니다. 이 숫자들은 "만든 파일을 한/글이 어떻게
 받는가"를 잰 것이고 파서가 문서를 얼마나 잘 읽는지와는 다른 지표입니다.
 
-개발 단계는 안정(Production/Stable)입니다. 하위 호환을 지키는 범위는 [안정 API 표면](docs/stable-api.md)에 적혀 있고,
+개발 단계는 안정(Production/Stable)입니다. 하위 호환을 지키는 범위는 [안정 API 표면](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md)에 적혀 있고,
 `hwpx.experimental`과 위에서 "실험"이라고 적은 기능은 바뀔 수 있습니다.
 
 ## 어디서 쓰나
@@ -144,8 +151,8 @@ Python이 쓰는 zlib 구현에 따라 다를 수 있습니다. 고친 파트 �
 | 환경 | 방법 |
 |---|---|
 | 로컬·서버 파이썬 | `pip install python-hwpx` (스크립트·배치·CI) |
-| 파이썬 자동화 (MCP 없이) | `pip install python-hwpx-automation` (저작·양식 채움·검증 워크플로) |
-| 일반 ChatGPT 대화 | `.hwpx`와 [Release wheel](https://github.com/airmang/python-hwpx/releases/latest)을 함께 올려 대화 안에서 설치([안내](docs/ai-assistants.md)) |
+| 파이썬 자동화 (MCP 없이) | `pip install -U python-hwpx-automation` (저작·양식 채움·검증 워크플로) |
+| 일반 ChatGPT 대화 | `.hwpx`와 [Release wheel](https://github.com/airmang/python-hwpx/releases/latest)을 함께 올려 대화 안에서 설치([안내](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md)) |
 | ChatGPT MCP 앱 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 MCP adapter를 커넥터로 등록 |
 | Codex 마켓플레이스 플러그인 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) 설치 |
 | Claude Code · Hermes · OpenClaw | 같은 MCP 서버를 각 클라이언트에 등록 ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
@@ -165,7 +172,7 @@ ChatGPT 채팅의 파이썬 환경은 PyPI에 접속하지 못합니다. 그래�
 ```
 
 설치부터 결과 파일까지 대화 안에서 끝나므로 내 컴퓨터에 파이썬이 없어도 됩니다. wheel의 의존성은 `lxml`
-하나이고 실행 환경에 없으면 lxml wheel도 함께 올립니다. 에이전트용 지시문은 [AI 채팅 환경에서 쓰기](docs/ai-assistants.md)에,
+하나이고 실행 환경에 없으면 lxml wheel도 함께 올립니다. 에이전트용 지시문은 [AI 채팅 환경에서 쓰기](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md)에,
 AI 도구가 API를 정확히 익히도록 만든 [llms.txt](https://airmang.github.io/python-hwpx/llms.txt)도 있습니다.
 
 | | 저장소 | 역할 |
@@ -204,11 +211,11 @@ AI 도구가 API를 정확히 익히도록 만든 [llms.txt](https://airmang.git
 [help wanted](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) ·
 [로드맵](https://github.com/airmang/python-hwpx/milestones) ·
 [Discussions](https://github.com/airmang/python-hwpx/discussions) ·
-[CONTRIBUTING](CONTRIBUTING.md)
+[CONTRIBUTING](https://github.com/airmang/python-hwpx/blob/main/CONTRIBUTING.md)
 
-HWPX 내부 구조가 처음이라면 [내부 실전 가이드](docs/internals/)부터 보세요. 실제 한/글 동작으로 확인한 조판
-캐시, 목차 필드, OPC 재압축 같은 내용을 정리해 두었습니다. 공개 API의 안정 범위는 [안정 API 표면](docs/stable-api.md),
-계층 사이의 소유권은 [제품 경계 문서](docs/architecture/product-boundary.md)에 있습니다.
+HWPX 내부 구조가 처음이라면 [내부 실전 가이드](https://github.com/airmang/python-hwpx/tree/main/docs/internals)부터 보세요. 실제 한/글 동작으로 확인한 조판
+캐시, 목차 필드, OPC 재압축 같은 내용을 정리해 두었습니다. 공개 API의 안정 범위는 [안정 API 표면](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md),
+계층 사이의 소유권은 [제품 경계 문서](https://github.com/airmang/python-hwpx/blob/main/docs/architecture/product-boundary.md)에 있습니다.
 
 ## 감사의 말
 
@@ -222,4 +229,4 @@ HWPX 내부 구조가 처음이라면 [내부 실전 가이드](docs/internals/)
 
 ## License · Maintainer
 
-Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) · Kohkyuhyun [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
+Apache-2.0 ([LICENSE](https://github.com/airmang/python-hwpx/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/python-hwpx/blob/main/NOTICE)) · Kohkyuhyun [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)

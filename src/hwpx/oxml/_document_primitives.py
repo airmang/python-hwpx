@@ -427,8 +427,8 @@ def _memo_id(ids: "IdSource | None") -> str:
 
 #: Headers and footers, whose ``id`` a copy renews.
 _COPY_RENEWED_STORY_TAGS = frozenset(f"{_HP}{name}" for name in ("header", "footer"))
-#: Objects whose ``id`` a copy renews unless it is ``0`` (a group member, as Hancom writes them). Before
-#: asks9x a copy kept the ids of lines, rectangles, ellipses, arcs, polygons, curves, connectors and charts.
+#: Objects whose ``id`` a copy renews unless it is ``0`` (a group member, as Hancom writes them). Earlier
+#: a copy kept the ids of lines, rectangles, ellipses, arcs, polygons, curves, connectors and charts.
 _COPY_RENEWED_OBJECT_TAGS = frozenset(f"{_HP}{name}" for name in (
     "tbl", "pic", "container", "ole", "equation", "textart", "video",
     "line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "chart"))

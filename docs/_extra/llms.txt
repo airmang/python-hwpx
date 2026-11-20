@@ -43,7 +43,7 @@ Use the API paths below rather than inferring names from python-docx.
   run boundaries or nested table paragraphs. Check the expected replacement
   count before saving; zero replacements are not task completion.
 - Read: `document.paragraphs`, `paragraph.text`, `document.sections`,
-  `document.text.iter_runs()`, `document.text.plain`, `document.notes.memos`,
+  `document.text.iter_runs()`, `document.text.plain()`, `document.notes.memos`,
   `document.fields.all` (a property, not a call).
 - Tables: `document.tables.map()` reports every table in document order with
   each cell's row, column and text as the file stores them;
@@ -60,8 +60,10 @@ Use the API paths below rather than inferring names from python-docx.
   no silent approximation.
 - Flat 5.x method names without a namespace (`add_footnote`,
   `replace_text_in_runs`, `iter_runs`, `add_form_field`, `add_equation`,
-  `remove_paragraph`, ...) still work but emit `DeprecationWarning` and are
-  removed in 7.0 — use the namespaced forms above.
+  `remove_paragraph`, ...) were removed in 7.0 — use the namespaced forms
+  above. Calling one raises an error that names its replacement. Saving is
+  `document.save(path)` (6.x `save_to_path`/`save_to_stream`/`save_report`
+  are gone).
 - Extract: `from hwpx import TextExtractor` →
   `TextExtractor("file.hwpx").extract_text()`;
   `iter_document_paragraphs(include_nested=True)` yields `ParagraphInfo` with
@@ -84,9 +86,9 @@ Use the API paths below rather than inferring names from python-docx.
   them raises an error that names the new function.
 
 ## Common mistakes to avoid
-- Wrong: `Document()` / `doc.paragraphs[0].runs` — those are python-docx
-  idioms. Use `HwpxDocument.new()` / `document.text.iter_runs()`. (`add_paragraph`
-  and `add_heading` do exist.)
+- Wrong: `Document()` — that is the python-docx idiom. Use
+  `HwpxDocument.new()`. (`add_paragraph`, `add_heading` and `paragraph.runs`
+  do exist; `document.text.iter_runs()` walks every run.)
 - `.hwp` (HWP 5.x binary) opens too: `HwpxDocument.open("file.hwp")` converts it
   into the same document model. `document.conversion_report` counts what the
   conversion could not carry over (`None` for a document opened from HWPX), and
@@ -122,8 +124,10 @@ Use the API paths below rather than inferring names from python-docx.
   read/preserve only).
 - [Safe write contract](https://airmang.github.io/python-hwpx/safe-write-contract.html):
   preservation grades and the `MutationReport` schema.
-- [API migration](https://airmang.github.io/python-hwpx/migration-6.0.html):
-  current namespaces, return objects and deprecated facade replacements.
+- [API migration](https://airmang.github.io/python-hwpx/migration-7.0.html):
+  every name 7.0 renamed, removed or moved to python-hwpx-automation, with its
+  replacement. The 6.0 changes:
+  https://airmang.github.io/python-hwpx/migration-6.0.html
 - [Corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html):
   measured open/render rates on real Hancom Office.
 - [API reference](https://airmang.github.io/python-hwpx/api_reference.html)

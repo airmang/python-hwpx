@@ -29,6 +29,10 @@ corpus-metrics
 adoption-metrics
 support-matrix
 stable-api
+migration-7.0
+migration-6.0
+migration-5.0
+migration-4.0
 compatibility-observation-4.x
 safe-write-contract
 schema-overview

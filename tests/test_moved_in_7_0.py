@@ -35,7 +35,7 @@ from hwpx import HwpxDocument, _moved_modules
 from hwpx._document import _legacy
 from hwpx.errors import ERROR_CODES, HwpxAttributeError
 
-INSTALL = "pip install python-hwpx-automation"
+INSTALL = 'pip install -U "python-hwpx-automation>=8"'
 GUIDE = _moved_modules.MIGRATION_GUIDE_7_0_URL
 ROOT = Path(__file__).resolve().parents[1]
 

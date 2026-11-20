@@ -50,7 +50,7 @@ import copy as _copy
 from pathlib import Path
 from typing import Any
 
-from .._document.media import _bin_data_stem, add_image
+from .._document.media import _find_binary_item, add_image
 from ..document import HwpxDocument
 from ..errors import HwpxValueError
 from ..oxml.field_marks import field_type_id
@@ -607,39 +607,115 @@ def _remap_binary_items(
     """
 
     used = _used_ids(paragraphs, "binaryItemIDRef")
-    if not used:
-        return {}
-    source_container = source_header._bin_data_list_element()
-    if source_container is None:
-        return {}
     remap: dict[str, str] = {}
-    for old_stem in sorted(used):
-        item = next(
-            (
-                c for c in source_container.findall(f"{_HH}binItem")
-                if _bin_data_stem(c.get("BinData")) == old_stem
-            ),
-            None,
-        )
-        if item is None:
-            continue
-        bin_data_name = item.get("BinData")
-        fmt = (item.get("Format") or "").lower().lstrip(".")
-        if not bin_data_name:
-            continue
-        # BinData files live at a fixed conventional path (BinData/<name>,
-        # package-root not Contents/-relative -- confirmed against
-        # add_image's own writer, _document/media.py's add_image).
-        part_path = f"BinData/{bin_data_name}"
-        try:
-            raw = source_doc.package.read(part_path)
-        except KeyError:
-            continue
-        if not fmt:
-            fmt = Path(bin_data_name).suffix.lstrip(".") or "png"
-        new_item = add_image(target_doc, raw, fmt)
-        remap[old_stem] = str(new_item)
+    for old_id in sorted(used):
+        raw, fmt = _binary_item_data(source_doc, old_id)
+        remap[old_id] = str(add_image(target_doc, raw, fmt))
     return remap
+
+
+def _binary_item_data(source_doc: HwpxDocument, item_id: str) -> tuple[bytes, str]:
+    """The data and format of the binary item *item_id* names in *source_doc*: listed in the header
+    (``hh:binItem``) or, as Hancom saves a picture, in the package manifest alone. An item that cannot
+    be read is refused (:func:`_reject_what_cannot_be_carried` does so before the target is touched):
+    left in the copy under its old id, the reference named whatever item of that id the receiving
+    document has -- another picture -- or nothing."""
+
+    found = _find_binary_item(source_doc, item_id)
+    path = found.bin_data_path if found is not None else None
+    try:
+        raw = source_doc.package.read(path) if path else None
+    except KeyError:
+        raw = None
+    if not raw or path is None:
+        raise HwpxValueError(
+            f"the source document has no data for the binary item {item_id!r} its content points at",
+            code="document-merge-unsupported-reference",
+            context={"attribute": "binaryItemIDRef", "value": item_id},
+            suggestion="Repair or remove the picture in the source document before copying from it.",
+        )
+    return raw, (Path(path).suffix.lstrip(".") or "png").lower()
+
+
+_TRACK_MARKS = tuple(f"{_HP}{name}" for name in ("insertBegin", "insertEnd", "deleteBegin", "deleteEnd"))
+
+
+def _tracked_change_ids(paragraphs: list[Any]) -> list[str]:
+    """The change ids the tracked-change marks in *paragraphs* carry, in document order."""
+
+    seen: dict[str, None] = {}
+    for paragraph in paragraphs:
+        for node in paragraph.iter(*_TRACK_MARKS):
+            if node.get("TcId"):
+                seen.setdefault(str(node.get("TcId")))
+    return list(seen)
+
+
+def _reject_what_cannot_be_carried(source: HwpxDocument, paragraphs: list[Any]) -> None:
+    """Refuse, before the receiving document is touched, content whose references cannot follow it:
+    a picture the source has no data for, and tracked changes without a definition in the source's
+    header or of a kind that is not written (a character or paragraph shape change)."""
+
+    for item_id in sorted(_used_ids(paragraphs, "binaryItemIDRef")):
+        _binary_item_data(source, item_id)
+    definitions = source.oxml.track_changes
+    for change_id in _tracked_change_ids(paragraphs):
+        entry = definitions.get(change_id)
+        if entry is None or str(getattr(entry, "change_type", None) or "").lower() not in ("insert", "delete"):
+            raise HwpxValueError(
+                f"the tracked change {change_id!r} in the copied content cannot be carried across",
+                code="document-merge-unsupported-reference",
+                context={"attribute": "TcId", "value": change_id},
+                suggestion="Accept or reject that change in the source document first.",
+            )
+    for attribute in ("charTcId", "paraTcId"):
+        if _used_ids(paragraphs, attribute):
+            raise HwpxValueError(
+                f"document insert does not support {attribute!r} yet",
+                code="document-merge-unsupported-reference",
+                context={"attribute": attribute},
+                suggestion="Accept or reject the shape changes in the source document first.",
+            )
+
+
+def _carry_tracked_changes(source: HwpxDocument, target: HwpxDocument, copies: list[Any]) -> int:
+    """Give the tracked changes in *copies* definitions in *target*: each change the marks name is added
+    to the receiving header under a new id, with its kind, author and date, and the marks follow it
+    (``TcId``) with mark numbers of the receiving document (``Id``). Kept under the source's numbers, a
+    mark named whatever change of that number the receiving document has -- so rejecting one's own
+    change removed the text of somebody else's -- or none."""
+
+    from .._document.tracked import _resolved_author_name
+
+    change_ids = _tracked_change_ids(copies)
+    if not change_ids:
+        return 0
+    definitions = source.oxml.track_changes
+    renewed: dict[str, str] = {}
+    for change_id in change_ids:
+        entry = definitions[change_id]
+        renewed[change_id] = str(
+            target._root.add_track_change(
+                str(entry.change_type),  # checked before the merge began: defined, and Insert or Delete
+                author_name=_resolved_author_name(source, entry.author_id) or "AI Agent",
+                date=entry.date,
+            )
+        )
+    next_mark = target._root.next_track_change_mark_id()
+    marks: dict[tuple[str, str], str] = {}
+    for copy in copies:
+        for node in copy.iter(*_TRACK_MARKS):
+            old_change = node.get("TcId")
+            if old_change not in renewed:
+                continue
+            key = (str(old_change), node.get("Id") or "")
+            if key not in marks:
+                marks[key] = str(next_mark)
+                next_mark += 1
+            node.set("TcId", renewed[str(old_change)])
+            if node.get("Id") is not None:
+                node.set("Id", marks[key])
+    return len(renewed)
 
 
 def _follow_clones(copies: list[Any], clones: list[Any]) -> None:
@@ -1310,6 +1386,7 @@ def _merge_paragraphs(
         return [], [], {"paragraphsInserted": 0}
 
     _reject_unsupported_references(source_paragraphs)
+    _reject_what_cannot_be_carried(source, source_paragraphs)
 
     # Found (via _find_memo_field_ids) and cloned from the ORIGINAL,
     # uncopied paragraphs -- fieldBegin's own "ID" stringParam values are
@@ -1392,6 +1469,7 @@ def _merge_paragraphs(
     )
     memo_shape = _remap_memo_properties(source_header, target_header, remap_scope)
     binary_item = _remap_binary_items(source, target, source_header, target_header, remap_scope)
+    _carry_tracked_changes(source, target, copies)
     _carry_connectors_and_charts(source, target, remap_scope)
     instance_ids = [(node, node.get("instid")) for copy in copies for node in copy.iter()
                     if node.get("instid") not in (None, "", "0")]

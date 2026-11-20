@@ -83,6 +83,8 @@ typecheck = [
 Homepage = "https://github.com/airmang/python-hwpx"
 Documentation = "https://airmang.github.io/python-hwpx/"
 Issues = "https://github.com/airmang/python-hwpx/issues"
+Changelog = "https://github.com/airmang/python-hwpx/blob/main/CHANGELOG.md"
+"Migration to 7.0" = "https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md"
 
 [project.scripts]
 # The `hwpx` application CLI moved to python-hwpx-automation, which declares the

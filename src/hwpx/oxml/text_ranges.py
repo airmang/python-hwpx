@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Putting text in, taking a range out, and moving or copying a range of a paragraph (asks10b).
+"""Putting text in, taking a range out, and moving or copying a range of a paragraph.
 
 Positions count as ``paragraph.text`` does (see :mod:`hwpx.oxml.text_offsets`): a character, a tab, a line
 break and a special space are one each; a control, an object or a mark none. A thing that takes no
@@ -1153,7 +1153,7 @@ __all__ = ["copy_range", "delete_range", "insert_text", "move_range", "set_text_
 
 
 # --------------------------------------------------------------------------
-# Putting a control or a mark at a place (asks10c)
+# Putting a control or a mark at a place
 
 
 def put_at(paragraph: Any, offset: int, element: Any) -> None:

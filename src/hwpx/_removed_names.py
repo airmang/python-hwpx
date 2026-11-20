@@ -82,7 +82,9 @@ MIGRATION_GUIDE_7_0_URL = "https://github.com/airmang/python-hwpx/blob/main/docs
 
 #: 변환·짐작 기능이 옮겨 간 패키지와 그 설치 명령(7.0).
 AUTOMATION_DISTRIBUTION = "python-hwpx-automation"
-AUTOMATION_INSTALL = f"pip install {AUTOMATION_DISTRIBUTION}"
+#: ``-U`` and the floor: a bare ``pip install`` beside an installed 7.x companion keeps it and pulls
+#: python-hwpx back to 6.x.
+AUTOMATION_INSTALL = f'pip install -U "{AUTOMATION_DISTRIBUTION}>=8"'
 
 
 class RemovedNameImportError(HwpxError, ImportError):

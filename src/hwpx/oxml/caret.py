@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Where Hangul puts the caret when it opens a document: ``settings.xml``'s ``ha:CaretPosition`` (asks10h).
+"""Where Hangul puts the caret when it opens a document: ``settings.xml``'s ``ha:CaretPosition``.
 
 ``listIDRef`` names a paragraph list -- ``0`` is the body, every section's paragraphs counted on in one row
 (``paraIDRef`` 20 in a three-section document of ``tests/fixtures/hancom_saved``) -- and ``pos`` counts as
@@ -7,7 +7,7 @@ Hangul counts a paragraph's text: a character one (two past the Basic Multilingu
 control or an object eight for each thing it holds. The body's first paragraph starts with its section's
 settings and columns, so its text starts at ``pos="16"``, where a new document's caret stands.
 
-What Hangul 2024 does with a caret that points at nothing (``out/exec7/asks10h/caret/EVIDENCE.md``): a list
+What Hangul 2024 does with a caret that points at nothing (observed 2026-11): a list
 or paragraph that is not there, or no ``ha:CaretPosition`` at all, opens at the body's first paragraph's text
 start; a ``pos`` past its paragraph's end, at that end; a cell that is still there, in that cell. The lists
 other than the body are numbered in an order the saved documents do not settle (cells, text boxes, notes),

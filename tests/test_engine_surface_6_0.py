@@ -132,7 +132,7 @@ def test_a_removed_name_says_where_it_went(name: str) -> None:
     if REMOVED_NAMES[name].moving:
         # 6.0의 새 자리(doc.text.markdown 등)마저 7.0에서 python-hwpx-automation으로 옮겼다.
         assert error.code == "document-name-moved"
-        assert "pip install python-hwpx-automation" in str(error)
+        assert 'pip install -U "python-hwpx-automation>=8"' in str(error)
         assert "https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md" in str(error.suggestion)
         return
     assert error.code == "document-name-removed"

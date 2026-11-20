@@ -392,15 +392,28 @@ def _gate_and_write(
             source_label=source_label,
         )
     if not report.ok:
-        detail = "; ".join(str(error) for error in report.errors)
+        errors = [str(error) for error in report.errors]
+        unverified = not errors and report.visual_complete_status == "unverified"
+        if unverified:  # nothing is wrong with the document: the policy asks for a render nobody could make
+            detail = "the policy requires a rendered check (require_visual_complete) and none was made — " + (
+                "; ".join(str(warning) for warning in report.visual.warnings) or "no render oracle"
+            )
+            suggestion = (
+                "Nothing was written. python-hwpx does not render: pass a policy that does not ask for it, "
+                "e.g. quality=QualityPolicy(require_visual_complete=False) (still checks open safety and "
+                "references), or give the gate a render oracle (python-hwpx-automation)."
+            )
+        else:
+            detail = "; ".join(errors)
+            suggestion = (
+                "The SavePipeline quality gate rejected the archive and nothing was written; "
+                "read the gate's report (exc.report.errors) before retrying."
+            )
         refusal = SaveError(
             f"Document save failed the quality gate: {detail}",
             code="quality-gate-failed",
-            context={"errors": [str(error) for error in report.errors]},
-            suggestion=(
-                "The SavePipeline quality gate rejected the archive and nothing was written; "
-                "read the gate's report (exc.report.errors) before retrying."
-            ),
+            context={"errors": errors},
+            suggestion=suggestion,
         )
         refusal.report = report
         raise refusal

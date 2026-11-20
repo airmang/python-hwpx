@@ -143,6 +143,32 @@ jobs:
           )
 
           section = "\n".join(lines[start:end]).strip() + "\n"
+
+          # GitHub refuses a release body over 125,000 "characters", and this step runs
+          # after the PyPI upload, where a refusal leaves a published package with no
+          # Release. Korean text is three UTF-8 bytes a character, so keep the body under
+          # the limit counted either way: cut at a line end and point at the full text.
+          budget = 110_000
+          if len(section.encode("utf-8")) > budget:
+              import os
+
+              ref = os.environ.get("GITHUB_REF_NAME", "main")
+              anchor = lines[start].lstrip("# ").strip()
+              tail = (
+                  f"\n\n…\n\n이 릴리스의 변경 내역은 GitHub 릴리스 본문에 다 싣기에 깁니다. 전체: "
+                  f"https://github.com/airmang/python-hwpx/blob/{ref}/CHANGELOG.md ({anchor})\n"
+              )
+              room = budget - len(tail.encode("utf-8"))
+              kept: list[str] = []
+              used = 0
+              for line in section.splitlines(keepends=True):
+                  size = len(line.encode("utf-8"))
+                  if used + size > room:
+                      break
+                  kept.append(line)
+                  used += size
+              section = "".join(kept).rstrip() + tail
+          assert len(section.encode("utf-8")) <= budget, len(section.encode("utf-8"))
           Path("release_notes.md").write_text(section, encoding="utf-8")
           PY
 

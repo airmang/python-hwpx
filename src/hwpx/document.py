@@ -33,7 +33,7 @@ from .opc.package import (
     structure_errors,
 )
 from .oxml.namespaces import register_owpml_namespaces
-from .oxml._document_primitives import IdSource
+from .oxml._document_primitives import IdSource, keep_ids_clear_of
 from .oxml.table_sizes import new_table_width
 from .mutation_report import Fallback, Mode, MutationReport
 from .quality import QualityPolicy, SavePipeline
@@ -199,7 +199,7 @@ class HwpxDocument(metaclass=_DocumentType):
             with structure_errors():
                 package_root = HwpxOxmlDocument.from_package(source)
             from_package = cls(source, package_root)
-            from_package._install_id_source(id_source)
+            from_package._install_id_source(id_source, opened=True)
             return from_package
         internal_resources: list[Any] = []
         open_source = source
@@ -209,7 +209,7 @@ class HwpxDocument(metaclass=_DocumentType):
             internal_resources.append(stream)
         if HwpxPackage._leading_bytes(cast(Any, open_source), 8) == HwpxPackage.OLE2_MAGIC:
             converted = cls._open_hwp5(open_source)
-            converted._install_id_source(id_source)
+            converted._install_id_source(id_source, opened=True)
             return converted
         # HwpxPackage/ZipFile accepts os.PathLike at runtime; its narrower
         # compatibility annotation intentionally remains frozen.
@@ -217,7 +217,7 @@ class HwpxDocument(metaclass=_DocumentType):
         with structure_errors():
             root = HwpxOxmlDocument.from_package(package)
         document = cls(package, root, managed_resources=tuple(internal_resources))
-        document._install_id_source(id_source)
+        document._install_id_source(id_source, opened=True)
         return document
 
     @classmethod
@@ -285,11 +285,24 @@ class HwpxDocument(metaclass=_DocumentType):
             )
         return IdSource(seed, now)
 
-    def _install_id_source(self, source: "IdSource | None") -> None:
+    def _install_id_source(self, source: "IdSource | None", *, opened: bool = False) -> None:
         if source is None:
             return
         self._id_source = source
         self._root._id_source = source
+        if opened and source.seed is not None:
+            # A seeded source hands out the same ids each time, so a document saved and opened again
+            # with its seed would be given the ids it already holds (two fields with one id, neither
+            # of which can then be filled by id). What the file holds is told to the source first.
+            keep_ids_clear_of(
+                source,
+                (
+                    node.get(name)
+                    for part in (*self._root.sections, *self._root.master_pages, *self._root.headers)
+                    for node in part.element.iter()
+                    for name in ("id", "instid", "fieldid")
+                ),
+            )
 
     @classmethod
     def new(
@@ -335,7 +348,9 @@ class HwpxDocument(metaclass=_DocumentType):
         the random ones (1 .. 2**31 - 1) and do not repeat. *now* (a
         ``datetime``; a naive one is local time) is written as the creation and
         modification date and used for every memo or tracked change made without
-        its own date. Both belong to this document until :meth:`close` (or the
+        its own date. A memo's time is written as the machine's local wall time, as
+        Hangul writes it, so a document that makes memos writes the same bytes
+        where the time zone is the same. Both belong to this document until :meth:`close` (or the
         end of a ``with`` block): another document made, edited, closed or left
         unclosed meanwhile neither uses them nor changes what this one writes, so
         a document writes the same bytes whatever else is open. Content copied in

@@ -38,8 +38,8 @@ for info in extractor.iter_document_paragraphs(include_nested=True):
 
 ## 각주·미주를 본문과 함께 추출하기
 
-`extract_text()`는 기본으로 각주를 무시한다. `AnnotationOptions`로 동작을
-고른다 — `"ignore"`(기본), `"placeholder"`(자리표시), `"inline"`(본문에 삽입).
+`extract_text()`는 기본으로 각주를 본문 자리에 넣지 않는다(각주 글은 중첩 문단으로 따로 한 줄 나온다).
+`AnnotationOptions`로 동작을 고른다 — `"ignore"`(기본), `"placeholder"`(자리표시), `"inline"`(본문에 삽입).
 각주 문단은 중첩 문단으로도 잡히므로, 인라인으로 합칠 때는
 `include_nested=False`로 중복을 피한다.
 

@@ -90,7 +90,6 @@ document = HwpxDocument.open("examples/FormattingShowcase.hwpx")
 section = document.sections[0]
 
 # 빈 단락 제거. 구역의 첫 문단은 구역 설정(용지·여백·단)을 담고 있으므로 남깁니다.
-# 지우면 용지 크기가 없는 문서가 되어 새 구역도 더할 수 없습니다.
 # 글이 없어도 표나 개체가 든 문단은 빈 문단이 아닙니다.
 for para in list(section.paragraphs)[1:]:
     if not para.text.strip() and not para.tables and not para.shapes:

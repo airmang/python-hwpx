@@ -658,6 +658,10 @@ class ObjectPlacement:
             # Hancom 2024 refuses its 90-degree turn on an equation or a chart and keeps no angle its object
             # dialog is given (objlim evidence eqturn, eqangle, chartturn, chartangle): not a Hancom feature.
             raise _rotation_refused(self.element, "Hancom does not turn an equation or a chart")
+        if angle == self.rotation % 360 and self.element.find(f"{_HP}rotationInfo") is not None:
+            # Already at that angle: nothing turns. Turning "again" re-derived the place of an object Hancom
+            # had saved turned and flipped, and moved it (a flipped group at 330 degrees, by 866 down).
+            return
         before = turn_anchor(self.element)
         if str(self.element.tag).rsplit("}", 1)[-1] == "container":
             from .container import turn_group

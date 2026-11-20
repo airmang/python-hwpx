@@ -212,7 +212,9 @@ EXPECTED_PREBUILD_RUN_SHA256 = {
         "25b7f9afea0b52778cabdafe2623fd57d79ab6d9d485f6f03a8ec9a0480fce21"
     ),
     "Extract latest changelog section for release notes": (
-        "0e2f1d7765304dc2377a9dbffd8cb29bf69852817f9e393ac5b4044d33a9d18a"
+        # 7.0: 본문이 110,000바이트를 넘으면 줄 끝에서 자르고 전체 변경 내역의 주소를 붙인다
+        # (GitHub 한도 125,000, 이 단계는 PyPI 업로드 뒤에 돈다).
+        "10659c57a6c43dae58320514f7ee70dc2059a9d3296116da435e4cd6345189f0"
     ),
 }
 EXPECTED_PREPUBLISH_RUNS = {
