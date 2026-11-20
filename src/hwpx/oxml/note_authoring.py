@@ -307,9 +307,17 @@ def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
     Hancom save.
     """
 
+    return {note: number for notes in _notes_counted(sections) for note, number in notes}
+
+
+def _notes_counted(sections: Sequence[ET.Element]) -> list[list[tuple[ET.Element, int]]]:
+    """For each of *sections*, its notes in document order with their numbers (:func:`note_numbers`)."""
+
     counters = {"FOOTNOTE": 1, "ENDNOTE": 1}
-    numbers: dict[ET.Element, int] = {}
+    counted: list[list[tuple[ET.Element, int]]] = []
     for section in sections:
+        numbers: list[tuple[ET.Element, int]] = []
+        counted.append(numbers)
         per_page = set(_kinds_numbered_per_page(section))
         sec_pr = next(section.iter(f"{_HP}secPr"), None)
         for tag, kind in _NOTE_NUM_TYPES.items():
@@ -328,9 +336,10 @@ def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
                 continue
             tag = _element_local(element)
             kind = _NOTE_NUM_TYPES[tag]
-            numbers[element] = _int_or(element.get("number"), counters[kind]) if tag in per_page else counters[kind]
+            numbers.append((element, _int_or(element.get("number"), counters[kind]) if tag in per_page
+                            else counters[kind]))
             counters[kind] += 1
-    return numbers
+    return counted
 
 
 def _kinds_numbered_per_page(section: ET.Element) -> list[str]:
@@ -410,13 +419,16 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
             written.append(owner)
     if not written:
         return  # every section numbered per page: nothing to count for
-    if not any(next(owner.element.iter(f"{_HP}{tag}"), None) is not None for owner in written):
-        return  # no note of the kind there: nothing to write, and no walk through a long body to find that out
-    numbers = note_numbers([owner.element for owner in sections])
-    for owner in written:
+    # one walk through each section finds the notes and counts them
+    counted = _notes_counted([owner.element for owner in sections])
+    for owner, notes in zip(sections, counted):
+        if not any(owner is one for one in written):
+            continue
         changed = False
-        for note in owner.element.iter(f"{_HP}{tag}"):
-            number = str(numbers.get(note, 0))
+        for note, counted_number in notes:
+            if note.tag != f"{_HP}{tag}":
+                continue
+            number = str(counted_number)
             old = note.get("number")
             if old is not None and old != number:
                 note.set("number", number)

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 import functools
+import itertools
 import inspect
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Callable, Iterable, cast
@@ -341,10 +342,15 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
             continue  # no field where it goes has this id: it keeps it
         met.add(old)
         new_id = _object_id(ids)
-        for _ in range(64):  # a source that keeps handing out ids in use is not asked for ever
+        # A source handing out ids of its own can meet each id in use once (a document that took in the
+        # fields of another one made with the same seed meets every one of them). One that still hands
+        # out an id in use after that repeats itself: the id is then the lowest number not in use.
+        for _ in range(len(in_use) + 1):
             if new_id not in in_use:
                 break
             new_id = _object_id(ids)
+        else:
+            new_id = next(number for number in map(str, itertools.count(1)) if number not in in_use)
         in_use.add(new_id)
         for node in (begin, *ends):
             node.set("id" if node is begin else "beginIDRef", new_id)

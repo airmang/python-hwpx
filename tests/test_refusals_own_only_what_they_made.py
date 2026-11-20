@@ -1155,35 +1155,72 @@ def test_a_field_id_source_that_repeats_itself_is_not_asked_for_ever() -> None:
             return "1"
 
     assert renumber_copied_fields(copy, ids=Stuck(), avoid={"1"}) == 1  # type: ignore[arg-type]
+    assert copy[0].get("id") == copy[1].get("beginIDRef") == "2"  # the lowest number not in use
 
 
-def test_changing_how_a_long_section_numbers_its_notes_does_not_walk_every_node() -> None:
+def test_changing_how_a_section_numbers_its_notes_counts_them_once() -> None:
     import hwpx.oxml.note_authoring as authoring
 
     document = HwpxDocument.new()
     document.add_paragraph("with a note").add_footnote("one")
-    visited: list[int] = []
     section = document.sections[0]
-    real_iter = type(section.element).iter
-
-    class Counting:
-        def __init__(self, element: Any) -> None:
-            self.element = element
-
-    # the count asks the tree for the notes by tag: one call per section, with tags
-    calls: list[tuple[Any, ...]] = []
-    real = authoring.note_numbers
+    calls: list[int] = []
+    real = authoring._notes_counted
 
     def spy(sections: Any) -> Any:
-        calls.append(tuple(sections))
+        calls.append(len(sections))
         return real(sections)
 
-    authoring.note_numbers = spy  # type: ignore[assignment]
+    authoring._notes_counted = spy  # type: ignore[assignment]
     try:
         section.properties.set_footnote_numbering(type="ON_SECTION", new_num=3)
     finally:
-        authoring.note_numbers = real
-    del visited, real_iter, Counting
+        authoring._notes_counted = real
 
-    assert len(calls) == 1
+    assert calls == [1]  # one walk through the section finds its notes and counts them
     assert _numbers(document) == [(3, "3", "3")]
+
+
+# -- the eighth look ------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("action", ["copy the note", "insert a question again"])
+def test_a_new_field_id_is_free_however_many_ids_the_same_seed_gave_away(action: str) -> None:
+    source, document = HwpxDocument.new(seed=17), HwpxDocument.new(seed=17)  # one seed: the same ids
+    questions = [source.add_paragraph(f"Question {index}") for index in range(80)]
+    for index, question in enumerate(questions):
+        question.add_form_field(f"answer{index}")
+    note = document.add_paragraph("body").add_footnote("source")
+    note.paragraphs[0].add_form_field("inside")
+    document.sections[0].insert_paragraphs(1, questions)
+
+    if action == "copy the note":
+        note.copy_to(document.add_paragraph("dest"))
+    else:
+        document.sections[0].insert_paragraphs(1, [questions[0]])
+
+    saved = _saved(document)
+    ids = [field.field_id for field in saved.fields.all]
+    assert len(ids) == len(set(ids)) == 82  # the new field had taken the id of answer69
+    for field in saved.fields.all:
+        saved.fields.fill("v", field_id=field.field_id)
+
+
+class _Duration:
+    """A number of a kind that is no count (``numpy.timedelta64`` of days): an integer by type whose
+    ``int()`` refuses."""
+
+    def __int__(self) -> int:
+        raise TypeError("a duration is not a count")
+
+
+def test_an_integer_kind_that_refuses_to_be_an_int_is_no_height() -> None:
+    import numbers
+
+    from hwpx.oxml.table_sizes import whole_number
+
+    numbers.Integral.register(_Duration)
+
+    assert whole_number(_Duration()) is None
+    assert whole_number(1 + 0j) is None
+    assert _code(lambda: HwpxDocument.new().add_table(1, 1, height=_Duration())) == "table-height-value"  # type: ignore[arg-type]

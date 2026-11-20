@@ -108,17 +108,18 @@ def whole_number(value: Any, *, floats: bool = False) -> int | None:
 
     if isinstance(value, bool) or type(value).__name__ in ("bool_", "bool"):
         return None
-    if isinstance(value, numbers.Integral):
-        return int(value)
-    if isinstance(value, (str, bytes)):
-        return None
+    if isinstance(value, (str, bytes)) or (
+            isinstance(value, numbers.Complex) and not isinstance(value, numbers.Real)):
+        return None  # text, and a complex number
     if not floats and isinstance(value, numbers.Real) and not isinstance(value, numbers.Rational):
         return None  # a float (1440.0) is not a height
     # Whatever else counts as a whole number: Decimal("1440"), Fraction(1440), a zero-dimensional
     # array holding one. What cannot be read as a number, or is not whole, is not one.
     number: Any = value
     try:
-        whole = int(number)
+        whole = int(number)  # a duration (numpy.timedelta64 of days) refuses this
+        if isinstance(value, numbers.Integral):
+            return whole
         return whole if bool(number == whole) and not isinstance(whole, bool) else None
     except Exception:  # noqa: BLE001 - any refusal of the value's own arithmetic means "not a number"
         return None
