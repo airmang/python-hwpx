@@ -1224,3 +1224,28 @@ def test_an_integer_kind_that_refuses_to_be_an_int_is_no_height() -> None:
     assert whole_number(_Duration()) is None
     assert whole_number(1 + 0j) is None
     assert _code(lambda: HwpxDocument.new().add_table(1, 1, height=_Duration())) == "table-height-value"  # type: ignore[arg-type]
+
+
+# -- the ninth look -------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("questions", [1, 8, 80])
+def test_ids_taken_in_with_another_documents_fields_are_not_handed_out_again(questions: int) -> None:
+    bank, document = HwpxDocument.new(seed=17), HwpxDocument.new(seed=17)  # one seed: the same ids
+    rows = [bank.add_paragraph(f"Question {index}") for index in range(questions)]
+    for index, row in enumerate(rows):
+        row.add_form_field(f"answer{index}")
+    table = document.add_table(2, 2)
+    table.cell(0, 0).paragraphs[0].add_form_field("Name")
+    document.sections[0].insert_paragraphs(1, rows)
+    taken_in = {field.field_id for field in document.fields.all}
+
+    for _ in range(2 * questions + 4):  # every id the bank was given comes up again in this many
+        table.copy_rows(0, to=1)
+
+    saved = _saved(document)
+    ids = [field.field_id for field in saved.fields.all]
+    assert len(ids) == len(set(ids)) == questions + 1 + 2 * questions + 4
+    assert taken_in <= set(ids)
+    for field in saved.fields.all:
+        saved.fields.fill("v", field_id=field.field_id)

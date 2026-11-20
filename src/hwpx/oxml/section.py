@@ -12,6 +12,7 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from ._document_primitives import (
     _require_text,
+    keep_ids_clear_of,
     paragraph_attributes,
     _HP,
     _HP_NS,
@@ -709,6 +710,7 @@ class HwpxOxmlSection:
                                  if document is not None else [self])
             taken = {str(node.get("id")) for owner in owners for node in owner.element.iter(f"{_HP}fieldBegin")}
             renumber_copied_fields(clones, ids=self._ids, taken=taken)
+            keep_ids_clear_of(self._ids, (node.get("id") for node in clones.iter(f"{_HP}fieldBegin")))
         for offset, cloned in enumerate(list(clones)):
             for run, settings in section_setting_runs(cloned):
                 for child in settings:

@@ -361,6 +361,18 @@ class IdSource:
                 return str(value)
 
 
+def keep_ids_clear_of(ids: "IdSource | None", values: "Iterable[str | None]") -> None:
+    """*values* (ids the document took in with what was brought from elsewhere) are not handed out by
+    *ids* afterwards. Two documents made with the same seed hand out the same ids, so one that took in
+    the other's fields was later given the id of one of them for a copy of its own (a copied table row),
+    and neither field could be filled by id (``field-ambiguous``). A source without a seed draws at
+    random and needs no telling."""
+
+    if ids is None or ids._rng is None:
+        return
+    ids._issued.update(int(value) for value in values if value is not None and value.isdigit())
+
+
 class PendingIds(IdSource):
     """The source of a shape made for no document yet (a ``ContainerMember``): its ids are written
     empty, and the document that takes it gives them (``container.bind_member_ids``)."""
