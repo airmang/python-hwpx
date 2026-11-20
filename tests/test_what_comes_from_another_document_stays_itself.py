@@ -241,30 +241,25 @@ def test_the_engine_contract_states_when_seeded_bytes_are_the_same() -> None:
 # -- what the second look at these fixes found ---------------------------------------------------
 
 
-def test_changes_carried_in_leave_the_receivers_changes_with_their_author() -> None:
-    """The one Hancom-saved file with tracked changes gives its author id 0 and its changes authorID 1.
-    An author added after that took id 1, and with it the file's own changes."""
+def test_an_author_who_would_take_a_number_the_receivers_changes_carry_is_not_carried_in() -> None:
+    """The one Hancom-saved file with tracked changes gives its only author id 0 and its changes
+    authorID 1. The next author is given 1 and, with it, those changes: rejecting the new author's
+    changes rejected the file's own. Carrying such an author in is refused, the receiver untouched."""
 
     target = HwpxDocument.open(str(TRACKED))
-    theirs = sorted((change.change_id, change.author) for change in target.tracking.changes)
+    before = target.to_bytes()
     source = HwpxDocument.new()
     source.tracking.insert(source.add_paragraph("draft"), "PENDING", author="Alice")
-    append_document(target, source)
-    now = sorted((change.change_id, change.author) for change in target.tracking.changes)
-    assert now[: len(theirs)] == theirs and now[-1][1] == "Alice"
-    rejected = target.tracking.reject(author="Alice")
-    assert [change.author for change in rejected] == ["Alice"]
-    assert sorted((change.change_id, change.author) for change in target.tracking.changes) == theirs
+    with pytest.raises(HwpxValueError) as refused:
+        append_document(target, source)
+    assert refused.value.code == "document-merge-unsupported-reference"
+    assert refused.value.context["attribute"] == "authorID"
+    assert target.to_bytes() == before
 
-
-def test_a_change_by_a_new_author_leaves_the_others_with_theirs_across_a_save() -> None:
-    document = HwpxDocument.open(str(TRACKED))
-    before = sorted((change.change_id, change.author) for change in document.tracking.changes)
-    added = document.tracking.insert(0, "X", author="Alice")
-    reopened = HwpxDocument.open(document.to_bytes())
-    after = {change.change_id: change.author for change in reopened.tracking.changes}
-    assert after[added.change_id] == "Alice"
-    assert sorted((number, author) for number, author in after.items() if number != added.change_id) == before
+    same = HwpxDocument.new()  # the same author joins nobody: carried in under the receiver's record
+    same.tracking.insert(same.add_paragraph("draft"), "PENDING", author="fff")
+    append_document(target, same)
+    assert sorted(change.author for change in target.tracking.changes) == ["fff", "fff", "fff"]
 
 
 def test_changes_carried_in_do_not_change_how_the_receiver_shows_changes() -> None:
@@ -515,26 +510,12 @@ def test_a_new_reviewers_change_is_still_theirs_after_an_hwp_save() -> None:
     assert document.text.plain().splitlines()[-1] == "pD"
 
 
-def test_the_only_author_takes_the_number_its_changes_carry_when_a_second_author_joins() -> None:
-    document = HwpxDocument.open(str(TRACKED))  # author id 0, changes authorID 1
-    document.tracking.insert(0, "Y", author="fff")  # the same author: nothing is renumbered
-    assert [author.get("id") for author in document.oxml.headers[0].element.iter(f"{HH}trackChangeAuthor")] == ["0"]
-    document.tracking.insert(0, "X", author="Alice")
-    header = etree.fromstring(_archive(document).read("Contents/header.xml"))
-    authors = {author.get("name"): author.get("id") for author in header.iter(f"{HH}trackChangeAuthor")}
-    assert authors["Alice"] not in (None, authors["fff"])
-    by_author = sorted(change.author for change in HwpxDocument.open(document.to_bytes()).tracking.changes)
-    assert by_author == ["Alice", "fff", "fff", "fff"]
-    again = sorted(change.author for change in HwpxDocument.open(document.to_bytes(format="hwp")).tracking.changes)
-    assert again == by_author
-
-
 @pytest.mark.parametrize("trips", [1, 2])
 @pytest.mark.parametrize("merged", [False, True])
 def test_a_reviewer_joining_after_an_hwp_save_does_not_cost_another_their_text(trips: int, merged: bool) -> None:
-    """After an .hwp save the only author left has number 1 and an earlier change of theirs carries 2:
-    not the shape Hancom saves (0 and 1), and renumbering it made the next .hwp save hand B's changes
-    to C."""
+    """After an .hwp save the only author left has number 1 and an earlier change of theirs carries 2.
+    A reviewer joining directly is numbered as before; one carried in by a merge would be given that
+    2, so the merge is refused."""
 
     def through_hwp(document: HwpxDocument) -> HwpxDocument:
         return HwpxDocument.open(document.to_bytes(format="hwp"))
@@ -552,9 +533,12 @@ def test_a_reviewer_joining_after_an_hwp_save_does_not_cost_another_their_text(t
     if merged:
         source = HwpxDocument.new()
         insert(source, "C")
-        append_document(document, source)
-    else:
-        insert(document, "C")
+        before = document.to_bytes()
+        with pytest.raises(HwpxValueError) as refused:  # C would be given 2, which B's first change carries
+            append_document(document, source)
+        assert refused.value.code == "document-merge-unsupported-reference" and document.to_bytes() == before
+        return
+    insert(document, "C")
     document = through_hwp(document)
 
     document.tracking.reject(author="C")

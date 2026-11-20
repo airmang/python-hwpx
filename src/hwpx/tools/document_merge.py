@@ -673,10 +673,11 @@ def _tracked_change_ids(paragraphs: list[Any]) -> list[str]:
     return list(seen)
 
 
-def _reject_what_cannot_be_carried(source: HwpxDocument, paragraphs: list[Any]) -> None:
+def _reject_what_cannot_be_carried(source: HwpxDocument, paragraphs: list[Any], target: HwpxDocument) -> None:
     """Refuse, before the receiving document is touched, content whose references cannot follow it:
-    a picture the source has no data for, and tracked changes without a definition in the source's
-    header or of a kind that is not written (a character or paragraph shape change)."""
+    a picture the source has no data for, tracked changes without a definition in the source's
+    header or of a kind that is not written (a character or paragraph shape change), and tracked
+    changes whose author would be given a number the receiving document's changes already carry."""
 
     for item_id in sorted(_used_ids(paragraphs, "binaryItemIDRef")):
         _binary_item_data(source, item_id)
@@ -697,6 +698,7 @@ def _reject_what_cannot_be_carried(source: HwpxDocument, paragraphs: list[Any]) 
                 context={"attribute": "TcId", "value": change_id},
                 suggestion="Accept or reject that change in the source document first.",
             )
+    _reject_an_author_number_already_carried(source, target, _tracked_change_ids(paragraphs))
     for attribute in ("charTcId", "paraTcId"):
         if _used_ids(paragraphs, attribute):
             raise HwpxValueError(
@@ -705,6 +707,50 @@ def _reject_what_cannot_be_carried(source: HwpxDocument, paragraphs: list[Any]) 
                 context={"attribute": attribute},
                 suggestion="Accept or reject the shape changes in the source document first.",
             )
+
+
+def _reject_an_author_number_already_carried(source: HwpxDocument, target: HwpxDocument, change_ids: list[str]) -> None:
+    """Refuse changes whose author is new to *target* when the number that author would get is one
+    its changes already carry without an author of that number.
+
+    A document Hancom saved numbers its only author 0 and writes ``authorID="1"`` on that author's
+    changes (``reader_writer__ChangeTrack``), and one that has been through an .hwp save carries numbers
+    of its own. The next author added is given the number after the last author's; where changes carry
+    that number already, they would read as the new author's from then on, and rejecting the new
+    author's changes would reject theirs. Numbers a document already carries are not rewritten here
+    (they only stay right across an .hwp save if left alone), so the content is not carried in."""
+
+    from .._document.tracked import _resolved_author_name
+
+    if not change_ids:
+        return
+    authors = target.oxml.track_change_authors
+    known = {str(getattr(author, "name", "") or "") for author in authors.values()}
+    definitions = source.oxml.track_changes
+    joining = {
+        name for name in (
+            _resolved_author_name(source, definitions[change_id].author_id) or "AI Agent"
+            for change_id in change_ids if change_id in definitions
+        ) if name not in known
+    }
+    if not joining:
+        return
+    numbers = [int(key) for key in authors if str(key).isdigit()]
+    first = max(numbers) + 1 if numbers else 1  # as the header numbers a new author
+    carried = {
+        int(change.author_id)
+        for change in target.oxml.track_changes.values()
+        if isinstance(change.author_id, int) and str(change.author_id) not in {str(key) for key in authors}
+    }
+    taken = sorted(carried & set(range(first, first + len(joining))))
+    if taken:
+        raise HwpxValueError(
+            "the receiving document's tracked changes carry an author number "
+            f"({taken[0]}) the incoming author would be given",
+            code="document-merge-unsupported-reference",
+            context={"attribute": "authorID", "value": taken[0]},
+            suggestion="Accept or reject the tracked changes in one of the two documents first.",
+        )
 
 
 def _carry_tracked_changes(source: HwpxDocument, target: HwpxDocument, copies: list[Any]) -> int:
@@ -1425,7 +1471,7 @@ def _merge_paragraphs(
     # Checked on copies that draw no id from the receiving document: a refusal leaves it as it was,
     # the ids it will hand out next (with a seed) among that.
     _reject_what_cannot_be_carried(
-        source, [*source_paragraphs, *_copy_referenced_memos(source, source_paragraphs, ids=None)[1]]
+        source, [*source_paragraphs, *_copy_referenced_memos(source, source_paragraphs, ids=None)[1]], target
     )
     ids = target._root._id_source  # new ids are the receiving document's
     memo_id_map, memo_clones = _copy_referenced_memos(source, source_paragraphs, ids=ids)

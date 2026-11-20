@@ -63,7 +63,6 @@ from .header import (
     TrackChange,
     TrackChangeAuthor,
     memo_shape_from_attributes,
-    normalize_track_change_type,
     parse_bullet,
     parse_bullets,
     parse_border_fills,
@@ -957,8 +956,6 @@ class HwpxOxmlHeader:
         minimum_id: int = 0,
         show: bool = True,
     ) -> int:
-        normalize_track_change_type(change_type)  # a kind that is refused is refused before anything changes
-        self._settle_the_only_track_change_author(author_name.strip() or "AI Agent")  # the name the model keeps
         model = self.to_model()
         change_id = model.add_track_change(
             change_type,
@@ -1017,37 +1014,6 @@ class HwpxOxmlHeader:
                 config_element.set("flags", str(_TRACK_FLAGS_SHOWING_MARKS | (flags & ~_TRACK_VIEW_BITS)))
         self.mark_dirty()
         return change_id
-
-    def _settle_the_only_track_change_author(self, joining: str) -> None:
-        """Before a second author joins a document Hancom saved: give its only author the number its
-        changes carry.
-
-        The one Hancom-saved file with tracked changes numbers its only author 0 and writes
-        ``authorID="1"`` on that author's changes. With one author that reads as that author; a
-        second author would be given id 1 and, with it, those changes. So exactly then -- one author,
-        id 0, and every change that does not carry 0 carries 1 -- the author becomes 1: the changes
-        name their author outright and the next author takes 2. Nothing else is renumbered: this
-        library numbers authors from 1, and a document that has been through an .hwp save carries
-        numbers of its own that only stay right if they are left alone."""
-
-        authors = self._track_change_authors_element()
-        changes = self._track_changes_element()
-        if authors is None or changes is None:
-            return
-        if self._document is not None and len(self._document._headers) != 1:
-            return  # an author's number is looked up across every header part: one part alone is not renumbered
-        records = authors.findall(f"{_HH}trackChangeAuthor")
-        if len(records) != 1 or records[0].get("name") == joining:
-            return
-        if records[0].get("id") != "0":
-            return
-        listed = changes.findall(f"{_HH}trackChange")
-        if {change.get("authorID") for change in listed} - {"0", None} == {"1"}:
-            records[0].set("id", "1")
-            for change in listed:  # the ones that named the author by its old id follow it
-                if change.get("authorID") == "0":
-                    change.set("authorID", "1")
-            self.mark_dirty()
 
     def find_basic_border_fill_id(self) -> str | None:
         element = self._border_fills_element()
