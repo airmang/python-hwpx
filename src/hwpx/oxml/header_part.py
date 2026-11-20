@@ -954,6 +954,7 @@ class HwpxOxmlHeader:
         author_name: str = "AI Agent",
         date: str | None = None,
         minimum_id: int = 0,
+        show: bool = True,
     ) -> int:
         model = self.to_model()
         change_id = model.add_track_change(
@@ -1003,7 +1004,7 @@ class HwpxOxmlHeader:
         # element, is left as it is. Up to 7.0 development bit 0 was set here "for display". It is not
         # what shows a change, and with it Hancom crashed opening a document that also had a table of
         # contents to make again (``dirty="1"``, as ``add_table_of_contents`` writes one).
-        config_element = self._track_change_config_element()
+        config_element = self._track_change_config_element() if show else None  # not for changes carried in
         if config_element is not None:
             try:
                 flags = int(config_element.get("flags", ""))

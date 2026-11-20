@@ -47,6 +47,7 @@ version would. Call it on *target* after :func:`append_document`/
 from __future__ import annotations
 
 import copy as _copy
+import itertools
 from pathlib import Path
 from typing import Any
 
@@ -610,7 +611,23 @@ def _remap_binary_items(
     remap: dict[str, str] = {}
     for old_id in sorted(used):
         raw, fmt = _binary_item_data(source_doc, old_id)
-        remap[old_id] = str(add_image(target_doc, raw, fmt))
+        listed = next((item for item in source_doc._package._manifest_items() if item.get("id") == old_id), None)
+        media_type = (listed.get("media-type") or "") if listed is not None else ""
+        if not media_type or media_type.startswith("image/"):
+            remap[old_id] = str(add_image(target_doc, raw, fmt))
+            continue
+        # Not a picture (an OLE object, as a chart keeps one): written as the source lists it -- its
+        # media type and ``isEmbeded`` -- not as an embedded image.
+        assert listed is not None
+        taken = {item.get("id") for item in target_doc._package._manifest_items()}
+        new_id = next(name for name in (f"BIN{number:04d}" for number in itertools.count(1)) if name not in taken)
+        path = f"BinData/{new_id}.{fmt}"
+        target_doc._package.write(path, raw)
+        target_doc._package.add_manifest_item(
+            new_id, path, media_type,
+            extra_attrs={name: value for name, value in listed.attrib.items() if name not in ("id", "href", "media-type")},
+        )
+        remap[old_id] = new_id
     return remap
 
 
@@ -659,6 +676,13 @@ def _reject_what_cannot_be_carried(source: HwpxDocument, paragraphs: list[Any]) 
     for item_id in sorted(_used_ids(paragraphs, "binaryItemIDRef")):
         _binary_item_data(source, item_id)
     definitions = source.oxml.track_changes
+    if any(not node.get("TcId") for paragraph in paragraphs for node in paragraph.iter(*_TRACK_MARKS)):
+        raise HwpxValueError(
+            "a tracked-change mark in the copied content names no change",
+            code="document-merge-unsupported-reference",
+            context={"attribute": "TcId", "value": None},
+            suggestion="Accept or reject that change in the source document first.",
+        )
     for change_id in _tracked_change_ids(paragraphs):
         entry = definitions.get(change_id)
         if entry is None or str(getattr(entry, "change_type", None) or "").lower() not in ("insert", "delete"):
@@ -699,6 +723,7 @@ def _carry_tracked_changes(source: HwpxDocument, target: HwpxDocument, copies: l
                 str(entry.change_type),  # checked before the merge began: defined, and Insert or Delete
                 author_name=_resolved_author_name(source, entry.author_id) or "AI Agent",
                 date=entry.date,
+                show=False,  # the receiving document keeps showing or hiding changes as it did
             )
         )
     next_mark = target._root.next_track_change_mark_id()
@@ -1386,7 +1411,6 @@ def _merge_paragraphs(
         return [], [], {"paragraphsInserted": 0}
 
     _reject_unsupported_references(source_paragraphs)
-    _reject_what_cannot_be_carried(source, source_paragraphs)
 
     # Found (via _find_memo_field_ids) and cloned from the ORIGINAL,
     # uncopied paragraphs -- fieldBegin's own "ID" stringParam values are
@@ -1395,6 +1419,8 @@ def _merge_paragraphs(
     # source_paragraphs) to search its sections' hp:memogroup elements.
     ids = target._root._id_source  # new ids are the receiving document's
     memo_id_map, memo_clones = _copy_referenced_memos(source, source_paragraphs, ids=ids)
+    # Nothing of the receiving document has changed yet: the copies above are of the source.
+    _reject_what_cannot_be_carried(source, [*source_paragraphs, *memo_clones])
 
     copies = [_deep_copy_element(p) for p in source_paragraphs]
     # A copied paragraph is never the destination section's first paragraph

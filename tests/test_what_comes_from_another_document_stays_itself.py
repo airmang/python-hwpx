@@ -236,3 +236,127 @@ def test_setting_the_angle_an_object_already_has_moves_nothing() -> None:
 def test_the_engine_contract_states_when_seeded_bytes_are_the_same() -> None:
     contract = (Path(__file__).parents[1] / "docs" / "stable-api.md").read_text(encoding="utf-8")
     assert "시간대(`TZ`)가 같을 때" in contract and "파일에 이미 있는 id 를 피해서" in contract
+
+
+# -- what the second look at these fixes found ---------------------------------------------------
+
+
+def test_changes_carried_in_leave_the_receivers_changes_with_their_author() -> None:
+    """The one Hancom-saved file with tracked changes gives its author id 0 and its changes authorID 1.
+    An author added after that took id 1, and with it the file's own changes."""
+
+    target = HwpxDocument.open(str(TRACKED))
+    theirs = sorted((change.change_id, change.author) for change in target.tracking.changes)
+    source = HwpxDocument.new()
+    source.tracking.insert(source.add_paragraph("draft"), "PENDING", author="Alice")
+    append_document(target, source)
+    now = sorted((change.change_id, change.author) for change in target.tracking.changes)
+    assert now[: len(theirs)] == theirs and now[-1][1] == "Alice"
+    rejected = target.tracking.reject(author="Alice")
+    assert [change.author for change in rejected] == ["Alice"]
+    assert sorted((change.change_id, change.author) for change in target.tracking.changes) == theirs
+
+
+def test_a_change_by_a_new_author_leaves_the_others_with_theirs_across_a_save() -> None:
+    document = HwpxDocument.open(str(TRACKED))
+    before = sorted((change.change_id, change.author) for change in document.tracking.changes)
+    added = document.tracking.insert(0, "X", author="Alice")
+    reopened = HwpxDocument.open(document.to_bytes())
+    after = {change.change_id: change.author for change in reopened.tracking.changes}
+    assert after[added.change_id] == "Alice"
+    assert sorted((number, author) for number, author in after.items() if number != added.change_id) == before
+
+
+def test_changes_carried_in_do_not_change_how_the_receiver_shows_changes() -> None:
+    def flags(document: HwpxDocument) -> str | None:
+        return next(document.oxml.headers[0].element.iter(f"{HH}trackchageConfig")).get("flags")
+
+    target = HwpxDocument.open(str(SAVED / "formfit_inline_objects.hwpx"))
+    before = flags(target)
+    append_document(target, HwpxDocument.open(str(TRACKED)))
+    assert flags(HwpxDocument.open(target.to_bytes())) == before
+
+
+def test_a_field_brought_in_two_pieces_keeps_its_end() -> None:
+    source = HwpxDocument.open(str(SAVED / "form_fields_spanning_before.hwpx"))
+    target = HwpxDocument.new()
+    target.add_paragraph("받는 문서")
+    section = target.sections[0]
+    section.insert_paragraphs(len(section.paragraphs), [paragraph.element for paragraph in source.paragraphs[2:5]])
+    section.insert_paragraphs(len(section.paragraphs), [paragraph.element for paragraph in source.paragraphs[5:7]])
+    reopened = HwpxDocument.open(target.to_bytes())
+    begins, ends = _field_marks(reopened)
+    assert begins.count(SPANNING) == ends.count(SPANNING) == 1
+    reopened.fields.fill("answer", field_id=SPANNING)
+
+
+def test_an_ole_item_carried_in_keeps_its_kind() -> None:
+    chart = SAVED / "pages_chart_case_narrower_than_its_default.hwpx"
+    target = HwpxDocument.open(str(chart))
+    append_document(target, HwpxDocument.open(str(chart)))
+    target = HwpxDocument.open(target.to_bytes())
+    listed = {item.get("id"): item for item in target.package._manifest_items()}
+    kinds = [
+        (listed[ole.get("binaryItemIDRef")].get("media-type"), listed[ole.get("binaryItemIDRef")].get("isEmbeded"))
+        for ole in target.sections[0].element.iter(f"{HP}ole")
+    ]
+    assert len(kinds) == 2 and len(set(kinds)) == 1 and kinds[0][0] == "application/ole"
+
+
+def test_a_seeded_reopen_does_not_repeat_a_notes_instance_id() -> None:
+    document = HwpxDocument.open(str(SAVED / "table_insert_row_base.hwpx"), seed=7)
+    document.paragraphs[0].add_footnote("a")
+    document = HwpxDocument.open(document.to_bytes(), seed=7)
+    document.paragraphs[0].add_footnote("b")
+    instances = [note.get("instId") for note in _section(document).iter(f"{HP}footNote")]
+    assert len(instances) == len(set(instances)) == 2
+
+
+def test_a_tracked_delete_whose_first_place_crosses_markup_is_refused_though_a_later_one_does_not() -> None:
+    document = HwpxDocument.open(str(TRACKED))
+    document.paragraphs[0].add_run("경 추")
+    before = document.to_bytes()
+    for call in (lambda: document.tracking.delete(0, match="경 추"), lambda: document.tracking.replace(0, "경 추", "x")):
+        with pytest.raises(HwpxValueError) as refused:
+            call()
+        assert refused.value.code == "track-match-crosses-markup"
+        assert document.to_bytes() == before
+
+
+def test_marks_that_name_no_change_are_refused_before_the_target_changes() -> None:
+    source = HwpxDocument.open(str(TRACKED))
+    for mark in source.sections[0].element.iter(f"{HP}insertBegin", f"{HP}insertEnd", f"{HP}deleteBegin", f"{HP}deleteEnd"):
+        mark.attrib.pop("TcId", None)
+    target = HwpxDocument.new()
+    before = target.to_bytes()
+    with pytest.raises(HwpxValueError) as refused:
+        append_document(target, source)
+    assert refused.value.code == "document-merge-unsupported-reference"
+    assert target.to_bytes() == before
+
+
+def test_a_missing_picture_in_a_memo_body_is_refused_before_the_target_changes() -> None:
+    import copy
+
+    source = HwpxDocument.new(empty_first_line=True)
+    paragraph = source.add_paragraph("annotated text")
+    source.notes.add_memo("old text", paragraph=paragraph)
+    field = next(source.sections[0].element.iter(f"{HP}fieldBegin"))
+    memo_id = next(param.text for param in field.iter(f"{HP}stringParam") if param.get("name") == "ID")
+    group = source.sections[0].element.makeelement(f"{HP}memogroup", {})
+    entry = group.makeelement(f"{HP}memo", {"id": memo_id})
+    body = entry.makeelement(f"{HP}paraList", {})
+    body.append(copy.deepcopy(field.find(f"{HP}subList").find(f"{HP}p")))
+    picture = body.find(f".//{HP}run").makeelement(f"{HC}img", {"binaryItemIDRef": "nothing-of-this-name"})
+    body.find(f".//{HP}run").append(picture)
+    entry.append(body)
+    group.append(entry)
+    source.sections[0].element.append(group)
+    source.sections[0].mark_dirty()
+
+    target = HwpxDocument.new(empty_first_line=True)
+    before = target.to_bytes()
+    with pytest.raises(HwpxValueError) as refused:
+        append_document(target, source)
+    assert refused.value.code == "document-merge-unsupported-reference"
+    assert target.to_bytes() == before

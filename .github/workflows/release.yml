@@ -169,7 +169,8 @@ jobs:
                   used += size
               section = "".join(kept).rstrip() + tail
           assert len(section.encode("utf-8")) <= budget, len(section.encode("utf-8"))
-          Path("release_notes.md").write_text(section, encoding="utf-8")
+          # newline="\n": the budget above counts the bytes written, on any runner.
+          Path("release_notes.md").write_text(section, encoding="utf-8", newline="\n")
           PY
 
       - name: Build distributions (migrated from scripts/build-and-publish.sh)

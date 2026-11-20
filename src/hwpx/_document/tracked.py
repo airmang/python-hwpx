@@ -174,7 +174,6 @@ def _paragraph_has_replaceable_text(
     metadata behind.
     """
 
-    crosses_inline_markup = False
     for run in paragraph.runs:
         model = run.to_model()
         run_text = "".join(span.text for span in model.text_spans)
@@ -185,9 +184,8 @@ def _paragraph_has_replaceable_text(
                 match in markup.trailing_text for markup in span.marks
             ):
                 return True
-        crosses_inline_markup = True
-
-    if crosses_inline_markup:
+        # The writer wraps the match in the first run that holds it and stops there: a later run that
+        # holds it whole does not help (the writer failed on this one after the header had the change).
         raise HwpxValueError(
             "match crosses inline markup and cannot be wrapped safely",
             code="track-match-crosses-markup",
@@ -439,6 +437,10 @@ def _resolved_author_name(doc: "HwpxDocument", author_id: Any) -> str:
     if author is None and len(authors) == 1:
         # Hancom may number the author differently from the change's authorID; one author is that one.
         author = next(iter(authors.values()))
+    elif author is None and str(author_id).isdigit() and 1 <= int(author_id) <= len(authors):
+        # ... and stays that one when another author is added after it: the number of an authorID that
+        # is no author's id is read as the place in the list, counted from 1 (id 0, authorID 1).
+        author = list(authors.values())[int(author_id) - 1]
     return (getattr(author, "name", None) or "") if author is not None else ""
 
 

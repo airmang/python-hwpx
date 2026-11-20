@@ -932,7 +932,14 @@ class Header:
             None,
         )
         if author is None:
-            author_id = _next_track_change_author_id(author_list.authors)
+            # Not a number a change already carries: the one Hancom-saved file with tracked changes gives
+            # its only author id 0 and its changes authorID 1, and an author given id 1 took them over.
+            referenced = [
+                change.author_id
+                for change in (ref_list.track_changes.changes if ref_list.track_changes is not None else [])
+                if isinstance(change.author_id, int)
+            ]
+            author_id = max([_next_track_change_author_id(author_list.authors), *(n + 1 for n in referenced)])
             author = TrackChangeAuthor(
                 id=author_id,
                 raw_id=None,
