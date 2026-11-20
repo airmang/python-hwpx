@@ -703,9 +703,11 @@ class HwpxOxmlSection:
         # are numbered together: a field may begin in one paragraph and end in a later one. A field whose
         # id no field of the document has keeps it: paragraphs brought from another document are filled
         # by the ids they came with.
-        owners = self.document.sections if self.document is not None else [self]
-        taken = {str(node.get("id")) for owner in owners for node in owner.element.iter(f"{_HP}fieldBegin")}
-        renumber_copied_fields(clones, ids=self._ids, taken=taken)
+        if next(clones.iter(f"{_HP}fieldBegin"), None) is not None:  # no field in the copies: no search
+            document = self.document
+            owners: list[Any] = [*document.sections, *document.master_pages] if document is not None else [self]
+            taken = {str(node.get("id")) for owner in owners for node in owner.element.iter(f"{_HP}fieldBegin")}
+            renumber_copied_fields(clones, ids=self._ids, taken=taken)
         for offset, cloned in enumerate(list(clones)):
             for run, settings in section_setting_runs(cloned):
                 for child in settings:

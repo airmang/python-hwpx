@@ -444,13 +444,14 @@ def add_memo_with_anchor(
         # for (the index-th match) is counted in the new text first: a place that is not there was
         # refused after the paragraph's text had been replaced.
         # It is counted in the text as it will be written: characters XML cannot hold are dropped, and a
-        # tab or a line break ends a stretch of text (a match does not reach across one).
+        # tab or a line break (a carriage return too) ends a stretch of text (a match does not reach
+        # across one).
         import re
 
         from ..oxml._document_primitives import _ILLEGAL_XML_CHARS
 
         if paragraph_text is not None:
-            pieces = [_ILLEGAL_XML_CHARS.sub("", piece) for piece in re.split(r"[\t\n]", probe)]
+            pieces = [_ILLEGAL_XML_CHARS.sub("", piece) for piece in re.split(r"\r\n|[\t\n\r]", probe)]
             places = sum(piece.count(match) for piece in pieces) if match else 0
             missing = places <= index
         else:

@@ -14,7 +14,7 @@
    "oxml/table.py:66"
   ],
   "cell-margin-value": [
-   "oxml/table_sizes.py:572"
+   "oxml/table_sizes.py:594"
   ],
   "contract-document-missing": [
    "capabilities.py:636"
@@ -247,11 +247,11 @@
   ],
   "note-match-not-found": [
    "_document/memos.py:208",
-   "_document/memos.py:459"
+   "_document/memos.py:460"
   ],
   "note-memo-detached": [
    "_document/memos.py:194",
-   "_document/memos.py:485"
+   "_document/memos.py:486"
   ],
   "note-memo-index-value": [
    "oxml/memo.py:465",
@@ -348,7 +348,7 @@
   "paragraph-invalid-type": [
    "_document/_resolve.py:259",
    "_document/layout.py:251",
-   "oxml/_paragraph_text_edit.py:604",
+   "oxml/_paragraph_text_edit.py:610",
    "oxml/text_ranges.py:1350",
    "oxml/text_ranges.py:856",
    "tools/document_merge.py:1623",
@@ -367,11 +367,11 @@
    "oxml/text_ranges.py:1064"
   ],
   "paragraph-move-into-itself": [
-   "oxml/_paragraph_text_edit.py:630"
+   "oxml/_paragraph_text_edit.py:636"
   ],
   "paragraph-move-place-unsupported": [
-   "oxml/_paragraph_text_edit.py:645",
-   "oxml/_paragraph_text_edit.py:754",
+   "oxml/_paragraph_text_edit.py:651",
+   "oxml/_paragraph_text_edit.py:760",
    "oxml/note_authoring.py:131",
    "oxml/text_ranges.py:1373",
    "oxml/text_ranges.py:890",
@@ -381,17 +381,17 @@
    "_document/_resolve.py:252",
    "_document/headings.py:172",
    "_document/layout.py:268",
-   "oxml/_paragraph_text_edit.py:596"
+   "oxml/_paragraph_text_edit.py:602"
   ],
   "paragraph-not-in-document": [
    "_document/_resolve.py:223",
    "_document/layout.py:240",
    "_document/text_blocks.py:684",
-   "oxml/_paragraph_text_edit.py:365",
-   "oxml/_paragraph_text_edit.py:567",
-   "oxml/_paragraph_text_edit.py:612",
-   "oxml/_paragraph_text_edit.py:638",
-   "oxml/_paragraph_text_edit.py:748",
+   "oxml/_paragraph_text_edit.py:371",
+   "oxml/_paragraph_text_edit.py:573",
+   "oxml/_paragraph_text_edit.py:618",
+   "oxml/_paragraph_text_edit.py:644",
+   "oxml/_paragraph_text_edit.py:754",
    "oxml/table_format.py:1010",
    "oxml/text_ranges.py:1357",
    "oxml/text_ranges.py:954",
@@ -423,11 +423,11 @@
    "oxml/text_ranges.py:581"
   ],
   "paragraph-remove-last": [
-   "oxml/_paragraph_text_edit.py:429"
+   "oxml/_paragraph_text_edit.py:435"
   ],
   "paragraph-remove-section-settings": [
-   "oxml/_paragraph_text_edit.py:415",
-   "oxml/_paragraph_text_edit.py:670"
+   "oxml/_paragraph_text_edit.py:421",
+   "oxml/_paragraph_text_edit.py:676"
   ],
   "paragraph-run-section-settings": [
    "oxml/run.py:1298"
@@ -442,7 +442,7 @@
   ],
   "paragraph-tab-leader-invalid": [
    "oxml/_document_primitives.py:1686",
-   "tools/toc_author.py:379"
+   "tools/toc_author.py:378"
   ],
   "paragraph-tab-pos-invalid": [
    "_document/layout.py:477",
@@ -533,13 +533,13 @@
   ],
   "section-clear-control-content": [
    "oxml/section.py:436",
-   "oxml/section.py:939"
+   "oxml/section.py:941"
   ],
   "section-clear-mode-invalid": [
    "oxml/section.py:339",
    "oxml/section.py:348",
-   "oxml/section.py:965",
-   "oxml/section.py:971"
+   "oxml/section.py:967",
+   "oxml/section.py:973"
   ],
   "section-clear-no-section-properties": [
    "oxml/section.py:357"
@@ -863,7 +863,7 @@
    "oxml/numbering_kinds.py:263"
   ],
   "style-not-found": [
-   "oxml/section.py:1295"
+   "oxml/section.py:1297"
   ],
   "style-number-format-invalid": [
    "oxml/numbering_kinds.py:92"
@@ -908,24 +908,24 @@
   ],
   "table-cell-not-found": [
    "oxml/table.py:1048",
-   "oxml/table_sizes.py:826"
+   "oxml/table_sizes.py:848"
   ],
   "table-cell-zone-grid-mismatch": [
-   "oxml/table_sizes.py:346"
+   "oxml/table_sizes.py:368"
   ],
   "table-column-width-value": [
-   "oxml/table_sizes.py:871"
+   "oxml/table_sizes.py:893"
   ],
   "table-columns-differ": [
    "oxml/table_rows.py:254"
   ],
   "table-height-value": [
-   "oxml/table_sizes.py:116"
+   "oxml/table_sizes.py:137"
   ],
   "table-margin-value": [
-   "oxml/table_sizes.py:633",
-   "oxml/table_sizes.py:677",
-   "oxml/table_sizes.py:718"
+   "oxml/table_sizes.py:655",
+   "oxml/table_sizes.py:699",
+   "oxml/table_sizes.py:740"
   ],
   "table-merge-range-invalid": [
    "oxml/table_merge.py:44",
@@ -941,7 +941,7 @@
    "oxml/table.py:691"
   ],
   "table-row-heights-value": [
-   "oxml/table_sizes.py:421"
+   "oxml/table_sizes.py:443"
   ],
   "table-rows-invalid": [
    "oxml/table_rows.py:57",

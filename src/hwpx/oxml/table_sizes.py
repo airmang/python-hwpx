@@ -99,26 +99,49 @@ def new_table_width(width: object, cols: int) -> int | None:
     return max(width, cols * NEW_TABLE_COLUMN_FLOOR)
 
 
-def check_new_table_height(height: object) -> None:
-    """A new table's *height* (``None`` when not given) checked before anything is written: an int in
-    ``0 <= height < 2**31``. Anything else was added to the row heights and failed there, after the
-    table's border definition (and, in a cell, its paragraph) had been made."""
+def whole_number(value: Any, *, floats: bool = False) -> int | None:
+    """*value* as an ``int`` when it is a whole number: an integer of any kind (``numpy.int64``), or a
+    ``Decimal`` or ``Fraction`` with a whole value -- and a float with one when *floats*. ``None`` for
+    anything else, a bool of any kind among it."""
+
+    import numbers
+    from decimal import Decimal
+    from fractions import Fraction
+
+    if isinstance(value, bool) or type(value).__name__ in ("bool_", "bool"):
+        return None
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if not isinstance(value, numbers.Number) and hasattr(value, "__index__"):
+        return int(value.__index__())
+    if isinstance(value, (Decimal, Fraction)) or (floats and isinstance(value, numbers.Real)):
+        number: Any = value
+        try:
+            return int(number) if number == int(number) else None
+        except (TypeError, ValueError, ArithmeticError):
+            return None
+    return None
+
+
+def check_new_table_height(height: object) -> int | None:
+    """A new table's *height* (``None`` when not given) checked before anything is written, as an
+    ``int``: a whole number in ``0 <= height < 2**31``. Anything else was added to the row heights and
+    failed there, after the table's border definition (and, in a cell, its paragraph) had been made; a
+    ``Decimal("2.00")`` was written as it stood, and the height then could not be read."""
 
     from ..errors import HwpxValueError
 
     if height is None:
-        return
-    try:  # a whole number of any kind (numpy.int64, Decimal("1440")); not a bool, not a float
-        whole = not isinstance(height, (bool, float)) and int(height) == height  # type: ignore[call-overload]
-    except (TypeError, ValueError, ArithmeticError):
-        whole = False
-    if not whole or not 0 <= height < 2**31:  # type: ignore[operator]
+        return None
+    whole = whole_number(height)
+    if whole is None or not 0 <= whole < 2**31:
         raise HwpxValueError(
             f"height must be an int in 0 <= height < 2**31 (HWPUNIT); got {height!r}",
             code="table-height-value",
             context={"value": repr(height)},
             suggestion="Pass the table's height in HWP units, or leave it out for the default row height.",
         )
+    return whole
 
 
 def _column_floors(table: "HwpxOxmlTable") -> list[int]:

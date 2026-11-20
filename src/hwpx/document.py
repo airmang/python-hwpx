@@ -805,7 +805,7 @@ class HwpxDocument(metaclass=_DocumentType):
         new_table_width(width, cols)  # checked before a paragraph or a border fill is added
         from .oxml.table_sizes import check_new_table_height, checked_in_margins
 
-        check_new_table_height(height)
+        height = check_new_table_height(height)
 
         checked_in_margins(in_margins)
         paragraph = self.add_paragraph(

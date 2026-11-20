@@ -985,3 +985,103 @@ def test_removing_a_header_does_not_walk_the_body_for_notes() -> None:
         authoring.note_numbers = real
 
     assert calls == []
+
+
+# -- the sixth look -------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("text", ["A\rB", "A\r\nB", "A\tB", "A\nB"])
+def test_a_memo_match_does_not_reach_across_what_the_writer_breaks(text: str) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("old")
+    before = _state(document)
+
+    code = _code(lambda: document.notes.add_memo("m", paragraph=paragraph, paragraph_text=text, match="AB"))
+
+    assert code == "note-match-not-found" and _state(document) == before
+
+
+def test_a_new_field_id_is_not_one_a_copy_in_the_same_call_keeps() -> None:
+    # two documents made with one seed hand out the same ids
+    source, target = HwpxDocument.new(seed=17), HwpxDocument.new(seed=17)
+    for index in range(4):
+        source.add_paragraph(f"s{index}").add_form_field(str(index))
+    target.add_paragraph("t").add_form_field("own")
+
+    target.sections[0].insert_paragraphs(1, source.sections[0].paragraphs)
+
+    saved = _saved(target)
+    ids = [field.field_id for field in saved.fields.all]
+    assert len(ids) == len(set(ids)) == 5
+    for field_id in ids:
+        saved.fields.fill("x", field_id=field_id)
+
+
+def test_inserting_nothing_looks_at_nothing() -> None:
+    document = HwpxDocument.new()
+    other = document.add_section()
+    document.add_paragraph("x", section=other).add_form_field("f")
+    before = _state(document)
+
+    assert document.sections[0].insert_paragraphs(1, []) == ()
+
+    assert _state(document) == before
+
+
+def test_a_field_copied_from_a_master_page_gets_an_id_of_its_own() -> None:
+    document = HwpxDocument.new()
+    page = document.parts.add_master_page(text="master", page_type="BOTH", section=0)
+    document.add_paragraph("stays, with the section settings")
+    document.fields.add("F", paragraph=document.add_paragraph("body"))
+    moved = document.paragraphs[-1].element
+    page.paragraphs[0].element.addnext(moved)  # a field on the master page, as a form drawn on every page
+    document.sections[0].mark_dirty()
+    page.mark_dirty()
+    document = _saved(document)
+    master_paragraph = next(item for item in document.parts.master_pages[0].paragraphs
+                            if item.element.find(".//{*}fieldBegin") is not None)
+
+    copy = document.sections[0].insert_paragraphs(1, [master_paragraph])[0]
+
+    original = master_paragraph.element.find(".//{*}fieldBegin").get("id")
+    assert copy.element.find(".//{*}fieldBegin").get("id") != original
+
+
+def test_note_numbers_follow_the_section_settings_a_paragraph_model_brought() -> None:
+    document = HwpxDocument.new()
+    section = document.sections[0]
+    section.properties.set_footnote_numbering(type="ON_PAGE")
+    note = document.add_paragraph("first").add_footnote("one")
+    document.add_paragraph("second").add_footnote("two")
+    template = HwpxDocument.new()
+    template.sections[0].properties.set_footnote_numbering(type="CONTINUOUS")
+    section.paragraphs[0].apply_model(template.paragraphs[0].to_model())
+
+    note.remove()
+
+    assert _numbers(document) == [(1, "1", "1")]
+
+
+@pytest.mark.parametrize("height", ["2.00", "1E+3"])
+def test_a_whole_decimal_height_is_written_as_a_whole_number(height: str) -> None:
+    from decimal import Decimal
+
+    document = HwpxDocument.new()
+    document.add_table(1, 1, height=Decimal(height))  # type: ignore[arg-type]
+
+    table = _saved(document).tables.all[0]
+    assert table.element.find("{*}sz").get("height") == str(int(Decimal(height)))
+
+
+@pytest.mark.parametrize("index", [1.0, "decimal", "fraction"])
+def test_a_table_of_contents_takes_a_whole_number_of_any_kind_for_its_place(index: Any) -> None:
+    from decimal import Decimal
+    from fractions import Fraction
+
+    place = {"decimal": Decimal("1"), "fraction": Fraction(1)}.get(index, index)
+    document = HwpxDocument.new()
+    document.add_heading("Contents", level=1)
+
+    document.refs.add_table_of_contents(index=place)
+
+    assert len(_saved(document).refs.tables_of_contents) == 1

@@ -327,6 +327,9 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
             waiting.clear()
     renumbered = 0
     met: set[str] = set()
+    # ids that stay in use: those where the copy goes, and those the copy itself holds (one of them may
+    # be kept, and the id source of a document made with the same seed hands out the same numbers)
+    in_use = set(taken or ()) | {str(begin.get("id")) for begin, _ in groups}
     for begin, ends in groups:
         if not ends:
             continue
@@ -336,6 +339,9 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
             continue  # no field where it goes has this id: it keeps it
         met.add(old)
         new_id = _object_id(ids)
+        while new_id in in_use:
+            new_id = _object_id(ids)
+        in_use.add(new_id)
         for node in (begin, *ends):
             node.set("id" if node is begin else "beginIDRef", new_id)
             if node.get("fieldid") == old:

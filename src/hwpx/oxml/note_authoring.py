@@ -367,6 +367,16 @@ def _note_numbering_type(section: "HwpxOxmlSection", tag: str) -> str | None:
     for ``hp:secPr`` in the tree each time walked a long first paragraph."""
 
     sec_pr = section.properties.element
+    top: Any = sec_pr
+    while hasattr(top, "getparent") and (parent := top.getparent()) is not None:
+        top = parent
+    if hasattr(top, "getparent") and top is not section.element:
+        # the properties kept at hand are of a paragraph that was replaced (paragraph.apply_model): the
+        # ones in the tree now
+        found = section._section_properties_element()
+        if found is None:
+            return None
+        sec_pr = found
     properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
     numbering = properties.find(f"{_HP}numbering") if properties is not None else None
     return numbering.get("type") if numbering is not None else None

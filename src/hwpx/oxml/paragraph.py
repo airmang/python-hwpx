@@ -834,7 +834,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         """
 
         validate_table_size(rows, cols)
-        check_new_table_height(height)
+        height = check_new_table_height(height)
         margins = checked_in_margins(in_margins)
         if width is not None:
             width = new_table_width(width, cols)  # checked, and floored as Hancom draws it, before its run is added
