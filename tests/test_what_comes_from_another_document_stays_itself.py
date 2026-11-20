@@ -354,12 +354,15 @@ def test_a_missing_picture_in_a_memo_body_is_refused_before_the_target_changes()
     source.sections[0].element.append(group)
     source.sections[0].mark_dirty()
 
-    target = HwpxDocument.new(empty_first_line=True)
+    target = HwpxDocument.new(empty_first_line=True, seed=1)
     before = target.to_bytes()
     with pytest.raises(HwpxValueError) as refused:
         append_document(target, source)
     assert refused.value.code == "document-merge-unsupported-reference"
     assert target.to_bytes() == before
+    # ... and hands out the ids it would have: the refusal drew none of them
+    untouched = HwpxDocument.new(empty_first_line=True, seed=1)
+    assert target.add_paragraph("다음").element.get("id") == untouched.add_paragraph("다음").element.get("id")
 
 
 # -- what the third look found: the author rule, a stored name, a split match --------------------

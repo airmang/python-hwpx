@@ -1422,10 +1422,13 @@ def _merge_paragraphs(
     # identical either way (deep-copying hasn't happened yet at this
     # point), and _copy_referenced_memos needs *source* itself (not just
     # source_paragraphs) to search its sections' hp:memogroup elements.
+    # Checked on copies that draw no id from the receiving document: a refusal leaves it as it was,
+    # the ids it will hand out next (with a seed) among that.
+    _reject_what_cannot_be_carried(
+        source, [*source_paragraphs, *_copy_referenced_memos(source, source_paragraphs, ids=None)[1]]
+    )
     ids = target._root._id_source  # new ids are the receiving document's
     memo_id_map, memo_clones = _copy_referenced_memos(source, source_paragraphs, ids=ids)
-    # Nothing of the receiving document has changed yet: the copies above are of the source.
-    _reject_what_cannot_be_carried(source, [*source_paragraphs, *memo_clones])
 
     copies = [_deep_copy_element(p) for p in source_paragraphs]
     # A copied paragraph is never the destination section's first paragraph
