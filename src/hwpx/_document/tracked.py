@@ -251,7 +251,14 @@ def add_tracked_delete(
             code="track-match-empty",
             suggestion="Pass the substring to delete.",
         )
-    if not _paragraph_has_deletable_text(paragraph, match):
+    # A match that only exists across inline markup is refused here (``track-match-crosses-markup``),
+    # before the change is added to the header: found later, it left a change nobody made.
+    found = (
+        _paragraph_has_deletable_text(paragraph, None)
+        if match is None
+        else _paragraph_has_replaceable_text(paragraph, match)
+    )
+    if not found:
         if match is None:
             raise HwpxValueError(
                 "paragraph contains no text to delete",
@@ -470,6 +477,13 @@ def resolve_tracked_changes(
             if opens and element.get("TcId") is not None:
                 marked.setdefault(element.get("TcId") or "", kind)
     known = set(header_changes) | set(marked)
+    # Resolving takes changes out of the header, and the next change made would take the freed number:
+    # the object still held for the resolved change would then name, and resolve, somebody else's
+    # change. So an id is not given twice while the document is open (HwpxOxmlDocument.add_track_change
+    # starts above this floor).
+    doc._root._track_change_id_floor = max(
+        [getattr(doc._root, "_track_change_id_floor", 0), *(int(key) for key in known if key.isdigit())]
+    )
     if change is not None:
         wanted = {_change_key(change)}
         if not wanted <= known:

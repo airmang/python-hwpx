@@ -953,12 +953,14 @@ class HwpxOxmlHeader:
         *,
         author_name: str = "AI Agent",
         date: str | None = None,
+        minimum_id: int = 0,
     ) -> int:
         model = self.to_model()
         change_id = model.add_track_change(
             change_type,
             author_name=author_name,
             date=date,
+            minimum_id=minimum_id,
             ids=self._document._id_source if self._document is not None else None,
         )
         if model.ref_list is None or model.ref_list.track_changes is None:

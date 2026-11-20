@@ -62,7 +62,7 @@ LAZY_IMPORT_CALL_SHA256 = (
 # 7.0 naming: the three equation names left the experimental map for _EQUATION_EXPORTS
 # (stable in hwpx.equation, D26); __getattr__ answers them with MovedToSubmodule.
 LAZY_GETATTR_SHA256 = (
-    "e29608fbf59388cfc61ca9a579231aea775a80e5ed04583c375e82a58b169548"
+    "3e9c4c5e8124c77972d89bf132c11f9fe019ce650c17391e9a2e0167255bfee6"
 )
 IGNORED_EMPTY_AST_FIELDS = frozenset({"type_params"})
 LAZY_EXPORT_MAP_COUNT = 11

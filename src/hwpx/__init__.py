@@ -407,7 +407,7 @@ def __getattr__(name: str) -> object:
             )
         raise MovedToCompanion(
             f"{name}은(는) python-hwpx 5.0에서 companion 패키지로 이동했습니다.\n"
-            f"    pip install python-hwpx-automation\n"
+            '    pip install -U "python-hwpx-automation>=8"\n'
             f"    {statement}\n"
             f'4.x를 계속 쓰려면: pip install "python-hwpx<5"\n'
             f"전체 대체표: docs/migration-5.0.md"

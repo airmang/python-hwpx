@@ -89,12 +89,15 @@
    "new",
    "open",
    "remove_section",
+   "reset_caret",
    "save",
+   "set_caret",
    "to_bytes",
    "validate"
   ],
   "other": [],
   "properties": [
+   "caret",
    "conversion_report",
    "fields",
    "media",
@@ -114,9 +117,9 @@
   ],
   "qualname": "hwpx.document.HwpxDocument",
   "role": "문서 객체",
-  "surfaceBefore6_0": 115,
-  "total": 32,
-  "version": "6.12.0"
+  "surfaceBefore6_0": 118,
+  "total": 35,
+  "version": "7.0.0"
  },
  "schemaVersion": "python-hwpx.control-surfaces/v1"
 }

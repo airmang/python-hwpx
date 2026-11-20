@@ -54,10 +54,11 @@ def to_bytes(*, mode="auto", fallback="error", format="hwpx"): ...   # bytes 반
 ### 영수증과 `quality` — 품질 게이트
 
 `save`는 늘 `MutationReport`를 돌려준다(저장한 경로는 `report.path`, 스트림이면 `None`).
-`to_bytes`는 bytes를 돌려준다. `quality=`에 `QualityPolicy`(예: `QualityPolicy.strict()`)를
+`to_bytes`는 bytes를 돌려준다. `quality=`에 `QualityPolicy`(예: `QualityPolicy(require_visual_complete=False)`)를
 주면 쓰기 전에 그 품질 게이트를 돌리고, 게이트의 `VisualCompleteReport`를 `report.quality`에
 담는다. 게이트가 막으면 아무것도 쓰지 않고 `SaveError`(`quality-gate-failed`)를 던지며, 그
-보고는 `exc.report`에 있다.
+보고는 `exc.report`에 있다. `QualityPolicy.strict()`(=`QualityPolicy()`)는 렌더 확인까지 요구한다. 코어는 렌더하지
+않으므로, 렌더러를 붙이지 않았으면 이 정책은 통과하지 못하고 오류가 그 이유를 말한다.
 
 ## 사용 예
 

@@ -47,7 +47,12 @@ def _paragraph_note_style_refs(self: "HwpxOxmlParagraph", tag: str) -> tuple[str
 
     Real Hancom puts note bodies on the 각주/미주 paragraph styles. Resolve
     by style name from the header so documents with re-numbered styles stay
-    correct; fall back to the fixed template coordinates.
+    correct.
+
+    A document without that style (one made from a single-style template, some exam forms) gets the
+    note body on its first style and that style's shapes, or on the host paragraph's when the header
+    has no style at all: the fixed template ids (style 15, shapes 10 and 3) name nothing there, or name
+    another style (an outline level). They are used only when there is no header to look in.
     """
 
     korean, english = _NOTE_STYLE_NAMES[tag]
@@ -70,6 +75,24 @@ def _paragraph_note_style_refs(self: "HwpxOxmlParagraph", tag: str) -> tuple[str
                     style.get("paraPrIDRef") or _NOTE_STYLE_FALLBACK[tag][1],
                     style.get("charPrIDRef") or _NOTE_STYLE_FALLBACK[tag][2],
                 )
+    looked = False
+    for header in headers:
+        styles = getattr(header, "_styles_element", None)
+        container = cast("ET.Element | None", styles() if callable(styles) else None)
+        if container is None:
+            continue
+        looked = True
+        first = next((style for style in container if style.get("id") is not None), None)
+        if first is not None and first.get("paraPrIDRef") is not None and first.get("charPrIDRef") is not None:
+            return (first.get("id") or "0", first.get("paraPrIDRef") or "0", first.get("charPrIDRef") or "0")
+    if looked or headers:
+        host = self.element
+        run = host.find(f"{_HP}run")
+        return (
+            host.get("styleIDRef") or "0",
+            host.get("paraPrIDRef") or "0",
+            (run.get("charPrIDRef") if run is not None else None) or "0",
+        )
     return _NOTE_STYLE_FALLBACK[tag]
 
 

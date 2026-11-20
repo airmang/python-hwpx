@@ -31,6 +31,10 @@ from types import ModuleType
 from typing import Protocol
 
 COMPANION_DISTRIBUTION = "python-hwpx-automation"
+#: The command an error tells the reader to run. ``-U`` and the floor matter: python-hwpx 7 works with
+#: the companion from 8.0 on, and a bare ``pip install`` beside an installed 7.x companion keeps that
+#: one and pulls python-hwpx back to 6.x to suit it.
+COMPANION_INSTALL = f'pip install -U "{COMPANION_DISTRIBUTION}>=8"'
 MIGRATION_GUIDE_URL = (
     "https://github.com/airmang/python-hwpx/blob/main/docs/migration-5.0.md"
 )
@@ -230,7 +234,7 @@ def moved_message(legacy: str, target: str, moved_in: str = "5.0") -> str:
         return (
             f"{legacy}은(는) python-hwpx 5.0에서 {COMPANION_DISTRIBUTION} 패키지로 "
             f"이동했습니다. 새 경로: {target}\n"
-            f"    pip install {COMPANION_DISTRIBUTION}\n"
+            f"    {COMPANION_INSTALL}\n"
             f"    import {target}\n"
             f'4.x를 계속 쓰려면: pip install "python-hwpx<5"\n'
             f"전체 대체표: {MIGRATION_GUIDE_URL}"
@@ -249,7 +253,7 @@ def _moved_in_7_0_message(legacy: str, where: str, statement: str) -> str:
     return (
         f"{legacy}은(는) python-hwpx 7.0에서 {COMPANION_DISTRIBUTION} 패키지로 "
         f"옮겼습니다.{tail}\n"
-        f"    pip install {COMPANION_DISTRIBUTION}\n"
+        f"    {COMPANION_INSTALL}\n"
         f"    {statement}\n"
         f'6.x를 계속 쓰려면: pip install "python-hwpx<7"\n'
         f"전체 대체표: {MIGRATION_GUIDE_7_0_URL}"

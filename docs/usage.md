@@ -38,7 +38,7 @@ hwpx-page-guard --reference sample.hwpx --output edited.hwpx
 
 7.0에서 Markdown 추출(`hwpx-text-extract --format markdown`)과 서식 규칙 점검(`hwpx-check-format`)은
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)으로 옮겼습니다
-(`pip install python-hwpx-automation`). 이 패키지의 CLI는 파일에 적힌 내용을 읽고 쓰는 일만 합니다.
+(`pip install -U python-hwpx-automation`). 이 패키지의 CLI는 파일에 적힌 내용을 읽고 쓰는 일만 합니다.
 
 `hwpx-page-guard`는 실제 렌더러의 쪽수를 계산하지 않고, 구조 및 텍스트 통계를 비교해 편집 전후 변화 징후를 점검하는 도구입니다.
 
@@ -197,9 +197,11 @@ print(size.width, size.height, size.orientation)
 from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
-section = document.sections[0]
-section.properties.set_page_size(width=297000, height=210000, orientation="LANDSCAPE")
+document.page.setup(paper_size="A4", orientation="LANDSCAPE")
 ```
+
+`section.properties.set_page_size(width=, height=)`로 치수를 직접 줄 때의 단위는 mm가 아니라 HWPUNIT(1/7200인치)입니다.
+A4는 59528×84186입니다. 가로 방향은 용지 치수를 바꾸지 않고 방향만 바꿉니다.
 
 ### 예제 11: 여백 조정하기
 
@@ -325,8 +327,12 @@ from hwpx import HwpxDocument
 
 document = HwpxDocument.new()
 memo = document.notes.add_memo("검토 메모", section=0)
+document.notes.attach(document.add_paragraph("검토할 문단"), memo)
 print(memo.text)
 ```
+
+문단에 걸지 않은 메모는 저장되지 않습니다(`note-memo-unanchored`로 거절). `add_memo(..., paragraph=문단)`으로 만들면서
+걸거나, 위처럼 `attach`로 겁니다.
 
 `section=`은 섹션 번호(`0`)와 섹션 객체(`document.sections[0]`)를 모두 받습니다. 옛 이름 `section_index=` 대신
 `section=`을 쓰세요.
@@ -486,8 +492,8 @@ for run in list(paragraph.runs):
 print(paragraph.text)  # " 남길 글"
 ```
 
-`runs[0].remove()`처럼 번호로 지우지 마세요. 문서 첫 문단의 첫 런은 구역 설정을 담고 있어서, 그 런을 지우면
-용지 크기가 0×0인 문서가 저장됩니다. 새 문서에서 빈 첫 줄을 지울 필요도 없습니다. 7.0부터 `new()`로 만든 문서는
+`runs[0].remove()`처럼 번호로 지우지 마세요. 문서 첫 문단의 첫 런은 구역 설정(용지·여백·단)을 담고 있어서, 7.0은 그 런을
+지우는 호출을 거부합니다(`paragraph-run-section-settings`). 새 문서에서 빈 첫 줄을 지울 필요도 없습니다. 7.0부터 `new()`로 만든 문서는
 처음 더한 문단으로 시작합니다.
 
 ### 예제 32: 고정 폭 표 만들기
@@ -1024,8 +1030,10 @@ doc.save("신청서-작성.hwpx")
 
 - `doc.text.replace()`는 기본으로 본문 문단의 런 하나 안에서만 바꿉니다. 그 범위에서 0건인데 찾는 글이 표 칸이나
   머리말에 있으면 `ReplaceScopeWarning`으로 `everywhere=True`를 알려 줍니다.
-- `doc.tables.map()`은 파일에 적힌 표와 칸의 글을 문서 순서로 그대로 보고합니다(칸 안의 표 포함). 어느 칸을 채울지는
-  호출하는 쪽이 정합니다.
+- `doc.tables.map()`은 파일에 적힌 표와 칸의 글을 문서 순서로 보고합니다(칸 안의 표 포함). 어느 칸을 채울지는
+  호출하는 쪽이 정합니다. 표 번호(`table_index`)는 칸 안의 표까지 센 `doc.tables.with_nested`의 번호입니다.
+  `doc.tables`는 칸 안의 표를 세지 않으므로, 칸 안에 표가 있는 양식에서는 `doc.tables.with_nested[table_index]`로
+  고르세요. 합친 칸은 덮는 자리(행·열)마다 같은 글로 한 번씩 나옵니다.
 - 이름표 옆 칸을 찾아 채우기(`find_cell_by_label`·`form_slots`·`fill_by_path`, 공백을 무시한 이름표 비교)와 글자로
   적힌 선택 칸(`□ 예 □ 아니오`) 고르기는 양식의 뜻을 짐작하는 일이라 7.0에서
   [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 `hwpx_automation.forms`로
@@ -1164,7 +1172,7 @@ Markdown·HTML로 내보내는 변환은 7.0에서
 옮겼습니다. 인자와 결과는 6.x와 같고, 문서를 첫 인자로 받습니다.
 
 ```text
-pip install python-hwpx-automation
+pip install -U python-hwpx-automation
 
 from hwpx_automation.markdown import from_markdown, append_markdown, to_markdown, to_html
 doc = from_markdown("# 운영 보고\n\n- 참여 학생 120명\n")   # 6.x hwpx.tools.markdown_import.from_markdown
@@ -1469,7 +1477,7 @@ for element in paragraphs_with_bookmark:
 - 보는 것: ZIP과 각 XML 파트가 읽히는지, 한/글이 열지 못하는 구조(필수 자식이 없는 표·도형·글맵시·OLE·동영상, 빈 컨트롤, 필수 파트·속성 누락), 글보다 뒤를 가리키거나 줄 수가 크게 모자란 줄 배치 캐시.
 - 보지 않는 것: **참조 무결성**. 본문이 가리키는 글자 모양(`charPrIDRef`)·문단 모양(`paraPrIDRef`)·스타일·테두리·그림 자료가 `header.xml`과 패키지에 실제로 있는지는 기본 저장에서 확인하지 않습니다. 없는 id를 가리키는 문서도 기본 검사를 통과해 저장됩니다.
 
-참조까지 확인하려면 `save(path, quality=QualityPolicy.strict())`를 쓰거나(게이트가 막으면 `SaveError`의 `.report`에 `REFERENCE_INTEGRITY_FAILED`), `hwpx.tools.id_integrity.check_id_integrity(document)`를 직접 부릅니다. 이 검사는 문서를 여는 시간의 0.7배쯤 더 걸리고, 한/글이 저장한 문서 가운데에도 걸리는 것이 있어(정의되지 않은 글머리표 `idRef="0"`) 기본 저장에는 넣지 않았습니다.
+참조까지 확인하려면 `save(path, quality=QualityPolicy(require_visual_complete=False))`를 쓰거나(게이트가 막으면 `SaveError`의 `.report`에 `REFERENCE_INTEGRITY_FAILED`), `hwpx.tools.id_integrity.check_id_integrity(document)`를 직접 부릅니다. 이 검사는 문서를 여는 시간의 0.7배쯤 더 걸리고, 한/글이 저장한 문서 가운데에도 걸리는 것이 있어(정의되지 않은 글머리표 `idRef="0"`) 기본 저장에는 넣지 않았습니다.
 
 ```python
 # 파일로 저장
@@ -1512,7 +1520,7 @@ for place in doc.text.iter_paragraphs(where={"cell"}):
 다른 형식을 Markdown으로 바꿔 들이는 `hwpx.ingest`(`DocumentIngestor`, `HwpxMarkdownConverter`)와 LangChain
 로더·LlamaIndex 리더(`hwpx.integrations`)는 7.0에서
 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 `hwpx_automation.ingest`·
-`hwpx_automation.integrations`로 옮겼습니다(`pip install python-hwpx-automation`). 옛 이름을 가져오면 새 자리를
+`hwpx_automation.integrations`로 옮겼습니다(`pip install -U python-hwpx-automation`). 옛 이름을 가져오면 새 자리를
 알려 주는 `ImportError`가 납니다.
 
 ## 제안서 프리셋 — 5.0에서 이동

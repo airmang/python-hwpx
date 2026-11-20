@@ -56,7 +56,7 @@ def test_importing_a_moved_module_names_its_new_location(legacy: str, target: st
     release = "7.0" if legacy in MOVED_IN_7_0 else "5.0"
     assert raised.value.name == legacy
     assert f"새 경로: {target}" in message
-    assert "pip install python-hwpx-automation" in message
+    assert 'pip install -U "python-hwpx-automation>=8"' in message
     assert _moved_modules.MIGRATION_GUIDES[release] in message
     assert f"python-hwpx {release}에서" in message
     assert target.startswith("hwpx_automation.")

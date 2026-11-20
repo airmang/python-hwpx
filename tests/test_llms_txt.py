@@ -37,6 +37,7 @@ REQUIRED_FRAGMENTS = (
     "https://airmang.github.io/python-hwpx/quickstart.html",
     "https://airmang.github.io/python-hwpx/support-matrix.html",
     "https://airmang.github.io/python-hwpx/migration-6.0.html",
+    "https://airmang.github.io/python-hwpx/migration-7.0.html",
 )
 
 LLMS_FULL_SOURCES = (
