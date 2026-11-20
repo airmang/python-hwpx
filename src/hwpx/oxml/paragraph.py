@@ -685,7 +685,8 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                     if default_char is not None:
                         run_attrs["charPrIDRef"] = str(default_char)
 
-        run_element = _append_child(self.element, f"{_HP}run", run_attrs)
+        run_element = self.element.makeelement(f"{_HP}run", run_attrs)  # refused here when it cannot be made
+        self.element.append(run_element)
         note_made_run(self, run_element)
         _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         if expand_special_characters:

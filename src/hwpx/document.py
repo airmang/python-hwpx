@@ -808,10 +808,6 @@ class HwpxDocument(metaclass=_DocumentType):
         check_new_table_height(height)
 
         checked_in_margins(in_margins)
-        resolved_border_fill: str | int | None = border_fill_id_ref
-        if resolved_border_fill is None:
-            resolved_border_fill = self._root.ensure_basic_border_fill()
-
         paragraph = self.add_paragraph(
             "",
             section=section,
@@ -821,6 +817,12 @@ class HwpxDocument(metaclass=_DocumentType):
             include_run=False,
             inherit_style=inherit_style,
         )
+        # after the paragraph, which refuses a style that is not there: the border definition was made
+        # first and stayed in the header of a refused call
+        resolved_border_fill: str | int | None = border_fill_id_ref
+        if resolved_border_fill is None:
+            resolved_border_fill = self._root.ensure_basic_border_fill()
+
         table = paragraph.add_table(
             rows,
             cols,

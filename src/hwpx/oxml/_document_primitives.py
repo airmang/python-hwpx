@@ -204,6 +204,13 @@ def refused_appends_nothing(method: _M) -> _M:
     @wraps(method)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         before = list(self.element)
+        kept = [child for child in before if child.tag != f"{_HP}linesegarray"]
+        # Only a paragraph that has a line cache (one read from a file) is written down as it is: the
+        # cache may go back only when nothing in the paragraph changed, a run edited in place included.
+        def as_written(child: Any) -> bytes:
+            return LET.tostring(child) if isinstance(child, LET._Element) else ET.tostring(child)
+
+        written = [as_written(child) for child in kept] if len(kept) != len(before) else None
         made: list[Any] = []
         records = self.__dict__.setdefault("_made_run_records", [])
         records.append(made)
@@ -214,8 +221,8 @@ def refused_appends_nothing(method: _M) -> _M:
                 if any(child is run for child in self.element):
                     self.element.remove(run)
             now = list(self.element)
-            kept = [child for child in before if child.tag != f"{_HP}linesegarray"]
-            if len(kept) != len(before) and len(now) == len(kept) and all(a is b for a, b in zip(now, kept)):
+            if (written is not None and len(now) == len(kept) and all(a is b for a, b in zip(now, kept))
+                    and [as_written(child) for child in now] == written):
                 for child in now:
                     self.element.remove(child)
                 self.element.extend(before)  # as it was, its line cache too

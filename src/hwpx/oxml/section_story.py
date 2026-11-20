@@ -917,6 +917,10 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
             for child in list(self.element):
                 self.element.remove(child)
             self.element.extend(children)
+            # the notes that went with the old content were counted out; they are back
+            from .note_authoring import note_kinds_in, renumber_note_kinds
+
+            renumber_note_kinds(self._properties.section, note_kinds_in(children))
             raise
 
     @staticmethod

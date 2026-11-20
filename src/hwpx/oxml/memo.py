@@ -328,6 +328,7 @@ class HwpxOxmlMemo(SameElement):
         is). This wrapper then belongs to the new group.
         """
 
+        self._follow()
         target = _resolve_memo_section(self, section, caller="move_to")
         anchor = _anchor_section(self)
         if isinstance(self, HwpxOxmlFieldMemo) or (anchor is not None and anchor.element is not target.element):
@@ -357,6 +358,7 @@ class HwpxOxmlMemo(SameElement):
 
         from ._document_primitives import _refresh_copied_paragraph_subtree_ids
 
+        self._follow()  # folded into its field through another object: that memo is the one copied
         target = _resolve_memo_section(self, section, caller="copy_to")
         others = _group_memos(target)
         position = _memo_index(index, len(others), caller="copy_to")
@@ -370,6 +372,7 @@ class HwpxOxmlMemo(SameElement):
         else:
             clone = deepcopy(self.element)
             clone.tail = None
+            clone.attrib.pop(_FOLDED_INTO, None)
         clone.set("id", _memo_id(target._ids))
         _refresh_copied_paragraph_subtree_ids(clone, ids=target._ids)
         for node in clone.iter(f"{_HP}p"):
@@ -516,7 +519,7 @@ def _note_session_memo(section: "HwpxOxmlSection", memo: ET.Element) -> None:
         made.add(str(memo.get("id")))
 
 
-def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
+def _fill_field_from_entry(field: ET.Element, entry: ET.Element, *, move: bool = False) -> None:
     """Make the MEMO field *field* hold the memo-group memo *entry* as Hancom keeps a memo: the field's
     ``hp:subList`` holds the memo's paragraphs. Its parameters stay as they are: a memo's shape is its
     section's, and Hancom writes ``MemoShapeIDRef=65535`` in every memo field."""
@@ -531,20 +534,28 @@ def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
         for node in sub_list.findall(f"{_HP}p"):
             sub_list.remove(node)
         for node in paragraphs:
-            copied = deepcopy(node)
+            # *move*: the entry is given up (folded), and its own paragraphs become the field's -- a
+            # paragraph object taken from the memo before then still writes into the memo. Otherwise
+            # the entry stays what it is and the field gets copies.
+            copied = node if move else deepcopy(node)
             copied.tail = None
             copied.set("id", "0")  # Hancom numbers a memo field's paragraphs 0
             _clear_paragraph_layout_cache(copied)
             sub_list.append(copied)
 
 
-def _note_folded(entry: ET.Element, field: ET.Element) -> None:
-    """Note on the memo-group entry *entry*, as it leaves its group, which field took it: an object
-    still wrapping it finds the memo again -- that field, and not another memo later given the same id.
-    The entry is out of the document from here on, so the mark is never saved."""
+def _note_folded(entry: ET.Element, field: ET.Element, section: "HwpxOxmlSection") -> None:
+    """Note, as the memo-group entry *entry* leaves its group, which field took it: an object still
+    wrapping the entry finds the memo again. The field is remembered itself (on the document, under a
+    token written on the entry), not by an id: a memo removed later and another one given its memo id or
+    its field id is another field, and the old object must not write into it. The entry is out of the
+    document from here on, so the token is never saved."""
 
-    if field.get("id"):
-        entry.set(_FOLDED_INTO, str(field.get("id")))
+    owner = section.document if section.document is not None else section
+    taken = owner.__dict__.setdefault("_folded_memo_fields", {})
+    token = str(len(taken) + 1)
+    taken[token] = field
+    entry.set(_FOLDED_INTO, token)
 
 
 def fold_into_field(
@@ -564,13 +575,13 @@ def fold_into_field(
         section = memo.group.section
     if field is None or section is None:
         return False
-    _fill_field_from_entry(field, memo.element)
+    _fill_field_from_entry(field, memo.element, move=True)
     group = memo.group
     try:
         group.element.remove(memo.element)
     except ValueError:  # pragma: no cover - defensive branch
         return False
-    _note_folded(memo.element, field)
+    _note_folded(memo.element, field, section)
     group.section.mark_dirty()
     group._cleanup()
     memo.__class__ = HwpxOxmlFieldMemo
@@ -580,8 +591,8 @@ def fold_into_field(
     return True
 
 
-#: On a memo-group entry that was folded into a MEMO field: that field's ``id`` (see
-#: :func:`_fill_field_from_entry`). The entry is out of the document by then; the mark is never saved.
+#: On a memo-group entry that was folded into a MEMO field: the token its field is remembered under
+#: (see :func:`_note_folded`). The entry is out of the document by then; the mark is never saved.
 _FOLDED_INTO = "hwpx-folded-into-field"
 
 
@@ -592,18 +603,20 @@ def _follow_folded(memo: "HwpxOxmlMemo") -> bool:
     through it gave the old text and ``memo.text = ...`` changed nothing that is saved. False when the
     entry was not folded (still in its group, or removed), or its field is gone."""
 
-    wanted = memo.element.get(_FOLDED_INTO)
-    if not wanted:
+    token = memo.element.get(_FOLDED_INTO)
+    if not token:
         return False
     own = memo.group.section
     document = own.document
+    field = (document if document is not None else own).__dict__.get("_folded_memo_fields", {}).get(token)
+    if field is None:
+        return False
     for section in (document.sections if document is not None else [own]):
-        for field in memo_fields_in(section.element):
-            if field.get("id") == wanted:
-                memo.__class__ = HwpxOxmlFieldMemo
-                memo.element = field
-                memo.group = _FieldMemoHost(section, field)  # type: ignore[assignment]
-                return True
+        if any(node is field for node in section.element.iter(field.tag)):  # still in the document
+            memo.__class__ = HwpxOxmlFieldMemo
+            memo.element = field
+            memo.group = _FieldMemoHost(section, field)  # type: ignore[assignment]
+            return True
     return False
 
 
@@ -623,9 +636,9 @@ def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "Hw
         if group is None:
             continue
         for memo in [memo for memo in group.findall(f"{_HP}memo") if memo.get("id") in fields]:
-            _fill_field_from_entry(fields[str(memo.get("id"))], memo)
+            _fill_field_from_entry(fields[str(memo.get("id"))], memo, move=True)
             group.remove(memo)
-            _note_folded(memo, fields[str(memo.get("id"))])
+            _note_folded(memo, fields[str(memo.get("id"))], target)
             moved += 1
             section.mark_dirty()
             target.mark_dirty()
@@ -654,6 +667,11 @@ def renew_copied_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", targ
         highest += 1
         _set_memo_param(field, "integerParam", "Number", str(highest))
         field.set("zorder", str(highest))
+        for param in field.iter(f"{_HP}stringParam"):  # "MEMO/<shape>/<number>/...": the number there too
+            parts = (param.text or "").split("/")
+            if param.get("name") == "Command" and len(parts) > 2 and parts[0] == "MEMO":
+                parts[2] = str(highest)
+                param.text = "/".join(parts)
         source = entries.get(memo_field_id(field) or "")
         if source is not None:
             _fill_field_from_entry(field, source)

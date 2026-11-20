@@ -361,29 +361,44 @@ def _sections_of(section: "HwpxOxmlSection") -> list["HwpxOxmlSection"]:
     return list(document.sections) if document is not None else [section]
 
 
+def _note_numbering_type(section: ET.Element, tag: str) -> str | None:
+    """How the section numbers notes of kind *tag*: ``CONTINUOUS``, ``ON_SECTION``, ``ON_PAGE`` or
+    ``None`` when it does not say."""
+
+    sec_pr = next(section.iter(f"{_HP}secPr"), None)
+    properties = sec_pr.find(f"{_HP}{tag}Pr") if sec_pr is not None else None
+    numbering = properties.find(f"{_HP}numbering") if properties is not None else None
+    return numbering.get("type") if numbering is not None else None
+
+
 def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
     """Write Hancom's numbers (:func:`note_numbers`) into the notes of kind *tag* of the
     document *section* belongs to: the note's ``number`` and the ``hp:autoNum`` its body
     starts with, where they differ. A note whose number changes its count of digits
     drops its paragraph's line cache, as its mark changes width.
 
-    Left alone, from the first section that numbers the kind ``ON_PAGE`` on: those numbers start
-    again on each page, which this engine does not lay out, and a later section's count would run on
-    from them. The numbers already written there stay as they are; a note added there carries its
-    count in the document. Hancom numbers them again per page when it opens the document and writes
-    those numbers when it saves (Hangul 2024), so what is written there does not change what Hancom
-    draws. The sections in front of it are numbered as in any document."""
+    A section that numbers the kind ``ON_PAGE`` is left alone: those numbers start again on each
+    page, which this engine does not lay out. So are the sections after it whose count runs on from
+    it, up to the next section that starts the count again (``ON_SECTION``). The numbers already
+    written there stay as they are; a note added there carries its count in the document. Hancom
+    numbers them again per page when it opens the document and writes those numbers when it saves
+    (Hangul 2024), so what is written there does not change what Hancom draws. Every other section
+    is numbered as in any document."""
 
     sections = _sections_of(section)
-    per_page = [tag in _kinds_numbered_per_page(owner.element) for owner in sections]
-    if any(per_page):
-        # The sections in front of the first one numbered per page are counted as ever: a later,
-        # even empty, section numbered per page used to keep them from being numbered at all.
-        sections = sections[: per_page.index(True)]
-        if not sections:
-            return
+    if not any(next(owner.element.iter(f"{_HP}{tag}"), None) is not None for owner in sections):
+        return  # no note of the kind: nothing to write, and no walk through a long body to find that out
     numbers = note_numbers([owner.element for owner in sections])
+    known = True  # the count is known up to here: from the start, or from a section that starts it again
     for owner in sections:
+        numbering = _note_numbering_type(owner.element, tag)
+        if numbering == "ON_PAGE":
+            known = False
+        elif numbering == "ON_SECTION":
+            known = True
+        if not known:
+            # per page, or running on from a section numbered per page: what is written stays
+            continue
         changed = False
         for note in owner.element.iter(f"{_HP}{tag}"):
             number = str(numbers.get(note, 0))
@@ -521,7 +536,8 @@ def remove_note(note: HwpxOxmlNote) -> None:
         host.remove(run)
     _clear_paragraph_layout_cache(host)
     section.mark_dirty()
-    renumber_notes(section, _element_local(element))
+    # its kind, and the kinds of the notes in its text (a footnote in a removed endnote went with it)
+    renumber_note_kinds(section, note_kinds_in((element,)))
 
 
 def _parent(root: ET.Element, element: ET.Element) -> ET.Element | None:

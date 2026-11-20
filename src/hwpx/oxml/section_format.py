@@ -1494,17 +1494,23 @@ class HwpxOxmlSectionProperties:
         draws the last applicable control on a page, so ``BOTH`` after ``ODD`` would hide it.
         """
 
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
         changed = False
+        gone: list[ET.Element] = []  # what is tidied away: the notes in it go, and the rest count again
         legacy = self._find_header_footer(tag, page_type)
         if legacy is not None:
             self._remove_header_footer_apply(tag, page_type, legacy)
             self.element.remove(legacy)
+            gone.append(legacy)
             changed = True
         stories = self._first_paragraph_stories(tag, page_type)
         for run, ctrl, _story in stories[1:]:
             if len(ctrl) == 1:
                 run.remove(ctrl)
+                gone.append(ctrl)
                 changed = True
+        renumber_note_kinds(self.section, note_kinds_in(gone))
         created: tuple[ET.Element, ET.Element] | None = None
         if stories:
             story = stories[0][2]

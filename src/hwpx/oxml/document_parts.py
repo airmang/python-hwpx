@@ -1194,6 +1194,14 @@ class HwpxOxmlDocument:
                 raise ValueError("document does not contain any sections")
             return self._sections[-1]
         if isinstance(section, HwpxOxmlSection):
+            if not any(section is own for own in self._sections):
+                from ..errors import HwpxValueError
+
+                raise HwpxValueError(
+                    "해당 섹션이 이 문서에 속하지 않습니다.",
+                    code="section-not-found",
+                    suggestion="이 문서의 doc.sections[i] 나 정수 인덱스를 넘기세요.",
+                )
             return section
         return self._sections[section]
 

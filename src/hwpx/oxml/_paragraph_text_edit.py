@@ -287,22 +287,32 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
     keeping them leaves two fields of one id, which readers and form filling cannot tell apart.
     A ``fieldid`` equal to the old id follows it. A field reaching outside *copy* is left as it is.
+    A begin takes the ends that follow it, up to the next begin of the same id: *copy* may hold the same
+    field more than once (one paragraph copied twice in one call), and the first begin took every end
+    of the id then, leaving the second copy's begin with the first copy's end.
     Returns how many fields were renumbered.
     """
 
     from ._document_primitives import _object_id
 
     hp_begin, hp_end = f"{{{_HP_NS}}}fieldBegin", f"{{{_HP_NS}}}fieldEnd"
-    ends: dict[str, list[ET.Element]] = {}
-    for end in copy.iter(hp_end):
-        ends.setdefault(end.get("beginIDRef") or "", []).append(end)
+    groups: list[tuple[ET.Element, list[ET.Element]]] = []
+    open_group: dict[str, list[ET.Element]] = {}
+    for node in copy.iter():
+        if node.tag == hp_begin and node.get("id"):
+            ends: list[ET.Element] = []
+            open_group[str(node.get("id"))] = ends
+            groups.append((node, ends))
+        elif node.tag == hp_end:
+            taking = open_group.get(node.get("beginIDRef") or "")
+            if taking is not None:
+                taking.append(node)
     renumbered = 0
-    for begin in copy.iter(hp_begin):
-        old = begin.get("id")
-        if not old or old not in ends:
+    for begin, ends in groups:
+        if not ends:
             continue
-        new_id = _object_id(ids)
-        for node in (begin, *ends.pop(old)):
+        old, new_id = begin.get("id"), _object_id(ids)
+        for node in (begin, *ends):
             node.set("id" if node is begin else "beginIDRef", new_id)
             if node.get("fieldid") == old:
                 node.set("fieldid", new_id)

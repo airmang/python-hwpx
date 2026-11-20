@@ -424,6 +424,12 @@ def add_memo_with_anchor(
     *paragraph_char_pr_id_ref* is the character shape of the MEMO field's runs.
     """
 
+    if paragraph_text is not None:
+        # not text: refused before the memo is made (it was made first, and stayed without its anchor:
+        # the document could not be saved)
+        from ..oxml._document_primitives import _require_text
+
+        _require_text(paragraph_text)
     index = _check_match_index(index)
     if match is None and index:
         raise HwpxValueError(
@@ -440,7 +446,7 @@ def add_memo_with_anchor(
         import re
 
         places = sum(piece.count(match) for piece in re.split(r"[\t\n\r]", probe)) if match else 0
-        if match == "" or match not in probe or (paragraph_text is not None and places <= index):
+        if match == "" or match not in probe or index < 0 or (paragraph_text is not None and places <= index):
             raise HwpxValueError(
                 "the text to put the memo on is not in the paragraph"
                 + (f" {index + 1} times" if index else ""),

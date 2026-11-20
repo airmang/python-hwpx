@@ -1108,14 +1108,22 @@ def _insert_memos_into_target_section(target_section: Any, memo_clones: list[Any
     # *target_section*), not into a memo group. A clone no copied field names is not written.
     if not memo_clones:
         return
+    _fill_memo_fields([target_section.element], memo_clones)
+    target_section.mark_dirty()
+
+
+def _fill_memo_fields(roots: list[Any], memo_clones: list[Any]) -> None:
+    """Write each memo clone into the MEMO field under *roots* that names it. For copies that go in
+    through ``insert_paragraphs`` this runs before the insertion: a memo in an inserted copy is given an
+    id of its own there, so the clone that was matched to it by id afterwards no longer found it."""
+
     from ..oxml.memo import _fill_field_from_entry, memo_field_id, memo_fields_in
 
-    fields = {memo_field_id(field): field for field in memo_fields_in(target_section.element)}
+    fields = {memo_field_id(field): field for root in roots for field in memo_fields_in(root)}
     for clone in memo_clones:
         field = fields.get(clone.get("id"))
         if field is not None:
             _fill_field_from_entry(field, clone)
-    target_section.mark_dirty()
 
 
 #: The header lists a copy reuses equal definitions from, in the order they are folded: fonts, border fills
@@ -1559,6 +1567,7 @@ def append_document(
         target_section = target.sections[target_section_index]
         if copies:
             index = len(target_section.paragraphs)
+            _fill_memo_fields(copies, memo_clones)
             inserted = target_section.insert_paragraphs(index, copies)
             _follow_clones(copies, [paragraph.element for paragraph in inserted])
         _insert_memos_into_target_section(target_section, memo_clones)
@@ -1715,6 +1724,7 @@ def insert_document(
         if copies:
             had_settings = after_paragraph_index == -1 and (
                 target_section.paragraphs[0].element.find(f"{_HP}run/{_HP}secPr") is not None)
+            _fill_memo_fields(copies, memo_clones)
             inserted = target_section.insert_paragraphs(after_paragraph_index + 1, copies)
             _follow_clones(copies, [paragraph.element for paragraph in inserted])
             # insert_paragraphs at index 0 moves the section settings to the first copy itself.

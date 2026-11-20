@@ -463,3 +463,266 @@ def test_a_tracking_element_without_flags_is_set_to_show_the_change() -> None:
     data = document.to_bytes()
     assert HwpxDocument.open(data).parts.headers[0].element.find("{*}trackchageConfig").get("flags") == "56"
     assert inspect_redline_structure(data)["displayEnabled"] is True
+
+
+# -- the third look: ids that are used again, one paragraph copied twice, streams, numbers ---------
+
+
+def test_a_removed_memo_does_not_write_into_a_memo_given_its_field_id() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("anchor")
+    memo = document.notes.add_memo("old", memo_id="first")
+    held = document.notes.memos[0]
+    document.notes.attach(paragraph, memo, field_id="77")
+    memo.remove()
+    document.notes.add_memo("replacement", paragraph=paragraph, memo_id="second", field_id="77")
+
+    held.text = "stale write"
+
+    assert [item.text for item in _saved(document).notes.memos] == ["replacement"]
+
+
+def test_a_copy_through_a_second_object_of_a_memo_can_be_anchored_and_saved() -> None:
+    document = HwpxDocument.new()
+    memo = document.notes.add_memo("comment")
+    held = document.notes.memos[0]
+    document.notes.attach(document.add_paragraph("a"), memo)
+
+    copied = held.copy_to(0)
+    document.notes.attach(document.add_paragraph("b"), copied)
+
+    assert [item.text for item in _saved(document).notes.memos] == ["comment", "comment"]
+
+
+def test_a_paragraph_of_a_memo_taken_before_it_was_anchored_still_writes_into_it() -> None:
+    document = HwpxDocument.new()
+    memo = document.notes.add_memo("draft")
+    inner = memo.paragraphs[0]
+    document.notes.attach(document.add_paragraph("anchor"), memo)
+
+    inner.text = "approved"
+
+    assert _saved(document).notes.memos[0].text == "approved"
+
+
+@pytest.mark.parametrize("copies", [2, 3])
+def test_one_form_paragraph_copied_more_than_once_gives_each_copy_its_own_pair(copies: int) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("row")
+    paragraph.add_form_field("F", prompt="fill")
+
+    paragraph.section.insert_paragraphs(1, [paragraph] * copies)
+
+    document = _saved(document)
+    pairs = [(item.element.find(".//{*}fieldBegin").get("id"), item.element.find(".//{*}fieldEnd").get("beginIDRef"))
+             for item in document.paragraphs if item.element.find(".//{*}fieldBegin") is not None]
+    assert len(pairs) == copies + 1 and all(begin == end for begin, end in pairs)
+    assert len({begin for begin, _ in pairs}) == copies + 1
+    for field in document.fields.all:
+        document.fields.fill("x", field_id=field.field_id)  # was field-ambiguous for two of three
+
+
+def test_a_spanning_field_copied_twice_in_one_call_pairs_within_each_copy() -> None:
+    document = HwpxDocument.open(FIXTURES / "form_fields_spanning_before.hwpx")
+    section = document.sections[0]
+    group = list(section.paragraphs[2:6])
+
+    section.insert_paragraphs(len(section.paragraphs), group + group)
+
+    ids = [field.field_id for field in _saved(document).fields.all if field.name == "본문"]
+    assert len(ids) == len(set(ids)) == 3
+
+
+def test_a_memo_in_a_paragraph_inserted_as_a_copy_is_a_memo_of_its_own() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("review")
+    document.notes.add_memo("comment", paragraph=paragraph)
+
+    paragraph.section.insert_paragraphs(1, [paragraph])
+
+    memos = _saved(document).notes.memos
+    assert len({memo.id for memo in memos}) == len({memo.attributes.get("Number") for memo in memos}) == 2
+
+
+def test_a_copied_memo_names_its_number_in_its_command_too() -> None:
+    document = HwpxDocument.new()
+    note = document.add_paragraph("body").add_endnote("outer")
+    document.notes.add_memo("comment", paragraph=note.add_paragraph("inside"))
+
+    note.copy_to(document.add_paragraph("copy"))
+
+    for memo in _saved(document).notes.memos:
+        command = next(param.text for param in memo.element.iter("{*}stringParam") if param.get("name") == "Command")
+        assert command.split("/")[2] == memo.attributes.get("Number")
+
+
+def test_a_stream_standing_past_its_end_is_put_back_without_a_seek_to_the_end() -> None:
+    class AbsolutePartial(BytesIO):
+        def seek(self, offset: int, whence: int = 0) -> int:
+            if whence:
+                raise UnsupportedOperation("absolute only")
+            return super().seek(offset)
+
+        def write(self, data: Any) -> int:
+            super().write(bytes(data[:2]))
+            raise OSError("partial")
+
+    stream = AbsolutePartial(b"abc")
+    stream.seek(6)
+    with pytest.raises(OSError, match="partial") as caught:
+        HwpxDocument.new().save(stream, format="hwpx")
+
+    assert stream.getvalue() == b"abc" and stream.tell() == 6
+    assert caught.value.stream_restored is True  # type: ignore[attr-defined]
+
+
+def test_a_restore_that_cannot_be_read_back_and_was_not_counted_is_not_called_done() -> None:
+    class DisconnectRead(BytesIO):
+        attempted = False
+
+        def read(self, *args: Any) -> bytes:
+            if self.attempted:
+                raise OSError("read unavailable")
+            return super().read(*args)
+
+        def write(self, data: Any) -> Any:
+            if self.attempted:
+                return None
+            self.attempted = True
+            super().write(bytes(data[:2]))
+            raise OSError("interrupted")
+
+    stream = DisconnectRead(b"abcdef")
+    with pytest.raises(OSError, match="interrupted") as caught:
+        HwpxDocument.new().save(stream, format="hwpx")
+
+    assert caught.value.stream_restored is False  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("arguments", [{"paragraph_text": 42}, {"paragraph_text": "new", "match": "new", "index": -1}])
+def test_a_refused_memo_leaves_no_memo_and_the_paragraph_as_it_was(arguments: dict[str, Any]) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("original")
+    before = _state(document)
+
+    with pytest.raises(HwpxError):
+        document.notes.add_memo("review", paragraph=paragraph, **arguments)
+
+    assert _state(document) == before and document.notes.memos == ()
+    document.to_bytes()  # a memo left without its anchor kept the document from being saved
+
+
+def test_a_table_refused_for_its_style_declares_no_border() -> None:
+    document = HwpxDocument.new()
+    before = _state(document)
+
+    assert _code(lambda: document.add_table(1, 1, style="missing style")) == "style-not-found"
+
+    assert _state(document) == before
+
+
+def test_the_document_view_refuses_another_documents_section_too() -> None:
+    mine, other = HwpxDocument.new(), HwpxDocument.new()
+    before = _state(other)
+
+    assert _code(lambda: mine.oxml.add_paragraph("foreign", section=other.sections[0])) == "section-not-found"
+
+    assert _state(other) == before
+
+
+def test_a_refused_run_does_not_bring_back_a_line_cache_for_a_paragraph_that_changed() -> None:
+    document = HwpxDocument.open(FIXTURES / "pages_tab_stops_one_size.hwpx")
+    paragraph = next(item for item in document.paragraphs if item.line_segments and item.runs)
+
+    class Widths(list):  # type: ignore[type-arg]
+        def __iter__(self) -> Any:
+            paragraph.runs[0].text = "edited while the call ran"
+            return super().__iter__()
+
+    assert _code(lambda: paragraph.add_run("\t", tab_widths=Widths([-1]))) == "paragraph-tab-widths"
+
+    assert not paragraph.line_segments  # the lines it was read with are not this text's any more
+
+
+def test_a_run_whose_attributes_cannot_be_written_is_not_put_into_the_paragraph() -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("x")
+    before = _state(document)
+
+    with pytest.raises(TypeError):
+        paragraph.add_run("t", attributes={"a": 1})  # type: ignore[dict-item]
+
+    assert _state(document) == before
+
+
+def test_removing_a_note_counts_the_notes_in_its_text_out() -> None:
+    document = HwpxDocument.new()
+    note = document.add_paragraph("outer").add_endnote("outer")
+    note.add_paragraph("inner").add_footnote("nested")
+    document.add_paragraph("last").add_footnote("remaining")
+
+    note.remove()
+
+    assert _numbers(document) == [(1, "1", "1")]
+
+
+def test_a_header_tidied_away_takes_its_notes_out_of_the_count() -> None:
+    document = HwpxDocument.new()
+    document.page.set_header(text="one")
+    other = document.page.set_header(text="two", page_type="ODD")
+    other.paragraphs[0].add_footnote("header")
+    other.page_type = "BOTH"
+    document.add_paragraph("body").add_footnote("body")
+
+    document.page.set_header(text="new")
+
+    assert _numbers(document) == [(1, "1", "1")]
+
+
+def test_header_content_that_fails_while_it_is_written_gives_the_notes_their_numbers_back() -> None:
+    document = HwpxDocument.new()
+    header = document.page.set_header(text="one")
+    header.paragraphs[0].add_footnote("header")
+    document.add_paragraph("body").add_footnote("body")
+
+    with pytest.raises(Exception):  # noqa: B017, PT011 - lxml refuses the NUL in the font name
+        header.set_content([{"runs": [{"size": 37, "text": "x"}, {"font": "bad\x00name", "text": "y"}]}])
+
+    assert _numbers(document) == [(1, "1", "1"), (2, "2", "2")]
+
+
+def test_a_section_that_starts_the_count_again_is_numbered_after_one_numbered_per_page() -> None:
+    document = HwpxDocument.new()
+    first = document.add_paragraph("a").add_footnote("first")
+    page = document.add_section()
+    page.properties.set_footnote_numbering(type="ON_PAGE")
+    page.paragraphs[0].add_footnote("page")
+    running = document.add_section()
+    running.properties.set_footnote_numbering(type="CONTINUOUS")
+    running.paragraphs[0].add_footnote("continuous")
+    last = document.add_section()
+    last.properties.set_footnote_numbering(type="ON_SECTION", new_num=8)
+    last.paragraphs[0].add_footnote("restart")
+
+    first.remove()
+
+    numbers = _numbers(document)
+    assert numbers[-1] == (8, "8", "8")  # known without laying a page out
+    assert numbers[0][1:] == ("2", "2") and numbers[1][1:] == ("3", "3")  # per page, and running on: as written
+
+
+def test_a_document_without_notes_is_not_walked_to_number_them() -> None:
+    import hwpx.oxml.note_authoring as authoring
+
+    document = HwpxDocument.new()
+    document.add_section()
+    calls: list[int] = []
+    real = authoring.note_numbers
+    authoring.note_numbers = lambda sections: calls.append(1) or real(sections)  # type: ignore[assignment]
+    try:
+        document.sections[0].properties.set_footnote_numbering(type="ON_SECTION", new_num=2)
+        document.remove_section(1)
+    finally:
+        authoring.note_numbers = real
+
+    assert calls == []

@@ -108,14 +108,32 @@ def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes, int] | Non
     try:
         end_position = stream.seek(0, os.SEEK_END)
     except (AttributeError, OSError, ValueError):
-        # A stream that seeks to a position and not to its end: it ends after what was read. (Standing
-        # past its end it would read nothing too; without a seek to the end that cannot be told.)
-        end_position = position + len(tail)
+        # A stream that seeks to a position and not to its end: it ends after what was read -- or,
+        # when nothing was read, at or before where it stands, which reading single bytes finds.
+        try:
+            end_position = position + len(tail) if tail else _end_at_or_before(stream, position)
+        except (AttributeError, OSError, ValueError):
+            return None
     try:
         stream.seek(position)
     except (AttributeError, OSError, ValueError):
         return None
     return position, tail, end_position
+
+
+def _end_at_or_before(stream: BinaryIO, position: int) -> int:
+    """Where a stream that reads nothing from *position* ends: the first place from which no byte can
+    be read, found by halving (a stream standing past its end ends before where it stands)."""
+
+    low, high = 0, position
+    while low < high:
+        middle = (low + high) // 2
+        stream.seek(middle)
+        if stream.read(1):
+            low = middle + 1
+        else:
+            high = middle
+    return low
 
 
 def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes, int] | None) -> bool:
@@ -127,12 +145,14 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes, int] | None
     position, tail, end = checkpoint
     try:
         stream.seek(position)
+        counted = True  # every write said how much it took
         if tail:
             offset = 0
             while offset < len(tail):  # a stream that takes a part of what it is given is given the rest
                 chunk = tail if offset == 0 else tail[offset:offset + 65536]
                 taken = stream.write(chunk)
                 if taken is None:
+                    counted = False
                     taken = len(chunk)
                 if taken <= 0:
                     return False
@@ -147,7 +167,9 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes, int] | None
         held = stream.read()
         stream.seek(position)
     except (AttributeError, OSError, ValueError):
-        return True  # not readable: the writes and the cut went through, which is all that can be known
+        # Not readable: the cut went through, and the writes when each said what it took. A write that
+        # said nothing cannot be taken for done without reading back.
+        return counted
     return held == tail
 
 
