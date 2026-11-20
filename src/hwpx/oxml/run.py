@@ -1282,10 +1282,16 @@ class HwpxOxmlRun(SameElement):
         margins; and its columns, header, footer and page numbering). Those stay: the rest of the
         run goes and the run is left holding them. A run holding nothing else is refused with
         :class:`~hwpx.errors.HwpxValueError` (``code="paragraph-run-section-settings"``).
+
+        A run holding one end of a field whose other end stands in another paragraph is refused
+        (``code="paragraph-range-splits-field"``): remove the field first, as for
+        ``paragraph.remove()``. The runs of a field that begins and ends in this paragraph (a
+        hyperlink's, say) go as before.
         """
 
         from ..errors import HwpxValueError
         from .note_authoring import note_kinds_in_document, renumber_note_kinds
+        from .text_ranges import refuse_split_fields
 
         parent = self.paragraph.element
         if not any(child is self.element for child in parent):
@@ -1293,6 +1299,8 @@ class HwpxOxmlRun(SameElement):
         section = self.paragraph.section
         note_kinds = note_kinds_in_document(section, self.element)
         settings = dict(section_setting_runs(parent)).get(self.element, [])
+        going = [child for child in self.element if not any(child is kept for kept in settings)]
+        refuse_split_fields(going, section.element, what="run")
         if settings:
             if len(settings) == len(self.element):
                 raise HwpxValueError(
@@ -1300,9 +1308,8 @@ class HwpxOxmlRun(SameElement):
                     code="paragraph-run-section-settings",
                     suggestion="글을 지우려면 그 글을 담은 run을 지우거나 paragraph.text 를 바꾸세요.",
                 )
-            for child in list(self.element):
-                if not any(child is kept for kept in settings):
-                    self.element.remove(child)
+            for child in going:
+                self.element.remove(child)
         else:
             parent.remove(self.element)
         _clear_paragraph_layout_cache(parent)  # the cache's line starts would point past what is left

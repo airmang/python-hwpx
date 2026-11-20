@@ -474,6 +474,112 @@ def _splits_field(field_id: str, start: int, end: int) -> HwpxValueError:
     )
 
 
+_FIELD_ENDS = {"fieldBegin": "id", "fieldEnd": "beginIDRef"}
+_OTHER_END = {"fieldBegin": "fieldEnd", "fieldEnd": "fieldBegin"}
+
+
+def _field_nodes(element: Any) -> Iterator[Any]:
+    """The ``hp:fieldBegin`` and ``hp:fieldEnd`` in *element* and below."""
+
+    if hasattr(element, "getparent"):  # lxml: by tag, so a paragraph holding a long table is not walked node by node
+        return cast("Iterator[Any]", element.iter("{*}fieldBegin", "{*}fieldEnd"))
+    return (node for node in element.iter() if _local(node) in _FIELD_ENDS)
+
+
+def _field_id(node: Any) -> str:
+    return str(node.get(_FIELD_ENDS[_local(node)]) or "")
+
+
+def _other_ends(root: Any, node: Any) -> Iterator[Any]:
+    """The ends in *root* and below that pair with *node*: of the other kind, with its field id."""
+
+    name, field_id = _OTHER_END[_local(node)], _field_id(node)
+    return (found for found in _field_nodes(root) if _local(found) == name and _field_id(found) == field_id)
+
+
+def refuse_split_fields(elements: Any, section_element: Any, *, what: str) -> None:
+    """Refuse (``paragraph-range-splits-field``) to take *elements* out when they hold one end of a field
+    whose other end stands in another paragraph: what :func:`_held` refuses for a range of characters, for
+    a whole paragraph (``paragraph.remove()``), a run (``run.remove()``) or a paragraph's content
+    (``paragraph.clear_content()``).
+
+    A field's ``hp:fieldBegin`` and ``hp:fieldEnd`` pair by ``id``/``beginIDRef`` and may stand in different
+    paragraphs (Hancom-saved ``form_fields_spanning_before.hwpx``: begin in paragraph 2, end in paragraph
+    5). Deleting the paragraph of the begin left the ``hp:fieldEnd`` alone in its paragraph (7.0.0), and
+    deleting the paragraph of the end a begin that never ends; no Hancom-saved document holds half a field.
+
+    For each end in *elements* whose other end is not in them too:
+
+    - the other end stands in the same paragraph: not refused. Taking the runs of a hyperlink out one by
+      one goes as before; the end left for a moment is in the paragraph being edited.
+    - the other end stands in another paragraph: refused. An other end with an end of this kind beside it
+      in its own paragraph does not count: that is another field with the same id, whole where it is (ids
+      repeat in files written by other tools and in copies earlier versions made).
+    - there is no other end in the tree (a file damaged before): not refused, since taking a lone end out
+      leaves no half behind.
+
+    An end's paragraph is the nearest ``hp:p`` above it. So the two ends of a field written in one
+    paragraph of a table cell share a paragraph and the paragraph holding the table is not asked; an end in
+    a cell's paragraph and one in the paragraph holding the table, or ends in two paragraphs of one cell,
+    stand in different paragraphs.
+
+    The other end is looked for in the tree *elements* hang in (the part *section_element* is the root of;
+    for content already taken out of it, what was taken out with it). *elements* are the children of one
+    paragraph's runs, or one paragraph. *what* names the content in the message and the context
+    (``"paragraph"`` or ``"run"``); the context also names the field's id, its type (``CLICK_HERE``,
+    ``TABLEOFCONTENTS``...) and which end is held. Nothing is changed.
+    """
+
+    taken = list(elements)
+    nodes = [node for element in taken for node in _field_nodes(element)]
+    going = {(_local(node), _field_id(node)) for node in nodes}
+    lone = [node for node in nodes if (_OTHER_END[_local(node)], _field_id(node)) not in going]
+    if not lone:
+        return
+    parents: dict[int, Any] | None = None
+    if not hasattr(lone[0], "getparent"):  # xml.etree: no way up, so the way down is read once
+        parents = {id(child): parent for parent in section_element.iter() for child in parent}
+
+    def above(node: Any) -> Any:
+        return node.getparent() if parents is None else parents.get(id(node))
+
+    def paragraph_of(node: Any) -> Any:
+        while (node := above(node)) is not None and _local(node) != "p":
+            pass
+        return node
+
+    def paired_in_its_paragraph(node: Any) -> bool:
+        paragraph = paragraph_of(node)
+        return paragraph is not None and any(
+            paragraph_of(found) is paragraph for found in _other_ends(paragraph, node)
+        )
+
+    root = taken[0]
+    while (parent := above(root)) is not None:
+        root = parent
+    if not hasattr(root, "getparent"):
+        root = section_element
+    for node in lone:
+        if paired_in_its_paragraph(node):
+            continue
+        other = next((found for found in _other_ends(root, node) if not paired_in_its_paragraph(found)), None)
+        if other is None:
+            continue
+        field_id, holds_begin = _field_id(node), _local(node) == "fieldBegin"
+        noun = {"paragraph": "문단", "run": "run"}.get(what, what)
+        here, there = ("시작", "끝") if holds_begin else ("끝", "시작")
+        raise HwpxValueError(
+            f"이 {noun}은 필드(id {field_id})의 {here}만 담고 있고 {there}은 다른 문단에 있어 지울 수 없습니다.",
+            code="paragraph-range-splits-field",
+            context={"field": field_id, "type": str((node if holds_begin else other).get("type") or ""),
+                     "holds": "begin" if holds_begin else "end", "what": what},
+            suggestion=(
+                "필드를 먼저 걷어 내면 지울 수 있습니다: 누름틀은 doc.fields.all 에서 field_id 가 같은 것의 "
+                "remove()(글은 남습니다), 차례는 doc.refs.tables_of_contents 의 remove()(차례 항목도 함께 지워집니다)."
+            ),
+        )
+
+
 def _item_kinds(items: list[_Unit]) -> list[str]:
     kinds = []
     for unit in items:

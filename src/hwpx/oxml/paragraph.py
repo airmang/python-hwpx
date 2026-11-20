@@ -473,6 +473,8 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         its section settings: ``hp:secPr`` with the page-level controls beside it (the column definition always,
         headers and footers as *keep_headers* says), as ``section.clear_body`` keeps the first paragraph's.
         Content inside what stays follows *on_control_content* (``"raise"``, ``"keep"``, ``"strip"``) as there.
+        A paragraph holding one end of a field whose other end stands in another paragraph is refused
+        (``code="paragraph-range-splits-field"``): remove the field first.
         Returns the :class:`~hwpx.objects.ClearBodyReport` of what went."""
 
         from .section import clear_paragraph_content
@@ -506,6 +508,14 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         would be left without a paragraph: HWPX needs at least one ``<hp:p>``
         per section, and Hancom cannot open a cell, header or footer whose
         paragraph list is empty.
+
+        A paragraph holding one end of a field whose other end stands in another
+        paragraph (a form field may begin in one paragraph and end in a later
+        one) is refused with ``code="paragraph-range-splits-field"``, as
+        :meth:`delete_range` refuses a range holding one end: remove the field
+        first (a form field's ``remove()`` keeps its text; a table of contents
+        goes whole, ``doc.refs.tables_of_contents``). A paragraph holding both
+        ends, and one between the two, goes as before.
         """
         remove_paragraph(self)
 

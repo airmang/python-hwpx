@@ -449,11 +449,17 @@ def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -
     margins, numbering start; and its columns, header, footer and page numbering). Those move
     to the front of the next paragraph, which then starts the section. A paragraph holding them
     with no paragraph after it is refused (``paragraph-remove-section-settings``).
+
+    A paragraph holding one end of a field whose other end stands in another paragraph is refused
+    (``paragraph-range-splits-field``, as ``delete_range`` refuses a range holding one end): the
+    ``hp:fieldEnd`` left without its begin, or the begin left without an end, is half a field.
+    The two refusals above come first, and every refusal comes before anything changes.
     """
 
     parent = paragraph_container(element, section_element)
     if parent is None:
         return False
+    following = None
     if len(parent.findall(f"{{{_HP_NS}}}p")) > 1 and section_setting_runs(element):
         following = _next_paragraph(parent, element)
         if following is None:
@@ -463,7 +469,6 @@ def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -
                 context={"container": "section"},
                 suggestion='단락을 지우지 말고 글을 비우세요(paragraph.text = "").',
             )
-        move_section_settings(element, following)
     if len(parent.findall(f"{{{_HP_NS}}}p")) <= 1:
         if parent is section_element:
             container = "section"
@@ -478,6 +483,11 @@ def remove_paragraph_element(element: ET.Element, section_element: ET.Element) -
             context={"container": container},
             suggestion='마지막 단락은 지우지 말고 글을 비우세요(paragraph.text = "").',
         )
+    from .text_ranges import refuse_split_fields
+
+    refuse_split_fields((element,), section_element, what="paragraph")
+    if following is not None:
+        move_section_settings(element, following)
     parent.remove(element)
     return True
 

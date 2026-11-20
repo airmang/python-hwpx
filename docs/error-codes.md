@@ -290,7 +290,7 @@ except HwpxError as exc:
 | `paragraph-range-holds-objects` | 지울 글자 범위 안에 컨트롤·개체(각주·책갈피·누름틀·표·그림 …)가 있다(objects='remove' 로 함께 지운다. 범위 양 끝의 것은 남는다). |
 | `paragraph-range-into-itself` | 글자 범위를 그 범위 안 자리나, 범위가 품은 표 칸·글상자·각주 안으로 옮기려 했다. |
 | `paragraph-range-invalid` | 글자 위치(start·end·offset)가 int 가 아니거나 paragraph.text 범위 밖이다. |
-| `paragraph-range-splits-field` | 글자 범위가 누름틀·하이퍼링크 같은 필드의 시작이나 끝 한쪽만 품는다. |
+| `paragraph-range-splits-field` | 글자 범위가 누름틀·하이퍼링크 같은 필드의 시작이나 끝 한쪽만 품는다. 문단·run·문단 내용을 지울 때는 필드의 다른 쪽이 다른 문단에 있으면 거부한다(누름틀이나 차례를 먼저 remove() 로 걷어 내면 지울 수 있다). |
 | `paragraph-range-splits-mark` | 글자 범위가 변경 추적 표시를 품거나, 형광펜 끝을 런 바로 아래 탭에 두어야 한다. |
 | `paragraph-remove-last` | 구역·셀·머리말·꼬리말의 마지막 문단은 지울 수 없다(담은 곳은 context.container). |
 | `paragraph-remove-section-settings` | 구역 설정(hp:secPr·단·머리말·꼬리말·쪽 번호)을 담은 문단 뒤에 옮겨 받을 문단이 없어 지울 수 없다. |

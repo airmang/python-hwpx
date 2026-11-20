@@ -2,6 +2,18 @@
 
 모든 중요한 변경 사항은 이 문서에 기록됩니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)과 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
+## [Unreleased]
+
+### 고침
+
+- 누름틀 같은 필드는 한 문단에서 시작해 뒤 문단에서 끝날 수 있다. 시작이 든 문단을 지우면 끝(`hp:fieldEnd`)만, 끝이 든
+  문단을 지우면 시작(`hp:fieldBegin`)만 다른 문단에 남았다. 한/글 저장본에 없는 꼴이고, 끝만 남은 문서는 저장이 거부되기도 했다. 이제
+  `paragraph.remove()`·`section.remove_paragraph`·`run.remove()`·`paragraph.clear_content()`는 다른 쪽이 다른 문단에 있는 필드의
+  한쪽 끝만 든 것을 아무것도 바꾸기 전에 거부한다(`paragraph-range-splits-field`, `paragraph.delete_range`가 그런 범위를 거부하는
+  것과 같다). 필드를 먼저 걷어 내면 지울 수 있다: 누름틀은 `field.remove()`(글은 남는다), 차례는
+  `doc.refs.tables_of_contents`의 `remove()`. 시작과 끝이 다 든 문단과 그 사이의 문단은 전처럼 지워지고, 한 문단 안에서
+  시작하고 끝나는 필드(하이퍼링크 등)의 run을 하나씩 지우는 것도 전과 같다.
+
 ## [7.0.0] - 2026-11-21
 
 7.0은 python-hwpx를 한/글 문서를 위한 파이썬 기본 엔진으로 정리한 판입니다. 엔진은 같은 파일이면 같은 결과를 내고, 파일에 적힌

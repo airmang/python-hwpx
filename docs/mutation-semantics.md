@@ -14,7 +14,7 @@ stable 편집 표면의 계약을 한 곳에 모았다. 아래 표의 실패 모
 | 호출 | 반환 | 대표 실패 모드 | 다시 실행하면 |
 |---|---|---|---|
 | `add_paragraph(text)` | `HwpxOxmlParagraph` | 사실상 없음 | 문단이 하나 더 추가된다(append, 비멱등) |
-| `paragraph.remove()` | `None` | 문단을 담은 곳(구역·표 셀·머리말·꼬리말)의 마지막 문단이면 `HwpxValueError`(`ValueError` 하위, `code="paragraph-remove-last"`, `context["container"]`는 `section`·`cell`·`header`·`footer`) | 이미 제거된 문단이면 조용히 무시된다(무해) |
+| `paragraph.remove()` | `None` | 문단을 담은 곳(구역·표 셀·머리말·꼬리말)의 마지막 문단이면 `HwpxValueError`(`ValueError` 하위, `code="paragraph-remove-last"`, `context["container"]`는 `section`·`cell`·`header`·`footer`). 필드(누름틀 등)의 시작이나 끝 한쪽만 담고 다른 쪽이 다른 문단에 있으면 `code="paragraph-range-splits-field"`(누름틀은 `field.remove()`, 차례는 `toc.remove()`로 먼저 걷어 낸다. `run.remove()`·`paragraph.clear_content()`도 같다) — 모두 바꾸기 전에 거부 | 이미 제거된 문단이면 조용히 무시된다(무해) |
 | `add_table(rows, cols)` | `HwpxOxmlTable` | 사실상 없음 | 표가 하나 더 추가된다(비멱등) |
 | `table.set_cell_text(r, c, text)` | `FitResult \| None` | 범위 밖 좌표는 `IndexError` (`exceed table bounds`) | 같은 값이면 결과 동일(수렴). 무엇을 남기고 다시 만드는지는 아래 |
 | `paragraph.char_pr_id_ref = id` | — | 사실상 없음 | 그 문단에 바로 딸린 run 전부에 같은 값이 들어간다(수렴). 안쪽 표 셀의 run은 건드리지 않는다. run이 없으면 하나 만든다. `None`은 속성을 지운다 |

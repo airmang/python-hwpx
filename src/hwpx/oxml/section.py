@@ -257,7 +257,9 @@ class HwpxOxmlSection:
 
         Accepts either a :class:`HwpxOxmlParagraph` instance or an integer
         index into :attr:`paragraphs`.  Raises ``ValueError`` if the section
-        would become empty (HWPX requires at least one ``<hp:p>``).
+        would become empty (HWPX requires at least one ``<hp:p>``). It goes as
+        ``paragraph.remove()`` takes it out: refused when it holds one end of
+        a field whose other end stands in another paragraph.
         """
         if isinstance(paragraph, int):
             paras = self.paragraphs
@@ -964,7 +966,10 @@ def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_co
     paragraph's. Content inside what stays (a header's text, say) follows *on_control_content* as there:
     ``"raise"`` refuses (``section-clear-control-content``), ``"keep"`` keeps it, ``"strip"`` removes it and
     reports it. Everything else goes: text, tables, pictures, notes, bookmarks, fields. A paragraph left with
-    no ``hp:t`` gets one run holding ``<hp:t/>`` after its settings, Hancom's empty line."""
+    no ``hp:t`` gets one run holding ``<hp:t/>`` after its settings, Hancom's empty line.
+
+    A paragraph holding one end of a field whose other end stands in another paragraph is refused
+    (``paragraph-range-splits-field``) before anything changes."""
 
     from ..errors import HwpxValueError
     from ..objects.results import ClearBodyReport
@@ -981,6 +986,12 @@ def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_co
                              context={"value": repr(keep_headers), "argument": "keep_headers"})
     element = paragraph.element
     runs = [child for child in element if child.tag == f"{_HP}run"]
+    from .text_ranges import refuse_split_fields
+
+    # One end of a field does not go without the other, as delete_range refuses a range holding one
+    # end: the content went and left the hp:fieldEnd of a field begun here alone in a later paragraph.
+    refuse_split_fields([child for run in runs for child in run if not is_section_setting(child)],
+                        paragraph.section.element, what="paragraph")
     if section_setting_runs(element):
         # A column layout sharing its ctrl with a field begin or another control stays, as a setting.
         split_column_controls(element)

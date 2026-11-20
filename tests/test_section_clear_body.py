@@ -69,7 +69,9 @@ def _replay_manual_blank(section) -> dict[str, int]:
         first.element.remove(cache)
     later_paragraphs = section.paragraphs[1:]
     for paragraph in later_paragraphs:
-        paragraph.remove()
+        # the element itself: paragraph.remove() refuses the paragraph a field begins in while the one it
+        # ends in still stands (the mot fixture holds such a field), and the whole body goes here
+        section.element.remove(paragraph.element)
     section.mark_dirty()
     return {
         "removed_paragraphs": len(later_paragraphs),
