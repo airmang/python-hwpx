@@ -65,9 +65,26 @@ class _RunMark:
 
     @property
     def paragraph(self) -> "Paragraph":
-        """The paragraph holding it (a table cell's, a text box's, a note's or a header's own
-        paragraph when it sits there)."""
+        """The paragraph holding it now (a table cell's, a text box's, a note's or a header's own
+        paragraph when it sits there). Moved out of the paragraph it was taken from -- a range moved
+        to another paragraph or section -- it is the paragraph it went to, so an edit through this
+        object marks the section that is saved; it marked the one it was taken from before, and the
+        change was reported and not saved."""
 
+        held, element = self._paragraph, self._element
+        if held is None or not hasattr(element, "getparent"):
+            return held
+        nearest = None
+        node = element.getparent()
+        while node is not None:
+            if node is held.element:
+                return held
+            if nearest is None and node.tag.rsplit("}", 1)[-1] == "p":
+                nearest = node
+            node = node.getparent()
+        if nearest is None:  # taken out with no paragraph around it: the one it was taken from
+            return held
+        self._paragraph = type(held)(nearest, held.section)
         return self._paragraph
 
     def __eq__(self, other: object) -> bool:

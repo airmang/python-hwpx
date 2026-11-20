@@ -206,7 +206,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | `style_id_ref=` | `style=`(이름·번호·`Style`). 스타일의 문단·글자 모양까지 적용한다. 스타일 번호만 붙이려면 `paragraph.style_id_ref = 2` |
 | `doc.add_paragraph(..., pageBreak="1")` 같은 XML 속성 키워드, `run_attributes=`(`add_paragraph`·`add_heading`·`add_table`·`add_picture`) | 돌려받은 객체의 속성: `p = doc.add_paragraph(...)`; `p.page_break = True` |
 | `doc.add_picture(..., align=, line_width=33)` → `InlineObject` | `doc.add_picture(..., alignment=, line_width_mm=0.12)` → `Picture` |
-| `from hwpx import <실험 기능>`(26개) | `from hwpx.experimental import ...` |
+| `from hwpx import <실험 기능>`(26개) | 엔진에 남은 11개는 `from hwpx.experimental import ...`: 편집 계획(`EditPlan`·`PlanReport`·`PlanValidationError`·`apply_edit_plan`·`validate_edit_plan`), 쪽 수 어림(`estimate_pages`·`PageEstimate`·`EstimatedLine`), 자기 서술(`describe_capabilities`·`contract_document`·`contract_json_schema`). 수식 3개는 아래 줄대로 `hwpx.equation`. 나머지 12개(ingest 7개, 미리보기 5개)는 python-hwpx-automation 으로 옮겼다(위 "옮긴 기능" 표: `hwpx_automation.ingest`·`hwpx_automation.preview`) |
 | `from hwpx import latex_to_eqedit`(·`estimate_equation_size`·`UnsupportedLatexError`), `hwpx.experimental` 의 같은 이름 | `from hwpx.equation import ...`(7.0 에서 안정 계약) |
 
 ### 문단·런·서식
@@ -264,7 +264,7 @@ markdown = to_markdown(doc, rich=True)                  # 6.x doc.text.markdown(
 | 여러 개를 돌려주는 읽기가 `list` | `tuple`: `doc.paragraphs`·`doc.sections`, `doc.oxml.sections`·`headers`·`master_pages`·`histories`, `doc.parts.headers`·`master_pages`·`histories`, `section.paragraphs`·`memos`, `paragraph.runs`·`tables`·`shapes`·`footnotes`·`endnotes`, `table.rows`, `row.cells`, `cell.paragraphs`·`tables`, `properties.headers`·`footers`, `memo.paragraphs` 등 | 목록을 고치던 코드(`append`, `sort`)는 `list(...)` 로 |
 | `paragraph.bookmarks` → 이름의 `list` | `Bookmark` 의 tuple | 이름은 `[b.name for b in paragraph.bookmarks]` |
 | `paragraph.hyperlinks` → dict 처럼 읽히는 값 | `Hyperlink` 의 tuple | `link["url"]` 대신 `link.url`·`link.to_dict()` |
-| `paragraph.add_bookmark`·`add_hyperlink`·`add_form_field`·`add_check_box`·`add_highlight`·`add_page_hiding` → `InlineObject` 또는 `None` | `Bookmark`·`Hyperlink`·`FormField`·`CheckBox`·`Highlight`·`PageHiding` | XML 요소는 `.element` |
+| `paragraph.add_bookmark`·`add_hyperlink`·`add_form_field`·`add_check_box`·`add_highlight`·`add_page_hiding` → `InlineObject` 또는 `None` | `Bookmark`·`Hyperlink`·`FormField`·`CheckBox`·`Highlight`·`PageHiding` | XML 요소는 `.element`(`Bookmark`·`Hyperlink`·`FormField`·`CheckBox`). `Highlight`·`PageHiding` 은 값만 담고 `.element` 가 없다: 요소가 필요하면 `paragraph.element` 아래에서 찾는다 |
 | 머리말·꼬리말의 `add_paragraph`·`add_run`·`add_page_number_field` → XML 요소 | 문단·런·개체 객체 | 옛 요소는 `.element` |
 | `note.add_hyperlink(...)` | `Hyperlink` | |
 | `HeaderPart.border_fill(id)`·`border_fills` → XML 요소 | `BorderFillInfo` | |

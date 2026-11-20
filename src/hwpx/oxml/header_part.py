@@ -127,6 +127,22 @@ def _put_style_attributes_in_order(element: Any, before: "list[str] | None") -> 
 _STYLE_ATTRIBUTE_ORDER = ("id", "type", "name", "engName", "paraPrIDRef", "charPrIDRef", "nextStyleIDRef", "langID",
                           "lockForm")
 
+#: The bits of ``hh:trackchageConfig@flags`` that choose what Hancom draws of a tracked change, and
+#: the value Hancom writes itself (a new document, and a Hancom-saved document with changes:
+#: hwpxlib ``reader_writer__ChangeTrack``). Rendered with Hangul 12.30.0 for macOS, one tracked
+#: replacement per value: the change marks (red, struck out, a bar in the margin) for 40, 56, 57 and
+#: for no element; the final text without marks for 0, 1, 4, 8, 16, 24 and 60; the original text for
+#: 2; the final text with only the insertion marked for 32 and 48. What bit 0 means was not found.
+_TRACK_VIEW_BITS = 0b111110
+_TRACK_FLAGS_SHOWING_MARKS = 0b111000
+
+
+def _track_change_marks_shown(flags: int | None) -> bool:
+    """True when Hancom draws tracked changes with their marks for *flags* (``None``: no element)."""
+
+    return flags is None or (flags & 0b101000 == 0b101000 and not flags & 0b000110)
+
+
 class HwpxOxmlHeader:
     """Represents a header XML part."""
 
@@ -980,13 +996,19 @@ class HwpxOxmlHeader:
                     )
                 authors_element.set("itemCnt", str(authors.item_cnt or 0))
 
-        config_element = self._track_change_config_element(create=True)
-        if config_element is None:  # pragma: no cover - defensive branch
-            raise RuntimeError("failed to create <trackchageConfig> element")
-        flags = 1
-        if model.track_change_config is not None and model.track_change_config.flags is not None:
-            flags = model.track_change_config.flags
-        config_element.set("flags", str(flags | 1))
+        # The change is to be seen: a document whose ``hh:trackchageConfig@flags`` hides the marks is
+        # set to show them (see :func:`_track_change_marks_shown`); one that shows them, or has no such
+        # element, is left as it is. Up to 7.0 development bit 0 was set here "for display". It is not
+        # what shows a change, and with it Hancom crashed opening a document that also had a table of
+        # contents to make again (``dirty="1"``, as ``add_table_of_contents`` writes one).
+        config_element = self._track_change_config_element()
+        if config_element is not None:
+            try:
+                flags = int(config_element.get("flags", ""))
+            except ValueError:
+                flags = None
+            if flags is not None and not _track_change_marks_shown(flags):
+                config_element.set("flags", str(_TRACK_FLAGS_SHOWING_MARKS | (flags & ~_TRACK_VIEW_BITS)))
         self.mark_dirty()
         return change_id
 

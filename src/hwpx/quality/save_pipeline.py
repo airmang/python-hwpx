@@ -82,7 +82,11 @@ def write_bytes_atomically(path: str | PathLike[str], data: bytes) -> None:
         raise
 
 
-def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes] | None:
+def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes, int] | None:
+    """Where the stream stands, what it holds from there, and where it ends: what a failed save puts
+    back. The end is its own value: a stream standing past its end (``seek(6)`` on three bytes) holds
+    nothing from there, and putting it back by its position alone left it three zero bytes longer."""
+
     try:
         position = stream.tell()
     except (AttributeError, OSError):
@@ -99,19 +103,23 @@ def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes] | None:
         except (AttributeError, OSError):
             return None
         if end_position == position:
-            return position, b""
+            return position, b"", end_position
         return None
     try:
+        end_position = stream.seek(0, os.SEEK_END)
         stream.seek(position)
     except (AttributeError, OSError):
         return None
-    return position, tail
+    return position, tail, end_position
 
 
-def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> None:
+def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes, int] | None) -> bool:
+    """Put back what *checkpoint* holds. False when the stream could not be put back (it refused the
+    write, the cut or the seek): the caller says so on the error it raises."""
+
     if checkpoint is None:
-        return
-    position, tail = checkpoint
+        return False
+    position, tail, end = checkpoint
     try:
         stream.seek(position)
         if tail:
@@ -122,14 +130,29 @@ def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> 
                 if taken is None:
                     taken = len(chunk)
                 if taken <= 0:
-                    return
+                    return False
                 offset += min(taken, len(chunk))  # a count past what it was given is the chunk
-            stream.truncate(position + len(tail))
-        else:
-            stream.truncate(position)
+        stream.truncate(end)  # where it ended: before the position when the stream stood past its end
         stream.seek(position)
     except (AttributeError, OSError):
+        return False
+    return True
+
+
+def _rollback_or_say_so(stream: BinaryIO, checkpoint: tuple[int, bytes, int] | None, error: BaseException) -> None:
+    """Put the stream back after *error*; when that fails too, *error* says so: ``stream_restored`` is
+    ``False`` on it, and its notes tell what the stream may hold. The failed restore used to be silent."""
+
+    restored = _rollback_stream(stream, checkpoint)
+    try:
+        error.stream_restored = restored  # type: ignore[attr-defined]
+    except AttributeError:  # an exception type with __slots__: nowhere to say it
         return
+    if not restored and hasattr(error, "add_note"):  # Python 3.11+
+        error.add_note(
+            "the stream could not be put back as it was: it may hold a part of the new document "
+            "(stream_restored is False on this error)"
+        )
 
 
 def settle_written_stream(stream: BinaryIO, position: int, data: bytes, tail: bytes) -> bool:
@@ -194,8 +217,8 @@ def write_stream_or_rollback(stream: BinaryIO, data: bytes) -> bool:
                 f"wrote {written} of {len(data)} bytes"
             )
         read_back = settle_written_stream(stream, checkpoint[0], data, checkpoint[1])
-    except BaseException:
-        _rollback_stream(stream, checkpoint)
+    except BaseException as error:
+        _rollback_or_say_so(stream, checkpoint, error)
         raise
     return read_back
 

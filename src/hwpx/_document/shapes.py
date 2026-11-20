@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 from ._units import _mm_to_hwp_units
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
+from ._resolve import refused_leaves_no_paragraph
 from ..oxml.objects import HwpxOxmlEquation, _closed_points
 from ..oxml.shape_position import (
     equation_base_unit, validate_box_size, validate_equation_font, validate_equation_script,
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     )
 
 
+@refused_leaves_no_paragraph
 def add_shape(
     doc: "HwpxDocument",
     shape_type: str,
@@ -65,6 +67,7 @@ def add_shape(
     )
 
 
+@refused_leaves_no_paragraph
 def add_control(
     doc: "HwpxDocument",
     *,
@@ -101,6 +104,7 @@ def add_control(
     )
 
 
+@refused_leaves_no_paragraph
 def add_footnote(
     doc: "HwpxDocument",
     text: str,
@@ -125,6 +129,7 @@ def add_footnote(
     return paragraph.add_footnote(text, char_pr_id_ref=char_pr_id_ref, offset=offset)
 
 
+@refused_leaves_no_paragraph
 def add_endnote(
     doc: "HwpxDocument",
     text: str,
@@ -145,6 +150,7 @@ def add_endnote(
     return paragraph.add_endnote(text, char_pr_id_ref=char_pr_id_ref, offset=offset)
 
 
+@refused_leaves_no_paragraph
 def add_line(
     doc: "HwpxDocument",
     start_x: int = 0,
@@ -174,6 +180,7 @@ def add_line(
     )
 
 
+@refused_leaves_no_paragraph
 def add_composed_character(
     doc: "HwpxDocument",
     text: str,
@@ -212,6 +219,7 @@ def add_composed_character(
     return ComposedCharacter(inline.element, paragraph)
 
 
+@refused_leaves_no_paragraph
 def add_ruby(
     doc: "HwpxDocument",
     text: str,
@@ -252,6 +260,7 @@ def add_ruby(
     return Ruby(inline.element, paragraph)
 
 
+@refused_leaves_no_paragraph
 def add_rectangle(
     doc: "HwpxDocument",
     width: int = 14400,
@@ -287,6 +296,7 @@ def add_rectangle(
     )
 
 
+@refused_leaves_no_paragraph
 def add_ellipse(
     doc: "HwpxDocument",
     width: int = 14400,
@@ -319,6 +329,7 @@ def add_ellipse(
     )
 
 
+@refused_leaves_no_paragraph
 def add_arc(
     doc: "HwpxDocument",
     width: int = 14400,
@@ -355,6 +366,7 @@ def add_arc(
     )
 
 
+@refused_leaves_no_paragraph
 def add_polygon(
     doc: "HwpxDocument",
     points_mm: Sequence[tuple[float, float]],
@@ -403,6 +415,7 @@ def add_polygon(
     )
 
 
+@refused_leaves_no_paragraph
 def add_curve(
     doc: "HwpxDocument",
     points_mm: Sequence[tuple[float, float]],
@@ -455,6 +468,7 @@ def add_connector(
     )
 
 
+@refused_leaves_no_paragraph
 def add_container(
     doc: "HwpxDocument",
     members: Sequence["ContainerMember"],
@@ -495,6 +509,7 @@ def add_container(
     return paragraph.add_container(members, treat_as_char=treat_as_char)
 
 
+@refused_leaves_no_paragraph
 def add_equation(
     doc: "HwpxDocument",
     script: str,
@@ -662,6 +677,7 @@ def _default_chart_size(paragraph: HwpxOxmlParagraph) -> tuple[int, int]:
     return width, height
 
 
+@refused_leaves_no_paragraph
 def add_chart(
     doc: "HwpxDocument",
     chart_xml: bytes | str,
@@ -799,6 +815,7 @@ def remove_unused_charts(doc: "HwpxDocument") -> tuple[str, ...]:
     return tuple(removed)
 
 
+@refused_leaves_no_paragraph
 def add_drop_cap(
     doc: "HwpxDocument",
     character: str,

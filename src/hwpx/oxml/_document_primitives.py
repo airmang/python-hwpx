@@ -7,7 +7,7 @@ import re as _re
 from copy import deepcopy
 from datetime import datetime, timezone
 from random import Random
-from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar
+from typing import Any, Callable, Iterable, Mapping, Optional, TypeVar, cast
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -182,6 +182,36 @@ def _require_nonempty_str(argument: str, value: object, *, code: str, suggestion
             suggestion=suggestion,
         )
     return value
+
+
+_M = TypeVar("_M", bound=Callable[..., Any])
+
+
+def refused_appends_nothing(method: _M) -> _M:
+    """For a paragraph method that appends a run holding something new: when it raises, the runs it had
+    appended go again.
+
+    The run is appended and then filled, so a value lxml cannot write (an ``int`` for a name, bytes
+    for a caption) raised with a half-made control already in the paragraph -- a ``hp:ctrl`` with no
+    control in it keeps Hancom from opening the document. Only what was appended after the children the
+    paragraph had is taken out; when those are not all in place any more, nothing is.
+    """
+
+    from functools import wraps
+
+    @wraps(method)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        before = list(self.element)
+        try:
+            return method(self, *args, **kwargs)
+        except BaseException:
+            now = list(self.element)
+            if len(now) > len(before) and all(a is b for a, b in zip(now, before)):
+                for child in now[len(before):]:
+                    self.element.remove(child)
+            raise
+
+    return cast(_M, wrapper)
 
 
 def _require_text(value: object) -> None:

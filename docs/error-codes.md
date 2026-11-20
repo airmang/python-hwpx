@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 368 | 11 |
+| 개수 | 370 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -214,6 +214,7 @@ except HwpxError as exc:
 | `note-memo-index-value` | 메모를 넣을 자리(index)가 int 가 아니거나 0..메모 묶음의 메모 수 밖이다. |
 | `note-memo-shape-not-found` | 구역에 줄 메모 모양(hh:memoPr) id 가 머리에 없다. |
 | `note-memo-unanchored` | 이번에 만든 메모를 어느 문단에도 걸지 않고 저장하려 했다(한/글은 메모를 MEMO 누름틀 안에만 둔다). |
+| `note-move-into-itself` | 각주·미주를 자기 글 안(그 안의 표 칸·글상자)으로 옮기려 했다(복사는 된다). |
 | `note-other-document-unsupported` | 각주·미주를 다른 문서로 옮기거나 복사하려 했다(그 글 구간을 paragraph.copy_range 로 복사한다). |
 
 ### `open-*`
@@ -457,6 +458,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `story-ambiguous` | 그 쪽 종류·id 에 맞는 머리말/꼬리말 story 가 여럿이거나 식별이 모호하다. |
+| `story-content-type-unsupported` | 머리말·꼬리말 내용(content)의 항목 종류(type)가 run 도 page_number 도 아니다. |
 | `story-linkage` | 기존 머리말/꼬리말 컨트롤과 구역 적용 정보가 서로 맞지 않는다. |
 | `story-paragraph-not-here` | 머리말·꼬리말 메서드에 그 머리말·꼬리말에 없는 문단을 줬다. |
 

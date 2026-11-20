@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    _require_text,
     SameElement,
     paragraph_attributes,
     _HP,
@@ -125,7 +126,7 @@ class HwpxOxmlMemo(SameElement):
         """Move this memo-group memo into the MEMO field anchoring it, if one does (see the class);
         True when it moved (this object is then a :class:`HwpxOxmlFieldMemo`)."""
 
-        return type(self) is HwpxOxmlMemo and fold_into_field(self)
+        return type(self) is HwpxOxmlMemo and (fold_into_field(self) or _follow_carried(self))
 
     @property
     def id(self) -> str | None:
@@ -253,6 +254,8 @@ class HwpxOxmlMemo(SameElement):
         *,
         char_pr_id_ref: str | int | None = None,
     ) -> None:
+        if value is not None:
+            _require_text(value)  # not text: refused before anything is written
         if self._folded():
             self.set_text(value, char_pr_id_ref=char_pr_id_ref)
             return
@@ -540,6 +543,29 @@ def fold_into_field(
     return True
 
 
+def _follow_carried(memo: "HwpxOxmlMemo") -> bool:
+    """Make the memo-group memo *memo* the memo of the field its entry was folded into, when its text
+    moved to another section and took the memo along (:func:`carry_memos` writes the entry into the
+    field and drops it from its group). An object taken before that move still wrapped the dropped
+    entry, so ``memo.text = ...`` through it changed nothing that is saved. False when the entry is
+    still in its group, or no field of the document names it."""
+
+    if any(child is memo.element for child in memo.group.element):
+        return False
+    wanted = memo.element.get("id")
+    document = memo.group.section.document
+    if not wanted or document is None:
+        return False
+    for section in document.sections:
+        for field in memo_fields_in(section.element):
+            if memo_field_id(field) == wanted:
+                memo.__class__ = HwpxOxmlFieldMemo
+                memo.element = field
+                memo.group = _FieldMemoHost(section, field)  # type: ignore[assignment]
+                return True
+    return False
+
+
 def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "HwpxOxmlSection") -> int:
     """Fold the memo-group memos the MEMO fields under *root* anchor into those fields: content that moved
     to *target* takes its memos along inside its fields, as Hancom keeps them (no ``hp:memogroup`` is
@@ -765,6 +791,8 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
     def set_text(self, value: str, *, char_pr_id_ref: str | int | None = None) -> None:
         """Replace the memo's text: one paragraph shaped like the field's first one."""
 
+        if value is not None:
+            _require_text(value)  # not text: refused before anything is written
         sub_list = self._sub_list()
         if sub_list is None:
             sub_list = _append_child(self.element, f"{_HP}subList", _default_sublist_attributes())
@@ -852,6 +880,7 @@ class HwpxOxmlNote(SameElement):
         ``<hp:autoNum>`` control real Hancom requires to render the note) is
         preserved: only text content is replaced.
         """
+        _require_text(value)  # not text: refused before anything is written
         sublist = self.element.find(f"{_HP}subList")
         if sublist is None:
             attrs = _default_sublist_attributes()
@@ -920,6 +949,7 @@ class HwpxOxmlNote(SameElement):
         first paragraph.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         from .section import style_shape_refs
 
         style_id_ref, para_pr_id_ref, char_pr_id_ref = style_shape_refs(
@@ -952,7 +982,9 @@ class HwpxOxmlNote(SameElement):
         document: after the controls already there, before the character, as :meth:`add_footnote` puts one.
         The note takes no character, so *offset* counts the same before and after the move, also within its
         own paragraph -- as an object's ``move_to(offset=)``. Notes of its kind are numbered again. Refused into a note, a header, a footer or a memo
-        (``paragraph-move-place-unsupported``) or another document (``note-other-document-unsupported``)."""
+        (``paragraph-move-place-unsupported``), into its own text -- a cell or a text box inside the note
+        (``note-move-into-itself``; ``copy_to`` puts a copy there) -- or another document
+        (``note-other-document-unsupported``). Everything is checked before anything changes."""
 
         from .text_ranges import move_note
 
@@ -1010,6 +1042,7 @@ class HwpxOxmlNote(SameElement):
         attributes: dict[str, str] | None = None,
     ) -> "HwpxOxmlRun":
         """Append a run to the note body paragraph (delegates to body_paragraph.add_run)."""
+        _require_text(text)  # not text: refused before anything is written
         return self.body_paragraph.add_run(
             text,
             char_pr_id_ref=char_pr_id_ref,

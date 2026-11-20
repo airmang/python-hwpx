@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Iterator, NoReturn, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    _require_text,
     SameElement,
     _DEFAULT_CELL_HEIGHT,
     _DEFAULT_CELL_WIDTH,
@@ -515,6 +516,7 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         style's paragraph and character shapes unless they are passed. To set the style
         reference alone (7.0 removed ``style_id_ref=``), set ``paragraph.style_id_ref``.
         """
+        _require_text(text)  # not text: refused before anything is written
         style_id_ref: str | int | None = None
         if style is not None:
             from .section import style_shape_refs
@@ -567,6 +569,7 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
         The table is created inside a new paragraph within the cell's
         ``<hp:subList>``.
         """
+        _table_sizes.validate_table_size(rows, cols)  # before a border fill is declared or a paragraph added
         _table_sizes.new_table_width(width, cols)  # checked before a paragraph is added
         # Resolve border fill ID
         if border_fill_id_ref is None:
@@ -578,13 +581,22 @@ class HwpxOxmlTableCell(SameElement, TableCellFormat):
 
         # Create a host paragraph for the nested table
         para = self.add_paragraph("")
-        return para.add_table(
-            rows,
-            cols,
-            width=width,
-            height=height,
-            border_fill_id_ref=border_fill_id_ref,
-        )
+        try:
+            return para.add_table(
+                rows,
+                cols,
+                width=width,
+                height=height,
+                border_fill_id_ref=border_fill_id_ref,
+            )
+        except BaseException:
+            # refused after all (a height, a border fill id): the paragraph made for the table goes again
+            from ._paragraph_text_edit import paragraph_container
+
+            holder = paragraph_container(para.element, para.section.element)
+            if holder is not None:
+                holder.remove(para.element)
+            raise
 
 
 @dataclass(frozen=True)
@@ -709,6 +721,7 @@ class HwpxOxmlTable(SameElement, TableStructureEdits, TableFormat):
         ``hwpx.oxml.objects`` 모듈 상단 주석의 실측 근거.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         return _write_caption(
             self.element, text, section=self.paragraph.section,
             side=side, full_sz=full_size, width=width, gap=gap,

@@ -1427,6 +1427,16 @@ def move_note(note: Any, paragraph: Any, offset: Any) -> None:
     """``note.move_to``."""
 
     offset = _note_target(note, paragraph, offset)
+    if any(node is paragraph.element for node in note.element.iter()):
+        # A cell or a text box in the note's own text: the place check sees "a cell" and lets it by, and
+        # putting the note there took it out of the document first and then failed on lxml's "cannot
+        # append parent to itself" -- the note and what it held were gone from the saved file.
+        raise HwpxValueError(
+            "a note cannot move into its own text (a cell or a text box inside it)",
+            code="note-move-into-itself",
+            context={"caller": "note"},
+            suggestion="Pick a paragraph outside the note, or copy it there with copy_to().",
+        )
     control = note.element.getparent()
     old_run, old_paragraph = control.getparent(), note.paragraph
     put_at(paragraph.element, offset, control)
@@ -1458,6 +1468,12 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
     for node in copy.iter():
         if _local(node) == "p":
             _clear_paragraph_layout_cache(node)
+    # A field in the note's text (a 누름틀, a hyperlink) gets a new id pair, as a copied paragraph's or
+    # table's does: the copy kept the original's, and the two fields of one id could not be told apart
+    # (``field-ambiguous`` on filling either).
+    from ._paragraph_text_edit import renumber_copied_fields
+
+    renumber_copied_fields(copy, ids=paragraph.section._ids)
     put_at(paragraph.element, offset, control)
     # The objects in the note's text are copies too: each gets an id no other object has and goes over the
     # others, as a copied object does (shape.copy_to); they kept the original's id and zOrder before.

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Sequence, cast
 import xml.etree.ElementTree as ET
 
 from ._document_primitives import (
+    _require_text,
     paragraph_attributes,
     _HP,
     _append_child,
@@ -33,6 +34,7 @@ from ._paragraph_text_edit import set_text_with_tabs
 from .memo import HwpxOxmlNote
 
 if TYPE_CHECKING:
+    from ..objects.results import NumberRestart
     from .paragraph import HwpxOxmlParagraph
     from .section import HwpxOxmlSection
 
@@ -117,9 +119,21 @@ def _paragraph_add_note(
     render the note at all.
     """
 
+    _require_text(text)  # not text: refused before anything is written
     from ._paragraph_text_edit import require_in_document
 
     require_in_document(self, caller="add_note")
+    if not hasattr(self.section, "_section_properties_element"):
+        # A master page: no Hancom-saved document shows a footnote or an endnote on one, and the note's
+        # number format is its section's. It raised AttributeError here.
+        from ..errors import HwpxValueError
+
+        raise HwpxValueError(
+            "a footnote or an endnote goes into the body, a cell, a text box or a caption; not a master page",
+            code="paragraph-move-place-unsupported",
+            context={"box": "master_page"},
+            suggestion="Add the note to a paragraph of the body.",
+        )
     if offset is not None:
         from .text_ranges import _check_offset
 
@@ -199,6 +213,43 @@ def _paragraph_add_endnote(
     """Insert an endnote at the end of this paragraph (*offset*: at that character)."""
     return _paragraph_add_note(self, "endNote", text, run_attributes=run_attributes, char_pr_id_ref=char_pr_id_ref,
                                offset=offset)
+
+
+def _paragraph_add_number_restart(
+    self: "HwpxOxmlParagraph",
+    *,
+    number: int = 1,
+    kind: str = "PAGE",
+    run_attributes: dict[str, str] | None = None,
+    char_pr_id_ref: str | int | None = None,
+) -> "NumberRestart":
+    """Insert ``<hp:ctrl><hp:newNum num="..." numType="..."/></hp:ctrl>`` and return it as the
+    :class:`~hwpx.objects.NumberRestart` ``doc.page.number_restarts`` reads.
+
+    Restarts the running count *kind* (``PAGE`` by default) at *number*
+    from this paragraph onward — real corpus (hwpxlib_corpus, 7+ files)
+    always self-closes ``hp:newNum`` with only ``num``/``numType``, even
+    though the schema (``ParaList XML schema.xml:2741-2759``) declares a
+    required ``autoNumFormat`` child; matching real Hancom output takes
+    priority over the schema here.
+    """
+
+    from ..objects.results import NumberRestart
+    from ._document_primitives import NEW_NUM_KINDS, _normalize_enum_attr
+    from .section_format import validate_new_number
+
+    normalized_kind = _normalize_enum_attr(kind or "PAGE", NEW_NUM_KINDS, label="kind")
+    number = validate_new_number(number)  # before its run is added
+    run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
+    ctrl = _append_child(run, f"{_HP}ctrl", {})
+    _append_child(
+        ctrl, f"{_HP}newNum", {"num": str(number), "numType": normalized_kind},
+    )
+    self.section.mark_dirty()
+    # A restart of footnote or endnote numbers: the notes after it are written with their new numbers
+    # (they kept the old ones, so the file said 1 for the note read as 7).
+    renumber_note_kinds(self.section, note_kinds_in_document(self.section, ctrl))
+    return NumberRestart(kind=normalized_kind, number=number, paragraph=self)
 
 
 def _direct_notes(paragraph: ET.Element, tag: str) -> list[ET.Element]:
@@ -381,6 +432,15 @@ def note_kinds_in_document(section: "HwpxOxmlSection", element: ET.Element) -> s
 
     kinds = note_kinds_in((element,))  # first: most removals hold no note, and need no look at the document
     return kinds if kinds and in_document(element, section) else set()
+
+
+def note_kinds_in_all(section: "HwpxOxmlSection", elements: "Sequence[ET.Element]") -> set[str]:
+    """:func:`note_kinds_in_document` of each of *elements*, together: what is about to be taken out."""
+
+    kinds: set[str] = set()
+    for element in elements:
+        kinds |= note_kinds_in_document(section, element)
+    return kinds
 
 
 def renumber_note_kinds(section: "HwpxOxmlSection", kinds: "set[str]") -> None:

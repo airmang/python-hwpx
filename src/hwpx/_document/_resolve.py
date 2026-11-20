@@ -32,9 +32,41 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
 
 from ..errors import HwpxLookupError, HwpxTypeError, HwpxValueError
+
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def refused_leaves_no_paragraph(func: _F) -> _F:
+    """For a function that puts something into *paragraph*, or -- given none -- into a paragraph it
+    appends to a section first: when the call is refused, that new paragraph goes again.
+
+    The paragraph is made before the thing itself is checked (its text, its sizes, its colours), so a
+    refused ``doc.shapes.add_line(line_color="nope")`` or ``doc.notes.add_footnote(123)`` used to leave
+    an empty paragraph at the end of the section. Whatever was appended to a section's body during a
+    refused call is taken out again, and a section that was not marked changed before is not after.
+    """
+
+    @wraps(func)
+    def wrapper(doc: Any, *args: Any, **kwargs: Any) -> Any:
+        before = [(section, len(section.element), section._dirty) for section in doc._root.sections]
+        try:
+            return func(doc, *args, **kwargs)
+        except BaseException:
+            for section, count, dirty in before:
+                body = section.element
+                if len(body) <= count:
+                    continue
+                for child in list(body)[count:]:
+                    body.remove(child)
+                if not dirty:
+                    section._dirty = False
+            raise
+
+    return cast(_F, wrapper)
 
 if TYPE_CHECKING:
     from ..oxml import HwpxOxmlParagraph, HwpxOxmlSection

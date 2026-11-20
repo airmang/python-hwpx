@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from ._document_primitives import (
+    _require_text,
     paragraph_attributes,
     _HP,
     _HP_NS,
@@ -234,6 +235,7 @@ class HwpxOxmlSection:
         char_pr_id_ref: str | int | None = None,
         attributes: Optional[dict[str, str]] = None,
     ) -> HwpxOxmlMemo:
+        _require_text(text)  # not text: refused before anything is written
         element = self._memo_group_element(create=True)
         if element is None:  # pragma: no cover - defensive branch
             raise RuntimeError("failed to create memo group element")
@@ -684,7 +686,7 @@ class HwpxOxmlSection:
         paper and margins (``section-properties-not-first``).
         """
 
-        from ._paragraph_text_edit import move_section_settings, section_setting_runs
+        from ._paragraph_text_edit import move_section_settings, renumber_copied_fields, section_setting_runs
 
         existing = self.paragraphs
         if index < 0 or index > len(existing):
@@ -694,6 +696,9 @@ class HwpxOxmlSection:
         for offset, paragraph in enumerate(paragraphs):
             source_element = paragraph.element if isinstance(paragraph, HwpxOxmlParagraph) else paragraph
             cloned = _clone_paragraph_element(source_element, ids=self._ids)
+            # as paragraph.copy_to and insert_after(): a copied field gets its own id pair (the copy kept
+            # the original's, and neither field could be filled by name or id: ``field-ambiguous``)
+            renumber_copied_fields(cloned, ids=self._ids)
             for run, settings in section_setting_runs(cloned):
                 for child in settings:
                     run.remove(child)
@@ -976,10 +981,16 @@ def clear_paragraph_content(paragraph: Any, *, keep_headers: bool, on_control_co
     first_attributes = dict(runs[0].attrib) if runs else {"charPrIDRef": "0"}
     text_attributes = next((dict(run.attrib) for run in runs for child in run if child.tag == f"{_HP}t"),
                            first_attributes)
+    # The notes (and the number restarts) that go with the content: the notes left are numbered again, as
+    # after paragraph.remove(). They kept the numbers they had, so the file said 2 for the note read as 1.
+    from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+    note_kinds = note_kinds_in_all(paragraph.section, [*dropped, *(child for _, child in removals)])
     for child in dropped:
         child.getparent().remove(child)
     for parent, child in removals:
         parent.remove(child)
+    renumber_note_kinds(paragraph.section, note_kinds)
     emptied = [run for run in runs if len(run) == 0]
     for run in emptied:
         element.remove(run)

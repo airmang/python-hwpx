@@ -341,54 +341,20 @@ def _require_unchecked_save_buffer(destination: object) -> None:
         )
 
 
-def _capture_stream_checkpoint(stream: BinaryIO) -> tuple[int, bytes] | None:
-    try:
-        position = stream.tell()
-    except (AttributeError, OSError):
-        return None
-    try:
-        tail = stream.read()
-    except (AttributeError, OSError):
-        try:
-            end_position = stream.seek(0, os.SEEK_END)
-        except (AttributeError, OSError):
-            return None
-        try:
-            stream.seek(position)
-        except (AttributeError, OSError):
-            return None
-        if end_position == position:
-            return position, b""
-        return None
-    try:
-        stream.seek(position)
-    except (AttributeError, OSError):
-        return None
-    return position, tail
+def _capture_stream_checkpoint(stream: BinaryIO) -> "tuple[int, bytes, int] | None":
+    """:func:`hwpx.quality.save_pipeline._capture_stream_checkpoint` (one rule for both savers)."""
+
+    from ..quality.save_pipeline import _capture_stream_checkpoint as capture
+
+    return capture(stream)
 
 
-def _rollback_stream(stream: BinaryIO, checkpoint: tuple[int, bytes] | None) -> None:
-    if checkpoint is None:
-        return
-    position, tail = checkpoint
-    try:
-        stream.seek(position)
-        if tail:
-            offset = 0
-            while offset < len(tail):  # a stream that takes a part of what it is given is given the rest
-                chunk = tail if offset == 0 else tail[offset:offset + 65536]
-                taken = stream.write(chunk)
-                if taken is None:
-                    taken = len(chunk)
-                if taken <= 0:
-                    return
-                offset += min(taken, len(chunk))  # a count past what it was given is the chunk
-            stream.truncate(position + len(tail))
-        else:
-            stream.truncate(position)
-        stream.seek(position)
-    except (AttributeError, OSError):
-        return
+def _rollback_stream(stream: BinaryIO, checkpoint: "tuple[int, bytes, int] | None") -> bool:
+    """:func:`hwpx.quality.save_pipeline._rollback_stream` (one rule for both savers)."""
+
+    from ..quality.save_pipeline import _rollback_stream as rollback
+
+    return rollback(stream, checkpoint)
 
 
 def refuse_duplicate_entry_names(names: Iterable[str]) -> None:
@@ -645,8 +611,10 @@ def _write_stream_or_rollback(stream: BinaryIO, data: bytes) -> None:
         from ..quality.save_pipeline import settle_written_stream
 
         settle_written_stream(stream, checkpoint[0], data, checkpoint[1])
-    except BaseException:
-        _rollback_stream(stream, checkpoint)
+    except BaseException as error:
+        from ..quality.save_pipeline import _rollback_or_say_so
+
+        _rollback_or_say_so(stream, checkpoint, error)
         raise
 
 

@@ -838,17 +838,27 @@ class HwpxOxmlSectionProperties:
         이미 바탕쪽을 두고 있으면 ``HwpxValueError``
         (``master-page-pages-taken``)를 낸다.
         """
+        id_ref = self._check_master_page_reference(master_page_id)
+        if id_ref is None:
+            return
+        _append_child(self.element, f"{_HP}masterPage", {"idRef": id_ref})
+        self.element.set("masterPageCnt", str(len(self.master_page_refs)))
+        self.section.mark_dirty()
+
+    def _check_master_page_reference(self, master_page_id: "str | HwpxOxmlMasterPage") -> str | None:
+        """What :meth:`add_master_page_reference` refuses, without writing: the id to add, or ``None``
+        when this section uses the master page already. ``doc.page.set_master_page(section="all")``
+        asks every section first, so a section that refuses does not leave the ones before it changed."""
+
         id_ref = _master_page_id(master_page_id)
         if id_ref in self.master_page_refs:
-            return
+            return None
         document = self.section.document
         if document is not None:
             from .master_page_authoring import refuse_pages_taken
 
             refuse_pages_taken(document, self.master_page_refs, id_ref)
-        _append_child(self.element, f"{_HP}masterPage", {"idRef": id_ref})
-        self.element.set("masterPageCnt", str(len(self.master_page_refs)))
-        self.section.mark_dirty()
+        return id_ref
 
     def remove_master_page_reference(self, master_page_id: "str | HwpxOxmlMasterPage") -> bool:
         """이 절이 바탕쪽 *master_page_id* (id 나 ``MasterPage``)를 쓰는 연결(``hp:masterPage/@idRef``)을

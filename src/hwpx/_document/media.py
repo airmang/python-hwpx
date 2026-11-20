@@ -229,12 +229,10 @@ def add_picture(
     validate_picture_crop(crop, resolved_width, resolved_height)
     validate_picture_effects(shadow, glow, soft_edge, reflection)
 
-    # Call the local primitive directly rather than `doc.add_image` — that
-    # facade name moved in 6.0 (design table row 33), and going through it
-    # would fire a DeprecationWarning on every `add_picture` call even though
-    # `add_picture` itself is a kept (unmoved) root method.
-    binary_item_id_ref = str(add_image(doc, image_data, image_format))
-
+    # The paragraph first: it checks the section, the style and the paragraph and character shape ids
+    # before it changes anything. The image was stored before it, so a call refused for one of those
+    # (``style="no such style"``) left the image bytes in the saved file (7.0 development; 6.x looked the
+    # style up first).
     paragraph = doc.add_paragraph(
         "",
         section=section,
@@ -243,32 +241,46 @@ def add_picture(
         char_pr_id_ref=char_pr_id_ref,
         include_run=False,
     )
-    alignment = _INLINE_PICTURE_ALIGNMENT.get(str(align).strip().upper()) if align else None
-    if alignment is not None and doc._root.headers:
+    stored: BinaryItem | None = None
+    try:
+        # Call the local primitive directly rather than `doc.add_image` — that
+        # facade name moved in 6.0 (design table row 33), and going through it
+        # would fire a DeprecationWarning on every `add_picture` call even though
+        # `add_picture` itself is a kept (unmoved) root method.
+        stored = add_image(doc, image_data, image_format)
+        picture = paragraph.add_picture(
+            str(stored),
+            width=resolved_width,
+            height=resolved_height,
+            alignment=align,
+            brightness=brightness,
+            contrast=contrast,
+            effect=effect,
+            alpha=alpha,
+            line_color=line_color,
+            line_width_mm=line_width_mm,
+            crop=crop,
+            shadow=shadow,
+            glow=glow,
+            soft_edge=soft_edge,
+            reflection=reflection,
+            run_attributes=run_attributes,
+            char_pr_id_ref=char_pr_id_ref,
+        )
+    except BaseException:
+        # Whatever refused it, the call leaves neither the image nor the empty paragraph behind.
+        if stored is not None:
+            remove_image(doc, stored, force=True)
+        paragraph.remove()
+        raise
+    paragraph_alignment = _INLINE_PICTURE_ALIGNMENT.get(str(align).strip().upper()) if align else None
+    if paragraph_alignment is not None and doc._root.headers:
         # The picture sits in the text line, so Hancom places it by the
         # paragraph's alignment; hp:pos/@horzAlign alone does not move it.
         paragraph.para_pr_id_ref = doc._root.headers[0].ensure_paragraph_format(
-            base_para_pr_id=paragraph.para_pr_id_ref, alignment=alignment,
+            base_para_pr_id=paragraph.para_pr_id_ref, alignment=paragraph_alignment,
         )
-    return paragraph.add_picture(
-        binary_item_id_ref,
-        width=resolved_width,
-        height=resolved_height,
-        alignment=align,
-        brightness=brightness,
-        contrast=contrast,
-        effect=effect,
-        alpha=alpha,
-        line_color=line_color,
-        line_width_mm=line_width_mm,
-        crop=crop,
-        shadow=shadow,
-        glow=glow,
-        soft_edge=soft_edge,
-        reflection=reflection,
-        run_attributes=run_attributes,
-        char_pr_id_ref=char_pr_id_ref,
-    )
+    return picture
 
 
 def _iter_picture_images(

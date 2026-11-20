@@ -759,16 +759,9 @@ class HwpxOxmlDocument:
         )
         if normalized_strike_shape is not None:
             strike = True
-        if size is not None and (isinstance(size, bool) or not isinstance(size, (int, float))
-                                 or not 0 <= round(float(size) * 100) < 2**31):
-            from ..errors import HwpxValueError
+        from .header_fonts import check_run_size
 
-            raise HwpxValueError(  # it was written as 0 when negative
-                f"size must be a number of points from 0, below 21474836.48; got {size!r}",
-                code="style-run-size-value",
-                context={"requested": repr(size)},
-                suggestion="Pass the character size in points, e.g. 10.",
-            )
+        check_run_size(size)
         # Hancom keeps a width ratio in one byte: 256 and up come out as ratio - 256.
         if ratio is not None and not 10 <= int(ratio) <= 255:
             raise ValueError("ratio must be a percentage between 10 and 255")
@@ -1467,6 +1460,11 @@ class HwpxOxmlDocument:
         self._remove_section_from_manifest(removed.part_name)
         _section_layout.number_section_ids(self)
         self._sync_header_section_count()
+        # The notes of the sections left count on without the ones that went (and without a restart
+        # that went with them): they kept the numbers they had, so the file said 3 for the second note.
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
+        renumber_note_kinds(self._sections[0], note_kinds_in((removed.element,)))
 
     # ------------------------------------------------------------------
     # Manifest helpers (private)

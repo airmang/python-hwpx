@@ -15,6 +15,7 @@ from ._document_primitives import (
     _clear_paragraph_layout_cache,
     _default_sublist_attributes,
     _paragraph_id,
+    _require_text,
     _sanitize_text,
     _text_element_content,
 )
@@ -421,8 +422,23 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         apply_element: ET.Element | None = None,
     ):
         self.element = element
-        self._properties = properties
+        self._held_properties = properties
         self._apply_element = apply_element
+
+    @property
+    def _properties(self) -> "HwpxOxmlSectionProperties":
+        """The properties of the section holding the header or footer now. Its control sits in a body
+        paragraph, and once that paragraph moved to another section the story is that section's: an
+        edit through an object taken before the move marked the section it was taken from, so the
+        change was reported and not saved."""
+
+        from ._paragraph_text_edit import live_holder
+
+        held = self._held_properties
+        section = live_holder(self.element, held.section)
+        if section is not held.section and hasattr(section, "properties"):
+            self._held_properties = held = section.properties
+        return held
 
     @property
     def apply_element(self) -> ET.Element | None:
@@ -599,6 +615,9 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
 
     @text.setter
     def text(self, value: str) -> None:
+        # Not text: refused before the old content goes (it went first, and the refusal left the
+        # header or footer empty).
+        _require_text(value)
         # Replace existing content with a simple paragraph.
         for child in list(self.element):
             if child.tag == f"{_HP}subList":
@@ -722,6 +741,7 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         ``align=``). Up to 6.x this returned the bare ``hp:p`` element and took no text.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         from .paragraph import HwpxOxmlParagraph
         from .section import style_shape_refs
 
@@ -782,6 +802,7 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         Up to 6.x this returned the bare ``hp:run`` element.
         """
 
+        _require_text(text)  # not text: refused before anything is written
         from .paragraph import HwpxOxmlParagraph
         from .run import HwpxOxmlRun
 
@@ -879,24 +900,55 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         header/footer as it was.
         """
 
-        from .color import normalize_color
-
-        for paragraph_spec in content:  # colours first: nothing is cleared for a bad one
-            for child in paragraph_spec.get("children") or paragraph_spec.get("runs") or ():
-                for key in ("color", "highlight"):
-                    if child.get(key) is not None:
-                        normalize_color(child.get(key))
-        saved = deepcopy(self.element)
+        self._check_content(content)
+        # What is there now, as it is: the same nodes go back if writing still fails, so a paragraph or
+        # run object taken before keeps writing into the document. Copies went back before, and an edit
+        # through such an object was then reported and not saved.
+        attributes, text, children = dict(self.element.attrib), self.element.text, list(self.element)
         try:
             self._fill_content(content)
         except Exception:
             self.element.attrib.clear()
-            self.element.attrib.update(saved.attrib)
-            self.element.text = saved.text
+            self.element.attrib.update(attributes)
+            self.element.text = text
             for child in list(self.element):
                 self.element.remove(child)
-            self.element.extend(list(saved))
+            self.element.extend(children)
             raise
+
+    def _check_content(self, content: Sequence[Mapping[str, Any]]) -> None:
+        """Everything :meth:`_fill_content` refuses, checked for the whole of *content* before the first
+        paragraph is written: the kind of each child, a run's colours, size and font, a page number's
+        format, a paragraph's alignment. A later child refused used to leave what the earlier ones had
+        declared (a character shape for a sized run) in the header of the document."""
+
+        from .color import normalize_color
+        from .header_fonts import check_run_fonts, check_run_size
+        from .header_part import HwpxOxmlHeader
+
+        for paragraph_spec in content:
+            align = paragraph_spec.get("align")
+            if align:
+                HwpxOxmlHeader._normalize_paragraph_alignment(str(align))
+            children = paragraph_spec.get("children")
+            if children is None:
+                children = paragraph_spec.get("runs")
+            for child in children or ():
+                page_number_format = child.get("page_number")
+                kind = "page_number" if page_number_format is not None else str(child.get("type", "run"))
+                if kind == "run":
+                    for key in ("color", "highlight"):
+                        if child.get(key) is not None:
+                            normalize_color(child.get(key))
+                    check_run_size(child.get("size"))
+                    check_run_fonts(child.get("font"), None)
+                elif kind == "page_number":
+                    page_format = str(page_number_format or child.get("format", "page"))
+                    chosen = str(child.get("formatType") or child.get("format_type") or page_format or "DIGIT")
+                    chosen = chosen.strip().upper()
+                    number_format("DIGIT" if chosen in {"PAGE", "PAGE/TOTAL"} else chosen)
+                else:
+                    raise _unsupported_content(kind)
 
     def _fill_content(self, content: Sequence[Mapping[str, Any]]) -> None:
         if not content:
@@ -941,7 +993,18 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
                         self.add_run("/", paragraph=paragraph)
                         self._add_total_page_counter(paragraph, page_number.element.get("formatType") or "DIGIT")
                     continue
-                raise ValueError(f"unsupported header/footer content type: {kind}")
+                raise _unsupported_content(kind)
+
+def _unsupported_content(kind: str) -> Exception:
+    from ..errors import HwpxValueError
+
+    return HwpxValueError(
+        f"unsupported header/footer content type: {kind}",
+        code="story-content-type-unsupported",
+        context={"requested": kind},
+        suggestion='Use {"text": ...} for a run or {"page_number": "page"} for a page number.',
+    )
+
 
 def _append_auto_number(ctrl: ET.Element, num_type: str, format_type: str) -> ET.Element:
     """Append ``hp:autoNum`` with its number format, as Hancom writes it.

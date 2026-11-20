@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from ..errors import HwpxValueError
+from ._resolve import refused_leaves_no_paragraph
 
 from ..oxml._document_primitives import _clear_paragraph_layout_cache, _object_id, current_time
 from ..oxml.namespaces import HP
@@ -395,6 +396,7 @@ def _split_out(paragraph: Any, match: str, index: int = 0) -> Any:
     return middle
 
 
+@refused_leaves_no_paragraph
 def add_memo_with_anchor(
     doc: "HwpxDocument",
     text: str = "",

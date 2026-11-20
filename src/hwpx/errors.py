@@ -661,6 +661,8 @@ ERROR_CODES: dict[str, str] = {
     "media-owner-paragraph-missing": "교체한 그림 요소가 소속 문단을 찾지 못했다(방어적 분기).",
     # -- 주석 ------------------------------------------------------------
     "note-other-document-unsupported": "각주·미주를 다른 문서로 옮기거나 복사하려 했다(그 글 구간을 paragraph.copy_range 로 복사한다).",
+    "story-content-type-unsupported": "머리말·꼬리말 내용(content)의 항목 종류(type)가 run 도 page_number 도 아니다.",
+    "note-move-into-itself": "각주·미주를 자기 글 안(그 안의 표 칸·글상자)으로 옮기려 했다(복사는 된다).",
     "note-anchor-detached": "앵커를 걸 문단이 섹션에 속해 있지 않다.",
     "note-memo-detached": "메모가 섹션에 속해 있지 않다.",
     "note-argument-conflict": "앵커 없는 메모에 앵커 전용 인자를 줬다.",

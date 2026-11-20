@@ -163,7 +163,8 @@ class RadioButton(CheckBox):
                 # buttons any more, so checking it changes its own value and no button of the document.
                 return
             document = held.document
-            sections = document.sections if document is not None else [held]
+            # the sections, and the master pages: a button of the group drawn on every page stayed on
+            sections = [*document.sections, *getattr(document, "master_pages", ())] if document is not None else [held]
             for section in sections:
                 for other in section.element.iter(self._element.tag):
                     if other is not self._element and other.get("radioGroupName") == self.group \
