@@ -1482,7 +1482,14 @@ def copy_note(note: Any, paragraph: Any, offset: Any) -> Any:
     # ... and a field in the note's text (a 누름틀, a hyperlink) gets a new id pair, as a copied
     # paragraph's or table's does: the copy kept the original's, and the two fields of one id could not
     # be told apart (``field-ambiguous`` on filling either).
-    renumber_copied_fields(copy, ids=paragraph.section._ids)
+    from ._document_primitives import _HP as hp
+
+    in_document: set[str] = set()  # the field ids in use: a new one is none of them
+    if next(copy.iter(f"{hp}fieldBegin"), None) is not None:
+        owners: list[Any] = ([*document.sections, *getattr(document, "master_pages", ())]
+                             if document is not None else [paragraph.section])
+        in_document = {str(node.get("id")) for owner in owners for node in owner.element.iter(f"{hp}fieldBegin")}
+    renumber_copied_fields(copy, ids=paragraph.section._ids, avoid=in_document)
     put_at(paragraph.element, offset, control)
     # The objects in the note's text are copies too: each gets an id no other object has and goes over the
     # others, as a copied object does (shape.copy_to); they kept the original's id and zOrder before.

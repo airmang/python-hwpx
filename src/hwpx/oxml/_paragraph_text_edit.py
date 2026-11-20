@@ -282,7 +282,7 @@ def _next_paragraph(parent: ET.Element, element: ET.Element) -> ET.Element | Non
 
 
 def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
-                           taken: "set[str] | None" = None) -> int:
+                           taken: "set[str] | None" = None, avoid: "set[str] | None" = None) -> int:
     """Give each field whose begin and end are both inside *copy* a new id pair.
 
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
@@ -294,7 +294,9 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
     copy's end. An end in front of its begin goes to the first begin of its id, as before.
     With *taken* (the field ids the place the copy goes to already has) only a field whose id is taken,
     or met a second time in *copy*, gets a new pair: content brought from another document keeps the
-    ids it is known by where nothing there has them.
+    ids it is known by where nothing there has them. A new id is never one of *avoid* (ids in use
+    where the copy goes): a document holding fields brought from another one made with the same seed
+    was handed one of their ids.
     Returns how many fields were renumbered.
     """
 
@@ -329,7 +331,7 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
     met: set[str] = set()
     # ids that stay in use: those where the copy goes, and those the copy itself holds (one of them may
     # be kept, and the id source of a document made with the same seed hands out the same numbers)
-    in_use = set(taken or ()) | {str(begin.get("id")) for begin, _ in groups}
+    in_use = set(taken or ()) | set(avoid or ()) | {str(begin.get("id")) for begin, _ in groups}
     for begin, ends in groups:
         if not ends:
             continue
@@ -339,7 +341,9 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None",
             continue  # no field where it goes has this id: it keeps it
         met.add(old)
         new_id = _object_id(ids)
-        while new_id in in_use:
+        for _ in range(64):  # a source that keeps handing out ids in use is not asked for ever
+            if new_id not in in_use:
+                break
             new_id = _object_id(ids)
         in_use.add(new_id)
         for node in (begin, *ends):

@@ -705,7 +705,8 @@ class HwpxOxmlSection:
         # by the ids they came with.
         if next(clones.iter(f"{_HP}fieldBegin"), None) is not None:  # no field in the copies: no search
             document = self.document
-            owners: list[Any] = [*document.sections, *document.master_pages] if document is not None else [self]
+            owners: list[Any] = ([*document.sections, *getattr(document, "master_pages", ())]
+                                 if document is not None else [self])
             taken = {str(node.get("id")) for owner in owners for node in owner.element.iter(f"{_HP}fieldBegin")}
             renumber_copied_fields(clones, ids=self._ids, taken=taken)
         for offset, cloned in enumerate(list(clones)):

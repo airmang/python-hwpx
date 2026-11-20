@@ -101,26 +101,27 @@ def new_table_width(width: object, cols: int) -> int | None:
 
 def whole_number(value: Any, *, floats: bool = False) -> int | None:
     """*value* as an ``int`` when it is a whole number: an integer of any kind (``numpy.int64``), or a
-    ``Decimal`` or ``Fraction`` with a whole value -- and a float with one when *floats*. ``None`` for
-    anything else, a bool of any kind among it."""
+    ``Decimal``, a ``Fraction`` or a zero-dimensional array with a whole value -- and a float with one
+    when *floats*. ``None`` for anything else (a bool of any kind, a str, NaN); it does not raise."""
 
     import numbers
-    from decimal import Decimal
-    from fractions import Fraction
 
     if isinstance(value, bool) or type(value).__name__ in ("bool_", "bool"):
         return None
     if isinstance(value, numbers.Integral):
         return int(value)
-    if not isinstance(value, numbers.Number) and hasattr(value, "__index__"):
-        return int(value.__index__())
-    if isinstance(value, (Decimal, Fraction)) or (floats and isinstance(value, numbers.Real)):
-        number: Any = value
-        try:
-            return int(number) if number == int(number) else None
-        except (TypeError, ValueError, ArithmeticError):
-            return None
-    return None
+    if isinstance(value, (str, bytes)):
+        return None
+    if not floats and isinstance(value, numbers.Real) and not isinstance(value, numbers.Rational):
+        return None  # a float (1440.0) is not a height
+    # Whatever else counts as a whole number: Decimal("1440"), Fraction(1440), a zero-dimensional
+    # array holding one. What cannot be read as a number, or is not whole, is not one.
+    number: Any = value
+    try:
+        whole = int(number)
+        return whole if bool(number == whole) and not isinstance(whole, bool) else None
+    except Exception:  # noqa: BLE001 - any refusal of the value's own arithmetic means "not a number"
+        return None
 
 
 def check_new_table_height(height: object) -> int | None:

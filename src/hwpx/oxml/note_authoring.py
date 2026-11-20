@@ -317,10 +317,11 @@ def note_numbers(sections: Sequence[ET.Element]) -> dict[ET.Element, int]:
             numbering = properties.find(f"{_HP}numbering") if properties is not None else None
             if numbering is not None and numbering.get("type") == "ON_SECTION":
                 counters[kind] = _int_or(numbering.get("newNum"), 1)
-        wanted = {f"{_HP}newNum", f"{_HP}footNote", f"{_HP}endNote"}
-        for element in section.iter():
-            if element.tag not in wanted:
-                continue
+        wanted = (f"{_HP}newNum", f"{_HP}footNote", f"{_HP}endNote")
+        search: Any = section.iter
+        found = search(*wanted) if hasattr(section, "getparent") else (  # lxml finds them by tag
+            node for node in section.iter() if node.tag in wanted)
+        for element in found:
             if element.tag == f"{_HP}newNum":
                 if element.get("numType") in counters:
                     counters[element.get("numType") or ""] = _int_or(element.get("num"), 1)
@@ -370,7 +371,7 @@ def _note_numbering_type(section: "HwpxOxmlSection", tag: str) -> str | None:
     top: Any = sec_pr
     while hasattr(top, "getparent") and (parent := top.getparent()) is not None:
         top = parent
-    if hasattr(top, "getparent") and top is not section.element:
+    if not hasattr(top, "getparent") or top is not section.element:
         # the properties kept at hand are of a paragraph that was replaced (paragraph.apply_model): the
         # ones in the tree now
         found = section._section_properties_element()

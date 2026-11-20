@@ -450,9 +450,11 @@ def add_memo_with_anchor(
 
         from ..oxml._document_primitives import _ILLEGAL_XML_CHARS
 
-        if paragraph_text is not None:
+        if paragraph_text is not None and (not match or match not in _ILLEGAL_XML_CHARS.sub("", probe)):
+            missing = True  # nowhere in the text, whatever breaks it
+        elif paragraph_text is not None:
             pieces = [_ILLEGAL_XML_CHARS.sub("", piece) for piece in re.split(r"\r\n|[\t\n\r]", probe)]
-            places = sum(piece.count(match) for piece in pieces) if match else 0
+            places = sum(piece.count(match) for piece in pieces)
             missing = places <= index
         else:
             missing = match not in probe

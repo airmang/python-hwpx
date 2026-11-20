@@ -884,17 +884,13 @@ def test_whole_numbers_of_other_kinds_are_taken_as_before() -> None:
     from decimal import Decimal
     from fractions import Fraction
 
-    class Index:
-        def __index__(self) -> int:
-            return 1
-
     for height in (Decimal("1440"), Fraction(1440), 1440):
         document = HwpxDocument.new()
         document.add_table(1, 1, height=height)  # type: ignore[arg-type]
         assert _saved(document).tables.all[0].element.find("{*}sz").get("height") == "1440"
     document = HwpxDocument.new()
     document.add_heading("Contents", level=1)
-    document.refs.add_table_of_contents(index=Index())  # type: ignore[arg-type]
+    document.refs.add_table_of_contents(index=Fraction(1))  # type: ignore[arg-type]
     assert len(_saved(document).refs.tables_of_contents) == 1
 
 
@@ -1085,3 +1081,109 @@ def test_a_table_of_contents_takes_a_whole_number_of_any_kind_for_its_place(inde
     document.refs.add_table_of_contents(index=place)
 
     assert len(_saved(document).refs.tables_of_contents) == 1
+
+
+# -- the seventh look -----------------------------------------------------------------------------
+
+
+class _Scalar:
+    """A zero-dimensional array holding one value, as ``numpy.squeeze`` gives one: it converts with
+    ``int()`` and compares by value, and is none of Python's number types."""
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+    def __int__(self) -> int:
+        return int(self.value)
+
+    def __eq__(self, other: object) -> bool:
+        return bool(self.value == other)
+
+    __hash__ = None  # type: ignore[assignment]
+
+
+@pytest.mark.parametrize(("value", "floats", "expected"), [
+    (1441, False, 1441), (_Scalar(1441), False, 1441), (_Scalar("x"), False, None),
+    (True, False, None), (True, True, None), (1.0, False, None), (1.0, True, 1),
+    (float("nan"), True, None), (float("inf"), True, None), ("12", True, None), (b"12", False, None),
+    (None, False, None), ([1], False, None), (1.5, True, None),
+])
+def test_what_counts_as_a_whole_number(value: Any, floats: bool, expected: int | None) -> None:
+    from hwpx.oxml.table_sizes import whole_number
+
+    assert whole_number(value, floats=floats) == expected  # and it does not raise
+
+
+def test_a_whole_number_held_in_an_array_is_a_table_height_as_before() -> None:
+    document = HwpxDocument.new()
+    document.add_table(2, 2, height=_Scalar(1441))  # type: ignore[arg-type]
+
+    assert _saved(document).tables.all[0].element.find("{*}sz").get("height") == "1441"
+    assert _code(lambda: HwpxDocument.new().add_table(2, 2, height=_Scalar("x"))) == "table-height-value"  # type: ignore[arg-type]
+
+
+def test_a_copied_note_does_not_take_the_id_of_a_field_brought_from_another_document() -> None:
+    source, document = HwpxDocument.new(seed=17), HwpxDocument.new(seed=17)  # one seed: the same ids
+    for index in range(10):
+        source.add_paragraph("src").add_form_field(f"f{index}")
+    note = document.add_paragraph("body").add_footnote("one")
+    note.paragraphs[0].add_form_field("in-note")
+    document.sections[0].insert_paragraphs(1, source.paragraphs)
+
+    note.copy_to(document.add_paragraph("dest"))
+
+    saved = _saved(document)
+    ids = [field.field_id for field in saved.fields.all]
+    assert len(ids) == len(set(ids)) == 12
+    for field in saved.fields.all:
+        saved.fields.fill("v", field_id=field.field_id)  # f7 was field-ambiguous
+
+
+def test_a_field_id_source_that_repeats_itself_is_not_asked_for_ever() -> None:
+    from lxml import etree
+
+    from hwpx.oxml._paragraph_text_edit import renumber_copied_fields
+
+    hp = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+    copy = etree.fromstring(
+        f'<p xmlns="{hp}"><fieldBegin id="1"/><fieldEnd beginIDRef="1"/></p>'.replace("<p ", "<hp:p ").replace(
+            "</p>", "</hp:p>").replace("<field", "<hp:field").replace('xmlns="', 'xmlns:hp="')
+    )
+
+    class Stuck:
+        def next_id(self) -> str:
+            return "1"
+
+    assert renumber_copied_fields(copy, ids=Stuck(), avoid={"1"}) == 1  # type: ignore[arg-type]
+
+
+def test_changing_how_a_long_section_numbers_its_notes_does_not_walk_every_node() -> None:
+    import hwpx.oxml.note_authoring as authoring
+
+    document = HwpxDocument.new()
+    document.add_paragraph("with a note").add_footnote("one")
+    visited: list[int] = []
+    section = document.sections[0]
+    real_iter = type(section.element).iter
+
+    class Counting:
+        def __init__(self, element: Any) -> None:
+            self.element = element
+
+    # the count asks the tree for the notes by tag: one call per section, with tags
+    calls: list[tuple[Any, ...]] = []
+    real = authoring.note_numbers
+
+    def spy(sections: Any) -> Any:
+        calls.append(tuple(sections))
+        return real(sections)
+
+    authoring.note_numbers = spy  # type: ignore[assignment]
+    try:
+        section.properties.set_footnote_numbering(type="ON_SECTION", new_num=3)
+    finally:
+        authoring.note_numbers = real
+    del visited, real_iter, Counting
+
+    assert len(calls) == 1
+    assert _numbers(document) == [(3, "3", "3")]
