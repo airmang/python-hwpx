@@ -702,10 +702,6 @@ class HwpxOxmlSection:
         # original's, and neither field could be filled by name or id: ``field-ambiguous``). The copies
         # are numbered together: a field may begin in one paragraph and end in a later one.
         renumber_copied_fields(clones, ids=self._ids)
-        # ... and a memo anchored in a copy is a memo of its own, as in paragraph.copy_to
-        from .memo import renew_copied_memos
-
-        renew_copied_memos(clones, list(self.document.sections) if self.document is not None else [self], self)
         for offset, cloned in enumerate(list(clones)):
             for run, settings in section_setting_runs(cloned):
                 for child in settings:

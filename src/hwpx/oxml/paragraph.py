@@ -623,7 +623,6 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         return run
 
-    @refused_appends_nothing
     def add_run(
         self,
         text: str = "",
@@ -662,6 +661,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         _require_text(text)  # not text: refused before anything is written
         widths = checked_tab_widths(text, tab_widths)
         run_attrs = dict(attributes or {})
+        self.element.makeelement(f"{_HP}run", run_attrs)  # attributes that cannot be written: refused before a shape is declared
 
         if "charPrIDRef" not in run_attrs:
             if char_pr_id_ref is not None:
@@ -685,9 +685,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                     if default_char is not None:
                         run_attrs["charPrIDRef"] = str(default_char)
 
-        run_element = self.element.makeelement(f"{_HP}run", run_attrs)  # refused here when it cannot be made
-        self.element.append(run_element)
-        note_made_run(self, run_element)
+        run_element = _append_child(self.element, f"{_HP}run", run_attrs)
         _clear_paragraph_layout_cache(self.element)  # its lines change: Hancom lays the paragraph out again
         if expand_special_characters:
             _append_text_with_run_choice_atoms(run_element, text)

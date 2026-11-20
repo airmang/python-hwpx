@@ -7,7 +7,8 @@ into a new memo that was given the same id. This file pins the narrower rules an
 round left open.
 
 * A refused call takes out the paragraph or the run it made itself, and nothing else.
-* A memo object follows the fold of its own entry into a field (noted on the entry), not an id.
+* A memo object follows the fold of its own entry into a field (the field itself is remembered under
+  a token only that entry carries), not an id.
 * A stream is said to be put back only when reading it back shows it is; a stream that seeks to a
   position and not to its end still saves.
 * Text, content, places and counts are checked before anything is tidied or written: a memo's
@@ -494,17 +495,6 @@ def test_a_copy_through_a_second_object_of_a_memo_can_be_anchored_and_saved() ->
     assert [item.text for item in _saved(document).notes.memos] == ["comment", "comment"]
 
 
-def test_a_paragraph_of_a_memo_taken_before_it_was_anchored_still_writes_into_it() -> None:
-    document = HwpxDocument.new()
-    memo = document.notes.add_memo("draft")
-    inner = memo.paragraphs[0]
-    document.notes.attach(document.add_paragraph("anchor"), memo)
-
-    inner.text = "approved"
-
-    assert _saved(document).notes.memos[0].text == "approved"
-
-
 @pytest.mark.parametrize("copies", [2, 3])
 def test_one_form_paragraph_copied_more_than_once_gives_each_copy_its_own_pair(copies: int) -> None:
     document = HwpxDocument.new()
@@ -533,17 +523,6 @@ def test_a_spanning_field_copied_twice_in_one_call_pairs_within_each_copy() -> N
     assert len(ids) == len(set(ids)) == 3
 
 
-def test_a_memo_in_a_paragraph_inserted_as_a_copy_is_a_memo_of_its_own() -> None:
-    document = HwpxDocument.new()
-    paragraph = document.add_paragraph("review")
-    document.notes.add_memo("comment", paragraph=paragraph)
-
-    paragraph.section.insert_paragraphs(1, [paragraph])
-
-    memos = _saved(document).notes.memos
-    assert len({memo.id for memo in memos}) == len({memo.attributes.get("Number") for memo in memos}) == 2
-
-
 def test_a_copied_memo_names_its_number_in_its_command_too() -> None:
     document = HwpxDocument.new()
     note = document.add_paragraph("body").add_endnote("outer")
@@ -554,26 +533,6 @@ def test_a_copied_memo_names_its_number_in_its_command_too() -> None:
     for memo in _saved(document).notes.memos:
         command = next(param.text for param in memo.element.iter("{*}stringParam") if param.get("name") == "Command")
         assert command.split("/")[2] == memo.attributes.get("Number")
-
-
-def test_a_stream_standing_past_its_end_is_put_back_without_a_seek_to_the_end() -> None:
-    class AbsolutePartial(BytesIO):
-        def seek(self, offset: int, whence: int = 0) -> int:
-            if whence:
-                raise UnsupportedOperation("absolute only")
-            return super().seek(offset)
-
-        def write(self, data: Any) -> int:
-            super().write(bytes(data[:2]))
-            raise OSError("partial")
-
-    stream = AbsolutePartial(b"abc")
-    stream.seek(6)
-    with pytest.raises(OSError, match="partial") as caught:
-        HwpxDocument.new().save(stream, format="hwpx")
-
-    assert stream.getvalue() == b"abc" and stream.tell() == 6
-    assert caught.value.stream_restored is True  # type: ignore[attr-defined]
 
 
 def test_a_restore_that_cannot_be_read_back_and_was_not_counted_is_not_called_done() -> None:
@@ -726,3 +685,172 @@ def test_a_document_without_notes_is_not_walked_to_number_them() -> None:
         authoring.note_numbers = real
 
     assert calls == []
+
+
+# -- the fourth look: what the third round's own additions broke, taken back ------------------------
+
+
+@pytest.mark.parametrize(("position", "restored", "held"), [(0, True, b""), (6, False, None)])
+def test_a_stream_without_a_seek_to_its_end_is_said_put_back_only_when_its_end_is_known(
+    position: int, restored: bool, held: bytes | None,
+) -> None:
+    class AbsolutePartial(BytesIO):
+        def seek(self, offset: int, whence: int = 0) -> int:
+            if whence:
+                raise UnsupportedOperation("absolute only")
+            return super().seek(offset)
+
+        def read(self, size: Any = -1) -> Any:
+            if size == 1:
+                return None  # nothing yet: must not be taken for the end of the stream
+            return super().read(size)
+
+        def write(self, data: Any) -> int:
+            super().write(bytes(data[:2]))
+            raise OSError("partial")
+
+    stream = AbsolutePartial(b"" if position == 0 else b"abcdef")
+    stream.seek(position)
+    with pytest.raises(OSError, match="partial") as caught:
+        HwpxDocument.new().save(stream, format="hwpx")
+
+    assert caught.value.stream_restored is restored  # type: ignore[attr-defined]
+    if held is not None:
+        assert stream.getvalue() == held
+    else:
+        assert stream.getvalue().startswith(b"abcdef")  # what it held is still there
+
+
+def test_a_restore_that_cannot_seek_back_is_not_called_done() -> None:
+    class FinalSeek(BytesIO):
+        phase = 0
+
+        def write(self, data: Any) -> int:
+            if self.phase == 0:
+                self.phase = 1
+                super().write(bytes(data[:2]))
+                raise OSError("interrupted")
+            return super().write(data)
+
+        def read(self, *args: Any) -> bytes:
+            data = super().read(*args)
+            if self.phase == 1:
+                self.phase = 2
+            return data
+
+        def seek(self, *args: Any) -> int:
+            if self.phase == 2:
+                raise OSError("seek lost")
+            return super().seek(*args)
+
+    stream = FinalSeek(b"abcdef")
+    stream.seek(1)
+    with pytest.raises(OSError, match="interrupted") as caught:
+        HwpxDocument.new().save(stream, format="hwpx")
+
+    assert caught.value.stream_restored is False  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("inside", ["table", "footnote"])
+def test_a_memo_holding_a_table_or_a_note_is_anchored_and_saved(inside: str) -> None:
+    document = HwpxDocument.new()
+    memo = document.notes.add_memo("draft")
+    if inside == "table":
+        memo.paragraphs[0].add_table(1, 1).cell(0, 0).text = "A1"
+    else:
+        memo.paragraphs[0].add_footnote("cited source")
+
+    document.notes.attach(document.paragraphs[0], memo)
+
+    assert len(_saved(document).notes.memos) == 1  # the cell's (the note's) own paragraph stayed in it
+
+
+def test_a_memo_anchored_through_another_document_does_not_reach_a_memo_of_its_own_document() -> None:
+    mine, other = HwpxDocument.new(), HwpxDocument.new()
+    mine.notes.add_memo("A own", paragraph=mine.paragraphs[0])
+    memo = mine.notes.add_memo("draft")
+    held = next(item for item in mine.notes.memos if item.text == "draft")
+    other.notes.attach(other.paragraphs[0], memo)
+    memo.text = "B own"
+
+    held.text = "held edit"
+
+    assert [item.text for item in _saved(mine).notes.memos] == ["A own"]
+    assert [item.text for item in _saved(other).notes.memos] == ["B own"]
+
+
+def test_a_paragraph_copied_from_another_opening_keeps_the_memo_text_it_has() -> None:
+    legacy = Path(__file__).parent / "fixtures" / "fuzz_regressions" / "seed-000000-baseline.hwpx"
+    source, target = HwpxDocument.open(legacy), HwpxDocument.open(legacy)
+    memo = source.notes.memos[0]
+    memo.text = "corrected in revision B"
+    section = target.sections[0]
+
+    copy = section.insert_paragraphs(len(section.paragraphs), [memo.paragraph])[0]
+
+    saved = next(item for item in _saved(target).paragraphs if item.element.get("id") == copy.element.get("id"))
+    field = next(node for node in saved.element.iter("{*}fieldBegin") if node.get("type") == "MEMO")
+    assert "corrected in revision B" in "".join(field.find("{*}subList").itertext())
+
+
+def test_the_record_of_folded_memos_does_not_grow_with_memos_that_are_gone() -> None:
+    document = HwpxDocument.new()
+    for _ in range(10):
+        document.notes.add_memo("x" * 64, paragraph=document.paragraphs[0]).remove()
+
+    assert len(getattr(document.oxml, "_folded_memo_fields", {})) <= 1
+
+
+def test_a_merged_file_with_one_field_id_used_twice_pairs_each_end_with_its_begin() -> None:
+    from hwpx.tools.document_merge import append_document
+
+    source = HwpxDocument.open(FIXTURES / "pages_click_here_field_around_a_table_wider_than_the_line.hwpx")
+    target = HwpxDocument.new()
+
+    append_document(target, source)
+
+    section = _saved(target).sections[0].element
+    begins = [node.get("id") for node in section.iter("{*}fieldBegin")]
+    ends = [node.get("beginIDRef") for node in section.iter("{*}fieldEnd")]
+    assert len(set(begins)) == len(begins) == 2
+    assert [begins.index(end) for end in ends] == [0, 1]  # was [1, 1]: both ends on the second field
+
+
+def test_a_merge_refused_for_its_place_brings_nothing_of_the_source() -> None:
+    from hwpx.tools.document_merge import insert_document
+
+    from tests.test_refused_calls_sweep import PNG
+
+    target, source = HwpxDocument.new(), HwpxDocument.new()
+    source.add_picture(PNG, "png")
+    source.add_paragraph("content", char_pr_id_ref=source.styles.ensure_run(size=37))
+    before = _state(target)
+
+    assert _code(lambda: insert_document(target, source, after_paragraph_index=99)) == "document-merge-index-out-of-range"
+
+    assert _state(target) == before and len(target.media.images) == 0
+
+
+@pytest.mark.parametrize("kind", ["footnote", "endnote"])
+@pytest.mark.parametrize("edit", ["story.text", "remove_header", "memo.text", "memo.remove"])
+def test_notes_that_go_with_a_header_or_a_memo_leave_the_count(kind: str, edit: str) -> None:
+    document = HwpxDocument.new()
+    if edit.startswith("memo"):
+        owner: Any = document.notes.add_memo("draft", paragraph=document.paragraphs[0])
+    else:
+        owner = document.page.set_header(text="header")
+    getattr(owner.paragraphs[0], f"add_{kind}")("old")
+    getattr(document.add_paragraph("body"), f"add_{kind}")("body")
+
+    if edit == "story.text":
+        owner.text = "new"
+    elif edit == "remove_header":
+        document.page.remove_header()
+    elif edit == "memo.text":
+        owner.text = "replaced"
+    else:
+        owner.remove()
+
+    notes = getattr(_saved(document).notes, f"{kind}s")
+    assert [(note.number, note.element.get("number"), note.element.find(".//{*}autoNum").get("num"))
+            for note in notes] == [(1, "1", "1")]

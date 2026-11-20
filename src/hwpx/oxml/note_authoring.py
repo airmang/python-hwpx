@@ -388,17 +388,20 @@ def renumber_notes(section: "HwpxOxmlSection", tag: str) -> None:
     sections = _sections_of(section)
     if not any(next(owner.element.iter(f"{_HP}{tag}"), None) is not None for owner in sections):
         return  # no note of the kind: nothing to write, and no walk through a long body to find that out
-    numbers = note_numbers([owner.element for owner in sections])
     known = True  # the count is known up to here: from the start, or from a section that starts it again
+    written: list["HwpxOxmlSection"] = []
     for owner in sections:
         numbering = _note_numbering_type(owner.element, tag)
         if numbering == "ON_PAGE":
             known = False
         elif numbering == "ON_SECTION":
             known = True
-        if not known:
-            # per page, or running on from a section numbered per page: what is written stays
-            continue
+        if known:  # per page, or running on from a section numbered per page: what is written stays
+            written.append(owner)
+    if not written:
+        return  # every section numbered per page: nothing to count for
+    numbers = note_numbers([owner.element for owner in sections])
+    for owner in written:
         changed = False
         for note in owner.element.iter(f"{_HP}{tag}"):
             number = str(numbers.get(note, 0))

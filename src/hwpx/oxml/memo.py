@@ -519,7 +519,7 @@ def _note_session_memo(section: "HwpxOxmlSection", memo: ET.Element) -> None:
         made.add(str(memo.get("id")))
 
 
-def _fill_field_from_entry(field: ET.Element, entry: ET.Element, *, move: bool = False) -> None:
+def _fill_field_from_entry(field: ET.Element, entry: ET.Element) -> None:
     """Make the MEMO field *field* hold the memo-group memo *entry* as Hancom keeps a memo: the field's
     ``hp:subList`` holds the memo's paragraphs. Its parameters stay as they are: a memo's shape is its
     section's, and Hancom writes ``MemoShapeIDRef=65535`` in every memo field."""
@@ -534,14 +534,22 @@ def _fill_field_from_entry(field: ET.Element, entry: ET.Element, *, move: bool =
         for node in sub_list.findall(f"{_HP}p"):
             sub_list.remove(node)
         for node in paragraphs:
-            # *move*: the entry is given up (folded), and its own paragraphs become the field's -- a
-            # paragraph object taken from the memo before then still writes into the memo. Otherwise
-            # the entry stays what it is and the field gets copies.
-            copied = node if move else deepcopy(node)
+            copied = deepcopy(node)
             copied.tail = None
             copied.set("id", "0")  # Hancom numbers a memo field's paragraphs 0
             _clear_paragraph_layout_cache(copied)
             sub_list.append(copied)
+
+
+def _in_a_section(element: ET.Element) -> bool:
+    """True while *element* hangs in a section's tree (its topmost ancestor is an ``hs:sec``)."""
+
+    if not hasattr(element, "getparent"):
+        return True  # a plain ElementTree element cannot say: it is kept
+    top: Any = element
+    while (parent := top.getparent()) is not None:
+        top = parent
+    return _element_local_name(top) == "sec"
 
 
 def _note_folded(entry: ET.Element, field: ET.Element, section: "HwpxOxmlSection") -> None:
@@ -551,9 +559,17 @@ def _note_folded(entry: ET.Element, field: ET.Element, section: "HwpxOxmlSection
     its field id is another field, and the old object must not write into it. The entry is out of the
     document from here on, so the token is never saved."""
 
+    from uuid import uuid4
+
     owner = section.document if section.document is not None else section
     taken = owner.__dict__.setdefault("_folded_memo_fields", {})
-    token = str(len(taken) + 1)
+    # A token no other document has: an entry folded into a field of another document (a memo of one
+    # document anchored through another) must not find, under the same small number, a field of its own
+    # document. Fields that have left the document are forgotten here, so the record does not grow with
+    # every memo that is added and removed.
+    for token in [token for token, kept in taken.items() if not _in_a_section(kept)]:
+        del taken[token]
+    token = uuid4().hex
     taken[token] = field
     entry.set(_FOLDED_INTO, token)
 
@@ -575,7 +591,7 @@ def fold_into_field(
         section = memo.group.section
     if field is None or section is None:
         return False
-    _fill_field_from_entry(field, memo.element, move=True)
+    _fill_field_from_entry(field, memo.element)
     group = memo.group
     try:
         group.element.remove(memo.element)
@@ -636,7 +652,7 @@ def carry_memos(root: ET.Element, sections: "list[HwpxOxmlSection]", target: "Hw
         if group is None:
             continue
         for memo in [memo for memo in group.findall(f"{_HP}memo") if memo.get("id") in fields]:
-            _fill_field_from_entry(fields[str(memo.get("id"))], memo, move=True)
+            _fill_field_from_entry(fields[str(memo.get("id"))], memo)
             group.remove(memo)
             _note_folded(memo, fields[str(memo.get("id"))], target)
             moved += 1
@@ -859,8 +875,13 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         existing_char = char_pr_id_ref or self._infer_char_pr_id_ref()
         paragraphs = sub_list.findall(f"{_HP}p")
         attrs = dict(paragraphs[0].attrib) if paragraphs else None
+        from .note_authoring import note_kinds_in_all, renumber_note_kinds
+
+        owner = self.group.section
+        note_kinds = note_kinds_in_all(owner, paragraphs)  # notes in the text that goes: the rest count again
         for paragraph in paragraphs:
             sub_list.remove(paragraph)
+        renumber_note_kinds(owner, note_kinds)
         paragraph = _create_paragraph_element(
             value or "",
             ids=self.group.section._ids,
@@ -881,8 +902,13 @@ class HwpxOxmlFieldMemo(HwpxOxmlMemo):
         """Remove the memo: its field's two controls and the memo text they hold. The text the
         field spans stays."""
 
-        _remove_field(self.group.section.element, self.element)
-        self.group.section.mark_dirty()
+        from .note_authoring import note_kinds_in_document, renumber_note_kinds
+
+        owner = self.group.section
+        note_kinds = note_kinds_in_document(owner, self.element)  # notes in the memo's text go with it
+        _remove_field(owner.element, self.element)
+        owner.mark_dirty()
+        renumber_note_kinds(owner, note_kinds)
 
 
 def _offset(self: Any) -> "int | None":

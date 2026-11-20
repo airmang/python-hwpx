@@ -287,9 +287,10 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
     A field's begin and end pair by id (``hp:fieldBegin/@id``, ``hp:fieldEnd/@beginIDRef``); a copy
     keeping them leaves two fields of one id, which readers and form filling cannot tell apart.
     A ``fieldid`` equal to the old id follows it. A field reaching outside *copy* is left as it is.
-    A begin takes the ends that follow it, up to the next begin of the same id: *copy* may hold the same
-    field more than once (one paragraph copied twice in one call), and the first begin took every end
-    of the id then, leaving the second copy's begin with the first copy's end.
+    An end goes to the begin of its id that is open in front of it (the innermost, when fields of one
+    id nest): *copy* may hold the same field more than once (one paragraph copied twice in one call),
+    and the first begin took every end of the id then, leaving the second copy's begin with the first
+    copy's end. An end in front of its begin goes to that begin, as before.
     Returns how many fields were renumbered.
     """
 
@@ -297,16 +298,29 @@ def renumber_copied_fields(copy: ET.Element, *, ids: "IdSource | None") -> int:
 
     hp_begin, hp_end = f"{{{_HP_NS}}}fieldBegin", f"{{{_HP_NS}}}fieldEnd"
     groups: list[tuple[ET.Element, list[ET.Element]]] = []
-    open_group: dict[str, list[ET.Element]] = {}
+    still_open: dict[str, list[list[ET.Element]]] = {}  # per id: the begins not yet ended, innermost last
+    last_ended: dict[str, list[ET.Element]] = {}  # per id: the begin that took the last end
+    early: dict[str, list[ET.Element]] = {}  # per id: ends met before any begin of the id
     for node in copy.iter():
         if node.tag == hp_begin and node.get("id"):
             ends: list[ET.Element] = []
-            open_group[str(node.get("id"))] = ends
+            still_open.setdefault(str(node.get("id")), []).append(ends)
             groups.append((node, ends))
         elif node.tag == hp_end:
-            taking = open_group.get(node.get("beginIDRef") or "")
-            if taking is not None:
-                taking.append(node)
+            named = node.get("beginIDRef") or ""
+            if still_open.get(named):
+                taking = still_open[named].pop()  # the innermost begin of the id that is still open
+                last_ended[named] = taking
+            elif named in last_ended:
+                taking = last_ended[named]  # a further end of a field that has one already
+            else:
+                taking = early.setdefault(named, [])  # in front of its begin
+            taking.append(node)
+    for begin, ends in groups:  # an end in front of its begin goes to the first begin left without one
+        waiting = early.get(str(begin.get("id")))
+        if not ends and waiting:
+            ends.extend(waiting)
+            waiting.clear()
     renumbered = 0
     for begin, ends in groups:
         if not ends:

@@ -341,7 +341,7 @@ def _require_unchecked_save_buffer(destination: object) -> None:
         )
 
 
-def _capture_stream_checkpoint(stream: BinaryIO) -> "tuple[int, bytes, int] | None":
+def _capture_stream_checkpoint(stream: BinaryIO) -> "tuple[int, bytes, int | None] | None":
     """:func:`hwpx.quality.save_pipeline._capture_stream_checkpoint` (one rule for both savers)."""
 
     from ..quality.save_pipeline import _capture_stream_checkpoint as capture
@@ -349,7 +349,7 @@ def _capture_stream_checkpoint(stream: BinaryIO) -> "tuple[int, bytes, int] | No
     return capture(stream)
 
 
-def _rollback_stream(stream: BinaryIO, checkpoint: "tuple[int, bytes, int] | None") -> bool:
+def _rollback_stream(stream: BinaryIO, checkpoint: "tuple[int, bytes, int | None] | None") -> bool:
     """:func:`hwpx.quality.save_pipeline._rollback_stream` (one rule for both savers)."""
 
     from ..quality.save_pipeline import _rollback_stream as rollback

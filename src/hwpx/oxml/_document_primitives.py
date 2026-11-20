@@ -210,7 +210,8 @@ def refused_appends_nothing(method: _M) -> _M:
         def as_written(child: Any) -> bytes:
             return LET.tostring(child) if isinstance(child, LET._Element) else ET.tostring(child)
 
-        written = [as_written(child) for child in kept] if len(kept) != len(before) else None
+        written = ([dict(self.element.attrib), *(as_written(child) for child in kept)]
+                   if len(kept) != len(before) else None)
         made: list[Any] = []
         records = self.__dict__.setdefault("_made_run_records", [])
         records.append(made)
@@ -222,7 +223,7 @@ def refused_appends_nothing(method: _M) -> _M:
                     self.element.remove(run)
             now = list(self.element)
             if (written is not None and len(now) == len(kept) and all(a is b for a, b in zip(now, kept))
-                    and [as_written(child) for child in now] == written):
+                    and [dict(self.element.attrib), *(as_written(child) for child in now)] == written):
                 for child in now:
                     self.element.remove(child)
                 self.element.extend(before)  # as it was, its line cache too

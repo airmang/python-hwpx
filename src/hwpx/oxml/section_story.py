@@ -618,10 +618,8 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         # Not text: refused before the old content goes (it went first, and the refusal left the
         # header or footer empty).
         _require_text(value)
-        # Replace existing content with a simple paragraph.
-        for child in list(self.element):
-            if child.tag == f"{_HP}subList":
-                self.element.remove(child)
+        # Replace existing content with a simple paragraph (the notes in it leave the count).
+        self._remove_sublists()
         # A tab becomes an hp:tab inside hp:t, as Hancom writes it.
         set_text_with_tabs(self._ensure_text_element(), value)
         # Clear cached lineseg so Hangul recalculates layout.

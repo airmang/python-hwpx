@@ -1654,7 +1654,12 @@ class HwpxOxmlSectionProperties:
         return self._write_story("footer", page_type, lambda story: story.set_content(content))
 
     def remove_header(self, page_type: str = "BOTH") -> None:
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
         element = self._find_header_footer("header", page_type)
+        # the notes in what goes leave the count: looked for before, counted again after
+        note_kinds = note_kinds_in([story.element for story in self.headers
+                                    if page_type is None or story.element.get("applyPageType", "BOTH") == page_type])
         removed = False
         if element is not None:
             self.element.remove(element)
@@ -1665,9 +1670,15 @@ class HwpxOxmlSectionProperties:
             removed = True
         if removed:
             self.section.mark_dirty()
+            renumber_note_kinds(self.section, note_kinds)
 
     def remove_footer(self, page_type: str = "BOTH") -> None:
+        from .note_authoring import note_kinds_in, renumber_note_kinds
+
         element = self._find_header_footer("footer", page_type)
+        # the notes in what goes leave the count: looked for before, counted again after
+        note_kinds = note_kinds_in([story.element for story in self.footers
+                                    if page_type is None or story.element.get("applyPageType", "BOTH") == page_type])
         removed = False
         if element is not None:
             self.element.remove(element)
@@ -1678,3 +1689,4 @@ class HwpxOxmlSectionProperties:
             removed = True
         if removed:
             self.section.mark_dirty()
+            renumber_note_kinds(self.section, note_kinds)
