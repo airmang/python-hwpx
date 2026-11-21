@@ -64,8 +64,8 @@ CANONICAL_STACK_TABLE = """\
 | | 저장소 | 역할 |
 |---|---|---|
 | 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | 한/글 문서를 읽고·고치고·만드는 엔진 (이 저장소) |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 변환·양식 채움·메일 머지·미리보기, `hwpx` CLI, MCP 서버, 에이전트 플러그인 소스 |
-| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | Claude Code·Codex 플러그인 설치 목록 (`hwpx-plugin@hwpx`) |\
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 변환·양식 채움·메일 머지·미리보기·보고서 서식, `hwpx` CLI, MCP 서버, Claude Code·Codex 플러그인 |
+| 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | 학교 문서(지필평가 원안지·학습지·수행평가 문제지·보고서)를 학교 서식 그대로 만드는 도구 |\
 """
 
 

@@ -215,10 +215,10 @@ it clears the line layout data of paragraphs whose text changed, and Hangul lays
 | | Repository | Role |
 |---|---|---|
 | 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | the engine that reads, edits and creates Hangul documents (this repository) |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | conversion, form filling, mail merge, previews, the `hwpx` CLI, the MCP server, the agent plugin sources |
-| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | the Claude Code and Codex plugin catalogue (`hwpx-plugin@hwpx`) |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | conversion, form filling, mail merge, previews, report styles, the `hwpx` CLI, the MCP server, the Claude Code and Codex plugin |
+| 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | school documents (exam papers, worksheets, performance tasks, reports) made on each school's own forms |
 
-To use it from an agent, install the plugin:
+To use it from an agent, install the python-hwpx-automation plugin; its catalogue lives at `airmang/hwpx-plugins`:
 
 ```bash
 claude plugin marketplace add airmang/hwpx-plugins && claude plugin install hwpx-plugin@hwpx
@@ -236,14 +236,6 @@ there is an [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) for AI to
 > extra is empty and installs no render/PDF dependencies. That runtime belongs to
 > `python-hwpx-automation[oracle]`.
 
-## Comparison
-
-| | python-hwpx | pyhwpx | pyhwp |
-|---|---|---|---|
-| **Needs Hangul installed** | no | yes (drives Hangul through Windows COM) | no |
-| **Operating systems** | Linux · macOS · Windows · CI | Windows | Linux · macOS · Windows |
-| **Formats** | `.hwpx` read and write, `.hwp` read | whatever Hangul opens | `.hwp` (v5) |
-| **Edit and create** | ✅ | ✅ (Hangul does it) | mostly read |
 
 ## Known limits
 

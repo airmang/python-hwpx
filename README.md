@@ -209,10 +209,10 @@ python-hwpx로 만든 파일을 실제 한컴오피스에서 열어 보고, 확�
 | | 저장소 | 역할 |
 |---|---|---|
 | 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | 한/글 문서를 읽고·고치고·만드는 엔진 (이 저장소) |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 변환·양식 채움·메일 머지·미리보기, `hwpx` CLI, MCP 서버, 에이전트 플러그인 소스 |
-| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | Claude Code·Codex 플러그인 설치 목록 (`hwpx-plugin@hwpx`) |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 변환·양식 채움·메일 머지·미리보기·보고서 서식, `hwpx` CLI, MCP 서버, Claude Code·Codex 플러그인 |
+| 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | 학교 문서(지필평가 원안지·학습지·수행평가 문제지·보고서)를 학교 서식 그대로 만드는 도구 |
 
-AI 에이전트에서 쓰려면 플러그인을 설치하세요.
+AI 에이전트에서 쓰려면 python-hwpx-automation의 플러그인을 설치하세요. 설치 목록은 `airmang/hwpx-plugins`에 있습니다.
 
 ```bash
 claude plugin marketplace add airmang/hwpx-plugins && claude plugin install hwpx-plugin@hwpx
@@ -228,14 +228,6 @@ codex plugin marketplace add airmang/hwpx-plugins && codex plugin add hwpx-plugi
 > 예전 설치 명령과의 호환을 위해 `pip install "python-hwpx[visual]"`도 그대로 동작합니다. 다만 이 extra는 비어 있어
 > 렌더·PDF 의존성을 설치하지 않습니다. 그 일은 `python-hwpx-automation[oracle]`이 맡습니다.
 
-## 비교
-
-| | python-hwpx | pyhwpx | pyhwp |
-|---|---|---|---|
-| **한/글 설치** | 필요 없음 | 필요 (Windows COM으로 한/글을 조종) | 필요 없음 |
-| **운영체제** | Linux · macOS · Windows · CI | Windows | Linux · macOS · Windows |
-| **다루는 형식** | `.hwpx` 읽기·쓰기, `.hwp` 읽기 | 한/글이 여는 형식 | `.hwp` (v5) |
-| **편집·생성** | ✅ | ✅ (한/글이 함) | 대부분 읽기 |
 
 ## 알려진 제약
 
