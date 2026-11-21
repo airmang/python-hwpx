@@ -24,9 +24,9 @@ can be handled without Hancom Office. It runs on Windows, macOS, Linux and CI, a
 HWP 5.0 (`.hwp`) files open through the same API and save as HWPX.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-new-document.png" width="680" alt="A school plan made with python-hwpx 7.0.0, as Hancom Office draws the page: outline numbers, a footnote, a table with merged cells and an equation">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-report.png" width="640" alt="A 2026 digital education plan in the Korean government report style, as Hancom Office draws the page: a banner title, section numbers in navy cells, □ and - levels, and a table ruled above and below">
 </p>
-<p align="center"><sub>A document made with python-hwpx 7.0.0, as Hancom Office 12.30.0 draws the page (exported to PDF). The empty middle of the page is cut out.</sub></p>
+<p align="center"><sub>A document made on python-hwpx 7.0.0 with the report style of python-hwpx-automation 8.0 (<code>from_markdown(md, style="report")</code>), as Hancom Office 12.30.0 draws the page (exported to PDF).</sub></p>
 
 > **7.0 is out.** The save function, the public names and the home of some features changed.
 > Coming from 6.x? Start with [What changed in 7.0, and why](#what-changed-in-70-and-why).

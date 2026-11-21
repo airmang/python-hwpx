@@ -24,9 +24,9 @@ python-docx가 `.docx`를 다루듯, python-hwpx는 한/글 문서를 다룹니�
 HWP 5.0(`.hwp`) 파일도 같은 API로 열어 HWPX로 저장할 수 있습니다.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-new-document.png" width="680" alt="python-hwpx 7.0.0으로 만든 학교 운영계획 문서를 한컴오피스가 그린 쪽. 개요 번호, 각주, 칸을 합친 표, 수식이 들어 있다">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-report.png" width="640" alt="정부 보고서 서식으로 만든 2026년 디지털 교육 운영 계획을 한컴오피스가 그린 쪽. 색 띠 제목, 남색 칸의 장 번호, □와 - 위계, 위아래 굵은 선의 표가 있다">
 </p>
-<p align="center"><sub>python-hwpx 7.0.0으로 만든 문서를 한컴오피스 12.30.0이 그린 쪽(PDF로 내보낸 것). 가운데 빈 부분은 줄였습니다.</sub></p>
+<p align="center"><sub>python-hwpx 7.0.0 위에서 python-hwpx-automation 8.0의 보고서 서식(<code>from_markdown(md, style="report")</code>)으로 만든 문서를 한컴오피스 12.30.0이 그린 쪽(PDF로 내보낸 것).</sub></p>
 
 > **7.0이 나왔습니다.** 저장 함수와 공개 이름이 바뀌었고, 일부 기능은 다른 패키지로 옮겼습니다.
 > 6.x를 쓰고 있었다면 [7.0에서 무엇이 왜 바뀌었나](#70에서-무엇이-왜-바뀌었나)부터 읽어 주세요.
