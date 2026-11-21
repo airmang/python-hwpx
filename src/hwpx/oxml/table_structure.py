@@ -227,7 +227,7 @@ class TableStructureEdits:
         # A paragraph edited in the tree directly still holds the cache it was read with. The rebuild
         # below makes new elements, which the save can no longer pair with what was read: drop the
         # caches that outlived their content now, while it still can.
-        if section._remove_outlived_layout_caches(force=True):
+        if section._remove_outlived_layout_caches(force=True, rebuilding=element):
             section.mark_dirty()
         used = {
             int(found)
@@ -253,7 +253,8 @@ class TableStructureEdits:
         self._grow_height(before)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()
-        section._remove_outlived_layout_caches()  # track the rebuilt caches with the content they have now
+        # track the rebuilt caches with the content they have now
+        section._remove_outlived_layout_caches(rebuilt=(element, self.paragraph.element))
         # Rows or columns copied with their content repeated their notes' numbers (1, 1), and rows
         # deleted left the numbers after them as they were: number the kinds the table held or holds.
         renumber_note_kinds(section, note_kinds | note_kinds_in((element,)))
