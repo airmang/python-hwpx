@@ -23,6 +23,11 @@ python-hwpx does for Hangul documents what python-docx does for `.docx`. HWPX is
 can be handled without Hancom Office. It runs on Windows, macOS, Linux and CI, and its only dependency is `lxml`.
 HWP 5.0 (`.hwp`) files open through the same API and save as HWPX.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-new-document.png" width="680" alt="A school plan made with python-hwpx 7.0.0, as Hancom Office draws the page: outline numbers, a footnote, a table with merged cells and an equation">
+</p>
+<p align="center"><sub>A document made with python-hwpx 7.0.0, as Hancom Office 12.30.0 draws the page (exported to PDF). The empty middle of the page is cut out.</sub></p>
+
 > **7.0 is out.** The save function, the public names and the home of some features changed.
 > Coming from 6.x? Start with [What changed in 7.0, and why](#what-changed-in-70-and-why).
 
@@ -67,6 +72,8 @@ for place in doc.text.iter_paragraphs(where={"cell"}):
 doc.save("plan.hwpx")
 ```
 
+### Filling a form
+
 Open an existing document with `HwpxDocument.open("report.hwpx")`. A `.hwp` opens the same way and the result is saved
 as HWPX. To put values into a form and keep everything else byte for byte, save with `mode="patch"`.
 
@@ -78,6 +85,11 @@ doc.tables[0].cell(0, 1).text = "Hong Gildong"
 doc.tables[0].cell(1, 1).text = "Platform team"
 report = doc.save("application-filled.hwpx", mode="patch", fallback="error")
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-form-fill.png" width="760" alt="A blank after-school class application form, and the same form with only its cells filled by python-hwpx, as Hancom Office draws them">
+</p>
+<p align="center"><sub>The blank form (left) and the form filled with <code>mode="patch"</code> (right), both as Hancom Office draws them.</sub></p>
 
 `mode="patch"` copies every ZIP part you did not change, compressed bytes included; a save with no change gives the
 same file. The report `save()` returns (`MutationReport`) says what changed. On a form with tables inside cells, the
@@ -113,11 +125,11 @@ The six changes below all come from that rule.
 
 ### 1. Features that guess moved to python-hwpx-automation
 
-**What changed** Markdown and HTML conversion, importing other formats and the LangChain and LlamaIndex loaders,
+**What changed:** Markdown and HTML conversion, importing other formats and the LangChain and LlamaIndex loaders,
 finding form cells by their labels, mail merge, previews and format rule checks moved to
 [python-hwpx-automation](https://github.com/airmang/python-hwpx-automation) 8.0.
 
-**Why** These features have no single right answer. Whether the cell beside a label is that item's cell, or how a
+**Why:** These features have no single right answer. Whether the cell beside a label is that item's cell, or how a
 Markdown heading should look, is a guess or a taste. With guesses inside the engine, the promise "exactly what the file
 says" can no longer be checked by a machine. So the line is drawn at "does it read and write what is in the file, or
 does it guess and choose". Nothing was removed: arguments and results are the same as in 6.x, and calling an old name
@@ -125,19 +137,19 @@ raises an error that names the new place. The engine still depends on `lxml` onl
 
 ### 2. Saving is one function, `doc.save()`
 
-**What changed** `save_to_path`, `save_to_stream` and `save_report` became `doc.save(target)`, and `from_package` became
+**What changed:** `save_to_path`, `save_to_stream` and `save_report` became `doc.save(target)`, and `from_package` became
 `open()`. `save()` takes a path or a stream and always returns a `MutationReport`.
 
-**Why** The four functions overlapped, yet returned `None`, a path or a report. To check what a save did, you had to
+**Why:** The four functions overlapped, yet returned `None`, a path or a report. To check what a save did, you had to
 remember which one to call. Now the result of a save always comes back in the same shape, and a stream save that fails
 part way is rolled back.
 
 ### 3. Public names follow one rule, and are frozen
 
-**What changed** `row_index=` → `row=`, `horz_rel_to=` → `horizontal_relative_to=`, `line_width='33'` →
+**What changed:** `row_index=` → `row=`, `horz_rel_to=` → `horizontal_relative_to=`, `line_width='33'` →
 `line_width_mm=0.12`, `table.get_cell_map()` → `table.cell_map`. The 79 root names 6.0 had kept with a warning are gone.
 
-**Why** 6.x mixed abbreviations, names copied from XML attributes, numbers without units (nothing in `'33'` says what
+**Why:** 6.x mixed abbreviations, names copied from XML attributes, numbers without units (nothing in `'33'` says what
 unit it is) and `get_` prefixes, so the API had to be memorized name by name. The rule has three parts: names are
 spelled out, units are part of the name, and reads without arguments are properties. 7.0 is the last rename. The public
 names are frozen in `tests/data/public_surface.json` and stay until the next major.
@@ -148,29 +160,29 @@ calling a removed name tells you the new name and a one-line example on the spot
 
 ### 4. Writes Hangul would not accept are refused
 
-**What changed** Every XML shape the engine writes is based on files Hangul itself saved; combinations without that
+**What changed:** Every XML shape the engine writes is based on files Hangul itself saved; combinations without that
 evidence are refused before writing, with an error that carries a `code`. A refused call leaves the document untouched.
 Editing the document through a table or paragraph already removed from it is refused, and reading never changes the
 document. Writing `.hwp` stays experimental, and overwriting the source or writing what could not be carried over is
 blocked.
 
-**Why** The worst failure is a file saved without an error that Hangul then cannot open, or draws differently. A clear
+**Why:** The worst failure is a file saved without an error that Hangul then cannot open, or draws differently. A clear
 refusal with a reason beats being silently wrong.
 
 ### 5. What used to need raw XML is public API
 
-**What changed** Table structure edits, object position, rotation and flipping, character and paragraph formatting,
+**What changed:** Table structure edits, object position, rotation and flipping, character and paragraph formatting,
 form fields, footnotes and endnotes, tables of contents, cross references and tracked changes are public API.
 
-**Why** In 6.x these took direct XML edits through `.element`, and such edits skipped the engine's checks. Through the
+**Why:** In 6.x these took direct XML edits through `.element`, and such edits skipped the engine's checks. Through the
 public API, the refusals and checks of change 4 come along. Most of the roughly 21,000 lines (23%) the engine grew since
 6.12.0 are this. `.element` remains as an escape hatch, but it is not a promised surface.
 
 ### 6. A new document no longer starts with a blank line
 
-**What changed** After `HwpxDocument.new()`, the first paragraph you add is `doc.paragraphs[0]`.
+**What changed:** After `HwpxDocument.new()`, the first paragraph you add is `doc.paragraphs[0]`.
 
-**Why** A 6.x document always started with a blank line, which stayed as a useless empty line at the top of what you
+**Why:** A 6.x document always started with a blank line, which stayed as a useless empty line at the top of what you
 made. This change shifts paragraph numbers by one without any error, so it comes first in the
 [migration guide](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md). To start as 6.x did, use
 `HwpxDocument.new(empty_first_line=True)`.
@@ -197,9 +209,6 @@ the date.
 These numbers measure whether Hangul accepts the file, not that it looks identical. The engine does not lay out pages:
 it clears the line layout data of paragraphs whose text changed, and Hangul lays them out again when it opens the file.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-open-generated.png" width="760" alt="An HWPX document made with python-hwpx, opened in real Hancom Office">
-</p>
 
 ## Companion packages
 
@@ -222,9 +231,6 @@ document and ask: "install the attached whl with pip, then open this .hwpx with 
 instructions are in [using it in AI chats](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md), and
 there is an [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) for AI tools.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="Uploading an .hwpx form to a plain ChatGPT conversation and getting back a filled document with its formatting intact">
-</p>
 
 > For older install commands, `pip install "python-hwpx[visual]"` still works, but the `visual`
 > extra is empty and installs no render/PDF dependencies. That runtime belongs to
