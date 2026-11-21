@@ -218,12 +218,17 @@ it clears the line layout data of paragraphs whose text changed, and Hangul lays
 | 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | conversion, form filling, mail merge, previews, report styles, the `hwpx` CLI, the MCP server, the Claude Code and Codex plugin |
 | 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | school documents (exam papers, worksheets, performance tasks, reports) made on each school's own forms |
 
-To use it from an agent, install the python-hwpx-automation plugin; its catalogue lives at `airmang/hwpx-plugins`:
+In Claude Code and Codex, the python-hwpx-automation repository address alone installs the plugin. It installs the
+engine and the automation package at verified versions and adds the MCP tools and task guidance (it needs
+[uv](https://docs.astral.sh/uv/)). You can ask the agent "install the plugin from
+https://github.com/airmang/python-hwpx-automation", or install it yourself:
 
 ```bash
-claude plugin marketplace add airmang/hwpx-plugins && claude plugin install hwpx-plugin@hwpx
-codex plugin marketplace add airmang/hwpx-plugins && codex plugin add hwpx-plugin@hwpx
+claude plugin marketplace add airmang/python-hwpx-automation && claude plugin install hwpx-plugin@hwpx
+codex plugin marketplace add airmang/python-hwpx-automation && codex plugin add hwpx-plugin@hwpx
 ```
+
+To use the automation features from Python code, `pip install -U python-hwpx-automation` is enough; it installs the engine too.
 
 It also works in a plain ChatGPT conversation. The chat's Python runtime cannot reach PyPI, so upload the
 `python_hwpx-*.whl` from the [latest Release](https://github.com/airmang/python-hwpx/releases/latest) together with the

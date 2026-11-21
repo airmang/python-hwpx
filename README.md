@@ -212,12 +212,16 @@ python-hwpx로 만든 파일을 실제 한컴오피스에서 열어 보고, 확�
 | 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 변환·양식 채움·메일 머지·미리보기·보고서 서식, `hwpx` CLI, MCP 서버, Claude Code·Codex 플러그인 |
 | 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | 학교 문서(지필평가 원안지·학습지·수행평가 문제지·보고서)를 학교 서식 그대로 만드는 도구 |
 
-AI 에이전트에서 쓰려면 python-hwpx-automation의 플러그인을 설치하세요. 설치 목록은 `airmang/hwpx-plugins`에 있습니다.
+Claude Code·Codex에서는 python-hwpx-automation 저장소 주소 하나로 플러그인을 설치합니다. 플러그인이 엔진과 자동화 패키지를
+검증한 판으로 설치하고 MCP 도구와 작업 안내를 붙입니다([uv](https://docs.astral.sh/uv/)가 필요합니다).
+에이전트에게 "https://github.com/airmang/python-hwpx-automation 플러그인을 설치해 줘"라고 부탁해도 되고, 직접 설치하려면 아래와 같습니다.
 
 ```bash
-claude plugin marketplace add airmang/hwpx-plugins && claude plugin install hwpx-plugin@hwpx
-codex plugin marketplace add airmang/hwpx-plugins && codex plugin add hwpx-plugin@hwpx
+claude plugin marketplace add airmang/python-hwpx-automation && claude plugin install hwpx-plugin@hwpx
+codex plugin marketplace add airmang/python-hwpx-automation && codex plugin add hwpx-plugin@hwpx
 ```
+
+파이썬 코드에서 자동화 기능까지 쓰려면 `pip install -U python-hwpx-automation` 하나면 됩니다. 엔진도 함께 설치됩니다.
 
 일반 ChatGPT 대화에서도 쓸 수 있습니다. 채팅 속 파이썬 환경은 PyPI에 접속할 수 없으므로,
 [최신 Release](https://github.com/airmang/python-hwpx/releases/latest)의 `python_hwpx-*.whl` 파일을 문서와 함께 올린 뒤
