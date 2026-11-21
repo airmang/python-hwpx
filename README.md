@@ -1,32 +1,45 @@
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
-    <strong>한컴오피스 없이 한/글 문서(HWPX·HWP)를 읽고 고치고 만드는 파이썬 라이브러리</strong>
+    <strong>한컴오피스 없이 한/글 문서(HWPX·HWP)를 읽고, 고치고, 만드는 파이썬 엔진</strong>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
     <a href="https://pepy.tech/project/python-hwpx"><img src="https://static.pepy.tech/badge/python-hwpx/month" alt="Downloads"></a>
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx" alt="Python"></a>
     <a href="https://github.com/airmang/python-hwpx/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/airmang/python-hwpx/tests.yml?branch=main&label=tests" alt="Tests"></a>
-    <a href="https://airmang.github.io/python-hwpx/corpus-metrics.html"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fairmang.github.io%2Fpython-hwpx%2F_static%2Fbadge-hancom-open.json" alt="Hancom open"></a>
     <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  </p>
+  <p align="center">
+    한국어 | <a href="https://github.com/airmang/python-hwpx/blob/main/README_EN.md">English</a>
+    · <a href="https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md">퀵스타트</a>
+    · <a href="https://github.com/airmang/python-hwpx/blob/main/docs/usage.md">사용 가이드</a>
+    · <a href="https://airmang.github.io/python-hwpx/">API 레퍼런스</a>
+    · <a href="https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md">7.0 이주 가이드</a>
   </p>
 </p>
 
-<p align="center">한국어 | <a href="https://github.com/airmang/python-hwpx/blob/main/README_EN.md">English</a></p>
+python-docx가 `.docx`를 다루듯, python-hwpx는 한/글 문서를 다룹니다. HWPX는 XML(OWPML)을 ZIP으로 묶은 형식이라
+한컴오피스 없이도 읽고 쓸 수 있습니다. Windows·macOS·Linux는 물론 CI에서도 돌아가고, 필요한 패키지는 `lxml` 하나뿐입니다.
+HWP 5.0(`.hwp`) 파일도 같은 API로 열어 HWPX로 저장할 수 있습니다.
 
-HWPX는 ZIP 안에 XML(OWPML)을 담은 형식이라, 한컴오피스가 없어도 파이썬만으로 다룰 수 있습니다.
-python-hwpx는 Windows·macOS·Linux·CI 어디서나 돌고 의존성은 `lxml` 하나입니다. HWP 5.0(`.hwp`)도 같은
-API로 열어 HWPX로 바꿉니다.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-report.png" width="640" alt="정부 보고서 서식으로 만든 2026년 디지털 교육 운영 계획을 한컴오피스가 그린 쪽. 색 띠 제목, 남색 칸의 장 번호, □와 - 위계, 위아래 굵은 선의 표가 있다">
+</p>
+<p align="center"><sub>python-hwpx 7.0.0 위에서 python-hwpx-automation 8.0의 보고서 서식(<code>from_markdown(md, style="report")</code>)으로 만든 문서를 한컴오피스 12.30.0이 그린 쪽(PDF로 내보낸 것).</sub></p>
 
-만든 문서는 한컴오피스 2024에서 직접 열어 보고 그 결과를 날짜와 함께
-[아래](#한글과-얼마나-같은가)에 적어 둡니다.
+> **7.0이 나왔습니다.** 저장 함수와 공개 이름이 바뀌었고, 일부 기능은 다른 패키지로 옮겼습니다.
+> 6.x를 쓰고 있었다면 [7.0에서 무엇이 왜 바뀌었나](#70에서-무엇이-왜-바뀌었나)부터 읽어 주세요.
 
-## 시작하기
+## 설치
 
 ```bash
-pip install python-hwpx      # Python 3.10+
+pip install -U python-hwpx      # Python 3.10+
 ```
+
+## 빠른 시작
+
+새 문서를 만들어 봅니다. 스타일은 이름으로 지정하며, 문서에 없는 이름을 쓰면 그 자리에서 오류가 납니다.
 
 <!-- standalone-python-example -->
 
@@ -39,12 +52,7 @@ doc.add_paragraph("추진 배경", style="개요 2")  # 한/글이 "가." 번호
 doc.save("계획.hwpx")
 ```
 
-스타일은 이름으로 고릅니다. 없는 이름을 쓰면 그 줄에서 바로 오류가 납니다.
-있는 문서를 고칠 때는 `HwpxDocument.open("보고서.hwpx")`로 시작합니다. `.hwp`도 똑같이 열고,
-고친 결과는 `save("보고서.hwpx")`로 HWPX로 저장합니다.
-
-글자 크기·정렬과 표 칸은 그 자리에서 읽고 고칩니다. 표 칸·머리말·각주까지 문서의 모든 문단을 자리와 함께
-훑을 수 있습니다.
+글자 크기와 정렬, 표 칸은 바로 읽고 고칠 수 있습니다. 표 칸·머리말·각주에 든 문단까지 위치와 함께 차례로 훑을 수도 있습니다.
 
 <!-- standalone-python-example -->
 
@@ -63,40 +71,10 @@ for place in doc.text.iter_paragraphs(where={"cell"}):
 doc.save("계획.hwpx")
 ```
 
-Markdown·HTML 변환, 이름표로 양식 칸 찾기, 메일 머지, 미리보기, 문서 저작·시험지 조판 같은 상위 워크플로는
-7.0부터 [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)에 있습니다
-(`pip install -U python-hwpx-automation`). 이 패키지는 파일에 적힌 대로 읽고 씁니다.
+### 양식 채우기
 
-6.x에서 올라온다면 [7.0 이주 가이드](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md)에 바뀐 이름과 새 자리가 모두 있습니다. 없어진 이름을 부르면
-오류가 새 이름을 알려 줍니다.
-
-> 예전 설치 명령을 위해 `pip install "python-hwpx[visual]"`도 계속 됩니다. 다만 이 extra는 비어 있어
-> 렌더·PDF 의존성을 설치하지 않습니다. 그 일은 `python-hwpx-automation[oracle]`이 맡습니다.
-
-## 할 수 있는 것
-
-- 읽기·추출: 한/글의 텍스트 저장처럼 평문으로 내보냅니다(`doc.text.plain()`, 목록 번호·각주 포함 선택).
-  `doc.text.outline()`은 글 덩어리를 id와 함께 글자 예산 안에서 돌려주고, `doc.text.iter_paragraphs()`는 표 칸·글상자·
-  머리말·각주의 문단까지 자리와 함께 내놓습니다. `.hwp`도 같은 호출로 읽습니다
-  ([사용법](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md#ai-파이프라인에서-읽기)).
-- 편집: 문단·표·그림·머리말/꼬리말·메모·각주, 줄 간격·여백·쪽 번호 같은 서식을 고칩니다.
-- 양식 채우기: 칸·누름틀에 값만 넣고 손대지 않은 부분은 바이트 그대로 둡니다. FormFit은 값이
-  칸에 들어가도록 줄을 바꾸거나 글자를 줄일지 한/글의 글자 폭으로 재서 고릅니다.
-- 표 구조 편집: 행·열 넣기와 지우기, 칸 나누기와 합치기. `doc.tables[0]`처럼 번호로 표를 꺼냅니다.
-- 만들기·일괄 처리: 새 문서, 목차·상호 참조, 문서 비교, 변경 추적.
-- HWP 5.0: `.hwp`를 HWPX로 읽어 같은 API로 고치고 HWPX로 저장합니다. 옮기지 못한 내용은
-  `document.conversion_report`에 남습니다. `.hwp`로 다시 쓰는 기능은 실험입니다. 연 원본을 덮어쓰지 않고,
-  옮기지 못한 내용이 있으면 쓰지 않습니다.
-- 배치 추정(실험): `estimate_pages`는 한/글 없이 쪽 수와 줄마다의 쪽·세로 위치를 추정합니다.
-  `write_line_caches`는 한/글이 저장할 때 쓰는 줄 배치 정보를, 한/글과 같은 값을 확실히 아는 문단에만 씁니다.
-  rhwp처럼 이 정보로 그림 자리를 찾는 뷰어에서도 그림이 보이게 됩니다. 기본으로는 쓰지 않습니다.
-- 검증·안전: 패키지 구조 검사 CLI, 저장 전 열림 검사, 저장 결과 보고(`save()`가 돌려주는 `MutationReport`). 기본 저장은 없는 글자 모양·
-  문단 모양을 가리키는 참조까지는 확인하지 않습니다. 그 검사는 `save(..., quality=QualityPolicy(require_visual_complete=False))`가 합니다
-  ([검사 범위](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md#변경-사항-저장과-결과물-확인)).
-
-자세한 내용: [5분 퀵스타트](https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md) · [사용 가이드](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md) · [API 레퍼런스](https://airmang.github.io/python-hwpx/) · [예제](https://github.com/airmang/python-hwpx/blob/main/docs/examples.md) · [지원 매트릭스](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md)
-
-### 양식 채우기 예
+기존 문서는 `HwpxDocument.open("보고서.hwpx")`로 엽니다. `.hwp` 파일도 똑같이 열리며, 고친 결과는 HWPX로 저장됩니다.
+양식에 값만 채우고 나머지는 원본 그대로 두고 싶다면 `mode="patch"`로 저장하세요.
 
 ```python
 doc = HwpxDocument.open("신청서.hwpx")
@@ -107,104 +85,174 @@ doc.tables[0].cell(1, 1).text = "플랫폼팀"
 report = doc.save("신청서-작성완료.hwpx", mode="patch", fallback="error")
 ```
 
-`mode="patch"`는 고치지 않은 ZIP 파트를 바이트 그대로 두라는 뜻입니다. 고치지 않은 파트는 압축된 바이트까지
-원본 그대로 옮기고, 아무것도 고치지 않은 저장은 파일째 같습니다(커서가 없는 문단을 가리키는 문서는 `settings.xml`의 커서 자리만 고쳐 씁니다). 고친 파트는 내용이 결정적이지만 압축된 바이트는
-Python이 쓰는 zlib 구현에 따라 다를 수 있습니다. 고친 파트 안쪽과 화면 배치는 따로
-확인해야 합니다. 저장한 파일을 다시 열어 내용까지 확인하는 방법은 [안전한 쓰기 계약](https://github.com/airmang/python-hwpx/blob/main/docs/safe-write-contract.md)에
-있습니다. 이름표 글자로 칸을 찾아 채우는 `fill_by_path`는 python-hwpx-automation(`hwpx_automation.forms`)에 있습니다.
-
-`doc.tables.map()`이 매긴 표 번호(`table_index`)는 칸 안의 표까지 센 번호라 `doc.tables.with_nested`의 번호와 같습니다.
-`doc.tables`는 칸 안의 표를 세지 않으므로, 칸 안에 표가 있는 양식에서는 `doc.tables.with_nested[table_index]`로 고르세요.
-합친 칸은 덮는 자리마다 같은 글로 한 번씩 나옵니다.
-
-*독립 실행 예제로 표시하지 않은 블록은 여러분이 가진 문서를 입력으로 쓰는 조각입니다. 예제별 Python 블록 판정은
-[실행 기록](https://github.com/airmang/python-hwpx/blob/main/docs/python-example-ledger.json)에 남겨 둡니다.*
-
-## 한/글과 얼마나 같은가
-
-만든 파일을 실제 한컴오피스로 열어 보고 그대로 적습니다. 숫자마다 잰 날짜와 프로그램 판을 붙입니다.
-
-줄 배치와 쪽 수 추정은 실험 기능입니다. 정확도 숫자는 측정 스크립트와 기록을 저장소에 함께 실을 수 있을 때 적습니다.
-
-**열림: 한컴오피스 12 (macOS)**
-
-- 한컴에서 열림 120/120, 렌더 검증 120/120: 기준 문서와 저작 기능 6종(각주·누름틀·수식·차트·체크박스·편집
-  계획)을 줄여서 잰 것 (5.7.0 · 2026-08-03)
-- 한컴에서 열림 476/476: 동결한 코퍼스 전체(N=497) (3.4.1 · 2026-07-19)
-- 고치지 않은 영역의 바이트 보존 497/497, 개인정보 유출 0
-- 렌더 검증 416/476: 한컴이 PDF 내보내기를 거부한 43건도 빼지 않고 셌습니다.
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-open-generated.png" width="760" alt="ChatGPT 실행 환경에서 python-hwpx로 생성한 HWPX 문서를 실제 한컴오피스에서 연 모습">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-form-fill.png" width="760" alt="빈 방과후학교 참가 신청서와, python-hwpx가 칸에 값만 채운 같은 신청서를 한컴오피스가 그린 쪽">
 </p>
-<p align="center"><sub>ChatGPT 실행 환경에서 만든 문서를 실제 한컴오피스로 연 모습.</sub></p>
+<p align="center"><sub>빈 양식(왼쪽)과 <code>mode="patch"</code>로 값만 채운 양식(오른쪽). 둘 다 한컴오피스가 그린 쪽입니다.</sub></p>
 
-전체 숫자와 주의할 점은 [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html)에,
-기능별 등급은 [지원 매트릭스](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md)에 있습니다. 이 숫자들은 "만든 파일을 한/글이 어떻게
-받는가"를 잰 것이고 파서가 문서를 얼마나 잘 읽는지와는 다른 지표입니다.
+`mode="patch"`로 저장하면 손대지 않은 부분은 압축된 바이트까지 원본과 같습니다. 아무것도 고치지 않았다면 파일 전체가
+원본과 똑같습니다. 무엇이 바뀌었는지는 `save()`가 돌려주는 보고서(`MutationReport`)에서 확인할 수 있습니다.
 
-개발 단계는 안정(Production/Stable)입니다. 하위 호환을 지키는 범위는 [안정 API 표면](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md)에 적혀 있고,
-`hwpx.experimental`과 위에서 "실험"이라고 적은 기능은 바뀔 수 있습니다.
+칸 안에 표가 들어 있는 양식이라면 주의할 점이 하나 있습니다. `doc.tables.map()`의 표 번호(`table_index`)는 안쪽 표까지 센
+번호이므로, 표를 고를 때는 `doc.tables.with_nested[table_index]`를 쓰세요. 이름표 글자로 칸을 찾아 채우는 기능은
+[python-hwpx-automation](#함께-쓰는-패키지)에 있습니다.
 
-## 어디서 쓰나
+<sub>앞의 두 예제는 그대로 실행됩니다. 세 번째처럼 내 문서가 있어야 돌아가는 조각까지, 예제마다의 Python 블록 판정은
+[실행 기록](https://github.com/airmang/python-hwpx/blob/main/docs/python-example-ledger.json)에 남겨 둡니다.</sub>
 
-| 환경 | 방법 |
+## 할 수 있는 것
+
+| | |
 |---|---|
-| 로컬·서버 파이썬 | `pip install python-hwpx` (스크립트·배치·CI) |
-| 파이썬 자동화 (MCP 없이) | `pip install -U python-hwpx-automation` (저작·양식 채움·검증 워크플로) |
-| 일반 ChatGPT 대화 | `.hwpx`와 [Release wheel](https://github.com/airmang/python-hwpx/releases/latest)을 함께 올려 대화 안에서 설치([안내](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md)) |
-| ChatGPT MCP 앱 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)의 MCP adapter를 커넥터로 등록 |
-| Codex 마켓플레이스 플러그인 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) 설치 |
-| Claude Code · Hermes · OpenClaw | 같은 MCP 서버를 각 클라이언트에 등록 ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
+| **읽기** | 한/글의 "텍스트로 저장"과 같은 평문(`doc.text.plain()`), 정해진 글자 수 안의 개요(`doc.text.outline()`), 표 칸·글상자·머리말·각주 속 문단과 그 위치(`doc.text.iter_paragraphs()`) |
+| **편집** | 문단과 런, 글자·문단 서식, 머리말·꼬리말, 쪽 설정과 쪽 번호, 그림, 도형, 수식, 메모, 각주·미주 |
+| **표** | 칸 읽고 쓰기, 행·열 넣기·지우기·옮기기, 칸 합치기·나누기, 테두리와 채우기, 칸 안의 표 |
+| **양식** | 누름틀 읽고 채우기, 값만 넣는 패치 저장, 값이 칸에 들어가도록 줄을 바꾸거나 글자를 줄이는 FormFit |
+| **문서 구조** | 차례, 상호 참조, 책갈피, 하이퍼링크, 변경 추적, 문서끼리 복사·병합 |
+| **HWP 5.0** | `.hwp`를 같은 API로 읽어 HWPX로 저장. 옮기지 못한 내용은 `doc.conversion_report`에 기록. `.hwp`로 다시 쓰기는 실험 기능 |
+| **검사** | 패키지 구조 검사, 저장 전 한/글 열림 검사, 저장 품질 정책(`QualityPolicy`) |
+| **배치 추정** (실험) | 한/글 없이 쪽 수와 줄 위치 추정(`estimate_pages`), 확실한 문단에만 줄 배치 정보 쓰기(`write_line_caches`) |
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="일반 ChatGPT 대화에 hwpx 양식을 올려 지도안 작성을 부탁하고, 양식이 유지된 채 채워진 문서를 돌려받는 화면">
-</p>
-<p align="center"><sub>일반 ChatGPT 대화에서 양식 <code>.hwpx</code>를 올리고 부탁하면, 서식은 그대로이고 값만 채운 문서가 돌아옵니다.</sub></p>
+개발 단계는 안정(Production/Stable)입니다. 하위 호환을 약속하는 범위는 [안정 API 표면](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md)에
+정리해 두었습니다. `hwpx.experimental`과 위 표에서 "실험"으로 표시한 기능은 바뀔 수 있습니다.
 
-ChatGPT 채팅의 파이썬 환경은 PyPI에 접속하지 못합니다. 그래서 [최신 Release](https://github.com/airmang/python-hwpx/releases/latest)의
-`python_hwpx-*.whl`을 문서와 함께 올리고 이렇게 부탁합니다.
+## 7.0에서 무엇이 왜 바뀌었나
 
-```text
-첨부한 python_hwpx-*.whl 을 pip 로 설치한 다음(pip install /mnt/data/python_hwpx-*.whl),
-이 .hwpx 파일을 python-hwpx 라이브러리로 열어서 작업해줘.
-양식과 서식은 그대로 두고, ○○만 바꿔서 새 파일로 돌려줘.
-```
+7.0에서 지킨 원칙은 하나입니다. **엔진은 파일에 적힌 것과 다른 값을 돌려주지 않고, 한/글이 받아들이지 않을 파일을 쓰지
+않습니다.** 같은 파일에는 언제나 같은 결과를 내고, 한/글에서 확인한 근거가 없는 쓰기는 하지 않습니다. 아래 여섯 가지 변경은
+모두 이 원칙에서 나왔습니다.
 
-설치부터 결과 파일까지 대화 안에서 끝나므로 내 컴퓨터에 파이썬이 없어도 됩니다. wheel의 의존성은 `lxml`
-하나이고 실행 환경에 없으면 lxml wheel도 함께 올립니다. 에이전트용 지시문은 [AI 채팅 환경에서 쓰기](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md)에,
-AI 도구가 API를 정확히 익히도록 만든 [llms.txt](https://airmang.github.io/python-hwpx/llms.txt)도 있습니다.
+### 1. 짐작이 필요한 기능은 python-hwpx-automation으로 옮겼습니다
+
+**바뀐 것:** Markdown·HTML 변환, 다른 형식 가져오기, LangChain·LlamaIndex 연동, 이름표로 양식 칸 찾기, 메일 머지, 미리보기,
+서식 규칙 검사를 [python-hwpx-automation](https://github.com/airmang/python-hwpx-automation) 8.0으로 옮겼습니다.
+
+**왜:** 이런 기능에는 정답이 하나로 정해져 있지 않습니다. 이름표 옆 칸이 정말 그 항목을 적는 칸인지, Markdown 제목을 어떤
+모양으로 옮길지는 결국 짐작이나 취향의 문제입니다. 엔진 안에 짐작이 섞이면 "파일에 적힌 그대로"라는 약속을 기계로 검증할 수
+없게 됩니다. 그래서 파일에 적힌 것을 읽고 쓰는 일은 엔진에, 짐작하고 고르는 일은 자동화 패키지에 두었습니다.
+
+기능이 사라진 것은 아닙니다. 인자와 결과는 6.x와 같고, 옛 이름을 부르면 새 위치를 알려 주는 오류가 납니다. 엔진이 의존하는
+패키지는 여전히 `lxml` 하나입니다.
+
+### 2. 저장은 `doc.save()` 하나로 합쳤습니다
+
+**바뀐 것:** `save_to_path`·`save_to_stream`·`save_report`를 `doc.save(target)` 하나로, `from_package`를 `open()`으로 합쳤습니다.
+`save()`는 경로와 스트림을 모두 받고, 언제나 `MutationReport`를 돌려줍니다.
+
+**왜:** 네 함수는 하는 일이 겹치는데도 돌려주는 값이 `None`, 경로, 보고서로 제각각이었습니다. 저장 결과를 확인하려면 어떤
+함수를 써야 하는지부터 기억해야 했습니다. 이제는 어떻게 저장하든 결과가 같은 형태로 돌아오고, 스트림에 저장하다 실패하면
+쓰기 전 상태로 되돌립니다.
+
+### 3. 공개 이름을 한 가지 규칙으로 정리하고 고정했습니다
+
+**바뀐 것:** `row_index=` → `row=`, `horz_rel_to=` → `horizontal_relative_to=`, `line_width='33'` → `line_width_mm=0.12`,
+`table.get_cell_map()` → `table.cell_map`처럼 이름을 고쳤습니다. 6.0에서 경고와 함께 남겨 두었던 루트의 옛 이름 79개도 지웠습니다.
+
+**왜:** 6.x에는 줄임말, XML 속성 이름을 그대로 옮긴 이름, 단위 없는 숫자, `get_` 접두사가 뒤섞여 있어 이름을 하나하나 외워야
+했습니다. `'33'`만 봐서는 무슨 단위인지 알 수 없는 식입니다. 이제 규칙은 세 가지입니다. 이름은 줄이지 않고 풀어 쓰고, 단위는
+이름에 붙이고, 인자가 없는 읽기는 속성으로 둡니다.
+
+이번이 마지막 이름 변경입니다. 공개 이름은 `tests/data/public_surface.json`에 고정해 두었고, 다음 major 판까지 바꾸지 않습니다.
+한꺼번에 정리하면서 6.x에서 미리 경고하지 않았던 이름(저장 함수 등)도 함께 지웠는데, 이는
+[안정 API 규칙](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md)의 예외입니다. 그 대신 지운 이름을 부르면
+새 이름과 한 줄짜리 예시를 바로 알려 줍니다.
+
+### 4. 한/글이 받아들이지 않을 쓰기는 거부합니다
+
+**바뀐 것:** 엔진이 새로 쓰는 XML은 모두 한/글이 실제로 저장한 파일을 근거로 삼습니다. 근거가 없는 조합은 쓰기 전에 `code`가
+붙은 오류로 거부하며, 거부된 호출은 문서를 전혀 바꾸지 않습니다. 문서에서 떼어 낸 표나 문단을 통해 문서를 고치려 해도 거부하고,
+읽기만 해서 문서가 바뀌는 일도 없습니다. `.hwp`로 쓰기는 실험 기능으로 두되, 원본을 덮어쓰거나 옮기지 못한 내용이 있는 경우에는
+쓰지 않습니다.
+
+**왜:** 가장 나쁜 실패는 오류 없이 저장됐는데 한/글에서 열리지 않거나 다르게 보이는 파일입니다. 틀린 파일을 조용히 만드느니,
+분명하게 거부하고 이유를 알려 주는 편이 낫습니다.
+
+### 5. XML을 직접 고쳐야 했던 일을 공개 API로 열었습니다
+
+**바뀐 것:** 표 구조 편집, 개체의 위치·회전·뒤집기, 글자·문단 서식, 누름틀, 각주·미주, 차례, 상호 참조, 변경 추적을 공개 API로
+다룰 수 있습니다.
+
+**왜:** 6.x에서는 이런 작업을 하려면 `.element`로 XML을 직접 고쳐야 했고, 그렇게 고친 내용은 엔진의 검사를 거치지 않았습니다.
+공개 API를 쓰면 4번의 거부와 검사가 함께 적용됩니다. 본체 코드가 6.12.0보다 약 2만 1천 줄(23%) 늘어난 것도 대부분 이
+때문입니다. `.element`는 탈출구로 남겨 두었지만 호환을 약속하는 표면은 아닙니다.
+
+### 6. 새 문서가 빈 줄로 시작하지 않습니다
+
+**바뀐 것:** `HwpxDocument.new()`로 만든 문서에 처음 더한 문단이 `doc.paragraphs[0]`이 됩니다.
+
+**왜:** 6.x에서는 새 문서가 늘 빈 줄로 시작해서, 완성한 문서 맨 위에 쓸모없는 빈 줄이 남았습니다. 이 변경은 오류 없이 문단
+번호만 하나씩 당겨지므로 [이주 가이드](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md) 맨 앞에 따로
+적어 두었습니다. 6.x처럼 빈 줄로 시작하려면 `HwpxDocument.new(empty_first_line=True)`를 쓰세요.
+
+### 올리는 법
+
+1. `pip install -U python-hwpx`로 올립니다.
+2. 테스트를 돌립니다. 지운 이름을 쓰는 곳에서는 오류가 새 이름을 알려 줍니다.
+3. 오류 없이 결과만 달라지는 경우는 [7.0 이주 가이드](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md)의 표로 확인합니다.
+4. 1번에서 옮긴 기능을 쓰고 있다면 `pip install -U "python-hwpx-automation>=8"`도 설치합니다.
+
+바뀐 내용 전체는 [변경 기록](https://github.com/airmang/python-hwpx/blob/main/CHANGELOG.md)에 있습니다.
+
+## 한/글에서 열리는가
+
+python-hwpx로 만든 파일을 실제 한컴오피스에서 열어 보고, 확인한 판과 날짜를 함께 적습니다.
+
+- **7.0.0** (2026-11-21, macOS 한컴오피스 12.30.0): 7.0.0 휠로 만든 문서 72개가 모두 열렸습니다. 다른 사람이 만든 실제 문서
+  27종을 고친 54개, 새로 만든 문서, 문서끼리 복사·병합한 결과가 들어 있습니다. Windows용 한/글에서는 아직 확인하지 않았습니다.
+- 이전 판의 전체 코퍼스 측정 결과는 [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html)에 있습니다.
+
+이 결과는 한/글이 파일을 문제없이 여는지를 확인한 것이며, 화면이 한/글과 똑같다는 뜻은 아닙니다. 엔진은 쪽 배치를 직접 하지
+않습니다. 내용이 바뀐 문단은 줄 배치 정보를 지워 두고, 한/글이 파일을 열 때 다시 배치하게 합니다.
+
+## 함께 쓰는 패키지
 
 | | 저장소 | 역할 |
 |---|---|---|
-| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX 문서를 읽고·고치고·만드는 순수 파이썬 엔진 |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 저작·양식 채움 워크플로, `hwpx` CLI, 선택형 MCP 서버 |
-| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트가 알맞은 도구를 고르도록 돕는 플러그인/스킬 번들 |
+| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | 한/글 문서를 읽고·고치고·만드는 엔진 (이 저장소) |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 변환·양식 채움·메일 머지·미리보기·보고서 서식, `hwpx` CLI, MCP 서버, Claude Code·Codex 플러그인 |
+| 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | 학교 문서(지필평가 원안지·학습지·수행평가 문제지·보고서)를 학교 서식 그대로 만드는 도구 |
 
-## 비교
+Claude Code·Codex에서는 python-hwpx-automation 저장소 주소 하나로 플러그인을 설치합니다. 플러그인이 엔진과 자동화 패키지를
+검증한 판으로 설치하고 MCP 도구와 작업 안내를 붙입니다([uv](https://docs.astral.sh/uv/)가 필요합니다).
+에이전트에게 "https://github.com/airmang/python-hwpx-automation 플러그인을 설치해 줘"라고 부탁해도 되고, 직접 설치하려면 아래와 같습니다.
 
-| | python-hwpx | pyhwpx | pyhwp |
-|---|---|---|---|
-| **다루는 형식** | `.hwpx` 읽기·쓰기, `.hwp` (HWP 5.0) 읽기 | `.hwpx` | `.hwp` (v5 바이너리) |
-| **한/글 설치** | 필요 없음 | 필요 (Windows COM) | 필요 없음 |
-| **운영체제** | Linux / macOS / Windows / CI | Windows 전용 | Linux / macOS / Windows |
-| **편집·생성** | ✅ | ✅ (한/글이 함) | 대부분 읽기 |
-| **한/글 없이 쪽 수 추정** | ✅ (실험) | 한/글이 계산 | ❌ |
+```bash
+claude plugin marketplace add airmang/python-hwpx-automation && claude plugin install hwpx-plugin@hwpx
+codex plugin marketplace add airmang/python-hwpx-automation && codex plugin add hwpx-plugin@hwpx
+```
+
+파이썬 코드에서 자동화 기능까지 쓰려면 `pip install -U python-hwpx-automation` 하나면 됩니다. 엔진도 함께 설치됩니다.
+
+일반 ChatGPT 대화에서도 쓸 수 있습니다. 채팅 속 파이썬 환경은 PyPI에 접속할 수 없으므로,
+[최신 Release](https://github.com/airmang/python-hwpx/releases/latest)의 `python_hwpx-*.whl` 파일을 문서와 함께 올린 뒤
+"첨부한 whl을 pip로 설치하고, 이 .hwpx를 python-hwpx로 열어서 작업해 줘"라고 요청하면 됩니다. 자세한 지시문은
+[AI 채팅 환경에서 쓰기](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md)에 있고, AI 도구가 API를 익히도록 만든
+[llms.txt](https://airmang.github.io/python-hwpx/llms.txt)도 있습니다.
+
+> 예전 설치 명령과의 호환을 위해 `pip install "python-hwpx[visual]"`도 그대로 동작합니다. 다만 이 extra는 비어 있어
+> 렌더·PDF 의존성을 설치하지 않습니다. 그 일은 `python-hwpx-automation[oracle]`이 맡습니다.
+
 
 ## 알려진 제약
 
-- `doc.shapes.add_raw()`(옛 이름 `add_shape()`)·`doc.shapes.add_control()`은 저수준 탈출구라, 그대로 저장하면
-  한/글이 열지 못하는 파일이 됩니다(부를 때 경고만 나옵니다). 도형은 한/글이 요구하는 하위 요소까지 만드는
-  `doc.shapes`의 `add_line()`·`add_rectangle()`·`add_ellipse()`·`add_arc()`·`add_polygon()`·`add_curve()`·
-  `add_connector()`·`add_container()`(묶음)를, 컨트롤은 문단의 `add_column_definition()`과
-  `doc.refs.add_bookmark()`·`doc.refs.add_hyperlink()`를 쓰세요.
-- 그림은 밝기·대비·회색조·흑백·투명도, 실선 테두리, 자르기(`crop`), 그림자·빛남·부드러운 가장자리·반사
-  (`shadow`·`glow`·`soft_edge`·`reflection`)를 `add_picture()` 인자로 줄 수 있습니다. 뒤집기와 회전은 아직 안 됩니다.
-- 쪽 수 추정과 줄 배치 정보 쓰기는 실험 기능입니다. 따르지 못하는 요소가 있으면 추정하지 않고 까닭을 돌려줍니다.
-  지금은 줄 배치 정보 없이 글자 격자를 쓰는 문단, 그리고 표 칸 안에서 글 사이에 놓이거나 떠 있는 표 가운데 쪽 끝이
-  어울림·글 뒤·앞 표나 여러 줄짜리 행을 가로지르는 경우가 여기에 듭니다. 그 밖의 칸 안 표는 쪽 끝에서 행 사이로 나뉘는
-  것까지 한/글처럼 배치합니다. 표를 읽고 고치는 기능은 이와 상관없이 표 안의 표까지 다룹니다.
-- 암호를 건 HWPX와 암호·배포용 HWP는 지원하지 않습니다(HWP는 `Hwp5Error`로 거부합니다).
+- 엔진은 쪽 배치를 하지 않습니다. 차례나 상호 참조에 들어가는 쪽 번호는 한/글이 파일을 열 때 채웁니다.
+- 쪽 수 추정과 줄 배치 정보 쓰기는 실험 기능입니다. 처리할 수 없는 요소를 만나면 추정하지 않고 그 이유를 돌려줍니다.
+- `.hwp`로 쓰기는 실험 기능입니다. 암호가 걸린 HWPX와 암호·배포용 HWP는 지원하지 않습니다.
+- `doc.shapes.add_raw()`·`add_control()`이나 `.element`로 직접 고친 XML은 엔진의 검사를 거치지 않습니다. 도형은
+  `add_line()`·`add_rectangle()` 같은 `doc.shapes` 함수를 쓰세요.
+
+남은 과제와 알려진 결함은 [이슈](https://github.com/airmang/python-hwpx/issues)에서 확인할 수 있습니다.
+
+## 문서
+
+[5분 퀵스타트](https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md) ·
+[사용 가이드](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md) ·
+[예제](https://github.com/airmang/python-hwpx/blob/main/docs/examples.md) ·
+[API 레퍼런스](https://airmang.github.io/python-hwpx/) ·
+[안전한 쓰기 계약](https://github.com/airmang/python-hwpx/blob/main/docs/safe-write-contract.md) ·
+[지원 매트릭스](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md) ·
+[오류 코드](https://github.com/airmang/python-hwpx/blob/main/docs/error-codes.md) ·
+[python-docx와 비교](https://github.com/airmang/python-hwpx/blob/main/docs/comparison-python-docx.md)
 
 ## 기여하기
 
@@ -213,20 +261,17 @@ AI 도구가 API를 정확히 익히도록 만든 [llms.txt](https://airmang.git
 [Discussions](https://github.com/airmang/python-hwpx/discussions) ·
 [CONTRIBUTING](https://github.com/airmang/python-hwpx/blob/main/CONTRIBUTING.md)
 
-HWPX 내부 구조가 처음이라면 [내부 실전 가이드](https://github.com/airmang/python-hwpx/tree/main/docs/internals)부터 보세요. 실제 한/글 동작으로 확인한 조판
-캐시, 목차 필드, OPC 재압축 같은 내용을 정리해 두었습니다. 공개 API의 안정 범위는 [안정 API 표면](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md),
-계층 사이의 소유권은 [제품 경계 문서](https://github.com/airmang/python-hwpx/blob/main/docs/architecture/product-boundary.md)에 있습니다.
+HWPX 내부 구조가 처음이라면 [내부 실전 가이드](https://github.com/airmang/python-hwpx/tree/main/docs/internals)부터 읽어 보세요.
+패키지 사이의 경계는 [제품 경계 문서](https://github.com/airmang/python-hwpx/blob/main/docs/architecture/product-boundary.md)에 정리해 두었습니다.
 
 ## 감사의 말
 
-아래 공개 표준과 프로젝트에 빚지고 있습니다.
-
-- [OWPML, 개방형 워드프로세서 마크업 언어 (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985): HWPX의 바탕인 한국 산업 표준
+- [OWPML, 개방형 워드프로세서 마크업 언어 (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985): HWPX의 바탕이 된 한국 산업 표준
 - [hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model): OWPML 요소 구조 참조 모델
 - [neolord0/hwpxlib](https://github.com/neolord0/hwpxlib): 견본 코퍼스
-- [edwardkim/rhwp](https://github.com/edwardkim/rhwp): 멱등성·검증 게이트 설계에서 영감을 받았고 다른 뷰어 호환을 확인할 때 씁니다
-- 범정부오피스: 공무 문서 편집 워크플로 아이디어
+- [edwardkim/rhwp](https://github.com/edwardkim/rhwp): 멱등성·검증 게이트 설계에 영감을 주었고, 다른 뷰어와의 호환을 확인할 때 씁니다
+- 범정부오피스: 공문서 편집 워크플로 아이디어
 
-## License · Maintainer
+## 라이선스
 
 Apache-2.0 ([LICENSE](https://github.com/airmang/python-hwpx/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/python-hwpx/blob/main/NOTICE)) · Kohkyuhyun [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)

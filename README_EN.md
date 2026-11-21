@@ -1,32 +1,45 @@
 <p align="center">
   <h1 align="center">python-hwpx</h1>
   <p align="center">
-    <strong>Read, edit, and create Hangul documents (HWPX and HWP) in Python, without Hancom Office</strong>
+    <strong>A Python engine that reads, edits and creates Hangul (HWPX·HWP) documents without Hancom Office</strong>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=PyPI" alt="PyPI"></a>
     <a href="https://pepy.tech/project/python-hwpx"><img src="https://static.pepy.tech/badge/python-hwpx/month" alt="Downloads"></a>
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx" alt="Python"></a>
     <a href="https://github.com/airmang/python-hwpx/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/airmang/python-hwpx/tests.yml?branch=main&label=tests" alt="Tests"></a>
-    <a href="https://airmang.github.io/python-hwpx/corpus-metrics.html"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fairmang.github.io%2Fpython-hwpx%2F_static%2Fbadge-hancom-open.json" alt="Hancom open"></a>
     <a href="https://github.com/airmang/python-hwpx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  </p>
+  <p align="center">
+    <a href="https://github.com/airmang/python-hwpx/blob/main/README.md">한국어</a> | English
+    · <a href="https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md">Quickstart</a>
+    · <a href="https://github.com/airmang/python-hwpx/blob/main/docs/usage.md">Usage guide</a>
+    · <a href="https://airmang.github.io/python-hwpx/">API reference</a>
+    · <a href="https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md">7.0 migration guide</a>
   </p>
 </p>
 
-<p align="center"><a href="https://github.com/airmang/python-hwpx/blob/main/README.md">한국어</a> | English</p>
+python-hwpx does for Hangul documents what python-docx does for `.docx`. HWPX is XML (OWPML) inside a ZIP, so it
+can be handled without Hancom Office. It runs on Windows, macOS, Linux and CI, and its only dependency is `lxml`.
+HWP 5.0 (`.hwp`) files open through the same API and save as HWPX.
 
-HWPX is XML (OWPML) inside a ZIP file, so Python alone can work with it; Hancom Office is not needed.
-python-hwpx runs on Windows, macOS, Linux, and CI, and its only dependency is `lxml`. HWP 5.0 (`.hwp`)
-files open through the same API and convert to HWPX.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-report.png" width="640" alt="A 2026 digital education plan in the Korean government report style, as Hancom Office draws the page: a banner title, section numbers in navy cells, □ and - levels, and a table ruled above and below">
+</p>
+<p align="center"><sub>A document made on python-hwpx 7.0.0 with the report style of python-hwpx-automation 8.0 (<code>from_markdown(md, style="report")</code>), as Hancom Office 12.30.0 draws the page (exported to PDF).</sub></p>
 
-We open our output in Hancom Office 2024 and publish what we see, with dates,
-[below](#how-close-to-hangul).
+> **7.0 is out.** The save function, the public names and the home of some features changed.
+> Coming from 6.x? Start with [What changed in 7.0, and why](#what-changed-in-70-and-why).
 
-## Getting started
+## Install
 
 ```bash
-pip install python-hwpx      # Python 3.10+
+pip install -U python-hwpx      # Python 3.10+
 ```
+
+## Quick start
+
+Create a document. Styles are chosen by name; a name the document does not have fails on that line.
 
 <!-- standalone-python-example -->
 
@@ -34,17 +47,13 @@ pip install python-hwpx      # Python 3.10+
 from hwpx import HwpxDocument
 
 doc = HwpxDocument.new()
-doc.add_heading("2026 Operating Plan", level=1)
-doc.add_paragraph("Background", style="개요 2")  # Hangul numbers it "가."
+doc.add_heading("2026 운영계획", level=1)
+doc.add_paragraph("추진 배경", style="개요 2")  # Hangul numbers it "가."
 doc.save("plan.hwpx")
 ```
 
-Styles are picked by name. A name that does not exist fails at that line.
-To edit an existing file, start from `HwpxDocument.open("report.hwpx")`. An `.hwp` file opens the
-same way; save the result as HWPX with `save("report.hwpx")`.
-
-Font size, alignment and table cells are read and changed in place. Every paragraph of the document,
-in table cells, headers and notes too, can be walked with where it sits.
+Font size, alignment and table cells are read and changed in place. Every paragraph, including those in table
+cells, headers and footnotes, can be walked together with where it sits.
 
 <!-- standalone-python-example -->
 
@@ -52,195 +61,228 @@ in table cells, headers and notes too, can be walked with where it sits.
 from hwpx import HwpxDocument
 
 doc = HwpxDocument.new()
-title = doc.add_paragraph("2026 Operating Plan")
+title = doc.add_paragraph("2026 운영계획")
 title.alignment = "CENTER"
 title.runs[-1].size = 16
 table = doc.add_table(2, 2)
-table.cell(0, 0).text = "Period"
-table.cell(0, 1).text = "March to July"
+table.cell(0, 0).text = "기간"
+table.cell(0, 1).text = "3월 ~ 7월"
 for place in doc.text.iter_paragraphs(where={"cell"}):
     print(place.row, place.col, place.paragraph.text)
 doc.save("plan.hwpx")
 ```
 
-Markdown and HTML conversion, finding form cells by their labels, mail merge, previews, and
-higher-level workflows such as document authoring and exam typesetting live in
-[`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) from 7.0
-(`pip install -U python-hwpx-automation`). This package reads and writes what the file says.
+### Filling a form
 
-Coming from 6.x? The [7.0 migration guide](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md) lists every renamed and moved name, and calling
-a removed name raises an error that names its replacement.
+Open an existing document with `HwpxDocument.open("report.hwpx")`. A `.hwp` opens the same way and the result is saved
+as HWPX. To put values into a form and keep everything else byte for byte, save with `mode="patch"`.
+
+```python
+doc = HwpxDocument.open("application.hwpx")
+for cell in doc.tables.map()["tables"][0]["cells"]:   # row, column and text of each cell
+    print(cell["row"], cell["col"], cell["text"])
+doc.tables[0].cell(0, 1).text = "Hong Gildong"
+doc.tables[0].cell(1, 1).text = "Platform team"
+report = doc.save("application-filled.hwpx", mode="patch", fallback="error")
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-7.0-form-fill.png" width="760" alt="A blank after-school class application form, and the same form with only its cells filled by python-hwpx, as Hancom Office draws them">
+</p>
+<p align="center"><sub>The blank form (left) and the form filled with <code>mode="patch"</code> (right), both as Hancom Office draws them.</sub></p>
+
+`mode="patch"` copies every ZIP part you did not change, compressed bytes included; a save with no change gives the
+same file. The report `save()` returns (`MutationReport`) says what changed. On a form with tables inside cells, the
+table number in `doc.tables.map()` (`table_index`) counts the nested tables too, so pick with
+`doc.tables.with_nested[table_index]`. Finding a cell by the label beside it is done by
+[python-hwpx-automation](#companion-packages).
+
+<sub>The first two examples run as they are. The third takes your own document as input; the per-example
+Python-block status is frozen in the [execution ledger](https://github.com/airmang/python-hwpx/blob/main/docs/python-example-ledger.json).</sub>
+
+## What it does
+
+| | |
+|---|---|
+| **Read** | plain text the way Hangul's "save as text" writes it (`doc.text.plain()`), an outline within a character budget (`doc.text.outline()`), paragraphs of table cells, text boxes, headers and notes with their place (`doc.text.iter_paragraphs()`) |
+| **Edit** | paragraphs, runs, character and paragraph formatting, headers and footers, page setup and page numbers, pictures, shapes, equations, memos, footnotes and endnotes |
+| **Tables** | read and write cells, insert, delete, move rows and columns, merge and split cells, borders and fills, tables inside cells |
+| **Forms** | read and fill form fields, patch saves that only put values in, FormFit that wraps or shrinks text so a value fits its cell |
+| **Structure** | table of contents, cross references, bookmarks, hyperlinks, tracked changes, copying and merging between documents |
+| **HWP 5.0** | read `.hwp` with the same API and save as HWPX; what could not be carried over is in `doc.conversion_report`; writing `.hwp` is experimental |
+| **Checks** | package structure checks, a pre-save check that Hangul can open the file, save quality policies (`QualityPolicy`) |
+| **Layout estimates** (experimental) | page count and line positions without Hangul (`estimate_pages`), line layout data written only where it is certain (`write_line_caches`) |
+
+Development status is Production/Stable. What stays backward compatible is listed in
+[stable API](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md); `hwpx.experimental` and the features
+marked "experimental" above may change.
+
+## What changed in 7.0, and why
+
+7.0 follows one rule: **what the engine tells you, and every file it writes, must be true.** The same file gives the
+same answer, the answer is what the file says, and the engine does not write anything Hangul is not known to accept.
+The six changes below all come from that rule.
+
+### 1. Features that guess moved to python-hwpx-automation
+
+**What changed:** Markdown and HTML conversion, importing other formats and the LangChain and LlamaIndex loaders,
+finding form cells by their labels, mail merge, previews and format rule checks moved to
+[python-hwpx-automation](https://github.com/airmang/python-hwpx-automation) 8.0.
+
+**Why:** These features have no single right answer. Whether the cell beside a label is that item's cell, or how a
+Markdown heading should look, is a guess or a taste. With guesses inside the engine, the promise "exactly what the file
+says" can no longer be checked by a machine. So the line is drawn at "does it read and write what is in the file, or
+does it guess and choose". Nothing was removed: arguments and results are the same as in 6.x, and calling an old name
+raises an error that names the new place. The engine still depends on `lxml` only.
+
+### 2. Saving is one function, `doc.save()`
+
+**What changed:** `save_to_path`, `save_to_stream` and `save_report` became `doc.save(target)`, and `from_package` became
+`open()`. `save()` takes a path or a stream and always returns a `MutationReport`.
+
+**Why:** The four functions overlapped, yet returned `None`, a path or a report. To check what a save did, you had to
+remember which one to call. Now the result of a save always comes back in the same shape, and a stream save that fails
+part way is rolled back.
+
+### 3. Public names follow one rule, and are frozen
+
+**What changed:** `row_index=` → `row=`, `horz_rel_to=` → `horizontal_relative_to=`, `line_width='33'` →
+`line_width_mm=0.12`, `table.get_cell_map()` → `table.cell_map`. The 79 root names 6.0 had kept with a warning are gone.
+
+**Why:** 6.x mixed abbreviations, names copied from XML attributes, numbers without units (nothing in `'33'` says what
+unit it is) and `get_` prefixes, so the API had to be memorized name by name. The rule has three parts: names are
+spelled out, units are part of the name, and reads without arguments are properties. 7.0 is the last rename. The public
+names are frozen in `tests/data/public_surface.json` and stay until the next major.
+
+To finish in one step, 7.0 also removed names that 6.x had not warned about (the save functions among them), an
+exception to the [stable API rules](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md). In return,
+calling a removed name tells you the new name and a one-line example on the spot.
+
+### 4. Writes Hangul would not accept are refused
+
+**What changed:** Every XML shape the engine writes is based on files Hangul itself saved; combinations without that
+evidence are refused before writing, with an error that carries a `code`. A refused call leaves the document untouched.
+Editing the document through a table or paragraph already removed from it is refused, and reading never changes the
+document. Writing `.hwp` stays experimental, and overwriting the source or writing what could not be carried over is
+blocked.
+
+**Why:** The worst failure is a file saved without an error that Hangul then cannot open, or draws differently. A clear
+refusal with a reason beats being silently wrong.
+
+### 5. What used to need raw XML is public API
+
+**What changed:** Table structure edits, object position, rotation and flipping, character and paragraph formatting,
+form fields, footnotes and endnotes, tables of contents, cross references and tracked changes are public API.
+
+**Why:** In 6.x these took direct XML edits through `.element`, and such edits skipped the engine's checks. Through the
+public API, the refusals and checks of change 4 come along. Most of the roughly 21,000 lines (23%) the engine grew since
+6.12.0 are this. `.element` remains as an escape hatch, but it is not a promised surface.
+
+### 6. A new document no longer starts with a blank line
+
+**What changed:** After `HwpxDocument.new()`, the first paragraph you add is `doc.paragraphs[0]`.
+
+**Why:** A 6.x document always started with a blank line, which stayed as a useless empty line at the top of what you
+made. This change shifts paragraph numbers by one without any error, so it comes first in the
+[migration guide](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md). To start as 6.x did, use
+`HwpxDocument.new(empty_first_line=True)`.
+
+### How to upgrade
+
+1. `pip install -U python-hwpx`
+2. Run your tests. Removed names raise errors that name the new ones.
+3. Check what changes results without an error in the tables of the [7.0 migration guide](https://github.com/airmang/python-hwpx/blob/main/docs/migration-7.0.md).
+4. If you use the features in change 1, `pip install -U "python-hwpx-automation>=8"`.
+
+The full list is in the [changelog](https://github.com/airmang/python-hwpx/blob/main/CHANGELOG.md).
+
+## Does Hangul open it?
+
+Files made with python-hwpx are opened in real Hancom Office, and each result is written down with the version and
+the date.
+
+- **7.0.0** (2026-11-21, Hancom Office 12.30.0 on macOS): all 72 documents made with the 7.0.0 wheel opened. They
+  include 54 edits of real documents of 27 kinds made by others, new documents, and the results of copying and merging
+  between documents. Hangul on Windows has not been checked for 7.0.0 yet.
+- Whole-corpus measurements of earlier versions are in [corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html).
+
+These numbers measure whether Hangul accepts the file, not that it looks identical. The engine does not lay out pages:
+it clears the line layout data of paragraphs whose text changed, and Hangul lays them out again when it opens the file.
+
+
+## Companion packages
+
+| | Repository | Role |
+|---|---|---|
+| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | the engine that reads, edits and creates Hangul documents (this repository) |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | conversion, form filling, mail merge, previews, report styles, the `hwpx` CLI, the MCP server, the Claude Code and Codex plugin |
+| 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | school documents (exam papers, worksheets, performance tasks, reports) made on each school's own forms |
+
+In Claude Code and Codex, the python-hwpx-automation repository address alone installs the plugin. It installs the
+engine and the automation package at verified versions and adds the MCP tools and task guidance (it needs
+[uv](https://docs.astral.sh/uv/)). You can ask the agent "install the plugin from
+https://github.com/airmang/python-hwpx-automation", or install it yourself:
+
+```bash
+claude plugin marketplace add airmang/python-hwpx-automation && claude plugin install hwpx-plugin@hwpx
+codex plugin marketplace add airmang/python-hwpx-automation && codex plugin add hwpx-plugin@hwpx
+```
+
+To use the automation features from Python code, `pip install -U python-hwpx-automation` is enough; it installs the engine too.
+
+It also works in a plain ChatGPT conversation. The chat's Python runtime cannot reach PyPI, so upload the
+`python_hwpx-*.whl` from the [latest Release](https://github.com/airmang/python-hwpx/releases/latest) together with the
+document and ask: "install the attached whl with pip, then open this .hwpx with python-hwpx and work on it". Detailed
+instructions are in [using it in AI chats](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md), and
+there is an [llms.txt](https://airmang.github.io/python-hwpx/llms.txt) for AI tools.
+
 
 > For older install commands, `pip install "python-hwpx[visual]"` still works, but the `visual`
 > extra is empty and installs no render/PDF dependencies. That runtime belongs to
 > `python-hwpx-automation[oracle]`.
 
-## What it does
 
-- Read and extract: plain text the way Hangul's text save writes it (`doc.text.plain()`, with list labels
-  and notes on request). `doc.text.outline()` returns the text blocks with ids within a character budget, and
-  `doc.text.iter_paragraphs()` walks the paragraphs of table cells, text boxes, headers and notes too, with where
-  each sits. It reads `.hwp` through the same calls.
-- Edit: paragraphs, tables, pictures, headers and footers, memos, footnotes; line spacing, margins, page numbers.
-- Fill forms: put values in cells and click-here fields; parts you did not touch keep their bytes.
-  FormFit decides whether a value should wrap or shrink to fit its cell, measuring with Hangul's glyph widths.
-- Edit table structure: insert and delete rows and columns, split and merge cells; get a table by number
-  with `doc.tables[0]`.
-- Create and batch: new documents, tables of contents and cross-references, document diff, tracked changes.
-- HWP 5.0: read an `.hwp` file as HWPX, edit it with the same API, and save it as HWPX. Anything that
-  could not be carried over is listed in `document.conversion_report`. Writing `.hwp` back is experimental:
-  it never overwrites the file that was opened, and it refuses when something was not carried over.
-- Layout estimates (experimental): `estimate_pages` estimates the page count and each line's page and
-  vertical position without Hangul. `write_line_caches` writes the line layout data Hangul saves, but only for
-  paragraphs where it is sure to match Hangul. Viewers such as rhwp, which place pictures from that data, then
-  show them too. By default nothing is written.
-- Verify and stay safe: a package-structure validation CLI, an open-safety check before saving, and a save
-  report (the `MutationReport` `save()` returns). A default save does not check that the character and paragraph shapes the
-  text points at exist; `save(..., quality=QualityPolicy(require_visual_complete=False))` does.
+## Known limits
 
-More: [five-minute quickstart](https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md) · [usage guide](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md) · [API reference](https://airmang.github.io/python-hwpx/) · [examples](https://github.com/airmang/python-hwpx/blob/main/docs/examples.md) · [support matrix](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md)
+- The engine does not lay out pages. Page numbers in tables of contents and cross references are filled in by Hangul
+  when it opens the file.
+- Page estimates and writing line layout data are experimental. Where they cannot follow an element, they return the
+  reason instead of an estimate.
+- Writing `.hwp` is experimental. Password-protected HWPX and encrypted or distribution HWP are not supported.
+- `doc.shapes.add_raw()`, `add_control()` and XML changed through `.element` skip the engine's checks. For shapes, use
+  the `doc.shapes` functions such as `add_line()` and `add_rectangle()`.
 
-### Filling a form
+Open work and known defects are in the [issues](https://github.com/airmang/python-hwpx/issues).
 
-```python
-doc = HwpxDocument.open("application.hwpx")
-for cell in doc.tables.map()["tables"][0]["cells"]:   # each cell's row, column and text
-    print(cell["row"], cell["col"], cell["text"])
-doc.tables[0].cell(0, 1).text = "홍길동"
-doc.tables[0].cell(1, 1).text = "플랫폼팀"
-report = doc.save("application-filled.hwpx", mode="patch", fallback="error")
-```
+## Documentation
 
-`mode="patch"` asks for untouched ZIP parts to keep their bytes. An untouched part keeps its compressed bytes as
-they were, and a save that changed nothing writes the same file (a document whose caret points at a paragraph it does
-not have gets that caret position in `settings.xml` rewritten, and nothing else). An edited part's content is deterministic; its
-compressed bytes depend on the zlib build Python uses. What happens inside an edited part, and how
-the page looks, need separate checks. To reopen the output and verify its content, follow the
-[safe write contract](https://github.com/airmang/python-hwpx/blob/main/docs/safe-write-contract.md). Filling cells found by their label text (`fill_by_path`)
-lives in python-hwpx-automation (`hwpx_automation.forms`).
-
-The table numbers `doc.tables.map()` reports (`table_index`) count tables inside cells too, so they are the
-numbers of `doc.tables.with_nested`. `doc.tables` leaves nested tables out: on a form with a table inside a cell,
-pick with `doc.tables.with_nested[table_index]`. A merged cell appears once for every position it covers, with
-the same text.
-
-*Blocks without a **Standalone example** label take your existing document as input. The per-example
-Python-block status is frozen in the [execution ledger](https://github.com/airmang/python-hwpx/blob/main/docs/python-example-ledger.json).*
-
-## How close to Hangul
-
-We open the files we produce in real Hancom Office and report what we see, with the date and the program
-version next to every figure.
-
-Line layout and page-count estimation are experimental. Accuracy figures will be listed once the measuring
-script and its records can ship in this repository alongside them.
-
-**Opening: Hancom Office 12 (macOS)**
-
-- Hancom opens 120/120, render-verified 120/120: a baseline set plus six authoring features (footnotes,
-  form fields, equations, charts, check boxes, edit plans), reduced scope (5.7.0 · 2026-08-03)
-- Hancom opens 476/476: the full frozen corpus (N=497) (3.4.1 · 2026-07-19)
-- Byte preservation of untouched regions 497/497, personal-information leaks 0
-- Render-verified 416/476: the 43 cases where Hancom itself refuses PDF export are counted, not dropped.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/hancom-open-generated.png" width="760" alt="An HWPX document generated with python-hwpx inside ChatGPT, opened in real Hancom Office">
-</p>
-<p align="center"><sub>A document generated inside a ChatGPT runtime, opened in real Hancom Office.</sub></p>
-
-Full figures and caveats are in [measured corpus metrics](https://airmang.github.io/python-hwpx/corpus-metrics.html),
-per-feature grades in the [support matrix](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md). These numbers measure how Hangul takes the
-files we produce. How well a parser reads documents is a separate measure.
-
-Development status is Production/Stable. What stays backward compatible is listed in [stable API](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md);
-`hwpx.experimental` and the features marked experimental above may change.
-
-## Where you can run it
-
-| Environment | How |
-|---|---|
-| Local or server Python | `pip install python-hwpx` (scripts, batch jobs, CI) |
-| Python automation (no MCP) | `pip install -U python-hwpx-automation` (authoring, form filling and verification workflows) |
-| A plain ChatGPT conversation | Upload the `.hwpx` together with the [Release wheel](https://github.com/airmang/python-hwpx/releases/latest) and install it in the chat ([guide](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md)) |
-| ChatGPT MCP app | Register the MCP adapter from [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) as a connector |
-| Codex marketplace plugin | Install [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) |
-| Claude Code · Hermes · OpenClaw | Register the same MCP server in each client ([`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation)) |
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/airmang/python-hwpx/main/docs/assets/chatgpt-formfill.png" width="760" alt="Uploading an .hwpx form to a plain ChatGPT conversation and getting back a filled document with the original formatting preserved">
-</p>
-<p align="center"><sub>In a plain ChatGPT conversation, upload a form <code>.hwpx</code> and ask; the document comes back with its formatting intact and only the values filled in.</sub></p>
-
-The Python runtime in a ChatGPT chat cannot reach PyPI. Upload the `python_hwpx-*.whl` from the
-[latest Release](https://github.com/airmang/python-hwpx/releases/latest) together with your document and ask:
-
-```text
-Install the attached python_hwpx-*.whl with pip
-(pip install /mnt/data/python_hwpx-*.whl), then open this .hwpx file
-with the python-hwpx library.
-Keep the form and formatting as-is, change only ○○, and return a new file.
-```
-
-Everything from install to the result file happens inside the conversation, so you do not need Python on
-your machine. The wheel's only dependency is `lxml`; if the runtime lacks it, upload an lxml wheel too.
-An instruction block for agents is in [Using python-hwpx in AI chat sandboxes](https://github.com/airmang/python-hwpx/blob/main/docs/ai-assistants.md), and an
-[llms.txt](https://airmang.github.io/python-hwpx/llms.txt) helps AI tools learn the real API.
-
-| | Repo | Role |
-|---|---|---|
-| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | Pure-Python engine that reads, edits, and creates HWPX documents |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Authoring & form-filling workflows, the `hwpx` CLI, optional MCP server |
-| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | Plugin/skill bundle that helps agents pick the right tool |
-
-## Comparison
-
-| | python-hwpx | pyhwpx | pyhwp |
-|---|---|---|---|
-| **Formats** | `.hwpx` read and write, `.hwp` (HWP 5.0) read | `.hwpx` | `.hwp` (v5 binary) |
-| **Hancom install** | Not required | Required (Windows COM) | Not required |
-| **Platforms** | Linux / macOS / Windows / CI | Windows only | Linux / macOS / Windows |
-| **Edit and create** | ✅ | ✅ (Hangul does it) | Mostly read |
-| **Page estimate without Hangul** | ✅ (experimental) | Hangul computes it | ❌ |
-
-## Known limitations
-
-- `doc.shapes.add_raw()` (formerly `add_shape()`) and `doc.shapes.add_control()` are low-level escape hatches:
-  a document saved as-is will not open in Hancom, and the only signal is a warning at call time. For shapes use
-  the `doc.shapes` helpers that write every child Hancom needs: `add_line()`, `add_rectangle()`, `add_ellipse()`,
-  `add_arc()`, `add_polygon()`, `add_curve()`, `add_connector()`, `add_container()` (groups); for controls, the
-  paragraph's `add_column_definition()` and `doc.refs.add_bookmark()` / `doc.refs.add_hyperlink()`.
-- Pictures take brightness, contrast, grayscale, black and white, transparency, a solid border, cropping
-  (`crop`), and a shadow, glow, soft edge or reflection (`shadow`, `glow`, `soft_edge`, `reflection`) as
-  `add_picture()` arguments. Flipping and rotation are not supported yet.
-- Page estimates and line layout writing are experimental. When a document uses something they do not
-  follow, they return the reason instead of an estimate. Today that means a paragraph on a character grid
-  without line layout data, and, among the tables placed among text or floating inside a table cell, a page
-  end running through one wrapped square or in front of or behind the text, or through a row of several
-  lines. Other tables in cells are laid out as Hancom does, split between their rows at a page end included.
-  Reading and editing tables is not affected and covers tables inside tables.
-- Encrypted HWPX files and password-protected or distribution HWP files are refused (`Hwp5Error` for HWP).
+[5-minute quickstart](https://github.com/airmang/python-hwpx/blob/main/docs/quickstart.md) ·
+[Usage guide](https://github.com/airmang/python-hwpx/blob/main/docs/usage.md) ·
+[Examples](https://github.com/airmang/python-hwpx/blob/main/docs/examples.md) ·
+[API reference](https://airmang.github.io/python-hwpx/) ·
+[Safe write contract](https://github.com/airmang/python-hwpx/blob/main/docs/safe-write-contract.md) ·
+[Support matrix](https://github.com/airmang/python-hwpx/blob/main/docs/support-matrix.md) ·
+[Error codes](https://github.com/airmang/python-hwpx/blob/main/docs/error-codes.md) ·
+[Compared with python-docx](https://github.com/airmang/python-hwpx/blob/main/docs/comparison-python-docx.md)
 
 ## Contributing
 
 [help wanted](https://github.com/airmang/python-hwpx/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) ·
-[roadmap](https://github.com/airmang/python-hwpx/milestones) ·
+[Roadmap](https://github.com/airmang/python-hwpx/milestones) ·
 [Discussions](https://github.com/airmang/python-hwpx/discussions) ·
 [CONTRIBUTING](https://github.com/airmang/python-hwpx/blob/main/CONTRIBUTING.md)
 
-New to HWPX internals? Start with the [internals field guide](https://github.com/airmang/python-hwpx/tree/main/docs/internals): layout caches, TOC fields,
-OPC repacking and other behaviors checked against real Hangul. The stable public surface is listed in
-[stable API](https://github.com/airmang/python-hwpx/blob/main/docs/stable-api.md), and layer ownership in the [product-boundary contract](https://github.com/airmang/python-hwpx/blob/main/docs/architecture/product-boundary.md).
+New to HWPX internals? Start with the [internals guide](https://github.com/airmang/python-hwpx/tree/main/docs/internals).
+The boundaries between the packages are in the [product boundary document](https://github.com/airmang/python-hwpx/blob/main/docs/architecture/product-boundary.md).
 
 ## Acknowledgements
 
-This project is indebted to the following open standards and projects.
-
-- [OWPML, Open Word-Processor Markup Language (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985): the Korean industrial standard HWPX is built on
-- [hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model): OWPML element-structure reference model
+- [OWPML, Open Word-Processor Markup Language (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985): the Korean industrial standard underlying HWPX
+- [hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model): reference model of the OWPML element structure
 - [neolord0/hwpxlib](https://github.com/neolord0/hwpxlib): sample corpus
-- [edwardkim/rhwp](https://github.com/edwardkim/rhwp): inspired the idempotency and verification gates; we also use it to check compatibility with other viewers
-- The Korean government office suite: official-document workflow ideas
+- [edwardkim/rhwp](https://github.com/edwardkim/rhwp): inspiration for the idempotence and verification gates, and a second viewer for compatibility checks
+- 범정부오피스: ideas for public-sector document workflows
 
-## License · Maintainer
+## License
 
 Apache-2.0 ([LICENSE](https://github.com/airmang/python-hwpx/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/python-hwpx/blob/main/NOTICE)) · Kohkyuhyun [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
