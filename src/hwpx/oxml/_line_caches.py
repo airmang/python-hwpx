@@ -45,8 +45,19 @@ _Watched = tuple[Any, bytes, bytes]
 #: What a block is, as far as any digest or cache comparison inside it can tell (:func:`_block_state`).
 _State = tuple[bytes, Any, tuple[Any, ...]]
 #: A child of the section's root that holds caches, its state when every cache in it was last judged (``None``:
-#: one of them went then, so the next judgement looks at each again), and the ids of the caches left in it.
-_Block = tuple[Any, "_State | None", tuple[int, ...]]
+#: one of them went then, so the next judgement looks at each again), and the caches left in it.
+_Block = tuple[Any, "_State | None", tuple[Any, ...]]
+
+
+def _entry(table: dict[int, Any], element: Any) -> Any:
+    """What *table* holds for *element*, or ``None``. Every table is keyed by ``id()`` and each entry starts
+    with the element it was made for: an entry counts only when that is *element* itself. While an entry
+    holds its element, lxml keeps that element's proxy and no other element can take its id -- but a copy
+    of the tables (``copy.deepcopy`` of a document) keeps the ids of the elements it was copied from,
+    which elements of the copy can be given once those are gone."""
+
+    found = table.get(id(element))
+    return found if found is not None and found[0] is element else None
 
 
 def _local(node: Any) -> str:
@@ -100,18 +111,26 @@ def _declared_on(element: Any) -> tuple[Any, ...]:
     return tuple(found)
 
 
-def _names_above(node: Any, block: Any, known: dict[int, tuple[Any, Any]]) -> Any:
-    """The qualified names of the elements above *node* up to *block*, nearest first (nested pairs).
+def _names_above(node: Any, block: Any, known: dict[int, tuple[Any, tuple[Any, ...]]]) -> tuple[Any, ...]:
+    """The qualified names of the elements above *node* up to *block*, nearest first.
 
-    *known* holds what was found for a parent already, with the parent so that its id stays its own."""
+    *known* holds what was found for an element already, with the element so that its id stays its own.
+    Built going up and without recursion: a tree made in code may hold a paragraph any depth down."""
 
-    if node is block:
-        return ()
-    parent = node.getparent()
-    found = known.get(id(parent))
-    if found is None:
-        found = known[id(parent)] = (parent, (parent.tag, _names_above(parent, block, known)))
-    return found[1]
+    climbed = []
+    current = node
+    names: tuple[Any, ...] = ()
+    while current is not block:
+        found = known.get(id(current))
+        if found is not None and found[0] is current:
+            names = found[1]
+            break
+        climbed.append(current)
+        current = current.getparent()
+    for element in reversed(climbed):  # nearest the block first, each from the one above it
+        names = (element.getparent().tag, *names)
+        known[id(element)] = (element, names)
+    return names
 
 
 def _block_state(block: Any, caches: list[Any], data: bytes) -> _State:
@@ -144,7 +163,7 @@ def _block_state(block: Any, caches: list[Any], data: bytes) -> _State:
     element between the paragraph and the block.
     """
 
-    known: dict[int, tuple[Any, Any]] = {}
+    known: dict[int, tuple[Any, tuple[Any, ...]]] = {}
     names = []
     for cache in caches:
         paragraph = cache.getparent()
@@ -320,10 +339,10 @@ class TrackedCaches:
     def _expected(self, cache: Any) -> tuple[bytes, bytes] | None:
         """What *cache* is watched with: its paragraph's content digest and the cache's bytes."""
 
-        watched = self._watched.get(id(cache))
+        watched = _entry(self._watched, cache)
         if watched is not None:
             return watched[1], watched[2]
-        as_read = self._as_read.get(id(cache))
+        as_read = _entry(self._as_read, cache)
         if as_read is None:
             return None
         if self._originals is None and self._parse_part() is None:
@@ -420,25 +439,33 @@ class TrackedCaches:
         caches = cache_elements(block)
         if not caches:
             return 0
-        ids = tuple(id(cache) for cache in caches)
         state = _block_state(block, caches, _whole_bytes(block))
-        was = self._blocks.get(id(block))
+        was = _entry(self._blocks, block)
         if _states_decide() and (
-            (was is not None and was[0] is block and was[1] == state and was[2] == ids)
+            (
+                was is not None
+                and was[1] == state
+                and len(was[2]) == len(caches)
+                and all(held is cache for held, cache in zip(was[2], caches))
+                and all(
+                    _entry(self._watched, cache) is not None or _entry(self._as_read, cache) is not None
+                    for cache in caches
+                )
+            )
             or (as_read_blocks and self._is_as_read(caches, state, as_read_blocks))
         ):
             # Nothing in the block changed since its caches were last judged (or read): the rule keeps
             # each of them with the entry it has.
             for cache in caches:
-                entry = self._watched.get(id(cache))
+                entry = _entry(self._watched, cache)
                 if entry is None:
-                    unread = None if rebuilding else self._as_read.get(id(cache))
+                    unread = None if rebuilding else _entry(self._as_read, cache)
                     if unread is not None:
                         as_read[id(cache)] = unread
                         continue
                     entry = _as_it_is(cache)  # as read, and the block is what it was read as
                 watched[id(cache)] = entry
-            blocks[id(block)] = (block, state, ids)
+            blocks[id(block)] = (block, state, tuple(caches))
             return 0
         gone = self._judge(caches, watched, as_read)
         if not self._judges:
@@ -446,7 +473,7 @@ class TrackedCaches:
         # With a cache gone the block is no longer in the state taken above, and the digests of the
         # paragraphs around the cache were taken before it went (with the text after it, which went
         # along): judge each again the next time, as a look at every cache would.
-        blocks[id(block)] = (block, None if gone else state, tuple(i for i in ids if i in watched))
+        blocks[id(block)] = (block, None if gone else state, tuple(cache for cache in caches if id(cache) in watched))
         return gone
 
     def _is_as_read(
@@ -457,7 +484,7 @@ class TrackedCaches:
 
         places = []
         for cache in caches:
-            found = self._as_read.get(id(cache))
+            found = _entry(self._as_read, cache)
             if found is None:
                 return False
             places.append(found[1])

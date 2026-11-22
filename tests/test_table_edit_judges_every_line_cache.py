@@ -17,6 +17,7 @@ moment, twice: before the table is rebuilt and after. The judgement was made che
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import io
 import random
@@ -205,6 +206,69 @@ def test_section_settings_the_edit_puts_into_the_tree_cost_their_paragraph_its_c
     assert len(paragraph.line_segments) == 0
     paragraph.apply_model(paragraph.to_model())
     assert _saved_lines(doc) == 0
+
+
+def _section_xml_and_caches(doc: HwpxDocument) -> tuple[bytes, int]:
+    root = doc.sections[0].element
+    return etree.tostring(root), sum(1 for _ in root.iter(HP + "linesegarray"))
+
+
+def test_a_copied_document_edits_a_table_as_the_document_it_was_copied_from() -> None:
+    # A copy (copy.deepcopy) of a document read from a file takes along what its sections watch, keyed by
+    # the ids of the original's elements. Once the original is gone, elements of the copy can be given
+    # those ids: what was watched for one paragraph was taken for another, and the edit dropped the caches
+    # of paragraphs it never touched (tens of the 245 here). 7.0.0 matched nothing in a copy.
+    path = FIXTURES / "hancom_saved" / "pages_joined_rows_over_pages_mixed.hwpx"
+    plain = HwpxDocument.open(path, **FIXED)
+    plain.tables[0].insert_rows(0)
+    expected = _section_xml_and_caches(plain)
+    assert expected[1] == 244  # the paragraph holding the table loses its line; nothing else goes
+
+    for _ in range(8):  # how the ids are given again depends on memory; each run so far dropped some
+        copied = deepcopy(HwpxDocument.open(path, **FIXED))
+        gc.collect()
+        held = list(copied.sections[0].element.iter(HP + "linesegarray"))  # a caller looking at the caches
+        copied.tables[0].insert_rows(0)
+        assert _section_xml_and_caches(copied) == expected
+        assert sum(cache.getparent() is None for cache in held) == 1
+
+
+def test_what_is_watched_for_an_element_counts_for_no_other_with_its_id() -> None:
+    # The same, made certain: an entry for another element under a cache's id (as a copied document's are,
+    # once the ids are given again) must not judge that cache. It is a cache nobody watched, and stays.
+    doc = HwpxDocument.open(FIXTURES / "hancom_saved" / "pages_joined_rows_over_pages_mixed.hwpx", **FIXED)
+    doc.tables[0].insert_rows(0)  # judged twice: every cache of the section is watched
+    section = doc.sections[0]
+    tracker = section._tracked_caches
+    assert tracker is not None
+    cache = line_caches.cache_elements(section.element)[-1]
+    block = line_caches._block_of(section.element, cache)
+    stranger = etree.Element("elsewhere")
+    # watched for *stranger*: another paragraph's content, and bytes that are this cache's
+    tracker._watched[id(cache)] = (stranger, b"another paragraph", etree.tostring(cache, with_tail=False))
+    tracker._blocks.pop(id(block), None)  # the block is judged cache by cache
+
+    section._remove_outlived_layout_caches(force=True)
+
+    assert cache.getparent() is not None
+    assert tracker._watched[id(cache)][0] is cache  # watched from now on as itself
+
+
+def test_a_cache_any_depth_down_in_a_body_paragraph_is_judged_without_recursion() -> None:
+    # Only a tree made in code can hold one (a file is read at most 256 elements deep). 7.0.0 judged it;
+    # the state of its block walked up from it a call per element and ran out of stack.
+    doc = HwpxDocument.open(FIXTURES / "hancom_saved" / "line_cache_table_cells.hwpx", **FIXED)
+    node = etree.SubElement(doc.sections[0].element, HP + "p")
+    for _ in range(3 * 1000):
+        node = etree.SubElement(node, HP + "subList")
+    inner = etree.SubElement(node, HP + "p")
+    deep = etree.SubElement(inner, HP + "linesegarray")
+
+    doc.tables[0].insert_rows(0)
+    doc.tables[0].insert_rows(0)  # and again, with the block's state taken before
+
+    assert deep.getparent() is inner  # a cache nobody watched, kept
+    assert doc.tables[0].row_count == 9
 
 
 def _block_and_what_is_judged_in_it(root: Any) -> tuple[Any, list[Any]]:
