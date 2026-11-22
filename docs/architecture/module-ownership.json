@@ -580,6 +580,12 @@
       "rationale": "A table's rows moved or copied as a block (table.move_rows, table.copy_rows): every hp:tr of the block goes, every cell's rowAddr and the table's rowCnt are numbered again, copies get fresh paragraph, object and field ids, and a merged cell reaching across the block's edges or the place it goes to is refused before anything changes. TableStructureEdits keeps the documented methods and delegates. A new module rather than more table.py lines: that owner file sits near its code-line review line. Format-level only."
     },
     {
+      "path": "src/hwpx/oxml/_line_caches.py",
+      "disposition": "core",
+      "approvedBy": "perf/table-edits",
+      "rationale": "The net under the editing APIs for a line cache (hp:linesegarray) left on a paragraph whose content changed: which caches a section watches and how they are judged against the part as read. Moved out of section.py with its rule as it was (same digest, same comparison, every cache of the section judged at every judgement, so a save and a table's structure edit leave what they left). What it adds is how a judgement gets there for less: a body paragraph whose bytes did not change since the last judgement is not digested paragraph by paragraph again, the part as read is digested only where the tree differs from it, and the judgement straight after a table's rebuild looks at the rebuilt table's block alone. A new module rather than more section.py lines. Format-level only."
+    },
+    {
       "path": "src/hwpx/oxml/text_ranges.py",
       "disposition": "core",
       "approvedBy": "asks10-text-ranges",

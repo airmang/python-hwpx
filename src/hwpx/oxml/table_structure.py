@@ -227,7 +227,7 @@ class TableStructureEdits:
         # A paragraph edited in the tree directly still holds the cache it was read with. The rebuild
         # below makes new elements, which the save can no longer pair with what was read: drop the
         # caches that outlived their content now, while it still can.
-        if section._remove_outlived_layout_caches(force=True):
+        if section._remove_outlived_layout_caches(force=True, rebuilding=element):
             section.mark_dirty()
         used = {
             int(found)
