@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional, Sequence
 import xml.etree.ElementTree as ET
 
@@ -84,6 +85,20 @@ class HwpxOxmlSection:
         self._story_marks = story_marks(element)
         # the part as it was read, for the save to tell a line cache that outlived its paragraph's content
         self._tracked_caches: TrackedCaches | None = None
+
+    def __copy__(self) -> "HwpxOxmlSection":
+        """A shallow copy, as ``copy.copy`` makes one, with its own record of the line caches it watches.
+
+        7.0 kept that record in attributes each judgement bound anew, so a shallow copy went on judging
+        with the record of the moment it was made. The record is one object now: the copy gets its own
+        copy of it, which a judgement of either section leaves as it is (a judgement binds new tables;
+        it changes none it was given)."""
+
+        twin = object.__new__(type(self))
+        twin.__dict__.update(self.__dict__)
+        if self._tracked_caches is not None:
+            twin._tracked_caches = copy.copy(self._tracked_caches)
+        return twin
 
     def __repr__(self) -> str:
         """Return a compact and safe summary of section structure."""

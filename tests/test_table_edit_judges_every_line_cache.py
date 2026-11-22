@@ -17,6 +17,7 @@ moment, twice: before the table is rebuilt and after. The judgement was made che
 
 from __future__ import annotations
 
+import copy
 import gc
 import hashlib
 import io
@@ -269,6 +270,31 @@ def test_a_cache_any_depth_down_in_a_body_paragraph_is_judged_without_recursion(
 
     assert deep.getparent() is inner  # a cache nobody watched, kept
     assert doc.tables[0].row_count == 9
+
+
+def test_a_shallow_copy_of_a_section_judges_with_what_it_watched_when_it_was_made() -> None:
+    # 7.0.0 kept what a section watches in attributes each judgement bound anew: a copy.copy of the section
+    # made before an edit went on judging against the part as read. The copy shared one record with the
+    # section instead, which the edit's judgements moved on.
+    doc = HwpxDocument.open(FIXTURES / "hancom_saved" / "cell_blank_lines_saved.hwpx", **FIXED)
+    section = doc.sections[0]
+    twin = copy.copy(section)
+    caches = list(section.element.iter(HP + "linesegarray"))
+    assert len(caches) == 1
+    cache = caches[0]
+    text = next(cache.getparent().iter(HP + "t"))
+    text.text = (text.text or "") + "B"  # the paragraph's content changes ...
+    line = cache[0]
+    width = line.get("horzsize")
+    line.set("horzsize", "7")  # ... and its cache is written again: the edit's judgements keep it
+
+    doc.tables.with_nested[0].insert_rows(0)
+    line.set("horzsize", width)  # the cache as read again, on content that is not
+    twin.mark_dirty()
+    twin.remove_stale_layout_caches()
+
+    assert cache.getparent() is None  # judged as read, as 7.0.0's copy judged it
+    assert sum(1 for _ in section.element.iter(HP + "linesegarray")) == 0
 
 
 def _block_and_what_is_judged_in_it(root: Any) -> tuple[Any, list[Any]]:
