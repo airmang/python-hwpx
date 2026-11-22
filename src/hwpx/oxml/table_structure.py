@@ -253,8 +253,7 @@ class TableStructureEdits:
         self._grow_height(before)
         _clear_paragraph_layout_cache(self.paragraph.element)  # its line held the table as it was
         section.mark_dirty()
-        # track the rebuilt caches with the content they have now
-        section._remove_outlived_layout_caches(rebuilt=(element, self.paragraph.element))
+        section._remove_outlived_layout_caches()  # track the rebuilt caches with the content they have now
         # Rows or columns copied with their content repeated their notes' numbers (1, 1), and rows
         # deleted left the numbers after them as they were: number the kinds the table held or holds.
         renumber_note_kinds(section, note_kinds | note_kinds_in((element,)))

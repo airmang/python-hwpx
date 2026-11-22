@@ -5,10 +5,9 @@ As ``test_big_table_work_bounds.py``. 7.0.0 judged every ``hp:linesegarray`` of 
 each ``insert_rows``/``insert_columns``/``delete_rows``/``delete_columns``/``split_cell``, with a digest
 of each cached paragraph each time (a paragraph holding a table serialised once for itself and once more
 for every cell paragraph in it), and digested every paragraph of the part as read at the first of them.
-The judgement still looks at every cache of the section each time -- what it leaves is held to 7.0.0's
-in ``test_table_edit_judges_every_line_cache.py`` -- but a body paragraph whose bytes did not change is
-serialised once and not digested paragraph by paragraph, and the judgement after the rebuild looks at
-the rebuilt table's block alone.
+The edit still judges every cache of the section twice -- what that leaves is held to 7.0.0's in
+``test_table_edit_judges_every_line_cache.py`` -- but each judgement serialises a body paragraph once,
+and one that serialises to what it did the last time is not digested paragraph by paragraph again.
 """
 
 from __future__ import annotations
@@ -81,12 +80,12 @@ def test_a_first_edit_digests_its_tables_block_however_long_the_section_is(monke
     assert caches > 5 * small_caches > 100  # the long section holds several times the caches
     assert digests == small_digests <= 6  # the cell paragraph and the paragraph holding the table
     assert parses == small_parses == 1  # the part as read, once (7.0.0 parsed it once too)
-    # each block once as it is and once as it was read, and the rebuilt one once more
-    assert serialised <= 2 * blocks + 1
+    # before the rebuild each block as it is and as it was read; after it each block as it is
+    assert serialised <= 3 * blocks
     assert digests < caches / 50  # 7.0.0: three digests of every cached paragraph here
 
 
-def test_a_later_edit_serialises_each_block_once_and_parses_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_later_edit_serialises_each_block_twice_and_parses_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     doc, work, caches, blocks = _opened(LARGE, monkeypatch)
     table = doc.tables[0]
     table.insert_rows(0)
@@ -99,7 +98,7 @@ def test_a_later_edit_serialises_each_block_once_and_parses_nothing(monkeypatch:
 
     for digests, serialised, parses in (again, other):
         assert parses == 0
-        assert serialised <= blocks + 1  # one look at the section, and the rebuilt block once more
+        assert serialised <= 2 * blocks  # every block before the rebuild and every block after it
         assert digests <= 6  # 7.0.0: two digests of every cached paragraph
     assert caches > 400
 

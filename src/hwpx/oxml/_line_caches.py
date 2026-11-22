@@ -19,7 +19,10 @@ paragraph's) is not what the part was read with and is left alone.
 Every judgement looks at every cache of the section, so a caller can rely on
 any cache it finds after one. What keeps that from costing a digest of each
 paragraph each time is in the class below: a paragraph of the section's body
-whose bytes are those of the last judgement holds nothing to judge again.
+that is, at this judgement, what it was at the last one holds nothing to judge
+again. Nothing is taken on trust between two judgements -- what an edit, a
+``mark_dirty()`` or anything else did to the tree in between shows in what is
+compared, or the block is judged cache by cache.
 """
 
 from __future__ import annotations
@@ -39,9 +42,11 @@ _CACHE_BYTES_RE = re.compile(
 
 #: A watched cache element, the digest of the content its paragraph had with it, and the cache as it was.
 _Watched = tuple[Any, bytes, bytes]
-#: A child of the section's root that holds caches, the digest of its bytes when every cache in it was last
-#: judged (``None``: one of them went then, so the next judgement looks at each again), and those caches' ids.
-_Block = tuple[Any, "bytes | None", tuple[int, ...]]
+#: What a block is, as far as any digest or cache comparison inside it can tell (:func:`_block_state`).
+_State = tuple[bytes, Any, tuple[Any, ...]]
+#: A child of the section's root that holds caches, its state when every cache in it was last judged (``None``:
+#: one of them went then, so the next judgement looks at each again), and the ids of the caches left in it.
+_Block = tuple[Any, "_State | None", tuple[int, ...]]
 
 
 def _local(node: Any) -> str:
@@ -70,19 +75,6 @@ def cache_elements(root: Any) -> list[Any]:
     return found
 
 
-def _caches_around(element: Any) -> list[Any]:
-    """The line caches of the paragraphs *element* sits in (the one holding it, and those holding that
-    one's cell): the caches outside *element* whose paragraph's content changes when *element* does."""
-
-    return [
-        child
-        for ancestor in element.iterancestors()
-        if _local(ancestor) == "p"
-        for child in ancestor
-        if _is_cache(child.tag)
-    ]
-
-
 def _content_digest(paragraph: Any) -> bytes:
     """A digest of everything in *paragraph* but line caches (its own and those of paragraphs inside it)."""
 
@@ -91,14 +83,134 @@ def _content_digest(paragraph: Any) -> bytes:
 
 
 def _whole_bytes(block: Any) -> bytes:
-    """Everything in *block*, line caches too: what it serialises to, which is what every digest and every
-    cache comparison of the paragraphs inside it is taken from."""
+    """Everything in *block*, line caches too, as it serialises."""
 
     return LET.tostring(block, with_tail=False)  # type: ignore[no-any-return]
 
 
-def _bytes_digest(data: bytes) -> bytes:
-    return hashlib.blake2b(data, digest_size=16).digest()
+def _declared_on(element: Any) -> tuple[Any, ...]:
+    """The namespace declarations *element* itself carries, in order (prefix, URI)."""
+
+    found = []
+    # lxml reports an element's own declarations as the events before the element's start
+    for event, value in LET.iterwalk(element, events=("start-ns", "start")):
+        if event != "start-ns":
+            break
+        found.append(value)
+    return tuple(found)
+
+
+def _names_above(node: Any, block: Any, known: dict[int, tuple[Any, Any]]) -> Any:
+    """The qualified names of the elements above *node* up to *block*, nearest first (nested pairs).
+
+    *known* holds what was found for a parent already, with the parent so that its id stays its own."""
+
+    if node is block:
+        return ()
+    parent = node.getparent()
+    found = known.get(id(parent))
+    if found is None:
+        found = known[id(parent)] = (parent, (parent.tag, _names_above(parent, block, known)))
+    return found[1]
+
+
+def _block_state(block: Any, caches: list[Any], data: bytes) -> _State:
+    """Everything that goes into the digest of a paragraph in *block* and into the bytes of a cache in it.
+
+    Both are serialisations of an element inside the block. lxml writes such an element as a copy
+    of its start tag followed by the element's content as it stands in the tree. The content is
+    in *data*, the block's own serialisation, byte for byte. The copy's start tag is put together
+    from more than the element's own, and this is the whole of it (libxml2's ``xmlStaticCopyNode``
+    and ``xmlSearchNs``, lxml's ``_copyParentNamespaces``):
+
+    1. the element's own declarations;
+    2. a declaration for the prefix of its name, when it carries none: the namespace found by going
+       up from the element, at each element above taking a declaration of that prefix it carries or
+       else, where its own name is written with that prefix, the namespace its name is in;
+    3. the same for each attribute's prefix -- and where the copy already has that prefix for
+       another namespace than the attribute's, a prefix made up for the attribute's namespace;
+    4. every declaration carried by the elements above, nearest first, one per prefix.
+
+    What that reads and *data* does not hold: which declarations the block itself carries (its
+    start tag in *data* is such a copy, own and inherited alike) and which each element over it
+    does, in what order; the namespace each element above the one serialised is in, and its
+    attributes' namespaces (an element is written with its prefix, whatever a nearer declaration
+    makes of that prefix -- lxml leaves elements bound past such a declaration when it takes in
+    a subtree -- and an element without a prefix may be in the default namespace or in none).
+
+    So with the digest of *data* the state holds: the declarations carried by the block and by
+    each element over it, with that element's prefix and qualified name; and for each cache the
+    qualified names of the cache, of the paragraph holding it, of their attributes and of every
+    element between the paragraph and the block.
+    """
+
+    known: dict[int, tuple[Any, Any]] = {}
+    names = []
+    for cache in caches:
+        paragraph = cache.getparent()
+        names.append(
+            (
+                cache.tag,
+                tuple(cache.keys()),
+                paragraph.tag,
+                tuple(paragraph.keys()),
+                _names_above(paragraph, block, known),
+            )
+        )
+    over = tuple((_declared_on(node), node.prefix, node.tag) for node in block.iterancestors())
+    return hashlib.blake2b(data, digest_size=16).digest(), (_declared_on(block), over), tuple(names)
+
+
+_STATES_DECIDE: bool | None = None
+
+
+def _states_decide() -> bool:
+    """Whether this lxml gives :func:`_block_state` what it takes it to, checked once on small trees.
+
+    An element's own declarations must be reported as they are. A tree parsed twice must give one
+    state and the same serialisations inside. And three pairs of blocks alike in every byte, in
+    which elements inside serialise differently, must differ in state where they do: declarations
+    in another order over the block; an element above a paragraph bound past a nearer declaration
+    of its prefix; a block that carries a declaration against one that inherits it. Where any of
+    it does not hold, no block is taken as unchanged: each cache is judged with its own digest
+    every time, as before."""
+
+    global _STATES_DECIDE
+    if _STATES_DECIDE is None:
+        declared = LET.fromstring('<r xmlns:a="u:a"><w xmlns:b="u:b" xmlns:a="u:a" xmlns="u:d"><a:p/></w></r>')
+        inside = '<a:p b:k="1"><c/><d xmlns="u:d"/><a:linesegarray/></a:p>'
+        plain = f'<r xmlns:a="u:a" xmlns:b="u:b"><w>{inside}</w></r>'
+
+        def taking_in(root: str, subtree: str) -> Any:
+            # a subtree whose top declares the root's namespace again as z: lxml strips that and
+            # binds what used it to the root's declaration, past whatever declares the prefix between
+            top = LET.fromstring(root)
+            top.append(LET.fromstring(subtree))
+            return top.find(".//*[@id='b']")
+
+        held = "<a:p><a:linesegarray/></a:p>"
+        hidden = taking_in('<r xmlns:a="u:a"/>', f'<z:e xmlns:z="u:a" id="b"><a:m xmlns:a="u:x"><z:d>{held}</z:d></a:m></z:e>')
+        carried = taking_in('<r xmlns:a="u:a"/>', f'<z:e xmlns:z="u:a"><z:k xmlns:a="u:x" id="b">{held}</z:k></z:e>')
+        inherited = taking_in('<r xmlns:a="u:a"/>', f'<z:e xmlns:z="u:a" xmlns:a="u:x"><z:k id="b">{held}</z:k></z:e>')
+        trees = [
+            LET.fromstring(plain)[0][0],
+            LET.fromstring(plain)[0][0],
+            LET.fromstring(f'<r xmlns:b="u:b" xmlns:a="u:a"><w>{inside}</w></r>')[0][0],
+            hidden,
+            LET.fromstring(LET.tostring(hidden.getparent())).find(".//*[@id='b']"),
+            carried,
+            inherited,
+        ]
+        states = [_block_state(block, cache_elements(block), _whole_bytes(block)) for block in trees]
+        parts = [[LET.tostring(node, with_tail=False) for node in block.iter()] for block in trees]
+        _STATES_DECIDE = (
+            [_declared_on(node) for node in declared.iter()]
+            == [(("a", "u:a"),), (("b", "u:b"), ("a", "u:a"), ("", "u:d")), ()]
+            and states[0] == states[1]
+            and parts[0] == parts[1]
+            and all(states[one] != states[other] or parts[one] == parts[other] for one, other in ((0, 2), (3, 4), (5, 6)))
+        )
+    return _STATES_DECIDE
 
 
 def _as_it_is(cache: Any) -> _Watched:
@@ -120,24 +232,27 @@ def _block_of(root: Any, element: Any) -> Any:
 class TrackedCaches:
     """The line caches a section watches, each with the content its paragraph had when it was last judged.
 
-    The rule (:meth:`_judge`) is the one a judgement has always applied to each cache in the tree: a
-    watched cache that is still the bytes it was while its paragraph's content is not goes, and every
-    other cache is watched from then on with the content its paragraph has now. A judgement
-    (:meth:`judge_all`) leaves exactly what applying that rule to every cache of the section leaves. It
-    spends less than a digest of every paragraph by two things that do not change an answer:
+    The rule (:meth:`_judge`) is the one a judgement has always applied to each cache in the tree, in
+    document order: a watched cache that is still the bytes it was while its paragraph's content is not
+    goes, and every other cache is watched from then on with the content its paragraph has now. A
+    judgement (:meth:`judge_all`) leaves exactly what applying that rule to every cache of the section
+    leaves. It spends less than a digest of every paragraph by two things, each checked at the judgement
+    itself against the tree as it is then:
 
-    * **A block whose bytes did not change is not judged again.** A block is a child of the section's
-      root (a body paragraph, with whatever tables it holds). When a block serialises to the bytes it
-      had at the last judgement and holds the same cache elements, each paragraph in it has the content
-      and each cache the bytes it was watched with, so the rule keeps every one with the same entry.
-      The serialisation is taken at every judgement, so an edit made in the tree directly is seen like
-      any other. A block in which a cache went is judged cache by cache the next time.
+    * **A block that is what it was is not judged again.** A block is a child of the section's root
+      (a body paragraph, with whatever tables it holds). Every judgement takes the state
+      (:func:`_block_state`) of every block that holds a cache. When that is the state the block had
+      at the last judgement, the block holds the same cache elements in the same order, and no cache
+      of it went at that judgement, then each paragraph in it has the content, and each cache the
+      bytes, its entry was made with, so the rule keeps every one with the same entry. A block in
+      which the rule dropped a cache is judged cache by cache the next time: the paragraphs around
+      the dropped cache were digested before it went, and it may have taken text after it along.
     * **What the part was read with is not digested until it differs.** The caches as read
       (*caches*, with the part's bytes *source_xml*) start out watched "as read". The first judgement
-      parses the part again, as it always did, and a block that serialises to the bytes of the block
-      it was read as keeps its caches "as read": their entries are what a digest of the parsed part
-      would give. When such a block changes later, the part is parsed once more for all that are left
-      and its bytes go.
+      parses the part again, as it always did, and a block in the state of the block it was read as,
+      with the caches read in it, keeps them "as read": their entries are what a digest of the parsed
+      part gives, and what a digest of the tree gives. When such a block differs at a later
+      judgement, the part is parsed once more for all that are left and its bytes go.
 
     When the parsed part does not line up with *caches*, nothing is judged from then on.
     """
@@ -154,15 +269,13 @@ class TrackedCaches:
         self._judges = True
         #: the part's caches parsed again, while a judgement needs them
         self._originals: list[Any] | None = None
-        #: the block a structure edit said it would rebuild, at the judgement before it
-        self._rebuilding: Any = None
 
     # -- the part as read ------------------------------------------------------------------------
 
     def _stop(self) -> None:
         self._judges = False
         self._watched, self._as_read, self._blocks = {}, {}, {}
-        self._source_xml = self._originals = self._rebuilding = None
+        self._source_xml = self._originals = None
 
     def _parse_part(self) -> list[tuple[Any, list[Any]]] | None:
         """The part parsed again: each child of its root that holds caches, with them. ``None`` (and
@@ -189,6 +302,20 @@ class TrackedCaches:
             return None
         self._originals = originals
         return blocks
+
+    def _part_blocks(self) -> dict[int, tuple[Any, list[Any]]] | None:
+        """The parsed part's blocks with their caches, by the place of the first cache in each. ``None``
+        when the part does not line up (nothing is judged)."""
+
+        parsed = self._parse_part()
+        if parsed is None:
+            return None
+        found: dict[int, tuple[Any, list[Any]]] = {}
+        place = 0
+        for block, caches in parsed:
+            found[place] = (block, caches)
+            place += len(caches)
+        return found
 
     def _expected(self, cache: Any) -> tuple[bytes, bytes] | None:
         """What *cache* is watched with: its paragraph's content digest and the cache's bytes."""
@@ -247,8 +374,10 @@ class TrackedCaches:
 
         Returns how many were dropped. What is watched from here on: every cache now in the tree,
         with its paragraph's content as it is now. *about_to_rebuild* (a table whose rows and cells a
-        structure edit is about to build again) changes no answer: it has the block holding it watched
-        with digests rather than "as read", for :meth:`judge_rebuilt` after the edit.
+        structure edit is about to build again) changes no answer: the caches of the block holding it
+        that are watched "as read" are watched with digests instead (of the tree, which in an unchanged
+        block is the part), so that the judgement after the edit, which finds that block changed, does
+        not have to parse the part for them.
         """
 
         if not self._judges:
@@ -268,37 +397,19 @@ class TrackedCaches:
             if gone is None:
                 return 0
             removed += gone
-            if gone and block is rebuilding:
-                # The paragraphs around a cache that went were digested before it went: the judgement
-                # after the rebuild cannot take this block's other caches as just judged.
-                rebuilding = None
         if not first:
             self._let_the_part_go(as_read, watched)
         self._originals = None
         if not as_read:
             self._source_xml = None
-        self._watched, self._as_read, self._blocks, self._rebuilding = watched, as_read, blocks, rebuilding
+        self._watched, self._as_read, self._blocks = watched, as_read, blocks
         return removed
-
-    def _part_blocks(self) -> dict[int, tuple[Any, int, int]] | None:
-        """The parsed part's blocks, by the place of the first cache in each: the block, that place and
-        how many caches it holds. ``None`` when the part does not line up (nothing is judged)."""
-
-        parsed = self._parse_part()
-        if parsed is None:
-            return None
-        found: dict[int, tuple[Any, int, int]] = {}
-        place = 0
-        for block, caches in parsed:
-            found[place] = (block, place, len(caches))
-            place += len(caches)
-        return found
 
     def _judge_block(
         self,
         block: Any,
         rebuilding: bool,
-        as_read_blocks: dict[int, tuple[Any, int, int]],
+        as_read_blocks: dict[int, tuple[Any, list[Any]]],
         watched: dict[int, _Watched],
         as_read: dict[int, tuple[Any, int]],
         blocks: dict[int, _Block],
@@ -310,11 +421,11 @@ class TrackedCaches:
         if not caches:
             return 0
         ids = tuple(id(cache) for cache in caches)
-        data = _whole_bytes(block)
-        digest = _bytes_digest(data)
+        state = _block_state(block, caches, _whole_bytes(block))
         was = self._blocks.get(id(block))
-        if (was is not None and was[0] is block and was[1] == digest and was[2] == ids) or (
-            as_read_blocks and self._is_as_read(caches, data, as_read_blocks)
+        if _states_decide() and (
+            (was is not None and was[0] is block and was[1] == state and was[2] == ids)
+            or (as_read_blocks and self._is_as_read(caches, state, as_read_blocks))
         ):
             # Nothing in the block changed since its caches were last judged (or read): the rule keeps
             # each of them with the entry it has.
@@ -327,19 +438,22 @@ class TrackedCaches:
                         continue
                     entry = _as_it_is(cache)  # as read, and the block is what it was read as
                 watched[id(cache)] = entry
-            blocks[id(block)] = (block, digest, ids)
+            blocks[id(block)] = (block, state, ids)
             return 0
         gone = self._judge(caches, watched, as_read)
         if not self._judges:
             return None
-        # With a cache gone the block is no longer the bytes digested above, and the digests of the
-        # paragraphs around the cache were taken before it went: judge each again the next time.
-        blocks[id(block)] = (block, None if gone else digest, tuple(i for i in ids if i in watched))
+        # With a cache gone the block is no longer in the state taken above, and the digests of the
+        # paragraphs around the cache were taken before it went (with the text after it, which went
+        # along): judge each again the next time, as a look at every cache would.
+        blocks[id(block)] = (block, None if gone else state, tuple(i for i in ids if i in watched))
         return gone
 
-    def _is_as_read(self, caches: list[Any], data: bytes, as_read_blocks: dict[int, tuple[Any, int, int]]) -> bool:
-        """Whether a block of the tree (its *caches* and bytes *data*) is one of the parsed part's blocks,
-        unchanged: the same caches, in their places, and the same bytes."""
+    def _is_as_read(
+        self, caches: list[Any], state: _State, as_read_blocks: dict[int, tuple[Any, list[Any]]]
+    ) -> bool:
+        """Whether a block of the tree (its *caches* and *state*) is one of the parsed part's blocks,
+        unchanged: the caches read in it, in their places, and the same state."""
 
         places = []
         for cache in caches:
@@ -348,46 +462,6 @@ class TrackedCaches:
                 return False
             places.append(found[1])
         source = as_read_blocks.get(places[0])
-        if source is None or source[2] != len(places) or places != list(range(source[1], source[1] + source[2])):
+        if source is None or places != list(range(places[0], places[0] + len(source[1]))):
             return False
-        return _whole_bytes(source[0]) == data
-
-    def judge_rebuilt(self, root: Any, element: Any, holder: Any) -> int:
-        """:meth:`judge_all`, straight after the structure edit that :meth:`judge_all` was told about
-        (*about_to_rebuild* was *element*) built *element*'s rows and cells again and cleared the caches
-        of *holder* (the paragraph holding the table) and of the paragraphs holding that one's cell.
-
-        Between the two judgements nothing changed but *element*'s own content and those caches, so the
-        rule gives every cache outside *element* whose paragraph does not hold it the answer it gave a
-        moment ago, with the same content: only the caches now in *element* and those of the paragraphs
-        it sits in are judged, and the caches *element* held before are no longer watched. Whenever that
-        cannot be said (no judgement told of this block, a cache of the block went at that judgement, or
-        *holder* is not in it), the whole section is judged.
-        """
-
-        if not self._judges:
-            return 0
-        block = _block_of(root, element)
-        if block is None or block is not self._rebuilding or _block_of(root, holder) is not block:
-            return self.judge_all(root)
-        self._rebuilding = None
-        in_block = cache_elements(block)
-        held = {id(cache) for cache in in_block}
-        was = self._blocks.pop(id(block), None)
-        if was is not None:
-            for key in was[2]:
-                if key not in held:  # a cache of the rows and cells that went, or one the edit cleared
-                    self._watched.pop(key, None)
-                    self._as_read.pop(key, None)
-        judged = {id(cache) for cache in cache_elements(element)}
-        judged.update(id(cache) for cache in _caches_around(element))
-        # in document order, as a judgement of the whole section meets them
-        gone = self._judge([cache for cache in in_block if id(cache) in judged], self._watched, self._as_read)
-        if not self._judges:
-            return 0
-        self._let_the_part_go(self._as_read, self._watched)
-        ids = tuple(
-            key for key in (id(cache) for cache in in_block) if key in self._watched or key in self._as_read)
-        if ids:
-            self._blocks[id(block)] = (block, None if gone else _bytes_digest(_whole_bytes(block)), ids)
-        return gone
+        return _block_state(source[0], source[1], _whole_bytes(source[0])) == state

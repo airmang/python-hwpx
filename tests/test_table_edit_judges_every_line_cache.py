@@ -5,13 +5,14 @@ Other calls rely on it. After ``insert_rows`` and the like, 7.0.0 has dropped th
 paragraph of the section whose content changed under it, and watches every cache left with the content
 it has now -- so a paragraph's ``line_segments``, ``estimate_pages``, ``write_line_caches``,
 ``apply_model``, a table moved to another section and the save all see the section judged at that
-moment. The judgement was made cheaper since (:mod:`hwpx.oxml._line_caches`); these tests hold it to
-the same answers:
+moment, twice: before the table is rebuilt and after. The judgement was made cheaper since
+(:mod:`hwpx.oxml._line_caches`); these tests hold it to the same answers:
 
 * the public sequences in which a later call shows whether the edit judged a paragraph outside its table;
-* 7.0.0's judgement, kept here as it was, run beside the present one over the same edits -- in the XML
-  tree directly and through the API, in and out of tables, refused and not -- comparing after every step
-  the XML, the edited marks and what each section watches.
+* 7.0.0's judgement, kept here as it was, run beside the present one over the same steps -- edits in the
+  XML tree and through the API, in and out of tables, section settings, headers, notes, saves and
+  reopenings, refused edits -- comparing after every step the XML, the edited marks and what each
+  section watches.
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ import hashlib
 import io
 import random
 import re
+import warnings
+import zipfile
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -157,17 +161,281 @@ def test_a_hancom_documents_changed_cell_loses_its_cache_before_its_table_moves(
     assert moved and all(len(p.line_segments) == 0 for p in moved)
 
 
-def test_measuring_a_tables_rows_writes_nothing_into_the_document() -> None:
-    # What lets the judgement after a rebuild look at the rebuilt table's block alone: between the two
-    # judgements of a structure edit only the table and its holding paragraphs' caches change. The one
-    # step there that is not the rebuild itself is this measure.
-    for name in ("formfit_glyph_cells.hwpx", "pages_nested_table_rows_holding_tables_split.hwpx"):
-        doc = HwpxDocument.open(FIXTURES / "hancom_saved" / name)
-        before = [etree.tostring(part.element) for part in (*doc.sections, *doc.oxml.headers)]
-        for table in doc.tables.with_nested:
-            table._rows_height()
-        assert [etree.tostring(part.element) for part in (*doc.sections, *doc.oxml.headers)] == before
-        assert not any(section.dirty for section in doc.sections)
+def test_a_paragraph_with_two_caches_loses_the_one_left_after_the_first_went() -> None:
+    # The judgement before the rebuild keeps the cache nobody watched and drops the one the part was read
+    # with -- and the line break after that one goes along, so the paragraph is no longer what the kept
+    # cache was just watched with. The judgement after the rebuild looks at the paragraph again, though
+    # the edit never touched it, and drops the other.
+    made = HwpxDocument.new(**FIXED)
+    made.add_paragraph("short")
+    made.add_table(1, 1)
+    write_line_caches(made)
+    doc = HwpxDocument.open(made.to_bytes(), **FIXED)
+    paragraph = doc.paragraphs[0]
+    read = paragraph.element.find("{*}linesegarray")
+    paragraph.element.insert(paragraph.element.index(read), deepcopy(read))
+    read.tail = "\n"
+    _text_node(paragraph).text = "long text " * 100
+
+    doc.tables[0].insert_rows(0)
+
+    assert len(paragraph.line_segments) == 0
+    paragraph.apply_model(paragraph.to_model())
+    assert _saved_lines(doc) == 0
+
+
+def test_section_settings_the_edit_puts_into_the_tree_cost_their_paragraph_its_cache() -> None:
+    # Settings written while the section has no hp:secPr wait outside the tree until the section is
+    # marked edited -- which the structure edit does between its two judgements. The first paragraph,
+    # judged a moment before without them, has other content at the second.
+    doc, paragraph = _fresh()
+    section = doc.sections[0]
+    was = section.element.find(".//{*}secPr")
+    was.getparent().remove(was)
+    paragraph.element.find("{*}linesegarray")[0].set("horzsize", "901")  # rewritten: it stays the first time
+    pending = section.properties.element
+    pending.attrib.update(was.attrib)
+    pending.extend(list(was))
+    pending.set("textDirection", "VERTICAL")
+    assert pending.getparent() is None
+
+    doc.tables[0].insert_rows(0)
+
+    assert pending.getparent() is not None
+    assert len(paragraph.line_segments) == 0
+    paragraph.apply_model(paragraph.to_model())
+    assert _saved_lines(doc) == 0
+
+
+def _block_and_what_is_judged_in_it(root: Any) -> tuple[Any, list[Any]]:
+    block = root.find(".//*[@id='block']")
+    caches = line_caches.cache_elements(block)
+    state = line_caches._block_state(block, caches, line_caches._whole_bytes(block))
+    judged = [(line_caches._content_digest(cache.getparent()), etree.tostring(cache, with_tail=False)) for cache in caches]
+    return state, judged
+
+
+def test_a_blocks_state_decides_every_digest_and_every_cache_comparison_in_it() -> None:
+    # What lets a block in the state it had go unjudged. A paragraph's digest and a cache's bytes are
+    # serialisations of elements inside the block, written under the namespace declarations they inherit
+    # -- so the block's own bytes do not decide them: the order of the declarations in scope and whether
+    # an unprefixed element has a namespace at all do not show in the bytes. The state holds both (and
+    # the names of the elements over the block, which the next test is about).
+    inside = (
+        '<p:run><p:tbl><p:tc xmlns:r="urn:r"><p:p q:a="1"><p:run><p:t>text</p:t></p:run>'
+        '<p:linesegarray><p:lineseg r:x="1"/></p:linesegarray>tail</p:p></p:tc></p:tbl></p:run><linesegarray/>'
+    )
+    block = f'<p:p id="block" q:a="1">{inside}</p:p>'
+    trees = {
+        "plain": f'<s:sec xmlns:s="urn:s" xmlns:p="urn:p" xmlns:q="urn:q" xmlns="urn:p">{block}</s:sec>',
+        "the same again": f'<s:sec xmlns:s="urn:s" xmlns:p="urn:p" xmlns:q="urn:q" xmlns="urn:p">{block}</s:sec>',
+        "another declaration above": f'<s:sec xmlns:s="urn:s" xmlns:p="urn:p" xmlns:q="urn:q" xmlns="urn:p" xmlns:z="urn:z">{block}</s:sec>',
+        "another order above": f'<s:sec xmlns:q="urn:q" xmlns:s="urn:s" xmlns:p="urn:p" xmlns="urn:p">{block}</s:sec>',
+        "a prefix declared again on the way down": (
+            '<s:sec xmlns:s="urn:s" xmlns:p="urn:p" xmlns:q="urn:q" xmlns="urn:p">'
+            f'<s:wrap xmlns:q="urn:q">{block}</s:wrap></s:sec>'
+        ),
+        "in a wrapper that declares nothing": (
+            f'<s:sec xmlns:s="urn:s" xmlns:p="urn:p" xmlns:q="urn:q" xmlns="urn:p"><s:wrap>{block}</s:wrap></s:sec>'
+        ),
+        "in a wrapper that declares the first of them": (
+            '<s:sec xmlns:s="urn:s" xmlns:q="urn:q" xmlns="urn:p">'
+            f'<s:wrap xmlns:s="urn:s" xmlns:p="urn:p">{block}</s:wrap></s:sec>'
+        ),
+    }
+    found = {name: _block_and_what_is_judged_in_it(etree.fromstring(xml)) for name, xml in trees.items()}
+    without_a_namespace = etree.fromstring(trees["plain"])
+    without_a_namespace.find(".//*[@id='block']")[-1].tag = "linesegarray"  # was {urn:p}linesegarray
+    found["an unprefixed cache taken out of its namespace"] = _block_and_what_is_judged_in_it(without_a_namespace)
+
+    by_state: dict[Any, Any] = {}
+    for state, judged in found.values():
+        assert by_state.setdefault(state, judged) == judged  # one state, one answer
+    assert found["plain"] == found["the same again"]
+    # The same declarations in scope, in the same order, carried by other elements: the same answers. The
+    # state keeps each element's own declarations, so it may tell these apart -- that only costs a judgement.
+    assert found["in a wrapper that declares nothing"][1] == found["in a wrapper that declares the first of them"][1]
+
+    # And the bytes alone would not do: these serialise to the bytes "plain" does, with other answers.
+    plain_bytes = found["plain"][0][0]
+    for name in ("a prefix declared again on the way down", "an unprefixed cache taken out of its namespace"):
+        state, judged = found[name]
+        assert state[0] == plain_bytes and state != found["plain"][0], name
+        assert judged != found["plain"][1], name
+
+
+def _taken_in(block: Any, held: str) -> Any:
+    """A subtree for *block* to take in: ``e > m > held``, where ``m`` gives the block's prefix to
+    another namespace and ``z`` is the block's namespace declared again. lxml strips that repeated
+    declaration and binds whatever used it to the declaration in scope at the block -- below ``m``
+    too, where the prefix it is then written with means the other namespace."""
+
+    real, prefix = etree.QName(block).namespace, block.prefix
+    held = held.replace("P:", f"{prefix}:")
+    return etree.fromstring(f'<z:e xmlns:z="{real}"><{prefix}:m xmlns:{prefix}="urn:other">{held}</{prefix}:m></z:e>')
+
+
+#: a paragraph of the block's namespace with a cache, in a holder of the namespace ``m`` declares
+_HELD_PLAINLY = "<P:a><z:p><z:linesegarray/></z:p></P:a>"
+
+
+def test_a_name_bound_to_a_declaration_hidden_from_it_shows_in_the_state_of_its_block() -> None:
+    # An element or an attribute bound to a declaration that a nearer one hides serialises like one
+    # of the nearer namespace, so the block's bytes do not tell. What a paragraph below such an
+    # element serialises to by itself does: it is written with the namespace its nearest ancestor of
+    # that prefix is bound to. An attribute bound that way is written with a prefix made up for it.
+    def block_taking_in(held: str) -> tuple[Any, list[Any]]:
+        root = etree.fromstring('<s:sec xmlns:s="urn:s" xmlns:p="urn:p"><p:p id="block"/></s:sec>')
+        root[0].append(_taken_in(root[0], held))
+        return _block_and_what_is_judged_in_it(root)
+
+    def as_its_bytes_parse(held: str) -> tuple[Any, list[Any]]:
+        root = etree.fromstring('<s:sec xmlns:s="urn:s" xmlns:p="urn:p"><p:p id="block"/></s:sec>')
+        root[0].append(_taken_in(root[0], held))
+        return _block_and_what_is_judged_in_it(etree.fromstring(etree.tostring(root)))
+
+    plain = block_taking_in(_HELD_PLAINLY)
+    for held in (
+        "<z:a><z:p><z:linesegarray/></z:p></z:a>",  # the holder bound to the hidden declaration
+        "<z:b><P:a><z:p><z:linesegarray/></z:p></P:a></z:b>",  # an element further up: the holder is nearer
+        '<P:p z:k="1"><P:linesegarray/></P:p>',  # an attribute of the paragraph
+        '<P:p><P:linesegarray z:k="1"/></P:p>',  # an attribute of the cache
+    ):
+        bound, parsed = block_taking_in(held), as_its_bytes_parse(held)
+        assert bound[0][0] == parsed[0][0], held  # the same bytes
+        if bound[1] != parsed[1]:
+            assert bound[0] != parsed[0], held  # another answer: another state
+        else:
+            assert "z:b" in held  # the one that changes no answer
+    held = "<z:a><z:p><z:linesegarray/></z:p></z:a>"
+    assert block_taking_in(held)[0][0] == plain[0][0] and block_taking_in(held)[1] != plain[1]
+    for held in ('<P:p z:k="1"><P:linesegarray/></P:p>', '<P:p><P:linesegarray z:k="1"/></P:p>'):
+        assert block_taking_in(held)[1] != as_its_bytes_parse(held)[1], held
+
+    # The same over the block: a block of another prefix, the element holding it bound to the hidden
+    # declaration. Nothing in the block differs, by bytes or by name.
+    held = '<z:a><w:w xmlns:w="urn:w" id="block"><P:p><P:linesegarray/></P:p></w:w></z:a>'
+    trees = [etree.fromstring('<s:sec xmlns:s="urn:s" xmlns:p="urn:p"><p:p/></s:sec>') for _ in range(2)]
+    for tree in trees:
+        tree[0].append(_taken_in(tree[0], held))
+    bound = _block_and_what_is_judged_in_it(trees[0])
+    parsed = _block_and_what_is_judged_in_it(etree.fromstring(etree.tostring(trees[1])))
+    assert bound[0][0] == parsed[0][0] and bound[0][2] == parsed[0][2]  # the bytes, and every name in the block
+    assert bound[1] != parsed[1] and bound[0] != parsed[0]
+
+
+def _random_element(rng: random.Random, depth: int, prefixes: tuple[str, ...] = ("p:", "p:", "q:", "", "")) -> str:
+    name = rng.choice(["p", "p", "run", "tbl", "tc", "linesegarray", "linesegarray", "lineseg"])
+    prefix = rng.choice(prefixes)
+    declared = "".join(
+        f' xmlns{":" + chosen if chosen else ""}="{rng.choice(["urn:p", "urn:q", "urn:r"])}"'
+        for chosen in rng.sample(["p", "q", "r", None], k=rng.choice([0, 0, 0, 1, 2]))
+    )
+    attribute = rng.choice(["", ' a="1"', ' q:b="2"', ' p:c="x&amp;y"'])
+    if "z:" in prefixes and rng.random() < 0.3:
+        attribute += ' z:d="3"'
+    inner = ""
+    if depth < 4:
+        for _ in range(rng.choice([0, 1, 2, 3])):
+            inner += (
+                rng.choice(["", "text", "<!-- c -->"])
+                + _random_element(rng, depth + 1, prefixes)
+                + rng.choice(["", "tail", "\n"])
+            )
+    return f"<{prefix}{name}{declared}{attribute}>{inner}</{prefix}{name}>"
+
+
+def _random_context(rng: random.Random, block: str) -> Any:
+    """*block* under a root (and perhaps a wrapper) with declarations of its own, then edited in ways a
+    serialisation of the block may not show; the block's element, or ``None`` when it is not XML."""
+
+    above = ' xmlns:p="urn:p" xmlns:q="urn:q"' + rng.choice(["", ' xmlns:r="urn:r"', ' xmlns="urn:p"', ' xmlns="urn:r"'])
+    wrap = rng.choice([None, None, "p:wrap", "q:wrap"])
+    declared = rng.choice(["", "", ' xmlns:q="urn:q"', ' xmlns:r="urn:q"', ' xmlns="urn:q"'])
+    inner = f"<{wrap}{declared}>{block}</{wrap}>" if wrap else block
+    try:
+        root = etree.fromstring(f"<p:root{above}>{inner}</p:root>")
+    except etree.XMLSyntaxError:
+        return None
+    found = root.find(".//*[@id='block']")
+    for _ in range(rng.choice([0, 0, 1, 2, 3])):
+        nodes = [node for node in found.iter() if isinstance(node.tag, str)]
+        node, kind = rng.choice(nodes), rng.randrange(10)
+        if kind == 0:
+            etree.cleanup_namespaces(root)
+        elif kind == 1:
+            etree.cleanup_namespaces(root, top_nsmap={"alias": "urn:alias"}, keep_ns_prefixes=["alias", "p"])
+        elif kind == 2:  # in or out of a namespace, the local name kept
+            local = etree.QName(node).localname
+            node.tag = rng.choice([local, "{urn:p}" + local, "{urn:q}" + local])
+        elif kind == 3:
+            etree.SubElement(node, rng.choice(["linesegarray", "{urn:p}linesegarray", "{urn:q}p", "p"]))
+        elif kind == 4 and node is not found:
+            node.getparent().replace(node, deepcopy(node))
+        elif kind == 5 and node is not found:  # out of the tree and back, which drops repeated declarations
+            parent = node.getparent()
+            parent.insert(parent.index(node), node)
+        elif kind == 6:  # the block itself into another tree
+            other = etree.fromstring('<p:root xmlns:p="urn:p" xmlns:q="urn:q" xmlns="urn:q"><p:slot/></p:root>')
+            other.append(found)
+        elif kind >= 7:  # a subtree taken in whose top declares namespaces again, under another prefix too
+            uris = [rng.choice(["urn:p", "urn:q", "urn:r"]) for _ in range(3)]
+            inner = "".join(
+                _random_element(rng, rng.choice([1, 2, 3]), ("p:", "q:", "z:", "z:", "")) for _ in range(rng.choice([1, 2]))
+            )
+            taken = f'<z:e xmlns:z="{uris[0]}" xmlns:p="{uris[1]}" xmlns:q="{uris[2]}">{inner}</z:e>'
+            node.insert(rng.randrange(len(node) + 1), etree.fromstring(taken))
+    return found
+
+
+def test_over_random_trees_a_blocks_state_decides_what_is_judged_in_it() -> None:
+    # The same claim over trees nobody picked: blocks under other declarations, in other orders, with
+    # names moved in and out of namespaces, copied, moved between trees, with subtrees taken in whose
+    # repeated declarations lxml strips. Each is also set beside its own serialisation parsed again
+    # (the same bytes, every name bound as written). Whenever two blocks are in one state, each
+    # paragraph digest and each cache in them must agree. (This is also what holds the claim to the
+    # lxml the tests run on.)
+    rng = random.Random(20261121)
+    compared = bound_otherwise = 0
+    for _ in range(2000):
+        block = f'<p:p id="block">{_random_element(rng, 0)}{_random_element(rng, 0)}<p:linesegarray/></p:p>'
+        seen: dict[Any, Any] = {}
+        for _ in range(6):
+            found = _random_context(rng, block)
+            if found is None or found.getparent() is None:
+                continue
+            again = etree.fromstring(etree.tostring(found.getroottree().getroot())).find(".//*[@id='block']")
+            bound_otherwise += [node.tag for node in found.iter()] != [node.tag for node in again.iter()]
+            for one in (found, again):
+                caches = line_caches.cache_elements(one)
+                state = line_caches._block_state(one, caches, line_caches._whole_bytes(one))
+                judged = [
+                    (line_caches._content_digest(cache.getparent()), etree.tostring(cache, with_tail=False))
+                    for cache in caches
+                ]
+                compared += state in seen
+                assert seen.setdefault(state, judged) == judged
+    assert compared > 5000 and bound_otherwise > 300
+    assert line_caches._states_decide()
+
+
+def test_where_the_states_would_not_decide_every_cache_is_digested_every_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    # An lxml that serialised otherwise than the states take it to: no block is taken as unchanged.
+    monkeypatch.setattr(line_caches, "_STATES_DECIDE", False)
+    digests: list[int] = []
+    digest = line_caches._content_digest
+    monkeypatch.setattr(line_caches, "_content_digest", lambda paragraph: digests.append(1) or digest(paragraph))
+    doc = HwpxDocument.open(FIXTURES / "hancom_saved" / "formfit_glyph_cells.hwpx")
+    caches = len(line_caches.cache_elements(doc.sections[0].element))
+
+    doc.tables[0].insert_rows(0)
+    first = len(digests)
+    doc.tables[0].insert_rows(0)
+
+    assert first >= 3 * (caches - 2)  # the part as read once, the tree twice: 7.0.0's work
+    assert len(digests) - first >= 2 * (caches - 2)
+    data = (FIXTURES / "hancom_saved" / "formfit_glyph_cells.hwpx").read_bytes()
+    assert run_steps(data, random.Random("states do not decide"), 24) == 24
 
 
 # -- 7.0.0's judgement, as it was --------------------------------------------------------------------
@@ -249,9 +517,6 @@ class _Reference:
         removed, self.tracked = _reference_remove(root, tracked)
         return removed
 
-    def judge_rebuilt(self, root: Any, element: Any, holder: Any) -> int:
-        return self.judge_all(root)
-
     def watched(self, root: Any) -> Any:
         if self.tracked is None:
             return "not judged yet" if self.source_xml is not None else "judges nothing"
@@ -279,10 +544,9 @@ def _watched(tracker: line_caches.TrackedCaches, root: Any) -> Any:
     return len(known), [known.get(id(cache)) for cache in _reference_cache_elements(root)]
 
 
-def _open_pair(path: Path, source: bytes | None = None) -> tuple[HwpxDocument, HwpxDocument]:
+def _pair(data: bytes, source: bytes | None = None) -> tuple[HwpxDocument, HwpxDocument]:
     """The same document twice: one judging as now, one as 7.0.0 did."""
 
-    data = path.read_bytes()
     now, then = HwpxDocument.open(data, **FIXED), HwpxDocument.open(data, **FIXED)
     for section in then.sections:
         tracker = section._tracked_caches
@@ -296,16 +560,80 @@ def _open_pair(path: Path, source: bytes | None = None) -> tuple[HwpxDocument, H
     return now, then
 
 
+def _open_pair(path: Path, source: bytes | None = None) -> tuple[HwpxDocument, HwpxDocument]:
+    return _pair(path.read_bytes(), source)
+
+
+def _with_sections_rewritten(data: bytes, rewrite: Any) -> bytes:
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            part = source.read(info)
+            target.writestr(info, rewrite(part) if re.fullmatch(r"Contents/section\d+\.xml", info.filename) else part)
+    return out.getvalue()
+
+
+def _paragraphs_in_the_default_namespace(data: bytes) -> bytes:
+    """The same package with ``hp:p`` and ``hp:linesegarray`` written without a prefix, the section's
+    root declaring the paragraph namespace as the default one too: the same document, in a form where
+    an element taken out of its namespace serialises as it did."""
+
+    def rewrite(part: bytes) -> bytes:
+        part = re.sub(rb"<(/?)hp:(p|linesegarray)(?=[\s>/])", rb"<\1\2", part)
+        # declared last: an element in the namespace writes it first when serialised by itself
+        return re.sub(
+            rb"(<hs:sec\b[^>]*?)(/?>)", rb'\1 xmlns="http://www.hancom.co.kr/hwpml/2011/paragraph"\2', part, count=1)
+
+    return _with_sections_rewritten(data, rewrite)
+
+
+def _body_paragraphs_declaring_their_prefix_again(data: bytes) -> bytes:
+    """The same package with every body paragraph (the children of a section's root) declaring two
+    prefixes itself that the root declares too, and carrying an attribute in the second: the same
+    document, in a form where a block can lose its own declarations without its bytes changing (as
+    the element serialised it writes its name's and its attributes' namespaces first either way)."""
+
+    def rewrite(part: bytes) -> bytes:
+        out, depth, copied = [], 0, 0
+        for tag in re.finditer(rb"<(/?)([\w:.-]+)[^<>]*?(/?)>", part):
+            closing, name, empty = tag.groups()
+            if closing:
+                depth -= 1
+                continue
+            if depth == 1 and name == b"hp:p":
+                at = tag.start() + 1 + len(name)
+                out += [
+                    part[copied:at],
+                    b' xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"'
+                    b' xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" hc:mark="1"',
+                ]
+                copied = at
+            depth += not empty
+        return b"".join([*out, part[copied:]])
+
+    return _with_sections_rewritten(data, rewrite)
+
+
 def _state(doc: HwpxDocument, reference: bool) -> list[Any]:
-    state = []
+    state: list[Any] = []
     for section in doc.sections:
         tracker: Any = section._tracked_caches
-        watched = tracker.watched(section.element) if reference else _watched(tracker, section.element)
+        if tracker is None:  # a section made since the document was read: nothing to compare it with
+            watched: Any = "no part"
+        else:
+            watched = tracker.watched(section.element) if reference else _watched(tracker, section.element)
         state.append((etree.tostring(section.element), section.dirty, watched))
+    state.append([header.dirty for header in doc.oxml.headers])
     return state
 
 
-# -- the same edits, judged both ways ----------------------------------------------------------------
+# -- the same steps, judged both ways -----------------------------------------------------------------
+#
+# Each step takes the document and a number that picks what it works on (the same in both documents).
+
+
+def _of(items: list[Any], pick: int) -> Any:
+    return items[pick % len(items)] if items else None
 
 
 def _all(doc: HwpxDocument, tag: str) -> list[Any]:
@@ -316,91 +644,254 @@ def _caches(doc: HwpxDocument) -> list[Any]:
     return [cache for section in doc.sections for cache in _reference_cache_elements(section.element)]
 
 
+def _tables(doc: HwpxDocument) -> list[Any]:
+    """Every table, wherever it stands: in the body, in a cell, in a header or a footer."""
+
+    return [place.object for place in doc.text.iter_objects(kinds="table")]
+
+
 def _result(call: Any) -> Any:
     try:
         value = call()
-        return "returned", value if value is None else (type(value).__name__, len(value))
     except Exception as error:  # the same refusal is the same result
         return type(error).__name__, str(error)
+    return "returned", None if value is None else type(value).__name__
 
 
 def _direct_text(doc: HwpxDocument, pick: int) -> Any:
-    nodes = [node for node in _all(doc, "t") if node.text]
-    node = nodes[pick % len(nodes)]
-    node.text = ("X" if node.text[0] != "X" else "Y") + node.text[1:] + "+"
-    return None
+    node = _of([node for node in _all(doc, "t") if node.text], pick)
+    if node is not None:
+        node.text = ("X" if node.text[0] != "X" else "Y") + node.text[1:] + "+" * (pick % 3)
+
+
+def _direct_long_text(doc: HwpxDocument, pick: int) -> Any:
+    node = _of([node for node in _all(doc, "t") if node.text], pick)
+    if node is not None:
+        node.text = "한글 " * (20 + pick % 200)
+
+
+def _text_as_cdata(doc: HwpxDocument, pick: int) -> Any:
+    node = _of(_all(doc, "t"), pick)
+    if node is not None and len(node) == 0:
+        node.text = etree.CDATA("é & 글")
 
 
 def _direct_attribute(doc: HwpxDocument, pick: int) -> Any:
-    paragraphs = _all(doc, "p")
-    paragraph = paragraphs[pick % len(paragraphs)]
+    paragraph = _of(_all(doc, "p"), pick)
     paragraph.set("paraPrIDRef", "0" if paragraph.get("paraPrIDRef") != "0" else "1")
-    return None
+
+
+def _attributes_reordered(doc: HwpxDocument, pick: int) -> Any:
+    paragraph = _of(_all(doc, "p"), pick)
+    attributes = list(paragraph.attrib.items())
+    paragraph.attrib.clear()
+    paragraph.attrib.update(dict(reversed(attributes)))
+
+
+def _qualified_name_changed(doc: HwpxDocument, pick: int) -> Any:
+    # In or out of the paragraph namespace, the local name kept: where the section declares that
+    # namespace as the default one, an unprefixed element serialises alike either way.
+    nodes = [node for node in _caches(doc)] + [cache.getparent() for cache in _caches(doc)]
+    node = _of(nodes, pick)
+    if node is not None:
+        local = etree.QName(node).localname
+        node.tag = local if node.tag != local else f"{HP}{local}"
 
 
 def _cache_rewritten(doc: HwpxDocument, pick: int) -> Any:
-    caches = [cache for cache in _caches(doc) if len(cache)]
-    if caches:
-        segment = caches[pick % len(caches)][0]
-        segment.set("horzsize", str(int(segment.get("horzsize", "0") or 0) + 1))
-    return None
+    cache = _of([cache for cache in _caches(doc) if len(cache)], pick)
+    if cache is not None:
+        cache[0].set("horzsize", str(int(cache[0].get("horzsize", "0") or 0) + 1))
 
 
 def _cache_removed(doc: HwpxDocument, pick: int) -> Any:
-    caches = _caches(doc)
-    if caches:
-        cache = caches[pick % len(caches)]
+    cache = _of(_caches(doc), pick)
+    if cache is not None:
         cache.getparent().remove(cache)
-    return None
+
+
+def _taken_out(doc: HwpxDocument) -> list[tuple[Any, int, Any]]:
+    """The caches the steps took out of *doc*, kept on the document itself (an id() of a document that
+    is gone can be another document's)."""
+
+    return doc.__dict__.setdefault("_caches_the_steps_took_out", [])  # type: ignore[no-any-return]
+
+
+def _cache_taken_out(doc: HwpxDocument, pick: int) -> Any:
+    cache = _of(_caches(doc), pick)
+    if cache is not None:
+        parent = cache.getparent()
+        _taken_out(doc).append((parent, parent.index(cache), cache))
+        parent.remove(cache)
+
+
+def _cache_put_back(doc: HwpxDocument, pick: int) -> Any:
+    taken = _taken_out(doc)
+    if taken:
+        parent, place, cache = taken.pop(pick % len(taken))
+        parent.insert(min(place, len(parent)), cache)  # the very element that was taken out
 
 
 def _cache_replaced_by_its_copy(doc: HwpxDocument, pick: int) -> Any:
-    from copy import deepcopy
-
-    caches = _caches(doc)
-    if caches:
-        cache = caches[pick % len(caches)]
+    cache = _of(_caches(doc), pick)
+    if cache is not None:
         cache.getparent().replace(cache, deepcopy(cache))
-    return None
 
 
 def _cache_given_a_tail(doc: HwpxDocument, pick: int) -> Any:
-    caches = _caches(doc)
-    if caches:
-        cache = caches[pick % len(caches)]
-        cache.tail = "\n" if not cache.tail else None
-    return None
+    cache = _of(_caches(doc), pick)
+    if cache is not None:
+        cache.tail = ("\n", "text after it", None)[pick % 3] if not cache.tail else None
+
+
+def _second_cache_beside_the_first(doc: HwpxDocument, pick: int) -> Any:
+    cache = _of(_caches(doc), pick)
+    if cache is not None:
+        parent, copy = cache.getparent(), deepcopy(cache)
+        copy.tail = None
+        parent.insert(parent.index(cache) + (pick // 7) % 2, copy)  # before it, or after
 
 
 def _cache_copied_onto_another_paragraph(doc: HwpxDocument, pick: int) -> Any:
-    from copy import deepcopy
-
-    caches = _caches(doc)
-    bare = [p for p in _all(doc, "p") if p.find(f"{HP}linesegarray") is None]
-    if caches and bare:
-        bare[pick % len(bare)].append(deepcopy(caches[pick % len(caches)]))
-    return None
+    cache = _of(_caches(doc), pick)
+    bare = _of([paragraph for paragraph in _all(doc, "p") if paragraph.find(f"{HP}linesegarray") is None], pick // 3)
+    if cache is not None and bare is not None:
+        bare.append(deepcopy(cache))
 
 
 def _cache_moved_before_its_runs(doc: HwpxDocument, pick: int) -> Any:
-    caches = _caches(doc)
-    if caches:
-        cache = caches[pick % len(caches)]
+    cache = _of(_caches(doc), pick)
+    if cache is not None:
         cache.getparent().insert(0, cache)  # the same element, now ahead of the tables its paragraph holds
-    return None
+
+
+def _comment_put_in(doc: HwpxDocument, pick: int) -> Any:
+    target = _of(_all(doc, "p"), pick) if pick % 4 else doc.sections[pick % len(doc.sections)].element
+    target.insert(1 + (pick // 5) % len(target) if len(target) else 0, etree.Comment(" <hp:linesegarray/> "))
 
 
 def _body_paragraph_moved_to_the_end(doc: HwpxDocument, pick: int) -> Any:
     section = doc.sections[pick % len(doc.sections)]
-    movable = [p for p in section.element.findall(f"{HP}p")[1:]]
-    if movable:
-        section.element.append(movable[pick % len(movable)])
-    return None
+    paragraph = _of(section.element.findall(f"{HP}p")[1:], pick)
+    if paragraph is not None:
+        section.element.append(paragraph)
+
+
+def _body_paragraph_copied_in(doc: HwpxDocument, pick: int) -> Any:
+    section = doc.sections[pick % len(doc.sections)]
+    paragraph = _of(section.element.findall(f"{HP}p")[1:], pick)
+    if paragraph is not None:
+        section.element.insert(1 + (pick // 3) % len(section.element), deepcopy(paragraph))
+
+
+def _body_paragraph_removed(doc: HwpxDocument, pick: int) -> Any:
+    section = doc.sections[pick % len(doc.sections)]
+    paragraphs = section.element.findall(f"{HP}p")[1:]
+    if len(paragraphs) > 3:
+        section.element.remove(_of(paragraphs, pick))
+
+
+def _block_given_a_tail(doc: HwpxDocument, pick: int) -> Any:
+    _of(doc.sections[pick % len(doc.sections)].element.findall(f"{HP}p"), pick).tail = "\n " * (pick % 3)
+
+
+_HELD = (
+    _HELD_PLAINLY,
+    "<z:a><z:p><z:linesegarray/></z:p></z:a>",
+    '<P:a><P:p z:k="1"><P:linesegarray/></P:p></P:a>',
+    "<z:a><P:p><P:linesegarray/><P:run><P:t>held</P:t></P:run></P:p></z:a>",
+    '<P:a><z:p><z:linesegarray z:k="1"/>tail</z:p></P:a>',
+)
+
+
+def _subtree_taken_in(doc: HwpxDocument, pick: int) -> Any:
+    paragraph = _of(_all(doc, "p"), pick)
+    if paragraph is not None:
+        paragraph.append(_taken_in(paragraph, _HELD[pick % len(_HELD)]))
+
+
+def _held_paragraph_given_another_holder(doc: HwpxDocument, pick: int) -> Any:
+    """The holder of a paragraph taken in, swapped for one bound the other way (to the declaration hidden
+    from it, or to the one that hides it): where the holder held nothing but the paragraph, no byte of
+    the body paragraph changes. With nothing taken in yet, a paragraph in a holder is."""
+
+    wrapper = _of([node for section in doc.sections for node in section.element.iter(f"{HP}e")], pick)
+    if wrapper is None or not len(wrapper) or not len(wrapper[0]):
+        return _subtree_taken_in(doc, pick - pick % len(_HELD))
+    holder = wrapper[0][0]
+    wrapper.addnext(_taken_in(wrapper.getparent(), "<P:a/>" if etree.QName(holder).namespace != "urn:other" else "<z:a/>"))
+    for child in list(holder):
+        wrapper.getnext()[0][0].append(child)
+    wrapper.getparent().remove(wrapper)
+
+
+def _namespaces_tidied(doc: HwpxDocument, pick: int) -> Any:
+    root = doc.sections[pick % len(doc.sections)].element
+    etree.cleanup_namespaces(root, top_nsmap={"alias": "urn:alias"}, keep_ns_prefixes=["alias", "hp", "hs"])
+
+
+def _root_attribute_set(doc: HwpxDocument, pick: int) -> Any:
+    doc.sections[pick % len(doc.sections)].element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+
+
+def _section_settings_taken_out(doc: HwpxDocument, pick: int) -> Any:
+    section = doc.sections[pick % len(doc.sections)]
+    found = section.element.find(f".//{HP}secPr")
+    if found is not None:
+        found.getparent().remove(found)
+
+
+def _section_settings_written(doc: HwpxDocument, pick: int) -> Any:
+    # In the tree, or (after the step above) waiting outside it for the section to be marked edited.
+    element = doc.sections[pick % len(doc.sections)].properties.element
+    element.set("textDirection", "VERTICAL" if element.get("textDirection") != "VERTICAL" else "HORIZONTAL")
+    return element.getparent() is not None
+
+
+def _section_settings_moved_to_another_paragraph(doc: HwpxDocument, pick: int) -> Any:
+    section = doc.sections[pick % len(doc.sections)]
+    found = section.element.find(f".//{HP}secPr")
+    run = _of([run for paragraph in section.element.findall(f"{HP}p") for run in paragraph.findall(f"{HP}run")], pick)
+    if found is not None and run is not None:
+        run.insert(0, found)
+
+
+def _page_setting_through_the_api(doc: HwpxDocument, pick: int) -> Any:
+    index = pick % len(doc.sections)
+    paragraph = (pick // 11) % max(1, len(doc.paragraphs))
+    calls = [
+        lambda: doc.page.set_margins(left=7000 + pick % 500, section=index),
+        lambda: doc.page.set_size(orientation=("LANDSCAPE", "PORTRAIT")[pick % 2], section=index),
+        lambda: doc.page.set_columns(1 + pick % 3, section=index),
+        lambda: doc.page.set_columns(2, paragraph=paragraph),
+        lambda: doc.page.set_header(text=f"header {pick}", section=index),
+        lambda: doc.page.set_footer(text=f"footer {pick}", section=index),
+        lambda: doc.page.set_page_number(section=index),
+        lambda: doc.page.remove_header(section=index),
+        lambda: doc.page.add_number_restart(paragraph, number=1 + pick % 5),
+        lambda: doc.page.add_page_hiding(paragraph, header=True),
+        lambda: doc.page.set_text_direction(("VERTICAL", "HORIZONTAL")[pick % 2], section=index),
+        lambda: doc.page.set_visibility(hide_first_header=bool(pick % 2), section=index),
+        lambda: doc.page.set_line_numbers(count_by=1 + pick % 4, section=index),
+        lambda: doc.page.set_grid(line_grid=pick % 30, section=index),
+        lambda: doc.page.set_start_numbers(page=1 + pick % 9, section=index),
+        lambda: doc.page.set_master_page(doc.oxml.add_master_page(), section=index),
+    ]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # a footer written over a page number says so
+        return _result(calls[(pick // 7) % len(calls)])
 
 
 def _marked_edited(doc: HwpxDocument, pick: int) -> Any:
     doc.sections[pick % len(doc.sections)].mark_dirty()
-    return None
+
+
+def _edited_mark_cleared(doc: HwpxDocument, pick: int) -> Any:
+    doc.sections[pick % len(doc.sections)].reset_dirty()
+
+
+def _header_marked_edited(doc: HwpxDocument, pick: int) -> Any:
+    doc.oxml.headers[pick % len(doc.oxml.headers)].mark_dirty()
 
 
 def _judged_as_a_save_does(doc: HwpxDocument, pick: int) -> Any:
@@ -408,30 +899,105 @@ def _judged_as_a_save_does(doc: HwpxDocument, pick: int) -> Any:
 
 
 def _saved(doc: HwpxDocument, pick: int) -> Any:
-    return hashlib.sha256(doc.to_bytes()).hexdigest()
+    return _result(lambda: hashlib.sha256(doc.to_bytes()).hexdigest()), _try_bytes(doc)
 
 
-def _tables(doc: HwpxDocument) -> list[Any]:
-    """Every table, wherever it stands: in the body, in a cell, in a header or a footer."""
+def _try_bytes(doc: HwpxDocument) -> Any:
+    try:
+        return hashlib.sha256(doc.to_bytes()).hexdigest()
+    except Exception as error:
+        return type(error).__name__
 
-    return [place.object for place in doc.text.iter_objects(kinds="table")]
+
+def _reopened(doc: HwpxDocument, pick: int) -> Any:
+    """Handled by the loop: both documents are saved, compared, and opened again as a new pair."""
+
+    raise AssertionError("the loop reopens")
+
+
+def _lines_read(doc: HwpxDocument, pick: int) -> Any:
+    return _result_of(lambda: [len(place.paragraph.line_segments) for place in doc.text.iter_paragraphs()])
+
+
+def _result_of(call: Any) -> Any:
+    try:
+        return call()
+    except Exception as error:
+        return type(error).__name__, str(error)
+
+
+def _pages_estimated(doc: HwpxDocument, pick: int) -> Any:
+    def estimate() -> Any:
+        found = estimate_pages(doc)
+        return found.pages, [len(lines) for lines in found.lines]
+
+    return _result_of(estimate)
+
+
+def _line_caches_written(doc: HwpxDocument, pick: int) -> Any:
+    return _result_of(lambda: repr(write_line_caches(doc)))
+
+
+def _validated(doc: HwpxDocument, pick: int) -> Any:
+    def validate() -> Any:
+        report = doc.validate()
+        return report.ok, len(report.errors), len(report.warnings)
+
+    return _result_of(validate)
 
 
 def _cell_text_through_the_api(doc: HwpxDocument, pick: int) -> Any:
-    tables = _tables(doc)
-    table = tables[pick % len(tables)]
+    table = _of(_tables(doc), pick)
     return _result(lambda: table.set_cell_text(0, 0, f"cell {pick}"))
 
 
 def _paragraph_text_through_the_api(doc: HwpxDocument, pick: int) -> Any:
-    paragraphs = doc.paragraphs
-    paragraph = paragraphs[1 + pick % (len(paragraphs) - 1)] if len(paragraphs) > 1 else paragraphs[0]
+    paragraph = _of(doc.paragraphs[1:] or doc.paragraphs, pick)
     return _result(lambda: setattr(paragraph, "text", f"paragraph {pick}"))
 
 
+def _paragraph_restyled(doc: HwpxDocument, pick: int) -> Any:
+    paragraph = _of(doc.paragraphs, pick)
+    return _result(lambda: setattr(paragraph, "style_id_ref", (pick // 3) % 3))
+
+
+def _paragraph_model_applied(doc: HwpxDocument, pick: int) -> Any:
+    paragraph = _of(doc.paragraphs, pick)
+    return _result(lambda: paragraph.apply_model(paragraph.to_model()))
+
+
+def _paragraph_text_regenerated(doc: HwpxDocument, pick: int) -> Any:
+    paragraph = _of(doc.paragraphs[1:] or doc.paragraphs, pick)
+    return _result(lambda: setattr(paragraph, "text", "새글")), _line_caches_written(doc, pick)
+
+
+def _note_added(doc: HwpxDocument, pick: int) -> Any:
+    return _result(lambda: doc.notes.add_footnote(f"note {pick}", paragraph=pick % max(1, len(doc.paragraphs))))
+
+
+def _section_added(doc: HwpxDocument, pick: int) -> Any:
+    if len(doc.sections) < 3:
+        doc.add_section()
+
+
+def _table_moved_or_copied(doc: HwpxDocument, pick: int) -> Any:
+    table = _of(_tables(doc), pick)
+    target = _of(doc.sections[(pick // 3) % len(doc.sections)].paragraphs, pick // 5)
+    calls = [lambda: table.move_to(target), lambda: table.copy_to(target), lambda: table.copy_after()]
+    return _result(calls[(pick // 7) % len(calls)])
+
+
+def _paragraph_moved_or_copied(doc: HwpxDocument, pick: int) -> Any:
+    paragraph = _of(doc.paragraphs[1:], pick)
+    target = _of(doc.sections[(pick // 3) % len(doc.sections)].paragraphs, pick // 5)
+    if paragraph is None:
+        return None
+    calls = [lambda: paragraph.move_after(target), lambda: paragraph.copy_to(target), lambda: paragraph.move_before(target)]
+    return _result(calls[(pick // 7) % len(calls)])
+
+
 def _structure_edit(doc: HwpxDocument, pick: int) -> Any:
-    tables = _tables(doc)
-    table = tables[pick % len(tables)]
+    table = _of(_tables(doc), pick)
     edits = [
         lambda: table.insert_rows(0),
         lambda: table.insert_rows(table.row_count - 1, copy_content=True),
@@ -448,41 +1014,83 @@ def _structure_edit(doc: HwpxDocument, pick: int) -> Any:
     return _result(edits[(pick // 7) % len(edits)])
 
 
-STEPS = [
-    _direct_text, _direct_text, _direct_attribute, _cache_rewritten, _cache_removed, _cache_replaced_by_its_copy,
-    _cache_given_a_tail, _cache_copied_onto_another_paragraph, _cache_moved_before_its_runs,
-    _body_paragraph_moved_to_the_end, _marked_edited, _judged_as_a_save_does, _saved,
-    _cell_text_through_the_api, _paragraph_text_through_the_api,
-    _structure_edit, _structure_edit, _structure_edit, _structure_edit, _structure_edit,
+IN_THE_TREE = [
+    _direct_text, _direct_long_text, _text_as_cdata, _direct_attribute, _attributes_reordered, _cache_rewritten,
+    _qualified_name_changed,
+    _cache_removed, _cache_taken_out, _cache_put_back, _cache_replaced_by_its_copy, _cache_given_a_tail,
+    _second_cache_beside_the_first, _cache_copied_onto_another_paragraph, _cache_moved_before_its_runs,
+    _comment_put_in, _body_paragraph_moved_to_the_end, _body_paragraph_copied_in, _body_paragraph_removed,
+    _block_given_a_tail, _namespaces_tidied, _root_attribute_set, _section_settings_taken_out,
+    _section_settings_written, _section_settings_moved_to_another_paragraph,
+    _subtree_taken_in, _held_paragraph_given_another_holder,
 ]
+THROUGH_THE_API = [
+    _page_setting_through_the_api, _marked_edited, _edited_mark_cleared, _header_marked_edited,
+    _judged_as_a_save_does, _saved, _reopened, _lines_read, _pages_estimated, _line_caches_written, _validated,
+    _cell_text_through_the_api, _paragraph_text_through_the_api, _paragraph_restyled, _paragraph_model_applied,
+    _paragraph_text_regenerated, _note_added, _section_added, _table_moved_or_copied, _paragraph_moved_or_copied,
+]
+#: a step in the tree, a structure edit, a call that shows what the edit left -- in that mix
+STEPS = IN_THE_TREE * 2 + THROUGH_THE_API + [_structure_edit] * 22
 DOCUMENTS = [
     "hancom_saved/formfit_glyph_cells.hwpx",
     "hancom_saved/line_cache_table_cells.hwpx",
     "hancom_saved/merge_3x3_a1c2.hwpx",
     "hancom_saved/pages_cell_top_bottom_table_among_mixed_sizes.hwpx",  # tables in cells
-    "hancom_saved/pages_nested_table_rows_holding_tables_split.hwpx",
+    "hancom_saved/pages_table_cell_tables_as_characters_among_text_split.hwpx",  # two tables in one block's cells
     "hancom_saved/pages_footnotes_in_table_cells.hwpx",
+    "hancom_saved/pages_table_cell_holding_a_header_with_a_table.hwpx",
+    "hancom_saved/pages_repeated_header_holding_a_table_without_room.hwpx",
     "hancom_saved/pages_ellipsis_starts_a_cell_line.hwpx",  # two sections
     "hwpxlib_corpus/error__20240626__no_manifest.hwpx",  # two sections
     "exam/A_form.hwpx",  # tables in the header and the footer
 ]
 
 
+def _stepped(step: Any, doc: HwpxDocument, pick: int) -> Any:
+    try:
+        return step(doc, pick)
+    except Exception as error:  # a step the document refuses: the same way in both, or the test says
+        return "raised", type(error).__name__, str(error)
+
+
+def run_steps(data: bytes, rng: random.Random, count: int) -> int:
+    """*count* random steps on a pair made from *data*, compared after each. Returns how many ran."""
+
+    now, then = _pair(data)
+    assert _state(now, False) == _state(then, True)
+    for done in range(count):
+        step, pick = rng.choice(STEPS), rng.randrange(10_000)
+        if step is _reopened:
+            saved = _try_bytes(now), _try_bytes(then)
+            assert saved[0] == saved[1], (done, "saved before reopening")
+            if len(saved[0]) != 64:  # the save was refused, the same way: go on with the documents as they are
+                continue
+            data = now.to_bytes()
+            assert data == then.to_bytes()
+            now, then = _pair(data)
+        else:
+            results = (_stepped(step, now, pick), _stepped(step, then, pick))
+            assert results[0] == results[1], (done, step.__name__, pick)
+        assert _state(now, False) == _state(then, True), (done, step.__name__, pick)
+    assert _try_bytes(now) == _try_bytes(then)
+    return count
+
+
 @pytest.mark.parametrize("name", DOCUMENTS)
 def test_every_step_leaves_what_the_7_0_0_judgement_leaves(name: str) -> None:
-    steps = 0
-    for seed in range(6):
-        rng = random.Random(f"{name}/{seed}")
-        now, then = _open_pair(FIXTURES / name)
-        assert _state(now, False) == _state(then, True)
-        for _ in range(14):
-            step, pick = rng.choice(STEPS), rng.randrange(10_000)
-            results = (step(now, pick), step(then, pick))
-            assert results[0] == results[1], (seed, step.__name__, pick)
-            assert _state(now, False) == _state(then, True), (seed, step.__name__, pick)
-            steps += 1
-        assert hashlib.sha256(now.to_bytes()).digest() == hashlib.sha256(then.to_bytes()).digest(), seed
-    assert steps == 84
+    data = (FIXTURES / name).read_bytes()
+    steps = sum(run_steps(data, random.Random(f"{name}/{seed}"), 16) for seed in range(5))
+    assert steps == 80
+
+
+@pytest.mark.parametrize("name", DOCUMENTS[:4])
+@pytest.mark.parametrize("form", [_paragraphs_in_the_default_namespace, _body_paragraphs_declaring_their_prefix_again])
+def test_every_step_leaves_it_in_other_namespace_forms_of_the_document_too(name: str, form: Any) -> None:
+    data = form((FIXTURES / name).read_bytes())
+    assert len(HwpxDocument.open(data).paragraphs) == len(HwpxDocument.open(FIXTURES / name).paragraphs)
+    steps = sum(run_steps(data, random.Random(f"{form.__name__}/{name}/{seed}"), 16) for seed in range(3))
+    assert steps == 48
 
 
 # -- sequences the random steps seldom reach, each judged both ways ------------------------------------
@@ -506,7 +1114,11 @@ def _judge(doc: HwpxDocument) -> Any:
 
 
 def _save(doc: HwpxDocument) -> Any:
-    return hashlib.sha256(doc.to_bytes()).hexdigest()
+    return _try_bytes(doc)  # the package's hash, or the refusal's name
+
+
+def _edit_table(index: int, call: Any = lambda table: table.insert_rows(0)) -> Any:
+    return lambda doc: _result(lambda: call(_tables(doc)[index]))
 
 
 def _cached_cell_paragraphs(doc: HwpxDocument) -> list[Any]:
@@ -518,18 +1130,208 @@ def _cached_cell_paragraphs(doc: HwpxDocument) -> list[Any]:
     ]
 
 
+def _cached_body_paragraphs(doc: HwpxDocument) -> list[Any]:
+    return [
+        paragraph
+        for paragraph in doc.sections[0].element.findall(f"{HP}p")
+        if paragraph.find(f"{HP}linesegarray") is not None
+        and (paragraph.findtext(f"{HP}run/{HP}t") or "")
+        and next(paragraph.iter(f"{HP}tbl"), None) is None
+    ]
+
+
 def _caches_in(state: Any) -> int:
-    return sum(len(_reference_cache_elements(etree.fromstring(xml))) for xml, _dirty, _watched_now in state)
+    return sum(len(_reference_cache_elements(etree.fromstring(part[0]))) for part in state[:-1])
 
 
 def _watched_count(state: Any) -> int:
-    return sum(watched_now[0] for _xml, _dirty, watched_now in state)
+    return sum(part[2][0] for part in state[:-1])
+
+
+@pytest.mark.parametrize("beside", ["before", "after"])
+@pytest.mark.parametrize("between", ["nothing", "comment", "text"])
+@pytest.mark.parametrize("where", ["body", "cell"])
+def test_two_caches_in_one_paragraph_go_as_two_looks_at_the_section_take_them(
+    beside: str, between: str, where: str
+) -> None:
+    # A copy of a paragraph's cache beside the cache, with or without something between them, and the
+    # paragraph's text changed: what goes at the judgement before the rebuild (of another table), and
+    # what at the one after, is the order two looks at every cache give.
+    def prepare(doc: HwpxDocument) -> Any:
+        paragraph = (_cached_body_paragraphs(doc) if where == "body" else _cached_cell_paragraphs(doc)[2:])[0]
+        read = paragraph.find(f"{HP}linesegarray")
+        copy = deepcopy(read)
+        copy.tail = None
+        paragraph.insert(paragraph.index(read) + (beside == "after"), copy)
+        first = paragraph.findall(f"{HP}linesegarray")[0]
+        if between == "comment":
+            first.addnext(etree.Comment(" between "))
+        elif between == "text":
+            first.tail = "\n"
+        read.tail = "\n" if between == "text" else read.tail
+        node = paragraph.find(f"{HP}run/{HP}t")
+        node.text = "long text " * 40
+        return len(paragraph.findall(f"{HP}linesegarray"))
+
+    name = "hancom_saved/pages_table_cell_tables_as_characters_among_text_split.hwpx"
+    last = len(_tables(HwpxDocument.open(FIXTURES / name))) - 1
+    for edit in (_edit_table(last), _edit_table(0), _edit_table(last, lambda table: table.insert_rows(10_000))):
+        states = _both_ways(name, prepare, edit, _judge, _save)
+        assert _caches_in(states[2]) < _caches_in(states[1])
+
+
+@pytest.mark.parametrize("settings", ["taken out", "taken out and written", "moved", "written in the tree"])
+@pytest.mark.parametrize("marked", [False, True])
+def test_section_settings_out_of_or_into_the_tree_are_judged_as_two_looks_at_the_section_judge_them(
+    settings: str, marked: bool
+) -> None:
+    def prepare(doc: HwpxDocument) -> Any:
+        section = doc.sections[0]
+        cache = section.element.find(f"{HP}p/{HP}linesegarray")
+        if cache is not None and len(cache):
+            cache[0].set("horzsize", "901")  # the first paragraph's stays through the first judgement
+        if settings.startswith("taken out"):
+            _section_settings_taken_out(doc, 0)
+        if settings.endswith("written") or settings == "written in the tree":
+            _section_settings_written(doc, 0)
+        if settings == "moved":
+            _section_settings_moved_to_another_paragraph(doc, 5)
+        if marked:
+            section.mark_dirty()
+        return section.properties.element.getparent() is not None
+
+    for name in ("hancom_saved/formfit_glyph_cells.hwpx", "hancom_saved/line_cache_table_cells.hwpx"):
+        _both_ways(
+            name, prepare, _edit_table(0), lambda doc: _lines_read(doc, 0), _judge,
+            _edit_table(0, lambda table: table.insert_rows(10_000)), lambda doc: _pages_estimated(doc, 0), _save,
+        )
+
+
+def test_an_unprefixed_cache_taken_out_of_its_namespace_is_a_cache_written_again() -> None:
+    # Under a default namespace the block serialises to the very bytes it had; the cache itself, as the
+    # element serialised for the comparison, does not. So it stays when its paragraph changes with it --
+    # and goes when the paragraph changes after, once it has been watched in its new form.
+    data = _paragraphs_in_the_default_namespace((FIXTURES / "hancom_saved" / "line_cache_table_cells.hwpx").read_bytes())
+    picked: dict[int, Any] = {}
+
+    def out_of_its_namespace(doc: HwpxDocument) -> Any:
+        paragraph = _cached_body_paragraphs(doc)[0]
+        cache = paragraph.find(f"{HP}linesegarray")
+        before = etree.tostring(doc.sections[0].element)
+        cache.tag = "linesegarray"
+        assert etree.tostring(doc.sections[0].element) == before
+        picked[id(doc)] = (paragraph, cache)
+        return None
+
+    def change(doc: HwpxDocument) -> Any:
+        node = picked[id(doc)][0].find(f"{HP}run/{HP}t")
+        node.text = "X" + node.text
+        return None
+
+    def cached(doc: HwpxDocument) -> bool:
+        return picked[id(doc)][1].getparent() is not None
+
+    now, then = _pair(data)
+    for step in (_judge, out_of_its_namespace, change, _edit_table(0), cached, change, _judge, cached, _save):
+        assert step(now) == step(then), step
+        assert _state(now, False) == _state(then, True), step
+    doc = HwpxDocument.open(data)
+    _judge(doc)
+    out_of_its_namespace(doc)
+    change(doc)
+    _edit_table(0)(doc)
+    assert cached(doc)
+    change(doc)
+    _judge(doc)
+    assert not cached(doc)
+
+
+def test_a_block_put_back_without_the_declaration_it_repeated_holds_caches_written_again() -> None:
+    # Each paragraph declares the prefix the root declares too. A body paragraph taken out of the tree
+    # and put back where it was loses that repeated declaration (lxml drops it): the block serialises to
+    # the very bytes it had, but what a cache or a paragraph inside serialises to by itself now lists the
+    # inherited declarations in the root's order. So every cache in it counts as written again (it
+    # stays, watched in its new form) -- and one whose paragraph changes after that goes.
+    data = _body_paragraphs_declaring_their_prefix_again((FIXTURES / "hancom_saved" / "line_cache_table_cells.hwpx").read_bytes())
+    picked: dict[int, Any] = {}
+
+    def tidy(doc: HwpxDocument) -> Any:
+        root = doc.sections[0].element
+        paragraph = _cached_cell_paragraphs(doc)[1]
+        block = next(ancestor for ancestor in paragraph.iterancestors() if ancestor.getparent() is root)
+        before, scope = etree.tostring(block), list(block.nsmap)
+        root.insert(root.index(block), block)
+        assert etree.tostring(block) == before and list(block.nsmap) != scope
+        picked[id(doc)] = paragraph
+        return None
+
+    def change(doc: HwpxDocument) -> Any:
+        node = picked[id(doc)].find(f"{HP}run/{HP}t")
+        node.text = "X" + node.text
+        return None
+
+    def cached(doc: HwpxDocument) -> bool:
+        return picked[id(doc)].find(f"{HP}linesegarray") is not None
+
+    now, then = _pair(data)
+    for step in (_judge, tidy, change, _judge, cached, change, _edit_table(0, lambda table: table.insert_rows(10_000)), cached, _save):
+        assert step(now) == step(then), step
+        assert _state(now, False) == _state(then, True), step
+    doc = HwpxDocument.open(data)
+    _judge(doc)
+    tidy(doc)
+    change(doc)
+    _judge(doc)
+    assert cached(doc)  # its text changed, but so did the cache as the judgement reads it
+    change(doc)
+    _judge(doc)
+    assert not cached(doc)
+
+
+def test_a_paragraph_whose_holder_is_bound_to_a_hidden_declaration_is_content_changed() -> None:
+    # A paragraph with a cache sits in a holder, under an element that gives the document's prefix to
+    # another namespace. Then the holder is swapped for one bound to the document's own namespace
+    # through the declaration that element hides: the body paragraph serialises to the very bytes it
+    # had, but the paragraph inside, serialised by itself for its digest, is now written with the
+    # document's namespace. Its content changed under its cache, as a look at every cache finds.
+    held: dict[int, Any] = {}
+
+    def take_in(doc: HwpxDocument) -> Any:
+        block = _cached_body_paragraphs(doc)[0]
+        block.append(_taken_in(block, _HELD_PLAINLY))
+        held[id(doc)] = (block, block[-1][0][0][0])
+        return etree.QName(block[-1][0][0]).namespace
+
+    def another_holder(doc: HwpxDocument) -> Any:
+        block, paragraph = held[id(doc)]
+        first, before = block[-1], etree.tostring(block)
+        first.addnext(_taken_in(block, "<z:a/>"))
+        block[-1][0][0].append(paragraph)
+        block.remove(first)
+        assert etree.tostring(block) == before
+        return etree.QName(block[-1][0][0]).namespace == etree.QName(block).namespace
+
+    def cached(doc: HwpxDocument) -> int:
+        return len(held[id(doc)][1])
+
+    data = (FIXTURES / "hancom_saved" / "line_cache_table_cells.hwpx").read_bytes()
+    now, then = _pair(data)
+    for step in (_judge, take_in, _judge, _judge, cached, another_holder, _edit_table(0), cached, _judge, _save):
+        assert step(now) == step(then), step
+        assert _state(now, False) == _state(then, True), step
+    doc = HwpxDocument.open(data)
+    assert take_in(doc) == "urn:other"
+    doc.tables[0].insert_rows(0)
+    assert cached(doc) == 1
+    assert another_holder(doc)
+    doc.tables[0].insert_rows(0)
+    assert cached(doc) == 0
 
 
 def test_a_table_in_a_header_takes_the_cache_of_the_body_paragraph_holding_the_header() -> None:
     # No editing API clears that one: the body paragraph holds the header, the header a paragraph, and
-    # that one the table. Its content changed with the table, so the judgement after the rebuild (which
-    # looks at the paragraphs the table sits in) drops its cache, as 7.0.0's look at the section did.
+    # that one the table. Its content changed with the table, so the judgement after the rebuild drops
+    # its cache.
     def header_table(doc: HwpxDocument) -> Any:
         return next(
             table for table in _tables(doc)
@@ -624,31 +1426,24 @@ def test_a_cache_rewritten_along_with_its_paragraph_stays() -> None:
         segment.set("horzsize", "31415")
         return None
 
-    for edit in (lambda table: table.insert_columns(0), lambda table: table.insert_rows(10_000)):
-        states = _both_ways(
-            "hancom_saved/line_cache_table_cells.hwpx",
-            rewrite,
-            lambda doc, edit=edit: _result(lambda: edit(_tables(doc)[0])),  # type: ignore[misc]
-            _judge,
-            _save,
-        )
+    for call in (lambda table: table.insert_columns(0), lambda table: table.insert_rows(10_000)):
+        states = _both_ways("hancom_saved/line_cache_table_cells.hwpx", rewrite, _edit_table(0, call), _judge, _save)
         assert b'horzsize="31415"' in states[-1][0][0]  # written on purpose: not what the part was read with
 
 
 def test_a_cache_dropped_just_before_the_rebuild_still_costs_the_paragraph_around_it_its_own() -> None:
-    # The judgement before a rebuild meets caches in document order. Here a paragraph holding a table in
-    # a cell keeps its cache ahead of its runs, so it is judged (and kept: the cache was rewritten) before
-    # a cache inside that table goes -- and the text after that cache goes with it, so the holding
-    # paragraph no longer has the content it was just watched with. 7.0.0's second look at the whole
-    # section drops its cache; the judgement after the rebuild of *another* table of the block must too,
-    # though that paragraph neither is in the rebuilt table nor holds it.
+    # A judgement meets caches in document order. Here a paragraph holding a table in a cell keeps its
+    # cache ahead of its runs, so it is judged (and kept: the cache was rewritten) before a cache inside
+    # that table goes -- and the text after that cache goes with it, so the holding paragraph no longer
+    # has the content it was just watched with. The judgement after the rebuild of *another* table of
+    # the block drops its cache, though that paragraph neither is in the rebuilt table nor holds it.
     name = "hancom_saved/pages_table_cell_tables_as_characters_among_text_split.hwpx"
     picked: dict[int, tuple[Any, Any, int]] = {}
 
     def rewrite(cache: Any) -> None:
         cache[0].set("horzsize", str(int(cache[0].get("horzsize", "0")) + 1))
 
-    def prepare(doc: HwpxDocument) -> Any:
+    def candidates(doc: HwpxDocument) -> Any:
         for block in doc.sections[0].element.findall(f"{HP}p"):
             nested = [table for table in block.iter(f"{HP}tbl") if len(list(table.iterancestors(f"{HP}tbl"))) == 1]
             for inner in nested:
@@ -659,16 +1454,18 @@ def test_a_cache_dropped_just_before_the_rebuild_still_costs_the_paragraph_aroun
                     if paragraph.find(f"{HP}linesegarray") is not None and (paragraph.findtext(f"{HP}run/{HP}t") or "")
                 ]
                 others = [table for table in nested if table is not inner and holder not in table.iterancestors()]
-                if holder.find(f"{HP}linesegarray") is None or not cached or not others:
-                    continue
-                holder.insert(0, holder.find(f"{HP}linesegarray"))
-                cached[0].find(f"{HP}linesegarray").tail = "text after the cache"
-                for cache in block.iter(f"{HP}linesegarray"):  # written on purpose: each stays, with this content
-                    rewrite(cache)
-                tables = [table.element for table in _tables(doc)]
-                picked[id(doc)] = (holder, cached[0], tables.index(others[0]))
-                return tables.index(inner), tables.index(others[0])
-        raise AssertionError("no block with two tables in cells, one of them with cached paragraphs")
+                if holder.find(f"{HP}linesegarray") is not None and cached and others:
+                    yield block, holder, cached[0], others[0]
+
+    def prepare(doc: HwpxDocument) -> Any:
+        block, holder, inner_paragraph, other = next(candidates(doc))
+        holder.insert(0, holder.find(f"{HP}linesegarray"))
+        inner_paragraph.find(f"{HP}linesegarray").tail = "text after the cache"
+        for cache in block.iter(f"{HP}linesegarray"):  # written on purpose: each stays, with this content
+            rewrite(cache)
+        tables = [table.element for table in _tables(doc)]
+        picked[id(doc)] = (holder, inner_paragraph, tables.index(other))
+        return tables.index(other)
 
     def change_the_inner_paragraph(doc: HwpxDocument) -> Any:
         holder, inner_paragraph, _other = picked[id(doc)]
@@ -699,31 +1496,6 @@ def test_a_cache_dropped_just_before_the_rebuild_still_costs_the_paragraph_aroun
     edit_the_other_table(doc)
     assert not inner_cached(doc)  # at the judgement before the rebuild
     assert not holder_cached(doc)  # at the one after it
-
-
-def test_the_judgement_after_a_rebuild_looks_at_the_whole_section_unless_the_one_before_named_its_table() -> None:
-    def unannounced(doc: HwpxDocument) -> Any:
-        table = _tables(doc)[0]
-        section = doc.sections[0]
-        section._remove_outlived_layout_caches(force=True)  # names no table
-        outside = next(
-            paragraph
-            for paragraph in section.element.findall(f"{HP}p")
-            if paragraph.find(f"{HP}linesegarray") is not None
-            and (paragraph.findtext(f"{HP}run/{HP}t") or "")
-            and next(paragraph.iter(f"{HP}tbl"), None) is None
-        )
-        node = outside.find(f"{HP}run/{HP}t")
-        node.text = "X" + node.text  # outside the table's block, after that judgement
-        section.mark_dirty()
-        dropped = section._remove_outlived_layout_caches(rebuilt=(table.element, table.paragraph.element))
-        return dropped, outside.find(f"{HP}linesegarray") is None
-
-    states = _both_ways("hancom_saved/formfit_glyph_cells.hwpx", unannounced)
-
-    now = HwpxDocument.open(FIXTURES / "hancom_saved" / "formfit_glyph_cells.hwpx")
-    assert unannounced(now) == (1, True)
-    assert _caches_in(states[1]) == _caches_in(states[0]) - 1
 
 
 @pytest.mark.parametrize(
