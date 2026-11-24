@@ -46,9 +46,11 @@ from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
     _escaped_text,
     _finalize,
+    _layout_cache_spans,
     _patch_zip_entries,
     _read_source_bytes,
     _rewrite_zip_entries,
+    _root_namespace_scope,
     _strip_paragraph_layout_cache,
     _text_edit_for_paragraph,
 )
@@ -174,10 +176,6 @@ _RUN_SCAN_RE = re.compile(
     re.S,
 )
 _CHAR_PR_REF_RE = re.compile(r'\bcharPrIDRef="(\d+)"')
-_LINESEG_ARRAY_STR_RE = re.compile(
-    r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
-    re.S | re.I,
-)
 
 
 def _scan_runs(xml: str) -> list[_RunScan]:
@@ -227,13 +225,16 @@ def _scan_runs(xml: str) -> list[_RunScan]:
 def _own_layout_cache_spans(
     xml: str, para_span: tuple[int, int], para_spans: Sequence[tuple[int, int]]
 ) -> list[tuple[int, int]]:
-    """*para_span* 문단 자신의 ``linesegarray`` 자리(안쪽 문단의 것은 뺀다)."""
+    """*para_span* 문단 자신의 ``linesegarray`` 자리(안쪽 문단의 것은 뺀다).
+
+    주석·CDATA 안의 닮은 글과 다른 이름공간의 ``linesegarray``는 건드리지 않는다.
+    """
 
     a, b = para_span
     return [
-        (m.start(), m.end())
-        for m in _LINESEG_ARRAY_STR_RE.finditer(xml, a, b)
-        if _innermost_span(m.start(), para_spans) == para_span
+        (start, end)
+        for start, end in _layout_cache_spans(xml, a, b, scope=_root_namespace_scope(xml))
+        if _innermost_span(start, para_spans) == para_span
     ]
 
 
@@ -343,13 +344,14 @@ def _op_replace_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, An
         if not any(other != span and other[0] <= span[0] and span[1] <= other[1] for other in by_para)
     ]
     edits: list[tuple[int, int, str]] = []
+    scope = _root_namespace_scope(xml)
     for pa, pb in outer:
         local = [(a, b, esc_replace) for a, b in hits if pa <= a < pb]
         local += [edit for edit in wrap_edits if pa <= edit[0] and edit[1] <= pb]
         block = xml[pa:pb]
         for a, b, replacement in sorted(local, key=lambda e: e[0], reverse=True):
             block = block[: a - pa] + replacement + block[b - pa:]
-        block = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
+        block = _strip_paragraph_layout_cache(block.encode("utf-8"), scope).decode("utf-8")
         edits.append((pa, pb, block))
     edits += [
         edit for edit in wrap_edits
@@ -409,7 +411,7 @@ def _op_insert_paragraph_by_clone(xml: str, op: Mapping[str, Any]) -> tuple[str,
             "refuse to set texts; its inner text would be emptied",
             code="body-op-nested-paragraph",
         )
-    stripped = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
+    stripped = _strip_paragraph_layout_cache(block.encode("utf-8"), _root_namespace_scope(xml)).decode("utf-8")
     clones: list[str] = []
     for i in range(count):
         clone = _PARA_ID_RE.sub(
@@ -556,7 +558,7 @@ def _op_set_paragraph_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[s
     edited = _text_edit_for_paragraph(block.encode("utf-8"), str(op["text"]))
     if edited is None:
         raise ValueError("set_paragraph_text: paragraph has no text run to set")
-    new_block = _strip_paragraph_layout_cache(edited[2]).decode("utf-8")
+    new_block = _strip_paragraph_layout_cache(edited[2], _root_namespace_scope(xml)).decode("utf-8")
     old = "".join(m.group(1) for m in _T_CONTENT_RE.finditer(block))
     return xml[:a] + new_block + xml[b:], {"index": index, "old": _preview(html.unescape(old)),
                                            "new": _preview(str(op["text"]))}

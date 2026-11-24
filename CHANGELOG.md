@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 고침
+
+- 문단 하나의 글을 바이트로 고치는 길(`paragraph_patch`, `apply_body_ops`의 `set_paragraph_text`·`replace_text`·
+  `insert_paragraph_by_clone`, `strip_runs_by_color`, `fill_cells`)이 고친 문단의 줄 배치 캐시를 지울 때, 주석·CDATA·처리 지시문
+  안의 `<hp:linesegarray>` 글자와 다른 이름공간의 `linesegarray`, 대소문자만 다른 이름까지 지웠다(#658). 이제 마크업을 차례로
+  읽어 문단 이름공간(`hp`, 또는 파트 머리에서 그 이름공간에 묶인 접두사)의 `linesegarray` 요소만 지운다. 주석·CDATA와 이름공간을
+  가리는 것은 패키지 전체를 고치는 `replace_package_text`와 같다.
+
 ## [7.0.1] - 2026-11-22
 
 ### 고침
