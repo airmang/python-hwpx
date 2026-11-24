@@ -16,7 +16,6 @@ import zipfile
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx.errors import HwpxError
 from hwpx.tools.document_merge import append_document, insert_document
 from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
 from hwpx.tools.repair import repair_repack
