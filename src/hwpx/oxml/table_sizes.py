@@ -42,6 +42,9 @@ __all__ = [
 ]
 
 _MARGIN_SIDES = ("left", "right", "top", "bottom")
+_GRID_TR, _GRID_TC, _GRID_ADDR, _GRID_SPAN, _GRID_SIZE = (
+    f"{_HP}{name}" for name in ("tr", "tc", "cellAddr", "cellSpan", "cellSz")
+)
 
 #: Hancom draws a table column at least its cells' left and right margins and this wide, the table as much
 #: wider (it keeps the narrower width written in the cells).
@@ -581,17 +584,29 @@ def grid_widths_of(table_element: Any) -> dict[Any, int]:
 
     spacing = int(table_element.get("cellSpacing", 0) or 0)
     places: dict[Any, tuple[int, int, int]] = {}  # cell: (first column, column after its last, width)
-    for tc in (tc for tr in table_element.findall(f"{_HP}tr") for tc in tr.findall(f"{_HP}tc")):
-        address, span = tc.find(f"{_HP}cellAddr"), tc.find(f"{_HP}cellSpan")
+    for tc in (tc for tr in table_element if tr.tag == _GRID_TR for tc in tr if tc.tag == _GRID_TC):
+        # Each cell's children read in one pass, the first of each kind kept (what ``find`` gives).
+        address = span = size = None
+        for child in tc:
+            tag = child.tag
+            if tag == _GRID_ADDR:
+                address = child if address is None else address
+            elif tag == _GRID_SPAN:
+                span = child if span is None else span
+            elif tag == _GRID_SIZE:
+                size = child if size is None else size
         if address is None:
             return {}
         first = int(address.get("colAddr", 0))
         places[tc] = (first, first + (1 if span is None else int(span.get("colSpan", 1))),
-                      int(tc.find(f"{_HP}cellSz").get("width", 0)))
+                      int(size.get("width", 0)))  # type: ignore[union-attr]  # no hp:cellSz fails as before
+    # The cells ending at each column end, gathered once: the cells are walked once, not once per column end.
+    ending: dict[int, list[tuple[int, int]]] = {}
+    for first, stop, width in places.values():
+        ending.setdefault(stop, []).append((first, width))
     starts = {0: 0}
-    for end in sorted({stop for _, stop, _ in places.values()}):
-        reach = [starts[first] + width + spacing for first, stop, width in places.values()
-                 if stop == end and first in starts]
+    for end in sorted(ending):
+        reach = [starts[first] + width + spacing for first, width in ending[end] if first in starts]
         if not reach:
             return {}
         starts[end] = max(reach)

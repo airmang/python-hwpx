@@ -2553,7 +2553,7 @@ def _row_cells(cell: object) -> list[Any]:
     return [cell]
 
 
-def _lines_end(cell: object, document: object) -> float:
+def _lines_end(cell: object, document: object, reads: _SlotReads | None = None) -> float:
     """Where the lines of a cell's own paragraphs end: their line cache or, without
     one, the lines its text measures at its own size and full width below the
     paragraph's spacing before (Hancom lays such a cell out when it opens the file)."""
@@ -2561,7 +2561,7 @@ def _lines_end(cell: object, document: object) -> float:
     drawn = _laid_out_height(getattr(cell, "element", None))
     if drawn:
         return drawn
-    slot = _cell_slot(cell, document, max_lines=1, font_pt=None, safety=1.0)
+    slot = _cell_slot(cell, document, max_lines=1, font_pt=None, safety=1.0, _reads=reads)
     text = str(getattr(cell, "text", "") or "")
     lines = measure(text, slot).lines if text else 1
     before = slot.text_style.space_before if slot.text_style is not None else 0
@@ -2582,7 +2582,7 @@ def _drawn_row_height(cell: object) -> float:
     return tallest
 
 
-def _auto_grow_row_height(cell: object, document: object) -> float:
+def _auto_grow_row_height(cell: object, document: object, reads: _SlotReads | None = None) -> float:
     """How tall Hancom draws the row of a cell stored shorter than one line: as
     tall as its tallest cell. Each cell of the row that spans one row is its
     stored height or the end of its lines plus its top and bottom margins,
@@ -2594,7 +2594,7 @@ def _auto_grow_row_height(cell: object, document: object) -> float:
             continue
         _left, _right, top, bottom = _effective_cell_margins(other)
         stored = float(getattr(other, "height", 0) or 0)
-        tallest = max(tallest, stored, _lines_end(other, document) + top + bottom)
+        tallest = max(tallest, stored, _lines_end(other, document, reads) + top + bottom)
     return tallest
 
 
@@ -2725,7 +2725,7 @@ def _local_name(tag: object) -> str:
     return str(tag).rsplit("}", 1)[-1]
 
 
-def _grid_width(cell: object) -> float:
+def _grid_width(cell: object, reads: _SlotReads | None = None) -> float:
     """The cell's width on its table's column grid, as Hancom lays its text out: wider than its own
     ``hp:cellSz`` when another row's cells push its columns' ends apart (see
     :func:`hwpx.oxml.table_sizes.grid_widths_of`); its own width without a table to read."""
@@ -2735,7 +2735,48 @@ def _grid_width(cell: object) -> float:
     table_element = getattr(getattr(cell, "table", None), "element", None)
     if element is None or table_element is None:
         return own
-    return float(grid_widths_of(table_element).get(element, own))
+    widths = grid_widths_of(table_element) if reads is None else reads.grid_widths(table_element)
+    return float(widths.get(element, own))
+
+
+class _SlotReads:
+    """What one :func:`resolve_slot_metrics` call reads more than once, read once.
+
+    A row that grows with its text has every one of its cells measured (see
+    :func:`_auto_grow_row_height`), the asked-for cell among them a second time,
+    and each measure reads the table's whole column grid. Within one call the grid
+    is read once and each cell's font and paragraph settings once. Nothing is
+    kept past the call, so nothing can go stale: an edit made between two calls
+    is read by the second as it always was.
+    """
+
+    __slots__ = ("_grid", "_looks")
+
+    def __init__(self) -> None:
+        self._grid: tuple[Any, dict[Any, int]] | None = None
+        self._looks: list[tuple[Any, dict[Any, Any]]] = []
+
+    def grid_widths(self, table_element: Any) -> dict[Any, int]:
+        kept = self._grid
+        if kept is not None and kept[0] is table_element:
+            return kept[1]
+        widths = grid_widths_of(table_element)
+        self._grid = (table_element, widths)  # holding the element keeps the ``is`` check meaningful
+        return widths
+
+    def looks(self, cell: object) -> dict[Any, Any]:
+        """The reads of *cell* kept so far, by reading function (the same ``hp:tc`` from
+        another cell object shares them); a fresh dict for a cell without an element."""
+
+        element = getattr(cell, "element", None)
+        if element is None:
+            return {}
+        for kept_element, kept in self._looks:
+            if kept_element is element:
+                return kept
+        kept = {}
+        self._looks.append((element, kept))
+        return kept
 
 
 def _effective_cell_margins(cell: object) -> tuple[int, int, int, int]:
@@ -3194,7 +3235,8 @@ def resolve_slot_metrics(
     stored height is as tall as those lines too (:func:`_drawn_row_height`).
     """
 
-    slot = _cell_slot(cell, document, max_lines=max_lines, font_pt=font_pt, safety=safety)
+    reads = _SlotReads()
+    slot = _cell_slot(cell, document, max_lines=max_lines, font_pt=font_pt, safety=safety, _reads=reads)
     _left, _right, top, bottom = _effective_cell_margins(cell)
     if _row_span(cell) > 1:
         # A merged row-span's cellSz.height is only one of the spanned rows.
@@ -3208,7 +3250,7 @@ def resolve_slot_metrics(
         return replace(slot, available_height=max(stored, drawn))
     # Stored shorter than one line at the tightest pitch: the row grows with its
     # text, and holds as many lines as its tallest cell.
-    return replace(slot, available_height=_auto_grow_row_height(cell, document) - top - bottom)
+    return replace(slot, available_height=_auto_grow_row_height(cell, document, reads) - top - bottom)
 
 
 def _cell_slot(
@@ -3218,10 +3260,21 @@ def _cell_slot(
     max_lines: int,
     font_pt: float | None,
     safety: float,
+    _reads: _SlotReads | None = None,
 ) -> SlotMetrics:
-    """The width, font and text style of a cell's slot, without a height budget."""
+    """The width, font and text style of a cell's slot, without a height budget.
 
-    raw_width = _grid_width(cell)
+    *_reads* shares the table's grid and the cell's settings across the measures of
+    one :func:`resolve_slot_metrics` call (:class:`_SlotReads`)."""
+
+    kept = _reads.looks(cell) if _reads is not None else {}
+
+    def look(read: Callable[[object, object], Any]) -> Any:
+        if read not in kept:
+            kept[read] = read(cell, document)
+        return kept[read]
+
+    raw_width = _grid_width(cell, _reads)
     element = getattr(cell, "element", None)
     left, right, _top, _bottom = _effective_cell_margins(cell)
     line = max(raw_width - left - right, 0.0) * safety
@@ -3231,7 +3284,7 @@ def _cell_slot(
     )
     if inline_width:
         inner = max(inner - inline_width, 0.0)
-    resolved_pt = font_pt if font_pt is not None else _first_run_font_pt(cell, document)
+    resolved_pt = font_pt if font_pt is not None else look(_first_run_font_pt)
 
     return SlotMetrics(
         available_width=inner,
@@ -3239,14 +3292,14 @@ def _cell_slot(
         max_lines=max(max_lines, 1),
         raw_width=raw_width,
         source="cell",
-        line_spacing_ratio=_first_para_line_spacing_ratio(cell, document),
+        line_spacing_ratio=look(_first_para_line_spacing_ratio),
         inline_object_width=inline_width,
         inline_object_count=inline_count,
-        text_style=_cell_text_style(cell, document),
+        text_style=look(_cell_text_style),
         line_width=line if raw_width > 0 else None,
         min_line_width=MIN_LINE_WIDTH * safety,
-        line_spacing=_first_para_line_spacing(cell, document),
-        font_line=_first_para_font_line(cell, document),
+        line_spacing=look(_first_para_line_spacing),
+        font_line=look(_first_para_font_line),
     )
 
 
