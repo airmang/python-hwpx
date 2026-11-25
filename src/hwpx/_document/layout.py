@@ -910,6 +910,7 @@ def add_hyperlink(
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
+    field_char_pr_id_ref: str | int | None = None,
 ) -> "Hyperlink":
     """Insert a hyperlink (fieldBegin + text + fieldEnd).
 
@@ -926,7 +927,8 @@ def add_hyperlink(
             doc, "", section=section,
             include_run=False,
         )
-    return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)
+    return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref,
+                                   field_char_pr_id_ref=field_char_pr_id_ref)
 
 
 def _resolve_section(
