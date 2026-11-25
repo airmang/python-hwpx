@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
-from .opc.package import duplicate_entry_names, refuse_duplicate_entry_names
+from .opc.package import duplicate_entry_names, refuse_duplicate_entry_names, refuse_existing_hwp_target
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .oxml.namespaces import NAMESPACE_URIS
@@ -187,9 +187,12 @@ def paragraph_patch(
     Only the paragraph's own text and its own ``hp:linesegarray`` layout cache
     change: a table or text box inside it keeps its paragraphs, their text and
     their caches byte for byte. An archive holding one entry name twice is
-    refused before anything is written (``save-duplicate-entry-names``).
+    refused before anything is written (``save-duplicate-entry-names``), and so
+    is an *output_path* that is an ``.hwp`` file already there
+    (``hwp5-overwrite-existing``).
     """
 
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     normalized_patches = tuple(_normalize_patch(item) for item in patches)
     if not normalized_patches:
@@ -288,6 +291,14 @@ def paragraph_patch(
         open_safety=open_safety,
         visual_complete=visual_complete,
     )
+
+
+def _refuse_hwp_output(output_path: str | Path | None) -> None:
+    """What every byte patch asks of its *output_path* before it reads the source, a dry run included:
+    an ``.hwp`` file already there is not written over (the bytes a patch writes are HWPX)."""
+
+    if output_path is not None:
+        refuse_existing_hwp_target(output_path)
 
 
 def _read_source_bytes(source: str | Path | bytes) -> bytes:
@@ -1048,6 +1059,7 @@ def replace_package_text(
             code="package-text-replacement-key-empty",
             suggestion="Drop the empty key; every key is text to find.",
         )
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     suffixes = tuple(suffix.lower() for suffix in part_suffixes)
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:

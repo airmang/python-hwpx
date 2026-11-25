@@ -703,23 +703,26 @@ def save(
 
 def _refuse_hwp_overwrite(doc: "HwpxDocument", path: str | PathLike[str]) -> None:
     """Raise before a save to *path* that would write over the ``.hwp`` file the document was
-    opened from, whatever format is written.
+    opened from (``hwp5-overwrite-source``) or over any other ``.hwp`` file that is already there
+    (``hwp5-overwrite-existing``), whatever format is written.
 
-    That file is the only original, and what a save writes is a file this library rebuilt: HWP 5.0
-    from the experimental writer, or -- with ``format="hwpx"`` -- an HWPX archive under the ``.hwp``
-    name, which through 7.0.1 was written and replaced the original with a ZIP.
+    The file a document was opened from is the only original, and what a save writes is a file this
+    library rebuilt: HWP 5.0 from the experimental writer, or -- with ``format="hwpx"`` -- an HWPX
+    archive under the ``.hwp`` name, which through 7.0.1 was written and replaced the original with
+    a ZIP. The same holds for every ``.hwp`` already on disk
+    (:func:`hwpx.opc.package.refuse_existing_hwp_target`); a new ``.hwp`` name is written.
     """
 
     import os
 
     from ..hwp5.errors import Hwp5Error
 
+    from ..opc.package import refuse_existing_hwp_target
+
     source = getattr(doc, "_hwp5_source_path", None)
-    if source is None:
-        return
     target = os.path.abspath(os.fspath(path))
-    same = os.path.normcase(target) == os.path.normcase(source)
-    if not same and os.path.exists(target) and os.path.exists(source):
+    same = source is not None and os.path.normcase(target) == os.path.normcase(source)
+    if source is not None and not same and os.path.exists(target) and os.path.exists(source):
         same = os.path.samefile(target, source)
     if same:
         copy = os.path.splitext(os.path.basename(target))[0] + ".hwpx"
@@ -733,6 +736,7 @@ def _refuse_hwp_overwrite(doc: "HwpxDocument", path: str | PathLike[str]) -> Non
                 "this same path is refused too."
             ),
         )
+    refuse_existing_hwp_target(path)
 
 
 def _refuse_lossy_hwp5_save(doc: "HwpxDocument") -> None:

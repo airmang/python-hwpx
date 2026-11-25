@@ -14,6 +14,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from ..opc.package import refuse_existing_hwp_target
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import validate_editor_open_safety, validate_package
@@ -79,6 +80,7 @@ def _prepare_output_dir(output_dir: Path, *, overwrite: bool) -> None:
 
 
 def _prepare_output_path(output_path: Path, *, overwrite: bool) -> None:
+    refuse_existing_hwp_target(output_path)  # overwrite=True (--force) does not lift this
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists() and not overwrite:
         raise FileExistsError(f"output file already exists: {output_path}")

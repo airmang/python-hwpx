@@ -383,6 +383,48 @@ def refuse_duplicate_entry_names(names: Iterable[str]) -> None:
     )
 
 
+def refuse_existing_hwp_target(path: "str | os.PathLike[str]") -> None:
+    """Refuse to write to *path* when it is an ``.hwp`` file that is already there; the file is not
+    touched. A path that names no file yet, or a file of another name, passes.
+
+    The one judgement every route that writes a document to a path asks before it writes: the document
+    save in either format, ``HwpxPackage.save``, the byte patches (:mod:`hwpx.patch` and those built on
+    it), the edit plan, ``hwpx-repair`` and ``hwpx-pack`` (``--force``/``overwrite=True`` included) and
+    the pipeline's atomic writer itself. An ``.hwp`` on disk is a file Hancom Office saved, and what
+    this library writes is rebuilt from its own document model -- or is not HWP 5.0 at all (a byte
+    patch writes HWPX whatever the name says) -- so nothing here writes over one. Writing a new
+    ``.hwp`` name stays allowed (the experimental HWP 5.0 writer).
+
+    The name is judged as the file system resolves it, so another spelling of the same file (upper
+    case, a trailing dot or space, a short 8.3 name, a link to it) is refused too. A save to a
+    stream has no path to judge.
+    """
+
+    name = os.fsdecode(os.fspath(path))
+    target = os.path.abspath(name)
+    if not os.path.lexists(target):
+        return
+    try:
+        resolved = os.path.realpath(target)
+    except (OSError, ValueError):
+        resolved = target
+    if ".hwp" not in (os.path.splitext(target)[1].lower(), os.path.splitext(resolved)[1].lower()):
+        return
+    from ..errors import Hwp5Error
+
+    copy = os.path.splitext(os.path.basename(resolved))[0] + ".hwpx"
+    raise Hwp5Error(
+        f"Refusing to write over the existing .hwp file {target}; it was not changed.",
+        code="hwp5-overwrite-existing",
+        context={"path": target},
+        suggestion=(
+            "Write to a file name that does not exist yet, or save as HWPX under a name ending in "
+            f".hwpx (for example {copy!r}). An existing .hwp is only read: nothing writes over it, "
+            "overwrite or --force included."
+        ),
+    )
+
+
 def duplicate_entry_names(infos: Iterable[ZipInfo]) -> list[str]:
     """The file names (directory entries aside) that *infos* list more than once, sorted."""
 
@@ -1776,6 +1818,9 @@ class HwpxPackage:
         pkg_file: str | Path | BinaryIO | None = None,
         updates: Mapping[str, bytes | str | etree._Element] | None = None,
     ) -> str | Path | BinaryIO | bytes | None:
+        if isinstance(pkg_file, (str, os.PathLike)):
+            # Before the updates go in: a refused save leaves the package as it was.
+            refuse_existing_hwp_target(pkg_file)
         if updates:
             for part_name, payload in updates.items():
                 self.set_part(part_name, payload)
@@ -1865,6 +1910,7 @@ class HwpxPackage:
                 self._verified_archive_report = report if verified else None
 
         if isinstance(pkg_file, (str, Path)):
+            refuse_existing_hwp_target(pkg_file)
             # Atomic write: write to a temp file first, then rename.
             target = Path(pkg_file)
             fd, tmp_path = tempfile.mkstemp(

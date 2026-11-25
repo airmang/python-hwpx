@@ -8,6 +8,7 @@ made with documents built in the test.
 from __future__ import annotations
 
 import io
+import os
 import re
 import warnings
 import zipfile
@@ -18,8 +19,18 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.errors import Hwp5Error
 from hwpx.body_patch import apply_body_ops, recolor_runs_by_color, strip_runs_by_color
-from hwpx.patch import paragraph_patch
-from hwpx.table_patch import apply_table_ops, fill_cells, strip_trailing_table_captions
+from hwpx.opc.package import HwpxPackage
+from hwpx.patch import paragraph_patch, replace_package_text
+from hwpx.plan import apply_edit_plan, validate_edit_plan
+from hwpx.quality import QualityPolicy, SavePipeline, write_bytes_atomically
+from hwpx.table_patch import (
+    apply_table_ops,
+    fill_cells,
+    strip_trailing_table_captions,
+    strip_trailing_table_text,
+)
+from hwpx.tools.archive_cli import pack_hwpx
+from hwpx.tools.repair import normalize_package_namespaces, repair_from_recovered, repair_repack
 from hwpx.tools import validator as validator_module
 from hwpx.tools.package_validator import validate_editor_open_safety
 
@@ -206,3 +217,207 @@ def test_the_hwp_a_document_was_opened_from_is_not_written_over_in_any_format(sa
     suggestion = refused.value.suggestion or ""
     assert "another file name" in suggestion and ".hwpx" in suggestion
     assert "save as .hwpx and keep" not in suggestion
+
+
+# --------------------------------------------------------------------------- #
+# W3: an .hwp file that is already there is not written over by anything.
+# --------------------------------------------------------------------------- #
+def _plan(source: Path, output: Path) -> dict:
+    return {
+        "schemaVersion": "hwpx.edit-plan/v1",
+        "source": str(source),
+        "output": str(output),
+        "steps": [{"id": "s", "op": "paragraph_patch", "args": {"patches": [{"paragraph_index": 1, "text": "N"}]}}],
+    }
+
+
+def _unpacked(source: Path, folder: Path) -> Path:
+    from hwpx.tools.archive_cli import unpack_hwpx
+
+    unpack_hwpx(source, folder)
+    return folder
+
+
+def _fresh() -> HwpxDocument:
+    return HwpxDocument.open(_base())
+
+
+#: Every way the engine puts a document on a path. Each takes the .hwpx source and the .hwp target.
+_WRITES_TO_A_PATH = {
+    "doc.save": lambda source, target: _fresh().save(target),
+    "doc.save format=hwp": lambda source, target: _fresh().save(target, format="hwp"),
+    "doc.save format=hwpx": lambda source, target: _fresh().save(target, format="hwpx"),
+    "doc.save quality": lambda source, target: _fresh().save(target, quality=QualityPolicy.transparent()),
+    "doc.package.save": lambda source, target: _fresh().package.save(str(target)),
+    "doc.package.save Path": lambda source, target: _fresh().package.save(target),
+    "HwpxPackage.save updates": lambda source, target: HwpxPackage.open(source).save(target, {"extra.txt": b"x"}),
+    "paragraph_patch": lambda source, target: paragraph_patch(
+        source, [{"paragraph_index": 1, "text": "N"}], output_path=target),
+    "paragraph_patch nothing to do": lambda source, target: paragraph_patch(source, [], output_path=target),
+    "fill_cells": lambda source, target: fill_cells(
+        source, [{"table_index": 0, "row": 0, "col": 0, "text": "N"}], output_path=target),
+    "fill_cells nothing to do": lambda source, target: fill_cells(source, [], output_path=target),
+    "apply_table_ops": lambda source, target: apply_table_ops(
+        source, [{"op": "delete_row", "table_index": 0, "row": 1}], output_path=target),
+    "apply_table_ops dry_run": lambda source, target: apply_table_ops(
+        source, [{"op": "delete_row", "table_index": 0, "row": 1}], output_path=target, dry_run=True),
+    "apply_body_ops": lambda source, target: apply_body_ops(
+        source, [{"op": "set_paragraph_text", "index": 1, "text": "N"}], output_path=target),
+    "apply_body_ops dry_run": lambda source, target: apply_body_ops(
+        source, [{"op": "set_paragraph_text", "index": 1, "text": "N"}], output_path=target, dry_run=True),
+    "recolor_runs_by_color": lambda source, target: recolor_runs_by_color(
+        source, ["#000000"], "#FF0000", output_path=target),
+    "strip_runs_by_color": lambda source, target: strip_runs_by_color(source, ["#000000"], output_path=target),
+    "strip_trailing_table_captions": lambda source, target: strip_trailing_table_captions(source, output_path=target),
+    "strip_trailing_table_text": lambda source, target: strip_trailing_table_text(
+        source, predicate=lambda text: False, output_path=target),
+    "replace_package_text": lambda source, target: replace_package_text(source, {"alpha": "N"}, output_path=target),
+    "normalize_package_namespaces": lambda source, target: normalize_package_namespaces(source, output_path=target),
+    "apply_edit_plan": lambda source, target: apply_edit_plan(_plan(source, target)),
+    "apply_edit_plan dry_run": lambda source, target: apply_edit_plan(_plan(source, target), dry_run=True),
+    "validate_edit_plan": lambda source, target: validate_edit_plan(_plan(source, target)),
+    "repair_repack overwrite": lambda source, target: repair_repack(source, target, overwrite=True),
+    "repair_repack": lambda source, target: repair_repack(source, target),
+    "repair_from_recovered overwrite": lambda source, target: repair_from_recovered(source, target, overwrite=True),
+    "pack_hwpx overwrite": lambda source, target: pack_hwpx(
+        _unpacked(source, source.parent.parent / "unpacked"), target, overwrite=True),
+    "SavePipeline.run": lambda source, target: SavePipeline().run(
+        source.read_bytes(), output_path=target, quality=QualityPolicy.transparent()),
+    "write_bytes_atomically": lambda source, target: write_bytes_atomically(target, source.read_bytes()),
+}
+
+
+@pytest.mark.parametrize("route", list(_WRITES_TO_A_PATH))
+def test_no_route_writes_over_an_hwp_file_that_is_already_there(route: str, tmp_path: Path) -> None:
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    source = folder / "doc.hwpx"
+    original = _base()
+    source.write_bytes(original)
+    target = folder / "other.hwp"
+    before = _hwp_file(target)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(Hwp5Error) as refused:
+            _WRITES_TO_A_PATH[route](source, target)
+
+    assert refused.value.code == "hwp5-overwrite-existing"
+    assert refused.value.context["path"] == os.path.abspath(target)
+    suggestion = refused.value.suggestion or ""
+    assert "does not exist yet" in suggestion and "other.hwpx" in suggestion
+    assert target.read_bytes() == before
+    assert source.read_bytes() == original
+    assert _names(folder) == ["doc.hwpx", "other.hwp"]
+
+
+@pytest.mark.parametrize("tool", ["hwpx-repair", "hwpx-repair --recover", "hwpx-pack"])
+def test_force_does_not_let_the_command_line_tools_write_over_an_hwp(tool: str, tmp_path: Path, capsys) -> None:
+    from hwpx.tools import archive_cli, repair
+
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    source = folder / "doc.hwpx"
+    source.write_bytes(_base())
+    target = folder / "other.hwp"
+    before = _hwp_file(target)
+
+    if tool == "hwpx-pack":
+        unpacked = _unpacked(source, tmp_path / "unpacked")
+        code = archive_cli.pack_main([str(unpacked), str(target), "--force"])
+    else:
+        extra = ["--recover"] if tool.endswith("--recover") else []
+        code = repair.main([str(source), str(target), "--force", *extra])
+
+    said = capsys.readouterr()
+    assert code != 0
+    assert "existing .hwp" in said.out + said.err
+    assert target.read_bytes() == before
+    assert _names(folder) == ["doc.hwpx", "other.hwp"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="spellings Windows resolves to the same file")
+@pytest.mark.parametrize("spelling", ["OTHER.HWP", "other.hwp.", "other.hwp "])
+def test_another_spelling_of_the_same_hwp_file_is_refused_too(spelling: str, tmp_path: Path) -> None:
+    source = tmp_path / "doc.hwpx"
+    source.write_bytes(_base())
+    target = tmp_path / "other.hwp"
+    before = _hwp_file(target)
+    spelled = str(tmp_path / spelling)
+
+    for write in (
+        lambda: _fresh().save(spelled, format="hwpx"),
+        lambda: _fresh().package.save(spelled),
+        lambda: paragraph_patch(source, [{"paragraph_index": 1, "text": "N"}], output_path=spelled),
+        lambda: repair_repack(source, spelled, overwrite=True),
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with pytest.raises(Hwp5Error) as refused:
+                write()
+        assert refused.value.code == "hwp5-overwrite-existing"
+    assert target.read_bytes() == before
+    assert _names(tmp_path) == ["doc.hwpx", "other.hwp"]
+
+
+def test_the_package_save_of_a_document_opened_from_an_hwp_does_not_write_over_it(tmp_path: Path) -> None:
+    original = tmp_path / "original.hwp"
+    before = _hwp_file(original)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        document = HwpxDocument.open(original)
+
+    with pytest.raises(Hwp5Error) as refused:
+        document.package.save(str(original))
+
+    assert refused.value.code == "hwp5-overwrite-existing"
+    assert original.read_bytes() == before
+    assert _names(tmp_path) == ["original.hwp"]
+
+
+def test_a_refused_package_save_does_not_take_its_updates(tmp_path: Path) -> None:
+    target = tmp_path / "other.hwp"
+    _hwp_file(target)
+    package = HwpxPackage.open(_base())
+    names = package.part_names()
+
+    with pytest.raises(Hwp5Error):
+        package.save(target, {"extra.txt": b"x"})
+
+    assert package.part_names() == names
+
+
+def test_a_new_hwp_name_is_still_written(tmp_path: Path) -> None:
+    """The experimental HWP 5.0 writer keeps writing new files; only files already there are kept."""
+
+    new = tmp_path / "new.hwp"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        report = _fresh().save(new)
+    assert report.path == str(new)
+    assert new.read_bytes()[:8] == bytes.fromhex("d0cf11e0a1b11ae1")
+
+    # and the same name a second time is the file that is already there
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(Hwp5Error) as refused:
+            _fresh().save(new)
+    assert refused.value.code == "hwp5-overwrite-existing"
+
+    # a save to a stream has no path: it is not judged
+    stream = io.BytesIO()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _fresh().save(stream, format="hwp")
+    assert stream.getvalue()[:8] == bytes.fromhex("d0cf11e0a1b11ae1")
+
+
+def test_an_existing_hwpx_is_written_over_as_before(tmp_path: Path) -> None:
+    target = tmp_path / "doc.hwpx"
+    target.write_bytes(_base())
+    document = _fresh()
+    document.add_paragraph("edited")
+    document.save(target)
+    assert "edited" in HwpxDocument.open(target).text.plain()
+    result = paragraph_patch(target, [{"paragraph_index": 1, "text": "N"}], output_path=target)
+    assert result.ok and target.read_bytes() == result.data

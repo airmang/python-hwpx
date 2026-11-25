@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from ..opc.package import refuse_existing_hwp_target
 from ._model import EditPlan, PlanValidation, PlanValidationError
 
 
@@ -163,6 +164,8 @@ def validate_edit_plan(
             context={"output": loaded.output},
             suggestion="원자 쓰기는 output과 같은 디렉터리에 임시 파일을 만듭니다.",
         )
+    # 이미 있는 .hwp 는 덮어쓰지 않는다(dry_run 도 같은 판정). Hwp5Error(hwp5-overwrite-existing).
+    refuse_existing_hwp_target(loaded.output)
     if Path(loaded.output).resolve() == source.resolve():
         lints.append(
             {

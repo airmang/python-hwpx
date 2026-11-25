@@ -49,6 +49,7 @@ from .patch import (
     _layout_cache_spans,
     _patch_zip_entries,
     _read_source_bytes,
+    _refuse_hwp_output,
     _rewrite_zip_entries,
     _root_namespace_scope,
     _strip_paragraph_layout_cache,
@@ -589,6 +590,7 @@ def recolor_runs_by_color(
     정확히 일치하는 charPr을 to_color 변형으로 복제(header)하고 해당 run의
     charPrIDRef만 재매핑한다(글꼴·크기 등 나머지 서식 보존). 디자인색 오염 방지를
     위해 계열이 아닌 **정확 hex** 매칭."""
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     from_set = {h.upper() for h in from_hexes}
     import io, zipfile
@@ -665,6 +667,7 @@ def strip_runs_by_color(
     대상 run이 표·글상자·각주를 품고 있으면 그 run이 **직접** 가진 글만 비운다.
     안쪽 run의 글은 안쪽 run의 색으로 따로 판정하고, 그런 run을 비운 수는
     transcript의 ``runsHoldingNestedRuns``에 싣는다."""
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     import io, zipfile
 
@@ -748,6 +751,7 @@ def apply_body_ops(
     dry_run: bool = False,
 ) -> BodyOpsResult:
     """섹션 직속 문단 op들을 바이트보존으로 적용한다 (모듈 docstring 참조)."""
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     import io, zipfile
 

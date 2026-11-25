@@ -48,6 +48,15 @@
   원본 `.hwp`를 HWPX(ZIP) 바이트로 덮어썼고, 거부 안내 "save as .hwpx"가 바로 그 호출로 읽혔다. 이제 연 원본 `.hwp` 경로에는
   어느 형식으로도 쓰지 않는다(`Hwp5Error`, `hwp5-overwrite-source`). 안내는 `.hwpx`로 끝나는 다른 파일 이름(또는 새 `.hwp`
   이름)으로 저장하라고 적고, 같은 경로에 형식만 바꿔도 거부된다고 밝힌다.
+- 이미 있는 `.hwp` 파일은 무엇으로도 덮어쓰지 않는다(#829). 전에는 연 원본이 아닌 `.hwp`는 어느 길에서도 막지 않아,
+  `doc.save(<이미 있는>.hwp)`는 한/글이 저장한 파일을 이 라이브러리가 다시 만든 HWP 5.0으로 바꿨고, `doc.package.save`·바이트
+  패치(`paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops`·`replace_package_text` 등)의 `output_path`·
+  `apply_edit_plan`의 `output`·`hwpx-repair --force`·`hwpx-pack --force`는 `.hwp` 이름에 HWPX(ZIP) 바이트를 경고 없이 썼다.
+  이제 문서를 경로에 쓰는 길이 모두 한 판정(`hwpx.opc.package.refuse_existing_hwp_target`)을 거쳐 `Hwp5Error`
+  (`hwp5-overwrite-existing`, 새 이름이나 `.hwpx`로 쓰라는 `suggestion`)로 거부하고 그 파일은 그대로 둔다. `dry_run`도 같은
+  판정을 내고, `overwrite=True`·`--force`로도 풀리지 않으며, 대소문자·끝의 점·짧은 이름처럼 같은 파일을 가리키는 다른 철자도
+  거부한다. 아직 없는 `.hwp` 이름으로 쓰는 것(실험 기능)은 그대로다. 스트림 저장은 경로를 모르므로 대상이 아니다.
+  **동작 변경:** 자기가 만든 `.hwp`라도 같은 이름으로 다시 저장하면 거부된다. 새 이름으로 쓰거나 먼저 지운다.
 
 ## [7.0.1] - 2026-11-22
 

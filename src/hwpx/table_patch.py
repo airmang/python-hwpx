@@ -47,6 +47,7 @@ from .patch import (
     _strip_paragraph_layout_cache,
     _text_edit_for_paragraph,
     _finalize,
+    _refuse_hwp_output,
 )
 
 # --- byte-level table / row / cell parsing (namespace-prefix agnostic) ---------
@@ -807,6 +808,7 @@ def fill_cells(
     (form_fit FitEngine) is materialised as a real ``charPr`` and the cell's run
     points at it. Column widths and the rest of the document are untouched.
     """
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     if not cells:
         open_safety, _ = _finalize(source_bytes, output_path, source=source)
@@ -2670,6 +2672,7 @@ def apply_table_ops(
     바꾸는지"를 transcript(구조 op별 해석·전후 dims)와 applied(old→new 텍스트)로
     보여주는 승인 근거용.
     """
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     struct_ops = [o for o in ops if o.get("op") not in ("fill_cell", "set_cell_line_spacing")]
     spacing_ops = [o for o in ops if o.get("op") == "set_cell_line_spacing"]
@@ -2978,6 +2981,7 @@ def _strip_trailing_table_text(
     source: str | Path | bytes, *, predicate: Callable[[str], bool],
     output_path: str | Path | None, legacy: bool,
 ) -> CellFillResult:
+    _refuse_hwp_output(output_path)
     # The released caption API retains its exact 6.x splice/selection behavior.
     # The neutral seam uses QName-aware bounded spans and preserves aliases.
     import html

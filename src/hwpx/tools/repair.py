@@ -12,6 +12,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from lxml import etree
 
+from ..opc.package import refuse_existing_hwp_target
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..patch import _gate_and_publish
@@ -48,6 +49,7 @@ class _BufferedEntry:
 
 
 def _prepare_output_path(output_path: Path, *, overwrite: bool) -> None:
+    refuse_existing_hwp_target(output_path)  # overwrite=True (--force) does not lift this
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists() and not overwrite:
         raise FileExistsError(f"output file already exists: {output_path}")
@@ -425,6 +427,8 @@ def normalize_package_namespaces(
     passes (``ok``), and otherwise left as it was.
     """
 
+    if output_path is not None:
+        refuse_existing_hwp_target(output_path)
     archive_source = io.BytesIO(source) if isinstance(source, bytes) else Path(source)
     entries = _read_entries(archive_source, max_entry_size=max_entry_size, max_total_size=max_total_size)
 
