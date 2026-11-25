@@ -8,7 +8,7 @@ import re
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
 
-from lxml import etree
+from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
 from ._resolve import home_paragraph, refused_leaves_no_paragraph
