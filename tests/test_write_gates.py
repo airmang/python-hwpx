@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import os
 import re
+import sys
 import warnings
 import zipfile
 from pathlib import Path
@@ -195,11 +196,17 @@ def _hwp_file(path: Path) -> bytes:
     "save",
     [
         lambda doc, path: doc.save(path, format="hwpx"),
-        lambda doc, path: doc.save(str(path).upper(), format="hwpx"),
+        # the same file under another spelling: a "." step names it on every system,
+        lambda doc, path: doc.save(os.path.join(str(path.parent), ".", path.name), format="hwpx"),
+        # other letter case names it only where file names ignore case
+        pytest.param(
+            lambda doc, path: doc.save(path.with_name(path.name.upper()), format="hwpx"),
+            marks=pytest.mark.skipif(sys.platform != "win32", reason="file names keep their case here"),
+        ),
         lambda doc, path: doc.save(path, format="hwp"),
         lambda doc, path: doc.save(path),
     ],
-    ids=["format=hwpx", "format=hwpx, other spelling", "format=hwp", "format by name"],
+    ids=["format=hwpx", "format=hwpx, dot step", "format=hwpx, other case", "format=hwp", "format by name"],
 )
 def test_the_hwp_a_document_was_opened_from_is_not_written_over_in_any_format(save, tmp_path: Path) -> None:
     original = tmp_path / "original.hwp"
