@@ -869,12 +869,32 @@ def _create_picture_element(
                 if value is None:
                     continue
                 if key in ("horzOffset", "vertOffset"):
-                    # schema: xs:nonNegativeInteger — coerce/clamp so a stray negative
-                    # or fractional offset can never produce an invalid HWPX.
-                    value = max(0, round(float(value)))
+                    value = _picture_offset(key, value)
                 pos.set(key, str(value))
     _append_child(el, f"{_HP}shapeComment", {})
     return el
+
+
+def _picture_offset(name: str, value: object) -> int:
+    """A ``pos_overrides`` offset as ``hp:pos`` stores it: whole HWP units, a negative one (left of or
+    above its frame) in its unsigned 32-bit form, as Hancom writes one (the pictures, shapes and text
+    boxes Hangul saved in ``tests/fixtures/hancom_saved/flip_*.hwpx`` say ``vertOffset="4294966298"`` for
+    -998). Negative offsets were clamped to 0 up to 7.0.2, which moved the picture."""
+
+    from ..errors import HwpxValueError
+
+    try:
+        number = round(float(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        number = None
+    if number is None or isinstance(value, bool) or number < -(2**31):
+        raise HwpxValueError(
+            f"{name} must be a number of HWP units from -2147483648 up; got {value!r}",
+            code="shape-position-value",
+            context={"argument": name, "value": repr(value)},
+            suggestion="Pass the offset in HWP units (1 mm = 283.465); a negative one goes left or up.",
+        )
+    return number & 0xFFFFFFFF if number < 0 else number
 
 
 def _scale_coordinates(
@@ -971,7 +991,7 @@ def _paragraph_add_picture(
     *alignment* (``LEFT``, ``CENTER``, ``RIGHT``, ``INSIDE``, ``OUTSIDE``, any case) is the picture's
     ``hp:pos/@horzAlign``. With ``treat_as_char=False`` and ``pos_overrides`` the picture is placed as a
     **floating** object: ``pos_overrides`` sets ``horz/vertRelTo`` (e.g. ``PAPER``),
-    ``horz/vertAlign`` and ``horz/vertOffset`` (HWPUNIT, non-negative) on the
+    ``horz/vertAlign`` and ``horz/vertOffset`` (HWPUNIT; a negative one left of or above the frame) on the
     ``<hp:pos>`` so the image lands at a fixed page position (used by 직인 placement).
     ``text_wrap`` overrides the pic's ``textWrap`` (e.g. ``IN_FRONT_OF_TEXT`` so a
     seal stamped over a line does not reflow the text it overlaps).
