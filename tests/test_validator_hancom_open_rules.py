@@ -329,3 +329,44 @@ def _drop_cell_paragraphs(root: etree._Element) -> None:
 def test_a_cell_without_paragraphs_is_an_error(valid_bytes: bytes) -> None:
     report = validate_package(_mutate(valid_bytes, SECTION, _drop_cell_paragraphs))
     assert any("hp:subList without hp:p" in issue.message for issue in report.errors)
+
+
+def _with_a_field_begin_deleted() -> tuple[HwpxDocument, int]:
+    """Hancom's file of fields running over paragraphs, with the paragraph holding the begin of the field
+    whose end starts its run deleted; and that end's paragraph's index in the section afterwards."""
+
+    doc = HwpxDocument.open((FIXTURES / "hancom_saved/form_fields_spanning_before.hwpx").read_bytes())
+    field = next(
+        field for field in doc.fields.all
+        if field.end_location is not None and field.end_location.child_index == 0
+        and field.end_location.paragraph_index != field.location.paragraph_index
+    )
+    assert field.paragraph is not None and field.end_location is not None
+    field.paragraph.remove()
+    return doc, field.end_location.paragraph_index_in_section - 1
+
+
+def test_the_refusal_of_an_unpaired_field_end_says_which_field_and_how_to_save() -> None:
+    # #811: deleting the paragraph that holds a field's begin leaves its end at the start of a run, and the save
+    # is refused; the refusal names the field's kind and place and the calls that remove a field whole.
+    from hwpx.opc.package import HwpxPackageError
+
+    doc, paragraph = _with_a_field_begin_deleted()
+    with pytest.raises(HwpxPackageError) as refused:
+        doc.to_bytes()
+    message = str(refused.value)
+    assert "names no hp:fieldBegin and starts its run" in message
+    assert f"the end of a CLICK_HERE field in paragraph {paragraph} of the section (its text starts " in message
+    assert "field.remove()" in message and "doc.refs.tables_of_contents" in message
+
+
+def test_removing_the_field_as_the_refusal_says_lets_the_document_save() -> None:
+    doc = HwpxDocument.open((FIXTURES / "hancom_saved/form_fields_spanning_before.hwpx").read_bytes())
+    field = next(
+        field for field in doc.fields.all
+        if field.end_location is not None and field.end_location.child_index == 0
+        and field.end_location.paragraph_index != field.location.paragraph_index
+    )
+    field.remove()
+    report = validate_package(doc.to_bytes())
+    assert not any("names no hp:fieldBegin" in issue.message for issue in report.errors)

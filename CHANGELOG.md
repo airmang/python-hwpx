@@ -22,6 +22,9 @@
 - `doc.fields.fill`이 글도 수도 아닌 값(목록·dict·튜플·바이트·`True` 등)을 `str()`로 바꿔 `['a', 'b']`처럼 파이썬 표기를
   양식에 써 넣었다(#811). 이제 `None`처럼 문서를 건드리기 전에 `HwpxTypeError`(`hwpx-type-error`, 고치는 법을 담은
   `suggestion`)로 거절한다. 글과 수(`int`·`float`·`Decimal` 등)는 전처럼 쓴다.
+- 짝 없는 `hp:fieldEnd`가 run 맨 앞에 남아 저장이 거부될 때(여러 문단에 걸친 누름틀의 시작이 든 문단을 지운 경우) 거부 문장이
+  `beginIDRef`만 알려 주었다(#811). 이제 어느 필드의 끝인지(`fieldid`로 읽은 종류, 구역의 몇째 문단, 그 문단 글의 앞부분)와
+  고치는 법(문단 대신 필드를 통째로 지우는 `field.remove()`, 차례는 `doc.refs.tables_of_contents`의 `remove()`)을 함께 적는다.
 
 ## [7.0.1] - 2026-11-22
 
