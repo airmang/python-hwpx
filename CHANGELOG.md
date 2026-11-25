@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [7.0.2] - 2026-11-25
+
 ### 고침
 
 - `hwpx-unpack 입력 <출력 폴더> --force`(`unpack_hwpx(..., overwrite=True)`)가 입력을 열어 보기 전에 출력 폴더를 비웠다(#834).
