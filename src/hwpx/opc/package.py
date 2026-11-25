@@ -398,6 +398,9 @@ def refuse_existing_hwp_target(path: "str | os.PathLike[str]") -> None:
     The name is judged as the file system resolves it, so another spelling of the same file (upper
     case, a trailing dot or space, a short 8.3 name, a link to it) is refused too. A save to a
     stream has no path to judge.
+
+    A file with no bytes is not a document and passes: a caller that publishes atomically makes an
+    empty placeholder first (``tempfile.mkstemp``) and saves to it, and there is nothing in it to lose.
     """
 
     name = os.fsdecode(os.fspath(path))
@@ -410,6 +413,11 @@ def refuse_existing_hwp_target(path: "str | os.PathLike[str]") -> None:
         resolved = target
     if ".hwp" not in (os.path.splitext(target)[1].lower(), os.path.splitext(resolved)[1].lower()):
         return
+    try:
+        if os.path.isfile(resolved) and os.path.getsize(resolved) == 0:
+            return
+    except OSError:  # cannot tell what is there: keep it
+        pass
     from ..errors import Hwp5Error
 
     copy = os.path.splitext(os.path.basename(resolved))[0] + ".hwpx"
