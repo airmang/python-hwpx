@@ -6,6 +6,12 @@
 
 ### 고침
 
+- 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서를 7.0.0·7.0.1은 저장하지 않았다
+  (`section-properties-not-first`). 6.x의 `section.insert_paragraphs(0, ...)`가 그런 파일을 만들었으므로, 6.x로 만든 문서를
+  7.0에서 열면 고치지 않고 저장해도 거부됐다. 이제 저장이 `hwpx-repair`처럼 구역 설정과 그 문단의 단·머리말·꼬리말·쪽 번호
+  컨트롤을 첫 문단 앞으로 옮기고, 용지·여백이 바뀌므로 그 구역의 줄 배치 캐시를 모두 지운 뒤 쓰며, 어느 구역을 옮겼는지
+  `UserWarning`으로 알린다. 한/글이 읽는 자리로 옮기므로 그 구역은 파일이 적어 둔 용지·여백으로 열린다(전에는 한/글이 기본
+  용지·여백으로 열었다). 그대로 읽은 파일에 대한 열기 안전 검사의 보고는 전과 같다.
 - 문단 하나의 글을 바이트로 고치는 길(`paragraph_patch`, `apply_body_ops`의 `set_paragraph_text`·`replace_text`·
   `insert_paragraph_by_clone`, `strip_runs_by_color`, `fill_cells`)이 고친 문단의 줄 배치 캐시를 지울 때, 주석·CDATA·처리 지시문
   안의 `<hp:linesegarray>` 글자와 다른 이름공간의 `linesegarray`, 대소문자만 다른 이름까지 지웠다(#658). 이제 마크업을 차례로
