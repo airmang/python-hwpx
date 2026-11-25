@@ -119,6 +119,9 @@ class FieldsNamespace(_Namespace):
         채울 누름틀은 *index*(:attr:`all` 의 몇 번째, 0부터)·*field_id*·*name* 가운데 하나로
         고른다. *fit* (``FitPolicy``)을 주면 칸에 맞게 글자를 줄이거나 줄을 나눈다.
 
+        *value* 는 글이나 수(수는 ``str()`` 의 숫자로 쓴다)다. ``None``·목록·dict·``True`` 같은 다른 값은
+        ``HwpxTypeError(code="hwpx-type-error")`` 로 거절한다(비우려면 ``""``).
+
         값의 글자 모양은 한/글처럼 누름틀 시작이 든 런의 모양이다. *char_pr_id_ref* 를 주면 값만
         그 글자 모양(``doc.styles.char_properties`` 의 id)이 된다. 값이 다른 것(누름틀 시작·끝,
         누름틀 밖의 글)과 한 런에 있으면 그 런을 자식 사이에서 나눠 값 조각만 바꾸고, 나머지는

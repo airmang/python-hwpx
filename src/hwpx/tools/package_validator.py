@@ -12,6 +12,7 @@ from zipfile import ZIP_STORED, BadZipFile, ZipFile, ZipInfo
 
 from lxml import etree as LET  # type: ignore[reportMissingImports]
 
+from ..oxml.field_marks import FIELD_TYPE_CONTROL_IDS
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
 from ..oxml.utils import hancom_text_length, line_seg_past_text
@@ -1024,7 +1025,7 @@ def _check_field_end_pairs(
     """
 
     begins: set[str] = set()
-    ends: list[tuple[str, str]] = []
+    ends: list[tuple[str, ET.Element, ET.Element]] = []
     for path in section_paths:
         root = xml_roots.get(path)
         if root is None:
@@ -1036,15 +1037,51 @@ def _check_field_end_pairs(
             elif name == "run" and len(element) and _local_name(element[0]) == "ctrl" and len(element[0]):
                 end = element[0][0]
                 if _local_name(end) == "fieldEnd" and end.get("beginIDRef") is not None:
-                    ends.append((path, end.get("beginIDRef") or ""))
-    for path, begin_ref in ends:
+                    ends.append((path, root, end))
+    for path, root, end in ends:
+        begin_ref = end.get("beginIDRef") or ""
         if begin_ref not in begins:
             _error(
                 issues,
                 path,
                 f"hp:fieldEnd beginIDRef={begin_ref!r} names no hp:fieldBegin and starts its run; "
-                "Hancom refuses to open the document",
+                "Hancom refuses to open the document. " + _unpaired_field_end_hint(root, end),
             )
+
+
+#: The field type of each ``fieldid`` Hancom writes for a type (``hp:fieldEnd/@fieldid``).
+_FIELD_TYPE_OF_CONTROL_ID = {
+    str(int.from_bytes(control.encode("ascii"), "big")): field_type
+    for field_type, control in FIELD_TYPE_CONTROL_IDS.items()
+}
+
+
+def _unpaired_field_end_hint(root: ET.Element, end: ET.Element) -> str:
+    """Which field *end* (one naming no begin) closed, where it is, and how to save the document (#811)."""
+
+    field_type = _FIELD_TYPE_OF_CONTROL_ID.get(end.get("fieldid") or "")
+    parents = {child: parent for parent in root.iter() for child in parent}
+    holders: list[ET.Element] = []  # the paragraphs holding the end, innermost first
+    node = end
+    while node in parents:
+        node = parents[node]
+        if _local_name(node) == "p":
+            holders.append(node)
+    place = ""
+    if holders:
+        own = [child for child in root if _local_name(child) == "p"]
+        if holders[-1] in own:
+            place = f" in paragraph {own.index(holders[-1])} of the section"
+        text = "".join(node.text or "" for node in holders[0].iter() if _local_name(node) == "t").strip()
+        if text:
+            place += f" (its text starts {text[:30]!r})"
+    kind = f"a {field_type} field" if field_type else "a field"
+    return (
+        f"It is the end of {kind}{place} whose begin is gone, as when the paragraph holding the begin of a field "
+        "running over paragraphs is deleted. Remove the whole field instead -- field.remove() for a form field "
+        "(doc.fields.all), remove() of doc.refs.tables_of_contents[i] for a table of contents -- or delete the "
+        "paragraph holding this end too"
+    )
 
 
 def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:

@@ -11,10 +11,12 @@ dict/list[dict] 를 그대로 통과시키되, **위임이 옳은지**를 못박
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from hwpx.document import HwpxDocument
-from hwpx.errors import HwpxError
+from hwpx.errors import HwpxError, HwpxTypeError
 
 
 @pytest.fixture()
@@ -52,6 +54,25 @@ def test_filling_an_unknown_field_fails_closed(document: HwpxDocument) -> None:
     with pytest.raises(Exception) as excinfo:
         document.fields.fill("값", name="없는이름")
     assert not isinstance(excinfo.value, AttributeError), "내부가 새면 안 된다"
+
+
+@pytest.mark.parametrize("value", [["a", "b"], {"k": "v"}, ("a",), True, b"bytes", object()])
+def test_a_value_that_is_not_text_or_a_number_is_refused_and_leaves_the_field(
+    document: HwpxDocument, value: object
+) -> None:
+    # #811: str() of a list or a dict wrote Python's spelling of it ("['a', 'b']") into the form.
+    document.fields.add("field", prompt="type here", section=0)
+    before = document.to_bytes()
+    with pytest.raises(HwpxTypeError) as excinfo:
+        document.fields.fill(value, name="field")  # type: ignore[arg-type]
+    assert excinfo.value.code == "hwpx-type-error" and excinfo.value.suggestion
+    assert document.to_bytes() == before
+
+
+@pytest.mark.parametrize("value,shown", [(120, "120"), (2.5, "2.5"), (Decimal("1.50"), "1.50")])
+def test_a_number_is_written_as_its_digits(document: HwpxDocument, value: object, shown: str) -> None:
+    document.fields.add("field", section=0)
+    assert document.fields.fill(value, name="field").after == shown  # type: ignore[arg-type]
 
 
 # --------------------------------------------------------------------------

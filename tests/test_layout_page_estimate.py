@@ -2993,3 +2993,31 @@ def test_a_flowing_table_reaching_its_footnotes_is_left_for_hancom() -> None:
     at_top = page_layout._Paginator(12564, 1, shape)
     at_top._flow(para, para.table, 0)
     assert at_top.frame == 0 and at_top.floor < 12564 - shape.area(*at_top.page_notes)
+
+
+@pytest.mark.parametrize("rows,split", [(20, False), (80, True)])
+def test_footnotes_in_the_cells_of_a_table_going_on_to_another_page_are_not_left_out(rows: int, split: bool) -> None:
+    # #628: the notes of a flowing table that ends on the page it starts on take room at that page's foot; those of
+    # one going on over the page end were left out of the estimate without a word. Hancom's page for them is not
+    # measured, so the estimate says it does not follow them instead.
+    def document(note: bool) -> HwpxDocument:
+        doc = HwpxDocument.new()
+        doc.add_paragraph("before")
+        table = doc.add_table(rows, 2)
+        for row in range(rows):
+            table.cell(row, 0).text = f"row {row}"
+        if note:
+            doc.notes.add_footnote("note text " * 30, paragraph=table.cell(0, 1).paragraphs[0])
+        doc.add_paragraph("after")
+        return doc
+
+    without = estimate_pages(document(False))
+    assert without.unsupported == () and without.pages is not None
+    estimate = estimate_pages(document(True))
+    if split:
+        assert estimate.pages is None and estimate.lines == ()
+        assert estimate.unsupported == (
+            "section 0: footnotes in a paragraph whose flowing table goes on to another page",
+        )
+    else:
+        assert estimate.unsupported == () and estimate.pages == without.pages == 1
