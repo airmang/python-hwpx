@@ -19,6 +19,7 @@ import pytest
 from hwpx import HwpxDocument
 from hwpx.errors import Hwp5Error
 from hwpx.body_patch import apply_body_ops, recolor_runs_by_color, strip_runs_by_color
+from hwpx.mutation_report import PreservationCounts
 from hwpx.opc.package import HwpxPackage
 from hwpx.patch import paragraph_patch, replace_package_text
 from hwpx.plan import apply_edit_plan, validate_edit_plan
@@ -570,3 +571,106 @@ def test_a_save_refused_after_the_settings_moved_leaves_the_document_as_it_was(
     assert saved == expected
     first = HwpxDocument.open(saved).sections[0].element.find("{*}p")
     assert first.find("{*}run/{*}secPr") is not None
+
+
+# --------------------------------------------------------------------------- #
+# W8: the receipt of an .hwp save speaks of the HWP 5.0 file that was written.
+# --------------------------------------------------------------------------- #
+_HWP5_MAGIC = bytes.fromhex("d0cf11e0a1b11ae1")
+
+
+def _spy_on_the_hwp_reader(monkeypatch: pytest.MonkeyPatch) -> list[bytes]:
+    from hwpx.hwp5 import package as hwp5_package
+
+    read: list[bytes] = []
+    convert = hwp5_package.convert
+
+    def spy(data: bytes):
+        read.append(data)
+        return convert(data)
+
+    monkeypatch.setattr(hwp5_package, "convert", spy)
+    return read
+
+
+@pytest.mark.parametrize("to", ["path", "stream"])
+def test_an_hwp_save_reads_the_file_back_and_its_receipt_says_what_was_checked(
+    to: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    read = _spy_on_the_hwp_reader(monkeypatch)
+    document = _fresh()
+    document.add_paragraph("edited")
+    stream = io.BytesIO()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        if to == "path":
+            report = document.save(tmp_path / "new.hwp")
+            written = (tmp_path / "new.hwp").read_bytes()
+        else:
+            report = document.save(stream, format="hwp")
+            written = stream.getvalue()
+
+    # the bytes written are the bytes the engine's .hwp reader read back
+    assert written[:8] == _HWP5_MAGIC
+    assert read == [written]
+    verification = report.verification
+    assert (verification.package, verification.reopen) == ("passed", "passed")
+    # no open-safety check or render exists for an HWP 5.0 file: not claimed
+    assert (verification.open_safety, verification.visual) == ("not_performed", "not_performed")
+    assert report.ok
+    # the checks of the HWPX it was made from stay where they were
+    assert report.editor_open_safety is not None and report.editor_open_safety.ok
+    # an HWP 5.0 file has no ZIP records and no parts to have kept
+    preservation = report.preservation
+    assert preservation.untouched_local_zip_records == PreservationCounts(verified=0, changed=0)
+    assert preservation.untouched_part_payloads == PreservationCounts(verified=0, changed=0)
+    assert preservation.zip_records_rewritten == "hwp5-output"
+    assert preservation.whole_package_identical is False
+    assert report.to_dict()["preservation"]["zipRecordsRewritten"] == "hwp5-output"
+
+
+def test_to_bytes_as_hwp_reads_the_file_back_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    read = _spy_on_the_hwp_reader(monkeypatch)
+    data = _fresh().to_bytes(format="hwp")
+    assert read == [data]
+
+
+@pytest.mark.parametrize("call", ["save", "to_bytes"])
+def test_an_hwp_file_that_does_not_read_back_is_not_written(
+    call: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hwpx.hwp5 import package as hwp5_package
+    from hwpx.hwp5.errors import damaged
+
+    def refuse(_data: bytes):
+        raise damaged("synthetic: the record stream ends early")
+
+    monkeypatch.setattr(hwp5_package, "convert", refuse)
+    document = _fresh()
+    document.add_paragraph("edited")
+    before = _state(document)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(Hwp5Error) as refused:
+            if call == "save":
+                document.save(tmp_path / "new.hwp")
+            else:
+                document.to_bytes(format="hwp")
+
+    assert refused.value.code == "hwp5-write-unsupported"
+    assert refused.value.context["reason"] == "written-file-unreadable"
+    assert refused.value.context["reader_code"] == "hwp5-damaged"
+    assert refused.value.suggestion
+    assert _names(tmp_path) == []
+    assert _state(document)["trees"] == before["trees"]
+    assert _state(document)["dirty"] == before["dirty"]
+
+
+def test_the_receipt_of_an_hwpx_save_is_as_it_was(tmp_path: Path) -> None:
+    document = _fresh()
+    document.add_paragraph("edited")
+    report = document.save(tmp_path / "out.hwpx")
+    verification = report.verification
+    assert (verification.package, verification.open_safety, verification.reopen) == ("passed",) * 3
+    assert report.preservation.zip_records_rewritten is None
+    assert report.preservation.untouched_part_payloads.verified > 0

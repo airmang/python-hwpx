@@ -33,6 +33,10 @@ if TYPE_CHECKING:
 MUTATION_REPORT_SCHEMA = "hwpx.mutation-report/v1"
 COORDINATE_SPACE = "uncompressed-part-bytes"
 
+#: ``PreservationSummary.zip_records_rewritten`` for a save that wrote HWP 5.0 (``.hwp``): the file
+#: is a compound file, not a ZIP, so there are no records or parts it could have kept.
+HWP5_OUTPUT = "hwp5-output"
+
 Mode = Literal["patch", "rebuild", "auto"]
 Fallback = Literal["error", "rebuild"]
 VerificationValue = Literal["passed", "failed", "not_performed"]
@@ -177,7 +181,11 @@ class PreservationSummary:
 
     ``output_read_back`` is ``False`` when the save wrote to a stream that refused to be read back: what
     the stream holds was not checked, so ``whole_package_identical`` is ``False`` too (it is never claimed
-    unchecked). ``to_dict()`` adds ``"outputReadBack": false`` only then."""
+    unchecked). ``to_dict()`` adds ``"outputReadBack": false`` only then.
+
+    A save that wrote HWP 5.0 (``.hwp``) kept none of this, because that file has no parts and no ZIP
+    records: both counts are 0/0, ``whole_package_identical`` is ``False`` and ``zip_records_rewritten``
+    is ``"hwp5-output"`` (:data:`HWP5_OUTPUT`)."""
 
     untouched_part_payloads: PreservationCounts
     untouched_local_zip_records: PreservationCounts
@@ -204,6 +212,12 @@ class VerificationSummary:
 
     ``not_performed`` is never blurred into a silent pass (specs/032 §2, No
     Silent True).
+
+    For a save that wrote HWP 5.0 (``.hwp``) the words are about that file: ``package`` and
+    ``reopen`` are ``passed`` because the engine's ``.hwp`` reader read the written bytes back
+    (the save raises when it cannot), and ``open_safety`` and ``visual`` are ``not_performed``
+    -- neither check exists for an HWP 5.0 file here. Those of the HWPX it was made from are
+    ``MutationReport.editor_open_safety`` and ``MutationReport.quality``.
     """
 
     package: VerificationValue
@@ -233,7 +247,9 @@ class MutationReport:
     reached for the archive it wrote -- what ``validate_editor_open_safety`` gives
     for those bytes, without running it again (for an ``.hwp`` save, the HWPX it
     was made from). A save that returns has passed it; ``verification.open_safety``
-    says so in one word. ``None`` only for a receipt not made by ``doc.save``.
+    says so in one word, except for an ``.hwp`` save, where that word is about the
+    HWP 5.0 file and reads ``not_performed``. ``None`` only for a receipt not made
+    by ``doc.save``.
     ``to_dict()`` leaves it out (``report.editor_open_safety.to_dict()`` gives it).
     """
 

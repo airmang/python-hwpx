@@ -63,6 +63,15 @@
   객체가 같은 자리로 돌아가고(문단·런을 쥔 래퍼가 그대로 유효하다), 구역의 고침 표시와 패키지가 쥔 파트 바이트도 전과 같다.
   거부 뒤에 다시 저장하면 처음 저장한 것과 같은 바이트가 나온다. 성공한 저장이 설정을 옮기고 `UserWarning`으로 알리는 것은
   그대로이며, 그 경고는 옮기는 시점에 나오므로 거부된 저장에서도 한 번 나온다.
+- `.hwp`(HWP 5.0)로 쓴 저장의 영수증이 쓴 파일을 다시 열지 않고 `verification`의 `package`·`openSafety`·`reopen`을 `passed`로
+  적고, 그 파일에 없는 ZIP 기록·파트의 보존 수치를 적었다(그 값들은 파일을 만든 HWPX에 대한 것이었다). 이제 `.hwp`로 쓰는
+  저장(`save`, `to_bytes(format="hwp")`)은 만든 HWP 5.0 바이트를 쓰기 전에 엔진의 `.hwp` 리더로 다시 읽는다. 읽히면 영수증의
+  `package`·`reopen`이 `passed`이고, HWP 5.0 파일에 대한 열기 안전 검사와 렌더는 없으므로 `openSafety`·`visual`은
+  `not_performed`다(HWPX에 대해 돈 검사는 `report.editor_open_safety`·`report.quality`에 그대로 있다). 읽히지 않으면 아무것도
+  쓰지 않고 `Hwp5Error`(`hwp5-write-unsupported`, `context["reason"] == "written-file-unreadable"`)로 거부한다. 보존 수치는
+  해당 없음으로 적는다: 두 수치 `0/0`, `wholePackageIdentical` 거짓, `zipRecordsRewritten`이 `"hwp5-output"`. `report.ok`는
+  전처럼 참이다. `.hwpx` 저장의 영수증은 그대로다. 다시 읽는 만큼 `.hwp` 저장이 느려진다(문단 1,500개·표 30개 문서에서
+  1.07 → 1.37초).
 
 ## [7.0.1] - 2026-11-22
 

@@ -11,11 +11,14 @@ from typing import TYPE_CHECKING, Any, BinaryIO, Callable, List, Literal, Option
 
 from ..errors import HwpxTypeError, HwpxValueError, SaveError, SaveTargetError
 from ..mutation_report import (
+    HWP5_OUTPUT,
     Fallback,
     Mode,
     MutationReport,
+    PreservationCounts,
     PreservationDowngradeError,
     PreservationMeasurement,
+    PreservationSummary,
     VerificationSummary,
     VerificationValue,
     measure_save,
@@ -557,9 +560,21 @@ def _resolve_grade(
     return "rebuild", False
 
 
-def _verification_summary(report: "VisualCompleteReport") -> VerificationSummary:
-    """Reflect what the pipeline actually ran; never fabricate a pass (§2)."""
+def _verification_summary(report: "VisualCompleteReport", *, hwp5: bool = False) -> VerificationSummary:
+    """Reflect what the pipeline actually ran; never fabricate a pass (§2).
 
+    *hwp5* is a save that wrote HWP 5.0: the four words are about that file, not about the HWPX
+    it was made from. The file was read back with the engine's ``.hwp`` reader before it was
+    written (:func:`_hwp5_bytes` raises when it does not read), which is what ``package`` (the
+    compound file and its record streams) and ``reopen`` say. No open-safety check and no render
+    exist for an HWP 5.0 file here, so those two are ``not_performed``; the ones that ran on the
+    HWPX are the receipt's ``editor_open_safety`` and ``quality``.
+    """
+
+    if hwp5:
+        return VerificationSummary(
+            package="passed", open_safety="not_performed", reopen="passed", visual="not_performed"
+        )
     package: VerificationValue = "passed" if report.ok else "failed"
     open_safety: VerificationValue = "passed" if report.open_safety.ok else "failed"
     # Open-safety validation (which includes the reopen probe) already ran during
@@ -588,6 +603,7 @@ def _compose_mutation_report(
     report: "VisualCompleteReport",
     quality: "VisualCompleteReport | None" = None,
     editor_open_safety: "EditorOpenSafetyReport | None" = None,
+    hwp5: bool = False,
 ) -> MutationReport:
     return MutationReport(
         requested_mode=requested_mode,
@@ -595,7 +611,7 @@ def _compose_mutation_report(
         fallback_used=fallback_used,
         changed_parts=measurement.changed_parts,
         preservation=measurement.preservation,
-        verification=_verification_summary(report),
+        verification=_verification_summary(report, hwp5=hwp5),
         path=path,
         quality=quality,
         editor_open_safety=editor_open_safety,
@@ -734,9 +750,16 @@ def save(
         raise
     _mark_save_clean(doc)
     if hwp5 is not None:
-        # The receipt measures the HWPX parts; the file written is HWP 5.0, not the source's bytes.
+        # The file written is HWP 5.0: it has no parts and no ZIP records to have kept, and it is not
+        # the source's bytes. The counts measured on the HWPX it was made from do not describe it.
         measurement = dataclass_replace(
-            measurement, preservation=dataclass_replace(measurement.preservation, whole_package_identical=False)
+            measurement,
+            preservation=PreservationSummary(
+                untouched_part_payloads=PreservationCounts(verified=0, changed=0),
+                untouched_local_zip_records=PreservationCounts(verified=0, changed=0),
+                whole_package_identical=False,
+                zip_records_rewritten=HWP5_OUTPUT,
+            ),
         )
     if STREAM_NOT_READ_BACK in report.warnings:
         # What the stream holds was not read back: the receipt does not say it is the source file.
@@ -755,6 +778,7 @@ def save(
         report=report,
         quality=report if quality is not None else None,
         editor_open_safety=open_safety,
+        hwp5=hwp5 is not None,
     )
 
 
@@ -819,16 +843,45 @@ def _refuse_lossy_hwp5_save(doc: "HwpxDocument") -> None:
 
 
 def _hwp5_bytes(archive_bytes: bytes) -> bytes:
-    """The HWP 5.0 file for the validated HWPX parts of *archive_bytes*."""
+    """The HWP 5.0 file for the validated HWPX parts of *archive_bytes*, read back before it is
+    handed on.
+
+    The engine's own ``.hwp`` reader reads the bytes the writer made (the compound file, its
+    record streams, the conversion to parts): the reopen an ``.hwp`` save's receipt reports
+    (``verification.reopen``). A file that does not read is not returned, so it is neither written
+    nor given to the caller: :class:`Hwp5Error` (``hwp5-write-unsupported``, ``context["reason"]``
+    ``"written-file-unreadable"``). Through 7.0.1 the receipt said ``reopen: passed`` for a file
+    nothing had read.
+    """
 
     import io
     import zipfile
 
+    from ..hwp5 import package as hwp5_reader
+    from ..hwp5.errors import Hwp5Error
     from ..hwp5.writer import write_hwp5
 
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         files = {name: archive.read(name) for name in archive.namelist() if not name.endswith("/")}
-    return write_hwp5(files)
+    data = write_hwp5(files)
+    try:
+        hwp5_reader.convert(data)
+    except Hwp5Error as error:
+        raise Hwp5Error(
+            "The HWP 5.0 file made for this document does not read back with the engine's .hwp "
+            f"reader ({error}); nothing was written.",
+            code="hwp5-write-unsupported",
+            context={
+                "reason": "written-file-unreadable",
+                "reader_code": error.code,
+                "reader_message": str(error),
+            },
+            suggestion=(
+                "Save as HWPX under a name ending in .hwpx. The experimental HWP 5.0 writer made a file "
+                "from this document that would not open; please report the document's shape."
+            ),
+        ) from error
+    return data
 
 
 def _check_format(format: str) -> None:

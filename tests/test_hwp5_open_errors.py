@@ -38,9 +38,10 @@ def test_a_failure_while_converting_is_an_hwp5_error(
     def fail(data: bytes) -> hwp5_package.Converted:
         raise raised
 
+    made = _hwp_bytes()  # before the reader is made to fail: an .hwp save reads its file back
     monkeypatch.setattr(hwp5_package, "_convert", fail)
     with pytest.raises(Hwp5Error) as caught:
-        HwpxDocument.open(io.BytesIO(_hwp_bytes()))
+        HwpxDocument.open(io.BytesIO(made))
     assert caught.value.code == code
     assert caught.value.__cause__ is raised
 
@@ -51,9 +52,10 @@ def test_an_hwp5_error_passes_through_unchanged(monkeypatch: pytest.MonkeyPatch)
     def fail(data: bytes) -> hwp5_package.Converted:
         raise original
 
+    made = _hwp_bytes()  # before the reader is made to fail: an .hwp save reads its file back
     monkeypatch.setattr(hwp5_package, "_convert", fail)
     with pytest.raises(Hwp5Error) as caught:
-        hwp5_package.convert(_hwp_bytes())
+        hwp5_package.convert(made)
     assert caught.value is original
 
 

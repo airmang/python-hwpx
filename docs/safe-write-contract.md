@@ -181,6 +181,10 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 - `outputReadBack` — 저장한 스트림이 읽기를 거부해 쓴 내용을 다시 읽어 확인하지 못했을 때만
   있는 키(값 `false`, 이때 `wholePackageIdentical`도 거짓). 끝 위치만 확인했다는 뜻이다.
 
+`.hwp`(HWP 5.0)로 쓴 저장에는 보존 수치가 해당하지 않는다. 그 파일은 ZIP이 아니라서 지킬 파트도
+ZIP 기록도 없다: 두 수치는 `0/0`, `wholePackageIdentical`은 거짓, `zipRecordsRewritten`은
+`"hwp5-output"`이다.
+
 ### 검증 4항목 (`verification`)
 
 각 항목은 `"passed"` / `"failed"` / `"not_performed"` 세 값만 가진다.
@@ -192,6 +196,12 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 - `visual` — 실한컴 렌더 비교 결과(오라클이 붙었을 때만 `passed`/`failed`)
 
 `report.ok`는 위 네 항목 중 `"failed"`가 하나도 없을 때 참이다.
+
+`.hwp`(HWP 5.0)로 쓴 저장에서는 네 항목이 쓴 HWP 5.0 파일을 말한다. 쓰기 전에 그 바이트를 엔진의
+`.hwp` 리더로 다시 읽으므로(읽히지 않으면 `Hwp5Error`(`hwp5-write-unsupported`)로 거부하고 아무것도 쓰지
+않는다) `package`와 `reopen`은 `"passed"`이고, HWP 5.0 파일에 대한 열기 안전 검사와 렌더는 없으므로
+`openSafety`와 `visual`은 `"not_performed"`다. 그 파일을 만든 HWPX에 대해 돈 검사는
+`report.editor_open_safety`와 `report.quality`에 있다.
 
 ## `PreservationDowngradeError`
 

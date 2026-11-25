@@ -167,7 +167,7 @@ except HwpxError as exc:
 | `hwp5-password` | 암호가 걸린 HWP 5.0 문서다. |
 | `hwp5-version-unsupported` | FileHeader의 주 버전이 5가 아니다. |
 | `hwp5-write-lossy-source` | 열 때 옮기지 못한 내용이 있는 문서를 .hwp로 쓰려 했다. |
-| `hwp5-write-unsupported` | HWP 5.0 작성기가 표현할 수 없는 내용이다. |
+| `hwp5-write-unsupported` | HWP 5.0 작성기가 표현할 수 없는 내용이다. 만든 파일이 이 엔진의 .hwp 리더로 다시 읽히지 않을 때도 이 코드다(context.reason 이 written-file-unreadable). 아무것도 쓰지 않는다. |
 
 ### `hwpx-*`
 
