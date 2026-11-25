@@ -555,6 +555,11 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         그리지 않는다). *levels* 의 i번째 매핑이 i+1수준을 바꾼다: ``text``(번호 틀, ``^n`` 이
         n수준의 번호, ``""`` 는 번호 없음), ``number_format``(DIGIT·HANGUL_SYLLABLE·
         CIRCLED_DIGIT·LATIN_SMALL·ROMAN_CAPITAL …), ``start``(그 수준의 시작 번호, 0~65535).
+        번호와 글의 자리는 ``auto_indent``(첫 줄을 번호 너비만큼 들여 씀, ``autoIndent``)·
+        ``use_instance_width``(번호가 그리는 너비를 씀, ``useInstWidth``)·``text_offset``(번호와 글 사이,
+        0~32767)·``text_offset_type``(``"PERCENT"`` 글자 크기의 몫, ``"HWPUNIT"``)로 바꾼다. 한/글이 Word
+        목록을 옮길 때 쓰는 값은 ``auto_indent=False, use_instance_width=True, text_offset=110,
+        text_offset_type="PERCENT"`` 다(내어쓰기는 문단 모양이 맡는다).
         예: ``doc.styles.add_numbering([{"text": "^1)"}, {"text": "(^2)", "number_format":
         "LATIN_SMALL"}])``. 고칠 것은 바꾸기 전에 모두 검사한다(모르는 키·틀 아닌 글은
         ``style-numbering-level-invalid``, 열 수준 넘음은 ``style-list-level-invalid``, 번호 형식은
@@ -573,7 +578,16 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
             raise HwpxStateError("failed to read back the new numbering", code="style-list-property-failed")
         return info
 
-    def ensure_bullet(self, char: str = "●", *, char_pr_id_ref: "str | int | None" = None) -> str:
+    def ensure_bullet(
+        self,
+        char: str = "●",
+        *,
+        char_pr_id_ref: "str | int | None" = None,
+        auto_indent: bool | None = None,
+        use_instance_width: bool | None = None,
+        text_offset: int | None = None,
+        text_offset_type: str | None = None,
+    ) -> str:
         """글머리표 *char* 의 정의(``hh:bullet``) id 를 보장하고 돌려준다(같은 정의가 있으면 그 id).
 
         글머리표는 번호를 세지 않으므로 같은 정의를 여러 목록이 함께 써도 된다. 새 정의는
@@ -582,11 +596,18 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         같은 것)이고, 주지 않으면 문단 글의 모양을 따른다. 문단에 거는 것은
         ``p.set_bullet(bullet_id, level=1)``. 글자 하나가 아니면 ``style-bullet-char-invalid``,
         없는 글자 모양이면 ``style-definition-not-found``.
+
+        *auto_indent*·*use_instance_width*·*text_offset*·*text_offset_type* 은 글머리표와 글의 자리로,
+        :meth:`add_numbering` 의 같은 이름 키와 같다(``None`` 은 한/글의 새 글머리표 값). 한/글이 Word
+        글머리표를 옮길 때는 ``auto_indent=False, use_instance_width=True, text_offset=110`` 이다. 값이
+        맞지 않으면 ``style-numbering-level-invalid``.
         """
 
         from ...oxml.numbering_kinds import ensure_bullet_definition
 
-        return ensure_bullet_definition(self._require_header(), char, char_pr_id_ref)
+        layout = {"auto_indent": auto_indent, "use_instance_width": use_instance_width,
+                  "text_offset": text_offset, "text_offset_type": text_offset_type}
+        return ensure_bullet_definition(self._require_header(), char, char_pr_id_ref, layout)
 
     def set_numbering_level(
         self,
@@ -596,11 +617,17 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
         text: str | None = None,
         number_format: str | None = None,
         start: int | None = None,
+        auto_indent: bool | None = None,
+        use_instance_width: bool | None = None,
+        text_offset: int | None = None,
+        text_offset_type: str | None = None,
     ) -> None:
         """번호 정의 *numbering* (``NumberingInfo`` 나 id)의 *level* 수준(1~10)을 고친다.
 
         ``text`` 는 번호 틀(``"^1."``, ``""`` 는 번호를 그리지 않는다), ``number_format`` 은 번호
-        형식, ``start`` 는 시작 번호(0~65535; 1수준이면 정의의 시작 번호도)다. 준 것만 바뀐다. 그
+        형식, ``start`` 는 시작 번호(0~65535; 1수준이면 정의의 시작 번호도)다. ``auto_indent``·
+        ``use_instance_width``·``text_offset``·``text_offset_type`` 은 번호와 글의 자리로
+        :meth:`add_numbering` 의 같은 이름 키와 같다. 준 것만 바뀐다. 그
         정의로 번호를 그리는 문단 — 그 정의의 번호 문단과, 구역이 그것으로 개요 번호를 그리면
         (``section.properties.outline_shape_id_ref``) 개요 문단 — 의 줄 배치 캐시를 지운다. 예:
         개요 번호를 그리지 않게 하려면 그 구역의 개요 번호 정의의 열 수준에 ``text=""`` 를 준다.
@@ -613,7 +640,9 @@ class StylesNamespace(_Namespace, Mapping[str, "Style"]):
 
         changes = {
             name: value
-            for name, value in (("text", text), ("number_format", number_format), ("start", start))
+            for name, value in (("text", text), ("number_format", number_format), ("start", start),
+                                ("auto_indent", auto_indent), ("use_instance_width", use_instance_width),
+                                ("text_offset", text_offset), ("text_offset_type", text_offset_type))
             if value is not None
         }
         set_numbering_level(self._doc.oxml, numbering, level, changes)

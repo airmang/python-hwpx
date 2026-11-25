@@ -14,6 +14,7 @@ from ._document_primitives import (
     _append_child,
     _apply_optional_attrs,
     _apply_optional_bool_attrs,
+    _clear_paragraph_layout_cache,
     _bool_str,
     _get_bool_attr,
     _get_int_attr,
@@ -627,6 +628,52 @@ class HwpxOxmlSectionProperties:
         ``doc.styles.set_numbering_level(id, level, text=...)``."""
         value = (self.element.get("outlineShapeIDRef") or "").strip()
         return value or None
+
+    @outline_shape_id_ref.setter
+    def outline_shape_id_ref(self, value: object) -> None:
+        """Number this section's outline with numbering *value* (a ``NumberingInfo`` or its id, as
+        ``doc.styles.add_numbering()`` gives one). Hangul does so with its own: a Word document it
+        converts names the definition it made for Word's headings (``outlineShapeIDRef="4"``). An id
+        the header does not define is refused (``style-definition-not-found``); the outline
+        paragraphs of the section are laid out again."""
+
+        from ..errors import argument_type_error
+        from .formatting import _header_of
+        from .numbering_kinds import _definition_id, _definition_not_found, _find_head_definition, _normalized_id
+
+        if value is None or isinstance(value, bool) or not (
+            isinstance(value, (int, str)) or hasattr(value, "raw_id") or hasattr(value, "id")
+        ):
+            raise argument_type_error("outline_shape_id_ref", value, "a numbering (NumberingInfo) or its id")
+        wanted = _definition_id(value)
+        header = _header_of(getattr(self.section, "document", None))
+        element = _find_head_definition(header, "numbering", wanted)
+        if element is None:
+            raise _definition_not_found("numbering", wanted)
+        identifier = str(element.get("id"))
+        if _normalized_id(self.element.get("outlineShapeIDRef") or "") == _normalized_id(identifier):
+            return
+        self.element.set("outlineShapeIDRef", identifier)
+        self._clear_outline_paragraphs(header)
+        self.section.mark_dirty()
+
+    def _clear_outline_paragraphs(self, header: Any) -> None:
+        """Drop the line layout cache of this section's outline paragraphs: their number changed."""
+
+        from .numbering_kinds import _normalized_id
+        from .paragraph_heading import paragraph_heading
+
+        container = header._para_properties_element()
+        outlined = {
+            _normalized_id(para_pr.get("id") or "")
+            for para_pr in ([] if container is None else list(container))
+            if (heading := paragraph_heading(para_pr)) is not None and heading.get("type") == "OUTLINE"
+        }
+        if not outlined:
+            return
+        for paragraph in self.section.element.iter(f"{_HP}p"):
+            if _normalized_id(paragraph.get("paraPrIDRef") or "") in outlined:
+                _clear_paragraph_layout_cache(paragraph)
 
     @property
     def memo_shape_id_ref(self) -> str | None:

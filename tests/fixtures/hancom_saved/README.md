@@ -121,3 +121,7 @@ left out and the metadata listed above emptied, every other part keeps Hangul's 
 - `hyperlink_field_runs_word_import.hwpx`: a Word document of four paragraphs with links (at the start, after
   text of two looks, alone, in 8pt text) opened and saved as HWPX by Hangul. Each `fieldBegin` sits in the run of
   the text before it, each `fieldEnd` in the run of the link text (`tests/test_paragraph_hyperlink_style.py`).
+- `word_lists_import.hwpx`: a Word document of two headings, a numbered list and a bulleted list, opened and
+  saved as HWPX by Hangul. Its list heads say `useInstWidth="1" autoIndent="0" textOffset="110"`, and the section
+  numbers its outline with a numbering Hangul made for Word's headings (`outlineShapeIDRef="3"`)
+  (`tests/test_list_definitions_7_0.py`).

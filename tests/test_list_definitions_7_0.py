@@ -414,3 +414,131 @@ def test_a_list_document_saves_reopens_and_keeps_its_other_parts() -> None:
     with zipfile.ZipFile(io.BytesIO(source)) as before, zipfile.ZipFile(io.BytesIO(saved)) as after:
         changed = {name for name in before.namelist() if before.read(name) != after.read(name)}
     assert changed <= {"Contents/header.xml", "Contents/section0.xml"}
+
+
+# -- how a head sits before its text, and the section's outline numbering (Word lists) ------------
+
+
+def _hancom_word_lists() -> tuple[object, object]:
+    """``word_lists_import.hwpx``: a Word document of two headings, a numbered and a bulleted list,
+    converted and saved by Hangul 2024."""
+
+    with zipfile.ZipFile(FIXTURES / "word_lists_import.hwpx") as package:
+        import xml.etree.ElementTree as ET
+
+        return (ET.fromstring(package.read("Contents/header.xml")),
+                ET.fromstring(package.read("Contents/section0.xml")))
+
+
+def _head(header, numbering_id: str, level: int) -> dict[str, str]:
+    numbering = next(n for n in header.iter(f"{HH}numbering") if n.get("id") == numbering_id)
+    return dict(next(h for h in numbering.iter(f"{HH}paraHead") if h.get("level") == str(level)).attrib)
+
+
+WORD_HEAD = {"auto_indent": False, "use_instance_width": True, "text_offset": 110, "text_offset_type": "PERCENT"}
+
+
+def test_a_level_takes_the_head_layout_hangul_gives_a_word_list() -> None:
+    hancom_header, _ = _hancom_word_lists()
+    expected = _head(hancom_header, "1", 1)
+    assert (expected["autoIndent"], expected["useInstWidth"], expected["textOffset"]) == ("0", "1", "110")
+
+    doc = _new("가")
+    numbering = doc.styles.add_numbering([{"text": "^1.", **WORD_HEAD}])
+
+    header = doc.oxml.headers[0].element
+    assert _head(header, str(numbering.id), 1) == {**expected, "level": "1"}
+    level = numbering.levels[0]
+    assert (level.auto_indent, level.use_instance_width, level.text_offset, level.text_offset_type) == (
+        False, True, 110, "PERCENT")
+    assert _head(header, str(numbering.id), 2)["autoIndent"] == "1"  # the levels not given stay Hancom's
+
+
+def test_set_numbering_level_changes_the_head_layout() -> None:
+    doc = _new("가")
+    numbering = doc.styles.add_numbering()
+
+    doc.styles.set_numbering_level(numbering, 3, text_offset=500, text_offset_type="hwpunit", auto_indent=False)
+
+    level = _numbering(doc, numbering.id).levels[2]
+    assert (level.text_offset, level.text_offset_type, level.auto_indent, level.use_instance_width) == (
+        500, "HWPUNIT", False, True)
+
+
+def test_a_bullet_takes_the_head_layout() -> None:
+    doc = _new("가")
+
+    plain = doc.styles.ensure_bullet("•")
+    word = doc.styles.ensure_bullet("•", **WORD_HEAD)
+
+    assert word != plain and doc.styles.ensure_bullet("•", **WORD_HEAD) == word
+    element = next(b for b in doc.oxml.headers[0].element.iter(f"{HH}bullet") if b.get("id") == word)
+    head = element.find(f"{HH}paraHead").attrib
+    assert (head["autoIndent"], head["useInstWidth"], head["textOffsetType"], head["textOffset"]) == (
+        "0", "1", "PERCENT", "110")
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda d: d.styles.add_numbering([{"auto_indent": 0}]),
+        lambda d: d.styles.add_numbering([{"text_offset": -1}]),
+        lambda d: d.styles.add_numbering([{"text_offset": 40000}]),
+        lambda d: d.styles.add_numbering([{"text_offset_type": "MM"}]),
+        lambda d: d.styles.ensure_bullet("•", use_instance_width="yes"),
+        lambda d: d.styles.set_numbering_level(1, 1, text_offset=True),
+    ],
+)
+def test_a_bad_head_layout_is_refused_before_the_header_changes(call) -> None:
+    doc = _new("가")
+    before = _header_xml(doc)
+
+    with pytest.raises(HwpxValueError) as caught:
+        call(doc)
+
+    assert caught.value.code == "style-numbering-level-invalid"
+    assert _header_xml(doc) == before
+
+
+def test_a_section_numbers_its_outline_with_a_numbering_it_is_given() -> None:
+    # Hangul numbers a converted Word document's headings with a numbering of its own: no number on the
+    # levels Word uses, the head's own width, no auto indent, 35% before the text (word_lists_import:
+    # outlineShapeIDRef=3)
+    hancom_header, hancom_section = _hancom_word_lists()
+    sec_pr = next(hancom_section.iter(f"{HP}secPr"))
+    outline_id = sec_pr.get("outlineShapeIDRef")
+    hancom_level = _head(hancom_header, outline_id, 1)
+    assert outline_id == "3" and hancom_level["textOffset"] == "35"
+
+    doc = _open("line_cache_labels")
+    outlined = [p for p in doc.paragraphs if p.outline_level]
+    assert outlined and all(map(_cached, outlined))
+    numbering = doc.styles.add_numbering(
+        [{"text": "", "auto_indent": False, "use_instance_width": True, "text_offset": 35}] * 10)
+    properties = doc.sections[0].properties
+
+    properties.outline_shape_id_ref = numbering
+
+    assert properties.outline_shape_id_ref == str(numbering.id)
+    layout = ("useInstWidth", "autoIndent", "widthAdjust", "textOffsetType", "textOffset")
+    ours = _head(doc.oxml.headers[0].element, str(numbering.id), 1)
+    assert [ours[key] for key in layout] == [hancom_level[key] for key in layout]
+    assert not any(map(_cached, outlined))
+    reopened = HwpxDocument.open(doc.to_bytes())
+    assert reopened.sections[0].properties.outline_shape_id_ref == str(numbering.id)
+    assert reopened.validate().ok
+
+
+def test_an_outline_numbering_the_header_lacks_is_refused() -> None:
+    doc = _new("가")
+    properties = doc.sections[0].properties
+    before = properties.outline_shape_id_ref
+
+    with pytest.raises(HwpxLookupError) as caught:
+        properties.outline_shape_id_ref = 99
+    assert caught.value.code == "style-definition-not-found"
+    with pytest.raises(TypeError):
+        properties.outline_shape_id_ref = None
+    assert properties.outline_shape_id_ref == before
+    properties.outline_shape_id_ref = before  # the same value changes nothing
+    assert properties.outline_shape_id_ref == before
