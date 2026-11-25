@@ -8,6 +8,12 @@
 
 ### 고침
 
+- 편집 계획의 저널 경로(`journalPath`, `apply_edit_plan(journal_path=...)`)가 source나 output과 같은 파일이어도 계획을
+  받았다(#834). 저널은 그 경로 끝에 JSONL을 덧붙이므로 원본 문서 끝에 저널 줄이 붙어 문서가 열리지 않게 됐다(`dry_run`도
+  저널을 쓰므로 같았다). 이제 검증이 아무것도 쓰기 전에 거부한다: source나 output과 같은 파일이면(다른 철자·대소문자·링크로
+  적어도, 아직 없는 output도) `PlanValidationError`(`plan-invalid`, `context["sameAs"]`가 `source`·`output`), 이미 있는
+  `.hwp` 파일이면 `hwp5-overwrite-existing`이다. `validate_edit_plan`·`dry_run`·실제 실행이 같은 판정을 낸다. 그 밖의
+  경로에 쓰는 저널은 전과 같다.
 - 글·JSON·XML을 경로에 쓰는 명령줄 출력 인자가 입력 문서를 덮어썼다(#834). `hwpx-text-extract in.hwpx --output in.hwpx`는
   문서를 뽑은 글로, `hwpx-analyze-template in.hwpx --extract-header in.hwpx`는 header XML로 바꿔 놓고 종료 코드 0을 냈다.
   이제 `hwpx-text-extract --output`, `hwpx-analyze-template`의 `--output-json`·`--extract-header`·`--extract-section`·

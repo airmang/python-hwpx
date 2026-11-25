@@ -409,7 +409,9 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 `--output`, `hwpx-analyze-template`의 `--output-json`·`--extract-header`·`--extract-section`·`--extract-section-dir`
 (`extract_template_parts`의 같은 인자), `python -m hwpx.tools.generic_inventory`의 `--output`. 이미 있는 `.hwp`는
 `hwp5-overwrite-existing`으로, 출력이 입력 문서와 같은 파일이면(다른 철자·대소문자·링크로 적어도) `HwpxValueError`
-(`package-output-is-input`)로 거부하고 종료 코드는 0이 아닙니다. 거부하면 아무것도 쓰지 않습니다.
+(`package-output-is-input`)로 거부하고 종료 코드는 0이 아닙니다. 거부하면 아무것도 쓰지 않습니다. 편집 계획의 저널
+(`journalPath`, `apply_edit_plan(journal_path=...)`)도 같습니다: 이미 있는 `.hwp`는 `hwp5-overwrite-existing`, source나
+output과 같은 파일이면 `PlanValidationError`(`plan-invalid`)입니다.
 
 응용 계층의 agent·exam 오류 계약은 `python-hwpx-automation`이 소유합니다.
 이 문서는 core에 실제로 남은 공개 예외만 기술합니다.

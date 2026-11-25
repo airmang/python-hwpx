@@ -162,7 +162,7 @@ except HwpxError as exc:
 | `hwp5-drm` | DRM·인증서로 암호화된 HWP 5.0 문서다. |
 | `hwp5-limit-exceeded` | HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다. |
 | `hwp5-not-hwp5` | 복합 파일이지만 HWP 5.0 FileHeader가 없다. |
-| `hwp5-overwrite-existing` | 이미 있는 .hwp 파일에 쓰려 했다. 형식·길(저장, 바이트 패치, 편집 계획, hwpx-repair·hwpx-pack의 --force)과 상관없이 거부하고 그 파일은 그대로다. 새 .hwp 이름이나 .hwpx로 쓴다. |
+| `hwp5-overwrite-existing` | 이미 있는 .hwp 파일에 쓰려 했다. 형식·길(저장, 바이트 패치, 편집 계획과 그 저널, hwpx-repair·hwpx-pack의 --force, 명령줄 도구의 글·JSON·XML 출력)과 상관없이 거부하고 그 파일은 그대로다. 새 .hwp 이름이나 .hwpx로 쓴다. |
 | `hwp5-overwrite-source` | 문서를 연 원본 .hwp 경로에 저장하려 했다(쓰는 형식과 상관없이 거부한다). |
 | `hwp5-password` | 암호가 걸린 HWP 5.0 문서다. |
 | `hwp5-version-unsupported` | FileHeader의 주 버전이 5가 아니다. |
