@@ -8,7 +8,10 @@ file. A chart goes in as the OLE object it falls back to, whose storage
 holds the chart part; a chart with no OLE object gets one whose storage
 holds only the chart part, which Hancom draws the chart from. Content the writer cannot express makes it raise
 :class:`~hwpx.hwp5.errors.Hwp5Error` with the code
-``hwp5-write-unsupported`` before anything is written.
+``hwp5-write-unsupported`` before anything is written. That includes what
+the package keeps in parts no stream is written for: the answers to memos,
+the sources of a bibliography and the saved versions of the document
+history.
 """
 
 from __future__ import annotations
@@ -162,6 +165,50 @@ def _print_info(files: Mapping[str, bytes], unsupported: Counter[str]) -> bytes 
     return ct.print_info_data(values) if values else None
 
 
+#: The document history: the name its parts are counted under, the root
+#: element of a version log and the element of one saved version.
+_HISTORY = ("DocHistory", "history", "historyEntry")
+#: The folder Hancom keeps the history in: a log for each saved version and a
+#: copy of the last document.
+_HISTORY_FOLDER = "DocHistory/"
+#: The parts that list what the writer makes no stream for, by file name in
+#: small letters: the name the part is counted under, its root element and
+#: the element of one entry.
+_UNWRITTEN_LISTS = {
+    "memoextended.xml": ("memoExtended", "memosEx", "memo"),
+    "bibliography.xml": ("bibliography", "Sources", "Source"),
+    "history.xml": _HISTORY,
+}
+
+
+def _unwritten_parts(files: Mapping[str, bytes], unsupported: Counter[str]) -> None:
+    """Count as unsupported what the package keeps in parts the writer makes
+    no stream for: each answer to a memo (``Contents/memoExtended.xml``),
+    each source of the bibliography (``Custom/bibliography.xml``) and each
+    saved version of the document history (a ``DocHistory`` part). An empty
+    list holds nothing to leave out; a part that is not such a list (the
+    history's copy of the last document, a part that does not parse) counts
+    as one, under its file name."""
+
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+    for path, data in files.items():
+        name = path.rsplit("/", 1)[-1]
+        known = _HISTORY if path.startswith(_HISTORY_FOLDER) else _UNWRITTEN_LISTS.get(name.lower())
+        if known is None or path.startswith("BinData/") or not data.strip():
+            continue
+        kind, list_name, entry_name = known
+        try:
+            root = etree.fromstring(data, parser)
+        except etree.XMLSyntaxError:
+            root = None
+        if root is None or etree.QName(root).localname != list_name:
+            unsupported[f"{kind}/{name}"] += 1
+            continue
+        entries = len(list(root.iter("{*}" + entry_name)))
+        if entries:
+            unsupported[f"{kind}/{entry_name}"] += entries
+
+
 def _summary(files: Mapping[str, bytes]) -> bytes:
     """``\\x05HwpSummaryInformation`` from the package metadata: title,
     subject, author, date text, keywords, description, last author and the
@@ -241,6 +288,7 @@ def write_hwp5(files: Mapping[str, bytes]) -> bytes:
     if forbidden_chars(head) is None:
         unsupported["header/forbiddenWordList"] += 1
     print_info = _print_info(files, unsupported)
+    _unwritten_parts(files, unsupported)
     roots = [etree.fromstring(files[path]) for path in section_paths]
     # A chart with no OLE object gets a storage of its own, after the others.
     storages: dict[str, bytes] = {}

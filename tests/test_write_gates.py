@@ -726,3 +726,183 @@ def test_the_receipt_of_an_hwpx_save_is_as_it_was(tmp_path: Path) -> None:
     assert (verification.package, verification.open_safety, verification.reopen) == ("passed",) * 3
     assert report.preservation.zip_records_rewritten is None
     assert report.preservation.untouched_part_payloads.verified > 0
+
+
+# --------------------------------------------------------------------------- #
+# W9: an .hwp save names what it writes no stream for -- the answers to memos, the sources of a
+#     bibliography, the saved versions of the document history -- instead of leaving them out.
+# --------------------------------------------------------------------------- #
+_EXTENDED_NS = "http://www.hancom.co.kr/hwpml/2021/extended"
+_HISTORY_NS = "http://www.hancom.co.kr/hwpml/2011/history"
+_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+
+
+def _memo_replies(*pairs: tuple[int, int]) -> bytes:
+    memos = "".join(f'<he:memo id="{memo}" parentId="{parent}"/>' for memo, parent in pairs)
+    return f'{_XML}<he:memosEx xmlns:he="{_EXTENDED_NS}">{memos}</he:memosEx>'.encode("utf-8")
+
+
+def _sources(*tags: str) -> bytes:
+    sources = "".join(f"<b:Source><b:Tag>{tag}</b:Tag></b:Source>" for tag in tags)
+    # Hancom writes this part with a byte order mark
+    return b"\xef\xbb\xbf" + f'{_XML}<b:Sources xmlns:b="urn:b" StyleName="synthetic">{sources}</b:Sources>'.encode("utf-8")
+
+
+def _version_log(number: int) -> bytes:
+    entry = f'<hhs:historyEntry revisionNumber="{number}" revisionAuthor="synthetic" revisionDesc="synthetic"/>'
+    return f'{_XML}<hhs:history xmlns:hhs="{_HISTORY_NS}" version="1.0.0.1">{entry}</hhs:history>'.encode("utf-8")
+
+
+def _manifest_item(item_id: str, href: str, media: str = "application/xml") -> str:
+    return f'<opf:item id="{item_id}" href="{href}" media-type="{media}"/>'
+
+
+#: Parts as Hancom lists them: what the package holds, its manifest items, its spine items, and
+#: what an .hwp save must name.
+_PARTS_AN_HWP_SAVE_LEAVES_OUT = {
+    "memo replies": (
+        {"Contents/memoExtended.xml": _memo_replies((1001, 1000), (1002, 1000))},
+        [_manifest_item("memoextended", "Contents/memoExtended.xml")],
+        [],
+        {"memoExtended/memo": 2},
+    ),
+    "bibliography": (
+        {"Custom/bibliography.xml": _sources("synthetic1")},
+        [_manifest_item("bibliography", "Custom/bibliography.xml")],
+        ['<opf:itemref idref="bibliography" linear="yes"/>'],
+        {"bibliography/Source": 1},
+    ),
+    "document history": (
+        {
+            "DocHistory/historylastdoc.hml": b'<HWPML Style="embed" Version="2.91"><HEAD SecCnt="1"/></HWPML>',
+            "DocHistory/versionlog0.xml": _version_log(0),
+            "DocHistory/versionlog1.xml": _version_log(1),
+        },
+        [
+            _manifest_item("historylastdoc", "DocHistory/historylastdoc.hml", "application/hancomhml"),
+            _manifest_item("versionlog0", "DocHistory/versionlog0.xml"),
+            _manifest_item("versionlog1", "DocHistory/versionlog1.xml"),
+        ],
+        [],
+        {"DocHistory/historyEntry": 2, "DocHistory/historylastdoc.hml": 1},
+    ),
+}
+
+
+def _with_parts(data: bytes, parts: dict[str, bytes], items: list[str], refs: list[str]) -> bytes:
+    """*data* with *parts* added and listed in the manifest (*items*) and the spine (*refs*)."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            payload = source.read(info.filename)
+            if info.filename == "Contents/content.hpf":
+                text = payload.decode("utf-8")
+                assert "</opf:manifest>" in text and "</opf:spine>" in text
+                text = text.replace("</opf:manifest>", "".join(items) + "</opf:manifest>")
+                payload = text.replace("</opf:spine>", "".join(refs) + "</opf:spine>").encode("utf-8")
+            target.writestr(info, payload, compress_type=info.compress_type)
+        for name, payload in parts.items():
+            target.writestr(zipfile.ZipInfo(name), payload, compress_type=zipfile.ZIP_DEFLATED)
+    return out.getvalue()
+
+
+@pytest.mark.parametrize("call", ["save", "save to a stream", "to_bytes"])
+@pytest.mark.parametrize("kind", list(_PARTS_AN_HWP_SAVE_LEAVES_OUT))
+def test_an_hwp_save_refuses_a_document_whose_parts_it_would_leave_out(kind: str, call: str, tmp_path: Path) -> None:
+    parts, items, refs, counts = _PARTS_AN_HWP_SAVE_LEAVES_OUT[kind]
+    document = HwpxDocument.open(_with_parts(_base(), parts, items, refs))
+    document.add_paragraph("edited")
+    before = _state(document)
+    stream = io.BytesIO()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(Hwp5Error) as refused:
+            if call == "save":
+                document.save(tmp_path / "new.hwp")
+            elif call == "save to a stream":
+                document.save(stream, format="hwp")
+            else:
+                document.to_bytes(format="hwp")
+
+    assert refused.value.code == "hwp5-write-unsupported"
+    assert refused.value.context["unsupported"] == counts
+    for name, count in counts.items():
+        assert f"{name} x{count}" in str(refused.value)
+    assert refused.value.suggestion and ".hwpx" in refused.value.suggestion
+    # nothing was written, and the document is as it was
+    assert _names(tmp_path) == []
+    assert stream.getvalue() == b""
+    after = _state(document)
+    assert after["trees"] == before["trees"]
+    assert after["dirty"] == before["dirty"]
+    assert {name: after["payloads"][name] for name in parts} == parts
+    # an HWPX save keeps the parts, byte for byte
+    with zipfile.ZipFile(io.BytesIO(document.to_bytes())) as archive:
+        assert {name: archive.read(name) for name in parts} == parts
+
+
+def test_an_hwp_save_still_writes_a_memo_nobody_answered_and_an_empty_source_list(tmp_path: Path) -> None:
+    document = HwpxDocument.new()
+    paragraph = document.add_paragraph("body")
+    document.notes.add_memo("synthetic memo", paragraph=paragraph)
+    parts = {"Contents/memoExtended.xml": _memo_replies(), "Custom/bibliography.xml": _sources()}
+    items = [
+        _manifest_item("memoextended", "Contents/memoExtended.xml"),
+        _manifest_item("bibliography", "Custom/bibliography.xml"),
+    ]
+    document = HwpxDocument.open(_with_parts(document.to_bytes(), parts, items, []))
+    target = tmp_path / "memo.hwp"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert document.save(target).ok
+        reopened = HwpxDocument.open(target)
+
+    assert not reopened.conversion_report.unconverted and not reopened.conversion_report.dropped
+    with zipfile.ZipFile(io.BytesIO(reopened.to_bytes())) as archive:
+        assert "synthetic memo" in archive.read(SECTION).decode("utf-8")
+
+
+def test_a_part_that_is_not_the_list_it_should_be_is_named_as_a_part() -> None:
+    parts = {"Custom/bibliography.xml": b'<other xmlns:b="urn:b"><b:Source/></other>'}
+    items = [_manifest_item("bibliography", "Custom/bibliography.xml")]
+    document = HwpxDocument.open(_with_parts(_base(), parts, items, []))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(Hwp5Error) as refused:
+            document.to_bytes(format="hwp")
+
+    assert refused.value.code == "hwp5-write-unsupported"
+    assert refused.value.context["unsupported"] == {"bibliography/bibliography.xml": 1}
+
+
+@pytest.mark.parametrize(
+    ("stream", "counts"),
+    [("MemoExtended", {"memoExtended/memo": 1}), ("Bibliography", {"bibliography/Source": 1})],
+)
+def test_an_hwp_opened_with_memo_replies_or_a_bibliography_is_not_written_back_without_them(
+    stream: str, counts: dict[str, int], tmp_path: Path
+) -> None:
+    import struct
+
+    from hwpx.hwp5 import records as rec
+    from tests.test_hwp5_open import _compound, _section
+
+    if stream == "MemoExtended":
+        data = rec.serialize_records([rec.Record(rec.MEMO_EXTENDED, 0, struct.pack("<III", 1, 1001, 1000))])
+    else:
+        part = _sources("synthetic1")
+        data = struct.pack("<I", len(part)) + part
+    original = tmp_path / "original.hwp"
+    original.write_bytes(_compound(_section(), streams=[(stream, data)]))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        document = HwpxDocument.open(original)
+        # opening kept the stream as a part, so nothing says the document lacks content
+        assert not document.conversion_report.unconverted and not document.conversion_report.dropped
+        with pytest.raises(Hwp5Error) as refused:
+            document.save(tmp_path / "copy.hwp")
+
+    assert refused.value.code == "hwp5-write-unsupported"
+    assert refused.value.context["unsupported"] == counts
+    assert _names(tmp_path) == ["original.hwp"]

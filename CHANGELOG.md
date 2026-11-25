@@ -8,6 +8,14 @@
 
 ### 고침
 
+- `.hwp`(HWP 5.0)로 쓸 때 메모 답글(`Contents/memoExtended.xml`), 참고 문헌의 출처(`Custom/bibliography.xml`), 문서 이력
+  (`DocHistory/`의 버전 기록과 마지막 문서 사본)이 거부도 경고도 없이 빠졌다(#834). 작성기가 이 부품들을 읽지 않았기 때문이고,
+  메모 답글이나 참고 문헌이 든 `.hwp`를 열어 다른 `.hwp`로 저장해도 그 스트림이 없어졌다. 이제 쓸 수 없는 다른 내용과 똑같이
+  아무것도 쓰기 전에 `Hwp5Error`(`hwp5-write-unsupported`)로 거부하고, 오류 메시지와 `context["unsupported"]`에 종류와 개수를
+  적는다(`memoExtended/memo` 답글 수, `bibliography/Source` 출처 수, `DocHistory/historyEntry` 저장된 버전 수, 목록이 아닌
+  부품은 `DocHistory/historylastdoc.hml`처럼 파일 이름으로 하나). 거부된 저장은 파일을 남기지 않고 문서도 그대로다. 답글이 없는
+  메모와 빈 목록은 전처럼 쓴다. 그런 문서는 `.hwpx`로 저장하면 세 가지가 그대로 남는다. `.hwp`에 이 내용을 실제로 쓰는 것은
+  아직 하지 않는다.
 - 이미 있는 `.hwp`를 덮어쓰지 않는 규칙(#829)이 내용이 없는(0바이트) `.hwp` 이름의 파일까지 막았다. 원자적으로 게시하는
   호출자는 빈 자리표시 파일을 먼저 만들고(`tempfile.mkstemp`) 거기에 저장하는데 — python-hwpx-automation이 그렇게 한다 —
   그 저장이 `hwp5-overwrite-existing`으로 거부돼 새 `.hwp`를 만들 수 없었다(공개 판에는 나가지 않은 회귀). 바이트가 하나도
