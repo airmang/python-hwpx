@@ -631,8 +631,9 @@ def save(
     _check_grade_arguments(mode, fallback)
     if path is not None:
         _check_save_target(path)
+        _refuse_hwp_overwrite(doc, path)
     if resolved == "hwp":
-        _refuse_lossy_hwp5_save(doc, path)
+        _refuse_lossy_hwp5_save(doc)
     _refuse_unlinked_master_pages(doc)
     _refuse_unanchored_memos(doc)
     _move_section_properties_to_first(doc)
@@ -700,13 +701,13 @@ def save(
     )
 
 
-def _refuse_lossy_hwp5_save(doc: "HwpxDocument", path: str | PathLike[str] | None = None) -> None:
-    """Raise before an HWP 5.0 save that would lose content without saying so.
+def _refuse_hwp_overwrite(doc: "HwpxDocument", path: str | PathLike[str]) -> None:
+    """Raise before a save to *path* that would write over the ``.hwp`` file the document was
+    opened from, whatever format is written.
 
-    Two cases are refused. Writing over the ``.hwp`` file the document was opened
-    from would replace the only original with a file this library rebuilt. And a
-    document whose ``conversion_report`` is not empty already lacks content of the
-    original, so an ``.hwp`` written from it would pass that loss on as if complete.
+    That file is the only original, and what a save writes is a file this library rebuilt: HWP 5.0
+    from the experimental writer, or -- with ``format="hwpx"`` -- an HWPX archive under the ``.hwp``
+    name, which through 7.0.1 was written and replaced the original with a ZIP.
     """
 
     import os
@@ -714,18 +715,34 @@ def _refuse_lossy_hwp5_save(doc: "HwpxDocument", path: str | PathLike[str] | Non
     from ..hwp5.errors import Hwp5Error
 
     source = getattr(doc, "_hwp5_source_path", None)
-    if path is not None and source is not None:
-        target = os.path.abspath(os.fspath(path))
-        same = os.path.normcase(target) == os.path.normcase(source)
-        if not same and os.path.exists(target) and os.path.exists(source):
-            same = os.path.samefile(target, source)
-        if same:
-            raise Hwp5Error(
-                "Refusing to overwrite the .hwp file this document was opened from.",
-                code="hwp5-overwrite-source",
-                context={"path": target},
-                suggestion="Save to a different path, or save as .hwpx and keep the original.",
-            )
+    if source is None:
+        return
+    target = os.path.abspath(os.fspath(path))
+    same = os.path.normcase(target) == os.path.normcase(source)
+    if not same and os.path.exists(target) and os.path.exists(source):
+        same = os.path.samefile(target, source)
+    if same:
+        copy = os.path.splitext(os.path.basename(target))[0] + ".hwpx"
+        raise Hwp5Error(
+            "Refusing to write over the .hwp file this document was opened from; it was not changed.",
+            code="hwp5-overwrite-source",
+            context={"path": target},
+            suggestion=(
+                f"Save under another file name: one ending in .hwpx (for example {copy!r}) keeps the "
+                "edits as HWPX, and a new .hwp name writes HWP 5.0 (experimental). Another format for "
+                "this same path is refused too."
+            ),
+        )
+
+
+def _refuse_lossy_hwp5_save(doc: "HwpxDocument") -> None:
+    """Raise before an HWP 5.0 save that would lose content without saying so: a document whose
+    ``conversion_report`` is not empty already lacks content of the original, so an ``.hwp``
+    written from it would pass that loss on as if complete.
+    """
+
+    from ..hwp5.errors import Hwp5Error
+
     report = getattr(doc, "_hwp5_report", None)
     if report is not None and (report.unconverted or report.dropped):
         raise Hwp5Error(
@@ -733,7 +750,10 @@ def _refuse_lossy_hwp5_save(doc: "HwpxDocument", path: str | PathLike[str] | Non
             "(see conversion_report), so the result would be missing it.",
             code="hwp5-write-lossy-source",
             context={"unconverted": dict(report.unconverted), "dropped": dict(report.dropped)},
-            suggestion="Save as .hwpx, and keep the original .hwp for the content that was not converted.",
+            suggestion=(
+                "Save as HWPX under a name ending in .hwpx, and keep the original .hwp for the content "
+                "that was not converted."
+            ),
         )
 
 

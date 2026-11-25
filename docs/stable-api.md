@@ -394,9 +394,9 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 `unconverted`가 있으면 `Hwp5ConversionWarning`을 한 번 냅니다. `.hwpx`로 연 문서에서는
 `conversion_report`가 `None`입니다. `save("x.hwp")`, `save(stream, format="hwp")`,
 `to_bytes(format="hwp")`는 HWP 5.0으로 씁니다(실험). 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
-`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 쓰지 않고
-(`hwp5-overwrite-source`), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지 않습니다
-(`hwp5-write-lossy-source`). 두 경우 모두 `.hwpx`로 저장하면 됩니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
+`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 어느 형식으로도 쓰지 않고
+(`hwp5-overwrite-source`, `format="hwpx"`를 줘도 같습니다), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지
+않습니다(`hwp5-write-lossy-source`). 두 경우 모두 `.hwpx`로 끝나는 다른 이름으로 저장하면 됩니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
 주면 `hwpx.errors.HwpxValueError`(`save-format-unsupported`)입니다.
 
 응용 계층의 agent·exam 오류 계약은 `python-hwpx-automation`이 소유합니다.

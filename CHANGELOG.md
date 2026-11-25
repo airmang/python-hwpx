@@ -44,6 +44,10 @@
   요약을 준다(`replace_package_text`·`normalize_package_namespaces`와 같다). 이미 열기 안전 검사에 떨어지는 원본에 대한
   패치도 같은 까닭으로 쓰지 않는다(`hwpx-repair`나 `doc.save`로 먼저 고친다). 거부된 op가 섞여도 나머지를 쓰는 것과, 쓰지
   않은 바이트를 결과의 `data`로 돌려주는 것은 그대로다.
+- `.hwp`에서 연 문서를 그 원본 경로에 저장하는 것을 `.hwp`로 쓸 때만 거부했다(#827). `doc.save(<연 원본>.hwp, format="hwpx")`는
+  원본 `.hwp`를 HWPX(ZIP) 바이트로 덮어썼고, 거부 안내 "save as .hwpx"가 바로 그 호출로 읽혔다. 이제 연 원본 `.hwp` 경로에는
+  어느 형식으로도 쓰지 않는다(`Hwp5Error`, `hwp5-overwrite-source`). 안내는 `.hwpx`로 끝나는 다른 파일 이름(또는 새 `.hwp`
+  이름)으로 저장하라고 적고, 같은 경로에 형식만 바꿔도 거부된다고 밝힌다.
 
 ## [7.0.1] - 2026-11-22
 

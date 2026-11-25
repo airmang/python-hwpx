@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import io
 import re
+import warnings
 import zipfile
 from pathlib import Path
 
 import pytest
 
 from hwpx import HwpxDocument
+from hwpx.errors import Hwp5Error
 from hwpx.body_patch import apply_body_ops, recolor_runs_by_color, strip_runs_by_color
 from hwpx.patch import paragraph_patch
 from hwpx.table_patch import apply_table_ops, fill_cells, strip_trailing_table_captions
@@ -161,3 +163,46 @@ def test_every_byte_patch_route_still_writes_what_passes(route: str, tmp_path: P
     assert "code" not in result.open_safety
     assert out.read_bytes() == result.data
     assert validate_editor_open_safety(out).ok
+
+
+# --------------------------------------------------------------------------- #
+# W2: the .hwp file a document was opened from is not written over, whatever the format.
+# --------------------------------------------------------------------------- #
+def _hwp_file(path: Path) -> bytes:
+    """An HWP 5.0 file at *path*, made by the engine's writer from the synthetic document."""
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        HwpxDocument.open(_base()).save(path)
+    data = path.read_bytes()
+    assert data[:8] == bytes.fromhex("d0cf11e0a1b11ae1")
+    return data
+
+
+@pytest.mark.parametrize(
+    "save",
+    [
+        lambda doc, path: doc.save(path, format="hwpx"),
+        lambda doc, path: doc.save(str(path).upper(), format="hwpx"),
+        lambda doc, path: doc.save(path, format="hwp"),
+        lambda doc, path: doc.save(path),
+    ],
+    ids=["format=hwpx", "format=hwpx, other spelling", "format=hwp", "format by name"],
+)
+def test_the_hwp_a_document_was_opened_from_is_not_written_over_in_any_format(save, tmp_path: Path) -> None:
+    original = tmp_path / "original.hwp"
+    before = _hwp_file(original)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        document = HwpxDocument.open(original)
+        document.add_paragraph("edited")
+        with pytest.raises(Hwp5Error) as refused:
+            save(document, original)
+
+    assert refused.value.code == "hwp5-overwrite-source"
+    assert original.read_bytes() == before
+    assert _names(tmp_path) == ["original.hwp"]
+    # the way out is another file name, not another format for this path
+    suggestion = refused.value.suggestion or ""
+    assert "another file name" in suggestion and ".hwpx" in suggestion
+    assert "save as .hwpx and keep" not in suggestion
