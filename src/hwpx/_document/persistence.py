@@ -7,7 +7,7 @@ import functools
 import hashlib
 from dataclasses import replace as dataclass_replace
 from os import PathLike
-from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Sequence, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Callable, List, Literal, Optional, Sequence, Tuple, TypeVar, cast
 
 from ..errors import HwpxTypeError, HwpxValueError, SaveError, SaveTargetError
 from ..mutation_report import (
@@ -261,7 +261,45 @@ def _refuse_unanchored_memos(doc: "HwpxDocument") -> None:
     )
 
 
-def _move_section_properties_to_first(doc: "HwpxDocument") -> None:
+#: What :func:`_move_section_properties_to_first` remembers of a section before it moves its settings:
+#: the section, each element with the children it had, whether it was marked edited, and the part
+#: payload the package held (``None`` when it holds none).
+_SectionBeforeMove = Tuple[Any, List[Tuple[Any, List[Any]]], bool, Optional[bytes]]
+
+
+def _remember_section(doc: "HwpxDocument", section: Any) -> _SectionBeforeMove:
+    children = [(node, list(node)) for node in section.element.iter() if isinstance(node.tag, str)]
+    files = getattr(doc._package, "_files", None)
+    payload = files.get(section.part_name) if files is not None else None
+    return section, children, bool(section.dirty), payload
+
+
+def _put_moved_sections_back(doc: "HwpxDocument", moved: List[_SectionBeforeMove]) -> None:
+    """Undo :func:`_move_section_properties_to_first` for a save that was refused after it.
+
+    Each element of a moved section gets back the children it had, the same objects in the same
+    order: the settings return to the paragraph they were in, the line caches to their paragraphs,
+    and a run or control the move made is dropped. The section is marked edited or not as it was,
+    and the package holds the part payload it held (a refused save may have serialized the moved
+    tree into it). Wrappers that hold these elements stay valid.
+    """
+
+    files = getattr(doc._package, "_files", None)
+    for section, children, was_dirty, payload in reversed(moved):
+        for node, kids in children:
+            if list(node) != kids:
+                for child in list(node):
+                    node.remove(child)
+                node.extend(kids)
+        if was_dirty:
+            section.mark_dirty()
+        else:
+            section.reset_dirty()
+        if files is not None and payload is not None:
+            files[section.part_name] = payload
+
+
+def _move_section_properties_to_first(doc: "HwpxDocument") -> List[_SectionBeforeMove]:
     """Before writing, move a section's ``hp:secPr`` from a later paragraph into its first one.
 
     Hancom reads a section's settings only from its first paragraph: Hangul 2024 opened such a
@@ -274,6 +312,12 @@ def _move_section_properties_to_first(doc: "HwpxDocument") -> None:
     paragraph), every line layout cache of the section is dropped because its paper and margins
     change, and a :class:`UserWarning` naming ``section-properties-not-first`` says which section.
     The open-safety check still reports the shape as an error in a file read as it is.
+
+    Returns what each moved section was like before, for :func:`_put_moved_sections_back`: the
+    checks that can still refuse the save (validation, open safety, the preservation grade, the
+    quality gate, the target, the stream) need the bytes of the moved tree, so they run after
+    the move, and a save they refuse puts the document back (it used to stay moved, its line
+    caches gone).
     """
 
     import warnings
@@ -281,26 +325,33 @@ def _move_section_properties_to_first(doc: "HwpxDocument") -> None:
     from ..oxml._paragraph_text_edit import move_section_settings
     from ..oxml.namespaces import HP as _HP_NS
 
-    for index, section in enumerate(doc.oxml.sections):
-        paragraphs = section.element.findall(f"{_HP_NS}p")
-        if not paragraphs or paragraphs[0].find(f"{_HP_NS}run/{_HP_NS}secPr") is not None:
-            continue
-        holder = next((number for number, paragraph in enumerate(paragraphs[1:], start=1)
-                       if paragraph.find(f"{_HP_NS}run/{_HP_NS}secPr") is not None), None)
-        if holder is None:
-            continue
-        move_section_settings(paragraphs[holder], paragraphs[0])
-        for paragraph in section.element.iter(f"{_HP_NS}p"):
-            for cache in paragraph.findall(f"{_HP_NS}linesegarray"):
-                paragraph.remove(cache)
-        section.mark_dirty()
-        warnings.warn(
-            f"section {index}'s settings (hp:secPr) were in its paragraph {holder}, where Hancom does not "
-            "read them (it gives the section default paper and margins); the save moved them to the "
-            "first paragraph and dropped the section's line layout caches (section-properties-not-first)",
-            UserWarning,
-            stacklevel=5,  # this, save/to_bytes, the archive-read wrapper, HwpxDocument.save
-        )
+    moved: List[_SectionBeforeMove] = []
+    try:
+        for index, section in enumerate(doc.oxml.sections):
+            paragraphs = section.element.findall(f"{_HP_NS}p")
+            if not paragraphs or paragraphs[0].find(f"{_HP_NS}run/{_HP_NS}secPr") is not None:
+                continue
+            holder = next((number for number, paragraph in enumerate(paragraphs[1:], start=1)
+                           if paragraph.find(f"{_HP_NS}run/{_HP_NS}secPr") is not None), None)
+            if holder is None:
+                continue
+            moved.append(_remember_section(doc, section))
+            move_section_settings(paragraphs[holder], paragraphs[0])
+            for paragraph in section.element.iter(f"{_HP_NS}p"):
+                for cache in paragraph.findall(f"{_HP_NS}linesegarray"):
+                    paragraph.remove(cache)
+            section.mark_dirty()
+            warnings.warn(
+                f"section {index}'s settings (hp:secPr) were in its paragraph {holder}, where Hancom does not "
+                "read them (it gives the section default paper and margins); the save moved them to the "
+                "first paragraph and dropped the section's line layout caches (section-properties-not-first)",
+                UserWarning,
+                stacklevel=5,  # this, save/to_bytes, the archive-read wrapper, HwpxDocument.save
+            )
+    except BaseException:  # a warning turned into an error: no section stays half moved
+        _put_moved_sections_back(doc, moved)
+        raise
+    return moved
 
 
 def _run_pre_save_validation(doc: "HwpxDocument") -> None:
@@ -636,45 +687,51 @@ def save(
         _refuse_lossy_hwp5_save(doc)
     _refuse_unlinked_master_pages(doc)
     _refuse_unanchored_memos(doc)
-    _move_section_properties_to_first(doc)
-    _run_pre_save_validation(doc)
-    archive_bytes, measurement, open_safety = _build_measured(doc, reset_dirty=False)
-    actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
-    if path is not None:
-        _warn_about_target_format(path, resolved, stated=format is not None)
-    # HWP 5.0 is made from the validated HWPX parts the gate checks; it raises before
-    # anything is written when the HWP 5.0 writer cannot express the document.
-    hwp5 = _hwp5_bytes(archive_bytes) if resolved == "hwp" else None
+    moved = _move_section_properties_to_first(doc)
     try:
-        report = _gate_and_write(
-            doc,
-            archive_bytes,
-            output_path=path if hwp5 is None else None,
-            output_stream=stream if hwp5 is None else None,
-            quality=quality,
-            source_label="document.save",
-            pipeline=pipeline,
-        )
-        if hwp5 is not None:  # the gate passed: publish the HWP 5.0 file in its place
-            if path is not None:
-                from ..quality.save_pipeline import write_bytes_atomically
+        _run_pre_save_validation(doc)
+        archive_bytes, measurement, open_safety = _build_measured(doc, reset_dirty=False)
+        actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
+        if path is not None:
+            _warn_about_target_format(path, resolved, stated=format is not None)
+        # HWP 5.0 is made from the validated HWPX parts the gate checks; it raises before
+        # anything is written when the HWP 5.0 writer cannot express the document.
+        hwp5 = _hwp5_bytes(archive_bytes) if resolved == "hwp" else None
+        try:
+            report = _gate_and_write(
+                doc,
+                archive_bytes,
+                output_path=path if hwp5 is None else None,
+                output_stream=stream if hwp5 is None else None,
+                quality=quality,
+                source_label="document.save",
+                pipeline=pipeline,
+            )
+            if hwp5 is not None:  # the gate passed: publish the HWP 5.0 file in its place
+                if path is not None:
+                    from ..quality.save_pipeline import write_bytes_atomically
 
-                write_bytes_atomically(path, hwp5)
-                report.output_path = str(path)
-            else:
-                assert stream is not None
-                from ..quality.save_pipeline import write_stream_or_rollback
+                    write_bytes_atomically(path, hwp5)
+                    report.output_path = str(path)
+                else:
+                    assert stream is not None
+                    from ..quality.save_pipeline import write_stream_or_rollback
 
-                # As the .hwpx stream save: a short write is an error and the stream is put back as it
-                # was (stream.write(hwp5) alone returned a receipt for a file cut short).
-                if not write_stream_or_rollback(stream, hwp5):
-                    report.warnings.append(STREAM_NOT_READ_BACK)
-    except SaveTargetError:
-        raise
-    except OSError as error:
-        if path is None:
+                    # As the .hwpx stream save: a short write is an error and the stream is put back as it
+                    # was (stream.write(hwp5) alone returned a receipt for a file cut short).
+                    if not write_stream_or_rollback(stream, hwp5):
+                        report.warnings.append(STREAM_NOT_READ_BACK)
+        except SaveTargetError:
             raise
-        raise _save_target_error(path, error) from error
+        except OSError as error:
+            if path is None:
+                raise
+            raise _save_target_error(path, error) from error
+    except BaseException:
+        # Refused after the settings moved (the gate, the grade, the target, the stream...):
+        # nothing was written, so the document goes back to what it was before the call.
+        _put_moved_sections_back(doc, moved)
+        raise
     _mark_save_clean(doc)
     if hwp5 is not None:
         # The receipt measures the HWPX parts; the file written is HWP 5.0, not the source's bytes.
@@ -808,11 +865,15 @@ def to_bytes(
         _refuse_lossy_hwp5_save(doc)
     _refuse_unlinked_master_pages(doc)
     _refuse_unanchored_memos(doc)
-    _move_section_properties_to_first(doc)
-    _run_pre_save_validation(doc)
-    archive_bytes, measurement, _open_safety = _build_measured(doc, reset_dirty=False)
-    _resolve_grade(mode, fallback, measurement)
-    data = _hwp5_bytes(archive_bytes) if format == "hwp" else archive_bytes
+    moved = _move_section_properties_to_first(doc)
+    try:
+        _run_pre_save_validation(doc)
+        archive_bytes, measurement, _open_safety = _build_measured(doc, reset_dirty=False)
+        _resolve_grade(mode, fallback, measurement)
+        data = _hwp5_bytes(archive_bytes) if format == "hwp" else archive_bytes
+    except BaseException:
+        _put_moved_sections_back(doc, moved)  # refused: the document is as it was before the call
+        raise
     _mark_save_clean(doc)
     return data
 

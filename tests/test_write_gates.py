@@ -421,3 +421,152 @@ def test_an_existing_hwpx_is_written_over_as_before(tmp_path: Path) -> None:
     assert "edited" in HwpxDocument.open(target).text.plain()
     result = paragraph_patch(target, [{"paragraph_index": 1, "text": "N"}], output_path=target)
     assert result.ok and target.read_bytes() == result.data
+
+
+# --------------------------------------------------------------------------- #
+# W10: a save refused after the section settings moved leaves the document as it was.
+# --------------------------------------------------------------------------- #
+_CACHE = (
+    '<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" '
+    'baseline="850" spacing="600" horzpos="0" horzsize="42520" flags="393216"/></hp:linesegarray>'
+)
+
+
+def _settings_in_the_second_paragraph() -> bytes:
+    """The shape 6.x's ``insert_paragraphs(0, ...)`` made: a paragraph in front of the one holding
+    ``hp:secPr``. A later paragraph has a line cache, which the save drops when it moves the settings."""
+
+    data = _base()
+    xml = _section(data)
+    first = re.search(r"<hp:p\b", xml)
+    assert first is not None
+    lead = (
+        '<hp:p id="77700002" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+        '<hp:run charPrIDRef="0"><hp:t>lead</hp:t></hp:run></hp:p>'
+    )
+    xml = xml[: first.start()] + lead + xml[first.start():]
+    assert xml.count("<hp:t>gamma three</hp:t></hp:run>") == 1
+    xml = xml.replace("<hp:t>gamma three</hp:t></hp:run>", "<hp:t>gamma three</hp:t></hp:run>" + _CACHE)
+    return _with_section(data, xml)
+
+
+def _state(doc: HwpxDocument) -> dict:
+    """What a refused save must leave alone: every tree, which parts are marked edited, and the
+    part payloads the package holds."""
+
+    from lxml import etree
+
+    parts = [*doc.oxml.sections, *doc.oxml.headers, *doc.oxml.master_pages]
+    return {
+        "trees": [etree.tostring(part.element) for part in parts],
+        "dirty": [part.dirty for part in parts],
+        "payloads": {name: doc.package.get_part(name) for name in doc.package.part_names()},
+    }
+
+
+class _WriteOnly(io.RawIOBase):
+    def writable(self) -> bool:
+        return True
+
+    def write(self, data) -> int:  # type: ignore[override]
+        return len(data)
+
+
+def _refused_by_the_quality_gate(doc: HwpxDocument, tmp_path: Path) -> None:
+    doc.save(tmp_path / "out.hwpx", quality=QualityPolicy.strict())
+
+
+def _refused_by_a_write_only_stream(doc: HwpxDocument, tmp_path: Path) -> None:
+    doc.save(_WriteOnly())
+
+
+def _refused_by_the_target(doc: HwpxDocument, tmp_path: Path) -> None:
+    """The file system refuses the write itself (a read-only or locked target), after every check."""
+
+    from hwpx.quality import save_pipeline
+
+    def denied(_source: object, _target: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(save_pipeline.os, "replace", denied)
+        doc.save(tmp_path / "held.hwpx")
+
+
+def _refused_by_the_grade(doc: HwpxDocument, tmp_path: Path) -> None:
+    doc.save(tmp_path / "out.hwpx", mode="patch")
+
+
+def _refused_by_the_grade_as_bytes(doc: HwpxDocument, tmp_path: Path) -> None:
+    doc.to_bytes(mode="patch")
+
+
+def _refused_by_validate_on_save(doc: HwpxDocument, tmp_path: Path) -> None:
+    doc.validate_on_save = True
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(type(doc), "validate", lambda self: _FailedValidation())
+        doc.to_bytes()
+
+
+class _FailedValidation:
+    ok = False
+    issues = ("synthetic schema issue",)
+
+
+def _refused_by_a_warning_made_an_error(doc: HwpxDocument, tmp_path: Path) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        doc.to_bytes()
+
+
+_REFUSALS = {
+    "quality gate": (_refused_by_the_quality_gate, "quality-gate-failed"),
+    "write-only stream": (_refused_by_a_write_only_stream, None),
+    "read-only target": (_refused_by_the_target, "save-target-denied"),
+    "preservation grade": (_refused_by_the_grade, "preservation-downgrade"),
+    "preservation grade, to_bytes": (_refused_by_the_grade_as_bytes, "preservation-downgrade"),
+    "validate_on_save": (_refused_by_validate_on_save, "document-validation-failed"),
+    "warning as error": (_refused_by_a_warning_made_an_error, None),
+}
+
+
+@pytest.mark.parametrize("refusal", list(_REFUSALS))
+def test_a_save_refused_after_the_settings_moved_leaves_the_document_as_it_was(
+    refusal: str, tmp_path: Path
+) -> None:
+    source = _settings_in_the_second_paragraph()
+    refuse, code = _REFUSALS[refusal]
+    doc = HwpxDocument.open(source)
+    doc.validate_on_save = False
+    before = _state(doc)
+    assert b"linesegarray" in before["trees"][0]
+    if "grade" in refusal:  # the part the grade refuses is put in before the state is taken
+        doc.package.write("extra.bin", b"not declared by the document")
+        before = _state(doc)
+
+    with warnings.catch_warnings():
+        if refusal != "warning as error":
+            warnings.simplefilter("ignore")
+        with pytest.raises(Exception) as refused:
+            refuse(doc, tmp_path)
+
+    assert getattr(refused.value, "code", None) == code
+    after = _state(doc)
+    assert after["trees"] == before["trees"]
+    assert after["dirty"] == before["dirty"]
+    assert after["payloads"] == before["payloads"]
+    assert _names(tmp_path) == []
+
+    # and the document still saves, with the settings moved and the warning that says so
+    if "grade" in refusal:
+        doc.package.delete("extra.bin")
+    doc.validate_on_save = False
+    with pytest.warns(UserWarning, match="section-properties-not-first"):
+        saved = doc.to_bytes()
+    untouched = HwpxDocument.open(source)
+    untouched.validate_on_save = False
+    with pytest.warns(UserWarning, match="section-properties-not-first"):
+        expected = untouched.to_bytes()
+    assert saved == expected
+    first = HwpxDocument.open(saved).sections[0].element.find("{*}p")
+    assert first.find("{*}run/{*}secPr") is not None
