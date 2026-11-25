@@ -261,17 +261,24 @@ def _refuse_unanchored_memos(doc: "HwpxDocument") -> None:
     )
 
 
-def _refuse_section_properties_not_first(doc: "HwpxDocument") -> None:
-    """Raise before writing anything when a section's ``hp:secPr`` is in a later paragraph than its
-    first one.
+def _move_section_properties_to_first(doc: "HwpxDocument") -> None:
+    """Before writing, move a section's ``hp:secPr`` from a later paragraph into its first one.
 
     Hancom reads a section's settings only from its first paragraph: Hangul 2024 opened such a
     section with default paper and margins and saved a default ``hp:secPr`` in the first paragraph
     (out/move8/sync/check ``secpr_second_paragraph``). The engine's own edits keep the settings in
-    the first paragraph; this catches XML edits (``.element``) and files read that way. The
-    open-safety check reports the same as an error.
+    the first paragraph; this shape comes from XML edits (``.element``) and from files made that
+    way, among them 6.x's ``section.insert_paragraphs(0, ...)``. 7.0.0 refused to save those, so a
+    file 6.x made could not be saved again even unchanged. The settings now move as ``hwpx-repair``
+    moves them (with the page-level controls of their paragraph, to the front of the first
+    paragraph), every line layout cache of the section is dropped because its paper and margins
+    change, and a :class:`UserWarning` naming ``section-properties-not-first`` says which section.
+    The open-safety check still reports the shape as an error in a file read as it is.
     """
 
+    import warnings
+
+    from ..oxml._paragraph_text_edit import move_section_settings
     from ..oxml.namespaces import HP as _HP_NS
 
     for index, section in enumerate(doc.oxml.sections):
@@ -282,18 +289,17 @@ def _refuse_section_properties_not_first(doc: "HwpxDocument") -> None:
                        if paragraph.find(f"{_HP_NS}run/{_HP_NS}secPr") is not None), None)
         if holder is None:
             continue
-        from ..errors import HwpxValueError
-
-        raise HwpxValueError(
-            f"section {index}'s settings (hp:secPr) are in its paragraph {holder}, not its first; Hancom "
-            "reads them only from the first paragraph and gives the section default paper and margins",
-            code="section-properties-not-first",
-            context={"section": index, "paragraph": holder},
-            suggestion=(
-                "Put new paragraphs in front with doc.paragraphs[0].insert_before(...) or "
-                "paragraph.move_before(...), which move the settings along; a file already in this "
-                "shape is fixed by `hwpx-repair` (python -m hwpx.tools.repair)."
-            ),
+        move_section_settings(paragraphs[holder], paragraphs[0])
+        for paragraph in section.element.iter(f"{_HP_NS}p"):
+            for cache in paragraph.findall(f"{_HP_NS}linesegarray"):
+                paragraph.remove(cache)
+        section.mark_dirty()
+        warnings.warn(
+            f"section {index}'s settings (hp:secPr) were in its paragraph {holder}, where Hancom does not "
+            "read them (it gives the section default paper and margins); the save moved them to the "
+            "first paragraph and dropped the section's line layout caches (section-properties-not-first)",
+            UserWarning,
+            stacklevel=5,  # this, save/to_bytes, the archive-read wrapper, HwpxDocument.save
         )
 
 
@@ -629,7 +635,7 @@ def save(
         _refuse_lossy_hwp5_save(doc, path)
     _refuse_unlinked_master_pages(doc)
     _refuse_unanchored_memos(doc)
-    _refuse_section_properties_not_first(doc)
+    _move_section_properties_to_first(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement, open_safety = _build_measured(doc, reset_dirty=False)
     actual_mode, fallback_used = _resolve_grade(mode, fallback, measurement)
@@ -778,7 +784,7 @@ def to_bytes(
         _refuse_lossy_hwp5_save(doc)
     _refuse_unlinked_master_pages(doc)
     _refuse_unanchored_memos(doc)
-    _refuse_section_properties_not_first(doc)
+    _move_section_properties_to_first(doc)
     _run_pre_save_validation(doc)
     archive_bytes, measurement, _open_safety = _build_measured(doc, reset_dirty=False)
     _resolve_grade(mode, fallback, measurement)
