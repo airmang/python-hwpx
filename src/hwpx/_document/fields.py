@@ -3,8 +3,12 @@
 
 from __future__ import annotations
 
+import numbers
 import re
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
+
+from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..errors import HwpxStateError, HwpxValueError, argument_type_error
 from ._resolve import home_paragraph, refused_leaves_no_paragraph
@@ -148,18 +152,25 @@ def _field_type_tokens(*values: str | None) -> set[str]:
 
 
 def _is_form_field_begin(ctrl: Any, field_begin: Any) -> bool:
-    tokens = _field_type_tokens(
+    return _is_form_field_kind(
         ctrl.get("type"),
         field_begin.get("type"),
         field_begin.get("name"),
         field_begin.get("fieldName"),
         field_begin.get("fieldname"),
     )
+
+
+@lru_cache(maxsize=4096)
+def _is_form_field_kind(
+    ctrl_type: str | None, begin_type: str | None, name: str | None, field_name: str | None, fieldname: str | None
+) -> bool:
+    tokens = _field_type_tokens(ctrl_type, begin_type, name, field_name, fieldname)
     if tokens & _FORM_FIELD_EXCLUDED_TYPES:
         return False
     if tokens & _FORM_FIELD_TYPES:
         return True
-    return (ctrl.get("type") or "").strip().upper() == "FORM"
+    return (ctrl_type or "").strip().upper() == "FORM"
 
 
 def _field_identifier(field_begin: Any) -> str:
@@ -340,6 +351,27 @@ def _field_text_nodes(
     return nodes
 
 
+def _form_field_selection_keys(
+    field_begin: Any, parameters: Sequence[dict[str, str]] | None = None
+) -> tuple[str, str, str]:
+    """A field's name, prompt and instruction -- what ``fill(name=)`` compares -- read from its begin alone."""
+
+    if parameters is None:
+        parameters = _field_parameters(field_begin)
+    name = _field_name(field_begin, parameters)
+    prompt = _first_attr(field_begin, _FORM_FIELD_PROMPT_ATTRS)
+    if not prompt:
+        # "Direction" is the real-Hancom 안내문 parameter (P0 gold contract).
+        prompt = _field_parameter_value(parameters, "Direction", *_FORM_FIELD_PARAM_NAMES)
+    if not prompt:
+        # Some fields keep it only inside their Command string.
+        prompt = _command_direction(parameters)
+    instruction = _field_parameter_value(parameters, "instruction", "guide", "help", "description", "desc")
+    if not instruction:
+        instruction = prompt
+    return name, prompt, instruction
+
+
 def _form_field_payload(
     doc: "HwpxDocument",
     *,
@@ -355,17 +387,7 @@ def _form_field_payload(
     has_end: bool,
 ) -> dict[str, Any]:
     parameters = _field_parameters(field_begin)
-    name = _field_name(field_begin, parameters)
-    prompt = _first_attr(field_begin, _FORM_FIELD_PROMPT_ATTRS)
-    if not prompt:
-        # "Direction" is the real-Hancom 안내문 parameter (P0 gold contract).
-        prompt = _field_parameter_value(parameters, "Direction", *_FORM_FIELD_PARAM_NAMES)
-    if not prompt:
-        # Some fields keep it only inside their Command string.
-        prompt = _command_direction(parameters)
-    instruction = _field_parameter_value(parameters, "instruction", "guide", "help", "description", "desc")
-    if not instruction:
-        instruction = prompt
+    name, prompt, instruction = _form_field_selection_keys(field_begin, parameters)
     memo = _field_parameter_value(parameters, "HelpState", "memo")
     dirty = (field_begin.get("dirty") or "").strip()
     # Contract: while dirty != "1" the content between begin/end is the prompt
@@ -443,6 +465,114 @@ def _iter_form_field_matches(doc: "HwpxDocument") -> list[dict[str, Any]]:
 
 def _iter_field_matches(doc: "HwpxDocument", accept: Any) -> list[dict[str, Any]]:
     return _field_matches_in(doc, accept, _iter_content_paragraphs(doc))
+
+
+_CTRL_TAG, _RUN_TAG = f"{_HP}ctrl", f"{_HP}run"
+
+
+def _form_field_begins(doc: "HwpxDocument") -> list[tuple[int, Any, int, Any, Any, Any]] | None:
+    """Every form field's (section index, section, paragraph index, ``<hp:p>``, ``<hp:ctrl>``,
+    ``<hp:fieldBegin>``) in the order of :func:`_iter_form_field_matches`, without reading their content.
+
+    The same paragraphs as :func:`_iter_content_paragraphs` (in document order, memo bodies and the
+    second copy of a header/footer left out) and the same begins as :func:`_field_matches_in` (a direct
+    child of a ``ctrl`` that is a direct child of one of the paragraph's runs); lxml finds them, so a
+    lookup costs little more than the number of fields. ``None`` for a tree that is not lxml's.
+    """
+
+    found: list[tuple[int, Any, int, Any, Any, Any]] = []
+    offset = 0
+    for section_index, section in enumerate(doc.sections):
+        root = cast(Any, section.element)
+        if not isinstance(root, etree._Element):
+            return None
+        # a header/footer kept twice needs a header or footer (control_twins reads every run)
+        has_story = next(root.iter(f"{_HP}header", f"{_HP}footer"), None) is not None
+        skipped = [*root.iter("{*}memogroup"), *(control_twins(root) if has_story else ())]
+        excluded = {paragraph for skip in skipped for paragraph in skip.iter("{*}p")}
+        positions: dict[Any, int] = {}
+        for paragraph in root.iter("{*}p"):
+            if paragraph is not root and paragraph not in excluded:
+                positions[paragraph] = len(positions)
+        fields: list[tuple[int, int, Any, Any, Any]] = []
+        for order, begin in enumerate(root.iter(f"{_HP}fieldBegin")):
+            ctrl = begin.getparent()
+            if ctrl is None or (ctrl.tag != _CTRL_TAG and _local_name(ctrl) != "ctrl"):
+                continue
+            run = ctrl.getparent()
+            if run is None or (run.tag != _RUN_TAG and _local_name(run) != "run"):
+                continue
+            paragraph = run.getparent()
+            position = positions.get(paragraph)
+            if position is not None and _is_form_field_begin(ctrl, begin):
+                fields.append((position, order, paragraph, ctrl, begin))
+        fields.sort(key=lambda field: (field[0], field[1]))
+        found.extend(
+            (section_index, section, offset + position, paragraph, ctrl, begin)
+            for position, _order, paragraph, ctrl, begin in fields
+        )
+        offset += len(positions)
+    return found
+
+
+def _pick_form_field(
+    doc: "HwpxDocument", *, index: int | None, field_id: str | None, name: str | None
+) -> dict[str, Any] | None:
+    """The match of the one field the selector names, read from that field's paragraph alone.
+
+    ``None`` when the selector does not name exactly one field (or is not one selector): the full read
+    (:func:`_select_form_field`) then decides and words the error. The result is the entry
+    :func:`_iter_form_field_matches` would give for that field, so filling fields one after another
+    does not read every field each time (#628).
+    """
+
+    if [index is not None, bool(field_id), bool(name)].count(True) != 1:
+        return None
+    begins = _form_field_begins(doc)
+    if begins is None:
+        return None
+    if index is not None:
+        picked = [position for position in range(len(begins)) if position == index]
+    elif field_id:
+        wanted = field_id.strip()
+        picked = [
+            position
+            for position, (*_where, begin) in enumerate(begins)
+            if wanted in {_field_identifier(begin), begin.get("id", ""), begin.get("fieldid", "")}
+        ]
+    else:
+        wanted_name = (name or "").strip().casefold()
+        if not wanted_name:
+            return None
+        picked = []
+        for position, (*_where, begin) in enumerate(begins):
+            # The name, prompt and instruction are attribute values or parameter text of the begin
+            # (stripped), so a field whose attributes and text do not hold the name cannot match.
+            text = etree.tostring(begin, method="text", encoding="unicode", with_tail=False)
+            if wanted_name not in "\x00".join((*begin.attrib.values(), text)).casefold():
+                continue
+            keys = _form_field_selection_keys(begin)
+            if keys[0] and wanted_name in {key.strip().casefold() for key in keys}:
+                picked.append(position)
+    if len(picked) != 1:
+        return None
+    section_index, section, paragraph_index, paragraph_element, _ctrl, field_begin = begins[picked[0]]
+    # its place among the section's own paragraphs (``section.paragraphs``), -1 for a nested one
+    own_index = -1
+    if paragraph_element.getparent() is section.element:
+        own_index = next(
+            own for own, child in enumerate(section.element.iterchildren("{*}p")) if child is paragraph_element
+        )
+    source = (
+        section_index, paragraph_index, own_index, paragraph_element,
+        HwpxOxmlParagraph(paragraph_element, section),
+        [child for child in paragraph_element if _local_name(child) == "run"],
+    )
+    found = _field_matches_in(doc, lambda _ctrl, begin: begin is field_begin, iter((source,)))
+    if len(found) != 1:
+        return None
+    found[0]["index"] = picked[0]
+    return found[0]
 
 
 def _field_matches_in(
@@ -1563,14 +1693,21 @@ def fill_form_field(
         raise argument_type_error(
             "value", value, "str", suggestion='To empty the field pass "": doc.fields.fill("", name=...).'
         )
-    matches = _iter_form_field_matches(doc)
-    match = _select_form_field(
-        doc,
-        matches,
-        index=index,
-        field_id=field_id,
-        name=name,
-    )
+    if not isinstance(value, (str, numbers.Number)) or isinstance(value, bool):
+        # str() of a list, a dict or True puts Python's spelling of it in the form (#811); a number keeps its digits
+        raise argument_type_error(
+            "value", value, "str or a number",
+            suggestion="Pass the text the field should show, e.g. \", \".join(items) for a list.",
+        )
+    match = _pick_form_field(doc, index=index, field_id=field_id, name=name)
+    if match is None:
+        match = _select_form_field(
+            doc,
+            _iter_form_field_matches(doc),
+            index=index,
+            field_id=field_id,
+            name=name,
+        )
     if not match.get("has_end"):
         raise HwpxValueError(
             f"the field {match.get('name') or match.get('index')!r} has no end, so it has no content to replace",

@@ -45,14 +45,9 @@ _RUN_OPEN_RE = re.compile(
 # Layout cache Hangul emits as <hp:linesegarray> (with <hp:lineseg> children).
 # Splicing new text into a paragraph invalidates its cached line geometry, so the
 # byte path must drop the cache; otherwise Hangul renders the new text into the
-# stale line slots and overlapping glyphs (글자 겹침) result. Matches the container
-# form and the (rare) self-closing form, with any namespace prefix, case-insensitive
-# to mirror the engine's own case-insensitive strip in opc/package.py.
-_LINESEG_ARRAY_RE = re.compile(
-    rb"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b"
-    rb"(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
-    re.DOTALL | re.IGNORECASE,
-)
+# stale line slots and overlapping glyphs (글자 겹침) result. Found by
+# :func:`_layout_cache_spans`, which walks markup tokens: look-alike text in a
+# comment, CDATA or attribute value and a ``linesegarray`` of another namespace stay.
 #: Markup between XML character data: comments, CDATA, processing instructions,
 #: declarations and tags. A quoted attribute value may hold ``>``.
 _MARKUP_PATTERN = r"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<![^>]*>|<(?:[^>\"']|\"[^\"]*\"|'[^']*')*>"
@@ -361,15 +356,18 @@ def _paragraph_spans(section_xml: bytes) -> list[_ParagraphSpan]:
     ]
 
 
-def _strip_paragraph_layout_cache(paragraph: bytes) -> bytes:
+def _strip_paragraph_layout_cache(paragraph: bytes, scope: Mapping[str, str] | None = None) -> bytes:
     """Remove a paragraph's ``<hp:linesegarray>`` layout cache.
 
     Run after a text splice: the cached line geometry describes the *old* text, so
     leaving it in place makes Hangul lay the new text onto stale line slots and
-    overlap (글자 겹침). Stripping it forces a recompute on open.
+    overlap (글자 겹침). Stripping it forces a recompute on open. *scope* is the
+    namespace declarations in force where *paragraph* sits (see
+    :func:`_layout_cache_spans`); only the paragraph namespace's element goes.
     """
 
-    return _LINESEG_ARRAY_RE.sub(b"", paragraph)
+    spans = _layout_cache_spans(paragraph.decode("latin-1"), scope=scope)
+    return _apply_edits(paragraph, [(start, end, b"") for start, end in spans]) if spans else paragraph
 
 
 _MARKUP_BYTES_RE = re.compile(_MARKUP_PATTERN.encode("ascii"), re.DOTALL)
@@ -414,13 +412,17 @@ def _paragraph_extent(section_xml: bytes, start: int) -> tuple[int, list[tuple[i
 
 
 def _own_paragraph_edits(
-    paragraph: bytes, nested: Sequence[tuple[int, int]], replacement_text: str
+    paragraph: bytes,
+    nested: Sequence[tuple[int, int]],
+    replacement_text: str,
+    scope: Mapping[str, str] | None = None,
 ) -> tuple[list[tuple[int, int, bytes]], str] | None:
     """The splices that make *replacement_text* a paragraph's own text and drop its own layout cache.
 
     *nested* are the spans (relative to *paragraph*) of the paragraphs inside it; their text, runs and
     caches are not the paragraph's and are left as they are. ``None`` when the paragraph has no run of
-    its own to hold text. The second value is the paragraph's own text before the edit.
+    its own to hold text. The second value is the paragraph's own text before the edit. *scope* is the
+    namespace declarations in force where the paragraph sits.
     """
 
     def own(match: re.Match[bytes]) -> bool:
@@ -480,7 +482,9 @@ def _own_paragraph_edits(
     # The paragraph's own cache describes its old text (글자 겹침 if kept); a nested paragraph's
     # cache describes text this edit does not touch.
     edits.extend(
-        (match.start(), match.end(), b"") for match in _LINESEG_ARRAY_RE.finditer(paragraph) if own(match)
+        (start, stop, b"")
+        for start, stop in _layout_cache_spans(paragraph.decode("latin-1"), scope=scope)
+        if not any(low <= start < high for low, high in nested)
     )
     return edits, original_text
 
@@ -491,6 +495,7 @@ def _patch_section_xml(
     patches: Sequence[ParagraphTextPatch],
 ) -> tuple[bytes, list[PatchApplied], list[PatchSkipped]]:
     spans = {span.index: span for span in _paragraph_spans(section_xml)}
+    scope = _root_namespace_scope(section_xml)
     edits: list[tuple[int, int, bytes]] = []
     applied: list[PatchApplied] = []
     skipped: list[PatchSkipped] = []
@@ -507,7 +512,7 @@ def _patch_section_xml(
         end, nested = extent
         paragraph = section_xml[span.start:end]
         own = _own_paragraph_edits(
-            paragraph, [(start - span.start, stop - span.start) for start, stop in nested], patch.text
+            paragraph, [(start - span.start, stop - span.start) for start, stop in nested], patch.text, scope
         )
         if own is None:
             skipped.append(
@@ -813,6 +818,75 @@ def _namespace_declarations(tag: str, start: int) -> dict[str, str]:
             declared[name[6:]] = _unescape_xml_text(double if double is not None else single)
         attribute = _ATTRIBUTE_RE.match(tag, attribute.end())
     return declared
+
+
+#: The prefix Hangul writes for the paragraph namespace -- what an undeclared ``hp:`` in a cut-out
+#: paragraph means when the caller has no declarations to pass.
+_FALLBACK_SCOPE = {"hp": NAMESPACE_URIS["paragraph"]["2011"]}
+
+
+def _root_namespace_scope(xml: str | bytes) -> dict[str, str]:
+    """The namespace declarations of the first element of *xml* (a part's root element).
+
+    Hangul declares every prefix on the root, so this is the scope a paragraph cut out of the part
+    sits in.
+    """
+
+    text = xml.decode("latin-1") if isinstance(xml, bytes) else xml
+    for markup in _MARKUP_RE.finditer(text):
+        token = markup.group(0)
+        if token.startswith(("<!", "<?", "</")):
+            continue
+        name = _TAG_NAME_RE.match(token)
+        if name is not None:
+            return _namespace_declarations(token, name.end())
+    return {}
+
+
+def _layout_cache_spans(
+    xml: str, start: int = 0, end: int | None = None, *, scope: Mapping[str, str] | None = None
+) -> list[tuple[int, int]]:
+    """Where the paragraph namespace's ``linesegarray`` elements sit in ``xml[start:end]``.
+
+    Walks markup tokens, so text that only looks like the element -- inside a comment, CDATA, a
+    processing instruction or an attribute value -- is never matched. A prefix resolves through the
+    ``xmlns`` declarations inside the span, then *scope* (the declarations in force at *start*), then
+    the standard ``hp`` prefix; a ``linesegarray`` of any other namespace stays, and so does one that
+    never closes. Byte input is passed decoded as Latin-1, which keeps offsets equal to byte offsets.
+    """
+
+    inherited = {**_FALLBACK_SCOPE, **(scope or {})}
+    scopes: list[dict[str, str]] = []
+    spans: list[tuple[int, int]] = []
+    cut_start: int | None = None
+    cut_depth = 0
+    for markup in _MARKUP_RE.finditer(xml, start, len(xml) if end is None else end):
+        token = markup.group(0)
+        if token.startswith(("<!", "<?")):
+            continue
+        name = _TAG_NAME_RE.match(token)
+        if name is None:
+            continue
+        if name.group(1):
+            if scopes:
+                scopes.pop()
+            if cut_start is not None and len(scopes) == cut_depth:
+                spans.append((cut_start, markup.end()))
+                cut_start = None
+            continue
+        declared = _namespace_declarations(token, name.end())
+        self_closing = token.endswith("/>")
+        prefix, _, local = name.group(2).rpartition(":")
+        if cut_start is None and local == "linesegarray":
+            uri = next((found[prefix] for found in (declared, *reversed(scopes)) if prefix in found), None)
+            if (inherited.get(prefix) if uri is None else uri) in _PARAGRAPH_NAMESPACES:
+                if self_closing:
+                    spans.append((markup.start(), markup.end()))
+                    continue
+                cut_start, cut_depth = markup.start(), len(scopes)
+        if not self_closing:
+            scopes.append(declared)
+    return spans
 
 
 def _strip_layout_caches(xml: str, changed_at: Sequence[int]) -> tuple[str, int]:
