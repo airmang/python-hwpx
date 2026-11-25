@@ -236,6 +236,27 @@
    },
    "importedModules": 95,
    "importMs": 74
+  },
+  {
+   "version": "7.0.2",
+   "commit": "8a83de24",
+   "totalLines": 114504,
+   "packages": {
+    ".": 11309,
+    "_document": 15259,
+    "equation": 2546,
+    "form_fit": 4291,
+    "hwp5": 11692,
+    "layout": 7226,
+    "objects": 3349,
+    "opc": 3671,
+    "oxml": 40663,
+    "plan": 903,
+    "quality": 1360,
+    "tools": 12235
+   },
+   "importedModules": 95,
+   "importMs": 814
   }
  ]
 }
