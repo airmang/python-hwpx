@@ -4,6 +4,37 @@
 
 ## [Unreleased]
 
+### 고침
+
+- 새 각주·미주(`doc.notes.add_footnote`/`add_endnote`, `paragraph.add_footnote`/`add_endnote`)가 구역의 번호 모양
+  (`hp:footNotePr`/`hp:endNotePr`의 `hp:autoNumFormat`)과 상관없이 늘 `1)`(숫자, 뒤 `)`, 위첨자 아님)로 번호를 적었고, 구역의 뒤
+  문자가 비어 있어도 주석에 `suffixChar="41"`을 붙였다. 한/글은 주석 안 `hp:autoNum`의 모양을 구역의 모양 그대로 적고, 주석의
+  `prefixChar`/`suffixChar`는 구역에 그 문자가 있을 때만 적는다(Hancom 저장 픽스처의 주석 140/140, 그리고 `[i` 위첨자로 번호를
+  다는 구역에 한/글 2024가 넣은 각주 — 새 픽스처 `hancom_saved/note_number_section_shape.hwpx`). 이제 그렇게 적는다. 한/글은
+  어느 쪽이든 구역의 모양으로 그리므로 화면은 같고, 파일이 한/글이 쓸 것과 같아진다. 기본 모양의 구역은 전처럼 `1)`이다.
+- `paragraph.add_picture(..., treat_as_char=False, pos_overrides=...)`가 음수 `horzOffset`/`vertOffset`을 0으로 바꿔 틀 왼쪽·위에
+  놓을 그림이 옮겨졌다. 한/글은 그런 오프셋을 부호 없는 32비트 꼴로 적고(Hancom 저장 픽스처에 118개, `flip_picture_*` 포함) 그
+  자리에 그린다(데스크톱 확인: `2**32-2000`은 0보다 2000 HWPUNIT 위). 이제 그 꼴로 적는다(`set_position`이 이미 그렇게 적었다).
+  -2147483648보다 작은 값은 `shape-position-value`로 거부한다(전에는 0이 됐다).
+- 링크(`Paragraph.add_hyperlink`, `doc.refs.add_hyperlink`, 각주·메모의 `add_hyperlink`)의 필드 시작·끝 런과 기본 링크 모양이
+  문단의 단일 글자 모양을, 런마다 모양이 다르면 0 번 모양을 따랐다. 필드 컨트롤은 줄 안에 있어서 8pt 글 문단에서 0 번(10pt)
+  컨트롤이 있으면 한/글이 그 줄을 더 높게 그린다(데스크톱 확인). 한/글은 링크의 `fieldBegin`을 링크 앞 글의 런에 둔다(새 픽스처
+  `hancom_saved/hyperlink_field_runs_word_import.hwpx`). 이제 "링크 주변 모양"은 그 앞 글(문단의 마지막 런)의 모양이다. 모양이
+  하나인 문단은 전과 같다. 빈 문단 첫머리 링크는 앞 글이 없어 전처럼 문단 모양을 쓰고(DEV-030: 뒤에 붙는 문단이 링크 모양을
+  물려받지 않게), 새 키워드 `field_char_pr_id_ref`로 컨트롤 런의 모양을 줄 수 있다(한/글은 그때 두 컨트롤을 링크 모양에 둔다).
+  없는 모양은 `style-definition-not-found`.
+
+### 추가
+
+- 번호·글머리표 머리가 글 앞에 놓이는 자리를 정할 수 있다: `doc.styles.add_numbering`의 수준 키, `doc.styles.set_numbering_level`과
+  `doc.styles.ensure_bullet`의 키워드 `auto_indent`(`autoIndent`)·`use_instance_width`(`useInstWidth`)·`text_offset`(0~32767)·
+  `text_offset_type`(`PERCENT`/`HWPUNIT`). `NumberingLevel`이 읽는 이름과 같다. 한/글은 Word 목록을 옮길 때
+  `auto_indent=False, use_instance_width=True, text_offset=110, text_offset_type="PERCENT"`로 적는다(새 픽스처
+  `hancom_saved/word_lists_import.hwpx`). 주지 않으면 전처럼 한/글의 새 목록 머리다. 맞지 않는 값은 `style-numbering-level-invalid`.
+- `section.properties.outline_shape_id_ref`에 번호 정의(`NumberingInfo`나 id)를 넣어 그 구역의 개요 번호를 정할 수 있다. 한/글은
+  Word 문서의 제목을 자기가 만든 번호 정의로 번호 매기고 구역이 그것을 가리킨다(`word_lists_import.hwpx`의
+  `outlineShapeIDRef="3"`). 없는 정의는 `style-definition-not-found`이고, 그 구역 개요 문단의 줄 배치 캐시를 지운다.
+
 ## [7.0.2] - 2026-11-25
 
 ### 고침
