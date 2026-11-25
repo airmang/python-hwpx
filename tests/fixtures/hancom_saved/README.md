@@ -109,3 +109,15 @@ inside one run (`highlight_in_one_run`), across two runs (`highlight_across_runs
 (`highlight_whole_paragraph`) and across two paragraphs (`highlight_two_paragraphs`). `tests/test_text_ranges.py`
 says what each shows. The preview image was left out and the metadata listed above emptied; every other part keeps
 Hangul's bytes.
+
+## Notes, links and pictures written by Hangul 2024 (2026-11-26)
+
+Saved by Hangul 2024 for Windows (`os="1"` in `version.xml`) through its public automation; the preview image was
+left out and the metadata listed above emptied, every other part keeps Hangul's bytes.
+
+- `note_number_section_shape.hwpx`: a synthetic document made by python-hwpx whose section numbers footnotes
+  `ROMAN_SMALL`, `[` before, nothing after, raised; Hangul inserted a footnote at the end (`InsertFootnote`) and
+  saved. The note's own number takes the section's shape (`tests/test_note_authoring_contract.py`).
+- `hyperlink_field_runs_word_import.hwpx`: a Word document of four paragraphs with links (at the start, after
+  text of two looks, alone, in 8pt text) opened and saved as HWPX by Hangul. Each `fieldBegin` sits in the run of
+  the text before it, each `fieldEnd` in the run of the link text (`tests/test_paragraph_hyperlink_style.py`).
