@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 374 | 11 |
+| 개수 | 376 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -239,8 +239,10 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `package-invalid` | 패키지(HwpxPackage)가 계약을 어겼다(까닭을 따로 가리지 않은 HwpxPackageError 기본값). |
+| `package-pack-output-inside-input` | pack_hwpx(hwpx-pack)에 준 출력 경로가 입력 폴더 안에 있거나 입력 폴더와 같다. 다음에 묶을 때 그 출력이 부품으로 들어가므로 거부한다(아무것도 쓰지 않았다). |
 | `package-structure-invalid` | HWPX 패키지 구조가 요구를 어겼다(HwpxStructureError 기본값). |
 | `package-text-replacement-key-empty` | 치환할 텍스트(키)가 비어 있다. |
+| `package-unpack-input-inside-output` | unpack_hwpx(hwpx-unpack)에 준 입력 파일이 출력 폴더 안에 있거나 출력 경로와 같다. 풀면 그 폴더를 바꿔 놓으므로 거부한다(아무것도 바꾸지 않았다). |
 | `package-xml-invalid` | 패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에). |
 
 ### `page-*`

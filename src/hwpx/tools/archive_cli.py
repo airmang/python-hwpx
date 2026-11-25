@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import tempfile
+import warnings
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -14,6 +15,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
+from ..errors import HwpxValueError
 from ..opc.package import refuse_existing_hwp_target
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
@@ -65,25 +67,101 @@ def _guard_destructive_target(path: Path) -> None:
         raise ValueError(f"refusing to overwrite current working directory: {resolved}")
 
 
-def _prepare_output_dir(output_dir: Path, *, overwrite: bool) -> None:
+def _same_or_inside(path: Path, folder: Path) -> bool:
+    """Whether *path* is *folder* itself or lies anywhere under it, once both are resolved."""
+
+    resolved = path.resolve()
+    base = folder.resolve()
+    lineage = (resolved, *resolved.parents)
+    base_key = os.path.normcase(str(base))
+    if any(os.path.normcase(str(candidate)) == base_key for candidate in lineage):
+        return True
+    if not base.exists():
+        return False
+    for candidate in lineage:
+        try:
+            if os.path.samefile(candidate, base):
+                return True
+        except OSError:  # a part of the path that does not exist yet
+            continue
+    return False
+
+
+def _check_output_dir(output_dir: Path, *, overwrite: bool) -> None:
+    """Refuse an output folder unpacking may not replace. Nothing on disk changes here."""
+
     if output_dir.exists() and not output_dir.is_dir():
         raise NotADirectoryError(f"output exists and is not a directory: {output_dir}")
-    if output_dir.exists():
-        if any(output_dir.iterdir()):
-            if not overwrite:
-                raise FileExistsError(f"output directory is not empty: {output_dir}")
-            _guard_destructive_target(output_dir)
-            shutil.rmtree(output_dir)
+    if output_dir.is_dir() and any(output_dir.iterdir()):
+        if not overwrite:
+            raise FileExistsError(f"output directory is not empty: {output_dir}")
+        _guard_destructive_target(output_dir)
+
+
+def _make_missing_dirs(folder: Path) -> list[Path]:
+    """Create *folder* and its missing parents; return the folders made, outermost first."""
+
+    missing: list[Path] = []
+    current = folder
+    while not current.exists() and current != current.parent:
+        missing.append(current)
+        current = current.parent
+    missing.reverse()
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except BaseException:
+        _remove_made_dirs(missing)
+        raise
+    return missing
+
+
+def _remove_made_dirs(made: list[Path]) -> None:
+    """Take back the folders a refused or failed call made, each only while it is empty."""
+
+    for folder in reversed(made):
+        try:
+            folder.rmdir()
+        except OSError:
+            continue
+
+
+def _move_into_place(staging: Path, target: Path) -> None:
+    """Make the folder *staging* the folder at *target*.
+
+    The folder already at *target* is set aside under another name first and removed only
+    after the new one is in; when the new one cannot move in, it is put back.
+    """
+
+    set_aside: Path | None = None
+    was_empty = False
+    if target.is_dir():
+        if any(target.iterdir()):
+            set_aside = staging.with_suffix(".unpack-old")
+            os.rename(target, set_aside)
         else:
-            output_dir.rmdir()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-
-def _prepare_output_path(output_path: Path, *, overwrite: bool) -> None:
-    refuse_existing_hwp_target(output_path)  # overwrite=True (--force) does not lift this
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    if output_path.exists() and not overwrite:
-        raise FileExistsError(f"output file already exists: {output_path}")
+            target.rmdir()
+            was_empty = True
+    try:
+        os.rename(staging, target)
+    except BaseException:
+        if set_aside is not None:
+            os.rename(set_aside, target)
+        elif was_empty:
+            target.mkdir()
+        raise
+    if set_aside is None:
+        return
+    try:
+        if set_aside.is_symlink():
+            set_aside.unlink()
+        else:
+            shutil.rmtree(set_aside)
+    except OSError as exc:
+        warnings.warn(
+            f"unpacked into {target}, but what was there before could not be removed and stays in {set_aside}: {exc}",
+            RuntimeWarning,
+            stacklevel=3,
+        )
 
 
 _MAX_INDENT_GROWTH = 8
@@ -244,21 +322,42 @@ def unpack_hwpx(
         raise FileNotFoundError(f"input file not found: {source_path}")
 
     destination = Path(output_dir)
-    _prepare_output_dir(destination, overwrite=overwrite)
+    if _same_or_inside(source_path, destination):
+        raise HwpxValueError(
+            f"input file {source_path} is at or inside the output folder {destination}, and unpacking "
+            "replaces that folder; give an output folder that does not hold the input",
+            code="package-unpack-input-inside-output",
+            context={"input": str(source_path), "output": str(destination)},
+            suggestion="Unpack into a new folder outside the one that holds the input file.",
+        )
+    _check_output_dir(destination, overwrite=overwrite)
 
+    # The whole input is unpacked into a new folder beside the output folder first. The
+    # output folder changes only after every member was read and written, so an input
+    # that does not open, or that fails partway, costs none of the folder's old contents.
+    final_dir = Path(os.path.abspath(destination))
     with ZipFile(source_path, "r") as archive:
         guard_zip_file(archive)
         entries = _iter_file_entries(archive)
-        for entry in entries:
-            data = read_member(archive, entry.path)
-            if pretty_xml and entry.path.endswith(_XML_SUFFIXES):
-                data = _format_xml_bytes(data)
-            target = destination / entry.path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
+        made = _make_missing_dirs(final_dir.parent)
+        staging = final_dir.parent / f".{final_dir.name}.{os.urandom(4).hex()}.unpack-tmp"
+        try:
+            staging.mkdir()
+            for entry in entries:
+                data = read_member(archive, entry.path)
+                if pretty_xml and entry.path.endswith(_XML_SUFFIXES):
+                    data = _format_xml_bytes(data)
+                target = staging / entry.path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+            _write_pack_metadata(staging, entries)
+            _move_into_place(staging, final_dir)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)
+            _remove_made_dirs(made)
+            raise
 
-    metadata_path = _write_pack_metadata(destination, entries)
-    return UnpackResult(output_dir=destination, metadata_path=metadata_path, entries=entries)
+    return UnpackResult(output_dir=destination, metadata_path=_metadata_path(destination), entries=entries)
 
 
 def _add_unpack_xml_format_args(parser: argparse.ArgumentParser) -> None:
@@ -295,7 +394,17 @@ def pack_hwpx(
         raise FileNotFoundError(f"input directory not found: {root}")
 
     destination = Path(output_path)
-    _prepare_output_path(destination, overwrite=overwrite)
+    if _same_or_inside(destination, root):
+        raise HwpxValueError(
+            f"output {destination} is at or inside the input folder {root}, where the next pack would "
+            "take it in as a part; give an output path outside that folder",
+            code="package-pack-output-inside-input",
+            context={"input": str(root), "output": str(destination)},
+            suggestion="Write the packed file outside the folder being packed.",
+        )
+    refuse_existing_hwp_target(destination)  # overwrite=True (--force) does not lift this
+    if destination.exists() and not overwrite:
+        raise FileExistsError(f"output file already exists: {destination}")
 
     files = _discover_files(root)
     if "mimetype" not in files:
@@ -305,10 +414,14 @@ def pack_hwpx(
     compress_types = {entry.path: entry.compress_type for entry in metadata}
     ordered_paths = _resolve_write_order(files, metadata)
 
-    fd, tmp_name = tempfile.mkstemp(dir=str(destination.parent), suffix=".hwpx.tmp")
-    os.close(fd)
-    tmp_path = Path(tmp_name)
+    # The output's folder is made only now, after every refusal above, and taken back
+    # when the pack fails: a call that writes no file leaves no folder either.
+    made = _make_missing_dirs(Path(os.path.abspath(destination)).parent)
+    tmp_path: Path | None = None
     try:
+        fd, tmp_name = tempfile.mkstemp(dir=str(destination.parent), suffix=".hwpx.tmp")
+        os.close(fd)
+        tmp_path = Path(tmp_name)
         with ZipFile(tmp_path, "w", ZIP_DEFLATED) as archive:
             archive.write(root / "mimetype", "mimetype", compress_type=ZIP_STORED)
             for rel_path in ordered_paths:
@@ -326,10 +439,12 @@ def pack_hwpx(
         open_safety = _summarize_pack_validation(tmp_path)
         os.replace(tmp_path, destination)
     except BaseException:
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        _remove_made_dirs(made)
         raise
 
     return PackResult(
