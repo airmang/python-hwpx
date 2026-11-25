@@ -213,8 +213,8 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 1. **정적 선검증** — 파일을 열지 않고 스키마·op 어휘·인자 형상을 fail-closed로
    검증한다(미지 필드 즉시 거부).
 2. **인메모리 체이닝** — 각 op를 `output_path` 없이 바이트→바이트로 연결한다.
-   개별 op가 게이트 실패에도 파일을 쓰는 동작(`publish="always"`)을 실행기가
-   쓰기 소유로 차단한다.
+   개별 op가 skip이 있어도 파일을 쓰는 동작을 실행기가 쓰기 소유로 차단한다
+   (열기 안전 검사에 떨어진 결과는 개별 op도 쓰지 않는다).
 3. **원자 쓰기** — 전 step 성공 + 최종 open-safety 검증 통과 후 단 한 번의
    `os.replace`로만 output을 쓴다. **그 전 어떤 실패에서도 output과 source는
    바이트 불변이다**(테스트가 바이트 비교로 증명).

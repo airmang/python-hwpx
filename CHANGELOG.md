@@ -36,6 +36,14 @@
   안에서는 격자를 한 번, 칸마다 글꼴·문단 설정을 한 번만 읽고, 열 격자(`grid_widths_of`)는 칸을 한 번만 훑는다. 호출 사이에는
   아무것도 남기지 않으므로 고친 표는 다음 호출이 전처럼 다시 읽는다. 저장소의 `.hwpx` 1,352건(표 5,164개, 칸 30,229개)에서
   모든 칸의 결과가 바이트까지 같고, 6열 합성 표(3회 중앙값)에서 칸 하나에 40행 32.1 → 9.7 ms, 10행 16.2 → 6.6 ms다.
+- 문서를 바이트로 고치는 길(`paragraph_patch`, `fill_cells`, `apply_table_ops`, `apply_body_ops`, `recolor_runs_by_color`,
+  `strip_runs_by_color`, `strip_trailing_table_captions`)이 열기 안전 검사에 떨어진 결과도 `output_path`에 썼다(#826). 원본에
+  바로 쓰면 원본이 한/글이 열기를 거부하는 파일이 됐다(여러 문단에 걸친 누름틀의 시작 문단을 `delete_paragraph`로 지운 경우
+  등). 같은 편집을 `doc.save`와 `apply_edit_plan`은 거부한다. 이제 이 길도 검사에 떨어지면 쓰지 않는다: 대상 파일의 바이트는
+  그대로이고 새 파일도 임시 파일도 남지 않으며, 결과는 `ok=False`, `open_safety["code"] == "open-safety-failed"`와 검사
+  요약을 준다(`replace_package_text`·`normalize_package_namespaces`와 같다). 이미 열기 안전 검사에 떨어지는 원본에 대한
+  패치도 같은 까닭으로 쓰지 않는다(`hwpx-repair`나 `doc.save`로 먼저 고친다). 거부된 op가 섞여도 나머지를 쓰는 것과, 쓰지
+  않은 바이트를 결과의 `data`로 돌려주는 것은 그대로다.
 
 ## [7.0.1] - 2026-11-22
 

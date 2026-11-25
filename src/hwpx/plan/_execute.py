@@ -7,8 +7,8 @@
 유일한 쓰기 표면이며, 문서 파일이 아니다).
 
 각 step은 기존 op를 ``output_path=None``으로 호출한다 — 바이트-스플라이스
-계열의 ``publish="always"`` 함정(게이트 실패·전 op 스킵이어도 파일을 쓰는 동작,
-patch.py) 때문에 쓰기는 실행기가 소유한다.
+계열은 skip이 있어도(전 op 스킵 포함) 파일을 쓰므로(patch.py; 열기 안전 검사에
+떨어진 결과만 쓰지 않는다) 쓰기는 실행기가 소유한다.
 """
 
 from __future__ import annotations

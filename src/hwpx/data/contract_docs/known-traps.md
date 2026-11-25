@@ -7,12 +7,14 @@
 
 ## 편집·저장
 
-- **바이트-스플라이스 op의 `output_path`는 게이트 실패에도 쓴다.**
+- **바이트-스플라이스 op의 `output_path`는 skip이 있어도 쓴다.**
   `paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops` 계열은
-  결과가 skip·불안전이어도 `output_path`를 주면 파일을 쓴다(전 op 스킵 시
-  원본 바이트 그대로 기록). 합성 실행이 필요하면 `output_path` 없이 부르고
-  쓰기를 직접 소유하거나, 처음부터 `hwpx.plan.apply_edit_plan`(all-or-nothing
-  원자 실행)을 쓰라.
+  결과에 skip이 있어도 `output_path`를 주면 파일을 쓴다(전 op 스킵 시
+  원본 바이트 그대로 기록). 결과가 열기 안전 검사에 떨어지면 쓰지 않는다:
+  대상 파일은 그대로이고 `open_safety`의 `ok`가 `False`, `code`가
+  `open-safety-failed`다(7.0.1까지는 그 결과도 썼다). 합성 실행이 필요하면
+  `output_path` 없이 부르고 쓰기를 직접 소유하거나, 처음부터
+  `hwpx.plan.apply_edit_plan`(all-or-nothing 원자 실행)을 쓰라.
 - **결과 `ok`는 "스킵 0 + open-safety 통과"다.** 스킵은 부분 적용이 아니라
   "그 항목은 건드리지 않았다"는 뜻이다 — `ok=False`인데 산출물을 채택하면
   무음 부분 적용이 된다.
