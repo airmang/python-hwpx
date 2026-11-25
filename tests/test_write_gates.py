@@ -420,6 +420,51 @@ def test_a_new_hwp_name_is_still_written(tmp_path: Path) -> None:
     assert stream.getvalue()[:8] == bytes.fromhex("d0cf11e0a1b11ae1")
 
 
+def test_an_empty_placeholder_named_hwp_is_not_a_document_to_protect(tmp_path: Path) -> None:
+    """A caller that publishes atomically makes an empty file first (``tempfile.mkstemp``) and saves to it.
+
+    python-hwpx-automation saves this way, so refusing the placeholder refused every new ``.hwp``.
+    A file with no bytes holds no document; one with any byte is still never written over.
+    """
+
+    import tempfile
+
+    descriptor, name = tempfile.mkstemp(prefix=".new.", suffix=".hwp", dir=str(tmp_path))
+    os.close(descriptor)
+    placeholder = Path(name)
+    assert placeholder.stat().st_size == 0
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        document = HwpxDocument.open(_base())
+        document.save(placeholder)
+        document.close()
+    assert placeholder.read_bytes()[:8] == bytes.fromhex("d0cf11e0a1b11ae1")
+
+    # now it holds a document: the same call is refused and the file stays
+    written = placeholder.read_bytes()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        document = HwpxDocument.open(_base())
+        with pytest.raises(Hwp5Error) as refused:
+            document.save(placeholder)
+        document.close()
+    assert refused.value.code == "hwp5-overwrite-existing"
+    assert placeholder.read_bytes() == written
+
+    one_byte = tmp_path / "one-byte.hwp"
+    one_byte.write_bytes(b"x")
+    with pytest.raises(Hwp5Error):
+        write_bytes_atomically(one_byte, _base())
+    assert one_byte.read_bytes() == b"x"
+
+    empty = tmp_path / "empty.hwp"
+    empty.write_bytes(b"")
+    data = _base()
+    write_bytes_atomically(empty, data)
+    assert empty.read_bytes() == data
+
+
 def test_an_existing_hwpx_is_written_over_as_before(tmp_path: Path) -> None:
     target = tmp_path / "doc.hwpx"
     target.write_bytes(_base())
