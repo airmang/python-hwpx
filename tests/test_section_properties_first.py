@@ -16,7 +16,6 @@ import zipfile
 import pytest
 
 from hwpx import HwpxDocument
-from hwpx.errors import HwpxError
 from hwpx.tools.document_merge import append_document, insert_document
 from hwpx.tools.package_validator import validate_editor_open_safety, validate_package
 from hwpx.tools.repair import repair_repack
@@ -133,12 +132,51 @@ def _second_paragraph_shape() -> bytes:
     return doc
 
 
-def test_the_save_refuses_settings_in_a_later_paragraph() -> None:
+def test_the_save_moves_settings_from_a_later_paragraph_and_warns() -> None:
     doc = _second_paragraph_shape()
-    with pytest.raises(HwpxError) as refused:
-        doc.to_bytes()
-    assert refused.value.code == "section-properties-not-first"
-    assert refused.value.context == {"section": 0, "paragraph": 1}
+    with pytest.warns(UserWarning, match="section-properties-not-first"):
+        data = doc.to_bytes()
+    again = HwpxDocument.open(data)
+    _settings_in_first_run(again)
+    assert again.sections[0].properties.page_margins.left == LEFT
+    assert again.sections[0].properties.page_margins.top == TOP
+    assert again.sections[0].element.find(f".//{_HP}linesegarray") is None
+    assert [paragraph.text for paragraph in again.paragraphs[:3]] == ["하나", "둘", "셋"]
+
+
+def test_a_file_6x_made_with_insert_paragraphs_at_the_front_saves_again(tmp_path) -> None:
+    """6.x's ``insert_paragraphs(0, ...)`` left the settings in the old first paragraph; 7.0.0
+    refused to save such a file even unchanged."""
+
+    from lxml import etree
+
+    good = _doc().to_bytes()
+    with zipfile.ZipFile(io.BytesIO(good)) as archive:
+        parts = {name: archive.read(name) for name in archive.namelist()}
+        infos = {info.filename: info for info in archive.infolist()}
+    root = etree.fromstring(parts["Contents/section0.xml"])
+    first = root.find(f"{_HP}p")
+    copy = etree.fromstring(etree.tostring(first))
+    for run in copy.findall(f"{_HP}run"):
+        for child in list(run):
+            if etree.QName(child).localname in {"secPr", "ctrl"}:
+                run.remove(child)
+    copy.set("id", "123")
+    root.insert(0, copy)
+    parts["Contents/section0.xml"] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    made = tmp_path / "made-by-6x.hwpx"
+    with zipfile.ZipFile(made, "w") as archive:
+        for name, payload in parts.items():
+            archive.writestr(infos[name], payload)
+
+    doc = HwpxDocument.open(made)
+    out = tmp_path / "saved.hwpx"
+    with pytest.warns(UserWarning, match="section-properties-not-first"):
+        doc.save(out)
+    assert validate_editor_open_safety(out).ok
+    again = HwpxDocument.open(out)
+    _settings_in_first_run(again)
+    assert again.sections[0].properties.page_margins.left == LEFT
 
 
 def test_the_open_safety_check_reports_the_shape(tmp_path) -> None:
