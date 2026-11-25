@@ -19,6 +19,9 @@
   든 각주를 빼고 계산하면서 `unsupported=()`로 답했다(#628). 그 각주가 한/글에서 어느 쪽에 놓이는지는 재지 않았으므로, 이제
   그 구역은 `"footnotes in a paragraph whose flowing table goes on to another page"`를 까닭으로 들고 지원하지 않는다고 답한다
   (`pages=None`). 표가 시작한 쪽에서 끝나는 경우는 전처럼 각주를 그 쪽 아래에 놓는다.
+- `doc.fields.fill`이 글도 수도 아닌 값(목록·dict·튜플·바이트·`True` 등)을 `str()`로 바꿔 `['a', 'b']`처럼 파이썬 표기를
+  양식에 써 넣었다(#811). 이제 `None`처럼 문서를 건드리기 전에 `HwpxTypeError`(`hwpx-type-error`, 고치는 법을 담은
+  `suggestion`)로 거절한다. 글과 수(`int`·`float`·`Decimal` 등)는 전처럼 쓴다.
 
 ## [7.0.1] - 2026-11-22
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import numbers
 import re
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence, cast
@@ -1691,6 +1692,12 @@ def fill_form_field(
     if value is None:  # str(None) would put the word "None" in the form
         raise argument_type_error(
             "value", value, "str", suggestion='To empty the field pass "": doc.fields.fill("", name=...).'
+        )
+    if not isinstance(value, (str, numbers.Number)) or isinstance(value, bool):
+        # str() of a list, a dict or True puts Python's spelling of it in the form (#811); a number keeps its digits
+        raise argument_type_error(
+            "value", value, "str or a number",
+            suggestion="Pass the text the field should show, e.g. \", \".join(items) for a list.",
         )
     match = _pick_form_field(doc, index=index, field_id=field_id, name=name)
     if match is None:
