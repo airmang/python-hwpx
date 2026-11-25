@@ -38,7 +38,7 @@ from .dutmal_compose import (
     paragraph_composed_characters,
     paragraph_rubies,
 )
-from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters
+from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_field_shapes, hyperlink_parameters
 from .field_marks import (
     field_type_id,
     _paragraph_add_date_field,
@@ -1219,18 +1219,14 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             suggestion="Pass a web address, a mailto: address or #bookmark.",
         )
         _require_text(display_text)
-        if field_char_pr_id_ref is not None:
-            field_char_pr_id_ref = _existing_char_shape(self, field_char_pr_id_ref)
+        surrounding, field_shape = hyperlink_field_shapes(self, field_char_pr_id_ref)
         field_id = _object_id(self.section._ids)
 
         # 실한컴 gold 관례: 링크 서식(charPr)은 표시 텍스트 런에만 싣고
         # fieldBegin/fieldEnd 런은 주변 서식을 유지한다 — 뒤에 추가되는
         # 문단이 링크 서식을 상속(파랑 전염)하지 않게 하는 조건이기도 하다.
         # 주변 서식은 링크 앞 글(마지막 런)의 것이다: 한/글은 fieldBegin 을 그 런에 둔다. 런마다 서식이
-        # 다른 문단에서 0 번(10pt)을 쓰면 작은 글의 줄이 높아졌다.
-        runs = self._run_elements()
-        surrounding = (runs[-1].get("charPrIDRef") if runs else None) or self.char_pr_id_ref or "0"
-        field_shape = surrounding if field_char_pr_id_ref is None else field_char_pr_id_ref
+        # 다른 문단에서 0 번(10pt)을 쓰면 작은 글의 줄이 높아졌다(hyperlink_field_shapes).
         run1 = self._create_run_for_object(char_pr_id_ref=field_shape)
         ctrl1 = _append_child(run1, f"{_HP}ctrl", {})
         fb_attrs: dict[str, str] = {
@@ -1991,26 +1987,5 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             # this paragraph no longer holds.
             _clear_paragraph_layout_cache(self.element)
             self.section.mark_dirty()
-
-def _existing_char_shape(paragraph: "HwpxOxmlParagraph", char_pr_id_ref: str | int) -> str:
-    """*char_pr_id_ref* as the id of a character shape the paragraph's document defines, else
-    ``style-definition-not-found``."""
-
-    from .formatting import find_definition
-
-    document = getattr(paragraph.section, "document", None)
-    headers = getattr(document, "headers", None) or []
-    found = find_definition(headers[0], "charPr", char_pr_id_ref) if headers else None  # type: ignore[arg-type]
-    if found is None:
-        from ..errors import HwpxLookupError
-
-        raise HwpxLookupError(
-            f"the header has no charPr with id {char_pr_id_ref!r}",
-            code="style-definition-not-found",
-            context={"kind": "charPr", "id": str(char_pr_id_ref)},
-            suggestion="Make the shape with doc.styles.ensure_run(...) and pass its id.",
-        )
-    return str(found.get("id"))
-
 
 __all__ = ["HwpxOxmlParagraph"]

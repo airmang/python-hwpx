@@ -14,7 +14,6 @@ from ._document_primitives import (
     _append_child,
     _apply_optional_attrs,
     _apply_optional_bool_attrs,
-    _clear_paragraph_layout_cache,
     _bool_str,
     _get_bool_attr,
     _get_int_attr,
@@ -639,7 +638,9 @@ class HwpxOxmlSectionProperties:
 
         from ..errors import argument_type_error
         from .formatting import _header_of
-        from .numbering_kinds import _definition_id, _definition_not_found, _find_head_definition, _normalized_id
+        from .numbering_kinds import (
+            _definition_id, _definition_not_found, _find_head_definition, _normalized_id, clear_outline_paragraphs,
+        )
 
         if value is None or isinstance(value, bool) or not (
             isinstance(value, (int, str)) or hasattr(value, "raw_id") or hasattr(value, "id")
@@ -654,26 +655,8 @@ class HwpxOxmlSectionProperties:
         if _normalized_id(self.element.get("outlineShapeIDRef") or "") == _normalized_id(identifier):
             return
         self.element.set("outlineShapeIDRef", identifier)
-        self._clear_outline_paragraphs(header)
+        clear_outline_paragraphs(header, self.section)
         self.section.mark_dirty()
-
-    def _clear_outline_paragraphs(self, header: Any) -> None:
-        """Drop the line layout cache of this section's outline paragraphs: their number changed."""
-
-        from .numbering_kinds import _normalized_id
-        from .paragraph_heading import paragraph_heading
-
-        container = header._para_properties_element()
-        outlined = {
-            _normalized_id(para_pr.get("id") or "")
-            for para_pr in ([] if container is None else list(container))
-            if (heading := paragraph_heading(para_pr)) is not None and heading.get("type") == "OUTLINE"
-        }
-        if not outlined:
-            return
-        for paragraph in self.section.element.iter(f"{_HP}p"):
-            if _normalized_id(paragraph.get("paraPrIDRef") or "") in outlined:
-                _clear_paragraph_layout_cache(paragraph)
 
     @property
     def memo_shape_id_ref(self) -> str | None:

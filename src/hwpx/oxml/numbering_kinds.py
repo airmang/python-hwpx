@@ -593,6 +593,23 @@ def set_numbering_level(
         _clear_numbered_paragraphs(document, header, str(element.get("id")))
 
 
+def clear_outline_paragraphs(header: "HwpxOxmlHeader", section: Any) -> None:
+    """Drop the line layout cache of *section*'s outline paragraphs: the numbering they draw changed."""
+
+    from ._document_primitives import _clear_paragraph_layout_cache
+    from .paragraph_heading import paragraph_heading
+
+    container = header._para_properties_element()
+    outlined = {
+        _normalized_id(para_pr.get("id") or "")
+        for para_pr in ([] if container is None else list(container))
+        if (heading := paragraph_heading(para_pr)) is not None and heading.get("type") == "OUTLINE"
+    }
+    for paragraph in section.element.iter(f"{HP}p") if outlined else ():
+        if _normalized_id(paragraph.get("paraPrIDRef") or "") in outlined:
+            _clear_paragraph_layout_cache(paragraph)
+
+
 def _clear_numbered_paragraphs(document: "HwpxOxmlDocument", header: "HwpxOxmlHeader", numbering_id: str) -> None:
     """Drop the line layout cache of every paragraph that draws a number from *numbering_id*:
     its numbered paragraphs, and the outline paragraphs when a section numbers its outline
