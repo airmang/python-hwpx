@@ -182,7 +182,8 @@ other objects in its paragraph (but objects set as characters, with line spacing
 fixed, one top-and-bottom object placed from the paragraph's top, several so in an empty paragraph
 (but in columns, or a picture or drawing past the page's foot), and one object wrapped square
 across the column before any text; an object offset down, but a flowing table, or wrapped square
-stays on one page with the lines above or beside it), footnotes in such a paragraph, two tables
+stays on one page with the lines above or beside it), footnotes in such a paragraph or in one whose
+table flowing with the text goes on to another page (in its cells or not), two tables
 starting past their
 anchors on one page, rows merged together that do not fit under their table's anchor, or on a
 page in a table moved row by row (split between cell lines: a cell no line of which fits a page),
@@ -1683,7 +1684,9 @@ class _Paginator:
                 table, self.frame + 1, _repeated_header(table) + table.margins[0], self.body)):  # it goes on to
             below = max(bottom for _, bottom in self.bands[self.frame + 1])  # the next page whole: below the
             frame, end = _flow_table(table, self.frame + 1, below + table.above, self.body)  # object there
-        if para.notes and frame == self.frame:
+        if para.notes and frame != self.frame:  # not measured: Hancom's page for them is not known (#628)
+            raise _Unsupported("footnotes in a paragraph whose flowing table goes on to another page")
+        if para.notes:
             height = self.page_notes[0] + sum(note[0] for note in para.notes.values())
             many = self.page_notes[1] + sum(note[1] for note in para.notes.values())
             if end > self.body - self.notes.area(height, many):
