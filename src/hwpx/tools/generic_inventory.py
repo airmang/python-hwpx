@@ -111,7 +111,15 @@ def top_entries(inventory: dict[str, dict[str, Any]], *, limit: int = 10) -> lis
 def write_inventory(corpus_dir: str | Path, output: str | Path, *, limit: int = 20) -> dict[str, Any]:
     """Scan *corpus_dir* and write a JSON report to *output*."""
 
+    from hwpx.tools.archive_cli import _refuse_output_over_document
+
     root = Path(corpus_dir)
+    output_path = Path(output)
+    # Before the scan: the report does not go over a document it reads (or the corpus manifest),
+    # nor over an .hwp file that is already there.
+    _refuse_output_over_document(
+        output_path, root / "manifest.json", *(root / sample for sample in _manifest_samples(root))
+    )
     inventory = scan_corpus(root)
     payload = {
         "corpus_dir": str(root),
@@ -129,7 +137,6 @@ def write_inventory(corpus_dir: str | Path, output: str | Path, *, limit: int = 
             )
         },
     }
-    output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), "utf-8")
     return payload
@@ -148,7 +155,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=20)
     args = parser.parse_args(argv)
 
-    payload = write_inventory(args.corpus_dir, args.output, limit=args.limit)
+    from hwpx.errors import HwpxError
+    from hwpx.tools.archive_cli import _OUTPUT_REFUSAL_CODES, _error_line
+
+    try:
+        payload = write_inventory(args.corpus_dir, args.output, limit=args.limit)
+    except HwpxError as exc:
+        if exc.code not in _OUTPUT_REFUSAL_CODES:
+            raise
+        print(f"ERROR: {_error_line(exc)}")
+        return 1
     for row in payload["top"]:
         print(f"{row['tag']}\t{row['count']}\t{row['documents']}")
     return 0

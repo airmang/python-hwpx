@@ -727,6 +727,7 @@ ERROR_CODES: dict[str, str] = {
     "package-xml-invalid": "패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에).",
     "package-unpack-input-inside-output": "unpack_hwpx(hwpx-unpack)에 준 입력 파일이 출력 폴더 안에 있거나 출력 경로와 같다. 풀면 그 폴더를 바꿔 놓으므로 거부한다(아무것도 바꾸지 않았다).",
     "package-pack-output-inside-input": "pack_hwpx(hwpx-pack)에 준 출력 경로가 입력 폴더 안에 있거나 입력 폴더와 같다. 다음에 묶을 때 그 출력이 부품으로 들어가므로 거부한다(아무것도 쓰지 않았다).",
+    "package-output-is-input": "명령줄 도구가 글·JSON·XML을 쓰려는 출력 경로가 입력 문서와 같은 파일이다(다른 철자·대소문자·링크로 적어도 파일 시스템이 푸는 대로 본다). 쓰면 문서가 그 글로 바뀌므로 거부한다(아무것도 쓰지 않았다). 다른 출력 경로를 준다.",
     "open-empty-file": "연 파일이 비어 있다(0바이트). HwpxArchiveError 에 실린다.",
     "open-not-hwpx": "연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서).",
     "open-not-hwp": "확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다.",

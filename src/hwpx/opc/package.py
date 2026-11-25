@@ -433,6 +433,32 @@ def refuse_existing_hwp_target(path: "str | os.PathLike[str]") -> None:
     )
 
 
+def names_same_file(first: "str | os.PathLike[str]", second: "str | os.PathLike[str]") -> bool:
+    """Whether the two paths name one file, as the file system resolves them.
+
+    Asked before something that is not the document (extracted text, a JSON summary, a journal) is
+    written to a path given next to a document's: written there, it would replace or damage the
+    document. Another spelling of the same file counts (a relative path, ``..``, and where the file
+    system says so upper case, a trailing dot or space, a short 8.3 name, a link to it). A path that
+    names no file yet is compared by where the file would be made, so an output that is still to be
+    written is matched too.
+    """
+
+    one = os.path.abspath(os.fsdecode(os.fspath(first)))
+    other = os.path.abspath(os.fsdecode(os.fspath(second)))
+    if os.path.normcase(one) == os.path.normcase(other):
+        return True
+    try:
+        if os.path.normcase(os.path.realpath(one)) == os.path.normcase(os.path.realpath(other)):
+            return True
+    except (OSError, ValueError):
+        pass
+    try:
+        return os.path.samefile(one, other)
+    except (OSError, ValueError):  # one of them is not there: nothing more to compare
+        return False
+
+
 def duplicate_entry_names(infos: Iterable[ZipInfo]) -> list[str]:
     """The file names (directory entries aside) that *infos* list more than once, sorted."""
 
