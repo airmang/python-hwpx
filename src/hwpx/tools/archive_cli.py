@@ -16,6 +16,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
 from ..errors import HwpxValueError
+from ..opc.package import refuse_existing_hwp_target
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import validate_editor_open_safety, validate_package
@@ -401,6 +402,7 @@ def pack_hwpx(
             context={"input": str(root), "output": str(destination)},
             suggestion="Write the packed file outside the folder being packed.",
         )
+    refuse_existing_hwp_target(destination)  # overwrite=True (--force) does not lift this
     if destination.exists() and not overwrite:
         raise FileExistsError(f"output file already exists: {destination}")
 

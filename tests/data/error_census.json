@@ -1,13 +1,13 @@
 {
  "codes": {
   "body-op-nested-paragraph": [
-   "body_patch.py:409",
-   "body_patch.py:553"
+   "body_patch.py:410",
+   "body_patch.py:554"
   ],
   "body-op-section-settings": [
-   "body_patch.py:374",
-   "body_patch.py:403",
-   "body_patch.py:449"
+   "body_patch.py:375",
+   "body_patch.py:404",
+   "body_patch.py:450"
   ],
   "cell-border-edit-unsupported": [
    "oxml/table.py:171",
@@ -74,7 +74,7 @@
    "oxml/settings.py:135"
   ],
   "document-validation-failed": [
-   "_document/persistence.py:313"
+   "_document/persistence.py:367"
   ],
   "document-version-root-invalid": [
    "oxml/version_part.py:52"
@@ -192,7 +192,7 @@
    "_document/ns/tables.py:107",
    "_document/ns/text.py:399",
    "_document/ns/text.py:97",
-   "_document/persistence.py:103",
+   "_document/persistence.py:106",
    "_document/shapes.py:539",
    "_document/shapes.py:715",
    "_document/text_blocks.py:334",
@@ -224,7 +224,7 @@
    "oxml/master_page_authoring.py:172"
   ],
   "master-page-unlinked": [
-   "_document/persistence.py:218"
+   "_document/persistence.py:221"
   ],
   "media-image-invalid": [
    "_document/media.py:132",
@@ -268,7 +268,7 @@
    "oxml/section_format.py:655"
   ],
   "note-memo-unanchored": [
-   "_document/persistence.py:252"
+   "_document/persistence.py:255"
   ],
   "note-move-into-itself": [
    "oxml/text_ranges.py:1436"
@@ -277,20 +277,20 @@
    "oxml/text_ranges.py:1364"
   ],
   "open-invalid-type": [
-   "opc/package.py:918"
+   "opc/package.py:960"
   ],
   "open-safety-failed": [
-   "_document/persistence.py:341",
-   "opc/package.py:2065"
+   "_document/persistence.py:395",
+   "opc/package.py:2111"
   ],
   "package-pack-output-inside-input": [
-   "tools/archive_cli.py:397"
+   "tools/archive_cli.py:398"
   ],
   "package-text-replacement-key-empty": [
-   "patch.py:1037"
+   "patch.py:1057"
   ],
   "package-unpack-input-inside-output": [
-   "tools/archive_cli.py:325"
+   "tools/archive_cli.py:326"
   ],
   "page-argument-conflict": [
    "_document/layout.py:1125",
@@ -522,27 +522,27 @@
    "objects/form_field.py:734"
   ],
   "save-archive-content-mismatch": [
-   "opc/package.py:2046"
+   "opc/package.py:2092"
   ],
   "save-duplicate-entry-names": [
    "opc/package.py:373"
   ],
   "save-format-unsupported": [
-   "_document/persistence.py:755"
+   "_document/persistence.py:889"
   ],
   "save-mode-invalid": [
-   "_document/persistence.py:121",
-   "_document/persistence.py:128"
+   "_document/persistence.py:124",
+   "_document/persistence.py:131"
   ],
   "save-package-contract-violated": [
-   "_document/persistence.py:461",
-   "_document/persistence.py:838"
+   "_document/persistence.py:515",
+   "_document/persistence.py:976"
   ],
   "save-pipeline-invalid-type": [
-   "_document/persistence.py:623"
+   "_document/persistence.py:690"
   ],
   "save-target-invalid-type": [
-   "_document/persistence.py:561"
+   "_document/persistence.py:628"
   ],
   "section-clear-control-content": [
    "oxml/section.py:447",
@@ -1042,7 +1042,7 @@
  },
  "malformedCodes": [],
  "observed": {
-  "other": 535,
+  "other": 537,
   "typed": 531,
   "untyped": 161,
   "untypedByFile": {

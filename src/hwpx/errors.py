@@ -268,9 +268,10 @@ class Hwp5Error(HwpxError, ValueError):
     file header), ``hwp5-version-unsupported``, ``hwp5-limit-exceeded`` (the
     input exceeds a parsing limit), ``hwp5-write-unsupported`` (the document
     holds content the HWP 5.0 writer cannot express), ``hwp5-overwrite-source``
-    (an ``.hwp`` save aimed at the file the document was opened from) and
-    ``hwp5-write-lossy-source`` (an ``.hwp`` save of a document that opened with
-    content left out).
+    (a save, in either format, aimed at the ``.hwp`` file the document was opened
+    from), ``hwp5-overwrite-existing`` (any write aimed at an ``.hwp`` file that is
+    already there) and ``hwp5-write-lossy-source`` (an ``.hwp`` save of a document
+    that opened with content left out).
     """
 
     default_code = "hwp5-damaged"
@@ -745,8 +746,9 @@ ERROR_CODES: dict[str, str] = {
     "hwp5-not-hwp5": "복합 파일이지만 HWP 5.0 FileHeader가 없다.",
     "hwp5-version-unsupported": "FileHeader의 주 버전이 5가 아니다.",
     "hwp5-limit-exceeded": "HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다.",
-    "hwp5-write-unsupported": "HWP 5.0 작성기가 표현할 수 없는 내용이다.",
-    "hwp5-overwrite-source": "문서를 연 원본 .hwp 경로에 .hwp로 덮어쓰려 했다.",
+    "hwp5-write-unsupported": "HWP 5.0 작성기가 표현할 수 없는 내용이다. 만든 파일이 이 엔진의 .hwp 리더로 다시 읽히지 않을 때도 이 코드다(context.reason 이 written-file-unreadable). 아무것도 쓰지 않는다.",
+    "hwp5-overwrite-source": "문서를 연 원본 .hwp 경로에 저장하려 했다(쓰는 형식과 상관없이 거부한다).",
+    "hwp5-overwrite-existing": "이미 있는 .hwp 파일에 쓰려 했다. 형식·길(저장, 바이트 패치, 편집 계획, hwpx-repair·hwpx-pack의 --force)과 상관없이 거부하고 그 파일은 그대로다. 새 .hwp 이름이나 .hwpx로 쓴다.",
     "hwp5-write-lossy-source": "열 때 옮기지 못한 내용이 있는 문서를 .hwp로 쓰려 했다.",
     # -- 수식·복구·차례 (기존 builtin 부모를 유지한 채 편입) ---------------
     # 7.0: equation-mathml-unavailable·ingest-failed·ingest-format-unsupported·

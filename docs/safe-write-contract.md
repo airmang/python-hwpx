@@ -181,6 +181,10 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 - `outputReadBack` — 저장한 스트림이 읽기를 거부해 쓴 내용을 다시 읽어 확인하지 못했을 때만
   있는 키(값 `false`, 이때 `wholePackageIdentical`도 거짓). 끝 위치만 확인했다는 뜻이다.
 
+`.hwp`(HWP 5.0)로 쓴 저장에는 보존 수치가 해당하지 않는다. 그 파일은 ZIP이 아니라서 지킬 파트도
+ZIP 기록도 없다: 두 수치는 `0/0`, `wholePackageIdentical`은 거짓, `zipRecordsRewritten`은
+`"hwp5-output"`이다.
+
 ### 검증 4항목 (`verification`)
 
 각 항목은 `"passed"` / `"failed"` / `"not_performed"` 세 값만 가진다.
@@ -192,6 +196,12 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 - `visual` — 실한컴 렌더 비교 결과(오라클이 붙었을 때만 `passed`/`failed`)
 
 `report.ok`는 위 네 항목 중 `"failed"`가 하나도 없을 때 참이다.
+
+`.hwp`(HWP 5.0)로 쓴 저장에서는 네 항목이 쓴 HWP 5.0 파일을 말한다. 쓰기 전에 그 바이트를 엔진의
+`.hwp` 리더로 다시 읽으므로(읽히지 않으면 `Hwp5Error`(`hwp5-write-unsupported`)로 거부하고 아무것도 쓰지
+않는다) `package`와 `reopen`은 `"passed"`이고, HWP 5.0 파일에 대한 열기 안전 검사와 렌더는 없으므로
+`openSafety`와 `visual`은 `"not_performed"`다. 그 파일을 만든 HWPX에 대해 돈 검사는
+`report.editor_open_safety`와 `report.quality`에 있다.
 
 ## `PreservationDowngradeError`
 
@@ -213,8 +223,8 @@ revision·session 제어는 automation workflow를 사용한다. 응답은 요�
 1. **정적 선검증** — 파일을 열지 않고 스키마·op 어휘·인자 형상을 fail-closed로
    검증한다(미지 필드 즉시 거부).
 2. **인메모리 체이닝** — 각 op를 `output_path` 없이 바이트→바이트로 연결한다.
-   개별 op가 게이트 실패에도 파일을 쓰는 동작(`publish="always"`)을 실행기가
-   쓰기 소유로 차단한다.
+   개별 op가 skip이 있어도 파일을 쓰는 동작을 실행기가 쓰기 소유로 차단한다
+   (열기 안전 검사에 떨어진 결과는 개별 op도 쓰지 않는다).
 3. **원자 쓰기** — 전 step 성공 + 최종 open-safety 검증 통과 후 단 한 번의
    `os.replace`로만 output을 쓴다. **그 전 어떤 실패에서도 output과 source는
    바이트 불변이다**(테스트가 바이트 비교로 증명).

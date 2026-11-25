@@ -47,6 +47,7 @@ from .report import (
     VisualCompleteReport,
     VisualCompleteStatus,
 )
+from ..opc.package import refuse_existing_hwp_target
 from ..opc.security import guard_zip_file, is_known_well_formed, open_archive, parse_xml_stdlib, read_member
 
 PublishMode = Literal["on_pass", "always", "never"]
@@ -66,8 +67,13 @@ STREAM_NOT_READ_BACK = (
 # The single atomic writer (moved here so the pipeline is the sole writer).
 # --------------------------------------------------------------------------- #
 def write_bytes_atomically(path: str | PathLike[str], data: bytes) -> None:
-    """Write *data* to *path* via a temp file + ``os.replace`` (crash-safe)."""
+    """Write *data* to *path* via a temp file + ``os.replace`` (crash-safe).
 
+    An ``.hwp`` file that is already at *path* is not written over
+    (:func:`hwpx.opc.package.refuse_existing_hwp_target`, ``hwp5-overwrite-existing``).
+    """
+
+    refuse_existing_hwp_target(path)
     target = Path(path)
     fd, tmp_path = tempfile.mkstemp(dir=str(target.parent), suffix=".hwpx.tmp")
     try:

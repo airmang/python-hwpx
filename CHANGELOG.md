@@ -43,6 +43,42 @@
   안에서는 격자를 한 번, 칸마다 글꼴·문단 설정을 한 번만 읽고, 열 격자(`grid_widths_of`)는 칸을 한 번만 훑는다. 호출 사이에는
   아무것도 남기지 않으므로 고친 표는 다음 호출이 전처럼 다시 읽는다. 저장소의 `.hwpx` 1,352건(표 5,164개, 칸 30,229개)에서
   모든 칸의 결과가 바이트까지 같고, 6열 합성 표(3회 중앙값)에서 칸 하나에 40행 32.1 → 9.7 ms, 10행 16.2 → 6.6 ms다.
+- 문서를 바이트로 고치는 길(`paragraph_patch`, `fill_cells`, `apply_table_ops`, `apply_body_ops`, `recolor_runs_by_color`,
+  `strip_runs_by_color`, `strip_trailing_table_captions`)이 열기 안전 검사에 떨어진 결과도 `output_path`에 썼다(#826). 원본에
+  바로 쓰면 원본이 한/글이 열기를 거부하는 파일이 됐다(여러 문단에 걸친 누름틀의 시작 문단을 `delete_paragraph`로 지운 경우
+  등). 같은 편집을 `doc.save`와 `apply_edit_plan`은 거부한다. 이제 이 길도 검사에 떨어지면 쓰지 않는다: 대상 파일의 바이트는
+  그대로이고 새 파일도 임시 파일도 남지 않으며, 결과는 `ok=False`, `open_safety["code"] == "open-safety-failed"`와 검사
+  요약을 준다(`replace_package_text`·`normalize_package_namespaces`와 같다). 이미 열기 안전 검사에 떨어지는 원본에 대한
+  패치도 같은 까닭으로 쓰지 않는다(`hwpx-repair`나 `doc.save`로 먼저 고친다). 거부된 op가 섞여도 나머지를 쓰는 것과, 쓰지
+  않은 바이트를 결과의 `data`로 돌려주는 것은 그대로다.
+- `.hwp`에서 연 문서를 그 원본 경로에 저장하는 것을 `.hwp`로 쓸 때만 거부했다(#827). `doc.save(<연 원본>.hwp, format="hwpx")`는
+  원본 `.hwp`를 HWPX(ZIP) 바이트로 덮어썼고, 거부 안내 "save as .hwpx"가 바로 그 호출로 읽혔다. 이제 연 원본 `.hwp` 경로에는
+  어느 형식으로도 쓰지 않는다(`Hwp5Error`, `hwp5-overwrite-source`). 안내는 `.hwpx`로 끝나는 다른 파일 이름(또는 새 `.hwp`
+  이름)으로 저장하라고 적고, 같은 경로에 형식만 바꿔도 거부된다고 밝힌다.
+- 이미 있는 `.hwp` 파일은 무엇으로도 덮어쓰지 않는다(#829). 전에는 연 원본이 아닌 `.hwp`는 어느 길에서도 막지 않아,
+  `doc.save(<이미 있는>.hwp)`는 한/글이 저장한 파일을 이 라이브러리가 다시 만든 HWP 5.0으로 바꿨고, `doc.package.save`·바이트
+  패치(`paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops`·`replace_package_text` 등)의 `output_path`·
+  `apply_edit_plan`의 `output`·`hwpx-repair --force`·`hwpx-pack --force`는 `.hwp` 이름에 HWPX(ZIP) 바이트를 경고 없이 썼다.
+  이제 문서를 경로에 쓰는 길이 모두 한 판정(`hwpx.opc.package.refuse_existing_hwp_target`)을 거쳐 `Hwp5Error`
+  (`hwp5-overwrite-existing`, 새 이름이나 `.hwpx`로 쓰라는 `suggestion`)로 거부하고 그 파일은 그대로 둔다. `dry_run`도 같은
+  판정을 내고, `overwrite=True`·`--force`로도 풀리지 않으며, 대소문자·끝의 점·짧은 이름처럼 같은 파일을 가리키는 다른 철자도
+  거부한다. 아직 없는 `.hwp` 이름으로 쓰는 것(실험 기능)은 그대로다. 스트림 저장은 경로를 모르므로 대상이 아니다.
+  **동작 변경:** 자기가 만든 `.hwp`라도 같은 이름으로 다시 저장하면 거부된다. 새 이름으로 쓰거나 먼저 지운다.
+- 구역 설정이 뒤 문단에 있는 문서의 저장이 거부되면(품질 관문, 보존 등급, 저장 전 검증, 열기 안전 검사, 쓸 수 없는 대상,
+  되돌릴 수 없는 스트림, 오류로 바꾼 경고) 문서가 바뀐 채 남았다: 저장이 거부보다 먼저 구역 설정을 첫 문단으로 옮기고 그
+  구역의 줄 배치 캐시를 지웠기 때문이다. 이제 거부된 `save`·`to_bytes`는 옮긴 구역을 호출 전으로 되돌린다. 요소는 같은
+  객체가 같은 자리로 돌아가고(문단·런을 쥔 래퍼가 그대로 유효하다), 구역의 고침 표시와 패키지가 쥔 파트 바이트도 전과 같다.
+  거부 뒤에 다시 저장하면 처음 저장한 것과 같은 바이트가 나온다. 성공한 저장이 설정을 옮기고 `UserWarning`으로 알리는 것은
+  그대로이며, 그 경고는 옮기는 시점에 나오므로 거부된 저장에서도 한 번 나온다.
+- `.hwp`(HWP 5.0)로 쓴 저장의 영수증이 쓴 파일을 다시 열지 않고 `verification`의 `package`·`openSafety`·`reopen`을 `passed`로
+  적고, 그 파일에 없는 ZIP 기록·파트의 보존 수치를 적었다(그 값들은 파일을 만든 HWPX에 대한 것이었다). 이제 `.hwp`로 쓰는
+  저장(`save`, `to_bytes(format="hwp")`)은 만든 HWP 5.0 바이트를 쓰기 전에 엔진의 `.hwp` 리더로 다시 읽는다. 읽히면 영수증의
+  `package`·`reopen`이 `passed`이고, HWP 5.0 파일에 대한 열기 안전 검사와 렌더는 없으므로 `openSafety`·`visual`은
+  `not_performed`다(HWPX에 대해 돈 검사는 `report.editor_open_safety`·`report.quality`에 그대로 있다). 읽히지 않으면 아무것도
+  쓰지 않고 `Hwp5Error`(`hwp5-write-unsupported`, `context["reason"] == "written-file-unreadable"`)로 거부한다. 보존 수치는
+  해당 없음으로 적는다: 두 수치 `0/0`, `wholePackageIdentical` 거짓, `zipRecordsRewritten`이 `"hwp5-output"`. `report.ok`는
+  전처럼 참이다. `.hwpx` 저장의 영수증은 그대로다. 다시 읽는 만큼 `.hwp` 저장이 느려진다(문단 1,500개·표 30개 문서에서
+  1.07 → 1.37초).
 
 ## [7.0.1] - 2026-11-22
 

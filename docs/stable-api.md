@@ -381,7 +381,7 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 | `hwpx.errors.SaveError` | `save-failed`(기본), `document-validation-failed`·`open-safety-failed`·`quality-gate-failed` | `HwpxError`, `ValueError` | 대표 저장 경로의 사전검증·open-safety·품질 게이트 실패 |
 | `hwpx.table_patch.TableStructureError` | `table-structure` | `HwpxError`, `ValueError` | 표 구조 편집 거부(fail-closed)·미지원 |
 | `hwpx.table_patch.RenderCheckRequired` | `render-check-required` | `HwpxError`, `RuntimeError` | `verify_fill(require=True)`인데 실한컴 오라클 미렌더 |
-| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save("x.hwp")`, `format="hwp"`) |
+| `Hwp5Error` | `hwp5-damaged`(기본)·`hwp5-password`·`hwp5-distribution`·`hwp5-drm`·`hwp5-not-hwp5`·`hwp5-version-unsupported`·`hwp5-limit-exceeded`·`hwp5-write-unsupported`·`hwp5-overwrite-source`·`hwp5-overwrite-existing`·`hwp5-write-lossy-source` | `HwpxError`, `ValueError` | `.hwp` 열기(`HwpxDocument.open`)와 HWP 5.0 쓰기(`save("x.hwp")`, `format="hwp"`) |
 | `hwpx.equation.EquationConversionError` | `equation-conversion` | `HwpxError`, `ValueError` | 한글 수식 스크립트 ↔ LaTeX 변환 실패 |
 | `hwpx.equation.authoring.UnsupportedLatexError` | `equation-latex-unsupported` | `EquationConversionError` | 검증된 집합 밖의 LaTeX 명령 |
 | `hwpx.tools.recover.RecoverError` | `recover-unsafe` | `HwpxError`, `ValueError` | 로컬 헤더 항목을 안전하게 복구할 수 없음 |
@@ -394,10 +394,16 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 `unconverted`가 있으면 `Hwp5ConversionWarning`을 한 번 냅니다. `.hwpx`로 연 문서에서는
 `conversion_report`가 `None`입니다. `save("x.hwp")`, `save(stream, format="hwp")`,
 `to_bytes(format="hwp")`는 HWP 5.0으로 씁니다(실험). 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
-`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 쓰지 않고
-(`hwp5-overwrite-source`), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지 않습니다
-(`hwp5-write-lossy-source`). 두 경우 모두 `.hwpx`로 저장하면 됩니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
+`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 어느 형식으로도 쓰지 않고
+(`hwp5-overwrite-source`, `format="hwpx"`를 줘도 같습니다), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지
+않습니다(`hwp5-write-lossy-source`). 두 경우 모두 `.hwpx`로 끝나는 다른 이름으로 저장하면 됩니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
 주면 `hwpx.errors.HwpxValueError`(`save-format-unsupported`)입니다.
+
+이미 있는 `.hwp` 파일은 무엇으로도 덮어쓰지 않습니다(`Hwp5Error`, `hwp5-overwrite-existing`). 문서를 경로에 쓰는 길이 모두
+같은 판정(`hwpx.opc.package.refuse_existing_hwp_target`)을 거칩니다: `doc.save`(어느 형식이든), `doc.package.save`, 바이트 패치
+(`paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops`·`replace_package_text` 등의 `output_path`, `dry_run` 포함),
+`apply_edit_plan`의 `output`, `hwpx-repair`·`hwpx-pack`(`--force`·`overwrite=True`여도). 거부하면 그 파일은 그대로입니다. 아직 없는
+`.hwp` 이름으로 쓰는 것(실험)은 그대로이고, 스트림 저장은 경로를 모르므로 보지 않습니다.
 
 응용 계층의 agent·exam 오류 계약은 `python-hwpx-automation`이 소유합니다.
 이 문서는 core에 실제로 남은 공개 예외만 기술합니다.

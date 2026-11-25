@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
-from .opc.package import duplicate_entry_names, refuse_duplicate_entry_names
+from .opc.package import duplicate_entry_names, refuse_duplicate_entry_names, refuse_existing_hwp_target
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice, visual_value_from_status
 from .oxml.namespaces import NAMESPACE_URIS
@@ -112,7 +112,8 @@ class BytePreservingPatchResult:
     #: skipped, so the file exists and opens and is simply not edited. That is
     #: documented behaviour, kept for consistency across the op family; this
     #: flag makes it impossible to mistake the written file for an edited one
-    #: without reading prose.
+    #: without reading prose. ``False`` when nothing was written: no
+    #: ``output_path``, or a source that fails the open-safety check.
     output_is_source_copy: bool = False
     # The uniform Phase-B report from the single SavePipeline this byte-path write
     # funnelled through (plan §2 Phase B). Additive and defaulted so existing
@@ -186,9 +187,12 @@ def paragraph_patch(
     Only the paragraph's own text and its own ``hp:linesegarray`` layout cache
     change: a table or text box inside it keeps its paragraphs, their text and
     their caches byte for byte. An archive holding one entry name twice is
-    refused before anything is written (``save-duplicate-entry-names``).
+    refused before anything is written (``save-duplicate-entry-names``), and so
+    is an *output_path* that is an ``.hwp`` file already there
+    (``hwp5-overwrite-existing``).
     """
 
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     normalized_patches = tuple(_normalize_patch(item) for item in patches)
     if not normalized_patches:
@@ -253,7 +257,7 @@ def paragraph_patch(
             open_safety=open_safety,
             visual_complete=visual_complete,
             discarded=tuple(applied),
-            output_is_source_copy=output_path is not None,
+            output_is_source_copy=visual_complete.output_path is not None,
         )
 
     if not changed_parts:
@@ -289,6 +293,14 @@ def paragraph_patch(
     )
 
 
+def _refuse_hwp_output(output_path: str | Path | None) -> None:
+    """What every byte patch asks of its *output_path* before it reads the source, a dry run included:
+    an ``.hwp`` file already there is not written over (the bytes a patch writes are HWPX)."""
+
+    if output_path is not None:
+        refuse_existing_hwp_target(output_path)
+
+
 def _read_source_bytes(source: str | Path | bytes) -> bytes:
     if isinstance(source, bytes):
         return source
@@ -306,9 +318,14 @@ def _finalize(
     The lineseg-stripping ZIP-splice above is untouched; this performs only the
     open-safety gate + the (now atomic) write + the uniform ``VisualCompleteReport``,
     so the byte path no longer bypasses the gate (plan §2 Phase B, "zero bypass").
-    ``publish="always"`` preserves the byte path's historical behaviour of writing
-    the produced bytes regardless of the gate verdict; ``open_safety`` is surfaced
-    exactly as the prior ``validate_editor_open_safety(...).to_dict()`` did.
+
+    *output_path* is written only when the gate passes, as :func:`replace_package_text`
+    and the edit plan write theirs. Bytes that fail it are not written: the target keeps
+    what it held (the source itself, for a patch in place), no file is made, and the
+    ``open_safety`` returned says so -- ``ok`` is ``False`` and ``code`` is
+    ``"open-safety-failed"``, beside the summary and detail of
+    ``validate_editor_open_safety(...).to_dict()``. Through 7.0.1 the bytes were written
+    whatever the verdict, so a patch in place could leave a file Hancom refuses to open.
     """
 
     # Every byte patch built on this module (body_patch, table_patch) ends here before it writes: an
@@ -322,13 +339,16 @@ def _finalize(
         output_path=output_path,
         quality=QualityPolicy.transparent(),
         before=before,
-        publish="always",
+        publish="on_pass",
         source_label="patch.paragraph_patch",
     )
     open_safety = report.open_safety.detail or {
         "ok": report.open_safety.ok,
         "summary": report.open_safety.summary,
     }
+    if not report.ok:
+        # The same code doc.save raises for the same verdict (SaveError, open-safety-failed).
+        open_safety = {**open_safety, "ok": False, "code": "open-safety-failed"}
     return open_safety, report
 
 
@@ -1039,6 +1059,7 @@ def replace_package_text(
             code="package-text-replacement-key-empty",
             suggestion="Drop the empty key; every key is text to find.",
         )
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     suffixes = tuple(suffix.lower() for suffix in part_suffixes)
     with ZipFile(io.BytesIO(source_bytes), "r") as archive:
