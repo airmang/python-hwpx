@@ -15,8 +15,8 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from lxml import etree  # type: ignore[reportAttributeAccessIssue]
 
-from ..errors import HwpxValueError
-from ..opc.package import refuse_existing_hwp_target
+from ..errors import HwpxError, HwpxValueError
+from ..opc.package import names_same_file, refuse_existing_hwp_target
 from ..opc.relationships import is_header_part_name, is_section_part_name
 from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
 from .package_validator import validate_editor_open_safety, validate_package
@@ -488,6 +488,43 @@ def input_file_problem(path: str | os.PathLike[str], *, tool: str, accepts_hwp: 
 
 
 _input_file_problem = input_file_problem
+
+#: The codes of an output path refused before anything was written (see ``_refuse_output_over_document``).
+_OUTPUT_REFUSAL_CODES = frozenset({"package-output-is-input", "hwp5-overwrite-existing"})
+
+
+def _refuse_output_over_document(
+    output: str | os.PathLike[str], *inputs: str | os.PathLike[str]
+) -> None:
+    """Refuse a path a command is about to write text, JSON or XML to when a document is there.
+
+    Asked for every such output argument before the command writes anything: an output that names
+    one of the files the command reads (*inputs*), under any spelling the file system resolves to
+    it, would replace that document with what was read from it (``package-output-is-input``); and
+    an ``.hwp`` file that is already there is written over by nothing
+    (:func:`hwpx.opc.package.refuse_existing_hwp_target`, ``hwp5-overwrite-existing``; a file with
+    no bytes passes). Any other path passes, a file that is already there included.
+    """
+
+    for source in inputs:
+        if names_same_file(output, source):
+            raise HwpxValueError(
+                f"output {os.fspath(output)} is the input file {os.fspath(source)}; writing there would "
+                "replace the document, so nothing was written.",
+                code="package-output-is-input",
+                context={"input": str(source), "output": str(output)},
+                suggestion="Give another output path; the input file was not changed.",
+            )
+    refuse_existing_hwp_target(output)
+
+
+def _error_line(exc: BaseException) -> str:
+    """What a command prints after ``ERROR:`` for *exc*: for a refused output path the message, how
+    to go on and the error's code on one line; for anything else the message as it always was."""
+
+    if isinstance(exc, HwpxError) and exc.code in _OUTPUT_REFUSAL_CODES:
+        return " ".join(part for part in (str(exc), exc.suggestion, f"[{exc.code}]") if part)
+    return str(exc)
 
 
 def _printable_stdout() -> None:

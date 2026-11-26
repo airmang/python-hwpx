@@ -30,7 +30,7 @@ except HwpxError as exc:
 | 형태 | `style-not-found` | `VISUAL_COMPLETE_FAILED` |
 | 쓰임 | 예외 분기 | **발행된 영수증 스키마의 필드값** |
 | 관리 | major 경계 | 영수증 스키마 버전 |
-| 개수 | 376 | 11 |
+| 개수 | 377 | 11 |
 
 통합하지 않는 이유: quality 코드는 `hwpx.mutation-report/v1` 과
 `VisualCompleteReport` 에 이미 실려 나간 값이다. 이름을 바꾸면 영수증을 읽는
@@ -162,7 +162,7 @@ except HwpxError as exc:
 | `hwp5-drm` | DRM·인증서로 암호화된 HWP 5.0 문서다. |
 | `hwp5-limit-exceeded` | HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다. |
 | `hwp5-not-hwp5` | 복합 파일이지만 HWP 5.0 FileHeader가 없다. |
-| `hwp5-overwrite-existing` | 이미 있는 .hwp 파일에 쓰려 했다. 형식·길(저장, 바이트 패치, 편집 계획, hwpx-repair·hwpx-pack의 --force)과 상관없이 거부하고 그 파일은 그대로다. 새 .hwp 이름이나 .hwpx로 쓴다. |
+| `hwp5-overwrite-existing` | 이미 있는 .hwp 파일에 쓰려 했다. 형식·길(저장, 바이트 패치, 편집 계획과 그 저널, hwpx-repair·hwpx-pack의 --force, 명령줄 도구의 글·JSON·XML 출력)과 상관없이 거부하고 그 파일은 그대로다. 새 .hwp 이름이나 .hwpx로 쓴다. |
 | `hwp5-overwrite-source` | 문서를 연 원본 .hwp 경로에 저장하려 했다(쓰는 형식과 상관없이 거부한다). |
 | `hwp5-password` | 암호가 걸린 HWP 5.0 문서다. |
 | `hwp5-version-unsupported` | FileHeader의 주 버전이 5가 아니다. |
@@ -239,6 +239,7 @@ except HwpxError as exc:
 | 코드 | 뜻 |
 |---|---|
 | `package-invalid` | 패키지(HwpxPackage)가 계약을 어겼다(까닭을 따로 가리지 않은 HwpxPackageError 기본값). |
+| `package-output-is-input` | 명령줄 도구가 글·JSON·XML을 쓰려는 출력 경로가 입력 문서와 같은 파일이다(다른 철자·대소문자·링크로 적어도 파일 시스템이 푸는 대로 본다). 쓰면 문서가 그 글로 바뀌므로 거부한다(아무것도 쓰지 않았다). 다른 출력 경로를 준다. |
 | `package-pack-output-inside-input` | pack_hwpx(hwpx-pack)에 준 출력 경로가 입력 폴더 안에 있거나 입력 폴더와 같다. 다음에 묶을 때 그 출력이 부품으로 들어가므로 거부한다(아무것도 쓰지 않았다). |
 | `package-structure-invalid` | HWPX 패키지 구조가 요구를 어겼다(HwpxStructureError 기본값). |
 | `package-text-replacement-key-empty` | 치환할 텍스트(키)가 비어 있다. |

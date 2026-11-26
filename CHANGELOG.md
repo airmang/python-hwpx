@@ -16,6 +16,20 @@
   부품은 `DocHistory/historylastdoc.hml`처럼 파일 이름으로 하나). 거부된 저장은 파일을 남기지 않고 문서도 그대로다. 답글이 없는
   메모와 빈 목록은 전처럼 쓴다. 그런 문서는 `.hwpx`로 저장하면 세 가지가 그대로 남는다. `.hwp`에 이 내용을 실제로 쓰는 것은
   아직 하지 않는다.
+- 편집 계획의 저널 경로(`journalPath`, `apply_edit_plan(journal_path=...)`)가 source나 output과 같은 파일이어도 계획을
+  받았다(#834). 저널은 그 경로 끝에 JSONL을 덧붙이므로 원본 문서 끝에 저널 줄이 붙어 문서가 열리지 않게 됐다(`dry_run`도
+  저널을 쓰므로 같았다). 이제 검증이 아무것도 쓰기 전에 거부한다: source나 output과 같은 파일이면(다른 철자·대소문자·링크로
+  적어도, 아직 없는 output도) `PlanValidationError`(`plan-invalid`, `context["sameAs"]`가 `source`·`output`), 이미 있는
+  `.hwp` 파일이면 `hwp5-overwrite-existing`이다. `validate_edit_plan`·`dry_run`·실제 실행이 같은 판정을 낸다. 그 밖의
+  경로에 쓰는 저널은 전과 같다.
+- 글·JSON·XML을 경로에 쓰는 명령줄 출력 인자가 입력 문서를 덮어썼다(#834). `hwpx-text-extract in.hwpx --output in.hwpx`는
+  문서를 뽑은 글로, `hwpx-analyze-template in.hwpx --extract-header in.hwpx`는 header XML로 바꿔 놓고 종료 코드 0을 냈다.
+  이제 `hwpx-text-extract --output`, `hwpx-analyze-template`의 `--output-json`·`--extract-header`·`--extract-section`·
+  `--extract-section-dir`(`extract_template_parts`의 같은 인자), `python -m hwpx.tools.generic_inventory --output`이
+  쓰기 전에 출력 경로를 본다. 입력과 같은 파일이면(다른 철자·대소문자·`..`·링크로 적어도 파일 시스템이 푸는 대로)
+  `HwpxValueError`(`package-output-is-input`)로, 이미 있는 `.hwp` 파일이면 `hwp5-overwrite-existing`으로 거부하고 종료
+  코드는 0이 아니다. 거부한 명령은 아무것도 쓰지 않는다(여러 출력을 함께 주었으면 다른 출력도, 새 폴더도). 그 밖의 경로는
+  이미 있는 파일이어도 전처럼 쓴다.
 - 이미 있는 `.hwp`를 덮어쓰지 않는 규칙(#829)이 내용이 없는(0바이트) `.hwp` 이름의 파일까지 막았다. 원자적으로 게시하는
   호출자는 빈 자리표시 파일을 먼저 만들고(`tempfile.mkstemp`) 거기에 저장하는데 — python-hwpx-automation이 그렇게 한다 —
   그 저장이 `hwp5-overwrite-existing`으로 거부돼 새 `.hwp`를 만들 수 없었다(공개 판에는 나가지 않은 회귀). 바이트가 하나도
@@ -93,6 +107,11 @@
   해당 없음으로 적는다: 두 수치 `0/0`, `wholePackageIdentical` 거짓, `zipRecordsRewritten`이 `"hwp5-output"`. `report.ok`는
   전처럼 참이다. `.hwpx` 저장의 영수증은 그대로다. 다시 읽는 만큼 `.hwp` 저장이 느려진다(문단 1,500개·표 30개 문서에서
   1.07 → 1.37초).
+
+### 문서
+
+- 7.0 이주 가이드에 「앱에 넣어 배포할 때」 절을 더했다(#837): 7.x 이름에 기대는 앱이 검증한 판을 빌드 제약으로
+  고정하는 예와, 배포하는 형태 그대로 합성 문서를 `doc.save(...)`로 저장하고 다시 열어 글을 확인하는 스모크 검사 예.
 
 ## [7.0.1] - 2026-11-22
 

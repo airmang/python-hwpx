@@ -12,7 +12,7 @@ from ..opc.package import HwpxPackage
 from ..opc.relationships import parse_manifest_relationships
 from ..oxml.section_format import _drawn_page_size
 from ..oxml.table_sizes import cell_margins_of
-from .archive_cli import unpack_hwpx
+from .archive_cli import _error_line, _refuse_output_over_document, unpack_hwpx
 from .page_guard import DocumentMetrics, collect_metrics
 
 _HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
@@ -493,6 +493,15 @@ def extract_template_parts(
     package = HwpxPackage.open(source_path)
     written: list[Path] = []
 
+    # Every file this call would write is judged before the first one is written: none of them may
+    # be the document itself or an .hwp file that is already there. (``extract_dir`` is a folder;
+    # ``unpack_hwpx`` refuses one that holds the input.)
+    targets = [Path(target) for target in (extract_header, extract_section) if target is not None]
+    if extract_section_dir is not None:
+        targets.extend(Path(extract_section_dir) / Path(name).name for name in package.section_paths())
+    for target in targets:
+        _refuse_output_over_document(target, source_path)
+
     if extract_dir is not None:
         result = unpack_hwpx(source_path, extract_dir, pretty_xml=False)
         written.extend(result.output_dir / entry.path for entry in result.entries)
@@ -590,6 +599,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     try:
+        if args.output_json:
+            _refuse_output_over_document(args.output_json, input_path)
         analysis = analyze_template(input_path)
         written = extract_template_parts(
             input_path,
@@ -599,7 +610,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             extract_section_dir=args.extract_section_dir,
         )
     except Exception as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERROR: {_error_line(exc)}")
         return 1
 
     if args.json or args.output_json:
