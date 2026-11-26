@@ -397,6 +397,8 @@ class _Measure:
         self._original_paragraphs: dict[Any, Any] = {}
         self._original_controls: dict[Any, Any] = {}
         self.inline_tables: dict[Any, _FlowTable] = {}
+        #: placement tracing only: original hp:tbl -> why the trace could not follow its rows
+        self.untraced_tables: dict[Any, str] = {}
         self.drawn_sizes: dict[Any, tuple[int | None, int]] = {}
         self._root = root
         self._lookups = _Lookups(root)
@@ -966,6 +968,8 @@ class _CellLine:
     height: int
     top: int | None
     content: _LineContent | None
+    #: the tables (original hp:tbl) set as characters that stand on this line
+    tables: tuple[Any, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -980,6 +984,9 @@ class _FlowTable:
     caption: tuple[int, int] = (0, 0)  # a caption above it, below it: its lines and its gap
     cut: int = _SPARE_CUT      # how far above the body's foot its rows end at most
     source: Any = None         # original hp:tbl, kept only for placement tracing
+    #: placement tracing only: why the heights of its rows are not reported -- the layout took the table as tall
+    #: as Hancom drew it (its saved height, or its line's in a layout cache), and its rows do not add up to that
+    doubt: str | None = None
 
     @property
     def above(self) -> int:
@@ -1472,11 +1479,17 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
         content = max(content, _lines_height(metrics, leads))  # page end hold its parts, each from the top
         height = max(height, vertical + content)
     detail = ()
-    if measure.trace and not (drawn or wrapped or nested or pieces or squeezed):
+    if measure.trace and not (drawn or wrapped or pieces or squeezed):
         try:
             detail = _cell_line_detail(measure, paragraphs, inner, lines, content, before, margins, sub_list)
         except _Unsupported:
             pass  # additional measurements cannot change whether the page estimate answers
+    if measure.trace and nested:  # its tables the layout took as tall as Hancom drew them, their rows not asked for
+        for held in (child for paragraph in paragraphs for run in paragraph.findall(f"{HP}run") for child in run
+                     if _local(child) == "tbl"):
+            if measure.source_control(held) not in measure.inline_tables:
+                size = held.find(f"{HP}sz")
+                _trace_table_rows(measure, held, None if size is None else _stored_int_or_none(size.get("height")))
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
                 first=first, leads=leads if spaced or before or pieces else (), pieces=pieces, reaches=reaches,
@@ -1500,16 +1513,55 @@ def _cell_line_detail(measure: _Measure, paragraphs: list[Any], width: int, coun
         if cursor + length > len(metrics):
             return ()
         content = _cell_text_ranges(measure, paragraph, runs, width, length)
+        standing = _table_lines(measure, paragraph, runs, length)
         measured = []
         for index, (tall, advance) in enumerate(metrics[cursor:cursor + length]):
             detail = content[index] if content else None
             if detail is not None and detail.x is not None:
                 detail = replace(detail, x=detail.x + margins.left)
-            measured.append(_CellLine(tall, y if aligned else None, detail))
+            if index in standing and detail is not None:  # its text is not the whole line: the tables stand among it
+                detail = replace(detail, text=None)
+            measured.append(_CellLine(tall, y if aligned else None, detail, standing.get(index, ())))
             y += advance
         result.append(tuple(measured))
         cursor += length
     return tuple(result) if cursor == count else ()
+
+
+def _table_lines(measure: _Measure, paragraph: Any, runs: list[Any], count: int) -> dict[int, tuple[Any, ...]]:
+    """Placement tracing only: the line of a cell paragraph of *count* lines -> the tables set as characters (the
+    original hp:tbl) standing on it. A table alone in its paragraph is the paragraph's one line; among the text of
+    a paragraph keeping its layout cache a table stands on the line whose text range holds its place (Hancom counts
+    every object and control as eight characters, see :func:`_anchor_line`). Where its line is not known (a table
+    among text laid out here, text marks whose place in the cache is not established) the table is left out."""
+
+    tables = [child for run in runs for child in run if _local(child) == "tbl"
+              and child.find(f"{HP}pos") is not None and child.find(f"{HP}pos").get("treatAsChar") == "1"]
+    if not tables:
+        return {}
+    if count == 1:
+        return {0: tuple(measure.source_control(table) for table in tables)}
+    if not _cached_metrics(paragraph):
+        return {}
+    places: dict[Any, int] = {}
+    if measure.native_positions(paragraph, controls=places) is None:
+        return {}
+    starts: list[int] = []
+    for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg"):
+        start = _stored_int_or_none(segment.get("textpos"))
+        if start is None or starts and start < starts[-1]:
+            return {}
+        starts.append(start)
+    if len(starts) != count:
+        return {}
+    found: dict[int, tuple[Any, ...]] = {}
+    for table in tables:
+        source = measure.source_control(table)
+        if source not in places:
+            return {}
+        line = max((index for index, start in enumerate(starts) if start <= places[source]), default=0)
+        found[line] = (*found.get(line, ()), source)
+    return found
 
 
 def _cell_text_ranges(measure: _Measure, paragraph: Any, runs: list[Any], width: int,
@@ -2054,7 +2106,10 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
     if _holds_table(table) or any(_row_span(tc) != 1 for tc in table.iter(f"{HP}tc")):
         paragraphs = list(table.iter(f"{HP}p"))
         if paragraphs and all(_cache_lines(paragraph) for paragraph in paragraphs):
-            return int(table.find(f"{HP}sz").get("height", 0))
+            saved = int(table.find(f"{HP}sz").get("height", 0))
+            if measure.trace:
+                _trace_table_rows(measure, table, saved)
+            return saved
     if not measure.trace:
         return _rows_height(measure, table)
     rows, cells = _table_rows(measure, table)
@@ -2063,6 +2118,32 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
         rows, "NONE", False, _table_ends(table), tuple(cells), source=source,
     )
     return sum(row.height for row in rows) + _cell_spacing(table)
+
+
+#: Why a table's rows have no heights in the placement: see :attr:`_FlowTable.doubt`.
+_SAVED_HEIGHT_DIFFERS = "row heights not measured: the table is laid out as tall as Hancom saved it, and its rows do not add up to that"
+
+
+def _trace_table_rows(measure: _Measure, table: Any, drawn: int | None) -> None:
+    """Placement tracing only: the rows of a table the layout takes *drawn* tall, as Hancom drew it, without asking
+    for its rows (see :func:`_inline_table_height`). The rows are the row model's (:func:`_table_rows`); when they
+    do not add up to *drawn* their heights are not reported (:attr:`_FlowTable.doubt`), and when the row model does
+    not follow the table it is left without rows, the reason kept in ``measure.untraced_tables``. Nothing here
+    reaches the estimate: whatever goes wrong only leaves the table without rows."""
+
+    source = measure.source_control(table)
+    if source in measure.inline_tables or source in measure.untraced_tables:
+        return
+    try:
+        rows, cells = _table_rows(measure, table)
+        ends = _table_ends(table)
+        tall = sum(row.height for row in rows) + _cell_spacing(table)
+    except Exception as exc:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        reason = str(exc) if isinstance(exc, _Unsupported) else type(exc).__name__
+        measure.untraced_tables[source] = f"rows of a table laid out as tall as Hancom saved it are not followed: {reason}"
+        return
+    measure.inline_tables[source] = _FlowTable(rows, "NONE", False, ends, tuple(cells), source=source,
+                                               doubt=None if tall == drawn else _SAVED_HEIGHT_DIFFERS)
 
 
 def _rows_height(measure: _Measure, table: Any) -> int:

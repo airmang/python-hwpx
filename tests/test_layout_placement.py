@@ -5,9 +5,26 @@ from lxml import etree
 
 from hwpx import HwpxDocument
 from hwpx.experimental import estimate_layout, estimate_pages
+from hwpx.layout.line_cache import write_line_caches
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+
+
+def _saved_lines(paragraph, lines=1, *, top=0, height=1000, spacing=600, width=40000):
+    """Give *paragraph* the layout cache a document saved by Hancom carries: *lines* lines of *height*, the first
+    *top* down its cell, the text cut evenly between them. Where the next paragraph's first line goes."""
+
+    for old in paragraph.findall(f"{HP}linesegarray"):
+        paragraph.remove(old)
+    array = etree.SubElement(paragraph, f"{HP}linesegarray")
+    length = sum(len(text.text or "") for text in paragraph.iter(f"{HP}t") if text.getparent().getparent() is paragraph)
+    for line in range(lines):
+        etree.SubElement(array, f"{HP}lineseg", textpos=str(line * (length // lines)),
+                         vertpos=str(top + line * (height + spacing)), textheight=str(height), vertsize=str(height),
+                         baseline=str(height * 85 // 100), spacing=str(spacing), horzpos="0", horzsize=str(width),
+                         flags="393216")
+    return top + lines * (height + spacing)
 
 
 def test_preserves_the_estimate_and_reports_engine_text_ranges():
@@ -227,3 +244,90 @@ def test_cached_square_picture_keeps_its_moved_page_separate_from_its_anchor():
     assert anchor.lines[0].position.page == 0
     assert picture.page == 1 and picture.top == layout.pages[1].body[1]
     assert (picture.width, picture.height) == (20000, 27112)
+
+
+def _merged_table_with_saved_lines():
+    """An inline table with a cell merged over rows in which every paragraph keeps a layout cache: the layout
+    takes such a table as tall as it was saved (hp:sz), without asking for its rows."""
+
+    doc = HwpxDocument.new()
+    table = doc.add_paragraph("").add_table(3, 2)
+    table.merge_cells(0, 0, 1, 0)
+    table.cell(0, 0).text = "두 행을 합친 칸"
+    table.cell(0, 1).text = "곁에 놓인 칸"
+    table.cell(2, 0).text = "맨 아래 행"
+    assert write_line_caches(doc).written
+    assert all(paragraph.find(f"{HP}linesegarray") is not None for paragraph in table.element.iter(f"{HP}p"))
+    return doc, table
+
+
+def test_an_inline_table_laid_out_as_tall_as_it_was_saved_keeps_its_rows():
+    doc, table = _merged_table_with_saved_lines()
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.tables
+    assert placed.unavailable == ("inline table origin not measured",)
+    assert [(row.page, row.row) for row in placed.rows] == [(0, 0), (0, 1), (0, 2)]
+    assert sum(row.height for row in placed.rows) == int(table.element.find(f"{HP}sz").get("height"))
+    merged, neighbor = placed.rows[0].cells
+    assert (merged.row, merged.column, merged.row_span) == (0, 0, 2)
+    assert merged.height == placed.rows[0].height + placed.rows[1].height
+    assert (neighbor.x, neighbor.top) == (merged.width, 0)
+    assert [(line.text, line.source) for line in merged.lines] == [("두 행을 합친 칸", "cache")]
+    assert [line.text for row in placed.rows for cell in row.cells for line in cell.lines if line.text] == [
+        "두 행을 합친 칸", "곁에 놓인 칸", "맨 아래 행"]
+
+
+def test_rows_that_do_not_add_up_to_the_saved_height_are_placed_without_heights():
+    doc, table = _merged_table_with_saved_lines()
+    size = table.element.find(f"{HP}sz")
+    size.set("height", str(int(size.get("height")) + 700))  # drawn taller than the row model makes it
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.tables
+    assert [(row.page, row.row, row.top, row.height) for row in placed.rows] == [
+        (0, 0, None, None), (0, 1, None, None), (0, 2, None, None)]
+    reason, = [why for why in placed.unavailable if why.startswith("row heights not measured")]
+    for cell in (cell for row in placed.rows for cell in row.cells):
+        assert (cell.top, cell.height) == (None, None) and reason in cell.unavailable
+        assert cell.x is not None and cell.width is not None
+    assert "".join(line.text for line in placed.rows[0].cells[0].lines) == "두 행을 합친 칸"
+
+
+def test_a_nested_table_stands_on_the_page_of_the_cell_line_holding_it():
+    doc = HwpxDocument.new()
+    outer = doc.add_paragraph("").add_table(1, 1)
+    outer.element.find(f"{HP}pos").set("treatAsChar", "0")
+    outer.element.set("pageBreak", "CELL")
+    cell = outer.cell(0, 0)
+    cell.paragraphs[0].text = "칸을 여는 문단"
+    for number in range(70):
+        cell.add_paragraph(f"쪽을 넘기려고 쌓는 문단 {number + 2}")
+    inner = cell.add_paragraph("").add_table(2, 1)
+    inner.cell(0, 0).text = "안쪽 표의 첫 행"
+    inner.cell(1, 0).text = "안쪽 표의 둘째 행"
+    cell.add_paragraph("안쪽 표 다음 문단")
+    top = 0
+    for paragraph in cell.element.findall(f"{HP}subList/{HP}p"):
+        top = _saved_lines(paragraph, top=top)
+    for paragraph in inner.element.iter(f"{HP}p"):
+        _saved_lines(paragraph)
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    assert layout.estimate.pages == 2
+    outer_placed, inner_placed = layout.tables
+    assert outer_placed.split == "cell-lines"
+    first, second = outer_placed.rows
+    assert (first.page, second.page) == (0, 1) and first.line_end == second.line_start
+    holding = [(row.page, line.paragraph, line.text, line.tables)
+               for row in outer_placed.rows for line in row.cells[0].lines if line.tables]
+    assert holding == [(1, 71, None, (inner_placed.table,))]
+    assert [(row.page, row.row) for row in inner_placed.rows] == [(1, 0), (1, 1)]
+    assert inner_placed.moved is None  # a table in a cell has no anchor line of its own in the body
+    shown = ["".join(line.text for line in row.cells[0].lines if line.text) for row in outer_placed.rows]
+    assert shown[0].startswith("칸을 여는 문단") and shown[1].endswith("안쪽 표 다음 문단")
+    assert "".join(line.text for row in inner_placed.rows for line in row.cells[0].lines) == (
+        "안쪽 표의 첫 행안쪽 표의 둘째 행")

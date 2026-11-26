@@ -247,6 +247,7 @@ from ._page_measure import (  # noqa: F401
     _ObjectAnchorTrace,
     _drawn_height_value,
     _DRAWINGS,
+    _SAVED_HEIGHT_DIFFERS, _trace_table_rows, _table_lines,
 )
 
 if TYPE_CHECKING:
@@ -339,7 +340,11 @@ class ParagraphPlacement:
 
 @dataclass(frozen=True)
 class TableCellLinePlacement:
-    """One measured cell line. Top and x are cell-relative; text positions are paragraph-relative."""
+    """One measured cell line. Top and x are cell-relative; text positions are paragraph-relative.
+
+    A line holding tables set as characters names them in *tables* (each the ``table`` index of its
+    :class:`TablePlacement` in the same body paragraph) and has no *text*: what it holds is not text alone.
+    """
 
     paragraph: int
     line: int
@@ -352,6 +357,7 @@ class TableCellLinePlacement:
     text: str | None
     source: str | None
     runs: tuple[tuple[str, str], ...] = ()
+    tables: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -545,9 +551,10 @@ def estimate_layout(document: "HwpxDocument | bytes | str | os.PathLike[str]") -
     sections: list[Any] = []
     inline_tables: dict[Any, _FlowTable] = {}
     sizes: dict[Any, tuple[int | None, int]] = {}
+    untraced: dict[Any, str] = {}
     estimate = _estimate(document, placements=placements, sources=sections, inline_tables=inline_tables,
-                         drawn_sizes=sizes)
-    return _placement_result(estimate, placements, sections, inline_tables, sizes)
+                         drawn_sizes=sizes, untraced_tables=untraced)
+    return _placement_result(estimate, placements, sections, inline_tables, sizes, untraced)
 
 
 def _estimate(
@@ -556,6 +563,7 @@ def _estimate(
     sources: list[Any] | None = None,
     inline_tables: dict[Any, _FlowTable] | None = None,
     drawn_sizes: dict[Any, tuple[int | None, int]] | None = None,
+    untraced_tables: dict[Any, str] | None = None,
 ) -> PageEstimate:
     """:func:`estimate_pages`; with *first_reason*, stop at the first section not followed (its reason the only
     one given) instead of laying every section out to name them all."""
@@ -609,6 +617,8 @@ def _estimate(
         inline_tables.update((table.source, table) for table in measure.inline_tables.values())
     if drawn_sizes is not None:
         drawn_sizes.update(measure.drawn_sizes)
+    if untraced_tables is not None:
+        untraced_tables.update(measure.untraced_tables)
     return _assemble(layouts)
 
 
@@ -3144,6 +3154,7 @@ def _column_area(paper: _Page, top: int = 0) -> ColumnArea:
 def _placement_result(
     estimate: PageEstimate, sections: list[tuple[int, int, _SectionLayout]], sources: list[Any],
     inline_tables: dict[Any, _FlowTable], sizes: dict[Any, tuple[int | None, int]],
+    untraced: dict[Any, str] | None = None,
 ) -> LayoutEstimate:
     pages: list[PagePlacement] = []
     paragraphs: list[ParagraphPlacement] = []
@@ -3184,20 +3195,24 @@ def _placement_result(
     by_source: dict[Any, TablePlacement] = {}
     paragraph_origins = {(entry.section, entry.paragraph): entry.lines[0].position
                          for entry in paragraphs if entry.lines}
+    nested_places: dict[Any, list[tuple[int, int]]] = {}
     for section, source in enumerate(body_sources):
         for index, paragraph in enumerate(source):
-            for table_index, table in enumerate(paragraph.iter(f"{HP}tbl")):
+            numbers = {table: number for number, table in enumerate(paragraph.iter(f"{HP}tbl"))}
+            for table, table_index in numbers.items():
                 address = section, index, table_index
                 if table in table_captures:
-                    result = _table_placement(address, *table_captures[table])
+                    result = _table_placement(address, *table_captures[table], numbers, nested_places)
                 elif table in inline_tables:
-                    result = _nested_table_placement(address, table, inline_tables[table], by_source)
+                    result = _nested_table_placement(address, table, inline_tables[table], by_source, numbers,
+                                                     nested_places)
                 else:
                     result = None
                 if result is None:
-                    result = TablePlacement(*address, (), unavailable=("table placement not retained by the layout path",))
+                    reason = (untraced or {}).get(table, "table placement not retained by the layout path")
+                    result = TablePlacement(*address, (), unavailable=(reason,))
                 origin = paragraph_origins.get((section, index))
-                if result.rows and origin is not None:
+                if result.rows and origin is not None and table.getparent().getparent() is paragraph:
                     first = result.rows[0]
                     if (first.page, first.column) > (origin.page, origin.column):
                         result = replace(result, moved=True)
@@ -3281,11 +3296,18 @@ def _area_placement(section: int, paragraph: int, ordinal: int, frame: _AreaFram
 
 
 def _table_placement(address: tuple[int, int, int], capture: _TableCapture, scope: _FrameTrace,
-                     first_page: int, paper_top: int) -> TablePlacement:
+                     first_page: int, paper_top: int, numbers: dict[Any, int] | None = None,
+                     nested_places: dict[Any, list[tuple[int, int]]] | None = None) -> TablePlacement:
+    """The placement of a table from the row parts the layout accepted. *numbers* gives the tables of its body
+    paragraph their index there; *nested_places* collects, for each table standing on a line of one of its cells,
+    the page and column of the row part showing that line."""
+
     table, parts = capture.table, capture.rows
     unavailable = []
     if not capture.absolute:
         unavailable.append("inline table origin not measured")
+    if table.doubt is not None:
+        unavailable.append(table.doubt)
     if any(part.start is None for part in parts):
         unavailable.append("some split rows do not have a single measured line range")
 
@@ -3307,8 +3329,14 @@ def _table_placement(address: tuple[int, int, int], capture: _TableCapture, scop
     rows = []
     for part in parts:
         first_in_frame.setdefault(part.frame, part.top)
-        cells = _table_cells(part, outline, cells_by_row, cell_sources, grid, table, first_in_frame[part.frame])
-        rows.append(TableRowPlacement(part.row, *frame_place(part.frame, part.top), part.height,
+        page, column, top = frame_place(part.frame, part.top)
+        cells = _table_cells(part, outline, cells_by_row, cell_sources, grid, table, first_in_frame[part.frame],
+                             place=(page, column), numbers=numbers, nested_places=nested_places)
+        if table.doubt is not None:  # the rows are the row model's, which the layout did not take: no heights
+            rows.append(TableRowPlacement(part.row, page, column, None, None, part.start, part.stop, part.repeated,
+                                          cells))
+            continue
+        rows.append(TableRowPlacement(part.row, page, column, top, part.height,
                                       part.start, part.stop, part.repeated, cells, part.top - first_in_frame[part.frame]))
     captions = []
     if parts and table.caption[0]:
@@ -3330,42 +3358,51 @@ def _table_placement(address: tuple[int, int, int], capture: _TableCapture, scop
 
 
 def _nested_table_placement(address: tuple[int, int, int], table: Any, measured: _FlowTable,
-                            placements: dict[Any, TablePlacement]) -> TablePlacement | None:
-    """An inline nested table in a cell whose full extent stayed in one frame."""
+                            placements: dict[Any, TablePlacement], numbers: dict[Any, int] | None = None,
+                            nested_places: dict[Any, list[tuple[int, int]]] | None = None) -> TablePlacement | None:
+    """A table in a cell of a placed table, its rows on the page of the part of the parent's row that holds it:
+    the part showing the cell line it stands on (a table set as a character), or, where the cell's lines were not
+    followed, the one part of a row that stayed whole on its page."""
 
-    cell = next(table.iterancestors(f"{HP}tc"), None)
-    if cell is None:
+    cell = _table_holder(table)
+    if cell is None or _local(cell) != "tc":
         return None
     parent = next(cell.iterancestors(f"{HP}tbl"), None)
-    if parent not in placements or _table_alone(table.getparent().getparent().findall(f"{HP}run")) is not table:
+    if parent is None or parent not in placements:
         return None
-    cell_addr = cell.find(f"{HP}cellAddr")
-    if cell_addr is None:
-        return None
-    row_address, column = int(cell_addr.get("rowAddr", 0)), int(cell_addr.get("colAddr", 0))
-    addresses = set()
-    for source in parent.findall(f"{HP}tr/{HP}tc"):
-        pos, span = source.find(f"{HP}cellAddr"), source.find(f"{HP}cellSpan")
-        if pos is None:
+    held = (nested_places or {}).get(table, [])
+    if len(held) == 1:
+        page, column = held[0]
+    else:
+        index = next((at for at, source in enumerate(parent.findall(f"{HP}tr/{HP}tc")) if source is cell), None)
+        found = [(row.page, row.column, rectangle) for row in placements[parent].rows if not row.repeated
+                 for rectangle in row.cells if rectangle.source_index == index]
+        if held or index is None or len(found) != 1 or found[0][2].line_start != 0 or found[0][2].line_end is None:
             return None
-        start = int(pos.get("rowAddr", 0))
-        addresses.update(range(start, start + (int(span.get("rowSpan", 1)) if span is not None else 1)))
-    row_number = sorted(addresses).index(row_address)
-    found = [(row.page, row.column) for row in placements[parent].rows if not row.repeated and row.row == row_number
-             for rectangle in row.cells if rectangle.column == column and rectangle.height is not None]
-    if len(found) != 1 or placements[parent].split == "cell-lines":
-        return None
-    page, column = found[0]
+        page, column = found[0][:2]
     parts: list[_RowPart] = []
     _whole_rows(measured, 0, 0, 0, len(measured.rows), parts)
     capture = _TableCapture(measured, parts, 0, (0, sum(row.height for row in measured.rows)), absolute=False)
-    return _table_placement(address, capture, _FrameTrace((), 1, column_start=column), page, 0)
+    return _table_placement(address, capture, _FrameTrace((), 1, column_start=column), page, 0, numbers,
+                            nested_places)
+
+
+#: What holds a table other than a body paragraph: a cell, a text box, a caption, or a header, footer or note.
+_TABLE_HOLDERS = frozenset(("tc", "drawText", "caption", "header", "footer", "footNote", "endNote"))
+
+
+def _table_holder(table: Any) -> Any:
+    """The nearest cell, text box, caption, header, footer or note holding *table*; ``None`` in the body."""
+
+    return next((up for up in table.iterancestors() if _local(up) in _TABLE_HOLDERS), None)
 
 
 def _table_cells(part: _RowPart, outline: dict[tuple[int, int, bool], _RowPart],
                  cells_by_row: dict[int, list[int]], cell_sources: list[tuple[Any, int, int, _Row]],
                  grid: dict[Any, tuple[int, int]],
-                 table: _FlowTable, frame_top: int) -> tuple[TableCellPlacement, ...]:
+                 table: _FlowTable, frame_top: int, *, place: tuple[int, int] | None = None,
+                 numbers: dict[Any, int] | None = None,
+                 nested_places: dict[Any, list[tuple[int, int]]] | None = None) -> tuple[TableCellPlacement, ...]:
     result = []
     spacing = _cell_spacing(table.source)
     own = cells_by_row.get(part.row, [])
@@ -3419,15 +3456,23 @@ def _table_cells(part: _RowPart, outline: dict[tuple[int, int, bool], _RowPart],
         if height is None and slice_ is not None:
             unavailable.append("cell fragment rectangle not fully measured")
         styles = [_run_positions(paragraph) for paragraph in element.findall(f"{HP}subList/{HP}p")]
-        lines = tuple(_table_cell_line(p, i, line, starts_cell, styles[p])
+        top: int | None = part.top - frame_top + spacing
+        if table.doubt is not None:  # where the rows stand in the table is the row model's too
+            top, height, starts_cell = None, None, False
+            unavailable.append(table.doubt)
+        lines = tuple(_table_cell_line(p, i, line, starts_cell, styles[p], numbers)
                       for p, i, line in measured_lines if p < len(styles))
-        result.append(TableCellPlacement(source_row, column, span, columns, x, part.top - frame_top + spacing,
+        if nested_places is not None and place is not None and not part.repeated:
+            for _, _, line in measured_lines:
+                for held in line.tables:
+                    nested_places.setdefault(held, []).append(place)
+        result.append(TableCellPlacement(source_row, column, span, columns, x, top,
                                          width, height, lines, tuple(unavailable), source_index, low, high))
     return tuple(sorted(result, key=lambda cell: cell.column))
 
 
 def _table_cell_line(paragraph: int, index: int, line: _CellLine, starts_cell: bool,
-                     styles: _RunPositions | None) -> TableCellLinePlacement:
+                     styles: _RunPositions | None, numbers: dict[Any, int] | None = None) -> TableCellLinePlacement:
     content = line.content
     return TableCellLinePlacement(
         paragraph, index, line.height, line.top if starts_cell else None,
@@ -3435,6 +3480,7 @@ def _table_cell_line(paragraph: int, index: int, line: _CellLine, starts_cell: b
         content.start if content else None, content.end if content else None, content.text if content else None,
         content.source if content else None,
         _line_runs(content, styles),
+        tuple(numbers[held] for held in line.tables if held in numbers) if numbers else (),
     )
 
 
