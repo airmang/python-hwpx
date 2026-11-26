@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [7.0.2] - 2026-11-26
+
 ### 고침
 
 - `hwpx.oxml.parse_header_xml`·`parse_section_xml`(그리고 둘이 쓰는 `coerce_xml_source`)이 파일·`str`·`bytes`로 받은 XML을
@@ -12,10 +14,6 @@
   것과 같이 엔티티를 풀지 않고 네트워크에 닿지 않는 파서로 읽으며, 문서 형식 선언(DTD)이 있거나 크기·깊이 한도를 넘으면
   `HwpxSecurityError`로 거부한다(`ValueError`이기도 하다). 이미 파싱한 요소·트리를 넘기면 전과 같다. 저장할 때 탭을 `hp:tab`으로
   바꾸는 내부 단계도 엔티티를 풀지 않는다.
-
-## [7.0.2] - 2026-11-25
-
-### 고침
 
 - `.hwp`(HWP 5.0)로 쓸 때 메모 답글(`Contents/memoExtended.xml`), 참고 문헌의 출처(`Custom/bibliography.xml`), 문서 이력
   (`DocHistory/`의 버전 기록과 마지막 문서 사본)이 거부도 경고도 없이 빠졌다(#834). 작성기가 이 부품들을 읽지 않았기 때문이고,
