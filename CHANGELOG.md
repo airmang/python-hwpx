@@ -35,9 +35,16 @@
   Word 문서의 제목을 자기가 만든 번호 정의로 번호 매기고 구역이 그것을 가리킨다(`word_lists_import.hwpx`의
   `outlineShapeIDRef="3"`). 없는 정의는 `style-definition-not-found`이고, 그 구역 개요 문단의 줄 배치 캐시를 지운다.
 
-## [7.0.2] - 2026-11-25
+## [7.0.2] - 2026-11-26
 
 ### 고침
+
+- `hwpx.oxml.parse_header_xml`·`parse_section_xml`(그리고 둘이 쓰는 `coerce_xml_source`)이 파일·`str`·`bytes`로 받은 XML을
+  lxml의 기본 파서로 읽었다. 의존성 하한인 lxml 4.x에서는 그 파서가 외부 엔티티를 풀어, 신뢰할 수 없는 XML을 넘기면 로컬
+  파일의 내용이 결과 모델에 들어갔다(lxml 5 이상과 패키지를 여는 주 경로는 해당하지 않는다). 이제 패키지를 열 때 부품을 읽는
+  것과 같이 엔티티를 풀지 않고 네트워크에 닿지 않는 파서로 읽으며, 문서 형식 선언(DTD)이 있거나 크기·깊이 한도를 넘으면
+  `HwpxSecurityError`로 거부한다(`ValueError`이기도 하다). 이미 파싱한 요소·트리를 넘기면 전과 같다. 저장할 때 탭을 `hp:tab`으로
+  바꾸는 내부 단계도 엔티티를 풀지 않는다.
 
 - `.hwp`(HWP 5.0)로 쓸 때 메모 답글(`Contents/memoExtended.xml`), 참고 문헌의 출처(`Custom/bibliography.xml`), 문서 이력
   (`DocHistory/`의 버전 기록과 마지막 문서 사본)이 거부도 경고도 없이 빠졌다(#834). 작성기가 이 부품들을 읽지 않았기 때문이고,
