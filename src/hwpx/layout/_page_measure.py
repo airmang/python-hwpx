@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import copy
 import math
+from bisect import bisect_left
 from collections.abc import Collection
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Literal
 
 from ..form_fit.measure import (
     _DEFAULT_TAB_STOP,
@@ -30,6 +31,8 @@ from ..form_fit.measure import (
     paragraph_label,
     text_style_from_refs,
 )
+from ..oxml._paragraph_text_edit import _hancom_position_map
+from ..oxml.utils import line_seg_past_text
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -282,6 +285,82 @@ def _cached_metrics(paragraph: Any) -> tuple[tuple[int, int], ...]:
     return tuple(metrics)
 
 
+@dataclass(frozen=True)
+class _LineContent:
+    """The text and horizontal metrics carried by a single measured line piece."""
+
+    start: int | None
+    end: int | None
+    text: str | None
+    source: Literal["cache", "engine"]
+    x: float | None
+    width: float | None
+
+
+def _cache_line_content(
+    paragraph: Any, mapping: tuple[list[tuple[int, str]], int] | None,
+) -> tuple[_LineContent, ...]:
+    segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+    starts = [_stored_int_or_none(segment.get("textpos")) for segment in segments]
+    positions, characters, length = [], [], 0
+    if mapping is not None:
+        pieces, length = mapping
+        positions = [pos for pos, _ in pieces]
+        characters = [text for _, text in pieces]
+    result = []
+    for start, end, segment in zip(starts, [*starts[1:], length], segments):
+        text = None
+        if mapping is not None and start is not None and end is not None:
+            if start == length + 1 and not line_seg_past_text(segment, length):
+                end = max(end, start)
+            if 0 <= start <= end <= length + 1:
+                text = "".join(characters[bisect_left(positions, start):bisect_left(positions, end)])
+        result.append(_LineContent(start, end if text is not None else None, text, "cache",
+                                   _stored_int_or_none(segment.get("horzpos")),
+                                   _stored_int_or_none(segment.get("horzsize"))))
+    return tuple(result)
+
+
+def _stored_int_or_none(value: str | None) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except ValueError:
+        return None
+
+
+def _measured_line_content(
+    mapping: tuple[list[tuple[int, str]], int] | None,
+    text: str,
+    starts: list[int] | tuple[int, ...],
+    widths: list[float],
+    shape: _Shape,
+    column: int,
+    *,
+    offset: int = 0,
+    offsets: list[float | None] | None = None,
+) -> tuple[_LineContent, ...]:
+    if mapping is None:
+        return ()
+    pieces, length = mapping
+    pieces = [(position, value) for position, value in pieces if value]
+    plain = "".join(value for _, value in pieces)
+    normalized = text.replace(_GLYPH_SPACE, "\u3000").replace(_TYPED_NO_BREAK_SPACE, "\u00a0")
+    if plain != normalized:
+        return ()
+    result = []
+    for index, (start, end) in enumerate(zip(starts, [*starts[1:], len(text) - offset])):
+        start, end = start + offset, end + offset
+        low = 0 if start == 0 else pieces[start][0] if start < len(pieces) else length
+        high = pieces[end][0] if end < len(pieces) else length
+        width = widths[min(index, len(widths) - 1)]
+        width = width if width != _NO_WRAP and not (offsets is not None and "\n" in text) else None
+        x = None if width is None else column - shape.right - width
+        if x is not None and offsets is not None:
+            x = offsets[min(index, len(offsets) - 1)]
+        result.append(_LineContent(low, high, plain[start:end], "engine", x, width))
+    return tuple(result)
+
+
 class _Lookups:
     """The shape lookups FormFit's text style reads, with the paragraph shapes and tab definitions read once:
     the document reads them from the header again on every lookup. (No ``_root`` attribute, so FormFit
@@ -312,7 +391,9 @@ class _Lookups:
 class _Measure:
     """Shapes and line breaking of one document."""
 
-    def __init__(self, root: Any) -> None:
+    def __init__(self, root: Any, *, trace: bool = False) -> None:
+        self.trace = trace
+        self._original_paragraphs: dict[Any, Any] = {}
         self._root = root
         self._lookups = _Lookups(root)
         self._header = root.headers[0].element
@@ -416,6 +497,15 @@ class _Measure:
             self._drawn = _drawn_labels(self._root)
         self._drawn.update({copy: self._drawn[original] for copy, original in copies.items()
                             if original in self._drawn})
+
+    def track_paragraph_copies(self, copies: dict[Any, Any]) -> None:
+        if self.trace:
+            self._original_paragraphs.update(
+                (copy, self._original_paragraphs.get(original, original)) for copy, original in copies.items()
+            )
+
+    def native_positions(self, paragraph: Any) -> tuple[list[tuple[int, str]], int] | None:
+        return _hancom_position_map(self._original_paragraphs.get(paragraph, paragraph))
 
     def pictured(self, para_pr_id: Any) -> bool:
         """Whether a paragraph shape heads its paragraphs with a picture bullet sized by its picture
@@ -1562,6 +1652,8 @@ class _Wrap:
     #: paragraph's right margin, the margin on the object's side taking no more (see :meth:`pieces`)
     room: tuple[int, int] = (0, 0)
     column: int = 0
+    #: Text room on each side of a column-relative object. Does not participate in line breaking.
+    trace_room: tuple[int, int] = (0, 0)
 
     def pieces(self, full: float, right: int) -> list[float]:
         """The widths of a line beside an object with *room*, its pieces one on each side with text: a line
@@ -1711,6 +1803,7 @@ class _Para:
     #: a flowing table alone in this empty paragraph, allowed to overlap and starting on the line: the line goes
     #: below it (see :meth:`_Paginator._flow`)
     under: bool = False
+    content: tuple[_LineContent, ...] = ()
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -1742,6 +1835,7 @@ class _Reflow:
     starts: tuple[int, ...] = ()
     end: int = 0   # the paragraph's end (see :func:`_end_size`)
     head: int = 0  # its label (see :func:`_head_size`)
+    native: tuple[list[tuple[int, str]], int] | None = None
     wrapped: bool = False  # its lines from *offset* on are broken beside a band (see :meth:`banded`)
 
     def at(self, para: _Para, width: int, line: int) -> _Para:
@@ -1761,7 +1855,8 @@ class _Reflow:
         starts = self.measure.line_starts(text, widths, min(sizes), self.style, sizes if mixed else None, looks)
         cached = _line_metrics(self.measure, text, widths, sizes, self.style, self.shape, {}, looks) \
             if mixed or looks is not None or self.shape.font_line else ()
-        return replace(para, lines=len(starts), cached=cached,
+        content = _measured_line_content(self.native, self.text, starts, widths, self.shape, width, offset=offset)
+        return replace(para, lines=len(starts), cached=cached, content=content,
                        reflow=replace(self, width=width, offset=offset, starts=tuple(starts), wrapped=False))
 
     def banded(self, para: _Para, line: int, wrap: _Wrap) -> _Para:
@@ -1788,12 +1883,16 @@ class _Reflow:
         if offset:  # the rest: none of its lines is the paragraph's first
             widths = [widths[1], widths[1]]
         several = sizes if len(set(sizes)) > 1 else None
+        offsets: list[float | None] | None = [] if self.native is not None else None
         lines, firsts = _wrapped_widths(self.measure, text, widths, min(sizes), self.style, self.shape, wrap,
-                                        several, looks)
+                                        several, looks, column=self.width, offsets=offsets)
         pieces = self.measure.line_starts(text, lines, min(sizes), self.style, several, looks)
         metrics = _at_one_height(_line_metrics(self.measure, text, lines, sizes, self.style, self.shape, {}, looks,
                                                end=self.end, head=0 if offset else self.head), firsts)
-        return replace(para, lines=len(metrics), cached=metrics,
+        captured = [*pieces, len(text)] if len(metrics) > len(pieces) else pieces
+        content = _measured_line_content(self.native, self.text, captured, lines, self.shape,
+                                         self.width, offset=offset, offsets=offsets)
+        return replace(para, lines=len(metrics), cached=metrics, content=content,
                        reflow=replace(self, offset=offset, starts=tuple(pieces), wrapped=True))
 
 
@@ -2242,7 +2341,8 @@ def _metric_starts(measure: _Measure, text: str, widths: list[float], sizes: lis
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
                   marks: dict[int, int] | None = None, end: int = 0, head: int = 0,
-                  held: dict[int, int] | None = None) -> tuple[tuple[int, int], ...]:
+                  held: dict[int, int] | None = None,
+                  starts_out: list[int] | None = None) -> tuple[tuple[int, int], ...]:
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
@@ -2257,6 +2357,8 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     (:func:`_line_sizes`)."""
 
     starts = _metric_starts(measure, text, widths, sizes, style, objects, styles, marks)
+    if starts_out is not None:
+        starts_out.extend(starts)
     heights = _line_sizes(measure, sizes, style, styles, shape)
     if shape.font_line:
         end, head = measure.font_line(end, style), measure.font_line(head, style)
@@ -2516,7 +2618,8 @@ def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
 
 
 def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int, style: Any, shape: _Shape,
-                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None) -> tuple[list[float], set[int]]:
+                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None, *,
+                    column: int = 0, offsets: list[float | None] | None = None) -> tuple[list[float], set[int]]:
     """Each FormFit line's width with the lines whose top is in *wrap*'s band cut narrower, or split in two
     pieces at one height beside an object with text on both sides, and the FormFit lines that are such a
     line's first piece (FormFit breaks the lines, and which lines are in the band follows from their
@@ -2526,18 +2629,34 @@ def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int
     for _ in range(8):
         lines: list[float] = []
         firsts: set[int] = set()
+        if offsets is not None:
+            offsets.clear()
+        right = column - shape.right
         for index in range(max(narrow, default=0) + 2):
             full = widths[min(index, 1)]
+            plain_left = right - full
             if index in narrow and wrap.column:
                 pieces = wrap.pieces(full, shape.right)
                 if len(pieces) > 1:
                     firsts.add(len(lines))
                 lines += pieces
+                if offsets is not None:
+                    if wrap.room[0]:
+                        offsets.append(plain_left)
+                    if wrap.room[1]:
+                        offsets.append(right - pieces[-1])
             elif index in narrow and wrap.split:
                 firsts.add(len(lines))
                 lines += [wrap.split, full - wrap.cut - wrap.split]
+                if offsets is not None:
+                    offsets.extend((plain_left, right - lines[-1]))
             else:
                 lines.append(full - (wrap.cut if index in narrow else 0))
+                if offsets is not None:
+                    if index not in narrow or wrap.trace_room[0]:
+                        offsets.append(plain_left)
+                    else:
+                        offsets.append(right - lines[-1] if wrap.trace_room[1] else None)
         starts = measure.line_starts(text, lines, size, style, sizes, looks)
         top, found, index, piece = 0, set(), 0, 0
         while piece < len(starts):
@@ -2580,6 +2699,7 @@ def _lines_of(para: _Para, first: int, count: int, *, prev: int, after: int) -> 
 
     cached = para.cached[first:first + count] if para.cached else ()
     return replace(para, lines=count, prev=prev, next=after, cached=cached, notes={}, anchor=None,
+                   content=para.content[first:first + count],
                    keep_next=False if after == 0 else para.keep_next)
 
 

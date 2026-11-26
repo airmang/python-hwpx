@@ -240,12 +240,16 @@ from ._page_measure import (  # noqa: F401
     _anchor_line, _extent, _wraps_top_and_bottom, _wrapped_widths, _at_one_height, _lines_of, _repeated_header,
     _spare_cut, _starts_later, _header_moves, _flow_table, _split_block, _block_rest, _lists_lines, _cell_rest,
     _flow_row, _reached, _joined_stays, _split_joined, _lines_fitting, _lines_height,
+    _LineContent, _cache_line_content, _measured_line_content, _stored_int_or_none,
 )
 
 if TYPE_CHECKING:
     from ..document import HwpxDocument
 
-__all__ = ["EstimatedLine", "PageEstimate", "estimate_pages"]
+__all__ = [
+    "EstimatedLine", "PageEstimate", "estimate_pages",
+    "ColumnArea", "PagePlacement", "LinePlacement", "ParagraphPlacement", "LayoutEstimate", "estimate_layout",
+]
 
 
 @dataclass(frozen=True)
@@ -273,6 +277,73 @@ class PageEstimate:
     unsupported: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ColumnArea:
+    """A column configuration beginning at *top*, measured from the paper top in HWPUNIT."""
+
+    top: int
+    widths: tuple[int, ...]
+    gap: int | None  # The estimate does not retain gaps for unequal columns.
+
+
+@dataclass(frozen=True)
+class PagePlacement:
+    """A zero-based page with paper size and body (x, y, width, height), all in HWPUNIT."""
+
+    page: int
+    section: int
+    paper_width: int
+    paper_height: int
+    body: tuple[int, int, int, int]
+    column_areas: tuple[ColumnArea, ...]
+
+
+@dataclass(frozen=True)
+class LinePlacement:
+    """A body line or line piece. *top* is paper-relative and *x* is column-relative (HWPUNIT).
+
+    The half-open text range uses Hancom's text positions (as in the saved line cache).
+    A missing datum is accompanied by a reason in *unavailable*.
+    """
+
+    position: EstimatedLine
+    top: int
+    height: int
+    x: float | None
+    width: float | None
+    text_start: int | None
+    text_end: int | None
+    text: str | None
+    source: str | None
+    hidden: bool
+    unavailable: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ParagraphPlacement:
+    """A paragraph in the original section's body, addressed by zero-based indices."""
+
+    section: int
+    paragraph: int
+    lines: tuple[LinePlacement, ...]
+
+
+@dataclass(frozen=True)
+class LayoutEstimate:
+    """Engine placement for preview consumers, with the original page estimate."""
+
+    estimate: PageEstimate
+    pages: tuple[PagePlacement, ...]
+    paragraphs: tuple[ParagraphPlacement, ...]
+
+
+@dataclass(frozen=True)
+class _LineDetail:
+    height: int
+    content: _LineContent | None
+    hidden: bool = False
+
+
 class _BandMoves(Exception):
     """A square-wrapped object flowing with the text, anchored in paragraph *index* without a layout cache,
     passed the body's foot: the section is laid out again with it at the next page's top."""
@@ -292,7 +363,22 @@ def estimate_pages(document: "HwpxDocument | bytes | str | os.PathLike[str]") ->
     return _estimate(document)
 
 
-def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
+def estimate_layout(document: "HwpxDocument | bytes | str | os.PathLike[str]") -> LayoutEstimate:
+    """Read the page estimate and the page and line placement computed during it.
+
+    This experimental estimate may decline documents. Use *estimate.unsupported* for the
+    reasons. Page and paragraph placements are empty in that case.
+    """
+
+    placements: list[tuple[int, int, _SectionLayout]] = []
+    estimate = _estimate(document, placements=placements)
+    return _placement_result(estimate, placements)
+
+
+def _estimate(
+    document: Any, *, first_reason: bool = False,
+    placements: list[tuple[int, int, _SectionLayout]] | None = None,
+) -> PageEstimate:
     """:func:`estimate_pages`; with *first_reason*, stop at the first section not followed (its reason the only
     one given) instead of laying every section out to name them all."""
 
@@ -304,18 +390,23 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
     compatible = next(root.headers[0].element.iter(f"{HH}compatibleDocument"), None)
     if compatible is not None and compatible.get("targetProgram") == "MS_WORD":
         return PageEstimate(None, (), ("a document laid out for compatibility with MS Word",))
-    measure = _Measure(root)
+    measure = _Measure(root, trace=placements is not None)
+    owners: list[tuple[int, int]] = []
     layouts: list[_SectionLayout] = []
     reasons: list[str] = []
     part = None
     notes: list[Any] = []  # the endnotes going to the document's end
     for number, section in enumerate(root.sections):
+        first_paragraph = 0
         try:
             for part in _section_parts(measure, section.element):
                 measure.tab_stop = _tab_stop(part) or _DEFAULT_TAB_STOP
                 own = list(part.iter(f"{HP}endNote"))
                 shape = _note_shape(part, "endNotePr") if own else None
-                layouts.append(_lay_section(measure, _unswitched(part)))
+                layouts.append(_lay_section(measure, _unswitched(part, measure)))
+                if placements is not None:
+                    owners.append((number, first_paragraph))
+                    first_paragraph += len(layouts[-1].counts)
                 if shape is not None and shape.section_end:  # after the section's text, before the next section
                     layouts[-1] = _with_endnotes(measure, layouts[-1], shape, own)
                 else:
@@ -332,6 +423,8 @@ def _estimate(document: Any, *, first_reason: bool = False) -> PageEstimate:
             layouts[-1] = _with_endnotes(measure, layouts[-1], _note_shape(part, "endNotePr"), notes)
         except _Unsupported as exc:
             return PageEstimate(None, (), (f"section {last}: {exc}",))
+    if placements is not None:
+        placements.extend((section, first, layout) for (section, first), layout in zip(owners, layouts))
     return _assemble(layouts)
 
 
@@ -506,13 +599,15 @@ def _switched(section: Any) -> list[Any]:
                 _local(child) in _OBJECTS for branch in switch for child in branch)]
 
 
-def _unswitched(section: Any) -> Any:
+def _unswitched(section: Any, measure: _Measure | None = None) -> Any:
     """*section*, or a copy of it in which each run's hp:switch holding an object gives way to the branch Hancom
     lays out: its hp:case requiring a namespace Hancom knows (a chart), else its hp:default."""
 
     if not _switched(section):
         return section
-    section = copy.deepcopy(section)
+    original, section = section, copy.deepcopy(section)
+    if measure is not None and measure.trace:
+        measure.track_paragraph_copies(dict(zip(section.iter(f"{HP}p"), original.iter(f"{HP}p"))))
     for switch in _switched(section):
         branch = next((case for case in switch.findall(f"{HP}case")
                        if case.get(f"{HP}required-namespace") in _CASE_NAMESPACES), switch.find(f"{HP}default"))
@@ -626,6 +721,7 @@ def _section_parts(measure: _Measure, section: Any) -> list[Any]:
             lead.insert(0, run)
         run.insert(0, etree.fromstring(_DEFAULT_SECTION))
     measure.copied(copies)
+    measure.track_paragraph_copies(copies)
     return parts
 
 
@@ -935,6 +1031,10 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     beside = anchored is not None and len(objects) > 1  # objects set as characters on the lines below it
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
+    cache_used = bool(cached)
+    native = measure.native_positions(paragraph) if measure.trace else None
+    starts: list[int] | None = [] if native is not None and not (cache_used or alone or among or beside) else None
+    offsets: list[float | None] | None = None
     size, refs, sizes = _text_size(measure, runs, paragraph)
     style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
     widths: list[float] = _indented(page.column_width - shape.left - shape.right, shape, style)
@@ -973,12 +1073,14 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     elif not cached and wrap is not None and not alone and text:
         if anchored is not None:
             raise _Unsupported("a top-and-bottom object beside a square-wrapped object")
+        offsets = [] if starts is not None else None
         widths, firsts = _wrapped_widths(measure, text, widths, size, style, shape, wrap, sizes if mixed else None,
-                                         looks)
+                                         looks, column=page.column_width, offsets=offsets)
         cached = _at_one_height(_line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end,
-                                              head=head, held=held), firsts)
+                                              head=head, held=held, starts_out=starts), firsts)
     elif not cached and not alone and (mixed or looks is not None):
-        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks, end=end, head=head, held=held)
+        cached = _line_metrics(measure, text, widths, sizes, style, shape, {}, looks,
+                               end=end, head=head, held=held, starts_out=starts)
     count = len(cached) or measure.lines(text, widths, size, style)
     pitch = _pitch(shape.kind, shape.value, size)
     table, moves, floor = None, 0, 0
@@ -1034,10 +1136,22 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                  paragraph.get("pageBreak") == "1",
                  paragraph.get("columnBreak") == "1", table, notes, cached, anchor, wrap_anchor=around,
                  hides=page.hide_empty and _holds_nothing(runs))
+    if measure.trace and cache_used:
+        content = _cache_line_content(paragraph, native)
+        if len(content) == para.lines:
+            para = replace(para, content=content)
+    elif starts is not None:
+        if not cached:
+            starts = measure.line_starts(text, widths, size, style)
+        if wrap is not None and len(starts) + 1 == para.lines:
+            starts.append(len(text))  # empty second piece after the text's last line
+        if len(starts) == para.lines:
+            para = replace(para, content=_measured_line_content(native, text, starts, widths, shape,
+                                                                page.column_width, offsets=offsets))
     if anchored is not None and text and not text.strip(" ") and para.lines == 1:
         para = replace(para, spaced=True)
     if reflow and text:
-        again = _Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks), style, shape)
+        again = _Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks), style, shape, native=native)
         return again.at(para, page.column_width, 0)
     if moves:
         para = replace(para, moves=moves, own=own)
@@ -1052,7 +1166,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         if not text:
             return replace(para, blank=True)
         return replace(para, reflow=_Reflow(measure, text, tuple(sizes), None if looks is None else tuple(looks),
-                                            style, shape, width=page.column_width, end=end, head=head))
+                                            style, shape, width=page.column_width, end=end, head=head, native=native))
     return para
 
 
@@ -1181,7 +1295,8 @@ def _spans(measure: _Measure, page: _Page, table: Any) -> tuple[_FlowTable, int,
     flowing = _FlowTable(rows, table.get("pageBreak", "CELL"), table.get("repeatHeader") == "1", ends,
                          tuple(cells), caption=_caption(measure, table), cut=_spare_cut(table))
     left, right = _square_sides(table, page)
-    return flowing, offset, _Wrap(0, 0, page.column_width - left - right, split=left if left and right else 0)
+    return flowing, offset, _Wrap(0, 0, page.column_width - left - right, split=left if left and right else 0,
+                       trace_room=(left, right))
 
 
 def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | None, moved: bool = False) -> tuple[_Para, _Wrap | None]:
@@ -1226,7 +1341,8 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             tall += _rows_height(measure, obj) - int(obj.find(f"{HP}sz").get("height", 0))
         if obj is square:
             left, right = _square_sides(square, page)
-            band = _Wrap(0, tall, page.column_width - left - right, split=left if left and right else 0)
+            band = _Wrap(0, tall, page.column_width - left - right, split=left if left and right else 0,
+                       trace_room=(left, right))
         else:  # the lines reaching it go below it
             band = _Wrap(0, tall, 0, push=True)
         return replace(_paragraph(measure, page, paragraph, None, obj), moved=band), None
@@ -1282,9 +1398,9 @@ def _wrapped_paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wr
             tall += _rows_height(measure, square) - int(square.find(f"{HP}sz").get("height", 0))
         stays = square.find(f"{HP}pos").get("flowWithText") == "0"
         if left and right:
-            wrap = _Wrap(top, top + tall, page.column_width - left - right, split=left, stays=stays)
+            wrap = _Wrap(top, top + tall, page.column_width - left - right, split=left, stays=stays, trace_room=(left, right))
         else:
-            wrap = _Wrap(top, top + tall, page.column_width - left - right, stays=stays)
+            wrap = _Wrap(top, top + tall, page.column_width - left - right, stays=stays, trace_room=(left, right))
     if square is not None and len(objects) > 1 and not _run_text(runs).strip():  # objects set as characters, alone:
         para = _paragraph(measure, page, paragraph, None, square)  # their line beside it, even wider than the room
         if len(objects) > 2:
@@ -1422,7 +1538,11 @@ def _in_two_pieces(para: _Para) -> _Para:
     """*para*, one empty line, as Hancom writes it beside an object with text on both sides: two pieces at
     one height."""
 
-    return replace(para, lines=2, cached=((para.size, 0), (para.size, para.pitch)))
+    content = para.content
+    if len(content) == 1 and content[0].text == "":
+        first = replace(content[0], x=None, width=None)
+        content = (first, replace(first, start=first.end))
+    return replace(para, lines=2, cached=((para.size, 0), (para.size, para.pitch)), content=content)
 
 
 def _banded_object_lines(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
@@ -1482,7 +1602,7 @@ class _Paginator:
     def __init__(self, body: int, columns: int, notes: _NoteShape,
                  bands: dict[int, list[tuple[int, int]]] | None = None, widths: tuple[int, ...] = (),
                  sides: dict[int, list[tuple[int, int]]] | None = None, alone_at_top: bool = True,
-                 squares: dict[int, list[_Wrap]] | None = None) -> None:
+                 squares: dict[int, list[_Wrap]] | None = None, *, trace: bool = False) -> None:
         self.body = body
         self.alone_at_top = alone_at_top  # see _Page.alone_at_top
         self.widths = widths  # each column's width when they differ
@@ -1499,6 +1619,7 @@ class _Paginator:
         self.notes = notes
         self.out: list[tuple[int, int]] = []
         self.counts: list[int] = []  # lines per paragraph
+        self.details: list[_LineDetail] | None = [] if trace else None
         self.laid: _Para | None = None  # the paragraph _lay placed last, as it broke its last lines
         self.frame = 0
         self.last_vp: int | None = None
@@ -1576,6 +1697,7 @@ class _Paginator:
             # Hancom hides an empty paragraph that would start the next page or column, and a second one after
             # it, where it would stand below this one's foot: it takes no room and starts no page.
             self.out.append((self.frame, start))
+            self._record_lines(para, 0, 1, hidden=True)
             self.hidden = hidden + 1
             return
         table = para.table
@@ -1668,6 +1790,7 @@ class _Paginator:
             self._flow_below_band(para, table, start - para.prev)  # from the paragraph's top, the line below it
             return
         self.out.append((self.frame, start))  # the anchor paragraph's line, under the table's top
+        self._record_lines(para, 0, 1)
         if not para.kept:
             self._reach(self.frame, start, start + para.height(0))
         before = self.frame
@@ -1717,6 +1840,7 @@ class _Paginator:
         self.page_notes = [0, 0] if frame != self.frame else self.page_notes
         self.frame, self.table_end = frame, max(self.table_end, frame)
         self.out.append((self.frame, line))
+        self._record_lines(para, 0, 1)
         if not para.kept:
             self._reach(self.frame, line, line + para.height(0))
         self.last_vp, self.last_pitch, self.pending_next = line, para.advance(0), para.next
@@ -1778,6 +1902,7 @@ class _Paginator:
             self.page_notes = [0, 0]
         self.frame, self.laid = frame, para
         self.out.append((frame, y))
+        self._record_lines(para, 0, 1)
         self._reach(frame, y, y + height)
         self.last_vp, self.last_pitch, self.pending_next = y, para.advance(0), para.next
 
@@ -2259,9 +2384,17 @@ class _Paginator:
             break
         return fitting
 
+    def _record_lines(self, para: _Para, first: int, count: int, *, hidden: bool = False) -> None:
+        if self.details is not None:
+            self.details.extend(_LineDetail(para.height(line),
+                                           para.content[line] if line < len(para.content) else None,
+                                           hidden)
+                                for line in range(first, first + count))
+
     def _place(self, para: _Para, first: int, count: int) -> None:
         """Count the notes of *count* lines from line *first*, just placed."""
 
+        self._record_lines(para, first, count)
         for line, (frame, top) in zip(range(first, first + count), self.out[len(self.out) - count:]):
             note_height, notes, _ = para.notes.get(line, (0, 0, 0))
             self.page_notes[0] += note_height
@@ -2286,6 +2419,10 @@ class _SectionLayout:
     noted: bool = False
     body: int = 0
     width: int = 0
+    paper: _Page | None = None
+    details: list[_LineDetail] | None = None
+    area_tops: list[int] | None = None
+    areas: dict[int, list[ColumnArea]] | None = None
 
 
 def _lay_section(measure: _Measure, section: Any) -> _SectionLayout:
@@ -2337,7 +2474,7 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
     # of those after it: a try more for each)
     for _ in range(max(4, min(len(paper) + 2, 24))):
         paginator = _Paginator(page.body, page.columns, notes, bands, page.widths, sides, page.alone_at_top,
-                               squares)
+                               squares, trace=measure.trace)
         frames = paginator.run(paras)
         firsts = [0]
         for count in paginator.counts:
@@ -2366,7 +2503,8 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
         frame, top = paginator.out[-1]
         end = (frame, top + paras[last].height(paginator.counts[last] - 1))
     return _SectionLayout(page.columns, frames, paginator.out, paginator.counts, end=end,
-                          noted=bool(paginator.page_notes[1]), body=page.body, width=page.column_width)
+                          noted=bool(paginator.page_notes[1]), body=page.body, width=page.column_width,
+                          paper=page if measure.trace else None, details=paginator.details)
 
 
 #: A column area starts this far below the lowest line of the one before it on its page (4 mm), whatever the
@@ -2414,6 +2552,9 @@ def _lay_areas(measure: _Measure, section: Any, page: _Page, notes: _NoteShape,
     places: list[tuple[int, int]] = []
     counts: list[int] = []
     page_index, top = 0, 0
+    detail_rows: list[_LineDetail] = []
+    area_tops: list[int] = []
+    page_areas: dict[int, list[ColumnArea]] = {}
     for number, (start, found) in enumerate(bounds):
         end = bounds[number + 1][0] if number + 1 < len(bounds) else len(paragraphs)
         settings = found if found is not None else settings
@@ -2424,18 +2565,29 @@ def _lay_areas(measure: _Measure, section: Any, page: _Page, notes: _NoteShape,
         paras = _area_paragraphs(measure, area, paragraphs[start:end])
         if top and paras[0].page_break:
             page_index, top = page_index + 1, 0
-        out, placed = _lay_area(area, notes, paras, top, balance=number + 1 < len(bounds))
+        paginator = _lay_area(area, notes, paras, top, balance=number + 1 < len(bounds), trace=measure.trace)
+        out, placed = paginator.out, paginator.counts
         heights = [para.height(line) for para, many in zip(paras, placed) for line in range(many)]
         last = out[-1][0] // count
         bottom = max(vertpos + height for (frame, vertpos), height in zip(out, heights) if frame // count == last)
         lines.extend(out)
         places.extend((page_index + frame // count, frame % count) for frame, _ in out)
         counts.extend(placed)
+        if paginator.details is not None:
+            detail_rows.extend(paginator.details)
+            area_tops.extend(top if frame // count == 0 else 0 for frame, _ in out)
+            for local_page in range(last + 1):
+                page_areas.setdefault(page_index + local_page, []).append(
+                    _column_area(area, top if local_page == 0 else 0))
         page_index += last
         top = (top if last == 0 else 0) + bottom + _COLUMN_AREA_GAP
         if top >= page.body:
             page_index, top = page_index + 1, 0
-    return _SectionLayout(1, 0, lines, counts, places, max(page for page, _ in places) + 1)
+    return _SectionLayout(
+        1, 0, lines, counts, places, max(page for page, _ in places) + 1,
+        paper=page if measure.trace else None, details=detail_rows if measure.trace else None,
+        area_tops=area_tops if measure.trace else None, areas=page_areas if measure.trace else None,
+    )
 
 
 def _area_paragraphs(measure: _Measure, area: _Page, paragraphs: list[Any]) -> list[_Para]:
@@ -2455,26 +2607,26 @@ def _area_paragraphs(measure: _Measure, area: _Page, paragraphs: list[Any]) -> l
 
 
 def _lay_area(area: _Page, notes: _NoteShape, paras: list[_Para], top: int,
-              balance: bool) -> tuple[list[tuple[int, int]], list[int]]:
-    """The (frame, vertpos) of every line of one column area starting *top* down its first page (its lines
+              balance: bool, *, trace: bool = False) -> _Paginator:
+    """The final paginator of one column area starting *top* down its first page (its lines
     counted from there: its first page is that much shorter), and its lines per paragraph. With *balance*, the
     columns of its last page are as short as they can be with every line still on that page."""
 
     columns = area.columns
     first = {frame: [(area.body - top, area.body)] for frame in range(columns)} if top else {}
-    paginator = _Paginator(area.body, columns, notes, first, area.widths, {})
+    paginator = _Paginator(area.body, columns, notes, first, area.widths, {}, trace=trace)
     last = (paginator.run(paras) - 1) // columns
     if balance and columns > 1:
         low, high = 0, area.body - (top if last == 0 else 0)
         while low < high:
             middle = (low + high) // 2
             ends = {frame: [(middle, area.body)] for frame in range(last * columns, (last + 1) * columns)}
-            trial = _Paginator(area.body, columns, notes, {**first, **ends}, area.widths, {})
+            trial = _Paginator(area.body, columns, notes, {**first, **ends}, area.widths, {}, trace=trace)
             if (trial.run(paras) - 1) // columns == last:
                 paginator, high = trial, middle
             else:
                 low = middle + 1
-    return paginator.out, paginator.counts
+    return paginator
 
 
 def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:
@@ -2491,3 +2643,53 @@ def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:
             start += count
         pages += layout.pages if layout.places is not None else (layout.frames - 1) // layout.columns + 1
     return PageEstimate(pages, tuple(lines), ())
+
+
+def _column_area(paper: _Page, top: int = 0) -> ColumnArea:
+    widths = paper.widths or (paper.column_width,) * paper.columns
+    return ColumnArea(paper.top + top, widths, None if paper.unequal else paper.gap)
+
+
+def _placement_result(
+    estimate: PageEstimate, sections: list[tuple[int, int, _SectionLayout]],
+) -> LayoutEstimate:
+    pages: list[PagePlacement] = []
+    paragraphs: list[ParagraphPlacement] = []
+    line_groups = iter(estimate.lines)
+    for section, first, layout in sections:
+        paper = layout.paper
+        details = layout.details
+        assert paper is not None and details is not None and len(details) == len(layout.lines)
+        body = paper.left, paper.top, paper.text_width, paper.body
+        total_pages = layout.pages if layout.places is not None else (layout.frames - 1) // layout.columns + 1
+        default_area = (_column_area(paper),)
+        for local_page in range(total_pages):
+            areas = tuple(layout.areas.get(local_page, ())) if layout.areas is not None else default_area
+            pages.append(PagePlacement(len(pages), section, paper.paper_width, paper.paper_height, body, areas))
+        line_index = 0
+        for index in range(first, first + len(layout.counts)):
+            lines = []
+            for position in next(line_groups):
+                area_top = 0 if layout.area_tops is None else layout.area_tops[line_index]
+                lines.append(_placement_line(position, paper.top + area_top, details[line_index]))
+                line_index += 1
+            paragraphs.append(ParagraphPlacement(section, index, tuple(lines)))
+    return LayoutEstimate(estimate, tuple(pages), tuple(paragraphs))
+
+
+def _placement_line(position: EstimatedLine, top: int, detail: _LineDetail) -> LinePlacement:
+    content = detail.content
+    missing = []
+    if content is None or content.text is None:
+        missing.append("no character range in this layout path")
+    if content is None or content.x is None:
+        missing.append("no horizontal origin in this layout path")
+    if content is None or content.width is None:
+        missing.append("no finite line width in this layout path")
+    return LinePlacement(
+        position, top + position.vertpos, detail.height,
+        content.x if content is not None else None, content.width if content is not None else None,
+        content.start if content is not None else None, content.end if content is not None else None,
+        content.text if content is not None else None, content.source if content is not None else None,
+        detail.hidden, tuple(missing),
+    )

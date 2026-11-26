@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 추가
+
+- 실험 API `hwpx.experimental.estimate_layout`으로 쪽 크기와 본문·단 구성, 최종 본문 줄 위치를 읽을 수 있다.
+  계산 경로에 문자 범위나 가로 위치가 없으면 사유를 반환한다. 기존 `estimate_pages`의 결과는 같다.
+
 ## [7.0.2] - 2026-11-25
 
 ### 고침

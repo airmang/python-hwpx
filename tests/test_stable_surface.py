@@ -29,6 +29,9 @@ from hwpx import _DEPRECATED_EXPORTS, _EQUATION_EXPORTS, _EXPERIMENTAL_EXPORTS
 STABLE_NAMES = frozenset(hwpx.__all__)
 
 EXPERIMENTAL_NAMES = frozenset(_EXPERIMENTAL_EXPORTS)
+LAYOUT_ESTIMATE_NAMES = frozenset({
+    "ColumnArea", "PagePlacement", "LinePlacement", "ParagraphPlacement", "LayoutEstimate", "estimate_layout",
+})
 
 # 4.0~6.x exported these three top-level as experimental; 7.0 made them stable names of
 # hwpx.equation (D26) and keeps them out of the top level.
@@ -241,8 +244,9 @@ def test_experimental_module_reexports_all_experimental_names() -> None:
     experimental = importlib.import_module("hwpx.experimental")
     # 7.0: the equation converters are stable in hwpx.equation and left hwpx.experimental, which
     # names that place (MovedToSubmodule) when they are asked of it.
-    assert frozenset(experimental.__all__) == EXPERIMENTAL_NAMES
-    for name in EXPERIMENTAL_NAMES:
+    names = EXPERIMENTAL_NAMES | LAYOUT_ESTIMATE_NAMES
+    assert frozenset(experimental.__all__) == names
+    for name in names:
         assert hasattr(experimental, name)
 
 
@@ -260,7 +264,7 @@ def test_experimental_module_import_does_not_warn() -> None:
 def test_dir_lists_stable_but_not_the_removed_experimental_names() -> None:
     listing = set(dir(hwpx))
     assert ALL_LEGACY_NAMES <= listing
-    assert not (EXPERIMENTAL_NAMES & listing)
+    assert not ((EXPERIMENTAL_NAMES | LAYOUT_ESTIMATE_NAMES) & listing)
 
 
 def test_unknown_attribute_still_raises_attribute_error() -> None:

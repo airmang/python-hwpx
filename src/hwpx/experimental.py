@@ -33,8 +33,14 @@ from .plan import (
     validate_edit_plan,
 )
 from .layout.pages import (
+    ColumnArea,
     EstimatedLine,
+    LayoutEstimate,
+    LinePlacement,
+    PagePlacement,
+    ParagraphPlacement,
     PageEstimate,
+    estimate_layout,
     estimate_pages,
 )
 
@@ -42,6 +48,12 @@ __all__ = [
     "estimate_pages",
     "PageEstimate",
     "EstimatedLine",
+    "estimate_layout",
+    "LayoutEstimate",
+    "PagePlacement",
+    "ColumnArea",
+    "ParagraphPlacement",
+    "LinePlacement",
     "EditPlan",
     "PlanReport",
     "PlanValidationError",

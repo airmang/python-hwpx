@@ -888,9 +888,9 @@ _LINE_TEXT_MARKS = {"tab": ("\t", 8), "lineBreak": ("\n", 1), "nbSpace": (" ", 
                     "fwSpace": ("　", 1), "hyphen": ("­", 1), "markpenBegin": ("", 0), "markpenEnd": ("", 0)}
 
 
-def _hancom_positions(paragraph: ET.Element) -> list[tuple[int, str]] | None:
+def _hancom_position_map(paragraph: ET.Element) -> tuple[list[tuple[int, str]], int] | None:
     """(Hancom text position, piece of ``paragraph.text``) for each character and object of *paragraph*,
-    or ``None`` when it holds something whose count is not known."""
+    with the final position, or ``None`` when the count is unknown."""
 
     pieces: list[tuple[int, str]] = []
     position = 0
@@ -919,7 +919,12 @@ def _hancom_positions(paragraph: ET.Element) -> list[tuple[int, str]] | None:
                 return None  # a tab outside hp:t: Hancom drops it
             else:  # a control holds one per child; secPr, a table, picture, equation or shape one each
                 position += 8 * max(1, len(child)) if kind == "ctrl" else 8
-    return pieces
+    return pieces, position
+
+
+def _hancom_positions(paragraph: ET.Element) -> list[tuple[int, str]] | None:
+    mapping = _hancom_position_map(paragraph)
+    return mapping[0] if mapping is not None else None
 
 
 def paragraph_line_texts(self: Any) -> "tuple[str, ...] | None":

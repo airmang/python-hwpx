@@ -261,6 +261,10 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
 - **쪽 수 추정**(한/글 없이, `hwpx.layout.pages`): `estimate_pages`, `PageEstimate`,
   `EstimatedLine` — 본문 문단의 줄마다 쪽·단·세로 위치를 추정한다. 따르지 않는 요소가
   있으면 `pages`는 `None`이고 `unsupported`가 까닭을 구역마다 적는다
+- **쪽·줄 배치 추정**: `estimate_layout` → `LayoutEstimate`. 기존 쪽 추정과 함께
+  `PagePlacement`의 종이·본문·단 치수와 `ParagraphPlacement`의 본문 `LinePlacement`를 읽는다.
+  좌표는 HWPUNIT이고 문자 범위는 한/글 줄 캐시의 위치 단위다. `source`는 캐시(`cache`)와
+  엔진 계산(`engine`)을 구분한다. 줄의 누락 값은 `unavailable`에 사유가 들어 있다.
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
   `estimate_equation_size`, `UnsupportedLatexError`. 7.0에서 `hwpx.equation`의 stable
   이름이 되었다 — `from hwpx.equation import latex_to_eqedit`로 쓴다. 최상위 `hwpx`와
