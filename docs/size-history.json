@@ -239,8 +239,8 @@
   },
   {
    "version": "7.0.2",
-   "commit": "ded8e5b1",
-   "totalLines": 114706,
+   "commit": "1ccda007",
+   "totalLines": 114713,
    "packages": {
     ".": 11310,
     "_document": 15259,
@@ -250,13 +250,13 @@
     "layout": 7226,
     "objects": 3349,
     "opc": 3705,
-    "oxml": 40663,
+    "oxml": 40670,
     "plan": 939,
     "quality": 1367,
     "tools": 12311
    },
    "importedModules": 95,
-   "importMs": 811
+   "importMs": 810
   }
  ]
 }
