@@ -265,6 +265,13 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   `PagePlacement`의 종이·본문·단 치수와 `ParagraphPlacement`의 본문 `LinePlacement`를 읽는다.
   좌표는 HWPUNIT이고 문자 범위는 한/글 줄 캐시의 위치 단위다. `source`는 캐시(`cache`)와
   엔진 계산(`engine`)을 구분한다. 줄의 누락 값은 `unavailable`에 사유가 들어 있다.
+  `LinePlacement.runs`는 해당 줄의 문자 모양 ID와 텍스트를 원래 순서로 제공한다.
+- **표·개체·주석 배치 추정**: 같은 결과의 `tables`는 `TablePlacement`와 쪽별
+  `TableRowPlacement`를 제공한다. `TableCellPlacement`의 칸 사각형과 줄 조각은 표 또는 칸
+  기준 좌표를 사용한다. `TableCellLinePlacement`의 문자 범위는 칸 내부 문단 기준이다.
+  `TableCaptionPlacement`는 엔진이 캡션과 간격에 예약한 영역을 나타낸다.
+  `ObjectPlacement`와 `AreaPlacement`의 쪽 좌표는 종이 기준이다. 배치 경로에 따라 일부
+  값은 비어 있고 `unavailable`이 그 이유를 제공한다.
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
   `estimate_equation_size`, `UnsupportedLatexError`. 7.0에서 `hwpx.equation`의 stable
   이름이 되었다 — `from hwpx.equation import latex_to_eqedit`로 쓴다. 최상위 `hwpx`와

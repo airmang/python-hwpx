@@ -582,6 +582,12 @@ def grid_widths_of(table_element: Any) -> dict[Any, int]:
     when another row's cells push those ends apart. Empty for a table whose cells give no column starts to
     stand on."""
 
+    return {cell: width for cell, (_, width) in _grid_extents_of(table_element).items()}
+
+
+def _grid_extents_of(table_element: Any) -> dict[Any, tuple[int, int]]:
+    """Each cell's origin and width on the grid used by :func:`grid_widths_of`."""
+
     spacing = int(table_element.get("cellSpacing", 0) or 0)
     places: dict[Any, tuple[int, int, int]] = {}  # cell: (first column, column after its last, width)
     for tc in (tc for tr in table_element if tr.tag == _GRID_TR for tc in tr if tc.tag == _GRID_TC):
@@ -610,7 +616,8 @@ def grid_widths_of(table_element: Any) -> dict[Any, int]:
         if not reach:
             return {}
         starts[end] = max(reach)
-    return {tc: starts[stop] - starts[first] - spacing for tc, (first, stop, _) in places.items() if first in starts}
+    return {tc: (starts[first], starts[stop] - starts[first] - spacing)
+            for tc, (first, stop, _) in places.items() if first in starts}
 
 
 def _margin_value(raw: str | None) -> int:

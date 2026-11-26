@@ -888,7 +888,9 @@ _LINE_TEXT_MARKS = {"tab": ("\t", 8), "lineBreak": ("\n", 1), "nbSpace": (" ", 
                     "fwSpace": ("　", 1), "hyphen": ("­", 1), "markpenBegin": ("", 0), "markpenEnd": ("", 0)}
 
 
-def _hancom_position_map(paragraph: ET.Element) -> tuple[list[tuple[int, str]], int] | None:
+def _hancom_position_map(
+    paragraph: ET.Element, *, controls: dict[Any, int] | None = None, run_refs: list[str] | None = None,
+) -> tuple[list[tuple[int, str]], int] | None:
     """(Hancom text position, piece of ``paragraph.text``) for each character and object of *paragraph*,
     with the final position, or ``None`` when the count is unknown."""
 
@@ -900,6 +902,7 @@ def _hancom_position_map(paragraph: ET.Element) -> tuple[list[tuple[int, str]], 
             continue
         if name != "run":
             return None
+        run_start = len(pieces)
         for child in run:
             kind = tag_local_name(child.tag)
             if kind == "t":
@@ -918,7 +921,11 @@ def _hancom_position_map(paragraph: ET.Element) -> tuple[list[tuple[int, str]], 
             elif kind == "tab" or _is_tab_control_element(child):
                 return None  # a tab outside hp:t: Hancom drops it
             else:  # a control holds one per child; secPr, a table, picture, equation or shape one each
+                if controls is not None:
+                    controls[child] = position
                 position += 8 * max(1, len(child)) if kind == "ctrl" else 8
+        if run_refs is not None:
+            run_refs.extend([run.get("charPrIDRef", "0")] * (len(pieces) - run_start))
     return pieces, position
 
 
