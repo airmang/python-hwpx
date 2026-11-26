@@ -170,8 +170,12 @@ class RefsNamespace(_Namespace):
         paragraph: "Paragraph | int | None" = None,
         section: "int | Section | None" = None,
         char_pr_id_ref: str | int | None = None,
+        field_char_pr_id_ref: str | int | None = None,
     ) -> "Hyperlink":
-        """표시 문자열을 가진 하이퍼링크를 넣는다. :attr:`hyperlinks` 가 읽는 :class:`Hyperlink` 를 돌려준다."""
+        """표시 문자열을 가진 하이퍼링크를 넣는다. :attr:`hyperlinks` 가 읽는 :class:`Hyperlink` 를 돌려준다.
+
+        *char_pr_id_ref* 는 표시 글의 글자 모양, *field_char_pr_id_ref* 는 필드 시작·끝 컨트롤 런의 글자
+        모양이다(주지 않으면 링크 앞 글의 모양, ``Paragraph.add_hyperlink`` 와 같다)."""
 
         from .. import layout as _layout
 
@@ -187,4 +191,5 @@ class RefsNamespace(_Namespace):
                 self._doc, section, caller="doc.refs.add_hyperlink"
             ),
             char_pr_id_ref=char_pr_id_ref,
+            field_char_pr_id_ref=field_char_pr_id_ref,
         )

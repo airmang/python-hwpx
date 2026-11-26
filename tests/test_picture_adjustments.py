@@ -255,3 +255,47 @@ def test_a_reflection_value_hancom_does_not_draw_is_refused_before_anything_is_a
 
     assert caught.value.code == "shape-picture-effect-value"
     assert (len(document.paragraphs), len(document.media.images)) == (paragraphs, images)
+
+
+# -- a floating picture placed left of or above its frame -------------------------------------------------
+
+
+def _floating_offsets(**overrides) -> tuple[str | None, str | None]:
+    document = HwpxDocument.new()
+    item = document.media.add_image(PNG_1X1, "png")
+    paragraph = document.add_paragraph("anchor")
+    pos = {"horzRelTo": "COLUMN", "vertRelTo": "PARA", "horzAlign": "LEFT", "vertAlign": "TOP", **overrides}
+    picture = paragraph.add_picture(item, width=4000, height=4000, treat_as_char=False, pos_overrides=pos)
+    place = picture.element.find(f"{HP}pos")
+    return place.get("horzOffset"), place.get("vertOffset")
+
+
+def test_a_negative_offset_is_written_as_hancom_writes_one() -> None:
+    # Hangul saves a picture placed left of / above its frame with the offset in its unsigned 32-bit
+    # form (flip_picture_left_right_by_30: vertOffset -998) and draws it there; it was clamped to 0.
+    with zipfile.ZipFile(FIXTURES / "flip_picture_left_right_by_30.hwpx") as package:
+        root = etree.fromstring(package.read("Contents/section0.xml"))
+    hancom = root.find(f".//{HP}pic/{HP}pos")
+    assert (hancom.get("horzOffset"), hancom.get("vertOffset")) == ("4294966600", "4294966298")
+    assert _floating_offsets(horzOffset=-696, vertOffset=-998) == ("4294966600", "4294966298")
+    assert _floating_offsets(horzOffset=3000, vertOffset=0) == ("3000", "0")
+    # the unsigned form given as it is stays as it is
+    assert _floating_offsets(horzOffset=4294966600, vertOffset=0) == ("4294966600", "0")
+    reopened = HwpxDocument.open(_doc_with_offset(-2000).to_bytes())
+    picture = next(iter(reopened.sections[0].element.iter(f"{HP}pic")))
+    assert picture.find(f"{HP}pos").get("vertOffset") == str((-2000) & 0xFFFFFFFF)
+
+
+def _doc_with_offset(offset: int) -> HwpxDocument:
+    document = HwpxDocument.new()
+    item = document.media.add_image(PNG_1X1, "png")
+    document.add_paragraph("anchor").add_picture(
+        item, width=4000, height=4000, treat_as_char=False,
+        pos_overrides={"vertRelTo": "PARA", "horzRelTo": "COLUMN", "vertOffset": offset})
+    return document
+
+
+def test_an_offset_past_signed_32_bits_is_refused() -> None:
+    with pytest.raises(HwpxValueError) as caught:
+        _floating_offsets(vertOffset=-(2**31) - 1)
+    assert caught.value.code == "shape-position-value"

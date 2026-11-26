@@ -96,17 +96,27 @@ def _paragraph_note_style_refs(self: "HwpxOxmlParagraph", tag: str) -> tuple[str
     return _NOTE_STYLE_FALLBACK[tag]
 
 
-def _paragraph_note_suffix_char(self: "HwpxOxmlParagraph", tag: str) -> str:
-    """The note suffix character from secPr, defaulting to ")"."""
+def _paragraph_note_number_format(self: "HwpxOxmlParagraph", tag: str) -> dict[str, str]:
+    """The number shape of a new note: its section's ``{tag}Pr/autoNumFormat``, as Hancom copies it.
 
+    Hancom writes a note's own ``hp:autoNum`` format as its section's note number shape (140 of the
+    140 notes of the Hancom-saved fixtures, and a footnote Hancom 2024 inserted under a section
+    numbering them ``[i`` in superscript: ``type="ROMAN_SMALL" prefixChar="[" suffixChar=""
+    supscript="1"``). A section without one numbers them ``1)``: digits, ``)`` after, not raised.
+    """
+
+    shape = {"type": "DIGIT", "userChar": "", "prefixChar": "", "suffixChar": ")", "supscript": "0"}
     properties = self.section._section_properties_element()
-    if properties is not None:
-        pr = properties.find(f"{_HP}{tag}Pr")
-        if pr is not None:
-            fmt = pr.find(f"{_HP}autoNumFormat")
-            if fmt is not None and fmt.get("suffixChar"):
-                return fmt.get("suffixChar", ")")
-    return ")"
+    pr = properties.find(f"{_HP}{tag}Pr") if properties is not None else None
+    fmt = pr.find(f"{_HP}autoNumFormat") if pr is not None else None
+    if fmt is not None:
+        for name in ("type", "userChar", "prefixChar", "suffixChar"):
+            value = fmt.get(name)
+            if value is not None:
+                shape[name] = value
+        # written as Hancom writes it in a note, 1 or 0 (a section may say true/false)
+        shape["supscript"] = "1" if (fmt.get("supscript") or "").strip().lower() in ("1", "true") else "0"
+    return shape
 
 
 def _paragraph_next_note_number(self: "HwpxOxmlParagraph", tag: str) -> int:
@@ -162,7 +172,7 @@ def _paragraph_add_note(
 
         offset = _check_offset("offset", offset, 0, len(self.text))
     number = _paragraph_next_note_number(self, tag)
-    suffix = _paragraph_note_suffix_char(self, tag)
+    number_shape = _paragraph_note_number_format(self, tag)
     style_ref, para_pr_ref, note_char_ref = _paragraph_note_style_refs(self, tag)
     if char_pr_id_ref is not None:
         note_char_ref = str(char_pr_id_ref)
@@ -173,15 +183,14 @@ def _paragraph_add_note(
     else:
         run = self._create_run_for_object(run_attributes, char_pr_id_ref=char_pr_id_ref)
     ctrl = _append_child(run, f"{_HP}ctrl", {})
-    note_element = _append_child(
-        ctrl,
-        f"{_HP}{tag}",
-        {
-            "number": str(number),
-            "suffixChar": str(ord(suffix[0])) if suffix else "41",
-            "instId": _object_id(self.section._ids),
-        },
-    )
+    # the characters around the number as character codes, each only when the section has one
+    # (Hancom writes ``number="1" suffixChar="41"`` for ``1)``, ``prefixChar="91"`` for ``[``, none for ``1``)
+    note_attributes = {"number": str(number)}
+    for name in ("prefixChar", "suffixChar"):
+        if number_shape[name]:
+            note_attributes[name] = str(ord(number_shape[name][0]))
+    note_attributes["instId"] = _object_id(self.section._ids)
+    note_element = _append_child(ctrl, f"{_HP}{tag}", note_attributes)
     sublist_attrs = _default_sublist_attributes()
     sublist_attrs["vertAlign"] = "TOP"
     sublist = _append_child(note_element, f"{_HP}subList", sublist_attrs)
@@ -194,11 +203,7 @@ def _paragraph_add_note(
         f"{_HP}autoNum",
         {"num": str(number), "numType": "FOOTNOTE" if tag == "footNote" else "ENDNOTE"},
     )
-    _append_child(
-        auto_num,
-        f"{_HP}autoNumFormat",
-        {"type": "DIGIT", "userChar": "", "prefixChar": "", "suffixChar": suffix, "supscript": "0"},
-    )
+    _append_child(auto_num, f"{_HP}autoNumFormat", number_shape)
     set_text_with_tabs(_append_child(note_run, f"{_HP}t", {}), text)
     if offset is not None:
         from .text_ranges import drop_if_empty, put_at

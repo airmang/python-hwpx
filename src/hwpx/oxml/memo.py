@@ -1163,10 +1163,12 @@ class HwpxOxmlNote(SameElement):
         display_text: str,
         *,
         char_pr_id_ref: str | int | None = None,
+        field_char_pr_id_ref: str | int | None = None,
     ) -> "Hyperlink":
         """Append a hyperlink to the note body paragraph and return it, as ``paragraph.hyperlinks``
         reads it (``body_paragraph.add_hyperlink``, which gives the link since 7.0).
         """
-        return self.body_paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)
+        return self.body_paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref,
+                                                 field_char_pr_id_ref=field_char_pr_id_ref)
 
 __all__ = ["HwpxOxmlMemo", "HwpxOxmlMemoGroup", "HwpxOxmlNote"]

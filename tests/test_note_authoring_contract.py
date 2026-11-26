@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 from hwpx import HwpxDocument
 
@@ -92,3 +93,53 @@ class TestReaderCoversBothShapes:
         ]
         assert len(notes) == 1
         assert notes[0].get("number") == "1"
+
+
+class TestNoteNumberFollowsItsSection:
+    """A new note's number shape is its section's, as Hancom writes it.
+
+    ``hancom_saved/note_number_section_shape.hwpx``: Hangul 2024 inserted a footnote (its public
+    automation, ``InsertFootnote``) in a document whose section numbers footnotes ``[i``
+    raised. The note says ``prefixChar="91"`` and no ``suffixChar``, and its ``hp:autoNum``
+    carries the section's shape. The notes used to say ``1)`` whatever the section said.
+    """
+
+    FIXTURE = Path(__file__).parent / "fixtures" / "hancom_saved" / "note_number_section_shape.hwpx"
+
+    @staticmethod
+    def _note_shape(section_element) -> tuple[dict[str, str], dict[str, str]]:
+        note = next(section_element.iter(f"{HP}footNote"))
+        attributes = {key: value for key, value in note.attrib.items() if key in ("number", "prefixChar", "suffixChar")}
+        fmt = note.find(f"{HP}subList/{HP}p/{HP}run/{HP}ctrl/{HP}autoNum/{HP}autoNumFormat")
+        return attributes, dict(fmt.attrib)
+
+    def test_a_footnote_takes_the_section_shape_as_hancom_writes_it(self) -> None:
+        hancom = HwpxDocument.open(self.FIXTURE)
+        expected = self._note_shape(hancom.sections[0].element)
+        assert expected == (
+            {"number": "1", "prefixChar": "91"},
+            {"type": "ROMAN_SMALL", "userChar": "", "prefixChar": "[", "suffixChar": "", "supscript": "1"},
+        )
+        doc = HwpxDocument.new()
+        paragraph = doc.add_paragraph("Footnote host sentence")
+        doc.page.set_footnote_shape(number_format="ROMAN_SMALL", prefix="[", suffix="", superscript=True)
+        doc.notes.add_footnote("note", paragraph=paragraph)
+        assert self._note_shape(_roundtrip(doc).sections[0].element) == expected
+
+    def test_superscript_digits_without_a_suffix(self) -> None:
+        # what Hangul gives a converted Word document (plain raised digits)
+        doc = HwpxDocument.new()
+        paragraph = doc.add_paragraph("host")
+        doc.page.set_endnote_shape(number_format="DIGIT", prefix="", suffix="", superscript=True)
+        note = doc.notes.add_endnote("note", paragraph=paragraph)
+        assert "suffixChar" not in note.element.attrib and "prefixChar" not in note.element.attrib
+        fmt = note.element.find(f"{HP}subList/{HP}p/{HP}run/{HP}ctrl/{HP}autoNum/{HP}autoNumFormat")
+        assert (fmt.get("suffixChar"), fmt.get("supscript")) == ("", "1")
+
+    def test_the_default_section_still_numbers_one_paren(self) -> None:
+        doc = HwpxDocument.new()
+        note = doc.add_paragraph("host").add_footnote("note")
+        assert note.element.get("suffixChar") == "41"
+        fmt = note.element.find(f"{HP}subList/{HP}p/{HP}run/{HP}ctrl/{HP}autoNum/{HP}autoNumFormat")
+        assert dict(fmt.attrib) == {"type": "DIGIT", "userChar": "", "prefixChar": "", "suffixChar": ")",
+                                    "supscript": "0"}
