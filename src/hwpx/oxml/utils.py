@@ -149,6 +149,11 @@ def coerce_xml_source(source: XmlSource) -> Tuple[etree._Element, etree._Element
     raw XML (``str``/``bytes``). The helper normalises the input so that callers
     always receive both the element and the owning tree which is handy for XSD
     validation.
+
+    A file or raw XML is parsed as opening a package parses its parts: without
+    resolving entities or reaching the network, and refused with
+    :class:`~hwpx.opc.security.HwpxSecurityError` when it carries a document
+    type declaration or exceeds the size and depth limits.
     """
 
     if isinstance(source, etree._Element):
@@ -156,16 +161,18 @@ def coerce_xml_source(source: XmlSource) -> Tuple[etree._Element, etree._Element
     if isinstance(source, etree._ElementTree):
         return source.getroot(), source
 
+    from ..opc.xml_utils import parse_untrusted_xml
+
     if isinstance(source, (str, Path)):
         path = Path(source)
         if path.exists():
-            tree = etree.parse(str(path))
-            return tree.getroot(), tree
+            root = parse_untrusted_xml(path.read_bytes(), part_name=path.name)
+            return root, root.getroottree()
         xml_bytes = str(source).encode("utf-8")
     else:
         xml_bytes = bytes(source)
 
-    root = etree.fromstring(xml_bytes)
+    root = parse_untrusted_xml(xml_bytes)
     return root, root.getroottree()
 
 
@@ -272,7 +279,7 @@ def tab_elements_in(xml: bytes) -> bytes:
 
     if b"	" not in xml:
         return xml
-    root = etree.fromstring(xml)
+    root = etree.fromstring(xml, etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False))
     if not tabs_as_elements(root):
         return xml
     return etree.tostring(root, encoding="utf-8", xml_declaration=True)

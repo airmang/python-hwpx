@@ -384,3 +384,58 @@ def test_hwpx_oxml_document_reference_helpers_merge_headers() -> None:
     authors = document.track_change_authors
     assert authors["5"].name == "Alice"
     assert document.track_change_author(5).mark is True
+
+
+_HS_NS = "http://www.hancom.co.kr/hwpml/2011/section"
+_HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+_HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
+_SECRET = "local-file-contents-7f3a"
+
+
+def _external_entity_payloads(tmp_path: Path) -> tuple[bytes, bytes]:
+    secret = tmp_path / "secret.txt"
+    secret.write_text(_SECRET, encoding="utf-8")
+    uri = secret.resolve().as_uri()
+    section = (
+        f'<?xml version="1.0"?><!DOCTYPE hs:sec [<!ENTITY xxe SYSTEM "{uri}">]>'
+        f'<hs:sec xmlns:hs="{_HS_NS}" xmlns:hp="{_HP_NS}">'
+        '<hp:p id="1" paraPrIDRef="0" styleIDRef="0"><hp:run charPrIDRef="0">'
+        "<hp:t>&xxe;</hp:t></hp:run></hp:p></hs:sec>"
+    ).encode("utf-8")
+    header = (
+        f'<?xml version="1.0"?><!DOCTYPE hh:head [<!ENTITY xxe SYSTEM "{uri}">]>'
+        f'<hh:head xmlns:hh="{_HH_NS}" version="1.4" secCnt="1">'
+        '<hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>'
+        "<hh:refList><hh:fontfaces itemCnt=\"1\"><hh:fontface lang=\"HANGUL\" fontCnt=\"1\">"
+        '<hh:font id="0" face="&xxe;" type="TTF" isEmbedded="0"/></hh:fontface></hh:fontfaces>'
+        "</hh:refList></hh:head>"
+    ).encode("utf-8")
+    return section, header
+
+
+@pytest.mark.parametrize("as_path", [False, True])
+def test_parse_xml_refuses_external_entities(tmp_path: Path, as_path: bool) -> None:
+    """A DTD in raw XML or a file is refused, as when a package is opened (lxml 4.x resolved it)."""
+
+    from hwpx.opc.security import HwpxSecurityError
+
+    section, header = _external_entity_payloads(tmp_path)
+    for parse, payload, name in ((parse_section_xml, section, "section.xml"), (parse_header_xml, header, "header.xml")):
+        source: bytes | Path = payload
+        if as_path:
+            source = tmp_path / name
+            source.write_bytes(payload)
+        with pytest.raises(HwpxSecurityError):
+            parse(source)
+
+
+def test_tab_elements_in_does_not_resolve_external_entities(tmp_path: Path) -> None:
+    from hwpx.oxml.utils import tab_elements_in
+
+    section, _ = _external_entity_payloads(tmp_path)
+    xml = section.replace(b"&xxe;", b"a\tb&xxe;")
+    try:
+        out = tab_elements_in(xml)
+    except etree.XMLSyntaxError:
+        return
+    assert _SECRET.encode("utf-8") not in out
