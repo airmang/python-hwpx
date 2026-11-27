@@ -486,3 +486,43 @@ def test_a_table_the_layout_does_not_place_says_why():
         "a table in front of or behind the text takes no room in the layout: its place is not computed",
         "a table in a header: what a header holds is not placed row by row",
     }
+
+
+def test_an_unsplit_table_left_before_its_line_is_not_placed():
+    doc = HwpxDocument.new()
+    body = estimate_layout(doc).pages[0].body[3]
+    for _ in range((body - 19000) // 1600):
+        doc.add_paragraph("쪽의 앞을 채우는 문단")
+    paragraph = doc.add_paragraph("")
+    table = paragraph.add_table(3, 1)
+    table.element.attrib.update({"textWrap": "TOP_AND_BOTTOM", "pageBreak": "NONE"})
+    table.element.find(f"{HP}sz").set("width", "15000")
+    for cell in table.element.iter(f"{HP}tc"):
+        cell.find(f"{HP}cellSz").set("width", "15000")
+    _declared_rows(table, 6200)
+    table.element.find(f"{HP}pos").attrib.update({
+        "treatAsChar": "0", "flowWithText": "1", "vertRelTo": "PARA", "vertAlign": "TOP", "vertOffset": "0",
+        "horzRelTo": "COLUMN", "horzAlign": "LEFT", "horzOffset": "0",
+    })
+    beside = doc.shapes.add_rectangle(8000, 4000, paragraph=paragraph, treat_as_char=False)
+    beside.element.set("textWrap", "TOP_AND_BOTTOM")
+    beside.element.find(f"{HP}pos").attrib.update({
+        "flowWithText": "1", "vertRelTo": "PARA", "vertAlign": "TOP", "vertOffset": "0",
+        "horzRelTo": "COLUMN", "horzAlign": "RIGHT", "horzOffset": "0",
+    })
+    doc.add_paragraph("표 다음 문단")
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    # the two objects fit at the foot of the first page; the paragraph's line has no room below them
+    anchor = next(item for item in layout.paragraphs if item.paragraph == layout.tables[0].paragraph)
+    assert [line.position.page for line in anchor.lines] == [1]
+    placed, = layout.tables
+    assert placed.rows == () and placed.moved is None
+    assert placed.unavailable == (
+        "a table set not to split is left on the page before its paragraph's line: the layout does not follow it "
+        "going on with that line",)
+
+    table.element.set("pageBreak", "CELL")  # one that may split is where the layout leaves it
+    again, = estimate_layout(doc).tables
+    assert [row.page for row in again.rows] == [0, 0, 0] and again.unavailable == ()

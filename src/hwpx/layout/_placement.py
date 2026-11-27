@@ -19,7 +19,7 @@ from ..oxml.namespaces import HP
 from ..oxml.table_sizes import _grid_extents_of
 from ._page_measure import (
     _DRAWINGS, _CellLine, _CellSlice, _FlowTable, _LineContent, _Row, _RowPart, _cell_spacing, _floating, _local,
-    _whole_rows,
+    _page_break, _whole_rows,
 )
 from .pages import (
     AreaPlacement, EstimatedLine, LayoutEstimate, LinePlacement, ObjectPlacement, PageEstimate, PagePlacement,
@@ -95,6 +95,8 @@ def _placement_result(
                     first = result.rows[0]
                     if (first.page, first.column) > (origin.page, origin.column):
                         result = replace(result, moved=True)
+                    elif _left_behind(table, result, origin):
+                        result = TablePlacement(*address, (), unavailable=(_LEFT_BEHIND,))
                 by_source[table] = result
                 tables.append(result)
             objects.extend(_object_placement(section, index, ordinal, obj, sizes.get(obj), object_captures.get(obj), pages)
@@ -247,7 +249,7 @@ def _nested_table_placement(address: tuple[int, int, int], table: Any, measured:
     if cell is None or _local(cell) != "tc":
         return None
     parent = next(cell.iterancestors(f"{HP}tbl"), None)
-    if parent is None or parent not in placements:
+    if parent is None or parent not in placements or not placements[parent].rows:
         return None
     held = (nested_places or {}).get(table, [])
     if len(held) == 1:
@@ -264,6 +266,22 @@ def _nested_table_placement(address: tuple[int, int, int], table: Any, measured:
     capture = _TableCapture(measured, parts, 0, (0, sum(row.height for row in measured.rows)), absolute=False)
     return _table_placement(address, capture, _FrameTrace((), 1, column_start=column), page, 0, numbers,
                             nested_places)
+
+
+#: The layout sets objects placed from an empty paragraph down where they fit and its line below them, on the next
+#: page when it has no room there. Hancom's pages show a table set not to split on its line's page then: where the
+#: layout leaves such a table is not what Hancom draws, so its rows are not given.
+_LEFT_BEHIND = ("a table set not to split is left on the page before its paragraph's line: the layout does not "
+                "follow it going on with that line")
+
+
+def _left_behind(table: Any, placed: TablePlacement, line: EstimatedLine) -> bool:
+    """Whether *table*, set not to split and placed from its paragraph, stands whole on a page before the page of
+    that paragraph's first *line* (see :data:`_LEFT_BEHIND`)."""
+
+    position = table.find(f"{HP}pos")
+    return (position is not None and position.get("treatAsChar") != "1" and position.get("vertRelTo") == "PARA"
+            and _page_break(table) == "NONE" and all(row.page < line.page for row in placed.rows))
 
 
 #: What holds a table other than a body paragraph: a cell, a text box, a caption, or a header, footer or note.
