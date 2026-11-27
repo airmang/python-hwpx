@@ -257,7 +257,7 @@ __all__ = [
     "EstimatedLine", "PageEstimate", "estimate_pages",
     "ColumnArea", "PagePlacement", "LinePlacement", "ParagraphPlacement", "LayoutEstimate", "estimate_layout",
     "TablePlacement", "TableRowPlacement", "TableCellPlacement", "TableCellLinePlacement", "TableCaptionPlacement",
-    "ObjectPlacement", "AreaPlacement",
+    "ObjectPlacement", "AreaPlacement", "LabelPlacement",
 ]
 
 
@@ -288,11 +288,18 @@ class PageEstimate:
 
 @dataclass(frozen=True)
 class ColumnArea:
-    """A column configuration beginning at *top*, measured from the paper top in HWPUNIT."""
+    """A column configuration beginning at *top*, measured from the paper top in HWPUNIT.
+
+    *gap* is the one gap between columns of equal width (``None`` for columns of unequal width). *gaps* holds the
+    gap after each column but the last, for columns of either kind (``hp:colSz@gap`` each its share of 32768 of the
+    text width, rounded as the widths are; ``()`` for one column): column *n* starts ``sum(widths[:n]) +
+    sum(gaps[:n])`` right of the body's left edge.
+    """
 
     top: int
     widths: tuple[int, ...]
-    gap: int | None  # The estimate does not retain gaps for unequal columns.
+    gap: int | None
+    gaps: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -310,6 +317,21 @@ class PagePlacement:
     body: tuple[int, int, int, int]
     column_areas: tuple[ColumnArea, ...]
     number: int | None = None
+
+
+@dataclass(frozen=True)
+class LabelPlacement:
+    """The bullet or number Hancom draws before a paragraph's first line, on that line: *text* as counted in
+    reading order (a symbol-font bullet as its Unicode symbol), *char_pr* its ``charPrIDRef``, *x* and *width* the
+    box the layout gives it (from the edge the line's *x* is), set in it by *align* (``hh:paraHead@align``); the
+    text starts past it by the head's gap. A missing datum comes with a reason in *unavailable*."""
+
+    text: str | None
+    char_pr: str | None
+    x: float | None
+    width: float | None
+    align: str = "LEFT"
+    unavailable: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -332,6 +354,7 @@ class LinePlacement:
     hidden: bool
     unavailable: tuple[str, ...]
     runs: tuple[tuple[str, str], ...] = ()  # (charPrIDRef, text) in original run order
+    label: LabelPlacement | None = None  # a paragraph's first line: the bullet or number drawn before it
 
 
 @dataclass(frozen=True)
@@ -364,6 +387,7 @@ class TableCellLinePlacement:
     source: str | None
     runs: tuple[tuple[str, str], ...] = ()
     tables: tuple[int, ...] = ()
+    label: LabelPlacement | None = None  # as :attr:`LinePlacement.label`
 
 
 @dataclass(frozen=True)
@@ -750,6 +774,8 @@ class _Page:
     #: how tall the header's room above the body and the footer's below it are (the placement reads them)
     header: int = 0
     footer: int = 0
+    #: columns of unequal width: the gap after each but the last (the placement reads them, see :func:`_column_gaps`)
+    gaps: tuple[int, ...] = ()
 
 
 def _page(section: Any) -> _Page:
@@ -771,7 +797,8 @@ def _page(section: Any) -> _Page:
                  sides["left"] + sides["gutter"], text_width, width, bool(widths),
                  widths, height,
                  visibility is not None and visibility.get("hideFirstEmptyLine") in ("1", "true"), gap,
-                 header=sides["header"], footer=sides["footer"])
+                 header=sides["header"], footer=sides["footer"],
+                 gaps=_column_gaps(_first_columns(section), text_width) if widths else ())
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
@@ -814,6 +841,18 @@ def _column_layout(settings: Any, text_width: int) -> tuple[int, int, tuple[int,
     if gap >= 1 << 31:  # a signed 32-bit number written unsigned: Hancom takes a negative gap so
         gap -= 1 << 32
     return count, (text_width - (count - 1) * gap) // count // 4 * 4, (), gap
+
+
+def _column_gaps(settings: Any, text_width: int) -> tuple[int, ...]:
+    """The gap after each column of unequal width but the last (``hp:colSz@gap``), as :func:`_column_layout` lays
+    out their widths: each its share of 32768 of the text width, rounded; ``()`` for columns of equal width or one
+    column (placement tracing only: the layout does not read it)."""
+
+    if settings is None or int(settings.get("colCount", "1")) <= 1 or _true(settings.get("sameSz")):
+        return ()
+    sizes = settings.findall(f"{HP}colSz")
+    return tuple((2 * int(size.get("gap", 0)) * text_width + COLUMN_SHARES) // (2 * COLUMN_SHARES)
+                 for size in sizes[:-1])
 
 
 def _in_sub_list(element: Any) -> bool:
@@ -3299,7 +3338,8 @@ def _lay_areas(measure: _Measure, section: Any, page: _Page, notes: _NoteShape,
         if start == end:
             continue
         count, width, widths, gap = _column_layout(settings, page.text_width)
-        area = replace(page, columns=count, column_width=width, unequal=bool(widths), widths=widths, gap=gap)
+        area = replace(page, columns=count, column_width=width, unequal=bool(widths), widths=widths, gap=gap,
+                       gaps=_column_gaps(settings, page.text_width) if widths else ())
         paras = _area_paragraphs(measure, area, paragraphs[start:end])
         if top and paras[0].page_break:
             page_index, top = page_index + 1, 0
@@ -3389,7 +3429,8 @@ def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:
 
 def _column_area(paper: _Page, top: int = 0) -> ColumnArea:
     widths = paper.widths or (paper.column_width,) * paper.columns
-    return ColumnArea(paper.top + top, widths, None if paper.unequal else paper.gap)
+    gaps = paper.gaps if paper.unequal else (paper.gap,) * (len(widths) - 1)
+    return ColumnArea(paper.top + top, widths, None if paper.unequal else paper.gap, gaps)
 
 
 @dataclass(frozen=True)

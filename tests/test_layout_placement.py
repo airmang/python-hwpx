@@ -365,7 +365,8 @@ def test_a_table_among_cached_lines_stands_on_the_line_holding_its_place():
     tall = (body - 1200) // 2
     _declared_rows(table, tall)
     # the lines as saved: the text before the table, the table (8 places in the cache), the text after it
-    _saved_lines(paragraph.element, (0, len(before), len(before) + 8), (1000, 2 * tall, 1000))
+    width = estimate_layout(doc).pages[0].body[2]
+    _saved_lines(paragraph.element, (0, len(before), len(before) + 8), (1000, 2 * tall, 1000), width=width)
 
     layout = estimate_layout(doc)
     assert layout.estimate == estimate_pages(doc)
@@ -374,10 +375,16 @@ def test_a_table_among_cached_lines_stands_on_the_line_holding_its_place():
     assert [(line.text, line.source) for line in lines] == [(before, "cache"), ("", "cache"), (after, "cache")]
     placed, = layout.tables
     assert [(row.page, row.row, row.height) for row in placed.rows] == [(1, 0, tall), (1, 1, tall)]
-    assert placed.moved is True  # among text, where it stands on its line is not laid out
-    assert placed.unavailable == ("inline table origin not measured", "table left edge not measured")
-    assert all((row.top, row.x) == (None, None) for row in placed.rows)
+    assert placed.moved is True and placed.unavailable == ()
+    # at the start of the line as tall as it, as an object set as a character stands on its line
+    assert [(row.top, row.x) for row in placed.rows] == [(lines[1].top, 0), (lines[1].top + tall, 0)]
     assert "".join(line.text for line in placed.rows[0].cells[0].lines) == "글 가운데 놓인 표"
+
+    _saved_lines(paragraph.element, (0, len(before), len(before) + 8), (1000, 2 * tall + 600, 1000), width=width)
+    taller, = estimate_layout(doc).tables  # a line taller than it: where it stands up and down is not laid out
+    assert all(row.top is None and row.x == 0 for row in taller.rows)
+    assert taller.unavailable == ("inline table origin not measured: a table set as a character among text on a "
+                                  "line taller than it: where it stands up and down the line is not laid out",)
 
 
 def test_a_table_among_the_cached_lines_of_a_cell_is_named_on_its_line():
@@ -631,7 +638,9 @@ def test_a_table_alone_on_its_line_follows_the_paragraph_alignment():
     table.element.find(f"{HP}tr/{HP}tc/{HP}cellSz").set("width", str(room + 600))
     wide, = estimate_layout(doc).tables
     assert wide.rows[0].x is None and wide.rows[0].top is not None
-    assert wide.unavailable == ("table left edge not measured",)
+    assert wide.unavailable == ("table left edge not measured: a table set as a character alone on a line narrower "
+                                "than it with its outer margins, in a paragraph set centred or right: where Hancom "
+                                "sets it across the line is not laid out",)
 
 
 def test_a_table_in_a_text_box_stands_on_the_page_of_its_box():
@@ -1039,3 +1048,154 @@ def test_a_header_copy_under_the_section_settings_is_not_placed():
         "a header or footer kept under the section settings (hp:secPr): Hancom reads it from its control (hp:ctrl) "
         "only, placed there"),)
     assert [area.page for area in shown] == [0, 1, 2]
+
+
+def _column_shares(doc):
+    """The (width, gap) shares of 32768 of each column of the document's first section (hp:colSz)."""
+
+    settings = next(doc.sections[0].element.iter(f"{HP}colPr"))
+    return [(int(size.get("width")), int(size.get("gap"))) for size in settings.findall(f"{HP}colSz")]
+
+
+def test_columns_give_the_gap_after_each_column_as_their_widths_are_laid_out():
+    doc = HwpxDocument.new(empty_first_line=True)
+    doc.page.set_columns(3, same_gap=1200)
+    equal, = estimate_layout(doc).pages[0].column_areas
+    assert (equal.gap, equal.gaps) == (1200, (1200, 1200))
+
+    doc = HwpxDocument.new(empty_first_line=True)
+    doc.page.set_columns(2, same_size=False, column_widths=[(12000, 1700), (28820, 0)])
+    paragraph = doc.add_paragraph("")
+    paragraph.element.set("columnBreak", "1")
+    doc.shapes.add_rectangle(6000, 1000, paragraph=paragraph, treat_as_char=True)
+    paragraph.add_run("둘째 단의 글")
+    _saved_lines(paragraph.element, (0,), width=20000)
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    page = layout.pages[0]
+    area, = page.column_areas
+    text = page.body[2]
+
+    def laid(share):  # each its share of 32768 of the text width, rounded as the layout rounds the widths
+        return (2 * share * text + 32768) // (2 * 32768)
+
+    shares = _column_shares(doc)
+    assert area.widths == tuple(laid(width) for width, _ in shares) and area.gap is None
+    assert area.gaps == (laid(shares[0][1]),)
+    placed, = layout.objects
+    line, = layout.paragraphs[-1].lines
+    assert (placed.column, line.position.column) == (1, 1)
+    # the second column starts past the first and the gap after it: an object set as a character stands there
+    assert placed.x == page.body[0] + area.widths[0] + area.gaps[0] + 0 and placed.unavailable == ()
+
+
+def _head(doc, paragraph):
+    """The hh:paraHead of the level the paragraph shape of *paragraph* numbers it at (its first)."""
+
+    shape = next(item for item in doc.parts.headers[0].element.iter(f"{HH}paraPr")
+                 if item.get("id") == paragraph.element.get("paraPrIDRef"))
+    heading = shape.find(f".//{HH}heading")
+    numbering = next(item for item in doc.parts.headers[0].element.iter(f"{HH}numbering")
+                     if item.get("id") == heading.get("idRef"))
+    return next(head for head in numbering.iter(f"{HH}paraHead") if head.get("level") == "1")
+
+
+def test_a_numbered_paragraph_gives_its_first_line_the_label_drawn_before_it():
+    doc = HwpxDocument.new(empty_first_line=True)
+    items = [doc.add_paragraph("첫째 항목"), doc.add_paragraph("둘째 항목 " * 30), doc.add_paragraph("셋째 항목")]
+    doc.styles.apply_list_format(paragraphs=items, kind="number")
+    head = _head(doc, items[0])
+    head.attrib.update({"textOffsetType": "HWPUNIT", "textOffset": "300"})
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    labels = [paragraph.lines[0].label for paragraph in layout.paragraphs[-3:]]
+    assert [label.text for label in labels] == ["1.", "2.", "3."]  # counted in reading order
+    assert all(label.unavailable == () and label.align == head.get("align", "LEFT") for label in labels)
+    first = layout.paragraphs[-3].lines[0]
+    # its box at the line's start, the text past it and the gap
+    assert labels[0].x == 0 and labels[0].x + labels[0].width + 300 == first.x and first.source == "engine"
+    assert labels[0].char_pr == items[0].element.find(f"{HP}run").get("charPrIDRef")
+    assert all(line.label is None for line in layout.paragraphs[-2].lines[1:])  # the first line only
+
+    _saved_lines(items[0].element, width=layout.pages[0].body[2])  # Hancom saves it from the left margin
+    saved = estimate_layout(doc).paragraphs[-3].lines[0]
+    assert (saved.source, saved.x, saved.label) == ("cache", 0, labels[0])
+
+
+def test_a_label_the_count_does_not_reach_says_why():
+    doc = HwpxDocument.new()
+    item = doc.add_paragraph("항목")
+    doc.styles.apply_list_format(paragraph=item, kind="number")
+    _head(doc, item).set("numFormat", "IDEOGRAPH")  # a format the count does not write
+    label = estimate_layout(doc).paragraphs[-1].lines[0].label
+    assert (label.text, label.x) == (None, 0)
+    assert label.unavailable == ("a label in a number format, or at a level, the count does not write",)
+
+    doc = HwpxDocument.new()
+    doc.page.set_header(text="머리말 항목")
+    doc.add_paragraph("본문")
+    held = next(doc.sections[0].element.iter(f"{HP}header")).find(f"{HP}subList/{HP}p")
+    numbered = doc.add_paragraph("번호 문단")
+    doc.styles.apply_list_format(paragraph=numbered, kind="number")
+    held.set("paraPrIDRef", numbered.element.get("paraPrIDRef"))
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    area, = [area for area in layout.areas if area.kind == "header"]
+    label = area.lines[0].label
+    assert label.text is None and label.x == 0 and label.unavailable == (
+        "a number in a header, footer or note: the count in reading order does not reach it",)
+    bullet = doc.add_paragraph("글머리 문단")
+    doc.styles.apply_list_format(paragraph=bullet, kind="bullet")
+    held.set("paraPrIDRef", bullet.element.get("paraPrIDRef"))
+    label = [area for area in estimate_layout(doc).areas if area.kind == "header"][0].lines[0].label
+    assert label.text and label.unavailable == ()  # a bullet needs no count
+
+
+def test_a_cell_paragraph_and_a_text_box_paragraph_carry_their_labels():
+    doc = HwpxDocument.new()
+    first = doc.add_paragraph("본문 항목")
+    doc.styles.apply_list_format(paragraph=first, kind="number")
+    table = doc.add_paragraph("").add_table(1, 1)
+    table.cell(0, 0).text = "칸 항목"
+    cell = table.element.find(f"{HP}tr/{HP}tc/{HP}subList/{HP}p")
+    cell.set("paraPrIDRef", first.element.get("paraPrIDRef"))
+    box = doc.shapes.add_rectangle(20000, 6000, paragraph=doc.add_paragraph(""), treat_as_char=True)
+    box.set_draw_text("상자 항목")
+    held = next(iter(box.iter_paragraphs())).paragraph.element
+    held.set("paraPrIDRef", first.element.get("paraPrIDRef"))
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.tables
+    line, = placed.rows[0].cells[0].lines
+    drawing, = layout.objects
+    # in reading order: the body paragraph, the cell's, the text box's
+    assert [layout.paragraphs[-3].lines[0].label.text, line.label.text, drawing.lines[0].label.text] == \
+        ["1.", "2.", "3."]
+    assert line.label.x is not None and line.label.x + line.label.width < line.x
+
+
+def test_a_table_among_the_text_of_a_cell_line_stands_where_its_line_sets_it():
+    doc = HwpxDocument.new()
+    outer = doc.add_paragraph("").add_table(1, 1)
+    before, after = "칸 안에서 표보다 앞선 글", "표를 지난 글"
+    paragraph = outer.cell(0, 0).paragraphs[0]
+    paragraph.text = before
+    inner = paragraph.add_table(1, 2)
+    inner.element.find(f"{HP}sz").set("width", "12000")
+    for cell in inner.element.iter(f"{HP}tc"):
+        cell.find(f"{HP}cellSz").set("width", "6000")
+    paragraph.add_run(after)
+    _declared_rows(outer, 8000)
+    _declared_rows(inner, 3000)
+    _saved_lines(paragraph.element, (0, len(before)), (1000, 3000))
+    for cell_paragraph in inner.element.iter(f"{HP}p"):
+        _saved_lines(cell_paragraph)
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    outer_placed, inner_placed = layout.tables
+    row, = outer_placed.rows
+    line = row.cells[0].lines_with_tables[1]  # the table starts the line: at its start, the line as tall as it
+    placed, = inner_placed.rows
+    assert (placed.top, placed.x, inner_placed.unavailable) == (
+        row.top + row.cells[0].top + line.top, row.x + row.cells[0].x + line.x, ())

@@ -32,7 +32,7 @@ EXPERIMENTAL_NAMES = frozenset(_EXPERIMENTAL_EXPORTS)
 LAYOUT_ESTIMATE_NAMES = frozenset({
     "ColumnArea", "PagePlacement", "LinePlacement", "ParagraphPlacement", "LayoutEstimate", "estimate_layout",
     "TablePlacement", "TableRowPlacement", "TableCellPlacement", "TableCellLinePlacement", "TableCaptionPlacement",
-    "ObjectPlacement", "AreaPlacement",
+    "ObjectPlacement", "AreaPlacement", "LabelPlacement",
 })
 
 # 4.0~6.x exported these three top-level as experimental; 7.0 made them stable names of
