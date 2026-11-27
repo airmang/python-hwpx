@@ -402,6 +402,7 @@ class _Measure:
         #: placement tracing only: original hp:tbl placed by its hp:pos -> how far right its left edge stands, of
         #: the column's left edge or (True) of the paper's
         self.table_x: dict[Any, tuple[int, bool]] = {}
+        self.sized: set[Any] = set()  # placement tracing only: the paragraphs whose objects were sized
         self._aligns: dict[str, str] = {}
         self.drawn_sizes: dict[Any, tuple[int | None, int]] = {}
         self._root = root
@@ -1587,14 +1588,15 @@ def _cell_line_detail(measure: _Measure, paragraphs: list[Any], width: int, coun
     return tuple(result) if cursor == count else ()
 
 
-def _table_lines(measure: _Measure, paragraph: Any, runs: list[Any], count: int) -> dict[int, tuple[Any, ...]]:
+def _table_lines(measure: _Measure, paragraph: Any, runs: list[Any], count: int,
+                 kinds: Collection[str] = ("tbl",)) -> dict[int, tuple[Any, ...]]:
     """Placement tracing only: the line of a cell paragraph of *count* lines -> the tables set as characters (the
     original hp:tbl) standing on it. A table alone in its paragraph is the paragraph's one line; among the text of
     a paragraph keeping its layout cache a table stands on the line whose text range holds its place (Hancom counts
     every object and control as eight characters, see :func:`_anchor_line`). Where its line is not known (a table
     among text laid out here, text marks whose place in the cache is not established) the table is left out."""
 
-    tables = [child for run in runs for child in run if _local(child) == "tbl"
+    tables = [child for run in runs for child in run if _local(child) in kinds  # (*kinds*: other objects so set)
               and child.find(f"{HP}pos") is not None and child.find(f"{HP}pos").get("treatAsChar") == "1"]
     if not tables:
         return {}

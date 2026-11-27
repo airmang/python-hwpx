@@ -35,6 +35,7 @@ def _placement_result(
     untraced: dict[Any, str] | None = None, lefts: dict[Any, tuple[int, bool]] | None = None,
 ) -> LayoutEstimate:
     pages: list[PagePlacement] = []
+    papers: list[_Page] = []  # the page settings of each of them
     paragraphs: list[ParagraphPlacement] = []
     table_captures: dict[Any, tuple[_TableCapture, _FrameTrace, int, int]] = {}
     object_captures: dict[Any, tuple[_ObjectFrame, _FrameTrace, int, _Page]] = {}
@@ -59,6 +60,7 @@ def _placement_result(
         for local_page in range(total_pages):
             areas = tuple(layout.areas.get(local_page, ())) if layout.areas is not None else default_area
             pages.append(PagePlacement(len(pages), section, paper.paper_width, paper.paper_height, body, areas))
+            papers.append(paper)
         line_index = 0
         for index in range(first, first + len(layout.counts)):
             lines = []
@@ -75,6 +77,8 @@ def _placement_result(
     paragraph_origins = {(entry.section, entry.paragraph): entry.lines[0].position
                          for entry in paragraphs if entry.lines}
     nested_places: dict[Any, list[tuple[int, int]]] = {}
+    object_places: dict[Any, ObjectPlacement] = {}
+    running = _running_areas(body_sources, paragraph_origins, pages, papers)
     for section, source in enumerate(body_sources):
         for index, paragraph in enumerate(source):
             numbers = {table: number for number, table in enumerate(paragraph.iter(f"{HP}tbl"))}
@@ -104,13 +108,22 @@ def _placement_result(
                         result = TablePlacement(*address, (), unavailable=(_LEFT_BEHIND,))
                 by_source[table] = result
                 tables.append(result)
-            objects.extend(_object_placement(section, index, ordinal, obj, sizes.get(obj), object_captures.get(obj), pages)
-                           for ordinal, obj in enumerate(node for node in paragraph.iter()
-                                                        if _local(node) in _DRAWINGS))
+            for ordinal, obj in enumerate(node for node in paragraph.iter() if _local(node) in _DRAWINGS):
+                placed = _object_placement(section, index, ordinal, obj, sizes.get(obj), object_captures.get(obj), pages)
+                if placed.page is None:
+                    placed = _held_object(placed, obj, object_places, by_source)
+                object_places[obj] = placed
+                objects.append(placed)
             for ordinal, area in enumerate(node for node in paragraph.iter() if _local(node) in _AREA_NAMES):
                 found = area_captures.get(area)
                 if found:
                     areas.extend(_area_placement(section, index, ordinal, *capture, pages) for capture in found)
+                elif area in running:
+                    shown, why = running[area]
+                    areas.extend(AreaPlacement(section, index, ordinal, _local(area), page, 0, *box, unavailable=(why,))
+                                 for page, box in shown)
+                    if not shown:
+                        areas.append(AreaPlacement(section, index, ordinal, _local(area), unavailable=(why,)))
                 else:
                     areas.append(AreaPlacement(section, index, ordinal, _local(area),
                                                unavailable=("area placement not retained by the layout path",)))
@@ -118,6 +131,96 @@ def _placement_result(
 
 
 _AREA_NAMES = frozenset(("header", "footer", "footNote", "endNote"))
+
+
+def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], EstimatedLine],
+                   pages: list[PagePlacement], papers: list[_Page]
+                   ) -> dict[Any, tuple[list[tuple[int, tuple[int, int, int, int]]], str]]:
+    """Each header and footer of the body's paragraphs -> the pages it is drawn on, with its room there (x, top,
+    width, height on the paper), and what is not given. A header or footer set for every page runs from the page
+    of its paragraph's first line to the end of its section, or to the page where a later one of its kind starts;
+    it is left off the section's first page where the section hides it there (``hp:visibility``) and off a page
+    whose paragraphs hide it (``hp:pageHiding``). Its room is the page's: above the body as tall as the header
+    margin, below it as tall as the footer margin. One for odd or for even pages is not given pages: the layout
+    does not follow page numbers. The layout does not lay out its lines."""
+
+    result: dict[Any, tuple[list[tuple[int, tuple[int, int, int, int]]], str]] = {}
+    for section, paragraphs in enumerate(sources):
+        own = [page.page for page in pages if page.section == section]
+        hidden: dict[str, set[int]] = {"header": set(), "footer": set()}
+        visibility = next(paragraphs[0].iter(f"{HP}visibility"), None) if paragraphs else None
+        found: list[tuple[int, str, Any]] = []
+        for index, paragraph in enumerate(paragraphs):
+            origin = origins.get((section, index))
+            if origin is None or not own:
+                continue
+            for control in paragraph.findall(f"{HP}run/{HP}ctrl"):
+                for node in control:
+                    name = _local(node)
+                    if name == "pageHiding":
+                        for kind in hidden:
+                            if node.get("hide" + kind.capitalize()) in ("1", "true"):
+                                hidden[kind].add(origin.page)
+                    elif name in hidden:
+                        found.append((origin.page, name, node))
+        for kind in hidden:
+            if own and visibility is not None and visibility.get("hideFirst" + kind.capitalize()) in ("1", "true"):
+                hidden[kind].add(own[0])
+        for at, (start, kind, node) in enumerate(found):
+            if node.get("applyPageType", "BOTH") != "BOTH":
+                result[node] = ([], f"{kind} for odd or even pages: the layout does not follow page numbers")
+                continue
+            stop = min((other for other, name, later in found[at + 1:]
+                        if name == kind and later.get("applyPageType", "BOTH") == "BOTH"), default=own[-1] + 1)
+            shown = []
+            for page in own:
+                if start <= page < stop and page not in hidden[kind]:
+                    paper = papers[page]
+                    top, tall = (paper.top - paper.header, paper.header) if kind == "header" \
+                        else (paper.top + paper.body, paper.footer)
+                    shown.append((page, (paper.left, top, paper.text_width, tall)))
+            result[node] = (shown, f"{kind} lines are not laid out")
+    return result
+
+
+#: What holds an object other than a body paragraph, and how the placement names it.
+_OBJECT_HOLDERS = {"container": "a member of a group: it stands relative to the group's rectangle",
+                   "drawText": "an object in a text box: its place in the box is not laid out",
+                   "tc": "an object in a table cell: its place in the cell is not laid out",
+                   "caption": "an object in a caption is not placed", "header": "an object in a header is not placed",
+                   "footer": "an object in a footer is not placed", "footNote": "an object in a footnote is not placed",
+                   "endNote": "an object in an endnote is not placed"}
+
+
+def _held_object(placed: ObjectPlacement, obj: Any, others: dict[Any, ObjectPlacement],
+                 tables: dict[Any, TablePlacement]) -> ObjectPlacement:
+    """*placed*, an object the layout keeps no page for, with what holds it: a member of a group and an object in
+    a text box stand on the page of the group or of the box's drawing, an object in a table cell on the page of
+    the one part of its row when that row stands whole there; its place there is not laid out. An object of the
+    body in front of or behind the text placed from its paragraph says so."""
+
+    holder = next((up for up in obj.iterancestors() if _local(up) in _OBJECT_HOLDERS), None)
+    size = tuple(why for why in placed.unavailable if why == "object size not measured")
+    if holder is None:
+        if not _floating(obj):
+            return placed
+        return replace(placed, unavailable=("an object in front of or behind the text placed from its paragraph: "
+                                            "its place is not computed", *size))
+    page = column = None
+    if _local(holder) == "tc":
+        parent = next(holder.iterancestors(f"{HP}tbl"), None)
+        index = next((at for at, cell in enumerate(parent.findall(f"{HP}tr/{HP}tc")) if cell is holder), None) \
+            if parent is not None else None
+        rows = tables[parent].rows if parent in tables else ()
+        found = [(row.page, row.column) for row in rows if not row.repeated
+                 for cell in row.cells if cell.source_index == index]
+        if index is not None and len(found) == 1:
+            page, column = found[0]
+    else:
+        where = others.get(holder if _local(holder) == "container" else holder.getparent())
+        if where is not None:
+            page, column = where.page, where.column
+    return replace(placed, page=page, column=column, unavailable=(_OBJECT_HOLDERS[_local(holder)], *size))
 
 
 def _scope_place(frame: int, scope: _FrameTrace, first_page: int) -> tuple[int, int, int]:
@@ -154,7 +257,9 @@ def _object_placement(section: int, paragraph: int, ordinal: int, obj: Any, size
     unavailable = []
     if position is None:
         unavailable.append("object page not retained by the layout path")
-    if x is None or top is None:
+    if (x is None or top is None) and wrap == "AS_CHARACTER" and position is not None:
+        unavailable.append("object set as a character: where it stands on its line is not laid out")
+    elif x is None or top is None:
         unavailable.append("object origin not measured")
     if width is None or height is None:
         unavailable.append("object size not measured")

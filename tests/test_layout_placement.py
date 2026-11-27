@@ -240,7 +240,12 @@ def test_square_object_rectangle_and_note_areas_use_final_frames():
         area = positioned[kind]
         assert area.page is not None and area.top is not None
         assert "".join(line.text for line in area.lines) == expected
-    assert positioned["header"].top is None and positioned["header"].unavailable
+    headers = [area for area in layout.areas if area.kind == "header"]
+    assert [area.page for area in headers] == list(range(layout.estimate.pages))  # on every page of its section
+    for area in headers:  # the room above the body, as tall as the header margin; its lines are not laid out
+        body = layout.pages[area.page].body
+        assert (area.x, area.top + area.height, area.width) == (body[0], body[1], body[2]) and area.height > 0
+        assert area.lines == () and area.unavailable == ("header lines are not laid out",)
 
 
 def test_cached_square_picture_keeps_its_moved_page_separate_from_its_anchor():
@@ -669,3 +674,90 @@ def test_a_table_in_front_of_the_text_placed_on_the_paper_keeps_its_place():
     floating, = estimate_layout(doc).tables
     assert floating.rows == () and floating.unavailable == (
         "a table in front of or behind the text takes no room in the layout: its place is not computed",)
+
+
+def test_an_object_alone_on_its_line_has_its_rectangle():
+    doc = HwpxDocument.new(empty_first_line=True)
+    paragraph = doc.add_paragraph("")
+    doc.shapes.add_rectangle(12000, 7200, paragraph=paragraph, treat_as_char=True)
+    shape = next(item for item in doc.parts.headers[0].element.iter(f"{HH}paraPr")
+                 if item.get("id") == paragraph.element.get("paraPrIDRef"))
+
+    def rectangle(horizontal):
+        shape.find(f"{HH}align").set("horizontal", horizontal)
+        layout = estimate_layout(doc)
+        assert layout.estimate == estimate_pages(doc)
+        placed, = layout.objects
+        line, = layout.paragraphs[-1].lines
+        assert (placed.wrap, placed.page, placed.top, placed.unavailable) == ("AS_CHARACTER", 0, line.top, ())
+        assert (placed.width, placed.height) == (12000, 7200) and line.height == 7200
+        return placed.x - layout.pages[0].body[0], layout.pages[0].column_areas[0].widths[0]
+
+    assert rectangle("JUSTIFY")[0] == 0
+    centred, room = rectangle("CENTER")
+    assert centred == (room - 12000) // 2
+    assert rectangle("RIGHT")[0] == room - 12000
+
+
+def test_an_object_among_text_keeps_its_line_and_says_what_is_not_laid_out():
+    doc = HwpxDocument.new(empty_first_line=True)
+    paragraph = doc.add_paragraph("도형보다 앞에 놓인 글 ")
+    doc.shapes.add_rectangle(6000, 5000, paragraph=paragraph, treat_as_char=True)
+    paragraph.add_run(" 도형 다음에 놓인 글")
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.objects
+    line, = layout.paragraphs[-1].lines
+    assert (placed.page, placed.top, placed.x) == (0, line.top, None) and line.height == 5000
+    assert placed.unavailable == ("object set as a character: where it stands on its line is not laid out",)
+
+
+def test_objects_held_by_a_cell_or_a_text_box_stand_on_its_page():
+    doc = HwpxDocument.new()
+    body = estimate_layout(doc).pages[0].body[3]
+    for _ in range(body // 1600 + 3):
+        doc.add_paragraph("둘째 쪽으로 미는 문단")
+    table = doc.add_paragraph("").add_table(1, 1)
+    doc.shapes.add_rectangle(3000, 2000, paragraph=table.cell(0, 0).paragraphs[0], treat_as_char=True)
+    box = doc.shapes.add_rectangle(20000, 9000, paragraph=doc.add_paragraph(""), treat_as_char=True)
+    box.set_draw_text("글상자에 적은 글")
+    doc.shapes.add_rectangle(2000, 1000, paragraph=next(iter(box.iter_paragraphs())).paragraph, treat_as_char=True)
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    in_cell, holder, in_box = layout.objects
+    assert (in_cell.page, in_cell.x, in_cell.top) == (1, None, None)
+    assert in_cell.unavailable == ("an object in a table cell: its place in the cell is not laid out",)
+    assert holder.page == 1 and holder.top is not None and holder.unavailable == ()
+    assert (in_box.page, in_box.top) == (1, None)
+    assert in_box.unavailable == ("an object in a text box: its place in the box is not laid out",)
+    assert all((item.width, item.height) != (None, None) for item in layout.objects)
+
+
+def test_a_footer_hidden_on_a_page_is_not_given_there():
+    doc = HwpxDocument.new()
+    doc.page.set_footer(text="꼬리말에 적은 글")
+    body = estimate_layout(doc).pages[0].body[3]
+    for _ in range(2 * (body // 1600) + 3):
+        doc.add_paragraph("세 쪽을 채우는 문단")
+
+    def footer_pages():
+        layout = estimate_layout(doc)
+        assert layout.estimate == estimate_pages(doc) and layout.estimate.pages == 3
+        footers = [area for area in layout.areas if area.kind == "footer"]
+        for area in footers:
+            body_box = layout.pages[area.page].body
+            assert (area.x, area.top, area.width) == (body_box[0], body_box[1] + body_box[3], body_box[2])
+            assert area.unavailable == ("footer lines are not laid out",)
+        return [area.page for area in footers]
+
+    assert footer_pages() == [0, 1, 2]
+    hiding = etree.SubElement(etree.SubElement(doc.sections[0].element.findall(f"{HP}p")[-1].find(f"{HP}run"),
+                                               f"{HP}ctrl"), f"{HP}pageHiding")
+    hiding.attrib.update({"hideHeader": "0", "hideFooter": "1", "hideMasterPage": "0", "hideBorder": "0",
+                          "hideFill": "0", "hidePageNum": "0"})
+    assert footer_pages() == [0, 1]  # the last paragraph hides it on its page
+    next(doc.sections[0].element.iter(f"{HP}footer")).set("applyPageType", "ODD")
+    odd, = [area for area in estimate_layout(doc).areas if area.kind == "footer"]
+    assert odd.page is None and odd.unavailable == ("footer for odd or even pages: the layout does not follow page numbers",)

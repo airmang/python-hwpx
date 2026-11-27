@@ -734,6 +734,9 @@ class _Page:
     #: a top-and-bottom object at its paragraph's top (offset 0) past the body's foot goes on to the next page's
     #: top alone, its paragraph's lines staying (off: with its paragraph, see :func:`_lay_section`)
     alone_at_top: bool = True
+    #: how tall the header's room above the body and the footer's below it are (the placement reads them)
+    header: int = 0
+    footer: int = 0
 
 
 def _page(section: Any) -> _Page:
@@ -754,7 +757,8 @@ def _page(section: Any) -> _Page:
     return _Page(body, column_width, columns, sides["top"] + sides["header"],
                  sides["left"] + sides["gutter"], text_width, width, bool(widths),
                  widths, height,
-                 visibility is not None and visibility.get("hideFirstEmptyLine") in ("1", "true"), gap)
+                 visibility is not None and visibility.get("hideFirstEmptyLine") in ("1", "true"), gap,
+                 header=sides["header"], footer=sides["footer"])
 
 
 def _columns(section: Any, text_width: int) -> tuple[int, int, tuple[int, ...], int]:
@@ -1185,7 +1189,8 @@ def _anchor(measure: _Measure, paragraph: Any, runs: list[Any], text: str, obj: 
                            tuple(cells), caption=_caption(measure, obj), cut=_spare_cut(obj),
                            source=measure.source_control(obj))
         return _Anchor(line, table, 0)
-    x, paper_x = _trace_object_x(obj, page) if measure.trace and page is not None else (None, False)
+    x, paper_x = _trace_object_x(obj, page, measure.shape(paragraph.get("paraPrIDRef"))) \
+        if measure.trace and page is not None else (None, False)
     return _Anchor(line, None, _drawn_height(obj, measure) + top + bottom,
                    obj.find(f"{HP}pos").get("flowWithText") == "0", measure.source_control(obj), x, paper_x)
 
@@ -1361,8 +1366,9 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
                     and inline_starts is not None and len(cached) == len(inline_starts):
                 inline_detail = _inline_line_content(native, inline_text, positions, native_controls, inline_starts, widths,
                                                      shape, page.column_width)
-                object_traces = tuple(_ObjectAnchorTrace(obj, bisect_left(inline_starts, at + 1) - 1)
-                                      for at, obj in positions.items() if _local(obj) in _DRAWINGS)
+                object_traces = tuple(_among_its_line(measure, obj, line, cached[line][0])
+                                      for at, obj in positions.items() if _local(obj) in _DRAWINGS
+                                      for line in (bisect_left(inline_starts, at + 1) - 1,))
                 inline_tables = tuple((bisect_left(inline_starts, at + 1) - 1, measure.inline_tables[obj])
                                       for at, obj in positions.items() if obj in measure.inline_tables)
     elif not cached and wrap is not None and not alone and text:
@@ -1449,7 +1455,21 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         if found is not None:
             measure.table_x[measure.source_control(child)] = found
     if measure.trace and alone and _local(objects[0]) != "tbl":
-        object_traces = _object_trace(measure, objects[0], line=inline_line)
+        room = widths[min(inline_line, len(widths) - 1)]
+        object_traces = _alone_on_its_line(measure, paragraph, objects[0], inline_line,
+                                           page.column_width - shape.right - room, room, size)
+    elif measure.trace and cache_kept and not object_traces:  # the objects on the lines Hancom drew
+        object_traces = tuple(_among_its_line(measure, held, line, para.height(line))
+                              for line, found in _table_lines(measure, paragraph, runs, para.lines, _DRAWINGS).items()
+                              for held in found)
+    if measure.trace and paragraph not in measure.sized:
+        measure.sized.add(paragraph)
+        for node in paragraph.iter():
+            if _local(node) in _DRAWINGS and node.find(f"{HP}sz") is not None:
+                try:
+                    _drawn_height(node, measure)
+                except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+                    pass
     if object_traces:
         para = replace(para, object_traces=object_traces)
     if note_traces:
@@ -1654,17 +1674,13 @@ def _object_margin(obj: Any, side: str) -> int:
     return _margin(margin, side) if margin is not None else 0
 
 
-def _trace_object_x(obj: Any, page: _Page) -> tuple[int | None, bool]:
-    position = obj.find(f"{HP}pos")
-    relative = position.get("horzRelTo")
-    try:
-        if relative == "PAPER":
-            return _paper_left(obj, page), True
-        if relative == "COLUMN" and position.get("horzAlign", "LEFT") in {"LEFT", "RIGHT"}:
-            return _square_origin(obj, page), False
-    except ValueError:
-        pass  # a horizontal value unused by pagination can be unavailable
-    return None, False
+def _trace_object_x(obj: Any, page: _Page, shape: _Shape | None = None) -> tuple[int | None, bool]:
+    """How far right the box of an object placed by its ``hp:pos`` starts (its left outer margin outside), of the
+    column's left edge or (True) of the paper's: as :func:`_table_left`, the paragraph's margins from *shape*."""
+
+    found = _table_left(obj, page, shape or _Shape("PERCENT", 160, 0, 0, 0, 0, 0, {})) \
+        if shape is not None or obj.find(f"{HP}pos").get("horzRelTo") != "PARA" else None
+    return (None, False) if found is None else (found[0] - _object_margin(obj, "left"), found[1])
 
 
 def _cached_line_tables(measure: _Measure, paragraph: Any, runs: list[Any],
@@ -1744,6 +1760,47 @@ def _traced_table(measure: _Measure, table: Any) -> _FlowTable | None:
                           caption=_caption(measure, table), source=measure.source_control(table))
     except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
         return None
+
+
+def _among_its_line(measure: _Measure, obj: Any, line: int, tall: int) -> _ObjectAnchorTrace:
+    """Placement tracing only: an object set as a character among text or other objects, on the line it stands
+    on. When that line is as tall as the object with its outer margins, the object stands below its top margin;
+    a taller line does not say where (Hancom sets the object on the text's baseline). Where it stands across the
+    line is not laid out."""
+
+    try:
+        plain = not _shadow_drop(obj) and not any(
+            _effect_room(obj, int(obj.find(f"{HP}sz").get("width", 0)), _drawn_height(obj, measure)))
+        y = _object_margin(obj, "top") + _caption(measure, obj)[0]             if plain and 0 <= line and _object_extent(obj, measure)[1] == tall else None
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        y = None
+    return _ObjectAnchorTrace(obj, line, y)
+
+
+def _alone_on_its_line(measure: _Measure, paragraph: Any, obj: Any, line: int, start: float, room: float,
+                       tall: int) -> tuple[_ObjectAnchorTrace, ...]:
+    """Placement tracing only: an object set as a character that is all its line holds, with where it stands on
+    that line (*start* right of the column's left edge, *room* across, *tall*): below its top outer margin and a
+    caption above it when the line is as tall as the object with them, and across the line as the paragraph's
+    alignment sets it (see :func:`_on_its_line`). An object with a shadow, an effect taking room or a caption
+    beside it keeps its line only: where it stands in its box is not laid out."""
+
+    source = measure.source_control(obj)
+    try:
+        wide, high = _object_extent(obj, measure)
+        plain = not _shadow_drop(obj) and not _caption_beside(obj) and not any(
+            _effect_room(obj, int(obj.find(f"{HP}sz").get("width", 0)), _drawn_height(obj, measure)))
+        y = _object_margin(obj, "top") + _caption(measure, obj)[0] if plain and high == tall else None
+        x = None
+        if plain and room != _NO_WRAP:
+            align = measure.align(paragraph.get("paraPrIDRef"))
+            if align in ("LEFT", "JUSTIFY", "DISTRIBUTE", "DISTRIBUTE_SPACE"):
+                x = int(start) + _object_margin(obj, "left")
+            elif align in ("CENTER", "RIGHT") and wide <= room:
+                x = int(start + (room - wide) // (2 if align == "CENTER" else 1)) + _object_margin(obj, "left")
+        return (_ObjectAnchorTrace(source, line, y, x),)
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return (_ObjectAnchorTrace(source, line),)
 
 
 def _table_left(obj: Any, page: _Page, shape: _Shape) -> tuple[int, bool] | None:
