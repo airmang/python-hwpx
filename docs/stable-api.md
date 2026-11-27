@@ -271,6 +271,8 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   기준 좌표를 사용한다. `TableCellLinePlacement`의 문자 범위는 칸 내부 문단 기준이다.
   표를 지닌 칸은 `lines`를 비우고 `lines_with_tables`에 글 줄과 표가 선 줄을 순서대로 싣는다
   (그 줄의 `tables`가 같은 본문 문단 안의 `TablePlacement.table` 번호를 가리킨다).
+  `TableRowPlacement.x`는 그 쪽에서 단 왼쪽부터 표 왼쪽 끝까지의 거리이고, 칸 줄의 `top`은 칸의 세로 정렬을
+  반영한 칸 기준 위치다.
   `TableCaptionPlacement`는 엔진이 캡션과 간격에 예약한 영역을 나타낸다.
   `ObjectPlacement`와 `AreaPlacement`의 쪽 좌표는 종이 기준이다. 배치 경로에 따라 일부
   값은 비어 있고 `unavailable`이 그 이유를 제공한다.

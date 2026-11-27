@@ -32,7 +32,7 @@ from .pages import (
 def _placement_result(
     estimate: PageEstimate, sections: list[tuple[int, int, _SectionLayout]], sources: list[Any],
     inline_tables: dict[Any, _FlowTable], sizes: dict[Any, tuple[int | None, int]],
-    untraced: dict[Any, str] | None = None,
+    untraced: dict[Any, str] | None = None, lefts: dict[Any, tuple[int, bool]] | None = None,
 ) -> LayoutEstimate:
     pages: list[PagePlacement] = []
     paragraphs: list[ParagraphPlacement] = []
@@ -81,7 +81,12 @@ def _placement_result(
             for table, table_index in numbers.items():
                 address = section, index, table_index
                 if table in table_captures:
-                    result = _table_placement(address, *table_captures[table], numbers, nested_places)
+                    result = _table_placement(address, *table_captures[table], numbers, nested_places,
+                                              (lefts or {}).get(table), pages)
+                elif table in inline_tables and _in_text_box(table):
+                    result = _boxed_table_placement(address, inline_tables[table],
+                                                    object_captures.get(_table_holder(table).getparent()), pages,
+                                                    numbers, nested_places)
                 elif table in inline_tables:
                     result = _nested_table_placement(address, table, inline_tables[table], by_source, numbers,
                                                      nested_places)
@@ -178,10 +183,12 @@ def _area_placement(section: int, paragraph: int, ordinal: int, frame: _AreaFram
 
 def _table_placement(address: tuple[int, int, int], capture: _TableCapture, scope: _FrameTrace,
                      first_page: int, paper_top: int, numbers: dict[Any, int] | None = None,
-                     nested_places: dict[Any, list[tuple[int, int]]] | None = None) -> TablePlacement:
+                     nested_places: dict[Any, list[tuple[int, int]]] | None = None,
+                     left: tuple[float, bool] | None = None, pages: list[PagePlacement] | None = None) -> TablePlacement:
     """The placement of a table from the row parts the layout accepted. *numbers* gives the tables of its body
     paragraph their index there; *nested_places* collects, for each table standing on a line of one of its cells,
-    the page and column of the row part showing that line."""
+    the page and column of the row part showing that line. *left*: how far right the table's left edge stands,
+    of its column's left edge or (True) of the paper's on *pages*."""
 
     table, parts = capture.table, capture.rows
     unavailable = []
@@ -208,17 +215,28 @@ def _table_placement(address: tuple[int, int, int], capture: _TableCapture, scop
         cells_by_row.setdefault(row, []).append(index)
     first_in_frame: dict[int, int] = {}
     rows = []
+    missing_left = False
+    if left is None and table.left is not None:
+        left = (table.left, False)
     for part in parts:
         first_in_frame.setdefault(part.frame, part.top)
         page, column, top = frame_place(part.frame, part.top)
         cells = _table_cells(part, outline, cells_by_row, cell_sources, grid, table, first_in_frame[part.frame],
                              place=(page, column), numbers=numbers, nested_places=nested_places)
+        x = left[0] if left is not None else None
+        if left is not None and left[1]:  # from the paper's left: less where the row's column starts
+            origin = _column_origin(pages[page], column, top if top is not None else pages[page].body[1]) \
+                if pages is not None and 0 <= page < len(pages) else None
+            x = None if origin is None else left[0] - origin
+        missing_left = missing_left or x is None
         if table.doubt is not None:  # the rows are the row model's, which the layout did not take: no heights
             rows.append(TableRowPlacement(part.row, page, column, None, None, part.start, part.stop, part.repeated,
-                                          cells))
+                                          cells, x=x))
             continue
-        rows.append(TableRowPlacement(part.row, page, column, top, part.height,
-                                      part.start, part.stop, part.repeated, cells, part.top - first_in_frame[part.frame]))
+        rows.append(TableRowPlacement(part.row, page, column, top, part.height, part.start, part.stop,
+                                      part.repeated, cells, part.top - first_in_frame[part.frame], x))
+    if missing_left:
+        unavailable.append("table left edge not measured")
     captions = []
     if parts and table.caption[0]:
         first = parts[0]
@@ -268,6 +286,27 @@ def _nested_table_placement(address: tuple[int, int, int], table: Any, measured:
                             nested_places)
 
 
+def _boxed_table_placement(address: tuple[int, int, int], measured: _FlowTable,
+                           box: tuple[_ObjectFrame, _FrameTrace, int, _Page] | None, pages: list[PagePlacement],
+                           numbers: dict[Any, int] | None,
+                           nested_places: dict[Any, list[tuple[int, int]]] | None) -> TablePlacement | None:
+    """A table in a text box, its rows on the page the layout keeps for the drawing holding the box (*box*; a
+    text box does not split). ``None`` when the layout keeps no page for that drawing."""
+
+    if box is None:
+        return None
+    frame, scope, first_page, _ = box
+    page, column, _ = _scope_place(frame.frame, scope, first_page)
+    if not 0 <= page < len(pages):
+        return None
+    parts: list[_RowPart] = []
+    _whole_rows(measured, 0, 0, 0, len(measured.rows), parts)
+    capture = _TableCapture(measured, parts, 0, (0, sum(row.height for row in measured.rows)), absolute=False,
+                            vague="table origin in its text box not measured")
+    return _table_placement(address, capture, _FrameTrace((), 1, column_start=column), page, 0, numbers,
+                            nested_places)
+
+
 #: The layout sets objects placed from an empty paragraph down where they fit and its line below them, on the next
 #: page when it has no room there. Hancom's pages show a table set not to split on its line's page then: where the
 #: layout leaves such a table is not what Hancom draws, so its rows are not given.
@@ -295,6 +334,9 @@ def _unplaced_table(table: Any, measured: bool, placements: dict[Any, TablePlace
     if holder is not None and _local(holder) != "tc":
         kind = {"drawText": "a text box", "caption": "a caption", "header": "a header", "footer": "a footer",
                 "footNote": "a footnote", "endNote": "an endnote"}[_local(holder)]
+        if kind == "a text box":
+            return "a table in a text box: " + ("the layout keeps no page for the drawing holding it" if measured
+                                                else "the box is laid out without reading the table's rows")
         return f"a table in {kind}: what {kind} holds is not placed row by row"
     if holder is None:
         if _floating(table):
@@ -309,6 +351,11 @@ def _unplaced_table(table: Any, measured: bool, placements: dict[Any, TablePlace
     if position is not None and position.get("treatAsChar") == "1":
         return "its parent's row does not stand whole on one page, and the cell line the table stands on is not followed"
     return "its parent's row does not stand whole on one page, and the table is followed through its cell's lines, not row by row"
+
+
+def _in_text_box(table: Any) -> bool:
+    holder = _table_holder(table)
+    return holder is not None and _local(holder) == "drawText"
 
 
 def _table_holder(table: Any) -> Any:
@@ -366,11 +413,8 @@ def _table_cells(part: _RowPart, outline: dict[tuple[int, int, bool], _RowPart],
             else:
                 measured_lines = ()
                 unavailable.append("individual cell split extent not measured")
-        if not measured_lines:
-            unavailable.append("cell text line placements not retained by the layout path")
-        elif any(line.top is None or line.content is None or line.content.text is None
-                 for _, _, line in measured_lines):
-            unavailable.append("cell text line coordinates or ranges unavailable")
+        if not measured.detail:  # the cell keeps no lines at all
+            unavailable.append(measured.undetailed or "cell text line placements not retained by the layout path")
         if x is None:
             unavailable.append("no measured cell grid origin")
         if height is None and slice_ is not None:
@@ -380,8 +424,16 @@ def _table_cells(part: _RowPart, outline: dict[tuple[int, int, bool], _RowPart],
         if table.doubt is not None:  # where the rows stand in the table is the row model's too
             top, height, starts_cell = None, None, False
             unavailable.append(table.doubt)
-        lines = tuple(_table_cell_line(p, i, line, starts_cell, styles[p], numbers)
+        shift = None if table.doubt is not None else _line_shift(measured, measured_lines, whole, height, spacing,
+                                                                 starts_cell)
+        lines = tuple(_table_cell_line(p, i, line, None if shift is None or line.top is None else line.top + shift,
+                                       styles[p], numbers)
                       for p, i, line in measured_lines if p < len(styles))
+        if any(line.text_start is None or line.text is None and not line.tables for line in lines):
+            unavailable.append("cell text line ranges unavailable")
+        if any(line.top is None for line in lines) and table.doubt is None:
+            unavailable.append(_NO_LINE_TOPS if shift is None and not whole and measured.valign != "TOP"
+                               else "cell line tops not measured")
         among: tuple[TableCellLinePlacement, ...] = ()
         if measured.nested and lines:
             lines, among = (), lines
@@ -395,11 +447,40 @@ def _table_cells(part: _RowPart, outline: dict[tuple[int, int, bool], _RowPart],
     return tuple(sorted(result, key=lambda cell: cell.column))
 
 
-def _table_cell_line(paragraph: int, index: int, line: _CellLine, starts_cell: bool,
+#: A cell split over a page end that sets its lines at its centre or foot: where Hancom stands them in each part
+#: is not laid out.
+_NO_LINE_TOPS = "cell line tops not measured: the cell is split over pages and not set at its top"
+
+
+def _line_shift(cell: _Row, shown: tuple[tuple[int, int, _CellLine], ...], whole: bool, height: int | None,
+                spacing: int, starts: bool) -> int | None:
+    """What to add to the tops of a cell's lines (:attr:`_CellLine.top`, as in the whole cell set at its top) to
+    stand them in the part of the cell *shown*, *height* tall when the cell is *whole* there: a whole cell sets
+    its lines at its top, or leaves half the room its height has to spare above them (centre, rounded down), or
+    all of it (bottom); a part of a split cell set at its top starts its first line below the cell's top margin
+    and the room that line keeps above it (*starts*: the cell's first part, as the whole cell). ``None`` where
+    the layout does not say: a split cell not set at its top, a line whose top or room above is not read."""
+
+    if not shown or not cell.detail or not cell.detail[0]:
+        return None
+    if whole and height is not None:
+        room = height + spacing - cell.height + cell.spare  # the cell's inner height less its lines
+        return {"TOP": 0, "CENTER": room // 2, "BOTTOM": room}.get(cell.valign) if room >= 0 else None
+    if cell.valign != "TOP":
+        return None
+    if starts:
+        return 0
+    origin, first = cell.detail[0][0], shown[0][2]
+    if None in (origin.top, origin.lead, first.top, first.lead):
+        return None
+    return origin.top - origin.lead + first.lead - first.top  # type: ignore[operator]
+
+
+def _table_cell_line(paragraph: int, index: int, line: _CellLine, top: int | None,
                      styles: _RunPositions | None, numbers: dict[Any, int] | None = None) -> TableCellLinePlacement:
     content = line.content
     return TableCellLinePlacement(
-        paragraph, index, line.height, line.top if starts_cell else None,
+        paragraph, index, line.height, top,
         content.x if content else None, content.width if content else None,
         content.start if content else None, content.end if content else None, content.text if content else None,
         content.source if content else None,

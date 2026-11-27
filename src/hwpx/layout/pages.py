@@ -247,7 +247,7 @@ from ._page_measure import (  # noqa: F401
     _ObjectAnchorTrace,
     _drawn_height_value,
     _DRAWINGS,
-    _SAVED_HEIGHT_DIFFERS, _trace_table_rows, _table_lines, _cached_line_tables, _traced_table,
+    _SAVED_HEIGHT_DIFFERS, _trace_table_rows, _table_lines,
 )
 
 if TYPE_CHECKING:
@@ -404,6 +404,8 @@ class TableRowPlacement:
     repeated: bool
     cells: tuple[TableCellPlacement, ...] = ()
     table_offset: int = 0
+    #: How far right of its column's left edge the table's left edge stands on this row's page (HWPUNIT).
+    x: float | None = None
 
 
 @dataclass(frozen=True)
@@ -572,11 +574,12 @@ def estimate_layout(document: "HwpxDocument | bytes | str | os.PathLike[str]") -
     inline_tables: dict[Any, _FlowTable] = {}
     sizes: dict[Any, tuple[int | None, int]] = {}
     untraced: dict[Any, str] = {}
+    lefts: dict[Any, tuple[int, bool]] = {}
     estimate = _estimate(document, placements=placements, sources=sections, inline_tables=inline_tables,
-                         drawn_sizes=sizes, untraced_tables=untraced)
+                         drawn_sizes=sizes, untraced_tables=untraced, table_x=lefts)
     from ._placement import _placement_result  # reads the names defined here: imported once they all are
 
-    return _placement_result(estimate, placements, sections, inline_tables, sizes, untraced)
+    return _placement_result(estimate, placements, sections, inline_tables, sizes, untraced, lefts)
 
 
 def _estimate(
@@ -586,6 +589,7 @@ def _estimate(
     inline_tables: dict[Any, _FlowTable] | None = None,
     drawn_sizes: dict[Any, tuple[int | None, int]] | None = None,
     untraced_tables: dict[Any, str] | None = None,
+    table_x: dict[Any, tuple[int, bool]] | None = None,
 ) -> PageEstimate:
     """:func:`estimate_pages`; with *first_reason*, stop at the first section not followed (its reason the only
     one given) instead of laying every section out to name them all."""
@@ -641,6 +645,8 @@ def _estimate(
         drawn_sizes.update(measure.drawn_sizes)
     if untraced_tables is not None:
         untraced_tables.update(measure.untraced_tables)
+    if table_x is not None:
+        table_x.update(measure.table_x)
     return _assemble(layouts)
 
 
@@ -1430,11 +1436,18 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if measure.trace and alone:
         inline = measure.inline_tables.get(measure.source_control(objects[0]))
         if inline is not None:
-            inline_tables = ((inline_line, replace(inline, caption=_caption(measure, objects[0]))),)
+            room = widths[min(inline_line, len(widths) - 1)]
+            inline_tables = ((inline_line, _on_its_line(
+                measure, paragraph, objects[0], replace(inline, caption=_caption(measure, objects[0])),
+                page.column_width - shape.right - room, room, size)),)
     if measure.trace and cache_kept and not inline_tables:  # the tables on the lines Hancom drew
         inline_tables = _cached_line_tables(measure, paragraph, runs, para.lines)
     if inline_tables:
         para = replace(para, inline_tables=inline_tables)
+    for child in (child for run in runs for child in run if _local(child) == "tbl") if measure.trace else ():
+        found = _table_left(child, page, shape)
+        if found is not None:
+            measure.table_x[measure.source_control(child)] = found
     if measure.trace and alone and _local(objects[0]) != "tbl":
         object_traces = _object_trace(measure, objects[0], line=inline_line)
     if object_traces:
@@ -1652,6 +1665,116 @@ def _trace_object_x(obj: Any, page: _Page) -> tuple[int | None, bool]:
     except ValueError:
         pass  # a horizontal value unused by pagination can be unavailable
     return None, False
+
+
+def _cached_line_tables(measure: _Measure, paragraph: Any, runs: list[Any],
+                        count: int) -> tuple[tuple[int, _FlowTable], ...]:
+    """Placement tracing only: the tables set as characters of a paragraph laid out from its layout cache (its
+    *count* lines), each with the line it stands on (see :func:`_table_lines`) and its rows. The layout takes those
+    lines as Hancom drew them, whatever the tables' rows, so rows that do not add up to the height saved for their
+    table are given no heights (:attr:`_FlowTable.doubt`). Nothing here reaches the estimate."""
+
+    found: list[tuple[int, _FlowTable]] = []
+    try:
+        standing = _table_lines(measure, paragraph, runs, count)
+        for table in (child for run in runs for child in run if _local(child) == "tbl") if standing else ():
+            source = measure.source_control(table)
+            line = next((line for line, held in standing.items() if any(source is other for other in held)), None)
+            if line is None:
+                continue
+            saved = _stored_int_or_none(table.find(f"{HP}sz").get("height"))
+            if source not in measure.inline_tables:
+                _trace_table_rows(measure, table, saved)
+            flow = measure.inline_tables.get(source)
+            if flow is None:
+                continue
+            if flow.doubt is None and sum(row.height for row in flow.rows) + _cell_spacing(table) != saved:
+                flow = replace(flow, doubt=_SAVED_HEIGHT_DIFFERS)
+            flow = replace(flow, caption=_caption(measure, table))
+            segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+            if _table_alone(runs) is table and line < len(segments):  # all its cached line holds
+                flow = _on_its_line(measure, paragraph, table, flow, _stored_int_or_none(segments[line].get("horzpos")),
+                                    _stored_int_or_none(segments[line].get("horzsize")),
+                                    _stored_int_or_none(segments[line].get("textheight")))
+            found.append((line, flow))
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return ()
+    return tuple(found)
+
+
+def _on_its_line(measure: _Measure, paragraph: Any, table: Any, flow: _FlowTable, start: float | None,
+                 room: float | None, tall: int | None) -> _FlowTable:
+    """Placement tracing only: *flow*, a table set as a character that is all its line holds, with where it stands
+    on that line, which starts *start* right of the column's left edge, has *room* across and is *tall*. Its first
+    row stands below its top outer margin and a caption above it when the line is as tall as the table with them
+    (a line taller than its table does not say where the table stands in it). Its left edge follows the
+    paragraph's alignment in the line's room, inside its left outer margin: at the line's start in a paragraph
+    set left or justified, centred or at its end in one set so when the table fits the room. Nothing here reaches
+    the estimate."""
+
+    try:
+        margin = table.find(f"{HP}outMargin")
+        wide = _extent(table, "width")
+        box = sum(row.height for row in flow.rows) + _cell_spacing(table) + _extent_margins(table) + sum(flow.caption)
+        drop = (0 if margin is None else _margin(margin, "top")) + flow.caption[0] \
+            if flow.doubt is None and tall == box else None
+        left = None
+        if start is not None and room is not None and room != _NO_WRAP:
+            align = measure.align(paragraph.get("paraPrIDRef"))
+            inside = 0 if margin is None else _margin(margin, "left")
+            if align in ("LEFT", "JUSTIFY", "DISTRIBUTE", "DISTRIBUTE_SPACE"):
+                left = start + inside
+            elif align == "CENTER" and wide <= room:
+                left = start + (room - wide) / 2 + inside
+            elif align == "RIGHT" and wide <= room:
+                left = start + room - wide + inside
+        return replace(flow, drop=drop, left=left)
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return flow
+
+
+def _traced_table(measure: _Measure, table: Any) -> _FlowTable | None:
+    """Placement tracing only: *table* as its rows, for a table the layout sets down as one block as tall as its
+    rows (placed on the paper, wrapped square beside the text, gone on whole to the next page's top); ``None`` when
+    the row model does not follow it. Nothing here reaches the estimate."""
+
+    try:
+        rows, cells = _table_rows(measure, table)
+        return _FlowTable(rows, _page_break(table), False, _table_ends(table), tuple(cells),
+                          caption=_caption(measure, table), source=measure.source_control(table))
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return None
+
+
+def _table_left(obj: Any, page: _Page, shape: _Shape) -> tuple[int, bool] | None:
+    """Placement tracing only: how far right the left edge of a table placed by its ``hp:pos`` stands, inside its
+    left outer margin -- of its column's left edge, or (True) of the paper's: placed from the paper, the page (its
+    text area), the column or the paragraph (inside its margins), at the left, the centre or the right, by its
+    offset (one kept unsigned is to the other side). ``None`` for a table set as a character, one placed
+    otherwise, or from a column in columns of unequal width."""
+
+    pos = obj.find(f"{HP}pos")
+    try:
+        if pos is None or pos.get("treatAsChar") == "1":
+            return None
+        relative, align = pos.get("horzRelTo"), pos.get("horzAlign", "LEFT")
+        if relative == "PAPER":
+            start = _paper_left(obj, page)
+            return None if start is None else (start + _object_margin(obj, "left"), True)
+        if relative == "PAGE":
+            first, room, paper = page.left, page.text_width, True
+        elif relative in ("COLUMN", "PARA") and not page.unequal:
+            first, room, paper = (0, page.column_width, False) if relative == "COLUMN" \
+                else (shape.left, page.column_width - shape.left - shape.right, False)
+        else:
+            return None
+        wide, offset = _extent(obj, "width"), _pos_offset(pos, "horzOffset")
+        if offset >= 1 << 31:
+            offset -= 1 << 32
+        start = {"LEFT": offset, "CENTER": (room - wide) // 2 + offset, "RIGHT": room - wide - offset}.get(align)
+        return None if start is None else (first + start + _object_margin(obj, "left"), paper)
+    except (ValueError, TypeError):
+        return None
 
 
 def _object_trace(measure: _Measure, obj: Any, *, line: int = 0, top: int | None = None,
@@ -2059,7 +2182,8 @@ class _Paginator:
             self.counts.append(len(self.out) - first)
             for line, table in para.inline_tables:
                 if 0 <= line < self.counts[-1]:
-                    self._whole_table(table, self.out[first + line][0], 0, absolute=False)
+                    frame, top = self.out[first + line]
+                    self._whole_table(table, frame, top + (table.drop or 0), absolute=table.drop is not None)
             for candidate in para.object_traces:
                 if 0 <= candidate.line < self.counts[-1] and not any(
                         candidate.source in kept for kept in (self.object_captures, self.table_captures, self.untraced)):
@@ -3020,8 +3144,17 @@ def _page_object_frames(measure: _Measure, section: Any, page: _Page, paginator:
                   and pos.get("vertAlign", "TOP") in {"TOP", "CENTER", "BOTTOM"}
                   and obj.find(f"{HP}sz") is not None):
                 try:
-                    top = _paper_vertical(pos, page, _extent(obj, "height", measure))
+                    table = _traced_table(measure, obj) if _local(obj) == "tbl" else None
+                    tall = _extent(obj, "height", measure)
+                    if table is not None:  # as tall as its rows
+                        tall += _rows_height(measure, obj) - int(obj.find(f"{HP}sz").get("height", 0))
+                    top = _paper_vertical(pos, page, tall)
                 except (_Unsupported, ValueError):
+                    continue
+                if table is not None:  # in front of or behind the text, where its hp:pos puts it on its anchor's page
+                    paginator._whole_table(table, anchor_page * page.columns, top + table.above,
+                                           absolute=table.caption == (0, 0), vague=_CAPTION_ROOM)
+                if _local(obj) == "tbl":
                     continue
             else:
                 continue

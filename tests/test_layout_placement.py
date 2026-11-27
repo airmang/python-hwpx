@@ -276,13 +276,19 @@ def test_an_inline_table_laid_out_as_tall_as_it_was_saved_keeps_its_rows():
     layout = estimate_layout(doc)
     assert layout.estimate == estimate_pages(doc)
     placed, = layout.tables
-    assert placed.unavailable == ("inline table origin not measured",)
+    assert placed.unavailable == () and placed.moved is False
     assert [(row.page, row.row) for row in placed.rows] == [(0, 0), (0, 1), (0, 2)]
     assert sum(row.height for row in placed.rows) == int(table.element.find(f"{HP}sz").get("height"))
+    # the table is all its line holds: its rows stand from the line's top, at the line's start
+    line, = next(item for item in layout.paragraphs if item.paragraph == placed.paragraph).lines
+    tall = placed.rows[0].height
+    assert [(row.top, row.x) for row in placed.rows] == [(line.top, 0), (line.top + tall, 0), (line.top + 2 * tall, 0)]
     merged, neighbor = placed.rows[0].cells
     assert (merged.row, merged.column, merged.row_span) == (0, 0, 2)
     assert merged.height == placed.rows[0].height + placed.rows[1].height
     assert (neighbor.x, neighbor.top) == (merged.width, 0)
+    # a cell sets its line in the middle of its height: the merged cell has a row's height more room
+    assert merged.lines[0].top - neighbor.lines[0].top == (merged.height - neighbor.height) // 2 > 0
     assert [(line.text, line.source) for line in merged.lines] == [("두 행을 합친 칸", "cache")]
     assert [line.text for row in placed.rows for cell in row.cells for line in cell.lines if line.text] == [
         "두 행을 합친 칸", "곁에 놓인 칸", "맨 아래 행"]
@@ -363,7 +369,9 @@ def test_a_table_among_cached_lines_stands_on_the_line_holding_its_place():
     assert [(line.text, line.source) for line in lines] == [(before, "cache"), ("", "cache"), (after, "cache")]
     placed, = layout.tables
     assert [(row.page, row.row, row.height) for row in placed.rows] == [(1, 0, tall), (1, 1, tall)]
-    assert placed.moved is True and placed.unavailable == ("inline table origin not measured",)
+    assert placed.moved is True  # among text, where it stands on its line is not laid out
+    assert placed.unavailable == ("inline table origin not measured", "table left edge not measured")
+    assert all((row.top, row.x) == (None, None) for row in placed.rows)
     assert "".join(line.text for line in placed.rows[0].cells[0].lines) == "글 가운데 놓인 표"
 
 
@@ -526,3 +534,138 @@ def test_an_unsplit_table_left_before_its_line_is_not_placed():
     table.element.set("pageBreak", "CELL")  # one that may split is where the layout leaves it
     again, = estimate_layout(doc).tables
     assert [row.page for row in again.rows] == [0, 0, 0] and again.unavailable == ()
+
+
+def test_cell_lines_stand_where_the_cell_sets_them():
+    doc = HwpxDocument.new()
+    table = doc.add_paragraph("").add_table(1, 3)
+    for index, where in enumerate(("TOP", "CENTER", "BOTTOM")):
+        cell = table.cell(0, index)
+        cell.text = "한 줄짜리 칸"
+        cell.element.find(f"{HP}subList").set("vertAlign", where)
+    _declared_rows(table, 6000)
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    at_top, centred, at_foot = (cell.lines[0] for cell in layout.tables[0].rows[0].cells)
+    margin = at_top.top  # the cell's top margin, the same as its bottom one
+    assert 0 < margin < 1000 and all(cell.unavailable == () for cell in layout.tables[0].rows[0].cells)
+    assert at_foot.top == 6000 - margin - at_foot.height
+    assert centred.top == margin + (6000 - 2 * margin - centred.height) // 2
+    assert all(line.x is not None and line.width is not None for line in (at_top, centred, at_foot))
+
+
+def test_a_split_cell_set_at_its_top_starts_each_part_below_its_top_margin():
+    def split_cell(where):
+        doc = HwpxDocument.new()
+        table = doc.add_paragraph("").add_table(1, 1)
+        table.element.find(f"{HP}pos").set("treatAsChar", "0")
+        table.element.set("pageBreak", "CELL")
+        table.cell(0, 0).text = "쪽을 넘도록 길게 이어 쓰는 칸의 글 " * 300
+        table.cell(0, 0).element.find(f"{HP}subList").set("vertAlign", where)
+        layout = estimate_layout(doc)
+        assert layout.estimate == estimate_pages(doc) and layout.estimate.pages > 2
+        return [row.cells[0] for row in layout.tables[0].rows]
+
+    parts = split_cell("TOP")
+    margin = parts[0].lines[0].top
+    for part in parts:
+        tops = [line.top for line in part.lines]
+        assert tops[0] == margin and part.unavailable == ()
+        assert all(below - above == tops[1] - tops[0] for above, below in zip(tops, tops[1:]))
+
+    for part in split_cell("CENTER"):  # where Hancom stands the lines of each part is not laid out
+        assert all(line.top is None and line.text for line in part.lines)
+        assert part.unavailable == ("cell line tops not measured: the cell is split over pages and not set at its top",)
+
+
+def test_a_table_placed_from_its_column_keeps_its_left_edge():
+    for align, expected in (("LEFT", lambda room: 1000), ("CENTER", lambda room: (room - 15000) // 2 + 1000),
+                            ("RIGHT", lambda room: room - 15000 - 1000)):
+        doc = HwpxDocument.new()
+        table = doc.add_paragraph("").add_table(2, 1)
+        table.element.set("textWrap", "TOP_AND_BOTTOM")
+        table.element.find(f"{HP}sz").set("width", "15000")
+        for cell in table.element.iter(f"{HP}tc"):
+            cell.find(f"{HP}cellSz").set("width", "15000")
+        table.element.find(f"{HP}pos").attrib.update({
+            "treatAsChar": "0", "flowWithText": "1", "vertRelTo": "PARA", "vertAlign": "TOP", "vertOffset": "0",
+            "horzRelTo": "COLUMN", "horzAlign": align, "horzOffset": "1000",
+        })
+
+        layout = estimate_layout(doc)
+        assert layout.estimate == estimate_pages(doc)
+        placed, = layout.tables
+        room, = layout.pages[0].column_areas[0].widths
+        assert [row.x for row in placed.rows] == [expected(room)] * 2 and placed.unavailable == ()
+
+
+def test_a_table_alone_on_its_line_follows_the_paragraph_alignment():
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("")
+    table = paragraph.add_table(1, 1)
+    table.element.find(f"{HP}sz").set("width", "12000")
+    table.element.find(f"{HP}tr/{HP}tc/{HP}cellSz").set("width", "12000")
+    shape = next(item for item in doc.parts.headers[0].element.iter(f"{HH}paraPr")
+                 if item.get("id") == paragraph.element.get("paraPrIDRef"))
+
+    def left_edge(horizontal):
+        shape.find(f"{HH}align").set("horizontal", horizontal)
+        layout = estimate_layout(doc)
+        assert layout.estimate == estimate_pages(doc)
+        (row,), line = layout.tables[0].rows, layout.paragraphs[-1].lines[0]
+        assert row.top == line.top and layout.tables[0].unavailable == ()
+        return row.x, layout.pages[0].column_areas[0].widths[0]
+
+    assert left_edge("JUSTIFY")[0] == 0
+    centred, room = left_edge("CENTER")
+    assert centred == (room - 12000) / 2
+    assert left_edge("RIGHT")[0] == room - 12000
+
+    table.element.find(f"{HP}sz").set("width", str(room + 600))  # wider than its line, not set left
+    table.element.find(f"{HP}tr/{HP}tc/{HP}cellSz").set("width", str(room + 600))
+    wide, = estimate_layout(doc).tables
+    assert wide.rows[0].x is None and wide.rows[0].top is not None
+    assert wide.unavailable == ("table left edge not measured",)
+
+
+def test_a_table_in_a_text_box_stands_on_the_page_of_its_box():
+    doc = HwpxDocument.new()
+    body = estimate_layout(doc).pages[0].body[3]
+    for _ in range(body // 1600 + 3):
+        doc.add_paragraph("글상자를 둘째 쪽으로 미는 문단")
+    box = doc.shapes.add_rectangle(20000, 9000, paragraph=doc.add_paragraph(""), treat_as_char=True)
+    box.set_draw_text("글상자에 적은 글")
+    table = next(iter(box.iter_paragraphs())).paragraph.add_table(2, 1)
+    table.cell(1, 0).text = "글상자 속의 표"
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.tables
+    drawing, = layout.objects
+    assert drawing.page == 1 and [row.page for row in placed.rows] == [1, 1]
+    assert placed.unavailable == ("table origin in its text box not measured", "table left edge not measured")
+    assert "".join(line.text for line in placed.rows[1].cells[0].lines) == "글상자 속의 표"
+
+
+def test_a_table_in_front_of_the_text_placed_on_the_paper_keeps_its_place():
+    doc = HwpxDocument.new()
+    table = doc.add_paragraph("").add_table(2, 2)
+    table.element.set("textWrap", "IN_FRONT_OF_TEXT")
+    position = table.element.find(f"{HP}pos")
+    position.attrib.update({
+        "treatAsChar": "0", "flowWithText": "0", "vertRelTo": "PAPER", "vertAlign": "TOP", "vertOffset": "40000",
+        "horzRelTo": "PAPER", "horzAlign": "LEFT", "horzOffset": "12000",
+    })
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.tables
+    first, second = placed.rows
+    assert (first.page, first.top, second.top) == (0, 40000, 40000 + first.height) and placed.unavailable == ()
+    assert first.x == 12000 - layout.pages[0].body[0]  # from the column's left edge
+
+    position.attrib.update({"vertRelTo": "PARA", "flowWithText": "1"})  # from its paragraph: not computed
+    floating, = estimate_layout(doc).tables
+    assert floating.rows == () and floating.unavailable == (
+        "a table in front of or behind the text takes no room in the layout: its place is not computed",)
