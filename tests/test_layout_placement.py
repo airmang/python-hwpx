@@ -767,6 +767,29 @@ def test_an_object_among_saved_lines_stands_past_the_text_before_it_on_its_own_l
     assert spread.x is None and spread.unavailable[0].startswith("object set as a character on a line spread")
 
 
+def test_an_object_among_the_saved_lines_of_a_cell_stands_on_its_cell_line():
+    doc = HwpxDocument.new()
+    table = doc.add_paragraph("").add_table(1, 2)
+    paragraph = table.cell(0, 1).paragraphs[0]
+    paragraph.text = "가가"
+    doc.shapes.add_rectangle(3000, 1000, paragraph=paragraph, treat_as_char=True)
+    paragraph.add_run("가")
+    _saved_lines(paragraph.element, (0,), (1000,), width=18000)
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.objects
+    row, = layout.tables[0].rows
+    cell = row.cells[1]
+    line, = cell.lines
+    assert (line.height, line.source) == (1000, "cache")
+    assert (placed.page, placed.unavailable) == (row.page, ())
+    assert placed.top == row.top + cell.top + line.top  # the line as tall as the object
+    pen = placed.x - (layout.pages[0].body[0] + row.x + cell.x + line.x)
+    first = _object_among("가가", "가", "LEFT").objects[0].x - layout.pages[0].body[0]
+    assert pen == first  # past the two characters before it, measured as in the body
+
+
 def test_objects_held_by_a_cell_or_a_text_box_stand_on_its_page():
     doc = HwpxDocument.new()
     body = estimate_layout(doc).pages[0].body[3]
@@ -782,7 +805,7 @@ def test_objects_held_by_a_cell_or_a_text_box_stand_on_its_page():
     assert layout.estimate == estimate_pages(doc)
     in_cell, holder, in_box = layout.objects
     assert (in_cell.page, in_cell.x, in_cell.top) == (1, None, None)
-    assert in_cell.unavailable == ("an object in a table cell: its place in the cell is not laid out",)
+    assert in_cell.unavailable == ("object set as a character: its line has no horizontal origin or width",)
     assert holder.page == 1 and holder.top is not None and holder.unavailable == ()
     assert (in_box.page, in_box.top) == (1, None)
     assert in_box.unavailable == ("an object in a text box: its place in the box is not laid out",)

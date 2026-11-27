@@ -12,6 +12,7 @@ file (``tests/test_distribution_file_sizes.py``). Nothing here changes a page es
 from __future__ import annotations
 
 from bisect import bisect_left
+from collections.abc import Callable
 from dataclasses import replace
 from itertools import pairwise
 from typing import Any
@@ -24,8 +25,8 @@ from ..oxml.namespaces import HP
 from ..oxml.table_sizes import _grid_extents_of
 from ._page_measure import (
     _DRAWINGS, _NO_WRAP, _OBJECTS, _CellLine, _CellSlice, _FlowTable, _LineContent, _Measure, _Row, _RowPart,
-    _caption_beside, _cell_spacing, _drawn_height, _effect_room, _floating, _indented, _inline_content, _local,
-    _page_break, _shadow_drop, _text_size, _whole_rows,
+    _caption, _caption_beside, _cell_spacing, _drawn_height, _effect_room, _floating, _indented, _inline_content,
+    _local, _object_extent, _page_break, _shadow_drop, _text_size, _whole_rows,
 )
 from .pages import (
     AreaPlacement, EstimatedLine, LayoutEstimate, LinePlacement, ObjectPlacement, PageEstimate, PagePlacement,
@@ -120,6 +121,8 @@ def _placement_result(
                 placed = _object_placement(section, index, ordinal, obj, sizes.get(obj), object_captures.get(obj), pages)
                 if placed.page is None:
                     placed = _held_object(placed, obj, object_places, by_source)
+                    if placed.wrap == "AS_CHARACTER" and measure is not None:
+                        placed = _in_cell(placed, obj, measure, by_source, pages, source, index)
                 elif placed.x is None and placed.wrap == "AS_CHARACTER" and measure is not None \
                         and obj.getparent() is not None and obj.getparent().getparent() is paragraph:
                     placed = _among_text(placed, obj, measure, source, index, paragraph_lines.get((section, index), ()),
@@ -250,16 +253,78 @@ def _among_text(placed: ObjectPlacement, obj: Any, measure: _Measure, paragraphs
 
     rest = tuple(why for why in placed.unavailable if why != _AMONG)
     measure.tab_stop = _part_tab_stop(paragraphs, index)
-    found = _x_on_line(obj, measure, paragraphs[index], lines, pages[placed.page], placed)
+    page = pages[placed.page]
+
+    def whole(line: Any) -> int | None:  # the column the line stands in
+        area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
+        return area.widths[placed.column or 0] if area is not None and (placed.column or 0) < len(area.widths) \
+            else None
+
+    found = _x_on_line(obj, measure, paragraphs[index], lines, whole)
     if isinstance(found, str):
         return replace(placed, unavailable=(found, *rest))
     x, line = found
+    if (line.position.page, line.position.column) != (placed.page, placed.column):
+        return replace(placed, unavailable=("object set as a character: its line stands elsewhere than its frame",
+                                            *rest))
     origin = _column_origin(pages[placed.page], placed.column or 0, line.top)
     if origin is None:
         return replace(placed, unavailable=("object set as a character: its column's left edge is not measured",
                                             *rest))
     return replace(placed, x=int(origin + x), unavailable=(*(() if placed.top is not None else (_AMONG_TALL,)),
                                                            *rest))
+
+
+def _in_cell(placed: ObjectPlacement, obj: Any, measure: _Measure, tables: dict[Any, TablePlacement],
+             pages: list[PagePlacement], paragraphs: list[Any], index: int) -> ObjectPlacement:
+    """*placed*, an object set as a character among the text of a paragraph of a table cell (the table in body
+    paragraph *index* of *paragraphs*), with its left edge on the cell line holding its text position in the part
+    of its row showing that line (see :func:`_x_on_line`; the line measured from the cell's left edge, the cell
+    from the table's, the table from its column's), and its top below its top outer margin on that line when the
+    line is as tall as it. Unchanged where the cell's lines are not placed."""
+
+    cell = next((up for up in obj.iterancestors() if _local(up) in _OBJECT_HOLDERS), None)
+    paragraph = obj.getparent().getparent() if obj.getparent() is not None else None
+    if cell is None or _local(cell) != "tc" or paragraph is None or paragraph.getparent() is None \
+            or paragraph.getparent().getparent() is not cell:
+        return placed
+    table = next(cell.iterancestors(f"{HP}tbl"), None)
+    placement = tables.get(table)
+    if placement is None or not placement.rows:
+        return placed
+    number = next((at for at, other in enumerate(table.findall(f"{HP}tr/{HP}tc")) if other is cell), None)
+    order = next((at for at, other in enumerate(cell.findall(f"{HP}subList/{HP}p")) if other is paragraph), None)
+    measure.tab_stop = _part_tab_stop(paragraphs, index)
+    held = _OBJECT_HOLDERS["tc"]
+    rest = tuple(why for why in placed.unavailable if why != held)
+    why = None
+    for row in placement.rows:
+        for part in row.cells if not row.repeated else ():
+            lines = tuple(line for line in (part.lines or part.lines_with_tables) if line.paragraph == order)
+            if part.source_index != number or not lines:
+                continue
+            found = _x_on_line(obj, measure, paragraph, lines, lambda line: None)
+            if isinstance(found, str):
+                why = why if found.startswith("object set as a character: no line") and why else found
+                continue
+            x, line = found
+            origin = None if not 0 <= row.page < len(pages) else _column_origin(
+                pages[row.page], row.column, row.top if row.top is not None else pages[row.page].body[1])
+            if origin is None or row.x is None or part.x is None:
+                why = "object set as a character in a table cell: the cell's left edge on the page is not measured"
+                continue
+            top = None
+            if row.top is not None and part.top is not None and line.top is not None \
+                    and _object_extent(obj, measure)[1] == line.height:
+                top = row.top - row.table_offset + part.top + line.top + _object_margin(obj, "top") \
+                    + _caption(measure, obj)[0]
+            missing = () if top is not None else (_AMONG_TALL if line.top is not None and row.top is not None
+                                                  and part.top is not None else
+                                                  "object set as a character in a table cell: its line's top on the "
+                                                  "page is not measured",)
+            return replace(placed, page=row.page, column=row.column, x=int(origin + row.x + part.x + x), top=top,
+                           unavailable=(*missing, *rest))
+    return replace(placed, unavailable=(why, *rest)) if why is not None else placed
 
 
 def _part_tab_stop(paragraphs: list[Any], index: int) -> int:
@@ -351,10 +416,12 @@ def _pens(text: str, sizes: list[int], looks: list[Any], advances: dict[int, flo
     return pens
 
 
-def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[LinePlacement, ...], page: PagePlacement,
-               placed: ObjectPlacement) -> tuple[float, LinePlacement] | str:
-    """Placement tracing only: how far right of its column's left edge an object set as a character among text
-    starts (its left outer margin outside), on the line holding its text position, with that line; else why not.
+def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[Any, ...],
+               whole: Callable[[Any], float | None]) -> tuple[float, Any] | str:
+    """Placement tracing only: how far right of the left edge its *lines* are measured from (a body line's column,
+    a cell line's cell) an object set as a character among text starts (its left outer margin outside), on the
+    line holding its text position, with that line; else why not. *whole* gives the width a line's paragraph is
+    laid out in (its column, its cell's inside), ``None`` where it is not known.
 
     The line starts where the layout starts it (a line Hancom saved in a paragraph with an indent or a label: as
     the layout indents its lines when the line has the paragraph's whole room); the object stands past the
@@ -378,20 +445,21 @@ def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[LinePla
         return "object set as a character: its place in its paragraph's text is not found"
     line = next((line for line in lines if line.text_start is not None and line.text_end is not None
                  and line.text_start <= positions[at] < line.text_end), None)
-    if line is None:
-        return "object set as a character: no line of its paragraph holds its text position"
-    if (line.position.page, line.position.column) != (placed.page, placed.column):
-        return "object set as a character: its line stands elsewhere than its frame"
+    if line is None and len(lines) == 1:  # a paragraph of one line: everything is on it
+        line, start, stop = lines[0], 0, len(text)
+    elif line is None:
+        return ("object set as a character: no line of its paragraph holds its text position" if any(
+            other.text_start is not None for other in lines) else
+                "object set as a character: the lines of its paragraph keep no text ranges")
+    else:
+        start, stop = bisect_left(positions, line.text_start), bisect_left(positions, line.text_end)
     if line.x is None or line.width is None:
         return "object set as a character: its line has no horizontal origin or width"
-    start, stop = bisect_left(positions, line.text_start), bisect_left(positions, line.text_end)
-    first = line.text_start == 0
+    first = start == 0
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     left, room = line.x, line.width
     if line.source == "cache" and (shape.indent or style.head):  # the cache keeps the paragraph's whole room
-        area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
-        column = area.widths[placed.column or 0] if area is not None and (placed.column or 0) < len(area.widths) \
-            else None
+        column = whole(line)
         if column is None or (left, room) != (shape.left, column - shape.left - shape.right):
             return ("object set as a character on a saved line of an indented or labelled paragraph not as wide as "
                     "the paragraph: where the line's text starts is not laid out")
