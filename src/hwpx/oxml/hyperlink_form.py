@@ -156,6 +156,34 @@ def hyperlink_char_pr(
     return element.get("id")
 
 
+def hyperlink_field_shapes(paragraph: Any, field_char_pr_id_ref: str | int | None) -> tuple[str, str]:
+    """The look around a link added at the end of *paragraph*, and its field runs' shape.
+
+    The look around it is that of the text it follows (the paragraph's last run; Hangul writes
+    the ``fieldBegin`` in that run), the paragraph's own when it has no run. The field runs take
+    it unless *field_char_pr_id_ref* names a shape the header defines (``style-definition-not-found``
+    otherwise)."""
+
+    runs = paragraph._run_elements()
+    surrounding = (runs[-1].get("charPrIDRef") if runs else None) or paragraph.char_pr_id_ref or "0"
+    if field_char_pr_id_ref is None:
+        return surrounding, surrounding
+    from .formatting import find_definition
+
+    headers = getattr(getattr(paragraph.section, "document", None), "headers", None) or []
+    found = find_definition(headers[0], "charPr", field_char_pr_id_ref) if headers else None
+    if found is None:
+        from ..errors import HwpxLookupError
+
+        raise HwpxLookupError(
+            f"the header has no charPr with id {field_char_pr_id_ref!r}",
+            code="style-definition-not-found",
+            context={"kind": "charPr", "id": str(field_char_pr_id_ref)},
+            suggestion="Make the shape with doc.styles.ensure_run(...) and pass its id.",
+        )
+    return surrounding, str(found.get("id"))
+
+
 def set_hyperlink_target(field_begin: Any, url: str) -> None:
     """Point the HYPERLINK ``fieldBegin`` at *url*: its parameters are written anew in
     Hancom's form (:func:`hyperlink_parameters`), and an ``@name`` holding the old target

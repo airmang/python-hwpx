@@ -225,7 +225,11 @@ HANCOM_NUMBERING_LEVELS: tuple[tuple[str, str, bool], ...] = (
 )
 
 #: What one level of ``add_numbering(levels=...)`` or ``set_numbering_level`` may give.
-_LEVEL_KEYS = ("text", "number_format", "start")
+_LEVEL_KEYS = ("text", "number_format", "start") + (
+    "auto_indent", "use_instance_width", "text_offset", "text_offset_type")
+
+#: The room between the head and the text: a share of the character size or HWP units.
+_TEXT_OFFSET_TYPES = ("PERCENT", "HWPUNIT")
 
 #: ``charPrIDRef`` of a head drawn in the character shape of its paragraph's text.
 _TEXT_CHAR_SHAPE = "4294967295"
@@ -289,7 +293,7 @@ def _level_changes(spec: object, *, where: str) -> dict[str, str]:
             code="style-numbering-level-invalid",
             context={"where": where, "unknown": unknown, "allowed": list(_LEVEL_KEYS)},
             suggestion="A level takes text (the number pattern, ^n for level n's number), "
-            "number_format and start.",
+            "number_format, start, auto_indent, use_instance_width, text_offset and text_offset_type.",
         )
     changes: dict[str, str] = {}
     text = spec.get("text")
@@ -306,6 +310,57 @@ def _level_changes(spec: object, *, where: str) -> dict[str, str]:
         changes["numFormat"] = number_format(spec["number_format"])
     if spec.get("start") is not None:
         changes["start"] = str(_check_start(spec["start"]))
+    changes.update(head_layout_changes(spec, where=where))
+    return changes
+
+
+def head_layout_changes(spec: Mapping[str, object], *, where: str) -> dict[str, str]:
+    """How a head sits before its text, as the ``hh:paraHead`` values they write: ``auto_indent``
+    (``autoIndent``: the paragraph's first line is indented by the head's width), ``use_instance_width``
+    (``useInstWidth``: the head takes the width it draws rather than a fixed one), ``text_offset`` and
+    ``text_offset_type`` (``textOffset``/``textOffsetType``: the room before the text, a share of the
+    character size for ``PERCENT`` or HWP units for ``HWPUNIT``). ``None`` leaves a value out. Hangul
+    writes ``auto_indent=False, use_instance_width=True, text_offset=110, text_offset_type="PERCENT"`` for
+    a list it converts from Word, whose paragraph carries the hanging indent itself."""
+
+    from ..errors import HwpxValueError
+
+    changes: dict[str, str] = {}
+    for key, attribute in (("auto_indent", "autoIndent"), ("use_instance_width", "useInstWidth")):
+        value = spec.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, bool):
+            raise HwpxValueError(
+                f"{where}: {key} must be True or False; got {value!r}",
+                code="style-numbering-level-invalid",
+                context={"where": where, "argument": key, "requested": repr(value)},
+                suggestion=f"Pass {key}=True or {key}=False (None leaves it as it is).",
+            )
+        changes[attribute] = "1" if value else "0"
+    offset = spec.get("text_offset")
+    if offset is not None:
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 0x7FFF:
+            raise HwpxValueError(  # a 16-bit signed value in a .hwp file's paragraph head
+                f"{where}: text_offset must be an int from 0 to 32767; got {offset!r}",
+                code="style-numbering-level-invalid",
+                context={"where": where, "argument": "text_offset", "requested": repr(offset)},
+                suggestion="Pass the room before the text: a percent of the character size (50 is Hangul's own) "
+                "or HWP units with text_offset_type='HWPUNIT'.",
+            )
+        changes["textOffset"] = str(offset)
+    offset_type = spec.get("text_offset_type")
+    if offset_type is not None:
+        normalized = offset_type.strip().upper() if isinstance(offset_type, str) else None
+        if normalized not in _TEXT_OFFSET_TYPES:
+            raise HwpxValueError(
+                f"{where}: text_offset_type must be PERCENT or HWPUNIT; got {offset_type!r}",
+                code="style-numbering-level-invalid",
+                context={"where": where, "argument": "text_offset_type", "requested": repr(offset_type),
+                         "allowed": list(_TEXT_OFFSET_TYPES)},
+                suggestion='Pass "PERCENT" (a share of the character size) or "HWPUNIT".',
+            )
+        changes["textOffsetType"] = normalized
     return changes
 
 
@@ -396,12 +451,18 @@ def add_numbering_definition(header: "HwpxOxmlHeader", levels: object) -> str:
     return numbering_id
 
 
-def ensure_bullet_definition(header: "HwpxOxmlHeader", char: object, char_pr_id_ref: object = None) -> str:
+def ensure_bullet_definition(
+    header: "HwpxOxmlHeader", char: object, char_pr_id_ref: object = None,
+    layout: "Mapping[str, object] | None" = None,
+) -> str:
     """``doc.styles.ensure_bullet``: the id of the ``hh:bullet`` drawing *char*, made as Hancom
     writes one (31 of the 50 ``hh:bullet`` in the Hancom-saved files of ``tests/fixtures`` have
-    this head) unless a bullet saying exactly the same is there already."""
+    this head) unless a bullet saying exactly the same is there already. *layout* changes how the
+    head sits before the text (:func:`head_layout_changes`)."""
 
     from ..errors import HwpxValueError
+
+    layout_changes = head_layout_changes(layout or {}, where="ensure_bullet")
 
     if not isinstance(char, str) or len(char) != 1:
         raise HwpxValueError(
@@ -429,6 +490,7 @@ def ensure_bullet_definition(header: "HwpxOxmlHeader", char: object, char_pr_id_
     head.pop("start", None)
     head["useInstWidth"] = "0"
     head["charPrIDRef"] = shape
+    head.update(layout_changes)
     bullets = header._bullets_element(create=True)
     if bullets is None:  # pragma: no cover - the header always takes a refList
         from ..errors import HwpxStateError
@@ -495,7 +557,8 @@ def set_numbering_level(
             "set_numbering_level got nothing to change",
             code="style-numbering-level-invalid",
             context={"allowed": list(_LEVEL_KEYS)},
-            suggestion="Pass text=, number_format= or start=.",
+            suggestion="Pass text=, number_format=, start=, auto_indent=, use_instance_width=, "
+            "text_offset= or text_offset_type=.",
         )
     wanted = _definition_id(numbering)
     element = _find_head_definition(header, "numbering", wanted)
@@ -528,6 +591,23 @@ def set_numbering_level(
     if changed:
         header.mark_dirty()
         _clear_numbered_paragraphs(document, header, str(element.get("id")))
+
+
+def clear_outline_paragraphs(header: "HwpxOxmlHeader", section: Any) -> None:
+    """Drop the line layout cache of *section*'s outline paragraphs: the numbering they draw changed."""
+
+    from ._document_primitives import _clear_paragraph_layout_cache
+    from .paragraph_heading import paragraph_heading
+
+    container = header._para_properties_element()
+    outlined = {
+        _normalized_id(para_pr.get("id") or "")
+        for para_pr in ([] if container is None else list(container))
+        if (heading := paragraph_heading(para_pr)) is not None and heading.get("type") == "OUTLINE"
+    }
+    for paragraph in section.element.iter(f"{HP}p") if outlined else ():
+        if _normalized_id(paragraph.get("paraPrIDRef") or "") in outlined:
+            _clear_paragraph_layout_cache(paragraph)
 
 
 def _clear_numbered_paragraphs(document: "HwpxOxmlDocument", header: "HwpxOxmlHeader", numbering_id: str) -> None:

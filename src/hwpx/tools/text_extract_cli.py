@@ -103,6 +103,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: {problem}", file=sys.stderr)
         return 1
 
+    if args.output:
+        # Before anything is read or written: the text does not go over the document it came from,
+        # nor over an .hwp file that is already there.
+        from ..errors import HwpxError
+        from .archive_cli import _error_line, _refuse_output_over_document
+
+        try:
+            _refuse_output_over_document(args.output, input_path)
+        except HwpxError as exc:
+            print(f"Error: {_error_line(exc)}", file=sys.stderr)
+            return 1
+
     _warn_duplicate_entries(input_path)
     try:
         source = _hwpx_source(input_path)

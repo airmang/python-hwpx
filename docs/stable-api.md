@@ -417,7 +417,7 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 `unconverted`가 있으면 `Hwp5ConversionWarning`을 한 번 냅니다. `.hwpx`로 연 문서에서는
 `conversion_report`가 `None`입니다. `save("x.hwp")`, `save(stream, format="hwp")`,
 `to_bytes(format="hwp")`는 HWP 5.0으로 씁니다(실험). 쓸 수 없는 내용이 있으면 아무것도 쓰기 전에
-`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다. 문서를 연 원본 `.hwp` 경로에는 어느 형식으로도 쓰지 않고
+`Hwp5Error`(`hwp5-write-unsupported`)로 거부합니다(메모 답글·참고 문헌의 출처·문서 이력처럼 `.hwp`에 쓰지 않는 부품도 여기에 들며, `context["unsupported"]`가 종류와 개수를 알려 줍니다). 문서를 연 원본 `.hwp` 경로에는 어느 형식으로도 쓰지 않고
 (`hwp5-overwrite-source`, `format="hwpx"`를 줘도 같습니다), `conversion_report`가 비어 있지 않은 문서도 `.hwp`로 쓰지
 않습니다(`hwp5-write-lossy-source`). 두 경우 모두 `.hwpx`로 끝나는 다른 이름으로 저장하면 됩니다. `format`에 `"hwpx"`·`"hwp"` 밖의 값을
 주면 `hwpx.errors.HwpxValueError`(`save-format-unsupported`)입니다.
@@ -427,6 +427,14 @@ MCP `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`).
 (`paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops`·`replace_package_text` 등의 `output_path`, `dry_run` 포함),
 `apply_edit_plan`의 `output`, `hwpx-repair`·`hwpx-pack`(`--force`·`overwrite=True`여도). 거부하면 그 파일은 그대로입니다. 아직 없는
 `.hwp` 이름으로 쓰는 것(실험)은 그대로이고, 스트림 저장은 경로를 모르므로 보지 않습니다.
+
+문서가 아닌 것(글·JSON·XML)을 경로에 쓰는 명령줄 출력 인자도 쓰기 전에 같은 판정을 거칩니다: `hwpx-text-extract`의
+`--output`, `hwpx-analyze-template`의 `--output-json`·`--extract-header`·`--extract-section`·`--extract-section-dir`
+(`extract_template_parts`의 같은 인자), `python -m hwpx.tools.generic_inventory`의 `--output`. 이미 있는 `.hwp`는
+`hwp5-overwrite-existing`으로, 출력이 입력 문서와 같은 파일이면(다른 철자·대소문자·링크로 적어도) `HwpxValueError`
+(`package-output-is-input`)로 거부하고 종료 코드는 0이 아닙니다. 거부하면 아무것도 쓰지 않습니다. 편집 계획의 저널
+(`journalPath`, `apply_edit_plan(journal_path=...)`)도 같습니다: 이미 있는 `.hwp`는 `hwp5-overwrite-existing`, source나
+output과 같은 파일이면 `PlanValidationError`(`plan-invalid`)입니다.
 
 응용 계층의 agent·exam 오류 계약은 `python-hwpx-automation`이 소유합니다.
 이 문서는 core에 실제로 남은 공개 예외만 기술합니다.

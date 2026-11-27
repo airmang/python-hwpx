@@ -727,6 +727,7 @@ ERROR_CODES: dict[str, str] = {
     "package-xml-invalid": "패키지의 XML 파트가 올바르지 않다(HwpxXmlSyntaxError 기본값, lxml 의 숫자 코드는 lxml_code 에).",
     "package-unpack-input-inside-output": "unpack_hwpx(hwpx-unpack)에 준 입력 파일이 출력 폴더 안에 있거나 출력 경로와 같다. 풀면 그 폴더를 바꿔 놓으므로 거부한다(아무것도 바꾸지 않았다).",
     "package-pack-output-inside-input": "pack_hwpx(hwpx-pack)에 준 출력 경로가 입력 폴더 안에 있거나 입력 폴더와 같다. 다음에 묶을 때 그 출력이 부품으로 들어가므로 거부한다(아무것도 쓰지 않았다).",
+    "package-output-is-input": "명령줄 도구가 글·JSON·XML을 쓰려는 출력 경로가 입력 문서와 같은 파일이다(다른 철자·대소문자·링크로 적어도 파일 시스템이 푸는 대로 본다). 쓰면 문서가 그 글로 바뀌므로 거부한다(아무것도 쓰지 않았다). 다른 출력 경로를 준다.",
     "open-empty-file": "연 파일이 비어 있다(0바이트). HwpxArchiveError 에 실린다.",
     "open-not-hwpx": "연 파일이 HWPX 가 아니다(ZIP 이 아닌 텍스트·다른 형식, 또는 mimetype 없는 ZIP·Office 문서).",
     "open-not-hwp": "확장자가 .hwp 인데 HWP 5.0 복합 파일 머리가 없다.",
@@ -746,9 +747,9 @@ ERROR_CODES: dict[str, str] = {
     "hwp5-not-hwp5": "복합 파일이지만 HWP 5.0 FileHeader가 없다.",
     "hwp5-version-unsupported": "FileHeader의 주 버전이 5가 아니다.",
     "hwp5-limit-exceeded": "HWP 5.0 입력이 파싱 상한(스트림 크기·레코드 수·디렉터리 수)을 넘는다.",
-    "hwp5-write-unsupported": "HWP 5.0 작성기가 표현할 수 없는 내용이다. 만든 파일이 이 엔진의 .hwp 리더로 다시 읽히지 않을 때도 이 코드다(context.reason 이 written-file-unreadable). 아무것도 쓰지 않는다.",
+    "hwp5-write-unsupported": "HWP 5.0 작성기가 표현할 수 없는 내용이다(context.unsupported 에 종류와 개수). 메모 답글·참고 문헌의 출처·문서 이력처럼 .hwp에 쓰지 않는 부품이 든 문서도 이 코드다. 만든 파일이 이 엔진의 .hwp 리더로 다시 읽히지 않을 때도 이 코드다(context.reason 이 written-file-unreadable). 아무것도 쓰지 않는다.",
     "hwp5-overwrite-source": "문서를 연 원본 .hwp 경로에 저장하려 했다(쓰는 형식과 상관없이 거부한다).",
-    "hwp5-overwrite-existing": "이미 있는 .hwp 파일에 쓰려 했다. 형식·길(저장, 바이트 패치, 편집 계획, hwpx-repair·hwpx-pack의 --force)과 상관없이 거부하고 그 파일은 그대로다. 새 .hwp 이름이나 .hwpx로 쓴다.",
+    "hwp5-overwrite-existing": "이미 있는 .hwp 파일에 쓰려 했다. 형식·길(저장, 바이트 패치, 편집 계획과 그 저널, hwpx-repair·hwpx-pack의 --force, 명령줄 도구의 글·JSON·XML 출력)과 상관없이 거부하고 그 파일은 그대로다. 새 .hwp 이름이나 .hwpx로 쓴다.",
     "hwp5-write-lossy-source": "열 때 옮기지 못한 내용이 있는 문서를 .hwp로 쓰려 했다.",
     # -- 수식·복구·차례 (기존 builtin 부모를 유지한 채 편입) ---------------
     # 7.0: equation-mathml-unavailable·ingest-failed·ingest-format-unsupported·

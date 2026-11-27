@@ -4,7 +4,8 @@
 원자성 계약: output은 전 step 성공 + 최종 open-safety 검증 통과
 후 단 한 번의 ``os.replace``로만 쓰인다. 그 전 어떤 실패에서도 output과 source는
 바이트 불변이다(지정된 journalPath 제외 — 저널은 실패 시에도 진단용으로 남는
-유일한 쓰기 표면이며, 문서 파일이 아니다).
+유일한 쓰기 표면이며, 문서 파일이 아니다: source·output과 같은 파일이거나 이미
+있는 .hwp를 가리키는 저널 경로는 검증이 거부한다).
 
 각 step은 기존 op를 ``output_path=None``으로 호출한다 — 바이트-스플라이스
 계열은 skip이 있어도(전 op 스킵 포함) 파일을 쓰므로(patch.py; 열기 안전 검사에
@@ -24,7 +25,7 @@ from ..mutation_report import MutationReport, project_byte_splice
 from ..tools.package_validator import validate_editor_open_safety
 from ..quality.save_pipeline import write_bytes_atomically
 from ._model import EditPlan, PlanReport, StepRecord
-from ._validate import validate_edit_plan
+from ._validate import _refuse_journal_over_document, validate_edit_plan
 
 # 각 op를 (입력 바이트, args) -> 결과객체로 부르는 어댑터. output_path는 절대
 # 전달하지 않는다(모듈 docstring). 키 집합은 PLAN_OPS와 정확히 일치해야 하며
@@ -118,7 +119,8 @@ def apply_edit_plan(
     실행 실패는 예외가 아니라 ``ok=False`` 리포트로 돌아온다(실패 step의
     ``error``·``failedStepId``에 지점이 실린다) — 그때 어떤 문서 파일도 쓰이지
     않았다. 계획 자체가 무자격이면 :class:`~hwpx.plan.PlanValidationError`가
-    파일 접촉 전에 던져진다.
+    파일 접촉 전에 던져진다. ``journal_path=``는 계획의 ``journalPath``를 대신하며
+    같은 검증을 거친다(source·output과 같은 파일이면 거부).
 
     ``dry_run=True``는 동일한 체이닝을 전부 실행하되(검증·거부 실동작) 최종
     쓰기만 생략한다 — per-step "미리보기 전용" 경로가 따로 없으므로 미리보기와
@@ -127,6 +129,9 @@ def apply_edit_plan(
 
     validation = validate_edit_plan(plan)
     loaded = validation.plan
+    if journal_path is not None:
+        # 인자가 계획의 journalPath를 대신한다 — 같은 판정을 쓰기 전에 거친다.
+        _refuse_journal_over_document(str(journal_path), loaded)
     effective_journal = (
         str(journal_path) if journal_path is not None else loaded.journal_path
     )

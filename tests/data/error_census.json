@@ -277,11 +277,14 @@
    "oxml/text_ranges.py:1364"
   ],
   "open-invalid-type": [
-   "opc/package.py:960"
+   "opc/package.py:994"
   ],
   "open-safety-failed": [
    "_document/persistence.py:395",
-   "opc/package.py:2111"
+   "opc/package.py:2145"
+  ],
+  "package-output-is-input": [
+   "tools/archive_cli.py:511"
   ],
   "package-pack-output-inside-input": [
    "tools/archive_cli.py:398"
@@ -522,7 +525,7 @@
    "objects/form_field.py:734"
   ],
   "save-archive-content-mismatch": [
-   "opc/package.py:2092"
+   "opc/package.py:2126"
   ],
   "save-duplicate-entry-names": [
    "opc/package.py:373"
@@ -1042,8 +1045,8 @@
  },
  "malformedCodes": [],
  "observed": {
-  "other": 537,
-  "typed": 531,
+  "other": 538,
+  "typed": 532,
   "untyped": 161,
   "untypedByFile": {
    "body_patch.py": 20,

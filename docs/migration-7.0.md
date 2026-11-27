@@ -539,6 +539,65 @@ old_tables = MarkdownStyle(table_fit_columns=False, table_header_align=None, lis
 | `META-INF/container.xml` 이 가리키는 미리보기(`Preview/PrvText.txt` 등)가 없는 문서를 열고 저장한다. 6.x 는 `HwpxStructureError` 로 거부했다 | 없음 |
 | HWP 3.x 이하 `.hwp` 를 열면 "File is not a zip file" 대신 지원하지 않는 형식이라고 알린다. 오류 형(`HwpxArchiveError`)은 같다 | 오류 문구를 비교하던 코드는 형이나 `code` 로 비교한다 |
 
+## 앱에 넣어 배포할 때 — 검증한 판 고정과 저장 확인
+
+7.x 이름으로 고친 앱이 python-hwpx 6.x 가 깔린 환경에서 묶이면, 6.x 에는 `doc.save` 가 없어(저장은 `save_to_path` 였다)
+실행 중에 실패한다. 엔진의 결함이 아니라 배포본에 옛 판이 섞인 것이라, 배포본을 만드는 쪽에서 아래 둘로 막는다.
+사용자에게 설치본이나 실행 파일을 건네는 **앱**을 위한 안내다. 다른 프로젝트가 가져다 쓰는 라이브러리는 정확한 판을
+고정하지 말고 `python-hwpx>=7,<8` 같은 범위를 요구한다.
+
+**검증한 판을 빌드 제약으로 고정한다.** 요구 범위는 `pyproject.toml` 에 그대로 두고, 앱의 시험을 통과한 판을 제약 파일에
+적어 빌드가 늘 그 판을 쓰게 한다. 아래의 `7.0.2` 는 설명을 위한 번호다. 깨끗한 환경에 지금 설치되는 가장 새 7.x 패치를
+확인하고, 그 판으로 시험한 뒤 그 번호를 적는다.
+
+```bash
+python -m venv build-env                                          # 깨끗한 환경 (Windows: build-env\Scripts\python)
+build-env/bin/python -m pip install "python-hwpx>=7,<8"
+build-env/bin/python -c "import hwpx; print(hwpx.__version__)"    # 지금 설치되는 판, 예: 7.0.2
+
+echo "python-hwpx==7.0.2" > constraints.txt                       # 앱의 시험을 통과한 판
+python -m venv release-env                                        # 배포본은 이 환경에서 만든다
+release-env/bin/python -m pip install -c constraints.txt .
+release-env/bin/python -c "import hwpx; assert hwpx.__version__ == '7.0.2', hwpx.__version__"
+```
+
+**배포하는 형태 그대로 저장을 확인한다.** 개발 환경의 시험은 패키징한 실행 파일에 무엇이 실렸는지 말해 주지 않는다.
+실행 파일이 아래 확인을 돌리게 하고(예: 실행 파일의 확인용 옵션), 종료 코드가 0 이 아니면 배포를 멈춘다. 합성 문서를
+만들어 `doc.save(...)` 로 임시 경로에 저장하고, 다시 열어 글을 확인한다. 6.x 가 실렸으면 `doc.save` 에서
+`AttributeError` 로 끝난다.
+
+```python
+import tempfile
+from pathlib import Path
+
+from hwpx import HwpxDocument
+
+TEXT = "배포 확인용 합성 문단"
+
+
+def smoke() -> None:
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "smoke.hwpx"
+        doc = HwpxDocument.new()
+        doc.add_paragraph(TEXT)
+        doc.save(path)                      # 6.x 에는 이 이름이 없다
+        doc.close()
+
+        reopened = HwpxDocument.open(path)
+        texts = [paragraph.text for paragraph in reopened.paragraphs]
+        reopened.close()
+    if TEXT not in texts:
+        raise SystemExit(f"저장한 글이 다시 읽히지 않는다: {texts!r}")
+
+
+if __name__ == "__main__":
+    smoke()                                 # 실패하면 예외나 SystemExit 로 0 이 아닌 종료 코드
+    print("smoke ok")
+```
+
+배포 메타데이터가 실리지 않은 실행 파일에서는 `hwpx.__version__` 이 `0+unknown` 이다. 판 번호는 위의 빌드 환경에서
+확인하고, 실행 파일에서는 이 저장 확인을 돌린다.
+
 ## 되돌리기
 
 `pip install "python-hwpx<7"`. 6.x 라인은 그대로 있다.

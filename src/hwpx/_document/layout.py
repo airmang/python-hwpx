@@ -910,6 +910,7 @@ def add_hyperlink(
     paragraph: HwpxOxmlParagraph | None = None,
     section: HwpxOxmlSection | None = None,
     char_pr_id_ref: str | int | None = None,
+    field_char_pr_id_ref: str | int | None = None,
 ) -> "Hyperlink":
     """Insert a hyperlink (fieldBegin + text + fieldEnd).
 
@@ -926,7 +927,8 @@ def add_hyperlink(
             doc, "", section=section,
             include_run=False,
         )
-    return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref)
+    return paragraph.add_hyperlink(url, display_text, char_pr_id_ref=char_pr_id_ref,
+                                   field_char_pr_id_ref=field_char_pr_id_ref)
 
 
 def _resolve_section(
@@ -1178,6 +1180,7 @@ def set_page_number(
     prefix: str = "",
     suffix: str = "",
     format_type: str | None = None,
+    control: bool = True,
     section: HwpxOxmlSection | None = None,
 ) -> HwpxOxmlSectionHeaderFooter:
     """Replace header/footer content with an automatic page-number field."""
@@ -1191,6 +1194,7 @@ def set_page_number(
             "page_number": format,
             "position": position,
             "formatType": format_type,
+            "control": control,
         }
     )
     if suffix:

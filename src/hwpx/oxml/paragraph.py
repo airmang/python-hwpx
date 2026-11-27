@@ -38,7 +38,7 @@ from .dutmal_compose import (
     paragraph_composed_characters,
     paragraph_rubies,
 )
-from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_parameters
+from .hyperlink_form import HYPERLINK_FIELD_ID, hyperlink_char_pr, hyperlink_field_shapes, hyperlink_parameters
 from .field_marks import (
     field_type_id,
     _paragraph_add_date_field,
@@ -1182,6 +1182,7 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
         display_text: str,
         *,
         char_pr_id_ref: str | int | None = None,
+        field_char_pr_id_ref: str | int | None = None,
     ) -> "Hyperlink":
         """Insert a hyperlink spanning three runs: fieldBegin, text, fieldEnd.
 
@@ -1191,6 +1192,18 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
                 field's ``Command``/``Path`` parameters (``hyperlink_form``),
                 and kept in ``@name`` for older readers.
             display_text: The visible text in the paragraph's look, blue and underlined as Hancom writes links, unless char_pr_id_ref is given.
+            field_char_pr_id_ref: The character shape of the fieldBegin and fieldEnd runs. By default
+                they are written as Hancom writes them: the fieldBegin in the look of the text the link
+                follows (the paragraph's last run), the paragraph's own when it has no run yet, and the
+                fieldEnd in the link's own shape (DEV-030; text appended after the link still takes the
+                paragraph's look). The field controls sit in the line: one in a larger shape than the text makes
+                Hangul draw the line taller, so a link starting a paragraph of small text can name
+                the shape here (Hangul writes both controls in the link's shape when nothing comes
+                before it, ``hyperlink_field_runs_word_import.hwpx``). A shape the header lacks is
+                ``style-definition-not-found``.
+
+        The paragraph's look the link text takes (``char_pr_id_ref`` not given) is likewise the text it
+        follows; it was the paragraph's single shape, or shape 0 when its runs had several.
 
         Returns:
             The link as the :class:`~hwpx.objects.Hyperlink` ``paragraph.hyperlinks`` reads
@@ -1206,12 +1219,14 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             suggestion="Pass a web address, a mailto: address or #bookmark.",
         )
         _require_text(display_text)
+        surrounding, field_shape = hyperlink_field_shapes(self, field_char_pr_id_ref)
         field_id = _object_id(self.section._ids)
 
-        # 실한컴 gold 관례: 링크 서식(charPr)은 표시 텍스트 런에만 싣고
-        # fieldBegin/fieldEnd 런은 주변 서식을 유지한다 — 뒤에 추가되는
-        # 문단이 링크 서식을 상속(파랑 전염)하지 않게 하는 조건이기도 하다.
-        run1 = self._create_run_for_object()
+        # 한/글 관례: fieldBegin 런은 주변 서식, 링크 서식(charPr)은 표시 텍스트와 fieldEnd 런에 싣는다
+        # (한/글은 fieldEnd 를 표시 텍스트 런에 둔다). 뒤에 추가되는 런·문단은 여전히 문단 서식을 받는다.
+        # 주변 서식은 링크 앞 글(마지막 런)의 것이다: 한/글은 fieldBegin 을 그 런에 둔다. 런마다 서식이
+        # 다른 문단에서 0 번(10pt)을 쓰면 작은 글의 줄이 높아졌다(hyperlink_field_shapes).
+        run1 = self._create_run_for_object(char_pr_id_ref=field_shape)
         ctrl1 = _append_child(run1, f"{_HP}ctrl", {})
         fb_attrs: dict[str, str] = {
             "id": field_id,
@@ -1229,13 +1244,15 @@ class HwpxOxmlParagraph(SameElement, ParagraphFormats):
             _append_child(holder, f"{_HP}{kind}", {"name": name}).text = text
 
         # Run 2: visible text content
-        link_style = hyperlink_char_pr(self.section, char_pr_id_ref, self.char_pr_id_ref or "0")
+        link_style = hyperlink_char_pr(self.section, char_pr_id_ref, surrounding)
         run2 = self._create_run_for_object(char_pr_id_ref=link_style)
         t = _append_child(run2, f"{_HP}t", {})
         t.text = _sanitize_text(display_text)
 
-        # Run 3: fieldEnd
-        run3 = self._create_run_for_object()
+        # Run 3: fieldEnd, in the link's own shape as Hangul writes it (it puts the fieldEnd in the
+        # link text's run); text appended later still takes the paragraph's look, not this one.
+        end_shape = field_shape if field_char_pr_id_ref is not None else link_style
+        run3 = self._create_run_for_object(char_pr_id_ref=end_shape)
         ctrl3 = _append_child(run3, f"{_HP}ctrl", {})
         _append_child(ctrl3, f"{_HP}fieldEnd", {"beginIDRef": field_id, "fieldid": HYPERLINK_FIELD_ID})
 

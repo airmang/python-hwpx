@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from ..opc.package import refuse_existing_hwp_target
+from ..opc.package import names_same_file, refuse_existing_hwp_target
 from ._model import EditPlan, PlanValidation, PlanValidationError
 
 
@@ -103,12 +103,40 @@ def _lint_delete_table_order(step_id: str, ops: Any) -> dict[str, Any] | None:
     return None
 
 
+def _refuse_journal_over_document(journal: str, plan: EditPlan) -> None:
+    """저널 경로가 문서를 가리키면 거부한다 — 아무것도 쓰기 전에, stat만으로.
+
+    저널은 실행 중(dry_run 포함) 그 경로 끝에 JSONL을 덧붙인다. source나 output과
+    같은 파일이면(다른 철자·대소문자·링크로 적어도 파일 시스템이 푸는 대로 본다;
+    아직 없는 output은 만들어질 자리로 본다) 문서 끝에 저널 줄이 붙어 문서가
+    깨지므로 :class:`PlanValidationError`다. 이미 있는 ``.hwp`` 파일은 output과
+    같은 판정으로 건드리지 않는다(Hwp5Error, ``hwp5-overwrite-existing``).
+
+    계획의 ``journalPath``(:func:`validate_edit_plan`)와 ``apply_edit_plan``의
+    ``journal_path=`` 인자가 둘 다 이 한 판정을 거친다.
+    """
+
+    for key, document in (("source", plan.source), ("output", plan.output)):
+        if names_same_file(journal, document):
+            raise PlanValidationError(
+                f"journalPath가 {key}와 같은 파일입니다: {journal}",
+                context={"journalPath": journal, "sameAs": key, key: document},
+                suggestion=(
+                    "저널(journal)은 문서가 아닌 다른 경로에 둡니다(예: output 이름 뒤에 "
+                    ".journal.jsonl). 저널은 그 파일 끝에 JSONL을 덧붙이므로 문서를 "
+                    "가리키면 문서가 깨집니다. 아무것도 쓰지 않았습니다."
+                ),
+            )
+    refuse_existing_hwp_target(journal)
+
+
 def validate_edit_plan(
     plan: EditPlan | Mapping[str, Any] | str | Path,
 ) -> PlanValidation:
     """계획을 정적으로 검증한다 — **어떤 문서 파일도 열지 않는다**.
 
-    구조 결함(미지 필드·중복 id·미지 op·인자 키 위반·source 부재)은
+    구조 결함(미지 필드·중복 id·미지 op·인자 키 위반·source 부재, source나
+    output과 같은 파일을 가리키는 journalPath)은
     :class:`PlanValidationError`로 즉시 거부한다(fail-closed). 실행을 막지 않는
     권고 위반은 ``lints``로 돌려준다. source 확인은 존재 여부(stat)뿐이며 내용은
     읽지 않는다.
@@ -166,6 +194,9 @@ def validate_edit_plan(
         )
     # 이미 있는 .hwp 는 덮어쓰지 않는다(dry_run 도 같은 판정). Hwp5Error(hwp5-overwrite-existing).
     refuse_existing_hwp_target(loaded.output)
+    # 저널은 문서에 덧붙지 않는다(dry_run·실제 실행도 이 검증을 거치므로 같은 판정).
+    if loaded.journal_path is not None:
+        _refuse_journal_over_document(loaded.journal_path, loaded)
     if Path(loaded.output).resolve() == source.resolve():
         lints.append(
             {

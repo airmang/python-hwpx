@@ -4,8 +4,44 @@
 
 ## [Unreleased]
 
+### 고침
+
+- 새 각주·미주(`doc.notes.add_footnote`/`add_endnote`, `paragraph.add_footnote`/`add_endnote`)가 구역의 번호 모양
+  (`hp:footNotePr`/`hp:endNotePr`의 `hp:autoNumFormat`)과 상관없이 늘 `1)`(숫자, 뒤 `)`, 위첨자 아님)로 번호를 적었고, 구역의 뒤
+  문자가 비어 있어도 주석에 `suffixChar="41"`을 붙였다. 한/글은 주석 안 `hp:autoNum`의 모양을 구역의 모양 그대로 적고, 주석의
+  `prefixChar`/`suffixChar`는 구역에 그 문자가 있을 때만 적는다(Hancom 저장 픽스처의 주석 140/140, 그리고 `[i` 위첨자로 번호를
+  다는 구역에 한/글 2024가 넣은 각주 — 새 픽스처 `hancom_saved/note_number_section_shape.hwpx`). 이제 그렇게 적는다. 한/글은
+  어느 쪽이든 구역의 모양으로 그리므로 화면은 같고, 파일이 한/글이 쓸 것과 같아진다. 기본 모양의 구역은 전처럼 `1)`이다.
+- `paragraph.add_picture(..., treat_as_char=False, pos_overrides=...)`가 음수 `horzOffset`/`vertOffset`을 0으로 바꿔 틀 왼쪽·위에
+  놓을 그림이 옮겨졌다. 한/글은 그런 오프셋을 부호 없는 32비트 꼴로 적고(Hancom 저장 픽스처에 118개, `flip_picture_*` 포함) 그
+  자리에 그린다(데스크톱 확인: `2**32-2000`은 0보다 2000 HWPUNIT 위). 이제 그 꼴로 적는다(`set_position`이 이미 그렇게 적었다).
+  -2147483648보다 작은 값은 `shape-position-value`로 거부한다(전에는 0이 됐다).
+- 링크(`Paragraph.add_hyperlink`, `doc.refs.add_hyperlink`, 각주·메모의 `add_hyperlink`)의 필드 시작·끝 런과 기본 링크 모양이
+  문단의 단일 글자 모양을, 런마다 모양이 다르면 0 번 모양을 따랐다. 필드 컨트롤은 줄 안에 있어서 8pt 글 문단에서 0 번(10pt)
+  컨트롤이 있으면 한/글이 그 줄을 더 높게 그린다(데스크톱 확인). 한/글은 링크의 `fieldBegin`을 링크 앞 글의 런에 둔다(새 픽스처
+  `hancom_saved/hyperlink_field_runs_word_import.hwpx`). 이제 "링크 주변 모양"은 그 앞 글(문단의 마지막 런)의 모양이다. 모양이
+  하나인 문단은 전과 같다. 빈 문단 첫머리 링크는 앞 글이 없어 전처럼 문단 모양을 쓰고(DEV-030: 뒤에 붙는 문단이 링크 모양을
+  물려받지 않게), 새 키워드 `field_char_pr_id_ref`로 컨트롤 런의 모양을 줄 수 있다(한/글은 그때 두 컨트롤을 링크 모양에 둔다).
+  없는 모양은 `style-definition-not-found`.
+- 링크의 필드 끝 런(`fieldEnd`)을 링크 모양에 둔다. 한/글은 `fieldEnd`를 링크 글의 런에 적는다(`hyperlink_field_runs_word_import.hwpx`의
+  링크 4개 모두). 전에는 링크 앞 글의 모양에 두었다. 필드 시작 런은 전처럼 링크 앞 글의 모양이고, 링크 뒤에 붙이는 런과 문단은
+  전처럼 문단 모양을 받는다(DEV-030의 "파랑 전염"은 따로 시험한다). `field_char_pr_id_ref`를 주면 두 런 모두 그 모양이다.
+
 ### 추가
 
+- 머리말·꼬리말 쪽 번호를 한/글처럼 쓸 수 있다: `doc.page.set_page_number`와 `HeaderFooter.add_page_number_field`의 키워드
+  `control`(기본 `True`), `set_content`의 쪽 번호 항목 키 `"control"`. 한/글은 머리말·꼬리말에 넣는 쪽 번호를 자동 번호
+  (`hp:autoNum numType="PAGE"`) 하나로 쓰는데, python-hwpx는 그 뒤에 쪽 번호 컨트롤(`hp:pageNum`)을 하나 더 쓴다.
+  `control=False`면 자동 번호만 쓰고, `add_page_number_field`는 그 자동 번호를 돌려준다(`position`은 컨트롤의 값이라 쓰이지 않는다).
+  기본값은 7.x 동안 그대로이고(이 컨트롤을 세는 도구가 있다), 8.0에서 `False`로 바꿀 예정이다.
+- 번호·글머리표 머리가 글 앞에 놓이는 자리를 정할 수 있다: `doc.styles.add_numbering`의 수준 키, `doc.styles.set_numbering_level`과
+  `doc.styles.ensure_bullet`의 키워드 `auto_indent`(`autoIndent`)·`use_instance_width`(`useInstWidth`)·`text_offset`(0~32767)·
+  `text_offset_type`(`PERCENT`/`HWPUNIT`). `NumberingLevel`이 읽는 이름과 같다. 한/글은 Word 목록을 옮길 때
+  `auto_indent=False, use_instance_width=True, text_offset=110, text_offset_type="PERCENT"`로 적는다(새 픽스처
+  `hancom_saved/word_lists_import.hwpx`). 주지 않으면 전처럼 한/글의 새 목록 머리다. 맞지 않는 값은 `style-numbering-level-invalid`.
+- `section.properties.outline_shape_id_ref`에 번호 정의(`NumberingInfo`나 id)를 넣어 그 구역의 개요 번호를 정할 수 있다. 한/글은
+  Word 문서의 제목을 자기가 만든 번호 정의로 번호 매기고 구역이 그것을 가리킨다(`word_lists_import.hwpx`의
+  `outlineShapeIDRef="3"`). 없는 정의는 `style-definition-not-found`이고, 그 구역 개요 문단의 줄 배치 캐시를 지운다.
 - 실험 API `hwpx.experimental.estimate_layout`으로 쪽 크기와 본문·단 구성, 최종 본문 줄 위치를 읽을 수 있다.
   계산 경로에 문자 범위나 가로 위치가 없으면 사유를 반환한다. 기존 `estimate_pages`의 결과는 같다.
 - 표의 쪽별 행 조각, 반복 머리 행, 칸과 캡션의 계산값을 `LayoutEstimate.tables`에 추가한다.
@@ -82,10 +118,39 @@
   정렬, 배분 정렬), 가운데·오른쪽 정렬로 끝 공백을 지닌 줄, 각주 줄처럼 엔진이 자리를 말하지 않는 탭은 `x`를 비우고 까닭을
   적는다. 쪽 추정(`PageEstimate`)은 그대로다.
 
-## [7.0.2] - 2026-11-25
+## [7.0.2] - 2026-11-26
 
 ### 고침
 
+- `hwpx.oxml.parse_header_xml`·`parse_section_xml`(그리고 둘이 쓰는 `coerce_xml_source`)이 파일·`str`·`bytes`로 받은 XML을
+  lxml의 기본 파서로 읽었다. 의존성 하한인 lxml 4.x에서는 그 파서가 외부 엔티티를 풀어, 신뢰할 수 없는 XML을 넘기면 로컬
+  파일의 내용이 결과 모델에 들어갔다(lxml 5 이상과 패키지를 여는 주 경로는 해당하지 않는다). 이제 패키지를 열 때 부품을 읽는
+  것과 같이 엔티티를 풀지 않고 네트워크에 닿지 않는 파서로 읽으며, 문서 형식 선언(DTD)이 있거나 크기·깊이 한도를 넘으면
+  `HwpxSecurityError`로 거부한다(`ValueError`이기도 하다). 이미 파싱한 요소·트리를 넘기면 전과 같다. 저장할 때 탭을 `hp:tab`으로
+  바꾸는 내부 단계도 엔티티를 풀지 않는다.
+
+- `.hwp`(HWP 5.0)로 쓸 때 메모 답글(`Contents/memoExtended.xml`), 참고 문헌의 출처(`Custom/bibliography.xml`), 문서 이력
+  (`DocHistory/`의 버전 기록과 마지막 문서 사본)이 거부도 경고도 없이 빠졌다(#834). 작성기가 이 부품들을 읽지 않았기 때문이고,
+  메모 답글이나 참고 문헌이 든 `.hwp`를 열어 다른 `.hwp`로 저장해도 그 스트림이 없어졌다. 이제 쓸 수 없는 다른 내용과 똑같이
+  아무것도 쓰기 전에 `Hwp5Error`(`hwp5-write-unsupported`)로 거부하고, 오류 메시지와 `context["unsupported"]`에 종류와 개수를
+  적는다(`memoExtended/memo` 답글 수, `bibliography/Source` 출처 수, `DocHistory/historyEntry` 저장된 버전 수, 목록이 아닌
+  부품은 `DocHistory/historylastdoc.hml`처럼 파일 이름으로 하나). 거부된 저장은 파일을 남기지 않고 문서도 그대로다. 답글이 없는
+  메모와 빈 목록은 전처럼 쓴다. 그런 문서는 `.hwpx`로 저장하면 세 가지가 그대로 남는다. `.hwp`에 이 내용을 실제로 쓰는 것은
+  아직 하지 않는다.
+- 편집 계획의 저널 경로(`journalPath`, `apply_edit_plan(journal_path=...)`)가 source나 output과 같은 파일이어도 계획을
+  받았다(#834). 저널은 그 경로 끝에 JSONL을 덧붙이므로 원본 문서 끝에 저널 줄이 붙어 문서가 열리지 않게 됐다(`dry_run`도
+  저널을 쓰므로 같았다). 이제 검증이 아무것도 쓰기 전에 거부한다: source나 output과 같은 파일이면(다른 철자·대소문자·링크로
+  적어도, 아직 없는 output도) `PlanValidationError`(`plan-invalid`, `context["sameAs"]`가 `source`·`output`), 이미 있는
+  `.hwp` 파일이면 `hwp5-overwrite-existing`이다. `validate_edit_plan`·`dry_run`·실제 실행이 같은 판정을 낸다. 그 밖의
+  경로에 쓰는 저널은 전과 같다.
+- 글·JSON·XML을 경로에 쓰는 명령줄 출력 인자가 입력 문서를 덮어썼다(#834). `hwpx-text-extract in.hwpx --output in.hwpx`는
+  문서를 뽑은 글로, `hwpx-analyze-template in.hwpx --extract-header in.hwpx`는 header XML로 바꿔 놓고 종료 코드 0을 냈다.
+  이제 `hwpx-text-extract --output`, `hwpx-analyze-template`의 `--output-json`·`--extract-header`·`--extract-section`·
+  `--extract-section-dir`(`extract_template_parts`의 같은 인자), `python -m hwpx.tools.generic_inventory --output`이
+  쓰기 전에 출력 경로를 본다. 입력과 같은 파일이면(다른 철자·대소문자·`..`·링크로 적어도 파일 시스템이 푸는 대로)
+  `HwpxValueError`(`package-output-is-input`)로, 이미 있는 `.hwp` 파일이면 `hwp5-overwrite-existing`으로 거부하고 종료
+  코드는 0이 아니다. 거부한 명령은 아무것도 쓰지 않는다(여러 출력을 함께 주었으면 다른 출력도, 새 폴더도). 그 밖의 경로는
+  이미 있는 파일이어도 전처럼 쓴다.
 - 이미 있는 `.hwp`를 덮어쓰지 않는 규칙(#829)이 내용이 없는(0바이트) `.hwp` 이름의 파일까지 막았다. 원자적으로 게시하는
   호출자는 빈 자리표시 파일을 먼저 만들고(`tempfile.mkstemp`) 거기에 저장하는데 — python-hwpx-automation이 그렇게 한다 —
   그 저장이 `hwp5-overwrite-existing`으로 거부돼 새 `.hwp`를 만들 수 없었다(공개 판에는 나가지 않은 회귀). 바이트가 하나도
@@ -163,6 +228,11 @@
   해당 없음으로 적는다: 두 수치 `0/0`, `wholePackageIdentical` 거짓, `zipRecordsRewritten`이 `"hwp5-output"`. `report.ok`는
   전처럼 참이다. `.hwpx` 저장의 영수증은 그대로다. 다시 읽는 만큼 `.hwp` 저장이 느려진다(문단 1,500개·표 30개 문서에서
   1.07 → 1.37초).
+
+### 문서
+
+- 7.0 이주 가이드에 「앱에 넣어 배포할 때」 절을 더했다(#837): 7.x 이름에 기대는 앱이 검증한 판을 빌드 제약으로
+  고정하는 예와, 배포하는 형태 그대로 합성 문서를 `doc.save(...)`로 저장하고 다시 열어 글을 확인하는 스모크 검사 예.
 
 ## [7.0.1] - 2026-11-22
 

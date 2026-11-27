@@ -859,11 +859,15 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         format: str = "page",
         position: str = "BOTTOM_CENTER",
         format_type: str | None = None,
+        control: bool = True,
     ) -> "HwpxOxmlInlineObject":
-        """Append the corpus-observed automatic page-number control.
+        """Append an automatic page number (``hp:autoNum numType="PAGE"``).
 
-        Returns the page-number control (``hp:pageNum``) as an inline object; up to 6.x
-        the bare element.
+        With *control* (the default in 7.x) a page-number control (``hp:pageNum``) follows it,
+        and that control is returned as an inline object (up to 6.x the bare element).
+        ``control=False`` writes the number as Hangul writes one it puts in a header or footer,
+        the automatic number alone, and returns that; *position* then has nothing to go on.
+        8.0 is to make ``control=False`` the default.
         """
 
         from .objects import HwpxOxmlInlineObject
@@ -875,7 +879,11 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
         page_format_type = number_format("DIGIT" if normalized_format in {"PAGE", "PAGE/TOTAL"} else normalized_format)
         auto_run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         auto_ctrl = _append_child(auto_run, f"{_HP}ctrl", {})
-        _append_auto_number(auto_ctrl, "PAGE", page_format_type)
+        auto_number = _append_auto_number(auto_ctrl, "PAGE", page_format_type)
+        if not control:
+            _clear_paragraph_layout_cache(target)
+            self._properties.section.mark_dirty()
+            return HwpxOxmlInlineObject(auto_number, HwpxOxmlParagraph(target, self._properties.section))
         run = _append_child(target, f"{_HP}run", {"charPrIDRef": "0"})
         ctrl = _append_child(run, f"{_HP}ctrl", {})
         page_number = _append_child(
@@ -1003,10 +1011,11 @@ class HwpxOxmlSectionHeaderFooter(SameElement):
                         format=page_format,
                         position=str(child.get("position", "BOTTOM_CENTER")),
                         format_type=child.get("formatType") or child.get("format_type"),
+                        control=bool(child.get("control", True)),
                     )
                     if page_format == "page/total":
                         self.add_run("/", paragraph=paragraph)
-                        self._add_total_page_counter(paragraph, page_number.element.get("formatType") or "DIGIT")
+                        self._add_total_page_counter(paragraph, _number_format_of(page_number.element))
                     continue
                 raise _unsupported_content(kind)
 
@@ -1019,6 +1028,15 @@ def _unsupported_content(kind: str) -> Exception:
         context={"requested": kind},
         suggestion='Use {"text": ...} for a run or {"page_number": "page"} for a page number.',
     )
+
+
+def _number_format_of(element: ET.Element) -> str:
+    """The number format of a page-number control or of an automatic number (its ``autoNumFormat``)."""
+
+    if element.get("formatType"):
+        return str(element.get("formatType"))
+    fmt = element.find(f"{_HP}autoNumFormat")
+    return str(fmt.get("type") or "DIGIT") if fmt is not None else "DIGIT"
 
 
 def _append_auto_number(ctrl: ET.Element, num_type: str, format_type: str) -> ET.Element:

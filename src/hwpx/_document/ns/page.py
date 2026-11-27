@@ -471,9 +471,14 @@ class PageNamespace(_Namespace):
         prefix: str = "",
         suffix: str = "",
         format_type: str | None = None,
+        control: bool = True,
         section: "int | HwpxOxmlSection | Literal['all'] | None" = None,
     ) -> "HwpxOxmlSectionHeaderFooter":
         """쪽 번호를 머리말/꼬리말에 넣는다. *alignment* 는 번호 문단의 정렬(``Alignment`` 나 그 이름)이다.
+
+        7.x는 자동 번호(``hp:autoNum``) 뒤에 쪽 번호 컨트롤(``hp:pageNum``)을 하나 더 쓴다.
+        ``control=False``면 한/글이 머리말·꼬리말에 쪽 번호를 넣을 때처럼 자동 번호만 쓴다
+        (*position* 은 그 컨트롤의 값이라 쓰이지 않는다). 8.0에서 이쪽을 기본으로 바꿀 예정이다.
 
         번호는 그 머리말/꼬리말의 내용을 바꾼 자동 번호 글이다. 한컴의 쪽 번호
         컨트롤("쪽 번호 매기기")이 아니어서 ``set_visibility(hide_first_page_num=True)``와
@@ -494,6 +499,7 @@ class PageNamespace(_Namespace):
             prefix=prefix,
             suffix=suffix,
             format_type=format_type,
+            control=control,
             section=each,
         ))
 

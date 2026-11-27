@@ -1,15 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
-"""``SavePipeline`` — the one gate every write/save funnels through (plan §2 B).
+"""``SavePipeline`` — the gate the document save and the byte patches funnel through (plan §2 B).
 
 Stages (plan task 2): integrity → XML well-formedness → OPC/ref/ID → semantic /
 form assertions → layout lint → open-safety → visual oracle (Phase A, when
 available/required) → compose ``VisualCompleteReport`` → atomic save or rollback.
 
-The pipeline owns the **single atomic writer** for HWPX output. No public write
-path writes serialized HWPX bytes to a destination except through
-:meth:`SavePipeline.run` — that "zero bypass" property is what stops lineseg-style
-drift (the ``patch.py`` byte-path leak was exactly such a bypass) and is asserted
-by ``tests/test_save_pipeline_no_bypass.py``.
+The pipeline has an atomic writer for HWPX output (:func:`write_bytes_atomically`),
+and :meth:`SavePipeline.run` is the gate the document save and the byte patches
+(``hwpx.patch`` and those built on it) write through. It is not the only way bytes
+reach a destination. As of 7.0.2 these write outside ``run``:
+``HwpxPackage.save`` (``opc/package.py``, its own temp file + ``os.replace``), the
+edit plan (``plan/_execute.py``, which calls :func:`write_bytes_atomically` after
+its own open-safety check), the HWP 5.0 (``.hwp``) save in ``_document/persistence.py``
+(the same function, once the gate has passed), and ``hwpx-repair`` / ``hwpx-pack``
+(``tools/repair.py``, ``tools/archive_cli.py``, each with its own temp file +
+``os.replace``). No test asserts a "zero bypass" property now: the one that did
+(``tests/test_save_pipeline_no_bypass.py``) was removed in 5.0. Restoring a
+write-path ratchet and reducing the atomic writers to one is issue #828.
 
 Assurance is tiered and never blurred (plan §0.0): ``visual_complete`` is ``True``
 only on the oracle-verified tier; off-oracle the gate degrades to a labelled
@@ -64,7 +71,7 @@ STREAM_NOT_READ_BACK = (
 
 
 # --------------------------------------------------------------------------- #
-# The single atomic writer (moved here so the pipeline is the sole writer).
+# The pipeline's atomic writer (other write paths keep their own: see the module docstring).
 # --------------------------------------------------------------------------- #
 def write_bytes_atomically(path: str | PathLike[str], data: bytes) -> None:
     """Write *data* to *path* via a temp file + ``os.replace`` (crash-safe).

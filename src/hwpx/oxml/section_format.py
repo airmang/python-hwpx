@@ -628,6 +628,36 @@ class HwpxOxmlSectionProperties:
         value = (self.element.get("outlineShapeIDRef") or "").strip()
         return value or None
 
+    @outline_shape_id_ref.setter
+    def outline_shape_id_ref(self, value: object) -> None:
+        """Number this section's outline with numbering *value* (a ``NumberingInfo`` or its id, as
+        ``doc.styles.add_numbering()`` gives one). Hangul does so with its own: a Word document it
+        converts names the definition it made for Word's headings (``outlineShapeIDRef="4"``). An id
+        the header does not define is refused (``style-definition-not-found``); the outline
+        paragraphs of the section are laid out again."""
+
+        from ..errors import argument_type_error
+        from .formatting import _header_of
+        from .numbering_kinds import (
+            _definition_id, _definition_not_found, _find_head_definition, _normalized_id, clear_outline_paragraphs,
+        )
+
+        if value is None or isinstance(value, bool) or not (
+            isinstance(value, (int, str)) or hasattr(value, "raw_id") or hasattr(value, "id")
+        ):
+            raise argument_type_error("outline_shape_id_ref", value, "a numbering (NumberingInfo) or its id")
+        wanted = _definition_id(value)
+        header = _header_of(getattr(self.section, "document", None))
+        element = _find_head_definition(header, "numbering", wanted)
+        if element is None:
+            raise _definition_not_found("numbering", wanted)
+        identifier = str(element.get("id"))
+        if _normalized_id(self.element.get("outlineShapeIDRef") or "") == _normalized_id(identifier):
+            return
+        self.element.set("outlineShapeIDRef", identifier)
+        clear_outline_paragraphs(header, self.section)
+        self.section.mark_dirty()
+
     @property
     def memo_shape_id_ref(self) -> str | None:
         """The memo shape (``hh:memoPr``) this section's memos are drawn with (``memoShapeIDRef``),
