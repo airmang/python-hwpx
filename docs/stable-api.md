@@ -262,7 +262,7 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   `EstimatedLine` — 본문 문단의 줄마다 쪽·단·세로 위치를 추정한다. 따르지 않는 요소가
   있으면 `pages`는 `None`이고 `unsupported`가 까닭을 구역마다 적는다
 - **쪽·줄 배치 추정**: `estimate_layout` → `LayoutEstimate`. 기존 쪽 추정과 함께
-  `PagePlacement`의 종이·본문·단 치수와 `ParagraphPlacement`의 본문 `LinePlacement`를 읽는다.
+  `PagePlacement`의 종이·본문·단 치수와 쪽 번호(`number`), `ParagraphPlacement`의 본문 `LinePlacement`를 읽는다.
   좌표는 HWPUNIT이고 문자 범위는 한/글 줄 캐시의 위치 단위다. `source`는 캐시(`cache`)와
   엔진 계산(`engine`)을 구분한다. 줄의 누락 값은 `unavailable`에 사유가 들어 있다.
   `LinePlacement.runs`는 해당 줄의 문자 모양 ID와 텍스트를 원래 순서로 제공한다.
@@ -274,8 +274,8 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   `TableRowPlacement.x`는 그 쪽에서 단 왼쪽부터 표 왼쪽 끝까지의 거리이고, 칸 줄의 `top`은 칸의 세로 정렬을
   반영한 칸 기준 위치다.
   `TableCaptionPlacement`는 엔진이 캡션과 간격에 예약한 영역을 나타낸다.
-  `ObjectPlacement`와 `AreaPlacement`의 쪽 좌표는 종이 기준이다. 머리말·꼬리말은 적용되는 쪽마다 하나씩 실리고 그 줄을
-  `lines`에 싣는다. `ObjectPlacement.lines`는 글상자 안 글의 줄(글상자 기준 `TableCellLinePlacement`)이다. 배치 경로에 따라 일부
+  `ObjectPlacement`와 `AreaPlacement`의 쪽 좌표는 종이 기준이다. 머리말·꼬리말은 적용되는 쪽마다(홀·짝 쪽용은 쪽 번호로)
+  하나씩 실리고 그 줄을 `lines`에 싣는다. `ObjectPlacement.lines`는 글상자 안 글의 줄(글상자 기준 `TableCellLinePlacement`)이다. 배치 경로에 따라 일부
   값은 비어 있고 `unavailable`이 그 이유를 제공한다.
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
   `estimate_equation_size`, `UnsupportedLatexError`. 7.0에서 `hwpx.equation`의 stable

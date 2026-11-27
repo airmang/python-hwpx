@@ -27,8 +27,8 @@ from ..oxml.table_sizes import _grid_extents_of, cell_margins_of
 from ._page_measure import (
     _DRAWINGS, _NO_WRAP, _OBJECTS, _CellLine, _CellSlice, _FlowTable, _LineContent, _Measure, _Row, _RowPart,
     _Unsupported, _caption, _caption_beside, _cell_spacing, _cell_text_ranges, _drawn_height, _effect_room,
-    _floating, _indented, _inline_content, _local, _object_extent, _page_break, _shadow_drop, _text_size,
-    _whole_rows,
+    _end_size, _floating, _indented, _inline_content, _line_metrics, _line_widths, _local, _marks, _object_extent,
+    _objects_among, _page_break, _shadow_drop, _table_alone, _text_size, _whole_rows,
 )
 from .pages import (
     AreaPlacement, EstimatedLine, LayoutEstimate, LinePlacement, ObjectPlacement, PageEstimate, PagePlacement,
@@ -89,7 +89,6 @@ def _placement_result(
     paragraph_lines = {(entry.section, entry.paragraph): entry.lines for entry in paragraphs}
     nested_places: dict[Any, list[tuple[int, int]]] = {}
     object_places: dict[Any, ObjectPlacement] = {}
-    running = _running_areas(body_sources, paragraph_origins, pages, papers, measure)
     for section, source in enumerate(body_sources):
         for index, paragraph in enumerate(source):
             numbers = {table: number for number, table in enumerate(paragraph.iter(f"{HP}tbl"))}
@@ -104,7 +103,7 @@ def _placement_result(
                                                     numbers, nested_places)
                 elif table in inline_tables:
                     result = _nested_table_placement(address, table, inline_tables[table], by_source, numbers,
-                                                     nested_places)
+                                                     nested_places, measure)
                 else:
                     result = None
                 if result is None:
@@ -137,13 +136,19 @@ def _placement_result(
                     placed = replace(placed, lines=held, unavailable=(*placed.unavailable, *why))
                 object_places[obj] = placed
                 objects.append(placed)
+    # headers and footers after the tables: one in a table cell starts on the page of the part of its row showing it
+    running, numbers_by_page = _running_areas(body_sources, paragraph_origins, pages, papers, measure, by_source)
+    pages[:] = [replace(page, number=number) for page, number in zip(pages, numbers_by_page)]
+    for section, source in enumerate(body_sources):
+        for index, paragraph in enumerate(source):
             for ordinal, area in enumerate(node for node in paragraph.iter() if _local(node) in _AREA_NAMES):
                 found = area_captures.get(area)
                 if found:
                     areas.extend(_area_placement(section, index, ordinal, *capture, pages) for capture in found)
+                elif area.getparent() is not None and _local(area.getparent()) == "secPr":
+                    areas.append(AreaPlacement(section, index, ordinal, _local(area), unavailable=(_STORY_COPY,)))
                 elif area in running:
-                    shown, why = running[area]
-                    missing = () if why is None else (why,)
+                    shown, missing = running[area]
                     areas.extend(AreaPlacement(section, index, ordinal, _local(area), page, 0, *box, lines,
                                                unavailable=missing) for page, box, lines in shown)
                     if not shown:
@@ -162,17 +167,24 @@ _Shown = list[tuple[int, tuple[int, int, int, int], tuple[LinePlacement, ...]]]
 
 
 def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], EstimatedLine],
-                   pages: list[PagePlacement], papers: list[_Page], measure: _Measure | None = None
-                   ) -> dict[Any, tuple[_Shown, str | None]]:
-    """Each header and footer of the body's paragraphs -> the pages it is drawn on, with its room there (x, top,
-    width, height on the paper) and its lines (see :func:`_running_lines`), and what is not given. A header or
-    footer set for every page runs from the page of its paragraph's first line to the end of its section, or to
-    the page where a later one of its kind starts; it is left off the section's first page where the section
-    hides it there (``hp:visibility``) and off a page whose paragraphs hide it (``hp:pageHiding``). Its room is
-    the page's: above the body as tall as the header margin, below it as tall as the footer margin. One for odd
-    or for even pages is not given pages: the layout does not count page numbers."""
+                   pages: list[PagePlacement], papers: list[_Page], measure: _Measure | None = None,
+                   tables: dict[Any, TablePlacement] | None = None
+                   ) -> tuple[dict[Any, tuple[_Shown, tuple[str, ...]]], list[int | None]]:
+    """Each header and footer control of the body's paragraphs (in a run of the paragraph or in one of its table
+    cells) -> the pages it is drawn on, with its room there (x, top, width, height on the paper) and its lines (see
+    :func:`_running_lines`), and what is not given; and the number Hancom prints on each page (see
+    :func:`_page_numbers`).
 
-    result: dict[Any, tuple[_Shown, str | None]] = {}
+    A control takes effect on the page of its paragraph's first line, or, in a table cell, of the part of the
+    cell's row showing the cell paragraph holding it (see :func:`_control_page`). On each page of its section
+    Hancom draws the last control of a kind that applies there and has taken effect (python-hwpx writes a
+    ``BOTH`` one ahead of the ``ODD``/``EVEN`` ones for that reason): ``BOTH`` on every page, ``ODD`` and ``EVEN``
+    on the pages whose number is odd or even. It is left off the section's first page where the section hides it
+    there (``hp:visibility``) and off a page whose paragraphs hide it (``hp:pageHiding``). Its room is the page's:
+    above the body as tall as the header margin, below it as tall as the footer margin."""
+
+    result: dict[Any, tuple[_Shown, tuple[str, ...]]] = {}
+    numbers = _page_numbers(sources, origins, pages, tables or {})
     for section, paragraphs in enumerate(sources):
         own = [page.page for page in pages if page.section == section]
         hidden: dict[str, set[int]] = {"header": set(), "footer": set()}
@@ -182,45 +194,176 @@ def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], Esti
             origin = origins.get((section, index))
             if origin is None or not own:
                 continue
-            for control in paragraph.findall(f"{HP}run/{HP}ctrl"):
-                for node in control:
-                    name = _local(node)
-                    if name == "pageHiding":
-                        for kind in hidden:
-                            if node.get("hide" + kind.capitalize()) in ("1", "true"):
-                                hidden[kind].add(origin.page)
-                    elif name in hidden:
-                        found.append((origin.page, name, node, index))
+            for control, node in _page_controls(paragraph, ("pageHiding", "header", "footer")):
+                at = _control_page(control, paragraph, origin.page, tables or {})
+                name = _local(node)
+                if isinstance(at, str):
+                    if name in hidden:
+                        result[node] = ([], (f"{name} {at}",))
+                elif name == "pageHiding":
+                    for kind in hidden:
+                        if node.get("hide" + kind.capitalize()) in ("1", "true"):
+                            hidden[kind].add(at)
+                else:
+                    found.append((at, name, node, index))
         for kind in hidden:
             if own and visibility is not None and visibility.get("hideFirst" + kind.capitalize()) in ("1", "true"):
                 hidden[kind].add(own[0])
-        for at, (start, kind, node, index) in enumerate(found):
-            if node.get("applyPageType", "BOTH") != "BOTH":
-                result[node] = ([], f"{kind} for odd or even pages: the layout does not count page numbers "
-                                    "(hp:startNum, hp:newNum)")
-                continue
-            stop = min((other for other, name, later, _ in found[at + 1:]
-                        if name == kind and later.get("applyPageType", "BOTH") == "BOTH"), default=own[-1] + 1)
+        drawn: dict[Any, list[int]] = {node: [] for _, _, node, _ in found}
+        unknown: set[Any] = set()
+        for page in own:
+            for kind, off in hidden.items():
+                started = [entry for entry in found if entry[1] == kind and entry[0] <= page]
+                ruling = None
+                for entry in reversed(started):
+                    applies = _applies(entry[2], numbers[page])
+                    if applies is None:  # whether it, or one before it, shows here is not known
+                        unknown.update(other[2] for other in started)
+                        break
+                    if applies:
+                        ruling = entry
+                        break
+                if ruling is not None and page not in off:
+                    drawn[ruling[2]].append(page)
+        for _, kind, node, index in found:
             shown: _Shown = []
-            why: str | None = f"{kind} lines are not laid out"
+            why: str | None = None
             laid: dict[tuple[int, int], tuple[tuple[tuple[int, _LineDetail, _RunPositions | None], ...],
                                               str | None]] = {}
-            for page in own:
-                if start <= page < stop and page not in hidden[kind]:
-                    paper = papers[page]
-                    top, tall = (paper.top - paper.header, paper.header) if kind == "header" \
-                        else (paper.top + paper.body, paper.footer)
-                    lines: tuple[LinePlacement, ...] = ()
-                    if measure is not None:
-                        if (paper.text_width, tall) not in laid:
-                            measure.tab_stop = _part_tab_stop(paragraphs, index)
-                            laid[paper.text_width, tall] = _running_lines(measure, node, kind, paper.text_width, tall)
-                        placed, why = laid[paper.text_width, tall]
-                        lines = tuple(_placement_line(EstimatedLine(page, 0, top + y - paper.top), paper.top, detail,
-                                                      styles) for y, detail, styles in placed)
-                    shown.append((page, (paper.left, top, paper.text_width, tall), lines))
-            result[node] = (shown, why)
-    return result
+            for page in drawn[node]:
+                paper = papers[page]
+                top, tall = (paper.top - paper.header, paper.header) if kind == "header" \
+                    else (paper.top + paper.body, paper.footer)
+                lines: tuple[LinePlacement, ...] = ()
+                why = f"{kind} lines are not laid out"
+                if measure is not None:
+                    if (paper.text_width, tall) not in laid:
+                        measure.tab_stop = _part_tab_stop(paragraphs, index)
+                        laid[paper.text_width, tall] = _running_lines(measure, node, kind, paper.text_width, tall)
+                    placed, why = laid[paper.text_width, tall]
+                    lines = tuple(_placement_line(EstimatedLine(page, 0, top + y - paper.top), paper.top, detail,
+                                                  styles) for y, detail, styles in placed)
+                shown.append((page, (paper.left, top, paper.text_width, tall), lines))
+            reasons = () if why is None else (why,)
+            if node in unknown:
+                reasons = ((f"{kind} for odd or even pages, or before one: the page numbers of its section are not "
+                            "counted"), *reasons)
+            elif not shown:
+                reasons = ((f"{kind} drawn on no page: no page of its section from where it starts applies to it, "
+                            f"or a later {kind} or a page hiding it takes each that does"),)
+            result[node] = (shown, reasons)
+    return result, numbers
+
+
+#: A header or footer copy python-hwpx up to 6.x kept under the section settings besides its control.
+_STORY_COPY = ("a header or footer kept under the section settings (hp:secPr): Hancom reads it from its control "
+               "(hp:ctrl) only, placed there")
+#: What holds a control of a body paragraph other than the paragraph's own runs.
+_CONTROL_HOLDERS = frozenset(("tc", "drawText", "caption", "header", "footer", "footNote", "endNote", "secPr"))
+
+
+def _page_controls(paragraph: Any, names: tuple[str, ...]) -> list[tuple[Any, Any]]:
+    """(``hp:ctrl``, its child) of each control named in *names* of body *paragraph*: in its runs, and in the
+    paragraphs of its table cells and text boxes, but not in a header, footer, note or caption it holds."""
+
+    found = []
+    for control in paragraph.iter(f"{HP}ctrl"):
+        holder = next((up for up in control.iterancestors() if up is paragraph or _local(up) in _CONTROL_HOLDERS), None)
+        if holder is not paragraph and (holder is None or _local(holder) not in ("tc", "drawText")):
+            continue
+        found += [(control, node) for node in control if _local(node) in names]
+    return found
+
+
+def _control_page(control: Any, paragraph: Any, page: int, tables: dict[Any, TablePlacement]) -> int | str:
+    """The page a control of body *paragraph* takes effect on: *page* (its first line's) in one of its runs; in a
+    table cell, the page of the first part of the cell's row showing a line of the cell paragraph holding it, or
+    the one page the cell stands on; else why not."""
+
+    cell = next((up for up in control.iterancestors() if up is paragraph or _local(up) in _CONTROL_HOLDERS), None)
+    if cell is paragraph or cell is None:
+        return page
+    if _local(cell) != "tc":
+        return "in a text box: the page it takes effect on is not followed"
+    table = next(cell.iterancestors(f"{HP}tbl"), None)
+    placement = tables.get(table)
+    if placement is None or not placement.rows:
+        return "in a table cell of a table without row placement: the page it takes effect on is not followed"
+    number = next((at for at, other in enumerate(table.findall(f"{HP}tr/{HP}tc")) if other is cell), None)
+    held = next((up for up in control.iterancestors(f"{HP}p")), None)
+    order = next((at for at, other in enumerate(cell.findall(f"{HP}subList/{HP}p")) if other is held), None)
+    parts = [(row.page, part) for row in placement.rows if not row.repeated
+             for part in row.cells if part.source_index == number]
+    showing = [at for at, part in parts if any(line.paragraph == order for line in part.lines or part.lines_with_tables)]
+    if showing:
+        return showing[0]
+    if len({at for at, _ in parts}) == 1:
+        return parts[0][0]
+    return "in a table cell over several pages: the page of the cell line holding it is not laid out"
+
+
+def _applies(node: Any, number: int | None) -> bool | None:
+    """Whether a header or footer (*node*) applies to a page numbered *number*: ``BOTH`` always, ``ODD`` and
+    ``EVEN`` by the number; ``None`` where the number is not known."""
+
+    kind = node.get("applyPageType", "BOTH")
+    if kind == "BOTH":
+        return True
+    if number is None:
+        return None
+    return (number % 2 == 1) == (kind == "ODD")
+
+
+def _page_numbers(sources: list[list[Any]], origins: dict[tuple[int, int], EstimatedLine],
+                  pages: list[PagePlacement], tables: dict[Any, TablePlacement]) -> list[int | None]:
+    """The number Hancom prints on each page, as the section settings and controls say: the first page 1, or its
+    section's ``hp:startNum@page`` when not 0 (0 goes on from the page before), each later page one more, a page
+    holding an ``hp:newNum`` control of page numbers (``numType="PAGE"``) its ``num``. ``None`` from a section set
+    to start on an odd or even page whose first number is not one (Hancom adds a page there that the layout does
+    not), from a page holding a control the count does not follow (``hp:pageNumCtrl``, ``hp:newNum`` whose page is
+    not known), and on."""
+
+    numbers: list[int | None] = [None] * len(pages)
+    number: int | None = 0
+    for section, paragraphs in enumerate(sources):
+        own = [page.page for page in pages if page.section == section]
+        if not own:
+            continue
+        settings = next(paragraphs[0].iter(f"{HP}secPr"), None) if paragraphs else None
+        start = settings.find(f"{HP}startNum") if settings is not None else None
+        first = _stored_number(start.get("page", "0")) if start is not None else 0
+        opening = first if first != 0 else None if number is None else number + 1
+        side = start.get("pageStartsOn", "BOTH") if start is not None else "BOTH"
+        if opening is not None and side != "BOTH" and (opening % 2 == 1) != (side == "ODD"):
+            opening = None
+        resets: dict[int, int | None] = {own[0]: opening}
+        for index, paragraph in enumerate(paragraphs):
+            origin = origins.get((section, index))
+            if origin is None:
+                continue
+            for control, node in _page_controls(paragraph, ("newNum", "pageNumCtrl")):
+                if _local(node) == "newNum" and node.get("numType", "PAGE") != "PAGE":
+                    continue
+                at = _control_page(control, paragraph, origin.page, tables)
+                if isinstance(at, str):
+                    resets[origin.page] = None
+                else:
+                    resets[at] = _stored_number(node.get("num", "")) if _local(node) == "newNum" else None
+        for page in own:
+            if page in resets:
+                number = resets[page]
+            elif number is not None:
+                number += 1
+            numbers[page] = number
+    return numbers
+
+
+def _stored_number(value: str) -> int | None:
+    try:
+        number = int(value)
+    except ValueError:
+        return None
+    return number if number >= 0 else None
 
 
 def _box_lines(measure: _Measure, obj: Any, size: tuple[int, int] | None = None
@@ -527,6 +670,58 @@ def _measured_text(measure: _Measure, paragraph: Any) -> tuple[
             {held[at]: at for at in held}, style)
 
 
+def _object_line_content(measure: _Measure, paragraph: Any, runs: list[Any], width: int, count: int,
+                         native: tuple[list[tuple[int, str]], int]) -> tuple[_LineContent, ...]:
+    """Placement tracing only: the text range, start and room of each of the *count* lines of a cell, header,
+    footer, text box or note paragraph without layout cache lines of its own that holds objects set as characters
+    (a table alone among them), laid out *width* wide as the layout lays it out: on one line, all it holds; on
+    several (objects among its text, or several of them: :meth:`~hwpx.layout._page_measure._Measure.marked_lines`),
+    broken where :func:`~hwpx.layout._page_measure._line_metrics` breaks it, each object one character of its own
+    width. A line's range runs from the Hancom text position of its first character or object to the next line's
+    (:meth:`~hwpx.layout._page_measure._Measure.native_positions`), its text the characters in it; it starts where
+    the room its line has (its paragraph's margins, indent and label, see ``_line_widths``) starts in *width*.
+    ``()`` where an object is placed otherwise, the paragraph holds composed characters or ruby text, or the lines
+    do not come out as *count*."""
+
+    try:
+        if _marks(runs) or any(_local(child) in _OBJECTS and (
+                child.find(f"{HP}pos") is None or child.find(f"{HP}pos").get("treatAsChar") != "1")
+                for run in runs for child in run):
+            return ()
+        shape = measure.shape(paragraph.get("paraPrIDRef"))
+        if count == 1:
+            style = measure.style(paragraph.get("paraPrIDRef"), _text_size(measure, runs, paragraph)[1], paragraph)
+            starts, text = [0], None
+        elif _objects_among(runs):
+            text, sizes, looks, placed, marked = _inline_content(measure, paragraph, runs)
+            style = measure.style(paragraph.get("paraPrIDRef"), [run.get("charPrIDRef") for run in runs] or ["0"],
+                                  paragraph)
+            starts = []
+            end = _end_size(measure, runs, _text_size(measure, runs)[2])
+            if len(_line_metrics(measure, text, _line_widths(shape, width, style), sizes, style, shape, placed,
+                                 looks if len(set(looks)) > 1 else None, marked, end, starts_out=starts)) != count:
+                return ()
+        else:
+            return ()
+        measured = _measured_text(measure, paragraph)
+        if style is None or measured is None or text is not None and measured[0] != text:
+            return ()
+        positions = measured[4]
+        widths = _line_widths(shape, width, style)
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return ()
+    pieces, length = native
+    result = []
+    for index, (start, stop) in enumerate(zip(starts, [*starts[1:], None])):
+        low = 0 if start == 0 else positions[start] if start < len(positions) else length
+        high = length if stop is None else positions[stop] if stop < len(positions) else length
+        room = widths[min(index, len(widths) - 1)]
+        line = "".join(value for position, value in pieces if low <= position < high)
+        result.append(_LineContent(low, high, line, "engine", None if room == _NO_WRAP else width - shape.right - room,
+                                   None if room == _NO_WRAP else room))
+    return tuple(result)
+
+
 def _pens(text: str, sizes: list[int], looks: list[Any], advances: dict[int, float], style: Any, start: int,
           stop: int, origin: float, room: float) -> list[float]:
     """Placement tracing only: how far right of its line's start each character of ``text[start:stop]`` begins,
@@ -811,7 +1006,8 @@ def _table_placement(address: tuple[int, int, int], capture: _TableCapture, scop
 
 def _nested_table_placement(address: tuple[int, int, int], table: Any, measured: _FlowTable,
                             placements: dict[Any, TablePlacement], numbers: dict[Any, int] | None = None,
-                            nested_places: dict[Any, list[tuple[int, int]]] | None = None) -> TablePlacement | None:
+                            nested_places: dict[Any, list[tuple[int, int]]] | None = None,
+                            measure: _Measure | None = None) -> TablePlacement | None:
     """A table in a cell of a placed table, its rows on the page of the part of the parent's row that holds it:
     the part showing the cell line it stands on (a table set as a character), or, where the cell's lines were not
     followed, the one part of a row that stayed whole on its page."""
@@ -834,9 +1030,57 @@ def _nested_table_placement(address: tuple[int, int, int], table: Any, measured:
         page, column = found[0][:2]
     parts: list[_RowPart] = []
     _whole_rows(measured, 0, 0, 0, len(measured.rows), parts)
-    capture = _TableCapture(measured, parts, 0, (0, sum(row.height for row in measured.rows)), absolute=False)
-    return _table_placement(address, capture, _FrameTrace((), 1, column_start=column), page, 0, numbers,
-                            nested_places)
+    top, left, why = None, None, "inline table origin not measured"
+    if measure is not None:
+        top, left, why = _nested_origin(table, cell, placements[parent], numbers or {}, measure, measured, page)
+    capture = _TableCapture(measured, parts, 0, (0, sum(row.height for row in measured.rows)),
+                            absolute=top is not None, vague=why)
+    placed = _table_placement(address, capture, _FrameTrace((), 1, column_start=column), page, top or 0, numbers,
+                              nested_places, None if left is None else (left, False))
+    return replace(placed, moved=None)  # a table in a cell has no line of its own in the body to move from
+
+
+def _nested_origin(table: Any, cell: Any, parent: TablePlacement, numbers: dict[Any, int], measure: _Measure,
+                   measured: _FlowTable, page: int) -> tuple[int | None, float | None, str]:
+    """Where a table set as a character that is all a line of a cell of a placed table (*parent*) holds stands:
+    the top of its first row on the paper and its left edge right of its column's, from that line as the parent
+    places it (the row's top, the cell's top and left edge in the row, the line's in the cell), the table on its
+    line as one alone on a body line stands (:func:`~hwpx.layout.pages._on_its_line`: below its top outer margin
+    and a caption above it on a line as tall as it, across the line as the paragraph's alignment sets it); and
+    why what is missing is not given."""
+
+    unknown = "inline table origin not measured"
+    position = table.find(f"{HP}pos")
+    if position is None or position.get("treatAsChar") != "1":
+        return None, None, f"{unknown}: a table placed in a cell otherwise than as a character"
+    number = numbers.get(table)
+    index = next((at for at, other in enumerate(next(cell.iterancestors(f"{HP}tbl")).findall(f"{HP}tr/{HP}tc"))
+                  if other is cell), None)
+    standing = [(row, part, line) for row in parent.rows if not row.repeated and row.page == page
+                for part in row.cells if part.source_index == index
+                for line in part.lines_with_tables if number in line.tables]
+    if number is None or len(standing) != 1:
+        return None, None, f"{unknown}: " + ("no placed cell line is known to hold it" if not standing else
+                                             "more than one placed cell line holds it")
+    row, part, line = standing[0]
+    paragraphs = cell.findall(f"{HP}subList/{HP}p")
+    paragraph = paragraphs[line.paragraph] if line.paragraph < len(paragraphs) else None
+    if paragraph is None or _table_alone(paragraph.findall(f"{HP}run")) is not table:
+        return None, None, f"{unknown}: a table among the text of a cell line"
+    try:
+        from .pages import _on_its_line  # placement tracing only
+
+        flow = _on_its_line(measure, paragraph, table, replace(measured, caption=_caption(measure, table)),
+                            line.x, line.width, line.height)
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return None, None, unknown
+    top = None if None in (row.top, part.top, line.top, flow.drop) else \
+        row.top - row.table_offset + part.top + line.top + flow.drop  # type: ignore[operator]
+    left = None if None in (row.x, part.x, flow.left) else row.x + part.x + flow.left  # type: ignore[operator]
+    why = "" if top is not None else f"{unknown}: its cell line's top on the page is not measured" \
+        if None in (row.top, part.top, line.top) else f"{unknown}: its cell line is taller than it, or its rows' " \
+        "heights are not measured"
+    return top, left, why
 
 
 def _boxed_table_placement(address: tuple[int, int, int], measured: _FlowTable,

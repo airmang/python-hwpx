@@ -1631,7 +1631,10 @@ def _cell_text_ranges(measure: _Measure, paragraph: Any, runs: list[Any], width:
     if caches and _cached_metrics(paragraph) and _table_alone(runs) is None:
         content = _cache_line_content(paragraph, native)
     elif _placed_objects(runs) or _marks(runs) or native is None:
-        return ()
+        if not measure.trace or native is None:
+            return ()
+        from ._placement import _object_line_content  # placement tracing only
+        content = _object_line_content(measure, paragraph, runs, width, count, native)
     else:
         size, refs, sizes = _text_size(measure, runs, paragraph)
         shape = measure.shape(paragraph.get("paraPrIDRef"))

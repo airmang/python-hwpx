@@ -297,7 +297,11 @@ class ColumnArea:
 
 @dataclass(frozen=True)
 class PagePlacement:
-    """A zero-based page with paper size and body (x, y, width, height), all in HWPUNIT."""
+    """A zero-based page with paper size and body (x, y, width, height), all in HWPUNIT.
+
+    *number* is the page number Hancom prints on it as the placement counts them (from 1, or a section's
+    ``hp:startNum@page``, reset by an ``hp:newNum`` control); ``None`` where the count is not followed.
+    """
 
     page: int
     section: int
@@ -305,6 +309,7 @@ class PagePlacement:
     paper_height: int
     body: tuple[int, int, int, int]
     column_areas: tuple[ColumnArea, ...]
+    number: int | None = None
 
 
 @dataclass(frozen=True)

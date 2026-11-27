@@ -829,8 +829,12 @@ def test_objects_held_by_a_cell_or_a_text_box_stand_on_its_page():
     layout = estimate_layout(doc)
     assert layout.estimate == estimate_pages(doc)
     in_cell, holder, in_box = layout.objects
-    assert (in_cell.page, in_cell.x, in_cell.top) == (1, None, None)
-    assert in_cell.unavailable == ("object set as a character: its line has no horizontal origin or width",)
+    row, = layout.tables[0].rows
+    cell, = row.cells
+    line, = cell.lines  # laid out by the engine, the object one character of its own width: all its line holds
+    assert (line.source, line.height, line.text_start, line.text_end, line.text) == ("engine", 2000, 0, 8, "")
+    assert (in_cell.page, in_cell.unavailable) == (1, ())
+    assert (in_cell.x, in_cell.top) == (layout.pages[1].body[0] + row.x + cell.x + line.x, row.top + cell.top + line.top)
     assert holder.page == 1 and holder.top is not None  # its line holding an object keeps no text:
     assert holder.unavailable == ("a text box holding a table or a drawing: what it holds besides its text is not placed",)
     assert len(holder.lines) == 1 and holder.lines[0].text is None
@@ -866,9 +870,9 @@ def test_a_footer_hidden_on_a_page_is_not_given_there():
                           "hideFill": "0", "hidePageNum": "0"})
     assert footer_pages() == [0, 1]  # the last paragraph hides it on its page
     next(doc.sections[0].element.iter(f"{HP}footer")).set("applyPageType", "ODD")
-    odd, = [area for area in estimate_layout(doc).areas if area.kind == "footer"]
-    assert odd.page is None and odd.unavailable == (
-        "footer for odd or even pages: the layout does not count page numbers (hp:startNum, hp:newNum)",)
+    assert footer_pages() == [0]  # pages numbered 1 and 3, the third hiding it
+    next(doc.sections[0].element.iter(f"{HP}footer")).set("applyPageType", "EVEN")
+    assert footer_pages() == [1]
 
 
 def test_header_lines_stand_in_its_room_as_its_text_sets_them():
@@ -913,3 +917,125 @@ def test_text_box_lines_stand_in_the_box_as_its_text_sets_them():
     assert placed.unavailable == () and (line.text, line.source, line.height) == ("글상자에 적은 글", "engine", 1000)
     assert (line.x, line.width) == (margin, 20000 - 2 * margin)
     assert line.top == margin + (9000 - 2 * margin - 1000) // 2  # centred, as its text says
+
+def _nested(text_before=""):
+    """A document whose one table holds, in its cell, a two-row table set as a character (after *text_before*)."""
+
+    doc = HwpxDocument.new()
+    outer = doc.add_paragraph("").add_table(1, 1)
+    paragraph = outer.cell(0, 0).paragraphs[0]
+    if text_before:
+        paragraph.text = text_before
+    inner = paragraph.add_table(2, 1)
+    inner.cell(1, 0).text = "안쪽 표"
+    return doc, inner
+
+
+def test_a_nested_table_alone_on_its_cell_line_stands_on_that_line():
+    doc, inner = _nested()
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    outer_placed, inner_placed = layout.tables
+    row, = outer_placed.rows
+    cell, = row.cells
+    line, = cell.lines_with_tables  # laid out by the engine: the table is all its line holds
+    assert (line.tables, line.source) == ((inner_placed.table,), "engine")
+    margin = inner.element.find(f"{HP}outMargin")
+    first, second = inner_placed.rows
+    assert inner_placed.unavailable == () and inner_placed.moved is None
+    assert first.top == row.top - row.table_offset + cell.top + line.top + int(margin.get("top"))
+    assert second.top == first.top + first.height
+    assert first.x == second.x == row.x + cell.x + line.x + int(margin.get("left"))  # set left in its line's room
+    assert "".join(text.text for text in second.cells[0].lines) == "안쪽 표"
+
+    doc, _ = _nested("표 앞의 글")  # after text, laid out here: the line it stands on is not followed
+    among = estimate_layout(doc).tables[1]
+    assert all((placed.top, placed.x) == (None, None) for placed in among.rows)
+    assert among.unavailable[0] == "inline table origin not measured: no placed cell line is known to hold it"
+
+
+def test_an_object_among_the_engine_lines_of_a_cell_stands_past_the_text_before_it():
+    doc = HwpxDocument.new()
+    table = doc.add_paragraph("").add_table(1, 2)
+    paragraph = table.cell(0, 1).paragraphs[0]
+    paragraph.text = "가가"
+    doc.shapes.add_rectangle(3000, 1000, paragraph=paragraph, treat_as_char=True)
+    paragraph.add_run("가")
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.objects
+    row, = layout.tables[0].rows
+    cell = row.cells[1]
+    line, = cell.lines
+    assert (line.source, line.text_start, line.text_end, line.text) == ("engine", 0, 11, "가가가")  # the object: 8
+    assert placed.unavailable == () and placed.top == row.top + cell.top + line.top
+    pen = placed.x - (layout.pages[0].body[0] + row.x + cell.x + line.x)
+    assert pen == _object_among("가가", "가", "LEFT").objects[0].x - layout.pages[0].body[0]
+
+
+def _three_pages(**header):
+    doc = HwpxDocument.new()
+    doc.page.set_header(text="모든 쪽 머리말")
+    if header:
+        doc.page.set_header(**header)
+    body = estimate_layout(doc).pages[0].body[3]
+    for _ in range(2 * (body // 1600) + 3):
+        doc.add_paragraph("세 쪽을 채우는 문단")
+    return doc
+
+
+def _header_pages(doc):
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc) and layout.estimate.pages == 3
+    found = {}
+    for area in layout.areas:
+        if area.kind == "header":
+            found.setdefault(area.area, []).append(area.page)
+    return [page.number for page in layout.pages], found
+
+
+def test_odd_and_even_headers_follow_the_page_numbers_the_section_sets():
+    doc = _three_pages(text="홀수 쪽 머리말", page_type="ODD")
+    assert _header_pages(doc) == ([1, 2, 3], {0: [1], 1: [0, 2]})  # the last one applying to a page is drawn
+    start = next(doc.sections[0].element.iter(f"{HP}startNum"))
+    start.set("page", "2")
+    assert _header_pages(doc) == ([2, 3, 4], {0: [0, 2], 1: [1]})
+    start.set("page", "0")
+    paragraph = doc.sections[0].element.findall(f"{HP}p")[-1]  # on the third page
+    control = etree.SubElement(paragraph.find(f"{HP}run"), f"{HP}ctrl")
+    etree.SubElement(control, f"{HP}newNum", num="6", numType="PAGE")
+    assert _header_pages(doc) == ([1, 2, 6], {0: [1, 2], 1: [0]})
+    start.set("pageStartsOn", "ODD")  # 1 is odd: nothing added before the section
+    assert _header_pages(doc)[0] == [1, 2, 6]
+    start.set("page", "2")  # an even first number for a section starting on an odd page: Hancom adds a page
+    numbers, found = _header_pages(doc)
+    assert numbers == [None, None, 6] and found == {0: [2], 1: [None]}  # 6 is even: the one for every page
+    reason, = [area.unavailable for area in estimate_layout(doc).areas if area.area == 1]
+    assert reason == ("header for odd or even pages, or before one: the page numbers of its section are not counted",)
+
+
+def test_a_header_set_in_a_table_cell_starts_on_the_page_of_its_cell():
+    doc = _three_pages()
+    table = doc.add_paragraph("").add_table(1, 1)  # on the last page
+    header = next(doc.sections[0].element.iter(f"{HP}header"))
+    cell_run = table.cell(0, 0).paragraphs[0].element.find(f"{HP}run")
+    cell_run.append(header.getparent())  # its control moved into the cell
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc) and layout.estimate.pages == 3
+    area, = [area for area in layout.areas if area.kind == "header"]
+    assert (area.page, area.unavailable) == (2, ())
+    assert area.top + area.height == layout.pages[2].body[1]
+
+
+def test_a_header_copy_under_the_section_settings_is_not_placed():
+    doc = _three_pages()
+    header = next(doc.sections[0].element.iter(f"{HP}header"))
+    next(doc.sections[0].element.iter(f"{HP}secPr")).append(etree.fromstring(etree.tostring(header)))
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    copy, *shown = [area for area in layout.areas if area.kind == "header"]
+    assert copy.page is None and copy.unavailable == ((
+        "a header or footer kept under the section settings (hp:secPr): Hancom reads it from its control (hp:ctrl) "
+        "only, placed there"),)
+    assert [area.page for area in shown] == [0, 1, 2]
