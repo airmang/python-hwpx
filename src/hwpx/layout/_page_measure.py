@@ -2987,6 +2987,103 @@ def _at_one_height(metrics: tuple[tuple[int, int], ...], firsts: set[int]) -> tu
     return tuple(lines)
 
 
+def _room_beside(wrap: _Wrap, width: int) -> int:
+    """How wide a line of *width* is beside a square-wrapped object's band: its wider piece when the text
+    goes on both sides."""
+
+    return max(wrap.split, width - wrap.cut - wrap.split) if wrap.split else width - wrap.cut
+
+
+def _push(para: _Para, band: _Wrap, *, starts: bool) -> tuple[_Para, _Wrap | None]:
+    """*para* with the first line reaching a top-and-bottom object's *band* moved below it (the lines
+    after follow), and the band as the next paragraph sees it (``None`` once a line went below it).
+    The object stays on one page with the lines above it (*starts*: its band starts in *para*)."""
+
+    if para.anchor is not None or para.table is not None:
+        raise _Unsupported("an object beside a top-and-bottom object's band")
+    metrics = list(para.cached) or [(para.size, para.pitch)] * para.lines
+    top, rest, shifted = 0, None, 0
+    beside = sum(1 for line in range(para.lines) if para.span(0, line) < band.bottom)
+    for index, (height, advance) in enumerate(metrics):
+        if top < band.bottom and top + height > band.top and not (index == 0 and para.bare):
+            shift = band.bottom - top
+            if index == 0:
+                pushed, shifted = replace(para, prev=para.prev + shift), shift
+                if not starts:  # below an earlier paragraph's object: no line of it beside the band
+                    pushed, beside = replace(pushed, lead=shift), 0
+            else:  # the lines from it on go below the object, on a later page too
+                metrics[index - 1] = (metrics[index - 1][0], metrics[index - 1][1] + shift)
+                pushed, beside = replace(para, cached=tuple(metrics)), index
+            break
+        top += advance
+    else:
+        pushed, rest = para, band.lower(top + para.next)
+    return replace(pushed, wrap_lines=beside, wrap_bottom=band.bottom if starts else 0, wrap_push=starts,
+                   wrap_shift=shifted if starts else 0), rest
+
+
+def _in_two_pieces(para: _Para) -> _Para:
+    """*para*, one empty line, as Hancom writes it beside an object with text on both sides: two pieces at
+    one height."""
+
+    content = para.content
+    if len(content) == 1 and content[0].text == "":
+        first = replace(content[0], x=None, width=None)
+        content = (first, replace(first, start=first.end))
+    return replace(para, lines=2, cached=((para.size, 0), (para.size, para.pitch)), content=content)
+
+
+def _banded_object_lines(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
+                         shape: _Shape, wrap: _Wrap, objects: dict[int, tuple[int, int]], looks: list[Any] | None,
+                         end: int, head: int) -> tuple[tuple[tuple[int, int], ...], int]:
+    """(height, advance) of each line of text holding objects set as characters (*objects*: place -> width and
+    height) beside a square-wrapped object's band, and how far the first line goes down. A line whose top is in
+    the band is as wide as the room beside the object, one holding an object wider than that room too (the object
+    alone on it, reaching past the room). Every line taken as narrow at first, the lines are broken again until
+    the narrow ones settle."""
+
+    advances = {index: width for index, (width, _) in objects.items()} or None
+    mixed = sizes if len(set(sizes)) > 1 else None
+    heights = _line_sizes(measure, sizes, style, looks, shape)
+    if shape.font_line:
+        end, head = measure.font_line(end, style), measure.font_line(head, style)
+    narrow = set(range(len(text) + 1))
+    for _ in range(8):
+        widths_by_line = [widths[min(line, 1)] - (wrap.cut if line in narrow else 0)
+                          for line in range(min(max(narrow, default=0), len(text)) + 2)]
+        starts = measure.line_starts(text, widths_by_line, min(sizes), style, mixed, looks, advances)
+        metrics: list[tuple[int, int]] = []
+        found: set[int] = set()
+        top = lead = 0
+        for line, (start, stop) in enumerate(zip(starts, [*starts[1:], len(text)])):
+            span = range(start, stop) if stop > start else range(len(text) - 1, len(text))
+            size = max([heights[index] for index in span] + ([end] if stop == len(text) else [])
+                       + ([head] if start == 0 else []))
+            height = max([size] + [objects[index][1] for index in span if index in objects])
+            pitch = _pitch(shape.kind, shape.value, size)
+            advance = pitch if shape.kind == "FIXED" else height + pitch - size
+            if top < wrap.bottom and top + height > wrap.top:
+                found.add(line)
+            metrics.append((height, advance))
+            top += advance
+        if found == narrow:
+            return tuple(metrics), lead
+        narrow = found
+    raise _Unsupported("lines beside a square-wrapped object that do not settle")
+
+
+def _cached_jumps(paragraph: Any, metrics: tuple[tuple[int, int], ...]) -> tuple[tuple[int, int], ...]:
+    """*metrics* from the paragraph's layout cache with each line spaced down to where the cache puts the next
+    one on its page when that is lower (a line Hancom moved below a square-wrapped object's band)."""
+
+    tops = [int(segment.get("vertpos", 0)) for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg")]
+    lines = list(metrics)
+    for line, (above, below) in enumerate(zip(tops, tops[1:])):
+        if line < len(lines) and below - above > lines[line][1]:
+            lines[line] = (lines[line][0], below - above)
+    return tuple(lines)
+
+
 # -- laying the paragraphs out ---------------------------------------------------------------------
 
 
