@@ -1493,7 +1493,8 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
             _local(child) in _OBJECTS and (child.find(f"{HP}pos") is None or child.find(f"{HP}pos").get("treatAsChar") != "1")
             for paragraph in paragraphs for run in paragraph.findall(f"{HP}run") for child in run)):
         try:
-            detail = _cell_line_detail(measure, paragraphs, inner, lines, content, before, margins, sub_list, drawn)
+            detail = _cell_line_detail(measure, paragraphs, inner, lines, content, before, margins, sub_list, drawn,
+                                       metrics)
         except _Unsupported:
             pass  # additional measurements cannot change whether the page estimate answers
     if measure.trace and nested:  # its tables the layout took as tall as Hancom drew them, their rows not asked for
@@ -1510,13 +1511,14 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
 
 
 def _cell_line_detail(measure: _Measure, paragraphs: list[Any], width: int, count: int, height: int,
-                      before: int, margins: Any, sub_list: Any,
-                      drawn: tuple[tuple[int, int], ...] = ()) -> tuple[tuple[_CellLine, ...], ...]:
+                      before: int, margins: Any, sub_list: Any, drawn: tuple[tuple[int, int], ...] = (),
+                      known: tuple[tuple[int, int], ...] = ()) -> tuple[tuple[_CellLine, ...], ...]:
     """Retain the line metrics when the ordinary cell stack and its line sequence agree; *drawn*: the lines of a
-    cell laid out as Hancom drew them (:func:`_drawn_lines`), one for each line of its paragraphs' layout caches.
-    A drawn line taking the room of an object above it has no top of its own."""
+    cell laid out as Hancom drew them (:func:`_drawn_lines`), one for each line of its paragraphs' layout caches
+    (a drawn line taking the room of an object above it has no top of its own); *known*: the cell's lines as
+    :meth:`_Measure.stack_lines` lays them out, when its row read them already."""
 
-    metrics = drawn or measure.stack_lines(paragraphs, width, caches=True)
+    metrics = drawn or known or measure.stack_lines(paragraphs, width, caches=True)
     if not metrics or len(metrics) != count or _lines_height(metrics, (before,)) != height:
         return ()
     aligned = sub_list is not None and sub_list.get("vertAlign") == "TOP"
@@ -1525,7 +1527,8 @@ def _cell_line_detail(measure: _Measure, paragraphs: list[Any], width: int, coun
     for paragraph in paragraphs:
         runs = paragraph.findall(f"{HP}run")
         segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg") if drawn else []
-        length = len(segments) if drawn else len(measure.stack_lines([paragraph], width, caches=True))
+        length = len(segments) if drawn else 1 if _table_alone(runs) is not None and not _run_text(runs) \
+            else len(measure.stack_lines([paragraph], width, caches=True))  # (a table alone is one line)
         if cursor + length > len(metrics):
             return ()
         content = _cell_text_ranges(measure, paragraph, runs, width, length)

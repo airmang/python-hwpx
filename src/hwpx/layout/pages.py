@@ -389,7 +389,11 @@ class TableCellPlacement:
 
 @dataclass(frozen=True)
 class TableRowPlacement:
-    """A placed row or row fragment. The half-open line range is the row's measured split sequence."""
+    """A placed row or row fragment. The half-open line range is the row's measured split sequence.
+
+    *table_offset* is how far below the table's first row on that page the row stands; it is not measured (0)
+    for a row without a *height*.
+    """
 
     row: int
     page: int
