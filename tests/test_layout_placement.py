@@ -11,20 +11,29 @@ HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
 
-def _saved_lines(paragraph, lines=1, *, top=0, height=1000, spacing=600, width=40000):
-    """Give *paragraph* the layout cache a document saved by Hancom carries: *lines* lines of *height*, the first
-    *top* down its cell, the text cut evenly between them. Where the next paragraph's first line goes."""
+def _saved_lines(paragraph, starts=(0,), heights=None, *, top=0, spacing=600, width=40000):
+    """Give *paragraph* the layout cache a document saved by Hancom carries: a line starting at each of *starts*
+    (text positions as Hancom counts them, an object taking 8), each as tall as *heights* says (1000 otherwise),
+    the first *top* down. Where the next paragraph's first line goes."""
 
     for old in paragraph.findall(f"{HP}linesegarray"):
         paragraph.remove(old)
     array = etree.SubElement(paragraph, f"{HP}linesegarray")
-    length = sum(len(text.text or "") for text in paragraph.iter(f"{HP}t") if text.getparent().getparent() is paragraph)
-    for line in range(lines):
-        etree.SubElement(array, f"{HP}lineseg", textpos=str(line * (length // lines)),
-                         vertpos=str(top + line * (height + spacing)), textheight=str(height), vertsize=str(height),
-                         baseline=str(height * 85 // 100), spacing=str(spacing), horzpos="0", horzsize=str(width),
-                         flags="393216")
-    return top + lines * (height + spacing)
+    for start, height in zip(starts, heights or (1000,) * len(starts)):
+        etree.SubElement(array, f"{HP}lineseg", textpos=str(start), vertpos=str(top), textheight=str(height),
+                         vertsize=str(height), baseline=str(height * 85 // 100), spacing=str(spacing), horzpos="0",
+                         horzsize=str(width), flags="393216")
+        top += height + spacing
+    return top
+
+
+def _declared_rows(table, height):
+    """Make every row of *table* as tall as its cells declare, *height*, and the table as tall as its rows (as
+    Hancom saves hp:sz)."""
+
+    for cell in table.element.iter(f"{HP}tc"):
+        cell.find(f"{HP}cellSz").set("height", str(height))
+    table.element.find(f"{HP}sz").set("height", str(height * len(table.element.findall(f"{HP}tr"))))
 
 
 def test_preserves_the_estimate_and_reports_engine_text_ranges():
@@ -322,12 +331,158 @@ def test_a_nested_table_stands_on_the_page_of_the_cell_line_holding_it():
     assert outer_placed.split == "cell-lines"
     first, second = outer_placed.rows
     assert (first.page, second.page) == (0, 1) and first.line_end == second.line_start
+    assert all(row.cells[0].lines == () for row in outer_placed.rows)  # text is not all the cell holds
     holding = [(row.page, line.paragraph, line.text, line.tables)
-               for row in outer_placed.rows for line in row.cells[0].lines if line.tables]
+               for row in outer_placed.rows for line in row.cells[0].lines_with_tables if line.tables]
     assert holding == [(1, 71, None, (inner_placed.table,))]
     assert [(row.page, row.row) for row in inner_placed.rows] == [(1, 0), (1, 1)]
     assert inner_placed.moved is None  # a table in a cell has no anchor line of its own in the body
-    shown = ["".join(line.text for line in row.cells[0].lines if line.text) for row in outer_placed.rows]
+    shown = ["".join(line.text for line in row.cells[0].lines_with_tables if line.text) for row in outer_placed.rows]
     assert shown[0].startswith("칸을 여는 문단") and shown[1].endswith("안쪽 표 다음 문단")
     assert "".join(line.text for row in inner_placed.rows for line in row.cells[0].lines) == (
         "안쪽 표의 첫 행안쪽 표의 둘째 행")
+
+
+def test_a_table_among_cached_lines_stands_on_the_line_holding_its_place():
+    doc = HwpxDocument.new(empty_first_line=True)
+    body = estimate_layout(doc).pages[0].body[3]
+    before, after = "표보다 앞선 글", "표를 지난 글"
+    paragraph = doc.add_paragraph(before)
+    table = paragraph.add_table(2, 2)
+    table.cell(0, 0).text = "글 가운데 놓인 표"
+    paragraph.add_run(after)
+    tall = (body - 1200) // 2
+    _declared_rows(table, tall)
+    # the lines as saved: the text before the table, the table (8 places in the cache), the text after it
+    _saved_lines(paragraph.element, (0, len(before), len(before) + 8), (1000, 2 * tall, 1000))
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    lines = layout.paragraphs[-1].lines
+    assert [line.position.page for line in lines] == [0, 1, 2]  # the table's line does not fit under the first
+    assert [(line.text, line.source) for line in lines] == [(before, "cache"), ("", "cache"), (after, "cache")]
+    placed, = layout.tables
+    assert [(row.page, row.row, row.height) for row in placed.rows] == [(1, 0, tall), (1, 1, tall)]
+    assert placed.moved is True and placed.unavailable == ("inline table origin not measured",)
+    assert "".join(line.text for line in placed.rows[0].cells[0].lines) == "글 가운데 놓인 표"
+
+
+def test_a_table_among_the_cached_lines_of_a_cell_is_named_on_its_line():
+    doc = HwpxDocument.new()
+    outer = doc.add_paragraph("").add_table(1, 1)
+    before, after = "칸 안에서 표보다 앞선 글", "표를 지난 글"
+    paragraph = outer.cell(0, 0).paragraphs[0]
+    paragraph.text = before
+    inner = paragraph.add_table(1, 2)
+    inner.cell(0, 1).text = "칸 속에 든 표"
+    paragraph.add_run(after)
+    _declared_rows(outer, 8000)
+    _declared_rows(inner, 3000)
+    _saved_lines(paragraph.element, (0, len(before)), (1000, 3000))
+    for cell_paragraph in inner.element.iter(f"{HP}p"):
+        _saved_lines(cell_paragraph)
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    outer_placed, inner_placed = layout.tables
+    cell, = outer_placed.rows[0].cells
+    assert cell.lines == () and "the cell holds tables: its lines are in lines_with_tables" in cell.unavailable
+    assert [(line.text, line.source, line.tables) for line in cell.lines_with_tables] == [
+        (before, "cache", ()), (None, "cache", (inner_placed.table,))]
+    assert cell.lines_with_tables[1].text_start == len(before)  # the line's range stays, its text is not text alone
+    assert [(row.page, row.height) for row in inner_placed.rows] == [(0, 3000)]
+    assert "".join(line.text for line in inner_placed.rows[0].cells[1].lines) == "칸 속에 든 표"
+
+
+def test_a_table_placed_on_the_paper_keeps_its_rows_where_its_band_stands():
+    doc = HwpxDocument.new()
+    doc.add_paragraph("종이 위 자리에 놓인 표가 있는 쪽")
+    table = doc.add_paragraph("").add_table(2, 2)
+    table.cell(1, 1).text = "종이 위의 표"
+    table.element.set("textWrap", "TOP_AND_BOTTOM")
+    table.element.find(f"{HP}pos").attrib.update({
+        "treatAsChar": "0", "flowWithText": "0", "vertRelTo": "PAPER", "vertAlign": "TOP", "vertOffset": "30000",
+        "horzRelTo": "PAPER", "horzAlign": "LEFT", "horzOffset": "8504",
+    })
+    doc.add_paragraph("표와 겹치지 않는 문단")
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    placed, = layout.tables
+    first, second = placed.rows
+    assert (first.page, first.top, second.page, second.top) == (0, 30000, 0, 30000 + first.height)
+    assert placed.moved is False and placed.unavailable == ()
+    assert "".join(line.text for line in second.cells[1].lines) == "종이 위의 표"
+
+
+def test_a_square_wrapped_table_beside_cached_lines_stands_at_its_band():
+    doc = HwpxDocument.new(empty_first_line=True)
+    paragraph = doc.add_paragraph("")
+    table = paragraph.add_table(2, 1)
+    table.cell(0, 0).text = "글 옆에 선 표"
+    table.element.attrib.update({"textWrap": "SQUARE", "textFlow": "BOTH_SIDES"})
+    table.element.find(f"{HP}sz").set("width", "12000")
+    for cell in table.element.iter(f"{HP}tc"):
+        cell.find(f"{HP}cellSz").set("width", "12000")
+    table.element.find(f"{HP}pos").attrib.update({
+        "treatAsChar": "0", "flowWithText": "1", "vertRelTo": "PARA", "vertAlign": "TOP", "vertOffset": "0",
+        "horzRelTo": "COLUMN", "horzAlign": "RIGHT", "horzOffset": "0",
+    })
+    _declared_rows(table, 2500)
+    text = "표 곁을 따라 흐르는 글 " * 9
+    paragraph.add_run(text)
+    third = len(text) // 3
+    _saved_lines(paragraph.element, (0, 8 + third, 8 + 2 * third), width=28000)  # as broken beside the table
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    lines = layout.paragraphs[-1].lines
+    assert [line.source for line in lines] == ["cache"] * 3
+    placed, = layout.tables
+    assert [(row.page, row.top, row.height) for row in placed.rows] == [
+        (0, lines[0].top, 2500), (0, lines[0].top + 2500, 2500)]
+    assert placed.unavailable == ()
+
+
+def test_a_table_gone_on_whole_to_the_next_page_is_placed_at_its_top():
+    doc = HwpxDocument.new()
+    body = estimate_layout(doc).pages[0].body[3]
+    for _ in range((body - 12000) // 1600):
+        doc.add_paragraph("앞 쪽을 채우는 문단")
+    paragraph = doc.add_paragraph("표를 지닌 문단")
+    table = paragraph.add_table(3, 1)
+    table.element.attrib.update({"textWrap": "TOP_AND_BOTTOM", "pageBreak": "NONE"})
+    table.element.find(f"{HP}pos").attrib.update({
+        "treatAsChar": "0", "flowWithText": "1", "vertRelTo": "PARA", "vertAlign": "TOP", "vertOffset": "0",
+        "horzRelTo": "COLUMN", "horzAlign": "LEFT", "horzOffset": "0",
+    })
+    _declared_rows(table, 6000)
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    assert layout.estimate.pages == 2
+    assert [line.position.page for line in layout.paragraphs[-1].lines] == [0]  # its line stays
+    placed, = layout.tables
+    top = layout.pages[1].body[1]
+    assert [(row.page, row.top) for row in placed.rows] == [(1, top), (1, top + 6000), (1, top + 12000)]
+    assert placed.moved is True and placed.split is None and placed.unavailable == ()
+
+
+def test_a_table_the_layout_does_not_place_says_why():
+    doc = HwpxDocument.new()
+    floating = doc.add_paragraph("").add_table(1, 1)
+    floating.element.set("textWrap", "IN_FRONT_OF_TEXT")
+    floating.element.find(f"{HP}pos").attrib.update({"treatAsChar": "0", "vertRelTo": "PARA", "horzRelTo": "PARA"})
+    doc.page.set_header(text="머리말")
+    header = next(doc.sections[0].element.iter(f"{HP}header"))
+    held = doc.add_paragraph("").add_table(1, 1)
+    moved = held.element.getparent()
+    header.find(f"{HP}subList/{HP}p").append(moved)  # the run holding the table, into the header's paragraph
+
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    reasons = {reason for placed in layout.tables if not placed.rows for reason in placed.unavailable}
+    assert reasons == {
+        "a table in front of or behind the text takes no room in the layout: its place is not computed",
+        "a table in a header: what a header holds is not placed row by row",
+    }

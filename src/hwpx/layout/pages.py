@@ -247,7 +247,7 @@ from ._page_measure import (  # noqa: F401
     _ObjectAnchorTrace,
     _drawn_height_value,
     _DRAWINGS,
-    _SAVED_HEIGHT_DIFFERS, _trace_table_rows, _table_lines,
+    _SAVED_HEIGHT_DIFFERS, _trace_table_rows, _table_lines, _cached_line_tables, _traced_table,
 )
 
 if TYPE_CHECKING:
@@ -344,6 +344,7 @@ class TableCellLinePlacement:
 
     A line holding tables set as characters names them in *tables* (each the ``table`` index of its
     :class:`TablePlacement` in the same body paragraph) and has no *text*: what it holds is not text alone.
+    Such lines are only found in :attr:`TableCellPlacement.lines_with_tables`.
     """
 
     paragraph: int
@@ -362,7 +363,12 @@ class TableCellLinePlacement:
 
 @dataclass(frozen=True)
 class TableCellPlacement:
-    """A cell inside a table fragment. Horizontal coordinates are table-relative in HWPUNIT."""
+    """A cell inside a table fragment. Horizontal coordinates are table-relative in HWPUNIT.
+
+    *lines* are the text lines of a cell that holds no table. A cell holding tables keeps *lines* empty, so that
+    text is not taken for all it holds, and gives the lines of this part in *lines_with_tables*: its text lines
+    and, in their place among them, the lines its tables stand on.
+    """
 
     row: int
     column: int
@@ -377,6 +383,7 @@ class TableCellPlacement:
     source_index: int | None = None
     line_start: int | None = None
     line_end: int | None = None
+    lines_with_tables: tuple[TableCellLinePlacement, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -488,6 +495,14 @@ class _TableCapture:
     finish: tuple[int, int]
     absolute: bool = True
     lift: int = 0
+    vague: str = "inline table origin not measured"  # why its rows have no tops, when not *absolute*
+
+
+#: A table set down as one block (see :func:`_traced_table`) with a caption above or below it: the layout gives
+#: the caption no room there.
+_CAPTION_ROOM = "table origin not measured: the layout gives its caption no room on this path"
+#: A table wrapped square beside lines kept from a layout cache passes the page's foot, and may split.
+_SQUARE_SPLIT = "a square-wrapped table beside cached lines passes the page foot: where it goes on is not laid out"
 
 
 @dataclass(frozen=True)
@@ -518,6 +533,7 @@ class _FrameTrace:
     objects: tuple[_ObjectFrame, ...] = ()
     areas: tuple[_AreaFrame, ...] = ()
     column_start: int = 0
+    untraced: tuple[tuple[Any, str], ...] = ()  # (table, why the layout path keeps no rows for it)
 
 
 class _BandMoves(Exception):
@@ -1281,7 +1297,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     beside = anchored is not None and len(objects) > 1  # objects set as characters on the lines below it
     alone = bool(objects) and not among and anchored is None  # an object with no text: one line as tall
     cached = () if alone else _cached_metrics(paragraph)
-    cache_used = bool(cached)
+    cache_used = cache_kept = bool(cached)
     native_controls: dict[Any, int] | None = {} if measure.trace and (among or beside) and not cache_used else None
     native = measure.native_positions(paragraph, controls=native_controls) if measure.trace else None
     starts: list[int] | None = [] if native is not None and not (cache_used or alone or among or beside) else None
@@ -1303,6 +1319,7 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
     if alone and wrap is None:  # spaces besides it, those that do not fit going on to the next line
         spread = measure.spread_lines(paragraph, runs, page.column_width, end, head, caches=True)
         alone, cached = (False, spread) if spread else (alone, cached)
+        cache_kept = bool(spread) and bool(_cached_metrics(paragraph))  # those lines are its layout cache's
     if among or beside:
         apart = (*stacked, *(() if square is None else (square,)))
         positions: dict[int, Any] | None = {} if native is not None and native_controls is not None and wrap is None else None
@@ -1408,6 +1425,8 @@ def _paragraph(measure: _Measure, page: _Page, paragraph: Any, wrap: _Wrap | Non
         inline = measure.inline_tables.get(measure.source_control(objects[0]))
         if inline is not None:
             inline_tables = ((inline_line, replace(inline, caption=_caption(measure, objects[0]))),)
+    if measure.trace and cache_kept and not inline_tables:  # the tables on the lines Hancom drew
+        inline_tables = _cached_line_tables(measure, paragraph, runs, para.lines)
     if inline_tables:
         para = replace(para, inline_tables=inline_tables)
     if measure.trace and alone and _local(objects[0]) != "tbl":
@@ -1631,11 +1650,12 @@ def _trace_object_x(obj: Any, page: _Page) -> tuple[int | None, bool]:
 
 def _object_trace(measure: _Measure, obj: Any, *, line: int = 0, top: int | None = None,
                   x: int | None = None, paper_x: bool = False) -> tuple[_ObjectAnchorTrace, ...]:
-    if not measure.trace or _local(obj) == "tbl":
+    table = _traced_table(measure, obj) if measure.trace and _local(obj) == "tbl" else None
+    if not measure.trace or _local(obj) == "tbl" and table is None:
         return ()
     source = measure.source_control(obj)
     return (_ObjectAnchorTrace(source, line, None if top is None else top + _object_margin(obj, "top"),
-                               None if x is None else x + _object_margin(obj, "left"), paper_x),)
+                               None if x is None else x + _object_margin(obj, "left"), paper_x, table),)
 
 
 def _spans(measure: _Measure, page: _Page, table: Any) -> tuple[_FlowTable, int, _Wrap]:
@@ -1995,6 +2015,7 @@ class _Paginator:
         self.counts: list[int] = []  # lines per paragraph
         self.details: list[_LineDetail] | None = [] if trace else None
         self.table_captures: dict[Any, _TableCapture] = {}
+        self.untraced: dict[Any, str] = {}  # table -> why its rows are not kept
         self.object_captures: dict[Any, _ObjectFrame] = {}
         self.placed_notes: dict[int, list[_AreaFrame]] = {}
         self.split_notes: set[int] = set()
@@ -2034,13 +2055,21 @@ class _Paginator:
                 if 0 <= line < self.counts[-1]:
                     self._whole_table(table, self.out[first + line][0], 0, absolute=False)
             for candidate in para.object_traces:
-                if 0 <= candidate.line < self.counts[-1] and candidate.source not in self.object_captures:
+                if 0 <= candidate.line < self.counts[-1] and not any(
+                        candidate.source in kept for kept in (self.object_captures, self.table_captures, self.untraced)):
                     frame, top = self.out[first + candidate.line]
-                    y = top + candidate.y if candidate.y is not None else None
-                    self.object_captures[candidate.source] = _ObjectFrame(
-                        candidate.source, frame, y, candidate.x, candidate.paper_x,
-                    )
+                    self._capture(candidate, frame, top + candidate.y if candidate.y is not None else None)
         return max(self.out[-1][0] if self.out else 0, self.table_end) + 1
+
+    def _capture(self, trace: _ObjectAnchorTrace, frame: int, y: int | None) -> None:
+        """Keep where a traced object stands in *frame*: a table as its rows from *y* down, anything else as its
+        frame."""
+
+        if trace.table is None:
+            self.object_captures[trace.source] = _ObjectFrame(trace.source, frame, y, trace.x, trace.paper_x)
+        elif y is not None:
+            self._whole_table(trace.table, frame, y + trace.table.caption[0],
+                              absolute=trace.table.caption == (0, 0), vague=_CAPTION_ROOM)
 
     def _record_note_frame(self, para: _Para, line: int, frame: int) -> None:
         if self.carry:
@@ -2060,12 +2089,14 @@ class _Paginator:
                 y += (note.height or 0) + self.notes.between
         return tuple(areas)
 
-    def _whole_table(self, table: _FlowTable, frame: int, top: int, *, absolute: bool = True) -> None:
+    def _whole_table(self, table: _FlowTable, frame: int, top: int, *, absolute: bool = True,
+                     vague: str = "inline table origin not measured") -> None:
         if table.source is not None:
             parts: list[_RowPart] = []
             _whole_rows(table, frame, top, 0, len(table.rows), parts)
             end = top + sum(row.height for row in table.rows)
-            self.table_captures[table.source] = _TableCapture(table, parts, frame, (frame, end), absolute)
+            self.table_captures[table.source] = _TableCapture(table, parts, frame, (frame, end), absolute,
+                                                              vague=vague)
 
     def _flow_placement(self, table: _FlowTable, frame: int, top: int, *, lift: int = 0) -> tuple[int, int]:
         parts: list[_RowPart] | None = [] if table.source is not None else None
@@ -2149,12 +2180,11 @@ class _Paginator:
             self.wrap_frame, line = self.out[first + anchor]
             self.wrap_moved = line - ahead + para.wrap_bottom - para.wrap_shift > self.body \
                 and not para.wrap_stays
-            if self.wrap_moved and para.wrap_fixed and self.columns == 1:
-                for obj in para.object_traces:
-                    if obj.y is not None:
-                        self.object_captures[obj.source] = _ObjectFrame(
-                            obj.source, self.wrap_frame + 1, _object_margin(obj.source, "top"), obj.x, obj.paper_x,
-                        )
+            for obj in para.object_traces if self.wrap_moved and para.wrap_fixed else ():
+                if obj.y is not None and obj.table is not None and (obj.table.mode != "NONE" or self.columns > 1):
+                    self.untraced[obj.source] = _SQUARE_SPLIT  # Hancom splits it over the page end
+                elif obj.y is not None and self.columns == 1:
+                    self._capture(obj, self.wrap_frame + 1, _object_margin(obj.source, "top"))
         if self.wrap_moved and not para.wrap_fixed and (para.wrap_bottom or para.wrap_lines):
             if para.wrap_bottom and self.columns == 1:  # its object goes on to the next page's top: again
                 raise _BandMoves(index)
@@ -2633,9 +2663,7 @@ class _Paginator:
                 self._move_band(para.moved)
                 for candidate in para.object_traces:
                     if candidate.y is not None:
-                        self.object_captures[candidate.source] = _ObjectFrame(
-                            candidate.source, self.frame + 1, candidate.y, candidate.x, candidate.paper_x,
-                        )
+                        self._capture(candidate, self.frame + 1, candidate.y)
                 para = replace(para, moved=None)
             if hit is not None and hit[0] < count:  # the lines above it stay, the next goes below it
                 count = hit[0]
@@ -2975,6 +3003,10 @@ def _page_object_frames(measure: _Measure, section: Any, page: _Page, paginator:
             pos = obj.find(f"{HP}pos")
             if _on_paper(obj):
                 top, _, _, _, _ = next(bands)
+                table = _traced_table(measure, obj) if _local(obj) == "tbl" else None
+                if table is not None:  # as tall as its rows, from the top of its band on its anchor's page
+                    paginator._whole_table(table, anchor_page * page.columns, top + table.above,
+                                           absolute=table.caption == (0, 0), vague=_CAPTION_ROOM)
                 if _local(obj) == "tbl":
                     continue
             elif (_floating(obj) and pos is not None and pos.get("flowWithText") == "0"
@@ -2997,10 +3029,10 @@ def _page_object_frames(measure: _Measure, section: Any, page: _Page, paginator:
 
 def _frame_trace(paginator: _Paginator, columns: int, page: int = 0, top: int = 0) -> _FrameTrace | None:
     areas = paginator._note_frames() if paginator.placed_notes else ()
-    if not (paginator.table_captures or paginator.object_captures or areas):
+    if not (paginator.table_captures or paginator.object_captures or areas or paginator.untraced):
         return None
     return _FrameTrace(tuple(paginator.table_captures.values()), columns, page, top,
-                       tuple(paginator.object_captures.values()), areas)
+                       tuple(paginator.object_captures.values()), areas, untraced=tuple(paginator.untraced.items()))
 
 
 #: A column area starts this far below the lowest line of the one before it on its page (4 mm), whatever the
@@ -3169,6 +3201,7 @@ def _placement_result(
         assert paper is not None and details is not None and len(details) == len(layout.lines)
         body = paper.left, paper.top, paper.text_width, paper.body
         for scope in layout.placement_frames:
+            untraced = {**(untraced or {}), **dict(scope.untraced)}
             for capture in scope.captures:
                 table_captures[capture.table.source] = (capture, scope, len(pages), paper.top)
             for captured in scope.objects:
@@ -3209,7 +3242,7 @@ def _placement_result(
                 else:
                     result = None
                 if result is None:
-                    reason = (untraced or {}).get(table, "table placement not retained by the layout path")
+                    reason = (untraced or {}).get(table) or _unplaced_table(table, table in inline_tables, by_source)
                     result = TablePlacement(*address, (), unavailable=(reason,))
                 origin = paragraph_origins.get((section, index))
                 if result.rows and origin is not None and table.getparent().getparent() is paragraph:
@@ -3305,7 +3338,7 @@ def _table_placement(address: tuple[int, int, int], capture: _TableCapture, scop
     table, parts = capture.table, capture.rows
     unavailable = []
     if not capture.absolute:
-        unavailable.append("inline table origin not measured")
+        unavailable.append(capture.vague)
     if table.doubt is not None:
         unavailable.append(table.doubt)
     if any(part.start is None for part in parts):
@@ -3391,6 +3424,29 @@ def _nested_table_placement(address: tuple[int, int, int], table: Any, measured:
 _TABLE_HOLDERS = frozenset(("tc", "drawText", "caption", "header", "footer", "footNote", "endNote"))
 
 
+def _unplaced_table(table: Any, measured: bool, placements: dict[Any, TablePlacement]) -> str:
+    """Why the layout path keeps no rows for *table* (*measured*: its rows were read)."""
+
+    holder = _table_holder(table)
+    if holder is not None and _local(holder) != "tc":
+        kind = {"drawText": "a text box", "caption": "a caption", "header": "a header", "footer": "a footer",
+                "footNote": "a footnote", "endNote": "an endnote"}[_local(holder)]
+        return f"a table in {kind}: what {kind} holds is not placed row by row"
+    if holder is None:
+        if _floating(table):
+            return "a table in front of or behind the text takes no room in the layout: its place is not computed"
+        return "table placement not retained by the layout path"
+    parent = placements.get(next(holder.iterancestors(f"{HP}tbl"), None))
+    if parent is None or not parent.rows:
+        return "the table holding it has no row placement"
+    if not measured:
+        return "its cell is laid out without reading the table's rows"
+    position = table.find(f"{HP}pos")
+    if position is not None and position.get("treatAsChar") == "1":
+        return "its parent's row does not stand whole on one page, and the cell line the table stands on is not followed"
+    return "its parent's row does not stand whole on one page, and the table is followed through its cell's lines, not row by row"
+
+
 def _table_holder(table: Any) -> Any:
     """The nearest cell, text box, caption, header, footer or note holding *table*; ``None`` in the body."""
 
@@ -3462,12 +3518,16 @@ def _table_cells(part: _RowPart, outline: dict[tuple[int, int, bool], _RowPart],
             unavailable.append(table.doubt)
         lines = tuple(_table_cell_line(p, i, line, starts_cell, styles[p], numbers)
                       for p, i, line in measured_lines if p < len(styles))
+        among: tuple[TableCellLinePlacement, ...] = ()
+        if measured.nested and lines:
+            lines, among = (), lines
+            unavailable.append("the cell holds tables: its lines are in lines_with_tables")
         if nested_places is not None and place is not None and not part.repeated:
             for _, _, line in measured_lines:
                 for held in line.tables:
                     nested_places.setdefault(held, []).append(place)
         result.append(TableCellPlacement(source_row, column, span, columns, x, top,
-                                         width, height, lines, tuple(unavailable), source_index, low, high))
+                                         width, height, lines, tuple(unavailable), source_index, low, high, among))
     return tuple(sorted(result, key=lambda cell: cell.column))
 
 
